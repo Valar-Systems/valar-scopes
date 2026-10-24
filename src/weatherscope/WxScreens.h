@@ -1,10 +1,11 @@
-// Weatherscope 3.3d's screen layer (docs/weatherscope-stage3.md A8.20): everything about a screen that is not a pixel
-// of the map -- the stored-mode scenario cycle, the warning's title, the clock text, the headline's wrap, every
-// overlay's rectangle, and the town labels on top of Q6(a) -- as pure C++11, so the host builds the SAME layout the
-// board draws (test/host/test_wx_screens.cpp, and its --layout mode, which A8.21's rectangle tables come from).
+// Weatherscope's screen layer: the stored-mode scenario cycle (3.3d, Q10), and 3.5a's map screens
+// (docs/weatherscope-stage3.md A9.2, A9.10) -- the reviewer's generator's layout rules (wxmock.py), the state line, the
+// warning texts and arrow (Q17), the stale rules (Q15, Q18) and the zoom ladder -- as pure C++11, drawn only through
+// WxRaster.h. test/host/test_wx_layout.cpp holds the rules to A9.10's truth tables, and whole frames are held to
+// tools/weatherscope/screens/ref35.py at 57,600 pixels (the K rows). No coordinate is stored here.
 //
-// Every overlay is a rectangle, drawn opaque (a black box under each text), so the board's /diag/fb image can be
-// held to the map's reference everywhere else (A8.19 item 3). No coordinate is stored here.
+// Every expression that decides a pixel is written in the SAME order as ref35.py (and so as wxmock.py), because the
+// two are compared bit for bit: int() is (int), and every pixel rounding is wxraster::Rnd, floor(v + 0.5) (A9.4).
 
 #pragma once
 
@@ -14,20 +15,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "LongPressPolicy.h"
+#include "RadarZoom.h"
 #include "WxCrop.h"
 #include "WxLogic.h"
+#include "WxPalette.h"
+#include "WxRaster.h"
 #include "WxRender.h"
-#include "WxScenarios.h"
 #include "WxTowns.h"
 
 namespace wxscreens {
 
 using wxlogic::LatLon;
+using wxraster::Rgb;
 
 // ------------------------------------------------------------------------- the scenario cycle (Q10 (a); CY)
 
 constexpr uint32_t kHoldMs = 30000;
-constexpr int kScenarios = 4;   // wxscen::Kind's order: Dry, Approaching, HereNow, Warning
+constexpr int kScenarios = 6;   // wxscen::Kind's order: Dry, Approaching, HereNow, Warning, Stale, Clear (Q15)
 
 struct Cycle {
     int index = 0;          // into wxscen::Kind
@@ -58,9 +63,9 @@ inline bool Step(Cycle& c, uint32_t nowMs, bool storedFeeds)
 }
 inline void Pause(Cycle& c, bool paused) { c.paused = paused; }
 
-// ------------------------------------------------------------------------------------ text (WT, CK, HW, TB)
+// ------------------------------------------------------------------------------------------- text (WT, CK)
 
-// The warning screen's two title lines (mockup 3: "SEVERE T-STORM" / "WARNING"); false for anything else.
+// The warning's title (mockup 3: "SEVERE T-STORM") and the word under it; false for anything but the four.
 inline bool WarningTitle(const char* event, const char** line1, const char** line2)
 {
     static const char* const kTitle[4] = {"TORNADO", "SNOW SQUALL", "SEVERE T-STORM", "FLASH FLOOD"};
@@ -80,246 +85,559 @@ inline void ClockText(int64_t utc, int offMin, char* out, size_t cap)
     snprintf(out, cap, "%d:%02d %s", h % 12 == 0 ? 12 : h % 12, m, h < 12 ? "AM" : "PM");
 }
 
-constexpr int kMaxLine = 40;
+// ------------------------------------------------------------------------------- boxes (OV, CI, IC)
 
-// Greedy word wrap at maxChars per line; returns the line count (at most maxLines). A word longer than a line is
-// placed alone on its line, uncut.
-inline int Wrap(const char* s, int maxChars, char (*lines)[kMaxLine], int maxLines)
-{
-    int n = 0, len = 0;
-    for (const char* p = s; *p && n <= maxLines;) {
-        while (*p == ' ') ++p;
-        if (!*p) break;
-        const char* e = p;
-        while (*e && *e != ' ') ++e;
-        const int w = (int)(e - p);
-        if (n > 0 && len > 0 && len + 1 + w <= maxChars) {
-            lines[n - 1][len++] = ' ';
-        } else {
-            if (n == maxLines) break;
-            ++n;
-            len = 0;
-        }
-        for (int i = 0; i < w && len < kMaxLine - 1; ++i) lines[n - 1][len++] = p[i];
-        lines[n - 1][len] = '\0';
-        p = e;
-    }
-    return n;
-}
-
-struct Rect {
-    int x, y, w, h;   // pixels: [x, x + w) x [y, y + h)
-};
-inline bool operator==(const Rect& a, const Rect& b) { return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h; }
-inline bool Overlaps(const Rect& a, const Rect& b)
-{
-    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-}
-
-// The panel font: 6 x 8 px per character per size step. A text item is centred on x = 120 (A8.20).
-constexpr int kCharW = 6, kCharH = 8;
-inline Rect TextBox(size_t nChars, int size, int y)
-{
-    const int w = kCharW * (int)nChars * size;
-    return Rect{wxrender::kSize / 2 - w / 2, y, w, kCharH * size};
-}
-
-// The pixels at least one rectangle covers, inside the 240 x 240 screen (UN).
-inline long UnionArea(const Rect* r, int n)
-{
-    long count = 0;
-    for (int y = 0; y < wxrender::kSize; ++y)
-        for (int x = 0; x < wxrender::kSize; ++x)
-            for (int i = 0; i < n; ++i)
-                if (x >= r[i].x && x < r[i].x + r[i].w && y >= r[i].y && y < r[i].y + r[i].h) { ++count; break; }
-    return count;
-}
-
-// ---------------------------------------------------------------------------------- the map's projection
-
-// The pixel a place lands on: WxRender's projection, x = 120 + dLon / rLon * 120, y = 120 - dLat / rLat * 120,
-// floored (pixel x covers [x, x + 1), and is sampled at its centre).
-inline int ProjX(const wxrender::View& v, double lon)
-{
-    return (int)floor(wxrender::kCentre + (lon - v.homeLon) / v.rLon * wxrender::kCentre);
-}
-inline int ProjY(const wxrender::View& v, double lat)
-{
-    return (int)floor(wxrender::kCentre - (lat - v.homeLat) / v.rLat * wxrender::kCentre);
-}
-
-// ------------------------------------------------------------------------------------------- the layout
-
-enum class Ink : uint8_t { White, Dim, Orange, Label };
-enum class ItemKind : uint8_t { Text, Marker, Edge, Town };
-
-struct Item {
-    Rect r;
-    ItemKind kind;
-    uint8_t size;       // Text: the font size
-    Ink ink;
-    int dotX, dotY;     // Town: the dot's centre pixel
-    char text[kMaxLine];
+struct Box {
+    int x0, y0, x1, y1;   // INCLUSIVE, as the generator's boxes
 };
 
-constexpr int kMaxItems = 96;
-constexpr int kMaxCandidates = 64;   // PlaceLabels' own cap
+constexpr int kAir = 4;       // a town label's air from every fixed overlay and every placed label (OV)
+constexpr int kRingAir = 2;   // a ring number's air from every obstacle (Q22)
+constexpr int kCircle = 116;  // every box corner within this many px of the centre (CI)
 
-struct Layout {
-    Item items[kMaxItems];
-    int n = 0;
-    int nFixed = 0;   // items[0, nFixed) are the screen's fixed overlays; the rest are placed town labels
-};
-
-// The texts a screen shows, worked out by WxLogic from a scenario (K3's functions).
-struct Texts {
-    char clock[16] = "";
-    char headline[kMaxLine] = "";
-    const char* title1 = nullptr;
-    const char* title2 = nullptr;
-    char until[24] = "";
-    char lineA[kMaxLine] = "";
-    char storm[kMaxLine] = "";
-    char travel[kMaxLine] = "";
-};
-
-inline void BuildTexts(const wxscen::Scenario& s, const wxlogic::Choice& c, Texts* t)
+// Overlapping unless more than `pad` px apart on some axis.
+inline bool Overlaps(const Box& a, const Box& b, int pad)
 {
-    ClockText(s.nowUtc, wxscen::kOffsetMin, t->clock, sizeof(t->clock));
-    snprintf(t->headline, sizeof(t->headline), "%s", wxlogic::Headline(c));
-    if (c.screen != wxlogic::Screen::Warning || c.warning < 0) return;
-    const wxlogic::Warn& w = (&s.warn)[c.warning];
-    WarningTitle(w.event, &t->title1, &t->title2);
-    wxlogic::UntilText(w.expiresIso, t->until, sizeof(t->until));
-    const wxlogic::Tokens k = wxlogic::LineA(w);
-    size_t len = 0;
-    for (int i = 0; i < k.n; ++i)
-        len += (size_t)snprintf(t->lineA + len, sizeof(t->lineA) - len, "%s%s", i ? " - " : "", k.t[i]);
-    const wxlogic::MotionText m = wxlogic::MotionLine(wxlogic::ParseMotion(w.motion), s.here);
-    if (m.valid) {
-        snprintf(t->storm, sizeof(t->storm), "STORM %s %s", m.distance, m.bearing);
-        snprintf(t->travel, sizeof(t->travel), "%s", m.travel);
-    }
+    return !(a.x1 + pad < b.x0 || b.x1 + pad < a.x0 || a.y1 + pad < b.y0 || b.y1 + pad < a.y0);
 }
 
-inline void AddText(Layout& L, const char* s, int size, int y, Ink ink)
+inline bool InsideCircle(const Box& b)
 {
-    if (!s || !*s || L.n >= kMaxItems) return;
-    Item& it = L.items[L.n++];
-    // ONE length for the box and the copy (A8.23): a string longer than the item holds is clamped in both, so the
-    // box can never be wider than the text drawn in it.
-    size_t n = strlen(s);
-    if (n > (size_t)kMaxLine - 1) n = (size_t)kMaxLine - 1;
-    it.r = TextBox(n, size, y);
-    it.kind = ItemKind::Text;
-    it.size = (uint8_t)size;
-    it.ink = ink;
-    it.dotX = it.dotY = 0;
-    memcpy(it.text, s, n);
-    it.text[n] = '\0';
-}
-inline void AddRect(Layout& L, Rect r, ItemKind kind, Ink ink)
-{
-    if (L.n >= kMaxItems) return;
-    Item& it = L.items[L.n++];
-    it.r = r;
-    it.kind = kind;
-    it.size = 0;
-    it.ink = ink;
-    it.dotX = it.dotY = 0;
-    it.text[0] = '\0';
-}
-
-constexpr Rect kHomeMarker{115, 115, 10, 10};
-
-// A town label's box: the 3 x 3 dot at (px, py), the text from px + 4, 8 px high (A8.20).
-inline Rect LabelRect(int px, int py, size_t nChars) { return Rect{px - 1, py - 4, 5 + kCharW * (int)nChars, kCharH}; }
-
-// True when a label box touches none of the screen's fixed overlays (LF).
-inline bool ClearOf(const Rect& b, const Item* fixed, int nFixed)
-{
-    for (int i = 0; i < nFixed; ++i) if (Overlaps(b, fixed[i].r)) return false;
+    const double c = wxraster::kC, r = kCircle;
+    const int xs[2] = {b.x0, b.x1}, ys[2] = {b.y0, b.y1};
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j)
+            if (!((xs[i] - c) * (xs[i] - c) + (ys[j] - c) * (ys[j] - c) <= r * r)) return false;
     return true;
 }
 
-// The screen's fixed overlays (A8.20's table), then the town labels Q6(a) places among what is left.
-// `scratch` holds one LabelBox per town and `scratchTown` its town index (the caller's memory, nt entries each).
-inline void BuildLayout(Layout& L, wxlogic::Screen screen, const Texts& t, const wxrender::View& v,
-                        const LatLon* box /* the warning square: S, N in .lat; W, E in .lon; or null */,
-                        const wxtowns::Town* towns, unsigned nt, wxlogic::LabelBox* scratch, int* scratchTown)
+// The box's nearest point is at least `inner` px from the centre (IC).
+inline bool ClearsCentre(const Box& b, double inner)
 {
-    L.n = 0;
-    AddText(L, "N", 1, 4, Ink::Dim);
-    if (screen == wxlogic::Screen::Warning) {
-        AddText(L, t.title1, 2, 38, Ink::Orange);
-        AddText(L, t.title2, 2, 56, Ink::Orange);
-        AddText(L, t.until, 1, 76, Ink::White);
-        AddText(L, t.lineA, 1, 168, Ink::White);
-        AddText(L, t.storm, 1, 180, Ink::White);
-        AddText(L, t.travel, 1, 192, Ink::White);
-        AddRect(L, kHomeMarker, ItemKind::Marker, Ink::White);
-        if (box) {
-            const int xw = ProjX(v, box[0].lon), xe = ProjX(v, box[1].lon);
-            const int yn = ProjY(v, box[1].lat), ys = ProjY(v, box[0].lat);
-            AddRect(L, Rect{xw, yn, xe - xw + 1, 1}, ItemKind::Edge, Ink::Orange);   // north
-            AddRect(L, Rect{xw, ys, xe - xw + 1, 1}, ItemKind::Edge, Ink::Orange);   // south
-            AddRect(L, Rect{xw, yn, 1, ys - yn + 1}, ItemKind::Edge, Ink::Orange);   // west
-            AddRect(L, Rect{xe, yn, 1, ys - yn + 1}, ItemKind::Edge, Ink::Orange);   // east
-        }
-    } else {
-        AddText(L, t.clock, 2, 20, Ink::White);
-        AddRect(L, kHomeMarker, ItemKind::Marker, Ink::White);
-        char lines[2][kMaxLine];
-        const int nl = Wrap(t.headline, 13, lines, 2);
-        for (int i = 0; i < nl; ++i) AddText(L, lines[i], 2, 184 + 18 * i, Ink::White);
-    }
-    L.nFixed = L.n;
+    const double c = wxraster::kC;
+    const double nx = fmin(fmax(c, (double)b.x0), (double)b.x1), ny = fmin(fmax(c, (double)b.y0), (double)b.y1);
+    return (nx - c) * (nx - c) + (ny - c) * (ny - c) >= inner * inner;
+}
 
-    // Candidates: every town clear of the fixed overlays, nearest first; the 64 nearest go to PlaceLabels.
-    const LatLon home{v.homeLat, v.homeLon};
-    int nc = 0;
-    for (unsigned i = 0; i < nt; ++i) {
-        char label[kMaxLine];
-        wxlogic::LabelText(towns[i].name, label, sizeof(label));
-        const int px = ProjX(v, towns[i].lon), py = ProjY(v, towns[i].lat);
-        const Rect b = LabelRect(px, py, strlen(label));
-        if (!ClearOf(b, L.items, L.nFixed)) continue;
-        wxlogic::LabelBox lb;
-        lb.x = b.x;
-        lb.y = b.y;
-        lb.w = b.w;
-        lb.h = b.h;
-        lb.distMi = wxlogic::DistanceMi(home, LatLon{towns[i].lat, towns[i].lon});
-        int j = nc++;   // insertion by distance, stable: ties keep the file's order
-        while (j > 0 && lb.distMi < scratch[j - 1].distMi) {
-            scratch[j] = scratch[j - 1];
-            scratchTown[j] = scratchTown[j - 1];
+// The no-label circle at view radius R: 17 % of the radius plus 4 px, in the generator's own order (24.4 px).
+inline double Inner(double R) { return 0.17 * R * (wxraster::kC / R) + 4; }
+
+// ----------------------------------------------------------------------------------- town labels (IC, OV, SD, LB)
+
+struct Placed {
+    bool placed = false;
+    char side = 0;          // 'R' or 'L'
+    Box box{0, 0, 0, 0};
+    int tx = 0, ty = 0;     // the text's top-left: (tx, iy - 3)
+    int ix = 0, iy = 0;     // the dot's centre: int(x), int(y)
+};
+
+// One label anchored at the float point (x, y). Skipped when the anchor is inside the inner circle. Otherwise the side
+// away from the centre first (right, unless x < 120), the other as the fallback; a side is rejected when its box
+// leaves 26..192 in y, a corner is beyond 116 px, its nearest point is inside the inner circle, or it comes within
+// 4 px of a fixed overlay or a placed label.
+inline Placed PlaceTown(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,
+                        const Box* placed, int nPlaced)
+{
+    Placed p;
+    const double c = wxraster::kC;
+    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;
+    const int ix = (int)x, iy = (int)y, w = wxraster::TextW(label, 1);
+    Box cands[2] = {{ix - 1, iy - 4, ix + 4 + w, iy + 4}, {ix - 4 - w - 1, iy - 4, ix + 2, iy + 4}};
+    int txs[2] = {ix + 4, ix - 4 - w};
+    char sides[2] = {'R', 'L'};
+    if (x < c) {
+        const Box b = cands[0]; cands[0] = cands[1]; cands[1] = b;
+        const int t = txs[0]; txs[0] = txs[1]; txs[1] = t;
+        const char s = sides[0]; sides[0] = sides[1]; sides[1] = s;
+    }
+    for (int k = 0; k < 2; ++k) {
+        const Box& b = cands[k];
+        if (b.y0 < wxraster::kTopBand + 2 || b.y1 > wxraster::kBotBand - 2) continue;
+        if (!InsideCircle(b)) continue;
+        if (!ClearsCentre(b, inner)) continue;
+        bool clash = false;
+        for (int i = 0; i < nFixed && !clash; ++i) clash = Overlaps(b, fixed[i], kAir);
+        for (int i = 0; i < nPlaced && !clash; ++i) clash = Overlaps(b, placed[i], kAir);
+        if (clash) continue;
+        p.placed = true;
+        p.side = sides[k];
+        p.box = b;
+        p.tx = txs[k];
+        p.ty = iy - 3;
+        p.ix = ix;
+        p.iy = iy;
+        return p;
+    }
+    return p;
+}
+
+// `order` = the n towns by population, largest first; 0 means no figure and ranks as 1,000; ties keep the file order
+// (a stable insertion sort, as Python's sorted()).
+inline void RankOrder(const uint32_t* pop, int n, int* order)
+{
+    for (int i = 0; i < n; ++i) order[i] = i;
+    for (int i = 1; i < n; ++i) {
+        const int v = order[i];
+        const uint32_t kv = pop[v] ? pop[v] : 1000u;
+        int j = i - 1;
+        while (j >= 0 && (pop[order[j]] ? pop[order[j]] : 1000u) < kv) {
+            order[j + 1] = order[j];
             --j;
         }
-        scratch[j] = lb;
-        scratchTown[j] = (int)i;
-    }
-    const int m = nc < kMaxCandidates ? nc : kMaxCandidates;
-    int drawn[kMaxCandidates];
-    const int nd = wxlogic::PlaceLabels(scratch, m, drawn);
-    for (int k = 0; k < nd && L.n < kMaxItems; ++k) {
-        const wxlogic::LabelBox& lb = scratch[drawn[k]];
-        Item& it = L.items[L.n++];
-        it.r = Rect{lb.x, lb.y, lb.w, lb.h};
-        it.kind = ItemKind::Town;
-        it.size = 1;
-        it.ink = Ink::Label;
-        it.dotX = lb.x + 1;
-        it.dotY = lb.y + 4;
-        wxlogic::LabelText(towns[scratchTown[drawn[k]]].name, it.text, sizeof(it.text));
+        order[j + 1] = v;
     }
 }
 
-// The warning square's corners for BuildLayout: S/W in [0], N/E in [1].
-inline void WarningBox(const wxscen::Scenario& s, LatLon out[2])
+// The number of labels placed at most: 8 at 60 mi, 6 at 30, 5 at 15 (ZM7).
+inline int Cap(int radiusMi) { return radiusMi >= 60 ? 8 : (radiusMi >= 30 ? 6 : 5); }
+
+// Where the towns are, as the screen sees them: a name for LabelText and a float anchor in screen pixels.
+class TownSet {
+public:
+    virtual ~TownSet() {}
+    virtual const char* Name(int i) const = 0;
+    virtual void At(int i, double* x, double* y) const = 0;
+};
+
+constexpr int kMaxLabels = 8;
+
+struct PlacedLabel {
+    int town = -1;
+    char label[40] = "";
+    Placed at;
+};
+
+// Walks the ranking and places labels until the cap is reached; returns the count, in placement order (LB3-LB5).
+inline int PlaceTowns(const TownSet& t, const int* order, int n, int radiusMi, double inner, const Box* fixed,
+                      int nFixed, PlacedLabel* out)
 {
-    out[0] = s.polygon[0];   // (s0, w0)
-    out[1] = s.polygon[2];   // (n0, e0)
+    const int cap = Cap(radiusMi);
+    Box boxes[kMaxLabels];
+    int np = 0;
+    for (int k = 0; k < n && np < cap && np < kMaxLabels; ++k) {
+        PlacedLabel& o = out[np];
+        wxlogic::LabelText(t.Name(order[k]), o.label, sizeof o.label);
+        double x, y;
+        t.At(order[k], &x, &y);
+        o.at = PlaceTown(o.label, x, y, inner, fixed, nFixed, boxes, np);
+        if (!o.at.placed) continue;
+        o.town = order[k];
+        boxes[np++] = o.at.box;
+    }
+    return np;
+}
+
+// ------------------------------------------------------------------------------------------ rings (RG, RD, RL)
+
+// The ring radii in miles at view radius R: 5, 15 and 30, each where 15 % <= mi <= 85 % of R.
+inline int RingsFor(double R, int* mi)
+{
+    static const int kAll[3] = {5, 15, 30};
+    int n = 0;
+    for (int i = 0; i < 3; ++i)
+        if (0.15 * R <= kAll[i] && kAll[i] <= 0.85 * R) mi[n++] = kAll[i];
+    return n;
+}
+
+// A ring's number at the first angle of 45, 135, 315, 225, 90, 270, 0, 180 whose box stays in 25..193, inside the
+// 116 px circle, and 2 px clear of every obstacle.
+inline bool PlaceRingLabel(double rpx, const char* label, const Box* obs, int nObs, int* tx, int* ty, Box* box)
+{
+    static const int kAng[8] = {45, 135, 315, 225, 90, 270, 0, 180};
+    const double c = wxraster::kC;
+    const int w = wxraster::TextW(label, 1);
+    for (int i = 0; i < 8; ++i) {
+        const int ang = kAng[i];
+        const double a = ang * (wxraster::kPi / 180.0);
+        const int x = (int)(c + rpx * sin(a)) + (ang < 180 ? 2 : -w - 2);
+        const int up = (ang == 45 || ang == 315 || ang == 0) ? 9 : ((ang == 135 || ang == 225 || ang == 180) ? 1 : -4);
+        const int y = (int)(c - rpx * cos(a)) - up;
+        const Box b{x - 1, y - 1, x + w + 1, y + 8};
+        if (b.y0 < wxraster::kTopBand + 1 || b.y1 > wxraster::kBotBand - 1 || !InsideCircle(b)) continue;
+        bool clash = false;
+        for (int k = 0; k < nObs && !clash; ++k) clash = Overlaps(b, obs[k], kRingAir);
+        if (clash) continue;
+        *tx = x;
+        *ty = y;
+        *box = b;
+        return true;
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------- the nearest echo in view (ST11)
+
+constexpr double kInViewMi = 60.0;   // Q16: an echo counts only within 60.0 mi of the location, at every zoom
+
+struct Echo {
+    bool found = false;
+    double mi = 0, bearingDeg = 0;
+};
+
+// The nearest echo cell (code 1-13) within boundMi of `here`: row-major, the first minimum wins.
+inline Echo NearestEchoInView(const wxcrop::Header& h, const uint8_t* codes, LatLon here, double boundMi)
+{
+    Echo e;
+    const double latNw = h.latNwMicro / 1e6, lonNw = h.lonNwMicro / 1e6;
+    const double cellLat = h.cellLatMicro / 1e6, cellLon = h.cellLonMicro / 1e6;
+    const double kx = wxlogic::kKmPerDeg * cos(here.lat * (wxlogic::kPi / 180.0)), ky = wxlogic::kKmPerDeg;
+    double best = -1, bx = 0, by = 0;
+    for (uint32_t r = 0; r < h.rows; ++r) {
+        const double dy = (latNw - r * cellLat - here.lat) * ky;
+        for (uint32_t c = 0; c < h.cols; ++c) {
+            if (!wxcrop::IsEcho(codes[r * (uint32_t)h.cols + c])) continue;
+            const double dx = (lonNw + c * cellLon - here.lon) * kx;
+            const double d2 = dx * dx + dy * dy;
+            if (sqrt(d2) / wxlogic::kKmPerMi > boundMi) continue;
+            if (best < 0 || d2 < best) {
+                best = d2;
+                bx = dx;
+                by = dy;
+            }
+        }
+    }
+    if (best < 0) return e;
+    e.found = true;
+    e.mi = sqrt(best) / wxlogic::kKmPerMi;
+    e.bearingDeg = fmod(atan2(bx, by) * (180.0 / wxlogic::kPi) + 360, 360);
+    return e;
+}
+
+// ------------------------------------------------------------------------------- the state line and time (ST, TM)
+
+constexpr int64_t kOrangeAfterS = 600;   // the frame time turns orange past 10 min
+constexpr int64_t kStaleAfterS = 1800;   // RADAR STALE past 30 min (Q15, Q18)
+
+struct StateIn {
+    wxlogic::Precip hereNow = wxlogic::Precip::None;
+    Echo echo;                // the nearest echo in view
+    bool hasTemp = false;
+    double tempF = 0;
+    int64_t ageS = 0;         // the frame's age
+};
+
+// The band's line on every screen but the warning's: RADAR STALE (dim) past 30 min; RAIN NOW / SNOW NOW (white); the
+// nearest echo, "RAIN 14 MI E", white within 15 mi and dim beyond; else "54° · NO RAIN" or "NO RAIN 60 MI" (dim, Q20).
+inline void StateLine(const StateIn& in, char* out, size_t cap, Rgb* ink)
+{
+    *ink = wxraster::kDim;
+    if (in.ageS > kStaleAfterS) {
+        snprintf(out, cap, "RADAR STALE");
+    } else if (in.hereNow != wxlogic::Precip::None) {
+        snprintf(out, cap, "%s", in.hereNow == wxlogic::Precip::Snow ? "SNOW NOW" : "RAIN NOW");
+        *ink = wxraster::kWhite;
+    } else if (in.echo.found) {
+        snprintf(out, cap, "RAIN %d MI %s", wxraster::Rnd(in.echo.mi), wxlogic::Compass8(in.echo.bearingDeg));
+        if (in.echo.mi <= 15.0) *ink = wxraster::kWhite;
+    } else if (in.hasTemp) {
+        snprintf(out, cap, "%d\xF8 \xFA NO RAIN", wxraster::Rnd(in.tempF));
+    } else {
+        snprintf(out, cap, "NO RAIN 60 MI");
+    }
+}
+
+// The top strip's frame time: orange past 10 min; on the warning screen past 30 min, "4:24 PM · STALE" (Q18).
+inline void TimeText(const char* clock, int64_t ageS, bool warning, char* out, size_t cap, Rgb* ink)
+{
+    if (warning && ageS > kStaleAfterS) snprintf(out, cap, "%s \xFA STALE", clock);
+    else snprintf(out, cap, "%s", clock);
+    *ink = ageS > kOrangeAfterS ? wxraster::kOrange : wxraster::kDim;
+}
+
+// "ZOOM 30 MI" when zoomed in; false at the ladder's top.
+inline bool ZoomTag(int radiusMi, char* out, size_t cap)
+{
+    if (radiusMi >= 60) return false;
+    snprintf(out, cap, "ZOOM %d MI", radiusMi);
+    return true;
+}
+
+// Where the top strip's time and tag start (ZM8): the time centred alone, or the time and tag as one centred run.
+struct TopStrip {
+    int timeX = 0, tagX = 0;
+    bool hasTag = false;
+    char tag[24] = "";   // "ZOOM %d MI" at its longest int: 20 bytes (g++ 11 -Wformat-truncation)
+};
+inline TopStrip TopStripAt(const char* time, int radiusMi)
+{
+    TopStrip t;
+    t.hasTag = ZoomTag(radiusMi, t.tag, sizeof t.tag);
+    if (!t.hasTag) {
+        t.timeX = (int)(wxraster::kC - wxraster::TextW(time, 1) / 2.0);
+        return t;
+    }
+    char run[80], lead[64];
+    snprintf(run, sizeof run, "%s  %s", time, t.tag);
+    snprintf(lead, sizeof lead, "%s  ", time);
+    t.timeX = (int)(wxraster::kC - wxraster::TextW(run, 1) / 2.0);
+    t.tagX = t.timeX + wxraster::TextW(lead, 1) + 1;
+    return t;
+}
+
+// ---------------------------------------------------------------------------------- the warning texts (WN)
+
+struct WarningTexts {
+    char top1[24] = "", top2[48] = "", band1[64] = "", band2[64] = "";
+};
+
+// The title; "WARNING · UNTIL 5:09 PM"; LineA's tokens joined by " · "; "STORM 14 MI E · NE 35 MPH" (the travel
+// without its "MOVING ") when the warning carries a motion, else empty.
+inline WarningTexts MakeWarningTexts(const wxlogic::Warn& w, const wxlogic::MotionText& m)
+{
+    WarningTexts t;
+    const char* l1 = nullptr;
+    const char* l2 = nullptr;
+    if (WarningTitle(w.event, &l1, &l2)) snprintf(t.top1, sizeof t.top1, "%s", l1);
+    char until[24] = "";
+    if (wxlogic::UntilText(w.expiresIso, until, sizeof until)) snprintf(t.top2, sizeof t.top2, "WARNING \xFA %s", until);
+    else snprintf(t.top2, sizeof t.top2, "WARNING");
+    const wxlogic::Tokens k = wxlogic::LineA(w);
+    size_t len = 0;
+    for (int i = 0; i < k.n; ++i) {
+        const int n = snprintf(t.band1 + len, sizeof t.band1 - len, "%s%s", i ? " \xFA " : "", k.t[i]);
+        if (n < 0 || (size_t)n >= sizeof t.band1 - len) break;
+        len += (size_t)n;
+    }
+    if (m.valid) {
+        const char* travel = m.travel;
+        if (strncmp(travel, "MOVING ", 7) == 0) travel += 7;
+        char buf[96];
+        snprintf(buf, sizeof buf, "STORM %s %s \xFA %s", m.distance, m.bearing, travel);
+        const size_t n = strlen(buf) < sizeof t.band2 - 1 ? strlen(buf) : sizeof t.band2 - 1;
+        memcpy(t.band2, buf, n);
+        t.band2[n] = '\0';
+    }
+    return t;
+}
+
+// ----------------------------------------------------------------------------------------- the arrow (AR)
+
+struct Arrow {
+    double seg[3][4];   // the shaft, then the two head strokes: x0, y0, x1, y1 in screen pixels
+};
+
+// From the storm's projected position: a 12 px shaft along the direction of travel (fromDeg + 180), and a head of
+// two 4 px strokes at +-150 degrees from it, at the tip (Q17).
+inline Arrow MakeArrow(double sx, double sy, int fromDeg)
+{
+    Arrow a;
+    const int travel = (fromDeg + 180) % 360;
+    const double t = travel * (wxraster::kPi / 180.0);
+    const double tipx = sx + 12 * sin(t), tipy = sy - 12 * cos(t);
+    const double h1 = (travel + 150) * (wxraster::kPi / 180.0), h2 = (travel - 150) * (wxraster::kPi / 180.0);
+    const double v[3][4] = {{sx, sy, tipx, tipy},
+                            {tipx, tipy, tipx + 4 * sin(h1), tipy - 4 * cos(h1)},
+                            {tipx, tipy, tipx + 4 * sin(h2), tipy - 4 * cos(h2)}};
+    memcpy(a.seg, v, sizeof v);
+    return a;
+}
+
+// The arrow's box, a fixed overlay for the labels: its end points' bounds, int() as the polygon edges' boxes.
+inline Box ArrowBox(const Arrow& a)
+{
+    double x0 = a.seg[0][0], y0 = a.seg[0][1], x1 = x0, y1 = y0;
+    for (int s = 0; s < 3; ++s)
+        for (int p = 0; p < 2; ++p) {
+            x0 = fmin(x0, a.seg[s][2 * p]);
+            y0 = fmin(y0, a.seg[s][2 * p + 1]);
+            x1 = fmax(x1, a.seg[s][2 * p]);
+            y1 = fmax(y1, a.seg[s][2 * p + 1]);
+        }
+    return Box{(int)x0, (int)y0, (int)x1, (int)y1};
+}
+
+inline void DrawArrow(wxraster::Sink& s, const Arrow& a)
+{
+    for (int k = 0; k < 3; ++k) wxraster::Line(s, a.seg[k][0], a.seg[k][1], a.seg[k][2], a.seg[k][3], wxraster::kOrange);
+}
+
+// No arrow when the storm is outside the 60 mi view (Q17).
+inline bool ArrowVisible(LatLon here, LatLon storm) { return wxlogic::DistanceMi(here, storm) <= kInViewMi; }
+
+// ------------------------------------------------------------------------------------------------ zoom (ZM)
+
+constexpr uint32_t kZoomIdleMs = 600000;   // back to 60 mi after 10 min without a touch (A9.3)
+
+// The {15, 30, 60} mi ladder, as a literal: radarzoom::BuildLadder(60) would give {5, 10, 25, 50, 60} (A9.3).
+inline radarzoom::Ladder ZoomLadder()
+{
+    radarzoom::Ladder l;
+    l.step[0] = 15.0f;
+    l.step[1] = 30.0f;
+    l.step[2] = 60.0f;
+    l.n = 3;
+    return l;
+}
+inline int ZoomMiles(const radarzoom::Ladder& l, int idx) { return (int)l.step[idx]; }
+inline int IdleReturn(const radarzoom::Ladder& l, int idx, uint32_t nowMs, uint32_t lastTouchMs)
+{
+    return radarzoom::IdleExpired(nowMs, lastTouchMs, kZoomIdleMs) ? l.Top() : idx;
+}
+
+// ------------------------------------------------------------------------------------------ the compositor
+
+// One row of codes as the map is drawn (the loop hashes them, A8.20).
+class CodeRows {
+public:
+    virtual ~CodeRows() {}
+    virtual void Row(const uint8_t* codes, int n) = 0;
+};
+
+// The map layer: black off the disc, the crop's colours on it (rain only until WXC1 v2, A9.6), hatched where code 15.
+inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* codes, const wxrender::View& v,
+                    CodeRows* rows)
+{
+    uint8_t row[wxrender::kSize];
+    for (int y = 0; y < wxrender::kSize; ++y) {
+        for (int x = 0; x < wxrender::kSize; ++x) row[x] = wxrender::CodeAt(h, codes, v, x, y);
+        if (rows) rows->Row(row, wxrender::kSize);
+        for (int x = 0; x < wxrender::kSize; ++x) {
+            const uint8_t c = row[x];
+            if (c == wxrender::kOffDisc) {
+                s.Put(x, y, wxraster::kBlack);
+                continue;
+            }
+            const wxpalette::Rgb p = c == 15 ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false, wxpalette::kDim55);
+            s.Put(x, y, Rgb{p.r, p.g, p.b});
+        }
+    }
+}
+
+// Projection at the view's radius: x = 120 + dLon / rLon * 120, y = 120 - dLat / rLat * 120, as floats.
+inline void Project(const wxrender::View& v, double lat, double lon, double* x, double* y)
+{
+    *x = wxraster::kC + (lon - v.homeLon) / v.rLon * wxraster::kC;
+    *y = wxraster::kC - (lat - v.homeLat) / v.rLat * wxraster::kC;
+}
+
+// The Census towns, projected through a view.
+class ViewTowns : public TownSet {
+public:
+    ViewTowns(const wxtowns::Town* t, const wxrender::View& v) : t_(t), v_(v) {}
+    const char* Name(int i) const override { return t_[i].name; }
+    void At(int i, double* x, double* y) const override { Project(v_, t_[i].lat, t_[i].lon, x, y); }
+
+private:
+    const wxtowns::Town* t_;
+    const wxrender::View& v_;
+};
+
+constexpr int kLoopFrames = 15;
+
+struct ScreenIn {
+    const wxcrop::Header* h = nullptr;
+    const uint8_t* codes = nullptr;
+    int radiusMi = 60;
+    char clock[16] = "";              // the frame's time on the scenario's clock
+    int64_t ageS = 0;                 // the frame's age (TM, ST12)
+    bool warning = false;
+    LatLon polygon[4];                // the warning's four corners, edges i -> i + 1 and back
+    WarningTexts wt;
+    bool arrow = false;               // a motion is present and the storm is within 60 mi (Q17)
+    LatLon storm{0, 0};
+    int fromDeg = 0;
+    char state[40] = "";              // the band's line, every screen but the warning's and the loop's
+    Rgb stateInk{120, 120, 120};
+    bool loop = false;                // the loop's band instead (A9.10's K rows)
+    int loopIndex = 0;
+    char loopAge[24] = "";
+    const wxtowns::Town* towns = nullptr;
+    int nTowns = 0;
+    const int* order = nullptr;       // RankOrder of the towns' populations, worked out once
+};
+
+struct ScreenOut {
+    PlacedLabel labels[kMaxLabels];
+    int nLabels = 0;
+    char time[40] = "";
+};
+
+// A whole screen, in the generator's order (A9.2): map, bands, rings, top strip, polygon and title, the arrow (after
+// the polygon, before the labels: Q17), town labels, ring numbers, home marker, band text. `v` is the caller's view
+// (rebuilt here for the radius), so no screen-sized state lives in this header.
+inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, ScreenOut* out, CodeRows* rows = nullptr)
+{
+    using namespace wxraster;
+    wxrender::BuildViewKm(*in.h, &v, in.radiusMi * 1.609344);
+    DrawMap(s, *in.h, in.codes, v, rows);
+    Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
+    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
+    Box fixed[12];
+    int nFixed = 0;
+    fixed[nFixed++] = Box{0, 0, kSize - 1, kTopBand - 1};
+    fixed[nFixed++] = Box{0, kBotBand, kSize - 1, kSize - 1};
+    const double R = in.radiusMi, ppm = kC / R;
+    int rings[3];
+    const int nRings = RingsFor(R, rings);
+    for (int i = 0; i < nRings; ++i) RingDots(s, rings[i] * ppm, kRing);
+
+    Text(s, 117, 3, "N", 1, kDim, nullptr);
+    Rgb timeInk;
+    TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &timeInk);
+    const TopStrip top = TopStripAt(out->time, in.radiusMi);
+    Text(s, top.timeX, 13, out->time, 1, timeInk, nullptr);
+    if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, kWhite, nullptr);
+
+    if (in.warning) {
+        double px[4], py[4];
+        for (int i = 0; i < 4; ++i) Project(v, in.polygon[i].lat, in.polygon[i].lon, &px[i], &py[i]);
+        for (int i = 0; i < 4; ++i) {
+            const int j = (i + 1) % 4;
+            Line(s, px[i], py[i], px[j], py[j], kOrange);
+            fixed[nFixed++] = Box{(int)fmin(px[i], px[j]), (int)fmin(py[i], py[j]), (int)fmax(px[i], px[j]),
+                                  (int)fmax(py[i], py[j])};
+        }
+        const int tx = (int)(kC - TextW(in.wt.top1, 2) / 2.0);
+        Text(s, tx, 36, in.wt.top1, 2, kOrange, &kBlack);
+        const int sx = (int)(kC - TextW(in.wt.top2, 1) / 2.0);
+        Text(s, sx, 54, in.wt.top2, 1, kOrange, &kBlack);
+        fixed[nFixed++] = Box{tx - 2, 34, tx + TextW(in.wt.top1, 2) + 2, 36 + 14 + 2};
+        fixed[nFixed++] = Box{sx - 2, 52, sx + TextW(in.wt.top2, 1) + 2, 54 + 8 + 2};
+        if (in.arrow) {
+            double ax, ay;
+            Project(v, in.storm.lat, in.storm.lon, &ax, &ay);
+            const Arrow a = MakeArrow(ax, ay, in.fromDeg);
+            DrawArrow(s, a);
+            fixed[nFixed++] = ArrowBox(a);
+        }
+    }
+
+    const ViewTowns towns(in.towns, v);
+    out->nLabels = PlaceTowns(towns, in.order, in.nTowns, in.radiusMi, Inner(R), fixed, nFixed, out->labels);
+    for (int i = 0; i < out->nLabels; ++i) {
+        const Placed& p = out->labels[i].at;
+        Fill(s, p.ix - 1, p.iy - 1, p.ix + 1, p.iy + 1, kLabel);
+        Text(s, p.tx, p.ty, out->labels[i].label, 1, kLabel, &kBlack);
+    }
+
+    Box obs[12 + kMaxLabels + 3];
+    int nObs = 0;
+    for (int i = 0; i < nFixed; ++i) obs[nObs++] = fixed[i];
+    for (int i = 0; i < out->nLabels; ++i) obs[nObs++] = out->labels[i].at.box;
+    for (int i = 0; i < nRings; ++i) {
+        char num[12];   // an int's widest, for -Wformat-truncation
+        snprintf(num, sizeof num, "%d", rings[i]);
+        int tx, ty;
+        Box b;
+        if (!PlaceRingLabel(rings[i] * ppm, num, obs, nObs, &tx, &ty, &b)) continue;
+        Text(s, tx, ty, num, 1, kRingText, &kBlack);
+        obs[nObs++] = b;
+    }
+
+    HomeMarker(s, kWhite);
+
+    if (in.warning) {
+        Text(s, (int)(kC - TextW(in.wt.band1, 1) / 2.0), 197, in.wt.band1, 1, kWhite, nullptr);
+        Text(s, (int)(kC - TextW(in.wt.band2, 1) / 2.0), 207, in.wt.band2, 1, kWhite, nullptr);
+    } else if (in.loop) {
+        Text(s, (int)(kC - TextW(in.loopAge, 1) / 2.0), 198, in.loopAge, 1, kDim, nullptr);
+        Fill(s, 60, 212, 179, 213, kRingText);
+        const int kx = 60 + in.loopIndex * 116 / (kLoopFrames - 1);
+        Fill(s, kx, 210, kx + 3, 215, kWhite);
+    } else {
+        Text(s, (int)(kC - TextW(in.state, 2) / 2.0), 198, in.state, 2, in.stateInk, nullptr);
+    }
 }
 
 }  // namespace wxscreens

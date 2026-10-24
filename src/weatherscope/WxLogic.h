@@ -445,7 +445,8 @@ inline bool UntilText(const char* iso, char* out, size_t cap)
 
 // ------------------------------------------------------------------------------------- town labels (5d, Q6; L, LP)
 
-// "Bend city" -> "BEND": upper-cased, a trailing " CITY" dropped once (only LSAD 25 places are labelled, 5b).
+// "Bend city" -> "Bend": the Gazetteer's case kept, a trailing " city" dropped once (only LSAD 25 places are labelled,
+// 5b; title case by Q13).
 inline void LabelText(const char* name, char* out, size_t cap)
 {
     // Title case (Q13, superseding 5d): the Gazetteer's own case is kept, and its LSAD suffix " city" dropped once.

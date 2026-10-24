@@ -1261,8 +1261,8 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
-# Weatherscope 3.3d's screen layer (src/weatherscope/WxScreens.h): the stored-mode cycle, titles, clock, wrap, boxes,
-# the label filter and the union, docs/weatherscope-stage3.md A8.20: 19 cases. Its sabotages:
+# Weatherscope's screen layer (src/weatherscope/WxScreens.h): the stored-mode cycle, titles and clock,
+# docs/weatherscope-stage3.md A8.20 as A9.10 re-registered it: 15 cases. Its sabotages:
 # python -I test/host/sabotage_wx_screens.py
 echo
 echo "== WxScreens =="
@@ -1275,6 +1275,24 @@ fi
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   echo "FAIL: the screens test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# Weatherscope 3.5a's layout rules (src/weatherscope/WxScreens.h, WxRaster.h): labels, rings, the state line,
+# the time, the warning texts, the arrow and zoom, docs/weatherscope-stage3.md A9.10: 73 cases. Its sabotages:
+# python -I test/host/sabotage_wx_layout.py. Whole frames are the K rows'.
+echo
+echo "== WxLayout =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_layout.cpp" -o "$OUT/test_wx_layout.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope layout test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_layout.exe" "$ROOT/test/fixtures/wx/loop"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the layout test did not run (exit $rc). This is the RIG, not the code."
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1

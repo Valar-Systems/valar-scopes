@@ -1,5 +1,6 @@
 """Runs test_wx_screens.cpp against SABOTAGED copies of src/weatherscope/WxScreens.h. Each must fail EXACTLY the set of
-named cases frozen in docs/weatherscope-stage3.md A8.20, and nothing else.
+named cases frozen in docs/weatherscope-stage3.md A8.20 (S-LF and S-UN retired with LF and UN by A9.10), and
+nothing else.
 
     python -I test/host/sabotage_wx_screens.py
 
@@ -22,9 +23,6 @@ SABOTAGES = {
                "    if (rank < 0 || rank > 3 || rank == 1) return false;  // SABOTAGE: Snow Squall's title dropped")],
              {"WT2"}),
     "S-CK": ([("h % 12 == 0 ? 12 : h % 12, m,", "h % 12, m,  /* SABOTAGE */")], {"CK2", "CK3"}),
-    "S-LF": ([("    for (int i = 0; i < nFixed; ++i) if (Overlaps(b, fixed[i].r)) return false;",
-               "    (void)b; (void)fixed; (void)nFixed;  // SABOTAGE: the fixed-overlay filter removed")], {"LF1"}),
-    "S-UN": ([("{ ++count; break; }", "{ ++count; }  /* SABOTAGE: a plain sum */")], {"UN1"}),
 }
 
 

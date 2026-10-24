@@ -1,24 +1,13 @@
-// Weatherscope 3.3d's screen layer (src/weatherscope/WxScreens.h) against the truth table frozen in
-// docs/weatherscope-stage3.md A8.20: 19 named cases. Its sabotages: python -I test/host/sabotage_wx_screens.py.
-//
-//     test_wx_screens                       the 19 cases
-//     test_wx_screens --layout <loop dir>   prints each scenario screen's overlay rectangles and compared-pixel count,
-//                                           from the real frames and towns, the way the board builds them (A8.21)
-//
-// Prints no coordinate: rectangles are screen pixels.
+// Weatherscope's scenario cycle and text helpers (src/weatherscope/WxScreens.h) against the truth table frozen in
+// docs/weatherscope-stage3.md A8.20, re-registered by A9.10: 15 named cases (CY1-CY7, WT1-WT5, CK1-CK3). 3.5a's
+// layout rules are test_wx_layout.cpp's. Its sabotages: python -I test/host/sabotage_wx_screens.py.
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <vector>
 
-#include "WxCrop.h"
-#include "WxLogic.h"
-#include "WxRender.h"
-#include "WxScenarios.h"
 #include "WxScreens.h"
-#include "WxTowns.h"
 
 using namespace wxscreens;
 
@@ -30,12 +19,6 @@ void check(const char* name, bool ok, const std::string& what)
     ++checks;
     if (!ok) ++failures;
     std::printf("  %s %s %s\n", ok ? "ok  " : "FAIL", name, what.c_str());
-}
-std::string R(const Rect& r)
-{
-    char b[48];
-    std::snprintf(b, sizeof b, "(%d, %d, %d, %d)", r.x, r.y, r.w, r.h);
-    return b;
 }
 
 void Cases()
@@ -82,10 +65,17 @@ void Cases()
     }
     {
         Cycle c;
+        c.index = 5;
+        Step(c, 0, true);
+        const bool a = Step(c, 30000, true);
+        check("CY6", a && c.index == 0, "Clear -> index " + std::to_string(c.index));
+    }
+    {
+        Cycle c;
         c.index = 3;
         Step(c, 0, true);
         const bool a = Step(c, 30000, true);
-        check("CY6", a && c.index == 0, "Warning -> index " + std::to_string(c.index));
+        check("CY7", a && c.index == 4, "Warning -> index " + std::to_string(c.index));
     }
 
     std::printf("== WT: the warning title ==\n");
@@ -112,112 +102,14 @@ void Cases()
         ClockText(k.utc, -300, out, sizeof out);
         check(k.name, std::strcmp(out, k.want) == 0, std::string("\"") + out + "\"");
     }
-
-    std::printf("== HW: the headline wrap ==\n");
-    {
-        char l[2][kMaxLine];
-        const int n = Wrap("PRECIP WITHIN 15 MI", 13, l, 2);
-        check("HW1", n == 2 && std::strcmp(l[0], "PRECIP WITHIN") == 0 && std::strcmp(l[1], "15 MI") == 0,
-              std::to_string(n) + " lines: \"" + l[0] + "\"" + (n > 1 ? std::string(", \"") + l[1] + "\"" : ""));
-    }
-    {
-        char l[2][kMaxLine];
-        const int n = Wrap("RAIN NOW", 13, l, 2);
-        check("HW2", n == 1 && std::strcmp(l[0], "RAIN NOW") == 0, std::to_string(n) + " line: \"" + l[0] + "\"");
-    }
-
-    std::printf("== TB: a text box ==\n");
-    {
-        const Rect r = TextBox(strlen("RAIN NOW"), 2, 184);
-        check("TB1", r == Rect{72, 184, 96, 16}, R(r));
-    }
-
-    std::printf("== LF: a label against the fixed overlays ==\n");
-    {
-        Item fixed[1];
-        fixed[0].r = Rect{100, 100, 20, 20};
-        const bool crossing = ClearOf(Rect{110, 110, 30, 8}, fixed, 1);
-        const bool clear = ClearOf(Rect{10, 10, 30, 8}, fixed, 1);
-        check("LF1", !crossing && clear, std::string("crossing kept ") + std::to_string(crossing) + ", clear kept " +
-                                             std::to_string(clear));
-    }
-
-    std::printf("== UN: the union ==\n");
-    {
-        const Rect r[2] = {{0, 0, 10, 10}, {5, 5, 10, 10}};
-        const long u = UnionArea(r, 2);
-        check("UN1", u == 175, std::to_string(u) + " px");
-    }
-}
-
-bool ReadFile(const std::string& path, std::vector<uint8_t>* out)
-{
-    FILE* f = std::fopen(path.c_str(), "rb");
-    if (!f) return false;
-    out->clear();
-    uint8_t buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out->insert(out->end(), buf, buf + n);
-    std::fclose(f);
-    return true;
-}
-
-// A8.21's tables: each scenario screen built from the real frames and towns, exactly as the board will.
-int LayoutMode(const std::string& dir)
-{
-    struct Frame { std::vector<uint8_t> bytes, codes; wxcrop::Header h; };
-    auto load = [&](const char* name, Frame* f) {
-        if (!ReadFile(dir + "/" + name, &f->bytes)) return false;
-        if (wxcrop::Validate(f->bytes.data(), f->bytes.size(), &f->h) != wxcrop::Status::Ok) return false;
-        f->codes.assign(f->h.Cells(), 0);
-        return wxcrop::DecodeInto(f->bytes.data(), f->bytes.size(), f->codes.data(), f->codes.size()) == wxcrop::Status::Ok;
-    };
-    Frame app, dry;
-    if (!load("shsr-20240521-212400.wxc", &app) || !load("shsr-20240521-220000.wxc", &dry)) {
-        std::printf("cannot load the scenario frames (rig)\n");
-        return 2;
-    }
-    static wxrender::View v;
-    wxrender::BuildView(dry.h, &v);   // D3: one geometry for all 15
-    std::vector<wxlogic::LabelBox> scratch(wxtowns::kCount);
-    std::vector<int> scratchTown(wxtowns::kCount);
-    const wxscen::Kind kinds[4] = {wxscen::Kind::Dry, wxscen::Kind::Approaching, wxscen::Kind::HereNow,
-                                   wxscen::Kind::Warning};
-    const char* kindName[4] = {"dry", "approaching", "herenow", "warning"};
-    for (int k = 0; k < 4; ++k) {
-        const Frame& f = kinds[k] == wxscen::Kind::Dry ? dry : app;
-        wxscen::Scenario s;
-        if (!wxscen::Build(kinds[k], f.h, f.codes.data(), &s)) { std::printf("Build failed (rig)\n"); return 2; }
-        const wxlogic::Choice c = s.Choose();
-        Texts t;
-        BuildTexts(s, c, &t);
-        LatLon box[2];
-        WarningBox(s, box);
-        static Layout L;
-        BuildLayout(L, c.screen, t, v, c.screen == wxlogic::Screen::Warning ? box : nullptr, wxtowns::kTowns,
-                    wxtowns::kCount, scratch.data(), scratchTown.data());
-        std::vector<Rect> rs;
-        for (int i = 0; i < L.n; ++i) rs.push_back(L.items[i].r);
-        const long u = UnionArea(rs.data(), (int)rs.size());
-        std::printf("LAYOUT %s items=%d fixed=%d towns=%d union=%ld compared=%ld\n", kindName[k], L.n, L.nFixed,
-                    L.n - L.nFixed, u, 57600 - u);
-        for (int i = 0; i < L.n; ++i) {
-            const Item& it = L.items[i];
-            const char* kind = it.kind == ItemKind::Text ? "text" : it.kind == ItemKind::Marker ? "marker"
-                             : it.kind == ItemKind::Edge ? "edge" : "town";
-            std::printf("RECT %s %d %d,%d,%d,%d %s \"%s\"\n", kindName[k], i, it.r.x, it.r.y, it.r.w, it.r.h, kind,
-                        it.text);
-        }
-    }
-    return 0;
 }
 
 }  // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc == 3 && std::strcmp(argv[1], "--layout") == 0) return LayoutMode(argv[2]);
-    if (argc != 1) { std::printf("usage: test_wx_screens [--layout <loop dir>]\n"); return 2; }
+    (void)argv;
+    if (argc != 1) { std::printf("usage: test_wx_screens\n"); return 2; }
     Cases();
     std::printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
