@@ -29,3 +29,12 @@ Nothing else in the check changes.
 | **L4** | CI on this PR | **0 failures** |
 
 **Outside the set:** stop and report.
+
+## Results (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **L1** | the source: `PORT_WAIT_TRIES = 300` (x 100 ms = 30 s), `LAUNCHES = 2`. A relaunch kills the first Chrome and removes its profile; the case's `finally` cleans up the last. BLIND returns `{blind: ...}`, which `grade()` maps to 2 | **as predicted** |
+| **L2** | `--selftest` with real Chrome: **SELFTEST PASSED**. P1-P3, A2-A5 as wanted, and the anchor **"BLIND geolocation override removed: exit 2 (want 2)"** | **as predicted** |
+| **L3** | `CHROME` set to `node`, which never opens a port: each case printed `(Chrome opened no debugging port in 30 s; relaunching, 2 of 2)` and then `BLIND -- Chrome never opened its debugging port (2 launches)`. The check **exited 2** after 130 s for its two cases | **as predicted**: BLIND stays red |
+| **L4** | CI on this PR | follows |
