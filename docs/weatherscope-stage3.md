@@ -2958,3 +2958,64 @@ Item 2, source "Daniel":
 **The population input** (Q12, PJ):
 - **The file:** `sub-est2024.csv`, fetched 2026-10-24 from `https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv`. 7,087,080 bytes, sha256 `af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9`, 81,334 rows.
 - **Where it is kept:** outside every repo, like the Gazetteer zip. Its sha256 goes into `WxTowns.h`'s header.
+
+
+### A9.14 Before step 3's first run: one frozen sabotage set that cannot hold, and the readings the cases needed (2026-10-24)
+
+Written after `test_wx_layout.cpp` and `sabotage_wx_layout.py` compiled, and **before either was run**: no case result, control or sabotage, exists yet.
+
+**1. S-IC's frozen set cannot hold: IC3 does not test the inner circle.** Found by working A9.10's numbers while writing the case, not by a run.
+- **The arithmetic.** IC3 is "ABCDEF" (w = 35) at (146.0, 120.0) with a fixed overlay (150, 110, 200, 130).
+  - The right box (145, 116, 185, 124) overlaps the overlay outright.
+  - The left box is (106, 116, 148, 124). Its x1 + 4 = 152 ≥ 150, so it is **within 4 px of the overlay** and rejected by the air rule, whatever the inner circle says.
+- **So under S-IC, IC3 is still skipped, and passes.** Registered here, before the run: **S-IC fails exactly {IC1, IC4}**, against A9.10's {IC1, IC3, IC4}.
+- **This is the shape CLAUDE.md names:** a rule that never rejects anything, because another rule does its job. IC3's stated reason ("left crosses the centre") is true and not load-bearing, and relaxing the inner circle is what shows it.
+- **What happens at the run:** the script grades S-IC against A9.10's frozen set, so the run will report **OFF A9.10** even if it matches this registration. That is a stop. Neither the set nor IC3's input changes until the reviewer rules.
+- **The two remedies, for the ruling:**
+  - **(a)** Re-register S-IC as {IC1, IC4}. IC3 then stays a case that never isolates the inner circle.
+  - **(b), recommended:** move IC3's overlay to (153, 110, 200, 130).
+    - The right box still overlaps it, so the right side is still blocked.
+    - The left box clears it by 5 px, so **only the inner circle** rejects the left side, which is what IC3 says it tests.
+    - S-IC's frozen set {IC1, IC3, IC4} then holds as written.
+    - Checked across the other sets: under S-OV the right box still overlaps outright; under S-SIDE x = 146 is already right-first. No other set moves.
+
+**2. S-CAP's plant site, a reading, not a re-registration.**
+- **The plant:** the cap's **use site** in `PlaceTowns` becomes 8; `Cap()` is left alone.
+- **Why:** A9.10's set {LB4, LB5} excludes ZM7, and ZM7 asks `Cap()` itself for 8/6/5. A plant inside `Cap()` would fail ZM7 as well, so the frozen set reads as the placement's cap.
+
+**3. The readings the cases needed.** Each choice is A9.10's text made executable. None changes an expected value.
+- **Label cases:** all run among the two band rectangles as fixed overlays, since A9.10's conventions make the band rule both the y bounds and the overlap.
+- **LB3-LB5:** compare the placed **names, in placement order**, not the sides.
+- **AR1, in two halves:**
+  - this test checks the three rounded end points: (150, 100) → (160, 94), heads (158, 97) and (156, 94);
+  - it prints the drawn pixel set (an `AR1PIX` line), and **the K harness (step 4) holds that set to ref35.py's arrow**.
+  - **AR1 is complete only when both halves pass;** the results will say so.
+- **AR3:** the expected set is exactly the shaft's DDA points with y ≤ 193: (150, 190) to (150, 193).
+- **AR4:** carries a control. The same label is placed when the arrow's box is absent.
+- **ZM4:** "at 30" is ladder index 1.
+- **ZM5:** "unchanged" means the miles **before** the idle check, from one `Step` in from the top, not a literal 30. 600,000 ms must return to the top (60).
+- **ST11:** a one-column synthetic crop on the equator: 0.001-degree cells, centre (0, 0). The only echo cell is 876 cells north (60.420 mi) for ST11a, and 864 north (59.592 mi) for ST11b. No real place is involved.
+- **ST12 and ST13:** carry an echo at 14.33 mi, which would read "RAIN 14 MI E" in white, so ST12 also shows that stale takes precedence.
+- **WN1 and WN5:** built from the stored warning scenario on the approaching frame (A8.10). WN5 changes the motion's `30KT` to `0KT`.
+- **WN2-WN6:** hand-built warnings, with motions placed by offsets from (0, 0), as `test_wx_logic.cpp`'s M cases are.
+  - They grade top 1 and both band lines. Top 2 is "…" in A9.10, so it is printed, not graded.
+- **S-STALE:** changes all three age comparisons: 30 min in `StateLine` and in `TimeText`, and 10 min in `TimeText`.
+- **The case count is enforced.** The test exits 2 (the rig) unless exactly 73 cases ran, and the sabotage script checks the same.
+
+**4. Design points A9.10 leaves open, fixed here so the K reference is written to the same rule:**
+- **The arrow's box** is the `int()` of its end points' bounds, the same rule as the polygon edges' boxes.
+- **The arrow is drawn after the title and subtitle.** Both are after the polygon and before the labels, so Q17 holds either way, and ref35.py's K mode will use the same order.
+- **`DrawMap` paints black off the disc,** so the board's sprite needs no clear between screens.
+
+**5. Removed with the rectangle masks.**
+- **What goes:** `Wrap`, `Rect`, `TextBox`, `UnionArea`, `BuildLayout` and `test_wx_screens --layout` (A8.21's tables), with their cases HW, TB, LF and UN (A9.10).
+- **The union helper:** A9.3 listed it as unchanged, but A9.10 retired its only case and nothing else reads it, so it goes too (CLAUDE.md: delete what nothing reads).
+- **The firmware breaks until step 5:** `WeatherscopeManager.cpp` still calls the 3.3 layout, so **the firmware does not build from this commit until step 5 rewrites it**. No push carries this state to #480.
+
+**6. The compiler rule, before any run.**
+- **What was compiled:** MinGW `g++ 5.1.0` and WSL `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0`, CI's flags, at -O1 and -O2:
+  - `test_wx_layout`;
+  - `test_wx_screens`;
+  - a probe (not committed) that instantiates `Compose` and every other function.
+- **What 11.4 found that 5.1 missed:** one `-Wformat-truncation`, `"ZOOM %d MI"` into a 16-byte tag (an int prints up to 11 characters).
+- **The fix, before any run:** the tag buffer widened to 24, and the ring number's from 4 to 12 for the same reason. That is a compile fix with no result attached, so it is not an off-prediction.
