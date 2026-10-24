@@ -2364,3 +2364,41 @@ So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor 
 - every other block unchanged;
 - 3.3's K3, A8.21 and B results unaffected: the fix changes no output byte for the strings 3.3 draws;
 - the 3.3d flash re-measured: within 1 % of 1,602,043 B.
+
+### A8.24 Ruled 2026-10-23 (source: reviewer chat, pasted by Daniel): A8.23's fix applied; one push
+
+> 1. #467's CI failure, ruling verbatim: "The stop was right, and the diagnosis is accepted. The fix is (i), (ii) and (iii) as proposed in A8.23. Push c7d0aaf as #467's next head; one push, so one matrix run. Then bring the head back for approval. 3.3's results stand, since no drawn string reaches the clamp."
+> I reproduced the failure here with g++ 13.3 and run.sh's own flags. Two things to record with it:
+> - Under g++ 13.3, WxScreens.h:214 fails as well, not only under WSL's 11.4. CI never reached it because run.sh stopped at WxScenarios. So (i) alone would have failed again on the next run; (i) and (ii) together are needed.
+> - With (i) and (ii) applied as you proposed (a 64-byte local in IsoOnClock, copied at most cap − 1; one clamped length in AddText for the box and the copy), the three blocked programs compile clean under -Werror, and run 12/0, 15/0 and 19/0, exactly as predicted.
+>
+> 2. (iii) becomes a standing rule for your pushes: before any push that touches test/host or src/weatherscope, compile the host tests with the newest g++ you have (WSL's 11.4 today), and record the version in the push's notes. CI's g++ 13.3 stays the authority, and a local pass on an older compiler is not evidence.
+>
+> 3. The 3.5a freeze (8805eab) is accepted as frozen. The 28-189 band reading under Q22 is accepted. Carry on with ref35.py and R0; nothing else changes.
+
+**What was pushed, and why it is not c7d0aaf alone.**
+- **c7d0aaf is A8.23's record only.** It carries the diagnosis and the proposal; the fix is not in it. Pushed alone, it would have failed `host-tests` exactly as `b202ff3` did, and spent the one matrix run the ruling allows on a known failure.
+- **So the single push carries:** c7d0aaf, then the fix ((i) and (ii)), then this record. That honours "the fix is (i), (ii) and (iii)" and "one push, so one matrix run", and its head is **not** c7d0aaf. The head is named when it is brought back for approval.
+
+**The fix, as A8.23 proposed it:**
+- **(i)** `IsoOnClock` formats into a 64-byte local and copies at most `cap − 1` bytes into `out`.
+- **(ii)** `AddText` takes one clamped length, `min(strlen(s), kMaxLine − 1)`, for both the box and the copy.
+
+**(iii), now a standing rule, applied to this push.** The newest compiler here is WSL Ubuntu's `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0`, used with CI's flags:
+
+| program | g++ 11.4 |
+|---|---|
+| `test_wx_scenarios` | compiles clean; **12 checks, 0 failures** |
+| `test_wx_loop_render` | compiles clean; **15 checks, 0 failures** |
+| `test_wx_screens` | compiles clean; **19 checks, 0 failures** |
+| `test_wx_logic` / `test_wx_loop` / `test_wx_towns` | compile clean; 119 / 44 / 171 checks, 0 failures |
+
+- **The three blocked programs:** these are the counts A8.23 predicted, and the reviewer's own g++ 13.3 reproduction gave them too.
+- **CI's g++ 13.3 on the pushed head is the authority,** and its result is pending.
+
+**Also on this tree:**
+- **The sabotages:** `sabotage_wx_scenarios.py` read 5 of 5 as predicted, and `sabotage_wx_screens.py` 6 of 6. Both headers hashed the same before and after.
+- **The firmware rebuild:**
+  - **flash 1,602,135 B**: +92 B on 3.3d's 1,602,043, inside A8.23's predicted 1 %, and inside A8.12's band;
+  - **static RAM 54,840 B**: unchanged.
+- **3.3's results stand** (the ruling): no string 3.3 draws reaches the clamp.
