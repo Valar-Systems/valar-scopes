@@ -14,6 +14,8 @@ namespace wx {
 class StoredWxFeed : public WxFeed {
 public:
     CropBytes Latest() const override;
+    // The loop's 15 SeamlessHSR crops (test/fixtures/wx/loop/), embedded by WxLoopFrames.S, oldest first.
+    size_t History(CropBytes* out, size_t max) const override;
 };
 
 // One KDFW observation, fetched once at implementation time (A6.3).

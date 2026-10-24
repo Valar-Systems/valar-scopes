@@ -1157,6 +1157,128 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+# Weatherscope's screen logic (src/weatherscope/WxLogic.h) against its frozen truth tables, docs/weatherscope-stage3.md
+# A8.2 and A8.8: 118 named cases, plus RK on the real KDFW crop against ring_ref.py's independent value. Its 24
+# sabotages: python -I test/host/sabotage_wx_logic.py
+echo
+echo "== WxLogic =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_logic.cpp" -o "$OUT/test_wx_logic.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope logic test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_logic.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the logic test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; RK's reference (ring_ref.py --check) cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/fixtures/wx/ring_ref.py" --check
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+# Weatherscope's loop crops (test/fixtures/wx/loop/) graded by the device decoder against the encoder's own cells,
+# docs/weatherscope-stage3.md A8.10 and A8.13: D2-D4. Its sabotages: python -I test/host/sabotage_wx_loop.py
+echo
+echo "== WxLoop =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_loop.cpp" -o "$OUT/test_wx_loop.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope loop test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_loop.exe" "$ROOT/test/fixtures/wx/loop"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the loop test did not run or could not read its fixtures (exit $rc). This is the RIG, not the data."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# Weatherscope's town subset (src/weatherscope/WxTowns.h) through LabelText, docs/weatherscope-stage3.md A8.14: D6(b).
+# D6(a), regeneration, needs the Census zip: tools/weatherscope/towns/make_towns.py <zip> --check. Its sabotages:
+# python -I test/host/sabotage_wx_towns.py <zip>
+echo
+echo "== WxTowns =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_towns.cpp" -o "$OUT/test_wx_towns.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope towns test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_towns.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the towns test did not run (exit $rc). This is the RIG, not the data."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# Weatherscope's four scenarios (src/weatherscope/WxScenarios.h) through Choose and the text functions, against
+# scenarios.py's reference, docs/weatherscope-stage3.md A8.15: K3. Its sabotages:
+# python -I test/host/sabotage_wx_scenarios.py
+echo
+echo "== WxScenarios =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_scenarios.cpp" -o "$OUT/test_wx_scenarios.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope scenarios test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_scenarios.exe" "$ROOT/test/fixtures/wx/loop"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the scenarios test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; K3's reference (scenarios.py --check) cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/tools/weatherscope/loop/scenarios.py" --check
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+# Weatherscope's loop frames through the device's render path (WxCrop.h + WxRender.h) against render_ref.py's
+# screens (test/fixtures/wx/loop/screens.ref.json), docs/weatherscope-stage3.md A8.16: K2. The reference's own
+# --check needs a spike checkout: tools/weatherscope/loop/screens_ref.py <spike> --check. Its sabotages:
+# python -I test/host/sabotage_wx_loop_render.py
+echo
+echo "== WxLoopRender =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_loop_render.cpp" -o "$OUT/test_wx_loop_render.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope loop render test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_loop_render.exe" "$ROOT/test/fixtures/wx/loop"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the loop render test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# Weatherscope 3.3d's screen layer (src/weatherscope/WxScreens.h): the stored-mode cycle, titles, clock, wrap, boxes,
+# the label filter and the union, docs/weatherscope-stage3.md A8.20: 19 cases. Its sabotages:
+# python -I test/host/sabotage_wx_screens.py
+echo
+echo "== WxScreens =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_screens.cpp" -o "$OUT/test_wx_screens.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope screens test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_screens.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the screens test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"

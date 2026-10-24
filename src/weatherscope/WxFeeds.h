@@ -25,9 +25,16 @@ struct CropBytes {
 class WxFeed {
 public:
     virtual ~WxFeed() = default;
-    // The newest crop, or an empty one when there is none yet. The past hour's history joins this
-    // interface in step 3.3, with the loop's frames.
+    // The newest crop, or an empty one when there is none yet.
     virtual CropBytes Latest() const = 0;
+    // The past hour's frames for the loop, oldest first (step 3.3): writes at most `max` and returns how many.
+    // A feed with no history returns 0, so a fake that predates the loop still builds.
+    virtual size_t History(CropBytes* out, size_t max) const
+    {
+        (void)out;
+        (void)max;
+        return 0;
+    }
 };
 
 // The nearest station's latest observation, reduced to what "here now" reads (screens doc 1c):

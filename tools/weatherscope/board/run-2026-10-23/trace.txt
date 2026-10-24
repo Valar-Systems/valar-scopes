@@ -1,0 +1,248 @@
+2026-10-23T16:29:43.159Z #HOST opened COM6; board <board-ip>
+2026-10-23T16:29:43.366Z 
+2026-10-23T16:29:43.366Z [build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope
+2026-10-23T16:29:43.366Z [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+2026-10-23T16:29:43.366Z [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+2026-10-23T16:29:43.366Z [boot] reset reason=USB
+2026-10-23T16:29:43.366Z [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+2026-10-23T16:29:43.366Z [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+2026-10-23T16:29:43.366Z [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+2026-10-23T16:29:43.366Z [quiet] armed: reboot at local 03:00, tz-offset=unset (-28800 s) -- local hour now 8
+2026-10-23T16:29:43.366Z [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=245748)
+2026-10-23T16:29:43.366Z [bright] first-light/carry -> 255
+2026-10-23T16:29:43.366Z [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=294448
+2026-10-23T16:29:43.366Z *wm:v2.0.17  D:2
+2026-10-23T16:29:43.366Z [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+2026-10-23T16:29:43.366Z [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+2026-10-23T16:29:43.366Z [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+2026-10-23T16:29:43.366Z [WiFi] fast join: ch=1 bssid=<redacted>
+2026-10-23T16:29:43.366Z [WiFi] Associated with "Tony", waiting for IP...
+2026-10-23T16:29:43.366Z [WiFi] CONNECTED  IP=<board-ip>  RSSI=-41 dBm
+2026-10-23T16:29:43.366Z [WiFi] fast join OK in 3750 ms
+2026-10-23T16:29:43.366Z [WiFi] pinned AP ch=1 RSSI=-41 dBm for the next boot
+2026-10-23T16:29:43.366Z [ota] channel=weatherscope-s3-128 current=18 latest=18
+2026-10-23T16:29:43.366Z [web] config server listening on :80 (http://Weatherscope-326E64.local)
+2026-10-23T16:29:43.366Z [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+2026-10-23T16:29:43.366Z [wx] psram_used=168120 sprite=1 grid=38520 layout=6536 history=15 ready=1
+2026-10-23T16:29:43.366Z [wx] pick approaching=212400 dry=220000 psram_used=168120
+2026-10-23T16:29:43.366Z [wx] init; location=set autodim=1 brightness=255 stored=1
+2026-10-23T16:29:43.366Z [heap] handshake ballast reserved (16717 B); free8=197040
+2026-10-23T16:29:43.366Z [wx] pick approaching=212400 dry=220000 psram_used=168120
+2026-10-23T16:29:43.366Z [wx] scn=dry frame=220000 screen=Dry type=None warning=-1
+2026-10-23T16:29:43.366Z [wx] text clock="5:00 PM" headline="" title="|" until="" lineA="" storm="" travel=""
+2026-10-23T16:29:43.366Z [wx] codes 3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600
+2026-10-23T16:29:43.366Z [wx] rects n=19 fixed=3
+2026-10-23T16:29:43.366Z [wx] rect dry 0 117,4,6,8 text "N"
+2026-10-23T16:29:43.366Z [wx] rect dry 1 78,20,84,16 text "5:00 PM"
+2026-10-23T16:29:43.366Z [wx] rect dry 2 115,115,10,10 marker ""
+2026-10-23T16:29:43.366Z [wx] rect dry 3 127,121,41,8 town "IRVING"
+2026-10-23T16:29:43.366Z [wx] rect dry 4 124,107,47,8 town "COPPELL"
+2026-10-23T16:29:43.367Z [wx] rect dry 5 126,95,65,8 town "LEWISVILLE"
+2026-10-23T16:29:43.367Z [wx] rect dry 6 136,138,83,8 town "COCKRELL HILL"
+2026-10-23T16:29:43.367Z [wx] rect dry 7 121,146,83,8 town "GRAND PRAIRIE"
+2026-10-23T16:29:43.367Z [wx] rect dry 8 120,84,71,8 town "LAKE DALLAS"
+2026-10-23T16:29:43.367Z [wx] rect dry 9 150,130,41,8 town "DALLAS"
+2026-10-23T16:29:43.367Z [wx] rect dry 10 132,75,65,8 town "LITTLE ELM"
+2026-10-23T16:29:43.367Z [wx] rect dry 11 77,129,71,8 town "SANSOM PARK"
+2026-10-23T16:29:43.367Z [wx] rect dry 12 128,159,65,8 town "CEDAR HILL"
+2026-10-23T16:29:43.367Z [wx] rect dry 13 124,63,71,8 town "KRUGERVILLE"
+2026-10-23T16:29:43.367Z [wx] rect dry 14 172,106,41,8 town "SACHSE"
+2026-10-23T16:29:43.367Z [wx] rect dry 15 67,100,41,8 town "NEWARK"
+2026-10-23T16:29:43.367Z [wx] rect dry 16 61,116,29,8 town "AZLE"
+2026-10-23T16:29:43.367Z [wx] rect dry 17 66,91,35,8 town "RHOME"
+2026-10-23T16:29:43.367Z [wx] rect dry 18 140,169,53,8 town "OAK LEAF"
+2026-10-23T16:29:43.367Z [wx] screen=scenario dry
+2026-10-23T16:29:45.936Z #HOST fetch dry 0: 115200 B torn=false seq=382 sha ddc67dd687ad
+2026-10-23T16:29:46.575Z #HOST fetch dry 1: 115200 B torn=false seq=399 sha d49db5fd13a6
+2026-10-23T16:29:47.151Z #HOST fetch dry 2: 115200 B torn=false seq=414 sha d49db5fd13a6
+2026-10-23T16:30:05.280Z [wx] pick approaching=212400 dry=220000 psram_used=168120
+2026-10-23T16:30:05.280Z [wx] scn=approaching frame=212400 screen=PrecipApproaching type=None warning=-1
+2026-10-23T16:30:05.280Z [wx] text clock="4:24 PM" headline="PRECIP WITHIN 15 MI" title="|" until="" lineA="" storm="" travel=""
+2026-10-23T16:30:05.280Z [wx] codes fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39
+2026-10-23T16:30:05.280Z [wx] rects n=21 fixed=5
+2026-10-23T16:30:05.280Z [wx] rect approaching 0 117,4,6,8 text "N"
+2026-10-23T16:30:05.280Z [wx] rect approaching 1 78,20,84,16 text "4:24 PM"
+2026-10-23T16:30:05.280Z [wx] rect approaching 2 115,115,10,10 marker ""
+2026-10-23T16:30:05.280Z [wx] rect approaching 3 42,184,156,16 text "PRECIP WITHIN"
+2026-10-23T16:30:05.280Z [wx] rect approaching 4 90,202,60,16 text "15 MI"
+2026-10-23T16:30:05.280Z [wx] rect approaching 5 127,121,41,8 town "IRVING"
+2026-10-23T16:30:05.280Z [wx] rect approaching 6 124,107,47,8 town "COPPELL"
+2026-10-23T16:30:05.280Z [wx] rect approaching 7 126,95,65,8 town "LEWISVILLE"
+2026-10-23T16:30:05.280Z [wx] rect approaching 8 136,138,83,8 town "COCKRELL HILL"
+2026-10-23T16:30:05.280Z [wx] rect approaching 9 121,146,83,8 town "GRAND PRAIRIE"
+2026-10-23T16:30:05.280Z [wx] rect approaching 10 120,84,71,8 town "LAKE DALLAS"
+2026-10-23T16:30:05.280Z [wx] rect approaching 11 150,130,41,8 town "DALLAS"
+2026-10-23T16:30:05.280Z [wx] rect approaching 12 132,75,65,8 town "LITTLE ELM"
+2026-10-23T16:30:05.280Z [wx] rect approaching 13 77,129,71,8 town "SANSOM PARK"
+2026-10-23T16:30:05.280Z [wx] rect approaching 14 128,159,65,8 town "CEDAR HILL"
+2026-10-23T16:30:05.280Z [wx] rect approaching 15 124,63,71,8 town "KRUGERVILLE"
+2026-10-23T16:30:05.280Z [wx] rect approaching 16 172,106,41,8 town "SACHSE"
+2026-10-23T16:30:05.280Z [wx] rect approaching 17 67,100,41,8 town "NEWARK"
+2026-10-23T16:30:05.280Z [wx] rect approaching 18 61,116,29,8 town "AZLE"
+2026-10-23T16:30:05.280Z [wx] rect approaching 19 66,91,35,8 town "RHOME"
+2026-10-23T16:30:05.280Z [wx] rect approaching 20 140,169,53,8 town "OAK LEAF"
+2026-10-23T16:30:05.280Z [wx] screen=scenario approaching
+2026-10-23T16:30:07.695Z #HOST fetch approaching 0: 115200 B torn=false seq=930 sha f5d1b48e4f0d
+2026-10-23T16:30:08.256Z #HOST fetch approaching 1: 115200 B torn=false seq=945 sha c0a7b2a60dc4
+2026-10-23T16:30:08.835Z #HOST fetch approaching 2: 115200 B torn=false seq=958 sha 17c0d3c080dd
+2026-10-23T16:30:09.373Z #HOST fetch approaching 3: 115200 B torn=false seq=971 sha c0a7b2a60dc4
+2026-10-23T16:30:09.919Z #HOST fetch approaching 4: 115200 B torn=false seq=984 sha c0a7b2a60dc4
+2026-10-23T16:30:35.261Z [wx] pick approaching=212400 dry=220000 psram_used=168120
+2026-10-23T16:30:35.261Z [wx] scn=herenow frame=212400 screen=PrecipNow type=Rain warning=-1
+2026-10-23T16:30:35.261Z [wx] text clock="4:24 PM" headline="RAIN NOW" title="|" until="" lineA="" storm="" travel=""
+2026-10-23T16:30:35.261Z [wx] codes fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39
+2026-10-23T16:30:35.261Z [wx] rects n=20 fixed=4
+2026-10-23T16:30:35.261Z [wx] rect herenow 0 117,4,6,8 text "N"
+2026-10-23T16:30:35.261Z [wx] rect herenow 1 78,20,84,16 text "4:24 PM"
+2026-10-23T16:30:35.261Z [wx] rect herenow 2 115,115,10,10 marker ""
+2026-10-23T16:30:35.261Z [wx] rect herenow 3 72,184,96,16 text "RAIN NOW"
+2026-10-23T16:30:35.261Z [wx] rect herenow 4 127,121,41,8 town "IRVING"
+2026-10-23T16:30:35.261Z [wx] rect herenow 5 124,107,47,8 town "COPPELL"
+2026-10-23T16:30:35.261Z [wx] rect herenow 6 126,95,65,8 town "LEWISVILLE"
+2026-10-23T16:30:35.261Z [wx] rect herenow 7 136,138,83,8 town "COCKRELL HILL"
+2026-10-23T16:30:35.261Z [wx] rect herenow 8 121,146,83,8 town "GRAND PRAIRIE"
+2026-10-23T16:30:35.261Z [wx] rect herenow 9 120,84,71,8 town "LAKE DALLAS"
+2026-10-23T16:30:35.261Z [wx] rect herenow 10 150,130,41,8 town "DALLAS"
+2026-10-23T16:30:35.261Z [wx] rect herenow 11 132,75,65,8 town "LITTLE ELM"
+2026-10-23T16:30:35.261Z [wx] rect herenow 12 77,129,71,8 town "SANSOM PARK"
+2026-10-23T16:30:35.261Z [wx] rect herenow 13 128,159,65,8 town "CEDAR HILL"
+2026-10-23T16:30:35.261Z [wx] rect herenow 14 124,63,71,8 town "KRUGERVILLE"
+2026-10-23T16:30:35.261Z [wx] rect herenow 15 172,106,41,8 town "SACHSE"
+2026-10-23T16:30:35.261Z [wx] rect herenow 16 67,100,41,8 town "NEWARK"
+2026-10-23T16:30:35.261Z [wx] rect herenow 17 61,116,29,8 town "AZLE"
+2026-10-23T16:30:35.262Z [wx] rect herenow 18 66,91,35,8 town "RHOME"
+2026-10-23T16:30:35.262Z [wx] rect herenow 19 140,169,53,8 town "OAK LEAF"
+2026-10-23T16:30:35.262Z [wx] screen=scenario herenow
+2026-10-23T16:30:37.600Z #HOST fetch herenow 0: 115200 B torn=false seq=1674 sha 3da0ef4ffd66
+2026-10-23T16:30:38.174Z #HOST fetch herenow 1: 115200 B torn=false seq=1688 sha c1fcfbb3345b
+2026-10-23T16:30:38.752Z #HOST fetch herenow 2: 115200 B torn=false seq=1702 sha c1fcfbb3345b
+2026-10-23T16:31:05.228Z [wx] pick approaching=212400 dry=220000 psram_used=168120
+2026-10-23T16:31:05.228Z [wx] scn=warning frame=212400 screen=Warning type=None warning=0
+2026-10-23T16:31:05.228Z [wx] text clock="4:24 PM" headline="" title="SEVERE T-STORM|WARNING" until="UNTIL 5:09 PM" lineA="HAIL 1 IN - WIND 60 MPH" storm="STORM 14 MI E" travel="MOVING NE 35 MPH"
+2026-10-23T16:31:05.228Z [wx] codes fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39
+2026-10-23T16:31:05.228Z [wx] rects n=31 fixed=12
+2026-10-23T16:31:05.228Z [wx] rect warning 0 117,4,6,8 text "N"
+2026-10-23T16:31:05.228Z [wx] rect warning 1 36,38,168,16 text "SEVERE T-STORM"
+2026-10-23T16:31:05.228Z [wx] rect warning 2 78,56,84,16 text "WARNING"
+2026-10-23T16:31:05.228Z [wx] rect warning 3 81,76,78,8 text "UNTIL 5:09 PM"
+2026-10-23T16:31:05.228Z [wx] rect warning 4 51,168,138,8 text "HAIL 1 IN - WIND 60 MPH"
+2026-10-23T16:31:05.228Z [wx] rect warning 5 81,180,78,8 text "STORM 14 MI E"
+2026-10-23T16:31:05.228Z [wx] rect warning 6 72,192,96,8 text "MOVING NE 35 MPH"
+2026-10-23T16:31:05.228Z [wx] rect warning 7 115,115,10,10 marker ""
+2026-10-23T16:31:05.228Z [wx] rect warning 8 91,85,58,1 edge ""
+2026-10-23T16:31:05.228Z [wx] rect warning 9 91,154,58,1 edge ""
+2026-10-23T16:31:05.228Z [wx] rect warning 10 91,85,1,70 edge ""
+2026-10-23T16:31:05.228Z [wx] rect warning 11 148,85,1,70 edge ""
+2026-10-23T16:31:05.228Z [wx] rect warning 12 97,100,47,8 town "ROANOKE"
+2026-10-23T16:31:05.228Z [wx] rect warning 13 103,87,41,8 town "ARGYLE"
+2026-10-23T16:31:05.228Z [wx] rect warning 14 150,130,41,8 town "DALLAS"
+2026-10-23T16:31:05.228Z [wx] rect warning 15 152,95,35,8 town "PLANO"
+2026-10-23T16:31:05.228Z [wx] rect warning 16 157,106,65,8 town "RICHARDSON"
+2026-10-23T16:31:05.228Z [wx] rect warning 17 128,159,65,8 town "CEDAR HILL"
+2026-10-23T16:31:05.228Z [wx] rect warning 18 166,114,47,8 town "GARLAND"
+2026-10-23T16:31:05.228Z [wx] rect warning 19 161,87,35,8 town "ALLEN"
+2026-10-23T16:31:05.228Z [wx] rect warning 20 157,151,53,8 town "HUTCHINS"
+2026-10-23T16:31:05.228Z [wx] rect warning 21 61,116,29,8 town "AZLE"
+2026-10-23T16:31:05.228Z [wx] rect warning 22 162,74,53,8 town "MCKINNEY"
+2026-10-23T16:31:05.228Z [wx] rect warning 23 185,122,35,8 town "HEATH"
+2026-10-23T16:31:05.228Z [wx] rect warning 24 53,143,35,8 town "ALEDO"
+2026-10-23T16:31:05.228Z [wx] rect warning 25 189,98,35,8 town "LAVON"
+2026-10-23T16:31:05.228Z [wx] rect warning 26 162,56,41,8 town "WESTON"
+2026-10-23T16:31:05.228Z [wx] rect warning 27 102,203,59,8 town "GRANDVIEW"
+2026-10-23T16:31:05.228Z [wx] rect warning 28 93,215,59,8 town "COVINGTON"
+2026-10-23T16:31:05.228Z [wx] rect warning 29 31,61,35,8 town "CHICO"
+2026-10-23T16:31:05.228Z [wx] rect warning 30 98,13,47,8 town "LINDSAY"
+2026-10-23T16:31:05.228Z [wx] screen=scenario warning
+2026-10-23T16:31:07.523Z #HOST fetch warning 0: 115200 B torn=false seq=2424 sha 8ec4d6056571
+2026-10-23T16:31:08.128Z #HOST fetch warning 1: 115200 B torn=false seq=2436 sha 8ec4d6056571
+2026-10-23T16:31:08.128Z #HOST B1 captured ['approaching', 'dry', 'herenow', 'warning']
+2026-10-23T16:31:35.125Z [wx] pick approaching=212400 dry=220000 psram_used=168120
+2026-10-23T16:31:35.125Z [wx] scn=dry frame=220000 screen=Dry type=None warning=-1
+2026-10-23T16:31:35.125Z [wx] text clock="5:00 PM" headline="" title="|" until="" lineA="" storm="" travel=""
+2026-10-23T16:31:35.126Z [wx] codes 3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600
+2026-10-23T16:31:35.126Z [wx] rects n=19 fixed=3
+2026-10-23T16:31:35.126Z [wx] rect dry 0 117,4,6,8 text "N"
+2026-10-23T16:31:35.126Z [wx] rect dry 1 78,20,84,16 text "5:00 PM"
+2026-10-23T16:31:35.126Z [wx] rect dry 2 115,115,10,10 marker ""
+2026-10-23T16:31:35.126Z [wx] rect dry 3 127,121,41,8 town "IRVING"
+2026-10-23T16:31:35.126Z [wx] rect dry 4 124,107,47,8 town "COPPELL"
+2026-10-23T16:31:35.126Z [wx] rect dry 5 126,95,65,8 town "LEWISVILLE"
+2026-10-23T16:31:35.126Z [wx] rect dry 6 136,138,83,8 town "COCKRELL HILL"
+2026-10-23T16:31:35.126Z [wx] rect dry 7 121,146,83,8 town "GRAND PRAIRIE"
+2026-10-23T16:31:35.126Z [wx] rect dry 8 120,84,71,8 town "LAKE DALLAS"
+2026-10-23T16:31:35.126Z [wx] rect dry 9 150,130,41,8 town "DALLAS"
+2026-10-23T16:31:35.126Z [wx] rect dry 10 132,75,65,8 town "LITTLE ELM"
+2026-10-23T16:31:35.126Z [wx] rect dry 11 77,129,71,8 town "SANSOM PARK"
+2026-10-23T16:31:35.126Z [wx] rect dry 12 128,159,65,8 town "CEDAR HILL"
+2026-10-23T16:31:35.126Z [wx] rect dry 13 124,63,71,8 town "KRUGERVILLE"
+2026-10-23T16:31:35.126Z [wx] rect dry 14 172,106,41,8 town "SACHSE"
+2026-10-23T16:31:35.126Z [wx] rect dry 15 67,100,41,8 town "NEWARK"
+2026-10-23T16:31:35.126Z [wx] rect dry 16 61,116,29,8 town "AZLE"
+2026-10-23T16:31:35.126Z [wx] rect dry 17 66,91,35,8 town "RHOME"
+2026-10-23T16:31:35.126Z [wx] rect dry 18 140,169,53,8 town "OAK LEAF"
+2026-10-23T16:31:35.126Z [wx] screen=scenario dry
+2026-10-23T16:31:37.151Z #HOST send b'T'
+2026-10-23T16:31:37.257Z [wx] gesture T
+2026-10-23T16:31:37.257Z [wx] screen=loop
+2026-10-23T16:31:38.500Z [wx] loop records=15 period_us=70000
+2026-10-23T16:31:38.500Z [wx] lrec 0 epoch=1716325440 sha=e68e194436ec69e3c44054eaa0347b02b5b62733b904fe71b25db95279fa148a start_us=144075677 draw_us=27417 hash_us=4051
+2026-10-23T16:31:38.500Z [wx] lrec 1 epoch=1716325680 sha=20355546cdd48add1f9a2002ae7ebfccedd048a5e685309a2448679215e68bb5 start_us=144145677 draw_us=28006 hash_us=4050
+2026-10-23T16:31:38.500Z [wx] lrec 2 epoch=1716325920 sha=9ec5b49d608a9b4e1b4e32e20efb1a629d8b03c6de7bf772c49a57271cc8cec6 start_us=144215677 draw_us=28587 hash_us=4069
+2026-10-23T16:31:38.500Z [wx] lrec 3 epoch=1716326160 sha=e597e2d41be5bfa9e79ec23c78b4e6b3644847e1919bb03c108bf5310b580ab8 start_us=144285676 draw_us=28980 hash_us=4068
+2026-10-23T16:31:38.500Z [wx] lrec 4 epoch=1716326400 sha=4886961a644a67e35ef346b1093dfe70e8631eb303a8ed370f3e8931af93a115 start_us=144355676 draw_us=29349 hash_us=4053
+2026-10-23T16:31:38.500Z [wx] lrec 5 epoch=1716326640 sha=fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39 start_us=144425677 draw_us=29812 hash_us=4193
+2026-10-23T16:31:38.500Z [wx] lrec 6 epoch=1716326880 sha=24455c23b3bf1304cc07c358c4157bef2d05580389e1acb79f7eba68e83ec194 start_us=144495678 draw_us=29312 hash_us=4071
+2026-10-23T16:31:38.500Z [wx] lrec 7 epoch=1716327120 sha=e3be1c880746ff84ad3e38532cf8ac39418a35b52f0fc12e253b06424524957f start_us=144565677 draw_us=29416 hash_us=4069
+2026-10-23T16:31:38.500Z [wx] lrec 8 epoch=1716327360 sha=e14f4aadaca055fd1d582a790cd60d2e6bbe69d0eba0832e2f6c208768a702ce start_us=144635677 draw_us=29647 hash_us=4065
+2026-10-23T16:31:38.500Z [wx] lrec 9 epoch=1716327600 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=144705676 draw_us=29503 hash_us=4071
+2026-10-23T16:31:38.500Z [wx] lrec 10 epoch=1716327840 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=144775680 draw_us=29499 hash_us=4076
+2026-10-23T16:31:38.500Z [wx] lrec 11 epoch=1716328080 sha=8c7847628a851679ac39397f1e9e51a1a6975e0d28198767113c95afadd8b79b start_us=144845677 draw_us=29473 hash_us=4069
+2026-10-23T16:31:38.500Z [wx] lrec 12 epoch=1716328320 sha=132fa89334bcafca9633ae8fe141f3eb81737fbc9bf35e03348887dc3dab51b0 start_us=144915677 draw_us=29179 hash_us=4052
+2026-10-23T16:31:38.500Z [wx] lrec 13 epoch=1716328560 sha=1239cdb1fa072a7a0ce721fb0263f48e5b727b13cfaaacda22f0843377fb94ac start_us=144985676 draw_us=28997 hash_us=4040
+2026-10-23T16:31:38.500Z [wx] lrec 14 epoch=1716328800 sha=3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600 start_us=145055830 draw_us=28605 hash_us=4059
+2026-10-23T16:31:38.500Z [wx] screen=scenario dry
+2026-10-23T16:31:39.254Z #HOST fetch postloop 0: 115200 B torn=false seq=3192 sha d49db5fd13a6
+2026-10-23T16:31:39.817Z #HOST fetch postloop 1: 115200 B torn=false seq=3204 sha d49db5fd13a6
+2026-10-23T16:31:39.817Z #HOST send b'S'
+2026-10-23T16:31:39.969Z [wx] gesture S
+2026-10-23T16:31:39.969Z [wx] screen=legend
+2026-10-23T16:31:39.969Z WX,legend,swatches=21
+2026-10-23T16:31:39.969Z WXL,0,rain,1,144,48,12,12
+2026-10-23T16:31:39.969Z WXL,1,rain,2,158,48,12,12
+2026-10-23T16:31:39.969Z WXL,2,rain,3,172,48,12,12
+2026-10-23T16:31:39.969Z WXL,3,rain,4,186,48,12,12
+2026-10-23T16:31:39.969Z WXL,4,rain,5,144,70,12,12
+2026-10-23T16:31:39.969Z WXL,5,rain,6,158,70,12,12
+2026-10-23T16:31:39.969Z WXL,6,rain,7,172,70,12,12
+2026-10-23T16:31:39.969Z WXL,7,rain,8,144,92,12,12
+2026-10-23T16:31:39.969Z WXL,8,rain,9,158,92,12,12
+2026-10-23T16:31:39.969Z WXL,9,rain,10,172,92,12,12
+2026-10-23T16:31:39.969Z WXL,10,rain,11,144,114,12,12
+2026-10-23T16:31:39.969Z WXL,11,rain,12,158,114,12,12
+2026-10-23T16:31:39.969Z WXL,12,rain,13,172,114,12,12
+2026-10-23T16:31:39.969Z WXL,13,snow,1,144,136,12,12
+2026-10-23T16:31:39.969Z WXL,14,snow,2,158,136,12,12
+2026-10-23T16:31:39.969Z WXL,15,snow,3,172,136,12,12
+2026-10-23T16:31:39.969Z WXL,16,snow,4,186,136,12,12
+2026-10-23T16:31:39.969Z WXL,17,snow,5,200,136,12,12
+2026-10-23T16:31:39.969Z WXL,18,snow,6,214,136,12,12
+2026-10-23T16:31:39.969Z WXL,19,nocov,14,144,158,12,12
+2026-10-23T16:31:39.969Z WXL,20,nodata,15,144,180,12,12
+2026-10-23T16:31:39.969Z WXT,0,36,50,60,8
+2026-10-23T16:31:39.969Z WXT,1,36,72,48,8
+2026-10-23T16:31:39.969Z WXT,2,36,94,30,8
+2026-10-23T16:31:39.969Z WXT,3,36,116,78,8
+2026-10-23T16:31:39.969Z WXT,4,36,138,96,8
+2026-10-23T16:31:39.969Z WXT,5,36,160,102,8
+2026-10-23T16:31:39.969Z WXT,6,36,182,42,8
+2026-10-23T16:31:41.333Z #HOST fetch legend 0: 115200 B torn=false seq=3243 sha 45ba1a1938eb
+2026-10-23T16:31:41.946Z #HOST fetch legend 1: 115200 B torn=false seq=3260 sha 42d529f121c4
+2026-10-23T16:31:42.553Z #HOST fetch legend 2: 115200 B torn=false seq=3274 sha d8b443032200
+2026-10-23T16:31:43.128Z #HOST fetch legend 3: 115200 B torn=false seq=3289 sha 45ba1a1938eb
+2026-10-23T16:31:43.741Z #HOST fetch legend 4: 115200 B torn=false seq=3304 sha 45ba1a1938eb
+2026-10-23T16:31:43.741Z #HOST send b'T'
+2026-10-23T16:31:43.767Z [wx] gesture T
+2026-10-23T16:31:43.767Z [wx] screen=scenario dry
+2026-10-23T16:31:44.620Z #HOST fetch postlegend 0: 115200 B torn=false seq=3324 sha d49db5fd13a6
+2026-10-23T16:31:45.138Z #HOST fetch postlegend 1: 115200 B torn=false seq=3339 sha d49db5fd13a6
+2026-10-23T16:31:45.138Z #HOST closing the port
