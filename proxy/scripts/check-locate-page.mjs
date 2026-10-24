@@ -116,19 +116,44 @@ function carries(text) {
 }
 
 // ---- one browser run ---------------------------------------------------------------
-async function runVariant(mod, variant) {
+// Chrome writes DevToolsActivePort once its debugging port is listening. Each launch gets up to 30 s (300 x 100 ms).
+// It was 10 s, and on 2026-10-24 one case in 12 CI runs went BLIND at 10 s while every other case started normally.
+// A launch that never opens the port is killed and replaced, ONCE, with a fresh profile. Only then is the case BLIND,
+// which stays red: exit 2, never a pass (docs/locate-page-chrome-wait.md).
+const PORT_WAIT_TRIES = 300;
+const LAUNCHES = 2;
+
+function launchChrome() {
   const profile = mkdtempSync(join(tmpdir(), "locwire-"));
   const chrome = spawn(CHROME, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
     "--no-first-run", "--no-default-browser-check", "--disable-popup-blocking", "--disable-extensions",
     "--disable-background-networking", "--disable-component-update", "about:blank"], { stdio: "ignore" });
+  chrome.on("error", () => {});              // a CHROME that cannot start is a missing port, not a crash
+  return { chrome, profile };
+}
+
+async function waitForPort(profile) {
+  for (let i = 0; i < PORT_WAIT_TRIES; i++) {
+    const f = join(profile, "DevToolsActivePort");
+    if (existsSync(f)) return readFileSync(f, "utf8").split("\n")[0].trim();
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return null;
+}
+
+async function runVariant(mod, variant) {
+  let { chrome, profile } = launchChrome();
   try {
-    let port = null;
-    for (let i = 0; i < 100 && !port; i++) {
-      const f = join(profile, "DevToolsActivePort");
-      if (existsSync(f)) port = readFileSync(f, "utf8").split("\n")[0].trim();
-      else await new Promise((r) => setTimeout(r, 100));
+    let port = await waitForPort(profile);
+    for (let launch = 2; !port && launch <= LAUNCHES; launch++) {
+      console.log(`    (Chrome opened no debugging port in ${PORT_WAIT_TRIES / 10} s; relaunching, ${launch} of ${LAUNCHES})`);
+      chrome.kill();
+      await new Promise((r) => setTimeout(r, 300));
+      try { rmSync(profile, { recursive: true, force: true }); } catch {}
+      ({ chrome, profile } = launchChrome());
+      port = await waitForPort(profile);
     }
-    if (!port) return { blind: "Chrome never opened its debugging port" };
+    if (!port) return { blind: `Chrome never opened its debugging port (${LAUNCHES} launches)` };
     const ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
     const ws = new WebSocket(ver.webSocketDebuggerUrl);
     await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
