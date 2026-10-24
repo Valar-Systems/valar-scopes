@@ -169,6 +169,41 @@ describe("setDeviceAttribution", () => {
 // The dataset is queried by blob POSITION, and points are retained for three
 // months. Inserting a blob rather than appending one silently rewrites the
 // meaning of everything already stored, so the order is asserted, not assumed.
+// K1-K2 (docs/colo-on-errors.md): a failed request carries the data centre on a point of its own, with nothing that
+// identifies the device; every other request is written exactly as before, and with no colo.
+describe("err5xx: the colo on failed requests only, never beside a device id", () => {
+  const DEV = "0123456789abcdef";
+  const req = (status: number): RequestMetric => ({
+    ep: "/v1/blips", status, ms: 12, model: "s3-128", colo: "SEA", cache: "MISS", upstream: "", dev: DEV, fw: "19",
+  });
+  const requestPoint = (status: number) => ({
+    blobs: ["/v1/blips", "MISS", "", "s3-128", DEV, "19"],
+    doubles: [status, 12, 0, 1],
+    indexes: ["/v1/blips"],
+  });
+
+  it("K1 a 503 writes the request point as before, plus an err5xx point with the colo and no device id", () => {
+    const { env, writeDataPoint } = envWithSpy();
+    record(env, req(503));
+    expect(writeDataPoint).toHaveBeenCalledTimes(2);
+    expect(writeDataPoint.mock.calls[0]?.[0]).toEqual(requestPoint(503));
+    const err = writeDataPoint.mock.calls[1]?.[0];
+    expect(err).toEqual({ blobs: ["err5xx", "/v1/blips", "", "SEA"], doubles: [503], indexes: ["err5xx"] });
+    for (const b of err.blobs) {
+      expect(b).not.toBe(DEV);
+      expect(b).not.toBe("19");
+    }
+  });
+
+  it.each([200, 304, 404])("K2 a %i writes exactly the one request point, with no colo", (status) => {
+    const { env, writeDataPoint } = envWithSpy();
+    record(env, req(status));
+    expect(writeDataPoint).toHaveBeenCalledTimes(1);
+    expect(writeDataPoint.mock.calls[0]?.[0]).toEqual(requestPoint(status));
+    expect(writeDataPoint.mock.calls[0]?.[0].blobs).not.toContain("SEA");
+  });
+});
+
 describe("record blob layout", () => {
   it("keeps dev and fw in blob5/blob6, after the original four", () => {
     const { env, writeDataPoint } = envWithSpy();
