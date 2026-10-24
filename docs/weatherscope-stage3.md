@@ -2326,3 +2326,41 @@ So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor 
   - `WxLogic.h`'s `<stdlib.h>`;
   - the runner's 1 s rule;
   - the 21:28Z cell (watched).
+
+### A8.23 STOPPED: #467's whole-suite CI failed on its head; my host tests had only ever been compiled by g++ 5.1 (2026-10-23; local until ruled)
+
+**The reading.** On `b202ff3`, `firmware` run 39988242306 finished with **31 of 32 jobs green or skipped (28 success, 3 skipped) and `host-tests` failed** (job 120532947553).
+- **The failure:** CI's compiler, **g++ 13.3** (Ubuntu), rejected `src/weatherscope/WxScenarios.h:81` under `-Werror=format-truncation`. That is the `snprintf` in `IsoOnClock`; the compiler's range analysis allows up to 52-60 bytes into the 32-byte `expiresIso` and motion-clock buffers.
+- **What it stopped:** the WxScenarios block did not compile, and `run.sh` exited 2 there. **WxLoopRender and WxScreens never ran in CI.**
+- **What passed before it:** WxCrop, WxRender, WxPalette, the server crops, WxLegend, WxFeeds, WxLogic (119/0), WxLoop (44/0) and WxTowns (171/0).
+
+**The verdict:** off-prediction for #467's pending whole-suite row (A8.16-A8.22 left it pending). Recorded, **not fixed**: per the standing rule, no fix is pushed until the reviewer rules.
+
+**Why every local run passed.** My host builds use PlatformIO's MinGW **g++ 5.1.0**, which predates `-Wformat-truncation` (added in GCC 7). So the passing local runs were never evidence about CI's compiler. That is the instrument-environment gap CLAUDE.md names ("when a check protects a property, confirm the check's own environment has that property").
+
+**A second compiler, read as a proxy and labelled as one.**
+- **What it is:** WSL Ubuntu's **g++ 11.4**, compiling my six host tests with CI's flags.
+- **Why it is only a proxy:** it is not CI's 13.3. It also rejects `test_wx_crop.cpp`, which is not mine and passes on 13.3, so its verdicts are not CI's.
+
+| test | g++ 11.4 |
+|---|---|
+| `test_wx_scenarios` | **fails**: `WxScenarios.h:81` (CI's own error) |
+| `test_wx_screens` | **fails**: `WxScenarios.h:81`, included through `WxScreens.h`, **and** `WxScreens.h:214` |
+| `test_wx_loop_render`, `test_wx_loop`, `test_wx_towns`, `test_wx_logic` | compile clean |
+
+**`WxScreens.h:214` is a real defect, not only a warning.**
+- **The code:** `AddText` sizes its box from the **full** `strlen(s)` and then copies `s` into a 40-byte `text` with `snprintf`, which truncates.
+- **The consequence:** a string longer than 39 characters would get a box wider than the text drawn.
+- **Why it has not shown:** every string 3.3 draws is 32 characters or fewer, so it is latent.
+
+**The proposed fix, for the reviewer's ruling (not applied):**
+- **(i) `IsoOnClock`:** format into a 64-byte local, which the range analysis bounds, then copy at most `cap − 1` bytes into `out`. Callers and buffers are unchanged; the output is byte-identical for every real date.
+- **(ii) `AddText`:** take `n = min(strlen(s), kMaxLine − 1)`, size the box from `n`, and copy exactly `n` bytes. The box and the drawn text can then never disagree.
+- **(iii) The instrument:** before any push, compile my host tests under WSL's g++ 11.4 as well as MinGW 5.1. **CI's g++ 13.3 remains the only authority;** WSL is a cheaper early warning, not a pass.
+
+**Predicted after the fix, frozen here:**
+- CI on the new head: `host-tests` green;
+- the Wx section complete: WxScenarios 12/0, WxLoopRender 15/0, WxScreens 19/0;
+- every other block unchanged;
+- 3.3's K3, A8.21 and B results unaffected: the fix changes no output byte for the strings 3.3 draws;
+- the 3.3d flash re-measured: within 1 % of 1,602,043 B.
