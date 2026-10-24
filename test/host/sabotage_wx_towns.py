@@ -1,7 +1,7 @@
 """Runs D6 against SABOTAGED copies of src/weatherscope/WxTowns.h. Each must fail EXACTLY what
 docs/weatherscope-stage3.md A8.14 froze, and nothing else.
 
-    python -I test/host/sabotage_wx_towns.py <2025_Gaz_place_national.zip>
+    python -I test/host/sabotage_wx_towns.py <2025_Gaz_place_national.zip> <sub-est2024.csv>
 
   control  an unmodified copy: D6(b) 0 failures; make_towns.py --check "identical", exit 0
   S-D6a    the FIRST town's name gains "é" (UTF-8, two bytes) before " city": D6(b) fails exactly {D6:1}
@@ -18,7 +18,7 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_towns.cpp")
 MAKE = os.path.join(ROOT, "tools", "weatherscope", "towns", "make_towns.py")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
-ENTRY = re.compile(r'^    \{"([^"]*)", (-?\d+\.\d+), (-?\d+\.\d+)\},$', re.M)
+ENTRY = re.compile(r'^    \{"([^"]*)", (-?\d+\.\d+), (-?\d+\.\d+), (\d+)\},$', re.M)   # + the population (A9.10 PJ)
 
 
 def sha(p):
@@ -43,14 +43,14 @@ def d6b(td, name, text):
     return r.returncode, {m.group(1) for m in re.finditer(r"^\s*FAIL (D6:\d+)", out, re.M)}, inc
 
 
-def d6a(zip_path, header):
-    r = subprocess.run([sys.executable, "-I", MAKE, zip_path, "--check", header], capture_output=True, text=True)
+def d6a(zip_path, csv_path, header):
+    r = subprocess.run([sys.executable, "-I", MAKE, zip_path, csv_path, "--check", header], capture_output=True, text=True)
     m = re.search(r"^WxTowns\.h: (identical|DIFFERS)$", r.stdout, re.M)
     return r.returncode, m.group(1) if m else "?"
 
 
 def main(argv):
-    if len(argv) != 2:
+    if len(argv) != 3:
         print(__doc__)
         return 2
     before = sha(TOWNS)
@@ -59,7 +59,7 @@ def main(argv):
     ok = True
     with tempfile.TemporaryDirectory() as td:
         rc, fails, inc = d6b(td, "control", src)
-        arc, aword = d6a(argv[1], os.path.join(inc, "WxTowns.h"))
+        arc, aword = d6a(argv[1], argv[2], os.path.join(inc, "WxTowns.h"))
         good = rc == 0 and not fails and arc == 0 and aword == "identical"
         print(f"control: D6(b) exit {rc}, failing {sorted(fails)}; --check exit {arc}, {aword} -> "
               f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
@@ -85,7 +85,7 @@ def main(argv):
         os.makedirs(os.path.join(td, "S-D6b"))
         p = os.path.join(td, "S-D6b", "WxTowns.h")
         open(p, "w", encoding="utf-8", newline="\n").write(src.replace(anchor, planted))
-        arc, aword = d6a(argv[1], p)
+        arc, aword = d6a(argv[1], argv[2], p)
         good = arc == 1 and aword == "DIFFERS"
         print(f"S-D6b: --check exit {arc}, {aword}; predicted exit 1, DIFFERS -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good

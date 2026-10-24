@@ -295,17 +295,21 @@ int main(int argc, char** argv)
         check("U6e", strcmp(Compass8(359.9), "N") == 0);
     }
 
-    std::printf("== L: label text (5d) ==\n");
+    std::printf("== L: label text (Q13: title case, re-registered in A9.10) ==\n");
     {
         char b[64];
         LabelText("Bend city", b, sizeof(b));
-        check("L1", strcmp(b, "BEND") == 0, S(b));
+        check("L1", strcmp(b, "Bend") == 0, S(b));
         LabelText("La Pine city", b, sizeof(b));
-        check("L2", strcmp(b, "LA PINE") == 0, S(b));
+        check("L2", strcmp(b, "La Pine") == 0, S(b));
         LabelText("Winston-Salem city", b, sizeof(b));
-        check("L3", strcmp(b, "WINSTON-SALEM") == 0, S(b));
+        check("L3", strcmp(b, "Winston-Salem") == 0, S(b));
         LabelText("Oklahoma City city", b, sizeof(b));
-        check("L4", strcmp(b, "OKLAHOMA CITY") == 0, S(b));
+        check("L4", strcmp(b, "Oklahoma City") == 0, S(b));
+        LabelText("McKinney city", b, sizeof(b));
+        check("L5", strcmp(b, "McKinney") == 0, S(b));
+        LabelText("DeSoto city", b, sizeof(b));
+        check("L6", strcmp(b, "DeSoto") == 0, S(b));
     }
 
     std::printf("== H: here now (1c, Q1) ==\n");
