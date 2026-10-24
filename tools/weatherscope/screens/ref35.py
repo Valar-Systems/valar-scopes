@@ -332,10 +332,11 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
 
 
 # ------------------------------------------------------------------------------------------------ R0
-def load_towns_b202ff3():
-    """The 171 towns as WxTowns.h held them at b202ff3 (name, lat, lon), the generator's input."""
+def load_towns_pre_join():
+    """The 171 towns as WxTowns.h held them before 3.5a's population join (name, lat, lon), the generator's input:
+    main's a7f21fb (#467), byte-identical to b202ff3's, which the squash left reachable only through the PR."""
     import subprocess
-    t = subprocess.run(["git", "-C", ROOT, "show", "b202ff3:src/weatherscope/WxTowns.h"], capture_output=True,
+    t = subprocess.run(["git", "-C", ROOT, "show", "a7f21fb:src/weatherscope/WxTowns.h"], capture_output=True,
                        text=True, check=True).stdout
     return [(n, float(a), float(b)) for n, a, b in
             re.findall(r'\{\s*"([^"]+)",\s*(-?[0-9.]+),\s*(-?[0-9.]+)\s*\}', t)]
@@ -356,13 +357,13 @@ def png_rgb(path):
 
 
 def r0(mock_dir, out_dir):
-    towns = load_towns_b202ff3()
+    towns = load_towns_pre_join()
     POP = generator_pop(mock_dir)
     pop = lambda t: POP.get(label_name(t[0]), 1000)
     hA, cA = decode(os.path.join(LOOP, "shsr-20240521-212400.wxc"))
     hD, cD = decode(os.path.join(LOOP, "shsr-20240521-220000.wxc"))
     hZ, cZ = decode(os.path.join(LOOP, "shsr-20240521-210800.wxc"))
-    print(f"R0 inputs: {len(towns)} towns (b202ff3); POP table {len(POP)} entries (wxmock.py, R0 only); font {FONT_SHA[:12]}")
+    print(f"R0 inputs: {len(towns)} towns (a7f21fb, = b202ff3); POP table {len(POP)} entries (wxmock.py, R0 only); font {FONT_SHA[:12]}")
     results, ok = [], True
     images = {}
     for mode in ("G", "P"):

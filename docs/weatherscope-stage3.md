@@ -2913,3 +2913,37 @@ Item 2, source "Daniel":
 **Also found by reading, before any failure: FT1 and line endings.** Git warned that the vendored `glcdfont.c` would be checked out with CRLF in this autocrlf worktree. FT1 hashed the raw bytes, so a correct file would have failed it on the next checkout.
 - **The fix:** FT1 now hashes with CRLF normalised to LF, as `screens_ref.py` does for `a3_check.py`, so the pinned hash is the blob's on any checkout.
 - **Proved on a CRLF copy:** 143 CRLFs in place, and R0 still passed. The LF file was then restored, and hashes `bd6d60ecb9cc…` again.
+
+### A9.12 Ruled 2026-10-24 (source: reviewer chat, pasted by Daniel): #467 merged; R0 accepted; 3.5a's code may start
+
+> 1. #467: approved to merge at 75ccd3603175b3d05e3352e74d7acfe7cb619b45. Conditions: the CI total counted on that exact head at merge time (35, with 0 failures); a clean squash; no --admin. You merge it.
+> The three-commit push was right, and the wording of my ruling was wrong: it named c7d0aaf as the fix when c7d0aaf was the record. The fix in cad1148 is what I compiled and ran here, with the same results. 3.3's results stand.
+>
+> 2. 3.5a, ruling verbatim: "R0 is accepted: the generator mode reproduces all seven screens at 57,600 of 57,600 pixels, and the pinned mode differs at 0. The self-test miss is recorded as a miss of R0's own instrument, found before anything was graded with it. The fix brings the instrument back to A9.10's text, so it is a correction, not a re-registration; the miss stays in the record. FT1's normalised hash is accepted, with the pinned value documented as the hash of the LF-normalised bytes. Push 8caae0a. The device code and the K rows may start."
+>
+> 3. After #467 merges, rebase the plan branch onto main and open the 3.5a PR; the standing compiler rule (WSL g++ 11.4 before every push, the version in the notes) applies to it.
+
+**Done, in order:**
+1. **8caae0a was pushed as it stood** to `weatherscope/stage3-5a-plan`. The branch had no PR, so no CI ran.
+2. **#467 was merged.**
+   - **What was found first:** a merge attempt was refused because #467 was still a **draft**. It was marked ready; its head was unchanged.
+   - **The conditions, recounted on the exact head at merge time:** `total_count` **35**, all 35 listed (32 success, 3 skipped), **0 failures**; no PR stacked on its branch.
+   - **The merge:** a squash with `--match-head-commit 75ccd36…` and no `--admin`, giving **a7f21fb**, at 2026-10-24T14:04:02Z. The branch was deleted.
+   - **CI runs on the merged head:** firmware 40059848230, device-ids 40059848173, no-traffic-captures 40059848153.
+   - **Checked on main itself:** the fix is on main (`AddText`'s single clamped copy, `IsoOnClock`'s 64-byte local, A8.24). Every Weatherscope file in the merge is byte-identical to the approved head. The other files that differ are main's own merges since: #469, #473, #474, #476 and the wx-server docs.
+3. **This branch was rebased onto main** (`git rebase --onto origin/main b202ff3`), so only the three Addendum 9 commits are replayed.
+   - **A mis-step, caught and reversed:** a plain `git rebase origin/main` was tried first. It would have replayed #467's 40 original commits over their squash, so it was aborted at its first conflict, which restored the branch exactly.
+   - **The doc conflict** (A8.23/A8.24 on main against Addendum 9) was resolved mechanically as main's doc followed by exactly the bytes Addendum 9 appended. The result is verified equal to that.
+   - **Every other file equals 8caae0a's.**
+4. **R0's town input was re-pinned to a reachable commit.**
+   - **Why:** R0 read the pre-join towns with `git show b202ff3:…`. After the squash, b202ff3 is reachable only through the PR's history.
+   - **The new pin:** main's **a7f21fb**, whose `WxTowns.h` is byte-identical (sha256 `0d91cde66ca9…` at both).
+   - **R0 re-run on the rebased tree: PASSES.**
+5. **The compiler rule, before this push.** `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0` (WSL), with CI's flags, on this tree:
+   - `test_wx_logic` 119/0, `test_wx_loop` 44/0, `test_wx_towns` 171/0;
+   - `test_wx_scenarios` 12/0, `test_wx_loop_render` 15/0, `test_wx_screens` 19/0;
+   - all compiled clean.
+
+**FT1's pinned value, documented as ruled:** `bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02` is the sha256 of the **LF-normalised** bytes of Adafruit-GFX-Library `glcdfont.c` at `6abf693`. It is also the raw hash of the upstream file, which is LF.
+
+**Next:** the device code and the K rows (A9.7, steps 3-4), in the frozen order.
