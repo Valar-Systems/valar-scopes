@@ -3138,3 +3138,78 @@ test/host/test_wx_crop.cpp:47:51: error: 'void free(void*)' called on pointer re
 - **Workflow runs, read twice:**
   - at 2026-10-25T19:04:08Z, by branch: 0;
   - at 19:08:19Z, by branch: 0, and by head sha: 0.
+
+### A9.18 Step 4, the K rows: how they are built, the readings, and the predictions, before the reference exists (2026-10-25)
+
+Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g++ 13.3.0, at -O1 and -O2. At this point `k35.ref.txt` had not been generated and no K comparison had been run.
+
+**How the K rows are built.**
+- **The reference, `ref35.py --k`:**
+  - It re-derives the 25 rows from A8.10, Q15-Q18 and A9.2 in Python, in P mode, with real SUB-EST2024 populations parsed from this tree's `WxTowns.h`.
+  - It writes `test/fixtures/wx/k35.ref.txt`, one line per fact:
+    - `ROW`: the sha256 of the 240 × 240 big-endian RGB565 frame (`color565`'s truncation);
+    - `TIME`: the top strip's text and ink;
+    - `BAND`: the state line and its ink; or the warning's two lines; or the loop's age and index;
+    - `LABEL`: each placed label, its side and box, in placement order;
+    - `AR1`: AR1's drawn pixel set.
+  - **Its header pins its inputs:** the font, `WxTowns.h` (LF-normalised), the loop's `MANIFEST.json`, and `synthetic-clear.wxc`.
+  - **`--check`** regenerates the file and compares it byte for byte. **`--dump` and `--diff`** exist for naming pixels if a row ever differs.
+- **The device's side, `test/host/test_wx_k35.cpp`,** builds every row through the code the firmware will call:
+  - `wxscen::Build`, which gains the Stale and Clear kinds;
+  - `wxscenes::FromScenario` and `FromLoopFrame` (the new `WxScenes.h`);
+  - `wxscreens::Compose`, into an RGB565 sink.
+  - It emits the same lines and compares them row by row.
+  - **28 checks:** 25 K rows, AR1PIX, and the C++ halves of SC1 and SC2. **The rig exits 2** unless there are exactly 28 checks and 25 reference rows.
+  - **CI can run it:** it reads the committed reference, so it needs neither Python nor pyserial (`ref35.py` imports `legend_check`, which imports `serial`).
+- **The 25 rows:**
+  - dry, approaching, here now, warning, stale and clear at 60 mi;
+  - approaching and dry at 30 and at 15;
+  - the 15 loop frames, `loop-00` (21:04Z) to `loop-14` (22:00Z), at 60 mi.
+- **Both sides re-derive A8.10's picks** (approaching = the latest frame with an echo within 15 mi; dry = the latest without) and print them. 3.3 recorded them as 212400 and 220000.
+
+**The readings A9.10 leaves open, fixed here:**
+- **The stale row:**
+  - the frame's own time, "4:24 PM", in orange (age 1,860 s > 600);
+  - the band "RADAR STALE", dim;
+  - no "· STALE" on the time, because that is the warning screen's rule (Q18).
+- **The clear row:**
+  - the synthetic crop's header time, "5:00 PM", dim (age 0);
+  - the band "54° · NO RAIN", dim: `floor(54.0 + 0.5)` = 54;
+  - the obs is synthetic, valid, with no present weather, 5 min before the clock.
+- **The loop rows:**
+  - the frame's own time, dim (a loop frame is old by design, and its band carries the age);
+  - "NOW" for the newest, else "N MIN AGO", the age against the newest frame, truncated to whole minutes;
+  - no state line;
+  - the same rings, labels and marker as any 60 mi screen, and no warning.
+- **The warning row's storm:** A8.10's nearest echo cell over the whole crop. **Both sides carry it through the motion text at six decimals**, because that is the scenario's own representation of it. The arrow is drawn only when the storm is within 60.0 mi (Q17).
+- **The warning row's texts:**
+  - "SEVERE T-STORM";
+  - "WARNING · UNTIL" + the clock at the frame's time + 45 min;
+  - "HAIL 1 IN · WIND 60 MPH";
+  - "STORM d MI dir · NE 35 MPH", where `d` is half-up rounded (lround on positive values).
+
+**Predictions, registered now:**
+1. **`ref35.py --k --write`** prints its picks as `shsr-20240521-212400.wxc` (approaching) and `shsr-20240521-220000.wxc` (dry). **`--k --check`** then reports the file "identical" on regeneration.
+2. **R0 still passes after `compose()`'s changes,** 57,600 of 57,600 on all 7 mockups, with P − G = 0. The changes add arguments that R0 never passes, so R0's frames must be unchanged.
+3. **`test_wx_k35`:** 28 checks, 0 failures, under MinGW 5.1.0 and under g++ 13.3.0.
+   - **The C++ picks:** 212400 and 220000.
+   - **Each of the 25 rows is equal** at 57,600 of 57,600 pixels, with equal time, band and labels.
+   - **AR1PIX equal; SC1 and SC2 pass.**
+4. **`sabotage_wx_k35.py`,** each failing exactly its set:
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-K1 | `WxRaster.h`: `kLabel` (176, 176, 176) → (184, 176, 176), one RGB565 step in red | all 25 K rows. Every row places at least one town label: the loop rows share dry's geometry and fixed overlays |
+| S-K2 | `WxScreens.h`: the knob's step `i · 116 / 14` → `i · 120 / 14` | {K:loop-02 … K:loop-14}. 13 rows: i = 0 and 1 give the same x either way (0, 8) |
+| S-K3 | `WxScreens.h`: the arrow along `fromDeg` (S-ARROW's plant) | {K:warning-60, AR1PIX} |
+| S-K4 | **the reference copy:** the first `LABEL dry-60` line's x0 + 1 | {K:dry-60} |
+| S-K5 | `WxScreens.h`: `kStaleAfterS` 1800 → 3600 | {K:stale-60}. Its band becomes the echo line; its time stays orange (1,860 > 600) |
+
+**Outside every set above, the pre-registered meaning is: stop.**
+- **If any row differs:**
+  1. dump both sides (`test_wx_k35 … --dump`, then `ref35.py --k --diff`);
+  2. name every differing pixel and its cause;
+  3. record it;
+  4. change nothing until it is ruled.
+- **If the picks differ from 212400 and 220000:** the scenarios are not 3.3's, and that stops this too.
+- **If R0 no longer passes:** the reference's edit changed its generator mode. Stop.
