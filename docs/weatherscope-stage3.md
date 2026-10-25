@@ -3115,3 +3115,26 @@ test/host/test_wx_crop.cpp:47:51: error: 'void free(void*)' called on pointer re
 
 (Inlined from `std::vector<unsigned char>`'s destructor in `main`, and the note is "returned from 'void* operator new(std::size_t)'".)
 - **Exempt from the 11.4 pre-push rule, that file only.** Every other host test stays under the rule.
+
+### A9.17 Ruled 2026-10-25 (source: reviewer chat, pasted by Daniel): the pre-push compiler is Ubuntu-24.04's g++ 13.3; and A9.16's results
+
+> Ruling verbatim: "The pre-push compiler changes. Daniel has installed a second WSL distro, Ubuntu-24.04, the same release as CI's ubuntu-latest, with its default g++ 13.3. From now on, before any push that touches test/host or src/weatherscope, compile and run the host tests there with run.sh's own flags, and record the first line of `g++ --version` in the push's notes. A local pass there is evidence; CI stays the authority. The 11.4 exemption for test_wx_crop lapses: under 13.3 it is expected to compile, and if it doesn't, stop and report. Never shut down WSL or the Ubuntu distro (no wsl --shutdown, no wsl --terminate Ubuntu): the station runs there. Use only `wsl -d Ubuntu-24.04` for this."
+>
+> Installed version, as Daniel read it: g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0.
+
+**The ruling, executed.**
+- **The version, read with `wsl -d Ubuntu-24.04`:** `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` (Ubuntu 24.04.5 LTS). Equal to Daniel's reading.
+- **`test_wx_crop` under 13.3, with run.sh's flags:** it compiles (exit 0) and runs: "all WX crop checks passed", exit 0. The exemption A9.16 recorded has lapsed, and no stop is needed.
+- **No shutdown or terminate was issued.** Every 3.5a WSL command from here is `wsl -d Ubuntu-24.04`. The earlier 11.4 runs in this addendum series used the default distro, read-only, with nothing stopped.
+
+**A9.16's re-check, run after the edit** (commit `5d81645`):
+- **Unsabotaged:** 73 checks, 0 failures; IC3 skipped.
+- **`sabotage_wx_layout.py`:** 11 of 11 as A9.10 froze them. **S-IC failed exactly {IC1, IC3, IC4}**, and IC3's failing line reads "left; box (106, 116, 148, 124); text at (107, 117)", the left side placed once the inner circle is gone, as predicted.
+- **Every other set came out unchanged.**
+- **Compiled clean:** MinGW 5.1.0, and 11.4 (`test_wx_layout`, 73/0), under the rule then in force.
+
+**The backup (A9.16 item 3), confirmed.**
+- **The branch:** `weatherscope/stage3-5a-wip` at `38c8ee857b23873e7e63f2f788999bc365329b48`, with no PR.
+- **Workflow runs, read twice:**
+  - at 2026-10-25T19:04:08Z, by branch: 0;
+  - at 19:08:19Z, by branch: 0, and by head sha: 0.
