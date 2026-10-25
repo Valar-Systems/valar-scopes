@@ -3213,3 +3213,57 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
   4. change nothing until it is ruled.
 - **If the picks differ from 212400 and 220000:** the scenarios are not 3.3's, and that stops this too.
 - **If R0 no longer passes:** the reference's edit changed its generator mode. Stop.
+
+### A9.19 Steps 7-8, the flash and the board run: the method and the predictions, before the flash (2026-10-25)
+
+**Where things stand.** Steps 5 and 6 are done; the details are in the commit notes of `49846de`, which was pushed to #480 at 2026-10-25T19:31:00Z.
+- **The firmware build:** `pio run -e weatherscope-s3-128` succeeded.
+- **The sizes:**
+  - flash 1,612,859 B, inside A9.5's 1,605,000-1,635,000;
+  - static RAM 54,928 B, inside 54,800-57,000.
+- **The embedded crops:** all 16 appear once each in the ELF and once in the image. The control, the clear crop with one byte flipped, counts 0.
+- **PSRAM can only be read on the board.**
+
+**The tools** (new; 3.3d's grade masked rectangles and read 3.3's prints, which A9.4 retired):
+- **`tools/weatherscope/board/run_b35.py`.**
+  - **One serial open, never reopened.** The trace, the snapshot pair rule and the TCP check are `run_b.py`'s own, imported.
+  - **The 1 s rule:** it acts only on a screen line that arrives at least 1 s after the open.
+  - **B1:** each of the six "R=60" screens, captured 2 s after its line.
+  - **BZ:** from the next "dry R=60", 1 s later, the bytes U, U, U, D, D, H, H, each followed by its screen line and a capture 0.5 s later.
+  - **B2 and B3:** as 3.3d.
+- **`tools/weatherscope/board/grade_b35.py`.**
+  - **The reference:** `ref35.py`'s K rows, re-rendered and first checked byte-equal to the committed `k35.ref.txt`. If they differ, nothing is graded.
+  - **Each screen:** its snapshot against its K row at all 57,600 pixels, and the board's printed block (`[wx] k` ROW, TIME, BAND and LABEL lines) against the row's lines.
+  - **B2:** the code hashes against `screens.ref.json`, and the epochs against `MANIFEST.json`.
+  - **B3:** `legend_check.py --fb`.
+  - **The recorded-data sabotages:** A9.10's five.
+  - **PNGs:** it writes one of every graded snapshot, including the six B1 images for Daniel.
+
+**The flash (step 7).**
+- **How:** onto `907069326E64` only, its port resolved by serial (`scripts/board-port.py weatherscope --upload`), with `pio run -e weatherscope-s3-128 -t upload --upload-port <it>`. The upload's exit status is read, not its output.
+- **Predicted:** exit 0, and the board then prints `[build] env=weatherscope-s3-128`.
+- **Proof the new image is running, not an old one:** the `[wx] feeds` line names `clear 36 B`, and the screen lines carry `R=`. Neither exists in 3.3d's image.
+
+**Predictions for the board run (step 8).** A9.10's B rows, as frozen, plus A9.5's PSRAM:
+
+| row | predicted |
+|---|---|
+| sizes | `psram_used` in **160,000-175,000 B**, the same value on every `[wx] pick` line; `ready=1` |
+| B1 | all six captured; each snapshot equal to its K row at **57,600 of 57,600**; each printed block equal to the row's lines; the picks 212400 and 220000 |
+| BZ | 7 of 7 captured, on dry, at radii 30, 15, 15, 30, 60, 15, 60; each equal to `dry-<R>` at 57,600, with its lines |
+| B2 | 15 records; the code hashes equal `screens.ref.json`; the epochs are the manifest's, ascending; pacing max − min ≤ 10,000 µs, each interval 70,000 ± 5,000 µs, ≥ 14 fps; **draw ≤ 45,000 µs**; hash ≤ 5,000 µs; the screen after the loop equal to its K row |
+| B3 | `legend_check --fb` exits 0; the screen after the legend equal to its K row |
+| the sabotages | S-B1a′, S-B1b′, S-B2a, S-B2b and S-B2c **all red** |
+
+- **The row at risk is B2's draw bound.** Each loop frame is now a whole `Compose`: the map, the rings, about 280 dotted-ring points in software double precision (the ESP32-S3 has no double FPU), the labels, the halo text and the band. 3.3d's frames drew the map and a few overlays. The bound stays as frozen, and is not argued after the fact.
+
+**After the close.**
+- **Either branch is pre-registered:**
+  - TCP :80 is up within 60 s; or
+  - it is down, because the close put the board in ROM download mode, as it did 3/3 on 2026-10-22.
+- **If it is down:** it is recovered by hand with esptool `read_mac` (no writes) and recorded. Being down is not a B-row result.
+
+**Outside every row above: stop.**
+- Record the failing row with its evidence: the PNG, the pixel count, the trace lines.
+- Change no code, and push no fix, until it is ruled.
+- **If the board does not reach the scenarios at all** (a status screen, `ready=0`, or no `R=` lines), that is a stop too, and is recorded the same way.
