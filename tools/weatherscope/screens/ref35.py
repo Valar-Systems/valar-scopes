@@ -8,6 +8,9 @@ Python -- never from the device's C++. Two rounding modes (A9.10, R0):
 Every rounding-site call whose argument is exactly k + 0.5 is logged, so R0 can name each pixel where P and G differ.
 
     python -I tools/weatherscope/screens/ref35.py --r0 <reviewer mockup dir> [--out <dir>]
+    python -I tools/weatherscope/screens/ref35.py --k --write | --check | --diff <dir> [--dump <dir>]
+        the 25 K rows (P mode, real populations) as test/fixtures/wx/k35.ref.txt, which test_wx_k35.cpp reproduces
+        through the device's path; --dump writes each frame's RGB565, --diff compares another renderer's dumps
 
 The font is the vendored Adafruit-GFX glcdfont.c, pinned by sha256 (FT1); colours come from legend_check.py's
 pinned-table derivation, never from WxPalette.h. Prints no coordinate.
@@ -250,8 +253,31 @@ def place_ring_labels(scr, rings, obstacles):
             break
 
 
-def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8):
-    """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own)."""
+def draw_dda(scr, x0, y0, x1, y1, col, rnd, site):
+    """A9.2's edge: n = int(max(|dx|, |dy|)) + 1, points k = 0..n, each rounded, clipped to the map area."""
+    n = int(max(abs(x1 - x0), abs(y1 - y0))) + 1
+    for k in range(n + 1):
+        x, y = rnd.point(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, f"{site} k={k}")
+        if in_map(x, y):
+            scr.px[y][x] = col
+
+
+def arrow_segments(sx, sy, from_deg):
+    """Q17: a 12 px shaft from the storm along its travel (from + 180), and two 4 px head strokes at +-150 degrees
+    from the travel, at the tip."""
+    travel = (from_deg + 180) % 360
+    t = math.radians(travel)
+    tip = (sx + 12 * math.sin(t), sy - 12 * math.cos(t))
+    heads = [(tip[0] + 4 * math.sin(math.radians(travel + d)), tip[1] - 4 * math.cos(math.radians(travel + d)))
+             for d in (150, -150)]
+    return [((sx, sy), tip), (tip, heads[0]), (tip, heads[1])]
+
+
+def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None):
+    """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own).
+    3.5a's K rows add (A9.10, A9.14, Q17, Q18): state["timeText"]/["timeInk"] for the top strip; warning["arrow"] =
+    (lat, lon, fromDeg), drawn after the title and before the labels, its box a fixed overlay; and `loop` =
+    dict(age=, index=) for the loop's band in place of the state line. Towns are (name, lat, lon[, ...])."""
     scr = Screen()
     render_map(scr, h, codes, view)
     scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, BLACK)
@@ -264,13 +290,14 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
             draw_ring(scr, mi * ppm, rnd)
             rings.append((mi * ppm, "%d" % mi))
     scr.text(117, 3, "N", 1, DIMTXT)
+    time_text = state.get("timeText", frame_clock)
     if not zoomed:
-        scr.text(int(C - text_w(frame_clock) / 2), 13, frame_clock, 1, state.get("timeInk", DIMTXT))
+        scr.text(int(C - text_w(time_text) / 2), 13, time_text, 1, state.get("timeInk", DIMTXT))
     else:
         tag = "ZOOM %d MI" % view.R
-        x0 = int(C - text_w(frame_clock + "  " + tag) / 2)
-        scr.text(x0, 13, frame_clock, 1, state.get("timeInk", DIMTXT))
-        scr.text(x0 + text_w(frame_clock + "  ") + 1, 13, tag, 1, WHITE)
+        x0 = int(C - text_w(time_text + "  " + tag) / 2)
+        scr.text(x0, 13, time_text, 1, state.get("timeInk", DIMTXT))
+        scr.text(x0 + text_w(time_text + "  ") + 1, 13, tag, 1, WHITE)
     if warning:
         pts = [view.project(la, lo) for (la, lo) in warning["polygon"]]
         for i in range(len(pts)):
@@ -289,10 +316,20 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
         scr.text(sx, 54, sub, 1, ORANGE, halo=BLACK)
         fixed.append((tx - 2, 34, tx + text_w(title, 2) + 2, 36 + 14 + 2))
         fixed.append((sx - 2, 52, sx + text_w(sub) + 2, 54 + 8 + 2))
+        if warning.get("arrow"):
+            alat, alon, from_deg = warning["arrow"]
+            ax, ay = view.project(alat, alon)
+            segs = arrow_segments(ax, ay, from_deg)
+            for j, (p0, p1) in enumerate(segs):
+                draw_dda(scr, p0[0], p0[1], p1[0], p1[1], ORANGE, rnd, f"arrow {j}")
+            xs = [p[0] for s in segs for p in s]
+            ys = [p[1] for s in segs for p in s]
+            fixed.append((int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))))
     placed, placed_info = [], []
     inner = 0.17 * view.R * ppm + 4
     ranked = sorted(towns, key=lambda t: -(pop(t) or 1000))
-    for name, lat, lon in ranked:
+    for t in ranked:
+        name, lat, lon = t[0], t[1], t[2]
         if len(placed) >= cap:
             break
         x, y = view.project(lat, lon)
@@ -325,6 +362,11 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
     if warning:
         scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, WHITE)
         scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, WHITE)
+    elif loop is not None:   # A9.10's loop band: the age, a 120 x 2 track, a 4 x 6 knob
+        scr.text(int(C - text_w(loop["age"]) / 2), 198, loop["age"], 1, DIMTXT)
+        scr.fill(60, 212, 179, 213, RINGTXT)
+        kx = 60 + (loop["index"] * 116) // 14
+        scr.fill(kx, 210, kx + 3, 215, WHITE)
     else:
         s, col = state["line"], state["colour"]
         scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, col)
@@ -423,10 +465,228 @@ def r0(mock_dir, out_dir):
     return 0 if ok else 1
 
 
+# ------------------------------------------------------------------------------------------------ K (A9.10)
+# The 25 K rows, re-derived here from the scenario definitions (A8.10, Q15) and A9.2's rules -- never from the C++.
+# Each row is written as lines a C++ host test (test/host/test_wx_k35.cpp) reproduces through the device's path:
+#   ROW <name> <sha256 of the 240 x 240 RGB565 big-endian frame>     the 57,600 pixels, color565-truncated
+#   TIME <name> <hex text> <ink>                                     the top strip's time
+#   BAND <name> S <hex text> <ink> | BAND <name> 1|2 <hex text> | BAND <name> L <hex age> <index>
+#   LABEL <name> <hex label> <R|L> <x0> <y0> <x1> <y1>               each placed town label, in placement order
+#   AR1 <x,y> ...                                                    A9.14: AR1's drawn pixel set, sorted
+K_REF = os.path.join(WX, "k35.ref.txt")
+CLEAR = os.path.join(LOOP, "synthetic-clear.wxc")
+OFFSET_MIN = -300            # the scenarios' clock, CDT (A8.1)
+STALE_LATE_S = 31 * 60       # Q15
+CLEAR_TEMP_F = 54.0          # Q15
+EXPIRES_AFTER_S = 45 * 60    # A8.10
+FROM_DEG, SPEED_KT = 240, 30
+MPH_PER_KT = 1.150779448
+COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+INKS = {WHITE: "white", DIMTXT: "dim", ORANGE: "orange"}
+
+
+def half_up(v):
+    return int(math.floor(v + 0.5))
+
+
+def compass(deg):
+    return COMPASS[int((deg + 22.5) // 45) % 8]
+
+
+def clock_text(epoch, off_min=OFFSET_MIN):
+    day = (epoch + off_min * 60) % 86400
+    hh, mm = day // 3600, day // 60 % 60
+    return "%d:%02d %s" % (12 if hh % 12 == 0 else hh % 12, mm, "AM" if hh < 12 else "PM")
+
+
+def planar(frm, to):
+    """(miles, bearing degrees) in the map's metric: 111 km per degree, longitude scaled at `frm`'s latitude."""
+    dx = (to[1] - frm[1]) * KM_PER_DEG * math.cos(math.radians(frm[0]))
+    dy = (to[0] - frm[0]) * KM_PER_DEG
+    return math.sqrt(dx * dx + dy * dy) / KM_PER_MI, (math.degrees(math.atan2(dx, dy)) + 360) % 360
+
+
+def storm_cell(h, codes, home):
+    """A8.10's storm: the nearest echo cell's centre over the whole crop (row-major, the first minimum), carried by
+    the warning's motion text at six decimals, as the scenario writes it."""
+    kx, ky = KM_PER_DEG * math.cos(math.radians(home[0])), KM_PER_DEG
+    best, at = None, None
+    for r in range(h["rows"]):
+        lat = h["latNw"] - r * h["cellLat"]
+        dy = (lat - home[0]) * ky
+        for c in range(h["cols"]):
+            if 1 <= codes[r * h["cols"] + c] <= 13:
+                lon = h["lonNw"] + c * h["cellLon"]
+                dx = (lon - home[1]) * kx
+                d2 = dx * dx + dy * dy
+                if best is None or d2 < best:
+                    best, at = d2, (lat, lon)
+    return float("%.6f" % at[0]), float("%.6f" % at[1])
+
+
+def state_rule(h, codes, age_s, here_now=None, temp_f=None):
+    """A9.2 / Q15 / Q16 / Q20: RADAR STALE past 30 min; RAIN|SNOW NOW; the nearest echo within 60.0 mi (white within
+    15 mi); a temperature; else NO RAIN 60 MI."""
+    if age_s > 1800:
+        return "RADAR STALE", DIMTXT
+    if here_now:
+        return here_now + " NOW", WHITE
+    e = nearest_echo(h, codes, centre(h), 60.0)
+    if e:
+        return "RAIN %d MI %s" % (half_up(e[0]), e[1]), WHITE if e[0] <= 15.0 else DIMTXT
+    if temp_f is not None:
+        return "%d" % half_up(temp_f) + DEGREE + " " + MIDDOT + " NO RAIN", DIMTXT
+    return "NO RAIN 60 MI", DIMTXT
+
+
+def load_towns_now():
+    """WxTowns.h as this tree holds it, with SUB-EST2024's populations (Q12): (name, lat, lon, pop)."""
+    t = open(os.path.join(ROOT, "src", "weatherscope", "WxTowns.h"), encoding="utf-8").read()
+    rows = re.findall(r'\{\s*"([^"]+)",\s*(-?[0-9.]+),\s*(-?[0-9.]+),\s*([0-9]+)\s*\}', t)
+    return [(n, float(a), float(b), int(p)) for n, a, b, p in rows]
+
+
+def sha_lf(path):
+    return hashlib.sha256(open(path, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def k_rows():
+    """[(row name, Screen, lines)] for the 25 rows, and the AR1 line."""
+    names = sorted(n for n in os.listdir(LOOP) if n.startswith("shsr-") and n.endswith(".wxc"))
+    if len(names) != 15:
+        sys.exit(f"K: {len(names)} loop frames, not 15")
+    frames = [decode(os.path.join(LOOP, n)) for n in names]
+    # A8.10's picks, re-derived: approaching = the latest frame with an echo within 15 mi; dry = the latest without
+    near = [nearest_echo(h, c, centre(h), None) for h, c in frames]
+    ia = max(i for i, e in enumerate(near) if e and e[0] <= 15.0)
+    idry = max(i for i, e in enumerate(near) if not (e and e[0] <= 15.0))
+    print(f"K picks: approaching {names[ia]}, dry {names[idry]}")
+    (hA, cA), (hD, cD) = frames[ia], frames[idry]
+    hC, cC = decode(CLEAR)
+    if set(cC) != {0} or len(cC) != 38520:
+        sys.exit("K: synthetic-clear.wxc is not 38,520 dry cells (SC1)")
+    towns = load_towns_now()
+    pop = lambda t: t[3]
+    out = []
+
+    def row(name, h, codes, R, state, warning=None, loop=None, clock_epoch=None):
+        rnd = Rounder("P")
+        clock = clock_text(clock_epoch if clock_epoch is not None else h["epoch"])
+        state = dict(state)
+        state.setdefault("timeText", clock)
+        state.setdefault("timeInk", DIMTXT)
+        scr, placed = compose(h, codes, View(h, R), state, towns, pop, clock, rnd, zoomed=(R != 60), warning=warning,
+                              cap={60: 8, 30: 6, 15: 5}[R], loop=loop)
+        lines = ["ROW %s %s" % (name, hashlib.sha256(scr.rgb565()).hexdigest()),
+                 "TIME %s %s %s" % (name, hx(state["timeText"]), INKS[state["timeInk"]])]
+        if warning:
+            lines += ["BAND %s 1 %s" % (name, hx(warning["band1"])), "BAND %s 2 %s" % (name, hx(warning["band2"]))]
+        elif loop is not None:
+            lines.append("BAND %s L %s %d" % (name, hx(loop["age"]), loop["index"]))
+        else:
+            lines.append("BAND %s S %s %s" % (name, hx(state["line"]), INKS[state["colour"]]))
+        lines += ["LABEL %s %s %s %d %d %d %d" % (name, hx(lab), side, *box) for lab, side, box in placed]
+        out.append((name, scr, lines))
+
+    def plain(h, codes, age_s=0, here_now=None, temp_f=None):
+        line, col = state_rule(h, codes, age_s, here_now, temp_f)
+        return dict(line=line, colour=col, timeInk=ORANGE if age_s > 600 else DIMTXT)
+
+    home = centre(hA)
+    storm = storm_cell(hA, cA, home)
+    d, b = planar(home, storm)
+    warn = dict(polygon=[(home[0] - .25, home[1] - .25), (home[0] - .25, home[1] + .25),
+                         (home[0] + .25, home[1] + .25), (home[0] + .25, home[1] - .25)],
+                title="SEVERE T-STORM", sub="WARNING " + MIDDOT + " UNTIL " + clock_text(hA["epoch"] + EXPIRES_AFTER_S),
+                band1="HAIL 1 IN " + MIDDOT + " WIND 60 MPH",
+                band2="STORM %d MI %s " % (half_up(d), compass(b)) + MIDDOT + " %s %d MPH" % (
+                    compass((FROM_DEG + 180) % 360), half_up(SPEED_KT * MPH_PER_KT)),
+                arrow=(storm[0], storm[1], FROM_DEG) if d <= 60.0 else None)
+    row("dry-60", hD, cD, 60, plain(hD, cD))
+    row("approaching-60", hA, cA, 60, plain(hA, cA))
+    row("herenow-60", hA, cA, 60, plain(hA, cA, here_now="RAIN"))
+    row("warning-60", hA, cA, 60, {}, warning=warn)
+    row("stale-60", hA, cA, 60, plain(hA, cA, age_s=STALE_LATE_S))
+    row("clear-60", hC, cC, 60, plain(hC, cC, temp_f=CLEAR_TEMP_F))
+    row("approaching-30", hA, cA, 30, plain(hA, cA))
+    row("approaching-15", hA, cA, 15, plain(hA, cA))
+    row("dry-30", hD, cD, 30, plain(hD, cD))
+    row("dry-15", hD, cD, 15, plain(hD, cD))
+    newest = frames[-1][0]["epoch"]
+    for i, (h, c) in enumerate(frames):
+        mins = (newest - h["epoch"]) // 60
+        row("loop-%02d" % i, h, c, 60, {}, loop=dict(age="NOW" if mins <= 0 else "%d MIN AGO" % mins, index=i))
+    # AR1's drawn set (A9.14): the arrow from (150.0, 100.0), from 240 degrees, on its own
+    pts = set()
+    rnd = Rounder("P")
+    for j, (p0, p1) in enumerate(arrow_segments(150.0, 100.0, 240)):
+        n = int(max(abs(p1[0] - p0[0]), abs(p1[1] - p0[1]))) + 1
+        for k in range(n + 1):
+            x, y = rnd.point(p0[0] + (p1[0] - p0[0]) * k / n, p0[1] + (p1[1] - p0[1]) * k / n, f"AR1 {j} k={k}")
+            if in_map(x, y):
+                pts.add((x, y))
+    ar1 = "AR1 " + " ".join("%d,%d" % p for p in sorted(pts))
+    return out, ar1
+
+
+def hx(s):
+    return s.encode("latin-1").hex() if s else "-"
+
+
+def k_text():
+    rows, ar1 = k_rows()
+    head = ["# Weatherscope 3.5a K rows (docs/weatherscope-stage3.md A9.10): written by tools/weatherscope/screens/ref35.py --k",
+            "# --write, checked by its --check; read by test/host/test_wx_k35.cpp. Texts are hex (latin-1); '-' is empty.",
+            "# font %s" % FONT_SHA,
+            "# WxTowns.h %s (LF-normalised)" % sha_lf(os.path.join(ROOT, "src", "weatherscope", "WxTowns.h")),
+            "# loop MANIFEST.json %s (LF-normalised)" % sha_lf(os.path.join(LOOP, "MANIFEST.json")),
+            "# synthetic-clear.wxc %s" % hashlib.sha256(open(CLEAR, "rb").read()).hexdigest()]
+    body = [l for _, _, lines in rows for l in lines] + [ar1]
+    return "\n".join(head + body) + "\n", rows
+
+
+def k_main(argv):
+    text, rows = k_text()
+    if "--dump" in argv:
+        d = argv[argv.index("--dump") + 1]
+        os.makedirs(d, exist_ok=True)
+        for name, scr, _ in rows:
+            open(os.path.join(d, name + ".rgb565"), "wb").write(scr.rgb565())
+        print(f"dumped {len(rows)} frames to {d}")
+    if "--write" in argv:
+        open(K_REF, "w", encoding="utf-8", newline="\n").write(text)
+        print(f"wrote {os.path.relpath(K_REF, ROOT)}: {len(rows)} rows")
+        return 0
+    if "--diff" in argv:   # diagnosis: per-row differing pixels against another renderer's dumps
+        d = argv[argv.index("--diff") + 1]
+        bad = 0
+        for name, scr, _ in rows:
+            want, got = scr.rgb565(), open(os.path.join(d, name + ".rgb565"), "rb").read()
+            diff = [(i % SIZE, i // SIZE) for i in range(SIZE * SIZE) if want[2 * i:2 * i + 2] != got[2 * i:2 * i + 2]]
+            bad += bool(diff)
+            print(f"  {name}: {SIZE * SIZE - len(diff)} of {SIZE * SIZE} equal" + (f"; first {diff[:12]}" if diff else ""))
+        return 1 if bad else 0
+    if "--check" in argv:
+        committed = open(K_REF, encoding="utf-8").read().replace("\r\n", "\n")
+        same = committed == text
+        print(f"{os.path.relpath(K_REF, ROOT)}: {'identical' if same else 'DIFFERS'} on regeneration")
+        if not same:
+            a, b = committed.splitlines(), text.splitlines()
+            for i, (x, y) in enumerate(zip(a, b)):
+                if x != y:
+                    print(f"  first difference at line {i + 1}:\n    committed {x[:120]}\n    now       {y[:120]}")
+                    break
+        return 0 if same else 1
+    print("ref35.py --k needs --write, --check, --diff <dir> or --dump <dir>")
+    return 2
+
+
 if __name__ == "__main__":
     a = sys.argv
     if len(a) >= 3 and a[1] == "--r0":
         out = a[a.index("--out") + 1] if "--out" in a else None
         sys.exit(r0(a[2], out))
+    if len(a) >= 2 and a[1] == "--k":
+        sys.exit(k_main(a))
     print(__doc__)
     sys.exit(2)

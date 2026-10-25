@@ -541,7 +541,7 @@ struct ScreenIn {
     Rgb stateInk{120, 120, 120};
     bool loop = false;                // the loop's band instead (A9.10's K rows)
     int loopIndex = 0;
-    char loopAge[24] = "";
+    char loopAge[32] = "";            // "%ld MIN AGO" at its widest long: 29 bytes (-Wformat-truncation)
     const wxtowns::Town* towns = nullptr;
     int nTowns = 0;
     const int* order = nullptr;       // RankOrder of the towns' populations, worked out once
@@ -551,6 +551,7 @@ struct ScreenOut {
     PlacedLabel labels[kMaxLabels];
     int nLabels = 0;
     char time[40] = "";
+    Rgb timeInk{0, 0, 0};
 };
 
 // A whole screen, in the generator's order (A9.2): map, bands, rings, top strip, polygon and title, the arrow (after
@@ -573,10 +574,9 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
     for (int i = 0; i < nRings; ++i) RingDots(s, rings[i] * ppm, kRing);
 
     Text(s, 117, 3, "N", 1, kDim, nullptr);
-    Rgb timeInk;
-    TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &timeInk);
+    TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &out->timeInk);
     const TopStrip top = TopStripAt(out->time, in.radiusMi);
-    Text(s, top.timeX, 13, out->time, 1, timeInk, nullptr);
+    Text(s, top.timeX, 13, out->time, 1, out->timeInk, nullptr);
     if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, kWhite, nullptr);
 
     if (in.warning) {
