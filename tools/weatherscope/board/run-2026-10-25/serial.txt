@@ -1,0 +1,440 @@
+#HOST opened COM6; board weatherscope-326e64.local; acting only on screen lines from t_open + 1 s
+
+[build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope
+[build] confirm this matches the image you intended BEFORE diagnosing any symptom
+[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+[boot] reset reason=USB
+[netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+[netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+[netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+[quiet] armed: reboot at local 03:00, tz-offset=unset (-28800 s) -- local hour now 11
+[tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=245748)
+[bright] first-light/carry -> 255
+[disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=294360
+*wm:v2.0.17  D:2
+[WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+[WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+[WiFi] fast join: ch=1 bssid=..:..:..:..:38:2A
+[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] CONNECTED  IP=<board-ip>  RSSI=-32 dBm
+[WiFi] fast join OK in 3749 ms
+[WiFi] pinned AP ch=1 RSSI=-32 dBm for the next boot
+[ota] channel=weatherscope-s3-128 current=18 latest=18
+[web] config server listening on :80 (http://Weatherscope-326E64.local)
+[wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+[wx] psram_used=159824 sprite=1 grid=38520 in=432 out=688 history=15 clear=36 ready=1
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] init; location=set autodim=1 brightness=255 stored=1
+[heap] handshake ballast reserved (16717 B); free8=195964
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=42697
+[wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=42827
+[wx] k ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+#HOST fetch approaching 0: 115200 B torn=false seq=1020 sha cc212e92aabb
+#HOST fetch approaching 1: 115200 B torn=false seq=1050 sha cc212e92aabb
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=43397
+[wx] k ROW herenow-60 33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+#HOST fetch herenow 0: 115200 B torn=false seq=1823 sha 33d8fb811e00
+#HOST fetch herenow 1: 115200 B torn=false seq=1852 sha 33d8fb811e00
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=49998
+[wx] k ROW warning-60 76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+#HOST fetch warning 0: 115200 B torn=false seq=2620 sha 76323c3acd74
+#HOST fetch warning 1: 115200 B torn=false seq=2652 sha 76323c3acd74
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=42907
+[wx] k ROW stale-60 00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+#HOST fetch stale 0: 115200 B torn=false seq=3423 sha 00138b71b9d8
+#HOST fetch stale 1: 115200 B torn=false seq=3453 sha 00138b71b9d8
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=41561
+[wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+#HOST fetch clear 0: 115200 B torn=false seq=4226 sha 07155bc1474d
+#HOST fetch clear 1: 115200 B torn=false seq=4257 sha 07155bc1474d
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=42662
+[wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST fetch dry 0: 115200 B torn=false seq=5025 sha fa21a9989854
+#HOST fetch dry 1: 115200 B torn=false seq=5055 sha 5100cd3c3479
+#HOST fetch dry 2: 115200 B torn=false seq=5084 sha fa21a9989854
+#HOST fetch dry 3: 115200 B torn=false seq=5112 sha fa21a9989854
+#HOST B1 captured ['approaching', 'clear', 'dry', 'herenow', 'stale', 'warning']
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=42940
+[wx] k ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=42882
+[wx] k ROW herenow-60 33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=50203
+[wx] k ROW warning-60 76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=42901
+[wx] k ROW stale-60 00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=41514
+[wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=42658
+[wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST BZ starts on dry
+#HOST send b'U'
+[wx] gesture U
+[wx] zoom in 60 -> 30 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=30 frame=220000 screen=Dry synthetic=0 compose_us=40151
+[wx] k ROW dry-30 adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b
+[wx] k TIME dry-30 5:00%20PM dim
+[wx] k BAND dry-30 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-30 Dallas R 182 145 222 153
+[wx] k LABEL dry-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL dry-30 Arlington L 42 170 102 178
+[wx] k LABEL dry-30 Plano R 186 74 220 82
+[wx] k LABEL dry-30 Garland L 168 113 216 121
+[wx] k LABEL dry-30 Frisco L 130 45 172 53
+[wx] screen=scenario dry R=30
+#HOST fetch bz0 0: 115200 B torn=false seq=9873 sha adbab536132a
+#HOST fetch bz0 1: 115200 B torn=false seq=9901 sha adbab536132a
+#HOST send b'U'
+[wx] gesture U
+[wx] zoom in 30 -> 15 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=35781
+[wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+[wx] k TIME dry-15 5:00%20PM dim
+[wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-15 Irving R 151 139 191 147
+[wx] k LABEL dry-15 Lewisville L 86 32 152 40
+[wx] k LABEL dry-15 Carrollton L 120 66 186 74
+[wx] k LABEL dry-15 Euless L 62 143 104 151
+[wx] k LABEL dry-15 Keller R 33 97 73 105
+[wx] screen=scenario dry R=15
+#HOST fetch bz1 0: 115200 B torn=false seq=9941 sha acd13a4a7ee3
+#HOST fetch bz1 1: 115200 B torn=false seq=9971 sha 5bc3b1f08a37
+#HOST fetch bz1 2: 115200 B torn=false seq=10000 sha acd13a4a7ee3
+#HOST fetch bz1 3: 115200 B torn=false seq=10029 sha acd13a4a7ee3
+#HOST send b'U'
+[wx] gesture U
+[wx] zoom in (edge: Max) 15 -> 15 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=35797
+[wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+[wx] k TIME dry-15 5:00%20PM dim
+[wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-15 Irving R 151 139 191 147
+[wx] k LABEL dry-15 Lewisville L 86 32 152 40
+[wx] k LABEL dry-15 Carrollton L 120 66 186 74
+[wx] k LABEL dry-15 Euless L 62 143 104 151
+[wx] k LABEL dry-15 Keller R 33 97 73 105
+[wx] screen=scenario dry R=15
+#HOST fetch bz2 0: 115200 B torn=false seq=10067 sha acd13a4a7ee3
+#HOST fetch bz2 1: 115200 B torn=false seq=10096 sha acd13a4a7ee3
+#HOST send b'D'
+[wx] gesture D
+[wx] zoom out 15 -> 30 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=30 frame=220000 screen=Dry synthetic=0 compose_us=39976
+[wx] k ROW dry-30 adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b
+[wx] k TIME dry-30 5:00%20PM dim
+[wx] k BAND dry-30 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-30 Dallas R 182 145 222 153
+[wx] k LABEL dry-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL dry-30 Arlington L 42 170 102 178
+[wx] k LABEL dry-30 Plano R 186 74 220 82
+[wx] k LABEL dry-30 Garland L 168 113 216 121
+[wx] k LABEL dry-30 Frisco L 130 45 172 53
+[wx] screen=scenario dry R=30
+#HOST fetch bz3 0: 115200 B torn=false seq=10164 sha adbab536132a
+#HOST fetch bz3 1: 115200 B torn=false seq=10193 sha f8766220a012
+#HOST fetch bz3 2: 115200 B torn=false seq=10222 sha adbab536132a
+#HOST fetch bz3 3: 115200 B torn=false seq=10250 sha adbab536132a
+#HOST send b'D'
+[wx] gesture D
+[wx] zoom out 30 -> 60 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=42623
+[wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST fetch bz4 0: 115200 B torn=false seq=10285 sha fa21a9989854
+#HOST fetch bz4 1: 115200 B torn=false seq=10315 sha fa21a9989854
+#HOST send b'H'
+[wx] gesture H
+[wx] zoom hold 60 -> 15 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=35882
+[wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+[wx] k TIME dry-15 5:00%20PM dim
+[wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-15 Irving R 151 139 191 147
+[wx] k LABEL dry-15 Lewisville L 86 32 152 40
+[wx] k LABEL dry-15 Carrollton L 120 66 186 74
+[wx] k LABEL dry-15 Euless L 62 143 104 151
+[wx] k LABEL dry-15 Keller R 33 97 73 105
+[wx] screen=scenario dry R=15
+#HOST fetch bz5 0: 115200 B torn=false seq=10353 sha acd13a4a7ee3
+#HOST fetch bz5 1: 115200 B torn=false seq=10383 sha acd13a4a7ee3
+#HOST send b'H'
+[wx] gesture H
+[wx] zoom hold 15 -> 60 mi
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=42648
+[wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST fetch bz6 0: 115200 B torn=false seq=10452 sha 0c7902e6d73b
+#HOST fetch bz6 1: 115200 B torn=false seq=10481 sha b42fd891901f
+[wx] pick approaching=212400 dry=220000 psram_used=159824
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=42818
+[wx] k ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+#HOST fetch bz6 2: 115200 B torn=false seq=10507 sha cc212e92aabb
+#HOST fetch bz6 3: 115200 B torn=false seq=10535 sha cc212e92aabb
+#HOST send b'T'
+[wx] gesture T
+[wx] screen=loop R=60
+[wx] loop records=15 period_us=70000 R=60
+[wx] lrec 0 epoch=1716325440 sha=e68e194436ec69e3c44054eaa0347b02b5b62733b904fe71b25db95279fa148a start_us=413257737 draw_us=48627 hash_us=4076
+[wx] lrec 1 epoch=1716325680 sha=20355546cdd48add1f9a2002ae7ebfccedd048a5e685309a2448679215e68bb5 start_us=413338253 draw_us=49016 hash_us=4081
+[wx] lrec 2 epoch=1716325920 sha=9ec5b49d608a9b4e1b4e32e20efb1a629d8b03c6de7bf772c49a57271cc8cec6 start_us=413419164 draw_us=49247 hash_us=4072
+[wx] lrec 3 epoch=1716326160 sha=e597e2d41be5bfa9e79ec23c78b4e6b3644847e1919bb03c108bf5310b580ab8 start_us=413500278 draw_us=50379 hash_us=4294
+[wx] lrec 4 epoch=1716326400 sha=4886961a644a67e35ef346b1093dfe70e8631eb303a8ed370f3e8931af93a115 start_us=413582534 draw_us=49798 hash_us=4089
+[wx] lrec 5 epoch=1716326640 sha=fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39 start_us=413664203 draw_us=49722 hash_us=4087
+[wx] lrec 6 epoch=1716326880 sha=24455c23b3bf1304cc07c358c4157bef2d05580389e1acb79f7eba68e83ec194 start_us=413745837 draw_us=49711 hash_us=4069
+[wx] lrec 7 epoch=1716327120 sha=e3be1c880746ff84ad3e38532cf8ac39418a35b52f0fc12e253b06424524957f start_us=413827509 draw_us=49821 hash_us=4089
+[wx] lrec 8 epoch=1716327360 sha=e14f4aadaca055fd1d582a790cd60d2e6bbe69d0eba0832e2f6c208768a702ce start_us=413909191 draw_us=50561 hash_us=4217
+[wx] lrec 9 epoch=1716327600 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=413991635 draw_us=50106 hash_us=4119
+[wx] lrec 10 epoch=1716327840 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=414073610 draw_us=49951 hash_us=4094
+[wx] lrec 11 epoch=1716328080 sha=8c7847628a851679ac39397f1e9e51a1a6975e0d28198767113c95afadd8b79b start_us=414155470 draw_us=49903 hash_us=4074
+[wx] lrec 12 epoch=1716328320 sha=132fa89334bcafca9633ae8fe141f3eb81737fbc9bf35e03348887dc3dab51b0 start_us=414237294 draw_us=49851 hash_us=4086
+[wx] lrec 13 epoch=1716328560 sha=1239cdb1fa072a7a0ce721fb0263f48e5b727b13cfaaacda22f0843377fb94ac start_us=414319029 draw_us=49903 hash_us=4124
+[wx] lrec 14 epoch=1716328800 sha=3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600 start_us=414400803 draw_us=49598 hash_us=4119
+[wx] screen=scenario approaching R=60
+#HOST fetch postloop 0: 115200 B torn=false seq=10644 sha cc212e92aabb
+#HOST fetch postloop 1: 115200 B torn=false seq=10674 sha e2b658b58ccf
+#HOST fetch postloop 2: 115200 B torn=false seq=10730 sha cc212e92aabb
+#HOST fetch postloop 3: 115200 B torn=false seq=10759 sha cc212e92aabb
+#HOST send b'S'
+[wx] gesture S
+[wx] screen=legend
+WX,legend,swatches=21
+WXL,0,rain,1,144,48,12,12
+WXL,1,rain,2,158,48,12,12
+WXL,2,rain,3,172,48,12,12
+WXL,3,rain,4,186,48,12,12
+WXL,4,rain,5,144,70,12,12
+WXL,5,rain,6,158,70,12,12
+WXL,6,rain,7,172,70,12,12
+WXL,7,rain,8,144,92,12,12
+WXL,8,rain,9,158,92,12,12
+WXL,9,rain,10,172,92,12,12
+WXL,10,rain,11,144,114,12,12
+WXL,11,rain,12,158,114,12,12
+WXL,12,rain,13,172,114,12,12
+WXL,13,snow,1,144,136,12,12
+WXL,14,snow,2,158,136,12,12
+WXL,15,snow,3,172,136,12,12
+WXL,16,snow,4,186,136,12,12
+WXL,17,snow,5,200,136,12,12
+WXL,18,snow,6,214,136,12,12
+WXL,19,nocov,14,144,158,12,12
+WXL,20,nodata,15,144,180,12,12
+WXT,0,36,50,60,8
+WXT,1,36,72,48,8
+WXT,2,36,94,30,8
+WXT,3,36,116,78,8
+WXT,4,36,138,96,8
+WXT,5,36,160,102,8
+WXT,6,36,182,42,8
+#HOST fetch legend 0: 115200 B torn=false seq=10810 sha d8b443032200
+#HOST fetch legend 1: 115200 B torn=false seq=10840 sha 753c6256d7a3
+#HOST fetch legend 2: 115200 B torn=false seq=10870 sha d8b443032200
+#HOST fetch legend 3: 115200 B torn=false seq=10901 sha 45ba1a1938eb
+#HOST fetch legend 4: 115200 B torn=false seq=10931 sha 45ba1a1938eb
+#HOST send b'T'
+[wx] gesture T
+[wx] screen=scenario approaching R=60
+#HOST fetch postlegend 0: 115200 B torn=false seq=10972 sha cc212e92aabb
+#HOST fetch postlegend 1: 115200 B torn=false seq=11032 sha 251a2b4ef9d9
+#HOST fetch postlegend 2: 115200 B torn=false seq=11061 sha cc212e92aabb
+#HOST fetch postlegend 3: 115200 B torn=false seq=11089 sha d8b443032200
+#HOST fetch postlegend 4: 115200 B torn=false seq=11123 sha cc212e92aabb
+#HOST fetch postlegend 5: 115200 B torn=false seq=11155 sha cc212e92aabb
+#HOST closing the port

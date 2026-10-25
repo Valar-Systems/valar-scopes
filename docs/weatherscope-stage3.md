@@ -3267,3 +3267,77 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - Record the failing row with its evidence: the PNG, the pixel count, the trace lines.
 - Change no code, and push no fix, until it is ruled.
 - **If the board does not reach the scenarios at all** (a status screen, `ready=0`, or no `R=` lines), that is a stop too, and is recorded the same way.
+
+### A9.20 Steps 7-8's results: B1 6/6 exact, BZ 6/7, B3 exact; three rows off A9.19's predictions -- stopped for a ruling (2026-10-25; local)
+
+**The flash and the run.**
+- **The flash:** `907069326E64`, port resolved by serial (COM6). Upload exit 0, "Hash of data verified".
+- **The board runs the new image:**
+  - `[build] env=weatherscope-s3-128`;
+  - `[wx] feeds … clear 36 B`;
+  - `ready=1`;
+  - every screen line carries `R=`.
+- **The run:** `run_b35.py` held one open from 19:35:11Z to 19:42:03Z. All 16 captures were graded by the pair rule, 0 fetches torn.
+- **After the close:** TCP :80 was up after 0.5 s. That is the first pre-registered branch; no download mode, no recovery.
+- **The record:** `tools/weatherscope/board/run-2026-10-25/`, with the LAN IP redacted to `<board-ip>` as in 3.3's run. The raw snapshots are kept outside the repo, as in 3.3.
+- **The grade:** `grade_b35.py` reports 63 checks, **5 failing**, and the 5 recorded-data sabotages **5/5 red**.
+
+**As predicted:**
+
+| row | result |
+|---|---|
+| the reference | `ref35.py`'s K rows regenerate the committed `k35.ref.txt` byte for byte |
+| B1 | **6 of 6** scenarios equal their K rows at **57,600 of 57,600** pixels, and every printed block (ROW, TIME, BAND, 8 labels; the warning's 2 band lines) equals the row's lines; picks 212400 / 220000. The six PNGs are kept for Daniel |
+| BZ 0-5 | U → 30, U → 15, U → 15 (edge Max), D → 30, D → 60, H → 15: each on dry at the predicted radius, each equal to `dry-<R>` at 57,600, with its lines |
+| B2, partly | 15 records; **the code hashes are 15 of 15 equal to `screens.ref.json`**; the epochs are the manifest's, ascending; hash 4,069-4,294 µs; the screen after the loop is equal to approaching-60 at 57,600 |
+| B3 | `legend_check --fb` exits 0 (21/21 swatches, as ruled); the screen after the legend is equal to approaching-60 at 57,600 |
+| the sabotages | S-B1a′ red (6,362 px differ), S-B1b′ red, S-B2a, S-B2b and S-B2c red |
+| sizes, partly | flash 1,612,859 B and RAM 54,928 B, inside A9.5's ranges (A9.19) |
+
+**Off A9.19: three findings, five failing checks.**
+
+1. **PSRAM: 159,824 B against A9.5's 160,000-175,000. 176 B under the floor.**
+   - **The cause, accounted for:** 3.3 allocated a 6,536 B `Layout` (its own boot line says `layout=6536`) and 171-entry label scratch arrays. 3.5a removed both rather than resizing them. Its replacements are `ScreenIn` 432 B, `ScreenOut` 688 B and a 684 B town ranking. The view and the scenario now also live in PSRAM. The net is 8,296 B less than 3.3's 168,120.
+   - **The alternative:** allocator overhead alone is not the cause. It cannot account for 8 KB, and removing the two structures does.
+   - **The miss is in the favourable direction:** A9.5's band assumed "the layout structure resized", and it was removed.
+2. **BZ 6 (H → 60): the graded snapshot equals approaching-60 at 57,600 of 57,600, not dry-60.**
+   - **The runner's timing, not the firmware:**
+     - the board printed the H, the zoom 15 → 60 and dry-60's whole block, equal to the reference's lines, at 19:41:32.424;
+     - **the cycle advanced to approaching at 19:41:36.756**, 30 s after dry began, between the capture's 2nd and 3rd fetches;
+     - the agreeing pair is the new screen.
+   - **Why the sequence overran dry's hold:**
+     - A9.19 planned about 2 s per step, and the steps took 2.5-6 s;
+     - each `/diag/fb` fetch took about 1.1 s over Wi-Fi, against the 0.3 s gap the plan reasoned from;
+     - three captures needed 4 fetches.
+   - **What is not shown on the glass:** H → 60's screen was never pixel-graded, though BZ 4 graded the same dry-60 screen exactly. (BZ 6's first two fetches did not agree with each other; see the observation below.)
+3. **B2: draw 48,627-50,561 µs against ≤ 45,000.** It brings pacing (intervals 80,516-82,444 µs against 70,000 ± 5,000, though the spread of 1,928 µs is inside 10,000) and rate (12.25 fps against ≥ 14) down with it. A9.19 named this row as the one at risk.
+   - **The cause:** each loop frame is now a whole `Compose`.
+     - The board's own `compose_us` on the scenario path is 41.5-42.9 ms at 60 mi (50.0-50.2 ms on the warning screen, 35.8 ms at 15 mi).
+     - The decode and the B2 hash, about 4 ms each, sit on top.
+     - 3.3d's frames drew in 27,417-29,812 µs.
+     - Draw plus the panel push is now longer than the 70 ms period, so every deadline slips to about 81 ms.
+   - **The alternative:** the decode or the hash did not grow. The hash is 4.1-4.3 ms here and was 4.0-4.2 ms in 3.3, and the decode is unchanged. The compose is the increase.
+
+**An observation about the instrument, not a 3.5a row.**
+- **What was seen:** 7 of the 16 captures saw fetches that disagree before an agreeing pair. 3.3d's run saw the same in 4 of 7, so this predates 3.5a.
+- **Some disagreeing fetches resemble a screen shown earlier.** `postloop-1` and `postlegend-3` are each about 1,400 px from dry-15, not from the approaching-60 then on the glass. One of those frames (sha `d8b443032200`) appears in both the legend's and the after-legend captures.
+- **The pair rule kept every graded snapshot exact.**
+- **The explanations, and what would decide between them:**
+  - a copy landing inside a redraw that the counter does not bracket (`/diag/fb`'s Torn reports only a frame boundary);
+  - an older buffer behind `framebuf::Backbuffer()`;
+  - the glass itself flickering.
+  - The data excludes none of them. Daniel's eyes on the glass would exclude the third.
+
+**Stopped.** Changed nothing; pushed no fix.
+- **Pushed:** the record (A9.19, the tools, this addendum and the run) goes to the backup branch only. #480 stays at `49846de`.
+
+**For review:**
+1. **PSRAM:** re-register A9.5's band from the removal (recommended: 155,000-170,000 B), or rule otherwise.
+2. **BZ:** the runner's fix, for a re-run.
+   - **Recommended:** BZ split across two dry holds (U, U, U, D on one; D, H, H on the next), each step capped at one fetch pair, and the step's own scenario name checked before its capture is believed.
+   - **The alternative:** pause the cycle during BZ in stored mode. That would change the firmware for a bench need.
+3. **B2's draw:**
+   - **(a), recommended:** compose a loop's frame-invariant layers once per loop and replay them per frame. Within one loop, the rings, the ring numbers, the labels and the home marker depend only on the geometry and the fixed overlays, which are identical across all 15 frames (D3). The per-frame work becomes the map, the time and the band, about 3.3d's 28 ms plus a replay. The K rows already prove the composed result, so the replay must reproduce it exactly, and the 15 loop rows would hold it to that.
+   - **(b)** Re-register the loop's period or the draw bound for 3.5a.
+   - **(c)** Drop the labels from loop frames. That changes the 15 loop rows and Daniel's look.
+   - **An on-board profile of `Compose`'s phases would be (a)'s first step.** It is a code change, so it waits for this ruling.
