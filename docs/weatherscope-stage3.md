@@ -3070,3 +3070,48 @@ Written after `test_wx_layout.cpp` and `sabotage_wx_layout.py` compiled, and **b
 **For review:**
 1. **S-IC:** (a) re-register it as {IC1, IC4}, or (b) move IC3's overlay to (153, 110, 200, 130). (b) is recommended, because it makes IC3 test the inner circle it names.
 2. **Steps 4 and 5 (ref35.py's K mode, the K harness, the firmware) while S-IC waits.** None of them depends on IC3. The recommendation is that they continue locally, with no push until S-IC is ruled.
+
+### A9.16 Ruled 2026-10-25 (source: reviewer chat, pasted by Daniel): S-IC by (b); steps 4-5 continue; the backup; test_wx_crop exempt from the 11.4 rule
+
+> 1. S-IC, ruling verbatim: "(b). S-IC's miss stays in the record with its cause: IC3's left box was rejected by OV's 4 px rule before the inner circle was reached, so IC3 never tested the circle. That is a defect in the case, and the sabotage caught it, as sabotages should. IC3's overlay moves to (153, 110, 200, 130), a re-registration of that one case's input by ruling. Record the re-check: IC3's expected unsabotaged result is unchanged, the left side is now rejected by the inner circle alone, and every other sabotage set is unchanged. Then re-run S-IC; the prediction stays {IC1, IC3, IC4}."
+>
+> 2. Steps 4 and 5 may continue now, since S-IC is ruled.
+>
+> 3. Back up the five commits (c127377, 3312743, 454379f, 9323794, 38c8ee8) today: push them to a branch with no PR, for example weatherscope/stage3-5a-wip, and confirm that no workflow ran, as you did for the plan branch. Push to the PR's branch only once the firmware builds again.
+>
+> 4. test_wx_crop: CI's g++ 13.3 compiles it (host-tests passed on 75ccd36 and on main since), so this is an 11.4 quirk, not a defect. Record 11.4's error text, and exempt that one file from the 11.4 pre-push rule. Everything else stays under the rule.
+
+**IC3, re-registered by ruling.** The input changes; the expected result does not.
+
+| | input | expected |
+|---|---|---|
+| IC3, A9.10 | "ABCDEF" at (146.0, 120.0), fixed (150, 110, 200, 130) | skipped |
+| **IC3, by this ruling** | "ABCDEF" at (146.0, 120.0), fixed **(153, 110, 200, 130)** | **skipped** (unchanged) |
+
+**The re-check, as predictions written before the edit and the run:**
+- **Unsabotaged,** IC3 is skipped, with 73/0 overall:
+  - the right box (145, 116, 185, 124) overlaps the overlay outright;
+  - the left box (106, 116, 148, 124) is 5 px clear of it (148 + 4 = 152 < 153), and its nearest point is the centre itself, so **the inner circle alone** rejects it.
+- **Under S-IC,** the left side is placed: box (106, 116, 148, 124), text at (107, 117). IC3 fails, and **S-IC fails exactly {IC1, IC3, IC4}**, as A9.10 froze it.
+- **Every other set is unchanged,** and all 11 sets are as A9.10 froze them. The two that could plausibly move:
+  - **S-OV:** the right box still overlaps outright at 0 px of air, and the left is still rejected by the inner circle;
+  - **S-SIDE:** x = 146 is already right-first.
+- **The script:**
+  - S-IC's A9.14 alternative set is withdrawn;
+  - every result is graded against A9.10's sets alone;
+  - each sabotage's failing lines are printed, so the re-check's "left; box (106, 116, 148, 124)" can be read off the run itself.
+
+**The backup (item 3).** Pushed before this record was written:
+- `38c8ee857b23873e7e63f2f788999bc365329b48` to `weatherscope/stage3-5a-wip`, at 2026-10-25T19:02:21Z;
+- `git ls-remote` shows the branch at that sha;
+- `gh pr list --head` shows no PR.
+- **Whether a workflow ran** is checked twice, at an interval, and recorded with the results.
+
+**test_wx_crop under 11.4 (item 4).** 11.4's error text, two instances, both at one line:
+
+```
+test/host/test_wx_crop.cpp:47:51: error: 'void free(void*)' called on pointer returned from a mismatched allocation function [-Werror=mismatched-new-delete]
+```
+
+(Inlined from `std::vector<unsigned char>`'s destructor in `main`, and the note is "returned from 'void* operator new(std::size_t)'".)
+- **Exempt from the 11.4 pre-push rule, that file only.** Every other host test stays under the rule.
