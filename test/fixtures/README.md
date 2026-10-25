@@ -62,9 +62,17 @@ computing.
 ### Provenance
 
 Every regeneration stamps `source_url`, `fetched_at`, `config_epoch`, and
-`server_commit`. `server_commit` is currently **NULL** with its reason recorded:
-the deployed `/status` carries no commit field yet. That is the honest value —
-not a blank, and not a guess.
+`server_commit`. The deployed `/status` now carries a `commit` field, so
+`server_commit` names the commit that served the config. Until 2026-10-25 it
+was **NULL**, with its reason recorded, because `/status` had no such field. If
+it ever reads NULL again, that is still the honest value: not a blank, and not a
+guess.
+
+Nothing in the device suite reads the `.json`'s `config` block. The 2026-10-25
+regeneration, from version 1 to version 2, changed only that block: weights
+became integer `ppm`, and `autoDecodeS` and `maxClockSyncAgeS` were added. Not
+one expected string changed, so the suite's results were identical before and
+after (`docs/game-config-fixture-v2.md`).
 
 ## `derivation_fixture.h`
 

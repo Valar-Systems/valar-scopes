@@ -2,8 +2,8 @@
 //
 // valar-eam-feed  scripts/emit-device-fixture.ts
 //   source_url    https://valar-eam-feed.onrender.com/api/v1/missileer/config
-//   fetched_at    2026-08-18T22:28:04.999Z
-//   server_commit NULL (/status carried no `commit` field; the deployed service predates it)
+//   fetched_at    2026-10-25T19:38:44.234Z
+//   server_commit 28034ba9d995a935fbf3f1d6061f72232a39f36e
 //   config_epoch  1
 //
 // The expected strings below were produced by the SERVER's own formatter
