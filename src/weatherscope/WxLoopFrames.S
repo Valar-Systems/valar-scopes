@@ -115,3 +115,12 @@ wx_loop_14_start:
     .incbin "test/fixtures/wx/loop/shsr-20240521-220000.wxc"
     .global wx_loop_14_end
 wx_loop_14_end:
+
+/* 3.5a's SYNTHETIC all-dry crop for the stored Clear scenario (Q15, A9.10 SC): made by
+ * tools/weatherscope/loop/make_clear.py, never by a radar. Stored mode only, behind the same release gate. */
+    .balign 4
+    .global wx_synthetic_clear_start
+wx_synthetic_clear_start:
+    .incbin "test/fixtures/wx/loop/synthetic-clear.wxc"
+    .global wx_synthetic_clear_end
+wx_synthetic_clear_end:

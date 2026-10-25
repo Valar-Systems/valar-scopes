@@ -33,6 +33,10 @@ WX_LOOP_FRAME(13)
 WX_LOOP_FRAME(14)
 #undef WX_LOOP_FRAME
 
+// 3.5a's synthetic clear crop, embedded by WxLoopFrames.S after the loop.
+extern const uint8_t wx_synthetic_clear_start[] asm("wx_synthetic_clear_start");
+extern const uint8_t wx_synthetic_clear_end[] asm("wx_synthetic_clear_end");
+
 namespace wx {
 
 namespace {
@@ -86,6 +90,14 @@ Observation StoredObsFeed::Latest() const
     o.timeUtc = kObsTimeUtc;
     o.presentCount = 0;
     return o;
+}
+
+CropBytes StoredSyntheticClear()
+{
+    CropBytes c;
+    c.data = wx_synthetic_clear_start;
+    c.size = (size_t)(wx_synthetic_clear_end - wx_synthetic_clear_start);
+    return c;
 }
 
 AlertList StoredAlertFeed::Active() const

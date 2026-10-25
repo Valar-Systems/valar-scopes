@@ -17,8 +17,10 @@
 #include "WxLegend.h"
 #include "WxLogic.h"
 #include "WxPalette.h"
+#include "WxRaster.h"
 #include "WxRender.h"
 #include "WxScenarios.h"
+#include "WxScenes.h"
 #include "WxScreens.h"
 #include "WxTowns.h"
 
@@ -26,24 +28,14 @@ namespace {
 
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
-constexpr int kFrameDim = wxpalette::kDim55; // rain code 1 at 55 %, as the bench (final palette)
+constexpr int kFrameDim = wxpalette::kDim55; // rain code 1 at 55 %, as the bench (final palette): the legend's
 
 const uint32_t kFg     = lgfx::color888(230, 237, 234);
 const uint32_t kDim    = lgfx::color888(130, 150, 160);
 const uint32_t kAccent = lgfx::color888(90, 200, 255);
 const uint32_t kWarn   = lgfx::color888(255, 176, 40);
 
-const char* const kScenarioName[4] = {"dry", "approaching", "herenow", "warning"};
-
-uint32_t InkColour(wxscreens::Ink ink)
-{
-    switch (ink) {
-    case wxscreens::Ink::White: return lgfx::color888(255, 255, 255);
-    case wxscreens::Ink::Dim: return lgfx::color888(130, 150, 160);
-    case wxscreens::Ink::Orange: return lgfx::color888(255, 165, 0);
-    default: return lgfx::color888(200, 210, 215);
-    }
-}
+const char* const kScenarioName[wxscreens::kScenarios] = {"dry", "approaching", "herenow", "warning", "stale", "clear"};
 
 const char* ScreenName(wxlogic::Screen s)
 {
@@ -53,10 +45,6 @@ const char* ScreenName(wxlogic::Screen s)
     case wxlogic::Screen::PrecipApproaching: return "PrecipApproaching";
     default: return "Dry";
     }
-}
-const char* PrecipName(wxlogic::Precip p)
-{
-    return p == wxlogic::Precip::Rain ? "Rain" : p == wxlogic::Precip::Snow ? "Snow" : "None";
 }
 
 // "212400": a frame's UTC clock, the name its file carries.
@@ -71,77 +59,53 @@ void HexSha(const uint8_t d[32], char out[65])
     for (int i = 0; i < 32; ++i) snprintf(out + 2 * i, 3, "%02x", d[i]);
 }
 
-// The map layer: every pixel's code (WxRender's CodeAt), painted in the final palette, rain only (the wire carries
-// no type yet), with the 57,600 codes hashed row by row as they are drawn -- the code buffer the map was drawn
-// FROM, without a buffer for it (A8.20). Off the disc is painted dry (black), as the bench.
-template <typename Sprite>
-void RenderMap(Sprite& s, const wxcrop::Header& h, const uint8_t* grid, const wxrender::View& v, uint8_t shaOut[32],
-               uint32_t* hashUs)
-{
-    mbedtls_sha256_context sha;
-    mbedtls_sha256_init(&sha);
-    mbedtls_sha256_starts(&sha, 0);
-    uint32_t hashTime = 0;
-    uint8_t row[wxrender::kSize];
-    s.startWrite();
-    for (int y = 0; y < wxrender::kSize; ++y) {
-        for (int x = 0; x < wxrender::kSize; ++x) row[x] = wxrender::CodeAt(h, grid, v, x, y);
-        const int64_t t = esp_timer_get_time();
-        mbedtls_sha256_update(&sha, row, sizeof row);
-        hashTime += (uint32_t)(esp_timer_get_time() - t);
-        int x0 = 0;
-        uint8_t run = row[0];
-        for (int x = 1; x <= wxrender::kSize; ++x) {
-            const uint8_t c = x < wxrender::kSize ? row[x] : 0xFE;
-            if (c == run) continue;
-            if (run == 15) {   // missing is hatched (ruled): a pattern, pixel by pixel
-                for (int xx = x0; xx < x; ++xx) {
-                    const wxpalette::Rgb m = wxpalette::MissingAt(xx, y);
-                    s.writePixel(xx, y, s.color565(m.r, m.g, m.b));
-                }
-            } else {
-                const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false, kFrameDim);
-                s.writeFastHLine(x0, y, x - x0, s.color565(p.r, p.g, p.b));
-            }
-            x0 = x;
-            run = c;
-        }
+// WxRaster's pixels, straight into a 16-bit sprite's buffer. LovyanGFX keeps that buffer as big-endian RGB565 --
+// the bytes /diag/fb serves and the K rows hash -- so each pixel is color565's truncation, byte-swapped.
+class SpriteSink : public wxraster::Sink {
+public:
+    explicit SpriteSink(LGFX_Sprite& s) : buf_((uint16_t*)s.getBuffer()), w_(s.width()) {}
+    void Put(int x, int y, wxraster::Rgb c) override
+    {
+        const uint16_t v = (uint16_t)(((c.r >> 3) << 11) | ((c.g >> 2) << 5) | (c.b >> 3));
+        buf_[y * w_ + x] = (uint16_t)((v >> 8) | (v << 8));
     }
-    s.endWrite();
-    const int64_t t = esp_timer_get_time();
-    mbedtls_sha256_finish(&sha, shaOut);
-    mbedtls_sha256_free(&sha);
-    hashTime += (uint32_t)(esp_timer_get_time() - t);
-    if (hashUs) *hashUs = hashTime;
-}
 
-// One overlay item, drawn opaque inside its own rectangle and nowhere else (A8.20).
-void DrawItem(LGFX_Sprite& s, const wxscreens::Item& it)
-{
-    const uint32_t black = lgfx::color888(0, 0, 0);
-    switch (it.kind) {
-    case wxscreens::ItemKind::Text:
-        s.fillRect(it.r.x, it.r.y, it.r.w, it.r.h, black);
-        s.setTextSize(it.size);
-        s.setTextColor(InkColour(it.ink));
-        s.drawString(it.text, it.r.x, it.r.y);
-        break;
-    case wxscreens::ItemKind::Marker:
-        s.fillRect(it.r.x, it.r.y, it.r.w, it.r.h, black);
-        s.drawCircle(wxrender::kSize / 2, wxrender::kSize / 2, 4, InkColour(it.ink));
-        s.fillRect(wxrender::kSize / 2 - 1, wxrender::kSize / 2 - 1, 2, 2, InkColour(it.ink));
-        break;
-    case wxscreens::ItemKind::Edge:
-        s.fillRect(it.r.x, it.r.y, it.r.w, it.r.h, InkColour(it.ink));
-        break;
-    case wxscreens::ItemKind::Town:
-        s.fillRect(it.r.x, it.r.y, it.r.w, it.r.h, black);
-        s.fillRect(it.dotX - 1, it.dotY - 1, 3, 3, lgfx::color888(255, 255, 255));
-        s.setTextSize(1);
-        s.setTextColor(InkColour(it.ink));
-        s.drawString(it.text, it.dotX + 4, it.dotY - 4);
-        break;
+private:
+    uint16_t* buf_;
+    int w_;
+};
+
+// B2's code hash: every row of codes as the 60 mi map layer is drawn, into SHA-256 -- the code buffer the map was
+// drawn FROM, without a buffer for it (A8.20) -- timed apart from the drawing.
+class RowHash : public wxscreens::CodeRows {
+public:
+    RowHash()
+    {
+        mbedtls_sha256_init(&ctx_);
+        mbedtls_sha256_starts(&ctx_, 0);
     }
+    ~RowHash() override { mbedtls_sha256_free(&ctx_); }
+    void Row(const uint8_t* codes, int n) override
+    {
+        const int64_t t = esp_timer_get_time();
+        mbedtls_sha256_update(&ctx_, codes, (size_t)n);
+        us += (uint32_t)(esp_timer_get_time() - t);
+    }
+    void Finish(uint8_t out[32])
+    {
+        const int64_t t = esp_timer_get_time();
+        mbedtls_sha256_finish(&ctx_, out);
+        us += (uint32_t)(esp_timer_get_time() - t);
+    }
+    uint32_t us = 0;
+
+private:
+    mbedtls_sha256_context ctx_;
+};
+
+bool FullScreen(LGFX_Sprite& s)
+{
+    return s.getBuffer() && s.width() == wxrender::kSize && s.height() == wxrender::kSize && s.getColorDepth() == 16;
 }
 
 }  // namespace
@@ -150,10 +114,12 @@ void DrawItem(LGFX_Sprite& s, const wxscreens::Item& it)
 
 void WeatherscopeManager::Initialise()
 {
-    // Called again after every config save (main.cpp): the splash and the buffers belong to boot only.
+    // Called again after every config save (main.cpp): the splash, the buffers and the zoom belong to boot only.
     if (!splashStarted) {
         splashStarted = true;
         splashStartMs = millis();
+        zoomLadder = wxscreens::ZoomLadder();
+        zoomIdx = zoomLadder.Top();
         LogFeeds();
         MakeBuffers();
         PickFrames();
@@ -179,58 +145,69 @@ void WeatherscopeManager::Initialise()
                   hasLatLon ? "set" : "unset", (int)autoDim, (unsigned)configuredBrightness, (int)feeds.stored);
 }
 
-// The frame path, once: the cached map sprite, the grid, the layout and its label scratch, the scenario, the
-// view, the cycle and the loop's records. Its PSRAM cost is printed as one number (A8.20's sizes row).
+// A PSRAM object, constructed in place: nullptr when the allocation fails.
+template <typename T>
+static T* NewInPsram()
+{
+    void* p = heap_caps_malloc(sizeof(T), MALLOC_CAP_SPIRAM);
+    return p ? new (p) T() : nullptr;
+}
+
+// The frame path, once: the cached screen sprite, the grid, the scenario, the screen's input and output, the view,
+// the town ranking, the cycle and the loop's records. Its PSRAM cost is printed as one number (A9.5's sizes).
 void WeatherscopeManager::MakeBuffers()
 {
     const size_t psramBefore = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     nHistory = feeds.radar.History(history, kLoopFrames);
     size_t cells = 0;
-    for (size_t i = 0; i < nHistory; ++i) {
+    for (size_t i = 0; i <= nHistory; ++i) {
+        const wx::CropBytes& c = i < nHistory ? history[i] : feeds.clear;
         wxcrop::Header h;
-        if (wxcrop::ParseHeader(history[i].data, history[i].size, &h) == wxcrop::Status::Ok && h.Cells() > cells)
+        if (!c.Empty() && wxcrop::ParseHeader(c.data, c.size, &h) == wxcrop::Status::Ok && h.Cells() > cells)
             cells = h.Cells();
     }
-    mapSprite = new LGFX_Sprite(&tft);
-    mapSprite->setPsram(true);
-    mapSprite->setColorDepth(16);
-    const bool spriteOk = mapSprite->createSprite(wxrender::kSize, wxrender::kSize) != nullptr;
+    screenSprite = new LGFX_Sprite(&tft);
+    screenSprite->setPsram(true);
+    screenSprite->setColorDepth(16);
+    const bool spriteOk = screenSprite->createSprite(wxrender::kSize, wxrender::kSize) != nullptr;
     grid = cells ? (uint8_t*)heap_caps_malloc(cells, MALLOC_CAP_SPIRAM) : nullptr;
     gridCells = grid ? cells : 0;
-    layout = (wxscreens::Layout*)heap_caps_malloc(sizeof(wxscreens::Layout), MALLOC_CAP_SPIRAM);
-    if (layout) new (layout) wxscreens::Layout();
-    labelScratch = (wxlogic::LabelBox*)heap_caps_malloc(sizeof(wxlogic::LabelBox) * wxtowns::kCount, MALLOC_CAP_SPIRAM);
-    labelScratchTown = (int*)heap_caps_malloc(sizeof(int) * wxtowns::kCount, MALLOC_CAP_SPIRAM);
+    scenario = NewInPsram<wxscen::Scenario>();
+    screenIn = NewInPsram<wxscreens::ScreenIn>();
+    screenOut = NewInPsram<wxscreens::ScreenOut>();
+    view = NewInPsram<wxrender::View>();
+    cycle = NewInPsram<wxscreens::Cycle>();
+    townOrder = (int*)heap_caps_malloc(sizeof(int) * wxtowns::kCount, MALLOC_CAP_SPIRAM);
     records = (LoopRecord*)heap_caps_malloc(sizeof(LoopRecord) * kLoopFrames, MALLOC_CAP_SPIRAM);
-    scenario = new wxscen::Scenario();
-    view = new wxrender::View();
-    cycle = new wxscreens::Cycle();
+    if (townOrder) {
+        uint32_t pops[wxtowns::kCount];
+        for (unsigned i = 0; i < wxtowns::kCount; ++i) pops[i] = wxtowns::kTowns[i].pop;
+        wxscreens::RankOrder(pops, (int)wxtowns::kCount, townOrder);
+    }
     const size_t psramAfter = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     psramUsed = psramBefore - psramAfter;
-    buffersReady = spriteOk && grid && layout && labelScratch && labelScratchTown && records;
-    Serial.printf("[wx] psram_used=%u sprite=%d grid=%u layout=%u history=%u ready=%d\n",
-                  (unsigned)(psramBefore - psramAfter), (int)spriteOk, (unsigned)gridCells,
-                  (unsigned)sizeof(wxscreens::Layout), (unsigned)nHistory, (int)buffersReady);
+    buffersReady = spriteOk && FullScreen(*screenSprite) && grid && scenario && screenIn && screenOut && view && cycle &&
+                   townOrder && records;
+    Serial.printf("[wx] psram_used=%u sprite=%d grid=%u in=%u out=%u history=%u clear=%u ready=%d\n",
+                  (unsigned)psramUsed, (int)spriteOk, (unsigned)gridCells, (unsigned)sizeof(wxscreens::ScreenIn),
+                  (unsigned)sizeof(wxscreens::ScreenOut), (unsigned)nHistory, (unsigned)feeds.clear.size,
+                  (int)buffersReady);
 }
 
-bool WeatherscopeManager::DecodeFrame(int index, uint32_t* epoch)
+bool WeatherscopeManager::DecodeCrop(const wx::CropBytes& crop, wxcrop::Header* h)
 {
-    if (index < 0 || (size_t)index >= nHistory || !grid) return false;
-    wxcrop::Header h;
-    if (wxcrop::DecodeInto(history[index].data, history[index].size, grid, gridCells, &h) != wxcrop::Status::Ok)
-        return false;
-    if (epoch) *epoch = h.frameEpoch;
-    return true;
+    if (crop.Empty() || !grid) return false;
+    return wxcrop::DecodeInto(crop.data, crop.size, grid, gridCells, h) == wxcrop::Status::Ok;
 }
 
 // A8.10's rule, on the device: approaching = the LATEST frame whose nearest echo is within 15 mi of the crop's
-// centre; dry = the LATEST beyond 15 mi, or with none. Printed, and graded against scenarios.ref.json (B1).
+// centre; dry = the LATEST beyond 15 mi, or with none. Printed, and graded (B1).
 void WeatherscopeManager::PickFrames()
 {
     if (!buffersReady) return;
     for (size_t i = 0; i < nHistory; ++i) {
         wxcrop::Header h;
-        if (wxcrop::DecodeInto(history[i].data, history[i].size, grid, gridCells, &h) != wxcrop::Status::Ok) continue;
+        if (!DecodeCrop(history[i], &h)) continue;
         if (wxlogic::EchoWithin(h, grid, wxscen::Centre(h))) pickApproaching = (int)i;
         else pickDry = (int)i;
     }
@@ -243,53 +220,65 @@ void WeatherscopeManager::PickFrames()
                   (unsigned)psramUsed);
 }
 
-// One of the four scenarios (wxscen::Kind order), built from its frame; its map is drawn ONCE into the cached
-// sprite, and the layout worked out. Everything B1 grades is printed here.
-void WeatherscopeManager::BuildScenario(int kindIndex)
+int WeatherscopeManager::ZoomMiles() const { return wxscreens::ZoomMiles(zoomLadder, zoomIdx); }
+
+// The cycle's scenario at the current zoom: built from its frame, composed ONCE into the cached sprite, and printed
+// in k35.ref.txt's own lines (A9.10 B1: the frame's hash, its time, its band, its labels) under "<name>-<miles>".
+void WeatherscopeManager::BuildScenario()
 {
+    const int kindIndex = cycle->index;
     const wxscen::Kind kind = (wxscen::Kind)kindIndex;
-    const int frame = kind == wxscen::Kind::Dry ? pickDry : pickApproaching;
-    uint32_t epoch = 0;
-    if (!DecodeFrame(frame, &epoch)) {
-        Serial.printf("[wx] scn=%s FAILED: frame %d does not decode\n", kScenarioName[kindIndex], frame);
+    const wx::CropBytes& crop = kind == wxscen::Kind::Clear ? feeds.clear
+                              : history[kind == wxscen::Kind::Dry ? pickDry : pickApproaching];
+    wxcrop::Header h;
+    if (!DecodeCrop(crop, &h) || !wxscen::Build(kind, h, grid, scenario)) {
+        Serial.printf("[wx] scn=%s FAILED: its crop does not decode or build\n", kScenarioName[kindIndex]);
         return;
     }
-    wxcrop::Header h;
-    wxcrop::ParseHeader(history[frame].data, history[frame].size, &h);
-    wxrender::BuildView(h, view);
-    wxscen::Build(kind, h, grid, scenario);
-    const wxlogic::Choice c = scenario->Choose();
-    wxscreens::Texts t;
-    wxscreens::BuildTexts(*scenario, c, &t);
-    wxscreens::LatLon box[2];
-    wxscreens::WarningBox(*scenario, box);
-    wxscreens::BuildLayout(*layout, c.screen, t, *view, c.screen == wxlogic::Screen::Warning ? box : nullptr,
-                           wxtowns::kTowns, wxtowns::kCount, labelScratch, labelScratchTown);
-    uint8_t sha[32];
-    RenderMap(*mapSprite, h, grid, *view, sha, nullptr);
+    const int R = ZoomMiles();
+    *screenIn = wxscreens::ScreenIn();
+    wxscenes::FromScenario(*scenario, h, grid, R, townOrder, screenIn);
+    *screenOut = wxscreens::ScreenOut();
+    SpriteSink sink(*screenSprite);
+    const int64_t t0 = esp_timer_get_time();
+    wxscreens::Compose(sink, *screenIn, *view, screenOut);
+    const uint32_t composeUs = (uint32_t)(esp_timer_get_time() - t0);
 
-    char hh[7], hex[65];
-    Hhmmss(epoch, hh);
+    uint8_t sha[32];
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    mbedtls_sha256_starts(&ctx, 0);
+    mbedtls_sha256_update(&ctx, (const uint8_t*)screenSprite->getBuffer(), (size_t)wxrender::kSize * wxrender::kSize * 2);
+    mbedtls_sha256_finish(&ctx, sha);
+    mbedtls_sha256_free(&ctx);
+
+    char hh[7], hex[65], row[24], tok[160], tok2[160];
+    Hhmmss(h.frameEpoch, hh);
     HexSha(sha, hex);
+    snprintf(row, sizeof row, "%s-%d", kScenarioName[kindIndex], R);
     // the boot-time pick and PSRAM figure again, so a trace that opens after boot still has them
     Serial.printf("[wx] pick approaching=%s dry=%s psram_used=%u\n", pickApproachingName, pickDryName,
                   (unsigned)psramUsed);
-    Serial.printf("[wx] scn=%s frame=%s screen=%s type=%s warning=%d\n", kScenarioName[kindIndex], hh,
-                  ScreenName(c.screen), PrecipName(c.type), c.warning);
-    Serial.printf("[wx] text clock=\"%s\" headline=\"%s\" title=\"%s|%s\" until=\"%s\" lineA=\"%s\" storm=\"%s\" "
-                  "travel=\"%s\"\n",
-                  t.clock, t.headline, t.title1 ? t.title1 : "", t.title2 ? t.title2 : "", t.until, t.lineA, t.storm,
-                  t.travel);
-    Serial.printf("[wx] codes %s\n", hex);
-    Serial.printf("[wx] rects n=%d fixed=%d\n", layout->n, layout->nFixed);
-    for (int i = 0; i < layout->n; ++i) {
-        const wxscreens::Item& it = layout->items[i];
-        const char* kindName = it.kind == wxscreens::ItemKind::Text ? "text" : it.kind == wxscreens::ItemKind::Marker
-                             ? "marker" : it.kind == wxscreens::ItemKind::Edge ? "edge" : "town";
-        Serial.printf("[wx] rect %s %d %d,%d,%d,%d %s \"%s\"\n", kScenarioName[kindIndex], i, it.r.x, it.r.y, it.r.w,
-                      it.r.h, kindName, it.text);
+    Serial.printf("[wx] scn=%s R=%d frame=%s screen=%s synthetic=%d compose_us=%lu\n", kScenarioName[kindIndex], R, hh,
+                  ScreenName(scenario->Choose().screen), (int)scenario->synthetic, (unsigned long)composeUs);
+    Serial.printf("[wx] k ROW %s %s\n", row, hex);
+    wxscenes::Token(screenOut->time, tok, sizeof tok);
+    Serial.printf("[wx] k TIME %s %s %s\n", row, tok, wxscenes::InkName(screenOut->timeInk));
+    if (screenIn->warning) {
+        wxscenes::Token(screenIn->wt.band1, tok, sizeof tok);
+        wxscenes::Token(screenIn->wt.band2, tok2, sizeof tok2);
+        Serial.printf("[wx] k BAND %s 1 %s\n", row, tok);
+        Serial.printf("[wx] k BAND %s 2 %s\n", row, tok2);
+    } else {
+        wxscenes::Token(screenIn->state, tok, sizeof tok);
+        Serial.printf("[wx] k BAND %s S %s %s\n", row, tok, wxscenes::InkName(screenIn->stateInk));
     }
-    Serial.printf("[wx] screen=scenario %s\n", kScenarioName[kindIndex]);
+    for (int i = 0; i < screenOut->nLabels; ++i) {
+        const wxscreens::Placed& p = screenOut->labels[i].at;
+        wxscenes::Token(screenOut->labels[i].label, tok, sizeof tok);
+        Serial.printf("[wx] k LABEL %s %s %c %d %d %d %d\n", row, tok, p.side, p.box.x0, p.box.y0, p.box.x1, p.box.y1);
+    }
+    Serial.printf("[wx] screen=scenario %s R=%d\n", kScenarioName[kindIndex], R);
 }
 
 // One line at boot, proving the feeds answer through the factory. Sizes, counts and times only: no coordinate.
@@ -304,11 +293,12 @@ void WeatherscopeManager::LogFeeds() const
     const size_t nh = feeds.radar.History(hist, kLoopFrames);
     size_t histBytes = 0;
     for (size_t i = 0; i < nh; ++i) histBytes += hist[i].size;
-    Serial.printf("[wx] feeds: crop %u B %s %ux%u frame=%lu | history %u frames %u B | obs valid=%d t=%ld present=%u | "
-                  "alerts=%u%s%s\n",
+    Serial.printf("[wx] feeds: crop %u B %s %ux%u frame=%lu | history %u frames %u B | clear %u B | obs valid=%d "
+                  "t=%ld present=%u | alerts=%u%s%s\n",
                   (unsigned)crop.size, wxcrop::StatusName(s), (unsigned)h.rows, (unsigned)h.cols,
-                  (unsigned long)h.frameEpoch, (unsigned)nh, (unsigned)histBytes, (int)o.valid, (long)o.timeUtc,
-                  (unsigned)o.presentCount, (unsigned)a.count, a.count ? " first=" : "", a.count ? a.items[0].event : "");
+                  (unsigned long)h.frameEpoch, (unsigned)nh, (unsigned)histBytes, (unsigned)feeds.clear.size,
+                  (int)o.valid, (long)o.timeUtc, (unsigned)o.presentCount, (unsigned)a.count, a.count ? " first=" : "",
+                  a.count ? a.items[0].event : "");
 }
 
 // ----------------------------------------------------------------------------- the loop task
@@ -319,10 +309,11 @@ void WeatherscopeManager::Update()
 
     if (mode == Mode::Splash) {
         if (millis() - splashStartMs < SPLASH_MS) return;
-        if (feeds.stored && buffersReady && pickApproaching >= 0 && pickDry >= 0) {
+        if (feeds.stored && buffersReady && pickApproaching >= 0 && pickDry >= 0 && !feeds.clear.Empty()) {
             mode = Mode::Scenario;
+            lastTouchMs = millis();
             wxscreens::Step(*cycle, millis(), feeds.stored);   // starts the hold clock
-            BuildScenario(cycle->index);
+            BuildScenario();
         } else {
             mode = Mode::Status;
         }
@@ -334,11 +325,27 @@ void WeatherscopeManager::Update()
 
     // The cycle sees every tick, so a paused interval (the loop, the legend) is skipped rather than counted when
     // it resumes; it can only advance while unpaused, i.e. on the scenario screen.
-    if (wxscreens::Step(*cycle, millis(), feeds.stored) && mode == Mode::Scenario) BuildScenario(cycle->index);
+    if (wxscreens::Step(*cycle, millis(), feeds.stored) && mode == Mode::Scenario) BuildScenario();
+    // 10 min without a touch: back to the ladder's top (A9.3)
+    if (mode == Mode::Scenario) {
+        const int idx = wxscreens::IdleReturn(zoomLadder, zoomIdx, millis(), lastTouchMs);
+        if (idx != zoomIdx) ApplyZoom(idx, "idle");
+    }
     if (mode == Mode::Loop) WaitForLoopFrame();
 }
 
-// A tap opens the loop: 15 frames once, oldest first, each starting at its deadline (A8.20); the cycle waits.
+// A zoom step, a toggle or the idle return: the scenario recomposed at the new radius. At a ladder end the index
+// does not move and the screen is recomposed and printed all the same, so every gesture leaves one screen line.
+void WeatherscopeManager::ApplyZoom(int idx, const char* why)
+{
+    const int before = ZoomMiles();
+    zoomIdx = idx;
+    Serial.printf("[wx] zoom %s %d -> %d mi\n", why, before, ZoomMiles());
+    if (mode == Mode::Scenario) BuildScenario();
+}
+
+// A tap opens the loop: 15 frames once, oldest first, each starting at its deadline (A8.20), at the current zoom
+// (Q19); the cycle waits.
 void WeatherscopeManager::StartLoop()
 {
     wxscreens::Pause(*cycle, true);
@@ -346,7 +353,7 @@ void WeatherscopeManager::StartLoop()
     loopIndex = 0;
     loopFrameDue = false;
     loopT0Us = esp_timer_get_time() + kLoopPeriodUs;
-    Serial.println("[wx] screen=loop");
+    Serial.printf("[wx] screen=loop R=%d\n", ZoomMiles());
 }
 
 // Holds the loop task until the next frame's deadline, so the frame starts on time: sleeps in 1 ms ticks while
@@ -368,7 +375,7 @@ void WeatherscopeManager::FinishLoop()
     mode = Mode::Scenario;
     loopFrameDue = false;
     // printed only now: printing while it plays could stall or pace it (A8.19 item 4)
-    Serial.printf("[wx] loop records=%d period_us=%ld\n", kLoopFrames, (long)kLoopPeriodUs);
+    Serial.printf("[wx] loop records=%d period_us=%ld R=%d\n", kLoopFrames, (long)kLoopPeriodUs, ZoomMiles());
     for (int i = 0; i < kLoopFrames; ++i) {
         char hex[65];
         HexSha(records[i].sha, hex);
@@ -377,7 +384,7 @@ void WeatherscopeManager::FinishLoop()
                       (unsigned long)records[i].drawUs, (unsigned long)records[i].hashUs);
     }
     wxscreens::Pause(*cycle, false);
-    Serial.printf("[wx] screen=scenario %s\n", kScenarioName[cycle->index]);
+    Serial.printf("[wx] screen=scenario %s R=%d\n", kScenarioName[cycle->index], ZoomMiles());
 }
 
 void WeatherscopeManager::OpenLegend()
@@ -401,7 +408,7 @@ void WeatherscopeManager::CloseLegend()
 {
     mode = Mode::Scenario;
     wxscreens::Pause(*cycle, false);
-    Serial.printf("[wx] screen=scenario %s\n", kScenarioName[cycle->index]);
+    Serial.printf("[wx] screen=scenario %s R=%d\n", kScenarioName[cycle->index], ZoomMiles());
 }
 
 void WeatherscopeManager::OnTap()
@@ -415,34 +422,89 @@ void WeatherscopeManager::OnSwipeLeft()
     if (mode == Mode::Scenario) OpenLegend();
 }
 
+// Up (dir -1) zooms in, down (+1) zooms out, as on Blipscope (A9.3), through radarzoom::Step unchanged.
+void WeatherscopeManager::OnSwipeVertical(int dir)
+{
+    if (mode != Mode::Scenario) return;
+    radarzoom::Edge edge = radarzoom::Edge::None;
+    const int idx = radarzoom::Step(zoomIdx, dir, zoomLadder, edge);
+    ApplyZoom(idx, edge == radarzoom::Edge::Max ? "in (edge: Max)" : edge == radarzoom::Edge::Min ? "out (edge: Min)"
+                   : dir < 0 ? "in" : "out");
+}
+
+// A fired long press: 60 or 30 -> 15, 15 -> 60 (longpress::ToggleTarget, unchanged).
+void WeatherscopeManager::OnHoldFired()
+{
+    if (mode != Mode::Scenario) return;
+    const int target = longpress::ToggleTarget(zoomIdx, zoomLadder.Top());
+    if (target >= 0) ApplyZoom(target, "hold");
+}
+
+// Under 40 px on both axes a tap; otherwise a swipe on the larger axis (the radar's classifier). Only a stroke the
+// long press does not own reaches here.
+void WeatherscopeManager::ClassifyStroke(int dx, int dy)
+{
+    constexpr int kSwipeMin = 40;
+    const int adx = abs(dx), ady = abs(dy);
+    if (adx < kSwipeMin && ady < kSwipeMin) OnTap();
+    else if (adx >= ady) { if (dx < 0) OnSwipeLeft(); }
+    else OnSwipeVertical(dy > 0 ? +1 : -1);
+}
+
+// A held stroke's rejoin grace ended without a rejoin: 40 px or more is a swipe from the lift's delta (rule 3).
+void WeatherscopeManager::EndHoldGrace(const longpress::GraceEnd& e)
+{
+    if (e.swipe) ClassifyStroke(e.dx, e.dy);
+}
+
 void WeatherscopeManager::HandleTouch()
 {
     int32_t tx = 0, ty = 0;
     const TouchPoll poll = ReadTouch(tft, http, tx, ty);
     if (poll == TouchPoll::Skipped) return;
-    if (poll == TouchPoll::Touched) {
-        if (!wasTouched) { wasTouched = true; touchStartX = tx; touchStartY = ty; }
+    const uint32_t now = millis();
+    const bool touched = poll == TouchPoll::Touched;
+    if (touched) {
+        lastTouchMs = now;
+        if (!wasTouched) {
+            const longpress::PressOutcome p = longpress::OnPress(longPress, now, tx, ty, mode == Mode::Scenario);
+            if (p.prev.ended) EndHoldGrace(p.prev);
+            if (p.is != longpress::PressIs::Rejoin) {
+                touchStartX = tx;
+                touchStartY = ty;
+            }
+        }
         touchLastX = tx;
         touchLastY = ty;
-        return;
+        if (longpress::OnHeld(longPress, now, tx, ty) == longpress::HeldIs::Fire) OnHoldFired();
+    } else {
+        const longpress::GraceEnd ge = longpress::OnIdle(longPress, now);
+        if (ge.ended) EndHoldGrace(ge);
     }
-    if (!wasTouched) return;
-    wasTouched = false;
-    const int dx = touchLastX - touchStartX, dy = touchLastY - touchStartY;
-    if (abs(dx) < 40 && abs(dy) < 40) { OnTap(); return; }
-    if (abs(dx) >= abs(dy) && dx < 0) OnSwipeLeft();
+    if (!touched && wasTouched) {
+        const int dx = touchLastX - touchStartX, dy = touchLastY - touchStartY;
+        if (longpress::OnRelease(longPress, now, dx, dy) == longpress::ReleaseIs::PassThrough) ClassifyStroke(dx, dy);
+    }
+    wasTouched = touched;
 }
 
-// The bench's gestures: a 'T' byte is a tap and an 'S' a left swipe, fed to the SAME handlers as the glass. Only in
-// stored mode, and like stored mode it must be unreachable on a customer unit before any Weatherscope ships.
+// The bench's gestures (Q21): 'T' a tap, 'S' a left swipe, 'U'/'D' an up/down swipe, 'H' a fired long press -- fed to
+// the SAME handlers as the glass. Only in stored mode, and like stored mode they must be unreachable on a customer
+// unit before any Weatherscope ships.
 void WeatherscopeManager::HandleSerialGestures()
 {
     while (Serial.available()) {
         const int ch = Serial.read();
         if (!feeds.stored) continue;
-        Serial.printf("[wx] gesture %c\n", ch == 'T' || ch == 'S' ? (char)ch : '?');
+        const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H';
+        Serial.printf("[wx] gesture %c\n", known ? (char)ch : '?');
+        if (!known) continue;
+        lastTouchMs = millis();
         if (ch == 'T') OnTap();
         else if (ch == 'S') OnSwipeLeft();
+        else if (ch == 'U') OnSwipeVertical(-1);
+        else if (ch == 'D') OnSwipeVertical(+1);
+        else OnHoldFired();
     }
 }
 
@@ -485,20 +547,18 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
     }
 }
 
-// The scenario's cached map, then every overlay in layout order. The map is a straight copy of the sprite drawn
-// once in BuildScenario: both are 240 x 240 at 16 bpp, so the bytes are the same representation.
+// The scenario's cached screen, a straight copy: both are 240 x 240 at 16 bpp, so the bytes are the same
+// representation.
 void WeatherscopeManager::DrawScenario(BandCanvas& c)
 {
     LGFX_Sprite& s = c.sprite();
-    if (s.width() == wxrender::kSize && s.height() == wxrender::kSize && s.getColorDepth() == mapSprite->getColorDepth())
-        memcpy(s.getBuffer(), mapSprite->getBuffer(), (size_t)s.bufferLength());
-    else
-        mapSprite->pushSprite(&s, 0, 0);
-    for (int i = 0; i < layout->n; ++i) DrawItem(s, layout->items[i]);
+    if (FullScreen(s)) memcpy(s.getBuffer(), screenSprite->getBuffer(), (size_t)s.bufferLength());
+    else screenSprite->pushSprite(&s, 0, 0);
 }
 
-// One loop frame, at its deadline: decode, map (hashed as drawn), the frame's clock and age, the progress bar, and
-// the scenario's town labels where they clear the loop's own overlays. The record is written, not printed.
+// One loop frame, at its deadline: decode, then the whole screen composed into the backbuffer at the current zoom,
+// with the 60 mi map layer's codes hashed as they are drawn (B2) and the loop's band. The record is written, not
+// printed.
 void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
 {
     LGFX_Sprite& s = c.sprite();
@@ -509,45 +569,23 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
     const int64_t start = esp_timer_get_time();
     LoopRecord& rec = records[loopIndex];
     rec.startUs = start;
-    uint32_t epoch = 0;
-    wxcrop::Header h;
-    if (DecodeFrame(loopIndex, &epoch) &&
-        wxcrop::ParseHeader(history[loopIndex].data, history[loopIndex].size, &h) == wxcrop::Status::Ok) {
-        RenderMap(s, h, grid, *view, rec.sha, &rec.hashUs);
+    wxcrop::Header h, last;
+    if (FullScreen(s) && DecodeCrop(history[loopIndex], &h) &&
+        wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last) == wxcrop::Status::Ok) {
+        *screenIn = wxscreens::ScreenIn();
+        wxscenes::FromLoopFrame(h, grid, loopIndex, last.frameEpoch, ZoomMiles(), townOrder, screenIn);
+        *screenOut = wxscreens::ScreenOut();
+        SpriteSink sink(s);
+        RowHash rows;
+        wxscreens::Compose(sink, *screenIn, *view, screenOut, &rows);
+        rows.Finish(rec.sha);
+        rec.hashUs = rows.us;
+        rec.epoch = h.frameEpoch;
     } else {
         memset(rec.sha, 0, sizeof rec.sha);
         rec.hashUs = 0;
+        rec.epoch = 0;
     }
-    rec.epoch = epoch;
-
-    wxcrop::Header last;
-    wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last);
-    char clock[16], ago[32];
-    wxscreens::ClockText(epoch, wxscen::kOffsetMin, clock, sizeof clock);
-    const long mins = ((long)last.frameEpoch - (long)epoch) / 60;
-    if (mins <= 0) snprintf(ago, sizeof ago, "NOW");
-    else snprintf(ago, sizeof ago, "%ld MIN AGO", mins);
-    // The loop's own overlays (not graded by pixel; B2 grades the records): "N", the frame's clock and age, and the
-    // progress bar's box. Four items on the stack -- no allocation while the loop plays.
-    wxscreens::Item fixed[4];
-    const char* texts[3] = {"N", clock, ago};
-    const int sizes[3] = {1, 2, 1}, ys[3] = {4, 168, 186};
-    const wxscreens::Ink inks[3] = {wxscreens::Ink::Dim, wxscreens::Ink::White, wxscreens::Ink::Dim};
-    for (int i = 0; i < 3; ++i) {
-        fixed[i].r = wxscreens::TextBox(strlen(texts[i]), sizes[i], ys[i]);
-        fixed[i].kind = wxscreens::ItemKind::Text;
-        fixed[i].size = (uint8_t)sizes[i];
-        fixed[i].ink = inks[i];
-        fixed[i].dotX = fixed[i].dotY = 0;
-        snprintf(fixed[i].text, sizeof fixed[i].text, "%s", texts[i]);
-        DrawItem(s, fixed[i]);
-    }
-    fixed[3].r = wxscreens::Rect{60, 203, 124, 8};   // the progress bar: a track and a knob
-    s.fillRect(fixed[3].r.x, fixed[3].r.y, fixed[3].r.w, fixed[3].r.h, lgfx::color888(0, 0, 0));
-    s.fillRect(60, 206, 124, 2, InkColour(wxscreens::Ink::Dim));
-    s.fillRect(60 + loopIndex * 120 / (kLoopFrames - 1), 203, 4, 8, InkColour(wxscreens::Ink::White));
-    for (int i = layout->nFixed; i < layout->n; ++i)
-        if (wxscreens::ClearOf(layout->items[i].r, fixed, 4)) DrawItem(s, layout->items[i]);
     rec.drawUs = (uint32_t)(esp_timer_get_time() - start);
     loopFrameDue = false;
     ++loopIndex;

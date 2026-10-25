@@ -112,30 +112,14 @@ public:
     void Put(int x, int y, wxraster::Rgb) override { set.insert({x, y}); }
 };
 
-// A text as one token, as ref35.py's hx(): printable ASCII as itself, every other byte (and '%') as %XX; '-' when
-// empty. Not hex: an 8-character label hex-encodes to 16 hex digits, the shape the device-id guard refuses.
+// A text as one token, through the board's own formatter (wxscenes::Token), as ref35.py's hx() writes it.
 std::string Hx(const char* s)
 {
-    if (!*s) return "-";
-    std::string o;
-    char b[8];
-    for (const unsigned char* p = (const unsigned char*)s; *p; ++p) {
-        if (*p >= 0x21 && *p <= 0x7E && *p != '%') {
-            o += (char)*p;
-        } else {
-            std::snprintf(b, sizeof b, "%%%02X", *p);
-            o += b;
-        }
-    }
-    return o;
+    char b[160];
+    wxscenes::Token(s, b, sizeof b);
+    return b;
 }
-const char* Ink(wxraster::Rgb c)
-{
-    if (c == wxraster::kWhite) return "white";
-    if (c == wxraster::kDim) return "dim";
-    if (c == wxraster::kOrange) return "orange";
-    return "other";
-}
+const char* Ink(wxraster::Rgb c) { return wxscenes::InkName(c); }
 
 struct Frame {
     std::string name;

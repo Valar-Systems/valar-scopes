@@ -81,4 +81,34 @@ inline void FromLoopFrame(const wxcrop::Header& h, const uint8_t* codes, int ind
     else snprintf(in->loopAge, sizeof in->loopAge, "%ld MIN AGO", mins);
 }
 
+// k35.ref.txt's text token, so the board prints what the K reference holds (B1's text and label checks): printable
+// ASCII as itself, every other byte and '%' as %XX, "-" when empty. Truncated at cap - 1 bytes, at a whole escape.
+inline void Token(const char* s, char* out, size_t cap)
+{
+    if (cap == 0) return;
+    size_t n = 0;
+    if (!*s && cap > 1) out[n++] = '-';
+    for (const unsigned char* p = (const unsigned char*)s; *p; ++p) {
+        const bool plain = *p >= 0x21 && *p <= 0x7E && *p != '%';
+        if (n + (plain ? 1 : 3) >= cap) break;
+        if (plain) {
+            out[n++] = (char)*p;
+        } else {
+            static const char kHex[] = "0123456789ABCDEF";
+            out[n++] = '%';
+            out[n++] = kHex[*p >> 4];
+            out[n++] = kHex[*p & 15];
+        }
+    }
+    out[n] = '\0';
+}
+
+inline const char* InkName(wxraster::Rgb c)
+{
+    if (c == wxraster::kWhite) return "white";
+    if (c == wxraster::kDim) return "dim";
+    if (c == wxraster::kOrange) return "orange";
+    return "other";
+}
+
 }  // namespace wxscenes
