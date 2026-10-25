@@ -1,0 +1,273 @@
+# Weatherscope 3.5a K rows (docs/weatherscope-stage3.md A9.10): written by tools/weatherscope/screens/ref35.py --k
+# --write, checked by its --check; read by test/host/test_wx_k35.cpp. Texts: printable ASCII, else %XX; '-' empty.
+# font bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02
+# WxTowns.h 7a8297eaec7baacdbec1e48f0f1bde125e13e2eeb4f79ff3b35fc487d836709b (LF-normalised)
+# loop MANIFEST.json e1e8bfd31fc683b8c8c25edd32e45b2b0cba604050e9ca837c9cdf2101883a42 (LF-normalised)
+# synthetic-clear.wxc 0d13ba99d96a177164e3c44cbaa352e690d2bde0ed91513fa79f487e66ba80ad
+ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+TIME dry-60 5:00%20PM dim
+BAND dry-60 S RAIN%2024%20MI%20S dim
+LABEL dry-60 Dallas R 150 130 190 138
+LABEL dry-60 Fort%20Worth L 20 132 86 140
+LABEL dry-60 Plano R 152 95 186 103
+LABEL dry-60 Garland R 166 114 212 122
+LABEL dry-60 Frisco R 144 80 184 88
+LABEL dry-60 Grand%20Prairie R 121 146 203 154
+LABEL dry-60 Denton L 68 72 110 80
+LABEL dry-60 Mansfield L 52 161 112 169
+ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+TIME approaching-60 4:24%20PM dim
+BAND approaching-60 S RAIN%2014%20MI%20E white
+LABEL approaching-60 Dallas R 150 130 190 138
+LABEL approaching-60 Fort%20Worth L 20 132 86 140
+LABEL approaching-60 Plano R 152 95 186 103
+LABEL approaching-60 Garland R 166 114 212 122
+LABEL approaching-60 Frisco R 144 80 184 88
+LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+LABEL approaching-60 Denton L 68 72 110 80
+LABEL approaching-60 Mansfield L 52 161 112 169
+ROW herenow-60 33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857
+TIME herenow-60 4:24%20PM dim
+BAND herenow-60 S RAIN%20NOW white
+LABEL herenow-60 Dallas R 150 130 190 138
+LABEL herenow-60 Fort%20Worth L 20 132 86 140
+LABEL herenow-60 Plano R 152 95 186 103
+LABEL herenow-60 Garland R 166 114 212 122
+LABEL herenow-60 Frisco R 144 80 184 88
+LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+LABEL herenow-60 Denton L 68 72 110 80
+LABEL herenow-60 Mansfield L 52 161 112 169
+ROW warning-60 76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939
+TIME warning-60 4:24%20PM dim
+BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+LABEL warning-60 Fort%20Worth L 20 132 86 140
+LABEL warning-60 Garland R 166 114 212 122
+LABEL warning-60 McKinney R 162 74 214 82
+LABEL warning-60 Denton L 68 72 110 80
+LABEL warning-60 Mesquite R 171 135 223 143
+LABEL warning-60 Allen R 161 87 195 95
+LABEL warning-60 Mansfield L 52 161 112 169
+LABEL warning-60 Cedar%20Hill R 128 159 192 167
+ROW stale-60 00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88
+TIME stale-60 4:24%20PM orange
+BAND stale-60 S RADAR%20STALE dim
+LABEL stale-60 Dallas R 150 130 190 138
+LABEL stale-60 Fort%20Worth L 20 132 86 140
+LABEL stale-60 Plano R 152 95 186 103
+LABEL stale-60 Garland R 166 114 212 122
+LABEL stale-60 Frisco R 144 80 184 88
+LABEL stale-60 Grand%20Prairie R 121 146 203 154
+LABEL stale-60 Denton L 68 72 110 80
+LABEL stale-60 Mansfield L 52 161 112 169
+ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+TIME clear-60 5:00%20PM dim
+BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+LABEL clear-60 Dallas R 150 130 190 138
+LABEL clear-60 Fort%20Worth L 20 132 86 140
+LABEL clear-60 Plano R 152 95 186 103
+LABEL clear-60 Garland R 166 114 212 122
+LABEL clear-60 Frisco R 144 80 184 88
+LABEL clear-60 Grand%20Prairie R 121 146 203 154
+LABEL clear-60 Denton L 68 72 110 80
+LABEL clear-60 Mansfield L 52 161 112 169
+ROW approaching-30 250df91a8bb8bf473a06d13b348566ec938676216a9700e6ae42129a49fcfa9c
+TIME approaching-30 4:24%20PM dim
+BAND approaching-30 S RAIN%2014%20MI%20E white
+LABEL approaching-30 Dallas R 182 145 222 153
+LABEL approaching-30 Fort%20Worth R 47 148 111 156
+LABEL approaching-30 Arlington L 42 170 102 178
+LABEL approaching-30 Plano R 186 74 220 82
+LABEL approaching-30 Garland L 168 113 216 121
+LABEL approaching-30 Frisco L 130 45 172 53
+ROW approaching-15 0897903f64c625267222db9bf3d7e6dbd509f82dc6d3441cd28381026495e0c3
+TIME approaching-15 4:24%20PM dim
+BAND approaching-15 S RAIN%2014%20MI%20E white
+LABEL approaching-15 Irving R 151 139 191 147
+LABEL approaching-15 Lewisville L 86 32 152 40
+LABEL approaching-15 Carrollton L 120 66 186 74
+LABEL approaching-15 Euless L 62 143 104 151
+LABEL approaching-15 Keller R 33 97 73 105
+ROW dry-30 adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b
+TIME dry-30 5:00%20PM dim
+BAND dry-30 S RAIN%2024%20MI%20S dim
+LABEL dry-30 Dallas R 182 145 222 153
+LABEL dry-30 Fort%20Worth R 47 148 111 156
+LABEL dry-30 Arlington L 42 170 102 178
+LABEL dry-30 Plano R 186 74 220 82
+LABEL dry-30 Garland L 168 113 216 121
+LABEL dry-30 Frisco L 130 45 172 53
+ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+TIME dry-15 5:00%20PM dim
+BAND dry-15 S RAIN%2024%20MI%20S dim
+LABEL dry-15 Irving R 151 139 191 147
+LABEL dry-15 Lewisville L 86 32 152 40
+LABEL dry-15 Carrollton L 120 66 186 74
+LABEL dry-15 Euless L 62 143 104 151
+LABEL dry-15 Keller R 33 97 73 105
+ROW loop-00 653c5905c414297c2e301d9c679035ab47c9991056cce0cbf0cac10171d9427a
+TIME loop-00 4:04%20PM dim
+BAND loop-00 L 56%20MIN%20AGO 0
+LABEL loop-00 Dallas R 150 130 190 138
+LABEL loop-00 Fort%20Worth L 20 132 86 140
+LABEL loop-00 Plano R 152 95 186 103
+LABEL loop-00 Garland R 166 114 212 122
+LABEL loop-00 Frisco R 144 80 184 88
+LABEL loop-00 Grand%20Prairie R 121 146 203 154
+LABEL loop-00 Denton L 68 72 110 80
+LABEL loop-00 Mansfield L 52 161 112 169
+ROW loop-01 c436a9f5aac93254a1cdbe242ddb075d2fd8646e2a9d52a970d8c01be6466b73
+TIME loop-01 4:08%20PM dim
+BAND loop-01 L 52%20MIN%20AGO 1
+LABEL loop-01 Dallas R 150 130 190 138
+LABEL loop-01 Fort%20Worth L 20 132 86 140
+LABEL loop-01 Plano R 152 95 186 103
+LABEL loop-01 Garland R 166 114 212 122
+LABEL loop-01 Frisco R 144 80 184 88
+LABEL loop-01 Grand%20Prairie R 121 146 203 154
+LABEL loop-01 Denton L 68 72 110 80
+LABEL loop-01 Mansfield L 52 161 112 169
+ROW loop-02 0b4cb5e97e4ed5c858f7eded6e4e34571112b2fd4db8710bbab171edcda3ff3a
+TIME loop-02 4:12%20PM dim
+BAND loop-02 L 48%20MIN%20AGO 2
+LABEL loop-02 Dallas R 150 130 190 138
+LABEL loop-02 Fort%20Worth L 20 132 86 140
+LABEL loop-02 Plano R 152 95 186 103
+LABEL loop-02 Garland R 166 114 212 122
+LABEL loop-02 Frisco R 144 80 184 88
+LABEL loop-02 Grand%20Prairie R 121 146 203 154
+LABEL loop-02 Denton L 68 72 110 80
+LABEL loop-02 Mansfield L 52 161 112 169
+ROW loop-03 f937a05fc5a764e256a7e1a6947ae31d3381966035018f464199712b43154175
+TIME loop-03 4:16%20PM dim
+BAND loop-03 L 44%20MIN%20AGO 3
+LABEL loop-03 Dallas R 150 130 190 138
+LABEL loop-03 Fort%20Worth L 20 132 86 140
+LABEL loop-03 Plano R 152 95 186 103
+LABEL loop-03 Garland R 166 114 212 122
+LABEL loop-03 Frisco R 144 80 184 88
+LABEL loop-03 Grand%20Prairie R 121 146 203 154
+LABEL loop-03 Denton L 68 72 110 80
+LABEL loop-03 Mansfield L 52 161 112 169
+ROW loop-04 a0e04a7f8e7456d22abcff15a43dc41d0a7700fab9b7e687d1cabcb651b67632
+TIME loop-04 4:20%20PM dim
+BAND loop-04 L 40%20MIN%20AGO 4
+LABEL loop-04 Dallas R 150 130 190 138
+LABEL loop-04 Fort%20Worth L 20 132 86 140
+LABEL loop-04 Plano R 152 95 186 103
+LABEL loop-04 Garland R 166 114 212 122
+LABEL loop-04 Frisco R 144 80 184 88
+LABEL loop-04 Grand%20Prairie R 121 146 203 154
+LABEL loop-04 Denton L 68 72 110 80
+LABEL loop-04 Mansfield L 52 161 112 169
+ROW loop-05 35f8731fea33729e38c177b402dc9dcd82ceefca114e5cd7f2b1ef71d2af2ee6
+TIME loop-05 4:24%20PM dim
+BAND loop-05 L 36%20MIN%20AGO 5
+LABEL loop-05 Dallas R 150 130 190 138
+LABEL loop-05 Fort%20Worth L 20 132 86 140
+LABEL loop-05 Plano R 152 95 186 103
+LABEL loop-05 Garland R 166 114 212 122
+LABEL loop-05 Frisco R 144 80 184 88
+LABEL loop-05 Grand%20Prairie R 121 146 203 154
+LABEL loop-05 Denton L 68 72 110 80
+LABEL loop-05 Mansfield L 52 161 112 169
+ROW loop-06 fbc1858ea12350bcc595e02f6c6d689163e6c3d92de9ec86611aa73027101ff1
+TIME loop-06 4:28%20PM dim
+BAND loop-06 L 32%20MIN%20AGO 6
+LABEL loop-06 Dallas R 150 130 190 138
+LABEL loop-06 Fort%20Worth L 20 132 86 140
+LABEL loop-06 Plano R 152 95 186 103
+LABEL loop-06 Garland R 166 114 212 122
+LABEL loop-06 Frisco R 144 80 184 88
+LABEL loop-06 Grand%20Prairie R 121 146 203 154
+LABEL loop-06 Denton L 68 72 110 80
+LABEL loop-06 Mansfield L 52 161 112 169
+ROW loop-07 16fc17042f2b4c6cabb9a84d2418ca1fbe46ff7d432e0a7400298fae6731c82c
+TIME loop-07 4:32%20PM dim
+BAND loop-07 L 28%20MIN%20AGO 7
+LABEL loop-07 Dallas R 150 130 190 138
+LABEL loop-07 Fort%20Worth L 20 132 86 140
+LABEL loop-07 Plano R 152 95 186 103
+LABEL loop-07 Garland R 166 114 212 122
+LABEL loop-07 Frisco R 144 80 184 88
+LABEL loop-07 Grand%20Prairie R 121 146 203 154
+LABEL loop-07 Denton L 68 72 110 80
+LABEL loop-07 Mansfield L 52 161 112 169
+ROW loop-08 660606ae1844e15711f832d3c10dca83764fe24a96cce77c6274c1407fdb99e0
+TIME loop-08 4:36%20PM dim
+BAND loop-08 L 24%20MIN%20AGO 8
+LABEL loop-08 Dallas R 150 130 190 138
+LABEL loop-08 Fort%20Worth L 20 132 86 140
+LABEL loop-08 Plano R 152 95 186 103
+LABEL loop-08 Garland R 166 114 212 122
+LABEL loop-08 Frisco R 144 80 184 88
+LABEL loop-08 Grand%20Prairie R 121 146 203 154
+LABEL loop-08 Denton L 68 72 110 80
+LABEL loop-08 Mansfield L 52 161 112 169
+ROW loop-09 be8bba92a20ae43bc65196e4cae9e964ad0db9ed87d6c9fdad9a6bc22933a348
+TIME loop-09 4:40%20PM dim
+BAND loop-09 L 20%20MIN%20AGO 9
+LABEL loop-09 Dallas R 150 130 190 138
+LABEL loop-09 Fort%20Worth L 20 132 86 140
+LABEL loop-09 Plano R 152 95 186 103
+LABEL loop-09 Garland R 166 114 212 122
+LABEL loop-09 Frisco R 144 80 184 88
+LABEL loop-09 Grand%20Prairie R 121 146 203 154
+LABEL loop-09 Denton L 68 72 110 80
+LABEL loop-09 Mansfield L 52 161 112 169
+ROW loop-10 682afefbb7829614ebdd73fd5c5a364bc5e5b30fe16b563a70176b3a93c39566
+TIME loop-10 4:44%20PM dim
+BAND loop-10 L 16%20MIN%20AGO 10
+LABEL loop-10 Dallas R 150 130 190 138
+LABEL loop-10 Fort%20Worth L 20 132 86 140
+LABEL loop-10 Plano R 152 95 186 103
+LABEL loop-10 Garland R 166 114 212 122
+LABEL loop-10 Frisco R 144 80 184 88
+LABEL loop-10 Grand%20Prairie R 121 146 203 154
+LABEL loop-10 Denton L 68 72 110 80
+LABEL loop-10 Mansfield L 52 161 112 169
+ROW loop-11 a09993719202b99a8adaf0fc2fc783f4ecc3ab12fd993d253611a392b6d7317e
+TIME loop-11 4:48%20PM dim
+BAND loop-11 L 12%20MIN%20AGO 11
+LABEL loop-11 Dallas R 150 130 190 138
+LABEL loop-11 Fort%20Worth L 20 132 86 140
+LABEL loop-11 Plano R 152 95 186 103
+LABEL loop-11 Garland R 166 114 212 122
+LABEL loop-11 Frisco R 144 80 184 88
+LABEL loop-11 Grand%20Prairie R 121 146 203 154
+LABEL loop-11 Denton L 68 72 110 80
+LABEL loop-11 Mansfield L 52 161 112 169
+ROW loop-12 9f04dadfc2b316d7ca195718a0c56c516cae782601597b1634abf6cd2be79557
+TIME loop-12 4:52%20PM dim
+BAND loop-12 L 8%20MIN%20AGO 12
+LABEL loop-12 Dallas R 150 130 190 138
+LABEL loop-12 Fort%20Worth L 20 132 86 140
+LABEL loop-12 Plano R 152 95 186 103
+LABEL loop-12 Garland R 166 114 212 122
+LABEL loop-12 Frisco R 144 80 184 88
+LABEL loop-12 Grand%20Prairie R 121 146 203 154
+LABEL loop-12 Denton L 68 72 110 80
+LABEL loop-12 Mansfield L 52 161 112 169
+ROW loop-13 f0341f7fa89f21845ce6489424100df04f215bd0491961ed8fcfccbd0dc62bd1
+TIME loop-13 4:56%20PM dim
+BAND loop-13 L 4%20MIN%20AGO 13
+LABEL loop-13 Dallas R 150 130 190 138
+LABEL loop-13 Fort%20Worth L 20 132 86 140
+LABEL loop-13 Plano R 152 95 186 103
+LABEL loop-13 Garland R 166 114 212 122
+LABEL loop-13 Frisco R 144 80 184 88
+LABEL loop-13 Grand%20Prairie R 121 146 203 154
+LABEL loop-13 Denton L 68 72 110 80
+LABEL loop-13 Mansfield L 52 161 112 169
+ROW loop-14 8ff38d674da1f7857cc97d178ed57613c30406f3cbf7231d1ba10e6172254192
+TIME loop-14 5:00%20PM dim
+BAND loop-14 L NOW 14
+LABEL loop-14 Dallas R 150 130 190 138
+LABEL loop-14 Fort%20Worth L 20 132 86 140
+LABEL loop-14 Plano R 152 95 186 103
+LABEL loop-14 Garland R 166 114 212 122
+LABEL loop-14 Frisco R 144 80 184 88
+LABEL loop-14 Grand%20Prairie R 121 146 203 154
+LABEL loop-14 Denton L 68 72 110 80
+LABEL loop-14 Mansfield L 52 161 112 169
+AR1 150,100 151,99 152,99 153,98 154,98 155,97 156,94 156,97 157,94 157,96 158,94 158,96 158,97 159,94 159,95 159,96 159,97 160,94 160,95

@@ -6,7 +6,7 @@
 //
 //     test_wx_k35 <loop dir> <k35.ref.txt> [--dump <dir>]     --dump writes each frame for ref35.py --k --diff
 //
-// Its sabotages: python -I test/host/sabotage_wx_k35.py. Prints hashes, texts as hex, and screen pixels: no coordinate.
+// Its sabotages: python -I test/host/sabotage_wx_k35.py. Prints hashes, texts and screen pixels: no coordinate.
 
 #include <cstdint>
 #include <cstdio>
@@ -112,14 +112,20 @@ public:
     void Put(int x, int y, wxraster::Rgb) override { set.insert({x, y}); }
 };
 
+// A text as one token, as ref35.py's hx(): printable ASCII as itself, every other byte (and '%') as %XX; '-' when
+// empty. Not hex: an 8-character label hex-encodes to 16 hex digits, the shape the device-id guard refuses.
 std::string Hx(const char* s)
 {
     if (!*s) return "-";
     std::string o;
-    char b[3];
+    char b[8];
     for (const unsigned char* p = (const unsigned char*)s; *p; ++p) {
-        std::snprintf(b, sizeof b, "%02x", *p);
-        o += b;
+        if (*p >= 0x21 && *p <= 0x7E && *p != '%') {
+            o += (char)*p;
+        } else {
+            std::snprintf(b, sizeof b, "%%%02X", *p);
+            o += b;
+        }
     }
     return o;
 }

@@ -469,9 +469,10 @@ def r0(mock_dir, out_dir):
 # The 25 K rows, re-derived here from the scenario definitions (A8.10, Q15) and A9.2's rules -- never from the C++.
 # Each row is written as lines a C++ host test (test/host/test_wx_k35.cpp) reproduces through the device's path:
 #   ROW <name> <sha256 of the 240 x 240 RGB565 big-endian frame>     the 57,600 pixels, color565-truncated
-#   TIME <name> <hex text> <ink>                                     the top strip's time
-#   BAND <name> S <hex text> <ink> | BAND <name> 1|2 <hex text> | BAND <name> L <hex age> <index>
-#   LABEL <name> <hex label> <R|L> <x0> <y0> <x1> <y1>               each placed town label, in placement order
+#   TIME <name> <text> <ink>                                         the top strip's time
+#   BAND <name> S <text> <ink> | BAND <name> 1|2 <text> | BAND <name> L <age> <index>
+#   LABEL <name> <label> <R|L> <x0> <y0> <x1> <y1>                   each placed town label, in placement order
+# (each text one token: printable ASCII as itself, other bytes and '%' as %XX, '-' when empty -- see hx())
 #   AR1 <x,y> ...                                                    A9.14: AR1's drawn pixel set, sorted
 K_REF = os.path.join(WX, "k35.ref.txt")
 CLEAR = os.path.join(LOOP, "synthetic-clear.wxc")
@@ -630,13 +631,17 @@ def k_rows():
 
 
 def hx(s):
-    return s.encode("latin-1").hex() if s else "-"
+    """A text as one token: printable ASCII as itself, every other byte (and '%') as %XX; '-' when empty. Not hex:
+    an 8-character label hex-encodes to 16 hex digits, the shape the device-id guard refuses."""
+    if not s:
+        return "-"
+    return "".join(c if 0x21 <= ord(c) <= 0x7E and c != "%" else "%%%02X" % ord(c) for c in s)
 
 
 def k_text():
     rows, ar1 = k_rows()
     head = ["# Weatherscope 3.5a K rows (docs/weatherscope-stage3.md A9.10): written by tools/weatherscope/screens/ref35.py --k",
-            "# --write, checked by its --check; read by test/host/test_wx_k35.cpp. Texts are hex (latin-1); '-' is empty.",
+            "# --write, checked by its --check; read by test/host/test_wx_k35.cpp. Texts: printable ASCII, else %XX; '-' empty.",
             "# font %s" % FONT_SHA,
             "# WxTowns.h %s (LF-normalised)" % sha_lf(os.path.join(ROOT, "src", "weatherscope", "WxTowns.h")),
             "# loop MANIFEST.json %s (LF-normalised)" % sha_lf(os.path.join(LOOP, "MANIFEST.json")),

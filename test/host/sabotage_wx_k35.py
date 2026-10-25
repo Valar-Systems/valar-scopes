@@ -42,10 +42,11 @@ SABOTAGES = {
 
 
 def tree_sha():
+    """Every file under src/weatherscope (it holds subdirectories), the font and the reference."""
+    paths = sorted(os.path.join(d, f) for d, _, fs in os.walk(SRC) for f in fs) + [FONT, REF]
     h = hashlib.sha256()
-    for p in sorted(os.listdir(SRC)) + ["<font>", "<ref>"]:
-        path = FONT if p == "<font>" else REF if p == "<ref>" else os.path.join(SRC, p)
-        h.update(p.encode() + b"\0" + open(path, "rb").read())
+    for path in paths:
+        h.update(os.path.relpath(path, ROOT).encode() + b"\0" + open(path, "rb").read())
     return h.hexdigest()
 
 
