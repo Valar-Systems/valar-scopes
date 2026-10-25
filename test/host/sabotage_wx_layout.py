@@ -3,12 +3,12 @@ named cases frozen in docs/weatherscope-stage3.md A9.10, and nothing else.
 
     python -I test/host/sabotage_wx_layout.py
 
-Method, fixed before any run (A9.14):
+Method, fixed before any run (A9.14, A9.16):
   - The real header is never edited. Each plant asserts its anchor occurs once and that the copy differs, and the real
     file's hash is compared before and after. The unmodified header runs first, as the control: 0 failures.
-  - Every result is graded against A9.10's frozen set. S-IC also carries the set A9.14 registered before the run
-    ({IC1, IC4}: IC3's left box is within 4 px of its fixed overlay, so it is skipped with or without the inner
-    circle). A result that matches only A9.14's set is still OFF A9.10, and is reported as such: the stop stands.
+  - Every result is graded against A9.10's frozen set alone. (S-IC's first run failed {IC1, IC4}: IC3's left box sat
+    within 4 px of its overlay, so IC3 never tested the inner circle. By ruling, IC3's overlay moved to x 153, A9.16.)
+  - Each sabotage's failing lines are printed, so what a failing case drew can be read off the run.
   - S-CAP is planted at the cap's USE SITE in PlaceTowns, not in Cap() (A9.14): "the cap is 8 at every zoom" for the
     placement, with ZM7 still asking Cap() its own question.
   - S-STALE changes all three age comparisons (the 30 min one in StateLine and TimeText, the 10 min one in TimeText):
@@ -23,39 +23,39 @@ LOOP = os.path.join(ROOT, "test", "fixtures", "wx", "loop")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
-# name: (edits, A9.10's frozen set, A9.14's pre-registered set or None)
+# name: (edits, A9.10's frozen set)
 SABOTAGES = {
     "S-RANK": ([("    for (int i = 1; i < n; ++i) {\n        const int v = order[i];",
                  "    for (int i = n; i < n; ++i) {  // SABOTAGE: file order\n        const int v = order[i];")],
-               {"LB1", "LB2a", "LB3", "LB4", "LB5"}, None),
+               {"LB1", "LB2a", "LB3", "LB4", "LB5"}),
     "S-IC": ([("    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;\n",
                "    (void)inner;  // SABOTAGE: no anchor test\n"),
               ("        if (!ClearsCentre(b, inner)) continue;\n", "        // SABOTAGE: no box test\n")],
-             {"IC1", "IC3", "IC4"}, {"IC1", "IC4"}),
+             {"IC1", "IC3", "IC4"}),
     "S-OV": ([("constexpr int kAir = 4;", "constexpr int kAir = 0;  // SABOTAGE")],
-             {"OV2", "OV4", "OV5b", "OV5d", "OV6b", "SD3"}, None),
+             {"OV2", "OV4", "OV5b", "OV5d", "OV6b", "SD3"}),
     "S-SIDE": ([("    if (x < c) {\n        const Box b = cands[0];",
                  "    if (false) {  // SABOTAGE: always right first\n        const Box b = cands[0];")],
-               {"SD2", "OV6a"}, None),
+               {"SD2", "OV6a"}),
     "S-CAP": ([("    const int cap = Cap(radiusMi);\n",
                 "    const int cap = 8;  // SABOTAGE: 8 at every zoom\n    (void)radiusMi;\n")],
-              {"LB4", "LB5"}, None),
+              {"LB4", "LB5"}),
     "S-RING": ([("        if (0.15 * R <= kAll[i] && kAll[i] <= 0.85 * R) mi[n++] = kAll[i];",
                  "        if (0.0 * R <= kAll[i] && kAll[i] <= 1.0 * R) mi[n++] = kAll[i];  // SABOTAGE")],
-               {"RG1", "RG2", "RG3"}, None),
+               {"RG1", "RG2", "RG3"}),
     "S-ST15": ([("        if (in.echo.mi <= 15.0) *ink = wxraster::kWhite;",
-                 "        if (in.echo.mi < 15.0) *ink = wxraster::kWhite;  // SABOTAGE")], {"ST3"}, None),
+                 "        if (in.echo.mi < 15.0) *ink = wxraster::kWhite;  // SABOTAGE")], {"ST3"}),
     "S-STALE": ([("    if (in.ageS > kStaleAfterS) {", "    if (in.ageS >= kStaleAfterS) {  // SABOTAGE"),
                  ("    if (warning && ageS > kStaleAfterS) snprintf", "    if (warning && ageS >= kStaleAfterS) snprintf"),
                  ("    *ink = ageS > kOrangeAfterS ?", "    *ink = ageS >= kOrangeAfterS ?")],
-                {"TM1", "TM4", "ST13"}, None),
+                {"TM1", "TM4", "ST13"}),
     "S-INVIEW": ([("            if (sqrt(d2) / wxlogic::kKmPerMi > boundMi) continue;",
-                   "            (void)boundMi;  // SABOTAGE: the 60.0 mi bound dropped")], {"ST11a"}, None),
+                   "            (void)boundMi;  // SABOTAGE: the 60.0 mi bound dropped")], {"ST11a"}),
     "S-ARROW": ([("    const int travel = (fromDeg + 180) % 360;",
-                  "    const int travel = fromDeg % 360;  // SABOTAGE: along fromDeg")], {"AR1", "AR3"}, None),
+                  "    const int travel = fromDeg % 360;  // SABOTAGE: along fromDeg")], {"AR1", "AR3"}),
     "S-LADDER": ([("    radarzoom::Ladder l;\n    l.step[0] = 15.0f;",
                    "    return radarzoom::BuildLadder(60.0f);  // SABOTAGE\n    radarzoom::Ladder l;\n    l.step[0] = 15.0f;")],
-                 {"ZM1", "ZM2", "ZM3", "ZM4"}, None),
+                 {"ZM1", "ZM2", "ZM3", "ZM4"}),
 }
 
 
@@ -90,7 +90,8 @@ def run(td, name, text):
     if not m or int(m.group(1)) != 73:
         print(f"{name}: {m.group(1) if m else '?'} cases ran, not 73: the RIG")
         sys.exit(2)
-    return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
+    lines = [x.group(0).strip() for x in re.finditer(r"^\s*FAIL \S+.*$", r.stdout, re.M)]
+    return r.returncode, {x.split()[1] for x in lines}, lines
 
 
 def main():
@@ -98,27 +99,23 @@ def main():
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok, off = True, []
     with tempfile.TemporaryDirectory() as td:
-        rc, fails = run(td, "control", src)
+        rc, fails, _ = run(td, "control", src)
         good = rc == 0 and not fails
         print(f"control (the real header): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
-        for name, (edits, frozen, a914) in SABOTAGES.items():
-            rc, fails = run(td, name, plant(name, edits, src))
+        for name, (edits, frozen) in SABOTAGES.items():
+            rc, fails, lines = run(td, name, plant(name, edits, src))
             good = rc == 1 and fails == frozen
-            if good:
-                verdict = "AS PREDICTED (A9.10)"
-            elif a914 is not None and rc == 1 and fails == a914:
-                verdict = f"OFF A9.10's {sorted(frozen)}; AS A9.14 REGISTERED BEFORE THE RUN"
-            else:
-                verdict = "OFF-PREDICTION"
             if not good:
                 off.append(name)
-            print(f"{name}: failing {sorted(fails)}, predicted {sorted(frozen)} -> {verdict}")
+            print(f"{name}: failing {sorted(fails)}, predicted {sorted(frozen)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+            for line in lines:
+                print(f"    {line}")
             ok &= good
     after = sha(HEADER)
     print(f"the real src/weatherscope/WxScreens.h unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else
-                                              f"OFF-PREDICTION against A9.10 ({', '.join(off) or 'the control'}): STOP"))
+                                              f"OFF-PREDICTION ({', '.join(off) or 'the control'}): STOP"))
     return 0 if ok and before == after else 1
 
 

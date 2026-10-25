@@ -130,7 +130,9 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
     std::printf("== IC: the inner circle (%.4f px) ==\n", Inner(60));
     { const Placed p = Label("A", 144.0, 120.0); check("IC1", !p.placed, P(p)); }
     { const Placed p = Label("A", 150.0, 120.0); check("IC2", Is(p, 'R', {149, 116, 159, 124}, 154, 117), P(p)); }
-    { const Placed p = Label("ABCDEF", 146.0, 120.0, {{150, 110, 200, 130}}); check("IC3", !p.placed, P(p)); }
+    // IC3's overlay at x 153, re-registered by ruling (A9.16): at 150 the left box was within 4 px of it, so OV's air
+    // rejected the left side before the inner circle was reached, and IC3 never tested the circle.
+    { const Placed p = Label("ABCDEF", 146.0, 120.0, {{153, 110, 200, 130}}); check("IC3", !p.placed, P(p)); }
     { const Placed p = Label("A", 145.5, 120.0); check("IC4", !p.placed, P(p)); }
     { const Placed p = Label("A", 146.0, 120.0); check("IC5", Is(p, 'R', {145, 116, 155, 124}), P(p)); }
 
