@@ -113,7 +113,7 @@ The ruling, as pasted:
   full suite and CI. H1's MinGW half stays as predicted: ALL HOST TESTS PASSED."
 - **What may run next:** T5, S1, S2, S2′ and the MinGW full suite; then the PR, and C1.
 
-**Which size CI reports, named from `firmware.yml` before any CI log was read.**
+**Which size CI reports, named from the firmware workflow before any CI log was read.**
 - **The quantity:** the missileer legs are build-only (no `slug`), so CI uploads **no image** for them and records no
   `firmware.bin` size. What it reports is PlatformIO's line **`Flash: [...] (used N bytes from 6553600 bytes)`**, in
   the matrix leg's step **`Build <env>`**, the plain `pio run -e <env>`.
@@ -144,3 +144,21 @@ stop.
 
 Every plant was restored **by bytes**. `GameConfig.cpp`'s sha256 was back to `cadb5757485a` after each one, and the
 tree was clean afterwards.
+
+## C1: OFF-PREDICTION on `bede39006f69`, and the sentence changed afterwards
+
+| | read | verdict |
+|---|---|---|
+| **C1** | run `40262623189`: `total_count` 35, all 35 listed. **31 success, 3 skipped, 1 failure: `sku-readers`.** The reader sweep refused this doc, because it named the workflow's file, and the doc is not on the reviewed list. The checker's selftest passed in the same job, so the gate was working. `host-tests` was as predicted: the new block ran on `ArduinoJson 7.4.3 (platformio.ini pins 7.4.3)`, 53 checks, 0 failures, `ALL HOST TESTS PASSED` | **OFF-PREDICTION, kept** |
+
+**The fix, by ruling (reviewer chat, pasted by Daniel, 2026-10-26):** "reword, as you proposed. The sentence names
+'the firmware workflow' without the file name; the checker and ALLOWED_MENTIONS stay untouched."
+- **Changed after the miss:** the heading of "Which size CI reports" now says *the firmware workflow* where it used to
+  give the file name. Nothing else in the doc, and no code, changed.
+- **M2′ was not read on `bede39006f69`.** By the same ruling it is graded on the fixed head's run only, with the
+  quantity named above.
+
+| | check | predicted |
+|---|---|---|
+| **C1′** | CI on the fixed head | every check counted, **0 failures**, and **`sku-readers` green** |
+| **M2′** | as registered above, on the fixed head's `pull_request` run | as registered. **A doc-only change cannot move the sizes, so any difference from the point prediction is itself a finding** |
