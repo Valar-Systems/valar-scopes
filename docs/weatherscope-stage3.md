@@ -4226,6 +4226,40 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **Noted, not for this PR:** keeping `FromScenario`'s `NearestEchoInView`, and `wxscen::Build`'s work if it too is zoom-free, across a zoom step.
 
+### A9.37 S-FIRE on the board: red exactly where predicted; N5 off in 2 of 3 presses because 15 holds came from the glass, not the bench. Stopped; the fresh run of N waits (2026-10-26)
+
+**The run:**
+- **The image:** N′ (S-FIRE, `35c60aa5c112…`), written to the app slot at 0x20000 by `esptool write_flash`, hash verified.
+- **The open:** one, 15 s after the flash. 3 bench presses under M1 (the bench `P`s at 19:57:22, 19:57:52 and 19:58:22Z).
+- **The record:** `tools/weatherscope/board/run-2026-10-26-ringNprime/trace.txt` on `weatherscope/hold-ring-first`, LAN IP and BSSID redacted.
+- **Afterwards:** build N (`6b4c588707da…`) was rewritten and verified at 19:59:44Z. **The board runs N.**
+
+**Against A9.36's S-FIRE set** (`grade_ring.py --sabotage`):
+
+| row | predicted | press 1 | press 2 | press 3 |
+|---|---|---|---|---|
+| N1′ | red | red (the first 1000 ‰ frame is the 149,273 µs rebuild) | red (142,285) | red (129,855) |
+| N2 | red | red (that frame is the rebuild, at the new radius) | red | red |
+| N6 | red | red (the only frame over 2 × `base` **is** the first 1000 ‰ frame) | red | red |
+| N3′ | holds | holds | holds | holds |
+| N4′ | holds | holds | holds | holds |
+| N5 | holds | **fails** (12 zoom-hold lines in its window) | **fails** (5) | holds |
+
+**So the sabotage turned exactly its three rows red, in every press.** N5 is outside the prediction in two presses, and the trace shows why:
+- **The count:** the board logged **18 holds**. 3 are the bench presses (19:57:23.1, 19:57:53.3, 19:58:23.3Z, each just after its `P`).
+- **The other 15 had no `P`:** 11 between 19:56:59 and 19:57:15Z and 4 between 19:57:30 and 19:57:35Z, about 1.5 s apart. Each went "hold ring on", zoom, rebuild, "hold ring off": **a touch held past 700 ms, released, and pressed again.**
+- **Where they land:** they fall in N5's counting window, which runs between `R` blocks.
+
+**The alternatives for those 15, named and not decided:**
+- (a) **someone pressing the glass**: A9.36 let Daniel look at the glass on build N "meanwhile", and these fell during the S-FIRE run;
+- (b) **phantom touches from the CST816**, held 700 ms at a time, which no earlier run here has shown.
+
+**One question for Daniel decides it:** was he pressing the screen between about 19:56:55 and 19:57:40Z? **If so, he was pressing N′, the sabotage, not N.** What he saw then was the old behaviour, the rebuild in the fire frame. **N has been on the board since 19:59:44Z.**
+
+**Stopped.**
+- **The fresh run of N** (A9.36's addition) waits, so the same thing cannot happen in it, until Daniel says he is done at the glass or (b) is answered.
+- **The PR** is opened as a **draft**, so CI runs. No code changed, and approval waits for the ruling.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
