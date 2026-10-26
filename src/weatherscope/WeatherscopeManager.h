@@ -139,6 +139,30 @@ private:
     uint64_t copySum = 0;
     bool ringShown = false;
 
+    // BUILD M (A9.30, diag only): what a zoom at the fire costs, by USB condition. Never a pixel.
+    struct FireRecord {
+        char why[6];
+        uint32_t buildUs, printUs, gapUs, baseUs;
+        uint16_t shortWrites, prints;
+    };
+    static constexpr int kFireRecords = 12;
+    FireRecord fires[kFireRecords];
+    int nFires = 0;
+    const char* fireWhy = "hold";     // who called OnHoldFired: the glass ("hold"), 'H' or an auto-fire
+    int64_t fireT0 = 0;               // esp_timer at the fire being measured; 0 when none is open
+    int64_t outUs = 0;                // time spent inside Out() since the fire
+    uint16_t outShort = 0, outN = 0;
+    int openFire = -1;                // the record waiting for its first push after the fire
+    int64_t lastPushEnd = 0, pushEndBeforeFire = 0;
+    uint32_t gaps[16];                // push end -> next push start, before any fire is open
+    int nGaps = 0;
+    uint32_t autoFireAtMs[6];
+    int nAutoFires = 0;
+    size_t Out(const char* fmt, ...);
+    void FireMeasured(const char* why);
+    void ServiceAutoFires();
+    void PrintFireRecords();
+
     // touch
     bool wasTouched = false;
     int touchStartX = 0, touchStartY = 0, touchLastX = 0, touchLastY = 0;

@@ -5,6 +5,8 @@
 #include <esp_timer.h>
 #include <mbedtls/sha256.h>
 #include <new>
+#include <stdarg.h>
+#include <algorithm>
 #include <time.h>
 
 #include <stdlib.h>   // before WxLogic.h, which calls strtod without including it (A8.15)
@@ -237,7 +239,7 @@ void WeatherscopeManager::BuildScenario()
                               : history[kind == wxscen::Kind::Dry ? pickDry : pickApproaching];
     wxcrop::Header h;
     if (!DecodeCrop(crop, &h) || !wxscen::Build(kind, h, grid, scenario)) {
-        Serial.printf("[wx] scn=%s FAILED: its crop does not decode or build\n", kScenarioName[kindIndex]);
+        Out("[wx] scn=%s FAILED: its crop does not decode or build\n", kScenarioName[kindIndex]);
         return;
     }
     PrintCopyStats();   // the hold that ended (A9.22's P4)
@@ -265,35 +267,48 @@ void WeatherscopeManager::BuildScenario()
     HexSha(sha, hex);
     snprintf(row, sizeof row, "%s-%d", kScenarioName[kindIndex], R);
     // the boot-time pick and PSRAM figure again, so a trace that opens after boot still has them
-    Serial.printf("[wx] pick approaching=%s dry=%s psram_used=%u\n", pickApproachingName, pickDryName,
+    Out("[wx] pick approaching=%s dry=%s psram_used=%u\n", pickApproachingName, pickDryName,
                   (unsigned)psramUsed);
-    Serial.printf("[wx] scn=%s R=%d frame=%s screen=%s synthetic=%d compose_us=%lu\n", kScenarioName[kindIndex], R, hh,
+    Out("[wx] scn=%s R=%d frame=%s screen=%s synthetic=%d compose_us=%lu\n", kScenarioName[kindIndex], R, hh,
                   ScreenName(scenario->Choose().screen), (int)scenario->synthetic, (unsigned long)composeUs);
     {
         char line[200];
         int n = snprintf(line, sizeof line, "[wx] prof %s", row);
         for (int i = 0; i < wxscreens::Profile::kPhases && n > 0 && n < (int)sizeof line; ++i)
             n += snprintf(line + n, sizeof line - n, " %s=%lu", wxscreens::Profile::Name(i), (unsigned long)prof.Us(i));
-        Serial.printf("%s sum=%lu compose_us=%lu\n", line, (unsigned long)prof.Sum(), (unsigned long)composeUs);
+        Out("%s sum=%lu compose_us=%lu\n", line, (unsigned long)prof.Sum(), (unsigned long)composeUs);
     }
-    Serial.printf("[wx] k ROW %s %s\n", row, hex);
+    Out("[wx] k ROW %s %s\n", row, hex);
     wxscenes::Token(screenOut->time, tok, sizeof tok);
-    Serial.printf("[wx] k TIME %s %s %s\n", row, tok, wxscenes::InkName(screenOut->timeInk));
+    Out("[wx] k TIME %s %s %s\n", row, tok, wxscenes::InkName(screenOut->timeInk));
     if (screenIn->warning) {
         wxscenes::Token(screenIn->wt.band1, tok, sizeof tok);
         wxscenes::Token(screenIn->wt.band2, tok2, sizeof tok2);
-        Serial.printf("[wx] k BAND %s 1 %s\n", row, tok);
-        Serial.printf("[wx] k BAND %s 2 %s\n", row, tok2);
+        Out("[wx] k BAND %s 1 %s\n", row, tok);
+        Out("[wx] k BAND %s 2 %s\n", row, tok2);
     } else {
         wxscenes::Token(screenIn->state, tok, sizeof tok);
-        Serial.printf("[wx] k BAND %s S %s %s\n", row, tok, wxscenes::InkName(screenIn->stateInk));
+        Out("[wx] k BAND %s S %s %s\n", row, tok, wxscenes::InkName(screenIn->stateInk));
     }
     for (int i = 0; i < screenOut->nLabels; ++i) {
         const wxscreens::Placed& p = screenOut->labels[i].at;
         wxscenes::Token(screenOut->labels[i].label, tok, sizeof tok);
-        Serial.printf("[wx] k LABEL %s %s %c %d %d %d %d\n", row, tok, p.side, p.box.x0, p.box.y0, p.box.x1, p.box.y1);
+        Out("[wx] k LABEL %s %s %c %d %d %d %d\n", row, tok, p.side, p.box.x0, p.box.y0, p.box.x1, p.box.y1);
     }
-    Serial.printf("[wx] screen=scenario %s R=%d\n", kScenarioName[kindIndex], R);
+    Out("[wx] screen=scenario %s R=%d\n", kScenarioName[kindIndex], R);
+    if (fireT0) {   // BUILD M (A9.30): the fire's work is done; its first push closes the record
+        const int64_t total = esp_timer_get_time() - fireT0;
+        FireRecord& r = fires[nFires % kFireRecords];
+        snprintf(r.why, sizeof r.why, "%s", fireWhy);
+        r.printUs = (uint32_t)outUs;
+        r.buildUs = (uint32_t)(total - outUs);
+        r.shortWrites = outShort;
+        r.prints = outN;
+        r.gapUs = r.baseUs = 0;
+        openFire = nFires % kFireRecords;
+        ++nFires;
+        fireT0 = 0;
+    }
 }
 
 // One line at boot, proving the feeds answer through the factory. Sizes, counts and times only: no coordinate.
@@ -337,6 +352,7 @@ void WeatherscopeManager::Update()
 
     HandleTouch();
     HandleSerialGestures();
+    ServiceAutoFires();   // BUILD M (A9.30)
 
     // The cycle sees every tick, so a paused interval (the loop, the legend) is skipped rather than counted when
     // it resumes; it can only advance while unpaused, i.e. on the scenario screen.
@@ -355,7 +371,7 @@ void WeatherscopeManager::ApplyZoom(int idx, const char* why)
 {
     const int before = ZoomMiles();
     zoomIdx = idx;
-    Serial.printf("[wx] zoom %s %d -> %d mi\n", why, before, ZoomMiles());
+    Out("[wx] zoom %s %d -> %d mi\n", why, before, ZoomMiles());
     if (mode == Mode::Scenario) BuildScenario();
 }
 
@@ -480,8 +496,82 @@ void WeatherscopeManager::OnSwipeVertical(int dir)
 void WeatherscopeManager::OnHoldFired()
 {
     if (mode != Mode::Scenario) return;
+    // BUILD M (A9.30): open a record; BuildScenario closes its work, the next push its gap
+    fireT0 = esp_timer_get_time();
+    outUs = 0;
+    outShort = outN = 0;
+    pushEndBeforeFire = lastPushEnd;
     const int target = longpress::ToggleTarget(zoomIdx, zoomLadder.Top());
     if (target >= 0) ApplyZoom(target, "hold");
+    fireT0 = 0;          // no BuildScenario ran: nothing recorded
+    fireWhy = "hold";    // the glass's, until a bench byte or an auto-fire says otherwise
+}
+
+// BUILD M (A9.30): a fire from the bench ('H') or the schedule, through the glass's own handler.
+void WeatherscopeManager::FireMeasured(const char* why)
+{
+    fireWhy = why;
+    OnHoldFired();
+}
+
+// BUILD M (A9.30): the stored-mode auto-fires (boot + 60/90/120 s, and 'A''s +20/+40/+60 s), one per tick, only on
+// the scenario screen; a due fire waits there until the screen is.
+void WeatherscopeManager::ServiceAutoFires()
+{
+    if (!feeds.stored || mode != Mode::Scenario) return;
+    static bool bootScheduled = false;
+    if (!bootScheduled) {
+        bootScheduled = true;
+        const uint32_t boot[3] = {60000, 90000, 120000};
+        for (uint32_t t : boot)
+            if (nAutoFires < 6) autoFireAtMs[nAutoFires++] = t;
+    }
+    const uint32_t now = millis();
+    for (int i = 0; i < nAutoFires; ++i) {
+        if ((int32_t)(now - autoFireAtMs[i]) < 0) continue;
+        for (int j = i + 1; j < nAutoFires; ++j) autoFireAtMs[j - 1] = autoFireAtMs[j];
+        --nAutoFires;
+        FireMeasured("auto");
+        return;
+    }
+}
+
+// BUILD M (A9.30): the records, on 'R', then cleared.
+void WeatherscopeManager::PrintFireRecords()
+{
+    const int n = nFires < kFireRecords ? nFires : kFireRecords;
+    Serial.printf("[wx] fires n=%d of %d pending_auto=%d\n", n, nFires, nAutoFires);
+    for (int k = 0; k < n; ++k) {
+        const int i = nFires <= kFireRecords ? k : (nFires + k) % kFireRecords;
+        const FireRecord& r = fires[i];
+        Serial.printf("[wx] fire %d why=%s build_us=%lu print_us=%lu prints=%u short=%u gap_us=%lu base_us=%lu "
+                      "stall_us=%ld\n", k, r.why, (unsigned long)r.buildUs, (unsigned long)r.printUs,
+                      (unsigned)r.prints, (unsigned)r.shortWrites, (unsigned long)r.gapUs, (unsigned long)r.baseUs,
+                      (long)r.gapUs - (long)r.baseUs);
+    }
+    nFires = 0;
+}
+
+// BUILD M (A9.30): BuildScenario's and ApplyZoom's prints come through here, so the time they spend in the USB
+// driver (HWCDC's backpressure wait) is measured apart from the composition, and a short write is counted. The
+// bytes are printf's own.
+size_t WeatherscopeManager::Out(const char* fmt, ...)
+{
+    char buf[320];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    if (n < 0) return 0;
+    if (n >= (int)sizeof buf) n = (int)sizeof buf - 1;
+    const int64_t t0 = esp_timer_get_time();
+    const size_t w = Serial.write((const uint8_t*)buf, (size_t)n);
+    if (fireT0) {
+        outUs += esp_timer_get_time() - t0;
+        ++outN;
+        if (w < (size_t)n) ++outShort;
+    }
+    return w;
 }
 
 // Under 40 px on both axes a tap; otherwise a swipe on the larger axis (the radar's classifier). Only a stroke the
@@ -540,7 +630,7 @@ void WeatherscopeManager::HandleSerialGestures()
     while (Serial.available()) {
         const int ch = Serial.read();
         if (!feeds.stored) continue;
-        const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H';
+        const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'A' || ch == 'R';
         Serial.printf("[wx] gesture %c\n", known ? (char)ch : '?');
         if (!known) continue;
         lastTouchMs = millis();
@@ -548,7 +638,14 @@ void WeatherscopeManager::HandleSerialGestures()
         else if (ch == 'S') OnSwipeLeft();
         else if (ch == 'U') OnSwipeVertical(-1);
         else if (ch == 'D') OnSwipeVertical(+1);
-        else OnHoldFired();
+        else if (ch == 'A') {   // BUILD M (A9.30): three auto-fires at +20, +40 and +60 s
+            const uint32_t now = millis();
+            for (uint32_t d : {20000u, 40000u, 60000u})
+                if (nAutoFires < 6) autoFireAtMs[nAutoFires++] = now + d;
+            Serial.printf("[wx] autofire scheduled n=%d\n", nAutoFires);
+        }
+        else if (ch == 'R') PrintFireRecords();
+        else FireMeasured("H");
     }
 }
 
@@ -600,6 +697,25 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
 
 void WeatherscopeManager::OnPushed(uint32_t tag, uint8_t phase, uint32_t pushUs)
 {
+    {   // BUILD M (A9.30): the gap from one push's end to the next push's start, from this hook's time less pushUs
+        const int64_t end = esp_timer_get_time();
+        const int64_t start = end - (int64_t)pushUs;
+        if (openFire >= 0) {
+            FireRecord& r = fires[openFire];
+            r.gapUs = pushEndBeforeFire ? (uint32_t)(start - pushEndBeforeFire) : 0;
+            const int n = nGaps < 16 ? nGaps : 16;
+            uint32_t sorted[16];
+            for (int i = 0; i < n; ++i) sorted[i] = gaps[i];
+            std::sort(sorted, sorted + n);
+            r.baseUs = n ? sorted[n / 2] : 0;
+            openFire = -1;
+            nGaps = 0;   // the next fire's baseline starts here
+        } else if (lastPushEnd) {
+            gaps[nGaps % 16] = (uint32_t)(start - lastPushEnd);
+            ++nGaps;
+        }
+        lastPushEnd = end;
+    }
     const uint16_t scene = (uint16_t)(tag >> 16), count = (uint16_t)(tag & 0xFFFF);
     if (pushRun.n && scene == pushRun.scene) {
         pushRun.last = count;
