@@ -4554,6 +4554,31 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **The map route** now goes to a new session (the map server), from the frozen BMPK v1. The format doc's "Who builds what" changes the next time the doc is touched; that is not a format change.
 - **The stored Bend package** becomes §11's golden package for that session. Its commit is reported when it exists (A10.8 step 2).
 
+### A9.46 The approval's basis corrected (source: reviewer chat, pasted by Daniel); #485 merged (2026-10-26)
+
+**The correction, verbatim, beside A9.45's approval:**
+
+> #485: the approval covers the whole diff (reviewer chat, 2026-10-26)
+>
+> You're right, and holding was correct. My check read a truncated file list and missed two files. I have now read both:
+> - include/DiagText.h: a new declarations-only header, included only under FEATURE_WEATHERSCOPE.
+> - src/ConfigurationWebServer.cpp (+47): the include and the /diag/wx route, both under #ifdef FEATURE_WEATHERSCOPE. Read-only, bounded at 500 ms, with the copy checked against supersession.
+> Neither compiles into any other edition.
+>
+> The corrected basis: outside src/weatherscope and tools/, #485 changes src/main.cpp (the shared TX timeout, and /diag/wx's storage under FEATURE_WEATHERSCOPE), src/ConfigurationWebServer.cpp and include/DiagText.h, the last two Weatherscope-only. The approval at b5cf7beed21d27ba3f08f3f5f788d95db720dc1a covers all 14 files. Merge as approved: squash, no --admin, CI's total on that head counted. Record this correction beside the approval.
+>
+> For Weatherscope's release gate, later: decide whether /diag/wx ships in customer images or only in stored-mode builds.
+
+**The count, checked:** `git diff --name-only origin/main...b5cf7beed21d` lists **14** files, as the correction says.
+
+**#485, merged.**
+- **The checks first:** its head was still `b5cf7beed21d`, ready, `CLEAN`, with CI at 32 success + 3 skipped = 35, 0 failures, and no PR based on its branch.
+- **The merge:** squash with `--match-head-commit b5cf7beed21d…`, no `--admin`, at **2026-10-26T23:14:45Z**, as **`908a74c4f27f`**. Its parent is `a6c2906`, and its tree is **identical to `b5cf7beed21d`'s** (compared). It is in main. The branch was deleted.
+
+**For Weatherscope's release gate, added to its open rows:** does `/diag/wx` ship in customer images, or only in stored-mode builds?
+
+**Items 1 and 2 are closed.** Next is 3.5b's step 2 (the host tool, the Bend package and the Bend radar by A10.4's rule), then build Q.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
