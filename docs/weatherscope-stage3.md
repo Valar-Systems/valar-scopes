@@ -4375,6 +4375,86 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **Item 1 is closed.** Item 2 starts: its predictions (A9.42) come before any of its code.
 
+### A9.42 Item 2, the serial stall: settled from source, then the design and the predictions, before any code (2026-10-26)
+
+**What the source says** (the pinned core, `framework-arduinoespressif32` 3.3.9 under pioarduino 55.03.39, and our own `main.cpp`):
+
+- **`main.cpp`'s shared `setup()` already configures the TX path,** on every `ARDUINO_USB_CDC_ON_BOOT` build:
+  - **`Serial.setTxBufferSize(4096)`**, on HWCDC builds only;
+  - **`Serial.setTxTimeoutMs(2)`**.
+
+  **Its comment (2026-07-31):** the radar froze for 2-4 s every 30 s at the core's default 100 ms. 2 ms was chosen, because "0 would be strictly non-blocking but drops bytes the moment the ring fills, and these boards are our measurement instrument". **A9.30-A9.32 reasoned from the core's 100 ms default without reading this. That is corrected here.**
+
+- **HWCDC `write()`, step by step:**
+  1. **Take `tx_lock`**, waiting up to `tx_timeout_ms`. On failure it returns **0**: the whole line is dropped.
+  2. **Not `connected`:** a non-blocking replace-oldest copy into the ring. It returns the full size.
+  3. **`connected`:** `xRingbufferSend` waits up to `tx_timeout_ms` per attempt. After **20** consecutive failures it returns **short**.
+- **So with 2 ms, a blocked call costs about 20 × 2 ms = 40 ms.**
+- **`connected`:** set true by the ISR when the host picks up an IN packet. It is cleared only by a bus reset or `!isPlugged()`.
+- **`isPlugged()`:** IDF's `usb_serial_jtag_is_connected()`, the SOF watchdog. It is true on a PC whether or not any application has the port open.
+
+**(a)-(c), settled as far as source and A9.32's data go:**
+- **(a) holds:** the `connected` path's ring wait.
+  - In M2, two of the three fires' prints averaged **39.9 ms a call** (638,676 µs over 16 calls; 558,995 µs over 14). That is exactly 20 × 2 ms.
+  - The first fire averaged 27.7 ms, plausibly while the 4 KB ring still had room for some lines.
+- **(b) is excluded:** a failed lock take waits at most 2 ms and returns 0.
+- **(c) stays open on one point, which only data can show:** why `connected` was true on a port no application had opened. The host's driver must have picked up packets without an open handle.
+- **Build W's per-write records** (below) test the whole account.
+
+**USBCDC** (TinyUSB, `ARDUINO_USB_MODE=0`: `missileer-s3-128`):
+- **No application open:** `write()` returns **0 at once** (`!tud_cdc_n_connected`, DTR not asserted).
+- **With one attached:** a call is bounded by its own `writeTimeout`, 2 ms, plus a lock wait of at most 2 ms.
+- **So TinyUSB builds have no M2-type stall.**
+
+**The design.**
+- **Build W = main + diag only** (`src/weatherscope/` and one new shared header, `include/DiagText.h`):
+  - **`Out()` records each write:**
+    - `isPlugged()`;
+    - `Serial.isConnected()`, sampled just before. It calls `isCDC_Connected()`, which `write()` itself calls first, so it perturbs nothing a write would not;
+    - `availableForWrite()` before;
+    - the bytes asked and written;
+    - the time.
+  - **Each build record gains `frameUs`:** the push-to-push interval of the frame it ran in.
+  - **`R`'s output is paced:** each line waits, at most 50 ms, until the ring has room. That keeps the bench's own dump complete at any timeout. It is bench-only, on a command.
+  - **The same text can be fetched over Wi-Fi:** a Weatherscope-only route `/diag/wx` sets a request flag (`DiagText.h`, globals in `main.cpp` like `FrameBuffer.h`'s). The loop renders the text into a buffer on its next frame, and the route waits at most 500 ms. No cross-task read of a record being written.
+  - **The timeout stays main's 2 ms. W is the settle build, and it is also the sabotage:** the old timeout.
+- **Build X = W + the fix:** in `main.cpp`'s shared setup, **`Serial.setTxTimeoutMs(0)` on HWCDC builds** (`#if ARDUINO_USB_MODE`). USBCDC keeps 2 ms: it has no stall to fix, and its attached-monitor behaviour stays as it is.
+  - **The 07-31 comment is kept as history,** and the new trade is written beside it.
+  - **Why 0 never blocks:** `xSemaphoreTake(lock, 0)` and `xRingbufferSend(…, 0)` never wait, so a blocked call returns in microseconds.
+- **The PR is X.**
+
+**The trade, stated before any code** (A9.33 asked for it to be laid out):
+- **With no reader** (Daniel's setup), timeout 0 loses **nothing extra.** Today's 40 ms wait also ends in a short write, because nobody drains. The wait buys nothing but the stall.
+- **With a reader attached,** 0 can drop a line in two cases where 2 ms would have waited:
+  - **(i) a burst larger than the ring, faster than USB drains it.** The bench's `R` dump is paced, so it is not affected;
+  - **(ii) two tasks printing at the same instant.** The loser's whole line is dropped, where 2 ms would have waited for the lock. This is new, its rate is unknown, and it is likeliest on the radar, whose fetch and enrich tasks print.
+- **That is the 07-31 rationale's cost, made concrete.** W and X measure (ii)'s rate on Weatherscope. The radar is predicted from code only: this board is never for Blipscope work.
+
+**The rows** (frozen; the per-write paths are (a): `connected`, ≥ 15,000 µs, short; (b): ≤ 3,000 µs, written 0):
+
+| condition | build W (2 ms: the sabotage) | build X (0 ms: the fix) |
+|---|---|---|
+| **M1** (the port read throughout; 3 bench presses) | every write `connected`, < 2,000 µs, written in full; each build's `print` < 5,000 µs | the same; **lock drops ((b)) counted, predicted 0** in stored mode |
+| **M2** (nothing opens the port after the flash; records read over `/diag/wx` from boot + 150 s; cycle builds every 30 s) | **every short write is (a), none (b);** at least one cycle build from boot + 60 s with `print` ≥ 300,000 µs, and its `frameUs` ≥ 400,000 | **every write < 1,000 µs** (short or not); each build's `print` < 5,000 µs; **each `frameUs` ≤ the same build's M1 maximum + 10,000** ("M2's stall falls to M1's") |
+| **M3** (open, unread for 75 s; 3 presses in it) | as M1 (A9.32 saw no backpressure there) | as M1 |
+| **charger** (no host: Daniel moves the board to a USB charger; read over `/diag/wx`) | not run (the same non-blocking path in both builds) | every write `isPlugged` 0 and not `connected`, < 1,000 µs, written in full; `frameUs` as M1 |
+| **the glass** (Daniel, PC, no serial window) | (A9.38's "about 1 s") | **the zoom about a tenth of a second after the ring closes;** `/diag/wx` shows those presses' rebuild frames ≤ 160,000 µs with `print` < 5,000 |
+
+- **The sabotage is build W under M2:** the old timeout brings the stall back.
+- **The order:** W's M2, then W's M1/M3, then X's M2, M1 and M3, then the charger and the glass (Daniel's).
+- **The outside-the-set branch:** a write in W's M2 that is neither (a) nor (b), or X's M2 builds still over M1's by more than 10 ms. **Stop and report.**
+
+**The radar, predicted from its code** (`blipscope-s3-128`, at main `a6c2906`; a survey of all 126 print sites in `AircraftManager.cpp` and `loop()`, its load-bearing claims re-read):
+- **Today, on Daniel's setup (PC, no serial window), Blipscope's own prints can stall it.** Every loop-task print call that cannot fit the full ring waits about 40 ms. The radar prints continuously from several tasks, so the 4 KB ring is full soon after boot.
+  - **The 30 s health tick (`RecordFrameUs`):** 3 calls on a typical unit, 5 when enrichment is starved, 12 at most. That is about **120-200 ms every 30 s**, up to about 480 ms. The prints come after the frame sample is taken, so **the stall never appears in the frame statistics it reports.**
+  - **The hold fire:** 2 calls, about **80 ms**. Weatherscope's was 14-17 calls; Daniel saw Blipscope "not pause like that".
+  - **Each touch press and release:** 1 call, about 40 ms. A claiming tap: 3-6 calls.
+  - **The Follow face's refused-route fallback (`AircraftManager.cpp:6899`):** **one call every frame**, with no rate limit, while it shows. That is about 40 ms added to every frame.
+- **After X:** none of these wait. The lines go only where they went before: undelivered, with nothing reading.
+- **The 07-31 cost (ii) applies to the radar more than to Weatherscope:** soak lines may be lost when the loop and the fetch or enrich tasks print at once. It is predicted, not measured here.
+
+**No code before this addendum is pushed.**
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
