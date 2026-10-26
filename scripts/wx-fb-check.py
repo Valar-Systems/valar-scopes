@@ -1,28 +1,37 @@
-"""WD5e's analysis (docs/wx-device.md, WD5 addendum 4), committed before any capture: grades /diag/fb frames of the
-radar with the weather layer on.
+"""WD5e/WD5f's analysis (docs/wx-device.md, WD5 addenda 4 and 5), committed before any capture: grades /diag/fb
+frames of the radar, with the weather layer on (WD5e) or off (WD5f's marker clause).
 
-    python -I scripts/wx-fb-check.py --look A|B <frame.raw> [...]    raw = the /diag/fb body: RGB565, big-endian
-    python -I scripts/wx-fb-check.py --selftest                      the synthetic cases below, each with one verdict
+    python -I scripts/wx-fb-check.py --look A|B [--drop-untrustworthy] <frame.raw> [...]   layer on: WD5e(1), (2)
+    python -I scripts/wx-fb-check.py --off [--drop-untrustworthy] <frame.raw> [...]         layer off: WD5f, R5
+    python -I scripts/wx-fb-check.py --selftest                                             synthetic cases below
+    raw = the /diag/fb body: RGB565, big-endian, 240 x 240
 
 Exit: 0 PASS, 1 FAIL, 2 UNTRUSTWORTHY (a frame's rings are not where the source draws them: a torn or mid-draw
-frame, or the wrong geometry), 3 BLIND (no frame put the thing being checked over weather), 4 rig.
+frame, or the wrong geometry), 3 BLIND (no frame put the thing being checked where it can be seen), 4 rig.
+--drop-untrustworthy (for captures taken before #480's finished-frame /diag/fb): an UNTRUSTWORTHY frame is dropped,
+counted and reported, and the rest are graded together; with none left the verdict is UNTRUSTWORTHY.
 
 Every colour and the ring geometry are READ FROM THE SOURCE, never transcribed: the rain table, its rounding and
 the dither colours from src/weatherscope/WxPalette.h, the looks' percentages from include/WxS2.h, the planes'
-colours and the rings from src/AircraftManager.cpp. The rings are rasterised with LovyanGFX's own drawCircle
-(LGFXBase.cpp:230-262 in this env's libdeps), ported line for line.
+colours, the labels' colour and the rings from src/AircraftManager.cpp. The rings are rasterised with LovyanGFX's
+own drawCircle (LGFXBase.cpp:230-262 in this env's libdeps), ported line for line.
 
-THE TWO CHECKS, as defined here (addendum 4 states why the definitions are these):
-  (1) rings over weather. A ring pixel is an EXCEPTION when its colour is a weather colour of the look, is not the
-      ring's colour, and some 3 x 3 block containing it is entirely that colour: weather drawn over the ring. A
-      1 px trail or a text stroke crossing the ring never fills a 3 x 3 block, so it is not an exception.
-      EXERCISED: ring pixels with weather 2 px inside AND 2 px outside them. BLIND: ring pixels whose ring colour
-      IS a weather colour of the look, with that colour on both sides (look B's code 2 on the middle ring).
-  (2) outlines (look A). A MARKER is an 8-connected run of one plane colour (scaleColor of a plane colour,
-      f = 0.30-1.0, RGB565) of at least 8 px that contains a 2 x 2 block of it; plane colours that are also
-      weather colours of the look are left out and counted as ambiguous. A marker FAILS when any of its
-      8-neighbours has a weather colour of the look. EXERCISED: markers with a weather pixel 2-3 px out.
+THE CHECKS, as ruled (R3-R5, 2026-10-26; addendum 5 records the definitions):
+  A MARKER is an 8-connected run of one plane colour (scaleColor of a plane colour, f = 0.30-1.0, RGB565) of at
+  least 8 px that contains a 2 x 2 block of it. A ring pixel (ported drawCircle) that shows its ring's colour is
+  never part of a marker: the outer ring's colour is also a plane colour. AMBIGUOUS, counted and not graded: plane
+  colours that are also weather colours of the look (R4), and plane colours that are also label colours
+  (DrawAircraftInfo's colour at 0.30-1.0), since the glcd glyphs * @ g p q pass the marker filter on their own.
+  (1) rings over weather (R3). A ring is UNGRADABLE in a look when its colour is a weather colour of that look; it
+      is left out and named. On a gradable ring, a pixel is an EXCEPTION when its colour is a weather colour of the
+      look, not the ring's, and some 3 x 3 block containing it is entirely that colour. EXERCISED: a gradable ring
+      pixel with a weather colour within 2 px (its 5 x 5 block). BLIND when none is exercised.
+  (2) outlines, look A (R4). A marker FAILS when any of its 8-neighbours has a weather colour of the look.
+      EXERCISED: a marker with a weather pixel 2-3 px out. BLIND when none is.
+  (3) the layer off (R5). A marker is EXERCISED when a ring pixel is among its 8-neighbours, and FAILS when any such
+      ring pixel is black (0x0000): an outline drawn while no layer is shown. BLIND when none is exercised.
 """
+import glob
 import math
 import os
 import re
@@ -44,6 +53,10 @@ def triples(text):
     return [tuple(int(v) for v in m) for m in re.findall(r"\{\s*(\d+),\s*(\d+),\s*(\d+)\s*\}", text)]
 
 
+def faded(c):
+    return {s565(int(c[0] * f), int(c[1] * f), int(c[2] * f)) for f in (i / 10000.0 for i in range(3000, 10001))}
+
+
 def load_source():
     pal = read("src/weatherscope/WxPalette.h")
     m = re.search(r"kRainTable\[12\]\s*=\s*\{(.*?)\};", pal, re.S)
@@ -60,6 +73,10 @@ def load_source():
     b = am.index("noData ? lgfx::color888(")
     planes += triples(am[b:am.index(";", b)].replace("color888(", "{").replace(")", "}"))
     assert len(table) == 12 and len(planes) == 7, (len(table), len(planes))
+    d = am.index("void AircraftManager::DrawAircraftInfo(")
+    lab = re.search(r"setTextColor\(scaleColor\(lgfx::color888\((\d+), (\d+), (\d+)\), brightness\)\)",
+                    am[d:am.index("\n}", d)])
+    assert lab, "DrawAircraftInfo's label colour changed: re-derive"
     d = am.index("void AircraftManager::DrawRadarCircles(")
     body = am[d:am.index("\n}", d)]
     centre = re.search(r"CENTRE = SCREEN_SIZE_DIV_2 - 1;", body) and W // 2 - 1
@@ -75,10 +92,9 @@ def load_source():
     weather = {L: {s565(*dim(c, pct[L])) for c in table + [rain75]} | {s565(*nocov), s565(*hatch)} for L in "AB"}
     marker = set()
     for p in planes:
-        for i in range(3000, 10001):
-            f = i / 10000.0
-            marker.add(s565(int(p[0] * f), int(p[1] * f), int(p[2] * f)))
-    return {"centre": centre, "rings": rings, "weather": weather, "marker": marker}
+        marker |= faded(p)
+    labels = faded(tuple(int(v) for v in lab.groups()))
+    return {"centre": centre, "rings": rings, "weather": weather, "marker": marker, "label": labels}
 
 
 def draw_circle(px, x, y, r):
@@ -121,71 +137,105 @@ def fill_circle(px, x, y, r):
         if not (i < r): break
 
 
-def grade(frames, look, src):
-    """frames: lists of W*H RGB565 values. Returns (verdict, report lines)."""
-    Wc, M = src["weather"][look], src["marker"] - src["weather"][look]
-    cx = cy = src["centre"]
-    ring_px = []
-    for r, col in src["rings"]:
-        s = set(); draw_circle(s, cx, cy, r); ring_px.append((r, col, sorted(s)))
-    tot = {"exc": 0, "ex_r": 0, "blind_r": 0, "markers": 0, "fail": 0, "ex_m": 0, "ambig": 0}
+def ring_geometry(src):
+    cx = src["centre"]
     out = []
-    at = lambda f, x, y: f[y * W + x] if 0 <= x < W and 0 <= y < H else None
+    for r, col in src["rings"]:
+        s = set(); draw_circle(s, cx, cx, r); out.append((r, col, s))
+    own = {}
+    for r, col, s in out:
+        for p in s: own.setdefault(p, col)
+    return out, own
+
+
+def at(f, x, y):
+    return f[y * W + x] if 0 <= x < W and 0 <= y < H else None
+
+
+def trustworthy(f, rings, n, out):
+    for r, col, pts in rings:
+        on = sum(at(f, x, y) == col for x, y in pts)
+        if on < 0.80 * len(pts):
+            out.append(f"frame {n}: ring r={r}: only {on}/{len(pts)} pixels have the ring's colour -- "
+                       "not where the source draws it (UNTRUSTWORTHY)")
+            return False
+    return True
+
+
+def markers(f, colours, own, ring_exclusion=True):
+    """(colour, pixels) of every marker in frame f. A ring pixel showing its ring's colour is never part of one."""
+    skip = (lambda p, c: own.get(p) == c) if ring_exclusion else (lambda p, c: False)
+    seen = set()
+    for y in range(H):
+        for x in range(W):
+            c = f[y * W + x]
+            if (x, y) in seen or c not in colours or skip((x, y), c): continue
+            comp, stack = set(), [(x, y)]
+            while stack:
+                p = stack.pop()
+                if p in comp: continue
+                comp.add(p)
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        q = (p[0] + dx, p[1] + dy)
+                        if q not in comp and at(f, *q) == c and not skip(q, c): stack.append(q)
+            seen |= comp
+            if len(comp) >= 8 and any({(a, b), (a + 1, b), (a, b + 1), (a + 1, b + 1)} <= comp for a, b in comp):
+                yield c, comp
+
+
+def neighbours(comp, k=1):
+    return {(a + dx, b + dy) for a, b in comp for dx in range(-k, k + 1) for dy in range(-k, k + 1)} - comp
+
+
+def grade(frames, look, src, drop=False):
+    """Layer on: WD5e(1) and (2). frames: lists of W*H RGB565 values. Returns (verdict, report lines)."""
+    Wc = src["weather"][look]
+    amb_set = (src["marker"] & Wc) | (src["marker"] & src["label"])
+    rings, own = ring_geometry(src)
+    ungradable = [(r, col) for r, col, _ in rings if col in Wc]
+    out = [f"look {look}: ungradable rings (the ring's colour is a weather colour of the look): "
+           + (", ".join(f"r={r} {col:#06x}" for r, col in ungradable) or "none")]
+    tot = {"exc": 0, "ex_r": 0, "markers": 0, "fail": 0, "ex_m": 0, "ambig": 0, "graded": 0, "dropped": 0}
     for n, f in enumerate(frames):
-        for r, col, pts in ring_px:
-            on = sum(at(f, x, y) == col for x, y in pts)
-            if on < 0.80 * len(pts):
-                out.append(f"frame {n}: ring r={r}: only {on}/{len(pts)} pixels have the ring's colour -- not where the source draws it")
-                return "UNTRUSTWORTHY", out
-        exc = ex = bl = 0
-        for r, col, pts in ring_px:
+        if not trustworthy(f, rings, n, out):
+            if not drop: return "UNTRUSTWORTHY", out
+            tot["dropped"] += 1
+            continue
+        tot["graded"] += 1
+        exc = ex = 0
+        for r, col, pts in rings:
+            if col in Wc: continue
             for x, y in pts:
                 c = at(f, x, y)
-                th = math.atan2(y - cy, x - cx)
-                ins = at(f, round(cx + (r - 2) * math.cos(th)), round(cy + (r - 2) * math.sin(th)))
-                outs = at(f, round(cx + (r + 2) * math.cos(th)), round(cy + (r + 2) * math.sin(th)))
-                if c == col and col in Wc and ins == col and outs == col:
-                    bl += 1
-                if ins in Wc and outs in Wc and ins != col and outs != col:
+                if any(at(f, x + i, y + k) in Wc for i in range(-2, 3) for k in range(-2, 3) if i or k):
                     ex += 1
                 if c in Wc and c != col and any(all(at(f, bx + i, by + k) == c for i in range(3) for k in range(3))
                                                  for bx in range(x - 2, x + 1) for by in range(y - 2, y + 1)):
                     exc += 1
-        seen, mk, fail, exm, amb = set(), 0, 0, 0, 0
-        for y in range(H):
-            for x in range(W):
-                c = f[y * W + x]
-                if (x, y) in seen or c not in src["marker"]: continue
-                comp, stack = set(), [(x, y)]
-                while stack:
-                    p = stack.pop()
-                    if p in comp: continue
-                    comp.add(p)
-                    for dx in (-1, 0, 1):
-                        for dy in (-1, 0, 1):
-                            q = (p[0] + dx, p[1] + dy)
-                            if q not in comp and at(f, *q) == c: stack.append(q)
-                seen |= comp
-                if len(comp) < 8 or not any({(a, b), (a + 1, b), (a, b + 1), (a + 1, b + 1)} <= comp for a, b in comp):
-                    continue
-                if c not in M:
-                    amb += 1; continue
-                mk += 1
-                border = {(a + dx, b + dy) for a, b in comp for dx in (-1, 0, 1) for dy in (-1, 0, 1)} - comp
-                wb = sum(at(f, *p) in Wc for p in border)
-                ring2 = {(a + dx, b + dy) for a, b in comp for dx in range(-3, 4) for dy in range(-3, 4)} - comp - border
-                if any(at(f, *p) in Wc for p in ring2): exm += 1
-                if wb:
-                    fail += 1
-                    xs, ys = [p[0] for p in comp], [p[1] for p in comp]
-                    out.append(f"frame {n}: marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px): "
-                               f"{wb} of {len(border)} neighbours are weather")
-        out.append(f"frame {n}: rings exceptions {exc}, exercised {ex}, blind {bl}; markers {mk} "
+        mk = fail = exm = amb = 0
+        for c, comp in markers(f, src["marker"], own):
+            if c in amb_set:
+                amb += 1; continue
+            mk += 1
+            border = neighbours(comp)
+            wb = sum(at(f, *p) in Wc for p in border)
+            if any(at(f, *p) in Wc for p in neighbours(comp, 3) - border): exm += 1
+            if wb:
+                fail += 1
+                xs, ys = [p[0] for p in comp], [p[1] for p in comp]
+                out.append(f"frame {n}: marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px): "
+                           f"{wb} of {len(border)} neighbours are weather")
+        out.append(f"frame {n}: rings exceptions {exc}, exercised {ex}; markers {mk} "
                    f"(ambiguous {amb}), over weather {exm}, without an outline {fail}")
-        for k, v in zip(("exc", "ex_r", "blind_r", "markers", "fail", "ex_m", "ambig"), (exc, ex, bl, mk, fail, exm, amb)):
+        for k, v in zip(("exc", "ex_r", "markers", "fail", "ex_m", "ambig"), (exc, ex, mk, fail, exm, amb)):
             tot[k] += v
-    out.append(f"TOTAL look {look}: (1) ring exceptions {tot['exc']}, exercised {tot['ex_r']}, blind {tot['blind_r']}; "
-               f"(2) markers {tot['markers']}, over weather {tot['ex_m']}, without an outline {tot['fail']}, ambiguous {tot['ambig']}")
+    out.append(f"TOTAL look {look}: frames graded {tot['graded']}, dropped as UNTRUSTWORTHY {tot['dropped']}; "
+               f"(1) ring exceptions {tot['exc']}, exercised {tot['ex_r']}; "
+               f"(2) markers {tot['markers']}, over weather {tot['ex_m']}, without an outline {tot['fail']}, "
+               f"ambiguous {tot['ambig']}")
+    if tot["graded"] == 0:
+        out.append("no trustworthy frame"); return "UNTRUSTWORTHY", out
     r1 = "FAIL" if tot["exc"] else ("BLIND" if tot["ex_r"] == 0 else "PASS")
     r2 = "n/a" if look != "A" else ("FAIL" if tot["fail"] else ("BLIND" if tot["ex_m"] == 0 else "PASS"))
     out.append(f"WD5e(1) {r1}   WD5e(2) {r2}")
@@ -194,53 +244,158 @@ def grade(frames, look, src):
     return "PASS", out
 
 
-def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, weather=True, trail=False):
-    """A synthetic frame drawn in the device's order: weather, rings, trail, outline, marker."""
+def grade_off(frames, src, drop=False, ring_exclusion=True):
+    """Layer off: WD5f's marker clause, R5. Returns (verdict, report lines)."""
+    amb_set = src["marker"] & src["label"]
+    rings, own = ring_geometry(src)
+    ring_all = set(own)
+    out = []
+    tot = {"markers": 0, "ex": 0, "fail": 0, "ambig": 0, "graded": 0, "dropped": 0}
+    for n, f in enumerate(frames):
+        if not trustworthy(f, rings, n, out):
+            if not drop: return "UNTRUSTWORTHY", out
+            tot["dropped"] += 1
+            continue
+        tot["graded"] += 1
+        mk = ex = fail = amb = 0
+        for c, comp in markers(f, src["marker"], own, ring_exclusion):
+            if c in amb_set:
+                amb += 1; continue
+            mk += 1
+            on_ring = neighbours(comp) & ring_all
+            if not on_ring: continue
+            ex += 1
+            black = [p for p in on_ring if at(f, *p) == 0]
+            if black:
+                fail += 1
+                xs, ys = [p[0] for p in comp], [p[1] for p in comp]
+                out.append(f"frame {n}: marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px): "
+                           f"{len(black)} of its {len(on_ring)} ring neighbours are black")
+        out.append(f"frame {n}: markers {mk} (ambiguous {amb}), touching a ring {ex}, with black ring neighbours {fail}")
+        for k, v in zip(("markers", "ex", "fail", "ambig"), (mk, ex, fail, amb)):
+            tot[k] += v
+    out.append(f"TOTAL layer off: frames graded {tot['graded']}, dropped as UNTRUSTWORTHY {tot['dropped']}; markers "
+               f"{tot['markers']} (ambiguous {tot['ambig']}), touching a ring {tot['ex']}, with black ring neighbours {tot['fail']}")
+    if tot["graded"] == 0:
+        out.append("no trustworthy frame"); return "UNTRUSTWORTHY", out
+    v = "FAIL" if tot["fail"] else ("BLIND" if tot["ex"] == 0 else "PASS")
+    out.append(f"WD5f(markers) {v}")
+    return v, out
+
+
+def glcd_glyph(ch):
+    """A glyph of LovyanGFX's glcd font (the radar's labels), from this env's libdeps: {(x, y)} of its set pixels."""
+    hits = sorted(glob.glob(os.path.join(ROOT, ".pio", "libdeps", "*", "LovyanGFX", "src", "lgfx", "Fonts", "glcdfont.h")))
+    if not hits:
+        raise OSError("no LovyanGFX glcdfont.h under .pio/libdeps (run pio run once)")
+    t = open(hits[0], encoding="utf-8", errors="replace").read()
+    vals = [int(v, 16) for v in re.findall(r"0x([0-9A-Fa-f]{2})",
+                                           re.search(r"font\s*\[\s*\]\s*(?:PROGMEM\s*)?=\s*\{(.*?)\};", t, re.S).group(1))]
+    return {(x, y) for x, c in enumerate(vals[ord(ch) * 5: ord(ch) * 5 + 5]) for y in range(8) if (c >> y) & 1}
+
+
+def put(f, pts, c):
+    for x, y in pts:
+        if 0 <= x < W and 0 <= y < H: f[y * W + x] = c
+
+
+def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, weather=True, trail=False,
+          blob_ring=1, blob_r=30, blob_dx=0, glyph=None):
+    """A layer-on frame drawn in the device's order: weather, rings, trail and label, outline, marker."""
     f = [0] * (W * H)
-    put = lambda pts, c: [f.__setitem__(y * W + x, c) for x, y in pts if 0 <= x < W and 0 <= y < H]
     pct = 40 if look == "A" else 25
     rain = s565(*(((255 * pct + 50) // 100), 0, 0))           # code 8, red: far from every green
     assert rain in src["weather"][look]
     cx = src["centre"]
-    blob = set(); fill_circle(blob, cx + src["rings"][1][0], cx, 30)  # across the middle ring at angle 0
+    blob = set(); fill_circle(blob, cx + src["rings"][blob_ring][0] + blob_dx, cx, blob_r)
     ring_pts = []
     for r, col in src["rings"]:
         s = set(); draw_circle(s, cx, cx, r); ring_pts.append((s, col))
-    if weather and not weather_over_rings: put(blob, rain)
+    if weather and not weather_over_rings: put(f, blob, rain)
     if rings:
-        for s, col in ring_pts: put(s, col)
-    if weather and weather_over_rings: put(blob, rain)
+        for s, col in ring_pts: put(f, s, col)
+    if weather and weather_over_rings: put(f, blob, rain)
     mx, my = cx + src["rings"][1][0] + 8, cx + 6                # 8 px outside the middle ring, inside the blob
-    colour = next(c for c in sorted(src["marker"] - src["weather"][look]) if c > 0x8000)
-    if trail: put([(mx - 20 + k, my + 12) for k in range(18)], colour)
+    colour = next(c for c in sorted(src["marker"] - src["weather"][look] - src["label"]) if c > 0x8000)
+    if trail: put(f, [(mx - 20 + k, my + 12) for k in range(18)], colour)
+    if glyph:
+        lc = min(src["label"] & src["marker"] - src["weather"][look])
+        put(f, {(cx + src["rings"][1][0] - 10 + x, cx - 15 + y) for x, y in glcd_glyph(glyph)}, lc)
     if outline == "offsets":
         for ox in (-1, 0, 1):
             for oy in (-1, 0, 1):
                 if ox or oy:
-                    s = set(); fill_circle(s, mx + ox, my + oy, 3); put(s, 0)
+                    s = set(); fill_circle(s, mx + ox, my + oy, 3); put(f, s, 0)
     elif outline == "disc4":
-        s = set(); fill_circle(s, mx, my, 4); put(s, 0)
-    s = set(); fill_circle(s, mx, my, 3); put(s, colour)
+        s = set(); fill_circle(s, mx, my, 4); put(f, s, 0)
+    s = set(); fill_circle(s, mx, my, 3); put(f, s, colour)
+    return f
+
+
+def synth_off(src, outline=False, rings=True, on_ring=True, label=False, outer_colour_far_black=False):
+    """A layer-off frame in the device's order: black, rings, outline (only if drawn wrongly), marker, later draws."""
+    f = [0] * (W * H)
+    cx = src["centre"]
+    geo, own = ring_geometry(src)
+    if rings:
+        for r, col, s in geo: put(f, s, col)
+    if outer_colour_far_black:
+        r0, col0, s0 = geo[0]
+        assert col0 in src["marker"], "the outer ring's colour is no longer a plane colour: this case means nothing"
+        p = min(s0, key=lambda q: (q[0] - (cx + 84)) ** 2 + (q[1] - (cx + 84)) ** 2)   # on the ring at ~45 degrees
+        far = min(s0, key=lambda q: abs(math.hypot(q[0] - p[0], q[1] - p[1]) - 40))   # ~40 px along it
+        s = set(); fill_circle(s, p[0], p[1], 3); put(f, s, col0)
+        put(f, [far], 0)
+        return f
+    mx, my = (cx + src["rings"][1][0], cx) if on_ring else (cx + src["rings"][1][0] + 20, cx)
+    colour = 0x07E0
+    assert colour in src["marker"] and colour not in src["label"]
+    if outline:
+        for ox in (-1, 0, 1):
+            for oy in (-1, 0, 1):
+                if ox or oy:
+                    s = set(); fill_circle(s, mx + ox, my + oy, 3); put(f, s, 0)
+    s = set(); fill_circle(s, mx, my, 3); put(f, s, colour)
+    if label:
+        other = next(c for c in range(0xF800, 0x10000) if c not in src["marker"] and all(c != col for _, col in src["rings"]))
+        border = neighbours(s) & set(own)
+        put(f, [min(border)], other)
     return f
 
 
 def selftest(src):
+    on = lambda kw, look: grade([synth(src, look=look, **kw)], look, src)
+    off = lambda kw, excl=True: grade_off([synth_off(src, **kw)], src, ring_exclusion=excl)
     cases = [
-        ("as drawn, look A",                 dict(look="A"),                          "A", "PASS"),
-        ("weather drawn over the rings",     dict(look="A", weather_over_rings=True), "A", "FAIL"),
-        ("no outline, look A",               dict(look="A", outline="none"),          "A", "FAIL"),
-        ("the old r=4 disc outline",         dict(look="A", outline="disc4"),         "A", "FAIL"),
-        ("a 1 px trail in the marker colour", dict(look="A", trail=True),             "A", "PASS"),
-        ("no rings (a mid-draw frame)",      dict(look="A", rings=False),             "A", "UNTRUSTWORTHY"),
-        ("no weather on the screen",         dict(look="A", weather=False),           "A", "BLIND"),
-        ("look B, no outline (as shipped B)", dict(look="B", outline="none"),         "B", "PASS"),
+        ("as drawn, look A",                          lambda: on({}, "A"),                               "PASS"),
+        ("weather drawn over the rings",              lambda: on(dict(weather_over_rings=True), "A"),    "FAIL"),
+        ("no outline, look A",                        lambda: on(dict(outline="none"), "A"),             "FAIL"),
+        ("the old r=4 disc outline",                  lambda: on(dict(outline="disc4"), "A"),            "FAIL"),
+        ("a 1 px trail in the marker colour",         lambda: on(dict(trail=True), "A"),                 "PASS"),
+        ("no rings (a mid-draw frame)",               lambda: on(dict(rings=False), "A"),                "UNTRUSTWORTHY"),
+        ("no weather on the screen",                  lambda: on(dict(weather=False), "A"),              "BLIND"),
+        ("look B, no outline (weather on the middle ring, ungradable in B)",
+                                                      lambda: on(dict(outline="none"), "B"),             "BLIND"),
+        ("look B, weather across the outer ring",     lambda: on(dict(outline="none", blob_ring=0), "B"), "PASS"),
+        ("look A, weather on one side of a ring only", lambda: on(dict(blob_r=12, blob_dx=13), "A"),     "PASS"),
+        ("look A, a label 'p' in a colour also a plane colour, over weather",
+                                                      lambda: on(dict(glyph="p"), "A"),                  "PASS"),
+        ("off: a marker on the middle ring, no outline", lambda: off({}),                                "PASS"),
+        ("off: the same marker with an outline (R5's defect)", lambda: off(dict(outline=True)),          "FAIL"),
+        ("off: no marker touches a ring",             lambda: off(dict(on_ring=False)),                  "BLIND"),
+        ("off: a non-black label over a ring neighbour", lambda: off(dict(label=True)),                  "PASS"),
+        ("off: no rings",                             lambda: off(dict(rings=False)),                    "UNTRUSTWORTHY"),
+        ("off: outer-ring-coloured marker on the outer ring, a black ring pixel ~40 px away",
+                                                      lambda: off(dict(outer_colour_far_black=True)),    "PASS"),
+        ("off: CONTROL, the same frame with ring pixels allowed into markers",
+                                                      lambda: off(dict(outer_colour_far_black=True), excl=False), "FAIL"),
     ]
     bad = 0
-    for label, kw, look, want in cases:
-        got, lines = grade([synth(src, **kw)], look, src)
+    for label, run, want in cases:
+        got, lines = run()
         ok = got == want
         bad += not ok
-        print(f"  {'ok  ' if ok else 'FAIL'} {label}: {got} (want {want}) -- {lines[-1]}")
+        print(f"  {'ok  ' if ok else 'FAIL'} {label}: {got} (want {want}) -- {lines[-2] if len(lines) > 1 else lines[-1]}")
     print("WX FB CHECK SELFTEST PASSED" if not bad else f"WX FB CHECK SELFTEST: {bad} NOT AS PREDICTED")
     return 0 if not bad else 1
 
@@ -251,16 +406,28 @@ def main(argv):
     except (AssertionError, AttributeError, ValueError, OSError) as e:
         print(f"RIG: could not read the source: {e}"); return 4
     if argv[1:2] == ["--selftest"]:
-        return selftest(src)
-    if len(argv) < 4 or argv[1] != "--look" or argv[2] not in ("A", "B"):
+        try:
+            return selftest(src)
+        except OSError as e:
+            print(f"RIG: {e}"); return 4
+    args = argv[1:]
+    drop = "--drop-untrustworthy" in args
+    args = [a for a in args if a != "--drop-untrustworthy"]
+    if args[:1] == ["--off"]:
+        mode, paths = "off", args[1:]
+    elif len(args) >= 2 and args[0] == "--look" and args[1] in ("A", "B"):
+        mode, paths = args[1], args[2:]
+    else:
+        print(__doc__); return 4
+    if not paths:
         print(__doc__); return 4
     frames = []
-    for p in argv[3:]:
+    for p in paths:
         b = open(p, "rb").read()
         if len(b) != W * H * 2:
             print(f"RIG: {p} is {len(b)} bytes, not a {W} x {H} RGB565 frame"); return 4
         frames.append([(b[2 * i] << 8) | b[2 * i + 1] for i in range(W * H)])
-    verdict, lines = grade(frames, argv[2], src)
+    verdict, lines = grade_off(frames, src, drop) if mode == "off" else grade(frames, mode, src, drop)
     print("\n".join(lines))
     print(verdict)
     return {"PASS": 0, "FAIL": 1, "UNTRUSTWORTHY": 2, "BLIND": 3}[verdict]

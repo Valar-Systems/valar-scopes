@@ -673,3 +673,13 @@ and inner rings are not plane colours.
   - **One more selftest case, predicted:** "look A, a `p` drawn in a label colour that is also a plane colour, over
     weather". With the fix it is **PASS**, with 1 ambiguous. **Control:** addendum 4's committed `grade` gives **FAIL**
     on the same frame.
+
+### Results for WD5 addendum 5: the script (local, before CI; no capture yet)
+
+| | read | verdict |
+|---|---|---|
+| **The selftest** | **18 of 18 as predicted**, `WX FB CHECK SELFTEST PASSED`. The eight original cases: as before, except "look B, no outline" is now **BLIND** (exercised 0: its weather touches only the middle ring, ungradable in B). The new cases: look B outer-ring PASS (exercised 65); one-sided weather PASS (exercised 15); the label `p` PASS with **ambiguous 1**; `--off` PASS / FAIL / BLIND / PASS / UNTRUSTWORTHY; the outer-ring-coloured marker PASS; and **its CONTROL FAIL** | **as predicted** |
+| **The label control** | addendum 4's committed `grade` (`2d89084`) on the same label-`p` frame: **`WD5e(2) FAIL`**. The new grade: PASS, ambiguous 1 | **as predicted** |
+| **The ungradable pairs** | the script prints `ungradable rings ... none` for look A, and names r=78 `0x0200` for look B | **as predicted** |
+
+The WD5e and WD5f captures are **not taken yet**. They follow #480, or the pre-#480 filter, as frozen above.
