@@ -3885,3 +3885,332 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 **Still open:** the hold ring on the glass is Daniel's row.
 
 **Next, as ruled:** 3.5b's plan (Addendum 10) and the package format doc (`docs/basemap-package-format.md`), documents only, on `weatherscope/stage3-5b-plan`, for review before any 3.5b code.
+
+## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
+
+**Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
+- **The format doc:** [basemap-package-format.md](basemap-package-format.md) (`BMPK` v1), written product-neutral as A9.9 item 2 ruled. blipscope-5c builds the ingest and the Worker route from it.
+- **This addendum:** the device side, the host tool, Bend, the checks and the predictions.
+- **Where it lives:** branch `weatherscope/stage3-5b-plan`, cut from #480's head `7e186cb`, pushed **without a PR**.
+
+### A10.1 The rulings 3.5b answers to
+
+| ruling | what it fixes for 3.5b |
+|---|---|
+| A9.1 D | the layers and their sources; terrain as hillshade; delivery as a server-built package per location; a stored Bend package until the route exists; **with no package, the screen falls back to towns only** |
+| A9.1 B | peaks: the top 4 by elevation, a 5 px triangle glyph, the label rules, **placed before towns** |
+| A9.9 item 2 | the package is product-neutral: the radius is a parameter; nothing Weatherscope-specific |
+| A9.21, second paste | the order 3.5a → **3.5b** → 3.4; **3.5a's screens are the permanent "no package" rows**; the tests show **every layer** (water, rivers, roads, peaks, terrain off and on); **Bend** is added; Bend's radar is chosen in this plan |
+| A9.28 | **the 4 ms:** "the basemap gets about 4 ms per frame … Fold the basemap into the map pass (dry pixels take the basemap's colour), or show from measurements that another way fits" |
+
+### A10.2 What 3.5b builds
+
+**Device code**, pure C++11 and host-tested, as 3.5a's:
+- **`BasemapPackage.h`:** the product-neutral reader. It validates a package (format doc §8) and walks its sections in place, from a `const uint8_t*`. There is no allocation and no copy.
+  - **Where it lives is Q23.** Recommended: `include/BasemapPackage.h`, a new file, so Blipscope adopts it without a move. No existing `include/` file is edited.
+- **`src/weatherscope/WxBasemap.h`:** Weatherscope's rasteriser. For a view, it builds the **basemap image**: 240 × 240 `u8` palette indices in PSRAM. The index table:
+
+| index | meaning | colour |
+|---|---|---|
+| 0 | nothing (black) | (0, 0, 0) |
+| 1-37 | terrain grey g = 10..46 | (g, g, g + 2) |
+| 38 | water area | (10, 34, 72) |
+| 39 | river | (26, 70, 128) |
+| 40 | road | (62, 62, 62) |
+
+- **The build order** is `bendmock.py`'s, and the last write wins:
+  1. terrain, if on;
+  2. water rings, filled;
+  3. rivers;
+  4. roads.
+- **The fill rule, pinned:**
+  - a pixel is filled when its **centre** (x + 0.5, y + 0.5) is inside the ring by the even-odd crossing rule;
+  - an edge counts at a scanline when `(y1 > py) != (y2 > py)`;
+  - the pixel's centre must lie in [x_a, x_b) between paired crossings;
+  - all of it in double, from the shifted screen vertices of format doc §9.
+- **Lines:** `wxraster::Line`, unchanged. It is the polygon outline's and the arrow's DDA.
+- **Writes off the image** are dropped.
+- **`WxScreens.h`:**
+  - **`ScreenIn` gains:**
+    - `base`, the basemap image, where **null means no package**, which is exactly 3.5a's path;
+    - the package's peaks;
+    - the package's places, as a `TownSet`.
+  - **Towns, with and without a package:** with no package the towns stay `WxTowns.h`'s. With one, they come from the package's places, through the same `RankOrder` and `PlaceTowns`, so the LB/IC/OV/SD rules are the same code.
+  - **`DrawMap` (the fold):**
+    - a dry pixel (code 0) takes `base`'s colour where there is a `base`, and black where there is none;
+    - code 14 with terrain on is drawn as the hatch (`MissingAt`), as A9.1 D rules;
+    - everything else is unchanged. A10.3 has the cost.
+  - **`DrawInvariant` places peaks before towns:**
+    - the first **4 placed**, in the package's rank order, at every zoom;
+    - the boxes are `bendmock.py`'s: right (ix − 3, iy − 4, ix + 5 + w, iy + 4) with text at ix + 5; left (ix − 6 − w, iy − 4, ix + 4, iy + 4) with text at ix − 5 − w;
+    - away from the centre first;
+    - **the towns' rejection rules:** the 26/192 y bounds, the 116 px circle, the inner circle for both the anchor and the box, and 4 px of air;
+    - **placed peaks become obstacles** for towns and ring labels.
+    - **The label:** every "Mount " becomes "Mt ", as the generator's `replace` does. Size 1, (176, 176, 176), with a halo.
+    - **The glyph:** the triangle, **frozen as a bitmap** read off the lossless `screen-bend-B.png`, anchored at (ix, iy), like the home marker (Q32).
+  - **`LayerKey` gains** the package's identity (its `crc32` and length) and the layer mask. A new package or mask rebuilds the layer.
+  - **A basemap key** (the package, the view's radius and home, the mask, terrain) rebuilds the image **only when it changes:**
+    - on showing a scenario of another place;
+    - on a zoom step;
+    - on the terrain byte.
+
+    **A tap never changes it,** so the loop's start costs what it costs now.
+- **`WeatherscopeManager`:**
+  - **two Bend scenarios** in the stored cycle (A10.4);
+  - **the Bend loop**, played from them;
+  - **the basemap image**, held beside the layer;
+  - **`[wx] base build_us=… rebuilt=<why>`**;
+  - **a bench byte `G`** that toggles terrain, in stored mode only and under the same release gate as T/S/U/D/H (Q29).
+
+**Host side:**
+- **`tools/weatherscope/basemap/make_package.py`:**
+  - **Fetching:** it fetches the sources into a directory outside every repo and prints no coordinate.
+  - **Building:** it builds the stored Bend package to the format doc, and writes its provenance.
+  - **`--check`** rebuilds in memory and exits 1 on any byte difference (determinism).
+  - **The output:** `test/fixtures/wx/basemap/bend.bmpk`, with r = 97 km, ε = 100.6 m, and the three terrain levels (15, 30 and 60 mi at N = 240). It is embedded like the loop frames (`.incbin`).
+- **The format doc's negative packages**, under `test/fixtures/wx/basemap/neg-*.bmpk`.
+- **The Bend loop's crops,** made by `make_loop.mts`'s path (A10.4), and the synthetic dry crop.
+- **`ref35.py` gains geography,** written from the format doc and A10's rules, not from the C++:
+  - its own `BMPK` decoder;
+  - its own fill and DDA;
+  - peaks;
+  - the fold.
+
+### A10.3 The basemap in the map pass, and the 4 ms
+
+**The fold is the design:** a dry pixel's colour is `palette[image[y·240 + x]]` instead of black. There is **no separate copy**: A9.23 measured a full-frame copy at 5.4-6.7 ms, which A9.28 rules out.
+
+**What the fold adds per frame, bounded from measurement:**
+- **The reads:** one byte read from PSRAM per dry pixel the map draws. There are at most **36,828** of them: the on-disc pixels in rows 24-193, by `CodeAt`'s own centre test, counted.
+- **The bound:** A9.23's full-frame copy read **and** wrote 115,200 B, PSRAM to PSRAM (`DrawScenario`'s `memcpy`), in at most **6,725 µs**. So reading 36,828 B, and nothing else, costs at most **2,150 µs**, at the copy's worst rate.
+- **The palette lookup** replaces `wxpalette::Code(0, …)`, which costs about the same.
+
+**What else changes on a Bend loop frame:**
+- **The replay** carries the four peaks too: at most about 2,900 more invariant pixels, at 182-197 ns per `Put`, so ≤ about 600 µs.
+- **The decode** handles Bend's crop, which is wider than Dallas's in cells (it lies further north, so its 60 mi spans more longitude). It is unmeasured until the crops exist.
+
+**The envelope, before measurement:**
+- G's worst loop draw (33,705 µs) + 2,150 + 600 ≈ **36,500 µs**, plus the decode's difference;
+- against the ceiling of about **38,000**.
+- **That margin is too thin to freeze a bound from estimates.** So, as A9.21 did for (a), recommended:
+  - **build Q (Q30):** a timing-only probe on G's loop that reads 36,828 bytes from a PSRAM buffer each frame and prints the time. No pixel changes;
+  - **then the Bend crops' decode,** measured on the host;
+  - **then B2-Bend's bound,** frozen from those numbers before any 3.5b device code.
+- **If the probe says it cannot fit under 38,000 µs, stop and report.** No other design without a ruling.
+
+**The Dallas loop has no package:** one null test per dry pixel. Predicted: its draw stays within G's measured range plus ≤ 300 µs, and its 15 hashes and every Dallas K row are unchanged.
+
+**Alternatives, named and set aside:**
+- **Drawing the vectors on every frame:** its cost grows with the package's content, so it cannot be bounded per frame.
+- **A run-length basemap:** cheaper with terrain off, the same with terrain on. It changes only the case that doesn't bind.
+- **The copy:** ruled out.
+
+### A10.4 Bend: the package, the radar and the scenarios
+
+**The centre.**
+- **The point:** downtown Bend, the site feed's centre ([bend-site-feed.md](bend-site-feed.md)), quantised to 2 dp as the route will quantise it. **Not Daniel's house.**
+- **Where it is stored:** only inside the package's and the crops' binary headers, as every WXC1 crop stores its NW cell.
+- **Where it appears:** no tool prints it, and no doc or log records it.
+
+**The package.**
+- **Built by the host tool**, from the sources the mockup used:
+  - TIGER/Line 2024 AREAWATER and LINEARWATER, for every county the square touches;
+  - PRISECROADS, for every state it touches;
+  - GNIS Domestic Names, for those states;
+  - the 2025 Gazetteer and SUB-EST2024, as `WxTowns.h`;
+  - Terrarium z9 tiles, with the one-tile margin.
+- **Each layer** follows the format doc §5, with Q24-Q27's answers.
+- **Its sizes are reported before any device code:**
+  - the non-terrain sections against the 20 KB target and Q26's 32 KB cap;
+  - **over 32 KB, stop.** The drop policy is not applied without its ruling.
+
+**The radar: an archived MRMS day, built as the Dallas loop was** (the reviewer's default, made concrete; Q28).
+- **The source:** SeamlessHSR, 15 frames, every second object (4 min apart), cropped by **main's** decode and crop path through `make_loop.mts`.
+- **The day,** by a rule frozen here:
+  - **Data:** MRMS `MultiSensor_QPE_24H_Pass2_00.00` at 12:00Z, for every day from 2024-05-01 to 2024-09-30.
+  - **Score:** a day's score is the number of cells within 15 mi of the centre with ≥ 2.5 mm.
+  - **Candidates:** the 5 highest scores, ties to the earlier day.
+  - **Why the warm season:** an echo reads "RAIN" until WXC1 v2 brings the type (A9.6), so snow must not be in the loop.
+- **The window,** on each candidate day in score order, over the 24 h its QPE covers: the **first** 15-frame window in time order where:
+  - (a) every frame has an echo within 30 mi;
+  - (b) at least one frame has an echo within 15 mi, so the state line goes white once;
+  - (c) every frame has ≥ 50 % of its on-disc map pixels dry at 60 mi, so the geography shows through.
+- **The escape hatches, pre-registered:**
+  - **No QPE product for those dates:** use `RadarOnly_QPE_24H_00.00`, by the same rule.
+  - **No window qualifies on all 5 days: stop and report.** No criterion is relaxed without a ruling.
+- **The record:** the chosen day and window are reported as tool output (keys and sha256s, no coordinate) before any crop is committed.
+
+**The scenarios: two more in the stored cycle**, both stored-mode only, under the release gate.
+- **Bend dry:** a synthetic all-dry crop at the Bend crop's geometry, as `synthetic-clear.wxc` was made, with no observation. So the band reads "NO RAIN 60 MI": the mockup's dry afternoon. **Labelled synthetic** (Q33).
+- **Bend rain:** the Bend loop's last frame, as Dallas's scenarios use theirs.
+- **The clock:** Pacific time on the chosen day; Dallas keeps CDT.
+- **The tap:** on either Bend scenario, it plays the Bend loop.
+
+### A10.5 The method, and R0b
+
+**The same as A9.4.** Every graded screen is compared at **57,600 of 57,600** pixels with `ref35.py`'s rendering of the same inputs: the **same package bytes**, crop and clock.
+
+**R0b, the control on the reference, before anything is graded against it.**
+- **The inputs:** fed the mockup's own selections:
+  - its five river names;
+  - its `want` list of peaks;
+  - its `BEND_POP` table;
+  - Oregon LSAD-25 places;
+  - its unquantised geometry and its float32 hillshade;
+  - its exact centre.
+- **The test:** `ref35.py` must reproduce `screen-bend-A.png`, `-B.png` and `-C.png` pixel for pixel, **or name every differing pixel by its cause.** Four causes are expected:
+  1. the disc test: pixel centres (`CodeAt`) against the mockup's corners;
+  2. PIL's polygon fill against the pinned centre rule;
+  3. half-to-even against `floor(v + 0.5)` in the DDA;
+  4. the triangle, where PIL's rasterisation depends on the anchor's fraction (Q32).
+- **R0b passes only when every pixel is named.** An unnamed pixel is a finding about the spec, and stops (Q14's ruling).
+- **This proves `ref35.py` is the spec.** The device then differs from the mockups **by design**: a quantised and simplified package, a 2-dp origin shifted to the crop's centre, and data rules in place of the hand-picked lists. Those differences are the format's, and the K rows compare the device with the reference **on the same package**.
+
+### A10.6 The checks
+
+**Host families.** Truth tables with named cases, and sabotages with exact failing sets. **Frozen after this plan is ruled, before any code**, as A9.10 was for 3.5a.
+- **PK, the reader:**
+  - every refusal in format doc §8, each from its own negative package, with its named reason;
+  - the Bend package accepted;
+  - an unknown section type skipped.
+- **TX, the mapping:**
+  - package to screen at 15, 30 and 60;
+  - the origin shift's sign in each axis;
+  - a vertex at ±32,767.
+- **FL, the fill:**
+  - a ring on pixel centres;
+  - a horizontal edge;
+  - a vertex exactly on a centre;
+  - a ring across the disc's edge and the bands;
+  - a ring smaller than a pixel;
+  - two overlapping rings (union).
+- **LN, the line order:** roads over rivers over water over terrain.
+- **PE, the peaks:**
+  - the first 4 placed, counted by placement;
+  - the inner circle;
+  - the peaks' own side boxes;
+  - a peak blocking a town;
+  - the "Mt" rule;
+  - a peak beyond the 116 px circle.
+- **BF, the fold:**
+  - dry takes the basemap;
+  - an echo takes the radar;
+  - code 14 is grey with terrain off, and the hatch with it on;
+  - code 15 is the hatch;
+  - off the disc is black;
+  - the band rows are not drawn.
+- **BK, the basemap key:**
+  - rebuilt on a zoom, a place, terrain or a package;
+  - reused across a tap and across loop frames.
+- **The sabotages, at least one per family:**
+  - S-PKCRC: the CRC check skipped, so the bad-CRC package is accepted;
+  - S-FILL: the corner rule;
+  - S-SHIFT: the origin shift ignored;
+  - S-FOLD: the basemap over echoes;
+  - S-ORDER: roads under water;
+  - S-PEAKFIRST: peaks after towns;
+  - S-PEAKCAP: attempts counted, not placements;
+  - S-MT: no rename;
+  - S-HATCH: 14 solid with terrain on;
+  - S-BKEY: the image kept across a zoom;
+  - S-MASK: one layer bit ignored.
+
+**K rows, host, at 57,600 px against `ref35.py`.**
+- **Bend dry, every layer:** at 60, 30 and 15 mi, each of: towns only, + water, + rivers, + roads, + peaks, all (B), and all + terrain (C). **21 rows.**
+- **The Bend loop:** 15 frames at 60 mi, B and C. **30 rows.**
+- **Dallas, unchanged:** `test_wx_k35`'s **28/0** stands. These are 3.5a's permanent no-package rows.
+- **The replay:** the Bend loop through `ComposeLayered` with the basemap, at 15, 30 and 60 mi, B and C. **90 rows**, each equal to the full composition. Dallas's 90 stay unchanged.
+
+**Board rows** (one held run, the runner's belief rule, as 3.5a's):
+- **B1:**
+  - Dallas's six scenarios, exact and unchanged;
+  - Bend dry with terrain off and with it on;
+  - Bend rain.
+- **BZ:** on Bend dry with terrain on, U U U D, then D H H, in dry-hold blocks as A9.21 item 2. Each screen exact.
+- **B2:**
+  - **the Bend loop with terrain on at 60 mi**, the worst case, since every dry pixel reads the basemap;
+  - and the Dallas loop;
+  - each with 15 of 15 code hashes;
+  - **draw ≤ the bound frozen from build Q, and ≤ 38,000 µs;**
+  - intervals 70,000 ± 5,000 µs, spread ≤ 10,000; ≥ 14 fps;
+  - the screen after each loop exact.
+- **B3:** the legend, unchanged.
+- **The recorded-data sabotages:** as 3.5a's, plus one Bend snapshot graded against the other terrain state's reference.
+- **The B1 images are kept for Daniel.**
+
+**Sizes**, re-registered forward from G (flash 1,624,191 B, RAM 55,584 B, PSRAM 220,980 B). Exact bands are computed after the package and crops exist, and frozen before the build.
+- **Flash:**
+  - the package (non-terrain ≤ 32 KB, plus 3 × 57,608 B of terrain sections);
+  - the 16 Bend crops (measured when made);
+  - 8-25 KB of code.
+
+  It lands well inside `partitions-s3-16mb-bignvs.csv`'s 6,553,600 B app slot.
+- **PSRAM:** + the basemap image (57,600 B) + the decoded places and peaks, computed to the byte, ± 2,000.
+
+### A10.7 Not 3.5b
+
+- **The route and the ingest** (blipscope-5c). No package is downloaded in 3.5b; Bend's is stored.
+- **The customer's terrain setting** on the config page (Q29).
+- **A national place rule** (Q27).
+- **3.5c, 3.4, and Blipscope's adoption** (after v19).
+
+### A10.8 Order inside 3.5b, once ruled
+
+1. The truth tables and sabotage sets, frozen.
+2. The host tool:
+   - the sources fetched, and **the Terrain Tiles terms read** (Q34);
+   - the Bend package built, `--check`ed, and its sizes reported;
+   - the radar day and window chosen by A10.4's rule and reported;
+   - the crops made.
+3. `ref35.py`'s geography, and **R0b**.
+4. **Build Q** (Q30): flash, probe, and B2-Bend's bound frozen.
+5. The device code, the host tests and their sabotages.
+6. The K rows and the replay rows.
+7. The firmware, the build and the sizes.
+8. The flash onto `907069326E64`, the board run, the grading and the recorded-data sabotages.
+9. The results addendum.
+
+### A10.9 Questions for review, each with a recommendation
+
+- **Q23, where the reader lives.**
+  - **Recommended:** `include/BasemapPackage.h`, a new file: product-neutral, pure, with no Weatherscope symbol.
+  - **Why:** Blipscope adopts it without moving it, and no existing `include/` file changes.
+  - **The alternative,** `src/weatherscope/`, means a move at adoption, and a move is a second path.
+- **Q24, rivers.** "The longest within the view" (A9.1 D) is read as follows.
+  - **Recommended:** group `… Riv` features by `FULLNAME`; measure each group inside the disc of radius R; keep the **5** longest groups. The mockup drew 5.
+- **Q25, peaks.**
+  - **Recommended:**
+    - all GNIS Summits in the disc, ranked by DEM elevation, ties by `feature_id`;
+    - a summit is dropped when a higher kept one lies within **3.0 km**;
+    - the package keeps 16; Weatherscope places 4.
+  - **Why the drop:** taken strictly, the 4 highest summits near Bend could all be sub-summits of one volcano, each blocking the next's label. The mockup avoided that with a hand list, which a server cannot have.
+- **Q26, over budget.**
+  - **Recommended:**
+    - a 32 KB cap on the non-terrain sections;
+    - past it: double ε once, then drop water rings smallest first, then secondary roads shortest first;
+    - **every drop counted in `PROVENANCE`;**
+    - still over: the route errors, and the device shows towns only.
+- **Q27, places.**
+  - **Recommended:** v1 keeps `WxTowns.h`'s rule exactly (LSAD 25, within R), so a package and the stored towns cannot disagree.
+  - **Why it is later:** states that incorporate as towns, villages or boroughs need a wider rule. That is a later layer definition, and a format version 2.
+- **Q28, Bend's radar.**
+  - **Recommended:** A10.4's frozen rule (the QPE score, the window's three conditions, the two escape hatches).
+  - **Its output** is reported, and needs no ruling unless an escape hatch fires.
+- **Q29, the terrain setting.**
+  - **Recommended:** the bench byte `G` in stored mode now.
+  - **The customer setting** (config page and NVS, off by default, as Daniel chose) comes with the route. Until then no customer unit has a package for it to change.
+- **Q30, build Q.**
+  - **Recommended:** the timing-only PSRAM read probe on G's loop, one flash, before B2-Bend's bound is frozen.
+  - **Why not estimates:** A10.3's envelope leaves about 1.5 ms, too thin to freeze from estimates.
+- **Q31, what lies under codes 14 and 15.**
+  - **Recommended:** the basemap shows under **dry** pixels only, as A9.23's design reads.
+  - **With terrain on,** 14's hatch is drawn on black, not on the shading, so "no data" never reads as land.
+- **Q32, the peak glyph.**
+  - **Recommended:** a bitmap read off `screen-bend-B.png`, anchored at (int x, int y).
+  - **If the four placed peaks' glyphs differ** relative to their anchors (PIL rasterising the fraction), R0b names those pixels, and **the bitmap of the first-ranked peak** is frozen.
+- **Q33, Bend dry.**
+  - **Recommended:** synthetic (an all-dry crop, no observation), labelled so, and stored-mode only: the mockup's own dry afternoon, so R0b and the glass look at the same scene.
+- **Q34, Terrain Tiles' terms.**
+  - **Recommended:** read the registry's attribution document **before** the stored package is committed, since the repository is public.
+  - **What to carry:** the text it requires, in the package's `PROVENANCE` and in a licence file beside the fixture.
+  - **If it forbids redistributing derived data:** stop and report.
