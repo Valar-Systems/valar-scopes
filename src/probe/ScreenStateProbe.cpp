@@ -108,7 +108,14 @@ void DrawAndLog(uint32_t frame, const game::State& st) {
   // The bucket comes from the machine's Config exactly as it will on a real
   // device -- the probe must not hand the renderer a value the firmware would
   // not have, or the capture stops describing the shipping path.
-  game::DrawDrill(c, eam::PaletteGreen(), st, g_cfg, g_now);
+  //
+  // CLOCK AGE: -1, DrawDrill's own "never synced" sentinel. The argument arrived
+  // with 4638a34 (2026-09-23) and this call was not updated, so the station-2 env
+  // stopped compiling. A probe sketch runs no SNTP, so "never synced" is the true
+  // state of this board -- and it lands in the fixture as clock_age_s=-1, which a
+  // reader can tell apart from any served value. CANDIDATE: the value is a ruling
+  // (a fixed positive age would exercise the digit branch instead).
+  game::DrawDrill(c, eam::PaletteGreen(), st, g_cfg, g_now, -1);
   g_back.pushSprite(0, 0);
 }
 
