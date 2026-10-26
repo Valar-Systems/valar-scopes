@@ -871,3 +871,26 @@ look.
 | **S-g** | today's wiring planted: **168 weather requests, 7 in one 5 s window**, feed 335. Red in (g) only. The eight existing sabotages: each red in its own property only. The header was unchanged afterwards (`eec8b5120c60`) | **as predicted** |
 | **G4** | MinGW 5.1: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: its one FAIL is the board block's "no xtensa toolchain found", the gap main shares, and the loop row reads 28 / 1 / 358 there too | **as predicted** |
 | **G5** | `blipscope-s3-128` 1,939,744 B and `blipscope-s3-128-wxlook` 1,940,272 B, both built | **as predicted** |
+
+### WD5 addendum 7, 2026-10-26: the policy's elapsed time made safe (ruled), frozen before its code
+
+**The ruling (reviewer chat, pasted by Daniel):** "make the policy's elapsed time safe when a recorded time is later
+than now (it reads as not due), with a host row for exactly today's order. The simulation must still give 28. If that
+is the only change after G7, G7 carries; show the diff."
+
+**The change, `include/WxPolicy.h` only.** Both of `ShouldFetch`'s elapsed times become a wrap-safe **signed**
+difference, `(int32_t)(nowMs − t)`:
+- **the in-flight timeout:** a negative elapsed time is **still in flight**, never "timed out";
+- **the interval:** a negative elapsed time is **not due**.
+
+This holds within ±24.8 days of `millis()`. `AircraftManager` and the tests' calls are unchanged.
+
+| | check | predicted |
+|---|---|---|
+| **H1** | a new (g) table row, **today's order**: the attempt recorded 2 ms **after** the `now` the pass asks with. `OnSend` at 1002 then `ShouldFetch` at 1000: **false** (in flight, not timed out). The reply consumed, then `ShouldFetch` at 1000: **false** (not due). At 61,002: **true** | pass, as (g) |
+| **H2** | the loop row, unchanged | **28** weather requests, at most 1 in any 5 s, 358 feed requests |
+| **H3** | **S-g, redefined** to stay "today's wiring": it also reverts the hardening to the unsigned difference, as the code was. **New S-h:** only the hardening reverted, with the attempt still recorded at the send | **S-g:** the loop bursts as before (168 requests, 7 in 5 s), red in (g) only. **S-h:** red in (g) only, on H1's row, while the loop row stays at 28, because the send-time attempt alone already prevents the burst. The eight earlier sabotages: unchanged |
+| **H4** | the suites: MinGW and WSL g++ 13.3 | MinGW: ALL HOST TESTS PASSED. WSL: the board block's known gap only |
+| **H5** | the diff after G7's image (`4caa662`) | **`include/WxPolicy.h` (the two comparisons and a comment), `test/host/test_wx_policy.cpp` (H1) and `test/host/sabotage_wx_policy.py` (S-g, S-h), and nothing else**. So G7 carries, by the ruling |
+
+**Outside the set:** stop and report.
