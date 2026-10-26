@@ -282,8 +282,9 @@ inline void LogSerial(uint16_t cycle)
                   (int)s.ssidSeen, (int)s.seen24, (int)s.seen5, s.scanTotal, s.bssCount);
     for (int i = 0; i < s.bssCount; ++i) {
         const Bss& b = s.bss[i];
-        Serial.printf("[jdiag]   bss %02X:%02X:%02X:%02X:%02X:%02X ch=%u band=%s rssi=%d enc=%s\n",
-                      b.mac[0], b.mac[1], b.mac[2], b.mac[3], b.mac[4], b.mac[5],
+        // Two bytes only, as the fast-join line (docs/bssid-guard.md): enough to tell the nodes apart.
+        Serial.printf("[jdiag]   bss ..:..:..:..:%02X:%02X ch=%u band=%s rssi=%d enc=%s\n",
+                      b.mac[4], b.mac[5],
                       b.channel, Is24(b.channel) ? "2.4" : "5", b.rssi, AuthName(b.enc));
     }
 }

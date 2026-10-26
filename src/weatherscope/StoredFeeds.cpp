@@ -12,6 +12,31 @@
 extern const uint8_t wx_kdfw_crop_start[] asm("_binary_test_fixtures_wx_kdfw_60mi_wxc_start");
 extern const uint8_t wx_kdfw_crop_end[] asm("_binary_test_fixtures_wx_kdfw_60mi_wxc_end");
 
+// The loop's 15 crops, embedded by WxLoopFrames.S (oldest first). Declared at file scope, as above.
+#define WX_LOOP_FRAME(n)                                              \
+    extern const uint8_t wx_loop_##n##_start[] asm("wx_loop_" #n "_start"); \
+    extern const uint8_t wx_loop_##n##_end[] asm("wx_loop_" #n "_end");
+WX_LOOP_FRAME(00)
+WX_LOOP_FRAME(01)
+WX_LOOP_FRAME(02)
+WX_LOOP_FRAME(03)
+WX_LOOP_FRAME(04)
+WX_LOOP_FRAME(05)
+WX_LOOP_FRAME(06)
+WX_LOOP_FRAME(07)
+WX_LOOP_FRAME(08)
+WX_LOOP_FRAME(09)
+WX_LOOP_FRAME(10)
+WX_LOOP_FRAME(11)
+WX_LOOP_FRAME(12)
+WX_LOOP_FRAME(13)
+WX_LOOP_FRAME(14)
+#undef WX_LOOP_FRAME
+
+// 3.5a's synthetic clear crop, embedded by WxLoopFrames.S after the loop.
+extern const uint8_t wx_synthetic_clear_start[] asm("wx_synthetic_clear_start");
+extern const uint8_t wx_synthetic_clear_end[] asm("wx_synthetic_clear_end");
+
 namespace wx {
 
 namespace {
@@ -40,6 +65,24 @@ CropBytes StoredWxFeed::Latest() const
     return c;
 }
 
+size_t StoredWxFeed::History(CropBytes* out, size_t max) const
+{
+    static const uint8_t* const kStart[15] = {wx_loop_00_start, wx_loop_01_start, wx_loop_02_start, wx_loop_03_start,
+                                              wx_loop_04_start, wx_loop_05_start, wx_loop_06_start, wx_loop_07_start,
+                                              wx_loop_08_start, wx_loop_09_start, wx_loop_10_start, wx_loop_11_start,
+                                              wx_loop_12_start, wx_loop_13_start, wx_loop_14_start};
+    static const uint8_t* const kEnd[15] = {wx_loop_00_end, wx_loop_01_end, wx_loop_02_end, wx_loop_03_end,
+                                            wx_loop_04_end, wx_loop_05_end, wx_loop_06_end, wx_loop_07_end,
+                                            wx_loop_08_end, wx_loop_09_end, wx_loop_10_end, wx_loop_11_end,
+                                            wx_loop_12_end, wx_loop_13_end, wx_loop_14_end};
+    size_t n = 0;
+    for (; n < 15 && n < max; ++n) {
+        out[n].data = kStart[n];
+        out[n].size = (size_t)(kEnd[n] - kStart[n]);
+    }
+    return n;
+}
+
 Observation StoredObsFeed::Latest() const
 {
     Observation o;
@@ -47,6 +90,14 @@ Observation StoredObsFeed::Latest() const
     o.timeUtc = kObsTimeUtc;
     o.presentCount = 0;
     return o;
+}
+
+CropBytes StoredSyntheticClear()
+{
+    CropBytes c;
+    c.data = wx_synthetic_clear_start;
+    c.size = (size_t)(wx_synthetic_clear_end - wx_synthetic_clear_start);
+    return c;
 }
 
 AlertList StoredAlertFeed::Active() const

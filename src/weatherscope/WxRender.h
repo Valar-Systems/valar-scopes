@@ -32,17 +32,18 @@ struct View {
     int16_t col[kSize];                // the crop column each screen column samples
 };
 
-// Builds the view for a crop: home = the crop's centre (from its header), radius = 60 mi.
-inline void BuildView(const wxcrop::Header& h, View* v)
+// Builds the view for a crop: home = the crop's centre (from its header), radius `radiusKm` (3.5a's zoom ladder
+// passes 15, 30 or 60 mi; a view scale only -- the crop is unchanged).
+inline void BuildViewKm(const wxcrop::Header& h, View* v, double radiusKm)
 {
     const double latNw = h.latNwMicro / 1e6, lonNw = h.lonNwMicro / 1e6;
     const double cellLat = h.cellLatMicro / 1e6, cellLon = h.cellLonMicro / 1e6;
     v->homeLat = latNw - (h.rows - 1) / 2.0 * cellLat;
     v->homeLon = lonNw + (h.cols - 1) / 2.0 * cellLon;
-    v->rLat = kRadiusKm / kKmPerDeg;
+    v->rLat = radiusKm / kKmPerDeg;
     double c = cos(v->homeLat * (kPi / 180.0));
     if (c < 0.01) c = 0.01;
-    v->rLon = kRadiusKm / (kKmPerDeg * c);
+    v->rLon = radiusKm / (kKmPerDeg * c);
     for (int y = 0; y < kSize; ++y) {
         const double lat = v->homeLat + 1.0 * (kCentre - (y + 0.5)) / kCentre * v->rLat;
         v->row[y] = (int16_t)floor((latNw - lat) / cellLat + 0.5);
@@ -52,6 +53,9 @@ inline void BuildView(const wxcrop::Header& h, View* v)
         v->col[x] = (int16_t)floor((lon - lonNw) / cellLon + 0.5);
     }
 }
+
+// The 60 mi view, as Stage 1 and 3.3 built it.
+inline void BuildView(const wxcrop::Header& h, View* v) { BuildViewKm(h, v, kRadiusKm); }
 
 // The code pixel (x, y) shows: kOffDisc outside the round screen; the crop cell's code inside it;
 // 14 (no coverage, never dry) where the cell falls outside the crop.

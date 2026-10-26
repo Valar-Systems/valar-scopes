@@ -25,19 +25,28 @@ struct CropBytes {
 class WxFeed {
 public:
     virtual ~WxFeed() = default;
-    // The newest crop, or an empty one when there is none yet. The past hour's history joins this
-    // interface in step 3.3, with the loop's frames.
+    // The newest crop, or an empty one when there is none yet.
     virtual CropBytes Latest() const = 0;
+    // The past hour's frames for the loop, oldest first (step 3.3): writes at most `max` and returns how many.
+    // A feed with no history returns 0, so a fake that predates the loop still builds.
+    virtual size_t History(CropBytes* out, size_t max) const
+    {
+        (void)out;
+        (void)max;
+        return 0;
+    }
 };
 
-// The nearest station's latest observation, reduced to what "here now" reads (screens doc 1c):
-// its present weather and its time. Nothing else is kept.
+// The nearest station's latest observation, reduced to what the screens read (screens doc 1c): its present weather,
+// its time, and its temperature for "54° · NO RAIN" (3.5a, A9.3). Nothing else is kept.
 struct Observation {
     static constexpr size_t kMaxPresent = 4;
     bool valid = false;
     int64_t timeUtc = 0;                    // the observation's timestamp, Unix seconds
     uint8_t presentCount = 0;               // NWS presentWeather entries; 0 = none reported
     const char* present[kMaxPresent] = {};  // each entry's raw METAR string, e.g. "-RA"
+    bool hasTempF = false;                  // NWS reports a null temperature at times: then no figure is shown
+    double tempF = 0;
 };
 
 class ObsFeed {

@@ -1,0 +1,65 @@
+== controls ==
+  ok   palette distinct: codes 0-14 give 15 distinct RGB565 values
+  ok   reference 212400: render_ref.py's codes hash to screens.ref.json's fc1ab7ab3513
+  ok   reference 220000: render_ref.py's codes hash to screens.ref.json's 3dc9114b93b2
+== B1: the four scenarios ==
+  ok   B1 dry snapshot: graded snap-dry-1.bin after 3 fetches, 0 torn
+  ok   B1 dry pick: approaching=212400 dry=220000
+  ok   B1 dry screen and text: scn=dry frame=220000 screen=Dry type=None warning=-1 | text clock="5:00 PM" headline="" title="|" until="" lineA="" storm="" travel=""
+  ok   B1 dry codes: board 3dc9114b93b2 vs reference 3dc9114b93b2
+  ok   B1 dry rects: 19 printed vs 19 predicted
+  ok   B1 dry pixels: 48892 compared (predicted 48892), 0 differ
+  ok   B1 approaching snapshot: graded snap-approaching-3.bin after 5 fetches, 0 torn
+  ok   B1 approaching pick: approaching=212400 dry=220000
+  ok   B1 approaching screen and text: scn=approaching frame=212400 screen=PrecipApproaching type=None warning=-1 | text clock="4:24 PM" headline="PRECIP WITHIN 15 MI" title="|" until="" lineA="" storm="" travel=""
+  ok   B1 approaching codes: board fc1ab7ab3513 vs reference fc1ab7ab3513
+  ok   B1 approaching rects: 21 printed vs 21 predicted
+  ok   B1 approaching pixels: 45436 compared (predicted 45436), 0 differ
+  ok   B1 herenow snapshot: graded snap-herenow-1.bin after 3 fetches, 0 torn
+  ok   B1 herenow pick: approaching=212400 dry=220000
+  ok   B1 herenow screen and text: scn=herenow frame=212400 screen=PrecipNow type=Rain warning=-1 | text clock="4:24 PM" headline="RAIN NOW" title="|" until="" lineA="" storm="" travel=""
+  ok   B1 herenow codes: board fc1ab7ab3513 vs reference fc1ab7ab3513
+  ok   B1 herenow rects: 20 printed vs 20 predicted
+  ok   B1 herenow pixels: 47356 compared (predicted 47356), 0 differ
+  ok   B1 warning snapshot: graded snap-warning-0.bin after 2 fetches, 0 torn
+  ok   B1 warning pick: approaching=212400 dry=220000
+  ok   B1 warning screen and text: scn=warning frame=212400 screen=Warning type=None warning=0 | text clock="4:24 PM" headline="" title="SEVERE T-STORM|WARNING" until="UNTIL 5:09 PM" lineA="HAIL 1 IN - WIND 60 MPH" storm="STORM 14 MI E" travel="MOVING NE 35 MPH"
+  ok   B1 warning codes: board fc1ab7ab3513 vs reference fc1ab7ab3513
+  ok   B1 warning rects: 31 printed vs 31 predicted
+  ok   B1 warning pixels: 43192 compared (predicted 43192), 0 differ
+== B2: the loop ==
+  ok   B2 records: 15 records, indices [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+  ok   B2 hashes: 15 of 15 equal screens.ref.json
+  ok   B2 epochs: equal the manifest, strictly ascending
+  ok   B2 pacing: intervals 69997-70154 us, max-min 157 us (<= 10,000; each 70,000 +- 5,000)
+  ok   B2 rate: 14.28 fps over 14 intervals (>= 14)
+  ok   B2 draw: draw 27417-29812 us (<= 45,000)
+  ok   B2 hash: hash 4040-4193 us (<= 5,000)
+  ok   B2 after the loop snapshot: graded snap-postloop-0.bin after 2 fetches, 0 torn
+  ok   B2 after the loop pick: approaching=212400 dry=220000
+  ok   B2 after the loop screen and text: scn=dry frame=220000 screen=Dry type=None warning=-1 | text clock="5:00 PM" headline="" title="|" until="" lineA="" storm="" travel=""
+  ok   B2 after the loop codes: board 3dc9114b93b2 vs reference 3dc9114b93b2
+  ok   B2 after the loop rects: 19 printed vs 19 predicted
+  ok   B2 after the loop pixels: 48892 compared (predicted 48892), 0 differ
+== B3: the legend ==
+    L4 (replaced): one graded /diag/fb snapshot, 115200 bytes, sha256 45ba1a1938eb
+    L2 coverage: 21 swatches in 7 rows -> EXACTLY the ruled mapping
+    L1 every swatch equals the palette: 21/21 swatches exact
+    L5 background: 7 label boxes; non-dry pixels outside swatches and labels: 0; non-white/dry inside labels: 0; empty label boxes: 0 -> dry, as ruled
+    L6 inner radius: 3790 non-dry pixels; the farthest pixel centre is 109.0 px from the centre (<= 112) -> inside
+       PNG of the board's legend -> <run>\legend.png
+  ok   B3 legend_check --fb: exit 0
+  ok   B3 after the legend snapshot: graded snap-postlegend-0.bin after 2 fetches, 0 torn
+  ok   B3 after the legend pick: approaching=212400 dry=220000
+  ok   B3 after the legend screen and text: scn=dry frame=220000 screen=Dry type=None warning=-1 | text clock="5:00 PM" headline="" title="|" until="" lineA="" storm="" travel=""
+  ok   B3 after the legend codes: board 3dc9114b93b2 vs reference 3dc9114b93b2
+  ok   B3 after the legend rects: 19 printed vs 19 predicted
+  ok   B3 after the legend pixels: 48892 compared (predicted 48892), 0 differ
+== the recorded-data sabotages (each must go RED) ==
+  RED   S-B1a: hash red True, pixels differing 5095 -> AS PREDICTED
+  RED   S-B1b: one reported rect widened by 1 px -> AS PREDICTED
+  RED   S-B2a: record 3 graded against reference 4 -> AS PREDICTED
+  RED   S-B2b: epochs 2 and 3 swapped -> AS PREDICTED
+  RED   S-B2c: 11,000 us added to interval 7->8 -> AS PREDICTED
+
+47 checks, 0 failing; sabotages 5/5 red (5 expected)

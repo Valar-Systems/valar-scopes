@@ -5,20 +5,30 @@
 // because NOAA lands files 17-28 s past the minute (A7). Every check is idempotent (ingest.ts), so an
 // overlapping run or a retry can only find the work already done.
 
-import { ingestOnce } from "./ingest";
+import { type Fetch, type IngestOpts, DEFAULT_OPTS, NoaaError, ingestOnce } from "./ingest";
 import { PRODUCTS } from "./products";
 
 export interface IngestEnv { WX: R2Bucket }
 
-async function checkAll(env: IngestEnv, label: string): Promise<void> {
+// The init carries each attempt's abort signal: dropping it (as `(u) => fetch(u)` did) would silently disable
+// every timeout. test/wx-ingest.test.ts proves the default passes it.
+const workerFetch: Fetch = (u, init) => fetch(u, init);
+
+/** One check of every product. doFetch, log and opts are injectable for the tests; production uses the defaults. */
+export async function checkAll(env: IngestEnv, label: string, doFetch: Fetch = workerFetch,
+                               log: (line: string) => void = (l) => console.log(l),
+                               opts: IngestOpts = DEFAULT_OPTS): Promise<void> {
   for (const p of PRODUCTS) {
     const t0 = Date.now();
     try {
-      const r = await ingestOnce(env.WX, p, t0, (u) => fetch(u));
-      console.log(JSON.stringify({ evt: "wx_ingest", check: label, product: p.id, ...r,
+      const r = await ingestOnce(env.WX, p, t0, doFetch, opts);
+      log(JSON.stringify({ evt: "wx_ingest", check: label, product: p.id, ...r,
         lagS: r.epoch ? Math.round(Date.now() / 1000 - r.epoch) : null, ms: Date.now() - t0 }));
     } catch (err) {
-      console.log(JSON.stringify({ evt: "wx_ingest_error", check: label, product: p.id, err: String(err), ms: Date.now() - t0 }));
+      // Logged only when every attempt at a NOAA request failed (NoaaError), or on a non-NOAA failure.
+      const attempts = err instanceof NoaaError ? err.attempts : undefined;
+      log(JSON.stringify({ evt: "wx_ingest_error", check: label, product: p.id, err: String(err), attempts,
+        ms: Date.now() - t0 }));
     }
   }
 }

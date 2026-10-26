@@ -14,6 +14,8 @@ namespace wx {
 class StoredWxFeed : public WxFeed {
 public:
     CropBytes Latest() const override;
+    // The loop's 15 SeamlessHSR crops (test/fixtures/wx/loop/), embedded by WxLoopFrames.S, oldest first.
+    size_t History(CropBytes* out, size_t max) const override;
 };
 
 // One KDFW observation, fetched once at implementation time (A6.3).
@@ -27,5 +29,9 @@ class StoredAlertFeed : public AlertFeed {
 public:
     AlertList Active() const override;
 };
+
+// 3.5a's SYNTHETIC all-dry crop for the stored Clear scenario (Q15): not a feed and not weather, so it is reached
+// only through Feeds::clear, which only the stored factory fills.
+CropBytes StoredSyntheticClear();
 
 }  // namespace wx

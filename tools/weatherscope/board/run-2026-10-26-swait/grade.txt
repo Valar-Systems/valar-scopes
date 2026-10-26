@@ -1,0 +1,11 @@
+K picks: approaching shsr-20240521-212400.wxc, dry shsr-20240521-220000.wxc
+attempts reported: ['1']
+  fetches read: 59; unfinished (not their tag's scene): 9; marked Finished: true among them: none
+  (i) restated: unfinished with Clearing or Cleared at an end: 9 of 9
+  (ii) as frozen: complete fetches holding an earlier scene's pixels: none
+  complete fetches not their scene and no other: none
+  (iii): push runs 4, phases at the push ['2'], shortest push 25771 us, the scene sequence matches (3 against 4)
+  RED   S-WAIT: 9 of 59 unfinished, 0 of them marked finished -> AS PREDICTED
+  ok   (i) restated: 9 of 9 unfinished fetches have Clearing or Cleared at an end
+  VERDICT: (i) a copy inside the redraw -- (ii) and (iii) excluded
+S-WAIT pass: AS PREDICTED

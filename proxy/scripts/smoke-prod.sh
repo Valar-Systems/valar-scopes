@@ -864,8 +864,33 @@ enroll_post() {
     printf 'RESULT: FAIL\n'; fail=$((fail+1))
   fi
 }
-enroll_post "enroll POST, unsolved token -> 403 (both secrets bound, gate live)" \
-  403 '"unverified"' '{"id":"a1b2c3d4e5f6a7b8","token":"not-a-real-solve"}'
+# THE PROBE ID IS RANDOM, generated here and never committed (docs/smoke-enroll-check.md). A committed id has
+# to sit on scripts/device-id-allowlist.txt, and production refuses every listed id BEFORE the Turnstile gate this
+# check is about (proxy/src/enroll.ts, refusesFakeId) -- so the fixed id that used to be here answered
+# fake_device_id on every production run from 2026-09-23 (e4c768a) until this fix. A random, unregistered id
+# passes the shape check and the fake-id refusal and reaches the gate. That path writes nothing: the ledger and
+# the day counter are written only after a solve verifies. It costs one Turnstile siteverify call.
+# SMOKE_ENROLL_ID / SMOKE_ENROLL_TOKEN exist ONLY to rehearse the check red (S-E1: the old fixed id; S-E2: an
+# empty token). Unset, the check uses a fresh random id and the unsolved token.
+SMOKE_ALLOWLIST="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/device-id-allowlist.txt"
+enroll_probe_id() {
+  local id tries=0
+  while [ "$tries" -lt 5 ]; do
+    id="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+    if [ "${#id}" -eq 16 ] && ! grep -qix "$id" "$SMOKE_ALLOWLIST" 2>/dev/null; then printf '%s' "$id"; return 0; fi
+    tries=$((tries+1))
+  done
+  return 1
+}
+if [ -n "${SMOKE_ENROLL_ID:-}" ]; then ENROLL_ID="$SMOKE_ENROLL_ID"; else ENROLL_ID="$(enroll_probe_id)"; fi
+ENROLL_TOKEN="${SMOKE_ENROLL_TOKEN-not-a-real-solve}"
+if [ "${#ENROLL_ID}" -ne 16 ]; then
+  printf '\n===== enroll POST, unsolved token =====\nRESULT: FAIL -- no probe id could be generated (od /dev/urandom)\n'; fail=$((fail+1))
+else
+  [ -f "$SMOKE_ALLOWLIST" ] || printf 'note: %s not found; the probe id was not screened against the fake allowlist\n' "$SMOKE_ALLOWLIST"
+  enroll_post "enroll POST, unsolved token -> 403 (both secrets bound, gate live; random probe id)" \
+    403 '"unverified"' "{\"id\":\"$ENROLL_ID\",\"token\":\"$ENROLL_TOKEN\"}"
+fi
 enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)" \
   400 '"bad_request"' '{"id":"../../etc","token":"not-a-real-solve"}'
 

@@ -1,0 +1,70 @@
+{
+  "_README": "FROZEN, NOT GENERATED, and never regenerated. The version-1 game config, the block the device's parser must REFUSE (test/host/test_game_config.cpp): its weights are float `weight`, not integer `ppm`. Copied verbatim from git history; see copied_from. docs/game-config-parse-test.md.",
+  "provenance": {
+    "copied_from": "303d57dc32846300ee4e3e1ca86f47753177a7e6:test/fixtures/game-config.json",
+    "source_url": "https://valar-eam-feed.onrender.com/api/v1/missileer/config",
+    "fetched_at": "2026-08-18T22:28:04.999Z",
+    "config_epoch": 1,
+    "config_version": 1
+  },
+  "config": {
+    "version": 1,
+    "epoch": 1,
+    "hold": false,
+    "decode": {
+      "weights": [
+        {
+          "class": "nam",
+          "weight": 0.83
+        },
+        {
+          "class": "fdm",
+          "weight": 0.12
+        },
+        {
+          "class": "execution",
+          "weight": 0.05
+        }
+      ],
+      "stormDamping": {
+        "cooldownS": 21600,
+        "weightScale": 0.25
+      }
+    },
+    "timing": {
+      "tOffset": [
+        {
+          "tier": "normal",
+          "weight": 0.9,
+          "minS": 300,
+          "maxS": 900
+        },
+        {
+          "tier": "snap",
+          "weight": 0.1,
+          "minS": 90,
+          "maxS": 150
+        }
+      ],
+      "ackCutoffS": 60,
+      "enableLimitS": 60,
+      "deadManS": 600,
+      "executionWindowS": 2,
+      "lateCopyNonScorableS": 120,
+      "tCeilingS": 1200,
+      "executeSlackS": 10
+    },
+    "economy": {
+      "standDownS": 86400,
+      "regenIntervalS": 259200,
+      "capsuleSorties": 10
+    },
+    "scoring": {
+      "bucketS": 0.2,
+      "shackFloorM": 100,
+      "metresPerBucket": 200,
+      "maxMissM": 900,
+      "clockFloorMs": 199
+    }
+  }
+}

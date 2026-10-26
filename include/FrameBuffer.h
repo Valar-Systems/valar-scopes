@@ -57,4 +57,21 @@ void FrameDone();
 /// Publish the backbuffer. Called once from setup(), after createSprite().
 void Register(LGFX_Sprite* sprite);
 
+/// Where the render loop is inside a frame (docs/weatherscope-stage3.md A9.22, A9.26): Clearing before the clear,
+/// Cleared after it, Drawn after the app's Draw, Pushed after the push. So the backbuffer holds a FINISHED frame from
+/// the Drawn store until the next Clearing store, and /diag/fb copies only inside that window -- Sequence() alone
+/// cannot say, because it moves only after the push.
+enum : uint8_t { kPhaseCleared = 1, kPhaseDrawn = 2, kPhasePushed = 3, kPhaseClearing = 4 };
+inline bool PhaseFinished(uint8_t phase) { return phase == kPhaseDrawn || phase == kPhasePushed; }
+void SetPhase(uint8_t phase);
+uint8_t Phase();
+/// Clearing stores since boot. /diag/fb compares it either side of its copy: an app that sets no tag (the radar's is
+/// 0) could otherwise have a whole clear-and-draw land inside one copy unseen.
+uint32_t Clears();
+
+/// DIAG ONLY: an app-defined tag for what the backbuffer last held complete (Weatherscope writes MSRRCCCC: mode,
+/// scene, radius, draw count). 0 when the app sets none.
+void SetTag(uint32_t tag);
+uint32_t Tag();
+
 }  // namespace framebuf

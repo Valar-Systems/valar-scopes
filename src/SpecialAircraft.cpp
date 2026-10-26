@@ -23,7 +23,7 @@ constexpr Range MIL_RANGES[] = {
     { 0x3F4000, 0x3FBFFF }, // Germany
     { 0x400000, 0x40003F }, // United Kingdom
     { 0x43C000, 0x43CFFF }, // United Kingdom
-    { 0x444000, 0x446FFF }, // Belgium
+    { 0x444000, 0x446FFF }, // Austria (ICAO block 440000-447FFF; Belgium starts at 448000)
     { 0x44F000, 0x44FFFF },
     { 0x457000, 0x457FFF },
     { 0x45F400, 0x45F4FF },
