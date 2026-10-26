@@ -3976,6 +3976,62 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **The run** is as A9.30, in its order: M2, then M1, then M3. G is reflashed afterwards.
 
+### A9.32 Build M's run: the stall is real, and outside A9.30's table in two places. Stopped for a ruling; no fix (2026-10-26)
+
+**The run** (`tools/weatherscope/board/run-2026-10-26-holdM/trace.txt` on `weatherscope/hold-pause-probe`, LAN IP and BSSID redacted):
+- **The flash:** build M (`d589acfdb4e0…`), upload exit 0, hash verified.
+- **The open:** at flash end + 140.0 s, the first and only open, 16:52:44Z. Then M2's records, M1, M3, and the close at 16:54:41Z.
+- **Afterwards:** main's image (`0091f2350cc9`, the tree #480 merged, G's source) was rebuilt and flashed: 1,624,592 B, G's size, hash verified. Its sha256 `f2dd479f9fcd…` differs from G's `de3730c80072…`, as every rebuild's does (WiFiManager's build timestamps); not byte-accounted.
+
+**The records** (µs; "stall" = the push gap less the median end-to-start gap before it, A9.31):
+
+| condition | fire | screen at the fire (its own `compose_us`) | build | print | prints / short | stall |
+|---|---|---|---|---|---|---|
+| **M2**, nothing opened since boot | auto 0 | lost (see below) | 99,912 | 360,031 | 13 / **9** | **460,018** |
+| | auto 1 | lost | 147,221 | 638,676 | 16 / **16** | **785,902** |
+| | auto 2 | approaching, 60 → 15 (32,109) | 124,300 | 558,995 | 14 / **14** | **683,408** |
+| **M1**, read throughout | H 0 | stale, 15 → 60 (38,848) | 106,653 | 200 | 16 / 0 | 107,170 |
+| | H 1 | stale, 60 → 15 (32,110) | 99,937 | 186 | 13 / 0 | 100,504 |
+| | H 2 | stale, 15 → 60 (38,811) | 106,653 | 225 | 16 / 0 | 107,123 |
+| **M3**, open, unread for 75 s | auto 0 | clear, 60 → 15 (32,059) | 48,998 | 273 | 13 / 0 | 49,365 |
+| | auto 1 | dry, 15 → 60 (38,529) | 107,750 | 311 | 16 / 0 | 108,166 |
+| | auto 2 | approaching, 60 → 15 (32,019) | 99,878 | 242 | 13 / 0 | 100,532 |
+
+- **The baseline** (`base_us`) was 11,402-11,442 µs in every record.
+- **M2 lost lines:** only the last fire's `[wx] zoom hold` line reached the trace. The earlier two fires' lines are among the short writes.
+
+**Against A9.30's table:**
+
+| prediction | result |
+|---|---|
+| C1: `build_us` 35,000-60,000 in every condition | **outside in 8 of 9 records** (99,878-147,221; M3's first at 48,998 is inside). Each fire's own `Compose` was 32.0-38.9 ms, so about 60-70 ms of `build_us` lies **outside `Compose`**, in a part of `BuildScenario` I did not split out |
+| C2: M2 `print_us` < 5,000, non-blocking while not connected | **outside:** 360,031-638,676, with 9 of 13, 16 of 16 and 14 of 14 writes short |
+| C2: M3 `print_us` ≥ 100,000 | **outside:** 242-311, none short |
+| C2: M1 `print_us` < 5,000, none short | as predicted (186-225) |
+| the outside-the-set branch (every stall < 15,000) | not triggered: every stall ≥ 49,365 |
+
+**So the outcome is outside the predicted set. Stopped; no fix proposed or written.**
+
+**What the data shows, as facts:**
+- **At Weatherscope's fire, the next frame is late by about 100 ms** with a reading host (M1, and M3's last two), and **by 0.46-0.79 s when nothing has opened the port since boot** (M2).
+- **In M2 the extra time is spent inside the serial writes**, and the writes come back short.
+- **Blipscope's fire** (A9.30's code table) does no recomposition and prints two lines.
+
+**My reading of the framework was wrong for M2 and M3.** The alternatives for M2's slow, short writes are named, not decided; this data cannot separate them:
+- (a) the host had picked up a packet at enumeration, so `connected` was true while no application drained the port. But each call averaged about 28-45 ms, which is not the 100 ms × 20 shape I read in `write`;
+- (b) the writes failed to take `tx_lock` (a 100 ms wait, then a return of 0, counted as short) while another write held it;
+- (c) something in HWCDC I have not read.
+
+M3's open-but-unread port showed **no** backpressure in 75 s. That fits the operating system's driver buffering while the port is open, **an alternative I did not name in A9.30**.
+
+**Two flaws in my own instrument, named so they are not read past:**
+- **The `build_us`/`print_us` split:** `BuildScenario` calls `PrintCopyStats()` through `Serial.printf`, not `Out()`. In M2 any blocking there is counted as `build_us`, so **M2's split is not trustworthy. The stall is**: it comes from push times alone.
+- **No screen in the records:** they carry neither the scenario nor the radius. The table's middle column was joined from the trace by order.
+
+**For Daniel, the question still stands** (A9.30): where was each board plugged in when he saw it, and how long did the pause feel? About 0.1 s matches M1/M3; about half a second or more matches M2.
+
+**Next:** a ruling. No change to the fire's behaviour is made, and 3.5b's work (A10.11) continues on its own track.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
