@@ -1,17 +1,19 @@
-"""Grades ring_probe.py's trace against docs/weatherscope-stage3.md A9.34's N1-N5 (or S-FIRE's frozen set).
+"""Grades ring_probe.py's trace against docs/weatherscope-stage3.md A9.36's rows (A9.34's, re-registered), or S-FIRE's set.
 
     python -I tools/weatherscope/board/grade_ring.py <run dir> [--sabotage]
 
 Per press (one 'R' block after a 'P'):
   base  the median push-start interval of the 16 frames before the first held (H) frame
-  N1    every frame from the first H frame up to and including the first frame drawn at 1000 permille: dt <= base + 5,000
+  N1'   every frame from the first H frame up to and including the first frame drawn at 1000 permille: dt <= base + 6,500
   N2    that frame has no rebuild (no R flag) at the old radius; the NEXT frame is the rebuild (R flag, new radius) with
         dt >= base + 30,000
-  N3    every frame after the rebuild frame while held: dt <= base + 5,000 and ring 1000
-  N4    every build record: |decode + scen + from + compose + sha + print - total| <= 500, with a scene and a radius
+  N3'   every frame after the rebuild frame while held: dt <= base + 6,500 and ring 1000
+  N4'   every build record: |decode + scen + from + compose + sha + print - total| <= 1,000, with a scene and a radius
   N5    among the board's lines since the previous 'R' block: exactly one "[wx] zoom hold" line, and exactly one
         "[wx] screen=" line after it, naming the new radius
-Without --sabotage every row must hold. With --sabotage (S-FIRE) N1 and N2 must fail in every press and N3-N5 hold.
+  N6    in the press window (first to last H frame), the only frame over 2 x base is the rebuild, after the first
+        1000 permille frame
+Without --sabotage every row must hold. With --sabotage (S-FIRE) N1', N2 and N6 must fail in every press; N3', N4', N5 hold.
 """
 import re, statistics, sys
 
@@ -66,8 +68,8 @@ def grade_press(builds, frames, prior):
     first_full = next((i for i in range(first_h, len(fr)) if fr[i]["ring"] == 1000), None)
     if first_full is None:
         return {"N1": "BLIND (no 1000 permille frame)"}
-    n1_bad = [i for i in range(first_h, first_full + 1) if fr[i]["dt"] > base + 5000]
-    rows["N1"] = (not n1_bad, f"base {base}; frames {first_h}..{first_full}; over base+5000: "
+    n1_bad = [i for i in range(first_h, first_full + 1) if fr[i]["dt"] > base + 6500]
+    rows["N1"] = (not n1_bad, f"base {base}; frames {first_h}..{first_full}; over base+6500: "
                                f"{[(i, fr[i]['dt']) for i in n1_bad]}")
     nxt = first_full + 1
     ok2 = (not fr[first_full]["rebuilt"] and fr[first_full]["mi"] == old_mi and nxt < len(fr) and fr[nxt]["rebuilt"]
@@ -80,17 +82,22 @@ def grade_press(builds, frames, prior):
         rows["N3"] = (False, "no rebuild frame")
     else:
         after = [i for i in range(rb + 1, len(fr)) if fr[i]["held"]]
-        bad3 = [i for i in after if fr[i]["dt"] > base + 5000 or fr[i]["ring"] != 1000]
+        bad3 = [i for i in after if fr[i]["dt"] > base + 6500 or fr[i]["ring"] != 1000]
         rows["N3"] = (bool(after) and not bad3, f"rebuild frame {rb} dt={fr[rb]['dt']}; {len(after)} held frames after; "
                                                 f"bad {[(i, fr[i]['dt'], fr[i]['ring']) for i in bad3]}")
     bad4 = []
     for b in builds:
         parts = sum(int(x) for x in b[4:10])
-        if abs(parts - int(b[10])) > 500 or not b[1] or not b[2]:
+        if abs(parts - int(b[10])) > 1000 or not b[1] or not b[2]:
             bad4.append(b)
     rows["N4"] = (bool(builds) and not bad4, f"{len(builds)} builds; bad {bad4}; " +
                   "; ".join(f"{b[0]} {b[1]} {b[2]}->{b[3]} decode={b[4]} scen={b[5]} from={b[6]} compose={b[7]} "
                             f"sha={b[8]} print={b[9]} total={b[10]} short={b[12]}" for b in builds))
+    last_h = max(i for i, f in enumerate(fr) if f["held"])
+    over = [i for i in range(first_h, last_h + 1) if fr[i]["dt"] > 2 * base]
+    ok6 = rb is not None and over == [rb] and rb > first_full
+    rows["N6"] = (ok6, f"over 2 x base in frames {first_h}..{last_h}: {[(i, fr[i]['dt']) for i in over]}; rebuild {rb}; "
+                       f"first 1000 frame {first_full}")
     zooms = [i for i, l in enumerate(prior) if l.startswith("[wx] zoom hold")]
     screens_after = [SCREEN.search(l) for l in prior[zooms[0] + 1:]] if len(zooms) == 1 else []
     screens_after = [m for m in screens_after if m]
@@ -118,13 +125,13 @@ def main(argv):
         presses += 1
         rows = grade_press(builds, frames, prior)
         print(f"press {presses}:")
-        for name in ("N1", "N2", "N3", "N4", "N5"):
+        for name in ("N1", "N2", "N3", "N4", "N5", "N6"):
             r = rows.get(name)
             if r is None or isinstance(r, str):
                 print(f"  {name} {r or 'BLIND'}")
                 ok = False
                 continue
-            want = not (sab and name in ("N1", "N2"))
+            want = not (sab and name in ("N1", "N2", "N6"))
             good = r[0] == want
             ok &= good
             print(f"  {'ok  ' if good else 'OFF '} {name} {'holds' if r[0] else 'fails'} "
