@@ -4357,6 +4357,24 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **What Daniel still feels on his PC** is item 2's serial stall (A9.38), and item 2 starts after #484.
 - **The zoom-free speed-up** is revisited after item 2.
 
+### A9.41 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): #484 approved; merged
+
+**The ruling, verbatim:**
+
+> Approval for #484 (reviewer chat, 2026-10-26)
+>
+> Approved to merge #484 at 4f19cf3ad139e5b0b2a9c1bd8cdd0560a6c4191f. CI on that head: 35 check-runs, 32 success, 3 skipped, 0 failures. Squash, no --admin. If the head moves, this approval lapses.
+>
+> Checked independently: it merges cleanly onto main (962ccb7); against main it changes only src/weatherscope/WeatherscopeManager.{h,cpp} and tools/weatherscope/board/; the zoom is stored at the fire and applied at the start of the next Update; P/L are stored-mode only; the frame and build logs print only on R, never per frame. A9.40 as reported: 36 of 36 rows on the fresh run.
+>
+> After the merge, item 2 starts, with Daniel's glass row in it.
+
+**#484, merged.**
+- **The checks first:** its head was still `4f19cf3ad139`, ready, `CLEAN`, with no PR based on its branch.
+- **The merge:** squash with `--match-head-commit 4f19cf3ad139…`, no `--admin`, at **2026-10-26T22:17:35Z**, as **`a6c2906e2183`**. Its parent is `962ccb7`, and its tree is **identical to `4f19cf3ad139`'s** (compared). It is main's tip. The branch was deleted.
+
+**Item 1 is closed.** Item 2 starts: its predictions (A9.42) come before any of its code.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
