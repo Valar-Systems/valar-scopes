@@ -365,7 +365,11 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     // Cache-Control: the Missileer /config poll honours the server's max-age
     // (Fable, 2026-09-23) -- it is the HOLD kill-switch cadence, so the device
     // must follow the number the server chose rather than a baked one.
-    static const char* kCollectHeaders[] = { "Transfer-Encoding", "X-Cache", "X-Upstream", "Cache-Control" };
+    // X-Rate-Limit-*: OpenSky's credit headers (its REST docs, "API Credits"), for the
+    // Missileer's OpenSky command-post watch, which backs off on a 429 until the time the
+    // server gives. Two more slots; nothing else reads them.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding", "X-Cache", "X-Upstream", "Cache-Control",
+                                             "X-Rate-Limit-Remaining", "X-Rate-Limit-Retry-After-Seconds" };
     const unsigned long reqStartMs = millis();
     int responseCode = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -375,7 +379,7 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         http.setConnectTimeout(5000);
         http.setTimeout(5000);
-        http.collectHeaders(kCollectHeaders, 4);
+        http.collectHeaders(kCollectHeaders, sizeof(kCollectHeaders) / sizeof(kCollectHeaders[0]));
         for (const auto& header : headers)
             http.addHeader(header.first, header.second);
         responseCode = http.GET();
@@ -393,10 +397,13 @@ HttpResult HttpRequestManager::GetJsonImpl(const String& url, JsonDocument& doc,
     netwatch::RecordOutcome(responseCode > 0);
 
     if (responseCode > 0) {
-        // Attribution first: valid even on the paths that bail out below.
+        // Attribution first: valid even on the paths that bail out below (a 429's
+        // body is not JSON, and its Retry-After must still reach the caller).
         result.cacheState = http.header("X-Cache");
         result.upstream = http.header("X-Upstream");
         result.cacheControl = http.header("Cache-Control");
+        result.rateLimitRemaining = http.header("X-Rate-Limit-Remaining");
+        result.rateLimitRetryAfter = http.header("X-Rate-Limit-Retry-After-Seconds");
         DeserializationError err;
         const unsigned long parseStartMs = millis();
         const int bodyLen = http.getSize();

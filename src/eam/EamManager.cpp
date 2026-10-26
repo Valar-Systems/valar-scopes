@@ -7,6 +7,7 @@
 
 #include "Layout.h"
 #include "EamModels.h"
+#include "AbncpWatch.h"           // the abncp-watch splitter, shared with the config page
 #include "UsbOpen.h"
 
 #if defined(FEATURE_EAM_GAME)
@@ -92,13 +93,14 @@ void EamManager::Initialise()
         cfg.abncpSource = EamFeedClient::AbncpSource::OpenSky;
         cfg.openskyId = configServer.GetStoredString("opensky-id");
         cfg.openskySecret = configServer.GetStoredString("opensky-secret");
-        // Fall back to the default watch when the PARSED list is empty, not just the
-        // raw string: a stray comma/space in a cleared textarea is a non-empty string
-        // that splits to zero hexes (which would leave the provider inert).
+        // The user's own hexes, and nothing else: this is THEIR list, and the config page shows
+        // only it (the old seed, ae0451..ae0454 marked PLACEHOLDER, was four C-2A Greyhounds).
+        // The provider's query adds the four built-in E-4B addresses on top (AbncpWatch.h,
+        // ruled 2026-10-12), so an empty list here still watches the E-4Bs, and no edit to
+        // this list can remove them. Split with the SAME splitter the config page uses to mark
+        // invalid entries (AbncpWatch.h), raw; the query canonicalises and drops the invalid.
         const String watch = configServer.GetStoredString("abncp-watch");
-        cfg.abncpWatch = watch.length() ? SplitList(watch, true) : std::vector<String>();
-        if (cfg.abncpWatch.empty())
-            cfg.abncpWatch = eam::DefaultAbncpWatch();
+        cfg.abncpWatch = abncp::SplitWatchList<String, std::vector<String>>(watch.c_str());
     } else {
         cfg.abncpSource = EamFeedClient::AbncpSource::Backend;
     }

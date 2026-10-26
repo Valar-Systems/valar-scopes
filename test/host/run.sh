@@ -844,6 +844,28 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# The command-post identity rules (ruled 2026-10-12): an ABNCP row is an E-4B
+# when its hex is one of the four cited E-4B addresses (ADFEB3..ADFEB6) and its
+# type, if stated, is B742 or E4; or when it is typed B742 AND carries one of the
+# four public registrations, which is also the second check wherever a registration
+# is stated. Never B742 alone: the VC-25As are B742 too. Pure header, no -I needed.
+echo
+echo "== ABNCP identity (E-4B = cited hex + B742/E4; B742 + public registration) =="
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_abncp_identity.cpp" -o "$OUT/test_abncp_identity.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the abncp identity tests did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_abncp_identity.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
 # The Follow label sanitiser. Exists because a charset filter allowing only
 # A-Z0-9 reached a bench board and mangled every hyphenated registration:
 # G-ABCD -> GABCD. The output still LOOKS like an identifier, which is what

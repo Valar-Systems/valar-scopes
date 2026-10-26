@@ -136,7 +136,12 @@ struct Launch {
 
 // ----------------------------------------------------------------------------- ABNCP watch
 struct AbncpAircraft {
-    String type;                     // "E-4B" / "E-6B" / "" (best-effort)
+    String type;                     // "E-4B" (AbncpIdentity.h rule), else the source's raw type, or ""
+    // As the source states it. Neither source states one today (the backend row has no
+    // registration field; an OpenSky state vector has none), so this stays "" and the hex
+    // table names the row. Where a source does state one, it is the second check
+    // (AbncpIdentity.h): a registration that is not one of the four E-4Bs names nothing.
+    String registration;
     String callsign;
     String hex;                      // ICAO24
     bool hasPos = false;
@@ -231,6 +236,11 @@ struct EamFetchResult {
     MilAir milair;
     GameConfig gameConfig;           // GameConfig
     String cacheControl;             // GameConfig: the response's Cache-Control, for the poll cadence
+    // AbncpOpenSky: OpenSky's answer beyond the body (src/eam/OpenSkyLimit.h). A 429 is a
+    // failed fetch (ok == false) whose Retry-After decides when the watch polls next.
+    int httpStatus = 0;              // 0 = no round trip (or no token)
+    String rateLimitRemaining;       // X-Rate-Limit-Remaining, "" if absent
+    String rateLimitRetryAfter;      // X-Rate-Limit-Retry-After-Seconds, "" if absent
 };
 
 // -------------------------------------------------------------------------------- parsers
@@ -248,14 +258,12 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out);                      
 bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap);               // {base}/status/milair shape
 bool ParseGameConfig(JsonObjectConst root, GameConfig& out);                    // /api/v1/missileer/config; strict
 
-// Best-effort classification of an ABNCP aircraft from its hex/callsign (used by the OpenSky
-// path, which has no type field). Returns "E-4B", "E-6B", or "".
-String ClassifyAbncp(const String& hex, const String& callsign);
-
-// Default ICAO24 seed for the OpenSky command-post watch: the four E-4B "Nightwatch" hexes.
-// PLACEHOLDERS -- verify against a live tracker before relying on them. The user can edit the
-// list in web config; allow adding E-6B by hex/callsign.
-std::vector<String> DefaultAbncpWatch();
+// Name an ABNCP aircraft from what its source states (AbncpIdentity.h, ruled 2026-10-12).
+// "E-4B" when its hex is one of the four cited E-4B addresses (ADFEB3..ADFEB6) and its type is
+// B742, E4 or absent; where a registration is stated it must also be one of the four, and B742 plus
+// such a registration names it too. "" otherwise. There is no default OpenSky watchlist: the
+// old one was four C-2As marked PLACEHOLDER.
+String ClassifyAbncp(const AbncpAircraft& ac);
 
 // Parse "YYYY-MM-DDThh:mm:ss" (UTC, trailing zone/fraction ignored) to a Unix epoch; 0 on failure.
 long Iso8601ToEpoch(const String& s);

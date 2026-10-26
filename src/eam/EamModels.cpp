@@ -1,4 +1,6 @@
 #include "EamModels.h"
+#include "AbncpIdentity.h"
+#include "AbncpWatch.h"
 
 #include <cstdio>
 #include <cstring>
@@ -28,12 +30,6 @@ MsgType ParseType(const String& t)
     if (t == "eam") return MsgType::Eam;
     return MsgType::Unknown;
 }
-
-// PLACEHOLDER E-4B "Nightwatch" ICAO24 hexes. The OpenSky command-post watch has no type field,
-// so we tag these as E-4B. VERIFY against a live tracker (adsb.lol / ADS-B Exchange) before
-// relying on them -- the fleet's hex assignments change. These are also the default seed for the
-// OpenSky watchlist (see EamFeedClient); the user can edit the list in web config.
-const char* const kE4bHexes[] = { "ae0451", "ae0452", "ae0453", "ae0454" };
 
 } // namespace
 
@@ -233,6 +229,12 @@ bool ParseAbncpBackend(JsonObjectConst root, Abncp& out)
                 ac.lat = a["lat"].as<double>();
                 ac.lon = a["lon"].as<double>();
             }
+            // Named "E-4B" when its hex is in the cited table and its type is B742, E4 or absent;
+            // AbncpIdentity.h. Any other row keeps its raw type: a VC-25A is B742 too, but its
+            // hex is not in the table. The backend row carries no registration
+            // (valar-eam-feed types.ts AbncpAircraft), so the registration check never runs here.
+            const String named = ClassifyAbncp(ac);
+            if (named.length()) ac.type = named;
             out.aircraft.push_back(std::move(ac));
         }
     }
@@ -249,9 +251,22 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
     out.aircraft.clear();
     out.airborne = false;
     if (root["states"].is<JsonArrayConst>()) {
+        // At most 8 kept (not raised: heap), and WHICH 8 is ruled (2026-10-12): the built-in
+        // E-4Bs first, then the user's, each in response order (AbncpWatch.h SelectWithinCap).
+        // Only the first 64 well-formed states are considered, so a hostile/huge reply cannot
+        // grow the scan; the query itself is at most the user's list + 4.
+        constexpr size_t kKeep = 8;
+        constexpr size_t kScan = 64;
+        std::vector<JsonArrayConst> rows;
+        std::vector<String> hexes;
         for (JsonArrayConst s : root["states"].as<JsonArrayConst>()) {
-            if (out.aircraft.size() >= 8) break; // the watchlist is a handful of hexes; bound a hostile/huge reply
+            if (rows.size() >= kScan) break;
             if (s.size() < 9) continue;
+            rows.push_back(s);
+            hexes.push_back(s[0].as<String>());
+        }
+        for (size_t k : abncp::SelectWithinCap(hexes, kKeep)) {
+            JsonArrayConst s = rows[k];
             AbncpAircraft ac;
             ac.hex = s[0].as<String>();
             ac.callsign = s[1].as<String>();
@@ -262,7 +277,9 @@ bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out)
                 ac.lat = s[6].as<double>();
             }
             const bool onGround = s[8].is<bool>() ? s[8].as<bool>() : false;
-            ac.type = ClassifyAbncp(ac.hex, ac.callsign);
+            // A state vector states no aircraft type and no registration, so the hex alone
+            // decides: "E-4B" when it is in the cited table (AbncpIdentity.h), "" otherwise.
+            ac.type = ClassifyAbncp(ac);
             if (!onGround) out.airborne = true;
             out.aircraft.push_back(std::move(ac));
         }
@@ -301,22 +318,11 @@ bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap)
     return true;
 }
 
-String ClassifyAbncp(const String& hex, const String& callsign)
+String ClassifyAbncp(const AbncpAircraft& ac)
 {
-    String h = hex;
-    h.toLowerCase();
-    for (const char* e4b : kE4bHexes)
-        if (h == e4b) return "E-4B";
+    if (abncp::IdentifyE4b(ac.hex.c_str(), ac.type.c_str(), ac.registration.c_str())) return "E-4B";
     // E-6B Mercury callsigns are not fixed; leave unknown unless the caller knows better.
-    (void)callsign;
     return "";
-}
-
-std::vector<String> DefaultAbncpWatch()
-{
-    std::vector<String> out;
-    for (const char* h : kE4bHexes) out.push_back(String(h));
-    return out;
 }
 
 long Iso8601ToEpoch(const String& s)

@@ -4,6 +4,7 @@
 #include <vector>
 #include <utility>
 
+#include "AbncpWatch.h"
 #include "EamModels.h"
 
 // Command-post watch ("ABNCP") data path, behind one firmware-side interface so the rest of the
@@ -20,7 +21,8 @@
 //      therefore wrong most of the time and unverifiable the rest of it. Attribution for
 //      both lives where it can be kept accurate: the config page and /credits.
 //   2. OpenSkyAbncpProvider (bring-your-own-account) -- queries OpenSky DIRECTLY from the device
-//      with the USER's own OAuth credentials, filtered to an ICAO24 watchlist. It MUST NOT route
+//      with the USER's own OAuth credentials, filtered to an ICAO24 watchlist: the user's own
+//      hexes plus the four built-in E-4B addresses (AbncpWatch.h, ruled 2026-10-12). It MUST NOT route
 //      through the Valar backend, and there is NEVER a shared/baked-in OpenSky key: with blank
 //      credentials the provider is inert (BuildRequest returns false, InertReason explains why).
 //
@@ -71,16 +73,24 @@ private:
 // ----------------------------------------------------------------- OpenSky (your account)
 class OpenSkyAbncpProvider : public AbncpProvider {
 public:
-    OpenSkyAbncpProvider(String clientId, String clientSecret, std::vector<String> icaoWatch)
-        : id(std::move(clientId)), secret(std::move(clientSecret)), watch(std::move(icaoWatch)) {}
+    // `userWatch` is the user's own list, as typed (EamManager splits and lower-cases it). The
+    // query adds the four built-in E-4B addresses (AbncpWatch.h): ruled 2026-10-12, "OpenSky
+    // mode always includes the four built-in E-4B hexes (ADFEB3-ADFEB6) in its watchlist
+    // query, alongside the user's own hexes." Built once here, not per poll.
+    OpenSkyAbncpProvider(String clientId, String clientSecret, const std::vector<String>& userWatch)
+        : id(std::move(clientId)), secret(std::move(clientSecret)),
+          watch(abncp::OpenSkyWatchQuery<String>(userWatch)) {}
 
-    uint32_t IntervalMs() const override { return 90000; } // ~90 s, never faster than 60 s
+    // 300 s, its own fixed interval (ruled 2026-10-12), x2 Relaxed / x4 Battery via the EAM
+    // refresh scale. At 4 credits a query (measured, see the PR), 288 polls/day = 1,152 credits.
+    uint32_t IntervalMs() const override { return 300000; }
     const char* Name() const override { return "OpenSky (your account)"; }
 
     const char* InertReason() const override
     {
         if (id.isEmpty() || secret.isEmpty()) return "needs your OpenSky credentials";
-        if (!HasWatchEntries()) return "watchlist is empty";
+        // Unreachable while the four built-ins exist; kept so an empty query can never be sent.
+        if (watch.empty()) return "watchlist is empty";
         return nullptr;
     }
 
@@ -89,10 +99,10 @@ public:
         if (id.isEmpty() || secret.isEmpty())
             return false; // inert: never call OpenSky without the user's own credentials
 
-        // Inert on an empty watchlist too: with zero icao24 filters the request
-        // below becomes an UNFILTERED global /states/all -- several MB of JSON
-        // that exhausts the heap every cycle and burns the user's OpenSky credits.
-        if (!HasWatchEntries())
+        // Never with zero icao24 filters: that request is an UNFILTERED global /states/all --
+        // several MB of JSON that exhausts the heap every cycle. The built-in four mean an empty
+        // USER list no longer gets here; this guard stays for the list itself.
+        if (watch.empty())
             return false;
 
         req.endpoint = EamEndpoint::AbncpOpenSky;
@@ -100,25 +110,20 @@ public:
         req.needsOpenSkyToken = true;
         req.openskyId = id;
         req.openskySecret = secret;
-        // Filter to the watchlist hexes (E-4B can be anywhere, so no bbox). OpenSky accepts a
-        // repeated icao24 param. extended=1 includes the category column.
+        // One request, filtered to the user's hexes plus the four built-ins (a command post can
+        // be anywhere, so no bbox). OpenSky accepts a repeated icao24 param and can filter on
+        // nothing else. Its rows state no type and no registration, so they are named from the
+        // hex table alone (AbncpIdentity.h). extended=1 includes the category column.
         for (const String& h : watch)
-            if (h.length()) req.params.push_back({"icao24", h});
+            req.params.push_back({"icao24", h});
         req.params.push_back({"extended", "1"});
         return true;
     }
 
 private:
-    bool HasWatchEntries() const
-    {
-        for (const String& h : watch)
-            if (h.length()) return true;
-        return false;
-    }
-
     String id;
     String secret;
-    std::vector<String> watch;
+    std::vector<String> watch; // the query: canonical, de-duplicated, never empty
 };
 
 } // namespace eam
