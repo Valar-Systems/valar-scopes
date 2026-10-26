@@ -785,3 +785,27 @@ show that a Bend device feeds production again.
   production `/blips`, so Bend has its feed source.
 
 **Nothing else is changed.** The fix, the predictions for it, and when to resume the captures wait for a ruling.
+
+**CORRECTION, before any fix (2026-10-26): the mechanism stated above is wrong; the code shows another.**
+- **What was wrong:** "every loop pass between the send and the reply queues another request" cannot happen.
+  - The loop schedules a fetch only behind `if (!fetchInFlight)` (`AircraftManager.cpp:1717`).
+  - The fetch queue is depth 1, one outstanding at most (`:2662`).
+  - So the 23 requests were **sequential**, one round trip each: about 200 ms apart, which matches the server's
+    record.
+- **What happens, all read from the source:**
+  1. `Update()` captures `now = millis()` at the start of the pass (`:1438`).
+  2. Later in that pass, `ConsumeFetchResult()` (`:1708`) hands the weather reply to `ConsumeWeather`, which calls
+     `wxpolicy::OnResponse(..., millis())`. That sets `lastAttemptMs` a few ms **after** `now`.
+  3. The same pass then asks `wxpolicy::ShouldFetch(wxState, enabled, now)`. `(uint32_t)(now - lastAttemptMs)` is
+     negative, so it **underflows** to about 2^32, which is ≥ the 60 s interval, and the answer is "due" at once.
+  4. The request goes out, the reply returns about 200 ms later, and the cycle repeats.
+- **Why it ended at 22:21:47Z:** a pass where the **feed** was due took the turn (the server's record shows a `/blips`
+  at 22:21:47Z). The following pass consumed a feed result, not a weather reply, so `lastAttemptMs` was older than
+  `now`, the difference came out small and positive, and the answer was "not due".
+- **The alternative, excluded:** concurrent queued requests. The `!fetchInFlight` gate and the depth-1 queue rule them
+  out, and so does the requests' ~200 ms spacing.
+- **What this means for the ruled fix:** recording the attempt at the **send**, with the pass's own `now`, means a
+  reply never touches the interval's start, so this underflow cannot arise.
+  - **But a host test can reproduce the old wiring's burst only if it drives the loop in the device's order:** `now`
+    taken at the start of the pass, the reply consumed afterwards at a later clock.
+  - **So the simulation is built that way,** and the predictions below say so.
