@@ -4455,6 +4455,33 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **No code before this addendum is pushed.**
 
+### A9.43 Item 2 on the board: W and X as predicted on every bench row; the charger and the glass are Daniel's (2026-10-26)
+
+**The builds** (branch `weatherscope/serial-nonblocking`, off main `a6c2906`):
+- **W** (`6494530`): the diag only, main's 2 ms timeout. `firmware.bin` sha256 `63718c0d1ddb…`.
+- **X** (`732c0a9`): W plus `setTxTimeoutMs(0)` on HWCDC builds. sha256 `110aac9a959c…`.
+- **How they went on:** each written to the app slot by `esptool write_flash`, hash verified, with the port never opened afterwards until M2's read. M2 was read over `/diag/wx` at flash end + 150 s (one attempt each, HTTP 200). Then one serial open: 3 bench presses under M1, then 3 under M3.
+- **The records:** `tools/weatherscope/board/run-2026-10-26-serial{W,X}/`, LAN IP and BSSID redacted.
+- **Afterwards:** the board was put back into X's app at 22:48:19Z, its port unopened since.
+
+**The rows** (`grade_serial.py`):
+
+| row | prediction | W (2 ms) | X (0 ms) |
+|---|---|---|---|
+| M2, the paths | W: every short write is (a), none is (b) | **44 short writes, all (a)** (`connected`, ≥ 15 ms, short); **0 on (b)** | **all 64 writes ≤ 74 µs** |
+| M2, the cost | W: a build with `print` ≥ 300 ms and frame ≥ 400 ms. X: `print` < 5 ms, frames ≤ M1's largest + 10 ms | `print` **440-679 ms**, frames **584-803 ms** (here now, warning, stale) | `print` **0.6-1.5 ms**; frames **125-145 ms** against M1's largest 150 ms |
+| M1 | every write `connected`, < 2 ms, written in full; `print` < 5 ms | 87 writes, all so; frames 91-151 ms | 87 writes, all so; **lock drops 0**; frames 91-150 ms |
+| M3 | as M1 | 89 writes, all so | 89 writes, all so |
+
+- **(a)-(c) are settled.** The records show `connected` = 1 on every short write in M2, a port no application had opened. So the host's driver had picked up packets with no open handle, and `write()` waited 20 × 2 ms per call. (b) does not occur. Nothing outside (a) and (b) occurred.
+- **"M2's stall falls to M1's": yes.** X's M2 build frames (125-145 ms) sit inside M1's own range (91-150 ms).
+- **The sabotage:** the old timeout (W) brings it back, at 584-803 ms.
+- **Not yet run:**
+  - **the charger row:** Daniel moves the board to a USB charger, and the records are read over `/diag/wx`;
+  - **the glass row:** Daniel, on his PC with no serial window, the zoom about a tenth of a second after the ring closes. His presses can also be read from `/diag/wx` afterwards.
+
+**The PR:** opened as a draft for CI. It goes to approval once the charger and glass rows are in.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
