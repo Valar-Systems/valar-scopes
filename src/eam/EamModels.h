@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>
 
 #include "../game/Derive.h"
+#include "GameConfig.h"  // GameConfig + ParseGameConfig, with no Arduino.h (host-tested)
 
 // Typed models for the valar-eam-feed backend plus the parsers that build them off the wire,
 // and the request/result envelopes the background poller hands across the task boundary.
@@ -181,25 +182,6 @@ enum class EamEndpoint : uint8_t {
     GameConfig
 };
 
-// ------------------------------------------------------------------- Missileer game config
-// GET {eam-base-url}/api/v1/missileer/config -- the served parameters the drill needs.
-//
-// PARSED STRICTLY, and `valid` means every field below was present and well-typed. A
-// server still serving the pre-ppm shape (`weight` floats) parses as NOT valid, and the
-// device then refuses to derive rather than guessing a scale (Fable, 2026-09-23: no
-// config in hand -> the message is an ordinary EAM). The derivation spec is valar-eam-feed
-// docs/game-derivation.md.
-struct GameConfig {
-    bool valid = false;
-    bool hold = false;               // §1.2 kill switch: no game surfaces at all
-    game::DeriveParams params;       // epoch + ORDERED ppm weights + tOffset tiers
-    uint32_t ackCutoffS = 0;         // never Offered within this of T
-    uint32_t autoDecodeS = 0;        // Offered banner shows the class after this (0 = never)
-    uint32_t maxClockSyncAgeS = 0;   // arm only with an SNTP sync younger than this (0 = never)
-    uint32_t windowUs = 0;           // §12 execution window, from timing.executionWindowS
-    uint32_t bucketUs = 0;           // scoring.bucketS, for the deviation figure (0 = unknown)
-};
-
 // Loop -> worker: a single GET to perform, fully built on the loop task. For AbncpOpenSky the
 // worker first exchanges the user's OpenSky credentials for a bearer token (off-loop), so the
 // id/secret travel here; they are never logged and never sent anywhere but OpenSky's auth host.
@@ -246,7 +228,6 @@ bool ParseLaunches(JsonObjectConst root, std::vector<Launch>& out, size_t cap);
 bool ParseAbncpBackend(JsonObjectConst root, Abncp& out);                       // {base}/status/abncp shape
 bool ParseOpenSkyStates(JsonObjectConst root, Abncp& out);                      // normalize states/all vectors
 bool ParseMilAir(JsonObjectConst root, MilAir& out, size_t cap);               // {base}/status/milair shape
-bool ParseGameConfig(JsonObjectConst root, GameConfig& out);                    // /api/v1/missileer/config; strict
 
 // Best-effort classification of an ABNCP aircraft from its hex/callsign (used by the OpenSky
 // path, which has no type field). Returns "E-4B", "E-6B", or "".

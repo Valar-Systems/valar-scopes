@@ -54,6 +54,17 @@ INCLUDES="-I$ROOT/src/game"
 # reach it. A firmware TU that could include it would have the expected answers
 # available to the code being graded, which is the end of the test.
 FIXTURE_INCLUDES="-I$ROOT/test/fixtures"
+# ONLY for the GameConfig test binary, and deliberately NOT in $INCLUDES:
+# ArduinoJson, taken from .pio/libdeps -- the copy PlatformIO installed from
+# platformio.ini's pin -- so ParseGameConfig is graded against the library the
+# firmware links, never a vendored copy that could drift. It exists once any env
+# has been built (CI's host-tests job builds blipscope-s3-128 first). Empty means
+# that block is BLIND and exits 2, never a skip; and the test itself refuses
+# (exit 2) an ArduinoJson whose version differs from the pin, so parity is a
+# check rather than a comment (docs/game-config-parse-test.md).
+AJSON_SRC="$(ls -d "$ROOT"/.pio/libdeps/*/ArduinoJson/src 2>/dev/null | head -1)"
+JSON_INCLUDES="${AJSON_SRC:+-I$AJSON_SRC}"
+AJSON_PIN="$(sed -n 's|.*bblanchon/ArduinoJson @ \([0-9.]*\).*|\1|p' "$ROOT/platformio.ini" | head -1)"
 # -static-*: the MinGW build otherwise needs libstdc++-6.dll and
 # libgcc_s_dw2-1.dll from the toolchain's bin/ on PATH, and without them the
 # test binary exits 127 -- "error while loading shared libraries" -- which is a
@@ -1329,6 +1340,39 @@ fi
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   echo "FAIL: the replay test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# --- the served game config, through the device's parser (GameConfig.h) ------
+#
+# ParseGameConfig reads /api/v1/missileer/config. Its input here is the SERVER's
+# config -- test/fixtures/game-config.json's `config` block, generated from the
+# deployed service (test/fixtures/README.md) -- and the version-1 block from git
+# history, which it must refuse. Built from src/eam/GameConfig.cpp alone, with
+# ArduinoJson from .pio/libdeps (JSON_INCLUDES, above). LAST on purpose: a BLIND
+# here exits 2, and no other block is left unrun behind it. Its sabotages and
+# predictions: docs/game-config-parse-test.md.
+echo
+echo "== GameConfig (the served /config, through ParseGameConfig) =="
+if [ -z "$JSON_INCLUDES" ]; then
+  echo "  BLIND: no ArduinoJson under .pio/libdeps (run pio run once)"
+  echo "FAIL: the GameConfig test could not be built (BLIND)"
+  exit 2
+fi
+if ! "$CXX" $FLAGS $JSON_INCLUDES \
+      "$ROOT/src/eam/GameConfig.cpp" \
+      "$ROOT/test/host/test_game_config.cpp" \
+      -o "$OUT/test_game_config.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the GameConfig test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_game_config.exe" "$ROOT/test/fixtures/game-config.json" \
+  "$ROOT/test/fixtures/game-config-v1.config.json" "$AJSON_PIN"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the GameConfig test did not run, or could not trust its inputs (exit $rc). This is the RIG, not the code."
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1

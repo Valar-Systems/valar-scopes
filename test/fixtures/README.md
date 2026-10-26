@@ -62,9 +62,36 @@ computing.
 ### Provenance
 
 Every regeneration stamps `source_url`, `fetched_at`, `config_epoch`, and
-`server_commit`. `server_commit` is currently **NULL** with its reason recorded:
-the deployed `/status` carries no commit field yet. That is the honest value —
-not a blank, and not a guess.
+`server_commit`. The deployed `/status` now carries a `commit` field, so
+`server_commit` names the commit that served the config. Until 2026-10-25 it
+was **NULL**, with its reason recorded, because `/status` had no such field. If
+it ever reads NULL again, that is still the honest value: not a blank, and not a
+guess.
+
+The 2026-10-25 regeneration, from version 1 to version 2, changed only the
+`config` block: weights became integer `ppm`, and `autoDecodeS` and
+`maxClockSyncAgeS` were added. Not one expected string changed, so
+`test_game_format.cpp`'s results were identical before and after
+(`docs/game-config-fixture-v2.md`). At the time, nothing read the `config`
+block.
+
+**Now [`../host/test_game_config.cpp`](../host/test_game_config.cpp) does.** It
+feeds the `config` block through the device's own parser, `ParseGameConfig`
+(`src/eam/GameConfig.h`). Every field must equal the JSON, and the live values
+are also named, so if a regeneration moves one, that shows up in a diff.
+
+## `game-config-v1.config.json`
+
+**Frozen. Not generated, and never regenerated.** It holds the version-1
+`config` block, copied from git history: the fixture as it was before the
+2026-10-25 regeneration. Its `provenance.copied_from` names the commit and path.
+- Its weights are float `weight`s with no `ppm`, the shape `ParseGameConfig`
+  must **refuse**.
+- `test_game_config.cpp` asserts that refusal, and first checks that the file
+  really is that shape. Without that control, an empty file would also be
+  refused, and the row would pass having tested nothing.
+- The drift job never compares it with anything: it is history, not a snapshot
+  of the server.
 
 ## `derivation_fixture.h`
 
