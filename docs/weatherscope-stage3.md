@@ -3962,6 +3962,20 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **No fix is proposed or written before the measurement and a ruling.**
 
+### A9.31 Build M, built; one reading of A9.30 fixed before the run (2026-10-26)
+
+**The reading.** A9.30 defines the baseline as "the median of the 16 push-to-push intervals before the fire".
+- **It is read as one push's end to the next push's start:** the same span as the stall's gap.
+- **Why:** a start-to-start interval also holds the push itself (about 25.8 ms), so it would subtract that from every stall. The table's numbers (C1's 35,000-60,000, C3's < 15,000) are about the extra time only, which needs like against like.
+- **No prediction moves.**
+
+**Build M:**
+- **What it is:** branch `weatherscope/hold-pause-probe`, `5da509e` (the code) and `dffcd4d` (the runner, `tools/weatherscope/board/hold_probe.py`), cut from main's `0091f2350cc9`. Pushed only after its 13.3 pre-push check.
+- **The image:** `firmware.bin` sha256 `d589acfdb4e0…`, 1,626,560 B. It differs from G's (`de3730c80072…`, 1,624,592 B) and carries `[wx] fires n=`, `[wx] autofire scheduled` and `stall_us=`, read off the image.
+- **Its records:** `why`, `build_us`, `print_us`, `prints`, `short`, `gap_us`, `base_us` and `stall_us` (= gap − base).
+
+**The run** is as A9.30, in its order: M2, then M1, then M3. G is reflashed afterwards.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
