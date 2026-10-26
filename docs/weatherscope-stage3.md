@@ -4070,6 +4070,64 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **The order:** item 1's PR (predictions first, A9.34), then item 2's PR, then 3.5b's build Q. A10.11 and 3.5b's host work go on between board runs.
 
+### A9.34 Item 1 (A9.33): the full ring first, the rebuild on the next frame. The design and the predictions, before any code (2026-10-26)
+
+**The change**, in `WeatherscopeManager` only (a Weatherscope-only PR off main, branch `weatherscope/hold-ring-first`):
+- **The fire:** `OnHoldFired` no longer zooms. It stores the target (`pendingZoom`). That frame draws as usual, and since the policy's phase is now `Fired`, `DrawHoldRing` draws the ring complete (1000 ‰) **at the old radius**.
+- **The rebuild:** at the **start of the next `Update`**, a pending zoom is applied through the same `ApplyZoom` → `BuildScenario`.
+- **The bench `H`:** goes through the same deferral.
+- **Unchanged:** swipes and the idle return, which have no ring and stay immediate.
+- **A pending zoom is dropped** if the screen has left the scenario by then.
+
+**The instrument, fixed first (A9.33 item 1):**
+- **`Out()`:** every print in `BuildScenario`, `PrintCopyStats` included, goes through it, timed. Its timing is kept apart from the phases below.
+- **The phases, timed with `esp_timer` and kept per build:**
+  - `decode` (`DecodeCrop`);
+  - `scen` (`wxscen::Build`);
+  - `from` (`FromScenario`);
+  - `compose`;
+  - `sha`;
+  - `print` (all `Out()` time);
+  - `total`.
+  - **They must sum to `total` within 500 µs.** That names where the 60-70 ms outside `Compose` goes. No prediction is made about which phase holds it.
+- **Each record carries** its scene and its radius from → to.
+- **A rolling log of the last 96 frames**, each with:
+  - its push start;
+  - the ring's ‰ as drawn;
+  - flags: bench press held, fired, rebuilt in this frame's `Update`;
+  - the scene and the radius.
+- **Byte `R`** (stored mode) prints the log and the build records, then clears them.
+- **The bench-only work gated to stored mode, explicitly:** `BuildScenario`'s SHA-256 and its `[wx] k`/`prof`/`pick` lines run only when `feeds.stored`.
+  - **Today it changes nothing measurable:** `BuildScenario` is reachable only in stored mode (`Update` goes to `Mode::Status` otherwise).
+  - **What it does:** a future live path cannot inherit them.
+  - **Kept in every mode:** the `[wx] scn=` and `[wx] screen=` lines, which the runners read.
+- **The bench press:** byte `P` holds a synthetic touch at (120, 120) through `HandleTouch`'s own path (the poll is overridden to `Touched`), and byte `L` lifts it. Both are stored-mode only, under the T/S/U/D/H release gate.
+
+**The run, build N** (the PR's head), on `907069326E64`:
+- **Three presses under M1** (the port read throughout) and **three under M3** (the reader paused from before the press until after it).
+- **Each press:**
+  1. starts 1-5 s after a cycle step's `[wx] screen=` line, so no 30 s cycle step can fall inside it;
+  2. `P`, then `L` 1.5 s later;
+  3. `R` 2 s after the lift.
+- **The frame log's `base`:** the median push-start interval of the 16 frames before the press's first held frame.
+
+**Predictions, per press:**
+
+| row | prediction |
+|---|---|
+| **N1** | every frame from the first held frame **up to and including the first frame drawn at 1000 ‰** has an interval ≤ `base` + 5,000 µs |
+| **N2** | the first 1000 ‰ frame is drawn at the **old** radius, with no rebuild in its `Update`; **the frame after it** is the rebuild (rebuilt flag, new radius), with an interval ≥ `base` + 30,000 µs |
+| **N3** | from the frame after the rebuild until the lift, intervals ≤ `base` + 5,000 µs, the ring still drawn at 1000 ‰ |
+| **N4** | each build record's phases sum to its `total` within 500 µs; the record names its scene and radius |
+| **N5** | after every press, exactly one `[wx] screen=` line names the new radius |
+
+- **The sabotage, S-FIRE (build N′ = N with the rebuild back in the fire frame), under M1:** the first 1000 ‰ frame is itself the long rebuild frame, at the new radius. So **N1 and N2 go red in every press, and nothing else does**: N3, N4 and N5 hold.
+- **What is not re-run:**
+  - **The composition is not re-graded.** No composing code changes, only when `BuildScenario` is called, so the K rows are unchanged by construction and the host suite proves it.
+  - **The board's pixel rows** (B1/BZ) are not part of this PR's predictions.
+- **The glass:** Daniel looks at the hold again on build N.
+- **Outside any prediction:** stop and report.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
