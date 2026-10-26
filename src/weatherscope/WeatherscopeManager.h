@@ -150,6 +150,7 @@ private:
         char why[8] = "";
         uint32_t decodeUs = 0, scenUs = 0, fromUs = 0, composeUs = 0, shaUs = 0, printUs = 0, totalUs = 0;
         uint16_t prints = 0, shortWrites = 0;
+        uint32_t frameUs = 0;         // A9.42: the push-to-push interval of the frame it ran in (0 until pushed)
     };
     static constexpr int kBuildRecords = 8;
     BuildRecord builds[kBuildRecords];
@@ -174,6 +175,28 @@ private:
     bool benchPress = false;          // 'P' holds a synthetic touch at the centre until 'L' (stored mode only)
     size_t Out(const char* fmt, ...);
     void PrintRecords();
+
+    // A9.42 (item 2, diag only): every Out() write, with the USB path it met, and the frame push it ran before.
+    struct WriteRecord {
+        uint32_t tUs = 0, elapsedUs = 0;
+        uint16_t asked = 0, written = 0, freeBefore = 0;
+        uint8_t plugged = 0, connected = 0;   // 2 = not an HWCDC build
+    };
+    static constexpr int kWriteLog = 64;
+    WriteRecord writeLog[kWriteLog];
+    uint32_t writeSeq = 0;
+    uint32_t lastPushStartUs = 0;
+    char* diagBuf = nullptr;          // /diag/wx's text, rendered on the loop task (DiagText.h)
+public:
+    class RecordSink {   // public so the .cpp's sinks can derive from it
+    public:
+        virtual ~RecordSink() {}
+        virtual void Line(const char* s, size_t n) = 0;
+    };
+
+private:
+    void RenderRecords(RecordSink& out);
+    void ServiceDiagText();
 
     // touch
     bool wasTouched = false;
