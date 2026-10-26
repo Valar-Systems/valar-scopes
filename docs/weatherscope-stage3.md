@@ -4521,6 +4521,39 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **Next:** #485 marked ready and reported with CI's tally on its unchanged head `b5cf7beed21d`, for approval. This record lives on this branch, not on #485, so the head CI graded stays the head.
 
+### A9.45 #485 approved; the merge held on one discrepancy in the approval's stated basis (2026-10-26)
+
+**The ruling, verbatim** (source: reviewer chat, pasted by Daniel):
+
+> Approval for #485 (reviewer chat, 2026-10-26)
+>
+> Approved to merge #485 at b5cf7beed21d27ba3f08f3f5f788d95db720dc1a. CI on that head: 35 check-runs, 32 success, 3 skipped, 0 failures. Squash, no --admin. If the head moves, this approval lapses.
+>
+> Checked independently: it merges cleanly onto main (a6c2906, with #484); outside src/weatherscope and tools/ it changes only src/main.cpp: Serial.setTxTimeoutMs(0) on HWCDC builds (TinyUSB keeps 2 ms), with the trade written beside it, and /diag/wx's storage under FEATURE_WEATHERSCOPE. A9.44's glass row (Daniel's words and his presses' numbers) and the deferred charger row are accepted.
+>
+> This changes every HWCDC edition, the Blipscope included, and ships with the next Blipscope release. Say so in #485's description if it doesn't already.
+>
+> Two notes, no action now:
+> - The map route moves from blipscope-5c to a new session (the map server), building from the frozen BMPK v1. When you next touch the format doc, update "Who builds what"; that's not a format change.
+> - That session will use your stored Bend package as §11's golden package. Report its commit when it exists.
+>
+> Next, as you have it: 3.5b's build Q, and step 2 continuing.
+
+**The discrepancy, read from the artifact.**
+- **The command:** `git diff --stat origin/main...b5cf7beed21d -- . ':!tools' ':!src/weatherscope'`.
+- **What it lists outside `src/weatherscope/` and `tools/`: three files, not one:**
+  - `src/main.cpp`: +58/−1;
+  - **`src/ConfigurationWebServer.cpp`:** +47, the `/diag/wx` route, `#ifdef FEATURE_WEATHERSCOPE`;
+  - **`include/DiagText.h`:** new, 27 lines.
+- **What the approval's independent check names:** only `src/main.cpp`.
+- **The PR's description names both of the others.** Both compile only into Weatherscope builds. Even so, **the merge is held** until the reviewer confirms the approval covers them. An approval whose stated basis leaves out two shared files is not the one to merge on.
+
+**Done meanwhile (the head unchanged, `b5cf7beed21d`):** #485's description now says that **this changes every HWCDC edition, the Blipscope included, and ships with the next Blipscope release**, and lists the three files.
+
+**The two notes, recorded:**
+- **The map route** now goes to a new session (the map server), from the frozen BMPK v1. The format doc's "Who builds what" changes the next time the doc is touched; that is not a format change.
+- **The stored Bend package** becomes §11's golden package for that session. Its commit is reported when it exists (A10.8 step 2).
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
