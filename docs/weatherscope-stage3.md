@@ -3341,3 +3341,155 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
    - **(b)** Re-register the loop's period or the draw bound for 3.5a.
    - **(c)** Drop the labels from loop frames. That changes the 15 loop rows and Daniel's look.
    - **An on-board profile of `Compose`'s phases would be (a)'s first step.** It is a code change, so it waits for this ruling.
+
+### A9.21 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): A9.20's three stops, the /diag/fb observation, the hold ring
+
+> Rulings on A9.20 (reviewer chat, 2026-10-26)
+>
+> A9.20's misses stay in the record as misses. #480 stays at 49846de. Freeze and push each change's predictions before its code; then re-run the whole A9.19 set on the new build (B1, BZ, B2, B3, sizes, sabotages).
+>
+> 1. PSRAM: re-registered, the miss kept. Your accounting is accepted. Not 155,000-170,000 B, though: the next build adds item 3's layer, so the band comes from the structures: 159,824 B plus everything items 3-5 allocate in PSRAM, computed to the byte, ± 2,000 B.
+>
+> 2. BZ: the runner fix, not the firmware pause.
+>    - Split BZ across dry holds as you proposed (U U U D, then D H H).
+>    - Budget each block for the worst case seen: 4 fetches at 1.1 s each, plus the step. Start a block when dry begins (from the trace) and keep at least 5 s of the 30 s hold spare. If it doesn't fit, use more blocks.
+>    - Don't cap a step at one pair of fetches. 7 of 16 captures needed more, and a capped step goes BLIND, which is a FAIL.
+>    - Believe a capture only if the trace shows the step's own scenario both before its first fetch and after its last. Otherwise it is BLIND (a FAIL), recorded, with no silent retry.
+>
+> 3. B2's draw: (a), in this order.
+>    - First the on-board profile of Compose's phases, timing only. Predictions first: K rows unchanged, and the phases add up to compose_us.
+>    - Then predict (a) from the profile, before writing it. The frozen bounds stay: draw <= 45,000 us, intervals 70,000 +- 5,000 (spread <= 10,000), >= 14 fps. Read them together: this run spent 31,861-31,961 us per frame outside the draw (the push), so 14 fps needs the draw under about 39,400 us, and holding the 70 ms deadline needs it under about 38,000. If the profile says (a) can't get there, stop and report. No (b) or (c) without a ruling.
+>    - Before coding, check that no frame-invariant pixel depends on what is beneath it (blending, anti-aliasing, XOR). If one does, an exact replay isn't possible: stop and report.
+>    - Put the replay, and the rule for when the layer is rebuilt (zoom, scenario, warning, home), in the shared code the host tests run, not in WeatherscopeManager. B2's board hash covers the codes, not the pixels, so only the host rows can prove the replay.
+>    - Host rows: every loop frame at 15, 30 and 60 mi, and with the warning overlay, equal to the full Compose at 57,600 px; the 15 K:loop rows unchanged.
+>    - Sabotages, predicted red: a layer kept across a zoom change; one label missing from the layer.
+>    - On the board, B2 runs at its worst case: 60 mi, and on the warning screen too if the loop runs there.
+>    - Store the layer however the profile favours. Its PSRAM goes into item 1.
+>
+> 4. The /diag/fb observation: settle it from data, in the same build.
+>    - Diag only: give the trace what it needs to tell the three explanations apart. For example: tag each buffer with the scene and draw count it last held; /diag/fb reports which buffer it copied and that tag; the trace logs the tag of every buffer pushed to the panel.
+>    - Predict before the run what each explanation would show.
+>    - The same stale frame (d8b443032200) turning up in two captures fits "an older buffer", but that is a guess to test, not a finding.
+>    - If the data can't decide, say so, and Daniel will film the glass in slow motion.
+>
+> 5. The long-press hold ring: yes, the same green ring as Blipscope (Daniel's call).
+>    - Draw it on top each frame, never inside item 3's layer.
+>    - Predict that it is gone on release, so BZ's H rows still grade exact.
+>
+> Anything outside the predictions: stop and report, as usual.
+
+**The same day, a second paste (source: reviewer chat, pasted by Daniel), verbatim:**
+
+> Addendum to the A9.20 rulings (reviewer chat, 2026-10-26)
+>
+> Daniel (2026-10-26): "i want the landscapes and roads features for the tests". So geography (3.5b: water, rivers, roads and peaks by default; terrain shading as the setting) joins the tested look next.
+>
+> 1. Order: finish 3.5a as ruled, then 3.5b, then 3.4 (still frozen as planned).
+>
+> 2. 3.5a's re-run goes ahead without geography. Its screens become the permanent "no package" rows (the towns-only fallback the plan already specifies) and stay in the suite after 3.5b.
+>
+> 3. Item 3's layer design must leave room for a geography layer under the radar, so 3.5b doesn't redo it. The profile also measures a full-frame 115,200 B copy from PSRAM, since 3.5b may need one per frame. 3.5b inherits the same draw ceiling (about 38,000 us).
+>
+> 4. 3.5b's tests show every layer: water, rivers, roads, peaks, and terrain both off and on. Dallas has water and roads but no peaks or terrain, so add Bend (Daniel's home), from the stored Bend package built by the host tool, as already ruled. Choose Bend's radar in the plan. My default is an archived MRMS day with rain over Bend, built the way the Dallas loop was.
+>
+> 5. First deliverables: 3.5b's plan with predictions, and the package format doc (blipscope-5c builds the ingest and the Worker route from it). Send both for review before any 3.5b code.
+
+### A9.22 Build P (the profile, the diag, the hold ring) and the runner fix: predictions before their code (2026-10-26)
+
+**The order, from A9.21:**
+1. **Build P** (this addendum): A9.21's item 3 profile, item 4 diag and item 5 ring, and item 2's runner. Build, flash, and a **profile run**.
+2. **A9.23:** (a) predicted from the profile, item 1's PSRAM band computed to the byte, and the replay's host rows and sabotages. Frozen and pushed before (a)'s code.
+3. **Build F = P + (a).** Then the whole A9.19 set is re-run, on the item 2 runner, with the diag read as predicted below.
+
+**The files this needs outside `src/weatherscope`:** `include/FrameBuffer.h`, `src/main.cpp` and `src/ConfigurationWebServer.cpp`, for item 4 only.
+- **Why:** A9.3 kept them untouched, but A9.21's item 4 is a change to `/diag/fb` and to the push.
+- **What changes, all diag only:**
+  - `FrameBuffer.h`: `SetPhase`/`Phase` and `SetTag`/`Tag`.
+  - `main.cpp`:
+    - a phase store after the clear, after `Draw`, and after the push;
+    - their four one-line definitions;
+    - under `#ifdef FEATURE_WEATHERSCOPE` only, a call that hands the pushed buffer's tag and phase to the edition's log.
+  - `/diag/fb` (not the PHOTO_MODE route): the phase and tag sampled before and after its copy, sent as headers.
+- **What other editions get:** three volatile stores per frame and three response headers. No pixel and no timing that matters changes for them. Every env must still build in CI.
+
+**Item 3, the profile (timing only).**
+- **Where it lives:** `wxscreens::Compose` takes an optional `Profile*` (host tests pass none). With one, it records a timestamp at each phase boundary: view, map (with B2's row hash inside it), bands, rings, the top strip, the warning, labels, ring numbers, the marker, the band. Ten phases, eleven stamps, from the caller's clock.
+- **Where it is printed:** `BuildScenario` prints `[wx] prof <row> <phase>=<µs>… sum=<µs> compose_us=<µs>`. Each loop record keeps its ten phases and its decode time, printed after the loop as `[wx] lprof <i> …`.
+- **Predictions:**
+  - **P1, the K rows are unchanged:** `test_wx_k35` gives 28/0 against the committed `k35.ref.txt`. All 73 layout cases and every sabotage script are as before.
+  - **P2, each scenario profile adds up:** `0 ≤ compose_us − sum ≤ 100 µs`, on every `[wx] prof` line. `sum` is the last stamp less the first, inside `Compose`; `compose_us` brackets the call.
+  - **P3, each loop profile adds up:** `0 ≤ draw_us − decode_us − sum ≤ 500 µs`, on every `[wx] lprof` line. The remainder is `FromLoopFrame`, the input and output resets, and the hash's `Finish`.
+- **The full-frame copy (the second paste's item 3).**
+  - **What is timed:** `DrawScenario` already copies the whole cached screen, 115,200 B from PSRAM to PSRAM, every frame. Each copy is timed, and at each scenario change the board prints `[wx] fbcopy n=<frames> min=<µs> max=<µs> mean=<µs>` for the hold that ended.
+  - **P4:** a line for every hold with n ≥ 1, and min ≤ mean ≤ max. The value itself is measured, not predicted. A prior from a different code path is `BlitProbe`'s 240 × 240 16 bpp blit at 6.228 ms (`main.cpp`'s comment).
+  - **Where it goes:** A9.23 carries it into (a)'s budget, and 3.5b's plan inherits it, against the same ceiling of about 38,000 µs.
+- **The layer must leave room for geography (the second paste's item 3).** A9.23 designs it so that a 3.5b basemap goes under the radar without redoing the layer: the per-frame order becomes the basemap, the radar's non-dry pixels, the cached overlay, then the time and the band.
+- **3.5a's re-run stays without geography.** Its screens become the permanent "no package" rows.
+- **PSRAM for build P:** `LoopRecord` grows from 56 to 104 B (+ `decode_us` and ten `uint32_t` phases, aligned to 8). Fifteen of them is +720 B, so the prediction is **160,544 B ± 2,000**. Nothing else in P allocates PSRAM.
+
+**The profile run** (`tools/weatherscope/board/prof_run.py`, one open, the 1 s rule):
+- **The sequence:**
+  1. At the first scenario line after the open, 2 s later, `T`: a loop at 60 mi.
+  2. At the next `warning R=60` line, 2 s later, `T`: a loop on the warning screen.
+  3. `U`, then `T`: a loop at 30.
+  4. `U`, then `T`: a loop at 15.
+  5. `D`, `D`: back to 60.
+  6. Close.
+- **Predicted:**
+  - P2 and P3 hold on every line;
+  - four loops of 15 records each, at R=60, 60, 30 and 15;
+  - B2's code hashes equal `screens.ref.json` on both R=60 loops. 3.3's B2 graded only 60 mi, so no hash is predicted at 30 or 15.
+- **What it is for:** it feeds A9.23. It grades nothing else: the draw is still the slow one, and B2's pacing is not graded on it.
+
+**Item 4, the diag.**
+- **The phases:** main.cpp sets `Cleared` (1) after `fillScreen`, `Drawn` (2) after `Draw` returns, and `Pushed` (3) after `pushSprite`. `FrameDone` is unchanged.
+- **The tag:** Weatherscope's `Draw` writes it as eight hex digits, `MSRRCCCC`:
+  - M, the mode: 1 scenario, 2 loop, 3 legend, 4 status, 5 splash;
+  - S, the scenario index or the loop frame mod 16;
+  - RR, the radius;
+  - CCCC, the draw count mod 65,536.
+- **What `/diag/fb` sends:**
+  - `X-Blipscope-Frame-Phase: <before>,<after>`;
+  - `X-Blipscope-Frame-Tag: <before>,<after>`;
+  - `X-Blipscope-Frame-Buffer: backbuffer` (it copies nothing else).
+- **The push log:** every push hands its tag and phase to the edition. The log is run-length on the scene, `[fb] push <MSRR> draws <first>-<last> n=<count> phases=<set seen at push>`, emitted when the scene changes, so every push is accounted for. During a loop it is held and printed after, as the records are (A8.19 item 4).
+- **A prior observation, from the 2026-10-25 run's snapshots, read-only and recorded here as a hypothesis this diag tests, not a finding:**
+  - `d8b443032200` is the sha256 of an **all-black** 240 × 240 frame;
+  - every disagreeing fetch is partly black (0 to 161 non-black rows).
+  - That fits a copy landing between `main.cpp`'s `fillScreen` and the end of `Draw`. The frame counter cannot see it, because it moves only after the push.
+- **What each explanation predicts:**
+
+| explanation | it predicts | it is excluded by |
+|---|---|---|
+| (i) a copy inside the redraw | every fetch that is not of a finished frame has `Cleared` (1) at one end or both; every all-black fetch reads `1,1`; every fetch reading `2,2`, `2,3`, `3,3` or `3,2` with equal tags equals that tag's scene pixel for pixel | a fetch at phases ≥ 2 at both ends, with equal tags, that is not its scene |
+| (ii) an older buffer | a fetch at phases ≥ 2 at both ends, with equal tags, whose pixels are an earlier scene's; or a buffer other than `backbuffer` | every such fetch being its own scene, with one buffer only |
+| (iii) the glass flickering | a push whose phase is not `Drawn`; or a pushed scene other than the screen line in force | every push in the log at phase `Drawn` and in its scene's run |
+
+- **Outside the table:** if the data fits none of them, or more than one, then "the data can't decide". That is said as such, and Daniel films the glass.
+
+**Item 5, the hold ring.**
+- **How it is drawn:** Blipscope's ring (`AircraftManager::DrawHoldRing`, copied with its source named): the dim track, then the green band filling from 12 o'clock.
+  - It is drawn **on top in `DrawScenario`, after the memcpy, each frame**, while `longpress::RingVisible` or the phase is `Fired`. It is never in a cached screen, and never in A9.23's layer.
+  - The trace logs only its transitions (`[wx] hold ring on/off`), never per frame.
+- **Predictions:**
+  - **Serial `H` never enters the ring phases** (it calls the fire directly), so **BZ's H rows grade exact**.
+  - On the glass, the ring is gone on the first frame after the release, because the next memcpy restores the cached screen. Only Daniel's eyes can grade that.
+
+**Item 2, the runner (`run_b35.py`, and the grader with it).**
+- **BZ in blocks:**
+  - **Blocks:** two, U U U D and then D H H, each starting at the board's `dry R=<R>` line, the first byte 1 s after it.
+  - **The budget per step:** at most 0.3 s from the byte to its screen line, 0.5 s to settle, and 4 fetches at 1.1 s. That is **5.2 s**.
+  - **Block 1:** 1 + 4 × 5.2 = 21.8 s. **Block 2:** 1 + 3 × 5.2 = 16.6 s. Both fit the 25 s left after the 5 s spare.
+  - **If the hold is late:** a block that would not fit the time left in its dry hold waits for the next dry.
+  - **The expected radii:** block 1 at 30, 15, 15, 30; block 2 (from dry at 30, after the cycle has run at 30) at 60, 15, 60.
+- **No cap on fetches.** The pair rule's six stands.
+- **The belief rule, applied to every capture** (B1, BZ, after the loop, the legend, after the legend):
+  - the last `[wx] screen=` line before the first fetch's start must be the capture's own scene;
+  - no `[wx] screen=` line may arrive between that start and the last fetch's end.
+  - Otherwise the capture is **BLIND, a FAIL, recorded, never retried**.
+  - Each fetch now records its start and end.
+- **B2 twice:** at the next scenario at 60 mi, and again on the warning screen at 60. The loop runs there.
+  - **A reading:** the loop shows no warning overlay (A9.18), so its warning-screen frames are the same as any loop frame. A9.23's host rows "with the warning overlay" prove the layer's handling of it whatever the loop shows. If the ruling meant that the loop carries the overlay on the warning screen, that changes the loop's look and its K rows, and is for a ruling.
+- **The re-run's predictions are A9.19's,** with the two BZ blocks, B2 twice, the belief rule, item 1's band from A9.23, and the diag table above.
+
+**Outside every prediction here: stop and report.**
