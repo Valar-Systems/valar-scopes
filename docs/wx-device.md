@@ -633,3 +633,18 @@ How they are taken:
 - a BLIND, or any verdict not in the table.
 
 Each of these means stop and report, without re-running for a better number.
+
+**Amended before any run, found while implementing (2026-10-26).** The outer ring's colour (0, 200, 0), RGB565
+`0x0640`, **is also a plane colour**: green at about 0.78, inside the fade range. Computed from the source; the middle
+and inner rings are not plane colours.
+- **The danger:** a ring alone never passes the marker filter (0 blocks of 2 × 2 in any of the three rings). A marker of
+  exactly `0x0640` sitting on the outer ring, though, joins the whole ring into one component.
+  - In (2), any weather next to the outer ring would then count against that "marker": a false FAIL. This was already
+    in addendum 4's committed script.
+  - In (3), ring pixels covered anywhere on the ring would count it exercised: a false PASS where the truth is BLIND.
+- **The amended definition, for both (2) and (3):** a ring pixel, by the ported `drawCircle`, that shows its ring's
+  colour is **never part of a marker**. A marker on the ring then keeps its own pixels and borders the ring line, which
+  is neither weather nor black.
+- **One more selftest case, predicted:** a marker of the outer ring's colour on the outer ring, over weather, with its
+  outline. With the amended definition it is **PASS** in look A. **Control:** addendum 4's committed `grade` (from
+  `2d89084`), run on the same synthetic frame, gives **FAIL**.
