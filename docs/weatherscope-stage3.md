@@ -3899,6 +3899,69 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - **What the board was running:** build G (`3a1af19`'s image, `firmware.bin` sha256 `de3730c80072…`), reflashed after the S-WAIT pass. Nothing has been flashed since. #480 merged as `0091f2350cc9`, whose tree is `7e186cb`'s; that compiles nothing different for `weatherscope-s3-128` (A9.28 step 2).
 - **3.5a has no open row left.**
 
+### A9.30 The hold ring, continued: Weatherscope pauses at the fire and Blipscope doesn't. The causes and what each predicts, before any measurement (2026-10-26)
+
+**The ruling, verbatim** (source: reviewer chat, pasted by Daniel):
+
+> The hold ring, continued (2026-10-26)
+>
+> Daniel (2026-10-26): "blipscope doesn't pause like that, but weatherscope does". Record it beside his first report. The ring is Blipscope's (copied, source named) and LongPressPolicy is reused unchanged, so this points at what Weatherscope does at the fire rather than the ring's own timing. Still measure first; include Blipscope's behaviour in what each cause predicts.
+
+**What each product does at the fire, read from the code** (main at `0091f2350cc9`):
+
+| | Blipscope (`AircraftManager.cpp`) | Weatherscope (`WeatherscopeManager.cpp`) |
+|---|---|---|
+| the fire | `HeldIs::Fire` → `ApplyZoom(target, …, "hold")` | `HeldIs::Fire` → `OnHoldFired` → `ApplyZoom(target, "hold")` |
+| `ApplyZoom`'s work | sets `viewRadLat`/`viewRadLon` and the overlay text: arithmetic | **`BuildScenario()`, synchronously, inside `Update`:** <br>– the crop's decode and the scenario's build;<br>– a **full `Compose`** into the cached sprite;<br>– a SHA-256 of its 115,200 B |
+| serial at the fire | **2 lines:** `[hold] fire …`, `[zoom] hold -> …` | **about 9-17 lines:** `[wx] zoom`, `pick`, `scn`, `prof`, `k ROW`, `k TIME`, `k BAND`, one `k LABEL` per placed label, `screen=`. **About 1-2 KB** |
+| the next frame | the radar's ordinary per-frame draw at the new radius | waits for all of the above, then copies the new cached screen |
+
+**Shared by both:** `LongPressPolicy` (unchanged) and the ring's drawing (copied, source named).
+
+**The serial path, read from the framework** (`framework-arduinoespressif32/cores/esp32/HWCDC.cpp`; the s3-128 envs use `ARDUINO_USB_MODE=1`):
+- **The ring:** the TX ring is 256 B.
+- **`connected` turns true** the first time the host picks up a packet (`IN_EMPTY`), and turns false only on a bus reset or when USB is unplugged.
+- **While `connected` and unread,** a write that can't fit waits **100 ms per attempt, up to 20 attempts (about 2 s) per call**, then returns short (`write`, the "host backpressure" branch).
+- **While not connected** (nothing has read since boot, or no host at all), writes go to a non-blocking replace-oldest policy.
+
+**The causes, and what each predicts.** M1-M3 are the measurements below. "The stall" is the time from the end of the last push before the fire to the start of the first push after it, less the median of the 16 push-to-push intervals before the fire.
+
+| cause | M1: port read throughout | M2: never read since boot | M3: read, then the reader stops reading (port kept open) | Blipscope |
+|---|---|---|---|---|
+| **C1, the synchronous recompose** | stall ≈ `build_us`, **35,000-60,000 µs**; `print_us` < 5,000 | the same | the same | **no stall:** its fire is arithmetic, so Daniel's comparison fits C1 under **any** USB condition |
+| **C2, serial backpressure** | `print_us` < 5,000; **no short write** | `print_us` < 5,000 (not connected: non-blocking) | **`print_us` ≥ 100,000**, possibly seconds; short writes counted | **pauses too** under the same USB condition: its fire prints 2 loop-task lines. So C2 fits Daniel's comparison **only if the two boards were on different USB conditions** |
+| **C3, the ring or the policy itself** | no stall beyond baseline (< 15,000) | the same | the same | the same code, so **it would pause identically**. Daniel's comparison excludes C3 unless something Weatherscope-only changes the ring's frames |
+
+- **The outside-the-set branch, pre-registered:** if every fire in M1-M3 stalls less than 15,000 µs beyond baseline, this instrument cannot see Daniel's pause. **Stop**, and ask Daniel for a slow-motion film (his offer of A9.21 item 4).
+- **The question for Daniel** that decides between C1 and C2: **where was each board plugged in when he saw it** (the PC with no terminal open, or a charger), **and how long did the pause feel** (a hitch of about a tenth of a second, or a second or more)?
+  - C1 predicts a hitch of about 40-100 ms on Weatherscope wherever it is plugged in.
+  - C2 predicts a second or more, and only on a port that was read and then left unread.
+
+**The measurement build M = G + diag only,** in `WeatherscopeManager` alone. No shared file, and no pixel changes.
+- **Per fire** (hold, `H` or auto), a RAM record:
+  - `why`;
+  - `build_us` (the fire to the hash done);
+  - `print_us` (`BuildScenario`'s prints);
+  - `short` (printf calls that wrote less than asked);
+  - `gap_us`;
+  - `base_us` (the median of the 16 push-to-push intervals before it).
+
+  The push times come from the existing `OnPushed` hook (end time, less `pushUs`).
+- **The fires:**
+  - **auto-fires** at boot + 60, 90 and 120 s, in stored mode only;
+  - **byte `A`** schedules three at +20, +40 and +60 s;
+  - **byte `R`** prints the records (`[wx] fire …`), then clears them.
+
+  All of them sit under the stored-mode release gate with T/S/U/D/H.
+- **The run, on `907069326E64`:**
+  - **M2:** flash, then **open nothing** until boot + 135 s. Then open, and send `R`.
+  - **M1:** `H` three times, 5 s apart, then `R`.
+  - **M3:** `A`; read 5 s; **stop reading for 75 s** with the port open; read again; send `R`.
+  - **Afterwards,** G is reflashed. M ships nowhere.
+- **The grading is only against the table above.** An outcome outside it stops and is reported.
+
+**No fix is proposed or written before the measurement and a ruling.**
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
