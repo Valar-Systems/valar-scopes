@@ -4526,3 +4526,195 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **The Q34 gate is met** for the stored Bend package, subject to my own reading in step 2, recorded there.
 
 **Next:** the truth tables and sabotage sets, frozen (A10.11). Then A10.8 from step 2.
+
+### A10.11 3.5b's host truth tables and sabotage sets, frozen before any 3.5b code (2026-10-26)
+
+**What this freezes, and what it leaves for later:**
+- **Frozen here:** `test/host/test_wx_basemap.cpp`'s **82 cases** in 8 families, and `sabotage_wx_basemap.py`'s **12 sabotages** with their exact failing sets, named by case.
+- **Left for later:** the K rows and the replay rows (A10.6). Their predictions need the Bend package and crops, so they are frozen at steps 3 and 6, before those rows run, as A9.18 did for 3.5a.
+
+**Conventions:**
+- **The synthetic origin is (0°, 0°).** It is a test point and the location of nothing, so the cosines are 1.
+- **The views are 15, 30 and 60 mi** (× 1.609344 km).
+- **Boxes are inclusive**, as A9.10.
+- **The expected doubles were computed in IEEE double** by a throwaway calculator written from the format doc's §9 and A10.2's fill rule. They are compared with a tolerance of 1e-6 px.
+- **Every integer is exact.**
+
+**The functions under test** (names frozen, so the cases bind to them):
+
+| where | function |
+|---|---|
+| `include/BasemapPackage.h` | `bmpk::Validate(const uint8_t*, size_t, bmpk::Package*) -> bmpk::Status` |
+| `src/weatherscope/WxBasemap.h` | `wxbase::Mapper` (`ToScreen`, `LevelPixel`), `wxbase::FillRing`, `wxbase::Build`, `wxbase::RampIndex`, `wxbase::PaletteRgb` |
+| `src/weatherscope/WxScreens.h` | `MapPixel(code, x, y, base, terrain)`, `BaseKey`/`SameBase`, `PeakLabel`, `PlacePeak`, `PlaceLabels` (peaks, then towns, as `DrawInvariant` does) |
+
+**`Validate`'s order is pinned**, so each negative package has exactly one reason. Each step runs only if the steps before it passed:
+1. at least 32 bytes (`kHeader`);
+2. the magic (`kMagic`);
+3. the version (`kVersion`);
+4. the header flags (`kFlags`);
+5. `totalBytes` equal to the size (`kTotal`);
+6. the CRC (`kCrc`);
+7. `nSections` 1-32, with the directory inside the package (`kSectionCount`);
+8. per entry, in order: reserved/flags zero (`kReserved`), then inside [directory end, total] (`kSectionBounds`);
+9. contiguity in directory order: the first section starting at the directory's end and the last ending at `totalBytes` (`kOverlap` if a section starts before the previous one ends, `kGap` if after);
+10. duplicates (`kDuplicate`);
+11. `PROVENANCE` present (`kNoProvenance`);
+12. the bodies, in directory order: `kVarint`, `kVertexRange`, `kVertexCount`, `kText`, `kRiverName`, `kRoadClass`, `kTerrainLength`, `kBody`.
+
+**PK, the reader** (28 cases). The fixtures are `test/fixtures/wx/basemap/*.bmpk`, made by `make_package.py --synthetic`.
+- **The base package, `syn-min`:** origin (0, 0); R 97,000,000 mm; one water ring of 4 vertices; one river name and a 2-vertex river; one class-2 road of 2 vertices; one peak "Mount Test" at 1,000 m; one place "Test city", population 1,234; one terrain level, N = 4, Rℓ 1,000,000 mm; provenance.
+- **Each `neg-*` is `syn-min` with one mutation.** Its CRC and `totalBytes` are recomputed unless the mutation is to them.
+- **The tool asserts every mutation took** (the bytes differ from `syn-min`'s), and asserts the CRC field is right wherever it was recomputed.
+
+| case | fixture | expected |
+|---|---|---|
+| PK-min | `syn-min` | `kOk` |
+| PK-unknown | `syn-unknown`: `syn-min` plus a type-9 section of 3 bytes | `kOk`; every other section decodes as `syn-min`'s |
+| PK-bend | `bend.bmpk` (step 2) | `kOk` |
+| PK-short | the first 31 bytes | `kHeader` |
+| PK-magic | "BMPX" | `kMagic` |
+| PK-version | version 2 | `kVersion` |
+| PK-flags | header flags 1 | `kFlags` |
+| PK-total | `totalBytes` + 1 | `kTotal` |
+| PK-crc | the place's population varint changed (1,234 → 1,235), the CRC left alone | `kCrc` |
+| PK-nsec0 | `nSections` 0, no directory | `kSectionCount` |
+| PK-nsec33 | `nSections` 33 | `kSectionCount` |
+| PK-bounds | `PROVENANCE`'s length + 1,000 | `kSectionBounds` |
+| PK-overlap | `ROADS`' offset − 1 | `kOverlap` |
+| PK-gap | one zero byte inserted before `ROADS`, the later offsets moved | `kGap` |
+| PK-dup | a second `WATER` entry and body | `kDuplicate` |
+| PK-noprov | `PROVENANCE` removed | `kNoProvenance` |
+| PK-varint6 | the ring's vertex count as a 6-byte varint | `kVarint` |
+| PK-overlong | the ring's vertex count 4 as `0x84 0x00` | `kVarint` |
+| PK-walk | the road's delta taking qx to 32,768 | `kVertexRange` |
+| PK-ring2 | the water ring with n = 2 | `kVertexCount` |
+| PK-line1 | the road with n = 1 | `kVertexCount` |
+| PK-count | `WATER`'s count 2, one ring in its body | `kBody` |
+| PK-text | the place's name length 200 | `kText` |
+| PK-rivername | the river's name index 1 (one name) | `kRiverName` |
+| PK-roadclass | the road's class 3 | `kRoadClass` |
+| PK-terrainlen | `TERRAIN`'s length 8 + 16 − 1 | `kTerrainLength` |
+| PK-terrainN0 | N = 0, length 8 | `kTerrainLength` |
+| PK-reserved | a directory entry's reserved field 1 | `kReserved` |
+
+**TX, the mapping** (5). Each case gives the view, the package's R, q and the expected (x, y).
+
+| case | input | expected |
+|---|---|---|
+| TX1 | home = origin, 60 mi, R 97 km, q (0, 0) | (120.0, 120.0) |
+| TX2 | the same, q (32767, 0) | (240.546011294, 120.0) |
+| TX3 | the same, q (0, 32767): south is down | (120.0, 240.546011294) |
+| TX4 | home = origin, 15 mi, q (−4000, 2000) | (61.137846592, 149.431076704) |
+| TX5 | home = origin + (0.004999°, 0.004999°), north-east; 15 mi; q (0, 0) | (117.241663695, 122.758336316): the origin is left of and below the view's centre |
+
+**TR, terrain sampling** (5):
+
+| case | input | expected |
+|---|---|---|
+| TR1 | home = origin, the 60 mi level (Rℓ 98,974,656 mm, N 246); pixels (0, 120) and (239, 24) | (3, 123) and (242, 27) |
+| TR2 | home = origin + (0.004999°, 0.004999°), the 15 mi level (24,743,664 mm, 246); pixel (120, 120) | (126, 120) |
+| TR3 | every disc pixel (`CodeAt`'s test), 3 levels × 5 homes (the origin and the four ±0.004999° corners) | **0** outside [0, 246) |
+| TR3c, the control | the same sweep with N = 240 and Rℓ = the view's radius | **more than 0** (the calculator finds 1,216; the count is reported, and "> 0" is what is graded) |
+| TR4 | `RampIndex(v)` for v = 0, 7, 8, 128, 255; `PaletteRgb(1)`, `PaletteRgb(37)` | 1, 1, 2, 19, 37; (10, 10, 12), (46, 46, 48) |
+
+**FL, the fill** (7). `FillRing` takes screen vertices and fills by A10.2's centre rule.
+
+| case | ring | expected |
+|---|---|---|
+| FL1 | (10.5, 10.5)-(14.5, 14.5), a square | 16 px: x 10..13, y 10..13 |
+| FL2 | (20.0, 20.5)-(24.0, 22.5) | 8 px: x 20..23, y 20..21 |
+| FL3 | the diamond (30.5, 30.5), (33.5, 33.5), (30.5, 36.5), (27.5, 33.5) | 18 px. Row 30 gets none: its two crossings meet at 30.5. Rows 31-35 get 2, 4, 6, 4 and 2 px (x 29-30, 28-31, 27-32, 28-31, 29-30) |
+| FL4 | (230, 100)-(250, 110), partly off the image | 100 px: x 230..239, y 100..109; nothing written past x 239 |
+| FL5a | (50.1, 50.1), (50.4, 50.1), (50.1, 50.4) | 0 px |
+| FL5b | (60.3, 60.3), (60.9, 60.3), (60.3, 60.9) | 1 px: (60, 60) |
+| FL6 | FL1's square and (12.5, 12.5)-(16.5, 16.5), filled one after the other | 28 px: their union |
+
+**LN, the layers and their order** (9).
+- **The fixture, `syn-order`:**
+  - origin (0, 0) = home, at the 60 mi view;
+  - R = 96,560,640 mm (the view's radius, so q / 32767 × 120 is pixels);
+  - water: the ring q (−5393, −5393)-(5529, 5529), on screen (100.2496, 100.2496)-(140.2484, 140.2484), so x and y 100..139;
+  - a river (names "Test Riv"): q (−8137, −2676) → (8246, −2676), on screen y 110, x 90..150;
+  - a class-1 road: q (55, −8137) → (55, 8246), on screen x 120, y 90..150;
+  - the 60 mi terrain level, every value 128, so index 19.
+- **The table**, indices of `wxbase::Build`'s image:
+
+| case | mask, terrain | pixel → expected |
+|---|---|---|
+| LN1 | all, on | (120, 110) → 40: the road, last |
+| LN2 | all, on | (130, 110) → 39: the river over the water |
+| LN3 | all, on | (130, 130) → 38: water |
+| LN4 | all, on | (50, 120) → 19: terrain alone |
+| LN5 | all, on | (120, 95) → 40: road, outside the water |
+| LN6 | all, on | (95, 110) → 39: river, outside the water |
+| LN7 | all, **off** | (50, 120) → 0; (130, 130) → 38 |
+| LN8 | all, on | (120, 130) → 40: road over water |
+| LN9 | **no rivers**, on | (130, 110) → 38; (95, 110) → 19 |
+
+**BF, the fold** (9). `MapPixel` uses a test image whose every index is 38; `DrawMap` is checked over `synthetic-clear.wxc`.
+
+| case | input | expected |
+|---|---|---|
+| BF1 | code 0, the image | (10, 34, 72) |
+| BF2 | code 0, no image | (0, 0, 0) |
+| BF3 | code 5, the image | `Code(5, false, kDim55)`: the radar, not the water |
+| BF4 | code 14, terrain off, the image | (40, 40, 40) |
+| BF5 | code 14, terrain on: (10, 10) and (10, 11) | (72, 72, 72) and (0, 0, 0): the hatch on black |
+| BF6 | code 15, terrain off and on: (10, 10) and (10, 11) | (72, 72, 72) and (0, 0, 0) in both |
+| BF7 | code 255 (off the disc), the image | (0, 0, 0) |
+| BF8 | `DrawMap` over the clear crop with the image | no `Put` at y < 24 or y ≥ 194; all **36,828** on-disc map-row pixels (10, 34, 72); the off-disc map-row pixels (0, 0, 0) |
+| BF9 | `DrawMap`'s `CodeRows`, with and without the image | the 240 rows byte-identical |
+
+**BK, the basemap key** (7). Each case compares a key with the base key: the Dallas crop's geometry at 60, the package (`crc32`, length), every layer, terrain off.
+
+| case | change | expected |
+|---|---|---|
+| BK1 | none | reused |
+| BK2 | 60 → 30 | rebuilt |
+| BK3 | another package | rebuilt |
+| BK4 | terrain on | rebuilt |
+| BK5 | the mask without rivers | rebuilt |
+| BK6 | another crop geometry (home) | rebuilt |
+| BK7 | another frame of the same crop geometry (a loop frame, a tap) | reused |
+
+**PE, the peaks** (12). `PlacePeak` uses A10.2's boxes and the towns' rules (inner circle 24.4 px).
+
+| case | input | expected |
+|---|---|---|
+| PE1 | "Ab" at (170.0, 80.0) | right; box (167, 76, 186, 84); text at (175, 77) |
+| PE2 | "Ab" at (70.0, 80.0) | left; box (53, 76, 74, 84); text at (54, 77) |
+| PE3 | `PlaceLabels`, peaks in rank order: "A" at (140.0, 120.0) (20 px out), then "B" (162.43, 77.57), "C" (162.43, 162.43), "D" (77.57, 162.43), "E" (77.57, 77.57), "F" (180.0, 120.0); no towns | **placed B, C, D, E**: A skipped (inner circle), and the cap counts placements. Uncapped, all five of B-F place, so the cap is what decides |
+| PE4 | "Ab" at (144.0, 120.0): 24.0 px | skipped |
+| PE5 | `PlaceLabels`: peak "Ab" at (170.0, 80.0); town "B" at (172.0, 82.0) | the peak placed (167, 76, 186, 84); **the town skipped** (both sides within 4 px of it) |
+| PE6a-d | `PeakLabel`: "Mount Bachelor", "Broken Top", "Mountain View", "Little Mount Hope" | "Mt Bachelor"; "Broken Top"; "Mountain View"; "Little Mt Hope" |
+| PE7 | "Ab" at (232.0, 120.0) | skipped: right's corner at 128 px, left's (236, 116) at 116.07 |
+| PE8a | "Ab" at (170.0, 185.0) | right; box (167, 181, 186, 189) |
+| PE8b | "Ab" at (170.0, 186.0) | skipped: y1 190 is within 4 px of the band |
+
+**The sabotages** (`sabotage_wx_basemap.py`).
+- **The rule for each:** it asserts its needle appears exactly once and that the file changed, before measuring (A9.10's rule). It restores the file from a byte copy, with a sha check.
+- **Each set below** is the exact list of `test_wx_basemap` cases that must fail.
+- **Every other host test**, every 3.5a suite included, must be unchanged under every sabotage. Each sabotage acts only on a path with a package, a basemap or a peak, and no 3.5a row has any.
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-PKCRC | the CRC check skipped | {PK-crc} |
+| S-FILL | sampled at the pixel's corner (x, y), not its centre | {FL1, FL2, FL3, FL5b, FL6} |
+| S-UNION | a package's rings filled together by even-odd | {FL6} |
+| S-SHIFT | the mapper ignores the origin-home difference | {TX5, TR2, TR3c} |
+| S-ORDER | roads drawn first, then water, then rivers | {LN1, LN8} |
+| S-MASK | the rivers bit ignored | {LN9} |
+| S-FOLD | the basemap's colour over echoes (codes 1-13) | {BF3} |
+| S-HATCH | code 14 solid grey with terrain on | {BF5} |
+| S-BKEY | the key ignores the radius | {BK2} |
+| S-PEAKFIRST | peaks placed after towns | {PE5} |
+| S-PEAKCAP | the peak cap counts attempts, not placements | {PE3} |
+| S-MT | no "Mount " → "Mt " | {PE6a, PE6d} |
+
+**Why the sets are what they are** (checked across every family, not only the one each targets):
+- **FL4 and FL5a are the same under both sampling rules**, which is why they are absent from S-FILL. The calculator confirms it.
+- **LN's ring edges sit 0.25 px off the centres**, so S-FILL moves only edge pixels, and no LN case reads an edge.
+- **S-SHIFT leaves TR3 at 0 and drives its control to 0.** That is why TR3c is in the set and TR3 is not.
+
+**The fixtures' tool is part of step 2**, before any device code. No device code is written before steps 2-4 of A10.8.
