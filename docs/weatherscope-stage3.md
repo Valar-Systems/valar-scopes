@@ -5211,3 +5211,22 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
 - **When:** as soon as step 2 makes them.
 - **What it carries:** the PK set (`syn-min`, `syn-unknown`, `syn-order`, the 25 `neg-*`), `bend.bmpk` with `bend.manifest.json` and its licence file, and the format doc.
 - **The report:** `bend.bmpk`'s commit, to the map server, when it exists.
+
+### A10.13 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): A10.12 accepted; the four details ruled; terrain credits follow the tiles read
+
+**The ruling, verbatim:**
+
+> A10.12 accepted; the four details ruled (reviewer chat, 2026-10-26)
+>
+> A10.12 is accepted as recorded, including the two alignments of the doc's own wording (§5.1's holes, per RD3; §6's counts split, per RD15).
+>
+> The four PROVENANCE details are ruled as you pinned them, for both builders (the map server gets the same text): the layer keys and their order; source.<layer> as the longest common directory prefix; the sorted-lines digest; and store: as the first 12 hex of the manifest's sha256. One addition: the terrain credits follow the tiles read, whether or not terrain was requested, since the peaks' elevations come from them.
+>
+> Freeze bend.bmpk when step 2 makes it, and carry on as planned.
+
+**The format doc, §7:**
+- **The credit lines follow the tiles read,** whether or not terrain was requested. A package whose peaks read tiles carries their credits.
+- **The processing line describes what was done:** the hillshade with terrain levels, the summit sampling (RD10) with peaks alone.
+- **The four pinned details stand as ruled.**
+
+**Next:** step 2, as planned. `bend.bmpk` is frozen when step 2 makes it.

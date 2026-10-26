@@ -236,9 +236,11 @@ Both are client rules, not package rules.
   - `vintage.<layer>`;
   - `files.<layer>`: the count of the layer's files that were read;
   - `sha256.<layer>`: the digest over that layer's sorted `url sha256` lines;
-- with terrain:
-  - `credit.terrain: <text>`, one line per credit the mosaic's sources require;
-  - `processing.terrain: <one line>`, describing what was done to the elevations: the hillshade, the 4 × 4 mean, the sampling and the 8-bit quantisation;
+- whenever any terrain tile was read, **whether or not terrain was requested**, since the peaks' elevations come from the tiles (ruled 2026-10-26, A10.13):
+  - `credit.terrain: <text>`, one line per credit the sources of the tiles read require;
+  - `processing.terrain: <one line>`, describing what was done to the elevations in this package:
+    - **with terrain levels:** the hillshade, the 4 × 4 mean, the sampling and the 8-bit quantisation;
+    - **with peaks alone:** the summit sampling (RD10);
 - then `epsilon.m`, the ε **requested** (RD13);
 - then `dropped.<layer>` and `collapsed.<layer>` for every layer read (0 when none; **always present**).
 
@@ -264,7 +266,7 @@ Both are client rules, not package rules.
     - **NRCAN** in Canada.
   - **3DEP first appears at zoom 10, so there is no 3DEP line.**
   - **The credit lines** are USGS's ("SRTM data courtesy of the U.S. Geological Survey", and so on, per `docs/attribution.md`). GMTED2010 requires a description of modifications, which is what the processing line gives.
-  - **A package carries one `credit.terrain` line per source its mosaic contains, plus the processing line.** A licence file beside any stored fixture carries the same.
+  - **A package carries one `credit.terrain` line per source its tiles contain, plus the processing line.** That includes a package without terrain levels whose peaks read tiles. A licence file beside any stored fixture carries the same.
   - **Bend's mosaic is inland US land below 60° N:** SRTM's line and the processing line, nothing else.
   - **Nothing there forbids redistributing derived US data.**
 - **Outside the US,** other sources carry CC-BY or OGL terms. **That is a gate on the route, not on Weatherscope's stored Bend package.**
