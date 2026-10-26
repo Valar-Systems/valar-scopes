@@ -749,3 +749,39 @@ Then the **old image:** 10 min of `[health]` lines, starting within 60 min of ar
 
 **Afterwards:** E2:08 stays on the old image. The Bend feed's `written` count is read in the 10 min after it boots, to
 show that a Bend device feeds production again.
+
+### The capture session of 2026-10-26: STOPPED before any capture, on a request storm (no fix until a ruling)
+
+**What ran:**
+- **The flash:** E2:08 got this branch's `blipscope-s3-128-wxlook`, app-only. The `[build]` banner read
+  `env=blipscope-s3-128-wxlook`.
+- **The trace:** one `bench-trace.ps1` was opened and held.
+- **The setting:** at 22:21:41Z, `wx-layer` was turned on through the config page. `cfg_post.py` checked that only
+  that field changed.
+
+**What happened:**
+- **The trace:** from 22:21:42 to 22:21:47Z, the board's `[wx]` lines show two `200` replies and then a run of `304`s,
+  several a second, each printing `next=60s`.
+- **The server's record** (Analytics Engine, E2:08's own points, `/wx` recorded as `/other`): **23 requests in 5
+  seconds**, three `200`s and the rest `304`s, then none until the layer was turned off at 22:22:14Z.
+- **The prediction it breaks:** WD5c predicts **27-33 in 30 minutes**. This is outside the set, so **the session
+  stopped**. No `/diag/fb` frame was captured, and nothing was graded.
+
+**The cause, read from the code** (not yet confirmed by a test):
+- **The feed path sets its timer when it sends:** `lastFetch = now; RequestFetch();`
+  (`AircraftManager.cpp`, the fetch block).
+- **The weather path does not.** `wxpolicy::ShouldFetch` (`include/WxPolicy.h`) stays true until `OnResponse` sets
+  `attempted` and `lastAttemptMs`, which happens only when the **reply** arrives.
+- **So** every loop pass between the send and the reply queues another request, and the fetch task then drains them.
+- **It should recur at every interval:** the same burst should come back each time the 60 s interval lapses. The layer
+  was on for 33 s, so a second burst was not observed.
+- **A further consequence:** the feed's own requests share that queue.
+- **Why no test caught it.** This is CLAUDE.md's "second path" shape. WD3's host tests grade the policy's answers;
+  nothing grades when the wiring records an attempt.
+
+**What was put back:**
+- **The layer:** off at 22:22:14Z, verified as the only changed field.
+- **The board:** E2:08 has main `962ccb7`'s `blipscope-s3-128` again (app-only, verified write), which fetches
+  production `/blips`, so Bend has its feed source.
+
+**Nothing else is changed.** The fix, the predictions for it, and when to resume the captures wait for a ruling.
