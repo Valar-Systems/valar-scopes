@@ -57,4 +57,16 @@ void FrameDone();
 /// Publish the backbuffer. Called once from setup(), after createSprite().
 void Register(LGFX_Sprite* sprite);
 
+/// DIAG ONLY (docs/weatherscope-stage3.md A9.21 item 4, A9.22). Where the render loop is inside a frame: Cleared
+/// after the clear, Drawn after the app's Draw, Pushed after the push. /diag/fb reads it either side of its copy, so a
+/// copy that lands inside a redraw says so -- Sequence() cannot, because it moves only after the push.
+enum : uint8_t { kPhaseCleared = 1, kPhaseDrawn = 2, kPhasePushed = 3 };
+void SetPhase(uint8_t phase);
+uint8_t Phase();
+
+/// DIAG ONLY: an app-defined tag for what the backbuffer last held complete (Weatherscope writes MSRRCCCC: mode,
+/// scene, radius, draw count). 0 when the app sets none.
+void SetTag(uint32_t tag);
+uint32_t Tag();
+
 }  // namespace framebuf

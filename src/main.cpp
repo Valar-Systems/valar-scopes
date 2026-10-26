@@ -92,6 +92,13 @@ LGFX_Sprite* Backbuffer() { return g_fbSprite; }
 uint32_t     Sequence()   { return g_fbSeq; }
 void         FrameDone()  { ++g_fbSeq; }
 void         Register(LGFX_Sprite* sprite) { g_fbSprite = sprite; }
+// DIAG ONLY (FrameBuffer.h; docs/weatherscope-stage3.md A9.22): where the loop is in the frame, and the app's tag.
+volatile uint8_t  g_fbPhase = 0;
+volatile uint32_t g_fbTag   = 0;
+void         SetPhase(uint8_t phase) { g_fbPhase = phase; }
+uint8_t      Phase()                 { return g_fbPhase; }
+void         SetTag(uint32_t tag)    { g_fbTag = tag; }
+uint32_t     Tag()                   { return g_fbTag; }
 }  // namespace framebuf
 
 WiFiManager wm;
@@ -849,6 +856,7 @@ void loop()
     const bool firstPass = (bandY == 0);
 
     canvas.fillScreen(lgfx::color888(0, 0, 0));
+    framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     if (drawScan)
@@ -856,7 +864,17 @@ void loop()
 #endif
 
     appManager.Draw(canvas, firstPass);
+    framebuf::SetPhase(framebuf::kPhaseDrawn);     // diag only (A9.22)
+#ifdef FEATURE_WEATHERSCOPE
+    // Diag only (A9.22): what was pushed, the phase it was pushed at, and how long the push held the loop task.
+    const uint8_t pushPhase = framebuf::Phase();
+    const uint32_t pushT0 = micros();
+#endif
     backbuffer.pushSprite(0, bandY);
+    framebuf::SetPhase(framebuf::kPhasePushed);    // diag only (A9.22)
+#ifdef FEATURE_WEATHERSCOPE
+    appManager.OnPushed(framebuf::Tag(), pushPhase, micros() - pushT0);
+#endif
   }
   // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
   // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).

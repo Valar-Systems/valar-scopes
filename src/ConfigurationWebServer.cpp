@@ -4239,9 +4239,15 @@ void ConfigurationWebServer::Initialise() {
             request->send(503, "text/plain", "out of PSRAM for a frame snapshot");
             return;
         }
+        // Diag (docs/weatherscope-stage3.md A9.22): the render loop's phase and the app's tag, either side of the
+        // copy. Sequence() moves only after a push, so a copy inside a redraw reads untorn; the phase says so.
+        const uint8_t  phaseBefore = framebuf::Phase();
+        const uint32_t tagBefore   = framebuf::Tag();
         const uint32_t seqBefore = framebuf::Sequence();
         memcpy(snap, fb->getBuffer(), total);
         const uint32_t seqAfter = framebuf::Sequence();
+        const uint8_t  phaseAfter = framebuf::Phase();
+        const uint32_t tagAfter   = framebuf::Tag();
         const bool torn = (seqBefore != seqAfter);
 
         // shared_ptr with a PSRAM-aware deleter: the chunk callback outlives this
@@ -4277,6 +4283,14 @@ void ConfigurationWebServer::Initialise() {
         r->addHeader("X-Blipscope-Frame-Format", "RGB565BE");
         r->addHeader("X-Blipscope-Frame-Torn", torn ? "true" : "false");
         r->addHeader("X-Blipscope-Frame-Seq", String(seqAfter));
+        {
+            char ph[8], tg[20];
+            snprintf(ph, sizeof ph, "%u,%u", (unsigned)phaseBefore, (unsigned)phaseAfter);
+            snprintf(tg, sizeof tg, "%08lx,%08lx", (unsigned long)tagBefore, (unsigned long)tagAfter);
+            r->addHeader("X-Blipscope-Frame-Phase", ph);
+            r->addHeader("X-Blipscope-Frame-Tag", tg);
+            r->addHeader("X-Blipscope-Frame-Buffer", "backbuffer");
+        }
         r->addHeader("Cache-Control", "no-store");
         request->send(r);
     });

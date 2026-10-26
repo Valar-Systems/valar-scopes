@@ -554,16 +554,42 @@ struct ScreenOut {
     Rgb timeInk{0, 0, 0};
 };
 
+// Compose's phases, timed by the caller's clock (A9.22: timing only -- a profile changes no pixel). t[0] is taken on
+// entry and t[i + 1] at the end of phase i.
+struct Profile {
+    enum Phase { kView, kMap, kBands, kRings, kStrip, kWarning, kLabels, kRingLabels, kHome, kBand, kPhases };
+    uint32_t (*clock)() = nullptr;
+    uint32_t t[kPhases + 1] = {};
+    uint32_t Us(int phase) const { return t[phase + 1] - t[phase]; }
+    uint32_t Sum() const { return t[kPhases] - t[0]; }
+    static const char* Name(int phase)
+    {
+        static const char* const k[kPhases] = {"view", "map", "bands", "rings", "strip", "warning", "labels",
+                                               "ringlabels", "home", "band"};
+        return k[phase];
+    }
+};
+inline void Stamp(Profile* p, int i)
+{
+    if (p && p->clock) p->t[i] = p->clock();
+}
+
 // A whole screen, in the generator's order (A9.2): map, bands, rings, top strip, polygon and title, the arrow (after
 // the polygon, before the labels: Q17), town labels, ring numbers, home marker, band text. `v` is the caller's view
-// (rebuilt here for the radius), so no screen-sized state lives in this header.
-inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, ScreenOut* out, CodeRows* rows = nullptr)
+// (rebuilt here for the radius), so no screen-sized state lives in this header. `prof`, when given, is stamped at each
+// phase boundary and changes nothing drawn.
+inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, ScreenOut* out, CodeRows* rows = nullptr,
+                    Profile* prof = nullptr)
 {
     using namespace wxraster;
+    Stamp(prof, 0);
     wxrender::BuildViewKm(*in.h, &v, in.radiusMi * 1.609344);
+    Stamp(prof, Profile::kView + 1);
     DrawMap(s, *in.h, in.codes, v, rows);
+    Stamp(prof, Profile::kMap + 1);
     Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
     Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
+    Stamp(prof, Profile::kBands + 1);
     Box fixed[12];
     int nFixed = 0;
     fixed[nFixed++] = Box{0, 0, kSize - 1, kTopBand - 1};
@@ -572,12 +598,14 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
     int rings[3];
     const int nRings = RingsFor(R, rings);
     for (int i = 0; i < nRings; ++i) RingDots(s, rings[i] * ppm, kRing);
+    Stamp(prof, Profile::kRings + 1);
 
     Text(s, 117, 3, "N", 1, kDim, nullptr);
     TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &out->timeInk);
     const TopStrip top = TopStripAt(out->time, in.radiusMi);
     Text(s, top.timeX, 13, out->time, 1, out->timeInk, nullptr);
     if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, kWhite, nullptr);
+    Stamp(prof, Profile::kStrip + 1);
 
     if (in.warning) {
         double px[4], py[4];
@@ -602,6 +630,7 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
             fixed[nFixed++] = ArrowBox(a);
         }
     }
+    Stamp(prof, Profile::kWarning + 1);
 
     const ViewTowns towns(in.towns, v);
     out->nLabels = PlaceTowns(towns, in.order, in.nTowns, in.radiusMi, Inner(R), fixed, nFixed, out->labels);
@@ -610,6 +639,7 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
         Fill(s, p.ix - 1, p.iy - 1, p.ix + 1, p.iy + 1, kLabel);
         Text(s, p.tx, p.ty, out->labels[i].label, 1, kLabel, &kBlack);
     }
+    Stamp(prof, Profile::kLabels + 1);
 
     Box obs[12 + kMaxLabels + 3];
     int nObs = 0;
@@ -624,8 +654,10 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
         Text(s, tx, ty, num, 1, kRingText, &kBlack);
         obs[nObs++] = b;
     }
+    Stamp(prof, Profile::kRingLabels + 1);
 
     HomeMarker(s, kWhite);
+    Stamp(prof, Profile::kHome + 1);
 
     if (in.warning) {
         Text(s, (int)(kC - TextW(in.wt.band1, 1) / 2.0), 197, in.wt.band1, 1, kWhite, nullptr);
@@ -638,6 +670,7 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
     } else {
         Text(s, (int)(kC - TextW(in.state, 2) / 2.0), 198, in.state, 2, in.stateInk, nullptr);
     }
+    Stamp(prof, Profile::kBand + 1);
 }
 
 }  // namespace wxscreens

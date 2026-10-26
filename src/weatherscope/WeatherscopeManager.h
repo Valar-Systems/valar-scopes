@@ -49,6 +49,9 @@ public:
     void Initialise();
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
+    // DIAG ONLY (A9.22): main.cpp hands over every push -- the backbuffer's tag, the phase it was pushed at, and how
+    // long the push held the loop task. Logged run-length on the scene; held during a loop, printed after it.
+    void OnPushed(uint32_t tag, uint8_t phase, uint32_t pushUs);
 
     static constexpr int kLoopFrames = 15;
 
@@ -59,6 +62,8 @@ public:
         int64_t startUs;
         uint32_t drawUs;
         uint32_t hashUs;
+        uint32_t decodeUs;     // A9.22's profile: the decode, then Compose's ten phases
+        uint32_t phaseUs[10];
     };
 
 private:
@@ -115,6 +120,23 @@ private:
     int64_t loopT0Us = 0;
     bool loopFrameDue = false;
 
+    // diag (A9.22): the backbuffer's tag, the push log, the full-frame copy's timing
+    uint32_t drawCount = 0;
+    struct PushRun {
+        uint16_t scene = 0;          // the tag's top half: mode, scene, radius
+        uint16_t first = 0, last = 0; // draw counts
+        uint32_t n = 0;
+        uint8_t phases = 0;          // bit p = a push seen at phase p
+        uint32_t pushMin = 0, pushMax = 0;
+    };
+    PushRun pushRun;
+    static constexpr int kHeldRuns = 24;
+    PushRun heldRuns[kHeldRuns];
+    int nHeldRuns = 0, droppedRuns = 0;
+    uint32_t copyN = 0, copyMin = 0, copyMax = 0;
+    uint64_t copySum = 0;
+    bool ringShown = false;
+
     // touch
     bool wasTouched = false;
     int touchStartX = 0, touchStartY = 0, touchLastX = 0, touchLastY = 0;
@@ -146,5 +168,8 @@ private:
     void DrawScenario(BandCanvas& c);
     void DrawLoopFrame(BandCanvas& c);
     void DrawLegend(BandCanvas& c);
+    void DrawHoldRing(BandCanvas& c);
+    void PrintPushRun(const PushRun& r) const;
+    void PrintCopyStats();
     void CenterText(BandCanvas& c, const String& s, int y, uint32_t color);
 };

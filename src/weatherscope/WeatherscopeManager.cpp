@@ -10,6 +10,7 @@
 #include <stdlib.h>   // before WxLogic.h, which calls strtod without including it (A8.15)
 
 #include "DeviceIdentity.h"
+#include "FrameBuffer.h"
 #include "Layout.h"
 #include "SolarDim.h"
 #include "TouchPoll.h"
@@ -102,6 +103,9 @@ public:
 private:
     mbedtls_sha256_context ctx_;
 };
+
+// The profile's clock (A9.22): esp_timer's microseconds, truncated (a frame is far shorter than the wrap).
+uint32_t ProfClock() { return (uint32_t)esp_timer_get_time(); }
 
 bool FullScreen(LGFX_Sprite& s)
 {
@@ -235,13 +239,16 @@ void WeatherscopeManager::BuildScenario()
         Serial.printf("[wx] scn=%s FAILED: its crop does not decode or build\n", kScenarioName[kindIndex]);
         return;
     }
+    PrintCopyStats();   // the hold that ended (A9.22's P4)
     const int R = ZoomMiles();
     *screenIn = wxscreens::ScreenIn();
     wxscenes::FromScenario(*scenario, h, grid, R, townOrder, screenIn);
     *screenOut = wxscreens::ScreenOut();
     SpriteSink sink(*screenSprite);
+    wxscreens::Profile prof;
+    prof.clock = ProfClock;
     const int64_t t0 = esp_timer_get_time();
-    wxscreens::Compose(sink, *screenIn, *view, screenOut);
+    wxscreens::Compose(sink, *screenIn, *view, screenOut, nullptr, &prof);
     const uint32_t composeUs = (uint32_t)(esp_timer_get_time() - t0);
 
     uint8_t sha[32];
@@ -261,6 +268,13 @@ void WeatherscopeManager::BuildScenario()
                   (unsigned)psramUsed);
     Serial.printf("[wx] scn=%s R=%d frame=%s screen=%s synthetic=%d compose_us=%lu\n", kScenarioName[kindIndex], R, hh,
                   ScreenName(scenario->Choose().screen), (int)scenario->synthetic, (unsigned long)composeUs);
+    {
+        char line[200];
+        int n = snprintf(line, sizeof line, "[wx] prof %s", row);
+        for (int i = 0; i < wxscreens::Profile::kPhases && n > 0 && n < (int)sizeof line; ++i)
+            n += snprintf(line + n, sizeof line - n, " %s=%lu", wxscreens::Profile::Name(i), (unsigned long)prof.Us(i));
+        Serial.printf("%s sum=%lu compose_us=%lu\n", line, (unsigned long)prof.Sum(), (unsigned long)composeUs);
+    }
     Serial.printf("[wx] k ROW %s %s\n", row, hex);
     wxscenes::Token(screenOut->time, tok, sizeof tok);
     Serial.printf("[wx] k TIME %s %s %s\n", row, tok, wxscenes::InkName(screenOut->timeInk));
@@ -383,6 +397,21 @@ void WeatherscopeManager::FinishLoop()
                       (unsigned long)records[i].epoch, hex, (long long)records[i].startUs,
                       (unsigned long)records[i].drawUs, (unsigned long)records[i].hashUs);
     }
+    for (int i = 0; i < kLoopFrames; ++i) {
+        const LoopRecord& r = records[i];
+        uint32_t sum = 0;
+        char line[220];
+        int n = snprintf(line, sizeof line, "[wx] lprof %d decode=%lu", i, (unsigned long)r.decodeUs);
+        for (int k = 0; k < wxscreens::Profile::kPhases && n > 0 && n < (int)sizeof line; ++k) {
+            sum += r.phaseUs[k];
+            n += snprintf(line + n, sizeof line - n, " %s=%lu", wxscreens::Profile::Name(k), (unsigned long)r.phaseUs[k]);
+        }
+        Serial.printf("%s sum=%lu draw_us=%lu hash_us=%lu\n", line, (unsigned long)sum, (unsigned long)r.drawUs,
+                      (unsigned long)r.hashUs);
+    }
+    for (int i = 0; i < nHeldRuns; ++i) PrintPushRun(heldRuns[i]);
+    if (droppedRuns) Serial.printf("[fb] push runs dropped while held: %d\n", droppedRuns);
+    nHeldRuns = droppedRuns = 0;
     wxscreens::Pause(*cycle, false);
     Serial.printf("[wx] screen=scenario %s R=%d\n", kScenarioName[cycle->index], ZoomMiles());
 }
@@ -545,6 +574,60 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
     case Mode::Loop: DrawLoopFrame(backbuffer); break;
     case Mode::Legend: DrawLegend(backbuffer); break;
     }
+    // DIAG ONLY (A9.22): what the backbuffer now holds, MSRRCCCC -- mode, scene, radius, draw count.
+    uint32_t m = 5, sc = 0, rr = 0;
+    if (mode == Mode::Scenario) { m = 1; sc = (uint32_t)cycle->index; rr = (uint32_t)ZoomMiles(); }
+    else if (mode == Mode::Loop) { m = 2; sc = (uint32_t)(loopIndex - 1) & 15; rr = (uint32_t)ZoomMiles(); }
+    else if (mode == Mode::Legend) m = 3;
+    else if (mode == Mode::Status) m = 4;
+    framebuf::SetTag((m << 28) | ((sc & 15) << 24) | ((rr & 255) << 16) | (++drawCount & 0xFFFF));
+}
+
+void WeatherscopeManager::OnPushed(uint32_t tag, uint8_t phase, uint32_t pushUs)
+{
+    const uint16_t scene = (uint16_t)(tag >> 16), count = (uint16_t)(tag & 0xFFFF);
+    if (pushRun.n && scene == pushRun.scene) {
+        pushRun.last = count;
+        ++pushRun.n;
+        pushRun.phases |= (uint8_t)(1u << (phase & 7));
+        if (pushUs < pushRun.pushMin) pushRun.pushMin = pushUs;
+        if (pushUs > pushRun.pushMax) pushRun.pushMax = pushUs;
+        return;
+    }
+    if (pushRun.n) {
+        if (mode == Mode::Loop) {
+            if (nHeldRuns < kHeldRuns) heldRuns[nHeldRuns++] = pushRun;
+            else ++droppedRuns;
+        } else {
+            PrintPushRun(pushRun);
+        }
+    }
+    pushRun = PushRun();
+    pushRun.scene = scene;
+    pushRun.first = pushRun.last = count;
+    pushRun.n = 1;
+    pushRun.phases = (uint8_t)(1u << (phase & 7));
+    pushRun.pushMin = pushRun.pushMax = pushUs;
+}
+
+void WeatherscopeManager::PrintPushRun(const PushRun& r) const
+{
+    char ph[24];
+    int n = 0;
+    ph[0] = '\0';
+    for (int p = 0; p < 8; ++p)
+        if (r.phases & (1u << p)) n += snprintf(ph + n, sizeof ph - n, "%s%d", n ? "," : "", p);
+    Serial.printf("[fb] push %04x draws %u-%u n=%lu phases=%s push_us=%lu-%lu\n", (unsigned)r.scene, (unsigned)r.first,
+                  (unsigned)r.last, (unsigned long)r.n, ph, (unsigned long)r.pushMin, (unsigned long)r.pushMax);
+}
+
+void WeatherscopeManager::PrintCopyStats()
+{
+    if (copyN)
+        Serial.printf("[wx] fbcopy n=%lu min=%lu max=%lu mean=%lu\n", (unsigned long)copyN, (unsigned long)copyMin,
+                      (unsigned long)copyMax, (unsigned long)(copySum / copyN));
+    copyN = copyMin = copyMax = 0;
+    copySum = 0;
 }
 
 // The scenario's cached screen, a straight copy: both are 240 x 240 at 16 bpp, so the bytes are the same
@@ -552,8 +635,48 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
 void WeatherscopeManager::DrawScenario(BandCanvas& c)
 {
     LGFX_Sprite& s = c.sprite();
-    if (FullScreen(s)) memcpy(s.getBuffer(), screenSprite->getBuffer(), (size_t)s.bufferLength());
-    else screenSprite->pushSprite(&s, 0, 0);
+    if (FullScreen(s)) {
+        const int64_t t0 = esp_timer_get_time();
+        memcpy(s.getBuffer(), screenSprite->getBuffer(), (size_t)s.bufferLength());
+        const uint32_t us = (uint32_t)(esp_timer_get_time() - t0);   // the full-frame PSRAM copy (A9.22's P4)
+        if (copyN == 0 || us < copyMin) copyMin = us;
+        if (us > copyMax) copyMax = us;
+        copySum += us;
+        ++copyN;
+    } else {
+        screenSprite->pushSprite(&s, 0, 0);
+    }
+    if (mode == Mode::Scenario) DrawHoldRing(c);   // on top, every frame; never in a cached screen (A9.21 item 5)
+}
+
+// THE HOLD RING, Blipscope's own (AircraftManager::DrawHoldRing, docs/v17-long-press-zoom.md "Ring visibility";
+// Daniel's call for Weatherscope, A9.21 item 5): a progress band just inside the rim, where no finger is, filling from
+// 12 o'clock while the hold builds, drawn complete once fired. When and how far are LongPressPolicy's, unchanged.
+// Drawn over the copied screen each frame, so the frame after the release no longer has it.
+void WeatherscopeManager::DrawHoldRing(BandCanvas& c)
+{
+    const bool fired = longPress.phase == longpress::Phase::Fired;
+    const bool visible = fired || longpress::RingVisible(longPress);
+    if (visible != ringShown) {
+        ringShown = visible;
+        Serial.printf("[wx] hold ring %s\n", visible ? "on" : "off");
+    }
+    if (!visible) return;
+    const float k = SCREEN_SIZE / 240.0f;
+    const int cc = SCREEN_SIZE_DIV_2;
+    const int R1 = SCREEN_SIZE_DIV_2 - (int)(2 * k), R0 = R1 - (int)(7 * k);
+    c.drawCircle(cc, cc, R1 + 1, lgfx::color888(0, 90, 0));   // the dim track
+    const uint32_t p = fired ? 1000 : longpress::RingPermille(longPress, millis());
+    if (p == 0) return;
+    // LovyanGFX angles: 0 = 3 o'clock, clockwise. Start at 12 o'clock and never pass 360 in one call.
+    const float a1 = 270.0f + 360.0f * (float)p / 1000.0f;
+    const uint32_t green = lgfx::color888(0, 200, 0);
+    if (a1 <= 360.0f) {
+        c.fillArc(cc, cc, R0, R1, 270.0f, a1, green);
+    } else {
+        c.fillArc(cc, cc, R0, R1, 270.0f, 360.0f, green);
+        c.fillArc(cc, cc, R0, R1, 0.0f, a1 - 360.0f, green);
+    }
 }
 
 // One loop frame, at its deadline: decode, then the whole screen composed into the backbuffer at the current zoom,
@@ -570,14 +693,21 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
     LoopRecord& rec = records[loopIndex];
     rec.startUs = start;
     wxcrop::Header h, last;
-    if (FullScreen(s) && DecodeCrop(history[loopIndex], &h) &&
+    const int64_t d0 = esp_timer_get_time();
+    const bool decoded = FullScreen(s) && DecodeCrop(history[loopIndex], &h);
+    rec.decodeUs = (uint32_t)(esp_timer_get_time() - d0);
+    memset(rec.phaseUs, 0, sizeof rec.phaseUs);
+    if (decoded &&
         wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last) == wxcrop::Status::Ok) {
         *screenIn = wxscreens::ScreenIn();
         wxscenes::FromLoopFrame(h, grid, loopIndex, last.frameEpoch, ZoomMiles(), townOrder, screenIn);
         *screenOut = wxscreens::ScreenOut();
         SpriteSink sink(s);
         RowHash rows;
-        wxscreens::Compose(sink, *screenIn, *view, screenOut, &rows);
+        wxscreens::Profile prof;
+        prof.clock = ProfClock;
+        wxscreens::Compose(sink, *screenIn, *view, screenOut, &rows, &prof);
+        for (int k = 0; k < wxscreens::Profile::kPhases; ++k) rec.phaseUs[k] = prof.Us(k);
         rows.Finish(rec.sha);
         rec.hashUs = rows.us;
         rec.epoch = h.frameEpoch;
