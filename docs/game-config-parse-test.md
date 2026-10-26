@@ -131,3 +131,16 @@ checksum on top. So:
 
 **Outside the set:** a `Build <env>` step with no `Flash:` line is no measurement: stop. A delta outside the band:
 stop.
+
+## Results after the ruling (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **H1, MinGW 5.1** | the full suite: **ALL HOST TESTS PASSED**, exit 0, empty stderr. The board block passes here, because MinGW finds the xtensa toolchain under `$HOME/.platformio`. Every result line is the same as main's MinGW run, plus the new block's `53 checks, 0 failures` | **as predicted** |
+| **T5** | all four `.pio/libdeps/*/ArduinoJson` were renamed away (0 found). The block printed `BLIND: no ArduinoJson under .pio/libdeps` and **`run.sh` exited 2**, with no pass line. Renamed back, and 4 of 4 were found again | **as predicted** |
+| **S1** | the `autoDecodeS` read removed: `run.sh` exit 1, GameConfig **53 checks, 2 failures**, "autoDecodeS differs from the JSON" and "the served autoDecodeS is no longer 300". T2 was green | **as predicted** |
+| **S2** | a missing `ppm` read as 0, in both reads: exit 1, **53 checks, 2 failures**, "the pre-ppm config was ACCEPTED" and "the pre-ppm config is marked valid". T1 was green | **as predicted** |
+| **S2′** | only the weights' `ppm` read made lenient: exit 0, **53 checks, 0 failures**. The v1 row stays green, because v1's `tOffset` refuses it, which is the limit stated beforehand | **as predicted** |
+
+Every plant was restored **by bytes**. `GameConfig.cpp`'s sha256 was back to `cadb5757485a` after each one, and the
+tree was clean afterwards.
