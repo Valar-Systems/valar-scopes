@@ -1153,8 +1153,9 @@ private:
     // because the retry condition is then already satisfied-away. See #129.
     bool RequestCloudConfig();                  // loop: queue a /api/v1/blipscope/config fetch on the fetch task
     bool RequestCloudAirports();                // loop: queue a /api/v1/blipscope/airports fetch on the fetch task
-    bool RequestWeather();                      // loop: queue a /api/v1/blipscope/wx/cref fetch (WD5), behind the feed
-    void ConsumeWeather(int status, size_t len, size_t claimed, const String& etag, const wxpolicy::Query& asked);
+    bool RequestWeather(unsigned long now);     // loop: queue a /api/v1/blipscope/wx/cref fetch (WD5), behind the feed
+    void ConsumeWeather(int status, size_t len, size_t claimed, const String& etag, const wxpolicy::Query& asked,
+                        uint32_t seq);
     bool AllocateWeatherBuffers();              // the five PSRAM buffers, once (WD5 addendum 2)
     bool WxEnabled() const;                     // switch on, buffers allocated, cloud source configured
     wxpolicy::Query WxQuery() const;            // the query the request carries, from the wire's own rounding

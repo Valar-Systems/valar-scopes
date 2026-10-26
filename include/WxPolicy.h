@@ -11,7 +11,11 @@
 //   (c) never shown older than 600 s by the NTP clock, and never shown without a set clock;
 //   (d) If-None-Match is sent only with an ETag earned by the current query; a query change drops both;
 //   (e) every 60 s while enabled; errors back off 60 -> 120 -> 240 -> 480 -> 600 s, reset by a 200 or 304;
-//   (f) a crop entirely of 14 is held but shown as "outside coverage", never as an empty (dry) overlay.
+//   (f) a crop entirely of 14 is held but shown as "outside coverage", never as an empty (dry) overlay;
+//   (g) the attempt is recorded at the SEND (OnSend, with the loop pass's own clock), one request is in flight at a
+//       time, a reply never moves the interval's start and never triggers a refetch, and a reply that never comes
+//       ends after kReplyTimeoutMs as a failed attempt (the backoff). WD5 addendum 6: the 2026-10-26 /wx storm was a
+//       reply-time attempt compared against the pass's earlier `now`, which underflowed to "due".
 #include <stdint.h>
 #include <string.h>
 
@@ -22,6 +26,7 @@ constexpr uint32_t kMaxAgeS = 600;
 constexpr uint32_t kPollMs = 60000;
 constexpr uint32_t kMaxBackoffMs = 600000;
 constexpr size_t kEtagMax = 96;
+constexpr uint32_t kReplyTimeoutMs = 30000;   // (g) a request unanswered this long is a failed attempt
 
 /** The query a crop answers: the wire's lat/lon at 2 dp (as integers x100) and r in whole km. */
 struct Query {
@@ -37,8 +42,12 @@ struct State {
     bool allNoCoverage = false;   // every cell of the held crop is 14
     char etag[kEtagMax] = {0};    // "" = none
     uint32_t intervalMs = kPollMs;
-    uint32_t lastAttemptMs = 0;
+    uint32_t lastAttemptMs = 0;   // (g) the SEND of the latest request, never its reply
     bool attempted = false;
+    bool inFlight = false;        // (g) a request has been sent and not yet answered or timed out
+    uint32_t sentMs = 0;          // (g) when the in-flight request was sent
+    uint32_t seq = 0;             // (g) the in-flight request's number; a reply carrying another is ignored
+    uint32_t lastReplyMs = 0;     // diagnostics only: when the latest accepted reply arrived
 };
 
 enum class Show : uint8_t { Nothing, Crop, OutsideCoverage };
@@ -55,10 +64,31 @@ inline void OnQuery(State& s, const Query& q)
     s.etag[0] = 0;                                        // (d) and so did its ETag
 }
 
-/** Whether to make a request now. Wrap-safe in millis(). */
-inline bool ShouldFetch(const State& s, bool enabled, uint32_t nowMs)
+inline void Backoff(State& s)
+{
+    const uint32_t next = s.intervalMs * 2;               // (e)
+    s.intervalMs = next > kMaxBackoffMs ? kMaxBackoffMs : next;
+}
+
+/** A request is being sent now, at `nowMs` (the loop pass's own clock). Returns its number for OnResponse. */
+inline uint32_t OnSend(State& s, uint32_t nowMs)
+{
+    s.attempted = true;                                   // (g) the attempt is the send
+    s.lastAttemptMs = nowMs;                              // (g) the interval runs from here
+    s.inFlight = true;                                    // (g) one at a time
+    s.sentMs = nowMs;
+    return ++s.seq;
+}
+
+/** Whether to make a request now. Wrap-safe in millis(). Ends a request unanswered for kReplyTimeoutMs. */
+inline bool ShouldFetch(State& s, bool enabled, uint32_t nowMs)
 {
     if (!enabled) return false;                           // (a)
+    if (s.inFlight) {
+        if ((uint32_t)(nowMs - s.sentMs) < kReplyTimeoutMs) return false;   // (g) one in flight
+        s.inFlight = false;                               // (g) the reply never came: a failed attempt
+        Backoff(s);
+    }
     if (!s.attempted) return true;
     return (uint32_t)(nowMs - s.lastAttemptMs) >= s.intervalMs;   // (e)
 }
@@ -71,19 +101,15 @@ inline const char* IfNoneMatch(const State& s, const Query& q)
     return s.etag;
 }
 
-inline void Backoff(State& s)
-{
-    const uint32_t next = s.intervalMs * 2;               // (e)
-    s.intervalMs = next > kMaxBackoffMs ? kMaxBackoffMs : next;
-}
-
-/** A response to a request made for `asked`. status <= 0 is a network failure. `valid` is
- *  wxcrop::Validate()==Ok on the body; `frameEpoch`/`allNoCoverage` come from that body. */
-inline Outcome OnResponse(State& s, const Query& asked, int status, uint32_t bytes, bool valid,
+/** The reply to request `seq`, made for `asked`. status <= 0 is a network failure. `valid` is
+ *  wxcrop::Validate()==Ok on the body; `frameEpoch`/`allNoCoverage` come from that body. `nowMs` is the reply's
+ *  arrival, kept for diagnostics only: the interval runs from the send (g). */
+inline Outcome OnResponse(State& s, uint32_t seq, const Query& asked, int status, uint32_t bytes, bool valid,
                           uint32_t frameEpoch, bool allNoCoverage, const char* etag, uint32_t nowMs)
 {
-    s.attempted = true;
-    s.lastAttemptMs = nowMs;
+    if (!s.inFlight || seq != s.seq) return Outcome::Kept;   // (g) late or stray: changes nothing
+    s.inFlight = false;                                   // (g) answered
+    s.lastReplyMs = nowMs;                                // (g) never lastAttemptMs
     if (status == 304) {
         s.intervalMs = kPollMs;                           // (e) reset
         return Outcome::NotModified;

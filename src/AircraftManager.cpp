@@ -399,6 +399,7 @@ struct FetchRequest {
                                      // request is in flight -- one in flight at most, behind fetchInFlight.
     String wxIfNoneMatch;            // Weather: WxPolicy's If-None-Match, "" for none
     wxpolicy::Query wxAsked;         // Weather: the query this request carries
+    uint32_t wxSeq = 0;              // Weather: this request's number from wxpolicy::OnSend (WD5 addendum 6)
 #endif
 };
 struct FetchResult {
@@ -416,6 +417,7 @@ struct FetchResult {
     size_t wxClaimed = 0;            // Weather: the length the server claimed (> cap = refused for size)
     String wxEtag;                   // Weather: the reply's ETag
     wxpolicy::Query wxAsked;         // Weather: the query this answers
+    uint32_t wxSeq = 0;              // Weather: the request number this answers
 #endif
     // Measurement carried back to the loop task, which owns the counters (this
     // struct crosses a queue; the fetch task must not touch loop state).
@@ -1784,7 +1786,7 @@ void AircraftManager::Update()
         // Weather (docs/wx-device.md, WD5) is queued BEHIND the feed: only on a pass where the feed is not due,
         // so it never preempts a poll. Off -- the default -- means WxPolicy answers no, ever (WD3 (a)).
         else if (wxpolicy::ShouldFetch(wxState, WxEnabled(), (uint32_t)now)) {
-            RequestWeather();
+            RequestWeather(now);   // the pass's own clock: the attempt is the send (WD5 addendum 6)
         }
 #endif
     }
@@ -2746,6 +2748,7 @@ void AircraftManager::RunFetchTask()
             res->wxClaimed = r.bodyBytes;
             res->wxEtag = etag;
             res->wxAsked = req->wxAsked;
+            res->wxSeq = req->wxSeq;
             if (!r.success && r.statusCode <= 0)
                 fetchHardFailures++;
             delete req;
@@ -3133,7 +3136,7 @@ bool AircraftManager::AllocateWeatherBuffers()
     return true;
 }
 
-bool AircraftManager::RequestWeather()
+bool AircraftManager::RequestWeather(unsigned long now)
 {
     if (!WxEnabled()) return false;
     const wxpolicy::Query q = WxQuery();
@@ -3148,17 +3151,24 @@ bool AircraftManager::RequestWeather()
     req->wxBuf = wxLanding;
     req->wxAsked = q;
     if (const char* inm = wxpolicy::IfNoneMatch(wxState, q)) req->wxIfNoneMatch = inm;
+    // The attempt is recorded HERE, at the send, with the same `now` the loop just asked ShouldFetch with -- never
+    // at the reply, whose later millis() underflowed against that `now` and fired 23 requests in 5 s on 2026-10-26
+    // (docs/wx-device.md, WD5 addendum 6).
+    const uint32_t seq = wxpolicy::OnSend(wxState, (uint32_t)now);
+    req->wxSeq = seq;
     if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
         fetchInFlight = true;
         return true;
     }
     Serial.println("[wx] request DROPPED: fetch queue full");
     delete req;
+    // Never sent: answered at once as a network failure, so it backs off rather than retrying every pass.
+    wxpolicy::OnResponse(wxState, seq, q, -1, 0, false, 0, false, nullptr, (uint32_t)millis());
     return false;
 }
 
 void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, const String& etag,
-                                     const wxpolicy::Query& asked)
+                                     const wxpolicy::Query& asked, uint32_t seq)
 {
     // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
     // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
@@ -3171,7 +3181,7 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
             if (code != wxcrop::kCodeNoCoverage) all14 = false;
         });
     const uint32_t bytes = (uint32_t)(claimed > len ? claimed : len);
-    const wxpolicy::Outcome o = wxpolicy::OnResponse(wxState, asked, status, bytes, valid, valid ? h.frameEpoch : 0,
+    const wxpolicy::Outcome o = wxpolicy::OnResponse(wxState, seq, asked, status, bytes, valid, valid ? h.frameEpoch : 0,
                                                      all14, etag.isEmpty() ? nullptr : etag.c_str(), (uint32_t)millis());
     if (o == wxpolicy::Outcome::Replaced) {
         memcpy(wxHeld, wxLanding, len);
@@ -3276,7 +3286,7 @@ void AircraftManager::ConsumeFetchResult()
 
 #ifdef FEATURE_CLOUD_FEED
     if (res->kind == FetchKind::Weather) {
-        ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxAsked);
+        ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxAsked, res->wxSeq);
         delete res;
         return;
     }

@@ -38,6 +38,18 @@ SABOTAGES = {
          "    (void)q;   // SABOTAGE S-d: any query's ETag is sent\n")]),
     "S-e  no backoff": ("e", [("        Backoff(s);\n        return Outcome::Error;\n", "        return Outcome::Error;\n")]),
     "S-f  all-14 shown as dry": ("f", [("    if (s.allNoCoverage) return Show::OutsideCoverage;    // (f) the note, never an empty overlay\n", "")]),
+    # Today's wiring before WD5 addendum 6: the attempt recorded at the REPLY, no in-flight guard. G3 must burst.
+    "S-g  the attempt recorded at the reply": ("g", [
+        ("    s.attempted = true;                                   // (g) the attempt is the send\n"
+         "    s.lastAttemptMs = nowMs;                              // (g) the interval runs from here\n"
+         "    s.inFlight = true;                                    // (g) one at a time\n",
+         "    (void)nowMs;   // SABOTAGE S-g: the send records nothing\n"),
+        ("    if (!s.inFlight || seq != s.seq) return Outcome::Kept;   // (g) late or stray: changes nothing\n"
+         "    s.inFlight = false;                                   // (g) answered\n"
+         "    s.lastReplyMs = nowMs;                                // (g) never lastAttemptMs\n",
+         "    (void)seq;   // SABOTAGE S-g: the attempt is recorded at the reply, as before addendum 6\n"
+         "    s.attempted = true;\n    s.lastAttemptMs = nowMs;\n"),
+    ]),
 }
 
 
@@ -82,7 +94,7 @@ def main():
                 print(f"{name}: did not compile (rig)\n{err}")
                 return 2
             fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
-            tags = sorted({m.group(1) for l in fails for m in [re.search(r"FAIL\s+\(([a-f])\)", l)] if m})
+            tags = sorted({m.group(1) for l in fails for m in [re.search(r"FAIL\s+\(([a-g])\)", l)] if m})
             good = r.returncode == 1 and tags == [prop]
             print(f"{name}: exit {r.returncode}; red properties {tags or 'none'} (want ['{prop}']) -> "
                   f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")

@@ -860,3 +860,14 @@ show that a Bend device feeds production again.
 **Not fixed here, noted:** if the fetch task's `xQueueSend(fetchResultQueue)` fails, it deletes the result. Then
 `fetchInFlight` never clears, and every fetch stops. That is a pre-existing path outside WD5, recorded for a later
 look.
+
+### Results for WD5 addendum 6 (local, before CI; the board's G7 follows)
+
+| | read | verdict |
+|---|---|---|
+| **G1** | the four (g) table rows pass: not due until +60 s from the send, with the 304 at +0.4 s triggering nothing; the lost reply ends at +30 s, then 120 s and due at +120 s; the late reply and the stray `seq` are `Kept` | **as predicted** |
+| **G2** | the existing table, and (a)-(f) over 200,000 random steps in the device's order: **0 violations** | **as predicted** |
+| **G3** | the loop row: **28 weather requests** in 30 min (point prediction 28), **at most 1** in any 5 s, **358 feed requests** (≥ 355) | **as predicted** |
+| **S-g** | today's wiring planted: **168 weather requests, 7 in one 5 s window**, feed 335. Red in (g) only. The eight existing sabotages: each red in its own property only. The header was unchanged afterwards (`eec8b5120c60`) | **as predicted** |
+| **G4** | MinGW 5.1: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: its one FAIL is the board block's "no xtensa toolchain found", the gap main shares, and the loop row reads 28 / 1 / 358 there too | **as predicted** |
+| **G5** | `blipscope-s3-128` 1,939,744 B and `blipscope-s3-128-wxlook` 1,940,272 B, both built | **as predicted** |
