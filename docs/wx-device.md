@@ -809,3 +809,54 @@ show that a Bend device feeds production again.
   - **But a host test can reproduce the old wiring's burst only if it drives the loop in the device's order:** `now`
     taken at the start of the pass, the reply consumed afterwards at a later clock.
   - **So the simulation is built that way,** and the predictions below say so.
+
+### WD5 addendum 6, 2026-10-26: the storm's fix, as ruled. Frozen before its code
+
+**The ruling (reviewer chat, pasted by Daniel), in short:**
+- record the attempt at the send;
+- `ShouldFetch` false until the interval lapses, reply or not;
+- a reply never triggers a refetch;
+- a reply that never comes ends after a bounded timeout, as a failed attempt with the backoff;
+- all of it in `WxPolicy.h`, host-tested;
+- a loop-driven 30 min host test within WD5c's 27-33, whose sabotage (today's wiring) bursts;
+- on the board, 10 min with the layer on, before any capture;
+- then the captures as frozen.
+
+**The policy (`include/WxPolicy.h`), with a new property (g):**
+- **`OnSend(State&, nowMs)`:** records `attempted`, `lastAttemptMs = nowMs` (**the send**, with the loop pass's own
+  `now`), `inFlight = true` and `sentMs`. It returns a sequence number for the request.
+- **`ShouldFetch(State&, enabled, nowMs)`:**
+  - (a) first, as now.
+  - **(g) While a request is in flight, the answer is false.** When `nowMs − sentMs ≥ kReplyTimeoutMs` (**30 s**),
+    the request is ended as a failed attempt: the existing `Backoff`.
+  - Then (e), as now, measured from the send.
+- **`OnResponse(State&, seq, asked, status, ..., etag, nowMs)`:**
+  - **A reply whose `seq` is not the one in flight** (late, after the timeout, or stray) **changes nothing:** `Kept`.
+  - **Otherwise it ends the in-flight state and updates the crop, ETag and interval as before.** It **never moves
+    `lastAttemptMs`**. `nowMs` is kept only as `lastReplyMs`, for diagnostics.
+
+**The wiring:**
+- **`RequestWeather(now)`** calls `OnSend` with the pass's `now`, and the request carries the `seq`.
+- **A failed enqueue** is answered at once as a network failure (`OnResponse` with status −1), so it backs off.
+- **`ConsumeWeather`** passes the reply's `seq`.
+
+| | check | predicted |
+|---|---|---|
+| **G1** | host, the table: a send makes `ShouldFetch` false at once and until +60 s; a 304 at +0.4 s leaves it false until +60 s **from the send**, then true; a lost reply: false until +30 s, then the attempt fails, the interval is 120 s, and the next is due at +120 s from the send; a reply after the timeout, and a stray `seq`: `Kept`, state unchanged | all pass, as property **(g)** |
+| **G2** | host, the existing table and 200,000 random steps, with `OnSend` before each `OnResponse` (the device's order) | **(a)-(f): 0 violations** |
+| **G3** | host, **the loop row**: 30 min of 50 ms passes in the device's order (`now` at the start of the pass, a reply consumed afterwards at `now` + 2 ms), with one fetch slot shared with a feed (every 5 s, 300 ms each). Weather replies take 400 ms; every 4th takes 2,500 ms; every 12th is **lost** (the policy never hears; the slot frees at +10 s). The 1st and every 6th are `200`, the rest `304` | **weather requests 27-33, point prediction 28** (two losses each skip one slot); **at most 1 weather request in any 5 s window**; feed requests **≥ 355** (360 nominal) |
+| **S-g** | sabotage, planted into a copy of the header: **today's wiring**. `OnSend` records nothing, `OnResponse` records the attempt at the reply's clock, and the in-flight guard is gone | **G3 red with a burst**: > 33 requests and ≥ 3 in some 5 s window. Red in **(g) only**. The eight existing sabotages stay as predicted, each red in its own property only |
+| **G4** | `run.sh`: WSL `Ubuntu-24.04` g++ 13.3, and MinGW 5.1 | MinGW: **ALL HOST TESTS PASSED**. WSL: the same, apart from the board block's known toolchain gap, which main shares |
+| **G5** | builds: `blipscope-s3-128` and `blipscope-s3-128-wxlook` | both build |
+| **G6** | CI on #445 | 0 failures |
+| **G7** | **the board, before any capture.** E2:08 gets the new `wxlook` image (app-only, banner checked) and one trace, held. **Start ≥ 12 min after boot, untouched**, so the feed is idle at 15 s by day. Then **B:** 10 min with the layer off; **A:** 10 min with it on (`cfg_post.py`). Both are read from the server's record (E2:08's points; `/wx` is `/other`) | in A: **9-11 `/wx` requests**; **at most 2 in any 5 s window**; `/blips` A/B **0.8-1.25**. Then the layer off, verified as before. **A and B must not straddle sunset** (solar elevation at the Bend point, same sign at both ends); if they would, the arm is re-timed **before** it starts |
+
+**Outside the set:** stop and report, without re-running for a better number.
+
+**After G7:**
+- **The captures,** as frozen, when there's rain in range.
+- **Then** E2:08 goes back on main's shipping build.
+
+**Not fixed here, noted:** if the fetch task's `xQueueSend(fetchResultQueue)` fails, it deletes the result. Then
+`fetchInFlight` never clears, and every fetch stops. That is a pre-existing path outside WD5, recorded for a later
+look.
