@@ -540,3 +540,96 @@ rulings, verbatim:
   - **That reading is written into the predictions before the clause is.**
 - **Capture timing:** after #480 merges, with main merged into this branch. If #480 is delayed, the UNTRUSTWORTHY
   rule is stated first as the filter.
+
+### WD5 addendum 5, 2026-10-26: R3-R5 as ruled, frozen before the script changes and before any capture
+
+**The ring/weather colour pairs R3 asks for, computed from the source** by `wx-fb-check.py`'s own loader, not typed:
+- **Look A:** **none**. All three rings are gradable.
+- **Look B:** **the middle ring**, r = 78, colour (0, 64, 0) = RGB565 `0x0200`. It is a look-B weather colour (addendum
+  3's code 2), so it is **ungradable in look B**. The outer ring (0, 200, 0) and the inner ring (0, 32, 0) are gradable.
+- **Plane colours that are also weather colours** (R4's ambiguous set): **6** RGB565 values in look A and **3** in
+  look B.
+
+**R5's draw-order reading: the clause is gradable.** Every frame is drawn in this order:
+1. the layer, or the black clear (`main.cpp:854-856`);
+2. the sweep (`:860`), drawn **before** the rings;
+3. `appManager.Draw` (`:863`).
+
+Inside `DrawRadar`, the order is rings, stale and weather notes, airports, the follow track, then per aircraft:
+- its trail and its label, **before** its marker;
+- then the marker, preceded by its outline when `WxOutlineNow()` holds;
+- then its reticles and rings.
+
+After the loop come the zoom overlay, the hold ring, the screen indicator, the visual alert and the toasts.
+
+**What can put black on a ring pixel next to a marker after that marker is drawn:**
+- **The two black boxes on this screen:**
+  - `DrawZoomOverlay`'s (`AircraftManager.cpp:5219`, `:5232`), for 1.5 s after a zoom step;
+  - `DrawTouchUnavailable`'s (`:5077`), only while touch is unavailable.
+
+  The others (`:7511`, `:8954`, and `DrawClock`'s at `:4693`) belong to the Follow and route faces.
+- **Fades can't reach black.** `PaintBrightness` floors at 0.30 (`TrackedAircraft.h:283`).
+  - The dimmest trail green is 40 × 0.30 = 12, which is G6 = 3 in RGB565.
+  - The dimmest marker is 0.30 of its colour. The no-data grey, 90, becomes 27.
+  - The visual alert's edge band is at least 0.35 of its colour. Its full-screen flash leaves no rings, so the frame
+    is UNTRUSTWORTHY.
+- **No text is drawn on a black background.** A search for a two-argument `setTextColor` with a black background
+  finds **0**. Its control, a planted line of that shape, is found.
+
+**So R5 is graded under two capture conditions**, which also hold the WD5e captures:
+- **no touch** in the 2 s before each fetch;
+- **touch reported available** in the `[health]` line.
+
+**The script changes** (`scripts/wx-fb-check.py`, committed after this addendum):
+- **(1) R3:**
+  - A ring is **ungradable** in a look when its colour is a weather colour of that look. It is left out and printed
+    by name.
+  - A gradable ring pixel is **exercised** when some pixel within 2 px of it (its 5 × 5 block) has a weather colour of
+    the look. This replaces "2 px inside and 2 px outside".
+  - **The exception rule is unchanged.** BLIND when no gradable ring pixel is exercised.
+- **(2) R4:** unchanged. The ambiguous count is printed per frame and in total, as it is now.
+- **(3) R5, a new mode** `--off`, for frames with the layer off. A marker is defined as in (2), from every plane colour,
+  since no weather is shown.
+  - **A marker is exercised** when a ring pixel, by the ported `drawCircle`, is among its 8-neighbours.
+  - **A marker FAILS** when any such ring pixel is black, RGB565 `0x0000`.
+  - **The verdicts:** 0 failures to PASS. BLIND when no marker is exercised. UNTRUSTWORTHY by the same 80 % ring
+    rule.
+
+**The selftest, predicted case by case** (each synthetic frame is drawn in the device's order):
+
+| case | verdict |
+|---|---|
+| the eight existing cases | unchanged, **except** "look B, no outline": **PASS -> BLIND**. Its weather touches only the middle ring, which is ungradable in look B |
+| look B, the weather blob across the **outer** ring | **PASS** |
+| look A, weather 2 px on **one** side of a ring only | **PASS**. Exercised under R3, where the old rule needed both sides |
+| `--off`: a marker on the middle ring, no outline | **PASS** |
+| `--off`: the same marker drawn with the outline (the defect R5 catches) | **FAIL** |
+| `--off`: no marker touches a ring | **BLIND** |
+| `--off`: a non-black label drawn after the marker, over one of its ring neighbours | **PASS** |
+| `--off`: no rings | **UNTRUSTWORTHY** |
+
+**The captures, frozen.** The numbers are unchanged from WD5:
+- **WD5e(1):** 0 exceptions.
+- **WD5e(2):** 0 failures in look A.
+- **WD5f:** 0 R5 failures, and frame p95 within ±1 ms.
+
+How they are taken:
+- **When:** after #480 merges and main is merged into this branch. Each capture is 3 fetches, as WD5 says.
+- **If #480 is delayed** (the ruling allows capturing before it), the filter is this rule, stated first:
+  - each frame is graded alone;
+  - an UNTRUSTWORTHY frame is **dropped, counted and reported**;
+  - the remaining frames are graded together.
+- **A known blind spot of that filter, stated before any frame.** A copy torn between the layer's push and the rings'
+  draw can show weather on a few ring pixels while 80 % of the ring is still there. That reads as a WD5e(1) exception.
+  - **So before #480, a WD5e(1) FAIL cannot be told from a torn copy.** It is reported as "**FAIL, not separable from
+    a torn copy**", and work stops there. No defect is claimed until a capture after #480 repeats it.
+  - **#480 removes that case.**
+- **The conditions:** WD5e needs rain in range of the board's home; with none, it is BLIND. Both of the R5 conditions
+  above hold for every fetch.
+
+**Outside the set, for any row:**
+- an ungradable pair other than the one named above;
+- a selftest case not as predicted;
+- a BLIND, or any verdict not in the table.
+
+Each of these means stop and report, without re-running for a better number.
