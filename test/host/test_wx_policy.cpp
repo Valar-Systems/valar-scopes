@@ -86,6 +86,12 @@ static void TableG()
     { State s; OnQuery(s, q1); const uint32_t n = OnSend(s, 0);
       const Outcome o = OnResponse(s, n + 1, q1, 304, 0, false, 0, false, nullptr, 400);
       table(o == Outcome::Kept && s.inFlight && !ShouldFetch(s, true, 401), 'g', "a stray reply changes nothing"); }
+    // H1 (WD5 addendum 7): exactly the 2026-10-26 order -- a time recorded 2 ms AFTER the `now` the pass asks with.
+    { State s; OnQuery(s, q1); const uint32_t n = OnSend(s, 1002);
+      const bool held = !ShouldFetch(s, true, 1000) && s.inFlight;
+      OnResponse(s, n, q1, 304, 0, false, 0, false, nullptr, 1003);
+      table(held && !ShouldFetch(s, true, 1000) && !ShouldFetch(s, true, 61001) && ShouldFetch(s, true, 61002), 'g',
+            "today's order: a time recorded 2 ms after now is in flight, then not due -- never underflowed to due"); }
 }
 
 // G3: the policy driven as AircraftManager::Update() drives it. Each 50 ms pass takes `now` FIRST; a completed

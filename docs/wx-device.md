@@ -894,3 +894,13 @@ This holds within ±24.8 days of `millis()`. `AircraftManager` and the tests' ca
 | **H5** | the diff after G7's image (`4caa662`) | **`include/WxPolicy.h` (the two comparisons and a comment), `test/host/test_wx_policy.cpp` (H1) and `test/host/sabotage_wx_policy.py` (S-g, S-h), and nothing else**. So G7 carries, by the ruling |
 
 **Outside the set:** stop and report.
+
+### Results for WD5 addendum 7 (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **H1** | today's order: `OnSend` at 1002, `ShouldFetch` at 1000 is false (in flight); after the reply, false at 1000 and at 61,001, true at 61,002 | **as predicted** |
+| **H2** | the loop row: **28** weather requests, at most 1 in 5 s, 358 feed requests, under MinGW and under WSL g++ 13.3 | **as predicted** |
+| **H3** | **S-g** (today's wiring, the unsigned compare included): 168 requests, 7 in 5 s, red in (g) only. **S-h** (only the hardening reverted): red in (g) only, on H1's row, with the loop at 28 / 1 / 358. The eight earlier sabotages are unchanged, each in its own property. The header was unchanged after the run (`ec214a6a1200`) | **as predicted** |
+| **H4** | MinGW: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: the board block's known gap only | **as predicted** |
+| **H5** | the change after G7's image (`4caa662`): `include/WxPolicy.h`, `test/host/test_wx_policy.cpp`, `test/host/sabotage_wx_policy.py`, and this doc | **as predicted**, so G7 carries |

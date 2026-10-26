@@ -49,6 +49,18 @@ SABOTAGES = {
          "    s.lastReplyMs = nowMs;                                // (g) never lastAttemptMs\n",
          "    (void)seq;   // SABOTAGE S-g: the attempt is recorded at the reply, as before addendum 6\n"
          "    s.attempted = true;\n    s.lastAttemptMs = nowMs;\n"),
+        # ... and the comparisons as they were then: unsigned (WD5 addendum 7 hardened them).
+        ("        if ((int32_t)(nowMs - s.sentMs) < (int32_t)kReplyTimeoutMs) return false;   // (g) one in flight\n",
+         "        if ((uint32_t)(nowMs - s.sentMs) < kReplyTimeoutMs) return false;   // SABOTAGE: unsigned again\n"),
+        ("    return (int32_t)(nowMs - s.lastAttemptMs) >= (int32_t)s.intervalMs;   // (e), and (g): later than now is not due\n",
+         "    return (uint32_t)(nowMs - s.lastAttemptMs) >= s.intervalMs;   // SABOTAGE: unsigned again\n"),
+    ]),
+    # The hardening alone removed, the attempt still recorded at the send: H1's row goes red; the loop does not burst.
+    "S-h  the elapsed time unsigned again": ("g", [
+        ("        if ((int32_t)(nowMs - s.sentMs) < (int32_t)kReplyTimeoutMs) return false;   // (g) one in flight\n",
+         "        if ((uint32_t)(nowMs - s.sentMs) < kReplyTimeoutMs) return false;   // SABOTAGE: unsigned again\n"),
+        ("    return (int32_t)(nowMs - s.lastAttemptMs) >= (int32_t)s.intervalMs;   // (e), and (g): later than now is not due\n",
+         "    return (uint32_t)(nowMs - s.lastAttemptMs) >= s.intervalMs;   // SABOTAGE: unsigned again\n"),
     ]),
 }
 

@@ -80,17 +80,19 @@ inline uint32_t OnSend(State& s, uint32_t nowMs)
     return ++s.seq;
 }
 
-/** Whether to make a request now. Wrap-safe in millis(). Ends a request unanswered for kReplyTimeoutMs. */
+/** Whether to make a request now. Ends a request unanswered for kReplyTimeoutMs. Both elapsed times are a
+ *  wrap-safe SIGNED difference (WD5 addendum 7): a recorded time later than `nowMs` -- the 2026-10-26 storm's shape,
+ *  an attempt stamped after the pass's `now` -- is still in flight, and not due, instead of underflowing to "late". */
 inline bool ShouldFetch(State& s, bool enabled, uint32_t nowMs)
 {
     if (!enabled) return false;                           // (a)
     if (s.inFlight) {
-        if ((uint32_t)(nowMs - s.sentMs) < kReplyTimeoutMs) return false;   // (g) one in flight
+        if ((int32_t)(nowMs - s.sentMs) < (int32_t)kReplyTimeoutMs) return false;   // (g) one in flight
         s.inFlight = false;                               // (g) the reply never came: a failed attempt
         Backoff(s);
     }
     if (!s.attempted) return true;
-    return (uint32_t)(nowMs - s.lastAttemptMs) >= s.intervalMs;   // (e)
+    return (int32_t)(nowMs - s.lastAttemptMs) >= (int32_t)s.intervalMs;   // (e), and (g): later than now is not due
 }
 
 /** The If-None-Match value for a request answering `q`, or nullptr. */
