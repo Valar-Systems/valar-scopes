@@ -904,3 +904,44 @@ This holds within ±24.8 days of `millis()`. `AircraftManager` and the tests' ca
 | **H3** | **S-g** (today's wiring, the unsigned compare included): 168 requests, 7 in 5 s, red in (g) only. **S-h** (only the hardening reverted): red in (g) only, on H1's row, with the loop at 28 / 1 / 358. The eight earlier sabotages are unchanged, each in its own property. The header was unchanged after the run (`ec214a6a1200`) | **as predicted** |
 | **H4** | MinGW: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: the board block's known gap only | **as predicted** |
 | **H5** | the change after G7's image (`4caa662`): `include/WxPolicy.h`, `test/host/test_wx_policy.cpp`, `test/host/sabotage_wx_policy.py`, and this doc | **as predicted**, so G7 carries |
+
+### G7, the board (2026-10-26). The `/wx` rows pass; the `/blips` row is OFF-PREDICTION, and its instrument cannot resolve the band
+
+**The arm, all on E2:08:**
+- **The image:** `blipscope-s3-128-wxlook` from `4caa662` (app-only, banner checked, one trace held). Addendum 7's
+  hardening changed only the policy and its tests, so G7 carries for it.
+- **B:** `[23:12:00, 23:22:00)`, the layer off, untouched since the 23:00Z boot.
+- **A:** `[23:22:00, 23:32:00)`, the layer on.
+- **The switches:** `cfg_post.py` verified both, each time with only `wx-layer` changed.
+- **The sun at the Bend point:** +17.2°, +15.8° and +14.3° at the three ends, the same sign, so no sunset was
+  straddled.
+- **Touch:** available throughout. `wedges=0` in all 64 `[health] touch-wd` lines, and no "touch unavailable" line.
+
+**The server's reads**, at 23:37:02 and 23:42:02Z, were **identical**:
+
+| row | read | verdict |
+|---|---|---|
+| `/wx` in A | **10**: five `200` and five `304`, one a minute (the trace shows 23:22:01 to 23:31:01Z) | **PASS** (9-11) |
+| the most `/wx` in any 5 s | **1** | **PASS** (≤ 2) |
+| `/wx` in B | 0 | as expected, with the layer off |
+| `/blips` A/B | **0.667** (12 / 18 points) | **OUTSIDE 0.8-1.25** |
+| the layer off afterwards | verified | PASS |
+
+**The `/blips` row, read for its cause, without re-running anything:**
+- **First, my reader was wrong.** `g7_read.py` summed `_sample_interval` alone. This dataset's points are sample-weighted
+  (`double4`; the proxy README says to use `SUM(_sample_interval × double4)`).
+  - Weighted, `/blips` reads **B 162, A 120: 0.741, still outside.**
+  - `/wx` points have weight 1, so its rows are unaffected.
+- **Then, the instrument cannot see this row.** For E2:08, `/blips` is written **1 in 10, at weight 10**. About 120
+  requests in a 10 min window therefore give about 12 sampled points, ±3.5 (binomial): **about ±30 %**, which is wider
+  than the 0.8-1.25 band.
+- **The board's own count:** its `[perf]` line reports feed polls per minute, and it reads **12 a minute in both
+  windows** (one minute of 8 in B, one of 11 in A). That is about 116 in B and 119 in A, **a ratio of about 1.0**.
+- **The named alternative, that the layer slowed the feed:** the board's poll counter excludes it, because the cadence
+  did not move when the layer went on.
+
+**Verdict, frozen-text first:** the row is **outside the set**, so this stops for a ruling. The pre-registered way to
+read it is "the instrument is unreliable at this scale", since the server samples this route too coarsely for one
+device in 10 minutes.
+
+**Put back:** E2:08 has main `962ccb7`'s shipping build again (23:44Z, app-only, verified).
