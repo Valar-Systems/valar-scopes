@@ -227,8 +227,25 @@ void setup()
   // TinyUSB's compile-time CFG_TUD_CDC_TX_BUFSIZE and cannot be resized here --
   // so a boot burst can still be dropped on that build when nothing is reading.
   Serial.setTxBufferSize(4096);
-#endif
+  // ...and 0, not 2 (docs/weatherscope-stage3.md A9.42, 2026-10-26). 2 ms still
+  // cost ~40 ms PER CALL (20 retries x 2 ms) once the ring was full, and a PC
+  // with no serial window fills it: HWCDC's `connected` is set by the host's
+  // driver, not by an open window, so write() waits on a port nobody reads.
+  // Weatherscope's zoom took ~1 s after its ring closed (14-17 calls); the
+  // radar's 30 s health tick pays 3-12 calls, unseen by the frame stats it
+  // prints. With nobody reading, the wait bought nothing -- the write ended
+  // short either way. 0 never waits (the lock and the ring are both tried
+  // once). The price, where a reader IS attached: a line can be dropped when
+  // the ring is full or another task holds the TX lock at that instant --
+  // the 07-31 concern above, now paid only in those two cases. Bench dumps
+  // that must arrive whole pace themselves (Weatherscope's 'R').
+  Serial.setTxTimeoutMs(0);
+#else
+  // USBCDC (TinyUSB) has no such stall: with no application open (DTR low)
+  // write() returns 0 at once, and with one attached it bounds itself to the
+  // timeout. Kept at 2 ms (A9.42).
   Serial.setTxTimeoutMs(2);
+#endif
 #endif
 
   // FIRST LINE OUT, before any subsystem can fail and before anything else can
