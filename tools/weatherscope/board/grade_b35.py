@@ -1,16 +1,18 @@
-"""Grades 3.5a's board run (docs/weatherscope-stage3.md A9.10 B, A9.19) from run_b35.py's output, and runs A9.10's five
-recorded-data sabotages against the same capture.
+"""Grades 3.5a's board run (docs/weatherscope-stage3.md A9.10 B, A9.19, A9.22, A9.23) from run_b35.py's output, runs A9.10's
+five recorded-data sabotages against the same capture, and reads the /diag/fb diag against A9.22's table.
 
     <penv python> -I tools/weatherscope/board/grade_b35.py <run dir>
 
 Every expected value comes from the OTHER side of the contract:
-  - each screen's 57,600 pixels and its time, band and label lines from ref35.py's K rows, re-rendered here and
-    first checked equal to the committed test/fixtures/wx/k35.ref.txt (else nothing is graded);
-  - B2's code hashes from screens.ref.json (3.3's K2 reference) and its epochs from the loop's MANIFEST.json;
+  - each screen's 57,600 pixels and its time, band and label lines from ref35.py's K rows, re-rendered here and first
+    checked equal to the committed test/fixtures/wx/k35.ref.txt (else nothing is graded);
+  - B2's code hashes from screens.ref.json and its epochs from the loop's MANIFEST.json;
   - the legend from legend_check.py --fb.
+THE BELIEF RULE (A9.21 item 2, A9.22): a capture is believed only if the last "[wx] screen=" line before its first
+fetch's start is its own scene and no "[wx] screen=" line arrives before its last fetch's end; otherwise BLIND, a FAIL.
 Writes a PNG of every graded snapshot (the six B1 images are kept for Daniel). Prints no coordinate.
 """
-import importlib.util, json, os, re, subprocess, sys, time
+import calendar, hashlib, importlib.util, json, os, re, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 WX = os.path.join(ROOT, "test", "fixtures", "wx")
@@ -30,20 +32,36 @@ def load(name, path):
 ref35 = load("ref35", os.path.join(ROOT, "tools", "weatherscope", "screens", "ref35.py"))
 legend = load("legend_check", os.path.join(WX, "legend_check.py"))
 SCENARIOS = ["dry", "approaching", "herenow", "warning", "stale", "clear"]
+PSRAM_BAND = (218032, 222032)          # A9.23: 220,032 B +- 2,000
+DRAW_RANGE = (28000, 36000)            # A9.23: every loop frame at 60 mi
+
+
+def ts_of(s):
+    """The trace's printed UTC timestamp -> epoch seconds (only when lines.json is missing)."""
+    base, frac = s.rstrip("Z").split(".")
+    return calendar.timegm(time.strptime(base, "%Y-%m-%dT%H:%M:%S")) + int(frac) / 1000.0
 
 
 def parse_trace(run):
-    out = []
+    """(receive time, printed stamp, line) for every line. The receive times come from lines.json, the runner's own
+    float clock, where it exists: the printed stamp's seconds and milliseconds are read at two instants."""
+    printed = []
     for l in open(os.path.join(run, "trace.txt"), encoding="utf-8"):
         ts, _, line = l.rstrip("\n").partition(" ")
-        out.append((ts, line))
-    return out
+        printed.append((ts, line))
+    lj = os.path.join(run, "lines.json")
+    if os.path.exists(lj):
+        exact = json.load(open(lj, encoding="utf-8"))
+        if len(exact) == len(printed) and all(e[1] == p[1] for e, p in zip(exact, printed)):
+            return [(e[0], p[0], p[1]) for e, p in zip(exact, printed)]
+        print("  (lines.json does not match trace.txt line for line: using the printed stamps)")
+    return [(ts_of(ts), ts, line) for ts, line in printed]
 
 
 def blocks(trace):
     """Each BuildScenario block: from its [wx] pick line to its [wx] screen=scenario <name> R=<miles> line."""
     res, cur = [], None
-    for ts, l in trace:
+    for t, ts, l in trace:
         if l.startswith("[wx] pick "):
             cur = {"pick": l, "k": []}
         elif cur is not None:
@@ -53,7 +71,7 @@ def blocks(trace):
                 cur["k"].append(l[len("[wx] k "):])
             elif l.startswith("[wx] screen=scenario "):
                 p = l.split()
-                cur.update(name=p[2], R=int(p[3][2:]), ts=ts)
+                cur.update(name=p[2], R=int(p[3][2:]), t=t)
                 res.append(cur)
                 cur = None
     return res
@@ -91,16 +109,34 @@ def main(argv):
     trace = parse_trace(run)
     bl = blocks(trace)
     caps = json.load(open(os.path.join(run, "captures.json")))
-    lines = [l for _, l in trace]
+    lines = [l for _, _, l in trace]
+    screens = [(t, l) for t, _, l in trace if l.startswith("[wx] screen=")]
+
+    def believed(cap, own):
+        """The belief rule: `own` is the screen line's text after '[wx] screen='."""
+        f = [x for x in cap["fetches"] if "start" in x]
+        if not f:
+            return False, "no timed fetch"
+        t0, t1 = f[0]["start"], f[-1]["end"]
+        before = [l for t, l in screens if t <= t0]
+        during = [l for t, l in screens if t0 < t <= t1]
+        ok = bool(before) and before[-1] == "[wx] screen=" + own and not during
+        why = f"before: {before[-1][5:] if before else 'none'}; during: {[d[5:] for d in during] or 'none'}"
+        return ok, why
 
     def block_for(name, R, cap):
-        ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(cap["fetches"][0]["utc"])) + ".999Z"
-        cand = [b for b in bl if b["name"] == name and b["R"] == R and b["ts"] <= ts]
+        t0 = cap["fetches"][0].get("start", cap["fetches"][0].get("utc", 0))
+        cand = [b for b in bl if b["name"] == name and b["R"] == R and b["t"] <= t0]
         return cand[-1] if cand else None
 
     graded = {}
 
     def grade_screen(label, cap, name, R, png=True):
+        own = f"scenario {name} R={R}"
+        ok, why = believed(cap, own)
+        row(f"{label} believed", ok, f"own '{own}'; {why}")
+        if not ok:
+            return None
         if cap["verdict"] != "graded":
             row(f"{label} snapshot", False, f"{cap['verdict']} after {len(cap['fetches'])} fetches")
             return None
@@ -108,17 +144,15 @@ def main(argv):
         if key not in REF:
             row(f"{label} reference", False, f"no K row {key}")
             return None
-        torn = sum(1 for f in cap["fetches"] if f.get("headers", {}).get("X-Blipscope-Frame-Torn") not in (None, "false"))
         snap = open(os.path.join(run, cap["graded"]), "rb").read()
         bad = diff_px(snap, REF[key][0]) if len(snap) == 2 * N * N else N * N
-        row(f"{label} pixels", bad == 0, f"{key}: {N * N - bad} of {N * N} equal ({cap['graded']}, {len(cap['fetches'])} fetches, {torn} torn)")
+        row(f"{label} pixels", bad == 0, f"{key}: {N * N - bad} of {N * N} equal ({cap['graded']}, {len(cap['fetches'])} fetches)")
         b = block_for(name, R, cap)
         if b is None:
             row(f"{label} lines", False, f"no {key} block before the capture")
         else:
             row(f"{label} lines", b["k"] == REF[key][1],
-                f"{len(b['k'])} printed (ROW, TIME, BAND, {sum(1 for x in b['k'] if x.startswith('LABEL'))} labels) vs "
-                f"{len(REF[key][1])} in the reference" + ("" if b["k"] == REF[key][1] else " -- DIFFER"))
+                f"{len(b['k'])} printed vs {len(REF[key][1])} in the reference" + ("" if b["k"] == REF[key][1] else " -- DIFFER"))
             p = kv(b["pick"])
             row(f"{label} pick", p.get("approaching") == "212400" and p.get("dry") == "220000",
                 f"approaching={p.get('approaching')} dry={p.get('dry')}")
@@ -134,12 +168,12 @@ def main(argv):
         if name not in graded:
             row(f"B1 {name} snapshot", False, "never captured")
 
-    print("== the sizes (A9.5) ==")
+    print("== the sizes (A9.23) ==")
     ps = [int(kv(l)["psram_used"]) for l in lines if l.startswith("[wx] pick ") and "psram_used=" in l]
-    row("PSRAM", bool(ps) and len(set(ps)) == 1 and 160000 <= ps[0] <= 175000,
-        f"psram_used {sorted(set(ps))} (A9.5: 160,000-175,000 B)")
+    row("PSRAM", bool(ps) and len(set(ps)) == 1 and PSRAM_BAND[0] <= ps[0] <= PSRAM_BAND[1],
+        f"psram_used {sorted(set(ps))} (A9.23: {PSRAM_BAND[0]:,}-{PSRAM_BAND[1]:,} B)")
 
-    print("== BZ: U, U, U, D, D, H, H on dry ==")
+    print("== BZ: U U U D | D H H on dry, in blocks ==")
     bz = [c for c in caps if c.get("step") == "BZ"]
     row("BZ gestures", len(bz) == 7, f"{len(bz)} of 7 captured")
     for c in bz:
@@ -149,19 +183,8 @@ def main(argv):
         if c.get("scenario"):
             grade_screen(lab, c, c["scenario"], c["R"], png=False)
 
-    print("== B2: the loop ==")
-    try:
-        i0 = max(i for i, l in enumerate(lines) if l.startswith("[wx] loop records="))
-    except ValueError:
-        i0 = None
-    recs = []
-    if i0 is not None:
-        row("B2 radius", kv(lines[i0]).get("R") == "60", lines[i0][5:])
-        for l in lines[i0 + 1:i0 + 16]:
-            if l.startswith("[wx] lrec "):
-                k = kv(l)
-                recs.append(dict(i=int(l.split()[2]), epoch=int(k["epoch"]), sha=k["sha"], start=int(k["start_us"]),
-                                 draw=int(k["draw_us"]), hash=int(k["hash_us"])))
+    print("== B2: the loop, twice (A9.21: at 60 mi, and on the warning screen) ==")
+    heads = [i for i, l in enumerate(lines) if l.startswith("[wx] loop records=")]
     manifest = json.load(open(os.path.join(LOOP, "MANIFEST.json")))["frames"]
     ref_shas = [sref[f["name"][14:20]]["screenSha256"] for f in manifest]
     epochs = [f["frameEpoch"] for f in manifest]
@@ -181,23 +204,45 @@ def main(argv):
         out["hash"] = len(recs) == 15 and all(r["hash"] <= 5000 for r in recs)
         return out, iv, fps
 
-    b2r, iv, fps = b2(recs)
-    row("B2 records", b2r["count"], f"{len(recs)} records, indices {[r['i'] for r in recs]}")
-    row("B2 hashes", b2r["sha"], f"{sum(1 for r in recs if r['sha'] == ref_shas[r['i']])} of 15 equal screens.ref.json")
-    row("B2 epochs", b2r["epoch"], "equal the manifest, strictly ascending" if b2r["epoch"] else "NOT the manifest's, or not ascending")
-    if iv:
-        row("B2 pacing", b2r["pacing"], f"intervals {min(iv)}-{max(iv)} us, max-min {max(iv) - min(iv)} us (<= 10,000; each 70,000 +- 5,000)")
-    row("B2 rate", b2r["rate"], f"{fps:.2f} fps over 14 intervals (>= 14)")
-    if recs:
-        row("B2 draw", b2r["draw"], f"draw {min(r['draw'] for r in recs)}-{max(r['draw'] for r in recs)} us (<= 45,000)")
-        row("B2 hash", b2r["hash"], f"hash {min(r['hash'] for r in recs)}-{max(r['hash'] for r in recs)} us (<= 5,000)")
+    all_recs = []
+    for n, i0 in enumerate(heads[:2]):
+        tag = "B2 60" if n == 0 else "B2 warning"
+        recs = []
+        for l in lines[i0 + 1:i0 + 16]:
+            if l.startswith("[wx] lrec "):
+                k = kv(l)
+                recs.append(dict(i=int(l.split()[2]), epoch=int(k["epoch"]), sha=k["sha"], start=int(k["start_us"]),
+                                 draw=int(k["draw_us"]), hash=int(k["hash_us"])))
+        all_recs.append(recs)
+        lay = [l for l in lines[:i0] if l.startswith("[wx] layer ")]
+        lk = kv(lay[-1]) if lay else {}
+        row(f"{tag} layer", bool(lay) and int(lk.get("build_us", "999999")) <= 40000 and int(lk.get("pixels", "0")) > 0
+            and lk.get("valid") == "1" and lk.get("rebuilt") == "tap",
+            lay[-1][5:] if lay else "no [wx] layer line")
+        b2r, iv, fps = b2(recs)
+        row(f"{tag} radius", kv(lines[i0]).get("R") == "60", lines[i0][5:])
+        row(f"{tag} records", b2r["count"], f"{len(recs)} records")
+        row(f"{tag} hashes", b2r["sha"], f"{sum(1 for r in recs if r['sha'] == ref_shas[r['i']])} of 15 equal screens.ref.json")
+        row(f"{tag} epochs", b2r["epoch"], "equal the manifest, ascending" if b2r["epoch"] else "NOT the manifest's")
+        if iv:
+            row(f"{tag} pacing", b2r["pacing"], f"intervals {min(iv)}-{max(iv)} us, max-min {max(iv) - min(iv)} us")
+        row(f"{tag} rate", b2r["rate"], f"{fps:.2f} fps (>= 14)")
+        if recs:
+            row(f"{tag} draw", b2r["draw"], f"draw {min(r['draw'] for r in recs)}-{max(r['draw'] for r in recs)} us (<= 45,000)")
+            row(f"{tag} draw range", all(DRAW_RANGE[0] <= r["draw"] <= DRAW_RANGE[1] for r in recs),
+                f"A9.23: every frame in {DRAW_RANGE[0]:,}-{DRAW_RANGE[1]:,} us")
+            row(f"{tag} hash", b2r["hash"], f"hash {min(r['hash'] for r in recs)}-{max(r['hash'] for r in recs)} us (<= 5,000)")
+    if len(heads) < 2:
+        row("B2 twice", False, f"{len(heads)} loops in the trace")
     for cap in caps:
-        if cap["label"] == "postloop":
-            grade_screen("B2 after the loop", cap, cap["scenario"], cap["R"])
+        if cap["label"] in ("postloop", "postloop-warning"):
+            grade_screen(f"B2 after the loop ({cap['label']})", cap, cap["scenario"], cap["R"])
 
     print("== B3: the legend ==")
     for cap in caps:
         if cap["label"] == "legend":
+            ok, why = believed(cap, "legend")
+            row("B3 legend believed", ok, why)
             if cap["verdict"] != "graded":
                 row("B3 legend snapshot", False, cap["verdict"])
                 continue
@@ -221,8 +266,8 @@ def main(argv):
             f[4] = str(int(f[4]) + 1)
             k[i] = " ".join(f)
             sab.append(("S-B1b'", k != REF["dry-60"][1], "one board-printed label's x0 moved by 1 px"))
+    recs = all_recs[0] if all_recs else []
     if len(recs) == 15:
-        assert ref_shas[3] != ref_shas[4], "S-B2a needs references 3 and 4 to differ"
         sab.append(("S-B2a", recs[3]["sha"] != ref_shas[4], "record 3 graded against reference 4"))
         r3 = [dict(r) for r in recs]
         r3[2]["epoch"], r3[3]["epoch"] = r3[3]["epoch"], r3[2]["epoch"]
@@ -234,9 +279,75 @@ def main(argv):
     for name, red, detail in sab:
         print(f"  {'RED  ' if red else 'GREEN'} {name}: {detail} -> {'AS PREDICTED' if red else 'OFF-PREDICTION'}")
 
+    print("== the /diag/fb diag (A9.22's table, A9.23's refinement) ==")
+    scene_names = {1: lambda i, R: f"{SCENARIOS[i]}-{R}" if i < 6 else None, 2: lambda i, R: f"loop-{i:02d}" if R == 60 else None}
+    graded_shas = {c["label"]: next((f["sha256"] for f in c["fetches"] if f.get("file") == c["graded"]), None) for c in caps}
+    n_all = n_incomplete = n_black = 0
+    ii_hits, black_bad, odd = [], [], []
+    for c in caps:
+        for f in c["fetches"]:
+            h = f.get("headers") or {}
+            if not h.get("X-Blipscope-Frame-Phase"):
+                continue
+            n_all += 1
+            pb, pa = (int(x) for x in h["X-Blipscope-Frame-Phase"].split(","))
+            tb, ta = (int(x, 16) for x in h["X-Blipscope-Frame-Tag"].split(","))
+            body = open(os.path.join(run, f["file"]), "rb").read()
+            black = not any(body)
+            n_black += black
+            incomplete = pb == 1 or pa == 1
+            n_incomplete += incomplete
+            if black and (pb, pa) != (1, 1):
+                black_bad.append((f["file"], pb, pa))
+            if not incomplete and tb == ta:
+                mode, idx, R = tb >> 28, (tb >> 24) & 15, (tb >> 16) & 255
+                name = scene_names.get(mode, lambda i, R: None)(idx, R)
+                if name and name in REF:
+                    if body != REF[name][0]:
+                        ii_hits.append((f["file"], name))
+                elif mode == 3 and graded_shas.get("legend") and f["sha256"] != graded_shas["legend"]:
+                    ii_hits.append((f["file"], "legend"))
+            elif not incomplete:
+                odd.append((f["file"], h["X-Blipscope-Frame-Tag"]))
+    pushes = [l for l in lines if l.startswith("[fb] push ")]
+    push_min = min(int(re.search(r"push_us=(\d+)-", l).group(1)) for l in pushes) if pushes else None
+    phases = sorted({re.search(r"phases=(\S+)", l).group(1) for l in pushes})
+    seq_push = []
+    for l in pushes:
+        sc = int(l.split()[2], 16)
+        mode, idx, R = sc >> 12, (sc >> 8) & 15, sc & 255
+        item = f"{SCENARIOS[idx]} R={R}" if mode == 1 and idx < 6 else ("legend" if mode == 3 else None)
+        if item and (not seq_push or seq_push[-1] != item):
+            seq_push.append(item)
+    seq_screen = []
+    for _, l in screens:
+        s = l[len("[wx] screen="):]
+        item = s[len("scenario "):] if s.startswith("scenario ") else ("legend" if s == "legend" else None)
+        if item and (not seq_screen or seq_screen[-1] != item):
+            seq_screen.append(item)
+    seq_match = seq_push == seq_screen[:len(seq_push)] and len(seq_screen) - len(seq_push) <= 1
+    print(f"    fetches with the diag headers: {n_all}; incomplete (phase 1 at an end): {n_incomplete}; all-black: {n_black}")
+    print(f"    all-black fetches not at 1,1: {black_bad or 'none'}")
+    print(f"    complete fetches (phases >= 2, equal tags) that are not their tag's scene: {ii_hits or 'none'}")
+    print(f"    complete fetches with unequal tags: {odd or 'none'}")
+    print(f"    push runs: {len(pushes)}; phases seen at the push {phases}; the shortest push {push_min} us")
+    print(f"    the push log's scene sequence {'matches' if seq_match else 'DOES NOT match'} the screen lines' "
+          f"({len(seq_push)} against {len(seq_screen)})")
+    expl_i = not black_bad and not ii_hits
+    expl_ii = bool(ii_hits)
+    expl_iii_excluded = push_min is not None and push_min >= 20000 and seq_match
+    if expl_i and not expl_ii and expl_iii_excluded:
+        verdict = "(i) a copy inside the redraw -- (ii) and (iii) excluded"
+    elif expl_ii and not expl_i:
+        verdict = "(ii) an older buffer"
+    else:
+        verdict = "the data can't decide"
+    print(f"    VERDICT: {verdict}")
+
     fails = [r for r in results if not r[1]]
     sab_ok = len(sab) == 5 and all(red for _, red, _ in sab)
-    print(f"\n{len(results)} checks, {len(fails)} failing; sabotages {sum(1 for s in sab if s[1])}/{len(sab)} red (5 expected)")
+    print(f"\n{len(results)} checks, {len(fails)} failing; sabotages {sum(1 for s in sab if s[1])}/{len(sab)} red (5 expected); "
+          f"diag: {verdict}")
     return 0 if not fails and sab_ok else 1
 
 

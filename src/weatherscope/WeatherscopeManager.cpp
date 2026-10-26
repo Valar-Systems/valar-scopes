@@ -181,6 +181,7 @@ void WeatherscopeManager::MakeBuffers()
     screenOut = NewInPsram<wxscreens::ScreenOut>();
     view = NewInPsram<wxrender::View>();
     cycle = NewInPsram<wxscreens::Cycle>();
+    layer = NewInPsram<wxscreens::Layer>();
     townOrder = (int*)heap_caps_malloc(sizeof(int) * wxtowns::kCount, MALLOC_CAP_SPIRAM);
     records = (LoopRecord*)heap_caps_malloc(sizeof(LoopRecord) * kLoopFrames, MALLOC_CAP_SPIRAM);
     if (townOrder) {
@@ -191,11 +192,11 @@ void WeatherscopeManager::MakeBuffers()
     const size_t psramAfter = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     psramUsed = psramBefore - psramAfter;
     buffersReady = spriteOk && FullScreen(*screenSprite) && grid && scenario && screenIn && screenOut && view && cycle &&
-                   townOrder && records;
-    Serial.printf("[wx] psram_used=%u sprite=%d grid=%u in=%u out=%u history=%u clear=%u ready=%d\n",
+                   layer && townOrder && records;
+    Serial.printf("[wx] psram_used=%u sprite=%d grid=%u in=%u out=%u layer=%u history=%u clear=%u ready=%d\n",
                   (unsigned)psramUsed, (int)spriteOk, (unsigned)gridCells, (unsigned)sizeof(wxscreens::ScreenIn),
-                  (unsigned)sizeof(wxscreens::ScreenOut), (unsigned)nHistory, (unsigned)feeds.clear.size,
-                  (int)buffersReady);
+                  (unsigned)sizeof(wxscreens::ScreenOut), (unsigned)sizeof(wxscreens::Layer), (unsigned)nHistory,
+                  (unsigned)feeds.clear.size, (int)buffersReady);
 }
 
 bool WeatherscopeManager::DecodeCrop(const wx::CropBytes& crop, wxcrop::Header* h)
@@ -363,6 +364,19 @@ void WeatherscopeManager::ApplyZoom(int idx, const char* why)
 void WeatherscopeManager::StartLoop()
 {
     wxscreens::Pause(*cycle, true);
+    // The frame-invariant layer, built HERE at the tap and never inside a frame's draw (A9.23): the first frame's
+    // deadline is set after it. Rebuilt on every tap, so no layer outlives the loop it was built for.
+    wxcrop::Header h0, last;
+    if (wxcrop::ParseHeader(history[0].data, history[0].size, &h0) == wxcrop::Status::Ok &&
+        wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last) == wxcrop::Status::Ok) {
+        *screenIn = wxscreens::ScreenIn();
+        wxscenes::FromLoopFrame(h0, grid, 0, last.frameEpoch, ZoomMiles(), townOrder, screenIn);
+        const int64_t t0 = esp_timer_get_time();
+        const int px = wxscreens::BuildLayer(*layer, *screenIn, wxscreens::MakeLayerKey(*screenIn, cycle->index));
+        Serial.printf("[wx] layer build_us=%lu pixels=%d valid=%d rebuilt=tap R=%d\n",
+                      (unsigned long)(esp_timer_get_time() - t0), px, (int)layer->valid, ZoomMiles());
+    }
+    loopRebuilds = 0;
     mode = Mode::Loop;
     loopIndex = 0;
     loopFrameDue = false;
@@ -389,7 +403,8 @@ void WeatherscopeManager::FinishLoop()
     mode = Mode::Scenario;
     loopFrameDue = false;
     // printed only now: printing while it plays could stall or pace it (A8.19 item 4)
-    Serial.printf("[wx] loop records=%d period_us=%ld R=%d\n", kLoopFrames, (long)kLoopPeriodUs, ZoomMiles());
+    Serial.printf("[wx] loop records=%d period_us=%ld R=%d layer_rebuilds=%d\n", kLoopFrames, (long)kLoopPeriodUs,
+                  ZoomMiles(), loopRebuilds);
     for (int i = 0; i < kLoopFrames; ++i) {
         char hex[65];
         HexSha(records[i].sha, hex);
@@ -706,7 +721,7 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
         RowHash rows;
         wxscreens::Profile prof;
         prof.clock = ProfClock;
-        wxscreens::Compose(sink, *screenIn, *view, screenOut, &rows, &prof);
+        if (wxscreens::ComposeLayered(sink, *screenIn, *layer, cycle->index, screenOut, &rows, &prof)) ++loopRebuilds;
         for (int k = 0; k < wxscreens::Profile::kPhases; ++k) rec.phaseUs[k] = prof.Us(k);
         rows.Finish(rec.sha);
         rec.hashUs = rows.us;

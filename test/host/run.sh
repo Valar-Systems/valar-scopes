@@ -1315,6 +1315,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope 3.5a's layer replay: every loop frame through ComposeLayered equal to the full Compose at 57,600 px,
+# at 60, 30 and 15 mi, without and with the warning overlay, docs/weatherscope-stage3.md A9.23: 90 rows. Its
+# sabotages: python -I test/host/sabotage_wx_replay.py
+echo
+echo "== WxReplay =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_replay.cpp" -o "$OUT/test_wx_replay.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope replay test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_replay.exe" "$ROOT/test/fixtures/wx/loop"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the replay test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"

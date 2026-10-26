@@ -13,7 +13,7 @@
 
 // The screen layer's types, used here only through pointers: their headers (and the town table) are included by
 // WeatherscopeManager.cpp alone.
-namespace wxscreens { struct Cycle; struct ScreenIn; struct ScreenOut; }
+namespace wxscreens { struct Cycle; struct ScreenIn; struct ScreenOut; struct Layer; }
 namespace wxscen { struct Scenario; }
 namespace wxrender { struct View; }
 namespace wxcrop { struct Header; }
@@ -63,7 +63,7 @@ public:
         uint32_t drawUs;
         uint32_t hashUs;
         uint32_t decodeUs;     // A9.22's profile: the decode, then Compose's ten phases
-        uint32_t phaseUs[10];
+        uint32_t phaseUs[11];   // wxscreens::Profile::kPhases (A9.23 adds the replay)
     };
 
 private:
@@ -100,6 +100,7 @@ private:
     wxrender::View* view = nullptr;
     int* townOrder = nullptr;                  // RankOrder over the towns' populations, worked out once
     wxscreens::Cycle* cycle = nullptr;
+    wxscreens::Layer* layer = nullptr;         // the loop's frame-invariant layer (A9.23), built at the tap
     LoopRecord* records = nullptr;
 
     // the loop's frames and the scenario picks (A8.10's rule, applied on the device)
@@ -117,6 +118,7 @@ private:
 
     // the loop
     int loopIndex = 0;
+    int loopRebuilds = 0;   // layer rebuilds inside a loop's frames (printed after it)
     int64_t loopT0Us = 0;
     bool loopFrameDue = false;
 

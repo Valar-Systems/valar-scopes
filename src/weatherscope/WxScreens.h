@@ -485,6 +485,9 @@ public:
 };
 
 // The map layer: black off the disc, the crop's colours on it (rain only until WXC1 v2, A9.6), hatched where code 15.
+// Every row's codes are worked out and handed to `rows` (B2 hashes all 57,600), but the band rows (y < 24, y >= 194)
+// are not drawn: the bands overwrite them in every composition, so drawing them first was 16,800 wasted writes
+// (A9.23). A 3.5b basemap goes UNDER the radar here, as a dry pixel's colour (A9.23, the second paste's item 3).
 inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* codes, const wxrender::View& v,
                     CodeRows* rows)
 {
@@ -492,6 +495,7 @@ inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* c
     for (int y = 0; y < wxrender::kSize; ++y) {
         for (int x = 0; x < wxrender::kSize; ++x) row[x] = wxrender::CodeAt(h, codes, v, x, y);
         if (rows) rows->Row(row, wxrender::kSize);
+        if (y < wxraster::kTopBand || y >= wxraster::kBotBand) continue;
         for (int x = 0; x < wxrender::kSize; ++x) {
             const uint8_t c = row[x];
             if (c == wxrender::kOffDisc) {
@@ -555,17 +559,18 @@ struct ScreenOut {
 };
 
 // Compose's phases, timed by the caller's clock (A9.22: timing only -- a profile changes no pixel). t[0] is taken on
-// entry and t[i + 1] at the end of phase i.
+// entry and t[i + 1] at the end of phase i, in this order. A full Compose's replay takes no time; a layered frame's
+// invariant phases take none (A9.23).
 struct Profile {
-    enum Phase { kView, kMap, kBands, kRings, kStrip, kWarning, kLabels, kRingLabels, kHome, kBand, kPhases };
+    enum Phase { kView, kMap, kBands, kRings, kWarning, kLabels, kRingLabels, kHome, kReplay, kStrip, kBand, kPhases };
     uint32_t (*clock)() = nullptr;
     uint32_t t[kPhases + 1] = {};
     uint32_t Us(int phase) const { return t[phase + 1] - t[phase]; }
     uint32_t Sum() const { return t[kPhases] - t[0]; }
     static const char* Name(int phase)
     {
-        static const char* const k[kPhases] = {"view", "map", "bands", "rings", "strip", "warning", "labels",
-                                               "ringlabels", "home", "band"};
+        static const char* const k[kPhases] = {"view", "map", "bands", "rings", "warning", "labels", "ringlabels",
+                                               "home", "replay", "strip", "band"};
         return k[phase];
     }
 };
@@ -574,22 +579,14 @@ inline void Stamp(Profile* p, int i)
     if (p && p->clock) p->t[i] = p->clock();
 }
 
-// A whole screen, in the generator's order (A9.2): map, bands, rings, top strip, polygon and title, the arrow (after
-// the polygon, before the labels: Q17), town labels, ring numbers, home marker, band text. `v` is the caller's view
-// (rebuilt here for the radius), so no screen-sized state lives in this header. `prof`, when given, is stamped at each
-// phase boundary and changes nothing drawn.
-inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, ScreenOut* out, CodeRows* rows = nullptr,
-                    Profile* prof = nullptr)
+// The frame-INVARIANT group (A9.23): the rings, the warning (polygon, title, subtitle, arrow), the town labels, the
+// ring numbers and the home marker, in the generator's order. One function, so the full Compose and the layer's
+// build draw it with the same code. Nothing here reads a pixel: every write is an opaque Put, so each pixel's final
+// value is its last write, whatever is beneath it (A9.23's exactness check).
+inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender::View& v, PlacedLabel* labels,
+                          int* nLabels, Profile* prof = nullptr)
 {
     using namespace wxraster;
-    Stamp(prof, 0);
-    wxrender::BuildViewKm(*in.h, &v, in.radiusMi * 1.609344);
-    Stamp(prof, Profile::kView + 1);
-    DrawMap(s, *in.h, in.codes, v, rows);
-    Stamp(prof, Profile::kMap + 1);
-    Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
-    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
-    Stamp(prof, Profile::kBands + 1);
     Box fixed[12];
     int nFixed = 0;
     fixed[nFixed++] = Box{0, 0, kSize - 1, kTopBand - 1};
@@ -599,13 +596,6 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
     const int nRings = RingsFor(R, rings);
     for (int i = 0; i < nRings; ++i) RingDots(s, rings[i] * ppm, kRing);
     Stamp(prof, Profile::kRings + 1);
-
-    Text(s, 117, 3, "N", 1, kDim, nullptr);
-    TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &out->timeInk);
-    const TopStrip top = TopStripAt(out->time, in.radiusMi);
-    Text(s, top.timeX, 13, out->time, 1, out->timeInk, nullptr);
-    if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, kWhite, nullptr);
-    Stamp(prof, Profile::kStrip + 1);
 
     if (in.warning) {
         double px[4], py[4];
@@ -633,18 +623,18 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
     Stamp(prof, Profile::kWarning + 1);
 
     const ViewTowns towns(in.towns, v);
-    out->nLabels = PlaceTowns(towns, in.order, in.nTowns, in.radiusMi, Inner(R), fixed, nFixed, out->labels);
-    for (int i = 0; i < out->nLabels; ++i) {
-        const Placed& p = out->labels[i].at;
+    *nLabels = PlaceTowns(towns, in.order, in.nTowns, in.radiusMi, Inner(R), fixed, nFixed, labels);
+    for (int i = 0; i < *nLabels; ++i) {
+        const Placed& p = labels[i].at;
         Fill(s, p.ix - 1, p.iy - 1, p.ix + 1, p.iy + 1, kLabel);
-        Text(s, p.tx, p.ty, out->labels[i].label, 1, kLabel, &kBlack);
+        Text(s, p.tx, p.ty, labels[i].label, 1, kLabel, &kBlack);
     }
     Stamp(prof, Profile::kLabels + 1);
 
     Box obs[12 + kMaxLabels + 3];
     int nObs = 0;
     for (int i = 0; i < nFixed; ++i) obs[nObs++] = fixed[i];
-    for (int i = 0; i < out->nLabels; ++i) obs[nObs++] = out->labels[i].at.box;
+    for (int i = 0; i < *nLabels; ++i) obs[nObs++] = labels[i].at.box;
     for (int i = 0; i < nRings; ++i) {
         char num[12];   // an int's widest, for -Wformat-truncation
         snprintf(num, sizeof num, "%d", rings[i]);
@@ -658,6 +648,19 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
 
     HomeMarker(s, kWhite);
     Stamp(prof, Profile::kHome + 1);
+}
+
+// The frame-VARIANT tail: the top strip (N, the time, the ZOOM tag -- its x depends on the time's width) and the band.
+// Its pixels never meet the invariant group's (y <= 20 against y >= 24 above the band; the band's against y <= 193).
+inline void DrawStripAndBand(wxraster::Sink& s, const ScreenIn& in, ScreenOut* out, Profile* prof)
+{
+    using namespace wxraster;
+    Text(s, 117, 3, "N", 1, kDim, nullptr);
+    TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &out->timeInk);
+    const TopStrip top = TopStripAt(out->time, in.radiusMi);
+    Text(s, top.timeX, 13, out->time, 1, out->timeInk, nullptr);
+    if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, kWhite, nullptr);
+    Stamp(prof, Profile::kStrip + 1);
 
     if (in.warning) {
         Text(s, (int)(kC - TextW(in.wt.band1, 1) / 2.0), 197, in.wt.band1, 1, kWhite, nullptr);
@@ -671,6 +674,173 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
         Text(s, (int)(kC - TextW(in.state, 2) / 2.0), 198, in.state, 2, in.stateInk, nullptr);
     }
     Stamp(prof, Profile::kBand + 1);
+}
+
+// A whole screen, in the generator's order (A9.2), with the top strip drawn after the invariant group (A9.23: their
+// pixels never meet, so no frame changes; the K rows hold it). `v` is the caller's view, rebuilt for the radius.
+// `prof`, when given, is stamped at each phase boundary and changes nothing drawn.
+inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, ScreenOut* out, CodeRows* rows = nullptr,
+                    Profile* prof = nullptr)
+{
+    using namespace wxraster;
+    Stamp(prof, 0);
+    wxrender::BuildViewKm(*in.h, &v, in.radiusMi * 1.609344);
+    Stamp(prof, Profile::kView + 1);
+    DrawMap(s, *in.h, in.codes, v, rows);
+    Stamp(prof, Profile::kMap + 1);
+    Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
+    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
+    Stamp(prof, Profile::kBands + 1);
+    DrawInvariant(s, in, v, out->labels, &out->nLabels, prof);
+    Stamp(prof, Profile::kReplay + 1);
+    DrawStripAndBand(s, in, out, prof);
+}
+
+// ------------------------------------------------------------------------------------- the layer (A9.21 item 3)
+
+// What a layer was built for. Rebuilt when the zoom, the scenario, the warning or the home (the crop's geometry)
+// differs (A9.21's rule). A plain struct with no padding (A9.23: 192 B on the board), so it compares bytewise.
+struct LayerKey {
+    int32_t scenario, radiusMi;
+    int32_t latNwMicro, lonNwMicro;
+    uint32_t cellLatMicro, cellLonMicro;
+    uint16_t rows, cols;
+    int32_t warning, arrow, fromDeg;
+    LatLon polygon[4];
+    LatLon storm;
+    char top1[24], top2[48];
+};
+
+inline LayerKey MakeLayerKey(const ScreenIn& in, int scenario)
+{
+    LayerKey k;
+    memset(&k, 0, sizeof k);
+    k.scenario = scenario;
+    k.radiusMi = in.radiusMi;
+    k.latNwMicro = in.h->latNwMicro;
+    k.lonNwMicro = in.h->lonNwMicro;
+    k.cellLatMicro = in.h->cellLatMicro;
+    k.cellLonMicro = in.h->cellLonMicro;
+    k.rows = in.h->rows;
+    k.cols = in.h->cols;
+    k.warning = in.warning ? 1 : 0;
+    if (in.warning) {
+        for (int i = 0; i < 4; ++i) k.polygon[i] = in.polygon[i];
+        memcpy(k.top1, in.wt.top1, sizeof k.top1);
+        memcpy(k.top2, in.wt.top2, sizeof k.top2);
+        k.arrow = in.arrow ? 1 : 0;
+        if (in.arrow) {
+            k.storm = in.storm;
+            k.fromDeg = in.fromDeg;
+        }
+    }
+    return k;
+}
+
+inline bool SameLayer(const LayerKey& a, const LayerKey& b) { return memcmp(&a, &b, sizeof a) == 0; }
+
+// The invariant group, drawn once: a dense palette-index image (0 = not in the layer), its 15 colours, the view it was
+// drawn through, and the labels it placed. 59,488 B on the board (A9.23), in PSRAM.
+struct Layer {
+    LayerKey key;
+    bool valid = false;
+    wxrender::View view;
+    Rgb palette[16];
+    uint8_t nPalette = 0;
+    PlacedLabel labels[kMaxLabels];
+    int nLabels = 0;
+    uint32_t px32[wxraster::kSize * wxraster::kSize / 4];   // one byte a pixel, read a word at a time
+};
+
+// Records the invariant group into a layer's image: the last write to a pixel wins, as on a screen.
+class LayerSink : public wxraster::Sink {
+public:
+    explicit LayerSink(Layer& l) : l_(l), px_((uint8_t*)l.px32) {}
+    bool overflow = false;
+    void Put(int x, int y, Rgb c) override
+    {
+        uint8_t k = 1;
+        while (k <= l_.nPalette && !(l_.palette[k - 1] == c)) ++k;
+        if (k > l_.nPalette) {
+            if (l_.nPalette == 15) {
+                overflow = true;
+                return;
+            }
+            l_.palette[l_.nPalette++] = c;
+        }
+        px_[y * wxraster::kSize + x] = k;
+    }
+
+private:
+    Layer& l_;
+    uint8_t* px_;
+};
+
+// Builds the layer for `in` (its view, its invariant group, its labels); returns the pixels it holds. A palette past
+// 15 colours leaves it invalid, and ComposeLayered then draws the full Compose instead (exact either way).
+inline int BuildLayer(Layer& l, const ScreenIn& in, const LayerKey& key)
+{
+    l.key = key;
+    l.valid = false;
+    l.nPalette = 0;
+    memset(l.px32, 0, sizeof l.px32);
+    wxrender::BuildViewKm(*in.h, &l.view, in.radiusMi * 1.609344);
+    LayerSink sink(l);
+    DrawInvariant(sink, in, l.view, l.labels, &l.nLabels);
+    l.valid = !sink.overflow;
+    int n = 0;
+    const uint8_t* b = (const uint8_t*)l.px32;
+    for (int i = 0; i < wxraster::kSize * wxraster::kSize; ++i) n += b[i] != 0;
+    return n;
+}
+
+// Puts the layer's pixels, a word at a time: the image is mostly empty.
+inline void Replay(wxraster::Sink& s, const Layer& l)
+{
+    const int words = wxraster::kSize * wxraster::kSize / 4;
+    for (int w = 0; w < words; ++w) {
+        const uint32_t v = l.px32[w];
+        if (!v) continue;
+        const uint8_t* b = (const uint8_t*)&l.px32[w];
+        for (int k = 0; k < 4; ++k) {
+            if (!b[k]) continue;
+            const int i = w * 4 + k;
+            s.Put(i % wxraster::kSize, i / wxraster::kSize, l.palette[b[k] - 1]);
+        }
+    }
+}
+
+// A loop frame through the layer (A9.21 item 3 (a)): the map, the bands, the layer's replay, the strip and the band --
+// the same 57,600 pixels as Compose (test_wx_replay.cpp holds every loop frame to it). The layer is rebuilt here only
+// if its key no longer matches (the firmware builds it at the tap, outside any frame). Returns whether it rebuilt.
+inline bool ComposeLayered(wxraster::Sink& s, const ScreenIn& in, Layer& l, int scenario, ScreenOut* out,
+                           CodeRows* rows = nullptr, Profile* prof = nullptr)
+{
+    using namespace wxraster;
+    const LayerKey key = MakeLayerKey(in, scenario);
+    bool rebuilt = false;
+    if (!l.valid || !SameLayer(l.key, key)) {
+        BuildLayer(l, in, key);
+        rebuilt = true;
+    }
+    if (!l.valid) {   // a palette past 15 colours: the full Compose, through the layer's own view (no static state)
+        Compose(s, in, l.view, out, rows, prof);
+        return rebuilt;
+    }
+    Stamp(prof, 0);
+    Stamp(prof, Profile::kView + 1);
+    DrawMap(s, *in.h, in.codes, l.view, rows);
+    Stamp(prof, Profile::kMap + 1);
+    Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
+    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
+    Stamp(prof, Profile::kBands + 1);
+    for (int p = Profile::kRings; p <= Profile::kHome; ++p) Stamp(prof, p + 1);
+    Replay(s, l);
+    out->nLabels = l.nLabels;
+    for (int i = 0; i < l.nLabels; ++i) out->labels[i] = l.labels[i];
+    Stamp(prof, Profile::kReplay + 1);
+    DrawStripAndBand(s, in, out, prof);
+    return rebuilt;
 }
 
 }  // namespace wxscreens

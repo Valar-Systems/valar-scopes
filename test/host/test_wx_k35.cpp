@@ -1,5 +1,6 @@
-// Weatherscope 3.5a's K rows (docs/weatherscope-stage3.md A9.10, A9.18): the 25 screens built through the DEVICE's
-// path -- wxscen::Build, wxscenes::FromScenario / FromLoopFrame, wxscreens::Compose into an RGB565 buffer -- each held
+// Weatherscope 3.5a's K rows (docs/weatherscope-stage3.md A9.10, A9.18, A9.23): the 25 screens built through the
+// DEVICE's path -- wxscen::Build, wxscenes::FromScenario / FromLoopFrame, then wxscreens::Compose (the scenarios) or
+// ComposeLayered (the 15 loop frames, through one Layer, as the firmware) into an RGB565 buffer -- each held
 // to tools/weatherscope/screens/ref35.py's independent rendering (test/fixtures/wx/k35.ref.txt) at 57,600 of 57,600
 // pixels (equal sha256 of the big-endian RGB565 frame), with its time, band texts and placed labels. Also AR1's drawn
 // pixel set (A9.14) and SC1/SC2's C++ half (the synthetic clear crop through WxCrop.h).
@@ -226,11 +227,14 @@ int main(int argc, char** argv)
     std::printf("== K: 25 screens against ref35.py ==\n");
     static wxrender::View view;
     std::vector<std::pair<std::string, std::vector<std::string>>> got;
-    auto render = [&](const std::string& name, const wxscreens::ScreenIn& in) {
+    // The loop rows go through the layer, as the firmware draws them (A9.23's H2): one Layer for the 15 frames.
+    static wxscreens::Layer layer;
+    auto render = [&](const std::string& name, const wxscreens::ScreenIn& in, bool layered) {
         Rgb565 img;
         static wxscreens::ScreenOut out;
         out = wxscreens::ScreenOut();
-        wxscreens::Compose(img, in, view, &out);
+        if (layered) wxscreens::ComposeLayered(img, in, layer, -1, &out);
+        else wxscreens::Compose(img, in, view, &out);
         got.push_back({name, Lines(name, in, out, img)});
         if (!dump.empty()) {
             FILE* f = std::fopen((dump + "/" + name + ".rgb565").c_str(), "wb");
@@ -256,7 +260,7 @@ int main(int argc, char** argv)
         static wxscreens::ScreenIn in;
         in = wxscreens::ScreenIn();
         wxscenes::FromScenario(s, c.f->h, c.f->codes.data(), c.R, order, &in);
-        render(c.name, in);
+        render(c.name, in, false);
     }
     for (int i = 0; i < 15; ++i) {
         static wxscreens::ScreenIn in;
@@ -264,7 +268,7 @@ int main(int argc, char** argv)
         wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, 60, order, &in);
         char n[16];
         std::snprintf(n, sizeof n, "loop-%02d", i);
-        render(n, in);
+        render(n, in, true);
     }
     for (const auto& g : got) {
         const auto it = ref.find(g.first);
