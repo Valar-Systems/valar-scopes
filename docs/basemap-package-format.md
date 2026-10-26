@@ -7,11 +7,15 @@
   3. `--check` rebuilds with the recorded builder commit.
 - **The questions marked ★ in the draft are now ruled.** Each is marked "ruled" with its question number.
 - **From here, a change** to any field's meaning or any layer definition is **version 2** (§12).
+- **Amended within v1 (2026-10-26; the reviewer's ruling "BMPK v1 amendments and the fixtures", recorded in [weatherscope-stage3.md](weatherscope-stage3.md) A10.12).** Clients never parse PROVENANCE, so none of these is a version change:
+  1. **PROVENANCE by reference** (§7): per layer, a file count and one digest over the layer's files; the per-file list lives in a manifest;
+  2. **the terrain credits corrected** (§7): credit what a mosaic contains; no 3DEP line;
+  3. **the builder readings RD1-RD17 ruled for both builders** (§13), from the map server's plan (`docs/basemap-route.md` on `feat/basemap-route` at `e0c43ce`, its §10).
 - **Nothing described here is built yet.**
 - **Asked for by:** the reviewer's ruling on Weatherscope step 3.5b ([weatherscope-stage3.md](weatherscope-stage3.md) A9.1 D, A9.9 item 2, A9.21's second paste).
 - **Who builds what:**
-  - blipscope-5c builds the ingest and the Worker route from this document;
-  - Weatherscope builds the device side, and a host tool that writes the same format for a stored Bend package.
+  - **the map server** (a session of its own since 2026-10-26, taking over from blipscope-5c) builds the ingest and the Worker route from this document;
+  - Weatherscope builds the device side, and a host tool that writes the same format for a stored Bend package. That package is §11's golden package.
 - **What ships first:** Weatherscope reads it first. Blipscope adopts it after v19, as a setting.
 
 **What it is.** A package holds the geography under a round map, for one location and one radius. The parts:
@@ -156,7 +160,7 @@ These are **data rules**, the same for every client. They are the reviewer's 3.5
 
 - **5.1 Water areas.**
   - **Source:** TIGER/Line 2024 `AREAWATER` (per county).
-  - **Kept:** features with `AWATER ≥ 1,500,000` m², each part as a ring.
+  - **Kept:** features with `AWATER ≥ 1,500,000` m², each **outer** part as a ring. A shapefile writes outer rings clockwise and holes counter-clockwise; **holes are dropped** (RD3, §13). An island's ring filled as water draws the same pixels as no ring, and costs bytes.
 - **5.2 Rivers.**
   - **Source:** TIGER/Line 2024 `LINEARWATER`, the features whose `FULLNAME` ends in `" Riv"`.
   - **Grouped by `FULLNAME`;** each group's length is the length of its parts inside the disc of radius R.
@@ -210,30 +214,58 @@ Both are client rules, not package rules.
     1. double ε, once;
     2. drop water rings smallest-area first;
     3. drop secondary roads shortest first.
-  - **Every dropped feature, and every one dropped in §2's collapse, is counted** in `PROVENANCE` (`dropped.water: 14`), so a gap is visible as a gap.
+  - **Every dropped feature is counted** in `PROVENANCE`, so a gap is visible as a gap (RD15, §13):
+    - `dropped.<layer>` counts this section's drops;
+    - `collapsed.<layer>` counts §2's collapses.
   - **If it still does not fit,** the route answers an error, and the client falls back to no package.
 
 ## 7. Provenance (section 7)
 
+**PROVENANCE is by reference (amended within v1, 2026-10-26).**
+- **The per-file list lives in a manifest,** not in the package. Per file it holds the layer, URL, vintage, sha256 and bytes.
+  - **For a stored fixture,** the manifest is committed beside it (`bend.bmpk` → `bend.manifest.json`).
+  - **For the route,** it is the store's own manifest.
+- **Why:** listing one set per file made PROVENANCE alone exceed the 32 KB cap in county-dense states. That was the map server's finding, its §1.
+
 **Lines, in this order:**
 - `format: BMPK 1`;
 - `builder: <name> <commit>`, the commit of the builder's own code when it built the package;
-- then for each source used: `source.<layer>: <url>`, `vintage.<layer>: <year>`, `sha256.<layer>: <64 hex of the file as fetched>`, one set per file;
+- `store: <id>`: the first 12 hex digits of the sha256 of the manifest the package was built from;
+- then, for each layer read, in the fixed order `water, rivers, roads, peaks, places, population, terrain`, four lines:
+  - `source.<layer>`: the base URL;
+  - `vintage.<layer>`;
+  - `files.<layer>`: the count of the layer's files that were read;
+  - `sha256.<layer>`: the digest over that layer's sorted `url sha256` lines;
 - with terrain:
-  - `credit.terrain: <text>`, one line per credit the terrain sources require;
+  - `credit.terrain: <text>`, one line per credit the mosaic's sources require;
   - `processing.terrain: <one line>`, describing what was done to the elevations: the hillshade, the 4 × 4 mean, the sampling and the 8-bit quantisation;
-- then `epsilon.m`;
-- then the `dropped.*` counts (0 when nothing was dropped; **always present**).
+- then `epsilon.m`, the ε **requested** (RD13);
+- then `dropped.<layer>` and `collapsed.<layer>` for every layer read (0 when none; **always present**).
+
+**The details, pinned here as Weatherscope's host tool writes them, for the map server to match or raise.** The ruling did not spell these out.
+- **The layers:**
+  - `water` is `AREAWATER`, `rivers` is `LINEARWATER`, and `roads` is `PRISECROADS`;
+  - `peaks` is GNIS Domestic Names, `places` is the Gazetteer, and `population` is SUB-EST2024;
+  - `terrain` is every Terrarium z9 tile read: the level mosaics **and** the tiles read for peak elevations.
+- **`source.<layer>`:** the longest common directory prefix of the layer's file URLs, ending in `/`.
+- **`sha256.<layer>`:** lowercase hex SHA-256 of the concatenation, in byte order, of one line per file read, each `<url> <sha256, lowercase hex>\n` (one space, and every line ending in `\n`).
+- **The URL forms:** each file's URL is its exact fetch URL. Terrain uses RD17's form: `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/<x>/<y>.png`.
+- **A stored fixture's manifest** is UTF-8 JSON, `{"files": [...], "builder": <commit>, "predicates": [...]}`, with keys sorted, one-space indent and a final `\n`. So its sha256, and `store:`, are reproducible.
 
 **A determinism check** (`--check`) rebuilds with **the `builder` commit recorded in the package**, not the checkout's HEAD. Otherwise every later commit would fail the check while the bytes it guards stay unchanged (ruled, A10.10).
 
 **The sources' terms, to be carried** (ruled, Q34):
 - **Public domain:** TIGER/Line, the Gazetteer, SUB-EST2024 and GNIS are US-government works.
-- **AWS Terrain Tiles**, as the reviewer read tilezen/joerd's `docs/attribution.md` on 2026-10-26:
-  - **The US sources** (3DEP, SRTM, GMTED2010) are public domain.
-  - **USGS asks for a credit line for each** ("… data courtesy of the U.S. Geological Survey").
-  - **GMTED2010 requires** a description of modifications.
-  - **So a package with terrain carries the three credits and the processing line above,** and so does a licence file beside any stored fixture.
+- **AWS Terrain Tiles: credit what a mosaic contains** (corrected 2026-10-26; the Q34 ruling had named 3DEP).
+  - **What z9 contains** (tilezen/joerd's `docs/data-sources.md`, the zoom-9 row):
+    - **SRTM** on US land;
+    - **GMTED2010** above 60° N;
+    - **ETOPO1** for ocean;
+    - **NRCAN** in Canada.
+  - **3DEP first appears at zoom 10, so there is no 3DEP line.**
+  - **The credit lines** are USGS's ("SRTM data courtesy of the U.S. Geological Survey", and so on, per `docs/attribution.md`). GMTED2010 requires a description of modifications, which is what the processing line gives.
+  - **A package carries one `credit.terrain` line per source its mosaic contains, plus the processing line.** A licence file beside any stored fixture carries the same.
+  - **Bend's mosaic is inland US land below 60° N:** SRTM's line and the processing line, nothing else.
   - **Nothing there forbids redistributing derived US data.**
 - **Outside the US,** other sources carry CC-BY or OGL terms. **That is a gate on the route, not on Weatherscope's stored Bend package.**
 - **The exact credit wording** is copied from the attribution document by whoever builds a package, and recorded where it was read. Weatherscope does so in 3.5b's step 2.
@@ -284,7 +316,7 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 
   An (i, j) outside [0, N) takes no terrain. With Weatherscope's levels (§4) that cannot happen on a disc pixel. The sum is 119.5 px plus under 2.76 px against the 123 px half-width; Weatherscope's host tests assert it over every disc pixel of every level.
 
-## 10. Delivery (recommended, for blipscope-5c to decide)
+## 10. Delivery (recommended; the map server decides, in its own plan)
 
 - **The request:** `GET` with `lat`, `lon` (any precision, quantised to 2 dp by the route), `r` (whole km), `eps` (metres), `layers` (any of `water,rivers,roads,peaks,places,terrain`), and `levels` (`radiusMm:N` pairs, only with `terrain`).
 - **The response:** `application/octet-stream`, one package; `ETag` = the package's `crc32` in hex.
@@ -307,3 +339,29 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 - **The version byte** is 1.
 - **A change to any field's meaning,** or to a layer definition in §5, is version 2.
 - **A new section type** is not a version change: v1 clients skip it.
+
+## 13. Readings ruled for both builders (RD1-RD17)
+
+**The source:** the map server's plan, `docs/basemap-route.md` on `feat/basemap-route` at `e0c43ce`, its §10. The reviewer ruled them for both builders on 2026-10-26, with RD1 read as (a) ([weatherscope-stage3.md](weatherscope-stage3.md) A10.12).
+
+**Why they are here:** each one changes bytes or vertex lists, so two correct builders could otherwise disagree on it.
+
+| | the gap | the ruled reading |
+|---|---|---|
+| RD1 | §7's "files read" | **(a): every file read** |
+| RD2 | "source order" across per-county files | files by URL ascending (so by GEOID), then record, then part |
+| RD3 | water: a polygon's inner rings | **dropped** (§5.1); holes are not represented |
+| RD4 | the order of `ROADS` items | source order, as RD2 |
+| RD5 | a line that leaves the square and re-enters | each in-square run is its own polyline, in along-line order |
+| RD6 | Douglas–Peucker on a closed ring | on the path v₀ … vₙ₋₁, v₀; the distance to a zero-length chord is the distance to its point |
+| RD7 | DP's distance and its keep test | the perpendicular distance to the **segment**, clamped at its ends; a vertex is kept when the distance is **> ε** |
+| RD8 | "in-frame length" (the names table) against "inside the disc" (the selection) | both are the raw clipped length inside the disc, in metres; ties broken by `FULLNAME` byte order |
+| RD9 | "within 3.0 km", "within R", "inside the disc" | ≤ in every case |
+| RD10 | a summit's elevation | the Terrarium value of the z9 pixel containing it (truncation), then `floor(v + 0.5)` |
+| RD11 | a summit listed in two states' GNIS files | one summit per `feature_id` |
+| RD12 | the coordinates read | GNIS `prim_lat_dec`/`prim_long_dec`; Gazetteer `INTPTLAT`/`INTPTLONG` |
+| RD13 | the `toleranceMm` header against `epsilon.m` after "double ε" | the header holds the ε **used**, and `epsilon.m` the ε **requested** |
+| RD14 | a requested layer with nothing in it | its section is present with `count` 0 |
+| RD15 | `dropped.*` key names | `dropped.<layer>` for §6's drops, `collapsed.<layer>` for §2's |
+| RD16 | the angles in the shade | 45° and 315° converted as `x * pi / 180`, with pi as `Math.PI` / Python's `math.pi` (the same double) |
+| RD17 | the terrain URL form in PROVENANCE | `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/<x>/<y>.png` |

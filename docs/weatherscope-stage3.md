@@ -5169,3 +5169,45 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **S-SHIFT leaves TR3 at 0 and drives its control to 0.** That is why TR3c is in the set and TR3 is not.
 
 **The fixtures' tool is part of step 2**, before any device code. No device code is written before steps 2-4 of A10.8.
+
+### A10.12 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): BMPK v1 amended by reference; the terrain credits corrected; RD1-RD17 for both builders; the fixtures as their own PR
+
+**The ruling, verbatim:**
+
+> BMPK v1 amendments and the fixtures (reviewer chat, 2026-10-26)
+>
+> The map server's plan (docs/basemap-route.md on feat/basemap-route at e0c43ce) found two gaps in the frozen format. Ruled, for both builders:
+>
+> 1. §7, PROVENANCE by reference, inside v1 (clients never parse it, so this is no version change). PROVENANCE keeps format, builder, the credits, the processing line, epsilon and the dropped/collapsed counts, and adds store: <id>. Per layer it carries source.<layer> (the base URL), vintage.<layer>, files.<layer> (a count), and sha256.<layer> over that layer's sorted "url sha256" lines. The per-file list lives in a manifest: for bend.bmpk, a manifest committed beside it. Record the amendment in the format doc with its source.
+> 2. Terrain credits (correcting my Q34 ruling, which named 3DEP): the z9 tiles hold SRTM on US land, GMTED2010 above 60° N and ETOPO1 for ocean (joerd's docs/data-sources.md, z9 row), and NRCAN in Canada. Credit what a mosaic contains; no 3DEP line. Bend's package carries SRTM's line and the processing line.
+> 3. Builder readings: the map server's RD1-RD17 (its §10) are ruled for both builders, with RD1 read as (a), every file read. Adopt them in the host tool. If it already does any differently, report which before you freeze, and I'll rule once.
+> 4. Land the BMPK fixtures on main as their own small PR as soon as step 2 makes them: the PK set, bend.bmpk with its manifest and licence file, and the format doc. The map server's MV and MG rows need them.
+
+**What changed in [basemap-package-format.md](basemap-package-format.md):**
+- **The status** records the amendment and its source.
+- **"Who builds what"** names the map server, as A9.45's note asked.
+- **§5.1:** each **outer** part as a ring, holes dropped (RD3).
+- **§6:** `dropped.<layer>` and `collapsed.<layer>` (RD15).
+- **§7:** PROVENANCE by reference, as ruled, and the credits as corrected.
+- **§10's heading** points at the map server.
+- **A new §13:** RD1-RD17 with their source.
+
+**Item 3, the host tool against RD1-RD17.**
+- **The tool does not exist yet.** Step 2 is where it is written. So it does nothing differently: **it adopts all seventeen as ruled.**
+- **Two places in the frozen doc's own wording read differently from an RD.** Both are now aligned:
+  - §5.1's "each part as a ring" kept holes literally; **RD3** drops them;
+  - §6's single `dropped.*` count is split by **RD15**.
+- **One effect on my frozen predictions:** none of A10.11's 82 cases involves a hole, a re-entering line, a DP tie or PROVENANCE text, so **no A10.11 row changes.**
+
+**Details the ruling did not spell out, pinned in §7 as the host tool writes them, for the map server to match or raise:**
+- **The layer keys,** in a fixed order: `water`, `rivers`, `roads`, `peaks` (GNIS), `places` (Gazetteer), `population` (SUB-EST2024), `terrain`. `terrain` covers every z9 tile read, peak elevations included.
+- **`source.<layer>`:** the longest common directory prefix of the layer's file URLs, ending in `/`.
+- **The digest's lines:** `<url> <lowercase sha256>\n`, sorted in byte order, every line ending in `\n`, and the digest is lowercase hex.
+- **`store:`:** the first 12 hex of the manifest's sha256. **For `bend.bmpk`, that is the committed `bend.manifest.json`.** It is keys sorted, one-space indent, a final `\n`, so the id is reproducible.
+
+None of these touches what MG1 compares: places, peaks, vertices and terrain, decoded.
+
+**Item 4, the fixtures PR:**
+- **When:** as soon as step 2 makes them.
+- **What it carries:** the PK set (`syn-min`, `syn-unknown`, `syn-order`, the 25 `neg-*`), `bend.bmpk` with `bend.manifest.json` and its licence file, and the format doc.
+- **The report:** `bend.bmpk`'s commit, to the map server, when it exists.
