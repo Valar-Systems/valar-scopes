@@ -683,3 +683,20 @@ and inner rings are not plane colours.
 | **The ungradable pairs** | the script prints `ungradable rings ... none` for look A, and names r=78 `0x0200` for look B | **as predicted** |
 
 The WD5e and WD5f captures are **not taken yet**. They follow #480, or the pre-#480 filter, as frozen above.
+
+### The capture rule after #480, ruled 2026-10-26 (reviewer chat, pasted by Daniel), frozen before any capture
+
+> "The weather layer's push must land after the Clearing store and before Drawn, so /diag/fb never copies it
+> half-done; show that in the diff when you push. In the captures, grade only fetches with Finished: true; a
+> Finished: false fetch is the instrument's, counted and not graded. The rest as ruled: capture when there's rain on
+> the bench."
+
+- **The placement, from the merge `da5e7f7`.** Against main, the only `src/main.cpp` change is the layer push, at lines
+  866-870. It sits after `SetPhase(kPhaseClearing)` (865), and before `kPhaseCleared` (872), the sweep (876),
+  `appManager.Draw` (879) and `SetPhase(kPhaseDrawn)` (880). `/diag/fb` counts a copy as finished only when the phase
+  reads finished at both ends with an unchanged clear count, so it cannot copy a half-pushed layer.
+- **Every fetch's `X-Blipscope-Frame-Finished` header is recorded.**
+  - **Graded:** only fetches with `true`.
+  - **A `false` fetch** is the instrument's: counted and reported, never graded.
+  - **The filter is not used:** #480 merged without stalling, so `--drop-untrustworthy` stays unused. A frame graded
+    UNTRUSTWORTHY despite `Finished: true` is outside the set, and is a finding about the instrument.
