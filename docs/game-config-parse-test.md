@@ -68,3 +68,37 @@ pin in `platformio.ini`, so a build leaves `.pio/libdeps/blipscope-s3-128/Arduin
 Every plant is restored **by bytes**, from a copy, with a sha256 check.
 
 **Outside the set:** stop and report.
+
+## Results (local). TWO ROWS ARE OFF-PREDICTION, and measuring stopped there
+
+| | read | verdict |
+|---|---|---|
+| **M1** | read as text against `origin/main`: `EamModels.h` lost 20 lines and gained only the include; `EamModels.cpp` lost 70 lines; all of them appear verbatim in `GameConfig.h` / `GameConfig.cpp`; neither new file includes `Arduino.h` | **as predicted** |
+| **M2** | **all three build, and RAM is unchanged** (56008 / 90648 / 90608 B). **`firmware.bin` is +576 B** (`missileer-s3-146`), **+592 B** (`-s3-128`) and **+672 B** (`-photo`), against a band of 256 B | **OFF-PREDICTION** (see below) |
+| **M3** | an argument, not a build; nothing ran for it | unchanged |
+| **T1, T2** | MinGW 5.1 fast loop, and inside the WSL g++ 13.3 suite: **53 checks, 0 failures** | as predicted |
+| **T3** | the `config` in `game-config-v1.config.json` **equals** the `config` in `git show 303d57dc3284:test/fixtures/game-config.json` | as predicted |
+| **T4** | prints `ArduinoJson 7.4.3 (platformio.ini pins 7.4.3)`. **Control:** pin `7.4.2` gives exit **2** (an empty pin also exits 2) | as predicted |
+| **H1, WSL** | **HOST TESTS FAILED, exit 1.** The one FAIL is the `== the same TU, for the board ==` block, which says "no xtensa toolchain found": `run.sh` looks only under `$HOME/.platformio`, and WSL's `$HOME` has none. **Control: `main`'s tree (`wt-gcfix`, tree `09335a4747c8`), run in the same WSL, fails identically.** Every result line is the same, apart from this branch's added `53 checks, 0 failures` | **OFF-PREDICTION, in the rig.** It fails on `main` too |
+| **T5, S1, S2, S2′, H1 MinGW, C1** | not run: measuring stopped at the two misses above | **UNRUN** |
+
+**M2: why it grew, read from the artifacts already built, and not re-measured.**
+- **The setup:** `main`'s images were built in `wt-gcfix` (tree `09335a4747c8`, the same as `main`'s). This branch's
+  were built in `wt-gcparse`.
+- **The named alternative, excluded:** the different build directories, carried in as `__FILE__` strings. Neither image
+  contains either directory name (0 hits each).
+- **The cause, from `nm -S` on the two `missileer-s3-128` ELFs:** a net **+597 B** over 16 symbols.
+  - GCC's IPA-SRA clones (`...$isra$0`) of ArduinoJson internals are local to their translation unit. With
+    `ParseGameConfig` in a second TU that includes ArduinoJson, each one now exists **twice**:
+    `ObjectData::getMember` +157, `CollectionData::createIterator` +38, `MemoryPoolList::getSlot` +31,
+    `VariantData::getExtension` +22.
+  - `VariantData::asFloat<float>` gets an out-of-line copy: **+243**.
+  - The `operator|<float>` clone: +26.
+  - Inlining moved inside the two parsers: `ParseGameConfig` +44, `ParseOpenSkyStates` +36.
+  - The other 8 symbols differ by 1 to 4 bytes each, and net to 0. The 8 above account for all +597.
+- **The fault was in the prediction, not the move.** The 256 B band assumed the linker would de-duplicate the template
+  code the two files share. It does for COMDAT copies, but not for per-TU clones. No line of code changed meaning.
+
+**H1's control needed a second attempt.** The first one ran `git rev-parse` inside WSL, which cannot follow a
+worktree's Windows-path `.git` link, and the `&&` chain stopped before the suite started. That attempt measured
+nothing. It was run again without the git step, with the tree hash taken from Windows git.
