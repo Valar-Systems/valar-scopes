@@ -3676,3 +3676,90 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
    - **(b)** Make `/diag/fb` copy only a finished frame. A bounded wait for `Drawn`, the push window of about 25.8 ms in which the buffer is the finished frame, with `Drawn` checked again after the copy. The pair rule would then rarely need a third fetch.
    - **(b) changes the shared endpoint's behaviour** (a wait of at most about 40 ms on `async_tcp`), so it is for a ruling.
 3. **#480:** whether it moves from `49846de` once these are ruled.
+
+### A9.25 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): build G -- the diag's Clearing phase, /diag/fb serves only finished frames, #480 moves
+
+> Rulings on A9.24 (reviewer chat, 2026-10-26)
+>
+> Build F is what we wanted: the loop at 14.29 fps with the draw at 32-34 ms, every screen exact, PSRAM in its band. Both misses stay recorded: B2's after-the-loop capture (an instrument FAIL, not retried, rightly) and (i) as worded. Your disclosure of the grader's loose "(ii)" verdict is accepted; fix the grader to the frozen wording.
+>
+> 1. The diag: (b), not the film. The film can only test (iii), and the push log already excludes (iii) on its own terms (every push at Drawn, each holding the loop 25.8 ms, scenes in order). What's undecided is (i)'s wording, and only data settles that.
+>    - Store Clearing before fillScreen (diag only, main.cpp).
+>    - (i) restated: every unfinished fetch has Clearing or Cleared at an end. (ii) and (iii) as frozen.
+>
+> 2. The instrument: (b). /diag/fb copies only a finished frame.
+>    - With Clearing stored, Pushed is unambiguous, so the buffer is finished from Drawn's store until the next Clearing. Wait, bounded, until the phase is Drawn or Pushed; copy; accept only if the phase is still Drawn or Pushed with the same tag and Sequence. Otherwise say so in the headers; never serve an unfinished frame as finished.
+>    - Set the bound from the measured clear-plus-draw span, with margin (the loop's is about 34-38 ms), and report each fetch's wait in a header.
+>    - This route is customer-facing on the radar build (the "Blipscope screen" viewer page). Predict for it from the code: every env builds; every edition's loop stores the phases, so the wait ends the same way there. Say so in #480's description. Leave the PHOTO_MODE route as it is.
+>    - Sabotage, predicted red, as its own short pass on a separate flash (no bench switch in the shipping image): the wait removed brings unfinished fetches back. That pass also grades the restated (i).
+>
+> 3. The order: build G = F + items 1-2, predictions frozen and pushed first; the sabotage pass; then reflash G and re-run the whole A9.19 set on it.
+>
+> 4. #480: yes. Once G's predictions and code are committed, move #480 to that commit so CI builds every env on the shared files, and run the board on the same commit. I'll approve at the head that both CI and the board graded.
+>
+> 5. Your reading of "B2 on the warning screen" is right: I meant the timing worst case, not a change to the loop's look.
+>
+> The hold ring on the glass is Daniel's row; I've asked him.
+>
+> Anything outside the predictions: stop and report, as usual.
+
+### A9.26 Build G: the design and the predictions, before its code (2026-10-26)
+
+**What G adds to F (A9.25 items 1 and 2).**
+1. **`kPhaseClearing` (4):** `main.cpp` stores it immediately before `fillScreen`. Each frame is then Clearing → Cleared → Drawn → Pushed, and **the buffer is a finished frame from the Drawn store until the next Clearing store**.
+2. **`/diag/fb`, the main route only** (the PHOTO_MODE route is unchanged), copies only a finished frame:
+   - **The loop:**
+     - wait, polling each millisecond (`vTaskDelay(1)`), until the phase is Drawn or Pushed;
+     - sample the phase, the tag and `Sequence`; copy; sample them again;
+     - **accept only if** both phases are Drawn or Pushed and the tag and `Sequence` are equal at both ends;
+     - otherwise try again while the bound allows.
+   - **The bound: 100,000 µs** from the request.
+     - **The spans:** the longest unfinished span measured is the loop's clear plus draw. A9.24 measured the draw at 32.3-34.5 ms, with the clear in the remainder: about 34-38 ms, as the ruling says. A scenario screen's span is about 6-9 ms (the clear plus a 5.4 ms copy).
+     - **So 100 ms covers:** one loop span, a rejected copy (about 6 ms), and a second span, with margin.
+   - **The headers:**
+     - `X-Blipscope-Frame-Finished: true|false`;
+     - `X-Blipscope-Frame-Wait-Us`, from the request to the accepted copy, or to the bound;
+     - `X-Blipscope-Frame-Attempts`;
+     - `X-Blipscope-Frame-Phase` and `-Tag`, as in F, from the copy served.
+     - **`X-Blipscope-Frame-Torn` becomes "not finished".** That is a superset of its old meaning ("`Sequence` moved during the copy"), so the viewer page's one retry and the bench's pair rule keep working on it.
+   - **An unfinished frame is never served as finished.** When the bound runs out, the last copy is served with `Finished: false` and `Torn: true`.
+3. **The grader:**
+   - **(ii) to the frozen wording:** a complete fetch whose pixels are an *earlier* scene's.
+   - **(i) restated** as ruled.
+   - **The `Finished` header is read on every fetch.**
+
+**The customer-facing route, predicted from the code** (the radar's "Blipscope screen" viewer page, `/diag/fb.html`):
+- **G1:** every env builds (CI's matrix on #480's head).
+- **G2:** every edition's loop stores the phases. The four stores are in `main.cpp`'s shared draw loop, outside every edition's `#ifdef`, so for every edition the wait ends the same way: at that edition's next Drawn.
+  - **The worst case for any edition:** a request holds `async_tcp` at most 100 ms, plus one copy.
+  - **The page itself:** unchanged. It already retries once on `Torn`.
+- **#480's description says so.**
+
+**The sabotage pass, S-WAIT, on a separate flash.** The sabotaged image is never committed, and it carries no bench switch.
+- **The plant:** in a scratch worktree of G's commit, the wait and the retry are removed, leaving one immediate copy, with the verification and the headers kept. It is built there and flashed onto `907069326E64`. G is reflashed afterwards.
+- **The pass (`tools/weatherscope/board/sab_wait.py`):** one open with the 1 s rule. 60 fetches, about 1 s apart, of whatever scenario screens the cycle shows at 60 mi, with no gestures.
+  - **Each fetch is graded:** its tag → its K row; the pixels; the phases; `Finished`.
+- **Predictions:**
+  - **S-WAIT red:** at least 1 of the 60 fetches is unfinished, meaning its pixels are not its tag's scene. A9.24's rate (19 of 57) suggests about a third. Every unfinished fetch carries `Finished: false`.
+  - **(i), restated:** every unfinished fetch has Clearing (4) or Cleared (1) at an end.
+  - **(ii), as frozen:** no complete fetch (phases 2 or 3 at both ends, equal tags and `Sequence`) holds an earlier scene's pixels. Every such fetch equals its own scene.
+  - **(iii), as frozen with A9.23's refinement:** every push at Drawn, the shortest ≥ 20,000 µs, and the push log's scene sequence matching the screen lines.
+  - **Outside these: "can't decide", stop.**
+
+**G's re-run: A9.19's whole set, on #480's head, which is G's commit.**
+- **A9.24's predictions stand,** with these added:
+  - **every fetch `Finished: true`;** no fetch marked finished differs from its tag's scene, where a K row exists;
+  - **every wait ≤ 100,000 µs** (the largest is reported);
+  - **every capture graded at its first pair (2 fetches).** A static screen's finished frames are identical. A capture whose scene ends mid-capture is failed by the belief rule, not graded.
+  - **B2's after-the-loop captures** are graded exact on both loops.
+- **Sizes:**
+  - **PSRAM unchanged from F:** G allocates no new PSRAM, and `/diag/fb`'s 115,200 B snapshot is per request and freed, as in F. The band stays 218,032-222,032.
+  - **Flash and RAM:** inside A9.5's ranges.
+- **The diag in G's run:** no unfinished fetch is served, so the restated (i) is graded in the sabotage pass. (iii)'s test is graded as in F.
+
+**#480.**
+- **When:** once this addendum and G's code are committed.
+- **What:** #480's branch moves to G's commit, its description gains the `/diag/fb` paragraph, CI builds every env, and the board runs on that same commit.
+- **Where results go:** the backup branch, so #480's head stays the commit that both CI and the board graded.
+
+**Outside every prediction here: stop and report.**
