@@ -3815,3 +3815,73 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 **Still open:** the hold ring on the glass is Daniel's row (A9.25).
 
 **Next, as ruled (A9.21):** 3.5b's plan with its predictions, and the package format doc, sent for review before any 3.5b code. Then 3.4.
+
+### A9.28 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): build G accepted; main merged into #480 as asked; a correction to five earlier pre-push notes
+
+**The ruling, verbatim:**
+
+> Review of #480 at 3a1af19 (reviewer chat, 2026-10-26)
+>
+> Build G is accepted. A9.27 as reported: 98 checks, 0 failing; 5/5 recorded-data sabotages red; 34 of 34 fetches finished; S-WAIT 9 unfinished, all marked, all with Clearing or Cleared at an end. The diag question is closed as (i). Both changes beyond A9.26 are accepted: the clear count can only reject more, and the useless check is rightly demoted to a printout.
+>
+> Checked independently: outside src/weatherscope, tools/, test/ and docs/, #480 touches only FrameBuffer.h, main.cpp and ConfigurationWebServer.cpp, and those changes are diag only and bounded (100 ms, then Finished: false).
+>
+> Not approved yet: 3a1af19 doesn't merge onto main (103b6cb). #483 appended its GameConfig block at the end of test/host/run.sh, where you appended WxLayout, WxK35 and WxReplay.
+> 1. Merge main into #480 (a merge commit, no force-push). In run.sh, keep your three blocks, then the GameConfig block last; its own comment says why (a BLIND there must leave no block unrun).
+> 2. Show that the merge changes nothing weatherscope-s3-128 compiles: git diff 3a1af19..<new head> over src/, include/, lib/ and platformio.ini touches only src/eam/, which no Weatherscope env builds. Then the board's grading of 3a1af19 carries to the new head, with no re-run.
+> 3. The host suite on the new head: MinGW full, ALL HOST TESTS PASSED, with your three blocks and GameConfig's 53 checks.
+> 4. CI on the new head: every check counted, 0 failures.
+> Report the new head and I'll approve at it.
+>
+> 3.5b: yes, start the plan and the package format doc now. Documents only; no 3.5b code before review. One constraint to design around: the loop draws in 32.3-34.5 ms, and holding the 70 ms period leaves about 38 ms, so the basemap gets about 4 ms per frame. A separate full-frame copy (5.4-6.7 ms measured) won't fit. Fold the basemap into the map pass (dry pixels take the basemap's colour), or show from measurements that another way fits.
+>
+> The hold ring on the glass is Daniel's row.
+
+**Step 1, the merge.**
+- **The merge commit:** `7e186cb3b8e4`, with parents `b3fbcfc` (A9.27's record on top of G) and `103b6cb` (main). No force-push.
+- **How it was pushed:** to #480 (`weatherscope/stage3-5a-plan`, from `3a1af19`) and to the backup branch (from `b3fbcfc`), both fast-forwards, at 2026-10-26T15:47:16Z.
+- **`429c5b4`, named in this session's notes before the push,** is the same merge with a shorter message. Amending the message changed neither the tree (`8a700f8a8a9f`) nor the parents, so every run below, made on `429c5b4`'s tree, is a run of `7e186cb`'s.
+- **`test/host/run.sh`'s blocks, in order:** … WxScreens, **WxLayout, WxK35, WxReplay**, then **#483's GameConfig block last**, as its own comment requires.
+- **One conflict, in run.sh only.** It was resolved by a script that checked the order and that GameConfig is the last `== … ==` block.
+- **#480's head now also carries `b3fbcfc`:** A9.27 and G's board records, docs and `tools/` only.
+
+**Step 2, nothing `weatherscope-s3-128` compiles changed.**
+- **The diff:** `git diff --name-only 3a1af19 7e186cb -- src include lib platformio.ini` lists `src/eam/EamModels.cpp`, `src/eam/EamModels.h`, `src/eam/GameConfig.cpp` and `src/eam/GameConfig.h`, and nothing else. `lib/` doesn't exist.
+- **Neither Weatherscope env compiles them:**
+  - `weatherscope-s3-128`'s `build_src_filter` carries `${filters.editions_off}`, which holds `-<eam/>`;
+  - `weatherscope-bench-s3-128`'s is `-<*> +<weatherscope/bench/>`.
+- **Nothing they compile includes them:**
+  - the two headers are included only from inside `src/eam/`;
+  - the `src/eam/` headers included from outside it are `EamTheme.h` (`src/game/DrawDrill.*`) and `EamLogbook.h` (`ConfigurationWebServer.cpp`, inside `#ifdef FEATURE_EAM`), and neither includes a changed file;
+  - `main.cpp` includes `eam/EamManager.h` only under `#if defined(FEATURE_EAM)`, which no Weatherscope env sets.
+- **So G's board grading (A9.27) carries to `7e186cb`, with no re-run.**
+
+**Step 3, the host suite on the new head.**
+
+| run | result |
+|---|---|
+| **MinGW g++ 5.1.0**, a full (non-sparse) worktree at the new head's tree | `run.sh` exit 0, **ALL HOST TESTS PASSED**. WxLayout 73/0, WxK35 28/0, WxReplay 90/0, then **GameConfig 53/0, the last block**. "The same TU, for the board" compiled all five TUs with the xtensa toolchain |
+| **g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0**, `wsl -d Ubuntu-24.04`, the same worktree | `run.sh` exit 1. **Every host block 0 failures** (the same four: 73/0, 28/0, 90/0, 53/0). **The one FAIL line** is "the same TU, for the board: no xtensa toolchain found". WSL's `$HOME` has no PlatformIO, so that run proves the host half only, as the block itself says |
+
+**Step 4, CI on `7e186cb`.**
+- **The read:** once every run had finished, read twice, 60 s apart.
+- **The tally:** **35 check-runs: 32 success, 3 skipped** (version, promote, ship-alert: release-only). 32 + 3 = 35. **0 failures.**
+- **Among the successes:** `host-tests`, `build (weatherscope-s3-128)`, `build (blipscope-s3-128, s3-128)` and `build (blipscope-s3-128-joindiag)`.
+- **`host-tests`' own log:**
+  - the board block compiled all five TUs with CI's xtensa toolchain;
+  - WxLayout 73/0, WxK35 28/0, WxReplay 90/0, then GameConfig 53/0 last;
+  - ALL HOST TESTS PASSED.
+- **GitHub reports #480 `MERGEABLE`, `CLEAN`.**
+
+**A correction, to five pushed commit messages.**
+- **The commits:** `972064ee3d0e`, `49846deb863f`, `1979519b964a`, `e8838f02489d` and `3a1af19fccf8`.
+- **What their pre-push notes said:** "run.sh's blocks before UsageReport: 0 failures".
+- **What was true:** "the same TU, for the board" sits before UsageReport, and **every one of those 13.3 runs printed its FAIL line** ("no xtensa toolchain found"). This session's own captured output shows it each time.
+- **What the notes did:** they summarised a rig that could prove only the host half as if it had proved both. That is the exact claim the block's comment exists to prevent.
+- **Where the board half of those commits came from:** CI's `host-tests`, which has the toolchain.
+- **What stays true:** the Weatherscope blocks' own numbers in those notes were correct.
+- **Going forward,** a 13.3 note states the board block's FAIL and why, as `7e186cb`'s note does.
+
+**Still open:** the hold ring on the glass is Daniel's row.
+
+**Next, as ruled:** 3.5b's plan (Addendum 10) and the package format doc (`docs/basemap-package-format.md`), documents only, on `weatherscope/stage3-5b-plan`, for review before any 3.5b code.
