@@ -500,3 +500,43 @@ All eight are as predicted.
 | **R5, WD5f** | "**0 markers with a black border**" with the layer off | with the layer off the background is black, so every marker's border is black **with or without** an outline. Glass cannot see it | drop the marker clause from the bench. The off state's outline holds by construction: `WxOutlineNow()` requires `wxShowing == Crop`, which only `DrawWeatherUnder` sets, after it pushes the layer. **WD5f keeps its frame-p95 clause** |
 
 Until these are ruled, no WD5e or WD5f capture is graded.
+
+### WD5 addendum 4, ruled 2026-10-26 (reviewer chat, pasted by Daniel)
+
+The rulings were re-issued on 2026-10-26 because this branch still showed R3-R5 unruled. **No earlier ruling on them
+was held**: the #445 comments of 2026-10-23 are the questions, and nothing in this session's record answers them. The
+rulings, verbatim:
+
+> **R3, WD5e(1):** your wording, accepted. An exception is a ring pixel with a weather colour of the look inside a
+> 3 x 3 block of it; 0 exceptions; BLIND unless some ring pixel has weather within 2 px. If a ring's colour is also a
+> weather colour of the look, name that pair as ungradable in the predictions.
+>
+> **R4, WD5e(2):** your wording, accepted. A marker fails when any 8-neighbour has a weather colour of the look; 0
+> failures in look A; BLIND unless some marker sits over weather. Plane colours that are also weather colours are
+> counted as ambiguous and reported.
+>
+> **R5, WD5f:** not dropped. With the layer off, a wrongly drawn outline still shows wherever a marker touches
+> something drawn before it (at least the rings), as black cut into the ring line. Restate the clause on that: with the
+> layer off, no 8-neighbour of a marker that lies on a ring (by your ported geometry) is black, leaving out pixels
+> covered by anything drawn after the marker; 0 failures; BLIND unless some marker touches a ring. If the draw order
+> makes that ungradable, show why in the predictions, and then the construction argument stands. WD5f keeps its
+> frame-p95 clause.
+>
+> **The instrument:** /diag/fb can copy a frame mid-redraw (about 1 in 3 fetches on Weatherscope), and its Torn header
+> misses it. #480 fixes the route for every edition: it waits for a finished frame and says when a copy isn't one. So
+> capture WD5e/WD5f after #480 merges and feat/wx-device has main in it. If #480 is delayed, you may capture before it,
+> with your UNTRUSTWORTHY rule stated as the filter in the predictions first.
+
+**What follows, before any capture.** Each item is frozen in its own commit, ahead of the frames it grades.
+- **R3: the BLIND condition changes.** It becomes "some ring pixel has weather **within 2 px**", in place of the
+  proposed "2 px either side", and `wx-fb-check.py` changes to match.
+- **R3: ungradable pairs.** A ring and a weather colour of a look that are equal in RGB565 are named in the predictions
+  as ungradable. **They are computed from the source**, not typed. Addendum 3 already found one: look B's code 2 is
+  exactly the middle ring.
+- **R4:** graded as proposed. Ambiguous markers are counted and reported.
+- **R5: the clause is restated** on the ring-contact test, and the script grades it.
+  - **First, a reading of the draw order:** what is drawn after a marker, and whether any of it is black where it
+    would touch a ring. That decides whether the clause can be graded or the construction argument stands.
+  - **That reading is written into the predictions before the clause is.**
+- **Capture timing:** after #480 merges, with main merged into this branch. If #480 is delayed, the UNTRUSTWORTHY
+  rule is stated first as the filter.
