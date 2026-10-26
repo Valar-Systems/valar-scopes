@@ -4329,6 +4329,34 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **Next:** the fresh run of N, graded against A9.36's rows. Then #484 with that run and CI on its head, for approval.
 
+### A9.40 The fresh run of N: every A9.36 row holds in all 6 presses. Item 1 closes; #484 goes to approval (2026-10-26)
+
+**The run:**
+- **The board:** build N (`6b4c588707da…`), on it since 19:59:44Z, after Daniel said it was free (A9.39).
+- **The open:** one. 3 bench presses under M1, then 3 under M3, each 2 s after a cycle step.
+- **The record:** `tools/weatherscope/board/run-2026-10-26-ringN2/trace.txt` on `weatherscope/hold-ring-first` (LAN IP and BSSID redacted). #484's head is now `4f19cf3ad139`.
+- **Afterwards:** the board was reset into its app with `esptool read_mac --after hard_reset`. **It runs N.**
+
+**The rows** (`grade_ring.py`, A9.36's):
+
+| press | radius | N1′ | N2 | N3′ | N4′ | N5 | N6 | the rebuild frame (µs) | base (µs) |
+|---|---|---|---|---|---|---|---|---|---|
+| M1-1 | 15 → 60, warning | ok | ok | ok | ok | ok | ok | 129,834 | 37,224 |
+| M1-2 | 60 → 15, stale | ok | ok | ok | ok | ok | ok | 142,674 | 37,246 |
+| M1-3 | 15 → 60, clear | ok | ok | ok | ok | ok | ok | 97,196 | 37,247 |
+| M3-1 | 60 → 15, dry | ok | ok | ok | ok | ok | ok | 143,924 | 37,220 |
+| M3-2 | 15 → 60, approaching | ok | ok | ok | ok | ok | ok | 149,242 | 37,233 |
+| M3-3 | 60 → 15, here now | ok | ok | ok | ok | ok | ok | 142,337 | 37,261 |
+
+**36 of 36 rows as predicted.**
+- **In every press,** the first 1000 ‰ frame was drawn at the old radius with no rebuild. The rebuild was the next frame, and the only frame in the press over 2 × `base`.
+- **This is the evidence for the re-registered rows**, independent of the run they were derived from (A9.35).
+
+**Item 1 is closed** (A9.39 point 3).
+- **#484:** marked ready and reported with CI on its head, for approval.
+- **What Daniel still feels on his PC** is item 2's serial stall (A9.38), and item 2 starts after #484.
+- **The zoom-free speed-up** is revisited after item 2.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
