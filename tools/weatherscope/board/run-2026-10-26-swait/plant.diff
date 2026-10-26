@@ -1,0 +1,22 @@
+diff --git a/src/ConfigurationWebServer.cpp b/src/ConfigurationWebServer.cpp
+index 3637a6f..1d11a18 100644
+--- a/src/ConfigurationWebServer.cpp
++++ b/src/ConfigurationWebServer.cpp
+@@ -4253,7 +4253,7 @@ void ConfigurationWebServer::Initialise() {
+         bool finished = false;
+         int attempts = 0;
+         for (;;) {
+-            while (!framebuf::PhaseFinished(framebuf::Phase()) && micros() - waitT0 < kWaitBoundUs) vTaskDelay(1);
++            // SABOTAGE (S-WAIT): no wait for a finished frame
+             ++attempts;
+             phaseBefore = framebuf::Phase();
+             tagBefore = framebuf::Tag();
+@@ -4266,7 +4266,7 @@ void ConfigurationWebServer::Initialise() {
+             tagAfter = framebuf::Tag();
+             finished = framebuf::PhaseFinished(phaseBefore) && framebuf::PhaseFinished(phaseAfter) &&
+                        tagBefore == tagAfter && seqBefore == seqAfter && clearsBefore == clearsAfter;
+-            if (finished || micros() - waitT0 >= kWaitBoundUs) break;
++            break;   // SABOTAGE (S-WAIT): one immediate copy, never a retry
+         }
+         const uint32_t waitUs = micros() - waitT0;
+         // Torn now means "not a finished frame": a superset of the old "Sequence moved", so a client that asks again

@@ -1,0 +1,137 @@
+#HOST opened COM6; board weatherscope-326e64.local; S-WAIT: 60 single fetches from t_open + 1 s
+[ota] channel=weatherscope-s3-128 current=18 latest=18
+[web] config server listening on :80 (http://Weatherscope-326E64.local)
+[wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+[wx] psram_used=220980 sprite=1 grid=38520 in=432 out=688 layer=59488 history=15 clear=36 ready=1
+[wx] pick approaching=212400 dry=220000 psram_used=220980
+[wx] init; location=set autodim=1 brightness=255 stored=1
+[heap] handshake ballast reserved (16717 B); free8=197648
+#HOST fetch 0: ERROR URLError
+[wx] pick approaching=212400 dry=220000 psram_used=220980
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=45078
+[wx] prof dry-60 view=3622 map=22979 bands=4585 rings=9347 warning=4 labels=3465 ringlabels=679 home=18 replay=4 strip=111 band=253 sum=45067 compose_us=45078
+[wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 5000 draws 1-116 n=116 phases=2 push_us=25771-35209
+#HOST fetch 1: phase=2,2 tag=50000073,50000073 finished=true attempts=1
+#HOST fetch 2: phase=2,2 tag=103c00a7,103c00a7 finished=true attempts=1
+#HOST fetch 3: phase=2,2 tag=103c00da,103c00da finished=true attempts=1
+#HOST fetch 4: phase=2,2 tag=103c010c,103c010c finished=true attempts=1
+#HOST fetch 5: phase=2,2 tag=103c013e,103c013e finished=true attempts=1
+#HOST fetch 6: phase=3,3 tag=103c0171,103c0171 finished=true attempts=1
+#HOST fetch 7: phase=2,2 tag=103c01a5,103c01a5 finished=true attempts=1
+#HOST fetch 8: phase=4,4 tag=103c01d8,103c01d8 finished=false attempts=1
+#HOST fetch 9: phase=2,2 tag=103c020b,103c020b finished=true attempts=1
+#HOST fetch 10: phase=1,1 tag=103c023d,103c023d finished=false attempts=1
+#HOST fetch 11: phase=2,2 tag=103c0272,103c0272 finished=true attempts=1
+#HOST fetch 12: phase=2,2 tag=103c02a6,103c02a6 finished=true attempts=1
+#HOST fetch 13: phase=2,2 tag=103c02d6,103c02d6 finished=true attempts=1
+#HOST fetch 14: phase=2,2 tag=103c0309,103c0309 finished=true attempts=1
+#HOST fetch 15: phase=2,2 tag=103c033c,103c033c finished=true attempts=1
+#HOST fetch 16: phase=2,2 tag=103c036e,103c036e finished=true attempts=1
+[wx] fbcopy n=782 min=5355 max=15758 mean=5570
+[wx] pick approaching=212400 dry=220000 psram_used=220980
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=39338
+[wx] prof approaching-60 view=3572 map=20653 bands=3229 rings=7652 warning=4 labels=3400 ringlabels=456 home=18 replay=1 strip=105 band=237 sum=39327 compose_us=39338
+[wx] k ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 117-898 n=782 phases=2 push_us=25802-39595
+#HOST fetch 17: phase=2,2 tag=113c03a0,113c03a0 finished=true attempts=1
+#HOST fetch 18: phase=2,2 tag=113c03d3,113c03d3 finished=true attempts=1
+#HOST fetch 19: phase=2,2 tag=113c0405,113c0405 finished=true attempts=1
+#HOST fetch 20: phase=3,3 tag=113c043a,113c043a finished=true attempts=1
+#HOST fetch 21: phase=1,1 tag=113c046c,113c046c finished=false attempts=1
+#HOST fetch 22: phase=2,2 tag=113c049e,113c049e finished=true attempts=1
+#HOST fetch 23: phase=3,3 tag=113c04d1,113c04d1 finished=true attempts=1
+#HOST fetch 24: phase=4,4 tag=113c0504,113c0504 finished=false attempts=1
+#HOST fetch 25: phase=2,2 tag=113c0538,113c0538 finished=true attempts=1
+#HOST fetch 26: phase=2,2 tag=113c056c,113c056c finished=true attempts=1
+#HOST fetch 27: phase=2,2 tag=113c059f,113c059f finished=true attempts=1
+#HOST fetch 28: phase=1,1 tag=113c05d4,113c05d4 finished=false attempts=1
+#HOST fetch 29: phase=2,2 tag=113c060a,113c060a finished=true attempts=1
+#HOST fetch 30: phase=1,1 tag=113c063d,113c063d finished=false attempts=1
+#HOST fetch 31: phase=2,2 tag=113c0671,113c0671 finished=true attempts=1
+[wx] fbcopy n=782 min=5355 max=15850 mean=5611
+[wx] pick approaching=212400 dry=220000 psram_used=220980
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=38908
+[wx] prof herenow-60 view=3583 map=20311 bands=3225 rings=7615 warning=4 labels=3395 ringlabels=458 home=19 replay=1 strip=100 band=187 sum=38898 compose_us=38908
+[wx] k ROW herenow-60 33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 899-1680 n=782 phases=2 push_us=25802-36650
+#HOST fetch 32: phase=2,2 tag=123c06a2,123c06a2 finished=true attempts=1
+#HOST fetch 33: phase=3,3 tag=123c06d5,123c06d5 finished=true attempts=1
+#HOST fetch 34: phase=2,2 tag=123c0709,123c0709 finished=true attempts=1
+#HOST fetch 35: phase=3,3 tag=123c073b,123c073b finished=true attempts=1
+#HOST fetch 36: phase=2,2 tag=123c0771,123c0771 finished=true attempts=1
+#HOST fetch 37: phase=2,2 tag=123c07a3,123c07a3 finished=true attempts=1
+#HOST fetch 38: phase=2,2 tag=123c07d7,123c07d7 finished=true attempts=1
+#HOST fetch 39: phase=2,2 tag=123c0808,123c0808 finished=true attempts=1
+#HOST fetch 40: phase=2,2 tag=123c083b,123c083b finished=true attempts=1
+#HOST fetch 41: phase=2,2 tag=123c086d,123c086d finished=true attempts=1
+#HOST fetch 42: phase=2,2 tag=123c08a1,123c08a1 finished=true attempts=1
+#HOST fetch 43: phase=1,1 tag=123c08d3,123c08d3 finished=false attempts=1
+#HOST fetch 44: phase=2,2 tag=123c0908,123c0908 finished=true attempts=1
+#HOST fetch 45: phase=4,4 tag=123c093b,123c093b finished=false attempts=1
+#HOST fetch 46: phase=2,2 tag=123c096e,123c096e finished=true attempts=1
+[wx] fbcopy n=783 min=5355 max=15745 mean=5555
+[wx] pick approaching=212400 dry=220000 psram_used=220980
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=62329
+[wx] prof warning-60 view=3562 map=33496 bands=4317 rings=7778 warning=8138 labels=3834 ringlabels=627 home=17 replay=4 strip=104 band=439 sum=62316 compose_us=62329
+[wx] k ROW warning-60 76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 1681-2463 n=783 phases=2 push_us=25803-37524
+#HOST fetch 47: phase=3,3 tag=123c099f,123c099f finished=true attempts=1
+#HOST fetch 48: phase=2,2 tag=133c09d0,133c09d0 finished=true attempts=1
+#HOST fetch 49: phase=2,2 tag=133c0a02,133c0a02 finished=true attempts=1
+#HOST fetch 50: phase=2,2 tag=133c0a35,133c0a35 finished=true attempts=1
+#HOST fetch 51: phase=2,2 tag=133c0a66,133c0a66 finished=true attempts=1
+#HOST fetch 52: phase=2,2 tag=133c0a9a,133c0a9a finished=true attempts=1
+#HOST fetch 53: phase=2,2 tag=133c0acd,133c0acd finished=true attempts=1
+#HOST fetch 54: phase=2,2 tag=133c0b01,133c0b01 finished=true attempts=1
+#HOST fetch 55: phase=3,3 tag=133c0b32,133c0b32 finished=true attempts=1
+#HOST fetch 56: phase=2,2 tag=133c0b65,133c0b65 finished=true attempts=1
+#HOST fetch 57: phase=4,4 tag=133c0b97,133c0b97 finished=false attempts=1
+#HOST fetch 58: phase=1,1 tag=133c0bca,133c0bca finished=false attempts=1
+#HOST fetch 59: phase=2,2 tag=133c0bfd,133c0bfd finished=true attempts=1
+#HOST closing the port

@@ -76,8 +76,9 @@ def grade(out):
     attempts = sorted({f["headers"].get("X-Blipscope-Frame-Attempts") for f in fetches if f.get("headers")})
     verdict, report, c = gb.diag_read(lines, screens, fetches, REF, out)
     ok = True
-    print(f"the plant took: every fetch made {attempts} attempt(s) (the sabotaged route copies once)")
-    ok &= attempts == ["1"]
+    # Printed, not graded: G also makes one attempt whenever its first copy is finished, so this cannot prove the plant.
+    # The proof is the artifact (the flashed image differs from G's; the flash verified what it wrote), recorded apart.
+    print(f"attempts reported: {attempts}")
     for l in report:
         print("  " + l)
     red = c["unfinished"] >= 1 and c["finished_bad"] == 0

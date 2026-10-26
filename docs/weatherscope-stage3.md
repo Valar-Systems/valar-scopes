@@ -3763,3 +3763,55 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - **Where results go:** the backup branch, so #480's head stays the commit that both CI and the board graded.
 
 **Outside every prediction here: stop and report.**
+
+### A9.27 Build G: the S-WAIT pass and the whole A9.19 set, all as predicted; CI green on the same commit (2026-10-26 UTC)
+
+**The commit graded: `3a1af19`.**
+- **#480 moved to it:** from `49846de`, a fast-forward of 9 commits, pushed at 03:51:02Z, with its title and description updated as A9.25 item 2 asked.
+- **The flash:** G's image, `firmware.bin` sha256 `de3730c80072…`, 1,624,592 B, written and verified on `907069326E64`.
+- **The results stay off #480:** they go to the backup branch, so #480's head stays the commit that CI and the board graded.
+
+**One deviation from A9.26's text, stricter only, recorded in the commit itself.**
+- **What changed:** `/diag/fb` also requires `framebuf::Clears()`, a count of Clearing stores, to be equal at both ends of a copy.
+- **Why:** an edition that sets no tag (the radar's is 0) could otherwise have a whole clear-and-draw land inside one copy and pass "same tag and `Sequence`".
+- **Effect:** it can only reject more copies; no prediction depends on it.
+
+**One fix to my own tool before the S-WAIT pass, recorded here.**
+- **The flaw:** `sab_wait.py`'s "the plant took" check (every fetch made one attempt) cannot discriminate, because G also makes one attempt whenever its first copy is finished.
+- **The change:** it now prints the attempts and grades nothing on them. The proof that the plant reached the board is the artifact: the sabotaged image differs from G's (`9f81c3347401…` against `de3730c80072…`), and the flash verified what it wrote (1,624,480 B).
+
+**The S-WAIT pass** (`tools/weatherscope/board/run-2026-10-26-swait/`, `plant.diff` included):
+- **The sabotaged image:** built in a scratch worktree of `3a1af19`, the wait and the retry removed. It was flashed, run from 03:53:47Z to 03:55:54Z, and G was reflashed afterwards. The scratch worktree has been removed.
+- **The 60 fetches:**
+  - 1 failed to resolve the board's name, which was still coming up after the flash;
+  - 1 was the boot splash, which has no K row;
+  - **58 were graded.**
+
+| prediction | result |
+|---|---|
+| S-WAIT red | **9 of 58 unfinished**, every one marked `Finished: false` |
+| (i), restated | **9 of 9** unfinished fetches have Clearing or Cleared at an end |
+| (ii), as frozen | no complete fetch holds an earlier scene's pixels |
+| (iii), as frozen with A9.23's refinement | all 4 push runs at Drawn, the shortest 25,771 µs, the scene sequence matching |
+| the verdict | **(i) a copy inside the redraw; (ii) and (iii) excluded.** A9.24's "can't decide" is settled from data |
+
+**G's re-run of the whole A9.19 set** (`tools/weatherscope/board/run-2026-10-26-g/`).
+- **The run:** 2026-10-26T03:56:58Z to 04:04:55Z, one open, 17 captures. TCP up 0.5 s after the close.
+- **The grade:** **98 checks, 0 failing; the recorded-data sabotages 5/5 red.**
+
+| row | result |
+|---|---|
+| /diag/fb | **34 of 34 fetches `Finished: true`**; waits 4,627-14,121 µs (≤ 100,000); **17 of 17 captures graded at their first pair** |
+| B1 | 6 of 6 believed and exact at 57,600, every printed block equal |
+| BZ | 7 of 7 believed and exact (30, 15, 15, 30, 60, 15, 60) |
+| B2 at 60 | layer 20,082 µs, 3,063 px; hashes 15/15; **draw 32,281-33,705 µs**; intervals 69,846-70,157 µs; 14.29 fps; **the screen after the loop exact** (it failed in A9.24) |
+| B2 on the warning screen | layer 20,577 µs; **draw 32,351-33,675 µs**; intervals 69,994-70,006 µs; 14.29 fps; the screen after it exact |
+| B3 | the legend exact; the screen after it exact |
+| sizes | PSRAM 220,980 B (band 218,032-222,032); flash 1,624,191 B, RAM 55,584 B |
+| the diag | no unfinished fetch was served, so (i) holds only vacuously here and was graded in the S-WAIT pass; (iii) excluded again (56 push runs at Drawn, shortest 25,770 µs, the sequence matching) |
+
+**CI on `3a1af19`, read once the runs had finished:** 35 checks, 32 success, 3 skipped (version, promote, ship-alert: release-only), **0 failures**. `host-tests`, `build (weatherscope-s3-128)` and `build (blipscope-s3-128, s3-128)` are among the successes, so G1 holds: every env builds.
+
+**Still open:** the hold ring on the glass is Daniel's row (A9.25).
+
+**Next, as ruled (A9.21):** 3.5b's plan with its predictions, and the package format doc, sent for review before any 3.5b code. Then 3.4.
