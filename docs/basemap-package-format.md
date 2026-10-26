@@ -1,6 +1,13 @@
 # The basemap package, format v1 (`BMPK`)
 
-**Status: a draft for review (2026-10-26). Nothing described here is built.**
+**Status: v1, frozen (2026-10-26).**
+- **Accepted** by the reviewer, with three changes made before the freeze ([weatherscope-stage3.md](weatherscope-stage3.md) A10.10):
+  1. "Bus" is matched as a whole word;
+  2. Weatherscope's terrain levels are 3 px wider on every side;
+  3. `--check` rebuilds with the recorded builder commit.
+- **The questions marked ★ in the draft are now ruled.** Each is marked "ruled" with its question number.
+- **From here, a change** to any field's meaning or any layer definition is **version 2** (§12).
+- **Nothing described here is built yet.**
 - **Asked for by:** the reviewer's ruling on Weatherscope step 3.5b ([weatherscope-stage3.md](weatherscope-stage3.md) A9.1 D, A9.9 item 2, A9.21's second paste).
 - **Who builds what:**
   - blipscope-5c builds the ingest and the Worker route from this document;
@@ -135,7 +142,13 @@ Every running total must stay within ±32,767.
 | 6 | `TERRAIN` | 1 (the level) | `u32 levelRadiusMm`, `u16 size N` (1-1024), `u16` reserved = 0, then N × N `u8` shade values (§5.6), row-major, row 0 north. **`length` must equal 8 + N².** |
 | 7 | `PROVENANCE` | lines | UTF-8 text, `\n`-separated `key: value` lines (§7). No wall-clock time. |
 
-**A level's pixel (i, j)** has its centre at E = ((i + 0.5) − N/2) × (2·Rℓ / N) and S = ((j + 0.5) − N/2) × (2·Rℓ / N), with Rℓ = `levelRadiusMm`. **It is meant to be sampled 1:1** by a client whose view radius is Rℓ and whose screen is N px across. Weatherscope asks for Rℓ = 15, 30 and 60 mi exactly (24,140,160 / 48,280,320 / 96,560,640 mm) at N = 240.
+**A level's pixel (i, j)** has its centre at E = ((i + 0.5) − N/2) × (2·Rℓ / N) and S = ((j + 0.5) − N/2) × (2·Rℓ / N), with Rℓ = `levelRadiusMm`.
+- **Pixel size:** a level's pixel is 2·Rℓ / N. **A client asks for its own pixel size,** so a level is sampled 1:1.
+- **The margin:** a client's view centre can sit off the origin (§9), so it asks for a level **wider than its view by that offset**, at the same pixel size.
+- **Weatherscope's levels:**
+  - **N = 246:** its 240 px view plus 3 px on every side;
+  - **Rℓ = the view radius × 246/240**, exactly: **24,743,664 / 49,487,328 / 98,974,656 mm** for the 15, 30 and 60 mi views (201.168, 402.336 and 804.672 m a pixel).
+- **Why 3 px is enough:** §9 shows the offset is under 2.76 px at 15 mi. The farthest on-disc pixel centre is 119.5 px from the view's centre, and 119.5 + 2.76 < 123.
 
 ## 5. What goes in each layer (the v1 layer definitions)
 
@@ -147,22 +160,25 @@ These are **data rules**, the same for every client. They are the reviewer's 3.5
 - **5.2 Rivers.**
   - **Source:** TIGER/Line 2024 `LINEARWATER`, the features whose `FULLNAME` ends in `" Riv"`.
   - **Grouped by `FULLNAME`;** each group's length is the length of its parts inside the disc of radius R.
-  - **Kept:** the **K longest groups**, all their parts. ★ **K = 5 recommended** (the mockup drew 5; question Q24).
+  - **Kept:** the **5 longest groups**, all their parts (ruled, Q24).
 - **5.3 Roads.**
   - **Source:** TIGER/Line 2024 `PRISECROADS` (per state; every state the square touches).
-  - **Kept:** `MTFCC` `S1100` or `S1200`, **except** where `FULLNAME` contains `"Bus"` (business routes).
+  - **Kept:** `MTFCC` `S1100` or `S1200`, **except** business routes: a `FULLNAME` holding **"Bus" as a whole word**, case-sensitive.
+    - **The test:** "Bus" with no letter or digit on either side, i.e. the regular expression `(^|[^A-Za-z0-9])Bus($|[^A-Za-z0-9])`.
+    - **Examples:** "US Hwy 97 Bus" and "Bus US Hwy 20" are dropped. "President George Bush Tpke" is **kept**; a substring test would drop it, and real highways with it nationally (ruled, A10.10).
+    - **A missing `FULLNAME`** is kept.
 - **5.4 Peaks.**
   - **Source:** USGS GNIS Domestic Names, `feature_class = Summit`, inside the disc of radius R.
   - **Elevation** comes from the terrain data (§5.6's DEM, unsmoothed, sampled at the summit's position), **not** a GNIS field.
   - **Ranked** by that elevation, descending; ties by GNIS `feature_id`, ascending.
-  - ★ **The de-duplication rule** (Q25): a summit is dropped when a higher-ranked kept summit lies within **3.0 km**. This stops one massif's sub-summits from filling the list.
-  - **Kept:** the top **16** survivors (★ Q25). The client chooses how many it shows (Weatherscope: 4).
+  - **The de-duplication rule** (ruled, Q25): a summit is dropped when a higher-ranked kept summit lies within **3.0 km**, in §2's metric. This stops one massif's sub-summits from filling the list.
+  - **Kept:** the top **16** survivors (ruled, Q25). The client chooses how many it shows (Weatherscope: 4).
 - **5.5 Places.**
   - **Source:** the 2025 Census Gazetteer Places file, `LSAD = 25`.
   - **Kept:** places within R (inclusive) of the origin in §2's metric, in the file's order.
   - **Population:** `POPESTIMATE2024` from SUB-EST2024, joined on GEOID to the `SUMLEV 162` row whose `STATE + PLACE` equals it; 0 = no figure.
   - **This is exactly the rule `src/weatherscope/WxTowns.h` was built with**, so a package's places and the stored towns agree.
-  - ★ **Not every state names its incorporated places "city"**, so the national rule is a later question, not v1's (Q27).
+  - **Not every state names its incorporated places "city"**, so a national rule is **version 2**, not v1 (ruled, Q27).
 - **5.6 Terrain** (only when asked for).
   - **Source:** AWS Terrain Tiles, Terrarium encoding, **zoom 9**: elevation = R·256 + G + B/256 − 32768.
   - **Mosaic:** load every z9 tile meeting the level's square, **plus a one-tile margin** on every side, so no sampled value depends on where the mosaic was cut.
@@ -187,8 +203,8 @@ Both are client rules, not package rules.
 - **Simplification:**
   - **The method:** Douglas–Peucker in the metric frame (metres, double), with tolerance ε, after clipping and before quantising. The split point is the **first** vertex at the maximum distance.
   - **The request names ε.** Weatherscope asks for half a pixel at its finest zoom: 15 mi over 120 px is 201.2 m a pixel, so **ε = 100.6 m** (`toleranceMm` 100,584).
-- **The budget** (A9.1 D): **about 20 KB** for everything but terrain; **N² bytes per terrain level** (57,600 at N = 240).
-- ★ **Over the budget (Q26).** The builder never silently ships less. **Recommended:**
+- **The budget** (A9.1 D): **about 20 KB** for everything but terrain; **8 + N² bytes per terrain level** (60,524 at Weatherscope's N = 246).
+- **Over the budget (ruled, Q26).** The builder never silently ships less:
   - **A hard cap** of 32 KB for the non-terrain sections.
   - **Past it, in order:**
     1. double ε, once;
@@ -201,14 +217,26 @@ Both are client rules, not package rules.
 
 **Lines, in this order:**
 - `format: BMPK 1`;
-- `builder: <name> <commit>`;
+- `builder: <name> <commit>`, the commit of the builder's own code when it built the package;
 - then for each source used: `source.<layer>: <url>`, `vintage.<layer>: <year>`, `sha256.<layer>: <64 hex of the file as fetched>`, one set per file;
+- with terrain:
+  - `credit.terrain: <text>`, one line per credit the terrain sources require;
+  - `processing.terrain: <one line>`, describing what was done to the elevations: the hillshade, the 4 × 4 mean, the sampling and the 8-bit quantisation;
 - then `epsilon.m`;
 - then the `dropped.*` counts (0 when nothing was dropped; **always present**).
 
-**The sources' terms, to be carried:**
+**A determinism check** (`--check`) rebuilds with **the `builder` commit recorded in the package**, not the checkout's HEAD. Otherwise every later commit would fail the check while the bytes it guards stay unchanged (ruled, A10.10).
+
+**The sources' terms, to be carried** (ruled, Q34):
 - **Public domain:** TIGER/Line, the Gazetteer, SUB-EST2024 and GNIS are US-government works.
-- **Not yet read:** **AWS Terrain Tiles** is a composite, and its registry entry points to an attribution document. **Its exact obligations have not been read for this draft.** They must be read and met before terrain reaches a customer. That is a gate on the route, not a footnote.
+- **AWS Terrain Tiles**, as the reviewer read tilezen/joerd's `docs/attribution.md` on 2026-10-26:
+  - **The US sources** (3DEP, SRTM, GMTED2010) are public domain.
+  - **USGS asks for a credit line for each** ("… data courtesy of the U.S. Geological Survey").
+  - **GMTED2010 requires** a description of modifications.
+  - **So a package with terrain carries the three credits and the processing line above,** and so does a licence file beside any stored fixture.
+  - **Nothing there forbids redistributing derived US data.**
+- **Outside the US,** other sources carry CC-BY or OGL terms. **That is a gate on the route, not on Weatherscope's stored Bend package.**
+- **The exact credit wording** is copied from the attribution document by whoever builds a package, and recorded where it was read. Weatherscope does so in 3.5b's step 2.
 
 ## 8. What a client must check, before drawing anything
 
@@ -234,7 +262,9 @@ Both are client rules, not package rules.
 
 ## 9. Mapping a package onto a screen (informative: what Weatherscope will do)
 
-**A client's view has its own centre** (lat_h, lon_h). For Weatherscope that is the radar crop's centre, an MRMS cell centre, which is **not** the 2-dp origin: it can be up to about 0.005° away, which is 2.7 px at the 15 mi zoom. So the client shifts. Per vertex, in double:
+**A client's view has its own centre** (lat_h, lon_h). For Weatherscope that is the radar crop's centre: the midpoint of `crop.ts`'s `cropCellBox`, a box rounded outward by under half a cell at each end, from the same 2-dp point. **So it lies strictly less than half a cell (0.005°) from the origin in each axis.**
+- **In pixels, at a view radius of R_v km:** under 0.005 × 111 / R_v × 120 px in latitude, and no more in longitude. That is **under 2.76 px at 15 mi**, 1.38 at 30 and 0.69 at 60.
+- **So the client shifts.** Per vertex, in double:
 
 ```
 E_pkg = qx / 32767 * R_mm / 1e6          (km)
@@ -243,14 +273,23 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 ```
 
 - **No zoom is special:** the same expression serves every view radius.
-- **Terrain is sampled at the client's pixel centres,** taking the level pixel that contains the point (truncation): `i = floor(E_pkg_of_pixel / (2·Rℓ / N) + N/2)`. A pixel outside [0, N) in either axis takes no terrain.
+- **Terrain is sampled at the client's pixel centres,** taking the level pixel that contains the point (truncation). For a client pixel (x, y), in double:
+
+  ```
+  lon_p = lon_h + ((x + 0.5) - C) / C * rLon      lat_p = lat_h + (C - (y + 0.5)) / C * rLat
+  E     = (lon_p - lon0) * k * c0                 S     = (lat0 - lat_p) * k            (km)
+  pix   = 2 * Rl_mm / 1e6 / N                                                         (km)
+  i     = floor(E / pix + N / 2)                  j     = floor(S / pix + N / 2)
+  ```
+
+  An (i, j) outside [0, N) takes no terrain. With Weatherscope's levels (§4) that cannot happen on a disc pixel. The sum is 119.5 px plus under 2.76 px against the 123 px half-width; Weatherscope's host tests assert it over every disc pixel of every level.
 
 ## 10. Delivery (recommended, for blipscope-5c to decide)
 
 - **The request:** `GET` with `lat`, `lon` (any precision, quantised to 2 dp by the route), `r` (whole km), `eps` (metres), `layers` (any of `water,rivers,roads,peaks,places,terrain`), and `levels` (`radiusMm:N` pairs, only with `terrain`).
 - **The response:** `application/octet-stream`, one package; `ETag` = the package's `crc32` in hex.
 - **The cache key:** the quantised `lat`/`lon` and the other parameters, normalised. **The route stores nothing per device,** as `/wx`.
-- **Sizes a device must accept:** the non-terrain sections up to 32 KB, plus each level's N².
+- **Sizes a device must accept:** the non-terrain sections up to 32 KB, plus each level's 8 + N².
 
 ## 11. Checks that make the format trustworthy
 

@@ -3886,6 +3886,19 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **Next, as ruled:** 3.5b's plan (Addendum 10) and the package format doc (`docs/basemap-package-format.md`), documents only, on `weatherscope/stage3-5b-plan`, for review before any 3.5b code.
 
+### A9.29 The hold ring on the glass: passes (2026-10-26; source: Daniel, pasted from the reviewer chat)
+
+**The ruling, verbatim:**
+
+> Daniel's check of the hold ring on the glass (2026-10-26)
+>
+> Asked to press and hold the screen (a green ring should fill around the edge and disappear on release), Daniel reported (2026-10-26): "it works". A9.22 item 5's glass row passes. Record it with its source, beside A9.27's results.
+
+- **The row:** A9.21 item 5, built in A9.22 as the same green ring as Blipscope's. It is drawn on top of every scenario frame (`DrawHoldRing`), never into a cached screen or the layer, and is gone on release.
+- **The board half,** BZ's H rows grading exact after a long press, passed in A9.27. **This is the glass half.**
+- **What the board was running:** build G (`3a1af19`'s image, `firmware.bin` sha256 `de3730c80072…`), reflashed after the S-WAIT pass. Nothing has been flashed since. #480 merged as `0091f2350cc9`, whose tree is `7e186cb`'s; that compiles nothing different for `weatherscope-s3-128` (A9.28 step 2).
+- **3.5a has no open row left.**
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
@@ -4214,3 +4227,73 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
   - **Recommended:** read the registry's attribution document **before** the stored package is committed, since the repository is public.
   - **What to carry:** the text it requires, in the package's `PROVENANCE` and in a licence file beside the fixture.
   - **If it forbids redistributing derived data:** stop and report.
+
+### A10.10 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): #480 approved and merged; Addendum 10 and BMPK v1 accepted with changes; Q23-Q34
+
+**The ruling, verbatim:**
+
+> #480 approval and the 3.5b plan (reviewer chat, 2026-10-26)
+>
+> Approved to merge #480 at 7e186cb3b8e477fd62676e387e6faeedc5636816. CI on that head: 35 check-runs, 32 success, 3 skipped, 0 failures. Squash, no --admin; if it is still a draft, mark it ready first. If the head moves, this approval lapses.
+>
+> Checked independently: parents b3fbcfc and 103b6cb; it merges cleanly onto main; since 3a1af19 the merge adds only main's GameConfig block to run.sh (now last); over src/, include/, lib/ and platformio.ini it changes only src/eam/'s four files, which no Weatherscope env compiles, so G's board grading carries. The A9.28 correction is accepted: 13.3 notes now state the board block's FAIL instead of folding it into "0 failures".
+>
+> After the merge, say so in your report: blipscope-5c is waiting on it for its weather captures.
+>
+> 3.5b: Addendum 10 and BMPK v1 are accepted, with the changes below. Freeze the truth tables, then follow A10.8.
+>
+> The format doc, before it freezes (a later change would be version 2):
+> 1. Roads: drop a business route by the whole word "Bus" in FULLNAME, not the substring. The substring drops real highways nationally (Dallas's President George Bush Turnpike, for one).
+> 2. Terrain levels: the view's centre sits up to about 2.8 px off the 2-dp origin at 15 mi, so a level exactly the view's size leaves a no-terrain sliver at the disc's left or right edge. Weatherscope asks for each level 3 px wider on every side at the same pixel size (N = 246, with the level radius scaled by 246/240). If you'd rather show the shift can never reach a disc pixel, do that instead.
+> 3. PROVENANCE names the builder's commit, so --check rebuilds with the commit recorded in the package, not HEAD.
+>
+> The questions, as recommended unless noted:
+> - Q23: include/BasemapPackage.h, a new file.
+> - Q24: the 5 longest river groups by in-disc length.
+> - Q25: the 3.0 km de-duplication; 16 kept, 4 placed.
+> - Q26: the 32 KB cap, the drop order, every drop counted, the route errors past it.
+> - Q27: v1 keeps WxTowns.h's rule (LSAD 25); a national rule is version 2.
+> - Q28: A10.4's frozen rule; report its output; a ruling only if an escape hatch fires.
+> - Q29: the bench byte G now; the customer setting comes with the route.
+> - Q30: build Q, with two changes. Put the probe's reads where the fold will make them, in DrawMap's dry-pixel branch, into a volatile sink, not a separate loop. And since the Bend crops exist by step 4, embed them in Q and time their decode on the board, so B2-Bend's bound comes from board numbers only.
+> - Q31: the basemap under dry pixels only; 14 as the hatch on black with terrain on. With terrain on, the legend's solid "No radar coverage" swatch no longer matches the map; leave it while terrain is bench-only, and fix the legend when the customer setting comes.
+> - Q32: the bitmap off screen-bend-B.png, anchored at (int x, int y); the first-ranked peak's if they differ.
+> - Q33: Bend dry synthetic, labelled so, stored-mode only.
+> - Q34: I read tilezen/joerd's docs/attribution.md. The US sources (3DEP, SRTM, GMTED2010) are public domain; USGS asks for a credit line for each ("... data courtesy of the U.S. Geological Survey"), and GMTED2010 requires describing modifications. Carry the three credits and a one-line description of the processing (hillshade, 4 x 4 mean, sampling, 8-bit) in PROVENANCE and in a licence file beside the fixture. Nothing there forbids redistributing derived US data, so the stored package may be committed. Read it yourself in step 2 and record what you read. Outside the US, other sources carry CC-BY or OGL terms: a gate on the route, not on 3.5b.
+>
+> Anything outside the predictions: stop and report, as usual.
+
+**#480, merged.**
+- **The checks first:** its head was still `7e186cb3b8e4`, with CI at 32 success and 3 skipped, `CLEAN`, and no PR based on its branch.
+- **The merge:** marked ready, then squash-merged with `--match-head-commit 7e186cb…`, no `--admin`, at **2026-10-26T16:32:51Z**, as **`0091f2350cc9`**. Its parent is `103b6cb`, and its tree is **identical to `7e186cb`'s** (compared, not assumed). The branch was deleted.
+- **Main since:** main had already moved one commit past it, `962ccb7`, which touches only `proxy/` (the Bend site feed).
+
+**The format doc's three changes, made before the freeze.** [basemap-package-format.md](basemap-package-format.md) now reads "v1, frozen".
+1. **Roads, §5.3:** "Bus" is matched as a whole word, case-sensitive: `(^|[^A-Za-z0-9])Bus($|[^A-Za-z0-9])`. "President George Bush Tpke" is kept, and a missing `FULLNAME` is kept.
+2. **Terrain levels, §4:** Weatherscope asks for **N = 246 at Rℓ = view × 246/240**: 24,743,664, 49,487,328 and 98,974,656 mm, at the view's own pixel size.
+   - **The offset is bounded from the code, not taken from "about 2.8 px".** `cropCellBox` rounds each end outward by under half a cell, so the crop's centre lies **strictly under 0.005°** from the 2-dp point in each axis. That is under 2.76 px at 15 mi.
+   - **So every disc pixel is covered:** 119.5 + 2.76 < 123.
+   - **§9 now pins the sampling** in four lines of arithmetic. The host tests assert "no disc pixel falls outside a level" over every disc pixel of all three levels, at the Bend crop's actual offset **and** at a synthetic worst case (0.004999° in both axes).
+3. **Provenance, §7:** `builder` names the commit of the builder's own code, and `--check` rebuilds with that recorded commit.
+
+**Also written into the doc as ruled:**
+- Q24-Q27 at their places, with "ruled" in place of the draft's ★;
+- Q34's terms as the reviewer read them: the three USGS credits and a processing line in `PROVENANCE` and in a licence file beside the fixture; outside the US, a gate on the route;
+- the size line, now 8 + N² per level.
+
+**What changes in Addendum 10.**
+- **Terrain sizes:** each level is **60,524 B** (8 + 246²), so the flash estimate's terrain part is 3 × 60,524 = 181,572 B.
+  - **The basemap image stays 240 × 240:** the level is sampled into it.
+  - **The terrain rasters are read in place from flash** (stored) and never copied to PSRAM.
+- **Build Q (Q30), as ruled:**
+  - **The probe's reads go where the fold makes them:** in `DrawMap`'s dry-pixel branch, one byte per dry map pixel, from a 240 × 240 PSRAM buffer, into a `volatile` sink. There is no separate loop, and no pixel changes.
+  - **The Bend crops are embedded in Q,** and their decode is timed on the board.
+  - **So B2-Bend's bound comes from board numbers only:**
+    - G's measured map path with the probe's reads in it;
+    - Q's measured Bend decode;
+    - the replay's added pixels, counted on the host and costed at the `Put` rate the board measured.
+  - **Q's predictions are frozen before its flash** (A10.8 step 4).
+- **The legend (Q31):** with terrain on, the legend's solid "No radar coverage" swatch no longer matches the map. **It stays as it is while terrain is bench-only.** It is fixed when the customer setting comes, with the route. That is recorded here so it isn't lost.
+- **The Q34 gate is met** for the stored Bend package, subject to my own reading in step 2, recorded there.
+
+**Next:** the truth tables and sabotage sets, frozen (A10.11). Then A10.8 from step 2.
