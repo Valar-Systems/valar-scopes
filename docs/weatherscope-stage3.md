@@ -4128,6 +4128,67 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **The glass:** Daniel looks at the hold again on build N.
 - **Outside any prediction:** stop and report.
 
+### A9.35 Item 1's run on build N: the full ring now comes first in 6 of 6 presses; two tolerance rows off. Stopped for a ruling (2026-10-26)
+
+**The build and the run:**
+- **Build N:** `weatherscope/hold-ring-first` @ `b467f10` (the code) and `199a967` (the runner and grader), off main `962ccb7`. `firmware.bin` sha256 `6b4c588707da…`, 1,625,879 B; the flashed image is byte-identical to the build. N′ (S-FIRE) was built (`35c60aa5c112…`), **not flashed**.
+- **The run:** one open, 15 s after the flash. **6 presses**: 3 under M1, then 3 under M3. Each began 2 s after a cycle step's screen line, with `P`, `L` 1.5 s later, and `R` 2 s after that. No BLIND, no read error.
+- **The record:** `tools/weatherscope/board/run-2026-10-26-ringN/trace.txt`, LAN IP and BSSID redacted.
+- **Afterwards:** the board was put back into its app with `esptool read_mac`, `--after hard_reset`. **It is running build N.**
+
+**The rows:**
+
+| press | radius | N1 | N2 | N3 | N4 | N5 | the rebuild frame |
+|---|---|---|---|---|---|---|---|
+| M1-1 | 60 → 15 | **off** (one frame at 42,425 µs) | ok | **off** (42,364) | ok | ok | 142,676 µs |
+| M1-2 | 15 → 60 | ok | ok | **off** (42,282) | ok | ok | 149,137 |
+| M1-3 | 60 → 15, warning | ok | ok | **off** (42,304, 42,328) | ok | ok | 126,746 |
+| M3-1 | 15 → 60 | **off** (42,563) | ok | **off** (42,303-42,987) | ok | ok | 149,603 |
+| M3-2 | 60 → 15, clear | **off** (43,168, 43,313) | ok | **off** (42,323, 42,367) | ok | ok | 91,353 |
+| M3-3 | 15 → 60 | ok | ok | **off** (42,297, 42,385) | **off** (the phases 605 µs short of `total`) | ok | 151,028 |
+
+- **The bases** were 37,192-37,253 µs, so the N1/N3 limit (base + 5,000) was about 42,200 µs.
+
+**What held, and is the change itself:**
+- **N2, 6 of 6:** the first 1000 ‰ frame was drawn at the **old** radius with no rebuild, and the **next** frame was the rebuild (91-151 ms).
+- **N5, 6 of 6:** one zoom line, then one screen line naming the new radius.
+
+**What the misses are, from the 160-frame logs:**
+
+| frames | n | interval (µs) |
+|---|---|---|
+| not held, no ring | 898 | 37,146-38,498 (median 37,240) |
+| held, ring not yet showing (< 250 ms) | 42 | 37,159-38,099 (median 37,256) |
+| ring below 300 ‰ | 18 | median 39,143 |
+| ring from 700 ‰ | 18 | median 41,910 |
+| ring 1000 ‰, not the rebuild | 94 | 41,917-42,987 (median 41,980) |
+| the rebuild | 12 | 91,353-151,028 |
+
+**N1 and N3 missed because drawing the ring costs time**, which grows with the arc to about 4.7 ms at full, up to 6.1 ms. A9.34's +5,000 µs tolerance did not budget for that.
+- **The alternative I named, the touch-read path of a held frame, is excluded by the data:** held frames before the ring shows run at the unheld frames' interval.
+- **Every frame over the limit was over by 82-1,113 µs.** None comes near the rebuild's 91,000+.
+- **N4's single miss (605 µs, against 500)** is time between the timed phases inside one `BuildScenario`, not a phase. The candidates are the untimed formatting between phases and preemption on the loop's core. This data does not separate them.
+
+**The 60-70 ms outside `Compose`, now named** (all 12 builds):
+
+| phase | non-warning scenes | warning | clear |
+|---|---|---|---|
+| `from` (`FromScenario`) | **44,509-45,827** | 653-657 | 6,618-6,644 |
+| `scen` (`wxscen::Build`) | 15,616-16,175 | **32,895-32,921** | 4,081-4,083 |
+| `sha` (bench-only, stored mode) | 4,375-4,470 | | |
+| `decode` | 2,147-2,193 | 2,177-2,193 | 745-749 |
+| `print` (every line, through `Out()`) | 583-828, none short | | |
+| `compose` | 32,203-46,087 | | |
+
+**So the outcome is outside A9.34's rows: stopped, no fix, S-FIRE not flashed.**
+
+**For the ruling:**
+- **N1/N3's tolerance:** re-register it from this data, or keep it? Recommended:
+  - **N1/N3:** every frame through the press is within the ring-frame band measured here (≤ base + 6,500 µs), and **the only frame over 2 × base is the rebuild**;
+  - **then S-FIRE runs as frozen**, its prediction restated in the same terms (the first 1000 ‰ frame is the long one).
+- **N4:** widen it to 1,000 µs, or time the formatting between the phases?
+- **The glass:** Daniel can look now. The board runs N.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
