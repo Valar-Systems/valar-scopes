@@ -4260,6 +4260,43 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **The fresh run of N** (A9.36's addition) waits, so the same thing cannot happen in it, until Daniel says he is done at the glass or (b) is answered.
 - **The PR** is opened as a **draft**, so CI runs. No code changed, and approval waits for the ruling.
 
+### A9.38 Daniel on build N, at the glass: the ring completes, then about 1 s before the zoom. Item 2's, with a glass row added (2026-10-26)
+
+**The ruling, verbatim** (source: reviewer chat, pasted by Daniel):
+
+> Daniel (2026-10-26), on build N, plugged into his PC with no serial window: "after the ring closes, it waits 1 second before zooming". Record it with its source.
+>
+> The ring now completes. The delay after it, about 1 s, is far over build N's measured 91-151 ms rebuild under M1/M3, and has M2's shape (0.46-0.79 s, likely more with build N's extra lines). So it's item 2's, seen in Daniel's everyday setup.
+>
+> Item 2 stays next after item 1's PR. Add a glass row to it: after the fix, on the same setup (PC, no serial window), the zoom comes about a tenth of a second after the ring closes.
+
+**Daniel's observation, with its source:**
+- **The build:** N, on the board since 19:59:44Z.
+- **The setup:** his PC, no serial window.
+- **The words:** "after the ring closes, it waits 1 second before zooming".
+
+**How it fits the record, from the code:**
+- **What build N's fire costs in serial lines:**
+  - the deferred rebuild's `[wx] zoom` line;
+  - `BuildScenario`'s 13-16 lines in stored mode, now with `[wx] fbcopy` through `Out()`;
+  - `[wx] hold ring on` when the ring appears, and `off` at the release, both in the draw path.
+- **What each costs with nothing reading:** under main.cpp's 2 ms TX timeout, a blocked call waits about 40 ms (20 × 2 ms; settled in the item 2 note to A9.37).
+- **So the delay after the full-ring frame is about** 14-17 blocked calls ≈ 0.56-0.68 s, plus the 91-151 ms rebuild: about 0.65-0.85 s. That is the same order as "1 second".
+- **What this does not explain:** why `connected` is true on a port no application opened. The first step of item 2's measurement is to record it per write.
+
+**Item 2's rows, as ruled so far (A9.33 + this):**
+- M1, M2, M3 and a USB charger with no host. Records are read over Wi-Fi if serial cannot carry them.
+- **M2's stall falls to M1's.**
+- **The sabotage:** the old timeout brings M2's stall back.
+- **The radar build predicted from its code,** saying whether Blipscope's own prints can stall it today.
+- **The glass row (new):** on Daniel's setup (PC, no serial window), **the zoom comes about a tenth of a second after the ring closes.**
+- **The trade with main.cpp's 2026-07-31 rationale** (a 2 ms timeout, so an attached monitor keeps its soak lines) is laid out in item 2's predictions, before any code.
+
+**Still open on item 1 (#484):**
+- a ruling on A9.37's N5 deviation;
+- whether Daniel was pressing the glass at about 19:56:55-19:57:40Z, during the S-FIRE build;
+- the fresh run of N, waiting until nobody is pressing.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
