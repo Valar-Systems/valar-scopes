@@ -3493,3 +3493,115 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - **The re-run's predictions are A9.19's,** with the two BZ blocks, B2 twice, the belief rule, item 1's band from A9.23, and the diag table above.
 
 **Outside every prediction here: stop and report.**
+
+### A9.23 The profile's results, and (a) predicted from them before its code (2026-10-25 UTC)
+
+**A date, said once.** A9.21 and A9.22 carry the ruling's date, 2026-10-26, in their headings. The session's clock read 2026-10-25 UTC throughout, so this addendum uses that.
+
+**Build P, flashed and run.**
+- **The commit:** `1979519` on the backup branch, its notes carrying `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`.
+- **The flash:** upload exit 0.
+- **The first profile run never started.** The runner's open of COM6 was refused ("Access is denied"), straight after the upload. Windows had not yet released the port. No line was read.
+- **The re-run** went into a fresh directory with the same tool, and needed nothing else.
+
+| prediction | result |
+|---|---|
+| P1, the K rows unchanged | `test_wx_k35` 28/0; all 14 host tests and every sabotage script as before, under MinGW and 13.3 |
+| P2, each scenario profile adds up | 8 lines; `compose_us − sum` is 8-12 µs each (≤ 100) |
+| P3, each loop profile adds up | 60 lines; `draw_us − decode − sum` within 0-500 on all |
+| P4, the full-frame copy | 7 lines, n ≥ 1 each; min 5,354, max 6,725, means 5,370-5,399 µs |
+| the loops | four, at R = 60, 60 (the warning screen), 30 and 15, with 15 records each; the code hashes at both 60 mi loops are 15 of 15 equal to `screens.ref.json` |
+| build P's PSRAM | **160,560 B** against 160,544 ± 2,000 |
+
+**The loop frames' phases** (all 60 records; µs):
+
+| decode | view | map (with the hash, 4.05-4.23 ms) | bands | rings | strip | labels | ring numbers | home | band | draw |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1,990-3,121 | 3,589-3,691 | 26,758-28,920 | 3,048-3,311 | 3,451-7,667 | 101-412 | 2,237-3,698 | 122-550 | 18-21 | 89-141 | 42,428-50,297 |
+
+- **What the costs are:**
+  - one `Sink::Put` costs about 182-197 ns (the bands: 16,800 writes in 3,048-3,311 µs);
+  - the view is 480 software `floor()`s in double precision;
+  - the rings are about 280 dots' worth of software double-precision `sin` and `cos`.
+- **The diag's first data, ahead of the re-run that grades it:** all 72 push runs were at phase 2, and **every push held the loop task for 25,778-25,989 µs**.
+
+**The exactness check (A9.21 item 3), done before coding.**
+- **The rule:** no frame-invariant pixel may depend on what is beneath it.
+- **The evidence, from the code:** `wxraster::Sink` has one method, `Put(x, y, Rgb)`, and nothing in `WxRaster.h`, `WxScreens.h` or `WxScenes.h` reads a pixel back. So there is no blending, no anti-aliasing and no XOR. Every write is opaque, and every pixel's final value is its last write.
+- **So an exact replay is possible:** the last value each invariant phase leaves, replayed after the map, is the same frame.
+
+**The invariant pixels, counted** (a host count through the existing code, the profile hook as a phase counter; not committed):
+- **No warning:** 3,063 pixels on a loop frame at 60 mi (8,398 writes), 2,214 at 30, 1,779 at 15.
+- **With the warning overlay:** 5,982, 5,420 and 4,296.
+
+**(a)'s design.** It is shared code that the host runs: `WxScreens.h` and `WxScenes.h`, not `WeatherscopeManager`.
+- **The invariant group:** the rings, the warning (polygon, title, subtitle, arrow), the town labels (dots, halos, text), the ring numbers and the marker. It becomes one function, `DrawInvariant`, called by the full `Compose` and by the layer's build, so the two draw it with the same code.
+  - **What stays outside it:** the top strip (N, the time, the ZOOM tag) and the band. The tag's x depends on the time's width, so it is not invariant.
+  - **The order change:** in `Compose`, the strip moves after the invariant group. Their pixels never meet (y ≤ 20 against y ≥ 24 for every invariant pixel), so every frame is unchanged, and the K rows prove it.
+- **`wxscreens::Layer`,** one PSRAM object:
+
+| field | bytes |
+|---|---|
+| `LayerKey` (scenario, radius, the crop's geometry, warning, arrow, `fromDeg`, the polygon, the storm, the two title texts) | 192 |
+| the view (the radius's projection, reused) | 992 |
+| a 16-colour palette, the placed labels | 48, 640 |
+| a dense palette-index image | 57,600 |
+| **the whole object** (the board's own compiler, a probe) | **59,488** |
+
+- **The rebuild rule** is `SameLayer(key)`. A layer is rebuilt when the zoom, the scenario, the warning or the home (the crop's geometry) differs. Anything else reuses it.
+- **The build** clears the image, then runs `DrawInvariant` into a palette sink, where the last write wins.
+  - **The replay** walks the image a word at a time, and puts the palette colour of every non-zero byte.
+  - **No capacity limit**, and no second path.
+- **The loop frame** is `ComposeLayered`:
+  1. the map;
+  2. the bands;
+  3. the replay;
+  4. the strip;
+  5. the band.
+
+  Its view is the layer's.
+- **The map stops drawing the band rows.** `DrawMap` still computes and hashes all 240 rows of codes, so B2's hash is unchanged, but no longer `Put`s in rows y < 24 and y ≥ 194. The bands overwrite those pixels in every composition, scenario screens included, so no frame changes. It saves 16,800 writes, about 3.1 ms a frame.
+  - **This is part of (a):** the bands are frame-invariant pixels, and drawing under them twice is the waste.
+  - **Without it** the worst case below would be about 37.9 ms, too close to 38.0 to predict a pass.
+- **The build happens at the tap** (`StartLoop`), before the first frame's deadline 70 ms later, never inside a frame's draw.
+  - **Its cost:** the view, the rings, the labels and the clear, about 16 ms (about 23 with the warning).
+  - **The board prints:** `[wx] layer build_us=… pixels=… rebuilt=<why>`.
+- **Room for geography (the second paste's item 3).** 3.5b's basemap goes **under** the radar: in `DrawMap`, a dry pixel takes the basemap's colour instead of black, with no separate copy. The layer and its key are untouched.
+  - **The full-frame copy costs 5.4-6.7 ms a frame.** 3.5b's plan carries that cost against the same ceiling, about 38 ms, if it ever needs a copy.
+
+**Predictions for build F (= P + (a)):**
+- **H1, the host rows (`test/host/test_wx_replay.cpp`):** **90 rows**, each equal to the full `Compose` at **57,600 of 57,600** pixels, with the same labels. That is the 15 loop frames at 60, 30 and 15 mi, without and then with the warning overlay. The sequence is:
+  - 60 → 30 → 15 with no warning, on one `Layer` object;
+  - then 60 → 30 → 15 with the warning, on the same object.
+- **H2, the K rows:** `test_wx_k35`'s 15 loop rows now go through `ComposeLayered`, and stay equal to the committed `k35.ref.txt`: 28/0.
+- **H3, everything else unchanged:** the 73 layout cases and every sabotage script, the scenario K rows through the refactored `Compose`, under MinGW and 13.3.
+- **The sabotages (`sabotage_wx_replay.py`), each failing exactly its set:**
+
+| sabotage | the plant | `test_wx_replay` fails exactly | `test_wx_k35` fails exactly |
+|---|---|---|---|
+| S-RP1, a layer kept across a zoom change | `SameLayer` ignores the radius | the 60 rows at 30 and 15, in both warning states. The 60 mi rows build fresh: the first by being first, the second because the warning changed | nothing. Its loop rows are all at 60, built once |
+| S-RP2, one label missing from the layer | the layer's build skips its first placed label | all 90 | the 15 K:loop rows |
+
+- **On the board:**
+  - **Every loop frame's `draw_us` falls in [28,000, 36,000] µs**, from the profile:
+    - **The lower end:** decode 1,990, plus the map less its band-row writes (about 23,700), plus the bands 3,048, plus the replay's word walk and 1,779-3,063 writes (about 0.6-1.3 ms), plus the strip and the band (about 200).
+    - **The upper end:** 3,121 + 25,872 + 3,311 + about 1,300 + 553 + 500 of overhead, about 34,700.
+  - **So B2's frozen bounds hold:** draw ≤ 45,000 µs; intervals 70,000 ± 5,000 µs, spread ≤ 10,000; ≥ 14 fps. That is on both loops at 60 mi, the second on the warning screen.
+  - **Each `[wx] layer` line** reports `build_us` ≤ 40,000 and a non-zero pixel count, at each loop's start. A rebuild happens on every tap, so no stale layer can survive to a later loop.
+- **Item 1, PSRAM, computed from the structures:**
+  - **the sum:** 159,824 (A9.20) + 720 (the loop records, build P; measured 736 including the allocator's rounding) + 59,488 (the layer) = **220,032 B, ± 2,000**;
+  - **the band:** 218,032-222,032;
+  - **nothing else in items 3-5 allocates PSRAM:** the diag's buffers and the ring are static or stack.
+- **Flash and RAM inside A9.5's ranges.**
+
+**The diag, one refinement, before the run that grades it.**
+- **A9.22's (iii) test is partly constructed.** `main.cpp` stores `Drawn` immediately before every push, so "phase at the push = 2" can never fail. On its own it cannot exclude (iii).
+- **The datum that can is the push's duration:**
+  - a push that returns in about 26 ms has sent all 115,200 bytes before the loop task can clear the buffer again;
+  - a push that returned early, an asynchronous DMA, could still be reading when the next `fillScreen` runs, which would show on the glass.
+- **(iii) is excluded only if both hold:**
+  - every push run's `push_us` minimum is ≥ 20,000;
+  - the push log's scene sequence (loop frames aside) equals the `[wx] screen=` lines' sequence.
+- **Otherwise it is not excluded,** and the table's verdict is "can't decide" for it.
+
+**Then the whole A9.19 set is re-run on build F,** with the runner and grader of A9.22 and the predictions above, and the diag read against A9.22's table with this refinement. **Outside any of it: stop and report.**
