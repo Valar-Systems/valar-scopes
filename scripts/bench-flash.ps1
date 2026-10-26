@@ -225,7 +225,8 @@ if (-not $free) {
 }
 
 # ---- 2b. the port esptool can flash ----------------------------------------
-# A TinyUSB build (the Missileer firmware) is 1200-baud-touched into ROM download
+# A TinyUSB build (ARDUINO_USB_MODE=0 -- the Missileer firmware until 2026-10-12; no env
+# now) is 1200-baud-touched into ROM download
 # mode, which comes up as a DIFFERENT port carrying the same serial; a
 # USB-Serial-JTAG build is flashed where it is.
 $appPort = $Port

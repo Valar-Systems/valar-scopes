@@ -12,7 +12,8 @@ Changed only by an explicit ruling, never as a side effect of other work -- the 
 status as the locked palette.
 
 - **The canonical public URL is `https://missileer.watch/`.** `missileerwatch.com` 301s
-  to it. Anything a person is sent to -- the USB "open on computer" long press
+  to it. Anything a person is sent to -- the USB "open on computer" long press (built by no env
+  since 2026-10-12; see FEATURE_EAM below)
   (`src/eam/UsbOpenPlan.h` `SITE_URL`), a QR code, a printed card -- uses this. The
   Render archive (`valar-eam-feed.onrender.com/missileer/archive`) is the working
   tool and is never where a device or a card sends someone.
@@ -56,7 +57,8 @@ the same board moves whenever its firmware's USB shape changes: the Missileer bo
 COM15 (TinyUSB CDC+HID), COM4 (ROM download mode) and COM17 (HID compiled out) in one
 day. The serial is the MAC in every mode, spelled `90:70:69:31:E9:D8` by the chip's
 USB-Serial-JTAG (ROM download mode, and `ARDUINO_USB_MODE=1` builds such as the
-Blipscope soak build) and `90706931E9D8` by TinyUSB (the Missileer builds); compare with
+Blipscope soak build -- and, since 2026-10-12, every Missileer build) and `90706931E9D8` by
+TinyUSB (`ARDUINO_USB_MODE=0`, which no env uses any more); compare with
 the colons removed.
 
 - `python scripts/board-port.py --list` shows where each board is right now.
@@ -95,7 +97,7 @@ The shipping radar SKUs are S3: `blipscope-s3-128` (**Kit S3** — jxl/EC-Buying
 - **UI:** seven screens (ticker / tempo / codewords / ABNCP / propagation / ICBM / Zulu clock) on a dwell-timed rotation that skips empty feeds; [EamManager](src/eam/EamManager.h) + [EamScreens.cpp](src/eam/EamScreens.cpp), with a real 7-segment clock in [SevenSegment.cpp](src/eam/SevenSegment.cpp). Shares the radar's touch poll ([TouchPoll.h](include/TouchPoll.h)) and solar auto-dim.
 - **Persistence + alerts:** [EamLogbook](src/eam/EamLogbook.h) (own NVS namespace `eam-log`) tracks seen EAMs/codewords; ntfy alerts reuse the radar's `ntfy-topic` + POST pattern on three toggleable triggers.
 - **OTA channel:** `-DFW_OTA_PREFIX="eam-"` makes [OtaUpdater](src/OtaUpdater.cpp) fetch `firmware-eam-<slug>.bin`, so an EAM device never pulls a radar image for the same board. The shared `version.txt` gate is unchanged.
-- **On the 1.28" Kit S3** (`missileer-s3-128`, Missileer's board going forward): `-DFEATURE_USB_OPEN` makes the device a composite **USB CDC + HID keyboard**, and a long press on the screen types the shown message's archive link into the computer's launcher ([UsbOpen.h](src/eam/UsbOpen.h); what may be typed is decided in [UsbOpenPlan.h](src/eam/UsbOpenPlan.h) and graded by `test/host/test_usb_open.cpp`). That needs `ARDUINO_USB_MODE=0` (TinyUSB): no JTAG, early boot logs don't reach USB, and a monitor must open with **RTS low** or it reboots the board into download mode — see the env's comment. The side buttons are not reachable in the enclosure, so touch is the only input.
+- **USB on every Missileer build is the chip's built-in USB-Serial/JTAG** (`ARDUINO_USB_MODE=1`, like Blipscope; Daniel, 2026-10-12). The 1.28" env (`missileer-s3-128`) used to build `-DFEATURE_USB_OPEN` on TinyUSB (`MODE=0`): a long press typed the shown message's archive link into the computer as a USB keyboard. It is **dropped from every build that ships or that Daniel uses**: on TinyUSB a firmware that misbehaves before USB comes up cannot be reflashed without opening the case (E9D8). In MODE=1 the board enumerates as "USB JTAG/serial debug unit" whatever the firmware does, and is always reflashable over USB. The feature's code stays behind its flag ([UsbOpen.h](src/eam/UsbOpen.h), [UsbOpenPlan.h](src/eam/UsbOpenPlan.h), `test/host/test_usb_open.cpp`) and **no env builds it**; `scripts/check-missileer-usb.py` fails CI on `MODE=0` in any Missileer env or `FEATURE_USB_OPEN` in any env. A long press is now an ordinary tap. Touch is still the only input in the enclosure.
 - The config web page is feature-gated in [ConfigurationWebServer.cpp](src/ConfigurationWebServer.cpp) (`#ifdef FEATURE_EAM`): the EAM form + its NVS keys instead of the radar form; the shell (mDNS, `/reset-wifi`, save flag, secret masking) is shared. Adding an EAM SKU = a variant header + an `[env:*]` (with `-DFEATURE_EAM`, the `build_src_filter`, and `FW_OTA_PREFIX`) + a CI row whose slug is `eam-<board>`.
 
 ## FEATURE_SPACE — a third product (Orbitscope)
