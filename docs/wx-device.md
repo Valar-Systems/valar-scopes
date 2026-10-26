@@ -945,3 +945,63 @@ read it is "the instrument is unreliable at this scale", since the server sample
 device in 10 minutes.
 
 **Put back:** E2:08 has main `962ccb7`'s shipping build again (23:44Z, app-only, verified).
+
+## WD6, 2026-10-26: the sweep over the weather, looks 3 and 4 (ruled). Frozen before its code
+
+**The ruling (reviewer chat, pasted by Daniel), recorded with its source.** Daniel saw a mockup of four looks (1 today,
+2 behind, 3 see-through, 4 lit) and said **"i like 3 or 4"**. Both are built as a bench setting on E2:08, as `wx-look`
+is, so he picks on the glass. **Until he picks, the image draws 4.**
+- **3, see-through:** in the wedge, the wedge's green level is added to each pixel's green channel, clamped at full;
+  red and blue are left as they are.
+- **4, lit:** in the wedge, an echo pixel takes its own rain colour at the look's percent raised toward 100 % with the
+  wedge level. A dry pixel takes the wedge's green, as today.
+- **Both:** the beam and its head as today; rings, airports, trails and planes on top. With the layer off, nothing
+  changes.
+
+The reviewer confirmed that this block is the whole ruling.
+
+**The design:**
+- **`include/WxSweep.h`, pure C++11 and host-tested:**
+  - **The wedge:** the same 18 slices as `DrawRadarSweep` (tail 1.0 rad, level `(1 − i/18)² × 120`), rasterised
+    with **LovyanGFX's `fillTriangle`, ported line for line** (with its collinear `drawLine` case).
+  - **One level per pixel:** each pixel gets the level of the **last** slice that covers it, which is what today's
+    opaque wedge shows. So a pixel on a shared edge is blended once, never twice.
+  - **Look 3:** `SeeThrough565(c, lvl)`. Green becomes `min(255, (G6 × 4) + lvl) >> 2`; the R and B bits are
+    unchanged.
+  - **Look 4:** `Lit565(code, pct, lvl)`. An echo code (1-13) is `To565(Dim(its base colour, p))`, with
+    `p = pct + ((100 − pct) × lvl + 60) / 120` (integer). So `p` is the look's percent at the tail (lvl 0) and 100
+    at the beam (lvl 120). Any other code (0 dry, 14 no coverage, 15 no data) takes the wedge green `(0, lvl, 0)`,
+    as today.
+- **The device:**
+  - **`DrawSweepOverWeather`** runs only when the layer was pushed this frame (`wxShowing == Crop`). It blends the
+    wedge in place in the canvas buffer, with the sprite's byte order handled, then draws the beam and its head with
+    today's code.
+  - **Otherwise** today's `DrawRadarSweep`, unchanged.
+  - **The setting:** the bench env gets `wx-sweep` ("3" or "4"; absent is 4), a select beside `wx-look`. The shipping
+    image is fixed at 4.
+
+| | check | predicted |
+|---|---|---|
+| **W1** | host, exhaustive: `SeeThrough565` over all 65,536 colours × lvl 0-120 | R and B bits **identical**; green exactly as above; lvl 0 changes nothing |
+| **W2** | host, exhaustive: `Lit565` over codes 0-15 × looks A/B × lvl 0-120 | echo codes equal `To565(Dim(base, p))`. **lvl 0 is exactly the layer's own colour.** At lvl 120 the code's colour at 100 %. The hue is kept, because it is the same `Dim` of the same base. Codes 0, 14 and 15: the wedge green |
+| **W3** | host, the buffer render: a synthetic 240 × 240 layer holding every code; the wedge at 16 beam angles; looks 3 and 4 | **every pixel outside the wedge exactly equals the layer** (0 mismatches). Inside, look 3 keeps the R and B bits (0 mismatches), and look 4 equals `Lit565` (0 mismatches). No pixel is blended twice. The wedge's pixel count is printed |
+| **S-w** | sabotage: the opaque wedge restored (every wedge pixel set to the green) | **W3's inside rows red** for both looks; the outside row stays green |
+| **W4** | **the frame time, predicted from G7's measurement** | **The measurement:** the layer added 12.7 ms to the frame avg (41.7 → 54.4) for 57,600 pixel copies, **about 0.22 µs per pixel**. The wedge is about 7,200 px (a 57° sector at r = 120; W3 prints the exact count). **Look 3** adds a read-modify-write per wedge pixel: **+1.5 ms**. **Look 4** adds a code read and a `Dim`: **+2.2 ms**. **Graded on `resid`** (p95 minus the firmware's own model for that contact count), so that traffic cancels. G7's layer-on `resid` median was −2.2 ms, so look 3's predicted median is **−0.7 ms** and look 4's **0.0 ms**, each **within −1/+3 ms** of its point |
+| **W5** | WD5f, with the layer off, on the sweep build | frame p95 median within **±1 ms** of the old image's (main `962ccb7` shipping), on the same board in the same hour band. `resid` is reported beside it |
+| **G7′** | the cadence row, **re-registered by ruling**: the layer off 10 min, then on (look 4) 10 min, on the sweep build. Polls per window from the board's own `[perf] polls=` counter | **on/off ratio 0.9-1.1.** The server's sampled ratio (weighted) is reported beside it, **ungraded** |
+| **W6** | the suites, the builds and CI | MinGW: ALL PASS. WSL: only the board block's known gap. Both builds succeed. CI: 0 failures |
+
+**The run, in order, with one trace held per image:**
+1. **The old image** (E2:08 is on it now): 10 min of `[health]`, for W5's baseline.
+2. **Flash the sweep build,** then **≥ 12 min untouched.**
+3. **B′:** the layer off, 10 min (W5, and G7′'s off window).
+4. **A′:** the layer on, look 4, 10 min (G7′'s on window, and W4 for look 4).
+5. **Look 3:** 10 min (W4 for look 3).
+6. **Look 4 back.** The trace closes, and the board is recovered with `esptool read_mac` if it is silent. It is left on
+   the sweep build with the layer on, for Daniel's comparison on the glass.
+
+No window may straddle sunset (01:00Z at the Bend point). Each window's sign is checked first.
+
+**Outside the set:** stop and report, without re-running for a better number.
+
+**Then:** Daniel picks, the captures follow in rain on his pick, and then E2:08 goes back on the shipping build.
