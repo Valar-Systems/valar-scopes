@@ -1,0 +1,123 @@
+== the reference ==
+K picks: approaching shsr-20240521-212400.wxc, dry shsr-20240521-220000.wxc
+  ok   ref35.py's K rows regenerate the committed k35.ref.txt byte for byte
+== B1: the six scenarios at 60 mi ==
+  ok   B1 dry believed: own 'scenario dry R=60'; before: screen=scenario dry R=60; during: none
+  ok   B1 dry pixels: dry-60: 57600 of 57600 equal (snap-dry-0.bin, 2 fetches)
+  ok   B1 dry lines: 11 printed vs 11 in the reference
+  ok   B1 dry pick: approaching=212400 dry=220000
+  ok   B1 approaching believed: own 'scenario approaching R=60'; before: screen=scenario approaching R=60; during: none
+  ok   B1 approaching pixels: approaching-60: 57600 of 57600 equal (snap-approaching-1.bin, 3 fetches)
+  ok   B1 approaching lines: 11 printed vs 11 in the reference
+  ok   B1 approaching pick: approaching=212400 dry=220000
+  ok   B1 herenow believed: own 'scenario herenow R=60'; before: screen=scenario herenow R=60; during: none
+  ok   B1 herenow pixels: herenow-60: 57600 of 57600 equal (snap-herenow-2.bin, 4 fetches)
+  ok   B1 herenow lines: 11 printed vs 11 in the reference
+  ok   B1 herenow pick: approaching=212400 dry=220000
+  ok   B1 warning believed: own 'scenario warning R=60'; before: screen=scenario warning R=60; during: none
+  ok   B1 warning pixels: warning-60: 57600 of 57600 equal (snap-warning-0.bin, 2 fetches)
+  ok   B1 warning lines: 12 printed vs 12 in the reference
+  ok   B1 warning pick: approaching=212400 dry=220000
+  ok   B1 stale believed: own 'scenario stale R=60'; before: screen=scenario stale R=60; during: none
+  ok   B1 stale pixels: stale-60: 57600 of 57600 equal (snap-stale-2.bin, 4 fetches)
+  ok   B1 stale lines: 11 printed vs 11 in the reference
+  ok   B1 stale pick: approaching=212400 dry=220000
+  ok   B1 clear believed: own 'scenario clear R=60'; before: screen=scenario clear R=60; during: none
+  ok   B1 clear pixels: clear-60: 57600 of 57600 equal (snap-clear-3.bin, 5 fetches)
+  ok   B1 clear lines: 11 printed vs 11 in the reference
+  ok   B1 clear pick: approaching=212400 dry=220000
+== the sizes (A9.23) ==
+  ok   PSRAM: psram_used [220980] (A9.23: 218,032-222,032 B)
+== BZ: U U U D | D H H on dry, in blocks ==
+  ok   BZ gestures: 7 of 7 captured
+  ok   BZ 0 U radius: dry R=30 (want dry R=30)
+  ok   BZ 0 U believed: own 'scenario dry R=30'; before: screen=scenario dry R=30; during: none
+  ok   BZ 0 U pixels: dry-30: 57600 of 57600 equal (snap-bz0-2.bin, 4 fetches)
+  ok   BZ 0 U lines: 9 printed vs 9 in the reference
+  ok   BZ 0 U pick: approaching=212400 dry=220000
+  ok   BZ 1 U radius: dry R=15 (want dry R=15)
+  ok   BZ 1 U believed: own 'scenario dry R=15'; before: screen=scenario dry R=15; during: none
+  ok   BZ 1 U pixels: dry-15: 57600 of 57600 equal (snap-bz1-1.bin, 3 fetches)
+  ok   BZ 1 U lines: 8 printed vs 8 in the reference
+  ok   BZ 1 U pick: approaching=212400 dry=220000
+  ok   BZ 2 U radius: dry R=15 (want dry R=15)
+  ok   BZ 2 U believed: own 'scenario dry R=15'; before: screen=scenario dry R=15; during: none
+  ok   BZ 2 U pixels: dry-15: 57600 of 57600 equal (snap-bz2-2.bin, 4 fetches)
+  ok   BZ 2 U lines: 8 printed vs 8 in the reference
+  ok   BZ 2 U pick: approaching=212400 dry=220000
+  ok   BZ 3 D radius: dry R=30 (want dry R=30)
+  ok   BZ 3 D believed: own 'scenario dry R=30'; before: screen=scenario dry R=30; during: none
+  ok   BZ 3 D pixels: dry-30: 57600 of 57600 equal (snap-bz3-2.bin, 4 fetches)
+  ok   BZ 3 D lines: 9 printed vs 9 in the reference
+  ok   BZ 3 D pick: approaching=212400 dry=220000
+  ok   BZ 4 D radius: dry R=60 (want dry R=60)
+  ok   BZ 4 D believed: own 'scenario dry R=60'; before: screen=scenario dry R=60; during: none
+  ok   BZ 4 D pixels: dry-60: 57600 of 57600 equal (snap-bz4-0.bin, 2 fetches)
+  ok   BZ 4 D lines: 11 printed vs 11 in the reference
+  ok   BZ 4 D pick: approaching=212400 dry=220000
+  ok   BZ 5 H radius: dry R=15 (want dry R=15)
+  ok   BZ 5 H believed: own 'scenario dry R=15'; before: screen=scenario dry R=15; during: none
+  ok   BZ 5 H pixels: dry-15: 57600 of 57600 equal (snap-bz5-2.bin, 4 fetches)
+  ok   BZ 5 H lines: 8 printed vs 8 in the reference
+  ok   BZ 5 H pick: approaching=212400 dry=220000
+  ok   BZ 6 H radius: dry R=60 (want dry R=60)
+  ok   BZ 6 H believed: own 'scenario dry R=60'; before: screen=scenario dry R=60; during: none
+  ok   BZ 6 H pixels: dry-60: 57600 of 57600 equal (snap-bz6-0.bin, 2 fetches)
+  ok   BZ 6 H lines: 11 printed vs 11 in the reference
+  ok   BZ 6 H pick: approaching=212400 dry=220000
+== B2: the loop, twice (A9.21: at 60 mi, and on the warning screen) ==
+  ok   B2 60 layer: layer build_us=20165 pixels=3063 valid=1 rebuilt=tap R=60
+  ok   B2 60 radius: loop records=15 period_us=70000 R=60 layer_rebuilds=0
+  ok   B2 60 records: 15 records
+  ok   B2 60 hashes: 15 of 15 equal screens.ref.json
+  ok   B2 60 epochs: equal the manifest, ascending
+  ok   B2 60 pacing: intervals 69967-70029 us, max-min 62 us
+  ok   B2 60 rate: 14.29 fps (>= 14)
+  ok   B2 60 draw: draw 32454-33723 us (<= 45,000)
+  ok   B2 60 draw range: A9.23: every frame in 28,000-36,000 us
+  ok   B2 60 hash: hash 4048-4090 us (<= 5,000)
+  ok   B2 warning layer: layer build_us=20073 pixels=3063 valid=1 rebuilt=tap R=60
+  ok   B2 warning radius: loop records=15 period_us=70000 R=60 layer_rebuilds=0
+  ok   B2 warning records: 15 records
+  ok   B2 warning hashes: 15 of 15 equal screens.ref.json
+  ok   B2 warning epochs: equal the manifest, ascending
+  ok   B2 warning pacing: intervals 69851-70151 us, max-min 300 us
+  ok   B2 warning rate: 14.29 fps (>= 14)
+  ok   B2 warning draw: draw 32311-34462 us (<= 45,000)
+  ok   B2 warning draw range: A9.23: every frame in 28,000-36,000 us
+  ok   B2 warning hash: hash 4037-4268 us (<= 5,000)
+  ok   B2 after the loop (postloop) believed: own 'scenario approaching R=60'; before: screen=scenario approaching R=60; during: none
+  FAIL B2 after the loop (postloop) snapshot: FAIL-no-agreeing-pair after 6 fetches
+  ok   B2 after the loop (postloop-warning) believed: own 'scenario warning R=60'; before: screen=scenario warning R=60; during: none
+  ok   B2 after the loop (postloop-warning) pixels: warning-60: 57600 of 57600 equal (snap-postloop-warning-2.bin, 4 fetches)
+  ok   B2 after the loop (postloop-warning) lines: 12 printed vs 12 in the reference
+  ok   B2 after the loop (postloop-warning) pick: approaching=212400 dry=220000
+== B3: the legend ==
+  ok   B3 legend believed: before: screen=legend; during: none
+    L4 (replaced): one graded /diag/fb snapshot, 115200 bytes, sha256 45ba1a1938eb
+    L2 coverage: 21 swatches in 7 rows -> EXACTLY the ruled mapping
+    L1 every swatch equals the palette: 21/21 swatches exact
+    L5 background: 7 label boxes; non-dry pixels outside swatches and labels: 0; non-white/dry inside labels: 0; empty label boxes: 0 -> dry, as ruled
+    L6 inner radius: 3790 non-dry pixels; the farthest pixel centre is 109.0 px from the centre (<= 112) -> inside
+       PNG of the board's legend -> ../f-run1\legend.png
+  ok   B3 legend_check --fb: exit 0
+  ok   B3 after the legend believed: own 'scenario warning R=60'; before: screen=scenario warning R=60; during: none
+  ok   B3 after the legend pixels: warning-60: 57600 of 57600 equal (snap-postlegend-0.bin, 2 fetches)
+  ok   B3 after the legend lines: 12 printed vs 12 in the reference
+  ok   B3 after the legend pick: approaching=212400 dry=220000
+== the recorded-data sabotages (each must go RED) ==
+  RED   S-B1a': dry's snapshot against approaching-60's reference: 6362 pixels differ -> AS PREDICTED
+  RED   S-B1b': one board-printed label's x0 moved by 1 px -> AS PREDICTED
+  RED   S-B2a: record 3 graded against reference 4 -> AS PREDICTED
+  RED   S-B2b: epochs 2 and 3 swapped -> AS PREDICTED
+  RED   S-B2c: 11,000 us added to interval 7->8 -> AS PREDICTED
+== the /diag/fb diag (A9.22's table, A9.23's refinement) ==
+    fetches with the diag headers: 57; incomplete (phase 1 at an end): 16; all-black: 1
+    all-black fetches not at 1,1: [('snap-clear-2.bin', 3, 3)]
+    complete fetches (phases >= 2, equal tags) that are not their tag's scene: [('snap-clear-1.bin', 'clear-60'), ('snap-clear-2.bin', 'clear-60'), ('snap-bz2-1.bin', 'dry-15'), ('snap-bz3-1.bin', 'dry-30')]
+    complete fetches with unequal tags: none
+    push runs: 56; phases seen at the push ['2']; the shortest push 25767 us
+    the push log's scene sequence matches the screen lines' (23 against 24)
+    VERDICT: (ii) an older buffer
+
+93 checks, 1 failing; sabotages 5/5 red (5 expected); diag: (ii) an older buffer

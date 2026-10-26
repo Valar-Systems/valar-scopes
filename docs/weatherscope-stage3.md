@@ -3605,3 +3605,74 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - **Otherwise it is not excluded,** and the table's verdict is "can't decide" for it.
 
 **Then the whole A9.19 set is re-run on build F,** with the runner and grader of A9.22 and the predictions above, and the diag read against A9.22's table with this refinement. **Outside any of it: stop and report.**
+
+### A9.24 Build F's re-run of the whole A9.19 set: everything as predicted except two things -- stopped for a ruling (2026-10-26 UTC)
+
+**The build and the run.**
+- **The build:** `e8838f0` on the backup branch, with 13.3 in its notes. #480 stays at `49846de`.
+- **The flash:** `907069326E64`, port resolved by serial, upload exit 0, "Hash of data verified".
+- **The run:** `run_b35.py` held one open from 2026-10-26T02:47:20Z to 02:55:22Z. There were 17 captures, and TCP :80 was up 0.5 s after the close.
+- **The record:** `tools/weatherscope/board/run-2026-10-26/`, LAN IP redacted (three places, `lines.json` included), raw snapshots kept outside the repo.
+- **The grade:** `grade_b35.py` reports **93 checks, 1 failing; the recorded-data sabotages 5/5 red**.
+
+**Before the run, recorded here as A9.23 asked.**
+- **An intermediate compile of (a)'s code measured static RAM 57,272 B,** over A9.5's 57,000.
+- **The cause:** two function-local statics I had put in `WxScreens.h`, a `ScreenOut` in `BuildLayer` and a `View` in `ComposeLayered`'s fallback, 1,680 B in all.
+- **The fix:** both were removed before build F was committed. `DrawInvariant` now writes its labels straight into the layer, and the fallback uses the layer's own view. Nothing was run on that compile.
+- **Build F itself:** flash 1,623,471 B and RAM 55,584 B, both inside A9.5's ranges.
+
+**As predicted (A9.19, A9.22, A9.23):**
+
+| row | result |
+|---|---|
+| H1-H3 (host) | 90/0; K 28/0 with the loop rows through the layer; every other suite and sabotage script unchanged; S-RP1 failed exactly 60 replay rows and no K row; S-RP2 failed 90 replay rows and the 15 K:loop rows |
+| PSRAM | **220,980 B**, inside 218,032-222,032 |
+| B1 | 6 of 6 believed (their own scene at both ends), each 57,600 of 57,600 equal to its K row, every printed block equal; picks 212400 / 220000 |
+| BZ | two blocks (U U U D from dry at 60; D H H from dry at 30); **7 of 7 believed, each exact** at 30, 15, 15, 30, 60, 15, 60 with its lines |
+| B2 at 60 | `[wx] layer build_us=20165 pixels=3063 valid=1 rebuilt=tap`; 15 of 15 hashes; epochs; **draw 32,454-33,723 µs**; intervals 69,967-70,029 µs (spread 62); **14.29 fps**; hash 4,048-4,090 µs |
+| B2 on the warning screen | layer 20,073 µs, 3,063 pixels; 15 of 15 hashes; **draw 32,311-34,462 µs**; intervals 69,851-70,151 µs (spread 300); 14.29 fps; hash 4,037-4,268 µs; the screen after it equal to warning-60 |
+| B3 | believed; `legend_check --fb` exits 0; the screen after it equal to warning-60 |
+| sabotages | S-B1a′, S-B1b′, S-B2a, S-B2b and S-B2c red |
+
+- **PSRAM's remainder:** the reading is 948 B above the computed 220,032.
+  - **The likely cause** is TLSF's second-level rounding of the 59,488 B layer block (to a 1,024 B step), plus its header. Build P's smaller change showed 16 B.
+  - **The alternative**, another allocation inside the measured window, is not excluded by this data.
+  - The band holds either way.
+- **The layer's pixel count on the board is 3,063,** the count A9.23 took on the host for a 60 mi loop frame.
+
+**Off the predictions: two findings.**
+
+1. **B2 at 60: the screen after the loop is FAIL, because the instrument found no agreeing pair in 6 fetches.**
+   - **The capture was believed:** its own scene was in force at both ends.
+   - **What the 6 fetches held:**
+     - fetches 0 and 2 were the finished approaching-60 frame (phases 2,2), not consecutive;
+     - fetches 1, 3, 4 and 5 were all phase 1,1, partly drawn.
+   - **The rule** is the pair rule, as A8.19 and A9.22 froze it: no agreeing pair in 6 fetches is a FAIL of the instrument. **It is recorded and not retried.**
+2. **The diag: against A9.22's table as written, the data fits no row. By the pre-registered escape, that is "the data can't decide".**
+   - **(i) is contradicted as worded.** Four fetches are unfinished frames at phase 3,3, one of them all-black (`snap-clear-2`). (i) predicted phase 1 at an end, and 1,1 for every all-black fetch.
+   - **(ii)'s condition holds for none.** Not one fetch holds an earlier scene's pixels.
+   - **(iii) is excluded by A9.23's test.** All 56 push runs ran at phase 2, the shortest push held 25,767 µs (≥ 20,000), and the push log's scene sequence matches the screen lines (23 of 24, the last run still open).
+   - **A defect of mine, disclosed:** the grader's printed verdict reads "(ii) an older buffer". Its rule, "any complete fetch that is not its tag's scene", was looser than A9.22's (ii), "an earlier scene's pixels". The grader is wrong there, and this paragraph is the reading against the frozen text.
+
+**What the data shows** (an analysis, not a verdict).
+- **The tally:** 57 fetches carried the headers. 36 equal their tag's scene; 19 do not; 2 are legend frames with no K row (`legend_check` graded the legend).
+  - One finished frame read 1,1 (`bz2-0`): its copy completed just before `Drawn` was stored, which fits (i).
+- **Each of the 19 was compared row by row** with its tag's scene and with the scene before it.
+- **The 15 at phase 1,1** hold content from the top rows down, equal row for row (±1, the row being written) to their own scene, with black below. That is `Draw`'s copy caught mid-way.
+- **The 4 at phase 3,3** are black from the top, with their own scene's rows below: `clear-1` 76 of 77 rows, `bz2-1` 85 of 85, `bz3-1` 143 of 143, and `clear-2` all black. That is `fillScreen` caught mid-way.
+- **No fetch matches the earlier scene** beyond rows the two scenes share.
+- **The 3,3 reading is a gap in the diag itself,** found in this data. `main.cpp` stores `Cleared` *after* `fillScreen`, so a copy inside the clear reads `Pushed` from the frame before.
+- **This picture fits (i)** (a copy inside the redraw: the clear, then the draw). It does not fit (ii) or (iii). But (i)'s registered predictions did not hold as worded, so it is not a verdict.
+
+**Stopped. Nothing changed; no fix pushed.** The record goes to the backup branch only.
+
+**For review:**
+1. **The diag.**
+   - **(a)** Daniel films the glass in slow motion: the pre-registered route for "can't decide".
+   - **(b)** Close the gap and settle it from data: a `Clearing` phase stored *before* `fillScreen`, and a re-run with (i)'s prediction restated as "every unfinished fetch has `Clearing` or `Cleared` at an end".
+   - (b) touches `main.cpp` again (one store, diag only).
+2. **The instrument.**
+   - **(a)** Re-run (the whole set, or B2's after-the-loop capture) as it stands. Fetches landed mid-redraw in 19 of 57 tries this run, so another no-pair is possible.
+   - **(b)** Make `/diag/fb` copy only a finished frame. A bounded wait for `Drawn`, the push window of about 25.8 ms in which the buffer is the finished frame, with `Drawn` checked again after the copy. The pair rule would then rarely need a third fetch.
+   - **(b) changes the shared endpoint's behaviour** (a wait of at most about 40 ms on `async_tcp`), so it is for a ruling.
+3. **#480:** whether it moves from `49846de` once these are ruled.
