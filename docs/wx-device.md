@@ -700,3 +700,52 @@ The WD5e and WD5f captures are **not taken yet**. They follow #480, or the pre-#
   - **A `false` fetch** is the instrument's: counted and reported, never graded.
   - **The filter is not used:** #480 merged without stalling, so `--drop-untrustworthy` stays unused. A frame graded
     UNTRUSTWORTHY despite `Finished: true` is outside the set, and is a finding about the instrument.
+
+### WD5e/WD5f capture protocol, frozen 2026-10-26 before E2:08 is flashed
+
+**The trigger.** `rain_probe` (production `/wx/cref` at the Bend point, as a device asks it) reported echo within 50 km
+at 22:15Z: 3 cells within 50 km, 1,519 within 100 km, and rising across three polls.
+
+**The images**, both written app-only (`bench-flash.ps1 -AppOnly`, so NVS, Wi-Fi and location are kept):
+- **WD5:** this branch's `blipscope-s3-128-wxlook`, code as at `da5e7f7`.
+- **Old:** main `962ccb7`'s `blipscope-s3-128`, which has no WD5. It fetches production `/blips`, so it is also the
+  build E2:08 is left on afterwards, as the Bend feed's source (the ruling's step 3).
+
+**The serial record.** One `bench-trace.ps1` per image, a single open held for the whole image. Its `[health]` lines
+give frame p95, and its `[touch-wd]` lines give the touch state. Known: closing a trace leaves this board in ROM
+download mode. That is recovered afterwards, by the documented `read_mac` path.
+
+**The settings.** They are changed only through the config page:
+1. GET the form;
+2. change `wx-layer` or `wx-look`, and nothing else;
+3. POST every other field exactly as read (it is a whole-form save).
+
+**The arms, in order, on the WD5 image:**
+1. **Layer on, look A:** 6 moments 2 min apart, 3 `/diag/fb` fetches each.
+2. **Layer on, look B:** the same.
+3. **Layer off:** the same, plus 10 min of `[health]` lines.
+
+Then the **old image:** 10 min of `[health]` lines, starting within 60 min of arm 3's (the same hour band).
+
+**What each fetch records:** its status, its `X-Blipscope-Frame-Finished` header, and its body.
+- **Only `Finished: true` fetches are graded.** `false` ones are counted.
+- **Nobody touches the board** during the session.
+- **Touch must be available:** no `[touch-wd]` "touch unavailable" line, and the `[health] touch-wd wedges=` count
+  unchanged across each arm.
+
+**Grading:**
+- **Arm 1:** `wx-fb-check.py --look A` (WD5e(1) and (2)).
+- **Arm 2:** `--look B` (WD5e(1)).
+- **Arm 3:** `--off` (WD5f's marker clause, R5).
+- **WD5f p95:** the median of the arm's per-30 s `p95=` values. The WD5 image with the layer off against the old image:
+  `|Δ| ≤ 1 ms`.
+
+**Outside the set, for any arm:** stop and report, without re-running for a better number:
+- a BLIND;
+- an UNTRUSTWORTHY frame with `Finished: true`;
+- a touch-unavailable line;
+- a failed flash;
+- any verdict not as predicted.
+
+**Afterwards:** E2:08 stays on the old image. The Bend feed's `written` count is read in the 10 min after it boots, to
+show that a Bend device feeds production again.
