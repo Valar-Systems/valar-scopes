@@ -4032,6 +4032,44 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **Next:** a ruling. No change to the fire's behaviour is made, and 3.5b's work (A10.11) continues on its own track.
 
+### A9.33 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): A9.32's results accepted; Daniel's answers; two PRs ordered
+
+**The ruling, verbatim:**
+
+> Rulings on A9.32, the hold-ring stall (reviewer chat, 2026-10-26)
+>
+> #480's merge is accepted (0091f23, its tree equal to 7e186cb's).
+>
+> Daniel's answers (2026-10-26, asked in the reviewer chat): the Weatherscope was plugged into "PC, no serial window"; the pause felt like "A blink (~0.1 s)"; the Blipscope he compared it with was also on "PC, no serial window". Record them with their source. A blink matches M1/M3's ~100 ms, not M2's half a second.
+>
+> Both misses stay recorded (C1's build range; C2's two predictions). The facts you list are accepted, and so are the two instrument flaws.
+>
+> 1. The visible pause: a small Weatherscope-only PR.
+>    - Draw the 100% ring first, and do the zoom's rebuild on the next frame.
+>    - Fix the instrument first: send PrintCopyStats through Out(), give each record its scene and radius, and split BuildScenario's phases so the 60-70 ms outside Compose is named. If any of it is bench-only work (a hash or print for the K rows), gate it to stored mode in the same PR.
+>    - Predictions first: under M1 and M3, every frame through the press up to and including 100% keeps its normal interval, with the long frame after it. Sabotage: the rebuild back in the fire frame turns that row red. Then Daniel looks at the glass again.
+>
+> 2. The serial stall (M2): its own PR, in shared code, predictions first.
+>    - A burst of prints, with an enumerated port that nothing has opened, stalls the draw loop by up to 0.8 s. A customer powering a scope from a computer's USB port would see it, on any edition that prints in its draw path.
+>    - Settle (a)-(c) from HWCDC's source at the pinned core and from data, as the diag was settled. Then make trace writes never block the draw loop (HWCDC's TX timeout at 0, or whatever the source shows), in main.cpp's shared setup.
+>    - Predict M1, M2, M3, and a USB charger with no host (read the records over Wi-Fi if serial can't carry them). M2's stall falls to M1's. Sabotage: the old timeout brings M2's stall back. Predict the radar build from its code, since every edition shares the setup, and say whether Blipscope's own prints could stall it today.
+>
+> 3. Board order: 1, then 2, then 3.5b's build Q. 3.5b's host work (A10.11's freeze, step 2, ref35's geography, R0b) carries on meanwhile.
+
+**Daniel's answers, recorded with their source** (asked in the reviewer chat, 2026-10-26, as relayed above):
+
+| question | answer |
+|---|---|
+| where was the Weatherscope plugged in | "PC, no serial window" |
+| how long did the pause feel | "A blink (~0.1 s)" |
+| where was the Blipscope he compared it with | "PC, no serial window" |
+
+**What the answers change:**
+- **The blink:** it matches M1/M3's ~100 ms, not M2's half second, so item 1 is the visible pause.
+- **M2's stall:** it is item 2's subject on its own. It is not what Daniel saw.
+
+**The order:** item 1's PR (predictions first, A9.34), then item 2's PR, then 3.5b's build Q. A10.11 and 3.5b's host work go on between board runs.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
