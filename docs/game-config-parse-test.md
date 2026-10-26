@@ -102,3 +102,32 @@ Every plant is restored **by bytes**, from a copy, with a sha256 check.
 **H1's control needed a second attempt.** The first one ran `git rev-parse` inside WSL, which cannot follow a
 worktree's Windows-path `.git` link, and the `&&` chain stopped before the suite started. That attempt measured
 nothing. It was run again without the git step, with the tree hash taken from Windows git.
+
+## Re-registered by ruling (reviewer chat, pasted by Daniel, 2026-10-26), before any further measurement
+
+The ruling, as pasted:
+- **M2:** "re-registered from the measured cause, the miss kept ... each missileer image grows over main's CI build at
+  4b0bd07 by the measured +576 / +592 / +672 B, +- 16 B ... Name which size CI reports before you read it."
+- **H1 (WSL):** "counted, with the board block recorded as a rig gap that main shares (your control). The miss stays
+  recorded. Don't set up a board compiler in Ubuntu-24.04 for this PR: the board block's evidence comes from the MinGW
+  full suite and CI. H1's MinGW half stays as predicted: ALL HOST TESTS PASSED."
+- **What may run next:** T5, S1, S2, S2′ and the MinGW full suite; then the PR, and C1.
+
+**Which size CI reports, named from `firmware.yml` before any CI log was read.**
+- **The quantity:** the missileer legs are build-only (no `slug`), so CI uploads **no image** for them and records no
+  `firmware.bin` size. What it reports is PlatformIO's line **`Flash: [...] (used N bytes from 6553600 bytes)`**, in
+  the matrix leg's step **`Build <env>`**, the plain `pio run -e <env>`.
+- **What not to read:** the later `adsbdb launch gate` step rebuilds with a plant, so its size lines are not this
+  quantity and are not read.
+- **Main's side:** push run `40258192095` on `4b0bd07`. **This PR's side:** the `pull_request` run on its head.
+
+That quantity is not the one the ruling's numbers measured. +576 / +592 / +672 are `firmware.bin` deltas. The same
+local builds' `Flash: used` deltas were **+568 / +592 / +664**, because the image adds alignment, a header and a
+checksum on top. So:
+
+| | check | predicted |
+|---|---|---|
+| **M2′** | per missileer env: the `Flash: used` N in this PR's `Build <env>` step, minus N in main's run `40258192095` | **within +-16 B of the ruling's +576 / +592 / +672**, and specifically **+568 / +592 / +664** (the local `Flash: used` deltas; the toolchain is pinned) |
+
+**Outside the set:** a `Build <env>` step with no `Flash:` line is no measurement: stop. A delta outside the band:
+stop.
