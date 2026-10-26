@@ -4297,6 +4297,38 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - whether Daniel was pressing the glass at about 19:56:55-19:57:40Z, during the S-FIRE build;
 - the fresh run of N, waiting until nobody is pressing.
 
+### A9.39 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): S-FIRE accepted; the 15 holds were Daniel's; the fresh run of N now
+
+**The ruling, verbatim:**
+
+> Rulings on A9.37, and the fresh run (reviewer chat, 2026-10-26)
+>
+> Daniel's answers (2026-10-26, asked in the reviewer chat): "Yes, I was" pressing and holding the screen over and over at the time he reported the lag back; and the board is free now ("Yes, it's free"). Record both with their source.
+>
+> 1. S-FIRE is accepted: red exactly on N1', N2 and N6 in all three bench presses, with N3' and N4' holding. N5's two misses are the 15 holds from Daniel's presses in its counting window, not N''s doing: that's (a), and his answer excludes (b), phantom touches. Recorded as such; no S-FIRE re-run. His "the 95 percent lag is back now" was on N', the sabotage, as you inferred.
+> 2. The board is free: run the fresh N now. Then report #484 with that run and CI on its head, for approval.
+> 3. Item 1 closes as it is. If my earlier block put the zoom-free speed-up into item 1's PR, that's withdrawn: most of what Daniel felt is item 2's serial stall. Revisit the speed-up after item 2, from Daniel's eye on the glass.
+>
+> Item 2 starts after #484, as you have it.
+
+**Daniel's answers, with their source** (asked in the reviewer chat, 2026-10-26, as relayed above):
+
+| question | answer |
+|---|---|
+| was he pressing the glass at about 19:57Z | "Yes, I was", over and over |
+| is the board free | "Yes, it's free" |
+
+**What A9.37's alternatives come to:**
+- **(a), someone pressing the glass, holds.** The 15 holds were Daniel's.
+- **(b), phantom touches, is excluded by his answer.**
+- **His "the 95 percent lag is back now" was on N′, the sabotage.**
+
+**Item 1's scope:**
+- **The zoom-free speed-up was never in #484.** A9.36 noted it as "not for this PR", and the ruling's point 3 withdraws it.
+- **It is revisited after item 2,** from Daniel's eye on the glass.
+
+**Next:** the fresh run of N, graded against A9.36's rows. Then #484 with that run and CI on its head, for approval.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
