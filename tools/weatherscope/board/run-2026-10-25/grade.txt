@@ -1,0 +1,85 @@
+== the reference ==
+K picks: approaching shsr-20240521-212400.wxc, dry shsr-20240521-220000.wxc
+  ok   ref35.py's K rows regenerate the committed k35.ref.txt byte for byte
+== B1: the six scenarios at 60 mi ==
+  ok   B1 approaching pixels: approaching-60: 57600 of 57600 equal (snap-approaching-0.bin, 2 fetches, 0 torn)
+  ok   B1 approaching lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B1 approaching pick: approaching=212400 dry=220000
+  ok   B1 herenow pixels: herenow-60: 57600 of 57600 equal (snap-herenow-0.bin, 2 fetches, 0 torn)
+  ok   B1 herenow lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B1 herenow pick: approaching=212400 dry=220000
+  ok   B1 warning pixels: warning-60: 57600 of 57600 equal (snap-warning-0.bin, 2 fetches, 0 torn)
+  ok   B1 warning lines: 12 printed (ROW, TIME, BAND, 8 labels) vs 12 in the reference
+  ok   B1 warning pick: approaching=212400 dry=220000
+  ok   B1 stale pixels: stale-60: 57600 of 57600 equal (snap-stale-0.bin, 2 fetches, 0 torn)
+  ok   B1 stale lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B1 stale pick: approaching=212400 dry=220000
+  ok   B1 clear pixels: clear-60: 57600 of 57600 equal (snap-clear-0.bin, 2 fetches, 0 torn)
+  ok   B1 clear lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B1 clear pick: approaching=212400 dry=220000
+  ok   B1 dry pixels: dry-60: 57600 of 57600 equal (snap-dry-2.bin, 4 fetches, 0 torn)
+  ok   B1 dry lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B1 dry pick: approaching=212400 dry=220000
+== the sizes (A9.5) ==
+  FAIL PSRAM: psram_used [159824] (A9.5: 160,000-175,000 B)
+== BZ: U, U, U, D, D, H, H on dry ==
+  ok   BZ gestures: 7 of 7 captured
+  ok   BZ 0 U radius: dry R=30 (want dry R=30)
+  ok   BZ 0 U pixels: dry-30: 57600 of 57600 equal (snap-bz0-0.bin, 2 fetches, 0 torn)
+  ok   BZ 0 U lines: 9 printed (ROW, TIME, BAND, 6 labels) vs 9 in the reference
+  ok   BZ 0 U pick: approaching=212400 dry=220000
+  ok   BZ 1 U radius: dry R=15 (want dry R=15)
+  ok   BZ 1 U pixels: dry-15: 57600 of 57600 equal (snap-bz1-2.bin, 4 fetches, 0 torn)
+  ok   BZ 1 U lines: 8 printed (ROW, TIME, BAND, 5 labels) vs 8 in the reference
+  ok   BZ 1 U pick: approaching=212400 dry=220000
+  ok   BZ 2 U radius: dry R=15 (want dry R=15)
+  ok   BZ 2 U pixels: dry-15: 57600 of 57600 equal (snap-bz2-0.bin, 2 fetches, 0 torn)
+  ok   BZ 2 U lines: 8 printed (ROW, TIME, BAND, 5 labels) vs 8 in the reference
+  ok   BZ 2 U pick: approaching=212400 dry=220000
+  ok   BZ 3 D radius: dry R=30 (want dry R=30)
+  ok   BZ 3 D pixels: dry-30: 57600 of 57600 equal (snap-bz3-2.bin, 4 fetches, 0 torn)
+  ok   BZ 3 D lines: 9 printed (ROW, TIME, BAND, 6 labels) vs 9 in the reference
+  ok   BZ 3 D pick: approaching=212400 dry=220000
+  ok   BZ 4 D radius: dry R=60 (want dry R=60)
+  ok   BZ 4 D pixels: dry-60: 57600 of 57600 equal (snap-bz4-0.bin, 2 fetches, 0 torn)
+  ok   BZ 4 D lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   BZ 4 D pick: approaching=212400 dry=220000
+  ok   BZ 5 H radius: dry R=15 (want dry R=15)
+  ok   BZ 5 H pixels: dry-15: 57600 of 57600 equal (snap-bz5-0.bin, 2 fetches, 0 torn)
+  ok   BZ 5 H lines: 8 printed (ROW, TIME, BAND, 5 labels) vs 8 in the reference
+  ok   BZ 5 H pick: approaching=212400 dry=220000
+  ok   BZ 6 H radius: dry R=60 (want dry R=60)
+  FAIL BZ 6 H pixels: dry-60: 51238 of 57600 equal (snap-bz6-2.bin, 4 fetches, 0 torn)
+  ok   BZ 6 H lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   BZ 6 H pick: approaching=212400 dry=220000
+== B2: the loop ==
+  ok   B2 radius: loop records=15 period_us=70000 R=60
+  ok   B2 records: 15 records, indices [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+  ok   B2 hashes: 15 of 15 equal screens.ref.json
+  ok   B2 epochs: equal the manifest, strictly ascending
+  FAIL B2 pacing: intervals 80516-82444 us, max-min 1928 us (<= 10,000; each 70,000 +- 5,000)
+  FAIL B2 rate: 12.25 fps over 14 intervals (>= 14)
+  FAIL B2 draw: draw 48627-50561 us (<= 45,000)
+  ok   B2 hash: hash 4069-4294 us (<= 5,000)
+  ok   B2 after the loop pixels: approaching-60: 57600 of 57600 equal (snap-postloop-2.bin, 4 fetches, 0 torn)
+  ok   B2 after the loop lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B2 after the loop pick: approaching=212400 dry=220000
+== B3: the legend ==
+    L4 (replaced): one graded /diag/fb snapshot, 115200 bytes, sha256 45ba1a1938eb
+    L2 coverage: 21 swatches in 7 rows -> EXACTLY the ruled mapping
+    L1 every swatch equals the palette: 21/21 swatches exact
+    L5 background: 7 label boxes; non-dry pixels outside swatches and labels: 0; non-white/dry inside labels: 0; empty label boxes: 0 -> dry, as ruled
+    L6 inner radius: 3790 non-dry pixels; the farthest pixel centre is 109.0 px from the centre (<= 112) -> inside
+       PNG of the board's legend -> ../b35-run1\legend.png
+  ok   B3 legend_check --fb: exit 0
+  ok   B3 after the legend pixels: approaching-60: 57600 of 57600 equal (snap-postlegend-4.bin, 6 fetches, 0 torn)
+  ok   B3 after the legend lines: 11 printed (ROW, TIME, BAND, 8 labels) vs 11 in the reference
+  ok   B3 after the legend pick: approaching=212400 dry=220000
+== the recorded-data sabotages (each must go RED) ==
+  RED   S-B1a': dry's snapshot against approaching-60's reference: 6362 pixels differ -> AS PREDICTED
+  RED   S-B1b': one board-printed label's x0 moved by 1 px -> AS PREDICTED
+  RED   S-B2a: record 3 graded against reference 4 -> AS PREDICTED
+  RED   S-B2b: epochs 2 and 3 swapped -> AS PREDICTED
+  RED   S-B2c: 11,000 us added to interval 7->8 -> AS PREDICTED
+
+63 checks, 5 failing; sabotages 5/5 red (5 expected)

@@ -30,4 +30,8 @@ public:
     AlertList Active() const override;
 };
 
+// 3.5a's SYNTHETIC all-dry crop for the stored Clear scenario (Q15): not a feed and not weather, so it is reached
+// only through Feeds::clear, which only the stored factory fills.
+CropBytes StoredSyntheticClear();
+
 }  // namespace wx

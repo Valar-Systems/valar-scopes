@@ -1,0 +1,860 @@
+[
+ {
+  "label": "approaching",
+  "verdict": "graded",
+  "graded": "snap-approaching-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-approaching-0.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1020"
+    },
+    "utc": 1792956940.4274247
+   },
+   {
+    "i": 1,
+    "file": "snap-approaching-1.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1050"
+    },
+    "utc": 1792956941.619222
+   }
+  ],
+  "step": "B1",
+  "scenario": "approaching",
+  "R": 60
+ },
+ {
+  "label": "herenow",
+  "verdict": "graded",
+  "graded": "snap-herenow-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-herenow-0.bin",
+    "bytes": 115200,
+    "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1823"
+    },
+    "utc": 1792956970.5498397
+   },
+   {
+    "i": 1,
+    "file": "snap-herenow-1.bin",
+    "bytes": 115200,
+    "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1852"
+    },
+    "utc": 1792956971.626518
+   }
+  ],
+  "step": "B1",
+  "scenario": "herenow",
+  "R": 60
+ },
+ {
+  "label": "warning",
+  "verdict": "graded",
+  "graded": "snap-warning-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-warning-0.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "2620"
+    },
+    "utc": 1792957000.5119498
+   },
+   {
+    "i": 1,
+    "file": "snap-warning-1.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "2652"
+    },
+    "utc": 1792957001.6181512
+   }
+  ],
+  "step": "B1",
+  "scenario": "warning",
+  "R": 60
+ },
+ {
+  "label": "stale",
+  "verdict": "graded",
+  "graded": "snap-stale-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-stale-0.bin",
+    "bytes": 115200,
+    "sha256": "00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "3423"
+    },
+    "utc": 1792957030.5512443
+   },
+   {
+    "i": 1,
+    "file": "snap-stale-1.bin",
+    "bytes": 115200,
+    "sha256": "00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "3453"
+    },
+    "utc": 1792957031.645328
+   }
+  ],
+  "step": "B1",
+  "scenario": "stale",
+  "R": 60
+ },
+ {
+  "label": "clear",
+  "verdict": "graded",
+  "graded": "snap-clear-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-clear-0.bin",
+    "bytes": 115200,
+    "sha256": "07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "4226"
+    },
+    "utc": 1792957060.6655269
+   },
+   {
+    "i": 1,
+    "file": "snap-clear-1.bin",
+    "bytes": 115200,
+    "sha256": "07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "4257"
+    },
+    "utc": 1792957061.77442
+   }
+  ],
+  "step": "B1",
+  "scenario": "clear",
+  "R": 60
+ },
+ {
+  "label": "dry",
+  "verdict": "graded",
+  "graded": "snap-dry-2.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-dry-0.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5025"
+    },
+    "utc": 1792957090.552961
+   },
+   {
+    "i": 1,
+    "file": "snap-dry-1.bin",
+    "bytes": 115200,
+    "sha256": "5100cd3c347900ccc448306dfbf5467df6bd8a472d589f8edf9fca74969ce678",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5055"
+    },
+    "utc": 1792957091.7020726
+   },
+   {
+    "i": 2,
+    "file": "snap-dry-2.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5084"
+    },
+    "utc": 1792957092.810158
+   },
+   {
+    "i": 3,
+    "file": "snap-dry-3.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5112"
+    },
+    "utc": 1792957093.9030445
+   }
+  ],
+  "step": "B1",
+  "scenario": "dry",
+  "R": 60
+ },
+ {
+  "label": "bz0",
+  "verdict": "graded",
+  "graded": "snap-bz0-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz0-0.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9873"
+    },
+    "utc": 1792957271.927713
+   },
+   {
+    "i": 1,
+    "file": "snap-bz0-1.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9901"
+    },
+    "utc": 1792957273.0996482
+   }
+  ],
+  "step": "BZ",
+  "gesture": "U",
+  "wantR": 30,
+  "scenario": "dry",
+  "R": 30
+ },
+ {
+  "label": "bz1",
+  "verdict": "graded",
+  "graded": "snap-bz1-2.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz1-0.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9941"
+    },
+    "utc": 1792957274.684207
+   },
+   {
+    "i": 1,
+    "file": "snap-bz1-1.bin",
+    "bytes": 115200,
+    "sha256": "5bc3b1f08a3783795618545829ff8c3a299d6475caf86920d0e577e774339628",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9971"
+    },
+    "utc": 1792957275.8299067
+   },
+   {
+    "i": 2,
+    "file": "snap-bz1-2.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10000"
+    },
+    "utc": 1792957276.981109
+   },
+   {
+    "i": 3,
+    "file": "snap-bz1-3.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10029"
+    },
+    "utc": 1792957278.0922747
+   }
+  ],
+  "step": "BZ",
+  "gesture": "U",
+  "wantR": 15,
+  "scenario": "dry",
+  "R": 15
+ },
+ {
+  "label": "bz2",
+  "verdict": "graded",
+  "graded": "snap-bz2-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz2-0.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10067"
+    },
+    "utc": 1792957279.6636336
+   },
+   {
+    "i": 1,
+    "file": "snap-bz2-1.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10096"
+    },
+    "utc": 1792957280.8182526
+   }
+  ],
+  "step": "BZ",
+  "gesture": "U",
+  "wantR": 15,
+  "scenario": "dry",
+  "R": 15
+ },
+ {
+  "label": "bz3",
+  "verdict": "graded",
+  "graded": "snap-bz3-2.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz3-0.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10164"
+    },
+    "utc": 1792957283.4419048
+   },
+   {
+    "i": 1,
+    "file": "snap-bz3-1.bin",
+    "bytes": 115200,
+    "sha256": "f8766220a012c077dbd7aeb5f4917cf5adc9a979d9fd0d35408dc9547f5c92e9",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10193"
+    },
+    "utc": 1792957284.629702
+   },
+   {
+    "i": 2,
+    "file": "snap-bz3-2.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10222"
+    },
+    "utc": 1792957285.7429016
+   },
+   {
+    "i": 3,
+    "file": "snap-bz3-3.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10250"
+    },
+    "utc": 1792957286.809576
+   }
+  ],
+  "step": "BZ",
+  "gesture": "D",
+  "wantR": 30,
+  "scenario": "dry",
+  "R": 30
+ },
+ {
+  "label": "bz4",
+  "verdict": "graded",
+  "graded": "snap-bz4-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz4-0.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10285"
+    },
+    "utc": 1792957288.3276205
+   },
+   {
+    "i": 1,
+    "file": "snap-bz4-1.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10315"
+    },
+    "utc": 1792957289.4205866
+   }
+  ],
+  "step": "BZ",
+  "gesture": "D",
+  "wantR": 60,
+  "scenario": "dry",
+  "R": 60
+ },
+ {
+  "label": "bz5",
+  "verdict": "graded",
+  "graded": "snap-bz5-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz5-0.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10353"
+    },
+    "utc": 1792957291.0802283
+   },
+   {
+    "i": 1,
+    "file": "snap-bz5-1.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10383"
+    },
+    "utc": 1792957292.171528
+   }
+  ],
+  "step": "BZ",
+  "gesture": "H",
+  "wantR": 15,
+  "scenario": "dry",
+  "R": 15
+ },
+ {
+  "label": "bz6",
+  "verdict": "graded",
+  "graded": "snap-bz6-2.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz6-0.bin",
+    "bytes": 115200,
+    "sha256": "0c7902e6d73b6038a795084f01d787666983dde6fdeb4d6a1a7cfeaaaebdd212",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10452"
+    },
+    "utc": 1792957294.893536
+   },
+   {
+    "i": 1,
+    "file": "snap-bz6-1.bin",
+    "bytes": 115200,
+    "sha256": "b42fd891901fd060d141ca38e3280b85c50ef0c79ade79f150d5119e0e30e3fe",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10481"
+    },
+    "utc": 1792957296.0279343
+   },
+   {
+    "i": 2,
+    "file": "snap-bz6-2.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10507"
+    },
+    "utc": 1792957297.1579974
+   },
+   {
+    "i": 3,
+    "file": "snap-bz6-3.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10535"
+    },
+    "utc": 1792957298.2236655
+   }
+  ],
+  "step": "BZ",
+  "gesture": "H",
+  "wantR": 60,
+  "scenario": "dry",
+  "R": 60
+ },
+ {
+  "label": "postloop",
+  "verdict": "graded",
+  "graded": "snap-postloop-2.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-postloop-0.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10644"
+    },
+    "utc": 1792957303.1157036
+   },
+   {
+    "i": 1,
+    "file": "snap-postloop-1.bin",
+    "bytes": 115200,
+    "sha256": "e2b658b58ccf26e5966b6b4ce49d80539ea4437ed2c84d71f3ec73709f37daf5",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10674"
+    },
+    "utc": 1792957304.181773
+   },
+   {
+    "i": 2,
+    "file": "snap-postloop-2.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10730"
+    },
+    "utc": 1792957306.4073315
+   },
+   {
+    "i": 3,
+    "file": "snap-postloop-3.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10759"
+    },
+    "utc": 1792957307.5456333
+   }
+  ],
+  "step": "B2",
+  "scenario": "approaching",
+  "R": 60
+ },
+ {
+  "label": "legend",
+  "verdict": "graded",
+  "graded": "snap-legend-3.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-legend-0.bin",
+    "bytes": 115200,
+    "sha256": "d8b443032200e143b1c49820b6d78c32d519553a3f63a38f48e8bc31da084f0a",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10810"
+    },
+    "utc": 1792957309.453403
+   },
+   {
+    "i": 1,
+    "file": "snap-legend-1.bin",
+    "bytes": 115200,
+    "sha256": "753c6256d7a3eee22714a9ce2ebde6fc4b3202f374b6f0ff849c57cd31a3dd73",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10840"
+    },
+    "utc": 1792957310.586554
+   },
+   {
+    "i": 2,
+    "file": "snap-legend-2.bin",
+    "bytes": 115200,
+    "sha256": "d8b443032200e143b1c49820b6d78c32d519553a3f63a38f48e8bc31da084f0a",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10870"
+    },
+    "utc": 1792957311.783948
+   },
+   {
+    "i": 3,
+    "file": "snap-legend-3.bin",
+    "bytes": 115200,
+    "sha256": "45ba1a1938eb1f327e9c3823ea2b48c4a41417f56ed092fdd0760a401ef03b3f",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10901"
+    },
+    "utc": 1792957312.9344022
+   },
+   {
+    "i": 4,
+    "file": "snap-legend-4.bin",
+    "bytes": 115200,
+    "sha256": "45ba1a1938eb1f327e9c3823ea2b48c4a41417f56ed092fdd0760a401ef03b3f",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10931"
+    },
+    "utc": 1792957314.0891316
+   }
+  ],
+  "step": "B3"
+ },
+ {
+  "label": "postlegend",
+  "verdict": "graded",
+  "graded": "snap-postlegend-4.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-postlegend-0.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10972"
+    },
+    "utc": 1792957315.6230743
+   },
+   {
+    "i": 1,
+    "file": "snap-postlegend-1.bin",
+    "bytes": 115200,
+    "sha256": "251a2b4ef9d966cf04f5689628e90f405a068e729638f18489adcb630c8db3ca",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "11032"
+    },
+    "utc": 1792957317.9245944
+   },
+   {
+    "i": 2,
+    "file": "snap-postlegend-2.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "11061"
+    },
+    "utc": 1792957318.992737
+   },
+   {
+    "i": 3,
+    "file": "snap-postlegend-3.bin",
+    "bytes": 115200,
+    "sha256": "d8b443032200e143b1c49820b6d78c32d519553a3f63a38f48e8bc31da084f0a",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "11089"
+    },
+    "utc": 1792957320.3136177
+   },
+   {
+    "i": 4,
+    "file": "snap-postlegend-4.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "11123"
+    },
+    "utc": 1792957321.5227013
+   },
+   {
+    "i": 5,
+    "file": "snap-postlegend-5.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "11155"
+    },
+    "utc": 1792957322.6600702
+   }
+  ],
+  "step": "B3",
+  "scenario": "approaching",
+  "R": 60
+ }
+]

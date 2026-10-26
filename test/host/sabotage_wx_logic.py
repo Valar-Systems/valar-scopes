@@ -45,8 +45,10 @@ SABOTAGES = {
                '    if (false) snprintf(t.distance, sizeof(t.distance), "<1 MI");  // SABOTAGE')], {"M9"}),
     "S-U": ([("inline int KtToMph(double kt) { return (int)lround(kt * kMphPerKt); }",
               "inline int KtToMph(double kt) { return (int)(kt * kMphPerKt); }  // SABOTAGE")], {"U1", "U3", "U4"}),
-    "S-L": ([("    if (n >= 5 && strcmp(out + n - 5, \" CITY\") == 0) out[n - 5] = '\\0';",
-              "    for (char* q; (q = strstr(out, \"CITY\")) != nullptr;) memmove(q, q + 4, strlen(q + 4) + 1);"
+    # S-L, re-registered for Q13 (A9.10): every "city", in any case, stripped -- so "Oklahoma City city" loses both
+    "S-L": ([("    if (n >= 5 && strcmp(out + n - 5, \" city\") == 0) out[n - 5] = '\\0';",
+              "    for (char* q = out; *q; ++q) if ((q[0] | 32) == 'c' && (q[1] | 32) == 'i' && (q[2] | 32) == 't' && (q[3] | 32) == 'y')"
+              " { memmove(q, q + 4, strlen(q + 4) + 1); --q; }"
               " for (size_t k = strlen(out); k > 0 && out[k - 1] == ' ';) out[--k] = '\\0'; (void)n;  // SABOTAGE")],
             {"L4"}),
     "S-H1": ([("    for (size_t e = 0; e < n; ++e) {", "    for (size_t e = 0; e < (n ? 1u : 0u); ++e) {  // SABOTAGE")],

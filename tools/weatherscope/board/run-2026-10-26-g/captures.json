@@ -1,0 +1,932 @@
+[
+ {
+  "label": "dry",
+  "verdict": "graded",
+  "graded": "snap-dry-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-dry-0.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "215",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "103c00d8,103c00d8",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4966",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987032.6113636,
+    "end": 1792987034.7827368,
+    "utc": 1792987034.7827368
+   },
+   {
+    "i": 1,
+    "file": "snap-dry-1.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "249",
+     "X-Blipscope-Frame-Phase": "3,3",
+     "X-Blipscope-Frame-Tag": "103c00f9,103c00f9",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4970",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987035.0838468,
+    "end": 1792987035.9347837,
+    "utc": 1792987035.9347837
+   }
+  ],
+  "step": "B1",
+  "scenario": "dry",
+  "R": 60
+ },
+ {
+  "label": "approaching",
+  "verdict": "graded",
+  "graded": "snap-approaching-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-approaching-0.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1019",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "113c03fc,113c03fc",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "11048",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987062.7981374,
+    "end": 1792987064.7590232,
+    "utc": 1792987064.7590232
+   },
+   {
+    "i": 1,
+    "file": "snap-approaching-1.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1048",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "113c0419,113c0419",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "14121",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987065.0602937,
+    "end": 1792987065.8492305,
+    "utc": 1792987065.8492305
+   }
+  ],
+  "step": "B1",
+  "scenario": "approaching",
+  "R": 60
+ },
+ {
+  "label": "herenow",
+  "verdict": "graded",
+  "graded": "snap-herenow-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-herenow-0.bin",
+    "bytes": 115200,
+    "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1817",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "123c071a,123c071a",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "7957",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987092.7204516,
+    "end": 1792987094.702334,
+    "utc": 1792987094.702334
+   },
+   {
+    "i": 1,
+    "file": "snap-herenow-1.bin",
+    "bytes": 115200,
+    "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "1845",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "123c0736,123c0736",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4964",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987095.0034523,
+    "end": 1792987095.7967632,
+    "utc": 1792987095.7967632
+   }
+  ],
+  "step": "B1",
+  "scenario": "herenow",
+  "R": 60
+ },
+ {
+  "label": "warning",
+  "verdict": "graded",
+  "graded": "snap-warning-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-warning-0.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "2617",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "133c0a3a,133c0a3a",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4967",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987122.7628672,
+    "end": 1792987124.866133,
+    "utc": 1792987124.866133
+   },
+   {
+    "i": 1,
+    "file": "snap-warning-1.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "2650",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "133c0a5b,133c0a5b",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "7847",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987125.1674592,
+    "end": 1792987126.042202,
+    "utc": 1792987126.042202
+   }
+  ],
+  "step": "B1",
+  "scenario": "warning",
+  "R": 60
+ },
+ {
+  "label": "stale",
+  "verdict": "graded",
+  "graded": "snap-stale-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-stale-0.bin",
+    "bytes": 115200,
+    "sha256": "00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "3416",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "143c0d59,143c0d59",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4636",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987152.7105436,
+    "end": 1792987154.7651775,
+    "utc": 1792987154.7651775
+   },
+   {
+    "i": 1,
+    "file": "snap-stale-1.bin",
+    "bytes": 115200,
+    "sha256": "00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "3446",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "143c0d77,143c0d77",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4935",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987155.0660667,
+    "end": 1792987155.8910959,
+    "utc": 1792987155.8910959
+   }
+  ],
+  "step": "B1",
+  "scenario": "stale",
+  "R": 60
+ },
+ {
+  "label": "clear",
+  "verdict": "graded",
+  "graded": "snap-clear-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-clear-0.bin",
+    "bytes": 115200,
+    "sha256": "07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "4219",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "153c107c,153c107c",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "5001",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987182.8025646,
+    "end": 1792987184.850951,
+    "utc": 1792987184.850951
+   },
+   {
+    "i": 1,
+    "file": "snap-clear-1.bin",
+    "bytes": 115200,
+    "sha256": "07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "4250",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "153c109b,153c109b",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4682",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987185.1520693,
+    "end": 1792987186.1074247,
+    "utc": 1792987186.1074247
+   }
+  ],
+  "step": "B1",
+  "scenario": "clear",
+  "R": 60
+ },
+ {
+  "label": "bz0",
+  "verdict": "graded",
+  "graded": "snap-bz0-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz0-0.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5048",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "101e13b9,101e13b9",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "6180",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987212.486133,
+    "end": 1792987216.0613554,
+    "utc": 1792987216.0613554
+   },
+   {
+    "i": 1,
+    "file": "snap-bz0-1.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5079",
+     "X-Blipscope-Frame-Phase": "3,3",
+     "X-Blipscope-Frame-Tag": "101e13d7,101e13d7",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "5121",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987216.3621812,
+    "end": 1792987217.2919295,
+    "utc": 1792987217.2919295
+   }
+  ],
+  "step": "BZ",
+  "gesture": "U",
+  "wantR": 30,
+  "scenario": "dry",
+  "R": 30
+ },
+ {
+  "label": "bz1",
+  "verdict": "graded",
+  "graded": "snap-bz1-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz1-0.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5120",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "100f1401,100f1401",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "5001",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987218.09551,
+    "end": 1792987218.8983378,
+    "utc": 1792987218.8983378
+   },
+   {
+    "i": 1,
+    "file": "snap-bz1-1.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5149",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "100f141e,100f141e",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4701",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987219.1993182,
+    "end": 1792987220.0751643,
+    "utc": 1792987220.0751643
+   }
+  ],
+  "step": "BZ",
+  "gesture": "U",
+  "wantR": 15,
+  "scenario": "dry",
+  "R": 15
+ },
+ {
+  "label": "bz2",
+  "verdict": "graded",
+  "graded": "snap-bz2-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz2-0.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5188",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "100f1445,100f1445",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "5365",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987220.7776814,
+    "end": 1792987221.6886182,
+    "utc": 1792987221.6886182
+   },
+   {
+    "i": 1,
+    "file": "snap-bz2-1.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5219",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "100f1464,100f1464",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4967",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987221.9895532,
+    "end": 1792987222.8514485,
+    "utc": 1792987222.8514485
+   }
+  ],
+  "step": "BZ",
+  "gesture": "U",
+  "wantR": 15,
+  "scenario": "dry",
+  "R": 15
+ },
+ {
+  "label": "bz3",
+  "verdict": "graded",
+  "graded": "snap-bz3-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz3-0.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5256",
+     "X-Blipscope-Frame-Phase": "3,3",
+     "X-Blipscope-Frame-Tag": "101e1488,101e1488",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4963",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987223.5034637,
+    "end": 1792987224.320367,
+    "utc": 1792987224.320367
+   },
+   {
+    "i": 1,
+    "file": "snap-bz3-1.bin",
+    "bytes": 115200,
+    "sha256": "adbab536132a78ef7e5318707ba1f1deb7bc8dde7bd2222fb2e510375e9b156b",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "5284",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "101e14a5,101e14a5",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "8022",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987224.6212826,
+    "end": 1792987225.4551928,
+    "utc": 1792987225.4551928
+   }
+  ],
+  "step": "BZ",
+  "gesture": "D",
+  "wantR": 30,
+  "scenario": "dry",
+  "R": 30
+ },
+ {
+  "label": "bz4",
+  "verdict": "graded",
+  "graded": "snap-bz4-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz4-0.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9811",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "103c2654,103c2654",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "5120",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987392.615286,
+    "end": 1792987394.8697128,
+    "utc": 1792987394.8697128
+   },
+   {
+    "i": 1,
+    "file": "snap-bz4-1.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9840",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "103c2671,103c2671",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4968",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987395.1706579,
+    "end": 1792987395.997874,
+    "utc": 1792987395.997874
+   }
+  ],
+  "step": "BZ",
+  "gesture": "D",
+  "wantR": 60,
+  "scenario": "dry",
+  "R": 60
+ },
+ {
+  "label": "bz5",
+  "verdict": "graded",
+  "graded": "snap-bz5-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz5-0.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9880",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "100f2699,100f2699",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4967",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987396.800933,
+    "end": 1792987397.5860634,
+    "utc": 1792987397.5860634
+   },
+   {
+    "i": 1,
+    "file": "snap-bz5-1.bin",
+    "bytes": 115200,
+    "sha256": "acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9908",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "100f26b5,100f26b5",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "8095",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987397.8872745,
+    "end": 1792987398.7521782,
+    "utc": 1792987398.7521782
+   }
+  ],
+  "step": "BZ",
+  "gesture": "H",
+  "wantR": 15,
+  "scenario": "dry",
+  "R": 15
+ },
+ {
+  "label": "bz6",
+  "verdict": "graded",
+  "graded": "snap-bz6-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-bz6-0.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9948",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "103c26dd,103c26dd",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4970",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987399.505245,
+    "end": 1792987400.4208755,
+    "utc": 1792987400.4208755
+   },
+   {
+    "i": 1,
+    "file": "snap-bz6-1.bin",
+    "bytes": 115200,
+    "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "9979",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "103c26fc,103c26fc",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4971",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987400.722352,
+    "end": 1792987401.6368916,
+    "utc": 1792987401.6368916
+   }
+  ],
+  "step": "BZ",
+  "gesture": "H",
+  "wantR": 60,
+  "scenario": "dry",
+  "R": 60
+ },
+ {
+  "label": "postloop",
+  "verdict": "graded",
+  "graded": "snap-postloop-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-postloop-0.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10641",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "113c2992,113c2992",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4859",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987424.9774878,
+    "end": 1792987427.0371778,
+    "utc": 1792987427.0371778
+   },
+   {
+    "i": 1,
+    "file": "snap-postloop-1.bin",
+    "bytes": 115200,
+    "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "10672",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "113c29b1,113c29b1",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4627",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987427.337936,
+    "end": 1792987428.2315567,
+    "utc": 1792987428.2315567
+   }
+  ],
+  "step": "B2",
+  "scenario": "approaching",
+  "R": 60
+ },
+ {
+  "label": "postloop-warning",
+  "verdict": "graded",
+  "graded": "snap-postloop-warning-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-postloop-warning-0.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "12255",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "133c2fe0,133c2fe0",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "10463",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987486.0260885,
+    "end": 1792987488.164623,
+    "utc": 1792987488.164623
+   },
+   {
+    "i": 1,
+    "file": "snap-postloop-warning-1.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "12288",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "133c3001,133c3001",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4968",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987488.465571,
+    "end": 1792987489.3775418,
+    "utc": 1792987489.3775418
+   }
+  ],
+  "step": "B2",
+  "scenario": "warning",
+  "R": 60
+ },
+ {
+  "label": "legend",
+  "verdict": "graded",
+  "graded": "snap-legend-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-legend-0.bin",
+    "bytes": 115200,
+    "sha256": "45ba1a1938eb1f327e9c3823ea2b48c4a41417f56ed092fdd0760a401ef03b3f",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "12342",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "30003037,30003037",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "8053",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987490.4795516,
+    "end": 1792987491.3308165,
+    "utc": 1792987491.3308165
+   },
+   {
+    "i": 1,
+    "file": "snap-legend-1.bin",
+    "bytes": 115200,
+    "sha256": "45ba1a1938eb1f327e9c3823ea2b48c4a41417f56ed092fdd0760a401ef03b3f",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "12373",
+     "X-Blipscope-Frame-Phase": "3,3",
+     "X-Blipscope-Frame-Tag": "30003055,30003055",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4970",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987491.6317253,
+    "end": 1792987492.4764428,
+    "utc": 1792987492.4764428
+   }
+  ],
+  "step": "B3"
+ },
+ {
+  "label": "postlegend",
+  "verdict": "graded",
+  "graded": "snap-postlegend-0.bin",
+  "fetches": [
+   {
+    "i": 0,
+    "file": "snap-postlegend-0.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "12411",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "133c307c,133c307c",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "4967",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987493.1287756,
+    "end": 1792987493.9415195,
+    "utc": 1792987493.9415195
+   },
+   {
+    "i": 1,
+    "file": "snap-postlegend-1.bin",
+    "bytes": 115200,
+    "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+    "headers": {
+     "X-Blipscope-Frame-Width": "240",
+     "X-Blipscope-Frame-Height": "240",
+     "X-Blipscope-Frame-Format": "RGB565BE",
+     "X-Blipscope-Frame-Torn": "false",
+     "X-Blipscope-Frame-Seq": "12440",
+     "X-Blipscope-Frame-Phase": "2,2",
+     "X-Blipscope-Frame-Tag": "133c3099,133c3099",
+     "X-Blipscope-Frame-Buffer": "backbuffer",
+     "X-Blipscope-Frame-Finished": "true",
+     "X-Blipscope-Frame-Wait-Us": "5042",
+     "X-Blipscope-Frame-Attempts": "1"
+    },
+    "start": 1792987494.242639,
+    "end": 1792987495.095668,
+    "utc": 1792987495.095668
+   }
+  ],
+  "step": "B3",
+  "scenario": "warning",
+  "R": 60
+ }
+]

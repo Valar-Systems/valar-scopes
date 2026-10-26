@@ -1,14 +1,16 @@
 // Weatherscope's town subset (src/weatherscope/WxTowns.h) through the label rule (wxlogic::LabelText) --
-// docs/weatherscope-stage3.md A8.14, D6(b). For each town, LabelText(name, buf, 32) must give a non-empty label of
-// printable ASCII (0x20-0x7E) with no lowercase letter, of EXACTLY strlen(name) - 5 bytes: the " city" dropped and
-// nothing truncated. A name that fails is reported, never coerced. D6(a), regeneration, is make_towns.py --check.
+// docs/weatherscope-stage3.md A8.14 D6(b), re-registered under Q13 in A9.13: for each town, LabelText(name, buf, 32)
+// must give a non-empty label of printable ASCII (0x20-0x7E) that is BYTE-EQUAL to the name less its trailing
+// " city" (title case kept; nothing truncated). A name that fails is reported, never coerced. Also PJ2 (A9.10): ranked
+// by population (0 = no figure, ranking as 1,000), Dallas is first and Fort Worth second. D6(a)/PJ1, regeneration, is
+// make_towns.py --check; PJ3 is check_pop.py.
 //
 //     test_wx_towns
 //
-// Its sabotages: python -I test/host/sabotage_wx_towns.py. Prints names and labels -- no coordinate.
+// Its sabotages: python -I test/host/sabotage_wx_towns.py <zip> <csv>. Prints names and labels -- no coordinate.
 
 #include <cstdio>
-#include <cstdlib>  // before WxLogic.h, which calls strtod without including it (A8.15: a follow-up for its next touch)
+#include <cstdlib>
 #include <cstring>
 
 #include "WxLogic.h"
@@ -23,19 +25,36 @@ int main()
         char label[32];
         wxlogic::LabelText(name, label, sizeof label);
         const size_t n = std::strlen(label);
-        bool printable = true, upper = true;
+        bool printable = true;
         for (size_t k = 0; k < n; ++k) {
             const unsigned char ch = (unsigned char)label[k];
             if (ch < 0x20 || ch > 0x7E) printable = false;
-            if (ch >= 'a' && ch <= 'z') upper = false;
         }
-        const bool exact = std::strlen(name) >= 5 && n == std::strlen(name) - 5;
-        const bool ok = n > 0 && printable && upper && exact;
+        const size_t nn = std::strlen(name);
+        const bool exact = nn >= 5 && std::strcmp(name + nn - 5, " city") == 0 && n == nn - 5 &&
+                           std::strncmp(label, name, n) == 0;
+        const bool ok = n > 0 && printable && exact;
         ++checks;
         if (!ok) ++failures;
-        std::printf("  %s D6:%u \"%s\" -> \"%s\"%s%s%s\n", ok ? "ok  " : "FAIL", i + 1, name, label,
-                    printable ? "" : " (not printable ASCII)", upper ? "" : " (lowercase)",
-                    exact ? "" : " (not exactly the name less \" city\")");
+        std::printf("  %s D6:%u \"%s\" -> \"%s\"%s%s\n", ok ? "ok  " : "FAIL", i + 1, name, label,
+                    printable ? "" : " (not printable ASCII)", exact ? "" : " (not byte-equal to the name less \" city\")");
+    }
+
+    std::printf("== PJ2: the two most populous ==\n");
+    {
+        unsigned first = 0, second = 0;
+        auto rank = [](unsigned i) { return wxtowns::kTowns[i].pop ? wxtowns::kTowns[i].pop : 1000u; };
+        for (unsigned i = 1; i < wxtowns::kCount; ++i)
+            if (rank(i) > rank(first)) first = i;
+        if (first == 0) second = 1;
+        for (unsigned i = 0; i < wxtowns::kCount; ++i)
+            if (i != first && rank(i) > rank(second)) second = i;
+        const bool ok = std::strcmp(wxtowns::kTowns[first].name, "Dallas city") == 0 &&
+                        std::strcmp(wxtowns::kTowns[second].name, "Fort Worth city") == 0;
+        ++checks;
+        if (!ok) ++failures;
+        std::printf("  %s PJ2 first \"%s\" (%u), second \"%s\" (%u)\n", ok ? "ok  " : "FAIL", wxtowns::kTowns[first].name,
+                    (unsigned)wxtowns::kTowns[first].pop, wxtowns::kTowns[second].name, (unsigned)wxtowns::kTowns[second].pop);
     }
     std::printf("%u towns; %d checks, %d failures\n", wxtowns::kCount, checks, failures);
     return failures ? 1 : 0;

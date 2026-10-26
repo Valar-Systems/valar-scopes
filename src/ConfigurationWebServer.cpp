@@ -4239,10 +4239,39 @@ void ConfigurationWebServer::Initialise() {
             request->send(503, "text/plain", "out of PSRAM for a frame snapshot");
             return;
         }
-        const uint32_t seqBefore = framebuf::Sequence();
-        memcpy(snap, fb->getBuffer(), total);
-        const uint32_t seqAfter = framebuf::Sequence();
-        const bool torn = (seqBefore != seqAfter);
+        // FINISHED FRAMES ONLY (docs/weatherscope-stage3.md A9.25-A9.26). The buffer holds a finished frame from the
+        // render loop's Drawn store until its next Clearing store. Wait for that window, bounded; copy; and accept the
+        // copy only if the window held throughout: finished at both ends, with the same tag, Sequence and clear count.
+        // Otherwise try again while the bound allows, and if it runs out say so (Finished: false) -- never serve an
+        // unfinished frame as finished. The bound covers the slowest measured clear-plus-draw span (the Weatherscope
+        // loop's, about 34-38 ms), a rejected copy and a second span. Every edition's loop stores the phases (main.cpp's
+        // shared draw loop), so the wait ends the same way for all of them.
+        constexpr uint32_t kWaitBoundUs = 100000;
+        const uint32_t waitT0 = micros();
+        uint8_t phaseBefore = 0, phaseAfter = 0;
+        uint32_t tagBefore = 0, tagAfter = 0, seqBefore = 0, seqAfter = 0, clearsBefore = 0, clearsAfter = 0;
+        bool finished = false;
+        int attempts = 0;
+        for (;;) {
+            while (!framebuf::PhaseFinished(framebuf::Phase()) && micros() - waitT0 < kWaitBoundUs) vTaskDelay(1);
+            ++attempts;
+            phaseBefore = framebuf::Phase();
+            tagBefore = framebuf::Tag();
+            seqBefore = framebuf::Sequence();
+            clearsBefore = framebuf::Clears();
+            memcpy(snap, fb->getBuffer(), total);
+            clearsAfter = framebuf::Clears();
+            seqAfter = framebuf::Sequence();
+            phaseAfter = framebuf::Phase();
+            tagAfter = framebuf::Tag();
+            finished = framebuf::PhaseFinished(phaseBefore) && framebuf::PhaseFinished(phaseAfter) &&
+                       tagBefore == tagAfter && seqBefore == seqAfter && clearsBefore == clearsAfter;
+            if (finished || micros() - waitT0 >= kWaitBoundUs) break;
+        }
+        const uint32_t waitUs = micros() - waitT0;
+        // Torn now means "not a finished frame": a superset of the old "Sequence moved", so a client that asks again
+        // on Torn (the viewer page does, once) keeps working.
+        const bool torn = !finished;
 
         // shared_ptr with a PSRAM-aware deleter: the chunk callback outlives this
         // scope, and the buffer must not leak if the client disconnects mid-send.
@@ -4277,6 +4306,17 @@ void ConfigurationWebServer::Initialise() {
         r->addHeader("X-Blipscope-Frame-Format", "RGB565BE");
         r->addHeader("X-Blipscope-Frame-Torn", torn ? "true" : "false");
         r->addHeader("X-Blipscope-Frame-Seq", String(seqAfter));
+        {
+            char ph[8], tg[20];
+            snprintf(ph, sizeof ph, "%u,%u", (unsigned)phaseBefore, (unsigned)phaseAfter);
+            snprintf(tg, sizeof tg, "%08lx,%08lx", (unsigned long)tagBefore, (unsigned long)tagAfter);
+            r->addHeader("X-Blipscope-Frame-Phase", ph);
+            r->addHeader("X-Blipscope-Frame-Tag", tg);
+            r->addHeader("X-Blipscope-Frame-Buffer", "backbuffer");
+            r->addHeader("X-Blipscope-Frame-Finished", finished ? "true" : "false");
+            r->addHeader("X-Blipscope-Frame-Wait-Us", String(waitUs));
+            r->addHeader("X-Blipscope-Frame-Attempts", String(attempts));
+        }
         r->addHeader("Cache-Control", "no-store");
         request->send(r);
     });

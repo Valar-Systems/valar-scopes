@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>   // strtod (ParseMotion): A8.15's follow-up, made at this header's next change
 #include <string.h>
 
 #include "WxCrop.h"
@@ -444,14 +445,16 @@ inline bool UntilText(const char* iso, char* out, size_t cap)
 
 // ------------------------------------------------------------------------------------- town labels (5d, Q6; L, LP)
 
-// "Bend city" -> "BEND": upper-cased, a trailing " CITY" dropped once (only LSAD 25 places are labelled, 5b).
+// "Bend city" -> "Bend": the Gazetteer's case kept, a trailing " city" dropped once (only LSAD 25 places are labelled,
+// 5b; title case by Q13).
 inline void LabelText(const char* name, char* out, size_t cap)
 {
+    // Title case (Q13, superseding 5d): the Gazetteer's own case is kept, and its LSAD suffix " city" dropped once.
     size_t i = 0;
-    for (; name && name[i] && i + 1 < cap; ++i) out[i] = (name[i] >= 'a' && name[i] <= 'z') ? (char)(name[i] - 32) : name[i];
+    for (; name && name[i] && i + 1 < cap; ++i) out[i] = name[i];
     out[i] = '\0';
     const size_t n = strlen(out);
-    if (n >= 5 && strcmp(out + n - 5, " CITY") == 0) out[n - 5] = '\0';
+    if (n >= 5 && strcmp(out + n - 5, " city") == 0) out[n - 5] = '\0';
 }
 
 struct LabelBox {

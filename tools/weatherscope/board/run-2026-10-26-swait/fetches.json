@@ -1,0 +1,1188 @@
+[
+ {
+  "i": 0,
+  "start": 1792986828.4071646,
+  "end": 1792986836.3234162,
+  "error": "URLError: <urlopen error [Errno 11003] getaddrinfo failed>"
+ },
+ {
+  "i": 1,
+  "file": "snap-01.bin",
+  "sha256": "145dcfbdeb9b1127aefd9e2f15187b09c672c3c4348b2d44793add5c824b1d12",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "114",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "50000073,50000073",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4738",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986837.3241515,
+  "end": 1792986839.440468
+ },
+ {
+  "i": 2,
+  "file": "snap-02.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "166",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c00a7,103c00a7",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "5817",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986839.441123,
+  "end": 1792986841.390453
+ },
+ {
+  "i": 3,
+  "file": "snap-03.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "217",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c00da,103c00da",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4997",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986841.3914053,
+  "end": 1792986843.284995
+ },
+ {
+  "i": 4,
+  "file": "snap-04.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "267",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c010c,103c010c",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4566",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986843.2856119,
+  "end": 1792986845.2222266
+ },
+ {
+  "i": 5,
+  "file": "snap-05.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "317",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c013e,103c013e",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4961",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986845.2230196,
+  "end": 1792986847.1637604
+ },
+ {
+  "i": 6,
+  "file": "snap-06.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "369",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "103c0171,103c0171",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4962",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986847.164543,
+  "end": 1792986849.0928833
+ },
+ {
+  "i": 7,
+  "file": "snap-07.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "420",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c01a5,103c01a5",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4962",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986849.0935163,
+  "end": 1792986851.100685
+ },
+ {
+  "i": 8,
+  "file": "snap-08.bin",
+  "sha256": "7bf3c4ed70d3cd754af5b9051741f3900b3758824fdee5bf45b84d91b81bb7ff",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "472",
+   "X-Blipscope-Frame-Phase": "4,4",
+   "X-Blipscope-Frame-Tag": "103c01d8,103c01d8",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "4919",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986851.1013224,
+  "end": 1792986853.0301087
+ },
+ {
+  "i": 9,
+  "file": "snap-09.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "522",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c020b,103c020b",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4962",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986853.0307887,
+  "end": 1792986854.974011
+ },
+ {
+  "i": 10,
+  "file": "snap-10.bin",
+  "sha256": "2956ecf473cbc463a922dd2c7ab495c842e3414d54d09693f8063bfc8c121cf8",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "573",
+   "X-Blipscope-Frame-Phase": "1,1",
+   "X-Blipscope-Frame-Tag": "103c023d,103c023d",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5136",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986854.9748414,
+  "end": 1792986856.971221
+ },
+ {
+  "i": 11,
+  "file": "snap-11.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "625",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c0272,103c0272",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4965",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986856.9718773,
+  "end": 1792986858.9555583
+ },
+ {
+  "i": 12,
+  "file": "snap-12.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "677",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c02a6,103c02a6",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4963",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986858.9562302,
+  "end": 1792986860.817972
+ },
+ {
+  "i": 13,
+  "file": "snap-13.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "725",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c02d6,103c02d6",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "5292",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986860.8187032,
+  "end": 1792986862.755385
+ },
+ {
+  "i": 14,
+  "file": "snap-14.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "776",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c0309,103c0309",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986862.756173,
+  "end": 1792986864.698294
+ },
+ {
+  "i": 15,
+  "file": "snap-15.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "827",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c033c,103c033c",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4922",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986864.6989598,
+  "end": 1792986866.615729
+ },
+ {
+  "i": 16,
+  "file": "snap-16.bin",
+  "sha256": "fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "877",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "103c036e,103c036e",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4959",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986866.6165693,
+  "end": 1792986868.6340914
+ },
+ {
+  "i": 17,
+  "file": "snap-17.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "927",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c03a0,113c03a0",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4955",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986868.6347218,
+  "end": 1792986870.5861442
+ },
+ {
+  "i": 18,
+  "file": "snap-18.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "978",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c03d3,113c03d3",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4703",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986870.586858,
+  "end": 1792986872.520458
+ },
+ {
+  "i": 19,
+  "file": "snap-19.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1028",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c0405,113c0405",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986872.5211287,
+  "end": 1792986874.564088
+ },
+ {
+  "i": 20,
+  "file": "snap-20.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1082",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "113c043a,113c043a",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4959",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986874.5647447,
+  "end": 1792986876.4827507
+ },
+ {
+  "i": 21,
+  "file": "snap-21.bin",
+  "sha256": "1ba8405411fa0235af43156a8454650caf5ac943d774f1a07c17d37bc84d3d61",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "1132",
+   "X-Blipscope-Frame-Phase": "1,1",
+   "X-Blipscope-Frame-Tag": "113c046c,113c046c",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5160",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986876.483553,
+  "end": 1792986878.3764596
+ },
+ {
+  "i": 22,
+  "file": "snap-22.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1181",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c049e,113c049e",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4963",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986878.3771205,
+  "end": 1792986880.3215034
+ },
+ {
+  "i": 23,
+  "file": "snap-23.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1233",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "113c04d1,113c04d1",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4966",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986880.3221958,
+  "end": 1792986882.2935424
+ },
+ {
+  "i": 24,
+  "file": "snap-24.bin",
+  "sha256": "d8b443032200e143b1c49820b6d78c32d519553a3f63a38f48e8bc31da084f0a",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "1284",
+   "X-Blipscope-Frame-Phase": "4,4",
+   "X-Blipscope-Frame-Tag": "113c0504,113c0504",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5363",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986882.294217,
+  "end": 1792986884.2607691
+ },
+ {
+  "i": 25,
+  "file": "snap-25.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1335",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c0538,113c0538",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986884.2615876,
+  "end": 1792986886.232629
+ },
+ {
+  "i": 26,
+  "file": "snap-26.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1387",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c056c,113c056c",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "5015",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986886.2333813,
+  "end": 1792986888.2064612
+ },
+ {
+  "i": 27,
+  "file": "snap-27.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1438",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c059f,113c059f",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986888.2072759,
+  "end": 1792986890.245354
+ },
+ {
+  "i": 28,
+  "file": "snap-28.bin",
+  "sha256": "473364036371213228dbac641347d118b792ceb8e0eb832561d707a03ed5d9f6",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "1492",
+   "X-Blipscope-Frame-Phase": "1,1",
+   "X-Blipscope-Frame-Tag": "113c05d4,113c05d4",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5163",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986890.2468727,
+  "end": 1792986892.2862802
+ },
+ {
+  "i": 29,
+  "file": "snap-29.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1545",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c060a,113c060a",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4965",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986892.286869,
+  "end": 1792986894.2676804
+ },
+ {
+  "i": 30,
+  "file": "snap-30.bin",
+  "sha256": "e269e33244613e2cfcc23b6ed51b7ba7cb29f205ae6ee020081c0d7747cba76c",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "1597",
+   "X-Blipscope-Frame-Phase": "1,1",
+   "X-Blipscope-Frame-Tag": "113c063d,113c063d",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5160",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986894.2686558,
+  "end": 1792986896.2180853
+ },
+ {
+  "i": 31,
+  "file": "snap-31.bin",
+  "sha256": "cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1648",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "113c0671,113c0671",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4968",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986896.2187493,
+  "end": 1792986898.1813643
+ },
+ {
+  "i": 32,
+  "file": "snap-32.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1697",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c06a2,123c06a2",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4559",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986898.181989,
+  "end": 1792986900.1699932
+ },
+ {
+  "i": 33,
+  "file": "snap-33.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1749",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "123c06d5,123c06d5",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "5030",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986900.1706254,
+  "end": 1792986902.1295612
+ },
+ {
+  "i": 34,
+  "file": "snap-34.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1800",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c0709,123c0709",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "5005",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986902.1304092,
+  "end": 1792986904.0802605
+ },
+ {
+  "i": 35,
+  "file": "snap-35.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1851",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "123c073b,123c073b",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4969",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986904.0809474,
+  "end": 1792986906.1065187
+ },
+ {
+  "i": 36,
+  "file": "snap-36.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1904",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c0771,123c0771",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4570",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986906.107119,
+  "end": 1792986908.0128067
+ },
+ {
+  "i": 37,
+  "file": "snap-37.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "1954",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c07a3,123c07a3",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4963",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986908.0134614,
+  "end": 1792986909.9836817
+ },
+ {
+  "i": 38,
+  "file": "snap-38.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2006",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c07d7,123c07d7",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4552",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986909.9845483,
+  "end": 1792986911.9167159
+ },
+ {
+  "i": 39,
+  "file": "snap-39.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2055",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c0808,123c0808",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4961",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986911.9173484,
+  "end": 1792986913.8541107
+ },
+ {
+  "i": 40,
+  "file": "snap-40.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2106",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c083b,123c083b",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4962",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986913.854792,
+  "end": 1792986915.7636998
+ },
+ {
+  "i": 41,
+  "file": "snap-41.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2156",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c086d,123c086d",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986915.7642732,
+  "end": 1792986917.7366495
+ },
+ {
+  "i": 42,
+  "file": "snap-42.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2208",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c08a1,123c08a1",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4962",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986917.737207,
+  "end": 1792986919.6789103
+ },
+ {
+  "i": 43,
+  "file": "snap-43.bin",
+  "sha256": "e45f91ee3001187c6fed20621c3291ddd833aca9f48620248d49fc46ec509475",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "2259",
+   "X-Blipscope-Frame-Phase": "1,1",
+   "X-Blipscope-Frame-Tag": "123c08d3,123c08d3",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5162",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986919.679636,
+  "end": 1792986921.682481
+ },
+ {
+  "i": 44,
+  "file": "snap-44.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2311",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c0908,123c0908",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4966",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986921.683173,
+  "end": 1792986923.6369572
+ },
+ {
+  "i": 45,
+  "file": "snap-45.bin",
+  "sha256": "d8b443032200e143b1c49820b6d78c32d519553a3f63a38f48e8bc31da084f0a",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "2363",
+   "X-Blipscope-Frame-Phase": "4,4",
+   "X-Blipscope-Frame-Tag": "123c093b,123c093b",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5365",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986923.6376917,
+  "end": 1792986925.59535
+ },
+ {
+  "i": 46,
+  "file": "snap-46.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2413",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "123c096e,123c096e",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4963",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986925.5959897,
+  "end": 1792986927.5015414
+ },
+ {
+  "i": 47,
+  "file": "snap-47.bin",
+  "sha256": "33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2463",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "123c099f,123c099f",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "5720",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986927.5021968,
+  "end": 1792986929.4264529
+ },
+ {
+  "i": 48,
+  "file": "snap-48.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2511",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c09d0,133c09d0",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986929.4272218,
+  "end": 1792986931.3216121
+ },
+ {
+  "i": 49,
+  "file": "snap-49.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2561",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0a02,133c0a02",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4816",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986931.3223162,
+  "end": 1792986933.295947
+ },
+ {
+  "i": 50,
+  "file": "snap-50.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2612",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0a35,133c0a35",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4993",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986933.296582,
+  "end": 1792986935.1726832
+ },
+ {
+  "i": 51,
+  "file": "snap-51.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2661",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0a66,133c0a66",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986935.1732593,
+  "end": 1792986937.1417365
+ },
+ {
+  "i": 52,
+  "file": "snap-52.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2713",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0a9a,133c0a9a",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4959",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986937.1423373,
+  "end": 1792986939.1189878
+ },
+ {
+  "i": 53,
+  "file": "snap-53.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2764",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0acd,133c0acd",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986939.1195858,
+  "end": 1792986941.09671
+ },
+ {
+  "i": 54,
+  "file": "snap-54.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2816",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0b01,133c0b01",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4962",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986941.097387,
+  "end": 1792986942.9714603
+ },
+ {
+  "i": 55,
+  "file": "snap-55.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2866",
+   "X-Blipscope-Frame-Phase": "3,3",
+   "X-Blipscope-Frame-Tag": "133c0b32,133c0b32",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4963",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986942.9720495,
+  "end": 1792986944.9143982
+ },
+ {
+  "i": 56,
+  "file": "snap-56.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "2916",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0b65,133c0b65",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4959",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986944.915145,
+  "end": 1792986946.833148
+ },
+ {
+  "i": 57,
+  "file": "snap-57.bin",
+  "sha256": "ba14a034fb6811fcd17482698a636cd6e655a56ca25a086a523998ac7e76e6d8",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "2967",
+   "X-Blipscope-Frame-Phase": "4,4",
+   "X-Blipscope-Frame-Tag": "133c0b97,133c0b97",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "4898",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986946.8337173,
+  "end": 1792986948.76999
+ },
+ {
+  "i": 58,
+  "file": "snap-58.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "true",
+   "X-Blipscope-Frame-Seq": "3018",
+   "X-Blipscope-Frame-Phase": "1,1",
+   "X-Blipscope-Frame-Tag": "133c0bca,133c0bca",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "false",
+   "X-Blipscope-Frame-Wait-Us": "5161",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986948.7707317,
+  "end": 1792986950.7074347
+ },
+ {
+  "i": 59,
+  "file": "snap-59.bin",
+  "sha256": "76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939",
+  "headers": {
+   "X-Blipscope-Frame-Width": "240",
+   "X-Blipscope-Frame-Height": "240",
+   "X-Blipscope-Frame-Format": "RGB565BE",
+   "X-Blipscope-Frame-Torn": "false",
+   "X-Blipscope-Frame-Seq": "3068",
+   "X-Blipscope-Frame-Phase": "2,2",
+   "X-Blipscope-Frame-Tag": "133c0bfd,133c0bfd",
+   "X-Blipscope-Frame-Buffer": "backbuffer",
+   "X-Blipscope-Frame-Finished": "true",
+   "X-Blipscope-Frame-Wait-Us": "4964",
+   "X-Blipscope-Frame-Attempts": "1"
+  },
+  "start": 1792986950.7082062,
+  "end": 1792986952.6425395
+ }
+]

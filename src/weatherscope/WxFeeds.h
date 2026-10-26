@@ -37,14 +37,16 @@ public:
     }
 };
 
-// The nearest station's latest observation, reduced to what "here now" reads (screens doc 1c):
-// its present weather and its time. Nothing else is kept.
+// The nearest station's latest observation, reduced to what the screens read (screens doc 1c): its present weather,
+// its time, and its temperature for "54° · NO RAIN" (3.5a, A9.3). Nothing else is kept.
 struct Observation {
     static constexpr size_t kMaxPresent = 4;
     bool valid = false;
     int64_t timeUtc = 0;                    // the observation's timestamp, Unix seconds
     uint8_t presentCount = 0;               // NWS presentWeather entries; 0 = none reported
     const char* present[kMaxPresent] = {};  // each entry's raw METAR string, e.g. "-RA"
+    bool hasTempF = false;                  // NWS reports a null temperature at times: then no figure is shown
+    double tempF = 0;
 };
 
 class ObsFeed {

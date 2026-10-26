@@ -2402,3 +2402,1416 @@ So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor 
   - **flash 1,602,135 B**: +92 B on 3.3d's 1,602,043, inside A8.23's predicted 1 %, and inside A8.12's band;
   - **static RAM 54,840 B**: unchanged.
 - **3.3's results stand** (the ruling): no string 3.3 draws reaches the clamp.
+
+## Addendum 9, 2026-10-23: step 3.5 ruled; 3.5a's plan, for review before any code
+
+### A9.1 The rulings, verbatim (source: reviewer chat, pasted by Daniel; Daniel's choices are recorded as "Daniel")
+
+> Daniel has looked at 3.3's screens on the glass and chosen a second pass on the UI. This is step 3.5, after #467 merges and before 3.4. Same doctrine as every step: plan and predictions frozen before code, sabotages that go red, stop on anything off-prediction.
+>
+> The reference: C:\Github\_weatherscope-mockups\reviewer-2026-10-23\ (outside any repo). weatherscope-ui-mockups.png shows the board's screens beside the proposed ones; bend-geography-mockups.png shows Bend with geography; screen-*.png are the proposed screens at 240 x 240; wxmock.py and bendmock.py generated them, and every layout rule below is a number in those files. Read them before the plan. They are a spec, not device code, and their POP table is hand-typed.
+
+**A. Daniel's decisions (2026-10-23)**, source "Daniel":
+
+> 1. The layout in the mockups, in full.
+> 2. Geography B (lakes, rivers, highways, peaks) by default; terrain shading (C) as a setting, off by default.
+> 3. Three more swipe screens: forecast, conditions, alerts.
+> 4. Three map additions: a storm-heading arrow on the warning screen; a stale-radar indicator; the temperature in the dry band.
+> 5. Zoom: Blipscope's swipe-to-zoom, with a 15/30/60 mi ladder. The range stays 60 mi; a 30/120 range setting is a later item, not this step.
+
+**B to F**, source "reviewer chat":
+
+> B. The layout rules (3.5a), as in wxmock.py
+> - Top strip y < 24: "N" at (117, 3); the frame time, size 1, dim (120,120,120), centred at y = 13. When zoomed, "ZOOM 30 MI" in white after it.
+> - Bottom band y >= 194, black: the state line, size 2, centred, text top at y = 198. The warning screen puts two size-1 lines there instead, at y = 197 and 207.
+> - The map sits between, clipped to the disc. Labels never enter the strip or the band.
+> - Rings, dotted every other pixel in (64,64,64), at 5, 15 and 30 mi when the ring is between 15 % and 85 % of the view radius. Their numbers, size 1 in (96,96,96) with a halo, are placed after every label, at the first free angle of 45, 135, 315, 225, 90, 270, 0, 180 degrees.
+> - Home marker: a 7 px ring with a centre dot, white. No label for the home town.
+> - Town labels: size 1, (176,176,176), a 1 px black halo, no box, title case ("Fort Worth"), a 3 x 3 dot. Ranked by population. Skipped when the anchor is inside 17 % of the radius, when the box would touch that inner circle, when it leaves the 116 px circle, or when it overlaps a fixed overlay or a placed label (4 px of air). The text goes on the side away from the centre; the other side is the fallback. Cap 8 at 60 mi, 6 at 30, 5 at 15.
+> - Peaks (3.5b): top 4 by elevation, a 5 px triangle glyph, same rules, placed before towns.
+> - The state line: "RAIN 14 MI E" / "SNOW 14 MI NW": the nearest echo's distance and 8-point direction, white within 15 mi, dim beyond; "RAIN NOW" / "SNOW NOW" from the observation; with no echo in view, "54° · NO RAIN" (the degree glyph is 0xF8, the middle dot 0xFA), or "NO RAIN 60 MI" without an observation. The 1a priority order is unchanged; only the wording and placement change.
+> - The warning screen: "SEVERE T-STORM" size 2 orange (255,140,0) with a halo, text top y = 36; "WARNING · UNTIL 5:09 PM" size 1 orange at y = 54; the band carries "HAIL 1 IN · WIND 60 MPH" and "STORM 14 MI E · NE 35 MPH". Flash flood and snow squall keep their ruled texts in the same places. The polygon is an orange outline, no fill; labels never cross its edges. The arrow: 12 px from the storm's position toward its heading, orange.
+> - Stale radar: the frame time turns orange when the frame is over 10 min old; over 30 min the band shows "RADAR STALE" in dim in place of the state line. The logic underneath is unchanged.
+> - The loop and the legend keep their rulings (2a-2d, section 7); the loop's timeline goes in the band.
+>
+> C. Zoom (3.5a)
+> Reuse include/RadarZoom.h and include/LongPressPolicy.h as they are, with a ladder of {15, 30, 60}: swipe steps it, long press toggles 60 and 15, the 10-minute idle return, the tag. A view scale only: the crop stays 60 mi, the state line always reads the full 60 mi data, nearest-neighbour at every zoom (cells show as blocks at 15 mi; that's accepted).
+>
+> D. Geography (3.5b)
+> - Layers: TIGER 2024 AREAWATER polygons of 1.5 km² or more, filled (10,34,72); TIGER LINEARWATER rivers named "… Riv", the longest within the view, 1 px (26,70,128); TIGER PRISECROADS S1100 and S1200 without business routes, 1 px (62,62,62); USGS GNIS summits (feature_class Summit), elevation sampled from the terrain data; towns from the Gazetteer as now, population joined from Census SUB-EST2024 (www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv) with the same provenance header as WxTowns.h.
+> - Terrain (the setting): AWS Terrain Tiles, Terrarium z9 (registry.opendata.aws/terrain-tiles), hillshade from 315° at 45° with 2x exaggeration, averaged to about 0.9 km before sampling, grey 10 to 46 with blue +2, as bendmock.py does. With terrain on, no-coverage is drawn as the hatch, not solid grey.
+> - Delivery: the server prepares a package per location, as it crops the radar. Write the package format as a doc (screen-space polylines quantised to 16 bits for the 60 mi view, the peaks and towns with their ranks, and with terrain on, three 240 x 240 8-bit rasters), size-budgeted (about 20 KB for B; terrain adds about 58 KB per zoom level). blipscope-5c builds the ingest and the Worker route from that doc; you build the device side. Until the route exists, a stored Bend package built by a host tool, kept the way the loop frames are, so the bench can run. With no package, the screen falls back to towns only.
+>
+> E. The swipe screens (3.5c)
+> Map, forecast, conditions, alerts, legend; a tap on any returns to the map. Sources, all free: api.weather.gov /points, /gridpoints forecast and hourly, /stations observations, /alerts?point=. Forecast: the next 24 h as a strip (temperature and chance of precipitation per hour) with the week below, headline "NEXT RAIN TUE NIGHT". Conditions: temperature, wind, humidity, the day's high and low. Alerts: the watches and advisories that don't trigger the warning screen, with their start and end. Same type sizes and colours as the map. Propose each layout as a host-rendered reference first; Daniel judges them on the glass.
+>
+> F. Order and checks
+> 3.5a (layout, labels, state line, zoom, stale, arrow, temperature), then 3.4 (OTA identity, frozen as planned), then 3.5b, then 3.5c. Each sub-step frozen before its code. The K/B harness regrades against new references; add host tests with sabotages for label ranking, the inner circle, the overlap rule and the side rule; the zoom tests come with the reused modules. Board runs as A8.4, with the runner's 1 s rule. Keep the four B1 images of every board run for Daniel's look on the glass.
+>
+> Bring the 3.5a plan for review before any code.
+
+**Where this addendum lives.** It sits on branch `weatherscope/stage3-5a-plan`, cut from #467's head (`b202ff3`) and pushed **without a PR**. `firmware.yml` runs only on pushes to main and on pull requests, so #467's queued run stays the only one. After #467 merges, this branch is rebased onto main and opened as 3.5a's PR. **Nothing below is code, and no code is written until the plan is ruled.**
+
+### A9.2 The spec, as read from `wxmock.py` (and `bendmock.py` where they share it)
+
+Every number below is in the generator. Where the ruling's prose and the code say different things, the code is listed, and the difference is a question in A9.8.
+
+| element | the generator's rule |
+|---|---|
+| bands | the map is drawn inside the disc, then two black fills: **y < 24** and **y ≥ 194**. The map is visible only in 24 ≤ y < 194. |
+| text | the 5 × 7 GLCD font (LovyanGFX's default) in a 6 × 8 cell. Width is `6·n·s − s`, so a string carries no trailing column. **Halo:** every lit glyph cell's s × s block, dilated by 1 px, painted black first, then the glyph. |
+| top strip | "N" at (117, 3), dim. The frame time at x = `int(120 − w/2)`, y = 13, dim (120, 120, 120). **Zoomed:** the time and "ZOOM R MI" share one centred run: `x0 = int(120 − w(time + "  " + tag)/2)`, with the tag starting at `x0 + w(time + "  ") + 1`, in white. |
+| rings | for 5, 15 and 30 mi, drawn when `0.15·R ≤ mi ≤ 0.85·R`. **The ring is dotted:** `n = int(2π·r)`, a dot at every even k, at angle `a = 2πk/n`, at `(round(120 + r·sin a), round(120 − r·cos a))`, drawn only inside the map area, in (64, 64, 64). |
+| ring labels | placed **after** the town labels. **Each one tries the angles in order:** 45, 135, 315, 225, 90, 270, 0, 180, and takes the first that works:<br>– position: `tx = int(120 + r·sin) + (2 if ang < 180 else −w − 2)` and `ty = int(120 − r·cos) − (9 if ang ∈ {45, 315, 0}; 1 if ang ∈ {135, 225, 180}; else −4)`;<br>– box: (tx − 1, ty − 1, tx + w + 1, ty + 8), which must stay inside 25..193 in y and inside the 116 px circle, and clear every obstacle by 2 px;<br>– drawing: (96, 96, 96), with a halo. |
+| home marker | an 8 × 8 ring from x and y 116 to 123, with a 2 × 2 centre at 119-120 (read off the lossless `screen-proposed-dry.png`). **Frozen as a bitmap**, not as an algorithm. |
+| town labels | **Ranking:** by population, descending; a town with no figure ranks as 1,000, and ties keep the file order. The cap counts *placed* labels. **The inner circle** is `0.17·R·ppm + 4` = **24.4 px at every zoom**, because R·ppm is always 120.<br>**Skipped outright** when the float anchor is inside the inner circle.<br>**The two sides**, with `ix, iy = int(x), int(y)`:<br>– right: (ix − 1, iy − 4, ix + 4 + w, iy + 4), text at ix + 4;<br>– left: (ix − 5 − w, iy − 4, ix + 2, iy + 4), text at ix − 4 − w;<br>– right is tried first, reversed when x < 120 (the side away from the centre first).<br>**A side is rejected** when y0 < 26 or y1 > 192, when a corner is beyond 116 px, when the box's nearest point is within 24.4 px of the centre, or when it overlaps a fixed overlay or a placed label with **4 px of air** (inclusive boxes).<br>**Drawing:** a 3 × 3 dot at (ix ± 1, iy ± 1), and the text at (tx, iy − 3) in (176, 176, 176), with a halo. |
+| fixed overlays | the two bands. **On the warning screen also:** each polygon edge's bounding box, the title's box (tx − 2, 34, tx + w + 2, 52) and the subtitle's (sx − 2, 52, sx + w + 2, 64). |
+| state line | size 2, centred, y 198. White within 15 mi, dim beyond. |
+| warning | the title at y 36, size 2, orange (255, 140, 0), with a halo; "WARNING · UNTIL …" at y 54, size 1, orange, with a halo. **The polygon:** each edge a DDA, `n = int(max(|dx|, |dy|)) + 1`, points k = 0..n rounded, clipped to the map area. **The band:** two size-1 white lines at y 197 and 207. |
+| draw order | map → bands → rings → top strip → polygon and title → town labels → ring labels → home marker → band text |
+
+### A9.3 What 3.5a builds
+
+- **`src/weatherscope/WxRaster.h`** (new, pure C++11): the only drawing code for the map screens.
+  - **What it holds:** a pixel sink; the 5 × 7 font table, vendored (below); glyphs with and without the halo; the dotted ring; the DDA line; the marker bitmap.
+  - **The same code** draws into a host buffer for the K checks and through LovyanGFX's `writePixel` on the board, so **no LovyanGFX text or circle routine draws a map screen**.
+- **`src/weatherscope/WxScreens.h`**, reworked: A9.2's layout, the state line, the warning lines, the arrow, the stale rules, and the zoom ladder.
+  - **Unchanged:** 3.3's cycle (CY), the clock, and the union helper.
+- **`WeatherscopeManager`** gains:
+  - zoom: vertical swipes, as on Blipscope (up zooms in, down zooms out);
+  - the long press, through `LongPressPolicy.h` unchanged;
+  - the 10-minute idle return;
+  - the ZOOM tag;
+  - the loop's timeline in the band.
+  - **The map is drawn once per scenario and zoom** into the cached sprite.
+- **Zoom reuses the shared modules unchanged:**
+  - **The ladder** is built as a literal `radarzoom::Ladder` {15, 30, 60}, because `BuildLadder` would give {5, 10, 25, 50, 60}.
+  - **Reused as they are:** `Step` and `IdleExpired` from `RadarZoom.h`; `OnPress`, `OnHeld`, `OnRelease`, `OnIdle` and `ToggleTarget` from `LongPressPolicy.h`.
+  - **No edit to `include/`.**
+- **`WxFeeds.h`'s `Observation`** gains a temperature, for "54° · NO RAIN".
+- **`render_ref.py`** gains a radius argument, so the independent map reference covers 30 and 15 mi.
+- **A new independent reference renderer,** `tools/weatherscope/screens/ref35.py`, written from A9.2's rules in Python, with its own geometry and font reading.
+- **Not touched:** `main.cpp`, `platformio.ini`, `ConfigurationWebServer.cpp`, `include/`. 3.5b (geography) and 3.5c (the swipe screens) are not in 3.5a.
+
+### A9.4 The comparison method: full-frame equality, not masks
+
+3.3's masked compare cannot carry this layout:
+- rings are dotted circles;
+- text has halos;
+- the polygon is an outline;
+- the arrow is diagonal.
+
+None of these is a rectangle. **Recommended instead:** every graded screen is compared at **all 57,600 pixels** against `ref35.py`'s rendering of the same inputs.
+- **The map pixels** come from `render_ref.py`'s codes, checked against `screens.ref.json` first, as in 3.3.
+- **The palette** is legend_check's pinned derivation.
+- **The overlays** come from A9.2's rules, re-implemented in Python.
+
+**For that to be exact, three things are pinned:**
+- **Rounding:** every pixel rounding is `floor(v + 0.5)`. The mockups used Python's `round()`, which rounds half to even. That is CLAUDE.md's cross-language rounding trap, so it is pinned in both implementations.
+- **The font:** Adafruit-GFX `glcdfont.c` (BSD), the table LovyanGFX's default font is, vendored under `test/fixtures/wx/` with its licence and a pinned sha256. A host check compares it with LovyanGFX's own copy whenever `.pio/libdeps` holds one. Vendored, so CI's host tests never go BLIND for want of a `pio run`.
+- **The marker:** frozen as a bitmap.
+
+**R0, the control on the reference itself** (before any device code is graded against it):
+- fed `wxmock.py`'s own hand-typed POP table, `ref35.py` must reproduce the four `screen-proposed-*.png` and the three `screen-zoom-*.png` pixel for pixel, **or** account for every differing pixel by name: the half-to-even pixels, and anything else, which would be a finding about the spec;
+- this proves `ref35.py` is the spec before anything is graded against it.
+
+### A9.5 The checks, by family
+
+Each family gets a truth table of named cases with a count, and sabotages with exact failing sets. **Those tables are frozen after this plan is ruled, before any code**, because several depend on the answers in A9.8.
+
+- **The host families** (the reviewer's four first):
+  - **LB, label ranking:** population order, the 1,000 default, ties in file order, and the caps 8/6/5 by zoom;
+  - **IC, the inner circle:** the anchor inside, the box touching, the box exactly at 24.4 px;
+  - **OV, overlap:** 3 px of air rejected and 4 px accepted; the bands; the polygon's edges;
+  - **SD, the side rule:** away first, the fallback, both sides blocked;
+  - **CI**, the 116 px circle;
+  - **RG and RL:** which rings appear at 60, 30 and 15; the ring labels' first free angle;
+  - **ST, the state line:** distance rounding; the 15 mi threshold (≤ 15 white); NOW; snow; no echo with and without a temperature; "in view"; RADAR STALE;
+  - **TM:** the frame time orange above 10 min;
+  - **WN:** the four warning types' top and band lines; STATIONARY;
+  - **AR:** the arrow;
+  - **ZM:** the {15, 30, 60} ladder through the reused `Step`, both edges, the long-press targets, the idle return, the tag.
+- **The sabotages, at least one per family,** each with an exact failing set:
+  - S-RANK: file order;
+  - S-IC: no inner circle;
+  - S-OV: air 0;
+  - S-SIDE: always right;
+  - S-CAP;
+  - S-RING: the 15-85 % rule widened;
+  - S-ST15: < for ≤;
+  - S-STALE: ≥ for >;
+  - S-INVIEW: the 60 mi bound dropped;
+  - S-ARROW: the heading from `fromDeg`, not + 180;
+  - S-LADDER: `BuildLadder` used.
+- **K rows, host, full frame:**
+  - the host-built `WxRaster`/`WxScreens` output must equal `ref35.py`'s at **57,600 of 57,600 pixels** for the four scenarios at 60 mi;
+  - the approaching frame at 30 and 15 mi;
+  - the variants of A9.8's Q15;
+  - the loop frames at 60 mi.
+- **B rows, the board** (run as A8.4, one held open, with the runner's 1 s rule):
+  - **B1:** the four scenarios at 60 mi, each `/diag/fb` snapshot (pair rule, untorn) equal to the reference at **57,600 pixels**. The board also prints its placed labels and their sides, for diagnosis.
+  - **BZ:** on one scenario, `U`, `U`, `U` (30, 15, then the Max edge), `D`, `D`, then a long press `H` (15) and `H` (60). Each screen must equal its reference.
+  - **B2:** the loop: the 15 code hashes as in 3.3 (the 60 mi map layer), the pacing rows as A8.20, and the screen it returns to equal to its reference.
+  - **B3:** the legend, unchanged (`legend_check --fb`), and the screen it returns to equal to its reference.
+  - **The four B1 images are kept for Daniel** (F).
+  - **The recorded-data sabotages:** a snapshot graded against another scenario's reference; one board-reported label moved by 1 px; and B2's three, as in 3.3d.
+- **Sizes, re-registered forward from 3.3's measured build** (1,602,043 B flash, 54,840 B RAM, 168,120 B PSRAM):
+  - **flash 1,605,000-1,635,000 B:** `WxRaster` and the layout code at +3 to 25 KB; the font at +1,280 B; populations at about +700 B; the zoom and gesture code at +1 to 6 KB;
+  - **static RAM 54.8-57.0 KB:** zoom and long-press state, a few hundred bytes;
+  - **PSRAM 160-175 KB:** the same buffers, with the layout structure resized. The map is re-drawn per zoom into the same sprite.
+
+### A9.6 Not 3.5a
+
+- **Geography** (3.5b) and **the swipe screens** (3.5c).
+- **WXC1 v2's rain/snow type:** until it lands, an echo's state line reads "RAIN", and "SNOW" comes only from the observation ("SNOW NOW").
+- **The 30/120 range setting** (A5, a later item).
+
+### A9.7 Order inside 3.5a, once ruled
+
+1. The truth tables, sabotage sets and R0, frozen.
+2. `ref35.py` and R0.
+3. `WxRaster.h`, `WxScreens.h` and the host tests plus sabotages.
+4. The K rows.
+5. The firmware.
+6. The build and the sizes.
+7. The flash, onto `907069326E64`.
+8. The board run, then the grading and the recorded-data sabotages.
+9. The results addendum.
+
+### A9.8 Questions for review, each with a recommendation
+
+- **Q12, population in 3.5a.** B ranks labels by population, but D places the SUB-EST2024 join in 3.5b. **Recommended:** join SUB-EST2024 into `WxTowns.h` now, with the same provenance header and a regeneration check, because 3.5a's label rule needs it. 3.5b keeps the geography package. *(The alternative, ranking by distance until 3.5b, would grade 3.5a against a rule it doesn't implement.)*
+- **Q13, label case.** Title case ("Fort Worth") supersedes 5d's upper case. **Recommended:** yes, under A1 ("the layout in full"). `LabelText` drops a trailing " city" and keeps the Gazetteer's case. L1-L4 and S-L are re-registered.
+- **Q14, the method.** A9.4's full-frame equality, against an independent Python reference, with the font vendored and the device drawing glyphs from that table through `WxRaster`. **Recommended:** yes.
+- **Q15, states the stored data cannot show.** Stored scenarios never go stale (the clock is the frame's), and every loop frame has an echo within 24 mi, so "RADAR STALE", the orange time and "54° · NO RAIN" never reach the glass. **Recommended:**
+  - add a fifth stored scenario, **stale**: the approaching frame with its clock at +31 min, which shows "RADAR STALE" and the orange time. It needs no new data, and is labelled synthetic;
+  - keep "54° · NO RAIN" host-only. A sixth would need a synthetic all-dry crop and a synthetic temperature.
+- **Q16, "in view".** `wxmock.py`'s nearest echo also counts the crop's corners, beyond 60 mi. **Recommended:** an echo counts only within **60.0 mi** of the location (the full 60 mi data, whatever the zoom). Beyond that is "no echo in view".
+- **Q17, the arrow's shape** (it is not in the mockups). **Recommended:**
+  - a 12 px DDA shaft from the storm's projected position, along the direction of travel (`fromDeg + 180`);
+  - a head of two 4 px strokes at ±150° from that direction, at the tip;
+  - orange, clipped to the map area;
+  - its bounding box a fixed overlay, so no label crosses it.
+- **Q18, stale on the warning screen.** **Recommended:** the time turns orange, and the band keeps the warning's lines, because the alert's text is not radar. "RADAR STALE" replaces only the state line.
+- **Q19, zoom and the loop.** **Recommended:** the loop plays at the current zoom and returns to it. B2 runs at 60 mi, so 3.3's references hold, and the zoomed loop is host-tested.
+- **Q20, the colour of the no-rain lines.** **Recommended:** dim (120, 120, 120) for both "54° · NO RAIN" and "NO RAIN 60 MI", as `bendmock.py` draws the latter.
+- **Q21, bench gestures.** **Recommended:** `U` and `D` for vertical swipes and `H` for a fired long press, alongside `T` and `S`; stored mode only, under the same release gate.
+- **Q22, `wxmock.py`'s other small readings**, taken from the code, not the prose:
+  - the inner circle is 17 % **plus 4 px**;
+  - labels avoid the polygon's edge boxes, so a label may sit inside the square if it clears every edge by 4 px. The sheet's note says "no label inside it", but the code allows one;
+  - ring labels clear obstacles by 2 px, not 4.
+
+  **Recommended:** follow the code in each case.
+
+### A9.9 Ruled 2026-10-23 (source: reviewer chat, pasted by Daniel): the plan accepted; Q12-Q22
+
+> 1. Addendum 9's plan (0641856) is accepted: the design (A9.3), the method (A9.4), the families and sabotages (A9.5), the order (A9.7), and the sizes re-registered forward. Freeze the truth tables, sabotage sets and R0 before any code. Rebase onto main and open the PR once #467 has merged.
+
+Item 2, source "Daniel":
+
+> 2. Daniel (2026-10-23): the geography layers will also be a Blipscope setting later. So the basemap package (3.5b) is designed product-neutral from the start: the radius is a parameter of the package, and the format carries nothing Weatherscope-specific. Weatherscope builds it first; the Blipscope adopts it after v19.
+
+> 3. Q12-Q22, rulings verbatim:
+> "Q12: yes. Join SUB-EST2024 into WxTowns.h in 3.5a, with the same provenance header, the join keyed on GEOID, and a regeneration check. A place with no figure ranks as 1,000, as the generator does.
+> Q13: yes. Title case supersedes 5d. LabelText drops the Gazetteer's LSAD suffix and keeps its case, so McKinney, DeSoto and La Pine stay as written. L1-L4 and S-L are re-registered.
+> Q14: yes, with two additions. R0's differences from the generator are accounted for, not matched: where the generator's rounding is the inconsistent one, ref35.py keeps floor(v + 0.5) and the record names the pixels. And R0 passes only when every differing pixel is named; an unexplained pixel is a finding about the spec, and stops. The vendored font's sha256 is pinned against Adafruit-GFX glcdfont.c.
+> Q15: the stale scenario, yes, as recommended. And a sixth, clear: a synthetic all-dry crop (every cell code 0, the loop's header) with a synthetic observation at 54 °F, labelled synthetic, so '54° · NO RAIN' is seen on the glass once. Both are stored-mode only, under the release gate.
+> Q16: yes. An echo counts only within 60.0 mi of the location, at every zoom. The generator's corner counting was a defect in the mockup code, not the rule.
+> Q17: yes, as recommended, plus: no arrow when the storm's position is outside the 60 mi view, and the arrow is drawn after the polygon and before the labels.
+> Q18: yes, plus: on the warning screen, past 30 minutes the frame time reads '4:24 PM · STALE' in orange, because the band can't carry 'RADAR STALE' there.
+> Q19: yes.
+> Q20: yes.
+> Q21: yes.
+> Q22: follow the code in each case. The sheet's note was wrong about labels inside the square; the code's rule is the ruling."
+>
+> 4. The reference files stay where they are; the generator's hand-typed POP table is for R0 only, never a data source.
+
+**Recorded alongside:** #467's whole-suite CI failed on its head before this freeze was written. That is A8.23, committed locally on #467's branch and awaiting a ruling. The rebase this ruling names waits on #467's merge, so it waits on that ruling too.
+
+### A9.10 3.5a's truth tables, sabotage sets and R0, frozen before any code (2026-10-23)
+
+**Conventions, used by every table below:**
+- Boxes are **inclusive** (x0, y0, x1, y1).
+- `w(s) = 6·len(s) − 1` at size 1.
+- The inner circle is **24.4 px** (`0.17 · 120 + 4`, the same at every zoom).
+- **Every pixel rounding** is `floor(v + 0.5)`.
+- **Truncations** stay as the generator's `int()`: every argument here is positive, so `floor`.
+- **The band rule, as the code has it (Q22).** A label side is rejected if `y0 < 26` or `y1 > 192`, **and** if it overlaps a band rectangle ((0, 0, 239, 23), (0, 194, 239, 239)) with 4 px of air.
+  - Together they mean a label box can sit only in **28 ≤ y0** and **y1 ≤ 189**. That is tighter than the prose's 24/194, and it is the rule.
+
+**The new test, `test/host/test_wx_layout.cpp`**, covers 3.5's `WxScreens.h` and `WxRaster.h`:
+- **73 cases.**
+- The label cases go through one function, `PlaceTown(label, x, y, fixed, placed)`, which returns the side, the box, and the text origin (`tx`, `iy − 3`).
+
+**IC, the inner circle** (5):
+
+| case | input | expected |
+|---|---|---|
+| IC1 | "A" at (144.0, 120.0): the anchor is 24.0 px from the centre | skipped (the anchor is inside 24.4) |
+| IC2 | "A" at (150.0, 120.0) | right; box (149, 116, 159, 124); text at (154, 117) |
+| IC3 | "ABCDEF" at (146.0, 120.0), fixed (150, 110, 200, 130) | skipped: right blocked by the fixed overlay, left crosses the centre |
+| IC4 | "A" at (145.5, 120.0): the anchor at 25.5 px, but the right box's nearest point at 24 px | skipped (the box touches the inner circle; left is worse) |
+| IC5 | "A" at (146.0, 120.0): the nearest point at 25 px | right; box (145, 116, 155, 124) |
+
+**OV, overlap with 4 px of air** (10):
+
+| case | input | expected |
+|---|---|---|
+| OV1 | `Overlaps((100,60,130,68), (135,60,150,68))`: 4 px of air | false |
+| OV2 | `Overlaps((100,60,130,68), (134,60,150,68))`: 3 px | true |
+| OV3 | `Overlaps((100,60,130,68), (100,73,130,81))`: 4 px, vertical | false |
+| OV4 | `Overlaps((100,60,130,68), (100,72,130,80))`: 3 px, vertical | true |
+| OV5a | "A" at (170.0, 185.0): y1 = 189 | right; box (169, 181, 179, 189) |
+| OV5b | "A" at (170.0, 186.0): y1 = 190 | skipped |
+| OV5c | "A" at (170.0, 32.0): y0 = 28 | right; box (169, 28, 179, 36) |
+| OV5d | "A" at (170.0, 31.0): y0 = 27 | skipped |
+| OV6a | "A" at (100.0, 75.0), polygon edge (91, 85, 148, 85) | left; box (90, 71, 102, 79) |
+| OV6b | "A" at (100.0, 77.0), the same edge | skipped (both sides within 4 px of the edge) |
+
+**SD, the side rule** (5):
+
+| case | input | expected |
+|---|---|---|
+| SD1 | "A" at (170.0, 80.0) | right (away from the centre); box (169, 76, 179, 84); tx 174 |
+| SD2 | "A" at (70.0, 80.0) | left; box (60, 76, 72, 84); tx 61 |
+| SD3 | "A" at (170.0, 80.0), fixed (180, 70, 230, 90) | left, the fallback; box (160, 76, 172, 84); tx 161 |
+| SD4 | "A" at (170.0, 80.0), fixed (150, 70, 200, 90) | skipped (both sides blocked) |
+| SD5 | "A" at (120.0, 60.0): x = 120 exactly, so not left of the centre | right; box (119, 56, 129, 64) |
+
+**CI, the 116 px circle** (2):
+
+| case | input | expected |
+|---|---|---|
+| CI1 | "ABCDEF" at (200.0, 120.0) | left: the right box's corner is at 119.1 px; box (160, 116, 202, 124); tx 161 |
+| CI2 | "ABCDEF" at (236.0, 120.0) | skipped |
+
+**LB, ranking and caps** (6). The function under test is `RankOrder(pop[], n)`; a population of 0 means no figure, and ranks as 1,000.
+
+| case | input | expected |
+|---|---|---|
+| LB1 | in file order [5,000, 50,000, 500,000] | order [2, 1, 0] |
+| LB2a | [999, 0] | [1, 0] (no figure ranks as 1,000, above 999) |
+| LB2b | [1,000, 0] | [0, 1] (a tie keeps the file order) |
+| LB3 | towns "A".."J" at 60 px from the centre, 36° apart starting at north, populations 10,000 × (index + 1), so the file order is ascending; R = 60 | placed, in order, J I H G F E D C (8) |
+| LB4 | the same at R = 30 | J I H G F E (6) |
+| LB5 | the same at R = 15 | J I H G F (5) |
+
+- **Why the cap is what decides LB3-LB5:** uncapped, all ten place, so the caps alone decide.
+
+**RG, RD and RL, the rings** (7):
+
+| case | input | expected |
+|---|---|---|
+| RG1 | R = 60 | rings {15, 30} |
+| RG2 | R = 30 | {5, 15} |
+| RG3 | R = 15 | {5} |
+| RD1 | the 30 mi ring at R = 60 (r = 60 px) | n = 376, so **188** dots, all in the map area, starting (120, 60), (122, 60) |
+| RD2 | the 15 mi ring at R = 60 (r = 30) | n = 188, so **94** dots |
+| RL1 | the label "30" on r = 60, no obstacles | 45°: text at (164, 68); box (163, 67, 176, 76) |
+| RL2 | the same with an obstacle (160, 60, 180, 80) | 135°: text at (164, 161); box (163, 160, 176, 169) |
+
+**ST, the state line** (14). The text and the ink come from `StateLine(...)`, except ST11, which goes through `NearestEchoInView(crop, here, 60.0)` on a synthetic crop.
+
+| case | input | expected |
+|---|---|---|
+| ST1 | an echo at 14.328384 mi, 108.2334° | "RAIN 14 MI E", white |
+| ST2 | 23.555802 mi, 162.1° | "RAIN 24 MI S", dim |
+| ST3 | 15.0 mi, 90° | "RAIN 15 MI E", **white** (≤ 15) |
+| ST4 | 15.01 mi, 90° | "RAIN 15 MI E", **dim** |
+| ST5 | 14.5 mi, 0° | "RAIN 15 MI N", white |
+| ST6 | here now: rain | "RAIN NOW", white |
+| ST7 | here now: snow | "SNOW NOW", white |
+| ST8 | no echo; observation at 54.6 °F | "55" 0xF8 " " 0xFA " NO RAIN", dim |
+| ST9 | no echo; −3.5 °F | "-3" 0xF8 " " 0xFA " NO RAIN", dim |
+| ST10 | no echo; no temperature | "NO RAIN 60 MI", dim |
+| ST11a | a crop whose only echo cell is 60.4 mi out | no echo in view |
+| ST11b | the only echo cell is 59.6 mi out | found, 59.6 mi (±0.1) |
+| ST12 | frame age 1,801 s, not the warning screen | "RADAR STALE", dim |
+| ST13 | age 1,800 s | the ordinary line (not stale) |
+
+**TM, the frame time** (5):
+
+| case | input | expected |
+|---|---|---|
+| TM1 | age 600 s | "4:24 PM", dim |
+| TM2 | age 601 s | "4:24 PM", orange |
+| TM3 | the warning screen, age 1,801 s | "4:24 PM " 0xFA " STALE", orange |
+| TM4 | the warning screen, age 1,800 s | "4:24 PM", orange |
+| TM5 | not the warning screen, age 1,801 s | "4:24 PM", orange (and ST12 in the band) |
+
+**WN, the warning texts** (6):
+
+| case | input | expected (top 1, top 2, band 1, band 2) |
+|---|---|---|
+| WN1 | the SVR scenario (A8.10) | "SEVERE T-STORM"; "WARNING · UNTIL 5:09 PM"; "HAIL 1 IN · WIND 60 MPH"; "STORM 14 MI E · NE 35 MPH" |
+| WN2 | a Tornado Warning: RADAR INDICATED, hail 1.50, motion from 225° at 25 kt, the storm 3 mi SW | "TORNADO"; …; "RADAR INDICATED · HAIL 1.5 IN"; "STORM 3 MI SW · NE 29 MPH" |
+| WN3 | a Flash Flood Warning, `flashFloodDetection` "RADAR INDICATED", no motion | "FLASH FLOOD"; …; "RADAR INDICATED"; "" |
+| WN4 | a Snow Squall Warning, motion from 270° at 20 kt, the storm 8 mi W | "SNOW SQUALL"; …; ""; "STORM 8 MI W · E 23 MPH" |
+| WN5 | WN1 at 0 kt | band 2 "STORM 14 MI E · STATIONARY" |
+| WN6 | a Tornado Warning, CATASTROPHIC, hail 1.00 | band 1 "TORNADO EMERGENCY · HAIL 1 IN" |
+
+("·" is 0xFA throughout.)
+
+**AR, the arrow** (5):
+
+| case | input | expected |
+|---|---|---|
+| AR1 | the storm at (150.0, 100.0), from 240°, so travelling 60° | shaft (150, 100) → tip (160, 94); head strokes end at (158, 97) and (156, 94); **its pixel set equals `ref35.py`'s** |
+| AR2a | the storm 60.5 mi from the location | no arrow |
+| AR2b | 59.5 mi | an arrow |
+| AR3 | the storm at (150.0, 190.0), from 0°, so travelling 180° | only the shaft points with y ≤ 193 are drawn |
+| AR4 | "A" anchored on the storm's position | that label is skipped: the arrow's box is a fixed overlay |
+
+**ZM, zoom**, through the reused `radarzoom::Step` / `IdleExpired` and `longpress::ToggleTarget`, with expectations stated as **miles** (8):
+
+| case | input | expected |
+|---|---|---|
+| ZM1 | the ladder | {15, 30, 60}, starting at 60 |
+| ZM2 | in from 60, three times | 30, 15, 15 (Edge::Max) |
+| ZM3 | out from 15, three times | 30, 60, 60 (Edge::Min) |
+| ZM4 | a long press at 60, at 30 and at 15 | 15, 15, 60 |
+| ZM5 | idle 600,000 ms, and 599,999 ms | back to 60; unchanged |
+| ZM6 | the tag at 30, 15 and 60 | "ZOOM 30 MI"; "ZOOM 15 MI"; none |
+| ZM7 | the label cap at 60, 30 and 15 | 8, 6, 5 |
+| ZM8 | the top strip at 4:24 PM: unzoomed, and zoomed to 30 | unzoomed: the time at x 99; zoomed: the run at x 63, the tag at x 117 |
+
+**Re-registered in the 3.3 tests:**
+- **`test_wx_logic.cpp`, L (Q13):**
+  - L1 "Bend city" → "Bend"; L2 "La Pine city" → "La Pine"; L3 "Winston-Salem city" → "Winston-Salem"; L4 "Oklahoma City city" → "Oklahoma City".
+  - New: L5 "McKinney city" → "McKinney"; L6 "DeSoto city" → "DeSoto".
+  - The suite becomes **120 cases**, plus RK.
+- **`test_wx_screens.cpp`:**
+  - CY6 now wraps from **clear** (index 5) to dry. New: **CY7**, warning → stale.
+  - WT1-WT5 and CK1-CK3 are kept.
+  - **HW, TB, LF and UN are retired**, and S-LF and S-UN with them. They belonged to the rectangle masks, which A9.4 retired.
+  - The suite becomes **15 cases**.
+
+**PJ, the population join** (Q12), checked in `make_towns.py --check` and by `test_wx_towns.cpp` (4):
+- **PJ1:** the regenerated `WxTowns.h` is byte-identical.
+- **PJ2:** among the 171, **Dallas ranks first and Fort Worth second**.
+- **PJ3:** every stored figure equals `POPESTIMATE2024` from SUB-EST2024's **SUMLEV 162** row whose `STATE` + `PLACE` equals the town's GEOID, re-derived independently in the check.
+- **PJ4:** the count with no figure is **reported, not predicted**.
+
+**FT, the font** (3):
+- **FT1:** the vendored table's sha256 equals Adafruit-GFX-Library's `glcdfont.c` at the commit recorded in its header.
+- **FT2:** the table is 256 × 5 bytes, and glyphs 0xF8 and 0xFA are non-empty.
+- **FT3, reported only:** whether it equals LovyanGFX's default font table, when one is present.
+
+**SC, the synthetic clear crop** (Q15) (2):
+- **SC1:** `test/fixtures/wx/loop/synthetic-clear.wxc` decodes, through both `WxCrop.h` and `ring_ref.py`'s decoder, to **38,520 cells, all code 0**.
+- **SC2:** its header equals `shsr-20240521-220000.wxc`'s, byte for byte.
+
+**The sabotages, each with its exact failing set.** Each set was checked across every family, not only the one it targets:
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-RANK | rank in file order | {LB1, LB2a, LB3, LB4, LB5} |
+| S-IC | no inner circle (neither the anchor test nor the box test) | {IC1, IC3, IC4} |
+| S-OV | air 0 instead of 4, everywhere | {OV2, OV4, OV5b, OV5d, OV6b, SD3} |
+| S-SIDE | always try the right side first | {SD2, OV6a} |
+| S-CAP | the cap is 8 at every zoom | {LB4, LB5} |
+| S-RING | rings at 0-100 % instead of 15-85 % | {RG1, RG2, RG3} |
+| S-ST15 | `<` 15 instead of `≤` 15 for white | {ST3} |
+| S-STALE | `≥` instead of `>` at both thresholds | {TM1, TM4, ST13} |
+| S-INVIEW | the echo search's 60.0 mi bound dropped | {ST11a} |
+| S-ARROW | the arrow points along `fromDeg`, not + 180 | {AR1, AR3} |
+| S-LADDER | the ladder from `BuildLadder(60)` | {ZM1, ZM2, ZM3, ZM4} |
+| S-L (re-registered) | every "city" stripped, case-insensitive | {L4} |
+| S-PJ | `POPESTIMATE2023` joined | {PJ3} |
+| S-FT | one byte of a copy of the vendored table flipped | {FT1} |
+| S-CY, S-CY2, S-WT, S-CK | as 3.3d | {CY3}, {CY4, CY5}, {WT2}, {CK2, CK3} |
+
+**R0, the control on the reference** (Q14 with its additions):
+- **The inputs are exactly the generator's:**
+  - the frames `220000`, `212400` and `210800`;
+  - the 171 towns as `WxTowns.h` held them at `b202ff3`;
+  - the POP table parsed from `wxmock.py` itself, used for R0 only (ruling 4);
+  - the clocks "5:00 PM", "4:24 PM" and "4:08 PM";
+  - the warning dictionary;
+  - the caps 8/6/5.
+- **The screens:** the 7 PNGs, `screen-proposed-{dry,approaching,herenow,warning}.png` and `screen-zoom-{60,30,15}.png`.
+- **`ref35.py` renders each one twice:**
+  - **G, the generator's mode:** Python's `round()` at the generator's two rounding sites (the ring dots and the polygon's DDA points); its corner-counting nearest echo; no arrow (the mockups have none);
+  - **P, the pinned mode:** `floor(v + 0.5)` at those sites; the 60.0 mi echo bound; still no arrow.
+- **R0a:** G equals the PNG at all **57,600** pixels, compared in RGB888, which is the PNGs' own space.
+  - **Any pixel G does not reproduce is unexplained,** and R0 **stops** there, as a finding about the spec or my reading of it.
+- **R0b:** every pixel where P differs from G must appear in `ref35.py`'s **rounding log**: each rounding-site call whose argument was exactly k + 0.5, with its site (ring r, dot k; or edge i, point k), its argument, and the pixel in each mode.
+  - **R0 passes only when every differing pixel is named.**
+  - **The named pixels go into the results**, as the ruling asks.
+
+**K, host, full frame** (25 rows): the host build of the device's `WxRaster`/`WxScreens` output must equal `ref35.py` P, in RGB565 (both truncated through `color565`), at **57,600 of 57,600** pixels. Real SUB-EST2024 populations throughout:
+- the six scenarios at 60 mi: dry, approaching, here now, warning, stale, clear;
+- approaching at 30 and 15;
+- dry at 30 and 15;
+- the loop's 15 frames at 60 mi, with **the loop's band, my layout for Daniel's look:**
+  - the age, "56 MIN AGO" or "NOW", at size 1, dim, centred, y 198;
+  - a track 120 × 2 at (60, 212) in (96, 96, 96);
+  - a white knob 4 × 6 at x = 60 + floor(i · 116 / 14), y 210.
+
+**B, the board** (run as A8.4: one held open; the runner acts only on a scenario line that arrives **at least 1 s after the open**):
+- **B1:** the six scenarios at 60 mi.
+  - Each graded `/diag/fb` snapshot (the pair rule, untorn) must equal `ref35.py` P at **57,600** pixels.
+  - The board prints its state line, its band lines and its placed labels (name, side, box), and each must equal `ref35.py`'s.
+  - **All six graded images are kept for Daniel.**
+- **BZ, on dry, starting within its hold:** `U`, `U`, `U`, `D`, `D`, `H`, `H`. The expected radii are 30, 15, 15 (the edge), 30, 60, 15, 60, and each screen must equal its reference.
+- **B2:** the loop at 60 mi.
+  - The 15 code hashes equal `screens.ref.json`; the epochs are the manifest's.
+  - **Pacing:** max − min ≤ 10,000 µs, each interval 70,000 ± 5,000 µs, ≥ 14 fps.
+  - **Draw ≤ 45,000 µs and hash ≤ 5,000 µs.**
+  - The screen it returns to equals its reference.
+- **B3:** the legend (`legend_check --fb` exits 0), and the screen it returns to equals its reference.
+- **Sizes:** as A9.5.
+- **The recorded-data sabotages:**
+  - S-B1a′: dry's snapshot graded against approaching's reference, so the pixel check goes red;
+  - S-B1b′: one board-printed label moved by 1 px, so the label check goes red;
+  - S-B2a, S-B2b and S-B2c, as in 3.3d.
+
+**Outside every prediction:** stop, record, and wait for a ruling.
+
+### A9.11 R0 passes; one off-prediction in R0's own self-test, the instrument fixed to A9.10's text (2026-10-23; local until ruled)
+
+**The font.**
+- **The file:** Adafruit-GFX-Library `glcdfont.c` at commit `6abf6930565018657600aca8a5995bb8a4068339` (2019-12-27; the newest commit touching it), sha256 `bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02`. Vendored byte for byte as `test/fixtures/wx/glcdfont.c`, with the repo's `license.txt` (BSD) as `glcdfont.LICENSE.txt`.
+- **FT1:** `ref35.py` refuses any other hash.
+- **FT2:** 1,280 bytes; 0xF8 is `[6, 15, 9, 15, 6]` and 0xFA is `[0, 0, 16, 16, 0]`, both non-empty.
+- **FT3 (reported only):** **identical** to LovyanGFX 1.2.21's `src/lgfx/Fonts/glcdfont.h`, 0 of 1,280 bytes differing.
+
+**R0** (`tools/weatherscope/screens/ref35.py --r0 <reviewer dir>`):
+
+| screen | R0a: G against the PNG (RGB888) | R0b: P against G |
+|---|---|---|
+| screen-proposed-dry | 57,600 / 57,600 | 0 pixels differ |
+| screen-proposed-approaching | 57,600 / 57,600 | 0 |
+| screen-proposed-herenow | 57,600 / 57,600 | 0 |
+| screen-proposed-warning | 57,600 / 57,600 | 0 |
+| screen-zoom-60 | 57,600 / 57,600 | 0 |
+| screen-zoom-30 | 57,600 / 57,600 | 0 |
+| screen-zoom-15 | 57,600 / 57,600 | 0 |
+
+- **R0 passes.** `ref35.py` reproduces the reviewer's seven screens exactly.
+- **No pixel needed naming.** No rounding-site argument in these inputs is exactly k + 0.5, so the pinned rounding and the generator's agree everywhere.
+- **The inputs used** were A9.10's: the b202ff3 towns, `wxmock.py`'s POP table (R0 only), and the three frames.
+
+**R0's own sabotages: not frozen in A9.10, written and predicted here before they ran, as a check that R0 can fail.**
+- **(a)** The label grey changed to (175, 176, 176). **Predicted:** R0a fails on all 7. **Result:** as predicted; between 481 and 846 pixels per screen were unexplained.
+- **(b)** The pinned rounding changed to `floor(v)`. **Predicted:** R0b fails, the differing pixels unnamed. **Result: OFF-PREDICTION. R0b stayed green.**
+
+**The cause of (b).**
+- **What the code did:** `Rounder.point` logged every point where the two modes' pixels **differed**, instead of every call whose **argument** was exactly k + 0.5, which is what A9.10 freezes.
+- **What that meant:** with the pinned rounding broken, its own wrong pixels went into the log and "named" themselves. So R0b could never have detected a broken pinned mode.
+- **The real verdict is unaffected,** and the data shows why: the real run had **0** differing pixels, so nothing needed naming. The flaw was in what R0b could detect, not in what it reported.
+
+**The instrument, fixed to A9.10's own text** (no prediction changed): an entry is logged only when the argument is exactly k + 0.5, judged from the argument.
+
+**After the fix:**
+- the real R0 still passes;
+- sabotage (a) still fails all 7 in R0a;
+- **sabotage (b) now fails all 7 in R0b.** For example, dry has 363 pixels differing and 0 named; warning has 581 and 0.
+
+**Per the standing rule, this is committed locally and not pushed** until the reviewer rules on the instrument fix. **Nothing downstream has started:** no device code, no K rows. Those wait for that ruling.
+
+**Also found by reading, before any failure: FT1 and line endings.** Git warned that the vendored `glcdfont.c` would be checked out with CRLF in this autocrlf worktree. FT1 hashed the raw bytes, so a correct file would have failed it on the next checkout.
+- **The fix:** FT1 now hashes with CRLF normalised to LF, as `screens_ref.py` does for `a3_check.py`, so the pinned hash is the blob's on any checkout.
+- **Proved on a CRLF copy:** 143 CRLFs in place, and R0 still passed. The LF file was then restored, and hashes `bd6d60ecb9cc…` again.
+
+### A9.12 Ruled 2026-10-24 (source: reviewer chat, pasted by Daniel): #467 merged; R0 accepted; 3.5a's code may start
+
+> 1. #467: approved to merge at 75ccd3603175b3d05e3352e74d7acfe7cb619b45. Conditions: the CI total counted on that exact head at merge time (35, with 0 failures); a clean squash; no --admin. You merge it.
+> The three-commit push was right, and the wording of my ruling was wrong: it named c7d0aaf as the fix when c7d0aaf was the record. The fix in cad1148 is what I compiled and ran here, with the same results. 3.3's results stand.
+>
+> 2. 3.5a, ruling verbatim: "R0 is accepted: the generator mode reproduces all seven screens at 57,600 of 57,600 pixels, and the pinned mode differs at 0. The self-test miss is recorded as a miss of R0's own instrument, found before anything was graded with it. The fix brings the instrument back to A9.10's text, so it is a correction, not a re-registration; the miss stays in the record. FT1's normalised hash is accepted, with the pinned value documented as the hash of the LF-normalised bytes. Push 8caae0a. The device code and the K rows may start."
+>
+> 3. After #467 merges, rebase the plan branch onto main and open the 3.5a PR; the standing compiler rule (WSL g++ 11.4 before every push, the version in the notes) applies to it.
+
+**Done, in order:**
+1. **8caae0a was pushed as it stood** to `weatherscope/stage3-5a-plan`. The branch had no PR, so no CI ran.
+2. **#467 was merged.**
+   - **What was found first:** a merge attempt was refused because #467 was still a **draft**. It was marked ready; its head was unchanged.
+   - **The conditions, recounted on the exact head at merge time:** `total_count` **35**, all 35 listed (32 success, 3 skipped), **0 failures**; no PR stacked on its branch.
+   - **The merge:** a squash with `--match-head-commit 75ccd36…` and no `--admin`, giving **a7f21fb**, at 2026-10-24T14:04:02Z. The branch was deleted.
+   - **CI runs on the merged head:** firmware 40059848230, device-ids 40059848173, no-traffic-captures 40059848153.
+   - **Checked on main itself:** the fix is on main (`AddText`'s single clamped copy, `IsoOnClock`'s 64-byte local, A8.24). Every Weatherscope file in the merge is byte-identical to the approved head. The other files that differ are main's own merges since: #469, #473, #474, #476 and the wx-server docs.
+3. **This branch was rebased onto main** (`git rebase --onto origin/main b202ff3`), so only the three Addendum 9 commits are replayed.
+   - **A mis-step, caught and reversed:** a plain `git rebase origin/main` was tried first. It would have replayed #467's 40 original commits over their squash, so it was aborted at its first conflict, which restored the branch exactly.
+   - **The doc conflict** (A8.23/A8.24 on main against Addendum 9) was resolved mechanically as main's doc followed by exactly the bytes Addendum 9 appended. The result is verified equal to that.
+   - **Every other file equals 8caae0a's.**
+4. **R0's town input was re-pinned to a reachable commit.**
+   - **Why:** R0 read the pre-join towns with `git show b202ff3:…`. After the squash, b202ff3 is reachable only through the PR's history.
+   - **The new pin:** main's **a7f21fb**, whose `WxTowns.h` is byte-identical (sha256 `0d91cde66ca9…` at both).
+   - **R0 re-run on the rebased tree: PASSES.**
+5. **The compiler rule, before this push.** `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0` (WSL), with CI's flags, on this tree:
+   - `test_wx_logic` 119/0, `test_wx_loop` 44/0, `test_wx_towns` 171/0;
+   - `test_wx_scenarios` 12/0, `test_wx_loop_render` 15/0, `test_wx_screens` 19/0;
+   - all compiled clean.
+
+**FT1's pinned value, documented as ruled:** `bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02` is the sha256 of the **LF-normalised** bytes of Adafruit-GFX-Library `glcdfont.c` at `6abf693`. It is also the raw hash of the upstream file, which is LF.
+
+**Next:** the device code and the K rows (A9.7, steps 3-4), in the frozen order.
+
+### A9.13 A gap in A9.10, closed forward before any 3.5a code (2026-10-24)
+
+**D6(b), re-registered under Q13.** A9.10 re-registered L1-L4 and S-L for title case, but missed **D6(b)** (A8.14), which applies the same label rule to all 171 towns.
+- **The old criterion:** "no lowercase letter". Under Q13 every label fails it ("Fort Worth").
+- **The new criterion, a direct consequence of the ruled Q13 and written down before the code changes:** each town's `LabelText` must be **byte-equal to its NAME with the trailing " city" removed**. It must also be non-empty and printable ASCII, and not truncated, as before.
+- **S-D6a stays as frozen:** a non-ASCII byte planted in the first town's name must still fail exactly {D6:1}.
+
+**The population input** (Q12, PJ):
+- **The file:** `sub-est2024.csv`, fetched 2026-10-24 from `https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv`. 7,087,080 bytes, sha256 `af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9`, 81,334 rows.
+- **Where it is kept:** outside every repo, like the Gazetteer zip. Its sha256 goes into `WxTowns.h`'s header.
+
+
+### A9.14 Before step 3's first run: one frozen sabotage set that cannot hold, and the readings the cases needed (2026-10-24)
+
+Written after `test_wx_layout.cpp` and `sabotage_wx_layout.py` compiled, and **before either was run**: no case result, control or sabotage, exists yet.
+
+**1. S-IC's frozen set cannot hold: IC3 does not test the inner circle.** Found by working A9.10's numbers while writing the case, not by a run.
+- **The arithmetic.** IC3 is "ABCDEF" (w = 35) at (146.0, 120.0) with a fixed overlay (150, 110, 200, 130).
+  - The right box (145, 116, 185, 124) overlaps the overlay outright.
+  - The left box is (106, 116, 148, 124). Its x1 + 4 = 152 ≥ 150, so it is **within 4 px of the overlay** and rejected by the air rule, whatever the inner circle says.
+- **So under S-IC, IC3 is still skipped, and passes.** Registered here, before the run: **S-IC fails exactly {IC1, IC4}**, against A9.10's {IC1, IC3, IC4}.
+- **This is the shape CLAUDE.md names:** a rule that never rejects anything, because another rule does its job. IC3's stated reason ("left crosses the centre") is true and not load-bearing, and relaxing the inner circle is what shows it.
+- **What happens at the run:** the script grades S-IC against A9.10's frozen set, so the run will report **OFF A9.10** even if it matches this registration. That is a stop. Neither the set nor IC3's input changes until the reviewer rules.
+- **The two remedies, for the ruling:**
+  - **(a)** Re-register S-IC as {IC1, IC4}. IC3 then stays a case that never isolates the inner circle.
+  - **(b), recommended:** move IC3's overlay to (153, 110, 200, 130).
+    - The right box still overlaps it, so the right side is still blocked.
+    - The left box clears it by 5 px, so **only the inner circle** rejects the left side, which is what IC3 says it tests.
+    - S-IC's frozen set {IC1, IC3, IC4} then holds as written.
+    - Checked across the other sets: under S-OV the right box still overlaps outright; under S-SIDE x = 146 is already right-first. No other set moves.
+
+**2. S-CAP's plant site, a reading, not a re-registration.**
+- **The plant:** the cap's **use site** in `PlaceTowns` becomes 8; `Cap()` is left alone.
+- **Why:** A9.10's set {LB4, LB5} excludes ZM7, and ZM7 asks `Cap()` itself for 8/6/5. A plant inside `Cap()` would fail ZM7 as well, so the frozen set reads as the placement's cap.
+
+**3. The readings the cases needed.** Each choice is A9.10's text made executable. None changes an expected value.
+- **Label cases:** all run among the two band rectangles as fixed overlays, since A9.10's conventions make the band rule both the y bounds and the overlap.
+- **LB3-LB5:** compare the placed **names, in placement order**, not the sides.
+- **AR1, in two halves:**
+  - this test checks the three rounded end points: (150, 100) → (160, 94), heads (158, 97) and (156, 94);
+  - it prints the drawn pixel set (an `AR1PIX` line), and **the K harness (step 4) holds that set to ref35.py's arrow**.
+  - **AR1 is complete only when both halves pass;** the results will say so.
+- **AR3:** the expected set is exactly the shaft's DDA points with y ≤ 193: (150, 190) to (150, 193).
+- **AR4:** carries a control. The same label is placed when the arrow's box is absent.
+- **ZM4:** "at 30" is ladder index 1.
+- **ZM5:** "unchanged" means the miles **before** the idle check, from one `Step` in from the top, not a literal 30. 600,000 ms must return to the top (60).
+- **ST11:** a one-column synthetic crop on the equator: 0.001-degree cells, centre (0, 0). The only echo cell is 876 cells north (60.420 mi) for ST11a, and 864 north (59.592 mi) for ST11b. No real place is involved.
+- **ST12 and ST13:** carry an echo at 14.33 mi, which would read "RAIN 14 MI E" in white, so ST12 also shows that stale takes precedence.
+- **WN1 and WN5:** built from the stored warning scenario on the approaching frame (A8.10). WN5 changes the motion's `30KT` to `0KT`.
+- **WN2-WN6:** hand-built warnings, with motions placed by offsets from (0, 0), as `test_wx_logic.cpp`'s M cases are.
+  - They grade top 1 and both band lines. Top 2 is "…" in A9.10, so it is printed, not graded.
+- **S-STALE:** changes all three age comparisons: 30 min in `StateLine` and in `TimeText`, and 10 min in `TimeText`.
+- **The case count is enforced.** The test exits 2 (the rig) unless exactly 73 cases ran, and the sabotage script checks the same.
+
+**4. Design points A9.10 leaves open, fixed here so the K reference is written to the same rule:**
+- **The arrow's box** is the `int()` of its end points' bounds, the same rule as the polygon edges' boxes.
+- **The arrow is drawn after the title and subtitle.** Both are after the polygon and before the labels, so Q17 holds either way, and ref35.py's K mode will use the same order.
+- **`DrawMap` paints black off the disc,** so the board's sprite needs no clear between screens.
+
+**5. Removed with the rectangle masks.**
+- **What goes:** `Wrap`, `Rect`, `TextBox`, `UnionArea`, `BuildLayout` and `test_wx_screens --layout` (A8.21's tables), with their cases HW, TB, LF and UN (A9.10).
+- **The union helper:** A9.3 listed it as unchanged, but A9.10 retired its only case and nothing else reads it, so it goes too (CLAUDE.md: delete what nothing reads).
+- **The firmware breaks until step 5:** `WeatherscopeManager.cpp` still calls the 3.3 layout, so **the firmware does not build from this commit until step 5 rewrites it**. No push carries this state to #480.
+
+**6. The compiler rule, before any run.**
+- **What was compiled:** MinGW `g++ 5.1.0` and WSL `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0`, CI's flags, at -O1 and -O2:
+  - `test_wx_layout`;
+  - `test_wx_screens`;
+  - a probe (not committed) that instantiates `Compose` and every other function.
+- **What 11.4 found that 5.1 missed:** one `-Wformat-truncation`, `"ZOOM %d MI"` into a 16-byte tag (an int prints up to 11 characters).
+- **The fix, before any run:** the tag buffer widened to 24, and the ring number's from 4 to 12 for the same reason. That is a compile fix with no result attached, so it is not an off-prediction.
+
+### A9.15 Step 3's results: 73/0 and 15/0; 14 of the 15 sabotages as frozen; S-IC off A9.10, as A9.14 registered it before the run (2026-10-24; local, stopped for a ruling)
+
+**What was run, and in what order.**
+- **A9.14 was committed first,** as `454379f`. The code was committed next, compiled and not yet run, as `9323794`. Every result below is from `9323794`.
+- **Both compilers were used:** MinGW `g++ 5.1.0` and WSL `g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0`, each with CI's flags.
+
+**The controls:**
+- **`test_wx_layout`:** 73 checks, 0 failures under both compilers. The 73-case guard held.
+- **`test_wx_screens`:** 15 checks, 0 failures under both.
+
+**The sabotages:**
+
+| script | result |
+|---|---|
+| `sabotage_wx_screens.py` | 4 of 4 as predicted: S-CY {CY3}, S-CY2 {CY4, CY5}, S-WT {WT2}, S-CK {CK2, CK3} |
+| `sabotage_wx_layout.py` | 10 of 11 as A9.10 froze them; **S-IC failing {IC1, IC4}** |
+| `sabotage_wx_logic.py` | 24 of 24 (`WxLogic.h` changed by one comment) |
+
+- **The layout script's ten matching sets:** S-RANK, S-OV, S-SIDE, S-CAP (at the use site), S-RING, S-ST15, S-STALE, S-INVIEW, S-ARROW and S-LADDER.
+- **The real header was unchanged** throughout (`547368ebd1a7`).
+- **S-IC:**
+  - it is **off A9.10's frozen {IC1, IC3, IC4}**;
+  - it is **equal to the set A9.14 registered before the run**, for the reason given there: IC3's left box is within 4 px of its own fixed overlay.
+  - **The script reports it as OFF, and this is the stop.** IC3's input and S-IC's set stay as frozen until the reviewer rules on A9.14's (a) or (b).
+
+**The rest of the Weatherscope host suite, so the change is seen against everything it touches:**
+
+| test | MinGW 5.1.0 | WSL 11.4.0 |
+|---|---|---|
+| `test_wx_crop` | exit 0 | **does not compile** (below) |
+| `test_wx_render`, `_palette`, `_server_crops`, `_legend` | exit 0 | exit 0 |
+| `test_wx_feeds` | 7/0 | 7/0 |
+| `test_wx_logic` | 121/0 | 121/0 |
+| `test_wx_loop` | 44/0 | 44/0 |
+| `test_wx_towns` | 172/0 | 172/0 |
+| `test_wx_scenarios` | 12/0 | 12/0 |
+| `test_wx_loop_render` | 15/0 | 15/0 |
+
+- **`test_wx_crop` under 11.4:** the failure is `-Wmismatched-new-delete` at `test_wx_crop.cpp:47`, the test's own counting `operator delete`. The file is **byte-identical to `origin/main`**, so this predates 3.5a. It is **reported, not fixed:** it is outside 3.5a, and CI's g++ 13.3 is the authority.
+- **Why the tests were run one by one:** `run.sh` as a whole cannot run in this scratch clone. `proxy/` is sparse, so the UsageReport block is BLIND and exits 2 before it reaches the Weatherscope tests. A9.12 ran them the same way.
+
+**Still open in step 3, and in what follows:**
+- **AR1's second half,** the drawn set against ref35.py's, comes with the K harness (step 4), as A9.14 says.
+- **The firmware does not build** until step 5 (A9.14 item 5).
+- **Nothing is pushed:** S-IC waits for its ruling, and this head does not build the firmware.
+- **The local commits:** `c127377` (A9.13), `3312743` (the population join), `454379f` (A9.14), `9323794` (step 3) and this record.
+
+**For review:**
+1. **S-IC:** (a) re-register it as {IC1, IC4}, or (b) move IC3's overlay to (153, 110, 200, 130). (b) is recommended, because it makes IC3 test the inner circle it names.
+2. **Steps 4 and 5 (ref35.py's K mode, the K harness, the firmware) while S-IC waits.** None of them depends on IC3. The recommendation is that they continue locally, with no push until S-IC is ruled.
+
+### A9.16 Ruled 2026-10-25 (source: reviewer chat, pasted by Daniel): S-IC by (b); steps 4-5 continue; the backup; test_wx_crop exempt from the 11.4 rule
+
+> 1. S-IC, ruling verbatim: "(b). S-IC's miss stays in the record with its cause: IC3's left box was rejected by OV's 4 px rule before the inner circle was reached, so IC3 never tested the circle. That is a defect in the case, and the sabotage caught it, as sabotages should. IC3's overlay moves to (153, 110, 200, 130), a re-registration of that one case's input by ruling. Record the re-check: IC3's expected unsabotaged result is unchanged, the left side is now rejected by the inner circle alone, and every other sabotage set is unchanged. Then re-run S-IC; the prediction stays {IC1, IC3, IC4}."
+>
+> 2. Steps 4 and 5 may continue now, since S-IC is ruled.
+>
+> 3. Back up the five commits (c127377, 3312743, 454379f, 9323794, 38c8ee8) today: push them to a branch with no PR, for example weatherscope/stage3-5a-wip, and confirm that no workflow ran, as you did for the plan branch. Push to the PR's branch only once the firmware builds again.
+>
+> 4. test_wx_crop: CI's g++ 13.3 compiles it (host-tests passed on 75ccd36 and on main since), so this is an 11.4 quirk, not a defect. Record 11.4's error text, and exempt that one file from the 11.4 pre-push rule. Everything else stays under the rule.
+
+**IC3, re-registered by ruling.** The input changes; the expected result does not.
+
+| | input | expected |
+|---|---|---|
+| IC3, A9.10 | "ABCDEF" at (146.0, 120.0), fixed (150, 110, 200, 130) | skipped |
+| **IC3, by this ruling** | "ABCDEF" at (146.0, 120.0), fixed **(153, 110, 200, 130)** | **skipped** (unchanged) |
+
+**The re-check, as predictions written before the edit and the run:**
+- **Unsabotaged,** IC3 is skipped, with 73/0 overall:
+  - the right box (145, 116, 185, 124) overlaps the overlay outright;
+  - the left box (106, 116, 148, 124) is 5 px clear of it (148 + 4 = 152 < 153), and its nearest point is the centre itself, so **the inner circle alone** rejects it.
+- **Under S-IC,** the left side is placed: box (106, 116, 148, 124), text at (107, 117). IC3 fails, and **S-IC fails exactly {IC1, IC3, IC4}**, as A9.10 froze it.
+- **Every other set is unchanged,** and all 11 sets are as A9.10 froze them. The two that could plausibly move:
+  - **S-OV:** the right box still overlaps outright at 0 px of air, and the left is still rejected by the inner circle;
+  - **S-SIDE:** x = 146 is already right-first.
+- **The script:**
+  - S-IC's A9.14 alternative set is withdrawn;
+  - every result is graded against A9.10's sets alone;
+  - each sabotage's failing lines are printed, so the re-check's "left; box (106, 116, 148, 124)" can be read off the run itself.
+
+**The backup (item 3).** Pushed before this record was written:
+- `38c8ee857b23873e7e63f2f788999bc365329b48` to `weatherscope/stage3-5a-wip`, at 2026-10-25T19:02:21Z;
+- `git ls-remote` shows the branch at that sha;
+- `gh pr list --head` shows no PR.
+- **Whether a workflow ran** is checked twice, at an interval, and recorded with the results.
+
+**test_wx_crop under 11.4 (item 4).** 11.4's error text, two instances, both at one line:
+
+```
+test/host/test_wx_crop.cpp:47:51: error: 'void free(void*)' called on pointer returned from a mismatched allocation function [-Werror=mismatched-new-delete]
+```
+
+(Inlined from `std::vector<unsigned char>`'s destructor in `main`, and the note is "returned from 'void* operator new(std::size_t)'".)
+- **Exempt from the 11.4 pre-push rule, that file only.** Every other host test stays under the rule.
+
+### A9.17 Ruled 2026-10-25 (source: reviewer chat, pasted by Daniel): the pre-push compiler is Ubuntu-24.04's g++ 13.3; and A9.16's results
+
+> Ruling verbatim: "The pre-push compiler changes. Daniel has installed a second WSL distro, Ubuntu-24.04, the same release as CI's ubuntu-latest, with its default g++ 13.3. From now on, before any push that touches test/host or src/weatherscope, compile and run the host tests there with run.sh's own flags, and record the first line of `g++ --version` in the push's notes. A local pass there is evidence; CI stays the authority. The 11.4 exemption for test_wx_crop lapses: under 13.3 it is expected to compile, and if it doesn't, stop and report. Never shut down WSL or the Ubuntu distro (no wsl --shutdown, no wsl --terminate Ubuntu): the station runs there. Use only `wsl -d Ubuntu-24.04` for this."
+>
+> Installed version, as Daniel read it: g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0.
+
+**The ruling, executed.**
+- **The version, read with `wsl -d Ubuntu-24.04`:** `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` (Ubuntu 24.04.5 LTS). Equal to Daniel's reading.
+- **`test_wx_crop` under 13.3, with run.sh's flags:** it compiles (exit 0) and runs: "all WX crop checks passed", exit 0. The exemption A9.16 recorded has lapsed, and no stop is needed.
+- **No shutdown or terminate was issued.** Every 3.5a WSL command from here is `wsl -d Ubuntu-24.04`. The earlier 11.4 runs in this addendum series used the default distro, read-only, with nothing stopped.
+
+**A9.16's re-check, run after the edit** (commit `5d81645`):
+- **Unsabotaged:** 73 checks, 0 failures; IC3 skipped.
+- **`sabotage_wx_layout.py`:** 11 of 11 as A9.10 froze them. **S-IC failed exactly {IC1, IC3, IC4}**, and IC3's failing line reads "left; box (106, 116, 148, 124); text at (107, 117)", the left side placed once the inner circle is gone, as predicted.
+- **Every other set came out unchanged.**
+- **Compiled clean:** MinGW 5.1.0, and 11.4 (`test_wx_layout`, 73/0), under the rule then in force.
+
+**The backup (A9.16 item 3), confirmed.**
+- **The branch:** `weatherscope/stage3-5a-wip` at `38c8ee857b23873e7e63f2f788999bc365329b48`, with no PR.
+- **Workflow runs, read twice:**
+  - at 2026-10-25T19:04:08Z, by branch: 0;
+  - at 19:08:19Z, by branch: 0, and by head sha: 0.
+
+### A9.18 Step 4, the K rows: how they are built, the readings, and the predictions, before the reference exists (2026-10-25)
+
+Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g++ 13.3.0, at -O1 and -O2. At this point `k35.ref.txt` had not been generated and no K comparison had been run.
+
+**How the K rows are built.**
+- **The reference, `ref35.py --k`:**
+  - It re-derives the 25 rows from A8.10, Q15-Q18 and A9.2 in Python, in P mode, with real SUB-EST2024 populations parsed from this tree's `WxTowns.h`.
+  - It writes `test/fixtures/wx/k35.ref.txt`, one line per fact:
+    - `ROW`: the sha256 of the 240 × 240 big-endian RGB565 frame (`color565`'s truncation);
+    - `TIME`: the top strip's text and ink;
+    - `BAND`: the state line and its ink; or the warning's two lines; or the loop's age and index;
+    - `LABEL`: each placed label, its side and box, in placement order;
+    - `AR1`: AR1's drawn pixel set.
+  - **Its header pins its inputs:** the font, `WxTowns.h` (LF-normalised), the loop's `MANIFEST.json`, and `synthetic-clear.wxc`.
+  - **`--check`** regenerates the file and compares it byte for byte. **`--dump` and `--diff`** exist for naming pixels if a row ever differs.
+- **The device's side, `test/host/test_wx_k35.cpp`,** builds every row through the code the firmware will call:
+  - `wxscen::Build`, which gains the Stale and Clear kinds;
+  - `wxscenes::FromScenario` and `FromLoopFrame` (the new `WxScenes.h`);
+  - `wxscreens::Compose`, into an RGB565 sink.
+  - It emits the same lines and compares them row by row.
+  - **28 checks:** 25 K rows, AR1PIX, and the C++ halves of SC1 and SC2. **The rig exits 2** unless there are exactly 28 checks and 25 reference rows.
+  - **CI can run it:** it reads the committed reference, so it needs neither Python nor pyserial (`ref35.py` imports `legend_check`, which imports `serial`).
+- **The 25 rows:**
+  - dry, approaching, here now, warning, stale and clear at 60 mi;
+  - approaching and dry at 30 and at 15;
+  - the 15 loop frames, `loop-00` (21:04Z) to `loop-14` (22:00Z), at 60 mi.
+- **Both sides re-derive A8.10's picks** (approaching = the latest frame with an echo within 15 mi; dry = the latest without) and print them. 3.3 recorded them as 212400 and 220000.
+
+**The readings A9.10 leaves open, fixed here:**
+- **The stale row:**
+  - the frame's own time, "4:24 PM", in orange (age 1,860 s > 600);
+  - the band "RADAR STALE", dim;
+  - no "· STALE" on the time, because that is the warning screen's rule (Q18).
+- **The clear row:**
+  - the synthetic crop's header time, "5:00 PM", dim (age 0);
+  - the band "54° · NO RAIN", dim: `floor(54.0 + 0.5)` = 54;
+  - the obs is synthetic, valid, with no present weather, 5 min before the clock.
+- **The loop rows:**
+  - the frame's own time, dim (a loop frame is old by design, and its band carries the age);
+  - "NOW" for the newest, else "N MIN AGO", the age against the newest frame, truncated to whole minutes;
+  - no state line;
+  - the same rings, labels and marker as any 60 mi screen, and no warning.
+- **The warning row's storm:** A8.10's nearest echo cell over the whole crop. **Both sides carry it through the motion text at six decimals**, because that is the scenario's own representation of it. The arrow is drawn only when the storm is within 60.0 mi (Q17).
+- **The warning row's texts:**
+  - "SEVERE T-STORM";
+  - "WARNING · UNTIL" + the clock at the frame's time + 45 min;
+  - "HAIL 1 IN · WIND 60 MPH";
+  - "STORM d MI dir · NE 35 MPH", where `d` is half-up rounded (lround on positive values).
+
+**Predictions, registered now:**
+1. **`ref35.py --k --write`** prints its picks as `shsr-20240521-212400.wxc` (approaching) and `shsr-20240521-220000.wxc` (dry). **`--k --check`** then reports the file "identical" on regeneration.
+2. **R0 still passes after `compose()`'s changes,** 57,600 of 57,600 on all 7 mockups, with P − G = 0. The changes add arguments that R0 never passes, so R0's frames must be unchanged.
+3. **`test_wx_k35`:** 28 checks, 0 failures, under MinGW 5.1.0 and under g++ 13.3.0.
+   - **The C++ picks:** 212400 and 220000.
+   - **Each of the 25 rows is equal** at 57,600 of 57,600 pixels, with equal time, band and labels.
+   - **AR1PIX equal; SC1 and SC2 pass.**
+4. **`sabotage_wx_k35.py`,** each failing exactly its set:
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-K1 | `WxRaster.h`: `kLabel` (176, 176, 176) → (184, 176, 176), one RGB565 step in red | all 25 K rows. Every row places at least one town label: the loop rows share dry's geometry and fixed overlays |
+| S-K2 | `WxScreens.h`: the knob's step `i · 116 / 14` → `i · 120 / 14` | {K:loop-02 … K:loop-14}. 13 rows: i = 0 and 1 give the same x either way (0, 8) |
+| S-K3 | `WxScreens.h`: the arrow along `fromDeg` (S-ARROW's plant) | {K:warning-60, AR1PIX} |
+| S-K4 | **the reference copy:** the first `LABEL dry-60` line's x0 + 1 | {K:dry-60} |
+| S-K5 | `WxScreens.h`: `kStaleAfterS` 1800 → 3600 | {K:stale-60}. Its band becomes the echo line; its time stays orange (1,860 > 600) |
+
+**Outside every set above, the pre-registered meaning is: stop.**
+- **If any row differs:**
+  1. dump both sides (`test_wx_k35 … --dump`, then `ref35.py --k --diff`);
+  2. name every differing pixel and its cause;
+  3. record it;
+  4. change nothing until it is ruled.
+- **If the picks differ from 212400 and 220000:** the scenarios are not 3.3's, and that stops this too.
+- **If R0 no longer passes:** the reference's edit changed its generator mode. Stop.
+
+### A9.19 Steps 7-8, the flash and the board run: the method and the predictions, before the flash (2026-10-25)
+
+**Where things stand.** Steps 5 and 6 are done; the details are in the commit notes of `49846de`, which was pushed to #480 at 2026-10-25T19:31:00Z.
+- **The firmware build:** `pio run -e weatherscope-s3-128` succeeded.
+- **The sizes:**
+  - flash 1,612,859 B, inside A9.5's 1,605,000-1,635,000;
+  - static RAM 54,928 B, inside 54,800-57,000.
+- **The embedded crops:** all 16 appear once each in the ELF and once in the image. The control, the clear crop with one byte flipped, counts 0.
+- **PSRAM can only be read on the board.**
+
+**The tools** (new; 3.3d's grade masked rectangles and read 3.3's prints, which A9.4 retired):
+- **`tools/weatherscope/board/run_b35.py`.**
+  - **One serial open, never reopened.** The trace, the snapshot pair rule and the TCP check are `run_b.py`'s own, imported.
+  - **The 1 s rule:** it acts only on a screen line that arrives at least 1 s after the open.
+  - **B1:** each of the six "R=60" screens, captured 2 s after its line.
+  - **BZ:** from the next "dry R=60", 1 s later, the bytes U, U, U, D, D, H, H, each followed by its screen line and a capture 0.5 s later.
+  - **B2 and B3:** as 3.3d.
+- **`tools/weatherscope/board/grade_b35.py`.**
+  - **The reference:** `ref35.py`'s K rows, re-rendered and first checked byte-equal to the committed `k35.ref.txt`. If they differ, nothing is graded.
+  - **Each screen:** its snapshot against its K row at all 57,600 pixels, and the board's printed block (`[wx] k` ROW, TIME, BAND and LABEL lines) against the row's lines.
+  - **B2:** the code hashes against `screens.ref.json`, and the epochs against `MANIFEST.json`.
+  - **B3:** `legend_check.py --fb`.
+  - **The recorded-data sabotages:** A9.10's five.
+  - **PNGs:** it writes one of every graded snapshot, including the six B1 images for Daniel.
+
+**The flash (step 7).**
+- **How:** onto `907069326E64` only, its port resolved by serial (`scripts/board-port.py weatherscope --upload`), with `pio run -e weatherscope-s3-128 -t upload --upload-port <it>`. The upload's exit status is read, not its output.
+- **Predicted:** exit 0, and the board then prints `[build] env=weatherscope-s3-128`.
+- **Proof the new image is running, not an old one:** the `[wx] feeds` line names `clear 36 B`, and the screen lines carry `R=`. Neither exists in 3.3d's image.
+
+**Predictions for the board run (step 8).** A9.10's B rows, as frozen, plus A9.5's PSRAM:
+
+| row | predicted |
+|---|---|
+| sizes | `psram_used` in **160,000-175,000 B**, the same value on every `[wx] pick` line; `ready=1` |
+| B1 | all six captured; each snapshot equal to its K row at **57,600 of 57,600**; each printed block equal to the row's lines; the picks 212400 and 220000 |
+| BZ | 7 of 7 captured, on dry, at radii 30, 15, 15, 30, 60, 15, 60; each equal to `dry-<R>` at 57,600, with its lines |
+| B2 | 15 records; the code hashes equal `screens.ref.json`; the epochs are the manifest's, ascending; pacing max − min ≤ 10,000 µs, each interval 70,000 ± 5,000 µs, ≥ 14 fps; **draw ≤ 45,000 µs**; hash ≤ 5,000 µs; the screen after the loop equal to its K row |
+| B3 | `legend_check --fb` exits 0; the screen after the legend equal to its K row |
+| the sabotages | S-B1a′, S-B1b′, S-B2a, S-B2b and S-B2c **all red** |
+
+- **The row at risk is B2's draw bound.** Each loop frame is now a whole `Compose`: the map, the rings, about 280 dotted-ring points in software double precision (the ESP32-S3 has no double FPU), the labels, the halo text and the band. 3.3d's frames drew the map and a few overlays. The bound stays as frozen, and is not argued after the fact.
+
+**After the close.**
+- **Either branch is pre-registered:**
+  - TCP :80 is up within 60 s; or
+  - it is down, because the close put the board in ROM download mode, as it did 3/3 on 2026-10-22.
+- **If it is down:** it is recovered by hand with esptool `read_mac` (no writes) and recorded. Being down is not a B-row result.
+
+**Outside every row above: stop.**
+- Record the failing row with its evidence: the PNG, the pixel count, the trace lines.
+- Change no code, and push no fix, until it is ruled.
+- **If the board does not reach the scenarios at all** (a status screen, `ready=0`, or no `R=` lines), that is a stop too, and is recorded the same way.
+
+### A9.20 Steps 7-8's results: B1 6/6 exact, BZ 6/7, B3 exact; three rows off A9.19's predictions -- stopped for a ruling (2026-10-25; local)
+
+**The flash and the run.**
+- **The flash:** `907069326E64`, port resolved by serial (COM6). Upload exit 0, "Hash of data verified".
+- **The board runs the new image:**
+  - `[build] env=weatherscope-s3-128`;
+  - `[wx] feeds … clear 36 B`;
+  - `ready=1`;
+  - every screen line carries `R=`.
+- **The run:** `run_b35.py` held one open from 19:35:11Z to 19:42:03Z. All 16 captures were graded by the pair rule, 0 fetches torn.
+- **After the close:** TCP :80 was up after 0.5 s. That is the first pre-registered branch; no download mode, no recovery.
+- **The record:** `tools/weatherscope/board/run-2026-10-25/`, with the LAN IP redacted to `<board-ip>` as in 3.3's run. The raw snapshots are kept outside the repo, as in 3.3.
+- **The grade:** `grade_b35.py` reports 63 checks, **5 failing**, and the 5 recorded-data sabotages **5/5 red**.
+
+**As predicted:**
+
+| row | result |
+|---|---|
+| the reference | `ref35.py`'s K rows regenerate the committed `k35.ref.txt` byte for byte |
+| B1 | **6 of 6** scenarios equal their K rows at **57,600 of 57,600** pixels, and every printed block (ROW, TIME, BAND, 8 labels; the warning's 2 band lines) equals the row's lines; picks 212400 / 220000. The six PNGs are kept for Daniel |
+| BZ 0-5 | U → 30, U → 15, U → 15 (edge Max), D → 30, D → 60, H → 15: each on dry at the predicted radius, each equal to `dry-<R>` at 57,600, with its lines |
+| B2, partly | 15 records; **the code hashes are 15 of 15 equal to `screens.ref.json`**; the epochs are the manifest's, ascending; hash 4,069-4,294 µs; the screen after the loop is equal to approaching-60 at 57,600 |
+| B3 | `legend_check --fb` exits 0 (21/21 swatches, as ruled); the screen after the legend is equal to approaching-60 at 57,600 |
+| the sabotages | S-B1a′ red (6,362 px differ), S-B1b′ red, S-B2a, S-B2b and S-B2c red |
+| sizes, partly | flash 1,612,859 B and RAM 54,928 B, inside A9.5's ranges (A9.19) |
+
+**Off A9.19: three findings, five failing checks.**
+
+1. **PSRAM: 159,824 B against A9.5's 160,000-175,000. 176 B under the floor.**
+   - **The cause, accounted for:** 3.3 allocated a 6,536 B `Layout` (its own boot line says `layout=6536`) and 171-entry label scratch arrays. 3.5a removed both rather than resizing them. Its replacements are `ScreenIn` 432 B, `ScreenOut` 688 B and a 684 B town ranking. The view and the scenario now also live in PSRAM. The net is 8,296 B less than 3.3's 168,120.
+   - **The alternative:** allocator overhead alone is not the cause. It cannot account for 8 KB, and removing the two structures does.
+   - **The miss is in the favourable direction:** A9.5's band assumed "the layout structure resized", and it was removed.
+2. **BZ 6 (H → 60): the graded snapshot equals approaching-60 at 57,600 of 57,600, not dry-60.**
+   - **The runner's timing, not the firmware:**
+     - the board printed the H, the zoom 15 → 60 and dry-60's whole block, equal to the reference's lines, at 19:41:32.424;
+     - **the cycle advanced to approaching at 19:41:36.756**, 30 s after dry began, between the capture's 2nd and 3rd fetches;
+     - the agreeing pair is the new screen.
+   - **Why the sequence overran dry's hold:**
+     - A9.19 planned about 2 s per step, and the steps took 2.5-6 s;
+     - each `/diag/fb` fetch took about 1.1 s over Wi-Fi, against the 0.3 s gap the plan reasoned from;
+     - three captures needed 4 fetches.
+   - **What is not shown on the glass:** H → 60's screen was never pixel-graded, though BZ 4 graded the same dry-60 screen exactly. (BZ 6's first two fetches did not agree with each other; see the observation below.)
+3. **B2: draw 48,627-50,561 µs against ≤ 45,000.** It brings pacing (intervals 80,516-82,444 µs against 70,000 ± 5,000, though the spread of 1,928 µs is inside 10,000) and rate (12.25 fps against ≥ 14) down with it. A9.19 named this row as the one at risk.
+   - **The cause:** each loop frame is now a whole `Compose`.
+     - The board's own `compose_us` on the scenario path is 41.5-42.9 ms at 60 mi (50.0-50.2 ms on the warning screen, 35.8 ms at 15 mi).
+     - The decode and the B2 hash, about 4 ms each, sit on top.
+     - 3.3d's frames drew in 27,417-29,812 µs.
+     - Draw plus the panel push is now longer than the 70 ms period, so every deadline slips to about 81 ms.
+   - **The alternative:** the decode or the hash did not grow. The hash is 4.1-4.3 ms here and was 4.0-4.2 ms in 3.3, and the decode is unchanged. The compose is the increase.
+
+**An observation about the instrument, not a 3.5a row.**
+- **What was seen:** 7 of the 16 captures saw fetches that disagree before an agreeing pair. 3.3d's run saw the same in 4 of 7, so this predates 3.5a.
+- **Some disagreeing fetches resemble a screen shown earlier.** `postloop-1` and `postlegend-3` are each about 1,400 px from dry-15, not from the approaching-60 then on the glass. One of those frames (sha `d8b443032200`) appears in both the legend's and the after-legend captures.
+- **The pair rule kept every graded snapshot exact.**
+- **The explanations, and what would decide between them:**
+  - a copy landing inside a redraw that the counter does not bracket (`/diag/fb`'s Torn reports only a frame boundary);
+  - an older buffer behind `framebuf::Backbuffer()`;
+  - the glass itself flickering.
+  - The data excludes none of them. Daniel's eyes on the glass would exclude the third.
+
+**Stopped.** Changed nothing; pushed no fix.
+- **Pushed:** the record (A9.19, the tools, this addendum and the run) goes to the backup branch only. #480 stays at `49846de`.
+
+**For review:**
+1. **PSRAM:** re-register A9.5's band from the removal (recommended: 155,000-170,000 B), or rule otherwise.
+2. **BZ:** the runner's fix, for a re-run.
+   - **Recommended:** BZ split across two dry holds (U, U, U, D on one; D, H, H on the next), each step capped at one fetch pair, and the step's own scenario name checked before its capture is believed.
+   - **The alternative:** pause the cycle during BZ in stored mode. That would change the firmware for a bench need.
+3. **B2's draw:**
+   - **(a), recommended:** compose a loop's frame-invariant layers once per loop and replay them per frame. Within one loop, the rings, the ring numbers, the labels and the home marker depend only on the geometry and the fixed overlays, which are identical across all 15 frames (D3). The per-frame work becomes the map, the time and the band, about 3.3d's 28 ms plus a replay. The K rows already prove the composed result, so the replay must reproduce it exactly, and the 15 loop rows would hold it to that.
+   - **(b)** Re-register the loop's period or the draw bound for 3.5a.
+   - **(c)** Drop the labels from loop frames. That changes the 15 loop rows and Daniel's look.
+   - **An on-board profile of `Compose`'s phases would be (a)'s first step.** It is a code change, so it waits for this ruling.
+
+### A9.21 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): A9.20's three stops, the /diag/fb observation, the hold ring
+
+> Rulings on A9.20 (reviewer chat, 2026-10-26)
+>
+> A9.20's misses stay in the record as misses. #480 stays at 49846de. Freeze and push each change's predictions before its code; then re-run the whole A9.19 set on the new build (B1, BZ, B2, B3, sizes, sabotages).
+>
+> 1. PSRAM: re-registered, the miss kept. Your accounting is accepted. Not 155,000-170,000 B, though: the next build adds item 3's layer, so the band comes from the structures: 159,824 B plus everything items 3-5 allocate in PSRAM, computed to the byte, ± 2,000 B.
+>
+> 2. BZ: the runner fix, not the firmware pause.
+>    - Split BZ across dry holds as you proposed (U U U D, then D H H).
+>    - Budget each block for the worst case seen: 4 fetches at 1.1 s each, plus the step. Start a block when dry begins (from the trace) and keep at least 5 s of the 30 s hold spare. If it doesn't fit, use more blocks.
+>    - Don't cap a step at one pair of fetches. 7 of 16 captures needed more, and a capped step goes BLIND, which is a FAIL.
+>    - Believe a capture only if the trace shows the step's own scenario both before its first fetch and after its last. Otherwise it is BLIND (a FAIL), recorded, with no silent retry.
+>
+> 3. B2's draw: (a), in this order.
+>    - First the on-board profile of Compose's phases, timing only. Predictions first: K rows unchanged, and the phases add up to compose_us.
+>    - Then predict (a) from the profile, before writing it. The frozen bounds stay: draw <= 45,000 us, intervals 70,000 +- 5,000 (spread <= 10,000), >= 14 fps. Read them together: this run spent 31,861-31,961 us per frame outside the draw (the push), so 14 fps needs the draw under about 39,400 us, and holding the 70 ms deadline needs it under about 38,000. If the profile says (a) can't get there, stop and report. No (b) or (c) without a ruling.
+>    - Before coding, check that no frame-invariant pixel depends on what is beneath it (blending, anti-aliasing, XOR). If one does, an exact replay isn't possible: stop and report.
+>    - Put the replay, and the rule for when the layer is rebuilt (zoom, scenario, warning, home), in the shared code the host tests run, not in WeatherscopeManager. B2's board hash covers the codes, not the pixels, so only the host rows can prove the replay.
+>    - Host rows: every loop frame at 15, 30 and 60 mi, and with the warning overlay, equal to the full Compose at 57,600 px; the 15 K:loop rows unchanged.
+>    - Sabotages, predicted red: a layer kept across a zoom change; one label missing from the layer.
+>    - On the board, B2 runs at its worst case: 60 mi, and on the warning screen too if the loop runs there.
+>    - Store the layer however the profile favours. Its PSRAM goes into item 1.
+>
+> 4. The /diag/fb observation: settle it from data, in the same build.
+>    - Diag only: give the trace what it needs to tell the three explanations apart. For example: tag each buffer with the scene and draw count it last held; /diag/fb reports which buffer it copied and that tag; the trace logs the tag of every buffer pushed to the panel.
+>    - Predict before the run what each explanation would show.
+>    - The same stale frame (d8b443032200) turning up in two captures fits "an older buffer", but that is a guess to test, not a finding.
+>    - If the data can't decide, say so, and Daniel will film the glass in slow motion.
+>
+> 5. The long-press hold ring: yes, the same green ring as Blipscope (Daniel's call).
+>    - Draw it on top each frame, never inside item 3's layer.
+>    - Predict that it is gone on release, so BZ's H rows still grade exact.
+>
+> Anything outside the predictions: stop and report, as usual.
+
+**The same day, a second paste (source: reviewer chat, pasted by Daniel), verbatim:**
+
+> Addendum to the A9.20 rulings (reviewer chat, 2026-10-26)
+>
+> Daniel (2026-10-26): "i want the landscapes and roads features for the tests". So geography (3.5b: water, rivers, roads and peaks by default; terrain shading as the setting) joins the tested look next.
+>
+> 1. Order: finish 3.5a as ruled, then 3.5b, then 3.4 (still frozen as planned).
+>
+> 2. 3.5a's re-run goes ahead without geography. Its screens become the permanent "no package" rows (the towns-only fallback the plan already specifies) and stay in the suite after 3.5b.
+>
+> 3. Item 3's layer design must leave room for a geography layer under the radar, so 3.5b doesn't redo it. The profile also measures a full-frame 115,200 B copy from PSRAM, since 3.5b may need one per frame. 3.5b inherits the same draw ceiling (about 38,000 us).
+>
+> 4. 3.5b's tests show every layer: water, rivers, roads, peaks, and terrain both off and on. Dallas has water and roads but no peaks or terrain, so add Bend (Daniel's home), from the stored Bend package built by the host tool, as already ruled. Choose Bend's radar in the plan. My default is an archived MRMS day with rain over Bend, built the way the Dallas loop was.
+>
+> 5. First deliverables: 3.5b's plan with predictions, and the package format doc (blipscope-5c builds the ingest and the Worker route from it). Send both for review before any 3.5b code.
+
+### A9.22 Build P (the profile, the diag, the hold ring) and the runner fix: predictions before their code (2026-10-26)
+
+**The order, from A9.21:**
+1. **Build P** (this addendum): A9.21's item 3 profile, item 4 diag and item 5 ring, and item 2's runner. Build, flash, and a **profile run**.
+2. **A9.23:** (a) predicted from the profile, item 1's PSRAM band computed to the byte, and the replay's host rows and sabotages. Frozen and pushed before (a)'s code.
+3. **Build F = P + (a).** Then the whole A9.19 set is re-run, on the item 2 runner, with the diag read as predicted below.
+
+**The files this needs outside `src/weatherscope`:** `include/FrameBuffer.h`, `src/main.cpp` and `src/ConfigurationWebServer.cpp`, for item 4 only.
+- **Why:** A9.3 kept them untouched, but A9.21's item 4 is a change to `/diag/fb` and to the push.
+- **What changes, all diag only:**
+  - `FrameBuffer.h`: `SetPhase`/`Phase` and `SetTag`/`Tag`.
+  - `main.cpp`:
+    - a phase store after the clear, after `Draw`, and after the push;
+    - their four one-line definitions;
+    - under `#ifdef FEATURE_WEATHERSCOPE` only, a call that hands the pushed buffer's tag and phase to the edition's log.
+  - `/diag/fb` (not the PHOTO_MODE route): the phase and tag sampled before and after its copy, sent as headers.
+- **What other editions get:** three volatile stores per frame and three response headers. No pixel and no timing that matters changes for them. Every env must still build in CI.
+
+**Item 3, the profile (timing only).**
+- **Where it lives:** `wxscreens::Compose` takes an optional `Profile*` (host tests pass none). With one, it records a timestamp at each phase boundary: view, map (with B2's row hash inside it), bands, rings, the top strip, the warning, labels, ring numbers, the marker, the band. Ten phases, eleven stamps, from the caller's clock.
+- **Where it is printed:** `BuildScenario` prints `[wx] prof <row> <phase>=<µs>… sum=<µs> compose_us=<µs>`. Each loop record keeps its ten phases and its decode time, printed after the loop as `[wx] lprof <i> …`.
+- **Predictions:**
+  - **P1, the K rows are unchanged:** `test_wx_k35` gives 28/0 against the committed `k35.ref.txt`. All 73 layout cases and every sabotage script are as before.
+  - **P2, each scenario profile adds up:** `0 ≤ compose_us − sum ≤ 100 µs`, on every `[wx] prof` line. `sum` is the last stamp less the first, inside `Compose`; `compose_us` brackets the call.
+  - **P3, each loop profile adds up:** `0 ≤ draw_us − decode_us − sum ≤ 500 µs`, on every `[wx] lprof` line. The remainder is `FromLoopFrame`, the input and output resets, and the hash's `Finish`.
+- **The full-frame copy (the second paste's item 3).**
+  - **What is timed:** `DrawScenario` already copies the whole cached screen, 115,200 B from PSRAM to PSRAM, every frame. Each copy is timed, and at each scenario change the board prints `[wx] fbcopy n=<frames> min=<µs> max=<µs> mean=<µs>` for the hold that ended.
+  - **P4:** a line for every hold with n ≥ 1, and min ≤ mean ≤ max. The value itself is measured, not predicted. A prior from a different code path is `BlitProbe`'s 240 × 240 16 bpp blit at 6.228 ms (`main.cpp`'s comment).
+  - **Where it goes:** A9.23 carries it into (a)'s budget, and 3.5b's plan inherits it, against the same ceiling of about 38,000 µs.
+- **The layer must leave room for geography (the second paste's item 3).** A9.23 designs it so that a 3.5b basemap goes under the radar without redoing the layer: the per-frame order becomes the basemap, the radar's non-dry pixels, the cached overlay, then the time and the band.
+- **3.5a's re-run stays without geography.** Its screens become the permanent "no package" rows.
+- **PSRAM for build P:** `LoopRecord` grows from 56 to 104 B (+ `decode_us` and ten `uint32_t` phases, aligned to 8). Fifteen of them is +720 B, so the prediction is **160,544 B ± 2,000**. Nothing else in P allocates PSRAM.
+
+**The profile run** (`tools/weatherscope/board/prof_run.py`, one open, the 1 s rule):
+- **The sequence:**
+  1. At the first scenario line after the open, 2 s later, `T`: a loop at 60 mi.
+  2. At the next `warning R=60` line, 2 s later, `T`: a loop on the warning screen.
+  3. `U`, then `T`: a loop at 30.
+  4. `U`, then `T`: a loop at 15.
+  5. `D`, `D`: back to 60.
+  6. Close.
+- **Predicted:**
+  - P2 and P3 hold on every line;
+  - four loops of 15 records each, at R=60, 60, 30 and 15;
+  - B2's code hashes equal `screens.ref.json` on both R=60 loops. 3.3's B2 graded only 60 mi, so no hash is predicted at 30 or 15.
+- **What it is for:** it feeds A9.23. It grades nothing else: the draw is still the slow one, and B2's pacing is not graded on it.
+
+**Item 4, the diag.**
+- **The phases:** main.cpp sets `Cleared` (1) after `fillScreen`, `Drawn` (2) after `Draw` returns, and `Pushed` (3) after `pushSprite`. `FrameDone` is unchanged.
+- **The tag:** Weatherscope's `Draw` writes it as eight hex digits, `MSRRCCCC`:
+  - M, the mode: 1 scenario, 2 loop, 3 legend, 4 status, 5 splash;
+  - S, the scenario index or the loop frame mod 16;
+  - RR, the radius;
+  - CCCC, the draw count mod 65,536.
+- **What `/diag/fb` sends:**
+  - `X-Blipscope-Frame-Phase: <before>,<after>`;
+  - `X-Blipscope-Frame-Tag: <before>,<after>`;
+  - `X-Blipscope-Frame-Buffer: backbuffer` (it copies nothing else).
+- **The push log:** every push hands its tag and phase to the edition. The log is run-length on the scene, `[fb] push <MSRR> draws <first>-<last> n=<count> phases=<set seen at push>`, emitted when the scene changes, so every push is accounted for. During a loop it is held and printed after, as the records are (A8.19 item 4).
+- **A prior observation, from the 2026-10-25 run's snapshots, read-only and recorded here as a hypothesis this diag tests, not a finding:**
+  - `d8b443032200` is the sha256 of an **all-black** 240 × 240 frame;
+  - every disagreeing fetch is partly black (0 to 161 non-black rows).
+  - That fits a copy landing between `main.cpp`'s `fillScreen` and the end of `Draw`. The frame counter cannot see it, because it moves only after the push.
+- **What each explanation predicts:**
+
+| explanation | it predicts | it is excluded by |
+|---|---|---|
+| (i) a copy inside the redraw | every fetch that is not of a finished frame has `Cleared` (1) at one end or both; every all-black fetch reads `1,1`; every fetch reading `2,2`, `2,3`, `3,3` or `3,2` with equal tags equals that tag's scene pixel for pixel | a fetch at phases ≥ 2 at both ends, with equal tags, that is not its scene |
+| (ii) an older buffer | a fetch at phases ≥ 2 at both ends, with equal tags, whose pixels are an earlier scene's; or a buffer other than `backbuffer` | every such fetch being its own scene, with one buffer only |
+| (iii) the glass flickering | a push whose phase is not `Drawn`; or a pushed scene other than the screen line in force | every push in the log at phase `Drawn` and in its scene's run |
+
+- **Outside the table:** if the data fits none of them, or more than one, then "the data can't decide". That is said as such, and Daniel films the glass.
+
+**Item 5, the hold ring.**
+- **How it is drawn:** Blipscope's ring (`AircraftManager::DrawHoldRing`, copied with its source named): the dim track, then the green band filling from 12 o'clock.
+  - It is drawn **on top in `DrawScenario`, after the memcpy, each frame**, while `longpress::RingVisible` or the phase is `Fired`. It is never in a cached screen, and never in A9.23's layer.
+  - The trace logs only its transitions (`[wx] hold ring on/off`), never per frame.
+- **Predictions:**
+  - **Serial `H` never enters the ring phases** (it calls the fire directly), so **BZ's H rows grade exact**.
+  - On the glass, the ring is gone on the first frame after the release, because the next memcpy restores the cached screen. Only Daniel's eyes can grade that.
+
+**Item 2, the runner (`run_b35.py`, and the grader with it).**
+- **BZ in blocks:**
+  - **Blocks:** two, U U U D and then D H H, each starting at the board's `dry R=<R>` line, the first byte 1 s after it.
+  - **The budget per step:** at most 0.3 s from the byte to its screen line, 0.5 s to settle, and 4 fetches at 1.1 s. That is **5.2 s**.
+  - **Block 1:** 1 + 4 × 5.2 = 21.8 s. **Block 2:** 1 + 3 × 5.2 = 16.6 s. Both fit the 25 s left after the 5 s spare.
+  - **If the hold is late:** a block that would not fit the time left in its dry hold waits for the next dry.
+  - **The expected radii:** block 1 at 30, 15, 15, 30; block 2 (from dry at 30, after the cycle has run at 30) at 60, 15, 60.
+- **No cap on fetches.** The pair rule's six stands.
+- **The belief rule, applied to every capture** (B1, BZ, after the loop, the legend, after the legend):
+  - the last `[wx] screen=` line before the first fetch's start must be the capture's own scene;
+  - no `[wx] screen=` line may arrive between that start and the last fetch's end.
+  - Otherwise the capture is **BLIND, a FAIL, recorded, never retried**.
+  - Each fetch now records its start and end.
+- **B2 twice:** at the next scenario at 60 mi, and again on the warning screen at 60. The loop runs there.
+  - **A reading:** the loop shows no warning overlay (A9.18), so its warning-screen frames are the same as any loop frame. A9.23's host rows "with the warning overlay" prove the layer's handling of it whatever the loop shows. If the ruling meant that the loop carries the overlay on the warning screen, that changes the loop's look and its K rows, and is for a ruling.
+- **The re-run's predictions are A9.19's,** with the two BZ blocks, B2 twice, the belief rule, item 1's band from A9.23, and the diag table above.
+
+**Outside every prediction here: stop and report.**
+
+### A9.23 The profile's results, and (a) predicted from them before its code (2026-10-25 UTC)
+
+**A date, said once.** A9.21 and A9.22 carry the ruling's date, 2026-10-26, in their headings. The session's clock read 2026-10-25 UTC throughout, so this addendum uses that.
+
+**Build P, flashed and run.**
+- **The commit:** `1979519` on the backup branch, its notes carrying `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`.
+- **The flash:** upload exit 0.
+- **The first profile run never started.** The runner's open of COM6 was refused ("Access is denied"), straight after the upload. Windows had not yet released the port. No line was read.
+- **The re-run** went into a fresh directory with the same tool, and needed nothing else.
+
+| prediction | result |
+|---|---|
+| P1, the K rows unchanged | `test_wx_k35` 28/0; all 14 host tests and every sabotage script as before, under MinGW and 13.3 |
+| P2, each scenario profile adds up | 8 lines; `compose_us − sum` is 8-12 µs each (≤ 100) |
+| P3, each loop profile adds up | 60 lines; `draw_us − decode − sum` within 0-500 on all |
+| P4, the full-frame copy | 7 lines, n ≥ 1 each; min 5,354, max 6,725, means 5,370-5,399 µs |
+| the loops | four, at R = 60, 60 (the warning screen), 30 and 15, with 15 records each; the code hashes at both 60 mi loops are 15 of 15 equal to `screens.ref.json` |
+| build P's PSRAM | **160,560 B** against 160,544 ± 2,000 |
+
+**The loop frames' phases** (all 60 records; µs):
+
+| decode | view | map (with the hash, 4.05-4.23 ms) | bands | rings | strip | labels | ring numbers | home | band | draw |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1,990-3,121 | 3,589-3,691 | 26,758-28,920 | 3,048-3,311 | 3,451-7,667 | 101-412 | 2,237-3,698 | 122-550 | 18-21 | 89-141 | 42,428-50,297 |
+
+- **What the costs are:**
+  - one `Sink::Put` costs about 182-197 ns (the bands: 16,800 writes in 3,048-3,311 µs);
+  - the view is 480 software `floor()`s in double precision;
+  - the rings are about 280 dots' worth of software double-precision `sin` and `cos`.
+- **The diag's first data, ahead of the re-run that grades it:** all 72 push runs were at phase 2, and **every push held the loop task for 25,778-25,989 µs**.
+
+**The exactness check (A9.21 item 3), done before coding.**
+- **The rule:** no frame-invariant pixel may depend on what is beneath it.
+- **The evidence, from the code:** `wxraster::Sink` has one method, `Put(x, y, Rgb)`, and nothing in `WxRaster.h`, `WxScreens.h` or `WxScenes.h` reads a pixel back. So there is no blending, no anti-aliasing and no XOR. Every write is opaque, and every pixel's final value is its last write.
+- **So an exact replay is possible:** the last value each invariant phase leaves, replayed after the map, is the same frame.
+
+**The invariant pixels, counted** (a host count through the existing code, the profile hook as a phase counter; not committed):
+- **No warning:** 3,063 pixels on a loop frame at 60 mi (8,398 writes), 2,214 at 30, 1,779 at 15.
+- **With the warning overlay:** 5,982, 5,420 and 4,296.
+
+**(a)'s design.** It is shared code that the host runs: `WxScreens.h` and `WxScenes.h`, not `WeatherscopeManager`.
+- **The invariant group:** the rings, the warning (polygon, title, subtitle, arrow), the town labels (dots, halos, text), the ring numbers and the marker. It becomes one function, `DrawInvariant`, called by the full `Compose` and by the layer's build, so the two draw it with the same code.
+  - **What stays outside it:** the top strip (N, the time, the ZOOM tag) and the band. The tag's x depends on the time's width, so it is not invariant.
+  - **The order change:** in `Compose`, the strip moves after the invariant group. Their pixels never meet (y ≤ 20 against y ≥ 24 for every invariant pixel), so every frame is unchanged, and the K rows prove it.
+- **`wxscreens::Layer`,** one PSRAM object:
+
+| field | bytes |
+|---|---|
+| `LayerKey` (scenario, radius, the crop's geometry, warning, arrow, `fromDeg`, the polygon, the storm, the two title texts) | 192 |
+| the view (the radius's projection, reused) | 992 |
+| a 16-colour palette, the placed labels | 48, 640 |
+| a dense palette-index image | 57,600 |
+| **the whole object** (the board's own compiler, a probe) | **59,488** |
+
+- **The rebuild rule** is `SameLayer(key)`. A layer is rebuilt when the zoom, the scenario, the warning or the home (the crop's geometry) differs. Anything else reuses it.
+- **The build** clears the image, then runs `DrawInvariant` into a palette sink, where the last write wins.
+  - **The replay** walks the image a word at a time, and puts the palette colour of every non-zero byte.
+  - **No capacity limit**, and no second path.
+- **The loop frame** is `ComposeLayered`:
+  1. the map;
+  2. the bands;
+  3. the replay;
+  4. the strip;
+  5. the band.
+
+  Its view is the layer's.
+- **The map stops drawing the band rows.** `DrawMap` still computes and hashes all 240 rows of codes, so B2's hash is unchanged, but no longer `Put`s in rows y < 24 and y ≥ 194. The bands overwrite those pixels in every composition, scenario screens included, so no frame changes. It saves 16,800 writes, about 3.1 ms a frame.
+  - **This is part of (a):** the bands are frame-invariant pixels, and drawing under them twice is the waste.
+  - **Without it** the worst case below would be about 37.9 ms, too close to 38.0 to predict a pass.
+- **The build happens at the tap** (`StartLoop`), before the first frame's deadline 70 ms later, never inside a frame's draw.
+  - **Its cost:** the view, the rings, the labels and the clear, about 16 ms (about 23 with the warning).
+  - **The board prints:** `[wx] layer build_us=… pixels=… rebuilt=<why>`.
+- **Room for geography (the second paste's item 3).** 3.5b's basemap goes **under** the radar: in `DrawMap`, a dry pixel takes the basemap's colour instead of black, with no separate copy. The layer and its key are untouched.
+  - **The full-frame copy costs 5.4-6.7 ms a frame.** 3.5b's plan carries that cost against the same ceiling, about 38 ms, if it ever needs a copy.
+
+**Predictions for build F (= P + (a)):**
+- **H1, the host rows (`test/host/test_wx_replay.cpp`):** **90 rows**, each equal to the full `Compose` at **57,600 of 57,600** pixels, with the same labels. That is the 15 loop frames at 60, 30 and 15 mi, without and then with the warning overlay. The sequence is:
+  - 60 → 30 → 15 with no warning, on one `Layer` object;
+  - then 60 → 30 → 15 with the warning, on the same object.
+- **H2, the K rows:** `test_wx_k35`'s 15 loop rows now go through `ComposeLayered`, and stay equal to the committed `k35.ref.txt`: 28/0.
+- **H3, everything else unchanged:** the 73 layout cases and every sabotage script, the scenario K rows through the refactored `Compose`, under MinGW and 13.3.
+- **The sabotages (`sabotage_wx_replay.py`), each failing exactly its set:**
+
+| sabotage | the plant | `test_wx_replay` fails exactly | `test_wx_k35` fails exactly |
+|---|---|---|---|
+| S-RP1, a layer kept across a zoom change | `SameLayer` ignores the radius | the 60 rows at 30 and 15, in both warning states. The 60 mi rows build fresh: the first by being first, the second because the warning changed | nothing. Its loop rows are all at 60, built once |
+| S-RP2, one label missing from the layer | the layer's build skips its first placed label | all 90 | the 15 K:loop rows |
+
+- **On the board:**
+  - **Every loop frame's `draw_us` falls in [28,000, 36,000] µs**, from the profile:
+    - **The lower end:** decode 1,990, plus the map less its band-row writes (about 23,700), plus the bands 3,048, plus the replay's word walk and 1,779-3,063 writes (about 0.6-1.3 ms), plus the strip and the band (about 200).
+    - **The upper end:** 3,121 + 25,872 + 3,311 + about 1,300 + 553 + 500 of overhead, about 34,700.
+  - **So B2's frozen bounds hold:** draw ≤ 45,000 µs; intervals 70,000 ± 5,000 µs, spread ≤ 10,000; ≥ 14 fps. That is on both loops at 60 mi, the second on the warning screen.
+  - **Each `[wx] layer` line** reports `build_us` ≤ 40,000 and a non-zero pixel count, at each loop's start. A rebuild happens on every tap, so no stale layer can survive to a later loop.
+- **Item 1, PSRAM, computed from the structures:**
+  - **the sum:** 159,824 (A9.20) + 720 (the loop records, build P; measured 736 including the allocator's rounding) + 59,488 (the layer) = **220,032 B, ± 2,000**;
+  - **the band:** 218,032-222,032;
+  - **nothing else in items 3-5 allocates PSRAM:** the diag's buffers and the ring are static or stack.
+- **Flash and RAM inside A9.5's ranges.**
+
+**The diag, one refinement, before the run that grades it.**
+- **A9.22's (iii) test is partly constructed.** `main.cpp` stores `Drawn` immediately before every push, so "phase at the push = 2" can never fail. On its own it cannot exclude (iii).
+- **The datum that can is the push's duration:**
+  - a push that returns in about 26 ms has sent all 115,200 bytes before the loop task can clear the buffer again;
+  - a push that returned early, an asynchronous DMA, could still be reading when the next `fillScreen` runs, which would show on the glass.
+- **(iii) is excluded only if both hold:**
+  - every push run's `push_us` minimum is ≥ 20,000;
+  - the push log's scene sequence (loop frames aside) equals the `[wx] screen=` lines' sequence.
+- **Otherwise it is not excluded,** and the table's verdict is "can't decide" for it.
+
+**Then the whole A9.19 set is re-run on build F,** with the runner and grader of A9.22 and the predictions above, and the diag read against A9.22's table with this refinement. **Outside any of it: stop and report.**
+
+### A9.24 Build F's re-run of the whole A9.19 set: everything as predicted except two things -- stopped for a ruling (2026-10-26 UTC)
+
+**The build and the run.**
+- **The build:** `e8838f0` on the backup branch, with 13.3 in its notes. #480 stays at `49846de`.
+- **The flash:** `907069326E64`, port resolved by serial, upload exit 0, "Hash of data verified".
+- **The run:** `run_b35.py` held one open from 2026-10-26T02:47:20Z to 02:55:22Z. There were 17 captures, and TCP :80 was up 0.5 s after the close.
+- **The record:** `tools/weatherscope/board/run-2026-10-26/`, LAN IP redacted (three places, `lines.json` included), raw snapshots kept outside the repo.
+- **The grade:** `grade_b35.py` reports **93 checks, 1 failing; the recorded-data sabotages 5/5 red**.
+
+**Before the run, recorded here as A9.23 asked.**
+- **An intermediate compile of (a)'s code measured static RAM 57,272 B,** over A9.5's 57,000.
+- **The cause:** two function-local statics I had put in `WxScreens.h`, a `ScreenOut` in `BuildLayer` and a `View` in `ComposeLayered`'s fallback, 1,680 B in all.
+- **The fix:** both were removed before build F was committed. `DrawInvariant` now writes its labels straight into the layer, and the fallback uses the layer's own view. Nothing was run on that compile.
+- **Build F itself:** flash 1,623,471 B and RAM 55,584 B, both inside A9.5's ranges.
+
+**As predicted (A9.19, A9.22, A9.23):**
+
+| row | result |
+|---|---|
+| H1-H3 (host) | 90/0; K 28/0 with the loop rows through the layer; every other suite and sabotage script unchanged; S-RP1 failed exactly 60 replay rows and no K row; S-RP2 failed 90 replay rows and the 15 K:loop rows |
+| PSRAM | **220,980 B**, inside 218,032-222,032 |
+| B1 | 6 of 6 believed (their own scene at both ends), each 57,600 of 57,600 equal to its K row, every printed block equal; picks 212400 / 220000 |
+| BZ | two blocks (U U U D from dry at 60; D H H from dry at 30); **7 of 7 believed, each exact** at 30, 15, 15, 30, 60, 15, 60 with its lines |
+| B2 at 60 | `[wx] layer build_us=20165 pixels=3063 valid=1 rebuilt=tap`; 15 of 15 hashes; epochs; **draw 32,454-33,723 µs**; intervals 69,967-70,029 µs (spread 62); **14.29 fps**; hash 4,048-4,090 µs |
+| B2 on the warning screen | layer 20,073 µs, 3,063 pixels; 15 of 15 hashes; **draw 32,311-34,462 µs**; intervals 69,851-70,151 µs (spread 300); 14.29 fps; hash 4,037-4,268 µs; the screen after it equal to warning-60 |
+| B3 | believed; `legend_check --fb` exits 0; the screen after it equal to warning-60 |
+| sabotages | S-B1a′, S-B1b′, S-B2a, S-B2b and S-B2c red |
+
+- **PSRAM's remainder:** the reading is 948 B above the computed 220,032.
+  - **The likely cause** is TLSF's second-level rounding of the 59,488 B layer block (to a 1,024 B step), plus its header. Build P's smaller change showed 16 B.
+  - **The alternative**, another allocation inside the measured window, is not excluded by this data.
+  - The band holds either way.
+- **The layer's pixel count on the board is 3,063,** the count A9.23 took on the host for a 60 mi loop frame.
+
+**Off the predictions: two findings.**
+
+1. **B2 at 60: the screen after the loop is FAIL, because the instrument found no agreeing pair in 6 fetches.**
+   - **The capture was believed:** its own scene was in force at both ends.
+   - **What the 6 fetches held:**
+     - fetches 0 and 2 were the finished approaching-60 frame (phases 2,2), not consecutive;
+     - fetches 1, 3, 4 and 5 were all phase 1,1, partly drawn.
+   - **The rule** is the pair rule, as A8.19 and A9.22 froze it: no agreeing pair in 6 fetches is a FAIL of the instrument. **It is recorded and not retried.**
+2. **The diag: against A9.22's table as written, the data fits no row. By the pre-registered escape, that is "the data can't decide".**
+   - **(i) is contradicted as worded.** Four fetches are unfinished frames at phase 3,3, one of them all-black (`snap-clear-2`). (i) predicted phase 1 at an end, and 1,1 for every all-black fetch.
+   - **(ii)'s condition holds for none.** Not one fetch holds an earlier scene's pixels.
+   - **(iii) is excluded by A9.23's test.** All 56 push runs ran at phase 2, the shortest push held 25,767 µs (≥ 20,000), and the push log's scene sequence matches the screen lines (23 of 24, the last run still open).
+   - **A defect of mine, disclosed:** the grader's printed verdict reads "(ii) an older buffer". Its rule, "any complete fetch that is not its tag's scene", was looser than A9.22's (ii), "an earlier scene's pixels". The grader is wrong there, and this paragraph is the reading against the frozen text.
+
+**What the data shows** (an analysis, not a verdict).
+- **The tally:** 57 fetches carried the headers. 36 equal their tag's scene; 19 do not; 2 are legend frames with no K row (`legend_check` graded the legend).
+  - One finished frame read 1,1 (`bz2-0`): its copy completed just before `Drawn` was stored, which fits (i).
+- **Each of the 19 was compared row by row** with its tag's scene and with the scene before it.
+- **The 15 at phase 1,1** hold content from the top rows down, equal row for row (±1, the row being written) to their own scene, with black below. That is `Draw`'s copy caught mid-way.
+- **The 4 at phase 3,3** are black from the top, with their own scene's rows below: `clear-1` 76 of 77 rows, `bz2-1` 85 of 85, `bz3-1` 143 of 143, and `clear-2` all black. That is `fillScreen` caught mid-way.
+- **No fetch matches the earlier scene** beyond rows the two scenes share.
+- **The 3,3 reading is a gap in the diag itself,** found in this data. `main.cpp` stores `Cleared` *after* `fillScreen`, so a copy inside the clear reads `Pushed` from the frame before.
+- **This picture fits (i)** (a copy inside the redraw: the clear, then the draw). It does not fit (ii) or (iii). But (i)'s registered predictions did not hold as worded, so it is not a verdict.
+
+**Stopped. Nothing changed; no fix pushed.** The record goes to the backup branch only.
+
+**For review:**
+1. **The diag.**
+   - **(a)** Daniel films the glass in slow motion: the pre-registered route for "can't decide".
+   - **(b)** Close the gap and settle it from data: a `Clearing` phase stored *before* `fillScreen`, and a re-run with (i)'s prediction restated as "every unfinished fetch has `Clearing` or `Cleared` at an end".
+   - (b) touches `main.cpp` again (one store, diag only).
+2. **The instrument.**
+   - **(a)** Re-run (the whole set, or B2's after-the-loop capture) as it stands. Fetches landed mid-redraw in 19 of 57 tries this run, so another no-pair is possible.
+   - **(b)** Make `/diag/fb` copy only a finished frame. A bounded wait for `Drawn`, the push window of about 25.8 ms in which the buffer is the finished frame, with `Drawn` checked again after the copy. The pair rule would then rarely need a third fetch.
+   - **(b) changes the shared endpoint's behaviour** (a wait of at most about 40 ms on `async_tcp`), so it is for a ruling.
+3. **#480:** whether it moves from `49846de` once these are ruled.
+
+### A9.25 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): build G -- the diag's Clearing phase, /diag/fb serves only finished frames, #480 moves
+
+> Rulings on A9.24 (reviewer chat, 2026-10-26)
+>
+> Build F is what we wanted: the loop at 14.29 fps with the draw at 32-34 ms, every screen exact, PSRAM in its band. Both misses stay recorded: B2's after-the-loop capture (an instrument FAIL, not retried, rightly) and (i) as worded. Your disclosure of the grader's loose "(ii)" verdict is accepted; fix the grader to the frozen wording.
+>
+> 1. The diag: (b), not the film. The film can only test (iii), and the push log already excludes (iii) on its own terms (every push at Drawn, each holding the loop 25.8 ms, scenes in order). What's undecided is (i)'s wording, and only data settles that.
+>    - Store Clearing before fillScreen (diag only, main.cpp).
+>    - (i) restated: every unfinished fetch has Clearing or Cleared at an end. (ii) and (iii) as frozen.
+>
+> 2. The instrument: (b). /diag/fb copies only a finished frame.
+>    - With Clearing stored, Pushed is unambiguous, so the buffer is finished from Drawn's store until the next Clearing. Wait, bounded, until the phase is Drawn or Pushed; copy; accept only if the phase is still Drawn or Pushed with the same tag and Sequence. Otherwise say so in the headers; never serve an unfinished frame as finished.
+>    - Set the bound from the measured clear-plus-draw span, with margin (the loop's is about 34-38 ms), and report each fetch's wait in a header.
+>    - This route is customer-facing on the radar build (the "Blipscope screen" viewer page). Predict for it from the code: every env builds; every edition's loop stores the phases, so the wait ends the same way there. Say so in #480's description. Leave the PHOTO_MODE route as it is.
+>    - Sabotage, predicted red, as its own short pass on a separate flash (no bench switch in the shipping image): the wait removed brings unfinished fetches back. That pass also grades the restated (i).
+>
+> 3. The order: build G = F + items 1-2, predictions frozen and pushed first; the sabotage pass; then reflash G and re-run the whole A9.19 set on it.
+>
+> 4. #480: yes. Once G's predictions and code are committed, move #480 to that commit so CI builds every env on the shared files, and run the board on the same commit. I'll approve at the head that both CI and the board graded.
+>
+> 5. Your reading of "B2 on the warning screen" is right: I meant the timing worst case, not a change to the loop's look.
+>
+> The hold ring on the glass is Daniel's row; I've asked him.
+>
+> Anything outside the predictions: stop and report, as usual.
+
+### A9.26 Build G: the design and the predictions, before its code (2026-10-26)
+
+**What G adds to F (A9.25 items 1 and 2).**
+1. **`kPhaseClearing` (4):** `main.cpp` stores it immediately before `fillScreen`. Each frame is then Clearing → Cleared → Drawn → Pushed, and **the buffer is a finished frame from the Drawn store until the next Clearing store**.
+2. **`/diag/fb`, the main route only** (the PHOTO_MODE route is unchanged), copies only a finished frame:
+   - **The loop:**
+     - wait, polling each millisecond (`vTaskDelay(1)`), until the phase is Drawn or Pushed;
+     - sample the phase, the tag and `Sequence`; copy; sample them again;
+     - **accept only if** both phases are Drawn or Pushed and the tag and `Sequence` are equal at both ends;
+     - otherwise try again while the bound allows.
+   - **The bound: 100,000 µs** from the request.
+     - **The spans:** the longest unfinished span measured is the loop's clear plus draw. A9.24 measured the draw at 32.3-34.5 ms, with the clear in the remainder: about 34-38 ms, as the ruling says. A scenario screen's span is about 6-9 ms (the clear plus a 5.4 ms copy).
+     - **So 100 ms covers:** one loop span, a rejected copy (about 6 ms), and a second span, with margin.
+   - **The headers:**
+     - `X-Blipscope-Frame-Finished: true|false`;
+     - `X-Blipscope-Frame-Wait-Us`, from the request to the accepted copy, or to the bound;
+     - `X-Blipscope-Frame-Attempts`;
+     - `X-Blipscope-Frame-Phase` and `-Tag`, as in F, from the copy served.
+     - **`X-Blipscope-Frame-Torn` becomes "not finished".** That is a superset of its old meaning ("`Sequence` moved during the copy"), so the viewer page's one retry and the bench's pair rule keep working on it.
+   - **An unfinished frame is never served as finished.** When the bound runs out, the last copy is served with `Finished: false` and `Torn: true`.
+3. **The grader:**
+   - **(ii) to the frozen wording:** a complete fetch whose pixels are an *earlier* scene's.
+   - **(i) restated** as ruled.
+   - **The `Finished` header is read on every fetch.**
+
+**The customer-facing route, predicted from the code** (the radar's "Blipscope screen" viewer page, `/diag/fb.html`):
+- **G1:** every env builds (CI's matrix on #480's head).
+- **G2:** every edition's loop stores the phases. The four stores are in `main.cpp`'s shared draw loop, outside every edition's `#ifdef`, so for every edition the wait ends the same way: at that edition's next Drawn.
+  - **The worst case for any edition:** a request holds `async_tcp` at most 100 ms, plus one copy.
+  - **The page itself:** unchanged. It already retries once on `Torn`.
+- **#480's description says so.**
+
+**The sabotage pass, S-WAIT, on a separate flash.** The sabotaged image is never committed, and it carries no bench switch.
+- **The plant:** in a scratch worktree of G's commit, the wait and the retry are removed, leaving one immediate copy, with the verification and the headers kept. It is built there and flashed onto `907069326E64`. G is reflashed afterwards.
+- **The pass (`tools/weatherscope/board/sab_wait.py`):** one open with the 1 s rule. 60 fetches, about 1 s apart, of whatever scenario screens the cycle shows at 60 mi, with no gestures.
+  - **Each fetch is graded:** its tag → its K row; the pixels; the phases; `Finished`.
+- **Predictions:**
+  - **S-WAIT red:** at least 1 of the 60 fetches is unfinished, meaning its pixels are not its tag's scene. A9.24's rate (19 of 57) suggests about a third. Every unfinished fetch carries `Finished: false`.
+  - **(i), restated:** every unfinished fetch has Clearing (4) or Cleared (1) at an end.
+  - **(ii), as frozen:** no complete fetch (phases 2 or 3 at both ends, equal tags and `Sequence`) holds an earlier scene's pixels. Every such fetch equals its own scene.
+  - **(iii), as frozen with A9.23's refinement:** every push at Drawn, the shortest ≥ 20,000 µs, and the push log's scene sequence matching the screen lines.
+  - **Outside these: "can't decide", stop.**
+
+**G's re-run: A9.19's whole set, on #480's head, which is G's commit.**
+- **A9.24's predictions stand,** with these added:
+  - **every fetch `Finished: true`;** no fetch marked finished differs from its tag's scene, where a K row exists;
+  - **every wait ≤ 100,000 µs** (the largest is reported);
+  - **every capture graded at its first pair (2 fetches).** A static screen's finished frames are identical. A capture whose scene ends mid-capture is failed by the belief rule, not graded.
+  - **B2's after-the-loop captures** are graded exact on both loops.
+- **Sizes:**
+  - **PSRAM unchanged from F:** G allocates no new PSRAM, and `/diag/fb`'s 115,200 B snapshot is per request and freed, as in F. The band stays 218,032-222,032.
+  - **Flash and RAM:** inside A9.5's ranges.
+- **The diag in G's run:** no unfinished fetch is served, so the restated (i) is graded in the sabotage pass. (iii)'s test is graded as in F.
+
+**#480.**
+- **When:** once this addendum and G's code are committed.
+- **What:** #480's branch moves to G's commit, its description gains the `/diag/fb` paragraph, CI builds every env, and the board runs on that same commit.
+- **Where results go:** the backup branch, so #480's head stays the commit that both CI and the board graded.
+
+**Outside every prediction here: stop and report.**
+
+### A9.27 Build G: the S-WAIT pass and the whole A9.19 set, all as predicted; CI green on the same commit (2026-10-26 UTC)
+
+**The commit graded: `3a1af19`.**
+- **#480 moved to it:** from `49846de`, a fast-forward of 9 commits, pushed at 03:51:02Z, with its title and description updated as A9.25 item 2 asked.
+- **The flash:** G's image, `firmware.bin` sha256 `de3730c80072…`, 1,624,592 B, written and verified on `907069326E64`.
+- **The results stay off #480:** they go to the backup branch, so #480's head stays the commit that CI and the board graded.
+
+**One deviation from A9.26's text, stricter only, recorded in the commit itself.**
+- **What changed:** `/diag/fb` also requires `framebuf::Clears()`, a count of Clearing stores, to be equal at both ends of a copy.
+- **Why:** an edition that sets no tag (the radar's is 0) could otherwise have a whole clear-and-draw land inside one copy and pass "same tag and `Sequence`".
+- **Effect:** it can only reject more copies; no prediction depends on it.
+
+**One fix to my own tool before the S-WAIT pass, recorded here.**
+- **The flaw:** `sab_wait.py`'s "the plant took" check (every fetch made one attempt) cannot discriminate, because G also makes one attempt whenever its first copy is finished.
+- **The change:** it now prints the attempts and grades nothing on them. The proof that the plant reached the board is the artifact: the sabotaged image differs from G's (`9f81c3347401…` against `de3730c80072…`), and the flash verified what it wrote (1,624,480 B).
+
+**The S-WAIT pass** (`tools/weatherscope/board/run-2026-10-26-swait/`, `plant.diff` included):
+- **The sabotaged image:** built in a scratch worktree of `3a1af19`, the wait and the retry removed. It was flashed, run from 03:53:47Z to 03:55:54Z, and G was reflashed afterwards. The scratch worktree has been removed.
+- **The 60 fetches:**
+  - 1 failed to resolve the board's name, which was still coming up after the flash;
+  - 1 was the boot splash, which has no K row;
+  - **58 were graded.**
+
+| prediction | result |
+|---|---|
+| S-WAIT red | **9 of 58 unfinished**, every one marked `Finished: false` |
+| (i), restated | **9 of 9** unfinished fetches have Clearing or Cleared at an end |
+| (ii), as frozen | no complete fetch holds an earlier scene's pixels |
+| (iii), as frozen with A9.23's refinement | all 4 push runs at Drawn, the shortest 25,771 µs, the scene sequence matching |
+| the verdict | **(i) a copy inside the redraw; (ii) and (iii) excluded.** A9.24's "can't decide" is settled from data |
+
+**G's re-run of the whole A9.19 set** (`tools/weatherscope/board/run-2026-10-26-g/`).
+- **The run:** 2026-10-26T03:56:58Z to 04:04:55Z, one open, 17 captures. TCP up 0.5 s after the close.
+- **The grade:** **98 checks, 0 failing; the recorded-data sabotages 5/5 red.**
+
+| row | result |
+|---|---|
+| /diag/fb | **34 of 34 fetches `Finished: true`**; waits 4,627-14,121 µs (≤ 100,000); **17 of 17 captures graded at their first pair** |
+| B1 | 6 of 6 believed and exact at 57,600, every printed block equal |
+| BZ | 7 of 7 believed and exact (30, 15, 15, 30, 60, 15, 60) |
+| B2 at 60 | layer 20,082 µs, 3,063 px; hashes 15/15; **draw 32,281-33,705 µs**; intervals 69,846-70,157 µs; 14.29 fps; **the screen after the loop exact** (it failed in A9.24) |
+| B2 on the warning screen | layer 20,577 µs; **draw 32,351-33,675 µs**; intervals 69,994-70,006 µs; 14.29 fps; the screen after it exact |
+| B3 | the legend exact; the screen after it exact |
+| sizes | PSRAM 220,980 B (band 218,032-222,032); flash 1,624,191 B, RAM 55,584 B |
+| the diag | no unfinished fetch was served, so (i) holds only vacuously here and was graded in the S-WAIT pass; (iii) excluded again (56 push runs at Drawn, shortest 25,770 µs, the sequence matching) |
+
+**CI on `3a1af19`, read once the runs had finished:** 35 checks, 32 success, 3 skipped (version, promote, ship-alert: release-only), **0 failures**. `host-tests`, `build (weatherscope-s3-128)` and `build (blipscope-s3-128, s3-128)` are among the successes, so G1 holds: every env builds.
+
+**Still open:** the hold ring on the glass is Daniel's row (A9.25).
+
+**Next, as ruled (A9.21):** 3.5b's plan with its predictions, and the package format doc, sent for review before any 3.5b code. Then 3.4.

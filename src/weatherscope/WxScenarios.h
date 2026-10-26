@@ -7,6 +7,9 @@
 //   Warning      the approaching frame + a SYNTHETIC Severe Thunderstorm Warning: a square +-0.25 deg around the
 //                centre; expires at the clock + 45 min on the -05:00 clock; hail "1.00", wind "60 MPH"; motion from
 //                240 deg at 30 kt; the storm at the nearest echo cell's centre
+//   Stale        the approaching frame read 31 min after its own time (Q15): the clock moves on, the frame does not
+//   Clear        a SYNTHETIC all-dry crop (test/fixtures/wx/loop/synthetic-clear.wxc, the newest frame's header) and a
+//                SYNTHETIC observation at 54 F with no present weather, 5 min before the clock (Q15)
 //
 // The synthetic parts are labelled synthetic in the scenario and are never presented as real weather.
 // Pure C++11 over WxLogic.h, host-testable (test/host/test_wx_scenarios.cpp).
@@ -25,7 +28,7 @@ namespace wxscen {
 
 using wxlogic::LatLon;
 
-enum class Kind : uint8_t { Dry, Approaching, HereNow, Warning };
+enum class Kind : uint8_t { Dry, Approaching, HereNow, Warning, Stale, Clear };
 
 constexpr int64_t kObsLeadS = 300;          // the observation, this long before the frame's clock
 constexpr int64_t kExpiresAfterS = 45 * 60; // the warning expires this long after it
@@ -33,6 +36,8 @@ constexpr int kOffsetMin = -5 * 60;         // CDT on 2024-05-21: the clock NWS 
 constexpr double kHalfDeg = 0.25;           // the warning's square, around the centre
 constexpr int kFromDeg = 240;               // storm motion: from this direction ...
 constexpr int kSpeedKt = 30;                // ... at this speed
+constexpr int64_t kStaleLateS = 31 * 60;    // Stale: the clock this long after the frame (Q15)
+constexpr double kClearTempF = 54.0;        // Clear: the synthetic observation's temperature (Q15)
 
 // The crop's centre, as RK and ring_ref.py take it: the middle of the cell grid.
 inline LatLon Centre(const wxcrop::Header& h)
@@ -95,8 +100,11 @@ inline void IsoOnClock(int64_t utc, int offMin, char* out, size_t cap)
 // One scenario. The warning points into this object's own buffers, so it is built in place and never copied.
 struct Scenario {
     Kind kind = Kind::Dry;
-    bool synthetic = false;            // true when an observation or a warning was made up (HereNow, Warning)
+    bool synthetic = false;            // true when anything was made up (HereNow, Warning, Stale, Clear)
     int64_t nowUtc = 0;
+    int64_t frameUtc = 0;              // the frame's own time; the clock is later than it only in Stale
+    bool hasTemp = false;              // the observation's temperature (Clear's, synthetic)
+    double tempF = 0;
     LatLon here{0, 0};
     bool approaching = false;
     const char* obs[1] = {nullptr};
@@ -121,13 +129,22 @@ struct Scenario {
 inline bool Build(Kind kind, const wxcrop::Header& h, const uint8_t* codes, Scenario* s)
 {
     s->kind = kind;
-    s->synthetic = kind == Kind::HereNow || kind == Kind::Warning;
-    s->nowUtc = h.frameEpoch;
+    s->synthetic = kind != Kind::Dry && kind != Kind::Approaching;
+    s->frameUtc = h.frameEpoch;
+    s->nowUtc = h.frameEpoch + (kind == Kind::Stale ? kStaleLateS : 0);
     s->here = Centre(h);
     s->approaching = wxlogic::EchoWithin(h, codes, s->here);
     s->obsN = 0;
     s->obsValid = false;
+    s->hasTemp = false;
+    s->tempF = 0;
     s->warnN = 0;
+    if (kind == Kind::Clear) {
+        s->obsValid = true;                                       // SYNTHETIC: no present weather, 54 F
+        s->obsUtc = s->nowUtc - kObsLeadS;
+        s->hasTemp = true;
+        s->tempF = kClearTempF;
+    }
     if (kind == Kind::HereNow) {
         s->obs[0] = "-RA";                                        // SYNTHETIC
         s->obsN = 1;
