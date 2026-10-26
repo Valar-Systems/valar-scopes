@@ -13,6 +13,8 @@
 
 ## 1. The finding: PROVENANCE alone can exceed the 32 KB cap
 
+> **Ruled 2026-10-26 (Addendum 1): neither (B) nor (C). PROVENANCE is by reference, inside v1, and bounded at a few KB.** This section stands as the record of why.
+
 **The two rules, as frozen:**
 - §7: for each source used, `source.<layer>`, `vintage.<layer>` and `sha256.<layer>`, **"one set per file"**.
 - §6: **a hard cap of 32 KB for the non-terrain sections**. PROVENANCE is section 7, a non-terrain section, so it counts.
@@ -136,7 +138,7 @@ bm/v1/<storeId>/index.json               per cell: key, bytes, reach box
 bm/v1/<storeId>/cells/<cell>.bin         the vector features of one cell (format below)
 bm/v1/<storeId>/coverage.bin             one bit per two-decimal lattice point: inside the 50 states + DC
 bm/v1/<storeId>/terrain/9/<x>/<y>.png    the Terrarium tile, byte for byte as fetched (so its sha256 is the file's)
-bm/v1/<storeId>/terrain-gate.bin         one bit per mirrored tile: it meets land outside the 50 states + DC
+bm/v1/<storeId>/terrain-sources.bin      four bits per mirrored tile: SRTM, GMTED2010, ETOPO1, NRCAN (Addendum 1, A1.4; was terrain-gate.bin)
 bm/v1/current                            { "storeId": ... }, written last, only after verification
 ```
 
@@ -211,6 +213,8 @@ It does auth, rate limiting, parameter validation and normalisation, the ETag an
 - **Canada at z9 is NRCAN** (Open Government Licence – Canada).
 - **Mexico at z9 is SRTM:** INEGI appears only from zoom 10.
 
+> **Superseded by Addendum 1 (A1.3): there is no terrain gate in v1.** Every source a US-origin z9 mosaic can contain has terms that can be met, and the credits follow the tiles (A1.4). The paragraph below is the plan as reviewed.
+
 **The gate, v1:** terrain is served only when **no tile of the mosaic** (with its margin) meets land outside the 50 states + DC.
 - **The test:** each mirrored tile's footprint against Natural Earth admin-0, buffered 5 km for its generalisation, precomputed into `terrain-gate.bin`.
 - **Otherwise:** `422 terrain_unavailable`, and the client asks again without terrain.
@@ -242,7 +246,7 @@ It does auth, rate limiting, parameter validation and normalisation, the ETag an
 | `If-None-Match` equals the ETag | **`304`**, no body | 0 |
 | a Cache API hit | `200`, the cached package | 0 |
 | origin outside v1 coverage | `404 no_coverage` (BQ7) | 1 (one bit read) |
-| terrain asked, the gate refuses | `422 terrain_unavailable` | 1 |
+| ~~terrain asked, the gate refuses~~ | ~~`422 terrain_unavailable`~~ **removed from v1** (A1.3) | |
 | still over the cap after §6's drops | `422 too_large` | 1 |
 | no sealed store, or a store read failed | `503 basemap_unavailable` | 1 |
 | the built package fails validation | `500 builder_invalid`, never the bytes | 1 |
@@ -322,6 +326,8 @@ With PROVENANCE at 14.5 KB (terrain on) or 10.5 KB (terrain off), Bend lands **b
 **Why the geometry bands are frozen later:** the first anchor is Weatherscope's own `bend.bmpk`. Its section lengths are a measurement of the same layer rules. So the geometry bands for the other centres are frozen from Bend's measured bytes per km of river, per ring and per road, **before** the builder runs on any other centre.
 
 ### 5.4 Predicted outcomes at the two products' radii
+
+> **Superseded (BQ1, Addendum 1).** With PROVENANCE by reference, this table no longer stands. It is re-predicted from MS0 and the Bend anchor before the builder runs on real data (A1.8), and kept below as the record.
 
 **The Blipscope's ranges, read from firmware:**
 - **The configured radius** is any value from 0.1 to 222 km (`ConfigurationWebServer.cpp`: `max="222"`, `MAX_KM = 222`). The default is **100 mi**, which is 161 km on the wire (`lround`).
@@ -408,7 +414,7 @@ Bands, graded at the stage named. The outside-the-set rule applies to each.
 | **MD** determinism | **MD1:** the same request twice in one isolate is byte-identical. **MD2:** workerd (vitest-pool-workers) against Node is byte-identical; both are V8, so the same fdlibm `Math` (predicted; a difference stops and is reported). **MD3:** `scripts/basemap-check.ts <pkg>` reads the `builder` commit from PROVENANCE, checks out that commit in a temporary worktree, re-fetches each listed file and verifies its sha256, re-ingests and rebuilds from the header's origin, R and ε and the sections present, and exits 1 on any byte difference | MD3: a package with one byte changed and its CRC recomputed → exit 1. A commit or file it cannot get → exit 2 (BLIND), never 0 |
 | **MG** **the golden row** (registered now) | **MG1:** my builder, fed **the source files named in `bend.bmpk`'s PROVENANCE** (fetched and sha256-verified) and the request read from its header and sections, **decodes equal** within format §11: places and peaks identical; every section the same item count; every line and ring the same vertex count, with each vertex within ±1 unit; terrain within ±1 with at most 0.1 % different, per level. **Graded when `bend.bmpk` exists; BLIND until then, which is not a pass; never skipped.** A failure caused by a §10 reading is reported with the reading named, and nothing is fixed without a ruling | **S-GEPS:** my builder at 1.5 ε must FAIL on vertex counts. **S-GSMOOTH:** no 4 × 4 mean must FAIL on > 0.1 %. **The control:** `bend` against itself → 0 differences |
 | **MP** privacy | **MP1:** no log line carries the quantised lat or lon. **MP2:** **0** R2, KV or DO writes on the request path, counted through wrapped bindings. **MP3:** the ETag and the cache key contain no coordinate string | a planted `console.log(lat2)` turns MP1 red; a planted R2 put turns MP2 red |
-| **MC** coverage and the gate | public airports in the US → covered; PHNL → covered; EGLL, and a cleared non-US centre → `no_coverage`; KBUF with terrain → `terrain_unavailable`, without terrain → 200 | **S-BBOX:** coverage built from the state polygons' bounding boxes. A centre inside New York's box but in Canada (cleared first) must then read as covered, and fail |
+| **MC** coverage and the gate (superseded by A1.7's MC: no gate; KBUF is served with the OGL-Canada statement) | public airports in the US → covered; PHNL → covered; EGLL, and a cleared non-US centre → `no_coverage`; KBUF with terrain → `terrain_unavailable`, without terrain → 200 | **S-BBOX:** coverage built from the state polygons' bounding boxes. A centre inside New York's box but in Canada (cleared first) must then read as covered, and fail |
 | **MW** the endpoint table (§3) | every row's status, body shape, builder-call count and store-read count, as WS6 did; unauthenticated → 401 before anything; `/v1/basemap` byte-identical to `/api/v1/blipscope/basemap`; a validator refusal → `500 builder_invalid`, never the bytes | a sabotaged builder writing road class 3 must produce `500`, not `200` |
 | **MS** sizes | **MS0:** exact PROVENANCE bytes per centre and radius from the sealed manifest (frozen before the builder). **MS1:** §5.4's classes. Every size is printed per section | under BQ1 (A), **S-NOPROV:** a builder that leaves PROVENANCE out of the cap total must move Atlanta's r 97 + terrain from X to a lower class |
 
@@ -466,7 +472,11 @@ Each stage is reviewed and merged before it deploys, as Daniel's standing deploy
 
 ---
 
+> **Ruled 2026-10-26 (Addendum 1):** RD1 is **(a)**, every file read. RD2-RD17 are ruled as written, for both builders (format doc §13 at `1efb660`).
+
 ## 11. Questions, each with a recommendation
+
+> **All ruled 2026-10-26: see Addendum 1, A1.1.**
 
 - **BQ1, PROVENANCE and the cap (§1).** Recommended: **(B)**, PROVENANCE outside the 32 KB cap with its own bound, set from MS0's worst measured case. **Ruled before the size predictions (§5.4) are re-frozen.**
 - **BQ2, the terrain credits at z9 (§2.7).** joerd's own z9 row names SRTM, GMTED (above 60° N) and ETOPO1, not 3DEP. Recommended:
@@ -497,3 +507,463 @@ Each stage is reviewed and merged before it deploys, as Daniel's standing deploy
 5. **MM1/MM3 locally.** Then the builder's `cpu_ms` is set from MM3, and §5.4 is re-predicted from the Bend anchor if BQ1 moved it.
 6. **D0 → D2 → D3 (staging) → D4 (production),** each with its rows.
 7. **The results,** recorded here, misses included.
+
+---
+
+## Addendum 1, 2026-10-26: the rulings, and the truth tables frozen before any code
+
+### A1.1 The rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-26)
+
+**The first paste:**
+
+> Rulings on the plan, docs/basemap-route.md at e0c43ce (reviewer chat, 2026-10-26)
+>
+> The plan is accepted with the rulings below. Freeze the truth tables in your PR before any code, then follow §12.
+>
+> BQ1: neither (B) nor (C). Provenance by reference, inside v1. Clients never parse PROVENANCE (they check that it exists and the CRC), so changing its lines changes no field a reader uses, and is no version change. §7 is amended by this ruling (Weatherscope Code records it in the format doc):
+> - PROVENANCE keeps format, builder, the credits, the processing line, epsilon and the dropped/collapsed counts;
+> - it adds store: <storeId>;
+> - per layer, it carries source.<layer> (the base URL), vintage.<layer>, files.<layer> (a count), and sha256.<layer>: a sha256 over that layer's sorted "url sha256" lines;
+> - the per-file list itself lives in the store's manifest.json (for the stored Bend package: a manifest committed beside the fixture).
+> So PROVENANCE is bounded at a few KB whatever the counties or tiles, and stays inside the 32 KB cap. MD3 reads the files from the manifest that the digests pin. Re-predict §5.4 from MS0 and the Bend anchor before the builder runs.
+>
+> RD1: (a), every file read; size no longer argues for (b′), and (a) reproduces exactly. RD2-RD17: your readings, as written, are ruled for both builders. Weatherscope's host tool adopts them and reports any it already does differently, before either builder freezes.
+>
+> BQ2: credit what the z9 tiles contain, per joerd's z9 row: SRTM's line for land; GMTED2010's line and its modification statement above 60° N; ETOPO1's NOAA credit on any mosaic with an ocean pixel. No 3DEP line; it is not in z9. The processing line is carried on every terrain package.
+>
+> BQ3: no blanket border gate. Mexico at z9 is SRTM, so serve it. Canada at z9 is NRCAN: read the Open Government Licence – Canada; if it allows redistribution of derived data with its attribution statement, carry that statement when the mosaic touches Canada and serve. Gate only where a source's terms can't be met, and say which.
+>
+> BQ4-BQ8 and BQ10-BQ13: as recommended. BQ9: settled above.
+>
+> Resources: announce each (the bucket, the Worker, the binding) before it exists, with its expected monthly cost. Anything that could add a bill waits for Daniel's yes.
+>
+> The PK fixtures and bend.bmpk: Weatherscope Code is asked to land them on main as their own small PR, so MV and MG can run; until then they read BLIND, as planned.
+
+**The second paste:**
+
+> PROVENANCE details, for both builders (reviewer chat, 2026-10-26)
+>
+> Weatherscope Code recorded the BMPK amendments as A10.12 (weatherscope/stage3-5b-plan @ 95fc61a): §7 by reference, the corrected credits, and a new §13 with your RD1-RD17 (RD1 as (a)). Four details are now ruled for both builders:
+> 1. The layer keys, in this order: water, rivers, roads, peaks, places, population, terrain. terrain counts every z9 tile read, including tiles read only for peak elevations.
+> 2. source.<layer>: the longest common directory prefix of the layer's file URLs, ending in /.
+> 3. sha256.<layer>: lowercase-hex SHA-256 over the "<url> <lowercase sha256>\n" lines, sorted in byte order, every line ending in \n.
+> 4. store: the first 12 hex of the manifest's sha256 (yours: the sealed manifest.json; Bend's: bend.manifest.json, with sorted keys, one-space indent and a final newline).
+> Also: the terrain credits follow the tiles read, whether or not terrain was requested, since peak elevations come from them.
+>
+> Adopt them. If one doesn't fit the store, raise it before your truth tables freeze.
+
+**The format doc these bind to:** `docs/basemap-package-format.md` on `weatherscope/stage3-5b-plan` at **`1efb660`** (A10.13). The branch moved from `95fc61a` to `1efb660` while I read it, so I read §7 and §13 again at `1efb660`. Every ruled detail above is in its §7, and RD1-RD17 are its §13.
+
+### A1.2 What the rulings change in the plan
+
+| plan | was | now |
+|---|---|---|
+| §1, BQ1 | options (A), (B), (C); (B) recommended | **PROVENANCE by reference**, inside v1 (A1.5). Bounded: MS-P asserts **≤ 3,072 B** on every package |
+| §10, RD1 | (b′) recommended | **(a), every file read.** RD2-RD17 ruled for both builders |
+| §2.3, the store | `terrain-gate.bin` | **`terrain-sources.bin`**: four bits per mirrored tile (A1.4) |
+| §2.7, the gate | terrain refused where the mosaic meets non-US land | **no gate in v1** (A1.3) |
+| §3, the answers | `422 terrain_unavailable` | **removed** |
+| §5.4 | outcome classes under per-file PROVENANCE | **superseded**; re-predicted from MS0 and the Bend anchor before the builder runs (A1.8) |
+| §8 | the check families | **frozen in A1.7**, with one more family, **MI** (the ingest) |
+
+### A1.3 BQ3: the Open Government Licence – Canada, read
+
+**What I read** (2026-10-26):
+- **The licence:** `https://open.canada.ca/en/open-government-licence-canada`, **version 2.0**. curl was refused by the site's firewall ("Request Rejected"), so I read it through the fetch tool. **There is no byte copy and no sha256 of it.**
+  - **The grant, quoted:** "The Information Provider grants you a worldwide, royalty-free, perpetual, non-exclusive licence to use the Information", to "Copy, modify, publish, translate, adapt, distribute or otherwise use the Information in any medium, mode or format".
+  - **The one condition:** "Acknowledge the source of the Information by including any attribution statement specified by the Information Provider(s)" and, where possible, link to the licence. If the provider specifies no statement, the standard one applies: "Contains information licensed under the Open Government Licence – Canada."
+  - **The exemptions:** personal information, third-party rights, official names and symbols, and other intellectual property such as patents and trade-marks.
+  - **Non-endorsement:** no use that suggests official status or endorsement.
+- **NRCAN's statement for CDEM,** from joerd's `docs/attribution.md` at `0b86765`. That file as fetched has sha256 `2ce4d3414b4592d17ad56a5af57feb480686ddcfb0a3e4ea0b566d28cde13567`. The statement: "Contains information licensed under the Open Government Licence – Canada."
+
+**So it allows it.** Derived data (a hillshade, a summit's elevation) may be redistributed with the statement.
+- **What the route does:** it carries the statement, with the licence's link, whenever any tile read meets Canada, and **serves**.
+- **The alternative, named:** that a DEM falls under an exemption. **Excluded:** a DEM is not personal information, a third-party right, an official symbol, or a patent or trade-mark.
+
+**The gate: none in v1.** Every source a US-origin z9 mosaic can contain has terms that can be met:
+
+| source (joerd's z9 row) | where | term | met by |
+|---|---|---|---|
+| SRTM | land below 60° N, Mexico included | USGS asks for credit | its credit line |
+| GMTED2010 | land above 60° N | credit; "describe the types of modifications" | its credit line and the processing line |
+| ETOPO1 | ocean | NOAA's formal credit | its credit line |
+| NRCAN | Canada | OGL – Canada: the attribution statement | its statement and the licence link |
+| EUDEM | Europe | | out of reach of a US origin |
+
+- **So `422 terrain_unavailable` leaves v1.** A later source whose terms cannot be met brings it back, under its own ruling.
+- **Two more terms, recorded and not acted on:**
+  - SRTM's notice asserts copyright for products distributed **outside** the US. v1 serves US origins only.
+  - ETOPO1's 17 U.S.C. 403 notice binds **copyrighted** works. The packages claim no copyright.
+
+### A1.4 BQ2: the credits and the tile bits, frozen
+
+**The lines,** in this order, each carried when any tile read has its bit. The texts are verbatim from `attribution.md` at `0b86765`; the NRCAN statement adds the licence link the licence asks for.
+
+| bit | `credit.terrain:` line |
+|---|---|
+| SRTM | `credit.terrain: SRTM data courtesy of the U.S. Geological Survey` |
+| GMTED2010 | `credit.terrain: GMTED2010 data courtesy of the U.S. Geological Survey` |
+| ETOPO1 | `credit.terrain: ETOPO1: DOC/NOAA/NESDIS/NCEI > National Centers for Environmental Information, NESDIS, NOAA, U.S. Department of Commerce` |
+| NRCAN | `credit.terrain: Contains information licensed under the Open Government Licence – Canada. https://open.canada.ca/en/open-government-licence-canada` |
+
+- **"ETOPO1: " is my prefix.** NOAA's formal credit names its centre, not the dataset, so without it a reader cannot tell which source the line credits (A1.5, RD-P5).
+
+**The tile bits,** computed once at ingest from Natural Earth 10 m (public domain) into `terrain-sources.bin`:
+
+| bit | set when the tile's footprint |
+|---|---|
+| SRTM | meets land south of 60° N |
+| GMTED2010 | meets land north of 60° N |
+| ETOPO1 | meets ocean, buffered **2 km** |
+| NRCAN | meets Canada (admin-0), buffered **2 km** |
+
+- **Why buffer at all:** a missed credit breaks a term, while an extra one overstates.
+- **Why only 2 km:** crediting a source the data does not contain is itself a false statement (BQ2), and 2 km covers Natural Earth 10 m's generalisation.
+
+**The processing line** is carried whenever any tile was read (format §7 at `1efb660`), so GMTED2010's modification statement is present wherever GMTED2010 is. Three texts, frozen:
+
+| tiles read for | `processing.terrain:` |
+|---|---|
+| levels only | `Terrarium z9 elevations; hillshade from 315 deg at 45 deg with 2x vertical exaggeration; 4x4 mean of z9 pixels; each level pixel takes the z9 pixel containing its centre; shade quantised to 8 bits` |
+| peaks only | `Terrarium z9 elevations; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres` |
+| both | the levels text, then `; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres` |
+
+### A1.5 PROVENANCE by reference, as the route writes it
+
+**Adopted as ruled** (format §7 at `1efb660`):
+- **The lines, in order:**
+  - `format`;
+  - `builder: blipscope-basemap <40-hex commit>`;
+  - `store: <the first 12 hex of the sealed manifest.json's sha256>`;
+  - for each layer read, in the order `water, rivers, roads, peaks, places, population, terrain`: `source`, `vintage`, `files` and `sha256`;
+  - the credits and the processing line, whenever any tile was read;
+  - `epsilon.m`, the ε requested;
+  - then `dropped.<layer>` and `collapsed.<layer>` for every layer read.
+- **`source.<layer>`** is the longest common directory prefix, ending in `/`.
+- **The digest** is over the `<url> <sha256>\n` lines, in byte order.
+- **The URLs** are the exact fetch URLs, with RD17's form for terrain.
+
+**Store fit, raised before the freeze as the second ruling asks.** Neither changes a package's bytes, nor anything MG1 grades.
+- **F1, the manifest's `builder`.** The stored fixture's manifest is `{"builder", "files", "predicates"}`.
+  - In the route's store, the manifest is written once by **the ingest**, while packages are built later by the builder Worker, perhaps at another commit. So the manifest's `builder` can only be the **ingest's** commit.
+  - Each package's own `builder:` line still names the builder Worker's commit.
+  - **Recommended:** keep the key, for the same shape as the fixture, defined for the route as "the commit of the code that wrote this manifest".
+- **F2, the inputs that never enter a package.** The store also reads the TIGER state and county files and Natural Earth, for coverage, county extents and the tile bits.
+  - **Recommended:** they sit in the same `files` list under keys outside the seven (`states`, `counties`, `naturalearth`), so `store:` pins them too. No package's PROVENANCE ever lists them.
+- **The manifest's serialisation is the fixture's,** adopted for the route: UTF-8 JSON, sorted keys, one-space indent, a final `\n`. Each `files` entry is `{bytes, layer, sha256, url, vintage}`. So `store:` is reproducible from the manifest bytes.
+
+**The details still not pinned, and my readings.** These are PROVENANCE text only, which no client parses and MG1 does not grade. I offer them for the host tool to match.
+
+| | the detail | the route's reading |
+|---|---|---|
+| RD-P1 | the order of the `dropped`/`collapsed` lines | per layer read, in the fixed order: `dropped.<layer>`, then `collapsed.<layer>` |
+| RD-P2 | `vintage.<layer>` when a layer's files carry more than one | the distinct vintages, ascending, space-separated (normally one) |
+| RD-P3 | the vintage of a file whose name carries no year (GNIS, Terrain Tiles) | the year of its `Last-Modified` as fetched, recorded in the manifest |
+| RD-P4 | `epsilon.m`'s form, and line ends | the requested mm ÷ 1,000 with exactly three decimals (`100.584`); lines joined by `\n`, with no trailing `\n` |
+| RD-P5 | the order and form of the credit lines | A1.4's order and texts |
+| RD-P6 | a county's or state's files "read" by the route | those whose TIGER polygon's bounding box meets the square's latitude/longitude box, closed. A feature in the square lies in a county that meets it, so no feature depends on this |
+
+**The readings that can change geometry or terrain, and so need the host tool's agreement before either builder freezes.** These are new, forced by §6 and §5.6 rather than by the rulings, and I raise them now:
+
+| | the detail | the route's reading |
+|---|---|---|
+| RD18 | "smallest-area first" (§6) | the shoelace area of the ring's **quantised** vertices (exact integers), smallest first; on a tie, the later ring in source order goes first |
+| RD19 | "shortest first" (§6) | the summed segment length of the road's quantised vertices, in double, shortest first; on a tie, the later road first |
+| RD20 | what the 32 KB cap measures | `totalBytes` minus the **bodies** of the TERRAIN sections. Their directory entries count |
+| RD21 | the z9 pixel of a point (§5.4 summits, §5.6 sampling) | `X = (lon + 180) / 360 · 2^17`, `Y = (1 − ln(tan(π/4 + φ/2)) / π) / 2 · 2^17`, each floored; tile `⌊X / 256⌋`, pixel `X mod 256` |
+
+### A1.6 The resources, announced before they exist
+
+| resource | made at | expected monthly cost |
+|---|---|---|
+| R2 bucket `blipscope-basemap`, no lifecycle expiry | D1 | **$0:** 1.6-4.8 GB (the dry run measures it) with the account's ~0.7 GB, inside the free 10 GB |
+| Worker `blipscope-basemap` (staging and production), no route | D2 | **$0:** a service-binding call adds no request charge, and its CPU is inside the 30M ms included |
+| the proxy's `BASEMAP` service binding (staging, then production) | D3, D4 | **$0** |
+
+**What could add a bill.** Each waits for Daniel's yes before the step that risks it:
+1. **R2 storage over 10 GB.** The dry run's measured size is reported before D1. If it plus the account's current use would pass 10 GB, I ask before creating anything.
+2. **R2 Class A in an ingest month,** with the weather ingest near 88 % of the free 1M. The D1 upload's put count is stated beforehand. If it would take the month past 1M, I ask.
+3. **Workers CPU from parameter churn.** This is bounded by the rate limit and the Cache API, and watched in D3's rows.
+
+### A1.7 The truth tables, frozen
+
+**Conventions:**
+- **The synthetic origins** are (0°, 0°) for the arithmetic families and (0.37°, 0.59°) for MW and MP. The second has distinctive digits for MP's string checks. Both are the location of nothing.
+- **Unless a case says otherwise:** R 97,000,000 mm; ε 100,584 mm; k 111.0; c0 = max(cos(lat0 · π/180), 0.01).
+- **Synthetic stores give lat/lon** from km as `lat = lat0 − S/111`, `lon = lon0 + E/(111 · c0)`, in double.
+- **The test constants:**
+  - builder commit: forty `1`s;
+  - file sha256s: `3`×64 (water), `4`×64 (roads), `5`×64 (tiles);
+  - store ids: the real 12-hex prefix of each fixture manifest's sha256.
+  - None is a 16-hex run, so the device-id hook stays quiet.
+- **The expected doubles** come from a throwaway calculator written from format §2, §4, §5.6 and §9 and RD21, not from builder code (none exists). Every integer is exact.
+- **Where each runs:**
+  - `host`: vitest under Node;
+  - `worker`: vitest-pool-workers;
+  - `store`: the real sealed store, read locally, after D1.
+- **BLIND or unreadable counts as FAIL.**
+
+**The sabotage rule** (A10.11's):
+- each sabotage asserts its needle appears exactly once and that the file changed, before anything is measured;
+- it restores the file from a byte copy, with a sha check;
+- its set is the **exact** list of cases that must fail, across every family below except:
+  - **MD3a and MD4,** which compare against the *committed* code and so fire, correctly, on any change to builder output;
+  - **MG,** BLIND until its fixture lands;
+- every other case must be unchanged.
+
+**The functions under test** (names frozen, so the cases bind to them), in `proxy/src/basemap/`:
+
+| file | functions |
+|---|---|
+| `query.ts` | `parseQuery(url)`, `etagOf(query, rev, storeId)` |
+| `format.ts` | `validate(bytes) → {status}` with A10.11's status names (`kOk`, `kHeader` … `kBody`); `encode(pkg)`; `decode(bytes)`; `crc32` |
+| `frame.ts` | `toFrameKm`, `clipLine`, `clipRing`, `simplify`, `quantise` |
+| `layers.ts` | `keepWater`, `isRiverName`, `selectRivers`, `isBusRoute`, `roadClass`, `rankPeaks`, `withinMm`, `keepPlaces` |
+| `budget.ts` | `fitBudget` |
+| `terrain.ts` | `decodeTerrarium`, `hillshade`, `boxMean4`, `shadeByte`, `levelPixelToZ9`, `elevationM` |
+| `provenance.ts` | `layerDigest`, `provenanceText` |
+| `build.ts` | `build(store, query, { capBytes = 32768 })`. **`capBytes` is a test seam:** the Worker entry never passes it, and MW13 reaches it only through a test builder |
+| `handler.ts` | `handleBasemap` |
+| `proxy/scripts/basemap/ingest-lib.ts` | `filterRecord`, `joinPopulation`, `assignCells`, `writeManifest`, `verifyStore` |
+
+#### MQ, the request (worker, 10 cases)
+
+**The base query, Q0:** `lat=0.37&lon=0.59&r=97&eps=100584&layers=water,rivers,roads,peaks,places`.
+
+| case | input | expected |
+|---|---|---|
+| MQ1 | Q0 | `{lat2 "0.37", lon2 "0.59", rKm 97, epsMm 100584, mask 31, levels []}`. The bits: water 1, rivers 2, roads 4, peaks 8, places 16, terrain 32 |
+| MQ2 | Q0 with `layers=places,peaks,roads,rivers,water` | MQ1's ETag |
+| MQ3 | 100,000 seeded random (lat, lon) in [18, 72) × [−180, −64), plus every half-way value x = n + j/8 (j odd) on each axis in the same ranges (680) | the origin's `lat0Micro`/`lon0Micro` equal `Math.round(x·100) · 10,000`, through `crop.ts`'s own `quantise`, in **every** case: **0 differences**; both counts printed |
+| MQ4 | r = `0.4`; `222.4`; `222.5`; `0`; `-5`; `x`; absent | rKm 1; rKm 222; `bad_r` for the other five |
+| MQ5 | the bound, parsed from `src/AircraftManager.cpp` | `KM_PER_DEGREE` and `MAX_DEGREES` each found exactly once, with product **222**, equal to the route's bound. Any other count: **BLIND** |
+| MQ6 | eps = `100584`; `1000`; `10000000`; `05000`; `999`; `10000001`; `100.6`; `1e5`; `+5000`; empty | 100584; 1000; 10000000; 5000 (and its ETag equals `eps=5000`'s); `bad_eps` for the other six |
+| MQ7 | layers = empty; `water,water`; `lakes`; `water,`; `WATER`; `water`; `terrain` (no levels); `water,terrain` (no levels) | `bad_layers` for the first five; mask 1; `bad_levels`, twice |
+| MQ8 | with `terrain` in the layers: (a) `24743664:246,49487328:246,98974656:246`; (b) `98974656:246,24743664:246,49487328:246`; (c) levels without `terrain`; (d) five pairs; (e) N 0; (f) N 1025; (g) radius 999999; (h) radius 250000001; (i) `1000000:100,1000000:200`; (j) `1000000:1024,2000000:1024`; (k) `1000000:1024,2000000:1023`; (l) `1000000`; (m) `1000000:4:5`; (n) `1000000:04` | (a) ascending, as sent; (b) (a)'s list and (a)'s ETag; (c)-(j) `bad_levels`, (j) being 2,097,168 B; (k) accepted, 2,095,121 B; (l), (m) `bad_levels`; (n) accepted, N 4 |
+| MQ9 | Q0 + `foo=1` | MQ1's ETag |
+| MQ10 | the ETag's form; six variants of Q0 (lat 0.38; lon 0.60; r 98; eps 100585; no `places`; + `terrain` with `1000000:4`); lat `0.3749` | matches `^"bm1-[0-9]+-[0-9a-f]{12}-[0-9a-f]{24}"$`; Q0 and the six give **seven distinct** ETags; lat `0.3749` gives MQ1's |
+
+**Sabotages:**
+- **S-QROUND:** a local `quantise` that rounds half to even. Fails exactly **{MQ3}**.
+- **S-QDIGEST:** the digest leaves out `epsMm`. Fails exactly **{MQ10}**.
+- **S-QSORT:** the levels are not sorted. Fails exactly **{MQ8}**.
+
+#### MV, the validator against the negative packages (worker, 29 cases)
+
+- **MV/PK-min … MV/PK-reserved:** A10.11's 28 PK cases, each with A10.11's expected status. They read Weatherscope's fixtures in `test/fixtures/wx/basemap/`, bound to each fixture by the PK case name its fixture list gives. **A fixture list that does not name its cases makes MV BLIND.**
+- **MV-bend:** `bend.bmpk` → `kOk`.
+- **BLIND until the fixtures land on main.**
+
+**Sabotages:**
+- **S-VCRC:** the CRC check skipped. Fails exactly **{MV/PK-crc}**.
+- **S-VSWAP:** the overlap and gap reasons swapped. Fails exactly **{MV/PK-overlap, MV/PK-gap}**.
+
+#### ME, the encoder (worker, 7 cases)
+
+| case | input | expected |
+|---|---|---|
+| ME1 | `encode(decode(f))` for f in {`syn-min`, `syn-unknown`, `bend.bmpk`} | **byte-identical** to f. BLIND until the fixtures land |
+| ME2 | 1,000 builds over seeded synthetic stores. The generator is committed in the test file before any builder code: 0-40 features per layer, lines of 2-200 vertices, rings of 3-100, R 1-222 km, ε 1,000-2,000,000 mm, random masks, 0-2 levels with N 1-64, and no road name containing `Bus` | **0** validator refusals; PROVENANCE **≤ 3,072 B** in every one (**MS-P**) |
+| ME3 | a feature with a vertex at (E, S) = (R, −R) | q (32767, −32767) present; `kOk` |
+| ME4 | `quantise(E_mm = 1.00002 · R_mm)` | **throws `vertex_range`**; never returns 32767 |
+| ME5 | `crc32("123456789")` | `0xCBF43926` |
+| ME6 | svarint of 0, 63, −64, 64, 32767, −32767 | `00`; `7e`; `7f`; `80 01`; `fe ff 03`; `fd ff 03` |
+| ME7 | `build()` called **directly** (not through `parseQuery`) with every layer and the levels unsorted, `2000000:4` then `1000000:4` | the directory's types are 1, 2, 3, 4, 5, 6, 6, 7, and the two levels run 1,000,000 then 2,000,000 mm: the builder orders them itself |
+
+**Sabotage:** **S-ECLAMP**, `quantise` clamping instead of throwing. Fails exactly **{ME4}**.
+
+#### ML, the layer rules (host, 15 cases)
+
+Synthetic features at origin (0, 0), through the layer functions.
+
+| case | input | expected |
+|---|---|---|
+| ML1 | water with `AWATER` 1,499,999 and 1,500,000 | only the 1,500,000 kept |
+| ML2 | one polygon: an outer ring and a hole | **1** ring (RD3) |
+| ML3 | `FULLNAME`s: "Deschutes Riv", "Little Deschutes Riv", "Riverside Dr", "Riv", "Big Riv " (trailing space) | the first two kept |
+| ML4 | 7 groups, centred E-W lines at S = 0 with in-disc lengths A 70, B 60, C 50, D 40, F 30, E 30, H 10 km, **F before E in source order** | kept, and the names table in order: A, B, C, D, **E** (the tie broken by byte order, RD8) |
+| ML5 | groups P (two parts, 20 + 25 km), Q 50, R 40, S 30, T 29, U 28 | Q, P, R, S, T; U dropped |
+| ML6 | "Mid Riv" 100 km at S = 0; "Edge Riv" from E −200 to 200 at S = 90 km (72.360210 km in the disc, 194 km in the square); M80, M75, M74, M73 at S = 0 | Mid, M80, M75, M74, M73; **Edge dropped** |
+| ML7 | `isBusRoute` of: "US Hwy 97 Bus", "Bus US Hwy 20", "President George Bush Tpke", "Busby Rd", "BUS", "Bus", "Bus Loop", "Bus-Loop 10", "Omnibus Rd", "OmniBus Rd", a missing `FULLNAME` | drop, drop, keep, keep, keep, drop, drop, drop, keep, keep, keep |
+| ML8 | `MTFCC` S1100, S1200, S1400 | class 1; class 2; dropped |
+| ML9 | summits A-F, all 10 km apart, at elevations 1000, 1200, 1200, 900, 1100, 800 with `feature_id`s 10, 30, 20, 40, 50, 60 | C, B, E, A, D, F |
+| ML10 | `elevationM` of the RGB (128, 0, 128), (127, 255, 128), (132, 176, 0), (128, 0, 127) | 1, 0, 1200, 0 |
+| ML11 | along E: P at 10 km (2000 m); Q at 12.999 km (1990 m); R at 14.0 km (1980 m); T at 6.999 km (1970 m) | **P, R, T** kept and Q dropped. R is 1.001 km from the *dropped* Q, and only kept summits count |
+| ML11b | the de-dup predicate at exactly 3,000.0 m | within, so dropped (RD9) |
+| ML12 | 20 summits 10 km apart, elevations falling | the first **16** kept |
+| ML13 | places in file order Z (96.9 km), A (50), M (97.1), B (10), with populations | Z, A, B, **in file order**, populations unchanged |
+| ML13b | `withinMm(d = R)` | true |
+
+**Sabotages:**
+- **S-BUSSUB:** a substring test for "Bus". Fails exactly **{ML7}**.
+- **S-SQUARELEN:** in-square length in place of in-disc. Fails exactly **{ML6}**.
+- **S-DEDUPALL:** de-duplicates against every higher summit. Fails exactly **{ML11}**.
+- **S-DEDUPLT:** strict `<` in the predicate. Fails exactly **{ML11b}**.
+- **S-PLACESORT:** places sorted by distance. Fails exactly **{ML13}**.
+- **S-RIVERTIE:** ties broken by source order. Fails exactly **{ML4}**.
+
+#### MT, terrain (host, 11 cases)
+
+| case | input | expected |
+|---|---|---|
+| MT1 | `decodeTerrarium` of (128, 0, 128), (127, 255, 128), (132, 176, 0), (0, 0, 0) | 0.5, −0.5, 1200, −32768, exactly |
+| MT2a | an 8 × 8 DEM, flat 1000 m; lat0 0. Each MT2 case runs `hillshade`, then `boxMean4`, then `shadeByte`, at **every** pixel | **180** at all 64 |
+| MT2b | 1000 + 64·x (rising east); lat0 0 | **216** at all 64 |
+| MT2c | 1000 + 64·(7 − y) (rising north); lat0 0 | **117** at all 64 |
+| MT2d | 1000 + 64·x + 64·y (facing north-west); lat0 0 | **247** at all 64 |
+| MT2e | as MT2b, at lat0 60 | **220** at all 64 |
+| MT-impulse | `boxMean4` of a 16 × 16 field, 1 at (10, 10), 0 elsewhere | 0.0625 at x, y 9..12 (16 px), 0 everywhere else |
+| MT-corner | the same with the 1 at (0, 0) (edge padding 2) | (0,0) 0.5625; (1,0) and (0,1) 0.375; (2,0) 0.1875; (1,1) 0.25; (2,1) 0.125; (2,2) 0.0625; (3,0) 0 |
+| MT3 | a level (98,974,656 mm, N 246) at origin (0, 0) over seeded smooth synthetic tiles: from the rule's mosaic (its square plus one tile), and from a mosaic one tile larger again | all 60,516 values **identical** |
+| MT4 | `levelPixelToZ9`, origin (0, 0): pixels (0,0), (3,3), (1,2) of Rℓ 1,000,000 mm, N 4; pixel (2,2) of Rℓ 1,250,000 mm, N 5 | (65533, 65533); (65538, 65538); (65535, 65536); (65536, 65536). The last is exact, and truncation keeps it |
+| MT5 | `shadeByte` of 0, 1, 0.5, 127.49/255 | 0, 255, 128, 127 |
+
+**Sabotages:**
+- **S-TALIGN:** the mean window at [i − 1, i + 2]. Fails exactly **{MT-impulse, MT-corner}**.
+- **S-TPAD:** zero padding. Fails exactly **{MT-corner, MT2a, MT2b, MT2c, MT2d, MT2e}**.
+- **S-TROUND:** rounding in place of truncation. Fails exactly **{MT4}**.
+- **S-TNOMARGIN:** the mosaic without its margin. Fails exactly **{MT3, MB8a, MB8b}**: MB8's `files.terrain` drops from 16 to 4, so its PROVENANCE is 1 B shorter.
+- **S-TCOS:** `mpp` without cos(lat0). Fails exactly **{MT2e}**.
+
+#### MB, §6's budget (host, 9 cases, through the `capBytes` seam)
+
+**The fixtures** (origin (0, 0); R 97 km; ε 100,584 mm; layers water and roads):
+- **A, the water:** 9 square rings. Ring i (1-9) has its first vertex at (E, S) = (25 + 5(i − 1), 30) km and side 1.0 + 0.1i km. **Each encodes in 16 B.**
+- **A, the roads:** 7 straight E-W roads from E = −70 km, at S = −30 − 2j km (j = 1..7). Three primaries (S1100) of 10, 11 and 12 km, then four secondaries (S1200) of 3, 4, 5 and 6 km. **Each encodes in 11 B.** No road name contains `Bus`.
+  - **PROVENANCE: 511 B. Total: 812 B.**
+- **B:** A plus two primaries after the seven, each 20 km with a middle vertex.
+  - Z1's middle vertex is 150 m off its chord: 14 B at ε, 11 B at 2ε.
+  - Z2's is 300 m off: 16 B at ε and at 2ε, 11 B at 4ε.
+  - **Total: 842 B.**
+- **A8:** A plus `terrain` with level `1000000:4`, over 16 flat synthetic tiles (x, y 254..257) with the SRTM bit, and vintage 2016.
+  - **PROVENANCE: 1,005 B. Total: 1,346 B, of which the TERRAIN body is 24 B.**
+
+| case | fixture, cap | status | totalBytes | toleranceMm | WATER | ROADS | dropped water / roads |
+|---|---|---|---|---|---|---|---|
+| MB1 | A, 812 | 200 | 812 | 100,584 | rings 1-9 | 7 | 0 / 0 |
+| MB2 | A, 811 | 200 | 796 | 201,168 | rings 2-9 | 7 | 1 / 0 |
+| MB3 | A, 667 | 200 | 657 | 201,168 | none (count 0, length 0) | 6 (the 3 km secondary dropped) | 9 / 1 |
+| MB4 | A, 623 | **422 `too_large`** | | | | | |
+| MB5 | A, 624 | 200 | 624 | 201,168 | none | 3 (the primaries) | 9 / 4 |
+| MB6 | B, 841 | 200 | 839 | 201,168 | rings 1-9 | 9 (Z1 n 2, Z2 n 3) | 0 / 0 |
+| MB7 | B, 838 | 200 | 823 | 201,168 | rings 2-9 | 9 (Z1 n 2, Z2 n 3) | 1 / 0 |
+| MB8a | A8, 1,322 | 200 | 1,346 | 100,584 | rings 1-9 | 7 | 0 / 0 |
+| MB8b | A8, 1,321 | 200 | 1,330 | 201,168 | rings 2-9 | 7 | 1 / 0 |
+
+`epsilon.m` reads `100.584` in every case (RD13).
+
+**Sabotages:**
+- **S-BTWICE:** ε multiplied by 4, not 2. Fails exactly **{MB2, MB3, MB5, MB6, MB7, MB8b}**.
+- **S-DROPORDER:** the largest ring dropped first. Fails exactly **{MB2, MB7, MB8b}**.
+- **S-NOCOUNT:** `dropped.water` not incremented. Fails exactly **{MB2, MB3, MB5, MB7, MB8b}**.
+- **S-ROADORDER:** the longest secondary dropped first. Fails exactly **{MB3}**.
+- **S-PRIMARYDROP:** primaries droppable after the secondaries. Fails exactly **{MB4}**.
+- **S-TERRCAP:** the TERRAIN body counted in the cap. Fails exactly **{MB8a, MB8b}**.
+
+#### MD, determinism and `--check` (host and worker, 7 cases)
+
+| case | input | expected |
+|---|---|---|
+| MD1 | the same request twice in one isolate, on MW's store and on ME2's first 50 stores | byte-identical |
+| MD2 | the same 50 builds in workerd and in Node | identical sha256 lists. Both are V8 with the same fdlibm `Math`. **A difference stops the work and is reported** |
+| MD3a | `scripts/basemap-check.ts`, on a package built at HEAD's commit over a store ingested from MI's synthetic shapefiles, with `--sources <dir>` | **exit 0**: the manifest's digests match PROVENANCE's, every file's sha256 matches, and the rebuild at that commit is byte-identical |
+| MD3b | the same package with one body byte changed and its CRC recomputed | **exit 1** |
+| MD3c | a `builder` commit not in the repository | **exit 2 (BLIND)**, never 0 |
+| MD3d | a manifest whose water file's sha256 differs from the one the package's `sha256.water` pins | **exit 1** |
+| MD4 | the `rev` guard: `test/fixtures/basemap/rev.json` maps each rev to the sha256 of the build of 3 synthetic stores | equal at the current rev. **Its sabotage:** a change to the processing text with `rev` unchanged must fail it |
+
+#### MG, the golden row (host; BLIND until `bend.bmpk` and `bend.manifest.json` land)
+
+| case | expected |
+|---|---|
+| MG0 | for every layer, the `sha256.<layer>` and `files.<layer>` recomputed from `bend.manifest.json` equal `bend.bmpk`'s PROVENANCE; and `store:` equals the first 12 hex of that manifest's sha256 |
+| MG1 | my ingest and builder, fed the files `bend.manifest.json` names (each fetched or found with `--sources`, and sha256-verified), and the request read from `bend.bmpk`'s header and sections, **decode equal** within format §11 |
+
+**The controls:**
+- `bend.bmpk` compared with itself: 0 differences.
+- **S-GEPS,** the builder at 1.5 ε, must FAIL on vertex counts.
+- **S-GSMOOTH,** the builder without the 4 × 4 mean, must FAIL on more than 0.1 % of terrain values.
+
+#### MP, privacy (worker, 3 cases)
+
+| case | expected | its control (must turn it red) |
+|---|---|---|
+| MP1 | across every MW row, no log line contains `0.37` or `0.59`. The route's log fields are integers | a planted `console.log(lat2)` |
+| MP2 | across every MW row, **0** R2, KV or Durable Object writes, counted through wrapped bindings | a planted R2 put |
+| MP3 | no ETag and no cache key contains `0.37` or `0.59` | an ETag carrying `lat2` |
+
+#### MC, coverage and the credits (store; graded after D1)
+
+| case | input | expected |
+|---|---|---|
+| MC1 | the 50 cleared airports | **50** covered |
+| MC2 | EGLL; (0.00, 0.00); PHNL; CYYZ, once `forbidden.py` clears it | `no_coverage`; `no_coverage`; covered; `no_coverage` |
+| MC3 | KSFO's cleared point moved 0.03° east, into the bay | covered |
+| MC4 | the credits with Weatherscope's three levels at KDEN; KBOS; KBUF; KELP; PANC, once cleared | [SRTM]; [SRTM, ETOPO1]; [SRTM, NRCAN]; [SRTM]; [SRTM, GMTED2010, ETOPO1]. Each carries the levels processing line, and none is refused |
+
+**Sabotages:**
+- **S-BBOX:** coverage from the state polygons' bounding boxes. Fails exactly **{MC2}**, through CYYZ.
+- **S-NOCANADA:** the NRCAN bit ignored. Fails exactly **{MC4}**, through KBUF.
+- **S-NOOCEAN:** the ETOPO1 bit ignored. Fails exactly **{MC4}**, through KBOS and PANC.
+
+#### MW, the endpoint (worker, 17 cases)
+
+**MW's store:** origin (0.37, 0.59); one water ring and one primary road in one cell; coverage over [0.30, 0.40] × [0.50, 0.60].
+**Q_W:** `lat=0.37&lon=0.59&r=97&eps=100584&layers=water,roads`.
+**Store reads** are counted through a wrapped binding, in a fresh builder.
+
+| case | request | status | builder calls | store reads |
+|---|---|---|---|---|
+| MW1 | Q_W, no `BASEMAP` binding | `503 not_configured` | 0 | 0 |
+| MW2-MW7 | Q_W with a bad lat, lon, r, eps, layers, levels | `400 bad_lat` … `bad_levels` | 0 | 0 |
+| MW8 | Q_W without a device key | `401` | 0 | 0 |
+| MW9 | Q_W | **200**: `application/octet-stream`, `Cache-Control: no-cache`, the ETag matching MQ10's pattern, the body `kOk` | 1 | **5** (`current`, `manifest.json`, `coverage.bin`, `index.json`, one cell) |
+| MW10 | Q_W with `If-None-Match` set to MW9's ETag | **304**, no body | **0** | **0** |
+| MW11 | Q_W again, without `If-None-Match` | 200, MW9's bytes (the Cache API) | **0** | **0** |
+| MW12 | Q_W at lat 10.00 | `404 no_coverage` | 1 | 3 (`current`, `manifest.json`, `coverage.bin`) |
+| MW13 | Q_W through a test builder calling `build()` with `capBytes` 100 | `422 too_large` | 1 | 5 |
+| MW14 | Q_W against a store with no `current` | `503 basemap_unavailable` | 1 | 1 |
+| MW15 | a test builder returning a valid package with its road class patched to 3 and the CRC recomputed | `500 builder_invalid`, a JSON body, never the package bytes | 1 | 0 |
+| MW16 | `/v1/basemap?` + Q_W | MW9's bytes and ETag | not counted | not counted |
+| MW17 | Q_W against a store whose `manifest.json` does not hash to `current`'s store id | `503 basemap_unavailable` | 1 | 2 (`current`, `manifest.json`) |
+
+**The store-id guard (MW17), new here.** On every build the builder checks that the manifest's sha256 begins with `current`'s store id. So a half-replaced or mixed store answers 503 rather than a package whose `store:` line names a manifest it was not built from.
+
+**Sabotages:**
+- **S-WNOVALIDATE:** the handler skips `validate`. Fails exactly **{MW15}**.
+- **S-W304LATE:** the ETag compared after the builder call. Fails exactly **{MW10}**.
+- **S-WNOSTORECHECK:** the store-id guard skipped. Fails exactly **{MW17}**.
+
+#### MI, the ingest (host, 7 cases, over tiny synthetic shapefiles and CSVs made by the test)
+
+| case | input | expected |
+|---|---|---|
+| MI1 | `AREAWATER` at `AWATER` 1,499,999 / 1,500,000 / 2,000,000; `LINEARWATER` "A Riv" / "Riverside Dr" / empty; `PRISECROADS` S1100 "US Hwy 97 Bus", S1200 "OR 126", S1400 "Main St"; GNIS Summit / Lake; Gazetteer LSAD 25 / 57 | the store holds 2 water, "A Riv", **both** S1100 and S1200 roads (**the Bus rule is the builder's**), the Summit, and the LSAD 25 place |
+| MI2 | GEOID `4105800` against SUB-EST2024 rows: SUMLEV 162 with STATE 41, PLACE 05800, `POPESTIMATE2024` 100000; a SUMLEV 157 row with the same STATE and PLACE; and a GEOID with no row | 100,000; the 157 row ignored; 0 |
+| MI3 | a record whose coordinates include `0.1 + 0.2` | the store's f64 equals the source's, **bit for bit** |
+| MI4 | the manifest | sorted keys, one-space indent, a final `\n`, the entry keys `{bytes, layer, sha256, url, vintage}`; `store` equals the first 12 hex of its sha256; the same inputs twice give the same bytes. **Its key set waits on F1/F2's answer, and is re-registered only by ruling if that answer differs** |
+| MI5 | features crossing a cell border | each stored once, in the cell of its bounding box's south-west corner, with that cell's reach covering it |
+| MI6 | a split threshold of 1,000 B through the seam | a cell over it splits into quarters until each is ≤ 1,000 B; a cell holding a single feature is never split |
+| MI7 | `verifyStore` over an in-memory bucket: (a) every object intact; (b) one object missing; (c) one object's bytes changed at the same size; (d) the order of writes | (a) passes, and `current` is written; (b) fails, with no `current`, then repair, verify passes, and `current` is written; (c) fails on its sha256; (d) `current` is the last write |
+
+**Sabotages:**
+- **S-ISIZE:** the verifier compares size only. Fails exactly **{MI7}** (through c).
+- **S-ISEAL:** `current` written before verifying. Fails exactly **{MI7}** (through b and d).
+- **S-IBUS:** the ingest applies the Bus rule. Fails exactly **{MI1}**.
+
+### A1.8 Re-predicted later, as ruled
+
+**Before the builder runs on real data, frozen in this PR:**
+- **MS0:** PROVENANCE's exact bytes per centre and radius, from the sealed manifest.
+- **§5.4's outcome classes,** re-predicted from MS0 and Bend's measured section bytes, at Weatherscope's request and the Blipscope's 161 and 222 km.
+
+**Unchanged:** MM1-MM6 (§6), and the deploy rows D0-D4 (§9). D2's dry run no longer lists `terrain-gate`.
+
+### A1.9 Next
+
+1. Step 1 of §12 is this addendum.
+2. **F1/F2 and RD18-RD21 are raised in the report** and wait for their answer.
+   - MI4's key set waits on F1/F2.
+   - RD18-RD21 bind MB, MT4 and ML10 as I read them. If they are ruled otherwise, those rows are re-registered by that ruling.
+3. **Step 2 is next:** the ingest code and its dry run, which is local, fetches public files only, and creates nothing in Cloudflare.
+   - Its measured size is reported against the 6 GB stop, and against the free 10 GB, **before** D1 is announced for doing.
