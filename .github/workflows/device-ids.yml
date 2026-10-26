@@ -12,14 +12,28 @@ on:
     branches: [main]
   pull_request:
 
+# A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   no-real-device-ids:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # No committed file carries a BSSID beyond the 13 named logs (docs/bssid-guard.md), and the
+      # recorders' two redaction implementations agree. pwsh is on the ubuntu image.
+      - run: python3 scripts/check_bssid.py
+      - run: python3 scripts/check_bssid.py --selftest
+      - run: python3 scripts/check_redaction_vectors.py
+      - run: python3 scripts/check_redaction_vectors.py --selftest
       # Full history is NOT needed and is not wanted: this scans the tree at
       # HEAD. Two commits pushed on 2026-08-31 carry a real id and were
       # deliberately left alone rather than rewritten -- a history-wide scan
       # would be permanently red, and a control that can never pass is a control
       # somebody disables. See scripts/check_device_ids.py.
       - run: python3 scripts/check_device_ids.py
+      # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
+      - run: python3 scripts/check_workflow_concurrency.py
+      - run: python3 scripts/check_workflow_concurrency.py --selftest

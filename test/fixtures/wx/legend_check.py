@@ -1,6 +1,7 @@
 """The legend's bench check (docs/weatherscope-stage2.md, addendum 7): EVERY SWATCH ON THE BOARD EQUALS THE PALETTE.
 
     python -I test/fixtures/wx/legend_check.py <COMx> <out.txt> [--png legend.png]
+    python -I test/fixtures/wx/legend_check.py --fb <snapshot.bin> <serial-lines.txt> [--png legend.png]   (stage 3, A8.20)
 
 One open of the port (capture_stage1.capture: DTR/RTS low, never reattached). Sends 'L'; the board draws screen 7,
 prints its swatch list (WXL lines) and dumps the legend sprite's OWN bytes as 240 tagged rows (WXS, 480 bytes of
@@ -63,7 +64,25 @@ def png(path, sprite):
     open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", N, N, 8, 2, 0, 0, 0))
                            + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
 
+def main_fb(argv):
+    """--fb <snapshot.bin> <serial-lines.txt>: the edition's legend (docs/weatherscope-stage3.md A8.20). The image is
+    one graded /diag/fb snapshot (RGB565BE, 240 x 240); the snapshot rules there replace L4, the serial dump's
+    integrity. The lines are the board's own, as printed when the legend opened (WXL swatches, WXT label boxes)."""
+    snap = open(argv[2], "rb").read()
+    if len(snap) != N * N * 2:
+        print(f"REFUSED: the snapshot is {len(snap)} bytes, not {N * N * 2} (the rig)"); return 2
+    lines = [l.strip() for l in open(argv[3], encoding="ascii", errors="replace").read().replace("\r", "").split("\n")]
+    if not any(WXL.match(l) for l in lines) or not any(WXT.match(l) for l in lines):
+        print("REFUSED: no WXL/WXT lines in the board's output (the rig)"); return 2
+    print(f"L4 (replaced): one graded /diag/fb snapshot, {len(snap)} bytes, sha256 {hashlib.sha256(snap).hexdigest()[:12]}")
+    return grade(snap, lines, argv)
+
+
 def main(argv):
+    if len(argv) >= 2 and argv[1] == "--fb":
+        if len(argv) < 4:
+            print(__doc__); return 2
+        return main_fb(argv)
     if len(argv) < 3:
         print(__doc__); return 2
     raw = capture(argv[1], argv[2], b"L")
@@ -88,6 +107,12 @@ def main(argv):
     board_sha = next((l.split(",", 2)[2] for l in lines if l.startswith("WX,legend_sha256,")), "?")
     print(f"   sprite sha256 {hashlib.sha256(sprite).hexdigest()[:16]}; the board's own {board_sha[:16]} -> "
           f"{'consistent' if hashlib.sha256(sprite).hexdigest() == board_sha else 'INCONSISTENT'}")
+    return grade(sprite, lines, argv)
+
+
+def grade(sprite, lines, argv):
+    """L2, L1, L5 and L6 on a whole-screen RGB565BE image (the bench's dump, or a /diag/fb snapshot) and the board's
+    WXL/WXT lines. Unchanged from the bench's checks; only lifted out so --fb can share them (stage 3, A8.20)."""
     sw = [m.groups() for m in (WXL.match(l) for l in lines) if m]
     sw = [(int(i), k, int(c), int(x), int(y), int(w), int(h)) for i, k, c, x, y, w, h in sw]
     # L2: rows by y, top to bottom, are the ruled groups in order

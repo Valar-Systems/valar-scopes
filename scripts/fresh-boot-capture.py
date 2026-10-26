@@ -19,10 +19,16 @@ dtr and rts are set False BEFORE open in every mode: pyserial applies them as pa
 so the open itself never asserts either line.
 """
 import datetime
+import os
 import sys
 import time
 
 import serial
+
+# The shared redaction rules (redact_line.py mirrors redact-line.ps1; docs/bssid-guard.md). Imported by path,
+# so it works under `python -I`. This recorder wrote raw lines until 2026-10-23.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from redact_line import protect_line  # noqa: E402
 
 
 def stamp():
@@ -52,7 +58,7 @@ def main():
                 while True:
                     b = s.readline()
                     if b:
-                        f.write(f"{stamp()} {b.decode('utf-8', 'replace').rstrip()}\n")
+                        f.write(f"{stamp()} {protect_line(b.decode('utf-8', 'replace').rstrip())}\n")
             except Exception as e:
                 f.write(f"{stamp()} [capture] port dropped ({type(e).__name__}) -- NOT reopening: "
                         "steps 5-6 are graded over the network\n")
@@ -77,7 +83,7 @@ def main():
                     if b:
                         line = b.decode("utf-8", "replace").rstrip()
                         reset = reset or "rst:0x15" in line
-                        f.write(f"{stamp()} {line}\n")
+                        f.write(f"{stamp()} {protect_line(line)}\n")
             except Exception as e:
                 f.write(f"{stamp()} [collect] port dropped ({type(e).__name__})\n")
             finally:

@@ -1019,6 +1019,8 @@ export const supportHtml = `<!DOCTYPE html>
        here; we would rather say plainly that it changed than quietly reword the old
        promise. If you would prefer not to send it, run the device against your own
        receiver — then it never talks to us at all.</p>
+    <p>When a request fails on our side, it is logged with the Cloudflare data centre that
+       served it, and nothing that identifies your device.</p>
     <p>What a cloud device also sends is operational: that it checked in, its model and
        firmware version, and — after a firmware update — whether the update worked and
        how much free memory it had. No location, no configuration, no serial number,

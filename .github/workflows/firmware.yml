@@ -15,6 +15,11 @@ on:
 permissions:
   contents: write   # needed to upload release assets
 
+# A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Structural check on the config page, ahead of the builds because it is seconds
   # and catches a class of defect no compiler can see: the page must stay ONE

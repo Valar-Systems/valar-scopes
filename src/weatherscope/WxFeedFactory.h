@@ -12,6 +12,10 @@ struct Feeds {
     const WxFeed& radar;
     const ObsFeed& obs;
     const AlertFeed& alerts;
+    // True only for the stored data. Stored mode cycles made-up scenarios (a synthetic warning among them), so
+    // nothing that cycles may run unless this is set -- and a customer unit must never reach it (A8.19's release
+    // gate). Set here, by the factory, and nowhere else.
+    bool stored;
 };
 
 Feeds MakeFeeds();

@@ -42,12 +42,16 @@ param(
     [switch]$RehearseUnsafeHandshake
 )
 
+# Every line goes through the shared redaction rules before it reaches the file or the console. This
+# recorder wrote raw lines until 2026-10-23 (docs/bssid-guard.md).
+. (Join-Path $PSScriptRoot 'redact-line.ps1')
+
 $stamp = Get-Date -Format 'yyyy-MM-dd-HHmm'
 $log = Join-Path $OutDir ("trace-{0}-{1}.log" -f $Label, $stamp)
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 function W($t) {
-    $l = "{0}Z {1}" -f (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss'), $t
+    $l = "{0}Z {1}" -f (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss'), (Protect-Line $t)
     Add-Content -Path $log -Value $l; Write-Host $l
 }
 

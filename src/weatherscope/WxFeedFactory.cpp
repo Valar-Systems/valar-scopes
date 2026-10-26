@@ -10,7 +10,7 @@ Feeds MakeFeeds()
     static const StoredWxFeed radar;
     static const StoredObsFeed obs;
     static const StoredAlertFeed alerts;
-    return Feeds{radar, obs, alerts};
+    return Feeds{radar, obs, alerts, /*stored=*/true};
 }
 
 }  // namespace wx
