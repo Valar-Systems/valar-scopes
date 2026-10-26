@@ -648,3 +648,28 @@ and inner rings are not plane colours.
 - **One more selftest case, predicted:** a marker of the outer ring's colour on the outer ring, over weather, with its
   outline. With the amended definition it is **PASS** in look A. **Control:** addendum 4's committed `grade` (from
   `2d89084`), run on the same synthetic frame, gives **FAIL**.
+
+**Corrected before any run, the same day: two more findings while implementing.**
+- **The paragraph above is wrong about (2).** A correctly drawn outline covers every 8-neighbour of its marker (WD5o
+  proves it), so in look A the black outline cuts the marker off from the ring, and they cannot merge.
+  - The merge can happen only with no outline. In (2) that is already a FAIL. In (3) it is the normal case.
+  - **So the definition change stands for both, and has its effect in (3).**
+  - **The case predicted above is withdrawn, together with its control** (addendum 4's `grade` would also give PASS
+    there, for the reason just given).
+  - **It is replaced by:** "`--off`: a marker of the outer ring's colour on the outer ring, and one black pixel on the
+    outer ring about 40 px away from it". **Predicted PASS**, because that pixel is not next to this marker.
+    **Control:** with ring pixels allowed into markers, the marker joins the whole ring and the far pixel counts
+    against it: **FAIL**.
+- **Plane labels can pass as markers.** `DrawAircraftInfo` draws in `scaleColor((0, 128, 0), brightness)`, read from
+  the source, with brightness 0.30-1.0. That is 24 RGB565 values, **14 of them also plane colours**.
+  - **In the glcd font the labels use** (the radar sets no font), the glyphs `*`, `@`, `g`, `p` and `q` each pass the
+    marker filter alone, at 19, 20, 16, 14 and 14 px with a 2 × 2 block. Parsed from LovyanGFX's `glcdfont.h` in this
+    env's libdeps.
+  - **The harm:** such a glyph, in one of those 14 colours, over weather in look A, has no outline: a **false (2)
+    FAIL**. Touching a ring in (3), it is a **false "exercised"**. Addendum 4's committed script has the same hole.
+  - **The fix:** those 14 colours are **ambiguous**, as plane colours that are also weather colours already are
+    (R4). They are counted and reported, not graded. **Gradable plane colours: 220 in look A, 221 in look B.**
+    Full-bright green, `0x07E0`, stays gradable.
+  - **One more selftest case, predicted:** "look A, a `p` drawn in a label colour that is also a plane colour, over
+    weather". With the fix it is **PASS**, with 1 ambiguous. **Control:** addendum 4's committed `grade` gives **FAIL**
+    on the same frame.
