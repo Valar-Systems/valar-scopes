@@ -4189,6 +4189,43 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 - **N4:** widen it to 1,000 µs, or time the formatting between the phases?
 - **The glass:** Daniel can look now. The board runs N.
 
+### A9.36 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): A9.35 accepted; N1/N3 and N4 re-registered; S-FIRE, then the PR
+
+**The ruling, verbatim:**
+
+> Rulings on A9.35, the full ring first (reviewer chat, 2026-10-26)
+>
+> The fix does what it should: N2 6/6 (the 100 % ring drawn at the old radius, the rebuild on the next frame) and N5 6/6. The misses stay recorded.
+>
+> 1. N1/N3: re-registered as you propose, from the measured cause (the ring's own arc, 37.2 ms with no ring to 42.0 ms with it full; the touch path excluded): every frame through the press stays within base + 6.5 ms, and the only frame over 2 × base is the rebuild, after the first 100 % frame. Then flash and run S-FIRE as frozen; its rebuild in the fire frame must turn that row red.
+> 2. N4: widened to 1,000 µs, recorded. The 605 µs is formatting between stamps, 0.6 % of the build; no decision rests on it.
+> 3. Then open the PR and report it with CI for approval. Daniel may look at the glass on build N meanwhile.
+>
+> Noted, not for this PR: FromScenario's 45 ms is NearestEchoInView at kInViewMi, which doesn't depend on the zoom. A later change could keep it (and Build's 16 ms, if it is also zoom-free) across a zoom step and roughly halve the rebuild.
+>
+> Item 2 continues as ruled; your HWCDC reading (connected, not isPlugged, decides the blocking path) is the right place to start. 3.5b's step 2 continues.
+
+**The rows, as re-registered.** The press window runs from the first held frame to the last held frame; `base` is as before.
+
+| row | as frozen now |
+|---|---|
+| **N1′** | every frame from the first held frame **up to and including the first 1000 ‰ frame** is within `base` + 6,500 µs |
+| **N2** | unchanged: the first 1000 ‰ frame is at the old radius with no rebuild; the next frame is the rebuild, ≥ `base` + 30,000 µs |
+| **N3′** | every held frame **after** the rebuild frame is within `base` + 6,500 µs, with the ring at 1000 ‰ |
+| **N4′** | each build's phases sum to its `total` within **1,000 µs** |
+| **N5** | unchanged |
+| **N6** (A9.36's own clause) | in the press window, **the only frame over 2 × `base` is the rebuild**, and it comes **after** the first 1000 ‰ frame |
+
+**S-FIRE's prediction, restated in these terms:** the rebuild is in the fire frame, so the first 1000 ‰ frame is itself the long rebuild. So **N1′, N2 and N6 go red in every press, and N3′, N4′ and N5 hold.**
+
+**The order, and one addition:**
+1. N′ (S-FIRE, `35c60aa5c112…`) is flashed and run: 3 presses under M1, graded with `--sabotage`.
+2. **The addition: build N is reflashed and run again, fresh** (3 presses under M1, then 3 under M3), graded against the rows above.
+   - **Why:** the rows were derived from A9.35's own data. Grading that same run against them would prove nothing. A9.35's run is graded too, but **labelled as the run the band came from**.
+3. Then the PR, with CI.
+
+**Noted, not for this PR:** keeping `FromScenario`'s `NearestEchoInView`, and `wxscen::Build`'s work if it too is zoom-free, across a zoom step.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
