@@ -92,11 +92,18 @@ LGFX_Sprite* Backbuffer() { return g_fbSprite; }
 uint32_t     Sequence()   { return g_fbSeq; }
 void         FrameDone()  { ++g_fbSeq; }
 void         Register(LGFX_Sprite* sprite) { g_fbSprite = sprite; }
-// DIAG ONLY (FrameBuffer.h; docs/weatherscope-stage3.md A9.22): where the loop is in the frame, and the app's tag.
-volatile uint8_t  g_fbPhase = 0;
-volatile uint32_t g_fbTag   = 0;
-void         SetPhase(uint8_t phase) { g_fbPhase = phase; }
+// Where the loop is in the frame, the app's tag, and the clears (FrameBuffer.h; docs/weatherscope-stage3.md A9.22,
+// A9.26): /diag/fb serves only a frame copied wholly between a Drawn store and the next Clearing store.
+volatile uint8_t  g_fbPhase  = 0;
+volatile uint32_t g_fbTag    = 0;
+volatile uint32_t g_fbClears = 0;
+void         SetPhase(uint8_t phase)
+{
+  if (phase == kPhaseClearing) g_fbClears = g_fbClears + 1;   // before the phase, so a reader never sees the
+  g_fbPhase = phase;                                           // Clearing phase with the old count
+}
 uint8_t      Phase()                 { return g_fbPhase; }
+uint32_t     Clears()                { return g_fbClears; }
 void         SetTag(uint32_t tag)    { g_fbTag = tag; }
 uint32_t     Tag()                   { return g_fbTag; }
 }  // namespace framebuf
@@ -855,6 +862,7 @@ void loop()
     BandCanvas canvas(backbuffer, bandY);
     const bool firstPass = (bandY == 0);
 
+    framebuf::SetPhase(framebuf::kPhaseClearing);  // /diag/fb copies only between Drawn and this (A9.26)
     canvas.fillScreen(lgfx::color888(0, 0, 0));
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
 

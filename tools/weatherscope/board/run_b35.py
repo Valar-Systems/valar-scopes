@@ -38,7 +38,8 @@ BZ_BLOCKS = [(60, [("U", 30), ("U", 15), ("U", 15), ("D", 30)]), (30, [("D", 60)
 STEP_BUDGET_S, HOLD_S, SPARE_S = 5.2, 30.0, 5.0
 SCREEN = r"^\[wx\] screen=scenario (\w+) R=(\d+)$"
 HEADERS = ("X-Blipscope-Frame-Width", "X-Blipscope-Frame-Height", "X-Blipscope-Frame-Format", "X-Blipscope-Frame-Torn",
-           "X-Blipscope-Frame-Seq", "X-Blipscope-Frame-Phase", "X-Blipscope-Frame-Tag", "X-Blipscope-Frame-Buffer")
+           "X-Blipscope-Frame-Seq", "X-Blipscope-Frame-Phase", "X-Blipscope-Frame-Tag", "X-Blipscope-Frame-Buffer",
+           "X-Blipscope-Frame-Finished", "X-Blipscope-Frame-Wait-Us", "X-Blipscope-Frame-Attempts")
 
 
 def parse(line):
@@ -66,7 +67,8 @@ def capture(tr, host, out, label):
                "headers": h, "start": t0, "end": t1, "utc": t1}
         fetches.append(rec)
         tr.note(f"#HOST fetch {label} {i}: {len(body)} B torn={h['X-Blipscope-Frame-Torn']} seq={h['X-Blipscope-Frame-Seq']} "
-                f"phase={h['X-Blipscope-Frame-Phase']} tag={h['X-Blipscope-Frame-Tag']} sha {rec['sha256'][:12]}")
+                f"phase={h['X-Blipscope-Frame-Phase']} tag={h['X-Blipscope-Frame-Tag']} finished={h['X-Blipscope-Frame-Finished']} "
+                f"wait={h['X-Blipscope-Frame-Wait-Us']} sha {rec['sha256'][:12]}")
         if h["X-Blipscope-Frame-Torn"] != "false":
             torn += 1
             if torn == 3:

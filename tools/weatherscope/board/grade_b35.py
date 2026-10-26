@@ -85,6 +85,84 @@ def diff_px(a, b):
     return sum(1 for i in range(N * N) if a[2 * i:2 * i + 2] != b[2 * i:2 * i + 2])
 
 
+FINISHED = (2, 3)   # Drawn, Pushed (FrameBuffer.h)
+
+
+def tag_scene(tag):
+    """A Weatherscope tag (MSRRCCCC) -> its K row's name, or None (A9.22)."""
+    mode, idx, R = tag >> 28, (tag >> 24) & 15, (tag >> 16) & 255
+    if mode == 1 and idx < len(SCENARIOS):
+        return f"{SCENARIOS[idx]}-{R}"
+    if mode == 2 and R == 60:
+        return f"loop-{idx:02d}"
+    return None
+
+
+def diag_read(lines, screens, fetches, REF, run):
+    """A9.22's table with A9.25's restated (i), (ii) and (iii) as frozen, and A9.23's refinement. `fetches` carry their
+    file and headers. Returns (verdict, report lines, counts)."""
+    out = []
+    unfinished, clear_ends, ii_hits, unexplained, finished_bad = [], [], [], [], []
+    n = 0
+    for f in fetches:
+        h = f.get("headers") or {}
+        if not h.get("X-Blipscope-Frame-Phase") or not f.get("file"):
+            continue
+        n += 1
+        pb, pa = (int(x) for x in h["X-Blipscope-Frame-Phase"].split(","))
+        tb, ta = (int(x, 16) for x in h["X-Blipscope-Frame-Tag"].split(","))
+        name = tag_scene(tb)
+        if not name or name not in REF:
+            continue
+        body = open(os.path.join(run, f["file"]), "rb").read()
+        if body == REF[name][0]:
+            continue
+        unfinished.append(f["file"])
+        if h.get("X-Blipscope-Frame-Finished") == "true":
+            finished_bad.append(f["file"])
+        if pb in (1, 4) or pa in (1, 4):
+            clear_ends.append(f["file"])
+        elif pb in FINISHED and pa in FINISHED and tb == ta:
+            # (ii), as frozen: a complete fetch whose pixels are an EARLIER scene's
+            earlier = [k for k, (px, _) in REF.items() if k != name and body == px]
+            (ii_hits if earlier else unexplained).append((f["file"], name, earlier))
+        else:
+            unexplained.append((f["file"], name, []))
+    i_holds = len(clear_ends) == len(unfinished)
+    pushes = [l for l in lines if l.startswith("[fb] push ")]
+    push_min = min(int(re.search(r"push_us=(\d+)-", l).group(1)) for l in pushes) if pushes else None
+    phases = sorted({re.search(r"phases=(\S+)", l).group(1) for l in pushes})
+    seq_push = []
+    for l in pushes:
+        sc = int(l.split()[2], 16)
+        mode, idx, R = sc >> 12, (sc >> 8) & 15, sc & 255
+        item = f"{SCENARIOS[idx]} R={R}" if mode == 1 and idx < 6 else ("legend" if mode == 3 else None)
+        if item and (not seq_push or seq_push[-1] != item):
+            seq_push.append(item)
+    seq_screen = []
+    for _, l in screens:
+        sl = l[len("[wx] screen="):]
+        item = sl[len("scenario "):] if sl.startswith("scenario ") else ("legend" if sl == "legend" else None)
+        if item and (not seq_screen or seq_screen[-1] != item):
+            seq_screen.append(item)
+    seq_match = seq_push == seq_screen[:len(seq_push)] and len(seq_screen) - len(seq_push) <= 1
+    iii_excluded = push_min is not None and push_min >= 20000 and phases == ["2"] and seq_match
+    out.append(f"fetches read: {n}; unfinished (not their tag's scene): {len(unfinished)}; marked Finished: true among them: "
+               f"{finished_bad or 'none'}")
+    out.append(f"(i) restated: unfinished with Clearing or Cleared at an end: {len(clear_ends)} of {len(unfinished)}")
+    out.append(f"(ii) as frozen: complete fetches holding an earlier scene's pixels: {ii_hits or 'none'}")
+    out.append(f"complete fetches not their scene and no other: {unexplained or 'none'}")
+    out.append(f"(iii): push runs {len(pushes)}, phases at the push {phases}, shortest push {push_min} us, the scene "
+               f"sequence {'matches' if seq_match else 'DOES NOT match'} ({len(seq_push)} against {len(seq_screen)})")
+    if ii_hits and not unexplained:
+        verdict = "(ii) an older buffer"
+    elif i_holds and not ii_hits and not unexplained and iii_excluded:
+        verdict = "(i) a copy inside the redraw -- (ii) and (iii) excluded"
+    else:
+        verdict = "the data can't decide"
+    return verdict, out, dict(n=n, unfinished=len(unfinished), finished_bad=len(finished_bad), clear_ends=len(clear_ends))
+
+
 def main(argv):
     if len(argv) != 2:
         print(__doc__)
@@ -279,69 +357,25 @@ def main(argv):
     for name, red, detail in sab:
         print(f"  {'RED  ' if red else 'GREEN'} {name}: {detail} -> {'AS PREDICTED' if red else 'OFF-PREDICTION'}")
 
-    print("== the /diag/fb diag (A9.22's table, A9.23's refinement) ==")
-    scene_names = {1: lambda i, R: f"{SCENARIOS[i]}-{R}" if i < 6 else None, 2: lambda i, R: f"loop-{i:02d}" if R == 60 else None}
-    graded_shas = {c["label"]: next((f["sha256"] for f in c["fetches"] if f.get("file") == c["graded"]), None) for c in caps}
-    n_all = n_incomplete = n_black = 0
-    ii_hits, black_bad, odd = [], [], []
-    for c in caps:
-        for f in c["fetches"]:
-            h = f.get("headers") or {}
-            if not h.get("X-Blipscope-Frame-Phase"):
-                continue
-            n_all += 1
-            pb, pa = (int(x) for x in h["X-Blipscope-Frame-Phase"].split(","))
-            tb, ta = (int(x, 16) for x in h["X-Blipscope-Frame-Tag"].split(","))
-            body = open(os.path.join(run, f["file"]), "rb").read()
-            black = not any(body)
-            n_black += black
-            incomplete = pb == 1 or pa == 1
-            n_incomplete += incomplete
-            if black and (pb, pa) != (1, 1):
-                black_bad.append((f["file"], pb, pa))
-            if not incomplete and tb == ta:
-                mode, idx, R = tb >> 28, (tb >> 24) & 15, (tb >> 16) & 255
-                name = scene_names.get(mode, lambda i, R: None)(idx, R)
-                if name and name in REF:
-                    if body != REF[name][0]:
-                        ii_hits.append((f["file"], name))
-                elif mode == 3 and graded_shas.get("legend") and f["sha256"] != graded_shas["legend"]:
-                    ii_hits.append((f["file"], "legend"))
-            elif not incomplete:
-                odd.append((f["file"], h["X-Blipscope-Frame-Tag"]))
-    pushes = [l for l in lines if l.startswith("[fb] push ")]
-    push_min = min(int(re.search(r"push_us=(\d+)-", l).group(1)) for l in pushes) if pushes else None
-    phases = sorted({re.search(r"phases=(\S+)", l).group(1) for l in pushes})
-    seq_push = []
-    for l in pushes:
-        sc = int(l.split()[2], 16)
-        mode, idx, R = sc >> 12, (sc >> 8) & 15, sc & 255
-        item = f"{SCENARIOS[idx]} R={R}" if mode == 1 and idx < 6 else ("legend" if mode == 3 else None)
-        if item and (not seq_push or seq_push[-1] != item):
-            seq_push.append(item)
-    seq_screen = []
-    for _, l in screens:
-        s = l[len("[wx] screen="):]
-        item = s[len("scenario "):] if s.startswith("scenario ") else ("legend" if s == "legend" else None)
-        if item and (not seq_screen or seq_screen[-1] != item):
-            seq_screen.append(item)
-    seq_match = seq_push == seq_screen[:len(seq_push)] and len(seq_screen) - len(seq_push) <= 1
-    print(f"    fetches with the diag headers: {n_all}; incomplete (phase 1 at an end): {n_incomplete}; all-black: {n_black}")
-    print(f"    all-black fetches not at 1,1: {black_bad or 'none'}")
-    print(f"    complete fetches (phases >= 2, equal tags) that are not their tag's scene: {ii_hits or 'none'}")
-    print(f"    complete fetches with unequal tags: {odd or 'none'}")
-    print(f"    push runs: {len(pushes)}; phases seen at the push {phases}; the shortest push {push_min} us")
-    print(f"    the push log's scene sequence {'matches' if seq_match else 'DOES NOT match'} the screen lines' "
-          f"({len(seq_push)} against {len(seq_screen)})")
-    expl_i = not black_bad and not ii_hits
-    expl_ii = bool(ii_hits)
-    expl_iii_excluded = push_min is not None and push_min >= 20000 and seq_match
-    if expl_i and not expl_ii and expl_iii_excluded:
-        verdict = "(i) a copy inside the redraw -- (ii) and (iii) excluded"
-    elif expl_ii and not expl_i:
-        verdict = "(ii) an older buffer"
-    else:
-        verdict = "the data can't decide"
+    print("== /diag/fb's finished frames (A9.26) ==")
+    allf = [f for c in caps for f in c["fetches"] if f.get("headers")]
+    notfin = [f["file"] for f in allf if f["headers"].get("X-Blipscope-Frame-Finished") != "true"]
+    waits = [int(f["headers"].get("X-Blipscope-Frame-Wait-Us") or -1) for f in allf]
+    row("every fetch finished", not notfin and bool(allf), f"{len(allf) - len(notfin)} of {len(allf)} Finished: true" +
+        (f"; not: {notfin}" if notfin else ""))
+    row("every wait within the bound", bool(waits) and 0 <= min(waits) and max(waits) <= 100000,
+        f"waits {min(waits) if waits else '-'}-{max(waits) if waits else '-'} us (<= 100,000)")
+    firstpair = [c["label"] for c in caps if c.get("verdict") == "graded" and len(c["fetches"]) == 2 and
+                 c["graded"] == c["fetches"][0]["file"]]
+    graded_caps = [c["label"] for c in caps if c.get("verdict") == "graded"]
+    row("every capture graded at its first pair", len(firstpair) == len(caps) and graded_caps == [c["label"] for c in caps],
+        f"{len(firstpair)} of {len(caps)} at 2 fetches" +
+        (f"; not: {[c['label'] for c in caps if c['label'] not in firstpair]}" if len(firstpair) != len(caps) else ""))
+
+    print("== the /diag/fb diag (A9.22's table; A9.25's restated (i); (ii) and (iii) as frozen) ==")
+    verdict, report, _ = diag_read(lines, screens, allf, REF, run)
+    for l in report:
+        print("    " + l)
     print(f"    VERDICT: {verdict}")
 
     fails = [r for r in results if not r[1]]
