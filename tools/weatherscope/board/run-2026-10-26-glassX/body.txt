@@ -1,0 +1,235 @@
+[wx] builds n=8 of 27
+[wx] build 0 why=cycle scene=approaching mi=60->60 decode=2176 scen=15622 from=44550 compose=38773 sha=5295 print=1495 total=108383 prints=16 short=16 frame=145707
+[wx] build 1 why=cycle scene=herenow mi=60->60 decode=2196 scen=15617 from=44530 compose=38793 sha=4440 print=1517 total=107509 prints=16 short=16 frame=144791
+[wx] build 2 why=hold scene=herenow mi=60->15 decode=2170 scen=15619 from=44563 compose=32056 sha=4440 print=1203 total=100470 prints=13 short=13 frame=142631
+[wx] build 3 why=hold scene=herenow mi=15->60 decode=2200 scen=15620 from=44507 compose=38801 sha=4439 print=1420 total=107398 prints=16 short=16 frame=149586
+[wx] build 4 why=hold scene=herenow mi=60->15 decode=2175 scen=15639 from=44544 compose=32031 sha=4418 print=1191 total=100396 prints=13 short=13 frame=142560
+[wx] build 5 why=hold scene=herenow mi=15->60 decode=2175 scen=15620 from=44514 compose=38782 sha=4442 print=1432 total=107362 prints=16 short=16 frame=149570
+[wx] build 6 why=cycle scene=warning mi=60->60 decode=2174 scen=32873 from=645 compose=45891 sha=4390 print=1513 total=87931 prints=17 short=17 frame=125152
+[wx] build 7 why=cycle scene=stale mi=60->60 decode=2173 scen=15618 from=44563 compose=38798 sha=4449 print=1513 total=107499 prints=16 short=16 frame=144736
+[wx] writes n=64 of 429
+[wx] write 365 t=632901245 asked=51 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 366 t=632901320 asked=34 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 367 t=634425306 asked=45 wrote=0 free=5 plugged=1 connected=1 us=63
+[wx] write 368 t=634506607 asked=58 wrote=0 free=5 plugged=1 connected=1 us=73
+[wx] write 369 t=634506774 asked=81 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 370 t=634506960 asked=163 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 371 t=634507035 asked=87 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 372 t=634507118 asked=37 wrote=0 free=5 plugged=1 connected=1 us=56
+[wx] write 373 t=634507197 asked=42 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 374 t=634507298 asked=49 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 375 t=634507386 asked=50 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 376 t=634507474 asked=51 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 377 t=634507564 asked=48 wrote=0 free=5 plugged=1 connected=1 us=59
+[wx] write 378 t=634507655 asked=46 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 379 t=634507731 asked=34 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 380 t=635901409 asked=45 wrote=0 free=5 plugged=1 connected=1 us=56
+[wx] write 381 t=635989442 asked=58 wrote=0 free=5 plugged=1 connected=1 us=69
+[wx] write 382 t=635989604 asked=81 wrote=0 free=5 plugged=1 connected=1 us=59
+[wx] write 383 t=635989796 asked=163 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 384 t=635989872 asked=87 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 385 t=635989955 asked=37 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 386 t=635990033 asked=42 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 387 t=635990136 asked=49 wrote=0 free=5 plugged=1 connected=1 us=56
+[wx] write 388 t=635990226 asked=53 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 389 t=635990315 asked=47 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 390 t=635990404 asked=50 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 391 t=635990492 asked=47 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 392 t=635990583 asked=58 wrote=0 free=5 plugged=1 connected=1 us=60
+[wx] write 393 t=635990675 asked=46 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 394 t=635990764 asked=51 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 395 t=635990839 asked=34 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 396 t=649462973 asked=46 wrote=0 free=5 plugged=1 connected=1 us=70
+[wx] write 397 t=649514210 asked=58 wrote=0 free=5 plugged=1 connected=1 us=69
+[wx] write 398 t=649514414 asked=79 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 399 t=649514604 asked=166 wrote=0 free=5 plugged=1 connected=1 us=59
+[wx] write 400 t=649514683 asked=87 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 401 t=649514769 asked=37 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 402 t=649514849 asked=63 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 403 t=649514923 asked=67 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 404 t=649515026 asked=53 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 405 t=649515116 asked=50 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 406 t=649515205 asked=49 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 407 t=649515293 asked=46 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 408 t=649515382 asked=51 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 409 t=649515470 asked=46 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 410 t=649515559 asked=51 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 411 t=649515654 asked=55 wrote=0 free=5 plugged=1 connected=1 us=54
+[wx] write 412 t=649515729 asked=34 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 413 t=679448882 asked=46 wrote=0 free=5 plugged=1 connected=1 us=69
+[wx] write 414 t=679537003 asked=58 wrote=0 free=5 plugged=1 connected=1 us=70
+[wx] write 415 t=679537150 asked=87 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 416 t=679537336 asked=161 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 417 t=679537412 asked=85 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 418 t=679537494 asked=38 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 419 t=679537573 asked=41 wrote=0 free=5 plugged=1 connected=1 us=60
+[wx] write 420 t=679537681 asked=47 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 421 t=679537769 asked=51 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 422 t=679537858 asked=45 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 423 t=679537947 asked=48 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 424 t=679538035 asked=45 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 425 t=679538128 asked=56 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 426 t=679538215 asked=44 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 427 t=679538304 asked=49 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] write 428 t=679538379 asked=32 wrote=0 free=5 plugged=1 connected=1 us=55
+[wx] frames n=160 of 18289
+[wx] frame 18129 start=693004030 dt=0 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18130 start=693041242 dt=37212 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18131 start=693078405 dt=37163 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18132 start=693115651 dt=37246 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18133 start=693152821 dt=37170 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18134 start=693190023 dt=37202 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18135 start=693227282 dt=37259 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18136 start=693264455 dt=37173 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18137 start=693301782 dt=37327 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18138 start=693339060 dt=37278 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18139 start=693376348 dt=37288 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18140 start=693413693 dt=37345 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18141 start=693450904 dt=37211 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18142 start=693488071 dt=37167 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18143 start=693525308 dt=37237 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18144 start=693562502 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18145 start=693599707 dt=37205 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18146 start=693636950 dt=37243 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18147 start=693674155 dt=37205 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18148 start=693711490 dt=37335 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18149 start=693748765 dt=37275 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18150 start=693785938 dt=37173 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18151 start=693823271 dt=37333 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18152 start=693860551 dt=37280 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18153 start=693897765 dt=37214 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18154 start=693935014 dt=37249 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18155 start=693972192 dt=37178 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18156 start=694009383 dt=37191 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18157 start=694046628 dt=37245 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18158 start=694083808 dt=37180 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18159 start=694121142 dt=37334 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18160 start=694158432 dt=37290 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18161 start=694195668 dt=37236 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18162 start=694233014 dt=37346 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18163 start=694270234 dt=37220 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18164 start=694307433 dt=37199 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18165 start=694344873 dt=37440 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18166 start=694382095 dt=37222 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18167 start=694419293 dt=37198 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18168 start=694456542 dt=37249 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18169 start=694493706 dt=37164 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18170 start=694531035 dt=37329 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18171 start=694568275 dt=37240 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18172 start=694605469 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18173 start=694642788 dt=37319 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18174 start=694679992 dt=37204 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18175 start=694717175 dt=37183 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18176 start=694754432 dt=37257 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18177 start=694791589 dt=37157 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18178 start=694828774 dt=37185 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18179 start=694866073 dt=37299 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18180 start=694903291 dt=37218 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18181 start=694940641 dt=37350 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18182 start=694977938 dt=37297 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18183 start=695015131 dt=37193 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18184 start=695052479 dt=37348 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18185 start=695089689 dt=37210 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18186 start=695126896 dt=37207 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18187 start=695164254 dt=37358 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18188 start=695201575 dt=37321 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18189 start=695238792 dt=37217 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18190 start=695276051 dt=37259 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18191 start=695313261 dt=37210 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18192 start=695350569 dt=37308 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18193 start=695387831 dt=37262 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18194 start=695425034 dt=37203 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18195 start=695462447 dt=37413 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18196 start=695499693 dt=37246 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18197 start=695536880 dt=37187 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18198 start=695574144 dt=37264 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18199 start=695611341 dt=37197 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18200 start=695648507 dt=37166 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18201 start=695685764 dt=37257 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18202 start=695722958 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18203 start=695760261 dt=37303 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18204 start=695797555 dt=37294 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18205 start=695835096 dt=37541 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18206 start=695872417 dt=37321 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18207 start=695909628 dt=37211 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18208 start=695946840 dt=37212 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18209 start=695984495 dt=37655 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18210 start=696021746 dt=37251 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18211 start=696058903 dt=37157 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18212 start=696096158 dt=37255 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18213 start=696133367 dt=37209 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18214 start=696170755 dt=37388 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18215 start=696208080 dt=37325 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18216 start=696245264 dt=37184 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18217 start=696282573 dt=37309 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18218 start=696319790 dt=37217 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18219 start=696356967 dt=37177 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18220 start=696394238 dt=37271 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18221 start=696431432 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18222 start=696468596 dt=37164 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18223 start=696506222 dt=37626 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18224 start=696543424 dt=37202 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18225 start=696580726 dt=37302 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18226 start=696618000 dt=37274 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18227 start=696655177 dt=37177 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18228 start=696692501 dt=37324 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18229 start=696729787 dt=37286 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18230 start=696766973 dt=37186 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18231 start=696804720 dt=37747 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18232 start=696841918 dt=37198 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18233 start=696879116 dt=37198 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18234 start=696916491 dt=37375 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18235 start=696953683 dt=37192 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18236 start=696990991 dt=37308 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18237 start=697028315 dt=37324 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18238 start=697065510 dt=37195 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18239 start=697102772 dt=37262 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18240 start=697139966 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18241 start=697177188 dt=37222 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18242 start=697214612 dt=37424 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18243 start=697251814 dt=37202 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18244 start=697288980 dt=37166 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18245 start=697326215 dt=37235 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18246 start=697363508 dt=37293 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18247 start=697400894 dt=37386 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18248 start=697438171 dt=37277 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18249 start=697475348 dt=37177 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18250 start=697512691 dt=37343 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18251 start=697549894 dt=37203 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18252 start=697587063 dt=37169 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18253 start=697624424 dt=37361 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18254 start=697661596 dt=37172 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18255 start=697698795 dt=37199 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18256 start=697736049 dt=37254 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18257 start=697773240 dt=37191 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18258 start=697810560 dt=37320 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18259 start=697847849 dt=37289 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18260 start=697885043 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18261 start=697922396 dt=37353 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18262 start=697959589 dt=37193 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18263 start=697997604 dt=38015 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18264 start=698034899 dt=37295 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18265 start=698072133 dt=37234 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18266 start=698109338 dt=37205 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18267 start=698146595 dt=37257 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18268 start=698183800 dt=37205 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18269 start=698221154 dt=37354 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18270 start=698258447 dt=37293 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18271 start=698296388 dt=37941 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18272 start=698333658 dt=37270 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18273 start=698370875 dt=37217 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18274 start=698408066 dt=37191 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18275 start=698445339 dt=37273 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18276 start=698482529 dt=37190 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18277 start=698519714 dt=37185 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18278 start=698556966 dt=37252 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18279 start=698594141 dt=37175 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18280 start=698631832 dt=37691 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18281 start=698669213 dt=37381 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18282 start=698706421 dt=37208 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18283 start=698743691 dt=37270 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18284 start=698780885 dt=37194 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18285 start=698818518 dt=37633 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18286 start=698856195 dt=37677 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18287 start=698893461 dt=37266 ring=0 flags=--- scene=stale mi=60
+[wx] frame 18288 start=698932427 dt=38966 ring=0 flags=--- scene=stale mi=60

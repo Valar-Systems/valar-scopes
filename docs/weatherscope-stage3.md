@@ -4482,6 +4482,45 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 
 **The PR:** opened as a draft for CI. It goes to approval once the charger and glass rows are in.
 
+### A9.44 Ruled 2026-10-26 (source: reviewer chat, pasted by Daniel): the glass row passes on X; the charger row deferred
+
+**The ruling, verbatim:**
+
+> Daniel's glass row on X (2026-10-26)
+>
+> Daniel, on X, plugged into his PC with no serial window: "the PC is working great as it should". He's done at the glass: read his presses' records over Wi-Fi and record them with his words and their source. The glass row passes.
+>
+> The charger row: Daniel hasn't run it. It's not needed for approval: under X every serial wait is 0 in every path, and M2, the worst case (connected with no reader), measured every write at <= 74 us. Record the row as deferred and predicted from the code; if Daniel runs it later, add it.
+>
+> Then report #485 with CI's tally for approval.
+
+**Daniel's words, with their source** (reviewer chat, 2026-10-26, as relayed above):
+- **The setup:** build X, on his PC with no serial window.
+- **The words:** "the PC is working great as it should".
+
+**His presses' records, read over `/diag/wx`.**
+- **The read:** at 22:59:56Z, HTTP 200, 18,724 B. The serial port was not opened.
+- **The record:** `tools/weatherscope/board/run-2026-10-26-glassX/` on this branch, holding no address.
+- **What it held:** 27 builds since the reset at 22:48:19Z, the last 8 of them kept. **Four are Daniel's holds:** builds 2-5, all on the "here now" scene (60 → 15 → 60 → 15 → 60). Any earlier presses had already left the 8-build window.
+
+| build | radius | `print` (µs) | the rebuild frame (µs) |
+|---|---|---|---|
+| 2 | 60 → 15 | 1,203 | 142,631 |
+| 3 | 15 → 60 | 1,420 | 149,586 |
+| 4 | 60 → 15 | 1,191 | 142,560 |
+| 5 | 15 → 60 | 1,432 | 149,570 |
+
+- **The glass row's frozen numbers (A9.42) hold:** the rebuild frames are ≤ 160,000 µs, with `print` < 5,000.
+- **All 64 recorded writes** were `plugged` and `connected`, with nobody reading (every one short, as M2's), and each **returned within 73 µs**. **That is Daniel's everyday setup, measured.**
+- **The frame log** (the last 160 frames, about 6 s) no longer held his presses, so the rebuild frames above come from the build records.
+
+**The charger row: deferred, predicted from the code.**
+- **The prediction:** with no host, `isPlugged()` is false, so `isCDC_Connected()` is false, and `write()` takes the not-connected path. That path is a non-blocking replace-oldest copy, which returns the full size and waits for nothing, at any timeout.
+- **Why it is not needed for approval:** under X every wait in every path is 0, and M2, the worst case, measured ≤ 74 µs a write.
+- **If Daniel runs it later,** it is added here.
+
+**Next:** #485 marked ready and reported with CI's tally on its unchanged head `b5cf7beed21d`, for approval. This record lives on this branch, not on #485, so the head CI graded stays the head.
+
 ## Addendum 10, 2026-10-26: step 3.5b, geography; the plan, for review before any code
 
 **Nothing below is code, and no 3.5b code is written until this plan and the package format doc are ruled.**
