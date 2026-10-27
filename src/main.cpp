@@ -872,8 +872,13 @@ void loop()
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
-    if (drawScan)
-      DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+    if (drawScan) {
+#if defined(FEATURE_CLOUD_FEED)
+      // Over a shown weather layer the wedge blends (WD6, looks 3/4); otherwise today's opaque wedge, unchanged.
+      if (!appManager.DrawSweepOverWeather(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep))
+#endif
+        DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+    }
 #endif
 
     appManager.Draw(canvas, firstPass);

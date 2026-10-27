@@ -23,14 +23,17 @@ inline bool Outline(Look l) { return l == Look::A; }
 
 inline uint32_t Pack(wxpalette::Rgb c) { return ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b; }
 
-/** An echo code's colour (1-13) in a look; anything else is the background. */
-inline wxpalette::Rgb Echo(uint8_t code, Look l)
+/** An echo code's colour (1-13) at `pct` percent; anything else is the background. The one definition: Echo() below
+ *  and the lit sweep (include/WxSweep.h, WD6 look 4, which raises the percent toward 100 % in the wedge) both use it. */
+inline wxpalette::Rgb EchoAt(uint8_t code, int pct)
 {
-    const int pct = Percent(l);
     if (code >= 1 && code <= 12) return wxpalette::Dim(wxpalette::kRainTable[code - 1], pct);
     if (code == 13) return wxpalette::Dim(wxpalette::kRain75, pct);
     return wxpalette::kDry;
 }
+
+/** An echo code's colour (1-13) in a look; anything else is the background. */
+inline wxpalette::Rgb Echo(uint8_t code, Look l) { return EchoAt(code, Percent(l)); }
 
 /** 14: lit on a checkerboard. 15: lit where x and y are both even. Every 2 x 2 window holds a lit pixel of each. */
 inline bool NoCoverageLit(int x, int y) { return ((x + y) & 1) == 0; }

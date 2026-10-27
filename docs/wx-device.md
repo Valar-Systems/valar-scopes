@@ -1005,3 +1005,16 @@ No window may straddle sunset (01:00Z at the Bend point). Each window's sign is 
 **Outside the set:** stop and report, without re-running for a better number.
 
 **Then:** Daniel picks, the captures follow in rain on his pick, and then E2:08 goes back on the shipping build.
+
+### Results for WD6's host rows (local, before CI; the board run follows)
+
+| | read | verdict |
+|---|---|---|
+| **W1** | `SeeThrough565` over all 65,536 colours × lvl 0-120: **0 mismatches** (R and B kept; green as defined; lvl 0 changes nothing) | **as predicted** |
+| **W2** | `Lit565` over codes 0-15 × looks A/B × lvl 0-120: **0 mismatches** (lvl 0 is the layer's own colour, 120 the code at 100 %, non-echo codes the wedge green) | **as predicted** |
+| **W3** | the render, 64 runs (16 angles × 2 looks × looks A/B): **outside 0 mismatches, inside 0 mismatches**, every marked pixel blended exactly once and its mark cleared. The wedge is **7,283 px** on average (W4 assumed about 7,200) | **as predicted** |
+| **S-w** | the opaque wedge restored: red rows **[W3-in]** only. The header was unchanged afterwards (`4232849bcde9`) | **as predicted** |
+| **W6 (local half)** | MinGW: **ALL HOST TESTS PASSED**, WxS2's rows unchanged after `Echo` moved onto the shared `EchoAt`. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: the board block's known gap only. Builds: `blipscope-s3-128` 1,942,000 B and `wxlook` 1,943,024 B. The bench label `Sweep over weather (bench)` is **absent from the shipping image (0)** and present in `wxlook` (1), read from the binaries | **as predicted** |
+
+**Stated, not graded by a host row:** that the ported rasteriser covers exactly LovyanGFX's pixels. It is a line-for-line
+port of `fillTriangle` and `drawLine`; the host cannot run LovyanGFX to compare them.

@@ -15,6 +15,17 @@
 //
 // All geometry derives from `angle`/`radius` (computed once per frame in the
 // draw loop), so the two render bands paint an identical wedge with no seam.
+
+// The bright leading beam and its phosphor-white head, drawn last over the wedge. Shared by the opaque wedge below and
+// by the sweep over the weather layer (AircraftManager::DrawSweepOverWeather, WD6), so the beam is today's in both.
+inline void DrawRadarSweepBeam(BandCanvas& buf, int cx, int cy, int radius, float angle)
+{
+    const int xLead = cx + (int)(std::cos(angle) * radius);
+    const int yLead = cy + (int)(std::sin(angle) * radius);
+    buf.drawLine(cx, cy, xLead, yLead, lgfx::color888(80, 255, 80));
+    buf.fillCircle(xLead, yLead, 2, lgfx::color888(170, 255, 170));
+}
+
 inline void DrawRadarSweep(BandCanvas& buf, int cx, int cy, int radius, float angle)
 {
     constexpr float TAIL = 1.0f;   // afterglow span behind the beam, radians (~57 deg)
@@ -43,6 +54,5 @@ inline void DrawRadarSweep(BandCanvas& buf, int cx, int cy, int radius, float an
     }
 
     // bright leading beam with a phosphor-white head where it meets the bezel
-    buf.drawLine(cx, cy, xLead, yLead, lgfx::color888(80, 255, 80));
-    buf.fillCircle(xLead, yLead, 2, lgfx::color888(170, 255, 170));
+    DrawRadarSweepBeam(buf, cx, cy, radius, angle);
 }

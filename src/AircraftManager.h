@@ -29,6 +29,7 @@
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
 #include "WxPolicy.h" // weather under the planes: when to fetch, what to keep (pure; WD3)
 #include "WxS2.h"     // weather under the planes: its colours, looks A and B (pure; WD4)
+#include "WxSweep.h"  // the sweep over the weather, looks 3 and 4 (pure; WD6)
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
@@ -645,8 +646,11 @@ private:
     uint8_t* wxCells = nullptr;       // wxcrop::DecodeInto's output, kWxCellsMax
     uint8_t* wxPixels = nullptr;      // wxlayer::Build's output, one code per screen pixel
     uint8_t* wxLayer565 = nullptr;    // the layer, RGB565, two bytes per screen pixel
+    uint8_t* wxSweepSlice = nullptr;  // WD6: the wedge's slice per screen pixel, cleared as it is blended
     bool wxNeedsRebuild = false;      // a new crop (or view) has not been built into the layer yet
     wxs2::Look wxLook = wxs2::Look::A;   // the shipping look until Daniel picks; B only via the bench env (WD4 add. 2)
+    // WD6: the sweep over a shown layer. 4 (lit) until Daniel picks; 3 (see-through) only via the bench env.
+    wxsweep::Look wxSweepLook = wxsweep::Look::Lit;
     LGFX_Sprite wxSprite;             // wraps wxLayer565 (setBuffer): pushed in place of the frame clear
     bool wxSpriteReady = false;       // wxSprite holds the layer built for the inputs below
     wxpolicy::Show wxShowing = wxpolicy::Show::Nothing;   // this frame's decision, made in DrawWeatherUnder
@@ -1288,6 +1292,10 @@ public:
     // radar scope, with a crop WxPolicy allows, it pushes the cached layer and returns true; otherwise false, and
     // the frame is cleared as before.
     bool DrawWeatherUnder(BandCanvas& canvas);
+    // The sweep over the weather (docs/wx-device.md, WD6): main.cpp calls this in place of DrawRadarSweep. Over a
+    // layer pushed THIS frame it blends the wedge (look 3 or 4) and draws today's beam, returning true; otherwise
+    // false, and today's opaque wedge draws -- so with the layer off nothing changes.
+    bool DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle);
 #endif
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
     // Is the detail card up? Distinct from !IsRadarView(), which is also true on

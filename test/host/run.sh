@@ -1190,6 +1190,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The sweep over the weather, looks 3 and 4 (include/WxSweep.h; docs/wx-device.md WD6): the two colour rules over every
+# colour, code and level, and the wedge rendered over a synthetic layer at 16 beam angles. Its sabotage (the opaque
+# wedge restored): python -I test/host/sabotage_wx_sweep.py
+echo
+echo "== WxSweep =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_sweep.cpp" -o "$OUT/test_wx_sweep.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather sweep test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_sweep.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # S2, the weather layer's colours (include/WxS2.h; WD4 and its addenda), for BOTH bench looks (A 40 %, B 25 %). The
 # planes' colours are read from src/AircraftManager.cpp. Its sabotages: test/host/sabotage_wx_s2.py, run below.
 echo

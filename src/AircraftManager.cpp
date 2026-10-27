@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
+#include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
 #include "BrightnessLog.h"
@@ -911,6 +912,8 @@ void AircraftManager::Initialise()
 #ifdef WX_LOOK_AB
     // The bench env only (docs/wx-device.md, WD4 addendum 2): Daniel compares look A and look B on the glass.
     wxLook = configServer.GetStoredString("wx-look") == "B" ? wxs2::Look::B : wxs2::Look::A;
+    // WD6: Daniel compares the sweep's looks 3 and 4 on the glass; absent means 4, the look the image draws.
+    wxSweepLook = configServer.GetStoredString("wx-sweep") == "3" ? wxsweep::Look::SeeThrough : wxsweep::Look::Lit;
 #endif
     wxSpriteReady = false;   // a save can change the look, the home or the range: rebuild on the next shown frame
 #endif
@@ -3114,7 +3117,7 @@ bool AircraftManager::AllocateWeatherBuffers()
     struct Buf { const char* name; size_t bytes; uint8_t** p; };
     Buf bufs[] = { { "landing", wxcrop::kMaxBytes, &wxLanding }, { "held", wxcrop::kMaxBytes, &wxHeld },
                    { "cells", kWxCellsMax, &wxCells }, { "pixels", px, &wxPixels },
-                   { "layer565", 2 * px, &wxLayer565 } };
+                   { "layer565", 2 * px, &wxLayer565 }, { "sweep", px, &wxSweepSlice } };
     const uint32_t before = ESP.getFreePsram();
     size_t total = 0;
     for (Buf& b : bufs) {
@@ -3129,6 +3132,7 @@ bool AircraftManager::AllocateWeatherBuffers()
         total += b.bytes;
     }
     wxSprite.setBuffer(wxLayer565, SCREEN_SIZE, SCREEN_SIZE, 16);   // no allocation: the PSRAM buffer above
+    memset(wxSweepSlice, 0, px);   // WD6: no pixel is in the wedge until Rasterise marks it
     wxBuffersOk = true;
     // WD5d reads this line: psram_free must fall by `total` within 1,024 B.
     Serial.printf("[wx] buffers: total %u B; psram_free %u -> %u\n", (unsigned)total, (unsigned)before,
@@ -3259,6 +3263,27 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
         return false;
     }
     wxSprite.pushSprite(&canvas.sprite(), 0, -canvas.offsetY());
+    return true;
+}
+
+bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
+{
+    // Only over a layer DrawWeatherUnder pushed this frame; with the layer off, today's opaque wedge draws instead.
+    if (wxShowing != wxpolicy::Show::Crop || !wxBuffersOk || wxSweepSlice == nullptr) return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    // One band, the whole frame: BANDED_RENDER is false on every SKU. Anything else draws today's wedge.
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16)
+        return false;
+    uint16_t* const px = (uint16_t*)sp.getBuffer();
+    if (px == nullptr) return false;
+    int y0 = 0, y1 = -1;
+    wxsweep::Rasterise(cx, cy, radius, angle, wxSweepSlice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1);
+    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
+    wxsweep::Blend(wxSweepLook, wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1,
+                   [&](int x, int y) { return (uint16_t)__builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
+                   [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+                   [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+    DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
     return true;
 }
 #endif

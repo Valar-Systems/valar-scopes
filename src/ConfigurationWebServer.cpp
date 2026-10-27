@@ -2749,8 +2749,11 @@ void ConfigurationWebServer::Initialise() {
 #ifdef WX_LOOK_AB
         // The bench env only (docs/wx-device.md, WD4 addendum 2): which look is on the glass; absent means A.
         const String wxLookBench = prefs.getString("wx-look", "A") == "B" ? "B" : "A";
+        // WD6: the sweep over the weather, look 3 or 4, on the glass; absent means 4, the look the image draws.
+        const String wxSweepBench = prefs.getString("wx-sweep", "4") == "3" ? "3" : "4";
 #else
         const String wxLookBench = "A";
+        const String wxSweepBench = "4";
 #endif
         const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
         const String airportsMin = HtmlEscape(prefs.isKey("airports-min") ? prefs.getString("airports-min", "all") : "all");
@@ -3172,7 +3175,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, wxLayerEnabled, wxLookBench, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, wxLayerEnabled, wxLookBench, wxSweepBench, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -3220,6 +3223,9 @@ void ConfigurationWebServer::Initialise() {
                          + "<label>Weather look (bench) <select name=\"wx-look\"><option value=\"A\""
                          + (wxLookBench == "A" ? " selected" : "") + ">A: 40 % + outline</option><option value=\"B\""
                          + (wxLookBench == "B" ? " selected" : "") + ">B: 25 %</option></select></label>"
+                         + "<label>Sweep over weather (bench) <select name=\"wx-sweep\"><option value=\"4\""
+                         + (wxSweepBench == "4" ? " selected" : "") + ">4: lit</option><option value=\"3\""
+                         + (wxSweepBench == "3" ? " selected" : "") + ">3: see-through</option></select></label>"
 #endif
                          ;
 #else
@@ -3787,6 +3793,7 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("wx-layer");
 #ifdef WX_LOOK_AB
         TrySaveParam("wx-look");
+        TrySaveParam("wx-sweep");   // WD6
 #endif
         TrySaveParam("airports-min");
         SaveToggle("trail");
