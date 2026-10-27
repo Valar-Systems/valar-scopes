@@ -910,7 +910,8 @@ This holds within ±24.8 days of `millis()`. `AircraftManager` and the tests' ca
 **The arm, all on E2:08:**
 - **The image:** `blipscope-s3-128-wxlook` from `4caa662` (app-only, banner checked, one trace held). Addendum 7's
   hardening changed only the policy and its tests, so G7 carries for it.
-- **B:** `[23:12:00, 23:22:00)`, the layer off, untouched since the 23:00Z boot.
+- **B:** `[23:12:00, 23:22:00)`, the layer off, untouched since the 23:00Z boot. *(Wrong, corrected under WD6's board
+  results: the trace has presses at 23:01:44-46Z and 23:11:20-21Z.)*
 - **A:** `[23:22:00, 23:32:00)`, the layer on.
 - **The switches:** `cfg_post.py` verified both, each time with only `wx-layer` changed.
 - **The sun at the Bend point:** +17.2°, +15.8° and +14.3° at the three ends, the same sign, so no sunset was
@@ -1018,3 +1019,113 @@ No window may straddle sunset (01:00Z at the Bend point). Each window's sign is 
 
 **Stated, not graded by a host row:** that the ported rasteriser covers exactly LovyanGFX's pixels. It is a line-for-line
 port of `fillTriangle` and `drawLine`; the host cannot run LovyanGFX to compare them.
+
+### WD6, the board (2026-10-27). W4, W5 and G7′ are all OFF-PREDICTION; stopped for a ruling
+
+**The arm, all on E2:08:**
+- **The old image:** main `962ccb7` shipping, traced 00:05:30-00:16:02Z, untouched, at the idle cadence (4 polls a minute).
+- **The sweep build:** `blipscope-s3-128-wxlook` from `53ba354`, app-only, banner checked, one trace held. It booted at
+  00:17:39Z. **There is no `[touch]` line anywhere in its trace.**
+- **The windows:**
+  - B′: `[00:29:31, 00:39:31)`, the layer off.
+  - A′: `[00:39:31, 00:49:31)`, the layer on, look 4.
+  - Look 3: `[00:49:32, 00:59:32)`.
+  - Look 4 back at 00:59:33Z, with the layer left on.
+- **The switches:** made with `cfg_post.py`; each was verified with only its one field changed.
+- **The sun at the Bend point:** +5.2°, +3.5° and +1.8° at the window starts, so no window straddled sunset.
+
+| row | read | predicted | verdict |
+|---|---|---|---|
+| **W4, look 4** | resid median **+3.8 ms** (19 lines; p95 62.2, n 29) | 0.0, band −1..+3 | **OFF** |
+| **W4, look 3** | resid median **+3.8 ms** (19 lines; p95 60.9, n 26) | −0.7, band −1.7..+2.3 | **OFF** |
+| **W5** | p95 median: B′ **50.0** against the old image's **47.5**, so \|Δ\| is **2.5 ms**. Resid beside it: −9.7 and −9.8 | ≤ 1 ms | **OFF** |
+| **G7′** | polls: A′ **120** / B′ **39** = **3.08** (10 `[perf]` lines each) | 0.9-1.1 | **OFF** |
+| the server, ungraded | weighted `/blips`: A′ 152 / B′ 39 = 3.90 | reported only | — |
+
+**G7′, read for its cause: the cadence followed the idle clock, not the layer.**
+- **The counter:**
+  - 12 polls a minute until 00:27:31Z.
+  - 6 at 00:28:31Z, then 4 a minute (the 15 s idle cadence) from 00:29:31Z. That is 600 s after boot's `Initialise()`
+    (its `[cloud] config` line is at 00:17:47Z), with the layer off and nothing changed. So **B′ ran wholly idle.**
+  - Back to 12 a minute the minute after the 00:39:31Z POST, and through both layer-on windows.
+- **The mechanism, read from the code:**
+  - A saved config runs `ConsumeConfigChanged()` → `appManager.Initialise()` (`src/main.cpp`).
+  - `Initialise()` seeds `lastTouchActivityMs = millis()` (`src/AircraftManager.cpp`).
+  - `CurrentPollIntervalMs()` then returns the active 5 s for 600 s.
+  - **So every `cfg_post.py` switch puts the board at the active cadence for 10 min.** This protocol switched the
+    layer on with a POST, and B′ had none.
+- **The named alternative, that the layer itself raises the cadence, is excluded by the code:**
+  - `CurrentPollIntervalMs()` reads only the touch clock, the night test and the fleet config.
+  - `lastTouchActivityMs` is written in three places: `Initialise()`, a touch, and the bench `k` key. None is weather
+    code.
+  - The data cannot exclude it on its own, because both layer-on windows began with a POST and lasted ≤ 600 s. The
+    exclusion is the code's.
+- **The server's 3.90 (ungraded)** points the same way, as it would under either reading.
+
+**G7's record is wrong in one line.** It says B was "untouched since the 23:00Z boot", but G7's trace has presses:
+- **23:01:44-46Z:** a tap and two zoom swipes.
+- **23:11:20-21Z:** a hold and a tap.
+
+The 23:11:21Z tap kept the board active until 23:21:21Z, which is why the counter read 12 a minute in B. The `[perf]`
+line at 23:21:52Z reads 8, as the idle clock ran out, and the 23:22:01Z POST re-armed it.
+
+**Without that tap, G7's B would have gone idle at about 23:11:46Z** (600 s after the 23:01:46Z swipe) and read about
+40. So G7 had the same confound, hidden by a touch. G7's `/wx` rows do not depend on the poll cadence, and they stand.
+
+**W4, read for its cause.** Its point was G7's absolute layer-on resid (−2.2), and resid does not hold still between
+runs:
+
+| | layer off: resid (n) | layer on: resid (n) | p95 step, off → on |
+|---|---|---|---|
+| G7 (`4caa662`: today's opaque wedge over the layer) | −24.7 (39) | −2.2 (31) | +13.4 |
+| WD6 (`53ba354`), look 4 | −9.7 (30) | +3.8 (29) | +12.2 |
+| WD6, look 3 | | +3.8 (26) | +10.9 |
+
+- **G7's own resid step was +22.5 ms against a p95 step of +13.4,** because n fell from 39 to 31. So the firmware's
+  per-contact model does not cancel traffic at this scale. Two layer-off baselines on the same board sit 15 ms apart.
+- **The named alternative, that the sweep costs about 4-6 ms more than predicted, is not excluded:**
+  - Against it: today's whole off → on step (layer plus sweep, +12.2) is smaller than G7's layer-only step (+13.4).
+    Under it, the step would be about +17.
+  - But that compares two runs, and the table shows how far apart two runs can sit. So it argues against the
+    alternative and does not exclude it.
+- **My prediction also had a modelling error, stated now:**
+  - **The opaque wedge:** it added the blend's cost on top of G7's layer-on frame, which already included today's opaque
+    wedge. The blend path replaces that wedge, so the net cost is the blend minus the opaque fill.
+  - **The row scan:** the blend scans every byte of its rows in the PSRAM slice buffer, not only the wedge's pixels.
+  - Neither is in the +1.5 / +2.2.
+
+**W5, read for its cause.** Both windows were at the idle cadence and untouched, so the cadence does not separate them.
+- **n differed:** the median was 27 (old) and 30 (B′), and p95 rises with n inside each window.
+- **At matched n,** in the only two bins both windows share: n = 27, B′ is +0.95 ms; n = 28, +1.5 ms. So traffic
+  explains part of the 2.5 ms, not all of it.
+- **Two readings, both open:**
+  - (a) The branch costs about 1-1.5 ms of frame time with the layer off. The sweep build carries all of #445's weather
+    code, not only WD6's early return.
+  - (b) The hour drifted. The old window was 00:06-00:16Z and B′ 00:30-00:39Z, and a drift of that size is what the W4
+    table shows between runs.
+- **The frozen reader also included five stale lines.** They arrived in one burst when the trace opened (00:05:30-31Z,
+  USJ output from before the open). Without them the old median is 47.6 and \|Δ\| is 2.4, so the verdict does not move.
+
+**Proposed re-registration.** It is frozen here and committed locally, not pushed, and it waits for the ruling.
+- **G7″, the cadence:**
+  - Fresh, on the same build. Each window is opened by its own verified POST: B″ with `wx-layer off` (the layer is on
+    now) and A″ with `wx-layer on`.
+  - Each window is 10 min long, so both sit inside the 600 s active clock.
+  - A `[touch]` line in either window voids the run.
+  - **Predicted:** 115-125 polls in each window, and a ratio of 0.9-1.1. Outside the set: stop and report.
+- **W4′, the sweep's cost, measured directly:**
+  - A `micros()` timer goes around the sweep call in `main.cpp`, whichever path runs. The bench env's `[health]` line
+    prints it as `sweep=<avg>/<p95>us`.
+  - So the cost is read inside each frame, not as the difference of two windows.
+  - **Predicted, as averages:**
+    - layer off (today's opaque wedge) ≤ 1.0 ms;
+    - look 3 1.5-4.0 ms;
+    - look 4 2.5-6.0 ms;
+    - look 4 − look 3 ≥ 0.5 ms.
+  - Outside the set: stop and report.
+- **W5′, the layer off against the old image, bracketed:**
+  - Old image → sweep build → old image, 10 min each in one hour band. Each window starts ≥ 12 min after its flash, and
+    all are untouched (so all idle).
+  - **The control:** the two old windows' p95 medians are within 1 ms of each other. If not, the hour drifted, and the
+    run reads "instrument", not a grade.
+  - **Predicted:** the sweep build's p95 median is within ±1 ms of the mean of the two old windows.
