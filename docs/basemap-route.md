@@ -1593,3 +1593,24 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 - A slip of my own in the diagnosis, which cost nothing: a check handed Node an MSYS `/tmp` path, so its counts came back blank. It was redone with a Windows path.
 
 **Next, per A2.6:** `layers.ts`, with ML, MR5 and MR6, S-RZERO and S-R0M, and ML's own sabotages.
+
+### A2.12 Ruling on `frame.ts`, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Ruling (reviewer chat, 2026-10-28)
+>
+> - frame.ts: accepted, as recorded at 283b445.
+> - The BLIND pass stands as BLIND, on record, with its cause: the Workers runtime refused to start, and 0 tests ran, four times in about three minutes. A run that produces no reading is an instrument failure, not a reading, so re-running it with no code change isn't re-running for a better number. The rerun's grades stand. If the runtime failure recurs, report how often.
+> - Carry on with layers.ts as A2.6 sets out. D1 as before: the 04:00Z round, then the mirror.
+
+**Standing from here:** every sabotage pass reports how many runs came back BLIND from a runtime start failure, so a recurrence is counted rather than remembered.
+
+### A2.13 Before `layers.ts`: a gap in a frozen set, found by reading, recorded before any code
+
+**S-SQUARELEN's frozen set is {ML6} (A1.7). I expect it to fail {ML6, MR6}.**
+- **Why:** the plant swaps the in-disc length for the in-square length. MR6's river C runs from (30, 95) to (90, 95) km: 0 m inside the disc, and **60 km inside the square**. Under the plant, C has the longest length, so the names table becomes [C, A, B, D], not [A, B, D].
+- **Where the gap came from:** A2.5 added MR6 after A1.7 froze S-SQUARELEN's set. A2.5's own sabotages were checked against every family, MR6 included, but A1.7's sets were not re-checked against the new rows.
+- **This is written before `layers.ts` exists,** so the reading is a prediction and not an explanation. The frozen set stays {ML6}. I will run S-SQUARELEN as frozen and report the result as it comes. If it is {ML6, MR6}, that is an off-prediction against the frozen table, and the set is re-registered only by ruling.
+- **I checked the other ML sabotages against MR5 and MR6 the same way and found nothing.**
+  - S-RIVERTIE: MR6's lengths are distinct.
+  - S-BUSSUB, S-DEDUPALL, S-DEDUPLT and S-PLACESORT: they touch no water or river rule.
+  - S-RZERO and S-R0M: no ML row has a zero-sum part or a 0 m group. That is A2.5's reading, unchanged.
