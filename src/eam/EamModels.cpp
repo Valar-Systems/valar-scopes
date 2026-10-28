@@ -29,11 +29,32 @@ MsgType ParseType(const String& t)
     return MsgType::Unknown;
 }
 
-// PLACEHOLDER E-4B "Nightwatch" ICAO24 hexes. The OpenSky command-post watch has no type field,
-// so we tag these as E-4B. VERIFY against a live tracker (adsb.lol / ADS-B Exchange) before
-// relying on them -- the fleet's hex assignments change. These are also the default seed for the
-// OpenSky watchlist (see EamFeedClient); the user can edit the list in web config.
-const char* const kE4bHexes[] = { "ae0451", "ae0452", "ae0453", "ae0454" };
+// The four E-4B "Nightwatch" ICAO24 addresses, cited (from #409; docs/missileer-e4b-table.md). The OpenSky
+// command-post watch has no type field, so these are tagged E-4B by address. They are also the default seed for
+// the OpenSky watchlist (see EamFeedClient); the user can edit the list in web config.
+//
+// The USAF fact sheet gives the inventory as four
+// (https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104503/e-4b/). A USAF serial is the registration
+// ADS-B databases carry for the aircraft.
+//
+//   hex     serial   the serial is an E-4B
+//   ADFEB3  73-1676  "73-1676 (E-4A/B)"     http://www.joebaugher.com/usaf_serials/1973.html
+//   ADFEB4  73-1677  "73-1677 (E-4A/B)"     http://www.joebaugher.com/usaf_serials/1973.html
+//   ADFEB5  74-0787  "74-0787 Boeing E-4A ... 1980: Converted to E-4B"
+//                                           http://www.joebaugher.com/usaf_serials/1974.html
+//   ADFEB6  75-0125  "75-0125 Boeing E-4B"  http://www.joebaugher.com/usaf_serials/1975.html
+//
+// The hex belongs to the serial in three registries, which agree on all four:
+//   - tar1090-db, db/AD.js at commit 17679e257733ad808a417cf4a5d52f3b00238887, keys "FEB3".."FEB6";
+//   - adsbdb, by serial: https://api.adsbdb.com/v0/aircraft/73-1676 -> "mode_s":"ADFEB3", "E-4B"
+//     (and 73-1677, 74-0787, 75-0125 -> ADFEB4, ADFEB5, ADFEB6);
+//   - hexdb.io, by hex: https://hexdb.io/api/v1/aircraft/ADFEB3 -> "73-1676", "E-4B"
+//     (and ADFEB4..ADFEB6 -> 73-1677, 74-0787, 75-0125).
+//
+// NOT THE OLD TABLE. Until this change the table held four placeholder addresses, ae0451..ae0454. They are four
+// US Navy C-2A Greyhounds, not E-4Bs: adsbdb (https://api.adsbdb.com/v0/aircraft/AE0451 ... AE0454), hexdb.io and
+// tar1090-db (A.js keys "E0451".."E0454") all say so. scripts/check_e4b_table.py keeps them out.
+const char* const kE4bHexes[] = { "adfeb3", "adfeb4", "adfeb5", "adfeb6" };
 
 } // namespace
 

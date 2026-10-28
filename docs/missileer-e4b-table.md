@@ -28,3 +28,17 @@ Greyhounds. `ClassifyAbncp()` names them "E-4B", and `DefaultAbncpWatch()` seeds
 
 **Not changed, by the ruling:** the config page's hint beside the watch list ("Seeded with the E-4B "Nightwatch" hexes
 (verify them)"). Its wording is the rest of #409's business.
+
+## Results (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **T1** | **main's file:** exit 1, "the table holds C-2A address(es) ae0451..ae0454". **The branch:** exit 0, "exactly adfeb3, adfeb4, adfeb5, adfeb6" | **as predicted** |
+| **T1-S** | the real file's text with `adfeb6` → `ae0454`, in memory: applied, exit 1. The real file was unchanged (`ba93fa411a92`) | **as predicted** |
+| **T1-R** | no table: exit 2. Two tables: exit 2. With six other synthetic cases, all eight are as expected | **as predicted** |
+| **T2** | **main's three ELFs:** the four E-4B strings missing, and `ae0451`-`ae0454` present (the control). **The branch's three:** all four E-4B strings present, no C-2A string. "E-4B" was present in all six | **as predicted** |
+| **T3** | `missileer-s3-146`, `missileer-s3-128` and `missileer-photo` all build | **as predicted** |
+| **T5** | `src/eam/EamModels.cpp` (the table and its comment), `scripts/check_e4b_table.py`, one block in `test/host/run.sh`, and this doc | **as predicted** |
+| **host suite, WSL** `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` | the new block: SELFTEST PASSED and the table ok. The only FAIL line is the known gap, "no xtensa toolchain found" (the board block), which fails the same way on main | — |
+
+T4 (CI) follows on the PR.
