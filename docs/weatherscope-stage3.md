@@ -6149,3 +6149,41 @@ None changes anything graded here. A golden comparison with the map server's bui
 - **then the radar PR,** with the pick, the reader and the crops.
 
 The scenario clock is Pacific time on 2024-06-02, the frames' own day.
+
+### A12.11 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): #495 approved and merged; bend.bmpk on main
+
+**The ruling, verbatim:**
+
+> Approval (reviewer chat, 2026-10-28)
+>
+> #495 is approved to merge at ebcee94b4eee89a35232eb455c73420c5b36437d.
+> - I checked the re-cut against A12.9, whose predictions (4a55a4b) precede the code (e1c2e55):
+>   - the new bend.bmpk is 205,093 B, sha256 0e257a0a47a1…, and validate.py gives kOk;
+>   - against the previous package, 54 bytes differ: the header CRC, and PROVENANCE's builder and store lines only;
+>   - the manifest holds the same 72 entries, sorted by URL, at the same size, and store ccf24c2066bb is its own sha256 prefix;
+>   - RD22-RD31 are in §13 with RD31's expressions written out.
+> - CI on that head: 35 check runs, 32 success, 3 release-only skipped, 0 failed. Confirm the same total before merging.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+> - After the merge, send main's commit for bend.bmpk, as planned. The radar re-run (option b) carries on.
+
+**The merge, confirmed on the artifacts before and after:**
+- **Just before:**
+  - the head was the approved `ebcee94b4eee`;
+  - CI was 35 check runs: 32 success, 3 skipped (promote, version, ship-alert), 0 failed;
+  - the state was CLEAN.
+- **Merged:** squash, `--match-head-commit`, no `--admin`, as **`c06dc175eba10833e915d98e4e09f1f6dc2501ad`**, 2026-10-28T19:10:59Z.
+  - **Not** with `--delete-branch`, because a worktree holds the local branch (the trap recorded in A11.12).
+  - The remote branch was checked at the approved head, then deleted. `ls-remote` lists 0 refs.
+- **Just after:** #495's files on main are identical to the approved head.
+
+**For the map server: `bend.bmpk` on main at `c06dc175eba1`:**
+
+| file | bytes | sha256 | blob |
+|---|---|---|---|
+| `test/fixtures/wx/basemap/bend.bmpk` | 205,093 | `0e257a0a47a15f308ada084cf3303afdf32386cca5f2d3c8e8d8e4122f6ef0fd` | `481b7648aa33` |
+| `test/fixtures/wx/basemap/bend.manifest.json` | 17,836 | `ccf24c2066bbe8ff9c9a563d388d9d2b7ca800714b41a07e319308e7f3d1daa1` | `1798c04a7406` |
+| `test/fixtures/wx/basemap/bend.LICENSE.txt` | 1,120 | `9745110158fabd998042b9b4cabca5d80c8e72f3c3d24a5749334bd84463443b` | `2453e2efaf0e` |
+
+Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
+
+**Next:** the radar (option (b)) carries on. The window is A12.10's; next come the crops, then the radar PR.
