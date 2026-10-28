@@ -5279,3 +5279,108 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
   - F2 puts the state and county files in the manifest under `states` and `counties`.
 
 **The format doc's §13** now holds all of these, with A1.4's credit and processing texts verbatim.
+
+### A10.16 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): light rain becomes teal, next, ahead of the rest of step 2. The design and the predictions, before any code
+
+**The rulings, verbatim:**
+
+> Light rain becomes teal (reviewer chat, 2026-10-28)
+>
+> Daniel (2026-10-28): "i'm not sure if dark blue is a good color for light rain against a black background". Shown a mockup of four options on both scopes (today's dark blue, a brighter blue, teal, grey-blue), he chose "3. Teal". Record both with their source. This reopens the palette's code 1 by his decision; everything else in it stays final.
+>
+> The rule:
+> - Code 1 (15-20 dBZ) is drawn teal, a ruled exception to the pinned table as code 13's white is: (0, 150, 135), not dimmed on the Weatherscope (kDim55 retires for code 1). That's the mockup's teal with blue nudged down, so no faded cyan plane on the Blipscope can ever equal it exactly.
+> - test_wx_palette.cpp, re-registered by this ruling: code 1 stays clearly distinct from snow code 1 (C3g, re-checked against teal), from no-coverage and from the hatch, and its luminance stays below code 2's.
+> - The legend's "Light rain" first swatch is the teal.
+>
+> As its own small PR, ahead of 3.5b's device code: WxPalette.h, ref35's palette, the legend check, the palette tests, and k35.ref.txt regenerated, with every K row re-registered by this ruling. Predict which K rows change, and that only code-1 pixels differ in each. The board's B1 rows are regraded on the next flash (build Q), predicted, and the B1 images go to Daniel again.
+>
+> blipscope-5c reads the same table through WxS2.h and gets its own block.
+
+> The teal palette goes next (reviewer chat, 2026-10-28)
+>
+> Daniel will pick the Blipscope's sweep look only once light rain is teal on E2:08: "I'll pick it once the color changes to teal. right now it's hard to see". Record it with its source.
+>
+> So the teal palette PR (the "Light rain becomes teal" ruling) goes next, ahead of the rest of step 2. Report it with CI for approval as soon as it's ready; blipscope-5c is waiting on it.
+
+**Daniel's words, with their source** (reviewer chat, 2026-10-28, as relayed above):
+- "i'm not sure if dark blue is a good color for light rain against a black background";
+- his choice from the four-way mockup: "3. Teal";
+- "I'll pick it once the color changes to teal. right now it's hard to see".
+
+**The change** (branch `weatherscope/teal-code1`, off main):
+- **`src/weatherscope/WxPalette.h`:**
+  - `kRain1 = {0, 150, 135}`, a ruled exception beside code 13's white. `Rain(1)` returns it;
+  - **`kRainTable` stays the pinned MetPy table,** its 15 dBZ entry still (0, 0, 246);
+  - the dim parameter goes from `Rain()` and `Code()`, and **`kDim55` is deleted**, since nothing else used it.
+  - **blipscope-5c's `WxS2.h` reads `kRainTable` and `Dim()` directly**, never `Rain()` or `kDim55`, so this does not break their branch. They get their own block.
+- **The callers:**
+  - `WxScreens.h`'s `DrawMap`;
+  - `WeatherscopeManager`'s legend (`kFrameDim` goes);
+  - the Stage 1 bench (`bench/stage1_main.cpp`).
+- **The independent references**, each with code 1 = (0, 150, 135) as this ruling states it:
+  - `test/fixtures/wx/legend_check.py`'s `RAIN[1]`, from which `ref35.py` takes its `PAL`;
+  - `test/fixtures/wx/palette_ref.py`'s `rain[1]`. Its printed sprite sha256 for the Stage 1 bench changes.
+- **`k35.ref.txt`:** regenerated.
+
+**The re-registered palette checks** (`test_wx_palette.cpp`), with values computed by the test's own CIE76 formula:
+
+| check | was | becomes | teal's value |
+|---|---|---|---|
+| C3d | rain 1 = the 15 dBZ entry dimmed to 55 % | **rain 1 = (0, 150, 135) exactly** | |
+| C3g | snow 1 vs rain 1: dE*ab ≥ 40 **and** dL* ≥ 25 | **dE*ab ≥ 40** | dE 76.0 (dL* 8.9) |
+| C3k (new) | | rain 1 vs no coverage **and** vs the hatch: dE*ab ≥ 40 each | 54.1 and 44.7 |
+| C3l (new) | | L*(rain 1) < L*(rain 2) | 55.6 < 87.7 |
+
+- **Every other check is unchanged:** C3a-C3c, C3e, C3f, C3h-C3j, pin, sha and lab. The dim-level loop (`dims[]`) goes, since there is only one code-1 colour.
+- **ONE THING FOR THE RULING: C3g's "dL* ≥ 25" cannot hold for teal.** Teal and snow code 1 (0, 110, 210) are 8.9 apart in lightness. **They differ in hue**: dE*ab 76.0, nearly twice the old 40 threshold, and 26 above the old dimmed blue's 50.0.
+  - **So C3g keeps its dE*ab ≥ 40 and drops the dL* clause.** The ruling's "clearly distinct (C3g, re-checked against teal)" is read as that.
+  - **If dL* is wanted,** teal cannot meet it: no teal near (0, 150, 135) is 25 L* from (0, 110, 210).
+
+**The sabotages, re-registered** (`sabotage_wx_palette.py`; each set computed with the same formula before any code):
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-C3a | the hatch violet (110, 0, 110) | {C3a} |
+| S-C3c | rain 3's green 200 → 201 | {C3c} |
+| S-C3ef | the snow top white | {C3e, C3f, C3i} |
+| **S-C3g, re-planted** | snow 1 set to (0, 140, 140), near teal. **The old plant, (20, 30, 180), near the old blue, would now fail nothing.** | {C3g} |
+| S-h | the snow ramp starting near its top | {C3h} |
+| S-C3j | rain 12 set to (45, 45, 45) | {C3c, C3j} |
+| S-i | the snow top near white | {C3i} |
+| **S-TEAL (new)** | rain 1 back to the dimmed blue (0, 0, 135) | {C3d} |
+| **S-C3k (new)** | rain 1 set near the grey, (40, 46, 44) | {C3d, C3k} |
+| **S-C3l (new)** | rain 1 brighter than rain 2, (200, 255, 230) | {C3d, C3l} |
+| S-PIN | as before | {pin} |
+
+**The K rows: which change, and that only code-1 pixels differ.**
+- **The method:** every K row was rendered through `ref35.py` with code 1 swapped for a sentinel colour (planted in `ref35.PAL`, the plant asserted), and the sentinel pixels counted.
+- **What the method asserted:**
+  - the sentinel sits only where the old (0, 0, 135) was;
+  - nothing else in any frame moves;
+  - the sentinel's value appears in no old frame.
+- **Two failures of my own instrument first,** recorded so they are not read past:
+  - my first sentinel was planted in `legend_check.RAIN`, which `ref35` copies into `PAL` at import. So it planted nothing, and reported **zero** rows. That is exactly what a dead probe looks like. Caught by asking why a storm loop had no 15-20 dBZ edge;
+  - my counter then read `rgb565()`'s big-endian bytes as pixels.
+
+  **Both are fixed; the numbers below are from the fixed instrument.**
+- **The prediction:** **23 of the 25 rows change; `clear-60` and `dry-15` do not.** In each changed row, exactly this many pixels differ, every one from (0, 0, 135) to (0, 150, 135), RGB565 `0x0010` → `0x04B0`:
+
+| row | px | row | px | row | px | row | px | row | px |
+|---|---|---|---|---|---|---|---|---|---|
+| dry-60 | 631 | approaching-60 | 858 | herenow-60 | 858 | warning-60 | 877 | stale-60 | 858 |
+| clear-60 | **0** | approaching-30 | 641 | approaching-15 | 24 | dry-30 | 113 | dry-15 | **0** |
+| loop-00 | 450 | loop-01 | 542 | loop-02 | 656 | loop-03 | 749 | loop-04 | 804 |
+| loop-05 | 858 | loop-06 | 869 | loop-07 | 821 | loop-08 | 853 | loop-09 | 897 |
+| loop-10 | 897 | loop-11 | 967 | loop-12 | 864 | loop-13 | 634 | loop-14 | 631 |
+
+- **In `k35.ref.txt`:** only those 23 `ROW` hashes change. No `TIME`, `BAND` or `LABEL` line changes.
+- **`test_wx_k35`** stays 28/0 against the regenerated reference.
+- **The grading step re-diffs** the old and new reference frames, pixel by pixel, against these sets.
+
+**Everything else unchanged:** every other host suite passes as before, including `test_wx_replay` 90/0 and `test_wx_layout` 73/0, under MinGW and g++ 13.3.
+
+**The board** (graded on the next flash, build Q):
+- **B1:** the dry, approaching, here-now, warning and stale scenarios are graded exact against the new reference; clear is unchanged.
+- **B3:** `legend_check --fb` passes, with the teal "Light rain" swatch.
+- **The B1 images go to Daniel again.**
