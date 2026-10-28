@@ -1291,3 +1291,49 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **(3) at $2 or more:** the run waits for Daniel.
 
 **Northern Ireland** is information only, for when UK coverage starts.
+
+### Weatherscope's Bend package, and its readings compared (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Weatherscope's Bend package, and readings to compare (reviewer chat, 2026-10-28)
+>
+> - bend.bmpk is on weatherscope/bend-package at 1d4597520a63 (PR #495, not merged yet): sha256 30a6038ae8ee…, 205,093 B, built by 6d9fe6ae9c79 from store d2971c94fb88. Weatherscope Code sends main's commit after the merge.
+> - Its builder made nine choices that §13 doesn't pin, each marked READING in tools/weatherscope/basemap/geometry.py and layers.py on that branch. Eight are for you to compare:
+>   - the clip endpoints;
+>   - the ring-clip edge order and starting vertex;
+>   - the closing duplicate;
+>   - Douglas-Peucker's units;
+>   - water orientation;
+>   - the 4 × 4 summation order;
+>   - river length across files;
+>   - the manifest's order.
+>   For each, say whether your builder does the same. Where it doesn't, say which way you'd go and what it costs you, and I'll rule once for both builders.
+> - The ninth, transcendental functions (sin, cos, atan, log), is ruled already: both builders keep their maths libraries. If a golden comparison differs, each differing cell is reported with both builders' unquantised values. A difference confined to cells within 1e-9 of a level boundary is that reading, not a defect. Just confirm your formulas match §13's.
+> - No golden comparison until the eight are ruled. Nothing here waits for D1, and D1 doesn't wait for this.
+
+**What I read** (`1d4597520a63`; read-only):
+- the READING lines in `geometry.py` and `layers.py`, and the functions around them (`_lb`, `clip_line`, `clip_ring`, `dp_keep`, `simplify_ring`, `quantise`, `dedupe`, `in_disc_length_m`, `water`, `rivers`, `shade`);
+- PR #495's description, which lists all nine.
+
+**My builder is not written yet** (it is §12 step 4). So "does the same" means: what my plan, its readings and A1.7's frozen values commit it to. Where nothing does, it says which way I would go.
+
+| | their reading | my builder | if not the same: my choice, and its cost |
+|---|---|---|---|
+| 1 | **Clip endpoints:** Liang–Barsky keeps the source vertex for an endpoint it did not move (`u0 == 0`, `u1 == 1`); a moved one is `a + u·d` from the segment's start | **not pinned.** A1.7's values touch no clipped vertex | **adopt theirs.** It keeps an in-square vertex exact. Cost: none |
+| 2 | **Ring clipping:** Sutherland–Hodgman's passes run west (`E ≥ −R`), east, north (`S ≥ −R`), south; each pass is the textbook loop from `prev = last`; **every intersection is computed from `prev` toward `cur`** (`t = (lim − prev) / (cur − prev)`, the other axis `prev + t·(cur − prev)`) | **not pinned** | **adopt theirs, intersection arithmetic included.** Their READING names the edge order and the start, but the bytes also depend on computing the crossing from `prev`. **I ask that §13 say so.** Cost: none |
+| 3 | **The closing duplicate:** dropped after quantising, while the last vertex equals the first | **the same** (§2 step 5; A1.7's MB rings are encoded without it) | |
+| 4 | **Douglas–Peucker's units:** distances on km × 1000, against ε = `toleranceMm` / 1000; quantised from the km values, `floor(E_km·1e6 / R_mm·32767 + 0.5)` | **the same.** A1.7's MB values were computed with exactly that expression | |
+| 5 | **Water orientation:** outer when `Σ (x_i·y_{i+1} − x_{i+1}·y_i)`, over the part without its closing repeat, summed from the first edge, is **< 0**. Zero is not outer | **the same sign, a different summation order.** My ingest's `signedArea2` sums the closing edge first. The two can differ in the last bits; the sign differs only for a degenerate ring | **adopt theirs in the builder** (the builder decides holes; the store keeps every part). Cost: none |
+| 6 | **The 4 × 4 mean:** the 16 values summed row by row, left to right, from 0.0, then ÷ 16 | **the same.** A1.7's MT2, MT-impulse and MT-corner were computed that way | |
+| 8 | **River length:** each group sums its parts' in-disc lengths across every county file, in RD2's order, each segment by the quadratic in `in_disc_length_m`. A group with 0 m inside the disc is not a candidate | **the same in substance** (RD8: across files, raw, in the disc). **The 0 m exclusion was not in my plan** | **adopt theirs, with their per-segment expression.** Without the exclusion, a square with fewer than 5 positive groups would give a slot to a river that is not in the disc. Cost: none |
+| 9 | **The manifest's order:** `files` by layer (the seven, then `states`, `counties`), then URL; `predicates` describe that build | **different:** `files` by URL alone, as MI4 froze and the ruling of 2026-10-26/28 kept. `predicates` are the store's | **no need to unify.** Each manifest's order is pinned by its own writer and reproduced by its own `--check`. MG0 and MD3 parse a manifest, so order cannot change what they find. No package byte depends on another builder's manifest order. **If one rule is wanted, URL order:** it costs me nothing; it costs Weatherscope a re-cut of `bend.manifest.json`, which changes `bend.bmpk`'s `store:` (same length), so the fixture's bytes and sha256. Layer-then-URL would cost me a re-registration of MI4 (its frozen row asserts URL order) and a new store id; no data changes |
+
+**The ninth, confirmed:** my formulas are §13's.
+- **RD16:** 45° and 315° as `x * Math.PI / 180`.
+- **RD21:** `X = (lon + 180) / 360 · 2^17` and `Y = (1 − ln(tan(π/4 + φ/2)) / π) / 2 · 2^17`, floored. This is `terrain-plan.ts`'s `z9X` and `z9Y` as committed.
+- **§5.6:** `mpp = 156543.03·cos(lat0·π/180)/2^9`; `slope = atan(2·hypot(gx, gy)/mpp)`; `aspect = atan2(−gx, gy)`; `shade = sin 45°·cos slope + cos 45°·sin slope·cos(315° − aspect)`, clipped to [0, 1]. This is A1.7's calculator, and the same expression as their `shade()`.
+
+**One more, raised for the same ruling: `hypot` in decisions.**
+- **Where they use it:** `math.hypot` in three places that DECIDE: Douglas–Peucker's distance (`_seg_dist`), the disc test for places and summits (`in_disc`), and the 3.0 km de-duplication.
+- **Why it matters:** `hypot` is a library function like the ninth's. Python's is correctly rounded in nearly all cases, and V8's is not guaranteed to be. A decision within an ulp of ε, of R or of 3.0 km could then go two ways, and MG1 needs places and peaks **identical**.
+- **Recommended for both builders:** `sqrt(x·x + y·y)` in every decision distance. It is IEEE-exact in both languages. `hypot` stays only inside the hillshade's slope, under the ninth's ruling.
+- **Cost:** three call sites for Weatherscope; none for me.
