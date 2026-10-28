@@ -6377,3 +6377,56 @@ Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 **RX1's sabotage:** S-RX-DELTA, ref35's decoder reading the first vertex of each polyline as a delta, fails RX1 for rivers and roads.
 
 **Outside these: stop and report.** Nothing downstream (build Q, device code, K rows) starts on an R0 that has not passed.
+
+### A12.17 Results: step 3 (`weatherscope/ref35-geo` @ 25ffaddc8ecd), graded against A12.16; one off-prediction, and a finding about 3.5a's R0
+
+**The code:**
+- **`ref35.py`:**
+  - `render_map` folds a basemap into dry pixels (A10.2), with the generator's corner mask for R0b's G only;
+  - `compose` places peaks before towns (A10.2);
+  - `PEAK_GLYPH` holds the 16 offsets read off `screen-bend-B.png` at its first-ranked placed peak (Q32). **All four placed peaks there carry the same pattern,** inside the 7 × 6 box.
+- **`geo35.py`:** RX1 and R0b.
+- **`sabotage_geo35.py`:** the five frozen sabotages, each in a mirrored copy of the tree.
+- **3.5a's K reference:** `ref35.py --k --check` still regenerates `k35.ref.txt` byte-identical.
+
+| A12.16 froze | measured |
+|---|---|
+| RX1: 0 differences on `bend.bmpk` | **0**, in all 9 sections |
+| R0a′: G equals each PNG, 57,600 / 57,600 | **A, B, C: 57,600 / 57,600** |
+| R0b′: A, 0 differ | **0** |
+| R0b′: B and C, every pixel named | **B: 256 differ, all named:** disc 3, fill 253, DDA 0, glyph box 4. **C: 422, all named:** disc 169, fill 253, DDA 0, glyph box 4 |
+| S-R0-DISC → R0b′ fails on B, C | **as predicted** |
+| S-R0-ROUND → R0b′ fails on B, C | **OFF-PREDICTION: fails on A, B and C** |
+| S-R0-FILL → R0b′ fails on B, C | **as predicted** |
+| S-R0-GREY → R0a′ fails on B, C | **as predicted** |
+| S-RX-DELTA → RX1 fails for rivers, roads | **as predicted** |
+| | the real `ref35.py` and `geo35.py` unchanged by the runner |
+
+**The four "glyph box" pixels are fill pixels.**
+- They are Paulina Lake's edge inside Paulina Peak's box, and the fill oracle names each of them too. **The glyph itself differs at 0 pixels.**
+- The first version counted causes first-match, which put them under the glyph. The report now counts every cause that names a pixel ("4 by more than one"). **The pass rule is unchanged.**
+
+**The off-prediction, S-R0-ROUND.**
+- **What happened:** P's rounding broken to `floor(v)` moves the 15 and 30 mi ring dots, and **screen A has those rings too.** So A fails as well as B and C. 3.5a's own sabotage (b) did exactly this on all seven of its screens (A9.11).
+- **When I saw it:** I wrote that the frozen set looked wrong **before** the run, and kept the frozen text.
+- **The sabotage itself works:** R0b′ fails, with the moved pixels unnamed.
+- **The fix waits for a ruling:** re-register S-R0-ROUND as {A, B, C}.
+
+**The finding: 3.5a's R0 has been red since #488 (teal), and nothing showed it.**
+- **What happened:** the regression check after step 3's ref35 change found 3.5a's R0a failing on all 7 screens.
+- **Isolated:**
+  - **main's own ref35** (`ebcee94b4eee`, no step-3 change) fails identically;
+  - **the commit before teal** (`908a74c`) passes R0.
+- **The cause:** the reviewer's 3.5a mockups were drawn with the old dimmed 15 dBZ blue, and ref35's G mode now draws teal. The counts are A10.16's code-1 counts exactly: dry 631, approaching and here-now 858, zoom-60 (the 21:08 frame) 542.
+- **Why nothing showed it:**
+  - A10.16 predicted the K rows and the palette tests but **said nothing about R0**;
+  - **no CI job runs R0.**
+
+  So the control sat red with nothing reading it: CLAUDE.md's *instrument that fires correctly into a void*.
+- **Proposed** (for a ruling, not done):
+  - R0's G mode draws code 1 in **the generator's own colour**, the 15 dBZ entry dimmed to 55 %, for R0 only, as it already takes the generator's POP table;
+  - **predicted:** R0 passes 7/7 with 0 unexplained pixels, and the K rows (P) are unchanged;
+  - **and R0 runs somewhere a person already looks.** It needs the reviewer's mockup directory, which is outside the repo, so CI cannot run it. The reader is the pre-push step for any change to `ref35.py`, with its line in the push notes.
+- **R0b (Bend) is unaffected:** its screens are dry, with no code 1.
+
+**Held, no PR:** step 3's branch is pushed, and its PR waits for the two rulings.
