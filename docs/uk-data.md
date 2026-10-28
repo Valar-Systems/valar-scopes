@@ -283,6 +283,88 @@ dBZ = 10·log10(200) + 16·log10(R).
 - **The Isle of Man and the Channel Islands** are not part of the UK. They fall inside the `opuk` window, so they get
   weather. They get no map layers (§2): no source read here covers them.
 
+## 2. UK map layers
+
+### 2.4 Terrain: Terrain Tiles z9 over the UK, and EU-DEM's terms
+
+**What the tiles contain.** Read by a research agent this session, from joerd's docs and from the tiles themselves:
+- **joerd's z9 row** (`docs/data-sources.md`, read at `b6d1081504fb`, verbatim): "`ETOPO1` | `SRTM`, `NRCAN` in
+  Canada, `EUDEM` in Europe, with `GMTED` in high latitudes above 60°".
+- **The tiles' own source lists** (`x-amz-meta-x-imagery-sources`, from HEAD requests on 480 z9 tiles around the UK):
+  - **every one of the 207 tiles that touch UK land lists `eudem`;** 38 list it alone;
+  - the only families anywhere in the box are `etopo1`, `eudem`, `gmted` and `srtm`;
+  - **no Environment Agency LIDAR at z9:** joerd's row puts `data.gov.uk` from z10;
+  - **NI:** 16 tiles, 12 with all four sources and 4 with EU-DEM only;
+  - **north of 60 N (Shetland):** 7 tiles; 5 have no SRTM, so GMTED is used there.
+- **EU-DEM's files are named `eudem_dem_5deg_*`,** which matches v1.0's tiling. Every tile's `Last-Modified` is
+  2017-11-15.
+- **Not established:** which source wins pixel by pixel. joerd's public code has no EU-DEM module.
+
+**EU-DEM's terms.**
+- **The credit, 2017 EEA page** (archived 2017-11-30), verbatim: "The following credit must be displayed when using
+  these data: "Produced using Copernicus data and information funded by the European Union - EU-DEM layers.""
+- **Regulation (EU) 1159/2013:**
+  - **Art. 7:** use for "reproduction; distribution; communication to the public; adaptation, modification and
+    combination with other data and information", "worldwide without limitations in time".
+  - **Art. 8:** inform the public of the source; imply no Union endorsement; "Where that data or information has been
+    adapted or modified, the user shall clearly state this."
+  - **Neither the Regulation nor the current CLMS data policy distinguishes commercial use.** The CLMS policy adds:
+    "the user has all intellectual property rights to the products he/she has created".
+- **EU-DEM is discontinued** ("not maintained anymore", CLMS). No source found says that changes the terms of data
+  already derived, and Art. 7's "without limitations in time" argues it does not. **That is an inference, labelled
+  as one.**
+- **Not researched:** EU-DEM was built from SRTM and ASTER GDEM. ASTER's own terms were not read. The EU-DEM licence
+  is the one its distributor attached to the product.
+
+**So the terms can be met,** in the same shape as A1.3's table for the US. EU-DEM gets a tile bit, a credit line and
+the modification statement. The processing line already gives that statement, as it does for GMTED2010.
+
+| source | where, in UK tiles | term | met by |
+|---|---|---|---|
+| EU-DEM | all UK land | credit; state the modification; no endorsement | `credit.terrain: Produced using Copernicus data and information funded by the European Union - EU-DEM layers`, plus the processing line |
+| SRTM | land below 60 N | credit; **and its notice, since these packages are distributed outside the US** (A1.3 recorded it and did not act, because v1 served US origins only) | the credit line, and the §3.15 b notice A1.12 already carries |
+| GMTED2010 | above 60 N (Shetland) | credit; describe modifications | its line and the processing line |
+| ETOPO1 | sea | NOAA's formal credit | its line |
+
+- **joerd's attribution block carries an Environment Agency line ending "All rights reserved".** It is **not** for
+  these tiles: that data starts at z10. Copying joerd's whole block would put an "All rights reserved" line on data
+  the packages do not contain.
+- **The alternative source, OS Terrain 50:**
+  - **What it is:** OGL v3, a 50 m grid on British National Grid, 157 MB, no registration.
+  - **Its gap: Great Britain only.** NI would need OSNI's 50 m DTM, whose licence is listed two ways (OpenDataNI says
+    `uk-ogl`; a data.gov.uk mirror says "LPS Open Government Data Licence"), which was not resolved.
+  - **It changes the pipeline:** a second terrain format, a reprojection, and its own hillshade inputs, where §5.6
+    is written in Terrarium pixels.
+  - **Recommended against for v1.**
+
+### 2.5 A coverage extension, or BMPK v2? My view
+
+- **The bytes and the syntax are unchanged.** The version byte stays 1, and a v1 client parses a UK package exactly as
+  it parses a US one.
+- **The UK rules are new layer definitions beside §5's.** They change none of §5's, and no US package changes by a
+  byte.
+- **But §4 defines four fields by their US source,** and §12 says "a change to any field's meaning … is version 2":
+  - `ROADS` class: "1 = TIGER `S1100`, primary; 2 = `S1200`, secondary";
+  - the `RIVERS` names: "the TIGER `FULLNAME`";
+  - the `PEAKS` name: "GNIS `feature_name` as written";
+  - the `PLACES` name and `pop`: "the Gazetteer `NAME` as written" and `POPESTIMATE2024`.
+- **So, read literally, a UK package's class byte carries a meaning §4 does not define.**
+- **My view: it is a v1 coverage extension, provided §4's four fields are restated by role,** with a per-coverage
+  source table:
+  - class 1 = the national primary road network, class 2 = the secondary;
+  - a name = the source's own name, as written;
+  - `pop` = the source's population figure, 0 = none.
+  - **Why it qualifies:** what a client does with each field (styles class 1 apart from class 2, labels a name, ranks
+    by `pop`) is the same for every coverage. **No v1 client would read a UK package wrongly.** That is the test the
+    PROVENANCE amendment passed.
+  - **Evidence from the one client that exists:** Weatherscope's place-label rule drops a trailing " city" once
+    (`src/weatherscope/WxLogic.h:457`). A UK name has no such suffix and passes through unchanged.
+- **Where I think otherwise: bilingual names.** Welsh places and features can carry two names. v1 has one text field,
+  so choosing one is a data rule with no US precedent. If the answer is "both", that is a new field, and so v2 (§6,
+  Q10).
+- **A new coverage also needs what v1 has once:** the coverage bits (`coverage.bin`), the credit and attribution lines,
+  and the terrain bits. These are the route's (the map server's plan), not the format's.
+
 ## 3. The device: what a v19 Blipscope in the UK can show with no firmware change
 
 **The assumption:** v19 carries the weather layer as it stands on `feat/wx-device` (`f9184ef`, #445).
@@ -350,6 +432,7 @@ read as FAIL.** Nothing below creates a Cloudflare resource.
 | | - the codes; the WXG1 size; | |
 | | - the `cref` dispatch (no overlap, the ETag's product, a UK airport served `opuk`, a CONUS airport still `cref`, a point in neither unchanged); | |
 | | - the 1,800 s limit; | |
+| | - the window's covered share per frame, printed in `/healthz` (Q8), with a sabotage (an all-nodata frame) that must show 0 | |
 | | - CPU and live memory in Node, with a bar set from I7's workerd factor | |
 | | **and a week of OPERA timing.** The cache holds only 24 h, so it is read once a day for 7 days. This plan's 99.3 % is one day | |
 | R2 | the code and its host and vitest checks; a local dry run against live OPERA, which also measures CloudFerro's failure rate from a Worker-like fetch | R1 |
@@ -410,3 +493,19 @@ as #443's did.
   unchanged.
   - **Terrain:** 480 z9 tiles in a box around the UK, about 35 MB at the US store's 73 KB a tile.
   - **Vectors:** unmeasured. §4's dry run measures them.
+
+## 6. Questions, each with a recommendation
+
+**The radar**
+
+| | question | recommended | the alternative |
+|---|---|---|---|
+| Q1 | the source | **OPERA CIRRUS `DBZH`**, from its GeoTIFF | the Met Office composite: 29 % showable on v19 and share-alike; or both, with the Met Office as a hot standby, which still needs firmware to be useful |
+| Q2 | how a v19 device gets it | **the server dispatches `cref` by the query's point** (§3); no firmware | a new product id only new firmware asks for: the customer waits for a later release |
+| Q3 | the product and its window | **`opuk`: the UK's land extent plus 2.02°,** 9 tiles a frame | all of OPERA's Europe: frames of about 17 MB (estimated, not built) and several times the CPU, for customers who do not exist yet |
+| Q4 | `opuk`'s server age limit | **1,800 s.** The server answers a late frame with a 200 and its true time, and the device hides it by its own 600 s rule | 600 s, as `cref`: a 503 in a late frame's seconds doubles the device's interval |
+| Q5 | `opuk`'s pruning | **only on the check that stores a frame:** R2 Class A at about 91 % rather than 99 % | as `cref`: on every check |
+| Q6 | `/credits` | **the OPERA line in R4;** and **the NOAA MRMS line now, in its own small PR,** since it has been true since 2026-10-23 | both in R4 |
+| Q7 | R5, the glass | **first a host render** of a real `opuk` crop through `wxlayer::Build` and `WxS2` to a PNG, with no board; **then** a short window on a bench board set to a UK public airport, Daniel's yes first, the location restored after. E2:08 feeds the Bend site, and moving it stops that feed for the window | the glass only |
+| Q8 | knowing that OPERA still carries the UK | **R1 makes the ingest record the covered share of the UK window per frame, and `/healthz` print it** beside `frameAgeS`. `smoke-prod.sh` reads `/healthz`, so the number has a reader. A UK withdrawal would otherwise look exactly like "outside coverage" | nothing: the failure would be silent and would look like the device's normal note |
+| Q9 | Shetland | **say it plainly** wherever coverage is described: at Sumburgh, neither source covers the pixel, and 40-45 % of a 160 km view | — |
