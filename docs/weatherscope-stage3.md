@@ -5924,3 +5924,82 @@ None changes anything graded here. A golden comparison with the map server's bui
   - A difference confined to cells within 1e-9 of a level boundary is numpy's reading, not a defect.
   - **Anything else is a defect,** and is stopped on.
   - To make that report possible, the host tool needs to emit its unquantised shade values on request. That is a small addition, made when a comparison first asks for it.
+
+### A12.8 The Bend radar by A10.4's rule: the record, and its premise failing (stopped; no crop made)
+
+**The tools** are on `weatherscope/bend-radar`, local and not yet pushed:
+- **`tools/weatherscope/loop/pick_bend.mts`** loads main's decode and crop path from a checkout at `aa24294` (`mrms.ts`: `decodeMrms`, `codeOf`, `parseGrib2`; `crop.ts`: `quantise`, `cropCellBox`, `encodeBox`).
+- **`frame_stats.cpp`** measures each frame with the device's own code: `wxlogic::NearestEchoMi` from the crop's home, as the state line measures it, and `wxrender::CodeAt` at 60 mi over rows 24-193.
+- **frame_stats' controls:**
+  - its anchor refuses any on-disc count but A10.3's 36,828;
+  - the Dallas "approaching" crop reads 14.33 mi, the scenario's "RAIN 14 MI E";
+  - the synthetic clear crop reads no echo, with all 36,828 pixels dry.
+- **The centre** is `bend.bmpk`'s own header origin, printed nowhere.
+
+**The record (tool output; keys and sha256s, no coordinate), as A10.4 asks before any crop:**
+- **Data:** `MultiSensor_QPE_24H_Pass2_00.00` at 12:00Z, **153 of 153 days present**, so no escape hatch.
+- **Scores:** cells within 15 mi (WxLogic's metric) with ≥ 2.5 mm. The top 10:
+
+  | day | score |
+  |---|---|
+  | 2024-05-02 | 2,076 (every cell) |
+  | 2024-05-05 | 733 |
+  | 2024-06-03 | 397 |
+  | 2024-08-05 | 293 |
+  | 2024-08-15 | 207 |
+  | 2024-07-22 | 203 |
+  | 2024-05-22 | 157 |
+  | 2024-05-07 | 120 |
+  | 2024-09-12 | 102 |
+  | 2024-08-24 | 64 |
+
+- **Candidates:** 05-02, 05-05, 06-03, 08-05 and 08-15.
+- **The window:**
+  - **on the first candidate, 2024-05-02:** 720 objects over its 24 h, and 550 frames measured before the first window that qualifies;
+  - **the window:** **05:52Z-06:48Z**, every second object;
+  - **(a)** every frame's nearest echo is 14.0-26.3 mi;
+  - **(b)** 14.0 and 14.6 mi are within 15;
+  - **(c)** every frame is 80.8-92.5 % dry.
+
+| object | sha256 | nearest echo | dry at 60 mi |
+|---|---|---|---|
+| MRMS_SeamlessHSR_00.00_20240502-055200 | 71958a21e04e | 25.6 mi | 88.05 % |
+| …-055600 | ec7b32640154 | 24.4 | 87.70 |
+| …-060000 | c0236f8c7f1c | 22.3 | 87.28 |
+| …-060400 | ae48e4666063 | 20.9 | 90.56 |
+| …-060800 | e7ff49ad78f6 | 19.9 | 91.89 |
+| …-061200 | 260d77eaafa9 | 19.0 | 92.23 |
+| …-061600 | 438c77931330 | 26.3 | 92.52 |
+| …-062000 | a06f8210e710 | 24.9 | 91.79 |
+| …-062400 | 71f210c7f6d2 | 23.6 | 89.73 |
+| …-062800 | 4381b5b1d1d7 | 19.6 | 88.09 |
+| …-063200 | c53357a76ddd | 18.0 | 86.70 |
+| …-063600 | ea89d3438816 | 16.3 | 86.51 |
+| …-064000 | 2ea89e071b05 | 14.0 | 82.36 |
+| …-064400 | 226011fa053d | 15.2 | 81.63 |
+| …-064800 | 25700658beda | 14.6 | 80.81 |
+
+**The premise check, flagged before this result existed (A12.7's report):**
+- **What I checked:** A10.4 chooses the warm season *so that snow is not in the loop*, since an echo reads RAIN until WXC1 v2. So for the window's 15 times I read MRMS `PrecipFlag_00.00` over the cells within 60 mi.
+- **The reader:** PrecipFlag is 8-bit PNG, which main's decoder refuses by scope, so a small independent Python reader did it. Its anchor is the 7000 × 3500 CONUS grid at 0.01°.
+
+**Snow in every frame:**
+
+| | warm stratiform rain | snow | cold stratiform rain |
+|---|---|---|---|
+| per frame | 3,980-5,145 | **1,077-1,574** | 2,689-3,972 |
+| all 15 | 68,605 | **19,427** | 48,130 |
+
+- **So about 14 % of the window's precipitating cells are flagged snow.** In a v1 crop they draw as rain, and the state line calls an echo RAIN. **The rule's premise does not hold for the window it chose.**
+- **The alternative, named and excluded:** that my reader misreads the product.
+  - Its grid anchor passed, and its values fall only in PrecipFlag's defined set.
+  - **The control:** the same reader on a midsummer frame (2024-08-05 00:00Z) reports warm stratiform rain 3,824 and convective rain 203, **with no snow.** So it can return a no-snow answer, and it separates the types.
+  - A misclassification by MRMS itself is not excluded by this. At night in early May, snow on the Cascades within 60 mi is plausible, and the product is NOAA's own.
+
+**Stopped.** No crop is made, and no criterion is added or relaxed. **For a ruling:**
+- **(a) Keep 2024-05-02 as the rule chose it.** The loop shows the snow as rain until WXC1 v2 brings the type. It is honest about the data and dishonest about the weather.
+- **(b), recommended: add one criterion and re-run the same rule:** **no snow-flagged cell within 60 mi in any frame of the window,** by `PrecipFlag_00.00` at the frame's own time.
+  - This tests the premise directly rather than through the season.
+  - Its instrument is the reader above. Committed with the pick, it needs host rows: its anchor, the midsummer control, and this window as a positive.
+  - **Re-run, the candidates stay A10.4's five.** If none qualifies under (b), the existing escape hatch applies: stop and report.
+- **(c) Restrict the season to June-September and re-run.** No new instrument, but it stays a proxy: a June night can still snow on the Cascades within 60 mi, and 06-03 is a candidate.
