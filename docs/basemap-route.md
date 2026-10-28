@@ -1783,3 +1783,47 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 - **MT3b:** add a row at an origin whose level edge falls 1 px from a tile boundary, so the margin rule has a row that can fail.
 
 **Next:** `provenance.ts`, then `build.ts`. Then MB, ME2, ME3, ME7, MD1 and MD2 are graded, with S-TNOMARGIN.
+
+### A2.19 Rulings on `budget.ts` and `terrain.ts`, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> - budget.ts and terrain.ts: accepted as recorded at 6f7c4a0. MB is graded with build.ts, as you set out.
+> - MT3's sanity control: re-registered as "not uniform" (more than 1 distinct value). The guessed "more than 50" and its reading of 45 stay on record. 45 distinct values isn't flat, so the control's purpose holds.
+> - A2.17: both parts.
+>   - Add MT3b, frozen before it runs: an origin whose level edge falls 1 pixel from a tile boundary, with its expected values computed before the code runs.
+>   - S-TNOMARGIN is re-registered as {MT3b, MB8a, MB8b}. MT3b tests the margin directly, and MB8a and MB8b catch it through the file count. The original set's gap stays on record.
+>   - Under the standing rule, re-check every other frozen set against MT3b before the next pass.
+> - The 188.3 px slip: noted, with its correction.
+> - Carry on with provenance.ts and build.ts. D1 as before: the 04:00Z round, then the mirror.
+
+**On record:** S-TNOMARGIN was frozen as **{MT3, MB8a, MB8b}** (A1.7). A2.17 showed MT3 cannot see the plant at its origin. It is re-registered as **{MT3b, MB8a, MB8b}** by this ruling.
+
+### A2.20 MT3b, frozen before it runs
+
+**The expected values** come from a throwaway calculator (`calc-mt3b.mjs`, in my scratchpad). It is written from §2, §4, §5.6 and RD21, and from the reference builder's level-pixel order, **not from `terrain.ts`**. The origin is synthetic, the location of nothing.
+
+| | value |
+|---|---|
+| origin | lat0Micro **0**, lon0Micro **227,036** |
+| level | **24,743,664 mm, N 246** (60,516 values), over the same kind of seeded smooth synthetic tiles as MT3 |
+| the square's west edge | z9 X **65,537.50008558319**, in pixel **65,537**: **1 px** inside tile 256, whose boundary is at 65,536 |
+| its other edges | X up to 65,699.82; Y 65,454.84-65,617.16. None is within 3 px of a tile boundary |
+| the rule's mosaic (`levelTiles`) | tiles x **255-257**, y **254-257** |
+| the bare square, with no margin | tiles x 256, y 255-256 |
+
+**MT3b's expected result:** the level over the rule's mosaic and over one a tile larger (x 254-258, y 253-258) gives the same values, **0 of 60,516 different**. With the control, as MT3's: the field is not uniform (more than 1 distinct value).
+
+**What S-TNOMARGIN must do to it.** Under the plant, the "rule's" mosaic is the bare square.
+- **Only two level columns can change:** the ones whose z9 X is 65,537 or 65,538. Their 4 × 4 mean reads X−2 to X+1, and so reaches the bare mosaic's edge pixel (a one-sided gradient) or past it (clamped).
+- **So at most 492 values can differ** (2 columns × 246 rows), **and at least one must.** A count of 0 or over 492 is outside this prediction.
+
+**The standing rule's re-check of every other frozen set against MT3b:**
+- **S-TALIGN, S-TPAD, S-TROUND:** both of MT3b's mosaics share the plant.
+  - Under S-TALIGN and S-TPAD, the rule's mosaic keeps its 256 px margin, so no window reaches its edge.
+  - Under S-TROUND, the shifted samples and the shifted `levelTiles` still leave a full tile of margin.
+  - **MT3b stays equal under all three.**
+- **S-TCOS:** lat0 0, so no change.
+- **The MR, ML, ME4, MI and MV plants** touch nothing terrain imports. MT3b uses only `makeFrame`, which no plant changes.
+- **So no other set moves.**
+- **S-TNOMARGIN's re-registered set {MT3b, MB8a, MB8b}** is graded when MB lands, with `build.ts`.
