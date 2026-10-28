@@ -213,6 +213,13 @@ frame store.
   - if a new frame is listed, read the COG's header, range-read the 16 tiles, inflate, resample, and store with
     `If-None-Match: *`;
   - move `latest` forward only, as `ingest.ts` does.
+- **The reads per frame:** every IFD and tile index of the COG lies in its first **5,603 bytes** (read from the
+  03:55 file). So a frame is one 8 KB range read, then the 16 tiles.
+  - **The tiles are stored in row-major order, each 8 bytes after the last** (GDAL's 4-byte leader and trailer;
+    71 of 71 gaps measured).
+  - So one window row of tiles is one range read, gaps included: about 4 reads a frame.
+  - The first draft of this line said "contiguous" without checking. A check found 0 of 63 pairs contiguous,
+    because of the 8-byte gaps.
 - **This product's cost rule:** it prunes only on the check that stores a frame (§5's R2 Class A row).
 - **The source-to-cell map is static,** since both grids are fixed, so it can be computed once rather than per frame.
   Its speed is for the implementation's own predictions.
@@ -326,3 +333,80 @@ dBZ = 10·log10(200) + 16·log10(R).
 - **any credit on the glass,** if one is wanted;
 - **the map layers, whatever the server does.** No Blipscope code reads BMPK; only `src/weatherscope/` does.
   `docs/basemap-route.md` says "The Blipscope adopts the route after its v19, as a setting".
+
+## 4. The work, and its order
+
+**Each step is its own PR, with its predictions frozen and pushed before its code, a sabotage per check, and BLIND
+read as FAIL.** Nothing below creates a Cloudflare resource.
+
+**The radar: server only. All of it can run before Blipscope v19 ships.**
+
+| | step | needs |
+|---|---|---|
+| R0 | rulings on this plan (§6) | — |
+| R1 | **predictions for `opuk`**, frozen: | R0 |
+| | - the COG reader, on committed real frames, against the HDF5's own cells; | |
+| | - the resampling (the strongest-echo rule, with the nearest-neighbour sabotage that must drop a one-pixel line); | |
+| | - the codes; the WXG1 size; | |
+| | - the `cref` dispatch (no overlap, the ETag's product, a UK airport served `opuk`, a CONUS airport still `cref`, a point in neither unchanged); | |
+| | - the 1,800 s limit; | |
+| | - CPU and live memory in Node, with a bar set from I7's workerd factor | |
+| | **and a week of OPERA timing.** The cache holds only 24 h, so it is read once a day for 7 days. This plan's 99.3 % is one day | |
+| R2 | the code and its host and vitest checks; a local dry run against live OPERA, which also measures CloudFerro's failure rate from a Worker-like fetch | R1 |
+| R3 | **the cost statement, re-read, and Daniel's yes** (§5: CPU likely crosses 30M by cents); then the ingest deploys, in the same Worker | R2 |
+| R4 | the proxy: | R3 |
+| | - the dispatch; | |
+| | - `/credits` gains the OPERA line, and the missing NOAA line; | |
+| | - `smoke-prod.sh` gains a UK check at a public airport, served from `opuk` | |
+| | staging, then production, under the standing deploy rule | |
+| R5 | UK weather on the glass: a bench board running #445's code with its location set to a public UK airport (§6, Q7) | R4, a board |
+
+**The UK customer sees UK weather when both v19 (with #445) and R4 are live,** whichever comes later. R1-R4 do not
+wait for v19.
+
+**The map layers: they wait for the map server's US v1, and reach a Blipscope only after its BMPK client.**
+
+| | step | needs |
+|---|---|---|
+| M0 | rulings on the UK rule set (§2, §6) and on whether it is a v1 coverage extension | R0 |
+| M1 | **an offline size dry run of the UK sources:** packages at the UK centres, against the 32 KB cap. No Cloudflare | M0; can run before v19 |
+| M2 | the UK truth tables, frozen; then the map server's ingest gains the UK as a second coverage: | the map server's US v1 live |
+| | - its sources; its coverage bits (GB + NI); | |
+| | - the terrain tile bits with EU-DEM; | |
+| | - the credit and attribution lines | |
+| M3 | the route serves UK origins | M2 |
+| M4 | **the Blipscope's BMPK client** (firmware, after v19, "as a setting") | after v19 |
+
+**Not mine to schedule:** M2 and M3 are the map server session's, and M4 is the Blipscope firmware's. Here they are
+the order this plan proposes, for the reviewer.
+
+## 5. Costs against the free tiers
+
+**The "now" column is `docs/wx-server.md`'s:** account figures measured 2026-10-21, with the ingest's CPU from I7 on
+2026-10-23. **None was re-read for this plan.** The implementation's cost statement re-reads them before any deploy,
+as #443's did.
+
+| | now | the UK radar adds | included | past it |
+|---|---|---|---|---|
+| Workers CPU | about **25.8M ms/month**: the proxy 2.33M, the ingest about 23.4M | **about 4-7M ms, estimated:** 288 frames a day × 0.4-0.7 s, plus about 2,600 empty checks a day × about 8 ms. Unmeasured, and I7 found workerd about twice Node | 30M | $0.02 per million ms: **cents a month** |
+| R2 Class A | about 881k: 751k `missileer-live`, 130k `cref` | **+26k** if `opuk` prunes only when it stores; **+105k** if it prunes on every check as `cref` does (10 checks per 5-minute frame) | 1M | $4.50 per million |
+| R2 Class B | about 744k: 312k before weather, plus 432k from the `cref` ingest | about +430k from the ingest, plus about 216k for each UK device with the layer on | 10M | $0.36 per million |
+| R2 storage | about 0.65 GB | **+14 MB** (one hour of 1.18 MB frames); 0.34 GB if pruning failed for the lifecycle's whole day | 10 GB | $0.015 per GB-month |
+| Workers requests | 663k, plus 43,200 cron runs | **0**: the same Worker and the same cron | 10M | — |
+| Data in from CloudFerro | — | about 604 KB × 288 = **174 MB a day** | not billed to us | — |
+
+**What this means:**
+- **No new Cloudflare resource.** The bucket and the ingest Worker exist. `opuk` is a product inside them.
+- **CPU is the row that crosses.** 25.8M plus 4-7M is 30-33M against 30M included, which is **a bill of cents.**
+  - By the brief, that is asked of Daniel first, with the measured figure from the implementation's own run, before
+    the ingest change deploys.
+- **R2 Class A** goes to about 91 % with the prune-on-store rule, or about 99 % without it. So the rule is part of the
+  proposal, not an optimisation. Missileer's growth alone could cross it either way: `docs/wx-server.md` already
+  named this margin as thin.
+- **The Met Office feed would cost less CPU** (96 frames a day, not 288), but more in work: an HDF5 parser and the
+  firmware change.
+- **The map layers** carry their costs in the map server's own US v1 resources (`docs/basemap-route.md` announces
+  them in its §7 and A1.6). The UK adds storage to that store and no new resource; the builder's CPU per request is
+  unchanged.
+  - **Terrain:** 480 z9 tiles in a box around the UK, about 35 MB at the US store's 73 KB a tile.
+  - **Vectors:** unmeasured. §4's dry run measures them.
