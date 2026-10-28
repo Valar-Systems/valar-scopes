@@ -1260,3 +1260,71 @@ over weather (bench)" and only that.
 | **the shipping image** | `blipscope-s3-128`'s `firmware.bin`, built before the timer and after it, both 1,942,000 B, **differ in 65 bytes**: 32 of `app_elf_sha256` @0xB0, 32 of the trailing image SHA-256, and 1 checksum byte. **No timestamp differs, and 0 bytes are unplaced** (`bin_regions.py`). So every loaded byte is identical | **the named second outcome:** unchanged code, reported as such. Not byte-identical, because the ELF's own hash moved. The cause is probably debug info, since the edited files' line numbers changed; I didn't keep the before-ELF, so that is not verified |
 | **the string** | `sweep=%lu`: `wxlook` 1, shipping 0. The control, "Sweep over weather (bench)": 1 and 0 | **as predicted** |
 | **the builds** | both envs build. `wxlook` is 1,943,328 B | — |
+
+### WD6′, the board (2026-10-28). Part 1 is VOID (touch) and W5′ reads INSTRUMENT. Stopped for a ruling
+
+**The session ran as frozen, 03:37-05:29Z on E2:08, all at night** (sun −28.9° to −45.0°).
+- **Images:**
+  - Part 1 on `wxlook` at `f9184ef`.
+  - W5′ on the old image (`962ccb7`, from its own tree) → the shipping env at `f9184ef` → the old image again.
+- **Every check verified:**
+  - every flash exited 0;
+  - every `[build]` banner read the expected env;
+  - every POST verified with only its own field changed.
+- **The page told the W5′ images apart:** the old image's config page has no `wx-layer` field, and the new image's
+  has it unchecked. The banner cannot tell them apart.
+- **Afterwards:** `wxlook` is back, with the layer on and look 4.
+
+**Part 1 is VOID by its frozen rule.** Its trace has `[touch]` lines in two windows; a person was at the glass:
+- **B″, 03:44:37Z:** one swipe, at the zoom limit, so nothing changed.
+- **A″, 03:52:05-16Z:** five zoom swipes (50 → 5 → 25 mi), then a tap that opened a card for about 2 s, a flip, and a
+  close.
+- **L3″:** no touch.
+
+The readings below are therefore observations, not grades.
+
+| row | read (void) | predicted |
+|---|---|---|
+| G7″ B″ | 108 polls in **9** lines | 115-125 |
+| G7″ A″ | 107 polls in **9** lines | 115-125 |
+| G7″ A″/B″ | 0.991 | 0.9-1.1 |
+| W4′ B″ (today's opaque wedge) | avg median **1.98 ms** (p95 2.55); `blend=0` on every line | ≤ 1.0 ms |
+| W4′ L3″ (look 3) | **7.82 ms** (p95 8.02); `blend=n` on every line | 1.5-4.0 ms |
+| W4′ A″ (look 4) | **7.89 ms** (p95 8.10); `blend=n` on every line | 2.5-6.0 ms |
+| W4′ A″ − L3″ | **0.08 ms** | ≥ 0.5 ms |
+
+**G7″, read for its cause:**
+- **The cadence:** the counter reads 12 polls a minute in every whole minute of both windows (one 11). So the layer
+  does not move the cadence. Both windows were already active because of their POSTs, so the touches could not have
+  changed it either; the rule voids the run all the same.
+- **And the frozen text was wrong in a way that could not have passed.**
+  - The `[perf]` lines land at :09 past the minute, and each POST landed 1 s after one.
+  - So a 600 s window holds only **9** whole counter minutes, not the "10" the text assumed.
+  - At 12 a minute that gives about 108, which is outside 115-125 whatever the cadence did. My error, before the run.
+
+**W4′, read for its cause. My bands were wrong, not the run:**
+- **The named alternative, that the touches inflated the readings, is excluded:**
+  - Look 4 reads 7.9-8.2 ms on every line from 03:39 to 03:41Z, before any touch.
+  - L3″ had no touch and reads 7.80-7.83 ms.
+  - The opaque wedge reads 1.97-2.06 ms on both sides of B″'s swipe and again after the run (04:11-04:15Z).
+- **Every line is flat:** the avg and the p95 sit within about 0.3 ms of each other throughout. So this is a steady
+  cost, not sporadic preemption.
+- **What it settles:**
+  - W4's open alternative ("the sweep costs about 4-6 ms more than predicted") is what happened. The blend path costs
+    about **5.9 ms per frame more than today's opaque wedge**.
+  - Looks 3 and 4 cost the same to within 0.1 ms. The cost is common to both, not in the colour arithmetic I priced
+    per pixel: the rasterise, the full-row scan of the PSRAM slice buffer, and the canvas read-modify-write.
+  - Today's opaque wedge itself costs 2.0 ms, twice my ≤ 1.0.
+
+**W5′ reads INSTRUMENT, a pre-registered outcome.** There were no touches in any of its three windows.
+
+| | p95 median | resid | n |
+|---|---|---|---|
+| O1 (old), 04:29-04:39Z | 44.2 | −3.6 | 15 |
+| N (shipping, `f9184ef`), 04:53-05:03Z | 42.7 | −2.4 | 12 |
+| O2 (old), 05:17-05:27Z | 41.4 | −0.4 | 7 |
+
+- **The control failed:** \|O1 − O2\| = **2.80 ms > 1**. So by the frozen text there is no grade.
+- **Why:** the night's traffic fell steadily (n 15 → 12 → 7), and p95 fell with it.
+- N sits 0.1 ms from the old windows' mean. That is what a drift linear in time would also give, so it is not evidence
+  either way.
