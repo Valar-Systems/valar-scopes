@@ -1029,3 +1029,43 @@ Synthetic features at origin (0, 0), through the layer functions.
   - **Recommended:** insert **2000**, the release joerd names, and say beside it that joerd records a 2014 update.
   - **The alternative** is 2014, the latest update joerd names. A notice with no year at all would not be the notice.
   - **It wants one ruling for both builders,** since Weatherscope's licence file beside `bend.bmpk` carries the same notice.
+
+---
+
+## Step 2, the ingest: progress (2026-10-27)
+
+**The source plan, from the publishers' own listings.** `ingest-basemap.ts plan` reads the TIGER directory listings and the GNIS bucket listing.
+
+| layer | files | what |
+|---|---|---|
+| `water` | 3,144 | one per county |
+| `rivers` | 3,144 | one per county (the territories' 89 dropped) |
+| `roads` | 51 | one per state |
+| `peaks` | 51 | GNIS, per state; all `Last-Modified` 2026, so vintage 2026 (RD-P3) |
+| the rest | 7 | `places`, `population`, `states`, `counties` and three `naturalearth` files |
+| **total** | **6,397** | |
+
+- **Download size,** read from the listings: `AREAWATER` about 1.12 GB, `LINEARWATER` about 3.12 GB, `PRISECROADS` about 0.28 GB, GNIS 47 MB. The rest are a few MB each, apart from the county file at 84 MB.
+- **The fetch is running**, into a cache outside the repository, with no failures so far.
+  - The CLI **refuses a cache inside the repository**. That refusal was checked: it creates nothing.
+
+**MI, run against the code written after its freeze.**
+- **10 of 10 tests pass, over MI's 7 cases.**
+- **The sabotages, after a clean baseline (0 failing cases):**
+
+  | sabotage | frozen set | failing |
+  |---|---|---|
+  | S-ISIZE | {MI7} | **{MI7}**: as predicted |
+  | S-ISEAL | {MI7} | **{MI7}**: as predicted |
+  | S-IBUS | {MI1} | **{MI1}**: as predicted |
+
+  Each plant asserted its anchor once and that the file changed, and each restore was sha-checked (`scripts/sabotage-basemap.mjs`).
+
+**One explanatory note was wrong, found while writing the plant and before any run.**
+- A1.7 glossed S-ISEAL as failing MI7 "through b and d".
+- Planting it shows (c) goes red too: with `current` written before the verify, a corrupt store would be sealed.
+- **The frozen set is the case, {MI7}, and it held.** The gloss was incomplete. It is corrected here, not edited away.
+
+**One fix in `assignCells`, outside the frozen rows.**
+- Features that all share one south-west corner can never be separated by a quarter, so splitting them recursed forever.
+- Such a cell is now kept whole, like a single-feature cell. MI6's frozen expectations do not touch this case.
