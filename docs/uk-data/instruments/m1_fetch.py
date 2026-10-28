@@ -104,4 +104,16 @@ take("osni", "https://admin.opendatani.gov.uk/dataset/d27903f1-15e6-4c07-8564-dd
      name="osni-gazetteer-place-names.csv")
 take("daera", "https://opendata-daerani.hub.arcgis.com/api/download/v1/items/5acc99bfd09e432a9db6d72272b96174/"
      "shapefile?layers=0", r"\.(shp|shx|dbf|prj|cpg)$", name="lakes-of-northern-ireland.zip")
+# Rule L (A3.2, ruled 2026-10-28): London's districts and region, and their Census 2021 usual residents (Nomis TS001)
+ARC = "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/"
+take("ons-rule-l", ARC + "Local_Authority_Districts_December_2022_UK_BGC_V2/FeatureServer/0/query"
+     "?where=LAD22CD%20LIKE%20%27E09%25%27&outFields=LAD22CD,LAD22NM&outSR=27700&f=geojson&orderByFields=LAD22CD",
+     name="lad2022-london.geojson")
+take("ons-rule-l", ARC + "Regions_December_2022_EN_BGC/FeatureServer/0/query"
+     "?where=RGN22CD%3D%27E12000007%27&outFields=RGN22CD,RGN22NM&outSR=27700&f=geojson",
+     name="rgn2022-london.geojson")
+NOMIS = ("https://www.nomisweb.co.uk/api/v01/dataset/NM_2021_1.data.csv?date=latest&c2021_restype_3=0&measures=20100"
+         "&select=geography_code,geography_name,obs_value&geography=")
+take("nomis", NOMIS + "TYPE154", name="ts001-lad2022.csv")
+take("nomis", NOMIS + "TYPE480", name="ts001-regions.csv")
 print("done", len(manifest["files"]), "files", flush=True)

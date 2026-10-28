@@ -1901,6 +1901,34 @@
    "layer": "ons-bua",
    "sha256": "4baa53fd6526ac09b53f406dc291255a5588269ab8d6aa18df8b5b1223fac51c",
    "url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/BUA_2022_GB/FeatureServer/0/query?where=1%3D1&outFields=BUA22CD,BUA22NM&outSR=27700&f=geojson&orderByFields=BUA22CD&resultRecordCount=1000&resultOffset=8000"
+  },
+  {
+   "bytes": 183165,
+   "last_modified": "Fri, 28 Jul 2023 16:34:00 GMT",
+   "layer": "ons-rule-l",
+   "sha256": "20a2594bd974228a1866fc9cd1cb88ba7a62946e8b64e760d5995887f08c4c1d",
+   "url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Local_Authority_Districts_December_2022_UK_BGC_V2/FeatureServer/0/query?where=LAD22CD%20LIKE%20%27E09%25%27&outFields=LAD22CD,LAD22NM&outSR=27700&f=geojson&orderByFields=LAD22CD"
+  },
+  {
+   "bytes": 62070,
+   "last_modified": "Wed, 18 Jan 2023 12:09:35 GMT",
+   "layer": "ons-rule-l",
+   "sha256": "b845a54be8c194cd0f41e37327134d2f0804b57c08f2e2e3f73c4a96d5e17058",
+   "url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Regions_December_2022_EN_BGC/FeatureServer/0/query?where=RGN22CD%3D%27E12000007%27&outFields=RGN22CD,RGN22NM&outSR=27700&f=geojson"
+  },
+  {
+   "bytes": 10884,
+   "last_modified": null,
+   "layer": "nomis",
+   "sha256": "cb0a6ca44d943fa6a6907597f94640fa4f86b1eb065339911986459fb3c1dece",
+   "url": "https://www.nomisweb.co.uk/api/v01/dataset/NM_2021_1.data.csv?date=latest&c2021_restype_3=0&measures=20100&select=geography_code,geography_name,obs_value&geography=TYPE154"
+  },
+  {
+   "bytes": 381,
+   "last_modified": null,
+   "layer": "nomis",
+   "sha256": "cdf8c2e5d296d6e47d1fef8374457c9f01341f3ef0125d603d57306356752c96",
+   "url": "https://www.nomisweb.co.uk/api/v01/dataset/NM_2021_1.data.csv?date=latest&c2021_restype_3=0&measures=20100&select=geography_code,geography_name,obs_value&geography=TYPE480"
   }
  ]
 }
