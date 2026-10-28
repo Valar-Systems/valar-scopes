@@ -105,19 +105,20 @@ string at all**. That is asserted when it is built (section 6).
   generic MIL tag.
 - **Out of range:** the line appears with no position.
 
-**On the phone:** an optional ntfy alert, **off by default**.
-- **The setting:** a checkbox on the config page, "E-4B airborne — also ntfy", beside the existing "also ntfy"
-  options. It uses the existing `ntfy-topic`.
-- **When it fires:** once, on the change from not seen to seen. It is seeded at boot, so the backlog never fires, as
-  every edition's alerts are. It re-arms only after a long absence (an interval to rule, for example 6 h), so coverage
-  dropping in and out cannot make it flap.
-- **The wording:** title "E-4B airborne"; body "An E-4B is showing on ADS-B (adsb.fi)." Nothing more.
+**No phone alert** (Daniel, 2026-10-28). The ntfy setting, trigger and re-arm interval this memo once proposed are
+dropped, and ntfy itself is being removed from every edition (`docs/ntfy-removal-plan.md`).
 
-**Never in any string:** EAMs, messages, Missileer or its traffic, "doomsday", or anything alarming. This is asserted
-by construction when built: a host test over every string the feature can emit, with a control proving the test can
-see a planted word.
+**The setting:** one checkbox on the config page, **"E-4B airborne"**, which turns the line and the tag on and off.
+Its description is **"An E-4B is showing on ADS-B"**. Its default is open (question 6).
 
-**Attribution:** adsb.fi's citation and link, which the config page and `/credits` already carry.
+**The text, exactly:** the line **"E-4B airborne"**, the tag **"E-4B"**, and the sentence **"An E-4B is showing on
+ADS-B"** wherever the feature needs one. **The feature's own text never names the source.**
+
+**Never in any string:** EAMs, messages, Missileer or its traffic, "doomsday", anything alarming, or the name of a
+source. This is asserted by construction when built: a host test over every string the feature can emit, with a
+control proving the test can see a planted word.
+
+**Attribution:** adsb.fi's credit stays where it already is, on the config page and `/credits`.
 
 ## 4. Not on the Missileer device
 
@@ -152,24 +153,28 @@ see a planted word.
 - a callsign, never consulted. The sabotage is a callsign match, and that row must turn red.
 
 **Strings:**
-- no forbidden word, with a planted-word control;
+- the feature's three texts are exactly "E-4B airborne", "E-4B" and "An E-4B is showing on ADS-B";
+- no forbidden word and no source name, with a planted-word control;
 - no negative statement ("none", "no E-4B");
 - the line has no digit.
 
 **Builds:**
 - the strings are absent from every `missileer-*` ELF and present in a radar ELF (the control);
-- the setting defaults to off. It is a new key, so the default reaches every device.
+- the setting takes the default as ruled. It is a new key, so the default reaches every device;
+- no ntfy path: the feature has no sender of any kind.
 
 **Board:** the line and the tag in range, from a bench feed that replays a recorded E-4B row. Never a live one,
 since one may not fly during the window.
 
 ## 7. Questions for Daniel and the reviewer
 
-1. Wire "anywhere" as A or B (recommended: B).
-2. Is the in-range "E-4B" tag wanted, beyond the line?
-3. The ntfy re-arm interval (for example 6 h).
-4. The exact wording of the line and the notification.
-5. Rule on #409 first (section 0)?
+1. Wire "anywhere" as A or B. **Ruled: B.**
+2. Is the in-range "E-4B" tag wanted, beyond the line? **Answered: yes, "E-4B".**
+3. The ntfy re-arm interval. **Dropped: no phone alert.**
+4. The exact wording. **Answered: "E-4B airborne", and "An E-4B is showing on ADS-B".**
+5. Rule on #409 first? **Daniel gave it to this session.** The table fix is its own small PR off main.
+6. **Open:** is the "E-4B airborne" setting on or off by default? Recommended: **on**. The off-by-default in the brief
+   was for the phone alert, which is gone, and the line is calm, on the screen only, and shows only while one is up.
 
 ## Rulings, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their source
 
@@ -186,3 +191,15 @@ since one may not fly during the window.
 - **The four addresses are facts, not a database:** agreed.
 - **The ROADMAP line for the themes:** yes, in the next docs PR. It is in this one, as ROADMAP F2, beside this memo as
   F1.
+
+## Daniel's answers, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their source
+
+- **The name:** "E-4B is ok name." The in-range tag reads "E-4B", and the line "E-4B airborne".
+- **No phone alert:** "I don't want phone alerts any more. I thought got rid of ntfy. If not, i want it completely
+  gone". The memo's ntfy setting, trigger and re-arm interval are dropped. ntfy's removal from every edition is its own
+  plan: `docs/ntfy-removal-plan.md`.
+- **The wording:** "An E-4B is showing on ADS-B", wherever the feature needs a sentence (for example, the setting's
+  description on the config page). The feature's own text never names the source; adsb.fi's credit stays where it
+  already is.
+- **#409:** Daniel gave it to this session ("You can fix it"). The table fix goes now, as a small PR off main. The rest
+  of #409 is rebased after #445 merges.
