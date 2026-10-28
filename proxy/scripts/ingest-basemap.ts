@@ -192,15 +192,19 @@ const unzipOne = (zip: Uint8Array, re: RegExp) => {
 async function dryRun(cache: string): Promise<void> {
   const { files: planned } = JSON.parse(readFileSync(join(cache, "plan.json"), "utf8")) as { files: SourceFile[] };
   const log: FetchLog = JSON.parse(readFileSync(join(cache, "fetch-log.json"), "utf8"));
+  // --partial: a MEASUREMENT with named files missing, never a store. It writes to its own directory, its
+  // manifest is named PARTIAL, and its summary says so; without the flag a missing file stops the run.
+  const partial = process.argv.includes("--partial");
   const missing = planned.filter((f) => !log[f.url]);
-  if (missing.length) throw new Error(`${missing.length} planned files not fetched (first: ${missing[0]!.url})`);
+  if (missing.length && !partial) throw new Error(`${missing.length} planned files not fetched (first: ${missing[0]!.url})`);
   const files: ManifestFile[] = planned
+    .filter((f) => log[f.url])
     .map((f) => ({ bytes: log[f.url]!.bytes, layer: f.layer, sha256: log[f.url]!.sha256, url: f.url, vintage: log[f.url]!.vintage }))
     .sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
   const index = new Map(files.map((f, i) => [f.url, i]));
   if (files.length > 0xffff) throw new Error("more files than a u16 index");
 
-  const out = join(cache, "dry-run");
+  const out = join(cache, partial ? "dry-run-partial" : "dry-run");
   rmSync(out, { recursive: true, force: true });
   const work = join(out, "work");
   mkdirSync(work, { recursive: true });
@@ -283,12 +287,13 @@ async function dryRun(cache: string): Promise<void> {
   const manifestText = writeManifest({ builder: commit, files, predicates: [...PREDICATES] });
   const storeId = await storeIdOf(manifestText);
   const indexText = JSON.stringify({ cells: entries }) + "\n";
-  writeFileSync(join(out, "store", "manifest.json"), manifestText);
+  writeFileSync(join(out, "store", partial ? "manifest.PARTIAL.json" : "manifest.json"), manifestText);
   writeFileSync(join(out, "store", "index.json"), indexText);
   storeBytes += Buffer.byteLength(manifestText) + Buffer.byteLength(indexText);
 
   const summary = {
-    storeId, ingestCommit: commit, dirtyTree: dirty, files: files.length,
+    ...(partial ? { PARTIAL: true, missing: missing.map((f) => f.url), note: "a measurement with these files absent; not a store" } : {}),
+    storeId: partial ? `PARTIAL-${storeId}` : storeId, ingestCommit: commit, dirtyTree: dirty, files: files.length,
     layers: stats,
     cells: { count: entries.length, byLevel: levels, splitLevel0Cells: splitCells, largestBytes: largest, over24MB: oversize },
     manifestBytes: Buffer.byteLength(manifestText), indexBytes: Buffer.byteLength(indexText),
