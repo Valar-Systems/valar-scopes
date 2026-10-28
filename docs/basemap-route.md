@@ -967,3 +967,65 @@ Synthetic features at origin (0, 0), through the layer functions.
    - RD18-RD21 bind MB, MT4 and ML10 as I read them. If they are ruled otherwise, those rows are re-registered by that ruling.
 3. **Step 2 is next:** the ingest code and its dry run, which is local, fetches public files only, and creates nothing in Cloudflare.
    - Its measured size is reported against the 6 GB stop, and against the free 10 GB, **before** D1 is announced for doing.
+
+### A1.10 Two notes, and the rulings on Addendum 1, verbatim (source: reviewer chat, pasted by Daniel; both are dated 2026-10-28 in the paste)
+
+**The notes:**
+
+> Two notes (reviewer chat, 2026-10-28)
+>
+> 1. Weatherscope Code is landing the PK set on main as its own PR, ahead of bend.bmpk: the 28 fixtures, the tools, and the format doc (v1 with A10.12). Your MV rows, and ME1 (syn-min's contents are written out as data in tools/weatherscope/basemap/synth.py), can run against main once it merges.
+> 2. SRTM's spec (§3.15, read by Weatherscope Code in joerd at 0b86765) asserts copyright for products distributed outside the US, with a notice. Carry the same notice in the route's own licence or attribution file, beside the SRTM credit. PROVENANCE keeps the credit line.
+
+**The rulings:**
+
+> Rulings on #486's Addendum 1 (reviewer chat, 2026-10-28)
+>
+> Accepted: the two rulings as recorded; the four PROVENANCE details (dropped/collapsed for every layer read); BQ3 settled by OGL – Canada, with no terrain gate; BQ2's frozen credit lines and tile bits (2 km buffers); the three processing-line texts; and the resource announcements with their bill guards.
+>
+> F1: as recommended. The manifest's builder is the commit of the code that wrote the manifest.
+> F2: as recommended. states, counties and naturalearth go in the same files list under their own keys, so store: pins them; no package's PROVENANCE lists them.
+> RD18-RD21: your readings are ruled for both builders. RD18's area is the absolute shoelace area. RD21's expression is pinned as written; if MG1 ever differs on a summit's elevation, check first for a floor at a pixel boundary (libm's log and tan can differ in the last bit between languages).
+> RD-P1 to RD-P6: your readings are ruled for both builders, with A1.4's texts as the credit and processing lines.
+>
+> The SRTM notice: as in my earlier note, carry it in the route's licence or attribution file beside the SRTM credit, since the repo and the route's docs are public. PROVENANCE keeps the credit line only.
+>
+> Next as planned: the ingest code and a local dry run, with sizes reported before the bucket is created.
+
+### A1.11 What they settle in the tables (no frozen value moves)
+
+- **MI4 is frozen.**
+  - The manifest is UTF-8 JSON with sorted keys, a one-space indent and a final `\n`. Its keys are exactly `builder`, `files` and `predicates`.
+  - `builder` is **the commit of the code that wrote the manifest** (F1).
+  - Each `files` entry is exactly `{bytes, layer, sha256, url, vintage}`.
+  - `layer` is one of the seven package keys, or `states`, `counties` or `naturalearth` (F2).
+  - **The predicted values are A1.7's,** unchanged.
+- **RD18:** the area is the **absolute** shoelace area. MB's squares have one orientation, so no MB value moves.
+- **RD21, for MG1's reader:** if MG1 ever differs on a summit's elevation, **first check for a floor landing at a pixel boundary.** The last bit of libm's `log` and `tan` can differ between languages. This is written into MG1's failure output, so whoever reads a failure is looking at it.
+- **RD-P1 to RD-P6:** ruled, with A1.4's texts.
+- **ME1b, registered now, before any code.** `encode()`, given `syn-min`'s contents as `tools/weatherscope/basemap/synth.py` writes them out as data, produces **`syn-min.bmpk` byte for byte**. That is stronger than ME1's round trip, because nothing is read back from the fixture.
+  - **Its control** (on the comparator, since any encoder sabotage would also move ME2, ME3 and ME7): compared against a copy of `syn-min.bmpk` with one body byte changed and its CRC recomputed, ME1b must report a mismatch **at that offset**.
+  - **It is BLIND until the fixtures are on main.**
+  - The fixture's two-line provenance is data in `synth.py`, so this checks serialisation only, not my PROVENANCE layout.
+
+### A1.12 The route's attribution file, and the SRTM notice
+
+- **The file:** `docs/basemap-attribution.md`. It is public, and beside this plan.
+- **What it carries:**
+  - A1.4's credit lines;
+  - the processing texts;
+  - the OGL – Canada statement with its link;
+  - **beside the SRTM credit, SRTM's notice,** from SRTM's specification §3.15 b as joerd's `attribution.md` quotes it at `0b86765`: "© COPYRIGHT (year of production) BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.";
+  - the public-domain status of TIGER/Line, the Gazetteer, SUB-EST2024 and GNIS.
+- **When:**
+  - **The file is committed with the builder code** (step 4). It describes what the packages carry, and a statement belongs in the commit that makes it true (the `/wx` precedent for NOAA's line).
+  - **The proxy's `/credits` page gains the same block in D3's change,** the one that binds the route. Not before: until then no package is served.
+- **The check, MA1, registered now:**
+  - the attribution file, and `/credits` once D3's change exists, contain every A1.4 credit line's text, the SRTM notice, and the OGL statement with its link;
+  - **its control:** the notice deleted from the file must turn MA1 red;
+  - `smoke-prod.sh` gains the `/credits` half at D3.
+- **AQ1, raised: the notice's "(year of production)".**
+  - The notice is a template, and §3.15b says the year is inserted. joerd dates SRTM "circa 2000 … with several updates including in 2014", and does not say which release the z9 tiles came from.
+  - **Recommended:** insert **2000**, the release joerd names, and say beside it that joerd records a 2014 update.
+  - **The alternative** is 2014, the latest update joerd names. A notice with no year at all would not be the notice.
+  - **It wants one ruling for both builders,** since Weatherscope's licence file beside `bend.bmpk` carries the same notice.
