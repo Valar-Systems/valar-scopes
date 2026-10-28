@@ -5230,3 +5230,24 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
 - **The four pinned details stand as ruled.**
 
 **Next:** step 2, as planned. `bend.bmpk` is frozen when step 2 makes it.
+
+### A10.14 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): step 2's part 1 accepted; the SRTM notice; the PK set as its own PR
+
+**The ruling, verbatim:**
+
+> Step 2, part 1 (reviewer chat, 2026-10-28)
+>
+> Part 1 is accepted: the PK set, the tools, and the controls (the CRC-removed validator accepting neg-crc; --check failing on one flipped byte; the 28 blobs equal to the generator's output).
+>
+> 1. The SRTM notice: yes. Carry it in bend.bmpk's licence file beside the credit, worded as SRTM's spec §3.15 gives it, with the year it names. PROVENANCE keeps the credit line, as ruled.
+> 2. Land the PK set now, as its own PR: the tools, test/fixtures/wx/basemap/'s 28 blobs, the format doc (v1 with A10.12), and .gitattributes. Add *.wxc binary in the same change, and show that no committed .wxc changes a byte. bend.bmpk, its manifest and its licence file follow in a second PR. Report the first PR with CI for approval.
+> 3. Part 2 as planned. Your own minimal .shp/.dbf reader is fine; give it host rows and a sabotage like everything else.
+
+**What follows:**
+- **The PK-set PR now:**
+  - the tools (`bmpk.py`, `validate.py`, `synth.py`) and the 28 blobs with their README;
+  - the format doc (v1, with A10.12 and A10.13's addition);
+  - `.gitattributes`: `*.bmpk binary` and `*.wxc binary`, with a byte check over every committed `.wxc`.
+- **Then `bend.bmpk`'s PR:**
+  - the licence file carries SRTM's credit and the §3.15 notice as worded there;
+  - the shapefile reader gets host rows and a sabotage.
