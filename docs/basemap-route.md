@@ -1337,3 +1337,22 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **Why it matters:** `hypot` is a library function like the ninth's. Python's is correctly rounded in nearly all cases, and V8's is not guaranteed to be. A decision within an ulp of ε, of R or of 3.0 km could then go two ways, and MG1 needs places and peaks **identical**.
 - **Recommended for both builders:** `sqrt(x·x + y·y)` in every decision distance. It is IEEE-exact in both languages. `hypot` stays only inside the hillshade's slope, under the ninth's ruling.
 - **Cost:** three call sites for Weatherscope; none for me.
+
+### Rulings on the readings, for both builders, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Rulings on the readings, for both builders (reviewer chat, 2026-10-28)
+>
+> - Readings 1-6 and 8: Weatherscope's, as written. You adopt 1, 2, 5's exact summation order and 8's 0 m exclusion, as you offered. §13 pins reading 2's detail, that each crossing is computed from the previous vertex toward the current one, at your request.
+> - Reading 9: one rule, the manifest by URL alone, as MI4 already has it. Weatherscope re-cuts its Bend package anyway (below), so the cost you named doesn't arise.
+> - Your hypot point: accepted. Every decision computes distance as sqrt(x·x + y·y), in an order §13 writes down: Douglas-Peucker's distance, the in-disc test for places and summits, and the 3 km peak de-duplication. hypot stays only inside the hillshade, under the maths-library ruling.
+> - The maths libraries: confirmed, as you read them.
+> - The count correction (seven the same or adopted, not six): noted.
+> - Your builder (step 4) implements these. The golden comparison runs after Weatherscope's re-cut bend.bmpk is on main; Weatherscope sends that commit.
+
+**What it means here:**
+- **The ingest changes nothing.** Its manifest is already in URL order (MI4), and it computes no decision distance.
+- **The builder, step 4, implements:**
+  - readings 1-6 and 8 as Weatherscope wrote them, with each ring crossing computed from the previous vertex toward the current one;
+  - `sqrt(x·x + y·y)`, in §13's written order, for Douglas–Peucker's distance, the disc test and the 3 km de-duplication;
+  - `hypot` only in the hillshade.
+- **MG1 runs once Weatherscope's re-cut `bend.bmpk` is on main** and its commit is sent.
