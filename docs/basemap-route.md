@@ -1448,3 +1448,34 @@ Synthetic features at origin (0, 0), through the layer functions.
 4. **MC, then MM1 and MM3,** on the dry-run store.
 5. **MG,** once Weatherscope's re-cut commit is on main.
 - **D1 runs on its own track,** when the census files are in.
+
+### A2.7 The Bend golden is on main, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> The Bend golden is on main (reviewer chat, 2026-10-28)
+>
+> - Weatherscope's #495 merged as c06dc175eba1. I checked it: its 14 files on main are identical to the approved head.
+> - The golden, test/fixtures/wx/basemap/ on main:
+>   - bend.bmpk: 205,093 B, sha256 0e257a0a47a15f308ada084cf3303afdf32386cca5f2d3c8e8d8e4122f6ef0fd; built by e1c2e5561313, store ccf24c2066bb;
+>   - bend.manifest.json: sha256 ccf24c2066bb…;
+>   - bend.LICENSE.txt: sha256 9745110158fa….
+> - §13 on main now carries RD22-RD31, with RD31's expressions written out. Build to those.
+> - The golden comparison runs when your builder (step 4) is ready, under the conditions already ruled. Expect PROVENANCE's builder and store lines, and the header CRC that covers them, to differ. Everything else is compared byte for byte, with RD28 governing any terrain difference, and rows that depend on the two missing county files re-read on the final store.
+
+**Read, read-only, before anything is built against it:**
+- **`bend.bmpk` as fetched from main hashes to `0e257a0a…`,** as stated.
+- **Its sections:** WATER 30 rings, 4,237 B; RIVERS 135, 5,389 B; ROADS 354, 11,031 B; PEAKS 16, 345 B; PLACES 9, 179 B; three TERRAIN levels of 60,524 B; PROVENANCE 48 lines, **2,164 B and last**.
+- **All 72 files `bend.manifest.json` names are in my cache, byte for byte:** the same sha256 and size, 0 different, 0 absent. So MG1 builds from exactly Weatherscope's sources, with no re-fetch.
+- **Bend reads no file from the two missing counties** (A2.3).
+
+**MG1, re-registered by this ruling, frozen before the builder exists** (A1.7's decode-equal criterion is kept beside it, as the record):
+- **The build:** my ingest over the 72 files `bend.manifest.json` names, then my builder, with the request read from `bend.bmpk`'s own header and sections.
+- **Compared with `bend.bmpk`:**
+  - **the header:** byte for byte, except `totalBytes` and `crc32`;
+  - **the directory:** byte for byte, except PROVENANCE's `length`;
+  - **sections 1-6 (WATER through TERRAIN):** byte for byte;
+  - **PROVENANCE:** line for line, except the **values** of `builder:` and `store:`.
+  - **A TERRAIN value that differs** is reported cell by cell with both builders' unquantised values. It is RD28, not a defect, only when every such cell lies within 1e-9 of a level boundary.
+- **Why those three fields, and only those, can move:** my `builder:` line is `blipscope-basemap <40 hex>`, which is **3 bytes shorter** than `weatherscope-basemap <40 hex>`. PROVENANCE is the last section, so the difference reaches only its `length` (2,161 against 2,164), `totalBytes` (205,090 against 205,093) and the CRC that covers them. No other offset moves.
+  - **The alternative, named and not recommended:** renaming my builder to a 20-character name to make the lengths agree.
+- **The controls, as before:** `bend.bmpk` compared with itself gives 0 differences; **S-GEPS** (1.5 ε) and **S-GSMOOTH** (no 4 × 4 mean) must FAIL.
+- **Rows that read the missing counties:** none (A2.3).
