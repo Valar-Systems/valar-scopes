@@ -5432,3 +5432,27 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
 - B1: dry, approaching, here-now, warning and stale exact against the new reference; clear unchanged;
 - B3: `legend_check --fb` with the teal swatch;
 - the B1 images to Daniel.
+
+### A10.18 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): the SRTM notice's year
+
+**The ruling, verbatim:**
+
+> The SRTM notice's year (reviewer chat, 2026-10-28)
+>
+> For bend.bmpk's licence file: the SRTM notice's year is 2000, with a note that joerd records a 2014 update. This is the same ruling the map server got (its AQ1).
+
+**What it answers:**
+- A10.14 asked for SRTM's §3.15 notice "with the year it names". The notice is a template ("(year of production)").
+- The map server raised the same question as AQ1 (`docs/basemap-route.md` A1.12, on #486). joerd dates SRTM "circa 2000 … with several updates including in 2014", and does not say which release the z9 tiles came from.
+
+**What `bend.bmpk`'s licence file carries, beside the SRTM credit line:**
+- **The notice,** as joerd's `attribution.md` quotes SRTM's specification §3.15 b at `0b86765`, with the year inserted. The wording is the same as the map server's A1.12:
+  > © COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.
+- **The note beside it:** "2000 is the SRTM release joerd's attribution.md names; joerd records several updates, including in 2014."
+- **PROVENANCE is unchanged:** it keeps the credit line only (A10.14).
+
+**The check, in bend.bmpk's PR:**
+- its licence file contains the credit line, the notice with 2000, and the 2014 note;
+- **the control:** the notice deleted from a copy must turn the check red.
+
+The format doc's `bend.bmpk` line now names the year and points here.
