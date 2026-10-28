@@ -2,13 +2,40 @@
 // scripts/sabotage-basemap.mjs grades its exact sets from them.
 import { describe, expect, it } from "vitest";
 import { makeFrame } from "../src/basemap/frame";
-import { boxMean4, decodeTerrarium, hillshade, levelPixelToZ9, levelTiles, mosaicOf, shadeByte, terrainLevel } from "../src/basemap/terrain";
+import { boxMean4, decodeTerrarium, hillshade, levelPixelToZ9, levelTiles, mosaicOf, shadeByte, terrainLevel, z9X } from "../src/basemap/terrain";
 
 /** MT2: an 8 x 8 plane DEM through hillshade, boxMean4 and shadeByte at every pixel; the distinct bytes. */
 function planeBytes(f: (x: number, y: number) => number, lat0: number): number[] {
   const dem = new Float64Array(64);
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) dem[y * 8 + x] = f(x, y);
   return [...new Set(Array.from(boxMean4(hillshade(dem, 8, 8, lat0), 8, 8), shadeByte))];
+}
+
+/** Seeded smooth synthetic Terrarium tiles over [tx0, tx1] x [ty0, ty1] (MT3, MT3b). */
+function syntheticTiles(tx0: number, ty0: number, tx1: number, ty1: number): Map<string, Uint8Array> {
+  const seed = 0x5eed, ph = [(seed % 97) / 13, (seed % 89) / 17, (seed % 83) / 19];
+  const h = (X: number, Y: number) => 1500 + 400 * Math.sin(X / 37.3 + ph[0]!) + 300 * Math.cos(Y / 53.1 + ph[1]!) + 60 * Math.sin((X + Y) / 11.7 + ph[2]!);
+  const tiles = new Map<string, Uint8Array>();
+  for (let x = tx0; x <= tx1; x++) for (let y = ty0; y <= ty1; y++) {
+    const t = new Uint8Array(256 * 256 * 3);
+    for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
+      const v = h(x * 256 + px, y * 256 + py) + 32768, o = (py * 256 + px) * 3;
+      t[o] = Math.floor(v / 256); t[o + 1] = Math.floor(v) % 256; t[o + 2] = Math.floor((v - Math.floor(v)) * 256);
+    }
+    tiles.set(`${x}/${y}`, t);
+  }
+  return tiles;
+}
+
+/** The level over the rule's mosaic and over one a tile larger: how many values differ, and how many distinct. */
+function marginCompare(f: ReturnType<typeof makeFrame>, levelMm: number, n: number) {
+  const [tx0, ty0, tx1, ty1] = levelTiles(f, levelMm);
+  const tiles = syntheticTiles(tx0 - 1, ty0 - 1, tx1 + 1, ty1 + 1);
+  const rule = terrainLevel(f, mosaicOf(tiles, tx0, ty0, tx1, ty1), levelMm, n);
+  const larger = terrainLevel(f, mosaicOf(tiles, tx0 - 1, ty0 - 1, tx1 + 1, ty1 + 1), levelMm, n);
+  let diff = 0;
+  for (let k = 0; k < rule.length; k++) if (rule[k] !== larger[k]) diff++;
+  return { tiles: [tx0, ty0, tx1, ty1], values: rule.length, diff, distinct: new Set(rule).size };
 }
 
 describe("MT, terrain", () => {
@@ -36,30 +63,24 @@ describe("MT, terrain", () => {
   });
 
   it("MT3: a level over the rule's mosaic and over one a tile larger gives the same 60,516 values", () => {
-    const f = makeFrame(0, 0, 97_000_000, 100_584);
-    const levelMm = 98_974_656, n = 246;
-    const [tx0, ty0, tx1, ty1] = levelTiles(f, levelMm);
-    // seeded smooth synthetic terrain over the larger rectangle, as Terrarium RGB
-    const seed = 0x5eed, ph = [(seed % 97) / 13, (seed % 89) / 17, (seed % 83) / 19];
-    const h = (X: number, Y: number) => 1500 + 400 * Math.sin(X / 37.3 + ph[0]!) + 300 * Math.cos(Y / 53.1 + ph[1]!) + 60 * Math.sin((X + Y) / 11.7 + ph[2]!);
-    const tiles = new Map<string, Uint8Array>();
-    for (let x = tx0 - 1; x <= tx1 + 1; x++) for (let y = ty0 - 1; y <= ty1 + 1; y++) {
-      const t = new Uint8Array(256 * 256 * 3);
-      for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
-        const v = h(x * 256 + px, y * 256 + py) + 32768, o = (py * 256 + px) * 3;
-        t[o] = Math.floor(v / 256); t[o + 1] = Math.floor(v) % 256; t[o + 2] = Math.floor((v - Math.floor(v)) * 256);
-      }
-      tiles.set(`${x}/${y}`, t);
-    }
-    const rule = terrainLevel(f, mosaicOf(tiles, tx0, ty0, tx1, ty1), levelMm, n);
-    const larger = terrainLevel(f, mosaicOf(tiles, tx0 - 1, ty0 - 1, tx1 + 1, ty1 + 1), levelMm, n);
-    expect(rule.length).toBe(60_516);
-    let diff = 0;
-    for (let k = 0; k < rule.length; k++) if (rule[k] !== larger[k]) diff++;
-    expect(diff).toBe(0);
+    const r = marginCompare(makeFrame(0, 0, 97_000_000, 100_584), 98_974_656, 246);
+    expect(r.values).toBe(60_516);
+    expect(r.diff).toBe(0);
     // CONTROL: the field is not uniform, so "identical" is not trivially true. (First written as "more than 50
-    // distinct bytes", a guess, which read 45; "not uniform" is more than 1. Recorded in A2.18.)
-    expect(new Set(rule).size).toBeGreaterThan(1);
+    // distinct bytes", a guess, which read 45; "not uniform" is more than 1, re-registered by ruling, A2.19.)
+    expect(r.distinct).toBeGreaterThan(1);
+  });
+
+  it("MT3b: the same where the level's edge is 1 px inside a tile, so only the margin keeps the values (A2.20)", () => {
+    const f = makeFrame(0, 227_036, 97_000_000, 100_584);
+    const levelMm = 24_743_664;
+    // the frozen geometry: the west edge in z9 pixel 65,537 (1 px into tile 256); the rule's tiles x 255-257, y 254-257
+    expect(Math.floor(z9X(f.lon0 - levelMm / 1e6 / (111 * f.c0)))).toBe(65_537);
+    const r = marginCompare(f, levelMm, 246);
+    expect(r.tiles).toEqual([255, 254, 257, 257]);
+    expect(r.values).toBe(60_516);
+    expect(r.diff).toBe(0);
+    expect(r.distinct).toBeGreaterThan(1);
   });
 
   it("MT4: levelPixelToZ9 truncates", () => {

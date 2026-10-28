@@ -1827,3 +1827,26 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 - **The MR, ML, ME4, MI and MV plants** touch nothing terrain imports. MT3b uses only `makeFrame`, which no plant changes.
 - **So no other set moves.**
 - **S-TNOMARGIN's re-registered set {MT3b, MB8a, MB8b}** is graded when MB lands, with `build.ts`.
+
+### A2.21 MT3b run; MG0 and a new row, MG0b, frozen before `provenance.ts` exists
+
+**MT3b, as frozen (A2.20):**
+- **0 of 60,516 values** differ between the rule's mosaic and one a tile larger, and the field is not uniform.
+- The frozen geometry holds: the west edge is in z9 pixel 65,537, and `levelTiles` gives x 255-257, y 254-257.
+- S-TNOMARGIN is graded with MB.
+- MT3 now shares MT3b's tile generator and comparison. Its assertions are unchanged.
+
+**MG0 (A1.7) can run now:** `bend.bmpk` and `bend.manifest.json` have been on main since `c06dc17`. It needs only `provenance.ts`.
+
+**MG0b, new, frozen here before `provenance.ts` exists.** It is MG1's PROVENANCE clause made standalone, so the text is pinned before `build.ts`.
+
+| case | input | expected |
+|---|---|---|
+| MG0b | `provenanceText` given `bend.manifest.json`'s files for the seven package layers (its `states` and `counties` entries left out, F2), and `bend.bmpk`'s own header and counts: <br>- ε 100,584 mm requested; <br>- levels and peaks read, so the "both" processing text; <br>- the SRTM credit only (A1.4, `bend.bmpk`'s tiles); <br>- `dropped.*` 0; <br>- `collapsed.*` as `bend.bmpk`'s PROVENANCE states them; <br>- `store:` the first 12 hex of the manifest's sha256 | **line for line equal** to `bend.bmpk`'s PROVENANCE, except the value of the `builder:` line: mine names `blipscope-basemap` and my commit. The line count and every other line, `store:` included, are equal |
+
+- **MG0b's control:** the same with one manifest sha256 changed must differ in exactly one line, that layer's `sha256.<layer>`.
+- **The re-check the standing rule asks for:**
+  - no frozen sabotage plants `provenance.ts`, which does not exist yet;
+  - S-NOCOUNT plants `budget.ts`'s count, which MG0 and MG0b never call.
+  - **No set moves.**
+- **Bend's `collapsed` counts are inputs to MG0b, read from the fixture,** not values it predicts. What MG0b tests is the layout and the digests.
