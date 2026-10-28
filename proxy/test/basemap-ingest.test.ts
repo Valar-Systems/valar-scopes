@@ -2,7 +2,7 @@
 // Each test is named by its case id; scripts/sabotage-basemap.mjs reads the names to grade its exact sets.
 import { describe, expect, it } from "vitest";
 import {
-  assignCells, bboxOf, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf,
+  assignCells, bboxOf, decodeFeature, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf,
   readDelimited, storeIdOf, verifyStore, writeManifest, type Manifest, type StoreBucket,
 } from "../scripts/basemap/ingest-lib";
 import { readShapefile, shapefileFromZip } from "../scripts/basemap/shapefile";
@@ -102,6 +102,25 @@ describe("MI, the ingest", () => {
     for (const c of cells) expect(c.bytes <= 1000 || c.features.length === 1).toBe(true);
     expect(cells.some((c) => c.bytes > 1000 && c.features.length === 1)).toBe(true);
     expect(cells.some((c) => c.level > 0)).toBe(true);
+  });
+
+  it("MI-roundtrip (not a frozen row): decodeFeature inverts encodeFeature for every kind", () => {
+    const feats = [
+      ...featuresFrom("water", 7, [{ index: 3, parts: [new Float64Array(sq(0.5, 0.5))], attrs: { AWATER: "2000000" } }]),
+      ...featuresFrom("roads", 8, [{ index: 4, parts: [new Float64Array([0, 0, 1, 1])], attrs: { MTFCC: "S1200", FULLNAME: "Rue Élan" } }]),
+      ...pointsFrom("peaks", 9, readDelimited("feature_id|feature_name|feature_class|prim_lat_dec|prim_long_dec\n42|Mount Test|Summit|1.5|2.5\n", "|")),
+      ...pointsFrom("places", 10, readDelimited("GEOID\tNAME\tLSAD\tINTPTLAT\tINTPTLONG\n4105800\tTest city\t25\t1\t2\n", "\t"), new Map([["4105800", 5]])),
+    ];
+    const buf = new Uint8Array(feats.reduce((a, f) => a + encodeFeature(f).length, 0));
+    let o = 0;
+    for (const f of feats) { const e = encodeFeature(f); buf.set(e, o); o += e.length; }
+    const back = [];
+    for (let p = 0; p < buf.length;) { const { f, end } = decodeFeature(buf, p); back.push(f); p = end; }
+    expect(back.map((f) => [f.kind, f.file, f.record, f.part, [...f.xy]])).toEqual(feats.map((f) => [f.kind, f.file, f.record, f.part, [...f.xy]]));
+    expect(back[1]!.attrs).toEqual({ MTFCC: "S1200", FULLNAME: "Rue Élan" });
+    expect(back[2]!.attrs).toEqual({ feature_id: 42, feature_name: "Mount Test" });
+    expect(back[3]!.attrs).toEqual({ GEOID: "4105800", NAME: "Test city", pop: 5 });
+    expect(() => decodeFeature(buf.subarray(0, buf.length - 1), encodeFeature(feats[0]!).length + encodeFeature(feats[1]!).length + encodeFeature(feats[2]!).length)).toThrow(/runs past/);
   });
 
   describe("MI7: write -> verify -> repair -> verify -> seal", () => {

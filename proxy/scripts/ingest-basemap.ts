@@ -7,8 +7,15 @@
  * The cache directory must lie OUTSIDE every repository: the sources are gigabytes and are not ours to commit.
  * Nothing here writes to Cloudflare. Output is counts and bytes only -- never a coordinate.
  */
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, createReadStream } from "node:fs";
+import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, createReadStream } from "node:fs";
+import { unzipSync } from "fflate";
+import {
+  type Box, type Cell, type CellIndexEntry, type Feature, type ManifestFile, PREDICATES, assignCells, bboxOf, cellKey, decodeFeature,
+  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, reachOf, readDelimited, storeIdOf, writeManifest,
+} from "./basemap/ingest-lib";
+import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { dirname, join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -121,12 +128,144 @@ async function fetchAll(cache: string): Promise<void> {
   if (failed) process.exitCode = 1;
 }
 
+// ------------------------------------------------------------------------------------------------ dry-run (vectors)
+
+const SPLIT_BYTES = 24 * 1024 * 1024; // §2.2's frozen rule: a cell over 24 MB is split into quarters
+
+interface LayerStats { files: number; records: number; kept: number; vertices: number; bytes: number }
+
+/** The verified bytes of a cached file: its sha256 must equal the fetch log's, or the run stops. */
+function verifiedBytes(cache: string, url: string, log: FetchLog): Buffer {
+  const rec = log[url];
+  if (!rec) throw new Error(`not fetched: ${url}`);
+  const b = readFileSync(cachePath(cache, url));
+  const h = createHash("sha256").update(b).digest("hex");
+  if (b.length !== rec.bytes || h !== rec.sha256) throw new Error(`cache does not match the fetch log: ${url}`);
+  return b;
+}
+
+const unzipOne = (zip: Uint8Array, re: RegExp) => {
+  const files = unzipSync(zip, { filter: (f) => re.test(f.name) });
+  const names = Object.keys(files);
+  if (names.length !== 1) throw new Error(`expected one ${re} in the zip, found ${names.length}`);
+  return files[names[0]!]!;
+};
+
+async function dryRun(cache: string): Promise<void> {
+  const { files: planned } = JSON.parse(readFileSync(join(cache, "plan.json"), "utf8")) as { files: SourceFile[] };
+  const log: FetchLog = JSON.parse(readFileSync(join(cache, "fetch-log.json"), "utf8"));
+  const missing = planned.filter((f) => !log[f.url]);
+  if (missing.length) throw new Error(`${missing.length} planned files not fetched (first: ${missing[0]!.url})`);
+  const files: ManifestFile[] = planned
+    .map((f) => ({ bytes: log[f.url]!.bytes, layer: f.layer, sha256: log[f.url]!.sha256, url: f.url, vintage: log[f.url]!.vintage }))
+    .sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
+  const index = new Map(files.map((f, i) => [f.url, i]));
+  if (files.length > 0xffff) throw new Error("more files than a u16 index");
+
+  const out = join(cache, "dry-run");
+  rmSync(out, { recursive: true, force: true });
+  const work = join(out, "work");
+  mkdirSync(work, { recursive: true });
+  const stats: Record<string, LayerStats> = {};
+  const boxes = new Map<string, Box[]>();
+  const pending = new Map<string, Uint8Array[]>();
+  let pendingBytes = 0;
+  const workPath = (k: string) => join(work, k.replace(/\//g, "_") + ".bin");
+  const flush = () => {
+    for (const [k, parts] of pending) appendFileSync(workPath(k), Buffer.concat(parts));
+    pending.clear(); pendingBytes = 0;
+  };
+  const add = (layer: string, feats: Feature[]) => {
+    const s = (stats[layer] ??= { files: 0, records: 0, kept: 0, vertices: 0, bytes: 0 });
+    for (const f of feats) {
+      const bytes = encodeFeature(f), box = bboxOf(f.xy), k = cellKey(0, box[0], box[1]);
+      (pending.get(k) ?? pending.set(k, []).get(k)!).push(bytes);
+      (boxes.get(k) ?? boxes.set(k, []).get(k)!).push(box);
+      pendingBytes += bytes.length; s.kept++; s.vertices += f.xy.length / 2; s.bytes += bytes.length;
+    }
+    if (pendingBytes > 256 * 1024 * 1024) flush();
+  };
+
+  let n = 0;
+  for (const f of files) {
+    if (f.layer !== "water" && f.layer !== "rivers" && f.layer !== "roads") continue;
+    const { shp, dbf } = shapefileFromZip(verifiedBytes(cache, f.url, log));
+    const recs = readShapefile(shp, dbf);
+    const s = (stats[f.layer] ??= { files: 0, records: 0, kept: 0, vertices: 0, bytes: 0 });
+    s.files++; s.records += recs.length;
+    add(f.layer, featuresFrom(f.layer, index.get(f.url)!, recs));
+    if (++n % 500 === 0) console.log(`dry-run: ${n} shapefiles read`);
+  }
+  for (const f of files.filter((x) => x.layer === "peaks")) {
+    const rows = readDelimited(new TextDecoder("utf-8").decode(unzipOne(verifiedBytes(cache, f.url, log), /\.txt$/i)), "|");
+    const s = (stats.peaks ??= { files: 0, records: 0, kept: 0, vertices: 0, bytes: 0 });
+    s.files++; s.records += rows.length;
+    add("peaks", pointsFrom("peaks", index.get(f.url)!, rows));
+  }
+  const popUrl = files.find((x) => x.layer === "population")!.url, gazUrl = files.find((x) => x.layer === "places")!.url;
+  const pops = joinPopulation(new TextDecoder("latin1").decode(verifiedBytes(cache, popUrl, log)));
+  const gaz = readDelimited(new TextDecoder("utf-8").decode(unzipOne(verifiedBytes(cache, gazUrl, log), /\.txt$/i)), "\t");
+  stats.places = { files: 1, records: gaz.length, kept: 0, vertices: 0, bytes: 0 };
+  stats.population = { files: 1, records: pops.size, kept: 0, vertices: 0, bytes: 0 };
+  add("places", pointsFrom("places", index.get(gazUrl)!, gaz, pops));
+  flush();
+
+  // Cells: a level-0 cell over 24 MB is decoded and split by assignCells (MI6's rule, MI5's corner).
+  const cellsDir = join(out, "store", "cells");
+  const entries: CellIndexEntry[] = [];
+  let storeBytes = 0, largest = 0, splitCells = 0, oversize = 0;
+  const levels: Record<number, number> = {};
+  for (const k of [...boxes.keys()].sort()) {
+    const raw = readFileSync(workPath(k));
+    const spans: Array<{ bytes: Uint8Array; box: Box }> = [];
+    const bx = boxes.get(k)!;
+    for (let o = 0, i = 0; o < raw.length; i++) { const { end } = decodeFeature(raw, o); spans.push({ bytes: raw.subarray(o, end), box: bx[i]! }); o = end; }
+    if (spans.length !== bx.length) throw new Error(`cell ${entries.length}: ${spans.length} features decoded, ${bx.length} written`);
+    const cells: Cell[] = raw.length > SPLIT_BYTES ? assignCells(spans, SPLIT_BYTES) : assignCells(spans, Infinity);
+    if (cells.length > 1) splitCells++;
+    for (const c of cells) {
+      const obj = encodeCell(c.features);
+      const p = join(cellsDir, ...c.key.split("/")) + ".bin";
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, obj);
+      entries.push({ key: c.key, bytes: obj.length, count: c.features.length, reach: reachOf(c) });
+      storeBytes += obj.length; largest = Math.max(largest, obj.length);
+      levels[c.level] = (levels[c.level] ?? 0) + 1;
+      if (obj.length > SPLIT_BYTES) oversize++;
+    }
+    rmSync(workPath(k));
+  }
+
+  let commit = "UNKNOWN", dirty = true;
+  try {
+    commit = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+    dirty = execSync("git status --porcelain -- .", { encoding: "utf8" }).trim().length > 0;
+  } catch { /* reported as UNKNOWN below */ }
+  const manifestText = writeManifest({ builder: commit, files, predicates: [...PREDICATES] });
+  const storeId = await storeIdOf(manifestText);
+  const indexText = JSON.stringify({ cells: entries }) + "\n";
+  writeFileSync(join(out, "store", "manifest.json"), manifestText);
+  writeFileSync(join(out, "store", "index.json"), indexText);
+  storeBytes += Buffer.byteLength(manifestText) + Buffer.byteLength(indexText);
+
+  const summary = {
+    storeId, ingestCommit: commit, dirtyTree: dirty, files: files.length,
+    layers: stats,
+    cells: { count: entries.length, byLevel: levels, splitLevel0Cells: splitCells, largestBytes: largest, over24MB: oversize },
+    manifestBytes: Buffer.byteLength(manifestText), indexBytes: Buffer.byteLength(indexText),
+    vectorStoreBytes: storeBytes,
+  };
+  writeFileSync(join(out, "dry-run.json"), JSON.stringify(summary, null, 1) + "\n");
+  console.log(JSON.stringify(summary, null, 1));
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   const cache = cacheDir();
   if (cmd === "plan") return plan(cache);
   if (cmd === "fetch") return fetchAll(cache);
-  throw new Error(`unknown command ${cmd ?? "(none)"}: plan | fetch`);
+  if (cmd === "dry-run") return dryRun(cache);
+  throw new Error(`unknown command ${cmd ?? "(none)"}: plan | fetch | dry-run`);
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

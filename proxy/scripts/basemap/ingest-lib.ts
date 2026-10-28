@@ -166,7 +166,48 @@ export function encodeFeature(f: Feature): Uint8Array {
   return out;
 }
 
-/** A cell's key at a level (cell size 2^-level degrees): its south-west corner in that grid's integers. */
+const td = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
+const KIND_OF: Record<number, FeatureKind> = { 1: "water", 2: "rivers", 3: "roads", 4: "peaks", 5: "places" };
+
+/** The inverse of encodeFeature, at `o`; returns the feature and where the next one starts. A record that
+ *  runs past the buffer, or an unknown kind, is refused. */
+export function decodeFeature(buf: Uint8Array, o: number): { f: Feature; end: number } {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const need = (n: number) => { if (o + n > buf.length) throw new Error(`feature runs past its buffer at ${o}`); };
+  need(11);
+  const kind = KIND_OF[dv.getUint8(o)];
+  if (!kind) throw new Error(`unknown feature kind ${dv.getUint8(o)} at ${o}`);
+  const file = dv.getUint16(o + 1, true), record = dv.getUint32(o + 3, true), part = dv.getUint16(o + 7, true);
+  const nNums = dv.getUint8(o + 9), nTexts = dv.getUint8(o + 10);
+  o += 11;
+  const nums: number[] = [], texts: string[] = [];
+  for (let i = 0; i < nNums; i++) { need(8); nums.push(dv.getFloat64(o, true)); o += 8; }
+  for (let i = 0; i < nTexts; i++) { need(2); const n = dv.getUint16(o, true); o += 2; need(n); texts.push(td.decode(buf.subarray(o, o + n))); o += n; }
+  need(4);
+  const n = dv.getUint32(o, true); o += 4;
+  need(n * 16);
+  const xy = new Float64Array(n * 2);
+  for (let i = 0; i < n * 2; i++) xy[i] = dv.getFloat64(o + 8 * i, true);
+  o += n * 16;
+  const attrs: Record<string, string | number> =
+    kind === "water" ? { AWATER: nums[0]! } : kind === "rivers" ? { FULLNAME: texts[0]! }
+    : kind === "roads" ? { MTFCC: texts[0]!, FULLNAME: texts[1]! }
+    : kind === "peaks" ? { feature_id: nums[0]!, feature_name: texts[0]! }
+    : { GEOID: texts[0]!, NAME: texts[1]!, pop: nums[0]! };
+  return { f: { kind, file, record, part, attrs, xy }, end: o };
+}
+
+/** A cell object's bytes: "BMSC", version 1, the feature count, then the features (A1.7 MI5/MI6's cells). */
+export function encodeCell(features: Uint8Array[]): Uint8Array {
+  const n = features.reduce((a, f) => a + f.length, 12);
+  const out = new Uint8Array(n), dv = new DataView(out.buffer);
+  out.set([0x42, 0x4d, 0x53, 0x43], 0); dv.setUint32(4, 1, true); dv.setUint32(8, features.length, true);
+  let o = 12;
+  for (const f of features) { out.set(f, o); o += f.length; }
+  return out;
+}
+
+/** A cell key at a level (cell size 2^-level degrees): its south-west corner in that grid's integers. */
 export const cellKey = (level: number, lon: number, lat: number) =>
   `${level}/${Math.floor(lat * 2 ** level)}/${Math.floor(lon * 2 ** level)}`;
 
