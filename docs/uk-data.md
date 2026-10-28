@@ -1458,3 +1458,34 @@ key added behind a flag.
 | **(a)** M1″-a to c as predicted | the drop key stands as ruled |
 | **(b)** an outcome class changes | stop and decide |
 | **(c)** anything else, or a control failing | stop and decide |
+
+### A3.7 M1″'s results (read 2026-10-28, about 22:09-22:20Z): every row as predicted, outcome (a)
+
+**The instrument:** `m1p_sizes.py` at `a9790e2`, with `--m1pp --primarylast`; the grader at `b60ac34`. Raw outputs:
+`docs/uk-data/r1/m1pp.json` and `m1pp-sab.json`.
+
+**A slip, recorded:** the sabotage's first launch ran from the wrong directory and never started ("can't open file",
+exit 2). A shell `&` had backgrounded the `cd` with the first run only. It was re-run from the right directory, exit 0.
+No reading came from the failed launch.
+
+**The controls, all passed:**
+- the synthetic order comes out non-primary short, non-primary long, primary short (`[1, 0, 2]`);
+- on all 3 packages, no non-primary chain is kept while a primary one is dropped;
+- all `kOk`;
+- `synth.py --check` matches every byte.
+
+| | read | verdict |
+|---|---|---|
+| **M1″-a** | LHR **D**, MAN **D**, BHX **D**; M1′ had D, D, D | **as predicted**: no class changes |
+| **M1″-b** | non-primary length kept: **0 km** at all three (of 9,675, 8,629 and 13,504 km in the square) | **as predicted** |
+| **M1″-c** | primary-route length kept: **LHR 80.8 %** (7,388 of 9,149 km), **MAN 84.6 %** (9,219 of 10,896), **BHX 72.5 %** (9,490 of 13,088) | **as predicted** (≥ 60 %) |
+| sabotage: the drop key off | reproduces M1′'s (iii) **exactly** at all three: bytes after the budget 32,761 / 32,760 / 32,757; class-2 km kept 11,068.3 / 13,620.1 / 13,088.9 | **red, as required** |
+
+**Printed (M1″-d):**
+- **Mixed chains:** LHR 140 (565 km), MAN 177 (800 km), BHX 259 (1,045 km): about 6-8 % of the primary set's length.
+  **So the "any link primary" reading moves little.**
+- **The trade, stated plainly:** the ruled key keeps **less total A-road length** than M1′'s shortest-first order. LHR
+  keeps 7,388 km against 11,068. What it keeps is the primary network, and every non-primary chain in these three
+  squares goes first.
+- **Where the class-2 set fits without drops** (GLA, ABZ, INV, NQY, BFS and LDY at 161 km in M1′), the key never acts:
+  every A road stays, as the ruling intends for sparse areas.

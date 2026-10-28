@@ -1,0 +1,239 @@
+{
+ "flags": [
+  "--m1pp",
+  "--primarylast"
+ ],
+ "controls": {
+  "synth_check": {
+   "exit": 0,
+   "tail": [
+    "--check: every committed byte equal"
+   ]
+  },
+  "dp_bump_half_eps": true,
+  "dp_bump_double_eps_kept": true,
+  "ring_clipped_closed": true,
+  "line_reentry_two_runs": true,
+  "river_chain_three_links": true,
+  "place_ties_by_name": true,
+  "rule_l_figures": {
+   "City of Westminster": 204236,
+   "City of London": 8583,
+   "London": 8799728
+  },
+  "rule_l_as_ruled": true,
+  "drop_order_synthetic": {
+   "order": [
+    1,
+    0,
+    2
+   ],
+   "as_ruled": true
+  },
+  "london_id_is_the_city": true,
+  "files_terrain_stable": {
+   "first": 34,
+   "after_all": 34,
+   "equal": true
+  }
+ },
+ "pop_stats": {
+  "ons_counts": 6985,
+  "bua_polygons": 8545,
+  "nrs_polygons": 503,
+  "london_lads": 33,
+  "pop_from": {
+   "nrs": 216,
+   "ons": 1199,
+   "bua-without-count": 1,
+   "none": 7,
+   "rule-L1": 2,
+   "rule-L2": 1
+  },
+  "rule_l": [
+   {
+    "name": "City of Westminster",
+    "rule": "rule-L1",
+    "pop": 204236
+   },
+   {
+    "name": "City of London",
+    "rule": "rule-L1",
+    "pop": 8583
+   },
+   {
+    "name": "London",
+    "rule": "rule-L2",
+    "pop": 8799728
+   }
+  ]
+ },
+ "runs": [
+  {
+   "centre": "LHR",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iii",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 245841,
+   "bytes_final": 32762,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 9,
+    "roads": 21908
+   },
+   "collapsed": {
+    "roads": 259,
+    "rivers": 0,
+    "water": 9
+   },
+   "section_bytes_first": {
+    "1": 481,
+    "2": 7796,
+    "3": 230265,
+    "4": 335,
+    "5": 4710,
+    "7": 2126
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 7158,
+    "3": 18439,
+    "4": 335,
+    "5": 4710,
+    "7": 1992
+   },
+   "files_terrain": 34,
+   "class2_km_in_square": 18823.5,
+   "class2_km_kept": 7388.2,
+   "primary_km_in_square": 9148.5,
+   "primary_km_kept": 7388.2,
+   "nonprimary_km_in_square": 9675.0,
+   "nonprimary_km_kept": 0,
+   "mixed_chains": 140,
+   "mixed_km": 564.7,
+   "order_property_ok": true,
+   "counts": {
+    "water": 0,
+    "rivers": 675,
+    "roads": 1599,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "MAN",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iii",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 220502,
+   "bytes_final": 32766,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 27,
+    "roads": 19023
+   },
+   "collapsed": {
+    "roads": 189,
+    "rivers": 0,
+    "water": 6
+   },
+   "section_bytes_first": {
+    "1": 1087,
+    "2": 3529,
+    "3": 208695,
+    "4": 309,
+    "5": 4628,
+    "7": 2126
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 2982,
+    "3": 22726,
+    "4": 309,
+    "5": 4628,
+    "7": 1993
+   },
+   "files_terrain": 49,
+   "class2_km_in_square": 19531.9,
+   "class2_km_kept": 9219.1,
+   "primary_km_in_square": 10895.5,
+   "primary_km_kept": 9219.1,
+   "nonprimary_km_in_square": 8629.0,
+   "nonprimary_km_kept": 0,
+   "mixed_chains": 177,
+   "mixed_km": 800.1,
+   "order_property_ok": true,
+   "counts": {
+    "water": 0,
+    "rivers": 245,
+    "roads": 1972,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "BHX",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iii",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 329432,
+   "bytes_final": 32759,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 21,
+    "roads": 29620
+   },
+   "collapsed": {
+    "roads": 335,
+    "rivers": 0,
+    "water": 11
+   },
+   "section_bytes_first": {
+    "1": 903,
+    "2": 5649,
+    "3": 315611,
+    "4": 325,
+    "5": 4689,
+    "7": 2127
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 4920,
+    "3": 20703,
+    "4": 325,
+    "5": 4689,
+    "7": 1994
+   },
+   "files_terrain": 48,
+   "class2_km_in_square": 26599.4,
+   "class2_km_kept": 9489.9,
+   "primary_km_in_square": 13088.3,
+   "primary_km_kept": 9489.9,
+   "nonprimary_km_in_square": 13503.6,
+   "nonprimary_km_kept": 0,
+   "mixed_chains": 259,
+   "mixed_km": 1044.5,
+   "order_property_ok": true,
+   "counts": {
+    "water": 0,
+    "rivers": 430,
+    "roads": 1744,
+    "peaks": 16,
+    "places": 256
+   }
+  }
+ ],
+ "seconds": 37
+}
