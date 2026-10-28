@@ -1693,3 +1693,19 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 - **Proposed:** re-register S-SQUARELEN's set as **{ML6, MR6}**, with the miss kept on record. MR6 joined the tables after S-SQUARELEN's set was frozen, and A2.5's check of every family did not re-check A1.7's sets against the new rows.
 
 **Next, after the ruling:** `budget.ts` (MB), as A2.6 sets out.
+
+### A2.16 Rulings on `layers.ts`, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> - S-SQUARELEN: re-registered as {ML6, MR6}, with the miss kept on record. You predicted it before any code (1909126), and the gap is real: MR6 arrived after A1.7 froze the sets, which were never re-checked against it. From now on, when a row is added, re-check every frozen sabotage set against it before the next pass.
+> - The runtime failures: the TIME_WAIT gate is accepted, with the count printed per run, as registered. The voided runs and C-LOADFAIL's void first grade stay on record.
+> - The harness fixes are accepted. A run that doesn't see every baseline case is BLIND, and C-LOADFAIL is its control.
+> - frame.ts's two changes after acceptance (inDisc removed as unused, openRing added) are accepted, since the MR rows and their sabotages ran again unchanged. The ingest-lib.ts comment fix is noted.
+> - Carry on with budget.ts. D1 as before: the 04:00Z round, then the mirror.
+
+**On record:** S-SQUARELEN's set was frozen as **{ML6}** (A1.7). It ran {ML6, MR6} at `aee95a4`. It is re-registered as **{ML6, MR6}** by this ruling.
+
+**Standing from here:** when a row is added, every frozen sabotage set is re-checked against it before the next pass, and the check is written down beside the row.
+
+**S-SQUARELEN, re-run under the ruling:** **{ML6, MR6}**, as re-registered. The pass had 2 runs and 0 runtime failures.

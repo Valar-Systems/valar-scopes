@@ -119,8 +119,8 @@ const SABOTAGES = {
     edits: [["  return s < 0;\n", "  return s <= 0; // SABOTAGE S-RZERO\n"]],
     expect: ["MR5"],
   },
-  // A1.7's ML sabotages and A2.5's S-R0M, graded against every basemap family. S-SQUARELEN's set is A1.7's as
-  // frozen; A2.13 predicts {ML6, MR6} for it, recorded before layers.ts existed. The frozen set is what is graded.
+  // A1.7's ML sabotages and A2.5's S-R0M, graded against every basemap family. S-SQUARELEN was frozen as {ML6}
+  // (A1.7), ran {ML6, MR6} at aee95a4 as A2.13 predicted, and is re-registered as {ML6, MR6} by ruling (A2.16).
   "S-R0M": {
     file: LAYERS, set: "all",
     edits: [["  const ranked = [...length].filter(([, m]) => m > 0).sort(", "  const ranked = [...length].sort( // SABOTAGE S-R0M\n"]],
@@ -137,7 +137,7 @@ const SABOTAGES = {
     edits: [["    length.set(name, (length.get(name) ?? 0) + inDiscLengthM(km, f.rKm));\n",
              "    void inDiscLengthM; // SABOTAGE S-SQUARELEN: the clipped length in the square\n" +
              "    length.set(name, (length.get(name) ?? 0) + clipLine(km, f.rKm).reduce((s, run) => s + run.slice(1).reduce((t, p, i) => t + planarDist(p[0] - run[i]![0], p[1] - run[i]![1]) * 1000, 0), 0));\n"]],
-    expect: ["ML6"],
+    expect: ["ML6", "MR6"],
   },
   "S-DEDUPALL": {
     file: LAYERS, set: "all",
