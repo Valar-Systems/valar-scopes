@@ -1584,3 +1584,25 @@ reads INSTRUMENT and whose new instrument awaits a ruling.
 - **Both rows are as predicted.**
 - The runs on `fb2e787` and `787627e` were cancelled when later record pushes moved the branch, so they are not
   results.
+
+### Stopped before the captures again (2026-10-28, 19:18Z): the bench page cannot select look B
+
+**The trigger came:** `rain_wait` saw echo within 50 km of Bend at 19:16:37Z (15 cells; 165 within 100 km).
+
+**Before any setting was changed, the start-state read of E2:08's page found the defect.** The "Weather look (bench)"
+select is served as:
+
+    <select name="wx-look"><option value="A" selected>A: 40 </option></select>
+
+- **The source** (`src/ConfigurationWebServer.cpp:3224-3226`, from `b56d883`, WD5 part 2) writes
+  `>A: 40 % + outline</option><option value="B" … >B: 25 %</option>`.
+- **What happens to it:** the page's `%PLACEHOLDER%` template processing takes everything between the two literal `%`
+  signs as one unknown placeholder and serves it as nothing. So the rest of option A's label and **all of option B are
+  gone**.
+- **These are the only two lines in the page source with a literal `%`.** The select is bench-only (`WX_LOOK_AB`), so
+  the shipping page is not affected.
+- **So since `b56d883` the bench page has never offered look B on the glass.**
+- **For the captures:** the protocol's arm 2 (layer on, look B, set "only through the config page") cannot be set.
+
+**Nothing was captured, and no setting changed.** The trace and the session were never started. E2:08 is unchanged:
+`wxlook` at `fb2e787`, the layer on, look A, sweep look 4.
