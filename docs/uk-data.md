@@ -1391,3 +1391,70 @@ kept: class-2 roads, shortest first.
 | LDY | F, 5,821 B | D, 51,384 B | F, 14,327 B | D, 56,487 B |
 
 So NI's own chaining rule (ruled for later) matters: OSNI's lines alone add about 40-45 KB to an NI centre at 161 km.
+
+### A3.5 The rulings on M1′, verbatim (source: the reviewer chat, pasted by Daniel, 2026-10-28)
+
+> 1. M1′: accepted as read. N = 256.
+>
+> 2. Q12: (iii), every A road, with one change to what the drops take first.
+> - The drops take non-primary chains before primary ones: non-primary chains shortest first, then primary chains
+>   shortest first. So every A road stays in sparse areas, and in dense areas the primary network is the last to thin.
+> - That answers the caveat you named: a short primary chain no longer goes before a longer non-primary one.
+> - It's a UK source rule, like chaining. The package format doesn't change, and both builders take the drop key from
+>   the source's primaryRoute flag.
+> - M1″, a small re-run with predictions first: the new drop key at LHR, MAN and BHX at 161 km. Report the share of
+>   primary-route length kept, and that each outcome class is unchanged from M1′.
+>
+> 3. #492's N6: still owed. Daniel is being asked again; your token file has the R2 and observability keys but no
+>    analytics-read line.
+>
+> 4. NI in vs out: noted, for NI's own chaining rule after LPS answers.
+>
+> 5. The disk: 11 GB free is tight for a week of collection beside the other sessions' caches. If free space falls
+>    below 5 GB, pause the collection and report. The gap rule covers what's lost.
+
+### A3.6 M1″'s predictions, frozen before any M1″ reading
+
+**A reading the ruling leaves open, fixed here before any run:**
+- **The problem:** Q18 chains links by road number and class, so one chain can hold both primary and non-primary
+  links. The drop key needs one flag per chain.
+- **The reading: a chain is primary if any of its links has `primaryRoute` = true.** That keeps the primary network the
+  last to thin, which is the ruling's stated purpose.
+- **The alternative,** "primary only if all its links are", would drop a mixed chain early, primary links and all.
+- **M1″ prints** how many chains are mixed, and their length, so the reviewer can see whether the reading matters.
+
+**The drop order** (§6's steps, with the ruled key on class 2):
+1. double ε once;
+2. water rings, smallest area first (RD18);
+3. class-2 chains: **non-primary chains shortest first, then primary chains shortest first** (RD19's length, ties as RD19).
+
+**Scope:** LHR, MAN and BHX at 161 km, variant (iii), N = 256, NI out. M1′'s instruments are used, with only the drop
+key added behind a flag.
+
+**The metrics:**
+- **the primary-route length kept:** the in-square length of the class-2 chains flagged primary that survive the drops,
+  over the in-square length of all chains flagged primary;
+- the non-primary length kept, measured the same way.
+
+| | measured | predicted |
+|---|---|---|
+| **M1″-a** | each centre's outcome class | **D, D, D**: unchanged from M1′ |
+| **M1″-b** | the non-primary length kept | **0 km at all three.** M1′'s (iv), with primary roads alone, still needed drops at all three, so every non-primary chain goes before any primary one is touched |
+| **M1″-c** | the share of primary-route length kept | **≥ 60 % at each.** M1′'s (iv) kept 82 %, 85 % and 74 %; mixed chains add non-primary length to the primary set, so the share can only be lower |
+| M1″-d (printed) | mixed chains (count, km), primary km kept and in the square, bytes per section | — |
+
+**Controls:**
+- **The order function, on a synthetic set:** a long non-primary chain, a short non-primary chain and a short primary
+  chain come out non-primary-short, non-primary-long, primary-short.
+- **On every package:** if any primary chain is dropped, no non-primary chain is kept.
+
+**Sabotage:** the drop key off (M1′'s shortest-first order). It must reproduce M1′'s (iii) results at all three centres
+**exactly**: bytes after the budget, and class-2 km kept (11,068.3, 13,620.1 and 13,088.9).
+
+**What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** M1″-a to c as predicted | the drop key stands as ruled |
+| **(b)** an outcome class changes | stop and decide |
+| **(c)** anything else, or a control failing | stop and decide |
