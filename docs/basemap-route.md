@@ -1144,3 +1144,12 @@ Synthetic features at origin (0, 0), through the layer functions.
 **One fix in `assignCells`, outside the frozen rows.**
 - Features that all share one south-west corner can never be separated by a quarter, so splitting them recursed forever.
 - Such a cell is now kept whole, like a single-feature cell. MI6's frozen expectations do not touch this case.
+
+### D1's uploads, ruled verbatim (source: reviewer chat, pasted by Daniel; dated 2026-10-28 in the paste)
+
+> D1's uploads (reviewer chat, 2026-10-28)
+>
+> Wrangler under the existing OAuth session, 8 at a time, as you recommend. No new R2 token: a 45-60 minute upload once per ingest isn't worth a new credential. The verify -> repair -> verify -> seal cycle stays as planned, and the put count is stated before D1 (about 11,000: about 1 % of the free monthly Class A writes).
+
+- **What it settles:** the upload method.
+- **What it does not settle:** how to fetch the two county files census's firewall refuses. **No retry is made until that is answered.**

@@ -105,8 +105,17 @@ async function fetchOne(cache: string, f: SourceFile): Promise<FetchRecord> {
   return { bytes, sha256: h.digest("hex"), lastModified, vintage: vintageOf(f, lastModified) };
 }
 
-async function fetchAll(cache: string): Promise<void> {
+/** Every planned source: the publishers' listings (plan.json) and, once `coverage` has run, the tiles. */
+function plannedFiles(cache: string): SourceFile[] {
   const { files } = JSON.parse(readFileSync(join(cache, "plan.json"), "utf8")) as { files: SourceFile[] };
+  const tp = join(cache, "tiles.json");
+  return existsSync(tp) ? [...files, ...(JSON.parse(readFileSync(tp, "utf8")) as { files: SourceFile[] }).files] : files;
+}
+
+async function fetchAll(cache: string): Promise<void> {
+  // --layers a,b: fetch only those layers (the rest of the log is kept, untouched).
+  const only = arg("--layers")?.split(",");
+  const files = plannedFiles(cache).filter((f) => !only || only.includes(f.layer));
   const logPath = join(cache, "fetch-log.json");
   const log: FetchLog = existsSync(logPath) ? JSON.parse(readFileSync(logPath, "utf8")) : {};
   const conc = Number(arg("--concurrency") ?? 4);
@@ -190,7 +199,7 @@ const unzipOne = (zip: Uint8Array, re: RegExp) => {
 };
 
 async function dryRun(cache: string): Promise<void> {
-  const { files: planned } = JSON.parse(readFileSync(join(cache, "plan.json"), "utf8")) as { files: SourceFile[] };
+  const planned = plannedFiles(cache);
   const log: FetchLog = JSON.parse(readFileSync(join(cache, "fetch-log.json"), "utf8"));
   // --partial: a MEASUREMENT with named files missing, never a store. It writes to its own directory, its
   // manifest is named PARTIAL, and its summary says so; without the flag a missing file stops the run.
@@ -346,6 +355,8 @@ async function coverageAndTiles(cache: string): Promise<void> {
 
   // the terrain mirror: every tile within reach, measured by HEAD (bytes and Last-Modified), not downloaded
   const tiles = [...tilesForCoverage(rows, TILE_REACH_KM)].map((i) => terrariumUrl(Math.floor(i / 512), i % 512)).sort();
+  // The tiles are planned sources like any other (layer terrain), so fetch, the manifest and store: cover them.
+  writeFileSync(join(cache, "tiles.json"), JSON.stringify({ files: tiles.map((url) => ({ layer: "terrain", url })) }, null, 1) + "\n");
   const tlogPath = join(cache, "tile-log.json");
   const tlog: Record<string, { bytes: number; lastModified: string | null }> = existsSync(tlogPath) ? JSON.parse(readFileSync(tlogPath, "utf8")) : {};
   let next = 0, failed = 0;
