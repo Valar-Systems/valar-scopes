@@ -1655,3 +1655,4 @@ select is served as:
 | **L4** | E2:08 after the app-only reflash: `wx-look` offers **("A", "A: 40 percent + outline")** and **("B", "B: 25 percent")**. The layer is still on, and the sweep still look 4 | **as predicted** |
 | **L5** | the shipping `firmware.bin`, before and after: **65 bytes differ**, 32 in `app_elf_sha256`, 32 in the image SHA-256 and 1 checksum byte. **0 unplaced**, so every loaded byte is identical | **as predicted** (the named second outcome) |
 | **L6** | `wxlook`: "A: 40 percent + outline" 1, "A: 40 % + outline" 0, "B: 25 percent" 1. Shipping: 0, 0, 0. "Weather radar (beta)": 1 in both | **as predicted** |
+| **L7** | CI on `cfc3576`: 36 check runs, **33 success, 3 skipped** (the release-only `promote`, `version` and `ship-alert`), **0 failed**. `config-form` (which runs the new rule and its selftest) and `host-tests` succeeded | **as predicted** |
