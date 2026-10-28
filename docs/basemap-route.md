@@ -1271,3 +1271,23 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **A run that would cross 1M is said so first, and waits.**
 
 **The UK plan** (docs/uk-data at `93f1a80`) is information only. Nothing changes until US v1 is live.
+
+### The allowance, verbatim (source: reviewer chat, pasted by Daniel, after the rulings of the same date)
+
+> The allowance (reviewer chat, 2026-10-28). Paste after the rulings of the same date.
+>
+> Daniel agreed ("Ok") to Cloudflare overages up to $2 a month in total, across the account, without a new ask. If Class A would cross 1M, say so with the figure, and go ahead if the total stays under $2 a month. Over that, ask him first.
+>
+> Information only: Northern Ireland joins the UK coverage when you get there. Its layers are built with Great Britain's but served only once LPS's written permission is recorded in the repo.
+
+**The Class A rule, as it now stands.** Before any ingest or repair run, three figures are stated:
+- **(1)** the run's put count;
+- **(2)** the month's projected Class A total with it;
+- **(3)** the account's projected overage for the month, across every product.
+
+**What follows from them:**
+- **Under 1M:** the run goes ahead.
+- **Over 1M, with (3) under $2:** the run is announced with its figure, then goes ahead. Class A beyond the free 1M is $4.50 per million, so $2 covers about 444k extra writes, if nothing else on the account is over.
+- **(3) at $2 or more:** the run waits for Daniel.
+
+**Northern Ireland** is information only, for when UK coverage starts.
