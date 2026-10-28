@@ -1258,6 +1258,10 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **S-INOTESORT:** `writeManifest` sorts an unsorted list instead of refusing it. Fails exactly **{MI4b}**.
 - **S-IKEYS:** `writeManifest` accepts any top-level key. Fails exactly **{MI4, MI4b}**: MI4's frozen row asserts the same refusal.
 
+**MI4b, result** (code written after the freeze above, at `a2019d3`):
+- **All eight rows (a)-(h) as predicted.** MI is now 13 of 13, MI4's frozen row unchanged beside MI4b.
+- **The sabotages, after a clean baseline:** S-INOTESORT turned exactly **{MI4b}** red and S-IKEYS exactly **{MI4, MI4b}**, as frozen. S-ISIZE, S-ISEAL and S-IBUS were run again, and each still turns exactly its own set red.
+
 **`--check` reproduces the notes:**
 - A note comes from the source plan, as a planned file's `note`, never from the run. So re-ingesting the same plan writes the same manifest, notes included, and no clock can enter.
 - MD3 grows the assertion that the rebuilt manifest is byte-identical, `notes` included.
