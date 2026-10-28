@@ -36,6 +36,11 @@ HOME = [(x, 116) for x in range(118, 122)] + [(117, 117), (122, 117)] + \
        [(x, y) for y in range(118, 122) for x in (116, 123)] + [(119, 119), (120, 119), (119, 120), (120, 120)] + \
        [(117, 122), (122, 122)] + [(x, 123) for x in range(118, 122)]
 
+# 3.5b's peak glyph (A10.2, Q32), read off the lossless screen-bend-B.png at its first-ranked placed peak (Mount
+# Jefferson), as offsets from the anchor (int(x), int(y)). All four placed peaks there carry this same pattern.
+PEAK_GLYPH = [(-3, 2), (-2, 0), (-2, 1), (-2, 2), (-1, -2), (-1, -1), (-1, 2), (0, -3), (0, 2), (1, -2), (1, -1),
+              (1, 2), (2, 0), (2, 1), (2, 2), (3, 2)]
+
 
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -213,19 +218,26 @@ def in_map(x, y):
     return 0 <= x < SIZE and TOP_BAND <= y < BOT_BAND and (x - C) ** 2 + (y - C) ** 2 <= C * C
 
 
-def render_map(scr, h, codes, view):
+def render_map(scr, h, codes, view, base=None, corner=False):
+    """The map pass. 3.5b's fold (A10.2): a dry pixel (code 0) shows `base`'s colour where there is a base. With no crop
+    (h None) every pixel is dry. corner=True is bendmock.py's own mask (in_map, integer coordinates), for R0b's G mode
+    only; the device and P use CodeAt's pixel-centre disc."""
     for y in range(SIZE):
         lat = view.home[0] + (C - (y + 0.5)) / C * view.rLat
-        r = int(math.floor((h["latNw"] - lat) / h["cellLat"] + 0.5))
+        r = int(math.floor((h["latNw"] - lat) / h["cellLat"] + 0.5)) if h is not None else 0
         for x in range(SIZE):
-            if (x + 0.5 - C) ** 2 + (y + 0.5 - C) ** 2 > C * C:
+            if corner:
+                if not in_map(x, y):
+                    continue
+            elif (x + 0.5 - C) ** 2 + (y + 0.5 - C) ** 2 > C * C:
                 continue
-            lon = view.home[1] + ((x + 0.5) - C) / C * view.rLon
-            c = int(math.floor((lon - h["lonNw"]) / h["cellLon"] + 0.5))
-            if 0 <= r < h["rows"] and 0 <= c < h["cols"]:
-                scr.px[y][x] = colour(codes[r * h["cols"] + c], x, y)
+            if h is None:
+                code = 0
             else:
-                scr.px[y][x] = legend.NOCOV
+                lon = view.home[1] + ((x + 0.5) - C) / C * view.rLon
+                c = int(math.floor((lon - h["lonNw"]) / h["cellLon"] + 0.5))
+                code = codes[r * h["cols"] + c] if 0 <= r < h["rows"] and 0 <= c < h["cols"] else 14
+            scr.px[y][x] = base[y][x] if (code == 0 and base is not None) else colour(code, x, y)
 
 
 def draw_ring(scr, r_px, rnd):
@@ -273,13 +285,14 @@ def arrow_segments(sx, sy, from_deg):
     return [((sx, sy), tip), (tip, heads[0]), (tip, heads[1])]
 
 
-def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None):
+def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None,
+            base=None, corner=False, peaks=None, glyph=None, peak_log=None):
     """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own).
     3.5a's K rows add (A9.10, A9.14, Q17, Q18): state["timeText"]/["timeInk"] for the top strip; warning["arrow"] =
     (lat, lon, fromDeg), drawn after the title and before the labels, its box a fixed overlay; and `loop` =
     dict(age=, index=) for the loop's band in place of the state line. Towns are (name, lat, lon[, ...])."""
     scr = Screen()
-    render_map(scr, h, codes, view)
+    render_map(scr, h, codes, view, base, corner)
     scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, BLACK)
     scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, BLACK)
     fixed = [(0, 0, SIZE - 1, TOP_BAND - 1), (0, BOT_BAND, SIZE - 1, SIZE - 1)]
@@ -327,6 +340,35 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
             fixed.append((int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))))
     placed, placed_info = [], []
     inner = 0.17 * view.R * ppm + 4
+    if peaks:   # 3.5b (A10.2): peaks before towns, the first 4 PLACED, in rank order; placed peaks are obstacles
+        n = 0
+        for name, lat, lon in peaks:
+            if n >= 4:
+                break
+            x, y = view.project(lat, lon)
+            if (x - C) ** 2 + (y - C) ** 2 < inner * inner:
+                continue
+            label = name.replace("Mount ", "Mt ")
+            w = text_w(label)
+            cands = [(int(x) - 3, int(y) - 4, int(x) + 5 + w, int(y) + 4, int(x) + 5),
+                     (int(x) - 5 - w - 1, int(y) - 4, int(x) + 4, int(y) + 4, int(x) - 5 - w)]
+            if x < C:
+                cands.reverse()
+            for (x0, y0, x1, y1, tx) in cands:
+                box = (x0, y0, x1, y1)
+                if y0 < TOP_BAND + 2 or y1 > BOT_BAND - 2 or not inside_circle(x0, y0, x1, y1):
+                    continue
+                if not box_clears_centre(box, inner):
+                    continue
+                if any(overlaps(box, f) for f in fixed) or any(overlaps(box, p) for p in placed):
+                    continue
+                glyph(scr, x, y)
+                scr.text(tx, int(y) - 3, label, 1, LABEL, halo=BLACK)
+                placed.append(box)
+                if peak_log is not None:
+                    peak_log.append((name, x, y))
+                n += 1
+                break
     ranked = sorted(towns, key=lambda t: -(pop(t) or 1000))
     for t in ranked:
         name, lat, lon = t[0], t[1], t[2]
