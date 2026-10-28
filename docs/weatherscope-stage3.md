@@ -5456,3 +5456,222 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
 - **the control:** the notice deleted from a copy must turn the check red.
 
 The format doc's `bend.bmpk` line now names the year and points here.
+
+## Addendum 11, 2026-10-28: step 3.5t, light and dark themes; the plan, for review before any code
+
+### A11.1 The rulings, verbatim (source: reviewer chat, pasted by Daniel), and Daniel's words
+
+**Daniel's words, with their source** (reviewer chat, 2026-10-28, as relayed in the first ruling):
+- "I'm thinking of adding a light mode/dark mode, now that we have weather and landscapes";
+- shown a mockup of the Bend screen with terrain, in today's dark look and a light "paper map" look, and asked whether to add a light theme with Auto to the Weatherscope's plan after the geography step: "yes".
+
+**The first ruling:**
+
+> Light and dark themes, planned after 3.5b (reviewer chat, 2026-10-28)
+>
+> Daniel (2026-10-28): "I'm thinking of adding a light mode/dark mode, now that we have weather and landscapes". Shown a mockup of the Bend screen with terrain in today's dark look and a light "paper map" look, and asked whether to add a light theme with Auto to the Weatherscope's plan after the geography step, he said: "yes". Record both with their source.
+>
+> Plan it as its own sub-step after 3.5b and before 3.5c, so the forecast, conditions and alerts screens are built for both themes from the start. Where 3.4 sits against it is your call; say which in the plan. Nothing changes for 3.5b.
+>
+> What it covers, in the plan, for review before any code:
+> - A setting with Auto (the default), Light and Dark. Auto is light by day and dark at night, from the sun's elevation at the device's location (the radar's isNightNow is the precedent), with hysteresis so it can't flicker at dusk.
+> - Every colour on every screen from a theme table, with no colour literal left in drawing code, and a check for that.
+> - The light palette, starting from the mockup's values and refined against a rule you can check: paper (234, 231, 223); terrain shade from (168, 165, 156) in shadow to (240, 237, 228) lit; water (163, 196, 228); rivers (96, 146, 206); roads (178, 150, 112); labels (38, 38, 40) with a (236, 233, 226) halo; peaks (92, 70, 50); rings (150, 146, 138); dim text (96, 92, 86). Rain keeps its order and hues, with the yellows darkened for contrast on paper; teal stays as ruled. Propose a minimum-contrast rule against the paper and the terrain, and hold every rain code to it.
+> - The legend screen in both themes.
+> - The checks: K rows and replay rows per theme; the theme switch (one rebuild at the change, none otherwise); Auto's decision at the dawn and dusk boundaries with its hysteresis; each with sabotages. Board rows per theme, and the B1 images in both themes for Daniel's look on the glass.
+
+**The second ruling:**
+
+> The Auto decision, shared (reviewer chat, 2026-10-28)
+>
+> Daniel also wants a light theme on the Blipscope, after its v19 and map layer. So in your theme sub-step, build Auto's decision (the sun's elevation at the location, with hysteresis) as a product-neutral header in include/, host-tested, with no Weatherscope symbol, so the Blipscope reuses it rather than writing a second copy. Your theme tables stay yours.
+
+**Where the light mockup is:** not on this machine. `C:\Github\_weatherscope-mockups\` holds only the 2026-10-19 set and `reviewer-2026-10-23\`. So the ruling's listed values are the only light values I have. **The light rain colours below are derived by the rule, not read off the mockup.**
+
+### A11.2 Where 3.5t sits: 3.5b → 3.4 → 3.5t → 3.5c
+
+**My call, as the ruling asks:** 3.4 stays where A9.21 put it, straight after 3.5b. Then 3.5t, then 3.5c.
+- **3.4 shares nothing with the themes.** It is OTA identity: no screen, no colour. So neither order makes either step easier.
+- **3.4 gates any Weatherscope slug,** and it is frozen as planned. Putting 3.5t first would hold it behind a step whose palette rule (A11.6) still needs rulings.
+- **3.5t must come straight before 3.5c,** so that 3.5c's forecast, conditions and alerts screens are written on the theme table from their first line. That is the ruling's purpose, and both orders keep it.
+- **Nothing changes for 3.5b.** 3.5b adds colours (its index table's 41 entries, the peak glyph's ink) as today's dark values. 3.5t then moves them into the table, with the dark rows held byte-identical (A11.9).
+
+### A11.3 The setting
+
+- **The key:** `wx-theme`, with the values `auto` (the default), `light` and `dark`. It is a select on the Weatherscope config page (`ConfigurationWebServer.cpp`, the `FEATURE_WEATHERSCOPE` branch).
+- **An unknown stored value** is read as unset, so `auto`. The boot line names it: `[wx] init; theme=auto (stored "x" unknown)`. It is never coerced into a member of the set (CLAUDE.md, *a truncated row is a lie*).
+- **No migration is needed:** no Weatherscope unit has shipped, and the default reaches every device that never saved the key (CLAUDE.md, *a default only reaches keys that were never saved*). Recorded so the next default change does not take this as a precedent.
+- **Light and Dark are fixed.** Only Auto consults the sun.
+
+### A11.4 Auto's decision: `include/DayNight.h`, product-neutral (the second ruling)
+
+**What exists already, enumerated before adding a path** (CLAUDE.md, *when you add a second path*):
+- **`include/SolarDim.h`:** `SunElevationDeg(lat, lon, utc)`, a low-precision almanac formula. Its header calls it "one shared copy for every edition manager". **Eight editions call it,** the Weatherscope included (`UpdateBrightness`: night when below −0.833°, every 20 s, no hysteresis). **It has no host test.**
+- **The radar's `isNightNow`** (`src/AircraftManager.cpp`, a radar-only TU): a different formula (NOAA's fractional-year equations), the same −0.833° threshold. Its caller establishes one more property: **an unsynced clock gives no verdict** ("AN UNSYNCED CLOCK IS NOT EVIDENCE OF DAYTIME"), and the panel keeps whatever it shows.
+
+**So the header adds the decision, not a third elevation formula:**
+- **`include/DayNight.h`, namespace `daynight`:** pure C++11. It includes `SolarDim.h` and uses its `SunElevationDeg`. It has no Arduino and no product symbol, and it neither reads the clock nor the config: the caller passes everything in.
+- **Its shape, proposed:**
+  - `enum class Phase : uint8_t { Unknown, Day, Night };`
+  - `Phase Decide(Phase prev, bool clockValid, bool locationValid, float elevDeg);`
+- **Its rules:**
+  - **no valid clock, or no location:** return `prev` unchanged. This is "no verdict" (the radar's property);
+  - **the first verdict** (`prev == Unknown`): `Day` at or above −0.833°, `Night` below. There is no band, because there is no previous state to hold;
+  - **after that, the hysteresis band:** `Night` only once the elevation falls below −0.833° − H, `Day` only once it rises above −0.833° + H. Inside the band it keeps `prev`.
+- **H is Q37.** Recommended: **1.0°**, so the band runs from −1.833° to +0.167°.
+  - **Why it is needed at all:** the elevation is smooth, so what makes a bare threshold flip back and forth is a clock step (an NTP correction), a location edit, or a sun that grazes the horizon for a long time at high latitude near a solstice.
+  - **What 1° costs:** at mid-US latitudes the sun crosses the band in roughly 10-20 minutes. So Auto turns dark a few minutes after sunset and light just after sunrise.
+- **The "no Weatherscope symbol" ruling is a check, not a promise:** run.sh's forbidden-symbol pattern, pointed at `DayNight.h`. It refuses `wx`, `Weather` and `wxpalette`. Its control plants one of them and must turn the check red.
+- **The host test, `test/host/test_daynight.cpp`:**
+  - **This is `SunElevationDeg`'s first test.** Its reference is an independent formula: NOAA's Julian-century algorithm (the Solar Calculator spreadsheet's), transcribed into Python under `tools/`. Its tolerance is predicted at freeze, before the test runs;
+  - **plus a few USNO sunrise and sunset times,** transcribed from the published tables and labelled as transcription;
+  - **then `Decide`'s truth table:** both directions across the band, a hover inside the band (no switch), the first verdict, and the clock and location gates.
+- **The Weatherscope's caller:** one `Phase`, updated on `UpdateBrightness`'s existing 20 s tick, from the configured `latitude`/`longitude`. Never the stored scenario's centre: Auto is about the room the device sits in, not the place on the screen.
+- **The Weatherscope's night dim is Q38.** Recommended: it follows the same `Phase`, so the theme and the dim can never disagree for the minutes the band lasts. That adds the hysteresis to the dim as well, a small behaviour change, named here. **The other seven editions are untouched.**
+- **At boot,** the phase is `Unknown` and the theme is **Dark**, which is today's look. The first verdict arrives with the clock. So a unit that boots in daylight shows one switch to Light seconds after NTP lands. It is a single rebuild (A11.8), and it is named here rather than discovered on glass.
+- **The Blipscope** adopts `DayNight.h` in its own session, after v19 and its map layer. **`isNightNow` is not touched in 3.5t.** Whether the radar keeps its NOAA copy then is that session's question. It is recorded here because two formulas behind one decision is the shape CLAUDE.md warns about.
+
+### A11.5 The theme table, and no colour literal in drawing code
+
+- **`src/weatherscope/WxTheme.h`:** `struct Theme` holds every colour role, with two instances, `kDark` and `kLight`, and a `const Theme&` the screens are drawn with. **The roles,** from today's code (a count, A11.10):
+  - the background, the strip and the band;
+  - the basemap's index table (0 nothing, 1-37 terrain, 38 water, 39 river, 40 road);
+  - rain 1-13, snow 1-13, no coverage and the hatch;
+  - the label ink and halo, peaks, the rings and their numbers;
+  - the dim text, the white roles (the home marker, the near state line, the zoom tag), the warning orange;
+  - the splash, status and legend inks (today's `kFg`, `kDim`, `kAccent`, `kWarn`), the progress ring's track and arc.
+- **`kDark` is today, to the byte:** its rain and snow rows reference `wxpalette`, so C3 keeps testing what is drawn. Every other value is today's literal, moved.
+- **`kLight`:** A11.6.
+- **The check: no colour literal left in drawing code.** It is a scan over `src/weatherscope/` outside `WxTheme.h`, `WxPalette.h` and `bench/`. Every colour-taking call's colour argument must be a name, never a number:
+  - the calls are `fillSprite`, `fillRect`, `drawPixel`, `drawCircle`, `fillCircle`, `drawLine`, `drawFastHLine`, `drawFastVLine`, `setTextColor`, `color565`, `color888`, `Put` and `Rgb{…}`;
+  - **its controls:**
+    - **positive:** pointed at `WxTheme.h` itself, it must find that file's literals, which proves it can see one;
+    - **a plant:** one literal planted in `WxScreens.h` must turn it red;
+    - **the allowlist stays empty,** and the check prints its length.
+- **The guard that matters most is not the scan:** with `kDark`, every K, replay and layout row stays byte-identical to today's references (A11.9). A colour moved wrongly cannot hide behind a passing scan.
+
+### A11.6 The light palette, and the contrast rule
+
+**The metric: CIEDE2000.** My implementation reproduces Sharma, Wu and Dalal's (2005) published test pairs to 1e-4, and the committed one will carry that control. **Why neither of the obvious metrics works:**
+- **CIE76** (the palette test's dE\*ab) **cannot see the problem the ruling names.** It rates bright yellow on paper at **92.8**, near the top of the table, because it overweights chroma.
+- **A luminance ratio** (WCAG 2) **cannot be met by the hues the ruling keeps.** The terrain ramp spans L\* 67.8-93.8. So every colour with an L\* in that band has some terrain level of equal luminance: codes 2, 3, 6 and 7 bottom out at **1.00-1.01**. Code 5, lighter than the lit end, bottoms out at 1.09. A luminance rule would force every rain code dark and lose the hues.
+
+**The anchor, from the glass rather than from the light values:**
+- Daniel rejected the dimmed blue (0, 0, 135) on the dark glass as "hard to see". Its CIEDE2000 against black is **30.27**. Teal, which he chose, is 48.0.
+- **So the proposed rule, R-L:** every rain code is **more distinguishable from every background it can be drawn on than the rejected blue was from black: CIEDE2000 > 30.27.**
+- **The backgrounds are** the paper and each of the 37 terrain levels (the ramp interpolated in sRGB, shadow to lit). Water is Q41.
+- **One caution, named:** the anchor was found after I had computed the light values. It does not depend on them, but the order in which I found it is stated here so it is not mistaken for a prediction.
+
+**Today's colours against R-L** (planning instrument, not committed; the committed test recomputes these):
+
+| code | colour | vs paper | worst vs paper + terrain | R-L |
+|---|---|---|---|---|
+| 1 (teal, ruled) | (0, 150, 135) | 35.6 | **25.6** (shadow end) | fails on terrain |
+| 2 | (0, 255, 0) | 31.7 | 31.4 | ok |
+| 3 | (0, 200, 0) | 33.1 | **29.5** | fails on terrain |
+| 4 | (0, 144, 0) | 40.6 | 30.3 | ok, by 0.03 |
+| 5 | (255, 255, 0) | **28.5** | 28.2 | fails on paper |
+| 6 | (231, 192, 0) | **27.5** | 25.9 | fails on paper |
+| 7 | (255, 144, 0) | 31.2 | **27.4** | fails on terrain |
+| 8-12 | the table's | 43.1-51.5 | 34.6-40.1 | ok |
+| 13 | (255, 255, 255) | **6.3** | 5.7 | fails |
+
+- **Against the paper, R-L fails exactly the yellows and white.** That is the ruling's own reading of the mockup ("the yellows darkened for contrast on paper"), reached from an anchor that does not mention yellow.
+- **Against the terrain as ruled, R-L fails the ruled teal: 25.6 at the shadow end.** The ruled shadow (168, 165, 156) and the ruled teal cannot both meet any rule that teal also meets on paper at this anchor. **That needs a ruling (Q39).**
+
+**Q39: the shadow end, or a weaker bar on the terrain.**
+- **(a), recommended: move the shadow end along the ruling's own shadow-to-lit line,** to the first step (in 72nds) at which the ruled teal clears R-L everywhere:
+  - **the new shadow end:** (201, 198, 189), L\* 79.9, where teal's worst is 30.31, **a margin of 0.047.** Code 4 on the ruled ramp passes by 0.027. Margins this thin are why the committed test prints every value, not a PASS;
+  - **the cost:** the relief is about half as deep. Shadow against paper falls from 16.6 to 7.7;
+  - **on that ramp, codes 5, 6 and 7 fail.** Darkened along their own CIE hue, at the most chroma sRGB holds, they first pass at (135, 135, 0), (153, 127, 0) and (215, 120, 0). Their hue shifts are at most 0.3°.
+- **(b) R-L against the paper only, and a terrain floor of 25.**
+  - **The floor is taken from teal's own 25.6:** a number from the ruling, not from evidence, and said so.
+  - **Darkening the yellows for the paper alone** gives (168, 168, 0) and (191, 159, 0). **Their own terrain worst then falls to 24.4 and 24.2,** below the floor. So (b) still darkens them further, toward (a)'s values, without moving the ramp.
+- **Whichever is chosen, Daniel sees both on glass before the values freeze:** a terrain-on Bend frame in each.
+
+**The rest of the light rain and the other codes** (each a question, each with a recommendation):
+- **Code 13 (Q40).** White on paper is 6.3. Recommended: **black (0, 0, 0)**, the pinned MetPy table's **own** 75 dBZ entry. Against paper it is 88.0.
+  - **The order argument:** on black, the strongest code is the palest; on paper, the darkest. Each theme puts its strongest echo farthest from its own background.
+  - **The alternative:** a darker violet past code 12.
+- **No coverage and the hatch (Q40).** Today's (40, 40, 40) is 9.9 from a black code 13. So the light no coverage is computed by the rule: achromatic (C3a's property), and above the anchor from the paper, every terrain level and black. The hatch's line colour is computed the same way.
+- **Snow (Q42).** On the ruled ramp, **snow 3-6 fail** (28.5, 26.9, 24.1, 20.8). Snow is drawn only from WXC1 v2 (A9.6), but **the legend shows it**.
+  - **Recommended:** keep the dark ramp's hues and **mirror its lightness order.** Heavier snow is paler on black and darker on paper. Recompute it by the same method, and re-check C3h's steps.
+- **The paper and the given overlays keep the ruling's values,** with one note each:
+  - **the rings (150, 146, 138)** are 5.9 from the ruled shadow, so they vanish on deep terrain. Reported, not graded;
+  - **water and rivers are Q41.** Teal against water is **29.0**, under the anchor, and violet 12 against rivers is 26.
+
+**Text gets its own rule, because text legibility is luminance:** WCAG 2's 4.5:1 for small text, against what the text is drawn on.
+- **The ruled inks pass:** labels on their halo 12.46; dim text on paper 5.37; peaks on paper 7.15.
+- **The warning orange fails as text:** (255, 140, 0) on paper is **1.89**. The light theme gets a darker warning ink for text, computed by this rule. The polygon and the arrow (graphics) are held to R-L.
+- **The white roles** (the home marker, the near state line, the zoom tag) take the label ink in the light theme. White on paper would be 1.24.
+- **The dark theme is not re-graded.** Its ring numbers, (96, 96, 96) on black, are 3.34. The text rule is the light theme's, and the dark theme stays as ruled. Printed for information.
+
+**Rain keeps its order and hues:** a light check holds each darkened code within 1° of its dark CIE hue. **Codes 9 and 10 are 4.5 apart on any background:** that is the pinned table, unchanged by either theme. Printed, not graded.
+
+### A11.7 The legend, in both themes
+
+- `DrawLegend` draws from the theme: its swatches are the theme's rain, snow and no coverage, its hatch the theme's hatch, its text the theme's ink on its background.
+- `legend_check.py --fb` gains `--theme light|dark`, with its own light table written from this addendum's ruled values, not from the C++. B3 runs in both.
+
+### A11.8 The switch: one rebuild at the change, none otherwise
+
+- **What a change costs:**
+  - the basemap's **index image does not change.** A theme is a different palette for the same indices, so nothing is re-rasterised;
+  - what does change is the **invariant layer:** labels, rings, the marker and the band, drawn in the theme's inks. `LayerKey` gains the theme.
+- **So a change is exactly one layer rebuild,** logged `[wx] layer rebuilt=theme`, and a palette swap.
+- **When nothing changes:**
+  - Auto's evaluations that keep the phase rebuild nothing;
+  - setting the key to the theme already showing rebuilds nothing.
+- **The checks:**
+  - **host:** a scripted sequence of a switch, a no-op evaluation, a hover inside the band and a second switch. Rebuild counts: **1, 0, 0, 1**;
+  - **board:** the serial log shows one `rebuilt=theme` per switch across a forced dusk (stored mode's clock override, A11.9) and none on the evaluations between.
+
+### A11.9 The checks, to be frozen as truth tables once this plan is ruled (as A10.11 was)
+
+| row | what | the reference |
+|---|---|---|
+| K-dark | every K row, Dark | **today's `k35.ref.txt`, byte-identical:** the refactor guard |
+| K-light | every K row, Light | `ref35.py --theme light`, written from this addendum's values, not from the C++ |
+| RP | the replay rows in both themes | Dark: today's; Light: ref35 |
+| LY | the layout rows | **label placement is colour-blind:** the placed-label sets are equal in both themes |
+| C3 | the dark palette | unchanged |
+| C4 (new) | the light palette | R-L for every rain code over paper + 37 levels (+ water if Q41); 13 as ruled; no coverage and hatch achromatic and above the anchor; snow as ruled; hue within 1°; the text rule |
+| DN | `DayNight.h` | elevation against the independent reference; `Decide`'s table (both directions, the hover, the first verdict, the gates) |
+| SW | the switch | rebuild counts 1, 0, 0, 1 |
+| NL | no colour literal | the scan, with its positive control and its plant |
+| SY | no product symbol in `DayNight.h` | the forbidden-symbol pattern, with its plant |
+
+- **Every row gets sabotages,** with their failing sets frozen exactly, before the code.
+- **The board, per theme:**
+  - **B1:** dry, approaching, here-now, warning and stale, exact against the reference in each theme;
+  - **B3:** the legend in each;
+  - **the switch row.**
+- **The B1 images in both themes go to Daniel** for his look on the glass.
+- **Auto's dusk on the board:** stored mode needs a way to put the sun at a chosen elevation. Recommended: a bench byte that offsets the clock Auto reads. It is under the same release gate as T/S/U/D/H/P/L/R/G, and it is unreachable on customer units (Q43).
+
+### A11.10 Not 3.5t
+
+- the Blipscope's light theme (its own session, after v19 and its map layer, reusing `DayNight.h`);
+- the radar's `isNightNow`;
+- the other seven editions' night dim;
+- any change to 3.5b's code or predictions.
+
+**Size, counted before planning it:**
+- `WeatherscopeManager.cpp` has 11 `color888`/`color565` lines, 8 of them with numeric literals;
+- `WxRaster.h` has 7 named colours, used on 30 lines of `WxScreens.h`;
+- `WxScreens.h` has 2 inline `Rgb{…}` inks. 3.5b will add its 41-entry index table and the peak ink.
+
+### A11.11 Questions for review, each with a recommendation
+
+- **Q35, the order.** 3.5b → 3.4 → 3.5t → 3.5c (A11.2).
+- **Q36, the setting.** `wx-theme` = `auto` | `light` | `dark`, default `auto`; an unknown value reads as `auto` and is named in the boot line.
+- **Q37, the hysteresis.** H = 1.0° around −0.833°, evaluated on the existing 20 s tick. **The alternative:** 0.5°, which switches sooner and protects less.
+- **Q38, the Weatherscope's dim.** It follows the same `Phase`, so the theme and the dim never disagree.
+- **Q39, the conflict between the ruled teal and the ruled shadow.** (a) The shadow end moves to (201, 198, 189), with codes 5, 6 and 7 darkened along their hue. Daniel sees (a) and (b) on glass before the values freeze.
+- **Q40, code 13, no coverage and the hatch.** Code 13 black, the table's own entry; no coverage and the hatch computed by the rule.
+- **Q41, water and rivers as backgrounds.** Include water areas in R-L (teal is 29.0 against the ruled water, so water would move along its own line); print rivers and roads, which are 1 px lines.
+- **Q42, snow on paper.** The mirrored lightness ramp, by the same rule, with C3h re-checked.
+- **Q43, Auto on the board.** A clock-offset bench byte, release-gated like the others.
+- **Q44, the header.** `include/DayNight.h`, namespace `daynight`, built on `SolarDim.h`'s `SunElevationDeg`, whose first host test this is.
+
+**Next, once ruled:** the truth tables and sabotage sets (A11.9), frozen before any 3.5t code. 3.5b, then 3.4, carry on meanwhile, as ruled.
