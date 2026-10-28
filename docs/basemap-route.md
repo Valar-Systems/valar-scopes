@@ -1175,3 +1175,34 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **Raised before it can matter: the mirror's "note in the manifest" has no place in MI4's frozen shape.** MI4 fixes each entry to exactly `{bytes, layer, sha256, url, vintage}`, and `writeManifest` refuses anything else.
   - **Proposed:** an optional top-level `notes` key, a sorted list of strings such as `"<url>: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it"`, with MI4 re-registered by the ruling that admits it.
   - **It is needed only if the retries fail,** so nothing waits on it for about a day.
+
+**The tile-count miss, read from the list as it is** (read-only, as ruled):
+
+| region | tiles | core: its footprint meets a covered point's 250 km reach | margin: there only for the one-tile ring |
+|---|---|---|---|
+| CONUS | 4,213 | 3,858 | 355 |
+| Alaska (the Aleutians past 180° included) | 4,862 | 4,497 | 365 |
+| Hawaii | 563 | 442 | 121 |
+| **total** | **9,638** | 8,797 | 841 |
+
+- **It explains the count, so no reach = 0 run is needed.** My 5,000-7,000 estimate left out two things:
+  - **Alaska's reach:** the Aleutians run about 1,900 km west, and at high latitude 250 km is more degrees and z9 tiles are smaller. The estimate assumed about 1,800 Alaskan tiles; the list holds 4,862.
+  - **The Northwestern Hawaiian Islands:** Hawaii's covered lattice has 611 intervals, 160 of them west of 161° W. The estimate assumed about 30 tiles; the list holds 563.
+  - **CONUS is about 11 % above its box estimate,** from the reach and the margin.
+- **The named alternative, "`tilesForCoverage` over-collects", is excluded for the margin.** **0 of the 841** margin tiles lie beyond the ring: every one touches a core tile. The core test is a separate reading over `coverage.bin`, not the instrument's code.
+- **What this reading cannot show:** whether the list misses a tile it should hold. That would need the instrument again, and nothing depends on it, since D1's gate is size.
+
+**The tiles' source bits** (A1.4; `ingest-basemap.ts tile-bits`, from Natural Earth 10 m):
+
+| | tiles |
+|---|---|
+| with SRTM | 3,962 |
+| with GMTED2010 | 1,806 |
+| with ETOPO1 | 5,078 |
+| with NRCAN | 1,494 |
+| with **no** bit | **0**. The run refuses any, since land and ocean cover the world, so this guard ran and held |
+| `terrain-sources.bin` | 48,202 B |
+
+- 3,914 tiles are ocean-only (ETOPO1), mostly the Aleutian and Northwestern Hawaiian reach.
+
+**The two refused files:** the 24-hour retry is running, one file at a time, with the User-Agent `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`. Its first attempt, at 04:00Z on 2026-10-28, was refused again. Every attempt is logged to `retry-attempts.jsonl`.
