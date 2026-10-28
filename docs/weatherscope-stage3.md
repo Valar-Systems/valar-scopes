@@ -6276,3 +6276,40 @@ Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 **Next, by A10.8:**
 - step 3: ref35's geography (its own BMPK decoder, fill, DDA, peaks and the fold, written from the format doc, not from the C++) and R0b, frozen first;
 - then step 4, build Q.
+
+### A12.15 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): two counts §8 requires and nothing checks; the predictions
+
+**The ruling, verbatim:**
+
+> One addition to the PK set (reviewer chat, 2026-10-28)
+>
+> The map server found that neither validator checks §8's "exactly its count" for two sections: TERRAIN (its count against its levels) and PROVENANCE (its count against its lines). No fixture exercises either.
+> - In your next PR that touches the PK set, add two negative fixtures (a TERRAIN count off by one; a PROVENANCE count off by one), each with its own named reason, and the two checks in validate.py.
+> - Predictions first: each new fixture is refused with its reason, and every existing fixture and bend.bmpk keep their verdicts.
+> - The device reader enforces the same checks when it's written.
+> - Not urgent; step 3 doesn't wait for it.
+
+**Confirmed on the artifacts first:**
+- `validate.py` returns a TERRAIN body (after `kTerrainLength` and `kReserved`) and a PROVENANCE body **without comparing either one's `count`**.
+- **Of the 29 packages on main** (28 PK fixtures and `bend.bmpk`):
+  - none has a TERRAIN count other than 1, or a PROVENANCE count other than its line count (0 for an empty body, else the number of `\n` + 1). That covers the **27** whose sections can be read;
+  - `neg-nsec33` and `neg-short` are refused before any section is parsed, so the new checks cannot reach them.
+
+**The checks, in A10.11's pinned order, at the end of each section's own checks:**
+- **TERRAIN:** after `kTerrainLength` and `kReserved`, `count != 1` → **`kTerrainCount`**.
+- **PROVENANCE:** its lines are 0 for an empty body, else the number of `\n` + 1 (RD-P4: no trailing `\n`). `count != lines` → **`kProvenanceCount`**.
+
+**Predicted, for the PR that next touches the PK set:**
+
+| row | expected |
+|---|---|
+| `neg-terrain-count`: `syn-min` with its TERRAIN directory count 2 | refused **`kTerrainCount`** |
+| `neg-prov-count`: `syn-min` with its PROVENANCE count 3 (2 lines) | refused **`kProvenanceCount`** |
+| the 28 existing fixtures | **their frozen verdicts, unchanged** (3 `kOk`, 25 each its reason) |
+| `bend.bmpk` | **`kOk`** |
+| `synth.py --check` | the 28 existing blobs byte-identical, and the 2 new ones regenerate identically |
+| S-TCOUNT (the TERRAIN check removed) | exactly **`neg-terrain-count`** changes verdict, to `kOk` |
+| S-PCOUNT (the PROVENANCE check removed) | exactly **`neg-prov-count`** changes verdict, to `kOk` |
+
+- **The device reader** (`include/BasemapPackage.h`, 3.5b's step 5) gets the same two refusals, and PK rows for the two fixtures, when it is written.
+- **When:** the next PR that touches the PK set. **Step 3 goes first, as ruled.**
