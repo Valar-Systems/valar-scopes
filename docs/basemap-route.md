@@ -1082,6 +1082,30 @@ Synthetic features at origin (0, 0), through the layer functions.
   - (b) the first transfer was short and went unchecked, which requires a response with no `Content-Length`.
 - The first copies were overwritten, so the data cannot separate them.
 - **What it means for D1:** its fetch re-verifies every file, so a source that moves changes `store:`, visibly, rather than silently.
+- **Corrected the same day, by reading the bytes: it was neither (a) nor (b).**
+  - Both files were **247-byte HTML**: census.gov's firewall page, "Request Rejected", served with **status 200** and `text/html`.
+  - The adoption's 8-way HEAD burst seems to have tripped it. It went on rejecting those two URLs while other files still downloaded.
+  - **So my fetcher overwrote two good zips with a rejection page,** and logged it with a size and a sha256 as if it were a new version: a lie with a plausible shape.
+  - **What caught it:** the dry run's refusal to unzip it ("invalid zip data", at the 1,500th file).
+  - **The fix:** every body is now checked on its own magic bytes (`checkBody`, with this very page as its test's control). A HEAD answered with HTML is never read as "the file changed". A cached copy that fails the check is never resumed or adopted.
+  - **Status and length proved nothing here; the bytes did.**
+
+**Coverage and the terrain mirror, measured** (`ingest-basemap.ts coverage`):
+
+| | measured | registered (§7, A1.6) |
+|---|---|---|
+| coverage | 11,675,779 lattice points in 4,907 rows and 10,270 intervals; `coverage.bin` **121,428 B** | |
+| regions (RD-P6) | 3,144 counties, 51 states; **166,835 B** | |
+| terrain tiles within 250 km plus the margin | **9,638** | **5,000-7,000: a MISS** |
+| their bytes (by HEAD) | **706,629,891 B (0.707 GB)** | 0.6-0.8 GB: inside |
+| their `Last-Modified` | 2017 for all 9,638, so `vintage.terrain: 2017` (RD-P3) | |
+
+- **The tile count is a miss, recorded as registered.**
+  - The estimate was made before the reach was fixed at 250 km plus a tile, and it did not account for Alaska's high latitude. There 250 km of longitude spans far more degrees, and z9 tiles are smaller.
+  - **Named and not excluded:** a bug in `tilesForCoverage` that over-collects.
+  - **What would separate the two:** the count with the reach set to 0. That would be the tiles the covered lattice itself touches, plus a margin.
+  - I have not run it: that is a change of instrument, so it waits for the reviewer's word.
+- **The bytes landed inside their band,** and both the 6 GB stop and the free 10 GB are far off. **Nothing depends on the count.** I make no fix.
 
 **One fix in `assignCells`, outside the frozen rows.**
 - Features that all share one south-west corner can never be separated by a quarter, so splitting them recursed forever.
