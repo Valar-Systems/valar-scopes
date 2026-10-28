@@ -1644,3 +1644,14 @@ select is served as:
 | **L7** | CI | 0 failures |
 
 **Outside the set:** stop and report.
+
+### Results for the look-select fix (local; CI follows)
+
+| | read | verdict |
+|---|---|---|
+| **L1** | the new rule on the source before the fix: **exactly 2 violations**, the two labels in the processor at `:3184`; exit 1 | **as predicted** |
+| **L2** | after the fix: "no literal '%' outside a %PLACEHOLDER%", and all 9 pages hold; exit 0 | **as predicted** |
+| **L3** | selftest: S-pct (one `%` put back into a fixed label), a CSS `100%`, a processor's `50 %` and a `%%` are each detected; the fixed label and a `%NAME%` placeholder are allowed; self-test PASSED | **as predicted** |
+| **L4** | E2:08 after the app-only reflash: `wx-look` offers **("A", "A: 40 percent + outline")** and **("B", "B: 25 percent")**. The layer is still on, and the sweep still look 4 | **as predicted** |
+| **L5** | the shipping `firmware.bin`, before and after: **65 bytes differ**, 32 in `app_elf_sha256`, 32 in the image SHA-256 and 1 checksum byte. **0 unplaced**, so every loaded byte is identical | **as predicted** (the named second outcome) |
+| **L6** | `wxlook`: "A: 40 percent + outline" 1, "A: 40 % + outline" 0, "B: 25 percent" 1. Shipping: 0, 0, 0. "Weather radar (beta)": 1 in both | **as predicted** |
