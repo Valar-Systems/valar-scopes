@@ -1088,7 +1088,8 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 # Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties
-# (docs/weatherscope-stage2.md, addendum 2: C3 a-f). Its sabotages: python -I test/host/sabotage_wx_palette.py
+# (docs/weatherscope-stage2.md, addenda 2, 4, 5 and 8: C3 a-j; code 1 teal and C3 k-l by docs/weatherscope-stage3.md
+# A10.16). Its sabotages: python -I test/host/sabotage_wx_palette.py
 echo
 echo "== WxPalette =="
 if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_palette.cpp" -o "$OUT/test_wx_palette.exe" 2>"$OUT/build.log"; then
