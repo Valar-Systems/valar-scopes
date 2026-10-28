@@ -1577,3 +1577,10 @@ reads INSTRUMENT and whose new instrument awaits a ruling.
   are not marker colours, so neither can be read as a plane.
 - **The captures wait for rain close enough for R3 to grade,** and Daniel gets the hands-off window in Pacific time
   before the start.
+
+**CI, for WD7's TL6 and the mask's M8:**
+- **On `29ea144`,** which carries WD7's code and the mask: 36 check runs, **33 success, 3 skipped** (the release-only
+  `promote`, `version` and `ship-alert`), **0 failed**. `host-tests` succeeded.
+- **Both rows are as predicted.**
+- The runs on `fb2e787` and `787627e` were cancelled when later record pushes moved the branch, so they are not
+  results.
