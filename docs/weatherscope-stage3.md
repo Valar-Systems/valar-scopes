@@ -6003,3 +6003,102 @@ None changes anything graded here. A golden comparison with the map server's bui
   - Its instrument is the reader above. Committed with the pick, it needs host rows: its anchor, the midsummer control, and this window as a positive.
   - **Re-run, the candidates stay A10.4's five.** If none qualifies under (b), the existing escape hatch applies: stop and report.
 - **(c) Restrict the season to June-September and re-run.** No new instrument, but it stays a proxy: a June night can still snow on the Cascades within 60 mi, and 06-03 is a candidate.
+
+### A12.9 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): #495 re-cut, the radar's (b); the predictions, frozen before the code
+
+**The ruling, verbatim:**
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> 1. #495 is not approved at 1d4597520a63. The readings' ruling below re-cuts it. Send the new head once it's done, predictions first.
+> - Readings 1-6 and 8: as you wrote them, for both builders. §13 pins them, and reading 2 also states that each crossing is computed from the previous vertex toward the current one (the map server's request; the bytes depend on it).
+> - Reading 9: one rule, the manifest by URL alone (MI4's order). The hypot change re-cuts the package anyway, so this costs nothing extra.
+> - A new rule for both builders: every decision computes distance as sqrt(x·x + y·y), in an order written into §13. That covers Douglas-Peucker's distance, the in-disc test for places and summits, and the 3 km peak de-duplication. hypot stays only inside the hillshade, under reading 7's tolerance.
+> - Then rebuild bend.bmpk and re-grade A12.5's package rows: kOk; --check with its flipped-byte control; LC with its control; the first four peaks.
+> - Predict first which sections change. PROVENANCE and the manifest certainly will (builder, store). Report any change to geometry, places or peaks from the distance switch item by item.
+> - A10.18's line rides along as now.
+>
+> 2. A12.8, the Bend radar: (b).
+> - Add one criterion: no snow-flagged cell within 60 mi in any frame of the window, by PrecipFlag_00.00 at the frame's own time.
+> - The reader is committed with the pick, with host rows: its anchor, the midsummer control, and the 2024-05-02 window as a positive.
+> - Re-run the same rule over A10.4's five candidates. If none qualifies, the escape hatch applies: stop and report.
+> - Record the 2024-05-02 window and its snow counts as the reason for the criterion.
+
+#### A12.9.1 #495: what §13 gains (RD22-RD31), as the code will hold it
+
+- **RD22-RD30, the nine readings of #495.** Each takes the number of its place in #495's list, plus 21: RD22 is reading 1, and so on to RD30, reading 9.
+  - **RD23 (ring clipping) adds the ruled clause:** each crossing is computed **from the previous vertex toward the current one**, `t = (lim − prev[a]) / (cur[a] − prev[a])`, other axis `prev[o] + t · (cur[o] − prev[o])`, with the clipped axis set to `lim` exactly. The code already does this. The doc now says it.
+  - **RD28 (numpy)** carries A12.7's report rule.
+  - **RD30 (the manifest)** is **files ordered by URL alone** (MI4).
+- **RD31, distance.** Every decision computes a distance as `sqrt(x·x + y·y)`, with the x term first, in double. Never `hypot`, which stays only inside the hillshade under RD28. The four sites, as the code will read:
+
+  | site | the expression |
+  |---|---|
+  | Douglas–Peucker (RD6/RD7), metres | `dx = b.x − a.x`, `dy = b.y − a.y`. If both are 0: `ex = p.x − a.x`, `ey = p.y − a.y`. Else `t = ((p.x − a.x)·dx + (p.y − a.y)·dy) / (dx·dx + dy·dy)`, clamped to [0, 1]; `ex = p.x − (a.x + t·dx)`, `ey = p.y − (a.y + t·dy)`. `d = sqrt(ex·ex + ey·ey)` |
+  | in the disc (places, summits), km | `sqrt(E·E + S·S) <= R` |
+  | the 3 km de-duplication, km | `ex = p.E − k.E`, `ey = p.S − k.S`, `sqrt(ex·ex + ey·ey) <= 3.0` |
+  | a river's length inside the disc (RD8), km | per segment: `aa = dx·dx + dy·dy` (skipped when 0); `bb = 2·(a.x·dx + a.y·dy)`; `cc = a.x·a.x + a.y·a.y − R·R`; `disc = bb·bb − 4·aa·cc` (skipped when ≤ 0); `s = sqrt(disc)`; `t0 = max(0, (−bb − s)/(2·aa))`, `t1 = min(1, (−bb + s)/(2·aa))`; when `t1 > t0`, add `(t1 − t0)·sqrt(aa)·1000` m. **Unchanged:** it already is this form |
+
+#### A12.9.2 #495: the predictions for the rebuilt `bend.bmpk`
+
+`hypot` and `sqrt(x·x + y·y)` differ by at most an ulp or two. A decision can only move where two compared values sit within that of each other:
+- Douglas–Peucker's `> ε`;
+- its "first vertex at the maximum", where two distances tie to within an ulp;
+- `<= R`, or `<= 3.0`.
+
+**Predicted:**
+
+| | before (1d4597520a63) | predicted after |
+|---|---|---|
+| sections 1-6 (water, rivers, roads, peaks, places, 3 × terrain) | | **byte-identical**, each |
+| PROVENANCE | 2,164 B | **exactly two lines differ:** `builder:` (the new commit) and `store:`. **The same length:** 40 and 12 hex |
+| the package | 205,093 B | **205,093 B;** the CRC changes; no other header byte |
+| the manifest | 17,836 B | **17,836 B,** the same entries reordered by URL, with the new `builder`. The bytes differ |
+| the licence file | `9745110158fa…` | **byte-identical** |
+| A12.5's rows | kOk; check 0, control 1; LC + control; first four South Sister, Mount Jefferson, Middle Sister, Mount Bachelor | **the same** |
+
+**Outside these:**
+- **any change in sections 1-6** is reported **item by item**: the feature, the decision that moved, and both distances.
+  - **If every such change is a decision whose two compared values lie within 2 ulps,** it is RD31's own effect, as the ruling foresaw, and the rebuild stands.
+  - **Anything else: stop and report.**
+- **A size other than 205,093 or 17,836 B means more moved than predicted: stop.**
+
+#### A12.9.3 The radar: (b), frozen before the code
+
+**The reason, recorded:**
+- 2024-05-02 05:52Z-06:48Z, chosen by A10.4's rule as frozen, has **1,077-1,574 snow-flagged cells within 60 mi in every frame,** 19,427 in all (A12.8's table).
+- So a "warm season" did not keep snow out of the loop. The criterion tests the premise directly.
+
+**The reader:** `tools/weatherscope/loop/precipflag.py`, the A12.8 reader, committed with the pick.
+- **What it reads:** GRIB2 sections 3, 5 and 7, the 8-bit PNG through Pillow.
+- **Its anchor:** the 7000 × 3500 CONUS grid at 0.01°, scanning 0. Anything else is refused.
+- **The window:** cells within 60 mi of `bend.bmpk`'s origin, by WxLogic's planar metric.
+- **It prints no coordinate.**
+
+**Its host rows** (`test_precipflag.py`, on the named objects, fetched and pinned by sha256 at first use):
+
+| row | the object | expected |
+|---|---|---|
+| PF1 | the 2024-05-02 05:52:00Z object, accepted; a copy with `ni` changed to 6999 | the copy refused by the anchor; the real one accepted |
+| PF2 | 2024-08-05 00:00:00Z (midsummer control) | **snow 0**; warm stratiform rain **3,824**, convective rain **203**, exactly |
+| PF3 | 2024-05-02 05:52:00Z (positive) | **snow 1,574**, exactly |
+| PF4 | the 2024-05-02 window's 15 times | **snow 19,427** in all, exactly |
+
+**Its sabotages:**
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-PF-CODE | snow read as code 10, not 3 | {PF3, PF4} |
+| S-PF-ANCHOR | the anchor check removed | {PF1} |
+
+**The criterion in the pick:**
+- **(d):** every frame of the window has **0 snow-flagged cells within 60 mi**, by `PrecipFlag_00.00` at the frame's own time.
+- **A frame whose PrecipFlag object is missing cannot pass (d).** How many there are is reported.
+
+**The re-run, pre-registered:**
+- **certain:** the 2024-05-02 05:52Z window no longer qualifies, since all 15 of its frames have snow;
+- **the outcome classes,** each reported with its full record (keys and sha256s, no coordinate):
+  - (i) a later window on 2024-05-02;
+  - (ii) a window on a later candidate, in score order;
+  - (iii) none on all five: **stop and report** (A10.4's escape hatch);
+- **outside these** (a criterion the tool cannot evaluate, or a frame whose measures disagree with A12.8's for the same object): stop and report.
