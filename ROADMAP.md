@@ -243,6 +243,13 @@ only, or helicopters. Default: show everything.
   choosing.
 - **Website:** gets it only after a firmware release has it (parity rule).
 
+### F. Queued by ruling (2026-10-28)
+
+| # | Item | When | State |
+|---|---|---|---|
+| F1 | **"E-4B airborne"**: a calm line on the radar, plus an optional ntfy alert, off by default. In range: on the device, from the four addresses. Anywhere: Blipscope Cloud reads the EAM feed's `/status/abncp` server-to-server ([docs/e4b-airborne-memo.md](docs/e4b-airborne-memo.md)) | **after #445 merges**, not in it | design accepted (#489); nothing built |
+| F2 | **A light theme for the Blipscope**: Auto (the default), Light and Dark, with Auto reusing the Weatherscope's product-neutral day/night header in `include/`. Every colour comes from a theme table, and the light look starts from the mockup's values. The sweep in light is a soft green tint or none, which Daniel picks on the glass. Daniel: "what about a light mode for blipscope too?" and, asked whether to plan it after v19 and the map layer, "yes" | **after v19 ships AND after the Blipscope adopts the map layer**: a light radar without the map under it looks empty | not started; **a plan for review comes before any code**. Nothing changes for #445 or v19 |
+
 ### Already done — carried on lists but true in the tree
 
 Checked 2026-08-13, because a stale "outstanding" item costs more than a missing one:

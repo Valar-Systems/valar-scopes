@@ -170,3 +170,19 @@ since one may not fly during the window.
 3. The ntfy re-arm interval (for example 6 h).
 4. The exact wording of the line and the notification.
 5. Rule on #409 first (section 0)?
+
+## Rulings, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their source
+
+- **Accepted as a design.** It is built after #445 merges, not in it.
+- **Q1: B.** Blipscope Cloud reads the EAM feed's `/status/abncp` server-to-server, caches it and fans it out.
+  - **Unknown, not "no":** if the EAM feed can't be read, or its answer is stale, the Cloud says "unknown" and devices
+    show nothing.
+  - **When it is built,** a recorded `/status/abncp` reply pins the contract in our tests, and Daniel tells the EAM
+    feed's owner it has a second reader.
+- **Q2-Q4 are Daniel's.** He has been asked. The reviewer recommended the in-range tag, a 6 h re-arm, and the wording
+  as written.
+- **Q5, #409:** Daniel decides who reviews it, since it is the Missileer's PR.
+  - The reviewer checked section 0: `AE0451` is a Navy C-2A (162157), and `ADFEB3` is E-4B 73-1676.
+- **The four addresses are facts, not a database:** agreed.
+- **The ROADMAP line for the themes:** yes, in the next docs PR. It is in this one, as ROADMAP F2, beside this memo as
+  F1.
