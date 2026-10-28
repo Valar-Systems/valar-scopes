@@ -743,6 +743,38 @@ as #443's did.
 > Cost: Daniel is being asked now for a small monthly allowance. If he gives one, it reaches you in his paste. R3
 > still states the measured figure before the deploy.
 
+### A1.1b Daniel's answers, verbatim (source: the reviewer chat, pasted by Daniel, 2026-10-28, after the rulings)
+
+> Daniel's answers, recorded verbatim (reviewer chat, pasted by Daniel, 2026-10-28). Paste after the rulings of the
+> same date.
+>
+> - Q10, bilingual names: "English". The English name where a source has two, else the one name, recorded in
+>   PROVENANCE's processing text. So Q11 stands as ruled: a v1 coverage extension.
+> - The allowance: "Ok", to "Is it OK to allow up to $2 a month in total before anyone asks you again?" So R3 needs
+>   no new ask if the measured figure keeps the account's total Cloudflare overage under $2 a month. State the figure
+>   in R3's report either way. Over $2, ask Daniel first.
+> - Northern Ireland: "Just add it for now, i will get written permission soon. Adding the feature will take a week
+>   or so".
+>   - So NI is in scope now, with your §2.2 NI rows: MOTORWAY → 1, A_CLASS → 2, the DAERA lakes, no rivers (an empty
+>     section), and OSNI gazetteer places with NISRA populations, all flagged as 2003-2015 data. M1 measures NI with
+>     GB.
+>   - The serving gate: NI is built and stored with GB, but the coverage bits that serve NI packages stay off until
+>     LPS's written answer is recorded in the repo. Until then NI answers no_coverage for maps. If the answer comes
+>     first, as Daniel expects, the gate costs nothing.
+>   - Weather is unaffected: opuk covers NI either way.
+
+**What these change:**
+- **Q10:** the English name where a source has two, else the one name. The rule is written in PROVENANCE's processing
+  text. **Q11 is settled: a v1 coverage extension.**
+- **R3's cost gate:** no new ask if the measured figure keeps the account's **total** Cloudflare overage under
+  **$2 a month**. Over that, Daniel is asked first. R3's report states the figure either way.
+- **Northern Ireland:**
+  - **Built and stored with GB** in M2, from §2.2's NI rows, all flagged as 2003-2015 data. **M1 measures NI beside
+    GB.**
+  - **Its coverage bits stay off until LPS's written answer is recorded in the repo.** Until then NI is `no_coverage`
+    for maps.
+  - Q13's letter is Daniel's.
+
 ### A1.2 What the rulings change
 
 - **The count, corrected** (it was in my report, not in this doc):
