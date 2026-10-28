@@ -917,6 +917,25 @@ else
 fi
 
 echo
+echo "== Missileer E-4B table (docs/missileer-e4b-table.md) =="
+# The four cited E-4B addresses, and none of the four C-2A Greyhounds the table once held. The selftest includes
+# the ruled sabotage -- one C-2A address put back into the REAL file's text, in memory -- and must see it fail.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the E-4B table check cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/check_e4b_table.py" --selftest
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: the E-4B table check's own selftest did not pass (or the real table is wrong)."
+    fail=1
+  fi
+  "$PY" "$ROOT/scripts/check_e4b_table.py"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then fail=1; fi
+fi
+
+echo
 echo "== purity gate =="
 if "$CXX" $FLAGS $INCLUDES \
       "$ROOT/test/host/no_arduino.cpp" \
