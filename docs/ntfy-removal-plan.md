@@ -94,17 +94,17 @@ Release notes and bench logs stay as history.
   stamps `cfg-rev` when it is done, so the erase runs **once**, on the first boot of the release that carries it.
 - It deletes exactly the listed keys from the `config` namespace. A key an edition never had is a no-op.
 
-**The list, with section 2's recommendations: 26 keys.**
+**The list, as ruled (section 6): 29 keys.**
 - **The topic:** `ntfy-topic`.
 - **Radar:** `emg-alert`, `lookup-alert`, `follow-up`, `follow-down`, `follow-lost`.
 - **Missileer:** `eam-alert-new`, `eam-alert-tempo`, `eam-alert-abncp`, `eam-alert-space`.
 - **Space:** `sp-alert-launch`, `sp-alert-aurora`, `sp-alert-flare`, `sp-alert-iss`, `sp-alert-dsn`, `sp-alert-neo`.
 - **Seismic:** `se-alert-big`, `se-alert-near`, `se-alert-tsnmi`.
 - **Birding:** `bd-alert-rare`, `bd-alert-target`.
-- **Claudescope:** `cl-alert-sess`, `cl-alert-week`.
-- **Speed:** `sc-a-speeder`, `sc-a-record`, `sc-a-offline`.
+- **Claudescope:** `cl-alert-sess`, `cl-alert-week`, `cl-session-pct`, `cl-week-pct`.
+- **Speed:** `sc-a-speeder`, `sc-a-record`, `sc-a-offline`, `sc-alert-speed`.
 
-**Not on the list:** `mil-alert` (if 2.1 is (a)), every `fi-*` key, `sp-chime`, the three thresholds (as ruled),
+**Not on the list:** `mil-alert` (kept and relabelled, 2.1 (a)), every `fi-*` key, `sp-chime`, `sc-limit`,
 `watchlist`, `lookup`, `mil-show`, the visuals, `tones`, and everything else.
 
 ## 4. Predictions, to freeze when the code PR opens
@@ -114,7 +114,7 @@ Release notes and bench logs stay as history.
 | **N1** | **every ELF of every edition** (all envs in `platformio.ini`), scanned for `ntfy.sh`, for the sender names (`NtfyAlerter`, `QueueNtfyPost`, `SendNtfy`, `SendFollowAlert`), and for every string containing `ntfy` | `ntfy.sh` and the sender names: **0 in every ELF**. The only `ntfy` strings left are the erase list's key name(s), and nothing else. **The control:** the same scan of main's ELFs finds `ntfy.sh` and the senders in every edition that has them, so the scan can see what it is looking for, and its selftest finds a string planted in a synthetic file |
 | **N2** | **every other config field**: each edition's served form, before and after, compared as a set of (name, value, default) | identical **except exactly the removed fields**, with no other field renamed, revalued or re-defaulted. Section 2's relabel (if 2.1 is (a)) changes a label, not a name, value or default |
 | **N3** | **a whole-form save round trip**: GET the page, POST every field back unchanged, then compare an NVS dump before and after | **every stored setting byte-identical** except the erase list, which is already absent after the migration |
-| **N4** | **the erase, on the host** (`test_config_migration.cpp`): a fake NVS holding every listed key and its neighbours (`fi-chime`, `sp-chime`, `mil-alert`, `watchlist`, `cl-session-pct`, `sc-limit`, the visuals) | after `Apply()`, **exactly the listed keys are gone** and every other key is byte-identical; a second `Apply()` is a no-op. **Sabotage:** the erase also deletes one neighbour (`fi-chime`), and the test must turn red |
+| **N4** | **the erase, on the host** (`test_config_migration.cpp`): a fake NVS holding every listed key and its neighbours (`fi-chime`, `sp-chime`, `mil-alert`, `watchlist`, `sc-limit`, the visuals). As ruled, `cl-session-pct` is on the erase list, not a neighbour | after `Apply()`, **exactly the listed keys are gone** and every other key is byte-identical; a second `Apply()` is a no-op. **Sabotage:** the erase also deletes one neighbour (`fi-chime`), and the test must turn red |
 | **N5** | **the privacy check** | the allowance is gone, and the target reaches **no** outbound sink. The selftest's plant through the old sink turns it red |
 | **N6** | **CI** | green, with the ship-alert job gone |
 
@@ -138,3 +138,23 @@ Release notes and bench logs stay as history.
 3. **Before v19 is cut,** so v19 and each edition's next release ship without ntfy. If it isn't ready when v19
    otherwise is, **v19 doesn't wait**.
 4. **When the release ships:** the docs in section 1.
+
+## 6. Rulings, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their source
+
+**The plan (at `4f27511`) is accepted, with these answers to section 2:**
+- **2.1, `mil-alert`: (a).** Keep the key, unerased, relabelled **"Military: MQTT event and today's highlight"**.
+- **2.2, `lookup-alert`: erase it,** as recommended. The overhead tone and the Stats pick follow "Look up!" alone.
+- **2.3, the three ntfy-only thresholds (`cl-session-pct`, `cl-week-pct`, `sc-alert-speed`): erase them too.**
+  "Completely gone" covers every ntfy-only setting, toggle or not, so **the list is 29 keys**. In N4,
+  `cl-session-pct` moves from the neighbours to the erase list, and `sc-limit` stays a neighbour.
+- **2.4, the erase ships in the image that stops reading the keys:** accepted.
+
+**The predictions:**
+- **N1-N6 as planned,** frozen and pushed before the first code commit.
+- The weaker N2/N3 form for the six `-s3-146`-only editions is accepted, as named.
+
+**The timing stands:** the code comes after #445 merges and before v19 is cut, and v19 doesn't wait. **In that PR's
+merge report, ask Daniel whether to delete the unused `NTFY_TOPIC` secret.**
+
+The list in section 3 now reads as ruled. Counted: 1 topic, 5 radar, 4 Missileer, 6 Space, 3 Seismic, 2 Birding,
+4 Claudescope, 4 Speed = **29**.
