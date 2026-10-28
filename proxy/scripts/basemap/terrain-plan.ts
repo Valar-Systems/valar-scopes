@@ -5,9 +5,9 @@
 // reachKm is the largest of the request's bounds that reads tiles: a level's radius (at most 250 km, §3) and
 // R for the peaks' elevations (at most 222 km). The tile of a point follows RD21, ruled for both builders.
 
+import { z9X, z9Y } from "../../src/basemap/terrain";
+export { z9X, z9Y }; // RD21, defined once, in the builder's terrain.ts, so the store and the builder pick the same tiles
 const PI = Math.PI;
-export const z9X = (lon: number) => ((lon + 180) / 360) * 2 ** 17;
-export const z9Y = (lat: number) => ((1 - Math.log(Math.tan(PI / 4 + (lat * PI / 180) / 2)) / PI) / 2) * 2 ** 17;
 const MERC_MAX_LAT = 85.0511287798066;
 
 /** The set of tiles, as x * 512 + y, for a coverage lattice (row h -> covered [c0, c1] intervals, hundredths). */

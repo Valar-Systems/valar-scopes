@@ -89,6 +89,9 @@ function body(s: Section): { count: number; bytes: Uint8Array } {
   throw new Error(`no encoder for section type ${(s as { type: number }).type}`);
 }
 
+/** A section's body length, exactly as encode() writes it (budget.ts measures with this, so no second encoder). */
+export const sectionSize = (s: Section) => body(s).bytes.length;
+
 /** The package's bytes, sections in the order given, contiguous, CRC sealed. */
 export function encode(p: Package): Uint8Array {
   const bodies = p.sections.map(body);

@@ -19,6 +19,7 @@ const LIB = "scripts/basemap/ingest-lib.ts";
 const FORMAT = "src/basemap/format.ts";
 const FRAME = "src/basemap/frame.ts";
 const LAYERS = "src/basemap/layers.ts";
+const TERRAIN = "src/basemap/terrain.ts";
 // Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
 // clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
 // "all" is a path filter, not a list, so a basemap test file added later is graded without anyone remembering to.
@@ -160,6 +161,28 @@ const SABOTAGES = {
     file: LAYERS, set: "all",
     edits: [["b[1] - a[1] || byteCmp(a[0], b[0])", "b[1] - a[1] /* SABOTAGE S-RIVERTIE: a stable sort, so source order */"]],
     expect: ["ML4"],
+  },
+  // A1.7's MT sabotages. S-TNOMARGIN waits for MB (A2.17), as S-RZERO waited for MR5.
+  "S-TALIGN": {
+    file: TERRAIN, set: "all",
+    edits: [["      const px = x - 2 + b, py = y - 2 + a;\n", "      const px = x - 1 + b, py = y - 1 + a; // SABOTAGE S-TALIGN\n"]],
+    expect: ["MT-impulse", "MT-corner"],
+  },
+  "S-TPAD": {
+    file: TERRAIN, set: "all",
+    edits: [["      t += s(cx, cy);\n", "      t += cx !== px || cy !== py ? 0 : s(cx, cy); // SABOTAGE S-TPAD: zero padding\n"]],
+    expect: ["MT-corner", "MT2a", "MT2b", "MT2c", "MT2d", "MT2e"],
+  },
+  "S-TROUND": {
+    file: TERRAIN, set: "all",
+    edits: [["[Math.floor(z9X(lon)), Math.floor(z9Y(lat))]", "[Math.round(z9X(lon)), Math.round(z9Y(lat))] /* SABOTAGE S-TROUND */"]],
+    expect: ["MT4"],
+  },
+  "S-TCOS": {
+    file: TERRAIN, set: "all",
+    edits: [["export const mppOf = (lat0: number) => 156543.03 * Math.cos(lat0 * PI / 180) / 2 ** 9;\n",
+             "export const mppOf = (lat0: number) => 156543.03 / 2 ** 9 + 0 * lat0; // SABOTAGE S-TCOS\n"]],
+    expect: ["MT2e"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {

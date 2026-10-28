@@ -1720,7 +1720,7 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 - **So the frozen values stand,** and `build.ts` will write A1.5's layout.
 
 **S-TNOMARGIN's frozen set is {MT3, MB8a, MB8b}. I expect it to fail {MB8a, MB8b}.**
-- **Why MT3 cannot see it at its frozen origin (0, 0):** the level (98,974,656 mm) spans z9 X 65,212.3-65,859.7, in tiles 254-257. Its outermost samples sit **188.3 px** inside the bare square's mosaic on the west and on the east too, and the same in Y at the equator.
+- **Why MT3 cannot see it at its frozen origin (0, 0):** the level (98,974,656 mm) spans z9 X 65,211.4-65,860.6, in tiles 254-257. Its edges sit **187.4 px** inside the bare square's mosaic on both sides, and the same in Y at the equator. (Corrected: first pushed at `05f1259` as 65,212.3-65,859.7 and 188.3 px, which were estimates. These are measured.)
 - The hillshade's gradient and the 4 × 4 mean reach at most 3 px. So the mosaic with no margin and the mosaic with one give the same 60,516 values. MT3 passes under the plant.
 - **MB8a and MB8b still fail,** through `files.terrain` (16 → 4, PROVENANCE 1 B shorter), as A1.7 says.
 - **A weakness of MT3 itself, beyond the set:** the row is named for the margin rule but cannot fail for it at this origin. A margin matters only where the level's square edge lies within about 3 px of a tile boundary.
@@ -1733,3 +1733,53 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
   - MT3's two mosaics share any plant, so MT3 stays equal under every plant;
   - S-TCOS moves only lat0 60 (MT2e);
   - S-TROUND moves only MT4.
+
+### A2.18 `budget.ts` written; `terrain.ts`: MT run (2026-10-28)
+
+**`budget.ts`** implements §6 in order:
+- ε doubled once (RD13: the header holds the ε used);
+- then water rings, smallest |shoelace| of the quantised ring first (RD18);
+- then secondary roads, shortest quantised length first (RD19). Ties go to the later item. Primaries are never dropped.
+- **The cap measures** `totalBytes` minus the TERRAIN bodies (RD20).
+- **Every step re-assembles and re-measures the package,** PROVENANCE's `dropped.*` lines included, with `format.ts`'s own `sectionSize`. So there is no second size model.
+- **Still over the cap:** `null`, the route's 422.
+- **Not yet graded:** MB runs through `build()` (A2.17).
+
+**`terrain.ts`** holds §5.6's terrain:
+- `decodeTerrarium`, `elevationM`, RD21's `z9Pixel`, `mppOf`;
+- per-pixel `shadeAt` and `meanAt`, and their full-grid forms `hillshade` and `boxMean4`;
+- `shadeByte`, `levelPixelToZ9` (in the reference builder's order of operations), `levelTiles` (the square plus one tile), `mosaicOf`, `summitElevation`;
+- `terrainLevel`, which shades only the region a level samples, plus the mean's reach, with the mosaic's own edges.
+- **`z9X`/`z9Y` now live here only.** The ingest's `terrain-plan.ts` imports them, so the store and the builder pick tiles with one formula.
+
+| row | result |
+|---|---|
+| MT1, MT2a-e, MT-impulse, MT-corner, MT4, MT5 | **as frozen** |
+| MT3 | **as frozen:** 0 of 60,516 values differ between the rule's mosaic and one a tile larger |
+
+- **MT3's control was off by my own hand.** I added a control so that "identical" could not pass on a uniform field. As first written, it asked for more than 50 distinct bytes, a number I guessed, and it read **45**.
+- "Not uniform" means more than 1. That is what it asserts now.
+- The frozen assertion (0 differences) was never in question. The guessed threshold and its 45 stay here.
+
+**The re-check the standing rule asks for** (A2.16), before this pass, of every frozen set against the MT rows:
+- S-RHYPOT plants `planarDist`, and the hillshade calls `Math.hypot` directly (RD28).
+- S-ECLAMP plants `quantise`, which terrain never calls.
+- No other plant touches what terrain imports. MT3 uses only `makeFrame`.
+- **So no set moves.**
+
+**The gated pass, 23:04-23:11Z:** 30 runs, **0 runtime failures**, the highest TIME_WAIT at a start 7,917, held 323 s. **Exit 0.**
+
+| sabotage | result |
+|---|---|
+| S-TALIGN | **{MT-impulse, MT-corner}**, as frozen |
+| S-TPAD | **{MT-corner, MT2a, MT2b, MT2c, MT2d, MT2e}**, as frozen |
+| S-TROUND | **{MT4}**, as frozen |
+| S-TCOS | **{MT2e}**, as frozen |
+| S-TNOMARGIN | not run: it waits for MB, with A2.17's predicted {MB8a, MB8b} against the frozen {MT3, MB8a, MB8b} |
+| the other 23, C-LOADFAIL included | as frozen, unchanged |
+
+**Open for a ruling (A2.17):**
+- S-TNOMARGIN's set: re-register it as **{MB8a, MB8b}**;
+- **MT3b:** add a row at an origin whose level edge falls 1 px from a tile boundary, so the margin rule has a row that can fail.
+
+**Next:** `provenance.ts`, then `build.ts`. Then MB, ME2, ME3, ME7, MD1 and MD2 are graded, with S-TNOMARGIN.
