@@ -6187,3 +6187,40 @@ The scenario clock is Pacific time on 2024-06-02, the frames' own day.
 Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 
 **Next:** the radar (option (b)) carries on. The window is A12.10's; next come the crops, then the radar PR.
+
+### A12.12 The Bend crops, frozen before their code
+
+**The tool:** `tools/weatherscope/loop/make_bend_loop.mts`.
+- **Why a second path, not a change to Dallas's `make_loop.mts`:** that tool takes KDFW's centre from a crop header and its frames from `fetch_loop.py`. Re-proving Dallas's D1 after editing it needs Dallas's GRIB files, which are not guaranteed to still exist.
+
+**What the first path establishes** (CLAUDE.md, *when you add a second path*). The new tool does each of these, or the crops are not equivalent:
+
+| `make_loop.mts` establishes | `make_bend_loop.mts` |
+|---|---|
+| each GRIB file's sha256 is checked against its record before use | against **A12.10's record** (`selection.json`); any mismatch refuses |
+| the grid is north→south, west→east | the same refusal |
+| a file's own valid time equals its name's | the same refusal |
+| main's `decodeMrms`/`codeOf`, then `cropCellBox` and `encodeBox` with `quantise(centre, 60 × 1.609344)` | the same calls, loaded from a main checkout; **the centre is `bend.bmpk`'s header origin**, printed nowhere |
+| `codeOf` with no missing value (SeamlessHSR has none) | the same |
+| the manifest entry per frame: name, noaaKey, gribSha256, frameEpoch, bytes, sha256, coarsen, flagged, rows, cols, codesSha256 (the encoder's own cells) | the same fields |
+| `--check` regenerates in memory and exits 1 on any byte difference (D1) | the same |
+
+**Where the output goes:**
+- `test/fixtures/wx/bend-loop/`: `shsr-20240602-191000.wxc` … `shsr-20240602-200600.wxc` and `MANIFEST.json`;
+- `synthetic-clear.wxc`, made by `make_clear.py` from the newest frame's header, as Dallas's was. Its paths become arguments, with Dallas's as the defaults.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| BC1 | 15 crops, named for A12.10's 15 objects in time order |
+| BC2 | every GRIB file hashes to A12.10's sha256; otherwise the tool refuses |
+| BC3 | **`frame_stats` on each committed crop prints exactly the values the pick recorded**: nearest echo to 6 decimals, the 36,828 on-disc pixels, and the dry count. The pick measured these same `encodeBox` bytes, so any difference means the crop path or the record moved. Then stop |
+| BC4 | `--check` exits 0. **Its control:** one byte flipped in a copy of a committed crop makes it exit 1 |
+| BC5 | `synthetic-clear.wxc`: `make_clear.py --check` passes SC1 (all cells code 0, by `ring_ref.py`'s decoder) and SC2 (its header equals the newest frame's); `frame_stats` reads no echo, with 36,828 of 36,828 dry |
+| BC6 | **Dallas unchanged:** `make_clear.py --check` with its defaults still passes, and `test_wx_k35` stays 28/0 |
+| — | sizes are reported, not predicted. No tool output and no manifest field holds a coordinate |
+
+**The device decoder's grading of these crops** (`codesSha256` against `WxCrop.h`) comes with 3.5b's loop rows (A10.6), as Dallas's came with test_wx_loop's D2. It is recorded in the manifest now so it can be graded then.
+
+**Outside these: stop and report.**
