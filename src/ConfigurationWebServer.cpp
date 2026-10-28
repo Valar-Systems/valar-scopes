@@ -24,6 +24,7 @@
 #endif
 #ifdef FEATURE_WEATHERSCOPE
 #include "FrameBuffer.h"           // the radar's /diag/fb, served by Weatherscope too (A8.7)
+#include "DiagText.h"              // /diag/wx: the bench records over Wi-Fi (A9.42)
 #include <esp_heap_caps.h>
 #include <memory>
 #endif
@@ -4359,6 +4360,52 @@ void ConfigurationWebServer::Initialise() {
     // ---- /diag/fb.html : the same thing, for a person --------------------
     server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send_P(200, "text/html", FB_VIEWER_HTML);
+    });
+#endif
+
+#ifdef FEATURE_WEATHERSCOPE
+    // ---- /diag/wx : Weatherscope's bench records, over Wi-Fi (docs/weatherscope-stage3.md A9.42) ----
+    // DIAG ONLY. The same text as the stored-mode 'R', for the conditions serial cannot carry: a port nothing has
+    // opened, and a charger with no host. The loop renders it on its next frame (DiagText.h); this waits at most
+    // 500 ms for it, copies it into its own PSRAM buffer, checks the copy was not superseded, and streams the copy.
+    // Read-only: unlike 'R', it clears nothing.
+    server.on("/diag/wx", HTTP_GET, [](AsyncWebServerRequest* request) {
+        const uint32_t n = diagtext::Request();
+        const uint32_t t0 = millis();
+        size_t len = 0;
+        const char* text = nullptr;
+        while (!(text = diagtext::Answer(n, &len)) && millis() - t0 < 500) vTaskDelay(1);
+        if (!text) {
+            request->send(503, "text/plain", "the loop did not answer within 500 ms\n");
+            return;
+        }
+        char* copy = (char*)heap_caps_malloc(len ? len : 1, MALLOC_CAP_SPIRAM);
+        if (!copy) {
+            request->send(503, "text/plain", "out of PSRAM for the copy\n");
+            return;
+        }
+        memcpy(copy, text, len);
+        size_t len2 = 0;
+        if (diagtext::Answer(n, &len2) != text || len2 != len) {   // a newer request replaced it during the copy
+            heap_caps_free(copy);
+            request->send(503, "text/plain", "superseded by a newer request\n");
+            return;
+        }
+        std::shared_ptr<char> buf(copy, [](char* p) { heap_caps_free(p); });
+        auto sent = std::make_shared<size_t>(0);
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "text/plain", [buf, len, sent](uint8_t* out, size_t maxLen, size_t) -> size_t {
+                const size_t left = len - *sent;
+                const size_t k = left < maxLen ? left : maxLen;
+                if (k > 0) {
+                    memcpy(out, buf.get() + *sent, k);
+                    *sent += k;
+                }
+                return k;
+            });
+        r->addHeader("Cache-Control", "no-store");
+        r->addHeader("X-Weatherscope-Wait-Ms", String(millis() - t0));
+        request->send(r);
     });
 #endif
 

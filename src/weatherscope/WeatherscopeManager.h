@@ -139,6 +139,65 @@ private:
     uint64_t copySum = 0;
     bool ringShown = false;
 
+    // THE FIRE (A9.34): a fired hold stores its target; the zoom's rebuild runs at the start of the NEXT Update, so the
+    // fire's own frame shows the ring complete at the old radius first. -1 = none pending.
+    int pendingZoom = -1;
+
+    // The instrument (A9.34): every BuildScenario timed by phase, its prints through Out(), and the last 160 frames.
+    struct BuildRecord {
+        uint8_t scene = 0;
+        uint16_t fromMi = 0, toMi = 0;
+        char why[8] = "";
+        uint32_t decodeUs = 0, scenUs = 0, fromUs = 0, composeUs = 0, shaUs = 0, printUs = 0, totalUs = 0;
+        uint16_t prints = 0, shortWrites = 0;
+        uint32_t frameUs = 0;         // A9.42: the push-to-push interval of the frame it ran in (0 until pushed)
+    };
+    static constexpr int kBuildRecords = 8;
+    BuildRecord builds[kBuildRecords];
+    int nBuilds = 0;
+    const char* buildWhy = "cycle";   // who asked for the next BuildScenario: the cycle, a zoom's reason
+    int buildFromMi = 0;
+    bool timingOut = false;           // Out() is inside a timed BuildScenario
+    int64_t outUs = 0;
+    uint16_t outN = 0, outShort = 0;
+    struct FrameRecord {
+        uint32_t startUs = 0;        // the push's start, esp_timer's low 32 bits
+        uint16_t permille = 0;       // the ring as drawn, 0 when not drawn
+        uint8_t flags = 0;           // kHeld | kFired | kRebuilt
+        uint8_t scene = 0;
+        uint16_t radiusMi = 0;
+    };
+    static constexpr uint8_t kHeld = 1, kFired = 2, kRebuilt = 4;
+    static constexpr int kFrameLog = 160;   // 5.9 s at ~37 ms: 16 baseline frames + a 1.5 s hold + 2 s to the R
+    FrameRecord frameLog[kFrameLog];
+    uint32_t frameSeq = 0;            // frames logged since the last 'R'
+    FrameRecord curFrame;             // filled while the frame is drawn, logged at its push
+    bool benchPress = false;          // 'P' holds a synthetic touch at the centre until 'L' (stored mode only)
+    size_t Out(const char* fmt, ...);
+    void PrintRecords();
+
+    // A9.42 (item 2, diag only): every Out() write, with the USB path it met, and the frame push it ran before.
+    struct WriteRecord {
+        uint32_t tUs = 0, elapsedUs = 0;
+        uint16_t asked = 0, written = 0, freeBefore = 0;
+        uint8_t plugged = 0, connected = 0;   // 2 = not an HWCDC build
+    };
+    static constexpr int kWriteLog = 64;
+    WriteRecord writeLog[kWriteLog];
+    uint32_t writeSeq = 0;
+    uint32_t lastPushStartUs = 0;
+    char* diagBuf = nullptr;          // /diag/wx's text, rendered on the loop task (DiagText.h)
+public:
+    class RecordSink {   // public so the .cpp's sinks can derive from it
+    public:
+        virtual ~RecordSink() {}
+        virtual void Line(const char* s, size_t n) = 0;
+    };
+
+private:
+    void RenderRecords(RecordSink& out);
+    void ServiceDiagText();
+
     // touch
     bool wasTouched = false;
     int touchStartX = 0, touchStartY = 0, touchLastX = 0, touchLastY = 0;

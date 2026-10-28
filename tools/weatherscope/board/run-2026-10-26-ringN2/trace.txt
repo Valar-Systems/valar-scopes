@@ -1,0 +1,1484 @@
+2026-10-26T20:46:32.488Z #HOST opened COM6; 3 M1 presses, then 3 M3 presses
+2026-10-26T20:46:32.701Z 
+2026-10-26T20:46:32.701Z [build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope
+2026-10-26T20:46:32.701Z [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+2026-10-26T20:46:32.701Z [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+2026-10-26T20:46:32.701Z [boot] reset reason=USB
+2026-10-26T20:46:32.701Z [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+2026-10-26T20:46:32.701Z [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+2026-10-26T20:46:32.701Z [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+2026-10-26T20:46:32.701Z [quiet] armed: reboot at local 03:00, tz-offset=unset (-28800 s) -- local hour now 11
+2026-10-26T20:46:32.701Z [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=245748)
+2026-10-26T20:46:32.701Z [bright] first-light/carry -> 255
+2026-10-26T20:46:32.702Z [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=291352
+2026-10-26T20:46:32.702Z *wm:v2.0.17  D:2
+2026-10-26T20:46:32.702Z [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+2026-10-26T20:46:32.702Z [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+2026-10-26T20:46:32.702Z [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+2026-10-26T20:46:32.702Z [WiFi] fast join: ch=1 bssid=<redacted>
+2026-10-26T20:46:32.702Z [WiFi] Associated with "Tony", waiting for IP...
+2026-10-26T20:46:32.702Z [WiFi] CONNECTED  IP=<board-ip>  RSSI=-30 dBm
+2026-10-26T20:46:32.702Z [WiFi] fast join OK in 3700 ms
+2026-10-26T20:46:32.702Z [WiFi] pinned AP ch=1 RSSI=-30 dBm for the next boot
+2026-10-26T20:46:32.702Z [ota] channel=weatherscope-s3-128 current=18 latest=18
+2026-10-26T20:46:32.702Z [web] config server listening on :80 (http://Weatherscope-326E64.local)
+2026-10-26T20:46:32.702Z [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+2026-10-26T20:46:32.702Z [wx] psram_used=220980 sprite=1 grid=38520 in=432 out=688 layer=59488 history=15 clear=36 ready=1
+2026-10-26T20:46:32.702Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:46:32.702Z [wx] init; location=set autodim=1 brightness=255 stored=1
+2026-10-26T20:46:32.702Z [heap] handshake ballast reserved (16717 B); free8=195320
+2026-10-26T20:46:32.702Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:46:32.702Z [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=38791
+2026-10-26T20:46:32.702Z [wx] prof dry-60 view=3563 map=20128 bands=3224 rings=7618 warning=4 labels=3394 ringlabels=416 home=18 replay=1 strip=104 band=308 sum=38778 compose_us=38791
+2026-10-26T20:46:32.702Z [wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+2026-10-26T20:46:32.702Z [wx] k TIME dry-60 5:00%20PM dim
+2026-10-26T20:46:32.702Z [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Dallas R 150 130 190 138
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Plano R 152 95 186 103
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Garland R 166 114 212 122
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Frisco R 144 80 184 88
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Denton L 68 72 110 80
+2026-10-26T20:46:32.702Z [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+2026-10-26T20:46:32.702Z [wx] screen=scenario dry R=60
+2026-10-26T20:46:32.702Z [fb] push 5000 draws 1-117 n=117 phases=2 push_us=25783-25857
+2026-10-26T20:46:32.702Z [wx] fbcopy n=803 min=5356 max=6453 mean=5380
+2026-10-26T20:46:32.702Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:46:32.702Z [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=39025
+2026-10-26T20:46:32.702Z [wx] prof approaching-60 view=3564 map=20379 bands=3225 rings=7628 warning=4 labels=3399 ringlabels=461 home=19 replay=2 strip=95 band=238 sum=39014 compose_us=39025
+2026-10-26T20:46:32.702Z [wx] k ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+2026-10-26T20:46:32.702Z [wx] k TIME approaching-60 4:24%20PM dim
+2026-10-26T20:46:32.702Z [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Plano R 152 95 186 103
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Garland R 166 114 212 122
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Denton L 68 72 110 80
+2026-10-26T20:46:32.702Z [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+2026-10-26T20:46:32.702Z [wx] screen=scenario approaching R=60
+2026-10-26T20:46:32.702Z [fb] push 103c draws 118-920 n=803 phases=2 push_us=25811-25950
+2026-10-26T20:46:32.702Z [wx] fbcopy n=803 min=5357 max=6245 mean=5385
+2026-10-26T20:46:32.702Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:46:32.702Z [wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=38940
+2026-10-26T20:46:32.702Z [wx] k TIME herenow-60 4:24%20PM dim
+2026-10-26T20:46:32.702Z [wx] k BAND herenow-60 S RAIN%20NOW white
+2026-10-26T20:46:33.488Z #HOST send b'R'
+2026-10-26T20:46:33.512Z [wx] gesture R
+2026-10-26T20:46:33.512Z [wx] builds n=8 of 102
+2026-10-26T20:46:33.512Z [wx] build 0 why=cycle scene=herenow mi=60->60 decode=2177 scen=15630 from=44581 compose=38905 sha=4451 print=639242 total=745501 prints=16 short=16
+2026-10-26T20:46:33.512Z [wx] build 1 why=cycle scene=warning mi=60->60 decode=2182 scen=32880 from=676 compose=45985 sha=4390 print=679997 total=766642 prints=17 short=17
+2026-10-26T20:46:33.512Z [wx] build 2 why=cycle scene=stale mi=60->60 decode=2177 scen=15622 from=44551 compose=39060 sha=5037 print=640272 total=747228 prints=16 short=16
+2026-10-26T20:46:33.512Z [wx] build 3 why=cycle scene=clear mi=60->60 decode=745 scen=4082 from=6660 compose=37900 sha=4451 print=639629 total=693938 prints=16 short=16
+2026-10-26T20:46:33.512Z [wx] build 4 why=cycle scene=dry mi=60->60 decode=2162 scen=16016 from=45561 compose=38742 sha=4447 print=640109 total=747598 prints=16 short=16
+2026-10-26T20:46:33.512Z [wx] build 5 why=cycle scene=approaching mi=60->60 decode=2178 scen=15620 from=44637 compose=38935 sha=4450 print=639969 total=746315 prints=16 short=16
+2026-10-26T20:46:33.512Z [wx] build 6 why=hold scene=approaching mi=60->15 decode=2174 scen=15625 from=44654 compose=32248 sha=4431 print=520330 total=620009 prints=13 short=13
+2026-10-26T20:46:33.512Z [wx] build 7 why=cycle scene=herenow mi=15->15 decode=2176 scen=15619 from=44865 compose=32269 sha=4422 print=520227 total=620026 prints=13 short=13
+2026-10-26T20:46:33.512Z [wx] frames n=160 of 72924
+2026-10-26T20:46:33.512Z [wx] frame 72764 start=2802467315 dt=0 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72765 start=2802504545 dt=37230 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72766 start=2802541742 dt=37197 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72767 start=2802579190 dt=37448 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72768 start=2802616400 dt=37210 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72769 start=2802653616 dt=37216 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72770 start=2802690860 dt=37244 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72771 start=2802728055 dt=37195 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72772 start=2802765362 dt=37307 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72773 start=2802802625 dt=37263 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72774 start=2802839825 dt=37200 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72775 start=2802877130 dt=37305 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72776 start=2802914349 dt=37219 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72777 start=2802951516 dt=37167 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72778 start=2802988797 dt=37281 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72779 start=2803025989 dt=37192 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72780 start=2803063145 dt=37156 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72781 start=2803100428 dt=37283 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72782 start=2803137605 dt=37177 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72783 start=2803174962 dt=37357 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72784 start=2803212270 dt=37308 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72785 start=2803249434 dt=37164 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72786 start=2803286753 dt=37319 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72787 start=2803323955 dt=37202 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72788 start=2803361212 dt=37257 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72789 start=2803398501 dt=37289 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72790 start=2803435695 dt=37194 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72791 start=2803472865 dt=37170 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72792 start=2803510130 dt=37265 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72793 start=2803547296 dt=37166 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72794 start=2803584601 dt=37305 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72795 start=2803621895 dt=37294 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72796 start=2803659060 dt=37165 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72797 start=2803696388 dt=37328 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.512Z [wx] frame 72798 start=2803733575 dt=37187 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72799 start=2803770759 dt=37184 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72800 start=2803808041 dt=37282 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72801 start=2803845217 dt=37176 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72802 start=2803882395 dt=37178 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72803 start=2803919638 dt=37243 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72804 start=2803956810 dt=37172 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72805 start=2803994115 dt=37305 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72806 start=2804031380 dt=37265 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72807 start=2804068549 dt=37169 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72808 start=2804105900 dt=37351 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72809 start=2804143085 dt=37185 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72810 start=2804180299 dt=37214 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72811 start=2804217543 dt=37244 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72812 start=2804254701 dt=37158 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72813 start=2804291862 dt=37161 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72814 start=2804329120 dt=37258 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72815 start=2804366341 dt=37221 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72816 start=2804403707 dt=37366 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72817 start=2804440959 dt=37252 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72818 start=2804478122 dt=37163 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72819 start=2804515458 dt=37336 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72820 start=2804552628 dt=37170 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72821 start=2804589781 dt=37153 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72822 start=2804627043 dt=37262 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72823 start=2804664219 dt=37176 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72824 start=2804701416 dt=37197 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72825 start=2804738708 dt=37292 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72826 start=2804775884 dt=37176 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72827 start=2804813199 dt=37315 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72828 start=2804850489 dt=37290 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72829 start=2804887676 dt=37187 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72830 start=2804924998 dt=37322 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72831 start=2804962186 dt=37188 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72832 start=2804999389 dt=37203 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72833 start=2805036679 dt=37290 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72834 start=2805073852 dt=37173 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72835 start=2805111032 dt=37180 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72836 start=2805148285 dt=37253 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72837 start=2805185491 dt=37206 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72838 start=2805222814 dt=37323 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72839 start=2805260070 dt=37256 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72840 start=2805297269 dt=37199 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72841 start=2805334592 dt=37323 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72842 start=2805371837 dt=37245 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72843 start=2805409023 dt=37186 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72844 start=2805446271 dt=37248 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72845 start=2805483437 dt=37166 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72846 start=2805520598 dt=37161 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72847 start=2805557863 dt=37265 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72848 start=2805595019 dt=37156 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.519Z [wx] frame 72849 start=2805632340 dt=37321 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72850 start=2805669627 dt=37287 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72851 start=2805706805 dt=37178 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72852 start=2805744138 dt=37333 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72853 start=2805781332 dt=37194 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72854 start=2805818513 dt=37181 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72855 start=2805855772 dt=37259 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72856 start=2805892955 dt=37183 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72857 start=2805930122 dt=37167 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72858 start=2805967391 dt=37269 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72859 start=2806004578 dt=37187 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72860 start=2806041901 dt=37323 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72861 start=2806079159 dt=37258 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72862 start=2806116346 dt=37187 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72863 start=2806153665 dt=37319 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72864 start=2806190897 dt=37232 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72865 start=2806228071 dt=37174 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72866 start=2806265828 dt=37757 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72867 start=2806303123 dt=37295 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72868 start=2806340305 dt=37182 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72869 start=2806377564 dt=37259 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72870 start=2806414757 dt=37193 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72871 start=2806452054 dt=37297 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72872 start=2806489319 dt=37265 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72873 start=2806526498 dt=37179 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72874 start=2806563821 dt=37323 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72875 start=2806601039 dt=37218 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72876 start=2806638299 dt=37260 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72877 start=2806675565 dt=37266 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72878 start=2806712753 dt=37188 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72879 start=2806749905 dt=37152 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72880 start=2806787162 dt=37257 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72881 start=2806824355 dt=37193 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72882 start=2806861735 dt=37380 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72883 start=2806899056 dt=37321 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72884 start=2806936239 dt=37183 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72885 start=2806973556 dt=37317 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72886 start=2807010763 dt=37207 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72887 start=2807047927 dt=37164 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72888 start=2807085177 dt=37250 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72889 start=2807122358 dt=37181 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72890 start=2807159514 dt=37156 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72891 start=2807196821 dt=37307 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72892 start=2807234003 dt=37182 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72893 start=2807271310 dt=37307 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72894 start=2807308591 dt=37281 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72895 start=2807345768 dt=37177 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72896 start=2807383081 dt=37313 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72897 start=2807420942 dt=37861 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72898 start=2807458104 dt=37162 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72899 start=2807495808 dt=37704 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72900 start=2807533072 dt=37264 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.525Z [wx] frame 72901 start=2807570236 dt=37164 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72902 start=2807607494 dt=37258 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72903 start=2807644671 dt=37177 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72904 start=2807681972 dt=37301 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72905 start=2807719276 dt=37304 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72906 start=2807756452 dt=37176 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72907 start=2807793774 dt=37322 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72908 start=2807830969 dt=37195 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72909 start=2807868166 dt=37197 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72910 start=2807905479 dt=37313 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72911 start=2807942663 dt=37184 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72912 start=2807979824 dt=37161 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72913 start=2808017068 dt=37244 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72914 start=2808054244 dt=37176 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72915 start=2808091562 dt=37318 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72916 start=2808128814 dt=37252 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72917 start=2808166059 dt=37245 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72918 start=2808203417 dt=37358 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72919 start=2808240600 dt=37183 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72920 start=2808277759 dt=37159 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72921 start=2808315046 dt=37287 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72922 start=2808352224 dt=37178 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:33.735Z [wx] frame 72923 start=2808389428 dt=37204 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:36.242Z [wx] fbcopy n=788 min=5356 max=6337 mean=5376
+2026-10-26T20:46:36.242Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:46:36.242Z [wx] scn=warning R=15 frame=212400 screen=Warning synthetic=1 compose_us=43390
+2026-10-26T20:46:36.242Z [wx] prof warning-15 view=3557 map=19012 bands=3228 rings=3476 warning=11095 labels=2209 ringlabels=257 home=20 replay=1 strip=200 band=317 sum=43372 compose_us=43390
+2026-10-26T20:46:36.243Z [wx] k ROW warning-15 a547c8a0664761c55307be9aae9670c9440ea53758455037483097e7b2e738da
+2026-10-26T20:46:36.243Z [wx] k TIME warning-15 4:24%20PM dim
+2026-10-26T20:46:36.243Z [wx] k BAND warning-15 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+2026-10-26T20:46:36.243Z [wx] k BAND warning-15 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+2026-10-26T20:46:36.243Z [wx] k LABEL warning-15 Irving R 151 139 191 147
+2026-10-26T20:46:36.243Z [wx] k LABEL warning-15 Euless L 62 143 104 151
+2026-10-26T20:46:36.243Z [wx] k LABEL warning-15 Keller R 33 97 73 105
+2026-10-26T20:46:36.243Z [wx] k LABEL warning-15 Coppell R 141 81 187 89
+2026-10-26T20:46:36.243Z [wx] k LABEL warning-15 Hurst L 20 150 56 158
+2026-10-26T20:46:36.243Z [wx] screen=scenario warning R=15
+2026-10-26T20:46:36.243Z [fb] push 120f draws 6670-7457 n=788 phases=2 push_us=25812-26477
+2026-10-26T20:46:38.297Z #HOST M1 press 0: begin
+2026-10-26T20:46:38.297Z #HOST send b'P'
+2026-10-26T20:46:38.334Z [wx] gesture P
+2026-10-26T20:46:38.736Z [wx] hold ring on
+2026-10-26T20:46:39.150Z [wx] zoom hold 15 -> 60 mi
+2026-10-26T20:46:39.150Z [wx] fbcopy n=77 min=5357 max=5515 mean=5379
+2026-10-26T20:46:39.365Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:46:39.365Z [wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=45954
+2026-10-26T20:46:39.365Z [wx] prof warning-60 view=3559 map=20314 bands=3224 rings=7627 warning=6351 labels=3823 ringlabels=596 home=17 replay=1 strip=98 band=332 sum=45942 compose_us=45954
+2026-10-26T20:46:39.365Z [wx] k ROW warning-60 76323c3acd741a314f2da77b7ac8ac3f4cdc8d20966b4f7b61b7c6e49ef14939
+2026-10-26T20:46:39.365Z [wx] k TIME warning-60 4:24%20PM dim
+2026-10-26T20:46:39.365Z [wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+2026-10-26T20:46:39.365Z [wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Garland R 166 114 212 122
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 McKinney R 162 74 214 82
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Denton L 68 72 110 80
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Mesquite R 171 135 223 143
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Allen R 161 87 195 95
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Mansfield L 52 161 112 169
+2026-10-26T20:46:39.365Z [wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+2026-10-26T20:46:39.365Z [wx] screen=scenario warning R=60
+2026-10-26T20:46:39.365Z [fb] push 130f draws 7458-7534 n=77 phases=2 push_us=25811-25866
+2026-10-26T20:46:39.798Z #HOST send b'L'
+2026-10-26T20:46:39.984Z [wx] gesture L
+2026-10-26T20:46:39.984Z [wx] hold ring off
+2026-10-26T20:46:41.799Z #HOST send b'R'
+2026-10-26T20:46:41.840Z [wx] gesture R
+2026-10-26T20:46:41.840Z [wx] builds n=2 of 2
+2026-10-26T20:46:41.840Z [wx] build 0 why=cycle scene=warning mi=15->15 decode=2180 scen=32874 from=662 compose=43390 sha=4385 print=667 total=84636 prints=14 short=0
+2026-10-26T20:46:41.840Z [wx] build 1 why=hold scene=warning mi=15->60 decode=2182 scen=33135 from=647 compose=45954 sha=4389 print=783 total=87636 prints=17 short=0
+2026-10-26T20:46:41.840Z [wx] frames n=160 of 215
+2026-10-26T20:46:41.840Z [wx] frame 55 start=2810498122 dt=0 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 56 start=2810535300 dt=37178 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 57 start=2810572542 dt=37242 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 58 start=2810609730 dt=37188 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 59 start=2810646892 dt=37162 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 60 start=2810684144 dt=37252 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 61 start=2810721332 dt=37188 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 62 start=2810758617 dt=37285 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.840Z [wx] frame 63 start=2810795864 dt=37247 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.841Z [wx] frame 64 start=2810833050 dt=37186 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.841Z [wx] frame 65 start=2810870289 dt=37239 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.841Z [wx] frame 66 start=2810907485 dt=37196 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.841Z [wx] frame 67 start=2810944644 dt=37159 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.841Z [wx] frame 68 start=2810981932 dt=37288 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:46:41.841Z [wx] frame 69 start=2811103885 dt=121953 ring=0 flags=--R scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 70 start=2811141407 dt=37522 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 71 start=2811178663 dt=37256 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 72 start=2811215863 dt=37200 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 73 start=2811253041 dt=37178 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 74 start=2811290284 dt=37243 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 75 start=2811327476 dt=37192 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 76 start=2811364889 dt=37413 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 77 start=2811402175 dt=37286 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 78 start=2811439382 dt=37207 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 79 start=2811476674 dt=37292 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 80 start=2811513910 dt=37236 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 81 start=2811551072 dt=37162 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 82 start=2811588651 dt=37579 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 83 start=2811625854 dt=37203 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 84 start=2811663011 dt=37157 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 85 start=2811700283 dt=37272 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 86 start=2811737477 dt=37194 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 87 start=2811774794 dt=37317 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 88 start=2811812032 dt=37238 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 89 start=2811849222 dt=37190 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 90 start=2811886573 dt=37351 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 91 start=2811923791 dt=37218 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 92 start=2811960952 dt=37161 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 93 start=2811998228 dt=37276 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 94 start=2812035429 dt=37201 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 95 start=2812072575 dt=37146 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 96 start=2812109818 dt=37243 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 97 start=2812147003 dt=37185 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 98 start=2812184342 dt=37339 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 99 start=2812221640 dt=37298 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 100 start=2812258804 dt=37164 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 101 start=2812296127 dt=37323 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.841Z [wx] frame 102 start=2812333369 dt=37242 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 103 start=2812370558 dt=37189 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 104 start=2812407873 dt=37315 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 105 start=2812445048 dt=37175 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 106 start=2812482216 dt=37168 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 107 start=2812519469 dt=37253 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 108 start=2812556637 dt=37168 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 109 start=2812593943 dt=37306 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 110 start=2812631240 dt=37297 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 111 start=2812668411 dt=37171 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 112 start=2812705745 dt=37334 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 113 start=2812742965 dt=37220 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 114 start=2812780109 dt=37144 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 115 start=2812817603 dt=37494 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 116 start=2812854801 dt=37198 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 117 start=2812891966 dt=37165 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 118 start=2812929202 dt=37236 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 119 start=2812966387 dt=37185 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 120 start=2813003737 dt=37350 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 121 start=2813040969 dt=37232 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 122 start=2813078147 dt=37178 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 123 start=2813115534 dt=37387 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 124 start=2813152761 dt=37227 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 125 start=2813189958 dt=37197 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 126 start=2813227352 dt=37394 ring=0 flags=--- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 127 start=2813264596 dt=37244 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 128 start=2813301798 dt=37202 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 129 start=2813339044 dt=37246 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 130 start=2813376268 dt=37224 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 131 start=2813413591 dt=37323 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 132 start=2813450843 dt=37252 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 133 start=2813488029 dt=37186 ring=0 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 134 start=2813527357 dt=39328 ring=42 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 135 start=2813566449 dt=39092 ring=131 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 136 start=2813605583 dt=39134 ring=217 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 137 start=2813647385 dt=41802 ring=304 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 138 start=2813689138 dt=41753 ring=395 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 139 start=2813731134 dt=41996 ring=488 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 140 start=2813772290 dt=41156 ring=582 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 141 start=2813813438 dt=41148 ring=673 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 142 start=2813855306 dt=41868 ring=766 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 143 start=2813897228 dt=41922 ring=857 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 144 start=2813939269 dt=42041 ring=951 flags=H-- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 145 start=2813981213 dt=41944 ring=1000 flags=HF- scene=warning mi=15
+2026-10-26T20:46:41.847Z [wx] frame 146 start=2814111047 dt=129834 ring=1000 flags=HFR scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 147 start=2814153335 dt=42288 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 148 start=2814195287 dt=41952 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 149 start=2814237365 dt=42078 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 150 start=2814279372 dt=42007 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 151 start=2814321285 dt=41913 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 152 start=2814363345 dt=42060 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 153 start=2814405322 dt=41977 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.847Z [wx] frame 154 start=2814447462 dt=42140 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 155 start=2814489402 dt=41940 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 156 start=2814531325 dt=41923 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 157 start=2814573272 dt=41947 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 158 start=2814615196 dt=41924 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 159 start=2814657332 dt=42136 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 160 start=2814699271 dt=41939 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 161 start=2814741358 dt=42087 ring=1000 flags=HF- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 162 start=2814778771 dt=37413 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 163 start=2814816048 dt=37277 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 164 start=2814853413 dt=37365 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 165 start=2814890660 dt=37247 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 166 start=2814927835 dt=37175 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 167 start=2814965124 dt=37289 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 168 start=2815002360 dt=37236 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 169 start=2815039548 dt=37188 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 170 start=2815076837 dt=37289 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 171 start=2815114032 dt=37195 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 172 start=2815151190 dt=37158 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 173 start=2815188442 dt=37252 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 174 start=2815225622 dt=37180 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 175 start=2815263491 dt=37869 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 176 start=2815300821 dt=37330 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 177 start=2815338014 dt=37193 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 178 start=2815375273 dt=37259 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 179 start=2815412444 dt=37171 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 180 start=2815449603 dt=37159 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 181 start=2815487102 dt=37499 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 182 start=2815524377 dt=37275 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 183 start=2815561533 dt=37156 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 184 start=2815598793 dt=37260 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 185 start=2815636000 dt=37207 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 186 start=2815673864 dt=37864 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 187 start=2815711162 dt=37298 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 188 start=2815748337 dt=37175 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 189 start=2815785581 dt=37244 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 190 start=2815822769 dt=37188 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 191 start=2815859999 dt=37230 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 192 start=2815897319 dt=37320 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 193 start=2815934512 dt=37193 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 194 start=2815971659 dt=37147 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 195 start=2816008922 dt=37263 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 196 start=2816046089 dt=37167 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 197 start=2816083859 dt=37770 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 198 start=2816121166 dt=37307 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 199 start=2816158340 dt=37174 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 200 start=2816195589 dt=37249 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 201 start=2816232783 dt=37194 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 202 start=2816269953 dt=37170 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 203 start=2816307266 dt=37313 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 204 start=2816344435 dt=37169 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 205 start=2816381616 dt=37181 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:41.853Z [wx] frame 206 start=2816418880 dt=37264 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 207 start=2816456048 dt=37168 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 208 start=2816494225 dt=38177 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 209 start=2816531505 dt=37280 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 210 start=2816568658 dt=37153 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 211 start=2816605926 dt=37268 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 212 start=2816643111 dt=37185 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 213 start=2816680254 dt=37143 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:42.061Z [wx] frame 214 start=2816717569 dt=37315 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:46:44.799Z #HOST M1 press 0: end
+2026-10-26T20:47:06.284Z [wx] fbcopy n=720 min=5356 max=6678 mean=5393
+2026-10-26T20:47:06.284Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:47:06.284Z [wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=38995
+2026-10-26T20:47:06.284Z [wx] prof stale-60 view=3576 map=20311 bands=3229 rings=7615 warning=4 labels=3404 ringlabels=455 home=20 replay=2 strip=95 band=273 sum=38984 compose_us=38995
+2026-10-26T20:47:06.284Z [wx] k ROW stale-60 00138b71b9d8fea83ef59d65e4d6f1d68e97e51716560137e5224492df9e7d88
+2026-10-26T20:47:06.284Z [wx] k TIME stale-60 4:24%20PM orange
+2026-10-26T20:47:06.284Z [wx] k BAND stale-60 S RADAR%20STALE dim
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Dallas R 150 130 190 138
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Plano R 152 95 186 103
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Garland R 166 114 212 122
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Frisco R 144 80 184 88
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Denton L 68 72 110 80
+2026-10-26T20:47:06.284Z [wx] k LABEL stale-60 Mansfield L 52 161 112 169
+2026-10-26T20:47:06.284Z [wx] screen=scenario stale R=60
+2026-10-26T20:47:06.284Z [fb] push 133c draws 7535-8254 n=720 phases=2 push_us=25812-25942
+2026-10-26T20:47:08.369Z #HOST M1 press 1: begin
+2026-10-26T20:47:08.369Z #HOST send b'P'
+2026-10-26T20:47:08.557Z [wx] gesture P
+2026-10-26T20:47:08.772Z [wx] hold ring on
+2026-10-26T20:47:09.201Z [wx] zoom hold 60 -> 15 mi
+2026-10-26T20:47:09.402Z [wx] fbcopy n=78 min=5357 max=5951 mean=5376
+2026-10-26T20:47:09.402Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:47:09.402Z [wx] scn=stale R=15 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=32351
+2026-10-26T20:47:09.402Z [wx] prof stale-15 view=3594 map=18959 bands=3227 rings=3455 warning=4 labels=2414 ringlabels=206 home=20 replay=1 strip=192 band=268 sum=32340 compose_us=32351
+2026-10-26T20:47:09.402Z [wx] k ROW stale-15 b67aa313e513ebc70ae4edc0ffefc5aa32c377dd2afe0b31d83f970c4e4bd081
+2026-10-26T20:47:09.402Z [wx] k TIME stale-15 4:24%20PM orange
+2026-10-26T20:47:09.402Z [wx] k BAND stale-15 S RADAR%20STALE dim
+2026-10-26T20:47:09.402Z [wx] k LABEL stale-15 Irving R 151 139 191 147
+2026-10-26T20:47:09.402Z [wx] k LABEL stale-15 Lewisville L 86 32 152 40
+2026-10-26T20:47:09.402Z [wx] k LABEL stale-15 Carrollton L 120 66 186 74
+2026-10-26T20:47:09.402Z [wx] k LABEL stale-15 Euless L 62 143 104 151
+2026-10-26T20:47:09.402Z [wx] k LABEL stale-15 Keller R 33 97 73 105
+2026-10-26T20:47:09.402Z [wx] screen=scenario stale R=15
+2026-10-26T20:47:09.402Z [fb] push 143c draws 8255-8332 n=78 phases=2 push_us=25815-25869
+2026-10-26T20:47:09.869Z #HOST send b'L'
+2026-10-26T20:47:10.029Z [wx] gesture L
+2026-10-26T20:47:10.029Z [wx] hold ring off
+2026-10-26T20:47:11.870Z #HOST send b'R'
+2026-10-26T20:47:11.899Z [wx] gesture R
+2026-10-26T20:47:11.899Z [wx] builds n=2 of 2
+2026-10-26T20:47:11.900Z [wx] build 0 why=cycle scene=stale mi=60->60 decode=2180 scen=15623 from=44590 compose=38995 sha=4443 print=826 total=107079 prints=16 short=0
+2026-10-26T20:47:11.900Z [wx] build 1 why=hold scene=stale mi=60->15 decode=2203 scen=15618 from=44869 compose=32351 sha=4419 print=593 total=100447 prints=13 short=0
+2026-10-26T20:47:11.900Z [wx] frames n=160 of 797
+2026-10-26T20:47:11.900Z [wx] frame 637 start=2840522945 dt=0 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 638 start=2840560274 dt=37329 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 639 start=2840597479 dt=37205 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 640 start=2840634650 dt=37171 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 641 start=2840671902 dt=37252 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 642 start=2840709084 dt=37182 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 643 start=2840746309 dt=37225 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 644 start=2840783565 dt=37256 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 645 start=2840820756 dt=37191 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 646 start=2840858217 dt=37461 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 647 start=2840895511 dt=37294 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 648 start=2840932694 dt=37183 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 649 start=2840970019 dt=37325 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 650 start=2841007231 dt=37212 ring=0 flags=--- scene=warning mi=60
+2026-10-26T20:47:11.900Z [wx] frame 651 start=2841151598 dt=144367 ring=0 flags=--R scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 652 start=2841189159 dt=37561 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 653 start=2841226345 dt=37186 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 654 start=2841263525 dt=37180 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 655 start=2841300851 dt=37326 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 656 start=2841338052 dt=37201 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 657 start=2841375448 dt=37396 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 658 start=2841412702 dt=37254 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 659 start=2841449865 dt=37163 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 660 start=2841487110 dt=37245 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 661 start=2841524303 dt=37193 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 662 start=2841561468 dt=37165 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 663 start=2841598742 dt=37274 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 664 start=2841635927 dt=37185 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 665 start=2841673075 dt=37148 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 666 start=2841710381 dt=37306 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 667 start=2841747550 dt=37169 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 668 start=2841784891 dt=37341 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 669 start=2841822144 dt=37253 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 670 start=2841859394 dt=37250 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 671 start=2841897071 dt=37677 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 672 start=2841934275 dt=37204 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 673 start=2841971438 dt=37163 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 674 start=2842008681 dt=37243 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 675 start=2842045874 dt=37193 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 676 start=2842083042 dt=37168 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 677 start=2842120286 dt=37244 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 678 start=2842157459 dt=37173 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 679 start=2842194847 dt=37388 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 680 start=2842232085 dt=37238 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 681 start=2842269254 dt=37169 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 682 start=2842306740 dt=37486 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 683 start=2842343946 dt=37206 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 684 start=2842381131 dt=37185 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.900Z [wx] frame 685 start=2842418395 dt=37264 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 686 start=2842455559 dt=37164 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 687 start=2842492719 dt=37160 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 688 start=2842530018 dt=37299 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 689 start=2842567209 dt=37191 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 690 start=2842604583 dt=37374 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 691 start=2842641835 dt=37252 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 692 start=2842679000 dt=37165 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 693 start=2842716794 dt=37794 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 694 start=2842754069 dt=37275 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 695 start=2842791223 dt=37154 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 696 start=2842828470 dt=37247 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 697 start=2842865654 dt=37184 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 698 start=2842902844 dt=37190 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 699 start=2842940131 dt=37287 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 700 start=2842977299 dt=37168 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 701 start=2843014643 dt=37344 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 702 start=2843051891 dt=37248 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 703 start=2843089050 dt=37159 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 704 start=2843126296 dt=37246 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 705 start=2843163542 dt=37246 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 706 start=2843200778 dt=37236 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 707 start=2843238039 dt=37261 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 708 start=2843275221 dt=37182 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 709 start=2843312582 dt=37361 ring=0 flags=--- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 710 start=2843349863 dt=37281 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 711 start=2843387075 dt=37212 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 712 start=2843424438 dt=37363 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 713 start=2843461682 dt=37244 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 714 start=2843498898 dt=37216 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 715 start=2843536300 dt=37402 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 716 start=2843573499 dt=37199 ring=0 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 717 start=2843612640 dt=39141 ring=44 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 718 start=2843651733 dt=39093 ring=131 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 719 start=2843690830 dt=39097 ring=217 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 720 start=2843733388 dt=42558 ring=304 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 721 start=2843775211 dt=41823 ring=400 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 722 start=2843817017 dt=41806 ring=491 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 723 start=2843858197 dt=41180 ring=584 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 724 start=2843899364 dt=41167 ring=675 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 725 start=2843942255 dt=42891 ring=768 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 726 start=2843984183 dt=41928 ring=862 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 727 start=2844026105 dt=41922 ring=955 flags=H-- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 728 start=2844068098 dt=41993 ring=1000 flags=HF- scene=stale mi=60
+2026-10-26T20:47:11.906Z [wx] frame 729 start=2844210772 dt=142674 ring=1000 flags=HFR scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 730 start=2844253154 dt=42382 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 731 start=2844295090 dt=41936 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 732 start=2844337100 dt=42010 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 733 start=2844379068 dt=41968 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 734 start=2844421055 dt=41987 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 735 start=2844463075 dt=42020 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 736 start=2844505037 dt=41962 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 737 start=2844547117 dt=42080 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.907Z [wx] frame 738 start=2844589083 dt=41966 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 739 start=2844631008 dt=41925 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 740 start=2844672967 dt=41959 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 741 start=2844714887 dt=41920 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 742 start=2844758009 dt=43122 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 743 start=2844800159 dt=42150 ring=1000 flags=HF- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 744 start=2844837572 dt=37413 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 745 start=2844874860 dt=37288 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 746 start=2844912048 dt=37188 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 747 start=2844949207 dt=37159 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 748 start=2844986495 dt=37288 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 749 start=2845023691 dt=37196 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 750 start=2845061058 dt=37367 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 751 start=2845098335 dt=37277 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 752 start=2845135513 dt=37178 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 753 start=2845173416 dt=37903 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 754 start=2845210695 dt=37279 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 755 start=2845247865 dt=37170 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 756 start=2845285117 dt=37252 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 757 start=2845322305 dt=37188 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 758 start=2845359567 dt=37262 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 759 start=2845396891 dt=37324 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 760 start=2845434085 dt=37194 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 761 start=2845471437 dt=37352 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 762 start=2845508699 dt=37262 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 763 start=2845545869 dt=37170 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 764 start=2845583300 dt=37431 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 765 start=2845620584 dt=37284 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 766 start=2845657753 dt=37169 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 767 start=2845694995 dt=37242 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 768 start=2845732186 dt=37191 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 769 start=2845769342 dt=37156 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 770 start=2845806631 dt=37289 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 771 start=2845843804 dt=37173 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 772 start=2845881178 dt=37374 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 773 start=2845918424 dt=37246 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 774 start=2845955579 dt=37155 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 775 start=2845993111 dt=37532 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 776 start=2846030332 dt=37221 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 777 start=2846067496 dt=37164 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 778 start=2846104756 dt=37260 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 779 start=2846141952 dt=37196 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 780 start=2846179150 dt=37198 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 781 start=2846216449 dt=37299 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 782 start=2846253638 dt=37189 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 783 start=2846290994 dt=37356 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 784 start=2846328261 dt=37267 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 785 start=2846365528 dt=37267 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.912Z [wx] frame 786 start=2846403720 dt=38192 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.913Z [wx] frame 787 start=2846440978 dt=37258 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.913Z [wx] frame 788 start=2846478129 dt=37151 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.913Z [wx] frame 789 start=2846515380 dt=37251 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.913Z [wx] frame 790 start=2846552565 dt=37185 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:11.913Z [wx] frame 791 start=2846589785 dt=37220 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:12.122Z [wx] frame 792 start=2846627100 dt=37315 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:12.122Z [wx] frame 793 start=2846664274 dt=37174 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:12.122Z [wx] frame 794 start=2846701617 dt=37343 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:12.122Z [wx] frame 795 start=2846738836 dt=37219 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:12.122Z [wx] frame 796 start=2846775995 dt=37159 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:14.871Z #HOST M1 press 1: end
+2026-10-26T20:47:36.232Z [wx] fbcopy n=719 min=5357 max=5724 mean=5378
+2026-10-26T20:47:36.232Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:47:36.232Z [wx] scn=clear R=15 frame=220000 screen=Dry synthetic=1 compose_us=32250
+2026-10-26T20:47:36.232Z [wx] prof clear-15 view=3563 map=18957 bands=3228 rings=3458 warning=4 labels=2418 ringlabels=157 home=18 replay=1 strip=186 band=250 sum=32240 compose_us=32250
+2026-10-26T20:47:36.232Z [wx] k ROW clear-15 6a01e16ee11de5f29d2975c18828d01a71b4cbfc2b9f3292073ace90285bc144
+2026-10-26T20:47:36.232Z [wx] k TIME clear-15 5:00%20PM dim
+2026-10-26T20:47:36.232Z [wx] k BAND clear-15 S 54%F8%20%FA%20NO%20RAIN dim
+2026-10-26T20:47:36.232Z [wx] k LABEL clear-15 Irving R 151 139 191 147
+2026-10-26T20:47:36.232Z [wx] k LABEL clear-15 Lewisville L 86 32 152 40
+2026-10-26T20:47:36.232Z [wx] k LABEL clear-15 Carrollton L 120 66 186 74
+2026-10-26T20:47:36.232Z [wx] k LABEL clear-15 Euless L 62 143 104 151
+2026-10-26T20:47:36.232Z [wx] k LABEL clear-15 Keller R 33 97 73 105
+2026-10-26T20:47:36.232Z [wx] screen=scenario clear R=15
+2026-10-26T20:47:36.446Z [fb] push 140f draws 8333-9051 n=719 phases=2 push_us=25811-25924
+2026-10-26T20:47:38.240Z #HOST M1 press 2: begin
+2026-10-26T20:47:38.240Z #HOST send b'P'
+2026-10-26T20:47:38.349Z [wx] gesture P
+2026-10-26T20:47:38.752Z [wx] hold ring on
+2026-10-26T20:47:39.165Z [wx] zoom hold 15 -> 60 mi
+2026-10-26T20:47:39.165Z [wx] fbcopy n=75 min=5357 max=6364 mean=5388
+2026-10-26T20:47:39.165Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:47:39.165Z [wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=37920
+2026-10-26T20:47:39.165Z [wx] prof clear-60 view=3555 map=19273 bands=3241 rings=7619 warning=4 labels=3404 ringlabels=442 home=18 replay=1 strip=101 band=251 sum=37909 compose_us=37920
+2026-10-26T20:47:39.165Z [wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+2026-10-26T20:47:39.165Z [wx] k TIME clear-60 5:00%20PM dim
+2026-10-26T20:47:39.165Z [wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Dallas R 150 130 190 138
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Plano R 152 95 186 103
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Garland R 166 114 212 122
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Frisco R 144 80 184 88
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Denton L 68 72 110 80
+2026-10-26T20:47:39.165Z [wx] k LABEL clear-60 Mansfield L 52 161 112 169
+2026-10-26T20:47:39.165Z [wx] screen=scenario clear R=60
+2026-10-26T20:47:39.165Z [fb] push 150f draws 9052-9126 n=75 phases=2 push_us=25813-25851
+2026-10-26T20:47:39.740Z #HOST send b'L'
+2026-10-26T20:47:39.795Z [wx] gesture L
+2026-10-26T20:47:40.008Z [wx] hold ring off
+2026-10-26T20:47:41.741Z #HOST send b'R'
+2026-10-26T20:47:41.761Z [wx] gesture R
+2026-10-26T20:47:41.761Z [wx] builds n=2 of 2
+2026-10-26T20:47:41.761Z [wx] build 0 why=cycle scene=clear mi=15->15 decode=749 scen=4083 from=6637 compose=32250 sha=4422 print=671 total=49270 prints=13 short=0
+2026-10-26T20:47:41.761Z [wx] build 1 why=hold scene=clear mi=15->60 decode=746 scen=4081 from=6622 compose=37920 sha=4452 print=734 total=54981 prints=16 short=0
+2026-10-26T20:47:41.761Z [wx] frames n=160 of 795
+2026-10-26T20:47:41.761Z [wx] frame 635 start=2870481878 dt=0 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 636 start=2870519062 dt=37184 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 637 start=2870556368 dt=37306 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 638 start=2870593607 dt=37239 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 639 start=2870630796 dt=37189 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 640 start=2870668433 dt=37637 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 641 start=2870705716 dt=37283 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 642 start=2870742959 dt=37243 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 643 start=2870780206 dt=37247 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 644 start=2870817405 dt=37199 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 645 start=2870854555 dt=37150 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 646 start=2870891808 dt=37253 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 647 start=2870929002 dt=37194 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 648 start=2870966304 dt=37302 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 649 start=2871003604 dt=37300 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 650 start=2871040796 dt=37192 ring=0 flags=--- scene=stale mi=15
+2026-10-26T20:47:41.761Z [wx] frame 651 start=2871127427 dt=86631 ring=0 flags=--R scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 652 start=2871165001 dt=37574 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 653 start=2871202290 dt=37289 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 654 start=2871239487 dt=37197 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 655 start=2871276746 dt=37259 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 656 start=2871313993 dt=37247 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 657 start=2871351149 dt=37156 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 658 start=2871388400 dt=37251 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 659 start=2871425573 dt=37173 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 660 start=2871462764 dt=37191 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 661 start=2871500057 dt=37293 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 662 start=2871537239 dt=37182 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 663 start=2871574406 dt=37167 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 664 start=2871611699 dt=37293 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 665 start=2871648871 dt=37172 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 666 start=2871686202 dt=37331 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 667 start=2871723461 dt=37259 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 668 start=2871760609 dt=37148 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 669 start=2871797888 dt=37279 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.761Z [wx] frame 670 start=2871835077 dt=37189 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 671 start=2871872251 dt=37174 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 672 start=2871909512 dt=37261 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 673 start=2871946677 dt=37165 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 674 start=2871983827 dt=37150 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 675 start=2872021075 dt=37248 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 676 start=2872058240 dt=37165 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 677 start=2872095580 dt=37340 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 678 start=2872132830 dt=37250 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 679 start=2872170078 dt=37248 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 680 start=2872207343 dt=37265 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 681 start=2872244513 dt=37170 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 682 start=2872281660 dt=37147 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.762Z [wx] frame 683 start=2872318907 dt=37247 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 684 start=2872356093 dt=37186 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 685 start=2872393289 dt=37196 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 686 start=2872430555 dt=37266 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 687 start=2872467715 dt=37160 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 688 start=2872505106 dt=37391 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 689 start=2872542360 dt=37254 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 690 start=2872579520 dt=37160 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 691 start=2872617478 dt=37958 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 692 start=2872654751 dt=37273 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 693 start=2872691908 dt=37157 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 694 start=2872729152 dt=37244 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 695 start=2872766338 dt=37186 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 696 start=2872803526 dt=37188 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 697 start=2872840823 dt=37297 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 698 start=2872878016 dt=37193 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 699 start=2872915381 dt=37365 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 700 start=2872952620 dt=37239 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 701 start=2872989778 dt=37158 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 702 start=2873027550 dt=37772 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 703 start=2873064825 dt=37275 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 704 start=2873102018 dt=37193 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 705 start=2873139267 dt=37249 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 706 start=2873176660 dt=37393 ring=0 flags=--- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 707 start=2873214084 dt=37424 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 708 start=2873251350 dt=37266 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 709 start=2873288516 dt=37166 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 710 start=2873325829 dt=37313 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 711 start=2873363167 dt=37338 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 712 start=2873400397 dt=37230 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 713 start=2873437633 dt=37236 ring=0 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 714 start=2873476769 dt=39136 ring=44 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 715 start=2873515857 dt=39088 ring=131 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 716 start=2873554996 dt=39139 ring=217 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 717 start=2873596753 dt=41757 ring=304 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 718 start=2873639653 dt=42900 ring=400 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 719 start=2873681457 dt=41804 ring=493 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 720 start=2873722561 dt=41104 ring=586 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 721 start=2873763760 dt=41199 ring=677 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 722 start=2873805624 dt=41864 ring=768 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 723 start=2873847594 dt=41970 ring=862 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 724 start=2873889521 dt=41927 ring=955 flags=H-- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 725 start=2873931513 dt=41992 ring=1000 flags=HF- scene=clear mi=15
+2026-10-26T20:47:41.768Z [wx] frame 726 start=2874028709 dt=97196 ring=1000 flags=HFR scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 727 start=2874071003 dt=42294 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 728 start=2874112923 dt=41920 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 729 start=2874154928 dt=42005 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 730 start=2874196880 dt=41952 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 731 start=2874238879 dt=41999 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 732 start=2874280871 dt=41992 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 733 start=2874322798 dt=41927 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 734 start=2874364859 dt=42061 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 735 start=2874406833 dt=41974 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.768Z [wx] frame 736 start=2874449225 dt=42392 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 737 start=2874491205 dt=41980 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 738 start=2874533141 dt=41936 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 739 start=2874575102 dt=41961 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 740 start=2874617046 dt=41944 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 741 start=2874659194 dt=42148 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 742 start=2874701340 dt=42146 ring=1000 flags=HF- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 743 start=2874738741 dt=37401 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 744 start=2874776038 dt=37297 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 745 start=2874813223 dt=37185 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 746 start=2874850390 dt=37167 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 747 start=2874887636 dt=37246 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 748 start=2874924824 dt=37188 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 749 start=2874962172 dt=37348 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 750 start=2874999471 dt=37299 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 751 start=2875036657 dt=37186 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 752 start=2875073915 dt=37258 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 753 start=2875111102 dt=37187 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 754 start=2875148263 dt=37161 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 755 start=2875185520 dt=37257 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 756 start=2875222697 dt=37177 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 757 start=2875259851 dt=37154 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 758 start=2875297128 dt=37277 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 759 start=2875334318 dt=37190 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 760 start=2875371715 dt=37397 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 761 start=2875408969 dt=37254 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 762 start=2875446136 dt=37167 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 763 start=2875483890 dt=37754 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 764 start=2875521086 dt=37196 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 765 start=2875558244 dt=37158 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 766 start=2875595484 dt=37240 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 767 start=2875632671 dt=37187 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 768 start=2875669823 dt=37152 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 769 start=2875707122 dt=37299 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 770 start=2875744310 dt=37188 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 771 start=2875781654 dt=37344 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 772 start=2875818900 dt=37246 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 773 start=2875856078 dt=37178 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 774 start=2875893326 dt=37248 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 775 start=2875930513 dt=37187 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 776 start=2875967656 dt=37143 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 777 start=2876004934 dt=37278 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 778 start=2876042114 dt=37180 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 779 start=2876079284 dt=37170 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 780 start=2876116538 dt=37254 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 781 start=2876153700 dt=37162 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 782 start=2876191086 dt=37386 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 783 start=2876228343 dt=37257 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 784 start=2876265522 dt=37179 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 785 start=2876302805 dt=37283 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 786 start=2876339994 dt=37189 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 787 start=2876377194 dt=37200 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 788 start=2876414463 dt=37269 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 789 start=2876451637 dt=37174 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.774Z [wx] frame 790 start=2876488795 dt=37158 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.977Z [wx] frame 791 start=2876526082 dt=37287 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.977Z [wx] frame 792 start=2876563247 dt=37165 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.977Z [wx] frame 793 start=2876600642 dt=37395 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:41.977Z [wx] frame 794 start=2876637892 dt=37250 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:47:44.742Z #HOST M1 press 2: end
+2026-10-26T20:48:06.279Z [wx] fbcopy n=724 min=5357 max=6274 mean=5382
+2026-10-26T20:48:06.479Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:48:06.479Z [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=38878
+2026-10-26T20:48:06.479Z [wx] prof dry-60 view=3561 map=20195 bands=3224 rings=7636 warning=3 labels=3416 ringlabels=463 home=19 replay=2 strip=98 band=250 sum=38867 compose_us=38878
+2026-10-26T20:48:06.479Z [wx] k ROW dry-60 fa21a99898546fd2af7792ecca4abb626cc203a1750286f07c6a355be740b13d
+2026-10-26T20:48:06.479Z [wx] k TIME dry-60 5:00%20PM dim
+2026-10-26T20:48:06.479Z [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Dallas R 150 130 190 138
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Plano R 152 95 186 103
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Garland R 166 114 212 122
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Frisco R 144 80 184 88
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Denton L 68 72 110 80
+2026-10-26T20:48:06.479Z [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+2026-10-26T20:48:06.479Z [wx] screen=scenario dry R=60
+2026-10-26T20:48:06.479Z [fb] push 153c draws 9127-9850 n=724 phases=2 push_us=25811-25900
+2026-10-26T20:48:08.511Z #HOST M3 press 0: begin
+2026-10-26T20:48:08.511Z #HOST M3: reader paused
+2026-10-26T20:48:08.511Z #HOST send b'P'
+2026-10-26T20:48:08.580Z [wx] gesture P
+2026-10-26T20:48:10.012Z #HOST send b'L'
+2026-10-26T20:48:12.013Z #HOST send b'R'
+2026-10-26T20:48:13.013Z #HOST M3: reader resumed
+2026-10-26T20:48:13.058Z [wx] hold ring on
+2026-10-26T20:48:13.058Z [wx] zoom hold 60 -> 15 mi
+2026-10-26T20:48:13.059Z [wx] fbcopy n=80 min=5357 max=6241 mean=5402
+2026-10-26T20:48:13.059Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:48:13.059Z [wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=32239
+2026-10-26T20:48:13.059Z [wx] prof dry-15 view=3568 map=18943 bands=3227 rings=3446 warning=4 labels=2418 ringlabels=177 home=18 replay=1 strip=188 band=238 sum=32228 compose_us=32239
+2026-10-26T20:48:13.059Z [wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+2026-10-26T20:48:13.059Z [wx] k TIME dry-15 5:00%20PM dim
+2026-10-26T20:48:13.059Z [wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+2026-10-26T20:48:13.059Z [wx] k LABEL dry-15 Irving R 151 139 191 147
+2026-10-26T20:48:13.059Z [wx] k LABEL dry-15 Lewisville L 86 32 152 40
+2026-10-26T20:48:13.059Z [wx] k LABEL dry-15 Carrollton L 120 66 186 74
+2026-10-26T20:48:13.059Z [wx] k LABEL dry-15 Euless L 62 143 104 151
+2026-10-26T20:48:13.059Z [wx] k LABEL dry-15 Keller R 33 97 73 105
+2026-10-26T20:48:13.059Z [wx] screen=scenario dry R=15
+2026-10-26T20:48:13.059Z [fb] push 103c draws 9851-9930 n=80 phases=2 push_us=25810-25890
+2026-10-26T20:48:13.059Z [wx] gesture L
+2026-10-26T20:48:13.059Z [wx] hold ring off
+2026-10-26T20:48:13.059Z [wx] gesture R
+2026-10-26T20:48:13.059Z [wx] builds n=2 of 2
+2026-10-26T20:48:13.059Z [wx] build 0 why=cycle scene=dry mi=60->60 decode=2167 scen=16008 from=45507 compose=38878 sha=4448 print=831 total=108290 prints=16 short=0
+2026-10-26T20:48:13.059Z [wx] build 1 why=hold scene=dry mi=60->15 decode=2152 scen=16157 from=45535 compose=32239 sha=4426 print=718 total=101638 prints=13 short=0
+2026-10-26T20:48:13.059Z [wx] frames n=160 of 803
+2026-10-26T20:48:13.059Z [wx] frame 643 start=2900655719 dt=0 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 644 start=2900692970 dt=37251 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 645 start=2900730158 dt=37188 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 646 start=2900768422 dt=38264 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 647 start=2900805748 dt=37326 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 648 start=2900842921 dt=37173 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 649 start=2900880166 dt=37245 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 650 start=2900917363 dt=37197 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 651 start=2900954519 dt=37156 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 652 start=2900991823 dt=37304 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 653 start=2901029019 dt=37196 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 654 start=2901066178 dt=37159 ring=0 flags=--- scene=clear mi=60
+2026-10-26T20:48:13.059Z [wx] frame 655 start=2901211795 dt=145617 ring=0 flags=--R scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 656 start=2901249316 dt=37521 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 657 start=2901286582 dt=37266 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 658 start=2901323778 dt=37196 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 659 start=2901361047 dt=37269 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 660 start=2901398326 dt=37279 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 661 start=2901435518 dt=37192 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 662 start=2901472673 dt=37155 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 663 start=2901509907 dt=37234 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 664 start=2901547095 dt=37188 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 665 start=2901585137 dt=38042 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 666 start=2901622467 dt=37330 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 667 start=2901659607 dt=37140 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 668 start=2901696883 dt=37276 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 669 start=2901734094 dt=37211 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 670 start=2901771241 dt=37147 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 671 start=2901808479 dt=37238 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 672 start=2901845656 dt=37177 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 673 start=2901882822 dt=37166 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 674 start=2901920069 dt=37247 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 675 start=2901957247 dt=37178 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 676 start=2901995136 dt=37889 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 677 start=2902032421 dt=37285 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 678 start=2902069577 dt=37156 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 679 start=2902106851 dt=37274 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 680 start=2902144043 dt=37192 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 681 start=2902181244 dt=37201 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 682 start=2902218556 dt=37312 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 683 start=2902255718 dt=37162 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 684 start=2902292879 dt=37161 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 685 start=2902330139 dt=37260 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 686 start=2902367391 dt=37252 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 687 start=2902404785 dt=37394 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 688 start=2902442039 dt=37254 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 689 start=2902479216 dt=37177 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 690 start=2902516479 dt=37263 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 691 start=2902553655 dt=37176 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 692 start=2902590798 dt=37143 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 693 start=2902628048 dt=37250 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 694 start=2902665228 dt=37180 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 695 start=2902702432 dt=37204 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 696 start=2902739680 dt=37248 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 697 start=2902776861 dt=37181 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 698 start=2902815079 dt=38218 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 699 start=2902852350 dt=37271 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 700 start=2902889518 dt=37168 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 701 start=2902926768 dt=37250 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 702 start=2902963949 dt=37181 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 703 start=2903001124 dt=37175 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 704 start=2903038563 dt=37439 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 705 start=2903075761 dt=37198 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 706 start=2903112935 dt=37174 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 707 start=2903150178 dt=37243 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 708 start=2903187401 dt=37223 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 709 start=2903224769 dt=37368 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 710 start=2903262019 dt=37250 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 711 start=2903299219 dt=37200 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 712 start=2903336462 dt=37243 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 713 start=2903373678 dt=37216 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 714 start=2903410863 dt=37185 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 715 start=2903448265 dt=37402 ring=0 flags=--- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 716 start=2903485521 dt=37256 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 717 start=2903522696 dt=37175 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 718 start=2903559932 dt=37236 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 719 start=2903597144 dt=37212 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 720 start=2903635289 dt=38145 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 721 start=2903672562 dt=37273 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 722 start=2903709743 dt=37181 ring=0 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 723 start=2903748963 dt=39220 ring=44 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 724 start=2903788057 dt=39094 ring=131 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 725 start=2903827142 dt=39085 ring=217 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 726 start=2903868978 dt=41836 ring=304 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 727 start=2903910758 dt=41780 ring=397 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 728 start=2903952608 dt=41850 ring=491 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 729 start=2903993732 dt=41124 ring=584 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 730 start=2904034889 dt=41157 ring=675 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 731 start=2904076752 dt=41863 ring=766 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 732 start=2904118653 dt=41901 ring=860 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 733 start=2904160617 dt=41964 ring=953 flags=H-- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 734 start=2904202592 dt=41975 ring=1000 flags=HF- scene=dry mi=60
+2026-10-26T20:48:13.059Z [wx] frame 735 start=2904346516 dt=143924 ring=1000 flags=HFR scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 736 start=2904388813 dt=42297 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 737 start=2904430746 dt=41933 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 738 start=2904472736 dt=41990 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 739 start=2904514671 dt=41935 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 740 start=2904556779 dt=42108 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 741 start=2904598756 dt=41977 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 742 start=2904640679 dt=41923 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 743 start=2904682635 dt=41956 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 744 start=2904724563 dt=41928 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 745 start=2904766633 dt=42070 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 746 start=2904808619 dt=41986 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 747 start=2904850537 dt=41918 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 748 start=2904892501 dt=41964 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 749 start=2904934426 dt=41925 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 750 start=2904976609 dt=42183 ring=1000 flags=HF- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 751 start=2905014027 dt=37418 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 752 start=2905051292 dt=37265 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 753 start=2905088574 dt=37282 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 754 start=2905125768 dt=37194 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 755 start=2905163152 dt=37384 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 756 start=2905200433 dt=37281 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 757 start=2905237617 dt=37184 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 758 start=2905274931 dt=37314 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 759 start=2905312163 dt=37232 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 760 start=2905349339 dt=37176 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 761 start=2905386582 dt=37243 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 762 start=2905423762 dt=37180 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 763 start=2905460928 dt=37166 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 764 start=2905498220 dt=37292 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 765 start=2905535419 dt=37199 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 766 start=2905572710 dt=37291 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 767 start=2905609953 dt=37243 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 768 start=2905647122 dt=37169 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 769 start=2905685213 dt=38091 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 770 start=2905722492 dt=37279 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 771 start=2905759648 dt=37156 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 772 start=2905796924 dt=37276 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 773 start=2905834121 dt=37197 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 774 start=2905871292 dt=37171 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 775 start=2905908587 dt=37295 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 776 start=2905945751 dt=37164 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 777 start=2905983048 dt=37297 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 778 start=2906020293 dt=37245 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 779 start=2906057461 dt=37168 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 780 start=2906095761 dt=38300 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 781 start=2906133037 dt=37276 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 782 start=2906170286 dt=37249 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 783 start=2906207556 dt=37270 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 784 start=2906244731 dt=37175 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 785 start=2906281909 dt=37178 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 786 start=2906319153 dt=37244 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 787 start=2906356344 dt=37191 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 788 start=2906393693 dt=37349 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 789 start=2906430942 dt=37249 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.059Z [wx] frame 790 start=2906468102 dt=37160 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 791 start=2906506418 dt=38316 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 792 start=2906543697 dt=37279 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 794 start=2906618112 dt=37252 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 795 start=2906655287 dt=37175 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 796 start=2906692434 dt=37147 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 797 start=2906729677 dt=37243 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 798 start=2906766863 dt=37186 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 799 start=2906804199 dt=37336 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 800 start=2906841460 dt=37261 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 801 start=2906878640 dt=37180 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:13.274Z [wx] frame 802 start=2906917050 dt=38410 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:16.014Z #HOST M3 press 0: end
+2026-10-26T20:48:36.257Z [wx] fbcopy n=716 min=5357 max=6367 mean=5383
+2026-10-26T20:48:36.472Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:48:36.472Z [wx] scn=approaching R=15 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=32329
+2026-10-26T20:48:36.472Z [wx] prof approaching-15 view=3583 map=18968 bands=3228 rings=3465 warning=4 labels=2418 ringlabels=204 home=19 replay=1 strip=190 band=237 sum=32317 compose_us=32329
+2026-10-26T20:48:36.472Z [wx] k ROW approaching-15 0897903f64c625267222db9bf3d7e6dbd509f82dc6d3441cd28381026495e0c3
+2026-10-26T20:48:36.472Z [wx] k TIME approaching-15 4:24%20PM dim
+2026-10-26T20:48:36.472Z [wx] k BAND approaching-15 S RAIN%2014%20MI%20E white
+2026-10-26T20:48:36.472Z [wx] k LABEL approaching-15 Irving R 151 139 191 147
+2026-10-26T20:48:36.472Z [wx] k LABEL approaching-15 Lewisville L 86 32 152 40
+2026-10-26T20:48:36.472Z [wx] k LABEL approaching-15 Carrollton L 120 66 186 74
+2026-10-26T20:48:36.472Z [wx] k LABEL approaching-15 Euless L 62 143 104 151
+2026-10-26T20:48:36.472Z [wx] k LABEL approaching-15 Keller R 33 97 73 105
+2026-10-26T20:48:36.472Z [wx] screen=scenario approaching R=15
+2026-10-26T20:48:36.472Z [fb] push 100f draws 9931-10646 n=716 phases=2 push_us=25808-25944
+2026-10-26T20:48:38.484Z #HOST M3 press 1: begin
+2026-10-26T20:48:38.484Z #HOST M3: reader paused
+2026-10-26T20:48:38.484Z #HOST send b'P'
+2026-10-26T20:48:38.546Z [wx] gesture P
+2026-10-26T20:48:39.985Z #HOST send b'L'
+2026-10-26T20:48:41.985Z #HOST send b'R'
+2026-10-26T20:48:42.986Z #HOST M3: reader resumed
+2026-10-26T20:48:43.023Z [wx] hold ring on
+2026-10-26T20:48:43.024Z [wx] zoom hold 15 -> 60 mi
+2026-10-26T20:48:43.024Z [wx] fbcopy n=79 min=5358 max=5641 mean=5374
+2026-10-26T20:48:43.024Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:48:43.024Z [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=38926
+2026-10-26T20:48:43.024Z [wx] prof approaching-60 view=3570 map=20311 bands=3228 rings=7614 warning=4 labels=3410 ringlabels=422 home=18 replay=1 strip=95 band=242 sum=38915 compose_us=38926
+2026-10-26T20:48:43.024Z [wx] k ROW approaching-60 cc212e92aabb57c6705853d6304ab1716eaf4bd84155183b653c767628b612d1
+2026-10-26T20:48:43.024Z [wx] k TIME approaching-60 4:24%20PM dim
+2026-10-26T20:48:43.024Z [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Plano R 152 95 186 103
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Garland R 166 114 212 122
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Denton L 68 72 110 80
+2026-10-26T20:48:43.024Z [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+2026-10-26T20:48:43.024Z [wx] screen=scenario approaching R=60
+2026-10-26T20:48:43.024Z [fb] push 110f draws 10647-10725 n=79 phases=2 push_us=25813-25918
+2026-10-26T20:48:43.024Z [wx] gesture L
+2026-10-26T20:48:43.024Z [wx] hold ring off
+2026-10-26T20:48:43.024Z [wx] gesture R
+2026-10-26T20:48:43.024Z [wx] builds n=2 of 2
+2026-10-26T20:48:43.024Z [wx] build 0 why=cycle scene=approaching mi=15->15 decode=2178 scen=15618 from=44565 compose=32329 sha=4420 print=718 total=100240 prints=13 short=0
+2026-10-26T20:48:43.024Z [wx] build 1 why=hold scene=approaching mi=15->60 decode=2185 scen=15621 from=44637 compose=38926 sha=4440 print=718 total=106988 prints=16 short=0
+2026-10-26T20:48:43.024Z [wx] frames n=160 of 795
+2026-10-26T20:48:43.024Z [wx] frame 635 start=2930630363 dt=0 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 636 start=2930668238 dt=37875 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 637 start=2930705619 dt=37381 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 638 start=2930742857 dt=37238 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 639 start=2930780103 dt=37246 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 640 start=2930817285 dt=37182 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 641 start=2930854452 dt=37167 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 642 start=2930891698 dt=37246 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 643 start=2930928881 dt=37183 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 644 start=2930966039 dt=37158 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 645 start=2931003318 dt=37279 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 646 start=2931040511 dt=37193 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 647 start=2931077859 dt=37348 ring=0 flags=--- scene=dry mi=15
+2026-10-26T20:48:43.024Z [wx] frame 648 start=2931215462 dt=137603 ring=0 flags=--R scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 649 start=2931252981 dt=37519 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 650 start=2931290264 dt=37283 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 651 start=2931327467 dt=37203 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 652 start=2931364721 dt=37254 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 653 start=2931402004 dt=37283 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 654 start=2931439187 dt=37183 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 655 start=2931476354 dt=37167 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 656 start=2931513631 dt=37277 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 657 start=2931550791 dt=37160 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 658 start=2931588140 dt=37349 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 659 start=2931625398 dt=37258 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 660 start=2931662558 dt=37160 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 661 start=2931699873 dt=37315 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 662 start=2931737060 dt=37187 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 663 start=2931774221 dt=37161 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 664 start=2931811475 dt=37254 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 665 start=2931848654 dt=37179 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 666 start=2931885825 dt=37171 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 667 start=2931923073 dt=37248 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 668 start=2931960240 dt=37167 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 669 start=2931997634 dt=37394 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 670 start=2932034878 dt=37244 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 671 start=2932072045 dt=37167 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 672 start=2932110135 dt=38090 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 673 start=2932147405 dt=37270 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 674 start=2932184589 dt=37184 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 675 start=2932221837 dt=37248 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 676 start=2932259012 dt=37175 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 677 start=2932296163 dt=37151 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 678 start=2932333459 dt=37296 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 679 start=2932370671 dt=37212 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 680 start=2932408045 dt=37374 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 681 start=2932445297 dt=37252 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 682 start=2932482472 dt=37175 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 683 start=2932520436 dt=37964 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 684 start=2932557706 dt=37270 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.024Z [wx] frame 685 start=2932594868 dt=37162 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 686 start=2932632116 dt=37248 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 687 start=2932669291 dt=37175 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 688 start=2932706463 dt=37172 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 689 start=2932743753 dt=37290 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 690 start=2932780928 dt=37175 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 691 start=2932818292 dt=37364 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 692 start=2932855560 dt=37268 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 693 start=2932892736 dt=37176 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 694 start=2932931350 dt=38614 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 695 start=2932968617 dt=37267 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 696 start=2933005803 dt=37186 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 697 start=2933043056 dt=37253 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 698 start=2933080224 dt=37168 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 699 start=2933117395 dt=37171 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 700 start=2933154755 dt=37360 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 701 start=2933191959 dt=37204 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 702 start=2933229288 dt=37329 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 703 start=2933266511 dt=37223 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 704 start=2933303703 dt=37192 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 705 start=2933340946 dt=37243 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 706 start=2933378169 dt=37223 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 707 start=2933415519 dt=37350 ring=0 flags=--- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 708 start=2933452817 dt=37298 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 709 start=2933489991 dt=37174 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 710 start=2933527315 dt=37324 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 711 start=2933564605 dt=37290 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 712 start=2933601825 dt=37220 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 713 start=2933639152 dt=37327 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 714 start=2933676387 dt=37235 ring=0 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 715 start=2933715520 dt=39133 ring=44 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 716 start=2933754633 dt=39113 ring=131 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 717 start=2933793745 dt=39112 ring=217 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 718 start=2933835542 dt=41797 ring=304 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 719 start=2933877346 dt=41804 ring=397 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 720 start=2933919126 dt=41780 ring=488 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 721 start=2933960510 dt=41384 ring=584 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 722 start=2934001692 dt=41182 ring=675 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 723 start=2934043662 dt=41970 ring=766 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 724 start=2934085574 dt=41912 ring=860 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 725 start=2934127502 dt=41928 ring=953 flags=H-- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 726 start=2934169525 dt=42023 ring=1000 flags=HF- scene=approaching mi=15
+2026-10-26T20:48:43.025Z [wx] frame 727 start=2934318767 dt=149242 ring=1000 flags=HFR scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 728 start=2934362077 dt=43310 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 729 start=2934404068 dt=41991 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 730 start=2934445984 dt=41916 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 731 start=2934487951 dt=41967 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 732 start=2934529882 dt=41931 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 733 start=2934571854 dt=41972 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 734 start=2934613783 dt=41929 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 735 start=2934655784 dt=42001 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 736 start=2934697756 dt=41972 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 737 start=2934739684 dt=41928 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 738 start=2934781679 dt=41995 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 739 start=2934823610 dt=41931 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 740 start=2934865805 dt=42195 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 741 start=2934907799 dt=41994 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 742 start=2934949900 dt=42101 ring=1000 flags=HF- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 743 start=2934987301 dt=37401 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 744 start=2935024572 dt=37271 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 745 start=2935061730 dt=37158 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 746 start=2935099016 dt=37286 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 747 start=2935136200 dt=37184 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 748 start=2935174456 dt=38256 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 749 start=2935211730 dt=37274 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 750 start=2935248893 dt=37163 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 751 start=2935286141 dt=37248 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 752 start=2935323336 dt=37195 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 753 start=2935360608 dt=37272 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 754 start=2935397887 dt=37279 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 755 start=2935435088 dt=37201 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 756 start=2935472244 dt=37156 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 757 start=2935509498 dt=37254 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 758 start=2935546669 dt=37171 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 759 start=2935584799 dt=38130 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 760 start=2935622071 dt=37272 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 761 start=2935659234 dt=37163 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 762 start=2935696478 dt=37244 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 763 start=2935733652 dt=37174 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 764 start=2935770807 dt=37155 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.025Z [wx] frame 765 start=2935808088 dt=37281 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 766 start=2935845255 dt=37167 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 767 start=2935882569 dt=37314 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 769 start=2935956999 dt=37168 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 770 start=2935994306 dt=37307 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 771 start=2936031563 dt=37257 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 772 start=2936068718 dt=37155 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 773 start=2936105978 dt=37260 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 774 start=2936143162 dt=37184 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 775 start=2936180366 dt=37204 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 776 start=2936217647 dt=37281 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 777 start=2936254826 dt=37179 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 778 start=2936292150 dt=37324 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 779 start=2936329405 dt=37255 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 780 start=2936366618 dt=37213 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 781 start=2936404824 dt=38206 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 782 start=2936442094 dt=37270 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 783 start=2936479244 dt=37150 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 784 start=2936516501 dt=37257 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 785 start=2936553659 dt=37158 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 786 start=2936590805 dt=37146 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 787 start=2936628062 dt=37257 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 788 start=2936665235 dt=37173 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 789 start=2936702576 dt=37341 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 790 start=2936739827 dt=37251 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 791 start=2936776999 dt=37172 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 792 start=2936815235 dt=38236 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 793 start=2936852507 dt=37272 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:43.232Z [wx] frame 794 start=2936889683 dt=37176 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:48:45.987Z #HOST M3 press 1: end
+2026-10-26T20:49:06.383Z [wx] fbcopy n=717 min=5357 max=6296 mean=5389
+2026-10-26T20:49:06.383Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:49:06.383Z [wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=38942
+2026-10-26T20:49:06.383Z [wx] prof herenow-60 view=3582 map=20327 bands=3225 rings=7614 warning=4 labels=3401 ringlabels=469 home=18 replay=1 strip=98 band=192 sum=38931 compose_us=38942
+2026-10-26T20:49:06.383Z [wx] k ROW herenow-60 33d8fb811e001bf525f2c55516510a9e39650e7b7ebf574deb0e46550ceb9857
+2026-10-26T20:49:06.383Z [wx] k TIME herenow-60 4:24%20PM dim
+2026-10-26T20:49:06.383Z [wx] k BAND herenow-60 S RAIN%20NOW white
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Dallas R 150 130 190 138
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Plano R 152 95 186 103
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Garland R 166 114 212 122
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Frisco R 144 80 184 88
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Denton L 68 72 110 80
+2026-10-26T20:49:06.383Z [wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+2026-10-26T20:49:06.383Z [wx] screen=scenario herenow R=60
+2026-10-26T20:49:06.383Z [fb] push 113c draws 10726-11442 n=717 phases=2 push_us=25807-26187
+2026-10-26T20:49:08.449Z #HOST M3 press 2: begin
+2026-10-26T20:49:08.449Z #HOST M3: reader paused
+2026-10-26T20:49:08.449Z #HOST send b'P'
+2026-10-26T20:49:08.491Z [wx] gesture P
+2026-10-26T20:49:09.950Z #HOST send b'L'
+2026-10-26T20:49:11.950Z #HOST send b'R'
+2026-10-26T20:49:12.951Z #HOST M3: reader resumed
+2026-10-26T20:49:12.968Z [wx] hold ring on
+2026-10-26T20:49:12.968Z [wx] zoom hold 60 -> 15 mi
+2026-10-26T20:49:12.968Z [wx] fbcopy n=78 min=5357 max=6013 mean=5385
+2026-10-26T20:49:12.968Z [wx] pick approaching=212400 dry=220000 psram_used=220980
+2026-10-26T20:49:12.968Z [wx] scn=herenow R=15 frame=212400 screen=PrecipNow synthetic=1 compose_us=32236
+2026-10-26T20:49:12.968Z [wx] prof herenow-15 view=3574 map=18957 bands=3227 rings=3456 warning=4 labels=2413 ringlabels=195 home=19 replay=1 strip=193 band=186 sum=32225 compose_us=32236
+2026-10-26T20:49:12.968Z [wx] k ROW herenow-15 01446f66eb45a22de36002d3fdf7c1a558cbd7364c82c511d03332dddf892da9
+2026-10-26T20:49:12.968Z [wx] k TIME herenow-15 4:24%20PM dim
+2026-10-26T20:49:12.968Z [wx] k BAND herenow-15 S RAIN%20NOW white
+2026-10-26T20:49:12.968Z [wx] k LABEL herenow-15 Irving R 151 139 191 147
+2026-10-26T20:49:12.968Z [wx] k LABEL herenow-15 Lewisville L 86 32 152 40
+2026-10-26T20:49:12.968Z [wx] k LABEL herenow-15 Carrollton L 120 66 186 74
+2026-10-26T20:49:12.968Z [wx] k LABEL herenow-15 Euless L 62 143 104 151
+2026-10-26T20:49:12.968Z [wx] k LABEL herenow-15 Keller R 33 97 73 105
+2026-10-26T20:49:12.968Z [wx] screen=scenario herenow R=15
+2026-10-26T20:49:12.968Z [fb] push 123c draws 11443-11520 n=78 phases=2 push_us=25811-25862
+2026-10-26T20:49:12.969Z [wx] gesture L
+2026-10-26T20:49:12.969Z [wx] hold ring off
+2026-10-26T20:49:12.969Z [wx] gesture R
+2026-10-26T20:49:12.969Z [wx] builds n=2 of 2
+2026-10-26T20:49:12.969Z [wx] build 0 why=cycle scene=herenow mi=60->60 decode=2180 scen=15624 from=44929 compose=38942 sha=4447 print=824 total=107415 prints=16 short=0
+2026-10-26T20:49:12.969Z [wx] build 1 why=hold scene=herenow mi=60->15 decode=2185 scen=15624 from=44566 compose=32236 sha=4430 print=622 total=100081 prints=13 short=0
+2026-10-26T20:49:12.969Z [wx] frames n=160 of 795
+2026-10-26T20:49:12.969Z [wx] frame 635 start=2960613552 dt=0 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 636 start=2960650695 dt=37143 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 637 start=2960687935 dt=37240 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 638 start=2960725139 dt=37204 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 639 start=2960762303 dt=37164 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 640 start=2960799585 dt=37282 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 641 start=2960836776 dt=37191 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 642 start=2960874671 dt=37895 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 643 start=2960911951 dt=37280 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 644 start=2960949108 dt=37157 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 645 start=2960987339 dt=38231 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 646 start=2961024602 dt=37263 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 647 start=2961061755 dt=37153 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 648 start=2961099012 dt=37257 ring=0 flags=--- scene=approaching mi=60
+2026-10-26T20:49:12.969Z [wx] frame 649 start=2961243726 dt=144714 ring=0 flags=--R scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 650 start=2961281378 dt=37652 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 651 start=2961318631 dt=37253 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 652 start=2961355792 dt=37161 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 653 start=2961394071 dt=38279 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 654 start=2961431355 dt=37284 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 655 start=2961468513 dt=37158 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 656 start=2961505781 dt=37268 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 657 start=2961542973 dt=37192 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 658 start=2961580121 dt=37148 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 659 start=2961617418 dt=37297 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 660 start=2961654581 dt=37163 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 661 start=2961691885 dt=37304 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 662 start=2961729126 dt=37241 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 663 start=2961766308 dt=37182 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 664 start=2961804501 dt=38193 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 665 start=2961841774 dt=37273 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 666 start=2961878949 dt=37175 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 667 start=2961916195 dt=37246 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 668 start=2961953373 dt=37178 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 669 start=2961990535 dt=37162 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 670 start=2962027783 dt=37248 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 671 start=2962064961 dt=37178 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 672 start=2962102328 dt=37367 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 673 start=2962139574 dt=37246 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 674 start=2962176775 dt=37201 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 675 start=2962214054 dt=37279 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 676 start=2962251228 dt=37174 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 677 start=2962288381 dt=37153 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 678 start=2962325618 dt=37237 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 679 start=2962362901 dt=37283 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 680 start=2962400123 dt=37222 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 681 start=2962437417 dt=37294 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 682 start=2962474573 dt=37156 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 683 start=2962511959 dt=37386 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 684 start=2962549202 dt=37243 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 685 start=2962586372 dt=37170 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 686 start=2962623655 dt=37283 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 687 start=2962660826 dt=37171 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 688 start=2962698003 dt=37177 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 689 start=2962735264 dt=37261 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 690 start=2962772438 dt=37174 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 691 start=2962809601 dt=37163 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 692 start=2962846897 dt=37296 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 693 start=2962884088 dt=37191 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 694 start=2962921460 dt=37372 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 695 start=2962958704 dt=37244 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 696 start=2962995867 dt=37163 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 697 start=2963034216 dt=38349 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 698 start=2963071490 dt=37274 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 699 start=2963108667 dt=37177 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 700 start=2963145918 dt=37251 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 701 start=2963183135 dt=37217 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 702 start=2963220326 dt=37191 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 703 start=2963257596 dt=37270 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 704 start=2963294759 dt=37163 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 705 start=2963332124 dt=37365 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 706 start=2963369413 dt=37289 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 707 start=2963406754 dt=37341 ring=0 flags=--- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 708 start=2963445050 dt=38296 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 709 start=2963482323 dt=37273 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 710 start=2963519499 dt=37176 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 711 start=2963556742 dt=37243 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 712 start=2963593925 dt=37183 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 713 start=2963631093 dt=37168 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 714 start=2963668397 dt=37304 ring=0 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 715 start=2963707552 dt=39155 ring=44 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 716 start=2963746762 dt=39210 ring=131 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 717 start=2963785881 dt=39119 ring=217 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 718 start=2963827623 dt=41742 ring=304 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 719 start=2963869486 dt=41863 ring=397 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 720 start=2963911275 dt=41789 ring=491 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 721 start=2963952606 dt=41331 ring=584 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 722 start=2963993798 dt=41192 ring=675 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 723 start=2964035652 dt=41854 ring=766 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 724 start=2964077617 dt=41965 ring=860 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 725 start=2964119522 dt=41905 ring=953 flags=H-- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 726 start=2964161565 dt=42043 ring=1000 flags=HF- scene=herenow mi=60
+2026-10-26T20:49:12.969Z [wx] frame 727 start=2964303902 dt=142337 ring=1000 flags=HFR scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 728 start=2964346237 dt=42335 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 729 start=2964388194 dt=41957 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 730 start=2964430137 dt=41943 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 731 start=2964472636 dt=42499 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 732 start=2964514560 dt=41924 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 733 start=2964556558 dt=41998 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 734 start=2964598530 dt=41972 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 735 start=2964640482 dt=41952 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 736 start=2964682412 dt=41930 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 737 start=2964724345 dt=41933 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 738 start=2964766462 dt=42117 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 739 start=2964808439 dt=41977 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 740 start=2964850371 dt=41932 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 741 start=2964892495 dt=42124 ring=1000 flags=HF- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 742 start=2964929893 dt=37398 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 743 start=2964967293 dt=37400 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 744 start=2965004618 dt=37325 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 745 start=2965041807 dt=37189 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 746 start=2965080087 dt=38280 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 747 start=2965117367 dt=37280 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 748 start=2965154514 dt=37147 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 749 start=2965191770 dt=37256 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 750 start=2965228965 dt=37195 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 751 start=2965266115 dt=37150 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 752 start=2965303401 dt=37286 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 753 start=2965340575 dt=37174 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 754 start=2965377944 dt=37369 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 755 start=2965415209 dt=37265 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 756 start=2965452383 dt=37174 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 757 start=2965490600 dt=38217 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 758 start=2965527876 dt=37276 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 759 start=2965565039 dt=37163 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 760 start=2965602318 dt=37279 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 761 start=2965639510 dt=37192 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 762 start=2965676653 dt=37143 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 763 start=2965713897 dt=37244 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 764 start=2965751074 dt=37177 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 765 start=2965788381 dt=37307 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 766 start=2965825627 dt=37246 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 767 start=2965862869 dt=37242 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 768 start=2965900855 dt=37986 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 769 start=2965938118 dt=37263 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 770 start=2965975281 dt=37163 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 771 start=2966012531 dt=37250 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 772 start=2966049694 dt=37163 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:12.969Z [wx] frame 773 start=2966086859 dt=37165 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 774 start=2966124149 dt=37290 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 776 start=2966198765 dt=37430 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 777 start=2966236009 dt=37244 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 778 start=2966273192 dt=37183 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 779 start=2966310983 dt=37791 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 780 start=2966348227 dt=37244 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 781 start=2966385410 dt=37183 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 782 start=2966422643 dt=37233 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 783 start=2966459820 dt=37177 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 784 start=2966497037 dt=37217 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 785 start=2966534343 dt=37306 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 786 start=2966571511 dt=37168 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 787 start=2966608878 dt=37367 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 788 start=2966646130 dt=37252 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 789 start=2966683305 dt=37175 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 790 start=2966721100 dt=37795 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 791 start=2966758339 dt=37239 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 792 start=2966795495 dt=37156 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 793 start=2966832714 dt=37219 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:13.169Z [wx] frame 794 start=2966869945 dt=37231 ring=0 flags=--- scene=herenow mi=15
+2026-10-26T20:49:15.951Z #HOST M3 press 2: end
+2026-10-26T20:49:15.951Z #HOST closing the port

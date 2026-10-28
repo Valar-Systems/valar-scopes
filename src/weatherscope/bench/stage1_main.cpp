@@ -56,9 +56,9 @@ wxcrop::Header hdr;
 uint8_t* grid = nullptr;   // decoded codes, rows x cols, in PSRAM
 
 // The RULED palette (src/weatherscope/WxPalette.h). The frame is rain only -- the wire carries no snow field
-// yet -- with code 1 dimmed to 55 % (final: Daniel's second look, addendum 5). Stage 1's provisional palette (dark
-// violet for missing) is retired; it is recorded in docs/weatherscope-stage1.md. B9 still compares codes, not colours.
-constexpr int kFrameDim = wxpalette::kDim55;
+// yet -- with code 1 teal (Daniel, 2026-10-28; docs/weatherscope-stage3.md A10.16; it was the table's blue dimmed to
+// 55 %). Stage 1's provisional palette (dark violet for missing) is retired; it is recorded in
+// docs/weatherscope-stage1.md. B9 still compares codes, not colours.
 constexpr uint32_t kAlternateMs = 10000;   // frame <-> legend, so the look needs no serial input
 
 struct Report {
@@ -85,7 +85,7 @@ void Render()
                     canvas.writePixel(xx, y, canvas.color565(m.r, m.g, m.b));
                 }
             } else {
-                const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false, kFrameDim);
+                const wxpalette::Rgb p = wxpalette::Code(run == wxrender::kOffDisc ? 0 : (run & 15), false);
                 canvas.writeFastHLine(x0, y, x - x0, canvas.color565(p.r, p.g, p.b));
             }
             x0 = x;
@@ -117,7 +117,7 @@ void Label(int x, int y, const char* text)
 wxpalette::Rgb LegendColour(const wxlegend::Swatch& sw)
 {
     switch (sw.kind) {
-    case wxlegend::Kind::Rain: return wxpalette::Rain(sw.code, kFrameDim);
+    case wxlegend::Kind::Rain: return wxpalette::Rain(sw.code);
     case wxlegend::Kind::Snow: return wxpalette::Snow(sw.code);
     case wxlegend::Kind::NoCoverage: return wxpalette::kNoCoverage;
     default: return wxpalette::kMissingHatch;
