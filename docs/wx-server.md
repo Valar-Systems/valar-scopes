@@ -1054,3 +1054,12 @@ Nothing else in `proxy/src` changes.
 - **Carried commits:** listed before the deploy. If any carried commit changes `proxy/src` beyond this one, stop and
   ask, because its own predictions then apply.
 - **The escape:** anything else means stop. In production, roll back first.
+
+### Results before the deploy (2026-10-28)
+
+| | read | verdict |
+|---|---|---|
+| **N1** | `test/photolicense.test.ts`: 14 / 14 pass, the new case included. Sabotage (the line deleted from the template, restored from a byte copy, sha `97934a79991c` before and after): **exactly** "carries the NOAA MRMS line exactly once" fails, 13 pass | **as predicted** |
+| **N2** | the new check alone, through `smoke-prod.sh`'s own `contains` (extracted from the script), against production at 16:06:56Z: `got HTTP 200, marker MISSING`, `RESULT: FAIL` | **as predicted** |
+
+N3-N6 are read after the merge and the deploy.
