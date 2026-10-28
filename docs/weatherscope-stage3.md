@@ -6102,3 +6102,50 @@ None changes anything graded here. A golden comparison with the map server's bui
   - (ii) a window on a later candidate, in score order;
   - (iii) none on all five: **stop and report** (A10.4's escape hatch);
 - **outside these** (a criterion the tool cannot evaluate, or a frame whose measures disagree with A12.8's for the same object): stop and report.
+
+### A12.10 The Bend radar, re-run with (d): 2024-06-03's window (class (ii) of A12.9.3); the record before any crop
+
+**The tools,** on `weatherscope/bend-radar` at `e867a3a69d26`, pushed:
+- **`precipflag.py`, with its host rows `test_precipflag.py`:** PF1-PF4 **4/4**, every object pinned by its full sha256.
+- **Its sabotages:** S-PF-CODE fails **{PF3, PF4}** and S-PF-ANCHOR fails **{PF1}**, both as predicted, with the real reader unchanged.
+- **The reader reproduced A12.8's numbers exactly:** 1,574 snow at 05:52Z, 19,427 over the window, and the midsummer control's 0 / 3,824 / 203.
+- **`pick_bend.mts`** carries (d).
+
+**The record (tool output; keys and sha256s, no coordinate):**
+- **The days:** MultiSensor_QPE_24H_Pass2_00.00, 153 of 153 days. The scores and candidates are unchanged from A12.8: 05-02, 05-05, 06-03, 08-05 and 08-15.
+- **Tried, in score order:** 20240502: 720 objects, no window; 20240505: 720 objects, no window; 20240603: 720 objects, window from 2024-06-02T19:10:00Z.
+- **The certain prediction held:** 2024-05-02's 05:52Z window no longer qualifies, and no other window on that day does either. 2024-05-05 has none.
+- **Chosen: 2024-06-03.** Its window is **2024-06-02 19:10Z-20:06Z**, midday Pacific, every second object.
+  - **(a)** nearest echo 9.7-28.3 mi;
+  - **(b)** 9.7 mi in the first frame;
+  - **(c)** 82.1-91.5 % dry;
+  - **(d)** 0 snow cells in every frame;
+  - **PrecipFlag objects missing among the frames tested: 0.**
+
+| object | sha256 | nearest echo | dry at 60 mi | snow cells |
+|---|---|---|---|---|
+| MRMS_SeamlessHSR_00.00_20240602-191000 | d851a217cf50 | 9.7 mi | 89.81 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-191400 | a16019605757 | 23.3 mi | 91.08 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-191800 | e7069daa068d | 28.3 mi | 91.44 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-192200 | 5dc1f67a40b4 | 21.8 mi | 91.48 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-192600 | 3df0ade64d6c | 23.2 mi | 89.11 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-193000 | d39ab251c374 | 23.2 mi | 86.05 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-193400 | 7d5eeb8d609c | 23.2 mi | 86.05 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-193800 | cbdee025562d | 25.5 mi | 85.54 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-194200 | af8daa097be3 | 23.3 mi | 85.33 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-194600 | 3dfcdc71c838 | 21.3 mi | 84.69 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-195000 | 1567d77579a2 | 23.4 mi | 86.52 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-195400 | 70ae0e00fc02 | 22.6 mi | 85.58 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-195800 | f4661c87b56d | 21.3 mi | 85.33 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-200200 | 5e50b85438dc | 19.6 mi | 82.64 % | 0 |
+| MRMS_SeamlessHSR_00.00_20240602-200600 | f4f440ae6395 | 19.6 mi | 82.12 % | 0 |
+
+**Within A12.9.3's classes:** class (ii). Nothing is outside them, and no criterion moved.
+
+**The first run's record** is kept beside it as `selection-run1-a10.4.json`, in the cache outside every repo.
+
+**Next:**
+- **the crops:** the 15 Bend frames by main's decode and crop path, as `make_loop.mts` made Dallas's, and the synthetic dry crop at the same geometry (A10.4);
+- **then the radar PR,** with the pick, the reader and the crops.
+
+The scenario clock is Pacific time on 2024-06-02, the frames' own day.
