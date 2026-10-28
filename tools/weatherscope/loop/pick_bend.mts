@@ -11,7 +11,9 @@
 //   cands  the 5 highest scores, ties to the earlier day
 //   window on each candidate in score order, over the 24 h its QPE covers: the FIRST 15-frame window in time order,
 //          SeamlessHSR, every second object, where (a) every frame has an echo within 30 mi, (b) at least one has an
-//          echo within 15 mi, (c) every frame has >= 50 % of its on-disc map pixels dry at 60 mi
+//          echo within 15 mi, (c) every frame has >= 50 % of its on-disc map pixels dry at 60 mi, (d) every frame
+//          has 0 snow-flagged cells within 60 mi by PrecipFlag_00.00 at its own time (A12.9: added after the
+//          2024-05-02 05:52-06:48Z window, chosen without it, held 19,427 snow cells; precipflag.py reads it)
 //   stop   no window on all 5 days: stop and report; no criterion relaxed without a ruling
 //
 // The centre is bend.bmpk's own origin (its header), the site feed's point at 2 dp. It is printed nowhere; distances
@@ -20,8 +22,8 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const [proxy, cache, pkgPath, statsExe] = process.argv.slice(2).map((a) => resolve(a)) as [string, string, string, string];
 if (!statsExe) { console.error("usage: pick_bend.mts <proxy-dir> <cache-dir> <bend.bmpk> <frame_stats exe>"); process.exit(2); }
@@ -107,7 +109,18 @@ console.log("candidates: " + cands.map((s) => `${s.day} (${s.score})`).join(", "
 
 // ---------------------------------------------------------------------------------------------- the window
 const q = quantise(centre.lat, centre.lon, 60 * KM_PER_MI);
-type Stat = { key: string; sha256: string; valid: string; nearestMi: number; onDisc: number; dry: number };
+type Stat = { key: string; sha256: string; valid: string; nearestMi: number; onDisc: number; dry: number; snow?: number | null };
+const READER = join(dirname(fileURLToPath(import.meta.url)), "precipflag.py");
+let missingFlags = 0;
+function snowOf(s: Stat): number | null {   // (d): the frame's own time; null when the object is missing
+  if (s.snow !== undefined) return s.snow;
+  const stamp = /_(\d{8}-\d{6})\.grib2\.gz$/.exec(s.key)![1]!;
+  const out = execFileSync("python", ["-I", READER, pkgPath, join(cache, "pf"), "--snow", stamp]).toString().trim();
+  s.snow = out === "missing" ? null : Number(/^snow (\d+)$/.exec(out)![1]);
+  if (s.snow === null) missingFlags++;
+  writeFileSync(statsPath, JSON.stringify([...statCache.values()]));
+  return s.snow;
+}
 const statCache = new Map<string, Stat>();
 const statsPath = join(cache, "frame-stats.json");
 if (existsSync(statsPath)) for (const s of JSON.parse(readFileSync(statsPath, "utf8")) as Stat[]) statCache.set(s.key, s);
@@ -157,7 +170,7 @@ for (const c of cands) {
       const a = s.nearestMi >= 0 && s.nearestMi <= 30;
       const cc = s.dry * 2 >= s.onDisc;   // >= 50 %, in integers
       if (s.nearestMi >= 0 && s.nearestMi <= 15) near15 = true;
-      ok = a && cc;
+      ok = a && cc && snowOf(s) === 0;   // (d) last: it costs a decode, and order cannot change the result
     }
     if (ok && near15) found = i;
   }
@@ -172,11 +185,14 @@ for (const c of cands) {
 const record = {
   what: "Weatherscope 3.5b's Bend radar day and window, by docs/weatherscope-stage3.md A10.4's rule",
   decoder: `main's proxy/src/wx/mrms.ts and crop.ts at ${commit}; per-frame measures by frame_stats (WxRender.h, WxLogic.h)`,
+  criterionD: "0 snow-flagged cells within 60 mi in every frame (A12.9); reason: 2024-05-02 05:52-06:48Z, chosen without it, held 1,077-1,574 per frame, 19,427 in all",
+  missingPrecipFlag: missingFlags,
   product, missingDays: missing, scores: scores.map(({ day, score, key, sha256 }) => ({ day, score, key, sha256 })),
   candidates: cands.map((s) => s.day), tried,
-  chosen: chosen && { day: chosen.day, frames: chosen.frames.map(({ key, sha256, valid, nearestMi, dry, onDisc }) => ({ key, sha256, valid, nearestMi, dryPct: +(100 * dry / onDisc).toFixed(2) })) },
+  chosen: chosen && { day: chosen.day, frames: chosen.frames.map(({ key, sha256, valid, nearestMi, dry, onDisc, snow }) => ({ key, sha256, valid, nearestMi, dryPct: +(100 * dry / onDisc).toFixed(2), snow })) },
 };
 writeFileSync(join(cache, "selection.json"), JSON.stringify(record, null, 1) + "\n");
 if (!chosen) { console.log("STOP (A10.4): no window qualifies on any of the 5 candidate days; no criterion relaxed without a ruling"); process.exit(3); }
 console.log(`CHOSEN: ${chosen.day}, the window ${chosen.frames[0]!.valid} .. ${chosen.frames[14]!.valid}`);
-for (const f of chosen.frames) console.log(`  ${f.key.split("/").pop()}  sha256 ${f.sha256.slice(0, 12)}  nearest ${f.nearestMi.toFixed(1)} mi  dry ${(100 * f.dry / f.onDisc).toFixed(1)} %`);
+for (const f of chosen.frames) console.log(`  ${f.key.split("/").pop()}  sha256 ${f.sha256.slice(0, 12)}  nearest ${f.nearestMi.toFixed(1)} mi  dry ${(100 * f.dry / f.onDisc).toFixed(1)} %  snow ${f.snow}`);
+console.log(`PrecipFlag objects missing among the frames tested: ${missingFlags}`);
