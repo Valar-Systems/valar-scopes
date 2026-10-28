@@ -1196,3 +1196,39 @@ The credits check PASSED in both: "marker present".
 | **N6** | not yet read: no `analytics-read` token on this machine. The window is `[19:19:39, 19:49:39)`Z, and it stays queryable | **pending** |
 
 **N3's miss stays in the record above.** The NOAA line is live in production as of 19:19:39Z.
+
+### N6, read 2026-10-28 (the `analytics-read` token became readable on Daniel's word)
+
+**The instrument:** `n6_fleet.py`, committed beside this doc.
+- It reads the proxy's per-request points (`blipscope_proxy`), with the `err5xx` family excluded.
+- **Fleet** means a point carrying a device id, the smoke credential's id excluded.
+- Counts are sample-weighted (`_sample_interval` × the app's hit weight), as P5's were.
+- The token and the excluded id are read from the environment and never printed.
+
+**Its control, run first:** S3's W5 window, 2026-10-23 17:03:39-18:03:39Z, whose record is 5 no-upstream `/blips` 503s in
+1,321 fleet `/blips`.
+- **The reading:** 5 no-upstream 503s, 1,321 fleet `/blips` (0.379 %), 0 other 5xx, 0 4xx. **It reproduces the
+  record.**
+- **One count differs: 7 devices against W5's 5.** This instrument counts distinct ids on any route, and W5 counted
+  from usage rows. No N6 row grades devices.
+
+| | read 1 (22:32:38Z) | read 2 (22:36:14Z) |
+|---|---|---|
+| window | `[19:19:39, 19:49:39)`Z | the same |
+| fleet requests / devices | 1,741 / 11 | 1,741 / 11 |
+| fleet `/blips` | 1,014 | 1,014 |
+| fleet 4xx | **0** | **0** |
+| fleet 5xx other than no-upstream `/blips` 503s | **0** | **0** |
+| no-upstream `/blips` 503s | **0** (0 % of fleet `/blips`) | **0** |
+
+**N6: as predicted.** The two reads agree in every field. No fleet regression, so no rollback. **#492's rows are all
+read:** N3 a miss (on record), and N3′, N4, N5′ and N6 as predicted.
+
+**Beside the verdict, the same instrument on the first deploy's live window** (`1ce7ad88`, 16:51:09-16:53:32Z):
+- 125 fleet requests from 9 devices; 97 fleet `/blips`;
+- **0 no-upstream 503s, 0 other 5xx, 0 4xx.**
+- **So the fleet saw no 503 on the first deploy.** The three that missed N3 were the smoke's own (Workers Logs, above).
+- **This narrows N3's cause without settling it.** It fits a transient fault on the particular tiles the smoke asks for
+  (Bend at r = 160 and its chain tiles).
+- **The alternative, not excluded:** a fault of the version that only those tiles' queries met in a window of under
+  3 minutes.
