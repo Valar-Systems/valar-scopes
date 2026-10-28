@@ -1,201 +1,12 @@
 {
- "builder": "6d9fe6ae9c794666e8a8f58c64f23f2ada642618",
+ "builder": "e1c2e556131388f775ec08cb98a5a5375ed91146",
  "files": [
-  {
-   "bytes": 178923,
-   "layer": "water",
-   "sha256": "789e174fb2d70b3a831fd15ff450d0aa56cc19f33274f9ddd1cca55b4135b441",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41005_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 114746,
-   "layer": "water",
-   "sha256": "850e47144f5e3700cfb75804b40c77e16f0627da9fc9a89064b87213a5b8826a",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41013_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 244119,
-   "layer": "water",
-   "sha256": "122fd876c51fcc500d425cffa2f2a7a4278cab042626816c4921aa583b0756d7",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41017_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 454010,
-   "layer": "water",
-   "sha256": "a281208621c5e2bebad268053653726bbe94a6832dc18b145aeffc2cb5fba7cf",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41019_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 143198,
-   "layer": "water",
-   "sha256": "76e610447711e8e6a25024abdd9cf0c51e15195c2ec513c96dd8c79370ae4638",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41031_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 479549,
-   "layer": "water",
-   "sha256": "e43a25e177562b2bae6305a553790e72e7233b2d1fcbf2bec00a58e74e6b87ac",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41035_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 803699,
-   "layer": "water",
-   "sha256": "0acb1510a5bb986ec366bb63fa86545866f57c900ade9abe4677809c14340d8e",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41037_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 656365,
-   "layer": "water",
-   "sha256": "654abe878c5ac3ed9861b73ed6de8bde8b2cbdbd9b2c82401054b65d7a05635c",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41039_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 326106,
-   "layer": "water",
-   "sha256": "a67c39dbc4b5ebee71bf31aa5aa5f4b11e62aa966c9ccd441bb08af85c32d3ff",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41043_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 220860,
-   "layer": "water",
-   "sha256": "88ded296e8b0faad9c8029f9c4cb3a28265b720a7f889a801b9fa22b1a65ecb1",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41047_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 178739,
-   "layer": "water",
-   "sha256": "0c8d8962a196d2b5df53aff9e2f0771ba0eceef1ff8c7a25e51fe1facd746f91",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41065_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 29501,
-   "layer": "water",
-   "sha256": "23ebd4ac14cb83c0046200923441ed23e077eb185d9fa88721308d2ba77d5277",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41069_areawater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 897794,
-   "layer": "rivers",
-   "sha256": "5035e7b77cd09014af7493943e8814de4a0bde6e54177a87524b05df7aad5c52",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41005_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 2372180,
-   "layer": "rivers",
-   "sha256": "40391250be7f5e14ce995acc99aa00ac52a664c6a1d78b5b2c056073bd2fdbcd",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41013_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 1272984,
-   "layer": "rivers",
-   "sha256": "a5ec7d7ae2e21dee9892444b81c8f6dfccbd487808dd7ed16c48fe10795f62b5",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41017_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 4838642,
-   "layer": "rivers",
-   "sha256": "a015da650d213fa668a497140ff1e09c101000ec2202cc1b7f732d145f5468f4",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41019_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 1461770,
-   "layer": "rivers",
-   "sha256": "7d9d8508bbccc0645a1638ed140520c029b193466b7469d4563383987b710be1",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41031_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 2980419,
-   "layer": "rivers",
-   "sha256": "b81699b75be2f917d6474f8009e4b54c197186c24703c075f4708d06a58ff0b7",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41035_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 4073714,
-   "layer": "rivers",
-   "sha256": "f7c5001debf7638e9262906dc90690a6bceabc8ae459ef8df381e0c92c7333dd",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41037_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 3822629,
-   "layer": "rivers",
-   "sha256": "ccbcac5a5a46096a2c3e08a25671c743ca1c4539ea9bbd8c3aca712ecfc75c07",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41039_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 1723349,
-   "layer": "rivers",
-   "sha256": "3de9fdfa80d235335c068a2ee42b3eda6d3ab79c7b2ef183e18ac0e8985249cb",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41043_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 936648,
-   "layer": "rivers",
-   "sha256": "0e0ace709f12ed07219cebaf10b0ef485ce47d95f2c188116d01a30a90f0d0a6",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41047_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 2415569,
-   "layer": "rivers",
-   "sha256": "ca083b13a7f89be18b50f6bf654b7aefdbd945d517b1dd179fc416a183fe1476",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41065_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 1158561,
-   "layer": "rivers",
-   "sha256": "49acd3e0ed27ad4492e1b71670db8bae0920e5db3e67b97f2c50df988fb711f4",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41069_linearwater.zip",
-   "vintage": "2024"
-  },
-  {
-   "bytes": 5911390,
-   "layer": "roads",
-   "sha256": "252d50f89299edcf0495755b42c76487aab0fc3e09cf11826dd36d010ae49add",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/PRISECROADS/tl_2024_41_prisecroads.zip",
-   "vintage": "2024"
-  },
   {
    "bytes": 1876566,
    "layer": "peaks",
    "sha256": "be7876a142a42c176712ad748ed68e18869ebff52946776feef20ace308cee16",
    "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/DomesticNames/DomesticNames_OR_Text.zip",
    "vintage": "2026"
-  },
-  {
-   "bytes": 1214053,
-   "layer": "places",
-   "sha256": "49644173a453469d9bd77fb7a493b027f87567e209edaf2078aac7543ac2ee29",
-   "url": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_place_national.zip",
-   "vintage": "2025"
-  },
-  {
-   "bytes": 7087080,
-   "layer": "population",
-   "sha256": "af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9",
-   "url": "https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv",
-   "vintage": "2024"
   },
   {
    "bytes": 79748,
@@ -492,10 +303,94 @@
    "vintage": "2017"
   },
   {
-   "bytes": 9954307,
-   "layer": "states",
-   "sha256": "ad00cbe66c7177091b668cee202e93d4a1ddcee271c28d1c9f9874af59c04b92",
-   "url": "https://www2.census.gov/geo/tiger/TIGER2024/STATE/tl_2024_us_state.zip",
+   "bytes": 1214053,
+   "layer": "places",
+   "sha256": "49644173a453469d9bd77fb7a493b027f87567e209edaf2078aac7543ac2ee29",
+   "url": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_place_national.zip",
+   "vintage": "2025"
+  },
+  {
+   "bytes": 178923,
+   "layer": "water",
+   "sha256": "789e174fb2d70b3a831fd15ff450d0aa56cc19f33274f9ddd1cca55b4135b441",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41005_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 114746,
+   "layer": "water",
+   "sha256": "850e47144f5e3700cfb75804b40c77e16f0627da9fc9a89064b87213a5b8826a",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41013_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 244119,
+   "layer": "water",
+   "sha256": "122fd876c51fcc500d425cffa2f2a7a4278cab042626816c4921aa583b0756d7",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41017_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 454010,
+   "layer": "water",
+   "sha256": "a281208621c5e2bebad268053653726bbe94a6832dc18b145aeffc2cb5fba7cf",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41019_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 143198,
+   "layer": "water",
+   "sha256": "76e610447711e8e6a25024abdd9cf0c51e15195c2ec513c96dd8c79370ae4638",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41031_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 479549,
+   "layer": "water",
+   "sha256": "e43a25e177562b2bae6305a553790e72e7233b2d1fcbf2bec00a58e74e6b87ac",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41035_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 803699,
+   "layer": "water",
+   "sha256": "0acb1510a5bb986ec366bb63fa86545866f57c900ade9abe4677809c14340d8e",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41037_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 656365,
+   "layer": "water",
+   "sha256": "654abe878c5ac3ed9861b73ed6de8bde8b2cbdbd9b2c82401054b65d7a05635c",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41039_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 326106,
+   "layer": "water",
+   "sha256": "a67c39dbc4b5ebee71bf31aa5aa5f4b11e62aa966c9ccd441bb08af85c32d3ff",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41043_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 220860,
+   "layer": "water",
+   "sha256": "88ded296e8b0faad9c8029f9c4cb3a28265b720a7f889a801b9fa22b1a65ecb1",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41047_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 178739,
+   "layer": "water",
+   "sha256": "0c8d8962a196d2b5df53aff9e2f0771ba0eceef1ff8c7a25e51fe1facd746f91",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41065_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 29501,
+   "layer": "water",
+   "sha256": "23ebd4ac14cb83c0046200923441ed23e077eb185d9fa88721308d2ba77d5277",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_41069_areawater.zip",
    "vintage": "2024"
   },
   {
@@ -503,6 +398,111 @@
    "layer": "counties",
    "sha256": "04e668d3502757c837c13444730547cd967f28a2c49aeffb873d1792ab2cb97b",
    "url": "https://www2.census.gov/geo/tiger/TIGER2024/COUNTY/tl_2024_us_county.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 897794,
+   "layer": "rivers",
+   "sha256": "5035e7b77cd09014af7493943e8814de4a0bde6e54177a87524b05df7aad5c52",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41005_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2372180,
+   "layer": "rivers",
+   "sha256": "40391250be7f5e14ce995acc99aa00ac52a664c6a1d78b5b2c056073bd2fdbcd",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41013_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1272984,
+   "layer": "rivers",
+   "sha256": "a5ec7d7ae2e21dee9892444b81c8f6dfccbd487808dd7ed16c48fe10795f62b5",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41017_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 4838642,
+   "layer": "rivers",
+   "sha256": "a015da650d213fa668a497140ff1e09c101000ec2202cc1b7f732d145f5468f4",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41019_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1461770,
+   "layer": "rivers",
+   "sha256": "7d9d8508bbccc0645a1638ed140520c029b193466b7469d4563383987b710be1",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41031_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2980419,
+   "layer": "rivers",
+   "sha256": "b81699b75be2f917d6474f8009e4b54c197186c24703c075f4708d06a58ff0b7",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41035_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 4073714,
+   "layer": "rivers",
+   "sha256": "f7c5001debf7638e9262906dc90690a6bceabc8ae459ef8df381e0c92c7333dd",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41037_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 3822629,
+   "layer": "rivers",
+   "sha256": "ccbcac5a5a46096a2c3e08a25671c743ca1c4539ea9bbd8c3aca712ecfc75c07",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41039_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1723349,
+   "layer": "rivers",
+   "sha256": "3de9fdfa80d235335c068a2ee42b3eda6d3ab79c7b2ef183e18ac0e8985249cb",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41043_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 936648,
+   "layer": "rivers",
+   "sha256": "0e0ace709f12ed07219cebaf10b0ef485ce47d95f2c188116d01a30a90f0d0a6",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41047_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2415569,
+   "layer": "rivers",
+   "sha256": "ca083b13a7f89be18b50f6bf654b7aefdbd945d517b1dd179fc416a183fe1476",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41065_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1158561,
+   "layer": "rivers",
+   "sha256": "49acd3e0ed27ad4492e1b71670db8bae0920e5db3e67b97f2c50df988fb711f4",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_41069_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 5911390,
+   "layer": "roads",
+   "sha256": "252d50f89299edcf0495755b42c76487aab0fc3e09cf11826dd36d010ae49add",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/PRISECROADS/tl_2024_41_prisecroads.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 9954307,
+   "layer": "states",
+   "sha256": "ad00cbe66c7177091b668cee202e93d4a1ddcee271c28d1c9f9874af59c04b92",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/STATE/tl_2024_us_state.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 7087080,
+   "layer": "population",
+   "sha256": "af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9",
+   "url": "https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv",
    "vintage": "2024"
   }
  ],
