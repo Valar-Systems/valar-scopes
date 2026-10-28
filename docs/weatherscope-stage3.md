@@ -6554,3 +6554,22 @@ The removal list went to Daniel, and **nothing is removed before his yes.**
 7. the rest of 3.5t;
 8. 3.4;
 9. 3.5c.
+
+### A12.20 Result: FX4, R0 and R0b in CI (#497 @ c8b422db3558)
+
+**CI on `c8b422db35586c01fdbc2dcdc2955eb3649f0189`:** 35 check runs, all completed (read twice, 60 s apart): 32 success and 3 release-only skips; host-tests succeeded.
+
+**FX4, read from host-tests' own log** (job 123163561839), not inferred from its colour: ubuntu, Python 3.12, **Pillow 12.3.0**.
+- **R0 (3.5a), from the pinned fixtures:**
+  - R0a 57,600 / 57,600 on all 7 screens;
+  - R0b 0 pixels differing on each;
+  - the code-1 colour (0, 0, 135), the generator's.
+
+  **R0: PASSES.**
+- **R0b (Bend), from the pinned fixtures:**
+  - R0a′ 57,600 / 57,600 on A, B and C;
+  - R0b′ A 0, B 256 and C 422 differing, all named, with the same cause counts as here;
+  - **G and P image hashes identical to this machine's:** A `95f7265ba11e` / `95f7265ba11e`, B `19a52ab902e1` / `0c3aa7747697`, C `1ac4a86f91a4` / `c9d40ba7f16d`.
+
+  **R0b: PASSES.**
+- **So CI reproduces both checks exactly. Ruling 3's fallback (R0 as a pre-push step) is not needed.**
