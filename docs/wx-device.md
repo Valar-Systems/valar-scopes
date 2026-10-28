@@ -1606,3 +1606,41 @@ select is served as:
 
 **Nothing was captured, and no setting changed.** The trace and the session were never started. E2:08 is unchanged:
 `wxlook` at `fb2e787`, the layer on, look A, sweep look 4.
+
+## Rulings on the bench look select, 2026-10-28 (reviewer chat, pasted by Daniel), and its fix, frozen before the code
+
+**The rulings:**
+1. **Option 1.**
+   - Fix the two labels without a literal `%` ("A: 40 percent + outline", "B: 25 percent").
+   - Add the config-form CI check: it refuses a literal `%` outside a `%PLACEHOLDER%` in any page template, and its
+     sabotage puts one `%` back and must turn red.
+   - Predictions first: the served bench page offers A and B with their full labels; the shipping image's loaded bytes
+     are unchanged; CI green.
+   - Then reflash `wxlook` on E2:08 with the fix. **The captures run on that fixed build**, not on "the build on E2:08
+     now", and that ruling is amended accordingly.
+2. **The next good rain:**
+   - First the captures, all three arms in the protocol's order, under a hands-off window given to Daniel in Pacific
+     time.
+   - Then, if the rain holds, **Daniel's R2 look at layer looks A and B.** He changes "Weather look (bench)" and
+     nothing else. If the rain does not hold, his look waits for the next one.
+   - Until he picks, the shipping image keeps drawing look A, as R2 says.
+3. **Recorded as found:** the bench select has been broken since `b56d883`, and **R2's comparison has never been
+   possible on the glass.**
+
+**What the check reads.** Every `CONFIG_HTML` raw literal, and every string literal inside a template processor (the
+`(const String& var)` lambdas, nine of them, which return HTML such as the look select).
+- **Measured before the fix:** the nine static pages hold 0 literal `%`. The processors hold exactly two, the broken
+  labels at `:3225-3226`. No processor uses a printf format.
+- **The rule:** a `%` that is not part of a `%[A-Z0-9_]+%` placeholder is refused, `%%` included.
+
+| | check | predicted |
+|---|---|---|
+| **L1** | the new check on the source **before** the fix (the control that it sees this bug) | **exactly 2 violations**, the two labels, and a nonzero exit |
+| **L2** | the same check after the fix | 0 violations; the config-form job passes |
+| **L3** | its selftest. **Sabotage:** one `%` put back into a fixed label. Plus a static page with a CSS `100%`, a processor returning `50 %`, and a `%%`; allowed: a `%NAME%` placeholder | each refused case detected, the placeholder allowed; the selftest passes |
+| **L4** | the served bench page on E2:08 after the reflash | `wx-look` offers **A ("A: 40 percent + outline") and B ("B: 25 percent")**, both labels whole |
+| **L5** | the shipping image, `blipscope-s3-128`'s `firmware.bin` before and after (the change is under `WX_LOOK_AB`) | **byte-identical, or different only in the documented regions** (app ELF sha, image sha, checksum, WiFiManager's timestamps). Anything else: stop |
+| **L6** | the ELFs | `wxlook`: "A: 40 percent + outline" 1 and "A: 40 % + outline" 0. Shipping: both 0. The control, "Weather radar (beta)": 1 in both |
+| **L7** | CI | 0 failures |
+
+**Outside the set:** stop and report.
