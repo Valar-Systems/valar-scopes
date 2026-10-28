@@ -1407,3 +1407,38 @@ The proposal is in the next record.
   - **A‴/B‴, the windows' totals, within 0.9-1.1.**
 - **A `[touch]` line in either window voids the run.**
 - **Outside the set:** stop and report.
+
+## WD7, 2026-10-28: light rain is teal on the Blipscope too (ruled). Frozen before its code
+
+**The ruling,** recorded above with its source.
+- WxS2 dims code 1 to the look's percent × 55/40 (look A 55 %, look B 34 %, rounded as `Dim` rounds). Light rain stays
+  visible but below code 2 in luminance in both looks, with host rows for both.
+- `wx-fb-check.py` reads the teal from the source, and its ambiguous and ungradable sets are recomputed.
+- #488 is on main (`b9b1a05`), merged into this branch at `6bd9b9a`.
+  - It made code 1 a ruled exception, `wxpalette::kRain1 = (0, 150, 135)`, which `wxpalette::Rain(1)` returns.
+  - Until this change, WxS2's `EchoAt` still drew code 1 from `kRainTable[0]`, the old blue.
+
+**The design:**
+- **`include/WxS2.h`:**
+  - `EchoAt(code, pct)` dims `wxpalette::Rain(code)`, so the base colour is read from the palette, teal included, and
+    never copied.
+  - A new `CodePercent(code, pct)` gives code 1 `(pct × 55 + 20) / 40` (half up, as `Dim` rounds) and every other code
+    `pct`.
+  - `Echo(code, look)` is `EchoAt(code, CodePercent(code, Percent(look)))`.
+- **`include/WxSweep.h`:** look 4 raises each echo code from **its own** percent toward 100 % at the beam
+  (`LitPercent(CodePercent(code, pct), lvl)`). So the tail is still exactly the layer's colour, and the beam is the
+  code at 100 % (the teal itself for code 1).
+
+| | check | predicted (computed from the tree's sources before the code) |
+|---|---|---|
+| **TL1** | host, `test_wx_s2.cpp` WD4b re-registered: code 1 = `Dim(kRain1, CodePercent)`, plus the hand anchors | **look A (0, 83, 74)** at 55 %, **look B (0, 51, 46)** at 34 %. Codes 2-13 are unchanged (table and white × the look's percent), and none is the background |
+| **TL2** | host, a new row **WD4e**: light rain below code 2, by CIELAB L* (the measure of `test_wx_palette`'s C3l) | **A: 31.1 < 36.9; B: 18.2 < 22.5.** The old blue's L* is printed beside it, not graded: 8.0 and 3.1 |
+| **TL3** | host, `test_wx_sweep.cpp` W2 re-registered | look 4's expected percent starts from `CodePercent`. Level 0 is still exactly the layer's own colour, and level 120 the code at 100 %. W1 and W3 are unchanged; 0 mismatches |
+| **TL4** | sabotages, in `test/host/sabotage_wx_s2.py` | **S-t1** (code 1 at the look's plain percent): **WD4b red in both looks**, WD4e green. **S-t2** (code 1 from `kRainTable[0]` again): **WD4b red in both looks**, WD4e green. Every other row stays green |
+| **TL5** | `scripts/wx-fb-check.py` reads `kRain1` from `WxPalette.h` and the 55/40 rule from `WxS2.h`, and fails if either is missing | the sets are **unchanged**, because neither the old blue nor the teal is a marker, label or ring colour in either look. **Look A:** 15 weather colours; 18 ambiguous (6 marker colours that are weather colours: `0x0280 0x0320 0x2945 0x4a49 0x6320 0x632c`); **no ungradable ring**. **Look B:** 14; 17 (3: `0x2945 0x4208 0x4a49`); **r=78 `0x0200` ungradable**. The selftest's 18 cases pass |
+| **TL6** | the suites, the builds and CI | MinGW: ALL PASS. WSL: only the board block's known gap. Both builds succeed. CI: 0 failures |
+
+**Then, not graded:** the sweep build (`wxlook`) goes on E2:08, with the layer on, look 4, and "Sweep over weather
+(bench)" still there, for Daniel's pick of 3 or 4 the next time it rains.
+
+**Outside the set:** stop and report.
