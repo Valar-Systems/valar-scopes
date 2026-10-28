@@ -98,7 +98,8 @@ def terrain_body(level_radius_mm, n, values):
 
 
 def provenance_body(lines):
-    return "".join(l + "\n" for l in lines).encode("utf-8")
+    """Lines joined by \n with NO trailing \n (RD-P4, ruled 2026-10-28 for both builders)."""
+    return "\n".join(lines).encode("utf-8")
 
 
 def layout(sections, lat0_micro, lon0_micro, radius_mm, tolerance_mm, version=1, flags=0, nsections=None,
