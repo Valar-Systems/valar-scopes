@@ -6224,3 +6224,24 @@ Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 **The device decoder's grading of these crops** (`codesSha256` against `WxCrop.h`) comes with 3.5b's loop rows (A10.6), as Dallas's came with test_wx_loop's D2. It is recorded in the manifest now so it can be graded then.
 
 **Outside these: stop and report.**
+
+### A12.13 Results: the Bend crops (#496 @ d7a6d4e66bfa), graded against A12.12
+
+| A12.12 | measured |
+|---|---|
+| BC1: 15 crops, named for A12.10's objects in time order | **15** (`shsr-20240602-191000` … `200600`; 30,885 B in all; 180 × 248 cells, coarsen 1) |
+| BC2: every GRIB file hashes to A12.10's sha256 | **all 15** (the tool refuses otherwise) |
+| BC3: `frame_stats` on each committed crop equals the pick's record exactly | **15/15** |
+| BC4: `--check` exits 0; one flipped byte in a copy exits 1 | **0 and 1.** The 0 was read a second time without a pipe: the first read was `tail`'s exit code |
+| BC5: SC1 and SC2; no echo; all dry | **44,640 cells, all code 0;** the header equals `shsr-20240602-200600`'s; no echo, 36,828 of 36,828 dry |
+| BC6: Dallas unchanged | **`make_clear --check` passes with its defaults; `test_wx_k35` 28/0** |
+
+**The encoder's commit, corrected before the commit:**
+- **What went wrong first:** the first run recorded the radar branch's HEAD (`e867a3a`), a commit the squash would remove.
+- **What it records now:** `d1ced739…`, the last commit to `proxy/src/wx/`, which is on main.
+- **And it refuses** unless those files equal origin/main's.
+
+**A slip of mine, recorded.**
+- **What happened:** the manifest's coordinate-token scan was in the same `&&` chain as the commit and the push, but its count did not gate them. So 32 matches went out before they were classified.
+- **Classified afterwards, on the pushed bytes:** 30 `SeamlessHSR_00.00` product names and 2 `A12.10` references; **0 unclassified, no coordinate.**
+- **From here, such a scan exits non-zero on any unclassified token,** so the commit cannot pass it.
