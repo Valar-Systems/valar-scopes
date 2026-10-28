@@ -1647,3 +1647,49 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 | anything else | the instrument is unreliable at this scale. Stop and report |
 
 **The sabotage readings, as registered:** every set as frozen, except S-SQUARELEN, frozen {ML6}, for which A2.13 predicts {ML6, MR6}. And C-LOADFAIL must read BLIND from its own plant, with a clean runtime.
+
+### A2.15 `layers.ts`: ML, MR5 and MR6, run (2026-10-28); one OFF-PREDICTION, stopped for a ruling
+
+**`proxy/src/basemap/layers.ts`** applies §5's rules to the features the ingest stored, in RD2's order:
+- `keepWater` (with RD3 and RD26);
+- `isRiverName` and `selectRivers` (RD8 and RD29);
+- `isBusRoute`, `roadClass` and `keepRoads`;
+- `summits` (RD9, RD11, RD12) and `rankPeaks`;
+- `keepPlaces`, and `withinMm`, the one disc test.
+
+**`terrain.ts`** so far holds only `decodeTerrarium` and `elevationM` (RD10), for ML10. The hillshade lands with MT.
+
+**Two changes to the accepted `frame.ts`, so that each rule has one path.** The MR rows and their sabotages ran again after them, as frozen.
+- **`inDisc` removed.** Nothing called it, and the disc test is now `layers.ts`'s `withinMm`, by its frozen name.
+- **`openRing` added.** It is the one place a ring's closing repeat is stripped, used by both `isOuter` and the water clip.
+
+**A comment corrected in `ingest-lib.ts`.** It said the builder re-applies every rule. The builder can re-apply only the rules whose columns the store keeps: AWATER, FULLNAME and MTFCC. Peaks (`feature_class`) and places (`LSAD`) are filtered by the ingest alone.
+
+| row | result |
+|---|---|
+| ML1-ML13b, all 15 | **as frozen** |
+| MR5 | **as frozen:** one ring, the clockwise part's, written by hand as `[(0,0), (0,−3750), (3750,−3750), (3750,0)]`; `collapsed` 0 |
+| MR6 | **as frozen:** names [A, B, D]; the three drawn lines are A's, B's and D's |
+
+**The gated sabotage pass** (22:17-22:22Z): 26 runs, **0 runtime failures**, the highest TIME_WAIT at a start 7,952, held 225 s. That is A2.14's first outcome: consistent with port exhaustion, not proof of it.
+
+| sabotage | result |
+|---|---|
+| S-RZERO | **{MR5}**, as frozen |
+| S-R0M | **{MR6}**, as frozen |
+| S-BUSSUB | **{ML7}**, as frozen |
+| **S-SQUARELEN** | **OFF-PREDICTION: {ML6, MR6}, against the frozen {ML6}.** This is the set A2.13 predicted before `layers.ts` existed |
+| S-DEDUPALL | **{ML11}**, as frozen |
+| S-DEDUPLT | **{ML11b}**, as frozen |
+| S-PLACESORT | **{ML13}**, as frozen |
+| S-RIVERTIE | **{ML4}**, as frozen |
+| C-LOADFAIL (the control on the missing-cases check) | **BLIND from its own plant:** the 17 `layers` cases not run, with a clean runtime |
+| the 16 earlier sabotages | as frozen, unchanged |
+
+**S-SQUARELEN, stopped for a ruling.**
+- **What happened:** the plant gives river C its 60 km inside the square, so MR6's names table becomes [C, A, B, D].
+- **The alternative explanation, named:** a plant broader than "in-square length in place of in-disc". **Excluded:** the plant changes exactly one expression, the length summed per part, and ML6 fails for the reason it was frozen for.
+- **Nothing is changed.** The frozen set stays {ML6} in the harness, so the pass exits 1 until a ruling.
+- **Proposed:** re-register S-SQUARELEN's set as **{ML6, MR6}**, with the miss kept on record. MR6 joined the tables after S-SQUARELEN's set was frozen, and A2.5's check of every family did not re-check A1.7's sets against the new rows.
+
+**Next, after the ruling:** `budget.ts` (MB), as A2.6 sets out.

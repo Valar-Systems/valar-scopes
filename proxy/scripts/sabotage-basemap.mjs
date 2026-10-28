@@ -18,6 +18,7 @@ const PROXY = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LIB = "scripts/basemap/ingest-lib.ts";
 const FORMAT = "src/basemap/format.ts";
 const FRAME = "src/basemap/frame.ts";
+const LAYERS = "src/basemap/layers.ts";
 // Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
 // clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
 // "all" is a path filter, not a list, so a basemap test file added later is graded without anyone remembering to.
@@ -71,8 +72,7 @@ const SABOTAGES = {
              '    case "roads": return (a["MTFCC"] === "S1100" || a["MTFCC"] === "S1200") && !/(^|[^A-Za-z0-9])Bus($|[^A-Za-z0-9])/.test(a["FULLNAME"] ?? ""); // SABOTAGE S-IBUS\n']],
     expect: ["MI1"],
   },
-  // A2.5's MR sabotages and A1.7's S-ECLAMP, graded against every basemap family. S-RZERO and S-R0M land with
-  // layers.ts, where MR5 and MR6 bind: planted now they could fail nothing, and would be read as off-prediction.
+  // A2.5's MR sabotages and A1.7's S-ECLAMP, graded against every basemap family.
   "S-RLBRECOMP": {
     file: FRAME, set: "all",
     edits: [["  const P: Pt = u0 === 0 ? a : [x0 + u0 * dx, y0 + u0 * dy];\n  const Q: Pt = u1 === 1 ? b : [x0 + u1 * dx, y0 + u1 * dy];\n",
@@ -114,20 +114,113 @@ const SABOTAGES = {
              "    if (n < -QMAX || n > QMAX) return n < 0 ? -QMAX : QMAX; // SABOTAGE S-ECLAMP\n"]],
     expect: ["ME4"],
   },
+  "S-RZERO": {
+    file: FRAME, set: "all",
+    edits: [["  return s < 0;\n", "  return s <= 0; // SABOTAGE S-RZERO\n"]],
+    expect: ["MR5"],
+  },
+  // A1.7's ML sabotages and A2.5's S-R0M, graded against every basemap family. S-SQUARELEN's set is A1.7's as
+  // frozen; A2.13 predicts {ML6, MR6} for it, recorded before layers.ts existed. The frozen set is what is graded.
+  "S-R0M": {
+    file: LAYERS, set: "all",
+    edits: [["  const ranked = [...length].filter(([, m]) => m > 0).sort(", "  const ranked = [...length].sort( // SABOTAGE S-R0M\n"]],
+    expect: ["MR6"],
+  },
+  "S-BUSSUB": {
+    file: LAYERS, set: "all",
+    edits: [["export const isBusRoute = (fullname: string | undefined) => fullname !== undefined && BUS.test(fullname);\n",
+             "export const isBusRoute = (fullname: string | undefined) => fullname !== undefined && fullname.includes(\"Bus\"); // SABOTAGE S-BUSSUB\nvoid BUS;\n"]],
+    expect: ["ML7"],
+  },
+  "S-SQUARELEN": {
+    file: LAYERS, set: "all",
+    edits: [["    length.set(name, (length.get(name) ?? 0) + inDiscLengthM(km, f.rKm));\n",
+             "    void inDiscLengthM; // SABOTAGE S-SQUARELEN: the clipped length in the square\n" +
+             "    length.set(name, (length.get(name) ?? 0) + clipLine(km, f.rKm).reduce((s, run) => s + run.slice(1).reduce((t, p, i) => t + planarDist(p[0] - run[i]![0], p[1] - run[i]![1]) * 1000, 0), 0));\n"]],
+    expect: ["ML6"],
+  },
+  "S-DEDUPALL": {
+    file: LAYERS, set: "all",
+    edits: [["    if (kept.some((k) => within3km(c.p[0] - k.p[0], c.p[1] - k.p[1]))) continue;\n",
+             "    if (ranked.slice(0, ranked.indexOf(c)).some((k) => within3km(c.p[0] - k.p[0], c.p[1] - k.p[1]))) continue; // SABOTAGE S-DEDUPALL\n"]],
+    expect: ["ML11"],
+  },
+  "S-DEDUPLT": {
+    file: FRAME, set: "all",
+    edits: [["export const within3km = (ex: number, ey: number) => planarDist(ex, ey) <= 3.0;\n",
+             "export const within3km = (ex: number, ey: number) => planarDist(ex, ey) < 3.0; // SABOTAGE S-DEDUPLT\n"]],
+    expect: ["ML11b"],
+  },
+  "S-PLACESORT": {
+    file: LAYERS, set: "all",
+    edits: [["  return places;\n", "  return places.sort((a, b) => planarDist(a.q[0], a.q[1]) - planarDist(b.q[0], b.q[1])); // SABOTAGE S-PLACESORT\n"]],
+    expect: ["ML13"],
+  },
+  "S-RIVERTIE": {
+    file: LAYERS, set: "all",
+    edits: [["b[1] - a[1] || byteCmp(a[0], b[0])", "b[1] - a[1] /* SABOTAGE S-RIVERTIE: a stable sort, so source order */"]],
+    expect: ["ML4"],
+  },
+  // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
+  "C-LOADFAIL": {
+    file: LAYERS, set: "all",
+    edits: [["export const isRiverName = ", "export const isRiverName = ((( // CONTROL C-LOADFAIL: a syntax error\n"]],
+    expect: "BLIND",
+  },
 };
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9]+)/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
+// Every vitest run, and how many met a Workers runtime failure (ruled 2026-10-28, A2.12: "If the runtime failure
+// recurs, report how often"). Printed at the end of every pass, zeros included. A run whose output carries the
+// runtime's failure text is counted whether nothing ran or only some files did: both are instrument failures.
+const tally = { runs: 0, runtimeAll: 0, runtimePartial: 0, maxTimeWait: 0, heldMs: 0 };
+const RUNTIME_FAIL = /ERR_RUNTIME_FAILURE|The Workers runtime failed to start|Fallback service failed to fetch module/;
+
+// THE PORT GATE (A2.14). Each vitest-pool-workers run opens hundreds of loopback connections for its module service,
+// and each lingers in TIME_WAIT after it closes. Back-to-back runs filled Windows' 16,384 ephemeral ports (15,998
+// counted right after a failing pass), and the runtime's connect was then refused. So a run starts only when the
+// TIME_WAIT count is under TW_LIMIT -- polled, never slept for a fixed time -- and the count is printed per run, so a
+// runtime failure at a LOW count would show that ports are not (or not only) the cause.
+const TW_LIMIT = 8000;
+function timeWaitCount() {
+  if (process.platform !== "win32") return null;
+  const r = spawnSync("powershell", ["-NoProfile", "-Command", "@(Get-NetTCPConnection -State TimeWait -ErrorAction SilentlyContinue).Count"], { encoding: "utf8" });
+  const n = Number(r.stdout.trim());
+  if (r.status !== 0 || !Number.isInteger(n)) throw new Error(`cannot read the TIME_WAIT count: ${r.stderr.slice(-300)}`);
+  return n;
+}
+function holdForPorts() {
+  const t0 = Date.now();
+  let n = timeWaitCount();
+  while (n !== null && n >= TW_LIMIT) {
+    if (Date.now() - t0 > 600_000) throw new Error(`TIME_WAIT still ${n} after 10 minutes`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+    n = timeWaitCount();
+  }
+  tally.heldMs += Date.now() - t0;
+  if (n !== null && n > tally.maxTimeWait) tally.maxTimeWait = n;
+  return n;
+}
+
 function runTests(setName) {
   const set = SETS[setName];
+  const tw = holdForPorts();
   const dir = mkdtempSync(join(tmpdir(), "bm-sab-"));
   const out = join(dir, "r.json");
   const args = ["vitest", "run", ...set.files, ...(set.filter ? ["-t", set.filter] : []), "--reporter=json", `--outputFile=${out}`];
   const r = spawnSync("npx", args, { cwd: PROXY, shell: true, encoding: "utf8" });
+  tally.runs++;
+  const runtime = RUNTIME_FAIL.test(`${r.stderr}\n${r.stdout}`);
+  const at = tw === null ? "" : ` [TIME_WAIT ${tw} at start]`;
   let json;
-  try { json = JSON.parse(readFileSync(out, "utf8")); } catch { rmSync(dir, { recursive: true, force: true }); return { blind: true, why: (r.stderr || r.stdout || "").slice(-800) }; }
+  try { json = JSON.parse(readFileSync(out, "utf8")); } catch { json = null; }
   rmSync(dir, { recursive: true, force: true });
+  const ran = json ? (json.testResults ?? []).length : 0;
+  if (runtime) { if (ran) tally.runtimePartial++; else tally.runtimeAll++; }
+  if (!json) return { blind: true, runtime, at, why: runtime ? "the Workers runtime failed" : (r.stderr || r.stdout || "").slice(-800) };
+  if (runtime && !ran) return { blind: true, runtime, at, why: "the Workers runtime failed (0 test files ran)" };
   const failed = new Set(), seen = new Set();
   for (const f of json.testResults ?? []) for (const a of f.assertionResults ?? []) {
     if (a.status === "skipped" || a.status === "pending") continue; // outside the set's filter
@@ -135,8 +228,8 @@ function runTests(setName) {
     if (a.status !== "passed") failed.add(id);
   }
   // A suite that failed to load has no assertion results: that is BLIND, never "nothing failed".
-  if (seen.size === 0) return { blind: true, why: "no test results" };
-  return { failed: [...failed].sort(), seen, files: (json.testResults ?? []).length };
+  if (seen.size === 0) return { blind: true, runtime, at, why: "no test results" };
+  return { failed: [...failed].sort(), seen, files: ran, runtime, at };
 }
 
 function plant(name, src, edits) {
@@ -157,10 +250,10 @@ const baselines = {};
 function baseline(setName) {
   if (baselines[setName]) return;
   const base = runTests(setName);
-  if (base.blind || base.failed.length) { console.log(`BASELINE[${setName}] ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}`); process.exit(2); }
+  if (base.blind || base.failed.length) { console.log(`BASELINE[${setName}] ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}`); printTally(); process.exit(2); }
   const f = SETS[setName].filter;
-  console.log(`baseline[${setName}${f ? `, -t ${f}` : ""}]: 0 failing cases (${base.seen.size} cases seen in ${base.files} files)`);
-  baselines[setName] = true;
+  console.log(`baseline[${setName}${f ? `, -t ${f}` : ""}]: 0 failing cases (${base.seen.size} cases seen in ${base.files} files)${base.at}`);
+  baselines[setName] = base.seen;
 }
 for (const [name, s] of Object.entries(SABOTAGES)) {
   if (only && only !== name) continue;
@@ -172,13 +265,30 @@ for (const [name, s] of Object.entries(SABOTAGES)) {
   try {
     writeFileSync(path, plant(name, orig.toString("utf8"), s.edits));
     const r = runTests(setName);
+    // Every case the baseline saw must be seen again: a file that failed to load drops its cases from `seen`
+    // WITHOUT adding them to `failed`, and would otherwise grade as "nothing else failed".
+    const missing = r.blind ? [] : [...baselines[setName]].filter((id) => !r.seen.has(id));
+    const why = r.blind ? r.why : r.runtime ? `the Workers runtime failed partway (${missing.length} baseline cases not run)` : missing.length ? `${missing.length} baseline cases not run: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? ", ..." : ""}` : null;
+    if (s.expect === "BLIND") {
+      // A control's BLIND must come from its OWN plant: one the runtime also failed on cannot tell the two apart.
+      if (r.runtime) { ok = false; console.log(`${name}: UNREADABLE, the runtime also failed (${why})${r.at}`); }
+      else if (why) console.log(`${name}: AS PREDICTED, BLIND (${why})${r.at}`);
+      else { ok = false; console.log(`${name}: OFF-PREDICTION, graded {${r.failed.join(", ")}} where BLIND was required${r.at}`); }
+      continue;
+    }
     const want = [...s.expect].sort();
-    if (r.blind) { ok = false; console.log(`${name}: BLIND (${r.why})`); }
-    else if (r.failed.join(",") === want.join(",")) console.log(`${name}: AS PREDICTED, failing {${r.failed.join(", ")}}`);
-    else { ok = false; console.log(`${name}: OFF-PREDICTION, failing {${r.failed.join(", ")}} against {${want.join(", ")}}`); }
+    if (why) { ok = false; console.log(`${name}: BLIND (${why})${r.at}`); }
+    else if (r.failed.join(",") === want.join(",")) console.log(`${name}: AS PREDICTED, failing {${r.failed.join(", ")}}${r.at}`);
+    else { ok = false; console.log(`${name}: OFF-PREDICTION, failing {${r.failed.join(", ")}} against {${want.join(", ")}}${r.at}`); }
   } finally {
     writeFileSync(path, orig);
     if (sha(readFileSync(path)) !== before) { console.log(`${name}: RESTORE FAILED for ${s.file}`); process.exit(3); }
   }
 }
+printTally();
 process.exit(ok ? 0 : 1);
+
+function printTally() {
+  console.log(`runs: ${tally.runs}; runtime failures: ${tally.runtimeAll} with nothing run, ${tally.runtimePartial} partway; ` +
+    `highest TIME_WAIT at a run's start: ${tally.maxTimeWait} (gate ${TW_LIMIT}); held for ports: ${Math.round(tally.heldMs / 1000)} s`);
+}

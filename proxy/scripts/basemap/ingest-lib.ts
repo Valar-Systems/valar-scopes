@@ -2,8 +2,10 @@
 // PURE: Web APIs and fflate only, so the workers pool runs MI1-MI7. The CLI (scripts/ingest-basemap.ts)
 // supplies bytes from the fetch cache and writes what this returns.
 //
-// The store is a SUPERSET filter of format §5, by attribute only. The builder re-applies every rule, so no rule
-// lives only here -- and the Bus rule deliberately lives only in the builder (MI1, S-IBUS).
+// The store is a SUPERSET filter of format §5, by attribute only. The builder (src/basemap/layers.ts) re-applies
+// every rule whose column the store keeps -- AWATER, FULLNAME, MTFCC -- and the Bus rule deliberately lives only
+// there (MI1, S-IBUS). Peaks (feature_class = Summit) and places (LSAD = 25) are filtered HERE ALONE: the store
+// does not keep those columns, so a change to either predicate is a change to the store, not to the builder.
 
 // ------------------------------------------------------------------------------------------------ filters
 

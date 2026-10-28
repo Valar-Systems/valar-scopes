@@ -24,10 +24,7 @@ export const toFrameKm = (f: Frame, lon: number, lat: number): Pt => [(lon - f.l
 /** RD31: a decision's distance, the x term first, in double. Never hypot. */
 export const planarDist = (ex: number, ey: number) => Math.sqrt(ex * ex + ey * ey);
 
-/** RD9 + RD31: inside the disc of radius R, inclusive. */
-export const inDisc = (f: Frame, p: Pt) => planarDist(p[0], p[1]) <= f.rKm;
-
-/** RD9 + RD31: the 3.0 km de-duplication's test, inclusive. */
+/** RD9 + RD31: the 3.0 km de-duplication's test, inclusive. (The disc test is layers.ts's withinMm, its one path.) */
 export const within3km = (ex: number, ey: number) => planarDist(ex, ey) <= 3.0;
 
 // ------------------------------------------------------------------------------------------------ clipping (§2)
@@ -162,11 +159,15 @@ export const dedupeRing = (q: Pt[]) => dedupe(q, true);
 
 // ------------------------------------------------------------------------------------------------ orientation, length
 
+/** A source part without its closing repeat (a shapefile writes rings closed). The one place that strips it, so
+ *  the orientation test and the clip see the same ring. */
+export const openRing = (part: Pt[]): Pt[] =>
+  part.length > 1 && part[0]![0] === part[part.length - 1]![0] && part[0]![1] === part[part.length - 1]![1] ? part.slice(0, -1) : part;
+
 /** RD26: a part is OUTER when its shoelace sum on (lon, lat), without its closing repeat, summed from the first
  *  edge, is negative. Zero is not outer. */
 export function isOuter(partLonLat: Pt[]): boolean {
-  const ring = partLonLat.length > 1 && partLonLat[0]![0] === partLonLat[partLonLat.length - 1]![0]
-    && partLonLat[0]![1] === partLonLat[partLonLat.length - 1]![1] ? partLonLat.slice(0, -1) : partLonLat;
+  const ring = openRing(partLonLat);
   let s = 0;
   for (let i = 0; i < ring.length; i++) { const [x0, y0] = ring[i]!, [x1, y1] = ring[(i + 1) % ring.length]!; s += x0 * y1 - x1 * y0; }
   return s < 0;
