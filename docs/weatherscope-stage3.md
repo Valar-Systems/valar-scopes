@@ -5905,3 +5905,22 @@ None changes anything graded here. A golden comparison with the map server's bui
 **Two slips of mine, recorded:**
 1. **The origin reached my console.** Inspecting the reference validator's decoded result, I printed its whole info dict, which includes the header's origin. It was not written to any file, log or commit, and it is downtown Bend at 2 dp, coarser than the constant already public in `bend.ts`. It still broke A10.4's "no tool prints it". **From here, inspection prints keys and types, never header values.**
 2. **I typed a full commit SHA from memory** into a CI watch, and it was wrong. The watch was stopped and restarted on `git rev-parse HEAD`'s value. No reading came from it.
+
+### A12.7 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): #495's split and size, the nine readings, numpy, the slips
+
+**The ruling, verbatim:**
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> - #495: report its CI as planned, and I'll review it for approval then. Splitting bend.bmpk into its own PR is accepted, as A10.14 intended.
+> - The size: non-terrain 23,521 B, under the 32 KB cap and 3,041 B over the 20 KB target. A12.5 made it a report, not a test, so it stands as reported. No drop policy without a ruling.
+> - The nine readings: the map server is asked whether its builder makes each one the same way. Where they differ, I'll rule once for both builders, and you then add all nine to §13.
+> - numpy's transcendental functions: accepted as they are. A last-digit difference in sin, cos or atan can move a quantised byte only when a value sits right on a level boundary. So if a golden comparison ever differs, report each differing cell with both builders' unquantised values. A difference confined to cells within 1e-9 of a boundary is this reading, not a defect.
+> - The two slips: accepted as recorded. Inspection prints keys and types only from now on.
+
+**What it settles:**
+- **The nine readings** wait on the map server's answer and one ruling for both builders. **Then all nine go into the format doc's §13,** in the PR that next touches it.
+- **A golden comparison that differs** is reported cell by cell, with both builders' unquantised values.
+  - A difference confined to cells within 1e-9 of a level boundary is numpy's reading, not a defect.
+  - **Anything else is a defect,** and is stopped on.
+  - To make that report possible, the host tool needs to emit its unquantised shade values on request. That is a small addition, made when a comparison first asks for it.
