@@ -40,6 +40,8 @@ UA = {"User-Agent": "BlipscopeBasemapM1/1 (+https://github.com/Valar-Systems/val
 GB_CENTRES = ["LHR", "MAN", "BHX", "NCL", "EDI", "GLA", "ABZ", "INV", "CWL", "NQY"]
 NI_CENTRES = ["BFS", "LDY"]
 RADII = [(161, 671.0), (222, 925.0), (97, 100.584)]   # (km, eps m): graded 161/222, printed 97
+if "--only161" in FLAGS:   # the sabotage reruns: every centre, at the default radius
+    RADII = RADII[:1]
 VARIANTS = ["i", "ii", "iii", "iv"]
 
 
@@ -699,7 +701,7 @@ def main():
                 runs.append(build(gb, ni, c, lat, lon, r_km, eps, v, True, nodrop="--nodrop" in FLAGS))
                 print(json.dumps({k: runs[-1][k] for k in ("centre", "r_km", "variant", "outcome", "bytes_first", "bytes_final", "validate")}), flush=True)
         if c in ("BFS", "LDY", "GLA"):
-            for r_km, eps in RADII[:2]:
+            for r_km, eps in [x for x in RADII if x[0] in (161, 222)]:
                 runs.append(build(gb, ni, c, lat, lon, r_km, eps, "iv", False, nodrop="--nodrop" in FLAGS))
     res["runs"] = runs
     res["terrain_tiles"] = len(_tiles)
