@@ -1105,3 +1105,79 @@ reading come true.
   - It changes no field. A US package is untouched, since TIGER's lines are not split this way.
   - **Recommended: yes,** with a fixed, deterministic chaining order written into the rule.
 - **Q19:** the NI gate, on the sources rather than only the origins (A2.3). **Recommended: yes.**
+
+### A2.5 M1's results (read 2026-10-28, 17:23-17:50Z): two misses and three instrument defects. Stopped for a ruling
+
+**The instruments, as committed before each reading:**
+- fetch, extract and sizing at `e7188e0`;
+- the grader and `--only161` (the sabotage reruns at the default radius) at `0223cfb`.
+- **The sources:** 74 files, each with its URL, sha256 and Last-Modified in `docs/uk-data/r1/m1-manifest.json`.
+- **The extract's counts** are in `m1-extract.json`.
+- **Raw outputs:** `m1-sizes.json` (sha256 `cc689565d1bc…`) and the three sabotage runs, in `docs/uk-data/r1/`.
+
+**Two faults the controls caught before any reading, both fixed before the sizing run:**
+- **A text field that is not UTF-8:** OS's DBFs are code page 1252. Every one declares language driver `0x03`, and the
+  extract now decodes by that byte and refuses any other.
+- **The BUA boundaries short by half** (4,545 of 8,545): the service caps a page at 1,000. They were re-fetched in
+  1,000-record pages, giving 8,545 features and 8,545 distinct codes.
+
+**The controls (A2.4):**
+- every one of 150 packages validates `kOk`;
+- `synth.py --check` reports "every committed byte equal";
+- the DP bump cases, the clipped ring and the re-entering line all behave as frozen.
+- **All passed.**
+
+| | read | verdict |
+|---|---|---|
+| **M1-a** | LHR, MAN, BHX at 161 km, (i) and (ii): **X** in all six (LHR (i): 1,231,423 B first) | **as predicted** |
+| **M1-b** | the same, (iv): LHR **D**, MAN **D**, **BHX X** | **MISS** (BHX) |
+| **M1-c** | the same, (iii): D, D, X | **as predicted** |
+| **M1-d** | the other nine centres at 161 km, (iv): NCL D, EDI D, GLA D, ABZ **C**, INV **C**, CWL D, NQY **F**, BFS D, LDY D | **as predicted** |
+| **M1-e** | 222 km, (iv): LHR, MAN, BHX X; **ABZ C, INV C**; the rest D | **MISS** (ABZ and INV fit without drops) |
+| **M1-f** | 384 kept hills: the median is **5 m** below the 1 km maximum; **2.9 %** are more than 50 m below; the worst is 138 m | **as predicted** |
+
+**The sabotages:**
+
+| | read | verdict |
+|---|---|---|
+| no drop policy | every 161 km D became X (37 of 37) | **red, as frozen** |
+| ε = 0 | **as graded, the final road section rose at 8 centres and fell at 4** (INV, NQY, BFS, LDY). The grader read the road bytes **after** §6's drops, and an unsimplified package overflows and drops more. The frozen sabotage means the bytes **before** the budget, which the instrument does not record | **not red as graded; the frozen quantity is unrecorded, so BLIND.** Beside it, as data: the first-build total rose at 12 of 12 |
+| no chaining | (iv) with chaining off equals (ii) at 11 of 12 centres. **NCL differs by 1 B, in PROVENANCE**, while its road section before the budget is identical | **not red** (defect 2 below) |
+
+**The three instrument defects, found after reading.** None is re-graded, and none is fixed until ruled.
+1. **ONS's counts were never read.**
+   - **The cause:** the column was found with `startswith("Count")`, and "Country code" matches first. So every
+     England and Wales place got population 0. That is the editor-anchor row in CLAUDE.md's table again.
+   - **The bound** (`m1_popbound.py`, the column found exactly): 6,985 counts; 1,199 places gain one. At most
+     **1,451 B** is missing from any graded package, and **no outcome class changes**. The closest cases:
+     - NQY 161 (iv) F: 20,237 + 134 B, still ≤ 20 KB;
+     - ABZ 222 (iv) C: 32,014 + 5 B.
+2. **PROVENANCE's `files.terrain` counted every tile cached in the process,** not the tiles the package read. A package
+   built after more centres carries a longer count. It is 1-2 B of PROVENANCE, and it is the 1 B that kept the
+   no-chaining sabotage from going red.
+3. **The ε = 0 sabotage's measure is unrecorded.** The instrument keeps only the final section bytes.
+
+**What the numbers say (M1-g, printed).** The cap is set by layers §6 cannot drop.
+- **LHR at 161 km (iv), after its drops:**
+  - **rivers 15,545 B**, places 7,834 B, roads 7,332 B, PROVENANCE about 1.6 KB;
+  - every water ring dropped; **40 % of the A-road length kept**.
+- **Open Rivers splits a river into links at every confluence:** the structural floor the map server foresaw for
+  TIGER (its §5.1).
+- **BHX at 161 km:** places alone take 11,579 B and rivers 13,837 B. With the motorways, which are class 1 and not
+  droppable, even every A road dropped cannot fit. Hence X.
+- **NI's OSNI lines are short pieces, with no numbers to chain:**
+  - GLA at 161 km is 61 KB with NI's features and 33 KB without;
+  - BFS with NI out is F at 11.8 KB.
+
+**Outcomes against A2.4's table:**
+- LHR and MAN are **(c)**: only the chained variants fit, and only through drops.
+- **BHX is (d)**: none of the four fits at 161 km.
+- **(d)'s registered meaning:** stop and decide; the default radius would need fewer layers or a coarser ε.
+- **Stopped here.**
+
+**For the ruling, the levers M1's numbers point at.** Each is a UK data rule or a format question, not decided here:
+- **chain Open Rivers links** by name, as Q18 proposes for roads;
+- **select places,** for example City and Town above a population, or the N most populous;
+- **coarser ε at 161 km;**
+- **whether §6's drop order may reach rivers and places.** That is a v1 layer-definition change, so v2, unless ruled
+  otherwise.
