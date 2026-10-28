@@ -6430,3 +6430,98 @@ Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 - **R0b (Bend) is unaffected:** its screens are dry, with no code 1.
 
 **Held, no PR:** step 3's branch is pushed, and its PR waits for the two rulings.
+
+### A12.18 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): S-R0-ROUND, R0 since #488, R0 and R0b in CI, the disk; the predictions, before the code
+
+**The ruling, verbatim:**
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> 1. S-R0-ROUND: re-registered as {A, B, C}. Screen A's 15 and 30 mi rings use the pinned rounding, as A9.11 showed. Keeping the frozen text and running it as written was right; the miss stays on record beside the new set.
+>
+> 2. R0 since #488: accepted as found.
+> - In R0's mockup mode only, light rain is drawn in the generator's original colour (the old dimmed blue), as that mode already uses the generator's town-population table. The K rows and every other mode keep teal.
+> - Predicted: R0 passes 7 of 7 again, and the K rows don't change.
+> - Record the gap: A10.16 never predicted R0, and my approval of #488 didn't catch it either.
+>
+> 3. R0 and R0b run in CI from now on.
+> - Commit the mockup PNGs they read as fixtures, each pinned by sha256, and add both checks to host-tests.
+> - If CI can't reproduce them exactly (a numpy difference under RD28), report the differing pixels. R0 then stays a pre-push step for any ref35 change, with its result in the push notes.
+> - Predictions first, with a sabotage (one pixel changed in a fixture) that must turn the check red.
+>
+> 4. The disk is at 98 %. Trim C:\Github\_wx-bend-radar (3.1 GB) to what make_bend_loop.mts --check needs: the 15 chosen SeamlessHSR objects, their PrecipFlag files and selection.json. Everything else can be fetched again from NOAA's public bucket. List what you'll remove and its size, and remove it only after Daniel's yes.
+>
+> Then step 3's PR, and build Q after it.
+
+**The gap, recorded as ruled:**
+- **A10.16 froze the teal change's K rows and palette tests, and never predicted R0.**
+- **#488's approval did not catch it either.**
+- **R0 stayed red from #488's merge until A12.17's regression check found it:** no CI job ran it, and nothing printed it.
+
+#### A12.18.1 S-R0-ROUND
+
+- **The new set is {A, B, C},** beside A12.16's frozen {B, C}, which stays on record as the miss.
+- **Predicted:** `sabotage_geo35.py` reports all five sabotages AS PREDICTED.
+
+#### A12.18.2 R0's code 1
+
+- **My reading, stated before the code.** R0 has two modes:
+  - **G** reproduces the mockups;
+  - **P** is the spec.
+
+  R0b compares P with G and names their differences by the rounding log, so **the palette has to be the same in both modes for R0b to test the rounding at all.**
+  - **If only G took the old blue,** R0b would fail at every light-rain pixel (631 on dry, 858 on approaching and so on), and the ruling's own "R0 passes 7 of 7" could not hold.
+  - **So both of R0's modes draw code 1 in the generator's colour:** the pinned table's 15 dBZ entry dimmed to 55 %, (0, 0, 135), derived from the table, not typed.
+- **Teal stays everywhere else:** the K rows, R0b (Bend, which has no code 1), and every other path.
+- **Predicted:**
+  - **R0 7/7:** R0a 57,600 / 57,600 on each screen, and R0b 0 pixels differing;
+  - **`ref35.py --k --check` still identical.**
+
+#### A12.18.3 R0 and R0b in CI
+
+**What CI lacks today:**
+- host-tests installs PlatformIO only, with no Pillow;
+- it checks out at depth 1, so R0's `git show a7f21fb:…` (the 171 pre-join towns) cannot run;
+- R0b reads about 150 MB of public sources and `bendmock.py`, which holds the mockup's centre.
+
+**The fixtures,** under `test/fixtures/wx/r0/`, each pinned by sha256 in `r0/MANIFEST.json`, which the checks refuse to run without:
+- **the ten PNGs:** `screen-proposed-{dry,approaching,herenow,warning}`, `screen-zoom-{60,30,15}` and `screen-bend-{A,B,C}`;
+- **`generator-pop.json`:** `wxmock.py`'s POP table and `bendmock.py`'s BEND_POP (names and numbers only), with the sha256 of each source file;
+- **`towns-a7f21fb.txt`:** the 171 pre-join towns, as `WxTowns.h` held them at `a7f21fb`, with a header naming that source. This is the Census town subset the coordinate rule already allows, in the same form;
+- **`r0b-inputs.json` and `r0b-terrain.bin`:** R0b's inputs **in screen space**, produced by a new `geo35.py --make-fixture` from the local sources:
+  - the mockup's lake rings, river and road parts and placed-peak and town anchors, as projected pixel positions at 60 mi;
+  - each pixel's terrain grey `int(10 + 36·s)`, as 57,600 bytes;
+  - **no latitude, no longitude, no centre.** `bendmock.py` is not committed.
+
+**The checks:**
+- **R0:** `ref35.py --r0 test/fixtures/wx/r0` (no mockup directory needed).
+- **R0b:** `geo35.py --r0b-fixture test/fixtures/wx/r0`, run in run.sh. CI gains `pip install pillow==12.3.0`, pinned because R0a′ rests on Pillow's polygon rasteriser and 12.3.0 reproduced the PNGs here. numpy is not needed in CI, since the terrain is stored as greys.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| FX1 | `geo35.py --make-fixture --check` regenerates every R0b fixture byte-identical |
+| FX2 | **R0b from the fixture equals R0b from the sources, pixel for pixel**, for G and P on A, B and C, so the counts are A12.17's: 0, 256 and 422, all named |
+| FX3 | R0 from the fixtures: 7/7, as A12.18.2 |
+| FX4 | **CI (ubuntu, Python 3.12, Pillow 12.3.0):** R0 7/7 and R0b passing, the same counts as here. **If not: report the differing pixels, and R0 stays a pre-push step** for any ref35 change, with its result in the push notes (the ruling's fallback) |
+
+**The sabotages:**
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-FX-PIN | one pixel of `screen-proposed-dry.png` changed in a copy; the pin left as it was | R0 **refused by the pin** (exit 2, the rig), before any comparison |
+| S-FX-PIXEL | the same pixel changed **and** its pin updated, so only R0a can catch it | R0a fails on **screen-proposed-dry only, with exactly 1 unexplained pixel, at the changed position** |
+| S-FX-PIXEL-B | one pixel of `screen-bend-B.png` changed and its pin updated | R0a′ fails on **B only, with exactly 1 pixel, at the changed position** |
+
+**Outside these: stop and report.**
+
+#### A12.18.4 The disk
+
+The removal list went to Daniel, and **nothing is removed before his yes.**
+- **Keep:** 47 files, 27.4 MB: the 15 chosen SeamlessHSR objects, their 15 PrecipFlag files and sha256 records, `selection.json`, and run 1's record.
+- **Remove:** 3,051 files, 3.20 GB:
+  - SeamlessHSR objects outside the chosen window: 1,598 files, 2,363.4 MB;
+  - the 153 QPE files: 681.7 MB;
+  - other PrecipFlag objects, including the PF test's pins, which it re-fetches and re-pins on use: 1,298 files, 153.8 MB;
+  - the pick's measure cache and scratch crop: 0.4 MB.
