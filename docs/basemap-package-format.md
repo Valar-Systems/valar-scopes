@@ -11,6 +11,7 @@
   1. **PROVENANCE by reference** (§7): per layer, a file count and one digest over the layer's files; the per-file list lives in a manifest;
   2. **the terrain credits corrected** (§7): credit what a mosaic contains; no 3DEP line;
   3. **the builder readings RD1-RD17 ruled for both builders** (§13), from the map server's plan (`docs/basemap-route.md` on `feat/basemap-route` at `e0c43ce`, its §10).
+  4. **more readings, ruled 2026-10-28** (§13): RD18-RD21, RD-P1-RD-P6, F1 and F2, from the map server's frozen truth tables (`644a364`, its Addendum 1), with the credit and processing texts.
 - **Nothing described here is built yet.**
 - **Asked for by:** the reviewer's ruling on Weatherscope step 3.5b ([weatherscope-stage3.md](weatherscope-stage3.md) A9.1 D, A9.9 item 2, A9.21's second paste).
 - **Who builds what:**
@@ -367,3 +368,41 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 | RD15 | `dropped.*` key names | `dropped.<layer>` for §6's drops, `collapsed.<layer>` for §2's |
 | RD16 | the angles in the shade | 45° and 315° converted as `x * pi / 180`, with pi as `Math.PI` / Python's `math.pi` (the same double) |
 | RD17 | the terrain URL form in PROVENANCE | `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/<x>/<y>.png` |
+
+**More readings, ruled for both builders on 2026-10-28** ([weatherscope-stage3.md](weatherscope-stage3.md) A10.15).
+- **The source:** the map server's frozen truth tables, `docs/basemap-route.md` on `feat/basemap-route` at `644a364` (#486), its Addendum 1: A1.4 and A1.5.
+- **RD18-RD21 can change geometry or terrain.** RD-P1-RD-P6, F1 and F2 change PROVENANCE text or the manifest only.
+
+| | the gap | the ruled reading |
+|---|---|---|
+| RD18 | §6's "smallest-area first" | the absolute shoelace area of the ring's **quantised** vertices (exact integers), smallest first; on a tie, the later ring in source order goes first |
+| RD19 | §6's "shortest first" | the summed segment length of the road's quantised vertices, in double, along the line, shortest first; on a tie, the later road first |
+| RD20 | what the 32 KB cap measures | `totalBytes` minus the **bodies** of the TERRAIN sections; their directory entries count |
+| RD21 | a point's z9 pixel (§5.4 summits, §5.6 sampling) | `X = (lon + 180) / 360 · 2^17` and `Y = (1 − ln(tan(π/4 + φ/2)) / π) / 2 · 2^17`, each floored; tile `⌊X / 256⌋`, pixel `X mod 256` (and the same for Y) |
+| RD-P1 | the order of the `dropped`/`collapsed` lines | per layer read, in the fixed order: `dropped.<layer>`, then `collapsed.<layer>` |
+| RD-P2 | `vintage.<layer>` when a layer's files carry more than one | the distinct vintages, ascending, space-separated (normally one) |
+| RD-P3 | the vintage of a file whose name carries no year (GNIS, Terrain Tiles) | the year of its `Last-Modified` as fetched, recorded in the manifest |
+| RD-P4 | `epsilon.m`'s form, and line ends | the requested mm ÷ 1,000 with exactly three decimals (`100.584`); **lines joined by `\n`, with no trailing `\n`** |
+| RD-P5 | the order and form of the credit lines | the order and texts below |
+| RD-P6 | a county's or state's files "read" | those whose TIGER polygon's bounding box meets the square's latitude/longitude box, closed |
+| F1 | the manifest's `builder` | the commit of the code that wrote the manifest |
+| F2 | inputs outside the seven layers (TIGER state and county files, Natural Earth) | the same `files` list, under their own keys (`states`, `counties`, `naturalearth`). No package's PROVENANCE lists them |
+
+**The credit lines (RD-P5).** One line per source, in this order, each carried when any tile read contains that source. The texts are verbatim from joerd's `attribution.md` at `0b86765`; "ETOPO1: " is the map server's prefix, and the NRCAN line adds the licence link.
+
+```
+credit.terrain: SRTM data courtesy of the U.S. Geological Survey
+credit.terrain: GMTED2010 data courtesy of the U.S. Geological Survey
+credit.terrain: ETOPO1: DOC/NOAA/NESDIS/NCEI > National Centers for Environmental Information, NESDIS, NOAA, U.S. Department of Commerce
+credit.terrain: Contains information licensed under the Open Government Licence – Canada. https://open.canada.ca/en/open-government-licence-canada
+```
+
+**The processing line,** carried whenever any tile was read:
+
+| tiles read for | `processing.terrain:` |
+|---|---|
+| levels only | `Terrarium z9 elevations; hillshade from 315 deg at 45 deg with 2x vertical exaggeration; 4x4 mean of z9 pixels; each level pixel takes the z9 pixel containing its centre; shade quantised to 8 bits` |
+| peaks only | `Terrarium z9 elevations; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres` |
+| both | the levels text, then `; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres` |
+
+**`bend.bmpk`** carries the SRTM line and the "both" text. Its licence file (A10.14) also carries SRTM's §3.15 notice, as that spec words it.

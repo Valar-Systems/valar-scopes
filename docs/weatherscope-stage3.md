@@ -5251,3 +5251,31 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
 - **Then `bend.bmpk`'s PR:**
   - the licence file carries SRTM's credit and the §3.15 notice as worded there;
   - the shapefile reader gets host rows and a sabotage.
+
+### A10.15 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): RD18-RD21, RD-P1-RD-P6, F1 and F2 for both builders; the host tool adopts them
+
+**The ruling, verbatim:**
+
+> More builder readings, from the map server (reviewer chat, 2026-10-28)
+>
+> The map server froze its truth tables on #486 (feat/basemap-route @ 644a364, docs/basemap-route.md, Addendum 1). These are now ruled for both builders. Adopt them in the host tool before bend.bmpk is frozen, and add them to the format doc's §13:
+> - RD18: §6's "smallest-area first" is the absolute shoelace area of the ring's quantised vertices, smallest first; on a tie, the later ring in source order goes first.
+> - RD19: "shortest first" is the summed segment length of the road's quantised vertices, in double, along the line; on a tie, the later road first.
+> - RD20: the 32 KB cap measures totalBytes minus the bodies of the TERRAIN sections; their directory entries count.
+> - RD21: a point's z9 pixel: X = (lon + 180) / 360 * 2^17, Y = (1 - ln(tan(pi/4 + phi/2)) / pi) / 2 * 2^17, each floored; tile floor(X / 256), pixel X mod 256.
+> - RD-P1 to RD-P6 (PROVENANCE text): as Addendum 1's A1.5 table, including epsilon.m as "100.584" and lines joined by \n with no trailing \n. The credit and processing lines are A1.4's texts; Bend carries the SRTM line and the "both" processing text (levels and peaks).
+> - F1/F2 (the manifest): builder is the commit of the code that wrote the manifest; inputs outside the seven layers go in the same files list under their own keys.
+> If any of it doesn't fit what the host tool already does, report it before freezing bend.bmpk.
+
+**Against what the host tool already does: one thing did not fit, and it is adopted.**
+- **The mismatch:** `bmpk.provenance_body` ended every PROVENANCE line with `\n`, so it wrote a trailing `\n`. RD-P4 joins lines with `\n` and no trailing `\n`.
+- **The fix:** changed **before** the PK set lands. **26 of the 28 synthetic fixtures change bytes**: every one carrying a PROVENANCE section. `neg-nsec0` (no sections) and `neg-noprov` (no PROVENANCE) do not.
+- **The checks, re-run:**
+  - all 28 still give exactly A10.11's reasons;
+  - **the CRC-removed validator still accepts `neg-crc`**;
+  - **`--check` still fails on one flipped byte**, and passes after a byte-exact restore.
+- **Everything else (RD18-RD21, RD-P1-RD-P3, RD-P5, RD-P6, F1, F2) is in code not yet written** (the Bend build, part 2). It is adopted with nothing to reconcile:
+  - RD-P6 replaces my plan to choose county files by their own header box;
+  - F2 puts the state and county files in the manifest under `states` and `counties`.
+
+**The format doc's §13** now holds all of these, with A1.4's credit and processing texts verbatim.
