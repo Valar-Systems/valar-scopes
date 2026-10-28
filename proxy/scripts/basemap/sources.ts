@@ -72,5 +72,18 @@ export function vintageOf(f: SourceFile, lastModified: string | null): string {
   return String(new Date(t).getUTCFullYear());
 }
 
+/** Whether a response body is the file it claims to be, by its own first bytes. census.gov's firewall
+ *  answers a rejected request with a 247-byte HTML page under status 200 -- it once overwrote two good zips,
+ *  logged with a size and a sha256 as if it were a new version. So status and length prove nothing; the
+ *  magic does. Returns null when good, or why not. */
+export function checkBody(url: string, contentType: string | null, head: Uint8Array): string | null {
+  if (contentType && /text\/html/i.test(contentType)) return `served as ${contentType} (a rejection page?)`;
+  const starts = (...m: number[]) => m.every((v, i) => head[i] === v);
+  if (/\.zip$/i.test(url)) return starts(0x50, 0x4b, 0x03, 0x04) || starts(0x50, 0x4b, 0x05, 0x06) ? null : "not a zip (no PK header)";
+  if (/\.png$/i.test(url)) return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) ? null : "not a PNG";
+  if (/\.csv$/i.test(url)) return head.length > 0 && head[0] !== 0x3c ? null : "a CSV starting with '<' (HTML?)";
+  return `no magic check for ${url}`;
+}
+
 /** The URL of one Terrarium z9 tile, in RD17's form. */
 export const terrariumUrl = (x: number, y: number) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/${x}/${y}.png`;

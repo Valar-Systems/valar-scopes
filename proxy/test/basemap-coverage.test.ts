@@ -2,6 +2,7 @@
 // after D1. These pin the half-open rule, holes, the union of states, and the lookup.
 import { describe, expect, it } from "vitest";
 import { covered, coverageRows, encodeCoverage } from "../scripts/basemap/coverage";
+import { checkBody } from "../scripts/basemap/sources";
 
 const ring = (pts: number[]) => ({ xy: new Float64Array(pts) });
 
@@ -31,5 +32,20 @@ describe("coverage lattice", () => {
     const open = coverageRows([[ring([0, 0, 0.02, 0, 0.02, 0.02, 0, 0.02])]]);
     const closed = coverageRows([[ring([0, 0, 0.02, 0, 0.02, 0.02, 0, 0.02, 0, 0])]]);
     expect([...closed]).toEqual([...open]);
+  });
+});
+
+describe("checkBody (the fetcher refuses a firewall's rejection page)", () => {
+  const page = new TextEncoder().encode("<html><head><title>Request Rejected</title></head><body>The requested URL was rejected.");
+  it("the 247-byte page census.gov served under status 200 is refused as a zip, a CSV and a PNG", () => {
+    expect(checkBody("https://x.invalid/a.zip", "text/html; charset=utf-8", page)).toMatch(/text\/html/);
+    expect(checkBody("https://x.invalid/a.zip", null, page)).toMatch(/not a zip/);
+    expect(checkBody("https://x.invalid/a.csv", null, page)).toMatch(/HTML/);
+    expect(checkBody("https://x.invalid/9/1/2.png", null, page)).toMatch(/not a PNG/);
+  });
+  it("CONTROL: real magic passes", () => {
+    expect(checkBody("https://x.invalid/a.zip", "application/zip", new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0]))).toBeNull();
+    expect(checkBody("https://x.invalid/9/1/2.png", "image/png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBeNull();
+    expect(checkBody("https://x.invalid/a.csv", "text/csv", new TextEncoder().encode("SUMLEV,STATE"))).toBeNull();
   });
 });

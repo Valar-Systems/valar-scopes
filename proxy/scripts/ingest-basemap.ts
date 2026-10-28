@@ -23,7 +23,7 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import {
-  FIXED_SOURCES, GNIS_LISTING_URL, type SourceFile, TERRITORY_FIPS, TIGER_DIRS, gnisFromListing, terrariumUrl, tigerFromListing, tigerListingUrl, vintageOf,
+  FIXED_SOURCES, GNIS_LISTING_URL, type SourceFile, TERRITORY_FIPS, TIGER_DIRS, checkBody, gnisFromListing, terrariumUrl, tigerFromListing, tigerListingUrl, vintageOf,
 } from "./basemap/sources";
 
 interface FetchRecord { bytes: number; sha256: string; lastModified: string | null; vintage: string }
@@ -72,6 +72,12 @@ async function plan(cache: string): Promise<void> {
   console.log(`plan: ${files.length} files`, JSON.stringify(by));
 }
 
+/** The first 16 bytes of a file, for checkBody. */
+function readHead(path: string): Uint8Array {
+  const b = readFileSync(path);
+  return b.subarray(0, 16);
+}
+
 async function sha256File(path: string): Promise<string> {
   const h = createHash("sha256");
   await pipeline(createReadStream(path), async function* (src) { for await (const c of src) h.update(c as Buffer); });
@@ -93,6 +99,8 @@ async function fetchOne(cache: string, f: SourceFile): Promise<FetchRecord> {
     for await (const c of src) { h.update(c as Buffer); bytes += (c as Buffer).length; yield c; }
   }, createWriteStream(part));
   if (Number.isFinite(expect) && bytes !== expect) throw new Error(`short read for ${f.url}: ${bytes} of ${expect}`);
+  const bad = checkBody(f.url, r.headers.get("content-type"), readHead(part));
+  if (bad) { rmSync(part, { force: true }); throw new Error(`refused ${f.url}: ${bad}`); }
   renameSync(part, dest);
   return { bytes, sha256: h.digest("hex"), lastModified, vintage: vintageOf(f, lastModified) };
 }
@@ -115,7 +123,10 @@ async function fetchAll(cache: string): Promise<void> {
   /** A file already in the cache with no log record: adopted only if a HEAD's Content-Length equals its size;
    *  its sha256 is computed from the bytes, and its Last-Modified (the vintage, RD-P3) taken from the HEAD. */
   async function adopt(f: SourceFile, dest: string): Promise<FetchRecord | null> {
+    if (checkBody(f.url, null, readHead(dest))) return null; // the cached copy is not the file: fetch it again
     const h = await fetch(f.url, { method: "HEAD" });
+    // A HEAD answered with a rejection page says nothing about the file: never read it as "the file changed".
+    if (/text\/html/i.test(h.headers.get("content-type") ?? "")) throw new Error(`HEAD rejected for ${f.url}`);
     const len = Number(h.headers.get("content-length") ?? NaN);
     if (!h.ok || !Number.isFinite(len) || len !== statSync(dest).size) return null;
     const lastModified = h.headers.get("last-modified");
@@ -129,9 +140,12 @@ async function fetchAll(cache: string): Promise<void> {
       const dest = cachePath(cache, f.url);
       const prior = log[f.url];
       // Resume only on proof: the file is there, its size matches the log, and its bytes hash to the logged sha.
-      if (prior && existsSync(dest) && statSync(dest).size === prior.bytes && (await sha256File(dest)) === prior.sha256) { resumed++; done++; continue; }
+      if (prior && existsSync(dest) && !checkBody(f.url, null, readHead(dest)) && statSync(dest).size === prior.bytes && (await sha256File(dest)) === prior.sha256) { resumed++; done++; continue; }
+      if (prior) delete log[f.url]; // a record whose file is gone, changed, or not the file: never kept
       if (!prior && existsSync(dest)) {
-        const a = await adopt(f, dest).catch(() => null);
+        let a: FetchRecord | null = null;
+        try { a = await adopt(f, dest); }
+        catch (e) { failed++; done++; console.error(String((e as Error).message)); continue; } // rejected: leave the cached copy alone
         if (a) { log[f.url] = a; adopted++; done++; continue; }
       }
       let lastErr = "";
@@ -213,8 +227,9 @@ async function dryRun(cache: string): Promise<void> {
   let n = 0;
   for (const f of files) {
     if (f.layer !== "water" && f.layer !== "rivers" && f.layer !== "roads") continue;
-    const { shp, dbf } = shapefileFromZip(verifiedBytes(cache, f.url, log));
-    const recs = readShapefile(shp, dbf);
+    let recs;
+    try { const { shp, dbf } = shapefileFromZip(verifiedBytes(cache, f.url, log)); recs = readShapefile(shp, dbf); }
+    catch (e) { throw new Error(`${f.url}: ${(e as Error).message}`); }
     const s = (stats[f.layer] ??= { files: 0, records: 0, kept: 0, vertices: 0, bytes: 0 });
     s.files++; s.records += recs.length;
     add(f.layer, featuresFrom(f.layer, index.get(f.url)!, recs));
