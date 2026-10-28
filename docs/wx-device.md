@@ -1453,3 +1453,47 @@ The proposal is in the next record.
 | **TL4** | **S-t1 and S-t2 each turn exactly WD4b red, in both looks**, and WD4e stays green. The four existing plants were re-anchored to the new `EchoAt` and keep their red sets. **A rig fault, mine, before any result:** the re-anchored "the dim dropped" plant and S-t1 first failed to compile under `-Werror` (an unused `pct` and an unused `code`). Fixed with `(void)` in the planted text; the plants' meaning is unchanged | **as predicted** |
 | **TL5** | `wx-fb-check.py` reads `kRain1` and the 55/40 rule, and asserts both shapes. **Look A:** 15 weather colours, the teal `0x0289` among them; 18 ambiguous (the same 6 marker colours); no ungradable ring. **Look B:** 14, teal `0x0185`; 17 (the same 3); r=78 `0x0200` ungradable. The selftest's 18 cases pass | **as predicted** |
 | **TL6 (local half)** | MinGW: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: the board block's known gap only. Builds: `blipscope-s3-128` 1,941,984 B and `wxlook` 1,943,296 B | **as predicted** |
+
+## Daniel's pick of the sweep look, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with its source
+
+- **Daniel's pick,** after comparing looks 3 and 4 on E2:08 in rain: **"i like 4: lit"**. So look 4 ships, as the
+  shipping image already draws it.
+- **Next, while it rains (if it holds):** the captures, on the build that is on E2:08 now (`wxlook` at `fb2e787`),
+  under the frozen capture protocol. "Anything that protocol doesn't cover for look 4 or teal: stop and ask." Daniel
+  gets the hands-off window in Pacific time before the start.
+- **Look 3 retires after the captures, not before.** `SeeThrough565`, its rows and the "Sweep over weather (bench)"
+  select are removed, with predictions first: look 4's rows unchanged, and the shipping image's draw path unchanged.
+- **The cost table against B1** still comes before any re-run. With look 4 chosen, any fix to the blend path targets
+  look 4's path. If a fix changes what the layer draws, the capture rows it touches are re-run on the fixed code.
+
+### Stopped before the captures: the frozen protocol does not cover the sweep wedge (2026-10-28, a question for a ruling)
+
+**What the protocol was frozen for.** The WD5 image (`da5e7f7`), whose sweep was today's opaque wedge.
+`scripts/wx-fb-check.py` has no model of the wedge at all: no mention of the sweep, the wedge or the beam.
+
+**What look 4 puts in the wedge** (about 7,283 px, a 57° sector, about 16 % of the disc):
+- echo pixels at their colour raised toward 100 %;
+- dry pixels in the wedge green, `(0, lvl, 0)`.
+
+**None of those colours is in the checker's weather set,** with three consequences:
+- **WD5e(1), inside the wedge:** a ring pixel left undrawn shows a lit colour, which the checker does not count as
+  weather. So it cannot be an exception: blind, in the reassuring direction.
+- **WD5e(2), inside the wedge:** a marker missing its outline is bordered by lit colours, which are not weather. So it
+  cannot fail: the same.
+- **Also:** a lit colour or a wedge green that equals a faded plane colour can be read as a marker.
+
+**The obvious fix is computed, and it fails.** Adding everything the wedge can draw (each echo code at every wedge
+level, and the 121 wedge greens) to the weather set:
+- **all three rings become ungradable.** r=78 `0x0200` and r=39 `0x0100` equal wedge greens, and r=119 `0x0640`
+  equals a lit colour;
+- the ambiguous marker colours rise from **18 to 125 of 238** in look A, and from **17 to 139** in look B.
+
+So it would blind WD5e(1) completely, and most of WD5e(2).
+
+**The same gap existed under the opaque wedge** the protocol was frozen with. Its greens were not weather colours
+either. It was not analysed then.
+
+**The WD5f p95 clause** (the layer off against the old image, `|Δ| ≤ 1 ms`) is the same question as W5′/W5″, which
+reads INSTRUMENT and whose new instrument awaits a ruling.
+
+**Nothing has been captured.** E2:08 is unchanged: `wxlook` at `fb2e787`, the layer on, look 4.
