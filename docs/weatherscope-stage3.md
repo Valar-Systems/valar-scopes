@@ -5675,3 +5675,64 @@ The format doc's `bend.bmpk` line now names the year and points here.
 - **Q44, the header.** `include/DayNight.h`, namespace `daynight`, built on `SolarDim.h`'s `SunElevationDeg`, whose first host test this is.
 
 **Next, once ruled:** the truth tables and sabotage sets (A11.9), frozen before any 3.5t code. 3.5b, then 3.4, carry on meanwhile, as ruled.
+
+### A11.12 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): #488 and #487 approved and merged; Addendum 11 ruled
+
+**The ruling, verbatim:**
+
+> Approvals and rulings (reviewer chat, 2026-10-28)
+>
+> 1. #488 (teal) is approved to merge at 5a790eef96b37287d552219e6a212f62bbc4c59e.
+> - I read all 10 files. They do what A10.16 froze: code 1 is the ruled teal, undimmed; Dim() stays for WxS2.h; kDim55 and the dim parameter retire; k35.ref.txt changes only its 23 ROW lines; the reference scripts carry the teal from the ruling, not from the C++.
+> - C3g, A10.16's open point: accepted as you re-registered it. dE*ab ≥ 40 is graded, and dL* is printed only, since no teal near the ruled one can be 25 L* from snow 1.
+> - CI on that head: 35 check runs, 32 success, 3 release-only skipped (ship-alert, version, promote), 0 failed. Confirm the same total before merging.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+>
+> 2. #487 (the PK set) is approved to merge at 3dd8a52d3646f63cea216f20b8260c0c92168932.
+> - I read all 34 files and re-ran three checks:
+>   - synth.py --check: every committed byte equal;
+>   - validate.py over all 28 fixtures: the 3 syn packages kOk, and each of the 25 neg packages refused with its frozen reason;
+>   - the CRC sabotage: with the check removed, neg-crc is accepted.
+> - The format doc it adds to main is one amendment behind the plan branch (A10.18's SRTM-year line). Carry that line in your next PR that touches the doc.
+> - CI on that head: 35 check runs, 32 success, 3 release-only skipped, 0 failed. Confirm the same total before merging.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+>
+> Merge #488 first. blipscope-5c brings teal into #445 from main, and Daniel's pick of sweep look 3 or 4 waits on it. If merging either one needs its branch updated, send the new head instead.
+>
+> 3. Addendum 11 (3.5t, at 5ce253a): ruled.
+> - Q35, the order 3.5b → 3.4 → 3.5t → 3.5c: accepted.
+> - Q36, wx-theme auto | light | dark, default auto, an unknown value read as auto and named in the boot line: accepted.
+> - Q37, H = 1.0° on the existing 20 s tick: accepted.
+> - Q38, the Weatherscope's dim follows the same Phase: accepted. The other seven editions stay untouched.
+> - Q39: both. Build (a) and (b) as a bench select, the way the Blipscope's sweep looks were built, and freeze C4's rows for both candidates before code. Daniel picks on glass from a terrain-on Bend frame in each, with rain over shaded slopes. The other candidate and its rows retire after his pick, recorded.
+> - Q40, code 13 black on paper, with no coverage and the hatch computed by the rule: accepted. Daniel sees it on glass with Q39.
+> - Q41, water areas in R-L, with rivers and roads printed: accepted.
+> - Q42, snow's mirrored lightness ramp, with C3h re-checked: accepted.
+> - Q43, the clock-offset bench byte, release-gated like the others: accepted.
+> - Q44, include/DayNight.h on SolarDim.h's SunElevationDeg, with its first host test: accepted.
+> - The text rule (WCAG 4.5:1, light theme only), the darker warning ink for text, and the label ink for the white roles: accepted.
+> - Next, as you planned: the truth tables and sabotage sets, frozen before any 3.5t code. 3.5b, then 3.4, carry on meanwhile.
+
+**The merges, in the order ruled, each confirmed on the artifacts before and after:**
+
+| | #488 (teal) | #487 (the PK set) |
+|---|---|---|
+| head, read just before merging | `5a790eef96b3` = the approved head | `3dd8a52d3646` = the approved head |
+| CI on that head, read just before | 35: 32 success, 3 skipped (ship-alert, promote, version), 0 failed | 35: 32 success, 3 skipped (promote, ship-alert, version), 0 failed |
+| merge state | CLEAN | UNKNOWN once (GitHub recomputing after #488 moved main), then CLEAN; **no branch update needed** |
+| merged | squash, `--match-head-commit`, no `--admin`, as **`b9b1a05230b8`**, 2026-10-28T15:59:18Z | the same, as **`ee3802611aa2`**, 2026-10-28T16:00:14Z |
+| main, read after | identical to the approved head (`git diff 5a790ee origin/main` empty) | **main = #487's head plus exactly #488's 10 files, every blob identical**; 29 entries in `test/fixtures/wx/basemap/` |
+| remote branch | **survived `--delete-branch`** (gh stopped at the worktree-held local branch); checked at the approved head, then deleted; `ls-remote` 0 | merged without `--delete-branch` for that reason; checked at the approved head, then deleted; `ls-remote` 0 |
+
+**Carried forward:**
+- **The A10.18 line** (the SRTM notice's year) goes into `bend.bmpk`'s PR, the next one that touches the format doc. Main's copy of the doc is one amendment behind this branch until then.
+- **Q39, both candidates:**
+  - (a) and (b) are built as a **bench select**, like the Blipscope's sweep looks;
+  - **C4's rows are frozen for both** before any code;
+  - Daniel picks on glass from a terrain-on Bend frame in each, **with rain over shaded slopes**;
+  - after his pick, the other candidate and its rows retire, recorded.
+- **Q40's code 13 black** is shown on glass in the same sitting.
+
+**Next:**
+- 3.5t's truth tables and sabotage sets (A11.9's rows, with C4 twice), frozen before any 3.5t code;
+- meanwhile, 3.5b's step 2, part 2 (`bend.bmpk`), then build Q, then 3.4, as ruled.
