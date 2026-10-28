@@ -5736,3 +5736,130 @@ The format doc's `bend.bmpk` line now names the year and points here.
 **Next:**
 - 3.5t's truth tables and sabotage sets (A11.9's rows, with C4 twice), frozen before any 3.5t code;
 - meanwhile, 3.5b's step 2, part 2 (`bend.bmpk`), then build Q, then 3.4, as ruled.
+
+## Addendum 12, 2026-10-28: 3.5b step 2, part 2: the shapefile reader and `bend.bmpk`, frozen before their code
+
+**What part 2 does,** from what is already ruled (A10.2, A10.8 step 2, A10.14, A10.15, A10.18):
+- a minimal `.shp`/`.dbf` reader, with host rows and sabotages;
+- the Bend sources fetched;
+- `bend.bmpk` built with its manifest and licence file, `--check`ed, and its sizes reported;
+- then the Bend radar by A10.4's rule, and the crops.
+
+**One PR for all of it,** carrying A10.18's SRTM-year line into the format doc (A11.12).
+
+### A12.1 The reader: `tools/weatherscope/basemap/shp.py`
+
+**Scope:** shape types 0 (null), 3 (PolyLine) and 5 (Polygon), the only ones TIGER's AREAWATER, LINEARWATER, PRISECROADS, COUNTY and STATE files use; dBase III `.dbf`; and the `.cpg`. Anything else is refused by name, never guessed at. **The spec read:** ESRI's *Shapefile Technical Description* (July 1998).
+
+**The `.shp` checks, in this order** (the first that fails names the refusal):
+1. the file is at least 100 B (`kTruncated`);
+2. the file code (big-endian, at 0) is 9994 (`kFileCode`);
+3. the version (little-endian, at 28) is 1000 (`kVersion`);
+4. the file length (big-endian, at 24, in 16-bit words) × 2 equals the file's size (`kLength`);
+5. the file's shape type (little-endian, at 32) is 3 or 5 (`kType`);
+6. then **each record in order:**
+   - the record's 8-byte header fits (`kTruncated`);
+   - its number (big-endian) is the previous one + 1, starting at 1 (`kRecordNumber`);
+   - its content fits in the file (`kTruncated`);
+   - its shape type is 0 or the file's (`kRecordType`).
+7. **for a type 3 or 5 record:**
+   - `NumParts` ≥ 1, `Parts[0]` = 0, strictly increasing, the last < `NumPoints` (`kParts`);
+   - the content length is exactly 44 + 4 · `NumParts` + 16 · `NumPoints` bytes (`kContentLength`).
+
+   A null record's content is exactly 4 bytes.
+
+**The `.dbf` checks, in this order:**
+1. the file is at least 32 B (`kTruncated`);
+2. the version byte is `0x03` (`kVersion`);
+3. the descriptors end in `0x0D` at 32 + 32k, the header length is 32 + 32k + 1, and the record length is 1 + the sum of the field lengths (`kHeader`);
+4. the size is header + n × record length, with an optional trailing `0x1A` (`kSize`);
+5. each record's flag is `' '` or `'*'` (`kFlag`);
+6. each `C` field decodes as strict UTF-8 (`kText`), then has trailing spaces stripped;
+7. each `N` field, stripped, is empty or a decimal number (`kNumber`).
+
+**A layer** (`.shp` + `.dbf` + `.cpg` from one zip):
+- the `.cpg` stripped is `UTF-8` (`kCodepage`);
+- the `.shp`, then the `.dbf`;
+- the record counts are equal (`kCount`);
+- a `*` row is returned flagged deleted, and the builder skips it;
+- a null record is returned as `None` **in its place**, so record i stays row i.
+
+### A12.2 The reader's host rows (`tools/weatherscope/basemap/test_shp.py`)
+
+**The byte totals are hand-computed from the spec** and asserted against the test's own writer before anything is read. So a writer bug fails here, not silently in the reader.
+
+| row | the file | expected |
+|---|---|---|
+| SH1 | Polygon, 1 record, 1 ring of 5 points (closed) | file length **118** words (236 B); type 5; that ring, exactly |
+| SH2 | PolyLine, 1 record, parts of 2 and 3 points | **120** words (240 B); two parts, split exactly |
+| SH3 | Polygon, 3 records: ring, null, ring | **192** words (384 B); `[ring, None, ring]` |
+| SH4 | SH1 with file code 9995 | `kFileCode` |
+| SH5 | SH1 with the file length + 1 word | `kLength` |
+| SH6 | SH3's two rings numbered 1 and 3 (no null) | `kRecordNumber` |
+| SH7 | a type 3 record in a Polygon file | `kRecordType` |
+| SH8 | SH1 with `Parts[0]` = 1 | `kParts` |
+| SH9 | the last record's content length 8 words past the end; the file length matches the real size | `kTruncated` |
+| SH10 | the file's type 15 (PolygonZ) | `kType` |
+| SH11 | SH1's content length + 2 words, the file length consistent | `kContentLength` |
+| DB1 | `FULLNAME` C(20), `AWATER` N(14); 2 rows, the 2nd `*`; header 97 B, record 35 B, size **168** B with `0x1A` | names, types, values exact (`AWATER` 1500000); row 2 flagged deleted |
+| DB2 | a C field holding "Peñasco" (UTF-8, 8 bytes) | exactly "Peñasco" |
+| DB3 | DB1 with the `0x0D` replaced | `kHeader` |
+| DB4 | DB1 one byte short | `kSize` |
+| DB5 | DB1 with a flag `x` | `kFlag` |
+| DB6 | a C field holding `0xFF` | `kText` |
+| LY1 | 2 `.shp` records, 3 `.dbf` rows | `kCount` |
+| LY2 | a `.cpg` of `ISO-8859-1` | `kCodepage` |
+
+**Predicted: 19 / 19,** under `python -I`.
+
+**The sabotages** (`tools/weatherscope/basemap/sabotage_shp.py`; each planted in a copy, the plant asserted, the real file's sha256 unchanged):
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-PARTS | every record's points returned as one part, and the parts checks skipped | {SH2, SH8} |
+| S-NULL | null records skipped, not returned as `None` | {SH3} |
+| S-LEN | the file-length check skipped | {SH5} |
+| S-DEL | a `*` row returned live (the flag still validated) | {DB1} |
+| S-UTF8 | C fields decoded as Latin-1 | {DB2, DB6} |
+
+### A12.3 The real files, checked as they are read (printed by `make_package.py`, per file)
+
+- **RF1:** each record's header box equals the min and max of its own points, **exactly**.
+- **RF2:** every Polygon part is closed (its first point equals its last).
+- **RF3:** the null records, counted. **Predicted 0** in every file. A non-zero count is printed, not refused: the reader keeps alignment.
+- **Predicted:** RF1 and RF2 hold in every file. **If either fails: stop and report.** It means the reader or the data is not what the spec says, and the alternatives (my reading of the spec, a corrupt download, TIGER's own encoding) get named before anything is built on it.
+- **Every download** is checked by its magic before its sha256 is recorded (zip `PK\3\4`, PNG's signature, a CSV not starting with `<`), since census.gov's firewall answers a rejected request with an HTML page under status 200 (the map server's finding, `sources.ts`). Any other answer is refused.
+
+### A12.4 The selection (RD-P6), predicted before the files are read
+
+- **States read: Oregon (41) only.** Certain: the square stays inside the state.
+- **Counties read:** every county whose TIGER box meets the square's box. Predicted in two tiers:
+  - **certain:** Deschutes, Crook, Jefferson, Lake, Klamath, Linn and Lane;
+  - **borderline,** either outcome accepted and reported: Douglas, Harney, Marion, Wasco, Wheeler, Grant and Clackamas.
+  - **Any county outside these 14: stop and report.**
+- **The other layers' files:**
+  - PRISECROADS for Oregon;
+  - GNIS `DomesticNames_OR_Text.zip`;
+  - the national Gazetteer and SUB-EST2024;
+  - the Terrarium z9 tiles of the three levels' mosaics, each with its one-tile margin, plus any tile a summit falls in.
+- **The URL forms are the map server's** (`sources.ts` on #486), so the two builders' `sha256.<layer>` lines can agree byte for byte.
+- **Vintages are RD-P3's:** the year in the dataset's name, otherwise the year of the `Last-Modified` as fetched. **A missing one is refused,** never defaulted.
+
+### A12.5 `bend.bmpk`: what the build reports, and what stops it
+
+- **Sizes:** the non-terrain sections against the 20 KB target and the 32 KB cap. **Over 32 KB: stop** (A10.2). No drop policy is applied without its ruling. **No byte count is predicted:** this is the first build from real data, and the number is a report, not a test.
+- **Determinism:** `make_package.py --check` rebuilds with the `builder` commit recorded in the package and exits 0. **Its control:** one flipped byte in a copy gives exit 1.
+- **PK-bend** (A10.11): `validate.py` accepts it (`kOk`), and so does the device reader when it exists.
+- **PROVENANCE:** RD-P1 to RD-P6, with the SRTM credit line and the "both" processing text (levels and peaks). **The manifest:** F1's `builder` and F2's `states` and `counties` keys.
+- **The licence file** (`bend.LICENSE.txt`, A10.14 and A10.18) holds:
+  - the public-domain status of TIGER/Line, the Gazetteer, SUB-EST2024 and GNIS;
+  - the SRTM credit line;
+  - the notice "© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.", with the note on joerd's 2014 update;
+  - the processing line.
+- **LC, the licence check:** the file contains the credit, the notice with 2000, and the 2014 note. **Its control:** the notice deleted from a copy turns LC red.
+- **The peaks:**
+  - **predicted:** the package's first 4 in rank order are all among the 13 summit names in the reviewer's `bendmock.py`. (The device shows the first 4 *placed*, which is a placement question for the K rows, not for the build.) The 13 names: Black Butte, Broken Top, Diamond Peak, Maiden Peak, Middle Sister, Mount Bachelor, Mount Jefferson, Mount Washington, Newberry Volcano, North Sister, Paulina Peak, South Sister and Three Fingered Jack;
+  - **if one is outside: stop and report.** The alternatives to name: a defect in the elevation sampling or the 3 km rule, or a real summit the hand-typed mockup simply left out.
+- **Prints no coordinate,** and records none, anywhere: the centre lives only in the binary headers (A10.4).
+
+**Then the Bend radar by A10.4's rule, as frozen there,** with its escape hatches. Its chosen day and window are reported as keys and sha256s before any crop is committed.
