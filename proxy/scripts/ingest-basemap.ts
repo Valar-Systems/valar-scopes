@@ -13,15 +13,17 @@ import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync,
 import { unzipSync } from "fflate";
 import {
   type Box, type Cell, type CellIndexEntry, type Feature, type ManifestFile, PREDICATES, assignCells, bboxOf, cellKey, decodeFeature,
-  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, reachOf, readDelimited, storeIdOf, writeManifest,
+  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, reachOf, readDelimited, sortKeys, storeIdOf, writeManifest,
 } from "./basemap/ingest-lib";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
+import { coverageRows, encodeCoverage } from "./basemap/coverage";
+import { tilesForCoverage } from "./basemap/terrain-plan";
 import { dirname, join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import {
-  FIXED_SOURCES, GNIS_LISTING_URL, type SourceFile, TIGER_DIRS, gnisFromListing, tigerFromListing, tigerListingUrl, vintageOf,
+  FIXED_SOURCES, GNIS_LISTING_URL, type SourceFile, TERRITORY_FIPS, TIGER_DIRS, gnisFromListing, terrariumUrl, tigerFromListing, tigerListingUrl, vintageOf,
 } from "./basemap/sources";
 
 interface FetchRecord { bytes: number; sha256: string; lastModified: string | null; vintage: string }
@@ -100,8 +102,25 @@ async function fetchAll(cache: string): Promise<void> {
   const logPath = join(cache, "fetch-log.json");
   const log: FetchLog = existsSync(logPath) ? JSON.parse(readFileSync(logPath, "utf8")) : {};
   const conc = Number(arg("--concurrency") ?? 4);
-  let next = 0, done = 0, fetched = 0, resumed = 0, failed = 0;
-  const saveLog = () => writeFileSync(logPath, JSON.stringify(log, Object.keys(log).sort(), 1) + "\n");
+  let next = 0, done = 0, fetched = 0, resumed = 0, adopted = 0, failed = 0;
+  // The log is re-read after every write and every record checked: the first version of this line wrote
+  // 6,397 empty records and reported success (an array replacer drops nested keys).
+  const saveLog = () => {
+    writeFileSync(logPath, JSON.stringify(sortKeys(log), null, 1) + "\n");
+    const back = JSON.parse(readFileSync(logPath, "utf8")) as FetchLog;
+    for (const [u, r] of Object.entries(back)) {
+      if (!(Number.isInteger(r.bytes) && /^[0-9a-f]{64}$/.test(r.sha256) && /^\d{4}$/.test(r.vintage))) throw new Error(`fetch log record unreadable after write: ${u}`);
+    }
+  };
+  /** A file already in the cache with no log record: adopted only if a HEAD's Content-Length equals its size;
+   *  its sha256 is computed from the bytes, and its Last-Modified (the vintage, RD-P3) taken from the HEAD. */
+  async function adopt(f: SourceFile, dest: string): Promise<FetchRecord | null> {
+    const h = await fetch(f.url, { method: "HEAD" });
+    const len = Number(h.headers.get("content-length") ?? NaN);
+    if (!h.ok || !Number.isFinite(len) || len !== statSync(dest).size) return null;
+    const lastModified = h.headers.get("last-modified");
+    return { bytes: len, sha256: await sha256File(dest), lastModified, vintage: vintageOf(f, lastModified) };
+  }
   async function worker(): Promise<void> {
     for (;;) {
       const i = next++;
@@ -111,6 +130,10 @@ async function fetchAll(cache: string): Promise<void> {
       const prior = log[f.url];
       // Resume only on proof: the file is there, its size matches the log, and its bytes hash to the logged sha.
       if (prior && existsSync(dest) && statSync(dest).size === prior.bytes && (await sha256File(dest)) === prior.sha256) { resumed++; done++; continue; }
+      if (!prior && existsSync(dest)) {
+        const a = await adopt(f, dest).catch(() => null);
+        if (a) { log[f.url] = a; adopted++; done++; continue; }
+      }
       let lastErr = "";
       for (let attempt = 0; attempt < 4; attempt++) {
         try { log[f.url] = await fetchOne(cache, f); fetched++; lastErr = ""; break; }
@@ -118,13 +141,14 @@ async function fetchAll(cache: string): Promise<void> {
       }
       if (lastErr) { failed++; console.error(`FAILED ${f.url}: ${lastErr}`); }
       done++;
-      if (done % 200 === 0) { saveLog(); console.log(`fetch: ${done}/${files.length} (${fetched} fetched, ${resumed} resumed, ${failed} failed)`); }
+      if (done % 200 === 0) { saveLog(); console.log(`fetch: ${done}/${files.length} (${fetched} fetched, ${resumed} resumed, ${adopted} adopted, ${failed} failed)`); }
     }
   }
   await Promise.all(Array.from({ length: conc }, worker));
   saveLog();
-  const total = Object.values(log).reduce((a, r) => a + r.bytes, 0);
-  console.log(`fetch: done ${done}/${files.length}; fetched ${fetched}, resumed ${resumed}, FAILED ${failed}; ${(total / 1e9).toFixed(3)} GB logged`);
+  const back = JSON.parse(readFileSync(logPath, "utf8")) as FetchLog;
+  const total = Object.values(back).reduce((a, r) => a + r.bytes, 0);
+  console.log(`fetch: done ${done}/${files.length}; fetched ${fetched}, resumed ${resumed}, adopted ${adopted}, FAILED ${failed}; ${Object.keys(back).length} records, ${(total / 1e9).toFixed(3)} GB, read back from the log`);
   if (failed) process.exitCode = 1;
 }
 
@@ -259,13 +283,87 @@ async function dryRun(cache: string): Promise<void> {
   console.log(JSON.stringify(summary, null, 1));
 }
 
+// ------------------------------------------------------------------------------------------------ coverage + terrain plan
+
+const TILE_REACH_KM = 250; // §3's largest level radius; R (at most 222) for the peaks is inside it
+
+async function coverageAndTiles(cache: string): Promise<void> {
+  const log: FetchLog = JSON.parse(readFileSync(join(cache, "fetch-log.json"), "utf8"));
+  const { files: planned } = JSON.parse(readFileSync(join(cache, "plan.json"), "utf8")) as { files: SourceFile[] };
+  const url = (layer: string) => planned.find((f) => f.layer === layer)!.url;
+  const store = join(cache, "dry-run", "store");
+  mkdirSync(store, { recursive: true });
+
+  // states: coverage (50 + DC) and their extents
+  const st = shapefileFromZip(verifiedBytes(cache, url("states"), log));
+  const states = readShapefile(st.shp, st.dbf).filter((r) => !TERRITORY_FIPS.has(r.attrs["STATEFP"]!));
+  if (states.length !== 51) throw new Error(`${states.length} states + DC, not 51`);
+  const rows = coverageRows(states.map((r) => r.parts.map((xy) => ({ xy }))));
+  const cov = encodeCoverage(rows);
+  writeFileSync(join(store, "coverage.bin"), cov);
+  let points = 0, intervals = 0;
+  for (const iv of rows.values()) { intervals += iv.length; for (const [a, b] of iv) points += b - a + 1; }
+
+  // RD-P6's extents: a county's or state's files are "read" when its polygon's bounding box meets the square's box
+  const box = (parts: Float64Array[]) => {
+    let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+    for (const xy of parts) { const q = bboxOf(xy); a = Math.min(a, q[0]); b = Math.min(b, q[1]); c = Math.max(c, q[2]); d = Math.max(d, q[3]); }
+    return [a, b, c, d];
+  };
+  const co = shapefileFromZip(verifiedBytes(cache, url("counties"), log));
+  const counties = readShapefile(co.shp, co.dbf).filter((r) => !TERRITORY_FIPS.has(r.attrs["STATEFP"]!));
+  const regions = {
+    counties: Object.fromEntries(counties.map((r) => [r.attrs["GEOID"]!, box(r.parts)])),
+    states: Object.fromEntries(states.map((r) => [r.attrs["STATEFP"]!, { box: box(r.parts), usps: r.attrs["STUSPS"]! }])),
+  };
+  const regionsText = JSON.stringify(sortKeys(regions)) + "\n";
+  writeFileSync(join(store, "regions.json"), regionsText);
+
+  // the terrain mirror: every tile within reach, measured by HEAD (bytes and Last-Modified), not downloaded
+  const tiles = [...tilesForCoverage(rows, TILE_REACH_KM)].map((i) => terrariumUrl(Math.floor(i / 512), i % 512)).sort();
+  const tlogPath = join(cache, "tile-log.json");
+  const tlog: Record<string, { bytes: number; lastModified: string | null }> = existsSync(tlogPath) ? JSON.parse(readFileSync(tlogPath, "utf8")) : {};
+  let next = 0, failed = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = next++;
+      if (i >= tiles.length) return;
+      const u = tiles[i]!;
+      if (tlog[u]) continue;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const h = await fetch(u, { method: "HEAD" });
+          const len = Number(h.headers.get("content-length") ?? NaN);
+          if (!h.ok || !Number.isFinite(len)) throw new Error(String(h.status));
+          tlog[u] = { bytes: len, lastModified: h.headers.get("last-modified") };
+          break;
+        } catch { if (attempt === 3) { failed++; console.error(`HEAD failed: ${u}`); } else await new Promise((s) => setTimeout(s, 1000 * 2 ** attempt)); }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: 16 }, worker));
+  writeFileSync(tlogPath, JSON.stringify(sortKeys(tlog), null, 1) + "\n");
+  const years: Record<string, number> = {};
+  let tileBytes = 0;
+  for (const u of tiles) { const r = tlog[u]; if (!r) continue; tileBytes += r.bytes; const y = r.lastModified ? String(new Date(Date.parse(r.lastModified)).getUTCFullYear()) : "none"; years[y] = (years[y] ?? 0) + 1; }
+  const summary = {
+    coverage: { rows: rows.size, intervals, latticePoints: points, bytes: cov.length },
+    regions: { counties: counties.length, states: states.length, bytes: Buffer.byteLength(regionsText) },
+    terrain: { reachKm: TILE_REACH_KM, tiles: tiles.length, headFailed: failed, bytes: tileBytes, lastModifiedYears: years },
+  };
+  writeFileSync(join(cache, "dry-run", "coverage-tiles.json"), JSON.stringify(summary, null, 1) + "\n");
+  console.log(JSON.stringify(summary, null, 1));
+  if (failed) process.exitCode = 1;
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   const cache = cacheDir();
   if (cmd === "plan") return plan(cache);
   if (cmd === "fetch") return fetchAll(cache);
   if (cmd === "dry-run") return dryRun(cache);
-  throw new Error(`unknown command ${cmd ?? "(none)"}: plan | fetch | dry-run`);
+  if (cmd === "coverage") return coverageAndTiles(cache);
+  throw new Error(`unknown command ${cmd ?? "(none)"}: plan | fetch | dry-run | coverage`);
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

@@ -247,7 +247,9 @@ export function reachOf(c: Cell): Box {
 export interface ManifestFile { bytes: number; layer: string; sha256: string; url: string; vintage: string }
 export interface Manifest { builder: string; files: ManifestFile[]; predicates: string[] }
 
-function sortKeys(v: unknown): unknown {
+/** Keys sorted at every depth. NOT `JSON.stringify(v, keysArray)`: an array replacer is an allowlist applied
+ *  at every depth, and silently drops every nested key not in it (it emptied the first fetch log). */
+export function sortKeys(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(sortKeys);
   if (v && typeof v === "object") return Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, sortKeys((v as Record<string, unknown>)[k])]));
   return v;
