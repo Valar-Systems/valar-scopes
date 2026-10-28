@@ -5863,3 +5863,45 @@ The format doc's `bend.bmpk` line now names the year and points here.
 - **Prints no coordinate,** and records none, anywhere: the centre lives only in the binary headers (A10.4).
 
 **Then the Bend radar by A10.4's rule, as frozen there,** with its escape hatches. Its chosen day and window are reported as keys and sha256s before any crop is committed.
+
+### A12.6 Results: the reader and `bend.bmpk` (#495 @ 1d4597520a63), graded against A12
+
+**Every frozen row held:**
+
+| A12 froze | measured |
+|---|---|
+| A12.2: reader host rows 19/19 | **19/19** |
+| A12.2: the 5 sabotages, each its exact set | **5/5 AS PREDICTED**; the real `shp.py` unchanged |
+| A12.3: RF1, RF2 in every real file; RF3 0 nulls | **27 TIGER files: RF1 and RF2 hold in all; 0 nulls** |
+| A12.3: every download passes its magic check | **72 of 72** |
+| A12.4: states, Oregon only | **Oregon only** |
+| A12.4: counties, the 7 certain + any of the 7 borderline, nothing else | **the 7 certain**; borderline **in:** Clackamas, Douglas, Marion, Wasco, Wheeler; **out:** Harney, Grant; **nothing outside** |
+| A12.5: PK-bend `kOk` | **kOk** |
+| A12.5: `--check` 0, one flipped byte 1 | **identical at `6d9fe6ae9c79`; the flipped copy exits 1, first difference at the flipped byte** |
+| A12.5: LC, with its control | **passes; the control turns exactly the notice row red** |
+| A12.5: the first 4 peaks by rank among the mockup's 13 | **South Sister, Mount Jefferson, Middle Sister, Mount Bachelor** |
+| A12.5: sizes reported, stop over 32 KB | **non-terrain 23,521 B:** under the cap, **3,041 B over the 20 KB target.** No drop policy applied |
+
+**Also checked on the committed bytes, not the working copy:**
+- `store:` (`d2971c94fb88`) is the committed manifest's own sha256 prefix;
+- the `builder` commit is the same in the package and the manifest;
+- the manifest has no CR. `.gitattributes` now keeps the manifest and the licence `-text`, since the manifest's sha256 is the package's identity.
+
+**One change from A12, stated:** A12's intro said "one PR for all of it". **`bend.bmpk` is its own PR (#495),** as A10.14's "second PR" for the package intended, so the map server gets its commit now. The Bend radar by A10.4's rule, and the crops, follow in their own PR.
+
+**Readings this build makes that §13 does not pin** are listed in #495 and marked `READING` in the code:
+- the clip endpoints;
+- the ring-clip edge order and starting vertex;
+- the closing duplicate;
+- Douglas–Peucker's units;
+- water orientation;
+- the 4 × 4 summation order;
+- numpy's transcendental functions;
+- river length across files;
+- the manifest's order.
+
+None changes anything graded here. A golden comparison with the map server's builder could trip on any of them, so they are raised before it rather than after.
+
+**Two slips of mine, recorded:**
+1. **The origin reached my console.** Inspecting the reference validator's decoded result, I printed its whole info dict, which includes the header's origin. It was not written to any file, log or commit, and it is downtown Bend at 2 dp, coarser than the constant already public in `bend.ts`. It still broke A10.4's "no tool prints it". **From here, inspection prints keys and types, never header values.**
+2. **I typed a full commit SHA from memory** into a CI watch, and it was wrong. The watch was stopped and restarted on `git rev-parse HEAD`'s value. No reading came from it.
