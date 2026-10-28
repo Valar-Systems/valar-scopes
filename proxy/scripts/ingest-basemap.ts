@@ -18,6 +18,7 @@ import {
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { coverageRows, encodeCoverage } from "./basemap/coverage";
 import { tilesForCoverage } from "./basemap/terrain-plan";
+import { BIT, Layer, encodeTileBits, tileBits } from "./basemap/tile-bits";
 import { dirname, join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -179,6 +180,9 @@ async function fetchAll(cache: string): Promise<void> {
       if (done % 200 === 0) { saveLog(); console.log(`fetch: ${done}/${files.length} (${fetched} fetched, ${resumed} resumed, ${adopted} adopted, ${failed} failed)`); }
     }
   }
+  // undici can throw from its parser when a socket ends mid-response, outside any try: that kills the process.
+  // Save what is logged first, so a rerun resumes from it (every resumed file is re-hashed and re-checked).
+  process.once("uncaughtException", (e) => { try { saveLog(); } finally { console.error(`crashed (log saved): ${e.message}`); process.exit(3); } });
   await Promise.all(Array.from({ length: conc }, worker));
   saveLog();
   const back = JSON.parse(readFileSync(logPath, "utf8")) as FetchLog;
@@ -404,6 +408,43 @@ async function coverageAndTiles(cache: string): Promise<void> {
   if (failed) process.exitCode = 1;
 }
 
+// ------------------------------------------------------------------------------------------------ the tiles' source bits (A1.4)
+
+async function tileBitsCmd(cache: string): Promise<void> {
+  const log = loadLog(cache);
+  const ne = plannedFiles(cache).filter((f) => f.layer === "naturalearth");
+  const read = (re: RegExp) => {
+    const f = ne.find((x) => re.test(x.url));
+    if (!f) throw new Error(`no Natural Earth source matching ${re}`);
+    const { shp, dbf } = shapefileFromZip(verifiedBytes(cache, f.url, log));
+    return readShapefile(shp, dbf);
+  };
+  const rings = (recs: Array<{ parts: Float64Array[] }>) => recs.flatMap((r) => r.parts);
+  const land = new Layer(rings(read(/ne_10m_land\.zip$/)));
+  const ocean = new Layer(rings(read(/ne_10m_ocean\.zip$/)));
+  const canadaRecs = read(/ne_10m_admin_0_countries\.zip$/).filter((r) => r.attrs["ADM0_A3"] === "CAN");
+  if (canadaRecs.length !== 1) throw new Error(`${canadaRecs.length} admin-0 records with ADM0_A3 CAN, not 1`);
+  const canada = new Layer(rings(canadaRecs));
+  const { files: tiles } = JSON.parse(readFileSync(join(cache, "tiles.json"), "utf8")) as { files: SourceFile[] };
+  const entries = tiles.map((t) => {
+    const m = /\/9\/(\d+)\/(\d+)\.png$/.exec(t.url)!;
+    const x = Number(m[1]), y = Number(m[2]);
+    return { x, y, bits: tileBits(x, y, land, ocean, canada) };
+  });
+  // Land and ocean together cover the world, so a tile with no bit is a bug, not a fact about the tile.
+  const zero = entries.filter((e) => e.bits === 0).length;
+  const bin = encodeTileBits(entries);
+  const out = join(cache, "dry-run", "store");
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "terrain-sources.bin"), bin);
+  const combos: Record<string, number> = {};
+  const name = (b: number) => (Object.entries(BIT).filter(([, v]) => b & v).map(([k]) => k).join("+") || "none");
+  for (const e of entries) combos[name(e.bits)] = (combos[name(e.bits)] ?? 0) + 1;
+  const perBit = Object.fromEntries(Object.entries(BIT).map(([k, v]) => [k, entries.filter((e) => e.bits & v).length]));
+  console.log(JSON.stringify({ tiles: entries.length, bytes: bin.length, zeroBitTiles: zero, perBit, combos }, null, 1));
+  if (zero) { console.error(`${zero} tiles with no source bit: refusing`); process.exitCode = 1; }
+}
+
 // ------------------------------------------------------------------------------------------------ retry (ruled 2026-10-28)
 
 /** Files a firewall refused: retried gently, one at a time, on a schedule over about 24 hours, with the UA.
@@ -446,6 +487,7 @@ async function main(): Promise<void> {
   const cmd = process.argv[2];
   const cache = cacheDir();
   if (cmd === "retry") return retryBlocked(cache);
+  if (cmd === "tile-bits") return tileBitsCmd(cache);
   if (cmd === "plan") return plan(cache);
   if (cmd === "fetch") return fetchAll(cache);
   if (cmd === "dry-run") return dryRun(cache);
