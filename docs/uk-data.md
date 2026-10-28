@@ -74,6 +74,10 @@ No `LastModified` time, no file's contents and no OPERA listing have been read.
 `489656c`, is stamped **04:00:52Z** and was pushed in the same command, so it precedes this first reading by two
 minutes. The frozen text is left as it was.
 
+**One statement in it is not exact.** "No OPERA listing" had been read, it says. One had: the cache bucket's **top
+level**, which held a single prefix, `2026/`. It showed no frame key and no time, so no prediction could have used
+it. The Met Office day listing read before the freeze printed keys only, with no `LastModified`.
+
 **The instrument:** `times.py` (sha256 `ec95328d7b9b…`), its raw output `times1.json` (sha256 `0e927cbe40bb…`). Both
 are committed under `docs/uk-data/instruments/`.
 
@@ -99,6 +103,15 @@ are committed under `docs/uk-data/instruments/`.
   listable (a multipart upload's start, say), which would make latency look shorter than a fetcher sees. A live
   poller (`poll_live.py`) records each new frame's first appearance in the listing for 32 minutes. Its result is
   printed beside these rows and does not grade them.
+
+**The poller's result** (about 04:05-04:37Z; `live1.json`, committed):
+- **13 frames appeared, with 0 poll errors:** 3 Met Office, and 6 `DBZH`, 2 `RATE` and 2 `ACRR` from OPERA.
+- **Each was first listed 0.4-10.3 s after its `LastModified`.** The poll step is 10 s plus the listing's own time,
+  so every gap is inside the instrument's resolution.
+- **So the alternative is excluded at that resolution:** `LastModified` is when a fetcher can see a frame.
+- **The same frames' latencies,** as data:
+  - the Met Office's 04:00, 04:15 and 04:30 frames: 428, 415 and 334 s;
+  - OPERA `DBZH`: 244-251 s.
 
 ## Results: contents and coverage (read 2026-10-28 ~04:10Z)
 
