@@ -5384,3 +5384,51 @@ None of these touches what MG1 compares: places, peaks, vertices and terrain, de
 - **B1:** the dry, approaching, here-now, warning and stale scenarios are graded exact against the new reference; clear is unchanged.
 - **B3:** `legend_check --fb` passes, with the teal "Light rain" swatch.
 - **The B1 images go to Daniel again.**
+
+### A10.17 Results: the teal palette PR (#488 @ 5a790eef96b3), graded against A10.16; #487's CI
+
+**Where it is:** `weatherscope/teal-code1`, one commit off main 908a74c, opened as #488. CI was not yet read when this was written. It is reported to the reviewer once both reads agree.
+
+**Graded against A10.16, row by row:**
+
+| A10.16 froze | measured |
+|---|---|
+| 23 of 25 K rows change; clear-60 and dry-15 do not | 23 changed; clear-60 and dry-15 unchanged |
+| each changed row at exactly its predicted code-1 pixels, all 0x0010 → 0x04B0 | all 25 rows EXACT, at the frozen counts (from 24 for approaching-15 to 967 for loop-11) |
+| only ROW lines change in `k35.ref.txt` | 23 ROW lines; no TIME, BAND, LABEL, AR1 or `#` line |
+| C3g dE*ab 76.0 (dL* 8.9); C3k 54.1 and 44.7; C3l 55.6 < 87.7 | the same values, printed by the test |
+| the 11 palette sabotages, each failing exactly its set | 11 of 11 AS PREDICTED; the real header is unchanged |
+| test_wx_k35 28/0, replay 90/0, layout 73/0, under MinGW and g++ 13.3 | 28/0, 90/0, 73/0 under both |
+
+**One reading that was not in A10.16: `Dim()` stays.**
+- A10.16 says blipscope-5c's `WxS2.h` reads `kRainTable` and `Dim()` directly.
+- I deleted `Dim()` as unused; re-reading A10.16 caught it, and it is restored before the commit.
+- Only `kDim55` and the dim parameter retire.
+
+**Three instrument failures on the way, all mine, none in the change:**
+1. **The grader read bytes as pixels.**
+   - My first grade said OFF-PREDICTION on all 25 rows, including the two that were predicted not to change.
+   - The text diff disagreed at the same moment: clear-60's ROW hash had not moved. Two correct-looking observations that contradict each other point at the instrument.
+   - The cause: the pre-change capture holds rgb565 big-endian bytes, and the grader indexed them as 57,600 pixels. **This is the same flaw A10.16 recorded in the prediction instrument, now in its twin.**
+   - The capture was proved to be pre-change (its text equals `k35.ref.txt` at main) and decoded the same way as the new frames. The grade above comes from that run.
+2. **The sparse worktree made run.sh's UsageReport block BLIND.**
+   - `proxy/src` and `proxy/pages` are not in the sparse set.
+   - Its exit 2 left **22 later blocks UNRUN, including every Wx block**. That run is not counted.
+   - The full runs were made in a fresh worktree at the pushed commit, with those paths added. The first attempt there found no `.pio/libdeps`, so the font blocks were BLIND; a `pio run` of both Weatherscope envs fixed that and built the exact commit.
+3. **The WSL wrapper reports every exit code as 0.**
+   - `wsl -d Ubuntu-24.04 -- bash -lc 'false; echo $?'` prints **0**; the `-e` form prints 1.
+   - The 13.3 run's wrapper said "exit 0" over a log ending "HOST TESTS FAILED". That last line is printed only on `exit 1`.
+   - **Every exit code printed through that wrapper in earlier notes is void.** The 13.3 verdicts rest on the logs' last lines, and from here on are read only from there.
+
+**The rig, as run:**
+- **MinGW 5.1:** full run.sh, exit 0, ALL HOST TESTS PASSED, every block ran.
+- **g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0:** every block ran; the one FAIL is the board-TU block's "no xtensa toolchain found" (no PlatformIO in WSL, so the host half only). The log ends HOST TESTS FAILED, exit 1, and that is not folded into a pass.
+- **Firmware:** `weatherscope-s3-128` uses 1,628,855 B of flash and the bench 466,119 B.
+- **`palette_ref.py`'s expected bench sprite** is now sha256 `3793a1e43ffa847dbe639ded4ca755fc16dd977fcd6159847e921e50055b147a`.
+
+**#487 (the PK set) @ 3dd8a52d3646:** 35 check-runs, read twice 60 s apart, all completed: 32 success, 3 skipped (promote, ship-alert and version, the release-only jobs). host-tests and all three builds succeeded.
+
+**Still for build Q:**
+- B1: dry, approaching, here-now, warning and stale exact against the new reference; clear unchanged;
+- B3: `legend_check --fb` with the teal swatch;
+- the B1 images to Daniel.
