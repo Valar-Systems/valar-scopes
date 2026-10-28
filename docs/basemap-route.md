@@ -1152,4 +1152,26 @@ Synthetic features at origin (0, 0), through the layer functions.
 > Wrangler under the existing OAuth session, 8 at a time, as you recommend. No new R2 token: a 45-60 minute upload once per ingest isn't worth a new credential. The verify -> repair -> verify -> seal cycle stays as planned, and the put count is stated before D1 (about 11,000: about 1 % of the free monthly Class A writes).
 
 - **What it settles:** the upload method.
-- **What it does not settle:** how to fetch the two county files census's firewall refuses. **No retry is made until that is answered.**
+- **What it does not settle:** how to fetch the two county files census's firewall refuses. **No retry is made until that is answered.** (Answered in the next paste.)
+
+### Rulings on the dry run, verbatim (source: reviewer chat, pasted by Daniel; dated 2026-10-28 in the paste)
+
+> Rulings on the dry run (reviewer chat, 2026-10-28)
+>
+> Accepted: A1.10 as recorded; MI 10/10 with the three sabotages; the corrected S-ISEAL note; the store at 1.76 GB, inside its band and far from the 6 GB stop. The three bugs and their guards are accepted: the log read back after every write, each file checked on its magic bytes, and a missing column or a layer that keeps nothing refused. Places at 10,232, as predicted beforehand.
+>
+> AQ1: the SRTM notice's year is 2000, with your note that joerd records a 2014 update. Weatherscope's licence file gets the same ruling.
+>
+> The tile-count miss stays recorded. First read it from the tile list as it is, by region (CONUS, Alaska, Hawaii and the margin). That's reading, not a change to the instrument. If that doesn't explain 9,638, run reach = 0, with its prediction written first. D1's gate is size, not tile count, and the size is inside.
+>
+> The two blocked files: retry them gently, one at a time over about 24 hours, identifying yourself in the User-Agent. If they're still refused, fetch them from the Census Bureau's own mirror, and record the mirror URLs as their URLs, with a note in the manifest. Same agency, same files, and the manifest then says truthfully where each came from.
+>
+> D1's uploads: Wrangler under the existing login, 8 at a time. No new R2 token: a 45-60 minute upload once per ingest isn't worth a new credential.
+>
+> Then the source bits and the tiles, and announce the bucket with the measured numbers. At $0, it doesn't wait for Daniel's yes.
+
+**What follows from it:**
+- **AQ1:** the attribution file's notice reads "© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.", with the note beside it that joerd records a 2014 update to SRTM.
+- **Raised before it can matter: the mirror's "note in the manifest" has no place in MI4's frozen shape.** MI4 fixes each entry to exactly `{bytes, layer, sha256, url, vintage}`, and `writeManifest` refuses anything else.
+  - **Proposed:** an optional top-level `notes` key, a sorted list of strings such as `"<url>: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it"`, with MI4 re-registered by the ruling that admits it.
+  - **It is needed only if the retries fail,** so nothing waits on it for about a day.

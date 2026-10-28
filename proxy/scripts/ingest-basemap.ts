@@ -29,6 +29,18 @@ import {
 interface FetchRecord { bytes: number; sha256: string; lastModified: string | null; vintage: string }
 type FetchLog = Record<string, FetchRecord>;
 
+/** Every request says who is asking (ruled 2026-10-28, after census.gov's firewall refused two files). */
+const UA = { "User-Agent": "BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)" };
+
+/** The fetch log, with the retry's own records merged in read-only (the retry writes only retry-fetched.json,
+ *  so two processes never write one file). A merged record is used only where the main log has none. */
+function loadLog(cache: string): FetchLog {
+  const main = join(cache, "fetch-log.json"), retry = join(cache, "retry-fetched.json");
+  const log: FetchLog = existsSync(main) ? JSON.parse(readFileSync(main, "utf8")) : {};
+  if (existsSync(retry)) for (const [u, r] of Object.entries(JSON.parse(readFileSync(retry, "utf8")) as FetchLog)) log[u] ??= r;
+  return log;
+}
+
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
   return i > 0 ? process.argv[i + 1] : undefined;
@@ -52,7 +64,7 @@ export function cachePath(cache: string, url: string): string {
 }
 
 async function getText(url: string): Promise<string> {
-  const r = await fetch(url);
+  const r = await fetch(url, { headers: UA });
   if (!r.ok) throw new Error(`${r.status} for ${url}`);
   return r.text();
 }
@@ -88,7 +100,7 @@ async function sha256File(path: string): Promise<string> {
 async function fetchOne(cache: string, f: SourceFile): Promise<FetchRecord> {
   const dest = cachePath(cache, f.url);
   mkdirSync(dirname(dest), { recursive: true });
-  const r = await fetch(f.url);
+  const r = await fetch(f.url, { headers: UA });
   if (!r.ok || !r.body) throw new Error(`${r.status} for ${f.url}`);
   const lastModified = r.headers.get("last-modified");
   const expect = Number(r.headers.get("content-length") ?? NaN);
@@ -117,7 +129,7 @@ async function fetchAll(cache: string): Promise<void> {
   const only = arg("--layers")?.split(",");
   const files = plannedFiles(cache).filter((f) => !only || only.includes(f.layer));
   const logPath = join(cache, "fetch-log.json");
-  const log: FetchLog = existsSync(logPath) ? JSON.parse(readFileSync(logPath, "utf8")) : {};
+  const log: FetchLog = loadLog(cache);
   const conc = Number(arg("--concurrency") ?? 4);
   let next = 0, done = 0, fetched = 0, resumed = 0, adopted = 0, failed = 0;
   // The log is re-read after every write and every record checked: the first version of this line wrote
@@ -133,7 +145,7 @@ async function fetchAll(cache: string): Promise<void> {
    *  its sha256 is computed from the bytes, and its Last-Modified (the vintage, RD-P3) taken from the HEAD. */
   async function adopt(f: SourceFile, dest: string): Promise<FetchRecord | null> {
     if (checkBody(f.url, null, readHead(dest))) return null; // the cached copy is not the file: fetch it again
-    const h = await fetch(f.url, { method: "HEAD" });
+    const h = await fetch(f.url, { method: "HEAD", headers: UA });
     // A HEAD answered with a rejection page says nothing about the file: never read it as "the file changed".
     if (/text\/html/i.test(h.headers.get("content-type") ?? "")) throw new Error(`HEAD rejected for ${f.url}`);
     const len = Number(h.headers.get("content-length") ?? NaN);
@@ -200,7 +212,7 @@ const unzipOne = (zip: Uint8Array, re: RegExp) => {
 
 async function dryRun(cache: string): Promise<void> {
   const planned = plannedFiles(cache);
-  const log: FetchLog = JSON.parse(readFileSync(join(cache, "fetch-log.json"), "utf8"));
+  const log: FetchLog = loadLog(cache);
   // --partial: a MEASUREMENT with named files missing, never a store. It writes to its own directory, its
   // manifest is named PARTIAL, and its summary says so; without the flag a missing file stops the run.
   const partial = process.argv.includes("--partial");
@@ -322,7 +334,7 @@ async function dryRun(cache: string): Promise<void> {
 const TILE_REACH_KM = 250; // §3's largest level radius; R (at most 222) for the peaks is inside it
 
 async function coverageAndTiles(cache: string): Promise<void> {
-  const log: FetchLog = JSON.parse(readFileSync(join(cache, "fetch-log.json"), "utf8"));
+  const log: FetchLog = loadLog(cache);
   const { files: planned } = JSON.parse(readFileSync(join(cache, "plan.json"), "utf8")) as { files: SourceFile[] };
   const url = (layer: string) => planned.find((f) => f.layer === layer)!.url;
   const store = join(cache, "dry-run", "store");
@@ -368,7 +380,7 @@ async function coverageAndTiles(cache: string): Promise<void> {
       if (tlog[u]) continue;
       for (let attempt = 0; attempt < 4; attempt++) {
         try {
-          const h = await fetch(u, { method: "HEAD" });
+          const h = await fetch(u, { method: "HEAD", headers: UA });
           const len = Number(h.headers.get("content-length") ?? NaN);
           if (!h.ok || !Number.isFinite(len)) throw new Error(String(h.status));
           tlog[u] = { bytes: len, lastModified: h.headers.get("last-modified") };
@@ -392,9 +404,48 @@ async function coverageAndTiles(cache: string): Promise<void> {
   if (failed) process.exitCode = 1;
 }
 
+// ------------------------------------------------------------------------------------------------ retry (ruled 2026-10-28)
+
+/** Files a firewall refused: retried gently, one at a time, on a schedule over about 24 hours, with the UA.
+ *  Every attempt is appended to retry-attempts.jsonl; a success goes to retry-fetched.json, its own file,
+ *  read back and checked, so this process never writes the log another fetch may be writing. */
+async function retryBlocked(cache: string): Promise<void> {
+  const urls = (arg("--urls") ?? "").split(",").filter(Boolean);
+  if (!urls.length) throw new Error("--urls is required");
+  const schedule = (arg("--schedule-min") ?? "0,60,180,360,720,1440").split(",").map(Number);
+  const planned = plannedFiles(cache);
+  const files = urls.map((u) => { const f = planned.find((p) => p.url === u); if (!f) throw new Error(`not a planned source: ${u}`); return f; });
+  const outPath = join(cache, "retry-fetched.json"), attempts = join(cache, "retry-attempts.jsonl");
+  const got: FetchLog = existsSync(outPath) ? JSON.parse(readFileSync(outPath, "utf8")) : {};
+  const t0 = Date.now();
+  for (const atMin of schedule) {
+    const wait = t0 + atMin * 60_000 - Date.now();
+    if (wait > 0) await new Promise((s) => setTimeout(s, wait));
+    for (const f of files) {
+      if (got[f.url]) continue;
+      let outcome: string;
+      try {
+        got[f.url] = await fetchOne(cache, f);
+        writeFileSync(outPath, JSON.stringify(sortKeys(got), null, 1) + "\n");
+        const back = (JSON.parse(readFileSync(outPath, "utf8")) as FetchLog)[f.url];
+        if (!back || !/^[0-9a-f]{64}$/.test(back.sha256)) throw new Error("retry record unreadable after write");
+        outcome = "fetched";
+      } catch (e) { outcome = `not fetched: ${(e as Error).message}`; }
+      appendFileSync(attempts, JSON.stringify({ at: new Date().toISOString(), minute: atMin, url: f.url, outcome }) + "\n");
+      console.log(`${new Date().toISOString()} ${f.url.split("/").pop()}: ${outcome}`);
+      await new Promise((s) => setTimeout(s, 60_000)); // one at a time, a minute apart
+    }
+    if (files.every((f) => got[f.url])) break;
+  }
+  const left = files.filter((f) => !got[f.url]);
+  console.log(left.length ? `retry: ${left.length} still not fetched after the schedule` : "retry: all fetched");
+  if (left.length) process.exitCode = 1;
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   const cache = cacheDir();
+  if (cmd === "retry") return retryBlocked(cache);
   if (cmd === "plan") return plan(cache);
   if (cmd === "fetch") return fetchAll(cache);
   if (cmd === "dry-run") return dryRun(cache);
