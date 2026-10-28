@@ -1614,3 +1614,36 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
   - S-RIVERTIE: MR6's lengths are distinct.
   - S-BUSSUB, S-DEDUPALL, S-DEDUPLT and S-PLACESORT: they touch no water or river rule.
   - S-RZERO and S-R0M: no ML row has a zero-sum part or a 0 m group. That is A2.5's reading, unchanged.
+
+### A2.14 The runtime failure recurred; a cause measured; the gated pass's outcomes, written before it runs
+
+**The first full pass with `layers.ts` (22:12Z) was clean for 19 runs, then failed in every one of the last 7.**
+- **Three runs ran nothing:** S-DEDUPALL, S-PLACESORT and S-RIVERTIE. S-DEDUPLT had "no test results".
+- **Two ran partway:** S-BUSSUB (42 baseline cases not run) and S-SQUARELEN (16 not run). The missing cases came from files that do not import `layers.ts` (the coverage tests, the frame tests), so the plants did not cause them.
+- **The control C-LOADFAIL graded "AS PREDICTED" in that pass, and that grade is void.** Its BLIND came from the runtime failure, not from its own plant. The control could not tell the two apart. It now requires the runtime to have run cleanly, or it reads UNREADABLE.
+- **My tally counted 4 of those 7.** It counted only runs where nothing ran. It now counts both kinds.
+- **Not run for a reading in that pass:** S-BUSSUB, S-SQUARELEN, S-DEDUPALL, S-DEDUPLT, S-PLACESORT, S-RIVERTIE. The other 19 runs graded as frozen, S-RZERO {MR5} and S-R0M {MR6} among them.
+
+**What was measured, right after it:**
+- **15,998 TCP sockets in TIME_WAIT.** Windows' ephemeral port range is 49152 + 16,384.
+- **Then 10,195, of which 9,790 were loopback. Then 1,574 about a minute later.**
+- **The runtime's error is connect-side:** `ConnectEx(): #1225 The remote computer refused the network connection`.
+- **The reading:** each vitest-pool-workers run opens hundreds of loopback connections for its module service. Back-to-back runs fill the ephemeral range faster than TIME_WAIT expires, and the runtime's connect is then refused. Both episodes came after a dozen or more runs in a row.
+- **The alternative, named:** a failure unrelated to ports that happened to coincide. **Not excluded by these readings alone.** That is what the gated pass below is for.
+- **A negative control I am not running:** exhausting the ports on purpose would also break other work on this machine (other sessions, the station), so the evidence for the cause stays one unplanned observation per episode.
+
+**The instrument change.** Each run now starts only when the TIME_WAIT count is under **8,000**. The script polls for it every 5 s and never sleeps a fixed time. It prints the count at each run's start, and the end of the pass prints:
+- the runtime failures (nothing run / partway);
+- the highest count seen at a start;
+- the seconds held.
+
+**The gated pass's outcomes, registered before it runs:**
+
+| outcome | what it means |
+|---|---|
+| 0 runtime failures | consistent with port exhaustion. It does not prove it: a failure that is simply rare would also give 0 in one pass |
+| a runtime failure at a start count under 8,000 | **ports are not, or not only, the cause.** Stop and report |
+| a runtime failure with no count readable | the gate is blind. Stop and report |
+| anything else | the instrument is unreliable at this scale. Stop and report |
+
+**The sabotage readings, as registered:** every set as frozen, except S-SQUARELEN, frozen {ML6}, for which A2.13 predicts {ML6, MR6}. And C-LOADFAIL must read BLIND from its own plant, with a clean runtime.
