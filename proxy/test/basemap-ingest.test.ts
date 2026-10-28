@@ -25,7 +25,7 @@ describe("MI, the ingest", () => {
     const roads = shapefile(3, [[[0, 0, 1, 1]], [[0, 0, 1, 2]], [[0, 0, 2, 1]]], [{ name: "MTFCC", len: 5 }, { name: "FULLNAME", len: 40 }],
       [{ MTFCC: "S1100", FULLNAME: "US Hwy 97 Bus" }, { MTFCC: "S1200", FULLNAME: "OR 126" }, { MTFCC: "S1400", FULLNAME: "Main St" }]);
     const gnis = readDelimited("feature_id|feature_name|feature_class|prim_lat_dec|prim_long_dec\n1|Mount Test|Summit|1.5|2.5\n2|Test Lake|Lake|1.5|2.5\n", "|");
-    const gaz = readDelimited("USPS\tGEOID\tNAME\tLSAD\tINTPTLAT\tINTPTLONG   \nOR\t4105800\tTest city\t25\t1.25\t2.25  \nOR\t4199999\tTest CDP\t57\t1.25\t2.25\n", "\t");
+    const gaz = readDelimited("USPS|GEOID|NAME|LSAD|INTPTLAT|INTPTLONG   \nOR|4105800|Test city|25|1.25|2.25  \nOR|4199999|Test CDP|57|1.25|2.25\n", "|");
     const w = featuresFrom("water", 0, water), r = featuresFrom("rivers", 1, rivers), rd = featuresFrom("roads", 2, roads);
     const pk = pointsFrom("peaks", 3, gnis), pl = pointsFrom("places", 4, gaz, new Map([["4105800", 1234]]));
     expect(w.map((f) => f.attrs["AWATER"])).toEqual(["1500000", "2000000"]);
@@ -42,7 +42,7 @@ describe("MI, the ingest", () => {
     const pops = joinPopulation(csv);
     expect(pops.get("4105800")).toBe(100000);
     expect(pops.size).toBe(1);
-    const gaz = readDelimited("GEOID\tNAME\tLSAD\tINTPTLAT\tINTPTLONG\n4105800\tTest city\t25\t1\t2\n4100001\tNo row city\t25\t1\t2\n", "\t");
+    const gaz = readDelimited("GEOID|NAME|LSAD|INTPTLAT|INTPTLONG\n4105800|Test city|25|1|2\n4100001|No row city|25|1|2\n", "|");
     expect(pointsFrom("places", 0, gaz, pops).map((f) => f.attrs["pop"])).toEqual([100000, 0]);
   });
 
@@ -104,12 +104,21 @@ describe("MI, the ingest", () => {
     expect(cells.some((c) => c.level > 0)).toBe(true);
   });
 
+  it("MI-column (not a frozen row): a MISSING column is refused, an empty value is not", () => {
+    // The 2025 Gazetteer is pipe-delimited; read as tab-delimited, every row had one column and LSAD was absent,
+    // and the old filter kept 0 of 32,350 places without a word.
+    const asTabs = readDelimited("USPS|GEOID|NAME|LSAD|INTPTLAT|INTPTLONG\nOR|4105800|Test city|25|1|2\n", "\t");
+    expect(() => pointsFrom("places", 0, asTabs)).toThrow(/no LSAD column/);
+    expect(() => featuresFrom("rivers", 0, [{ index: 0, parts: [new Float64Array([0, 0, 1, 1])], attrs: { NAME: "x" } }])).toThrow(/no FULLNAME column/);
+    expect(featuresFrom("rivers", 0, [{ index: 0, parts: [new Float64Array([0, 0, 1, 1])], attrs: { FULLNAME: "" } }])).toEqual([]); // CONTROL
+  });
+
   it("MI-roundtrip (not a frozen row): decodeFeature inverts encodeFeature for every kind", () => {
     const feats = [
       ...featuresFrom("water", 7, [{ index: 3, parts: [new Float64Array(sq(0.5, 0.5))], attrs: { AWATER: "2000000" } }]),
       ...featuresFrom("roads", 8, [{ index: 4, parts: [new Float64Array([0, 0, 1, 1])], attrs: { MTFCC: "S1200", FULLNAME: "Rue Élan" } }]),
       ...pointsFrom("peaks", 9, readDelimited("feature_id|feature_name|feature_class|prim_lat_dec|prim_long_dec\n42|Mount Test|Summit|1.5|2.5\n", "|")),
-      ...pointsFrom("places", 10, readDelimited("GEOID\tNAME\tLSAD\tINTPTLAT\tINTPTLONG\n4105800\tTest city\t25\t1\t2\n", "\t"), new Map([["4105800", 5]])),
+      ...pointsFrom("places", 10, readDelimited("GEOID|NAME|LSAD|INTPTLAT|INTPTLONG\n4105800|Test city|25|1|2\n", "|"), new Map([["4105800", 5]])),
     ];
     const buf = new Uint8Array(feats.reduce((a, f) => a + encodeFeature(f).length, 0));
     let o = 0;

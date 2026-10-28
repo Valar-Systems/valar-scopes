@@ -21,6 +21,10 @@ export const PREDICATES = [
 /** Whether a source record passes the store's predicate for its layer. A malformed number is refused, not
  *  read as 0 or NaN-false: a record we cannot read is a finding about the file. */
 export function filterRecord(kind: FeatureKind, a: Record<string, string>): boolean {
+  // A MISSING column is refused; an empty value is not. Returning false for an absent key once read a
+  // pipe-delimited Gazetteer as tab-delimited and kept 0 of 32,350 places without a word.
+  const need = { water: "AWATER", rivers: "FULLNAME", roads: "MTFCC", peaks: "feature_class", places: "LSAD" }[kind];
+  if (!(need in a)) throw new Error(`${kind}: no ${need} column (keys: ${Object.keys(a).slice(0, 6).join(", ")})`);
   switch (kind) {
     case "water": {
       const v = a["AWATER"];

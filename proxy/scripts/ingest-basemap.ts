@@ -247,11 +247,16 @@ async function dryRun(cache: string): Promise<void> {
   }
   const popUrl = files.find((x) => x.layer === "population")!.url, gazUrl = files.find((x) => x.layer === "places")!.url;
   const pops = joinPopulation(new TextDecoder("latin1").decode(verifiedBytes(cache, popUrl, log)));
-  const gaz = readDelimited(new TextDecoder("utf-8").decode(unzipOne(verifiedBytes(cache, gazUrl, log), /\.txt$/i)), "\t");
+  // The 2025 Gazetteer is PIPE-delimited (older vintages used tabs).
+  const gaz = readDelimited(new TextDecoder("utf-8").decode(unzipOne(verifiedBytes(cache, gazUrl, log), /\.txt$/i)), "|");
   stats.places = { files: 1, records: gaz.length, kept: 0, vertices: 0, bytes: 0 };
   stats.population = { files: 1, records: pops.size, kept: 0, vertices: 0, bytes: 0 };
   add("places", pointsFrom("places", index.get(gazUrl)!, gaz, pops));
   flush();
+  // A filter that keeps nothing from a layer that has records is a parse failure until shown otherwise.
+  for (const [layer, s] of Object.entries(stats)) {
+    if (layer !== "population" && s.records > 0 && s.kept === 0) throw new Error(`${layer}: 0 kept of ${s.records} records -- refusing`);
+  }
 
   // Cells: a level-0 cell over 24 MB is decoded and split by assignCells (MI6's rule, MI5's corner).
   const cellsDir = join(out, "store", "cells");
