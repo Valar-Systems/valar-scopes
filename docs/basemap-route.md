@@ -1850,3 +1850,29 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
   - S-NOCOUNT plants `budget.ts`'s count, which MG0 and MG0b never call.
   - **No set moves.**
 - **Bend's `collapsed` counts are inputs to MG0b, read from the fixture,** not values it predicts. What MG0b tests is the layout and the digests.
+
+### A2.22 `provenance.ts`: MG0 and MG0b, run (2026-10-28)
+
+**`proxy/src/basemap/provenance.ts`** writes §7's lines in A1.5's order:
+- `layerDigest`: SHA-256 over the byte-sorted `<url> <sha256>\n` lines;
+- `commonDir`;
+- the four RD-P5 credit lines, by tile-source bit;
+- the three processing texts (levels only, peaks only, both), as §13 words them;
+- `epsilon.m` with three decimals (RD-P4);
+- `dropped.`/`collapsed.` for every layer read (RD-P1).
+
+It refuses a malformed commit or store id. It also refuses terrain files without tiles read, or tiles read without terrain files.
+
+**`bend.manifest.json`'s bytes, checked before MG0 hashed them.** The worktree copy has no CR (git attribute `text` unset). It is the same 17,836 B as the committed blob, and its sha256 begins `ccf24c2066bb`, Bend's `store:`.
+
+| row | result |
+|---|---|
+| MG0 | **as frozen:** every layer's `files.` and `sha256.`, recomputed from the manifest, equal `bend.bmpk`'s; `store:` is the manifest's first 12 hex |
+| MG0b | **as frozen:** line for line equal to `bend.bmpk`'s PROVENANCE except the `builder:` line's value, the count equal. Its control (one water sha256 changed) moves exactly one line, `sha256.water` |
+
+**The gated pass, 23:22-23:30Z,** with MT3b, MG0 and MG0b now in the graded set:
+- 30 runs, 89 cases in 8 files, **every set as frozen**, C-LOADFAIL BLIND from its own plant;
+- **0 runtime failures**, the highest TIME_WAIT at a start 7,987, held 357 s;
+- **exit 0.**
+
+**Next: `build.ts`.** The store reads behind it (`current`, `manifest.json`, `coverage.bin`, `index.json`, `regions.json`, `terrain-sources.bin`, cells, PNG tiles) go behind one store interface, so MW can count the reads. Then MB, ME2, ME3, ME7, MD1, MD2 and S-TNOMARGIN {MT3b, MB8a, MB8b}.
