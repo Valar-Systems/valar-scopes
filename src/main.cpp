@@ -6,6 +6,12 @@
 #include "LGFX.h"
 #include "Layout.h"
 #include "FrameBuffer.h"
+#ifdef FEATURE_WEATHERSCOPE
+#include <atomic>
+#include <cstring>
+#include <esp_heap_caps.h>
+#include "DiagText.h"          // diag only: /diag/wx (docs/weatherscope-stage3.md A9.42)
+#endif
 #include "BootScreen.h"
 #include "SplashScreen.h"
 #include "Board.h"
@@ -108,6 +114,40 @@ void         SetTag(uint32_t tag)    { g_fbTag = tag; }
 uint32_t     Tag()                   { return g_fbTag; }
 }  // namespace framebuf
 
+#ifdef FEATURE_WEATHERSCOPE
+// DiagText.h's storage (docs/weatherscope-stage3.md A9.42): diag only, Weatherscope its one user. The route asks, the
+// loop renders and publishes on its own task, the route copies. The atomics order the copy before the number.
+namespace {
+std::atomic<uint32_t> g_dtRequested{0};
+std::atomic<uint32_t> g_dtPublished{0};
+char*                 g_dtBuf = nullptr;
+size_t                g_dtLen = 0;
+}  // namespace
+namespace diagtext {
+uint32_t Request() { return g_dtRequested.fetch_add(1) + 1; }
+uint32_t Pending()
+{
+  const uint32_t r = g_dtRequested.load();
+  return r != g_dtPublished.load() ? r : 0;
+}
+void Publish(uint32_t n, const char* text, size_t len)
+{
+  if (!g_dtBuf) g_dtBuf = (char*)heap_caps_malloc(kCapacity, MALLOC_CAP_SPIRAM);
+  if (!g_dtBuf) return;
+  if (len > kCapacity) len = kCapacity;
+  memcpy(g_dtBuf, text, len);
+  g_dtLen = len;
+  g_dtPublished.store(n);
+}
+const char* Answer(uint32_t n, size_t* len)
+{
+  if (g_dtPublished.load() != n) return nullptr;
+  *len = g_dtLen;
+  return g_dtBuf;
+}
+}  // namespace diagtext
+#endif
+
 WiFiManager wm;
 ConfigurationWebServer configServer;
 HttpRequestManager http;
@@ -187,8 +227,25 @@ void setup()
   // TinyUSB's compile-time CFG_TUD_CDC_TX_BUFSIZE and cannot be resized here --
   // so a boot burst can still be dropped on that build when nothing is reading.
   Serial.setTxBufferSize(4096);
-#endif
+  // ...and 0, not 2 (docs/weatherscope-stage3.md A9.42, 2026-10-26). 2 ms still
+  // cost ~40 ms PER CALL (20 retries x 2 ms) once the ring was full, and a PC
+  // with no serial window fills it: HWCDC's `connected` is set by the host's
+  // driver, not by an open window, so write() waits on a port nobody reads.
+  // Weatherscope's zoom took ~1 s after its ring closed (14-17 calls); the
+  // radar's 30 s health tick pays 3-12 calls, unseen by the frame stats it
+  // prints. With nobody reading, the wait bought nothing -- the write ended
+  // short either way. 0 never waits (the lock and the ring are both tried
+  // once). The price, where a reader IS attached: a line can be dropped when
+  // the ring is full or another task holds the TX lock at that instant --
+  // the 07-31 concern above, now paid only in those two cases. Bench dumps
+  // that must arrive whole pace themselves (Weatherscope's 'R').
+  Serial.setTxTimeoutMs(0);
+#else
+  // USBCDC (TinyUSB) has no such stall: with no application open (DTR low)
+  // write() returns 0 at once, and with one attached it bounds itself to the
+  // timeout. Kept at 2 ms (A9.42).
   Serial.setTxTimeoutMs(2);
+#endif
 #endif
 
   // FIRST LINE OUT, before any subsystem can fail and before anything else can

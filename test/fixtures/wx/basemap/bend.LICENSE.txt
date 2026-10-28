@@ -1,0 +1,10 @@
+bend.bmpk -- sources and terms (docs/basemap-package-format.md §7; docs/weatherscope-stage3.md A10.14, A10.18)
+
+Public domain (works of the United States government): TIGER/Line 2024 (AREAWATER, LINEARWATER, PRISECROADS, and the state and county files used to choose them), the 2025 Census Gazetteer, SUB-EST2024 (Census Bureau population estimates) and USGS GNIS Domestic Names.
+
+Terrain: AWS Terrain Tiles (Terrarium, zoom 9). This package's tiles contain SRTM only (inland US land below 60 N), per tilezen/joerd's docs/data-sources.md zoom-9 row.
+SRTM data courtesy of the U.S. Geological Survey
+© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.
+2000 is the SRTM release joerd's attribution.md names; joerd records several updates, including in 2014.
+
+What was done to the elevations: Terrarium z9 elevations; hillshade from 315 deg at 45 deg with 2x vertical exaggeration; 4x4 mean of z9 pixels; each level pixel takes the z9 pixel containing its centre; shade quantised to 8 bits; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres

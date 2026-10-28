@@ -12,6 +12,7 @@
 
 #include "DeviceIdentity.h"
 #include "FrameBuffer.h"
+#include "DiagText.h"      // /diag/wx (A9.42)
 #include "Layout.h"
 #include "SolarDim.h"
 #include "TouchPoll.h"
@@ -30,7 +31,6 @@ namespace {
 
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
-constexpr int kFrameDim = wxpalette::kDim55; // rain code 1 at 55 %, as the bench (final palette): the legend's
 
 const uint32_t kFg     = lgfx::color888(230, 237, 234);
 const uint32_t kDim    = lgfx::color888(130, 150, 160);
@@ -342,7 +342,9 @@ void WeatherscopeManager::BuildScenario()
 }
 
 // THE INSTRUMENT (A9.34): a print, timed (formatting included) while a BuildScenario is being timed; a short write is
-// counted. The bytes are printf's own.
+// counted. The bytes are printf's own. A9.42 (item 2): every write is also recorded with the USB path it met --
+// isPlugged() and isConnected() (which write() itself calls first, so sampling it perturbs nothing a write would not)
+// and the ring's free space, all taken BEFORE the timed write.
 size_t WeatherscopeManager::Out(const char* fmt, ...)
 {
     const int64_t t0 = esp_timer_get_time();
@@ -354,7 +356,23 @@ size_t WeatherscopeManager::Out(const char* fmt, ...)
     size_t w = 0;
     if (n > 0) {
         if (n >= (int)sizeof buf) n = (int)sizeof buf - 1;
+        WriteRecord& r = writeLog[writeSeq % kWriteLog];
+        r = WriteRecord();
+#if ARDUINO_USB_MODE
+        r.freeBefore = (uint16_t)Serial.availableForWrite();
+        r.plugged = HWCDC::isPlugged() ? 1 : 0;
+        r.connected = Serial.isConnected() ? 1 : 0;
+#else
+        r.plugged = r.connected = 2;
+#endif
+        const int64_t w0 = esp_timer_get_time();
         w = Serial.write((const uint8_t*)buf, (size_t)n);
+        const int64_t w1 = esp_timer_get_time();
+        r.tUs = (uint32_t)w0;
+        r.elapsedUs = (uint32_t)(w1 - w0);
+        r.asked = (uint16_t)n;
+        r.written = (uint16_t)w;
+        ++writeSeq;
     }
     if (timingOut) {
         outUs += esp_timer_get_time() - t0;
@@ -364,33 +382,101 @@ size_t WeatherscopeManager::Out(const char* fmt, ...)
     return w;
 }
 
-// THE INSTRUMENT (A9.34): on 'R', the build records and the frame log, then both cleared.
-void WeatherscopeManager::PrintRecords()
+// THE INSTRUMENT (A9.34, A9.42): the build records, the last 64 writes and the frame log, as lines, to a sink.
+void WeatherscopeManager::RenderRecords(RecordSink& out)
 {
+    char line[200];
+    int k;
     const int nb = nBuilds < kBuildRecords ? nBuilds : kBuildRecords;
-    Serial.printf("[wx] builds n=%d of %d\n", nb, nBuilds);
-    for (int k = 0; k < nb; ++k) {
-        const BuildRecord& r = builds[nBuilds <= kBuildRecords ? k : (nBuilds + k) % kBuildRecords];
-        Serial.printf("[wx] build %d why=%s scene=%s mi=%u->%u decode=%lu scen=%lu from=%lu compose=%lu sha=%lu "
-                      "print=%lu total=%lu prints=%u short=%u\n", k, r.why, kScenarioName[r.scene], (unsigned)r.fromMi,
-                      (unsigned)r.toMi, (unsigned long)r.decodeUs, (unsigned long)r.scenUs, (unsigned long)r.fromUs,
-                      (unsigned long)r.composeUs, (unsigned long)r.shaUs, (unsigned long)r.printUs,
-                      (unsigned long)r.totalUs, (unsigned)r.prints, (unsigned)r.shortWrites);
+    k = snprintf(line, sizeof line, "[wx] builds n=%d of %d\n", nb, nBuilds);
+    out.Line(line, (size_t)k);
+    for (int i = 0; i < nb; ++i) {
+        const BuildRecord& r = builds[nBuilds <= kBuildRecords ? i : (nBuilds + i) % kBuildRecords];
+        k = snprintf(line, sizeof line, "[wx] build %d why=%s scene=%s mi=%u->%u decode=%lu scen=%lu from=%lu "
+                     "compose=%lu sha=%lu print=%lu total=%lu prints=%u short=%u frame=%lu\n", i, r.why,
+                     kScenarioName[r.scene], (unsigned)r.fromMi, (unsigned)r.toMi, (unsigned long)r.decodeUs,
+                     (unsigned long)r.scenUs, (unsigned long)r.fromUs, (unsigned long)r.composeUs,
+                     (unsigned long)r.shaUs, (unsigned long)r.printUs, (unsigned long)r.totalUs, (unsigned)r.prints,
+                     (unsigned)r.shortWrites, (unsigned long)r.frameUs);
+        out.Line(line, (size_t)(k < (int)sizeof line ? k : (int)sizeof line - 1));
+    }
+    const uint32_t nw = writeSeq < (uint32_t)kWriteLog ? writeSeq : (uint32_t)kWriteLog;
+    k = snprintf(line, sizeof line, "[wx] writes n=%lu of %lu\n", (unsigned long)nw, (unsigned long)writeSeq);
+    out.Line(line, (size_t)k);
+    for (uint32_t i = 0; i < nw; ++i) {
+        const uint32_t seq = writeSeq - nw + i;
+        const WriteRecord& r = writeLog[seq % kWriteLog];
+        k = snprintf(line, sizeof line, "[wx] write %lu t=%lu asked=%u wrote=%u free=%u plugged=%u connected=%u us=%lu\n",
+                     (unsigned long)seq, (unsigned long)r.tUs, (unsigned)r.asked, (unsigned)r.written,
+                     (unsigned)r.freeBefore, (unsigned)r.plugged, (unsigned)r.connected, (unsigned long)r.elapsedUs);
+        out.Line(line, (size_t)k);
     }
     const uint32_t n = frameSeq < (uint32_t)kFrameLog ? frameSeq : (uint32_t)kFrameLog;
-    Serial.printf("[wx] frames n=%lu of %lu\n", (unsigned long)n, (unsigned long)frameSeq);
+    k = snprintf(line, sizeof line, "[wx] frames n=%lu of %lu\n", (unsigned long)n, (unsigned long)frameSeq);
+    out.Line(line, (size_t)k);
     uint32_t prev = 0;
-    for (uint32_t k = 0; k < n; ++k) {
-        const uint32_t seq = frameSeq - n + k;
+    for (uint32_t i = 0; i < n; ++i) {
+        const uint32_t seq = frameSeq - n + i;
         const FrameRecord& f = frameLog[seq % kFrameLog];
-        Serial.printf("[wx] frame %lu start=%lu dt=%lu ring=%u flags=%c%c%c scene=%s mi=%u\n", (unsigned long)seq,
-                      (unsigned long)f.startUs, (unsigned long)(k ? f.startUs - prev : 0), (unsigned)f.permille,
-                      (f.flags & kHeld) ? 'H' : '-', (f.flags & kFired) ? 'F' : '-', (f.flags & kRebuilt) ? 'R' : '-',
-                      kScenarioName[f.scene], (unsigned)f.radiusMi);
+        k = snprintf(line, sizeof line, "[wx] frame %lu start=%lu dt=%lu ring=%u flags=%c%c%c scene=%s mi=%u\n",
+                     (unsigned long)seq, (unsigned long)f.startUs, (unsigned long)(i ? f.startUs - prev : 0),
+                     (unsigned)f.permille, (f.flags & kHeld) ? 'H' : '-', (f.flags & kFired) ? 'F' : '-',
+                     (f.flags & kRebuilt) ? 'R' : '-', kScenarioName[f.scene], (unsigned)f.radiusMi);
+        out.Line(line, (size_t)k);
         prev = f.startUs;
     }
+}
+
+namespace {
+// 'R' (A9.42): each line waits, at most 50 ms, for the ring to have room, so the bench's own dump arrives whole at any
+// TX timeout. Bench-only, on a command; never in the draw path.
+class PacedSerial : public WeatherscopeManager::RecordSink {
+public:
+    void Line(const char* s, size_t n) override
+    {
+        const uint32_t t0 = millis();
+        while (Serial.availableForWrite() < (int)n && millis() - t0 < 50) vTaskDelay(1);
+        Serial.write((const uint8_t*)s, n);
+    }
+};
+class TextBuffer : public WeatherscopeManager::RecordSink {
+public:
+    TextBuffer(char* buf, size_t cap) : buf_(buf), cap_(cap) {}
+    void Line(const char* s, size_t n) override
+    {
+        if (len_ + n > cap_) n = cap_ - len_;
+        memcpy(buf_ + len_, s, n);
+        len_ += n;
+    }
+    size_t Len() const { return len_; }
+
+private:
+    char* buf_;
+    size_t cap_, len_ = 0;
+};
+}  // namespace
+
+// On 'R': the records, paced, then cleared.
+void WeatherscopeManager::PrintRecords()
+{
+    PacedSerial out;
+    RenderRecords(out);
     nBuilds = 0;
     frameSeq = 0;
+    writeSeq = 0;
+}
+
+// /diag/wx (A9.42): a request from the route is answered here, on the loop task, with the same text as 'R'. Nothing is
+// cleared, so a read over Wi-Fi does not disturb what the bench reads later.
+void WeatherscopeManager::ServiceDiagText()
+{
+    const uint32_t n = diagtext::Pending();
+    if (!n) return;
+    if (!diagBuf) diagBuf = (char*)heap_caps_malloc(diagtext::kCapacity, MALLOC_CAP_SPIRAM);
+    if (!diagBuf) return;
+    TextBuffer out(diagBuf, diagtext::kCapacity);
+    RenderRecords(out);
+    diagtext::Publish(n, diagBuf, out.Len());
 }
 
 // One line at boot, proving the feeds answer through the factory. Sizes, counts and times only: no coordinate.
@@ -440,6 +526,7 @@ void WeatherscopeManager::Update()
     }
     HandleTouch();
     HandleSerialGestures();
+    ServiceDiagText();   // A9.42: /diag/wx, answered on this task
 
     // The cycle sees every tick, so a paused interval (the loop, the legend) is skipped rather than counted when
     // it resumes; it can only advance while unpaused, i.e. on the scenario screen.
@@ -719,6 +806,10 @@ void WeatherscopeManager::OnPushed(uint32_t tag, uint8_t phase, uint32_t pushUs)
     {   // the frame log (A9.34): this push's start, and what its frame drew
         FrameRecord f = curFrame;
         f.startUs = (uint32_t)(esp_timer_get_time() - (int64_t)pushUs);
+        // A9.42: the frame a build ran in, push to push, onto that build's record
+        if ((f.flags & kRebuilt) && nBuilds > 0 && lastPushStartUs)
+            builds[(nBuilds - 1) % kBuildRecords].frameUs = f.startUs - lastPushStartUs;
+        lastPushStartUs = f.startUs;
         if (!(f.flags & kRebuilt)) {
             f.scene = (uint8_t)(cycle ? cycle->index : 0);
             f.radiusMi = (uint16_t)ZoomMiles();
@@ -884,7 +975,7 @@ void WeatherscopeManager::DrawLegend(BandCanvas& c)
         }
         wxpalette::Rgb col;
         switch (sw.kind) {
-        case wxlegend::Kind::Rain: col = wxpalette::Rain(sw.code, kFrameDim); break;
+        case wxlegend::Kind::Rain: col = wxpalette::Rain(sw.code); break;   // code 1 teal (A10.16)
         case wxlegend::Kind::Snow: col = wxpalette::Snow(sw.code); break;
         default: col = wxpalette::kNoCoverage; break;
         }

@@ -37,7 +37,8 @@ def blocks(lines):
     while i < len(lines):
         if lines[i].startswith("[wx] builds n="):
             j, builds, frames = i + 1, [], []
-            while j < len(lines) and (lines[j].startswith("[wx] build ") or lines[j].startswith("#")):
+            while j < len(lines) and (lines[j].startswith("[wx] build ") or lines[j].startswith("#") or
+                                      lines[j].startswith("[wx] write")):   # A9.42 adds the write lines
                 m = BUILD.search(lines[j])
                 if m:
                     builds.append(m.groups())

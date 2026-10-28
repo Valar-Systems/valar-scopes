@@ -1022,3 +1022,44 @@ Two reads, 10 min 7 s apart. Each passed both gates.
 
 **Verdict: outcome (a).** Both reads meet (1)-(4): pruning holds the bucket at one hour. I5′ (a MISS) and I5″ (outcome
 (c)) stay in the record as they were.
+
+## The NOAA credit line on `/credits` (2026-10-28): predictions frozen before its code
+
+**Why now.** This document put the line in "the PR that binds the bucket", and that binding (#461) went live on
+2026-10-23. Read on 2026-10-28, the live `/credits` page has no weather line at all (found by the UK data plan,
+`docs/uk-data.md` §3).
+
+**The ruling (reviewer chat, pasted by Daniel, 2026-10-28), verbatim:** "Q6: yes, the NOAA line now, in its own small
+PR, by you, worded as docs/wx-server.md has it: "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA."
+Predictions first: the live /credits carries it after the deploy, and a sabotage (the line removed) turns that check
+red. It merges on my approval at its head SHA, then deploys under the standing rule."
+
+**The change:**
+- one `<li>` in `renderCreditsHtml`'s "Data sources" list (`proxy/src/photolicense.ts`), holding exactly the ruled text
+  on one source line, with no markup inside it, so the bytes a check searches for are the bytes served;
+- a vitest case;
+- one `contains` check in `smoke-prod.sh`, beside the existing `/credits` check.
+
+Nothing else in `proxy/src` changes.
+
+| | check | predicted |
+|---|---|---|
+| **N1** | vitest: `renderCreditsHtml([])` | contains `Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.` **exactly once**. *Sabotage:* the line deleted from the template fails N1 **and no other** `photolicense` test |
+| **N2** | the new `smoke-prod.sh` check, `/credits carries the NOAA MRMS line`, run **before** the deploy against production (the check alone, through the script's own `contains`) | **FAIL, marker MISSING**: the page lacks it today. This is the control: the check can see absence |
+| **N3** | the whole `smoke-prod.sh` on production, **after** the deploy, with its usual credential | the new check **PASS**; **0 FAIL** overall |
+| **N4** | the ruled sabotage, after the deploy: the live page's bytes saved, the line deleted, served on localhost, through `smoke-prod.sh`'s own `contains` | **FAIL, marker MISSING**. The unmodified saved bytes, by the same path: **PASS** |
+| **N5** | the deploy (staging, then production, by `deploy.sh`) | `/healthz` reports the merge commit on both; production's bindings equal those of the version it replaces; the rollback target is read and recorded before the deploy |
+| **N6** | the fleet, from the proxy's per-request points, in the 30 min after production's deploy, E2:08 excluded, read twice | fleet 4xx **0**; fleet 5xx other than `/blips` 503s with no upstream **0**; those 503s **≤ 1 %** of fleet `/blips` (S3′'s rule). The two reads agree |
+
+- **Carried commits:** listed before the deploy. If any carried commit changes `proxy/src` beyond this one, stop and
+  ask, because its own predictions then apply.
+- **The escape:** anything else means stop. In production, roll back first.
+
+### Results before the deploy (2026-10-28)
+
+| | read | verdict |
+|---|---|---|
+| **N1** | `test/photolicense.test.ts`: 14 / 14 pass, the new case included. Sabotage (the line deleted from the template, restored from a byte copy, sha `97934a79991c` before and after): **exactly** "carries the NOAA MRMS line exactly once" fails, 13 pass | **as predicted** |
+| **N2** | the new check alone, through `smoke-prod.sh`'s own `contains` (extracted from the script), against production at 16:06:56Z: `got HTTP 200, marker MISSING`, `RESULT: FAIL` | **as predicted** |
+
+N3-N6 are read after the merge and the deploy.
