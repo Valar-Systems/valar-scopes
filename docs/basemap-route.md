@@ -1549,3 +1549,47 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **The count gap** waits for Weatherscope's two fixtures. When they are on main, `format.ts` adds the two checks and MV grows to 31.
 
 **An observation, for the reviewer to keep or drop (kept, A2.10): neither validator checks a TERRAIN section's `count` or PROVENANCE's line count.** §8 refuses "a body that does not parse to exactly its `length` and `count`". `format.ts` matches `validate.py` here, so the two validators agree on every package. No fixture exercises it.
+
+### A2.11 `frame.ts`: MR and ME4, run (2026-10-28)
+
+**`proxy/src/basemap/frame.ts`** holds the frame and the geometry, in §2's order:
+- the frame (`makeFrame`, `toFrameKm`);
+- clipping (`clipLine`, RD5 and RD22; `clipRing`, RD23);
+- simplification (`simplify`, `simplifyRing`; RD6, RD7, RD25);
+- quantisation and de-duplication (`quantise`, `dedupe`, `dedupeRing`; RD24);
+- `isOuter` (RD26) and `inDiscLengthM` (RD29's quadratic).
+- **Every decision distance goes through `planarDist`** (RD31): Douglas-Peucker, the disc test and the 3 km de-dup.
+- It follows Weatherscope's `geometry.py` on main function for function. That is a reading of the reference, not a result: MG1 is the comparison that counts.
+
+| row | result |
+|---|---|
+| MR1 | **as predicted:** one run, `[a, b]`, bit-identical. Its control holds: recomputing b moves x to −58.91440000000001 |
+| MR2 | **as predicted:** the eight vertices, bit-identical, in the frozen order |
+| MR3 | **as predicted:** `[(1,1),(5,1),(5,5)]` for both inputs |
+| MR4 | **as predicted:** dropped at 0.100584, kept at 0.100585, every kept vertex unmoved |
+| MR7 | **as predicted:** `within3km` is false. Its control holds on this engine: `sqrt` gives 3 + 2⁻⁵¹, `Math.hypot` gives 3 − 2⁻⁵¹ |
+| ME4 | **as predicted:** thrown as `vertex_range`. Its control: the edge (97, −97) km at R = 97 km quantises to (32767, −32767). That is `quantise` alone and does not stand in for ME3, which goes through a build |
+| MR5, MR6 | **not yet run.** They bind to `layers.ts` (a water record, `selectRivers`), and land with it. So do S-RZERO and S-R0M: planted now, they could fail nothing |
+
+**The sabotages, graded against every basemap test file** (a path filter, `test/basemap-`, so a file added later is graded too; a clean baseline of 0 failing among 58 cases in 5 files):
+
+| sabotage | result |
+|---|---|
+| S-RLBRECOMP | **{MR1}**, as frozen |
+| S-RXCUR | **{MR2}**, as frozen |
+| S-RORDER | **{MR2}**, as frozen |
+| S-RNOCLOSE | **{MR3}**, as frozen |
+| S-RGE | **{MR4}**, as frozen |
+| S-RHYPOT | **{MR7}**, as frozen |
+| S-ECLAMP | **{ME4}**, as frozen |
+
+The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-VCRC, S-VSWAP) ran again in the same pass: unchanged. The script exits 0.
+
+**On record: the first full pass was BLIND,** at the `mv` set's baseline.
+- **What happened:** the Workers runtime failed to start. Its module fallback service refused the connection, and the run had 0 tests. The script stopped with "BLIND: no test results" before grading anything in that set.
+- **Four runs in a row, over about three minutes, failed the same way.** That included `basemap-format.test.ts` alone, without the `-t MV` filter.
+- **Then the same selections ran clean** with the tree unchanged: all 5 files (61 tests), the format file alone (33), the frame file alone (6), and the two together (39). The full pass above came after that.
+- **The alternative explanation, named:** that the new files broke the format file's load. **Excluded:** the same file loaded and passed minutes later with no change to the tree in between. The `all` set had also loaded it, seven times, just before the failure.
+- A slip of my own in the diagnosis, which cost nothing: a check handed Node an MSYS `/tmp` path, so its counts came back blank. It was redone with a Windows path.
+
+**Next, per A2.6:** `layers.ts`, with ML, MR5 and MR6, S-RZERO and S-R0M, and ML's own sabotages.

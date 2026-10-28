@@ -17,11 +17,14 @@ import { fileURLToPath } from "node:url";
 const PROXY = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LIB = "scripts/basemap/ingest-lib.ts";
 const FORMAT = "src/basemap/format.ts";
+const FRAME = "src/basemap/frame.ts";
 // Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
 // clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
+// "all" is a path filter, not a list, so a basemap test file added later is graded without anyone remembering to.
 const SETS = {
   ingest: { files: ["test/basemap-ingest.test.ts"] },
   mv: { files: ["test/basemap-format.test.ts"], filter: "MV" },
+  all: { files: ["test/basemap-"] },
 };
 
 /** name: { file, edits: [[anchor, replacement]], expect: [case ids] } -- the sets are A1.7's, frozen. */
@@ -68,6 +71,49 @@ const SABOTAGES = {
              '    case "roads": return (a["MTFCC"] === "S1100" || a["MTFCC"] === "S1200") && !/(^|[^A-Za-z0-9])Bus($|[^A-Za-z0-9])/.test(a["FULLNAME"] ?? ""); // SABOTAGE S-IBUS\n']],
     expect: ["MI1"],
   },
+  // A2.5's MR sabotages and A1.7's S-ECLAMP, graded against every basemap family. S-RZERO and S-R0M land with
+  // layers.ts, where MR5 and MR6 bind: planted now they could fail nothing, and would be read as off-prediction.
+  "S-RLBRECOMP": {
+    file: FRAME, set: "all",
+    edits: [["  const P: Pt = u0 === 0 ? a : [x0 + u0 * dx, y0 + u0 * dy];\n  const Q: Pt = u1 === 1 ? b : [x0 + u1 * dx, y0 + u1 * dy];\n",
+             "  const P: Pt = [x0 + u0 * dx, y0 + u0 * dy]; // SABOTAGE S-RLBRECOMP\n  const Q: Pt = [x0 + u1 * dx, y0 + u1 * dy];\n"]],
+    expect: ["MR1"],
+  },
+  "S-RXCUR": {
+    file: FRAME, set: "all",
+    edits: [["      if (inside(cur)) { if (!inside(prev)) out.push(cross(prev, cur)); out.push(cur); }\n      else if (inside(prev)) out.push(cross(prev, cur));\n",
+             "      if (inside(cur)) { if (!inside(prev)) out.push(cross(cur, prev)); out.push(cur); } // SABOTAGE S-RXCUR\n      else if (inside(prev)) out.push(cross(cur, prev));\n"]],
+    expect: ["MR2"],
+  },
+  "S-RORDER": {
+    file: FRAME, set: "all",
+    edits: [["  for (const [axis, sign] of [[0, -1], [0, 1], [1, -1], [1, 1]] as const) {\n",
+             "  for (const [axis, sign] of [[1, -1], [1, 1], [0, -1], [0, 1]] as const) { // SABOTAGE S-RORDER: N, S, W, E\n"]],
+    expect: ["MR2"],
+  },
+  "S-RNOCLOSE": {
+    file: FRAME, set: "all",
+    edits: [["  if (ring) while (out.length > 1 && out[out.length - 1]![0] === out[0]![0] && out[out.length - 1]![1] === out[0]![1]) out.pop();\n",
+             "  void ring; // SABOTAGE S-RNOCLOSE\n"]],
+    expect: ["MR3"],
+  },
+  "S-RGE": {
+    file: FRAME, set: "all",
+    edits: [["    if (at >= 0 && best > epsM) {", "    if (at >= 0 && best >= epsM) { // SABOTAGE S-RGE\n"]],
+    expect: ["MR4"],
+  },
+  "S-RHYPOT": {
+    file: FRAME, set: "all",
+    edits: [["export const planarDist = (ex: number, ey: number) => Math.sqrt(ex * ex + ey * ey);\n",
+             "export const planarDist = (ex: number, ey: number) => Math.hypot(ex, ey); // SABOTAGE S-RHYPOT\n"]],
+    expect: ["MR7"],
+  },
+  "S-ECLAMP": {
+    file: FRAME, set: "all",
+    edits: [["    if (n < -QMAX || n > QMAX) throw new VertexRange(`vertex_range: ${n}`);\n",
+             "    if (n < -QMAX || n > QMAX) return n < 0 ? -QMAX : QMAX; // SABOTAGE S-ECLAMP\n"]],
+    expect: ["ME4"],
+  },
 };
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
@@ -90,7 +136,7 @@ function runTests(setName) {
   }
   // A suite that failed to load has no assertion results: that is BLIND, never "nothing failed".
   if (seen.size === 0) return { blind: true, why: "no test results" };
-  return { failed: [...failed].sort(), seen };
+  return { failed: [...failed].sort(), seen, files: (json.testResults ?? []).length };
 }
 
 function plant(name, src, edits) {
@@ -113,7 +159,7 @@ function baseline(setName) {
   const base = runTests(setName);
   if (base.blind || base.failed.length) { console.log(`BASELINE[${setName}] ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}`); process.exit(2); }
   const f = SETS[setName].filter;
-  console.log(`baseline[${setName}${f ? `, -t ${f}` : ""}]: 0 failing cases (${base.seen.size} cases seen)`);
+  console.log(`baseline[${setName}${f ? `, -t ${f}` : ""}]: 0 failing cases (${base.seen.size} cases seen in ${base.files} files)`);
   baselines[setName] = true;
 }
 for (const [name, s] of Object.entries(SABOTAGES)) {
