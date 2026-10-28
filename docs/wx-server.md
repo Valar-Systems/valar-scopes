@@ -1169,3 +1169,30 @@ rule and read N3-N6 as frozen, with the carried commits listed first."
   - read twice.
   - A fleet regression means **roll back at once.**
 - **The escape:** anything else means stop. In production, roll back first.
+
+### The redeploy's results (2026-10-28)
+
+**Staging, before the redeploy** (still on `ea3fadb6`, `/healthz` `aa24294`; recorded, not graded):
+
+| run | at | summary | every FAIL |
+|---|---|---|---|
+| S1 | 19:12:43-19:13:08Z | PASS 22, FAIL 10, SKIPPED 3 | all 401 `unauthorized` or no auth header (staging's own device-key secret): the auth path, `/wx/cref`, Bend's `/v1/blips`, the upstream chain (0 of 6 tiles answered), and 5 × `/v1/config` |
+| S2 | 19:18:18-19:18:41Z (5 min 10 s later) | PASS 22, FAIL 10, SKIPPED 3 | the same 10, all 401 |
+
+The credits check PASSED in both: "marker present".
+
+**The redeploy, from a clean detached worktree at main's head `c06dc17`:**
+- **Carried since `962ccb7`, touching `proxy/`:** only `77f6913` (#492).
+- **The rollback targets, read just before:** production `7cef8c21-9629-44fc-9cda-e57d22c4b8c1`, staging
+  `ea3fadb6-34cb-494a-bc1a-d3cbc2036e1c`.
+- **Staging:** 19:19:21-19:19:31Z, version `557acd86-000c-41af-ac96-fc216c5576b1`, `/healthz` `c06dc17`.
+- **Production:** 19:19:31-19:19:39Z, version **`c960f98f-6654-4c1d-bb58-3e981c77a271`**, `/healthz` `c06dc17`.
+
+| | read | verdict |
+|---|---|---|
+| **N5′** | the `proxy/` tree object of `c06dc17` and of `77f6913`: **`2367fd7f375d…` both**. Production's bindings by `wrangler versions view`, `7cef8c21` against `c960f98f`: 26 lines each, **identical**; 5 secrets | **as predicted** |
+| **N3′** | `smoke-prod.sh` on production, 19:19:53-19:20:26Z, E2:08's credential: **PASS 35, FAIL 0, SKIPPED 0**. The credits check passed in the first run. No upstream condition failed, so no second run was needed | **as predicted** |
+| **N4** | the live `/credits` saved at 19:20:41Z (87,358 B, the line present once). The line deleted (87,284 B). Both copies served on localhost, through `smoke-prod.sh`'s own `contains` (extracted from the script): the sabotaged copy **`got HTTP 200, marker MISSING` → FAIL**; the real copy **`marker present` → PASS** | **as predicted** |
+| **N6** | not yet read: no `analytics-read` token on this machine. The window is `[19:19:39, 19:49:39)`Z, and it stays queryable | **pending** |
+
+**N3's miss stays in the record above.** The NOAA line is live in production as of 19:19:39Z.
