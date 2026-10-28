@@ -3222,8 +3222,10 @@ void ConfigurationWebServer::Initialise() {
 #ifdef WX_LOOK_AB
                          // The label is check-no-bench-hooks.sh's marker: absent from every slug-ful image.
                          + "<label>Weather look (bench) <select name=\"wx-look\"><option value=\"A\""
-                         + (wxLookBench == "A" ? " selected" : "") + ">A: 40 % + outline</option><option value=\"B\""
-                         + (wxLookBench == "B" ? " selected" : "") + ">B: 25 %</option></select></label>"
+                         // No literal '%' in a template processor's output: the page's %PLACEHOLDER% processing eats
+                         // it and everything up to the next '%' (it took option B from b56d883 on; check-config-form.py).
+                         + (wxLookBench == "A" ? " selected" : "") + ">A: 40 percent + outline</option><option value=\"B\""
+                         + (wxLookBench == "B" ? " selected" : "") + ">B: 25 percent</option></select></label>"
                          + "<label>Sweep over weather (bench) <select name=\"wx-sweep\"><option value=\"4\""
                          + (wxSweepBench == "4" ? " selected" : "") + ">4: lit</option><option value=\"3\""
                          + (wxSweepBench == "3" ? " selected" : "") + ">3: see-through</option></select></label>"
