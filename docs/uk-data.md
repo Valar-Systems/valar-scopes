@@ -1306,3 +1306,88 @@ restated before any run.
 | **(e)** for Q12, (iii) does not fit and (iv) does | class 2 = primary A roads |
 | **(f)** for Q12, neither fits without drops | **Q12 cannot be decided by fit.** The drops decide what is kept, so I report both kept lengths and it is ruled. **This is what I predict** |
 | **(g)** anything else, or a control failing | stop and decide |
+
+### A3.4 Rule L, ruled; and M1′'s results (read 2026-10-28, 19:54-20:02Z): every row as predicted
+
+**The ruling (reviewer chat, pasted by Daniel, 2026-10-28), verbatim:**
+> 2. Rule L: accepted, both parts, joined by code.
+> - L1: a place in a London BUA with no count takes its local authority district's Census 2021 usual residents (City
+>   of Westminster 204,236; City of London 8,583).
+> - L2, pinned to the code rather than a name rule: the Open Names City "London" takes the London region's figure
+>   (E12000007), 8,799,728.
+> - PROVENANCE's processing line names rule L.
+> - M1′ runs now, as frozen at c7ac2db. Report both road variants' kept A-road lengths for Q12, as you planned.
+
+**How L2 is pinned:** to the one Open Names feature, by its ID (`osgb4000000` + `074813508`, split here for the
+device-id hook), and to region code `E12000007`. A control asserts that the ID is the City "London".
+- PROVENANCE carries `processing.population` naming rule L, and `processing.names` with Q10's English-name rule.
+
+**The instruments, committed before any M1′ run:** `m1p_sizes.py` and `m1p_extract_rivers.py` at `f5d7647`, the grader
+at `b574a8e`.
+- **Rule L's sources** (ONS's London districts and region, December 2022; Nomis TS001 at districts and regions) are
+  in the manifest.
+- **The rivers' re-extract** with node ids kept 98,628 polylines, M1's count, every one with both nodes.
+- **Raw outputs** (`docs/uk-data/r1/`): `m1p-sizes.json` (sha256 `6201cb6aacb7…`) and the four sabotage runs.
+
+**The controls: all passed.**
+- 222 of 222 packages validate `kOk`;
+- `synth.py --check` reports "every committed byte equal";
+- M1's geometry cases all pass;
+- the three-link river chains to exactly 4 vertices in order;
+- tied places come out by name;
+- rule L reads 8,799,728, 204,236 and 8,583, and the pinned ID is the City "London";
+- `files.terrain` is 34 for the first package built, and 34 when the same package is rebuilt after every other centre.
+
+| | read | verdict |
+|---|---|---|
+| **M1′-a** | X at 161 km, (iv): **no centre at N = 64, 128 or 256**; (iii) the same | **as predicted**: **N = 256** |
+| **M1′-b** | BHX 161 km (iv) N = 256: **D** | **as predicted** |
+| **M1′-c** | LHR, MAN, BHX 161 km (iii) N = 256: **D, D, D** | **as predicted** |
+| **M1′-d** | LHR, MAN, BHX 222 km (iv) N = 256: **D, D, D** | **as predicted** |
+| **M1′-e** | 161 km (iv) N = 256: NCL D, EDI D, **GLA C**, ABZ C, INV C, CWL D, NQY F, **BFS F, LDY F** | **as predicted** |
+
+**The sabotages: all four red.**
+
+| | read | verdict |
+|---|---|---|
+| ε = 0 | pre-budget road bytes rose at 12 of 12 centres (LHR 102,918 → 514,198 B) | red |
+| no drop policy | every 161 km (iv) N = 256 D became X (6 of 6) | red |
+| river chaining off | the pre-budget river bytes equal M1's unchained figures **exactly** where M1 was F/C: ABZ 8,049, INV 8,989, NQY 5,012 B. Chained they are 3,798, 4,644 and 1,896 B | red |
+| N = all places | larger than N = 256 wherever more than 256 places lie inside R (LHR 470 places: 8,539 against 4,710 B; MAN 541; BHX 697; NCL 276; CWL 368), and equal elsewhere | red |
+
+**Q12: outcome (f), as predicted.** Neither variant fits without drops at LHR, MAN and BHX. §6's drops decide what is
+kept: class-2 roads, shortest first.
+
+**The kept A-road lengths at 161 km, N = 256** (km kept / km in the square):
+
+| centre | (iii) every A road | (iv) primary A roads |
+|---|---|---|
+| LHR | **11,068 / 18,824** (D) | 7,251 / 8,857 (D) |
+| MAN | **13,620 / 19,532** (D) | 8,916 / 10,441 (D) |
+| BHX | **13,089 / 26,599** (D) | 9,197 / 12,481 (D) |
+| NCL | 8,908 / 9,828 (D) | 4,072 / 4,172 (D) |
+| EDI | 9,396 / 9,854 (D) | 3,682 / 3,683 (D) |
+| GLA | 8,341 / 8,488 (D) | 3,006 / 3,006 (C) |
+| ABZ | 5,925 / 5,992 (D) | 1,785 / 1,785 (C) |
+| INV | 5,838 / 5,841 (D) | 1,925 / 1,925 (C) |
+| CWL | 11,056 / 13,525 (D) | 5,888 / 6,221 (D) |
+| NQY | 4,159 / 4,207 (D) | 1,594 / 1,594 (F) |
+| BFS | 2,755 / 2,755 (C) | 688 / 688 (F) |
+| LDY | 1,213 / 1,213 (F) | 485 / 485 (F) |
+
+- **In the same 32 KB, (iii) keeps more A-road length than (iv) at all 12 centres.** At LHR it is 11,068 km against
+  7,251.
+- **What (iii) does not promise:** shortest-first drops can remove a short primary-route chain while keeping a longer
+  non-primary one. This run measured lengths, not whether every primary route survives.
+- **Recommended, for the ruling:** (iii), every A road, thinned by §6's drops. Its cost is that guarantee: a primary
+  route could go missing where (iv) would show it.
+
+**NI in against NI out (printed, (iv), N = 256):**
+
+| centre | 161 km, NI out | 161 km, NI in | 222 km, NI out | 222 km, NI in |
+|---|---|---|---|---|
+| GLA | C, 28,937 B | D, 56,964 B | D, 46,514 B | D, 89,641 B |
+| BFS | F, 10,322 B | D, 51,826 B | C, 30,765 B | D, 68,768 B |
+| LDY | F, 5,821 B | D, 51,384 B | F, 14,327 B | D, 56,487 B |
+
+So NI's own chaining rule (ruled for later) matters: OSNI's lines alone add about 40-45 KB to an NI centre at 161 km.
