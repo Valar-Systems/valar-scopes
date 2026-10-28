@@ -1407,3 +1407,53 @@ The proposal is in the next record.
   - **A‴/B‴, the windows' totals, within 0.9-1.1.**
 - **A `[touch]` line in either window voids the run.**
 - **Outside the set:** stop and report.
+
+### Proposed, for a ruling (2026-10-28): reaching B1, and W5″. Not frozen until ruled
+
+**B1, step C: measure the parts before predicting the fix.** Twice now a cost model priced per pixel missed (W4,
+W4′), so the fix's predictions should come from measured parts. Step C runs under the bench flag only, in G7‴'s
+session and windows, and it is ungraded except for its instrument check.
+- **Timers (the same method as W4′):**
+  - the clear-or-push call, which is `fillScreen` with the layer off and `DrawWeatherUnder`'s push with it on;
+  - the sweep split into its three parts: `Rasterise`, `Blend`, and the beam.
+- **Once at boot:** 115,200 B copied PSRAM to PSRAM (`memcpy`) and the same size filled (`memset`), each as the median
+  of 10.
+- **What each result will mean, written before it exists:**
+  - **The instrument check:** rasterise + blend + beam lies within 0.3 ms of W4′'s whole-sweep timer. If not, the
+    split is broken: stop.
+  - **push − fill:** about 6.5-8 ms by subtraction. Outside 5-9.5 means the subtraction above is wrong: stop and report.
+  - **`memcpy` − `memset`:**
+    - ≤ 1.0 ms: a straight copy can make the layer nearly free;
+    - 1-3 ms: it helps, but B1 then needs the sweep nearly free too;
+    - **> 3 ms: no per-frame full-screen copy can meet B1.** Then B1 is re-registered, or the design changes, for
+      example by copying only the rows that hold weather.
+  - **The blend's share of the sweep, and bytes scanned per wedge pixel:** these show whether blending only each row's
+    span attacks the real cost (the scan) or a minor one (the per-pixel work).
+- **Then** the fix's predictions are frozen from C's numbers, before its code.
+
+**The fix, in outline** (its numbers come from C):
+- **Layer:** one `memcpy` from the layer buffer into the canvas buffer, or one per row, in place of `pushSprite`. It
+  applies under `DrawSweepOverWeather`'s own conditions: one band, the same depth and the same width.
+- **Sweep:** `Rasterise` records each row's x-span, and `Blend` scans, and clears its marks, only within those spans.
+
+**B1 stands until ruled.** If C's `memcpy` − `memset` reads > 3 ms, the next proposal is B1's re-registration or a
+different design, not a fix.
+
+**W5″, the instrument: alternations, graded at matched contact count.**
+- **Why n:** the firmware's own fit has frame p95 rising 0.802 ms per contact (R² 0.985, 5,392 samples), and n is
+  what drifted under W5 and W5′. Matching on it removes the drift, and alternating spreads what is left across the
+  hour.
+- **The arms:** O1, N1, O2, N2, O3, by day, with the sun up throughout.
+  - O is main `962ccb7`'s shipping env; N is #445's shipping env at its head.
+  - Each is flashed app-only, waits ≥ 12 min untouched, then runs a 10 min window.
+  - It takes about 2 h. Daniel gets the window in Pacific time beforehand.
+- **The statistic:**
+  - pool each image's `[health]` lines by n;
+  - keep the n bins with ≥ 3 lines from each image;
+  - take the median over those bins of (median p95 N − median p95 O).
+- **The control:** the same statistic for (O1 + O3) against O2, **within ±1 ms**.
+- **The floor:** ≥ 4 shared bins for both the grade and the control. Fewer, or a failed control, reads
+  **"instrument"**.
+- **Predicted:** the statistic within **±1 ms**. Per-arm medians, resid and n are printed beside it.
+- **The fallback** if it reads "instrument": one recorded traffic load replayed to every arm in local mode. It is
+  stronger, but it changes the source path and needs new tooling, so it is not first.
