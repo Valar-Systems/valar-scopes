@@ -343,7 +343,7 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 - **A change to any field's meaning,** or to a layer definition in §5, is version 2.
 - **A new section type** is not a version change: v1 clients skip it.
 
-## 13. Readings ruled for both builders (RD1-RD17)
+## 13. Readings ruled for both builders (RD1-RD31)
 
 **The source:** the map server's plan, `docs/basemap-route.md` on `feat/basemap-route` at `e0c43ce`, its §10. The reviewer ruled them for both builders on 2026-10-26, with RD1 read as (a) ([weatherscope-stage3.md](weatherscope-stage3.md) A10.12).
 
@@ -387,6 +387,32 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 | RD-P6 | a county's or state's files "read" | those whose TIGER polygon's bounding box meets the square's latitude/longitude box, closed |
 | F1 | the manifest's `builder` | the commit of the code that wrote the manifest |
 | F2 | inputs outside the seven layers (TIGER state and county files, Natural Earth) | the same `files` list, under their own keys (`states`, `counties`, `naturalearth`). No package's PROVENANCE lists them |
+
+**More readings, ruled for both builders on 2026-10-28** ([weatherscope-stage3.md](weatherscope-stage3.md) A12.7 and A12.9).
+- **The source:** the host tool's first real build (#495), which named nine details §2, §5, §6 and §7 did not pin, then a tenth from the ruling.
+- **RD22-RD27, RD29 and RD31 can change geometry; RD28 is terrain; RD30 is the manifest only.**
+
+| | the gap | the ruled reading |
+|---|---|---|
+| RD22 | a clip endpoint the clip did not move | Liang–Barsky returns **the source vertex itself**, never `a + u·d` recomputed |
+| RD23 | ring clipping's order and crossings | Sutherland–Hodgman against the edges **west (x ≥ −R), east (x ≤ R), north (y ≥ −R), south (y ≤ R)**, closed. The output starts where the textbook pass starts. **Each crossing is computed from the previous vertex toward the current one:** `t = (lim − prev[a]) / (cur[a] − prev[a])`, the other axis `prev[o] + t · (cur[o] − prev[o])`, and the clipped axis set to `lim` exactly |
+| RD24 | a ring's closing duplicate | after quantising and dropping consecutive duplicates, a last vertex equal to the first is dropped (closure is implicit) |
+| RD25 | Douglas–Peucker's units | distances on the km coordinates × 1000, against ε = `toleranceMm` / 1000 m. Quantisation uses the km values (`E_km × 1e6`), so simplification selects vertices and never moves them |
+| RD26 | which water parts are outer | a part, without its closing repeat, whose shoelace sum on (lon, lat) is **negative** (clockwise) |
+| RD27 | the 4 × 4 mean (§5.6) | the 16 values summed row by row, left to right, from 0.0, then divided by 16 |
+| RD28 | the hillshade's library maths | as each builder's library computes it (numpy for the host tool). **A golden comparison that differs is reported cell by cell, with both builders' unquantised values. A difference confined to cells within 1e-9 of a level boundary is this reading, not a defect** |
+| RD29 | a river group's length | the sum over all its parts, across every county file read. A group with 0 m inside the disc is not a candidate |
+| RD30 | the manifest's `files` order | **by URL alone** (MI4) |
+| RD31 | how a decision computes a distance | `sqrt(x·x + y·y)`, the x term first, in double; **never `hypot`** (which stays only inside the hillshade, under RD28). Below |
+
+**RD31's four sites,** written out so both builders compute the same doubles:
+
+| site | the expression |
+|---|---|
+| Douglas–Peucker (RD6, RD7), metres | `dx = b.x − a.x`, `dy = b.y − a.y`. If both are 0: `ex = p.x − a.x`, `ey = p.y − a.y`. Else `t = ((p.x − a.x)·dx + (p.y − a.y)·dy) / (dx·dx + dy·dy)`, clamped to [0, 1]; `ex = p.x − (a.x + t·dx)`, `ey = p.y − (a.y + t·dy)`. `d = sqrt(ex·ex + ey·ey)`; kept when `d > ε` |
+| inside the disc (places, summits), km | `sqrt(E·E + S·S) <= R` |
+| the 3 km de-duplication, km | `ex = p.E − k.E`, `ey = p.S − k.S`; dropped when `sqrt(ex·ex + ey·ey) <= 3.0` for a higher-ranked kept `k` |
+| a river's length inside the disc (RD8), km | per segment: `aa = dx·dx + dy·dy` (skipped when 0); `bb = 2·(a.x·dx + a.y·dy)`; `cc = a.x·a.x + a.y·a.y − R·R`; `disc = bb·bb − 4·aa·cc` (skipped when ≤ 0); `s = sqrt(disc)`; `t0 = max(0, (−bb − s)/(2·aa))`, `t1 = min(1, (−bb + s)/(2·aa))`; when `t1 > t0`, add `(t1 − t0)·sqrt(aa)·1000` m |
 
 **The credit lines (RD-P5).** One line per source, in this order, each carried when any tile read contains that source. The texts are verbatim from joerd's `attribution.md` at `0b86765`; "ETOPO1: " is the map server's prefix, and the NRCAN line adds the licence link.
 

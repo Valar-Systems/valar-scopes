@@ -31,7 +31,7 @@ class Frame:
         return g.quantise(p, self.r_mm)
 
     def in_disc(self, p):
-        return math.hypot(p[0], p[1]) <= self.r_km   # RD9: <=
+        return math.sqrt(p[0] * p[0] + p[1] * p[1]) <= self.r_km   # RD9: <=; RD31: sqrt(x*x + y*y)
 
 
 def _layer(root, url):
@@ -217,6 +217,12 @@ def summit_tiles(cands):
     return sorted({(X // 256, Y // 256) for X, Y in (sources.z9_pixel(lat, lon) for _, _, _, lat, lon in cands)})
 
 
+def _dist(p, k):
+    """RD31: sqrt(ex*ex + ey*ey), ex = p.E - k.E, ey = p.S - k.S."""
+    ex, ey = p[0] - k[0], p[1] - k[1]
+    return math.sqrt(ex * ex + ey * ey)
+
+
 def peaks(fr, mosaic, cands, keep=16, sep_km=3.0):
     """§5.4: elevation from the z9 pixel (RD10), ranked by elevation descending then feature_id ascending; a summit
     within 3.0 km (<=) of a higher-ranked KEPT one is dropped; the top 16 survivors."""
@@ -228,7 +234,7 @@ def peaks(fr, mosaic, cands, keep=16, sep_km=3.0):
     ranked.sort(key=lambda t: (t[0], t[1]))
     kept = []
     for _, fid, name, p, elev in ranked:
-        if any(math.hypot(p[0] - k[2][0], p[1] - k[2][1]) <= sep_km for k in kept):
+        if any(_dist(p, k[2]) <= sep_km for k in kept):
             continue
         kept.append((fid, name, p, elev))
         if len(kept) == keep:

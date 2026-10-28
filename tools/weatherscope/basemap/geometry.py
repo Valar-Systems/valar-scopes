@@ -105,13 +105,15 @@ def clip_ring(ring, r):
 # ------------------------------------------------------------------------------------------- simplification (§6)
 
 def _seg_dist(p, a, b):
-    """RD7: the distance from p to the SEGMENT a-b, clamped at its ends; RD6: to the point when a == b."""
+    """RD7: the distance from p to the SEGMENT a-b, clamped at its ends; RD6: to the point when a == b; RD31's form."""
     dx, dy = b[0] - a[0], b[1] - a[1]
     if dx == 0.0 and dy == 0.0:
-        return math.hypot(p[0] - a[0], p[1] - a[1])
-    t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
-    t = 0.0 if t < 0.0 else 1.0 if t > 1.0 else t
-    return math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy))
+        ex, ey = p[0] - a[0], p[1] - a[1]
+    else:
+        t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
+        t = 0.0 if t < 0.0 else 1.0 if t > 1.0 else t
+        ex, ey = p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy)
+    return math.sqrt(ex * ex + ey * ey)   # RD31: sqrt(x*x + y*y), x first; never hypot
 
 
 def dp_keep(pts_m, eps_m):

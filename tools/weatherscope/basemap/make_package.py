@@ -159,10 +159,11 @@ def common_dir(urls):
 def manifest_bytes(files, metas, commit):
     entries = []
     for layer in list(LAYERS) + ["states", "counties"]:
-        for u in sorted(files.get(layer, [])):
+        for u in files.get(layer, []):
             m = metas[u]
             entries.append({"bytes": m["bytes"], "layer": layer, "sha256": m["sha256"], "url": u,
                             "vintage": sources.vintage(u, m["last_modified"])})
+    entries.sort(key=lambda e: e["url"])   # RD30 (MI4): the files by URL alone
     doc = {"builder": commit, "files": entries, "predicates": PREDICATES}
     return (json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
 
