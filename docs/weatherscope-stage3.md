@@ -6245,3 +6245,34 @@ Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 - **What happened:** the manifest's coordinate-token scan was in the same `&&` chain as the commit and the push, but its count did not gate them. So 32 matches went out before they were classified.
 - **Classified afterwards, on the pushed bytes:** 30 `SeamlessHSR_00.00` product names and 2 `A12.10` references; **0 unclassified, no coordinate.**
 - **From here, such a scan exits non-zero on any unclassified token,** so the commit cannot pass it.
+
+### A12.14 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): #496 approved and merged
+
+**The ruling, verbatim:**
+
+> Approval (reviewer chat, 2026-10-28)
+>
+> #496 (the Bend radar) is approved to merge at d7a6d4e66bfa3b019a1c10b64ddf24093c97f8a4, once CI on that head completes with 0 failed (expected: success except the 3 release-only skips). Report the total in your merge report.
+> - I read make_bend_loop.mts in full: main's decode and crop path, each input checked against its recorded sha256, valid times checked, and a refusal unless proxy/src/wx/ equals origin/main's. I also read the PrecipFlag reader, which refuses anything but the 7000 x 3500 grid and template 5.41.
+> - The encoder commit d1ced739 is on main.
+> - I scanned MANIFEST.json for coordinate-like values and printed only counts and paths: they're all in /what, /selection and the 15 noaaKey names, and centre is a description, not a coordinate.
+> - The slip (the scan not blocking the push) is accepted as recorded, with its fix.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+
+**The merge, confirmed on the artifacts:**
+- **CI on `d7a6d4e66bfa`:** **35 check runs, all completed,** read twice 60 s apart: **32 success, 3 skipped** (promote, ship-alert, version: the release-only jobs), **0 failed.** The total the approval names.
+- **The PR:** the head was the approved one, and the state was CLEAN.
+- **Merged:** squash, `--match-head-commit`, no `--admin`, as **`679a0204159457e211e3e2b9883fa9f027b75e6e`**, 2026-10-28T19:48:35Z.
+  - Not with `--delete-branch`, because a worktree holds the local branch.
+  - The remote branch was checked at the approved head, then deleted. `ls-remote` lists 0 refs.
+- **After:**
+  - #496's files on main are identical to the approved head;
+  - the squash changed **24** files: 7 tools, 15 crops, `MANIFEST.json` and `synthetic-clear.wxc`.
+
+**3.5b step 2 is complete on main:**
+- the reader and `bend.bmpk` (#495, `c06dc175eba1`);
+- the radar pick, the PrecipFlag reader and the Bend crops (#496, `679a0204159a`).
+
+**Next, by A10.8:**
+- step 3: ref35's geography (its own BMPK decoder, fill, DDA, peaks and the fold, written from the format doc, not from the C++) and R0b, frozen first;
+- then step 4, build Q.
