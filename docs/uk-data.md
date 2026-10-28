@@ -1181,3 +1181,128 @@ reading come true.
 - **coarser ε at 161 km;**
 - **whether §6's drop order may reach rivers and places.** That is a v1 layer-definition change, so v2, unless ruled
   otherwise.
+
+## Addendum 3, 2026-10-28: the rulings on M1, London's populations, and M1′'s predictions
+
+### A3.1 The rulings, items 2 and 3, verbatim (source: the reviewer chat, pasted by Daniel, 2026-10-28)
+
+Item 1, #492's redeploy, is recorded in `docs/wx-server.md` (#494).
+
+> 2. Q19: yes. Gate the NI sources in the builder. Until LPS's written answer is recorded, no package carries
+>    NI-derived data, including a GB package whose square reaches NI.
+>
+> 3. M1 (A2.5): BHX's outcome (d) is accepted, with both misses kept.
+> - Q18: yes. Chain OS road links that meet end to end with the same road number and class, in a fixed, deterministic
+>   order written into the rule.
+> - Rivers: chain Open Rivers links by name the same way.
+> - Places: City and Town, keeping the N most populous (ties by name). London's missing ONS figures come first (your
+>   Nomis check). If they can't be found, propose a rule that keeps London's places in, before M1′.
+> - Q16: the point's z9 elevation stands; M1-f held.
+> - Fix the three instrument defects before re-running: ONS's column found by exact name; files.terrain counting only
+>   the tiles each package reads; and the pre-budget road bytes recorded for the ε = 0 sabotage.
+> - Then M1′, predictions first: the same centres and radii, NI out (as Q19 gates it), with NI in printed only. N is
+>   measured over {64, 128, 256}; the rule takes the largest N that keeps every centre out of X at 161 km.
+> - If BHX is still X at 161 km, stop. Coarser ε and v2 come up only then.
+> - For later, not now: NI's OSNI lines are short and unnumbered, so they will need their own chaining rule once LPS
+>   answers (GLA was 61 KB with them, 33 KB without).
+
+**The chaining rule, as it will be written** (Q18 for roads, and the same for rivers). Two links join when all of
+these hold:
+- they meet end to end, sharing a node by OS's own node ids (`startNode`/`endNode`);
+- they carry the same key: for a road, its number and class; for a river, its name after Q10's English rule;
+- exactly two links with that key meet at the node.
+
+**The order:**
+- seeds in source order (RD2);
+- each chain extended first from the seed's end node, then from its start node;
+- a reversed link contributes its vertices reversed;
+- the shared vertex is written once.
+
+**Not chained:** unnumbered roads and unnamed rivers.
+
+### A3.2 London's populations: not published by BUA; a rule proposed (L), for a ruling before M1′ runs
+
+**The Nomis check, read 2026-10-28:**
+- Census 2021's usual residents (`NM_2021_1`, TS001) are published at 21 geography types, from output areas to
+  regions. **None is a built-up area.**
+- ONS's own article says why London's 33 BUAs have no figures: "in Greater London, the method to identify BUAs does
+  not recognise individual settlements in the same way."
+- **So London's BUA populations cannot be found as published figures.**
+
+**Which places this touches:** read from M1's extract with ONS's column found exactly.
+- **Only 3 of the 1,426 City and Town places:** "London", "City of Westminster" and "City of London". Each is an Open
+  Names City, and each point lies in a London BUA with no count.
+- "London"'s point lies in the City of Westminster BUA.
+- **A fourth, New Galloway** (Scotland), lies in no NRS settlement. It keeps 0, as the rules already say.
+
+**Proposed rule L**, by code joins only, never by name:
+- **L1:** a place in a BUA with no ONS count, and inside the London region (`RGN22CD` `E12000007`, from ONS's Regions
+  boundaries), takes the Census 2021 usual residents (Nomis TS001) of the local authority district containing it
+  (`LAD22CD`, from ONS's district boundaries).
+- **L2:** except that a City whose name equals the name of the region containing it takes the region's count.
+- **What L gives** (read from Nomis): **London 8,799,728** (`E12000007`); **City of Westminster 204,236**
+  (`E09000033`); **City of London 8,583** (`E09000001`).
+- **Why the region for "London":** with Westminster's figure, the city a map most needs to label would rank below
+  Croydon. With 0, it would be dropped from any top N.
+- **The alternative:** keep London's three places in whatever N, with population 0, which the format allows ("0 = no
+  figure"). That is honest, but a client that ranks by population would never label "London".
+- **The sources L adds:** ONS's Regions and Local Authority Districts (December 2022) boundaries, and Nomis TS001 at
+  two geography types. All are OGL v3, with ONS's attribution line, already carried for the BUA boundaries.
+
+### A3.3 M1′'s predictions, frozen before any M1′ reading
+
+**When it runs:** **only after rule L, or its replacement, is ruled.** If the ruling changes L, these predictions are
+restated before any run.
+
+**What changes from M1:**
+- **The three instrument defects, fixed:**
+  - ONS's counts column found by its exact name, "Counts";
+  - `files.terrain` counting only the tiles each package's summit elevations read;
+  - every package's section bytes recorded **before** §6's budget as well as after.
+- **Roads:** chained (Q18), in variant (iii), every A road, and (iv), primary A roads.
+- **Rivers:** chained by name (A3.1).
+- **Places:** City and Town; the N most populous within R, ties by name in byte order, kept in file order;
+  **N ∈ {64, 128, 256}**; London's three by rule L.
+- **NI:**
+  - **graded with NI out,** by the source gate Q19 rules;
+  - **printed with NI in** for BFS, LDY and GLA;
+  - BFS and LDY with NI out hold only the GB features their squares reach.
+- **The same 12 centres, and radii 161 and 222 km** (97 km printed).
+
+**The controls** (M1's, plus four):
+- **London's three populations** read as A3.2's figures;
+- **the river chaining:** a synthetic three-link river with one name, in the middle link's reversed direction, chains
+  into one polyline of 2 + 2 + 2 − 2 = 4 distinct vertices, in order;
+- **the place selection:** synthetic places with tied populations come out ordered by name;
+- **`files.terrain`:** one package built on its own reports the same count as when it is built after every other
+  centre.
+
+**Predicted:**
+
+| | measured | predicted |
+|---|---|---|
+| **M1′-a** | X at 161 km, any centre, variant (iv), for each N ∈ {64, 128, 256} | **no centre X for any N**, so **the rule takes N = 256** |
+| **M1′-b** | BHX at 161 km, (iv), N = 256 | **D** |
+| **M1′-c** | LHR, MAN, BHX at 161 km, (iii), N = 256 | **D**, all three: none fits without drops |
+| **M1′-d** | LHR, MAN, BHX at 222 km, (iv), N = 256 | **D**: out of X once rivers and motorways chain |
+| **M1′-e** | the other nine centres at 161 km, (iv), N = 256 | **F, C or D**; never X |
+| **M1′-f** (printed) | per package: bytes per section before and after the budget, the drops, the class-2 road length kept (iii and iv), and NI in against NI out | — |
+
+**Sabotages, each of which must turn its row red:**
+- **ε = 0:** the pre-budget road bytes rise at every centre;
+- **no drop policy:** every D becomes X;
+- **river chaining off:** the pre-budget river bytes equal those of an unchained river build, centre by centre;
+- **N = all places:** the places bytes equal a no-selection build, and are larger than N = 256's wherever more than 256
+  places lie inside R.
+
+**What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** M1′-a holds | N = 256 (the rule, as ruled); M2 builds with it |
+| **(b)** some N leaves a centre X, but a smaller N does not | N is the largest that does not (as ruled) |
+| **(c)** BHX is X at 161 km for every N | **stop** (as ruled). Coarser ε and v2 come up only then |
+| **(d)** for Q12, (iii) fits (F or C) at LHR, MAN and BHX | class 2 = every A road |
+| **(e)** for Q12, (iii) does not fit and (iv) does | class 2 = primary A roads |
+| **(f)** for Q12, neither fits without drops | **Q12 cannot be decided by fit.** The drops decide what is kept, so I report both kept lengths and it is ruled. **This is what I predict** |
+| **(g)** anything else, or a control failing | stop and decide |
