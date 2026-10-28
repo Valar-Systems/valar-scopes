@@ -1528,4 +1528,24 @@ Synthetic features at origin (0, 0), through the layer functions.
   - **(b)** the CRC recomputed, with the expected first difference at **28**.
   - **Recommended: (a).** It is the control's intent: that the comparator finds a body difference where it is.
 
-**An observation, for the reviewer to keep or drop: neither validator checks a TERRAIN section's `count` or PROVENANCE's line count.** §8 refuses "a body that does not parse to exactly its `length` and `count`". `format.ts` matches `validate.py` here, so the two validators agree on every package. No fixture exercises it.
+### A2.10 Rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> 1. ME1b's control: (a). Don't recompute the CRC in the control copy, so the first difference is the changed body byte, and the comparator must report offset 271.
+> - The frozen text's error stays on record: recomputing the CRC moves the first difference to 28, as the comparator correctly reported. That reading is kept as data beside (a).
+> - The parser fix for synth.py's trailing comment is accepted; no expected value moved.
+> - Re-run ME1b, then carry on with frame.ts.
+>
+> 2. The count gap: kept.
+> - §8 says "exactly its count", so a validator must refuse a TERRAIN section whose count differs from its levels, and a PROVENANCE whose count differs from its lines.
+> - Weatherscope Code adds two negative fixtures for it, and the checks in validate.py, in its next PR that touches the PK set.
+> - When those fixtures land on main, your validator adds the same two checks, and MV grows to 31.
+> - Nothing here waits for it.
+
+**ME1b, re-run under (a):**
+- **The main assertion and the control both pass.** The copy, with byte 271 changed and its CRC left alone, is first different at **271**. The file is 33 of 33.
+- **On record, beside it:** under the control as first frozen, with the CRC recomputed, the comparator reported **28**, the CRC field.
+- **The count gap** waits for Weatherscope's two fixtures. When they are on main, `format.ts` adds the two checks and MV grows to 31.
+
+**An observation, for the reviewer to keep or drop (kept, A2.10): neither validator checks a TERRAIN section's `count` or PROVENANCE's line count.** §8 refuses "a body that does not parse to exactly its `length` and `count`". `format.ts` matches `validate.py` here, so the two validators agree on every package. No fixture exercises it.

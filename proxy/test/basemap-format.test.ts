@@ -96,13 +96,14 @@ describe("ME, the encoder", () => {
   it("ME1b: encode() of syn-min's contents as synth.py writes them is syn-min.bmpk, byte for byte", () => {
     const mine = encode(synMinFromSynthPy());
     expect(firstDiff(mine, synMin)).toBe(-1);
-    // CONTROL: against a copy with one body byte changed and its CRC recomputed, the comparator finds that byte
+    // CONTROL (ruled 2026-10-28, (a)): against a copy with one body byte changed and its CRC NOT recomputed, the
+    // comparator finds that byte, at 271. (As first frozen, the CRC was recomputed too, and the comparator rightly
+    // reported 28, the CRC field: that reading is kept on record beside this one.)
     const copy = synMin.slice();
     const at = copy.length - 3;
+    expect(at).toBe(271);
     copy[at] = copy[at]! ^ 0x01;
-    const z = copy.slice(); z[28] = z[29] = z[30] = z[31] = 0;
-    new DataView(copy.buffer).setUint32(28, crc32(z), true);
-    expect(firstDiff(mine, copy)).toBe(at);
+    expect(firstDiff(mine, copy)).toBe(271);
   });
   it("ME5: crc32('123456789') is 0xCBF43926", () => {
     expect(crc32(new TextEncoder().encode("123456789"))).toBe(0xcbf43926);
