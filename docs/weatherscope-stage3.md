@@ -6525,3 +6525,32 @@ The removal list went to Daniel, and **nothing is removed before his yes.**
   - the 153 QPE files: 681.7 MB;
   - other PrecipFlag objects, including the PF test's pins, which it re-fetches and re-pins on use: 1,298 files, 153.8 MB;
   - the pick's measure cache and scratch crop: 0.4 MB.
+
+### A12.19 Ruled 2026-10-28 (source: reviewer chat, pasted by Daniel): the light theme's look moves ahead of 3.4
+
+**The ruling, verbatim:**
+
+> Reorder, for Daniel's look at the light theme (reviewer chat, 2026-10-28)
+>
+> Daniel: "i mainly want to see the light theme with terrain on the blipscope, or weatherscope". The Weatherscope is the quicker way there, so:
+>
+> 1. Finish step 3's PR, then build Q, as planned.
+>
+> 2. Then the light theme's look comes first, before 3.4:
+> - ref35 --theme light for both Q39 candidates, (a) and (b): the Bend terrain screen at 60 mi, dry, and with the Bend loop's rain over shaded slopes. Send Daniel the PNGs as soon as they exist; they're the exact host picture. C4's rows for both candidates are frozen before that render, as ruled.
+> - Then the smallest step that puts both candidates on the Weatherscope board's glass as a bench select, the way the Blipscope's sweep looks were built, predictions first. The stored Bend loop gives Daniel rain over terrain whenever he looks, without waiting for weather.
+>
+> 3. After his pick: the rest of 3.5t (Auto, the switch, the theme table, the legend and the text rule), then 3.4, then 3.5c.
+
+**Daniel's words, with their source** (reviewer chat, 2026-10-28, as relayed): "i mainly want to see the light theme with terrain on the blipscope, or weatherscope".
+
+**The order now:**
+1. step 3's PR;
+2. build Q;
+3. C4's rows for both Q39 candidates, frozen;
+4. `ref35 --theme light`, the host PNGs to Daniel: Bend at 60 mi, dry, and the Bend loop over shaded slopes, for (a) and (b);
+5. the bench select on `907069326E64`, predictions first;
+6. Daniel's pick;
+7. the rest of 3.5t;
+8. 3.4;
+9. 3.5c.
