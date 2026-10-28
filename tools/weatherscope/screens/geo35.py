@@ -16,8 +16,10 @@ Prints no coordinate: bendmock.py's centre is read at run time and used, never s
 
     python -I tools/weatherscope/screens/geo35.py --rx1 <package.bmpk>
     python -I tools/weatherscope/screens/geo35.py --r0b <mockup dir> --sources <dir> [--out <dir>]
+    python -I tools/weatherscope/screens/geo35.py --r0b-fixture test/fixtures/wx/r0          (CI; no sources)
+    python -I tools/weatherscope/screens/geo35.py --make-fixture <mockup dir> --sources <dir> --out test/fixtures/wx/r0 [--check]
 """
-import ast, csv, glob, importlib.util, io, json, math, os, re, struct, sys, zipfile
+import ast, csv, glob, hashlib, importlib.util, io, json, math, os, re, struct, sys, zipfile
 from fractions import Fraction
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -262,77 +264,112 @@ def _onscreen(pts):
     return max(xs) >= -1 and min(xs) <= ref35.SIZE and max(ys) >= -1 and min(ys) <= ref35.SIZE
 
 
+# ------------------------------------------------------------------------------------------------ screen space
+# R0b runs on ONE form of its inputs (A12.18.3): screen space at 60 mi. The local path projects bendmock.py's inputs into
+# it; CI reads the same form from test/fixtures/wx/r0/ (r0b-inputs.json + r0b-terrain.bin), which --make-fixture writes
+# from that projection. So the fixture IS the local path's input, and the two cannot drift. No latitude, longitude or
+# centre is in the screen-space form.
+class ScreenView(ref35.View):
+    """A view whose points are already pixels: project() is the identity; R and ppm() as bendmock.py's 60 mi view."""
+
+    def __init__(self, radius_mi=60):
+        self.h, self.home, self.R, self.rLat, self.rLon = None, (0.0, 0.0), radius_mi, 1.0, 1.0
+
+    def project(self, a, b):
+        return a, b
+
+
+def _runs(pts):
+    """The maximal runs of consecutive points whose segments are on screen (_onscreen): exactly the segments the DDA
+    draws, so splitting a line into its runs changes no pixel."""
+    runs, cur = [], None
+    for p, q in zip(pts, pts[1:]):
+        if _onscreen([p, q]):
+            if cur is None:
+                cur = [p]
+            cur.append(q)
+        elif cur is not None:
+            runs.append(cur)
+            cur = None
+    if cur is not None:
+        runs.append(cur)
+    return runs
+
+
+def screen_inputs(mock_dir, root):
+    """bendmock.py's inputs (mockup_inputs), projected into screen space at 60 mi, with each pixel's terrain grey."""
+    inp = mockup_inputs(mock_dir, root)
+    view = MockView(inp["home"], 60)
+    proj = lambda pts: [list(view.project(la, lo)) for (la, lo) in pts]
+    lakes = [pp for pp in (proj(p) for p in inp["lakes"]) if _onscreen(pp)]
+    rivers = [r for line in inp["rivers"] for r in _runs(proj(line))]
+    roads = [r for line in inp["roads"] for r in _runs(proj(line))]
+    grey = bytearray()
+    for y in range(ref35.SIZE):
+        lat = view.home[0] + (ref35.C - (y + 0.5)) / ref35.C * view.rLat
+        for x in range(ref35.SIZE):
+            lon = view.home[1] + ((x + 0.5) - ref35.C) / ref35.C * view.rLon
+            grey.append(int(10 + 36 * inp["terr"].at(lat, lon)[0]))
+    peaks = [[n] + list(view.project(la, lo)) for (n, la, lo) in inp["peaks"]]
+    towns = [[n] + list(view.project(la, lo)) for (n, la, lo) in inp["towns"]]
+    return dict(lakes=lakes, rivers=rivers, roads=roads, peaks=peaks, towns=towns, pop=inp["pop"], grey=bytes(grey),
+                counts=inp["counts"])
+
+
 # ------------------------------------------------------------------------------------------------ the two basemaps
-def base_g(inp, view, variant, rnd, fills):
-    """G: bendmock.py's base_map + draw_polygon + draw_polyline, in its order. fills[i] = polygon i's PIL set."""
+def base_g(si, variant, rnd, fills):
+    """G: bendmock.py's base_map + draw_polygon + draw_polyline, in its order. fills[i] = lake i's PIL set."""
     from PIL import Image, ImageDraw
     img = [[ref35.BLACK] * ref35.SIZE for _ in range(ref35.SIZE)]
     if variant == "C":
         for y in range(ref35.TOP_BAND, ref35.BOT_BAND):
-            lat = view.home[0] + (ref35.C - (y + 0.5)) / ref35.C * view.rLat
             for x in range(ref35.SIZE):
-                if not ref35.in_map(x, y):
-                    continue
-                lon = view.home[1] + ((x + 0.5) - ref35.C) / ref35.C * view.rLon
-                s, _ = inp["terr"].at(lat, lon)
-                g = int(10 + 36 * s)
-                img[y][x] = (g, g, g + 2)
+                if ref35.in_map(x, y):
+                    g = si["grey"][y * ref35.SIZE + x]
+                    img[y][x] = (g, g, g + 2)
     if variant in ("B", "C"):
-        for i, poly in enumerate(inp["lakes"]):
-            pts = [view.project(la, lo) for (la, lo) in poly]
-            if not _onscreen(pts):
-                continue
+        for i, pts in enumerate(si["lakes"]):
             layer = Image.new("L", (ref35.SIZE, ref35.SIZE), 0)
-            ImageDraw.Draw(layer).polygon(pts, fill=255)
+            ImageDraw.Draw(layer).polygon([tuple(p) for p in pts], fill=255)
             lp = layer.load()
             fills[i] = {(x, y) for y in range(ref35.SIZE) for x in range(ref35.SIZE) if lp[x, y]}
             for (x, y) in fills[i]:
                 if ref35.TOP_BAND <= y < ref35.BOT_BAND and ref35.in_map(x, y):
                     img[y][x] = WATER_FILL
-        for j, line in enumerate(inp["rivers"]):
-            _polyline(img, view, line, WATER_LINE, rnd, f"river {j}")
-        for j, line in enumerate(inp["roads"]):
-            _polyline(img, view, line, ROAD, rnd, f"road {j}")
+        for j, run in enumerate(si["rivers"]):
+            _polyline(img, run, WATER_LINE, rnd, f"river run {j}")
+        for j, run in enumerate(si["roads"]):
+            _polyline(img, run, ROAD, rnd, f"road run {j}")
     return img
 
 
-def base_p(inp, view, variant, rnd):
-    """P: the spec (A10.2): terrain at every pixel centre, water by the centre rule, lines by wxraster::Line."""
+def base_p(si, variant, rnd):
+    """P: the spec (A10.2): terrain at every pixel, water by the centre rule, lines by wxraster::Line."""
     img = [[ref35.BLACK] * ref35.SIZE for _ in range(ref35.SIZE)]
     if variant == "C":
         for y in range(ref35.SIZE):
-            lat = view.home[0] + (ref35.C - (y + 0.5)) / ref35.C * view.rLat
             for x in range(ref35.SIZE):
-                lon = view.home[1] + ((x + 0.5) - ref35.C) / ref35.C * view.rLon
-                s, _ = inp["terr"].at(lat, lon)
-                g = int(10 + 36 * s)
+                g = si["grey"][y * ref35.SIZE + x]
                 img[y][x] = (g, g, g + 2)
     if variant in ("B", "C"):
-        for poly in inp["lakes"]:
-            pts = [view.project(la, lo) for (la, lo) in poly]
-            if not _onscreen(pts):
-                continue
-            for (x, y) in centre_fill(pts):
+        for pts in si["lakes"]:
+            for (x, y) in centre_fill([tuple(p) for p in pts]):
                 img[y][x] = WATER_FILL
-        for j, line in enumerate(inp["rivers"]):
-            _polyline(img, view, line, WATER_LINE, rnd, f"river {j}")
-        for j, line in enumerate(inp["roads"]):
-            _polyline(img, view, line, ROAD, rnd, f"road {j}")
+        for j, run in enumerate(si["rivers"]):
+            _polyline(img, run, WATER_LINE, rnd, f"river run {j}")
+        for j, run in enumerate(si["roads"]):
+            _polyline(img, run, ROAD, rnd, f"road run {j}")
     return img
 
 
-def _polyline(img, view, line, col, rnd, site):
+def _polyline(img, pts, col, rnd, site):
     """The DDA both modes share (bendmock.py's draw_polyline is wxraster::Line): only rnd's rounding differs."""
-    prev = None
-    for k, (la, lo) in enumerate(line):
-        x, y = view.project(la, lo)
-        if prev is not None and _onscreen([prev, (x, y)]):
-            n = int(max(abs(x - prev[0]), abs(y - prev[1]))) + 1
-            for t in range(n + 1):
-                xx, yy = rnd.point(prev[0] + (x - prev[0]) * t / n, prev[1] + (y - prev[1]) * t / n, f"{site} seg {k} k={t}")
-                if ref35.in_map(xx, yy):
-                    img[yy][xx] = col
-        prev = (x, y)
+    for k, (p, q) in enumerate(zip(pts, pts[1:])):
+        n = int(max(abs(q[0] - p[0]), abs(q[1] - p[1]))) + 1
+        for t in range(n + 1):
+            xx, yy = rnd.point(p[0] + (q[0] - p[0]) * t / n, p[1] + (q[1] - p[1]) * t / n, f"{site} seg {k} k={t}")
+            if ref35.in_map(xx, yy):
+                img[yy][xx] = col
 
 
 def centre_fill(pts):
@@ -396,30 +433,31 @@ def glyph_box(x, y):
 
 
 # ------------------------------------------------------------------------------------------------ R0a', R0b'
-def r0b(mock_dir, root, out_dir=None, g_only=False):
-    inp = mockup_inputs(mock_dir, root)
-    c = inp["counts"]
-    print(f"R0b inputs (bendmock.py's selections, the same public files): {c['lakes']} lake rings, {c['rivers']} river "
-          f"parts, {c['roads']} road parts, {c['peaks']} summits, {c['towns']} towns; POP {len(inp['pop'])} entries; "
-          f"font {ref35.FONT_SHA[:12]}")
-    view = MockView(inp["home"], 60)
-    pop = lambda t: inp["pop"].get(ref35.label_name(t[0]), 1000)
+def r0b_screen(si, png_dir, out_dir=None, label="sources"):
+    c = si["counts"]
+    print(f"R0b inputs ({label}; screen space at 60 mi): {len(si['lakes'])} lake rings on screen (of {c['lakes']}), "
+          f"{len(si['rivers'])} river runs, {len(si['roads'])} road runs, {len(si['peaks'])} summits, "
+          f"{len(si['towns'])} towns; POP {len(si['pop'])} entries; font {ref35.FONT_SHA[:12]}")
+    view = ScreenView(60)
+    pop = lambda t: si["pop"].get(ref35.label_name(t[0]), 1000)
     state = dict(line="NO RAIN 60 MI", colour=ref35.DIMTXT)
+    towns = [tuple(t) for t in si["towns"]]
+    peaks = [tuple(p) for p in si["peaks"]]
     shots = {}
     for variant in ("A", "B", "C"):
-        for mode in (("G",) if g_only else ("G", "P")):
+        for mode in ("G", "P"):
             rnd = ref35.Rounder(mode)
             fills = {}
-            base = base_g(inp, view, variant, rnd, fills) if mode == "G" else base_p(inp, view, variant, rnd)
+            base = base_g(si, variant, rnd, fills) if mode == "G" else base_p(si, variant, rnd)
             plog = []
-            scr, _ = ref35.compose(None, None, view, state, inp["towns"], pop, "2:40 PM", rnd, base=base,
-                                   corner=(mode == "G"), peaks=inp["peaks"] if variant != "A" else None,
+            scr, _ = ref35.compose(None, None, view, state, towns, pop, "2:40 PM", rnd, base=base,
+                                   corner=(mode == "G"), peaks=peaks if variant != "A" else None,
                                    glyph=glyph_g if mode == "G" else glyph_p, peak_log=plog)
             shots[(variant, mode)] = dict(scr=scr, log=rnd.log, fills=fills, peaks=plog)
     ok, results = True, []
     print("R0a': G against each PNG (RGB888, 57,600 px)")
     for variant in ("A", "B", "C"):
-        want = ref35.png_rgb(os.path.join(mock_dir, f"screen-bend-{variant}.png"))
+        want = ref35.png_rgb(os.path.join(png_dir, f"screen-bend-{variant}.png"))
         got = shots[(variant, "G")]["scr"].rgb888()
         diff = [i for i in range(ref35.SIZE * ref35.SIZE) if got[3 * i:3 * i + 3] != want[3 * i:3 * i + 3]]
         good = not diff
@@ -427,8 +465,6 @@ def r0b(mock_dir, root, out_dir=None, g_only=False):
         print(f"  {'ok  ' if good else 'FAIL'} screen-bend-{variant}.png: {57600 - len(diff)} of 57600 equal" +
               ("" if good else f"; UNEXPLAINED (first 10, x,y): {[(i % 240, i // 240) for i in diff[:10]]}"))
         results.append(dict(check="R0a'", screen=variant, differing=len(diff), sample=[(i % 240, i // 240) for i in diff[:50]]))
-    if g_only:
-        return shots, inp, view, ok
     print("R0b': P against G; every differing pixel named by a cause judged from the inputs")
     for variant in ("A", "B", "C"):
         g, p = shots[(variant, "G")], shots[(variant, "P")]
@@ -444,10 +480,9 @@ def r0b(mock_dir, root, out_dir=None, g_only=False):
         # glyph box is named by both). A pixel passes when at least one names it.
         causes = {1: 0, 2: 0, 3: 0, 4: 0}
         multi, unnamed = 0, []
-        lakes_on = {i: [view.project(la, lo) for (la, lo) in inp["lakes"][i]] for i in g["fills"]}
         for px in diff:
             hit = {1: px in n1, 3: px in n3, 4: px in n4,
-                   2: any((px in g["fills"][i]) != oracle_inside(lakes_on[i], *px) for i in g["fills"])}
+                   2: any((px in g["fills"][i]) != oracle_inside(si["lakes"][i], *px) for i in g["fills"])}
             for k, v in hit.items():
                 causes[k] += v
             if not any(hit.values()):
@@ -455,10 +490,13 @@ def r0b(mock_dir, root, out_dir=None, g_only=False):
             multi += sum(hit.values()) > 1
         good = not unnamed
         ok &= good
+        h_g = hashlib.sha256(gb).hexdigest()[:12]
+        h_p = hashlib.sha256(pb).hexdigest()[:12]
         print(f"  {'ok  ' if good else 'FAIL'} screen-bend-{variant}: {len(diff)} pixels differ; named by: disc {causes[1]}, "
-              f"fill {causes[2]}, DDA {causes[3]}, glyph box {causes[4]} ({multi} by more than one)" +
+              f"fill {causes[2]}, DDA {causes[3]}, glyph box {causes[4]} ({multi} by more than one); G {h_g} P {h_p}" +
               ("" if good else f"; UNNAMED {len(unnamed)}: {unnamed[:10]}"))
-        results.append(dict(check="R0b'", screen=variant, differing=len(diff), causes=causes, unnamed=unnamed[:50]))
+        results.append(dict(check="R0b'", screen=variant, differing=len(diff), causes=causes, unnamed=unnamed[:50],
+                            g=h_g, p=h_p))
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
         json.dump(dict(results=results), open(os.path.join(out_dir, "r0b.json"), "w"), indent=1)
@@ -466,12 +504,88 @@ def r0b(mock_dir, root, out_dir=None, g_only=False):
     return 0 if ok else 1
 
 
+# ------------------------------------------------------------------------------------------------ the CI fixtures
+PNGS = ["screen-proposed-dry.png", "screen-proposed-approaching.png", "screen-proposed-herenow.png",
+        "screen-proposed-warning.png", "screen-zoom-60.png", "screen-zoom-30.png", "screen-zoom-15.png",
+        "screen-bend-A.png", "screen-bend-B.png", "screen-bend-C.png"]
+
+
+def fixture_files(mock_dir, root):
+    """{name: bytes} for test/fixtures/wx/r0/, MANIFEST.json last (it pins every other file). Prints nothing."""
+    import hashlib as _h
+    out = {n: open(os.path.join(mock_dir, n), "rb").read() for n in PNGS}
+    wx_src = open(os.path.join(mock_dir, "wxmock.py"), "rb").read()
+    bm_src = open(os.path.join(mock_dir, "bendmock.py"), "rb").read()
+    pop = ref35.generator_pop(mock_dir)
+    out["generator-pop.json"] = (json.dumps(dict(
+        what="wxmock.py's POP table (R0) and bendmock.py's BEND_POP (R0b): names and numbers only, R0 and R0b only",
+        wxmock_sha256=_h.sha256(wx_src).hexdigest(), bendmock_sha256=_h.sha256(bm_src).hexdigest(),
+        pop=pop), indent=1, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+    towns = ref35.load_towns_pre_join()
+    out["towns-a7f21fb.txt"] = ("# The 171 towns as src/weatherscope/WxTowns.h held them at a7f21fb (= b202ff3), before 3.5a's\n"
+                                "# population join: R0's generator input (A9.10). name|lat|lon, the Census town subset.\n" +
+                                "".join(f"{n}|{a!r}|{b!r}\n" for n, a, b in towns)).encode("utf-8")
+    si = screen_inputs(mock_dir, root)
+    hx = lambda v: float(v).hex()   # exact, and never a 16-hex-digit run (the device-id check's pattern)
+    pts = lambda runs: [[[hx(x), hx(y)] for x, y in run] for run in runs]
+    out["r0b-inputs.json"] = (json.dumps(dict(
+        what="R0b's inputs in screen space at 60 mi (A12.18.3): bendmock.py's selections, projected; no latitude, "
+             "longitude or centre. Every coordinate is an exact hex float (float.hex)", lakes=pts(si["lakes"]),
+        rivers=pts(si["rivers"]), roads=pts(si["roads"]), peaks=[[n, hx(x), hx(y)] for n, x, y in si["peaks"]],
+        towns=[[n, hx(x), hx(y)] for n, x, y in si["towns"]], pop=si["pop"], counts=si["counts"]),
+        sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+    out["r0b-terrain.bin"] = si["grey"]
+    out["MANIFEST.json"] = (json.dumps(dict(
+        what="R0 (3.5a) and R0b (3.5b) fixtures for CI (A12.18.3); every file below must hash to its pin",
+        files={n: _h.sha256(b).hexdigest() for n, b in sorted(out.items())}), indent=1, sort_keys=True) + "\n").encode("utf-8")
+    return out
+
+
+def make_fixture(mock_dir, root, out_dir, check):
+    files = fixture_files(mock_dir, root)
+    differs = 0
+    for n, b in files.items():
+        p = os.path.join(out_dir, n)
+        if check:
+            same = os.path.exists(p) and open(p, "rb").read() == b
+            differs += not same
+            print(f"  {n}: {'identical' if same else 'DIFFERS'}")
+        else:
+            os.makedirs(out_dir, exist_ok=True)
+            open(p, "wb").write(b)
+            print(f"  {n}: {len(b):,} B")
+    if check:
+        print("FX1: " + ("every fixture regenerates byte-identical" if not differs else f"{differs} file(s) differ"))
+        return 1 if differs else 0
+    return 0
+
+
+def load_fixture(fx_dir):
+    ref35.r0_fixture_pins(fx_dir)
+    d = json.load(open(os.path.join(fx_dir, "r0b-inputs.json"), encoding="utf-8"))
+    fx = float.fromhex
+    for k in ("lakes", "rivers", "roads"):
+        d[k] = [[[fx(x), fx(y)] for x, y in run] for run in d[k]]
+    d["peaks"] = [[n, fx(x), fx(y)] for n, x, y in d["peaks"]]
+    d["towns"] = [[n, fx(x), fx(y)] for n, x, y in d["towns"]]
+    d["grey"] = open(os.path.join(fx_dir, "r0b-terrain.bin"), "rb").read()
+    d["pop"] = {k: v for k, v in d["pop"].items()}
+    return d
+
+
 def main(argv):
     if "--rx1" in argv:
         return rx1(argv[argv.index("--rx1") + 1])
+    out = argv[argv.index("--out") + 1] if "--out" in argv else None
     if "--r0b" in argv:
-        out = argv[argv.index("--out") + 1] if "--out" in argv else None
-        return r0b(argv[argv.index("--r0b") + 1], argv[argv.index("--sources") + 1], out)
+        mock = argv[argv.index("--r0b") + 1]
+        return r0b_screen(screen_inputs(mock, argv[argv.index("--sources") + 1]), mock, out, "the sources")
+    if "--r0b-fixture" in argv:
+        fx = argv[argv.index("--r0b-fixture") + 1]
+        return r0b_screen(load_fixture(fx), fx, out, "the fixtures, pinned")
+    if "--make-fixture" in argv:
+        return make_fixture(argv[argv.index("--make-fixture") + 1], argv[argv.index("--sources") + 1], out,
+                            "--check" in argv)
     print(__doc__)
     return 2
 

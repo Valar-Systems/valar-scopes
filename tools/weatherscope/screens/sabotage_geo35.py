@@ -6,7 +6,8 @@ compared before and after. Prints no coordinate.
     python -I tools/weatherscope/screens/sabotage_geo35.py <mockup dir> --sources <dir>
 
   S-R0-DISC   P's map disc radius 119.5 in place of 120             -> R0b' fails on B and C: pixels unnamed
-  S-R0-ROUND  P's rounding floor(v)                                 -> R0b' fails on B and C: pixels unnamed
+  S-R0-ROUND  P's rounding floor(v)                                 -> R0b' fails on A, B and C: pixels unnamed
+              (re-registered, A12.18.1; A12.16 froze B and C, a miss kept on record: A's rings use it too)
   S-R0-FILL   P's fill takes a pixel's top-left corner, not centre  -> R0b' fails on B and C: pixels unnamed
   S-R0-GREY   G's water fill (10, 34, 72) -> (10, 34, 73)           -> R0a' fails on B and C
   S-RX-DELTA  each polyline's first vertex read from the last item  -> RX1 fails for rivers and roads
@@ -26,7 +27,7 @@ SABOTAGES = {
                   "r0b", {"B", "C"}),
     "S-R0-ROUND": (REF, [("        p = (int(math.floor(xv + 0.5)), int(math.floor(yv + 0.5)))\n",
                           "        p = (int(math.floor(xv)), int(math.floor(yv)))   # SABOTAGE\n")],
-                   "r0b", {"B", "C"}),
+                   "r0b", {"A", "B", "C"}),   # re-registered (A12.18.1): A12.16 froze {B, C}; A's rings use it too
     "S-R0-FILL": (GEO, [("        py = y + 0.5\n", "        py = y   # SABOTAGE: the top-left corner\n"),
                         ("            for x in range(max(0, int(math.ceil(a - 0.5))), min(ref35.SIZE, int(math.ceil(b - 0.5)))):\n",
                          "            for x in range(max(0, int(math.ceil(a))), min(ref35.SIZE, int(math.ceil(b)))):   # SABOTAGE\n")],

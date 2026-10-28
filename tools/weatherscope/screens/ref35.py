@@ -168,10 +168,16 @@ PAL = {0: legend.DRY, 14: legend.NOCOV}
 PAL.update(legend.RAIN)
 
 
-def colour(code, x, y):
+# R0's palette (A12.18.2): the generator's own code 1, the pinned table's 15 dBZ entry dimmed to 55 %, as the reviewer's
+# 3.5a mockups were drawn before #488's teal. R0 only, in both its modes; every other path keeps PAL's teal.
+GEN_PAL = dict(PAL)
+GEN_PAL[1] = tuple((v * 55 + 50) // 100 for v in legend.TBL[2])
+
+
+def colour(code, x, y, pal=None):
     if code == 15:
         return legend.HATCH if (x + y) % 4 == 0 else legend.DRY
-    return PAL[code]
+    return (pal or PAL)[code]
 
 
 def nearest_echo(h, codes, home, bound_mi):
@@ -218,7 +224,7 @@ def in_map(x, y):
     return 0 <= x < SIZE and TOP_BAND <= y < BOT_BAND and (x - C) ** 2 + (y - C) ** 2 <= C * C
 
 
-def render_map(scr, h, codes, view, base=None, corner=False):
+def render_map(scr, h, codes, view, base=None, corner=False, pal=None):
     """The map pass. 3.5b's fold (A10.2): a dry pixel (code 0) shows `base`'s colour where there is a base. With no crop
     (h None) every pixel is dry. corner=True is bendmock.py's own mask (in_map, integer coordinates), for R0b's G mode
     only; the device and P use CodeAt's pixel-centre disc."""
@@ -237,7 +243,7 @@ def render_map(scr, h, codes, view, base=None, corner=False):
                 lon = view.home[1] + ((x + 0.5) - C) / C * view.rLon
                 c = int(math.floor((lon - h["lonNw"]) / h["cellLon"] + 0.5))
                 code = codes[r * h["cols"] + c] if 0 <= r < h["rows"] and 0 <= c < h["cols"] else 14
-            scr.px[y][x] = base[y][x] if (code == 0 and base is not None) else colour(code, x, y)
+            scr.px[y][x] = base[y][x] if (code == 0 and base is not None) else colour(code, x, y, pal)
 
 
 def draw_ring(scr, r_px, rnd):
@@ -286,13 +292,13 @@ def arrow_segments(sx, sy, from_deg):
 
 
 def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None,
-            base=None, corner=False, peaks=None, glyph=None, peak_log=None):
+            base=None, corner=False, peaks=None, glyph=None, peak_log=None, pal=None):
     """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own).
     3.5a's K rows add (A9.10, A9.14, Q17, Q18): state["timeText"]/["timeInk"] for the top strip; warning["arrow"] =
     (lat, lon, fromDeg), drawn after the title and before the labels, its box a fixed overlay; and `loop` =
     dict(age=, index=) for the loop's band in place of the state line. Towns are (name, lat, lon[, ...])."""
     scr = Screen()
-    render_map(scr, h, codes, view, base, corner)
+    render_map(scr, h, codes, view, base, corner, pal)
     scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, BLACK)
     scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, BLACK)
     fixed = [(0, 0, SIZE - 1, TOP_BAND - 1), (0, BOT_BAND, SIZE - 1, SIZE - 1)]
@@ -440,14 +446,37 @@ def png_rgb(path):
     return im.tobytes()
 
 
+def r0_fixture_pins(fx_dir):
+    """A12.18.3: every file r0/MANIFEST.json lists must hash to its pin, or R0 does not run (exit 2, the rig)."""
+    man = json.load(open(os.path.join(fx_dir, "MANIFEST.json"), encoding="utf-8"))
+    bad = [n for n, want in man["files"].items()
+           if hashlib.sha256(open(os.path.join(fx_dir, n), "rb").read()).hexdigest() != want]
+    if bad:
+        print(f"R0 REFUSED: {bad} do not hash to MANIFEST.json's pins (the rig)")
+        sys.exit(2)
+    return man
+
+
+def load_towns_fixture(fx_dir):
+    t = open(os.path.join(fx_dir, "towns-a7f21fb.txt"), encoding="utf-8").read()
+    return [(n, float(a), float(b)) for n, a, b in
+            (l.split("|") for l in t.splitlines() if l and not l.startswith("#"))]
+
+
 def r0(mock_dir, out_dir):
-    towns = load_towns_pre_join()
-    POP = generator_pop(mock_dir)
+    fixture = os.path.exists(os.path.join(mock_dir, "MANIFEST.json"))
+    if fixture:
+        r0_fixture_pins(mock_dir)
+        towns = load_towns_fixture(mock_dir)
+        POP = json.load(open(os.path.join(mock_dir, "generator-pop.json"), encoding="utf-8"))["pop"]
+    else:
+        towns = load_towns_pre_join()
+        POP = generator_pop(mock_dir)
     pop = lambda t: POP.get(label_name(t[0]), 1000)
     hA, cA = decode(os.path.join(LOOP, "shsr-20240521-212400.wxc"))
     hD, cD = decode(os.path.join(LOOP, "shsr-20240521-220000.wxc"))
     hZ, cZ = decode(os.path.join(LOOP, "shsr-20240521-210800.wxc"))
-    print(f"R0 inputs: {len(towns)} towns (a7f21fb, = b202ff3); POP table {len(POP)} entries (wxmock.py, R0 only); font {FONT_SHA[:12]}")
+    print(f"R0 inputs ({'fixtures, pinned' if fixture else 'the reviewer dir'}): {len(towns)} towns (a7f21fb, = b202ff3); POP table {len(POP)} entries (R0 only); code 1 {GEN_PAL[1]} (the generator's, A12.18.2); font {FONT_SHA[:12]}")
     results, ok = [], True
     images = {}
     for mode in ("G", "P"):
@@ -463,15 +492,15 @@ def r0(mock_dir, out_dir):
                     band2="STORM %d MI %s " % (R(nA[0]), nA[1]) + MIDDOT + " NE 35 MPH")
         v60, v60d = View(hA, 60), View(hD, 60)
         jobs = {
-            "screen-proposed-dry.png": lambda rnd: compose(hD, cD, v60d, dict(line="RAIN %d MI %s" % (R(nD[0]), nD[1]), colour=DIMTXT), towns, pop, "5:00 PM", rnd),
-            "screen-proposed-approaching.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN %d MI %s" % (R(nA[0]), nA[1]), colour=WHITE), towns, pop, "4:24 PM", rnd),
-            "screen-proposed-herenow.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN NOW", colour=WHITE), towns, pop, "4:24 PM", rnd),
-            "screen-proposed-warning.png": lambda rnd: compose(hA, cA, v60, {}, towns, pop, "4:24 PM", rnd, warning=warn),
+            "screen-proposed-dry.png": lambda rnd: compose(hD, cD, v60d, dict(line="RAIN %d MI %s" % (R(nD[0]), nD[1]), colour=DIMTXT), towns, pop, "5:00 PM", rnd, pal=GEN_PAL),
+            "screen-proposed-approaching.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN %d MI %s" % (R(nA[0]), nA[1]), colour=WHITE), towns, pop, "4:24 PM", rnd, pal=GEN_PAL),
+            "screen-proposed-herenow.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN NOW", colour=WHITE), towns, pop, "4:24 PM", rnd, pal=GEN_PAL),
+            "screen-proposed-warning.png": lambda rnd: compose(hA, cA, v60, {}, towns, pop, "4:24 PM", rnd, warning=warn, pal=GEN_PAL),
         }
         for Rz in (60, 30, 15):
             jobs["screen-zoom-%d.png" % Rz] = (lambda Rz: lambda rnd: compose(
                 hZ, cZ, View(hZ, Rz), dict(line="RAIN %d MI %s" % (R(nZ[0]), nZ[1]), colour=WHITE), towns, pop, "4:08 PM", rnd,
-                zoomed=(Rz != 60), cap={60: 8, 30: 6, 15: 5}[Rz]))(Rz)
+                zoomed=(Rz != 60), cap={60: 8, 30: 6, 15: 5}[Rz], pal=GEN_PAL))(Rz)
         shots, logs = {}, {}
         for name, job in jobs.items():
             rnd = Rounder(mode)

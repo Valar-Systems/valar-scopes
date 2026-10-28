@@ -246,7 +246,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install PlatformIO
-        run: pip install --upgrade platformio
+        run: pip install --upgrade platformio pillow==12.3.0   # pillow: R0/R0b (A12.18), pinned: R0a' rests on its rasteriser
       - name: Build blipscope-s3-128 (installs the cross-compiler and the libraries)
         run: pio run -e blipscope-s3-128
       - name: Host tests
