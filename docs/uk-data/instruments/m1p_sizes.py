@@ -49,6 +49,9 @@ VARIANTS = ["iii", "iv"]
 NS = [64, 128, 256]
 if "--onlyiv256" in FLAGS:
     VARIANTS, NS = ["iv"], [256]
+if "--m1pp" in FLAGS:   # M1'' (A3.6): LHR, MAN, BHX at 161 km, (iii), N = 256
+    RADII, VARIANTS, NS = RADII[:1], ["iii"], [256]
+    GB_CENTRES, NI_CENTRES = ["LHR", "MAN", "BHX"], []
 LONDON_CITY_ID = "osgb" "4000000" "074813508"   # rule L2's feature, written in two literals (the device-id hook)
 LONDON_REGION = "E12000007"
 PROC_POP = ("processing.population: Census 2021 usual residents; England and Wales: ONS BUA 2022 Counts by the BUA "
@@ -367,7 +370,9 @@ def chain(feats, keyfn):
         for j, rev in seq:
             c = feats[j]["ll"][::-1] if rev else feats[j]["ll"]
             coords.extend(map(tuple, c if not coords else c[1:]))
-        out.append({**r, "ll": np.asarray(coords), "members": len(seq)})
+        out.append({**r, "ll": np.asarray(coords), "members": len(seq),
+                    "primary_any": any(feats[j].get("primary", False) for j, _ in seq),
+                    "primary_all": all(feats[j].get("primary", False) for j, _ in seq)})
     return out
 
 
@@ -503,6 +508,17 @@ class Centre:
         return [quant([(e, s)], fr.R_mm)[0] + (int(f["pop"]), f["name"]) for f, e, s in cand]
 
 
+def is_primary(f):
+    """A3.6: a chain is primary if ANY of its links has primaryRoute = true; an unchained link, its own flag."""
+    return bool(f.get("primary_any", f.get("primary", False)))
+
+
+def class2_drop_key(length, primary, i):
+    """Q12 as ruled (A3.5): non-primary chains shortest first, then primary chains shortest first; ties as RD19.
+    Without --primarylast, M1''s order: shortest first whatever the flag."""
+    return ((1 if primary else 0) if "--primarylast" in FLAGS else 0, length, -i)
+
+
 def provenance(eps_req, dropped, coll, files):
     lines = ["format: BMPK 1", "builder: m1p_sizes 000000000000", "store: 000000000000"]
     for layer in ("water", "rivers", "roads", "peaks", "places", "population", "terrain"):
@@ -555,6 +571,7 @@ def build(c, variant, N, eps_req, nodrop=False):
     pkg, sec_first, nterr = encode(eps, water, rivers, roads, {}, coll)
     first = len(pkg)
     c2_all = sum(r[2] for r in roads if r[3]["cls"] == 2)
+    c2_before = [r for r in roads if r[3]["cls"] == 2]
     dropped, doubled, sec_final = {}, False, sec_first
     if first <= CAP:
         outcome = "F" if first <= F_LIMIT else "C"
@@ -563,6 +580,7 @@ def build(c, variant, N, eps_req, nodrop=False):
     else:
         doubled = True
         water, rivers, roads, coll = layers(eps * 2)
+        c2_before = [r for r in roads if r[3]["cls"] == 2]   # the set the drops act on (2 eps)
         pkg, sec_final, nterr = encode(eps * 2, water, rivers, roads, {}, coll)
         if len(pkg) <= CAP:
             outcome = "D"
@@ -571,8 +589,8 @@ def build(c, variant, N, eps_req, nodrop=False):
                 return abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(q, q[1:] + q[:1])))
             order = ([("w", i) for i in sorted(range(len(water)), key=lambda i: (area(water[i][1]), -i))] +
                      [("r", i) for i in sorted([i for i in range(len(roads)) if roads[i][3]["cls"] == 2],
-                                               key=lambda i: (sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in
-                                                                  zip(roads[i][1], roads[i][1][1:])), -i))])
+                                               key=lambda i: class2_drop_key(sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in
+                                                                  zip(roads[i][1], roads[i][1][1:])), is_primary(roads[i][3]), i))])
 
             def fits(n):
                 dw = {i for t, i in order[:n] if t == "w"}
@@ -598,10 +616,22 @@ def build(c, variant, N, eps_req, nodrop=False):
                 outcome = "D"
     st, _ = bmpk_validate.validate(pkg)
     c2_kept = sum(r[2] for r in roads if r[3]["cls"] == 2)
+    kept_keys = {r[0] for r in roads}
+    prim_in = sum(r[2] for r in c2_before if is_primary(r[3]))
+    prim_kept = sum(r[2] for r in c2_before if is_primary(r[3]) and r[0] in kept_keys)
+    nonp_kept = sum(r[2] for r in c2_before if not is_primary(r[3]) and r[0] in kept_keys)
+    nonp_in = sum(r[2] for r in c2_before if not is_primary(r[3]))
+    mixed = [r for r in c2_before if r[3].get("primary_any") and not r[3].get("primary_all")]
+    prim_dropped = sum(1 for r in c2_before if is_primary(r[3]) and r[0] not in kept_keys)
+    nonp_kept_n = sum(1 for r in c2_before if not is_primary(r[3]) and r[0] in kept_keys)
     return {"centre": c.name, "r_km": c.r_km, "eps_m": eps_req, "variant": variant, "N": N, "ni_in": c.ni_on,
             "outcome": outcome, "bytes_first": first, "bytes_final": len(pkg), "validate": st, "eps_doubled": doubled,
             "dropped": dropped, "collapsed": coll, "section_bytes_first": sec_first, "section_bytes_final": sec_final,
             "files_terrain": nterr, "class2_km_in_square": round(c2_all, 1), "class2_km_kept": round(c2_kept, 1),
+            "primary_km_in_square": round(prim_in, 1), "primary_km_kept": round(prim_kept, 1),
+            "nonprimary_km_in_square": round(nonp_in, 1), "nonprimary_km_kept": round(nonp_kept, 1),
+            "mixed_chains": len(mixed), "mixed_km": round(sum(r[2] for r in mixed), 1),
+            "order_property_ok": not (prim_dropped > 0 and nonp_kept_n > 0),
             "counts": {"water": len(water), "rivers": len(rivers[1]), "roads": len(roads), "peaks": len(peaks),
                        "places": len(places)}}
 
@@ -629,6 +659,9 @@ def controls(gb):
     pops = {f["name"]: f["pop"] for f in gb["places"] if f["name"] in ("London", "City of Westminster", "City of London")}
     out["rule_l_figures"] = pops
     out["rule_l_as_ruled"] = pops == {"London": 8799728, "City of Westminster": 204236, "City of London": 8583}
+    syn = [(10.0, False, 0), (2.0, False, 1), (3.0, True, 2)]
+    order = [i for _, _, i in sorted(syn, key=lambda t: class2_drop_key(t[0], t[1], t[2]))]
+    out["drop_order_synthetic"] = {"order": order, "as_ruled": order == ([1, 0, 2] if "--primarylast" in FLAGS else [1, 2, 0])}
     out["london_id_is_the_city"] = [(f["name"], f["type"]) for f in gb["places"] if f["id"] == LONDON_CITY_ID] == [("London", "City")]
     return out
 
