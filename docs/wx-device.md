@@ -1129,3 +1129,126 @@ runs:
   - **The control:** the two old windows' p95 medians are within 1 ms of each other. If not, the hour drifted, and the
     run reads "instrument", not a grade.
   - **Predicted:** the sweep build's p95 median is within ±1 ms of the mean of the two old windows.
+
+## Rulings, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their sources
+
+**1. WD6.**
+- **The record:**
+  - "The stop was right, and the record is accepted as written": W4, W5 and G7′ off; nothing re-run and nothing
+    fixed; G7's wrong line corrected in place, with its `/wx` rows standing.
+  - The causes are accepted as readings: G7′ followed the idle timer (a config POST re-seeds `lastTouchActivityMs`).
+    W4's anchor and W5's two explanations stay open, for the runs below to settle.
+- **The re-registrations frozen in `0e5a94e` are accepted, with these changes:**
+  - **G7″:** as proposed.
+  - **W4′:** as proposed, but the timer sits **under the bench env's flag**, so the shipping image's code is unchanged.
+    The predicted bands stand.
+  - **W5′:** as proposed, but the middle image is **#445's shipping env** (`blipscope-s3-128` at the branch head, the
+    layer off by default), not `wxlook`. "The row asks whether what ships costs anything with weather off, so the
+    bench code doesn't belong in it."
+- **When:** all three in one session on E2:08, with the predictions pushed first.
+
+**2. Light rain becomes teal, on the Blipscope too.**
+- **Daniel's choice:** teal for light rain (code 1, 15-20 dBZ) on both scopes. In the mockup, today's dark blue at
+  look A's 40 % was nearly invisible on black.
+- **Weatherscope Code** changes `WxPalette.h`: code 1 becomes a ruled exception, teal `(0, 150, 135)`, not taken from
+  the pinned table.
+- **On the Blipscope:**
+  - WxS2 dims code 1 to the look's percent × 55/40 (look A 55 %, look B 34 %, rounded as `Dim` rounds). So light rain
+    stays visible but below code 2 in luminance in both looks, with host rows for both.
+  - `wx-fb-check.py` reads the teal from the source, like every other colour. The ambiguous and ungradable sets are
+    recomputed ("teal's G != B, so no faded cyan plane equals it").
+- **How it reaches #445:** by merging main once Weatherscope's palette PR is in, before any capture.
+
+**3. Weather gets its own section.**
+- **Daniel's request:** "weather should have its own section in the display section for the blipscope".
+- **What changes:** the radar build's Display tab gets a "Weather" section, with a heading, holding every weather
+  setting: "Weather radar (beta)" now, and on the bench image "Weather look (bench)" and "Sweep over weather (bench)".
+- **What doesn't:** it is a layout change only; no field name, value, default or saved key changes.
+- **When:** in #445, before it goes for approval.
+- **Predictions first:**
+  - every form field's name, value and default is unchanged (a check comparing the field set before and after);
+  - a whole-form save round trip (GET, then POST everything back unchanged) leaves every stored setting byte-identical;
+  - `cfg_post.py` still finds and changes only its one field;
+  - the config-form CI check stays green.
+- **Sabotage:** a renamed field in the new section turns the field-set check red.
+
+**4. A legend in the Weather section.**
+- **Daniel's question:** "should the color legend be in this section?" Ruled: yes.
+- **Where and what:** under the weather switch, a compact legend of what the layer draws today:
+  - light rain (the teal, once it lands), moderate, heavy, hail possible and 75+ white;
+  - no radar coverage and no data, both drawn as their dithers.
+- **The swatches** are drawn as the Blipscope draws them in the look in use, so the page matches the glass.
+- **The colours** come from the firmware's own tables at serve time (WxS2.h over WxPalette.h), never typed into the
+  HTML. Weatherscope's legend labels are reused if they fit.
+- **No snow row** until the layer can draw snow (WXC1 v2 brings the type).
+- **Scope:** in #445 with the Weather section, as a layout addition; every form field, value and saved setting
+  unchanged, as ruling 3 says.
+- **Predictions first:** each swatch's colour equals wxs2's for its code in the current look, by a check that reads the
+  served page.
+- **Sabotage:** a swatch typed in by hand, off by one level, turns that check red.
+
+**5. The order for E2:08.**
+- **Daniel's condition:** he picks between sweep looks 3 and 4 only once light rain is teal on the glass: "I'll pick it
+  once the color changes to teal. right now it's hard to see".
+- **The order:**
+  1. Weatherscope Code's teal palette PR goes next.
+  2. Once it's on main: merge main into #445, apply the Blipscope's teal rule, and put the sweep build on E2:08 with
+     the "Sweep over weather (bench)" select still there.
+  3. Daniel compares 3 and 4 in rain and picks.
+  4. Then the captures, on his pick.
+- **WD6's re-registered runs (G7″, W4′, W5′)** can go before or after that, as suits the board.
+- **Until then,** Daniel may change "Sweep over weather (bench)" on E2:08, and nothing else.
+
+## WD6′, 2026-10-28: G7″, W4′ and W5′ as ruled. Frozen before the timer's code and before the run
+
+**They run now, before the teal.** The board is free and it is night at the Bend point. None of these rows needs rain.
+
+**The images.** All are built from one tree and flashed app-only to E2:08.
+- **`wxlook`:** at #445's head with the W4′ timer. It carries G7″ and W4′.
+- **The shipping env `blipscope-s3-128`:** at the same head. It is W5′'s middle image.
+- **The old image:** main `962ccb7`, the shipping env. It is the branch's merge base with main and W5's baseline.
+
+**The W4′ timer, bench flag only.**
+- **Where:** in `main.cpp`, under `#if defined(WX_LOOK_AB)`. The bench branch times the sweep call, whichever path runs,
+  with `micros()`, and records the path it took. The shipping branch is the code that is there today, token for token.
+- **What it prints:** every 30 s, right after the `[health] frame` line, its own line:
+  `[health] sweep=<avg>/<p95>us n=<k> blend=<b>`.
+  - The avg and p95 are over the last 128 sweep calls, the same ring and the same p95 index as the frame figure.
+  - `blend` counts how many of those calls took the blend path.
+- **Predicted, shipping code unchanged:** the shipping env's `firmware.bin` built before and after the timer is
+  **byte-identical** (`cmp`). No stamp is injected (no extra script does), and none of the edited files uses
+  `__LINE__`. Two other outcomes are named in advance:
+  - differences only inside the documented rebuild regions (app ELF sha, image sha, checksum, WiFiManager's two
+    timestamps) still mean "unchanged code", reported as such;
+  - **anything else: stop.**
+- **Predicted, the string:** `sweep=%` is in the `wxlook` ELF (1) and absent from the shipping ELF (0). As a control,
+  the existing bench label "Sweep over weather (bench)" reads 1 and 0 the same way.
+
+**Part 1: G7″ and W4′, on `wxlook`, one trace held.**
+- **The windows.** Each opens with its own verified `cfg_post.py` POST, which re-arms the active cadence, and each is
+  10 min, so all of it sits inside the 600 s active timer. Before the run the board is on look 4 with the layer on.
+  - **B″:** POST `wx-layer off`, 10 min. G7″'s off window, and W4′'s opaque path.
+  - **A″:** POST `wx-layer on`, 10 min (look 4). G7″'s on window, and W4′'s look 4.
+  - **L3″:** POST `wx-sweep 3`, 10 min. W4′'s look 3.
+  - **Then** POST `wx-sweep 4`, and POST `wx-layer off`, so W5′'s shipping image reads the layer off from NVS.
+- **A `[touch]` line in any window voids the run.**
+- **G7″:**
+  - polls per window = the sum of the 10 `[perf] polls=` lines whose minute lies inside it;
+  - **predicted 115-125 in B″ and in A″**, and A″/B″ within 0.9-1.1.
+- **W4′:**
+  - the median, per window, of the `sweep=` lines whose 30 s lies wholly inside it;
+  - **predicted `blend=0` on every B″ line and `blend=n` on every A″ and L3″ line;**
+  - **predicted averages:** B″ (opaque) ≤ 1.0 ms, L3″ 1.5-4.0 ms, A″ (look 4) 2.5-6.0 ms, and A″ − L3″ ≥ 0.5 ms.
+
+**Part 2: W5′, old → new → old, all untouched.**
+- **Per image:** flash it (app-only), hold one trace, check the `[build]` banner, and wait ≥ 12 min. Then a 10 min
+  window **O1** (old), **N** (`blipscope-s3-128` at the head) or **O2** (old again).
+- **Every window at the night cadence.** No window may straddle sunrise; each window's sign is checked first. One read
+  of N's config page, made right after its boot and before its window, shows "Weather radar (beta)" unchecked.
+- **The control:** \|median p95 O1 − median p95 O2\| ≤ 1 ms. If not, the run reads "instrument", not a grade.
+- **Predicted:** \|median p95 N − mean(O1, O2)\| ≤ 1 ms. The resid and n are reported beside it.
+
+**Afterwards:** E2:08 goes back on `wxlook` at the head, with the layer on and look 4, for Daniel. He changes "Sweep
+over weather (bench)" and only that.
+
+**Outside the set:** stop and report, without re-running for a better number.
