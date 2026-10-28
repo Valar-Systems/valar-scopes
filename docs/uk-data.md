@@ -530,8 +530,11 @@ the modification statement. The processing line already gives that statement, as
 `src/AircraftManager.cpp` on `feat/wx-device`.
 - **Today,** a UK query's box misses the CONUS grid. The server answers an all-14 crop, and the device shows its
   "outside coverage" note (WD3 (f)).
-- **So UK weather on v19 needs one server change and no firmware.** The handler serves `cref` from whichever product's
-  coverage holds the quantised point: CONUS for MRMS, the UK window for `opuk`, and today's answer for neither.
+- **So UK weather on v19 needs one server change and no firmware.** The handler serves `cref` from `opuk` when the
+  quantised point is inside **the UK land box**, the window minus its 2.02° margin (as ruled, A1.1). Otherwise it
+  serves today's answer.
+  - Since the margin is the largest view plus the pad, every view served from `opuk` lies inside its grid (K6).
+  - A point inside the window but outside the land box gets today's answer (K5).
   - **The boxes are static per product,** so choosing costs no R2 read.
   - **The ETag carries the product actually served.** A device that moves between regions can never get a 304 for
     the wrong one.
@@ -676,3 +679,239 @@ as #443's did.
 | Q14 | terrain | **Terrain Tiles z9,** with an EU-DEM tile bit and credit line (§2.4) | OS Terrain 50 for GB plus OSNI's 50 m DTM for NI: a second pipeline, and NI's licence is in the same doubt as Q13 |
 | Q15 | which places | **City and Town** (1,426 in GB), the nearest analogue of incorporated cities | add Village (15,155): an order of magnitude more, and the size budget would drop them first |
 | Q16 | a hill's elevation | **measure first** (M1): each kept hill's z9 value at its point against the z9 maximum within 1 km; then rule | the point's value, unchecked |
+
+## Addendum 1, 2026-10-28: the rulings, and R1's predictions
+
+### A1.1 The rulings, verbatim (source: the reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Rulings on the UK data plan, docs/uk-data at 93f1a80 (reviewer chat, 2026-10-28)
+>
+> The record is accepted as written: predictions frozen at 489656c before the first reading, every miss kept, the
+> disclosures accepted. One fix, to your report rather than the doc: the count is 3 hits (M1, M3, O1), 5 misses (M2,
+> M4, S-M, O3, S-O), and O2 split (RATE hit, DBZH missed), not "four and four". S-M at 29 % means the Met Office feed
+> can't serve a v19 device. It stays the documented fallback, at the price you stated.
+>
+> Radar
+> - Q1, OPERA CIRRUS DBZH from its GeoTIFF: accepted.
+> - Q2, serve cref by the query's point: accepted, with one change. Choose opuk when the quantised point is inside
+>   the UK land box (the window minus its 2.02° margin), not anywhere in the window. Then every view served from opuk
+>   lies inside its grid, since the margin is the largest view plus the pad. Add a row: a point inside the window but
+>   outside the land box gets today's answer.
+> - Q3, the UK window (9 tiles): accepted. Europe-wide waits for a European customer.
+> - Q4, opuk's server limit at 1,800 s: accepted.
+> - Q5, prune only on the check that stores: accepted.
+> - Q6: yes, the NOAA line now, in its own small PR, by you, worded as docs/wx-server.md has it: "Weather radar
+>   derived from NOAA MRMS data. Not endorsed by NOAA." Predictions first: the live /credits carries it after the
+>   deploy, and a sabotage (the line removed) turns that check red. It merges on my approval at its head SHA, then
+>   deploys under the standing rule.
+>   The OPERA line goes in R4, worded: "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity
+>   composite, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01° grid
+>   and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET." Leave out "produced by Météo-France"
+>   unless the file's own metadata names the producer.
+> - Q7: the host render first. The glass later, on a board Daniel names, with his yes.
+> - Q8, the covered share in /healthz: accepted.
+> - Q9, Shetland stated plainly: accepted.
+>
+> Three additions to R1, predictions first:
+> 1. The end-to-end blank on a v19 device. At OPERA's median latency, a new frame has 50 s of margin before the
+>    device hides the one before it (600 − 300 − 250). The ingest's :00/:30 checks and the device's 60 s poll can
+>    take up to 90 s of that. So, from the week's per-frame times and the real check and poll timing, predict the
+>    share of time a v19 device shows no UK weather, and the longest blank. Price extra opuk checks near each frame's
+>    expected arrival (for example every 10 s from V + 240 s until it lands). This number decides whether #445 needs
+>    a different age limit before it merges, so it comes before R2's code.
+> 2. Clutter. DBZH reached 78.5 dBZ and RATE 687 mm/h in late October. Over the week, count echoes that sit on the
+>    same cells through dry frames (wind farms, interference spokes, sea clutter). Test the GeoTIFF's quality band as
+>    a mask, with a sabotage (the mask off) that must bring them back. MRMS's cref is the QC composite; the UK layer
+>    should look as clean.
+> 3. The bucket's terms. Record what EUMETNET says about automated use of the openradar-24h cache, and show that our
+>    load (about 1,500 range reads and 3,000 listings a day) fits inside it.
+>
+> Map layers
+> - Q10, bilingual names: Daniel's call. I've recommended the English name where there are two.
+> - Q11: a v1 coverage extension, provided Q10's answer is a single name. The format doc's owner, Weatherscope Code,
+>   writes the restatement of §4's four fields by role when M2 starts, not now. Nothing in a US package changes by a
+>   byte.
+> - Q12, decided by M1's sizes: accepted.
+> - Q13, the LPS question: Daniel's. Until LPS answers, Northern Ireland is no_coverage for maps.
+> - Q14, Terrain Tiles z9 with an EU-DEM tile bit and credit line: accepted.
+> - Q15, City and Town: accepted.
+> - Q16, measure first in M1: accepted.
+>
+> Order: R1 now. M1 (offline, no Cloudflare) may run beside it. M2-M4 wait as your plan says. Open the plan and R1's
+> frozen predictions as one PR; it merges on my approval like any other.
+>
+> Cost: Daniel is being asked now for a small monthly allowance. If he gives one, it reaches you in his paste. R3
+> still states the measured figure before the deploy.
+
+### A1.2 What the rulings change
+
+- **The count, corrected** (it was in my report, not in this doc):
+  - **3 hits:** M1, M3, O1;
+  - **5 misses:** M2, M4, S-M, O3, S-O;
+  - **O2 split:** `RATE` hit, `DBZH` missed.
+- **Q2, the dispatch** (§3 as amended): `opuk` serves a point only inside **the UK land box**, the window minus its
+  2.02° margin.
+  - A point inside the window but outside the land box gets today's answer. That is a row in K5 below.
+- **The OPERA line's producer: the file's metadata does name it.**
+  - Every `DBZH` file read (4 of 4) carries `how/creator_name` = `Meteo France`, with `creator_type` = institution.
+  - CC BY 4.0 §3(a)(1)(A)(i) requires keeping "identification of the creator(s)" when the licensor supplies it.
+  - **So R4's line, proposed for its review:** the ruled wording, with the creator named as the file spells it:
+    > Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France,
+    > licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01° grid and binned
+    > to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.
+- **The NOAA line** is its own PR, branched from main, with its predictions in `docs/wx-server.md`.
+- **This PR's head stays the approved head.** R1's readings are taken over a week, and they go to a follow-up docs
+  PR, not to this branch.
+
+### A1.3 R1's predictions, frozen before any R1 reading
+
+**Seen before freezing, so not counted as predictions:**
+- **The quality band, on one frame:** 0 to 1 in steps of 0.1 (11 distinct values), present only on echo cells.
+- **The `creator_name` of four files.**
+- **Production's `/healthz` commit** (`962ccb7`).
+- **Free disk space.**
+
+No frame of the week has been read.
+
+**The week's collection (the input to T, B and C).**
+- **The instrument, `collect_opera.py`,** written after this freeze. Each run:
+  - lists the 24 h cache's `DBZH` keys with `LastModified`;
+  - for every frame not yet held, reads the COG's first 8 KB and the UK window's level-0 tiles (both bands), and keeps
+    them **raw**, one file per frame.
+- **Where:** `C:\Github\Blipscope\bench-logs\uk-opera\`. It is gitignored, and outside the scratchpad, which can be
+  wiped.
+- **When:** at least one run every 6 h, from 2026-10-28 to 2026-11-04.
+- **The gap rule:** a frame whose time passed out of the 24 h cache before any run held it is recorded as **not
+  held**, never filled in.
+  - **The week counts only if ≥ 6 of its 7 days are wholly held.** Otherwise T, B and C are BLIND.
+- **Its controls:**
+  - **The listing is static for old frames:** a frame's `LastModified` is identical in every listing that holds it.
+    One that changes means stop.
+  - **The tiles decode to the HDF5's cells:** once a day, one frame's `.h5` is fetched, and its UK window must equal
+    the tiles' decoding cell for cell, with undetect read as NaN. A mismatch means T, B and C are BLIND.
+
+**T. The week's timing (`DBZH`).**
+
+| | measured | predicted |
+|---|---|---|
+| **T1** | cadence | **≥ 99 %** of steps exactly 300 s |
+| **T2** | latency P − V | p50 in **[240, 265] s**; p95 **≤ 320 s**; **≤ 1 %** of frames over 450 s |
+| **T3** | missing frames (a 300 s slot with no key) | **≤ 0.5 %** of slots |
+| *sabotage* | every third key dropped | T1 red |
+
+**B. The end-to-end blank on a v19 device (the first addition).**
+- **The model:** a pure function, host-tested.
+  - **Frames:** the week's `DBZH` frames, each listable at its `LastModified` (the poller's result).
+  - **The ingest:** checks at each minute's :00 and :30, plus the cron's start offset.
+    - **The offset** is read from `cref`'s own checks over 24 h: Workers Logs, `t0` = event time − `ms`, as I5′'s
+      reconciliation did.
+    - A check stores the newest listed frame, which becomes servable at the check's start plus the build time `b`.
+    - **`b` = 2 s,** an assumption that R2 measures. B is also printed at `b` = 0 and 5 s.
+  - **The device:**
+    - polls every 60 s from its send (WD3 (g)), at a phase φ;
+    - the reply arrives at once (B is also printed with 1 s added);
+    - it draws its crop while the crop's frame is ≤ 600 s old (`WhatToShow`);
+    - with `opuk`'s server limit at 1,800 s, it never gets a 503 for a late frame.
+  - **The blank:** the exact length of each interval in which nothing is drawn, summed over the week. It is computed
+    for φ = 0, 1, …, 59 s and averaged.
+  - **If the offset cannot be read,** B is graded at both 0 s and 5 s, and both must meet the predictions.
+- **The two schedules:** today's (:00/:30), and **the priced extra checks**: every 10 s from V + 240 s until the frame
+  lands.
+
+| | measured | predicted, today's schedule | predicted, with the extra checks |
+|---|---|---|---|
+| **B1** | share of the week with no UK weather drawn | **[2.0 %, 5.0 %]** | **[0.5 %, 2.5 %]** |
+| **B2** | blanks per hour | **[4, 8]** | **[2, 5]** |
+| **B3** | the longest blank, over every φ | **≤ 600 s** | **≤ 600 s** |
+| **B4** (price, printed) | the extra checks a day, their CPU at `cref`'s measured empty check (about 8 ms), and their listings | — | — |
+| **B5** (printed, not graded) | B1 at device limits of 720 s and 900 s | — | — |
+
+- **Controls, run before the week is read:**
+  - **(1)** a synthetic week at a constant 250 s latency, `b` = 0 and offset 0 must give **2.4167 % ± 0.01**. That is
+    the exact value: the ingest waits a fixed 20 s, and over 60 integer phases the mean blank is 435/60 s per 300 s
+    frame. It must also give **5.80 ± 0.01 blanks an hour**: 29 of 60 phases blank once per frame.
+  - **(2)** the same week with a device limit of 3,600 s must give 0 %.
+- **The sabotage:** the age measured from P instead of V must turn control (1) red.
+- **What the results will mean** (my recommendation for the reviewer, registered now):
+
+| outcome | meaning |
+|---|---|
+| **(a)** a schedule meets **B1 ≤ 1 %, B2 ≤ 1 and B3 ≤ 300 s** | #445's 600 s limit can stand for the UK, with that schedule |
+| **(b)** neither schedule meets it, **and every row is as predicted** | **#445 needs a per-product age limit** (for example, one the server sends) **before it merges**. A 60 s poll against a 50 s margin blinks the layer several times an hour, whatever the ingest does. **This is the outcome I predict** |
+| **(c)** anything else, a control failing, or the week BLIND | stop and decide |
+
+**C. Clutter (the second addition).**
+- **Over:** the week's `DBZH` frames, on the native 1 km grid of the UK window.
+- **The definitions:**
+  - **an echo:** a cell ≥ 15 dBZ, code 1 or above;
+  - **an isolated echo:** an echo whose 11 × 11-cell neighbourhood holds **≤ 3** echoes in that frame, itself
+    included;
+  - **a persistent clutter cell:** a cell that is an isolated echo in **≥ 10 %** of the week's frames;
+  - **the mask:** an echo with quality index **< 0.5** is not an echo.
+
+| | measured | predicted |
+|---|---|---|
+| **C1** | persistent clutter cells, unmasked | **≥ 1** (the count printed) |
+| **C2** | the same, masked | **≤ 25 %** of C1 |
+| **C3** | real weather the mask removes: non-isolated echoes with quality < 0.5, as a share of all non-isolated echoes | **≤ 5 %** |
+| C4 (printed) | cells ≥ 65 dBZ, unmasked and masked; and C1-C3 at thresholds 0.1 to 0.9 | — |
+
+- **The control:** a planted persistent speck, one cell at 40 dBZ in every frame, in a cell never otherwise an echo.
+  - With quality 1.0, it is counted by C1 **and survives the mask**.
+  - With quality 0.2, it is counted by C1 **and is removed by the mask**.
+- **The sabotage:** the mask off in C2's run makes C2 equal C1. That is red, unless C1 is 0.
+- **What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** C1-C3 as predicted | R2 applies the mask at 0.5. What a masked echo becomes, 0 or 15, is Q17 |
+| **(b)** C1 = 0 | the week shows no clutter; no mask |
+| **(c)** C2 misses | the quality band is not a clutter mask. **Stop and decide.** The named alternative is a static clutter map built from the week |
+| **(d)** C3 misses | the mask deletes real rain. **Stop and decide** |
+| **(e)** anything else | stop and decide |
+
+**L. The bucket's terms (the third addition).**
+- **Read in full:**
+  - every page of the ORD documentation site, and its GitHub repository's README and licence files;
+  - MeteoGate's developer-portal terms;
+  - any terms CloudFerro publishes for public buckets;
+  - plus the response headers of one listing and one range GET on `openradar-24h`.
+- **Our load, at today's schedule:**
+  - **range reads:** 1 header + ≤ 5 tile rows per frame, ≤ 1,728 a day;
+  - **listings:** 2,880 a day, plus about 864 with the extra checks.
+
+| | predicted |
+|---|---|
+| **L1** | **no numeric limit for the S3 cache is published.** The ORD overview's "low query limits" for anonymous use is about the API, with no number |
+| **L2** | **no rate-limit header** on the cache's S3 responses |
+
+| outcome | meaning |
+|---|---|
+| **(a)** a stated limit, with our load under it | it fits; recorded with its source |
+| **(b)** as predicted: none stated | **it cannot be shown to fit.** I recommend a short message to support.opera@eumetnet.eu stating the load, **which is Daniel's to send.** R3 waits for the answer |
+| **(c)** a limit our load exceeds, or a term against automated use | stop |
+
+**K. R2's code checks, frozen now, run in R2.** Each has its sabotage.
+
+| | check | predicted | sabotage, which must turn it red |
+|---|---|---|---|
+| K1 | the COG reader, on 2 committed frames (one wet, one dry), UK window | every cell equal to the HDF5's | band 1 read for band 0 |
+| K2 | resampling, on a synthetic one-pixel echo line across the LAEA window | **0** 0.01° rows it crosses without an echo | nearest-neighbour: gaps > 0 |
+| K3 | the codes | NaN → 0; −9,999,000 → 14; 14.99 → 0; 15.0 → 1; 75.0 → 13; 78.5 → 13; 15 never | 15 dBZ mapped to 0 |
+| K4 | WXG1 | 1,515 × 1,455 cells, 9 tiles, **1,179,712 B**; a round trip identical cell for cell | `tilesY` for `tilesX` |
+| K5 | the dispatch | LHR → `opuk`; **CDG (inside the window, outside the land box) → today's answer**; KMCI → `cref`; PHNL → `cref`'s all-14 crop; the land box and the CONUS grid do not overlap | dispatch by the window: CDG served `opuk` |
+| K6 | every view served from `opuk` inside its grid: the land box on a 0.05° lattice × r ∈ {1, 25, 80, 160, 222, 300, 500} km, with WS4′'s device corners | **0** views outside the grid. Printed: crops whose padding reaches outside (served as 14) | a margin of 1.0° |
+| K7 | the ETag carries the served product | the same query and epoch give different ETags for `cref` and `opuk`; a device moved from LHR to KMCI never gets a 304 | an ETag without the product |
+| K8 | `opuk`'s 1,800 s limit | a 900 s-old frame → 200 (`cref` at 900 s → 503); 1,801 s → 503 `wx_stale` | the limit read from `cref` |
+| K9 | the covered share in `/healthz` | each frame's record carries the window's covered share; an all-nodata frame reads 0; `smoke-prod.sh` FAILs on 0 or a missing share for `opuk` | the share fixed at 1: the all-nodata frame reads 1 |
+| K10 | prune only on the storing check | a storing check prunes; a check that stores nothing makes **0** R2 lists (a wrapped binding) | prune on every check |
+| K11 | CPU and live memory in Node, on 3 real frames | CPU **≤ 0.6 s** a frame; live peak **≤ 96 MB** (A4's meter). R3's production bar is twice Node (I7's factor) | 64 MB held: the peak +63-65 MB |
+| K12 | the device decodes `opuk` crops | 8 server-made fixture crops at UK airports decode with `include/WxCrop.h` to the encoder's cells | one nibble flipped fails exactly that crop |
+| K13 | the host render (Q7) | a real `opuk` crop at LHR through `wxlayer::Build` and `WxS2` to a PNG, committed. Looked at, not graded | — |
+
+**Outside the set:** any reading not listed above means stop and report. No code, test or bar is edited to make a
+reading come true.
+
+**What a masked echo becomes, raised now as Q17:**
+- **Recommended: 0, if C3 holds.** That is what MRMS's QC does with clutter.
+- **The alternative is 15 (missing):** it is honest, and it draws a hatch on every clutter spot.
