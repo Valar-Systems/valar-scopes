@@ -1066,6 +1066,23 @@ Synthetic features at origin (0, 0), through the layer functions.
 - Planting it shows (c) goes red too: with `current` written before the verify, a corrupt store would be sealed.
 - **The frozen set is the case, {MI7}, and it held.** The gloss was incomplete. It is corrected here, not edited away.
 
+**A bug of mine, caught by a guard that runs.**
+- **What went wrong:** the fetch log was written with `JSON.stringify(log, sortedKeys, 1)`. An **array** replacer is an allowlist applied at every depth, so all 6,397 records were written as `{}`.
+- **Why it looked fine:** the fetch reported "4.858 GB logged", but from memory, not from the file.
+- **What caught it:** the dry run's first read, which checks each file against the log's sha256. It refused at the first file.
+- **The fix:**
+  - the log is serialised with the manifest's deep key-sort, then **read back after every write, with every record checked**;
+  - files already in the cache are adopted only when a HEAD's `Content-Length` equals their size, re-hashed, and given the HEAD's `Last-Modified` (RD-P3's vintage).
+- **The result:** 6,395 adopted, 2 re-downloaded, 6,397 records read back whole.
+- **The broken log is kept beside the cache as evidence.**
+
+**Two sources changed length within the hour,** `tl_2024_34023_areawater.zip` and `tl_2024_39077_areawater.zip`. Their HEAD length no longer matched the cached copy, so they were fetched again.
+- **The two explanations,** neither excluded:
+  - (a) the files changed upstream;
+  - (b) the first transfer was short and went unchecked, which requires a response with no `Content-Length`.
+- The first copies were overwritten, so the data cannot separate them.
+- **What it means for D1:** its fetch re-verifies every file, so a source that moves changes `store:`, visibly, rather than silently.
+
 **One fix in `assignCells`, outside the frozen rows.**
 - Features that all share one south-west corner can never be separated by a quarter, so splitting them recursed forever.
 - Such a cell is now kept whole, like a single-feature cell. MI6's frozen expectations do not touch this case.
