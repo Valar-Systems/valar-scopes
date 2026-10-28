@@ -8,6 +8,10 @@ run's LEB128 length). Synthetic by construction: no radar ever produced it, and 
                                                                the source frame's); exit 1 on any difference
 
 SC1's other half (WxCrop.h's decoder) is test_wx_k35.cpp's. Prints no coordinate.
+
+3.5b's Bend loop (docs/weatherscope-stage3.md A12.12) uses the same rule on its own newest frame:
+    python -I tools/weatherscope/loop/make_clear.py --loop test/fixtures/wx/bend-loop --source shsr-20240602-200600.wxc [--check]
+Dallas's paths stay the defaults.
 """
 import hashlib, importlib.util, os, struct, sys
 
@@ -44,6 +48,11 @@ def ring_ref():
 
 
 def main(argv):
+    global LOOP, SOURCE, OUT
+    if "--loop" in argv:
+        LOOP = os.path.join(ROOT, argv[argv.index("--loop") + 1])
+        SOURCE = os.path.join(LOOP, argv[argv.index("--source") + 1])
+        OUT = os.path.join(LOOP, "synthetic-clear.wxc")
     data, cells = build()
     if "--check" not in argv:
         open(OUT, "wb").write(data)
