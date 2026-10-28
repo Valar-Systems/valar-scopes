@@ -390,8 +390,9 @@ the modification statement. The processing line already gives that statement, as
   - a name = the source's own name, as written;
   - `pop` = the source's population figure, 0 = none.
   - **Why it qualifies:** what a client does with each field (styles class 1 apart from class 2, labels a name, ranks
-    by `pop`) is the same for every coverage. **No v1 client would read a UK package wrongly.** That is the test the
-    PROVENANCE amendment passed.
+    by `pop`) is the same for every coverage. **No v1 client would read a UK package wrongly.**
+  - **This is a weaker test than the PROVENANCE amendment's,** which stayed in v1 because "Clients never parse
+    PROVENANCE". Clients do read these four fields. So it needs a ruling, not an analogy.
   - **Evidence from the one client that exists:** Weatherscope's place-label rule drops a trailing " city" once
     (`src/weatherscope/WxLogic.h:457`). A UK name has no such suffix and passes through unchanged.
 - **Where I think otherwise: bilingual names.** Welsh places and features can carry two names. v1 has one text field,
@@ -403,7 +404,8 @@ the modification statement. The processing line already gives that statement, as
 ## 3. The device: what a v19 Blipscope in the UK can show with no firmware change
 
 **The assumption:** v19 carries the weather layer as it stands on `feat/wx-device` (`f9184ef`, #445).
-- #445 is not merged. Its merge waits on the starved-seconds counter and the #245 ruling.
+- #445 is not merged. Its own header says device-side weather "does not merge until the starved-seconds counter has
+  landed and #245 has been ruled on from the soak" (`docs/wx-device.md` at `f9184ef`).
 - If v19 ships without it, no weather reaches any v19 device.
 
 **What it asks for:** always `/wx/cref`. The call is `CloudFeed::WeatherUrl(req->cloudBase, "cref")` in
