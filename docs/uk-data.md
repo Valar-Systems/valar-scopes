@@ -955,3 +955,153 @@ reading come true.
 **What a masked echo becomes, raised now as Q17:**
 - **Recommended: 0, if C3 holds.** That is what MRMS's QC does with clutter.
 - **The alternative is 15 (missing):** it is honest, and it draws a hatch on every clutter spot.
+
+## Addendum 2, 2026-10-28: the rulings on R1, K14, and M1's predictions
+
+### A2.1 The rulings, verbatim (source: the reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> 1. #492 (the NOAA line) is approved to merge at b5f37eb98313c623d238200c452806d966d49bd0, once CI on that head
+>    completes with 0 failed.
+> - I read all 4 files; N1 and N2 are as predicted.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+> - Then deploy under the standing rule and read N3-N6 as frozen, with the carried commits listed first.
+>
+> 2. #490 (the plan and R1's predictions) is approved to merge at 606e2ebd05996c2766479cbee22438922206a37e, once CI
+>    on that head completes with 0 failed.
+> - The rulings and Daniel's answers are recorded verbatim, and R1 was frozen at 456988b before any R1 reading.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+>
+> 3. R1, as frozen: accepted, with four notes.
+> - Grading T and B on the .tiff's LastModified is right, since R2 reads the COG. It was recorded at ba5b557, before
+>   the first run.
+> - B's outcome (a) bar (B1 ≤ 1 %, B2 ≤ 1 an hour, B3 ≤ 300 s): accepted as the bar for keeping #445's 600 s limit.
+> - Q17: a masked echo becomes 0, if C3 holds. If C3 misses, stop, as your table says.
+> - L: if it reads (b) (no limit stated, no rate-limit header, no term against automated use), R3 does not wait for an
+>   answer.
+>   - A few requests a minute on a public open-data cache is ordinary use.
+>   - Daniel sends a short courtesy note to OPERA support saying who we are and what we read. I'll draft it once L is
+>     read.
+>   - The ingest identifies itself. A new R2 row, frozen now: K14, every request to the cache carries a User-Agent
+>     naming us with a contact URL, as the map server's does. Its sabotage: the header dropped.
+>
+> 4. The OPERA line for R4, with "created by Meteo France" as the file spells it: accepted in principle. Final at
+>    R4's review.
+>
+> 5. M1: start it now, predictions first, GB and NI together.
+>
+> 6. The collection's caveat is accepted. If this session ends, the next one re-arms it within 24 h, and the gap rule
+>    covers anything lost.
+
+**What happened under 1 and 2:**
+- **#492:** merged as `77f6913`, deployed, and **production was rolled back** on N3's miss (two `/blips` 503s with no
+  upstream in the post-deploy smoke run). The record is `docs/wx-server.md` on #494.
+- **#490:** merged as `aa24294`, a clean squash at `606e2eb` (the tree equals `git merge-tree`'s; patch-id
+  `1bed0f71957b` on both).
+- **This branch** carries main by merge rather than a rebase, so `ba5b557`, which item 3 cites, stays in its history.
+
+### A2.2 K14, frozen as ruled
+
+| | check | predicted | sabotage, which must turn it red |
+|---|---|---|---|
+| **K14** | every request the `opuk` ingest makes to `openradar-24h` (listings, the 8 KB header, the tile ranges), seen through a wrapped `fetch` in the test | each carries `User-Agent: BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`, the map server's form (`ingest-basemap.ts`: `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`) | the header dropped from one request kind |
+
+- **The week's collector is not the ingest.** It sends `valar-systems-uk-radar-measurement/1`, which names us
+  without a URL.
+- It is left as committed at `ba5b557`, so the instrument does not change mid-week. It can take the same form at
+  its next restart, if wanted.
+
+### A2.3 The NI serving gate has a second path (raised as Q19)
+
+- **The ruled gate switches off NI *origins*:** NI's coverage bits.
+- **But a GB origin's square can reach NI.** At 161 km, an origin in south-west Scotland has NI land inside its
+  square, so its package would carry NI-derived features (the OSNI roads, the DAERA lakes, the gazetteer places)
+  before LPS has answered.
+- **That is CLAUDE.md's first table:** a guard that exists, and a path that does not go through it.
+- **Recommended:** the gate belongs to the NI sources, not only to the NI origins. The store marks every NI-derived
+  feature, and the builder leaves them out of every package while the gate is off, whatever the origin.
+  - So a GB package near NI shows NI as empty, as v1 shows Canada.
+  - **A test for M2:** a GB origin whose square meets NI carries 0 NI features with the gate off, and > 0 with it on.
+- M1 measures with the NI features both included and left out, so the sizes cover either ruling.
+
+### A2.4 M1's predictions, frozen before any M1 reading
+
+**What M1 is.** An offline size dry run of §2.2's UK rules, GB and NI together.
+- No Cloudflare, no store and no route.
+- It is a measurement, not the builder: the map server builds that in M2.
+
+**The instrument, `m1_sizes.py`,** written after this freeze.
+- **The geometry steps are written from the format doc:** §2 (project, clip, quantise), §6 (Douglas-Peucker and the
+  budget loop) and §13 (RD1-RD21).
+- **The bytes come from the format owner's encoder,** `tools/weatherscope/basemap/bmpk.py` on main.
+- **Every package is checked by its reference validator,** `validate.py`.
+- **The sources:** §2.1's files, downloaded once, each with its sha256 recorded in a manifest:
+  - OS Open Roads, Open Rivers, Open Names and OpenMap – Local (`SurfaceWater_Area`);
+  - the ONS BUA table and boundaries; NRS's 2022 settlements;
+  - OSNI's 50K transport lines and its gazetteer; DAERA's lakes;
+  - NISRA's CT0046 and its 2015 limits;
+  - the Terrain Tiles z9 tiles the squares need.
+
+**The centres** (public airports, by code):
+- **GB:** LHR, MAN, BHX, NCL, EDI, GLA, ABZ, INV, CWL, NQY;
+- **NI:** BFS, LDY.
+
+**The radii:**
+- **graded:** the Blipscope's 161 km (default) and 222 km (maximum), at ε = 671 m and 925 m (half a pixel on the 240 px
+  Kit S3, as the map server's plan uses);
+- **printed:** Weatherscope's 97 km at ε = 100.6 m.
+
+**The road variants measured:**
+- **(i)** class 2 = every A road, links as OS publishes them (split at every junction);
+- **(ii)** class 2 = `primaryRoute` A roads, links as published;
+- **(iii)** and **(iv):** (i) and (ii) with links **chained** into one polyline wherever two links meet end to end
+  with the same road number and class. That is a candidate UK rule (Q18), not §2.2's.
+- **All four:** slip roads dropped, Motorway as class 1.
+
+**The outcome classes:** the map server's (§5.4 of its plan).
+- **F:** within 20 KB;
+- **C:** inside the 32 KB cap;
+- **D:** over the cap, brought under it by §6's drops, which are counted;
+- **X:** still over: `too_large`.
+
+**Predicted:**
+
+| | measured | predicted |
+|---|---|---|
+| **M1-a** | LHR, MAN, BHX at 161 km, variants (i) and (ii) | **X**. Links split at every junction give each a structural floor of about 12 B, and the motorway links in a 322 km square around London alone approach the cap |
+| **M1-b** | the same, variant (iv) (primary A roads, chained) | **C or D** |
+| **M1-c** | the same, variant (iii) (every A road, chained) | **D or X** |
+| **M1-d** | every other centre at 161 km, variant (iv) | **F, C or D**: never X |
+| **M1-e** | 222 km, every centre, variant (iv) | **D or X** |
+| **M1-f** | the share of the kept hills (top 16 per centre and radius) whose z9 value at the Open Names point is more than 50 m below the z9 maximum within 1 km (Q16) | **≤ 20 %**; the median difference **≤ 30 m** |
+| **M1-g** (printed) | for each centre: the bytes per layer; the drops and collapses; the class-2 road length kept against the length in the square; and BFS, LDY, GLA with NI features in and out (A2.3) | — |
+
+**Controls, run first:**
+- **every package passes `validate.py`;**
+- the section lengths plus the header and directory sum to `totalBytes`;
+- **a synthetic straight line** with a bump half of ε simplifies to its two ends, and **a synthetic ring** cut by the
+  square stays closed;
+- the encoder reproduces `syn-min.bmpk` byte for byte from `synth.py`'s data.
+
+**Sabotages:**
+- **ε = 0** (no simplification) must raise every centre's road bytes;
+- **the drop policy off** must turn every D into X;
+- **chaining off** in (iv) must reproduce (ii)'s bytes exactly.
+
+**What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** variant (i) fits (F or C) at LHR, MAN and BHX at 161 km | class 2 = every A road, as published (Q12, as ruled). **Not what I predict** |
+| **(b)** only (ii) fits | class 2 = primary A roads (Q12, as ruled) |
+| **(c)** neither (i) nor (ii) fits, and (iii) or (iv) does | **Q12's rule cannot decide alone:** chaining becomes a question (Q18). **This is the outcome I predict** |
+| **(d)** none of the four fits at 161 km | stop and decide: the Blipscope's default radius would need fewer layers or a coarser ε |
+| **(e)** M1-f misses | Q16's point elevation is not a summit elevation; rule between the 1 km maximum (with the processing line saying so) and the point |
+| **(f)** anything else, or a control failing | stop and decide |
+
+**Raised now, for the rulings that M1's numbers will inform:**
+- **Q18:** may the UK rules chain OS road links that meet end to end with the same road number and class?
+  - It changes no field. A US package is untouched, since TIGER's lines are not split this way.
+  - **Recommended: yes,** with a fixed, deterministic chaining order written into the rule.
+- **Q19:** the NI gate, on the sources rather than only the origins (A2.3). **Recommended: yes.**
