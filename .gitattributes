@@ -20,6 +20,10 @@ relay/** text eol=lf
 *.bin   binary
 *.gz    binary
 *.zip   binary
+# BMPK packages (docs/basemap-package-format.md): little-endian binary, never line-converted.
+*.bmpk  binary
+# WXC1 weather crops (include/WxCrop.h): binary too, said explicitly rather than left to the heuristic.
+*.wxc   binary
 
 # The embedded page module is generated; keep it LF so scripts/embed-pages.mjs
 # --check compares content rather than checkout style.
