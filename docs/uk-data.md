@@ -1489,3 +1489,22 @@ No reading came from the failed launch.
   squares goes first.
 - **Where the class-2 set fits without drops** (GLA, ABZ, INV, NQY, BFS and LDY at 161 km in M1′), the key never acts:
   every A road stays, as the ruling intends for sparse areas.
+
+### A3.8 The ruling on M1″, verbatim (source: the reviewer chat, pasted by Daniel, 2026-10-28)
+
+> M1″: accepted, outcome (a). Q12 is settled: every A road, with non-primary chains dropped before primary ones, and a
+> chain counting as primary if any of its links is (A3.6). The sabotage reproducing M1′ exactly shows the drop key is
+> the only change. The wrong-directory launch produced no reading and is noted. N6 waits for the analytics-read line,
+> which Daniel is adding to the token file now.
+
+**The UK road rule, settled:**
+- class 1 = Motorway;
+- class 2 = every A road, with slip roads dropped;
+- links chained by number and class (Q18);
+- under §6's budget, non-primary chains drop before primary ones, each shortest first. A chain is primary if any of
+  its links is.
+- **With:** rivers chained by name; places City and Town, the 256 most populous within R; London by rule L; NI gated
+  out until LPS answers (Q19).
+- **These are M2's inputs.**
+
+**N6, since:** read once the line was in the file. As predicted, with no regression (`docs/wx-server.md` on #494).
