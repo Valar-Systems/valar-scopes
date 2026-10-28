@@ -30,6 +30,13 @@ THE CHECKS, as ruled (R3-R5, 2026-10-26; addendum 5 records the definitions):
       EXERCISED: a marker with a weather pixel 2-3 px out. BLIND when none is.
   (3) the layer off (R5). A marker is EXERCISED when a ring pixel is among its 8-neighbours, and FAILS when any such
       ring pixel is black (0x0000): an outline drawn while no layer is shown. BLIND when none is exercised.
+
+THE WEDGE MASK (ruled 2026-10-28), for the layer-on arms only. Look 4's sweep draws colours over the weather that are
+not weather colours, so (1) and (2) are graded OUTSIDE its wedge; the wedge's interior is W3's, on the host. The beam
+is located from each frame: exactly one blob of the head colour at the disc's edge (117-123 px out), and >= 70 % of
+the beam line's 101 ray samples in its colour; anything else makes the frame UNTRUSTWORTHY, never a pass. Masked: the
+centre (12 px) and the 1.0 rad tail behind the beam, plus 0.06 rad each side. Outside the mask, a ring pixel showing a
+wedge-only colour (a lit colour or a wedge green that is no other colour the frame can hold) is an exception.
 """
 import glob
 import math
@@ -104,7 +111,33 @@ def load_source():
     for p in planes:
         marker |= faded(p)
     labels = faded(tuple(int(v) for v in lab.groups()))
-    return {"centre": centre, "rings": rings, "weather": weather, "marker": marker, "label": labels}
+    # Look 4's wedge (WD6, WD7; the wedge mask, ruled 2026-10-28), read from the source: what it can draw, and the
+    # beam and head that locate it in a frame.
+    sw = read("include/WxSweep.h")
+    peak = int(re.search(r"constexpr int kPeak = (\d+);", sw).group(1))
+    tail = float(re.search(r"constexpr float kTail = ([\d.]+)f;", sw).group(1))
+    assert "return pct + ((100 - pct) * lvl + kPeak / 2) / kPeak;" in sw, "wxsweep::LitPercent changed: re-derive"
+    assert "return (uint16_t)((lvl & 0xFC) << 3);" in sw, "wxsweep::Green565 changed: re-derive"
+    assert "LitPercent(wxs2::CodePercent(code, pct), lvl)" in sw, "wxsweep::Lit565 changed: re-derive"
+    dh = read("include/DrawHelpers.h")
+    bm = re.search(r"drawLine\(cx, cy, xLead, yLead, lgfx::color888\((\d+), (\d+), (\d+)\)\)", dh)
+    hd = re.search(r"fillCircle\(xLead, yLead, 2, lgfx::color888\((\d+), (\d+), (\d+)\)\)", dh)
+    assert bm and hd, "DrawRadarSweepBeam's beam or head colour changed: re-derive"
+    beam_c, head_c = s565(*map(int, bm.groups())), s565(*map(int, hd.groups()))
+    base = {1: teal, **{c: table[c - 1] for c in range(2, 13)}, 13: rain75}
+    greens = {(lvl & 0xFC) << 3 for lvl in range(1, peak + 1)}
+    ring_cols = {col for _, col in rings}
+    wedge_only = {}
+    for L in "AB":
+        lit = set()
+        for c, b in base.items():
+            p0 = c1pct[L] if c == 1 else pct[L]
+            for lvl in range(1, peak + 1):
+                lit.add(s565(*dim(b, p0 + ((100 - p0) * lvl + peak // 2) // peak)))
+        wedge_only[L] = (lit | greens) - weather[L] - marker - labels - ring_cols - {beam_c, head_c, 0}
+    return {"centre": centre, "rings": rings, "weather": weather, "marker": marker, "label": labels,
+            "tail": tail, "peak": peak, "beam": beam_c, "head": head_c, "wedge_only": wedge_only,
+            "base": base, "pct": pct, "c1pct": c1pct}
 
 
 def draw_circle(px, x, y, r):
@@ -172,6 +205,59 @@ def trustworthy(f, rings, n, out):
     return True
 
 
+# The wedge mask (ruled 2026-10-28; docs/wx-device.md "Rulings on the wedge"), frozen before this code.
+MASK_MARGIN = 0.06    # rad, each side of the wedge's 1.0 rad
+MASK_CORE = 12        # px around the centre, where angles mean nothing
+HEAD_RANGE = (117.0, 123.0)   # the head's centroid distance from the centre: the disc's edge
+BEAM_MIN = 0.70       # the share of the beam's 101 ray samples (r = 10..110) that must show its colour
+DISC_R = 120
+
+
+def wedge_mask(f, src, n, out):
+    """Look 4's wedge in frame f, located from the frame itself. (in_mask, share), or None: UNTRUSTWORTHY."""
+    cx = src["centre"]
+    hs = {(i % W, i // W) for i, c in enumerate(f) if c == src["head"]}
+    comps, seen = [], set()
+    for p in hs:
+        if p in seen: continue
+        comp, stack = set(), [p]
+        while stack:
+            q = stack.pop()
+            if q in comp: continue
+            comp.add(q)
+            stack.extend((q[0] + dx, q[1] + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                         if (q[0] + dx, q[1] + dy) in hs and (q[0] + dx, q[1] + dy) not in comp)
+        seen |= comp
+        comps.append(comp)
+    if len(comps) != 1:
+        out.append(f"frame {n}: the beam's head: {len(comps)} blobs, not exactly one (UNTRUSTWORTHY)")
+        return None
+    hx = sum(p[0] for p in comps[0]) / len(comps[0])
+    hy = sum(p[1] for p in comps[0]) / len(comps[0])
+    d = math.hypot(hx - cx, hy - cx)
+    if not HEAD_RANGE[0] <= d <= HEAD_RANGE[1]:
+        out.append(f"frame {n}: the beam's head is {d:.1f} px from the centre, not at the disc's edge (UNTRUSTWORTHY)")
+        return None
+    th = math.atan2(hy - cx, hx - cx)
+    hits = sum(any(at(f, round(cx + math.cos(th) * r) + i, round(cx + math.sin(th) * r) + k) == src["beam"]
+                   for i in (-1, 0, 1) for k in (-1, 0, 1)) for r in range(10, 111))
+    if hits < BEAM_MIN * 101:
+        out.append(f"frame {n}: the beam line agrees with its head on {hits}/101 samples, under 70 % (UNTRUSTWORTHY)")
+        return None
+    lo, span = th - src["tail"] - MASK_MARGIN, src["tail"] + 2 * MASK_MARGIN
+
+    def in_mask(x, y):
+        dx, dy = x - cx, y - cx
+        if dx * dx + dy * dy <= MASK_CORE * MASK_CORE: return True
+        return (math.atan2(dy, dx) - lo) % (2 * math.pi) <= span
+
+    disc = [(x, y) for y in range(H) for x in range(W) if (x - cx) ** 2 + (y - cx) ** 2 <= DISC_R * DISC_R]
+    share = sum(in_mask(x, y) for x, y in disc) / len(disc)
+    out.append(f"frame {n}: the beam at {th:+.3f} rad, its head {d:.1f} px out, beam hits {hits}/101, "
+               f"masked share {share * 100:.2f} %")
+    return in_mask, share
+
+
 def markers(f, colours, own, ring_exclusion=True):
     """(colour, pixels) of every marker in frame f. A ring pixel showing its ring's colour is never part of one."""
     skip = (lambda p, c: own.get(p) == c) if ring_exclusion else (lambda p, c: False)
@@ -206,25 +292,35 @@ def grade(frames, look, src, drop=False):
     ungradable = [(r, col) for r, col, _ in rings if col in Wc]
     out = [f"look {look}: ungradable rings (the ring's colour is a weather colour of the look): "
            + (", ".join(f"r={r} {col:#06x}" for r, col in ungradable) or "none")]
-    tot = {"exc": 0, "ex_r": 0, "markers": 0, "fail": 0, "ex_m": 0, "ambig": 0, "graded": 0, "dropped": 0}
+    WO = src["wedge_only"][look]
+    tot = {"exc": 0, "ex_r": 0, "markers": 0, "fail": 0, "ex_m": 0, "ambig": 0, "graded": 0, "dropped": 0,
+           "masked_r": 0, "masked_m": 0, "wedge_out": 0}
     for n, f in enumerate(frames):
-        if not trustworthy(f, rings, n, out):
+        wm = wedge_mask(f, src, n, out) if trustworthy(f, rings, n, out) else None
+        if wm is None:
             if not drop: return "UNTRUSTWORTHY", out
             tot["dropped"] += 1
             continue
+        in_mask, _share = wm
         tot["graded"] += 1
-        exc = ex = 0
+        exc = ex = mr = wout = 0
         for r, col, pts in rings:
             if col in Wc: continue
             for x, y in pts:
+                if in_mask(x, y):          # the wedge's interior is W3's, on the host, not the captures'
+                    mr += 1; continue
                 c = at(f, x, y)
                 if any(at(f, x + i, y + k) in Wc for i in range(-2, 3) for k in range(-2, 3) if i or k):
                     ex += 1
                 if c in Wc and c != col and any(all(at(f, bx + i, by + k) == c for i in range(3) for k in range(3))
                                                  for bx in range(x - 2, x + 1) for by in range(y - 2, y + 1)):
                     exc += 1
-        mk = fail = exm = amb = 0
+                elif c in WO and c != col:  # a wedge colour outside the wedge: the mask is wrong, or a ring is
+                    exc += 1; wout += 1
+        mk = fail = exm = amb = mm = 0
         for c, comp in markers(f, src["marker"], own):
+            if any(in_mask(*p) for p in comp | neighbours(comp, 3)):
+                mm += 1; continue
             if c in amb_set:
                 amb += 1; continue
             mk += 1
@@ -236,14 +332,16 @@ def grade(frames, look, src, drop=False):
                 xs, ys = [p[0] for p in comp], [p[1] for p in comp]
                 out.append(f"frame {n}: marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px): "
                            f"{wb} of {len(border)} neighbours are weather")
-        out.append(f"frame {n}: rings exceptions {exc}, exercised {ex}; markers {mk} "
-                   f"(ambiguous {amb}), over weather {exm}, without an outline {fail}")
-        for k, v in zip(("exc", "ex_r", "markers", "fail", "ex_m", "ambig"), (exc, ex, mk, fail, exm, amb)):
+        out.append(f"frame {n}: rings exceptions {exc} (a wedge colour outside the wedge {wout}), exercised {ex}, "
+                   f"masked {mr}; markers {mk} (ambiguous {amb}, masked {mm}), over weather {exm}, without an outline {fail}")
+        for k, v in zip(("exc", "ex_r", "markers", "fail", "ex_m", "ambig", "masked_r", "masked_m", "wedge_out"),
+                        (exc, ex, mk, fail, exm, amb, mr, mm, wout)):
             tot[k] += v
     out.append(f"TOTAL look {look}: frames graded {tot['graded']}, dropped as UNTRUSTWORTHY {tot['dropped']}; "
-               f"(1) ring exceptions {tot['exc']}, exercised {tot['ex_r']}; "
+               f"(1) ring exceptions {tot['exc']} (a wedge colour outside the wedge {tot['wedge_out']}), "
+               f"exercised {tot['ex_r']}, masked {tot['masked_r']}; "
                f"(2) markers {tot['markers']}, over weather {tot['ex_m']}, without an outline {tot['fail']}, "
-               f"ambiguous {tot['ambig']}")
+               f"ambiguous {tot['ambig']}, masked {tot['masked_m']}")
     if tot["graded"] == 0:
         out.append("no trustworthy frame"); return "UNTRUSTWORTHY", out
     r1 = "FAIL" if tot["exc"] else ("BLIND" if tot["ex_r"] == 0 else "PASS")
@@ -309,9 +407,39 @@ def put(f, pts, c):
         if 0 <= x < W and 0 <= y < H: f[y * W + x] = c
 
 
+def draw_wedge(f, src, look, th, head="edge", beam_dtheta=0.0):
+    """Look 4's wedge over the layer, then the beam and its head, as the device draws them (WxSweep.h,
+    DrawRadarSweepBeam): each disc pixel up to kTail behind the beam takes its slice's level, a dry pixel the wedge
+    green and an echo pixel (the synthetic rain, code 8) its colour raised toward 100 %. By angle, not by the
+    device's triangles: the mask's margin is what covers the difference."""
+    cx, tail, peak, pct = src["centre"], src["tail"], src["peak"], src["pct"][look]
+    for y in range(H):
+        for x in range(W):
+            dx, dy = x - cx, y - cx
+            if dx * dx + dy * dy > DISC_R * DISC_R or (dx == 0 and dy == 0): continue
+            back = (th - math.atan2(dy, dx)) % (2 * math.pi)
+            if back > tail: continue
+            i = max(1, math.ceil(back / tail * 18))
+            lvl = int((1.0 - i / 18.0) ** 2 * peak)
+            if f[y * W + x] == 0:
+                f[y * W + x] = (lvl & 0xFC) << 3
+            else:
+                p = pct + ((100 - pct) * lvl + peak // 2) // peak
+                f[y * W + x] = s565(*((v * p + 50) // 100 for v in src["base"][8]))
+    bx = cx + int(math.cos(th + beam_dtheta) * DISC_R)
+    by = cx + int(math.sin(th + beam_dtheta) * DISC_R)
+    steps = max(abs(bx - cx), abs(by - cx))
+    put(f, {(round(cx + (bx - cx) * k / steps), round(cx + (by - cx) * k / steps)) for k in range(steps + 1)}, src["beam"])
+    heads = {"edge": [(th, DISC_R)], "none": [], "two": [(th, DISC_R), (th + 1.5, DISC_R)], "r80": [(th, 80)]}[head]
+    for a, r in heads:
+        s = set(); fill_circle(s, cx + int(math.cos(a) * r), cx + int(math.sin(a) * r), 2); put(f, s, src["head"])
+
+
 def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, weather=True, trail=False,
-          blob_ring=1, blob_r=30, blob_dx=0, glyph=None):
-    """A layer-on frame drawn in the device's order: weather, rings, trail and label, outline, marker."""
+          blob_ring=1, blob_r=30, blob_dx=0, glyph=None, beam=True, theta=math.pi, head="edge", beam_dtheta=0.0,
+          plant=None):
+    """A layer-on frame drawn in the device's order: weather, the sweep (look 4's wedge, the beam and its head), rings,
+    trail and label, outline, marker. The beam points west by default, away from every case's subject (east)."""
     f = [0] * (W * H)
     pct = 40 if look == "A" else 25
     rain = s565(*(((255 * pct + 50) // 100), 0, 0))           # code 8, red: far from every green
@@ -322,9 +450,16 @@ def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, we
     for r, col in src["rings"]:
         s = set(); draw_circle(s, cx, cx, r); ring_pts.append((s, col))
     if weather and not weather_over_rings: put(f, blob, rain)
+    if beam: draw_wedge(f, src, look, theta, head, beam_dtheta)
     if rings:
         for s, col in ring_pts: put(f, s, col)
     if weather and weather_over_rings: put(f, blob, rain)
+    if plant:
+        # A missing ring pixel showing a wedge-only colour: on the middle ring, outside the mask (north) or inside it.
+        a = -math.pi / 2 if plant == "outside" else theta - 0.5
+        r1 = src["rings"][1][0]
+        p = min(ring_pts[1][0], key=lambda q: (q[0] - (cx + math.cos(a) * r1)) ** 2 + (q[1] - (cx + math.sin(a) * r1)) ** 2)
+        put(f, [p], min(src["wedge_only"][look]))
     mx, my = cx + src["rings"][1][0] + 8, cx + 6                # 8 px outside the middle ring, inside the blob
     colour = next(c for c in sorted(src["marker"] - src["weather"][look] - src["label"]) if c > 0x8000)
     if trail: put(f, [(mx - 20 + k, my + 12) for k in range(18)], colour)
@@ -376,6 +511,15 @@ def synth_off(src, outline=False, rings=True, on_ring=True, label=False, outer_c
 def selftest(src):
     on = lambda kw, look: grade([synth(src, look=look, **kw)], look, src)
     off = lambda kw, excl=True: grade_off([synth_off(src, **kw)], src, ring_exclusion=excl)
+
+    def share_case(look):
+        out = []
+        f = synth(src, look=look)
+        wm = wedge_mask(f, src, 0, out)
+        if wm is None: return "UNTRUSTWORTHY", out
+        verdict, lines = grade([f], look, src)
+        ok = 0.184 <= wm[1] <= 0.189 and verdict == "PASS"
+        return ("PASS" if ok else "FAIL"), out + lines
     cases = [
         ("as drawn, look A",                          lambda: on({}, "A"),                               "PASS"),
         ("weather drawn over the rings",              lambda: on(dict(weather_over_rings=True), "A"),    "FAIL"),
@@ -399,6 +543,14 @@ def selftest(src):
                                                       lambda: off(dict(outer_colour_far_black=True)),    "PASS"),
         ("off: CONTROL, the same frame with ring pixels allowed into markers",
                                                       lambda: off(dict(outer_colour_far_black=True), excl=False), "FAIL"),
+        # The wedge mask (ruled 2026-10-28). M2: located, and its share inside the predicted band.
+        ("M2 look 4's wedge drawn: the mask is found, its share 18.4-18.9 %", lambda: share_case("A"),   "PASS"),
+        ("M3 S-m1: a wedge-only colour on a ring pixel outside the mask", lambda: on(dict(plant="outside"), "A"), "FAIL"),
+        ("M4 S-m2: the head erased",                  lambda: on(dict(head="none"), "A"),                "UNTRUSTWORTHY"),
+        ("M5 two heads",                              lambda: on(dict(head="two"), "A"),                 "UNTRUSTWORTHY"),
+        ("M5 the head 80 px out, not at the edge",    lambda: on(dict(head="r80"), "A"),                 "UNTRUSTWORTHY"),
+        ("M5 the beam line 0.3 rad from its head",    lambda: on(dict(beam_dtheta=0.3), "A"),            "UNTRUSTWORTHY"),
+        ("M6 CONTROL: the same wedge-only pixel inside the mask", lambda: on(dict(plant="inside"), "A"), "PASS"),
     ]
     bad = 0
     for label, run, want in cases:

@@ -1559,3 +1559,21 @@ reads INSTRUMENT and whose new instrument awaits a ruling.
 | **M8** | `wx-fb-check.py --selftest` as a whole, and CI | SELFTEST PASSED, CI 0 failures |
 
 **Outside the set:** stop and report.
+
+### Results for the wedge mask (local, before any capture)
+
+| | read | verdict |
+|---|---|---|
+| **M1** | computed before the code over 360 beam angles: 18.58-18.69 % of 45,223 disc pixels | (the band for the captures: 18.4-18.9 %) |
+| **M2** | the synthetic look-A frame with look 4's wedge, beam and head: the beam at +3.142 rad, the head 118.0 px out, beam hits 101/101, **masked share 18.62 %**; (1) and (2) PASS | **as predicted** |
+| **M3** | S-m1, a wedge-only colour on a ring pixel outside the mask: **(1) FAIL**, "ring exceptions 1 (a wedge colour outside the wedge 1)" | **as predicted** |
+| **M4** | S-m2, the head erased: **UNTRUSTWORTHY**, "the beam's head: 0 blobs, not exactly one" | **as predicted** |
+| **M5** | two heads: UNTRUSTWORTHY ("2 blobs"). The head 80 px out: UNTRUSTWORTHY ("80.3 px from the centre"). The beam 0.3 rad off: UNTRUSTWORTHY ("0/101 samples") | **as predicted** |
+| **M6** | the control, the same pixel inside the mask: not graded, (1) PASS, 231 ring pixels masked | **as predicted** |
+| **M7** | the 18 existing cases, now with the wedge drawn (the beam west, the subjects east): every verdict unchanged | **as predicted** |
+| **M8 (local half)** | WX FB CHECK SELFTEST PASSED: 25 cases | **as predicted** |
+
+- **Read from the source:** the wedge-only sets are 172 colours (look A) and 218 (look B). The head and beam colours
+  are not marker colours, so neither can be read as a plane.
+- **The captures wait for rain close enough for R3 to grade,** and Daniel gets the hands-off window in Pacific time
+  before the start.
