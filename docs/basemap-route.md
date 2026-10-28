@@ -1709,3 +1709,27 @@ The seven earlier sabotages (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS, S-V
 **Standing from here:** when a row is added, every frozen sabotage set is re-checked against it before the next pass, and the check is written down beside the row.
 
 **S-SQUARELEN, re-run under the ruling:** **{ML6, MR6}**, as re-registered. The pass had 2 runs and 0 runtime failures.
+
+### A2.17 Before `terrain.ts`: a second frozen-set gap, found by reading, recorded before any code
+
+**`budget.ts` is written** (§6, RD13, RD15, RD18-RD20). MB's rows run through `build()` and need PROVENANCE's exact bytes and, for MB8, a terrain level. So MB and its sabotages are graded once `build.ts` exists, as MR5 and MR6 waited for `layers.ts`.
+- **A check of the MB values against the ruled layout.** The calculator on disk is the version from before RD-P1. It prints P_A 531 and S0A 832.
+- The frozen 511 / 812 and 1,005 / 1,346 are exactly the ruled layout, which writes `dropped.` and `collapsed.` for every layer read:
+  - A drops the stray `collapsed.rivers: 0` line (−20 B);
+  - A8 also adds `dropped.terrain: 0` and `collapsed.terrain: 0` (+40 B, so +20 B net).
+- **So the frozen values stand,** and `build.ts` will write A1.5's layout.
+
+**S-TNOMARGIN's frozen set is {MT3, MB8a, MB8b}. I expect it to fail {MB8a, MB8b}.**
+- **Why MT3 cannot see it at its frozen origin (0, 0):** the level (98,974,656 mm) spans z9 X 65,212.3-65,859.7, in tiles 254-257. Its outermost samples sit **188.3 px** inside the bare square's mosaic on the west and on the east too, and the same in Y at the equator.
+- The hillshade's gradient and the 4 × 4 mean reach at most 3 px. So the mosaic with no margin and the mosaic with one give the same 60,516 values. MT3 passes under the plant.
+- **MB8a and MB8b still fail,** through `files.terrain` (16 → 4, PROVENANCE 1 B shorter), as A1.7 says.
+- **A weakness of MT3 itself, beyond the set:** the row is named for the margin rule but cannot fail for it at this origin. A margin matters only where the level's square edge lies within about 3 px of a tile boundary.
+- **Proposed, for a ruling:**
+  - S-TNOMARGIN's set is re-registered as {MB8a, MB8b};
+  - and **MT3b** is added, at an origin whose level edge falls 1 px from a tile boundary, which S-TNOMARGIN must fail.
+- **Until then, MT3 runs as frozen,** and S-TNOMARGIN waits for MB, as frozen.
+- **The other MT sets, checked the same way, hold:**
+  - S-TALIGN and S-TPAD leave MT2's uniform plane shades unchanged where they should;
+  - MT3's two mosaics share any plant, so MT3 stays equal under every plant;
+  - S-TCOS moves only lat0 60 (MT2e);
+  - S-TROUND moves only MT4.
