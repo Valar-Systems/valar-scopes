@@ -249,7 +249,33 @@ export function reachOf(c: Cell): Box {
 // ------------------------------------------------------------------------------------------------ the manifest
 
 export interface ManifestFile { bytes: number; layer: string; sha256: string; url: string; vintage: string }
-export interface Manifest { builder: string; files: ManifestFile[]; predicates: string[] }
+/** `notes` (ruled 2026-10-28, MI4b): one "<url>: <why>" per file fetched from a mirror; ABSENT when there is
+ *  nothing to note, so a store with no mirrored file is byte-identical to one written before the key existed. */
+export interface Manifest { builder: string; files: ManifestFile[]; predicates: string[]; notes?: string[] }
+
+const byteCmp = (a: string, b: string) => {
+  const x = te.encode(a), y = te.encode(b);
+  for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i]! - y[i]!;
+  return x.length - y.length;
+};
+
+/** MI4b's rules: present means non-empty; each note is "<a listed url>: <why>", one per URL, its why holding no
+ *  wall-clock date or time; the list strictly ascending in byte order. Refused otherwise -- never repaired. */
+function checkNotes(notes: unknown, urls: string[]): void {
+  if (!Array.isArray(notes) || notes.length === 0) throw new Error("manifest notes must be absent, never empty");
+  const seen = new Set<string>();
+  for (const n of notes) {
+    if (typeof n !== "string") throw new Error("a manifest note is not a string");
+    const url = urls.filter((u) => n.startsWith(u + ": ")).sort((a, b) => b.length - a.length)[0];
+    if (!url) throw new Error(`a manifest note is not "<listed url>: <why>": ${n}`);
+    const why = n.slice(url.length + 2);
+    if (!why.trim()) throw new Error(`a manifest note has no reason: ${url}`);
+    if (/\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}/.test(why)) throw new Error(`a manifest note holds a wall-clock time: ${url}`);
+    if (seen.has(url)) throw new Error(`two manifest notes for ${url}`);
+    seen.add(url);
+  }
+  for (let i = 1; i < notes.length; i++) if (byteCmp(notes[i - 1], notes[i]) >= 0) throw new Error("manifest notes must be sorted, in byte order");
+}
 
 /** Keys sorted at every depth. NOT `JSON.stringify(v, keysArray)`: an array replacer is an allowlist applied
  *  at every depth, and silently drops every nested key not in it (it emptied the first fetch log). */
@@ -264,11 +290,12 @@ export function sortKeys(v: unknown): unknown {
  *  files sorted by URL. Anything else is refused, so `store:` can only ever name this shape. */
 export function writeManifest(m: Manifest): string {
   const top = Object.keys(m).sort().join(",");
-  if (top !== "builder,files,predicates") throw new Error(`manifest keys ${top}`);
+  if (top !== "builder,files,predicates" && top !== "builder,files,notes,predicates") throw new Error(`manifest keys ${top}`);
   for (const f of m.files) {
     const k = Object.keys(f).sort().join(",");
     if (k !== "bytes,layer,sha256,url,vintage") throw new Error(`manifest file keys ${k}`);
   }
+  if ("notes" in m) checkNotes(m.notes, m.files.map((f) => f.url));
   const files = [...m.files].sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
   return JSON.stringify(sortKeys({ ...m, files }), null, 1) + "\n";
 }

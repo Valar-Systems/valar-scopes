@@ -314,7 +314,11 @@ async function dryRun(cache: string): Promise<void> {
     commit = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
     dirty = execSync("git status --porcelain -- .", { encoding: "utf8" }).trim().length > 0;
   } catch { /* reported as UNKNOWN below */ }
-  const manifestText = writeManifest({ builder: commit, files, predicates: [...PREDICATES] });
+  // notes (MI4b): from the plan's `note`s only, in byte order; the key is absent when there are none.
+  const te8 = new TextEncoder();
+  const notes = planned.filter((f) => f.note && log[f.url]).map((f) => `${f.url}: ${f.note}`)
+    .sort((a, b) => Buffer.compare(Buffer.from(te8.encode(a)), Buffer.from(te8.encode(b))));
+  const manifestText = writeManifest({ builder: commit, files, predicates: [...PREDICATES], ...(notes.length ? { notes } : {}) });
   const storeId = await storeIdOf(manifestText);
   const indexText = JSON.stringify({ cells: entries }) + "\n";
   writeFileSync(join(out, "store", partial ? "manifest.PARTIAL.json" : "manifest.json"), manifestText);

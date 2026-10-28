@@ -32,6 +32,18 @@ const SABOTAGES = {
              "  for (const o of objects) await bucket.put(o.key, o.bytes);\n  await bucket.put(currentKey, currentBody); // SABOTAGE S-ISEAL: sealed before verifying\n  let v = await verifyStore(bucket, objects);\n"]],
     expect: ["MI7"],
   },
+  "S-INOTESORT": {
+    file: LIB,
+    edits: [['  for (let i = 1; i < notes.length; i++) if (byteCmp(notes[i - 1], notes[i]) >= 0) throw new Error("manifest notes must be sorted, in byte order");\n',
+             '  notes.sort(byteCmp); // SABOTAGE S-INOTESORT: sorted for the caller instead of refused\n']],
+    expect: ["MI4b"],
+  },
+  "S-IKEYS": {
+    file: LIB,
+    edits: [['  if (top !== "builder,files,predicates" && top !== "builder,files,notes,predicates") throw new Error(`manifest keys ${top}`);\n',
+             '  void top; // SABOTAGE S-IKEYS: any top-level key accepted\n']],
+    expect: ["MI4", "MI4b"],
+  },
   "S-IBUS": {
     file: LIB,
     edits: [['    case "roads": return a["MTFCC"] === "S1100" || a["MTFCC"] === "S1200";\n',

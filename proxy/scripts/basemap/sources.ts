@@ -9,7 +9,9 @@ export const PACKAGE_LAYERS = ["water", "rivers", "roads", "peaks", "places", "p
 export const STORE_ONLY_LAYERS = ["states", "counties", "naturalearth"] as const;
 export type Layer = (typeof PACKAGE_LAYERS)[number] | (typeof STORE_ONLY_LAYERS)[number];
 
-export interface SourceFile { layer: Layer; url: string }
+/** `note`: why this file's URL is not the usual one (a mirror, ruled 2026-10-28). It becomes the manifest's
+ *  "<url>: <note>" -- taken from the PLAN, never from a run, so a re-ingest reproduces it and no clock enters. */
+export interface SourceFile { layer: Layer; url: string; note?: string }
 
 /** v1 coverage is the 50 states + DC (BQ4): every state FIPS code except the territories'. */
 export const TERRITORY_FIPS = new Set(["60", "66", "69", "72", "78"]);

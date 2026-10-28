@@ -79,6 +79,45 @@ describe("MI, the ingest", () => {
     expect(() => writeManifest({ ...m, files: [{ ...m.files[0]!, mtime: 1 } as never] })).toThrow(/file keys/);
   });
 
+  it("MI4b: the optional notes key (re-registered 2026-10-28), beside MI4's frozen row", async () => {
+    const m: Manifest = {
+      predicates: ["p"], builder: "1".repeat(40),
+      files: [
+        { vintage: "2024", url: "https://example.invalid/b.zip", sha256: "4".repeat(64), layer: "rivers", bytes: 2 },
+        { url: "https://example.invalid/a.zip", layer: "counties", bytes: 1, sha256: "3".repeat(64), vintage: "2024" },
+      ],
+    };
+    const a = "https://example.invalid/a.zip: fetched from the Census Bureau's mirror";
+    const b = "https://example.invalid/b.zip: fetched from the Census Bureau's mirror";
+    // (a) no notes: byte-identical to MI4's output (the same manifest, written the same way)
+    const plain = writeManifest(m);
+    expect(plain).not.toContain('"notes"');
+    expect(plain.split("\n").slice(0, 2)).toEqual(["{", ' "builder": "' + "1".repeat(40) + '",']);
+    // (b) one note: keys builder, files, notes, predicates; printed as given; round trip; a different store id
+    const t = writeManifest({ ...m, notes: [a] });
+    const keys = [...t.matchAll(/^ "([a-z]+)":/gm)].map((k) => k[1]);
+    expect(keys).toEqual(["builder", "files", "notes", "predicates"]);
+    expect(t).toContain(` "notes": [\n  ${JSON.stringify(a)}\n ],`);
+    expect(writeManifest(JSON.parse(t))).toBe(t);
+    expect(await storeIdOf(t)).not.toBe(await storeIdOf(plain));
+    expect(writeManifest({ ...m, notes: [a, b] })).toContain(JSON.stringify(b));
+    // (c) unsorted: refused, not sorted for the caller
+    expect(() => writeManifest({ ...m, notes: [b, a] })).toThrow(/sorted/);
+    // (d) an unknown top-level key: refused
+    expect(() => writeManifest({ ...m, notes: [a], extra: 1 } as unknown as Manifest)).toThrow(/manifest keys/);
+    // (e) present but empty: refused
+    expect(() => writeManifest({ ...m, notes: [] })).toThrow(/absent, never empty/);
+    // (f) a URL not among the files; two notes for one URL
+    expect(() => writeManifest({ ...m, notes: ["https://example.invalid/c.zip: mirrored"] })).toThrow(/listed url/);
+    expect(() => writeManifest({ ...m, notes: [a, a + " again"] })).toThrow(/two manifest notes/);
+    // (g) a wall-clock time in the reason
+    expect(() => writeManifest({ ...m, notes: ["https://example.invalid/a.zip: mirrored on 2026-10-28"] })).toThrow(/wall-clock/);
+    expect(() => writeManifest({ ...m, notes: ["https://example.invalid/a.zip: mirrored at 04:00"] })).toThrow(/wall-clock/);
+    // (h) not "<url>: <why>"
+    expect(() => writeManifest({ ...m, notes: ["https://example.invalid/a.zip mirrored"] })).toThrow(/listed url/);
+    expect(() => writeManifest({ ...m, notes: ["https://example.invalid/a.zip:  "] })).toThrow(/no reason/);
+  });
+
   it("MI5: a feature crossing a cell border is stored once, in its south-west corner's cell", () => {
     const xy = new Float64Array([-0.5, 0.5, 0.5, 1.5]); // crosses lon 0 and lat 1
     const f = featuresFrom("rivers", 0, [{ index: 0, parts: [xy], attrs: { FULLNAME: "C Riv" } }])[0]!;
