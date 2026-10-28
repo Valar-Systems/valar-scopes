@@ -1107,6 +1107,40 @@ Synthetic features at origin (0, 0), through the layer functions.
   - I have not run it: that is a change of instrument, so it waits for the reviewer's word.
 - **The bytes landed inside their band,** and both the 6 GB stop and the free 10 GB are far off. **Nothing depends on the count.** I make no fix.
 
+**A silent zero, caught by reading the summary rather than by a guard.**
+- **What happened:** the first full vector run kept **0 of 32,350 places**.
+  - The 2025 Gazetteer is **pipe-delimited**, while older vintages used tabs. Read as tab-delimited, every row was one column, `LSAD` was absent, and the predicate returned false.
+- **What caught it:** my reading of the run's summary. **No guard did.**
+- **Now two guards would catch it:**
+  - `filterRecord` refuses a **missing** column, while still accepting an empty value (MI-column, with a tab-misread control);
+  - the dry run refuses any layer that keeps nothing from a non-zero record count.
+- **The corrected run keeps 10,232 places, exactly as predicted.**
+  - The prediction was the file's own LSAD-25 count, taken by `awk` over the raw file before the run: a different tool, which agrees.
+
+**The sizes, measured before any bucket exists.**
+- **This is a PARTIAL measurement.** The census firewall still answers two county `AREAWATER` URLs with its rejection page.
+  - `--partial` writes to its own directory, names its manifest `PARTIAL`, and lists the missing files. It is never a store.
+  - **The bound on the missing share:** the listing gives the two zips as 280 KB and 508 KB. Only their ≥ 1.5 km² features would be kept, so they add a few MB at most.
+
+| | measured | registered |
+|---|---|---|
+| water | 68,974 parts, 24.3 M vertices, **390,386,786 B** | |
+| rivers | 97,140 parts, 12.1 M vertices, **196,212,893 B** | |
+| roads | 262,604 parts, 28.0 M vertices, **458,012,935 B** | |
+| peaks | 68,806 summits, **3,719,902 B** | |
+| places | 10,232, **649,457 B** (populations joined from 19,479 SUMLEV 162 rows) | |
+| cells | 1,397, all at level 0. The largest is **10,290,428 B**, so none split (24 MB rule) | |
+| manifest, index | 1,597,028 B; 138,790 B | |
+| **vector store** | **1,050,734,555 B** | 1-4 GB: **inside** |
+| coverage, regions | 121,428 B; 166,835 B | |
+| terrain mirror | 9,638 tiles, **706,629,891 B** | the count a **MISS** (above); the bytes inside 0.6-0.8 GB |
+| **the store** | **1,757,652,709 B (1.76 GB)**, plus a few MB for the two missing files and about 5 KB of tile bits | 1.6-4.8 GB: **inside**. The **6 GB stop is not reached** |
+
+**What it means for the bill** (A1.6's guards):
+- **R2 storage:** the store, plus the account's ~0.7 GB, is ~2.5 GB of the free 10 GB.
+- **D1's puts:** 1,397 cells + 9,638 tiles + 6 small objects = **about 11,041**, against the weather server's ~880k of the free 1M Class A. That is about 1.1 % more.
+- **Neither crosses a bill. D1 is still blocked on the two files.**
+
 **One fix in `assignCells`, outside the frozen rows.**
 - Features that all share one south-west corner can never be separated by a quarter, so splitting them recursed forever.
 - Such a cell is now kept whole, like a single-feature cell. MI6's frozen expectations do not touch this case.
