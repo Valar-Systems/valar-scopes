@@ -1122,3 +1122,50 @@ rule and read N3-N6 as frozen, with the carried commits listed first."
     is an argument from the code, as S3's was, and is not used to re-grade.
 - **One read on each side of a possibly transient fault does not separate them.** Whether to redeploy, and with N3
   re-registered as S3′'s W5 was, is for a ruling.
+
+### The redeploy: the ruling verbatim, and N3′ frozen before any run (2026-10-28)
+
+**The ruling (reviewer chat, pasted by Daniel), item 1, verbatim:**
+> 1. #492's deploy (record on #494): the rollback was right, as frozen. Redeploy, with these changes.
+> - First, run the same smoke against staging, which is still on the new version, twice, five minutes apart, and
+>   record both runs.
+> - N3′, re-registered as S3′'s W5 was, with N3's miss kept on record: every smoke check passes, except that the
+>   upstream conditions (/blips 503 upstream_unavailable, and the chain-tile check) are re-run once after 120 s and
+>   must pass then. The credits check must pass first time.
+> - N5's commit clause reads as: the deployed commit's proxy/ tree equals #492's merge commit's. aa24294 met that. For
+>   the redeploy, list the carried commits again, from main's head at the time.
+> - N6: when this session can read the analytics-read token (Daniel is being asked for the token file's path), read
+>   the 30 minutes after production's deploy. That data stays queryable, so the redeploy doesn't wait for the token.
+>   If N6 shows a fleet regression, roll back at once.
+> - N4 as frozen.
+
+**N5's commit clause, as ruled:** for the first deploy, `aa24294`'s `proxy/` tree equals `77f6913`'s. So that clause
+**passes**, and the bindings clause was already as predicted.
+
+**How each row is read, frozen now:**
+- **Staging, first:** `smoke-prod.sh` with `BASE=https://scopes-staging.valarsystems.com` and E2:08's credential,
+  twice, at least 5 min apart. Each run's summary line and the name of every FAIL are recorded. **Not graded.** Staging
+  holds its own device-key secret (S2's P4), so 401 FAILs there are expected.
+- **The redeploy:** `deploy.sh` staging, then production, from a clean detached worktree at main's head.
+  - The carried commits are listed first, from that head: any commit since production's `962ccb7` that touches
+    `proxy/`.
+  - **N5′:** the deployed commit's `proxy/` tree equals `77f6913`'s; production's bindings equal those of the version
+    it replaces (`wrangler versions view` on both); the rollback target is read and recorded before the deploy.
+- **N3′, on production after the deploy, the whole `smoke-prod.sh`:**
+  - **the credits check** ("/credits carries the NOAA MRMS line") must **PASS in the first run**;
+  - **every check other than the two upstream conditions** must PASS in the first run;
+  - **the two upstream conditions** are "/v1/blips (Bend …)" when it fails with 503 `upstream_unavailable`, and
+    "upstream chain (freshness + both relays serving)". If either FAILs in the first run, the whole script runs once
+    more, **120 s after the first run ends**, and in that run **both must PASS**. In the second run only those two
+    are graded.
+  - **Anything else is a MISS:** any other FAIL, an upstream condition failing in a way that is not a 503 with no
+    upstream, or an upstream condition failing twice. A MISS means roll back production first.
+- **N4,** as frozen: the post-deploy page's bytes saved, the line deleted, served on localhost, through
+  `smoke-prod.sh`'s own `contains`: FAIL with the marker MISSING. The unmodified bytes by the same path: PASS.
+- **N6,** when the `analytics-read` token can be read: the 30 min after production's deploy, by S3′'s rules.
+  - fleet 4xx 0;
+  - fleet 5xx other than no-upstream `/blips` 503s: 0;
+  - those 503s ≤ 1 % of fleet `/blips`;
+  - read twice.
+  - A fleet regression means **roll back at once.**
+- **The escape:** anything else means stop. In production, roll back first.
