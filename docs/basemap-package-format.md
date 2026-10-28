@@ -405,4 +405,4 @@ credit.terrain: Contains information licensed under the Open Government Licence 
 | peaks only | `Terrarium z9 elevations; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres` |
 | both | the levels text, then `; summit elevations taken from the z9 pixel containing the summit, rounded to whole metres` |
 
-**`bend.bmpk`** carries the SRTM line and the "both" text. Its licence file (A10.14) also carries SRTM's §3.15 notice, as that spec words it.
+**`bend.bmpk`** carries the SRTM line and the "both" text. Its licence file (A10.14) also carries SRTM's §3.15 notice, as that spec words it, with the year **2000** and a note that joerd records a 2014 update (ruled for both builders: A10.18 here, AQ1 in the route's plan): "© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C."
