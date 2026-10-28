@@ -95,3 +95,42 @@ are committed under `docs/uk-data/instruments/`.
   listable (a multipart upload's start, say), which would make latency look shorter than a fetcher sees. A live
   poller (`poll_live.py`) records each new frame's first appearance in the listing for 32 minutes. Its result is
   printed beside these rows and does not grade them.
+
+## Results: contents and coverage (read 2026-10-28 ~04:10Z)
+
+**The instrument:** `coverage.py`, over 4 frames per product: Met Office 2026-10-27 06:00, 12:00, 18:00 and 23:45;
+OPERA `DBZH` 10-27 12:00 and 18:00, 10-28 00:00 and 03:55; `RATE` the same, with 03:45 last. Raw output `cov2.json`,
+and the sabotage runs `cov_sab_c2.json` and `cov_sab_c3.json`, are in `docs/uk-data/instruments/`.
+- **The committed copies round every float to 6 significant digits.** The repo's device-id hook refused the raw files,
+  because a float written out in full (a step of about 9.3e-10 mm/h, to 16 digits) holds a 16-character hex-like run.
+- **The raw files' sha256:** `cov2` `42e3c1406720…`, `cov_sab_c2` `61ada394429f…`, `cov_sab_c3` `8df063664e23…`.
+- No verdict depends on a digit past the sixth.
+
+| | read | verdict |
+|---|---|---|
+| **C2** | in all 12 files, the key's time equals the file's own `what/date` + `what/time` | **passed**. Sabotage (`MMHH`): fails in every product, red |
+| **C3** | the four corner pixels read nodata in all 12 files; FRA reads covered in all 8 OPERA files | **passed**. Sabotage (compare with `undetect`): the corner control fails in every product, red |
+| georeference (printed) | the `LR` corner against `UL` + size × scale: 2.8 m / 0.6 m (Met Office), 0.0 m (OPERA). So the corners are the image's outer edges, not pixel centres | — |
+| **M3** | `RATE`, mm/h, `float32`; one dataset, one data group; 1,725 × 2,175 at 1,000 m; `+proj=tmerc` on the Airy ellipsoid; `nodata` −1, `undetect` 0; gzip-6 in 75-row chunks; `how/zr_a` 200, `zr_b` 1.6; 17 nodes, `ukcas` (Castor Bay, NI) and `iesha` (Shannon) among them | **as predicted** |
+| **M4** | covered on its pixel in every frame: all 16 other UK centres, **BFS, BHD and LDY included**, and DUB. **LSI (Sumburgh, Shetland): uncovered in all 4 frames**, its 160 km disc 39.8 % covered | **MISS** (LSI) |
+| **O3** | 16 UK nodes in both products' `how/nodes` (`ukcas` included), plus `iedub` and `iesha` in `DBZH`. `DBZH`: every centre covered on its pixel in every frame **except LSI** (disc 44.7 %). `RATE` (2 km): **LSI and SYY** uncovered in all 4 frames | **MISS** (LSI; SYY in `RATE` only) |
+
+**Beside the verdicts, as data:**
+- **Northern Ireland is covered by both sources**, on every frame, at all three of its centres.
+- **Shetland is outside both.** KOI (Orkney) is covered everywhere, with a disc 86-88 % covered.
+- **The alternative to the LSI reading:** a wrong pixel lookup. **Excluded:** the georeference closes to under 3 m;
+  two projections (tmerc and laea) and three products agree on LSI; and KOI, the nearest centre, reads covered.
+- **The products' values:**
+  - Met Office rain rates are continuous floats: about 65,000-200,000 distinct values a frame, up to 86 mm/h.
+  - OPERA `DBZH` is −32 to 78.5 dBZ, in 0.5 dB steps.
+  - OPERA `RATE` is in 0.01 mm/h steps. It reaches 687 mm/h, which no surface rain does: clutter.
+
+**One more reading, not frozen, printed:** OPERA's GeoTIFF beside each `.h5` is a cloud-optimised GeoTIFF:
+- **Layout:** 2 `float32` bands (the value and the quality index), 512 × 512 deflate tiles, 4 overviews.
+- **Against the HDF5:**
+  - **nodata stays −9,999,000;**
+  - **undetect becomes NaN;**
+  - every data cell is **bit-identical** (max |Δ| 0.0).
+  So the TIFF keeps "no coverage" (14) apart from "dry inside coverage" (0), which WXC1 needs.
+- **The UK window** is the UK's land extent plus the radar's 2.02° maximum view:
+  - **16 of the 72 full-resolution tiles,** 603,607 compressed bytes: 30.2 % of the file's level-0 tile bytes.
