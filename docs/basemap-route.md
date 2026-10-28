@@ -1205,4 +1205,27 @@ Synthetic features at origin (0, 0), through the layer functions.
 
 - 3,914 tiles are ocean-only (ETOPO1), mostly the Aleutian and Northwestern Hawaiian reach.
 
+**The tiles, fetched.** All **9,638**, totalling **706,629,891 B**, exactly what the HEADs had measured: 0 size mismatches, and every one a PNG by its magic bytes.
+- Node's HTTP client (undici) crashed four times from inside its parser, outside any `try`.
+- Each crash saved the log first, and the next run resumed, re-hashing every file. So none of the four can have logged a wrong file.
+
+### The bucket, announced with the measured numbers (before it exists)
+
+**`blipscope-basemap`,** R2, with no lifecycle expiry. Measured on a PARTIAL dry run (16,033 of 16,035 files; the two refused county files add a few MB at most):
+
+| object | bytes | count |
+|---|---|---|
+| vector cells | 1,048,998,737 | 1,397 (the largest 10,290,428; none over 24 MB) |
+| the terrain mirror | 706,629,891 | 9,638 |
+| `manifest.json` (all 16,035 sources, tiles included) | 3,866,886 | 1 |
+| `index.json`, `regions.json`, `coverage.bin`, `terrain-sources.bin` | 138,790; 166,835; 121,428; 48,202 | 4 |
+| `current` | about 30 | 1 |
+| **the store** | **1,759,970,769 (1.76 GB)** | **11,041 puts** |
+
+- **Storage:** with the account's ~0.7 GB, about 2.5 GB of the free 10 GB. **$0.**
+- **Class A, once per ingest:** 11,041 puts, plus repairs. With the weather server's ~880k a month, that is about 891k of the free 1M. **$0.**
+- **Class B:** the verify reads each object back once, 11,041 reads, against the free 10M. **$0.**
+- **So it does not wait for Daniel's yes** (ruled). It is created at the start of D1, immediately before the upload. An empty bucket serves no purpose before then, and D1 waits for the two refused files.
+- **The upload:** Wrangler under the existing login, 8 at a time (ruled), then verify → repair → verify → seal.
+
 **The two refused files:** the 24-hour retry is running, one file at a time, with the User-Agent `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`. Its first attempt, at 04:00Z on 2026-10-28, was refused again. Every attempt is logged to `retry-attempts.jsonl`.
