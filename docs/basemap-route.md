@@ -1356,3 +1356,95 @@ Synthetic features at origin (0, 0), through the layer functions.
   - `sqrt(x·x + y·y)`, in §13's written order, for Douglas–Peucker's distance, the disc test and the 3 km de-duplication;
   - `hypot` only in the hillshade.
 - **MG1 runs once Weatherscope's re-cut `bend.bmpk` is on main** and its commit is sent.
+
+---
+
+## Addendum 2, 2026-10-28: step 4, the builder; its truth tables frozen before any builder code
+
+### A2.1 The ruling, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> Ruling (reviewer chat, 2026-10-28)
+>
+> Yes: start step 4 (the builder) now, before D1. Freeze its truth tables in the PR before any builder code, as A1.7 set up, with these conditions:
+> - Build and test against the dry-run store. Mark any row that depends on the two missing county files, and re-read those rows on the final store.
+> - If either missing file is one of Bend's counties, the golden comparison with bend.bmpk waits for the final store too.
+> - D1 goes ahead when the census files are in (the 04:00Z retry, or the mirror with its notes), as ruled. Neither step waits on the other.
+
+### A2.2 What the builder binds to
+
+- **The format doc on main at `c06dc17`,** with §13's RD1-RD31.
+  - RD22-RD31 are the readings ruled on 2026-10-28, with RD31's four `sqrt` sites written out.
+  - The branch merged main at `901bfbd`.
+- **The fixtures on main** (`test/fixtures/wx/basemap/`):
+  - 25 `neg-*.bmpk`, plus `syn-min`, `syn-unknown`, `syn-order`, `bend.bmpk` and `bend.manifest.json`;
+  - **MV, ME1 and ME1b are no longer BLIND.**
+  - **MV binds by suffix** (`neg-<x>.bmpk` is A10.11's `PK-<x>`), and first asserts the 25-to-25 match. A missing or extra file makes MV BLIND. The README names the set, not each file, so this is my reading of A1.7's "the PK case name its fixture list gives".
+- **MG still waits** for the commit of Weatherscope's **re-cut** `bend.bmpk`, which Weatherscope sends. The `bend.bmpk` now on main (#495) is not assumed to be it.
+
+### A2.3 The two missing county files (the ruling's conditions)
+
+- **They are** NJ 34023 and OH 39077 `AREAWATER`.
+- **The check:** every registered real-store row's square, at 97, 161 and 222 km around each of KDEN, KBOS, KBUF, KELP, KGJT, KMSP, KMSY, KRDU, KATL and KSFO, against the two counties' extents, by RD-P6's box rule. Only booleans were printed.
+  - **The result: no registered row reads either county.** Every A1.7 row can be graded on the dry-run store.
+  - **The rows not on the cleared list** (PANC, CYYZ, PHNL, EGLL) are hundreds of km from both counties.
+- **Bend is in Oregon** (#495: "states: Oregon only"), so **MG does not wait on them.**
+- **Any row registered later** (MS0, §5.4's re-prediction) states its own dependency when it is frozen.
+
+### A2.4 A1.7's tables stand, with what has changed since
+
+| | change | where |
+|---|---|---|
+| MI4b | the manifest's `notes` | ruled and passed (above) |
+| ME1b | `encode()` from `synth.py`'s data writes `syn-min.bmpk` byte for byte | A1.11 |
+| MA1 | the attribution file and `/credits` carry every credit, the SRTM notice (year 2000) and the OGL statement | A1.12, AQ1 |
+| MW | MW12 reads 3; MW17 (the store-id guard) and S-WNOSTORECHECK | A1.7 |
+| MB | the values computed under the ruled PROVENANCE layout (P_A 511 B, P_8 1,005 B) | A1.7 |
+| MB, against RD26 | **checked: all nine fixture rings are outer** (negative shoelace on (lon, lat)), so MB's values stand | the calculator below |
+| ML6, ML11 | RD29's quadratic and RD31's `sqrt` leave them unchanged. ML4's tied groups are exactly 30,000 m each (`sqrt(900) = 30`), so the byte-order tie-break decides, as frozen | |
+
+### A2.5 MR, the ruled readings as rows (new; frozen here)
+
+**Conventions:**
+- **The expected doubles** come from a throwaway calculator that implements main's §13 text literally, as A1.7's did. Not builder code.
+- **One distance helper.** The builder computes every decision distance through one function, `planarDist(ex, ey) = sqrt(ex·ex + ey·ey)`, called at RD31's sites: Douglas–Peucker, the disc test and the 3 km de-dup. Each site computes its own `ex` and `ey` exactly as §13 writes them. **One helper, so no site can take a second path.**
+- **The functions MR binds to** (in `proxy/src/basemap/frame.ts` and `layers.ts`): `clipLine`, `clipRing`, `simplify`, `dedupeRing`, `isOuter`, `within3km`, `selectRivers`, `planarDist`.
+
+| case | reading | input | expected |
+|---|---|---|---|
+| **MR1** | RD22 | `clipLine([a, b], 97)`, a = (32.636433333333336, 31.1622) km, b = (−58.9144, 69.11385714285714) km, both inside | one run, `[a, b]`, **bit-identical**. Recomputing b as `a + 1·(b − a)` gives x = −58.91440000000001 |
+| **MR2** | RD23 | `clipRing([(−110.3, 20.7), (10.1, −115.9), (115.7, 10.3), (5.9, 120.1)], 97)` | exactly `[(−21.10422535211267, 97), (−97, 32.077108433734935), (−97, 5.610465116279071), (−6.558565153733539, −97), (25.914896988906506, −97), (97, −12.04791666666668), (97, 29.000000000000004), (29, 97)]` |
+| **MR3** | RD24 | `dedupeRing` of `[(1,1),(5,1),(5,5),(1,1)]` and of `[(1,1),(1,1),(5,1),(5,5),(1,1),(1,1)]` | `[(1,1),(5,1),(5,5)]` for both |
+| **MR4** | RD25, RD7, RD31 | `simplify([(0,0), (0.5, y), (1,0)] km, ε = 100,584 mm)`, with y = 0.100584, then y = 0.100585 | the middle vertex **dropped** at 0.100584: its distance is exactly 100.584 m = ε, and a vertex is kept only when > ε. **Kept** at 0.100585 (100.585 m). Every kept vertex is bit-identical to its input |
+| **MR5** | RD26 | one water record (`AWATER` 2,000,000) at origin (0, 0), with three parts in (lon, lat): clockwise `[(0,0),(0,0.1),(0.1,0.1),(0.1,0)]` (sum −0.020000000000000004), counter-clockwise `[(0,0),(0.1,0),(0.1,0.1),(0,0.1)]` (+0.020000000000000004), collinear `[(0,0),(0.05,0),(0.1,0)]` (0) | **one** ring, from the clockwise part; `collapsed.water` **0**. The zero-sum part never enters |
+| **MR6** | RD29, RD31 | rivers at origin (0, 0), in km: A (−25,0)-(25,0), 50,000 m; B (−20,10)-(20,10), 40,000 m; **C (30,95)-(90,95), 0 m** (in the square, outside the disc); D (−15,−10)-(15,−10), 30,000 m | the names table **[A, B, D]**. C is not a candidate, and none of its parts is drawn |
+| **MR7** | RD31 | `within3km(ex, ey)` with ex = `29999999999977143e-16`, ey = 0.000003703499999999059 | **false**: `sqrt` gives **3 + 2⁻⁵¹**, the next double above 3.0, so not de-duplicated. V8's `Math.hypot` gives **3 − 2⁻⁵¹**. **This is the case that makes RD31 observable.** The calculator found 1 disagreement in 2,000,000 tries on the 3 km circle. (These are written as literals and powers of two because their plain decimal forms trip the repo's device-id hook; each is the same double, checked) |
+
+**The sabotages, each with its exact set,** checked against every family, as A1.7's rule requires:
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-RLBRECOMP | Liang–Barsky recomputes every endpoint as `a + u·d` | **{MR1}** |
+| S-RXCUR | ring crossings computed from the current vertex toward the previous | **{MR2}** |
+| S-RORDER | the ring passes run north, south, west, east | **{MR2}** |
+| S-RNOCLOSE | RD24's closing-duplicate step removed | **{MR3}** |
+| S-RGE | a vertex kept when d ≥ ε | **{MR4}** |
+| S-RZERO | a zero shoelace sum counted as outer | **{MR5}** |
+| S-R0M | a 0 m river group stays a candidate | **{MR6}** |
+| S-RHYPOT | `planarDist` returns `Math.hypot(ex, ey)` | **{MR7}** |
+
+**Why the sets are what they are:**
+- **Every other row's ring and line lies inside the square:** MB's, MW's, ML2's and MR5's. So S-RXCUR and S-RORDER have no crossing to change, and S-RLBRECOMP's ulp moves cannot cross a quantisation half (checked in the calculator for MB's fixtures).
+- **RD24's step matters only when quantisation makes a ring's last vertex its first,** which happens in MR3 alone.
+- **No other row sits at ε, at 3.0 km, or at a zero shoelace sum.**
+- **Every ML river group is positive** (ML4, ML5, ML6), so S-R0M changes only MR6.
+- **ME2's random stores** are graded on validity, which none of these plants can break.
+- **MD1/MD2 compare the same code with itself;** MD3a and MD4 are excluded, as A1.7 says.
+
+### A2.6 The order of step 4
+
+1. **The builder modules,** against the dry-run store, each with its host tests and sabotages: `format.ts` (`encode`, `decode`, `validate`), `frame.ts`, `layers.ts`, `budget.ts`, `terrain.ts`, `provenance.ts`, `build.ts`. Graded: MV, ME, ML, MT, MB, MR, and MD1-MD2.
+2. **The route:** `query.ts`, `handler.ts`, and the builder Worker's entry. Graded: MQ, MW, MP, MD3, MD4, MA1's file half.
+3. **Before the builder runs on the real store:** MS0 (PROVENANCE's exact bytes per centre and radius) and §5.4's outcome classes, re-predicted and frozen here. Each row states whether it reads either missing county.
+4. **MC, then MM1 and MM3,** on the dry-run store.
+5. **MG,** once Weatherscope's re-cut commit is on main.
+- **D1 runs on its own track,** when the census files are in.
