@@ -1229,3 +1229,41 @@ Synthetic features at origin (0, 0), through the layer functions.
 - **The upload:** Wrangler under the existing login, 8 at a time (ruled), then verify → repair → verify → seal.
 
 **The two refused files:** the 24-hour retry is running, one file at a time, with the User-Agent `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`. Its first attempt, at 04:00Z on 2026-10-28, was refused again. Every attempt is logged to `retry-attempts.jsonl`.
+- **Through 10:01Z:** four rounds (minutes 0, 60, 180 and 360), and both files were refused in every round. Still to come: minute 720 (about 16:00Z) and minute 1440 (about 04:00Z on 2026-10-29).
+
+### Rulings of 2026-10-28, verbatim (source: reviewer chat, pasted by Daniel)
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> - The notes key: accepted. An optional top-level `notes` in the manifest, a sorted list of strings "<url>: <why>", one per mirrored file. It's absent when there's nothing to note, so a store with no mirrored file is byte-identical to today's. No wall-clock time in a note. MI4 is re-registered by this ruling, with the frozen row kept beside it. Sabotages: an unsorted list and an unknown top-level key are each refused by writeManifest. --check reproduces the notes. Used only if the 24 h retry fails.
+> - The tile count: the reading by region explains 9,638, so no reach = 0 run. Accepted, with the miss kept.
+> - The bucket: accepted as announced, at $0, created at the start of D1.
+> - Class A: with the weather server you're at about 891k of the free 1M a month. The UK radar plan adds about 26k, and Missileer grows. Count any extra ingest or repair runs against that, and say so before one would cross 1M. Daniel is being asked for a small monthly allowance.
+> - Information only: the UK data session's plan (docs/uk-data at 93f1a80) proposes the UK as your second coverage after US v1 (its M2 and M3), with an EU-DEM terrain bit. It read the source header (x-amz-meta-x-imagery-sources) of 480 z9 tiles around the UK, and every tile touching UK land lists eudem. Nothing to do until US v1 is live.
+
+**MI4b: MI4 re-registered by this ruling, frozen before its code.** MI4's frozen row stays as it is, and runs unchanged beside it.
+
+| case | input | expected |
+|---|---|---|
+| MI4b (a) | MI4's own manifest, no `notes` | **byte-identical** to MI4's output. A store with no mirrored file is unchanged |
+| MI4b (b) | the same, plus `notes: ["https://example.invalid/a.zip: fetched from the Census Bureau's mirror"]`, where `a.zip` is one of its files | top-level keys in the order `builder`, `files`, `notes`, `predicates`; the note printed as given; `writeManifest(JSON.parse(t)) === t`; a store id different from (a)'s |
+| MI4b (c) | two notes in descending byte order | **refused** (not sorted) |
+| MI4b (d) | an unknown top-level key | **refused** (MI4's own assertion, repeated here) |
+| MI4b (e) | `notes: []` | **refused**: absent, never empty |
+| MI4b (f) | a note for a URL that is not among `files`; two notes for one URL | **refused**, both |
+| MI4b (g) | a note whose reason holds a wall-clock time (`2026-10-28`, `04:00`) | **refused** |
+| MI4b (h) | a note that is not `<url>: <why>` (no `: ` after a listed URL, or an empty reason) | **refused** |
+
+**The sabotages,** graded by `scripts/sabotage-basemap.mjs` like MI's others:
+- **S-INOTESORT:** `writeManifest` sorts an unsorted list instead of refusing it. Fails exactly **{MI4b}**.
+- **S-IKEYS:** `writeManifest` accepts any top-level key. Fails exactly **{MI4, MI4b}**: MI4's frozen row asserts the same refusal.
+
+**`--check` reproduces the notes:**
+- A note comes from the source plan, as a planned file's `note`, never from the run. So re-ingesting the same plan writes the same manifest, notes included, and no clock can enter.
+- MD3 grows the assertion that the rebuilt manifest is byte-identical, `notes` included.
+
+**Class A, as ruled:** about 891k of the free 1M a month with the weather server; the UK radar plan adds about 26k; Missileer grows.
+- **Before any ingest or repair run, the run's put count is stated against that total.** D1 is 11,041 puts plus its repairs.
+- **A run that would cross 1M is said so first, and waits.**
+
+**The UK plan** (docs/uk-data at `93f1a80`) is information only. Nothing changes until US v1 is live.
