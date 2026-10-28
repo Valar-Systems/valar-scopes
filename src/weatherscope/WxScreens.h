@@ -502,7 +502,7 @@ inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* c
                 s.Put(x, y, wxraster::kBlack);
                 continue;
             }
-            const wxpalette::Rgb p = c == 15 ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false, wxpalette::kDim55);
+            const wxpalette::Rgb p = c == 15 ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false);
             s.Put(x, y, Rgb{p.r, p.g, p.b});
         }
     }

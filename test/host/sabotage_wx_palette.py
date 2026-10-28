@@ -1,5 +1,6 @@
 """Runs test_wx_palette.cpp against SABOTAGED copies of src/weatherscope/WxPalette.h; each must turn the suite
-red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4, 5 and 8) and nothing else.
+red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4, 5 and 8), re-registered for
+code 1's teal by docs/weatherscope-stage3.md A10.16, and nothing else.
 
     python -I test/host/sabotage_wx_palette.py
 
@@ -10,10 +11,14 @@ real header's sha256 is compared before and after.
   S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
   S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
   S-C3ef  the snow top set to white                                -> exactly C3e, C3f and C3i
-  S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
+  S-C3g   the snow start set to (0, 140, 140), near rain 1's teal  -> exactly C3g (A10.16: the old plant,
+          (20, 30, 180) near the old dimmed blue, would now fail nothing)
   S-h     the snow ramp started at (165, 205, 245), near its top    -> exactly C3h (it barely steps)
   S-i     the snow top set to (240, 245, 255), near white          -> exactly C3i
   S-C3j   rain 12 (violet) set to (45, 45, 45), near no coverage    -> exactly C3c and C3j
+  S-TEAL  rain 1 back to the old dimmed blue (0, 0, 135)            -> exactly C3d
+  S-C3k   rain 1 set near the grey, (40, 46, 44)                    -> exactly C3d and C3k
+  S-C3l   rain 1 brighter than rain 2, (200, 255, 230)              -> exactly C3d and C3l
   S-PIN   the REAL header, run on a fixtures copy whose pinned table has an id appended -> exactly pin
 Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
 """
@@ -38,7 +43,7 @@ SABOTAGES = {
               [r"C3c\b"]),
     "S-C3ef": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {255, 255, 255}};  // SABOTAGE")],
                [r"C3e\b", r"C3f\b", r"C3i\b"]),
-    "S-C3g": ([("kSnowTable[6] = {{0, 110, 210},", "kSnowTable[6] = {{20, 30, 180},  /* SABOTAGE */")],
+    "S-C3g": ([("kSnowTable[6] = {{0, 110, 210},", "kSnowTable[6] = {{0, 140, 140},  /* SABOTAGE */")],
               [r"C3g\b"]),
     "S-h": ([("constexpr Rgb kSnowTable[6] = {{0, 110, 210}, {66, 129, 218}, {98, 149, 226}, {124, 169, 234}, {148, 190, 242}, {170, 212, 250}};",
               "constexpr Rgb kSnowTable[6] = {{165, 205, 245}, {166, 206, 246}, {167, 208, 247}, {168, 209, 248}, "
@@ -48,6 +53,12 @@ SABOTAGES = {
               [r"C3c\b", r"C3j\b"]),
     "S-i": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {240, 245, 255}};  // SABOTAGE: near white")],
             [r"C3i\b"]),
+    "S-TEAL": ([("constexpr Rgb kRain1 = {0, 150, 135};", "constexpr Rgb kRain1 = {0, 0, 135};  // SABOTAGE: the old dimmed blue")],
+               [r"C3d\b"]),
+    "S-C3k": ([("constexpr Rgb kRain1 = {0, 150, 135};", "constexpr Rgb kRain1 = {40, 46, 44};  // SABOTAGE: near the grey")],
+              [r"C3d\b", r"C3k\b"]),
+    "S-C3l": ([("constexpr Rgb kRain1 = {0, 150, 135};", "constexpr Rgb kRain1 = {200, 255, 230};  // SABOTAGE: brighter than rain 2")],
+              [r"C3d\b", r"C3l\b"]),
 }
 
 

@@ -31,7 +31,6 @@ namespace {
 
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
-constexpr int kFrameDim = wxpalette::kDim55; // rain code 1 at 55 %, as the bench (final palette): the legend's
 
 const uint32_t kFg     = lgfx::color888(230, 237, 234);
 const uint32_t kDim    = lgfx::color888(130, 150, 160);
@@ -976,7 +975,7 @@ void WeatherscopeManager::DrawLegend(BandCanvas& c)
         }
         wxpalette::Rgb col;
         switch (sw.kind) {
-        case wxlegend::Kind::Rain: col = wxpalette::Rain(sw.code, kFrameDim); break;
+        case wxlegend::Kind::Rain: col = wxpalette::Rain(sw.code); break;   // code 1 teal (A10.16)
         case wxlegend::Kind::Snow: col = wxpalette::Snow(sw.code); break;
         default: col = wxpalette::kNoCoverage; break;
         }

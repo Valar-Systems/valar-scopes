@@ -917,6 +917,25 @@ else
 fi
 
 echo
+echo "== Missileer E-4B table (docs/missileer-e4b-table.md) =="
+# The four cited E-4B addresses, and none of the four C-2A Greyhounds the table once held. The selftest includes
+# the ruled sabotage -- one C-2A address put back into the REAL file's text, in memory -- and must see it fail.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the E-4B table check cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/check_e4b_table.py" --selftest
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: the E-4B table check's own selftest did not pass (or the real table is wrong)."
+    fail=1
+  fi
+  "$PY" "$ROOT/scripts/check_e4b_table.py"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then fail=1; fi
+fi
+
+echo
 echo "== purity gate =="
 if "$CXX" $FLAGS $INCLUDES \
       "$ROOT/test/host/no_arduino.cpp" \
@@ -1088,7 +1107,8 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 # Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties
-# (docs/weatherscope-stage2.md, addendum 2: C3 a-f). Its sabotages: python -I test/host/sabotage_wx_palette.py
+# (docs/weatherscope-stage2.md, addenda 2, 4, 5 and 8: C3 a-j; code 1 teal and C3 k-l by docs/weatherscope-stage3.md
+# A10.16). Its sabotages: python -I test/host/sabotage_wx_palette.py
 echo
 echo "== WxPalette =="
 if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_palette.cpp" -o "$OUT/test_wx_palette.exe" 2>"$OUT/build.log"; then

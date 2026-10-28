@@ -775,6 +775,14 @@ as #443's did.
     for maps.
   - Q13's letter is Daniel's.
 
+### A1.1c Q13, sent (source: the reviewer chat, pasted by Daniel, 2026-10-28), verbatim
+
+> Q13 update (reviewer chat, 2026-10-28): Daniel sent the LPS question today. Record Q13 as sent, awaiting a reply.
+> NI stays built-but-not-served until the reply is pasted and recorded.
+
+- **Q13's state: sent 2026-10-28, awaiting LPS's reply.**
+- Northern Ireland stays built but not served for maps until the reply is pasted and recorded here.
+
 ### A1.2 What the rulings change
 
 - **The count, corrected** (it was in my report, not in this doc):

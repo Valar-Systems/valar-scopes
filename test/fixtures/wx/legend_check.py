@@ -10,7 +10,7 @@ big-endian RGB565 each, zlib CRC-32). Then:
   L2  coverage: rows ordered top to bottom are the ruled groups, holding exactly rain 1-4 | 5-7 | 8-10 | 11-13,
       snow 1-6, no coverage 14, no data 15; nothing for dry
   L1  every pixel of every swatch equals the colour the FINAL palette gives its code, derived HERE, independently of
-      WxPalette.h: rain from the pinned table (code 1 at 55 %, 13 white), snow and the greys from addendum 6's dated
+      WxPalette.h: rain from the pinned table (code 1 TEAL (0, 150, 135) by ruling, A10.16; 13 white), snow and the greys from addendum 6's dated
       table, "no data" as the hatch pattern exactly. Expected colours go through LovyanGFX's truncating color565.
   L5  (addendum 8) the background: outside the swatches and the label boxes (WXT lines) every pixel is dry 0x0000;
       inside a label box only 0x0000 or 0xFFFF, and no box is empty
@@ -33,7 +33,7 @@ PIN = "f73f0d6264d420cb55efe79d58415ca056391a0cc607fa0efa061f3331418e2f"
 raw_tbl = open(os.path.join(HERE, "NWSReflectivity-metpy-v1.6.3.tbl"), "rb").read().replace(b"\r\n", b"\n")
 assert hashlib.sha256(raw_tbl).hexdigest() == PIN, "the table is not the pinned one"
 TBL = [tuple(round(c * 255) for c in ast.literal_eval(l)) for l in raw_tbl.decode().splitlines() if l.strip()]
-RAIN = {1: tuple((v * 55 + 50) // 100 for v in TBL[2]), 13: (255, 255, 255)}
+RAIN = {1: (0, 150, 135), 13: (255, 255, 255)}   # code 1 teal: Daniel's 2026-10-28 decision (A10.16), as ruled
 RAIN.update({c: TBL[c + 1] for c in range(2, 13)})
 SNOW = {1: (0, 110, 210), 2: (66, 129, 218), 3: (98, 149, 226), 4: (124, 169, 234), 5: (148, 190, 242), 6: (170, 212, 250)}
 NOCOV, HATCH, DRY = (40, 40, 40), (72, 72, 72), (0, 0, 0)
