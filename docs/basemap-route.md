@@ -1479,3 +1479,53 @@ Synthetic features at origin (0, 0), through the layer functions.
   - **The alternative, named and not recommended:** renaming my builder to a 20-character name to make the lengths agree.
 - **The controls, as before:** `bend.bmpk` compared with itself gives 0 differences; **S-GEPS** (1.5 ε) and **S-GSMOOTH** (no 4 × 4 mean) must FAIL.
 - **Rows that read the missing counties:** none (A2.3).
+
+### A2.8 MG1 accepted as re-registered (source: reviewer chat, pasted by Daniel, 2026-10-28)
+
+> MG1, as you re-registered it at 002d1ee: accepted.
+> - The header byte for byte except totalBytes and the CRC; the directory byte for byte except PROVENANCE's length; water through terrain byte for byte; PROVENANCE line for line except the values of builder: and store:. RD28 governs any terrain difference, reported cell by cell.
+> - The three masked fields follow from the builder line alone ("blipscope-basemap" is 3 bytes shorter than "weatherscope-basemap"), and since PROVENANCE is the last section, no other offset moves. So no padded builder name: each builder keeps its own name.
+> - The decode-within-tolerance version stays beside it, as recorded.
+> - Carry on with format.ts. D1 still waits on the 04:00Z round, then the mirror.
+
+### A2.9 `format.ts`: MV and ME, run (2026-10-28)
+
+**`proxy/src/basemap/format.ts`** holds the encoder, the decoder and the validator.
+- `validate()` follows A10.11's pinned order.
+- Where §8 leaves an edge open, it does what Weatherscope's `validate.py` does, so the two validators cannot disagree on a package:
+  - a varint that runs out of its section is `kBody`;
+  - a sixth byte or an overlong group is `kVarint`;
+  - ranges are checked after every delta is read;
+  - PEAKS and PLACES positions are not range-checked.
+- **Fixtures load as their exact bytes** through a Vite plugin in `vitest.config.mts`. `wrangler.toml` and the Worker are untouched.
+
+| row | result |
+|---|---|
+| MV binding | **the 25 `neg-*.bmpk` on disk are exactly A10.11's 25 PK cases**, enumerated at build time with `import.meta.glob` |
+| MV/PK-min, -unknown, -bend | **`kOk` all three.** syn-unknown's known sections decode as syn-min's, and its one unknown section is type 9, 3 B |
+| MV/PK-*, the 25 negatives | **25 of 25**, each refused with its frozen reason |
+| ME1 | **`encode(decode(f))` is `f`**, byte for byte, for syn-min, syn-unknown **and `bend.bmpk`** |
+| ME1b, the main assertion | **as predicted:** `encode()` of syn-min's contents, read from `synth.py`'s own data lines, is `syn-min.bmpk`, byte for byte |
+| ME5, ME6 | as predicted |
+| S-VCRC | **{MV/PK-crc}**, as frozen |
+| S-VSWAP | **{MV/PK-gap, MV/PK-overlap}**, as frozen |
+
+- **The sabotages were graded on MV's cases** (vitest `-t MV`, a clean baseline of 0 failing among 29), because of ME1b's control below. The harness now names the set and filter each sabotage ran under. The five MI sabotages were run again: unchanged.
+
+**ME1b's first run was unreadable, a FAIL as the doctrine counts it.**
+- `synth.py`'s `LAT0, LON0` line carries a trailing `# micro-degrees`, and my Python-literal parser handed the `#` to `JSON.parse`. So it errored before comparing anything.
+- The parser now strips a trailing comment. **No expected value changed.**
+
+**OFF-PREDICTION, stopped for a ruling: ME1b's control.**
+- **As frozen (A1.11):** "compared against a copy of `syn-min.bmpk` with one body byte changed and its CRC recomputed, ME1b must report a mismatch **at that offset**".
+- **What happened:** with the changed byte at offset 271, the comparator reports **28**.
+- **The cause is in the control as I wrote it.** Recomputing the CRC changes bytes 28-31, and they come before any body byte. So the first difference is the CRC field.
+- **What the reading still shows:** the comparator does detect the difference (28, not −1). What it contradicts is the frozen statement of where.
+- **The alternative explanation, named:** a comparator that misreports offsets. **Excluded:** the CRC field does differ, at 28 to 31, and 28 is the first of them.
+- **Nothing is changed until a ruling.** The test stays red as frozen.
+- **Proposed,** for one of these to be ruled:
+  - **(a)** the copy without a recomputed CRC, so the first difference is the changed byte, at 271;
+  - **(b)** the CRC recomputed, with the expected first difference at **28**.
+  - **Recommended: (a).** It is the control's intent: that the comparator finds a body difference where it is.
+
+**An observation, for the reviewer to keep or drop: neither validator checks a TERRAIN section's `count` or PROVENANCE's line count.** §8 refuses "a body that does not parse to exactly its `length` and `count`". `format.ts` matches `validate.py` here, so the two validators agree on every package. No fixture exercises it.

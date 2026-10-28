@@ -12,3 +12,15 @@ declare module "*.txt" {
   const text: string;
   export default text;
 }
+
+// vitest.config.mts's bmpk-bytes plugin imports a .bmpk fixture as its exact bytes.
+declare module "*.bmpk" {
+  const bytes: Uint8Array;
+  export default bytes;
+}
+
+// Vite's ?raw import of a Python source (ME1b reads synth.py's own data lines).
+declare module "*.py?raw" {
+  const text: string;
+  export default text;
+}

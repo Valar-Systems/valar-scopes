@@ -15,8 +15,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROXY = join(dirname(fileURLToPath(import.meta.url)), "..");
-const TESTS = ["test/basemap-ingest.test.ts"];
 const LIB = "scripts/basemap/ingest-lib.ts";
+const FORMAT = "src/basemap/format.ts";
+// Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
+// clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
+const SETS = {
+  ingest: { files: ["test/basemap-ingest.test.ts"] },
+  mv: { files: ["test/basemap-format.test.ts"], filter: "MV" },
+};
 
 /** name: { file, edits: [[anchor, replacement]], expect: [case ids] } -- the sets are A1.7's, frozen. */
 const SABOTAGES = {
@@ -44,6 +50,18 @@ const SABOTAGES = {
              '  void top; // SABOTAGE S-IKEYS: any top-level key accepted\n']],
     expect: ["MI4", "MI4b"],
   },
+  "S-VCRC": {
+    file: FORMAT, set: "mv",
+    edits: [['    if (packageCrc(b) !== dv.getUint32(28, true)) throw new Bad("kCrc");\n',
+             '    // SABOTAGE S-VCRC: the CRC check skipped\n']],
+    expect: ["MV/PK-crc"],
+  },
+  "S-VSWAP": {
+    file: FORMAT, set: "mv",
+    edits: [['      if (e.off < expect) throw new Bad("kOverlap");\n      if (e.off > expect) throw new Bad("kGap");\n',
+             '      if (e.off < expect) throw new Bad("kGap"); // SABOTAGE S-VSWAP\n      if (e.off > expect) throw new Bad("kOverlap");\n']],
+    expect: ["MV/PK-gap", "MV/PK-overlap"],
+  },
   "S-IBUS": {
     file: LIB,
     edits: [['    case "roads": return a["MTFCC"] === "S1100" || a["MTFCC"] === "S1200";\n',
@@ -53,17 +71,20 @@ const SABOTAGES = {
 };
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[a-z0-9]+)/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9]+)/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
-function runTests() {
+function runTests(setName) {
+  const set = SETS[setName];
   const dir = mkdtempSync(join(tmpdir(), "bm-sab-"));
   const out = join(dir, "r.json");
-  const r = spawnSync("npx", ["vitest", "run", ...TESTS, "--reporter=json", `--outputFile=${out}`], { cwd: PROXY, shell: true, encoding: "utf8" });
+  const args = ["vitest", "run", ...set.files, ...(set.filter ? ["-t", set.filter] : []), "--reporter=json", `--outputFile=${out}`];
+  const r = spawnSync("npx", args, { cwd: PROXY, shell: true, encoding: "utf8" });
   let json;
   try { json = JSON.parse(readFileSync(out, "utf8")); } catch { rmSync(dir, { recursive: true, force: true }); return { blind: true, why: (r.stderr || r.stdout || "").slice(-800) }; }
   rmSync(dir, { recursive: true, force: true });
   const failed = new Set(), seen = new Set();
   for (const f of json.testResults ?? []) for (const a of f.assertionResults ?? []) {
+    if (a.status === "skipped" || a.status === "pending") continue; // outside the set's filter
     const id = caseOf(a.title); seen.add(id);
     if (a.status !== "passed") failed.add(id);
   }
@@ -85,17 +106,26 @@ function plant(name, src, edits) {
 
 const only = process.argv[2];
 let ok = true;
-const base = runTests();
-if (base.blind || base.failed.length) { console.log(`BASELINE ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}`); process.exit(2); }
-console.log(`baseline: 0 failing cases (${base.seen.size} cases seen)`);
+const baselines = {};
+/** Each set's clean baseline, once: with nothing planted, nothing in the set may fail. */
+function baseline(setName) {
+  if (baselines[setName]) return;
+  const base = runTests(setName);
+  if (base.blind || base.failed.length) { console.log(`BASELINE[${setName}] ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}`); process.exit(2); }
+  const f = SETS[setName].filter;
+  console.log(`baseline[${setName}${f ? `, -t ${f}` : ""}]: 0 failing cases (${base.seen.size} cases seen)`);
+  baselines[setName] = true;
+}
 for (const [name, s] of Object.entries(SABOTAGES)) {
   if (only && only !== name) continue;
+  const setName = s.set ?? "ingest";
+  baseline(setName);
   const path = join(PROXY, s.file);
   const orig = readFileSync(path);
   const before = sha(orig);
   try {
     writeFileSync(path, plant(name, orig.toString("utf8"), s.edits));
-    const r = runTests();
+    const r = runTests(setName);
     const want = [...s.expect].sort();
     if (r.blind) { ok = false; console.log(`${name}: BLIND (${r.why})`); }
     else if (r.failed.join(",") === want.join(",")) console.log(`${name}: AS PREDICTED, failing {${r.failed.join(", ")}}`);
