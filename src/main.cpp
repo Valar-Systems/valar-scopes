@@ -873,11 +873,25 @@ void loop()
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     if (drawScan) {
+#if defined(WX_LOOK_AB)
+#if !defined(FEATURE_CLOUD_FEED)
+#error "WX_LOOK_AB is a cloud-feed bench flag"
+#endif
+      // W4' (docs/wx-device.md, WD6'): the sweep call alone, timed whichever path runs. Bench image only -- the
+      // #else branch is the shipping code, unchanged, so the shipping image builds byte-identical.
+      const uint32_t sweepT0 = micros();
+      const bool sweepBlended =
+          appManager.DrawSweepOverWeather(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+      if (!sweepBlended)
+        DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+      appManager.RecordSweepUs(micros() - sweepT0, sweepBlended);
+#else
 #if defined(FEATURE_CLOUD_FEED)
       // Over a shown weather layer the wedge blends (WD6, looks 3/4); otherwise today's opaque wedge, unchanged.
       if (!appManager.DrawSweepOverWeather(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep))
 #endif
         DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+#endif
     }
 #endif
 

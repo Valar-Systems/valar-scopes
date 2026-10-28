@@ -1981,6 +1981,33 @@ void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
     backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, 14);
 }
 
+#ifdef WX_LOOK_AB
+void AircraftManager::RecordSweepUs(uint32_t us, bool blended)
+{
+    const uint16_t capped = (uint16_t)std::min(us, (uint32_t)0x7FFF);
+    sweepSampleBuf[sweepSampleCount % FRAME_SAMPLES] = (uint16_t)(capped | (blended ? 0x8000u : 0u));
+    sweepSampleCount++;
+}
+
+void AircraftManager::ReportSweep()
+{
+    // The frame figure's own method: the last FRAME_SAMPLES calls, p95 at the same index of a sorted copy.
+    const size_t n = std::min(sweepSampleCount, FRAME_SAMPLES);
+    if (n == 0) return;
+    uint16_t sorted[FRAME_SAMPLES];
+    uint32_t sum = 0;
+    unsigned blend = 0;
+    for (size_t i = 0; i < n; ++i) {
+        sorted[i] = sweepSampleBuf[i] & 0x7FFF;
+        sum += sorted[i];
+        if (sweepSampleBuf[i] & 0x8000) ++blend;
+    }
+    std::sort(sorted, sorted + n);
+    Serial.printf("[health] sweep=%lu/%uus n=%u blend=%u\n", (unsigned long)(sum / n),
+                  (unsigned)sorted[(size_t)((n - 1) * 0.95f)], (unsigned)n, blend);
+}
+#endif
+
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
@@ -2133,6 +2160,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned)currentBrightness, (unsigned)configuredBrightness,
                   (autoDim && nightNow) ? " NIGHT" : "",
                   IsDataStale() ? "  DATA STALE" : "");
+#ifdef WX_LOOK_AB
+    ReportSweep();   // W4': its own line, right after the frame line, bench image only
+#endif
 
     // ---- Follow Mode stage 1: the §18.1 measurement -------------------------
     //

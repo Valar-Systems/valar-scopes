@@ -1252,3 +1252,11 @@ runs:
 over weather (bench)" and only that.
 
 **Outside the set:** stop and report, without re-running for a better number.
+
+### WD6′ before the run: the timer, and the shipping image (2026-10-28)
+
+| | read | verdict |
+|---|---|---|
+| **the shipping image** | `blipscope-s3-128`'s `firmware.bin`, built before the timer and after it, both 1,942,000 B, **differ in 65 bytes**: 32 of `app_elf_sha256` @0xB0, 32 of the trailing image SHA-256, and 1 checksum byte. **No timestamp differs, and 0 bytes are unplaced** (`bin_regions.py`). So every loaded byte is identical | **the named second outcome:** unchanged code, reported as such. Not byte-identical, because the ELF's own hash moved. The cause is probably debug info, since the edited files' line numbers changed; I didn't keep the before-ELF, so that is not verified |
+| **the string** | `sweep=%lu`: `wxlook` 1, shipping 0. The control, "Sweep over weather (bench)": 1 and 0 | **as predicted** |
+| **the builds** | both envs build. `wxlook` is 1,943,328 B | — |

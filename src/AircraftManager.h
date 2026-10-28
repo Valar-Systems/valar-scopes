@@ -844,6 +844,12 @@ private:
     static constexpr size_t FRAME_SAMPLES = 128;
     uint16_t frameSampleBuf[FRAME_SAMPLES] = {0}; // 0.1 ms units
     size_t frameSampleCount = 0;                  // ring write index (wraps)
+#ifdef WX_LOOK_AB
+    // W4': the last FRAME_SAMPLES sweep calls, in microseconds capped at 0x7FFF, bit 15 set when the blend path ran.
+    uint16_t sweepSampleBuf[FRAME_SAMPLES] = {0};
+    size_t sweepSampleCount = 0;
+    void ReportSweep();
+#endif
     // Worst single loop pass since the last health report (0.1 ms units). The
     // avg/p95 above are computed only over the last FRAME_SAMPLES frames (~a few
     // seconds), so a transient multi-second stall EARLIER in the 30 s window is
@@ -1296,6 +1302,11 @@ public:
     // layer pushed THIS frame it blends the wedge (look 3 or 4) and draws today's beam, returning true; otherwise
     // false, and today's opaque wedge draws -- so with the layer off nothing changes.
     bool DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle);
+#endif
+#ifdef WX_LOOK_AB
+    // W4' (docs/wx-device.md, WD6'), bench image only: main.cpp times the sweep call and records it here, with the
+    // path it took. The 30 s [health] report prints it on its own line: sweep=<avg>/<p95>us n=<k> blend=<b>.
+    void RecordSweepUs(uint32_t us, bool blended);
 #endif
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
     // Is the detail card up? Distinct from !IsRadarView(), which is also true on
