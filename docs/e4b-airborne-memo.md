@@ -109,7 +109,8 @@ string at all**. That is asserted when it is built (section 6).
 dropped, and ntfy itself is being removed from every edition (`docs/ntfy-removal-plan.md`).
 
 **The setting:** one checkbox on the config page, **"E-4B airborne"**, which turns the line and the tag on and off.
-Its description is **"An E-4B is showing on ADS-B"**. Its default is open (question 6).
+Its description is **"An E-4B is showing on ADS-B"**. It is **off by default** (Daniel, question 6): nothing shows until
+an owner ticks it.
 
 **The text, exactly:** the line **"E-4B airborne"**, the tag **"E-4B"**, and the sentence **"An E-4B is showing on
 ADS-B"** wherever the feature needs one. **The feature's own text never names the source.**
@@ -160,7 +161,8 @@ control proving the test can see a planted word.
 
 **Builds:**
 - the strings are absent from every `missileer-*` ELF and present in a radar ELF (the control);
-- the setting takes the default as ruled. It is a new key, so the default reaches every device;
+- **the setting defaults to off**: with the key absent, neither the line nor the tag draws. It is a new key, so the
+  default reaches every device;
 - no ntfy path: the feature has no sender of any kind.
 
 **Board:** the line and the tag in range, from a bench feed that replays a recorded E-4B row. Never a live one,
@@ -173,8 +175,8 @@ since one may not fly during the window.
 3. The ntfy re-arm interval. **Dropped: no phone alert.**
 4. The exact wording. **Answered: "E-4B airborne", and "An E-4B is showing on ADS-B".**
 5. Rule on #409 first? **Daniel gave it to this session.** The table fix is its own small PR off main.
-6. **Open:** is the "E-4B airborne" setting on or off by default? Recommended: **on**. The off-by-default in the brief
-   was for the phone alert, which is gone, and the line is calm, on the screen only, and shows only while one is up.
+6. Is the "E-4B airborne" setting on or off by default? **Answered by Daniel: "Off by default".** Nothing shows until
+   an owner ticks it on the config page. This memo had recommended on.
 
 ## Rulings, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their source
 
@@ -203,3 +205,7 @@ since one may not fly during the window.
   already is.
 - **#409:** Daniel gave it to this session ("You can fix it"). The table fix goes now, as a small PR off main. The rest
   of #409 is rebased after #445 merges.
+- **The default (question 6), 2026-10-28:** asked whether new firmware should show the E-4B line and tag without the
+  owner turning them on, Daniel chose **"Off by default"**. Nothing shows until an owner ticks it on the config page.
+  It is a new key, so the default reaches every device. When the feature is built, "the setting defaults to off" is
+  one of its predicted rows.
