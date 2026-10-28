@@ -19,7 +19,11 @@
   - and `opuk`'s server age limit sits above the device's 600 s, so a late frame never costs the device a backoff.
   - Credit lines live on `/credits`, which the device's config page links to, so they are a server change too.
   - **The map layers cannot reach a v19 Blipscope:** it has no BMPK client.
-- **UK map layers:** OGL v3 sources map onto BMPK v1's sections (§2).
+- **UK map layers:** for Great Britain, Ordnance Survey's OGL v3 sources map onto BMPK v1's sections (§2). ONS and
+  NRS supply the populations.
+  - **Northern Ireland is blocked on a licence question.** OpenDataNI labels OSNI's datasets OGL, but LPS's and
+    NISRA's own pages restrict derived data. NI's open layers are also thin: roads surveyed 2003-2006 and no named
+    rivers. A written question to LPS is Q13.
   - **Terrain:** Terrain Tiles z9 over the UK is EU-DEM, SRTM, GMTED2010 and ETOPO1, all with terms that can be met.
   - **My view:** this is a v1 coverage extension if §4's four US-defined fields are restated by role. Bilingual names
     are the one point that could force v2.
@@ -320,6 +324,118 @@ dBZ = 10·log10(200) + 16·log10(R).
 
 ## 2. UK map layers
 
+**Read by a research agent this session** (2026-10-27/28), from the publishers' pages, their technical
+specifications and the downloads themselves: field names, value lists, licence files and CRS. Counts are from the
+October 2026 releases. No account or key was used.
+
+### 2.1 The sources
+
+**Great Britain: Ordnance Survey OpenData, all under OGL v3.**
+- **OS's statement:** "available for unrestricted, free commercial and personal reuse under the Open Government
+  Licence (OGL)".
+- **OGL v3's grant** includes "exploit the Information commercially and non-commercially … by including it in your own
+  product or application". Its condition: "acknowledge the source … by including or linking to any attribution
+  statement specified by the Information Provider(s)".
+- **No registration is needed** for the downloads below.
+
+| layer | source | what it holds | CRS | size |
+|---|---|---|---|---|
+| water | **OS OpenMap – Local**, `SurfaceWater_Area` (2026-04; April and October) | "An inland waterway body sufficiently wide enough to capture as an area feature". No names. `TidalWater` is a separate layer | BNG | GeoPackage 3.5 GB (the whole map) |
+| rivers | **OS Open Rivers**, `WatercourseLink` (2026-10; April and October) | 193,722 links; `form` = inlandRiver 156,209, lake 24,265, tidalRiver 11,728, canal 1,520; `watercourseName` (the Welsh or Gaelic name where there are two) and `watercourseNameAlternative` (the English) | BNG | GeoPackage 52 MB |
+| roads | **OS Open Roads**, `RoadLink` (2026-10; April and October) | 3,987,488 links. `roadClassification` ∈ Motorway, A Road, B Road, Classified Unnumbered, Unclassified, Not Classified, Unknown; `primaryRoute` and `trunkRoad` flags; `formOfWay` (Slip Road, Roundabout, …); `roadClassificationNumber` | BNG | Shapefile 586 MB |
+| peaks | **OS Open Names**, type `landform`, local type **"Hill Or Mountain"** (2026-10; quarterly) | 37,025 records: "A named area of land that is higher than the surrounding land". **No elevation**, and the same in all of Open Names | BNG | CSV 103 MB |
+| places | **OS Open Names**, type `populatedPlace` | City 71, **Town 1,355**, Village 15,155, Hamlet 12,900, Suburban Area 10,876, Other Settlement 2,917. **No population** | BNG | (the same file) |
+| population, England and Wales | **ONS, "Towns and cities, characteristics of built-up areas, England and Wales: Census 2021"**, joined on `BUA22CD` to **"Built Up Areas (December 2022) Boundaries GB BGG"** | 6,975 coded rows, every one matching the boundaries. Counts are rounded to 5. **London's 33 BUAs are not in the published table** ("we have removed London's 33 BUAs") | BNG | xlsx 28 MB |
+| population, Scotland | **NRS, "2022 Census Settlement boundaries"** | 503 settlements; `Popcount` is inside the boundary file | BNG | — |
+| terrain | Terrain Tiles z9 (§2.4) | — | Web Mercator | about 35 MB for the UK |
+
+**The attribution lines the GB sources specify, verbatim:**
+- **OS:** "Contains OS data © Crown copyright [and database right] [year]." OS adds: "The same acknowledgement should
+  be included in any sub-licences of the data that you grant, including any further re-use."
+- **OS Open Names' own licence file** carries three lines:
+  - "Contains OS data © Crown Copyright and database rights 2026."
+  - "Contains Royal Mail data © Royal Mail copyright and database right 2026."
+  - "Contains National Statistics data © Crown copyright and database right 2026"
+- **OS Open Roads, for data relating to Scotland** (OS Co-Branding Guidelines v2.0): "This product contains data
+  created and maintained by Scottish Local Government."
+- **ONS:** "Source: Office for National Statistics licensed under the Open Government Licence v.3.0", plus the OS
+  line for its boundaries.
+- **NRS:** "Copyright National Records of Scotland, contains Ordnance Survey data © Crown copyright and database right
+  (insert year)."
+
+**OS's end-of-life plans, a risk to the refresh, not to serving:**
+- OS's indicative migration timeline (August 2026, "subject to change regularly") puts Open Roads, Open Rivers,
+  Open Names and OpenMap – Local in an end-of-life graphic spanning FY26/27 to FY30/31.
+- OS Open Zoomstack has a stated end of life of Spring 2028.
+- **None is withdrawn today,** and OS promises "at least 12 months' notice".
+- **OGL v3's licence is perpetual,** so a sealed store keeps its rights. Only the next refresh would need new sources.
+
+**Northern Ireland: thin, old, and with its licensing unsettled.**
+
+| layer | what exists, open | the gap |
+|---|---|---|
+| roads | **OSNI 50K Transport lines:** 25,860 features with `TEMA` (MOTORWAY 189, A_CLASS 3,908, B_CLASS 4,074, DUAL_CARR 286, …) and `SURVEY` | surveyed **2003-2006**; no names or numbers on the lines |
+| rivers | **none from OSNI.** DAERA/NIEA's "Rivers Strahler Ranking" has 17,370 lines with **no name field** | no named rivers, so v1's rule (group by name) finds nothing |
+| water | DAERA/NIEA **"Lakes of Northern Ireland":** 345 polygons, with names and areas (2013) | — |
+| places | **OSNI Gazetteer:** 336 "towns and villages", with no type and no population; positions are "the label position on the mapping" | positions are not real-world points |
+| population | **NISRA CT0046:** 639 settlements (93 suppressed), codes N11…; boundaries "Settlement Development Limits 2015" (527) | the join is by code to polygons whose licence is in doubt (below) |
+| terrain | Terrain Tiles z9 (EU-DEM) | — |
+
+**The NI licences, as the official pages state them:**
+- **OpenDataNI** labels every dataset OGL v3.
+- **LPS:** "It is only permissible to use and publish LPS derived data under the appropriate (charged for) LPS
+  Licence." Its Q&A, asked "Can I publish a dataset I have derived from LPS data under OGL?", answers: "It may be
+  possible but you will need to make an application for permission".
+- **NISRA:** OSNI-branded mapping "(or any mapping based on, or derived from OSNI branded mapping) is exempt from the
+  terms of the OGL".
+- **So the NI map layers are blocked on a written answer from LPS** (copyright@finance-ni.gov.uk). This is not a
+  reading I can settle, and a package is derived data by definition.
+- **An unverified lead:** nidirect lists EuroGeographics' EuroRegionalMap as OSNI open data. Its licence page did not
+  render.
+
+### 2.2 The UK layer rules, proposed beside §5's US rules
+
+Each row keeps §5's mechanism (clip, simplify, quantise, the budget, the drops) and changes only the source and the
+selection.
+
+| §5 | US v1 (unchanged) | UK, Great Britain |
+|---|---|---|
+| 5.1 water | `AREAWATER` ≥ 1,500,000 m², outer rings | **`SurfaceWater_Area` ≥ 1,500,000 m²,** outer rings, holes dropped (RD3). `TidalWater` excluded: the format's water layer is "lakes and reservoirs" |
+| 5.2 rivers | `LINEARWATER` named "… Riv", grouped by `FULLNAME`, the 5 longest groups | **`WatercourseLink` with `form` inlandRiver or tidalRiver, grouped by name, the 5 longest groups.** No suffix test: UK names have none ("River …", "Afon …", "Water of …"). Canals and lake centre-lines are excluded |
+| 5.3 roads | `S1100` → 1, `S1200` → 2, business routes dropped | **`roadClassification` Motorway → 1; A Road → 2;** `formOfWay` Slip Road dropped (the US keeps no ramps: `S1630` is outside `S1100`/`S1200`). Whether class 2 is **every** A road or only `primaryRoute` = true is Q12, settled by M1's sizes |
+| 5.4 peaks | GNIS Summit; elevation from z9; 3.0 km de-dup; top 16 | **Open Names "Hill Or Mountain"; elevation from z9;** the same de-dup and top 16 |
+| 5.5 places | Gazetteer `LSAD` 25, population from SUB-EST2024 | **Open Names `populatedPlace`, City and Town (1,426 in GB).** Population: the BUA (England and Wales) or NRS settlement (Scotland) **polygon containing the point**, else 0. **No figure is ever guessed** |
+| 5.6 terrain | Terrarium z9 | unchanged (§2.4) |
+
+**Three risks in these rules, each with a check for M1:**
+- **A hill's point may not be its summit.** Open Names gives the hill area a representative point. GNIS gives a
+  summit position. A z9 elevation sampled off the summit understates the hill and can mis-rank it.
+  - **The check:** compare each kept hill's z9 value with the z9 maximum within 1 km.
+  - The rule's fallback, for a ruling: take that maximum, and say so in the processing line.
+- **London's places would get population 0** under the published ONS table, which would rank London below every
+  town. That is honest by the format ("0 = no figure"), and bad for a map.
+  - **The check:** whether Census 2021 counts at BUA 2022 geography, London's included, are published elsewhere by
+    ONS (Nomis is the likely place).
+  - Until then, 0. A guessed figure would be a lie with a plausible shape.
+- **Bilingual names** (Q10): Open Names, Open Rivers and Open Roads all carry a second name in Wales and Gaelic
+  Scotland. v1 has one text field.
+
+**Northern Ireland's rules wait for LPS.** If its answer allows derived use, the NI rows would be:
+- MOTORWAY → 1, A_CLASS → 2;
+- the DAERA lakes;
+- **no rivers**, an empty section (RD14);
+- OSNI gazetteer places with NISRA populations;
+- **all of it flagged as 2003-2015 data.**
+
+Until then, NI origins are outside the map's coverage, which the route already answers with `404 no_coverage`.
+
+### 2.3 What the coverage means at the edges
+
+- **Coverage is GB + NI land** (NI only once LPS allows it). Weather has no such limit (§1.6).
+- **A disc that crosses a border** carries UK features only. Ireland, France and the North Sea are empty, not marked:
+  the US v1 rule for Canada and Mexico (`docs/basemap-route.md` §2.6), applied unchanged.
+- **The Isle of Man and the Channel Islands** are covered by no source read here, so they are `no_coverage`.
+
 ### 2.4 Terrain: Terrain Tiles z9 over the UK, and EU-DEM's terms
 
 **What the tiles contain.** Read by a research agent this session, from joerd's docs and from the tiles themselves:
@@ -395,9 +511,11 @@ the modification statement. The processing line already gives that statement, as
     PROVENANCE". Clients do read these four fields. So it needs a ruling, not an analogy.
   - **Evidence from the one client that exists:** Weatherscope's place-label rule drops a trailing " city" once
     (`src/weatherscope/WxLogic.h:457`). A UK name has no such suffix and passes through unchanged.
-- **Where I think otherwise: bilingual names.** Welsh places and features can carry two names. v1 has one text field,
-  so choosing one is a data rule with no US precedent. If the answer is "both", that is a new field, and so v2 (§6,
-  Q10).
+- **Where I think otherwise: bilingual names.** In Wales and Gaelic Scotland, OS's sources carry two names: `name1`
+  is the Welsh or Gaelic name and `name2` the English (Open Roads and Open Names; Open Rivers uses
+  `watercourseName` and `watercourseNameAlternative` the same way).
+  - v1 has one text field, so choosing one is a data rule with no US precedent.
+  - If the answer is "both", that is a new field, and so v2 (§6, Q10).
 - **A new coverage also needs what v1 has once:** the coverage bits (`coverage.bin`), the credit and attribution lines,
   and the terrain bits. These are the route's (the map server's plan), not the format's.
 
@@ -488,8 +606,8 @@ wait for v19.
 
 | | step | needs |
 |---|---|---|
-| M0 | rulings on the UK rule set (§2, §6) and on whether it is a v1 coverage extension | R0 |
-| M1 | **an offline size dry run of the UK sources:** packages at the UK centres, against the 32 KB cap. No Cloudflare | M0; can run before v19 |
+| M0 | rulings on the UK rule set (§2, §6) and on whether it is a v1 coverage extension; **the LPS question sent** (Q13, Daniel's) | R0 |
+| M1 | **an offline size dry run of the GB sources:** packages at the UK centres against the 32 KB cap, plus Q12's road sizes and Q16's hill check. No Cloudflare | M0; can run before v19 |
 | M2 | the UK truth tables, frozen; then the map server's ingest gains the UK as a second coverage: | the map server's US v1 live |
 | | - its sources; its coverage bits (GB + NI); | |
 | | - the terrain tile bits with EU-DEM; | |
@@ -546,3 +664,15 @@ as #443's did.
 | Q7 | R5, the glass | **first a host render** of a real `opuk` crop through `wxlayer::Build` and `WxS2` to a PNG, with no board; **then** a short window on a bench board set to a UK public airport, Daniel's yes first, the location restored after. E2:08 feeds the Bend site, and moving it stops that feed for the window | the glass only |
 | Q8 | knowing that OPERA still carries the UK | **R1 makes the ingest record the covered share of the UK window per frame, and `/healthz` print it** beside `frameAgeS`. `smoke-prod.sh` reads `/healthz`, so the number has a reader. A UK withdrawal would otherwise look exactly like "outside coverage" | nothing: the failure would be silent and would look like the device's normal note |
 | Q9 | Shetland | **say it plainly** wherever coverage is described: at Sumburgh, neither source covers the pixel, and 40-45 % of a 160 km view | — |
+
+**The map layers**
+
+| | question | recommended | the alternative |
+|---|---|---|---|
+| Q10 | **bilingual names:** Open Names, Open Rivers and Open Roads carry a Welsh or Gaelic name and an English one, and v1 has one text field | **Daniel's product call.** For a single field, I'd recommend **the English name where the source has two, else the one name.** The rule is recorded in PROVENANCE's processing text | the name OS lists first, which is the Welsh or Gaelic one; or both names, which is a new field and so **v2** |
+| Q11 | a v1 coverage extension, or v2 | **v1, with §4's four US-defined fields restated by role** (§2.5). A ruling, and an edit to the format doc by its owner | v2 |
+| Q12 | roads class 2 | **decided by M1's sizes:** every A road if the packages fit 32 KB at the Blipscope's 161 km around the busiest centres (LHR, MAN, BHX); else only `primaryRoute` A roads | fix it now, unmeasured |
+| Q13 | **Northern Ireland's map layers** | **a written question to LPS** (copyright@finance-ni.gov.uk): may packages derived from the OSNI open datasets be redistributed to customers' devices under OGL v3? **Sending it is Daniel's** (an outward message). Until it is answered, NI origins are `no_coverage` for maps. Weather is unaffected | build NI on the OpenDataNI label alone: LPS's and NISRA's own pages say otherwise |
+| Q14 | terrain | **Terrain Tiles z9,** with an EU-DEM tile bit and credit line (§2.4) | OS Terrain 50 for GB plus OSNI's 50 m DTM for NI: a second pipeline, and NI's licence is in the same doubt as Q13 |
+| Q15 | which places | **City and Town** (1,426 in GB), the nearest analogue of incorporated cities | add Village (15,155): an order of magnitude more, and the size budget would drop them first |
+| Q16 | a hill's elevation | **measure first** (M1): each kept hill's z9 value at its point against the z9 maximum within 1 km; then rule | the point's value, unchecked |
