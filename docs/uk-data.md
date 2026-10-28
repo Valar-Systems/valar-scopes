@@ -67,3 +67,31 @@ No `LastModified` time, no file's contents and no OPERA listing have been read.
 - C2: read `HHMM` as `MMHH`, and the control fails.
 - C3: compare against `what/undetect` instead of `what/nodata`, and the corner control fails.
 - S-M: raise the device limit to 3,600 s, and S-M rises above 0 %.
+
+## Results: the times (read 2026-10-28 04:02:54Z, recorded before any further reading)
+
+**The instrument:** `times.py` (sha256 `ec95328d7b9b…`), its raw output `times1.json` (sha256 `0e927cbe40bb…`). Both
+are committed under `docs/uk-data/instruments/`.
+
+| | read | verdict |
+|---|---|---|
+| **C1** | both sources: the newest key answers 206 with the HDF5 signature; a made-up key answers 404 | **passed** |
+| **M1** | 672 frames, 96 on each of the 7 days; **671 / 671 steps are 900 s**. Sabotage (every third key dropped): 50.1 % | **as predicted**; sabotage red |
+| **M2** | latency min **321**, p50 **334**, p95 **393**, max **490 s**; none over 1 h | **MISS**: predicted a median in [600, 1,200] s. The registry's "within 20 minutes" is an upper bound, not the typical delay |
+| **S-M** | **29.0 %** (22.3 % with 60 s of lag, printed). Sabotage (limit 3,600 s): 100 % | **MISS**: predicted 0.0 %; sabotage red |
+| **O1** | `DBZH` 336 frames, **335 / 335 steps 300 s**; `RATE` 112 frames, **111 / 111 steps 900 s**. Sabotages: 50.2 % and 50.0 % | **as predicted**; sabotages red |
+| **O2** | `DBZH`: min 243, p50 **250**, p95 **286**, max 473 s. `RATE`: p50 **603**, p95 605 s | **`DBZH` MISS** (median under 300 s); **`RATE` as predicted** |
+| **S-O** | `DBZH` **99.3 %** (94.2 % with 60 s of lag, printed). `RATE` 0.0 %. Sabotage (limit 3,600 s): 100 % | **MISS**: predicted [0 %, 50 %]; sabotage red |
+| printed, not predicted | `ACRR` (one-hour accumulation): 112 frames every 900 s, latency p50 606 s. The cache also holds a cloud-optimised GeoTIFF beside every `.h5` | — |
+
+**What the misses are, and what they are not.**
+- **Both sources are faster than predicted.** Every miss is in the same direction: frames arrive sooner, so a
+  v19 device could show them more of the time.
+- **The outcome table's first row, "a v19 device cannot show UK weather without a firmware change", is
+  therefore not the result.** That reading is withdrawn, not adjusted.
+- **S-O above 50 % has a frozen meaning:** OPERA alone could serve v19 devices. **S-M at 29 % has none**, because the
+  table assumed 0 %. Per the brief, it is reported here and its meaning is for the reviewer.
+- **The alternative to name before believing M2/O2:** `LastModified` might not be the moment a frame becomes
+  listable (a multipart upload's start, say), which would make latency look shorter than a fetcher sees. A live
+  poller (`poll_live.py`) records each new frame's first appearance in the listing for 32 minutes. Its result is
+  printed beside these rows and does not grade them.
