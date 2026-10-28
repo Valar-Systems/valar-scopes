@@ -1328,3 +1328,82 @@ The readings below are therefore observations, not grades.
 - **Why:** the night's traffic fell steadily (n 15 → 12 → 7), and p95 fell with it.
 - N sits 0.1 ms from the old windows' mean. That is what a drift linear in time would also give, so it is not evidence
   either way.
+
+## Rulings on WD6′, 2026-10-28 (reviewer chat, pasted by Daniel), recorded with their source
+
+**The record (`d5ea11c`):** "Accepted as written."
+- Part 1 is VOID by its rule (touches in B″ and A″), W5′ reads INSTRUMENT, and stopping was right.
+- The two errors made before the run stay on record: G7″'s "10 lines" (only 9 whole minutes fit) and W4′'s bands.
+- **As observations only:** the cadence held at 12 a minute with the layer on and off, and looks 3 and 4 cost the same
+  (7.82 and 7.89 ms). "So Daniel's pick between them is about looks alone."
+
+**Before any re-run:** one table from the records already held. It shows what weather costs per frame, against B1's
+frozen bar (p95 frame time, on minus off, ≤ 3 ms), and says whether B1 can pass as built. If it can't, propose a fix
+with predictions, or a re-registration of B1, for a ruling. **The bar stands until then.**
+
+**G7, re-registered:** **11-13 polls in every whole minute of each window, and A″/B″ within 0.9-1.1.** The whole
+minutes are counted from the `[perf]` stamps, not assumed to be 10.
+
+**W5′:** propose an instrument that traffic drift can't swamp, for a ruling. Either more alternations in a
+steady-traffic hour, or one recorded traffic load replayed to every arm; my choice, with predictions.
+
+**Hands off:** the report before the next run gives Daniel the window in Pacific time.
+
+**The order for E2:08 stands:**
+1. Teal (#488).
+2. Main merged into #445.
+3. Daniel's pick, in rain.
+4. The captures.
+
+The re-runs go wherever they suit the board.
+
+### The weather's frame cost against B1, from the records (2026-10-28)
+
+**Only untouched windows at the default 100 mi zoom are used.** Two records are set aside, because a touch changed the
+zoom inside them:
+- **G7's B window:** its own trace has the zoom stepping 100 → 50 → 25 mi at 23:01:45-46Z, and the 23:22:01Z POST
+  reset it to 100 mi for A. So G7's +13.4 ms p95 (+12.7 on the average) compares 25 mi with the layer off against
+  100 mi with it on.
+  - The "0.22 µs per pixel copy" taken from it is therefore **not a clean measurement of the layer**. W4 and this
+    ruling both used it.
+  - The records cannot size the zoom effect, since `ap=` counts airports loaded, not drawn. So G7 is set aside rather
+    than corrected.
+- **WD6′ A″:** zoomed to 25 mi by the touches at 03:52Z, and it reads 5.6 ms cheaper than L3″ at nearly the same n,
+  although the timer shows the two sweeps cost the same.
+
+| record (image) | off: p95 (n) | on: p95 (n) | on − off | adjusted for n |
+|---|---|---|---|---|
+| WD6, look 4 (`53ba354`) | 50.0 (30) | 62.2 (29) | **+12.2** | +13.0 |
+| WD6, look 3 (`53ba354`) | 50.0 (30) | 60.9 (26) | **+10.9** | +14.1 |
+| WD6′ L3″, look 3 (`f9184ef`) | 43.7 (17) | 57.8 (19) | **+14.1** | +12.5 |
+
+The adjustment uses the firmware's own fit, 0.802 ms of p95 per contact. It is shown beside the raw figure, not
+instead of it.
+
+**Where the cost sits:**
+- **The sweep:** the blend costs **+5.9 ms** over today's opaque wedge. This is W4′'s timer, which measures directly
+  (look 3 7.82, look 4 7.89, opaque 1.98, every line flat), and the touches are excluded as its cause.
+- **The layer:** pushing it in place of the `fillScreen` costs **about +6.5 to +8 ms**. This is by subtraction from
+  the table, **not measured directly**.
+
+**Verdict: B1 cannot pass as built.**
+- With weather on, the frame's p95 rises **about 12.5-14 ms**, roughly four times the 3 ms bar.
+- Each half fails on its own: the blend (+5.9) and the layer (about +7 by subtraction).
+- **B1's own premise was never measured.** It says "the layer is cached and replaces the `fillScreen` black, so
+  steady-state frames copy instead of fill". But a copy reads and writes where a fill only writes, and the copy here is
+  LovyanGFX's sprite-to-sprite `pushSprite`, whose cost against the fill nobody timed.
+
+The proposal is in the next record.
+
+### G7‴, frozen as ruled (before its run)
+
+- **The board:** `wxlook` on E2:08.
+- **The windows:** B‴ opens with a verified POST of `wx-layer off`, A‴ with one of `wx-layer on`. Each is 10 min.
+- **Whole minutes:** a `[perf]` line at stamp *t* is a whole minute of a window when *t* − 60 s ≥ the window's start
+  and *t* ≤ its end. They are counted from the stamps, and their number per window is reported (9 or 10, depending on
+  where the POST lands).
+- **Predicted:**
+  - **every whole minute of each window reads 11-13 polls;**
+  - **A‴/B‴, the windows' totals, within 0.9-1.1.**
+- **A `[touch]` line in either window voids the run.**
+- **Outside the set:** stop and report.
