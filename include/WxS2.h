@@ -23,17 +23,26 @@ inline bool Outline(Look l) { return l == Look::A; }
 
 inline uint32_t Pack(wxpalette::Rgb c) { return ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b; }
 
-/** An echo code's colour (1-13) at `pct` percent; anything else is the background. The one definition: Echo() below
- *  and the lit sweep (include/WxSweep.h, WD6 look 4, which raises the percent toward 100 % in the wedge) both use it. */
+/** An echo code's colour (1-13) at `pct` percent; anything else is the background. The base colour is the palette's
+ *  own, wxpalette::Rain(): the pinned table, code 1's ruled teal and code 13's ruled white (A10.16), read and never
+ *  copied. The one definition: Echo() below and the lit sweep (include/WxSweep.h, WD6 look 4) both use it. */
 inline wxpalette::Rgb EchoAt(uint8_t code, int pct)
 {
-    if (code >= 1 && code <= 12) return wxpalette::Dim(wxpalette::kRainTable[code - 1], pct);
-    if (code == 13) return wxpalette::Dim(wxpalette::kRain75, pct);
+    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);
     return wxpalette::kDry;
 }
 
+/** Light rain's own percent (WD7, ruled 2026-10-28): the look's percent x 55/40, rounded half up as Dim rounds, so
+ *  the teal stays visible and below code 2 in luminance (look A 55 %, look B 34 %). Every other code: the look's. */
+constexpr int kCode1Num = 55;
+constexpr int kCode1Den = 40;
+inline int CodePercent(uint8_t code, int pct)
+{
+    return code == 1 ? (pct * kCode1Num + kCode1Den / 2) / kCode1Den : pct;
+}
+
 /** An echo code's colour (1-13) in a look; anything else is the background. */
-inline wxpalette::Rgb Echo(uint8_t code, Look l) { return EchoAt(code, Percent(l)); }
+inline wxpalette::Rgb Echo(uint8_t code, Look l) { return EchoAt(code, CodePercent(code, Percent(l))); }
 
 /** 14: lit on a checkerboard. 15: lit where x and y are both even. Every 2 x 2 window holds a lit pixel of each. */
 inline bool NoCoverageLit(int x, int y) { return ((x + y) & 1) == 0; }

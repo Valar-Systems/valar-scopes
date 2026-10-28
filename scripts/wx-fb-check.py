@@ -63,10 +63,19 @@ def load_source():
     table = triples(m.group(1))
     one = lambda name: triples(re.search(name + r"\s*=\s*(\{[^}]*\})", pal).group(1))[0]
     rain75, nocov, hatch = one("kRain75"), one("kNoCoverage"), one("kMissingHatch")
+    teal = one("kRain1")   # code 1, the ruled teal (A10.16), read like every other colour
     assert re.search(r"Dim\(uint8_t v, int pct\) \{ return \(uint8_t\)\(\(v \* pct \+ 50\) / 100\); \}", pal), \
         "wxpalette::Dim is not (v * pct + 50) / 100 any more: this script's rounding must follow it"
     s2 = read("include/WxS2.h")
     pct = {k: int(re.search(rf"kPercent{k} = (\d+);", s2).group(1)) for k in "AB"}
+    # Light rain's own percent (WD7): the look's x kCode1Num / kCode1Den, half up. Read, and the rule's shape asserted,
+    # so a change to WxS2.h cannot leave this script grading against the old colour.
+    num = int(re.search(r"kCode1Num = (\d+);", s2).group(1))
+    den = int(re.search(r"kCode1Den = (\d+);", s2).group(1))
+    assert "return code == 1 ? (pct * kCode1Num + kCode1Den / 2) / kCode1Den : pct;" in s2, \
+        "wxs2::CodePercent is not (pct * num + den / 2) / den any more: this script's rule must follow it"
+    assert "return wxpalette::Dim(wxpalette::Rain(code), pct);" in s2, "wxs2::EchoAt no longer dims Rain(code): re-derive"
+    c1pct = {k: (pct[k] * num + den // 2) // den for k in "AB"}
     am = read("src/AircraftManager.cpp")
     a = am.index("uint32_t altitudeColor(float altMeters)")
     planes = triples(am[a:am.index("\n}", a)].replace("color888(", "{").replace(");", "};"))
@@ -89,7 +98,8 @@ def load_source():
         rings.append((eval(e), s565(int(r), int(g), int(bl))))
     assert len(rings) == 3, rings
     dim = lambda c, p: tuple((v * p + 50) // 100 for v in c)
-    weather = {L: {s565(*dim(c, pct[L])) for c in table + [rain75]} | {s565(*nocov), s565(*hatch)} for L in "AB"}
+    weather = {L: {s565(*dim(teal, c1pct[L]))} | {s565(*dim(c, pct[L])) for c in table[1:] + [rain75]} |
+                  {s565(*nocov), s565(*hatch)} for L in "AB"}
     marker = set()
     for p in planes:
         marker |= faded(p)

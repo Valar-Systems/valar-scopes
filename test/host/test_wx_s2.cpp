@@ -4,6 +4,7 @@
 //
 //   test_wx_s2.exe <repo-root>     exit 0 all pass, 1 a property failed, 2 the rig (the source could not be read)
 // Sabotages: test/host/sabotage_wx_s2.py plants one break per property into a copy of WxS2.h.
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <regex>
@@ -25,6 +26,19 @@ static void check(bool ok, const char* id, const std::string& what)
 
 static const char* Name(Look l) { return l == Look::A ? "A (40 %)" : "B (25 %)"; }
 static uint32_t P(Rgb c) { return wxs2::Pack(c); }
+
+// CIELAB L* (D65) of an sRGB colour, the measure test_wx_palette's C3l grades light rain by.
+static double Lstar(Rgb c)
+{
+    auto lin = [](uint8_t v) { const double s = v / 255.0; return s <= 0.04045 ? s / 12.92 : std::pow((s + 0.055) / 1.055, 2.4); };
+    const double Y = 0.2126729 * lin(c.r) + 0.7151522 * lin(c.g) + 0.0721750 * lin(c.b);
+    const double e = 6.0 / 29.0;
+    const double f = Y > e * e * e ? std::cbrt(Y) : Y / (3 * e * e) + 4.0 / 29.0;
+    return 116.0 * f - 16.0;
+}
+
+// WD7's ruled rule, written here independently of the header: light rain at the look's percent x 55/40, half up.
+static int RuledPercent(uint8_t code, int pct) { return code == 1 ? (pct * 55 + 20) / 40 : pct; }
 
 // The planes' unfaded colours, parsed from the radar's own drawing code.
 static bool ReadPlaneColours(const std::string& root, std::vector<uint32_t>& out)
@@ -63,11 +77,12 @@ int main(int argc, char** argv)
     }
     std::printf("planes' unfaded colours read from source: %u\n", (unsigned)planes.size());
 
-    // Hand-computed anchors, independent of the header: (v * pct + 50) / 100 on the pinned table's entries.
+    // Hand-computed anchors, independent of the header: (v * pct + 50) / 100 on the pinned table's entries, and for
+    // code 1 on the ruled teal (0, 150, 135) at 55 % (A) and 34 % (B) (WD7).
     struct Anchor { Look l; uint8_t code; Rgb want; };
     const Anchor anchors[] = {
-        { Look::A, 1, { 0, 0, 98 } },     { Look::A, 2, { 0, 102, 0 } },  { Look::A, 5, { 102, 102, 0 } },
-        { Look::A, 13, { 102, 102, 102 } }, { Look::B, 1, { 0, 0, 62 } }, { Look::B, 2, { 0, 64, 0 } },
+        { Look::A, 1, { 0, 83, 74 } },    { Look::A, 2, { 0, 102, 0 } },  { Look::A, 5, { 102, 102, 0 } },
+        { Look::A, 13, { 102, 102, 102 } }, { Look::B, 1, { 0, 51, 46 } }, { Look::B, 2, { 0, 64, 0 } },
         { Look::B, 5, { 64, 64, 0 } },    { Look::B, 13, { 64, 64, 64 } },
     };
 
@@ -81,18 +96,31 @@ int main(int argc, char** argv)
             for (int x = 0; x < 16; ++x) a = a && wxs2::Pixel888(0, x, y, l) == 0;
         check(a, "WD4a", "code 0 is the background at every pixel");
 
-        // WD4b: codes 1-12 are the pinned table at the look's factor; 13 is the ruled 75+ white at it (R1).
+        // WD4b: code 1 is the ruled teal at the look's factor x 55/40 (WD7); codes 2-12 are the pinned table at the
+        // look's factor; 13 is the ruled 75+ white at it (R1).
         bool b = true;
         std::string bad;
         for (uint8_t c = 1; c <= 13; ++c) {
-            const Rgb want = c <= 12 ? wxpalette::Dim(wxpalette::kRainTable[c - 1], pct) : wxpalette::Dim(wxpalette::kRain75, pct);
+            const Rgb base = c == 1 ? wxpalette::kRain1 : (c <= 12 ? wxpalette::kRainTable[c - 1] : wxpalette::kRain75);
+            const Rgb want = wxpalette::Dim(base, RuledPercent(c, pct));
             const Rgb got = wxs2::Echo(c, l);
             if (!(got == want) || wxs2::Pixel888(c, 3, 5, l) != P(want) || P(got) == 0) { b = false; bad += " " + std::to_string(c); }
         }
         for (const Anchor& an : anchors)
             if (an.l == l && !(wxs2::Echo(an.code, l) == an.want)) { b = false; bad += " anchor" + std::to_string(an.code); }
-        check(b, "WD4b", "codes 1-12 = table x " + std::to_string(pct) + " %, 13 = 75+ white x " + std::to_string(pct) +
+        check(b, "WD4b", "code 1 = teal x " + std::to_string(RuledPercent(1, pct)) + " %, codes 2-12 = table x " +
+                             std::to_string(pct) + " %, 13 = 75+ white x " + std::to_string(pct) +
                              " %, none the background" + (bad.empty() ? "" : "; wrong:" + bad));
+
+        // WD4e (WD7): light rain stays below code 2 in luminance, by CIELAB L* as test_wx_palette's C3l measures it.
+        // The old blue's L* is printed beside it, not graded.
+        {
+            const double l1 = Lstar(wxs2::Echo(1, l)), l2 = Lstar(wxs2::Echo(2, l));
+            const double lold = Lstar(wxpalette::Dim(wxpalette::kRainTable[0], pct));
+            char t[160];
+            std::snprintf(t, sizeof t, "light rain L* %.1f < code 2 L* %.1f (the old blue was L* %.1f)", l1, l2, lold);
+            check(l1 < l2 && l1 > 0.0, "WD4e", t);
+        }
 
         // WD4c: 14 and 15 are never all background in any 2 x 2 window, at every offset of a 16 x 16 patch, and differ.
         int empty14 = 0, empty15 = 0;

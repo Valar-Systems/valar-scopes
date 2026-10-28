@@ -45,7 +45,9 @@ static void W2()
             for (int lvl = 0; lvl <= kPeak; ++lvl) {
                 const uint16_t out = Lit565((uint8_t)code, pct, (uint8_t)lvl);
                 if (code >= 1 && code <= 13) {
-                    const int p = pct + ((100 - pct) * lvl + kPeak / 2) / kPeak;
+                    // From the code's own percent (WD7, written here independently: light rain x 55/40, half up).
+                    const int base = code == 1 ? (pct * 55 + 20) / 40 : pct;
+                    const int p = base + ((100 - base) * lvl + kPeak / 2) / kPeak;
                     if (out != wxs2::To565(wxs2::Pack(wxs2::EchoAt((uint8_t)code, p)))) ++bad;
                     if (lvl == 0 && out != wxs2::To565(wxs2::Pixel888((uint8_t)code, 0, 0, l))) ++bad;   // the layer's own
                     if (lvl == kPeak && out != wxs2::To565(wxs2::Pack(wxs2::EchoAt((uint8_t)code, 100)))) ++bad;
@@ -54,7 +56,7 @@ static void W2()
                 }
             }
     }
-    row(bad == 0, "W2", "lit: an echo code at its colour raised to 100 % at the beam (its own colour at the tail); others the wedge green", bad);
+    row(bad == 0, "W2", "lit: an echo code raised from its own percent to 100 % at the beam (its own colour at the tail); others the wedge green", bad);
 }
 
 // W3: the buffer render, as the device runs it.

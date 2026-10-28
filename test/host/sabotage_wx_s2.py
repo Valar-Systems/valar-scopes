@@ -20,14 +20,23 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 PLANTS = [
     ("B at A's factor", "constexpr int kPercentB = 25;", "constexpr int kPercentB = 40;",
      {"WD4b B"}),
-    ("code 13 as the table's black", "if (code == 13) return wxpalette::Dim(wxpalette::kRain75, pct);",
-     "if (code == 13) return wxpalette::kDry;", {"WD4b A", "WD4b B"}),
+    ("code 13 as the table's black", "    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+     "    if (code == 13) return wxpalette::kDry;\n    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+     {"WD4b A", "WD4b B"}),
     ("14 drawn as 0", "if (code == 14) return NoCoverageLit(x, y) ? Pack(wxpalette::kNoCoverage) : 0;",
      "if (code == 14) return 0;", {"WD4c A", "WD4c B"}),
     # The undimmed table's green and yellow ARE plane colours, so the value check and WD4d both go red.
-    ("the dim dropped", "if (code >= 1 && code <= 12) return wxpalette::Dim(wxpalette::kRainTable[code - 1], pct);",
-     "if (code >= 1 && code <= 12) return wxpalette::kRainTable[code - 1];",
+    ("the dim dropped", "if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+     "if (code >= 1 && code <= 13) { (void)pct; return wxpalette::Rain(code); }",
      {"WD4b A", "WD4b B", "WD4d A", "WD4d B"}),
+    # WD7. S-t1: light rain at the look's plain percent (no x 55/40). S-t2: light rain from the table's old blue.
+    # Both are dimmer than code 2, so WD4e stays green and only the value check goes red.
+    ("S-t1 code 1 at the plain percent", "return code == 1 ? (pct * kCode1Num + kCode1Den / 2) / kCode1Den : pct;",
+     "(void)code; return pct;", {"WD4b A", "WD4b B"}),
+    ("S-t2 code 1 from the old blue", "    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+     "    if (code == 1) return wxpalette::Dim(wxpalette::kRainTable[0], pct);\n"
+     "    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+     {"WD4b A", "WD4b B"}),
 ]
 
 

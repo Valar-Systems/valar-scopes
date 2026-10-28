@@ -1442,3 +1442,14 @@ The proposal is in the next record.
 (bench)" still there, for Daniel's pick of 3 or 4 the next time it rains.
 
 **Outside the set:** stop and report.
+
+### Results for WD7 (local, before CI)
+
+| | read | verdict |
+|---|---|---|
+| **TL1** | WD4b: **look A, code 1 = teal × 55 % = (0, 83, 74)**; **look B, teal × 34 % = (0, 51, 46)**; codes 2-13 unchanged, none the background, every anchor matches | **as predicted** |
+| **TL2** | WD4e: **A: L\* 31.1 < 36.9; B: 18.2 < 22.5.** The old blue was L\* 8.0 and 3.1 | **as predicted** |
+| **TL3** | W2 from each code's own percent: 0 mismatches. W1, W3-out and W3-in: 0. S-w still turns only W3-in red | **as predicted** |
+| **TL4** | **S-t1 and S-t2 each turn exactly WD4b red, in both looks**, and WD4e stays green. The four existing plants were re-anchored to the new `EchoAt` and keep their red sets. **A rig fault, mine, before any result:** the re-anchored "the dim dropped" plant and S-t1 first failed to compile under `-Werror` (an unused `pct` and an unused `code`). Fixed with `(void)` in the planted text; the plants' meaning is unchanged | **as predicted** |
+| **TL5** | `wx-fb-check.py` reads `kRain1` and the 55/40 rule, and asserts both shapes. **Look A:** 15 weather colours, the teal `0x0289` among them; 18 ambiguous (the same 6 marker colours); no ungradable ring. **Look B:** 14, teal `0x0185`; 17 (the same 3); r=78 `0x0200` ungradable. The selftest's 18 cases pass | **as predicted** |
+| **TL6 (local half)** | MinGW: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: the board block's known gap only. Builds: `blipscope-s3-128` 1,941,984 B and `wxlook` 1,943,296 B | **as predicted** |
