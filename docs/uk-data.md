@@ -6,6 +6,28 @@
 - **The rest of this document is written after the measurements below.** This first section is frozen before any
   of them is taken, so the readings cannot choose their own meaning.
 
+## The answers, in brief (added after the readings; the frozen section below is unchanged)
+
+- **UK radar: OPERA's CIRRUS composite, not the Met Office's.**
+  - It is reflectivity, the same quantity as MRMS's `cref`, every 5 minutes at 1 km.
+  - It arrived about 250 s after its time in the 24 h measured, under CC BY 4.0.
+  - A v19 device could show it **99.3 %** of the time at best. The Met Office composite manages **29.0 %**: it is rain
+    rate every 15 minutes, about 334 s late, under CC BY-SA 4.0.
+  - Both cover Northern Ireland. Neither covers Shetland at Sumburgh.
+- **A v19 Blipscope can show UK weather with no firmware change,** provided v19 carries #445:
+  - the server serves the device's existing `/wx/cref` request from the UK product when the query is in the UK;
+  - and `opuk`'s server age limit sits above the device's 600 s, so a late frame never costs the device a backoff.
+  - Credit lines live on `/credits`, which the device's config page links to, so they are a server change too.
+  - **The map layers cannot reach a v19 Blipscope:** it has no BMPK client.
+- **UK map layers:** OGL v3 sources map onto BMPK v1's sections (§2).
+  - **Terrain:** Terrain Tiles z9 over the UK is EU-DEM, SRTM, GMTED2010 and ETOPO1, all with terms that can be met.
+  - **My view:** this is a v1 coverage extension if §4's four US-defined fields are restated by role. Bilingual names
+    are the one point that could force v2.
+- **Cost:** no new Cloudflare resource. Workers CPU likely crosses the 30M included by cents a month, so it is asked
+  first. R2 Class A goes to about 91 %.
+- **Order:** the radar work (R1-R4) is server-only and can finish before v19 ships. The map layers wait for the map
+  server's US v1, and reach a Blipscope only with its BMPK client, after v19.
+
 ## Predictions, frozen before any measurement (2026-10-28, ~04:05Z)
 
 **What has been seen before freezing, so it is not counted as a prediction:**
