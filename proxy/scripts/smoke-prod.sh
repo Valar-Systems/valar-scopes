@@ -681,6 +681,11 @@ fi
 # device in the field are being used out of compliance.
 contains "/credits (public; photo library + CC-BY attribution)" 200 "Blipscope credits" "$BASE/credits"
 
+# The weather radar's attribution (docs/wx-server.md, N1-N4). /wx serves crops derived from NOAA MRMS, so the
+# credits page must say so, in exactly these bytes: the template holds them on one line with no markup inside.
+contains "/credits carries the NOAA MRMS line" 200 \
+  "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA." "$BASE/credits"
+
 # The self-hosted webfonts. Requested BY PATH rather than scraped out of the page
 # so this still fails loudly if the page stops asking for them (which would mean
 # the page changed, not that the fonts are fine).
