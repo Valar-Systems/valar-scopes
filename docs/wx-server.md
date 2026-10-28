@@ -1063,3 +1063,62 @@ Nothing else in `proxy/src` changes.
 | **N2** | the new check alone, through `smoke-prod.sh`'s own `contains` (extracted from the script), against production at 16:06:56Z: `got HTTP 200, marker MISSING`, `RESULT: FAIL` | **as predicted** |
 
 N3-N6 are read after the merge and the deploy.
+
+### The approval, the merge and the deploy (2026-10-28): N3 MISSED, and production was rolled back
+
+**The approval (reviewer chat, pasted by Daniel), verbatim:** "#492 (the NOAA line) is approved to merge at
+b5f37eb98313c623d238200c452806d966d49bd0, once CI on that head completes with 0 failed. I read all 4 files; N1 and N2
+are as predicted. A clean squash, no --admin. If the head moves, this approval lapses. Then deploy under the standing
+rule and read N3-N6 as frozen, with the carried commits listed first."
+
+**The merge.**
+- **CI on `b5f37eb`:** 38 check-runs, 35 success, 3 skipped (the release-only `promote`, `version` and `ship-alert`),
+  0 failed, 0 pending. Read from the check-runs API on the SHA.
+- **Merged as `77f6913`** at 16:48:07Z, with `--match-head-commit`. The squash's tree equals `git merge-tree`'s
+  (`29ec3c686e98…`), and its patch-id equals the PR's (`387d120d9395`).
+
+**Carried commits, listed before the deploy.** Main was `aa24294`, after #490 merged at 16:48:31Z.
+- Since production's `962ccb7`, the only commit touching `proxy/` is `77f6913` (#492), and in `proxy/src` only
+  `photolicense.ts`.
+- `aa24294` (#490) adds `docs/uk-data*` only.
+
+**The deploy.**
+- **Staging:** 16:50:31-16:50:41Z, version `ea3fadb6-34cb-494a-bc1a-d3cbc2036e1c`; `deploy.sh` confirmed `/healthz`
+  `aa24294`. Its `/credits` carried the line once.
+- **Production:** 16:51:00-16:51:09Z, version `1ce7ad88-348b-41a3-8f27-06930e8f6885`; `/healthz` `aa24294`.
+- **The rollback target,** read just before: `7cef8c21-9629-44fc-9cda-e57d22c4b8c1` (`962ccb7`).
+
+| | read | verdict |
+|---|---|---|
+| **N5** | production's bindings: `wrangler versions view` of `7cef8c21` and of `1ce7ad88`, 26 binding lines each, **identical**; 5 secrets each. `/healthz` reported **`aa24294`** on both envs | bindings **as predicted**. **The commit clause, for a ruling:** it said "the merge commit", meaning #492's `77f6913`. `/healthz` reports `aa24294`, main's head, because #490 merged 24 s later and `deploy.sh` deploys main's head. The frozen carried-commit clause allows a carried commit that does not touch `proxy/src`. `git diff 77f6913 aa24294 -- proxy/` is **empty**, so the deployed Worker is #492's code |
+| **N3** | `smoke-prod.sh` on production, 16:52:32-16:53:02Z, E2:08's credential: **PASS 29, FAIL 2, SKIPPED 3**. **The new check PASSED** ("marker present"). The two FAILs: `/v1/blips` at Bend, 503 `upstream_unavailable`; and the upstream-chain check, "2 of 6 tiles were stale or errored", both 503 with `upstream=none` | **MISS:** 0 FAIL was predicted |
+| **N4** | not read: production was rolled back before it | — |
+| **N6** | not read: the new version was live for under 3 minutes | — |
+
+**The escape, as frozen: "In production, roll back first."**
+- **Rolled back at 16:53:30-16:53:32Z** to `7cef8c21`: `wrangler rollback … --env production`.
+- `deployments list` shows it at 100 %, and `/healthz` reported `962ccb7` at 16:53:59Z and again at 16:54:45Z.
+- **Staging stays on `ea3fadb6`.** The escape names production.
+
+**What the 503s were (data beside the verdict, not a re-grade).**
+- **The same `smoke-prod.sh` on the rolled-back `962ccb7`,** 16:55:10-16:55:43Z: **PASS 34, FAIL 1**.
+  - The one FAIL is the new credits check (marker MISSING), as expected on that version.
+  - All 6 chain tiles answered 200, and Bend's `/blips` passed.
+- **Workers Logs** (the `observability-read` token), proxy 503s on any route, 16:30-16:57Z: **3 events**, all
+  `/v1/blips`, no upstream, at 16:52:38, 16:52:41 and 16:52:45Z.
+  - **All three came from the smoke's own credential,** served by `1ce7ad88`.
+  - **No fleet 503 is logged.** Workers Logs is known to drop events for these Workers, so that is an observation,
+    not a count.
+- **`/v1/blips` in Workers Logs, 16:50-16:57Z:**
+  - on `1ce7ad88`: 3 × 200 and 3 × 503;
+  - on `7cef8c21`: 6 × 200.
+  - All of these are the smoke's own requests: the fleet's path is `/api/v1/blipscope/blips`.
+- **The fleet classification S3′ used** (Analytics Engine) **was not run:** no `analytics-read` token is on this
+  machine.
+- **Two explanations, and neither is excluded by a measurement:**
+  - **a transient failure of the upstream chain at 16:52,** which happens: S3's W5 saw the same one-device, no-upstream
+    `/blips` 503s;
+  - **the new version.** It differs from `7cef8c21` by one `<li>` in the credits page, on no path `/blips` takes. That
+    is an argument from the code, as S3's was, and is not used to re-grade.
+- **One read on each side of a possibly transient fault does not separate them.** Whether to redeploy, and with N3
+  re-registered as S3′'s W5 was, is for a ruling.
