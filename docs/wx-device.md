@@ -1497,3 +1497,65 @@ either. It was not analysed then.
 reads INSTRUMENT and whose new instrument awaits a ruling.
 
 **Nothing has been captured.** E2:08 is unchanged: `wxlook` at `fb2e787`, the layer on, look 4.
+
+## Rulings on the wedge, 2026-10-28 (reviewer chat, pasted by Daniel), and the mask, frozen before its code
+
+**The rulings:**
+1. **The wedge: option 1.** Mask look 4's wedge in the checker, from each frame itself.
+   - The beam is located by its head colour (170, 255, 170) and its line (80, 255, 80). There must be exactly one head
+     blob at the disc's edge, and the beam line must agree on the angle; anything else makes the frame UNTRUSTWORTHY
+     for this purpose, never a pass.
+   - The 1.0 rad tail behind the beam is masked, plus a stated margin, and the masked share is printed per frame and
+     predicted before the run.
+   - Rings and outlines are graded, as frozen, on the rest of the disc. **The wedge's interior is covered by W3 on the
+     host, not by the captures** (recorded here as ruled).
+   - Predictions and sabotages come before any capture. A wedge-coloured pixel planted as a missing ring pixel outside
+     the mask must turn the row red, and a frame with its head erased must read UNTRUSTWORTHY.
+   - **The earlier gap, recorded as found:** the protocol never modelled the opaque wedge either. It was frozen on 10-26
+     for an image whose opaque green wedge covered about 16 % of the disc, and nothing in the checker knew it was there.
+2. **WD5f's p95 clause is dropped from this session.** It is W5's question, and it waits for W5's new instrument.
+   WD5f's R5 marker clause stays.
+3. **After the captures,** E2:08 stays on `wxlook` until look 3's retirement build, which fetches production `/blips`.
+4. **Rain:** capture only when the rain is close enough for R3 to grade. Rain 50-100 km out risks a BLIND run, so wait
+   for a better day rather than spend the window. Daniel gets the hands-off window before any run.
+
+**The mask, exactly** (in `scripts/wx-fb-check.py`, for the layer-on arms, `--look A` and `--look B`):
+1. **The head:** the 8-connected components of pixels equal to `s565(170, 255, 170)`. There must be exactly one, with
+   its centroid 117-123 px from the centre (119, 119), the disc's edge. θ is the centroid's angle, in screen
+   coordinates as the device draws it (`xLead = cx + cos θ · r`, `yLead = cy + sin θ · r`).
+2. **The beam:** the ray at θ is sampled at radii 10, 11, …, 110 (101 samples, each rounded to the nearest pixel). A
+   sample hits if that pixel or one of its 8 neighbours equals `s565(80, 255, 80)`. **At least 70 % must hit.**
+   Planes and labels drawn after the beam can hide some, and a beam at another angle hits almost none.
+3. **Otherwise the frame is UNTRUSTWORTHY** (with `--drop-untrustworthy`, dropped and counted), never graded.
+4. **The masked region:** every disc pixel within 12 px of the centre (angles are meaningless there), and every pixel
+   whose angle lies in **[θ − 1.0 − 0.06, θ + 0.06]**. The margin is **0.06 rad each side**, which covers the triangles'
+   truncated vertices and the head's 2 px radius at the inner ring's 39 px.
+5. **Inside the mask:**
+   - ring pixels are not graded (neither exercised nor exceptions);
+   - a marker is not graded if any of its pixels, or any pixel within 3 px of it, is in the mask. It is counted as
+     **masked**.
+6. **Outside the mask: the frozen rules, plus one.** A ring pixel showing a **wedge-only colour** is an exception: a
+   wedge colour outside the wedge.
+   - **Wedge-only colours:** look 4's lit colours (each echo code from its own percent, at every wedge level 1-120)
+     plus the wedge greens `(0, lvl, 0)`, lvl 1-120.
+   - **Minus:** the look's weather colours, the marker, label and ring colours, the beam and head colours, and black.
+   - They are read from the source: `WxSweep.h`'s `kPeak` and `LitPercent`, and `WxS2.h`'s rule, with their shapes
+     asserted.
+7. **Printed per frame:** θ, the head's distance from the centre, the beam hits, the masked share, and the masked
+   markers.
+8. **The `--off` arm is unchanged, with no mask.** With the layer off the wedge is today's opaque green, and R5 counts
+   black ring neighbours. A wrongly drawn black outline shows against the wedge's green as it does against black, so
+   the wedge hides nothing from R5 there.
+
+| | check | predicted |
+|---|---|---|
+| **M1** | the masked share, for every beam angle, from the mask's own definition (computed over 360 angles before any code) | **18.58-18.69 %** of the 45,223 disc pixels. **Per capture frame: 18.4-18.9 %** |
+| **M2** | selftest: a synthetic look-A frame with the look-4 wedge, its beam and its head drawn as the device draws them | the mask is found; the share is within M1's band; (1) and (2) PASS, exercised outside the mask |
+| **M3** | **sabotage S-m1** (ruled): one ring pixel outside the mask set to a wedge-only colour | **(1) FAIL** |
+| **M4** | **sabotage S-m2** (ruled): the same frame with its head erased | **UNTRUSTWORTHY** |
+| **M5** | the same frame with two heads; with its head at 80 px; with its beam line drawn 0.3 rad from its head | **UNTRUSTWORTHY**, each |
+| **M6** | the control: a wedge-coloured missing ring pixel **inside** the mask | not graded: (1) PASS, with the ring pixels there counted as masked |
+| **M7** | the 18 existing selftest cases, their layer-on frames now drawn with a beam and head placed away from each case's subject | **every verdict unchanged** |
+| **M8** | `wx-fb-check.py --selftest` as a whole, and CI | SELFTEST PASSED, CI 0 failures |
+
+**Outside the set:** stop and report.
