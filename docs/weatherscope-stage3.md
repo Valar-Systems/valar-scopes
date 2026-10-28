@@ -6313,3 +6313,67 @@ Its `builder:` is `e1c2e5561313`, and its `store:` is `ccf24c2066bb`.
 
 - **The device reader** (`include/BasemapPackage.h`, 3.5b's step 5) gets the same two refusals, and PK rows for the two fixtures, when it is written.
 - **When:** the next PR that touches the PK set. **Step 3 goes first, as ruled.**
+
+### A12.16 Step 3: ref35's geography and R0b, frozen before their code
+
+**What A10.5 asks, read against the code before freezing:**
+- **The mockup's line DDA is the device's.** `bendmock.py`'s `draw_polyline` and `wxraster::Line` take the same points: `n = int(max(|dx|, |dy|)) + 1`, then `x0 + dx·k/n` for k = 0..n. Only the rounding differs, Python's half-to-even `round()` against `floor(v + 0.5)`. That is cause 3.
+- **Lines and fills are masked the same way in both.** `wxraster::InMap` uses the generator's integer-coordinate disc test. The disc difference (cause 1) appears only where the fold shows the basemap: the device shows it on `CodeAt`'s pixel-centre disc, the mockup on its corner disc.
+- **3.5a's R0 is the precedent** (A9.10, A9.11). ref35 renders each screen in two modes:
+  - **G** (the generator's own rules), which must equal the PNG;
+  - **P** (the spec), where every pixel that differs from G must be **named by a test judged from the inputs**, never from the difference itself. A9.11's sabotage (b) found the self-naming flaw.
+
+**ref35's geography (P), written from the format doc and A10.2, not from any C++.** There is no device geography code yet.
+- **its own BMPK decoder,** separate from `validate.py`;
+- **the mapping of §9:** the package frame to the screen at 15, 30 and 60 mi, with the origin shifted to the crop's centre;
+- **the build order:** terrain, water, rivers, roads, the last write winning, into a 240 × 240 index image with A10.2's index table;
+- **the fill:** the pixel centre, even-odd, the `(y1 > py) != (y2 > py)` edge rule, `[x_a, x_b)`, in double;
+- **the lines:** the DDA above, with `floor(v + 0.5)` and `InMap`;
+- **the fold:** a dry pixel on `CodeAt`'s disc takes the base colour; code 14 is the hatch with terrain on;
+- **the peaks:** the first 4 placed, in rank order, before towns. Boxes, sides and rejection rules are A10.2's; "Mount " becomes "Mt "; the glyph is the bitmap read off `screen-bend-B.png` (Q32);
+- **the towns** come from the package's places, through 3.5a's ranking and placement.
+
+**Its cross-check (RX1):** ref35's decoder and `validate.py` decode `bend.bmpk` to **the same items in every section**, 0 differences. They are two independent decoders of one format.
+
+**R0b: the inputs are the mockup's, the drawing is ref35's.**
+- **The inputs,** parsed from `bendmock.py` at run time and printed nowhere:
+  - its centre;
+  - its five river names, its "Bus" substring rule for roads, and its `want` summits with their float32 DEM elevations, ranked as it ranks them;
+  - `BEND_POP`, and Oregon LSAD-25 places within 60 mi;
+  - its float32 hillshade, sampled as its `terrain_at` samples it.
+  - **The sources** are the same public files, read from this machine's `C:\Github\_wx-basemap-sources\`: TIGER 2024 AREAWATER, LINEARWATER and PRISECROADS, GNIS OR, the 2025 Gazetteer, and Terrarium z9 x 81-84, y 184-187.
+- **The screens:** `screen-bend-A.png`, `-B.png` and `-C.png` (lossless, 240 × 240).
+
+**R0a′, G against the PNG (RGB888):**
+- **predicted 57,600 / 57,600 on each of A, B and C.**
+- **Any pixel G does not reproduce is unexplained, and R0 stops there.**
+- **The alternatives to name,** if it happens:
+  - a Pillow version whose polygon rasterisation differs from the reviewer's;
+  - a county's AREAWATER file the mockup's local set did not hold, or held differently;
+  - my reading of the mockup.
+
+**R0b′, P against G: every differing pixel named by one of A10.5's four causes,** each by a test judged from the inputs:
+
+| cause | named when | what it cannot detect, stated |
+|---|---|---|
+| 1, the disc | the pixel's corner test and its centre test disagree (a fixed geometric set) | nothing in its set: a broken P disc test puts differences outside the set, so they go unnamed |
+| 2, the fill | **an exact oracle**, even-odd at the pixel centre in rational arithmetic (`fractions`), disagrees with PIL's fill of that polygon at that pixel. The oracle is independent of P's float fill | a P fill that agrees with the oracle everywhere |
+| 3, the DDA | the rounding argument was exactly k + 0.5 (3.5a's `Rounder`, judged from the argument) | nothing in its set |
+| 4, the glyph | the pixel lies in a placed peak's 7 × 6 glyph box | **a wrong glyph bitmap is not detectable by R0b,** since its errors stay inside the box. The PE and K rows grade the glyph against the device |
+
+**Predicted for R0b′:**
+- **A (towns only): 0 pixels differ.** There is no basemap and no peak, so no cause applies.
+- **B and C:** every differing pixel named. The count per cause is reported, not predicted.
+
+**R0's sabotages, frozen now** (each in a copy, the plant asserted):
+
+| sabotage | the plant | predicted |
+|---|---|---|
+| S-R0-DISC | P's map disc radius 119.5 in place of 120 | R0b′ fails on B and C: pixels unnamed |
+| S-R0-ROUND | P's rounding `floor(v)` | R0b′ fails on B and C: pixels unnamed (A9.11's (b), now by argument) |
+| S-R0-FILL | P's fill takes a pixel's top-left corner, not its centre | R0b′ fails on B and C: pixels unnamed against the oracle |
+| S-R0-GREY | the water fill colour (10, 34, 72) → (10, 34, 73), in G | R0a′ fails on B and C |
+
+**RX1's sabotage:** S-RX-DELTA, ref35's decoder reading the first vertex of each polyline as a delta, fails RX1 for rivers and roads.
+
+**Outside these: stop and report.** Nothing downstream (build Q, device code, K rows) starts on an R0 that has not passed.
