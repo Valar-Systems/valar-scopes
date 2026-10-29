@@ -7246,3 +7246,111 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **Q:** waits on the board's Wi-Fi.
 - **A12.30's host rerun:** done (A12.32). Its two sabotage findings wait on a ruling.
 - **The viewer:** built locally. Its pre-flash rows hold: LK-SIZE flash 1,606,631 B and RAM 26,928 B; LK-ELF; LK-PART. Its grader's control passes the right set and fails one changed hash.
+
+### A12.34 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): A12.32 -- the tag fix, S-LF2 restated, the viewer's flash, no re-provisioning; and the sabotage set rerun
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-29 (read from GitHub ahead of your report)
+>
+> A12.32:
+> 1. S-LF1′-OUT: accepted. The shared cache tag is a harness defect, and the harness's own proof refused it rather than report a false green. Push the one-line tag fix, then rerun the whole sabotage set from the pushed commit, not only S-LF1′-OUT, and record it. The first run stays on record as the miss.
+> 2. S-LF2: restated as you propose: light (a)'s LF2 rows on F0, F1 and F17 and its LF3 rows on all 17 frames, 20 rows in all, none in dark or (b). That is what my ruling meant by "turns only that look red", and LF3 should see a corrupted shipped palette. Your A12.30 set was narrower than the ruling, and that stays on record as the miss.
+> 3. The viewer's rows: fine as frozen. Flash it after Q's run, under A12.33's check: flash_plan.py's ranges printed beside the partition table first, firmware.bin alone at 0x20000, then the [ota-slot] line. Q's image goes back the same way afterwards.
+> 4. The factory key: no re-provisioning now, since the Weatherscope edition doesn't use one. If this board ever runs radar firmware again, enrolling it is Daniel's call then.
+
+**Done, as ruled:**
+- **Items 1 and 2:** the one-line tag fix (`planted@<cell>`) and S-LF2's restated set, pushed together as `a7de07744277`.
+- **The whole sabotage set, rerun from that commit,** with a clean tree:
+
+| sabotage | plant took? | red | ruled set |
+|---|---|---|---|
+| clean | | none, over 83 rows | none |
+| S-LF1′-IN | yes: F5 draws 2 code-5 pixels | LF1′ F5 | the same |
+| S-LF1′-OUT | yes: the corner cell is outside the disc, the crop's codes include 5, and F5 draws 0 | none | none |
+| S-LF2 | yes: (38, 38, 40) → (39, 38, 40) | light (a)'s LF2 on F0, F1 and F17, and its LF3 on all 17 frames: 20 rows | the same |
+| S-LF3 | yes: 1 byte | LF3 F7 in all three looks | the same |
+| S-LF4 | yes | LF4 | the same |
+
+  **Every sabotage reds exactly its set.** The first run (A12.32) stays on record as the miss.
+- **Item 4:** no re-provisioning.
+
+**Item 3, the viewer's flash: one gap, closed in code, not by substituting evidence.**
+- The standalone viewer printed no `[ota-slot]` line, so the ruled post-write check could not have been read.
+- It now prints one at boot: `[ota-slot] boot running=<label> @0x<address>`, from `esp_ota_get_running_partition()`.
+- The viewer is rebuilt, and its pre-flash rows (LK-SIZE, LK-ELF and LK-PART) are re-measured on that build before the flash. The results follow in A12.36.
+
+### A12.35 Build Q's results (q3): four rows off A12.25 -- stopped for a ruling; q2 void; A12.33 corrected
+
+**A12.33's NVS table had two rows wrong, and they are corrected here.**
+- **What A12.33 said:** location and autodim were "unknown", because the edition "prints nothing about either".
+- **That is false.** At init the edition prints `[wx] init; location=<set|unset> autodim=<n> brightness=<n> stored=<n>`.
+- **What the boots show:** every boot captured before the erase (the runs of 2026-10-23, 10-25 and 10-26, 9 traces) prints **`location=set autodim=1 brightness=255 stored=1`**. Every boot since prints `location=unset`.
+- **So the erased NVS held a location.** It is Daniel's to re-enter, and only when a live run needs it; Q does not.
+- **Autodim and brightness** read 1 and 255 now as well, the defaults, so their effective values are unchanged.
+- **The rest of A12.33's table stands.**
+
+**q2 (`run-2026-10-29-q2`), void, and not committed.**
+- The board was reset with `read-mac` (no write), and the port opened 1.5 s later.
+- At 04:18:22Z, 7 s after the first scenario screen, **`[wx] screen=legend` appeared with no `[wx] gesture` line before it**, so a swipe on the glass (or a ghost touch), not a serial byte.
+- The legend held, so B1 saw only dry in its 240 s.
+- The run was stopped, and the board reset with `read-mac`. Nothing in it is graded except its boot's `psram_q`, read below.
+- **Whether a hand caused it is Daniel's to say.** q3, run under the same hands-off window, saw no unexplained screen change.
+
+**q3 (`run-2026-10-29-q3`, 04:24:30Z-04:32:39Z, one open; on `weatherscope/build-q` @ `46c7f8f59ab0`, redacted).**
+- **The image:** Q's `firmware.bin` `56d75a7538af`.
+  - The run right after the flash read `[build] env=weatherscope-s3-128` and `[ota-slot] boot running=app0 @0x020000`, and nothing has been written since.
+  - q3's own trace opened after those two lines had passed.
+- **The grades,** each re-run on the redacted files and identical (LAN IP, BSSID and SSID replaced):
+
+| row | A12.25 predicted | q3 measured | |
+|---|---|---|---|
+| Q-SIZE | flash 1,659,776-1,664,000; RAM 59,816 (re-registered, A12.29) | 1,661,123 / 59,816 | holds |
+| Q-ELF | each Bend crop once | 16 of 16 | holds |
+| PSRAM `psram_used` | 218,032-222,032 | 221,076 | holds |
+| **PSRAM `psram_q`** | **102,240-102,400** | **103,432**, both boots (q2, q3) | **off** |
+| B1 | 6 exact against the teal reference | 6 of 6 at 57,600 | holds |
+| BZ | 7 of 7 exact | 7 of 7 | holds |
+| B2 hashes | each loop's 15 equal G's | 15 of 15 and 15 of 15 | holds |
+| **B2-DRAW** | **every frame ≤ 35,855 (60) and ≤ 35,825 (warning)** | **34,776-36,063 and 34,832-36,480** | **off** |
+| B2 pacing | 70,000 ± 5,000, spread ≤ 10,000, ≥ 14 fps | 69,853-70,150, spread ≤ 292, 14.28 fps | holds |
+| (grade_b35's own) B2 draw range | A9.23: every frame 28,000-36,000 | 36,063 and 36,480 at the top | **off**, the same cause as B2-DRAW |
+| Q-READS | equal to the host's 15, both loops | equal, both loops | holds |
+| B3 | the legend exact with teal; the screen after it exact | exact, 21 of 21 swatches | holds |
+| sabotages | the recorded-data sabotages red | 5 of 5 red | holds |
+| Q-DEC | 48 lines and done; st=0; `nz` and `fnv` equal to the host's | 48 of 48 | holds |
+| **Q-DEC time** | **every decode 1,700-3,200 µs** | **870-2,368**; each crop's largest: 1,610-2,368, and `synthetic-clear` 881 | **off** |
+| Q-BOUND | ≤ 38,000 | **37,470** | holds |
+| (the stated estimate) | about 35,900-36,500 | 37,470 | outside |
+
+**The bound's terms:** D 36,480 + A 268.7 (r_min 32,226) + (dB 2,368 − dD 1,992) + P 340.3 (1,807 × 188.3 ns) = **37,470 µs**. That leaves **530 µs** to A10.3's ceiling.
+
+**What each miss is, with its alternative.**
+- **`psram_q`, 1,192 B over the two buffers:**
+  - **(1)** another task's PSRAM allocation inside the window: Wi-Fi and LWIP run on other tasks, and `[tls-alloc]` routes allocations ≥ 4,096 B to PSRAM. A9.23's band carries ±2,000 for this method's noise; mine allowed +160.
+  - **(2)** allocator overhead on two large blocks.
+  - The repeat (103,432 twice) does not exclude (1): this boot is deterministic. **`heap_caps_get_allocated_size()` on the two blocks would separate them,** and that is a firmware change, so a ruling's.
+- **B2-DRAW:** the probe build's mean draw is +2,380 µs (60) and +2,486 µs (warning) over G's. At about 33,000 reads a frame, that is about 72-75 ns a read, against A10.3's copy-rate bound of 58.4 ns.
+  - **The alternative:** main moved between G and Q (#484, #485, #488), so part of the rise may be main's and not the probe's.
+  - **The data cannot separate them**, because Q never draws the loop with the probe off. A probe-off pass on the same image (a bench byte that nulls the base) would. That is a firmware change, so a ruling's.
+- **Q-DEC time:** my band was wrong, and on its low side.
+  - Bend's frames decode in 1,610-2,368 µs, against the fit's 2,040-2,400.
+  - **`synthetic-clear` (36 B) decodes in 881 µs, and my own fit gave it about 1,290, already below the band's floor of 1,700.** The band was not derived from the fit for every crop.
+  - **The decodes themselves are all correct:** 48 of 48 match the host's `nz` and FNV.
+- **The estimate:** I put D near 35,000. It came out 36,480.
+
+**Stopped, as A12.25 says.** **B2-Bend's bound is not frozen**, though the formula gives 37,470 and the ceiling is held; it waits on the ruling.
+
+**Not waiting on it** (A12.24): the viewer's flash and run (A12.34 item 3). It is independent of Q's rows, and Q's image goes back afterwards.
+
+**The B1 images, for Daniel,** in `tools/weatherscope/board/run-2026-10-29-q3/`, by RGB-pixel sha256:
+
+| image | sha256 |
+|---|---|
+| dry | `aa4e44ab086d` |
+| approaching | `fd0aaa6b7f22` |
+| here-now | `c908d1730680` |
+| warning | `250b5aa7be55` |
+| stale | `710d6ee1f4bb` |
+| clear | `de37a89877e0` |
+| the legend | `932094ef7a4f` |
