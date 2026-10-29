@@ -2029,6 +2029,28 @@ void AircraftManager::ReportSweep()
         Serial.printf("[health] sweepparts=%lu/%lu/%luus n=%u\n", (unsigned long)(ps[0] / np), (unsigned long)(ps[1] / np),
                       (unsigned long)(ps[2] / np), (unsigned)np);
     }
+    // Step C's copy floor, measured once at boot and reprinted here so a trace opened after the boot still sees it.
+    Serial.printf("[bench] memcpy=%luus memset=%luus (115200 B, PSRAM, median of 10, at boot)\n",
+                  (unsigned long)copyFloorMemcpyUs, (unsigned long)copyFloorMemsetUs);
+}
+
+void AircraftManager::MeasureCopyFloor()
+{
+    constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;
+    uint8_t* a = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
+    uint8_t* b = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
+    if (a && b) {
+        uint32_t cp[10], st[10];
+        memset(a, 0x5A, kBytes);
+        for (int i = 0; i < 10; ++i) { const uint32_t t = micros(); memcpy(b, a, kBytes); cp[i] = micros() - t; }
+        for (int i = 0; i < 10; ++i) { const uint32_t t = micros(); memset(b, i, kBytes); st[i] = micros() - t; }
+        std::sort(cp, cp + 10);
+        std::sort(st, st + 10);
+        copyFloorMemcpyUs = cp[5];
+        copyFloorMemsetUs = st[5];
+    }
+    heap_caps_free(a);
+    heap_caps_free(b);
 }
 
 void AircraftManager::RecordClearUs(uint32_t us, bool pushed)

@@ -853,6 +853,7 @@ private:
     size_t clearSampleCount = 0;
     uint16_t partSampleBuf[3][FRAME_SAMPLES] = {{0}};
     size_t partSampleCount = 0;
+    uint32_t copyFloorMemcpyUs = 0, copyFloorMemsetUs = 0;   // step C, measured once at boot (0: not measured)
     void ReportSweep();
 #endif
     // Worst single loop pass since the last health report (0.1 ms units). The
@@ -1317,6 +1318,8 @@ public:
     // FRAME_SAMPLES calls; the 30 s [health] report prints them after the sweep= line.
     void RecordClearUs(uint32_t us, bool pushed);
     void RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, uint32_t beamUs);
+    // Step C, once at boot: a full screen's 115,200 B copied PSRAM to PSRAM and filled, each the median of 10.
+    void MeasureCopyFloor();
 #endif
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
     // Is the detail card up? Distinct from !IsRadarView(), which is also true on

@@ -8,9 +8,6 @@
 #include "FrameBuffer.h"
 #ifdef FEATURE_WEATHERSCOPE
 #include <atomic>
-#if defined(WX_LOOK_AB)
-#include <algorithm>    // step C's boot medians (bench image only)
-#endif
 #include <cstring>
 #include <esp_heap_caps.h>
 #include "DiagText.h"          // diag only: /diag/wx (docs/weatherscope-stage3.md A9.42)
@@ -701,27 +698,10 @@ void setup()
   configmigration::Apply();
 
 #if defined(WX_LOOK_AB)
-  // Step C (docs/wx-device.md, ruled 2026-10-29), bench image only: once at boot, a full screen's 115,200 B copied
-  // PSRAM to PSRAM and filled, each the median of 10 -- the floor a layer copy pays against the fill it replaces.
-  {
-    constexpr size_t kBytes = 240 * 240 * 2;
-    uint8_t* a = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
-    uint8_t* b = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
-    if (a && b) {
-      uint32_t cp[10], st[10];
-      memset(a, 0x5A, kBytes);
-      for (int i = 0; i < 10; ++i) { const uint32_t t = micros(); memcpy(b, a, kBytes); cp[i] = micros() - t; }
-      for (int i = 0; i < 10; ++i) { const uint32_t t = micros(); memset(b, i, kBytes); st[i] = micros() - t; }
-      std::sort(cp, cp + 10);
-      std::sort(st, st + 10);
-      Serial.printf("[bench] memcpy=%luus memset=%luus (115200 B, PSRAM, median of 10)\n", (unsigned long)cp[5],
-                    (unsigned long)st[5]);
-    } else {
-      Serial.println("[bench] memcpy/memset: no PSRAM for the scratch buffers");
-    }
-    heap_caps_free(a);
-    heap_caps_free(b);
-  }
+  // Step C (docs/wx-device.md, ruled 2026-10-29), bench image only: once at boot, the copy floor. Measured here, and
+  // reprinted with every 30 s [health] report, because serial writes never block (#485): a boot line printed before
+  // the trace opens can be dropped.
+  appManager.MeasureCopyFloor();
 #endif
 
   // A private ntfy topic, generated once on a factory-fresh device (14.1).
