@@ -6813,3 +6813,34 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - B2-Bend's bound is frozen in the results addendum, from these numbers only.
 
 **Outside every row: stop Q and report.** By A12.24, the independent queue carries on (the light candidates' bench select is predicted next, and does not wait on Q's bound).
+
+### A12.26 Build Q's build rows: RAM is outside A12.25's band. Q stops before its flash, for a ruling
+
+**The build** (`weatherscope/build-q`, code as A12.25 describes it, not yet flashed):
+- `firmware.bin` is 1,661,520 B, sha256 `56d75a7538af…`.
+- The anchor, from A12.25: main measured 1,628,855 B of flash and 59,024 B of RAM.
+
+| row | predicted | measured | |
+|---|---|---|---|
+| Q-SIZE flash | 1,659,776-1,664,000 B | **1,661,123 B** | holds |
+| Q-SIZE RAM | 59,024-59,224 B | **59,816 B** | **outside, by 592 B over the band's top (792 B over main)** |
+| Q-ELF | each Bend crop once | **16 of 16 Bend crops, and the 16 Dallas crops as a control, each exactly once in the ELF and in the image** | holds |
+
+**The 792 B, accounted, with nothing left over:**
+- **768 B:** `RunQDecode`'s results, `static QResult res[3][16]`, at 16 B each (three `uint32_t`, a status byte, padding).
+- **12 B:** `QProbeState`'s static (the base, the sink and the count).
+- **12 B:** the function-local static's guard, and alignment.
+- **Why the prediction missed it:** A12.25's design says the decode results are "kept, then printed paced". The RAM row counted only "statics" as small, and never priced the kept table that design implies. **The prediction was wrong, not the build.**
+
+**Stopped, as A12.25 says:** no flash, no change, no re-registration of my own.
+
+**For a ruling:**
+- **(a) Recommended:** re-register Q's RAM as 59,816 B and flash the build as it stands.
+  - The table is Q's own bench instrument, it is fully accounted, and Q never merges.
+  - The row exists to catch static growth nobody can explain, and this growth is explained to the byte.
+- **(b)** Move the results table to PSRAM, allocated at `Q`, and rebuild. RAM returns to about 59,048 B. Q then needs a new build and new frozen rows (RAM; `psram_q` unchanged, since the table is allocated later, outside its count).
+
+**Independent of this, and going ahead under A12.24:**
+- Q's host tests, before Q's branch is pushed as built (it touches `src/weatherscope`);
+- #498, waiting on review;
+- the light candidates' bench select, its design and predictions first.
