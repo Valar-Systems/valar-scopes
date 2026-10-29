@@ -1,0 +1,13 @@
+  FAIL  QBUF: {'probe': '57600', 'bendgrid': '44640', 'psram_q': '103432', 'ok': '1'}
+  ok    B2 loops: 2 loops, records [(15, 15), (15, 15)]
+  ok    B2-G loop 1: 15 of 15 hashes equal to G's
+  FAIL  B2-DRAW loop 1: draw 34776-36063 us (<= 35855); G's 32281-33705; mean 35683 against G's 33303 (+2380, informational)
+  ok    B2-G loop 2: 15 of 15 hashes equal to G's
+  FAIL  B2-DRAW loop 2: draw 34832-36480 us (<= 35825); G's 32351-33675; mean 35793 against G's 33307 (+2486, informational)
+  ok    Q-READS loop 1: device [35082, 34583, 34008, 33409, 32899, 32614, 32540, 32436, 32226, 32234, 32234, 32373, 32608, 33016, 33415] == host [35082, 34583, 34008, 33409, 32899, 32614, 32540, 32436, 32226, 32234, 32234, 32373, 32608, 33016, 33415]
+  ok    Q-READS loop 2: device [35082, 34583, 34008, 33409, 32899, 32614, 32540, 32436, 32226, 32234, 32234, 32373, 32608, 33016, 33415] == host [35082, 34583, 34008, 33409, 32899, 32614, 32540, 32436, 32226, 32234, 32234, 32373, 32608, 33016, 33415]
+  ok    Q-DEC lines: 48 qdec lines, done=True
+  ok    Q-DEC decode: 48 of 48 with st=0 and nz, fnv equal to the host's
+  FAIL  Q-DEC time: us 870-2368 (1,700-3,200); per crop max [1671, 1610, 1631, 1614, 1681, 1788, 1795, 1797, 1831, 1927, 2368, 2024, 1860, 2164, 2148, 881]
+  ok    Q-BOUND: D 36480 + A 268.7 (r_min 32226) + dB 2368 - dD 1992 + P 340.3 (1807 x 188.3 ns) = 37470 us (<= 38000; predicted about 35,900-36,500 -- OUTSIDE the stated estimate)
+build Q: OFF-PREDICTION: stop and report

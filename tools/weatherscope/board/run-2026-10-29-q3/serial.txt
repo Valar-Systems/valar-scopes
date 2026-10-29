@@ -1,0 +1,637 @@
+#HOST opened COM6; board weatherscope-326e64.local; acting only on screen lines from t_open + 1 s
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+[WiFi] fast join: ch=1 bssid=<bssid>
+[WiFi] Associated with "<ssid>", waiting for IP...
+[WiFi] CONNECTED  IP=<board-ip>  RSSI=-34 dBm
+[WiFi] fast join OK in 4300 ms
+[WiFi] pinned AP ch=1 RSSI=-34 dBm for the next boot
+[ota] channel=weatherscope-s3-128 current=18 latest=18
+[web] config server listening on :80 (http://Weatherscope-326E64.local)
+[wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+[wx] psram_used=221076 sprite=1 grid=38520 in=432 out=688 layer=59488 history=15 clear=36 ready=1
+[wx] qbuf probe=57600 bendgrid=44640 psram_q=103432 ok=1
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] init; location=unset autodim=1 brightness=255 stored=1
+[heap] handshake ballast reserved (16717 B); free8=196008
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41505
+[wx] prof dry-60 view=3563 map=22595 bands=3151 rings=7653 warning=4 labels=3617 ringlabels=541 home=18 replay=4 strip=103 band=243 sum=41492 compose_us=41505
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 5000 draws 1-124 n=124 phases=2 push_us=25777-25891
+#HOST fetch dry 0: 115200 B torn=false seq=237 phase=2,2 tag=103c00ee,103c00ee finished=true wait=4587 sha 012cada2ea01
+#HOST fetch dry 1: 115200 B torn=false seq=281 phase=2,2 tag=103c011a,103c011a finished=true wait=4961 sha 012cada2ea01
+[wx] fbcopy n=843 min=5356 max=7339 mean=5405
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=41388
+[wx] prof approaching-60 view=3569 map=22741 bands=3208 rings=7629 warning=4 labels=3406 ringlabels=456 home=18 replay=2 strip=103 band=240 sum=41376 compose_us=41388
+[wx] k ROW approaching-60 1ff92e45d2c13fe65a8aba141a31235a76ab93153e934095f93f430fe8ba1bf0
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 125-967 n=843 phases=2 push_us=25807-36630
+#HOST fetch approaching 0: 115200 B torn=false seq=1088 phase=2,2 tag=113c0441,113c0441 finished=true wait=14728 sha 1ff92e45d2c1
+#HOST fetch approaching 1: 115200 B torn=false seq=1132 phase=2,2 tag=113c046d,113c046d finished=true wait=4974 sha 1ff92e45d2c1
+[wx] fbcopy n=844 min=5356 max=7302 mean=5406
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=41328
+[wx] prof herenow-60 view=3576 map=22781 bands=3150 rings=7627 warning=4 labels=3407 ringlabels=468 home=20 replay=1 strip=94 band=188 sum=41316 compose_us=41328
+[wx] k ROW herenow-60 78a497c19d61768e7214559db225b073ca9ca67d0b0453b0296fd4e34ca395e1
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 968-1811 n=844 phases=2 push_us=25806-35378
+#HOST fetch herenow 0: 115200 B torn=false seq=1921 phase=2,2 tag=123c0782,123c0782 finished=true wait=9794 sha 78a497c19d61
+#HOST fetch herenow 1: 115200 B torn=false seq=1957 phase=2,2 tag=123c07a6,123c07a6 finished=true wait=4970 sha 78a497c19d61
+[wx] fbcopy n=843 min=5356 max=7249 mean=5416
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=48499
+[wx] prof warning-60 view=3566 map=22751 bands=3156 rings=7653 warning=6405 labels=3852 ringlabels=644 home=18 replay=2 strip=105 band=333 sum=48485 compose_us=48499
+[wx] k ROW warning-60 b36abcad1811d7f047ab31710b05256b5b1d2995db6d7a7481c19d3e2d756d1d
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 1812-2654 n=843 phases=2 push_us=25806-35422
+#HOST fetch warning 0: 115200 B torn=false seq=2766 phase=3,3 tag=133c0ace,133c0ace finished=true wait=5336 sha b36abcad1811
+#HOST fetch warning 1: 115200 B torn=false seq=2800 phase=2,2 tag=133c0af1,133c0af1 finished=true wait=4657 sha b36abcad1811
+[wx] fbcopy n=844 min=5356 max=7138 mean=5403
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=41365
+[wx] prof stale-60 view=3583 map=22741 bands=3156 rings=7619 warning=4 labels=3403 ringlabels=461 home=19 replay=1 strip=95 band=271 sum=41353 compose_us=41365
+[wx] k ROW stale-60 9c252347c3edc80660b8fe5dc2fa94f72ee25edf821a832debef4aa01c09cc46
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[fb] push 133c draws 2655-3498 n=844 phases=2 push_us=25806-35890
+#HOST fetch stale 0: 115200 B torn=false seq=3613 phase=2,2 tag=143c0e1e,143c0e1e finished=true wait=10855 sha 9c252347c3ed
+#HOST fetch stale 1: 115200 B torn=false seq=3657 phase=2,2 tag=143c0e4a,143c0e4a finished=true wait=5284 sha 9c252347c3ed
+[wx] fbcopy n=843 min=5356 max=7267 mean=5414
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=40588
+[wx] prof clear-60 view=3559 map=21950 bands=3151 rings=7627 warning=4 labels=3439 ringlabels=471 home=18 replay=2 strip=102 band=253 sum=40576 compose_us=40588
+[wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[fb] push 143c draws 3499-4341 n=843 phases=2 push_us=25809-36074
+#HOST fetch clear 0: 115200 B torn=false seq=4450 phase=2,2 tag=153c1163,153c1163 finished=true wait=4995 sha 07155bc1474d
+#HOST fetch clear 1: 115200 B torn=false seq=4481 phase=2,2 tag=153c1182,153c1182 finished=true wait=4969 sha 07155bc1474d
+#HOST B1 captured ['approaching', 'clear', 'dry', 'herenow', 'stale', 'warning']
+[wx] fbcopy n=845 min=5356 max=8399 mean=5411
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41111
+[wx] prof dry-60 view=3572 map=22578 bands=3155 rings=7617 warning=4 labels=3408 ringlabels=407 home=19 replay=1 strip=97 band=241 sum=41099 compose_us=41111
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 153c draws 4342-5186 n=845 phases=2 push_us=25808-35390
+#HOST BZ block from dry R=60 starts; budget 21.8 s
+#HOST send b'U'
+[wx] gesture U
+[wx] zoom in 60 -> 30 mi
+[wx] fbcopy n=32 min=5357 max=5501 mean=5369
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=30 frame=220000 screen=Dry synthetic=0 compose_us=38257
+[wx] prof dry-30 view=3572 map=21698 bands=3151 rings=6793 warning=4 labels=2259 ringlabels=308 home=18 replay=1 strip=201 band=240 sum=38245 compose_us=38257
+[wx] k ROW dry-30 600ceafc04e5af0523109f6bcdb36865e013f71bbc9430977e0019ae6deef7e9
+[wx] k TIME dry-30 5:00%20PM dim
+[wx] k BAND dry-30 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-30 Dallas R 182 145 222 153
+[wx] k LABEL dry-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL dry-30 Arlington L 42 170 102 178
+[wx] k LABEL dry-30 Plano R 186 74 220 82
+[wx] k LABEL dry-30 Garland L 168 113 216 121
+[wx] k LABEL dry-30 Frisco L 130 45 172 53
+[wx] screen=scenario dry R=30
+[fb] push 103c draws 5187-5218 n=32 phases=2 push_us=25814-25852
+#HOST fetch bz0 0: 115200 B torn=false seq=5284 phase=2,2 tag=101e14a5,101e14a5 finished=true wait=8498 sha 600ceafc04e5
+#HOST fetch bz0 1: 115200 B torn=false seq=5316 phase=2,2 tag=101e14c5,101e14c5 finished=true wait=4712 sha 600ceafc04e5
+#HOST send b'U'
+[wx] gesture U
+[wx] zoom in 30 -> 15 mi
+[wx] fbcopy n=109 min=5356 max=8281 mean=5534
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=34792
+[wx] prof dry-15 view=3571 map=21595 bands=3151 rings=3455 warning=4 labels=2417 ringlabels=144 home=18 replay=1 strip=186 band=238 sum=34780 compose_us=34792
+[wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+[wx] k TIME dry-15 5:00%20PM dim
+[wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-15 Irving R 151 139 191 147
+[wx] k LABEL dry-15 Lewisville L 86 32 152 40
+[wx] k LABEL dry-15 Carrollton L 120 66 186 74
+[wx] k LABEL dry-15 Euless L 62 143 104 151
+[wx] k LABEL dry-15 Keller R 33 97 73 105
+[wx] screen=scenario dry R=15
+[fb] push 101e draws 5219-5327 n=109 phases=2 push_us=25812-36169
+#HOST fetch bz1 0: 115200 B torn=false seq=5359 phase=2,2 tag=100f14f0,100f14f0 finished=true wait=4968 sha acd13a4a7ee3
+#HOST fetch bz1 1: 115200 B torn=false seq=5393 phase=2,2 tag=100f1512,100f1512 finished=true wait=6596 sha acd13a4a7ee3
+#HOST send b'U'
+[wx] gesture U
+[wx] zoom in (edge: Max) 15 -> 15 mi
+[wx] fbcopy n=76 min=5357 max=7366 mean=5702
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=34806
+[wx] prof dry-15 view=3571 map=21595 bands=3151 rings=3454 warning=4 labels=2422 ringlabels=152 home=18 replay=1 strip=193 band=233 sum=34794 compose_us=34806
+[wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+[wx] k TIME dry-15 5:00%20PM dim
+[wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-15 Irving R 151 139 191 147
+[wx] k LABEL dry-15 Lewisville L 86 32 152 40
+[wx] k LABEL dry-15 Carrollton L 120 66 186 74
+[wx] k LABEL dry-15 Euless L 62 143 104 151
+[wx] k LABEL dry-15 Keller R 33 97 73 105
+[wx] screen=scenario dry R=15
+#HOST fetch bz2 0: 115200 B torn=false seq=5432 phase=2,2 tag=100f1539,100f1539 finished=true wait=4968 sha acd13a4a7ee3
+#HOST fetch bz2 1: 115200 B torn=false seq=5464 phase=3,3 tag=100f1558,100f1558 finished=true wait=4975 sha acd13a4a7ee3
+#HOST send b'D'
+[wx] gesture D
+[wx] zoom out 15 -> 30 mi
+[wx] fbcopy n=70 min=5357 max=8369 mean=5677
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=30 frame=220000 screen=Dry synthetic=0 compose_us=38232
+[wx] prof dry-30 view=3571 map=21697 bands=3150 rings=6789 warning=4 labels=2259 ringlabels=289 home=18 replay=1 strip=197 band=244 sum=38219 compose_us=38232
+[wx] k ROW dry-30 600ceafc04e5af0523109f6bcdb36865e013f71bbc9430977e0019ae6deef7e9
+[wx] k TIME dry-30 5:00%20PM dim
+[wx] k BAND dry-30 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-30 Dallas R 182 145 222 153
+[wx] k LABEL dry-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL dry-30 Arlington L 42 170 102 178
+[wx] k LABEL dry-30 Plano R 186 74 220 82
+[wx] k LABEL dry-30 Garland L 168 113 216 121
+[wx] k LABEL dry-30 Frisco L 130 45 172 53
+[wx] screen=scenario dry R=30
+[fb] push 100f draws 5328-5473 n=146 phases=2 push_us=25808-35422
+#HOST fetch bz3 0: 115200 B torn=false seq=5503 phase=2,2 tag=101e1580,101e1580 finished=true wait=9913 sha 600ceafc04e5
+#HOST fetch bz3 1: 115200 B torn=false seq=5568 phase=2,2 tag=101e15c1,101e15c1 finished=true wait=4968 sha 600ceafc04e5
+[wx] fbcopy n=537 min=5356 max=7224 mean=5421
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=approaching R=30 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=38857
+[wx] prof approaching-30 view=3574 map=22339 bands=3155 rings=6780 warning=4 labels=2263 ringlabels=286 home=20 replay=1 strip=187 band=236 sum=38845 compose_us=38857
+[wx] k ROW approaching-30 a0da55d80977544fa1c030b678c2f4502d5adc518234cf388499cafb10e65376
+[wx] k TIME approaching-30 4:24%20PM dim
+[wx] k BAND approaching-30 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-30 Dallas R 182 145 222 153
+[wx] k LABEL approaching-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL approaching-30 Arlington L 42 170 102 178
+[wx] k LABEL approaching-30 Plano R 186 74 220 82
+[wx] k LABEL approaching-30 Garland L 168 113 216 121
+[wx] k LABEL approaching-30 Frisco L 130 45 172 53
+[wx] screen=scenario approaching R=30
+[fb] push 101e draws 5474-6010 n=537 phases=2 push_us=25810-35387
+[wx] fbcopy n=846 min=5356 max=6481 mean=5382
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=herenow R=30 frame=212400 screen=PrecipNow synthetic=1 compose_us=38863
+[wx] prof herenow-30 view=3571 map=22338 bands=3151 rings=6793 warning=4 labels=2263 ringlabels=327 home=20 replay=1 strip=195 band=188 sum=38851 compose_us=38863
+[wx] k ROW herenow-30 747f45a28b727326dffc4381ee0426415545898e7a6ae33f11c1883de18ce558
+[wx] k TIME herenow-30 4:24%20PM dim
+[wx] k BAND herenow-30 S RAIN%20NOW white
+[wx] k LABEL herenow-30 Dallas R 182 145 222 153
+[wx] k LABEL herenow-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL herenow-30 Arlington L 42 170 102 178
+[wx] k LABEL herenow-30 Plano R 186 74 220 82
+[wx] k LABEL herenow-30 Garland L 168 113 216 121
+[wx] k LABEL herenow-30 Frisco L 130 45 172 53
+[wx] screen=scenario herenow R=30
+[fb] push 111e draws 6011-6856 n=846 phases=2 push_us=25808-25947
+[wx] fbcopy n=846 min=5356 max=6323 mean=5392
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=warning R=30 frame=212400 screen=Warning synthetic=1 compose_us=48456
+[wx] prof warning-30 view=3559 map=22332 bands=3165 rings=6797 warning=8437 labels=3160 ringlabels=444 home=19 replay=2 strip=198 band=329 sum=48442 compose_us=48456
+[wx] k ROW warning-30 640c6afd03cebaada4e6971cfbedb93039e26036104a28bffd3841eeab264712
+[wx] k TIME warning-30 4:24%20PM dim
+[wx] k BAND warning-30 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-30 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-30 Dallas R 182 145 222 153
+[wx] k LABEL warning-30 Arlington R 99 170 157 178
+[wx] k LABEL warning-30 Plano R 186 74 220 82
+[wx] k LABEL warning-30 Lewisville L 71 74 137 82
+[wx] k LABEL warning-30 Rowlett L 187 111 235 119
+[wx] k LABEL warning-30 Sachse L 186 96 228 104
+[wx] screen=scenario warning R=30
+[fb] push 121e draws 6857-7702 n=846 phases=2 push_us=25808-25932
+[wx] fbcopy n=847 min=5356 max=6267 mean=5382
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=stale R=30 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=39375
+[wx] prof stale-30 view=3577 map=22715 bands=3156 rings=6825 warning=5 labels=2263 ringlabels=339 home=19 replay=1 strip=195 band=267 sum=39362 compose_us=39375
+[wx] k ROW stale-30 822be8e3692dbf9818923a3c1ce6c08453b3e1f5e15d12b05969ea5ee4425658
+[wx] k TIME stale-30 4:24%20PM orange
+[wx] k BAND stale-30 S RADAR%20STALE dim
+[wx] k LABEL stale-30 Dallas R 182 145 222 153
+[wx] k LABEL stale-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL stale-30 Arlington L 42 170 102 178
+[wx] k LABEL stale-30 Plano R 186 74 220 82
+[wx] k LABEL stale-30 Garland L 168 113 216 121
+[wx] k LABEL stale-30 Frisco L 130 45 172 53
+[wx] screen=scenario stale R=30
+[fb] push 131e draws 7703-8549 n=847 phases=2 push_us=25805-25926
+[wx] fbcopy n=846 min=5356 max=6530 mean=5396
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=clear R=30 frame=220000 screen=Dry synthetic=1 compose_us=38277
+[wx] prof clear-30 view=3565 map=21692 bands=3156 rings=6791 warning=4 labels=2273 ringlabels=311 home=20 replay=1 strip=204 band=248 sum=38265 compose_us=38277
+[wx] k ROW clear-30 4619084aa9d30a2ca9fb6b0156970d1f06d7af8df1dc924195cf889018139d5b
+[wx] k TIME clear-30 5:00%20PM dim
+[wx] k BAND clear-30 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-30 Dallas R 182 145 222 153
+[wx] k LABEL clear-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL clear-30 Arlington L 42 170 102 178
+[wx] k LABEL clear-30 Plano R 186 74 220 82
+[wx] k LABEL clear-30 Garland L 168 113 216 121
+[wx] k LABEL clear-30 Frisco L 130 45 172 53
+[wx] screen=scenario clear R=30
+[fb] push 141e draws 8550-9395 n=846 phases=2 push_us=25809-25930
+[wx] fbcopy n=848 min=5356 max=6479 mean=5391
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=30 frame=220000 screen=Dry synthetic=0 compose_us=38252
+[wx] prof dry-30 view=3567 map=21706 bands=3151 rings=6792 warning=4 labels=2260 ringlabels=300 home=19 replay=1 strip=200 band=240 sum=38240 compose_us=38252
+[wx] k ROW dry-30 600ceafc04e5af0523109f6bcdb36865e013f71bbc9430977e0019ae6deef7e9
+[wx] k TIME dry-30 5:00%20PM dim
+[wx] k BAND dry-30 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-30 Dallas R 182 145 222 153
+[wx] k LABEL dry-30 Fort%20Worth R 47 148 111 156
+[wx] k LABEL dry-30 Arlington L 42 170 102 178
+[wx] k LABEL dry-30 Plano R 186 74 220 82
+[wx] k LABEL dry-30 Garland L 168 113 216 121
+[wx] k LABEL dry-30 Frisco L 130 45 172 53
+[wx] screen=scenario dry R=30
+[fb] push 151e draws 9396-10243 n=848 phases=2 push_us=25808-25915
+#HOST BZ block from dry R=30 starts; budget 16.6 s
+#HOST send b'D'
+[wx] gesture D
+[wx] zoom out 30 -> 60 mi
+[wx] fbcopy n=33 min=5357 max=5503 mean=5373
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41233
+[wx] prof dry-60 view=3567 map=22638 bands=3156 rings=7625 warning=4 labels=3406 ringlabels=460 home=19 replay=1 strip=103 band=242 sum=41221 compose_us=41233
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 101e draws 10244-10276 n=33 phases=2 push_us=25811-25871
+#HOST fetch bz4 0: 115200 B torn=false seq=10351 phase=2,2 tag=103c2870,103c2870 finished=true wait=7468 sha 012cada2ea01
+#HOST fetch bz4 1: 115200 B torn=false seq=10383 phase=2,2 tag=103c2890,103c2890 finished=true wait=4967 sha 012cada2ea01
+#HOST send b'H'
+[wx] gesture H
+[wx] zoom hold 60 -> 15 mi
+[wx] fbcopy n=121 min=5356 max=7717 mean=5562
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=15 frame=220000 screen=Dry synthetic=0 compose_us=34774
+[wx] prof dry-15 view=3575 map=21592 bands=3151 rings=3448 warning=4 labels=2420 ringlabels=135 home=19 replay=1 strip=184 band=232 sum=34761 compose_us=34774
+[wx] k ROW dry-15 acd13a4a7ee3b78fbb901aa4d89b818758d4673e5c37a95aafdc222e9057f8c6
+[wx] k TIME dry-15 5:00%20PM dim
+[wx] k BAND dry-15 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-15 Irving R 151 139 191 147
+[wx] k LABEL dry-15 Lewisville L 86 32 152 40
+[wx] k LABEL dry-15 Carrollton L 120 66 186 74
+[wx] k LABEL dry-15 Euless L 62 143 104 151
+[wx] k LABEL dry-15 Keller R 33 97 73 105
+[wx] screen=scenario dry R=15
+[fb] push 103c draws 10277-10397 n=121 phases=2 push_us=25804-35399
+#HOST fetch bz5 0: 115200 B torn=false seq=10429 phase=2,2 tag=100f28be,100f28be finished=true wait=4966 sha acd13a4a7ee3
+#HOST fetch bz5 1: 115200 B torn=false seq=10460 phase=2,2 tag=100f28dd,100f28dd finished=true wait=9953 sha acd13a4a7ee3
+#HOST send b'H'
+[wx] gesture H
+[wx] zoom hold 15 -> 60 mi
+[wx] fbcopy n=75 min=5357 max=7648 mean=5609
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41122
+[wx] prof dry-60 view=3576 map=22577 bands=3156 rings=7633 warning=4 labels=3406 ringlabels=402 home=19 replay=1 strip=94 band=242 sum=41110 compose_us=41122
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 100f draws 10398-10472 n=75 phases=2 push_us=25810-35460
+#HOST fetch bz6 0: 115200 B torn=false seq=10507 phase=2,2 tag=103c290c,103c290c finished=true wait=4752 sha 012cada2ea01
+#HOST fetch bz6 1: 115200 B torn=false seq=10546 phase=3,3 tag=103c2932,103c2932 finished=true wait=4975 sha 012cada2ea01
+[wx] fbcopy n=600 min=5356 max=7782 mean=5432
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=41262
+[wx] prof approaching-60 view=3573 map=22740 bands=3151 rings=7616 warning=4 labels=3402 ringlabels=409 home=19 replay=1 strip=96 band=239 sum=41250 compose_us=41262
+[wx] k ROW approaching-60 1ff92e45d2c13fe65a8aba141a31235a76ab93153e934095f93f430fe8ba1bf0
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 10473-11072 n=600 phases=2 push_us=25807-37381
+#HOST send b'T'
+[wx] gesture T
+[wx] layer build_us=20050 pixels=3063 valid=1 rebuilt=tap R=60
+[wx] screen=loop R=60
+[wx] loop records=15 period_us=70000 R=60 layer_rebuilds=0
+[wx] lrec 0 epoch=1716325440 sha=e68e194436ec69e3c44054eaa0347b02b5b62733b904fe71b25db95279fa148a start_us=416493004 draw_us=34776 hash_us=4069
+[wx] lrec 1 epoch=1716325680 sha=20355546cdd48add1f9a2002ae7ebfccedd048a5e685309a2448679215e68bb5 start_us=416562999 draw_us=35024 hash_us=4057
+[wx] lrec 2 epoch=1716325920 sha=9ec5b49d608a9b4e1b4e32e20efb1a629d8b03c6de7bf772c49a57271cc8cec6 start_us=416633000 draw_us=35408 hash_us=4097
+[wx] lrec 3 epoch=1716326160 sha=e597e2d41be5bfa9e79ec23c78b4e6b3644847e1919bb03c108bf5310b580ab8 start_us=416703094 draw_us=35537 hash_us=4071
+[wx] lrec 4 epoch=1716326400 sha=4886961a644a67e35ef346b1093dfe70e8631eb303a8ed370f3e8931af93a115 start_us=416773000 draw_us=35703 hash_us=4063
+[wx] lrec 5 epoch=1716326640 sha=fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39 start_us=416843001 draw_us=35890 hash_us=4064
+[wx] lrec 6 epoch=1716326880 sha=24455c23b3bf1304cc07c358c4157bef2d05580389e1acb79f7eba68e83ec194 start_us=416913000 draw_us=35762 hash_us=4073
+[wx] lrec 7 epoch=1716327120 sha=e3be1c880746ff84ad3e38532cf8ac39418a35b52f0fc12e253b06424524957f start_us=416983002 draw_us=35794 hash_us=4086
+[wx] lrec 8 epoch=1716327360 sha=e14f4aadaca055fd1d582a790cd60d2e6bbe69d0eba0832e2f6c208768a702ce start_us=417053000 draw_us=36050 hash_us=4050
+[wx] lrec 9 epoch=1716327600 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=417123000 draw_us=36063 hash_us=4075
+[wx] lrec 10 epoch=1716327840 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=417193002 draw_us=35978 hash_us=4069
+[wx] lrec 11 epoch=1716328080 sha=8c7847628a851679ac39397f1e9e51a1a6975e0d28198767113c95afadd8b79b start_us=417263147 draw_us=35972 hash_us=4082
+[wx] lrec 12 epoch=1716328320 sha=132fa89334bcafca9633ae8fe141f3eb81737fbc9bf35e03348887dc3dab51b0 start_us=417333000 draw_us=36033 hash_us=4092
+[wx] lrec 13 epoch=1716328560 sha=1239cdb1fa072a7a0ce721fb0263f48e5b727b13cfaaacda22f0843377fb94ac start_us=417403001 draw_us=35742 hash_us=4084
+[wx] lrec 14 epoch=1716328800 sha=3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600 start_us=417473059 draw_us=35508 hash_us=4065
+[wx] lprof 0 decode=1992 view=1 map=26550 bands=3152 rings=2 warning=1 labels=1 ringlabels=1 home=0 replay=2550 strip=123 band=139 sum=32520 draw_us=34776 hash_us=4069
+[wx] lprof 1 decode=2135 view=0 map=26640 bands=3153 rings=2 warning=0 labels=1 ringlabels=1 home=1 replay=2555 strip=116 band=139 sum=32608 draw_us=35024 hash_us=4057
+[wx] lprof 2 decode=2277 view=1 map=26838 bands=3153 rings=2 warning=1 labels=1 ringlabels=1 home=0 replay=2557 strip=145 band=137 sum=32836 draw_us=35408 hash_us=4097
+[wx] lprof 3 decode=2410 view=1 map=26878 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2552 strip=113 band=137 sum=32839 draw_us=35537 hash_us=4071
+[wx] lprof 4 decode=2461 view=1 map=26991 bands=3152 rings=2 warning=1 labels=1 ringlabels=0 home=1 replay=2552 strip=116 band=142 sum=32959 draw_us=35703 hash_us=4063
+[wx] lprof 5 decode=2515 view=1 map=27096 bands=3154 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2553 strip=141 band=140 sum=33090 draw_us=35890 hash_us=4064
+[wx] lprof 6 decode=2470 view=1 map=27032 bands=3164 rings=2 warning=1 labels=0 ringlabels=1 home=1 replay=2551 strip=113 band=142 sum=33008 draw_us=35762 hash_us=4073
+[wx] lprof 7 decode=2493 view=0 map=27052 bands=3152 rings=2 warning=1 labels=1 ringlabels=0 home=1 replay=2551 strip=119 band=140 sum=33019 draw_us=35794 hash_us=4086
+[wx] lprof 8 decode=2679 view=1 map=27103 bands=3153 rings=2 warning=0 labels=1 ringlabels=1 home=1 replay=2555 strip=114 band=139 sum=33070 draw_us=36050 hash_us=4050
+[wx] lprof 9 decode=2587 view=0 map=27104 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2649 strip=133 band=142 sum=33186 draw_us=36063 hash_us=4075
+[wx] lprof 10 decode=2619 view=1 map=27118 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2554 strip=113 band=137 sum=33081 draw_us=35978 hash_us=4069
+[wx] lprof 11 decode=2617 view=1 map=27064 bands=3152 rings=2 warning=1 labels=1 ringlabels=1 home=1 replay=2554 strip=116 band=139 sum=33032 draw_us=35972 hash_us=4082
+[wx] lprof 12 decode=2585 view=1 map=27111 bands=3152 rings=2 warning=1 labels=1 ringlabels=1 home=1 replay=2597 strip=155 band=130 sum=33152 draw_us=36033 hash_us=4092
+[wx] lprof 13 decode=2559 view=0 map=26947 bands=3152 rings=2 warning=0 labels=1 ringlabels=1 home=1 replay=2551 strip=113 band=135 sum=32903 draw_us=35742 hash_us=4084
+[wx] lprof 14 decode=2449 view=1 map=26870 bands=3152 rings=2 warning=1 labels=0 ringlabels=1 home=1 replay=2553 strip=118 band=93 sum=32792 draw_us=35508 hash_us=4065
+[wx] qreads 35082 34583 34008 33409 32899 32614 32540 32436 32226 32234 32234 32373 32608 33016 33415
+[fb] push 113c draws 11073-11132 n=60 phases=2 push_us=25811-25885
+[fb] push 203c draws 11133-11133 n=1 phases=2 push_us=25826-25826
+[fb] push 213c draws 11134-11134 n=1 phases=2 push_us=25837-25837
+[fb] push 223c draws 11135-11135 n=1 phases=2 push_us=25834-25834
+[fb] push 233c draws 11136-11136 n=1 phases=2 push_us=25826-25826
+[fb] push 243c draws 11137-11137 n=1 phases=2 push_us=25824-25824
+[fb] push 253c draws 11138-11138 n=1 phases=2 push_us=25835-25835
+[fb] push 263c draws 11139-11139 n=1 phases=2 push_us=25854-25854
+[fb] push 273c draws 11140-11140 n=1 phases=2 push_us=25824-25824
+[fb] push 283c draws 11141-11141 n=1 phases=2 push_us=25836-25836
+[fb] push 293c draws 11142-11142 n=1 phases=2 push_us=25864-25864
+[fb] push 2a3c draws 11143-11143 n=1 phases=2 push_us=25838-25838
+[fb] push 2b3c draws 11144-11144 n=1 phases=2 push_us=25824-25824
+[fb] push 2c3c draws 11145-11145 n=1 phases=2 push_us=25836-25836
+[fb] push 2d3c draws 11146-11146 n=1 phases=2 push_us=25834-25834
+[wx] screen=scenario approaching R=60
+[fb] push 2e3c draws 11147-11147 n=1 phases=2 push_us=25837-25837
+#HOST fetch postloop 0: 115200 B torn=false seq=11215 phase=2,2 tag=113c2bd0,113c2bd0 finished=true wait=13900 sha 1ff92e45d2c1
+#HOST fetch postloop 1: 115200 B torn=false seq=11248 phase=2,2 tag=113c2bf1,113c2bf1 finished=true wait=4970 sha 1ff92e45d2c1
+[wx] fbcopy n=844 min=5356 max=7766 mean=5411
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=41324
+[wx] prof herenow-60 view=3580 map=22749 bands=3151 rings=7649 warning=4 labels=3401 ringlabels=474 home=18 replay=2 strip=97 band=187 sum=41312 compose_us=41324
+[wx] k ROW herenow-60 78a497c19d61768e7214559db225b073ca9ca67d0b0453b0296fd4e34ca395e1
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 11148-11931 n=784 phases=2 push_us=25807-36571
+[wx] fbcopy n=846 min=5356 max=6528 mean=5391
+[wx] pick approaching=212400 dry=220000 psram_used=221076
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=48490
+[wx] prof warning-60 view=3561 map=22794 bands=3164 rings=7660 warning=6369 labels=3836 ringlabels=634 home=22 replay=2 strip=105 band=328 sum=48475 compose_us=48490
+[wx] k ROW warning-60 b36abcad1811d7f047ab31710b05256b5b1d2995db6d7a7481c19d3e2d756d1d
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 11932-12777 n=846 phases=2 push_us=25806-25944
+#HOST send b'T'
+[wx] gesture T
+[wx] layer build_us=20050 pixels=3063 valid=1 rebuilt=tap R=60
+[wx] screen=loop R=60
+[wx] loop records=15 period_us=70000 R=60 layer_rebuilds=0
+[wx] lrec 0 epoch=1716325440 sha=e68e194436ec69e3c44054eaa0347b02b5b62733b904fe71b25db95279fa148a start_us=477824812 draw_us=34832 hash_us=4082
+[wx] lrec 1 epoch=1716325680 sha=20355546cdd48add1f9a2002ae7ebfccedd048a5e685309a2448679215e68bb5 start_us=477894809 draw_us=35031 hash_us=4063
+[wx] lrec 2 epoch=1716325920 sha=9ec5b49d608a9b4e1b4e32e20efb1a629d8b03c6de7bf772c49a57271cc8cec6 start_us=477964806 draw_us=35844 hash_us=4203
+[wx] lrec 3 epoch=1716326160 sha=e597e2d41be5bfa9e79ec23c78b4e6b3644847e1919bb03c108bf5310b580ab8 start_us=478034806 draw_us=35517 hash_us=4063
+[wx] lrec 4 epoch=1716326400 sha=4886961a644a67e35ef346b1093dfe70e8631eb303a8ed370f3e8931af93a115 start_us=478104805 draw_us=35669 hash_us=4059
+[wx] lrec 5 epoch=1716326640 sha=fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39 start_us=478174806 draw_us=36290 hash_us=4201
+[wx] lrec 6 epoch=1716326880 sha=24455c23b3bf1304cc07c358c4157bef2d05580389e1acb79f7eba68e83ec194 start_us=478244836 draw_us=35748 hash_us=4076
+[wx] lrec 7 epoch=1716327120 sha=e3be1c880746ff84ad3e38532cf8ac39418a35b52f0fc12e253b06424524957f start_us=478314806 draw_us=35904 hash_us=4069
+[wx] lrec 8 epoch=1716327360 sha=e14f4aadaca055fd1d582a790cd60d2e6bbe69d0eba0832e2f6c208768a702ce start_us=478384806 draw_us=36480 hash_us=4185
+[wx] lrec 9 epoch=1716327600 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=478454892 draw_us=35942 hash_us=4072
+[wx] lrec 10 epoch=1716327840 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=478524807 draw_us=35966 hash_us=4079
+[wx] lrec 11 epoch=1716328080 sha=8c7847628a851679ac39397f1e9e51a1a6975e0d28198767113c95afadd8b79b start_us=478594808 draw_us=36019 hash_us=4115
+[wx] lrec 12 epoch=1716328320 sha=132fa89334bcafca9633ae8fe141f3eb81737fbc9bf35e03348887dc3dab51b0 start_us=478664870 draw_us=36005 hash_us=4056
+[wx] lrec 13 epoch=1716328560 sha=1239cdb1fa072a7a0ce721fb0263f48e5b727b13cfaaacda22f0843377fb94ac start_us=478734806 draw_us=35744 hash_us=4069
+[wx] lrec 14 epoch=1716328800 sha=3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600 start_us=478804956 draw_us=35909 hash_us=4187
+[wx] lprof 0 decode=1994 view=0 map=26591 bands=3152 rings=2 warning=1 labels=1 ringlabels=1 home=1 replay=2551 strip=115 band=143 sum=32558 draw_us=34832 hash_us=4082
+[wx] lprof 1 decode=2134 view=1 map=26649 bands=3152 rings=2 warning=0 labels=1 ringlabels=1 home=1 replay=2551 strip=121 band=138 sum=32617 draw_us=35031 hash_us=4063
+[wx] lprof 2 decode=2277 view=1 map=27223 bands=3158 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2551 strip=184 band=136 sum=33258 draw_us=35844 hash_us=4203
+[wx] lprof 3 decode=2409 view=1 map=26869 bands=3152 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2555 strip=112 band=136 sum=32830 draw_us=35517 hash_us=4063
+[wx] lprof 4 decode=2461 view=1 map=26959 bands=3157 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2553 strip=116 band=138 sum=32929 draw_us=35669 hash_us=4059
+[wx] lprof 5 decode=2480 view=1 map=27481 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2556 strip=183 band=137 sum=33516 draw_us=36290 hash_us=4201
+[wx] lprof 6 decode=2469 view=1 map=27034 bands=3157 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2552 strip=114 band=138 sum=33001 draw_us=35748 hash_us=4076
+[wx] lprof 7 decode=2495 view=1 map=27051 bands=3156 rings=2 warning=1 labels=1 ringlabels=1 home=1 replay=2655 strip=117 band=145 sum=33131 draw_us=35904 hash_us=4069
+[wx] lprof 8 decode=2607 view=0 map=27536 bands=3154 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2556 strip=182 band=139 sum=33572 draw_us=36480 hash_us=4185
+[wx] lprof 9 decode=2585 view=1 map=27102 bands=3152 rings=2 warning=1 labels=1 ringlabels=0 home=1 replay=2552 strip=121 band=141 sum=33074 draw_us=35942 hash_us=4072
+[wx] lprof 10 decode=2612 view=1 map=27108 bands=3152 rings=2 warning=1 labels=1 ringlabels=1 home=0 replay=2551 strip=114 band=140 sum=33071 draw_us=35966 hash_us=4079
+[wx] lprof 11 decode=2611 view=0 map=27140 bands=3152 rings=2 warning=1 labels=0 ringlabels=1 home=1 replay=2553 strip=136 band=139 sum=33125 draw_us=36019 hash_us=4115
+[wx] lprof 12 decode=2586 view=1 map=27024 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2686 strip=136 band=130 sum=33135 draw_us=36005 hash_us=4056
+[wx] lprof 13 decode=2560 view=1 map=26947 bands=3157 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2551 strip=115 band=131 sum=32907 draw_us=35744 hash_us=4069
+[wx] lprof 14 decode=2450 view=1 map=27176 bands=3152 rings=2 warning=1 labels=1 ringlabels=1 home=1 replay=2555 strip=190 band=93 sum=33173 draw_us=35909 hash_us=4187
+[wx] qreads 35082 34583 34008 33409 32899 32614 32540 32436 32226 32234 32234 32373 32608 33016 33415
+[fb] push 133c draws 12778-12841 n=64 phases=2 push_us=25809-25853
+[fb] push 203c draws 12842-12842 n=1 phases=2 push_us=25826-25826
+[fb] push 213c draws 12843-12843 n=1 phases=2 push_us=25825-25825
+[fb] push 223c draws 12844-12844 n=1 phases=2 push_us=25826-25826
+[fb] push 233c draws 12845-12845 n=1 phases=2 push_us=25842-25842
+[fb] push 243c draws 12846-12846 n=1 phases=2 push_us=25830-25830
+[fb] push 253c draws 12847-12847 n=1 phases=2 push_us=25834-25834
+[fb] push 263c draws 12848-12848 n=1 phases=2 push_us=25838-25838
+[fb] push 273c draws 12849-12849 n=1 phases=2 push_us=25832-25832
+[fb] push 283c draws 12850-12850 n=1 phases=2 push_us=25835-25835
+[fb] push 293c draws 12851-12851 n=1 phases=2 push_us=25838-25838
+[fb] push 2a3c draws 12852-12852 n=1 phases=2 push_us=25833-25833
+[fb] push 2b3c draws 12853-12853 n=1 phases=2 push_us=25832-25832
+[fb] push 2c3c draws 12854-12854 n=1 phases=2 push_us=25831-25831
+[fb] push 2d3c draws 12855-12855 n=1 phases=2 push_us=25839-25839
+[wx] screen=scenario warning R=60
+[fb] push 2e3c draws 12856-12856 n=1 phases=2 push_us=25828-25828
+#HOST fetch postloop-warning 0: 115200 B torn=false seq=12925 phase=3,3 tag=133c327d,133c327d finished=true wait=4970 sha b36abcad1811
+#HOST fetch postloop-warning 1: 115200 B torn=false seq=12958 phase=3,3 tag=133c329e,133c329e finished=true wait=4966 sha b36abcad1811
+#HOST send b'S'
+[wx] gesture S
+[wx] screen=legend
+WX,legend,swatches=21
+WXL,0,rain,1,144,48,12,12
+WXL,1,rain,2,158,48,12,12
+WXL,2,rain,3,172,48,12,12
+WXL,3,rain,4,186,48,12,12
+WXL,4,rain,5,144,70,12,12
+WXL,5,rain,6,158,70,12,12
+WXL,6,rain,7,172,70,12,12
+WXL,7,rain,8,144,92,12,12
+WXL,8,rain,9,158,92,12,12
+WXL,9,rain,10,172,92,12,12
+WXL,10,rain,11,144,114,12,12
+WXL,11,rain,12,158,114,12,12
+WXL,12,rain,13,172,114,12,12
+WXL,13,snow,1,144,136,12,12
+WXL,14,snow,2,158,136,12,12
+WXL,15,snow,3,172,136,12,12
+WXL,16,snow,4,186,136,12,12
+WXL,17,snow,5,200,136,12,12
+WXL,18,snow,6,214,136,12,12
+WXL,19,nocov,14,144,158,12,12
+WXL,20,nodata,15,144,180,12,12
+WXT,0,36,50,60,8
+WXT,1,36,72,48,8
+WXT,2,36,94,30,8
+WXT,3,36,116,78,8
+WXT,4,36,138,96,8
+WXT,5,36,160,102,8
+WXT,6,36,182,42,8
+[fb] push 133c draws 12857-12969 n=113 phases=2 push_us=25811-29290
+#HOST fetch legend 0: 115200 B torn=false seq=13016 phase=2,2 tag=300032d9,300032d9 finished=true wait=4945 sha 12bcb72c0786
+#HOST fetch legend 1: 115200 B torn=false seq=13048 phase=2,2 tag=300032f9,300032f9 finished=true wait=4971 sha 12bcb72c0786
+#HOST send b'T'
+[wx] gesture T
+[wx] screen=scenario warning R=60
+[fb] push 3000 draws 12970-13057 n=88 phases=2 push_us=25799-36526
+#HOST fetch postlegend 0: 115200 B torn=false seq=13089 phase=2,2 tag=133c3322,133c3322 finished=true wait=4971 sha b36abcad1811
+#HOST fetch postlegend 1: 115200 B torn=false seq=13120 phase=2,2 tag=133c3341,133c3341 finished=true wait=4967 sha b36abcad1811
+#HOST Q: sending 'Q'
+#HOST send b'Q'
+[wx] gesture Q
+[wx] qdec r=0 i=0 bytes=1730 cells=44640 st=0 us=1671 nz=5281 fnv=19d88034
+[wx] qdec r=0 i=1 bytes=1685 cells=44640 st=0 us=1609 nz=5005 fnv=ca4079a5
+[wx] qdec r=0 i=2 bytes=1729 cells=44640 st=0 us=1630 nz=5240 fnv=a40acbcf
+[wx] qdec r=0 i=3 bytes=1689 cells=44640 st=0 us=1610 nz=5502 fnv=92597c07
+[wx] qdec r=0 i=4 bytes=1836 cells=44640 st=0 us=1677 nz=6273 fnv=8afbed3a
+[wx] qdec r=0 i=5 bytes=2050 cells=44640 st=0 us=1783 nz=7322 fnv=9944e127
+[wx] qdec r=0 i=6 bytes=2075 cells=44640 st=0 us=1790 nz=7384 fnv=dfffee6b
+[wx] qdec r=0 i=7 bytes=2026 cells=44640 st=0 us=1797 nz=7668 fnv=68124343
+[wx] qdec r=0 i=8 bytes=2161 cells=44640 st=0 us=1827 nz=7795 fnv=6ea16300
+[wx] qdec r=0 i=9 bytes=2303 cells=44640 st=0 us=1927 nz=8362 fnv=f5435a12
+[wx] qdec r=0 i=10 bytes=2236 cells=44640 st=0 us=2368 nz=7755 fnv=522567e8
+[wx] qdec r=0 i=11 bytes=2196 cells=44640 st=0 us=2024 nz=8411 fnv=4e96b34a
+[wx] qdec r=0 i=12 bytes=2221 cells=44640 st=0 us=1860 nz=8329 fnv=6ffef7ca
+[wx] qdec r=0 i=13 bytes=2471 cells=44640 st=0 us=1966 nz=9160 fnv=b2fe9a9a
+[wx] qdec r=0 i=14 bytes=2477 cells=44640 st=0 us=1959 nz=9553 fnv=a7576196
+[wx] qdec r=0 i=15 bytes=36 cells=44640 st=0 us=870 nz=0 fnv=4e748945
+[wx] qdec r=1 i=0 bytes=1730 cells=44640 st=0 us=1629 nz=5281 fnv=19d88034
+[wx] qdec r=1 i=1 bytes=1685 cells=44640 st=0 us=1610 nz=5005 fnv=ca4079a5
+[wx] qdec r=1 i=2 bytes=1729 cells=44640 st=0 us=1631 nz=5240 fnv=a40acbcf
+[wx] qdec r=1 i=3 bytes=1689 cells=44640 st=0 us=1614 nz=5502 fnv=92597c07
+[wx] qdec r=1 i=4 bytes=1836 cells=44640 st=0 us=1681 nz=6273 fnv=8afbed3a
+[wx] qdec r=1 i=5 bytes=2050 cells=44640 st=0 us=1788 nz=7322 fnv=9944e127
+[wx] qdec r=1 i=6 bytes=2075 cells=44640 st=0 us=1795 nz=7384 fnv=dfffee6b
+[wx] qdec r=1 i=7 bytes=2026 cells=44640 st=0 us=1769 nz=7668 fnv=68124343
+[wx] qdec r=1 i=8 bytes=2161 cells=44640 st=0 us=1830 nz=7795 fnv=6ea16300
+[wx] qdec r=1 i=9 bytes=2303 cells=44640 st=0 us=1907 nz=8362 fnv=f5435a12
+[wx] qdec r=1 i=10 bytes=2236 cells=44640 st=0 us=1855 nz=7755 fnv=522567e8
+[wx] qdec r=1 i=11 bytes=2196 cells=44640 st=0 us=1868 nz=8411 fnv=4e96b34a
+[wx] qdec r=1 i=12 bytes=2221 cells=44640 st=0 us=1839 nz=8329 fnv=6ffef7ca
+[wx] qdec r=1 i=13 bytes=2471 cells=44640 st=0 us=1966 nz=9160 fnv=b2fe9a9a
+[wx] qdec r=1 i=14 bytes=2477 cells=44640 st=0 us=1959 nz=9553 fnv=a7576196
+[wx] qdec r=1 i=15 bytes=36 cells=44640 st=0 us=874 nz=0 fnv=4e748945
+[wx] qdec r=2 i=0 bytes=1730 cells=44640 st=0 us=1626 nz=5281 fnv=19d88034
+[wx] qdec r=2 i=1 bytes=1685 cells=44640 st=0 us=1606 nz=5005 fnv=ca4079a5
+[wx] qdec r=2 i=2 bytes=1729 cells=44640 st=0 us=1626 nz=5240 fnv=a40acbcf
+[wx] qdec r=2 i=3 bytes=1689 cells=44640 st=0 us=1614 nz=5502 fnv=92597c07
+[wx] qdec r=2 i=4 bytes=1836 cells=44640 st=0 us=1681 nz=6273 fnv=8afbed3a
+[wx] qdec r=2 i=5 bytes=2050 cells=44640 st=0 us=1787 nz=7322 fnv=9944e127
+[wx] qdec r=2 i=6 bytes=2075 cells=44640 st=0 us=1795 nz=7384 fnv=dfffee6b
+[wx] qdec r=2 i=7 bytes=2026 cells=44640 st=0 us=1768 nz=7668 fnv=68124343
+[wx] qdec r=2 i=8 bytes=2161 cells=44640 st=0 us=1831 nz=7795 fnv=6ea16300
+[wx] qdec r=2 i=9 bytes=2303 cells=44640 st=0 us=1891 nz=8362 fnv=f5435a12
+[wx] qdec r=2 i=10 bytes=2236 cells=44640 st=0 us=1855 nz=7755 fnv=522567e8
+[wx] qdec r=2 i=11 bytes=2196 cells=44640 st=0 us=1826 nz=8411 fnv=4e96b34a
+[wx] qdec r=2 i=12 bytes=2221 cells=44640 st=0 us=1840 nz=8329 fnv=6ffef7ca
+[wx] qdec r=2 i=13 bytes=2471 cells=44640 st=0 us=2164 nz=9160 fnv=b2fe9a9a
+[wx] qdec r=2 i=14 bytes=2477 cells=44640 st=0 us=2148 nz=9553 fnv=a7576196
+[wx] qdec r=2 i=15 bytes=36 cells=44640 st=0 us=881 nz=0 fnv=4e748945
+[wx] qdec done rounds=3 crops=16
+#HOST Q: done
+#HOST closing the port
