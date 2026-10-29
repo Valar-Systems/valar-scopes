@@ -1910,3 +1910,7 @@ legend.
 
 The control is not among the frozen rows. It was added so that a boot's own NVS writes could not be mistaken for the
 round trip's, and it showed that a boot writes nothing to `config`.
+
+**WD8g, CI:** on `c5a4293`, 36 check runs, **33 success, 3 skipped** (the release-only `promote`, `version` and
+`ship-alert`), **0 failed**. `config-form` and `host-tests` (which runs `test_wx_legend_html`) succeeded. **As
+predicted. WD8 is complete.**
