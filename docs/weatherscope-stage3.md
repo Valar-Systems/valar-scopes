@@ -7621,3 +7621,42 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 **The outside-the-set branch, pre-registered:**
 - **A K row that differs** is reported with its differing pixel count and positions, against the reference's rendering, by cause.
 - **Nothing is changed on either side to make it pass** until the reviewer rules: a difference here is a finding about the device, the reference or the spec.
+
+### A12.42 3.5b step 6's results: every K, replay and control row holds; the firmware's flash is 20 B off its exact prediction -- stopped for a ruling
+
+**The code:** `weatherscope/3-5b-krows` @ `a055d35d970c`, one commit on #501's head `08f54aa00056`.
+
+| row | A12.41 predicted | measured |
+|---|---|---|
+| K-BD | 21 of 21 Bend dry rows equal | **21 of 21:** each device frame's sha256 equals `k35b.py`'s, with every TIME, BAND and LABEL line |
+| K-BL | 30 of 30 loop rows equal | **30 of 30** |
+| RP-B | 90 of 90 replay rows | **90 of 90:** each loop frame through `ComposeLayered` equals its full `Compose`, at 15, 30 and 60 mi, B and C |
+| control K-X | a C frame against its own B reference differs on all 15 | **15 of 15 differ** |
+| control RP-X | a stale B layer in a towns-only frame differs | **798 px differ** |
+| Dallas | `test_wx_k35` 28/0, `test_wx_replay` 90/0 | **28/0 and 90/0**, both compilers |
+| `k35b.py --check` | identical on regeneration | **identical** |
+| every host suite | ALL HOST TESTS PASSED (MinGW); 13.3 the same blocks, counts identical, only the rig's two | **ALL HOST TESTS PASSED** under MinGW; g++ 13.3 (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`): the same 121 blocks, every count identical, only the rig's two (no xtensa toolchain, no Pillow) |
+| **the firmware** | **flash 1,630,415 B and RAM 59,024 B, exactly step 5's** | **flash 1,630,435 B (+20 B), RAM 59,024 B** |
+
+**The 20 B, accounted from the two ELFs' symbol tables** (`xtensa-esp32s3-elf-nm -S`, step 5's build against step 6's):
+- **`FromScenario` and `FromLoopFrame` are emitted out of line**, as weak symbols of unchanged size (0x4fc and 0x88). Each now takes `offsetMin` as an argument.
+- **Their three callers grew by the instruction that passes it:**
+
+  | caller | growth |
+  |---|---|
+  | `StartLoop` | +4 B |
+  | `DrawLoopFrame` | +8 B |
+  | `BuildScenario` | +8 B |
+  | **total** | **20 B, with nothing left over** |
+
+- **The prediction was wrong, not the build.** "A default argument changes no call" holds only for a call the compiler inlines. These two it does not.
+
+**Also confirmed:**
+- **look35's generalisation (any level and mask; defaults unchanged)** moves none of its pictures: TH1-TH3 hold, and all 8 RGB-pixel hashes on record are equal.
+- **ref35's port of the `terrain` flag and the themed hatch** (A12.30's two edits, proven dark-neutral there) is dark-neutral here too: `--k --check` identical; R0 and R0b PASS with A12.17's G/P hashes.
+
+**Stopped for a ruling, the firmware row only:**
+- **(a), recommended:** re-register step 6's flash at **1,630,435 B**. The 20 B are the argument, at three call sites, accounted to the byte, and the parameter is what step 7's Bend scenarios need.
+- **(b):** give the Pacific path its own overload and leave the Dallas calls as they were. Flash then returns to 1,630,415 B, at the cost of a second copy of two functions.
+
+**The branch is pushed as it ran.** The PR follows #501's merge (based on main), once this is ruled.
