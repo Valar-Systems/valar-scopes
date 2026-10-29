@@ -7354,3 +7354,33 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 | stale | `710d6ee1f4bb` |
 | clear | `de37a89877e0` |
 | the legend | `932094ef7a4f` |
+
+### A12.36 The light-look viewer on the glass: every A12.32 row holds; Daniel's pick is next
+
+**The build:** `weatherscope/light-bench` @ `c9d4aad9b3be` (A12.34 item 3's `[ota-slot]` line added). `firmware.bin` is 1,607,104 B, sha256 `6529212f36ef…`; `build-look/` holds `look-frames.bin` `d9fefc44f162…` and `look-pal.bin` `deaf97127f88…`.
+
+| row | measured | |
+|---|---|---|
+| LK-SIZE | flash 1,606,699 B (1,594,680-1,634,680); RAM 26,928 B (25,028-31,028) | holds |
+| LK-ELF | both data files exactly once in the ELF and in the image | holds |
+| LK-PART | `partitions.bin` byte-identical to `weatherscope-s3-128`'s | holds |
+
+**The flash, by A12.33's check and A12.34 item 3, at 04:37Z:**
+1. **First, `flash_plan.py`,** with the partition table printed: the write `0x0020000-0x01A85BF` touches **app0 only**.
+2. **Then the write:** `esptool write-flash 0x20000 firmware.bin`, the app alone, to the port resolved from `907069326E64`. esptool confirmed MAC `90:70:69:32:6e:64`, wrote 1,607,104 B at 0x00020000, and verified the hash.
+3. **Then the boot,** caught by the run's trace: `[build] env=weatherscope-look-s3-128`, then **`[ota-slot] boot running=app0 @0x020000`**.
+
+**The run** (`run-2026-10-29-look`, one open, 04:38:21Z; the viewer has no Wi-Fi, so the trace has no address to redact):
+
+| row | measured | |
+|---|---|---|
+| LK-BOOT | `[build] env=weatherscope-look-s3-128`; `[look] ready=1 frames=20 looks=3 roles=66` | holds |
+| LK-HASH | 65 screens reported, **60 of 60 (look, frame) pairs equal to the host's**, 0 unequal | holds |
+| LK-LOOP | in each look: 15 records, intervals 70,000-70,001 µs, `expand_us` 5,332-5,349 | holds |
+
+**So the glass shows the host's pictures exactly:** dark, light (a) and light (b), on Bend dry, the Bend loop, Bend rain, Dallas approaching, and the code patches with terrain on and off.
+
+**Next:**
+1. **LK-GLASS:** Daniel's pick, on the glass. The viewer stays on the board until he has picked.
+2. Then **Q's image goes back the same way**, app alone at 0x20000, with `flash_plan.py` first and the `[ota-slot]` line after.
+3. **3.5t waits on the pick. Q's own rows wait on A12.35's ruling.**
