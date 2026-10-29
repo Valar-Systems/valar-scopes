@@ -11,10 +11,6 @@
 // Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a check count other than 72). Every value it grades
 // is printed, because several margins are thin (orange text on paper 4.503 in RGB888; snow 1 over A by 0.13).
 
-// WxTheme.h includes DayNight.h for Phase, and so SolarDim.h, which uses M_PI: the Arduino core provides it on the
-// board, MinGW's math.h hides it under -std=c++11 unless this is defined before the first include (as in
-// test_daynight.cpp). The shared header stays untouched.
-#define _USE_MATH_DEFINES
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
