@@ -2405,3 +2405,28 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - **MC's sabotages:**
   - S-NOCANADA (through KBUF) and S-NOOCEAN (through KBOS and PANC) can run now;
   - **S-BBOX's frozen set is {MC2} through CYYZ, so it waits with CYYZ.**
+
+### A2.39 MG1: equal to `bend.bmpk` under the ruled masks (2026-10-29)
+
+`scripts/basemap-golden.ts` builds at `bend.bmpk`'s own request: origin and radius from its header, the requested ε from `epsilon.m`, the layers and three levels from its sections. It compares as A2.7/A2.8 ruled.
+
+**The result, against `bend.bmpk`:**
+- **The header:** byte for byte, apart from `totalBytes` and the CRC.
+- **The directory:** byte for byte, apart from PROVENANCE's length.
+- **Water through terrain:** byte for byte. 1,238, 1,487 and 2,735 vertices both sides, and **0 of 181,548 terrain cells different**, so RD28 is not called on.
+- **PROVENANCE:** line for line, apart from the `builder:` and `store:` values. That includes **every `sha256.<layer>` line, so the builder read exactly Bend's files.**
+- **Totals:** 205,090 B against 205,093 B, the 3-byte builder-name difference A2.8 named.
+
+**One departure from the frozen wording, declared:**
+- **What the frozen text says:** MG1 is "my ingest over the 72 files `bend.manifest.json` names".
+- **What I did:** build from the **sealed full-US store** (`4c0875738f38`). It holds those 72 files byte for byte (A2.7), and RD-P6 makes the builder read exactly them.
+- **What tests the claim:** MG1 itself. Each `sha256.<layer>` line equals Bend's, which is impossible unless the same files were read.
+- **If the reviewer wants the literal 72-file ingest as well,** it can be run.
+
+**The controls, each registered to FAIL, and each failing:**
+
+| control | result |
+|---|---|
+| `bend.bmpk` against itself | **0 differences** |
+| S-GEPS, 1.5 ε | **fails on vertex counts:** water 1,238 → 908, rivers 1,487 → 1,056, roads 2,735 → 2,209 |
+| S-GSMOOTH, the 4 × 4 mean removed (a byte-restored plant in `terrain.ts`) | **fails on terrain:** 165,696 of 181,548 cells differ (91.27 %, against the > 0.1 % required) |
