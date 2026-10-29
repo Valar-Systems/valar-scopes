@@ -106,3 +106,14 @@ Each sabotage must turn its own row red. BLIND counts as FAIL.
   - No shipped firmware reads `/wx` (the ruling), so no customer sees it.
   - Smoke's `/wx` check asks at Bend, which `cref` still serves.
   - **Recorded, not changed.**
+
+### K4's sabotage is BLIND by construction on `opuk`'s grid (found 2026-10-29, before any K4 code ran)
+
+- **The finding:** a WXG1 tile's offset is `ty * tilesX + tx` (`grid.ts` `tileOffset`). On `opuk`'s grid
+  `tilesX = ceil(1455 / 512) = 3` and `tilesY = ceil(1515 / 512) = 3`. With the two swapped, every offset, count and
+  byte is identical, so the frozen sabotage ("`tilesY` for `tilesX`") cannot turn K4 red.
+- **How it was found:** by reading `tileOffset` while writing K4's test. Nothing had run.
+- **What it means under the rules:** BLIND counts as FAIL, so **K4 reads FAIL** until the reviewer rules. K4's predicted
+  values (1,515 × 1,455 cells, 9 tiles, 1,179,712 B, a cell-for-cell round trip) still run as frozen and are reported.
+- **A proposed remedy, NOT applied, for the reviewer to rule on:** the same swap on a grid whose tile counts differ:
+  `opuk`'s 1,515 rows with 1,000 columns (3 × 2 tiles). **Predicted:** the round trip then fails cell for cell.
