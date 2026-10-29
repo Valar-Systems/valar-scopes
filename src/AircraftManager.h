@@ -848,6 +848,11 @@ private:
     // W4': the last FRAME_SAMPLES sweep calls, in microseconds capped at 0x7FFF, bit 15 set when the blend path ran.
     uint16_t sweepSampleBuf[FRAME_SAMPLES] = {0};
     size_t sweepSampleCount = 0;
+    // Step C: the clear-or-push call (us, capped at 0x7FFF, bit 15 set when the layer was pushed), and the three parts.
+    uint16_t clearSampleBuf[FRAME_SAMPLES] = {0};
+    size_t clearSampleCount = 0;
+    uint16_t partSampleBuf[3][FRAME_SAMPLES] = {{0}};
+    size_t partSampleCount = 0;
     void ReportSweep();
 #endif
     // Worst single loop pass since the last health report (0.1 ms units). The
@@ -1307,6 +1312,11 @@ public:
     // W4' (docs/wx-device.md, WD6'), bench image only: main.cpp times the sweep call and records it here, with the
     // path it took. The 30 s [health] report prints it on its own line: sweep=<avg>/<p95>us n=<k> blend=<b>.
     void RecordSweepUs(uint32_t us, bool blended);
+    // Step C (docs/wx-device.md, ruled 2026-10-29), bench image only: the clear-or-push call (main.cpp's band loop;
+    // `pushed` = the layer was pushed instead of the fill) and the blend path's three parts, each its last
+    // FRAME_SAMPLES calls; the 30 s [health] report prints them after the sweep= line.
+    void RecordClearUs(uint32_t us, bool pushed);
+    void RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, uint32_t beamUs);
 #endif
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
     // Is the detail card up? Distinct from !IsRadarView(), which is also true on

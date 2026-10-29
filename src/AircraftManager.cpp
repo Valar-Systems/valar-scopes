@@ -2005,6 +2005,45 @@ void AircraftManager::ReportSweep()
     std::sort(sorted, sorted + n);
     Serial.printf("[health] sweep=%lu/%uus n=%u blend=%u\n", (unsigned long)(sum / n),
                   (unsigned)sorted[(size_t)((n - 1) * 0.95f)], (unsigned)n, blend);
+
+    // Step C: the clear-or-push call, by the same method, and how many of those calls pushed the layer.
+    const size_t nc = std::min(clearSampleCount, FRAME_SAMPLES);
+    if (nc > 0) {
+        uint32_t csum = 0;
+        unsigned pushes = 0;
+        for (size_t i = 0; i < nc; ++i) {
+            sorted[i] = clearSampleBuf[i] & 0x7FFF;
+            csum += sorted[i];
+            if (clearSampleBuf[i] & 0x8000) ++pushes;
+        }
+        std::sort(sorted, sorted + nc);
+        Serial.printf("[health] clear=%lu/%uus n=%u push=%u\n", (unsigned long)(csum / nc),
+                      (unsigned)sorted[(size_t)((nc - 1) * 0.95f)], (unsigned)nc, pushes);
+    }
+    // Step C: the blend path's three parts, each an average over its last calls.
+    const size_t np = std::min(partSampleCount, FRAME_SAMPLES);
+    if (np > 0) {
+        uint32_t ps[3] = {0, 0, 0};
+        for (int k = 0; k < 3; ++k)
+            for (size_t i = 0; i < np; ++i) ps[k] += partSampleBuf[k][i];
+        Serial.printf("[health] sweepparts=%lu/%lu/%luus n=%u\n", (unsigned long)(ps[0] / np), (unsigned long)(ps[1] / np),
+                      (unsigned long)(ps[2] / np), (unsigned)np);
+    }
+}
+
+void AircraftManager::RecordClearUs(uint32_t us, bool pushed)
+{
+    const uint16_t capped = (uint16_t)std::min(us, (uint32_t)0x7FFF);
+    clearSampleBuf[clearSampleCount % FRAME_SAMPLES] = (uint16_t)(capped | (pushed ? 0x8000u : 0u));
+    clearSampleCount++;
+}
+
+void AircraftManager::RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, uint32_t beamUs)
+{
+    const uint32_t v[3] = {rasteriseUs, blendUs, beamUs};
+    for (int k = 0; k < 3; ++k)
+        partSampleBuf[k][partSampleCount % FRAME_SAMPLES] = (uint16_t)std::min(v[k], (uint32_t)0xFFFF);
+    partSampleCount++;
 }
 #endif
 
@@ -3307,13 +3346,25 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
     uint16_t* const px = (uint16_t*)sp.getBuffer();
     if (px == nullptr) return false;
     int y0 = 0, y1 = -1;
+#ifdef WX_LOOK_AB
+    const uint32_t tRaster = micros();   // step C (docs/wx-device.md): the three parts, timed, bench image only
+#endif
     wxsweep::Rasterise(cx, cy, radius, angle, wxSweepSlice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1);
+#ifdef WX_LOOK_AB
+    const uint32_t tBlend = micros();
+#endif
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
     wxsweep::Blend(wxSweepLook, wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1,
                    [&](int x, int y) { return (uint16_t)__builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
                    [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
                    [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+#ifdef WX_LOOK_AB
+    const uint32_t tBeam = micros();
+#endif
     DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+#ifdef WX_LOOK_AB
+    RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
+#endif
     return true;
 }
 #endif
