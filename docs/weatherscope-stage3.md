@@ -6915,3 +6915,41 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 | LK-GLASS | **Daniel's look on the glass:** his pick, not a prediction |
 
 **Outside every row: stop the bench select and report.** Q and #498 are independent of it.
+
+### A12.28 The bench select's host rows: LF2-LF4 hold; LF1's check printed FAIL on the crops, not the frames -- stopped for a ruling
+
+**The run:** `look_frames.py` on `weatherscope/light-bench`, uncommitted, at #498's head plus the loop-band roles.
+
+| row | measured |
+|---|---|
+| LF1 | **every frame's pixels map to a role: 0 unmapped in all 17.** But the tool printed **FAIL for F1, F6, F9, F15 and F16**: its "codes 0-4" test read **each crop's codes**, and those frames' crops carry code 5. That is **4 distinct crops**, `192600`, `193800`, `200200` and `200600`; F1 is F16's crop again |
+| LF2 | **6 of 6 at 57,600 / 57,600:** F0 and F1, through dark's, (a)'s and (b)'s palettes, equal `look35.py`'s Bend dry and Bend rain renders, the pictures in A12.23 |
+| LF3 | **45 of 45** loop renders equal through their palettes |
+| LF4 | **51 expected sprite hashes, 51 distinct.** `look-frames.bin` is 979,200 B, sha256 `b7a59b8004f9…`; `look-pal.bin` is 576 B, sha256 `5053b111aeaa…` |
+| K | `ref35.py --k --check` is identical on regeneration with the loop band through its roles |
+
+**What the five crops' code 5 is, measured read-only:**
+- **On the screen, in each of the 17 frames: 0 code-5 pixels.**
+- Codes 1-4 are present (for example, 8 code-4 pixels in F1).
+- The 0 unmapped pixels exclude code 14 and code 15 on screen too, since neither has a role.
+- **So the code-5 cells lie in the crops outside the 60 mi disc.** At 30 and 15 mi the disc is smaller around the same centre, so they are never on screen.
+
+**What this does to the record:**
+- **A12.22 and A12.23 said the Bend loop holds codes 0-4.**
+  - That is true of the screens (by the count above), not of the crops: 4 of the 15 loop crops carry code-5 cells off the disc.
+  - "The candidates' yellows show only in Dallas" stands.
+- **TH3 is untouched:** code 5 is (135, 135, 0) in both candidates, and no code-5 pixel is drawn.
+
+**The reading, and its alternative:**
+- **My reading:** the instrument tested a wider set than its row names. LF1's text is about "every pixel of all 17 frames", and on those pixels the prediction holds.
+- **The alternative:** "codes 0-4 only" was meant of the crops, and is genuinely off. **The data does not decide between them**, because the row did not say which set. So this is reported, not reinterpreted.
+
+**Stopped for a ruling, the bench select only** (A12.24). The viewer's code is not written, and nothing has been flashed.
+- **Proposed:** LF1 restated as "codes 0-4 only on the frames' pixels", with the crops' own codes printed beside it for the record. Nothing else changes.
+
+**Now waiting:**
+- **Q:** on A12.26's RAM ruling;
+- **the bench select:** on this ruling;
+- **#498:** on review.
+
+**Queue check under A12.24:** 3.5b's device code waits on Q's bound (A10.3: "frozen ... before any 3.5b device code"), and Daniel's pick waits on the bench select. **Nothing independent is left, so this goes to the reviewer.**
