@@ -117,3 +117,68 @@ Each sabotage must turn its own row red. BLIND counts as FAIL.
   values (1,515 × 1,455 cells, 9 tiles, 1,179,712 B, a cell-for-cell round trip) still run as frozen and are reported.
 - **A proposed remedy, NOT applied, for the reviewer to rule on:** the same swap on a grid whose tile counts differ:
   `opuk`'s 1,515 rows with 1,000 columns (3 × 2 tiles). **Predicted:** the round trip then fails cell for cell.
+
+## R2's first readings (2026-10-29, `test/wx-opera.test.ts`)
+
+**Two rows are outside the predicted set (K1, K2), and K4's sabotage is BLIND.** Those three stop until the reviewer
+rules. Every other row read as predicted, with its sabotage red.
+
+| | predicted | got | verdict |
+|---|---|---|---|
+| **K1** | the reader's sha equals the HDF5's on both frames; projection to 1e-9 | projection **equal**; the window's column indices are **one higher**: `[1059, 2883, 418, 1636]` against `[1059, 2883, 417, 1635]`, so the sha differs on both frames | **OUTSIDE THE SET: stopped** |
+| **K2** | 0 gap rows; the centre rule alone: gaps > 0 | **0** gap rows (the line crosses grid rows 469-1334); the centre rule alone: **0** | **sabotage BLIND = FAIL: stopped** |
+| K3 | the six values, never 15 | as predicted; the sabotage reports `15 -> 0, not 1` only | pass |
+| **K4** | 1,515 × 1,455, 9 tiles, 1,179,712 B, round trip identical | as predicted | values pass; **sabotage BLIND (above) = FAIL** |
+| K5 | LHR `opuk`; CDG, KMCI, PHNL `cref` (CDG and PHNL all-14); no overlap | as predicted; MAN, EDI, GLA, BFS, ABZ, CWL and NQY also `opuk`; the sabotage serves CDG `opuk` | pass |
+| K6 | 0 views outside | 329,371 cases, 2,634,968 views, **0 outside**, 0 crops padded past the grid, 0 not served `opuk`; margin 1.0: 495,506 outside | pass |
+| K7 | different ETags; no 304 after a move | as predicted (CONTROL: the same query does get its 304); the sabotage collides | pass |
+| K8 | 900 s 200, `cref` 900 s 503, 1,801 s 503 | as predicted; the sabotage refuses `opuk` at 900 s | pass |
+| K9 | the share in the record; all-nodata 0; `/healthz` prints it | the dry frame **0.7513**, the same in the record and in `/healthz`; `cref`'s entry unchanged; all-nodata 0; the sabotage reads 1 | pass (the smoke half is still to write) |
+| K10 | a storing check prunes; a non-storing one makes 0 lists | 1 list, then 0; the sabotage lists | pass |
+| K14 | the UA on every request | list 1, head 1, tiles 4, none missing; each of the three sabotages names exactly its own kind | pass |
+| K15 | 0, 6, 6; off 6; default on at 0.5 | as predicted; the sabotage masks (40, 0.5) | pass |
+
+**LAEA against pyproj (PROJ 9.8.1; tolerances stated in the test before its first run):** forward 5.0e-5 m worst over
+544 points, inverse 5.0e-11° worst over 1,080. A near-sphere misses by 3,192 m.
+
+### K1: what the two files say, read-only (`tools/wx/opera_corner.py`, differences only, no coordinates)
+
+- **The GeoTIFF** declares `PixelIsArea` (GeoKey 1025 = 1), with its tiepoint at raster (0, 0).
+- **The HDF5's `UL` corner** lies exactly **+500 m east and −500 m south** of the GeoTIFF's corner: **half a pixel on
+  both axes.** The HDF5 is self-consistent: UL to UR is exactly 3,800 px and UL to LL exactly 4,400 px, so its four
+  corners are all pixel corners.
+- **So the two files of one frame place the raster half a pixel apart.** The half pixel moved the columns' floor and,
+  by coincidence, not the rows'.
+- **Which is right is not settled by the data:**
+  - **(a) the GeoTIFF is half a pixel off** (the pixel-is-point/area slip in a conversion). For it: the HDF5's corner
+    projects to the origin, (0, 0), to within a millimetre, which looks designed.
+  - **(b) the HDF5's corner attributes are off.** Nothing in the data excludes it; OPERA's documentation of the
+    CIRRUS grid is the third source that could.
+- **What it costs either way:** 500 m in x and y, against 1 km pixels and 0.64 × 1.11 km cells.
+- **No fix is applied.** The reader still takes the GeoTIFF's corner.
+
+### K2: why the sabotage cannot fire (reasoned, not measured), and my control
+
+- **A diagonal does not separate the two rules.** A 0.01° cell is 0.64 km wide at these latitudes, so along any grid
+  row the centre rule samples every source column, and the diagonal's pixel in that row is hit either way. The "one
+  source row in ten" that the centre rule drops matters for a feature one source row tall, and the grid's parallels
+  cross the source rows at about 12° here (an estimate: (−5° − 10°) × sin 55°), so even a horizontal line is likely
+  caught.
+- **What would separate them** (a proposed remedy, NOT applied): **isolated single-pixel echoes** (one 40 dBZ pixel in
+  every 7 × 7 block, undetect elsewhere). **Predicted:** the block rule loses **0** pixels whose centre lies in the grid;
+  the centre rule alone loses **> 0** (a pixel holding no cell centre is never sampled).
+- **The control that also failed is mine, not frozen:** `last - first > 1000` was written without computing it. The
+  line crosses 865 grid rows (the window's corners lie outside the rotated grid). It is reported, not re-thresholded.
+
+### Changes made after a first reading, without a ruling (stated so they can be reverted)
+
+The first run of `test/wx-opera.test.ts` was **outside the set on every fixture row**: the reader refused both frames
+("the window leaves the raster").
+- **The cause, in the code under test:** `opera.ts` read GeoKeys 3088 and 3089 the wrong way round (3088 is
+  `ProjCenterLongGeoKey`, so lat0 came out 10 and lon0 55). **I fixed it before the second run,** without a ruling, in
+  its own commit so it can be reverted. K1's projection check is the check that caught it.
+- **Three defects in the test scaffolding,** none changing what a row asserts, also fixed before the second run:
+  - the LAEA control compared Python's `55.0` with JavaScript's `55` as strings;
+  - K8 compared the error body without its `v: 1` (the statuses were 503, as predicted);
+  - the predictor-refusal plant did not apply, because OPERA's IFD carries Predictor = 1 explicitly after tag 284.
+    It now plants over 317 itself, with a control that the value was 1 first.
