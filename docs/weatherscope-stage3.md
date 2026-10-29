@@ -6844,3 +6844,74 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - Q's host tests, before Q's branch is pushed as built (it touches `src/weatherscope`);
 - #498, waiting on review;
 - the light candidates' bench select, its design and predictions first.
+
+### A12.27 The light candidates' bench select: the design and the predictions, before its code
+
+**What it is.** A12.19's "smallest step that puts both candidates on the Weatherscope board's glass as a bench select": a standalone **look viewer**.
+- It is like the stage-1 bench harness: its own env, LovyanGFX only, and no Wi-Fi, config page or OTA.
+- It shows A12.23's host pictures on the glass, exactly, in **dark (today), light (a) and light (b)**, chosen by swiping.
+- It lives on `weatherscope/light-bench` (on #498's head), a bench branch that is never merged. After Daniel's pick, 3.5t builds the real theme.
+
+**Why host frames and not the device's own drawing.**
+- The device cannot draw Bend's terrain yet: `WxBasemap` is 3.5b's step 5, after Q's bound.
+- What Daniel is choosing is colour on this panel, so the exact host picture is the right thing to show.
+
+**Why one set of frames serves all three looks.**
+- TH1 showed the placement is identical across the themes, and TH3 that (a) and (b) differ only in colour.
+- So each pixel is stored once, as the **role** that drew it: 37 terrain levels, nothing, water, river, road, rain codes 1-13, and the ten ink roles. That is 64 roles.
+- Each look is a 64-entry palette.
+
+**The host tool, `tools/weatherscope/screens/look_frames.py <out dir>`:**
+- **17 frames at 60 mi**, from `bend.bmpk` by §9, in P mode:
+  - F0, Bend dry (`synthetic-clear`, "NO RAIN 60 MI");
+  - F1, Bend rain (`shsr-20240602-200600`, "RAIN 20 MI W"). F0 and F1 are A12.23's two scenes;
+  - F2-F16, the Bend loop's 15 frames, oldest first, with A9.10's loop band ("NOW" or "N MIN AGO", the knob at its index), each with its own Pacific clock.
+- **How they are made:** each frame is rendered once with a unique sentinel colour per role and mapped to role indices.
+- **What it writes:**
+  - `look-frames.bin`: 17 × 57,600 = 979,200 B;
+  - `look-pal.bin`: 3 looks × 64 roles × RGB888, 576 B;
+  - `look-expect.json`: each (look, frame)'s expected sprite sha256.
+- **Where it writes them:** into an untracked directory (not committed), with their sha256 recorded in the results.
+- **The loop band's inks are an extension, named here.** A12.22's ink list has no loop band. Its three marks take the roles their dark colours already are:
+  - the age text is dim (DIMTXT);
+  - the track is ringtext (RINGTXT);
+  - the knob is white (WHITE), which is label ink in light.
+
+  `ref35.py`'s loop band now draws through those roles. **Its dark output is unchanged:** `ref35.py --k --check` is identical on regeneration, and the 15 loop K rows draw the band.
+
+**The viewer, `src/weatherscope/look/look_main.cpp`, env `weatherscope-look-s3-128`** (on this branch only), built like `weatherscope-bench-s3-128`:
+- **The frames and palettes** are embedded by `.incbin` from the generator's output.
+- **Boot:** F0 in dark, at brightness 255 (the edition's default).
+- **Touch,** by `getTouch`:
+  - **a swipe left** is the next look (dark → (a) → (b) → dark); **a swipe right** is the previous one;
+  - **a tap on F0** plays the loop (F2-F16 at 70 ms, as the edition's loop), then shows F1;
+  - **a tap on F1** shows F0.
+- **The look's name:** on each change, it shows centred on a plain ground for 1 s, then the picture. No overlay is drawn on a picture.
+- **The touch chip:** every 10 s while idle, the CST816's DisAutoSleep (0xFE) is re-armed as `TouchWatchdog`'s `MaintainNoSleep` does.
+- **Serial bytes, the same handlers as the glass:** `T` tap, `S` swipe left, `B` swipe right, `D` redraw and report the current frame.
+- **Each drawn screen prints** `[look] look=<dark|a|b> frame=<n> sha=<64 hex> expand_us=<n>`.
+  - The sha is the sprite's 115,200 bytes, taken after the push.
+  - A loop prints nothing while it plays. It then prints 15 `[look] lrec look=<l> i=<k> frame=<n> sha=<64 hex> start_us=<n> expand_us=<n>` lines, paced.
+
+**The run** (one open, never reopened): `D`, then for each look `T`, `T`, `S`. That draws every look's F0, loop and F1, and ends on dark F0.
+
+**Predicted, host:**
+
+| row | expected |
+|---|---|
+| LF1 | closure: every pixel of all 17 frames maps to one of the 64 roles; codes 0-4 only, no 14 or 15 |
+| LF2 | F0 and F1 through each look's palette **equal `look35.py`'s Bend dry and Bend rain renders in that look, 57,600 / 57,600**, all 6 (the pictures in A12.23) |
+| LF3 | each loop frame through each look's palette equals that frame rendered directly in the look's colours, 45 of 45 |
+| LF4 | 51 expected sprite hashes, computed the way `palette_ref.py` derives the bench sprite: RGB565, high byte first |
+
+**Predicted, board** (flashed onto `907069326E64` only, its port resolved by its serial):
+
+| row | expected |
+|---|---|
+| LK-SIZE | flash **1,421,862-1,461,862 B**: the anchor `weatherscope-bench-s3-128`, measured 466,119 B, less its 4,033 B KDFW crop, plus the 979,776 B of data, ± 20,000 of code; RAM **23,912-29,912 B** (the anchor's 26,912 ± 3,000) |
+| LK-ELF | `look-frames.bin` and `look-pal.bin` each in the ELF exactly once |
+| LK-HASH | **every drawn screen's sha equals the host's for its (look, frame)**: 51 of 51 distinct pairs, plus the boot-time and closing dark F0 |
+| LK-LOOP | in each look's loop: 15 records, intervals 70,000 ± 5,000 µs, spread ≤ 10,000; `expand_us` ≤ 15,000 every frame |
+| LK-GLASS | **Daniel's look on the glass:** his pick, not a prediction |
+
+**Outside every row: stop the bench select and report.** Q and #498 are independent of it.
