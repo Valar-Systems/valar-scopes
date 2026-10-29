@@ -1,0 +1,59 @@
+# The builder Worker, `blipscope-basemap` (docs/basemap-route.md §2.1, §9's D2; docs/basemap-deploy.md).
+#
+# It has NO route and no workers.dev address: the only way in is the proxy's BASEMAP service binding (D3, D4). It
+# builds one BMPK package per normalised query over its own R2 binding, STORE, and never writes to it (MP2).
+#
+# Deployed ONLY by `scripts/deploy.sh --builder <staging|production>`, which runs the proxy's guards (a clean proxy/,
+# a commit on the remote, not behind origin/main in proxy/) and stamps BUILD_COMMIT with the FULL 40-hex commit, by
+# --define, exactly as the proxy is stamped (Q2 as ruled). A bare `npx wrangler deploy --config basemap.wrangler.toml`
+# falls through to the "UNSTAMPED" default below, and that bundle refuses every build (MW18): an unstamped builder
+# cannot put a commit nobody can check out into a package's PROVENANCE.
+name = "blipscope-basemap"
+main = "src/basemap/worker.ts"
+compatibility_date = "2025-12-01"
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+workers_dev = false
+
+# The nested quotes are required: the value is substituted into the bundle verbatim, as a JS string literal.
+define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
+
+# MM3's measured worst case (Atlanta at r 222) is 1,453 ms of CPU; 10x that, inside the 30,000 ms cap (A2.37, A2.40).
+[limits]
+cpu_ms = 14530
+
+[[r2_buckets]]
+binding = "STORE"
+bucket_name = "blipscope-basemap"
+
+# ---- staging ----------------------------------------------------------------------------------------------------
+# Bindings, `define` and `limits` are NOT inherited by an env, so each is repeated: an env that omitted `define`
+# would ship a bundle where BUILD_COMMIT is an undeclared identifier.
+[env.staging]
+name = "blipscope-basemap-staging"
+workers_dev = false
+
+[env.staging.define]
+BUILD_COMMIT = "\"UNSTAMPED\""
+
+[env.staging.limits]
+cpu_ms = 14530
+
+# The same, read-only store as production: there is one sealed store, and the builder never writes.
+[[env.staging.r2_buckets]]
+binding = "STORE"
+bucket_name = "blipscope-basemap"
+
+# ---- production -------------------------------------------------------------------------------------------------
+[env.production]
+name = "blipscope-basemap"
+workers_dev = false
+
+[env.production.define]
+BUILD_COMMIT = "\"UNSTAMPED\""
+
+[env.production.limits]
+cpu_ms = 14530
+
+[[env.production.r2_buckets]]
+binding = "STORE"
+bucket_name = "blipscope-basemap"

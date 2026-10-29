@@ -26,7 +26,7 @@ import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 import { handleWx, wxHealth } from "./wx/handler";
-import { handleBasemap } from "./basemap/handler";
+import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS } from "./wx/products";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
@@ -84,7 +84,11 @@ async function handleHealth(env: Env): Promise<Response> {
   //
   // `wx`: each weather product's newest-frame age, null when there is no frame (never a made-up age), or
   // "not_configured" while the WX bucket is unbound (docs/wx-server.md).
-  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS) });
+  //
+  // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
+  // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
+  // is bound.
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS), basemap: basemapHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------

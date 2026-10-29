@@ -4,8 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
-import { BASEMAP_REV, resetBasemapIsolate } from "../src/basemap/handler";
-import builder from "../src/basemap/worker";
+import { BASEMAP_REV, basemapHealth, resetBasemapIsolate } from "../src/basemap/handler";
+import builder, { makeBuilder } from "../src/basemap/worker";
 import { type SynthDef, COMMIT, lonLatOf, writeSynthStore } from "./basemap-synth";
 import { apiRequest, call } from "./helpers";
 
@@ -46,7 +46,7 @@ function builderOver(objects: Map<string, Uint8Array>, buildOverride?: (q: unkno
       n.calls++;
       const req = new Request(input as string, init);
       if (buildOverride) return buildOverride(await req.json());
-      return builder.fetch(req, { STORE, BUILD_COMMIT: COMMIT });
+      return makeBuilder(COMMIT).fetch(req, { STORE });
     },
   } as unknown as Fetcher;
   return { BASEMAP, n };
@@ -174,7 +174,8 @@ describe("MW, the endpoint", () => {
     bad[off] = 3;
     dv.setUint32(28, 0, true); dv.setUint32(28, crc32(bad), true);
     expect(validate(bad).status).not.toBe("kOk"); // CONTROL: the patch really makes it invalid
-    const b = builderOver(s.store.objects, async () => new Response(bad, { headers: { "x-basemap-store": s.storeId } }));
+    // a valid commit, so this row tests validate() alone: without it the commit check (MW19) would answer 500 first
+    const b = builderOver(s.store.objects, async () => new Response(bad, { headers: { "x-basemap-store": s.storeId, "x-basemap-commit": COMMIT } }));
     const res = await mw(`/api/v1/blipscope/basemap?${QW}`, b);
     expect(res.status).toBe(500);
     expect(res.headers.get("content-type")).toContain("application/json");
@@ -197,6 +198,48 @@ describe("MW, the endpoint", () => {
     const res = await mw(`/api/v1/blipscope/basemap?${QW}`, b);
     expect([res.status, (await res.json() as { error: string }).error]).toEqual([503, "basemap_unavailable"]);
     expect(b.n).toMatchObject({ calls: 1, reads: 2 });
+  });
+
+  it("MW18: an unstamped bundle refuses every build as builder_unstamped, with no store read", async () => {
+    const s = await mwStore();
+    let reads = 0;
+    const STORE = { async get(k: string) { reads++; const v = s.store.objects.get(k); return v ? { arrayBuffer: async () => v.slice().buffer } : null; } } as unknown as R2Bucket;
+    const at = { lat0Micro: 370_000, lon0Micro: 590_000, epsMm: 100_584 };
+    const levels = [{ radiusMm: 24_743_664, n: 246 }, { radiusMm: 49_487_328, n: 246 }, { radiusMm: 98_974_656, n: 246 }];
+    const shapes = [{ ...at, rKm: 97, mask: 63, levels }, { ...at, rKm: 97, mask: 31, levels: [] }, { ...at, rKm: 161, mask: 31, levels: [] }, { ...at, rKm: 222, mask: 31, levels: [] }];
+    const post = (q: object) => new Request("https://basemap.internal/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(q) });
+    // CONTROL: the same bundle code, stamped, gets past the stamp on each shape (it reads the store), so the refusal
+    // below is the stamp's and nothing else's
+    for (const q of shapes) {
+      const before = reads;
+      await makeBuilder(COMMIT).fetch(post(q), { STORE });
+      expect(reads, JSON.stringify(q.rKm)).toBeGreaterThan(before);
+    }
+    reads = 0;
+    // the default export is the bundle as built, under this build's own define ("UNSTAMPED", wrangler.toml)
+    for (const q of shapes) {
+      const res = await builder.fetch(post(q), { STORE });
+      expect([res.status, (await res.json() as { error: string }).error]).toEqual([503, "builder_unstamped"]);
+    }
+    expect(reads).toBe(0);
+  });
+
+  it("MW19: a builder 200 without a 40-hex x-basemap-commit is 500 builder_invalid, and nothing is cached", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore();
+    const good = await build(s.store, { lat0Micro: 370_000, lon0Micro: 590_000, rKm: 97, epsMm: 100_584, mask: 5, levels: [] }, { commit: COMMIT });
+    if (!good.ok) throw new Error("MW19's fixture did not build (BLIND)");
+    expect(validate(good.bytes).status).toBe("kOk"); // CONTROL: the package itself is valid, so only the commit is wrong
+    for (const commit of [null, "UNSTAMPED", COMMIT.slice(0, 7)]) {
+      const headers: Record<string, string> = { "x-basemap-store": s.storeId };
+      if (commit !== null) headers["x-basemap-commit"] = commit;
+      const b = builderOver(s.store.objects, async () => new Response(good.bytes, { headers }));
+      const res = await mw(`/api/v1/blipscope/basemap?${QW}`, b);
+      expect([res.status, (await res.json() as { error: string }).error], String(commit)).toEqual([500, "builder_invalid"]);
+      // nothing learned from the refused answer: no last build. (Its `commit` field is MH2's to test, so this row
+      // stays about the commit check alone.)
+      expect((basemapHealth({ BASEMAP: b.BASEMAP }) as { store: string | null }).store, String(commit)).toBeNull();
+    }
   });
 });
 

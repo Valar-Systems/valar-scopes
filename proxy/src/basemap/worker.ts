@@ -4,7 +4,13 @@
 // it logs nothing about the request: the query holds the origin.
 import { type BuildQuery, type StoreReader, build } from "./build";
 
-export interface BuilderEnv { STORE: R2Bucket; BUILD_COMMIT?: string }
+// The commit this bundle was built from, stamped at deploy by `deploy.sh --builder` with --define, exactly as the proxy
+// is stamped (docs/basemap-deploy.md, Q2 as ruled). It travels inside the bundle it describes, so no dashboard var can
+// make PROVENANCE's builder line drift from the code. basemap.wrangler.toml defaults it to "UNSTAMPED" in every env,
+// and an unstamped bundle refuses every build (MW18).
+declare const BUILD_COMMIT: string;
+
+export interface BuilderEnv { STORE: R2Bucket }
 
 /** The R2 binding as build.ts's StoreReader. */
 export const r2Reader = (b: R2Bucket): StoreReader => ({
@@ -23,16 +29,21 @@ function asQuery(v: unknown): BuildQuery | null {
   return { lat0Micro: q.lat0Micro!, lon0Micro: q.lon0Micro!, rKm: q.rKm!, epsMm: q.epsMm!, mask: q.mask!, levels: q.levels!.map((l) => ({ radiusMm: l.radiusMm, n: l.n })) };
 }
 
-export default {
-  async fetch(request: Request, env: BuilderEnv): Promise<Response> {
-    if (request.method !== "POST") return json(405, { error: "method_not_allowed" });
-    const commit = env.BUILD_COMMIT ?? "";
-    if (!/^[0-9a-f]{40}$/.test(commit)) return json(503, { error: "builder_unstamped" }); // §2.4: never build unstamped
-    let q: BuildQuery | null = null;
-    try { q = asQuery(await request.json()); } catch { q = null; }
-    if (!q) return json(400, { error: "bad_query" });
-    const r = await build(r2Reader(env.STORE), q, { commit });
-    if (!r.ok) return json(r.status, { error: r.code });
-    return new Response(r.bytes, { status: 200, headers: { "content-type": "application/octet-stream", "x-basemap-store": r.storeId } });
-  },
-};
+/** The builder's fetch handler for one stamped commit. The default export is the deployed bundle's own (MW18). */
+export function makeBuilder(commit: string) {
+  return {
+    async fetch(request: Request, env: BuilderEnv): Promise<Response> {
+      if (request.method !== "POST") return json(405, { error: "method_not_allowed" });
+      if (!/^[0-9a-f]{40}$/.test(commit)) return json(503, { error: "builder_unstamped" }); // §2.4: never build unstamped
+      let q: BuildQuery | null = null;
+      try { q = asQuery(await request.json()); } catch { q = null; }
+      if (!q) return json(400, { error: "bad_query" });
+      const r = await build(r2Reader(env.STORE), q, { commit });
+      if (!r.ok) return json(r.status, { error: r.code });
+      // x-basemap-commit: the proxy's /healthz reports it (Q4), so D3 can prove which builder is bound
+      return new Response(r.bytes, { status: 200, headers: { "content-type": "application/octet-stream", "x-basemap-store": r.storeId, "x-basemap-commit": commit } });
+    },
+  };
+}
+
+export default makeBuilder(BUILD_COMMIT);

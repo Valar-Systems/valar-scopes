@@ -20,8 +20,18 @@ const STORE_TTL_MS = 60_000;
 let known: { storeId: string; at: number } | null = null;
 const knownStore = (now: number) => (known && now - known.at < STORE_TTL_MS ? known.storeId : null);
 const learnStore = (storeId: string, now: number) => { known = { storeId, at: now }; };
-/** Tests only: forget the isolate's store id (a "fresh builder" in MW's terms). */
-export const resetBasemapIsolate = () => { known = null; };
+/** Tests only: forget the isolate's store id and last build (a "fresh builder" in MW's terms). */
+export const resetBasemapIsolate = () => { known = null; lastBuild = null; };
+// -------------------------------------------------------------------------------------------------------------------
+
+// ---- What /healthz reports (docs/basemap-deploy.md, Q4 as ruled; MH1-MH3) -----------------------------------------
+// The store id and builder commit of this isolate's LAST builder 200, with no TTL: what the bound builder said, null
+// until it has said anything. Never a made-up value.
+let lastBuild: { storeId: string; commit: string } | null = null;
+export function basemapHealth(env: BasemapEnv): "not_configured" | { rev: number; store: string | null; commit: string | null } {
+  if (!env.BASEMAP) return "not_configured";
+  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null };
+}
 // -------------------------------------------------------------------------------------------------------------------
 
 const cacheKey = (etag: string) => `https://basemap-cache.internal/${etag.replace(/"/g, "")}`;
@@ -62,7 +72,10 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
   const storeId = res.headers.get("x-basemap-store") ?? "";
   const bytes = new Uint8Array(await res.arrayBuffer());
   if (!/^[0-9a-f]{12}$/.test(storeId) || validate(bytes).status !== "kOk") return errorResponse(500, "builder_invalid");
+  const commit = res.headers.get("x-basemap-commit") ?? "";
+  if (!/^[0-9a-f]{40}$/.test(commit)) return errorResponse(500, "builder_invalid");
   learnStore(storeId, Date.now());
+  lastBuild = { storeId, commit };
   const etag = await etagOf(q, BASEMAP_REV, storeId);
   ctx.waitUntil(cache.put(cacheKey(etag), new Response(bytes, { headers: storedHeaders(etag) })));
   if (inm === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } });
