@@ -94,9 +94,20 @@ class Rounder:
 
 
 # ------------------------------------------------------------------------------------------------ the image
+# The ink roles a screen is drawn in (3.5t, A12.22). DARK_INK is exactly the constants above, so a caller that passes
+# no ink draws today's screens, byte for byte.
+DARK_INK = dict(bg=BLACK, band=BLACK, dim=DIMTXT, white=WHITE, label=LABEL, halo=BLACK, ring=RING, ringtext=RINGTXT,
+                home=WHITE, peak=LABEL, orange=ORANGE)
+
+
+def inkmap(ink, col):
+    """A state's ink (WHITE, DIMTXT or ORANGE, as the scenarios name them) in a theme's roles."""
+    return {WHITE: ink["white"], DIMTXT: ink["dim"], ORANGE: ink["orange"]}.get(col, col)
+
+
 class Screen:
-    def __init__(self):
-        self.px = [[BLACK] * SIZE for _ in range(SIZE)]
+    def __init__(self, bg=BLACK):
+        self.px = [[bg] * SIZE for _ in range(SIZE)]
 
     def put(self, x, y, col):
         if 0 <= x < SIZE and 0 <= y < SIZE:
@@ -246,16 +257,17 @@ def render_map(scr, h, codes, view, base=None, corner=False, pal=None):
             scr.px[y][x] = base[y][x] if (code == 0 and base is not None) else colour(code, x, y, pal)
 
 
-def draw_ring(scr, r_px, rnd):
+def draw_ring(scr, r_px, rnd, col=RING):
     n = int(2 * math.pi * r_px)
     for k in range(0, n, 2):
         a = 2 * math.pi * k / n
         x, y = rnd.point(C + r_px * math.sin(a), C - r_px * math.cos(a), f"ring r={r_px:g} k={k}")
         if in_map(x, y):
-            scr.px[y][x] = RING
+            scr.px[y][x] = col
 
 
-def place_ring_labels(scr, rings, obstacles):
+def place_ring_labels(scr, rings, obstacles, ink=None):
+    ink = ink or DARK_INK
     for r_px, label in rings:
         w = text_w(label)
         for ang in (45, 135, 315, 225, 90, 270, 0, 180):
@@ -266,7 +278,7 @@ def place_ring_labels(scr, rings, obstacles):
                 continue
             if any(overlaps(box, o, 2) for o in obstacles):
                 continue
-            scr.text(tx, ty, label, 1, RINGTXT, halo=BLACK)
+            scr.text(tx, ty, label, 1, ink["ringtext"], halo=ink["halo"])
             obstacles.append(box)
             break
 
@@ -292,31 +304,32 @@ def arrow_segments(sx, sy, from_deg):
 
 
 def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None,
-            base=None, corner=False, peaks=None, glyph=None, peak_log=None, pal=None):
+            base=None, corner=False, peaks=None, glyph=None, peak_log=None, pal=None, ink=None):
     """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own).
     3.5a's K rows add (A9.10, A9.14, Q17, Q18): state["timeText"]/["timeInk"] for the top strip; warning["arrow"] =
     (lat, lon, fromDeg), drawn after the title and before the labels, its box a fixed overlay; and `loop` =
     dict(age=, index=) for the loop's band in place of the state line. Towns are (name, lat, lon[, ...])."""
-    scr = Screen()
+    ink = ink or DARK_INK
+    scr = Screen(ink["bg"])
     render_map(scr, h, codes, view, base, corner, pal)
-    scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, BLACK)
-    scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, BLACK)
+    scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, ink["band"])
+    scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, ink["band"])
     fixed = [(0, 0, SIZE - 1, TOP_BAND - 1), (0, BOT_BAND, SIZE - 1, SIZE - 1)]
     ppm = view.ppm()
     rings = []
     for mi in (5, 15, 30):
         if 0.15 * view.R <= mi <= 0.85 * view.R:
-            draw_ring(scr, mi * ppm, rnd)
+            draw_ring(scr, mi * ppm, rnd, ink["ring"])
             rings.append((mi * ppm, "%d" % mi))
-    scr.text(117, 3, "N", 1, DIMTXT)
+    scr.text(117, 3, "N", 1, ink["dim"])
     time_text = state.get("timeText", frame_clock)
     if not zoomed:
-        scr.text(int(C - text_w(time_text) / 2), 13, time_text, 1, state.get("timeInk", DIMTXT))
+        scr.text(int(C - text_w(time_text) / 2), 13, time_text, 1, inkmap(ink, state.get("timeInk", DIMTXT)))
     else:
         tag = "ZOOM %d MI" % view.R
         x0 = int(C - text_w(time_text + "  " + tag) / 2)
-        scr.text(x0, 13, time_text, 1, state.get("timeInk", DIMTXT))
-        scr.text(x0 + text_w(time_text + "  ") + 1, 13, tag, 1, WHITE)
+        scr.text(x0, 13, time_text, 1, inkmap(ink, state.get("timeInk", DIMTXT)))
+        scr.text(x0 + text_w(time_text + "  ") + 1, 13, tag, 1, ink["white"])
     if warning:
         pts = [view.project(la, lo) for (la, lo) in warning["polygon"]]
         for i in range(len(pts)):
@@ -368,8 +381,8 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
                     continue
                 if any(overlaps(box, f) for f in fixed) or any(overlaps(box, p) for p in placed):
                     continue
-                glyph(scr, x, y)
-                scr.text(tx, int(y) - 3, label, 1, LABEL, halo=BLACK)
+                glyph(scr, x, y, ink["peak"])
+                scr.text(tx, int(y) - 3, label, 1, ink["peak"], halo=ink["halo"])
                 placed.append(box)
                 if peak_log is not None:
                     peak_log.append((name, x, y))
@@ -399,14 +412,14 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
                 continue
             if any(overlaps(box, f) for f in fixed) or any(overlaps(box, p) for p in placed):
                 continue
-            scr.fill(int(x) - 1, int(y) - 1, int(x) + 1, int(y) + 1, LABEL)
-            scr.text(tx, int(y) - 3, label, 1, LABEL, halo=BLACK)
+            scr.fill(int(x) - 1, int(y) - 1, int(x) + 1, int(y) + 1, ink["label"])
+            scr.text(tx, int(y) - 3, label, 1, ink["label"], halo=ink["halo"])
             placed.append(box)
             placed_info.append((label, side, box))
             break
-    place_ring_labels(scr, rings, fixed + placed)
+    place_ring_labels(scr, rings, fixed + placed, ink)
     for (x, y) in HOME:
-        scr.px[y][x] = WHITE
+        scr.px[y][x] = ink["home"]
     if warning:
         scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, WHITE)
         scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, WHITE)
@@ -417,7 +430,7 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
         scr.fill(kx, 210, kx + 3, 215, WHITE)
     else:
         s, col = state["line"], state["colour"]
-        scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, col)
+        scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, inkmap(ink, col))
     return scr, placed_info
 
 
