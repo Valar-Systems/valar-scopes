@@ -126,4 +126,12 @@ describe("renderCreditsHtml", () => {
     expect(html).toContain("Public domain");
     expect(html).not.toContain("creativecommons.org");
   });
+
+  // docs/wx-server.md N1: the weather radar's attribution, worded as that doc has it. /wx serves MRMS crops, so the
+  // page must say so; smoke-prod.sh searches the live page for the same bytes.
+  it("carries the NOAA MRMS line exactly once", () => {
+    const html = renderCreditsHtml([]);
+    const line = "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.";
+    expect(html.split(line).length - 1).toBe(1);
+  });
 });

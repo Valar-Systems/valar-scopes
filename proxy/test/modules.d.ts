@@ -12,3 +12,21 @@ declare module "*.txt" {
   const text: string;
   export default text;
 }
+
+// wrangler's default module rule imports .bin as an ArrayBuffer (a Data module): the opuk fixtures' byte ranges.
+declare module "*.bin" {
+  const data: ArrayBuffer;
+  export default data;
+}
+
+// vitest.config.mts's bmpk-bytes plugin imports a .bmpk fixture as its exact bytes.
+declare module "*.bmpk" {
+  const bytes: Uint8Array;
+  export default bytes;
+}
+
+// Vite's ?raw import of a Python source (ME1b reads synth.py's own data lines).
+declare module "*.py?raw" {
+  const text: string;
+  export default text;
+}

@@ -917,6 +917,25 @@ else
 fi
 
 echo
+echo "== Missileer E-4B table (docs/missileer-e4b-table.md) =="
+# The four cited E-4B addresses, and none of the four C-2A Greyhounds the table once held. The selftest includes
+# the ruled sabotage -- one C-2A address put back into the REAL file's text, in memory -- and must see it fail.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the E-4B table check cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/scripts/check_e4b_table.py" --selftest
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: the E-4B table check's own selftest did not pass (or the real table is wrong)."
+    fail=1
+  fi
+  "$PY" "$ROOT/scripts/check_e4b_table.py"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then fail=1; fi
+fi
+
+echo
 echo "== purity gate =="
 if "$CXX" $FLAGS $INCLUDES \
       "$ROOT/test/host/no_arduino.cpp" \
@@ -1053,6 +1072,44 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# include/DayNight.h, Auto's day/night decision, and the first test of include/SolarDim.h's SunElevationDeg
+# (docs/weatherscope-stage3.md A11.4, A12.43, A12.45): 28 checks against NOAA's algorithm (tools/weatherscope/
+# daynight_ref.py's fixture) and USNO's transcribed times, then SY (no product symbol in the header) and the
+# reference's --check. Its sabotages: python -I test/host/sabotage_daynight.py
+echo
+echo "== DayNight =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_daynight.cpp" -o "$OUT/test_daynight.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the DayNight test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_daynight.exe" "$ROOT/test/fixtures/daynight"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the DayNight test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+echo "== DayNight SY: no product symbol in include/DayNight.h =="
+bash "$ROOT/test/host/scan_daynight_symbols.sh" "$ROOT/include/DayNight.h"
+rc=$?
+if [ "$rc" -ge 2 ]; then
+  echo "FAIL: the SY scan did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  echo "  FAIL SY a product symbol in include/DayNight.h"
+  fail=1
+else
+  echo "  ok   SY 0 hits (wx, Weather, wxpalette; case-sensitive, comments included)"
+fi
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; DN-E's reference (daynight_ref.py --check) cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/tools/weatherscope/daynight_ref.py" --check
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # The WXC1 weather-crop decoder (include/WxCrop.h), shared by Weatherscope and the Blipscope weather
 # layer, against crops the weather spike's OWN encoder wrote (test/fixtures/wx/, two references in
 # MANIFEST.json). Its two sabotages run from test/host/sabotage_wx_crop.py.
@@ -1105,6 +1162,25 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's theme table (src/weatherscope/WxTheme.h; docs/weatherscope-stage3.md A12.43, A12.44, A12.46): the
+# light palette held to C4 (CIEDE2000 behind Sharma's 34 pairs, WCAG behind its published grey, text in RGB888 and in
+# RGB565 as the panel draws it), the hold ring, and the setting's Select, parse and dim: 72 checks. C3 stays above.
+# Its sabotages: python -I test/host/sabotage_wx_theme.py
+echo
+echo "== WxTheme =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_theme.cpp" -o "$OUT/test_wx_theme.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope theme test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_theme.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the theme test did not run or could not read its fixture (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py
@@ -1119,6 +1195,19 @@ fi
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   echo "FAIL: the WX server crop test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+# K12 (docs/wx-opuk.md): the same decoder against the opuk crops -- eight UK airports over a REAL frame, served by
+# /wx/cref's dispatch (test/fixtures/wx/opuk/, written by the same generator; workers.yml fails if stale).
+# Its sabotage: python -I test/host/sabotage_wx_server_crops.py opuk man-161km.wxc
+echo
+echo "== WX opuk crops (K12) =="
+"$OUT/test_wx_server_crops.exe" "$ROOT/test/fixtures/wx/opuk"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the WX opuk crop test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
@@ -1471,9 +1560,45 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it): the BMPK reader
+# (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- 84 named
+# cases. Its sabotages: python -I test/host/sabotage_wx_basemap.py
+echo
+echo "== WxBasemap =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_basemap.cpp" -o "$OUT/test_wx_basemap.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope basemap test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_basemap.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the basemap test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # Weatherscope 3.5a's K rows: 25 screens through the device's path (WxScenes.h + Compose) against ref35.py's
 # independent rendering (test/fixtures/wx/k35.ref.txt, regenerated by ref35.py --k --check), docs/weatherscope-stage3.md
 # A9.10 and A9.18: 28 checks. Its sabotages: python -I test/host/sabotage_wx_k35.py
+# Weatherscope 3.5b's Bend K rows and replay rows (docs/weatherscope-stage3.md A10.6, A12.41): 21 Bend dry rows and
+# 30 Bend loop rows through the device's path against tools/weatherscope/screens/k35b.py's independent rendering
+# (test/fixtures/wx/k35b.ref.txt), 90 replay rows, and 2 controls: 143 checks.
+echo
+echo "== WxK35b =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_k35b.cpp" -o "$OUT/test_wx_k35b.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope Bend K test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_k35b.exe" "$ROOT/test/fixtures/wx" "$ROOT/test/fixtures/wx/k35b.ref.txt"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the Bend K test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 echo "== WxK35 =="
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_k35.cpp" -o "$OUT/test_wx_k35.exe" 2>"$OUT/build.log"; then
@@ -1538,6 +1663,26 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   echo "FAIL: the GameConfig test did not run, or could not trust its inputs (exit $rc). This is the RIG, not the code."
   exit 2
 fi
+[ "$rc" -ne 0 ] && fail=1
+
+# Weatherscope's reference controls (docs/weatherscope-stage3.md A12.18): ref35.py's R0 against the reviewer's 3.5a
+# mockups and geo35.py's R0b against the Bend mockups, from the pinned fixtures in test/fixtures/wx/r0/. Pillow is
+# required (R0a' rests on its polygon rasteriser, pinned in CI); a missing Pillow or a refused pin is the RIG (exit 2),
+# never a skip.
+echo
+echo "== Weatherscope R0 and R0b (the reference's controls, A12.18) =="
+if [ -z "$PY" ] || ! "$PY" -c "import PIL" >/dev/null 2>&1; then
+  echo "FAIL: no python with Pillow; R0 and R0b cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -c "import PIL; print('Pillow', PIL.__version__)"
+"$PY" -I -B "$ROOT/tools/weatherscope/screens/ref35.py" --r0 "$ROOT/test/fixtures/wx/r0"
+rc=$?
+if [ "$rc" -eq 2 ]; then echo "FAIL: R0 refused its fixtures (the rig)"; exit 2; fi
+[ "$rc" -ne 0 ] && fail=1
+"$PY" -I -B "$ROOT/tools/weatherscope/screens/geo35.py" --r0b-fixture "$ROOT/test/fixtures/wx/r0"
+rc=$?
+if [ "$rc" -eq 2 ]; then echo "FAIL: R0b refused its fixtures (the rig)"; exit 2; fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo

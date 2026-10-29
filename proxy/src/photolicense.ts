@@ -271,6 +271,7 @@ licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" rel="noope
 &mdash; &copy; its contributors, licensed under
 <a href="https://opendatacommons.org/licenses/odbl/1-0/" rel="noopener">ODbL 1.0</a>.</li>
 <li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>
+<li>Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.</li>
 </ul>
 <p class="note">Both aircraft-data sources are credited here permanently, regardless of
 which served any given response. We sponsor adsb.fi and adsb.lol: the data is theirs and

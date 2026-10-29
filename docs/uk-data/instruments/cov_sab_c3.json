@@ -1,0 +1,1280 @@
+{
+ "missing_codes": [],
+ "sabotage": {
+  "c2": false,
+  "c3": true
+ },
+ "met_office": {
+  "frames": [
+   {
+    "file": "202610270600.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "tmerc",
+    "grid": [
+     1725,
+     2175,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      75,
+      1725
+     ],
+     "compression": "gzip",
+     "opts": 6,
+     "shuffle": false,
+     "dtype": "float32"
+    },
+    "nodata": -1.0,
+    "undetect": 0.0,
+    "georef_resid_edge_m": [
+     -2.8,
+     0.6
+    ],
+    "georef_resid_centre_m": [
+     997.2,
+     -999.4
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.7422,
+    "echo_pixels": 2784590,
+    "echo_values": {
+     "min": -1.0,
+     "p50": -1.0,
+     "max": 40.2506,
+     "distinct": 199442,
+     "smallest_step": 9.31323e-10
+    }
+   },
+   {
+    "file": "202610271200.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "tmerc",
+    "grid": [
+     1725,
+     2175,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      75,
+      1725
+     ],
+     "compression": "gzip",
+     "opts": 6,
+     "shuffle": false,
+     "dtype": "float32"
+    },
+    "nodata": -1.0,
+    "undetect": 0.0,
+    "georef_resid_edge_m": [
+     -2.8,
+     0.6
+    ],
+    "georef_resid_centre_m": [
+     997.2,
+     -999.4
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.7264,
+    "echo_pixels": 2725237,
+    "echo_values": {
+     "min": -1.0,
+     "p50": -1.0,
+     "max": 69.9127,
+     "distinct": 141613,
+     "smallest_step": 1.86265e-09
+    }
+   },
+   {
+    "file": "202610271800.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "tmerc",
+    "grid": [
+     1725,
+     2175,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      75,
+      1725
+     ],
+     "compression": "gzip",
+     "opts": 6,
+     "shuffle": false,
+     "dtype": "float32"
+    },
+    "nodata": -1.0,
+    "undetect": 0.0,
+    "georef_resid_edge_m": [
+     -2.8,
+     0.6
+    ],
+    "georef_resid_centre_m": [
+     997.2,
+     -999.4
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.7058,
+    "echo_pixels": 2648241,
+    "echo_values": {
+     "min": -1.0,
+     "p50": -1.0,
+     "max": 86.1561,
+     "distinct": 65276,
+     "smallest_step": 3.72529e-09
+    }
+   },
+   {
+    "file": "202610272345.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "tmerc",
+    "grid": [
+     1725,
+     2175,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      75,
+      1725
+     ],
+     "compression": "gzip",
+     "opts": 6,
+     "shuffle": false,
+     "dtype": "float32"
+    },
+    "nodata": -1.0,
+    "undetect": 0.0,
+    "georef_resid_edge_m": [
+     -2.8,
+     0.6
+    ],
+    "georef_resid_centre_m": [
+     997.2,
+     -999.4
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.7193,
+    "echo_pixels": 2698595,
+    "echo_values": {
+     "min": -1.0,
+     "p50": -1.0,
+     "max": 52.9363,
+     "distinct": 115857,
+     "smallest_step": 4.65661e-10
+    }
+   }
+  ],
+  "centres": {
+   "LHR": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0027,
+    "pixel_by_frame": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   "MAN": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0703,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BHX": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0068,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "NCL": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0471,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "EDI": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1453,
+    "pixel_by_frame": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   "GLA": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2086,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "ABZ": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.082,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "INV": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2675,
+    "pixel_by_frame": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   "SYY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2045,
+    "pixel_by_frame": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   "KOI": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1521,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "LSI": {
+    "pixel_covered_all": true,
+    "on_grid_all": true,
+    "disc160_min": 0.602,
+    "pixel_by_frame": [
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "CWL": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0508,
+    "pixel_by_frame": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   "NQY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0373,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "ISC": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0077,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BFS": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0677,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BHD": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0554,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   "LDY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0916,
+    "pixel_by_frame": [
+     true,
+     false,
+     true,
+     false
+    ]
+   },
+   "DUB": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.029,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   }
+  },
+  "C3_corners_nodata_in_every_frame": false
+ },
+ "opera_DBZH": {
+  "frames": [
+   {
+    "file": "20261027T1200_DBZH.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "DBZH",
+    "proj": "laea",
+    "grid": [
+     3800,
+     4400,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      760,
+      880
+     ],
+     "compression": "gzip",
+     "opts": 9,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     1000.0,
+     -1000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.5709,
+    "echo_pixels": 9545076,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 78.5,
+     "distinct": 209,
+     "smallest_step": 0.5
+    }
+   },
+   {
+    "file": "20261027T1800_DBZH.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "DBZH",
+    "proj": "laea",
+    "grid": [
+     3800,
+     4400,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      760,
+      880
+     ],
+     "compression": "gzip",
+     "opts": 9,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     1000.0,
+     -1000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.588,
+    "echo_pixels": 9831980,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 74.5,
+     "distinct": 196,
+     "smallest_step": 0.5
+    }
+   },
+   {
+    "file": "20261028T0000_DBZH.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "DBZH",
+    "proj": "laea",
+    "grid": [
+     3800,
+     4400,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      760,
+      880
+     ],
+     "compression": "gzip",
+     "opts": 9,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     1000.0,
+     -1000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.5798,
+    "echo_pixels": 9693466,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 77.0,
+     "distinct": 206,
+     "smallest_step": 0.5
+    }
+   },
+   {
+    "file": "20261028T0355_DBZH.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "DBZH",
+    "proj": "laea",
+    "grid": [
+     3800,
+     4400,
+     1000.0,
+     1000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      760,
+      880
+     ],
+     "compression": "gzip",
+     "opts": 9,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     1000.0,
+     -1000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.5701,
+    "echo_pixels": 9531941,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 69.5,
+     "distinct": 194,
+     "smallest_step": 0.5
+    }
+   }
+  ],
+  "centres": {
+   "LHR": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.002,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "MAN": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.099,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BHX": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0182,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "NCL": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.104,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "EDI": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2602,
+    "pixel_by_frame": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   "GLA": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2704,
+    "pixel_by_frame": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   "ABZ": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1171,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   "INV": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.3279,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   "SYY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1729,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "KOI": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2113,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "LSI": {
+    "pixel_covered_all": true,
+    "on_grid_all": true,
+    "disc160_min": 0.5596,
+    "pixel_by_frame": [
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "CWL": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0657,
+    "pixel_by_frame": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   "NQY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0403,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "ISC": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.011,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BFS": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1419,
+    "pixel_by_frame": [
+     false,
+     false,
+     true,
+     true
+    ]
+   },
+   "BHD": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1193,
+    "pixel_by_frame": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   "LDY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1596,
+    "pixel_by_frame": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   "DUB": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0945,
+    "pixel_by_frame": [
+     false,
+     false,
+     true,
+     true
+    ]
+   },
+   "FRA": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0087,
+    "pixel_by_frame": [
+     false,
+     false,
+     true,
+     true
+    ]
+   }
+  },
+  "C3_corners_nodata_in_every_frame": false
+ },
+ "opera_RATE": {
+  "frames": [
+   {
+    "file": "20261027T1200_RATE.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "laea",
+    "grid": [
+     1900,
+     2200,
+     2000.0,
+     2000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      69,
+      119
+     ],
+     "compression": "gzip",
+     "opts": 4,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     2000.0,
+     -2000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.5317,
+    "echo_pixels": 2222538,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 612.15,
+     "distinct": 123,
+     "smallest_step": 0.01
+    }
+   },
+   {
+    "file": "20261027T1800_RATE.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "laea",
+    "grid": [
+     1900,
+     2200,
+     2000.0,
+     2000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      69,
+      119
+     ],
+     "compression": "gzip",
+     "opts": 4,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     2000.0,
+     -2000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.54,
+    "echo_pixels": 2257131,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 243.7,
+     "distinct": 119,
+     "smallest_step": 0.01
+    }
+   },
+   {
+    "file": "20261028T0000_RATE.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "laea",
+    "grid": [
+     1900,
+     2200,
+     2000.0,
+     2000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      69,
+      119
+     ],
+     "compression": "gzip",
+     "opts": 4,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     2000.0,
+     -2000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.5318,
+    "echo_pixels": 2223099,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 686.84,
+     "distinct": 122,
+     "smallest_step": 0.01
+    }
+   },
+   {
+    "file": "20261028T0345_RATE.h5",
+    "C2_key_equals_file_time": true,
+    "quantity": "RATE",
+    "proj": "laea",
+    "grid": [
+     1900,
+     2200,
+     2000.0,
+     2000.0
+    ],
+    "datasets": [
+     "dataset1"
+    ],
+    "data_groups": [
+     "data1"
+    ],
+    "storage": {
+     "chunks": [
+      69,
+      119
+     ],
+     "compression": "gzip",
+     "opts": 4,
+     "shuffle": false,
+     "dtype": "float64"
+    },
+    "nodata": -9999000.0,
+    "undetect": -8888000.0,
+    "georef_resid_edge_m": [
+     0.0,
+     -0.0
+    ],
+    "georef_resid_centre_m": [
+     2000.0,
+     -2000.0
+    ],
+    "corners_covered": [
+     true,
+     true,
+     true,
+     true
+    ],
+    "covered_share_of_grid": 0.5275,
+    "echo_pixels": 2204848,
+    "echo_values": {
+     "min": -9999000.0,
+     "p50": -9999000.0,
+     "max": 145.16,
+     "distinct": 117,
+     "smallest_step": 0.01
+    }
+   }
+  ],
+  "centres": {
+   "LHR": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.001,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "MAN": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0571,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BHX": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0034,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "NCL": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.066,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "EDI": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1673,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "GLA": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.187,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   "ABZ": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0807,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "INV": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.2442,
+    "pixel_by_frame": [
+     false,
+     true,
+     false,
+     true
+    ]
+   },
+   "SYY": {
+    "pixel_covered_all": true,
+    "on_grid_all": true,
+    "disc160_min": 0.1479,
+    "pixel_by_frame": [
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "KOI": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1907,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "LSI": {
+    "pixel_covered_all": true,
+    "on_grid_all": true,
+    "disc160_min": 0.5509,
+    "pixel_by_frame": [
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "CWL": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0258,
+    "pixel_by_frame": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   "NQY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0123,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "ISC": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0076,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BFS": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0533,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "BHD": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0412,
+    "pixel_by_frame": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   "LDY": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.1011,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "DUB": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0186,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "FRA": {
+    "pixel_covered_all": false,
+    "on_grid_all": true,
+    "disc160_min": 0.0013,
+    "pixel_by_frame": [
+     false,
+     false,
+     false,
+     false
+    ]
+   }
+  },
+  "C3_corners_nodata_in_every_frame": false
+ }
+}

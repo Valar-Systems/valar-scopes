@@ -24,6 +24,12 @@ relay/** text eol=lf
 *.bmpk  binary
 # WXC1 weather crops (include/WxCrop.h): binary too, said explicitly rather than left to the heuristic.
 *.wxc   binary
+# A stored package's manifest and licence file (docs/weatherscope-stage3.md A12.5): the manifest's sha256 is the
+# package's `store:` id, so both must keep their exact bytes through a Windows checkout.
+test/fixtures/wx/basemap/*.manifest.json -text
+test/fixtures/wx/basemap/*.LICENSE.txt -text
+# R0 and R0b's CI fixtures (A12.18): every file is pinned by sha256 in r0/MANIFEST.json, so none may be line-converted.
+test/fixtures/wx/r0/* -text
 
 # The embedded page module is generated; keep it LF so scripts/embed-pages.mjs
 # --check compares content rather than checkout style.
