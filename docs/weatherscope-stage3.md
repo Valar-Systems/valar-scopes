@@ -7384,3 +7384,38 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 1. **LK-GLASS:** Daniel's pick, on the glass. The viewer stays on the board until he has picked.
 2. Then **Q's image goes back the same way**, app alone at 0x20000, with `flash_plan.py` first and the `[ota-slot]` line after.
 3. **3.5t waits on the pick. Q's own rows wait on A12.35's ruling.**
+
+### A12.37 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): build Q is done; B2-Bend's bound is frozen at 37,470 µs
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-29
+>
+> A12.35, build Q:
+> 1. B2-Bend's bound is frozen at 37,470 µs, from the frozen formula and q3's numbers only: D 36,480 + A 268.7 + (dB − dD) 376 + P 340.3, rounded up. Q-BOUND holds, 530 µs under the ceiling. The stated estimate's miss (about 35,900–36,500) stays on record.
+> - Record its sensitivity beside it, for information, not as a second bound: if all of B2-DRAW's rise is the probe's (about 75 ns a read, the worst q3 allows), A becomes about 345 µs and the bound about 37,550, still under 38,000.
+> 2. B2-DRAW and grade_b35's draw range: the misses are kept and the cause left open (the probe's rate, or main moving since G). No probe-off build: neither cause moves the bound past the ceiling, and B2-Bend's own board row measures the real fold against 37,470. From now on, a draw row's baseline is main's own image measured first as the anchor, as A12.25 did for flash and RAM, not G.
+> 3. psram_q: re-registered at 103,432 B, the same on both boots. The miss stays on record: your band allowed +160 where A9.23 carries ±2,000 for this method, and 1,192 B sits inside that. No firmware change. When 3.5b allocates its buffers, its PSRAM rows print heap_caps_get_allocated_size() for each block beside the free delta.
+> 4. Q-DEC time: the band's miss stays on record, because its floor wasn't derived from the fit for every crop. All 48 decodes are correct. Future time bands come from the fit, crop by crop.
+> 5. Q is done, and 3.5b's device code may start on the frozen bound.
+>
+> The viewer: Daniel picks on the glass. After his pick, the board goes back under A12.33's rule. Daniel's answer about q2's touch will come back to you.
+
+**B2-Bend's bound, frozen: 37,470 µs.**
+- **From the formula and q3's numbers only:** 36,480 + 268.7 + 376 + 340.3 = 37,465.0, rounded up to 10 µs. That is 530 µs under A10.3's ceiling of 38,000.
+- **Its sensitivity, for information and not a second bound:** if all of B2-DRAW's rise is the probe's (75 ns a read), A is 345.1 µs and the bound 37,541.4, so about 37,550. Both recomputed here.
+
+**Re-registered:**
+- `psram_q` at 103,432 B;
+- Q's RAM at 59,816 B (A12.29).
+
+**The misses kept on record:** B2-DRAW, grade_b35's draw range, `psram_q`'s band, Q-DEC's time band, and the bound's stated estimate.
+
+**Taken as rules from here:**
+- **A draw row's baseline is main's own image, measured first as the anchor**, as A12.25 did for flash and RAM, never an older build's.
+- **A PSRAM row prints `heap_caps_get_allocated_size()` for each block** beside the free-size difference, starting with 3.5b's buffers.
+- **A time band comes from its fit, crop by crop.**
+
+**Next:**
+- **3.5b's device code** (A10.8 step 5): the device code, its host tests and their sabotages, on the frozen bound, against A10.11's frozen truth tables.
+- **The viewer** stays on the board for Daniel's pick. Then the board goes back under A12.33's rule.
