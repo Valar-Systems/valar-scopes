@@ -12,6 +12,7 @@
   2. **the terrain credits corrected** (§7): credit what a mosaic contains; no 3DEP line;
   3. **the builder readings RD1-RD17 ruled for both builders** (§13), from the map server's plan (`docs/basemap-route.md` on `feat/basemap-route` at `e0c43ce`, its §10).
   4. **more readings, ruled 2026-10-28** (§13): RD18-RD21, RD-P1-RD-P6, F1 and F2, from the map server's frozen truth tables (`644a364`, its Addendum 1), with the credit and processing texts.
+  5. **two refusals named, 2026-10-29** (§8, §11; [weatherscope-stage3.md](weatherscope-stage3.md) A12.15 and A12.44): a TERRAIN `count` other than 1 (`kTerrainCount`) and a PROVENANCE `count` other than its line count (`kProvenanceCount`), each with its own negative package. Both are §3's "exactly `count` items" applied to §4's `count` column, so neither is a version change.
 - **Nothing described here is built yet.**
 - **Asked for by:** the reviewer's ruling on Weatherscope step 3.5b ([weatherscope-stage3.md](weatherscope-stage3.md) A9.1 D, A9.9 item 2, A9.21's second paste).
 - **Who builds what:**
@@ -291,6 +292,8 @@ Both are client rules, not package rules.
 - a river name index ≥ `nNames`;
 - a road class other than 1 or 2;
 - a terrain `length` other than 8 + N², or N = 0;
+- a TERRAIN `count` other than 1 (`kTerrainCount`);
+- a PROVENANCE `count` other than its line count: 0 for an empty body, else the number of `\n` + 1, since the last line has no trailing `\n` (RD-P4) (`kProvenanceCount`);
 - non-zero reserved fields.
 
 **There is no partial draw.** A package that is half right is a lie with a plausible shape (CLAUDE.md, *a dropped row is a gap; a truncated row is a lie*).
@@ -335,6 +338,8 @@ x     = C + (lon - lon_h) / rLon * C     y   = C - (lat - lat_h) / rLat * C     
 
   **Byte equality is not required across languages:** `cos`, `atan` and `sin` are not bit-identical across libms. Within one implementation, it is.
 - **Negative packages** (truncated, bad CRC, overlong varint, a vertex walking past ±32,767, an overlapping section, a bad road class) are committed beside the golden one. Every client test and the Worker's own encoder tests read them. Each must be refused, with its own named reason.
+  - **They include A12.15's two:** `neg-terrain-count` (TERRAIN's `count` 2) is refused `kTerrainCount`, and `neg-prov-count` (PROVENANCE's `count` 3 over its 2 lines) is refused `kProvenanceCount`.
+  - **The three readers** that check them all: the reference validator (`tools/weatherscope/basemap/validate.py`), the device's reader (`include/BasemapPackage.h`), and the map server's encoder tests. The set and its reasons are listed in `test/fixtures/wx/basemap/README.md`.
 - **A sabotage of the refusal itself:** a client built to skip the CRC check must accept the bad-CRC package. That proves the check is what refuses it.
 
 ## 12. Versioning
