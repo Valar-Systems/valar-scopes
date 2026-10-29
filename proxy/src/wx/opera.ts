@@ -3,6 +3,13 @@
 // leader and trailer). Accepts exactly the layout OPERA publishes and refuses anything else: classic little-endian
 // TIFF, float32 x 2 samples (value, quality index), chunky, deflate, no predictor, LAEA on WGS84. The projection is
 // read from the frame's own GeoKeys and its tiepoint and pixel scale.
+//
+// The raster's corner (K1, ruled 2026-10-29). ODIM H5's corner pairs are the area's OUTER boundary (BALTRAD's RAVE
+// navigation notes), and OPERA's HDF5 puts that corner on the false origin, (0, 0). Its GeoTIFF, which declares
+// PixelIsArea, puts the tiepoint half a pixel outside it: a converter that read ODIM's corners as pixel centres.
+// So, narrow on purpose: PixelIsArea only; a tiepoint at (-xscale/2, +yscale/2) within 1 mm is that slip, and the
+// corner goes on the false origin; a tiepoint on the origin within 1 mm is used as is (a corrected product);
+// anything else refuses the frame, so a change at OPERA cannot move the map silently.
 
 import type { GridGeom } from "./grid";
 import { type Laea, type LaeaParams, laea, WGS84 } from "./laea";
@@ -18,6 +25,7 @@ export interface OperaGeo {
   width: number; height: number; tileW: number; tileH: number; tilesX: number;
   offsets: number[]; counts: number[];
   ulx: number; uly: number; xs: number; ys: number;   // the raster's (0,0) corner and pixel size, metres
+  corner: "cirrus-slip" | "origin" | "unchecked";  // how the tiepoint was read ("unchecked": K1b's sabotage only)
   proj: LaeaParams;
 }
 
@@ -25,8 +33,12 @@ function u16(b: Uint8Array, o: number) { return b[o]! | (b[o + 1]! << 8); }
 function u32(b: Uint8Array, o: number) { return (b[o]! | (b[o + 1]! << 8) | (b[o + 2]! << 16) | (b[o + 3]! << 24)) >>> 0; }
 function f64(b: Uint8Array, o: number) { return new DataView(b.buffer, b.byteOffset + o, 8).getFloat64(0, true); }
 
-/** IFD 0 of a classic little-endian TIFF, from its first bytes. Throws OperaRefused on anything unexpected. */
-export function parseHead(head: Uint8Array): OperaGeo {
+/** The 1 mm tolerance on the tiepoint (K1's ruling). */
+export const CORNER_TOL_M = 1e-3;
+
+/** IFD 0 of a classic little-endian TIFF, from its first bytes. Throws OperaRefused on anything unexpected.
+ *  `anyTiepoint` exists for K1b's sabotage only: the tiepoint used as is, with no acceptance check. */
+export function parseHead(head: Uint8Array, anyTiepoint = false): OperaGeo {
   if (head.length < 8 || head[0] !== 0x49 || head[1] !== 0x49 || u16(head, 2) !== 42) {
     throw new OperaRefused("not a classic little-endian TIFF");
   }
@@ -73,12 +85,24 @@ export function parseHead(head: Uint8Array): OperaGeo {
   need(keys.get(3075) === 10, "the projection is not LAEA (ProjCoordTrans 10)");
   need(keys.get(2056) === 7030, "the ellipsoid is not WGS84 (7030)");
   need(keys.get(3076) === 9001, "the linear unit is not the metre");
+  need(keys.get(1025) === 1, "the raster type is not PixelIsArea (GeoKey 1025 = 1)");
   // 3088 ProjCenterLongGeoKey, 3089 ProjCenterLatGeoKey, 3082/3083 ProjFalseEasting/NorthingGeoKey
   const proj: LaeaParams = { lat0: keys.get(3089)!, lon0: keys.get(3088)!, x0: keys.get(3082)!, y0: keys.get(3083)!, ...WGS84 };
   need([proj.lat0, proj.lon0, proj.x0, proj.y0].every(Number.isFinite), "the projection's centre or false origin is missing");
   const width = one(256), height = one(257), tileW = one(322), tileH = one(323);
+  const tx = tie![3]!, ty = tie![4]!, xs = scale![0]!, ys = scale![1]!;
+  let ulx: number, uly: number, corner: OperaGeo["corner"];
+  if (anyTiepoint) {
+    [ulx, uly, corner] = [tx, ty, "unchecked"];
+  } else if (Math.abs(tx + xs / 2) <= CORNER_TOL_M && Math.abs(ty - ys / 2) <= CORNER_TOL_M) {
+    [ulx, uly, corner] = [0, 0, "cirrus-slip"];      // half a pixel outside the false origin: the known slip
+  } else if (Math.abs(tx) <= CORNER_TOL_M && Math.abs(ty) <= CORNER_TOL_M) {
+    [ulx, uly, corner] = [tx, ty, "origin"];         // on the false origin: a corrected product, used as is
+  } else {
+    throw new OperaRefused("the tiepoint is neither on the false origin nor the known half-pixel slip");
+  }
   return { width, height, tileW, tileH, tilesX: Math.ceil(width / tileW), offsets: offsets!, counts: counts!,
-           ulx: tie![3]!, uly: tie![4]!, xs: scale![0]!, ys: scale![1]!, proj };
+           ulx, uly, xs, ys, corner, proj };
 }
 
 /** The source pixels a grid needs: its cell-boundary rectangle's four edges, sampled every cell, projected, floored.
