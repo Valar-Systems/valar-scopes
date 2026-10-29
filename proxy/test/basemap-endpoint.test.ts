@@ -206,7 +206,9 @@ describe("MW, the endpoint", () => {
     const STORE = { async get(k: string) { reads++; const v = s.store.objects.get(k); return v ? { arrayBuffer: async () => v.slice().buffer } : null; } } as unknown as R2Bucket;
     const at = { lat0Micro: 370_000, lon0Micro: 590_000, epsMm: 100_584 };
     const levels = [{ radiusMm: 24_743_664, n: 246 }, { radiusMm: 49_487_328, n: 246 }, { radiusMm: 98_974_656, n: 246 }];
-    const shapes = [{ ...at, rKm: 97, mask: 63, levels }, { ...at, rKm: 97, mask: 31, levels: [] }, { ...at, rKm: 161, mask: 31, levels: [] }, { ...at, rKm: 222, mask: 31, levels: [] }];
+    // §5.4's four shapes, asking only for the layers MW's store holds (water, roads; terrain on the terrain shape). As
+    // first written they asked for every layer, and the control threw on rivers before the refusal ran (basemap-deploy.md).
+    const shapes = [{ ...at, rKm: 97, mask: 37, levels }, { ...at, rKm: 97, mask: 5, levels: [] }, { ...at, rKm: 161, mask: 5, levels: [] }, { ...at, rKm: 222, mask: 5, levels: [] }];
     const post = (q: object) => new Request("https://basemap.internal/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(q) });
     // CONTROL: the same bundle code, stamped, gets past the stamp on each shape (it reads the store), so the refusal
     // below is the stamp's and nothing else's
