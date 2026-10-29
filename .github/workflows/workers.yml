@@ -13,9 +13,9 @@ name: workers
 on:
   push:
     branches: [main]
-    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
   pull_request:
-    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
 
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
