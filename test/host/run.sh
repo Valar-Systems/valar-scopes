@@ -1209,6 +1209,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The config page's weather legend (include/WxLegendHtml.h; docs/wx-device.md WD8): the HTML the device serves, both
+# looks, each swatch against the layer's own colour. Its sabotage (a swatch typed in by hand, one level off):
+# python -I test/host/sabotage_wx_legend_html.py. The served page: scripts/check-wx-legend.py --url.
+echo
+echo "== WxLegendHtml =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_legend_html.cpp" -o "$OUT/test_wx_legend_html.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather legend test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_legend_html.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # S2, the weather layer's colours (include/WxS2.h; WD4 and its addenda), for BOTH bench looks (A 40 %, B 25 %). The
 # planes' colours are read from src/AircraftManager.cpp. Its sabotages: test/host/sabotage_wx_s2.py, run below.
 echo

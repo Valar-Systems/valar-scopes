@@ -1,6 +1,9 @@
 #include "ConfigVocabulary.h"
 #include "ConfigurationWebServer.h"
 #include "NtfyTopic.h" // the generated private topic (spec 14.1)
+#ifdef FEATURE_CLOUD_FEED
+#include "WxLegendHtml.h" // the Weather section's legend (docs/wx-device.md WD8)
+#endif
 #include "ConfigMigration.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -877,7 +880,6 @@ R"(
                         <label class="check"><input name="fade" type="checkbox" %FADE%><span>Sweep fade</span></label>
                         <label class="check"><input name="triangle" type="checkbox" %TRIANGLE%><span>Directional aircraft</span></label>
                         <label class="check"><input name="airports" type="checkbox" %AIRPORTS%><span>Airports</span></label>
-                        %WXLAYERROW%
                         <label class="check"><input name="trail" type="checkbox" %TRAIL%><span>Flight trails</span></label>
                         <label class="check"><input name="altcolor" type="checkbox" %ALTCOLOR%><span>Altitude colors</span></label>
                         <label class="check"><input name="highlight" type="checkbox" %HIGHLIGHT%><span>Highlights</span></label>
@@ -916,6 +918,7 @@ R"(
                         fields with scheduled service.
                     </span>
                 </fieldset>
+                %WXSECTION%
 
                 </div><!-- /sec -->
 
@@ -3216,8 +3219,12 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
 #ifdef FEATURE_CLOUD_FEED
                 // Only a cloud build can fetch weather, so only a cloud build shows the box.
-                if (var == "WXLAYERROW")
-                    return String("<label class=\"check\"><input name=\"wx-layer\" type=\"checkbox\" ")
+                // The Display tab's Weather section (docs/wx-device.md WD8): every weather setting, with its heading,
+                // and under the switch the legend of what the layer draws in the look in use (WxLegendHtml.h, its
+                // colours from wxs2 at serve time). Layout only: the fields' names, values and defaults are unchanged.
+                if (var == "WXSECTION")
+                    return String("<fieldset><legend>Weather</legend><div class=\"grid3\">")
+                         + "<label class=\"check\"><input name=\"wx-layer\" type=\"checkbox\" "
                          + (wxLayerEnabled == "true" ? "checked" : "") + "><span>Weather radar (beta)</span></label>"
 #ifdef WX_LOOK_AB
                          // The label is check-no-bench-hooks.sh's marker: absent from every slug-ful image.
@@ -3230,9 +3237,11 @@ void ConfigurationWebServer::Initialise() {
                          + (wxSweepBench == "4" ? " selected" : "") + ">4: lit</option><option value=\"3\""
                          + (wxSweepBench == "3" ? " selected" : "") + ">3: see-through</option></select></label>"
 #endif
-                         ;
+                         + "</div>"
+                         + wxlegendhtml::Html(wxLookBench == "B" ? wxs2::Look::B : wxs2::Look::A).c_str()
+                         + "</fieldset>";
 #else
-                if (var == "WXLAYERROW")     return "";
+                if (var == "WXSECTION")      return "";   // a build without the feed has no weather, so no section
 #endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";

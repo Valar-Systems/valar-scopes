@@ -1722,3 +1722,14 @@ Blipscope, back on `wxlook` with the layer on, look A and sweep look 4.
 | touch | no `[touch]` line in either window | a touch voids the run | — |
 
 **So the cadence row is settled:** with the layer on and off, the board polls `/blips` at the same 12 a minute.
+
+### Results for WD8 (local, before the board and CI)
+
+| | read | verdict |
+|---|---|---|
+| **WD8a** | `test_wx_legend_html.cpp`, both looks: [L1] six rows, Weatherscope's labels without snow; [L2] 13 echo swatches, 0 not wxs2's colour (with the hand anchor: look A code 1 = `rgb(0,83,74)`); [L3] the two dithers, 0 cells off the device's pattern; [L4] no literal `%`, 15 swatches | **as predicted** |
+| **WD8b (host)** | S-leg planted into a copy of the header (code 5 typed in as `rgb(105,105,0)`, its colour at 41 %): red rows **[L2] only**. The real header was unchanged (`1b81e94ab42c`) | **as predicted** |
+| **WD8b (served-page check)** | `check-wx-legend.py --selftest`: S-leg detected, as are a wrong dither cell, a missing swatch, a snow row, and a legend drawn in A on a page selecting B; looks A and B as drawn are allowed | **as predicted** |
+| **cross-check** | `check-wx-legend.py`'s grade run on the **C++ builder's actual output** (`legend_dump`). Its colours come from its own reading of the source, so this tests two independent implementations against each other: look A 15 swatches, 0 off; look B 15, 0 off | (not a frozen row; both agree) |
+| **WD8d (selftest)** | `compare-form-fields.py --selftest`: the same fields moved into a new section are allowed; S-ws (a renamed field), a flipped default, a removed option, a changed value and a field moved outside the form are each detected | (the instrument; the board read follows) |
+| **WD8g (local half)** | both builds succeed; `check-config-form.py`: all 9 pages hold, no literal `%`. MinGW: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: only the board block's known gap | **as predicted** |
