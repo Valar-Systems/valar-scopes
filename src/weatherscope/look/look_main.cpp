@@ -20,6 +20,7 @@
 // a loop prints nothing while it plays, then its 15 records, paced.
 #include <Arduino.h>
 #include <esp_heap_caps.h>
+#include <esp_ota_ops.h>
 #include <esp_timer.h>
 #include <mbedtls/sha256.h>
 #include <stdarg.h>
@@ -242,6 +243,10 @@ void setup()
          "weatherscope-look"
 #endif
     );
+    // the slot that booted, read after every write (A12.33, A12.34 item 3)
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    Line("[ota-slot] boot running=%s @0x%06lx\n", running ? running->label : "?",
+         running ? (unsigned long)running->address : 0UL);
     variant::BoardPreInit();
     const bool panelOk = tft.init();
     tft.setRotation(0);
