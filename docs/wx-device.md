@@ -2345,3 +2345,68 @@ for the board"**. That block needs the xtensa cross-compiler, which WSL does not
 by design. CI has the compiler. `wx-fb-check.py --selftest` passes against the changed header.
 
 **Both images build:** `blipscope-s3-128` and `blipscope-s3-128-wxlook`.
+
+### The B1 fix, the board (2026-10-29, 14:33-15:00Z; window announced as 7:32-8:05 AM PDT). F7 reads INSTRUMENT: stopped for a ruling
+
+**The run, as frozen.**
+- **The image:** `wxlook` at `229e3c6` (the code of `32592f9`), flashed app-only at 14:33Z (exit 0).
+- **The trace:** one trace held (`trace-b1fix-2026-10-29-0733.log`). `read_mac` recovered the board after it closed.
+- **The windows:** B (layer off) from 14:36:17Z and A (layer on, look A, sweep look 4) from 14:46:18Z, each opened by
+  a verified POST. The layer ended on.
+- **No `[touch]` line in the run.**
+- **The reading:** `b1fix_read.py` (sha256 `30e777acd4ad`), unchanged since it was written before the run, on the trace
+  after two reads showed it static.
+- **19 lines in every window and kind.**
+
+| | read | verdict |
+|---|---|---|
+| **F1** | `[bench] layer copy: memcpy equals pushSprite: yes` | **as predicted** |
+| **F2** | the push **5.08 ms**, the same run's boot `memcpy` 5.15 ms: ratio 0.985 (0.85-1.05) | **as predicted** |
+| **F3** | the blend **4.32 ms**; `scan0` 2,545 µs, so a = 44.2 ns a byte; predicted 5.49 − 20,263 × a = 4.59 ± 0.3 | **as predicted** |
+| **F4** | visited 7,278 B, blended 7,278 px (7,279 ± 2 %) | **as predicted** |
+| **F5** | B's fill 3.01 ms, B's opaque sweep 2.04 ms (3.01 and 1.99, ± 0.3) | **as predicted** |
+| **F6** | 3.23 + 4.32 + 0.11 = 7.66 ms, against `sweep=` 7.68 | **as predicted** |
+| **F7** | the remainder **4.79 ms**, the outline **5.49 ms** | **OFF: a remainder outside 1.3-3.3 ms reads "instrument", stop** |
+| **F8** | frame p95 A − B +12.50 ms at n 34 / 31, adjusted for n +10.09; predicted +9.28 ± 1.0 | **as predicted** |
+| **F9** | **0** `BUDGET BROKEN` lines in A | **as predicted: B1′ holds** |
+
+**So the fix does what it was built to do:**
+- the layer costs a `memcpy` (−1.74 ms on the push);
+- the span-only blend cuts the blend by 1.17 ms;
+- the parts explain the frame;
+- B1′ holds.
+
+**My estimate of a was wrong:** 44 ns a byte against my 10-35. So the cut is larger than the 0.2-0.7 ms I stated.
+F3's own frozen form, which used the run's measured a, holds.
+
+**Why F7 reads "instrument": the band was mine, and it was not scaled by n.**
+- The 1.3-3.3 ms band was set around step C's remainder at **n = 16**. This run's traffic was **n = 29-38** in A
+  (median 34).
+- The frozen meaning is the stop, and it stands. The run is not repeated for a better number.
+
+**Observations from the same lines, NOT among the frozen readings:**
+- **The outline's own timer** reads **157-169 µs per contact per frame on every one of A's 19 lines** (median 162.5).
+  It rises with n line by line, 4.71 ms at n = 30 and 6.24 ms at n = 38.
+  - At step C's n = 16 that is about 2.6 ms, against step C's unexplained 2.3.
+  - The named alternative, contention, would have to scale with the contact count at a steady 0.16 ms each. The data
+    do not exclude that, but the outline loop's own direct timer is not an inference: **look A's outline costs about
+    0.16 ms per contact per frame, measured.**
+- **For Daniel, plainly, as an observation and not a grade:** this is a cost of look A only, and it bears on the A/B
+  choice. At this morning's traffic it is about 5.5 ms a frame. Look B draws no outline.
+- **Rasterise rose from 2.24 ms (step C) to 3.23 ms**, about +1.0 ms. That is the span bookkeeping: a comparison and a
+  store on every marked pixel, inside a lambda whose captures live in memory. It offsets most of the blend's cut: the
+  sweep as a whole went from 7.85 to 7.68 ms.
+  - F6 and F8 hold with it included, but **no frozen row covered Rasterise's own cost.** That omission was mine.
+  - Recording each span at the `Span` call, rather than per pixel, would remove it. That is a change, and it is not
+    made here.
+- The push (−1.74 ms) is now the larger saving.
+
+**For the ruling:**
+1. F7: re-read by a band scaled by n, or ruled on the direct timer as it stands.
+2. Rasterise's +1.0 ms: whether to record spans per `Span` call, with its own predictions.
+3. Daniel's on/off look: it can happen now. The fix is on the glass, and nothing graded depends on it.
+
+**Not stopped by this:** W5″. It grades the layer-off path, which F5 shows unchanged. It runs next, by day, with its
+window announced.
+
+**E2:08 now:** `wxlook` at `229e3c6`, the layer on, look A, sweep look 4.
