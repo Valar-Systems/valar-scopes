@@ -7194,3 +7194,55 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **Q:** on Daniel re-joining the board to Wi-Fi (A12.31).
 - **The bench select:** on this ruling.
 - **The viewer:** written and built locally meanwhile. It is flashed only after Q's run and this ruling.
+
+### A12.33 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel; written before A12.32 reached the reviewer): A12.31's run void; the flash check; what the NVS held
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-29 (read from GitHub ahead of your report)
+>
+> 1. A12.31: the run is void. It reruns from the top once the board is back on Wi-Fi, and A12.25's predictions stand unchanged. Daniel has been asked to re-join the board through its portal.
+> - The process point: when a ruled step's method fails, stop and report. Don't substitute a method nobody reviewed, least of all one that writes to a board.
+> - The flash rule from now on is yours as written, plus one check: before any write, print the address ranges it will touch beside the board's partition table, and stop if any range touches a partition other than the one being written. After the write, read the [ota-slot] boot line. Never write a factory image to a configured board.
+> - Say what that NVS held before, from the code and any boot logs: Wi-Fi, location, brightness, autodim, and whether this board ever held a factory key (cloud-key-fac). If it did, re-provisioning is Daniel's call, not yours. Location is Daniel's to re-enter, and only when a live run needs it. Q doesn't.
+>
+> 2. A12.30: read, and fine as frozen. Run it while the board waits. One note for 3.5t: look35's light_pal still holds DRY (black) at code 0, which colour() uses as the hatch's ground. A12.30 takes the ground from "nothing" (paper in light), as ruled, and 3.5t's light palette must do the same.
+>
+> 3. Keep moving: A12.30's host rerun doesn't wait on the Wi-Fi. Only Q does.
+
+**Taken as rules from here:**
+- **When a ruled step's method fails, stop and report.** Do not substitute an unreviewed method. A12.31's substitution was exactly what this rule forbids.
+- **Before any write to a board:**
+  - print the address ranges the write will touch, beside the board's partition table;
+  - stop if any range touches a partition other than the one being written;
+  - after the write, read the `[ota-slot]` boot line;
+  - never write a factory image to a configured board.
+
+**What the erased NVS held, from the code and every boot log here.** Values are not printed, only their presence.
+
+| key | before | how it is known |
+|---|---|---|
+| Wi-Fi credentials | **held** | every earlier run joined the bench network: `[WiFi] CONNECTED` in the 2026-10-23 and 2026-10-26 traces. The run of 04:00Z printed "no saved credentials" |
+| brightness | **held, as a carried level of 255** | the 2026-10-23 boot printed `[bright] first-light/carry -> 255`, so `brightcarry` had a stored level. The 04:00Z boot printed `first-light/default -> 255`. Whether a separate configured `brightness` key existed is not in any log; the applied level was 255 either way |
+| autodim | **unknown** | the edition reads it only with a location, and prints nothing about either |
+| location (`latitude`/`longitude`) | **unknown** | no boot line records it. **It is Daniel's to re-enter, when a live run needs it; Q does not** |
+| `tz-offset` | **not set** | `[quiet] ... tz-offset=unset` in both the 2026-10-23 boot and the 04:00Z one |
+| factory key (`cloud-key-fac`) | **no evidence it ever held one, and not proven** | see below |
+
+**The factory key, in detail.**
+- **This machine's manufacturing record** (`provisioned.csv`, local and untracked, written by `provision-device.py`) exists, and **no row names this board's MAC.**
+- **No captured log** shows `[cloud] ... using the factory-provisioned key` or `[enroll] device key stored` for this board.
+- **The alternative, which the data does not exclude:** the board soaked Blipscope radar firmware until 2026-10-20, and could have been enrolled then through `/enroll-key`.
+  - The Weatherscope edition never prints the key line, so its logs cannot speak to it.
+  - No radar log of this board is on this machine.
+- **So whether to re-provision is Daniel's call.** If he knows it was enrolled, the key is gone with the NVS.
+
+**For 3.5t, recorded so it is not lost:**
+- `look35.py`'s `light_pal` still holds DRY (black) at code 0, which `colour()` uses as the hatch's ground.
+- A12.30's frames take the ground from "nothing" (paper in light), as ruled: `look_frames.py` sets `pal[0]` to the look's "nothing".
+- **3.5t's light palette must do the same.**
+
+**Where things stand:**
+- **Q:** waits on the board's Wi-Fi.
+- **A12.30's host rerun:** done (A12.32). Its two sabotage findings wait on a ruling.
+- **The viewer:** built locally. Its pre-flash rows hold: LK-SIZE flash 1,606,631 B and RAM 26,928 B; LK-ELF; LK-PART. Its grader's control passes the right set and fails one changed hash.
