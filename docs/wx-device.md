@@ -1656,3 +1656,51 @@ select is served as:
 | **L5** | the shipping `firmware.bin`, before and after: **65 bytes differ**, 32 in `app_elf_sha256`, 32 in the image SHA-256 and 1 checksum byte. **0 unplaced**, so every loaded byte is identical | **as predicted** (the named second outcome) |
 | **L6** | `wxlook`: "A: 40 percent + outline" 1, "A: 40 % + outline" 0, "B: 25 percent" 1. Shipping: 0, 0, 0. "Weather radar (beta)": 1 in both | **as predicted** |
 | **L7** | CI on `cfc3576`: 36 check runs, **33 success, 3 skipped** (the release-only `promote`, `version` and `ship-alert`), **0 failed**. `config-form` (which runs the new rule and its selftest) and `host-tests` succeeded | **as predicted** |
+
+## WD8, 2026-10-29: the Weather section and its legend (ruled 2026-10-28). Frozen before its code
+
+**The rulings are recorded above** (rulings 3 and 4 of 2026-10-28). Since 2026-10-29 the work no longer waits for rain
+(Daniel: "let's try to keep moving when possible").
+
+**The design:**
+- **The section.** On the radar page's Display tab, the weather switch leaves the checkbox grid. A new fieldset follows
+  the Display fieldset, `<legend>Weather</legend>`, holding:
+  - "Weather radar (beta)";
+  - on the bench image only, "Weather look (bench)" and "Sweep over weather (bench)";
+  - under the switch, the legend.
+
+  It is served for `%WXSECTION%` by the template processor, **in cloud builds only**: a build without the feed shows no
+  Weather section. **Layout only:** no field name, value, default or saved key changes.
+- **The legend.** Weatherscope's labels are reused (`WxLegend.h`), without the snow row:
+
+  | row | codes |
+  |---|---|
+  | Light rain | 1-4 |
+  | Moderate | 5-7 |
+  | Heavy | 8-10 |
+  | Hail possible | 11-13 (13 is the 75+ white) |
+  | No radar coverage | 14 |
+  | No data | 15 |
+
+  - **Each swatch** is a 12 × 12 inline SVG.
+  - **An echo code's fill** is `rgb(r,g,b)` = `wxs2::Echo(code, look)`, computed at serve time.
+  - **14 and 15** are drawn as their dithers: black, with the lit colour (`kNoCoverage`, `kMissingHatch`) on the device's
+    pattern (14 where (x + y) is even; 15 where x and y are both even).
+  - **The look in use:** A on the shipping image; on the bench image, the stored `wx-look`.
+  - **The builder:** a pure C++11 header, `include/WxLegendHtml.h`, so the host can test exactly what is served. Its
+    HTML holds no literal `%`, which the config-form check now enforces.
+
+| | check | predicted |
+|---|---|---|
+| **WD8a** | host, `test_wx_legend_html.cpp`, both looks | **15 swatches** in the six rows above, with exactly those labels and no snow. Every echo swatch's fill equals `Echo(code, look)` (**0 mismatches**). The two dithers carry their lit colour on their own pattern. **No literal `%`** in the HTML |
+| **WD8b** | **sabotage S-leg** (ruled): one swatch typed in by hand, one level off (code 5 at 41 % instead of 40 %) | the host row turns **red**, and `check-wx-legend.py` on a served page with that swatch altered turns **red** |
+| **WD8c** | `scripts/check-wx-legend.py --url`, reading E2:08's **served** page, in look A and then look B (set through the page) | every swatch equals wxs2's value for its code in that look, computed from the source: **0 mismatches**, each look. Its selftest passes |
+| **WD8d** | **the field set** (`scripts/compare-form-fields.py`): E2:08's served bench page before the WD8 build and after it. Each control is compared by name, type, value, checked state, selected option and option values | **identical**. **Sabotage S-ws** (ruled): the after page with one field in the new section renamed (`wx-sweep` → `wx-swep`) turns the comparison **red** |
+| **WD8e** | **the round trip** on E2:08: read NVS (`0x9000`, 0x15000), GET the page, POST every field back unchanged, read NVS again | in the `config` namespace, **the same set of keys, and every value byte-identical**. They are compared in memory: no value or hash is printed, and both dumps are deleted at once |
+| **WD8f** | `cfg_post.py --select wx-look B`, then `A` | each **verified**, only its one field changed |
+| **WD8g** | the builds, the suites and CI | both builds succeed. MinGW: ALL PASS; WSL: only the known board-block gap. The config-form check (single form, vocabulary, no literal `%`) is green. CI: 0 failures |
+
+**On the board,** each run gets a hands-off window, announced to Daniel in Pacific time. Between runs E2:08 is a working
+Blipscope, back on `wxlook` with the layer on, look A and sweep look 4.
+
+**Outside the set:** stop and report.
