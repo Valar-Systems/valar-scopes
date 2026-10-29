@@ -6751,3 +6751,65 @@ Without the controls, a pass could have meant an over-broad comparison rather th
   - The firmware is identical to main's: `src/`, `include/`, `platformio.ini`, `test/` and `scripts/` show no difference.
   - Q is a bench branch and is never merged.
 - **So Q's predictions come next, then its build and flash.**
+
+### A12.25 Build Q (Q30): the design, the bound's formula and the predictions, before its code
+
+**What Q is.** The timing probe A10.3 asked for, as Q30 ruled it, on `weatherscope/build-q`:
+- **A bench branch, never merged, and pushed for the record.**
+- **It sits on #498's head** only because `q_host.py` uses `look35.py`'s package path. The firmware sources are identical to main's (`src/`, `include/`, `platformio.ini`, `test/` and `scripts/` show no difference).
+- **Main's own build, measured first as the anchor:** `weatherscope-s3-128` uses **1,628,855 B of flash** (the same as A10.17's) **and 59,024 B of RAM**.
+
+**The firmware, five changes:**
+1. **The probe, in `DrawMap`'s dry-pixel branch, where the fold will be.**
+   - When a probe base is set, each dry map pixel (code 0, rows 24-193) reads one byte, `base[y · 240 + x]`, from a 57,600 B PSRAM buffer into a `volatile` sink, and is counted.
+   - The base and the count are read once per call. The count is added after the rows.
+   - **No pixel changes.** With no base (every host build), `DrawMap` is today's.
+2. **The 16 Bend crops are embedded** by `.incbin` (`WxBendFrames.S`), in sorted name order: the 15 frames, then `synthetic-clear`. That is 30,921 B.
+3. **Q's two buffers are allocated after `psram_used` is measured**, so A9.23's band still grades the unchanged part:
+   - the probe's 57,600 B;
+   - a 44,640-cell Bend grid.
+
+   They are printed apart: `[wx] qbuf probe=57600 bendgrid=44640 psram_q=<n> ok=1`.
+4. **`Q`, a bench byte** (stored mode only, under the same gate as T/S/U/D/H):
+   - 3 rounds over the 16 Bend crops, each decode timed as the loop times its own: `esp_timer` around `DecodeInto`, with the FNV-1a and nonzero count taken after the timer stops;
+   - the results are kept, then printed paced (`PacedSerial`, as 'R'): `[wx] qdec r=<round> i=<i> bytes=<n> cells=<n> st=<0 ok> us=<n> nz=<n> fnv=<8 hex>`, then `[wx] qdec done`.
+5. **Each loop's probe reads,** one paced line after its records: `[wx] qreads <15 numbers>`.
+
+**The run** (`run_q.py`) is run_b35's whole A9.19 sequence, with one step after B3: `Q`, then its lines until `qdec done` (30 s). run_b35 gains only an optional hook, with none by default, so its behaviour is unchanged. **The grade:** `grade_b35.py` unchanged, plus `grade_q.py` for the Q rows and the bound.
+
+**The host counts** (`tools/weatherscope/board/q_host.py`, each with a control):
+- **disc:** 36,828 on-disc pixels in rows 24-193, A10.3's number recounted. **This is the counter's control.**
+- **reads,** the Dallas loop at 60 mi, oldest first: 35,082, 34,583, 34,008, 33,409, 32,899, 32,614, 32,540, 32,436, 32,226, 32,234, 32,234, 32,373, 32,608, 33,016, 33,415 (min **32,226**).
+- **The Bend crops' FNV-1a of their decoded codes:** 16 values, and the board must match each.
+- **peaks:** the 4 placed peaks write **1,807 distinct pixels** at Bend 60 mi (glyph, label and halo), the same on dry and rain. **Control:** the 585 pixels that survive in a sentinel peak ink are all among them.
+  - 1,807 is an upper bound on what the peaks add to the replay: the layer keeps one entry a pixel and replays each once (`Replay`).
+
+**B2-Bend's bound, the formula frozen here.** `bound = D + A + (dB − dD) + P`, rounded up to 10 µs, where:
+- **D** is the largest `draw_us` over both B2 loops' 30 frames, with the probe on. `draw_us` includes the frame's decode.
+- **A** = (36,828 − r_min) × 2,150 / 36,828 µs, where r_min is the fewest reads among those frames (host: 32,226, so **A = 269 µs**). With terrain on, Bend may read every disc pixel; A prices the gap at A10.3's worst rate.
+- **dB − dD** is the largest Bend decode over Q's 48, less the smallest Dallas decode over the 30 loop frames.
+- **P** = 1,807 × the board's Put rate. The rate is the largest bands phase / 16,800 over the 30 frames, A9.23's own method (G: 3,223 / 16,800 = 192 ns).
+- **If the bound is over 38,000 µs: stop and report** (A10.3).
+- **An assumption, named:** the fold's `palette[image[i]]` costs about what `wxpalette::Code(0, …)` does (A10.3). Q does not measure it. B2-Bend's own board row measures the real draw against this bound, so if the assumption is wrong, that row fails where it can be seen.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| Q-SIZE | flash **1,659,776-1,664,000 B** (1,628,855 + 30,921 of crops + ≤ 48 of alignment + ≤ about 3,200 of code); RAM **59,024-59,224 B** |
+| Q-ELF | each Bend crop's bytes in the ELF exactly once (A8.20's `.incbin` check) |
+| PSRAM | `psram_used` inside A9.23's band, **218,032-222,032**; `psram_q` **102,240-102,400** (57,600 + 44,640 + the allocator's headers) |
+| B1 | Dallas's six scenarios exact at 57,600 against the teal reference (A10.17's "still for build Q"), clear unchanged |
+| BZ | 7 of 7 exact |
+| B2, both loops | 15 of 15 hashes per loop, **each equal to G's** (the codes are unchanged; teal is a colour); every frame's `draw_us` ≤ G's largest + 2,150 (**35,855** at 60, **35,825** on the warning screen); intervals 70,000 ± 5,000, spread ≤ 10,000, ≥ 14 fps; the screen after each loop exact |
+| Q-READS | both loops' `qreads` **equal the host's 15 counts, exactly, in order**: the probe ran on exactly the dry pixels |
+| B3 | the legend exact with the teal swatch; the screen after it exact |
+| sabotages | the recorded-data sabotages red, as in G |
+| Q-DEC | 48 lines and `done`; every `st=0`; **each crop's `nz` and `fnv` equal to the host's**; every `us` between **1,700 and 3,200** (a fit to G's 30 Dallas decodes, 1,097 µs + 455 ns a byte, scaled to Bend's 44,640 cells, gives 2,040-2,400) |
+| Q-BOUND | the formula's bound ≤ 38,000; **predicted about 35,900-36,500** |
+
+**Then:**
+- the B1 images go to Daniel (A10.16);
+- B2-Bend's bound is frozen in the results addendum, from these numbers only.
+
+**Outside every row: stop Q and report.** By A12.24, the independent queue carries on (the light candidates' bench select is predicted next, and does not wait on Q's bound).
