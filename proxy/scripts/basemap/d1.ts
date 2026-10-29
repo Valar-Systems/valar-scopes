@@ -74,7 +74,8 @@ export class WranglerBucket implements StoreBucket {
   private ahead = new Map<string, Promise<Uint8Array | null>>();
   private next = 0;
   puts = 0; gets = 0; putFailures: string[] = [];
-  constructor(private proxyDir: string, private bucket = BUCKET, private concurrency = 8, private window = 16) {}
+  // 8 at a time, as ruled for D1, for the reads as well as the writes
+  constructor(private proxyDir: string, private bucket = BUCKET, private concurrency = 8, private window = 8) {}
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
     this.ahead.clear();
