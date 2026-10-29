@@ -7020,3 +7020,62 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - size rows price every table a design keeps.
 
 **Next, as ordered:** flash and run Q. Meanwhile, the bench select's new frames and rows are frozen, then run.
+
+### A12.30 The bench select's frames F17-F19, 66 roles, LF1′ and the sabotages: frozen before the code and the rerun
+
+**The frames, as A12.29 item 5 asks:**
+- **F17, Dallas approaching**, A12.23's supplementary scene: no package, 60 mi, its own state line, the Central clock. It is the one scene where (a) and (b) differ in rain, at codes 6 and 7.
+- **F18 and F19, one synthetic Bend crop at 60 mi.** It is `synthetic-clear`'s header, built in memory, with 20 × 20 px patches. F18 has terrain on; F19 has terrain off, so its base keeps water, rivers and roads.
+
+  | row | screen y | patches |
+  |---|---|---|
+  | A | 50-69 | codes 1-7, x = 36 + 24i |
+  | B | 74-93 | codes 8-13, x = 48 + 24i |
+  | C | 140-159 | code 14 (x 80-99), code 1 (x 100-119) and code 15 (x 120-139), side by side, so code 1 touches both |
+
+  - A cell takes a patch's code when its projected centre lies within the patch, grown by 1 px.
+  - Labels may cover parts of patches, as on any screen.
+
+**The roles grow to 66**, appended so the 64 indices keep their places:
+- **64 is no coverage:**
+  - dark (40, 40, 40), `kNoCoverage`;
+  - (a) (104, 104, 104);
+  - (b) (93, 93, 93), as A12.29 rules.
+- **65 is the hatch line:**
+  - dark (72, 72, 72), `kMissingHatch`;
+  - (124, 124, 124) in both light candidates.
+- **The hatch's ground is the existing role "nothing":** black in dark, paper in light. That is A12.29's "a pattern on its own ground", which in dark is `kDry`.
+
+**What changes in ref35.py, and why dark cannot move:**
+- **`colour()`'s code 15:** the line comes from `pal[15]`, which no existing palette holds, so it stays (72, 72, 72). The ground comes from `pal[0]`, which is `DRY` in every existing palette.
+- **`render_map`/`compose` gain `terrain=False`.** With it on, code 14 is drawn as the hatch, as A10.2 and Q31 rule. Every existing caller passes nothing.
+- **The proof:**
+  - `ref35.py --k --check` identical;
+  - R0 PASSES;
+  - R0b PASSES (G and P hashes as A12.17).
+
+**Predicted** (`look_frames.py`, its output untracked, and `sabotage_look_frames.py`):
+
+| row | expected |
+|---|---|
+| LF1′ F0-F16 | on the frames' **drawn pixels**: rain roles only for codes 1-4; no no-coverage or hatch-line pixel; 0 unmapped. Each crop's own codes are printed beside it, so F1, F6, F9, F15 and F16 show a 5 |
+| LF1′ F17 | 0 unmapped; no no-coverage or hatch-line pixel; **codes 6 and 7 each drawn** (≥ 1 px) |
+| LF1′ F18 | 0 unmapped; codes 1-13 each drawn; **hatch line drawn, no no-coverage pixel** (14 becomes the hatch with terrain on) |
+| LF1′ F19 | 0 unmapped; codes 1-13 each drawn; **no coverage drawn, and the hatch line drawn** (15) |
+| LF2 | 9 of 9 at 57,600 / 57,600: F0, F1 and F17 through each look's palette equal `look35.py`'s renders. F17's (a) and (b) are A12.23's supplementary pictures, RGB-pixel sha256 `1285ea2ae75b` and `6e0f8cf09c5c` |
+| LF3 | 51 of 51: F2-F16, F18 and F19, each through each look's palette, equal to a direct render in that look's colours |
+| LF4 | 60 expected sprite hashes, **60 distinct** |
+| C3b, light | paper, the hatch line and no coverage are three different colours, in (a) and in (b) |
+| printed, not graded | the line against no coverage (7.9 in (a), 12.0 in (b)); code 1 against no coverage and against the line, in (a) and (b) |
+
+**The sabotages, as A12.29 froze them.** Each is planted in memory. Each harness first proves its plant took, then grades the full set of red rows:
+
+| sabotage | plant | proof it took | red, exactly |
+|---|---|---|---|
+| S-LF1′-IN | a code-5 cell, inside the 60 mi disc, in one loop crop (F5's) | that frame draws ≥ 1 code-5 pixel | LF1′ F5 |
+| S-LF1′-OUT | a code-5 cell outside the disc, in the same crop | the crop's codes include 5, and the frame draws none | **none:** LF1′ stays green, so it reads pixels |
+| S-LF2 | light (a)'s label role, one step off in red | the palette entry differs | LF2 for (a) on F0, F1 and F17; dark and (b) green |
+| S-LF3 | one terrain pixel of F7 set to the code-13 role | the byte differs | LF3 for F7 in dark, (a) and (b); every other frame green |
+| S-LF4 | F3's indices copied over F4, at LF4 only | the two frames are equal | LF4 (57 distinct, not 60) |
+
+**Outside any row: stop the bench select and report.** Q is independent of it.
