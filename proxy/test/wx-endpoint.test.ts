@@ -154,7 +154,9 @@ describe("/healthz's wx field", () => {
   });
   it("null when there is no frame -- never a made-up age", async () => {
     const res = await call(new Request("https://proxy.test/healthz"));
-    expect((await res.json() as { wx: unknown }).wx).toEqual({ cref: { frameAgeS: null } });
+    // opuk (docs/wx-opuk.md) adds its own entry, with a covered share that is null, not made up, until a frame exists.
+    expect((await res.json() as { wx: unknown }).wx).toEqual({ cref: { frameAgeS: null },
+                                                              opuk: { frameAgeS: null, coveredShare: null } });
   });
   it("the newest frame's age when there is one", async () => {
     await store(Math.floor(Date.now() / 1000) - 90);

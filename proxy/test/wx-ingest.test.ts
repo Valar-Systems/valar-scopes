@@ -4,7 +4,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import type { LatestRecord } from "../src/wx/handler";
 import { readLatest } from "../src/wx/handler";
-import { type Fetch, type IngestOpts, NoaaError, advanceLatest, epochOfKey, ingestOnce } from "../src/wx/ingest";
+import { type Fetch, type IngestOpts, NoaaError, OPERA_BUCKET, advanceLatest, epochOfKey, ingestOnce } from "../src/wx/ingest";
 import { checkAll } from "../src/wx/ingest-worker";
 import { PRODUCTS, frameKey, framesPrefix, latestKey } from "../src/wx/products";
 import { synthGribGz } from "./wx-grib";
@@ -152,6 +152,9 @@ type Step = "ok" | "hang" | number;                    // a number is an HTTP st
 function scripted(visible: string[], gz: Uint8Array, list: Step[], get: Step[] = ["ok"], honourSignal = true) {
   const n = { list: 0, get: 0 };
   const doFetch: Fetch = (u, init) => {
+    // checkAll now checks opuk concurrently (docs/wx-opuk.md): its requests get a final 404 and never consume a
+    // step of the NOAA script these tests are about.
+    if (u.startsWith(OPERA_BUCKET)) return Promise.resolve(new Response("", { status: 404 }));
     const kind = u.includes("list-type=2") ? "list" : "get";
     const plan = kind === "list" ? list : get;
     const step = plan[Math.min(n[kind], plan.length - 1)]!;
@@ -256,7 +259,7 @@ describe("#472: the ingest rides out NOAA blips", () => {
     const lines: string[] = [];
     await checkAll({ WX: env.WX! }, ":00", scripted([T2], gz, [520, "ok"]).doFetch, (l) => lines.push(l), FAST);
     await checkAll({ WX: env.WX! }, ":30", scripted([T2], gz, [525]).doFetch, (l) => lines.push(l), FAST);
-    const [ok, bad] = lines.map((l) => JSON.parse(l));
+    const [ok, bad] = lines.map((l) => JSON.parse(l)).filter((l) => l.product === "cref");
     expect([ok.evt, ok.attempts.list]).toEqual(["wx_ingest", 2]);
     expect([bad.evt, bad.attempts]).toEqual(["wx_ingest_error", 3]);
   });
