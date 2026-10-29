@@ -1961,7 +1961,7 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
 | **RS1** | the proxy's lifetime | it starts after the hands-off window opens and is stopped before the window closes. Its port is closed at the end: a connection attempt is refused |
 | **RS2** | only E2:08 | a request from any other bench-LAN client (one test request from the bench PC itself) gets **403** and an `other`/`refused` line. E2:08's address appears in **no** doc, in the proxy's log, in the driver's outputs or in any replay file. **The trace is the exception, and it was before this route existed:** the board prints its own address when it joins Wi-Fi (`src/main.cpp:479`), and the last six traces all hold it. So the trace is scanned for the key and the id (RS3) but is not graded on the address. It stays in the gitignored `bench-logs/` and is never quoted. (`3f7a026`'s wording, "no doc, log or output", was wrong about the trace; this was found reading the code before any run) |
 | **RS3** | the fixed log, and the key scan (change 3) | every line of the proxy's log has exactly the listed fields. **The scan:** <br>- **where its key comes from:** only the proxy's own memory, as seen in E2:08's requests: the `X-Blip-Key` value, and E2:08's id from `X-Blip-Device` the same way. Nothing reads a key file. <br>- **when and where it runs:** inside the proxy, after the driver's outputs are closed and before the proxy exits. <br>- **what it covers:** the proxy's log, the driver's log, the harness's copy of the driver's output, the trace and every replay file (crops, sidecars, capture records and frames). <br>- **what it prints:** only booleans: key seen, key found, id found, address found (the address outside the trace, per RS2). It also finds no `lat=`, `lon=` or header name in the log. <br>- **predicted:** key seen **yes**; key found **no**, id found **no**, address found **no**. **If no key was seen, it reads "instrument", not "clean"** |
-| **RS4** | the forward (change 4) | production answers the forwarded `/blips` with 200, recorded server-side for E2:08's id, as it is with no proxy. The forward adds no header and drops only hop-by-hop ones: RS4's server-side read covers it. The proxy's selftest (a fake key to a local echo server) shows the header names received equal those sent, less the hop-by-hop ones. 501s for chunked bodies: **0** |
+| **RS4** | the forward (change 4) | production answers the forwarded `/blips` with 200, recorded server-side for E2:08's id, as it is with no proxy. The forward adds no header and drops only hop-by-hop ones: RS4's server-side read covers it. The proxy's selftest (a fake key to a local echo server) shows the header names received equal those sent, less the hop-by-hop ones. 501s for chunked bodies: **0**. **No `smoke-prod.sh` run inside the window** (ruled 2026-10-29: its `/blips` would count as E2:08's here and in RS5) |
 | **RS5** | back on production | the page's `cloud-url` is blank (the built-in `https://scopes.valarsystems.com`); the proxy logs no request after the clear; production records E2:08's `/blips` within 5 min. **Then RS3's scan runs, once, over every output of the run**, since a scan inside the proxy has to come after the clear and before the proxy exits. After it, the driver prints only fixed text: the port check and the scan's booleans |
 | **RS6** | the announcement (change 5) | each replay window's announcement to Daniel, in Pacific time, carries: *"If the PC sleeps or the proxy stops, E2:08 shows DATA STALE until Cloud URL is cleared on its page."* |
 
@@ -2212,3 +2212,103 @@ lines by the same "wholly inside the window" rule, and offered for the ruling on
 
 It is light and intermittent. **No capture was started.** The queue has the captures after the B1 fix, which waits on
 step C's ruling, and a few cells near the centre risks a BLIND.
+
+## Rulings, 2026-10-29 (reviewer chat, pasted by Daniel; read from GitHub ahead of the reports), with their source
+
+**1. Step C: the proposal, as written.**
+- The frozen `push − fill` band (5-9.5) is missed, and stays on record with its cause: the subtraction overstated the
+  layer by about 2.7-4.2 ms.
+- The split is step C's direct numbers:
+  - the layer +3.82 ms (a straight `memcpy` saves about 1.7);
+  - the sweep +5.86 ms (70 percent of it the blend);
+  - a remainder of +2.3 ms outside both timers.
+- The outline timer (`WX_LOOK_AB` only, every 30 s) runs in look A, riding the B1 fix's first board run. It carries
+  the three frozen meanings, including "instrument" for a remainder outside 1.3-3.3 ms.
+- Then the fix's predictions, from these numbers, with the remainder as its own term.
+- **If the outline turns out to be the 2.3 ms, say so plainly for Daniel:** it is a cost of look A only, and it bears
+  on his A/B choice.
+
+**2. The rain watcher.**
+- `rain_probe.py` is retired. `rain_mrms.mts` (keyless; production's own product from the public archive) is the
+  watcher from now on, printing counts only.
+- The 67 keyed probes are recorded. The key went only to production over HTTPS and was never printed or written, so
+  there is nothing to revoke.
+- **`smoke-prod.sh`:** the replay's ruling does not reach it. It is the standing production check and stays as is.
+  Two follow-ups, not urgent:
+  - no smoke-prod run inside a replay window, since its `/blips` would count as E2:08's in RS4 and RS5;
+  - `BLIP_KEY`/`BLIP_DEVICE` leave the Windows user environment for the token file, read per shell like the other
+    tokens. Daniel moves the values himself; smoke-prod's reader is changed by me, and reviewed.
+
+**3.** The replay's three stated choices are accepted: #496's point and day, RS2 narrowed for the trace, and
+SeamlessHSR rather than the composite.
+
+**4.** Once #499 merges, main's wx-ingest carries the UK ingest (R3). **wx-ingest is not deployed from main until R3
+is ruled.**
+
+**Written in as a consequence:** RS4 and RS5 gain a condition, **no `smoke-prod.sh` run inside a replay window.** A
+smoke-prod run in the window would be E2:08's `/blips` by the server's record, and is outside the set.
+
+## The B1 fix, 2026-10-29: frozen before its code, from step C's numbers (as ruled)
+
+**The code.**
+- **The layer, in the shipping path:** `DrawWeatherUnder` copies the layer into the canvas with **one `memcpy` of
+  115,200 B**. It does so under the guard `DrawSweepOverWeather` already uses (one band of the whole frame, both
+  240 × 240 at 16 bits, both buffers present); otherwise it calls `pushSprite`, as today.
+- **The blend, in the shipping path:** `wxsweep::Rasterise` records each row's first and last marked column, and
+  `Blend` visits only that span of each marked row.
+  - Measured on the host over 3,600 angles at the sweep's own centre and radius (`sweep_geom.cpp`, g++ 13.3.0 in
+    WSL): the wedge's rows are each one run. So **the span bytes equal the blended pixels: 7,279 on average** (7,182
+    to 7,389), against **27,542 B scanned today** (114.8 rows of 240). The fix skips 20,263 B of zeros per frame and
+    nothing else.
+  - The old whole-row loop stays, as `BlendRows`: the host test's reference, and the bench's scan measurement.
+- **Bench only (`WX_LOOK_AB`):**
+  - the **outline timer**: the look A outline loop, summed per frame, printed every 30 s as
+    `[health] outline=<avg>/<p95>us n=`;
+  - `[health] sweepscan=<bytes>/<px>`: the bytes the blend visited and the pixels it blended, averaged over the same
+    calls;
+  - `[bench] scan0=<us>`: `BlendRows` over an all-zero 240-row slice (57,600 B), the median of 10 at boot. It gives the
+    cost of scanning one byte, **a**, on this board in this run;
+  - a one-off check at the first frame with a layer, that the `memcpy` leaves the canvas byte-identical to
+    `pushSprite`: `[bench] layer copy: memcpy equals pushSprite: yes|no`.
+
+**Host rows, before the board:**
+
+| | check | predicted |
+|---|---|---|
+| **W5a** | span-only `Blend` against `BlendRows`, at all 3,600 angles, both looks, over a frame of varied pixels and codes | the same frame and the same cleared slice, **byte for byte**, at every angle |
+| **W5b** | the spans' bytes and the blended pixels, over the same angles | equal at every angle; average 7,279 |
+| **S-span** | a span that stops one pixel short | W5a **red** |
+| **S-noclr** | marks left uncleared | W5a **red** |
+| **W1-W4** | the existing sweep rows | unchanged, all pass |
+| **F0** | the built images | the bench strings (`outline=`, `sweepscan=`, `scan0=`, `layer copy:`) are **in** the `wxlook` ELF and **absent** from the shipping `blipscope-s3-128` ELF |
+
+**The board run.** The protocol is step C's:
+- flash `wxlook` app-only, hold one trace, settle 2 min;
+- B, the layer off, 10 min; then A, the layer on (look A, sweep look 4), 10 min;
+- a `[touch]` line voids the run;
+- graded by a reader written before the run.
+
+| | reading | predicted, and what each outcome means |
+|---|---|---|
+| **F1** | `[bench] layer copy:` | **`yes`**. `no`: the copy is not the push: stop |
+| **F2** | the push, A's `clear=` average | **0.85 to 1.05 × the boot `memcpy`** of the same run. Step C's in-frame fill ran at 0.91 of its boot `memset`; with step C's 5.15 ms that is 4.38-5.41 ms. Outside: stop |
+| **F3** | the blend, A's `sweepparts` middle figure | **5.49 − 20,263 × a ± 0.3 ms**, with a = `scan0` / 57,600 from the same run. **My estimate of a is 10-35 ns a byte** (PSRAM through the cache), a cut of 0.2-0.7 ms. So **span-only removes the scan, and the blend's real cost is its per-pixel work, about 0.7 µs a pixel**. Lower by more than 0.3: the scan costs more inside the frame than empty, contention: stop. Higher by more than 0.3: the cut is smaller than the scan alone: stop |
+| **F4** | the device's geometry, `sweepscan` | bytes visited = pixels blended = **7,279 ± 2 %**. Outside: the device's wedge is not the host's: "instrument", stop |
+| **F5** | the control, the layer-off path unchanged | B's fill **3.01 ± 0.3 ms**, B's opaque sweep **1.99 ± 0.3 ms** (step C's). Outside: "instrument", stop |
+| **F6** | the instrument check, carried | rasterise + blend + beam within 0.3 ms of `sweep=` |
+| **F7** | the outline, frozen as ruled. The remainder = (frame average − clear − sweep) in A minus the same in B | the outline's average **within 0.5 ms of the remainder: it is the outline**. The outline **under 1 ms, with the remainder still about 2.3: contention**. Anything else, or a remainder **outside 1.3-3.3 ms: "instrument", stop** |
+| **F8** | frame p95, A − B at matched n | **12.2 − (6.82 − F2's push) − (5.49 − F3's blend) ± 1.0 ms**, from the run's own parts. Outside: the parts do not explain the frame: stop |
+| **F9** | **B1′, graded here** | **0** `[health] BUDGET BROKEN` lines in A |
+
+**After the frozen readings:**
+- if F7 reads "the outline", it is said plainly for Daniel: **a cost of look A only, bearing on his A/B choice**;
+- Daniel compares weather on and off by eye; his look is the last check on smoothness.
+
+**Stated before the run, so it cannot be read as a surprise:** F3 predicts that span-only blending cuts the blend by
+only 0.2-0.7 ms. The scan was never most of it: 20,263 B of zeros, against 7,279 pixels each read, recoloured and
+written.
+- The lever that would cut the blend is the per-pixel work: for example a colour table per (code, level), built once
+  per look. That is **not** built or proposed for this run.
+- B1′ already held before the fix: 0 `BUDGET BROKEN` lines in step C's A window.
+
+**Outside the set, for any row:** stop and report, without re-running for a better number.
