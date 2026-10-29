@@ -1704,3 +1704,21 @@ select is served as:
 Blipscope, back on `wxlook` with the layer on, look A and sweep look 4.
 
 **Outside the set:** stop and report.
+
+### G7‴, the board (2026-10-29, 03:10-03:30Z): AS PREDICTED
+
+- **The run:** on `wxlook` at `cfc3576` (the look-select fix), one trace held. The window was announced to Daniel as
+  8:05-8:40 PM PDT.
+  - **B‴:** opened at 03:10:16Z by a verified POST of `wx-layer off`.
+  - **A‴:** opened at 03:20:17Z by `wx-layer on`.
+  - Each POST was verified with only its own field changed. The layer ended on, as it began.
+- **The trace's close** was recovered with `read_mac`, and E2:08's page answered afterwards.
+
+| | read | predicted | verdict |
+|---|---|---|---|
+| B‴ | **9 whole minutes, each 12 polls** (total 108) | every whole minute 11-13 | **as predicted** |
+| A‴ | **9 whole minutes, each 12 polls** (total 108) | every whole minute 11-13 | **as predicted** |
+| A‴/B‴ | **1.000** | 0.9-1.1 | **as predicted** |
+| touch | no `[touch]` line in either window | a touch voids the run | — |
+
+**So the cadence row is settled:** with the layer on and off, the board polls `/blips` at the same 12 a minute.
