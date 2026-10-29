@@ -2013,6 +2013,32 @@ is graded in the replay session on the committed tool.
 - **The cache:** a new, empty folder that the archive downloads went into. Every input hashed to #496's committed
   `gribSha256`.
 
+**The proxy, local (2026-10-29): `tools/wx-replay/proxy.py --selftest` passes all 36 checks.** It runs against a
+plain-HTTP stand-in for production on the bench PC itself, with a fake key and the example id. The checks:
+- the header names that arrive upstream equal those sent, less the hop-by-hop ones and any field `Connection` names;
+  `Host` is renamed; method, path and query are unchanged; a POST body arrives byte for byte;
+- the response carries production's names, less the hop-by-hop ones, framed for the device's hop (`Content-Length`
+  kept, or chunked re-chunked), with no `Server`, `Date` or `Via` of the proxy's;
+- a chunked request body gets 501 and is not forwarded;
+- another client gets 403 and an `other`/`refused` line, its headers unread;
+- S-old differs from the crop only in bytes 12-19, the fresh crop from S-old only in 8-11, and the re-centred crop's
+  centre lies on the request's quantised point within 1 µdeg; the ETag gives a 304; another range gets 503;
+- every log line has the fixed fields, with no coordinate, query, header or address;
+- the scan finds a planted key and a planted address, does not grade the address in the trace, prints only counts and
+  booleans, and reads "instrument" when no key was seen.
+
+**`tools/wx-replay/sabotage_proxy.py`:** each of 8 plants goes into a copy and turns the selftest red. The plants:
+- S-xff, an added `X-Forwarded-For`;
+- S-host, `Host` not renamed;
+- S-conn, the fields `Connection` names kept;
+- S-server, `Server`/`Date` added;
+- S-logq, a query field logged with the guard removed;
+- S-allow, every client answered;
+- S-scan, the key never found;
+- S-instr, "clean" with no key seen.
+
+The unplanted copy passes, and the real file's sha256 is unchanged.
+
 ### Results for WD8 on the board (2026-10-29, 03:56-03:59Z; window announced as 8:55-9:20 PM PDT)
 
 The flash was `wxlook` at `c5a4293`, app-only, and it exited 0. The page then showed the Weather section and its
