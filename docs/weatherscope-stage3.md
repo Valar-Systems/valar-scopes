@@ -6681,3 +6681,53 @@ The removal list went to Daniel, and **nothing is removed before his yes.**
 | TH4 | **the dark default is untouched:** `ref35.py --k --check` stays identical; R0 7/7 and R0b as A12.17 |
 
 **Outside these: stop and report.**
+
+### A12.23 Result: the light theme's look, both Q39 candidates (TH1-TH4 as A12.22 froze them)
+
+**Main after #497:** `4f98670ff465`, 35 check runs, all completed (read twice, 60 s apart): 33 success and 2 release-only skips (promote, version); host-tests succeeded.
+
+**What ran:** `python -I tools/weatherscope/screens/look35.py <out dir>`, on `weatherscope/light-look` @ `0a3fcf351a2d`, under Windows Python 3.14.6 and Pillow 12.3.0.
+
+**Three notes on the render, none a change to what A12.22 froze:**
+- **The tool is `look35.py`, not a `--theme light` mode of `ref35.py`.** That is a difference in name, not in substance:
+  - §9's package path needs geo35's `decode_bmpk`, and geo35 loads ref35, so a theme mode inside ref35 would import its own importer;
+  - ref35 carries the theme as data instead: `compose(..., ink=)`, with the roles A12.22 lists;
+  - `DARK_INK` is exactly today's constants, so every existing caller draws what it did, byte for byte (TH4).
+- **The dark reference is geo35's P base exactly:** terrain (g, g, g + 2) with g = 10 + level, water (10, 34, 72), rivers (26, 70, 128), roads (62, 62, 62).
+- **The light orange is not ruled.** ORANGE draws the stale clock (age over 600 s) and the warning band. A12.22 names no light value for it, and no scene here draws one. So `LIGHT_INK` holds None there, and a use raises rather than inventing a colour. **Raised for 3.5t's theme table.**
+
+**The results:**
+
+| row | result |
+|---|---|
+| TH1 | **ok on both Bend scenes**, identical in dark, light (a) and light (b): 4 towns by (label, side, box), the same 4 peaks by (name, anchor), and 949 label- and peak-ink pixels in the map band. **Control:** with the first placed town (Redmond) removed, the parts that change are exactly the towns and the mask. |
+| TH2 | **ok:** 0 pixels outside the theme's colours, in all six light renders (Bend dry, Bend rain and Dallas, each in (a) and (b)). **Control:** the dark Bend dry, checked against light (a)'s colours, has 33,876 pixels outside. |
+| TH3 | **ok:** Bend dry has 31,622 pixels differing between (a) and (b), and 31,622 showing a terrain level below 36, the same set. Bend rain has 25,943 and 25,943. |
+| TH4 | **ok:** `ref35.py --k --check` is identical on regeneration; R0 PASSES; R0b PASSES; `sabotage_r0fx` all as predicted, with the real fixtures unchanged; `sabotage_geo35` all 5 as predicted (S-R0-DISC, S-R0-ROUND, S-R0-FILL, S-R0-GREY, S-RX-DELTA), with the real `ref35.py` and `geo35.py` unchanged |
+
+**There were four runs: the first, then three tightenings, each toward stricter.** All four held every frozen row.
+1. **First tightening:**
+   - the light orange went from (255, 140, 0) to None, and out of TH2's allowed set;
+   - the dark base colours were taken from geo35's constants instead of typed again.
+2. **Second:** TH1 had compared the peaks by name only.
+   - The peak log carries no side or box, and geo35 reads its 3-tuple, so the log was left alone.
+   - TH1 gained the label- and peak-ink mask instead. It covers the map band less the home marker, since in light the label ink is also the home marker's and a near state line's.
+   - TH1 also gained its control.
+3. **Third:** TH2 gained its control.
+
+Without the controls, a pass could have meant an over-broad comparison rather than an agreement.
+
+**The PNGs** (sent to Daniel as local files and not committed; `look35.py` writes each at 1× and 3×):
+
+| scene | dark | light (a) | light (b) |
+|---|---|---|---|
+| Bend dry, 60 mi, "NO RAIN 60 MI" | `109446f0962b` | `db720e74799c` | `82c0faec6522` |
+| Bend rain, `shsr-20240602-200600`, "RAIN 20 MI W" | `4b3b7cd8fdec` | `247d20389119` | `4ab9cef800d6` |
+| Dallas approaching (supplementary, no package), "RAIN 14 MI E" | | `9c6fe03c0272` | `a8182acc2c4c` |
+
+**Read by eye, and only a host picture, not glass:**
+- **(b)'s deeper shadow** (L\* 67.8 against 79.9) gives the Cascades' slopes visible relief; (a) reads flatter and paler.
+- **The labels, the dots, the peaks and the rings read on both.**
+- **The Bend loop holds codes 0 to 4 only, as A12.22 said,** so the candidates' yellows show only in Dallas. Code 7 there is (215, 120, 0) in (a) against (255, 144, 0) in (b).
+
+**Next:** build Q; then the bench select of both candidates on `907069326E64`, predictions first; then Daniel's pick.
