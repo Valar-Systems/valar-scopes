@@ -6953,3 +6953,70 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **#498:** on review.
 
 **Queue check under A12.24:** 3.5b's device code waits on Q's bound (A10.3: "frozen ... before any 3.5b device code"), and Daniel's pick waits on the bench select. **Nothing independent is left, so this goes to the reviewer.**
+
+### A12.29 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): #498 approved; the gap's values; Q's RAM (a); LF1′ and its sabotages; F17-F19 before the viewer
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-29
+> (This replaces the earlier block from today, which wasn't pasted.)
+>
+> 1. #498: approved at 0a3fcf351a2d. Merge with CI's total on that head counted (your 32 passed + 3 release-only skips); clean squash, no --admin. If the head moves, the approval lapses.
+> Checked on my side (Linux, Python 3.13.18, Pillow 12.3.0):
+> - TH1 to TH4 reproduce exactly: 949 label/peak-ink pixels and the Redmond control; TH2 0 strays in all six, 33,876 in the control; TH3 31,622 and 25,943; R0 and R0b PASS; ref35 --k --check identical; tree clean.
+> - C4: all 78 values in A12.22's table, plus the hue and text rows, recomputed with my own CIEDE2000 and WCAG code: 0 differ. The gap table's greys and worst values reproduce too.
+> - The PNG file hashes in A12.23 don't match mine. That's expected, because PNG compression differs between machines. When an image's identity goes on record, also give the sha256 of its RGB pixels. Mine (12 hex): bend-dry dark ff7a592ee56b, (a) 6ca8f4d640f9, (b) afc5891e6431; bend-rain dark cabc469ac5cc, (a) 3e0a89746f1c, (b) 12267b0e75cc; dallas (a) 1285ea2ae75b, (b) 6e0f8cf09c5c. Say whether yours match.
+> - For the record, with no change to #498: LIGHT_INK's None raises only through inkmap. The warning block (outline, title, sub and arrow in ORANGE with a BLACK halo; band text in WHITE) still draws the dark constants directly. In 3.5t's theme table, every ink in compose goes through the theme, and light warning and loop scenes join TH2, predictions first.
+>
+> 2. A12.22's gap:
+> - No coverage. (a) keeps (104, 104, 104), worst 31.0, which clears A. (b) follows (b)'s own rule with black joining the floor: > A against paper and water, >= 25 against black and every level. With black held at A and only the levels at 25, no grey passes; I checked. Greys 87 to 98 pass, and (b) takes the best, (93, 93, 93): 27.3 against black, 27.7 against the shadow end.
+> - The hatch is a pattern on its own ground, not a fill. In light its ground is paper, as Q31's "not on the shading" reads, so its line is graded against paper only: > A. The line is the lightest grey that passes, (124, 124, 124) at 30.28, in both candidates. C3b holds: paper, the line and no coverage are three different colours. Print without grading: the line against no coverage (7.9 in (a), 12.0 in (b)), and C3k's pair in light (code 1 against no coverage and against the line).
+> - The light orange: A11.6 already set the method. For text, darken along the orange's own CIE hue to WCAG 4.5:1 against what it's drawn on (paper for the stale clock, the halo for the warning title and sub). The polygon and the arrow take R-L. Compute both in 3.5t's theme table with their rows. Until then LIGHT_INK's None stays.
+>
+> 3. A12.26, Q's RAM: (a).
+> - Q-SIZE RAM is re-registered at exactly 59,816 B. The miss stays on record: 59,024 to 59,224 B was predicted, and the design's kept results table (res[3][16] at 16 B each, 768 B) and 24 B of probe statics weren't priced. I checked the 768 and the 12 in the source.
+> - The table stays in internal RAM. Its writes come after each timer stops, and internal RAM keeps them out of the PSRAM cache traffic Q is there to measure. (b) would add that traffic between timed decodes.
+> - Flash the binary as built (firmware.bin sha256 56d75a7538af…, from 72628d51a667). A rebuild must reproduce 1,661,123 B of flash and 59,816 B of RAM exactly, or stop.
+> - From now on, size rows price every table a design keeps.
+>
+> 4. A12.28, LF1: the row names the frames ("every pixel of all 17 frames"), and the tool read the crops. That is an instrument error, not a missed prediction. The record keeps the printed FAIL and its cause.
+> - My rerun of look_frames.py at 2b6ce7364a4d: the same five FAILs; LF2 to LF4 as yours; both .bin hashes equal (b7a59b8004f9, 5053b111aeaa); 0 code-5 role pixels in all 17 frames (codes 1 to 4 only, 0 unmapped).
+> - LF1′, as you proposed: on the frames' drawn pixels, codes 0 to 4 only, no 14 or 15, with the crops' own codes printed beside it.
+> - Sabotages, frozen before the rerun:
+>   - LF1′: a code-5 cell planted inside the 60 mi disc of one crop, in memory, turns that frame red. One planted outside the disc leaves LF1′ green, which shows it reads pixels, not crops.
+>   - LF2: one drawn role's colour in one look, off by one, turns only that look red.
+>   - LF3: one changed index byte in one loop frame turns only that frame red.
+>   - LF4: one frame copied over another turns the distinct count red.
+> - For the record: F7 and F8 draw the same map (0 map-band pixels differ, only the loop band does), so 19:34's radar inside 60 mi equals 19:30's. Harmless here.
+>
+> 5. Before the viewer is written and flashed, add the frames that Q39 and Q40 promised Daniel on the glass, with their rows frozen first:
+> - F17, Dallas approaching (A12.23's supplementary): the one scene where (a) and (b) differ in rain, at codes 6 and 7.
+> - F18 and F19: one synthetic Bend crop at 60 mi with a patch of each code 1 to 15, terrain on and off, and code 1 next to 14 and 15. This shows code 13, no coverage and the hatch (Q40: "Daniel sees it on glass with Q39").
+> - Roles grow to 66 (adding no coverage and the hatch line), with dark's values and the ruled light ones for (a) and (b).
+>
+> Order: merge #498; flash and run Q; meanwhile, the bench select's new frames and rows.
+
+**#498, merged.**
+- **The checks first:**
+  - the head was still `0a3fcf351a2d`, and the state `CLEAN`;
+  - the check runs, counted fresh: 35, all completed, **32 success and 3 skipped** (promote, ship-alert and version, the release-only jobs), 0 other;
+  - main was still at #498's base, `4f98670`, and no PR was based on the branch.
+- **The merge:** squash, `--match-head-commit 0a3fcf351a2d…`, no `--admin`, at 2026-10-29T03:55:32Z, as **`52cc5398220a02392bf920bc61817c300a9a1837`**.
+- **After:**
+  - its parent is `4f98670`, and it changes the PR's 3 paths and no others;
+  - **main equals the approved head on every one of them** (compared, not assumed);
+  - the remote branch was checked at `0a3fcf351a2d` and deleted (`ls-remote`: 0).
+
+**The images' pixel hashes:** the sha256 of each PNG's RGB pixels on this machine. **All 8 equal the reviewer's**:
+
+| scene | dark | light (a) | light (b) |
+|---|---|---|---|
+| Bend dry | `ff7a592ee56b` | `6ca8f4d640f9` | `afc5891e6431` |
+| Bend rain | `cabc469ac5cc` | `3e0a89746f1c` | `12267b0e75cc` |
+| Dallas approaching | | `1285ea2ae75b` | `6e0f8cf09c5c` |
+
+**From here on:**
+- an image's identity goes on record with its RGB-pixel sha256, not only its file's;
+- size rows price every table a design keeps.
+
+**Next, as ordered:** flash and run Q. Meanwhile, the bench select's new frames and rows are frozen, then run.
