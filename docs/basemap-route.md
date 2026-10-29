@@ -2516,3 +2516,31 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 **Every row in A1.7, A2.5 and A2.35 has now run, except MG's re-cut clause.** MG1 is equal (A2.39).
 
 **Next:** a final full sabotage pass, then #486 is marked ready for review.
+
+### A2.43 The final full sabotage pass; main merged in; #486 ready for review (2026-10-29)
+
+**The final pass** (`node scripts/sabotage-basemap.mjs`, all three sets, on `f26907d`, 14:19Z to 14:48Z):
+
+| | result |
+|---|---|
+| baselines | **0 failing cases each:** ingest (10 cases in 1 file), mv (29 in 1), all (130 in 16) |
+| sabotages | **44 of 44 AS PREDICTED**, every set exactly as frozen or as re-registered by ruling, including S-SQUARELEN {ML6, MR6} and S-TNOMARGIN {MB8a, MB8b, MT3b} |
+| C-LOADFAIL | **AS PREDICTED:** BLIND, 56 baseline cases not run |
+| set aside under A1.7 | MD4, under S-BUSSUB, S-SQUARELEN, S-PLACESORT and S-TNOMARGIN |
+| runs | **48, with 0 runtime failures** (0 with nothing run, 0 partway) |
+| ports | highest TIME_WAIT at a run's start: 7,969 (gate 8,000); 923 s held for ports |
+| exit | **0** |
+
+**Main merged in, because #486 had gone CONFLICTING.**
+- **The consequence I had missed:** GitHub runs no `pull_request` workflow on a head it cannot merge, so **no CI ran on `f26907d`**.
+- **The merge:** main at `1ccc7f1` (#496 to #499), merged as **`2ad2391`**. One conflict, `proxy/test/modules.d.ts`, where both sides had appended an ambient declaration (main's `*.bin`; this branch's `*.bmpk` and `*.py?raw`). Resolved as their union, checked against each side.
+- **Why the pass above still grades this head:** the merge changes no file under `proxy/src/basemap/`, `proxy/test/basemap-*`, `sabotage-basemap.mjs` or `vitest.config.mts`.
+- **On `2ad2391`:** both typechecks exit 0 locally. CI: **38 checks, 35 passed, 3 skipped, none pending.** #486 is MERGEABLE.
+
+**A question for the reviewer, which blocks nothing in #486.**
+- **The gap:** `workers.yml` triggers on `proxy/**`, `test/fixtures/wx/server/**` and `test/fixtures/wx/opuk/**`. The basemap tests also read **`test/fixtures/wx/basemap/**`** (`bend.bmpk`, its manifest, `syn-*.bmpk` and every `neg-*.bmpk` through `import.meta.glob`) and **`tools/weatherscope/basemap/synth.py`** (ME1b).
+- **What it would miss:** once #486 is on main, a PR changing only those files runs no MV, ME1b or MG1. Weatherscope's two coming negative fixtures are exactly such a PR, and the glob would grade them automatically if the job ran.
+- **Recommended:** add both paths to the `push` and `pull_request` lists, in #486 or a follow-up as you prefer. I have not edited the shared workflow.
+- **Its control, if added:** a fixture-only PR shows a `workers` run. That can only be observed on such a PR.
+
+**Next:** #486 is marked ready for review. After an "approved to merge at <SHA>", the merge, then D2 to D4 as planned. `wx-ingest` is not deployed from main until R3 is ruled.
