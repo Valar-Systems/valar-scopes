@@ -142,8 +142,9 @@ rules. Every other row read as predicted, with its sabotage red.
 | K7 | different ETags; no 304 after a move | as predicted (CONTROL: the same query does get its 304); the sabotage collides | pass |
 | K8 | 900 s 200, `cref` 900 s 503, 1,801 s 503 | as predicted; the sabotage refuses `opuk` at 900 s | pass |
 | K9 | the share in the record; all-nodata 0; `/healthz` prints it | the dry frame **0.7513**, the same in the record and in `/healthz`; `cref`'s entry unchanged; all-nodata 0; the sabotage reads 1 | pass (the smoke half is still to write) |
-| K11 | CPU ≤ 0.6 s a frame; live peak ≤ 96 MB; 64 MB held: +63-65 MB | 0.297 / 0.312 / 0.266 s; 54.46 / 54.22 / 54.22 MB; +64.03 MB (below) | pass |
 | K10 | a storing check prunes; a non-storing one makes 0 lists | 1 list, then 0; the sabotage lists | pass |
+| K11 | CPU ≤ 0.6 s a frame; live peak ≤ 96 MB; 64 MB held: +63-65 MB | 0.297 / 0.312 / 0.266 s; 54.46 / 54.22 / 54.22 MB; +64.03 MB (below) | pass |
+| K12 | 8 `opuk` crops decode with `WxCrop.h` to the encoder's cells; one nibble flipped fails exactly that crop | **8 / 8** (LHR, MAN, EDI, GLA, BFS, ABZ, CWL, NQY at 161 km, over the wet frame, through `/wx/cref`'s dispatch; 5-998 echo cells each); the sabotage (`man-161km.wxc`, pinned before it ran) fails its `file` and `cells` lines and nothing else; g++ 13.3 in WSL | pass |
 | K14 | the UA on every request | list 1, head 1, tiles 4, none missing; each of the three sabotages names exactly its own kind | pass |
 | K15 | 0, 6, 6; off 6; default on at 0.5 | as predicted; the sabotage masks (40, 0.5) | pass |
 
@@ -159,6 +160,10 @@ rules. Every other row read as predicted, with its sabotage red.
 - **The covered share reads 0.7513 on all three frames,** while the WXG1 shas differ. It is not a constant: the HDF5's
   own nodata counts are 818,321 and 818,320 (the radar network's footprint, one pixel apart in about 2.2 M), and K9's
   all-nodata case reads 0.
+
+**K12's run:** the host suite's own `run.sh` stopped BLIND at an earlier block in this worktree (the Wi-Fi QR test
+needs LovyanGFX under `.pio/libdeps`), so its later blocks did not run here. The K12 block's command was run on its
+own and passed, and WS7's server set and its sabotage still read as before. CI's host job is the authority.
 
 **LAEA against pyproj (PROJ 9.8.1; tolerances stated in the test before its first run):** forward 5.0e-5 m worst over
 544 points, inverse 5.0e-11° worst over 1,080. A near-sphere misses by 3,192 m.
