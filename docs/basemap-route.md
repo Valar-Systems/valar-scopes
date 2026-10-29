@@ -1993,3 +1993,21 @@ What follows from that, set by set:
   - S-PRIMARYDROP {MB4}
   - S-TERRCAP {MB8a, MB8b}
   - S-TNOMARGIN {MT3b, MB8a, MB8b}, with A2.20's bound: under it, MT3b must show between 1 and 492 differing values
+
+### A2.27 MI8, frozen before its code: RD-P6's regions as the builder reads them
+
+`index.json` carries `regions: [{box, files}]` (A2.24). **New code, `proxy/scripts/basemap/regions.ts`**, has one function, `regionsFor(counties, states, files)`:
+- **Its inputs:** the county boxes by GEOID, the state boxes and USPS codes by FIPS, and the planned files `{layer, url}`.
+- **What it builds:** one region per county, holding that county's AREAWATER and LINEARWATER files, and one region per state, holding its PRISECROADS and GNIS files. A file is matched by its own name: `tl_2024_<GEOID>_…`, `tl_2024_<FIPS>_prisecroads`, `DomesticNames_<USPS>_Text`.
+- **What it refuses:**
+  - a water, rivers, roads or peaks file that belongs to no region, because it would never be read;
+  - a file that would belong to two regions.
+
+| case | input | expected |
+|---|---|---|
+| MI8 | counties {41017, 41019}; state {41: OR}; files: AREAWATER and LINEARWATER for both counties, PRISECROADS 41, `DomesticNames_OR_Text.zip`, the Gazetteer and SUB-EST | four files under two county regions, two under one state region; the Gazetteer and SUB-EST in no region, since they are national and always read with `places`. **And refused:** an AREAWATER file for 41999, which has no county |
+
+- **The re-check of the frozen sets against MI8:**
+  - no frozen plant touches `regions.ts`, which is new;
+  - the ingest plants (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS) are in `ingest-lib.ts`, which `regions.ts` does not import.
+  - **No set moves.**
