@@ -2281,3 +2281,19 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 
 - **0 runtime failures** in 14 runs.
 - **Every planted file was restored.** The tree's only changes afterwards were the cache fix (A2.32) and MD2's pool binding, and no `SABOTAGE` text remains in the source or the attribution file.
+
+### A2.35 MD4 registered before its code: the rev guard
+
+**MD4** (A1.7): `test/fixtures/basemap/rev.json` maps each `rev` (`handler.ts`'s `BASEMAP_REV`) to the sha256 of the builder's output on **3 synthetic stores**: MB's A8 (terrain and the processing line), ME7 (every layer, two levels) and ME2's store #0. At the current `rev` they must be equal.
+
+**The harness, as A1.7's rule says:** MD3a and MD4 compare against the *committed* outputs, so they fire, correctly, on any change to builder output. They are therefore **ignored in every sabotage's grading unless that sabotage names them.** Without this, every existing sabotage that moves builder output would read off-prediction on MD4.
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-MREV | the processing text changed with `rev` unchanged ("4x4 mean" to "4x4 MEAN", **the same length**, so no byte count moves) | **{MD4, MG0b, MA1}**. MG0b compares the text with `bend.bmpk`'s, and MA1 reads it from the attribution file. MB8a and MB8b compare byte counts only, which the same-length change leaves alone |
+
+**The standing re-check:**
+- MD4 reads the builder's output on three stores, and no frozen plant is graded on it (the rule above);
+- the existing sets are unchanged, since MD4 is ignored in their grading.
+
+**MD3, the `--check` tool, is the remaining MD row.** It is next after MD4 and is not yet written.
