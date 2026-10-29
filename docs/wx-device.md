@@ -2534,3 +2534,21 @@ tools refuse any encoder that differs from origin/main's, and they did: the keyl
 
 **The span change** (`4a2fd33`, `395074b`) is now on #445 by fast-forward, after W5″'s last flash. It rides the replay
 session's first arm.
+
+### The replay session, first attempt (2026-10-29, 17:22Z): STOPPED in setup by a driver bug, before anything ran
+
+**The window was announced** as 10:22 AM-12:12 PM PDT, with RS6's sentence and Daniel's two looks.
+- **What happened:** the start state read correctly, and the span arm's flash exited 0 at 17:23:14Z. Eight seconds
+  later the driver's page check raised `URLError` and the driver stopped, because the board was still booting after the
+  flash.
+  - The replay driver's `page()` had **no retry**, unlike every other driver's, so this was my bug in the rig.
+  - **Nothing was replayed or graded.** `cloud-url` was **never set** (the proxy had not started), and no row was read.
+- **Left behind:** the span arm's trace process, still holding the port. Its close would have left the board in ROM
+  download mode. It was stopped, and `read_mac` recovered the board (exit 0). The page answered with the layer on.
+- **The rig fixed, and nothing else changed:**
+  - `page()` now retries for up to 120 s, as the other drivers' do;
+  - a span-arm trace left running by any failure is now stopped and the board recovered.
+
+  No prediction, reading or row changed.
+- **Restarted under a newly announced window.** Nothing graded had been produced, so this is a re-run of the setup
+  after a rig failure, not a re-run for a better number.
