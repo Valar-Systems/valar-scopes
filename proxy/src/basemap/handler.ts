@@ -13,8 +13,8 @@ export const BASEMAP_REV = 1;
 
 export interface BasemapEnv { BASEMAP?: Fetcher }
 
-// ---- PENDING A RULING (A2.28): where the 304 learns the current store id without a store read. ---------------------
-// The reading implemented: the store id from this isolate's last builder response, believed for STORE_TTL_MS. A cold
+// ---- Where the 304 learns the current store id without a store read (ruled as recommended, A2.40). ---------------
+// The store id from this isolate's last builder response, believed for STORE_TTL_MS. A cold
 // isolate, or a stale one, asks the builder. Staleness after a store change is bounded by the TTL.
 const STORE_TTL_MS = 60_000;
 let known: { storeId: string; at: number } | null = null;
