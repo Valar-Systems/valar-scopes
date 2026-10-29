@@ -7,7 +7,7 @@
  * The cache directory must lie OUTSIDE every repository: the sources are gigabytes and are not ours to commit.
  * Nothing here writes to Cloudflare. Output is counts and bytes only -- never a coordinate.
  */
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, createReadStream } from "node:fs";
 import { unzipSync } from "fflate";
@@ -502,12 +502,19 @@ async function d1Cmd(cache: string): Promise<void> {
   if (go === planOnly) throw new Error("d1 needs exactly one of --plan or --go");
   const { storeId, objects, current } = assembleStore(cache, cachePath);
   const manifest = JSON.parse(readFileSync(join(cache, "dry-run", "store", "manifest.json"), "utf8")) as { builder: string };
-  const head = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+  // F1: `builder` must name the commit of the code that WROTE the manifest, from a clean tree -- what the dry run
+  // itself recorded -- and that commit must exist here. (Not HEAD: a later docs commit does not change who wrote it.)
+  const run = JSON.parse(readFileSync(join(cache, "dry-run", "dry-run.json"), "utf8")) as { ingestCommit: string; dirtyTree: boolean; storeId: string };
+  let known = true;
+  // no shell: cmd.exe reads "^" as its escape character, and "<sha>^{commit}" would reach git mangled
+  try { execFileSync("git", ["cat-file", "-e", `${manifest.builder}^{commit}`], { stdio: "ignore" }); } catch { known = false; }
   const bytes = objects.reduce((a, o) => a + o.bytes.length, 0);
   const by = (p: string) => objects.filter((o) => o.key.includes(p)).length;
-  console.log(JSON.stringify({ storeId, bucket: BUCKET, puts: objects.length + 1, objects: objects.length, cells: by("/cells/"), tiles: by("/terrain/9/"), bytes, manifestBuilder: manifest.builder, head }, null, 1));
+  console.log(JSON.stringify({ storeId, bucket: BUCKET, puts: objects.length + 1, objects: objects.length, cells: by("/cells/"), tiles: by("/terrain/9/"), bytes, manifestBuilder: manifest.builder, dryRun: run, builderKnown: known }, null, 1));
   if (planOnly) return;
-  if (manifest.builder !== head) throw new Error(`the manifest names builder ${manifest.builder.slice(0, 12)}, HEAD is ${head.slice(0, 12)}: re-run the dry run at HEAD`);
+  if (run.dirtyTree || run.ingestCommit !== manifest.builder || run.storeId !== storeId || !known) {
+    throw new Error("the manifest was not written from a clean tree at a known commit that matches the dry run: re-run the dry run");
+  }
   const bucket = new WranglerBucket(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
   const r = await publishStore(bucket, objects, CURRENT_KEY, current);
   console.log(JSON.stringify({ sealed: r.sealed, repairRounds: r.rounds, missing: r.missing.length, mismatched: r.mismatched.length, puts: bucket.puts, gets: bucket.gets, putFailures: bucket.putFailures.length }, null, 1));
