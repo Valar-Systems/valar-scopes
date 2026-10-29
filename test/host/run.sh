@@ -1397,6 +1397,26 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's reference controls (docs/weatherscope-stage3.md A12.18): ref35.py's R0 against the reviewer's 3.5a
+# mockups and geo35.py's R0b against the Bend mockups, from the pinned fixtures in test/fixtures/wx/r0/. Pillow is
+# required (R0a' rests on its polygon rasteriser, pinned in CI); a missing Pillow or a refused pin is the RIG (exit 2),
+# never a skip.
+echo
+echo "== Weatherscope R0 and R0b (the reference's controls, A12.18) =="
+if [ -z "$PY" ] || ! "$PY" -c "import PIL" >/dev/null 2>&1; then
+  echo "FAIL: no python with Pillow; R0 and R0b cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -c "import PIL; print('Pillow', PIL.__version__)"
+"$PY" -I -B "$ROOT/tools/weatherscope/screens/ref35.py" --r0 "$ROOT/test/fixtures/wx/r0"
+rc=$?
+if [ "$rc" -eq 2 ]; then echo "FAIL: R0 refused its fixtures (the rig)"; exit 2; fi
+[ "$rc" -ne 0 ] && fail=1
+"$PY" -I -B "$ROOT/tools/weatherscope/screens/geo35.py" --r0b-fixture "$ROOT/test/fixtures/wx/r0"
+rc=$?
+if [ "$rc" -eq 2 ]; then echo "FAIL: R0b refused its fixtures (the rig)"; exit 2; fi
+[ "$rc" -ne 0 ] && fail=1
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
