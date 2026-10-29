@@ -118,7 +118,10 @@ def build():
     neg["terrainlen"] = (pkg(sections(terrain_body=bmpk.terrain_body(*LEVEL)[:-1])), "kTerrainLength")
     neg["terrainN0"] = (pkg(sections(terrain_body=struct.pack("<IHH", 1_000_000, 0, 0))), "kTerrainLength")
     neg["reserved"] = (pkg(sections(), entry_overrides={0: {"reserved": 1}}), "kReserved")
-    assert len(neg) == 25, len(neg)
+    # A12.15: section 8's "exactly its count" for TERRAIN (its levels) and PROVENANCE (its lines), off by one each
+    neg["terrain-count"] = (pkg([(t, 2 if t == TERRAIN else c, b) for t, c, b in sections()]), "kTerrainCount")
+    neg["prov-count"] = (pkg([(t, 3 if t == PROVENANCE else c, b) for t, c, b in sections()]), "kProvenanceCount")
+    assert len(neg) == 27, len(neg)
     for k, v in neg.items():
         out["neg-" + k] = v
     return out
