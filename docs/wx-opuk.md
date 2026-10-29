@@ -83,3 +83,13 @@ Each sabotage must turn its own row red. BLIND counts as FAIL.
 - **no firmware.**
 
 **Outside the set:** any reading not listed above means stop and report.
+
+### K1's frames, restated before any selection was computed (2026-10-29, ~03:40Z)
+
+- **The problem:** K1 pins "the wettest and the driest held at 2026-10-29 03:00Z". A fixture needs the frame's own
+  HDF5 (the expected value) and its first 8 KB (the collection kept only the tiles).
+- **The cache has expired every 2026-10-27 frame:** 0 listed, against 288 held.
+- **No selection has been computed,** so this is a restatement, not a choice made after seeing the frames.
+- **K1's frames, restated:** the wettest and the driest **among the frames held at 2026-10-29 03:00Z whose HDF5 and
+  GeoTIFF are still in the cache** (2026-10-28 00:00Z onward), by echo cells in the window.
+- **Everything else in K1 is unchanged.**
