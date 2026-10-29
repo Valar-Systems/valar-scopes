@@ -7660,3 +7660,211 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **(b):** give the Pacific path its own overload and leave the Dallas calls as they were. Flash then returns to 1,630,415 B, at the cost of a second copy of two functions.
 
 **The branch is pushed as it ran.** The PR follows #501's merge (based on main), once this is ruled.
+
+### A12.43 3.5t's truth tables and sabotage sets, with light (b): frozen before any 3.5t code (A11.9)
+
+**Why now:** 3.5b's step 6 waits on A12.42's ruling. These tables touch no 3.5b code, so they come next (A12.24). They cover A11.9's rows, with C4 for light (b) alone, since (a) is retired (A12.38), plus the four values no ruling yet names.
+
+**The instruments:**
+- **Planning scripts, not committed:** they compute every value below.
+- **The committed tests:** they recompute every value from the header's numbers, never from these scripts.
+- **The anchor:** A = 30.2669, CIEDE2000 of (0, 0, 135) on black.
+- **The metrics:** CIEDE2000 and WCAG 2 as in A11.6.
+
+#### 1. The values still to set, each by a ruled method (for the ruling)
+
+**The light orange (A12.29: "compute both in 3.5t's theme table with their rows"):**
+
+| role | where it is drawn | light value | how |
+|---|---|---|---|
+| **orange text** | the stale clock, on paper; the warning title and sub, on the halo | **(159, 85, 0)** | (255, 140, 0)'s CIE hue 63.99°, L\* down in 0.5 steps from 69.49, at the most chroma sRGB holds; the first to reach 4.5:1 against **both**: paper **4.503**, halo **4.589**; hue 63.97° |
+| **orange graphic** | the warning polygon and arrow | **(255, 140, 0), unchanged** | already passes (b)'s rule: paper **31.64**, water **43.70**, levels' worst **27.58** |
+
+- **Paper binds, so one text ink serves both surfaces.** Against the halo alone, the first passing step is (161, 86, 0), and that fails paper at 4.418.
+- **Paper's margin is 0.003,** which is why the test prints the value.
+
+**Light snow (Q42: the dark ramp's hues, its lightness order mirrored, by the rule, C3h re-checked).**
+
+**The method, S-M (A11.6's own darkening, applied per code):**
+- **Code 1:** dark code 1's CIE hue, L\* down in 0.5 steps from its own (46.71), at the most chroma sRGB holds. It is the first value that passes (b)'s rule and lies within 1° of the dark hue.
+- **Each next code:** its own dark hue, from the previous code's L\* down. It is the first that passes the rule, lies within 1° of its hue, and is **≥ 10 dE\*ab (C3h's own bar) from the code before**.
+- **Codes 7–13** hold code 6, as in dark.
+
+| code | dark | **light** | L\* | paper / water / levels' worst | \|dh\| |
+|---|---|---|---|---|---|
+| 1 | (0, 110, 210) | **(0, 108, 206)** | 45.88 | 47.1 / **30.4** / 37.3 | 0.11° |
+| 2 | (66, 129, 218) | **(0, 95, 177)** | 40.18 | 50.8 / 36.1 / 39.8 | 0.17° |
+| 3 | (98, 149, 226) | **(0, 83, 149)** | 34.71 | 54.9 / 42.3 / 42.8 | 0.00° |
+| 4 | (124, 169, 234) | **(0, 70, 121)** | 28.80 | 60.5 / 49.6 / 46.5 | 0.12° |
+| 5 | (148, 190, 242) | **(0, 57, 94)** | 22.77 | 66.8 / 57.5 / 48.4 | 0.04° |
+| 6 | (170, 212, 250) | **(0, 43, 66)** | 16.11 | 75.0 / 64.1 / 50.3 | 0.07° |
+
+- **Water is what binds:** the light water is itself a pale blue, and every dark snow code fails against it (dark snow 1 is 29.6). Snow 1's margin over A is 0.13.
+- **Two alternatives, rejected, with the row each fails:**
+  - **M1:** keep each code's a\* and b\*, reflect the dark L\* sequence, and shift it until all six pass. It **fails the mirrored C3i**: snow 6 is (0, 28, 45), **17.4** dE\*ab from rain 13's black against ≥ 20.
+  - **M2:** S-M without the hue condition. It puts snow 6 at **1.08°** from its dark hue.
+
+**The manager's own inks** (A11.5's splash, status, legend and hold-ring roles): no ruling names their light values.
+- **Two are text by role, and take their role's ruled ink:**
+  - **kFg (230, 237, 234), the primary text:** the label ink **(38, 38, 40)**, 12.22:1 on paper;
+  - **kDim (130, 150, 160), the secondary text:** the dim text **(96, 92, 86)**, 5.37:1.
+  - **Why not darken them:** A11.6's darkening is for chromatic inks. Along these near-neutral hues it reaches saturated colours, (0, 118, 89) and (0, 113, 143).
+- **Two are chromatic text, darkened by the text rule along their own hue:**
+  - **kAccent (90, 200, 255)** becomes **(0, 112, 151)**: 4.515:1, hue 247.40° → 247.11°;
+  - **kWarn (255, 176, 40)** becomes **(143, 94, 0)**: 4.509:1, hue 75.75° → 75.42°.
+- **The hold ring's track (0, 90, 0) and arc (0, 200, 0) are unchanged:** both pass (b)'s rule (55.80 / 59.84 / 42.20 and 33.10 / 47.46 / 29.46).
+  - **On paper the track reads darker than the arc,** the reverse of dark. That is printed, not graded, and Daniel sees it on the glass.
+  - A track mirrored by contrast lands on (0, 197, 0), the arc itself, so mirroring offers nothing here.
+- **The legend:** paper ground, label-ink text, and the theme's swatches. The hatch swatch is the light line on paper.
+- **The splash and status ground:** `main.cpp` clears every frame to black for every edition, and stays untouched. The Weatherscope fills its own ground with the theme's background before drawing those screens, as the legend already does.
+
+#### 2. The theme table (`src/weatherscope/WxTheme.h`, A11.5): 87 roles per theme
+
+| role | dark (today, to the byte) | light (b) | source |
+|---|---|---|---|
+| background: off the disc, the bands, splash, status, legend | (0, 0, 0) | paper (234, 231, 223) | ruled |
+| dry (code 0 with no basemap) | (0, 0, 0) | paper | ruled |
+| basemap 0, nothing | (0, 0, 0) | paper | A12.33 |
+| basemap 1–37, terrain | (g, g, g + 2), g = 10..46 | (168, 165, 156) → (240, 237, 228), `floor(v + 0.5)` | A12.38 |
+| basemap 38 / 39 / 40 | (10, 34, 72) / (26, 70, 128) / (62, 62, 62) | (171, 204, 237) / (96, 146, 206) / (178, 150, 112) | A12.38 |
+| rain 1–13 | `wxpalette` | teal; 2–4 the table; 5 (135, 135, 0); 6 (155, 128, 0); 7–12 the table; 13 (0, 0, 0) | A12.38 |
+| snow 1–13 | `wxpalette` | S-M above, held from 6 | **this addendum** |
+| no coverage; hatch line; hatch ground | (40, 40, 40); (72, 72, 72); (0, 0, 0) | (93, 93, 93); (124, 124, 124); paper | A12.29, A12.33 |
+| label ink; halo; peak | (176, 176, 176); (0, 0, 0); (176, 176, 176) | (38, 38, 40); (236, 233, 226); (92, 70, 50) | ruled |
+| rings; ring numbers and the loop track | (64, 64, 64); (96, 96, 96) | (150, 146, 138); (96, 92, 86) | ruled |
+| dim text ("N", the time, the far state line, the loop age) | (120, 120, 120) | (96, 92, 86) | ruled |
+| the white roles: home marker, near state line, zoom tag, warning band text, loop knob | (255, 255, 255) | (38, 38, 40) | ruled |
+| orange text; orange graphic | (255, 140, 0); (255, 140, 0) | (159, 85, 0); (255, 140, 0) | **this addendum** |
+| UI fg; UI dim; accent; warn | (230, 237, 234); (130, 150, 160); (90, 200, 255); (255, 176, 40) | (38, 38, 40); (96, 92, 86); (0, 112, 151); (143, 94, 0) | **this addendum** |
+| hold track; hold arc | (0, 90, 0); (0, 200, 0) | the same | **this addendum** |
+
+- **The count:** 87 roles = 2 + 41 + 13 + 13 + 3 + 7 + 2 + 4 + 2.
+- **Priced as a table:** 87 × 3 B × 2 themes = **522 B** of read-only data. The code step's size rows carry it, together with `LayerKey`'s theme byte, frozen with that step's other predictions.
+
+#### 3. The rows
+
+**K, RP and LY: the pictures**
+
+| row | what | expected |
+|---|---|---|
+| **K-dark** | every K row in Dark, against today's references | **byte-identical:** `test_wx_k35` 28/0 against `k35.ref.txt`; `test_wx_k35b` 143/0 against `k35b.ref.txt`. This is the refactor guard |
+| **K-light** | the 25 Dallas K screens and the 51 Bend K rows in Light | **76 of 76 equal** to `k35l.ref.txt` and `k35bl.ref.txt`, written by `ref35.py` / `k35b.py --theme light` from this addendum's values, not from the C++ |
+| **RP** | the replay rows in each theme | Dallas 90 and Bend 90 in Dark, as today; **the same 180 in Light** |
+| **RP-T** | the Dallas loop (overlay off) and the Bend loop (B) at 60 mi: frames 0–7 in Dark, 8–14 in Light, each against its full composition in its own theme | **30 of 30** |
+| **LY** | the placed peaks and towns (name, side, box) of all 76 K scenes, Dark against Light | **76 of 76 identical** (placement is colour-blind) |
+| **TH2′** | `ref35` palette closure on the light Dallas warning, the light Dallas stale, light Dallas loop frame 7 and light Bend loop frame 14 | **0 strays in each.** Every ink in `compose` goes through the theme (A12.29's record) |
+
+**C3 and C4: the palettes**
+
+**C3, the dark palette:** C3a–l and the pin, unchanged. `kDark`'s rain and snow come from `wxpalette`.
+
+**C4, the light palette, every value printed:**
+
+| row | what | expected |
+|---|---|---|
+| C4-CTL1 | CIEDE2000 against Sharma, Wu and Dalal's 34 pairs (the data file, transcribed and labelled so) | all 34 within 1e-4 (worst 0.000049) |
+| C4-CTL2 | WCAG on (119, 119, 119) over white; black over white | 4.4781 ± 0.0005; 21.0000 |
+| C4-A | the anchor | 30.2669 |
+| C4a | rain 1–13: > A against paper and water, ≥ 25 against all 37 levels | A12.22's (b) column, all pass; the worst is code 6 on terrain, 25.1 |
+| C4b | code 13 | (0, 0, 0): 88.0 / 55.1 / 72.7 |
+| C4c | no coverage (93, 93, 93) | achromatic; paper 42.79, water 38.84 (> A); black 27.25, levels 27.71 (≥ 25) |
+| C4d | the hatch line (124, 124, 124) on its paper ground | achromatic; against paper **30.276** (> A); paper, line and no coverage are three colours (C3b in light). Printed: line against no coverage 12.00; teal against no coverage 28.27, against the line 23.65 |
+| C4e | snow 1–6, (b)'s rule and \|dh\| ≤ 1° | the S-M table above |
+| C4e′ | snow's mirrored C3 rows | **C3e′:** luma falls 1 → 6, flat after; the top is blue (b > r), not black. **C3f′:** 0 equal to any light rain. **C3g′:** snow 1 to teal 75.2 (≥ 40). **C3h′:** steps 10.1, 10.3, 10.3, 10.2, 11.0 (each ≥ 10). **C3i′:** snow 13 to rain 13 (black) 24.8 (≥ 20). Printed: the same pair in dE00, 16.7 |
+| C4f | the hue row | codes 5 and 6 within 1° of their table hue: 0.00° and 0.05° |
+| C4g | the text rule, ≥ 4.5:1 | label on halo 12.458; label (the white roles) on paper 12.224; dim on paper 5.374; ring numbers on halo 5.477; peaks on halo 7.286; orange text on paper **4.503** and on halo 4.589; accent 4.515; warn 4.509 |
+| C4h | the orange graphic, (b)'s rule | 31.64 / 43.70 / 27.58 |
+| printed only | the hold ring; rings against the shadow end (5.9); codes 9 and 10 (4.5) | not graded |
+
+**DN, SW, NL and SY: the day/night header, the switch and the scans**
+
+| row | what | expected |
+|---|---|---|
+| **DN-E** | `SunElevationDeg` against NOAA's Julian-century algorithm (`tools/weatherscope/daynight_ref.py` writes the fixture): 2026-01-01Z plus every 183 days to 2036, every 97 min, lat −60/−30/0/30/60, lon −150/−30/90. Synthetic whole degrees only | **4,950 rows, max \|diff\| 0.002930° ± 1e-5, graded ≤ 0.02°.** The planning sweep (6,178,536 samples, \|lat\| ≤ 66, 2026–2036) found 0.0108° |
+| **DN-U** | USNO's rise and set (the API, tz 0, transcribed and labelled so) against `SunElevationDeg`'s −0.833° crossing: 2026-03-20 at (0, 0); 2026-06-21 at (40, −100); 2026-09-22 at (−30, 150); 2026-12-21 at (60, 10) | **8 events, each within 1 min:** +0.20, −0.28, +0.16, +0.39, +0.00, −0.09, −0.11, +0.19 |
+| **DN-D** | `Decide`, 16 rows (the table below) | 16 of 16 |
+| **DN-Q** | three sequences | **dusk** (Day, +5 → −5 by 0.01): 1 switch, at −1.84; **dawn** (Night, −5 → +5): 1, at 0.17; **hover** (Day, −0.3 and −1.4 alternating, 200 times): **0** |
+| **TS** | `Select(setting, phase)` | auto + Unknown → Dark (boot); auto + Day → Light; auto + Night → Dark; light + any of the three → Light; dark + any → Dark: 9 of 9 |
+| **TP** | the setting's parse | "auto", "light" and "dark" read as themselves; "" reads as auto (unset); "x", "Light" and "light " read as auto **with the stored value named**, never coerced: 7 of 7 |
+| **TD** | the dim (Q38) | dim = the auto-dim switch and phase == Night. Unknown means no dim (today's boot). A lost clock keeps the last phase (a named change from today, which un-dims) |
+| **SW** | host script: a switch, a no-op evaluation, a hover inside the band, a second switch | layer rebuilds by cause `theme`: **1, 0, 0, 1**; basemap index rebuilds **0, 0, 0, 0**; setting the shown theme again: 0 |
+| **NL** | the scan, over `src/weatherscope/` except `WxTheme.h`, `WxPalette.h` and `bench/` | **0** colour literals in a colour-taking call; the allowlist's length, 0, printed. **Positive control:** pointed at `WxTheme.h`, it finds that file's literal lines (count printed, > 0) |
+| **SY** | `include/DayNight.h` against `wx`, `Weather` and `wxpalette` | 0 hits. The host compile without Arduino proves "no Arduino" |
+
+**`Decide`'s 16 rows** (H = 1.0, threshold −0.833):
+
+| | prev | clock | location | elevation | want |
+|---|---|---|---|---|---|
+| D1 | Unknown | no | yes | 10 | Unknown |
+| D2 | Unknown | yes | no | 10 | Unknown |
+| D3 | Day | no | yes | −10 | Day |
+| D4 | Night | yes | no | 10 | Night |
+| D5 | Unknown | yes | yes | −0.833 | Day |
+| D6 | Unknown | yes | yes | −0.834 | Night |
+| D7 | Unknown | yes | yes | −1.5 | Night |
+| D8 | Unknown | yes | yes | 0.0 | Day |
+| D9 | Day | yes | yes | −1.832 | Day |
+| D10 | Day | yes | yes | −1.834 | Night |
+| D11 | Night | yes | yes | 0.166 | Night |
+| D12 | Night | yes | yes | 0.168 | Day |
+| D13 | Day | yes | yes | −0.5 | Day |
+| D14 | Night | yes | yes | −0.5 | Night |
+| D15 | Day | yes | yes | 30 | Day |
+| D16 | Night | yes | yes | −30 | Night |
+
+#### 4. The sabotages, each failing set frozen
+
+The plants go into temp copies (`test/host/sabotage_wx_theme.py`, like `sabotage_wx_basemap.py`). `SolarDim.h` is shared by eight editions and is only ever planted in a copy.
+
+| sabotage | plant | fails exactly |
+|---|---|---|
+| S-KD | dark rings (64, 64, 64) → (65, 64, 64) | K-dark: all 25 Dallas K screens and all 51 Bend rows. Nothing else |
+| S-KL | light rings (150, 146, 138) → (151, 146, 138) | K-light: all 76. Nothing else (C4 does not grade rings) |
+| S-LY | in Light only, the town cap is 0 | LY and K-light: the 69 scenes with a town label (Dallas 25; Bend 60 and 30 mi dry, 14; Bend loop, 30). The 7 Bend 15 mi rows pass, with 0 town labels in either theme |
+| S-RPT | the theme left out of `LayerKey` | RP-T: frames 8–14 of both series, 14 rows. SW: steps 1 and 4 (counts 0, 0, 0, 0) |
+| S-SWB | the theme put into the basemap's key | SW's base row (1, 0, 0, 1) |
+| S-C4a | water back to (163, 196, 228) | C4a: code 1 (28.98); C4e: snow 1 (28.54 against the old water) |
+| S-C4b | code 6 back to (231, 192, 0) | C4a: code 6 (paper 27.55) |
+| S-C4c | no coverage (99, 99, 99) | C4c (levels 24.90) |
+| S-C4d | hatch line (125, 125, 125) | C4d (paper 29.913) |
+| S-C4e | snow 2 = snow 1 | C4e: code 2 (2.06° from its dark hue); C4e′: C3e′ and C3h′ (step 1–2 is 0). C3f′ passes |
+| S-C4g | orange text (161, 86, 0) | C4g: orange on paper (4.418) |
+| S-CTL1 | CIEDE2000's R_T term removed | C4-CTL1: pairs 1–6, 17, 19, 27 and 29 (worst 4.8488). No graded row flips, and A is unchanged (30.2669) |
+| S-CTL2 | WCAG with a flat 2.2 gamma | C4-CTL2: (119, 119, 119) reads 4.4306. No graded text row flips |
+| S-DN1 | H = 0 | DN-D: D9, D11, D14. DN-Q: all three (dusk at −0.84, dawn at −0.83, hover 199 switches) |
+| S-DN2 | the clock gate removed | DN-D: D1, D3 |
+| S-DN3 | the location gate removed | DN-D: D2, D4 |
+| S-DN4 | the band applied to the first verdict | DN-D: D5–D8 |
+| S-DNE | `SunElevationDeg` without its equation of centre | DN-E (max 0.1926°); DN-U: all 8 (−6.8, −7.2, −1.8, −1.8, +8.8, +5.2, +1.8, +2.2 min) |
+| S-NL | `Rgb{1, 2, 3}` planted in `WxScreens.h` | NL: 1 hit, at the plant's line |
+| S-SY | `wxpalette` planted in a copy of `DayNight.h` | SY: 1 hit |
+| S-TH2 | the light warning band text drawn in `WHITE`, not through the theme | TH2′: the warning scene alone |
+
+#### 5. The board, per theme (A11.9), and the clock byte (Q43)
+
+| row | expected |
+|---|---|
+| B1-dark | dry, approaching, here-now, warning and stale: exact against `k35.ref.txt`, as today |
+| B1-light | the same five with `wx-theme=light`: exact against `k35l.ref.txt` |
+| B3-dark, B3-light | `legend_check.py --fb --theme dark\|light` passes. Its light table is written from this addendum's values |
+| BSW | `wx-theme=auto` in stored mode: 96 presses of **`O`** walk the clock Auto reads through 24 h. **Exactly 2 `[wx] layer rebuilt=theme` lines** (dusk and dawn), the dim toggling at the same two presses, and nothing on the other 94 |
+
+**The clock byte `O`** (free: T, S, U, D, H, P, L, R and G are taken):
+- each press adds +15 min to the offset Auto reads, wrapping at 24 h;
+- it forces one evaluation;
+- it prints `[wx] auto offset=+N min phase=Day|Night`;
+- it is release-gated like the others.
+
+**The line prints no elevation.** Several (time, elevation) pairs determine the board's latitude and longitude, and the location is never printed.
+
+**Every board run keeps the watcher's flag** (A12.38). **The B1 images in both themes go to Daniel.**
+
+#### 6. For the ruling
+
+- **Q45, the light orange:** one text ink (159, 85, 0) for paper and the halo; the graphic unchanged.
+- **Q46, light snow:** S-M and its six values, with C3e′–C3i′ graded as above.
+- **Q47, the manager's inks:** kFg and kDim by role; kAccent (0, 112, 151) and kWarn (143, 94, 0) by the text rule; the hold ring unchanged, its inverted emphasis printed.
+- **Q48, the clock byte:** `O`, +15 min a press, no elevation in the log.
+- **The order stands:** after this addendum is ruled, 3.5t's code waits its turn in the ruled order. Nothing here touches 3.5b.
+
+**The outside-the-set branch, pre-registered:** a row or a sabotage that lands outside its frozen value or set stops 3.5t at that row, and is reported with its cause, before anything changes.
