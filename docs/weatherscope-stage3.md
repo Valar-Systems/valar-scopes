@@ -6599,3 +6599,85 @@ The removal list went to Daniel, and **nothing is removed before his yes.**
   - the remote branch was checked at the approved head and deleted (`ls-remote`: 0).
 
 **Next:** C4's rows for both Q39 candidates, frozen; then the light-theme PNGs (host, `ref35 --theme light`) to Daniel; then build Q.
+
+### A12.22 C4's rows for both Q39 candidates, and the light-theme render: frozen before it runs
+
+**Computed by the stated methods** (A11.6, A11.12, A12.18): CIEDE2000, with the anchor A = 30.27, the rejected blue's dE00 on black. The committed C4 test (3.5t) recomputes every value below.
+
+**The shared light values:**
+- **from the ruling:** paper (234, 231, 223); lit (240, 237, 228); rivers (96, 146, 206); roads (178, 150, 112); labels (38, 38, 40) on a (236, 233, 226) halo; peaks (92, 70, 50); rings (150, 146, 138); dim text (96, 92, 86);
+- **the terrain ramp:** 37 levels, shadow to lit, interpolated in sRGB with `floor(v + 0.5)`. **The level is `floor(36 · v / 255)`** of the package's 8-bit shade, the same index the dark ramp's `10 + floor(36 · v / 255)` uses;
+- **water moves (Q41):** teal against the ruled (163, 196, 228) is 29.0, under A. So, keeping water's CIE hue and chroma, its L\* rises in 0.5 steps until every rain code clears A against it: **water (171, 204, 237), L\* 77.8 → 80.7, the same in both candidates.** Water against paper falls from 20.6 to 20.0;
+- **code 13:** black (Q40), and teal for code 1, as ruled.
+
+**The candidates:**
+
+| | (a) | (b) |
+|---|---|---|
+| shadow end | (201, 198, 189), L\* 79.9 | (168, 165, 156), L\* 67.8, as ruled |
+| the rule | R-L, > A against paper, all 37 levels and water | > A against paper and water; ≥ 25 against all 37 levels |
+| code 5 | (135, 135, 0) | (135, 135, 0) |
+| code 6 | (153, 127, 0) | (155, 128, 0) |
+| code 7 | (215, 120, 0) | (255, 144, 0), unchanged |
+| codes 1-4 and 8-12 | teal and the table, unchanged | the same |
+
+**C4's rows, with each code's worst value** [paper | terrain | water]:
+
+| code | (a) | (b) |
+|---|---|---|
+| 1 | 35.6 / 30.3 / 30.4 | 35.6 / 25.6 / 30.4 |
+| 2 | 31.7 / 31.4 / 48.8 | 31.7 / 31.4 / 48.8 |
+| 3 | 33.1 / 30.3 / 47.5 | 33.1 / 29.5 / 47.5 |
+| 4 | 40.6 / 35.3 / 50.0 | 40.6 / 30.3 / 50.0 |
+| 5 | 36.0 / 30.3 / 50.0 | 36.0 / 25.2 / 50.0 |
+| 6 | 36.2 / 30.5 / 49.7 | 35.9 / 25.1 / 49.6 |
+| 7 | 34.9 / 30.3 / 44.7 | 31.2 / 27.4 / 43.6 |
+| 8 | 43.1 / 38.7 / 50.3 | 43.1 / 34.6 / 50.3 |
+| 9 | 48.1 / 43.0 / 53.6 | 48.1 / 37.5 / 53.6 |
+| 10 | 51.5 / 46.1 / 56.1 | 51.5 / 40.1 / 56.1 |
+| 11 | 44.3 / 41.8 / 36.3 | 44.3 / 39.7 / 36.3 |
+| 12 | 46.6 / 42.5 / 32.6 | 46.6 / 38.0 / 32.6 |
+| 13 | 88.0 / 70.3 / 72.7 | 88.0 / 55.1 / 72.7 |
+
+- **Every code passes its candidate's rule.**
+- **The hue row:** each darkened code within 1° of its table hue. (a): 0.00, 0.31 and 0.21; (b): 0.00 and 0.05.
+- **The text row** (WCAG 4.5:1): labels on their halo 12.46; dim text on paper 5.37; peaks on their halo 7.29.
+
+**A gap found while computing, raised and not patched: no coverage and the hatch.**
+- **What A11.6 and Q40 asked:** both "achromatic, above the anchor from paper, every terrain level and black", computed by the rule.
+- **What the best greys reach,** each the achromatic grey whose worst value over {paper, the 37 levels, water, black} is greatest (the hatch's set also includes no coverage, since C3b keeps the two distinct):
+
+  | | (a) | (b) |
+  |---|---|---|
+  | no coverage | (104, 104, 104), worst **31.0** | (93, 93, 93), worst **27.3**, which **fails A** |
+  | hatch line | (145, 145, 145), worst **15.9** | (52, 52, 52), worst **13.7** |
+
+  **The hatch cannot clear A in either candidate**, and no coverage cannot in (b).
+- **For a ruling:**
+  - **the hatch's line colour** is held to a lower bar than A, since it is drawn as sparse lines over the base, not filled;
+  - **no coverage under (b)** takes (b)'s terrain floor of 25.
+- **Not in these PNGs.** The scenes hold no code 14 or 15: dry is all code 0, and the Bend loop's last frame is codes 0-4.
+
+**The render** (`ref35.py`, `--theme light`, P mode, from `bend.bmpk` by §9's mapping; the terrain level for the 60 mi view):
+- **Bend dry:** `synthetic-clear.wxc` at 60 mi, terrain on, "NO RAIN 60 MI".
+- **Bend rain:** the Bend loop's last frame, `shsr-20240602-200600`, at 60 mi, terrain on: the Bend rain scenario (A10.4). Its state line is its own nearest echo.
+- **The clock:** Pacific time on 2024-06-02.
+- **For each:** light (a), light (b), and dark (today's look, for reference).
+- **Supplementary, labelled so:** Dallas approaching (no package) in light (a) and (b). **No Bend frame carries codes 5 or above,** so this is where the candidates' yellows (codes 6 and 7) show.
+- **The inks in the light theme:**
+  - paper for the background, the bands and off the disc;
+  - label ink for the home marker, the town dots and labels, and the near state line;
+  - dim text for "N", the time, the ring numbers and the far or "NO RAIN" state line;
+  - peaks for the glyph and its label;
+  - every label on the light halo.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| TH1 | **placement is colour-blind:** each scene's placed peaks and towns (name, side, box) are identical in dark, light (a) and light (b) |
+| TH2 | **palette closure:** every pixel of each light render is one of that theme's colours |
+| TH3 | **(a) against (b) on the same Bend scene:** they differ exactly at the pixels showing a terrain level below 36 (the lit end is shared), and nowhere else |
+| TH4 | **the dark default is untouched:** `ref35.py --k --check` stays identical; R0 7/7 and R0b as A12.17 |
+
+**Outside these: stop and report.**
