@@ -423,11 +423,11 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
     if warning:
         scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, WHITE)
         scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, WHITE)
-    elif loop is not None:   # A9.10's loop band: the age, a 120 x 2 track, a 4 x 6 knob
-        scr.text(int(C - text_w(loop["age"]) / 2), 198, loop["age"], 1, DIMTXT)
-        scr.fill(60, 212, 179, 213, RINGTXT)
+    elif loop is not None:   # A9.10's loop band: the age, a 120 x 2 track, a 4 x 6 knob (ink roles: A12.27)
+        scr.text(int(C - text_w(loop["age"]) / 2), 198, loop["age"], 1, ink["dim"])
+        scr.fill(60, 212, 179, 213, ink["ringtext"])
         kx = 60 + (loop["index"] * 116) // 14
-        scr.fill(kx, 210, kx + 3, 215, WHITE)
+        scr.fill(kx, 210, kx + 3, 215, ink["white"])
     else:
         s, col = state["line"], state["colour"]
         scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, inkmap(ink, col))
