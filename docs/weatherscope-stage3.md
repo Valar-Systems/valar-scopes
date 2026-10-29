@@ -7474,3 +7474,66 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 1. The board goes back to Q's image under A12.33's rule.
 2. Then 3.5b's device code on the frozen bound.
 3. Then 3.5t's real theme with (b)'s values.
+
+### A12.39 3.5b step 5: what A10.11's frozen tables become after the rulings since, frozen before any device code
+
+**The scope, as A10.8 step 5 has it:** the device code, its host tests and their sabotages. The firmware's use of them (scenarios, the loop, the bench byte G, the image in PSRAM) is step 7.
+
+**The files:**
+- `include/BasemapPackage.h`, new (Q23): `bmpk::Validate` and the in-place walk.
+- `src/weatherscope/WxBasemap.h`, new: `wxbase::Mapper` (`ToScreen`, `LevelPixel`), `wxbase::FillRing`, `wxbase::Build`, `wxbase::RampIndex` and `wxbase::PaletteRgb`.
+- `src/weatherscope/WxScreens.h`: `MapPixel`, the fold in `DrawMap`, `BaseKey`/`SameBase`, `PeakLabel`, `PlacePeak` and `PlaceLabels`.
+- `test/host/test_wx_basemap.cpp` and `test/host/sabotage_wx_basemap.py`, with a block in `run.sh`.
+- `tools/weatherscope/basemap/synth.py` and `validate.py`: A12.15's two fixtures and two checks.
+
+**Written from the format doc (§8's order, §9's mapping) and A10.2's rules, not from `ref35.py` or `validate.py`,** so the K rows of step 6 compare two independent implementations.
+
+**The tables, as frozen, with three changes the rulings since have made:**
+1. **BF3, restated without changing its substance:**
+   - A10.11 wrote its expected value as `Code(5, false, kDim55)`. #488 (A10.16) deleted `kDim55` and the dim parameter.
+   - **BF3 expects `Code(5, false)`:** the radar's code 5, not the water. S-FOLD's set stays {BF3}.
+2. **PK gains A12.15's two cases**, so PK is **30** and the total **84**:
+
+   | case | fixture | expected |
+   |---|---|---|
+   | PK-terraincount | `neg-terrain-count`: `syn-min` with its TERRAIN directory count 2 | `kTerrainCount` |
+   | PK-provcount | `neg-prov-count`: `syn-min` with its PROVENANCE count 3 (2 lines) | `kProvenanceCount` |
+
+   - **The order:** the two checks come at the end of each section's own checks, as A12.15 pinned them. TERRAIN's comes after `kTerrainLength` and `kReserved`. PROVENANCE's counts its lines: 0 for an empty body, else the number of `\n` + 1.
+3. **The sabotages gain the device reader's own two**, so there are **14**:
+
+   | sabotage | the plant | fails exactly |
+   |---|---|---|
+   | S-TCOUNT | `BasemapPackage.h`'s TERRAIN count check removed | {PK-terraincount} |
+   | S-PCOUNT | its PROVENANCE count check removed | {PK-provcount} |
+
+**Everything else in A10.11 stands as frozen:**
+- TX1-TX5's doubles;
+- TR1-TR4 with TR3c's control;
+- FL1-FL6;
+- LN1-LN9 on `syn-order`;
+- BF1-BF9 (BF3 restated above);
+- BK1-BK7;
+- PE1-PE8b;
+- the 12 sabotages' sets.
+
+**Predicted, for the run before the PR:**
+
+| row | expected |
+|---|---|
+| `test_wx_basemap` | **84 passed, 0 failed**, under MinGW g++ 5.1 and under g++ 13.3 |
+| every other host suite | unchanged: each 3.5a suite's count as on main, and ALL HOST TESTS PASSED under MinGW. g++ 13.3 shows only the rig's two (no xtensa; no Pillow at R0/R0b) |
+| `sabotage_wx_basemap.py` | **14 of 14 fail exactly their sets.** Each plant is proven applied (its needle exactly once, the file changed) and restored from a byte copy with a sha check |
+| `validate.py`, A12.15's rows | `neg-terrain-count` → `kTerrainCount`; `neg-prov-count` → `kProvenanceCount`; the 28 existing fixtures' verdicts unchanged; `bend.bmpk` `kOk` |
+| `synth.py --check` | the 28 existing blobs byte-identical; the 2 new ones regenerate identically |
+| `validate.py`'s two sabotages | S-TCOUNT and S-PCOUNT each change exactly their fixture's verdict, to `kOk` |
+| the firmware | **`weatherscope-s3-128` builds**, flash **1,624,855-1,632,855 B** and RAM **59,024-59,224 B**, against main's anchor (1,628,855 B and 59,024 B, A12.25) |
+
+**Why that band, with the tables priced:**
+- **Only the fold reaches the firmware.** `DrawMap` gains its image branch, and `DrawInvariant` its peak path, both reached with no image or peaks until step 7. That is why flash moves a few hundred bytes either way, not zero.
+- **Every table this step keeps is `const`,** so in flash, not RAM:
+  - the peak glyph's bitmap, about 20 points;
+  - the 41-entry index palette, 123 B.
+- **No buffer is allocated in step 5,** so the PSRAM rows (with `heap_caps_get_allocated_size()` per block) start at step 7.
+
+**Outside any row: stop and report.**
