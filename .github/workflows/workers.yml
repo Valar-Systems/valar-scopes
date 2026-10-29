@@ -94,6 +94,12 @@ jobs:
       - name: The locate page sends no request carrying the position
         if: matrix.worker == 'proxy'
         run: node scripts/check-locate-page.mjs
+
+      # smoke-prod.sh's opuk covered-share verdict (docs/wx-opuk.md, K9): nine canned /healthz bodies, the whole
+      # verdict list compared, and a sabotage (the zero test dropped) that must turn exactly the share-0 case.
+      - name: smoke's opuk covered-share verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/wx-opuk-verdict.selftest.sh
       # The firmware's host test parses this fixture with CoordParse; it must be what
       # the helper's formatCoord actually emits, or that test grades a stale contract.
       - name: The locate-format fixture matches the helper's formatter

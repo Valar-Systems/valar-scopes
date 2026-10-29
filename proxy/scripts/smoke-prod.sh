@@ -302,6 +302,15 @@ else
   fail=$((fail+1))
 fi
 
+# opuk's covered share (docs/wx-opuk.md, K9): read from the /healthz body fetched above. A frame whose share is 0
+# or missing means the UK is served "no coverage" everywhere, which a 200 crop would never show. The verdict and
+# its cases live in wx-opuk-verdict.sh, graded by wx-opuk-verdict.selftest.sh in CI.
+printf '\n===== /healthz wx.opuk covered share =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-opuk-verdict.sh"
+OPUK_VERDICT="$(wx_opuk_verdict "$HEALTH_BODY")"
+printf 'RESULT: %s\n' "$OPUK_VERDICT"
+case "$OPUK_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+
 # Weather (docs/wx-server.md). Until Daniel binds a WX bucket the route is deliberately inert, and the ONLY
 # passing answers are: 503 not_configured (not wired yet), or 200 with a WXC1 crop and an ETag (wired). A
 # 404 means the deployed Worker has no /wx route; a 503 wx_stale means it is wired and the ingest is not
