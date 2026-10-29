@@ -2627,3 +2627,68 @@ The reviewer's ruling and its two additions follow in the next section.
 3. `replay_read.py`'s missing touch check, inside the arms.
 4. Look 3's retirement. It was queued after the captures; Daniel's look found no difference, which supports it, but its
    order was "after the captures".
+
+## The look as a shipping setting, look A by default (Daniel's decision; reviewer chat, 2026-10-29): frozen before its code
+
+**The ruling,** with its source:
+- Daniel decided: "we can leave the look option for the user on the config page", with "A default".
+- The reviewer's reply: yes, written up after the replay window with frozen predictions, with two additions.
+  1. The shipping select names each look by what it does. The stored values stay "A" and "B", so nothing migrates.
+     Daniel's wording: **A "Brighter rain, outlined planes"**, **B "Fainter rain, no outlines"**.
+  2. A row for look A at the device's maximum contact count: the outline's measured 0.16 ms per contact per frame,
+     times that maximum, held against B1′'s bar. Look A is now every shipping device's default.
+- Everything else stands as listed:
+  - the legend follows the setting;
+  - "Sweep over weather (bench)" stays bench-only;
+  - look 3 retires after the captures;
+  - the bench strings stay out of the shipping image.
+
+**The code.**
+- **`include/WxLookSelectHtml.h`** (new, pure C++11, like `WxLegendHtml.h`): the select's HTML for a stored value, the
+  two options in the order A, B, with Daniel's labels.
+- **`wxs2::LookFromStored(s)`:** the one rule for the stored value. `"B"` is look B, and anything else, absence included,
+  is look A.
+- **The Weather section** in shipping cloud builds carries the select beside the layer checkbox, as "Weather look".
+- **The save handler** saves `wx-look` in shipping builds.
+- **`Initialise()`** reads it through `LookFromStored` in shipping builds.
+- **The bench flag keeps** only "Sweep over weather (bench)", its save and its read.
+
+**Why no migration is needed, from the source:** at `aa38f2a` the save handler stores `wx-look` only under
+`WX_LOOK_AB`. So no shipping image has ever written the key, and look A, the default, reaches every shipping device.
+
+| | check | predicted |
+|---|---|---|
+| **K1** | host, `test_wx_look_select.cpp`: the select's HTML for "", "A", "B" and "x" | exactly two options, values `A` and `B`, labels **exactly** "Brighter rain, outlined planes" and "Fainter rain, no outlines". `A` is selected for "", "A" and "x"; `B` for "B" only. No `%` |
+| **K2** | host: `LookFromStored` | "" → A, "A" → A, "B" → B, "b" → A, "x" → A |
+| **K3** | `check_wx_wiring.py` (extended) | the page's default and `Initialise()`'s rule agree: absent means look A. The control: the existing `wx-layer` row still passes |
+| **K4** | the ELFs | the shipping `blipscope-s3-128` holds both labels and **none** of `Sweep over weather (bench)`, `Weather look (bench)`, `[health] sweepscan=`, `[health] outline=`, `[bench] scan0=`, `[bench] layer copy:`. `wxlook` holds the labels **and** the bench strings, the positive control |
+| **K5** | the board, E2:08 on the shipping env, app-only | the page's Weather section shows the select with A selected. `cfg_post --select wx-look B`: VERIFIED. The legend then serves look B (`check-wx-legend`, 0 off), and a `[wx] layer rebuilt … (look B)` line follows. Back to A likewise |
+| **K6** | **look A at the contact cap** (the reviewer's addition) | see below |
+| **S-label** | a label one character off | K1 **red** |
+| **S-default** | absence read as B | K2 **red**, and K3 **red** |
+
+**K6, look A at the contact cap, worked from the records before any code.**
+- **The cap:** `MAX_AIRCRAFT = 60`. The cloud feed asks for at most 40 (`BLIPS_LIMIT`), but retained contacts carry the
+  tracked count past it: W5″'s windows read n = 40-43 this morning.
+- **The model:** B1′'s model, read off the fix run's own lines, is **35.9 + 0.800 n ms**, fitted over n = 0-40 only.
+- **Look A's margin:** in the fix run's A window, look A sat at **−0.6 ms** from the model, at a median of 34 contacts.
+  Look A's outline adds **0.1625 ms per contact**, measured; the layer and the sweep do not grow with n.
+
+| n | the model | look A's residual | B1′'s bar (model + 10) | look A's p95 | the absolute ceiling, 85 ms |
+|---|---|---|---|---|---|
+| 40 | 67.9 | +0.4 | **holds** | 68.3 | holds |
+| 60 | 83.9 | **+3.6** | **holds** | **87.5** | **broken, by about 2.5 ms** |
+
+- **B1′'s model + 10 bar holds at the cap.** But the firmware has a second, model-independent gate, `FRAME_P95_CEILING_MS
+  = 85`, and **look A at 60 contacts crosses it by this arithmetic.** It would print `[health] BUDGET BROKEN: frame p95 …
+  > absolute ceiling 85ms`, and F9 counted every `BUDGET BROKEN` line.
+- **Look B at 60:** about 77.8 ms, which holds. **The layer off at 60:** about 72.6 ms.
+- **The limits of this, stated:**
+  - it is an extrapolation past the model's fitted range (40) and past any measured n (43);
+  - it assumes nothing else in look A grows with n.
+- **A measured check needs a sky that fills the cap.** That is a live dense area, or a recorded local feed replayed in
+  local mode. It is proposed here, not run.
+- **For the ruling, not decided here:** whether look A stays the default with this known breach at the cap, or the
+  outline is capped by n, or the ceiling stands as the bar.
+
+**The order, once ruled:** the code, then K1-K4 locally, CI, and K5 on E2:08 in an announced window.
