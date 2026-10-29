@@ -124,3 +124,55 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 | **D0's rollback** | §9's rules | any fleet 5xx, 401 or 403 in [T, T + 15 min) → roll back to the version recorded before the deploy |
 
 **Anything outside these rows:** stop and report, with no fix until a ruling.
+
+## The D0 + D2 PR, run: one row off-prediction (MW18's own control); stopped for a ruling (2026-10-29)
+
+**Where it ran:**
+- The code is `296a05d`, rebased onto main after #486 merged (`ca30b88`).
+- The worktree's files the harness reads are LF (checked: 0 with a CR).
+
+**Two changes to tests, made before any run and outside what the rows above say:**
+- **MW15's stub builder now sends a valid `x-basemap-commit`.** Without it, C4's commit check would answer `500` before `validate()` is reached. S-WNOVALIDATE would then stop reddening MW15: the new guard would be covering the old one's test.
+- **MW19's "nothing cached" is checked as `/healthz`'s `store` being null,** not the whole object. Its `commit` field is MH2's to test, so S-HMADEUP stays exactly {MH2}.
+
+| row | result |
+|---|---|
+| typechecks | **both exit 0** |
+| MH1, MH2, MH3 | **as predicted** |
+| MW19 | **as predicted** (and MW15 still passes) |
+| every other basemap row | **0 failing:** 139 passed, MD2 skipped as before |
+| the smoke selftest | **as predicted:** `PASS PASS FAIL FAIL FAIL FAIL FAIL`; under its sabotage exactly the kCrc case turns |
+| D2 dry runs | **as predicted:** each lists `env.STORE (blipscope-basemap) R2 Bucket`, and neither has a route. **The artifact:** both bundles hold `makeBuilder("UNSTAMPED")` as the default export, and no bare `BUILD_COMMIT` identifier (its one remaining mention is inside `build.ts`'s error string) |
+| C3's refusal | **as predicted:** `ALLOW_DIRTY=1 deploy.sh --builder staging`, with an untracked file planted in `proxy/src/`, refused with exit 1 and no wrangler output at all. The plant was removed; the tree is clean |
+| **MW18** | **OFF-PREDICTION:** it fails |
+| the full pass | **not run.** Its baseline needs MW18 green |
+
+**MW18's cause:** its own **control**.
+- **What the control does:** it runs the stamped builder (`makeBuilder(COMMIT)`) over MW's synthetic store first, to show the four requests get past the stamp.
+- **Why it threw:** the first request asked for every layer (mask 63). MW's store holds only water and roads, so `build()` threw `layer rivers read with no files`.
+- **What it means:** the test stopped there. **The refusal it exists for never ran.**
+
+**The alternative, and why the data excludes it:** that the default export is stamped in the test build, so it built instead of refusing.
+- **`buildstamp.test.ts` passes on this tree.** It asserts `BUILD_COMMIT` is `"UNSTAMPED"` under test.
+- **The bundle agrees:** the dry-run bundle's default export is `makeBuilder("UNSTAMPED")`.
+- **So the throw can only be the stamped control's.**
+
+**Found on the way, not a defect in production:**
+- **What `build()` does:** it **throws** (it does not return a status) when a requested layer has no source files among the regions the square meets.
+- **Why production cannot reach it:** on the sealed store, 3,144 county regions carry water and rivers and 51 state regions carry roads and peaks; places do not come through regions. A covered origin always meets its own county's and state's regions, and MS0's 31 cells all built with every vector layer requested.
+- **So only a synthetic store can reach it.** On record; no change proposed.
+
+**Proposed fix** (committed locally, **not pushed** until a ruling):
+- **The change:** MW18's four requests keep §5.4's four shapes (r97 with terrain, r97, r161, r222) but ask only for the layers MW's store holds.
+  - Mask 5 (water, roads) for r97, r161 and r222.
+  - Mask 37 (water, roads, terrain) with the three levels for r97 with terrain. With no terrain tiles, that build returns `503` at the missing tile; it does not throw.
+- **Nothing else changes.**
+
+**Frozen predictions for the fix, if ruled:**
+
+| row | predicted |
+|---|---|
+| MW18 | **passes.** The stamped control reads the store on each of the four shapes; the default export answers all four `503 builder_unstamped` with **0 store reads** |
+| S-WSTAMP | **exactly {MW18}** |
+| the full pass | **50 of 50 AS PREDICTED** (the 46, then S-WSTAMP {MW18}, S-WNOCOMMIT {MW19}, S-HMADEUP {MH2} and S-HNOCACHE {MH3}). C-LOADFAIL AS PREDICTED; baselines ingest 10 in 1, mv 31 in 1, all 137 in 17; 0 runtime failures |
+| CI on the PR's head | every check finished, none failing |
