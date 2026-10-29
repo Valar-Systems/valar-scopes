@@ -28,7 +28,9 @@ export default defineWorkersConfig({
           bindings: {
             BLIP_KEYS: "test-key",
             UPSTREAM_TIMEOUT_MS: "300",
-            UPSTREAM_RETRY_DELAY_MS: "10"
+            UPSTREAM_RETRY_DELAY_MS: "10",
+            // MD2 only (scripts/basemap-md2.ts): the Node half's sha256 list; empty, and MD2 skipped, in every other run
+            MD2_NODE_SHAS: process.env.MD2_NODE_SHAS ?? ""
           }
         }
       }

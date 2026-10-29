@@ -22,6 +22,10 @@ const LAYERS = "src/basemap/layers.ts";
 const TERRAIN = "src/basemap/terrain.ts";
 const BUDGET = "src/basemap/budget.ts";
 const QUERY = "src/basemap/query.ts";
+const HANDLER = "src/basemap/handler.ts";
+const BUILD = "src/basemap/build.ts";
+const WORKER = "src/basemap/worker.ts";
+const ATTRIBUTION = "../docs/basemap-attribution.md";
 // Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
 // clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
 // "all" is a path filter, not a list, so a basemap test file added later is graded without anyone remembering to.
@@ -249,6 +253,46 @@ const SABOTAGES = {
     file: QUERY, set: "all",
     edits: [["    levels.sort((a, b) => a.radiusMm - b.radiusMm);\n", "    // SABOTAGE S-QSORT: the levels left as sent\n"]],
     expect: ["MQ8"],
+  },
+  // A1.7's MW sabotages, and the MP and MA1 controls with the exact sets registered in A2.31.
+  "S-WNOVALIDATE": {
+    file: HANDLER, set: "all",
+    edits: [['  if (!/^[0-9a-f]{12}$/.test(storeId) || validate(bytes).status !== "kOk") return errorResponse(500, "builder_invalid");\n',
+             '  if (!/^[0-9a-f]{12}$/.test(storeId)) return errorResponse(500, "builder_invalid"); void validate; // SABOTAGE S-WNOVALIDATE\n']],
+    expect: ["MW15"],
+  },
+  "S-W304LATE": {
+    file: HANDLER, set: "all",
+    edits: [['    if (inm === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } });\n    const hit = await cache.match(cacheKey(etag));\n',
+             '    const hit = await cache.match(cacheKey(etag)); // SABOTAGE S-W304LATE: no comparison before the builder\n']],
+    expect: ["MW10"],
+  },
+  "S-WNOSTORECHECK": {
+    file: BUILD, set: "all",
+    edits: [['  if (hex(await crypto.subtle.digest("SHA-256", manifestBytes)).slice(0, 12) !== storeId) return unavailable("the manifest does not hash to current\'s store id");\n',
+             '  void hex; // SABOTAGE S-WNOSTORECHECK: the store-id guard skipped\n']],
+    expect: ["MW17"],
+  },
+  "S-PLOG": {
+    file: HANDLER, set: "all",
+    edits: [["  const q: Query = p.q;\n", "  const q: Query = p.q;\n  console.log(q.lat2); // SABOTAGE S-PLOG\n"]],
+    expect: ["MP1"],
+  },
+  "S-PWRITE": {
+    file: WORKER, set: "all",
+    edits: [["    const r = await build(r2Reader(env.STORE), q, { commit });\n", "    await env.STORE.put(\"sabotage\", \"x\"); // SABOTAGE S-PWRITE\n    const r = await build(r2Reader(env.STORE), q, { commit });\n"]],
+    expect: ["MP2"],
+  },
+  "S-PETAG": {
+    file: QUERY, set: "all",
+    edits: [["  return `\"bm1-${rev}-${storeId}-${await queryDigest(q)}\"`;\n", "  return `\"bm1-${rev}-${storeId}-${await queryDigest(q)}-${q.lat2}\"`; // SABOTAGE S-PETAG\n"]],
+    expect: ["MP3", "MQ10", "MW9"],
+  },
+  "S-ANOTICE": {
+    file: ATTRIBUTION, set: "all",
+    edits: [["  - **SRTM's notice**, from SRTM's specification §3.15 b as joerd quotes it, with the year of production inserted: \"© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.\"\n",
+             "  - SABOTAGE S-ANOTICE: the notice deleted\n"]],
+    expect: ["MA1"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {

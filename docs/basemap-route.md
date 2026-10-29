@@ -2264,3 +2264,20 @@ What follows from that, set by set:
 | reads | about 14,600 Class B (one verify of 11,039, then the repaired ones), against the free 10M |
 | projected account overage | **$0** |
 | time, at 3 calls a second | about 1 h 40 min |
+
+### A2.34 The route's sabotages, graded (2026-10-29)
+
+Each was graded against all 15 basemap test files (129 cases), with a clean baseline each time:
+
+| sabotage | result |
+|---|---|
+| S-WNOVALIDATE | **{MW15}**, as registered |
+| S-W304LATE | **{MW10}**, as registered |
+| S-WNOSTORECHECK | **{MW17}**, as registered |
+| S-PLOG | **{MP1}**, as registered |
+| S-PWRITE | **{MP2}**, as registered |
+| S-PETAG | **{MP3, MQ10, MW9}**, as registered |
+| S-ANOTICE | **{MA1}**, as registered |
+
+- **0 runtime failures** in 14 runs.
+- **Every planted file was restored.** The tree's only changes afterwards were the cache fix (A2.32) and MD2's pool binding, and no `SABOTAGE` text remains in the source or the attribution file.

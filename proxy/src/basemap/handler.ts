@@ -26,6 +26,10 @@ export const resetBasemapIsolate = () => { known = null; };
 
 const cacheKey = (etag: string) => `https://basemap-cache.internal/${etag.replace(/"/g, "")}`;
 const packageHeaders = (etag: string) => ({ "content-type": "application/octet-stream", "cache-control": "no-cache", etag });
+// The copy kept in the Cache API must be CACHEABLE: the Cache API does not keep a response marked no-cache (MW11 found
+// this). The key holds rev and the store id, so an entry never outlives the store it was built from.
+const CACHE_TTL_S = 7 * 24 * 3600;
+const storedHeaders = (etag: string) => ({ "content-type": "application/octet-stream", "cache-control": `max-age=${CACHE_TTL_S}`, etag });
 
 export async function handleBasemap(request: Request, env: BasemapEnv, ctx: ExecutionContext): Promise<Response> {
   if (!env.BASEMAP) return errorResponse(503, "not_configured");
@@ -60,7 +64,7 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
   if (!/^[0-9a-f]{12}$/.test(storeId) || validate(bytes).status !== "kOk") return errorResponse(500, "builder_invalid");
   learnStore(storeId, Date.now());
   const etag = await etagOf(q, BASEMAP_REV, storeId);
-  ctx.waitUntil(cache.put(cacheKey(etag), new Response(bytes, { headers: packageHeaders(etag) })));
+  ctx.waitUntil(cache.put(cacheKey(etag), new Response(bytes, { headers: storedHeaders(etag) })));
   if (inm === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } });
   return new Response(bytes, { status: 200, headers: packageHeaders(etag) });
 }
