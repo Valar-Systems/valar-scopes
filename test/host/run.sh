@@ -1142,6 +1142,19 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# K12 (docs/wx-opuk.md): the same decoder against the opuk crops -- eight UK airports over a REAL frame, served by
+# /wx/cref's dispatch (test/fixtures/wx/opuk/, written by the same generator; workers.yml fails if stale).
+# Its sabotage: python -I test/host/sabotage_wx_server_crops.py opuk man-161km.wxc
+echo
+echo "== WX opuk crops (K12) =="
+"$OUT/test_wx_server_crops.exe" "$ROOT/test/fixtures/wx/opuk"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the WX opuk crop test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # Weatherscope's legend layout (src/weatherscope/WxLegend.h) against the round-screen rules (addendum 8: G1-G4).
 # Its sabotages: python -I test/host/sabotage_wx_legend.py. The board's pixels: test/fixtures/wx/legend_check.py.
 echo
