@@ -2544,3 +2544,51 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - **Its control, if added:** a fixture-only PR shows a `workers` run. That can only be observed on such a PR.
 
 **Next:** #486 is marked ready for review. After an "approved to merge at <SHA>", the merge, then D2 to D4 as planned. `wx-ingest` is not deployed from main until R3 is ruled.
+
+### A2.44 Rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-29)
+
+> Map server: from the reviewer chat, 2026-10-29
+>
+> #486 at 8c74cd7: not approved yet. It and Weatherscope's #501 break each other's tests once both are on main, so the order is fixed: #501 merges first, and #486 adapts.
+> - #501 adds two negative fixtures, neg-terrain-count.bmpk and neg-prov-count.bmpk (A12.15: the counts your session found unchecked). With them on disk, basemap-format.test.ts fails at load. Its name regex, /neg-([A-Za-z0-9]+)\.bmpk$/, doesn't match a hyphenated name, so exec returns null and the non-null assertion throws. And MV's binding expects exactly the 25.
+> - What #486 needs, predictions first:
+>   1. format.ts gains A12.15's two checks in §8's order, with their statuses. TERRAIN: after kTerrainLength and kReserved, a count other than 1 → kTerrainCount. PROVENANCE: its lines are 0 for an empty body, else the number of \n + 1; a count other than that → kProvenanceCount. "Validate before serving" then refuses what the device would.
+>   2. MV binds 27: the two new PK cases, with a name regex that accepts hyphens.
+>   3. Two sabotages, each removing one check and reddening exactly its PK row.
+>   4. The workers job's trigger gains test/fixtures/wx/basemap/** and tools/weatherscope/basemap/**, in #486, so a fixture-only change runs MV, ME1b and MG1.
+> - Then merge main (with #501), push, count CI on the new head, and I approve at it. Until #501 lands, write 1-4 against its branch's two fixtures; nothing waits on me for you to start.
+> - Everything else since the last rulings reads well and stands: the 60 s store id, per-call logs, forbidden.py with PHTO, MC1-MC4 and their sabotages (S-BBOX through EGLL too, because of the antimeridian: noted), MD3 and its control, 44 of 44, and main merged in.
+> - D2-D4 after the merge, as you list them. wx-ingest stays undeployed until R3.
+
+**A correction to A2.43.** I wrote that the glob "would grade them automatically if the job ran". It would not have. With a hyphenated name, the regex returns null and `basemap-format.test.ts` fails at load. The sentence stays above, as written.
+
+### A2.45 Predictions for A2.44's items 1-4, frozen before any of their code (2026-10-29)
+
+**The fixtures:** #501's two, from its branch at `08f54aa00056`. Both are 274 B:
+- `neg-terrain-count.bmpk`, sha256 `20704621062c…`: syn-min with TERRAIN's count 2;
+- `neg-prov-count.bmpk`, sha256 `e2f9b9858ea2…`: syn-min with PROVENANCE's count 3 against its 2 lines.
+
+**The rule** is the same in #501's reference validator (`validate.py`) and its C++ reader (`BasemapPackage.h`):
+- **TERRAIN:** kTerrainLength, then TERRAIN's reserved (kReserved), then **a count other than 1 → kTerrainCount**.
+- **PROVENANCE:** lines are 0 for an empty body, else the number of `\n` + 1; **a count other than that → kProvenanceCount**.
+
+**Until #501 is on main,** these fixtures sit in my worktree untracked, byte for byte from its branch. The code commits go to a side branch, `feat/basemap-route-a1215`, not to #486, so #486's head does not turn red on the control below. After #501 merges: main is merged in, the side branch's commits come with it, and everything is pushed to #486 together.
+
+| row | what is run | predicted |
+|---|---|---|
+| **F0**, the reproduction | HEAD's unchanged test, with the two fixtures on disk | `basemap-format.test.ts` **fails at load** (a TypeError, from the regex's null); the harness's `mv` baseline reads **BLIND** |
+| **F1** | `format.ts`: `Status` gains `kTerrainCount` and `kProvenanceCount`; the two checks in the order above; the header comment says both counts are checked | read in the diff |
+| **MV**, with the fixtures | `-t MV` | **31 cases, 0 failing**, including MV/PK-terrain-count (kTerrainCount), MV/PK-prov-count (kProvenanceCount) and the binding (27 on disk equal the 27 PK cases) |
+| **MV's control**, without the fixtures (#486's head before #501) | `-t MV` | exactly **{MV binding, MV/PK-prov-count, MV/PK-terrain-count}** fail |
+| **S-VTERRCOUNT** | the `count !== 1` check removed; graded in the `all` set (every basemap file) | exactly **{MV/PK-terrain-count}** |
+| **S-VPROVCOUNT** | the PROVENANCE comparison removed; graded in the `all` set | exactly **{MV/PK-prov-count}** |
+| **The A2.16 re-check** | every frozen sabotage set against the new rows | all 44 sets **unchanged**. No sabotage alters PROVENANCE's line structure or TERRAIN's count: S-MREV changes text within a line; S-ANOTICE edits the attribution doc, not a package. S-VCRC and S-VSWAP leave both new checks in place, and the new fixtures are contiguous with valid CRCs. **C-LOADFAIL:** BLIND, 56 not run |
+| **Baselines** | the harness | ingest 10 cases in 1 file; **mv 31 in 1; all 132 in 16**; 0 failing each |
+| **Builder output unchanged** | MD4, MG0, MG0b, MV/PK-bend, MD3 | MD4 passes (rev 1, its three shas); MG0 and MG0b pass; bend.bmpk **kOk**; MD3a-d exit **0, 1, 2, 1**. The encoder is untouched, and every PROVENANCE line the builder writes is a fixed string, a hex value, a number or a URL, so none holds a `\n` |
+| **The real store** | `basemap-grade-store.ts` on the sealed store | **31 of 31 as frozen, exit 0.** It decodes every package it builds (`decode` = `validate`), so this shows each real package passes the new checks |
+| **The store grader's control, C-STOREPROV** | `provenance.ts`'s count planted as `out.length + 1`, then restored by bytes | the grader **stops at its first cell with `refused: kProvenanceCount`**, non-zero exit |
+| **ME1b with #501's `synth.py`** | after the main merge | **passes:** #501 changes `build()`'s neg entries only, not `sections()` or the data lines ME1b reads |
+| **`workers.yml`** | both paths added to `push` and `pull_request` | read in the diff. **The observation** (a fixture-only PR shows a `workers` run) is possible only on such a PR, not in #486 |
+| **After the merge with #501** | the full sabotage pass, then CI on the new head | **46 of 46** as predicted, C-LOADFAIL as predicted, 0 runtime failures; CI: every check finished, none failing |
+
+**Anything outside these rows:** stop and report, with no fix until a ruling.
