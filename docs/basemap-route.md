@@ -2650,8 +2650,8 @@ The pass ran on `264a087` with the fixtures on disk. Its source under `proxy/` i
 > A replay window is running on E2:08 until 12:28 PM PDT (19:28Z). Until then: no production deploy (D4) and no smoke-prod.sh run. The replay's server-side reads count E2:08's /blips, and a deploy would change production under it. D2 (the builder Worker) and D3 (staging) may go ahead. D4 and its smoke-prod run after 19:28Z.
 
 **How I read it, and a correction to my own list:**
-- **The window does not change the order** in §10: "Each stage is reviewed and merged before it deploys." D2 and D3 deploy code that is not yet merged, and #486 waits on the A2.46 ruling. So nothing deploys yet, inside the window or out of it.
+- **The window does not change the order** in §9: "Each stage is reviewed and merged before it deploys." D2 and D3 deploy code that is not yet merged, and #486 waits on the A2.46 ruling. So nothing deploys yet, inside the window or out of it.
 - **The deploy list in my last report left out D0:** the proxy, with the route and no `BASEMAP` binding, deployed to **production**. D0 changes production as D4 does, so **I treat D0 as inside the window too**, with its `smoke-prod.sh` check: not before 19:28Z.
 - **D0's own pieces are not in #486.**
   - **The plan's D0 row requires** `/healthz` to gain `basemap: "not_configured"`, and `smoke-prod.sh` to gain a `/basemap` check (exactly `503 not_configured`, or `200` with BMPK magic, an ETag and `validate()` → kOk; anything else FAIL).
-  - **Neither exists yet.** They go in their own PR, as §10 says each stage's predictions do, after #486.
+  - **Neither exists yet.** They go in their own PR, as §9 says each stage's predictions do, after #486.
