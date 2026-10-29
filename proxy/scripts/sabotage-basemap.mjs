@@ -20,6 +20,7 @@ const FORMAT = "src/basemap/format.ts";
 const FRAME = "src/basemap/frame.ts";
 const LAYERS = "src/basemap/layers.ts";
 const TERRAIN = "src/basemap/terrain.ts";
+const BUDGET = "src/basemap/budget.ts";
 // Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
 // clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
 // "all" is a path filter, not a list, so a basemap test file added later is graded without anyone remembering to.
@@ -184,6 +185,51 @@ const SABOTAGES = {
     edits: [["export const mppOf = (lat0: number) => 156543.03 * Math.cos(lat0 * PI / 180) / 2 ** 9;\n",
              "export const mppOf = (lat0: number) => 156543.03 / 2 ** 9 + 0 * lat0; // SABOTAGE S-TCOS\n"]],
     expect: ["MT2e"],
+  },
+  // A1.7's MB sabotages, and S-TNOMARGIN as re-registered by ruling (A2.19): graded with build.ts (A2.26).
+  "S-BTWICE": {
+    file: BUDGET, set: "all",
+    edits: [["export const EPS_STEP = 2;\n", "export const EPS_STEP = 4; // SABOTAGE S-BTWICE\n"]],
+    expect: ["MB2", "MB3", "MB5", "MB6", "MB7", "MB8b"],
+  },
+  "S-DROPORDER": {
+    file: BUDGET, set: "all",
+    edits: [["  for (const i of dropOrder(rings.map(ringArea2))) {\n", "  for (const i of dropOrder(rings.map((r) => -ringArea2(r)))) { // SABOTAGE S-DROPORDER: largest first\n"]],
+    expect: ["MB2", "MB7", "MB8b"],
+  },
+  "S-NOCOUNT": {
+    file: BUDGET, set: "all",
+    edits: [["    d.water++;\n", "    // SABOTAGE S-NOCOUNT: dropped.water not incremented\n"]],
+    expect: ["MB2", "MB3", "MB5", "MB7", "MB8b"],
+  },
+  "S-ROADORDER": {
+    file: BUDGET, set: "all",
+    edits: [["  for (const k of dropOrder(secondary.map((i) => roadLength(roads[i]!.pts)))) {\n", "  for (const k of dropOrder(secondary.map((i) => -roadLength(roads[i]!.pts)))) { // SABOTAGE S-ROADORDER: longest first\n"]],
+    expect: ["MB3"],
+  },
+  "S-PRIMARYDROP": {
+    file: BUDGET, set: "all",
+    edits: [["  return null;\n", "  // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries\n" +
+      "  const prim = roads.map((r, i) => [r, i] as const).filter(([r]) => r.cls === 1).map(([, i]) => i);\n" +
+      "  for (const k of dropOrder(prim.map((i) => roadLength(roads[i]!.pts)))) {\n" +
+      "    goneR.add(prim[k]!); d.roads++;\n" +
+      "    content = { ...content, roads: roads.filter((_, i) => !goneR.has(i)) };\n" +
+      "    s = fits(content, tol);\n" +
+      "    if (s) return { content, toleranceMm: tol, dropped: d, sections: s };\n" +
+      "  }\n" +
+      "  return null;\n"]],
+    expect: ["MB4"],
+  },
+  "S-TERRCAP": {
+    file: BUDGET, set: "all",
+    edits: [["  for (const s of sections) if (s.type !== TYPE.TERRAIN) n += sectionSize(s);\n", "  for (const s of sections) n += sectionSize(s); // SABOTAGE S-TERRCAP: the TERRAIN body counted\n"]],
+    expect: ["MB8a", "MB8b"],
+  },
+  "S-TNOMARGIN": {
+    file: TERRAIN, set: "all",
+    edits: [["  return [Math.floor(x0 / 256) - 1, Math.floor(y0 / 256) - 1, Math.floor(x1 / 256) + 1, Math.floor(y1 / 256) + 1];\n",
+             "  return [Math.floor(x0 / 256), Math.floor(y0 / 256), Math.floor(x1 / 256), Math.floor(y1 / 256)]; // SABOTAGE S-TNOMARGIN\n"]],
+    expect: ["MT3b", "MB8a", "MB8b"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {

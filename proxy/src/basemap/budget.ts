@@ -11,6 +11,8 @@ import { type Section, TYPE, sectionSize } from "./format";
 import { type Pt, planarDist } from "./frame";
 
 export const CAP_BYTES = 32 * 1024;
+/** §6 step 1's factor, ONE constant: the builder pre-computes its second ε with it, and the header records it (RD13). */
+export const EPS_STEP = 2;
 const HEADER = 32, ENTRY = 16;
 
 /** RD20: what the cap measures, totalBytes minus the TERRAIN sections' bodies. Their directory entries count. */
@@ -57,7 +59,7 @@ export function fitBudget<C extends Droppable>(
   let s = fits(content, toleranceMm);
   if (s) return { content, toleranceMm, dropped: d, sections: s };
 
-  const tol = toleranceMm * 2; // §6 step 1: once (RD13: the header holds the ε used)
+  const tol = toleranceMm * EPS_STEP; // §6 step 1: once (RD13: the header holds the ε used)
   content = make(tol);
   s = fits(content, tol);
   if (s) return { content, toleranceMm: tol, dropped: d, sections: s };

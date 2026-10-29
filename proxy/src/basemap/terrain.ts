@@ -1,9 +1,9 @@
 // Terrain (docs/basemap-package-format.md §4, §5.4, §5.6; §13's RD10, RD16, RD21, RD27, RD28). Pure, double throughout.
 //
-// The hillshade and the 4 x 4 mean are computed per pixel, by shadeAt and meanAt, and only over the region a level
-// samples (plus the mean's reach). The full-array forms (hillshade, boxMean4) are the same functions over a whole
-// grid, so the MT rows test the code the builder runs. A whole mosaic's arrays would cost ~100 MB at the largest
-// level; the region costs a few MB. Each pixel's arithmetic is the reference's, aligned as bendmock.py aligns it.
+// The hillshade and the 4 x 4 mean are computed per pixel, by shadeAt and meanAt, and only for the 16 pixels each
+// level sample reads. The full-array forms (hillshade, boxMean4) are the same functions over a whole grid, so the MT
+// rows test the code the builder runs. A whole mosaic's arrays would cost ~100 MB at the largest level; this costs
+// nothing but CPU. Each pixel's arithmetic is the reference's, aligned as bendmock.py aligns it.
 
 const PI = Math.PI;
 const ALT = 45 * PI / 180, AZ = 315 * PI / 180; // RD16
@@ -96,49 +96,43 @@ export interface Mosaic { tx0: number; ty0: number; tx1: number; ty1: number; rg
 
 /** A mosaic over decoded tiles; every tile of the rectangle must be present (a hole would be sampled as nothing). */
 export function mosaicOf(tiles: Map<string, Uint8Array>, tx0: number, ty0: number, tx1: number, ty1: number): Mosaic {
-  for (let x = tx0; x <= tx1; x++) for (let y = ty0; y <= ty1; y++) {
+  const tw = tx1 - tx0 + 1, grid: Uint8Array[] = [];
+  for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
     const t = tiles.get(`${x}/${y}`);
     if (!t || t.length !== 256 * 256 * 3) throw new Error(`terrain tile ${x}/${y} missing or not 256 x 256 RGB`);
+    grid.push(t);
   }
   return {
     tx0, ty0, tx1, ty1,
     rgb(X, Y) {
-      const t = tiles.get(`${X >> 8}/${Y >> 8}`);
-      if (!t || X >> 8 < tx0 || X >> 8 > tx1 || Y >> 8 < ty0 || Y >> 8 > ty1) throw new Error(`z9 pixel outside the mosaic`);
-      const o = ((Y & 255) * 256 + (X & 255)) * 3;
+      const tx = (X >> 8) - tx0, ty = (Y >> 8) - ty0;
+      if (tx < 0 || ty < 0 || tx >= tw || Y >> 8 > ty1) throw new Error("z9 pixel outside the mosaic");
+      const t = grid[ty * tw + tx]!, o = ((Y & 255) * 256 + (X & 255)) * 3;
       return [t[o]!, t[o + 1]!, t[o + 2]!];
     },
   };
 }
 
 /** RD10: a summit's elevation from the unsmoothed z9 pixel containing it. */
-export function summitElevation(m: Mosaic, lat: number, lon: number): number {
+export function summitElevation(m: Pick<Mosaic, "rgb">, lat: number, lon: number): number {
   const [X, Y] = z9Pixel(lat, lon);
   return elevationM(...m.rgb(X, Y));
 }
 
 /** §4, §5.6: one level's N x N shade bytes, row 0 north, each pixel the smoothed shade of the z9 pixel containing its
- *  centre. The shade is computed over the sampled region plus the mean's reach, with the MOSAIC's edges as the grid's. */
+ *  centre, with the MOSAIC's edges as the grid's. Each sample's 16 shades are computed on demand: the same shadeAt
+ *  and meanAt as the full-grid forms, with no region array (a 250 km level at 60 N would need ~85 MB of one). */
 export function terrainLevel(f: Origin, m: Mosaic, levelMm: number, n: number): Uint8Array {
   const W = (m.tx1 - m.tx0 + 1) * 256, H = (m.ty1 - m.ty0 + 1) * 256, ox = m.tx0 * 256, oy = m.ty0 * 256;
-  const sx = new Int32Array(n * n), sy = new Int32Array(n * n);
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const dem = (x: number, y: number) => decodeTerrarium(...m.rgb(x + ox, y + oy));
+  const mpp = mppOf(f.lat0);
+  const shade = (x: number, y: number) => shadeAt(dem, W, H, x, y, mpp);
+  const out = new Uint8Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const [X, Y] = levelPixelToZ9(f, levelMm, n, i, j);
     const lx = X - ox, ly = Y - oy;
     if (lx < 0 || ly < 0 || lx >= W || ly >= H) throw new Error("a level pixel falls outside its mosaic");
-    sx[j * n + i] = lx; sy[j * n + i] = ly;
-    if (lx < x0) x0 = lx; if (lx > x1) x1 = lx; if (ly < y0) y0 = ly; if (ly > y1) y1 = ly;
+    out[j * n + i] = shadeByte(meanAt(shade, W, H, lx, ly));
   }
-  // the mean at (x, y) reads the grid's [x-2, x+1] x [y-2, y+1], clamped
-  const rx0 = Math.max(0, x0 - 2), ry0 = Math.max(0, y0 - 2), rx1 = Math.min(W - 1, x1 + 1), ry1 = Math.min(H - 1, y1 + 1);
-  const rw = rx1 - rx0 + 1, rh = ry1 - ry0 + 1;
-  const dem = (x: number, y: number) => decodeTerrarium(...m.rgb(x + ox, y + oy));
-  const mpp = mppOf(f.lat0);
-  const shade = new Float64Array(rw * rh);
-  for (let y = ry0; y <= ry1; y++) for (let x = rx0; x <= rx1; x++) shade[(y - ry0) * rw + (x - rx0)] = shadeAt(dem, W, H, x, y, mpp);
-  const at = (x: number, y: number) => shade[(y - ry0) * rw + (x - rx0)]!;
-  const out = new Uint8Array(n * n);
-  for (let k = 0; k < n * n; k++) out[k] = shadeByte(meanAt(at, W, H, sx[k]!, sy[k]!));
   return out;
 }

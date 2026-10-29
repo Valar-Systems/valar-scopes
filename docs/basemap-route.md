@@ -1934,3 +1934,62 @@ It refuses a malformed commit or store id. It also refuses terrain files without
 **Two counties:** one of them far outside the square, so its files must **not** appear in PROVENANCE.
 
 **Smoke-run under Node** (the generator only, no builder): every fixture writes a store.
+
+### A2.26 `build.ts` written; MB, ME2, ME3, ME7 and MD1 run; the re-check before the pass (2026-10-29)
+
+**`proxy/src/basemap/build.ts`** builds one package from the store, through one `StoreReader` (MW counts its reads). It reads, in order and only as needed:
+- `current`;
+- the manifest, refused unless its sha256 begins with `current`'s id (MW17);
+- coverage, where the origin's bit decides `no_coverage` before any other read;
+- for vector layers, the index and the cells whose reach meets the square, one at a time, through `LayerSet` at ε and 2ε in the same pass;
+- when a tile is needed, the summits' tiles and the largest level's mosaic, each read once, then `terrain-sources.bin` for the credits.
+
+**What it decides:**
+- The files read follow RD-P6, through `index.json`'s regions. The tiles' files are matched by RD17's `/9/<x>/<y>.png` tail.
+- **A store that names something it does not hold answers `503 basemap_unavailable`,** never a partial package.
+- §6's loop runs through `budget.ts`, re-rendering PROVENANCE from digests computed once. `provenance.ts` gained a synchronous core for this, and `provenanceText` is its async wrapper, which MG0b still passes through.
+
+**Two refactors on the way, the rows re-run after each:**
+- **`terrainLevel` computes each sample's 16 shades on demand,** where it had shaded the region first. A 250 km level at 60° N would need about 85 MB of region. The arithmetic per pixel is unchanged. MT3, MT3b and MG0/MG0b re-ran as frozen.
+- **§6's factor is one constant, `EPS_STEP = 2`,** used by both `budget.ts` and `build.ts`'s second ε. Without it, S-BTWICE could not be planted faithfully.
+
+| row | result |
+|---|---|
+| MB1-MB8b | **as frozen**, every column |
+| ME3 | **as frozen:** q (32767, −32767) present; `kOk` |
+| ME7 | **as frozen:** types 1, 2, 3, 4, 5, 6, 6, 7; levels 1,000,000 then 2,000,000 mm |
+| ME2 | **as frozen:** 1,000 built, 0 too_large, 0 other answers, **0 validator refusals**, the largest PROVENANCE 2,281 B (≤ 3,072) |
+| MD1 | **as frozen:** 50 of 50 byte-identical |
+
+**MB3's test, as first written, could not see S-ROADORDER.** It checked the count (6) and the bytes (657). Every road in A encodes in 11 B, so dropping the 6 km secondary instead of the 3 km one gives the same 6 and 657. It now also asserts which six remain, by their quantised end points, written out.
+
+**ME2 ran into the test pool, not the builder.**
+- **What happened:** with all 1,000 builds in one test, the loop finished and every reading was clean (1,000 built, 0 refusals). Then workerd reported `Network connection lost` as an uncaught rejection, and the test failed. That happened three times out of three.
+- **The measurements:**
+  - 300 builds pass (3.4 s) and 600 fail;
+  - without its `console.log` it still fails;
+  - **with a yield to the event loop after each build, 1,000 pass** (12 s).
+- **The reading:** one test that keeps the isolate off the event loop for several seconds loses the pool's connection.
+- **The alternative, named:** something accumulating per build that a yield lets workerd clean up. **Not excluded.** Production builds one package per request, so neither shape can arise there.
+- **ME2 and MD1 yield after each build.**
+
+**The re-check the standing rule asks for, of every frozen set against MB, ME2, ME3, ME7 and MD1.** It rests on two measurements of ME2's 1,000 stores, from a throwaway probe that is not committed:
+- **no store doubles ε**, so ME2 never enters §6's loop;
+- **the largest non-terrain package is 18,422 B,** and none would pass 32,768 B even with its terrain body counted.
+
+What follows from that, set by set:
+- **The six MB sabotages** (S-BTWICE, S-DROPORDER, S-NOCOUNT, S-ROADORDER, S-PRIMARYDROP, S-TERRCAP) cannot move ME2, ME3, ME7 or MD1.
+- **The MR, ML and MT plants** change ME2's outputs only into other valid packages. ME2 is graded on validity, as A2.5 says.
+- **Their effect on MB:**
+  - MB's rings and roads lie inside the square, with nothing at ε, so the clip and DP plants cannot move MB;
+  - MB8's samples lie far from any mosaic edge, and its tile count is unchanged under S-TROUND (both corners stay in tiles 255 and 256), so the terrain plants cannot move MB.
+- **ME3's corner vertex** quantises to 32767 under S-RLBRECOMP and S-ECLAMP alike.
+- **C-LOADFAIL's syntax error** now also stops the build tests from loading, so it stays BLIND.
+- **No frozen set moves.** The pass grades:
+  - S-BTWICE {MB2, MB3, MB5, MB6, MB7, MB8b}
+  - S-DROPORDER {MB2, MB7, MB8b}
+  - S-NOCOUNT {MB2, MB3, MB5, MB7, MB8b}
+  - S-ROADORDER {MB3}
+  - S-PRIMARYDROP {MB4}
+  - S-TERRCAP {MB8a, MB8b}
+  - S-TNOMARGIN {MT3b, MB8a, MB8b}, with A2.20's bound: under it, MT3b must show between 1 and 492 differing values

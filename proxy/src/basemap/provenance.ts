@@ -68,6 +68,18 @@ export interface ProvenanceInput {
 
 /** §7's lines, in §7's order (A1.5). */
 export async function provenanceText(p: ProvenanceInput): Promise<{ text: string; lines: number }> {
+  return provenanceLines(p, await layerDigests(p.files));
+}
+
+/** Each read layer's digest, computed once (the budget loop re-renders PROVENANCE after every drop). */
+export async function layerDigests(files: ProvenanceInput["files"]): Promise<Partial<Record<Layer, string>>> {
+  const out: Partial<Record<Layer, string>> = {};
+  for (const l of LAYER_ORDER) if (files[l]?.length) out[l] = await layerDigest(files[l]!);
+  return out;
+}
+
+/** provenanceText's lines, given the digests: synchronous, for the budget loop. */
+export function provenanceLines(p: ProvenanceInput, digests: Partial<Record<Layer, string>>): { text: string; lines: number } {
   if (!/^[0-9a-f]{40}$/.test(p.commit)) throw new Error("builder commit is not 40 hex");
   if (!/^[0-9a-f]{12}$/.test(p.storeId)) throw new Error("store id is not 12 hex");
   if (Boolean(p.files.terrain?.length) !== Boolean(p.tiles)) throw new Error("terrain files and tiles read disagree");
@@ -76,10 +88,11 @@ export async function provenanceText(p: ProvenanceInput): Promise<{ text: string
   for (const l of read) {
     const fs = p.files[l]!;
     if (!fs.length) throw new Error(`layer ${l} read with no files`);
+    if (!digests[l]) throw new Error(`no digest for layer ${l}`);
     out.push(`source.${l}: ${commonDir(fs.map((f) => f.url))}`);
     out.push(`vintage.${l}: ${[...new Set(fs.map((f) => f.vintage))].sort().join(" ")}`);
     out.push(`files.${l}: ${fs.length}`);
-    out.push(`sha256.${l}: ${await layerDigest(fs)}`);
+    out.push(`sha256.${l}: ${digests[l]}`);
   }
   if (p.tiles) {
     if (!p.tiles.creditBits) throw new Error("tiles read with no source bit");
