@@ -8237,3 +8237,129 @@ A12.43's other rows and sabotage sets stand as frozen.
 - **After:** parent `9feac8535199`; 5 paths; **main's tree equals the merged head's**. No PR was based on the branch; it was checked at `706d03917c16`, deleted, and `ls-remote` shows 0.
 
 **Next, as ordered:** t3 (A12.49), then 3.5b's step 7, its board run and results, then t4 and t5.
+
+### A12.49 3.5t step t3's results: every row holds but S-KD, whose plant RGB565 cannot see -- stopped for a ruling; and the layout driver, unrunnable since #501
+
+**The code:** `weatherscope/3-5t-themed-draw` @ `da2cc1f2a98a`, two commits on main `564468e9665d` (#502, #503 and #504 merged):
+1. **Q49 (a) alone:** `SolarDim.h`'s `M_PI` guard, and t1's and t2's `_USE_MATH_DEFINES` lines out.
+2. **t3:** the drawing reads the theme, as A12.47 froze it.
+
+**What t3 changed:**
+- **`WxTheme.h` gains `Ink { Dim, White, OrangeText }` and `InkRgb`.** `StateLine` and `TimeText` choose a role, and `ScreenIn::stateInk` and `ScreenOut::timeInk` hold it.
+- **`ScreenIn` gains `which` (default Dark), and `LayerKey` gains it too.**
+- **The drawing functions read the theme:**
+  - `MapPixel` takes the theme as a required last parameter, and `DrawMap` takes it second, so no new default argument crosses a call site;
+  - `DrawInvariant`, `DrawStripAndBand`, `Compose` and `ComposeLayered` read `Get(in.which)`;
+  - `DrawArrow` takes its ink.
+- **What retired:**
+  - `WxRaster.h`'s seven named colours;
+  - `wxbase::PaletteRgb`, replaced by `th.base[idx]`, which keeps its black past index 40.
+- **The basemap's two index lines** pass `Rgb{}`. `IndexSink` never read the colour, and NL would rightly have flagged the literal `{0, 0, 0}`.
+- **The manager:** splash, status, hold ring and legend read `Th()`, which is Dark until t5.
+- **The tests:** four host tests read the dark roles (`test_wx_basemap`, `test_wx_k35`, `test_wx_k35b`, `test_wx_layout`). No count changed.
+- **NL:**
+  - `test/host/scan_wx_colour_literals.py` flags a numeric colour only in a colour context: `color888`/`color565` arguments, an `Rgb` or `Theme` initialiser, a colour-taking call's arguments, or `TFT_` names;
+  - an integer triple elsewhere is not flagged (the rings' `{5, 15, 30}`);
+  - `run.sh` gains its block and the control.
+
+**Results against A12.47:**
+
+| row | predicted | measured |
+|---|---|---|
+| K-dark | every suite's count unchanged | **unchanged:** WxK35 28/0, WxK35b 143/0, WxReplay 90/0, WxBasemap 84/0, WxLayout 73/0, WxScreens 15/0, WxTheme 72/0, DayNight 28/0. The block list's only difference from main + t2 is NL's new block |
+| NL | 0 hits; allowlist 0; the control finds `WxTheme.h`'s literals | **0 hits over 16 files; allowlist 0; the control finds 57 literal lines** |
+| NL, a negative demonstration (not a frozen row) | -- | main's own `WxScreens.h`, `WxBasemap.h` and `WeatherscopeManager.cpp`, from before t3: **16 hits**, the literals t3 removed |
+| S-NL | 1 hit at the plant's line | **1 hit, at line 808, the plant's** |
+| **S-KD** | **K-dark fails all 25 Dallas K screens and all 51 Bend rows** | **0 failures: OFF-PREDICTION, stopped** (below) |
+| every existing sabotage set | unchanged; re-pointed anchors listed | **unchanged** (below) |
+| host suites | MinGW all pass; 13.3 the same blocks and counts, only the rig's two | **as predicted** (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`) |
+| firmware RAM | +0 to +16 B | **+0 B: 59,024 B**, the anchor's. `.dram0.data` and `.dram0.bss` are unchanged; `which` rides in buffers the firmware allocates, not in statics |
+| firmware flash | +300 to +2,500 B, re-registered exactly from the ELF if inside | **+404 B: 1,630,839 B, inside the band; re-registered at exactly 1,630,839 B.** The sections: `.flash.rodata` +436, `.flash.text` −32 (parts below) |
+| Q49: the eight editions | flash and RAM unchanged | **all 11 envs unchanged** (table below) |
+
+
+**The anchor, measured first** (A12.37's rule):
+- main at `564468e9665d`, built clean: Weatherscope flash 1,630,435 B, RAM 59,024 B;
+- t3's base tree is identical to the local base it was developed on (checked by tree hash). Cherry-picking the two commits onto main reproduced both trees exactly, so every row above was measured on the pushed tree.
+
+**t3's flash, part by part,** from the two ELFs' symbol tables (`nm -S`):
+
+| part | change |
+|---|---|
+| **the tables:** `wxtheme::kDark` and `wxtheme::kLight` | **+261 B each = +522 B**, as A12.47 priced them |
+| **retired data:** `kRainTable` (36), `kSnowTable` (18), the seven raster colours (21), `kMissingHatch`, `kDry`, `kRain75` (9) | **−84 B** |
+| **retired code:** `wxpalette::Rain()` (124), `Snow()` (91), `InkName(Rgb)` (70) | **−285 B** (the map reads the table, so they fold away) |
+| **code that now reads the table:** `DrawInvariant` +132, `DrawStripAndBand` +114, `BuildScenario` +80, `Compose` +40, `ComposeLayered` +28, `DrawMap` −36, `FromScenario` −36, and smaller | **the rest** |
+
+The symbol sizes sum to +451 B, against the sections' +404 B. The 47 B between them is alignment and unsized literal pools, so the **section figures are the registered ones**.
+
+**Q49's row: the guard alone (`ddd85579ef3d`) against main, every env that compiles `SolarDim.h`:**
+
+| env | flash | RAM | units recompiled |
+|---|---|---|---|
+| missileer-s3-146 | 1,658,775 = | 56,016 = | 1 |
+| missileer-s3-128 | 1,736,703 = | 90,656 = | 1 |
+| missileer-photo | 1,724,923 = | 90,616 = | 1 |
+| orbitscope-s3-146 | 1,729,527 = | 60,744 = | 1 |
+| quakescope-s3-146 | 1,590,555 = | 55,096 = | 1 |
+| quillscope-s3-146 | 1,591,475 = | 55,192 = | 1 |
+| reelscope-s3-146 | 1,645,547 = | 60,592 = | 1 |
+| claudescope-s3-146 | 1,575,599 = | 55,000 = | 1 |
+| speedscope-s3-146 | 1,588,155 = | 55,208 = | 1 |
+| weatherscope-s3-128 | 1,630,435 = | 59,024 = | 1 |
+| weatherscope-bench-s3-128 (no `SolarDim.h`) | 466,119 = | 26,912 = | 0 |
+
+- **"1 recompiled" is the control:** each env's manager, the unit that includes the header, was rebuilt with the guard in it and changed nothing.
+- **t1's and t2's `_USE_MATH_DEFINES` lines are out,** and both tests pass under both compilers.
+
+**S-KD's cause, confirmed by diagnosis** (a copy of the driver, not committed, not the row): with the plant at **(72, 64, 64)**, which RGB565 can see, S-KD fails **exactly the 76 frozen rows** (25 Dallas, 51 Bend) and nothing else, across all six suites, with the control clean. The frozen set is right, and only the plant's value is wrong.
+
+#### S-KD, stopped: its plant changes no pixel the K rows can see
+
+- **What happened:** with dark's rings planted at (65, 64, 64), every suite passed. The control (the unplanted mirror) passed too, and the plant was confirmed in the copy.
+- **The cause is arithmetic, not the code.** The K rows hash the frame in RGB565, as the panel holds it, and red's top five bits do not change from 64 to 65: `64 >> 3 = 65 >> 3 = 8`. **The plant never reaches the frame.** A12.43 froze the value without converting it; that is my error.
+- **The same defect is frozen for t4:** S-KL plants light's rings (150, 146, 138) → (151, 146, 138), and `150 >> 3 = 151 >> 3 = 18`. It would pass silently in exactly the same way.
+- **For the ruling (Q50):**
+  - **(a), recommended:** re-register both plants at the first red value whose RGB565 differs: **S-KD (72, 64, 64)** (`72 >> 3 = 9`), and **S-KL (158, 146, 138)** (`158 >> 3 = 19`). Their frozen sets are unchanged: S-KD 76 rows; S-KL t4's 76.
+  - **Mechanised either way:** every colour plant asserts that the planted colour's RGB565 differs from the original's, so a plant the panel cannot see refuses to run instead of passing.
+  - **No fix goes in until it is ruled.**
+
+#### The layout driver could not run from #501 until now
+
+`test/host/sabotage_wx_layout.py` stopped at its own anchor check on **main** (checked on main's tree, before t3):
+
+- **S-IC's first edit:** its anchor occurs twice since 3.5b step 5 (#501). `PlacePeak` carries the same inner-circle line as `PlaceTown`.
+- **S-IC's second edit:** its anchor was gone. Step 5 moved `PlaceTown`'s box test into `BoxFree`.
+- **S-SIDE and S-CAP:** each found twice, for the same reason.
+
+**Why nothing noticed:**
+- no CI job runs the sabotage drivers;
+- my step 5 ran `sabotage_wx_basemap.py`, not this one.
+
+This is CLAUDE.md's *a guard that silently stopped existing*: the driver was there, and from #501's merge to now it protected nothing.
+
+**Re-pointed in t3, every frozen set unchanged:**
+- **S-IC** is pinned to `PlaceTown`'s copy, by its signature, and its box test to `BoxFree`'s `return false`;
+- **S-SIDE** is pinned by `PlaceTown`'s own `txs` line, and **S-CAP** by `PlaceTowns`' signature;
+- **the result:** **all 11 as A9.10 froze them.**
+
+**The other re-pointed anchors, every set unchanged:**
+- **S-K1** (k35): `kLabel` → `kDark`'s label line in `WxTheme.h`. Dallas draws no peaks, so splitting the label and peak inks changes nothing it tests;
+- **S-FOLD, S-HATCH** (basemap): the themed `MapPixel`'s lines;
+- **S-ST15** (layout): the ink role.
+
+**Every driver's tally:**
+
+| driver | result |
+|---|---|
+| basemap | 14 + 2 as predicted |
+| k35 | 5 as predicted |
+| layout | 11 as predicted |
+| replay | 2 as predicted |
+| screens | 4 as predicted |
+| theme | 13 as predicted |
+
+**For the ruling (Q51), so this cannot recur unseen:**
+- **The proposal:** each driver gains an `--anchors` mode that only asserts that every anchor occurs exactly once (no compile, a second or two), and `run.sh` runs all of them.
+- **Why:** a refactor that strands a plant then fails the host suite in the PR that caused it, not six PRs later.
+- **The mode's own control:** one anchor deliberately mangled must turn it red.
