@@ -181,6 +181,9 @@ own and passed, and WS7's server set and its sabotage still read as before. CI's
     projects to the origin, (0, 0), to within a millimetre, which looks designed.
   - **(b) the HDF5's corner attributes are off.** Nothing in the data excludes it; OPERA's documentation of the
     CIRRUS grid is the third source that could.
+  - **One look for that source, not conclusive:** a web search found nothing CIRRUS-specific. Its summary says
+    EUMETNET's ODIM template defines `UL_lon`/`UL_lat` as the image's corner, which would favour (a), but I could not
+    read the template's text here (no PDF text tool), so that claim is **unverified**.
 - **What it costs either way:** 500 m in x and y, against 1 km pixels and 0.64 × 1.11 km cells.
 - **No fix is applied.** The reader still takes the GeoTIFF's corner.
 
