@@ -108,7 +108,8 @@ def loop_and_capture(tr, host, out, label, caps):
     return tb
 
 
-def main(argv):
+def main(argv, after_b3=None):
+    """after_b3(tr, out), if given, runs after B3 inside the same open (build Q's 'Q' step, A12.25); none by default."""
     if len(argv) != 4:
         print(__doc__)
         return 2
@@ -194,6 +195,8 @@ def main(argv):
                 name, R = parse(lb2)
                 time.sleep(0.5)
                 caps.append(dict(capture(tr, host, out, "postlegend"), step="B3", scenario=name, R=R))
+        if after_b3:
+            after_b3(tr, out)
     finally:
         tr.note("#HOST closing the port")
         tr.close()
