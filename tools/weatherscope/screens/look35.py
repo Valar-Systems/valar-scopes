@@ -56,9 +56,11 @@ THEMES = {
 
 
 # --------------------------------------------------------------------------------------- the package by §9
-def package_scene(view, rl_mm=98_974_656):
+def package_scene(view, rl_mm=98_974_656, mask=15, terrain=True):
     """(index image 240 x 240 by A10.2's table: 0 nothing, 1-37 terrain level + 1, 38 water, 39 river, 40 road;
-    peaks [(name, lat, lon)] in rank order; places [(name, lat, lon, pop)])."""
+    peaks [(name, lat, lon)] in rank order; places [(name, lat, lon, pop)]). `mask` is the device's layer mask (1
+    water, 2 rivers, 4 roads; peaks are the caller's), `terrain` draws the level `rl_mm` (A12.41); the defaults are
+    the 60 mi screen with every layer, as before."""
     b = open(PKG, "rb").read()
     pkg = geo35.decode_bmpk(b)
     lat0m, lon0m, rmm, _ = pkg["header"]
@@ -83,7 +85,7 @@ def package_scene(view, rl_mm=98_974_656):
     img = [[0] * r.SIZE for _ in range(r.SIZE)]
     rl, n, vals = levels[rl_mm]
     pix = 2 * rl / 1e6 / n
-    for y in range(r.SIZE):
+    for y in range(r.SIZE if terrain else 0):
         lat_p = view.home[0] + (r.C - (y + 0.5)) / r.C * view.rLat
         for x in range(r.SIZE):
             lon_p = view.home[1] + ((x + 0.5) - r.C) / r.C * view.rLon
@@ -91,12 +93,12 @@ def package_scene(view, rl_mm=98_974_656):
             i, j = math.floor(E / pix + n / 2), math.floor(S / pix + n / 2)
             if 0 <= i < n and 0 <= j < n:
                 img[y][x] = 1 + (36 * vals[j * n + i]) // 255
-    for ring in sec.get(1, []):
+    for ring in (sec.get(1, []) if mask & 1 else []):
         for (x, y) in geo35.centre_fill([xy(q) for q in ring]):
             img[y][x] = 38
     rnd = r.Rounder("P")
-    for code, items in ((39, [pts for _, pts in sec.get(2, ([], []))[1]]), (40, [pts for _, pts in sec.get(3, [])])):
-        for pts in items:
+    for code, bit, items in ((39, 2, [pts for _, pts in sec.get(2, ([], []))[1]]), (40, 4, [pts for _, pts in sec.get(3, [])])):
+        for pts in (items if mask & bit else []):
             p = [xy(q) for q in pts]
             for a, c in zip(p, p[1:]):
                 nn = int(max(abs(c[0] - a[0]), abs(c[1] - a[1]))) + 1
