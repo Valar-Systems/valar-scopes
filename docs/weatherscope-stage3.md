@@ -7980,3 +7980,40 @@ A12.43's other rows and sabotage sets stand as frozen.
 - step 6's PR, for review;
 - then 3.5t's code from A12.43 as ruled here;
 - 3.4 stays where it is.
+
+### A12.45 3.5t's code in five steps, and step t1's predictions: frozen before its code
+
+**The order, as A12.44 rules it:**
+- #501 is merged, and step 6's PR (#502) is up.
+- **Now 3.5t's code, from A12.43 as A12.44 ruled it.**
+- **One item for the reviewer to place, not a stop:** A10.8's 3.5b list still has **steps 7–9**: the firmware, the board run and its results addendum. I read item 5 as putting 3.5t's code first. Steps t1 and t2 touch no file 3.5b's step 7 touches. If 3.5b's 7–9 should come first, t1 and t2 can merge and wait.
+
+**The steps.** Each step is its own PR. Its rows and sabotage sets are A12.43's, as A12.44 ruled them. Its size rows are frozen before its build.
+
+| step | what | rows | firmware |
+|---|---|---|---|
+| **t1** | `include/DayNight.h` (`Phase`, `Decide`, and `Evaluate` over `SunElevationDeg`); `test/host/test_daynight.cpp`; `tools/weatherscope/daynight_ref.py` and its fixture; the USNO transcription; `run.sh`'s blocks, SY's scan with them | DN-E, DN-U, DN-D, DN-Q, SY; S-DN1–4, S-DNE, S-SY | **unchanged:** no firmware unit includes `DayNight.h` yet |
+| **t2** | `src/weatherscope/WxTheme.h` (the 87 roles with A12.44's hold ring, `kDark`, `kLight`, the setting's parse, `Select`, the dim); `test/host/test_wx_theme.cpp` | C4 (RGB888 and RGB565), C4-HOLD1–2, TS, TP, TD; C3 unchanged; S-C4a–g, S-CTL1–2, S-565, S-HOLD | **unchanged:** no firmware unit includes `WxTheme.h` yet |
+| t3 | the drawing headers and the manager draw from the theme (`kDark` only); `LayerKey`'s theme byte; NL's scan | K-dark, RP (dark), NL; S-KD, S-NL | changes: its size rows are frozen before its build |
+| t4 | the light references (`ref35` / `k35b --theme light`); the light, switch and layout rows | K-light, RP (light), RP-T, LY, SW, TH2′; S-KL, S-LY, S-RPT, S-SWB, S-TH2 | changes, if it touches firmware code at all |
+| t5 | the firmware: `wx-theme`, Auto on the 20 s tick, the dim, `O`, the config page; the board | B1, B3 and BSW in both themes; the B1 images to Daniel | changes: its size and PSRAM rows are frozen first |
+
+**Step t1, predicted:**
+
+| row | expected |
+|---|---|
+| DN-E | 4,950 fixture rows; max \|diff\| **0.002930° ± 1e-5**, graded ≤ 0.02° |
+| DN-U | 8 USNO events, each within 1 min: +0.20, −0.28, +0.16, +0.39, +0.00, −0.09, −0.11, +0.19 min (± 0.02, the crossing's own resolution) |
+| DN-D | D1–D16 as A12.43's table |
+| DN-Q | Q1 dusk: 1 switch, at −1.84; Q2 dawn: 1, at 0.17; Q3 hover: 0 |
+| SY | `DayNight.h` against `wx`, `Weather` and `wxpalette`, case-sensitive: **0 hits** |
+| sabotages | S-DN1 {D9, D11, D14, Q1, Q2, Q3}; S-DN2 {D1, D3}; S-DN3 {D2, D4}; S-DN4 {D5–D8}; S-DNE {DN-E, DN-U1–8}; S-SY {SY}. The control (real headers): 0 failures |
+| `daynight_ref.py --check` | identical on regeneration |
+| every host suite | ALL HOST TESTS PASSED (MinGW); under g++ 13.3 the same blocks, counts identical, only the rig's two |
+| **the firmware** | **flash and RAM exactly the base's own build, measured first** (the anchor) |
+
+**The fixture's form** (no decimal, so the coordinate gate stays silent by construction):
+- one row per sample: `utc lat lon elev_microdeg`, where lat and lon are whole degrees and the elevation is an integer in millionths of a degree;
+- the planning figure 0.002930° is unchanged by the quantisation, which is under 5e-7°.
+
+**The outside-the-set branch:** any row or sabotage outside its frozen value or set stops t1 at that row, reported with its cause.
