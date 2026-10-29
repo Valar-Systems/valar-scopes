@@ -5,7 +5,8 @@ each proven to have taken, each graded by the EXACT set of rows it turns red. Pr
 
   S-LF1'-IN   a code-5 cell inside the 60 mi disc of F5's crop     -> red exactly {LF1' F5}
   S-LF1'-OUT  a code-5 cell outside the disc of the same crop      -> red exactly {} (LF1' reads pixels, not crops)
-  S-LF2       light (a)'s label role one step off in red           -> red exactly {LF2 F0/F1/F17 light-a}
+  S-LF2       light (a)'s label role one step off in red           -> red exactly light (a)'s LF2 F0/F1/F17 and LF3 on
+                                                                      all 17 frames: 20 rows, none in dark or (b) (ruled)
   S-LF3       one terrain pixel of F7 set to the code-13 role      -> red exactly {LF3 F7 dark/light-a/light-b}
   S-LF4       F3's indices copied over F4, at LF4 only             -> red exactly {LF4}
 The clean run first must be all green. Exits 0 only if every sabotage reds exactly its set.
@@ -67,8 +68,9 @@ def main():
         ("S-LF1'-IN", red(rows_in), {"LF1' F5"}, took > 0, f"F5 draws {took} code-5 pixel(s)"),
         ("S-LF1'-OUT", red(rows_out), set(), outside and out_in_crop and out_drawn == 0,
          f"the corner cell is outside the disc: {outside}; the crop's codes include 5: {out_in_crop}; F5 draws {out_drawn}"),
-        ("S-LF2", red(rows_2), {"LF2 F0 light-a", "LF2 F1 light-a", "LF2 F17 light-a"}, off != lab,
-         f"light (a)'s label {lab} -> {off}"),
+        ("S-LF2", red(rows_2),   # restated by A12.34's ruling (A12.32 item 2): every light (a) row that draws the label
+         {f"LF2 F{n} light-a" for n in (0, 1, 17)} | {f"LF3 F{n} light-a" for n in list(lf.LOOP_FRAMES) + [18, 19]},
+         off != lab, f"light (a)'s label {lab} -> {off}"),
         ("S-LF3", red(rows_3), {"LF3 F7 dark", "LF3 F7 light-a", "LF3 F7 light-b"}, idx_3[7] != idx[7],
          f"one byte of F7: {sum(a != b for a, b in zip(idx_3[7], idx[7]))} differs"),
         ("S-LF4", red(rows_4), {"LF4"}, idx[3] != idx[4], f"F3 and F4 differ before the copy: {idx[3] != idx[4]}"),

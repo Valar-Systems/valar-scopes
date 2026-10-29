@@ -169,7 +169,7 @@ def run(plant=None, quiet=False):
     if plant and plant[0] == "lf1":
         f = dict(fs[plant[1]], codes=list(fs[plant[1]]["codes"]))
         f["codes"][plant[2]] = 5
-        fs[plant[1]], tag[plant[1]] = f, "planted"
+        fs[plant[1]], tag[plant[1]] = f, f"planted@{plant[2]}"   # one tag a plant: plants must not share renders
     idx = []
     for n, f in enumerate(fs):
         px = cached(("sent", n, tag[n]), lambda f=f: render(f, SENT))
