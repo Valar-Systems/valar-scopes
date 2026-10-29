@@ -21,6 +21,7 @@ const FRAME = "src/basemap/frame.ts";
 const LAYERS = "src/basemap/layers.ts";
 const TERRAIN = "src/basemap/terrain.ts";
 const BUDGET = "src/basemap/budget.ts";
+const QUERY = "src/basemap/query.ts";
 // Each sabotage runs against a test set: its files, and optionally a vitest -t filter (a family), with its own
 // clean baseline. A filter narrows what is graded, so a sabotage graded under one says so in its output.
 // "all" is a path filter, not a list, so a basemap test file added later is graded without anyone remembering to.
@@ -230,6 +231,24 @@ const SABOTAGES = {
     edits: [["  return [Math.floor(x0 / 256) - 1, Math.floor(y0 / 256) - 1, Math.floor(x1 / 256) + 1, Math.floor(y1 / 256) + 1];\n",
              "  return [Math.floor(x0 / 256), Math.floor(y0 / 256), Math.floor(x1 / 256), Math.floor(y1 / 256)]; // SABOTAGE S-TNOMARGIN\n"]],
     expect: ["MT3b", "MB8a", "MB8b"],
+  },
+  // A1.7's MQ sabotages (A2.28).
+  "S-QROUND": {
+    file: QUERY, set: "all",
+    edits: [["  const c = quantise(lat, lon, r);\n",
+             "  const he = (x: number) => { const v = x * 100, f = Math.floor(v), d = v - f; return (d > 0.5 ? f + 1 : d < 0.5 ? f : f % 2 === 0 ? f : f + 1) / 100; };\n" +
+             "  const c = { ...quantise(lat, lon, r), lat: he(lat), lon: he(lon) }; // SABOTAGE S-QROUND: a local quantise, half to even\n"]],
+    expect: ["MQ3"],
+  },
+  "S-QDIGEST": {
+    file: QUERY, set: "all",
+    edits: [["export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, q.epsMm, q.mask,", "export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, /* SABOTAGE S-QDIGEST: no epsMm */ q.mask,"]],
+    expect: ["MQ10"],
+  },
+  "S-QSORT": {
+    file: QUERY, set: "all",
+    edits: [["    levels.sort((a, b) => a.radiusMm - b.radiusMm);\n", "    // SABOTAGE S-QSORT: the levels left as sent\n"]],
+    expect: ["MQ8"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {

@@ -13,10 +13,13 @@ import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync,
 import { unzipSync } from "fflate";
 import {
   type Box, type Cell, type CellIndexEntry, type Feature, type ManifestFile, PREDICATES, assignCells, bboxOf, cellKey, decodeFeature,
-  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, reachOf, readDelimited, sortKeys, storeIdOf, writeManifest,
+  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, writeManifest,
 } from "./basemap/ingest-lib";
+import { CURRENT_KEY } from "../src/basemap/store";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { coverageRows, encodeCoverage } from "./basemap/coverage";
+import { regionsFor } from "./basemap/regions";
+import { BUCKET, WranglerBucket, assembleStore } from "./basemap/d1";
 import { tilesForCoverage } from "./basemap/terrain-plan";
 import { BIT, Layer, encodeTileBits, tileBits } from "./basemap/tile-bits";
 import { dirname, join, resolve } from "node:path";
@@ -366,11 +369,13 @@ async function coverageAndTiles(cache: string): Promise<void> {
   };
   const co = shapefileFromZip(verifiedBytes(cache, url("counties"), log));
   const counties = readShapefile(co.shp, co.dbf).filter((r) => !TERRITORY_FIPS.has(r.attrs["STATEFP"]!));
-  const regions = {
-    counties: Object.fromEntries(counties.map((r) => [r.attrs["GEOID"]!, box(r.parts)])),
-    states: Object.fromEntries(states.map((r) => [r.attrs["STATEFP"]!, { box: box(r.parts), usps: r.attrs["STUSPS"]! }])),
-  };
-  const regionsText = JSON.stringify(sortKeys(regions)) + "\n";
+  // index.json's form (A2.24, MI8): each region's box with the files it reads, every regional file in exactly one
+  const regions = regionsFor(
+    Object.fromEntries(counties.map((r) => [r.attrs["GEOID"]!, box(r.parts) as Box])),
+    Object.fromEntries(states.map((r) => [r.attrs["STATEFP"]!, { box: box(r.parts) as Box, usps: r.attrs["STUSPS"]! }])),
+    planned,
+  );
+  const regionsText = JSON.stringify(regions) + "\n";
   writeFileSync(join(store, "regions.json"), regionsText);
 
   // the terrain mirror: every tile within reach, measured by HEAD (bytes and Last-Modified), not downloaded
@@ -487,6 +492,29 @@ async function retryBlocked(cache: string): Promise<void> {
   if (left.length) process.exitCode = 1;
 }
 
+// ------------------------------------------------------------------------------------------------ D1: the store to R2
+
+/** D1 (ruled: wrangler OAuth, 8 at a time, verify -> repair -> verify -> seal). `--plan` prints the put count and the
+ *  bytes and writes nothing; `--go` uploads. The cycle is ingest-lib's publishStore, unchanged (MI7). A store written
+ *  from an uncommitted tree is refused: its manifest's builder would name a commit that is not the code that ran. */
+async function d1Cmd(cache: string): Promise<void> {
+  const go = process.argv.includes("--go"), planOnly = process.argv.includes("--plan");
+  if (go === planOnly) throw new Error("d1 needs exactly one of --plan or --go");
+  const { storeId, objects, current } = assembleStore(cache, cachePath);
+  const manifest = JSON.parse(readFileSync(join(cache, "dry-run", "store", "manifest.json"), "utf8")) as { builder: string };
+  const head = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+  const bytes = objects.reduce((a, o) => a + o.bytes.length, 0);
+  const by = (p: string) => objects.filter((o) => o.key.includes(p)).length;
+  console.log(JSON.stringify({ storeId, bucket: BUCKET, puts: objects.length + 1, objects: objects.length, cells: by("/cells/"), tiles: by("/terrain/9/"), bytes, manifestBuilder: manifest.builder, head }, null, 1));
+  if (planOnly) return;
+  if (manifest.builder !== head) throw new Error(`the manifest names builder ${manifest.builder.slice(0, 12)}, HEAD is ${head.slice(0, 12)}: re-run the dry run at HEAD`);
+  const bucket = new WranglerBucket(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
+  const r = await publishStore(bucket, objects, CURRENT_KEY, current);
+  console.log(JSON.stringify({ sealed: r.sealed, repairRounds: r.rounds, missing: r.missing.length, mismatched: r.mismatched.length, puts: bucket.puts, gets: bucket.gets, putFailures: bucket.putFailures.length }, null, 1));
+  for (const f of bucket.putFailures.slice(0, 5)) console.error(`put failed: ${f}`);
+  if (!r.sealed) process.exitCode = 1;
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   const cache = cacheDir();
@@ -496,7 +524,8 @@ async function main(): Promise<void> {
   if (cmd === "fetch") return fetchAll(cache);
   if (cmd === "dry-run") return dryRun(cache);
   if (cmd === "coverage") return coverageAndTiles(cache);
-  throw new Error(`unknown command ${cmd ?? "(none)"}: plan | fetch | dry-run | coverage`);
+  if (cmd === "d1") return d1Cmd(cache);
+  throw new Error(`unknown command ${cmd ?? "(none)"}: plan | fetch | dry-run | coverage | tile-bits | retry | d1`);
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

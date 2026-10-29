@@ -2011,3 +2011,60 @@ What follows from that, set by set:
   - no frozen plant touches `regions.ts`, which is new;
   - the ingest plants (S-ISIZE, S-ISEAL, S-INOTESORT, S-IKEYS, S-IBUS) are in `ingest-lib.ts`, which `regions.ts` does not import.
   - **No set moves.**
+
+### A2.28 The pass with MB; MT3b's registered bound observed; MQ and MI8 run; D1 under way (2026-10-29)
+
+**The gated pass, 03:54-04:07Z:**
+- 37 runs over 102 cases in 10 files, **every set as frozen**;
+- S-BTWICE, S-DROPORDER, S-NOCOUNT, S-ROADORDER, S-PRIMARYDROP and S-TERRCAP each on A1.7's set;
+- **S-TNOMARGIN on its re-registered {MT3b, MB8a, MB8b}**;
+- C-LOADFAIL BLIND from its own plant;
+- **0 runtime failures**, exit 0.
+
+**But the pass line hid where MT3b failed, and A2.20's bound was not observed in it.**
+- **Where it failed:** under S-TNOMARGIN, MT3b fails at its frozen-geometry assertion, which runs first: `levelTiles` gives [256, 255, 256, 256] where the frozen value is [255, 254, 257, 257]. It never reached the value comparison.
+- **Why that matters:** the geometry check catches a missing margin only inside `levelTiles`. A builder that skipped the margin elsewhere would pass it.
+- **The bound, observed:** a throwaway probe ran the same comparison with the plant active and the geometry check left out. **39 of 60,516 values differ, inside A2.20's registered 1-492.** The file was restored byte-identical (git diff empty), and the probe deleted.
+
+**MQ (`query.ts`) and MI8 (`regions.ts`): every row as frozen.**
+- **MQ3:** 100,000 random points and 680 half-way values, **0 differences** from `crop.ts`'s quantised point.
+- **The three MQ sabotages**, each graded against all 12 basemap test files (113 cases):
+  - S-QROUND **{MQ3}**
+  - S-QDIGEST **{MQ10}**
+  - S-QSORT **{MQ8}**
+- **0 runtime failures.**
+- **The standing re-check, of the frozen sets against MQ and MI8:**
+  - `query.ts` imports `crop.ts` and `build.ts`'s `MASK`, and `regions.ts` imports only the store's types;
+  - no frozen plant touches any of them;
+  - **no set moves.** The full pass waits for D1's dry run, which imports `ingest-lib.ts` (that is where S-IBUS plants).
+
+**D1.**
+- **The census files:** both came in at the 04:00Z round, 286,283 B and 520,306 B. Each is a real zip, and its sha256 matches the fetch log. **No mirror and no manifest notes are needed.**
+- **The full dry run** (not partial):
+  - 16,035 files;
+  - 1,397 cells, 1,053,098,492 B of vectors (+4.1 MB over the partial run, the two counties' water);
+  - largest cell 10,290,428 B.
+- **Two defects in how I ran it, both caught before any upload:**
+  - **The step order.** `coverage` ran first, and the dry run wipes `dry-run/store`, which deleted `coverage.bin` and `regions.json`. The order is dry run, then `coverage`, then `tile-bits`.
+  - **A dirty tree.** It ran with uncommitted changes (`dirtyTree: true`). The manifest's `builder` would then name a commit that is not the code that ran (F1).
+  - **The fix for both:** everything is committed, and the three steps re-run from the clean tree.
+- **`d1 --go` refuses** a manifest whose `builder` is not HEAD.
+- **`coverage` now writes `regions.json` in `index.json`'s form** (MI8): 3,144 counties and 51 states, 748,403 B. `d1` merges it into `index.json`.
+
+**The Class A rule's three figures, measured, not estimated** (`scripts/r2-class-a.ts`; read-only; the classes are Cloudflare's R2 pricing page's lists, read 2026-10-29):
+
+| | |
+|---|---|
+| month to date (28.17 of 31 days) | **540,027 Class A**: `missileer-live` 464,448, `missileer-clips` 44,905, `blipscope-wx` 30,607. Plus 5,012 bulk `DeleteObjects`, which is on none of the page's lists, so at most 5,012 more |
+| projected for October at this rate | **about 594k** (+5k at most for the unlisted deletes) |
+| D1 | **about 11,040 puts**, stated exactly by `d1 --plan` before the upload. Even with two full repair rounds, the month stays under about 640k |
+| projected account overage | **$0**: under the free 1M Class A; storage 0.68 GB now, plus 1.76 GB, under the free 10 GB |
+
+**The estimate I had carried, about 880k a month for the weather server, was wrong by a factor of about 25.** The weather bucket is at 30,607 this month. Most of the account's Class A is Missileer's live bucket.
+
+**A question for the reviewer, which blocks `handler.ts` and nothing else.**
+- **The constraint:** MW10 requires a 304 with **0 builder calls and 0 store reads**. But the ETag holds the store id, and the store is behind the builder.
+- **Two answers that are wrong:**
+  - trusting the store id inside the client's `If-None-Match` lets a device keep an old package forever after a store change, the risk §3 names;
+  - reading `current` per request breaks MW10.
+- **Recommended:** the handler keeps the store id from its last builder response in isolate memory, with a **60 s** TTL. MW10, in the same isolate as MW9, then reads 0. A cold isolate, or an expired TTL, goes to the builder. Staleness after a store change is bounded by the TTL.
