@@ -1,7 +1,8 @@
 """WS7's sabotage (docs/wx-server.md): one run nibble flipped in ONE server-made crop must fail exactly that
 crop -- and its `cells` check, not only its file hash -- while the other seven still pass.
 
-    python -I test/host/sabotage_wx_server_crops.py
+    python -I test/host/sabotage_wx_server_crops.py                          WS7: server/, kmci-80km-partly-outside.wxc
+    python -I test/host/sabotage_wx_server_crops.py opuk man-161km.wxc       K12 (docs/wx-opuk.md): the opuk set
 
 The committed fixtures are never edited: they are copied to a temporary folder and one byte of one copy is
 changed (the code nibble of its first run). The plant asserts the copy differs from the original.
@@ -15,11 +16,12 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SRC = os.path.join(ROOT, "test", "fixtures", "wx", "server")
+SET = sys.argv[1] if len(sys.argv) > 1 else "server"
+SRC = os.path.join(ROOT, "test", "fixtures", "wx", SET)
 TEST = os.path.join(ROOT, "test", "host", "test_wx_server_crops.cpp")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
-VICTIM = "kmci-80km-partly-outside.wxc"
+VICTIM = sys.argv[2] if len(sys.argv) > 2 else "kmci-80km-partly-outside.wxc"
 
 
 def main():
@@ -44,7 +46,7 @@ def main():
         only_victim = bool(fails) and all(VICTIM in l for l in fails)
         cells_failed = any(re.match(r"FAIL\s+cells\s+" + re.escape(VICTIM), l) for l in fails)
         good = clean.returncode == 0 and r.returncode == 1 and only_victim and cells_failed
-        print(f"sabotage ({VICTIM}, byte 32 ^ 0x10): exit {r.returncode}; {len(fails)} FAIL line(s) -> "
+        print(f"sabotage ({SET}/{VICTIM}, byte 32 ^ 0x10): exit {r.returncode}; {len(fails)} FAIL line(s) -> "
               f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         for l in fails:
             print("    " + l)

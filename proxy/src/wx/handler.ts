@@ -8,7 +8,7 @@ import type { Env } from "../types";
 import { errorResponse } from "../util";
 import { CAP_BYTES, boxMissesGrid, cropCellBox, encodeBox, quantise } from "./crop";
 import { type FrameMeta, NO_COVERAGE, frameMeta, tileBytes, tileOffset, tiledCellAt, tilesFor } from "./grid";
-import { type Product, cropEtag, frameKey, latestKey, productById } from "./products";
+import { type Product, cropEtag, frameKey, latestKey, productById, servedProduct } from "./products";
 
 /** What `latest` holds. Written only by the ingest (ingest.ts), forward-only. */
 export interface LatestRecord {
@@ -17,6 +17,7 @@ export interface LatestRecord {
   key: string;
   ingestedAt: number;   // ms
   ni: number; nj: number; la1: number; lo1: number; di: number; dj: number; tile: number;
+  coveredShare?: number;   // OPERA products only (K9): cells not 14, over all cells
 }
 
 export async function readLatest(bucket: R2Bucket, p: Product): Promise<LatestRecord | null> {
@@ -27,21 +28,24 @@ export async function readLatest(bucket: R2Bucket, p: Product): Promise<LatestRe
 }
 
 /** /healthz's `wx` field: the age of each product's newest frame, or null when there is none -- never a
- *  made-up age. "not_configured" without the binding. */
+ *  made-up age -- and, for an OPERA product, its covered share (null when absent, never a made-up share).
+ *  "not_configured" without the binding. */
 export async function wxHealth(env: Env, products: readonly Product[]): Promise<unknown> {
   if (!env.WX) return "not_configured";
-  const out: Record<string, { frameAgeS: number | null }> = {};
+  const out: Record<string, { frameAgeS: number | null; coveredShare?: number | null }> = {};
   for (const p of products) {
     const rec = await readLatest(env.WX, p).catch(() => null);
     out[p.id] = { frameAgeS: rec ? Math.round(Date.now() / 1000 - rec.epoch) : null };
+    if (p.source === "opera") out[p.id]!.coveredShare = typeof rec?.coveredShare === "number" ? rec.coveredShare : null;
   }
   return out;
 }
 
-export async function handleWx(request: Request, env: Env, productId: string): Promise<Response> {
+/** `byWindow` exists for K5's sabotage only. */
+export async function handleWx(request: Request, env: Env, productId: string, byWindow = false): Promise<Response> {
   if (!env.WX) return errorResponse(503, "not_configured");
-  const p = productById(productId);
-  if (!p) return errorResponse(404, "not_found");
+  const requested = productById(productId);
+  if (!requested) return errorResponse(404, "not_found");
 
   // The same validation as /blips, so a device's one query is valid for both.
   const url = new URL(request.url);
@@ -52,6 +56,10 @@ export async function handleWx(request: Request, env: Env, productId: string): P
   if (!Number.isFinite(lon) || Math.abs(lon) > 180) return errorResponse(400, "bad_lon");
   if (!Number.isFinite(r) || r <= 0) return errorResponse(400, "bad_r");
   const q = quantise(lat, lon, r);
+  // Q2, ruled: /wx/cref inside the UK land box is answered from opuk, by the QUANTISED point, so the one query a
+  // device makes always lands on one product. Everything below -- the age limit, the ETag, the tiles -- is the
+  // served product's.
+  const p = servedProduct(requested, q.lat, q.lon, byWindow);
 
   const rec = await readLatest(env.WX, p);
   if (!rec || Date.now() / 1000 - rec.epoch > p.maxAgeS) return errorResponse(503, "wx_stale");
@@ -65,7 +73,7 @@ export async function handleWx(request: Request, env: Env, productId: string): P
   const box = cropCellBox(m, q);
   let cellAt: (r: number, c: number) => number;
   if (boxMissesGrid(m, box)) {
-    cellAt = () => NO_COVERAGE;          // outside CONUS: the all-14 crop, without reading a tile
+    cellAt = () => NO_COVERAGE;          // outside the product's grid: the all-14 crop, without reading a tile
   } else {
     const want = tilesFor(m, box.r0, box.r0 + box.rows - 1, box.c0, box.c0 + box.cols - 1);
     const got = await Promise.all(want.map(async ([ty, tx]) => {

@@ -36,6 +36,11 @@ HOME = [(x, 116) for x in range(118, 122)] + [(117, 117), (122, 117)] + \
        [(x, y) for y in range(118, 122) for x in (116, 123)] + [(119, 119), (120, 119), (119, 120), (120, 120)] + \
        [(117, 122), (122, 122)] + [(x, 123) for x in range(118, 122)]
 
+# 3.5b's peak glyph (A10.2, Q32), read off the lossless screen-bend-B.png at its first-ranked placed peak (Mount
+# Jefferson), as offsets from the anchor (int(x), int(y)). All four placed peaks there carry this same pattern.
+PEAK_GLYPH = [(-3, 2), (-2, 0), (-2, 1), (-2, 2), (-1, -2), (-1, -1), (-1, 2), (0, -3), (0, 2), (1, -2), (1, -1),
+              (1, 2), (2, 0), (2, 1), (2, 2), (3, 2)]
+
 
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -89,9 +94,20 @@ class Rounder:
 
 
 # ------------------------------------------------------------------------------------------------ the image
+# The ink roles a screen is drawn in (3.5t, A12.22). DARK_INK is exactly the constants above, so a caller that passes
+# no ink draws today's screens, byte for byte.
+DARK_INK = dict(bg=BLACK, band=BLACK, dim=DIMTXT, white=WHITE, label=LABEL, halo=BLACK, ring=RING, ringtext=RINGTXT,
+                home=WHITE, peak=LABEL, orange=ORANGE)
+
+
+def inkmap(ink, col):
+    """A state's ink (WHITE, DIMTXT or ORANGE, as the scenarios name them) in a theme's roles."""
+    return {WHITE: ink["white"], DIMTXT: ink["dim"], ORANGE: ink["orange"]}.get(col, col)
+
+
 class Screen:
-    def __init__(self):
-        self.px = [[BLACK] * SIZE for _ in range(SIZE)]
+    def __init__(self, bg=BLACK):
+        self.px = [[bg] * SIZE for _ in range(SIZE)]
 
     def put(self, x, y, col):
         if 0 <= x < SIZE and 0 <= y < SIZE:
@@ -163,10 +179,16 @@ PAL = {0: legend.DRY, 14: legend.NOCOV}
 PAL.update(legend.RAIN)
 
 
-def colour(code, x, y):
+# R0's palette (A12.18.2): the generator's own code 1, the pinned table's 15 dBZ entry dimmed to 55 %, as the reviewer's
+# 3.5a mockups were drawn before #488's teal. R0 only, in both its modes; every other path keeps PAL's teal.
+GEN_PAL = dict(PAL)
+GEN_PAL[1] = tuple((v * 55 + 50) // 100 for v in legend.TBL[2])
+
+
+def colour(code, x, y, pal=None):
     if code == 15:
         return legend.HATCH if (x + y) % 4 == 0 else legend.DRY
-    return PAL[code]
+    return (pal or PAL)[code]
 
 
 def nearest_echo(h, codes, home, bound_mi):
@@ -213,31 +235,39 @@ def in_map(x, y):
     return 0 <= x < SIZE and TOP_BAND <= y < BOT_BAND and (x - C) ** 2 + (y - C) ** 2 <= C * C
 
 
-def render_map(scr, h, codes, view):
+def render_map(scr, h, codes, view, base=None, corner=False, pal=None):
+    """The map pass. 3.5b's fold (A10.2): a dry pixel (code 0) shows `base`'s colour where there is a base. With no crop
+    (h None) every pixel is dry. corner=True is bendmock.py's own mask (in_map, integer coordinates), for R0b's G mode
+    only; the device and P use CodeAt's pixel-centre disc."""
     for y in range(SIZE):
         lat = view.home[0] + (C - (y + 0.5)) / C * view.rLat
-        r = int(math.floor((h["latNw"] - lat) / h["cellLat"] + 0.5))
+        r = int(math.floor((h["latNw"] - lat) / h["cellLat"] + 0.5)) if h is not None else 0
         for x in range(SIZE):
-            if (x + 0.5 - C) ** 2 + (y + 0.5 - C) ** 2 > C * C:
+            if corner:
+                if not in_map(x, y):
+                    continue
+            elif (x + 0.5 - C) ** 2 + (y + 0.5 - C) ** 2 > C * C:
                 continue
-            lon = view.home[1] + ((x + 0.5) - C) / C * view.rLon
-            c = int(math.floor((lon - h["lonNw"]) / h["cellLon"] + 0.5))
-            if 0 <= r < h["rows"] and 0 <= c < h["cols"]:
-                scr.px[y][x] = colour(codes[r * h["cols"] + c], x, y)
+            if h is None:
+                code = 0
             else:
-                scr.px[y][x] = legend.NOCOV
+                lon = view.home[1] + ((x + 0.5) - C) / C * view.rLon
+                c = int(math.floor((lon - h["lonNw"]) / h["cellLon"] + 0.5))
+                code = codes[r * h["cols"] + c] if 0 <= r < h["rows"] and 0 <= c < h["cols"] else 14
+            scr.px[y][x] = base[y][x] if (code == 0 and base is not None) else colour(code, x, y, pal)
 
 
-def draw_ring(scr, r_px, rnd):
+def draw_ring(scr, r_px, rnd, col=RING):
     n = int(2 * math.pi * r_px)
     for k in range(0, n, 2):
         a = 2 * math.pi * k / n
         x, y = rnd.point(C + r_px * math.sin(a), C - r_px * math.cos(a), f"ring r={r_px:g} k={k}")
         if in_map(x, y):
-            scr.px[y][x] = RING
+            scr.px[y][x] = col
 
 
-def place_ring_labels(scr, rings, obstacles):
+def place_ring_labels(scr, rings, obstacles, ink=None):
+    ink = ink or DARK_INK
     for r_px, label in rings:
         w = text_w(label)
         for ang in (45, 135, 315, 225, 90, 270, 0, 180):
@@ -248,7 +278,7 @@ def place_ring_labels(scr, rings, obstacles):
                 continue
             if any(overlaps(box, o, 2) for o in obstacles):
                 continue
-            scr.text(tx, ty, label, 1, RINGTXT, halo=BLACK)
+            scr.text(tx, ty, label, 1, ink["ringtext"], halo=ink["halo"])
             obstacles.append(box)
             break
 
@@ -273,31 +303,33 @@ def arrow_segments(sx, sy, from_deg):
     return [((sx, sy), tip), (tip, heads[0]), (tip, heads[1])]
 
 
-def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None):
+def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None,
+            base=None, corner=False, peaks=None, glyph=None, peak_log=None, pal=None, ink=None):
     """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own).
     3.5a's K rows add (A9.10, A9.14, Q17, Q18): state["timeText"]/["timeInk"] for the top strip; warning["arrow"] =
     (lat, lon, fromDeg), drawn after the title and before the labels, its box a fixed overlay; and `loop` =
     dict(age=, index=) for the loop's band in place of the state line. Towns are (name, lat, lon[, ...])."""
-    scr = Screen()
-    render_map(scr, h, codes, view)
-    scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, BLACK)
-    scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, BLACK)
+    ink = ink or DARK_INK
+    scr = Screen(ink["bg"])
+    render_map(scr, h, codes, view, base, corner, pal)
+    scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, ink["band"])
+    scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, ink["band"])
     fixed = [(0, 0, SIZE - 1, TOP_BAND - 1), (0, BOT_BAND, SIZE - 1, SIZE - 1)]
     ppm = view.ppm()
     rings = []
     for mi in (5, 15, 30):
         if 0.15 * view.R <= mi <= 0.85 * view.R:
-            draw_ring(scr, mi * ppm, rnd)
+            draw_ring(scr, mi * ppm, rnd, ink["ring"])
             rings.append((mi * ppm, "%d" % mi))
-    scr.text(117, 3, "N", 1, DIMTXT)
+    scr.text(117, 3, "N", 1, ink["dim"])
     time_text = state.get("timeText", frame_clock)
     if not zoomed:
-        scr.text(int(C - text_w(time_text) / 2), 13, time_text, 1, state.get("timeInk", DIMTXT))
+        scr.text(int(C - text_w(time_text) / 2), 13, time_text, 1, inkmap(ink, state.get("timeInk", DIMTXT)))
     else:
         tag = "ZOOM %d MI" % view.R
         x0 = int(C - text_w(time_text + "  " + tag) / 2)
-        scr.text(x0, 13, time_text, 1, state.get("timeInk", DIMTXT))
-        scr.text(x0 + text_w(time_text + "  ") + 1, 13, tag, 1, WHITE)
+        scr.text(x0, 13, time_text, 1, inkmap(ink, state.get("timeInk", DIMTXT)))
+        scr.text(x0 + text_w(time_text + "  ") + 1, 13, tag, 1, ink["white"])
     if warning:
         pts = [view.project(la, lo) for (la, lo) in warning["polygon"]]
         for i in range(len(pts)):
@@ -327,6 +359,35 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
             fixed.append((int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))))
     placed, placed_info = [], []
     inner = 0.17 * view.R * ppm + 4
+    if peaks:   # 3.5b (A10.2): peaks before towns, the first 4 PLACED, in rank order; placed peaks are obstacles
+        n = 0
+        for name, lat, lon in peaks:
+            if n >= 4:
+                break
+            x, y = view.project(lat, lon)
+            if (x - C) ** 2 + (y - C) ** 2 < inner * inner:
+                continue
+            label = name.replace("Mount ", "Mt ")
+            w = text_w(label)
+            cands = [(int(x) - 3, int(y) - 4, int(x) + 5 + w, int(y) + 4, int(x) + 5),
+                     (int(x) - 5 - w - 1, int(y) - 4, int(x) + 4, int(y) + 4, int(x) - 5 - w)]
+            if x < C:
+                cands.reverse()
+            for (x0, y0, x1, y1, tx) in cands:
+                box = (x0, y0, x1, y1)
+                if y0 < TOP_BAND + 2 or y1 > BOT_BAND - 2 or not inside_circle(x0, y0, x1, y1):
+                    continue
+                if not box_clears_centre(box, inner):
+                    continue
+                if any(overlaps(box, f) for f in fixed) or any(overlaps(box, p) for p in placed):
+                    continue
+                glyph(scr, x, y, ink["peak"])
+                scr.text(tx, int(y) - 3, label, 1, ink["peak"], halo=ink["halo"])
+                placed.append(box)
+                if peak_log is not None:
+                    peak_log.append((name, x, y))
+                n += 1
+                break
     ranked = sorted(towns, key=lambda t: -(pop(t) or 1000))
     for t in ranked:
         name, lat, lon = t[0], t[1], t[2]
@@ -351,14 +412,14 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
                 continue
             if any(overlaps(box, f) for f in fixed) or any(overlaps(box, p) for p in placed):
                 continue
-            scr.fill(int(x) - 1, int(y) - 1, int(x) + 1, int(y) + 1, LABEL)
-            scr.text(tx, int(y) - 3, label, 1, LABEL, halo=BLACK)
+            scr.fill(int(x) - 1, int(y) - 1, int(x) + 1, int(y) + 1, ink["label"])
+            scr.text(tx, int(y) - 3, label, 1, ink["label"], halo=ink["halo"])
             placed.append(box)
             placed_info.append((label, side, box))
             break
-    place_ring_labels(scr, rings, fixed + placed)
+    place_ring_labels(scr, rings, fixed + placed, ink)
     for (x, y) in HOME:
-        scr.px[y][x] = WHITE
+        scr.px[y][x] = ink["home"]
     if warning:
         scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, WHITE)
         scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, WHITE)
@@ -369,7 +430,7 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
         scr.fill(kx, 210, kx + 3, 215, WHITE)
     else:
         s, col = state["line"], state["colour"]
-        scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, col)
+        scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, inkmap(ink, col))
     return scr, placed_info
 
 
@@ -398,14 +459,37 @@ def png_rgb(path):
     return im.tobytes()
 
 
+def r0_fixture_pins(fx_dir):
+    """A12.18.3: every file r0/MANIFEST.json lists must hash to its pin, or R0 does not run (exit 2, the rig)."""
+    man = json.load(open(os.path.join(fx_dir, "MANIFEST.json"), encoding="utf-8"))
+    bad = [n for n, want in man["files"].items()
+           if hashlib.sha256(open(os.path.join(fx_dir, n), "rb").read()).hexdigest() != want]
+    if bad:
+        print(f"R0 REFUSED: {bad} do not hash to MANIFEST.json's pins (the rig)")
+        sys.exit(2)
+    return man
+
+
+def load_towns_fixture(fx_dir):
+    t = open(os.path.join(fx_dir, "towns-a7f21fb.txt"), encoding="utf-8").read()
+    return [(n, float(a), float(b)) for n, a, b in
+            (l.split("|") for l in t.splitlines() if l and not l.startswith("#"))]
+
+
 def r0(mock_dir, out_dir):
-    towns = load_towns_pre_join()
-    POP = generator_pop(mock_dir)
+    fixture = os.path.exists(os.path.join(mock_dir, "MANIFEST.json"))
+    if fixture:
+        r0_fixture_pins(mock_dir)
+        towns = load_towns_fixture(mock_dir)
+        POP = json.load(open(os.path.join(mock_dir, "generator-pop.json"), encoding="utf-8"))["pop"]
+    else:
+        towns = load_towns_pre_join()
+        POP = generator_pop(mock_dir)
     pop = lambda t: POP.get(label_name(t[0]), 1000)
     hA, cA = decode(os.path.join(LOOP, "shsr-20240521-212400.wxc"))
     hD, cD = decode(os.path.join(LOOP, "shsr-20240521-220000.wxc"))
     hZ, cZ = decode(os.path.join(LOOP, "shsr-20240521-210800.wxc"))
-    print(f"R0 inputs: {len(towns)} towns (a7f21fb, = b202ff3); POP table {len(POP)} entries (wxmock.py, R0 only); font {FONT_SHA[:12]}")
+    print(f"R0 inputs ({'fixtures, pinned' if fixture else 'the reviewer dir'}): {len(towns)} towns (a7f21fb, = b202ff3); POP table {len(POP)} entries (R0 only); code 1 {GEN_PAL[1]} (the generator's, A12.18.2); font {FONT_SHA[:12]}")
     results, ok = [], True
     images = {}
     for mode in ("G", "P"):
@@ -421,15 +505,15 @@ def r0(mock_dir, out_dir):
                     band2="STORM %d MI %s " % (R(nA[0]), nA[1]) + MIDDOT + " NE 35 MPH")
         v60, v60d = View(hA, 60), View(hD, 60)
         jobs = {
-            "screen-proposed-dry.png": lambda rnd: compose(hD, cD, v60d, dict(line="RAIN %d MI %s" % (R(nD[0]), nD[1]), colour=DIMTXT), towns, pop, "5:00 PM", rnd),
-            "screen-proposed-approaching.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN %d MI %s" % (R(nA[0]), nA[1]), colour=WHITE), towns, pop, "4:24 PM", rnd),
-            "screen-proposed-herenow.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN NOW", colour=WHITE), towns, pop, "4:24 PM", rnd),
-            "screen-proposed-warning.png": lambda rnd: compose(hA, cA, v60, {}, towns, pop, "4:24 PM", rnd, warning=warn),
+            "screen-proposed-dry.png": lambda rnd: compose(hD, cD, v60d, dict(line="RAIN %d MI %s" % (R(nD[0]), nD[1]), colour=DIMTXT), towns, pop, "5:00 PM", rnd, pal=GEN_PAL),
+            "screen-proposed-approaching.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN %d MI %s" % (R(nA[0]), nA[1]), colour=WHITE), towns, pop, "4:24 PM", rnd, pal=GEN_PAL),
+            "screen-proposed-herenow.png": lambda rnd: compose(hA, cA, v60, dict(line="RAIN NOW", colour=WHITE), towns, pop, "4:24 PM", rnd, pal=GEN_PAL),
+            "screen-proposed-warning.png": lambda rnd: compose(hA, cA, v60, {}, towns, pop, "4:24 PM", rnd, warning=warn, pal=GEN_PAL),
         }
         for Rz in (60, 30, 15):
             jobs["screen-zoom-%d.png" % Rz] = (lambda Rz: lambda rnd: compose(
                 hZ, cZ, View(hZ, Rz), dict(line="RAIN %d MI %s" % (R(nZ[0]), nZ[1]), colour=WHITE), towns, pop, "4:08 PM", rnd,
-                zoomed=(Rz != 60), cap={60: 8, 30: 6, 15: 5}[Rz]))(Rz)
+                zoomed=(Rz != 60), cap={60: 8, 30: 6, 15: 5}[Rz], pal=GEN_PAL))(Rz)
         shots, logs = {}, {}
         for name, job in jobs.items():
             rnd = Rounder(mode)

@@ -1,0 +1,344 @@
+# `opuk`: UK weather radar on the server (R2 of the UK data plan)
+
+**Status:** R2's predictions, frozen before any R2 code. The plan is `docs/uk-data.md` on main. Its K1-K13 were frozen at
+`456988b` (A1.3), and K14 at `37e6864` (A2.2, on `docs/uk-data-r1`).
+
+**The ruling that starts R2 (reviewer chat, pasted by Daniel, 2026-10-29), verbatim:**
+> Start R2 now (reviewer chat, 2026-10-29)
+>
+> The week's results (B, C, T) decide #445's age limit and the clutter mask. They don't decide the rest of R2's server
+> code, so R2 doesn't wait for 2026-11-04. This amends my earlier "before R2's code".
+> - Start R2 now: the COG reader, the resampling, the codes, WXG1, the cref dispatch, the 1,800 s limit, the covered
+>   share, prune-on-store and the User-Agent. K1-K14 as frozen, predictions first.
+> - The clutter mask goes behind one switch, set at 0.5 as planned. C's reading on 11-04 decides its final setting, and
+>   Q17's answer with it, before R3's deploy.
+> - Read L (the bucket's terms) now.
+> - R3 and R4 may deploy once their checks pass and the mask is settled, under the standing rule and Daniel's $2
+>   allowance. No shipped firmware reads /wx yet, so UK frames on the server affect no customer.
+> - The collection keeps running to 11-04 as frozen.
+
+**L was read the same day:** outcome (b), recorded in `docs/uk-data.md` A3.9 on `docs/uk-data-r1`.
+
+## What R2 builds
+
+**Everything is in `proxy/src/wx/`, with no Cloudflare resource:** the same bucket, the same ingest Worker and the
+same cron.
+- **`opera.ts`:** the COG reader. It reads an 8 KB range, parses IFD 0 (classic little-endian TIFF), then range-reads
+  each window row of tiles and inflates them with `DecompressionStream("deflate")`.
+  - It accepts only `float32` with 2 samples, chunky, deflate, no predictor, and LAEA (`ProjCoordTrans` 10) on WGS84
+    (7030).
+  - **The projection is read from the frame's own GeoKeys** (false easting and northing, centre latitude and
+    longitude) and its tiepoint and pixel scale, never assumed.
+- **`laea.ts`:** ellipsoidal Lambert azimuthal equal-area, forward and inverse.
+- **`resample.ts`:** OPERA's 1 km pixels to the `opuk` 0.01° WXG1 grid.
+  - **Inside each target cell:** among the source pixels whose centres fall in it, `blockCode`'s priority. The
+    strongest echo wins; else 14 if any pixel has no coverage; else 0.
+  - **A cell with no source centre inside** takes the pixel containing its centre.
+  - **The source-to-cell map is static,** built once per isolate.
+- **The codes:** NaN (undetect) → 0; −9,999,000 (nodata) → 14; any other value through `codeOfComposite`.
+  - **The clutter mask is one switch** (`OPUK_QI_MASK`, default on, threshold 0.5): an echo whose quality index is
+    below 0.5 becomes 0.
+- **`products.ts`:** the `opuk` row.
+  - its window: the UK land box plus 2.02°;
+  - a WXG1 grid of 1,515 × 1,455 cells at 0.01°;
+  - cadence 300 s; `maxAgeS` 1,800;
+  - its source: the `openradar-24h` cache's `DBZH` GeoTIFFs.
+- **The ingest:**
+  - **the products' checks run concurrently** in each invocation, as §1.3 planned;
+  - `opuk` prunes only on a check that writes a frame;
+  - **its covered share** goes on the frame object as R2 custom metadata, so any later check that moves `latest` carries
+    it into the record;
+  - every CloudFerro request carries K14's User-Agent.
+- **The handler:**
+  - `/wx/cref` answers from `opuk` when the quantised point is inside the land box, with the ETag naming `opuk`;
+  - `/wx/opuk` answers directly;
+  - `/healthz`'s `wx` gains `opuk` with `frameAgeS` and `coveredShare`.
+- **`smoke-prod.sh`** FAILs on a missing or zero `coveredShare` for `opuk` (K9). The UK `/wx` check is R4's.
+
+## The checks: K1-K14 as frozen, with the details they left open pinned now; and K15
+
+Each sabotage must turn its own row red. BLIND counts as FAIL.
+
+| | check | predicted | sabotage |
+|---|---|---|---|
+| **K1** | the COG reader on **2 real frames** from the week's collection, the UK window: **the wettest and the driest** held at 2026-10-29 03:00Z, by echo cells in the window. The fixture holds exactly the byte ranges the reader requests (the first 8,192 B and each window row of tiles). The expected value is the sha256 of the window's value band (`float32` LE, NaN written as `0x7FC00000`) **computed from that frame's HDF5** by `tools/wx/opera_fixture.py`, cross-checked there against `tifffile`'s decode of the full COG, plus the projection numbers from the HDF5's `projdef` | **the reader's sha equals the HDF5's** on both frames, as do the projection numbers (to 1e-9) | band 1 read for band 0: the shas differ |
+| **K2** | resampling, on a synthetic source grid with a real frame's geometry: undetect everywhere, except a one-pixel-wide diagonal line of 40 dBZ from the window's north-west to its south-east | **0** 0.01° rows between the line's first and last rows without an echo cell | the centre rule alone (nearest neighbour): gaps > 0 |
+| **K3** | the codes | NaN → 0; −9,999,000 → 14; 14.99 → 0; 15.0 → 1; 75.0 → 13; 78.5 → 13; code 15 never | 15 dBZ mapped to 0 |
+| **K4** | WXG1 | 1,515 × 1,455 cells, 9 tiles, **1,179,712 B**; a round trip identical cell for cell | `tilesY` for `tilesX` |
+| **K5** | the dispatch | LHR → `opuk`; **CDG (inside the window, outside the land box) → today's answer** (`cref`'s all-14 crop); KMCI → `cref`; PHNL → `cref`'s all-14 crop; the land box and the CONUS grid do not overlap | dispatch by the window: CDG served `opuk` |
+| **K6** | every view served from `opuk` inside its grid: the land box on a 0.05° lattice × r ∈ {1, 25, 80, 160, 222, 300, 500} km, with WS4′'s device corners | **0** views outside the grid. Printed: crops whose padding reaches outside (served as 14) | a margin of 1.0° |
+| **K7** | the ETag names the served product | the same query and epoch give different ETags for `cref` and `opuk`; a device moved from LHR to KMCI never gets a 304 | an ETag without the product |
+| **K8** | `opuk`'s 1,800 s limit | a 900 s-old frame → 200 (`cref` at 900 s → 503); 1,801 s → 503 `wx_stale` | the limit read from `cref` |
+| **K9** | the covered share | each frame's record carries the window's covered share (cells not 14, over all cells); an all-nodata frame reads 0; `/healthz` prints it; `smoke-prod.sh` FAILs on 0 or a missing share for `opuk` | the share fixed at 1: the all-nodata frame reads 1 |
+| **K10** | prune only on the storing check | a storing check prunes; a check that stores nothing makes **0** R2 lists (a wrapped binding) | prune on every check |
+| **K11** | CPU and live memory in Node, on 3 real frames from the collection | CPU **≤ 0.6 s** a frame, from the tile bytes in memory to the WXG1 bytes (the one-time static map timed and printed separately); live peak **≤ 96 MB** (A4's meter). R3's production bar is twice Node (I7's factor) | 64 MB held: the peak +63-65 MB |
+| **K12** | the device decodes `opuk` crops: **8** server-made crops over a real frame, at LHR, MAN, EDI, GLA, BFS, ABZ, CWL and NQY (r = 161 km) | all 8 decode with `include/WxCrop.h` to the encoder's cells (a manifest of sha256s) | one nibble flipped fails exactly that crop |
+| **K13** | the host render (Q7) | a real `opuk` crop at LHR through `wxlayer::Build` and `WxS2` to a PNG, committed. Looked at, not graded | — |
+| **K14** | every CloudFerro request (listing, header, tile ranges), through a wrapped `fetch` | each carries `User-Agent: BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes)` | the header dropped from one request kind |
+| **K15** (new) | the mask switch, on synthetic cells | **on:** (40 dBZ, QI 0.4) → **0**; (40, 0.5) → **6**; (40, 0.9) → 6. **off:** (40, 0.4) → 6. The default is on, at 0.5 | `<=` for `<`: (40, 0.5) → 0, red |
+
+**What R2 does not do:**
+- **no deploy:** R3 and R4 deploy once their checks pass and the mask is settled by C's reading on 11-04;
+- **no change to `cref`'s data path,** except that its checks now run concurrently with `opuk`'s;
+- **no firmware.**
+
+**Outside the set:** any reading not listed above means stop and report.
+
+### K1's frames, restated before any selection was computed (2026-10-29, ~03:40Z)
+
+- **The problem:** K1 pins "the wettest and the driest held at 2026-10-29 03:00Z". A fixture needs the frame's own
+  HDF5 (the expected value) and its first 8 KB (the collection kept only the tiles).
+- **The cache has expired every 2026-10-27 frame:** 0 listed, against 288 held.
+- **No selection has been computed,** so this is a restatement, not a choice made after seeing the frames.
+- **K1's frames, restated:** the wettest and the driest **among the frames held at 2026-10-29 03:00Z whose HDF5 and
+  GeoTIFF are still in the cache** (2026-10-28 00:00Z onward), by echo cells in the window.
+- **Everything else in K1 is unchanged.**
+
+### Two cases the rows left open, pinned before their code (2026-10-29)
+
+- **K9's smoke check when no `opuk` frame exists yet** (`frameAgeS` null). That is the state between R2's merge and R3's
+  ingest deploy. K9 says "FAILs on 0 or a missing share", and that is about a frame whose record lacks a share.
+  - **Pinned:** with no frame, the check passes as "not ingesting yet", as the `/wx` check's inert answer did before
+    the bucket was bound.
+  - With a frame, the share must be present and > 0, or FAIL.
+  - **Pinned 2026-10-29, before the smoke check's code:**
+    - **`wx` is `"not_configured"`** (no bucket bound) → PASS, as the `/wx` check's inert answer does.
+    - **`wx` has no `opuk` entry at all** (a Worker deployed before R2's merge) → **FAIL**, as the `/wx` check's 404
+      does: production is behind main.
+    - **A share above 1** → FAIL: it cannot be a share.
+    - The verdict lives in `scripts/wx-opuk-verdict.sh`, sourced by `smoke-prod.sh`.
+      `scripts/wx-opuk-verdict.selftest.sh` runs it on nine canned bodies and compares the whole verdict list. Its
+      sabotage drops the zero test, and case 5 (share 0) must then read PASS and fail the selftest.
+- **What `/wx/cref` answers at a UK point before R3 deploys,** if the proxy is redeployed with R2's code in between:
+  `opuk` has no `latest`, so **503 `wx_stale`**, where today it is a 200 all-14 crop.
+  - No shipped firmware reads `/wx` (the ruling), so no customer sees it.
+  - Smoke's `/wx` check asks at Bend, which `cref` still serves.
+  - **Recorded, not changed.**
+
+### K4's sabotage is BLIND by construction on `opuk`'s grid (found 2026-10-29, before any K4 code ran)
+
+- **The finding:** a WXG1 tile's offset is `ty * tilesX + tx` (`grid.ts` `tileOffset`). On `opuk`'s grid
+  `tilesX = ceil(1455 / 512) = 3` and `tilesY = ceil(1515 / 512) = 3`. With the two swapped, every offset, count and
+  byte is identical, so the frozen sabotage ("`tilesY` for `tilesX`") cannot turn K4 red.
+- **How it was found:** by reading `tileOffset` while writing K4's test. Nothing had run.
+- **What it means under the rules:** BLIND counts as FAIL, so **K4 reads FAIL** until the reviewer rules. K4's predicted
+  values (1,515 × 1,455 cells, 9 tiles, 1,179,712 B, a cell-for-cell round trip) still run as frozen and are reported.
+- **A proposed remedy, NOT applied, for the reviewer to rule on:** the same swap on a grid whose tile counts differ:
+  `opuk`'s 1,515 rows with 1,000 columns (3 × 2 tiles). **Predicted:** the round trip then fails cell for cell.
+
+## R2's first readings (2026-10-29, `test/wx-opera.test.ts`)
+
+**Two rows are outside the predicted set (K1, K2), and K4's sabotage is BLIND.** Those three stop until the reviewer
+rules. Every other row read as predicted, with its sabotage red.
+
+| | predicted | got | verdict |
+|---|---|---|---|
+| **K1** | the reader's sha equals the HDF5's on both frames; projection to 1e-9 | projection **equal**; the window's column indices are **one higher**: `[1059, 2883, 418, 1636]` against `[1059, 2883, 417, 1635]`, so the sha differs on both frames | **OUTSIDE THE SET: stopped** |
+| **K2** | 0 gap rows; the centre rule alone: gaps > 0 | **0** gap rows (the line crosses grid rows 469-1334); the centre rule alone: **0** | **sabotage BLIND = FAIL: stopped** |
+| K3 | the six values, never 15 | as predicted; the sabotage reports `15 -> 0, not 1` only | pass |
+| **K4** | 1,515 × 1,455, 9 tiles, 1,179,712 B, round trip identical | as predicted | values pass; **sabotage BLIND (above) = FAIL** |
+| K5 | LHR `opuk`; CDG, KMCI, PHNL `cref` (CDG and PHNL all-14); no overlap | as predicted; MAN, EDI, GLA, BFS, ABZ, CWL and NQY also `opuk`; the sabotage serves CDG `opuk` | pass |
+| K6 | 0 views outside | 329,371 cases, 2,634,968 views, **0 outside**, 0 crops padded past the grid, 0 not served `opuk`; margin 1.0: 495,506 outside | pass |
+| K7 | different ETags; no 304 after a move | as predicted (CONTROL: the same query does get its 304); the sabotage collides | pass |
+| K8 | 900 s 200, `cref` 900 s 503, 1,801 s 503 | as predicted; the sabotage refuses `opuk` at 900 s | pass |
+| K9 | the share in the record; all-nodata 0; `/healthz` prints it | the dry frame **0.7513**, the same in the record and in `/healthz`; `cref`'s entry unchanged; all-nodata 0; the sabotage reads 1 | pass (the smoke half is still to write) |
+| K10 | a storing check prunes; a non-storing one makes 0 lists | 1 list, then 0; the sabotage lists | pass |
+| K11 | CPU ≤ 0.6 s a frame; live peak ≤ 96 MB; 64 MB held: +63-65 MB | 0.297 / 0.312 / 0.266 s; 54.46 / 54.22 / 54.22 MB; +64.03 MB (below) | pass |
+| K12 | 8 `opuk` crops decode with `WxCrop.h` to the encoder's cells; one nibble flipped fails exactly that crop | **8 / 8** (LHR, MAN, EDI, GLA, BFS, ABZ, CWL, NQY at 161 km, over the wet frame, through `/wx/cref`'s dispatch; 5-998 echo cells each); the sabotage (`man-161km.wxc`, pinned before it ran) fails its `file` and `cells` lines and nothing else; g++ 13.3 in WSL | pass |
+| K14 | the UA on every request | list 1, head 1, tiles 4, none missing; each of the three sabotages names exactly its own kind | pass |
+| K15 | 0, 6, 6; off 6; default on at 0.5 | as predicted; the sabotage masks (40, 0.5) | pass |
+
+**K11 (`scripts/wx-opuk-measure.ts`, Node, one measurement per process): pass.**
+- **The frames:** the two K1 fixtures and a third, restated before measuring. The rule I first stated, "the newest
+  frame in the collection", named the dry fixture itself (the collection last ran at 01:38Z), so it became **the
+  newest collected frame that is not a fixture: `20261029T0125`**. Its head and window rows were range-read from the
+  cache with K14's User-Agent and held in memory.
+- **CPU, tile bytes in memory to WXG1 bytes:** **0.297, 0.312, 0.266 s** (bar 0.6). **The static map, once per
+  isolate:** 0.516, 0.485, 0.531 s, printed separately.
+- **Live peak (A4's meter):** **54.46, 54.22, 54.22 MB** (bar 96), at the resampling stage. **The sabotage, 64 MB
+  held:** 118.25 MB, **+64.03 MB** (predicted +63-65).
+- **The covered share reads 0.7513 on all three frames,** while the WXG1 shas differ. It is not a constant: the HDF5's
+  own nodata counts are 818,321 and 818,320 (the radar network's footprint, one pixel apart in about 2.2 M), and K9's
+  all-nodata case reads 0.
+
+**K12's run:** the host suite's own `run.sh` stopped BLIND at an earlier block in this worktree (the Wi-Fi QR test
+needs LovyanGFX under `.pio/libdeps`), so its later blocks did not run here. The K12 block's command was run on its
+own and passed, and WS7's server set and its sabotage still read as before. CI's host job is the authority.
+
+**LAEA against pyproj (PROJ 9.8.1; tolerances stated in the test before its first run):** forward 5.0e-5 m worst over
+544 points, inverse 5.0e-11° worst over 1,080. A near-sphere misses by 3,192 m.
+
+### K1: what the two files say, read-only (`tools/wx/opera_corner.py`, differences only, no coordinates)
+
+- **The GeoTIFF** declares `PixelIsArea` (GeoKey 1025 = 1), with its tiepoint at raster (0, 0).
+- **The HDF5's `UL` corner** lies exactly **+500 m east and −500 m south** of the GeoTIFF's corner: **half a pixel on
+  both axes.** The HDF5 is self-consistent: UL to UR is exactly 3,800 px and UL to LL exactly 4,400 px, so its four
+  corners are all pixel corners.
+- **So the two files of one frame place the raster half a pixel apart.** The half pixel moved the columns' floor and,
+  by coincidence, not the rows'.
+- **Which is right is not settled by the data:**
+  - **(a) the GeoTIFF is half a pixel off** (the pixel-is-point/area slip in a conversion). For it: the HDF5's corner
+    projects to the origin, (0, 0), to within a millimetre, which looks designed.
+  - **(b) the HDF5's corner attributes are off.** Nothing in the data excludes it; OPERA's documentation of the
+    CIRRUS grid is the third source that could.
+  - **One look for that source, not conclusive:** a web search found nothing CIRRUS-specific. Its summary says
+    EUMETNET's ODIM template defines `UL_lon`/`UL_lat` as the image's corner, which would favour (a), but I could not
+    read the template's text here (no PDF text tool), so that claim is **unverified**.
+- **What it costs either way:** 500 m in x and y, against 1 km pixels and 0.64 × 1.11 km cells.
+- **No fix is applied.** The reader still takes the GeoTIFF's corner.
+
+### K2: why the sabotage cannot fire (reasoned, not measured), and my control
+
+- **A diagonal does not separate the two rules.** A 0.01° cell is 0.64 km wide at these latitudes, so along any grid
+  row the centre rule samples every source column, and the diagonal's pixel in that row is hit either way. The "one
+  source row in ten" that the centre rule drops matters for a feature one source row tall, and the grid's parallels
+  cross the source rows at about 12° here (an estimate: (−5° − 10°) × sin 55°), so even a horizontal line is likely
+  caught.
+- **What would separate them** (a proposed remedy, NOT applied): **isolated single-pixel echoes** (one 40 dBZ pixel in
+  every 7 × 7 block, undetect elsewhere). **Predicted:** the block rule loses **0** pixels whose centre lies in the grid;
+  the centre rule alone loses **> 0** (a pixel holding no cell centre is never sampled).
+- **The control that also failed is mine, not frozen:** `last - first > 1000` was written without computing it. The
+  line crosses 865 grid rows (the window's corners lie outside the rotated grid). It is reported, not re-thresholded.
+
+### Changes made after a first reading, without a ruling (stated so they can be reverted)
+
+The first run of `test/wx-opera.test.ts` was **outside the set on every fixture row**: the reader refused both frames
+("the window leaves the raster").
+- **The cause, in the code under test:** `opera.ts` read GeoKeys 3088 and 3089 the wrong way round (3088 is
+  `ProjCenterLongGeoKey`, so lat0 came out 10 and lon0 55). **I fixed it before the second run,** without a ruling, in
+  its own commit so it can be reverted. K1's projection check is the check that caught it.
+- **Three defects in the test scaffolding,** none changing what a row asserts, also fixed before the second run:
+  - the LAEA control compared Python's `55.0` with JavaScript's `55` as strings;
+  - K8 compared the error body without its `v: 1` (the statuses were 503, as predicted);
+  - the predictor-refusal plant did not apply, because OPERA's IFD carries Predictor = 1 explicitly after tag 284.
+    It now plants over 317 itself, with a control that the value was 1 first.
+
+## The ruling on R2's three stops (reviewer chat, pasted by Daniel, 2026-10-29), verbatim
+
+> UK data session: from the reviewer chat, 2026-10-29
+>
+> R2's three stops, and your changes after the first reading:
+>
+> 1. K1: (a). The HDF5 is right, and the GeoTIFF is half a pixel off.
+> - The third source: BALTRAD's RAVE navigation notes (https://baltrad.github.io/rave_navigation.html), from ODIM's
+>   reference implementation, say that ODIM H5's UL/UR/LL/LR lon/lat pairs "defines the outer boundaries of the area
+>   covered". Read it yourself and record the quote with its URL.
+> - That agrees with the HDF5's own geometry: corner to corner is exactly 3,800 and 4,400 px, so these are outer
+>   corners, not centres, and its UL corner sits on the false origin to within a millimetre. The GeoTIFF's PixelIsArea
+>   tiepoint sits exactly half a pixel outside that corner. That is the classic slip of a converter that read ODIM's
+>   corners as pixel centres.
+> - The reader's rule, narrow on purpose: PixelIsArea only (GeoKey 1025 = 1). A tiepoint exactly half a pixel outside
+>   the false origin (-xscale/2, +yscale/2, within 1 mm) is the known CIRRUS slip, and the raster's corner goes on the
+>   false origin. A tiepoint exactly on the false origin is used as is (a corrected product). Anything else refuses the
+>   frame, so a future change at OPERA can't move the map silently.
+> - K1 stands as frozen, with its expected values from the HDF5. Add K1b, frozen before its code: the slip tiepoint
+>   gives the HDF5's window on both frames; a tiepoint on the origin is used as is; a tiepoint 1 m off either is
+>   refused; PixelIsPoint is refused. Sabotage: with the acceptance check removed, the 1 m case is no longer refused.
+> - The first reading stays on record as the miss: one column off on both frames.
+>
+> 2. K2: your remedy, as K2′. The diagonal's result stays on record: 0 gap rows and a BLIND sabotage, so K2 as frozen
+>    reads FAIL. K2′: isolated single-pixel 40 dBZ echoes, one in every 7x7 block, undetect elsewhere. Predicted: the
+>    block rule loses 0 echo pixels whose centre lies in the grid; the centre rule alone loses > 0, with the count
+>    printed. Your unfrozen "> 1000" control is dropped, with 865 recorded.
+>
+> 3. K4: your remedy. K4's values on opuk's 3x3 grid stand. Its sabotage runs on a 1,515 x 1,000 grid (3 x 2 tiles):
+>    without the swap the round trip is identical (the control), and with tilesY for tilesX it fails cell for cell. K4
+>    as frozen stays on record as BLIND.
+>
+> 4. Accepted: 14d5fb9 (3088 is ProjCenterLongGeoKey and 3089 ProjCenterLatGeoKey; I checked the diff) and the three
+>    scaffolding fixes. All stay on record as made after the first reading. A check catching a bug in the code under
+>    test, followed by a fix in its own commit, is the process working.
+>
+> Then re-run every R2 row with K1's correction in. It moves every resampled cell by half a pixel, so K12's crops and
+> manifest are rebuilt by the same rule. Then K13's render. #499 stays a draft until CI is green on every row.
+
+**The third source, read 2026-10-29:** <https://baltrad.github.io/rave_navigation.html>, section "ODIM H5 Area
+Definition":
+> These coordinates defines the outer boundaries of the area covered.
+
+and, further on:
+> Hence, the UL/UR/.. defines the actual outer boundaries of the area.
+
+The page says the (X, Y) points of the area are "placed in the center of each sub area": the centres are the pixels,
+and the four corner pairs are the outer boundary. Read through a page fetch, which returns the page's text rather than
+its raw HTML; the two sentences are quoted as it returned them.
+
+### Frozen before the code that follows them (2026-10-29)
+
+**K1b: the reader's corner rule.** It runs on the dry fixture's real head, with the tiepoint and GeoKey 1025 planted in
+copies. Every plant is asserted to have applied (the planted value is read back) before its result is believed.
+
+| case | predicted |
+|---|---|
+| the real head (the CIRRUS slip: tiepoint at (−xscale/2, +yscale/2)) on **both** frames | accepted; the raster corner is the false origin; the window is the HDF5's, `[1059, 2883, 417, 1635]` |
+| tiepoint planted on the false origin, (0, 0) | accepted as is; the same window |
+| tiepoint 1 m off the slip, (−501, 500) | refused |
+| tiepoint 1 m off the origin, (1, 0) | refused |
+| GeoKey 1025 planted to 2 (PixelIsPoint) | refused |
+| **sabotage:** the acceptance check removed (a test-only switch); the tiepoint used as is | the (−501, 500) case is **not** refused, so the row goes red |
+
+**K2′: isolated echoes.** One 40 dBZ pixel (QI 0.9) at the centre of every 7 × 7 block of the dry frame's window,
+undetect elsewhere.
+- **"Kept"** means at least one echo cell within ±2 grid rows and ±3 grid columns of the cell holding the pixel's centre.
+  At 7 px (about 7 km) between echoes, that neighbourhood (about 2.2 × 1.9 km) holds no other echo's cells.
+- **The denominator** is the echo pixels whose centre lies in the grid. Printed.
+- **Predicted:** the block rule loses **0**. The centre rule alone loses **> 0**, with the count printed.
+- **The diagonal (K2 as frozen)** stays in the suite as the record: 0 gap rows. Its sabotage is pinned as BLIND (it
+  must still read 0, as K4's frozen sabotage is pinned), and the `> 1000` control is dropped.
+
+**K4′: K4's sabotage on a grid where it can fire.** The same pattern on a 1,515 × 1,000 grid (3 × 2 tiles).
+- **Control:** without the swap, the round trip is identical (0 cells differ).
+- **Sabotage:** with `tilesY` for `tilesX`, it fails cell for cell (> 0 cells differ, printed).
+  - **A cell the swapped layout cannot read** (its tile was never produced; `tiledCellAt` throws) **counts as
+    differing.**
+- K4's frozen sabotage on `opuk`'s 3 × 3 grid stays pinned as BLIND.
+
+**The re-run, with K1's correction in: every row's prediction as frozen.**
+- **K1:** the window is the HDF5's, and the sha equals on both frames.
+- **K9:** the share is present, above 0 and at most 1, and the same in the record and in `/healthz`. It will move from
+  0.7513 by the half pixel, and no value was predicted, so it is printed.
+- **K11:** the frozen bars.
+- **K12:** rebuilt from the corrected reader: 8 / 8 decode, and the sabotage fails exactly `man-161km.wxc`.
+- **K13:** rendered and committed, looked at.
+- **The whole proxy suite:** 0 failing tests, so #499's CI can go green.
+- **Outside the set:** any other reading means stop and report.
+
+## R2's re-run with K1's correction (2026-10-29: `ca7cd26` reader, `f02abac` tests, `20e572b` K13)
+
+**Every row read as frozen at `31b8c85`.** The first readings above stay as the record: K1's one-column miss, and K2's
+and K4's BLIND sabotages.
+
+| | got | verdict |
+|---|---|---|
+| **K1** | the window is the HDF5's, `[1059, 2883, 417, 1635]`, and the **sha equals** on both frames; projection equal; the band-1 sabotage differs | pass |
+| **K1b** | the real heads are the slip on both frames (corner on the origin, the HDF5's window); a tiepoint on the origin is used as is, with the same window; (−501, 500), (1, 0) and PixelIsPoint are refused; with the check removed, (−501, 500) is not refused | pass |
+| K2 as frozen | 0 gap rows (the line now crosses grid rows 470-1336); its sabotage is still 0, pinned as BLIND | FAIL as frozen (the record) |
+| **K2′** | 45,414 echoes, 31,673 with their centre in the grid; the block rule loses **0**; the centre rule alone loses **2,039** (6.4 %) | pass |
+| K3 | as before | pass |
+| K4 / **K4′** | K4's values as before; its frozen sabotage pinned BLIND; on 3 × 2 tiles the control is identical and the swap differs on **1,001,498 of 1,515,000** cells | K4′ pass |
+| K5-K8, K10, K14, K15 | as before; K6's counts unchanged (they do not depend on the reader) | pass |
+| K9 | the share is now **0.7508** (it was 0.7513: the half pixel), the same in the record and in `/healthz` | pass |
+| K11 | CPU **0.407, 0.298, 0.249 s**; the map 0.594, 0.547, 0.548 s; peak **54.48, 54.24, 54.24 MB**; 64 MB held: 118.26 MB, **+64.02 MB** | pass |
+| K12 | rebuilt: `--check` reported all 8 `opuk` crops and the manifest stale before the rebuild and clean after, with the server set unchanged. **8 / 8** decode; the sabotage fails exactly `man-161km.wxc`, `file` and `cells`; g++ 13.3 in WSL | pass |
+| **K13** | rendered, looked at (below) | done |
+| LAEA | unchanged | pass |
+
+**K11's wet frame took 0.407 s, against 0.297 s on the first run,** for the same work. That is timing noise on this
+machine. Both readings are under the 0.6 s bar, and R3's production bar (twice Node) is measured on Cloudflare.
+
+### K13: the host render, looked at
+
+- **Built against the device branch's headers at `3f7a026`** (`include/WxLayer.h`, `include/WxS2.h`, `include/WxCrop.h`,
+  `src/weatherscope/WxPalette.h`), exported read-only with `git archive`. The branch's head read `3f7a026` twice, before
+  and after.
+- **The tool:** `tools/wx/render_opuk_crop.cpp` and `ppm_to_png.py`. It uses ProjectAt's view for 161 km, no rotation,
+  the default 240 px screen, and look A.
+- **`docs/images/wx-opuk-k13-lhr.png` (K13 as frozen):** echo 0, no coverage 0, 45,244 dry pixels, 12,356 off the disc.
+  - It is an **all-black disc**: no echo near London at 02:55 on 10-28 (the crop holds 5 echo cells in about 119,000,
+    and no pixel falls on one), and dry draws as the background.
+  - It is a true picture, but it shows the layer only by absence.
+- **`docs/images/wx-opuk-extra-abz.png` (an extra, not a K13 reading):** the ABZ crop from the same frame. 478 echo
+  pixels, 0 no coverage.
+  - Scattered teal, green and blue cells, dimmed as look A draws them, in a band across the northern half of the disc.
+    The southern half is dry.
+  - It reads as a weather layer. Without a basemap under it, I cannot judge more than that.

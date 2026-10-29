@@ -1142,6 +1142,19 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# K12 (docs/wx-opuk.md): the same decoder against the opuk crops -- eight UK airports over a REAL frame, served by
+# /wx/cref's dispatch (test/fixtures/wx/opuk/, written by the same generator; workers.yml fails if stale).
+# Its sabotage: python -I test/host/sabotage_wx_server_crops.py opuk man-161km.wxc
+echo
+echo "== WX opuk crops (K12) =="
+"$OUT/test_wx_server_crops.exe" "$ROOT/test/fixtures/wx/opuk"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the WX opuk crop test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # Weatherscope's legend layout (src/weatherscope/WxLegend.h) against the round-screen rules (addendum 8: G1-G4).
 # Its sabotages: python -I test/host/sabotage_wx_legend.py. The board's pixels: test/fixtures/wx/legend_check.py.
 echo
@@ -1395,6 +1408,26 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   echo "FAIL: the GameConfig test did not run, or could not trust its inputs (exit $rc). This is the RIG, not the code."
   exit 2
 fi
+[ "$rc" -ne 0 ] && fail=1
+
+# Weatherscope's reference controls (docs/weatherscope-stage3.md A12.18): ref35.py's R0 against the reviewer's 3.5a
+# mockups and geo35.py's R0b against the Bend mockups, from the pinned fixtures in test/fixtures/wx/r0/. Pillow is
+# required (R0a' rests on its polygon rasteriser, pinned in CI); a missing Pillow or a refused pin is the RIG (exit 2),
+# never a skip.
+echo
+echo "== Weatherscope R0 and R0b (the reference's controls, A12.18) =="
+if [ -z "$PY" ] || ! "$PY" -c "import PIL" >/dev/null 2>&1; then
+  echo "FAIL: no python with Pillow; R0 and R0b cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -c "import PIL; print('Pillow', PIL.__version__)"
+"$PY" -I -B "$ROOT/tools/weatherscope/screens/ref35.py" --r0 "$ROOT/test/fixtures/wx/r0"
+rc=$?
+if [ "$rc" -eq 2 ]; then echo "FAIL: R0 refused its fixtures (the rig)"; exit 2; fi
+[ "$rc" -ne 0 ] && fail=1
+"$PY" -I -B "$ROOT/tools/weatherscope/screens/geo35.py" --r0b-fixture "$ROOT/test/fixtures/wx/r0"
+rc=$?
+if [ "$rc" -eq 2 ]; then echo "FAIL: R0b refused its fixtures (the rig)"; exit 2; fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo

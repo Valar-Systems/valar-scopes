@@ -13,6 +13,12 @@ declare module "*.txt" {
   export default text;
 }
 
+// wrangler's default module rule imports .bin as an ArrayBuffer (a Data module): the opuk fixtures' byte ranges.
+declare module "*.bin" {
+  const data: ArrayBuffer;
+  export default data;
+}
+
 // vitest.config.mts's bmpk-bytes plugin imports a .bmpk fixture as its exact bytes.
 declare module "*.bmpk" {
   const bytes: Uint8Array;
