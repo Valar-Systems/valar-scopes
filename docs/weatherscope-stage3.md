@@ -8177,3 +8177,63 @@ A12.43's other rows and sabotage sets stand as frozen.
 - **No new default argument crosses a call site.** `which` rides in `ScreenIn`, not in a parameter list (A12.44's pricing rule).
 
 **The outside-the-set branch:** any K-dark row that moves, any sabotage set that changes, or a size outside its band stops t3 at that row, reported with its cause.
+
+### A12.48 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): #502, #503 and #504 approved; Q49 (a); 3.5b's steps 7–9 between t3 and t4
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-29
+>
+> 1. Approved, in this order:
+> - #502 at 0684877779d8;
+> - #503 at 1c2a3a401462;
+> - #504 at 21708d872e43, once CI's total on that head is counted with every check that ran passing. Retarget it to main after #503 merges.
+> Each: a clean squash, --match-head-commit, no --admin. If a PR's base has moved since its CI ran, merge main into it first. If that merge needs no hand resolution and CI's total on the new head passes, the approval carries to the new head; any hand resolution comes back to me. (I checked: the three apply cleanly in that order.)
+> I reproduced each on Linux g++ 13.3 with -Werror: test_wx_k35b 143 / 0, with k35b.py --check identical; test_daynight 28 / 0, the SY scan clean, and its 6 sabotages as predicted; test_wx_theme 72 / 0 and its 13 sabotages as predicted. The real files were unchanged after each. The x87 atan2 find is the CIEDE2000 control earning its place.
+>
+> 2. Q49: (a), the guard in SolarDim.h, in t3's PR. Its rows: every edition that compiles SolarDim.h (all eight, not only Weatherscope's) builds with flash and RAM unchanged; t1's and t2's _USE_MATH_DEFINES lines come out; every host suite passes under both compilers.
+>
+> 3. 3.5b's steps 7-9 go after t3 and before t4:
+> - t3 as A12.47 froze it: the drawing reads the theme, kDark only.
+> - Then 3.5b's step 7 integrates the basemap on that themed drawing, with its predictions frozen against that base, followed by its board run and results.
+> - Then t4 and t5.
+> This uses t3's frozen design as it stands, writes step 7 once against the themed drawing, and tests the fold's timing against B2-Bend's 37,470 µs on the board before the theme's board work. It also puts Bend's terrain on the glass in both themes at t5's board run.
+
+**The order, as ruled:**
+1. t3, as A12.47 froze it, with Q49's guard in its PR;
+2. 3.5b's step 7 on the themed drawing, its predictions frozen against that base;
+3. 3.5b's board run and results;
+4. then t4 and t5.
+
+**#502 (step 6), merged.**
+- **Before:**
+  - the head was `0684877779d8`, approved, and the state `CLEAN`;
+  - CI on that head: 35 check runs, 32 success and 3 release-only skips, 0 failed;
+  - its base, main at `1a4ecf4d24aa`, had not moved, and no PR was based on its branch.
+- **The merge:** squash, `--match-head-commit`, no `--admin`, at 2026-10-29T18:10:10Z, as **`7a71f3a55b7d`**.
+- **After:**
+  - parent `1a4ecf4d24aa`; 8 paths, the PR's own;
+  - **main's tree equals the approved head's;**
+  - the remote branch was checked at `0684877779d8`, deleted, and `ls-remote` shows 0.
+
+**#503 (t1), merged.**
+- **Its base had moved** with #502, so main was merged into it as ruled.
+  - **The merge needed no hand resolution.** `run.sh` came out carrying both #502's and t1's blocks, and the new head is main plus exactly t1's 8 paths.
+  - **Before the push:** both compilers on that head. MinGW: ALL HOST TESTS PASSED. g++ 13.3 (`Ubuntu 13.3.0-6ubuntu2~24.04.1`): the same blocks and counts, only the rig's two.
+  - **CI on the new head `0f79e745b766`:** 35, all completed: 32 success and 3 release-only skips, 0 failed. **So the approval carried.**
+- **The merge:** squash, `--match-head-commit 0f79e745…`, no `--admin`, at 2026-10-29T18:28:40Z, as **`9feac8535199`**.
+- **After:**
+  - parent `7a71f3a55b7d`; 8 paths; **main's tree equals the merged head's**;
+  - **#504 was retargeted to main before t1's branch was deleted,** so the stacked PR stayed open (checked);
+  - the remote branch was checked at `0f79e745b766`, deleted, and `ls-remote` shows 0.
+
+**#504 (t2):** **merged.**
+- **Its approved head's CI:** on `21708d872e43`, 35 check runs: 32 success and 3 release-only skips, 0 failed (as ruled).
+- **Its base:** after #503 merged, #504 was retargeted to main, and main was merged into its branch.
+  - That merge needed **no hand resolution.** `run.sh` came out with all three blocks (DayNight, WxTheme, WxK35b), and the new head is main plus exactly t2's 5 paths.
+  - **Before the push:** both compilers on that head. MinGW: ALL HOST TESTS PASSED. g++ 13.3: the same blocks and counts, only the rig's two.
+  - **CI on the new head `706d03917c16`:** 35, all completed: 32 success and 3 release-only skips, 0 failed. **So the approval carried.**
+- **The merge:** squash, `--match-head-commit 706d0391…`, no `--admin`, at 2026-10-29T18:42:00Z, as **`564468e9665d`**.
+- **After:** parent `9feac8535199`; 5 paths; **main's tree equals the merged head's**. No PR was based on the branch; it was checked at `706d03917c16`, deleted, and `ls-remote` shows 0.
+
+**Next, as ordered:** t3 (A12.49), then 3.5b's step 7, its board run and results, then t4 and t5.
