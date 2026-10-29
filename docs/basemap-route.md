@@ -1876,3 +1876,15 @@ It refuses a malformed commit or store id. It also refuses terrain files without
 - **exit 0.**
 
 **Next: `build.ts`.** The store reads behind it (`current`, `manifest.json`, `coverage.bin`, `index.json`, `regions.json`, `terrain-sources.bin`, cells, PNG tiles) go behind one store interface, so MW can count the reads. Then MB, ME2, ME3, ME7, MD1, MD2 and S-TNOMARGIN {MT3b, MB8a, MB8b}.
+
+### A2.23 Standing rule: keep moving, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-29)
+
+> Standing rule: keep moving (reviewer chat, 2026-10-29)
+>
+> Daniel: "let's try to keep moving when possible".
+> - When an item waits on something outside your control (rain, a ruling, an outside reply, CI, another session's merge), say what it's waiting on, then carry on with the next item in your queue that doesn't depend on it. Don't sit idle.
+> - A stop for a ruling stops only the stopped item and whatever depends on it. Report it, then keep working on anything independent.
+> - Ask Daniel or me only when nothing independent is left, or when the next step needs a decision that's ours.
+> - Everything else stands: predictions first, BLIND as FAIL, the merge and deploy rules, and the hands-off windows on E2:08.
+
+**Waiting now, and on what:** D1 waits on the census retry's last round (04:00Z, 2026-10-29), then the mirror. `build.ts` does not depend on it, and goes ahead.
