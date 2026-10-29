@@ -118,7 +118,7 @@ std::string Hx(const char* s)
     wxscenes::Token(s, b, sizeof b);
     return b;
 }
-const char* Ink(wxraster::Rgb c) { return wxscenes::InkName(c); }
+const char* Ink(wxtheme::Ink c) { return wxscenes::InkName(c); }
 
 struct Frame {
     Bytes bytes, codes;
@@ -370,9 +370,9 @@ int main(int argc, char** argv)
         wxscenes::FromLoopFrame(frames[0].h, frames[0].codes.data(), 0, frames[14].h.frameEpoch, 60, townOrder, &inT, kOffsetPt);
         wxscenes::FromPackage(pk, pvT.img.data(), 0, false, &pvT.places, pvT.order, &pvT.peaks, &inT);
         // the layered path by hand, WITHOUT the key check: the stale layer is replayed
-        wxscreens::DrawMap(stale, *inT.h, inT.codes, lb.view, nullptr, inT.base, inT.terrain);
-        wxraster::Fill(stale, 0, 0, 239, wxraster::kTopBand - 1, wxraster::kBlack);
-        wxraster::Fill(stale, 0, wxraster::kBotBand, 239, 239, wxraster::kBlack);
+        wxscreens::DrawMap(stale, wxtheme::kDark, *inT.h, inT.codes, lb.view, nullptr, inT.base, inT.terrain);
+        wxraster::Fill(stale, 0, 0, 239, wxraster::kTopBand - 1, wxtheme::kDark.bg);
+        wxraster::Fill(stale, 0, wxraster::kBotBand, 239, 239, wxtheme::kDark.bg);
         wxscreens::Replay(stale, lb);
         o = wxscreens::ScreenOut();
         wxscreens::DrawStripAndBand(stale, inT, &o, nullptr);

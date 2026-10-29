@@ -25,6 +25,7 @@
 #include "WxScenarios.h"
 #include "WxScenes.h"
 #include "WxScreens.h"
+#include "WxTheme.h"
 #include "WxTowns.h"
 
 namespace {
@@ -32,10 +33,10 @@ namespace {
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
 
-const uint32_t kFg     = lgfx::color888(230, 237, 234);
-const uint32_t kDim    = lgfx::color888(130, 150, 160);
-const uint32_t kAccent = lgfx::color888(90, 200, 255);
-const uint32_t kWarn   = lgfx::color888(255, 176, 40);
+// Every colour the manager draws is a role in WxTheme.h (3.5t, A12.47). The theme is Dark until t5 reads wx-theme and
+// the day/night phase; in Dark each role is the literal it replaced, so nothing on the screen moves.
+const wxtheme::Theme& Th() { return wxtheme::Get(wxtheme::Which::Dark); }
+uint32_t C888(wxraster::Rgb c) { return lgfx::color888(c.r, c.g, c.b); }
 
 const char* const kScenarioName[wxscreens::kScenarios] = {"dry", "approaching", "herenow", "warning", "stale", "clear"};
 
@@ -899,13 +900,13 @@ void WeatherscopeManager::DrawHoldRing(BandCanvas& c)
     const float k = SCREEN_SIZE / 240.0f;
     const int cc = SCREEN_SIZE_DIV_2;
     const int R1 = SCREEN_SIZE_DIV_2 - (int)(2 * k), R0 = R1 - (int)(7 * k);
-    c.drawCircle(cc, cc, R1 + 1, lgfx::color888(0, 90, 0));   // the dim track
+    c.drawCircle(cc, cc, R1 + 1, C888(Th().holdTrack));   // the track
     const uint32_t p = fired ? 1000 : longpress::RingPermille(longPress, millis());
     curFrame.permille = (uint16_t)p;
     if (p == 0) return;
     // LovyanGFX angles: 0 = 3 o'clock, clockwise. Start at 12 o'clock and never pass 360 in one call.
     const float a1 = 270.0f + 360.0f * (float)p / 1000.0f;
-    const uint32_t green = lgfx::color888(0, 200, 0);
+    const uint32_t green = C888(Th().holdArc);
     if (a1 <= 360.0f) {
         c.fillArc(cc, cc, R0, R1, 270.0f, a1, green);
     } else {
@@ -960,24 +961,25 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
 void WeatherscopeManager::DrawLegend(BandCanvas& c)
 {
     LGFX_Sprite& s = c.sprite();
-    s.fillSprite(lgfx::color888(0, 0, 0));
-    s.setTextColor(lgfx::color888(255, 255, 255));
+    const wxtheme::Theme& th = Th();
+    s.fillSprite(C888(th.bg));
+    s.setTextColor(C888(th.white));
     s.setTextSize(1);
     for (const auto& row : wxlegend::kRows) s.drawString(row.label, wxlegend::kLabelX, row.y);
     for (const auto& sw : wxlegend::kSwatches) {
         if (sw.kind == wxlegend::Kind::NoData) {
-            const uint16_t line = s.color565(wxpalette::kMissingHatch.r, wxpalette::kMissingHatch.g, wxpalette::kMissingHatch.b);
-            const uint16_t bg = s.color565(wxpalette::kDry.r, wxpalette::kDry.g, wxpalette::kDry.b);
+            const uint16_t line = s.color565(th.hatchLine.r, th.hatchLine.g, th.hatchLine.b);
+            const uint16_t bg = s.color565(th.hatchGround.r, th.hatchGround.g, th.hatchGround.b);
             for (int yy = sw.y; yy < sw.y + sw.h; ++yy)
                 for (int xx = sw.x; xx < sw.x + sw.w; ++xx)
                     s.drawPixel(xx, yy, (xx + yy) % wxpalette::kHatchPeriod == 0 ? line : bg);
             continue;
         }
-        wxpalette::Rgb col;
+        wxraster::Rgb col;
         switch (sw.kind) {
-        case wxlegend::Kind::Rain: col = wxpalette::Rain(sw.code); break;   // code 1 teal (A10.16)
-        case wxlegend::Kind::Snow: col = wxpalette::Snow(sw.code); break;
-        default: col = wxpalette::kNoCoverage; break;
+        case wxlegend::Kind::Rain: col = th.rain[sw.code - 1]; break;   // code 1 teal (A10.16)
+        case wxlegend::Kind::Snow: col = th.snow[sw.code - 1]; break;
+        default: col = th.noCoverage; break;
         }
         s.fillRect(sw.x, sw.y, sw.w, sw.h, s.color565(col.r, col.g, col.b));
     }
@@ -986,9 +988,9 @@ void WeatherscopeManager::DrawLegend(BandCanvas& c)
 void WeatherscopeManager::DrawSplash(BandCanvas& c)
 {
     c.setTextSize(3);
-    CenterText(c, "Weatherscope", SCREEN_SIZE_DIV_2 - 24, kFg);
+    CenterText(c, "Weatherscope", SCREEN_SIZE_DIV_2 - 24, C888(Th().uiFg));
     c.setTextSize(1);
-    CenterText(c, "weather radar", SCREEN_SIZE_DIV_2 + 12, kDim);
+    CenterText(c, "weather radar", SCREEN_SIZE_DIV_2 + 12, C888(Th().uiDim));
 }
 
 // The face when there is nothing to cycle (not stored mode, or the frame path failed): who the device is, whether
@@ -996,32 +998,33 @@ void WeatherscopeManager::DrawSplash(BandCanvas& c)
 void WeatherscopeManager::DrawStatus(BandCanvas& c)
 {
     c.setTextSize(2);
-    CenterText(c, "Weatherscope", SCREEN_SIZE / 5, kFg);
+    const wxtheme::Theme& th = Th();
+    CenterText(c, "Weatherscope", SCREEN_SIZE / 5, C888(th.uiFg));
 
     const bool online = WiFi.status() == WL_CONNECTED;
-    CenterText(c, online ? "Wi-Fi connected" : "No Wi-Fi", SCREEN_SIZE * 34 / 100, online ? kAccent : kWarn);
+    CenterText(c, online ? "Wi-Fi connected" : "No Wi-Fi", SCREEN_SIZE * 34 / 100, C888(online ? th.uiAccent : th.uiWarn));
     c.setTextSize(1);
-    if (online) CenterText(c, String(WiFi.RSSI()) + " dBm", SCREEN_SIZE * 34 / 100 + 20, kDim);
+    if (online) CenterText(c, String(WiFi.RSSI()) + " dBm", SCREEN_SIZE * 34 / 100 + 20, C888(th.uiDim));
 
     const time_t utc = time(nullptr);
     if (utc < 1600000000) {
         c.setTextSize(2);
-        CenterText(c, "syncing time", SCREEN_SIZE_DIV_2 + 4, kDim);
+        CenterText(c, "syncing time", SCREEN_SIZE_DIV_2 + 4, C888(th.uiDim));
     } else {
         struct tm t;
         gmtime_r(&utc, &t);
         char hms[12];
         snprintf(hms, sizeof(hms), "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
         c.setTextSize(3);
-        CenterText(c, hms, SCREEN_SIZE_DIV_2 + 4, kFg);
+        CenterText(c, hms, SCREEN_SIZE_DIV_2 + 4, C888(th.uiFg));
         c.setTextSize(1);
-        CenterText(c, "UTC", SCREEN_SIZE_DIV_2 + 32, kDim);
+        CenterText(c, "UTC", SCREEN_SIZE_DIV_2 + 32, C888(th.uiDim));
     }
 
     String url = "http://" + DeviceIdentity::Name() + ".local";
     url.toLowerCase();
     c.setTextSize(1);
-    CenterText(c, url, SCREEN_SIZE * 76 / 100, kDim);
+    CenterText(c, url, SCREEN_SIZE * 76 / 100, C888(th.uiDim));
 }
 
 void WeatherscopeManager::CenterText(BandCanvas& c, const String& s, int y, uint32_t color)

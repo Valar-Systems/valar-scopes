@@ -1181,6 +1181,36 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# NL (docs/weatherscope-stage3.md A11.5, A12.47): no colour literal in the Weatherscope's drawing code -- every colour
+# is a role in WxTheme.h. The scope is src/weatherscope/ minus WxTheme.h, WxPalette.h and bench/; the allowlist is empty.
+# Its control: pointed at WxTheme.h, it must find that file's literals. Its plant: python -I test/host/sabotage_wx_themed_draw.py
+echo
+echo "== WxTheme NL: no colour literal in drawing code =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; NL's scan cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/scan_wx_colour_literals.py"
+  rc=$?
+  if [ "$rc" -ge 2 ]; then
+    echo "FAIL: NL's scan did not run (exit $rc). This is the RIG, not the code."
+    exit 2
+  elif [ "$rc" -ne 0 ]; then
+    echo "  FAIL NL colour literals in drawing code"
+    fail=1
+  else
+    echo "  ok   NL 0 colour literals"
+  fi
+  "$PY" "$ROOT/test/host/scan_wx_colour_literals.py" "$ROOT/src/weatherscope/WxTheme.h" > "$OUT/nl_control.log" 2>&1
+  rc=$?
+  if [ "$rc" -eq 1 ]; then
+    echo "  ok   NL-control the scan finds WxTheme.h's literals: $(tail -1 "$OUT/nl_control.log")"
+  else
+    echo "  FAIL NL-control pointed at WxTheme.h, the scan found nothing (exit $rc): it cannot see a literal"
+    fail=1
+  fi
+fi
+
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py

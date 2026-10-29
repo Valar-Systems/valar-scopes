@@ -130,6 +130,11 @@ constexpr Theme kLight = {
     {0, 90, 0},        // holdArc
 };
 
+// The state line's and the time's ink, as a ROLE: StateLine and TimeText choose it, the band draws it through the
+// theme (A12.47), and the K rows name it ("dim", "white", "orange").
+enum class Ink : uint8_t { Dim, White, OrangeText };
+inline Rgb InkRgb(const Theme& t, Ink i) { return i == Ink::White ? t.white : i == Ink::OrangeText ? t.orangeText : t.dim; }
+
 // ------------------------------------------------------------------------------------------------- the setting
 enum class Setting : uint8_t { Auto, Light, Dark };
 enum class Read : uint8_t { Known, Unset, Unknown };

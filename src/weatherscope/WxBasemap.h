@@ -33,18 +33,7 @@ constexpr uint8_t kIdxNothing = 0, kIdxWater = 38, kIdxRiver = 39, kIdxRoad = 40
 // A shade value's index: 1 + floor(36 * v / 255), so the ramp's grey is 10 + floor(36 * v / 255).
 inline int RampIndex(uint8_t v) { return 1 + 36 * (int)v / 255; }
 
-// An index's colour on the dark screen.
-inline wxraster::Rgb PaletteRgb(int idx)
-{
-    if (idx >= 1 && idx <= 37) {
-        const uint8_t g = (uint8_t)(10 + idx - 1);
-        return wxraster::Rgb{g, g, (uint8_t)(g + 2)};
-    }
-    if (idx == kIdxWater) return wxraster::Rgb{10, 34, 72};
-    if (idx == kIdxRiver) return wxraster::Rgb{26, 70, 128};
-    if (idx == kIdxRoad) return wxraster::Rgb{62, 62, 62};
-    return wxraster::Rgb{0, 0, 0};
-}
+// An index's colour is the theme's: wxtheme::Theme::base[idx] (3.5t, A12.47). PaletteRgb retired with it.
 
 // Weatherscope's terrain level for a view: R_l = the view's radius x 246/240, in mm (format section 4), so 24,743,664,
 // 49,487,328 and 98,974,656 mm at 15, 30 and 60 mi.
@@ -135,7 +124,7 @@ class IndexSink : public wxraster::Sink {
 public:
     explicit IndexSink(uint8_t* img) : img_(img) {}
     uint8_t value = 0;
-    void Put(int x, int y, wxraster::Rgb) override { img_[y * kSize + x] = value; }
+    void Put(int x, int y, wxraster::Rgb) override { img_[y * kSize + x] = value; }   // the colour is unused: callers pass Rgb{}
 
 private:
     uint8_t* img_;
@@ -195,7 +184,7 @@ inline bool Build(const bmpk::Package& pk, const wxrender::View& v, int radiusMi
         sink.value = kIdxRiver;
         bmpk::ForEachRiver(pk, sc.qx, sc.qy, sc.cap, [&](int, int n) {
             for (int k = 0; k < n; ++k) m.ToScreen(sc.qx[k], sc.qy[k], &sc.x[k], &sc.y[k]);
-            for (int k = 0; k + 1 < n; ++k) wxraster::Line(sink, sc.x[k], sc.y[k], sc.x[k + 1], sc.y[k + 1], {0, 0, 0});
+            for (int k = 0; k + 1 < n; ++k) wxraster::Line(sink, sc.x[k], sc.y[k], sc.x[k + 1], sc.y[k + 1], wxraster::Rgb{});
             ++bi.rivers;
         });
     }
@@ -203,7 +192,7 @@ inline bool Build(const bmpk::Package& pk, const wxrender::View& v, int radiusMi
         sink.value = kIdxRoad;
         bmpk::ForEachRoad(pk, sc.qx, sc.qy, sc.cap, [&](int, int n) {
             for (int k = 0; k < n; ++k) m.ToScreen(sc.qx[k], sc.qy[k], &sc.x[k], &sc.y[k]);
-            for (int k = 0; k + 1 < n; ++k) wxraster::Line(sink, sc.x[k], sc.y[k], sc.x[k + 1], sc.y[k + 1], {0, 0, 0});
+            for (int k = 0; k + 1 < n; ++k) wxraster::Line(sink, sc.x[k], sc.y[k], sc.x[k + 1], sc.y[k + 1], wxraster::Rgb{});
             ++bi.roads;
         });
     }

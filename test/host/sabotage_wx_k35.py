@@ -27,7 +27,7 @@ ROWS = ["dry-60", "approaching-60", "herenow-60", "warning-60", "stale-60", "cle
 
 # name: (file, [(anchor, replacement)], the registered failing set)
 SABOTAGES = {
-    "S-K1": ("WxRaster.h", [("kLabel{176, 176, 176}", "kLabel{184, 176, 176} /* SABOTAGE */")],
+    "S-K1": ("WxTheme.h", [("    {176, 176, 176},   // label\n", "    {184, 176, 176},   // label SABOTAGE\n")],
              {"K:" + r for r in ROWS}),
     "S-K2": ("WxScreens.h", [("        const int kx = 60 + in.loopIndex * 116 / (kLoopFrames - 1);",
                               "        const int kx = 60 + in.loopIndex * 120 / (kLoopFrames - 1);  // SABOTAGE")],

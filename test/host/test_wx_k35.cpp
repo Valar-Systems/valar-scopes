@@ -120,7 +120,7 @@ std::string Hx(const char* s)
     wxscenes::Token(s, b, sizeof b);
     return b;
 }
-const char* Ink(wxraster::Rgb c) { return wxscenes::InkName(c); }
+const char* Ink(wxtheme::Ink c) { return wxscenes::InkName(c); }
 
 struct Frame {
     std::string name;
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
     std::printf("== AR1's drawn set (A9.14) ==\n");
     {
         Points pts;
-        wxscreens::DrawArrow(pts, wxscreens::MakeArrow(150.0, 100.0, 240));
+        wxscreens::DrawArrow(pts, wxscreens::MakeArrow(150.0, 100.0, 240), wxtheme::kDark.orangeGraphic);
         std::string line = "AR1";
         for (const auto& p : pts.set) line += " " + std::to_string(p.first) + "," + std::to_string(p.second);
         check("AR1PIX", line == ar1Ref, std::to_string(pts.set.size()) + " pixels" + (line == ar1Ref ? "" : ": " + line));

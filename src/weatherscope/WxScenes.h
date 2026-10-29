@@ -219,11 +219,11 @@ inline void Token(const char* s, char* out, size_t cap)
     out[n] = '\0';
 }
 
-inline const char* InkName(wxraster::Rgb c)
+inline const char* InkName(wxtheme::Ink i)
 {
-    if (c == wxraster::kWhite) return "white";
-    if (c == wxraster::kDim) return "dim";
-    if (c == wxraster::kOrange) return "orange";
+    if (i == wxtheme::Ink::White) return "white";
+    if (i == wxtheme::Ink::Dim) return "dim";
+    if (i == wxtheme::Ink::OrangeText) return "orange";
     return "other";
 }
 
