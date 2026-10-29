@@ -1813,3 +1813,84 @@ ends with the layer on. A `[touch]` line voids the run.
   **"instrument"**.
 - **Predicted:** the statistic within **±1 ms**. Per-arm medians, resid and n are printed beside it.
 - **The fallback** if it reads "instrument": one recorded traffic load replayed to every arm in local mode. It is
+
+## The replay route, for a ruling (2026-10-29): captures from a recorded rain crop, so rain stops gating v19
+
+**What it is.** E2:08's existing runtime override, the config page's `cloud-url` field (blank means the built-in
+production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy on the bench PC for one session.
+- **`/api/v1/blipscope/wx/cref`:** the proxy answers with a **recorded real rain crop**, re-centred on the request and
+  re-stamped as fresh.
+- **Every other route:** forwarded **untouched** to `https://scopes.valarsystems.com`, so the radar keeps working.
+- **Production is not changed or deployed.**
+
+**The crop.**
+- **Recording:** recorded once from production `/wx/cref` with the device's own range (`r` = 161 km at 100 mi), at a
+  public point where it is raining at the time. It is chosen by its echo count near the centre, so R3 has weather on
+  the rings.
+- **Re-centring and re-stamping:** WXC1 has no checksum (`include/WxCrop.h`: frame time at byte 8, the north-west cell's
+  centre at 12/16). So both rewrite 12 header bytes, and the rain body is not touched.
+  - **Re-centring** moves the north-west centre so the crop is centred on the request's point. Its cells keep their
+    microdegree size, so the shape stretches east-west by the cosine ratio of the two latitudes; that is stated.
+  - **Re-stamping** sets the frame time to the current minute.
+- **Labelled as a replay wherever it exists, and it exists only on the bench PC:**
+  - the files are `REPLAY-<utc>-cref.wxc1`, with a sidecar `REPLAY-<utc>.json` holding `"replay": true`, the source
+    (production `/wx/cref`), the recording time, the original frame time, the sha256, the echo counts, and the public
+    point's name;
+  - the proxy's ETag reads `"replay-<epoch>"`;
+  - every record of the captures says REPLAY;
+  - nothing of it is committed or uploaded.
+
+**The proxy** (`tools/wx-replay/proxy.py`, committed, Python standard library only).
+- **Privacy:**
+  - It holds a request's `lat`/`lon` **in memory, for that one request**, only to re-centre.
+  - It **never logs, prints or stores** coordinates, query strings, headers or bodies; its log line is the route, the
+    status and the byte count.
+  - It **stores nothing per device.**
+  - **Forwarded requests carry the device's own headers through unchanged,** including its credential. The proxy
+    passes them on and never writes them anywhere.
+- **Stated plainly:** the device-to-proxy leg is **plain HTTP on the bench LAN**. While the override is set, E2:08's
+  credential header crosses the LAN in the clear, because the proxy cannot offer TLS that the device would trust. It is
+  E2:08's bench credential, for a session of about 45 min. **That is for the reviewer and Daniel to accept or refuse.**
+- **The PC stays awake:** while the proxy runs it asks Windows not to sleep (`SetThreadExecutionState`, released when
+  it exits). No setting is changed.
+
+**Setting and undoing the override** (through the config page, as `cfg_post.py` does, one field verified):
+1. Set `cloud-url` = `http://<bench PC's LAN address>:<port>`. The save runs `Initialise()`, which reads the new base.
+2. Run the session.
+3. Set `cloud-url` back to blank. This is in the driver's `finally`, so an error or a stop still restores production.
+
+**If the PC sleeps or the proxy stops mid-run,** E2:08 cannot reach any cloud route.
+- It keeps its last aircraft and shows `DATA STALE` until the override is undone. **For that time it is not a working
+  Blipscope.**
+- The guards are the keep-awake request, the driver's `finally`, and a session of about 45 min.
+- **Daniel's manual undo,** if the PC is gone: E2:08's config page, clear "Cloud URL", Save. Rebooting does not undo it,
+  because the override lives in NVS.
+- (A bench-only firmware fallback to the default URL after repeated failures would make it automatic. That is a
+  firmware change, and it is not proposed here.)
+
+**The end check, all three:**
+- E2:08's page shows `cloud-url` blank;
+- the proxy's port is closed;
+- production records E2:08's `/blips` again within 5 min. This is read server-side as `e208_routes.py` does, with a
+  control window that is known to hold its traffic.
+
+**The sabotage, S-old (ruled).** First, the same crop with its **real, old** frame time.
+- **The order matters,** because a held crop is replaced only by a newer one (`OnQuery`/`OnResponse`: never
+  backwards). With production's current crop held, an old crop would be kept out by that rule, not by the age limit.
+- **So S-old runs right after a reboot**, with the override set, when nothing is held.
+
+| | check | predicted |
+|---|---|---|
+| **RP1** | S-old: the crop with its real (old) stamp, the first crop after the reboot | the `[wx]` line accepts it as the held crop (an outcome other than `Kept`, with `frame=` its old time), and then **the age limit refuses to show it**. **No `layer rebuilt` line, and 0 weather-colour pixels** in the `/diag/fb` frames over 2 min |
+| **RP2** | then the re-stamped crop | a newer frame replaces it, **`layer rebuilt` appears**, and the `/diag/fb` frames hold weather colours. So the replay is what makes the rain appear |
+| **RP3** | every other route during the run | forwarded untouched. The radar keeps updating (`[perf] polls=` 11-13 a minute in the active cadence), and production records E2:08's `/blips` throughout |
+| **RP4** | privacy | the proxy's log holds routes, statuses and byte counts only. A scan of the log and of the bench files after the run finds **no** `lat=`, `lon=`, coordinate-shaped number or header value |
+| **RP5** | the end check | all three as above |
+| **RP6** | the captures | the frozen protocol's three arms on the replay (the mask, R3-R5, Finished-only, a hands-off window), each record labelled REPLAY |
+
+**What the replay can and cannot show:**
+- **It can:** the draw path on the glass (rings and outlines over a real rain pattern), on demand.
+- **It cannot:** the live fetch from production. That is covered by G7, WD5's `/wx` rows and the server's own checks.
+  Every real-rain day remains a stronger check of the same rows.
+
+**Outside the set:** stop, undo the override, and report.
