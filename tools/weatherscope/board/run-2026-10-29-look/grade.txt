@@ -1,0 +1,7 @@
+  ok    LK-BOOT: [build] env=weatherscope-look-s3-128  Weatherscope light-loo; {'ready': '1', 'frames': '20', 'looks': '3', 'roles': '66', 'frame_bytes': '1152000', 'pal_bytes': '594', 'psram_sprite': '116740', 'tft.init': '1'}
+  ok    LK-HASH: 65 screens reported, 60 distinct (look, frame) pairs equal to the host's; 0 unequal []
+  ok    LK-LOOP dark: 15 records; intervals 70000-70001 us; expand_us 5334-5349
+  ok    LK-LOOP a: 15 records; intervals 70000-70000 us; expand_us 5332-5349
+  ok    LK-LOOP b: 15 records; intervals 70000-70000 us; expand_us 5332-5349
+viewer: every row holds
+grade exit 0
