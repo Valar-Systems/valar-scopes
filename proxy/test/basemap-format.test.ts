@@ -11,18 +11,20 @@ import synthPy from "../../tools/weatherscope/basemap/synth.py?raw";
 // Every negative package on disk, enumerated at build time, so a missing or extra file cannot go unseen.
 const negs = import.meta.glob<Uint8Array>("../../test/fixtures/wx/basemap/neg-*.bmpk", { eager: true, import: "default" });
 
-/** A10.11's 25 negative cases, each with its frozen reason. MV binds neg-<x>.bmpk to PK-<x> (A2.2). */
+/** A10.11's 25 negative cases and A12.15's 2, each with its frozen reason. MV binds neg-<x>.bmpk to PK-<x> (A2.2, A2.44). */
 const PK: Record<string, Status> = {
   short: "kHeader", magic: "kMagic", version: "kVersion", flags: "kFlags", total: "kTotal", crc: "kCrc",
   nsec0: "kSectionCount", nsec33: "kSectionCount", bounds: "kSectionBounds", overlap: "kOverlap", gap: "kGap",
   dup: "kDuplicate", noprov: "kNoProvenance", varint6: "kVarint", overlong: "kVarint", walk: "kVertexRange",
   ring2: "kVertexCount", line1: "kVertexCount", count: "kBody", text: "kText", rivername: "kRiverName",
   roadclass: "kRoadClass", terrainlen: "kTerrainLength", terrainN0: "kTerrainLength", reserved: "kReserved",
+  "terrain-count": "kTerrainCount", "prov-count": "kProvenanceCount",
 };
-const onDisk = Object.fromEntries(Object.entries(negs).map(([p, b]) => [/neg-([A-Za-z0-9]+)\.bmpk$/.exec(p)![1]!, b]));
+// The name pattern accepts hyphens (A2.44: without them it returned null on neg-terrain-count, and the module failed to load).
+const onDisk = Object.fromEntries(Object.entries(negs).map(([p, b]) => [/neg-([A-Za-z0-9-]+)\.bmpk$/.exec(p)![1]!, b]));
 
 describe("MV, the validator", () => {
-  it("MV binding: the 25 neg-*.bmpk on disk are exactly A10.11's 25 PK cases (else MV is BLIND)", () => {
+  it("MV binding: the 27 neg-*.bmpk on disk are exactly the 27 PK cases, A10.11's 25 and A12.15's 2 (else MV is BLIND)", () => {
     expect(Object.keys(onDisk).sort()).toEqual(Object.keys(PK).sort());
   });
   it("MV/PK-min: syn-min is kOk", () => expect(validate(synMin).status).toBe("kOk"));

@@ -73,6 +73,19 @@ const SABOTAGES = {
              '      if (e.off < expect) throw new Bad("kGap"); // SABOTAGE S-VSWAP\n      if (e.off > expect) throw new Bad("kOverlap");\n']],
     expect: ["MV/PK-gap", "MV/PK-overlap"],
   },
+  // A12.15's two counts (A2.44, A2.45): each check removed, graded against every basemap family.
+  "S-VTERRCOUNT": {
+    file: FORMAT, set: "all",
+    edits: [['      if (count !== 1) throw new Bad("kTerrainCount");\n',
+             '      // SABOTAGE S-VTERRCOUNT: TERRAIN\'s count not checked\n']],
+    expect: ["MV/PK-terrain-count"],
+  },
+  "S-VPROVCOUNT": {
+    file: FORMAT, set: "all",
+    edits: [['      if (count !== lines) throw new Bad("kProvenanceCount");\n',
+             '      // SABOTAGE S-VPROVCOUNT: PROVENANCE\'s count not checked\n']],
+    expect: ["MV/PK-prov-count"],
+  },
   "S-IBUS": {
     file: LIB,
     edits: [['    case "roads": return a["MTFCC"] === "S1100" || a["MTFCC"] === "S1200";\n',

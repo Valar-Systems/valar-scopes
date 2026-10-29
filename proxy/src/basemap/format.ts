@@ -4,13 +4,16 @@
 // validate() follows A10.11's PINNED order, so each refused package has exactly one reason. Where §8 leaves an edge
 // open, it does what Weatherscope's reference validator (tools/weatherscope/basemap/validate.py) does, so the two
 // validators cannot disagree on a package: a varint that runs out of its section is kBody, not kVarint; ring and
-// line ranges are checked after every delta is read; PEAKS and PLACES positions are not range-checked; and neither a
-// TERRAIN section's count nor PROVENANCE's line count is checked (raised in the route doc, not decided here).
+// line ranges are checked after every delta is read; and PEAKS and PLACES positions are not range-checked. Both
+// counts A12.15 added are checked as the reference does them: a TERRAIN section's count must be 1 (kTerrainCount,
+// after its length and reserved field), and PROVENANCE's count must equal its lines (kProvenanceCount: 0 for an
+// empty body, else the number of '\n' + 1), so "validate before serving" refuses what the device would.
 
 export type Status =
   | "kOk" | "kHeader" | "kMagic" | "kVersion" | "kFlags" | "kTotal" | "kCrc" | "kSectionCount" | "kReserved"
   | "kSectionBounds" | "kOverlap" | "kGap" | "kDuplicate" | "kNoProvenance" | "kVarint" | "kVertexRange"
-  | "kVertexCount" | "kText" | "kRiverName" | "kRoadClass" | "kTerrainLength" | "kBody";
+  | "kVertexCount" | "kText" | "kRiverName" | "kRoadClass" | "kTerrainLength" | "kBody" | "kTerrainCount"
+  | "kProvenanceCount";
 
 export const TYPE = { WATER: 1, RIVERS: 2, ROADS: 3, PEAKS: 4, PLACES: 5, TERRAIN: 6, PROVENANCE: 7 } as const;
 const HEADER = 32, ENTRY = 16, QMAX = 32767;
@@ -196,9 +199,15 @@ function section(type: number, count: number, b: Uint8Array): Section {
       const levelRadiusMm = dv.getUint32(0, true), n = dv.getUint16(4, true), res = dv.getUint16(6, true);
       if (n === 0 || b.length !== 8 + n * n) throw new Bad("kTerrainLength");
       if (res !== 0) throw new Bad("kReserved");
+      if (count !== 1) throw new Bad("kTerrainCount");
       return { type: 6, levelRadiusMm, n, values: b.slice(8) };
     }
-    case 7: return { type: 7, text: b.slice(), lines: count }; // clients never parse PROVENANCE (§7)
+    case 7: { // clients never parse PROVENANCE beyond its count (§7)
+      let lines = b.length ? 1 : 0;
+      for (const c of b) if (c === 0x0a) lines++;
+      if (count !== lines) throw new Bad("kProvenanceCount");
+      return { type: 7, text: b.slice(), lines: count };
+    }
     default: return { type, raw: b.slice(), count };              // an unknown type: skipped by its length
   }
   if (r.left() !== 0) throw new Bad("kBody");
