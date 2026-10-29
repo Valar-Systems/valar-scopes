@@ -53,14 +53,16 @@ inline uint16_t Lit565(uint8_t code, int pct, uint8_t lvl)
 }
 
 namespace detail {
-// LGFXBase::writeFillRectPreclipped through a clip of [0, w) x [0, h).
+// LGFXBase::writeFillRectPreclipped through a clip of [0, w) x [0, h). The same pixels in the same order as a per-pixel
+// clip; then, once per span, `put.Spanned(x0, x1, y)` with the clipped range (the span change, docs/wx-device.md). Every
+// marked pixel comes through here, the degenerate-line case included.
 template <typename Put> inline void Span(int x, int y, int len, int w, int h, Put& put)
 {
     if (y < 0 || y >= h) return;
-    for (int k = 0; k < len; ++k) {
-        const int px = x + k;
-        if (px >= 0 && px < w) put(px, y);
-    }
+    const int x0 = x < 0 ? 0 : x;
+    const int x1 = x + len - 1 < w ? x + len - 1 : w - 1;
+    for (int px = x0; px <= x1; ++px) put(px, y);
+    if (x1 >= x0) put.Spanned(x0, x1, y);
 }
 
 // LGFXBase::drawLine (LGFXBase.cpp:513-588), ported: the clip is the screen.
@@ -155,6 +157,30 @@ template <typename Put> inline void Triangle(int32_t x0, int32_t y0, int32_t x1,
         Span(a, y0, b - a + 1, w, h, put);
     } while (++y0 <= y2);
 }
+// Rasterise's marker: per pixel, exactly what it did before any span was recorded (mark, count, the rows); once per
+// span, the row's first and last marked column.
+struct Marker {
+    uint8_t* slice;
+    int w;
+    int16_t* rowLo;
+    int16_t* rowHi;
+    uint32_t marked;
+    int lo, hi;
+    uint8_t cur;
+    void operator()(int x, int y)
+    {
+        uint8_t& s = slice[(size_t)y * w + x];
+        if (s == 0) ++marked;
+        s = cur;
+        if (y < lo) lo = y;
+        if (y > hi) hi = y;
+    }
+    void Spanned(int x0, int x1, int y)
+    {
+        if (x0 < rowLo[y]) rowLo[y] = (int16_t)x0;
+        if (x1 > rowHi[y]) rowHi[y] = (int16_t)x1;
+    }
+};
 }  // namespace detail
 
 /** Marks every pixel of the wedge with the LAST slice (1-kSegs) that covers it, in `slice` (w x h, row-major; 0 =
@@ -164,29 +190,13 @@ template <typename Put> inline void Triangle(int32_t x0, int32_t y0, int32_t x1,
  *  `rowLo` / `rowHi` (h entries each) receive each row's first and last marked column, or (w, -1) for a row with none,
  *  so Blend visits only that span (the B1 fix, docs/wx-device.md). The wedge is narrower than a half-disc, so each of
  *  its rows is ONE run and the span holds no unmarked byte (sweep_geom: 7,279 span bytes = 7,279 marked, against
- *  27,542 B in whole rows). The span is tracked per run of consecutive pixels, not per pixel. */
+ *  27,542 B in whole rows). The span is recorded once per Span call (the span change), not per pixel: the per-pixel
+ *  form cost about 1 ms a frame on the board. */
 inline uint32_t Rasterise(int cx, int cy, int radius, float angle, uint8_t* slice, int w, int h, int* yLo, int* yHi,
                           int16_t* rowLo, int16_t* rowHi)
 {
-    uint32_t marked = 0;
-    int lo = h, hi = -1;
-    int cur = 0;
     for (int y = 0; y < h; ++y) { rowLo[y] = (int16_t)w; rowHi[y] = -1; }
-    int runY = -1, runLo = 0, runHi = -1;
-    auto flush = [&]() {
-        if (runY < 0) return;
-        if (runLo < rowLo[runY]) rowLo[runY] = (int16_t)runLo;
-        if (runHi > rowHi[runY]) rowHi[runY] = (int16_t)runHi;
-    };
-    auto put = [&](int x, int y) {
-        uint8_t& s = slice[(size_t)y * w + x];
-        if (s == 0) ++marked;
-        s = (uint8_t)cur;
-        if (y < lo) lo = y;
-        if (y > hi) hi = y;
-        if (y != runY || x != runHi + 1) { flush(); runY = y; runLo = x; }
-        runHi = x;
-    };
+    detail::Marker put{slice, w, rowLo, rowHi, 0u, h, -1, 0};
     const int xLead = cx + (int)(std::cos(angle) * radius);
     const int yLead = cy + (int)(std::sin(angle) * radius);
     int xPrev = xLead, yPrev = yLead;
@@ -195,15 +205,14 @@ inline uint32_t Rasterise(int cx, int cy, int radius, float angle, uint8_t* slic
         const float a = angle - frac * kTail;
         const int x = cx + (int)(std::cos(a) * radius);
         const int y = cy + (int)(std::sin(a) * radius);
-        cur = i;
+        put.cur = (uint8_t)i;
         detail::Triangle(cx, cy, xPrev, yPrev, x, y, w, h, put);
         xPrev = x;
         yPrev = y;
     }
-    flush();
-    *yLo = lo;
-    *yHi = hi;
-    return marked;
+    *yLo = put.lo;
+    *yHi = put.hi;
+    return put.marked;
 }
 
 namespace detail {

@@ -29,6 +29,11 @@ SABOTAGES = {
     "S-span  each row's span stops one pixel short": (["W3-in", "W5a"], [(
         "        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {\n",
         "        for (int x = rowLo[y]; x < rowHi[y]; ++x) {   // SABOTAGE S-span\n")]),
+    # The span change (docs/wx-device.md): the span recorded once per Span call. One column short, the blend misses each
+    # row's last pixel (W3-in, W5a) and the span no longer equals what was marked (W5b).
+    "S-spanrec  the recorded span one column short": (["W3-in", "W5a", "W5b"], [(
+        "        if (x1 > rowHi[y]) rowHi[y] = (int16_t)x1;\n",
+        "        if (x1 - 1 > rowHi[y]) rowHi[y] = (int16_t)(x1 - 1);   // SABOTAGE S-spanrec\n")]),
     "S-noclr  the span loop leaves its marks": (["W3-in", "W5a"], [(
         "        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {\n"
         "            if (row[x] == 0) continue;\n"
