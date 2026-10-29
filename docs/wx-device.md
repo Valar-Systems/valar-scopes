@@ -2552,3 +2552,78 @@ session's first arm.
   No prediction, reading or row changed.
 - **Restarted under a newly announced window.** Nothing graded had been produced, so this is a re-run of the setup
   after a rig failure, not a re-run for a better number.
+
+### The replay session (2026-10-29, 17:38-19:10Z; window announced as 10:38 AM-12:28 PM PDT, with RS6's sentence). RP6 is OUTSIDE THE SET: stopped for a ruling
+
+**The run.**
+- **The drivers:** `replay_run.py` (`a070d21ce59a`) and `replay_read.py` (`1f64ead44c1a`), the reader unchanged since it
+  was written before any run.
+- **The image:** `wxlook` at `aa38f2a`, which carries the span change.
+- **Every record was read twice and static before grading.**
+
+| | read | verdict |
+|---|---|---|
+| **S2** | the span arm (17:41-17:51Z, its own trace, no touch): rasterise **2.03 ms** | **as predicted** (2.24 ± 0.3; the fix run read 3.23) |
+| **S3** | the keyless probe read **1** echo cell within 100 km at the arm's start (0 at its end) | **not graded, by its rule**. The blend read 4.45 ms, an observation only |
+| **S4** | `layer copy: yes`; `sweepscan` 7,278 B / 7,278 px | **as predicted** |
+| **S5** | 2.03 + 4.45 + 0.11 against `sweep=` 6.62 ms | **as predicted** |
+| **RC1** | the tool afresh, on main's encoder (`wt-mainenc`): exit 0, its scan clean. The parser accepts all three. Bytes differing: S-old/source 12-19, fresh/source 8-19, S-old/fresh 8-11 | **as predicted** |
+| **RP1** | after the reboot (17:57:12Z) the first `[wx]` line is `replaced`, `frame=` the crop's own; **0** `layer rebuilt`; **9/9** finished frames, **0** weather pixels each. S-old's age **75,938,129 s (878.9 days)** | **as predicted** |
+| **RP2** | `replaced`, the frame within 120 s of its line; 1 `layer rebuilt`; 5 finished frames with **3,433-4,877** weather pixels | **as predicted** |
+| **RP3** | 45 `[perf]` lines in the active cadence, median **12** (9-13); production recorded **79** E2:08 `/blips` points over the override's span | **as predicted** |
+| **RS3 / RP4** | the scan: 82 files read, 0 missing; **key seen yes, key found no, id found no, address found no**; 1,021 log lines, all the fixed fields; no lat/lon/header/query. The text records hold no coordinate-shaped number | **as predicted** |
+| **RS1** | the proxy stopped; its port refuses a connection afterwards | **as predicted** |
+| **RS2** | the bench PC's own request **403**, counted | **as predicted** |
+| **RS4** | 79 points server-side; 0 chunked bodies; no `smoke-prod.sh` run in the window | **as predicted** |
+| **RS5** | `cloud-url` blank, the layer on, look A; **0** proxy requests after the clear + 10 s; production's `/blips` **9** points in the 5 min after | **as predicted** |
+| **RP6 A / B / off** | `wx-fb-check.py` (Finished-only, as frozen): **UNTRUSTWORTHY in every arm** | **OUTSIDE THE SET** |
+
+**The key was never found in any output.** Nothing needs revoking.
+
+**RP6, read for its cause.** The frozen protocol puts "an UNTRUSTWORTHY frame with Finished: true" outside the set, so
+the stop is the frozen one.
+- **The check stops at the first untrustworthy frame, so it is not every frame.** Run with `--drop-untrustworthy`, as
+  an observation only:
+  - **9 of 18** frames trip in arm A, **5 of 18** in B and **4 of 18** in off;
+  - every one but one trips on **"ring r=…: only …/… pixels have the ring's colour"**. For example, off frame 4: ring
+    r=39, 170 of 220;
+  - the other is "the beam's head: 2 blobs" in A.
+
+  This morning's traffic was 35-43 contacts, so a ring partly covered by planes and labels near the centre is the first
+  named alternative. A mid-draw frame is the second. Neither is excluded.
+- **Arm A also holds 2 touches: upward swipes at 18:09:11-13Z (11:09 AM PDT),** inside the window and before Daniel's
+  looks. The protocol says nobody touches the board. **`replay_read.py` did not check for touches inside the arms,**
+  only for "touch unavailable" lines. That omission is mine. It does not change the verdict, which is already outside
+  the set.
+- **Past the verdict, an observation and not a grade:** on the trustworthy frames alone, arm A reads FAIL, B reads FAIL
+  and off reads PASS.
+  - **(1) ring exceptions:** 16 in A and 10 in B, all of the kind "a wedge colour outside the wedge". The named
+    alternatives are a mask narrower than the drawn wedge, and wedge-only colours that something else also draws.
+  - **(2) look A's outlines:** 4 of 168 markers are without one. The named alternatives are markers drawn without the
+    outline loop (the special-contact reticle), and partial markers.
+  - Neither is excluded, and nothing is changed for them here.
+
+**Daniel's looks, 18:34:38-18:54:38Z (11:34-11:54 AM PDT), with the replay's rain on the glass,** in his words:
+- weather on against off: **"it's a tiny bit choppier, but almot not noticable"**;
+- look A against look B: **"Look B is a bit smoother, but Look A is nicer"**;
+- the sweep's look 3 against look 4 (he changed "Sweep over weather (bench)"): **"Lit versues see-through doesn't seem
+  to make any difference. They both look lit"**.
+  - The setting took: 3 was stored, and `Initialise()` reads `wx-sweep` on every save. Over clear sky the two looks are
+    identical by design; over rain only the cells under the wedge differ.
+  - He had set it back to 4 by the end (RS5's page read sweep look 4).
+
+**Daniel's decisions in this chat:**
+- "we can leave the look option for the user on the config page", with **"A default"**;
+- the labels: **A "Brighter rain, outlined planes", B "Fainter rain, no outlines"**.
+
+The reviewer's ruling and its two additions follow in the next section.
+
+**E2:08 now:** `wxlook` at `aa38f2a`, the layer on, look A, sweep look 4, `cloud-url` blank, back on production.
+
+**For the ruling:**
+1. RP6: the captures read outside the set at this traffic. Re-capture at night (low traffic), or a protocol that holds
+   at 35-45 contacts. Either needs a ruling first.
+2. The two observations past the verdict, each with its named alternatives, and nothing done about them.
+3. `replay_read.py`'s missing touch check, inside the arms.
+4. Look 3's retirement. It was queued after the captures; Daniel's look found no difference, which supports it, but its
+   order was "after the captures".
