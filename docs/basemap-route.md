@@ -2371,3 +2371,37 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - **A slip of mine:** the four re-anchored plants first went through a shell heredoc, which turned their `\n` into newlines. `node --check` refused the harness, nothing ran, and the file was restored from HEAD and rewritten with the editor.
 
 **MC is next, then MG1.**
+
+### A2.38 MC on the sealed store; three cells wait on `forbidden.py`
+
+**`forbidden.py` decides which centres may be used** (`tools/wx/forbidden.py` on `spike/wx-overlay`, run read-only on this branch's tree; it prints only verdicts). The MC centres not already in the cleared fixture:
+
+| centre | verdict |
+|---|---|
+| EGLL | clear |
+| PANC | clear |
+| PHNL | **too close** |
+| CYYZ | **too close** |
+| MC3's point, KSFO's cleared position moved 0.03° east | **too close** |
+
+**What the cells admitted show** (`scripts/basemap-grade-mc.ts`, over the exact objects D1 verified):
+
+| row | result |
+|---|---|
+| MC1 | **as frozen:** 50 of 50 cleared airports covered |
+| MC2, EGLL and (0.00, 0.00) | **as frozen:** both `404 no_coverage` |
+| MC2, PHNL and CYYZ | **WAIT.** `forbidden.py` does not admit them. CYYZ was frozen as waiting on that ("once forbidden.py clears it"). PHNL was not, and now waits too |
+| MC3 | **WAITS**, below |
+| MC4, KDEN, KBOS, KBUF, KELP, PANC | **as frozen:** [SRTM], [SRTM, ETOPO1], [SRTM, NRCAN], [SRTM], [SRTM, GMTED2010, ETOPO1]. Each carries the levels processing line, and none was refused |
+
+**EGLL and PANC are committed** in `proxy/test/fixtures/basemap-mc-centres.txt`, beside the cleared fixture, now that `forbidden.py` has admitted them.
+
+**A question for the reviewer: MC3 can never clear as `forbidden.py` stands.**
+- **Why:** the tool scans the repo for coordinates, and **the cleared-airports fixture is in that scan.** So any point near a cleared airport reads "too close" to that airport's own fixture line, and MC3's point is 3 km from KSFO's.
+- **The same may hold for CYYZ:** it is about 100 km from the fixture's KBUF. The tool never says which coordinate a verdict is near, by design, so this is a reading, not a fact.
+- **Proposed, for a ruling:**
+  - **(a)** run `forbidden.py` for basemap centres with the cleared fixtures left out of the scan (`wx-airports.txt` and `basemap-mc-centres.txt`, by path and hash, as A10's ruling did for the Census subset). They are public airports the same tool admitted.
+  - **or (b)** replace PHNL, CYYZ and MC3's point with centres that clear as the tool stands.
+- **MC's sabotages:**
+  - S-NOCANADA (through KBUF) and S-NOOCEAN (through KBOS and PANC) can run now;
+  - **S-BBOX's frozen set is {MC2} through CYYZ, so it waits with CYYZ.**
