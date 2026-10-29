@@ -2304,3 +2304,38 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - **The set-aside rule, seen firing:**
   - Under S-PLACESORT, MD4 fails, as it must when builder output changes, and is set aside. The sabotage grades its frozen {ML13}, and the harness prints the set-aside id.
   - Under S-TALIGN, nothing is set aside: those three stores' tiles are flat or nearly so, so the plant moves no value there. Not every plant reaches MD4's fixtures, and the rule only shows where one does.
+
+### A2.36 D1 sealed (2026-10-29, 04:55-06:42Z)
+
+**`d1 --resume`, exit 0:**
+- the control read (the manifest, byte-identical) passed;
+- `current` was absent;
+- the full verify of 11,039 objects found **3,829 missing, 0 mismatched**;
+- the repair put 3,829 objects with **0 put failures**;
+- the second verify was clean at its first round (0 repair rounds, 0 missing, 0 mismatched);
+- **then the seal.**
+- **Totals:** 18,962 wrangler calls at 3 a second, **0 rate-limited** (15,131 reads, 3,830 puts).
+
+**Verified independently, by a read that is not the tool's own word:**
+- **The control:** `coverage.bin` read back from R2 hashes to the local copy's `5cf7169484c2`.
+- **`bm/v1/current`** reads `{"storeId":"4c0875738f38"}`.
+- **So the store is `4c0875738f38`, sealed, every object verified by sha256 before the seal.**
+
+**What does not reconcile, reported rather than explained away.**
+- **The first run's put logs** (wrangler writes one file per call): **7,377 succeeded, 3,550 got 429 and 8 had other errors.** That is 10,935 files for 11,039 puts, so 104 calls left none.
+- **Verify then found 3,829 missing,** not 3,558.
+- **Two explanations fit:**
+  - **(a) Log collisions.** Wrangler names a log by its start time to the millisecond, and 8 concurrent calls starting in the same millisecond would share one file. That would both lose logs and attribute an outcome to the wrong call.
+  - **(b) Puts that exited 0 and stored nothing.**
+- **The evidence on (b):**
+  - **against it, at the paced rate:** all 3,829 of the resume's puts exited 0 and were then found stored;
+  - **not excluded under the first run's load.** Its put-failure list was in memory and never printed when the run stopped.
+- **So both stand.** Neither threatens the store, because the seal waited for a full sha256 verify. The lesson for the next ingest: a put's exit status is not evidence that the object is there, which is why the cycle verifies everything.
+
+**Class A for D1:** about 7,200 stored puts in the first run (attempts refused with 429 should not count) and 3,830 in the resume, about **11,040 in all**, as stated. Month-end figures come from `scripts/r2-class-a.ts`.
+
+**Next, as A2.6 sets out, now on the sealed store** (read locally, its bytes the ones verified in R2):
+- MS0 and §5.4's classes (A2.30);
+- MC;
+- MM1 and MM3;
+- MG1 against `bend.bmpk`, with its controls S-GEPS and S-GSMOOTH.
