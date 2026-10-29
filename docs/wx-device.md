@@ -1813,6 +1813,9 @@ ends with the layer on. A `[touch]` line voids the run.
   **"instrument"**.
 - **Predicted:** the statistic within **±1 ms**. Per-arm medians, resid and n are printed beside it.
 - **The fallback** if it reads "instrument": one recorded traffic load replayed to every arm in local mode. It is
+  stronger, but it changes the source path and needs new tooling, so it is not first.
+
+(The line above was cut off in this copy until `3f7a026`; it is restored from `db8f693`.)
 
 ## The replay route, for a ruling (2026-10-29): captures from a recorded rain crop, so rain stops gating v19
 
@@ -1823,22 +1826,46 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
 - **Every other route:** forwarded **untouched** to `https://scopes.valarsystems.com`, so the radar keeps working.
 - **Production is not changed or deployed.**
 
-**The crop.**
-- **Recording:** recorded once from production `/wx/cref` with the device's own range (`r` = 161 km at 100 mi), at a
-  public point where it is raining at the time. It is chosen by its echo count near the centre, so R3 has weather on
-  the rings.
+**The crop** (changed as ruled on 2026-10-29, change 1: it is **not** recorded from production).
+- **Why not production:** `/wx/cref` sits behind `authenticate()` (`proxy/src/index.ts`). A recording would need a
+  device key, and no request may carry E2:08's key except E2:08's own, forwarded unchanged.
+- **Made from the public archive instead, the way #496 made the Bend crops.** The tool is
+  `tools/wx-replay/make_replay_crop.mts` (committed; it runs under Node's own type stripping).
+  - **The encoder:** it loads main's own decode and crop path from the checkout, never copied or changed:
+    `proxy/src/wx/mrms.ts` (`decodeMrms`, `codeOf`) and `proxy/src/wx/crop.ts` (`quantise`, `cropCellBox`,
+    `encodeBox`).
+  - **The commit check:** it refuses unless `proxy/src/wx/` equals origin/main's and the commit that last touched it is
+    on origin/main. Today that commit is `d1ced73`, the encoder #496 used.
+- **The input:** one of #496's 15 SeamlessHSR frames (2024-06-02, 19:10-20:06Z).
+  - It is fetched from the public NOAA MRMS archive (`noaa-mrms-pds`) by its key in #496's committed
+    `test/fixtures/wx/bend-loop/MANIFEST.json`.
+  - It is refused unless it hashes to that manifest's `gribSha256`.
+- **The point:** Bend, the site feed's public point at 2 dp, read from the header of the committed
+  `test/fixtures/wx/basemap/bend.bmpk`, as #496 did.
+  - It is at Bend's latitude, so the re-centring stretch stays small.
+  - It is **named only.** The tool prints no coordinate, and the sidecar holds none. The point exists only inside the
+    crop's header, as every WXC1 crop stores its north-west cell.
+- **The range:** `r` = 161 km, E2:08's request at 100 mi.
+- **Which frame, a rule fixed before any frame is decoded:** of the 15, the one with the most echo cells (codes 1-13)
+  within 50 km of the point, ties going to the earliest. If even that frame has no echo within 50 km, stop: a crop
+  with no rain near its centre cannot give R3 weather on the rings.
 - **Re-centring and re-stamping:** WXC1 has no checksum (`include/WxCrop.h`: frame time at byte 8, the north-west cell's
   centre at 12/16). So both rewrite 12 header bytes, and the rain body is not touched.
-  - **Re-centring** moves the north-west centre so the crop is centred on the request's point. Its cells keep their
-    microdegree size, so the shape stretches east-west by the cosine ratio of the two latitudes; that is stated.
+  - **Re-centring** moves the north-west centre so the crop's own centre (from its header's rows, columns and cell
+    size) sits on the request's quantised point. Its cells keep their microdegree size, so the shape stretches
+    east-west by the cosine ratio of the two latitudes; that is stated.
   - **Re-stamping** sets the frame time to the current minute.
 - **Labelled as a replay wherever it exists, and it exists only on the bench PC:**
-  - the files are `REPLAY-<utc>-cref.wxc1`, with a sidecar `REPLAY-<utc>.json` holding `"replay": true`, the source
-    (production `/wx/cref`), the recording time, the original frame time, the sha256, the echo counts, and the public
-    point's name;
+  - the files are `REPLAY-<utc>-cref.wxc1`, with a sidecar `REPLAY-<utc>.json`. The sidecar holds:
+    - `"replay": true`;
+    - the source (the public NOAA MRMS archive, SeamlessHSR, the frame's key) and its date;
+    - the encoder commit;
+    - the GRIB's sha256 and the crop's sha256;
+    - the echo counts;
+    - the point's name;
   - the proxy's ETag reads `"replay-<epoch>"`;
   - every record of the captures says REPLAY;
-  - nothing of it is committed or uploaded.
+  - the tool is committed; nothing it makes is committed or uploaded.
 
 **The proxy** (`tools/wx-replay/proxy.py`, committed, Python standard library only).
 - **Privacy:**
@@ -1872,8 +1899,23 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
 - **What changes on the way through:** forwarding replaces the base URL alone, and so the `Host` that names it.
   Method, path, query, headers and body pass to `https://scopes.valarsystems.com` byte for byte, and the response
   returns unchanged.
+- **The forward adds no header** (changed as ruled, change 4).
+  - **None added:** no `X-Forwarded-For`, `Via` or `Forwarded`. It sends through `http.client` with `skip_host` and
+    `skip_accept_encoding`, so Python adds no header of its own either.
+  - **Only hop-by-hop ones dropped:** `Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `TE`,
+    `Trailer`, `Transfer-Encoding`, `Upgrade`, and any header that `Connection` names.
+  - **The response, the same way:** production's status, headers and body go back to E2:08, re-framed for its own hop
+    only, with no `Server` or `Date` of the proxy's.
+  - **A request with a chunked body** is not forwarded (501), because forwarding it would need a framing header the
+    device did not send. None is expected: the device's HTTPClient sends `Content-Length`.
+  - **RS4's server-side read covers it.** In addition, the proxy's selftest forwards a request carrying a fake key to a
+    local echo server. The header names that arrive must equal those sent, less the hop-by-hop ones; it prints the
+    names only.
 - **The PC stays awake:** while the proxy runs it asks Windows not to sleep (`SetThreadExecutionState`, released when
   it exits). No setting is changed.
+- **The firewall, read and not changed (2026-10-29):** the bench PC's network is Private, and an existing inbound
+  Allow rule for its Python 3.14 (`python` on the PATH) covers Private. So the proxy runs under that interpreter and
+  needs no new rule. Which client it answers is the proxy's own allow-list (RS2), not the firewall's.
 
 **Setting and undoing the override** (through the config page, as `cfg_post.py` does, one field verified):
 1. Set `cloud-url` = `http://<bench PC's LAN address>:<port>`. The save runs `Initialise()`, which reads the new base.
@@ -1886,6 +1928,9 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
 - The guards are the keep-awake request, the driver's `finally`, and a session of about 45 min.
 - **Daniel's manual undo,** if the PC is gone: E2:08's config page, clear "Cloud URL", Save. Rebooting does not undo it,
   because the override lives in NVS.
+- **Told at the start of each replay window** (as ruled, change 5). The announcement to Daniel, in Pacific time,
+  carries this sentence: *"If the PC sleeps or the proxy stops, E2:08 shows DATA STALE until Cloud URL is cleared on
+  its page."*
 - (A bench-only firmware fallback to the default URL after repeated failures would make it automatic. That is a
   firmware change, and it is not proposed here.)
 
@@ -1896,23 +1941,29 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
   control window that is known to hold its traffic.
 
 **The sabotage, S-old (ruled).** First, the same crop with its **real, old** frame time.
+- **S-old's crop is RP2's crop with only the frame time different** (as ruled, change 2). Both are re-centred the same
+  way, so the two differ in bytes 8-11 alone.
+- **Its age:** its real stamp is the archive frame's own time, about two years past the 600 s limit. Its age at the run
+  (the board's clock minus the frame time) is recorded in seconds and in days.
 - **The order matters,** because a held crop is replaced only by a newer one (`OnQuery`/`OnResponse`: never
   backwards). With production's current crop held, an old crop would be kept out by that rule, not by the age limit.
 - **So S-old runs right after a reboot**, with the override set, when nothing is held.
 
 | | check | predicted |
 |---|---|---|
-| **RP1** | S-old: the crop with its real (old) stamp, the first crop after the reboot | the `[wx]` line accepts it as the held crop (an outcome other than `Kept`, with `frame=` its old time), and then **the age limit refuses to show it**. **No `layer rebuilt` line, and 0 weather-colour pixels** in the `/diag/fb` frames over 2 min |
+| **RC1** | the crop's making (change 1) | the tool refuses unless `proxy/src/wx/` equals origin/main's and its commit is on origin/main; the GRIB hashes to #496's committed `gribSha256`; the chosen frame has echo within 50 km. A scan of the tool's output and the sidecar finds no coordinate-shaped number. The device's own parser (`wxcrop::Validate`, compiled on the host) accepts the crop, the re-stamped crop and S-old's. Each differs from the source only in bytes 8-19 (S-old's only in 12-19), and S-old's differs from the re-stamped one only in bytes 8-11 |
+| **RP1** | S-old: the crop with its real (old) stamp, the first crop after the reboot | the `[wx]` line accepts it as the held crop (an outcome other than `Kept`, with `frame=` its old time), and then **the age limit refuses to show it**. **No `layer rebuilt` line, and 0 weather-colour pixels** in the `/diag/fb` frames over 2 min. **Its age is recorded** (change 2). This was read against the code before the run: with nothing held, `OnResponse` replaces (`WxPolicy.h:127` guards only a held crop), `WhatToShow` returns `Nothing` past 600 s (`:141`), and the rebuild runs only on `Show::Crop` (`AircraftManager.cpp:3348`) |
 | **RP2** | then the re-stamped crop | a newer frame replaces it, **`layer rebuilt` appears**, and the `/diag/fb` frames hold weather colours. So the replay is what makes the rain appear |
 | **RP3** | every other route during the run | forwarded untouched. The radar keeps updating (`[perf] polls=` 11-13 a minute in the active cadence), and production records E2:08's `/blips` throughout |
 | **RP4** | privacy | the proxy's log holds routes, statuses and byte counts only. A scan of the log and of the bench files after the run finds **no** `lat=`, `lon=`, coordinate-shaped number or header value |
 | **RP5** | the end check | all three as above |
 | **RP6** | the captures | the frozen protocol's three arms on the replay (the mask, R3-R5, Finished-only, a hands-off window), each record labelled REPLAY |
 | **RS1** | the proxy's lifetime | it starts after the hands-off window opens and is stopped before the window closes. Its port is closed at the end: a connection attempt is refused |
-| **RS2** | only E2:08 | a request from any other bench-LAN client (one test request from the bench PC itself) gets **403** and an `other`/`refused` line. E2:08's address appears in **no** doc, log or output |
-| **RS3** | the fixed log | every line of the proxy's log has exactly the listed fields. A scan of the log, the driver's output and the trace, using E2:08's key and address **in memory** and printing only a boolean, finds **neither**, and no `lat=`, `lon=` or header name |
-| **RS4** | the forward | production answers the forwarded `/blips` with 200, recorded server-side for E2:08's id, as it is with no proxy |
-| **RS5** | back on production | the page's `cloud-url` is blank (the built-in `https://scopes.valarsystems.com`); the proxy logs no request after the clear; production records E2:08's `/blips` within 5 min; and RS3's key scan is repeated over every output of the run, **printing only the boolean** |
+| **RS2** | only E2:08 | a request from any other bench-LAN client (one test request from the bench PC itself) gets **403** and an `other`/`refused` line. E2:08's address appears in **no** doc, in the proxy's log, in the driver's outputs or in any replay file. **The trace is the exception, and it was before this route existed:** the board prints its own address when it joins Wi-Fi (`src/main.cpp:479`), and the last six traces all hold it. So the trace is scanned for the key and the id (RS3) but is not graded on the address. It stays in the gitignored `bench-logs/` and is never quoted. (`3f7a026`'s wording, "no doc, log or output", was wrong about the trace; this was found reading the code before any run) |
+| **RS3** | the fixed log, and the key scan (change 3) | every line of the proxy's log has exactly the listed fields. **The scan:** <br>- **where its key comes from:** only the proxy's own memory, as seen in E2:08's requests: the `X-Blip-Key` value, and E2:08's id from `X-Blip-Device` the same way. Nothing reads a key file. <br>- **when and where it runs:** inside the proxy, after the driver's outputs are closed and before the proxy exits. <br>- **what it covers:** the proxy's log, the driver's log, the harness's copy of the driver's output, the trace and every replay file (crops, sidecars, capture records and frames). <br>- **what it prints:** only booleans: key seen, key found, id found, address found (the address outside the trace, per RS2). It also finds no `lat=`, `lon=` or header name in the log. <br>- **predicted:** key seen **yes**; key found **no**, id found **no**, address found **no**. **If no key was seen, it reads "instrument", not "clean"** |
+| **RS4** | the forward (change 4) | production answers the forwarded `/blips` with 200, recorded server-side for E2:08's id, as it is with no proxy. The forward adds no header and drops only hop-by-hop ones: RS4's server-side read covers it. The proxy's selftest (a fake key to a local echo server) shows the header names received equal those sent, less the hop-by-hop ones. 501s for chunked bodies: **0** |
+| **RS5** | back on production | the page's `cloud-url` is blank (the built-in `https://scopes.valarsystems.com`); the proxy logs no request after the clear; production records E2:08's `/blips` within 5 min. **Then RS3's scan runs, once, over every output of the run**, since a scan inside the proxy has to come after the clear and before the proxy exits. After it, the driver prints only fixed text: the port check and the scan's booleans |
+| **RS6** | the announcement (change 5) | each replay window's announcement to Daniel, in Pacific time, carries: *"If the PC sleeps or the proxy stops, E2:08 shows DATA STALE until Cloud URL is cleared on its page."* |
 
 **What the replay can and cannot show:**
 - **It can:** the draw path on the glass (rings and outlines over a real rain pattern), on demand.
@@ -1923,6 +1974,44 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
 stop and report; revoking it is Daniel's decision.
 
 **The replay does not run before the reviewer has reviewed this write-up on GitHub.**
+
+### The replay: approved with five changes (reviewer chat, 2026-10-29, pasted by Daniel), written in above
+
+**The ruling:** the write-up at `3f7a026` is approved, with five changes, written in as rows before the run. No second
+review is needed unless a reading falls outside the set. Then it runs where the queue has it, in an announced window.
+
+| change | as ruled | written in as |
+|---|---|---|
+| 1 | the crop is not recorded from production (`/wx/cref` is behind `authenticate()`, and no request may carry E2:08's key but E2:08's own). It is encoded at `r` = 161 km around a public point near Bend's latitude, on a past rain day, from public MRMS archive data with the production encoder, the way #496 made the Bend crops: the encoder commit checked against origin/main, the inputs sha-checked. The sidecar records the source, the date, the encoder commit and the shas. The tool prints no coordinates; the point is named only | "The crop" above; **RC1** |
+| 2 | S-old's crop is RP2's crop with only the frame time different, both re-centred the same way. Its real stamp is long past the 600 s limit: record its age | "The sabotage, S-old" above; **RP1**, **RC1** |
+| 3 | RS3's scan gets the key only from the proxy's own memory, as seen in E2:08's requests. It runs inside the proxy after the driver's outputs are closed and before the proxy exits, and prints only booleans. If no key was seen, it reads "instrument", not "clean" | **RS3**, **RS5** |
+| 4 | the forward adds no header (no `X-Forwarded-For`, `Via` or `Forwarded`) and drops only hop-by-hop ones. RS4's server-side read covers it | "The forward adds no header" above; **RS4** |
+| 5 | at the start of each replay window, Daniel is told in Pacific time that if the PC sleeps or the proxy stops, E2:08 shows DATA STALE until Cloud URL is cleared on its page | "Told at the start of each replay window" above; **RS6** |
+
+**Two choices made in writing these in, stated so they can be overruled:**
+- **The point and the day are #496's own:** Bend's public point (`bend.bmpk`'s origin) and its 2024-06-02 storm. Its
+  inputs then hash-check against a manifest already on main, so the sha check takes its answer from a record this
+  work did not write.
+- **RS2 is narrowed for the trace,** as stated in its row: the board's own serial log has always held its address.
+
+**Where it runs:** after the B1 fix and W5″, as the captures' route if no real rain has come by then.
+
+**The crop tool's development runs (2026-10-29, 04:38-04:39Z, before RC1 was pushed). They do not grade RC1,** which
+is graded in the replay session on the committed tool.
+- **The first run's scan fired:** "a coordinate-shaped number: YES".
+  - A count that printed no values found 18 tokens of 8-9 digits, **all date-shaped**: the archive files' `yyyymmdd`.
+    It found 0 decimal-shaped numbers.
+  - The scan was changed to count dates and set them aside. The point's own values are still checked in every form,
+    microdegrees included.
+- **The second run:**
+  - the scan read clean, with 18 dates set aside;
+  - the crop was **byte-identical** to the first run's (sha256 `58903e952374`);
+  - the rule chose the 20:02Z frame, which has 157 echo cells within 50 km (the 15 frames range from 12 to 157);
+  - the crop is 8,786 B, 296 × 405 cells, coarsen 1.
+- **The device's parser** (`validate_crop`, g++ 13.3.0 in WSL Ubuntu 24.04) accepts it, and counts 34,359 echo cells.
+  That is the encoder's own count of echo in the crop.
+- **The cache:** a new, empty folder that the archive downloads went into. Every input hashed to #496's committed
+  `gribSha256`.
 
 ### Results for WD8 on the board (2026-10-29, 03:56-03:59Z; window announced as 8:55-9:20 PM PDT)
 
@@ -1943,3 +2032,78 @@ round trip's, and it showed that a boot writes nothing to `config`.
 **WD8g, CI:** on `c5a4293`, 36 check runs, **33 success, 3 skipped** (the release-only `promote`, `version` and
 `ship-alert`), **0 failed**. `config-form` and `host-tests` (which runs `test_wx_legend_html`) succeeded. **As
 predicted. WD8 is complete.**
+
+**CI on `3f7a026`** (the replay's safeguards, docs only): 36 check runs, 33 success, 3 release-only skips, 0 failed.
+
+### Step C, the board (2026-10-29, 04:14-04:41Z; window announced as 9:12-9:45 PM PDT). `push − fill` is OFF-PREDICTION: stopped for a ruling
+
+**The run, as frozen.**
+- **The image:** `wxlook` at `f5a8145` (the step C timers; the head was `3f7a026`, docs only since), flashed app-only
+  at 04:14:20Z (exit 0).
+- **The trace:** one trace held for the whole run (`trace-stepc-2026-10-28-2114.log`). It closed at 04:39:59Z;
+  `read_mac` recovered the board, and its page answered at 04:40:39Z.
+- **The windows:** after 2 min settling, B (a verified POST of `wx-layer` off) from 04:17:16Z, then A (`wx-layer` on,
+  look A, sweep look 4) from 04:27:17Z, each 10 min. The layer ended on, as it began.
+- **No `[touch]` line in the run**, so it is not void.
+- **The reading:** `stepc_read.py` (sha256 `c351b035f977`), unchanged since it was written before the run, on the
+  trace after two reads 5 s apart showed it static (51,483 B both times).
+
+| frozen reading | read | its frozen meaning |
+|---|---|---|
+| **lines** | 19 lines in each window for each of `clear=`, `sweepparts=` and `sweep=`; push counts 0 in B and 128 of 128 in A; every A `sweep=` line blended all 128; 49 `[bench]` reprints | — |
+| **the instrument** | rasterise 2.24 + blend 5.49 + beam 0.11 = **7.84 ms**, against `sweep=` **7.85 ms** | **holds** (within 0.3 ms) |
+| **push − fill** | the push 6.82 ms (p95 6.91), the fill 3.01 ms (p95 3.12): **+3.82 ms** | **OUTSIDE 5-9.5: "the subtraction was wrong, stop and report"** |
+| **`memcpy` − `memset`** | 5.15 − 3.30 = **1.86 ms** (115,200 B PSRAM to PSRAM, median of 49 reprints of the boot measurement) | **1-3 ms: "it helps, and the sweep has to be cut too"** |
+| **the blend's share** | **70 percent** of the sweep (rasterise 29, beam 1) | span-only blending attacks the main part |
+| **B1′, observed** | **0** `BUDGET BROKEN` lines in the A window | graded on the fix's run |
+
+**So the stop is the frozen one.**
+- The subtraction in "The weather's frame cost against B1" put the layer at about 6.5-8 ms. Measured directly it is
+  **3.82 ms**: the subtraction overstated it by about 2.7-4.2 ms.
+- **The B1 fix's predictions are not frozen,** and no fix is written, until this is ruled.
+
+**Observations from the same run, NOT among the frozen readings** (computed after the frozen reading, from the same
+lines by the same "wholly inside the window" rule, and offered for the ruling only).
+
+| | B (off) | A (on) | A − B |
+|---|---|---|---|
+| frame p95, median of the `[health]` lines | 43.4 ms | 55.6 ms | **+12.2 ms** |
+| frame average | 42.7 ms | 54.7 ms | **+12.0 ms** |
+| contacts n, median (range) | 16 (14-18) | 16 (15-17) | 0 |
+| `ap=` | 60 | 60 | — |
+| `sweep=` (the opaque wedge in B, the blend path in A) | 1.99 ms | 7.85 ms | **+5.86 ms** |
+| `clear=` (the fill in B, the push in A) | 3.01 ms | 6.82 ms | **+3.82 ms** |
+| **the rest of the frame** (average − clear − sweep) | 37.7 ms | 40.0 ms | **+2.3 ms** |
+
+**What these say:**
+- **The cost is the records' cost.** In one run, at matched n and the same `ap=`, weather adds +12.2 ms to frame p95,
+  inside the 12.5-14 the records showed (adjusted for n). So the records' total was not drift. It was the split by
+  subtraction that was wrong.
+- **About 2.3 ms sits outside both timers,** in the rest of the frame.
+
+**What that 2.3 ms can be:**
+- **Rebuilds:** excluded. The A window holds 6 `layer rebuilt` lines of 26-28 ms. That is about 0.015 ms per frame,
+  not 2.3.
+- **Drift between the windows:** excluded as the whole of it, because n and `ap=` match. A few tenths are not excluded.
+- **Look A's outline:** the leading candidate, and not yet excluded or confirmed.
+  - With the layer shown in look A, every contact is drawn 8 more times in black, 1 px out (`WxOutlineNow()`,
+    `AircraftManager.cpp:4001`). At n = 16 that is 128 extra marker draws a frame, and no step C timer covers them.
+  - If it is the cause, the remainder grows with n, and it is absent in look B.
+- **Contention:** not excluded. The push and the blend stream PSRAM, and that may slow the rest of the frame's drawing.
+  No part-timer can see that.
+
+**Proposed for the ruling, frozen once ruled and before any code:**
+1. **Accept step C's direct numbers as the split:**
+   - the layer +3.82 ms, of which a straight `memcpy` would save about 1.7 (6.82 → about 5.15);
+   - the sweep +5.86 ms, 70 percent of it the blend;
+   - a remainder of +2.3 ms outside both.
+2. **Separate the outline from contention** with one bench timer around the outline loop (`WX_LOOK_AB` only, printed
+   every 30 s like the others), run in look A. Its frozen meanings:
+   - the outline's average is within 0.5 ms of the remainder: it is the outline;
+   - the outline is under 1 ms and the remainder is still about 2.3: it is contention;
+   - anything else, or a remainder outside 1.3-3.3 ms on that run: "instrument", stop.
+   This can ride the B1 fix's first board run, since the timer does not change the drawing.
+3. **Then freeze the fix's predictions:** the push's new cost, the blend's new cost, and the frame p95 on − off at
+   matched n. They are derived from these numbers, with the remainder carried as its own term.
+
+**E2:08 now:** `wxlook` at `f5a8145`, the layer on, look A, sweep look 4.
