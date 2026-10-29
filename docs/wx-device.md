@@ -2312,3 +2312,36 @@ written.
 - B1′ already held before the fix: 0 `BUDGET BROKEN` lines in step C's A window.
 
 **Outside the set, for any row:** stop and report, without re-running for a better number.
+
+### Results for the B1 fix, local (2026-10-29, the code at `32592f9`; CI and the board follow)
+
+| | read | verdict |
+|---|---|---|
+| **W5a** | span-only `Blend` against `BlendRows` at 3,600 angles, both looks: **0 mismatches** in frame, count and cleared slice | **as predicted** |
+| **W5b** | span bytes = marked at every angle; **7,278.5 on average** (rounds to 7,279) | **as predicted** |
+| **S-span** | red rows `W3-in`, `W5a` | **as predicted** (see below) |
+| **S-noclr** | red rows `W3-in`, `W5a` | **as predicted** (see below) |
+| **S-w**, re-anchored | red row `W3-in` only | as before |
+| **W1-W4** | all pass | **as predicted** |
+| **F0** | `sweepscan=`, `scan0=` and `layer copy:` are in `wxlook` and absent from the shipping ELF. **`outline=` is in both**: five times in the shipping ELF | **OFF as written**: see below |
+
+**About the sabotages.**
+- W3 runs the device's path, which is now the span `Blend`. So S-span and S-noclr, planted in that loop, redden
+  `W3-in` as well as `W5a`. That was stated in `sabotage_wx_sweep.py` before either ran.
+- S-w is planted in the shared `BlendOne`. It reddens `W3-in` only, because `W5a`'s two sides change alike.
+- The real header's sha256 is unchanged.
+
+**About F0.** The frozen needle `outline=` is too short.
+- All five shipping matches are the config page's own JavaScript, `i.style.outline=` (`ConfigurationWebServer.cpp:168-383`).
+  This change does not touch that file. The bench line itself, `[health] outline=`, is in `wxlook` only.
+- The other three needles read as predicted.
+- So the shipping image carries no bench string. But the row as frozen reads off, and **the needle is not changed
+  here: that is for the reviewer.** The proposed reading uses the full line prefixes (`[health] outline=`,
+  `[health] sweepscan=`, `[bench] scan0=`, `[bench] layer copy:`).
+- No board reading depends on F0, so the board run goes ahead.
+
+**The rest of the host suite** (`run.sh`, g++ 13.3.0 in WSL Ubuntu 24.04): every block passes except **"the same TU,
+for the board"**. That block needs the xtensa cross-compiler, which WSL does not have, and it fails rather than skip
+by design. CI has the compiler. `wx-fb-check.py --selftest` passes against the changed header.
+
+**Both images build:** `blipscope-s3-128` and `blipscope-s3-128-wxlook`.
