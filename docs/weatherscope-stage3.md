@@ -7537,3 +7537,33 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **No buffer is allocated in step 5,** so the PSRAM rows (with `heap_caps_get_allocated_size()` per block) start at step 7.
 
 **Outside any row: stop and report.**
+
+### A12.40 3.5b step 5's results: every A12.39 row holds
+
+**The code:** `weatherscope/3-5b-device` @ `08f54aa00056`, one commit on main's head `1ccc7f1`.
+
+| row | A12.39 predicted | measured |
+|---|---|---|
+| `test_wx_basemap` | 84 passed, 0 failed, under both compilers | **84 / 0 under MinGW g++ 5.1 and under g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0** |
+| every other host suite | unchanged; ALL HOST TESTS PASSED under MinGW; only the rig's two under 13.3 | **ALL HOST TESTS PASSED** under MinGW. Under 13.3, **the same block list, every suite's count identical**; FAILs only the rig's (no xtensa; no Pillow at R0/R0b, the last block, exit 2). The 3.5a suites read as on main: layout 73/0, K 28/0, replay 90/0 |
+| `sabotage_wx_basemap.py` | 14 of 14 exactly their sets, each plant proven applied, the real files restored | **14 of 14 exactly their sets** (S-PKCRC, S-FILL, S-UNION, S-SHIFT, S-ORDER, S-MASK, S-FOLD, S-HATCH, S-BKEY, S-PEAKFIRST, S-PEAKCAP, S-MT, S-TCOUNT, S-PCOUNT). The control is 84 / 0. **The real headers' hashes are unchanged** |
+| `validate.py`, A12.15's rows | `neg-terrain-count` → `kTerrainCount`; `neg-prov-count` → `kProvenanceCount`; the 28 unchanged; `bend.bmpk` `kOk` | **all 30 fixtures as frozen; `bend.bmpk` `kOk`** |
+| `synth.py --check` | the 28 existing byte-identical; the 2 new regenerate identically | **before writing:** only the two new ones differed (absent). **After:** "every committed byte equal". `git` shows no change to the 28 |
+| validate.py's two sabotages | each changes exactly its fixture, to `kOk` | **both exactly** |
+| the firmware | flash 1,624,855-1,632,855 B; RAM 59,024-59,224 B | **flash 1,630,415 B** (+1,560 over main), **RAM 59,024 B** (main's) |
+
+**What the passes rest on,** read off the run, not just counted:
+- **TR3c's control** found **1,216** disc pixels outside, exactly the calculator's figure, and TR3 found **0 of 678,660**.
+- **TX4 and TX5** equal A10.11's doubles to 9 decimals.
+- **BF8:** 36,828 on-disc map pixels water, 0 Puts in the bands.
+- **PE3:** placed BCDE, and with the cap removed BCDEF.
+
+**On the way:**
+- **The suite's first run was BLIND, not red:** BF8 and BF9 read `synthetic-clear.wxc` from the wrong folder, and the rig flag, exit 2, caught it. The path was corrected to `loop/`, where ref35's `CLEAR` reads it.
+- **The coordinate gate stopped the first commit** on 20 hits in the test file: 8 distinct constants, each one A10.11's own expected value, the miles-to-km factor, or the synthetic test point's half-cell offset from (0°, 0°), A10.11's TX5 and TR homes. Each was checked against that list (a boolean) before the commit.
+- **Heredocs ate a backslash twice in one sitting;** the edit was redone from a Write-tool script. The second was in `validate.py`'s newline count, caught by reading the file back before running anything.
+
+**Next:**
+- the PR, for review;
+- then step 6: the K rows and the replay rows, frozen before they run, as A10.6 has them;
+- 3.5t's real theme follows, as A12.38 orders.
