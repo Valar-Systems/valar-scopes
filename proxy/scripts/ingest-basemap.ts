@@ -13,13 +13,13 @@ import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync,
 import { unzipSync } from "fflate";
 import {
   type Box, type Cell, type CellIndexEntry, type Feature, type ManifestFile, PREDICATES, assignCells, bboxOf, cellKey, decodeFeature,
-  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, writeManifest,
+  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, verifyStore, writeManifest,
 } from "./basemap/ingest-lib";
 import { CURRENT_KEY } from "../src/basemap/store";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { coverageRows, encodeCoverage } from "./basemap/coverage";
 import { regionsFor } from "./basemap/regions";
-import { BUCKET, WranglerBucket, assembleStore } from "./basemap/d1";
+import { BUCKET, WranglerBucket, assembleStore, paceStats } from "./basemap/d1";
 import { tilesForCoverage } from "./basemap/terrain-plan";
 import { BIT, Layer, encodeTileBits, tileBits } from "./basemap/tile-bits";
 import { dirname, join, resolve } from "node:path";
@@ -498,8 +498,8 @@ async function retryBlocked(cache: string): Promise<void> {
  *  bytes and writes nothing; `--go` uploads. The cycle is ingest-lib's publishStore, unchanged (MI7). A store written
  *  from an uncommitted tree is refused: its manifest's builder would name a commit that is not the code that ran. */
 async function d1Cmd(cache: string): Promise<void> {
-  const go = process.argv.includes("--go"), planOnly = process.argv.includes("--plan");
-  if (go === planOnly) throw new Error("d1 needs exactly one of --plan or --go");
+  const go = process.argv.includes("--go"), planOnly = process.argv.includes("--plan"), resume = process.argv.includes("--resume");
+  if (Number(go) + Number(planOnly) + Number(resume) !== 1) throw new Error("d1 needs exactly one of --plan, --go or --resume");
   const { storeId, objects, current } = assembleStore(cache, cachePath);
   const manifest = JSON.parse(readFileSync(join(cache, "dry-run", "store", "manifest.json"), "utf8")) as { builder: string };
   // F1: `builder` must name the commit of the code that WROTE the manifest, from a clean tree -- what the dry run
@@ -516,8 +516,23 @@ async function d1Cmd(cache: string): Promise<void> {
     throw new Error("the manifest was not written from a clean tree at a known commit that matches the dry run: re-run the dry run");
   }
   const bucket = new WranglerBucket(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
-  const r = await publishStore(bucket, objects, CURRENT_KEY, current);
-  console.log(JSON.stringify({ sealed: r.sealed, repairRounds: r.rounds, missing: r.missing.length, mismatched: r.mismatched.length, puts: bucket.puts, gets: bucket.gets, putFailures: bucket.putFailures.length }, null, 1));
+  let todo = objects;
+  if (resume) {
+    // A2.33: after a run stopped unsealed. Reads before writes: a CONTROL read that must come back byte-identical, then
+    // `current` must be absent (a sealed store is never resumed), then a full verify; only what it finds wrong is put.
+    bucket.prime(objects.map((o) => o.key));
+    const m = await bucket.get(objects[0]!.key);
+    if (!m || Buffer.compare(Buffer.from(m), Buffer.from(objects[0]!.bytes)) !== 0) throw new Error("resume: the control read of the manifest did not come back identical (BLIND)");
+    if (await bucket.get(CURRENT_KEY)) throw new Error("resume: `current` already exists -- the store is sealed; stop and report");
+    const v = await verifyStore(bucket, objects);
+    const wrong = new Set([...v.missing, ...v.mismatched]);
+    todo = objects.filter((o) => wrong.has(o.key));
+    console.log(JSON.stringify({ resume: true, verified: objects.length, missing: v.missing.length, mismatched: v.mismatched.length, toRepair: todo.length }, null, 1));
+  }
+  // publishStore, unchanged: puts `todo`, verifies it, repairs at most twice, verifies, and seals only when clean.
+  // On resume every object outside `todo` was verified just above, after its last put.
+  const r = await publishStore(bucket, todo, CURRENT_KEY, current);
+  console.log(JSON.stringify({ sealed: r.sealed, repairRounds: r.rounds, missing: r.missing.length, mismatched: r.mismatched.length, puts: bucket.puts, gets: bucket.gets, putFailures: bucket.putFailures.length, calls: paceStats.calls, rateLimited: paceStats.rateLimited }, null, 1));
   for (const f of bucket.putFailures.slice(0, 5)) console.error(`put failed: ${f}`);
   if (!r.sealed) process.exitCode = 1;
 }

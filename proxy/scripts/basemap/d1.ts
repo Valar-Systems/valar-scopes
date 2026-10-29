@@ -59,6 +59,34 @@ function wrangler(proxyDir: string, args: string[], stdin?: Uint8Array): Promise
   });
 }
 
+// THE PACE (A2.33). wrangler goes through the account's REST API, which allows a user about 1,200 requests per 5
+// minutes. D1's first run drove 8 concurrent calls at about that rate, and 3,560 calls were refused with 429 between
+// 04:34 and 04:49Z -- refusals any other wrangler use under the same login would also have met. So every call takes a
+// slot from one clock, PER_SECOND a second (900 per 5 minutes, leaving headroom), and a 429 is retried with backoff
+// rather than read as a failure. The concurrency cap (8, as ruled) still applies on top.
+const PER_SECOND = 3;
+const RATE_LIMITED = /429: Too Many Requests|Too Many Requests/;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let nextSlot = 0;
+async function slot(): Promise<void> {
+  const now = Date.now(), at = Math.max(now, nextSlot);
+  nextSlot = at + 1000 / PER_SECOND;
+  if (at > now) await sleep(at - now);
+}
+export const paceStats = { calls: 0, rateLimited: 0 };
+/** One paced wrangler call; a 429 waits 15, 30, 60, 120 then 240 s before giving up. */
+async function paced(proxyDir: string, args: string[], stdin?: Uint8Array): Promise<Uint8Array> {
+  for (let attempt = 0; ; attempt++) {
+    await slot();
+    paceStats.calls++;
+    try { return await wrangler(proxyDir, args, stdin); } catch (e) {
+      if (!RATE_LIMITED.test((e as Error).message) || attempt >= 5) throw e;
+      paceStats.rateLimited++;
+      await sleep(15_000 * 2 ** attempt);
+    }
+  }
+}
+
 /**
  * A StoreBucket over wrangler, `concurrency` calls at a time, behind publishStore's sequential awaits:
  * - put() queues and returns as soon as the queue has room; a failed put is left for verify to find and repair;
@@ -77,12 +105,15 @@ export class WranglerBucket implements StoreBucket {
   // 8 at a time, as ruled for D1, for the reads as well as the writes
   constructor(private proxyDir: string, private bucket = BUCKET, private concurrency = 8, private window = 8) {}
 
+  /** A resumed run reads before it writes: give the read-ahead its order (the objects' order, as verifyStore reads). */
+  prime(keys: string[]): void { for (const k of keys) if (!this.seen.has(k)) { this.seen.add(k); this.order.push(k); } }
+
   async put(key: string, bytes: Uint8Array): Promise<void> {
     this.ahead.clear();
     while (this.inflight.size >= this.concurrency) await Promise.race(this.inflight);
     if (!this.seen.has(key)) { this.seen.add(key); this.order.push(key); }
     this.puts++;
-    const p: Promise<void> = wrangler(this.proxyDir, ["r2", "object", "put", `${this.bucket}/${key}`, "--pipe", "--remote"], bytes)
+    const p: Promise<void> = paced(this.proxyDir, ["r2", "object", "put", `${this.bucket}/${key}`, "--pipe", "--remote"], bytes)
       .then(() => undefined, (e: Error) => { this.putFailures.push(`${key}: ${e.message.slice(0, 200)}`); })
       .finally(() => { this.inflight.delete(p); });
     this.inflight.add(p);
@@ -90,7 +121,7 @@ export class WranglerBucket implements StoreBucket {
 
   private fetchOne(key: string): Promise<Uint8Array | null> {
     this.gets++;
-    const once = () => wrangler(this.proxyDir, ["r2", "object", "get", `${this.bucket}/${key}`, "--pipe", "--remote"]);
+    const once = () => paced(this.proxyDir, ["r2", "object", "get", `${this.bucket}/${key}`, "--pipe", "--remote"]);
     return once().catch((e: Error) => {
       if (/does not exist|NoSuchKey|not found|404/i.test(e.message)) return null;
       return once().catch((e2: Error) => { if (/does not exist|NoSuchKey|not found|404/i.test(e2.message)) return null; throw e2; });

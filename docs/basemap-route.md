@@ -2208,3 +2208,59 @@ What follows from that, set by set:
 - it builds ME2's first 50 in Node, then runs `test/basemap-md2.test.ts` in workerd with the Node list as a pool binding;
 - it exits 0 if the lists are identical, 1 if they differ, and **2 (BLIND) if the workerd half skipped or did not run.** In an ordinary run the test is skipped, and the script never counts a skip as a pass.
 - **Its control:** `--control` hands the workerd half the list with one sha256 changed, and the script must exit 1.
+
+### A2.32 The route's rows, run (2026-10-29)
+
+**The full pass with MQ and MI8 in the graded set** (04:20-04:44Z):
+- 40 runs over 113 cases in 12 files, **every set as frozen**, the three MQ sabotages included;
+- 0 runtime failures, the highest TIME_WAIT at a start 7,803;
+- exit 0.
+- **A2.28's re-check holds:** no frozen set moved with the new rows.
+
+**CI on `df34ba5`:** 38 checks, 35 passed and 3 skipped, none failed. That includes `test (proxy)`, which runs every basemap file on Linux.
+
+| row | result |
+|---|---|
+| MW1-MW17 | **as frozen**, every status, builder-call count and read count. **MW11 only after a fix**, below |
+| MP1, MP2, MP3 | **as frozen:** no log line, no store write and no ETag or cache key holds the origin, across every MW row. MP2's control: more than 10 builder shims ran. MP3's: more than 3 ETags were seen |
+| MA1 (the file half) | **as frozen:** every credit and processing text, taken from `provenance.ts`'s own strings; SRTM's notice; the OGL statement with its link |
+| MD2 | **as frozen:** ME2's first 50 builds give identical sha256 lists in Node and in workerd (exit 0). **Its control** (one sha256 changed in the list workerd is handed) **exits 1** |
+
+**MW11 failed on its first run, and the fault was the handler's.**
+- **What happened:** the second identical request went to the builder (1 call, 5 reads), not to the Cache API.
+- **The reading, tested before it was believed:** the handler stored the package with the headers it serves, `Cache-Control: no-cache`, and the Cache API does not keep a response marked that way.
+- **The fix:** the stored copy now carries `max-age` (7 days). Its key holds `rev` and the store id, so no entry outlives its store. Every response to a client still says `no-cache`, a cache hit included, and MW9 checks it.
+- **With the fix, MW11 passes as frozen.** No expected value moved. This is the code failing its frozen spec on its first run, and it is recorded so the reviewer can rule otherwise.
+
+### A2.33 D1's first run stopped unsealed on 429s; the pace, and the repair run's figures stated before it
+
+**What happened** (04:20-04:48Z):
+- **3,560 wrangler calls were refused with `429: Too Many Requests`** between 04:34 and 04:49Z, counted in wrangler's own logs by the exact error text: **3,550 puts and 10 reads.**
+- **A put that is refused leaves its object missing,** which verify finds and repairs, as designed.
+- **The first verify read that was refused twice stopped `publishStore` before the seal.** That is the designed failure: an outage is never read as a store full of missing objects, and never sealed over.
+
+**The cause is mine.** wrangler goes through the account's REST API, which allows a user about 1,200 requests per 5 minutes, about 4 a second. Eight concurrent wrangler calls ran right at that rate.
+- **The limit is per user,** so **for about 15 minutes any other wrangler or API call under this login may also have been refused.** I have no record of any. I flag it so any failed deploy or API call in that window is read in that light.
+
+**`current`'s state is not yet known.** My read of it came back 429 too, so that reading is BLIND. It should be absent, since the seal comes last. The resume run below checks it first, after a control read that must succeed.
+
+**The fix** (`d1.ts`):
+- every call takes a slot from one clock, **3 a second** (900 per 5 minutes, leaving headroom), with the 8-call cap still on top;
+- a 429 is retried after 15, 30, 60, 120 and 240 s before it counts as a failure;
+- the counts of calls and of 429s are printed.
+
+**`d1 --resume` runs the ruled cycle from where it stopped:**
+- a CONTROL read (the manifest, byte-identical) before any reading is believed;
+- `current` must be absent, or it stops;
+- then a full verify;
+- then `publishStore`, unchanged, over only what verify found missing or mismatched: put, verify, repair (at most twice), verify, then seal.
+
+**The repair run's three figures, stated before it** (A2.28's measured month):
+
+| | |
+|---|---|
+| its puts | **about 3,550** (the refused ones); at most 11,039 if verify finds more |
+| October's Class A with it | **about 551k so far** (540k + the first run's ~7,490 stored puts + ~3,550), and at most 562k with the worst case. **About 600-620k projected for the month.** Under the free 1M |
+| reads | about 14,600 Class B (one verify of 11,039, then the repaired ones), against the free 10M |
+| projected account overage | **$0** |
+| time, at 3 calls a second | about 1 h 40 min |
