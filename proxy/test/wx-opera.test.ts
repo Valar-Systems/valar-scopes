@@ -411,7 +411,7 @@ describe("K4: opuk as WXG1", () => {
     expect([bytes.length, objectBytes(m)]).toEqual([1179712, 1179712]);
     expect(roundTripDiffs(OPUK_GRID, bytes, h)).toBe(0);
   });
-  it("SABOTAGE AS FROZEN (tilesY for tilesX) is BLIND on this grid: 3 = 3 (docs/wx-opuk.md; K4 reads FAIL until ruled)", () => {
+  it("SABOTAGE AS FROZEN (tilesY for tilesX) is BLIND on this grid: 3 = 3 (the record, docs/wx-opuk.md; K4' below)", () => {
     const { m, bytes } = buildPattern(OPUK_GRID);
     const swapped: FrameMeta = { ...m, tilesX: m.tilesY, tilesY: m.tilesX };
     const d = roundTripDiffs(OPUK_GRID, bytes, swapped);
