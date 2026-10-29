@@ -8017,3 +8017,82 @@ A12.43's other rows and sabotage sets stand as frozen.
 - the planning figure 0.002930° is unchanged by the quantisation, which is under 5e-7°.
 
 **The outside-the-set branch:** any row or sabotage outside its frozen value or set stops t1 at that row, reported with its cause.
+
+### A12.46 3.5t step t1's results: every row and sabotage holds; t2's checks and sets, frozen before its code
+
+**t1:** `weatherscope/3-5t-daynight` @ `1c2a3a401462`, on main `1a4ecf4d24aa`, as **#503**.
+
+| row | A12.45 predicted | measured |
+|---|---|---|
+| DN-E | 4,950 rows; max 0.002930° ± 1e-5, ≤ 0.02 | **4,950 rows; max 0.002930°** |
+| DN-U | each within 1 min: +0.20, −0.28, +0.16, +0.39, +0.00, −0.09, −0.11, +0.19 (± 0.02) | **+0.22, −0.27, +0.17, +0.40, +0.02, −0.08, −0.10, +0.20**, all within 1 min and each within ± 0.02 of its prediction. Two sit at the band's edge (+0.22, +0.02). Every one is 0.01–0.02 later: the test takes the first whole second past the crossing, so up to +1 s (0.017 min) |
+| DN-D | D1–D16 | **16 of 16** |
+| DN-Q | Q1 1 at −1.84; Q2 1 at 0.17; Q3 0 | **as predicted** |
+| SY | 0 hits | **0** |
+| sabotages | S-DN1 {D9, D11, D14, Q1, Q2, Q3}; S-DN2 {D1, D3}; S-DN3 {D2, D4}; S-DN4 {D5–D8}; S-DNE {DN-E, DN-U1–8}; S-SY {SY}; the control 0 | **all 6 exactly, under both compilers**; the control 0; the real headers' hashes unchanged |
+| `daynight_ref.py --check` | identical | **identical** |
+| host suites | MinGW all pass; g++ 13.3 the same blocks and counts, only the rig's two | **MinGW: ALL HOST TESTS PASSED. g++ 13.3 (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`): the same blocks and counts, only the rig's two.** The DN lines are identical under both |
+| the firmware | exactly the base's own build | **flash 1,630,415 B and RAM 59,024 B, the anchor's. `firmware.bin` is byte-identical (`488e8f667b73`)**. The build compiled 0 units, and no firmware source names `DayNight.h` (grepped) |
+
+**Two things worth recording, neither a missed prediction:**
+- **g++ 13.3 refused the test's first draft.**
+  - `-Wformat-truncation` flagged an 8-byte `snprintf` buffer for `"DN-U%d"`, since it cannot bound the counter. MinGW 5.1 has no such check.
+  - The buffer became 16 bytes before anything was committed. That is the second compiler doing its job.
+  - **The first 13.3 sabotage run's "off-prediction" was the same compile failure** (every plant reported as not compiling: the rig, not a result). The rerun is the one recorded above.
+- **S-DNE's DN-U minutes** were listed in A12.43 from a 30 s planning scan: −6.8, −7.2, −1.8, −1.8, +8.8, +5.2, +1.8, +2.2. The test measures to the second: −6.60, −7.10, −1.83, −1.53, +8.57, +5.05, +1.90, +2.15.
+  - The frozen set, all 8 failing, is what was graded, and it holds.
+  - The largest gap is 0.27 min, within the scan's ± 0.25 min plus its one-decimal rounding.
+  - S-DNE's DN-E maximum: **0.192563°**, against the planning 0.1926°.
+
+**The firmware anchor, measured first** (A12.37's rule): main at `1a4ecf4d24aa`, built clean (252 units): flash 1,630,415 B, RAM 59,024 B, `firmware.bin` `488e8f667b73`.
+
+#### t2's checks, frozen before its code
+
+**`test/host/test_wx_theme.cpp`: 72 named checks.**
+- `src/weatherscope/WxTheme.h` holds the 87 roles, `kDark` and `kLight`, the setting's parse, `Select` and the dim.
+- **It includes `DayNight.h`** for `Phase`, so t2's branch stacks on t1's. Before t1's branch is deleted at its merge, t2's PR is retargeted to main, because deleting a base branch closes a stacked PR.
+
+| family | checks | each expected |
+|---|---|---|
+| C4-CTL1 | 1 | Sharma's 34 pairs (`test/fixtures/wx/ciede2000-sharma.txt`, transcribed and labelled so), each within 1e-4; the worst printed (0.000049) |
+| C4-CTL2 | 1 | WCAG (constants 0.2126, 0.7152, 0.0722): (119, 119, 119) on white 4.4781 ± 0.0005; black on white 21.0000 ± 0.0005 |
+| C4-A | 1 | 30.2669 ± 5e-5 |
+| C4a:1–13 | 13 | (b)'s rule, rain 1–13 |
+| C4b | 1 | code 13 = (0, 0, 0) |
+| C4c | 1 | no coverage: achromatic; > A against paper and water; ≥ 25 against black and every level |
+| C4d | 1 | the hatch line: achromatic; > A against paper; paper, line and no coverage distinct |
+| C4e:1–6 | 6 | snow: (b)'s rule and \|dh\| ≤ 1° |
+| C3e′, C3f′, C3g′, C3h′, C3i′ | 5 | as A12.43 |
+| C4f | 1 | codes 5 and 6 within 1° of their table hue |
+| C4g888:\<row\> | 9 | ≥ 4.5 in RGB888. The rows: label/halo, label/paper, dim/paper, ringnum/halo, peak/halo, otext/paper, otext/halo, accent/paper, warn/paper |
+| C4g565:\<row\> | 9 | ≥ 4.5 in RGB565 **and** equal to A12.44's value ± 0.0005: 13.1259, 12.7167, 5.3309, 5.5024, 7.5987, 4.6204, 4.7690, 4.5269, 4.6607 |
+| C4h | 1 | the orange graphic: (b)'s rule |
+| C4-HOLD1, C4-HOLD2 | 2 | the arc on paper ≥ 3:1; the track lighter than the arc |
+| TS1–TS9 | 9 | auto + {Unknown, Day, Night} → {Dark, Light, Dark}; light + any → Light; dark + any → Dark |
+| TP1–TP7 | 7 | "auto", "light", "dark" → themselves, known; "" → auto, unset; "x", "Light", "light " → auto, **unknown** (named in the boot line, never coerced) |
+| TD1–TD4 | 4 | the dim: (on, Night) yes; (on, Day) no; (on, Unknown) no; (off, Night) no |
+
+**Its sabotages,** in copies (`test/host/sabotage_wx_theme.py`):
+- A12.43's sets stand, except where A12.44's RGB565 rows now move too. Those are restated below, computed rather than reasoned.
+- **S-CTL2 grows,** because the RGB565 rows are graded to ± 0.0005 and a flat 2.2 gamma moves every value. The 888 rows still pass, as A12.43 found.
+
+| sabotage | fails exactly |
+|---|---|
+| S-C4a water back | C4a:1, C4e:1 |
+| S-C4b code 6 back | C4a:6 |
+| S-C4c no coverage (99, 99, 99) | C4c |
+| S-C4d hatch (125, 125, 125) | C4d |
+| S-C4e snow 2 = snow 1 | C4e:2, C3e′, C3h′ |
+| S-C4g orange text (161, 86, 0) | **C4g888:otext/paper, C4g565:otext/paper, C4g565:otext/halo** (restated: the 565 rows did not exist in A12.43) |
+| S-CTL1 R_T removed | C4-CTL1 |
+| S-CTL2 a flat 2.2 gamma | **C4-CTL2 and all 9 C4g565 rows** (restated) |
+| S-565 zero fill | all 9 C4g565 rows (A12.44) |
+| S-HOLD the light hold ring un-swapped | C4-HOLD1, C4-HOLD2 |
+| S-TS (new) auto + Unknown → Light | TS1 |
+| S-TP (new) the parse folds case | TP6 |
+| S-TD (new) the dim on any phase but Day | TD3 |
+
+- **The control:** 72 checks, 0 failures.
+- **t2's firmware:** exactly its base's own build, measured first. No firmware unit includes `WxTheme.h` until t3.
+
+**The outside-the-set branch:** a row or sabotage outside its frozen value or set stops t2 at that row, reported with its cause.
