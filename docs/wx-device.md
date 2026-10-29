@@ -1850,7 +1850,28 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
     passes them on and never writes them anywhere.
 - **Stated plainly:** the device-to-proxy leg is **plain HTTP on the bench LAN**. While the override is set, E2:08's
   credential header crosses the LAN in the clear, because the proxy cannot offer TLS that the device would trust. It is
-  E2:08's bench credential, for a session of about 45 min. **That is for the reviewer and Daniel to accept or refuse.**
+  E2:08's bench credential, for a session of about 45 min.
+- **Daniel's decision** (reviewer chat, 2026-10-29): **"Allow at home"**, with five safeguards. Each is a row below
+  (RS1-RS5):
+  1. the proxy runs only inside an announced hands-off window, and is stopped at its end;
+  2. it answers only E2:08 on the bench LAN and refuses everything else, and E2:08's LAN IP stays redacted in docs and
+     output;
+  3. it never logs, prints or stores `X-Blip-Key`, any other header, query strings or coordinates, and its own log is a
+     fixed set of fields;
+  4. it forwards to production over HTTPS with the request unchanged apart from the base URL;
+  5. after each run the `cloud-url` override is cleared, and a check shows E2:08 back on the production HTTPS base, with
+     no key in any output.
+
+  **If the key is ever printed or written anywhere: stop and report. Revoking it is then Daniel's decision.**
+- **The proxy's log, its only fields:** the time (UTC, to the second); the route, one of a fixed list (`wx/cref`,
+  `blips`, `enrich`, `config`, `airports`, `photo`, `other`); `replay` or `forwarded`; the status code; the response's
+  byte count. Nothing else: no address, no header, no query, no body.
+- **Who it answers:** only E2:08's bench-LAN address, read from the local file the bench tools already use and never
+  printed. Any other client gets a refusal (403) and an `other`/`refused` log line, with no address in it. It listens on
+  the bench PC's LAN address only.
+- **What changes on the way through:** forwarding replaces the base URL alone, and so the `Host` that names it.
+  Method, path, query, headers and body pass to `https://scopes.valarsystems.com` byte for byte, and the response
+  returns unchanged.
 - **The PC stays awake:** while the proxy runs it asks Windows not to sleep (`SetThreadExecutionState`, released when
   it exits). No setting is changed.
 
@@ -1887,13 +1908,21 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
 | **RP4** | privacy | the proxy's log holds routes, statuses and byte counts only. A scan of the log and of the bench files after the run finds **no** `lat=`, `lon=`, coordinate-shaped number or header value |
 | **RP5** | the end check | all three as above |
 | **RP6** | the captures | the frozen protocol's three arms on the replay (the mask, R3-R5, Finished-only, a hands-off window), each record labelled REPLAY |
+| **RS1** | the proxy's lifetime | it starts after the hands-off window opens and is stopped before the window closes. Its port is closed at the end: a connection attempt is refused |
+| **RS2** | only E2:08 | a request from any other bench-LAN client (one test request from the bench PC itself) gets **403** and an `other`/`refused` line. E2:08's address appears in **no** doc, log or output |
+| **RS3** | the fixed log | every line of the proxy's log has exactly the listed fields. A scan of the log, the driver's output and the trace, using E2:08's key and address **in memory** and printing only a boolean, finds **neither**, and no `lat=`, `lon=` or header name |
+| **RS4** | the forward | production answers the forwarded `/blips` with 200, recorded server-side for E2:08's id, as it is with no proxy |
+| **RS5** | back on production | the page's `cloud-url` is blank (the built-in `https://scopes.valarsystems.com`); the proxy logs no request after the clear; production records E2:08's `/blips` within 5 min; and RS3's key scan is repeated over every output of the run, **printing only the boolean** |
 
 **What the replay can and cannot show:**
 - **It can:** the draw path on the glass (rings and outlines over a real rain pattern), on demand.
 - **It cannot:** the live fetch from production. That is covered by G7, WD5's `/wx` rows and the server's own checks.
   Every real-rain day remains a stronger check of the same rows.
 
-**Outside the set:** stop, undo the override, and report.
+**Outside the set:** stop, undo the override, and report. **The key found in any output is outside the set by itself:**
+stop and report; revoking it is Daniel's decision.
+
+**The replay does not run before the reviewer has reviewed this write-up on GitHub.**
 
 ### Results for WD8 on the board (2026-10-29, 03:56-03:59Z; window announced as 8:55-9:20 PM PDT)
 
