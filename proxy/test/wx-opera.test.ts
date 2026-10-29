@@ -1,4 +1,4 @@
-// R2 of the UK data plan (docs/wx-opuk.md): K1-K10, K14 and K15, and LAEA against pyproj. Every check is a function of
+// R2 of the UK data plan (docs/wx-opuk.md): K1-K10 (with K1b, K2' and K4' as ruled), K14 and K15, and LAEA against pyproj. Every check is a function of
 // the thing it checks, and its sabotage hands the same function a broken variant -- so a sabotage that does not turn
 // its row red shows up as a passing check, never as silence. K11 (CPU and memory) is scripts/wx-opuk-measure.ts; K12
 // is scripts/wx-fixtures.ts's opuk crops; K13 the host render.
@@ -11,7 +11,7 @@ import { FrameBuilder, type FrameMeta, type GridGeom, frameMeta, objectBytes, re
 import { type LatestRecord, handleWx, readLatest } from "../src/wx/handler";
 import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, ingestOnce } from "../src/wx/ingest";
 import { WGS84, laea } from "../src/wx/laea";
-import { HEAD_BYTES, NODATA, type OperaGeo, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
+import { HEAD_BYTES, NODATA, type OperaGeo, OperaRefused, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
 import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, latestKey, servedProduct } from "../src/wx/products";
 import { type MaskOpts, OPUK_QI_MASK, mapFor, operaCode, prepareCentreOnly, resample } from "../src/wx/resample";
 import dryBin from "./fixtures/wx/opera/20261029T0130.ranges.bin";
@@ -191,6 +191,81 @@ describe("K1: the COG reader equals each frame's own HDF5", () => {
   });
 });
 
+// ---- K1b: the reader's corner rule (ruled 2026-10-29) -------------------------------------------------------------
+
+/** Where a tag's values live in a head (classic TIFF; value inline when it fits in 4 bytes). */
+function tagAt(h: Uint8Array, tag: number): number {
+  const dv = new DataView(h.buffer, h.byteOffset, h.length);
+  const ifd = dv.getUint32(4, true), n = dv.getUint16(ifd, true);
+  for (let i = 0; i < n; i++) {
+    const e = ifd + 2 + 12 * i;
+    if (dv.getUint16(e, true) !== tag) continue;
+    const type = dv.getUint16(e + 2, true), count = dv.getUint32(e + 4, true);
+    const bytes = ({ 3: 2, 4: 4, 12: 8 } as Record<number, number>)[type]! * count;
+    return bytes <= 4 ? e + 8 : dv.getUint32(e + 8, true);
+  }
+  throw new Error(`tag ${tag} not in the head`);
+}
+/** A copy of `head` with the tiepoint's model (X, Y) planted; the plant is read back before it is returned. */
+function plantTiepoint(head: Uint8Array, x: number, y: number): Uint8Array {
+  const h = head.slice();
+  const dv = new DataView(h.buffer, h.byteOffset, h.length);
+  const at = tagAt(h, 33922);
+  dv.setFloat64(at + 24, x, true);
+  dv.setFloat64(at + 32, y, true);
+  if (dv.getFloat64(at + 24, true) !== x || dv.getFloat64(at + 32, true) !== y) throw new Error("the tiepoint plant did not apply");
+  return h;
+}
+/** A copy of `head` with GeoKey 1025 (GTRasterTypeGeoKey) planted; read back before it is returned. */
+function plantRasterType(head: Uint8Array, v: number): Uint8Array {
+  const h = head.slice();
+  const dv = new DataView(h.buffer, h.byteOffset, h.length);
+  const at = tagAt(h, 34735);
+  const n = dv.getUint16(at + 6, true);
+  for (let k = 0; k < n; k++) {
+    const base = at + 8 + 8 * k;
+    if (dv.getUint16(base, true) !== 1025) continue;
+    if (dv.getUint16(base + 2, true) !== 0) throw new Error("GeoKey 1025 is not stored inline");
+    dv.setUint16(base + 6, v, true);
+    if (dv.getUint16(base + 6, true) !== v) throw new Error("the raster-type plant did not apply");
+    return h;
+  }
+  throw new Error("GeoKey 1025 not in the head");
+}
+
+function k1b(parse: (h: Uint8Array) => OperaGeo) {
+  const head = new Uint8Array(DRY.bin.slice(0, HEAD_BYTES));
+  const refused = (h: Uint8Array) => {
+    try { parse(h); return false; } catch (e) { if (e instanceof OperaRefused) return true; throw e; }
+  };
+  return {
+    originWindow: windowFor(parse(plantTiepoint(head, 0, 0)), OPUK_GRID),
+    originCorner: parse(plantTiepoint(head, 0, 0)).corner,
+    refusedOffSlip: refused(plantTiepoint(head, -501, 500)),
+    refusedOffOrigin: refused(plantTiepoint(head, 1, 0)),
+    refusedPixelIsPoint: refused(plantRasterType(head, 2)),
+  };
+}
+
+describe("K1b: the reader's corner rule", () => {
+  it("the real heads are the CIRRUS slip, and give the HDF5's window on both frames", () => {
+    for (const fx of [WET, DRY]) {
+      const geo = parseHead(new Uint8Array(fx.bin.slice(0, HEAD_BYTES)));
+      expect([geo.corner, geo.ulx, geo.uly], fx.name).toEqual(["cirrus-slip", 0, 0]);
+      expect(windowFor(geo, OPUK_GRID), fx.name).toEqual(fx.exp.window);
+    }
+  });
+  it("on the origin: used as is; 1 m off the slip or the origin: refused; PixelIsPoint: refused", () => {
+    const r = k1b((h) => parseHead(h));
+    console.log(`K1b ${JSON.stringify(r)}`);
+    expect(r).toEqual({ originWindow: DRY.exp.window, originCorner: "origin",
+                        refusedOffSlip: true, refusedOffOrigin: true, refusedPixelIsPoint: true });
+  });
+  it("SABOTAGE: with the acceptance check removed, the 1 m case is no longer refused", () => {
+    expect(k1b((h) => parseHead(h, true)).refusedOffSlip).toBe(false);
+  });
+});
+
 // ---- K2: resampling keeps a one-pixel line unbroken -----------------------------------------------------------------
 
 async function realGeo(): Promise<OperaGeo> { return parseHead(new Uint8Array(DRY.bin.slice(0, HEAD_BYTES))); }
@@ -217,18 +292,64 @@ function k2(geo: OperaGeo, centreOnly: boolean) {
   return { first, last, gaps, rows, cols };
 }
 
-describe("K2: a one-pixel diagonal line survives the resampling", () => {
+// K2 as frozen stays as the record (ruled 2026-10-29): the diagonal's 0 gap rows, and its sabotage pinned as BLIND --
+// a diagonal cannot separate the two rules. The unfrozen "> 1000" row-span control is dropped (the line crosses 865).
+describe("K2 as frozen: a one-pixel diagonal line (the record; K2 reads FAIL, its sabotage BLIND)", () => {
   it("0 rows between the line's first and last without an echo cell", async () => {
     const r = k2(await realGeo(), false);
     console.log(`K2 line over ${r.rows} x ${r.cols} source px: grid rows ${r.first}-${r.last}, gaps ${r.gaps}`);
-    expect(r.first).toBeGreaterThanOrEqual(0);
-    expect(r.last - r.first).toBeGreaterThan(1000);   // CONTROL: the line crosses most of the grid
+    expect(r.first).toBeGreaterThanOrEqual(0);        // the line reaches the grid at all
     expect(r.gaps).toBe(0);
   }, SLOW);
-  it("SABOTAGE: the centre rule alone (nearest neighbour) leaves gaps", async () => {
+  it("SABOTAGE AS FROZEN (the centre rule alone) is BLIND on a diagonal: 0 gaps too (pinned)", async () => {
     const r = k2(await realGeo(), true);
-    console.log(`K2 sabotage (centre rule alone): gaps ${r.gaps}`);
-    expect(r.gaps).toBeGreaterThan(0);
+    console.log(`K2 sabotage as frozen (centre rule alone): gaps ${r.gaps} -- BLIND`);
+    // Pinned: if this ever reads > 0, the record in docs/wx-opuk.md is stale.
+    expect(r.gaps).toBe(0);
+  }, SLOW);
+});
+
+/** K2' (ruled 2026-10-29): one 40 dBZ pixel at the centre of every 7 x 7 block of the window, undetect elsewhere.
+ *  An echo pixel is KEPT when some echo cell lies within +-2 grid rows and +-3 grid columns of the cell holding its
+ *  centre (about 2.2 x 1.9 km; the next echo is about 7 km away). Counted over pixels whose centre lies in the grid. */
+function k2prime(geo: OperaGeo, centreOnly: boolean) {
+  const g = OPUK_GRID;
+  const win = windowFor(geo, g);
+  const rows = win[1] - win[0] + 1, cols = win[3] - win[2] + 1;
+  const value = new Float32Array(rows * cols).fill(NaN), quality = new Float32Array(rows * cols).fill(0.9);
+  const echoes: number[] = [];
+  for (let r = 3; r < rows; r += 7) for (let c = 3; c < cols; c += 7) { value[r * cols + c] = 40; echoes.push(r * cols + c); }
+  const m = mapFor(geo, win, g);
+  if (centreOnly) prepareCentreOnly(geo, win, g, m);
+  const { codes } = resample(value, quality, m, g, { centreOnly });
+  let inGrid = 0, lost = 0;
+  for (const p of echoes) {
+    const cell = m.cellOf[p]!;
+    if (cell < 0) continue;
+    inGrid++;
+    const tr = Math.floor(cell / g.ni), tc = cell % g.ni;
+    let kept = false;
+    for (let r = Math.max(0, tr - 2); r <= Math.min(g.nj - 1, tr + 2) && !kept; r++)
+      for (let c = Math.max(0, tc - 3); c <= Math.min(g.ni - 1, tc + 3) && !kept; c++) {
+        const k = codes[r * g.ni + c]!;
+        if (k >= 1 && k <= 13) kept = true;
+      }
+    if (!kept) lost++;
+  }
+  return { echoes: echoes.length, inGrid, lost };
+}
+
+describe("K2': isolated single-pixel echoes survive the resampling", () => {
+  it("the block rule loses 0 echo pixels whose centre lies in the grid", async () => {
+    const r = k2prime(await realGeo(), false);
+    console.log(`K2' echoes ${r.echoes}, centre in the grid ${r.inGrid}, lost ${r.lost}`);
+    expect(r.inGrid).toBeGreaterThan(0);              // CONTROL: the plant reached the grid (the count is printed)
+    expect(r.lost).toBe(0);
+  }, SLOW);
+  it("SABOTAGE: the centre rule alone loses some", async () => {
+    const r = k2prime(await realGeo(), true);
+    console.log(`K2' sabotage (centre rule alone): lost ${r.lost} of ${r.inGrid}`);
+    expect(r.lost).toBeGreaterThan(0);
   }, SLOW);
 });
 
@@ -262,7 +383,8 @@ function buildPattern(g: GridGeom) {
   for (let r = 0; r < g.nj; r++) { for (let c = 0; c < g.ni; c++) row[c] = pattern(r, c); fb.setRow(r, row); }
   return { m, bytes: fb.bytes };
 }
-/** Cells that differ after a round trip, reading the tiles with `meta` (the sabotage hands a swapped one). */
+/** Cells that differ after a round trip, reading the tiles with `meta` (the sabotage hands a swapped one). A cell the
+ *  layout cannot read -- its tile was never produced, so tiledCellAt throws -- counts as differing (K4', pinned). */
 function roundTripDiffs(g: GridGeom, bytes: Uint8Array, meta: FrameMeta) {
   const tiles = new Map<string, Uint8Array>();
   for (let ty = 0; ty < meta.tilesY; ty++) for (let tx = 0; tx < meta.tilesX; tx++) {
@@ -271,7 +393,13 @@ function roundTripDiffs(g: GridGeom, bytes: Uint8Array, meta: FrameMeta) {
   }
   const cellAt = tiledCellAt(meta, tiles);
   let diffs = 0;
-  for (let r = 0; r < g.nj; r++) for (let c = 0; c < g.ni; c++) if (cellAt(r, c) !== pattern(r, c)) diffs++;
+  for (let r = 0; r < g.nj; r++) {
+    for (let c = 0; c < g.ni; c++) {
+      let v: number;
+      try { v = cellAt(r, c); } catch { diffs++; continue; }
+      if (v !== pattern(r, c)) diffs++;
+    }
+  }
   return diffs;
 }
 
@@ -290,6 +418,22 @@ describe("K4: opuk as WXG1", () => {
     console.log(`K4 sabotage as frozen: tilesX ${m.tilesX}, tilesY ${m.tilesY}, cells differing ${d} -- BLIND`);
     // Pinned: if this ever differs, the grid changed and the record in docs/wx-opuk.md is stale.
     expect(d).toBe(0);
+  });
+});
+
+// K4' (ruled 2026-10-29): the same sabotage on a grid whose tile counts differ, 1,515 x 1,000 (3 x 2 tiles).
+describe("K4': the tile-count swap on 3 x 2 tiles", () => {
+  const G: GridGeom = { ...OPUK_GRID, ni: 1000 };
+  it("CONTROL: without the swap the round trip is identical", () => {
+    const { m, bytes } = buildPattern(G);
+    expect([m.tilesX, m.tilesY]).toEqual([2, 3]);
+    expect(roundTripDiffs(G, bytes, m)).toBe(0);
+  });
+  it("SABOTAGE: tilesY for tilesX fails cell for cell", () => {
+    const { m, bytes } = buildPattern(G);
+    const d = roundTripDiffs(G, bytes, { ...m, tilesX: m.tilesY, tilesY: m.tilesX });
+    console.log(`K4' sabotage (tilesY for tilesX on 3 x 2): cells differing ${d} of ${G.ni * G.nj}`);
+    expect(d).toBeGreaterThan(0);
   });
 });
 
