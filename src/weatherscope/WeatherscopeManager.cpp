@@ -27,7 +27,45 @@
 #include "WxScreens.h"
 #include "WxTowns.h"
 
+// BUILD Q ONLY (A12.25): the Bend crops from WxBendFrames.S, in its order (the 15 frames, then synthetic-clear).
+#define WX_BEND_CROP(n)                                                     \
+    extern const uint8_t wx_bend_##n##_start[] asm("wx_bend_" #n "_start"); \
+    extern const uint8_t wx_bend_##n##_end[] asm("wx_bend_" #n "_end");
+WX_BEND_CROP(00)
+WX_BEND_CROP(01)
+WX_BEND_CROP(02)
+WX_BEND_CROP(03)
+WX_BEND_CROP(04)
+WX_BEND_CROP(05)
+WX_BEND_CROP(06)
+WX_BEND_CROP(07)
+WX_BEND_CROP(08)
+WX_BEND_CROP(09)
+WX_BEND_CROP(10)
+WX_BEND_CROP(11)
+WX_BEND_CROP(12)
+WX_BEND_CROP(13)
+WX_BEND_CROP(14)
+WX_BEND_CROP(15)
+#undef WX_BEND_CROP
+
 namespace {
+
+struct QCrop {
+    const uint8_t* start;
+    const uint8_t* end;
+};
+const QCrop kQBend[] = {
+    {wx_bend_00_start, wx_bend_00_end}, {wx_bend_01_start, wx_bend_01_end}, {wx_bend_02_start, wx_bend_02_end},
+    {wx_bend_03_start, wx_bend_03_end}, {wx_bend_04_start, wx_bend_04_end}, {wx_bend_05_start, wx_bend_05_end},
+    {wx_bend_06_start, wx_bend_06_end}, {wx_bend_07_start, wx_bend_07_end}, {wx_bend_08_start, wx_bend_08_end},
+    {wx_bend_09_start, wx_bend_09_end}, {wx_bend_10_start, wx_bend_10_end}, {wx_bend_11_start, wx_bend_11_end},
+    {wx_bend_12_start, wx_bend_12_end}, {wx_bend_13_start, wx_bend_13_end}, {wx_bend_14_start, wx_bend_14_end},
+    {wx_bend_15_start, wx_bend_15_end},
+};
+constexpr int kQBendN = (int)(sizeof kQBend / sizeof kQBend[0]);
+constexpr int kQRounds = 3;
+constexpr size_t kQProbeBytes = (size_t)wxrender::kSize * wxrender::kSize;
 
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
@@ -198,6 +236,29 @@ void WeatherscopeManager::MakeBuffers()
                   (unsigned)psramUsed, (int)spriteOk, (unsigned)gridCells, (unsigned)sizeof(wxscreens::ScreenIn),
                   (unsigned)sizeof(wxscreens::ScreenOut), (unsigned)sizeof(wxscreens::Layer), (unsigned)nHistory,
                   (unsigned)feeds.clear.size, (int)buffersReady);
+    MakeQBuffers();
+}
+
+// BUILD Q ONLY (A12.25): after psram_used is measured, so A9.23's band still grades the unchanged part.
+void WeatherscopeManager::MakeQBuffers()
+{
+    const size_t before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    qProbeBuf = (uint8_t*)heap_caps_malloc(kQProbeBytes, MALLOC_CAP_SPIRAM);
+    if (qProbeBuf)
+        for (size_t i = 0; i < kQProbeBytes; ++i) qProbeBuf[i] = (uint8_t)(i * 31u);   // any content: only the reads count
+    size_t cells = 0;
+    for (int i = 0; i < kQBendN; ++i) {
+        wxcrop::Header h;
+        if (wxcrop::ParseHeader(kQBend[i].start, (size_t)(kQBend[i].end - kQBend[i].start), &h) == wxcrop::Status::Ok &&
+            h.Cells() > cells)
+            cells = h.Cells();
+    }
+    qBendGrid = cells ? (uint8_t*)heap_caps_malloc(cells, MALLOC_CAP_SPIRAM) : nullptr;
+    qBendCells = qBendGrid ? cells : 0;
+    const size_t after = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    wxscreens::QProbe().base = qProbeBuf;
+    Serial.printf("[wx] qbuf probe=%u bendgrid=%u psram_q=%u ok=%d\n", (unsigned)(qProbeBuf ? kQProbeBytes : 0),
+                  (unsigned)qBendCells, (unsigned)(before - after), (int)(qProbeBuf && qBendGrid));
 }
 
 bool WeatherscopeManager::DecodeCrop(const wx::CropBytes& crop, wxcrop::Header* h)
@@ -456,6 +517,54 @@ private:
 };
 }  // namespace
 
+// BUILD Q ONLY (A12.25): on 'Q', every Bend crop decoded kQRounds times, each decode timed as the loop times its own
+// (esp_timer around DecodeInto); the FNV-1a and nonzero count are taken after the timer stops. Kept, then printed
+// paced, so no print lands between two timed decodes.
+void WeatherscopeManager::RunQDecode()
+{
+    struct QResult {
+        uint32_t us, nz, fnv;
+        uint8_t st;
+    };
+    static QResult res[kQRounds][kQBendN];
+    for (int r = 0; r < kQRounds; ++r) {
+        for (int i = 0; i < kQBendN; ++i) {
+            QResult& q = res[r][i];
+            const size_t len = (size_t)(kQBend[i].end - kQBend[i].start);
+            wxcrop::Header h;
+            const int64_t t0 = esp_timer_get_time();
+            const wxcrop::Status st = qBendGrid ? wxcrop::DecodeInto(kQBend[i].start, len, qBendGrid, qBendCells, &h)
+                                                : wxcrop::Status::BufferTooSmall;
+            q.us = (uint32_t)(esp_timer_get_time() - t0);
+            q.st = (uint8_t)st;
+            q.nz = 0;
+            q.fnv = 0x811C9DC5u;
+            if (st == wxcrop::Status::Ok) {
+                for (size_t k = 0; k < h.Cells(); ++k) {
+                    q.nz += qBendGrid[k] != 0;
+                    q.fnv = (q.fnv ^ qBendGrid[k]) * 0x01000193u;
+                }
+            }
+        }
+    }
+    PacedSerial out;
+    char line[160];
+    for (int r = 0; r < kQRounds; ++r) {
+        for (int i = 0; i < kQBendN; ++i) {
+            const QResult& q = res[r][i];
+            wxcrop::Header h;
+            const size_t len = (size_t)(kQBend[i].end - kQBend[i].start);
+            const bool hdr = wxcrop::ParseHeader(kQBend[i].start, len, &h) == wxcrop::Status::Ok;
+            const int n = snprintf(line, sizeof line, "[wx] qdec r=%d i=%d bytes=%u cells=%u st=%u us=%lu nz=%lu fnv=%08lx\n",
+                                   r, i, (unsigned)len, hdr ? (unsigned)h.Cells() : 0u, (unsigned)q.st,
+                                   (unsigned long)q.us, (unsigned long)q.nz, (unsigned long)q.fnv);
+            if (n > 0 && n < (int)sizeof line) out.Line(line, (size_t)n);
+        }
+    }
+    const int n = snprintf(line, sizeof line, "[wx] qdec done rounds=%d crops=%d\n", kQRounds, kQBendN);
+    if (n > 0 && n < (int)sizeof line) out.Line(line, (size_t)n);
+}
+
 // On 'R': the records, paced, then cleared.
 void WeatherscopeManager::PrintRecords()
 {
@@ -616,6 +725,16 @@ void WeatherscopeManager::FinishLoop()
         Serial.printf("%s sum=%lu draw_us=%lu hash_us=%lu\n", line, (unsigned long)sum, (unsigned long)r.drawUs,
                       (unsigned long)r.hashUs);
     }
+    {   // BUILD Q (A12.25): the probe's reads in each frame, one paced line
+        char line[256];
+        int n = snprintf(line, sizeof line, "[wx] qreads");
+        for (int i = 0; i < kLoopFrames && n > 0 && n < (int)sizeof line; ++i)
+            n += snprintf(line + n, sizeof line - n, " %lu", (unsigned long)records[i].qReads);
+        if (n > 0 && n < (int)sizeof line - 1) {
+            line[n++] = '\n';
+            PacedSerial().Line(line, (size_t)n);
+        }
+    }
     for (int i = 0; i < nHeldRuns; ++i) PrintPushRun(heldRuns[i]);
     if (droppedRuns) Serial.printf("[fb] push runs dropped while held: %d\n", droppedRuns);
     nHeldRuns = droppedRuns = 0;
@@ -740,12 +859,13 @@ void WeatherscopeManager::HandleSerialGestures()
         const int ch = Serial.read();
         if (!feeds.stored) continue;
         const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'P' || ch == 'L' ||
-                           ch == 'R';
+                           ch == 'R' || ch == 'Q';
         Serial.printf("[wx] gesture %c\n", known ? (char)ch : '?');
         if (!known) continue;
         if (ch == 'P') { benchPress = true; continue; }   // A9.34: the press is HandleTouch's to classify
         if (ch == 'L') { benchPress = false; continue; }
         if (ch == 'R') { PrintRecords(); continue; }
+        if (ch == 'Q') { RunQDecode(); continue; }   // BUILD Q (A12.25)
         lastTouchMs = millis();
         if (ch == 'T') OnTap();
         else if (ch == 'S') OnSwipeLeft();
@@ -932,6 +1052,7 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
     const bool decoded = FullScreen(s) && DecodeCrop(history[loopIndex], &h);
     rec.decodeUs = (uint32_t)(esp_timer_get_time() - d0);
     memset(rec.phaseUs, 0, sizeof rec.phaseUs);
+    const uint32_t q0 = wxscreens::QProbe().reads;   // BUILD Q (A12.25)
     if (decoded &&
         wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last) == wxcrop::Status::Ok) {
         *screenIn = wxscreens::ScreenIn();
@@ -952,6 +1073,7 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
         rec.epoch = 0;
     }
     rec.drawUs = (uint32_t)(esp_timer_get_time() - start);
+    rec.qReads = wxscreens::QProbe().reads - q0;
     loopFrameDue = false;
     ++loopIndex;
 }

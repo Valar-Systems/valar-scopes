@@ -64,6 +64,7 @@ public:
         uint32_t hashUs;
         uint32_t decodeUs;     // A9.22's profile: the decode, then Compose's ten phases
         uint32_t phaseUs[11];   // wxscreens::Profile::kPhases (A9.23 adds the replay)
+        uint32_t qReads;        // BUILD Q (A12.25): the probe's reads in this frame
     };
 
 private:
@@ -102,6 +103,13 @@ private:
     wxscreens::Cycle* cycle = nullptr;
     wxscreens::Layer* layer = nullptr;         // the loop's frame-invariant layer (A9.23), built at the tap
     LoopRecord* records = nullptr;
+
+    // BUILD Q ONLY (A12.25): the probe's 240 x 240 buffer, and a grid for timing the Bend crops' decode ('Q')
+    uint8_t* qProbeBuf = nullptr;
+    uint8_t* qBendGrid = nullptr;
+    size_t qBendCells = 0;
+    void MakeQBuffers();
+    void RunQDecode();
 
     // the loop's frames and the scenario picks (A8.10's rule, applied on the device)
     wx::CropBytes history[kLoopFrames];

@@ -488,9 +488,26 @@ public:
 // Every row's codes are worked out and handed to `rows` (B2 hashes all 57,600), but the band rows (y < 24, y >= 194)
 // are not drawn: the bands overwrite them in every composition, so drawing them first was 16,800 wasted writes
 // (A9.23). A 3.5b basemap goes UNDER the radar here, as a dry pixel's colour (A9.23, the second paste's item 3).
+// BUILD Q ONLY (docs/weatherscope-stage3.md A12.25, Q30): a timing probe where the fold will read its basemap. A set
+// base makes every dry map pixel read one byte of it into a volatile sink, counted; no pixel changes. Null (every host
+// build, and every build but Q) is today's DrawMap. This branch is never merged.
+struct QProbeState {
+    const uint8_t* base = nullptr;
+    volatile uint8_t sink = 0;
+    uint32_t reads = 0;
+};
+inline QProbeState& QProbe()
+{
+    static QProbeState s;
+    return s;
+}
+
 inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* codes, const wxrender::View& v,
                     CodeRows* rows)
 {
+    QProbeState& q = QProbe();
+    const uint8_t* const qbase = q.base;
+    uint32_t qreads = 0;
     uint8_t row[wxrender::kSize];
     for (int y = 0; y < wxrender::kSize; ++y) {
         for (int x = 0; x < wxrender::kSize; ++x) row[x] = wxrender::CodeAt(h, codes, v, x, y);
@@ -502,10 +519,15 @@ inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* c
                 s.Put(x, y, wxraster::kBlack);
                 continue;
             }
+            if (c == 0 && qbase) {   // Q: the fold's read, into the sink
+                q.sink = qbase[y * wxrender::kSize + x];
+                ++qreads;
+            }
             const wxpalette::Rgb p = c == 15 ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false);
             s.Put(x, y, Rgb{p.r, p.g, p.b});
         }
     }
+    q.reads += qreads;
 }
 
 // Projection at the view's radius: x = 120 + dLon / rLon * 120, y = 120 - dLat / rLat * 120, as floats.
