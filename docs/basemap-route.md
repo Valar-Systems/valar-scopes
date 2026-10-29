@@ -2068,3 +2068,38 @@ What follows from that, set by set:
   - trusting the store id inside the client's `If-None-Match` lets a device keep an old package forever after a store change, the risk §3 names;
   - reading `current` per request breaks MW10.
 - **Recommended:** the handler keeps the store id from its last builder response in isolate memory, with a **60 s** TTL. MW10, in the same isolate as MW9, then reads 0. A cold isolate, or an expired TTL, goes to the builder. Staleness after a store change is bounded by the TTL.
+
+### A2.29 D1: the clean store, a smoke build that ran too early, and the statement before the upload
+
+**The store, from the clean tree** (dry run, then `coverage`, then `tile-bits`):
+- store id **`4c0875738f38`**;
+- ingest commit `393e4bc`, **`dirtyTree: false`**;
+- 16,035 files.
+
+**`d1 --plan`:** 1,397 cells, 9,638 tiles, 4 store objects and `current`: **11,040 puts, 1,760,646,426 B.** The manifest's `builder` equals HEAD.
+
+**A smoke build, and the rule it broke.**
+- **What I did:** before spending the puts, I built one package in Node from the exact objects D1 will upload, at `bend.bmpk`'s own origin (read from its header, never printed).
+- **What it showed:**
+  - 205,090 B in 635 ms;
+  - 56 reads;
+  - `validate` `kOk`;
+  - sections 1, 2, 3, 4, 5, 6, 6, 6, 7.
+- **205,090 B is MG1's frozen figure for my builder** (A2.8): `bend.bmpk`'s 205,093 minus the 3 characters by which `blipscope-basemap` is shorter than `weatherscope-basemap`. That is not MG1, which compares the packages decoded, under §11.
+- **The breach: A2.6 step 3 puts MS0 and §5.4's outcome classes, re-predicted and frozen, before the builder runs on the real store.** This build came before them.
+  - **What it exposed:** only Bend's point (r 97, the three levels). Its size and PROVENANCE were already frozen for MG1.
+  - **What it did not:** no other centre or radius has been built.
+- **So:** Bend's point is excluded from MS0 and §5.4 as already seen. No other real-store build happens until they are frozen. The breach stays on record.
+
+**The Class A statement, before the upload** (A2.28's measured figures):
+
+| | |
+|---|---|
+| D1's puts | **11,040**, plus repairs. A full repair round is at most 11,039 more |
+| October's Class A, projected with D1 | **about 605k** (594k + 11k), at most 5k more for the unlisted bulk deletes, and **about 616k with one full repair round**. All under the free 1M |
+| projected account overage | **$0** |
+| reads for verify | 11,039 Class B, against the free 10M |
+
+**Then, as ruled:**
+- the bucket `blipscope-basemap` is created (announced at $0; no yes needed);
+- `d1 --go`: wrangler under the OAuth session, 8 at a time, then verify → repair → verify → seal.
