@@ -47,11 +47,14 @@ def light_pal(cand):
 THEMES = {
     # dark: geo35.base_p's P base exactly -- terrain (g, g, g + 2) with g = 10 + level, and its water, river and road
     "dark": dict(ink=r.DARK_INK, pal=r.PAL, nothing=r.BLACK, terrain=[(10 + i, 10 + i, 12 + i) for i in range(37)],
-                 water=geo35.WATER_FILL, river=geo35.WATER_LINE, road=geo35.ROAD),
+                 water=geo35.WATER_FILL, river=geo35.WATER_LINE, road=geo35.ROAD,
+                 nocov=r.legend.NOCOV, hatch=r.legend.HATCH),
     "light-a": dict(ink=LIGHT_INK, pal=light_pal("a"), nothing=PAPER, terrain=ramp((201, 198, 189)),
-                    water=(171, 204, 237), river=(96, 146, 206), road=(178, 150, 112)),
+                    water=(171, 204, 237), river=(96, 146, 206), road=(178, 150, 112),
+                    nocov=(104, 104, 104), hatch=(124, 124, 124)),   # A12.29
     "light-b": dict(ink=LIGHT_INK, pal=light_pal("b"), nothing=PAPER, terrain=ramp((168, 165, 156)),
-                    water=(171, 204, 237), river=(96, 146, 206), road=(178, 150, 112)),
+                    water=(171, 204, 237), river=(96, 146, 206), road=(178, 150, 112),
+                    nocov=(93, 93, 93), hatch=(124, 124, 124)),      # A12.29
 }
 
 
