@@ -1508,3 +1508,43 @@ No reading came from the failed launch.
 - **These are M2's inputs.**
 
 **N6, since:** read once the line was in the file. As predicted, with no regression (`docs/wx-server.md` on #494).
+
+### A3.9 L, the bucket's terms (read 2026-10-29, ~03:30Z): outcome (b), as predicted
+
+**The ruling that started R2 (reviewer chat, pasted by Daniel, 2026-10-29)** said "Read L (the bucket's terms) now".
+It is recorded verbatim with R2's predictions (`docs/wx-opuk.md`).
+
+**What was read:**
+- **the ORD documentation:** its overview, discovering-and-accessing and MQTT pages; the HVD summary was read
+  2026-10-28;
+- **its GitHub repository's README:** CC BY 4.0 for the documentation, no terms of use, and no LICENSE file;
+- **MeteoGate's site:** its "Terms and conditions" link leads to the documentation's references page, which links the
+  **MeteoGate Data Governance Policy** (`Data_governance_policy.docx`, 202,756 B, sha256 `4ecbdfa0f7f7…`, 163
+  paragraphs, all read);
+- **the API-key portal:** it renders only a title without scripts, so it carried no readable terms.
+
+**L2, the headers.** A listing (200) and an 8 KB range GET (206) on `openradar-24h`, both sent with the ingest's
+User-Agent.
+- **No rate-limit, quota or retry header on either. As predicted.**
+- **Present, and worth knowing:** `x-amz-expiration: expiry-date="…", rule-id="24h-cache-lifecycle"`. That is the
+  cache's own lifecycle rule.
+
+**L1, a published limit for the S3 cache:**
+- **None. As predicted.**
+- The ORD page names only an `x-ratelimit-remaining` header for anonymous *API* queries, with no number. The S3 cache
+  sent no such header.
+
+**The only governing text,** from the Data Governance Policy, verbatim:
+> "To protect the availability of this service for everyone, accidental or deliberate heavy traffic from an IP address
+> may result in disconnection. In addition, Registered users may be contacted by EUMETNET's FEMDI Coordinating Member
+> to support them find and access data in a sustainable way."
+
+**No term forbids automated use.**
+
+**Outcome (b):** no limit stated, no rate-limit header, no term against automated use.
+- **As ruled (A2.1, item 3), R3 does not wait.** The reviewer drafts the courtesy note, and Daniel sends it.
+- **Our load against the one clause:**
+  - about 1,728 range reads and 2,880 listings a day: **about 3 requests a minute;**
+  - from Cloudflare's egress, not one fixed address;
+  - with a User-Agent naming us and a contact URL (K14).
+  - That is not the "heavy traffic" the clause guards against.
