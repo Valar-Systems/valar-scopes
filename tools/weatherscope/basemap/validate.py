@@ -121,9 +121,14 @@ def section(typ, count, body):
             raise Bad("kTerrainLength")
         if res != 0:
             raise Bad("kReserved")
+        if count != 1:
+            raise Bad("kTerrainCount")   # A12.15: a TERRAIN section holds exactly one level
         return (rl, n, body[8:])
     elif typ == 7:
-        return bytes(body)   # clients never parse PROVENANCE (format section 7)
+        lines = 0 if not body else bytes(body).count(b"\n") + 1   # A12.15: no trailing newline (RD-P4)
+        if count != lines:
+            raise Bad("kProvenanceCount")
+        return bytes(body)   # clients never parse PROVENANCE beyond its count (format section 7)
     if r.left() != 0:
         raise Bad("kBody")
     return out
