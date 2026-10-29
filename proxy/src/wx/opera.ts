@@ -73,7 +73,8 @@ export function parseHead(head: Uint8Array): OperaGeo {
   need(keys.get(3075) === 10, "the projection is not LAEA (ProjCoordTrans 10)");
   need(keys.get(2056) === 7030, "the ellipsoid is not WGS84 (7030)");
   need(keys.get(3076) === 9001, "the linear unit is not the metre");
-  const proj: LaeaParams = { lat0: keys.get(3088)!, lon0: keys.get(3089)!, x0: keys.get(3082)!, y0: keys.get(3083)!, ...WGS84 };
+  // 3088 ProjCenterLongGeoKey, 3089 ProjCenterLatGeoKey, 3082/3083 ProjFalseEasting/NorthingGeoKey
+  const proj: LaeaParams = { lat0: keys.get(3089)!, lon0: keys.get(3088)!, x0: keys.get(3082)!, y0: keys.get(3083)!, ...WGS84 };
   need([proj.lat0, proj.lon0, proj.x0, proj.y0].every(Number.isFinite), "the projection's centre or false origin is missing");
   const width = one(256), height = one(257), tileW = one(322), tileH = one(323);
   return { width, height, tileW, tileH, tilesX: Math.ceil(width / tileW), offsets: offsets!, counts: counts!,
