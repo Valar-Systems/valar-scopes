@@ -1733,3 +1733,83 @@ Blipscope, back on `wxlook` with the layer on, look A and sweep look 4.
 | **cross-check** | `check-wx-legend.py`'s grade run on the **C++ builder's actual output** (`legend_dump`). Its colours come from its own reading of the source, so this tests two independent implementations against each other: look A 15 swatches, 0 off; look B 15, 0 off | (not a frozen row; both agree) |
 | **WD8d (selftest)** | `compare-form-fields.py --selftest`: the same fields moved into a new section are allowed; S-ws (a renamed field), a flipped default, a removed option, a changed value and a field moved outside the form are each detected | (the instrument; the board read follows) |
 | **WD8g (local half)** | both builds succeed; `check-config-form.py`: all 9 pages hold, no literal `%`. MinGW: **ALL HOST TESTS PASSED**. WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`: only the board block's known gap | **as predicted** |
+
+## Rulings, 2026-10-29 (reviewer chat, pasted by Daniel; written earlier in the day, delivered late), with their source
+
+**1. B1: (c).**
+- **B1′, for v19:** with weather on, frame p95 stays under the firmware's own budget gate, the model plus 10 ms. That
+  gate is `FRAME_P95_MARGIN_MS` in `AircraftManager.cpp`; a breach prints `[health] BUDGET BROKEN`.
+- **The miss stays on record:** the frozen ≤ 3 ms and the table at `10b60c8`. **Its cause:** the premise that a
+  full-screen copy costs what the fill it replaces costs was wrong. "+12.7 ms" is corrected as stated (G7's off
+  window was zoomed to 25 mi by a touch).
+- **Step C is approved,** on `db8f693`'s plan: the bench-only timers on the clear-or-push call and on the sweep's three
+  parts, plus the one-off `memcpy`/`memset` timing at boot. It runs at the first free window after WD8, announced to
+  Daniel in Pacific time.
+- **Then the fix,** with its predictions frozen from step C's numbers, aimed at v19: one `memcpy` for the layer, and the
+  blend over each row's span only.
+- **When the fix is on the glass,** Daniel compares weather on and off by eye. His look is the last check on smoothness.
+
+**2. W5″: accepted as proposed on `db8f693`** (its text is copied below). It runs when the board is free, after step
+C, with its window announced.
+
+**3.** G7‴ passed as predicted and is recorded. WD8 is graded when its board run and CI report. The real-rain captures
+stand: whenever echo comes within 50 km, a hands-off window is announced first.
+
+**4. The replay route:** written up with predictions. It must cover:
+- **privacy:** the proxy may hold the request's location in memory only, if it needs it to re-centre; it never logs,
+  prints or stores coordinates or query strings; it stores nothing per device;
+- **production unchanged,** with every route except `/wx/cref` forwarded untouched;
+- **the re-stamped crop** exists only on the bench PC, and is labelled as a replay wherever it is recorded;
+- **the override:** how `cloud-url` is set and undone; what E2:08 does if the PC sleeps or the proxy stops mid-run
+  (Daniel needs it working as a Blipscope); a check at the end that it is back on production;
+- **a sabotage:** the same crop with its real (old) stamp must be refused by the age limit, which shows the replay is
+  what makes the rain appear.
+
+### Step C, frozen as ruled (`db8f693`'s plan, its meanings unchanged), before its code
+
+**The code, bench flag only (`WX_LOOK_AB`).** Every timer uses W4′'s method: the last 128 calls, avg and p95.
+- **The clear-or-push call:** `fillScreen` with the layer off, `DrawWeatherUnder`'s push with it on. Printed every 30 s
+  as `[health] clear=<avg>/<p95>us n=<k> push=<p>`, where p counts the pushes.
+- **The sweep's three parts** on the blend path: `Rasterise`, `Blend` and the beam. Printed as
+  `[health] sweepparts=<r>/<b>/<beam>us`, each an average over the same 128 calls.
+- **Once at boot:** 115,200 B copied PSRAM to PSRAM (`memcpy`) and filled (`memset`), each the median of 10, printed
+  as `[bench] memcpy=<us> memset=<us>`.
+
+**The run, on E2:08.** Two 10 min windows, each opened by a verified POST: layer off, then layer on with look 4. It
+ends with the layer on. A `[touch]` line voids the run.
+
+**What each result will mean (`db8f693`, as frozen):**
+- **The instrument check:** rasterise + blend + beam lies within 0.3 ms of W4′'s whole-sweep timer (the `sweep=` line,
+  still printed). If not, the split is broken: stop.
+- **push − fill** (the layer-on window's clear average minus the layer-off window's): 5-9.5 ms. Outside it, the
+  subtraction was wrong: stop and report.
+- **`memcpy` − `memset`:**
+  - ≤ 1.0 ms: a straight copy can make the layer nearly free;
+  - 1-3 ms: it helps, and the sweep has to be cut too;
+  - > 3 ms: no full-screen copy per frame gets near the old 3 ms. That bar is retired; B1′ is the bar now.
+- **The blend's share of the sweep, and bytes scanned per wedge pixel:** these show whether span-only blending attacks
+  the real cost.
+- **B1′, an observation here:** the `BUDGET BROKEN` lines in the layer-on window are reported. They are graded on the
+  fix's run.
+
+**Then** the fix's predictions are frozen from these numbers, before its code.
+
+### W5″, accepted as proposed (the text of `db8f693`, verbatim)
+
+**W5″, the instrument: alternations, graded at matched contact count.**
+- **Why n:** the firmware's own fit has frame p95 rising 0.802 ms per contact (R² 0.985, 5,392 samples), and n is
+  what drifted under W5 and W5′. Matching on it removes the drift, and alternating spreads what is left across the
+  hour.
+- **The arms:** O1, N1, O2, N2, O3, by day, with the sun up throughout.
+  - O is main `962ccb7`'s shipping env; N is #445's shipping env at its head.
+  - Each is flashed app-only, waits ≥ 12 min untouched, then runs a 10 min window.
+  - It takes about 2 h. Daniel gets the window in Pacific time beforehand.
+- **The statistic:**
+  - pool each image's `[health]` lines by n;
+  - keep the n bins with ≥ 3 lines from each image;
+  - take the median over those bins of (median p95 N − median p95 O).
+- **The control:** the same statistic for (O1 + O3) against O2, **within ±1 ms**.
+- **The floor:** ≥ 4 shared bins for both the grade and the control. Fewer, or a failed control, reads
+  **"instrument"**.
+- **Predicted:** the statistic within **±1 ms**. Per-arm medians, resid and n are printed beside it.
+- **The fallback** if it reads "instrument": one recorded traffic load replayed to every arm in local mode. It is
