@@ -57,3 +57,6 @@ bench-logs/
 *.traffic.log
 *.traffic.csv
 traffic-captures/
+
+# The light-look bench select's generated frames (look_frames.py build-look), never committed
+build-look/
