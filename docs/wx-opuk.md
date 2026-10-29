@@ -101,6 +101,14 @@ Each sabotage must turn its own row red. BLIND counts as FAIL.
   - **Pinned:** with no frame, the check passes as "not ingesting yet", as the `/wx` check's inert answer did before
     the bucket was bound.
   - With a frame, the share must be present and > 0, or FAIL.
+  - **Pinned 2026-10-29, before the smoke check's code:**
+    - **`wx` is `"not_configured"`** (no bucket bound) → PASS, as the `/wx` check's inert answer does.
+    - **`wx` has no `opuk` entry at all** (a Worker deployed before R2's merge) → **FAIL**, as the `/wx` check's 404
+      does: production is behind main.
+    - **A share above 1** → FAIL: it cannot be a share.
+    - The verdict lives in `scripts/wx-opuk-verdict.sh`, sourced by `smoke-prod.sh`.
+      `scripts/wx-opuk-verdict.selftest.sh` runs it on nine canned bodies and compares the whole verdict list. Its
+      sabotage drops the zero test, and case 5 (share 0) must then read PASS and fail the selftest.
 - **What `/wx/cref` answers at a UK point before R3 deploys,** if the proxy is redeployed with R2's code in between:
   `opuk` has no `latest`, so **503 `wx_stale`**, where today it is a 200 all-14 crop.
   - No shipped firmware reads `/wx` (the ruling), so no customer sees it.
