@@ -1894,3 +1894,19 @@ production URL; read at `AircraftManager.cpp:1298`), is pointed at a small proxy
   Every real-rain day remains a stronger check of the same rows.
 
 **Outside the set:** stop, undo the override, and report.
+
+### Results for WD8 on the board (2026-10-29, 03:56-03:59Z; window announced as 8:55-9:20 PM PDT)
+
+The flash was `wxlook` at `c5a4293`, app-only, and it exited 0. The page then showed the Weather section and its
+legend.
+
+| | read | verdict |
+|---|---|---|
+| **WD8d** | `compare-form-fields`: **83 named controls, 0 differences** between E2:08's served page before (`cfc3576`) and after the WD8 build. **S-ws**, `wx-sweep` renamed in the new section of the after page: 2 differences ("only in the first page" / "only in the second page"), **red** | **as predicted** |
+| **WD8c** | `check-wx-legend`'s grade on the served page: **look A, 6 rows, 15 swatches, 0 off**. After `wx-look B` was set through the page: **look B, 15 swatches, 0 off** | **as predicted** |
+| **WD8f** | `cfg_post --select wx-look B`, then `A`: each **VERIFIED**, "only the asked field changed" | **as predicted** |
+| **WD8e** | **the control**, NVS read twice across a plain reboot: `config` 82 keys → 82, none added, removed or changed. **The round trip**, a whole-form POST of all 56 fields exactly as read (200), then NVS read again: **82 → 82, none added, removed or changed**. Key names only were compared in memory; both dumps were deleted at once | **as predicted** |
+| **end state** | the layer on, look A, sweep look 4 | — |
+
+The control is not among the frozen rows. It was added so that a boot's own NVS writes could not be mistaken for the
+round trip's, and it showed that a boot writes nothing to `config`.
