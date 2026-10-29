@@ -212,3 +212,93 @@ The first run of `test/wx-opera.test.ts` was **outside the set on every fixture 
   - K8 compared the error body without its `v: 1` (the statuses were 503, as predicted);
   - the predictor-refusal plant did not apply, because OPERA's IFD carries Predictor = 1 explicitly after tag 284.
     It now plants over 317 itself, with a control that the value was 1 first.
+
+## The ruling on R2's three stops (reviewer chat, pasted by Daniel, 2026-10-29), verbatim
+
+> UK data session: from the reviewer chat, 2026-10-29
+>
+> R2's three stops, and your changes after the first reading:
+>
+> 1. K1: (a). The HDF5 is right, and the GeoTIFF is half a pixel off.
+> - The third source: BALTRAD's RAVE navigation notes (https://baltrad.github.io/rave_navigation.html), from ODIM's
+>   reference implementation, say that ODIM H5's UL/UR/LL/LR lon/lat pairs "defines the outer boundaries of the area
+>   covered". Read it yourself and record the quote with its URL.
+> - That agrees with the HDF5's own geometry: corner to corner is exactly 3,800 and 4,400 px, so these are outer
+>   corners, not centres, and its UL corner sits on the false origin to within a millimetre. The GeoTIFF's PixelIsArea
+>   tiepoint sits exactly half a pixel outside that corner. That is the classic slip of a converter that read ODIM's
+>   corners as pixel centres.
+> - The reader's rule, narrow on purpose: PixelIsArea only (GeoKey 1025 = 1). A tiepoint exactly half a pixel outside
+>   the false origin (-xscale/2, +yscale/2, within 1 mm) is the known CIRRUS slip, and the raster's corner goes on the
+>   false origin. A tiepoint exactly on the false origin is used as is (a corrected product). Anything else refuses the
+>   frame, so a future change at OPERA can't move the map silently.
+> - K1 stands as frozen, with its expected values from the HDF5. Add K1b, frozen before its code: the slip tiepoint
+>   gives the HDF5's window on both frames; a tiepoint on the origin is used as is; a tiepoint 1 m off either is
+>   refused; PixelIsPoint is refused. Sabotage: with the acceptance check removed, the 1 m case is no longer refused.
+> - The first reading stays on record as the miss: one column off on both frames.
+>
+> 2. K2: your remedy, as K2′. The diagonal's result stays on record: 0 gap rows and a BLIND sabotage, so K2 as frozen
+>    reads FAIL. K2′: isolated single-pixel 40 dBZ echoes, one in every 7x7 block, undetect elsewhere. Predicted: the
+>    block rule loses 0 echo pixels whose centre lies in the grid; the centre rule alone loses > 0, with the count
+>    printed. Your unfrozen "> 1000" control is dropped, with 865 recorded.
+>
+> 3. K4: your remedy. K4's values on opuk's 3x3 grid stand. Its sabotage runs on a 1,515 x 1,000 grid (3 x 2 tiles):
+>    without the swap the round trip is identical (the control), and with tilesY for tilesX it fails cell for cell. K4
+>    as frozen stays on record as BLIND.
+>
+> 4. Accepted: 14d5fb9 (3088 is ProjCenterLongGeoKey and 3089 ProjCenterLatGeoKey; I checked the diff) and the three
+>    scaffolding fixes. All stay on record as made after the first reading. A check catching a bug in the code under
+>    test, followed by a fix in its own commit, is the process working.
+>
+> Then re-run every R2 row with K1's correction in. It moves every resampled cell by half a pixel, so K12's crops and
+> manifest are rebuilt by the same rule. Then K13's render. #499 stays a draft until CI is green on every row.
+
+**The third source, read 2026-10-29:** <https://baltrad.github.io/rave_navigation.html>, section "ODIM H5 Area
+Definition":
+> These coordinates defines the outer boundaries of the area covered.
+
+and, further on:
+> Hence, the UL/UR/.. defines the actual outer boundaries of the area.
+
+The page says the (X, Y) points of the area are "placed in the center of each sub area": the centres are the pixels,
+and the four corner pairs are the outer boundary. Read through a page fetch, which returns the page's text rather than
+its raw HTML; the two sentences are quoted as it returned them.
+
+### Frozen before the code that follows them (2026-10-29)
+
+**K1b: the reader's corner rule.** It runs on the dry fixture's real head, with the tiepoint and GeoKey 1025 planted in
+copies. Every plant is asserted to have applied (the planted value is read back) before its result is believed.
+
+| case | predicted |
+|---|---|
+| the real head (the CIRRUS slip: tiepoint at (−xscale/2, +yscale/2)) on **both** frames | accepted; the raster corner is the false origin; the window is the HDF5's, `[1059, 2883, 417, 1635]` |
+| tiepoint planted on the false origin, (0, 0) | accepted as is; the same window |
+| tiepoint 1 m off the slip, (−501, 500) | refused |
+| tiepoint 1 m off the origin, (1, 0) | refused |
+| GeoKey 1025 planted to 2 (PixelIsPoint) | refused |
+| **sabotage:** the acceptance check removed (a test-only switch); the tiepoint used as is | the (−501, 500) case is **not** refused, so the row goes red |
+
+**K2′: isolated echoes.** One 40 dBZ pixel (QI 0.9) at the centre of every 7 × 7 block of the dry frame's window,
+undetect elsewhere.
+- **"Kept"** means at least one echo cell within ±2 grid rows and ±3 grid columns of the cell holding the pixel's centre.
+  At 7 px (about 7 km) between echoes, that neighbourhood (about 2.2 × 1.9 km) holds no other echo's cells.
+- **The denominator** is the echo pixels whose centre lies in the grid. Printed.
+- **Predicted:** the block rule loses **0**. The centre rule alone loses **> 0**, with the count printed.
+- **The diagonal (K2 as frozen)** stays in the suite as the record: 0 gap rows. Its sabotage is pinned as BLIND (it
+  must still read 0, as K4's frozen sabotage is pinned), and the `> 1000` control is dropped.
+
+**K4′: K4's sabotage on a grid where it can fire.** The same pattern on a 1,515 × 1,000 grid (3 × 2 tiles).
+- **Control:** without the swap, the round trip is identical (0 cells differ).
+- **Sabotage:** with `tilesY` for `tilesX`, it fails cell for cell (> 0 cells differ, printed).
+  - **A cell the swapped layout cannot read** (its tile was never produced; `tiledCellAt` throws) **counts as
+    differing.**
+- K4's frozen sabotage on `opuk`'s 3 × 3 grid stays pinned as BLIND.
+
+**The re-run, with K1's correction in: every row's prediction as frozen.**
+- **K1:** the window is the HDF5's, and the sha equals on both frames.
+- **K9:** the share is present, above 0 and at most 1, and the same in the record and in `/healthz`. It will move from
+  0.7513 by the half pixel, and no value was predicted, so it is printed.
+- **K11:** the frozen bars.
+- **K12:** rebuilt from the corrected reader: 8 / 8 decode, and the sabotage fails exactly `man-161km.wxc`.
+- **K13:** rendered and committed, looked at.
+- **The whole proxy suite:** 0 failing tests, so #499's CI can go green.
+- **Outside the set:** any other reading means stop and report.
