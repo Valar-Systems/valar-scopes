@@ -2103,3 +2103,65 @@ What follows from that, set by set:
 **Then, as ruled:**
 - the bucket `blipscope-basemap` is created (announced at $0; no yes needed);
 - `d1 --go`: wrangler under the OAuth session, 8 at a time, then verify → repair → verify → seal.
+
+### A2.30 MS0 and §5.4's outcome classes, re-predicted and frozen (A2.6 step 3), before the builder runs on the real store again
+
+**Both come from throwaway calculators in my scratchpad** (`calc-ms0.mts`, `calc-54.mts`):
+- **Independent of the code under test:** their own frame, box, disc, z9 pixel, level tiles and RD29 length, written from §2, §5.6, §7, RD-P6 and RD21.
+- **They read store `4c0875738f38` only through the shared store formats.**
+- **They print identifiers and numbers, never a coordinate.** The centres are §5.4's: Bend from `bend.bmpk`'s header, and the six airports from `test/fixtures/wx-airports.txt`.
+- **Bend's Weatherscope request was already seen** in A2.29's smoke build, so that cell is **excluded** from both tables below.
+
+**The four requests:**
+- Weatherscope's: r 97, all six layers, its three levels, ε 100,584;
+- the Blipscope's at r 97, 161 and 222, with every layer but terrain, and ε half a pixel on the 240 px Kit S3: 404,167, 670,833 and 925,000 mm.
+
+**MS0: PROVENANCE's exact bytes.**
+- **Every `dropped.`/`collapsed.` value counted as one digit.** Each package has 14 such lines, and its PROVENANCE is this base **plus 1 B for every extra digit** in them.
+- **Graded exactly** when the builder runs on the sealed store.
+
+| centre | r 97 + terrain | r 97 | r 161 | r 222 |
+|---|---|---|---|---|
+| Bend | (excluded) | 1,988 | 1,988 | 2,125 |
+| KGJT | 2,161 | 1,988 | 1,988 | 1,988 |
+| KDEN | 2,161 | 1,988 | 1,988 | 1,988 |
+| KMSP | 2,161 | 1,987 | 1,988 | 1,990 |
+| KMSY | 2,298 | 2,124 | 2,124 | 2,125 |
+| KBUF | 2,310 | 2,136 | 2,137 | 2,137 |
+| KRDU | 2,298 | 1,987 | 2,127 | 2,127 |
+| KATL | 2,161 | 1,988 | 1,990 | 1,990 |
+
+- **A cross-check, not a prediction:** for Bend's excluded cell, the calculator gives 2,161 B, the figure the builder produced in A2.29 and that A2.8 froze for MG1. Its file counts (12 water, 42 tiles) also match that build.
+
+**§5.4's outcome classes, re-predicted.**
+- **The model, stated so that it can be wrong:**
+  - non-terrain bytes = 176 (header and a 9-entry directory) + PROVENANCE (MS0, +14 B for multi-digit counts) + rings × *b*ring + river lines × *b*line + road items × *b*road + peaks × 22 + places × 20;
+  - **the counts:** every outer, AWATER ≥ 1.5M water part whose box meets the square; every kept road edge (primary and secondary separately) whose box meets it; every part of the 5 longest river groups (RD29's in-disc length) whose box meets it; the summits (at most 16) and places inside the disc.
+  - **the rates:**
+    - at Weatherscope's ε, Bend's measured rates (ring 141, line 40, road 31 B) ± 25%;
+    - at the Blipscope's coarser ε, from the 2-or-3-vertex floor (15, 12, 12 B) up to Bend's rates.
+  - **the classes:**
+    - F (≤ 20,480 B) and C (≤ 32,768 B) from the band;
+    - D when what §6 cannot drop (rivers, primaries, peaks, places, PROVENANCE) can fit;
+    - X when it may not.
+- **The calibration on Bend:** the calculator counts 30 rings (`bend.bmpk` has 30), 139 river parts meeting the square (135 lines after clipping) and 355 road edges (354 items).
+
+| centre | r 97 + terrain | r 97 | r 161 | r 222 |
+|---|---|---|---|---|
+| Bend | (excluded) | F or C | C or D | D |
+| KGJT | F | F | F, C or D | C or D |
+| KDEN | D | C or D | D | D |
+| KMSP | D or X | D or X | D or X | D or X |
+| KMSY | D | D | D | D |
+| KBUF | D | C or D | D | D |
+| KRDU | D | D | D or X | D or X |
+| KATL | D | D | D or X | D or X |
+
+**What this means, against the plan's first table (§5.4, kept as the record):**
+- **Most of the US is in D at every radius, with ε at half a pixel.**
+- **Only KMSP (lakes and rivers that §6 does not drop), KRDU and KATL can reach X.**
+- **Roads, not water, are what puts most centres into D.**
+
+**The outside-the-set branch, pre-registered:** a centre whose class falls outside its cell means the size model is wrong. Stop and report. A cell is never re-registered without a ruling, and a miss stays recorded.
+
+**Graded when the builder first runs on the sealed store,** for these 31 cells, with MS0's bytes alongside.
