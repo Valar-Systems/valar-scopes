@@ -6573,3 +6573,29 @@ The removal list went to Daniel, and **nothing is removed before his yes.**
 
   **R0b: PASSES.**
 - **So CI reproduces both checks exactly. Ruling 3's fallback (R0 as a pre-push step) is not needed.**
+
+### A12.21 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): #497 approved and merged; the light theme's PNGs come next
+
+**The ruling, verbatim:**
+
+> Approval (reviewer chat, 2026-10-29)
+>
+> #497 is approved to merge at c8b422db35586c01fdbc2dcdc2955eb3649f0189.
+> - I read all 22 files. A12.16 (4714dcc) precedes 25ffadd, and A12.18 (899d99e) precedes c8b422d.
+> - R0's generator colour is confined to R0 (GEN_PAL); every other path keeps teal.
+> - The fixtures are pinned in r0/MANIFEST.json and kept -text. They hold public geography only, with no home or origin key.
+> - run.sh's block treats a missing Pillow or a refused pin as the rig (exit 2), never a skip. CI pins pillow==12.3.0.
+> - CI on that head: 35 check runs, 32 success, 3 release-only skipped, 0 failed, with FX4 read from host-tests' own log. Confirm the same total before merging.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+>
+> After the merge: C4's rows for both light-theme candidates and the light-theme PNGs come next, before or alongside build Q (they're host-only), so Daniel sees the light theme sooner. Then build Q and the rest of A12.19's order.
+
+**The merge:**
+- **Just before:** the head was `c8b422db3558`, CI was 35 check runs (32 success, 3 release-only skipped: promote, ship-alert, version; 0 failed), and the state was CLEAN.
+- **Merged:** squash, `--match-head-commit`, no `--admin`, as **`4f98670ff46505683f7abd959d649cfb167d7d5e`**, 2026-10-29T02:52:15Z.
+- **After:**
+  - main matches the approved head for every path the PR touched;
+  - the squash changed 22 files, the PR's 22;
+  - the remote branch was checked at the approved head and deleted (`ls-remote`: 0).
+
+**Next:** C4's rows for both Q39 candidates, frozen; then the light-theme PNGs (host, `ref35 --theme light`) to Daniel; then build Q.
