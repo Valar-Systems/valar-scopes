@@ -2592,3 +2592,53 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 | **After the merge with #501** | the full sabotage pass, then CI on the new head | **46 of 46** as predicted, C-LOADFAIL as predicted, 0 runtime failures; CI: every check finished, none failing |
 
 **Anything outside these rows:** stop and report, with no fix until a ruling.
+
+### A2.46 A2.45 run: two rows off-prediction (the harness truncates hyphenated case ids); stopped for a ruling (2026-10-29)
+
+**The code** is `264a087` (format.ts, the MV binding, the two sabotages, the workers.yml paths). #501 merged into main at 16:45Z (`1a4ecf4`). Its two fixtures are **byte-identical** to the copies these rows ran against. **Main is merged in as `ce7c0e6`** (nothing under `proxy/` changes in that merge), and that head is pushed to #486.
+
+| row | result |
+|---|---|
+| F0 | **as predicted:** HEAD's test with the two fixtures fails at load, `TypeError: Cannot read properties of null (reading '1')`, no tests; the `mv` baseline reads BLIND |
+| F1 | in the diff, as described |
+| MV, with the fixtures | **as predicted:** 31 cases, 0 failing |
+| MV's control, without them | **as predicted:** exactly {MV binding, MV/PK-prov-count, MV/PK-terrain-count} fail |
+| the real store | **as predicted:** 31 of 31 as frozen, exit 0, built at `264a087`, every package decoded |
+| C-STOREPROV | **as predicted, on the second attempt:** the grader stopped before its first cell line with `refused: kProvenanceCount`, exit 1; `provenance.ts` restored by bytes. **The first attempt was void:** its plant did not apply (anchor found 0 times, the backslashes mangled by the shell) and the grader ran unplanted. That is an instrument failure, not a reading. The re-run planted from a script file and stopped on a failed plant |
+| MD3a-d | **as predicted:** exit 0, 1, 2, 1 at `264a087` |
+| ME1b with #501's `synth.py` | **as predicted:** passes on `ce7c0e6`; every basemap test file 0 failing |
+| CI on `ce7c0e6` | **as predicted:** 38 checks, all finished: 35 passed, 3 skipped |
+| baselines | **as predicted:** ingest 10 in 1, mv 31 in 1, all 132 in 16, 0 failing |
+| the 44 existing sabotages, C-LOADFAIL | **as predicted**, every set unchanged; C-LOADFAIL BLIND with 56 not run; 50 runs, 0 runtime failures |
+| **S-VTERRCOUNT** | **OFF-PREDICTION:** failing **{MV/PK-terrain}** against the frozen {MV/PK-terrain-count} |
+| **S-VPROVCOUNT** | **OFF-PREDICTION:** failing **{MV/PK-prov}** against the frozen {MV/PK-prov-count} |
+
+The pass ran on `264a087` with the fixtures on disk. Its source under `proxy/` is the merged head's.
+
+**The cause:** the harness's own case-id pattern, `caseOf` in `scripts/sabotage-basemap.mjs`, is `MV\/PK-[A-Za-z0-9]+`. It stops at a hyphen, so the title `MV/PK-terrain-count: refused as kTerrainCount` is graded as `MV/PK-terrain`. **This is the defect A2.44 found in the test, on a second path that A2.45 did not list.** It is also a truncation that hands back a plausible-looking id (the CLAUDE.md entry on truncated rows).
+
+**The alternative, and why the data excludes it:** that each sabotage reddened some other test whose id really is `MV/PK-terrain` or `MV/PK-prov`. `caseOf` applied to all 31 MV titles vitest ran maps `MV/PK-terrain` from exactly one title, `MV/PK-terrain-count: refused as kTerrainCount`, and `MV/PK-prov` from exactly one, `MV/PK-prov-count: refused as kProvenanceCount`. 31 titles give 31 distinct ids, so no two cases merged and the 132-case baseline is a true count. **Each sabotage reddened exactly its own PK row; the harness reported it under a cut-down name.**
+
+**Proposed fix** (committed locally, **not pushed** until a ruling): the PK branch of `caseOf` accepts hyphens and must end at the title's colon:
+
+```js
+/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9-]+(?=:))/
+```
+
+- **What it changes:** across every test title (110 from the test sources, plus the 31 runtime MV titles), exactly **2 ids**: `MV/PK-terrain` → `MV/PK-terrain-count` and `MV/PK-prov` → `MV/PK-prov-count`.
+- **What the colon adds:** a PK title whose id does not end at its colon now grades as `UNNAMED(<title>)`, never as a shorter id that looks real.
+- **The alternatives, named and not recommended:**
+  - **The colon requirement on every branch.** It would make 7 legitimate titles UNNAMED: `MW2-MW7: …`, `MI7 (a)` to `(d)`, `MI-column`, `MI-roundtrip`. That would move S-ISIZE's and S-ISEAL's frozen {MI7}.
+  - **Unhyphenated case names.** The fixtures are #501's, now on main, and A2.44 asks for hyphens.
+
+**Frozen predictions for the fix, if ruled:**
+
+| row | predicted |
+|---|---|
+| the full pass on the fixed head | **46 of 46 AS PREDICTED**, with **S-VTERRCOUNT {MV/PK-terrain-count}** and **S-VPROVCOUNT {MV/PK-prov-count}**, as A2.45 froze them. C-LOADFAIL AS PREDICTED (BLIND, 56 not run); baselines ingest 10 in 1, mv 31 in 1, all 132 in 16; 0 runtime failures; exit 0 |
+| the guard's control | `caseOf("MV/PK-terrain count: x")` is `UNNAMED(MV/PK-terrain count: x)` under the fix, and `MV/PK-terrain` under the old pattern |
+| CI on the fixed head | every check finished, none failing |
+
+**A2.45's two rows stay recorded as off-prediction,** whatever is ruled.
+
+**For the approval:** `ce7c0e6` is green in CI, but it carries the harness with this defect. The CI checks never run the sabotage harness, so CI cannot see it. **Recommended:** the approval waits for the fixed head.
