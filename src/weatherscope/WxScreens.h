@@ -17,6 +17,7 @@
 
 #include "LongPressPolicy.h"
 #include "RadarZoom.h"
+#include "WxBasemap.h"
 #include "WxCrop.h"
 #include "WxLogic.h"
 #include "WxPalette.h"
@@ -132,10 +133,24 @@ struct Placed {
     int ix = 0, iy = 0;     // the dot's centre: int(x), int(y)
 };
 
+// THE rejection rule for a label's box, towns' and peaks' alike (3.5b A10.2: peaks take "the towns' rejection
+// rules"): a box is refused when it leaves 26..192 in y, a corner is beyond 116 px, its nearest point is inside the
+// inner circle, or it comes within 4 px of a fixed overlay or a placed label. One function, so the two paths cannot
+// drift apart.
+inline bool BoxFree(const Box& b, double inner, const Box* fixed, int nFixed, const Box* placed, int nPlaced)
+{
+    if (b.y0 < wxraster::kTopBand + 2 || b.y1 > wxraster::kBotBand - 2) return false;
+    if (!InsideCircle(b)) return false;
+    if (!ClearsCentre(b, inner)) return false;
+    for (int i = 0; i < nFixed; ++i)
+        if (Overlaps(b, fixed[i], kAir)) return false;
+    for (int i = 0; i < nPlaced; ++i)
+        if (Overlaps(b, placed[i], kAir)) return false;
+    return true;
+}
+
 // One label anchored at the float point (x, y). Skipped when the anchor is inside the inner circle. Otherwise the side
-// away from the centre first (right, unless x < 120), the other as the fallback; a side is rejected when its box
-// leaves 26..192 in y, a corner is beyond 116 px, its nearest point is inside the inner circle, or it comes within
-// 4 px of a fixed overlay or a placed label.
+// away from the centre first (right, unless x < 120), the other as the fallback, each under BoxFree's rule.
 inline Placed PlaceTown(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,
                         const Box* placed, int nPlaced)
 {
@@ -153,13 +168,7 @@ inline Placed PlaceTown(const char* label, double x, double y, double inner, con
     }
     for (int k = 0; k < 2; ++k) {
         const Box& b = cands[k];
-        if (b.y0 < wxraster::kTopBand + 2 || b.y1 > wxraster::kBotBand - 2) continue;
-        if (!InsideCircle(b)) continue;
-        if (!ClearsCentre(b, inner)) continue;
-        bool clash = false;
-        for (int i = 0; i < nFixed && !clash; ++i) clash = Overlaps(b, fixed[i], kAir);
-        for (int i = 0; i < nPlaced && !clash; ++i) clash = Overlaps(b, placed[i], kAir);
-        if (clash) continue;
+        if (!BoxFree(b, inner, fixed, nFixed, placed, nPlaced)) continue;
         p.placed = true;
         p.side = sides[k];
         p.box = b;
@@ -226,6 +235,121 @@ inline int PlaceTowns(const TownSet& t, const int* order, int n, int radiusMi, d
         boxes[np++] = o.at.box;
     }
     return np;
+}
+
+// ---------------------------------------------------------------------------------- 3.5b: the peaks (PE, A10.2)
+
+constexpr int kMaxPeaks = 4;   // the first 4 PLACED, in the package's rank order, at every zoom
+
+// A peak's label: every "Mount " becomes "Mt " (the generator's replace); nothing else changes.
+inline void PeakLabel(const char* name, char* out, size_t cap)
+{
+    size_t o = 0;
+    for (size_t i = 0; name && name[i] && o + 1 < cap;) {
+        if (strncmp(name + i, "Mount ", 6) == 0 && o + 3 < cap) {
+            out[o++] = 'M';
+            out[o++] = 't';
+            out[o++] = ' ';
+            i += 6;
+        } else {
+            out[o++] = name[i++];
+        }
+    }
+    out[o] = '\0';
+}
+
+// The peaks as the screen sees them: a GNIS name and a float anchor in screen pixels, in rank order.
+class PeakSet {
+public:
+    virtual ~PeakSet() {}
+    virtual int Count() const = 0;
+    virtual const char* Name(int i) const = 0;
+    virtual void At(int i, double* x, double* y) const = 0;
+};
+
+// One peak label. Skipped when the anchor is inside the inner circle. Otherwise A10.2's boxes -- right (ix - 3, iy - 4,
+// ix + 5 + w, iy + 4) with the text at ix + 5, left (ix - 6 - w, iy - 4, ix + 4, iy + 4) with the text at ix - 5 - w
+// -- away from the centre first, each under the towns' rule (BoxFree).
+inline Placed PlacePeak(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,
+                        const Box* placed, int nPlaced)
+{
+    Placed p;
+    const double c = wxraster::kC;
+    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;
+    const int ix = (int)x, iy = (int)y, w = wxraster::TextW(label, 1);
+    Box cands[2] = {{ix - 3, iy - 4, ix + 5 + w, iy + 4}, {ix - 6 - w, iy - 4, ix + 4, iy + 4}};
+    int txs[2] = {ix + 5, ix - 5 - w};
+    char sides[2] = {'R', 'L'};
+    if (x < c) {
+        const Box b = cands[0]; cands[0] = cands[1]; cands[1] = b;
+        const int t = txs[0]; txs[0] = txs[1]; txs[1] = t;
+        const char s = sides[0]; sides[0] = sides[1]; sides[1] = s;
+    }
+    for (int k = 0; k < 2; ++k) {
+        const Box& b = cands[k];
+        if (!BoxFree(b, inner, fixed, nFixed, placed, nPlaced)) continue;
+        p.placed = true;
+        p.side = sides[k];
+        p.box = b;
+        p.tx = txs[k];
+        p.ty = iy - 3;
+        p.ix = ix;
+        p.iy = iy;
+        return p;
+    }
+    return p;
+}
+
+struct PlacedPeak {
+    int peak = -1;
+    char label[40] = "";
+    Placed at;
+};
+
+// Peaks first, in rank order, until kMaxPeaks are PLACED; then the towns, in their ranking, until the labels placed
+// (peaks included) reach the zoom's cap -- each clear of every label placed before it (A10.2; ref35.py's compose).
+// Returns the towns placed; *nPeaks the peaks. With no peaks this is PlaceTowns.
+inline int PlaceLabels(const PeakSet* peaks, const TownSet& t, const int* order, int n, int radiusMi, double inner,
+                       const Box* fixed, int nFixed, PlacedPeak* outPeaks, int* nPeaks, PlacedLabel* out)
+{
+    const int cap = Cap(radiusMi);
+    Box boxes[kMaxPeaks + kMaxLabels];
+    int nb = 0, np = 0, nt = 0;
+    for (int k = 0; peaks && k < peaks->Count() && np < kMaxPeaks; ++k) {
+        PlacedPeak& o = outPeaks[np];
+        PeakLabel(peaks->Name(k), o.label, sizeof o.label);
+        double x, y;
+        peaks->At(k, &x, &y);
+        o.at = PlacePeak(o.label, x, y, inner, fixed, nFixed, boxes, nb);
+        if (!o.at.placed) continue;
+        o.peak = k;
+        boxes[nb++] = o.at.box;
+        ++np;
+    }
+    for (int k = 0; k < n && np + nt < cap && nt < kMaxLabels; ++k) {
+        PlacedLabel& o = out[nt];
+        wxlogic::LabelText(t.Name(order[k]), o.label, sizeof o.label);
+        double x, y;
+        t.At(order[k], &x, &y);
+        o.at = PlaceTown(o.label, x, y, inner, fixed, nFixed, boxes, nb);
+        if (!o.at.placed) continue;
+        o.town = order[k];
+        boxes[nb++] = o.at.box;
+        ++nt;
+    }
+    *nPeaks = np;
+    return nt;
+}
+
+// The peak glyph (Q32), read off the lossless screen-bend-B.png, as offsets from the anchor (int(x), int(y)).
+inline void PeakGlyph(wxraster::Sink& s, int ix, int iy, Rgb c)
+{
+    static const int8_t kDx[16] = {-3, -2, -2, -2, -1, -1, -1, 0, 0, 1, 1, 1, 2, 2, 2, 3};
+    static const int8_t kDy[16] = {2, 0, 1, 2, -2, -1, 2, -3, 2, -2, -1, 2, 0, 1, 2, 2};
+    for (int k = 0; k < 16; ++k) {
+        const int x = ix + kDx[k], y = iy + kDy[k];
+        if (x >= 0 && x < wxraster::kSize && y >= 0 && y < wxraster::kSize) s.Put(x, y, c);
+    }
 }
 
 // ------------------------------------------------------------------------------------------ rings (RG, RD, RL)
@@ -484,27 +608,31 @@ public:
     virtual void Row(const uint8_t* codes, int n) = 0;
 };
 
+// One map pixel's colour (3.5b's fold, A10.2): off the disc black; a dry pixel (code 0) the basemap image's colour
+// where there is an image, black where there is none; code 14 the hatch when terrain is on (A9.1 D, Q31), solid grey
+// otherwise; code 15 the hatch; every echo the radar's colour, never the basemap's.
+inline Rgb MapPixel(uint8_t c, int x, int y, const uint8_t* base, bool terrain)
+{
+    if (c == wxrender::kOffDisc) return wxraster::kBlack;
+    if (c == 0 && base) return wxbase::PaletteRgb(base[y * wxraster::kSize + x]);
+    const wxpalette::Rgb p = (c == 15 || (c == 14 && terrain)) ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false);
+    return Rgb{p.r, p.g, p.b};
+}
+
 // The map layer: black off the disc, the crop's colours on it (rain only until WXC1 v2, A9.6), hatched where code 15.
 // Every row's codes are worked out and handed to `rows` (B2 hashes all 57,600), but the band rows (y < 24, y >= 194)
 // are not drawn: the bands overwrite them in every composition, so drawing them first was 16,800 wasted writes
-// (A9.23). A 3.5b basemap goes UNDER the radar here, as a dry pixel's colour (A9.23, the second paste's item 3).
+// (A9.23). A 3.5b basemap goes UNDER the radar here, as a dry pixel's colour (MapPixel); with no image (`base` null)
+// and terrain off, every pixel is what it was before 3.5b.
 inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* codes, const wxrender::View& v,
-                    CodeRows* rows)
+                    CodeRows* rows, const uint8_t* base = nullptr, bool terrain = false)
 {
     uint8_t row[wxrender::kSize];
     for (int y = 0; y < wxrender::kSize; ++y) {
         for (int x = 0; x < wxrender::kSize; ++x) row[x] = wxrender::CodeAt(h, codes, v, x, y);
         if (rows) rows->Row(row, wxrender::kSize);
         if (y < wxraster::kTopBand || y >= wxraster::kBotBand) continue;
-        for (int x = 0; x < wxrender::kSize; ++x) {
-            const uint8_t c = row[x];
-            if (c == wxrender::kOffDisc) {
-                s.Put(x, y, wxraster::kBlack);
-                continue;
-            }
-            const wxpalette::Rgb p = c == 15 ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false);
-            s.Put(x, y, Rgb{p.r, p.g, p.b});
-        }
+        for (int x = 0; x < wxrender::kSize; ++x) s.Put(x, y, MapPixel(row[x], x, y, base, terrain));
     }
 }
 
@@ -549,6 +677,15 @@ struct ScreenIn {
     const wxtowns::Town* towns = nullptr;
     int nTowns = 0;
     const int* order = nullptr;       // RankOrder of the towns' populations, worked out once
+    // 3.5b (A10.2). All null/zero is exactly 3.5a's path: no package.
+    const uint8_t* base = nullptr;    // the basemap image (wxbase::Build) for this view
+    bool terrain = false;             // with terrain on, code 14 is drawn as the hatch
+    const PeakSet* peaks = nullptr;   // the package's peaks, in rank order (null: none, or not in the mask)
+    const TownSet* places = nullptr;  // the package's places, replacing `towns` when set (same RankOrder, same rules)
+    const int* placeOrder = nullptr;
+    int nPlaces = 0;
+    uint32_t pkgCrc = 0, pkgLen = 0;  // the package's identity, for the layer's key
+    uint8_t mask = 0;                 // the layers drawn (wxbase::kMask*)
 };
 
 struct ScreenOut {
@@ -622,8 +759,18 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
     }
     Stamp(prof, Profile::kWarning + 1);
 
-    const ViewTowns towns(in.towns, v);
-    *nLabels = PlaceTowns(towns, in.order, in.nTowns, in.radiusMi, Inner(R), fixed, nFixed, labels);
+    const ViewTowns viewTowns(in.towns, v);
+    const TownSet& towns = in.places ? *in.places : static_cast<const TownSet&>(viewTowns);
+    const int* order = in.places ? in.placeOrder : in.order;
+    const int nTowns = in.places ? in.nPlaces : in.nTowns;
+    PlacedPeak peaks[kMaxPeaks];
+    int nPeaks = 0;
+    *nLabels = PlaceLabels(in.peaks, towns, order, nTowns, in.radiusMi, Inner(R), fixed, nFixed, peaks, &nPeaks, labels);
+    for (int i = 0; i < nPeaks; ++i) {   // peaks first, as ref35.py's compose draws them (3.5b, A10.2)
+        const Placed& p = peaks[i].at;
+        PeakGlyph(s, p.ix, p.iy, kLabel);
+        Text(s, p.tx, p.ty, peaks[i].label, 1, kLabel, &kBlack);
+    }
     for (int i = 0; i < *nLabels; ++i) {
         const Placed& p = labels[i].at;
         Fill(s, p.ix - 1, p.iy - 1, p.ix + 1, p.iy + 1, kLabel);
@@ -631,9 +778,10 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
     }
     Stamp(prof, Profile::kLabels + 1);
 
-    Box obs[12 + kMaxLabels + 3];
+    Box obs[12 + kMaxPeaks + kMaxLabels + 3];
     int nObs = 0;
     for (int i = 0; i < nFixed; ++i) obs[nObs++] = fixed[i];
+    for (int i = 0; i < nPeaks; ++i) obs[nObs++] = peaks[i].at.box;
     for (int i = 0; i < *nLabels; ++i) obs[nObs++] = labels[i].at.box;
     for (int i = 0; i < nRings; ++i) {
         char num[12];   // an int's widest, for -Wformat-truncation
@@ -686,7 +834,7 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
     Stamp(prof, 0);
     wxrender::BuildViewKm(*in.h, &v, in.radiusMi * 1.609344);
     Stamp(prof, Profile::kView + 1);
-    DrawMap(s, *in.h, in.codes, v, rows);
+    DrawMap(s, *in.h, in.codes, v, rows, in.base, in.terrain);
     Stamp(prof, Profile::kMap + 1);
     Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
     Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
@@ -699,7 +847,8 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
 // ------------------------------------------------------------------------------------- the layer (A9.21 item 3)
 
 // What a layer was built for. Rebuilt when the zoom, the scenario, the warning or the home (the crop's geometry)
-// differs (A9.21's rule). A plain struct with no padding (A9.23: 192 B on the board), so it compares bytewise.
+// differs (A9.21's rule), and (3.5b) when the package or the mask does. A plain struct, always built from a zeroed
+// one (MakeLayerKey), so it compares bytewise, tail padding included.
 struct LayerKey {
     int32_t scenario, radiusMi;
     int32_t latNwMicro, lonNwMicro;
@@ -709,6 +858,8 @@ struct LayerKey {
     LatLon polygon[4];
     LatLon storm;
     char top1[24], top2[48];
+    uint32_t pkgCrc, pkgLen;   // 3.5b (A10.2): a new package or mask rebuilds the layer (its peaks and places)
+    int32_t mask;
 };
 
 inline LayerKey MakeLayerKey(const ScreenIn& in, int scenario)
@@ -717,6 +868,9 @@ inline LayerKey MakeLayerKey(const ScreenIn& in, int scenario)
     memset(&k, 0, sizeof k);
     k.scenario = scenario;
     k.radiusMi = in.radiusMi;
+    k.pkgCrc = in.pkgCrc;
+    k.pkgLen = in.pkgLen;
+    k.mask = in.mask;
     k.latNwMicro = in.h->latNwMicro;
     k.lonNwMicro = in.h->lonNwMicro;
     k.cellLatMicro = in.h->cellLatMicro;
@@ -738,6 +892,39 @@ inline LayerKey MakeLayerKey(const ScreenIn& in, int scenario)
 }
 
 inline bool SameLayer(const LayerKey& a, const LayerKey& b) { return memcmp(&a, &b, sizeof a) == 0; }
+
+// The basemap image's key (3.5b, A10.2): the image is rebuilt only when the package, the view's radius, the crop's
+// geometry (its home), the mask or terrain changes -- on another place's scenario, a zoom step, or the terrain byte.
+// A tap and a loop frame of the same crop geometry reuse it (BK).
+struct BaseKey {
+    uint32_t pkgCrc, pkgLen;
+    int32_t radiusMi;
+    int32_t latNwMicro, lonNwMicro;
+    uint32_t cellLatMicro, cellLonMicro;
+    uint16_t rows, cols;
+    int32_t mask, terrain;
+};
+
+inline BaseKey MakeBaseKey(const wxcrop::Header& h, uint32_t pkgCrc, uint32_t pkgLen, int radiusMi, uint8_t mask,
+                           bool terrain)
+{
+    BaseKey k;
+    memset(&k, 0, sizeof k);
+    k.pkgCrc = pkgCrc;
+    k.pkgLen = pkgLen;
+    k.radiusMi = radiusMi;
+    k.latNwMicro = h.latNwMicro;
+    k.lonNwMicro = h.lonNwMicro;
+    k.cellLatMicro = h.cellLatMicro;
+    k.cellLonMicro = h.cellLonMicro;
+    k.rows = h.rows;
+    k.cols = h.cols;
+    k.mask = mask;
+    k.terrain = terrain ? 1 : 0;
+    return k;
+}
+
+inline bool SameBase(const BaseKey& a, const BaseKey& b) { return memcmp(&a, &b, sizeof a) == 0; }
 
 // The invariant group, drawn once: a dense palette-index image (0 = not in the layer), its 15 colours, the view it was
 // drawn through, and the labels it placed. 59,488 B on the board (A9.23), in PSRAM.
@@ -829,7 +1016,7 @@ inline bool ComposeLayered(wxraster::Sink& s, const ScreenIn& in, Layer& l, int 
     }
     Stamp(prof, 0);
     Stamp(prof, Profile::kView + 1);
-    DrawMap(s, *in.h, in.codes, l.view, rows);
+    DrawMap(s, *in.h, in.codes, l.view, rows, in.base, in.terrain);
     Stamp(prof, Profile::kMap + 1);
     Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
     Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);

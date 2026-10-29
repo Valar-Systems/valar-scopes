@@ -15,7 +15,9 @@ Their truth table is `docs/weatherscope-stage3.md` A10.11, the PK family.
   - a two-line provenance.
 - **`syn-unknown.bmpk`:** `syn-min` plus an unknown section type 9 (3 bytes). It is valid, and the type is skipped.
 - **`syn-order.bmpk`:** A10.11's LN fixture, at the 60 mi view's own radius.
-- **`neg-*.bmpk`:** 25 packages, each `syn-min` with one mutation. Each must be refused with its own reason (A10.11's table).
+- **`neg-*.bmpk`:** 27 packages, each `syn-min` with one mutation. Each must be refused with its own reason (A10.11's
+  table, and A12.15's two: `neg-terrain-count` is TERRAIN's count 2, `kTerrainCount`; `neg-prov-count` is
+  PROVENANCE's count 3 against its 2 lines, `kProvenanceCount`).
 
 Regenerate, or check that every committed byte matches:
 
