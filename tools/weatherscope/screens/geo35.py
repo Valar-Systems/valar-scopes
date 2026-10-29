@@ -408,7 +408,7 @@ def oracle_inside(pts, x, y):
 
 
 # ------------------------------------------------------------------------------------------------ the glyphs
-def glyph_g(scr, x, y):
+def glyph_g(scr, x, y, col=PEAK):
     """bendmock.py's triangle: PIL's polygon outline at the float anchor, unmasked."""
     from PIL import Image, ImageDraw
     layer = Image.new("L", (ref35.SIZE, ref35.SIZE), 0)
@@ -417,14 +417,14 @@ def glyph_g(scr, x, y):
     for yy in range(ref35.SIZE):
         for xx in range(ref35.SIZE):
             if lp[xx, yy]:
-                scr.put(xx, yy, PEAK)
+                scr.put(xx, yy, col)
 
 
-def glyph_p(scr, x, y):
+def glyph_p(scr, x, y, col=PEAK):
     """The frozen glyph (Q32), anchored at (int(x), int(y)): ref35.PEAK_GLYPH's offsets."""
     ix, iy = int(x), int(y)
     for dx, dy in ref35.PEAK_GLYPH:
-        scr.put(ix + dx, iy + dy, PEAK)
+        scr.put(ix + dx, iy + dy, col)
 
 
 def glyph_box(x, y):
