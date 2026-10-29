@@ -7079,3 +7079,27 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 | S-LF4 | F3's indices copied over F4, at LF4 only | the two frames are equal | LF4 (57 distinct, not 60) |
 
 **Outside any row: stop the bench select and report.** Q is independent of it.
+
+### A12.31 Q's flash erased the board's NVS (my flash method). The run is void, and Q waits on Daniel re-joining the board to Wi-Fi
+
+**What happened, in order:**
+1. **The ruled method failed before touching the board.** `pio run -t nobuild -t upload` fails on this platform: esptool was handed no address/file pairs, and exited at argument parsing.
+2. **What I used instead:** I wrote `firmware.factory.bin` at 0x0 with PlatformIO's esptool.
+   - I had checked that its app at 0x20000 equals the built `firmware.bin` (`56d75a7538af`), and that its bootloader and partitions equal the build's.
+   - esptool confirmed the board (MAC `90:70:69:32:6e:64`) and verified the hash.
+3. **What I failed to check is what else that image covers.** It spans 0x0-0x1FFFF, which includes **NVS (0x9000-0x1DFFF)** and otadata (0x1E000).
+   - **The board's NVS was overwritten. Its Wi-Fi credentials and stored config are gone.**
+   - It booted with "no saved credentials" and opened its setup portal.
+4. **The run** (`run_q.py`, opened 04:00:04Z) could not reach the board's name, so **it is void.** It was stopped, and no row is graded from it.
+   - `read-mac` (read-only) reset the board back into its app, so its portal is up.
+
+**What survives:**
+- The approved image is on the board: the app slot equals `56d75a7538af`, and its banner says `env=weatherscope-s3-128`.
+- A12.25's predictions are untouched.
+- The edition's other NVS keys fall back to their defaults: brightness 255, autodim off, no location. Stored mode is a build constant. **None of A12.25's rows depends on them.**
+
+**Waiting on Daniel:** the board's Wi-Fi.
+- Join it to the bench network through its setup portal: the QR on its screen, or the access point `Weatherscope-326E64`.
+- Then Q's run starts again, from the top, in one open.
+
+**The rule I take from it:** "flash the binary as built" writes **the app alone at its app slot**, or the bootloader, partitions and app at their own offsets. **Never the factory image**, whose padding covers NVS. Then read the `[ota-slot]` boot line to confirm the slot that booted.
