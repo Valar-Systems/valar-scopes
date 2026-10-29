@@ -7567,3 +7567,57 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - the PR, for review;
 - then step 6: the K rows and the replay rows, frozen before they run, as A10.6 has them;
 - 3.5t's real theme follows, as A12.38 orders.
+
+### A12.41 3.5b step 6, the Bend K rows and replay rows: the design and the predictions, before their code
+
+**What A10.6 asks**, at 57,600 of 57,600 pixels against `ref35.py`'s rendering of the same inputs (A10.5: the same package bytes, crop and clock):
+- **Bend dry**, at 60, 30 and 15 mi, each of: towns only, + water, + rivers, + roads, + peaks, all (B), and all + terrain (C). **21 rows.**
+- **The Bend loop:** 15 frames at 60 mi, B and C. **30 rows.**
+- **The replay:** the Bend loop through `ComposeLayered`, with the basemap, at 15, 30 and 60 mi, B and C. **90 rows**, each equal to the full composition.
+- **Dallas's own rows stand:** `test_wx_k35` 28/0 and `test_wx_replay` 90/0.
+
+**The device's path** (on a branch stacked on #501's, `weatherscope/3-5b-krows`):
+- **`WxScenes.h`:**
+  - `FromScenario` and `FromLoopFrame` gain an `offsetMin` parameter, defaulting to Dallas's `wxscen::kOffsetMin`. Every 3.5a caller is unchanged, and Bend passes Pacific (−420 on 2024-06-02).
+  - New: `PackagePlaces`, a `TownSet`, and `PackagePeaks`, a `PeakSet`. They read a validated package's places and peaks through `wxbase::Mapper` for a view, into the caller's fixed storage.
+  - New: `FromPackage(...)` sets `ScreenIn`'s `base`, `terrain`, `peaks`, `places`, `placeOrder` (`RankOrder` over the places' populations), `mask` and the package's identity.
+- **Bend dry** is `wxscen::Build(Kind::Dry, …)` on Bend's `synthetic-clear.wxc`, with no observation, so its band reads "NO RAIN 60 MI". The loop frames use `FromLoopFrame`.
+- **Every layer's mask:**
+
+  | row | mask | terrain |
+  |---|---|---|
+  | towns only | none | off |
+  | + water | water | off |
+  | + rivers | rivers | off |
+  | + roads | roads | off |
+  | + peaks | peaks | off |
+  | B | all | off |
+  | C | all | on, at the view's own level (`LevelMm`) |
+
+  The towns are the package's places in every row.
+
+**The reference, `tools/weatherscope/screens/k35b.py`** (new), writes `test/fixtures/wx/k35b.ref.txt` in `k35.ref.txt`'s form (ROW, TIME, BAND, LABEL), with `--check`:
+- It renders through `ref35.compose` from look35's package path, generalised to any zoom, mask and terrain. That path decodes `bend.bmpk` itself, by §9.
+- **The per-zoom cap is 8, 6 and 5,** as the K rows use. (look35 drew every zoom with 8, which was right only at 60.)
+- The zoom tag is drawn away from 60.
+- The Pacific clock.
+
+**The test, `test/host/test_wx_k35b.cpp`** (with a `run.sh` block): the 51 K rows, then the 90 replay rows, then the controls.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| K-BD | **21 of 21 Bend dry rows equal:** each device frame's sha256 (big-endian RGB565) equals the reference's, and every TIME, BAND and LABEL line equals the reference's |
+| K-BL | **30 of 30 loop rows equal**, the same way |
+| RP-B | **90 of 90:** each Bend loop frame through `ComposeLayered` equals its full `Compose`, at 15, 30 and 60 mi, B and C |
+| control K-X | **a C frame graded against its own B reference differs on all 15 loop frames** (terrain is under every dry pixel), so the comparison can fail |
+| control RP-X | **a layer kept across a mask change** (B's layer replayed into a frame composed as towns-only) **differs from the full composition**, so the replay check can fail |
+| Dallas | `test_wx_k35` **28/0**, `test_wx_replay` **90/0**, unchanged |
+| `k35b.py --check` | identical on regeneration |
+| every host suite | ALL HOST TESTS PASSED under MinGW; under g++ 13.3 the same blocks, every count identical, only the rig's two |
+| the firmware | **flash 1,630,415 B and RAM 59,024 B, exactly step 5's.** Step 6 adds header code the firmware does not call until step 7, and a default argument changes no call |
+
+**The outside-the-set branch, pre-registered:**
+- **A K row that differs** is reported with its differing pixel count and positions, against the reference's rendering, by cause.
+- **Nothing is changed on either side to make it pass** until the reviewer rules: a difference here is a finding about the device, the reference or the spec.
