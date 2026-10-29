@@ -2037,7 +2037,48 @@ plain-HTTP stand-in for production on the bench PC itself, with a fake key and t
 - S-scan, the key never found;
 - S-instr, "clean" with no key seen.
 
-The unplanted copy passes, and the real file's sha256 is unchanged.
+The unplanted copy passes, and the real file's sha256 is unchanged. **CI on `8743715`** (these tools): 36 check runs,
+33 success, 3 release-only skips, 0 failed.
+
+### How the session reads each row (fixed 2026-10-29, before any replay run)
+
+These say **how** each row above is read. None of them changes a prediction. The session's driver and reader are
+bench tools beside the others (`replay_run.py`, `replay_read.py`). The reader was written before any run, and was
+smoke-tested on a fabricated session only.
+
+**The order**, all inside one announced window of at least 75 min:
+1. RC1;
+2. the proxy starts (RS1);
+3. the bench PC's own request (RS2);
+4. `cloud-url` is set;
+5. **the reboot** for RP1. It is `esptool read_mac`, the documented recovery, which resets the board into its app. It
+   runs while the port is free, and the trace opens at once and is held for 52 min. After a reboot the first `[wx]`
+   line has been seen about 18 s after the trace opened (step C's trace);
+6. RP1, RP2, then RP6's three arms;
+7. look A and the layer on are restored;
+8. `cloud-url` is cleared, then 5 min pass;
+9. production's server-side reads;
+10. the trace closes, and the board is recovered by `read_mac`;
+11. the driver's log closes; then the proxy's scan, `STOP`, and the port check.
+
+**`cloud-url` is set and cleared** by `cfg_post.py --text-file` / `--clear`.
+- The value is read from a scratch file, so it is never on a command line or in any output.
+- Tried against a local stand-in page: set, cleared, only that field changed, the value never printed.
+- The clear also runs in the driver's `finally`.
+- **If the driver itself is killed,** the proxy sees its input end and stops, but `cloud-url` stays set. E2:08 then
+  shows DATA STALE until it is cleared: by me, or by Daniel on its page (RS6's sentence).
+
+| row | read as |
+|---|---|
+| **RC1** | the committed tool run afresh into the session folder: exit 0, its own scan clean. The variants are made by the proxy's own `Crop.variant` at a **fixed fake point in the open Atlantic** (never a real request), so no file holds a real position. The device's parser (`validate_crop`, WSL g++ 13.3) runs on the crop and both variants |
+| **RP1 / RP2, "weather-colour pixels"** | in each `Finished: true` `/diag/fb` frame, the pixels whose colour is a weather colour of look A **and no colour anything else on the radar draws**. Planes, labels, rings, the wedge's greens, the beam, the head and black are excluded, all read from the source by `wx-fb-check.py`'s own reader. Look A has 15 weather colours, and 8 of them are unshared. On `wx-fb-check`'s synthetic frames this reads 2,781 with weather and 0 with the layer off. RP1: every finished frame 0 (none finished: BLIND). RP2: every finished frame above 0 |
+| **RP1's `[wx]` line** | the first after the reboot: an outcome other than `kept`, and `frame=` equal to the crop's own. `layer rebuilt` lines from the reboot to `MODE fresh`: 0 |
+| **RP1's age** | the trace line's time minus the crop's frame time, recorded with separators. Bare 8-digit numbers have a microdegree's shape, which RP4 scans for |
+| **RP2's `[wx]` line** | the first `replaced` after `MODE fresh`, with `frame=` within 120 s of its line; at least one `layer rebuilt` after it |
+| **RP3, "in the active cadence"** | the `[perf] polls=` lines from 60 s to 600 s after the reboot or after any verified config POST. Their median is 11-13; min and max are printed. Production's record: E2:08's `/blips` points over the override's span > 0 |
+| **RP4** | RS3's scan as predicted, **and** the session's text records (`proxy.log`, `driver.log`/`.out`/`.err`, `index.json`, the crop tool's output, `end.txt`) hold no `lat=`/`lon=` and no coordinate-shaped number. Dates are set aside, as RC1's tool does |
+| **RS5, "no request after the clear"** | no proxy log line later than the clear + 10 s, a margin for a request already in flight when the save lands. Production's `/blips` points in the 5 min after the clear > 0 |
+| **RP6** | each arm's `Finished: true` frames through `wx-fb-check.py` (`--look A`, `--look B`, `--off`), each predicted PASS, under the frozen protocol's outside-the-set list: a BLIND, an UNTRUSTWORTHY frame with `Finished: true`, a touch-unavailable line, or a `touch-wd wedges=` count that moves within an arm |
 
 ### Results for WD8 on the board (2026-10-29, 03:56-03:59Z; window announced as 8:55-9:20 PM PDT)
 
