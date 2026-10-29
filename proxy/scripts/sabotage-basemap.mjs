@@ -331,7 +331,9 @@ const sha = (b) => createHash("sha256").update(b).digest("hex");
 // A1.7: MD3a and MD4 compare against the COMMITTED outputs, so they fire, correctly, on any change to builder output.
 // They are ignored in a sabotage's grading unless that sabotage names them (A2.35).
 const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9]+)/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+// A PK id may hold hyphens (A12.15's neg-terrain-count) and must end at the title's colon, so it is either whole or
+// UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // Every vitest run, and how many met a Workers runtime failure (ruled 2026-10-28, A2.12: "If the runtime failure
 // recurs, report how often"). Printed at the end of every pass, zeros included. A run whose output carries the
