@@ -2430,3 +2430,58 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 | `bend.bmpk` against itself | **0 differences** |
 | S-GEPS, 1.5 ε | **fails on vertex counts:** water 1,238 → 908, rivers 1,487 → 1,056, roads 2,735 → 2,209 |
 | S-GSMOOTH, the 4 × 4 mean removed (a byte-restored plant in `terrain.ts`) | **fails on terrain:** 165,696 of 181,548 cells differ (91.27 %, against the > 0.1 % required) |
+
+### A2.40 Rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-29)
+
+> Map server: from the reviewer chat, 2026-10-29
+>
+> 1. A2.28, the 304's store id: as recommended. The handler keeps the store id from its last builder response in isolate memory for 60 s; a cold isolate or an expired TTL goes to the builder. Staleness after a store change is bounded by those 60 s, which is fine for a store that changes only by a deliberate seal.
+> 2. A2.38, forbidden.py: (a) for CYYZ and MC3, (b) for PHNL.
+> - (a): run it with wx-airports.txt and basemap-mc-centres.txt left out of the scan, by path and sha256, as A10's ruling did for the Census subset. I ran that, verdicts only: CYYZ and MC3's point then clear.
+> - PHNL still reads too close with them left out, because two existing wx tests (test/fixtures/wx/make_fixtures.ts and proxy/test/wx-endpoint.test.ts) already hold a Honolulu point. Don't widen the exclusion to those. Replace PHNL with a Hawaii point 150 km or more from Honolulu that the tool clears (Hilo, PHTO, for one), keeping MC2's intent. S-BBOX then runs through CYYZ as frozen.
+> 3. MG1's declared departure (built from the sealed full-US store, not a 72-file ingest): accepted. The matching per-layer file hashes show the builder read Bend's files, and the sealed store is the path production uses. No literal 72-file ingest is needed.
+> 4. D1: sealed as recorded. The unreconciled 3,558 against 3,829 stays on record with both explanations. For the next ingest, give each call its own log path so a collision can't hide an outcome.
+> 5. MM3's fix (the binary search, identical output on 31 of 31, cpu_ms 14,530): accepted.
+> 6. Once #499 merges, main's wx-ingest carries the UK ingest (R3). Your deploys are the proxy's. Don't deploy wx-ingest from main until R3 is ruled.
+>
+> Next, as you list it: MC's runnable sabotages, MD3, then #486 ready for review.
+
+**Standing from here:** my deploys are the proxy's and the builder Worker's. **`wx-ingest` is not deployed from main until R3 is ruled.**
+
+### A2.41 A2.40 carried out: the 304 as ruled; `forbidden.py` with the fixtures excluded; MC complete with its sabotages
+
+**1. The 304's store id:** the handler's isolate cache with a 60 s TTL stands as ruled. Its "pending a ruling" marker is removed.
+
+**2. `forbidden.py`, with the two fixtures left out of its scan by path and sha256** (`forbidden_excl.py` in my scratchpad):
+- **How:** it imports `forbidden.py` unchanged and shadows only its `open()`. An excluded file reads as empty while its sha256 matches. A changed hash stops the run, and a run in which an excluded file was never reached is BLIND.
+- **Your verdicts reproduced,** with the files as committed: **CYYZ clear, MC3's point clear, PHNL too close.**
+- **PHTO (Hilo) clear.** It replaces PHNL in MC2 as ruled.
+- **CYYZ and PHTO are added** to `basemap-mc-centres.txt`, whose sha256 changes from `1e7931bbcbc3…` to `0e162fe09f42…`. **Re-run against the new file, every admitted centre is clear:** EGLL, PANC, CYYZ, PHTO and MC3's point.
+
+**MC on the sealed store, complete** (`scripts/basemap-grade-mc.ts`):
+
+| row | result |
+|---|---|
+| MC1 | **as frozen:** 50 of 50 covered |
+| MC2 | **as frozen:** EGLL, (0, 0) and CYYZ `404 no_coverage`; **PHTO** (in place of PHNL) covered and built |
+| MC3 | **as frozen:** KSFO's cleared point moved 0.03° east is covered |
+| MC4 | **as frozen:** KDEN [SRTM], KBOS [SRTM, ETOPO1], KBUF [SRTM, NRCAN], KELP [SRTM], PANC [SRTM, GMTED2010, ETOPO1] |
+
+**MC's sabotages** (`scripts/sabotage-basemap-mc.mjs`):
+- **The discipline:** a clean baseline first; anchors found exactly once; rows graded exactly; files restored by bytes with a sha256 check.
+- **S-BBOX** plants `coverage.ts` itself, and is graded against the `coverage.bin` the planted code computes (`basemap-coverage-bin.ts`). **Its own control:** unplanted, that script reproduces the sealed `coverage.bin` byte for byte (121,428 B), so it is the ingest's path. The store's files are never touched.
+
+| sabotage | result |
+|---|---|
+| S-BBOX | **{MC2}**, as frozen. Through CYYZ (built) **and also through EGLL** (503), below |
+| S-NOCANADA | **{MC4}**, as frozen, through KBUF |
+| S-NOOCEAN | **{MC4}**, as frozen, through KBOS and PANC |
+
+**What S-BBOX showed that the frozen text did not name.**
+- **What happened:** under bounding-box coverage, EGLL is "covered" too, and its build stops at a missing tile, answering 503.
+- **The cause:** Alaska's bounding box. The Aleutians cross the antimeridian, so the box spans nearly every longitude between about 51° and 71° N, London included.
+- **Why the set still holds:** it is at the row level, {MC2}, and holds exactly. Only "through CYYZ" was incomplete.
+- **The real coverage uses the state polygons,** and EGLL answers 404 as frozen.
+- **Worth knowing for the next coverage change:** any rectangle-based shortcut over US states is wrong at the antimeridian.
+
+**4. For the next ingest:** each wrangler call gets its own log path, so a collision cannot hide an outcome. This is done in `d1.ts` before #486 goes for review.

@@ -1,7 +1,7 @@
-// Grades MC1, MC2 and MC4 (docs/basemap-route.md A1.7, A2.38) on the SEALED store, read through the exact objects D1
-// verified in R2. Centres: the 50 cleared airports (test/fixtures/wx-airports.txt), and EGLL and PANC, admitted by
-// forbidden.py (test/fixtures/basemap-mc-centres.txt). PHNL and CYYZ (MC2) and MC3 wait: forbidden.py does not admit
-// them (A2.38). Prints identifiers and verdicts, never a coordinate. Exit 0 as frozen, 1 off-prediction, 2 BLIND.
+// Grades MC1-MC4 (docs/basemap-route.md A1.7, A2.38, A2.40) on the SEALED store, read through the exact objects D1
+// verified in R2. Centres: the 50 cleared airports (test/fixtures/wx-airports.txt), and the centres admitted by
+// forbidden.py with the two fixtures excluded by path and sha256 (A2.40; test/fixtures/basemap-mc-centres.txt: EGLL, PANC,
+// CYYZ, PHTO in place of PHNL). Prints identifiers and verdicts, never a coordinate. Exit 0 as frozen, 1 off, 2 BLIND.
 //
 //   npx tsx scripts/basemap-grade-mc.ts --cache <ingest cache>
 import { readFileSync } from "node:fs";
@@ -17,6 +17,9 @@ const cachePath = (c: string, url: string) => { const u = new URL(url); return j
 const { storeId, objects, current } = assembleStore(cache, cachePath);
 const map = new Map(objects.map((o) => [o.key, o.bytes]));
 map.set(CURRENT_KEY, current);
+// S-BBOX's grading only: a coverage.bin built by planted code, in place of the sealed one (the store's files untouched)
+const ci = process.argv.indexOf("--coverage");
+if (ci > 0) map.set(storeKeys(storeId).coverage, new Uint8Array(readFileSync(process.argv[ci + 1]!)));
 const store = { get: async (k: string) => map.get(k) ?? null };
 const readIds = (p: string) => Object.fromEntries(readFileSync(p, "utf8").split(/\r?\n/).filter(Boolean).map((l) => { const [id, a, b] = l.trim().split(/\s+/); return [id!, [Math.round(Number(a) * 100), Math.round(Number(b) * 100)] as [number, number]]; }));
 const cleared = readIds(join(process.cwd(), "test/fixtures/wx-airports.txt"));
@@ -30,13 +33,20 @@ const cov = map.get(storeKeys(storeId).coverage)!;
 const ids = Object.keys(cleared), hit = ids.filter((id) => covered(cov, cleared[id]![0], cleared[id]![1]));
 verdict("MC1", ids.length === 50 && hit.length === 50, `${hit.length} of ${ids.length} covered${hit.length < ids.length ? `; not: ${ids.filter((x) => !hit.includes(x)).join(", ")}` : ""}`);
 
-// MC2: EGLL and (0.00, 0.00) answer no_coverage; PHNL and CYYZ wait (A2.38)
+// MC2 (A2.40: PHTO in place of PHNL): EGLL, (0.00, 0.00) and CYYZ answer no_coverage; PHTO is covered
 const LV = [{ radiusMm: 24_743_664, n: 246 }, { radiusMm: 49_487_328, n: 246 }, { radiusMm: 98_974_656, n: 246 }];
 const req = (h: number, c: number) => ({ lat0Micro: h * 10_000, lon0Micro: c * 10_000, rKm: 97, epsMm: 100_584, mask: 63, levels: LV });
 const commit = "1".repeat(40);
-const e = at("EGLL")!, egll = await build(store, req(e[0], e[1]), { commit }), zero = await build(store, req(0, 0), { commit });
 const nc = (r: Awaited<ReturnType<typeof build>>) => !r.ok && r.status === 404 && r.code === "no_coverage";
-verdict("MC2 (EGLL, 0.00/0.00)", nc(egll) && nc(zero), `EGLL ${egll.ok ? "built" : egll.status}, (0, 0) ${zero.ok ? "built" : zero.status}; PHNL and CYYZ WAIT (forbidden.py)`);
+const say = (r: Awaited<ReturnType<typeof build>>) => (r.ok ? "built" : `${r.status}`);
+const [e, y, t] = [at("EGLL")!, at("CYYZ")!, at("PHTO")!];
+const egll = await build(store, req(e[0], e[1]), { commit }), zero = await build(store, req(0, 0), { commit });
+const cyyz = await build(store, req(y[0], y[1]), { commit }), phto = await build(store, req(t[0], t[1]), { commit });
+verdict("MC2", nc(egll) && nc(zero) && nc(cyyz) && phto.ok, `EGLL ${say(egll)}, (0, 0) ${say(zero)}, CYYZ ${say(cyyz)}, PHTO ${say(phto)}`);
+
+// MC3: KSFO's cleared point moved 0.03 degrees east, into the bay, is covered (A2.40: admitted by forbidden.py)
+const k = cleared["KSFO"]!;
+verdict("MC3", covered(cov, k[0], k[1] + 3), `KSFO + 0.03 east ${covered(cov, k[0], k[1] + 3) ? "covered" : "NOT covered"}`);
 
 // MC4: the credits with Weatherscope's three levels; each carries the levels processing line; none refused
 const want: Record<string, string[]> = { KDEN: ["SRTM"], KBOS: ["SRTM", "ETOPO1"], KBUF: ["SRTM", "NRCAN"], KELP: ["SRTM"], PANC: ["SRTM", "GMTED2010", "ETOPO1"] };
