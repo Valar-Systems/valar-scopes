@@ -1993,6 +1993,15 @@ review is needed unless a reading falls outside the set. Then it runs where the 
   inputs then hash-check against a manifest already on main, so the sha check takes its answer from a record this
   work did not write.
 - **RS2 is narrowed for the trace,** as stated in its row: the board's own serial log has always held its address.
+- **The crop's product is #496's, not production's** (found 2026-10-29, after the crop was made). #496's frames are
+  `SeamlessHSR_00.00`. Production's `/wx/cref` serves `MergedReflectivityQCComposite_00.50` (`proxy/src/wx/products.ts`).
+  - **Their code mappings are identical:** `mrms.ts`'s `codeOf` with no missing value is `codeOfComposite`, so the crop
+    holds the same code set the device draws.
+  - **The rain pattern differs:** SeamlessHSR is a single hybrid scan, the composite the column's maximum.
+  - **Why it stays:** #496's record is what makes the input sha-checkable against a manifest this work did not write.
+    A composite frame of the same storm would hash-check only against a record this tool wrote at its first download.
+  - Either is a real rain pattern for the draw path on the glass, which is all the replay claims (RP6). Overrule to use
+    the composite if the product matters.
 
 **Where it runs:** after the B1 fix and W5″, as the captures' route if no real rain has come by then.
 
@@ -2174,3 +2183,32 @@ lines by the same "wholly inside the window" rule, and offered for the ruling on
    matched n. They are derived from these numbers, with the remainder carried as its own term.
 
 **E2:08 now:** `wxlook` at `f5a8145`, the layer on, look A, sweep look 4.
+
+### The rain watcher sent E2:08's key from the bench PC; stopped for a ruling (2026-10-29, 06:36Z)
+
+**The finding.** `rain_probe.py` asks production's `/wx/cref` the way a device does. It uses E2:08's credential pair
+(`BLIP_KEY`/`BLIP_DEVICE`, read from the Windows user environment and never printed), over HTTPS, from the bench PC.
+- `rain_wait.py` ran it 66 times, every 10 min, from 2026-10-28 19:54Z to 06:35Z. I ran it once more at 06:36Z before
+  reading its own description.
+- Today's ruling on the replay says **no request may carry E2:08's key except E2:08's own.** On its face that covers
+  these probes.
+- **`proxy/scripts/smoke-prod.sh`** (the standing production check) uses the same pair. Whether the ruling reaches it
+  is for the reviewer; nothing about smoke-prod is changed here.
+- The key was never printed or written. Its only destination was production, over HTTPS.
+
+**Stopped:** `rain_probe.py` is not run again until ruled.
+
+**A keyless replacement, for the ruling:** `rain_mrms.mts`, a bench tool.
+- It reads production's own product (`MergedReflectivityQCComposite_00.50`) straight from the public NOAA archive,
+  decodes the newest frame with main's `mrms.ts`, and counts echo around Bend's public point (`bend.bmpk`'s origin,
+  never printed). No credential goes anywhere.
+- **Its first reading agrees with the old probe's instrument:** the same 186 × 256 grid and the same 35,364 covered
+  cells within 100 km.
+
+**The rain itself:**
+- 06:35Z: 4 echo cells within 50 km (the old probe);
+- 06:36Z: 0 (the old probe, a newer frame);
+- shortly after: 5 within 50 km and 6 within 100 km (the keyless probe, a newer frame again).
+
+It is light and intermittent. **No capture was started.** The queue has the captures after the B1 fix, which waits on
+step C's ruling, and a few cells near the centre risks a BLIND.
