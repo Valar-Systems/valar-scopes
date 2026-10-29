@@ -2485,3 +2485,34 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - **Worth knowing for the next coverage change:** any rectangle-based shortcut over US states is wrong at the antimeridian.
 
 **4. For the next ingest:** each wrangler call gets its own log path, so a collision cannot hide an outcome. This is done in `d1.ts` before #486 goes for review.
+
+### A2.42 MD3: the `--check` tool, run (2026-10-29)
+
+**`scripts/basemap-check.ts <package> --store <dir> [--sources <dir>]`:**
+- the package must validate;
+- its `store:` must be the store's `current`, whose manifest must hash to it;
+- with `--sources`, every source file must hash to the manifest's sha256;
+- then it **rebuilds with the builder code AT THE COMMIT the package's PROVENANCE names**, checked out into a temporary git worktree, and compares byte for byte.
+- **Exits:** 0 identical, 1 different, **2 BLIND** (a commit, a store object or a source it cannot find), never 0.
+
+**`scripts/basemap-md3.ts` runs MD3a-d.**
+- **Its fixture is built through the ingest's own path from MI's synthetic shapefiles:** the shapefile reader, `featuresFrom`, `assignCells`, `writeManifest` and `regionsFor`.
+- **It is labelled synthetic:** an `example.invalid` host, county 99001, state "ZZ", and MW's location-of-nothing origin.
+- **It refuses (BLIND)** when `src/basemap` has uncommitted changes, since a package built then is not HEAD's code.
+
+| row | result |
+|---|---|
+| MD3a | **as frozen, exit 0:** rebuilt at `6d95507ce48f`, 654 B, byte for byte |
+| MD3b | **as frozen, exit 1:** one byte inside WATER's body changed, the CRC recomputed |
+| MD3c | **as frozen, exit 2 (BLIND):** a builder commit that is not in the repository |
+| MD3d | **as frozen, exit 1:** the store re-sealed over a manifest whose water sha256 is not the one the package pins |
+
+**Its control: the rebuild reads the commit, not the working tree.**
+- **What I did:** planted a same-length change in the working tree's builder name (`blipscope-basemap` to `blipscope-BASEMAP`, the plant confirmed applied), then checked MD3a's package again.
+- **The result:** still IDENTICAL, rebuilt at the commit. A check that read the working tree would have said DIFFERENT.
+- `provenance.ts` was restored to HEAD.
+- **No check worktree is left behind.**
+
+**Every row in A1.7, A2.5 and A2.35 has now run, except MG's re-cut clause.** MG1 is equal (A2.39).
+
+**Next:** a final full sabotage pass, then #486 is marked ready for review.
