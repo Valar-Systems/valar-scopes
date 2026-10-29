@@ -302,3 +302,43 @@ undetect elsewhere.
 - **K13:** rendered and committed, looked at.
 - **The whole proxy suite:** 0 failing tests, so #499's CI can go green.
 - **Outside the set:** any other reading means stop and report.
+
+## R2's re-run with K1's correction (2026-10-29: `ca7cd26` reader, `f02abac` tests, `20e572b` K13)
+
+**Every row read as frozen at `31b8c85`.** The first readings above stay as the record: K1's one-column miss, and K2's
+and K4's BLIND sabotages.
+
+| | got | verdict |
+|---|---|---|
+| **K1** | the window is the HDF5's, `[1059, 2883, 417, 1635]`, and the **sha equals** on both frames; projection equal; the band-1 sabotage differs | pass |
+| **K1b** | the real heads are the slip on both frames (corner on the origin, the HDF5's window); a tiepoint on the origin is used as is, with the same window; (−501, 500), (1, 0) and PixelIsPoint are refused; with the check removed, (−501, 500) is not refused | pass |
+| K2 as frozen | 0 gap rows (the line now crosses grid rows 470-1336); its sabotage is still 0, pinned as BLIND | FAIL as frozen (the record) |
+| **K2′** | 45,414 echoes, 31,673 with their centre in the grid; the block rule loses **0**; the centre rule alone loses **2,039** (6.4 %) | pass |
+| K3 | as before | pass |
+| K4 / **K4′** | K4's values as before; its frozen sabotage pinned BLIND; on 3 × 2 tiles the control is identical and the swap differs on **1,001,498 of 1,515,000** cells | K4′ pass |
+| K5-K8, K10, K14, K15 | as before; K6's counts unchanged (they do not depend on the reader) | pass |
+| K9 | the share is now **0.7508** (it was 0.7513: the half pixel), the same in the record and in `/healthz` | pass |
+| K11 | CPU **0.407, 0.298, 0.249 s**; the map 0.594, 0.547, 0.548 s; peak **54.48, 54.24, 54.24 MB**; 64 MB held: 118.26 MB, **+64.02 MB** | pass |
+| K12 | rebuilt: `--check` reported all 8 `opuk` crops and the manifest stale before the rebuild and clean after, with the server set unchanged. **8 / 8** decode; the sabotage fails exactly `man-161km.wxc`, `file` and `cells`; g++ 13.3 in WSL | pass |
+| **K13** | rendered, looked at (below) | done |
+| LAEA | unchanged | pass |
+
+**K11's wet frame took 0.407 s, against 0.297 s on the first run,** for the same work. That is timing noise on this
+machine. Both readings are under the 0.6 s bar, and R3's production bar (twice Node) is measured on Cloudflare.
+
+### K13: the host render, looked at
+
+- **Built against the device branch's headers at `3f7a026`** (`include/WxLayer.h`, `include/WxS2.h`, `include/WxCrop.h`,
+  `src/weatherscope/WxPalette.h`), exported read-only with `git archive`. The branch's head read `3f7a026` twice, before
+  and after.
+- **The tool:** `tools/wx/render_opuk_crop.cpp` and `ppm_to_png.py`. It uses ProjectAt's view for 161 km, no rotation,
+  the default 240 px screen, and look A.
+- **`docs/images/wx-opuk-k13-lhr.png` (K13 as frozen):** echo 0, no coverage 0, 45,244 dry pixels, 12,356 off the disc.
+  - It is an **all-black disc**: no echo near London at 02:55 on 10-28 (the crop holds 5 echo cells in about 119,000,
+    and no pixel falls on one), and dry draws as the background.
+  - It is a true picture, but it shows the layer only by absence.
+- **`docs/images/wx-opuk-extra-abz.png` (an extra, not a K13 reading):** the ABZ crop from the same frame. 478 echo
+  pixels, 0 no coverage.
+  - Scattered teal, green and blue cells, dimmed as look A draws them, in a band across the northern half of the disc.
+    The southern half is dry.
+  - It reads as a weather layer. Without a basemap under it, I cannot judge more than that.
