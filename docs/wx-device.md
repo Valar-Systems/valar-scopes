@@ -2410,3 +2410,63 @@ F3's own frozen form, which used the run's measured a, holds.
 window announced.
 
 **E2:08 now:** `wxlook` at `229e3c6`, the layer on, look A, sweep look 4.
+
+## Rulings on the fix's board run, 2026-10-29 (reviewer chat, pasted by Daniel), with their source
+
+1. **F7 reads "instrument".** Its band was set at step C's 16 contacts, and the run had 34. The miss stays on record as
+   the band's error, and the run is not repeated. W5″ is the instrument for on − off at matched n.
+2. **The span tracking's +1 ms in rasterise: the change is approved.** Spans are recorded once per span call instead
+   of per pixel.
+   - **Predictions first:** rasterise loses the time the per-pixel recording added; the blend keeps its saving; the copy
+     check's picture stays identical.
+   - It rides the next board run, aimed at v19.
+3. **Look A's outline**, 0.16 ms per contact per frame (about 5.5 ms at 34 contacts), is recorded as **a cost of look A
+   only**. It goes to Daniel with the A/B choice.
+4. **Daniel's two looks go in the replay session,** after RP6's arms, with the replay's rain on the glass:
+   - first weather on against off, for smoothness (the fix's last check);
+   - then look A against look B. This is R2's look: he changes "Weather look (bench)" only, and it goes back to A until
+     he picks.
+
+   Both go in the window's announcement, in Pacific time.
+5. **W5″ and the replay run as queued.**
+
+## The span change (ruled 2026-10-29): frozen before its code
+
+**The code.** `detail::Span` already clips each span to the screen. After calling `put` for every pixel, in the same
+order as now, it calls `put.Spanned(x0, x1, y)` once with the clipped range.
+- `Rasterise`'s marker becomes a small struct. Its per-pixel call does what step C's did (mark, count, rows), and its
+  `Spanned` records the row's first and last column.
+- Every marked pixel passes through `Span`, the degenerate-line case included, so nothing is recorded anywhere else.
+- `Blend`, `BlendRows` and the shipping guard are unchanged.
+
+| | check | predicted |
+|---|---|---|
+| **S1** | the host rows W1-W5b | all pass. The marks are unchanged pixel for pixel, the span blend equals `BlendRows` at all 3,600 angles, and span bytes = marked |
+| **S-spanrec** | a sabotage: `Spanned` records one column short | red rows exactly **`W3-in`, `W5a`, `W5b`**. S-w, S-span and S-noclr as before |
+| **S2** | the board: rasterise, `sweepparts`' first figure | **2.24 ± 0.3 ms**: step C's, before any span recording (the fix run read 3.23) |
+| **S3** | the board: the blend, `sweepparts`' middle figure | **4.32 ± 0.3 ms**, the fix run's. **Graded only on a dry layer**: the keyless probe must read 0 echo cells within 100 km at the arm's start and its end. Otherwise "not graded: rain on the layer", because the blend's per-pixel work depends on the codes under the wedge |
+| **S4** | the board: the copy check, and the geometry | `[bench] layer copy: memcpy equals pushSprite: yes`; `sweepscan` bytes = pixels = 7,279 ± 2 % |
+| **S5** | the instrument | rasterise + blend + beam within 0.3 ms of `sweep=` |
+
+**Where it rides:** the replay session's first arm, before the replay proper.
+- `wxlook` with the span change is flashed app-only, and one trace is held for 16 min.
+- After 2 min of settling, 10 min of lines are read on production's own crop, with the layer on, look A and sweep
+  look 4.
+- The trace's close is recovered with `read_mac`, and then RC1 begins.
+- **No `[touch]` line in the arm.**
+- **Outside the set:** stop and report, and the replay does not start.
+
+**The replay session, as it now runs** (the order of "How the session reads each row", with two additions):
+1. the span arm above;
+2. RC1 through RP6, as fixed;
+3. **after RP6's arms:** the layer back on (look A, verified), then **20 min for Daniel's looks**, the replay's rain on
+   the glass. First weather on against off; then look A against look B, changing "Weather look (bench)" only;
+4. look A and the layer on are restored and verified;
+5. RS5 and the rest, as fixed.
+
+The touches and saves in Daniel's 20 minutes come after every graded arm.
+
+**The timings:**
+- the trace from RP1's reboot is held for **72 min**, so it outlasts Daniel's looks and RS5's 5 minutes;
+- the window is **at least 105 min**;
+- the proxy's hard limit is the window's length.
