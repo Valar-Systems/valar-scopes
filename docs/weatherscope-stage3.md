@@ -8096,3 +8096,84 @@ A12.43's other rows and sabotage sets stand as frozen.
 - **t2's firmware:** exactly its base's own build, measured first. No firmware unit includes `WxTheme.h` until t3.
 
 **The outside-the-set branch:** a row or sabotage outside its frozen value or set stops t2 at that row, reported with its cause.
+
+### A12.47 3.5t step t2's results; Q49 (`M_PI` on the host); step t3's design and predictions, frozen before its code
+
+**t2:** `weatherscope/3-5t-theme` @ `21708d872e43`, as **#504**, stacked on #503. When #503 merges, #504 is retargeted to main before t1's branch is deleted.
+
+| row | A12.46 predicted | measured |
+|---|---|---|
+| the 72 checks | all pass | **72 of 72 under MinGW and g++ 13.3, every check line identical** |
+| C4-CTL1 | 34 pairs within 1e-4, worst 0.000049 | **worst 0.000049** |
+| C4g565 | A12.44's 13.1259 … 4.6607, ± 0.0005 | **equal to four places** |
+| sabotages | the 13 sets | **all 13 exactly, under both compilers.** S-CTL1 misses pairs 1–6, 17, 19, 27 and 29 (worst 4.848830); S-CTL2 reads 4.4306; S-565's accent reads 4.4404 |
+| host suites | MinGW all pass; 13.3 the same blocks and counts, only the rig's two | **as predicted** |
+| firmware | its base's own build | **a clean build (252 units): flash 1,630,415 B, RAM 59,024 B**; no firmware source names `WxTheme.h` |
+
+**Found before commit, recorded:**
+- **The CIEDE2000 control caught a real defect,** as a control should.
+  - On the rig's 32-bit MinGW, x87's `atan2` returns 80 bits. That put Sharma's pair 14 one ulp over the mean-hue branch: h1 came out 90.034511938077543 against 90.034511938077557, and the result 4.746 against 4.8045.
+  - Rounding `atan2`'s result, and each branch's inputs, to doubles fixed it.
+- **The first MinGW `run.sh` ended BLIND at GameConfig:** the fresh worktree's ArduinoJson was not installed yet. That is the rig, and the rerun passed.
+
+#### Q49, for the ruling: `M_PI` on the host
+
+- **The problem:**
+  - `WxTheme.h` includes `DayNight.h` for `Phase`, and `DayNight.h` includes `SolarDim.h`, which uses `M_PI`;
+  - the Arduino core provides it on the board, but MinGW hides it under `-std=c++11`;
+  - t1's and t2's tests define `_USE_MATH_DEFINES` before their first include;
+  - **in t3,** `WxScreens.h` includes `WxTheme.h`, so every Weatherscope host test that includes `WxScreens.h` needs it too: about ten files.
+- **(a), recommended:** a guard in `SolarDim.h` after `<math.h>`: `#ifndef M_PI` / `#define M_PI 3.14159265358979323846` / `#endif`.
+  - It is **inert on every board.** The header's own code already compiles there with `M_PI`, so the guard adds no token to any device unit, in any of the eight editions.
+  - Its check: each `weatherscope` image's flash and RAM are unchanged, and t1's and t2's `_USE_MATH_DEFINES` lines come out.
+- **(b):** split the theme. `WxTheme.h` keeps the tables only, and `Select`, `NightDim` and the setting's parse move to `WxThemeSelect.h`, which includes `DayNight.h`. `WxScreens.h` then pulls no `M_PI`. #504 changes layout; its checks do not.
+- **(c):** `_USE_MATH_DEFINES` in each host test. It works, and it is boilerplate in ten files that the next test forgets.
+
+#### Step t3: the drawing reads the theme (dark only); NL's scan
+
+**The base:** main after **#502** merges, with #503 and #504. t3 rewrites `WxScenes.h` and touches `ref35.py`'s callers, both of which #502 changes, so **t3's code waits for #502's merge** (and for Q49).
+
+**The design:**
+- **`ScreenIn` gains `wxtheme::Which which = wxtheme::Which::Dark`.**
+  - It is not a pointer: the tables are per-unit `constexpr`, so an address is not a stable identity.
+  - The default keeps every existing caller's frame byte-identical.
+- **`MapPixel`, `DrawMap`, `DrawInvariant` and the band draw from `Get(in.which)`:**
+  - the background; dry; `base[idx]`, replacing `wxbase::PaletteRgb`, which retires;
+  - rain, snow, no coverage, and the hatch's line and ground;
+  - label, halo, peak, ring, ring text, dim and white; the orange as text and as a graphic.
+- **The state line's ink becomes a role** (dim, white or orange text), resolved at draw time. `WxScenes.h`'s ink names read the role.
+- **`LayerKey` gains `which`.** `BaseKey` does not, because the index image is theme-blind (A11.8).
+- **`WxRaster.h`'s seven named colours retire** (`kBlack` … `kRingText`), so no drawing code can bypass the theme.
+  - `test_wx_layout.cpp`, `sabotage_wx_k35.py` and `sabotage_wx_layout.py` read the roles instead;
+  - a sabotage anchor that moves is re-pointed, but **no frozen set changes**.
+- **The manager:**
+  - the splash and status inks (`uiFg`, `uiDim`, `uiAccent`, `uiWarn`), the hold ring, and the legend (ground, text, swatches, hatch) all draw from the theme;
+  - `which` stays Dark until t5;
+  - the splash and status grounds stay `main.cpp`'s shared black clear until t5, which fills light's paper.
+- **NL's scan (`test/host/scan_wx_colour_literals.py`)** covers `src/weatherscope/` except `WxTheme.h`, `WxPalette.h` and `bench/`. It flags:
+  - `color888(` or `color565(` with a numeric argument;
+  - `Rgb{` opening on a digit;
+  - a `TFT_` colour name.
+
+  Its allowlist is empty, and its length is printed.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| K-dark | **byte-identical:** `test_wx_k35` 28/0, `test_wx_k35b` 143/0, `test_wx_replay` 90/0, and every other Weatherscope suite's count unchanged (`test_wx_basemap` 84, `test_wx_layout` 73, `test_wx_screens` 15, `test_wx_theme` 72 …) |
+| every existing sabotage set | unchanged; re-pointed anchors are listed in the results |
+| NL | **0 hits** over the scope; allowlist 0. **Control:** pointed at `WxTheme.h`, it finds that file's literal lines (count printed, > 0) |
+| S-NL | `Rgb{1, 2, 3}` planted in a copy of `WxScreens.h`: **1 hit**, at the plant's line |
+| S-KD | dark rings (64, 64, 64) → (65, 64, 64) in a copy of `WxTheme.h`: **K-dark fails all 25 Dallas K screens and all 51 Bend rows**, and nothing else |
+| host suites | as always: MinGW all pass; 13.3 the same blocks and counts, only the rig's two |
+| **the firmware: RAM** | **+0 to +16 B.** `which` in `ScreenIn` and in `LayerKey`, with padding; the tables are `const` and go to flash |
+| **the firmware: flash** | **+300 to +2,500 B**, priced below. **This is a band, not a figure:** the code delta from reading roles through a table instead of immediates cannot be priced to the byte. If it lands inside, the exact figure is re-registered with its parts read from the ELF's symbol table; outside, t3 stops |
+
+**The flash band's parts:**
+- **+522 B:** both tables. `Get(in.which)` reads `which` at run time, so both are referenced.
+- **−60 to −120 B:** `PaletteRgb` retires.
+- **The rest is code:** each colour use becomes a load from the table. `MapPixel` is the hot one. The 7 retired constants were immediates.
+- **No new default argument crosses a call site.** `which` rides in `ScreenIn`, not in a parameter list (A12.44's pricing rule).
+
+**The outside-the-set branch:** any K-dark row that moves, any sabotage set that changes, or a size outside its band stops t3 at that row, reported with its cause.
