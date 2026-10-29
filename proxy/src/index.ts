@@ -26,6 +26,7 @@ import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 import { handleWx, wxHealth } from "./wx/handler";
+import { handleBasemap } from "./basemap/handler";
 import { PRODUCTS } from "./wx/products";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
@@ -390,6 +391,8 @@ async function route(
   // Weather under the planes: one WXC1 crop of the newest frame of <product> (docs/wx-server.md).
   const wxMatch = api.suffix.match(/^wx\/([^/]+)$/);
   if (wxMatch) return handleWx(request, env, wxMatch[1] as string);
+  // The map under the planes: one BMPK v1 package for a location and radius (docs/basemap-route.md).
+  if (api.suffix === "basemap") return handleBasemap(request, env, ctx);
   return errorResponse(404, "not_found");
 }
 

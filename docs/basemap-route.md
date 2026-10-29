@@ -2165,3 +2165,46 @@ What follows from that, set by set:
 **The outside-the-set branch, pre-registered:** a centre whose class falls outside its cell means the size model is wrong. Stop and report. A cell is never re-registered without a ruling, and a miss stays recorded.
 
 **Graded when the builder first runs on the sealed store,** for these 31 cells, with MS0's bytes alongside.
+
+### A2.31 The route's rows registered before they run: MW, MP, MA1 and MD2, their sabotages, and the standing re-check
+
+**The code they bind to:**
+- `handler.ts`: parse; the 304 and the Cache API with no build when the isolate knows the store, **pending A2.28's ruling**; the builder over `BASEMAP`; `validate` before serving;
+- `worker.ts`, the builder Worker's entry;
+- the proxy's dispatch (`api.suffix === "basemap"`, behind the same per-IP limit, device auth and per-key limit as `/wx`);
+- `Env.BASEMAP`;
+- `docs/basemap-attribution.md` (MA1).
+
+**How the tests are written:**
+- **MW** goes through the proxy's own `call()`, so MW8's 401 and MW16's alias come from the real path, with the builder Worker's real entry over MW's synthetic store behind counting bindings.
+- **MW2-MW7 is one test,** graded under the id `MW2`. It holds six requests.
+- **The cache key:** §3 says "the same digest". The handler keys the Cache API by the ETag's content, `rev`-`storeId`-digest. A store change or a `rev` bump then cannot be answered from an old entry. Neither form holds a coordinate (MP3).
+
+**The sabotages, with exact sets.** A1.7's three MW sets, and exact sets registered now for A1.7's MP controls and A1.12's MA1 control:
+
+| sabotage | the plant | fails exactly |
+|---|---|---|
+| S-WNOVALIDATE | the handler skips `validate` | **{MW15}** |
+| S-W304LATE | the early ETag comparison removed, so the 304 comes only after a builder call | **{MW10}** |
+| S-WNOSTORECHECK | `build()`'s manifest-hash guard removed | **{MW17}**: the bad manifest is read on, the regions name files it does not list, and the answer is still 503, after more than 2 reads |
+| S-PLOG | `console.log(q.lat2)` in the handler | **{MP1}** |
+| S-PWRITE | a `STORE.put` in the builder Worker's entry | **{MP2}** |
+| S-PETAG | the ETag carries `lat2` | **{MP3, MQ10, MW9}**. MQ10's and MW9's ETag pattern fails too. MQ2, MQ6, MQ8, MQ9, MW10 and MW16 compare ETags with each other, so they still pass |
+| S-ANOTICE | SRTM's notice deleted from `docs/basemap-attribution.md` | **{MA1}** |
+
+**The standing re-check, of every frozen set against MA1, MW and MP:**
+- **MA1** reads `provenance.ts`'s strings and the attribution file. No frozen plant touches either.
+- **MW's store:** a 2 km ring and a 10 km primary road, both inside the square, nothing at ε or 3.0 km, and no terrain. So:
+  - the MR, ML and MT plants change no MW outcome. MW11 and MW16 compare MW9's bytes within the same plant;
+  - S-RZERO keeps the ring, which is outer;
+  - S-BUSSUB keeps "Main Hwy".
+- **The MB plants:** MW13's cap of 100 B stays `too_large` under every one, and S-PRIMARYDROP cannot get a package under 100 B.
+- **The MQ plants:** MW's latitude 0.37 is not a half value (S-QROUND), the ETags are compared within a plant (S-QDIGEST), and there are no levels (S-QSORT).
+- **The MI plants** do not change `writeManifest`'s bytes, and the synthetic store has no notes.
+- **C-LOADFAIL** stops MW from loading too, so it stays BLIND.
+- **No frozen set moves.**
+
+**MD2** runs as `scripts/basemap-md2.ts`:
+- it builds ME2's first 50 in Node, then runs `test/basemap-md2.test.ts` in workerd with the Node list as a pool binding;
+- it exits 0 if the lists are identical, 1 if they differ, and **2 (BLIND) if the workerd half skipped or did not run.** In an ordinary run the test is skipped, and the script never counts a skip as a pass.
+- **Its control:** `--control` hands the workerd half the list with one sha256 changed, and the script must exit 1.
