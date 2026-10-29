@@ -199,30 +199,36 @@ const SABOTAGES = {
   },
   "S-DROPORDER": {
     file: BUDGET, set: "all",
-    edits: [["  for (const i of dropOrder(rings.map(ringArea2))) {\n", "  for (const i of dropOrder(rings.map((r) => -ringArea2(r)))) { // SABOTAGE S-DROPORDER: largest first\n"]],
+    // anchors moved with fitBudget's bisection (A2.37); every plant below is unchanged in what it does
+    edits: [["  const wOrder = dropOrder(rings.map(ringArea2));\n", "  const wOrder = dropOrder(rings.map((r) => -ringArea2(r))); // SABOTAGE S-DROPORDER: largest first\n"]],
     expect: ["MB2", "MB7", "MB8b"],
   },
   "S-NOCOUNT": {
     file: BUDGET, set: "all",
-    edits: [["    d.water++;\n", "    // SABOTAGE S-NOCOUNT: dropped.water not incremented\n"]],
+    // dropped.water never counts a drop, in every place the bisection sets it
+    edits: [["const w = smallestFit(rings.length, (k) => { d.water = k; return", "const w = smallestFit(rings.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ return"],
+            ["  if (w) { d.water = w.k; return", "  if (w) { d.water = 0; return"],
+            ["  d.water = rings.length;\n", "  d.water = 0;\n"]],
     expect: ["MB2", "MB3", "MB5", "MB7", "MB8b"],
   },
   "S-ROADORDER": {
     file: BUDGET, set: "all",
-    edits: [["  for (const k of dropOrder(secondary.map((i) => roadLength(roads[i]!.pts)))) {\n", "  for (const k of dropOrder(secondary.map((i) => -roadLength(roads[i]!.pts)))) { // SABOTAGE S-ROADORDER: longest first\n"]],
+    edits: [["  const rOrder = dropOrder(secondary.map((i) => roadLength(roads[i]!.pts))).map((k) => secondary[k]!);\n",
+             "  const rOrder = dropOrder(secondary.map((i) => -roadLength(roads[i]!.pts))).map((k) => secondary[k]!); // SABOTAGE S-ROADORDER: longest first\n"]],
     expect: ["MB3"],
   },
   "S-PRIMARYDROP": {
     file: BUDGET, set: "all",
-    edits: [["  return null;\n", "  // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries\n" +
-      "  const prim = roads.map((r, i) => [r, i] as const).filter(([r]) => r.cls === 1).map(([, i]) => i);\n" +
-      "  for (const k of dropOrder(prim.map((i) => roadLength(roads[i]!.pts)))) {\n" +
-      "    goneR.add(prim[k]!); d.roads++;\n" +
-      "    content = { ...content, roads: roads.filter((_, i) => !goneR.has(i)) };\n" +
-      "    s = fits(content, tol);\n" +
-      "    if (s) return { content, toleranceMm: tol, dropped: d, sections: s };\n" +
-      "  }\n" +
-      "  return null;\n"]],
+    edits: [["  if (r) { d.roads = r.k; return { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }; }\n  return null;\n",
+             "  if (r) { d.roads = r.k; return { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }; }\n" +
+             "  // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries\n" +
+             "  const base2 = withRoads(rOrder.length), r2 = base2.roads ?? [];\n" +
+             "  const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n" +
+             "  const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n" +
+             "  const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...base2, roads: r2.filter((_, i) => !gone.has(i)) }; };\n" +
+             "  const p = smallestFit(pOrder.length, (k) => { d.roads = rOrder.length + k; return fits(withPrim(k), tol); });\n" +
+             "  if (p) { d.roads = rOrder.length + p.k; return { content: withPrim(p.k), toleranceMm: tol, dropped: d, sections: p.got }; }\n" +
+             "  return null;\n"]],
     expect: ["MB4"],
   },
   "S-TERRCAP": {

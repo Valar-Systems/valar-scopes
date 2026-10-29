@@ -66,25 +66,40 @@ export function fitBudget<C extends Droppable>(
 
   // §6 step 2: water rings, smallest area first (RD18), the survivors kept in source order
   const rings = content.water ?? [];
-  const goneW = new Set<number>();
-  for (const i of dropOrder(rings.map(ringArea2))) {
-    goneW.add(i);
-    d.water++;
-    content = { ...content, water: rings.filter((_, k) => !goneW.has(k)) };
-    s = fits(content, tol);
-    if (s) return { content, toleranceMm: tol, dropped: d, sections: s };
-  }
+  const wOrder = dropOrder(rings.map(ringArea2));
+  const base = content;
+  const withWater = (k: number): C => { const gone = new Set(wOrder.slice(0, k)); return { ...base, water: rings.filter((_, i) => !gone.has(i)) }; };
+  const w = smallestFit(rings.length, (k) => { d.water = k; return fits(withWater(k), tol); });
+  if (w) { d.water = w.k; return { content: withWater(w.k), toleranceMm: tol, dropped: d, sections: w.got }; }
+  d.water = rings.length;
+  content = withWater(rings.length);
 
   // §6 step 3: SECONDARY roads, shortest first (RD19); primaries are never dropped
   const roads = content.roads ?? [];
   const secondary = roads.map((r, i) => [r, i] as const).filter(([r]) => r.cls === 2).map(([, i]) => i);
-  const goneR = new Set<number>();
-  for (const k of dropOrder(secondary.map((i) => roadLength(roads[i]!.pts)))) {
-    goneR.add(secondary[k]!);
-    d.roads++;
-    content = { ...content, roads: roads.filter((_, i) => !goneR.has(i)) };
-    s = fits(content, tol);
-    if (s) return { content, toleranceMm: tol, dropped: d, sections: s };
-  }
+  const rOrder = dropOrder(secondary.map((i) => roadLength(roads[i]!.pts))).map((k) => secondary[k]!);
+  const noWater = content;
+  const withRoads = (k: number): C => { const gone = new Set(rOrder.slice(0, k)); return { ...noWater, roads: roads.filter((_, i) => !gone.has(i)) }; };
+  const r = smallestFit(rOrder.length, (k) => { d.roads = k; return fits(withRoads(k), tol); });
+  if (r) { d.roads = r.k; return { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }; }
   return null;
+}
+
+/**
+ * The smallest k in [1, n] for which attempt(k) fits, by bisection -- or null when even k = n does not. attempt(0) is
+ * known not to fit when this is called. It gives the same k as dropping one item at a time, because fitting is
+ * MONOTONE in k: every drop shrinks the package (a ring or a road item costs at least 6 B, while a count gaining a digit
+ * adds 1 B to PROVENANCE). The linear loop re-assembled the package after every drop, which on a dense square (A2.37:
+ * KATL r 222, 14,904 drops) took about 27 s of CPU; this takes about log2(n) + 1 assemblies.
+ */
+function smallestFit<T>(n: number, attempt: (k: number) => T | null): { k: number; got: T } | null {
+  if (n === 0) return null;
+  const top = attempt(n);
+  if (!top) return null;
+  let lo = 0, hi = n, got = top; // attempt(lo) does not fit; attempt(hi) fits
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1, t = attempt(mid);
+    if (t) { hi = mid; got = t; } else lo = mid;
+  }
+  return { k: hi, got };
 }

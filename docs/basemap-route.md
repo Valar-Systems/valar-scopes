@@ -2339,3 +2339,35 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - MC;
 - MM1 and MM3;
 - MG1 against `bend.bmpk`, with its controls S-GEPS and S-GSMOOTH.
+
+### A2.37 On the sealed store: MS0 and §5.4 graded; MM1 and MM3; a quadratic budget loop found and fixed with identical output
+
+`scripts/basemap-grade-store.ts` runs the builder over the exact objects D1 verified in R2 (`assembleStore`), at §5.4's centres and requests. It prints identifiers, numbers, verdicts and each package's sha256, never a coordinate.
+
+**MS0 and §5.4's classes: all 31 cells as frozen** (Bend's Weatherscope cell excluded, A2.30). 0 off-prediction, 0 BLIND.
+- **MS0 is exact in every cell.** PROVENANCE's bytes equal the frozen base plus one byte for each extra digit in its 14 count lines. For example, KATL r 222 is 1,998 B (dropped 14,904), Bend r 222 is 2,131 B and KMSP r 222 is 1,998 B.
+- **The classes:**
+  - **F:** Bend r 97, KGJT r 97 + terrain and KGJT r 97;
+  - **C:** Bend r 161, KGJT r 161 and r 222, KDEN r 97;
+  - **D:** every other cell, KDEN r 161 by doubling ε alone;
+  - **no X anywhere,** though KMSP, KRDU and KATL were allowed it.
+
+**MM1, as frozen:** Bend, three levels, in local Node, the largest of 3 runs: **CPU 937 ms** (≤ 1,500), **live peak 28.9 MB** (≤ 96).
+
+**MM3, printed, not graded, and it found a defect of mine.**
+- **The measurement:** KATL r 222 without terrain, first measured at **CPU 27,250 ms, live peak 154.4 MB**.
+- **What that meant:**
+  - `cpu_ms` would sit at its 30,000 cap with no margin;
+  - the peak would exceed a Worker's 128 MB;
+  - **the builder as written would have failed in production for the densest Blipscope requests.**
+- **The cause:** §6's drop loop re-assembled the whole package after every single drop, which is quadratic (14,904 drops here). A2.18 called this "the rare over-budget case". §5.4 has since shown that most of the US is over budget.
+- **The fix:** the smallest number of drops is found by bisection, about log₂ n assemblies. It gives the same k because fitting is monotone in k: a ring or road item costs at least 6 B, while a count gaining a digit adds 1 B.
+- **Proof that the output did not change:**
+  - **all 31 sealed-store packages were built under the old code and the new, and are byte-identical** (sha256, 31 of 31);
+  - the control shows the swap took effect: KRDU r 222 took 19.0 s under the old code and 0.96 s under the new, and KATL r 222 29.4 s and 1.0 s, with the same drops;
+  - MB1-MB8b and MD4 pass;
+  - the four MB sabotages that plant `fitBudget` were re-anchored with their plants unchanged, and all six MB sabotages land as frozen.
+- **MM3, re-measured: CPU 1,453 ms, live peak 61.5 MB.** So the builder's **`cpu_ms` = 14,530** (10 × CPU, inside the 30,000 cap). Most of the old peak was the per-drop assembly's garbage. The peak now fits in 128 MB with room, so compacting the stored geometry is not needed.
+- **A slip of mine:** the four re-anchored plants first went through a shell heredoc, which turned their `\n` into newlines. `node --check` refused the harness, nothing ran, and the file was restored from HEAD and rewritten with the editor.
+
+**MC is next, then MG1.**
