@@ -647,7 +647,8 @@ private:
     uint8_t* wxPixels = nullptr;      // wxlayer::Build's output, one code per screen pixel
     uint8_t* wxLayer565 = nullptr;    // the layer, RGB565, two bytes per screen pixel
     uint8_t* wxSweepSlice = nullptr;  // WD6: the wedge's slice per screen pixel, cleared as it is blended
-    bool wxNeedsRebuild = false;      // a new crop (or view) has not been built into the layer yet
+    uint8_t* wxSweepSpans = nullptr;  // the B1 fix: each row's first and last marked column, 2 x SCREEN_SIZE int16
+    bool wxNeedsRebuild = false;     // a new crop (or view) has not been built into the layer yet
     wxs2::Look wxLook = wxs2::Look::A;   // the shipping look until Daniel picks; B only via the bench env (WD4 add. 2)
     // WD6: the sweep over a shown layer. 4 (lit) until Daniel picks; 3 (see-through) only via the bench env.
     wxsweep::Look wxSweepLook = wxsweep::Look::Lit;
@@ -854,7 +855,17 @@ private:
     uint16_t partSampleBuf[3][FRAME_SAMPLES] = {{0}};
     size_t partSampleCount = 0;
     uint32_t copyFloorMemcpyUs = 0, copyFloorMemsetUs = 0;   // step C, measured once at boot (0: not measured)
+    // The B1 fix's run (docs/wx-device.md, F1-F7): the look A outline loop's time per frame (summed in the frame,
+    // recorded by RecordFrameUs), the bytes the blend visited and the pixels it blended since the last report, the
+    // cost of scanning an empty slice at boot, and whether the layer's memcpy equals the push it replaced.
+    uint16_t outlineSampleBuf[FRAME_SAMPLES] = {0};
+    size_t outlineSampleCount = 0;
+    uint32_t outlineFrameUs = 0;
+    uint32_t sweepScanBytes = 0, sweepScanPx = 0, sweepScanCalls = 0;
+    uint32_t copyScan0Us = 0;
+    int8_t layerCopyCheck = -1;   // -1 not yet, 0 differs, 1 identical, 2 could not check (no PSRAM for the copy)
     void ReportSweep();
+    void CheckLayerCopy(LGFX_Sprite& sp, uint8_t* dst);
 #endif
     // Worst single loop pass since the last health report (0.1 ms units). The
     // avg/p95 above are computed only over the last FRAME_SAMPLES frames (~a few

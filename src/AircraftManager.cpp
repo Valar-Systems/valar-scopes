@@ -2032,6 +2032,43 @@ void AircraftManager::ReportSweep()
     // Step C's copy floor, measured once at boot and reprinted here so a trace opened after the boot still sees it.
     Serial.printf("[bench] memcpy=%luus memset=%luus (115200 B, PSRAM, median of 10, at boot)\n",
                   (unsigned long)copyFloorMemcpyUs, (unsigned long)copyFloorMemsetUs);
+    // The B1 fix's run (docs/wx-device.md). F7: the look A outline per frame, by the frame figure's method.
+    const size_t no = std::min(outlineSampleCount, FRAME_SAMPLES);
+    if (no > 0) {
+        uint32_t osum = 0;
+        for (size_t i = 0; i < no; ++i) { sorted[i] = outlineSampleBuf[i]; osum += sorted[i]; }
+        std::sort(sorted, sorted + no);
+        Serial.printf("[health] outline=%lu/%uus n=%u\n", (unsigned long)(osum / no),
+                      (unsigned)sorted[(size_t)((no - 1) * 0.95f)], (unsigned)no);
+    }
+    // F4: what the blend visited and blended, averaged over the calls since the last report.
+    if (sweepScanCalls > 0)
+        Serial.printf("[health] sweepscan=%lu/%lu n=%lu\n", (unsigned long)(sweepScanBytes / sweepScanCalls),
+                      (unsigned long)(sweepScanPx / sweepScanCalls), (unsigned long)sweepScanCalls);
+    sweepScanBytes = sweepScanPx = sweepScanCalls = 0;
+    // F3's per-byte scan cost and F1's copy check, reprinted like the copy floor.
+    Serial.printf("[bench] scan0=%luus (BlendRows over an all-zero 240-row slice, 57600 B, PSRAM, median of 10, at boot)\n",
+                  (unsigned long)copyScan0Us);
+    static const char* kCheck[] = { "no", "yes", "unchecked (no PSRAM for the copy)" };
+    if (layerCopyCheck >= 0)
+        Serial.printf("[bench] layer copy: memcpy equals pushSprite: %s\n", kCheck[layerCopyCheck]);
+}
+
+void AircraftManager::CheckLayerCopy(LGFX_Sprite& sp, uint8_t* dst)
+{
+    // F1, once: the canvas as the push leaves it, against the canvas as the memcpy leaves it. Each starts from a
+    // different fill, so a push that skipped a pixel could not pass by leaving the other's byte behind.
+    constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;
+    uint8_t* viaPush = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
+    if (viaPush == nullptr) { layerCopyCheck = 2; return; }
+    memset(dst, 0xA5, kBytes);
+    wxSprite.pushSprite(&sp, 0, 0);
+    memcpy(viaPush, dst, kBytes);
+    memset(dst, 0x5A, kBytes);
+    memcpy(dst, wxLayer565, kBytes);
+    layerCopyCheck = memcmp(dst, viaPush, kBytes) == 0 ? 1 : 0;
+    heap_caps_free(viaPush);
+    Serial.printf("[bench] layer copy: memcpy equals pushSprite: %s\n", layerCopyCheck == 1 ? "yes" : "no");
 }
 
 void AircraftManager::MeasureCopyFloor()
@@ -2051,6 +2088,24 @@ void AircraftManager::MeasureCopyFloor()
     }
     heap_caps_free(a);
     heap_caps_free(b);
+    // F3's a: BlendRows over an all-zero 240-row slice, which visits every byte and blends none -- the cost of scanning
+    // alone. The lambdas are never called; the count is checked so the loop cannot be dropped.
+    constexpr size_t kSlice = (size_t)SCREEN_SIZE * SCREEN_SIZE;
+    uint8_t* z = (uint8_t*)heap_caps_calloc(kSlice, 1, MALLOC_CAP_SPIRAM);
+    if (z) {
+        uint32_t sc[10];
+        uint32_t blended = 0;
+        for (int i = 0; i < 10; ++i) {
+            const uint32_t t = micros();
+            blended += wxsweep::BlendRows(wxsweep::Look::Lit, wxs2::Percent(wxs2::Look::A), z, SCREEN_SIZE, 0,
+                                          SCREEN_SIZE - 1, [](int, int) { return (uint16_t)0; },
+                                          [](int, int, uint16_t) {}, [](int, int) { return (uint8_t)0; });
+            sc[i] = micros() - t;
+        }
+        std::sort(sc, sc + 10);
+        copyScan0Us = blended == 0 ? sc[5] : 0;
+        heap_caps_free(z);
+    }
 }
 
 void AircraftManager::RecordClearUs(uint32_t us, bool pushed)
@@ -2076,6 +2131,12 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
     frameSampleBuf[frameSampleCount % FRAME_SAMPLES] = capped;
     frameSampleCount++;
+#ifdef WX_LOOK_AB
+    // F7: this frame's outline time (0 when no outline was drawn), on the frame ring's own index.
+    outlineSampleBuf[outlineSampleCount % FRAME_SAMPLES] = (uint16_t)std::min(outlineFrameUs, (uint32_t)0xFFFF);
+    outlineSampleCount++;
+    outlineFrameUs = 0;
+#endif
     // Interval-spanning worst frame (see the member comment): catches a stall
     // anywhere in the 30 s window, not just the last FRAME_SAMPLES frames.
     if (capped > frameMaxTenths) frameMaxTenths = capped;
@@ -3208,7 +3269,8 @@ bool AircraftManager::AllocateWeatherBuffers()
     struct Buf { const char* name; size_t bytes; uint8_t** p; };
     Buf bufs[] = { { "landing", wxcrop::kMaxBytes, &wxLanding }, { "held", wxcrop::kMaxBytes, &wxHeld },
                    { "cells", kWxCellsMax, &wxCells }, { "pixels", px, &wxPixels },
-                   { "layer565", 2 * px, &wxLayer565 }, { "sweep", px, &wxSweepSlice } };
+                   { "layer565", 2 * px, &wxLayer565 }, { "sweep", px, &wxSweepSlice },
+                   { "spans", 4 * (size_t)SCREEN_SIZE, &wxSweepSpans } };   // the B1 fix: two int16 per row
     const uint32_t before = ESP.getFreePsram();
     size_t total = 0;
     for (Buf& b : bufs) {
@@ -3353,14 +3415,26 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
         wxShowing = wxpolicy::Show::Nothing;
         return false;
     }
-    wxSprite.pushSprite(&canvas.sprite(), 0, -canvas.offsetY());
+    // The B1 fix (docs/wx-device.md): one memcpy of the whole layer when the canvas is one band of the whole frame in
+    // the layer's own format -- the guard DrawSweepOverWeather uses. Step C timed the sprite push at 6.82 ms against a
+    // 5.15 ms memcpy of the same 115,200 B. Anything else pushes the sprite, as before.
+    LGFX_Sprite& sp = canvas.sprite();
+    uint8_t* const dst = (uint8_t*)sp.getBuffer();
+    const bool flat = canvas.offsetY() == 0 && sp.width() == SCREEN_SIZE && sp.height() == SCREEN_SIZE &&
+                      sp.getColorDepth() == 16 && dst != nullptr && wxLayer565 != nullptr;
+#ifdef WX_LOOK_AB
+    if (flat && layerCopyCheck < 0) CheckLayerCopy(sp, dst);   // F1, once: the memcpy against the push it replaces
+#endif
+    if (flat) memcpy(dst, wxLayer565, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+    else wxSprite.pushSprite(&sp, 0, -canvas.offsetY());
     return true;
 }
 
 bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
 {
     // Only over a layer DrawWeatherUnder pushed this frame; with the layer off, today's opaque wedge draws instead.
-    if (wxShowing != wxpolicy::Show::Crop || !wxBuffersOk || wxSweepSlice == nullptr) return false;
+    if (wxShowing != wxpolicy::Show::Crop || !wxBuffersOk || wxSweepSlice == nullptr || wxSweepSpans == nullptr)
+        return false;
     LGFX_Sprite& sp = canvas.sprite();
     // One band, the whole frame: BANDED_RENDER is false on every SKU. Anything else draws today's wedge.
     if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16)
@@ -3371,21 +3445,32 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #ifdef WX_LOOK_AB
     const uint32_t tRaster = micros();   // step C (docs/wx-device.md): the three parts, timed, bench image only
 #endif
-    wxsweep::Rasterise(cx, cy, radius, angle, wxSweepSlice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1);
+    // The B1 fix: Rasterise records each row's span, and Blend visits only that (docs/wx-device.md).
+    int16_t* const rowLo = (int16_t*)wxSweepSpans;
+    int16_t* const rowHi = rowLo + SCREEN_SIZE;
+    wxsweep::Rasterise(cx, cy, radius, angle, wxSweepSlice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1, rowLo, rowHi);
 #ifdef WX_LOOK_AB
     const uint32_t tBlend = micros();
 #endif
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
-    wxsweep::Blend(wxSweepLook, wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1,
-                   [&](int x, int y) { return (uint16_t)__builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
-                   [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
-                   [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+    const uint32_t blended = wxsweep::Blend(
+        wxSweepLook, wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+        [&](int x, int y) { return (uint16_t)__builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
+        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+        [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
 #ifdef WX_LOOK_AB
     const uint32_t tBeam = micros();
 #endif
     DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
 #ifdef WX_LOOK_AB
     RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
+    // F4: the bytes the blend visited and the pixels it blended, counted after the timed parts.
+    for (int y = y0; y <= y1; ++y)
+        if (rowHi[y] >= rowLo[y]) sweepScanBytes += (uint32_t)(rowHi[y] - rowLo[y] + 1);
+    sweepScanPx += blended;
+    sweepScanCalls++;
+#else
+    (void)blended;
 #endif
     return true;
 }
@@ -3999,6 +4084,9 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             // The outline is 8 black copies of the marker, one per 1 px offset, for BOTH kinds: a disc 1 px larger
             // misses 8 of the dot's 32 neighbours under LovyanGFX's raster (WD5 addendum 3; test_wx_outline.cpp).
             const bool outline = WxOutlineNow();
+#ifdef WX_LOOK_AB
+            const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
+#endif
             if (outline)
                 for (int oy = -1; oy <= 1; ++oy)
                     for (int ox = -1; ox <= 1; ++ox) {
@@ -4006,6 +4094,9 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                         if (displayTriangles) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
                         else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
                     }
+#ifdef WX_LOOK_AB
+            if (outline) outlineFrameUs += micros() - outlineT0;
+#endif
             if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
             else backbuffer.fillCircle(x, y, 3, markerColor);
         }

@@ -17,12 +17,27 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_sweep.cpp")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
+# S-w is planted in detail::BlendOne, which both loops share since the B1 fix, so W5a (Blend against BlendRows) stays
+# green under it: both sides change alike. S-span and S-noclr are planted in the span loop alone (the device's path);
+# W3 runs that path, so [W3-in] goes red with [W5a].
 SABOTAGES = {
     "S-w  the opaque wedge restored": (["W3-in"], [(
-        "            if (look == Look::SeeThrough) set(x, y, SeeThrough565(get(x, y), lvl));\n"
-        "            else set(x, y, Lit565(code(x, y), pct, lvl));\n",
-        "            (void)look; (void)pct; (void)get; (void)code;\n"
-        "            set(x, y, Green565(lvl));   // SABOTAGE S-w: today's opaque wedge\n")]),
+        "    if (look == Look::SeeThrough) set(x, y, SeeThrough565(get(x, y), lvl));\n"
+        "    else set(x, y, Lit565(code(x, y), pct, lvl));\n",
+        "    (void)look; (void)pct; (void)get; (void)code;\n"
+        "    set(x, y, Green565(lvl));   // SABOTAGE S-w: today's opaque wedge\n")]),
+    "S-span  each row's span stops one pixel short": (["W3-in", "W5a"], [(
+        "        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {\n",
+        "        for (int x = rowLo[y]; x < rowHi[y]; ++x) {   // SABOTAGE S-span\n")]),
+    "S-noclr  the span loop leaves its marks": (["W3-in", "W5a"], [(
+        "        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {\n"
+        "            if (row[x] == 0) continue;\n"
+        "            detail::BlendOne(look, pct, row[x], x, y, get, set, code);\n"
+        "            row[x] = 0;\n",
+        "        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {\n"
+        "            if (row[x] == 0) continue;\n"
+        "            detail::BlendOne(look, pct, row[x], x, y, get, set, code);\n"
+        "            // SABOTAGE S-noclr: the mark is not cleared\n")]),
 }
 
 

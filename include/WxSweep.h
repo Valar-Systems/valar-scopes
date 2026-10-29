@@ -159,18 +159,33 @@ template <typename Put> inline void Triangle(int32_t x0, int32_t y0, int32_t x1,
 
 /** Marks every pixel of the wedge with the LAST slice (1-kSegs) that covers it, in `slice` (w x h, row-major; 0 =
  *  outside). The slices and their rim points are DrawRadarSweep's, in its order. Returns the pixels marked, and their
- *  bounding rows in *y0 / *y1 so the caller can clear only those. */
-inline uint32_t Rasterise(int cx, int cy, int radius, float angle, uint8_t* slice, int w, int h, int* yLo, int* yHi)
+ *  bounding rows in *y0 / *y1 so the caller can clear only those.
+ *
+ *  `rowLo` / `rowHi` (h entries each) receive each row's first and last marked column, or (w, -1) for a row with none,
+ *  so Blend visits only that span (the B1 fix, docs/wx-device.md). The wedge is narrower than a half-disc, so each of
+ *  its rows is ONE run and the span holds no unmarked byte (sweep_geom: 7,279 span bytes = 7,279 marked, against
+ *  27,542 B in whole rows). The span is tracked per run of consecutive pixels, not per pixel. */
+inline uint32_t Rasterise(int cx, int cy, int radius, float angle, uint8_t* slice, int w, int h, int* yLo, int* yHi,
+                          int16_t* rowLo, int16_t* rowHi)
 {
     uint32_t marked = 0;
     int lo = h, hi = -1;
     int cur = 0;
+    for (int y = 0; y < h; ++y) { rowLo[y] = (int16_t)w; rowHi[y] = -1; }
+    int runY = -1, runLo = 0, runHi = -1;
+    auto flush = [&]() {
+        if (runY < 0) return;
+        if (runLo < rowLo[runY]) rowLo[runY] = (int16_t)runLo;
+        if (runHi > rowHi[runY]) rowHi[runY] = (int16_t)runHi;
+    };
     auto put = [&](int x, int y) {
         uint8_t& s = slice[(size_t)y * w + x];
         if (s == 0) ++marked;
         s = (uint8_t)cur;
         if (y < lo) lo = y;
         if (y > hi) hi = y;
+        if (y != runY || x != runHi + 1) { flush(); runY = y; runLo = x; }
+        runHi = x;
     };
     const int xLead = cx + (int)(std::cos(angle) * radius);
     const int yLead = cy + (int)(std::sin(angle) * radius);
@@ -185,25 +200,55 @@ inline uint32_t Rasterise(int cx, int cy, int radius, float angle, uint8_t* slic
         xPrev = x;
         yPrev = y;
     }
+    flush();
     *yLo = lo;
     *yHi = hi;
     return marked;
 }
 
-/** Blends the wedge marked in `slice` over the frame, once per pixel, then clears those marks. `get(x, y)` and
- *  `set(x, y, c)` read and write logical RGB565 at screen coordinates; `code(x, y)` is the layer's code there.
- *  `pct` is the layer's look percent (WxS2). Returns the pixels blended. */
+namespace detail {
+// One wedge pixel's colour, shared by both loops below so they cannot disagree about it.
 template <typename Get, typename Set, typename Code>
-inline uint32_t Blend(Look look, int pct, uint8_t* slice, int w, int yLo, int yHi, Get&& get, Set&& set, Code&& code)
+inline void BlendOne(Look look, int pct, uint8_t mark, int x, int y, Get& get, Set& set, Code& code)
+{
+    const uint8_t lvl = SliceLevel(mark);
+    if (look == Look::SeeThrough) set(x, y, SeeThrough565(get(x, y), lvl));
+    else set(x, y, Lit565(code(x, y), pct, lvl));
+}
+}  // namespace detail
+
+/** Blends the wedge marked in `slice` over the frame, once per pixel, then clears those marks, visiting only each
+ *  row's span from Rasterise (`rowLo` / `rowHi`). `get(x, y)` and `set(x, y, c)` read and write logical RGB565 at screen
+ *  coordinates; `code(x, y)` is the layer's code there. `pct` is the layer's look percent (WxS2). Returns the pixels
+ *  blended. The device's path. */
+template <typename Get, typename Set, typename Code>
+inline uint32_t Blend(Look look, int pct, uint8_t* slice, int w, int yLo, int yHi, const int16_t* rowLo,
+                      const int16_t* rowHi, Get&& get, Set&& set, Code&& code)
+{
+    uint32_t n = 0;
+    for (int y = yLo; y <= yHi; ++y) {
+        uint8_t* row = slice + (size_t)y * w;
+        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {
+            if (row[x] == 0) continue;
+            detail::BlendOne(look, pct, row[x], x, y, get, set, code);
+            row[x] = 0;
+            ++n;
+        }
+    }
+    return n;
+}
+
+/** The same blend over WHOLE rows, as it was before the B1 fix: the host test's reference for Blend, and the bench's
+ *  measure of what scanning an empty byte costs. Not the device's path. */
+template <typename Get, typename Set, typename Code>
+inline uint32_t BlendRows(Look look, int pct, uint8_t* slice, int w, int yLo, int yHi, Get&& get, Set&& set, Code&& code)
 {
     uint32_t n = 0;
     for (int y = yLo; y <= yHi; ++y) {
         uint8_t* row = slice + (size_t)y * w;
         for (int x = 0; x < w; ++x) {
             if (row[x] == 0) continue;
-            const uint8_t lvl = SliceLevel(row[x]);
-            if (look == Look::SeeThrough) set(x, y, SeeThrough565(get(x, y), lvl));
-            else set(x, y, Lit565(code(x, y), pct, lvl));
+            detail::BlendOne(look, pct, row[x], x, y, get, set, code);
             row[x] = 0;
             ++n;
         }
