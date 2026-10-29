@@ -1072,6 +1072,44 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# include/DayNight.h, Auto's day/night decision, and the first test of include/SolarDim.h's SunElevationDeg
+# (docs/weatherscope-stage3.md A11.4, A12.43, A12.45): 28 checks against NOAA's algorithm (tools/weatherscope/
+# daynight_ref.py's fixture) and USNO's transcribed times, then SY (no product symbol in the header) and the
+# reference's --check. Its sabotages: python -I test/host/sabotage_daynight.py
+echo
+echo "== DayNight =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_daynight.cpp" -o "$OUT/test_daynight.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the DayNight test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_daynight.exe" "$ROOT/test/fixtures/daynight"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the DayNight test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+echo "== DayNight SY: no product symbol in include/DayNight.h =="
+bash "$ROOT/test/host/scan_daynight_symbols.sh" "$ROOT/include/DayNight.h"
+rc=$?
+if [ "$rc" -ge 2 ]; then
+  echo "FAIL: the SY scan did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+elif [ "$rc" -ne 0 ]; then
+  echo "  FAIL SY a product symbol in include/DayNight.h"
+  fail=1
+else
+  echo "  ok   SY 0 hits (wx, Weather, wxpalette; case-sensitive, comments included)"
+fi
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; DN-E's reference (daynight_ref.py --check) cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/tools/weatherscope/daynight_ref.py" --check
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # The WXC1 weather-crop decoder (include/WxCrop.h), shared by Weatherscope and the Blipscope weather
 # layer, against crops the weather spike's OWN encoder wrote (test/fixtures/wx/, two references in
 # MANIFEST.json). Its two sabotages run from test/host/sabotage_wx_crop.py.
