@@ -294,6 +294,12 @@ const SABOTAGES = {
              "  - SABOTAGE S-ANOTICE: the notice deleted\n"]],
     expect: ["MA1"],
   },
+  // MD4's own sabotage (A2.35): the processing text changed, the same length, with rev unchanged.
+  "S-MREV": {
+    file: "src/basemap/provenance.ts", set: "all",
+    edits: [["4x4 mean of z9 pixels; ", "4x4 MEAN of z9 pixels; "]],
+    expect: ["MA1", "MD4", "MG0b"],
+  },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
     file: LAYERS, set: "all",
@@ -303,6 +309,9 @@ const SABOTAGES = {
 };
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
+// A1.7: MD3a and MD4 compare against the COMMITTED outputs, so they fire, correctly, on any change to builder output.
+// They are ignored in a sabotage's grading unless that sabotage names them (A2.35).
+const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9]+)/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // Every vitest run, and how many met a Workers runtime failure (ruled 2026-10-28, A2.12: "If the runtime failure
@@ -410,6 +419,9 @@ for (const [name, s] of Object.entries(SABOTAGES)) {
       continue;
     }
     const want = [...s.expect].sort();
+    const setAside = r.failed.filter((id) => COMMITTED_OUTPUT.has(id) && !want.includes(id));
+    r.failed = r.failed.filter((id) => !setAside.includes(id));
+    if (setAside.length) r.at += ` [set aside, A1.7: ${setAside.join(", ")}]`;
     if (why) { ok = false; console.log(`${name}: BLIND (${why})${r.at}`); }
     else if (r.failed.join(",") === want.join(",")) console.log(`${name}: AS PREDICTED, failing {${r.failed.join(", ")}}${r.at}`);
     else { ok = false; console.log(`${name}: OFF-PREDICTION, failing {${r.failed.join(", ")}} against {${want.join(", ")}}${r.at}`); }

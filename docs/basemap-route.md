@@ -2297,3 +2297,10 @@ Each was graded against all 15 basemap test files (129 cases), with a clean base
 - the existing sets are unchanged, since MD4 is ignored in their grading.
 
 **MD3, the `--check` tool, is the remaining MD row.** It is next after MD4 and is not yet written.
+
+**MD4, run:**
+- **As frozen.** `rev.json` pins rev 1 to three sha256s (A8 `6826b2f6c2c6…`, ME7 `578c8b22893d…`, ME2 #0 `7da807978369…`), computed in Node and checked in workerd.
+- **S-MREV: {MA1, MD4, MG0b}**, as registered.
+- **The set-aside rule, seen firing:**
+  - Under S-PLACESORT, MD4 fails, as it must when builder output changes, and is set aside. The sabotage grades its frozen {ML13}, and the harness prints the set-aside id.
+  - Under S-TALIGN, nothing is set aside: those three stores' tiles are flat or nearly so, so the plant moves no value there. Not every plant reaches MD4's fixtures, and the rule only shows where one does.
