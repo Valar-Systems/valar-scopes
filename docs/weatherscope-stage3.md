@@ -7103,3 +7103,94 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - Then Q's run starts again, from the top, in one open.
 
 **The rule I take from it:** "flash the binary as built" writes **the app alone at its app slot**, or the bootloader, partitions and app at their own offsets. **Never the factory image**, whose padding covers NVS. Then read the `[ota-slot]` boot line to confirm the slot that booted.
+
+### A12.32 The bench select against A12.30: every host row holds; two sabotages are off their frozen sets -- stopped for a ruling. The viewer's rows, frozen before its code
+
+**The code that ran:** `weatherscope/light-bench` @ `3d7486946b30`, pushed as it ran.
+
+**Dark is unchanged by ref35's two additions** (the themed hatch, `pal[15]`/`pal[0]`, and the `terrain` flag):
+- `ref35.py --k --check` is identical on regeneration;
+- R0 PASSES;
+- R0b PASSES, with A12.17's G and P hashes all equal: A `95f7265ba11e`/`95f7265ba11e`, B `19a52ab902e1`/`0c3aa7747697`, C `1ac4a86f91a4`/`c9d40ba7f16d`.
+
+**The host rows, all as A12.30 froze them:**
+
+| row | measured |
+|---|---|
+| LF1′ F0-F16 | 0 unmapped; drawn rain codes ⊆ 1-4; no no-coverage or hatch pixel. Each crop's own codes are printed beside it: F1, F6, F9, F15 and F16 show the off-disc 5 |
+| LF1′ F17 | 0 unmapped; codes 1-9 drawn, **6 and 7 among them**; no no-coverage or hatch pixel |
+| LF1′ F18 | 0 unmapped; codes 1-13 each drawn; **hatch line 228 px, no coverage 0 px** (14 becomes the hatch with terrain on) |
+| LF1′ F19 | 0 unmapped; codes 1-13 each drawn; **no coverage 461 px, hatch line 113 px** |
+| LF2 | **9 of 9 at 57,600 / 57,600**: F0, F1 and F17 in all three looks equal `look35.py`'s renders |
+| LF3 | **51 of 51** |
+| LF4 | 60 expected sprite hashes, **60 distinct** |
+| C3b | three different colours in each light look: paper (234, 231, 223), the line (124, 124, 124), and no coverage (104, 104, 104) in (a) or (93, 93, 93) in (b) |
+
+**Printed, not graded** (CIEDE2000; the first two match A12.29's figures):
+
+| | (a) | (b) |
+|---|---|---|
+| the line against no coverage | 7.9 | 12.0 |
+| code 1 against no coverage | 26.1 | 28.3 |
+| code 1 against the line | 23.7 | 23.7 |
+| the line against paper | 30.28 | 30.28 |
+
+**The output:** `look-frames.bin` is 1,152,000 B, sha256 `d9fefc44f162…`; `look-pal.bin` is 594 B, sha256 `deaf97127f88…`.
+
+**The sabotages, as run:**
+
+| sabotage | plant took? | red | frozen set | |
+|---|---|---|---|---|
+| clean | | none, over 83 rows | none | holds |
+| S-LF1′-IN | yes: F5 draws 2 code-5 pixels | LF1′ F5 | LF1′ F5 | holds |
+| S-LF1′-OUT | **no** | LF1′ F5 | none | **off: the harness's fault** |
+| S-LF2 | yes: (38, 38, 40) → (39, 38, 40) | **all 20 of light (a)'s LF2 and LF3 rows** (LF2 on F0, F1 and F17; LF3 on all 17 frames) | LF2 on F0, F1 and F17 for (a) | **off: my set was too narrow** |
+| S-LF3 | yes: 1 byte of F7 | LF3 F7 in all three looks | the same | holds |
+| S-LF4 | yes | LF4 (57 distinct) | LF4 | holds |
+
+**What each miss is.**
+- **S-LF1′-OUT:**
+  - Both LF1 plants shared one render-cache tag ("planted"), so the outside plant reused the inside plant's render.
+  - **The harness's own proof refused it:** "plant DID NOT TAKE ... F5 draws 2". It did not report a false green.
+  - With the tag naming the plant's cell (`planted@<cell>`, one line, **run locally and not pushed**), it plants and reds exactly the frozen set: the corner cell is outside the disc, the crop's codes include 5, and F5 draws 0. Nothing turns red.
+- **S-LF2:**
+  - **The reading:** LF3 compares the shipped palette against the looks' true colours. A corrupted shipped entry is a defect LF3 should see, wherever the label is drawn, which is all 17 of its frames.
+  - **Every red row is light (a)'s,** as A12.29's words have it ("turns only that look red"). My A12.30 table named only LF2's rows.
+  - **The alternative**, that LF3 should be blind to the palette, would make LF3 unable to catch a shipped-palette error. The data cannot rule it out by itself, so it is put to the ruling.
+
+**For a ruling:**
+1. The one-line tag fix, pushed, with S-LF1′-OUT then as frozen.
+2. S-LF2's set restated as **light (a)'s LF2 rows on F0, F1 and F17, and its LF3 rows on all 17 frames: 20 rows, none in dark or (b)**.
+
+**The viewer, its rows frozen here before its code** (on this branch, never merged). The design is A12.27's, with these changes:
+- **The env:** `weatherscope-look-s3-128` extends `weatherscope-bench-s3-128`, which extends `blipscope-s3-128`. Its partition table is therefore **the same `partitions-s3-16mb-bignvs.csv` as `weatherscope-s3-128`**. The two builds' `partitions.bin` are compared byte for byte before any flash.
+- **The data:** `.incbin` of `build-look/look-frames.bin` (20 × 57,600) and `look-pal.bin` (3 × 66 × 3). `build-look/` is untracked.
+- **The flash:** `firmware.bin` alone at 0x20000 (A12.31's rule). The viewer never opens NVS, so the board's Wi-Fi survives it. After the viewer, Q's image returns the same way.
+- **The scenes, swiped up and down:**
+  1. Bend: F0, and a tap plays the loop F2-F16, then F1; a tap on F1 shows F0;
+  2. Dallas, F17;
+  3. the patches with terrain on, F18;
+  4. the patches with terrain off, F19.
+
+  A swipe left is the next look and a swipe right the previous one. The look's name shows for 1 s on its own ground first.
+- **Serial bytes, through the same handlers:**
+  - `T` tap;
+  - `S` and `B` next and previous look;
+  - `U` and `D` next and previous scene;
+  - `R` redraw and report.
+- **The run, one open:** `R`, then for each look `T U U U U S`. Every (look, frame) pair is drawn once, and the run ends on dark F0.
+
+| row | expected |
+|---|---|
+| LK-SIZE | flash **1,594,680-1,634,680 B**: 466,119 less the KDFW crop's 4,033, plus 1,152,594 of data, ± 20,000. RAM **25,028-31,028 B**: 26,912 ± 3,000, plus the tables it keeps, priced: the RGB565 table, 3 × 66 × 2 = 396 B, and the loop's records, 15 × 48 = 720 B |
+| LK-ELF | both data files each exactly once in the ELF |
+| LK-PART | its `partitions.bin` byte-identical to `weatherscope-s3-128`'s |
+| LK-BOOT | `[build] env=weatherscope-look-s3-128`; `[look] ready frames=20 looks=3 roles=66` |
+| LK-HASH | **60 of 60 (look, frame) pairs drawn, each sha equal to the host's** `look-expect.json` |
+| LK-LOOP | per look: 15 records; intervals 70,000 ± 5,000 µs, spread ≤ 10,000; `expand_us` ≤ 15,000 |
+| LK-GLASS | Daniel's pick |
+
+**Waiting:**
+- **Q:** on Daniel re-joining the board to Wi-Fi (A12.31).
+- **The bench select:** on this ruling.
+- **The viewer:** written and built locally meanwhile. It is flashed only after Q's run and this ruling.
