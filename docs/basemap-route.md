@@ -1912,3 +1912,25 @@ It refuses a malformed commit or store id. It also refuses terrain files without
   - S-R0M, S-BUSSUB, S-SQUARELEN, S-DEDUPALL, S-PLACESORT, S-RIVERTIE, S-RZERO and C-LOADFAIL each land as frozen.
 - **One anchor moved with the code:** S-SQUARELEN's. Its plant is unchanged, the clipped length in the square.
 - **A slip of mine, which cost nothing:** I first wrote that anchor through a shell heredoc, which turned its `\n` into a real newline. `node --check` refused the harness, so no sabotage ran. It was rewritten with the editor, and the eight ran as above.
+
+### A2.25 ME2's generator and the builder's fixtures, committed before `build.ts` (as A1.7 requires)
+
+**`proxy/test/basemap-synth.ts`** is a test module, not a test, and imports no builder code beyond the shared store formats and RD21's tile formula. It holds:
+- a store writer that seals with `current`, as the ingest does;
+- a PNG tile encoder;
+- a read-counting in-memory store;
+- the inputs for MB (A, B, A8), ME3, ME7 and **ME2's generator.**
+
+**ME2's generator, as A1.7 specifies:**
+- 0-40 features per layer;
+- lines of 2-200 vertices and rings of 3-100, about 20% of the rings holes;
+- R 1-222 km, ε 1,000-2,000,000 mm, a random mask;
+- 0-2 levels with N 1-64;
+- no road name holding "Bus" as a word;
+- a seeded PRNG, so the same stores come out in workerd and Node (MD2).
+
+**One value A1.7 left open, fixed here:** a level's radius, drawn from **1-10 km** so that 1,000 builds stay quick.
+
+**Two counties:** one of them far outside the square, so its files must **not** appear in PROVENANCE.
+
+**Smoke-run under Node** (the generator only, no builder): every fixture writes a store.
