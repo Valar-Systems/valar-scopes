@@ -7419,3 +7419,58 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 **Next:**
 - **3.5b's device code** (A10.8 step 5): the device code, its host tests and their sabotages, on the frozen bound, against A10.11's frozen truth tables.
 - **The viewer** stays on the board for Daniel's pick. Then the board goes back under A12.33's rule.
+
+### A12.38 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): Daniel picks light (b); q2's touch stays unexplained
+
+**The rulings, verbatim:**
+
+> Weatherscope Code: Daniel's pick, 2026-10-29 (reviewer chat, pasted by Daniel)
+>
+> Daniel, verbatim: "I prefer light B".
+> - LK-GLASS: light (b). Q39 is settled on (b), with the values he saw on the glass, which freeze now:
+>   - the shadow end (168, 165, 156);
+>   - the rule: > A against paper and water, >= 25 against all 37 levels;
+>   - code 5 (135, 135, 0) and code 6 (155, 128, 0) darkened; code 7 unchanged at (255, 144, 0);
+>   - water (171, 204, 237);
+>   - code 13 black (Q40);
+>   - no coverage (93, 93, 93) and the hatch line (124, 124, 124), as A12.29 ruled.
+> - (a) is retired, and its values stay in the record.
+> - Next, as your plan has it: 3.5b's device code on the frozen bound, and 3.5t's real theme with (b)'s values. The light orange is still to be computed by A11.6, with its rows. The board goes back under A12.33's rule.
+>
+> Weatherscope Code: q2's touch, 2026-10-29 (reviewer chat, pasted by Daniel)
+>
+> Daniel: "I don't think i did, but it's possible".
+> - q2's swipe stays unexplained: a hand or a ghost touch. Recorded as such, with no change now.
+> - Keep the watcher's flag on every board run: any screen change that no gesture byte caused.
+> - If one happens again inside a hands-off window, stop the run and report it with its time in Pacific time, so Daniel can say for certain. A second one with no hand behind it opens a bench-only touch investigation (raw touch events and the TouchWatchdog's state logged), predictions first.
+
+**Q39 is settled on light (b), and its values are frozen:**
+
+| | light (b) |
+|---|---|
+| paper; lit | (234, 231, 223); (240, 237, 228) |
+| the terrain ramp | 37 levels, shadow (168, 165, 156) to lit, `floor(v + 0.5)`; the level is `floor(36 · v / 255)` |
+| the rule | > A against paper and water; ≥ 25 against all 37 levels |
+| code 1 | teal (0, 150, 135) |
+| code 5 | (135, 135, 0) |
+| code 6 | (155, 128, 0) |
+| code 7 | (255, 144, 0), unchanged |
+| code 13 | black (Q40) |
+| codes 2-4 and 8-12 | the pinned table, unchanged |
+| water; rivers; roads | (171, 204, 237); (96, 146, 206); (178, 150, 112) |
+| no coverage; the hatch line | (93, 93, 93); (124, 124, 124), on a paper ground |
+| inks | labels (38, 38, 40) on a (236, 233, 226) halo; peaks (92, 70, 50); rings (150, 146, 138); dim text (96, 92, 86) |
+| the light orange | **not yet**: to be computed by A11.6's method, with its rows (A12.29) |
+
+**Also settled:**
+- **(a) is retired.** Its values stay in A12.22 and A12.29.
+- **3.5t's light palette takes the hatch's ground from "nothing"** (paper), not from DRY (A12.33).
+
+**q2's swipe stays unexplained.** It may have been a hand or a ghost touch, and nothing changes now.
+- **Every board run keeps the watcher's flag:** any screen change that no gesture byte caused.
+- **Inside a hands-off window, such a change stops the run,** and is reported with its time in Pacific time. A second with no hand behind it opens a bench-only touch investigation, predictions first.
+
+**Next:**
+1. The board goes back to Q's image under A12.33's rule.
+2. Then 3.5b's device code on the frozen bound.
+3. Then 3.5t's real theme with (b)'s values.
