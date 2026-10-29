@@ -7568,6 +7568,14 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - then step 6: the K rows and the replay rows, frozen before they run, as A10.6 has them;
 - 3.5t's real theme follows, as A12.38 orders.
 
+**Added 2026-10-29, by ruling (A12.44): #501's CI flake, on record.**
+- **The job:** `build (missileer-photo)` (job 123516359576), in the firmware workflow's run 40893478786, attempt 1, on the head `08f54aa00056`.
+- **Its first failure's line,** log line 262 at 14:40:37Z, while PlatformIO installed `esptoolpy-v5.3.0.zip` from the pioarduino registry:
+  > `Tool Manager: Error: Please read https://bit.ly/package-manager-ioerror`
+  - **Its cause,** a few lines later: `requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))`.
+  - **So it was a download that failed,** before any of this repo's code was compiled for that env.
+- **Attempt 2 passed.** The head's 35 check runs, counted on the latest attempt: 32 success and 3 release-only skips (promote, version, ship-alert), 0 failed.
+
 ### A12.41 3.5b step 6, the Bend K rows and replay rows: the design and the predictions, before their code
 
 **What A10.6 asks**, at 57,600 of 57,600 pixels against `ref35.py`'s rendering of the same inputs (A10.5: the same package bytes, crop and clock):
@@ -7868,3 +7876,107 @@ The plants go into temp copies (`test/host/sabotage_wx_theme.py`, like `sabotage
 - **The order stands:** after this addendum is ruled, 3.5t's code waits its turn in the ruled order. Nothing here touches 3.5b.
 
 **The outside-the-set branch, pre-registered:** a row or a sabotage that lands outside its frozen value or set stops 3.5t at that row, and is reported with its cause, before anything changes.
+
+### A12.44 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): #501 merged; step 6's flash (a); A12.43 ruled, with three changes; the format doc's two refusals
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-29
+>
+> 1. #501: approved at 08f54aa00056, once CI's total on that head is counted with every check that ran passing, the flaked leg's rerun included. Clean squash, --match-head-commit, no --admin. If the head moves, the approval lapses. (Repeated here in case the earlier block didn't reach you.) I reproduced it on Linux g++ 13.3 with -Werror: 84 / 0, and the 14 device and 2 validator sabotages as predicted. BasemapPackage.h reads server bytes safely: 64-bit sums, every section bounded, varints capped, texts bounded, every loop consuming input. Record the flake (which job, its first failure's line) in A12.40's addendum. Merge it before #486: the map server adapts to your two new fixtures after it lands.
+>
+> 2. A12.42: (a). Step 6's flash is re-registered at 1,630,435 B. The miss stays on record with its cause: a default argument costs the argument at every call site the compiler doesn't inline. Size rows price that from now on.
+>
+> 3. A12.43:
+> - Q45: accepted. (159, 85, 0) for text on paper and on the halo; the graphic unchanged. C4g also grades the text rule in RGB565 as the panel draws it (LovyanGFX's truncation, then bit replication). I computed it: orange on paper 4.620 and on the halo 4.769, accent 4.527, warn 4.661. So the thin margins in RGB888 hold on the glass.
+> - Q46: accepted. S-M, with C3e′–C3i′ as graded. Also print snow 1 against water in RGB565, for information (its margin over A is 0.13).
+> - Q47: kFg and kDim by role, kAccent (0, 112, 151) and kWarn (143, 94, 0): accepted. The hold ring is not printed-only: in light the track and the arc swap colours, so the progress reads as the strong mark, as it does on black. The arc takes (0, 90, 0), 6.9:1 on paper; the track takes (0, 200, 0), lighter than the arc. Both pass (b)'s rule on your own figures. Graded: the arc at 3:1 or more on paper, and the track lighter than the arc. Daniel sees it on the glass.
+> - Q48: accepted. `O`, +15 min a press, release-gated, with no elevation in the log.
+> - The sun's checks (DN-E 0.0029°, DN-U within 0.39 min) read well.
+>
+> 4. The format doc: in step 6's PR, add neg-terrain-count and neg-prov-count, with kTerrainCount and kProvenanceCount, to docs/basemap-package-format.md's PK set, so the contract names what all three readers now check.
+>
+> 5. Order: #501's merge, step 6's PR, then 3.5t's code from A12.43 as ruled. No reordering is needed, and 3.4 stays where it is.
+
+**#501, merged.**
+- **The checks first:**
+  - the head was still `08f54aa00056`, and the state `CLEAN`;
+  - the check runs on that head, counted fresh: 35, all completed, **32 success and 3 skipped** (promote, version and ship-alert, the release-only jobs), 0 failed. The firmware workflow's run is on its attempt 2, so the flaked leg's rerun is in the count;
+  - main was still at #501's base, `1ccc7f1`, and no PR was based on the branch.
+- **The merge:** squash, `--match-head-commit 08f54aa00056…`, no `--admin`, at 2026-10-29T16:45:41Z, as **`1a4ecf4d24aac22e252e4cf38da7c28cfb0747be`**.
+- **After:**
+  - its parent is `1ccc7f1`, and it changes the PR's 11 paths and no others;
+  - **main's tree equals the approved head's** (compared, not assumed);
+  - the remote branch was checked at `08f54aa00056` and deleted (`ls-remote`: 0).
+- **The flake is on record in A12.40,** as ruled: `build (missileer-photo)`, attempt 1, failed downloading `esptoolpy-v5.3.0.zip` from the pioarduino registry (`RemoteDisconnected`). Its first failure's line is quoted there.
+
+**A12.42: (a).**
+- Step 6's flash is re-registered at **1,630,435 B**.
+- The miss stays on record with its cause.
+- **From now on, size rows price a default argument** at every call site the compiler does not inline.
+
+**Step 6's PR: **#502**, at `0684877779d8`**
+- **Its branch:** `weatherscope/3-5b-step6`, made fresh from main at `1a4ecf4d24aa`.
+  - Step 6's commit is cherry-picked onto it. Its tree is identical to `a055d35d970c`'s, the commit A12.42 cites, and `weatherscope/3-5b-krows` stays at that commit.
+  - A second commit adds item 4.
+- **Item 4, `docs/basemap-package-format.md`:**
+  - §8 names `kTerrainCount` (a TERRAIN `count` other than 1) and `kProvenanceCount` (a PROVENANCE `count` other than its line count);
+  - §11 names `neg-terrain-count` and `neg-prov-count`, and the three readers that check them;
+  - the header's amendment list gains item 5. Neither refusal is a version change, because both are §3's "exactly `count` items" applied to §4's `count` column.
+  - **A10.18's line was already on main** (it came with #495), so nothing else needed carrying.
+- **Host tests on its head:**
+  - MinGW: ALL HOST TESTS PASSED, `run.sh` exit 0;
+  - g++ 13.3 (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`): the same 121 blocks, every count identical; only the rig's two (no xtensa toolchain, no Pillow).
+
+**A12.43, as ruled. Three changes to its tables before any 3.5t code:**
+
+**1. C4g also grades the text rule in RGB565, as the panel draws it.**
+- **The conversion:** LovyanGFX truncates to 5-6-5 bits, then replicates the bits back to 8. It applies to the ink and to the ground.
+- **One correction found while reproducing:**
+  - the reviewer's figures use **WCAG 2's own luminance constants (0.2126, 0.7152, 0.0722)**. My planning scripts used sRGB's precise matrix (0.2126729, 0.7151522, 0.0721750);
+  - **under WCAG's constants every ink is the same colour.** Each of A12.43's searches lands on the same value;
+  - **two printed RGB888 figures move in the third decimal:** orange on the halo 4.589 → **4.590**, and accent 4.515 → **4.514**;
+  - **the committed test uses WCAG's constants,** and these are the frozen values.
+- **All four of the reviewer's RGB565 figures reproduce exactly:**
+
+  | text row | RGB888 | **RGB565** |
+  |---|---|---|
+  | label on the halo | 12.458 | **13.126** |
+  | label (the white roles) on paper | 12.224 | **12.717** |
+  | dim on paper | 5.374 | **5.331** |
+  | ring numbers on the halo | 5.477 | **5.502** |
+  | peaks on the halo | 7.286 | **7.599** |
+  | orange text on paper | 4.503 | **4.620** (the reviewer's 4.620) |
+  | orange text on the halo | 4.590 | **4.769** (4.769) |
+  | accent on paper | 4.514 | **4.527** (4.527) |
+  | warn on paper | 4.509 | **4.661** (4.661) |
+
+  - **The grading:** each ≥ 4.5, and each RGB565 figure equal to the frozen value ± 0.0005.
+
+**2. Printed for information:** snow 1 against water, dE00, **30.361** in RGB888 and **30.716** in RGB565. Its margin over A is 0.13, and the panel widens it.
+
+**3. Q47's hold ring is graded, not printed.**
+- **Its colours, light theme only:** the light theme swaps them, so the progress stays the strong mark:
+  - **the arc takes (0, 90, 0);**
+  - **the track takes (0, 200, 0);**
+  - dark keeps today's track (0, 90, 0) and arc (0, 200, 0).
+- **The new rows:**
+
+  | row | expected |
+  |---|---|
+  | C4-HOLD1 | the arc on paper ≥ 3:1: **6.901** (RGB565 7.063) |
+  | C4-HOLD2 | the track lighter than the arc: relative luminance **0.4131 > 0.0731** (RGB565 0.4271 > 0.0714) |
+
+**Two new sabotages, their sets frozen:**
+
+| sabotage | plant | fails exactly |
+|---|---|---|
+| S-565 | the RGB565 conversion zero-fills instead of replicating bits | C4g's RGB565 rows: all 9 leave their frozen values (label on the halo 13.1259 → 12.6823 … warn 4.6607 → 4.6175), and **accent fails 4.5:1 (4.440)**. The RGB888 rows pass |
+| S-HOLD | the light hold ring's colours un-swapped | C4-HOLD1 (1.835) and C4-HOLD2 |
+
+A12.43's other rows and sabotage sets stand as frozen.
+
+**Next, as ordered:**
+- step 6's PR, for review;
+- then 3.5t's code from A12.43 as ruled here;
+- 3.4 stays where it is.
