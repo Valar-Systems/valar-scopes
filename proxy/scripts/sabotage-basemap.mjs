@@ -135,9 +135,10 @@ const SABOTAGES = {
   },
   "S-SQUARELEN": {
     file: LAYERS, set: "all",
-    edits: [["    length.set(name, (length.get(name) ?? 0) + inDiscLengthM(km, f.rKm));\n",
-             "    void inDiscLengthM; // SABOTAGE S-SQUARELEN: the clipped length in the square\n" +
-             "    length.set(name, (length.get(name) ?? 0) + clipLine(km, f.rKm).reduce((s, run) => s + run.slice(1).reduce((t, p, i) => t + planarDist(p[0] - run[i]![0], p[1] - run[i]![1]) * 1000, 0), 0));\n"]],
+    // anchor moved with layers.ts's per-feature LayerSet (A2.24); the plant is unchanged: the clipped length in the square
+    edits: [["        const lengthM = inDiscLengthM(km, this.f.rKm);\n",
+             "        void inDiscLengthM; // SABOTAGE S-SQUARELEN: the clipped length in the square\n" +
+             "        const lengthM = clipLine(km, this.f.rKm).reduce((s, run) => s + run.slice(1).reduce((t, p, i) => t + planarDist(p[0] - run[i]![0], p[1] - run[i]![1]) * 1000, 0), 0);\n"]],
     expect: ["ML6", "MR6"],
   },
   "S-DEDUPALL": {

@@ -7,9 +7,12 @@
 // there (MI1, S-IBUS). Peaks (feature_class = Summit) and places (LSAD = 25) are filtered HERE ALONE: the store
 // does not keep those columns, so a change to either predicate is a change to the store, not to the builder.
 
+import { type Box, type Feature, type FeatureKind, decodeFeature, encodeCell, encodeFeature } from "../../src/basemap/store";
+export { type Box, type Feature, type FeatureKind, decodeFeature, encodeCell, encodeFeature }; // the codec lives with the builder, which reads it
+const te = new TextEncoder();
+
 // ------------------------------------------------------------------------------------------------ filters
 
-export type FeatureKind = "water" | "rivers" | "roads" | "peaks" | "places";
 
 /** The attribute predicates the store applies (recorded in the manifest's `predicates`). */
 export const PREDICATES = [
@@ -92,17 +95,7 @@ export function readDelimited(text: string, sep: "|" | "\t"): Array<Record<strin
 
 // ------------------------------------------------------------------------------------------------ features and cells
 
-export interface Feature {
-  kind: FeatureKind;
-  file: number;    // index into the manifest's files (sorted by URL), RD2
-  record: number;  // record index in that file
-  part: number;    // part index in that record
-  /** water: AWATER; rivers/roads: FULLNAME; roads: MTFCC; peaks: feature_id + name; places: GEOID, NAME, pop */
-  attrs: Record<string, string | number>;
-  xy: Float64Array; // [lon, lat, ...] as the source has them
-}
 
-export type Box = [minLon: number, minLat: number, maxLon: number, maxLat: number];
 
 /** Shapefile records of one source file into store features: the predicate, then one feature per PART
  *  (RD2's part index), vertices untouched. Holes stay: RD3 is the builder's, by orientation. */
@@ -142,83 +135,12 @@ export function bboxOf(xy: Float64Array): Box {
   return [a, b, c, d];
 }
 
-const te = new TextEncoder();
-const KIND_CODE: Record<FeatureKind, number> = { water: 1, rivers: 2, roads: 3, peaks: 4, places: 5 };
-
-/** One feature's bytes in a cell object: kind, source-order key, attributes, then f64 vertices. */
-export function encodeFeature(f: Feature): Uint8Array {
-  const texts: Uint8Array[] = [];
-  const nums: number[] = [];
-  const t = (s: string | number | undefined) => texts.push(te.encode(String(s ?? "")));
-  if (f.kind === "water") nums.push(Number(f.attrs["AWATER"]));
-  else if (f.kind === "rivers") t(f.attrs["FULLNAME"]);
-  else if (f.kind === "roads") { t(f.attrs["MTFCC"]); t(f.attrs["FULLNAME"]); }
-  else if (f.kind === "peaks") { nums.push(Number(f.attrs["feature_id"])); t(f.attrs["feature_name"]); }
-  else { t(f.attrs["GEOID"]); t(f.attrs["NAME"]); nums.push(Number(f.attrs["pop"])); }
-  const len = 1 + 2 + 4 + 2 + 1 + 1 + nums.length * 8 + texts.reduce((s, x) => s + 2 + x.length, 0) + 4 + f.xy.length * 8;
-  const out = new Uint8Array(len);
-  const dv = new DataView(out.buffer);
-  let o = 0;
-  dv.setUint8(o, KIND_CODE[f.kind]); o += 1;
-  dv.setUint16(o, f.file, true); o += 2;
-  dv.setUint32(o, f.record, true); o += 4;
-  dv.setUint16(o, f.part, true); o += 2;
-  dv.setUint8(o, nums.length); o += 1;
-  dv.setUint8(o, texts.length); o += 1;
-  for (const v of nums) { dv.setFloat64(o, v, true); o += 8; }
-  for (const x of texts) { if (x.length > 0xffff) throw new Error("text over 65535 bytes"); dv.setUint16(o, x.length, true); o += 2; out.set(x, o); o += x.length; }
-  dv.setUint32(o, f.xy.length / 2, true); o += 4;
-  for (let i = 0; i < f.xy.length; i++) { dv.setFloat64(o, f.xy[i]!, true); o += 8; }
-  return out;
-}
-
-const td = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
-const KIND_OF: Record<number, FeatureKind> = { 1: "water", 2: "rivers", 3: "roads", 4: "peaks", 5: "places" };
-
-/** The inverse of encodeFeature, at `o`; returns the feature and where the next one starts. A record that
- *  runs past the buffer, or an unknown kind, is refused. */
-export function decodeFeature(buf: Uint8Array, o: number): { f: Feature; end: number } {
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  const need = (n: number) => { if (o + n > buf.length) throw new Error(`feature runs past its buffer at ${o}`); };
-  need(11);
-  const kind = KIND_OF[dv.getUint8(o)];
-  if (!kind) throw new Error(`unknown feature kind ${dv.getUint8(o)} at ${o}`);
-  const file = dv.getUint16(o + 1, true), record = dv.getUint32(o + 3, true), part = dv.getUint16(o + 7, true);
-  const nNums = dv.getUint8(o + 9), nTexts = dv.getUint8(o + 10);
-  o += 11;
-  const nums: number[] = [], texts: string[] = [];
-  for (let i = 0; i < nNums; i++) { need(8); nums.push(dv.getFloat64(o, true)); o += 8; }
-  for (let i = 0; i < nTexts; i++) { need(2); const n = dv.getUint16(o, true); o += 2; need(n); texts.push(td.decode(buf.subarray(o, o + n))); o += n; }
-  need(4);
-  const n = dv.getUint32(o, true); o += 4;
-  need(n * 16);
-  const xy = new Float64Array(n * 2);
-  for (let i = 0; i < n * 2; i++) xy[i] = dv.getFloat64(o + 8 * i, true);
-  o += n * 16;
-  const attrs: Record<string, string | number> =
-    kind === "water" ? { AWATER: nums[0]! } : kind === "rivers" ? { FULLNAME: texts[0]! }
-    : kind === "roads" ? { MTFCC: texts[0]!, FULLNAME: texts[1]! }
-    : kind === "peaks" ? { feature_id: nums[0]!, feature_name: texts[0]! }
-    : { GEOID: texts[0]!, NAME: texts[1]!, pop: nums[0]! };
-  return { f: { kind, file, record, part, attrs, xy }, end: o };
-}
-
-/** A cell object's bytes: "BMSC", version 1, the feature count, then the features (A1.7 MI5/MI6's cells). */
-export function encodeCell(features: Uint8Array[]): Uint8Array {
-  const n = features.reduce((a, f) => a + f.length, 12);
-  const out = new Uint8Array(n), dv = new DataView(out.buffer);
-  out.set([0x42, 0x4d, 0x53, 0x43], 0); dv.setUint32(4, 1, true); dv.setUint32(8, features.length, true);
-  let o = 12;
-  for (const f of features) { out.set(f, o); o += f.length; }
-  return out;
-}
-
 /** A cell key at a level (cell size 2^-level degrees): its south-west corner in that grid's integers. */
 export const cellKey = (level: number, lon: number, lat: number) =>
   `${level}/${Math.floor(lat * 2 ** level)}/${Math.floor(lon * 2 ** level)}`;
 
 export interface Cell { key: string; level: number; features: Uint8Array[]; boxes: Box[]; bytes: number }
-export interface CellIndexEntry { key: string; bytes: number; count: number; reach: Box }
+export type { CellIndexEntry } from "../../src/basemap/store";
 
 /** Features into cells by their bounding box's SOUTH-WEST corner, each stored ONCE (MI5). A cell over
  *  `splitBytes` is split into quarters until none is -- except a cell holding a single feature, which cannot

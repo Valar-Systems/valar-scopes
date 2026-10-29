@@ -77,20 +77,4 @@ export function encodeCoverage(rows: Map<number, Array<[number, number]>>): Uint
   return out;
 }
 
-/** Whether the lattice point (h, c), in hundredths, is covered. */
-export function covered(bin: Uint8Array, h: number, c: number): boolean {
-  const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
-  if (dv.getUint32(0, false) !== 0x424d4356) throw new Error("not a coverage.bin");
-  const nRows = dv.getUint32(8, true);
-  let o = 12;
-  for (let r = 0; r < nRows; r++) {
-    const rh = dv.getInt32(o, true), n = dv.getUint32(o + 4, true);
-    if (rh === h) {
-      for (let k = 0; k < n; k++) { const a = dv.getInt32(o + 8 + 8 * k, true), b = dv.getInt32(o + 12 + 8 * k, true); if (c >= a && c <= b) return true; }
-      return false;
-    }
-    if (rh > h) return false;
-    o += 8 + 8 * n;
-  }
-  return false;
-}
+export { covered } from "../../src/basemap/store"; // the lookup lives with the builder, which reads it

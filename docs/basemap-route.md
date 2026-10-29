@@ -1888,3 +1888,27 @@ It refuses a malformed commit or store id. It also refuses terrain files without
 > - Everything else stands: predictions first, BLIND as FAIL, the merge and deploy rules, and the hands-off windows on E2:08.
 
 **Waiting now, and on what:** D1 waits on the census retry's last round (04:00Z, 2026-10-29), then the mirror. `build.ts` does not depend on it, and goes ahead.
+
+### A2.24 Before `build.ts`: the store module, and `layers.ts` made streaming (2026-10-29)
+
+**`proxy/src/basemap/store.ts`** holds the store's formats, written by the ingest and read by the builder, so both use one definition:
+- §2.3's keys (`bm/v1/<storeId>/…`, `bm/v1/current`);
+- the feature codec, moved verbatim from `ingest-lib.ts`, which re-exports it;
+- `decodeCell`;
+- the coverage lookup, moved from `coverage.ts`, which re-exports it;
+- `tileBitsOf` (`terrain-sources.bin`);
+- a Terrarium PNG decoder: 256 × 256, 8-bit RGB or RGBA, non-interlaced. Anything else is refused. It inflates with native `DecompressionStream`.
+
+**A store-format decision, made to fit a frozen row.** Frozen MW9 counts **5** reads for a water-and-roads build: `current`, `manifest.json`, `coverage.bin`, `index.json`, one cell. The dry run wrote RD-P6's county and state boxes to a sixth object, `regions.json`, which §2.3 never listed.
+- **So the regions travel inside `index.json`,** as `{cells, regions}`.
+- **Each region carries its own file URLs,** rather than the builder deriving them from URL patterns. A synthetic store's files (MB's `example.invalid` URLs) have no county or state in their names.
+- **The ingest writes this form when D1 runs.**
+
+**`layers.ts` restructured, so a 222 km square never holds its raw vertices.**
+- **`LayerSet`** takes one feature at a time, as cells stream in, and keeps only quantised output and each feature's source-order key. Its finishing methods put everything in RD2's order.
+- **The list functions the ML and MR rows bind to are `LayerSet` over a list,** so the rows test the code `build.ts` runs.
+- **Re-run after the change:**
+  - the ML and MR rows pass, unchanged;
+  - S-R0M, S-BUSSUB, S-SQUARELEN, S-DEDUPALL, S-PLACESORT, S-RIVERTIE, S-RZERO and C-LOADFAIL each land as frozen.
+- **One anchor moved with the code:** S-SQUARELEN's. Its plant is unchanged, the clipped length in the square.
+- **A slip of mine, which cost nothing:** I first wrote that anchor through a shell heredoc, which turned its `\n` into a real newline. `node --check` refused the harness, so no sabotage ran. It was rewritten with the editor, and the eight ran as above.
