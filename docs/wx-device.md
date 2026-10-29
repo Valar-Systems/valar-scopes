@@ -2470,3 +2470,18 @@ The touches and saves in Daniel's 20 minutes come after every graded arm.
 - the trace from RP1's reboot is held for **72 min**, so it outlasts Daniel's looks and RS5's 5 minutes;
 - the window is **at least 105 min**;
 - the proxy's hard limit is the window's length.
+
+### Results for the span change, local (2026-10-29, `4a2fd33`; the board reads it in the replay session's first arm)
+
+| | read | verdict |
+|---|---|---|
+| **S1** | W1-W5b all pass: span bytes 7,278.5 = marked 7,278.5 on average; the span blend equals `BlendRows` at all 3,600 angles, both looks | **as predicted** |
+| **S-spanrec** | red rows `W3-in`, `W5a`, `W5b` | **as predicted** |
+| S-w, S-span, S-noclr | red rows as before | as before |
+| the real header | sha256 unchanged after the sabotages | — |
+
+- **The rest:** `run.sh` (g++ 13.3.0, WSL) fails only "the same TU, for the board", which needs the xtensa compiler, as
+  before. `wx-fb-check.py --selftest` passes.
+- **Both images build.** The four bench line prefixes (`[health] outline=`, `[health] sweepscan=`, `[bench] scan0=`,
+  `[bench] layer copy:`) are in `wxlook` and absent from the shipping ELF. That is F0's proposed reading, recorded
+  alongside F0 as frozen, not in place of it.
