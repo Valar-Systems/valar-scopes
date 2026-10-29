@@ -93,3 +93,16 @@ Each sabotage must turn its own row red. BLIND counts as FAIL.
 - **K1's frames, restated:** the wettest and the driest **among the frames held at 2026-10-29 03:00Z whose HDF5 and
   GeoTIFF are still in the cache** (2026-10-28 00:00Z onward), by echo cells in the window.
 - **Everything else in K1 is unchanged.**
+
+### Two cases the rows left open, pinned before their code (2026-10-29)
+
+- **K9's smoke check when no `opuk` frame exists yet** (`frameAgeS` null). That is the state between R2's merge and R3's
+  ingest deploy. K9 says "FAILs on 0 or a missing share", and that is about a frame whose record lacks a share.
+  - **Pinned:** with no frame, the check passes as "not ingesting yet", as the `/wx` check's inert answer did before
+    the bucket was bound.
+  - With a frame, the share must be present and > 0, or FAIL.
+- **What `/wx/cref` answers at a UK point before R3 deploys,** if the proxy is redeployed with R2's code in between:
+  `opuk` has no `latest`, so **503 `wx_stale`**, where today it is a 200 all-14 crop.
+  - No shipped firmware reads `/wx` (the ruling), so no customer sees it.
+  - Smoke's `/wx` check asks at Bend, which `cref` still serves.
+  - **Recorded, not changed.**
