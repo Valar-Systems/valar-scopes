@@ -2485,3 +2485,52 @@ The touches and saves in Daniel's 20 minutes come after every graded arm.
 - **Both images build.** The four bench line prefixes (`[health] outline=`, `[health] sweepscan=`, `[bench] scan0=`,
   `[bench] layer copy:`) are in `wxlook` and absent from the shipping ELF. That is F0's proposed reading, recorded
   alongside F0 as frozen, not in place of it.
+
+### W5″, the board (2026-10-29, 15:03-17:06Z; window announced as about 8:05-10:20 AM PDT). VOID by its rule: a touch in O3
+
+**The session ran as accepted.**
+- **The images and their checks:**
+  - six flashes, every one exit 0;
+  - the old tree `wt-bendon` clean at `962ccb7`;
+  - every `[build]` banner `blipscope-s3-128`;
+  - the old image's page had no `wx-layer` field, and N's (`229e3c6`) had it unchecked;
+  - the layer-off POST beforehand verified.
+- **The windows, every one with the sun up** (elevation +5.9° to +20.2°): O1 15:17Z, N1 15:41Z, O2 16:05Z, N2 16:29Z,
+  O3 16:54Z, each 10 min.
+- **Afterwards:** `wxlook` back, with the layer on, look A, sweep look 4, verified.
+- **The reading:** `w5pp_read.py` (sha256 `05f93155e5db`), written before the run, on traces read twice and static.
+
+**VOID.** O3's trace holds 37 `[touch]` lines, all between **16:55:36 and 16:55:55Z (9:55 AM PDT)**:
+- presses and releases;
+- then `tap-in-detail` flips and closes: a detail card opened, flipped and closed.
+
+A person was at the glass for about 20 s. The other four windows hold **no `[touch]` line at all**. The rule voids the
+run, and it is not repeated for a better number.
+
+| arm | lines | p95 median | resid | n median (range) |
+|---|---|---|---|---|
+| O1 | 18 | 53.4 | −10.5 | 35 (33-36) |
+| N1 | 19 | 54.4 | −14.3 | 41 (40-43) |
+| O2 | 19 | 55.0 | −13.9 | 41 (40-43) |
+| N2 | 19 | 54.3 | −14.1 | 41 (40-43) |
+| O3 (touched) | 19 | 51.9 | −10.5 | 33 (30-35) |
+
+**An observation past the void, not a grade:** the same reader's own statistic, run with its void gate bypassed, reads
+**"instrument" anyway**.
+- **The grade** has only **3** shared n bins (40-42), below the floor of 4. N − O = −0.5 ms over them.
+- **The control** has **0**. O1 and O3 ran at n 30-36 and O2 at n 40-43, so their bins never overlap.
+- **The traffic rose and fell across the morning,** so the design's matched-n control needs O2's traffic to overlap
+  O1's and O3's, and today it did not. That is a property of the instrument, recorded for the ruling. No redesign is
+  made here.
+
+**The rain probe and the replay's crop tool, after #499.** Main's `proxy/src/wx/` moved (#499, the UK ingest). Both
+tools refuse any encoder that differs from origin/main's, and they did: the keyless watcher read "no measurement" from
+16:41Z on.
+- **Both now load main's encoder from a clean checkout of origin/main** (`wt-mainenc`). That is what "main's own crop
+  path, loaded from a checkout" means; nothing is merged into #445 for it.
+- `crop.ts` and `mrms.ts` are unchanged by #499. A dry run of the crop tool against that checkout made the crop
+  **byte-identical** (`58903e952374`), now at encoder commit `1ccc7f1`.
+- The probe agrees with the old instrument again (186 × 256, 35,364 covered cells).
+
+**The span change** (`4a2fd33`, `395074b`) is now on #445 by fast-forward, after W5″'s last flash. It rides the replay
+session's first arm.
