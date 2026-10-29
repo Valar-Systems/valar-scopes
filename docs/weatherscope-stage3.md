@@ -6731,3 +6731,23 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **The Bend loop holds codes 0 to 4 only, as A12.22 said,** so the candidates' yellows show only in Dallas. Code 7 there is (215, 120, 0) in (a) against (255, 144, 0) in (b).
 
 **Next:** build Q; then the bench select of both candidates on `907069326E64`, predictions first; then Daniel's pick.
+
+### A12.24 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): standing rule, keep moving
+
+**The ruling, verbatim:**
+
+> Standing rule: keep moving (reviewer chat, 2026-10-29)
+>
+> Daniel: "let's try to keep moving when possible".
+> - When an item waits on something outside your control (rain, a ruling, an outside reply, CI, another session's merge), say what it's waiting on, then carry on with the next item in your queue that doesn't depend on it. Don't sit idle.
+> - A stop for a ruling stops only the stopped item and whatever depends on it. Report it, then keep working on anything independent.
+> - Ask Daniel or me only when nothing independent is left, or when the next step needs a decision that's ours.
+> - Everything else stands: predictions first, BLIND as FAIL, the merge and deploy rules, and the hands-off windows on E2:08.
+
+**Where things stand:**
+- **#498** (the light-theme look) is waiting on CI and then review.
+- **Build Q** is not waiting on #498.
+  - Its branch, `weatherscope/build-q`, sits on #498's head only for `look35.py`'s package path, which Q's host count of the peaks' replay pixels uses.
+  - The firmware is identical to main's: `src/`, `include/`, `platformio.ini`, `test/` and `scripts/` show no difference.
+  - Q is a bench branch and is never merged.
+- **So Q's predictions come next, then its build and flash.**
