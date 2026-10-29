@@ -1162,6 +1162,25 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# Weatherscope's theme table (src/weatherscope/WxTheme.h; docs/weatherscope-stage3.md A12.43, A12.44, A12.46): the
+# light palette held to C4 (CIEDE2000 behind Sharma's 34 pairs, WCAG behind its published grey, text in RGB888 and in
+# RGB565 as the panel draws it), the hold ring, and the setting's Select, parse and dim: 72 checks. C3 stays above.
+# Its sabotages: python -I test/host/sabotage_wx_theme.py
+echo
+echo "== WxTheme =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_theme.cpp" -o "$OUT/test_wx_theme.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope theme test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_theme.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the theme test did not run or could not read its fixture (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py
