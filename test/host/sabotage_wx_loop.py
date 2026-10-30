@@ -200,7 +200,20 @@ def anchor_entries():
     out.append(("S-D2c", os.path.relpath(TEST, ROOT), sc.read(TEST), SABOTAGES["S-D2c"][1][0]))
     return out
 
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_loop": ("checks", 44)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        exe = build(td, "test_wx_loop", open(TEST, encoding="utf-8").read().replace("\r\n", "\n"))
+        run(exe, copy_loop(td, "control"), "control")
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main(sys.argv))

@@ -71,7 +71,25 @@ def anchor_entries():
     return out
 
 
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_legend": ("ok", 4)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        inc = os.path.join(td, "control")
+        os.makedirs(inc)
+        open(os.path.join(inc, "WxLegend.h"), "w", encoding="utf-8", newline="\n").write(
+            open(HEADER, encoding="utf-8").read().replace("\r\n", "\n"))
+        exe = os.path.join(td, "control.exe")
+        subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
+        subprocess.run([exe], capture_output=True, text=True)
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

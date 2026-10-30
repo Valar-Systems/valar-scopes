@@ -1225,7 +1225,7 @@ else
   nd=0
   for d in "$ROOT"/test/host/sabotage_*.py; do
     b=$(basename "$d")
-    case "$b" in sabotage_common.py|sabotage_anchors_control.py) continue ;; esac
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py) continue ;; esac
     nd=$((nd + 1))
     if ! grep -q "sc.wants_anchors()" "$d"; then
       echo "  FAIL $b has no --anchors mode (refused without running it)"
@@ -1245,6 +1245,47 @@ else
   done
   echo "  $nd driver(s) checked"
   "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
+# Q57 (docs/weatherscope-stage3.md A12.61): every sabotage driver's --control -- its unplanted run alone, building its
+# suites and checking each one's count against the driver's own table, nothing planted -- so a driver that cannot run
+# fails the PR that breaks it, as --anchors does for anchors (sabotage_wx_themed_draw.py read the RIG from #507 to the
+# harness PR because nothing ran it). Exit 3 is SKIPPED, printed with its reason and counted apart, never passed.
+# sabotage_controls_control.py is this block's own control: a copy with a stale count must turn it red.
+echo
+echo "== sabotage controls: every test/host/sabotage_*.py --control =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the sabotage controls cannot run."
+  fail=1
+else
+  nd=0
+  ns=0
+  for d in "$ROOT"/test/host/sabotage_*.py; do
+    b=$(basename "$d")
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py) continue ;; esac
+    nd=$((nd + 1))
+    if ! grep -q "sc.wants_control()" "$d"; then
+      echo "  FAIL $b has no --control mode (refused without running it)"
+      fail=1
+      continue
+    fi
+    CXX="$CXX" "$PY" "$d" --control > "$OUT/control.log" 2>&1
+    rc=$?
+    line=$(grep "^CONTROL " "$OUT/control.log" | tail -1)
+    if [ "$rc" -eq 0 ] && [ -n "$line" ]; then
+      echo "  ok   $line"
+    elif [ "$rc" -eq 3 ] && [ -n "$line" ]; then
+      echo "  SKIP $line"
+      ns=$((ns + 1))
+    else
+      echo "  FAIL $b --control (exit $rc):"
+      cat "$OUT/control.log"
+      fail=1
+    fi
+  done
+  echo "  $nd driver(s): $((nd - ns)) run, $ns skipped"
+  CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_controls_control.py"
   [ "$?" -ne 0 ] && fail=1
 fi
 

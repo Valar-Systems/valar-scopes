@@ -111,7 +111,19 @@ def anchor_entries():
     src = sc.read(TOWNS)
     return [("S-D6a", os.path.relpath(TOWNS, ROOT), src, first), ("S-D6b", os.path.relpath(TOWNS, ROOT), src, last)]
 
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {}
+
+
+def control():
+    raise sc.Skip("needs the Census archive: its control runs make_towns.py --check over the 2025 Gazetteer and "
+                  "SUB-EST2024 files, its two arguments, which no CI runner holds")
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main(sys.argv))

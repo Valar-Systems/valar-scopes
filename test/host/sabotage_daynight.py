@@ -131,7 +131,19 @@ def anchor_entries():
     return [(name, os.path.relpath(FILES[fn], ROOT), sc.read(FILES[fn]), a)
             for name, (fn, edits, _) in SABOTAGES.items() for a, _ in edits]
 
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_daynight": ("checks", 28), "scan_daynight_symbols.sh": ("exit", 0)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(td, "control", {k: read(p) for k, p in FILES.items()})
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())
