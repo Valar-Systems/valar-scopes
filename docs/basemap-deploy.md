@@ -489,3 +489,41 @@ Nothing here is code yet. The questions below decide the code, so they come firs
   - **The check covers them anyway:** the four `embed-*.mjs` scripts and everything they read (`proxy/pages`, `proxy/fonts`, `include/DeviceIdentity.h`, `scripts/device-id-allowlist.txt`).
   - **Every path in the set exists,** so an empty diff cannot come from a mistyped path.
 - **At 18:2xZ, main's tip was `bea882ad4475`:** `git diff --stat 9f44a1a bea882ad4475` over that set reads **0 files**. It is re-recorded and re-checked immediately before `deploy.sh` runs.
+
+## The D3 PR, run: S-ANOTICE off-prediction; stopped for a ruling (2026-10-30)
+
+**The code is `edbc5b2`.**
+
+| row | result |
+|---|---|
+| MA1, MA2 | **as predicted:** both pass |
+| typechecks | both exit 0 |
+| dry runs | **as predicted:** staging lists `env.BASEMAP (blipscope-basemap-staging)`, a Worker; production lists no `BASEMAP` |
+| the full pass, 18:23Z to 18:58Z | **50 of 51 AS PREDICTED**, including **S-ACREDIT {MA2}**. Baselines ingest 10 in 1, mv 31 in 1, all 138 in 17; C-LOADFAIL AS PREDICTED; 55 runs, 0 runtime failures |
+| **S-ANOTICE** | **OFF-PREDICTION:** failing **{MA1, MA2}** against its frozen {MA1} |
+
+**The cause:** S-ANOTICE deletes SRTM's notice from `docs/basemap-attribution.md`, and MA2, as written, **reads the notice from that file**.
+- **So MA2 loses its input:** confirmed by planting S-ANOTICE alone, which gives `the attribution file's notice line: expected undefined to be defined` (the doc restored from a byte copy, sha256 checked).
+- **MA2 fails for its input, not for the page.**
+- **The A2.16 re-check should have caught it** when MA2 was added. I did not run S-ANOTICE against MA2's input. That is the same miss as S-PWRITE.
+
+**The alternative, and why the data excludes it:** that the page lost the notice.
+- S-ANOTICE edits only the doc.
+- The page's notice is `SRTM_NOTICE` in `photolicense.ts`, untouched.
+- The failure message names the doc's line.
+
+**Proposed fix** (committed locally, **not pushed** until a ruling):
+- **The change:** MA2 takes the notice from **MA1's own `NOTICE` constant**, the one transcription both rows share.
+- **Its effect:** MA1 holds the file to it, MA2 holds the page to it. Each row tests its own subject, and S-ANOTICE stays {MA1}.
+- **The four credits are unchanged:** they still come from the builder's `CREDIT_BITS`.
+- **The alternative, not recommended:** re-registering S-ANOTICE as {MA1, MA2}. It would grade "MA2's input is missing" as a reading about the page, which is the kind of extra failure ruled out for S-PWRITE.
+
+**Frozen predictions for the fix, if ruled:**
+
+| row | predicted |
+|---|---|
+| S-ANOTICE | **exactly {MA1}** |
+| S-ACREDIT | **exactly {MA2}** |
+| MA1, MA2 | both pass |
+| the full pass | **51 of 51 AS PREDICTED**, C-LOADFAIL AS PREDICTED, 0 runtime failures |
+| CI on the PR's head | every check finished, none failing |
