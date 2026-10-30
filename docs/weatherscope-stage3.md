@@ -8996,3 +8996,93 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **(b):** the per-block PSRAM print for this group first, as a firmware change of its own with its own rows, to separate (1) from (2) before step 7's run.
 
 **Independent of the ruling (A12.24):** nothing on this item. #507 waits on Q53 and Q54, and this item on Q55.
+
+### A12.57 Ruled 2026-10-30 (source: reviewer chat, pasted by Daniel): Q53 (a), Q54 (a), Q55; #507 approved and merged; step 7's write -- its PSRAM blocks are off their exact values, explained to the byte (Q56)
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-30
+>
+> 1. Q53: (a). D2 for the product image reads: 0 hits outside the stored package's bytes; inside them, exactly the package's own count (amazonaws 2, every other needle 0). The range is bend.bmpk's bytes, found exactly once in the image, and the package's two hits are D2's anchor. Why it holds: D2 guards what the device can reach, and clients never parse PROVENANCE. A new stored package re-reads D2 with its own count.
+>
+> 2. Q54: (a), as A10.4 says. Bend rain is the loop's last frame, a Dry screen with the rain on its map. It is also the frame Daniel judged the light theme on.
+>
+> 3. Q55: the anchor's measured values become the baselines, and both misses stay on record.
+> - psram_used: the exact prediction ignored A9.23's ±2,000 for the free-delta method, the same lesson as psram_q. From now on psram_used is graded within ±2,000 of the anchor plus the priced allocations, and each new block's heap_caps_get_allocated_size() is graded exactly.
+> - The draw: A9.23's 28,000-36,000 range is retired as a prediction. The anchor also settles A12.35's open cause: main draws about as slowly with no probe as Q did with it, so B2-DRAW's rise was main's own, not the probe's. B2-Bend's 37,470 µs bound stands.
+> - Step 7's board run then expects: psram_used 227,144 ± 2,000, with its blocks graded exactly; Dallas frames ≤ 36,421 µs (60 mi) and ≤ 36,267 µs (warning); Bend frames ≤ 37,470 µs.
+>
+> 4. #507: approved at d44abbab36f8.
+> - I reproduced it on Linux g++ 13.3 with -Werror: all 19 Weatherscope suites pass (screens 17, basemap 92, k35b 149, the rest as on main); sabotage_wx_screens.py's 5 and sabotage_wx_basemap.py's 16 + 2 as predicted, with the real files unchanged; all 18 drivers' anchors clean.
+> - CI's total on that head: 35, of which 32 passed and 3 are release-only skips. Main has moved by #505 only (proxy/ and docs, no file in common), and the squash applies cleanly.
+> - A clean squash, --match-head-commit, no --admin, the head named in the record; record main's CI on the merge commit. If the head moves, the approval lapses.
+>
+> 5. Then step 7's board write under A12.33's rule, and step 8 as frozen. t4 comes after step 8.
+
+**Q55, applied before the run:** `grade_b35b.py` grades each new block's allocated size exactly (`weatherscope/3-5b-board` @ `996c4e5`). The Dallas bounds (anchor + 300) and `psram_used` (anchor + 6,124, ±2,000) were already its form.
+
+**#507, merged.**
+- **Before:**
+  - the head was `d44abbab36f8`, as approved;
+  - CI's total on it, read again: 35, with 32 success and 3 release-only skips;
+  - GitHub: MERGEABLE, CLEAN.
+- **Main had moved by #505 only** (`9f44a1a`). One correction to the ruling's description: #505 also touches `.github/workflows/workers.yml`, as well as `proxy/` and `docs/`. **It still shares no file with #507** (0 common to its 16 paths and #507's 18), so the condition holds.
+- **The merge:** squash, `--match-head-commit d44abbab36f820eec6ac7ec8f95e2ef3f019fe92`, no `--admin`, at 2026-10-30T04:15:34Z, as **`6274664217f6`**.
+- **After:**
+  - its parent is `9f44a1a`;
+  - **it differs from main's previous head by exactly #507's 18 paths, and from the approved head by exactly #505's 16;**
+  - no PR was based on the branch; it was checked at `d44abbab36f8`, deleted, and `ls-remote` shows 0.
+- **Main's CI on `6274664217f6`:** 35 check runs, all completed: 33 success and 2 release-only skips (promote, version), 0 failed.
+
+**Step 7's write** (A12.33's method):
+- **The image:** `firmware.bin` 1,876,672 B, sha256 `823fcca81598`, the approved head's build.
+- **`flash_plan.py`:** the write `0x0020000-0x01EA2BF` touches app0 only.
+- **The port:** COM6, resolved from `907069326E64`. esptool read MAC `90:70:69:32:6e:64`, wrote 1,876,672 B at `0x00020000`, verified the hash, exit 0.
+- **The boot,** with `read-mac` and `boot_lines.py` chained in one command (A12.56's lesson): every line kept.
+
+**The boot's rows** (A12.55, as Q55 amends them):
+
+| row | predicted | measured | |
+|---|---|---|---|
+| boot identity | `[build] env=weatherscope-s3-128`, `[ota-slot] boot running=app0 @0x020000` | both, at 0.42 s | holds |
+| `[wx] bend` | A12.53's line exactly | `history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141` | holds |
+| `psram_used` | 227,144 ± 2,000 | **227,168** (`grid=44640`) | holds |
+| `psram_base` free delta | 71,888-73,888 | **72,972**; `ok=1` | holds |
+| **the blocks, exactly** | **image 57,600, state 9,776, scratch 4,512** | **58,356, 9,972, 4,596** | **off** |
+
+**The miss is in my prediction, and the allocator explains it to the byte.**
+- **The model.** ESP-IDF's TLSF takes a request of *n* bytes as *n* + 12 (light poisoning's 8 B head and 4 B tail), and rounds that up to its second-level size class. For *m* ≥ 128, the class width is 2^(⌊log₂ *m*⌋ − 5). Below 128, *m* is aligned to 4.
+  - **`heap_caps_get_allocated_size()`** reports the rounded size less the 12 B.
+  - **A block's cost in a free-size delta** is the rounded size plus its 4 B header.
+- **I predicted the requests.** The allocator hands back their classes.
+- **The model, checked against every PSRAM reading on record.** It is plain arithmetic over each image's own block sizes (`sizeof` measured with the env's compiler; the town table's 171 entries; 15 loop records of 104 B):
+
+| reading | model | measured | |
+|---|---|---|---|
+| step 7's blocks: image, state, scratch | 58,356, 9,972, 4,596 | 58,356, 9,972, 4,596 | equal |
+| step 7's `psram_base` | 72,972 | 72,972 | equal |
+| step 7's `psram_used` | 227,168 | 227,168 | equal |
+| the anchor's `psram_used` (A12.56) | 221,020 | 221,020 | equal |
+| q3's `psram_q` (A12.35's "1,192 B over") | 103,432 | 103,432 | equal |
+| q3's `psram_used` | 220,980 | 221,076 | **+96** |
+
+- **So two misses on record are now explained:**
+  - A12.35's `psram_q` (+1,192) was the allocator's classes and headers, and not another task.
+  - A12.56's −112 B sits entirely in q3's reading: the anchor and step 7 equal the model exactly. Q's own image held 96 B in that group that main's does not. Which allocation it was is not separated, and it no longer matters to any row.
+- **Q55's own wording:** "±2,000 for the free-delta method" is wider than the method needs. With the model, both `psram_used` and `psram_base` are predictable to the byte.
+
+**Q56, for a ruling.**
+- **(a), recommended:**
+  - **Re-register step 7's blocks at the allocator's sizes:** 58,356, 9,972 and 4,596. Re-register `psram_base` at 72,972.
+  - **Adopt the model as the pricing rule for every PSRAM row from here:**
+    - each new block's allocated size, exactly;
+    - `psram_used` and the group lines, exactly;
+    - any reading off the model is a finding.
+- **(b):** keep the exact block grading against requests. These three rows then stay red, and the next build's must be priced by hand.
+
+**The run went ahead.**
+- **Why:**
+  - **No other row depends on this one,** and its ruling cannot change the image. The allocator's rounding is not a firmware defect.
+  - **The precedent:** q3 graded `psram_q` after its full run (A12.35).
+  - **A12.24:** a stop for a ruling stops only that item and its dependents.
+- **Its results follow in A12.58.**
