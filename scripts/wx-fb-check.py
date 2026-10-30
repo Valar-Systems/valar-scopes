@@ -37,6 +37,20 @@ is located from each frame: exactly one blob of the head colour at the disc's ed
 the beam line's 101 ray samples in its colour; anything else makes the frame UNTRUSTWORTHY, never a pass. Masked: the
 centre (12 px) and the 1.0 rad tail behind the beam, plus 0.06 rad each side. Outside the mask, a ring pixel showing a
 wedge-only colour (a lit colour or a wedge green that is no other colour the frame can hold) is an exception.
+
+TWO THINGS THE RADAR DRAWS ON PURPOSE, set apart as ruled (2026-10-30; docs/wx-device.md, "The checker's two gaps"):
+  THE NEAR/HIGH/FAST HIGHLIGHT is drawn in 0xF81F, which is also the magenta rain level lit to full, a wedge-only
+      colour. In (1) a 0xF81F ring pixel outside the mask is counted as HIGHLIGHT, not an exception, when it lies on a
+      highlight (7 +- 0.75 px from a centre with >= 20 of the frame's 0xF81F pixels at that distance and a plane
+      colour on or beside it) or inside that highlight's tag box. By geometry, never by colour: any other 0xF81F
+      outside the mask, a real lit magenta cell included, is still an exception.
+  THE SCREEN DOTS (DrawScreenIndicator) sit at fixed positions inside the disc. A pixel inside a dot's fill_circle
+      raster, while the whole raster shows that dot's colour, is no weather test's business, and a marker that lies
+      wholly in such dots is not a marker. A pixel of the same colour outside a raster is never set apart.
+  A MARKER TOUCHED ONLY BY LABEL-AND-WEATHER COLOURS (2): when every weather-coloured 8-neighbour of a marker is also
+      a label colour (a later contact's label stroke, drawn over this one's outline), the marker is COUNTED APART and
+      listed, never failed and never passed silently. THE COST, accepted and named: a real weather pixel in one of
+      those label greens beside a dart is not seen as one.
 """
 import glob
 import math
@@ -135,9 +149,37 @@ def load_source():
             for lvl in range(1, peak + 1):
                 lit.add(s565(*dim(b, p0 + ((100 - p0) * lvl + peak // 2) // peak)))
         wedge_only[L] = (lit | greens) - weather[L] - marker - labels - ring_cols - {beam_c, head_c, 0}
+    # The NEAR/HIGH/FAST highlight (DrawAircraftInfo): its colour and geometry, asserted, so (1) sets it apart by shape.
+    hlm = re.search(r"const uint32_t HL = lgfx::color888\((\d+), (\d+), (\d+)\);", am)
+    assert hlm, "the highlight's colour changed: re-derive"
+    for s in ("int tagY = y - 4;", "backbuffer.drawCircle(x, y, 7, HL);", "tagY -= 9;",
+              "badge(tag.c_str(), x - (int)backbuffer.textWidth(tag) - 9, tagY, HL);",
+              'highlight("NEAR");', 'highlight("HIGH");', 'highlight("FAST");'):
+        assert s in am, f"the highlight's geometry changed ({s}): re-derive"
+    # The tag box: three 4-letter tags of 6 px glcd glyphs (8 px tall) at x - width - 9, stacked up from y - 4 by 9.
+    hl = {"colour": s565(*map(int, hlm.groups())), "r": 7, "x0": -(4 * 6 + 9), "x1": -9, "y0": -4 - 2 * 9, "y1": -4 + 8}
+    # The screen dots (DrawScreenIndicator): one per screen a swipe reaches, Radar's (slot 0 here) the active one.
+    hdr = read("src/AircraftManager.h")
+    screens = [s.strip() for s in re.search(r"enum class Screen \{([^}]*)\};", hdr).group(1).split(",")]
+    count = int(re.search(r"static constexpr int SCREEN_COUNT = (\d+);", hdr).group(1))
+    assert len(screens) == count and screens[0] == "Radar", (screens, count)
+    d = am.index("void AircraftManager::DrawScreenIndicator(")
+    body = am[d:am.index("\n}", d)]
+    for s in ("constexpr int cx = SCREEN_SIZE_DIV_2;", "const int y = SCREEN_SIZE - 16;",
+              "const int shown = SCREEN_COUNT - 1;", "if ((Screen)i == Screen::Follow)",
+              "backbuffer.fillCircle(cx - (shown - 1) * 6 + slot * 12, y, active ? 3 : 2,"):
+        assert s in body, f"DrawScreenIndicator changed ({s}): re-derive"
+    dc = re.search(r"active \? lgfx::color888\((\d+), (\d+), (\d+)\) : lgfx::color888\((\d+), (\d+), (\d+)\)\);", body)
+    assert dc, "the screen dots' colours changed: re-derive"
+    on_c, off_c = s565(*map(int, dc.groups()[:3])), s565(*map(int, dc.groups()[3:]))
+    shown, dots = count - 1, []
+    for i, name in enumerate(screens):
+        if name == "Follow": continue
+        x = W // 2 - (shown - 1) * 6 + len(dots) * 12
+        dots.append((x, H - 16, 3, on_c) if name == "Radar" else (x, H - 16, 2, off_c))
     return {"centre": centre, "rings": rings, "weather": weather, "marker": marker, "label": labels,
             "tail": tail, "peak": peak, "beam": beam_c, "head": head_c, "wedge_only": wedge_only,
-            "base": base, "pct": pct, "c1pct": c1pct}
+            "base": base, "pct": pct, "c1pct": c1pct, "hl": hl, "dots": dots}
 
 
 def draw_circle(px, x, y, r):
@@ -284,6 +326,37 @@ def neighbours(comp, k=1):
     return {(a + dx, b + dy) for a, b in comp for dx in range(-k, k + 1) for dy in range(-k, k + 1)} - comp
 
 
+def dot_pixels(f, src):
+    """The pixels of every COMPLETE screen dot in frame f: its fill_circle raster, only while all of it is its colour."""
+    out = set()
+    for x, y, r, c in src["dots"]:
+        s = set(); fill_circle(s, x, y, r)
+        if all(at(f, *p) == c for p in s): out |= s
+    return out
+
+
+def highlight_centres(f, src):
+    """The highlights' centres in frame f, found as rp6_cause1.py finds them: >= 20 of the frame's highlight-coloured
+    pixels at 7 +- 0.75 px, and a plane colour on or beside the centre."""
+    hc, r = src["hl"]["colour"], src["hl"]["r"]
+    mag = [(i % W, i // W) for i, c in enumerate(f) if c == hc]
+    if not mag: return []
+    ring = [(i, j) for i in range(-r - 1, r + 2) for j in range(-r - 1, r + 2) if abs(math.hypot(i, j) - r) <= 0.75]
+    votes = {}
+    for px, py in mag:
+        for i, j in ring:
+            votes[(px + i, py + j)] = votes.get((px + i, py + j), 0) + 1
+    return [q for q, k in votes.items() if k >= 20 and
+            any(at(f, q[0] + i, q[1] + j) in src["marker"] for i in (-1, 0, 1) for j in (-1, 0, 1))]
+
+
+def in_highlight(p, centres, src):
+    """On a highlight's circle, or inside its tag box."""
+    h = src["hl"]
+    return any(abs(math.hypot(p[0] - q[0], p[1] - q[1]) - h["r"]) <= 0.75 or
+               (q[0] + h["x0"] <= p[0] < q[0] + h["x1"] and q[1] + h["y0"] <= p[1] < q[1] + h["y1"]) for q in centres)
+
+
 def grade(frames, look, src, drop=False):
     """Layer on: WD5e(1) and (2). frames: lists of W*H RGB565 values. Returns (verdict, report lines)."""
     Wc = src["weather"][look]
@@ -294,7 +367,7 @@ def grade(frames, look, src, drop=False):
            + (", ".join(f"r={r} {col:#06x}" for r, col in ungradable) or "none")]
     WO = src["wedge_only"][look]
     tot = {"exc": 0, "ex_r": 0, "markers": 0, "fail": 0, "ex_m": 0, "ambig": 0, "graded": 0, "dropped": 0,
-           "masked_r": 0, "masked_m": 0, "wedge_out": 0}
+           "masked_r": 0, "masked_m": 0, "wedge_out": 0, "hl": 0, "apart": 0, "dotm": 0}
     for n, f in enumerate(frames):
         wm = wedge_mask(f, src, n, out) if trustworthy(f, rings, n, out) else None
         if wm is None:
@@ -303,7 +376,9 @@ def grade(frames, look, src, drop=False):
             continue
         in_mask, _share = wm
         tot["graded"] += 1
-        exc = ex = mr = wout = 0
+        dots = dot_pixels(f, src)
+        centres = None   # the highlights, found only if a ring pixel needs them
+        exc = ex = mr = wout = hl = 0
         for r, col, pts in rings:
             if col in Wc: continue
             for x, y in pts:
@@ -316,32 +391,46 @@ def grade(frames, look, src, drop=False):
                                                  for bx in range(x - 2, x + 1) for by in range(y - 2, y + 1)):
                     exc += 1
                 elif c in WO and c != col:  # a wedge colour outside the wedge: the mask is wrong, or a ring is
+                    if c == src["hl"]["colour"]:
+                        if centres is None: centres = highlight_centres(f, src)
+                        if in_highlight((x, y), centres, src):
+                            hl += 1; continue   # the NEAR/HIGH/FAST highlight, by its geometry (ruled 2026-10-30)
                     exc += 1; wout += 1
-        mk = fail = exm = amb = mm = 0
+        mk = fail = exm = amb = mm = apart = dotm = 0
         for c, comp in markers(f, src["marker"], own):
+            if comp <= dots:              # a screen dot, not a contact
+                dotm += 1; continue
             if any(in_mask(*p) for p in comp | neighbours(comp, 3)):
                 mm += 1; continue
             if c in amb_set:
                 amb += 1; continue
             mk += 1
-            border = neighbours(comp)
-            wb = sum(at(f, *p) in Wc for p in border)
-            if any(at(f, *p) in Wc for p in neighbours(comp, 3) - border): exm += 1
-            if wb:
-                fail += 1
+            border = neighbours(comp) - dots
+            wet = [p for p in border if at(f, *p) in Wc]
+            if any(at(f, *p) in Wc for p in neighbours(comp, 3) - neighbours(comp) - dots): exm += 1
+            if wet:
                 xs, ys = [p[0] for p in comp], [p[1] for p in comp]
-                out.append(f"frame {n}: marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px): "
-                           f"{wb} of {len(border)} neighbours are weather")
-        out.append(f"frame {n}: rings exceptions {exc} (a wedge colour outside the wedge {wout}), exercised {ex}, "
-                   f"masked {mr}; markers {mk} (ambiguous {amb}, masked {mm}), over weather {exm}, without an outline {fail}")
-        for k, v in zip(("exc", "ex_r", "markers", "fail", "ex_m", "ambig", "masked_r", "masked_m", "wedge_out"),
-                        (exc, ex, mk, fail, exm, amb, mr, mm, wout)):
+                where = f"marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px)"
+                if all(at(f, *p) in src["label"] for p in wet):
+                    apart += 1
+                    out.append(f"frame {n}: COUNTED APART, {where}: {len(wet)} of {len(border)} neighbours are weather "
+                               "colours, every one also a label colour")
+                else:
+                    fail += 1
+                    out.append(f"frame {n}: {where}: {len(wet)} of {len(border)} neighbours are weather")
+        out.append(f"frame {n}: rings exceptions {exc} (a wedge colour outside the wedge {wout}), highlight {hl}, "
+                   f"exercised {ex}, masked {mr}; markers {mk} (ambiguous {amb}, masked {mm}, screen dots {dotm}), "
+                   f"over weather {exm}, without an outline {fail}, counted apart {apart}")
+        for k, v in zip(("exc", "ex_r", "markers", "fail", "ex_m", "ambig", "masked_r", "masked_m", "wedge_out",
+                         "hl", "apart", "dotm"),
+                        (exc, ex, mk, fail, exm, amb, mr, mm, wout, hl, apart, dotm)):
             tot[k] += v
     out.append(f"TOTAL look {look}: frames graded {tot['graded']}, dropped as UNTRUSTWORTHY {tot['dropped']}; "
                f"(1) ring exceptions {tot['exc']} (a wedge colour outside the wedge {tot['wedge_out']}), "
-               f"exercised {tot['ex_r']}, masked {tot['masked_r']}; "
+               f"highlight {tot['hl']}, exercised {tot['ex_r']}, masked {tot['masked_r']}; "
                f"(2) markers {tot['markers']}, over weather {tot['ex_m']}, without an outline {tot['fail']}, "
-               f"ambiguous {tot['ambig']}, masked {tot['masked_m']}")
+               f"counted apart {tot['apart']}, ambiguous {tot['ambig']}, masked {tot['masked_m']}, "
+               f"screen dots {tot['dotm']}")
     if tot["graded"] == 0:
         out.append("no trustworthy frame"); return "UNTRUSTWORTHY", out
     r1 = "FAIL" if tot["exc"] else ("BLIND" if tot["ex_r"] == 0 else "PASS")
@@ -437,7 +526,7 @@ def draw_wedge(f, src, look, th, head="edge", beam_dtheta=0.0):
 
 def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, weather=True, trail=False,
           blob_ring=1, blob_r=30, blob_dx=0, glyph=None, beam=True, theta=math.pi, head="edge", beam_dtheta=0.0,
-          plant=None):
+          plant=None, highlight=None, dots=None, stroke=None):
     """A layer-on frame drawn in the device's order: weather, the sweep (look 4's wedge, the beam and its head), rings,
     trail and label, outline, marker. The beam points west by default, away from every case's subject (east)."""
     f = [0] * (W * H)
@@ -474,6 +563,41 @@ def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, we
     elif outline == "disc4":
         s = set(); fill_circle(s, mx, my, 4); put(f, s, 0)
     s = set(); fill_circle(s, mx, my, 3); put(f, s, colour)
+    r1, hc = src["rings"][1][0], src["hl"]["colour"]
+    if stroke:
+        # A later contact's label stroke across this marker's border: a label-and-weather green, or plain weather.
+        sc = 0x0320 if stroke == "label" else rain
+        assert sc in src["weather"][look] and (sc in src["label"]) == (stroke == "label"), "the stroke means nothing"
+        put(f, [(mx + 4, my), (mx + 5, my + 1), (mx + 6, my + 2)], sc)
+    if highlight == "lone":
+        # One 0xF81F on the middle ring's top, outside the mask, with no highlight about it.
+        put(f, [min(ring_pts[1][0], key=lambda q: (q[0] - cx) ** 2 + (q[1] - (cx - r1)) ** 2)], hc)
+    elif highlight == "near":
+        # An outlined dart on the middle ring's top, then its NEAR highlight (circle and tag), as DrawAircraftInfo does.
+        qx, qy = cx + 10, cx - r1 + 2
+        for ox in (-1, 0, 1):
+            for oy in (-1, 0, 1):
+                if ox or oy:
+                    s = set(); fill_circle(s, qx + ox, qy + oy, 3); put(f, s, 0)
+        s = set(); fill_circle(s, qx, qy, 3); put(f, s, colour)
+        circ = set(); draw_circle(circ, qx, qy, src["hl"]["r"])
+        tag = {(qx + src["hl"]["x0"] + 6 * k + gx, qy - 4 + gy) for k, ch in enumerate("NEAR") for gx, gy in glcd_glyph(ch)}
+        assert circ & ring_pts[1][0] and tag & ring_pts[1][0], "the highlight does not cross the ring: the case means nothing"
+        put(f, circ, hc); put(f, tag, hc)
+    if dots:
+        # A dart whose border the slot-2 screen dot covers (the dots are drawn after the radar), then the dots: all
+        # complete, or slot 2 as one pixel of its colour where the dot would be.
+        x2, y2, _r2, c2 = src["dots"][2]
+        dx_, dy_ = x2, y2 - 6
+        for ox in (-1, 0, 1):
+            for oy in (-1, 0, 1):
+                if ox or oy:
+                    s = set(); fill_circle(s, dx_ + ox, dy_ + oy, 3); put(f, s, 0)
+        s = set(); fill_circle(s, dx_, dy_, 3); put(f, s, colour)
+        for k, (x, y, r, c) in enumerate(src["dots"]):
+            if k == 2 and dots == "pixel":
+                put(f, [(x, y - 2)], c); continue
+            s = set(); fill_circle(s, x, y, r); put(f, s, c)
     return f
 
 
@@ -520,6 +644,11 @@ def selftest(src):
         verdict, lines = grade([f], look, src)
         ok = 0.184 <= wm[1] <= 0.189 and verdict == "PASS"
         return ("PASS" if ok else "FAIL"), out + lines
+
+    def apart_case(kw, want_apart):
+        verdict, lines = grade([synth(src, look="A", **kw)], "A", src)
+        got = int(re.search(r"counted apart (\d+)", next(l for l in lines if l.startswith("TOTAL"))).group(1))
+        return (verdict if got == want_apart else f"{verdict} with counted apart {got}"), lines
     cases = [
         ("as drawn, look A",                          lambda: on({}, "A"),                               "PASS"),
         ("weather drawn over the rings",              lambda: on(dict(weather_over_rings=True), "A"),    "FAIL"),
@@ -551,6 +680,18 @@ def selftest(src):
         ("M5 the head 80 px out, not at the edge",    lambda: on(dict(head="r80"), "A"),                 "UNTRUSTWORTHY"),
         ("M5 the beam line 0.3 rad from its head",    lambda: on(dict(beam_dtheta=0.3), "A"),            "UNTRUSTWORTHY"),
         ("M6 CONTROL: the same wedge-only pixel inside the mask", lambda: on(dict(plant="inside"), "A"), "PASS"),
+        # The checker's two gaps (ruled 2026-10-30): the highlight by its geometry; the screen dots; label strokes.
+        ("H1 a NEAR highlight (circle and tag) across the middle ring outside the mask",
+                                                      lambda: on(dict(highlight="near"), "A"),           "PASS"),
+        ("H2 CONTROL: a lone 0xF81F on that ring",    lambda: on(dict(highlight="lone"), "A"),           "FAIL"),
+        ("D1 a dart whose border the slot-2 screen dot covers (counted apart 0)",
+                                                      lambda: apart_case(dict(dots="full"), 0),          "PASS"),
+        ("D2 the same with one dot-coloured pixel and no dot (counted apart 1)",
+                                                      lambda: apart_case(dict(dots="pixel"), 1),         "PASS"),
+        ("L1 a label-and-weather stroke across an outlined dart (counted apart 1)",
+                                                      lambda: apart_case(dict(stroke="label"), 1),       "PASS"),
+        ("L2 CONTROL: the same stroke in a weather colour that is no label colour",
+                                                      lambda: on(dict(stroke="weather"), "A"),           "FAIL"),
     ]
     bad = 0
     for label, run, want in cases:

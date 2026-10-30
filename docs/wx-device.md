@@ -3181,3 +3181,35 @@ passed. ... predictions first and sabotages, and re-graded on 10-29's frames bef
 - **When it was caught:** working through each plant while writing the driver, before the driver had run.
 - The other five sabotages are worked the same way and stand as frozen.
 - The selftest itself (X1, X2) has run: the 25 cases are unchanged, and the six new ones are each as wanted.
+
+### Results for the checker's two gaps (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **X1** | the selftest's 25 earlier cases, each as before | **as predicted** |
+| **X2** | H1 PASS, H2 FAIL, D1 PASS with counted apart 0, D2 PASS with counted apart 1, L1 PASS with counted apart 1, L2 FAIL | **as predicted** (D2 and D1 as amended before any code) |
+| **X3** | `sabotage_wx_fb_check.py`: the unplanted control passes. S-hl-colour exactly `H2`. S-hl-off exactly `H1`. S-dot-anywhere exactly `D2`. S-label-pass exactly `L1`, `D2` (as amended before any run). S-label-all exactly `L2`, "no outline, look A", "the old r=4 disc outline". **S-dot-slot: nothing red**, selftest exit 0. The real checker is unchanged | **five as predicted; S-dot-slot OFF** (below) |
+| **X4** | 10-29's RP6 frames, trustworthy only. **A:** (1) 0 exceptions, highlight 16; (2) 0 without an outline, **counted apart 2** (the yellow dart, x 94-100, y 47-57, in `m2-f0` and `m2-f2`), and the white dart neither fails nor is counted apart: **PASS**. **B:** 0 exceptions, highlight 10: **PASS**. **off:** TOTAL line identical: **PASS** | **as predicted** |
+| **X5** | the same frames, finished and not dropped (as `replay_read.py` runs them) | all three **UNTRUSTWORTHY**, **as predicted** |
+| **X6** | `--anchors`: 6 plants, 6 anchors, all present exactly once | **as predicted** |
+
+**S-dot-slot, off as graded: the selftest cannot see a wrong dot position.**
+- **The cause:** the selftest draws its synthetic screen dots from the same `src["dots"]` the checker grades against. A
+  plant that moves the positions moves the drawing too, so the synthetic frame always agrees with the checker.
+- **The alternative, and why the code excludes it:** that the plant did not apply. The driver asserts every anchor
+  once and the copy differs. And the same plant mechanism turned the other five red exactly as predicted.
+- **So the only evidence the positions are right is the real frames.** In every finished RP6 frame of 10-29, all 216
+  dots were complete at x 102, 114, 126, 138, y 224, the positions the source gives. X4's 33 screen dots and two
+  clean white-dart frames come from those positions.
+- **The remedy, not made until ruled:** D1 draws its dot at a position transcribed from the frames, independent of
+  `src`, so the selftest and the checker can disagree. The driver keeps S-dot-slot's prediction and stays red until
+  then.
+
+**Reported, not predicted** (they moved as said they would):
+- **A:** markers 168 → 160; ambiguous 295 → 273; over weather 75 → 73; screen dots 33.
+- **B**, where (2) is not graded: without an outline 125 → 95, counted apart 30.
+
+**What CI runs:**
+- `run.sh` runs the checker's selftest (X1, X2), and the anchors pass covers the new driver (X6).
+- The driver's own run, like the other wx drivers', is run by hand.
+- Python here is the bench's Windows Python. CI's is Linux, so CI is the authority on X1 and X2 there.
