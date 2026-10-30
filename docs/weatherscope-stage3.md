@@ -9908,3 +9908,135 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 **5. #510 and #511:** the counts went to Daniel with the approval request, once every run had finished and a second read showed the counts were no longer moving:
 - **#510** at `76607fcb9dc8`: 35 check runs, 32 success, 3 skipped (promote, version, ship-alert), 0 failed;
 - **#511** at `d9edd17d1960`: 34 check runs, 32 success, 2 skipped (version, promote), 0 failed.
+
+### A12.70 Ruled 2026-10-30 ~18:25Z (source: reviewer chat, pasted by Daniel): #510 approved and merged; Q64 accepted -- t4 rebased for #511; the follow-up (one count, one place) frozen before its code
+
+**The ruling, verbatim:**
+
+> For: Weatherscope Code, from the reviewer chat, 2026-10-30 ~18:25Z
+>
+> #510: approved to merge at 76607fcb9dc8, conditional on its CI: every run finished, 0 failed. Your reported counts go in
+> the merge record.
+> - Main has moved to bea882a (#509, .github/workflows/workers.yml only), with no file in common with #510, so a direct
+>   squash with --match-head-commit is fine. No --admin. Record main's CI on the merge commit. If the head moves, this
+>   approval lapses.
+> - My own run, #510 merged into main, Linux g++ 13.3: all host tests pass except the rig's xtensa line; anchors 18 ok, plus
+>   ANCHORS-CTL ok; controls 17 run and 1 skipped (towns), plus CONTROLS-CTL ok. sabotage_wx_themed_draw.py and
+>   sabotage_wx_server_crops.py in full: ALL AS PREDICTED (S-KD 82 = 25 Dallas + 57 Bend).
+> - Follow-up, as its own small PR after #511 or inside #511 (say which), predictions first: one count, one place.
+>   - The problem: in sabotage_wx_k35.py, main() checks `!= 28` (line 100) while CONTROL_TABLE holds its own 28. Likely the
+>     same in daynight, basemap, layout, legend, replay, scenarios and theme. Fix a stale count in CONTROL_TABLE alone and
+>     --control goes green while the full run reads the RIG, which is Q57 again.
+>   - The fix: each count is one constant that both read, as themed_draw does with SUITES.
+>   - The check that it can fail: a lint that flags any driver whose CONTROL_TABLE count is a separate literal, with its
+>     own control.
+> - Towns: its control always skips, even where the archive exists. Let it run when the two archive paths are given (env),
+>   and skip only when they aren't.
+> - Heads-up, nothing for you to do: #445 (blipscope-5c) has seven drivers without --control and a byte-identical copy of
+>   the old sabotage_common.py. I've told it what to expect when #510 lands.
+>
+> Q64's answer: accepted. The CSRF-header catch was a good one.
+> - The 09:00Z quiet-hour reboot: any future watch on this board names it in its plan and reads that reboot as expected,
+>   not as a fault.
+> - The local copy of the config page stays out of git (it can hold network names).
+> - The t5 board run: after the watch, announced, as planned.
+
+**#510, merged.**
+
+**The checks first, fresh:**
+- the head was still `76607fcb9dc8`, `MERGEABLE`/`CLEAN`;
+- CI on it: **35 check runs, all completed: 32 success, 3 skipped (promote, version, ship-alert), 0 failed** (the counts reported in A12.69);
+- main was `bea882a`.
+
+**One correction to the record:** #509 touched `docs/blip-creds-token-file.md` as well as `.github/workflows/workers.yml`. Neither file is in #510, so there was still none in common.
+
+**The merge:** squash, `--match-head-commit 76607fcb9dc88333aba3e0f698ac1593420bb1cc`, no `--admin`, at 2026-10-30T18:21:23Z, as **`31cb44c5376b8857dad423b18a6009312b21d765`**.
+
+**After the merge:**
+- its parent is `bea882a`;
+- it changes exactly #510's 21 paths, each byte-equal to the approved head's;
+- **no other path differs from `bea882a`** (compared, not assumed).
+
+**Main's CI on the merge commit** is counted once every run has finished, in the next addendum.
+
+**`weatherscope/harness-control` is deleted only after #511 is retargeted to main.** Deleting a PR's base branch closes the PR.
+
+**t4, rebased for #511.**
+- **The rebase:** `d9edd17` → **`8be4690`**, onto `31cb44c`.
+- **t4's own patch is identical** (same `git patch-id`).
+- **The tree differs from the tested `d9edd17` only in #509's two files.**
+- **Before the force-push and the retarget,** the host suites run again on `8be4690` under both compilers.
+
+**Q64: accepted. On record:**
+- **Any future watch on 907069326E64 names its 09:00Z quiet-hour reboot in its plan,** and reads that reboot as expected, not as a fault.
+  - This applies once t5's run has set the place. Tonight's watch is unaffected: no place yet, so its quiet hour is 03:00Z.
+- **The local mock of the config page stays out of git.** It lives in this session's scratch only. It is built from the template at run time with every placeholder blank, so it holds no network names.
+
+**A correction to two earlier records: the towns driver was never "the rig".**
+- A12.63's and A12.65's "towns exit 2 (the rig)" came from my running it **without its two arguments.**
+- **The archives are on this machine:** the 2025 Gazetteer zip and SUB-EST2024, in this session's scratch.
+- **Run with them on t4's tree, it reads ALL AS PREDICTED:**
+  - the control: D6(b) 0 failures, `--check` identical;
+  - S-D6a failing exactly `D6:1`;
+  - S-D6b `--check` exit 1, DIFFERS;
+  - the real header unchanged.
+
+#### The follow-up: one count, one place -- frozen before its code
+
+**Where:** its own small PR, **after #511**, based on main once #511 merges.
+- It touches every driver, and #511 already changes three of them.
+- Kept apart, #511's head and its CI stay as they are.
+
+**The inventory, read token by token on t4's tree** (comments and docstrings excluded):
+
+| driver | its `CONTROL_TABLE` count | the same count elsewhere |
+|---|---|---|
+| `sabotage_wx_k35.py` | 79 | `!= 79` in `run()` (and the RIG message's text) |
+| `sabotage_wx_layout.py` | 73 | `!= 73` in its runner |
+| `sabotage_wx_replay.py` | 195, 79 | `want = 195 if which == "replay" else 79` |
+| `sabotage_wx_th2.py` | 5 | `!= 5` in `run_th2`. **Mine, from t4: the defect, again** |
+| `sabotage_daynight.py` | 28 | `CHECKS = 28`, which the table does not read |
+| `sabotage_wx_basemap.py` | 92 | `CASES = 92`, which the table does not read |
+| `sabotage_wx_theme.py` | 72 | `CHECKS = 72`, which the table does not read |
+| crop 27, legend 4, logic 121, loop 44, loop_render 15, palette 15, scenarios 12, screens 17, server_crops 16, starved_seconds 44 | as listed | **none**, but each table holds a bare literal, so a later run-path check could grow its own copy |
+| `sabotage_wx_light.py`, `sabotage_wx_themed_draw.py` | from `SUITES` | none: **already one place** |
+| `sabotage_wx_towns.py` | empty (it always skips) | — |
+
+- **One apparent hit is not one:** scenarios' `after[:12]` is a hash prefix, not its count of 12.
+- **The reviewer named legend and scenarios as likely.** Each holds its count only in its table, so only the bare-literal half applies to them.
+
+**The fix:** every driver's suite counts become module-level named constants, or one structure such as `SUITES`, and both its run path and its `CONTROL_TABLE` read them:
+- **k35, layout, replay and th2:** their run-path literals become the constant, and the RIG messages print it;
+- **daynight, basemap and theme:** their tables read the constants they already have;
+- **the ten table-only drivers:** each gains one named constant.
+
+**The lint:** `test/host/lint_driver_counts.py`, AST-based. It flags:
+- **L1:** a `CONTROL_TABLE` count that is an integer literal, not a name or a value derived from a named structure;
+- **L2:** any integer literal in a driver's code equal to one of its table counts, except:
+  - the constant's own single definition;
+  - a slice bound, which is an index, not a count.
+
+**`run.sh`** runs the lint in the controls block, so a driver that regrows a literal fails its PR.
+
+**The lint's own control:** two mangled copies of a fixed driver must each be flagged, naming the driver and the line:
+- (a) its table count as a literal again;
+- (b) its run-path check as a literal again.
+
+**Towns, as ruled:**
+- **The control runs when `WX_TOWNS_GAZ` and `WX_TOWNS_SUBEST` name two existing files,** and skips only when they don't, naming both variables.
+- **Its table:** `test_wx_towns` ("checks", **172**, as measured) and `make_towns.py` ("line", `WxTowns.h: identical`).
+- **The shared recorder gets one fix:** `control_mode` decodes a suite's bytes as it already does a script's. Towns' D6(b) captures bytes, so its count would otherwise read empty.
+- In the full run, `main()` still takes the archives as its two arguments.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| the lint on t4's tree (before the fix) | **L1:** 17 drivers (all 20 but light, themed_draw and towns). **L2:** k35 (1 literal), layout (1), replay (2) and th2 (1). Exit 1 |
+| the lint after the fix | **0 flagged, exit 0,** with its control red on both mangled copies |
+| every driver's `--control` | as before: 19 run and all as the table. **Towns:** with the two variables set, **run, all as the table**; without them, SKIPPED with its reason (CI holds no archive) |
+| every driver in full | as before, **towns with its archives ALL AS PREDICTED** |
+| `run.sh`, both compilers | every block's header and count as today, plus the lint's lines in the controls block |
+| the firmware | no firmware file changes |
+
+**The outside-the-set branch:** a driver, a lint result or a count off its row stops the follow-up at that row, and is reported before anything changes.
