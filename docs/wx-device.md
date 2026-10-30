@@ -3213,3 +3213,87 @@ passed. ... predictions first and sabotages, and re-graded on 10-29's frames bef
 - `run.sh` runs the checker's selftest (X1, X2), and the anchors pass covers the new driver (X6).
 - The driver's own run, like the other wx drivers', is run by hand.
 - Python here is the bench's Windows Python. CI's is Linux, so CI is the authority on X1 and X2 there.
+
+## One synthetic feed, for W5⁗ and K6 (ruled 2026-10-30): frozen before the generator
+
+Ruled:
+- **W5⁗:** "one generator on the bench PC, serving the same contacts, tracks and labels to both images in local mode
+  ... n is identical by construction, and the control (O against O) must read within ±1 ms. Generated, not recorded:
+  no key, no real positions, a public centre."
+- **K6:** "the replay proxy answers /blips from a synthetic 60-contact response (from the same generator, re-centred
+  like the crop), together with /wx/cref; every other route stays forwarded unchanged ... First say from the code how
+  the device reaches 60 contacts (one response, or retention past BLIPS_LIMIT), and make the generator do that."
+
+### How the device reaches 60, from the code
+
+- **On the cloud path it is retention, never one response.**
+  - The device asks `/blips` for `limit=40` (`BLIPS_LIMIT`, `AircraftManager.cpp` in the cloud fetch). The comment
+    there explains why: a 60-contact request starved TLS handshakes.
+  - The Worker clamps `limit` to 1-60 (`proxy/src/blips.ts`), so production answers at most 40.
+  - The tracked set grows past one response only by the merge's grace window. A contact missing from a poll stays
+    until `now - lastSeen > graceMs`, with `graceMs = clamp(2 x poll interval, 5 s, 30 s)`: 10 s at the active
+    5 s cadence.
+- **`MAX_AIRCRAFT` (60) cuts each response to its nearest 60.** On the cloud path no response reaches it. A single
+  response fills it only on the local feed, which sends no limit.
+- **So the K6 generator does what the cloud path does:** it honours the request's `limit=40` and alternates two
+  overlapping sets each poll (contacts 1-40, then 21-60). Every contact is absent for at most one 5 s poll, inside the
+  10 s grace, so retention holds 60. No response exceeds what production could send.
+
+### The generator: `tools/wx-replay/synth_feed.py`
+
+- **Deterministic from a seed, and from the arm's own start time.** Every arm sees the same contacts, tracks and
+  labels at the same offset from its boot.
+- **Contacts:**
+  - straight constant-speed tracks across the disc, in km offsets from a centre;
+  - altitudes spread across every altitude-colour band;
+  - dart categories (no rotorcraft or balloon); no emergency squawk.
+- **Hex codes in `0x230000-0x2FFFFF`, the non-ICAO range,** so the device settles every enrichment offline
+  (`IsNonIcaoAddress`). Not one enrichment, route or photo request leaves for them, so production sees no fake
+  airframe.
+  - Callsigns are `SYN` and three digits, which `LooksLikeRegistration` does not take for a tail.
+  - No hex is in a military range.
+- **The centre:**
+  - **K6** re-centres on the `/blips` query's own lat/lon, as the crop does. The proxy already sees that query and
+    never logs it, and positions exist only in memory.
+  - **W5⁗**'s local feed has no query, so it uses a **public centre**: Bend, 44.06, -121.32, the reference tile
+    `smoke-prod.sh` uses. E2:08's location is set to it for the session through the config page (`--text-file`, no
+    value on argv), held in memory, and restored at the end and in `finally`.
+- **No key, no recorded positions, nothing of E2:08's written anywhere.** The PC's and E2:08's LAN addresses stay out
+  of every log and record, as in RS1-RS6.
+
+### W5⁗
+
+- **The arms:** as W5‴. Ten alternating arms O1 N1 ... O5 N5 (O = `962ccb7`, N = #445's head), each flashed app-only
+  under one trace, with a 3 min wait and a 6 min read. Both images run in **local mode**, the local URL set to the
+  generator. N's layer stays off.
+- **The schedule n follows:** four plateaus inside each window, 24, 28, 32 and 36 contacts, 90 s each. With about 12
+  `[health]` lines a window, each plateau gets about 3 lines per arm and about 15 per image. The floors can then be met
+  where live traffic could not meet them.
+- **No sun needed.** The feed is the same at any hour, and dimming leaves the framebuffer alone. Not inside an RP6 or
+  replay window.
+
+| | check | predicted |
+|---|---|---|
+| **G1** | n in the windows' `[health]` lines | each line within 1 of a plateau, except lines within 10 s of a step (retention), which are counted and reported |
+| **G2** | the control, (O1 + O3 + O5) against (O2 + O4), W5‴'s statistic | within **±1 ms**, over ≥ 4 shared bins |
+| **G3** | the grade, N - O | within **±1 ms**, over ≥ 4 shared bins |
+| **G4** | touches, cadence | 0 touches. 12 polls a minute in every window (the local feed polls on the same cadence machine) |
+
+### K6
+
+- **One declared arm in a replay-proxy session, its own announced window.**
+  - The `wxlook` image, look A, the layer on, the cloud URL set to the proxy.
+  - The proxy answers **`/blips`** from the generator (two alternating 40-sets, re-centred on the query) and
+    **`/wx/cref`** from the crop, both locally. Every other route is forwarded unchanged.
+  - After 2 min for retention to fill, 10 min are read.
+- **RS rows extended (RS-K):** in this arm the proxy names both local routes. Its log carries the route name and status
+  only: no header, no query, no coordinate. Its scan proves that, as RS3 does.
+
+| | check | predicted |
+|---|---|---|
+| **K6a** | n in the `[health]` lines | **60** in ≥ 90 % of them |
+| **K6b** | heap and feed | `allocFail=0`, `hardFail=0`, no `DATA STALE` in the window |
+| **K6c** | frame p95 at n = 60, look A, layer on | between **76 and 86 ms**. The frozen model gives 83.9 (35.9 + 0.800 x 60); W5‴'s layer-off residual of about -8 ms and the outline's 0.1625 ms per contact pull it either side. **What it decides, as ruled:** ≤ 85 ms, look A keeps its outline at every count. Above 85, look A drops the outline above a count set from this measurement with a 2 ms margin, as its own change, and Daniel is told |
+
+**Outside the set, for both:** stop and report. That includes a heap failure at n = 60. The fetch comment records 60
+contacts once starving TLS handshakes. If K6b fails, K6c is not read as a frame cost.
