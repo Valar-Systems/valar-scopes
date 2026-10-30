@@ -3051,7 +3051,7 @@ across five pushes before anyone looked.
 | **A2** | each driver's entries with its first anchor removed in memory: `anchors_mode` returns 1 and names the first plant, for all six; unmangled, 0 | **as predicted** |
 | **A3** | `run.sh` (g++ 13.3.0, WSL) runs `s2` and `outline`: both AS PREDICTED. It does not run the other four, so they were run directly (`CXX=g++`): `policy` 10, `sweep` 4, `legend_html` 1 and `look_select` 2 sabotages, all AS PREDICTED, each real header unchanged. `run.sh` fails only on the two rig gaps (the xtensa block; R0/R0b without Pillow) | **as predicted** |
 | **A4** | `sabotage_common.py`'s blob is `09f8af21f6aa`, the same as `origin/main`'s | **as predicted** |
-| **A5** | CI on the pushed head | read below once it runs |
+| **A5** | CI on `da08471`: 36 runs, 33 success, 3 skipped, none failed. `host-tests` passes, and its anchors pass lists the six at A1's counts, each "all present exactly once" | **as predicted** |
 
 - **A rig gap in the new worktree, not a result:** the first `run.sh` stopped at the Wi-Fi QR block (exit 2, later
   blocks unrun), because the worktree had no `.pio/libdeps`. ArduinoJson and LovyanGFX were copied in from the board
