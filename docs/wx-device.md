@@ -2866,3 +2866,47 @@ So it retires now, with its predictions frozen first (below).
 - `check-config-form.py` passes all 9 pages;
 - `run.sh` (g++ 13.3.0, WSL) runs the new block and K3, and fails only on the two rig gaps;
 - both images build.
+
+## W5‴, designed for drifting traffic (ruled 2026-10-30): frozen before its run
+
+**Why W5″ could not grade:** its five arms were 24 min apart, so the morning's traffic moved between them. O2 sat at n
+40-43 while O1 and O3 sat at 30-36, and the matched-n control had no shared bin at all.
+
+**The design: many short alternations, each inside the after-boot active cadence.**
+- **The arms:** O and N alternate, **O1 N1 O2 N2 … O5 N5**, ten arms.
+  - O = main `962ccb7`'s `blipscope-s3-128` (its own tree, `wt-bendon`); N = #445's `blipscope-s3-128` at its head.
+  - Neither image draws weather here: N's page reads the layer off.
+- **Each arm:** flash app-only, hold one trace, check the banner and the page, then **wait 3 min and read 6 min**.
+  - Both images seed the active cadence at boot (`Initialise()` sets `lastTouchActivityMs`), and it lasts 600 s. So
+    every window (boot + 3 to boot + 9 min) is in the active cadence on both images. This is checked from the trace:
+    the `[perf]` lines inside it read 11-13 polls a minute.
+  - An arm is about 10 min, so the session is about 100 min. **Arms only 10 min apart see the same traffic.**
+- **The sun:** not needed. The cadence is the active one by construction, and dimming leaves the framebuffer alone.
+  But by day keeps n in the range the model was fitted on (0-40), so **every window is by day**, checked per arm.
+- **The touch gate:** a `[touch]` line in an arm's window voids **that arm**. The run grades on the arms left, under
+  the same floors.
+
+**The statistic, unchanged from W5″:** each image's `[health]` frame lines pooled by n; the n bins with ≥ 3 lines from
+each image; the median over those bins of (median p95 N − median p95 O).
+
+**The control: O against O, interleaved.** The same statistic for (O1 + O3 + O5) against (O2 + O4), within **±1 ms**.
+Interleaving puts both groups across the whole session, so drift reaches both alike.
+
+**The floor:** ≥ 4 shared bins for both the grade and the control. Fewer, or a failed control, reads **"instrument"**.
+
+**The control shown able to fail, before the run, on recorded lines** (the ruling's condition), with
+`w5ppp_read.py`'s own code:
+- **The recorded lines:** W5″'s O2 window (19 lines, n 40-43), split alternately into two interleaved groups, as the
+  control splits O.
+- **Unplanted:** the control reads within ±1 ms.
+- **Planted:** +2.0 ms added to one group's p95, a drift. The control must read **outside ±1 ms** ("instrument").
+- **And the grade is checked to see a planted difference:** the same lines as "O" against themselves +2.0 ms as "N"
+  read N − O = +2.0 ± 0.3 ms.
+
+**Predicted:** the statistic within **±1 ms**, beside the per-arm medians, resid and n. The control within ±1 ms.
+≥ 4 shared bins each.
+
+**Outside the set:** stop and report, without re-running for a better number. A failed flash, banner or page check
+stops the session; a voided arm is recorded and the rest graded.
+
+**The readings go to the reviewer.**
