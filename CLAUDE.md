@@ -147,6 +147,14 @@ Unlike Space/EAM (rotating screens), the Seismic UI mirrors the **Aviation radar
 - **Data:** the device makes **no live call to NOAA or NWS, ever** — live data will come through the proxy. Until then three interfaces in [WxFeeds.h](src/weatherscope/WxFeeds.h) (`WxFeed`, `ObsFeed`, `AlertFeed`) serve stored data, and **exactly one file**, [WxFeedFactory.cpp](src/weatherscope/WxFeedFactory.cpp), chooses the implementations. The image must carry no NOAA/NWS host string.
 - **Status and plan:** [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md) — every step's predictions are frozen there before its code. Step 3.2 is the scaffolding: a splash and a status face; the screens are 3.3.
 
+## FEATURE_REMOTE — a tenth product (Remote)
+
+`-DFEATURE_REMOTE` (set on `remote-s3-128`; "Remote" is a working name) swaps the radar app for a desk **control** for Valar window and curtain openers on the LAN — Glasscalibur (window) and the Ropener (curtain), both ESPHome devices driven over their own web servers. Built like the other editions: its `build_src_filter` drops the radar-only TUs and every sibling edition and re-adds `src/remote/`; [main.cpp](src/main.cpp) picks `RemoteManager` at compile time. The config page gains a `#elif defined(FEATURE_REMOTE)` branch in [ConfigurationWebServer.cpp](src/ConfigurationWebServer.cpp) and is **on** the no-geography list (location is optional). OTA prefix `-DFW_OTA_PREFIX="remote-"`; the row is **build-only with no slug**.
+
+- **It is the first edition that moves something physical.** The safety rules (STOP on touch-down, a hold to start any motion, no command ever sent by boot/reboot/reconnect/OTA, no replay, controls disabled when state is unknown) are ruled and land with the feature work in one host-tested policy; until then the scaffold sends nothing at all. The quiet hour's update reboot is **held** while anything it controls is moving ([UpdateHold.h](src/remote/UpdateHold.h)); the scaffold's manager never holds.
+- **The quiet hour runs on local time** from the radar's own keys (`tz-offset`, else `longitude`), so `QuietHourOffsetSec()` needs no Remote case.
+- **Status and plan:** [docs/remote-edition.md](docs/remote-edition.md) — the device facts (ESPHome 2026.6.5, name-matched URLs), the rulings, and every step's predictions, frozen before its code.
+
 ## Memory, networking and touch — what is actually true now
 
 **This section used to describe three hard constraints inherited from the single-core ESP32-C3 Kit. That board was deleted from the tree on 2026-08-09, and two of the three were already false before it went.** They are written out below because the wrong version of this section is how one of them survived in shipping code for months: `ExitDetail()` was still freeing the photo sprite "so a TLS handshake has room" on a board where that sprite lives in PSRAM and cannot touch the internal heap at all.
