@@ -103,7 +103,29 @@ def anchor_entries():
         out += [(name, os.path.relpath(p, ROOT), sc.read(p), a) for a, _ in edits]
     return out
 
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_starvation_policy": ("line", "test_starvation_policy: all checks passed"),
+                 "test_usage_report": ("checks", 44)}
+
+
+def control():
+    inc = os.path.join(ROOT, "include")
+    with tempfile.TemporaryDirectory() as td:
+        for test in ("test_starvation_policy.cpp", "test_usage_report.cpp"):
+            tree = os.path.join(td, os.path.splitext(test)[0])
+            shutil.copytree(inc, os.path.join(tree, "include"))
+            os.makedirs(os.path.join(tree, "test", "host"))
+            shutil.copy(os.path.join(ROOT, "test", "host", test), os.path.join(tree, "test", "host", test))
+            exe = os.path.join(tree, "t.exe")
+            subprocess.run([CXX, *FLAGS, os.path.join(tree, "test", "host", test), "-o", exe], capture_output=True, text=True)
+            subprocess.run([exe, METRICS, README, SUPPORT] if test == "test_usage_report.cpp" else [exe],
+                           capture_output=True, text=True)
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

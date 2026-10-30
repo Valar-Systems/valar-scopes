@@ -3,7 +3,7 @@
   S-NL  `Rgb{1, 2, 3}` planted in a copy of src/weatherscope/WxScreens.h: NL's scan finds exactly 1 hit, at the plant's
         line. (The real file: 0.)
   S-KD  dark's ring ink (64, 64, 64) -> (72, 64, 64) in a copy of WxTheme.h: K-dark fails all 25 Dallas K screens and all
-        51 Bend rows, and nothing else, across six suites (k35, k35b, replay, layout, basemap, theme).
+        57 Bend rows (t3's 51 and step 7's Bend rain, 6; Q57), and nothing else, across six suites (k35, k35b, replay, layout, basemap, theme).
 
     python -I test/host/sabotage_wx_themed_draw.py
 
@@ -33,10 +33,10 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 SUITES = {   # name: (arguments, checks)
     "k35": ([LOOP, os.path.join(WX, "k35.ref.txt")], 28),
-    "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 143),
+    "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 149),   # Q57 (A12.61): K-BR's 6 rows, step 7
     "replay": ([LOOP], 90),
     "layout": ([LOOP], 73),
-    "basemap": ([WX], 84),
+    "basemap": ([WX], 92),   # Q59 (A12.62): BW1-BW8, step 7
     "theme": ([WX], 72),
 }
 DALLAS = ["dry-60", "approaching-60", "herenow-60", "warning-60", "stale-60", "clear-60", "approaching-30",
@@ -142,7 +142,21 @@ def anchor_entries():
     return [("S-NL", os.path.relpath(s, ROOT), sc.read(s), "    HomeMarker(s, th.white);\n"),
             ("S-KD", os.path.relpath(t, ROOT), sc.read(t), "    {64, 64, 64},      // ring\n")]
 
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = dict({f"test_wx_{s}": ("checks", n) for s, (_, n) in SUITES.items()},
+                     **{"scan_wx_colour_literals.py": ("exit", 0)})
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run_suites(td, "control", read(os.path.join(SRC, "WxTheme.h")))
+    subprocess.run([sys.executable, "-I", SCAN, os.path.join(SRC, "WxScreens.h")], capture_output=True, text=True)
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())
