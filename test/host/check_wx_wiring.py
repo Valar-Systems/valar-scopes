@@ -43,7 +43,52 @@ def wd5t4(hrm):
     return (not hits), (f"GetBytes ({body.count(chr(10))} lines): no String body" if not hits else f"String body: {hits}")
 
 
-CHECKS = [("WD5b (AircraftManager)", "am", wd5b_am), ("WD5b (config page)", "page", wd5b_page), ("WD5t4", "hrm", wd5t4)]
+def k3_rule(s2):
+    """K3: the one rule for the stored look -- exactly "B" is B, anything else (absence included) is A."""
+    m = re.search(r"inline Look LookFromStored\(const char\* s\)\s*\{\s*return\s*(.*?);\s*\}", s2, re.S)
+    if not m:
+        return False, "no wxs2::LookFromStored in WxS2.h"
+    want = "(s != nullptr && s[0] == 'B' && s[1] == '\\0') ? Look::B : Look::A"
+    body = " ".join(m.group(1).split())
+    return body == want, ("exactly \"B\" is B, else A (absent = A)" if body == want else f"the rule reads: {body}")
+
+
+def k3_am(am):
+    """K3: Initialise() reads "wx-look" once, through LookFromStored, and NOT only in the bench image."""
+    reads = re.findall(r'[^\n]*GetStoredString\("wx-look"\)[^\n]*', am)
+    if len(reads) != 1:
+        return False, f"{len(reads)} read(s) of \"wx-look\" in AircraftManager.cpp, not 1"
+    if "wxs2::LookFromStored(configServer.GetStoredString(\"wx-look\").c_str())" not in reads[0]:
+        return False, f"not through LookFromStored: {reads[0].strip()}"
+    depth_bench = 0
+    stack = []
+    for line in am[:am.index(reads[0])].splitlines():
+        t = line.strip()
+        if t.startswith("#if"):
+            stack.append("WX_LOOK_AB" in t)
+        elif t.startswith("#endif") and stack:
+            stack.pop()
+        elif t.startswith("#else") and stack:
+            stack[-1] = False
+    depth_bench = sum(1 for b in stack if b)
+    return depth_bench == 0, ("one read, through LookFromStored, in shipping code" if depth_bench == 0
+                              else "the read is inside #ifdef WX_LOOK_AB: the shipping image would ignore the setting")
+
+
+def k3_page(page):
+    """K3: the page reads "wx-look" with an absent default that LookFromStored maps to A ("" or "A")."""
+    defaults = re.findall(r'getString\("wx-look",\s*"([^"]*)"\)', page)
+    if not defaults:
+        return False, "no getString(\"wx-look\", ...) in ConfigurationWebServer.cpp"
+    bad = [d for d in defaults if d not in ("", "A")]
+    through = "wxlookselect::Html(wxLookStored.c_str())" in page and "wxs2::LookFromStored(wxLookStored.c_str())" in page
+    ok = not bad and through
+    return ok, (f"{len(defaults)} default(s) {defaults}, the select and the legend through the rule" if ok
+                else f"defaults {defaults}; select and legend through the rule: {through}")
+
+
+CHECKS = [("WD5b (AircraftManager)", "am", wd5b_am), ("WD5b (config page)", "page", wd5b_page), ("WD5t4", "hrm", wd5t4),
+          ("K3 (the rule)", "wxs2", k3_rule), ("K3 (AircraftManager)", "am", k3_am), ("K3 (config page)", "page", k3_page)]
 
 
 def run(src):
@@ -59,7 +104,8 @@ def main():
     try:
         src = {"am": open(f"{root}/src/AircraftManager.cpp", encoding="utf-8").read(),
                "page": open(f"{root}/src/ConfigurationWebServer.cpp", encoding="utf-8").read(),
-               "hrm": open(f"{root}/src/HttpRequestManager.cpp", encoding="utf-8").read()}
+               "hrm": open(f"{root}/src/HttpRequestManager.cpp", encoding="utf-8").read(),
+               "wxs2": open(f"{root}/include/WxS2.h", encoding="utf-8").read()}
     except OSError as e:
         print(f"FAIL: cannot read the sources ({e}). This is the RIG, not the code."); return 2
     if "--selftest" in sys.argv:
@@ -72,6 +118,14 @@ def main():
             ("a String body", "WD5t4", "hrm",
              lambda s: s.replace(body, body.replace("    xSemaphoreGive(mutex);\n",
                                                     "    const String dump = http.getString();\n    xSemaphoreGive(mutex);\n", 1)) if body else s),
+            ("the look's rule inverted (absent = B)", "K3 (the rule)", "wxs2",
+             lambda s: s.replace("s[0] == 'B' && s[1] == '\\0') ? Look::B : Look::A",
+                                 "s[0] == 'A' && s[1] == '\\0') ? Look::A : Look::B")),
+            ("the look read only on the bench", "K3 (AircraftManager)", "am",
+             lambda s: s.replace("    wxLook = wxs2::LookFromStored(configServer.GetStoredString(\"wx-look\").c_str());\n",
+                                 "#ifdef WX_LOOK_AB\n    wxLook = wxs2::LookFromStored(configServer.GetStoredString(\"wx-look\").c_str());\n#endif\n")),
+            ("the page's look default B", "K3 (config page)", "page",
+             lambda s: s.replace('prefs.getString("wx-look", "")', 'prefs.getString("wx-look", "B")')),
         ]
         bad = 0
         for label, target, key, plant in sabotages:

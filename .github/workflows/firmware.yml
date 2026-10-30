@@ -371,7 +371,7 @@ jobs:
       # with no other bench marker, so the marker's absence from every slug-ful image (scanned below) means something.
       - name: Weather-look bench marker in its own image
         if: matrix.env == 'blipscope-s3-128-wxlook'
-        run: bash scripts/check-no-bench-hooks.sh --expect "Weather look (bench)" ".pio/build/${{ matrix.env }}/firmware.bin"
+        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE FACTORY IMAGE IS PUBLISHED FROM CI, AND THAT IS A SAFETY CONTROL, NOT A
       # CONVENIENCE. The local build path (provision-batch.py, a bench `pio run`) can
       # bake a -DCLOUD_FEED_KEY="..." flag into the image -- platformio.ini invites

@@ -909,9 +909,13 @@ void AircraftManager::Initialise()
     // that were never saved"). test/host/check_wx_wiring.py reads this line and the config page's default.
     wxLayerEnabled = configServer.GetStoredString("wx-layer") == "true";
     if (wxLayerEnabled) AllocateWeatherBuffers();
+    // The look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through the one rule the page uses,
+    // so absence means look A, the default Daniel chose.
+    wxLook = wxs2::LookFromStored(configServer.GetStoredString("wx-look").c_str());
 #ifdef WX_LOOK_AB
-    // The bench env only (docs/wx-device.md, WD4 addendum 2): Daniel compares look A and look B on the glass.
-    wxLook = configServer.GetStoredString("wx-look") == "B" ? wxs2::Look::B : wxs2::Look::A;
+    // check-no-bench-hooks.sh's marker for this bench image: absent from every slug-ful image (it was the look
+    // select's "(bench)" label until the look became a shipping setting).
+    Serial.println("[wx-bench] the weather bench image (WX_LOOK_AB)");
 #endif
     wxSpriteReady = false;   // a save can change the look, the home or the range: rebuild on the next shown frame
 #endif

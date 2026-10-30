@@ -2840,3 +2840,29 @@ So it retires now, with its predictions frozen first (below).
   Daniel's looks, the trace 52 min, the window at least 80 min, and no sweep look in the start state.
 - `replay_read.py` gains the touch check inside every arm, as ruled. **Shown able to fire:** on yesterday's session it
   reads arm A **VOID** (4 `[touch]` lines).
+
+### Results for the look as a shipping setting, local (2026-10-30; K1-K4)
+
+| | read | verdict |
+|---|---|---|
+| **K1** | `test_wx_look_select.cpp`: two options, A then B, Daniel's labels exactly, A selected for "", "A" and "x", B for "B", no `%` | **as predicted** |
+| **K2** | `LookFromStored`: "B" is B; "", "A", "b", "x", "BB" and null are A | **as predicted** |
+| **K3** | `check_wx_wiring.py`, three new rows: **the rule** (exactly "B" is B), **`Initialise()`** (one read, through the rule, in shipping code, not inside `WX_LOOK_AB`), **the page** (default "", the select and the legend through the rule). The control: WD5b and WD5t4 still pass | **as predicted** |
+| **K4** | the shipping ELF holds both labels and none of `Sweep over weather (bench)`, `Weather look (bench)`, `[health] sweepscan=`, `[health] outline=`, `[bench] scan0=`, `[bench] layer copy:`, `[wx-bench]`. `wxlook` holds the labels and every bench string | **as predicted** |
+| **S-label** | red rows `K1` | **as predicted** |
+| **S-default** | red rows `K1`, `K2`; and in `check_wx_wiring.py`'s selftest the inverted rule turns exactly "K3 (the rule)" red | as predicted for K2 and K3. **K1 also goes red.** That was stated before the first run (in the sabotage's own text), because K1's "A selected for an empty value" reads through the same rule |
+| **K5** | the board | at the next board run, in an announced window |
+
+**What the first path established, kept on the second:**
+- **The bench-hook marker:** `check-no-bench-hooks.sh`'s marker was the bench select's label. That label is now
+  "Weather look", a shipping string. So the bench image prints **`[wx-bench]`** at boot instead, under `WX_LOOK_AB`.
+  - The marker list and the firmware workflow's `--expect` for the `wxlook` env both change to it, in this change.
+  - **Read on the built images:** the selftest passes, the shipping image is clean, and `wxlook` carries `[wx-bench]`
+    and no other marker.
+- **The legend checker** finds the look by the select's name, `wx-look`, which is unchanged. Only its docstring named
+  the old label.
+
+**The rest:**
+- `check-config-form.py` passes all 9 pages;
+- `run.sh` (g++ 13.3.0, WSL) runs the new block and K3, and fails only on the two rig gaps;
+- both images build.

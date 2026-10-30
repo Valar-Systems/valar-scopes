@@ -3,6 +3,7 @@
 #include "NtfyTopic.h" // the generated private topic (spec 14.1)
 #ifdef FEATURE_CLOUD_FEED
 #include "WxLegendHtml.h" // the Weather section's legend (docs/wx-device.md WD8)
+#include "WxLookSelectHtml.h" // the Weather section's look select (docs/wx-device.md K1)
 #endif
 #include "ConfigMigration.h"
 #include <WiFi.h>
@@ -2750,12 +2751,9 @@ void ConfigurationWebServer::Initialise() {
         const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
         // Weather under the planes (WD5): absent means OFF, the same default AircraftManager reads.
         const String wxLayerEnabled = HtmlEscape(prefs.getString("wx-layer", "false"));
-#ifdef WX_LOOK_AB
-        // The bench env only (docs/wx-device.md, WD4 addendum 2): which look is on the glass; absent means A.
-        const String wxLookBench = prefs.getString("wx-look", "A") == "B" ? "B" : "A";
-#else
-        const String wxLookBench = "A";
-#endif
+        // The weather look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through
+        // wxs2::LookFromStored, so absence means look A, the default Daniel chose.
+        const String wxLookStored = prefs.getString("wx-look", "");
         const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
         const String airportsMin = HtmlEscape(prefs.isKey("airports-min") ? prefs.getString("airports-min", "all") : "all");
         const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
@@ -3176,7 +3174,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, wxLayerEnabled, wxLookBench, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, wxLayerEnabled, wxLookStored, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -3223,16 +3221,11 @@ void ConfigurationWebServer::Initialise() {
                     return String("<fieldset><legend>Weather</legend><div class=\"grid3\">")
                          + "<label class=\"check\"><input name=\"wx-layer\" type=\"checkbox\" "
                          + (wxLayerEnabled == "true" ? "checked" : "") + "><span>Weather radar (beta)</span></label>"
-#ifdef WX_LOOK_AB
-                         // The label is check-no-bench-hooks.sh's marker: absent from every slug-ful image.
-                         + "<label>Weather look (bench) <select name=\"wx-look\"><option value=\"A\""
-                         // No literal '%' in a template processor's output: the page's %PLACEHOLDER% processing eats
-                         // it and everything up to the next '%' (it took option B from b56d883 on; check-config-form.py).
-                         + (wxLookBench == "A" ? " selected" : "") + ">A: 40 percent + outline</option><option value=\"B\""
-                         + (wxLookBench == "B" ? " selected" : "") + ">B: 25 percent</option></select></label>"
-#endif
+                         // The look, a shipping setting since 2026-10-29 (K1): Daniel's labels, values "A"/"B", absent
+                         // = A. WxLookSelectHtml.h holds no '%' (the page's %PLACEHOLDER% processing would eat it).
+                         + wxlookselect::Html(wxLookStored.c_str()).c_str()
                          + "</div>"
-                         + wxlegendhtml::Html(wxLookBench == "B" ? wxs2::Look::B : wxs2::Look::A).c_str()
+                         + wxlegendhtml::Html(wxs2::LookFromStored(wxLookStored.c_str())).c_str()
                          + "</fieldset>";
 #else
                 if (var == "WXSECTION")      return "";   // a build without the feed has no weather, so no section
@@ -3797,8 +3790,8 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("triangle");
         SaveToggle("airports");
         SaveToggle("wx-layer");
-#ifdef WX_LOOK_AB
-        TrySaveParam("wx-look");
+#ifdef FEATURE_CLOUD_FEED
+        TrySaveParam("wx-look");   // a shipping setting since 2026-10-29 (docs/wx-device.md K1); absent stays absent
 #endif
         TrySaveParam("airports-min");
         SaveToggle("trail");

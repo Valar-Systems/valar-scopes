@@ -1316,6 +1316,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# The config page's weather-look select (include/WxLookSelectHtml.h, wxs2::LookFromStored; docs/wx-device.md K1, K2):
+# a shipping setting since 2026-10-29, look A by default, Daniel's labels. Its sabotages (a label one character off;
+# absence read as B): python -I test/host/sabotage_wx_look_select.py.
+echo
+echo "== WxLookSelectHtml =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_look_select.cpp" -o "$OUT/test_wx_look_select.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather look select test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_look_select.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
 # S2, the weather layer's colours (include/WxS2.h; WD4 and its addenda), for BOTH bench looks (A 40 %, B 25 %). The
 # planes' colours are read from src/AircraftManager.cpp. Its sabotages: test/host/sabotage_wx_s2.py, run below.
 echo

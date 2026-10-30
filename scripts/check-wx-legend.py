@@ -5,7 +5,7 @@ layer draws, computed here from the source -- WxPalette.h's colours, WxS2.h's pe
     python scripts/check-wx-legend.py --url http://<device>     grade a live device's page
     python scripts/check-wx-legend.py --selftest                 prove the check catches each defect (S-leg included)
 
-The look graded is the one the page itself selects ("Weather look (bench)"), or A where the page has no such select
+The look graded is the one the page itself selects (the wx-look select, a shipping setting since K1), or A where the page has no such select
 (the shipping image draws A). Exit: 0 PASS, 1 FAIL, 2 rig (the source or the page could not be read).
 """
 from __future__ import annotations

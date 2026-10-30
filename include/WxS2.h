@@ -19,6 +19,10 @@ enum class Look : uint8_t { A, B };
 constexpr int kPercentA = 40;
 constexpr int kPercentB = 25;
 inline int Percent(Look l) { return l == Look::A ? kPercentA : kPercentB; }
+
+/** The ONE rule for the stored "wx-look" value (docs/wx-device.md, K2): exactly "B" is look B; anything else, absence
+ *  ("") included, is look A, the default Daniel chose (2026-10-29). Both the page and Initialise() read through this. */
+inline Look LookFromStored(const char* s) { return (s != nullptr && s[0] == 'B' && s[1] == '\0') ? Look::B : Look::A; }
 inline bool Outline(Look l) { return l == Look::A; }
 
 inline uint32_t Pack(wxpalette::Rgb c) { return ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b; }

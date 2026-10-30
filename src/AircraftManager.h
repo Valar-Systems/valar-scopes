@@ -649,7 +649,7 @@ private:
     uint8_t* wxSweepSlice = nullptr;  // WD6: the wedge's slice per screen pixel, cleared as it is blended
     uint8_t* wxSweepSpans = nullptr;  // the B1 fix: each row's first and last marked column, 2 x SCREEN_SIZE int16
     bool wxNeedsRebuild = false;     // a new crop (or view) has not been built into the layer yet
-    wxs2::Look wxLook = wxs2::Look::A;   // the shipping look until Daniel picks; B only via the bench env (WD4 add. 2)
+    wxs2::Look wxLook = wxs2::Look::A;   // the user's look ("wx-look", K1); A by default, Daniel's choice
     LGFX_Sprite wxSprite;             // wraps wxLayer565 (setBuffer): pushed in place of the frame clear
     bool wxSpriteReady = false;       // wxSprite holds the layer built for the inputs below
     wxpolicy::Show wxShowing = wxpolicy::Show::Nothing;   // this frame's decision, made in DrawWeatherUnder
