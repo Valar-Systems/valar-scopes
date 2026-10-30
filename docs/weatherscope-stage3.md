@@ -9143,3 +9143,61 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 **3.5b is done but for Q56.** The board holds #507's image.
 
 **Next, as ruled:** t4. It is independent of Q56, which is about how PSRAM rows are priced.
+
+### A12.59 Ruled 2026-10-30 (source: reviewer chat, pasted by Daniel): Q56 as recommended; #508 approved and merged; 3.5b done. One instrument step 7 stranded, found before t4 (Q57)
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-30
+>
+> 1. Q56: as recommended. The three blocks are re-registered at the allocator's sizes, 58,356, 9,972 and 4,596 B, and the allocator model prices every PSRAM row from now on: the request plus 12 B, rounded up to its size class (2^(fl−5) for a block in [2^fl, 2^(fl+1))). I checked the three by that rule: 57,612 → 58,368, 9,788 → 9,984 and 4,524 → 4,608, each less 12. The miss stays on record: the rows graded the requested sizes, not the allocated ones. q3's 96 B over the model stays unexplained, and is noted.
+>
+> 2. #508: approved at 43cc2b3680bf, once CI's total on that head is counted with every check that ran passing. I scanned its 40 record files: no IPv4 address, no MAC, the BSSIDs shown only as <bssid>, and every coordinate-shaped number is a timestamp or a timing. A clean squash, --match-head-commit, no --admin, the head named in the record; then delete weatherscope/3-5b-board.
+>
+> 3. Your correction is right: #505 also touched .github/workflows/workers.yml. It still shared no file with #507.
+>
+> 4. 3.5b is done once Q56 is recorded. t4 next, as you plan: the addendum restating A12.43's t4 rows for 82 scenes, and look35's light theme given A12.43's light orange and light snow, before any code.
+
+**Q56, recorded.**
+- **Step 7's PSRAM blocks are re-registered at the allocator's sizes:** image 58,356 B, state 9,972 B, scratch 4,596 B. They hold on the board as measured in A12.57.
+- **From here, every PSRAM row is priced by the allocator model:** the request + 12 B, rounded up to its size class, 2^(fl−5) for a block in [2^fl, 2^(fl+1)).
+  - The allocated size is that, less 12 B.
+  - A block's cost in a free-size delta is that, plus its 4 B header.
+- **The miss stays on record:** the rows graded the requested sizes, not the allocated ones.
+- **q3's 96 B over the model stays unexplained, and is noted.**
+
+**#508, merged.**
+- **Before:**
+  - the head was `43cc2b3680bf`, as approved;
+  - CI's total on it: 35 check runs, all completed, with 32 success and 3 release-only skips (promote, ship-alert, version), 0 failed;
+  - main had not moved since #507 (`6274664217f6`); GitHub read MERGEABLE, CLEAN.
+- **The merge:** squash, `--match-head-commit 43cc2b3680bf1f1eb6a11722e8a42319163e5631`, no `--admin`, at 2026-10-30T14:08:43Z, as **`ebb8db17b1b2`**.
+- **After:**
+  - parent `6274664217f6`; **its tree equals the approved head's**; 47 paths;
+  - no PR was based on either branch;
+  - `weatherscope/3-5b-step8` (at `43cc2b3680bf`) and `weatherscope/3-5b-board` (at `1444e6c23fb1`) are deleted; `ls-remote` shows 0.
+- **Main's CI on `ebb8db17b1b2`:** 35, all completed: 33 success and 2 release-only skips (promote, version), 0 failed.
+
+**3.5b is done.** The basemap is on the device, with Bend in the stored cycle, graded on the board (A12.58), with Q53-Q56 ruled.
+
+**An instrument step 7 stranded, found before t4's addendum (Q57).**
+- **Before restating A12.43's t4 rows, all 18 sabotage drivers were run on main `ebb8db17b1b2`.**
+  - **16 read as predicted.** `sabotage_wx_towns.py` reads the rig, as at t3's audit: it needs the Census archive.
+  - **`sabotage_wx_themed_draw.py` reads RIG,** and its two sabotages read NOT ALL AS PREDICTED.
+- **The cause is mine.** The driver refuses any `test_wx_k35b` run that is not 143 checks, and step 7 made it 149 (K-BR's six Bend rain rows).
+  - **The plant itself behaves as it should:** under S-KD, `test_wx_k35b` failed exactly 57 of its 149, the 51 Bend rows of t3 plus the 6 new ones.
+  - **The driver derives its frozen Bend set from `k35b.ref.txt`,** so with 149 it would expect exactly those 57: S-KD's set is 25 Dallas + 57 Bend = 82.
+- **Why it went unseen:**
+  - In step 7 I ran only its own two drivers, screens and basemap. `sabotage_wx_themed_draw.py` runs `test_wx_k35b`, whose rows step 7 changed.
+  - That is the "sabotage drivers not in CI" lesson (the layout driver at t3) again: **run every driver whose suite or header a step touches.**
+  - `run.sh`'s `--anchors` pass checks that a driver's anchors exist, not that its counts are current, so it could not see this.
+  - CI runs no sabotage driver.
+- **Not fixed:** an off reading waits for a ruling.
+- **Q57, (a), recommended:**
+  - **The fix:** the driver's `test_wx_k35b` count becomes 149, and its docstring's "51 Bend rows" becomes 57.
+  - **The re-registration:** S-KD's set is 82 (25 Dallas, 57 Bend), from `k35b.ref.txt`, as the driver already derives it.
+  - **Where:** in t4's PR, where A12.43's themed sets are restated anyway (A12.60).
+  - **Its row:** the driver reads ALL AS PREDICTED, with S-KD 82 and S-NL as before.
+- **Q57, (b):** a guard that would have caught it, `--anchors` also checking each driver's suite counts against the suites' own `kCases`. That is a change to the harness, with its own rows.
+
+**Next:** A12.60, t4's addendum, before any t4 code.
