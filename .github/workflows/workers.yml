@@ -13,9 +13,9 @@ name: workers
 on:
   push:
     branches: [main]
-    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", "test/fixtures/wx/basemap/**", "tools/weatherscope/basemap/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
   pull_request:
-    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", "test/fixtures/wx/basemap/**", "tools/weatherscope/basemap/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
 
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
@@ -100,6 +100,12 @@ jobs:
       - name: smoke's opuk covered-share verdict (selftest)
         if: matrix.worker == 'proxy'
         run: bash scripts/wx-opuk-verdict.selftest.sh
+
+      # smoke-prod.sh's /basemap verdict (docs/basemap-deploy.md, Q5): seven canned answers, the whole verdict list
+      # compared, and a sabotage (the validate() call skipped) that must turn exactly the kCrc case.
+      - name: smoke's /basemap verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/basemap-verdict.selftest.sh
       # The firmware's host test parses this fixture with CoordParse; it must be what
       # the helper's formatCoord actually emits, or that test grades a stale contract.
       - name: The locate-format fixture matches the helper's formatter

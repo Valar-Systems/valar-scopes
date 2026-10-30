@@ -9,6 +9,8 @@ export interface Env {
   // Weather frames, written by the separate ingest Worker (src/wx/ingest-worker.ts) and only READ here.
   // Optional: absent in staging/production until Daniel binds the bucket; /wx then answers 503 not_configured.
   WX?: R2Bucket;
+  // The builder Worker `blipscope-basemap` (docs/basemap-route.md §2.1). Unbound until D3; the route answers 503 not_configured.
+  BASEMAP?: Fetcher;
 
   // Optional: absent in `wrangler dev`/tests (miniflare can't emulate the beta
   // binding), enforced in staging/production.

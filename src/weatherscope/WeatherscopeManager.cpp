@@ -25,6 +25,7 @@
 #include "WxScenarios.h"
 #include "WxScenes.h"
 #include "WxScreens.h"
+#include "WxTheme.h"
 #include "WxTowns.h"
 
 namespace {
@@ -32,12 +33,17 @@ namespace {
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
 
-const uint32_t kFg     = lgfx::color888(230, 237, 234);
-const uint32_t kDim    = lgfx::color888(130, 150, 160);
-const uint32_t kAccent = lgfx::color888(90, 200, 255);
-const uint32_t kWarn   = lgfx::color888(255, 176, 40);
+// Every colour the manager draws is a role in WxTheme.h (3.5t, A12.47). The theme is Dark until t5 reads wx-theme and
+// the day/night phase; in Dark each role is the literal it replaced, so nothing on the screen moves.
+const wxtheme::Theme& Th() { return wxtheme::Get(wxtheme::Which::Dark); }
+uint32_t C888(wxraster::Rgb c) { return lgfx::color888(c.r, c.g, c.b); }
 
-const char* const kScenarioName[wxscreens::kScenarios] = {"dry", "approaching", "herenow", "warning", "stale", "clear"};
+// The stored cycle (A12.53): Dallas's six in wxscen::Kind's order (Q15), then 3.5b's Bend two (A10.4) -- Bend dry, the
+// SYNTHETIC all-dry crop (Q33), and Bend rain, the loop's last frame -- each drawn with Bend's package.
+constexpr int kCycleScenes = wxscreens::kScenarios + 2;
+constexpr int kBendDry = wxscreens::kScenarios, kBendRain = wxscreens::kScenarios + 1;
+const char* const kScenarioName[kCycleScenes] = {"dry", "approaching", "herenow", "warning", "stale", "clear",
+                                                 "bdry", "brain"};
 
 const char* ScreenName(wxlogic::Screen s)
 {
@@ -59,6 +65,17 @@ void Hhmmss(uint32_t epoch, char out[7])
 void HexSha(const uint8_t d[32], char out[65])
 {
     for (int i = 0; i < 32; ++i) snprintf(out + 2 * i, 3, "%02x", d[i]);
+}
+
+// FNV-1a over a buffer: the basemap image's identity in its line (A12.53), equal to the host's for the same view.
+uint32_t Fnv(const uint8_t* p, size_t n)
+{
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < n; ++i) {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h;
 }
 
 // WxRaster's pixels, straight into a 16-bit sprite's buffer. LovyanGFX keeps that buffer as big-endian RGB565 --
@@ -158,15 +175,36 @@ static T* NewInPsram()
     return p ? new (p) T() : nullptr;
 }
 
+// 3.5b's basemap, held beside the layer (A10.2, A12.53): the validated package; the view's places, peaks and their
+// ranking; the image's key and what its build drew; the vertex scratch; the image. One PSRAM block (9,776 B on the
+// board); the image (57,600 B) and the scratch (maxVertices x 32 B) are blocks of their own.
+struct WeatherscopeManager::Basemap {
+    bmpk::Package pk;
+    wxscenes::PackagePlaces places;
+    wxscenes::PackagePeaks peaks;
+    int order[wxscenes::kMaxPlaces];
+    wxscreens::BaseKey key;
+    bool keyValid = false;
+    wxbase::BuildInfo info;
+    wxbase::Scratch scratch;
+    uint8_t* image = nullptr;
+    uint32_t psramFree = 0, allocImage = 0, allocState = 0, allocScratch = 0;
+};
+
 // The frame path, once: the cached screen sprite, the grid, the scenario, the screen's input and output, the view,
 // the town ranking, the cycle and the loop's records. Its PSRAM cost is printed as one number (A9.5's sizes).
 void WeatherscopeManager::MakeBuffers()
 {
     const size_t psramBefore = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     nHistory = feeds.radar.History(history, kLoopFrames);
+    nBendHistory = feeds.bendRadar ? feeds.bendRadar->History(bendHistory, kLoopFrames) : 0;
+    // The grid holds the largest crop either place decodes (A12.53: Bend's 44,640 cells against Dallas's 38,520).
     size_t cells = 0;
-    for (size_t i = 0; i <= nHistory; ++i) {
-        const wx::CropBytes& c = i < nHistory ? history[i] : feeds.clear;
+    for (size_t i = 0; i <= nHistory + 1 + nBendHistory; ++i) {
+        const wx::CropBytes& c = i < nHistory ? history[i]
+                               : i == nHistory ? feeds.clear
+                               : i <= nHistory + nBendHistory ? bendHistory[i - nHistory - 1]
+                               : feeds.bendClear;
         wxcrop::Header h;
         if (!c.Empty() && wxcrop::ParseHeader(c.data, c.size, &h) == wxcrop::Status::Ok && h.Cells() > cells)
             cells = h.Cells();
@@ -198,6 +236,58 @@ void WeatherscopeManager::MakeBuffers()
                   (unsigned)psramUsed, (int)spriteOk, (unsigned)gridCells, (unsigned)sizeof(wxscreens::ScreenIn),
                   (unsigned)sizeof(wxscreens::ScreenOut), (unsigned)sizeof(wxscreens::Layer), (unsigned)nHistory,
                   (unsigned)feeds.clear.size, (int)buffersReady);
+
+    // 3.5b's group (A12.53), allocated after psram_used so A9.23's line still grades its own: the state, the image and
+    // the vertex scratch, each block's allocated size printed beside the free delta (A12.37 item 3). The package is
+    // validated in place, from flash, before the scratch is sized from it; its terrain stays in flash.
+    const size_t baseBefore = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    bmap = NewInPsram<Basemap>();
+    int status = -1;   // no package bytes
+    bool blocksOk = false;
+    if (bmap) {
+        bmap->image = (uint8_t*)heap_caps_malloc((size_t)wxbase::kSize * wxbase::kSize, MALLOC_CAP_SPIRAM);
+        if (!feeds.bendPackage.Empty())
+            status = (int)bmpk::Validate(feeds.bendPackage.data, feeds.bendPackage.size, &bmap->pk);
+        const uint32_t cap = status == (int)bmpk::Status::kOk ? bmap->pk.maxVertices : 0;
+        uint8_t* block = cap ? (uint8_t*)heap_caps_malloc((size_t)cap * 32, MALLOC_CAP_SPIRAM) : nullptr;
+        if (block) {   // the doubles first (x, y, crossings), then qx and qy: every member on its own alignment
+            bmap->scratch.x = (double*)block;
+            bmap->scratch.y = bmap->scratch.x + cap;
+            bmap->scratch.cross = bmap->scratch.y + cap;
+            bmap->scratch.qx = (int32_t*)(bmap->scratch.cross + cap);
+            bmap->scratch.qy = bmap->scratch.qx + cap;
+            bmap->scratch.cap = cap;
+        }
+        bmap->psramFree = (uint32_t)(baseBefore - heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        bmap->allocState = (uint32_t)heap_caps_get_allocated_size(bmap);
+        bmap->allocImage = bmap->image ? (uint32_t)heap_caps_get_allocated_size(bmap->image) : 0;
+        bmap->allocScratch = block ? (uint32_t)heap_caps_get_allocated_size(block) : 0;
+        blocksOk = bmap->image && (block || cap == 0);
+    }
+    pkgOk = status == (int)bmpk::Status::kOk && blocksOk;
+    const bool bendReady = nBendHistory == (size_t)kLoopFrames && !feeds.bendClear.Empty();
+    if (cycle) cycle->count = bendReady ? kCycleScenes : wxscreens::kScenarios;
+    size_t bendBytes = 0;
+    for (size_t i = 0; i < nBendHistory; ++i) bendBytes += bendHistory[i].size;
+    // Sizes, a status and the package's CRC: never its origin.
+    Serial.printf("[wx] bend history=%u frames=%u clear=%u package=%u ok=%d status=%d crc=%08lx sections=%d "
+                  "max_vertices=%u\n",
+                  (unsigned)nBendHistory, (unsigned)bendBytes, (unsigned)feeds.bendClear.size,
+                  (unsigned)feeds.bendPackage.size, (int)pkgOk, status, (unsigned long)(bmap ? bmap->pk.crc32 : 0),
+                  bmap ? bmap->pk.nSections : 0, (unsigned)(bmap ? bmap->pk.maxVertices : 0));
+    char line[120];
+    if (PsramBaseLine(line, sizeof line) > 0) Serial.print(line);
+}
+
+// [wx] psram_base: 3.5b's group's free delta and each block's allocated size (A12.53). ok = every block the package
+// needs was allocated: the state, the image, and the scratch unless the package has no vertex to hold.
+int WeatherscopeManager::PsramBaseLine(char* out, size_t cap) const
+{
+    if (!bmap) return snprintf(out, cap, "[wx] psram_base=0 image=0 state=0 scratch=0 ok=0\n");
+    const bool ok = bmap->image && (bmap->scratch.cap || bmap->pk.maxVertices == 0);
+    return snprintf(out, cap, "[wx] psram_base=%lu image=%lu state=%lu scratch=%lu ok=%d\n",
+                    (unsigned long)bmap->psramFree, (unsigned long)bmap->allocImage, (unsigned long)bmap->allocState,
+                    (unsigned long)bmap->allocScratch, (int)ok);
 }
 
 bool WeatherscopeManager::DecodeCrop(const wx::CropBytes& crop, wxcrop::Header* h)
@@ -240,13 +330,19 @@ void WeatherscopeManager::BuildScenario()
     outN = outShort = 0;
     const bool bench = feeds.stored;
     const int kindIndex = cycle->index;
-    const wxscen::Kind kind = (wxscen::Kind)kindIndex;
-    const wx::CropBytes& crop = kind == wxscen::Kind::Clear ? feeds.clear
+    const bool bend = OnBend();
+    // Bend's two are Kind::Dry builds: Bend dry on its synthetic clear crop, Bend rain on the loop's last frame, whose
+    // nearest echo lies beyond 15 mi (A12.53, Q54).
+    const wxscen::Kind kind = bend ? wxscen::Kind::Dry : (wxscen::Kind)kindIndex;
+    const wx::CropBytes& crop = kindIndex == kBendDry ? feeds.bendClear
+                              : kindIndex == kBendRain ? bendHistory[nBendHistory - 1]
+                              : kind == wxscen::Kind::Clear ? feeds.clear
                               : history[kind == wxscen::Kind::Dry ? pickDry : pickApproaching];
     wxcrop::Header h;
     const bool decoded = DecodeCrop(crop, &h);
     const int64_t tDecoded = esp_timer_get_time();
     const bool built = decoded && wxscen::Build(kind, h, grid, scenario);
+    if (built && kindIndex == kBendDry) scenario->synthetic = true;   // Q33: a synthetic crop, labelled so
     const int64_t tBuilt = esp_timer_get_time();
     if (!built) {
         Out("[wx] scn=%s FAILED: its crop does not decode or build\n", kScenarioName[kindIndex]);
@@ -257,7 +353,11 @@ void WeatherscopeManager::BuildScenario()
     const int R = ZoomMiles();
     const int64_t tFrom0 = esp_timer_get_time();
     *screenIn = wxscreens::ScreenIn();
-    wxscenes::FromScenario(*scenario, h, grid, R, townOrder, screenIn);
+    wxscenes::FromScenario(*scenario, h, grid, R, townOrder, screenIn, bend ? wxscen::kBendOffsetMin : wxscen::kOffsetMin);
+    if (bend) {
+        EnsureBase(h, "scenario");
+        ApplyPackage();
+    }
     *screenOut = wxscreens::ScreenOut();
     const int64_t tFrom1 = esp_timer_get_time();
     SpriteSink sink(*screenSprite);
@@ -281,11 +381,16 @@ void WeatherscopeManager::BuildScenario()
 
     char hh[7], hex[65], row[24], tok[160], tok2[160];
     Hhmmss(h.frameEpoch, hh);
-    snprintf(row, sizeof row, "%s-%d", kScenarioName[kindIndex], R);
+    if (bend)   // k35b.ref.txt's names: B every layer with terrain off, C with it on (A10.6)
+        snprintf(row, sizeof row, "%s-%d-%c", kScenarioName[kindIndex], R, screenIn->terrain ? 'C' : 'B');
+    else
+        snprintf(row, sizeof row, "%s-%d", kScenarioName[kindIndex], R);
     if (bench) {
         HexSha(sha, hex);
-        // the boot-time pick and PSRAM figure again, so a trace that opens after boot still has them
+        // the boot-time pick and PSRAM figures again, so a trace that opens after boot still has them
         Out("[wx] pick approaching=%s dry=%s psram_used=%u\n", pickApproachingName, pickDryName, (unsigned)psramUsed);
+        char line[120];
+        if (PsramBaseLine(line, sizeof line) > 0) Out("%s", line);
     }
     Out("[wx] scn=%s R=%d frame=%s screen=%s synthetic=%d compose_us=%lu\n", kScenarioName[kindIndex], R, hh,
         ScreenName(scenario->Choose().screen), (int)scenario->synthetic, (unsigned long)composeUs);
@@ -380,6 +485,49 @@ size_t WeatherscopeManager::Out(const char* fmt, ...)
         if (n > 0 && w < (size_t)n) ++outShort;
     }
     return w;
+}
+
+bool WeatherscopeManager::OnBend() const { return cycle && cycle->index >= wxscreens::kScenarios; }
+
+// The basemap for a Bend screen at the current zoom (A10.2's key, A12.53): rebuilt -- the image, the places, their
+// ranking and the peaks, by the K rows' own path -- only when BaseWhy names a reason, and printed either way. Never
+// called inside a loop frame. A place list the screen would refuse (over kMaxPlaces) fails the build, as Build refuses a
+// partial basemap: no partial package is ever drawn.
+void WeatherscopeManager::EnsureBase(const wxcrop::Header& h, const char* at)
+{
+    if (!pkgOk) return;   // no package: 3.5a's path (A9.1 D)
+    Basemap& b = *bmap;
+    const int R = ZoomMiles();
+    const wxscreens::BaseKey k = wxscreens::MakeBaseKey(h, b.pk.crc32, b.pk.size, R, wxbase::kMaskAll, terrain);
+    const char* why = wxscreens::BaseWhy(b.key, b.keyValid, k);
+    uint32_t us = 0;
+    if (why) {
+        const int64_t t0 = esp_timer_get_time();
+        wxrender::View v;
+        wxrender::BuildViewKm(h, &v, R * 1.609344);   // the view Compose builds for this radius
+        const bool placesOk = b.places.Load(b.pk, v);
+        wxscreens::RankOrder(b.places.Pops(), b.places.Count(), b.order);
+        b.peaks.Load(b.pk, v);
+        b.info = wxbase::BuildInfo();
+        const bool drawn = wxbase::Build(b.pk, v, R, wxbase::kMaskAll, terrain, b.scratch, b.image, &b.info);
+        b.key = k;
+        b.keyValid = drawn && placesOk;
+        us = (uint32_t)(esp_timer_get_time() - t0);
+    }
+    Out("[wx] base build_us=%lu rebuilt=%s at=%s R=%d terrain=%d level=%d rings=%d rivers=%d roads=%d places=%d "
+        "peaks=%d fnv=%08lx\n",
+        (unsigned long)us, why ? why : "no", at, R, (int)b.key.terrain, (int)b.info.terrain, b.info.rings,
+        b.info.rivers, b.info.roads, b.places.Count(), b.peaks.Count(),
+        (unsigned long)Fnv(b.image, (size_t)wxbase::kSize * wxbase::kSize));
+}
+
+// The package's part of the screen (FromPackage), with the image's own terrain: an image and the other terrain state
+// are never paired. Nothing when there is no valid image (3.5a's path).
+void WeatherscopeManager::ApplyPackage()
+{
+    if (!pkgOk || !bmap->keyValid) return;
+    Basemap& b = *bmap;
+    wxscenes::FromPackage(b.pk, b.image, wxbase::kMaskAll, b.key.terrain != 0, &b.places, b.order, &b.peaks, screenIn);
 }
 
 // THE INSTRUMENT (A9.34, A9.42): the build records, the last 64 writes and the frame log, as lines, to a sink.
@@ -557,12 +705,21 @@ void WeatherscopeManager::StartLoop()
 {
     wxscreens::Pause(*cycle, true);
     // The frame-invariant layer, built HERE at the tap and never inside a frame's draw (A9.23): the first frame's
-    // deadline is set after it. Rebuilt on every tap, so no layer outlives the loop it was built for.
+    // deadline is set after it. Rebuilt on every tap, so no layer outlives the loop it was built for. On a Bend scenario
+    // the loop is Bend's (A10.4), over the basemap the scenario showed: reused here, never rebuilt inside a frame.
+    const bool bend = OnBend();
+    const wx::CropBytes* frames = bend ? bendHistory : history;
+    const size_t n = bend ? nBendHistory : nHistory;
     wxcrop::Header h0, last;
-    if (wxcrop::ParseHeader(history[0].data, history[0].size, &h0) == wxcrop::Status::Ok &&
-        wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last) == wxcrop::Status::Ok) {
+    if (wxcrop::ParseHeader(frames[0].data, frames[0].size, &h0) == wxcrop::Status::Ok &&
+        wxcrop::ParseHeader(frames[n - 1].data, frames[n - 1].size, &last) == wxcrop::Status::Ok) {
         *screenIn = wxscreens::ScreenIn();
-        wxscenes::FromLoopFrame(h0, grid, 0, last.frameEpoch, ZoomMiles(), townOrder, screenIn);
+        wxscenes::FromLoopFrame(h0, grid, 0, last.frameEpoch, ZoomMiles(), townOrder, screenIn,
+                                bend ? wxscen::kBendOffsetMin : wxscen::kOffsetMin);
+        if (bend) {
+            EnsureBase(h0, "tap");
+            ApplyPackage();
+        }
         const int64_t t0 = esp_timer_get_time();
         const int px = wxscreens::BuildLayer(*layer, *screenIn, wxscreens::MakeLayerKey(*screenIn, cycle->index));
         Serial.printf("[wx] layer build_us=%lu pixels=%d valid=%d rebuilt=tap R=%d\n",
@@ -740,18 +897,36 @@ void WeatherscopeManager::HandleSerialGestures()
         const int ch = Serial.read();
         if (!feeds.stored) continue;
         const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'P' || ch == 'L' ||
-                           ch == 'R';
+                           ch == 'R' || ch == 'G';
         Serial.printf("[wx] gesture %c\n", known ? (char)ch : '?');
         if (!known) continue;
         if (ch == 'P') { benchPress = true; continue; }   // A9.34: the press is HandleTouch's to classify
         if (ch == 'L') { benchPress = false; continue; }
         if (ch == 'R') { PrintRecords(); continue; }
+        if (ch == 'G') { OnTerrainByte(); continue; }     // A12.53: a setting, not a touch (no idle-return reset)
         lastTouchMs = millis();
         if (ch == 'T') OnTap();
         else if (ch == 'S') OnSwipeLeft();
         else if (ch == 'U') OnSwipeVertical(-1);
         else if (ch == 'D') OnSwipeVertical(+1);
         else OnHoldFired();
+    }
+}
+
+// The bench byte G (Q29, A12.53): terrain on or off, on the scenario screen only, as a zoom is. A Bend scenario
+// recomposes at once; a Dallas one has no package for terrain to change, so it waits for the next Bend screen.
+void WeatherscopeManager::OnTerrainByte()
+{
+    if (mode != Mode::Scenario) {
+        Serial.println("[wx] terrain ignored");
+        return;
+    }
+    terrain = !terrain;
+    Serial.printf("[wx] terrain %s\n", terrain ? "on" : "off");
+    if (OnBend()) {
+        buildWhy = "terrain";
+        buildFromMi = ZoomMiles();
+        BuildScenario();
     }
 }
 
@@ -899,13 +1074,13 @@ void WeatherscopeManager::DrawHoldRing(BandCanvas& c)
     const float k = SCREEN_SIZE / 240.0f;
     const int cc = SCREEN_SIZE_DIV_2;
     const int R1 = SCREEN_SIZE_DIV_2 - (int)(2 * k), R0 = R1 - (int)(7 * k);
-    c.drawCircle(cc, cc, R1 + 1, lgfx::color888(0, 90, 0));   // the dim track
+    c.drawCircle(cc, cc, R1 + 1, C888(Th().holdTrack));   // the track
     const uint32_t p = fired ? 1000 : longpress::RingPermille(longPress, millis());
     curFrame.permille = (uint16_t)p;
     if (p == 0) return;
     // LovyanGFX angles: 0 = 3 o'clock, clockwise. Start at 12 o'clock and never pass 360 in one call.
     const float a1 = 270.0f + 360.0f * (float)p / 1000.0f;
-    const uint32_t green = lgfx::color888(0, 200, 0);
+    const uint32_t green = C888(Th().holdArc);
     if (a1 <= 360.0f) {
         c.fillArc(cc, cc, R0, R1, 270.0f, a1, green);
     } else {
@@ -927,15 +1102,19 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
     const int64_t start = esp_timer_get_time();
     LoopRecord& rec = records[loopIndex];
     rec.startUs = start;
+    const bool bend = OnBend();
+    const wx::CropBytes* frames = bend ? bendHistory : history;
+    const size_t n = bend ? nBendHistory : nHistory;
     wxcrop::Header h, last;
     const int64_t d0 = esp_timer_get_time();
-    const bool decoded = FullScreen(s) && DecodeCrop(history[loopIndex], &h);
+    const bool decoded = FullScreen(s) && DecodeCrop(frames[loopIndex], &h);
     rec.decodeUs = (uint32_t)(esp_timer_get_time() - d0);
     memset(rec.phaseUs, 0, sizeof rec.phaseUs);
-    if (decoded &&
-        wxcrop::ParseHeader(history[nHistory - 1].data, history[nHistory - 1].size, &last) == wxcrop::Status::Ok) {
+    if (decoded && wxcrop::ParseHeader(frames[n - 1].data, frames[n - 1].size, &last) == wxcrop::Status::Ok) {
         *screenIn = wxscreens::ScreenIn();
-        wxscenes::FromLoopFrame(h, grid, loopIndex, last.frameEpoch, ZoomMiles(), townOrder, screenIn);
+        wxscenes::FromLoopFrame(h, grid, loopIndex, last.frameEpoch, ZoomMiles(), townOrder, screenIn,
+                                bend ? wxscen::kBendOffsetMin : wxscen::kOffsetMin);
+        if (bend) ApplyPackage();   // the image built at the scenario, reused at the tap: never rebuilt in a frame
         *screenOut = wxscreens::ScreenOut();
         SpriteSink sink(s);
         RowHash rows;
@@ -960,24 +1139,25 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
 void WeatherscopeManager::DrawLegend(BandCanvas& c)
 {
     LGFX_Sprite& s = c.sprite();
-    s.fillSprite(lgfx::color888(0, 0, 0));
-    s.setTextColor(lgfx::color888(255, 255, 255));
+    const wxtheme::Theme& th = Th();
+    s.fillSprite(C888(th.bg));
+    s.setTextColor(C888(th.white));
     s.setTextSize(1);
     for (const auto& row : wxlegend::kRows) s.drawString(row.label, wxlegend::kLabelX, row.y);
     for (const auto& sw : wxlegend::kSwatches) {
         if (sw.kind == wxlegend::Kind::NoData) {
-            const uint16_t line = s.color565(wxpalette::kMissingHatch.r, wxpalette::kMissingHatch.g, wxpalette::kMissingHatch.b);
-            const uint16_t bg = s.color565(wxpalette::kDry.r, wxpalette::kDry.g, wxpalette::kDry.b);
+            const uint16_t line = s.color565(th.hatchLine.r, th.hatchLine.g, th.hatchLine.b);
+            const uint16_t bg = s.color565(th.hatchGround.r, th.hatchGround.g, th.hatchGround.b);
             for (int yy = sw.y; yy < sw.y + sw.h; ++yy)
                 for (int xx = sw.x; xx < sw.x + sw.w; ++xx)
                     s.drawPixel(xx, yy, (xx + yy) % wxpalette::kHatchPeriod == 0 ? line : bg);
             continue;
         }
-        wxpalette::Rgb col;
+        wxraster::Rgb col;
         switch (sw.kind) {
-        case wxlegend::Kind::Rain: col = wxpalette::Rain(sw.code); break;   // code 1 teal (A10.16)
-        case wxlegend::Kind::Snow: col = wxpalette::Snow(sw.code); break;
-        default: col = wxpalette::kNoCoverage; break;
+        case wxlegend::Kind::Rain: col = th.rain[sw.code - 1]; break;   // code 1 teal (A10.16)
+        case wxlegend::Kind::Snow: col = th.snow[sw.code - 1]; break;
+        default: col = th.noCoverage; break;
         }
         s.fillRect(sw.x, sw.y, sw.w, sw.h, s.color565(col.r, col.g, col.b));
     }
@@ -986,9 +1166,9 @@ void WeatherscopeManager::DrawLegend(BandCanvas& c)
 void WeatherscopeManager::DrawSplash(BandCanvas& c)
 {
     c.setTextSize(3);
-    CenterText(c, "Weatherscope", SCREEN_SIZE_DIV_2 - 24, kFg);
+    CenterText(c, "Weatherscope", SCREEN_SIZE_DIV_2 - 24, C888(Th().uiFg));
     c.setTextSize(1);
-    CenterText(c, "weather radar", SCREEN_SIZE_DIV_2 + 12, kDim);
+    CenterText(c, "weather radar", SCREEN_SIZE_DIV_2 + 12, C888(Th().uiDim));
 }
 
 // The face when there is nothing to cycle (not stored mode, or the frame path failed): who the device is, whether
@@ -996,32 +1176,33 @@ void WeatherscopeManager::DrawSplash(BandCanvas& c)
 void WeatherscopeManager::DrawStatus(BandCanvas& c)
 {
     c.setTextSize(2);
-    CenterText(c, "Weatherscope", SCREEN_SIZE / 5, kFg);
+    const wxtheme::Theme& th = Th();
+    CenterText(c, "Weatherscope", SCREEN_SIZE / 5, C888(th.uiFg));
 
     const bool online = WiFi.status() == WL_CONNECTED;
-    CenterText(c, online ? "Wi-Fi connected" : "No Wi-Fi", SCREEN_SIZE * 34 / 100, online ? kAccent : kWarn);
+    CenterText(c, online ? "Wi-Fi connected" : "No Wi-Fi", SCREEN_SIZE * 34 / 100, C888(online ? th.uiAccent : th.uiWarn));
     c.setTextSize(1);
-    if (online) CenterText(c, String(WiFi.RSSI()) + " dBm", SCREEN_SIZE * 34 / 100 + 20, kDim);
+    if (online) CenterText(c, String(WiFi.RSSI()) + " dBm", SCREEN_SIZE * 34 / 100 + 20, C888(th.uiDim));
 
     const time_t utc = time(nullptr);
     if (utc < 1600000000) {
         c.setTextSize(2);
-        CenterText(c, "syncing time", SCREEN_SIZE_DIV_2 + 4, kDim);
+        CenterText(c, "syncing time", SCREEN_SIZE_DIV_2 + 4, C888(th.uiDim));
     } else {
         struct tm t;
         gmtime_r(&utc, &t);
         char hms[12];
         snprintf(hms, sizeof(hms), "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
         c.setTextSize(3);
-        CenterText(c, hms, SCREEN_SIZE_DIV_2 + 4, kFg);
+        CenterText(c, hms, SCREEN_SIZE_DIV_2 + 4, C888(th.uiFg));
         c.setTextSize(1);
-        CenterText(c, "UTC", SCREEN_SIZE_DIV_2 + 32, kDim);
+        CenterText(c, "UTC", SCREEN_SIZE_DIV_2 + 32, C888(th.uiDim));
     }
 
     String url = "http://" + DeviceIdentity::Name() + ".local";
     url.toLowerCase();
     c.setTextSize(1);
-    CenterText(c, url, SCREEN_SIZE * 76 / 100, kDim);
+    CenterText(c, url, SCREEN_SIZE * 76 / 100, C888(th.uiDim));
 }
 
 void WeatherscopeManager::CenterText(BandCanvas& c, const String& s, int y, uint32_t color)

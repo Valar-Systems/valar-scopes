@@ -186,9 +186,10 @@ GEN_PAL[1] = tuple((v * 55 + 50) // 100 for v in legend.TBL[2])
 
 
 def colour(code, x, y, pal=None):
-    if code == 15:
-        return legend.HATCH if (x + y) % 4 == 0 else legend.DRY
-    return (pal or PAL)[code]
+    pal = pal or PAL
+    if code == 15:   # the hatch, a line on its own ground (A12.29): pal[15] and pal[0] theme it; PAL holds no 15
+        return pal.get(15, legend.HATCH) if (x + y) % 4 == 0 else pal.get(0, legend.DRY)
+    return pal[code]
 
 
 def nearest_echo(h, codes, home, bound_mi):
@@ -235,7 +236,7 @@ def in_map(x, y):
     return 0 <= x < SIZE and TOP_BAND <= y < BOT_BAND and (x - C) ** 2 + (y - C) ** 2 <= C * C
 
 
-def render_map(scr, h, codes, view, base=None, corner=False, pal=None):
+def render_map(scr, h, codes, view, base=None, corner=False, pal=None, terrain=False):
     """The map pass. 3.5b's fold (A10.2): a dry pixel (code 0) shows `base`'s colour where there is a base. With no crop
     (h None) every pixel is dry. corner=True is bendmock.py's own mask (in_map, integer coordinates), for R0b's G mode
     only; the device and P use CodeAt's pixel-centre disc."""
@@ -254,6 +255,8 @@ def render_map(scr, h, codes, view, base=None, corner=False, pal=None):
                 lon = view.home[1] + ((x + 0.5) - C) / C * view.rLon
                 c = int(math.floor((lon - h["lonNw"]) / h["cellLon"] + 0.5))
                 code = codes[r * h["cols"] + c] if 0 <= r < h["rows"] and 0 <= c < h["cols"] else 14
+            if terrain and code == 14:   # with terrain on, no coverage is drawn as the hatch (A10.2, Q31)
+                code = 15
             scr.px[y][x] = base[y][x] if (code == 0 and base is not None) else colour(code, x, y, pal)
 
 
@@ -304,14 +307,14 @@ def arrow_segments(sx, sy, from_deg):
 
 
 def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, warning=None, cap=8, loop=None,
-            base=None, corner=False, peaks=None, glyph=None, peak_log=None, pal=None, ink=None):
+            base=None, corner=False, peaks=None, glyph=None, peak_log=None, pal=None, ink=None, terrain=False):
     """One screen, in the generator's order (A9.2). Returns the Screen and its placed labels (for the board's own).
     3.5a's K rows add (A9.10, A9.14, Q17, Q18): state["timeText"]/["timeInk"] for the top strip; warning["arrow"] =
     (lat, lon, fromDeg), drawn after the title and before the labels, its box a fixed overlay; and `loop` =
     dict(age=, index=) for the loop's band in place of the state line. Towns are (name, lat, lon[, ...])."""
     ink = ink or DARK_INK
     scr = Screen(ink["bg"])
-    render_map(scr, h, codes, view, base, corner, pal)
+    render_map(scr, h, codes, view, base, corner, pal, terrain)
     scr.fill(0, 0, SIZE - 1, TOP_BAND - 1, ink["band"])
     scr.fill(0, BOT_BAND, SIZE - 1, SIZE - 1, ink["band"])
     fixed = [(0, 0, SIZE - 1, TOP_BAND - 1), (0, BOT_BAND, SIZE - 1, SIZE - 1)]

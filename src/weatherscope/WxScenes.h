@@ -11,7 +11,10 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
+#include "BasemapPackage.h"
+#include "WxBasemap.h"
 #include "WxCrop.h"
 #include "WxLogic.h"
 #include "WxScenarios.h"
@@ -20,9 +23,10 @@
 
 namespace wxscenes {
 
-// One stored scenario's screen at radiusMi. `order` is RankOrder over wxtowns::kTowns' populations.
+// One stored scenario's screen at radiusMi. `order` is RankOrder over wxtowns::kTowns' populations. `offsetMin` is
+// the scenario's own clock: Dallas's CDT unless given (3.5b's Bend scenarios pass Pacific, A10.4).
 inline void FromScenario(const wxscen::Scenario& s, const wxcrop::Header& h, const uint8_t* codes, int radiusMi,
-                         const int* order, wxscreens::ScreenIn* in)
+                         const int* order, wxscreens::ScreenIn* in, int offsetMin = wxscen::kOffsetMin)
 {
     in->h = &h;
     in->codes = codes;
@@ -30,7 +34,7 @@ inline void FromScenario(const wxscen::Scenario& s, const wxcrop::Header& h, con
     in->towns = wxtowns::kTowns;
     in->nTowns = (int)wxtowns::kCount;
     in->order = order;
-    wxscreens::ClockText(s.frameUtc, wxscen::kOffsetMin, in->clock, sizeof in->clock);
+    wxscreens::ClockText(s.frameUtc, offsetMin, in->clock, sizeof in->clock);
     in->ageS = s.nowUtc - s.frameUtc;
     in->loop = false;
     in->arrow = false;
@@ -61,7 +65,7 @@ inline void FromScenario(const wxscen::Scenario& s, const wxcrop::Header& h, con
 // Loop frame `index` (0 = oldest) of the past hour, at radiusMi (Q19): its own time, dim, and the loop's band --
 // "56 MIN AGO" against the newest frame, or "NOW" -- with the track and the knob.
 inline void FromLoopFrame(const wxcrop::Header& h, const uint8_t* codes, int index, uint32_t newestEpoch,
-                          int radiusMi, const int* order, wxscreens::ScreenIn* in)
+                          int radiusMi, const int* order, wxscreens::ScreenIn* in, int offsetMin = wxscen::kOffsetMin)
 {
     in->h = &h;
     in->codes = codes;
@@ -69,7 +73,7 @@ inline void FromLoopFrame(const wxcrop::Header& h, const uint8_t* codes, int ind
     in->towns = wxtowns::kTowns;
     in->nTowns = (int)wxtowns::kCount;
     in->order = order;
-    wxscreens::ClockText(h.frameEpoch, wxscen::kOffsetMin, in->clock, sizeof in->clock);
+    wxscreens::ClockText(h.frameEpoch, offsetMin, in->clock, sizeof in->clock);
     in->ageS = 0;
     in->warning = false;
     in->arrow = false;
@@ -79,6 +83,118 @@ inline void FromLoopFrame(const wxcrop::Header& h, const uint8_t* codes, int ind
     const long mins = ((long)newestEpoch - (long)h.frameEpoch) / 60;
     if (mins <= 0) snprintf(in->loopAge, sizeof in->loopAge, "NOW");
     else snprintf(in->loopAge, sizeof in->loopAge, "%ld MIN AGO", mins);
+}
+
+// ----------------------------------------------------------------------------------- 3.5b: a package's screen
+
+constexpr int kMaxPlaces = 256;   // a package's places held at once; more refuses the package's towns, never truncates
+constexpr int kMaxPkgPeaks = 16;  // format section 5.4 keeps the top 16; the screen places at most 4
+
+// A package's places as the screen sees them: each anchored through the view by wxbase::Mapper, the name read in
+// place (a package's names are not NUL-terminated) and copied whole, one at a time, when asked for. So nothing is
+// truncated: Name(i) is valid until the next call, which is how PlaceLabels uses it (LabelText copies at once).
+class PackagePlaces : public wxscreens::TownSet {
+public:
+    // False when the package holds more places than kMaxPlaces (the caller then shows no package towns).
+    bool Load(const bmpk::Package& pk, const wxrender::View& v)
+    {
+        n_ = 0;
+        total_ = 0;
+        const wxbase::Mapper m(pk, v);
+        bmpk::ForEachPlace(pk, [&](int32_t qx, int32_t qy, uint32_t pop, const char* name, uint32_t len) {
+            if (total_++ >= kMaxPlaces) return;
+            Item& it = items_[n_];
+            m.ToScreen(qx, qy, &it.x, &it.y);
+            it.name = name;
+            it.len = (uint8_t)len;
+            pops_[n_++] = pop;
+        });
+        return total_ <= kMaxPlaces;
+    }
+    int Count() const { return n_; }
+    const uint32_t* Pops() const { return pops_; }
+    const char* Name(int i) const override
+    {
+        memcpy(buf_, items_[i].name, items_[i].len);
+        buf_[items_[i].len] = '\0';
+        return buf_;
+    }
+    void At(int i, double* x, double* y) const override
+    {
+        *x = items_[i].x;
+        *y = items_[i].y;
+    }
+
+private:
+    struct Item {
+        const char* name;
+        uint8_t len;
+        double x, y;
+    };
+    Item items_[kMaxPlaces];
+    uint32_t pops_[kMaxPlaces];
+    mutable char buf_[256];
+    int n_ = 0, total_ = 0;
+};
+
+// A package's peaks, in rank order, anchored through the view; the first kMaxPkgPeaks are kept (the highest ranked:
+// the screen places at most 4 of them), and Total() says how many the package held.
+class PackagePeaks : public wxscreens::PeakSet {
+public:
+    void Load(const bmpk::Package& pk, const wxrender::View& v)
+    {
+        n_ = 0;
+        total_ = 0;
+        const wxbase::Mapper m(pk, v);
+        bmpk::ForEachPeak(pk, [&](int32_t qx, int32_t qy, int32_t, const char* name, uint32_t len) {
+            if (total_++ >= kMaxPkgPeaks) return;
+            Item& it = items_[n_++];
+            m.ToScreen(qx, qy, &it.x, &it.y);
+            it.name = name;
+            it.len = (uint8_t)len;
+        });
+    }
+    int Total() const { return total_; }
+    int Count() const override { return n_; }
+    const char* Name(int i) const override
+    {
+        memcpy(buf_, items_[i].name, items_[i].len);
+        buf_[items_[i].len] = '\0';
+        return buf_;
+    }
+    void At(int i, double* x, double* y) const override
+    {
+        *x = items_[i].x;
+        *y = items_[i].y;
+    }
+
+private:
+    struct Item {
+        const char* name;
+        uint8_t len;
+        double x, y;
+    };
+    Item items_[kMaxPkgPeaks];
+    mutable char buf_[256];
+    int n_ = 0, total_ = 0;
+};
+
+// The package's part of a screen (A10.2): its basemap image under the dry pixels, its places in place of WxTowns.h's
+// (ranked by `placeOrder`, RankOrder over places.Pops()), its peaks when the mask has them, and its identity and mask
+// for the layer's key. `base` was built by wxbase::Build for this view, mask and terrain.
+inline void FromPackage(const bmpk::Package& pk, const uint8_t* base, uint8_t mask, bool terrain,
+                        const PackagePlaces* places, const int* placeOrder, const PackagePeaks* peaks,
+                        wxscreens::ScreenIn* in)
+{
+    in->base = base;
+    in->terrain = terrain;
+    in->mask = mask;
+    in->pkgCrc = pk.crc32;
+    in->pkgLen = pk.size;
+    in->places = places;
+    in->placeOrder = placeOrder;
+    in->nPlaces = places ? places->Count() : 0;
+    in->peaks = (mask & wxbase::kMaskPeaks) ? peaks : nullptr;
 }
 
 // k35.ref.txt's text token, so the board prints what the K reference holds (B1's text and label checks): printable
@@ -103,11 +219,11 @@ inline void Token(const char* s, char* out, size_t cap)
     out[n] = '\0';
 }
 
-inline const char* InkName(wxraster::Rgb c)
+inline const char* InkName(wxtheme::Ink i)
 {
-    if (c == wxraster::kWhite) return "white";
-    if (c == wxraster::kDim) return "dim";
-    if (c == wxraster::kOrange) return "orange";
+    if (i == wxtheme::Ink::White) return "white";
+    if (i == wxtheme::Ink::Dim) return "dim";
+    if (i == wxtheme::Ink::OrangeText) return "orange";
     return "other";
 }
 

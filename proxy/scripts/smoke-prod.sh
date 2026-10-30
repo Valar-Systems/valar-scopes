@@ -340,6 +340,23 @@ else
 fi
 rm -f "$WX_TMP" "$WX_HDR"
 
+# The basemap (docs/basemap-route.md §9; docs/basemap-deploy.md, Q5). Until the proxy's BASEMAP binding exists (D3,
+# D4) the ONLY passing answers are 503 not_configured, or a 200 BMPK package with an ETag that the proxy's own
+# validate() accepts -- so the smoke refuses exactly what the device would. The verdict lives in basemap-verdict.sh,
+# graded by basemap-verdict.selftest.sh in CI. The body is binary, so it is never dumped.
+printf '\n===== /basemap (the smoke'"'"'s own lat, lon and r) =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/basemap-verdict.sh"
+BASEMAP_PROXY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BM_TMP="$(mktemp)"
+BM_HDR="$(mktemp)"
+BM_STATUS="$(curl -s --max-time 30 -o "$BM_TMP" -D "$BM_HDR" -w '%{http_code}' "${AUTH[@]}" \
+  "$BASE/api/v1/blipscope/basemap?lat=$LAT&lon=$LON&r=$R")"
+printf 'HTTP %s, %s bytes\n' "$BM_STATUS" "$(wc -c < "$BM_TMP" | tr -d ' ')"
+BM_VERDICT="$(basemap_verdict "$BM_STATUS" "$BM_TMP" "$BM_HDR")"
+printf 'RESULT: %s\n' "$BM_VERDICT"
+case "$BM_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+rm -f "$BM_TMP" "$BM_HDR"
+
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
   "${AUTH[@]}" "$BASE/v1/blips?lat=$LAT&lon=$LON&r=$R&limit=40"

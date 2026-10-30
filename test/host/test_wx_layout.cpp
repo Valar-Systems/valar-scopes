@@ -56,11 +56,11 @@ std::string Show(const char* s)
     }
     return o + "\"";
 }
-const char* InkName(Rgb c)
+const char* InkName(wxtheme::Ink c)
 {
-    if (c == wxraster::kWhite) return "white";
-    if (c == wxraster::kDim) return "dim";
-    if (c == wxraster::kOrange) return "orange";
+    if (c == wxtheme::Ink::White) return "white";
+    if (c == wxtheme::Ink::Dim) return "dim";
+    if (c == wxtheme::Ink::OrangeText) return "orange";
     return "other";
 }
 
@@ -206,7 +206,7 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
     }
     {
         Points pts;
-        const int drawn = RingDots(pts, 60.0, wxraster::kRing);
+        const int drawn = RingDots(pts, 60.0, wxtheme::kDark.ring);
         const bool start = pts.seq.size() >= 2 && pts.seq[0] == std::make_pair(120, 60) && pts.seq[1] == std::make_pair(122, 60);
         check("RD1", drawn == 188 && (int)(2 * wxraster::kPi * 60.0) == 376 && start,
               std::to_string(drawn) + " dots, from (" + std::to_string(pts.seq[0].first) + ", " +
@@ -215,7 +215,7 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
     }
     {
         Points pts;
-        const int drawn = RingDots(pts, 30.0, wxraster::kRing);
+        const int drawn = RingDots(pts, 30.0, wxtheme::kDark.ring);
         check("RD2", drawn == 94, std::to_string(drawn) + " dots");
     }
     {
@@ -231,9 +231,9 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
     }
 
     std::printf("== ST: the state line ==\n");
-    auto st = [](const char* name, StateIn in, const char* want, Rgb ink) {
+    auto st = [](const char* name, StateIn in, const char* want, wxtheme::Ink ink) {
         char out[48];
-        Rgb got;
+        wxtheme::Ink got = wxtheme::Ink::Dim;
         StateLine(in, out, sizeof out, &got);
         check(name, std::strcmp(out, want) == 0 && got == ink, Show(out) + ", " + InkName(got));
     };
@@ -244,16 +244,16 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
         in.echo.bearingDeg = deg;
         return in;
     };
-    st("ST1", echo(14.328384, 108.2334), "RAIN 14 MI E", wxraster::kWhite);
-    st("ST2", echo(23.555802, 162.1), "RAIN 24 MI S", wxraster::kDim);
-    st("ST3", echo(15.0, 90), "RAIN 15 MI E", wxraster::kWhite);
-    st("ST4", echo(15.01, 90), "RAIN 15 MI E", wxraster::kDim);
-    st("ST5", echo(14.5, 0), "RAIN 15 MI N", wxraster::kWhite);
-    { StateIn in; in.hereNow = wxlogic::Precip::Rain; st("ST6", in, "RAIN NOW", wxraster::kWhite); }
-    { StateIn in; in.hereNow = wxlogic::Precip::Snow; st("ST7", in, "SNOW NOW", wxraster::kWhite); }
-    { StateIn in; in.hasTemp = true; in.tempF = 54.6; st("ST8", in, "55\xF8 \xFA NO RAIN", wxraster::kDim); }
-    { StateIn in; in.hasTemp = true; in.tempF = -3.5; st("ST9", in, "-3\xF8 \xFA NO RAIN", wxraster::kDim); }
-    { StateIn in; st("ST10", in, "NO RAIN 60 MI", wxraster::kDim); }
+    st("ST1", echo(14.328384, 108.2334), "RAIN 14 MI E", wxtheme::Ink::White);
+    st("ST2", echo(23.555802, 162.1), "RAIN 24 MI S", wxtheme::Ink::Dim);
+    st("ST3", echo(15.0, 90), "RAIN 15 MI E", wxtheme::Ink::White);
+    st("ST4", echo(15.01, 90), "RAIN 15 MI E", wxtheme::Ink::Dim);
+    st("ST5", echo(14.5, 0), "RAIN 15 MI N", wxtheme::Ink::White);
+    { StateIn in; in.hereNow = wxlogic::Precip::Rain; st("ST6", in, "RAIN NOW", wxtheme::Ink::White); }
+    { StateIn in; in.hereNow = wxlogic::Precip::Snow; st("ST7", in, "SNOW NOW", wxtheme::Ink::White); }
+    { StateIn in; in.hasTemp = true; in.tempF = 54.6; st("ST8", in, "55\xF8 \xFA NO RAIN", wxtheme::Ink::Dim); }
+    { StateIn in; in.hasTemp = true; in.tempF = -3.5; st("ST9", in, "-3\xF8 \xFA NO RAIN", wxtheme::Ink::Dim); }
+    { StateIn in; st("ST10", in, "NO RAIN 60 MI", wxtheme::Ink::Dim); }
     {
         // A one-column crop on the equator, 0.001 degree cells, centre (0, 0); one echo cell, k cells north.
         wxcrop::Header h;
@@ -277,23 +277,23 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
         std::snprintf(d, sizeof d, "found %d, %.3f mi", b.found, b.mi);
         check("ST11b", b.found && fabs(b.mi - 59.6) <= 0.1, d);
     }
-    { StateIn in = echo(14.328384, 108.2334); in.ageS = 1801; st("ST12", in, "RADAR STALE", wxraster::kDim); }
-    { StateIn in = echo(14.328384, 108.2334); in.ageS = 1800; st("ST13", in, "RAIN 14 MI E", wxraster::kWhite); }
+    { StateIn in = echo(14.328384, 108.2334); in.ageS = 1801; st("ST12", in, "RADAR STALE", wxtheme::Ink::Dim); }
+    { StateIn in = echo(14.328384, 108.2334); in.ageS = 1800; st("ST13", in, "RAIN 14 MI E", wxtheme::Ink::White); }
 
     std::printf("== TM: the frame time ==\n");
-    auto tm = [](const char* name, int64_t age, bool warning, const char* want, Rgb ink) {
+    auto tm = [](const char* name, int64_t age, bool warning, const char* want, wxtheme::Ink ink) {
         char out[48];
-        Rgb got;
+        wxtheme::Ink got = wxtheme::Ink::Dim;
         TimeText("4:24 PM", age, warning, out, sizeof out, &got);
         check(name, std::strcmp(out, want) == 0 && got == ink,
               std::string(warning ? "warning, " : "") + "age " + std::to_string((long)age) + ": " + Show(out) + ", " +
                   InkName(got));
     };
-    tm("TM1", 600, false, "4:24 PM", wxraster::kDim);
-    tm("TM2", 601, false, "4:24 PM", wxraster::kOrange);
-    tm("TM3", 1801, true, "4:24 PM \xFA STALE", wxraster::kOrange);
-    tm("TM4", 1800, true, "4:24 PM", wxraster::kOrange);
-    tm("TM5", 1801, false, "4:24 PM", wxraster::kOrange);
+    tm("TM1", 600, false, "4:24 PM", wxtheme::Ink::Dim);
+    tm("TM2", 601, false, "4:24 PM", wxtheme::Ink::OrangeText);
+    tm("TM3", 1801, true, "4:24 PM \xFA STALE", wxtheme::Ink::OrangeText);
+    tm("TM4", 1800, true, "4:24 PM", wxtheme::Ink::OrangeText);
+    tm("TM5", 1801, false, "4:24 PM", wxtheme::Ink::OrangeText);
 
     std::printf("== WN: the warning texts ==\n");
     const LatLon o{0, 0};
@@ -360,7 +360,7 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
                               px(a.seg[1][2], a.seg[1][3]) + ", " + px(a.seg[2][2], a.seg[2][3]);
         check("AR1", s == "(150, 100) -> (160, 94); heads (158, 97), (156, 94)", s);
         Points pts;
-        DrawArrow(pts, a);
+        DrawArrow(pts, a, wxtheme::kDark.orangeGraphic);
         std::string all;
         for (const auto& p : pts.set) all += " " + std::to_string(p.first) + "," + std::to_string(p.second);
         std::printf("AR1PIX%s\n", all.c_str());   // A9.14: the K harness holds this set to ref35.py's
@@ -372,7 +372,7 @@ void Cases(const wxcrop::Header& appH, const uint8_t* appCodes)
     }
     {
         Points pts;
-        DrawArrow(pts, MakeArrow(150.0, 190.0, 0));
+        DrawArrow(pts, MakeArrow(150.0, 190.0, 0), wxtheme::kDark.orangeGraphic);
         const std::set<std::pair<int, int>> want = {{150, 190}, {150, 191}, {150, 192}, {150, 193}};
         std::string all;
         for (const auto& p : pts.set) all += " (" + std::to_string(p.first) + ", " + std::to_string(p.second) + ")";
