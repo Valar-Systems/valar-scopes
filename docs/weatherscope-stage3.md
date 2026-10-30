@@ -9528,3 +9528,42 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
   - It is reported so the reviewer can rule whether it counts as an off-prediction.
 - **TH2′'s Bend scene is `bloop-14-C`.** A12.60 named "Bend loop frame 14" without a variant. C draws every layer and the terrain, so it closes the most of the palette.
 - **The four TH2′ scenes are byte-equal to the light reference's own rows** (sha256 of RGB565), so TH2′ grades the frames K-light grades.
+
+### A12.65 3.5t step t4's results: every A12.60 row and every A12.64 set as predicted; held for Q59 and Q60
+
+**The code:** `weatherscope/3-5t-t4` @ `d9edd17`, one commit on `weatherscope/harness-control` @ `76607fc` (A12.63).
+- **Committed locally, not pushed.** It stacks on the harness PR, which is held for Q59. Its PR opens after that one merges, rebased onto main.
+
+| row (A12.60) | predicted | measured |
+|---|---|---|
+| the references | dark identical on regeneration; R0 and R0b PASS; TH1-TH3 as before; the light files identical on regeneration | **`k35.ref.txt`, `k35l.ref.txt`, `k35b.ref.txt`, `k35bl.ref.txt` identical on regeneration; R0 and R0b PASS (`run.sh`, Pillow 12.3.0); `look35`'s TH1-TH3 all hold** |
+| **K-light** | 82 of 82 | **82 of 82:** `test_wx_k35` 25, `test_wx_k35b` 57; frame sha256 and every TIME, BAND and LABEL line |
+| **RP (light)** | 180 of 180 | **180:** Dallas 90, Bend 90 |
+| **RP-T** | 30 of 30 | **30:** Dallas 15, Bend 15 |
+| **LY** | 82 of 82; LY-X sees the removed town | **82 of 82; LY-X sees it in both parts** (labels and mask differ) |
+| **TH2′** | 0 strays in each of four; the control > 0 | **0, 0, 0, 0; the control 2,377 strays.** The four scenes are byte-equal to the light reference's own rows (A12.64) |
+| **SW** | SW1 1 theme; SW2 0; SW3 0; SW4 1 theme; SW5 0; SW-X 1 mask | **all six as predicted**; SW3 leaves the phase at Day |
+| K-dark, RP (dark) | unchanged | **unchanged:** `k35`'s 28, `k35b`'s 149 and `replay`'s 90 pass inside their new totals |
+| the suites' counts | 79, 195, 368, 6, 5 | **79, 195, 368, 6, 5; 0 failures** |
+| host suites, MinGW | ALL HOST TESTS PASSED | **ALL HOST TESTS PASSED, 155 `== ` headers** (A12.63's "142 blocks" was this same count): the harness run's 142 plus t4's 13. Those are WxSwitch and TH2′ (a block and an inner header each) and nine section headers inside the three grown suites. Every other header and every other count line equals the harness run's |
+| host suites, g++ 13.3 | the same blocks; only the rig's two | **the same 155 headers, every count line equal to MinGW's; only the rig's two** (no xtensa; no Pillow at R0). TH2' runs before R0, so it ran here too: 5 / 0. Anchors 20 clean; controls 19 run, 1 skipped; the controls control: the clean copy exit 0, the 143 copy exit 1 naming 368. `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` |
+| the firmware | flash 1,876,267, RAM 59,184, main's | **main (`ebb8db17b1b2`), built first as the anchor: 1,876,267 and 59,184. t4: 1,876,267 and 59,184.** No file under `src/`, `include/` or `platformio.ini` differs from main |
+
+**The sabotages:**
+
+| driver | sets | measured |
+|---|---|---|
+| `sabotage_wx_light.py` (new) | S-KL 82; S-LY K-light and LY on 73 scenes, 146; S-RPT 16 | **all three AS PREDICTED; the control clean; the real tree unchanged.** S-LY's 73 / 9 split, read off the references, matches A12.60 |
+| `sabotage_wx_th2.py` (new) | S-TH2: `warning-60` alone | **AS PREDICTED** after the parser fix A12.64 reports; the control (ROOT alone) clean |
+| `sabotage_wx_k35.py` (A12.64) | S-K1 25, S-K2 26, S-K3 3, S-K4 1, S-K5 2 | **all five AS PREDICTED** |
+| `sabotage_wx_replay.py` (A12.64) | S-RP1 replay 120 / k35 0; S-RP2 195 / 30 | **both AS PREDICTED** |
+| `sabotage_wx_themed_draw.py` | S-KD 82; S-NL 1 | **both AS PREDICTED** |
+| `sabotage_controls_control.py` | 143 restored over 368: exit 1 naming it; clean exit 0 | **as predicted** |
+| every other driver, in full | as before; towns the rig | **as before:** 19 exit 0, towns exit 2. `server_crops` and `towns` logs are byte-identical to the harness run's |
+| `--anchors`, `--control` (`run.sh`) | 20 clean; 19 run, towns skipped | **20 drivers clean; 19 run, 1 skipped** with its reason; the controls control: the clean copy exit 0, the 143 copy exit 1 naming 368 |
+
+**One MinGW run was void, and was repeated.**
+- **The first run stopped at its 42nd block** (exit 2): the Wi-Fi QR test read BLIND, "no LovyanGFX under `.pio/libdeps`".
+- **The cause is known this time:** `wt-t4` was a fresh worktree that had never run `pio run`. t4's firmware build, a frozen row anyway, installed the libraries. The repeat passed every block.
+
+**Q59 and Q60 are open.** t4's PR waits on Q59 (through the harness PR), and its driver sets on Q60.
