@@ -3510,3 +3510,28 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
 | | read | verdict |
 |---|---|---|
 | **Z4** | **The merge:** its only conflict was `test/host/sabotage_common.py`, add/add, and **main's was taken whole** (blob `a27f8772a313`). `run.sh` auto-merged. **The seven** got the `sc.wants_control()` dispatch before `--anchors`; `outline` and `s2`'s argv test now reads it too. **Both passes, every driver, in WSL** (g++ 13.3.0, Python 3.12.3): every `--anchors` all present exactly once; every `--control` all as the table, the seven included, except main's `sabotage_wx_towns.py`, which SKIPs for its stated reason (the Census archive). `sabotage_controls_control.py` exit 0. `outline` and `s2` run as before | **as predicted** |
+
+**Z4 in CI** (`db557f3`, every run finished): 36 runs, 33 success, 3 skipped, none failed.
+- `host-tests`' control pass lists the seven as `1 suite(s), all as the table`.
+- 25 drivers: 24 run, 1 skipped (main's towns driver). `ALL HOST TESTS PASSED`. #445 reads CLEAN and MERGEABLE.
+
+### The generator, built (`tools/wx-replay/synth_feed.py`; not graded until a run)
+
+**What it does, as designed above and amended:**
+- one deterministic feed;
+- W5⁗'s non-ICAO contacts on its n schedule;
+- K6's 60 enrichable contacts, alternating two 40-contact sets under the request's limit, with a local
+  `/v1/enrich` for exactly those hexes;
+- contacts 0, 1 and 2 always the nearest, the highest and the fastest;
+- circular tracks that never leave the disc.
+
+**Its selftest** reads the non-ICAO and military ranges from `src/SpecialAircraft.cpp`, and passes its 12 checks.
+**Shown able to fail:** three planted breaks, each turning exactly its own check red.
+- K6's hexes moved into the non-ICAO range;
+- the fastest contact slowed;
+- the schedule shifted a plateau.
+
+**Next:**
+- the proxy's K6 routes (`/blips` and `/v1/enrich` answered locally, logged by route as local or forwarded);
+- the two drivers (the label fields recorded, set and restored; the logbook and leaderboard refusal; W5⁗'s local-mode
+  switch and its restore).
