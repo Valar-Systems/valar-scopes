@@ -10088,3 +10088,24 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 - t4 (#511);
 - t5's board work (after the watch);
 - tonight's watch.
+
+### A12.72 CI records: main's on #510's merge commit, and #511's on its rebased head (19 cancelled runs, all superseded)
+
+**Main's CI on the merge commit `31cb44c5376b`**, as A12.70's ruling asks:
+- **35 check runs, all completed: 33 success, 2 skipped (promote, version), 0 failed.**
+- Read twice, 18:41Z, and unmoved.
+
+**#511's CI on `8be4690d4726`** (rebased onto main, A12.71) reads **54 check runs: 32 success, 3 skipped and 19 cancelled.** The 19 were explained from the workflow runs themselves before anything was concluded:
+- **Two `pull_request` events reached the head in the same second, 18:26:38Z:** the force-push's synchronize and the base change to main. Each started the three workflows.
+- **The earlier set was cancelled by the workflows' concurrency:**
+  - firmware `41106979258`: 17 jobs, all cancelled;
+  - device-ids `41106979335`: 1 job, cancelled;
+  - no-traffic-captures `41106979433`: 1 job, cancelled.
+  - That makes 19.
+- **The later set is complete:**
+  - firmware `41106980536`: 33 jobs, 30 success and 3 skipped (ship-alert, promote, version);
+  - device-ids `41106980276`: 1 job, success;
+  - no-traffic-captures `41106980362`: 1 job, success.
+  - **That makes 35 jobs: 32 success, 3 skipped, 0 failed.**
+- 35 + 19 = 54: every check run is accounted for. **No job of the head's complete set failed or was cancelled.**
+- #511 is `MERGEABLE`/`CLEAN`.
