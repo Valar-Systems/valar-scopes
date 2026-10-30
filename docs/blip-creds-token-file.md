@@ -124,3 +124,10 @@ directory.
   - a failed in-place plant restores and stops.
 - Everything above is from the second run. **The real-reader rows are from the first run.** They ran on the real files
   in place, which the copy rig does not touch.
+
+**What CI does not cover.**
+- **The wrapper's types:** `with-blip-creds.mts` is the only `.mts` in `proxy/scripts`, and `typecheck:scripts`
+  includes only `scripts/**/*.ts`. So no CI step typechecks it. It was checked once by hand
+  (`tsc --noEmit --strict --module nodenext`, with its import): exit 0.
+- **The selftest:** T4-T6 run only when someone runs the selftest. Running it in the Workers workflow would make them
+  a check that runs. That is proposed here, not added.
