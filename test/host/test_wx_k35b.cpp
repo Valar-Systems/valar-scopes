@@ -5,7 +5,9 @@
 // pixels with its time, band and placed town labels; A12.53 adds Bend rain (the loop's last frame as a stored
 // scenario, Kind::Dry, as the firmware builds it) at 60, 30 and 15 mi, B and C. Then the 90 replay rows (each loop
 // frame through the layer equals its full composition, at 15, 30 and 60 mi, B and C), and two controls that prove both
-// comparisons can fail.
+// comparisons can fail. 3.5t t4 (A12.60) adds the 57 scenes in Light against k35b.py --theme light (k35bl.ref.txt, in
+// the fixtures dir), LY (each scene's placement, Dark against Light), the 90 replay rows in Light, and RP-T's Bend half
+// (one Layer, frames 0-7 Dark and 8-14 Light, each against its full composition in its own theme). 368 checks.
 //
 //     test_wx_k35b <test/fixtures/wx> <k35b.ref.txt> [--dump <dir>]     --dump writes each frame for k35b.py --diff
 //
@@ -16,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -35,7 +38,7 @@ typedef std::vector<uint8_t> Bytes;
 
 namespace {
 
-constexpr int kCases = 149;   // 21 + 6 + 30 K rows, 90 replay rows, 2 controls
+constexpr int kCases = 368;   // 21 + 6 + 30 K rows, 90 replay rows, 2 controls; t4: 57 K-light, 57 LY, 90 RP light, 15 RP-T
 constexpr int kOffsetPt = -420;   // Pacific (PDT) on 2024-06-02 (A10.4)
 
 // SHA-256, as in test_wx_k35.cpp.
@@ -194,6 +197,35 @@ const Variant kVariants[7] = {{"towns", 0, false}, {"water", wxbase::kMaskWater,
                               {"rivers", wxbase::kMaskRivers, false}, {"roads", wxbase::kMaskRoads, false},
                               {"peaks", wxbase::kMaskPeaks, false}, {"B", wxbase::kMaskAll, false},
                               {"C", wxbase::kMaskAll, true}};
+
+// 3.5t t4 (A12.60): LY's two parts, as test_wx_k35.cpp's -- the LABEL lines, and the map-band pixels in the theme's
+// label or peak ink less the home marker's (the pixels the DARK frame draws in dark's white).
+std::vector<std::string> LabelLines(const std::vector<std::string>& lines)
+{
+    std::vector<std::string> out;
+    for (const auto& l : lines)
+        if (l.compare(0, 6, "LABEL ") == 0) out.push_back(l);
+    return out;
+}
+
+uint16_t P565(wxraster::Rgb c) { return (uint16_t)(((c.r >> 3) << 11) | ((c.g >> 2) << 5) | (c.b >> 3)); }
+uint16_t At(const Rgb565& img, int x, int y)
+{
+    return (uint16_t)((img.px[2 * (y * 240 + x)] << 8) | img.px[2 * (y * 240 + x) + 1]);
+}
+
+std::set<int> InkMask(const Rgb565& img, const Rgb565& dark, const wxtheme::Theme& th)
+{
+    std::set<int> m;
+    const uint16_t home = P565(wxtheme::kDark.white), a = P565(th.label), b = P565(th.peak);
+    for (int y = wxraster::kTopBand; y < wxraster::kBotBand; ++y)
+        for (int x = 0; x < 240; ++x) {
+            if (At(dark, x, y) == home) continue;
+            const uint16_t v = At(img, x, y);
+            if (v == a || v == b) m.insert(y * 240 + x);
+        }
+    return m;
+}
 
 }  // namespace
 
@@ -412,9 +444,172 @@ int main(int argc, char** argv)
         check("RP-X", diff > 0, "a stale B layer in a towns-only frame: " + std::to_string(diff) + " px differ (want > 0)");
     }
 
+    // ---------------------------------------------------------------------------------------- 3.5t t4 (A12.60)
+    std::printf("== K-light: the 57 Bend scenes in Light, against k35b.py --theme light ==\n");
+    std::map<std::string, std::vector<std::string>> lref;
+    {
+        Bytes lb;
+        if (!ReadFile(wx + "/k35bl.ref.txt", &lb)) { std::printf("cannot read k35bl.ref.txt (the RIG)\n"); return 2; }
+        std::istringstream is(std::string(lb.begin(), lb.end()));
+        std::string line;
+        while (std::getline(is, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.empty() || line[0] == '#') continue;
+            std::istringstream ls(line);
+            std::string tag, row;
+            ls >> tag >> row;
+            lref[row].push_back(line);
+        }
+    }
+    struct Shot {
+        Rgb565 img;
+        std::vector<std::string> lines;
+    };
+    static std::vector<std::pair<std::string, std::pair<Shot, Shot>>> pairsDL;   // name -> (dark, light)
+    auto gradeLight = [&](const std::string& name, const std::vector<std::string>& got) {
+        const auto it = lref.find(name);
+        const bool same = it != lref.end() && it->second == got;
+        std::string why = "57,600 of 57,600 px, time, band and " + std::to_string(got.size() - 3) + " label(s)";
+        if (!same) {
+            why = "DIFFERS from the reference";
+            if (it == lref.end()) why += " (no reference row)";
+            else
+                for (size_t k = 0; k < got.size() || k < it->second.size(); ++k) {
+                    const std::string a = k < got.size() ? got[k] : "-", b = k < it->second.size() ? it->second[k] : "-";
+                    if (a != b) { why += ": device '" + a + "' against '" + b + "'"; break; }
+                }
+        }
+        check("KL:" + name, same, why);
+    };
+    auto scenario = [&](const std::string& name, const wxscen::Scenario& sn, const Frame& f, int mi, const Variant& v) {
+        static PkgView pv;
+        if (!Prepare(pk, f.h, mi, v.mask, v.terrain, sc, &pv)) return false;
+        Shot shots[2];
+        for (int t = 0; t < 2; ++t) {
+            static wxscreens::ScreenIn in;
+            in = wxscreens::ScreenIn();
+            wxscenes::FromScenario(sn, f.h, f.codes.data(), mi, townOrder, &in, kOffsetPt);
+            wxscenes::FromPackage(pk, pv.img.data(), v.mask, v.terrain, &pv.places, pv.order, &pv.peaks, &in);
+            in.which = t ? wxtheme::Which::Light : wxtheme::Which::Dark;
+            static wxscreens::ScreenOut out;
+            out = wxscreens::ScreenOut();
+            wxscreens::Compose(shots[t].img, in, view, &out);
+            shots[t].lines = Lines(name, in, out, shots[t].img);
+        }
+        gradeLight(name, shots[1].lines);
+        pairsDL.push_back({name, {shots[0], shots[1]}});
+        return true;
+    };
+    for (int mi : {60, 30, 15})
+        for (const Variant& v : kVariants) {
+            char name[32];
+            std::snprintf(name, sizeof name, "bdry-%d-%s", mi, v.name);
+            if (!scenario(name, s, clear, mi, v)) { std::printf("Prepare failed (the RIG)\n"); return 2; }
+        }
+    {
+        static wxscen::Scenario sr;
+        if (!wxscen::Build(wxscen::Kind::Dry, frames[14].h, frames[14].codes.data(), &sr)) { std::printf("Build failed (the RIG)\n"); return 2; }
+        for (int mi : {60, 30, 15})
+            for (int k = 5; k < 7; ++k) {
+                char name[32];
+                std::snprintf(name, sizeof name, "brain-%d-%s", mi, kVariants[k].name);
+                if (!scenario(name, sr, frames[14], mi, kVariants[k])) { std::printf("Prepare failed (the RIG)\n"); return 2; }
+            }
+    }
+    {   // the loop: each theme through its own Layer, B and C alternating, as K-BL
+        static wxscreens::Layer layD, layL;
+        for (int i = 0; i < 15; ++i)
+            for (int k = 5; k < 7; ++k) {
+                const Variant& v = kVariants[k];
+                PkgView& pv = v.terrain ? pvC : pvB;
+                char name[32];
+                std::snprintf(name, sizeof name, "bloop-%02d-%s", i, v.name);
+                Shot shots[2];
+                for (int t = 0; t < 2; ++t) {
+                    static wxscreens::ScreenIn in;
+                    in = wxscreens::ScreenIn();
+                    wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, 60, townOrder,
+                                            &in, kOffsetPt);
+                    wxscenes::FromPackage(pk, pv.img.data(), v.mask, v.terrain, &pv.places, pv.order, &pv.peaks, &in);
+                    in.which = t ? wxtheme::Which::Light : wxtheme::Which::Dark;
+                    static wxscreens::ScreenOut out;
+                    out = wxscreens::ScreenOut();
+                    wxscreens::ComposeLayered(shots[t].img, in, t ? layL : layD, -1, &out);
+                    shots[t].lines = Lines(name, in, out, shots[t].img);
+                }
+                gradeLight(name, shots[1].lines);
+                pairsDL.push_back({name, {shots[0], shots[1]}});
+            }
+    }
+
+    std::printf("== LY: placement is colour-blind, Dark against Light ==\n");
+    for (const auto& e : pairsDL) {
+        const Shot& d = e.second.first;
+        const Shot& l = e.second.second;
+        const std::vector<std::string> ld = LabelLines(d.lines), ll = LabelLines(l.lines);
+        const std::set<int> md = InkMask(d.img, d.img, wxtheme::kDark), ml = InkMask(l.img, d.img, wxtheme::kLight);
+        const bool same = ld == ll && md == ml;
+        check("LY:" + e.first, same, std::to_string(ld.size()) + " town labels, " + std::to_string(md.size()) +
+                                         " label/peak-ink px" + (same ? ", equal in both themes" : "; DIFFER"));
+    }
+
+    std::printf("== RP light: the Bend loop through the layer equals its full composition in Light, 15/30/60 x B/C ==\n");
+    for (int mi : {15, 30, 60})
+        for (int k = 5; k < 7; ++k) {
+            const Variant& v = kVariants[k];
+            static PkgView pv;
+            if (!Prepare(pk, frames[0].h, mi, v.mask, v.terrain, sc, &pv)) { std::printf("Prepare failed (the RIG)\n"); return 2; }
+            static wxscreens::Layer rlL;
+            for (int i = 0; i < 15; ++i) {
+                static wxscreens::ScreenIn in;
+                in = wxscreens::ScreenIn();
+                wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, mi, townOrder,
+                                        &in, kOffsetPt);
+                wxscenes::FromPackage(pk, pv.img.data(), v.mask, v.terrain, &pv.places, pv.order, &pv.peaks, &in);
+                in.which = wxtheme::Which::Light;
+                Rgb565 full, layered;
+                static wxscreens::ScreenOut o1, o2;
+                o1 = wxscreens::ScreenOut();
+                o2 = wxscreens::ScreenOut();
+                wxscreens::Compose(full, in, view, &o1);
+                wxscreens::ComposeLayered(layered, in, rlL, -1, &o2);
+                char name[48];
+                std::snprintf(name, sizeof name, "RPL:brep-%d-%s-%02d", mi, v.name, i);
+                long diff = 0;
+                for (size_t q = 0; q < full.px.size(); q += 2) diff += full.px[q] != layered.px[q] || full.px[q + 1] != layered.px[q + 1];
+                check(name, diff == 0 && o1.nLabels == o2.nLabels, "layered against full: " + std::to_string(diff) + " px differ");
+            }
+        }
+
+    std::printf("== RP-T, Bend: one Layer, frames 0-7 in Dark and 8-14 in Light, each against its own theme's full composition ==\n");
+    {
+        static PkgView pv;
+        if (!Prepare(pk, frames[0].h, 60, kVariants[5].mask, false, sc, &pv)) { std::printf("Prepare failed (the RIG)\n"); return 2; }
+        static wxscreens::Layer lt;
+        for (int i = 0; i < 15; ++i) {
+            static wxscreens::ScreenIn in;
+            in = wxscreens::ScreenIn();
+            wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, 60, townOrder, &in,
+                                    kOffsetPt);
+            wxscenes::FromPackage(pk, pv.img.data(), kVariants[5].mask, false, &pv.places, pv.order, &pv.peaks, &in);
+            in.which = i < 8 ? wxtheme::Which::Dark : wxtheme::Which::Light;
+            Rgb565 full, layered;
+            static wxscreens::ScreenOut o1, o2;
+            o1 = wxscreens::ScreenOut();
+            o2 = wxscreens::ScreenOut();
+            wxscreens::Compose(full, in, view, &o1);
+            wxscreens::ComposeLayered(layered, in, lt, -1, &o2);
+            char name[32];
+            std::snprintf(name, sizeof name, "RPT:bend-%02d", i);
+            long diff = 0;
+            for (size_t q = 0; q < full.px.size(); q += 2) diff += full.px[q] != layered.px[q] || full.px[q + 1] != layered.px[q + 1];
+            check(name, diff == 0, std::string(i < 8 ? "Dark" : "Light") + ", layered against full: " + std::to_string(diff) + " px differ");
+        }
+    }
+
     std::printf("%d checks, %d failures\n", checks, failures);
     if (checks != kCases) {
-        std::printf("the RIG: %d cases ran, A12.41 froze %d\n", checks, kCases);
+        std::printf("the RIG: %d cases ran, A12.41 and A12.60 froze %d\n", checks, kCases);
         return 2;
     }
     return failures ? 1 : 0;

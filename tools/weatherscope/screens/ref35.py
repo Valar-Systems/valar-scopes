@@ -97,7 +97,7 @@ class Rounder:
 # The ink roles a screen is drawn in (3.5t, A12.22). DARK_INK is exactly the constants above, so a caller that passes
 # no ink draws today's screens, byte for byte.
 DARK_INK = dict(bg=BLACK, band=BLACK, dim=DIMTXT, white=WHITE, label=LABEL, halo=BLACK, ring=RING, ringtext=RINGTXT,
-                home=WHITE, peak=LABEL, orange=ORANGE)
+                home=WHITE, peak=LABEL, orange=ORANGE, orange_g=ORANGE)   # orange: text; orange_g: the graphic (A12.60)
 
 
 def inkmap(ink, col):
@@ -341,14 +341,14 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
             for k in range(n + 1):
                 x, y = rnd.point(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, f"edge {i} k={k}")
                 if in_map(x, y):
-                    scr.px[y][x] = ORANGE
+                    scr.px[y][x] = ink["orange_g"]
             fixed.append((int(min(x0, x1)), int(min(y0, y1)), int(max(x0, x1)), int(max(y0, y1))))
         title = warning["title"]
         tx = int(C - text_w(title, 2) / 2)
-        scr.text(tx, 36, title, 2, ORANGE, halo=BLACK)
+        scr.text(tx, 36, title, 2, ink["orange"], halo=ink["halo"])
         sub = warning["sub"]
         sx = int(C - text_w(sub) / 2)
-        scr.text(sx, 54, sub, 1, ORANGE, halo=BLACK)
+        scr.text(sx, 54, sub, 1, ink["orange"], halo=ink["halo"])
         fixed.append((tx - 2, 34, tx + text_w(title, 2) + 2, 36 + 14 + 2))
         fixed.append((sx - 2, 52, sx + text_w(sub) + 2, 54 + 8 + 2))
         if warning.get("arrow"):
@@ -356,7 +356,7 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
             ax, ay = view.project(alat, alon)
             segs = arrow_segments(ax, ay, from_deg)
             for j, (p0, p1) in enumerate(segs):
-                draw_dda(scr, p0[0], p0[1], p1[0], p1[1], ORANGE, rnd, f"arrow {j}")
+                draw_dda(scr, p0[0], p0[1], p1[0], p1[1], ink["orange_g"], rnd, f"arrow {j}")
             xs = [p[0] for s in segs for p in s]
             ys = [p[1] for s in segs for p in s]
             fixed.append((int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))))
@@ -424,13 +424,13 @@ def compose(h, codes, view, state, towns, pop, frame_clock, rnd, zoomed=False, w
     for (x, y) in HOME:
         scr.px[y][x] = ink["home"]
     if warning:
-        scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, WHITE)
-        scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, WHITE)
+        scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, ink["white"])
+        scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, ink["white"])
     elif loop is not None:   # A9.10's loop band: the age, a 120 x 2 track, a 4 x 6 knob
-        scr.text(int(C - text_w(loop["age"]) / 2), 198, loop["age"], 1, DIMTXT)
-        scr.fill(60, 212, 179, 213, RINGTXT)
+        scr.text(int(C - text_w(loop["age"]) / 2), 198, loop["age"], 1, ink["dim"])
+        scr.fill(60, 212, 179, 213, ink["ringtext"])
         kx = 60 + (loop["index"] * 116) // 14
-        scr.fill(kx, 210, kx + 3, 215, WHITE)
+        scr.fill(kx, 210, kx + 3, 215, ink["white"])
     else:
         s, col = state["line"], state["colour"]
         scr.text(int(C - text_w(s, 2) / 2), 198, s, 2, inkmap(ink, col))
@@ -561,7 +561,8 @@ def r0(mock_dir, out_dir):
 #   LABEL <name> <label> <R|L> <x0> <y0> <x1> <y1>                   each placed town label, in placement order
 # (each text one token: printable ASCII as itself, other bytes and '%' as %XX, '-' when empty -- see hx())
 #   AR1 <x,y> ...                                                    A9.14: AR1's drawn pixel set, sorted
-K_REF = os.path.join(WX, "k35.ref.txt")
+K_REF = K_DARK = os.path.join(WX, "k35.ref.txt")
+K_LIGHT = os.path.join(WX, "k35l.ref.txt")   # 3.5t t4 (A12.60): the same 25 rows in Light
 CLEAR = os.path.join(LOOP, "synthetic-clear.wxc")
 OFFSET_MIN = -300            # the scenarios' clock, CDT (A8.1)
 STALE_LATE_S = 31 * 60       # Q15
@@ -638,8 +639,10 @@ def sha_lf(path):
     return hashlib.sha256(open(path, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
 
 
-def k_rows():
-    """[(row name, Screen, lines)] for the 25 rows, and the AR1 line."""
+def k_rows(theme=None):
+    """[(row name, Screen, lines)] for the 25 rows, and the AR1 line. `theme` (look35's THEMES entry) draws them in its
+    palette and inks; None is the dark default, as before."""
+    pal, tink = (theme["pal"], theme["ink"]) if theme else (None, None)
     names = sorted(n for n in os.listdir(LOOP) if n.startswith("shsr-") and n.endswith(".wxc"))
     if len(names) != 15:
         sys.exit(f"K: {len(names)} loop frames, not 15")
@@ -664,7 +667,7 @@ def k_rows():
         state.setdefault("timeText", clock)
         state.setdefault("timeInk", DIMTXT)
         scr, placed = compose(h, codes, View(h, R), state, towns, pop, clock, rnd, zoomed=(R != 60), warning=warning,
-                              cap={60: 8, 30: 6, 15: 5}[R], loop=loop)
+                              cap={60: 8, 30: 6, 15: 5}[R], loop=loop, pal=pal, ink=tink)
         lines = ["ROW %s %s" % (name, hashlib.sha256(scr.rgb565()).hexdigest()),
                  "TIME %s %s %s" % (name, hx(state["timeText"]), INKS[state["timeInk"]])]
         if warning:
@@ -725,10 +728,15 @@ def hx(s):
     return "".join(c if 0x21 <= ord(c) <= 0x7E and c != "%" else "%%%02X" % ord(c) for c in s)
 
 
-def k_text():
-    rows, ar1 = k_rows()
+def k_text(theme=None):
+    rows, ar1 = k_rows(theme)
     head = ["# Weatherscope 3.5a K rows (docs/weatherscope-stage3.md A9.10): written by tools/weatherscope/screens/ref35.py --k",
             "# --write, checked by its --check; read by test/host/test_wx_k35.cpp. Texts: printable ASCII, else %XX; '-' empty.",
+    ] if theme is None else [
+            "# Weatherscope 3.5t K rows in Light (docs/weatherscope-stage3.md A12.60): written by tools/weatherscope/screens/",
+            "# ref35.py --k --theme light --write, checked by its --check; read by test/host/test_wx_k35.cpp. Texts as k35.ref.txt.",
+    ]
+    head += [
             "# font %s" % FONT_SHA,
             "# WxTowns.h %s (LF-normalised)" % sha_lf(os.path.join(ROOT, "src", "weatherscope", "WxTowns.h")),
             "# loop MANIFEST.json %s (LF-normalised)" % sha_lf(os.path.join(LOOP, "MANIFEST.json")),
@@ -737,8 +745,19 @@ def k_text():
     return "\n".join(head + body) + "\n", rows
 
 
+def light_theme():
+    """look35's light theme (A12.60), loaded by path: look35 imports this module, so it is never imported at the top."""
+    spec = importlib.util.spec_from_file_location("look35", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                                         "look35.py"))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m.THEMES["light"]
+
+
 def k_main(argv):
-    text, rows = k_text()
+    light = "--theme" in argv and argv[argv.index("--theme") + 1] == "light"
+    K_REF = K_LIGHT if light else K_DARK
+    text, rows = k_text(light_theme() if light else None)
     if "--dump" in argv:
         d = argv[argv.index("--dump") + 1]
         os.makedirs(d, exist_ok=True)

@@ -1,5 +1,6 @@
 """Runs test_wx_k35.cpp against SABOTAGED copies of the device's screen code, and of its reference. Each must fail
-EXACTLY the set registered in docs/weatherscope-stage3.md A9.18 before the run, and nothing else.
+EXACTLY the set registered in docs/weatherscope-stage3.md A9.18 before the run, and nothing else. 3.5t t4's rows
+(K-light, LY) joined the suite; the KL rows each plant reaches were registered in A12.64 (Q60) before it ran.
 
     python -I test/host/sabotage_wx_k35.py
 
@@ -7,7 +8,7 @@ Method:
   - The plants go into a MIRROR of src/weatherscope (and the vendored font, which WxRaster.h includes by a relative
     path), never the real files: a quoted #include finds its sibling first, so a single copied header would be
     silently bypassed. Each plant asserts its anchor occurs once and that the copy differs; the real tree's files are
-    hashed before and after. The unmodified mirror runs first, as the control: 28 checks, 0 failures.
+    hashed before and after. The unmodified mirror runs first, as the control: 79 checks, 0 failures.
   - S-K4 plants into a copy of the REFERENCE (test/fixtures/wx/k35.ref.txt), so the label comparison is shown to be live.
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
@@ -34,13 +35,13 @@ SABOTAGES = {
              {"K:" + r for r in ROWS}),
     "S-K2": ("WxScreens.h", [("        const int kx = 60 + in.loopIndex * 116 / (kLoopFrames - 1);",
                               "        const int kx = 60 + in.loopIndex * 120 / (kLoopFrames - 1);  // SABOTAGE")],
-             {"K:loop-%02d" % i for i in range(2, 15)}),
+             {p + "loop-%02d" % i for p in ("K:", "KL:") for i in range(2, 15)}),   # A12.64: the light knob moves too
     "S-K3": ("WxScreens.h", [("    const int travel = (fromDeg + 180) % 360;",
                               "    const int travel = fromDeg % 360;  // SABOTAGE")],
-             {"K:warning-60", "AR1PIX"}),
+             {"K:warning-60", "AR1PIX", "KL:warning-60"}),   # A12.64
     "S-K4": ("k35.ref.txt", None, {"K:dry-60"}),
     "S-K5": ("WxScreens.h", [("constexpr int64_t kStaleAfterS = 1800;", "constexpr int64_t kStaleAfterS = 3600;  // SABOTAGE")],
-             {"K:stale-60"}),
+             {"K:stale-60", "KL:stale-60"}),   # A12.64
 }
 
 
@@ -97,8 +98,8 @@ def run(base, name):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout[-2000:]}")
         sys.exit(2)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
-    if not m or int(m.group(1)) != 28:
-        print(f"{name}: {m.group(1) if m else '?'} checks, not 28: the RIG")
+    if not m or int(m.group(1)) != 79:
+        print(f"{name}: {m.group(1) if m else '?'} checks, not 79: the RIG")
         sys.exit(2)
     return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
@@ -150,7 +151,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_k35": ("checks", 28)}
+CONTROL_TABLE = {"test_wx_k35": ("checks", 79)}
 
 
 def control():

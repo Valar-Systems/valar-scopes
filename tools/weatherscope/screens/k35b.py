@@ -4,7 +4,10 @@ rows (60, 30 and 15 mi x towns only, + water, + rivers, + roads, + peaks, all (B
 and C), rendered through ref35.compose from look35's package path (bend.bmpk by the format doc's section 9). Written in k35.ref.txt's form as test/fixtures/wx/k35b.ref.txt, which test_wx_k35b.cpp reproduces
 through the device's path. Prints no coordinate.
 
-    python -I tools/weatherscope/screens/k35b.py --write | --check | --diff <dir> [--dump <dir>]
+    python -I tools/weatherscope/screens/k35b.py --write | --check | --diff <dir> [--dump <dir>] [--theme light]
+
+--theme light (3.5t t4, A12.60) writes and checks test/fixtures/wx/k35bl.ref.txt: the same 57 rows in look35's light
+theme, A12.43's values. Dark is the default and writes k35b.ref.txt as before.
 
   ROW <name> <sha256 of the 240 x 240 RGB565 big-endian frame>
   TIME <name> <text> <ink>
@@ -29,6 +32,7 @@ def _load(name, path):
 look = _load("look35", os.path.join(HERE, "look35.py"))
 r, geo35 = look.r, look.geo35
 K_REF = os.path.join(r.WX, "k35b.ref.txt")
+K_REF_LIGHT = os.path.join(r.WX, "k35bl.ref.txt")
 CLEAR_B = os.path.join(look.BEND, "synthetic-clear.wxc")
 OFFSET_PT = -420   # Pacific (PDT) on 2024-06-02 (A10.4)
 VARIANTS = [("towns", 0, False), ("water", 1, False), ("rivers", 2, False), ("roads", 4, False), ("peaks", 8, False),
@@ -45,8 +49,11 @@ def dark():
     return look.THEMES["dark"]
 
 
+THEME = dark   # the theme the rows are drawn in; main() points it at look35's light for --theme light
+
+
 def row(name, h, codes, mi, mask, terrain, loop=None):
-    th = dark()
+    th = THEME()
     view = r.View(h, mi)
     img, peaks, places = look.package_scene(view, level_mm(mi), mask, terrain)
     base = look.colours(img, th)
@@ -91,10 +98,16 @@ def rows():
     return out
 
 
-def text(rs):
+def text(rs, light=False):
     head = ["# Weatherscope 3.5b Bend K rows (docs/weatherscope-stage3.md A10.6, A12.41): written by",
             "# tools/weatherscope/screens/k35b.py --write, checked by its --check; read by test/host/test_wx_k35b.cpp.",
             "# Texts: printable ASCII, else %XX; '-' empty.",
+    ] if not light else [
+            "# Weatherscope 3.5t Bend K rows in Light (docs/weatherscope-stage3.md A12.60): written by",
+            "# tools/weatherscope/screens/k35b.py --theme light --write, checked by its --check; read by",
+            "# test/host/test_wx_k35b.cpp. Texts as k35b.ref.txt.",
+    ]
+    head += [
             "# font %s" % r.FONT_SHA,
             "# bend.bmpk %s" % hashlib.sha256(open(look.PKG, "rb").read()).hexdigest(),
             "# bend-loop MANIFEST.json %s (LF-normalised)" % r.sha_lf(os.path.join(look.BEND, "MANIFEST.json")),
@@ -103,8 +116,12 @@ def text(rs):
 
 
 def main(argv):
+    global THEME, K_REF
+    light = "--theme" in argv and argv[argv.index("--theme") + 1] == "light"
+    if light:
+        THEME, K_REF = (lambda: look.THEMES["light"]), K_REF_LIGHT
     rs = rows()
-    t = text(rs)
+    t = text(rs, light)
     if "--dump" in argv:
         d = argv[argv.index("--dump") + 1]
         os.makedirs(d, exist_ok=True)
