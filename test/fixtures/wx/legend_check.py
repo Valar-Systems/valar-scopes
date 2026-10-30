@@ -2,6 +2,7 @@
 
     python -I test/fixtures/wx/legend_check.py <COMx> <out.txt> [--png legend.png]
     python -I test/fixtures/wx/legend_check.py --fb <snapshot.bin> <serial-lines.txt> [--png legend.png]   (stage 3, A8.20)
+    ... [--theme dark|light]   (3.5t t5, A12.66: the theme the legend was drawn in; dark when absent)
 
 One open of the port (capture_stage1.capture: DTR/RTS low, never reattached). Sends 'L'; the board draws screen 7,
 prints its swatch list (WXL lines) and dumps the legend sprite's OWN bytes as 240 tagged rows (WXS, 480 bytes of
@@ -16,6 +17,10 @@ big-endian RGB565 each, zlib CRC-32). Then:
       inside a label box only 0x0000 or 0xFFFF, and no box is empty
   L6  (addendum 8) the inner radius on the board's own pixels: every non-dry pixel's centre within 112 px of (120, 120)
 Exit 0 only when L1, L2, L4, L5 and L6 all hold.
+--theme light (3.5t t5, A12.66) grades the light legend: its table derived HERE from A12.43 sections 1-2 as A12.44
+ruled them (light (b): rain 1 teal, 5 (135, 135, 0), 6 (155, 128, 0), 13 black, the rest the pinned table's; snow by
+S-M; no coverage (93, 93, 93); the hatch (124, 124, 124) on paper), never from WxTheme.h; L5's ground is paper and a label
+box holds only paper or the label ink (38, 38, 40); L6 measures the non-paper pixels.
 """
 import ast, base64, hashlib, os, re, struct, sys, zlib
 
@@ -37,6 +42,16 @@ RAIN = {1: (0, 150, 135), 13: (255, 255, 255)}   # code 1 teal: Daniel's 2026-10
 RAIN.update({c: TBL[c + 1] for c in range(2, 13)})
 SNOW = {1: (0, 110, 210), 2: (66, 129, 218), 3: (98, 149, 226), 4: (124, 169, 234), 5: (148, 190, 242), 6: (170, 212, 250)}
 NOCOV, HATCH, DRY = (40, 40, 40), (72, 72, 72), (0, 0, 0)
+INK = (255, 255, 255)   # the legend's label text in dark: the white role
+# 3.5t t5 (A12.66): light (b), from A12.43 sections 1-2 with A12.44 -- never from WxTheme.h
+PAPER = (234, 231, 223)
+LIGHT_RAIN = dict(RAIN)
+LIGHT_RAIN.update({5: (135, 135, 0), 6: (155, 128, 0), 13: (0, 0, 0)})
+LIGHT_SNOW = {1: (0, 108, 206), 2: (0, 95, 177), 3: (0, 83, 149), 4: (0, 70, 121), 5: (0, 57, 94), 6: (0, 43, 66)}
+THEMES = {"dark": dict(rain=RAIN, snow=SNOW, nocov=NOCOV, hatch=HATCH, ground=DRY, ink=INK),
+          "light": dict(rain=LIGHT_RAIN, snow=LIGHT_SNOW, nocov=(93, 93, 93), hatch=(124, 124, 124), ground=PAPER,
+                        ink=(38, 38, 40))}
+TH = THEMES["dark"]   # set by main() from --theme
 GROUPS = [("Light rain", "rain", [1, 2, 3, 4]), ("Moderate", "rain", [5, 6, 7]), ("Heavy", "rain", [8, 9, 10]),
           ("Very heavy / possible hail", "rain", [11, 12, 13]), ("Snow, light -> heavy", "snow", [1, 2, 3, 4, 5, 6]),
           ("No radar coverage", "nocov", [14]), ("No data", "nodata", [15])]
@@ -47,10 +62,10 @@ def c565(rgb):
     return bytes((v >> 8, v & 0xFF))
 
 def expected(kind, code, x, y):
-    if kind == "rain": return c565(RAIN[code])
-    if kind == "snow": return c565(SNOW[code])
-    if kind == "nocov": return c565(NOCOV)
-    return c565(HATCH if (x + y) % 4 == 0 else DRY)
+    if kind == "rain": return c565(TH["rain"][code])
+    if kind == "snow": return c565(TH["snow"][code])
+    if kind == "nocov": return c565(TH["nocov"])
+    return c565(TH["hatch"] if (x + y) % 4 == 0 else TH["ground"])
 
 def png(path, sprite):
     rows = b""
@@ -79,6 +94,15 @@ def main_fb(argv):
 
 
 def main(argv):
+    global TH
+    if "--theme" in argv:
+        i = argv.index("--theme")
+        if i + 1 >= len(argv) or argv[i + 1] not in THEMES:
+            print("REFUSED: --theme takes dark or light (the rig)"); return 2
+        TH = THEMES[argv[i + 1]]
+        del argv[i:i + 2]
+    if TH is THEMES["light"]:
+        print("theme: light (A12.43 sections 1-2 with A12.44)")
     if len(argv) >= 2 and argv[1] == "--fb":
         if len(argv) < 4:
             print(__doc__); return 2
@@ -131,7 +155,7 @@ def grade(sprite, lines, argv):
         if bad_px: fails.append((i, k, c, bad_px, w * h))
     print(f"L1 every swatch equals the palette: {21 - len(fails)}/21 swatches exact" + ("" if not fails else
           " -> MISMATCH: " + "; ".join(f"#{i} {k} {c}: {b}/{n} px" for i, k, c, b, n in fails)))
-    # L5: the background is dry; labels are white on dry and non-empty
+    # L5: the background is the theme's ground (dry); labels are the theme's ink on that ground, and non-empty
     boxes = [tuple(int(v) for v in m.groups()[1:]) for m in (WXT.match(l) for l in lines) if m]
     covered = set()
     for _, _, _, x0, y0, w, h in sw:
@@ -140,14 +164,16 @@ def grade(sprite, lines, argv):
     for x0, y0, w, h in boxes:
         labels.update((x, y) for y in range(y0, y0 + h) for x in range(x0, x0 + w))
     px = lambda x, y: sprite[2 * (y * N + x)] << 8 | sprite[2 * (y * N + x) + 1]
-    bg_bad = sum(1 for y in range(N) for x in range(N) if (x, y) not in covered and (x, y) not in labels and px(x, y) != 0)
-    lab_bad = sum(1 for (x, y) in labels if (x, y) not in covered and px(x, y) not in (0x0000, 0xFFFF))
-    empty = sum(1 for x0, y0, w, h in boxes if not any(px(x, y) == 0xFFFF for y in range(y0, y0 + h) for x in range(x0, x0 + w)))
+    as_int = lambda rgb: int.from_bytes(c565(rgb), "big")
+    ground, ink = as_int(TH["ground"]), as_int(TH["ink"])
+    bg_bad = sum(1 for y in range(N) for x in range(N) if (x, y) not in covered and (x, y) not in labels and px(x, y) != ground)
+    lab_bad = sum(1 for (x, y) in labels if (x, y) not in covered and px(x, y) not in (ground, ink))
+    empty = sum(1 for x0, y0, w, h in boxes if not any(px(x, y) == ink for y in range(y0, y0 + h) for x in range(x0, x0 + w)))
     l5 = len(boxes) == 7 and bg_bad == 0 and lab_bad == 0 and empty == 0
-    print(f"L5 background: {len(boxes)} label boxes; non-dry pixels outside swatches and labels: {bg_bad}; non-white/dry "
-          f"inside labels: {lab_bad}; empty label boxes: {empty} -> {'dry, as ruled' if l5 else 'NOT as predicted'}")
-    # L6: every non-dry pixel inside the inner radius
-    lit = [(x, y) for y in range(N) for x in range(N) if px(x, y) != 0]
+    print(f"L5 background: {len(boxes)} label boxes; non-ground pixels outside swatches and labels: {bg_bad}; non-ink/ground "
+          f"inside labels: {lab_bad}; empty label boxes: {empty} -> {'the ground, as ruled' if l5 else 'NOT as predicted'}")
+    # L6: every non-ground pixel inside the inner radius
+    lit = [(x, y) for y in range(N) for x in range(N) if px(x, y) != ground]
     far = max(((x + 0.5 - 120) ** 2 + (y + 0.5 - 120) ** 2) ** 0.5 for x, y in lit) if lit else 0.0
     l6 = far <= INNER_RADIUS
     print(f"L6 inner radius: {len(lit)} non-dry pixels; the farthest pixel centre is {far:.1f} px from the centre "

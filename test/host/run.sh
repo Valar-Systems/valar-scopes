@@ -1244,6 +1244,18 @@ else
     fi
   done
   echo "  $nd driver(s) checked"
+  # 3.5t t5 (A12.66 section 5): a board sabotage's plant too. It builds a scratch image, so nothing else ever runs it
+  # off the bench; here a moved anchor fails the PR that moves it.
+  "$PY" "$ROOT/tools/weatherscope/board/plant_s_swb.py" --anchors > "$OUT/anchors.log" 2>&1
+  rc=$?
+  line=$(grep "^ANCHORS " "$OUT/anchors.log" | tail -1)
+  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then
+    echo "  ok   $line (a board plant)"
+  else
+    echo "  FAIL plant_s_swb.py --anchors (exit $rc):"
+    cat "$OUT/anchors.log"
+    fail=1
+  fi
   "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
   [ "$?" -ne 0 ] && fail=1
 fi

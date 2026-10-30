@@ -2509,6 +2509,15 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
                         <span id="brival" class="hint"></span>
                     </label>
+                    <label class="field mt">
+                        <span>Theme:</span>
+                        <select name="wx-theme" class="grow">
+                            <option value="auto" %THEME_AUTO%>Auto</option>
+                            <option value="light" %THEME_LIGHT%>Light</option>
+                            <option value="dark" %THEME_DARK%>Dark</option>
+                        </select>
+                    </label>
+                    <span class="hint">Auto follows the sun at your location: light by day, dark at night.</span>
                 </fieldset>
 
                 <div class="savebar">
@@ -3140,6 +3149,7 @@ void ConfigurationWebServer::Initialise() {
         const String longitude = HtmlEscape(prefs.getString("longitude", ""));
         const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
+        const String theme = prefs.getString("wx-theme", "");   // compared, never emitted (3.5t t5, A12.66)
 #endif
         prefs.end();
 
@@ -3513,12 +3523,16 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness, theme]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
+                // the stored theme selected; absent or unknown selects Auto, as the device reads it (A12.66)
+                if (var == "THEME_LIGHT")    return theme == "light" ? "selected" : "";
+                if (var == "THEME_DARK")     return theme == "dark" ? "selected" : "";
+                if (var == "THEME_AUTO")     return theme != "light" && theme != "dark" ? "selected" : "";
                 if (var == "FW_VERSION")     return String(FW_VERSION);
                 // Free function, so no capture list changes -- every edition's
                 // processor answers this identically. See BuildIdentity.h.
@@ -3602,6 +3616,9 @@ void ConfigurationWebServer::Initialise() {
         // was there beats overwriting a working location with a typo -- and the
         // field name is collected so the response can name it.
         String badCoord;
+#ifdef FEATURE_WEATHERSCOPE
+        bool badTheme = false;   // 3.5t t5 (A12.66): a wx-theme outside the set, refused
+#endif
         auto TrySaveCoord = [request, &prefs, &badCoord](const char* paramName, bool isLat) {
             const auto* param = request->getParam(paramName, true);
             if (param == nullptr)
@@ -3989,6 +4006,18 @@ void ConfigurationWebServer::Initialise() {
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
         SaveToggle("autodim");
+
+        // 3.5t t5 (A12.66): the theme is only ever one of the three. A value outside the set is REFUSED -- nothing is
+        // written, and the reply says so -- never coerced into a member; an absent field (a partial POST) is left alone.
+        if (const auto* p = request->getParam("wx-theme", true)) {
+            const String v = p->value();
+            if (v == "auto" || v == "light" || v == "dark") {
+                prefs.putString("wx-theme", v);
+            } else {
+                badTheme = true;
+                Serial.println("[POST] rejected wx-theme: not auto, light or dark");
+            }
+        }
 #endif
         // Read the STORED location back before closing, so the warning below
         // reflects what the device will actually run with -- not merely what this
@@ -4008,6 +4037,13 @@ void ConfigurationWebServer::Initialise() {
         // means a JS-less client, so the reply has to carry the whole message
         // including an example of a good value. The word MISSING keeps the
         // existing red-and-bold styling in the status bar.
+#ifdef FEATURE_WEATHERSCOPE
+        if (badTheme) {
+            request->send(200, "text/html",
+                          "Saved the other settings, but the theme was NOT SAVED: it must be auto, light or dark.");
+            return;
+        }
+#endif
         if (!badCoord.isEmpty()) {
             const bool isLat = badCoord.endsWith("lat") || badCoord == "latitude";
             request->send(200, "text/html",

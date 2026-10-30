@@ -33,9 +33,21 @@ namespace {
 constexpr unsigned long SPLASH_MS = 4000;  // the splash, once per boot
 constexpr int64_t kLoopPeriodUs = 70000;   // 14.29 fps (A8.20)
 
-// Every colour the manager draws is a role in WxTheme.h (3.5t, A12.47). The theme is Dark until t5 reads wx-theme and
-// the day/night phase; in Dark each role is the literal it replaced, so nothing on the screen moves.
-const wxtheme::Theme& Th() { return wxtheme::Get(wxtheme::Which::Dark); }
+// Every colour the manager draws is a role in WxTheme.h (3.5t, A12.47), read through Th(): the theme on the screen,
+// which wx-theme and Auto's day/night phase choose (t5, A12.66). Their names, as the lines print them:
+const char* WhichName(wxtheme::Which w) { return w == wxtheme::Which::Light ? "light" : "dark"; }
+const char* SettingName(wxtheme::Setting s)
+{
+    return s == wxtheme::Setting::Light ? "light" : s == wxtheme::Setting::Dark ? "dark" : "auto";
+}
+const char* ReadName(wxtheme::Read r)
+{
+    return r == wxtheme::Read::Known ? "known" : r == wxtheme::Read::Unset ? "unset" : "unknown";
+}
+const char* PhaseName(daynight::Phase p)
+{
+    return p == daynight::Phase::Day ? "Day" : p == daynight::Phase::Night ? "Night" : "Unknown";
+}
 uint32_t C888(wxraster::Rgb c) { return lgfx::color888(c.r, c.g, c.b); }
 
 // The stored cycle (A12.53): Dallas's six in wxscen::Kind's order (Q15), then 3.5b's Bend two (A10.4) -- Bend dry, the
@@ -157,14 +169,28 @@ void WeatherscopeManager::Initialise()
     configuredBrightness = br.isEmpty() ? 255 : (uint8_t)constrain(br.toInt(), 10, 255);
     const String ad = configServer.GetStoredString("autodim");
     autoDim = ad.isEmpty() || ad == "true";
+    // 3.5t t5 (A12.66): wx-theme, read exactly (TP). An unknown value reads as Auto and is NAMED in the line below --
+    // its first 24 bytes (free text, so a prefix is a true prefix) and its length -- never coerced.
+    const String ts = configServer.GetStoredString("wx-theme");
+    const wxtheme::Parsed tp = wxtheme::ParseSetting(ts.c_str());
+    themeSetting = tp.setting;
+    themeRead = tp.read;
+    char named[100] = "";
+    if (themeRead == wxtheme::Read::Unknown) {
+        char head[25], tok[76];
+        snprintf(head, sizeof head, "%s", ts.c_str());
+        wxscenes::Token(head, tok, sizeof tok);
+        snprintf(named, sizeof named, " stored=%s len=%u", tok, (unsigned)ts.length());
+    }
 
     currentBrightness = configuredBrightness;
     tft.setBrightness(currentBrightness);
     lastBrightnessCheck = 0;
 
     // Flags only: the location itself is never logged.
-    Serial.printf("[wx] init; location=%s autodim=%d brightness=%u stored=%d\n",
-                  hasLatLon ? "set" : "unset", (int)autoDim, (unsigned)configuredBrightness, (int)feeds.stored);
+    Serial.printf("[wx] init; location=%s autodim=%d brightness=%u stored=%d theme=%s read=%s%s\n",
+                  hasLatLon ? "set" : "unset", (int)autoDim, (unsigned)configuredBrightness, (int)feeds.stored,
+                  SettingName(themeSetting), ReadName(themeRead), named);
 }
 
 // A PSRAM object, constructed in place: nullptr when the allocation fails.
@@ -325,6 +351,7 @@ int WeatherscopeManager::ZoomMiles() const { return wxscreens::ZoomMiles(zoomLad
 void WeatherscopeManager::BuildScenario()
 {
     const int64_t t0 = esp_timer_get_time();
+    composedWhich = which;   // t5: set first, so a build that fails is not retried every Update
     timingOut = true;
     outUs = 0;
     outN = outShort = 0;
@@ -354,6 +381,7 @@ void WeatherscopeManager::BuildScenario()
     const int64_t tFrom0 = esp_timer_get_time();
     *screenIn = wxscreens::ScreenIn();
     wxscenes::FromScenario(*scenario, h, grid, R, townOrder, screenIn, bend ? wxscen::kBendOffsetMin : wxscen::kOffsetMin);
+    screenIn->which = which;
     if (bend) {
         EnsureBase(h, "scenario");
         ApplyPackage();
@@ -652,6 +680,7 @@ void WeatherscopeManager::LogFeeds() const
 void WeatherscopeManager::Update()
 {
     UpdateBrightness();
+    MaybeSwitchTheme();
 
     if (mode == Mode::Splash) {
         if (millis() - splashStartMs < SPLASH_MS) return;
@@ -674,11 +703,19 @@ void WeatherscopeManager::Update()
     }
     HandleTouch();
     HandleSerialGestures();
+    MaybeSwitchTheme();   // after 'O'
     ServiceDiagText();   // A9.42: /diag/wx, answered on this task
 
     // The cycle sees every tick, so a paused interval (the loop, the legend) is skipped rather than counted when
     // it resumes; it can only advance while unpaused, i.e. on the scenario screen.
     if (wxscreens::Step(*cycle, millis(), feeds.stored) && mode == Mode::Scenario) BuildScenario();
+    // t5 (A12.66): the cached scenario in another theme than the screen's -- a switch here, or one that waited over the
+    // legend or a loop -- is recomposed now, build reason "theme".
+    if (mode == Mode::Scenario && composedWhich != which) {
+        buildWhy = "theme";
+        buildFromMi = ZoomMiles();
+        BuildScenario();
+    }
     // 10 min without a touch: back to the ladder's top (A9.3)
     if (mode == Mode::Scenario) {
         const int idx = wxscreens::IdleReturn(zoomLadder, zoomIdx, millis(), lastTouchMs);
@@ -716,6 +753,7 @@ void WeatherscopeManager::StartLoop()
         *screenIn = wxscreens::ScreenIn();
         wxscenes::FromLoopFrame(h0, grid, 0, last.frameEpoch, ZoomMiles(), townOrder, screenIn,
                                 bend ? wxscen::kBendOffsetMin : wxscen::kOffsetMin);
+        screenIn->which = which;   // the layer is built in the shown theme; no switch lands inside the loop (t5)
         if (bend) {
             EnsureBase(h0, "tap");
             ApplyPackage();
@@ -897,13 +935,14 @@ void WeatherscopeManager::HandleSerialGestures()
         const int ch = Serial.read();
         if (!feeds.stored) continue;
         const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'P' || ch == 'L' ||
-                           ch == 'R' || ch == 'G';
+                           ch == 'R' || ch == 'G' || ch == 'O';
         Serial.printf("[wx] gesture %c\n", known ? (char)ch : '?');
         if (!known) continue;
         if (ch == 'P') { benchPress = true; continue; }   // A9.34: the press is HandleTouch's to classify
         if (ch == 'L') { benchPress = false; continue; }
         if (ch == 'R') { PrintRecords(); continue; }
         if (ch == 'G') { OnTerrainByte(); continue; }     // A12.53: a setting, not a touch (no idle-return reset)
+        if (ch == 'O') { OnAutoOffsetByte(); continue; }  // t5 (A12.66): the clock Auto reads, +15 min; not a touch
         lastTouchMs = millis();
         if (ch == 'T') OnTap();
         else if (ch == 'S') OnSwipeLeft();
@@ -936,24 +975,50 @@ void WeatherscopeManager::UpdateBrightness()
 {
     if (lastBrightnessCheck != 0 && millis() - lastBrightnessCheck < 20000) return;
     lastBrightnessCheck = millis();
+    EvaluateDayNight();
+}
 
-    bool night = false;
-    if (autoDim && hasLatLon) {
-        const time_t utc = time(nullptr);
-        if (utc > 1600000000)
-            night = SunElevationDeg(deviceLat, deviceLon, utc) < -0.833f;
-    }
-    nightDim = night;
-
+// Auto's evaluation (3.5t t5, A12.66), on the 20 s tick and on 'O': the day/night phase with its hysteresis
+// (daynight::Evaluate, t1) on the clock 'O' may have moved, then the dim from that same phase (TD). Two named changes
+// from before t5, as TD rules them: the dim follows the band (on at -1.833 deg, off at +0.167 deg), and a lost clock
+// keeps the last phase rather than un-dimming. The brightness rule is unchanged. The theme follows in MaybeSwitchTheme.
+void WeatherscopeManager::EvaluateDayNight()
+{
+    const time_t utc = time(nullptr);
+    phase = daynight::Evaluate(phase, utc > 1600000000, hasLatLon, deviceLat, deviceLon, utc + (time_t)autoOffsetMin * 60);
+    const bool dim = wxtheme::NightDim(autoDim, phase);
     uint8_t target = configuredBrightness;
-    if (night) {
+    if (dim) {
         target = configuredBrightness / 5;
         if (target < 10) target = 10;
     }
+    if (dim != nightDim) Serial.printf("[wx] dim=%d brightness=%u\n", (int)dim, (unsigned)target);
+    nightDim = dim;
     if (target != currentBrightness) {
         currentBrightness = target;
         tft.setBrightness(target);
     }
+}
+
+// The theme the setting and the phase choose (wxtheme::Select). Never inside a loop: there it waits, and applies at
+// the first Update after the loop ends, so the loop's layer is never rebuilt by a switch (BSW-L). The cached scenario
+// follows in Update (composedWhich); the splash, status and legend are drawn from Th() every frame.
+void WeatherscopeManager::MaybeSwitchTheme()
+{
+    const wxtheme::Which want = wxtheme::Select(themeSetting, phase);
+    if (want == which || mode == Mode::Loop) return;
+    Serial.printf("[wx] theme=%s was=%s setting=%s phase=%s\n", WhichName(want), WhichName(which),
+                  SettingName(themeSetting), PhaseName(phase));
+    which = want;
+}
+
+// The bench byte O (Q48, A12.66): +15 min on the clock Auto reads, wrapping at 24 h; one evaluation at once; no
+// elevation is printed. The switch check follows in Update.
+void WeatherscopeManager::OnAutoOffsetByte()
+{
+    autoOffsetMin = (int16_t)((autoOffsetMin + 15) % 1440);
+    EvaluateDayNight();
+    Serial.printf("[wx] auto offset=+%d min phase=%s\n", (int)autoOffsetMin, PhaseName(phase));
 }
 
 // ----------------------------------------------------------------------------- drawing
@@ -1114,6 +1179,7 @@ void WeatherscopeManager::DrawLoopFrame(BandCanvas& c)
         *screenIn = wxscreens::ScreenIn();
         wxscenes::FromLoopFrame(h, grid, loopIndex, last.frameEpoch, ZoomMiles(), townOrder, screenIn,
                                 bend ? wxscen::kBendOffsetMin : wxscen::kOffsetMin);
+        screenIn->which = which;
         if (bend) ApplyPackage();   // the image built at the scenario, reused at the tap: never rebuilt in a frame
         *screenOut = wxscreens::ScreenOut();
         SpriteSink sink(s);
@@ -1165,6 +1231,7 @@ void WeatherscopeManager::DrawLegend(BandCanvas& c)
 
 void WeatherscopeManager::DrawSplash(BandCanvas& c)
 {
+    c.sprite().fillSprite(C888(Th().bg));   // t5: the theme's own ground over main.cpp's black clear (A12.43 §1)
     c.setTextSize(3);
     CenterText(c, "Weatherscope", SCREEN_SIZE_DIV_2 - 24, C888(Th().uiFg));
     c.setTextSize(1);
@@ -1175,8 +1242,9 @@ void WeatherscopeManager::DrawSplash(BandCanvas& c)
 // it is online, where its settings are, and the time it believes it is.
 void WeatherscopeManager::DrawStatus(BandCanvas& c)
 {
-    c.setTextSize(2);
     const wxtheme::Theme& th = Th();
+    c.sprite().fillSprite(C888(th.bg));   // t5: the theme's own ground over main.cpp's black clear (A12.43 §1)
+    c.setTextSize(2);
     CenterText(c, "Weatherscope", SCREEN_SIZE / 5, C888(th.uiFg));
 
     const bool online = WiFi.status() == WL_CONNECTED;
