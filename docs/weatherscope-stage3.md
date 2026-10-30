@@ -9486,3 +9486,45 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
   - **dark unchanged:** `k35.ref.txt` and `k35b.ref.txt` identical on regeneration; R0 and R0b PASS; `look35`'s TH1-TH3 hold.
 - **The reference already predicts LY:** every TIME, BAND and LABEL line of the light files equals the dark ones, and all 82 frame hashes differ.
 - **`test_wx_k35` with t4's rows reads 79 / 0:** K-light 25 of 25, LY 25 of 25, LY-X red as a control must be. t4's results come in their own addendum with the rest of its rows.
+
+### A12.64 3.5t step t4: the older drivers' plants on t4's new rows -- re-registered before they run (Q60)
+
+**What A12.60 got wrong.** It froze "every other driver as before". But the drivers compare **whole failing sets**, and t4's new rows sit in suites that three older drivers compile:
+- `sabotage_wx_k35.py` compiles `test_wx_k35`;
+- `sabotage_wx_replay.py` compiles `test_wx_replay` and `test_wx_k35`;
+- `sabotage_wx_themed_draw.py` compiles `k35`, `k35b` and `replay` among its six.
+
+Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" cannot hold for them as a whole set. **None of the three has run on t4's tree.** The sets below are registered first, and Q60 asks for them to be accepted.
+
+| driver: plant | as before | t4's rows it adds, and why | the set |
+|---|---|---|---|
+| `k35`: **S-K1**, dark's label ink | `K:` all 25 | **none.** `kLight`'s label is its own entry. LY's dark mask reads the same planted `kDark` | 25 |
+| `k35`: **S-K2**, the loop knob's 116 → 120 | `K:loop-02..14`, 13 | **`KL:loop-02..14`, 13:** the light knob moves too. LY: the knob is below the map band | 26 |
+| `k35`: **S-K3**, the arrow's travel | `K:warning-60`, `AR1PIX` | **`KL:warning-60`.** LY passes: both themes place labels around the same reversed arrow | 3 |
+| `k35`: **S-K4**, the dark reference's first dry-60 label | `K:dry-60` | **none:** `k35l.ref.txt` is not planted | 1 |
+| `k35`: **S-K5**, stale after 3,600 s | `K:stale-60` | **`KL:stale-60`** | 2 |
+| `replay`: **S-RP1**, the radius out of `SameLayer` | replay: `RP` at 30 and 15 mi, 60; k35: none | **replay: `RPL` at 30 and 15 mi, 60.** The light pass runs the same 90 in the same order through its own `Layer`. RP-T: none (60 mi only, on a fresh `Layer`). k35: none (its loop rows are all at 60 mi) | replay 120; k35 0 |
+| `replay`: **S-RP2**, the first label erased from the layer | replay: all 90; k35: `K:loop`, 15 | **replay: `RPL` all 90 and `RPT:dallas` all 15. k35: `KL:loop`, 15.** LY passes, for two reasons: the layer is one byte a pixel, so the same box is erased in both themes; and no palette colour equals the label or peak ink in either theme (checked in RGB565: none in either) | replay 195; k35 30 |
+| `themed_draw`: **S-KD** | 82 | **none** (A12.60) | 82 |
+| `themed_draw`: **S-NL** | 1 hit, at the plant | not a suite | as before |
+
+**The counts these drivers check move with the suites:**
+- `k35` 79, `replay` 195, `k35b` 368, in their RIG checks and their `--control` tables;
+- in `themed_draw`'s `SUITES`.
+
+**`sabotage_controls_control.py`:**
+- Its mangle anchors on `themed_draw`'s `k35b` line.
+- It now restores 143 over 368, so the copy must exit 1 naming **"368 checks … against checks 143"**. The clean copy must exit 0.
+
+**The outside-the-set branch:** a plant whose set is off stops t4 at that plant. It is reported, and nothing is changed on either side until ruled.
+
+**Two things that happened before this freeze, recorded here, not left for the results:**
+- **The new drivers have run** (A12.60 froze their sets):
+  - `sabotage_wx_light.py`: S-KL 82, S-LY 146 (K-light and LY on 73 scenes, with the 73 / 9 split read off the references and matching A12.60), S-RPT 16, each **as predicted**; the control clean.
+  - `sabotage_wx_th2.py`: S-TH2 fails `warning-60` alone.
+- **`sabotage_wx_th2.py`'s first run printed OFF-PREDICTION, and the cause was its own parser:**
+  - `th2.py` prints `TH2' warning-60: …`, and the driver's `(\S+)` captured `warning-60:` with the colon. The failing set itself was the warning scene alone.
+  - The regex was fixed to `(\S+?):` before any commit, and the re-run reads AS PREDICTED. Nothing else was changed.
+  - It is reported so the reviewer can rule whether it counts as an off-prediction.
+- **TH2′'s Bend scene is `bloop-14-C`.** A12.60 named "Bend loop frame 14" without a variant. C draws every layer and the terrain, so it closes the most of the palette.
+- **The four TH2′ scenes are byte-equal to the light reference's own rows** (sha256 of RGB565), so TH2′ grades the frames K-light grades.
