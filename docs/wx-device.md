@@ -3611,3 +3611,26 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
   - at boot, local mode prints `[source] local receiver: <URL>`, so W5⁗'s traces hold the PC's LAN address beside
     E2:08's own. Traces stay out of the repo, and are never quoted.
 - **When it was caught:** reading the poll code to build the driver, before the driver existed.
+
+### W5⁗'s and K6's drivers, built (scratchpad; not graded until their runs)
+
+| file | sha256 (12) | what |
+|---|---|---|
+| `w5pppp_run.py` | `351f7cfef7d8` | W5‴'s arms on the local feed. Refuses unless the session is clear of the D0 slot and the overnight watch, and the start state holds (wxlook, layer on, look A, logbook off, leaderboard off, source cloud, local-url empty). Location and radius are read into memory for the feed. local-url, then source local. Each arm `ARM`s the feed. The restore runs at the end and in `finally`, and is read back as "feed source as before" |
+| `w5pppp_read.py` | `ce17ce7313d9` | W5‴'s statistic, control and floors. VOID polls band 54-66 (G4 as amended). G1 (n against the plateau; lines within 10 s after a step transitional). Derived by `make_w5pppp_read.py` (`57a839b711ee`). Its inherited selftest passes |
+| `k6_run.py` | `87e6ee89b09c` | `replay_redo.py`'s RC1, RS1-RS3 and RS5, with the K6 arm in place of RP1/RP2/RP6. The proxy runs with `--synth-k6`, then `MODE fresh`. Refuses unless the logbook and leaderboard are off and the window is clear of both blocked windows. The label fields are recorded, set to the source's default, and restored at the end and in `finally` (never raising there). The read is 10 min after 2 min of retention. Derived by `make_k6.py` (`5dc88ac5b9d6`) |
+| `k6_read.py` | `20f8acbb87df` | K6a-K6c, the touch gate, RS-K (enrich and photo forwarded 0 at the clear), "label fields as before". Its `[health]` pattern parses all 20 lines of a W5‴ trace |
+
+**A count corrected (not a prediction):**
+- **The error:** the 18:25Z section above says "E2:08's 16 label fields". **There are 15** (`AircraftInfoFields.cpp`'s
+  table). The 16th was `infotext`, the master switch, which is not a field.
+- **How it was found:** the generated driver asserted 16 and would have stopped at the start, a rig failure.
+- **The fix:** the driver now holds no count. It refuses unless the page's label fields and the source's are the same
+  set.
+
+**When they can run** (the blocked windows are checked in UTC by both drivers):
+- **The free span:** between the overnight watch's end and the D0 slot, roughly 13:10Z-17:40Z for W5⁗ (about
+  2 h) and 13:10Z-18:55Z for K6 (≥ 50 min), or after 21:45Z.
+- **Each in its own announced window.**
+- **First:** `wt-wxdevice` is fast-forwarded to this branch's head once the overnight watch ends, so N, the proxy and
+  the feeds are #445 as it now stands.
