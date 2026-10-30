@@ -9452,3 +9452,37 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **The harness code is written and run locally, and not pushed.** The predictions above are frozen with it.
 - **Independent of Q59 (A12.24):** t4's code proceeds locally, as A12.60 froze it with Q58 (a). It does not touch this driver.
 - **The touch watch is armed:** it is waiting for 06:00Z, with its dry run as A12.61 predicted (step 7's 72 changes all explained; q2's one at 04:18:22Z caught).
+
+### A12.63 The harness PR's results, held for Q59: every A12.61 row holds with Q59 (a) applied
+
+**The code:** `weatherscope/harness-control` @ `76607fc`, one commit on main `d256ff0` (#500 moved main after #508; it touched `proxy/` only).
+- **It is committed locally and not pushed,** while Q59 is open (A12.62). It carries Q59 (a): the basemap count 84 → 92 beside Q57's 143 → 149.
+
+| row (A12.61) | predicted | measured |
+|---|---|---|
+| every driver's `--control` | 17 exit 0; towns exit 3, with its reason | **17 exit 0, each "all as the table"; towns SKIPPED**, "needs the Census archive" |
+| the guard's control | the 143 copy exit 1 naming `test_wx_k35b`; the clean copy exit 0 | **exit 1, naming "149 checks … against checks 143"; the clean copy exit 0** |
+| `sabotage_wx_themed_draw.py`, in full | ALL AS PREDICTED: S-KD 82, S-NL as before | **ALL AS PREDICTED: S-KD 82 (25 Dallas, 57 Bend), extra 0, missing 0; S-NL at its line; the control clean; the real tree unchanged** |
+| every driver, in full | as before; towns the rig | **17 exit 0, all as predicted; towns exit 2 (the rig)** |
+| `--anchors` | 18 clean; its control red | **18 clean; the control red on its mangled anchor** |
+| host suites, MinGW | ALL HOST TESTS PASSED; the new block green | **ALL HOST TESTS PASSED, 142 blocks:** main's 141 plus "sabotage controls" (18 drivers, 17 run, 1 skipped). Every other block's counts equal main's |
+| host suites, g++ 13.3 | the same blocks, only the rig's two | **the same 142 blocks, every count equal to MinGW's; only the rig's two** (no xtensa; no Pillow at R0/R0b) |
+| the firmware | no firmware file changes | none: `test/host` only |
+
+- **The suite counts behind the `ok` tables, measured on main before any harness code:** crop 27, palette 15, legend 4, as A12.61 froze them. Server crops reads 16 over its own set, `server`.
+
+**One g++ 13.3 run was void, and was repeated.**
+- **The first run stopped at its 42nd block** (exit 2). The Wi-Fi QR test read BLIND: `run.sh`'s glob for LovyanGFX's `GFXFF` fonts came out empty, though the directory exists.
+- **The same glob, run read-only in WSL straight after, found it.** In step 7's run of the same worktree, that block had passed.
+- **The repeat passed every block.**
+- **Recorded as the rig, cause unknown:** the empty glob was seen once. Nothing was changed for it.
+  - A safety check blocked an `rm -rf .pio/hosttest` I had put in that rerun's command. It was not needed and was not routed around: each block compiles before it runs.
+
+**Also in this window:**
+- **Tonight's touch watch is armed.** It is waiting for 06:00Z in `wt-watch`, a worktree of `ebb8db17b1b2` kept unchanged for it. Its dry run is as A12.61 predicted.
+- **t4's light reference is written** (`wt-t4`, local, uncommitted):
+  - `look35`'s `light` theme and `ref35`'s routing;
+  - `k35l.ref.txt` (25 rows) and `k35bl.ref.txt` (57 rows), each identical on regeneration;
+  - **dark unchanged:** `k35.ref.txt` and `k35b.ref.txt` identical on regeneration; R0 and R0b PASS; `look35`'s TH1-TH3 hold.
+- **The reference already predicts LY:** every TIME, BAND and LABEL line of the light files equals the dark ones, and all 82 frame hashes differ.
+- **`test_wx_k35` with t4's rows reads 79 / 0:** K-light 25 of 25, LY 25 of 25, LY-X red as a control must be. t4's results come in their own addendum with the rest of its rows.
