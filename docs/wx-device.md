@@ -3573,3 +3573,26 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
   changed, and the crash is in exactly the line the plant redirects.
 - **The remedy, not made until ruled:** read the fields inside the check (`je.get("t")`), so a wrong answer is a FAIL
   line, not a crash. The plant is then predicted to turn exactly that case red.
+
+**CI on `94e8631`** (every run finished): 36 runs, 33 success, 3 skipped, none failed. `host-tests` passed.
+
+### W5⁗'s local feed, built (`tools/wx-replay/local_feed.py`; not graded until a run)
+
+**What it does:**
+- **Requests:** it answers `GET /data/aircraft.json` for E2:08 alone. Any other client gets 403 and any other path 404.
+  Nothing is forwarded anywhere.
+- **The feed:** `synth_feed.Feed("w5", 36)` on the schedule from each arm's start (the `ARM` command).
+- **The centre and range** arrive on stdin (`CENTRE`) and live in memory only. Until they arrive, every request
+  gets 503.
+- **The log** is five fixed fields: time, `aircraft.json`, served/refused/missing, status and n. No coordinate, query
+  or address.
+
+**Tested:**
+- **Its selftest:** 8 cases, passing. While writing it, two cases first failed on a race: the handler replied before
+  noting the request. It now notes first, so the count is never behind the reply.
+- **Shown able to fail:** three plants in memory each turned their own case red: the allow-list dropped, a coordinate
+  in the log, the arm's clock ignored.
+
+**E2:08's starting state, read today (names and booleans only):** `data-source` cloud, `local-url` empty.
+- So W5⁗'s restore is `data-source` back to cloud and `local-url` cleared. No private value is held anywhere.
+- **W5⁗ refuses to start unless both still read so,** and the logbook and leaderboard read off.
