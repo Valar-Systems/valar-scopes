@@ -3407,3 +3407,10 @@ the counts by cause.
 | **C5** | `--anchors` | every anchor present exactly once |
 
 **Outside the set:** stop and report.
+
+**F1 amended before the scan ran (2026-10-30):**
+- **The error:** the scan as frozen also counts the r 2 discs that fit wholly inside the active r 3 dot (centred 1 px
+  either side of it). Those would appear in every frame, so F1's "exactly 4" could not come true.
+- **The rule added, before any frame was scanned:** a candidate is kept only if no other candidate of the same colour
+  in the same frame has a raster that contains its raster (the maximal discs).
+- F1's prediction is unchanged.
