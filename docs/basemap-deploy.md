@@ -284,3 +284,19 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 | **anything else** | an origin count that differs from the coverage file's own sum, a store it cannot read, or a control that does not turn: **BLIND, stop and report** |
 
 **Where it lands:** in the D3 PR, before D4, so #505's head does not move again. These predictions are pushed with #505 first.
+
+### The small-r sweep, run (2026-10-30): as predicted; the gap closes
+
+**The script** is `scripts/basemap-sweep-small-r.ts` at `19e5261`. It was committed after these predictions (pushed in `b0aa078`) and run on the sealed store.
+
+| row | result |
+|---|---|
+| **R-SWEEP** | **as predicted: both counts 0, so the gap closes.** Store `4c0875738f38`; `index.json` sha256 `63a9c1429db1` (the census's); `coverage.bin` sha256 `5cf7169484c2` (the sealed file's). **11,675,779 covered origins visited, equal to the coverage file's own sum.** All 10,270 coverage ranges agree with `covered()` at both ends. At r = 1 km, **0 squares meet no county region and 0 meet no state region**; exit 0 |
+| **C-SWEEP** | **as predicted:** with Texas's state region removed from an in-memory copy, **515,962 squares meet no state region, every one inside Texas's box (0 outside)**, and the county count is unchanged at 0; exit 1 |
+
+**What this establishes, with R-CENSUS:**
+- **R-CENSUS:** every region carries the layers the builder reads from it.
+- **R-SWEEP:** at the smallest square the route accepts, every accepted origin's square meets a region of each kind, and squares nest as r grows.
+- **So on the sealed store,** `build()`'s throw on a requested layer with no files **cannot be reached through the route**. Only a synthetic store reaches it, which is now a reading rather than an argument.
+
+**What would reopen it:** a new store, since the census and the sweep read this one by its sha256.
