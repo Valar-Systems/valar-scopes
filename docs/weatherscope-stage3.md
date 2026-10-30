@@ -10209,3 +10209,46 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 | the firmware | no firmware file changes |
 
 **The outside-the-set branch:** any row off its value stops the follow-up at that row, and is reported before anything changes.
+
+### A12.74 The follow-up stopped again, at the lint's own control: its table-literal case flags L1 and L2 (Q66); its other rows so far as predicted
+
+**The follow-up's code** is on `weatherscope/one-count`, at `63f123b` on main `4763f4d`. It is **local and not pushed.**
+
+**What it holds, as A12.70 and A12.73 froze it:**
+- **One count, one place in every driver:**
+  - the ten table-only drivers each gained one named constant;
+  - daynight, basemap and theme's tables now read the constants they already had;
+  - k35, layout, replay and th2 read one constant in both the run path and the table, and print it in their RIG messages.
+- **The lint, with its pin and its control.**
+- **Towns' control** reads `WX_TOWNS_GAZ` and `WX_TOWNS_SUBEST`.
+- **`control_mode`** decodes a suite's bytes.
+- **The two plants:** S-A2 allocates through `malloc`, and S-L has braced bodies.
+
+**Measured so far, in the order the rows were run:**
+
+| row | frozen | measured |
+|---|---|---|
+| the lint, pre-fix (re-registered, A12.73) | L1 17 drivers; L2 the 8 copies in 7 drivers; the pinned line not flagged; exit 1 | **exactly that** |
+| the lint, post-fix | 0 flagged, exit 0 | **0 flagged, exit 0** (20 drivers, 1 pinned line) |
+| the lint's control | clean `[]`; a table literal `['L1']`; a run-path literal `['L2']`; the pinned literal elsewhere, bitwise and compared, `['L2']` each; the pinned line changed `['L2']` | **all as frozen but one: the table-literal case flags `['L2', 'L1']`** |
+
+**The cause: the same reasoning error as Q65's, made a second time.**
+- When the copy of k35's driver has its table count back as the literal 79, `K35_CHECKS = 79` is a constant nothing in the table reads.
+- So its definition is a second copy of the count, and **L2 correctly flags it**, exactly as it flagged daynight's, basemap's and theme's unread constants in A12.71.
+- **The lint is right; the frozen expectation was written without that rule in mind.**
+- The repeat is the point to note: Q65 recorded the miss, and the next prediction I wrote missed it again.
+
+**Stopped, as A12.73's outside-the-set branch requires.** Not yet run:
+- S-A2 and S-L under the two compilers;
+- every driver in full;
+- `run.sh`'s new blocks.
+
+The lint's control file was not changed after the result.
+
+**Q66, for the ruling:**
+- **(a), recommended:** re-register the table-literal case at `['L1', 'L2']`.
+  - It is the lint's rules applied to that copy: L1 for the literal, and L2 for the definition that is now unread.
+  - The control is no weaker for it. Each case still requires its exact list, so a missing or extra flag still fails it.
+- **(b):** build that case so the constant goes along with the literal (delete `K35_CHECKS = 79` and every read of it), so only L1 can fire. It isolates L1, at the cost of a less realistic mangle: the stale-table failure this lint exists for leaves the constant in place.
+
+**Main's CI on #511's merge commit `4763f4d`** is still running (19 of 32 done at 21:10Z, all success so far). It is recorded when every run has finished.
