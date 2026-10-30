@@ -3057,3 +3057,45 @@ across five pushes before anyone looked.
   blocks unrun), because the worktree had no `.pio/libdeps`. ArduinoJson and LovyanGFX were copied in from the board
   worktree's `.pio` (gitignored), and the second run is the one above.
 - **The work was done in a separate worktree,** so W5‴'s builds from the board worktree saw no change.
+
+### W5‴'s run (2026-10-30, 15:04-16:57Z; announced 8:04-10:05 AM PDT)
+
+Ten arms, O1 N1 … O5 N5. Every flash, banner and page check passed. The board then went back to `wxlook`, with the
+layer on and look A. Graded by `w5ppp_read.py` as frozen (sha256 `40b5b987f5dd`, unchanged since the design).
+
+| arm | lines | p95 median (ms) | resid median (ms) | n median (range) | touches | polls/min |
+|---|---|---|---|---|---|---|
+| O1 | 11 | 48.4 | -7.9 | 26 (25-30) | 0 | 12 |
+| N1 | 10 | 49.9 | -7.65 | 27 (26-28) | 0 | 12 |
+| O2 | 11 | 49.6 | -8.7 | 28 (26-30) | 0 | 12 |
+| N2 | 11 | 52.4 | -8.7 | 31 (29-33) | 0 | 12 |
+| O3 | 10 | 49.9 | -8.35 | 28 (27-30) | 0 | 12 |
+| N3 | 11 | 50.4 | -8.0 | 29 (27-30) | 0 | 12 |
+| O4 | 11 | 53.3 | -11.8 | 36 (34-37) | 0 | 12 |
+| N4 | 11 | 52.2 | -9.2 | 32 (29-35) | 0 | 12 |
+| O5 | 11 | 48.7 | -7.9 | 26 (24-28) | 0 | 12 |
+| N5 | 10 | 46.85 | -5.9 | 21.5 (18-23) | 0 | 12 |
+
+**The verdict, as the design defines it: INSTRUMENT.**
+- **The control** ((O1 + O3 + O5) against (O2 + O4)) found **1** shared bin (n 28: +0.05 ms). The floor is 4.
+- **The grade** found 4 shared bins (n 27-30: +0.9, +0.4, +1.6, +1.4), median **+1.15 ms**. It is recorded and not
+  graded, because the control failed its floor.
+- **No arm was voided:** 0 touches in every window. Every arm polled 12 times a minute, so every window was in the
+  active cadence as designed.
+
+**Why the control starved:** the traffic still moved arm to arm, even 10 minutes apart. O4 sat at 34-37 contacts and
+N5 at 18-23. With 10-11 lines an arm, a bin rarely holds 3 lines from each side.
+
+**Outside the set, recorded and not graded: an upstream feed gap at the end of N4's window.**
+- From about 16:31 to 16:32:30Z the Worker served E2:08 stale Bend tiles: the data's age reached 67-72 s, and one
+  `DATA STALE` line came at 16:32:18Z, one second after N4's window closed. The device's polls kept answering.
+- **None of N4's window lines carries the flag,** but the last minute's data was ageing.
+- **It coincided with T7's `smoke-prod.sh` run** (docs/blip-creds-token-file.md), which sends E2:08's own pair from
+  the PC. Its `/v1/blips` for Bend at r=160 returned `503 upstream_unavailable`.
+  - The data cannot exclude that the smoke's large tile, through a bandwidth-throttled relay, contributed to E2:08's
+    gap.
+  - It equally fits an upstream blip.
+  - A smoke run inside a board window was a mistake: none will run in one again.
+- N4 is graded as frozen, with this beside it. Whether it stands is for the reviewer.
+
+**Not re-run.** The readings go to the reviewer, and the next design waits on that ruling.
