@@ -391,3 +391,58 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 > 5. E2:08's key leaves the PC. List every reader of the token file's blip-key/blip-device. If none needs E2:08's own key
 >    once the checks move, say which two lines Daniel removes himself, and when.
 > 6. Any server-side part deploys staged, in the reserved slot, and is verified after.
+
+**The shell's other pair, as asked (labels and booleans only):**
+- **Where it comes from: this session's own environment.**
+  - `BLIP_KEY` and `BLIP_DEVICE` are absent at Windows machine level and at user level.
+  - No bash profile, PowerShell profile, Claude Code settings file or VS Code settings file mentions either.
+  - They are present only in this session's process.
+  - **My inference, labelled as such:** they were inherited at launch from the user variables as they stood when VS Code started, before the pair moved to the token file.
+- **Which id it is: the old synthetic `beefbeefbeefbeef`.** It is on `scripts/device-id-allowlist.txt` and in `proxy/src/fakeids.ts`, so production refuses it. It is **not** E2:08's id. Its key is 64 characters.
+- **It is not used.**
+
+**How D0's runs are kept to the token file's pair:** `d0-smoke.sh` (scratchpad).
+- **What it does:** it reads both `blip-key` and `blip-device` from the token file, then launches `smoke-prod.sh` under `env -u BLIP_KEY -u BLIP_DEVICE BLIP_KEY=<file's> BLIP_DEVICE=<file's>`.
+- **Its proof, before any request:** a child launched the same way sees the file's key and device (`yes`, `yes`) and not the shell's (`no`, `no`). Otherwise the runner refuses.
+- **Its control:** the same runner, sabotaged to pass the shell's pair through, printed `REFUSED` and exited 2 with no request sent.
+- **What it records:** each run's start and end, in UTC to the minute.
+
+## The D3 PR: predictions, frozen before its code; two questions
+
+**What the code will be:**
+- **C1, `proxy/wrangler.toml`:** `[[env.staging.services]] binding = "BASEMAP", service = "blipscope-basemap-staging"`. Production gets no binding (that is D4's PR).
+- **C2, `/credits`** (`renderCreditsHtml` in `photolicense.ts`) gains the basemap's lines beside the NOAA MRMS line:
+  - the four US-government sources: TIGER/Line 2024, the 2025 Gazetteer, SUB-EST2024 and GNIS;
+  - the terrain: AWS Terrain Tiles (Terrarium, zoom 9), **the four `CREDIT_BITS` texts verbatim**, and **SRTM's notice verbatim**.
+  - Each line is HTML-escaped (the ETOPO1 line's `>` becomes `&gt;`).
+- **C3, MA2,** a host row in `basemap-attribution.test.ts`. The credits page holds each `CREDIT_BITS` text and SRTM's notice, **read from `provenance.ts` and from `docs/basemap-attribution.md`** (the other side), not transcribed, and compared HTML-escaped.
+- **The sweep** (`basemap-sweep-small-r.ts`) and its record, already on this branch.
+
+| row | predicted |
+|---|---|
+| **MA2** | passes. **Its control:** the escaped ETOPO1 text contains `&gt;`, so the row cannot pass by matching the raw text |
+| **S-ACREDIT** | the ETOPO1 line removed from the credits page: **exactly {MA2}** |
+| **the full pass** | **51 of 51 AS PREDICTED** (the 50, plus S-ACREDIT); C-LOADFAIL AS PREDICTED; baselines ingest 10 in 1, mv 31 in 1, all 138 in 17; 0 runtime failures |
+| **dry runs** | `wrangler deploy --dry-run --env staging` lists **`env.BASEMAP (blipscope-basemap-staging)`, a Worker**; `--env production` lists **no `BASEMAP`** |
+| **D3, the deploy** (after merge, staged) | `deploy.sh staging`: its confirmation reads the stamp from staging's `/healthz`; `/healthz` `basemap` is **`{rev: 1, store: null, commit: null}`** before any build, which is MH2 live |
+| **D3, the verification** | §9's **V1-V4**, then **MM2, MM4, MM5, MM6** as A1.7 froze them, through the staging proxy. **V1 is D2's proof:** `basemap.commit` must read `9f44a1a273b54a6890253c2126b17dc3a742c76c` |
+| **D3's rollback rules** | §9's, unchanged. Any `500 builder_invalid` → roll back and stop. Builder `exceededCpu` or `exceededMemory` above 0 → production is not deployed until it is explained |
+
+**Q-D3a. A staging credential: D3's verification has none.**
+- **Why every row needs one:** V1-V4 and MM2-MM6 each need an authenticated `/basemap` request on staging, and V1 needs one build first.
+- **Why E2:08's cannot be it:** **its credential is refused on staging by design**, because staging holds a different device-key secret (`wx-server.md`, P4: every FAIL there was a 401). The token file holds no staging pair.
+- **Recommended:** the test identity ruled for after D0 is minted **on staging as well as production**, through the same route, and D3's checks run as it. The D3 PR can be reviewed and merged before that; **D3's deploy and verification wait for the credential.**
+- **The alternative, not recommended:** a separate staging-only identity. It is a second identity to keep and exclude, for no gain.
+
+**Q-D3b. The smoke's `/credits` half moves to D4's PR.**
+- **Why:** `smoke-prod.sh` runs against production. Production carries the new `/credits` lines only once a production deploy includes the D3 code, which is D4's.
+- **What would happen otherwise:** the half's five checks would read FAIL on every production smoke between D3 and D4. A permanently red check gets read past.
+- **Recommended:** it lands with the production binding, in the D4 PR. MA2 holds the page's content in CI meanwhile.
+
+**The order, if Q-D3a and Q-D3b are ruled as recommended:**
+1. D0, in its slot.
+2. The test-identity PR, minted on staging and production.
+3. The D3 PR: review and merge.
+4. D3's deploy and verification, as the test identity.
+5. The D4 PR, with the smoke's `/credits` half.
+6. D4, outside any replay window.
