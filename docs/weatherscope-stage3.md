@@ -8560,3 +8560,191 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **After:** parent `ca30b88288d0`; 35 paths; **main's tree equals the approved head's**. No PR was based on the branch; it was checked at `ef0c50ce538b`, deleted, and `ls-remote` shows 0.
 
 **Next, as ruled:** 3.5b's step 7, its predictions frozen against #506's merged drawing (main `58509562c620`), before any step 7 code.
+
+### A12.53 3.5b step 7: the firmware's design and predictions, frozen against main `58509562c620` before its code; two findings for review (Q53, Q54)
+
+**The base, measured first** (the anchor, A12.37's rule): main at `58509562c620` (#506 merged), built clean in a fresh worktree.
+- **`weatherscope-s3-128`:** flash **1,630,839 B**, RAM **59,024 B** (`.dram0.data` 23,392 + `.dram0.bss` 35,632).
+  - These are exactly t3's registered values. #486 changed no firmware file.
+- **`firmware.bin`:** 1,631,248 B, sha256 `d4ebb09d096e`.
+- **`appManager`** (the manager object, in `.bss`): **4,456 B**.
+
+**What step 7 builds:** A10.2's manager items and A10.4's two scenarios, on t3's themed drawing (Dark until t5).
+
+1. **The stored Bend data, through the factory (D1).**
+   - **`src/weatherscope/WxBendData.S`, new.**
+     - It `.incbin`s the 15 Bend frames (oldest first), then Bend's `synthetic-clear.wxc`, then `bend.bmpk`, each at `.balign 4`, in `.rodata.wx_bend`.
+     - The known trap (WxLoopFrames.S): SCons does not track an `.incbin`'s file. That is why the ELF check below exists.
+   - **`WxFeeds.h`** gains `PackageBytes`: a package's bytes, so a package is never typed as a crop.
+   - **`WxFeedFactory.h`'s `Feeds`** gains three members, null or empty unless `stored`, like `clear`:
+     - `bendRadar` (a `const WxFeed*`);
+     - `bendClear` (`CropBytes`);
+     - `bendPackage` (`PackageBytes`).
+   - **`StoredFeeds.{h,cpp}`** gain `StoredBendFeed` (`History` returns the 15 frames, `Latest` the last), `StoredBendClear()` and `StoredBendPackage()`. **`WxFeedFactory.cpp`** fills them.
+2. **The stored cycle: 8 scenarios.** Dallas's six come first, unchanged. Then two Bend scenarios:
+   - **`bdry`, Bend dry:** `Kind::Dry` on Bend's synthetic clear crop. `synthetic` is set after the build (Q33), so the `scn` line says `synthetic=1`.
+   - **`brain`, Bend rain:** `Kind::Dry` on the loop's last frame. Its kind is the data's: see Q54.
+   - **`WxScreens.h`'s `Cycle`** gains `int count = kScenarios;`, and `Step` wraps at `c.count`.
+     - The manager sets `count` to 8 when Bend's data is present (15 frames and the clear crop), and to 6 otherwise.
+     - **The alternative, set aside:** `kScenarios = 8`. That changes frozen CY6's expected value ("Clear → 0"). The field leaves CY1-CY7 exactly as frozen.
+   - **`WxScenarios.h`** gains `kBendOffsetMin = −420` (PDT on 2024-06-02).
+     - Bend passes it to `FromScenario` and `FromLoopFrame`.
+     - Dallas passes `kOffsetMin`, the value its calls default to now.
+3. **The package, at boot.** `bmpk::Validate` runs on the stored bytes, into the PSRAM state.
+   - On a failure, the Bend scenarios run with no base: A9.1 D's no-package path. The failure is printed.
+4. **The basemap, held beside the layer, all in PSRAM.**
+   - **One state block, `Basemap`, with its members frozen here:**
+     - `bmpk::Package`, `PackagePlaces`, `PackagePeaks`, `int order[256]`;
+     - `BaseKey key`, `bool keyValid`, `wxbase::BuildInfo info`, `wxbase::Scratch scratch`, `uint8_t* image`;
+     - four `uint32_t` for the PSRAM line.
+     - **It is 9,776 B on xtensa**, measured by compiling exactly that struct with the env's compiler, `xtensa-esp32s3-elf-g++` 14.2.0.
+   - **The image:** 57,600 B.
+   - **One scratch block:** `maxVertices` × 32 B (`x`, `y` and `cross` as doubles, then `qx` and `qy`). For `bend.bmpk`'s 141 vertices, that is **4,512 B**.
+   - **These are allocated in `MakeBuffers` after `psram_used` is measured**, so A9.23's line still grades its own group.
+     - They are printed as `[wx] psram_base=<free delta> image=<alloc> state=<alloc> scratch=<alloc> ok=<0|1>`, with `heap_caps_get_allocated_size()` per block (A12.37 item 3).
+     - The line is reprinted at each bench scenario build, after the `pick` line, so a trace opened after boot still has it.
+   - **The grid** in A9.23's group is sized over both places' crops, so it grows from 38,520 to **44,640** cells.
+5. **`EnsureBase`, the key (A10.2, BK).**
+   - **For a Bend screen at radius R,** the key is `MakeBaseKey(the crop's header, the package's crc32 and length, R, kMaskAll, terrain)`.
+   - **When `wxscreens::BaseWhy` names a reason, the image is rebuilt** by the K rows' own path: `BuildViewKm`, `PackagePlaces::Load`, `RankOrder`, `PackagePeaks::Load`, `wxbase::Build`. The places, peaks and ranking are rebuilt with it.
+   - **Otherwise it is reused.**
+   - **Where it is called:** `BuildScenario`, inside its timed "from" phase, and `StartLoop`. **Never from a loop frame.**
+   - **It prints one line either way**, A10.2's line with `rebuilt=no` added, so a reuse is a reading and not a silence:
+
+     `[wx] base build_us=<n> rebuilt=<first|package|place|zoom|mask|terrain|key|no> at=<scenario|tap> R=<mi> terrain=<0|1> level=<0|1> rings=<n> rivers=<n> roads=<n> places=<n> peaks=<n> fnv=<FNV-1a of the 57,600 index bytes>`
+   - **`wxscreens::BaseWhy(built, valid, now)`,** new, in `WxScreens.h` beside `SameBase`:
+     - `"first"` when there is no valid image;
+     - null when `SameBase` holds;
+     - otherwise, the first field that differs, in this order: package, place (the crop's geometry), zoom, mask, terrain;
+     - **`"key"` when none of those differs.** That is unreachable while `MakeBaseKey` zeroes its padding. It is a distinct token, not a plausible reason.
+   - **`in.terrain` comes from the image's own key**, so a screen can never pair an image with the other terrain state.
+6. **`BuildScenario`.**
+   - **A scene table** picks each scenario's crop, kind and clock.
+   - **For Bend,** `EnsureBase`, then `FromPackage(pk, image, kMaskAll, key.terrain, places, order, peaks)`, come before `Compose`.
+   - **The bench row names:**
+     - Dallas's are as before (`dry-60`, …);
+     - Bend's are `<name>-<R>-<B|C>`, with B for terrain off and C for on. These are `k35b.ref.txt`'s own names.
+   - **The `scn` and `screen` lines keep their format.**
+7. **The Bend loop: a tap on either Bend scenario plays it** (A10.4).
+   - `StartLoop` and `DrawLoopFrame` read the current place's 15 frames.
+   - **For Bend, `StartLoop` calls `EnsureBase` (`at=tap`).** It reuses the image, because Bend's clear crop and its 15 frames share one geometry: all 16 are equal, checked on the host.
+   - **Every frame adds `FromPackage` before `ComposeLayered`.** The image is never rebuilt inside a loop.
+8. **The bench byte `G` (Q29).** Stored mode only, under T/S/U/D/H's gate; printed `[wx] gesture G`.
+   - **On the scenario screen,** it flips terrain and prints `[wx] terrain on|off`.
+     - On a Bend scenario, it also recomposes (`why=terrain`).
+   - **In the loop or the legend,** it prints `[wx] terrain ignored`, as a vertical swipe is ignored there.
+   - **Terrain is off by default.**
+   - **`G` is not a touch** for the 10-minute idle return.
+9. **A boot line for Bend:** `[wx] bend history=<n> frames=<B> clear=<B> package=<B> ok=<0|1> status=<n> crc=<8 hex> sections=<n> max_vertices=<n>`. It prints sizes, a status and the package's CRC, never its origin.
+
+**Unchanged:**
+- Dallas's six scenarios: their crops, kinds, clocks and screens;
+- the legend, the hold ring, the zoom ladder;
+- the loop's pacing and records;
+- every line that A9's and A12's graders parse keeps its format.
+
+**The host rows, frozen:**
+
+| suite | the change | predicted |
+|---|---|---|
+| `test_wx_screens` | CY8: count 8, index 5 (clear) → 6 (bdry). CY9: count 8, index 7 → 0 | **17 passed, 0 failed** (15 → 17) |
+| `sabotage_wx_screens.py` | adds S-CYN: `Step` wraps at `kScenarios`, not `c.count` | **5 of 5 exactly:** S-CYN {CY8, CY9}; S-CY {CY3}, S-CY2 {CY4, CY5}, S-WT {WT2} and S-CK {CK2, CK3} unchanged |
+| `test_wx_basemap` | BW1-BW8 (below) | **92 / 0** (84 → 92) |
+| `sabotage_wx_basemap.py` | adds S-BWFIRST and S-BWORDER. **S-BKEY's set grows from {BK2} to {BK2, BW5, BW8}**: its plant drops the radius in `MakeBaseKey`, and BW5 and BW8 read it through `BaseWhy` | **16 of 16 exactly:** S-BWFIRST {BW1}, S-BWORDER {BW8}, S-BKEY {BK2, BW5, BW8}; the other 13 unchanged |
+| `test_wx_k35b` | K-BR: Bend rain, 60/30/15 × B/C, 6 rows, through the device's path (`Build(Kind::Dry, frame 14)`, `FromScenario` at −420, `FromPackage`, `Compose`) | **149 / 0** (143 + 6) |
+| `k35b.py --write`, then `--check` | the 6 rows (`brain-<R>-<B\|C>`, `row()` on frame 14 with no loop), inserted after the 21 `bdry` rows | **identical on regeneration**; the reference's diff is additions only, every existing line byte-identical |
+| every other host suite | none | **ALL HOST TESTS PASSED** under MinGW; under g++ 13.3, the same blocks and counts, only the rig's two |
+| NL scan | none: no colour literal is added | 0 in its files; its control 57 |
+| `--anchors` | the two drivers' new plants join their `anchor_entries()` | all 18 drivers clean; the control red on its mangled anchor |
+
+**BW, the base key's reason** (in `test_wx_basemap`, over BK's own keys and geometries):
+
+| case | built (valid?) → now | expected |
+|---|---|---|
+| BW1 | not valid; the keys equal | `"first"` |
+| BW2 | valid; the keys equal | null: reused |
+| BW3 | package `0x1234ABCD`/205,093 → `0x0BADF00D`/205,094 | `"package"` |
+| BW4 | crop geometry `a` → `c` (BK6's) | `"place"` |
+| BW5 | 60 → 30 | `"zoom"` |
+| BW6 | every layer → every layer but rivers | `"mask"` |
+| BW7 | terrain off → on | `"terrain"` |
+| BW8 | 60 → 30, **and** terrain off → on | `"zoom"`: the order decides |
+
+**The sabotages:**
+- **S-BWFIRST:** the `!valid` test removed → {BW1}.
+- **S-BWORDER:** terrain tested before zoom → {BW8}.
+
+**The build rows** (`weatherscope-s3-128`), frozen:
+
+| row | predicted |
+|---|---|
+| **flash** | **1,872,880-1,882,883 B.** The parts: the anchor 1,630,839; the data **236,041** (the 17 blobs' 236,014 B, plus the 27 B of `.balign` padding computed from their sizes in that order), plus ≤ 3; and code **6,000-16,000**. The code part: **about 7,300 B of header code that step 7 reaches for the first time**, measured by compiling those calls with the env's compiler at `-Os` and setting aside every symbol already in main's ELF, plus 1,000-8,000 of manager, feeds and strings. **If inside, it is re-registered exactly, part by part from the two ELFs (`nm -S`)**, as t3's was |
+| **RAM** | **59,180-59,212 B; expected 59,188 (+164).** The parts: `appManager` grows by `bendHistory` 120 + its count 4 + the state pointer 4 + two `bool`s + `Feeds`' 20 = 150 B, rounded to the object's 8 B alignment (+152 to +160); then the Bend feed's function-local static, 4 B of `.data` + 8 B of guard, as each of `MakeFeeds`' three costs today. The scene table, the name table and the feed's pointer tables are `const` and go to flash (main's `History` tables sit at `0x3c14…`, flash rodata). **If inside, it is re-registered exactly, with every byte placed** |
+| ELF | each of the 17 blobs' bytes **exactly once** in `firmware.elf` and in `firmware.bin`; the controls, the 15 Dallas frames, Dallas's `synthetic-clear.wxc` and `kdfw-60mi.wxc`, once each |
+| partitions | `partitions.bin` byte-identical to main's |
+| D2 | **`weather.gov` 0, `noaa` 0, `ncep` 0, `mrms` 0, `amazonaws` 2**, both `amazonaws` hits inside `bend.bmpk`'s byte range in the image and **0 outside it**. See Q53 |
+| other envs | step 7 touches `src/weatherscope/`, `test/` and `tools/` only. No other env compiles `src/weatherscope/`; `weatherscope-bench-s3-128` compiles only `src/weatherscope/bench/`, which is empty |
+
+**The board's values, frozen now, for step 8:**
+- **The boot line:** `[wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141`.
+- **`psram_base`:** free delta **71,888-73,888**, that is Σ 71,888 plus A9.23's 2,000 for this method's noise. **image=57600, state=9776, scratch=4512**, each exact; `ok=1`.
+  - TLSF can hand back up to 12 B more on a block it does not split. That is the only allowed difference; any other value is off.
+- **`psram_used`:** **the anchor run's own reading + 6,124**, within A9.23's ±2,000. The 6,124 is the grid's +6,120 and `Cycle`'s +4. The line's `grid=` reads 44640.
+- **Every base build:** `rings=30 rivers=135 roads=354 places=9 peaks=16`, and `level` equal to `terrain`.
+  - The FNV-1a by view, computed through the device's own headers on the host, **identical under MinGW (x87) and g++ 13.3 (SSE2)**:
+
+    | R | terrain off | terrain on |
+    |---|---|---|
+    | 60 | `c9a61df9` | `af490350` |
+    | 30 | `9f7258ed` | `5b4bce94` |
+    | 15 | `87118ff6` | `55f38024` |
+
+  - **The board must equal these.** That checks the board's software double against the host's across every one of the 57,600 bytes. The screen hashes see the image only through the disc's dry pixels.
+- **Which reason each line names:**
+  - the first Bend screen after boot: `rebuilt=first`;
+  - a tap on a Bend scenario: `rebuilt=no at=tap`;
+  - a zoom step: `rebuilt=zoom`;
+  - a zoom at a ladder end: `rebuilt=no`;
+  - `G` on a Bend scenario: `rebuilt=terrain`;
+  - `bdry` → `brain`: `rebuilt=no`.
+- **The scenario lines:**
+  - `scn=bdry … frame=200600 screen=Dry synthetic=1`;
+  - `scn=brain … frame=200600 screen=Dry synthetic=0`.
+- **`build_us` is printed, not graded:** there is no data to fit.
+  - **An estimate, stated so it can be seen to be wrong:** terrain off 30-300 ms; terrain on 300-1,500 ms. With terrain on, the build is 57,600 `LevelPixel` calls in software double.
+  - **Any build over 5,000,000 µs stops the run.** That is half the Task-WDT's 10 s.
+  - **A slow build is not something step 7 may fix.** Hoisting `LevelPixel`'s invariants changes TR's frozen arithmetic, so that would wait on a ruling.
+
+**Step 8, next (A10.8).** Its own addendum freezes the runner's sequence before any write to the board.
+1. **Main's image goes on the board first, as the anchor** (A12.37): its Dallas loops' `draw_us`, and its `psram_used`.
+2. **Then step 7's image:** B1, BZ, B2, B3 and the recorded-data sabotages, graded against:
+   - the values above;
+   - the anchor's;
+   - B2-Bend's **37,470 µs**.
+
+**Q53, D2 and the stored package.**
+- **The finding:** `bend.bmpk`'s PROVENANCE names its sources by their exact fetch URLs (format doc §7, RD17). Two of its seven `source.*` lines are on `amazonaws` hosts: `source.terrain` (`s3.amazonaws.com`) and `source.peaks` (`prd-tnm.s3.amazonaws.com`). The other five are on `www2.census.gov`.
+- **So embedding the package puts 2 `amazonaws` hits into the product image.** D2 must find 0 there, and A6.3 has D2 re-read whenever the product image's stored data changes.
+- **Every other D2 needle reads 0** in the Bend data (counted: all 17 blobs).
+- **(a), recommended: restate D2 for the product image.**
+  - **0 hits outside the stored package's bytes.** Inside them, **exactly** the package's own count, `amazonaws` 2 and every other needle 0.
+  - **Where the range comes from:** `bend.bmpk`'s bytes, found exactly once in the image (the ELF row's own check).
+  - **So the exclusion cannot hide anything else,** and the package's two hits double as D2's anchor: proof the scanner reads the image's data.
+  - **Why:** D2 guards what the device can reach. "Clients never parse PROVENANCE" (format doc), and the stored package is stored-mode only.
+- **(b) Strip the URLs from the embedded copy:** this cannot be done without changing the bytes:
+  - it would be another package, with another CRC;
+  - the K rows and R0b grade the committed one;
+  - and §7 requires the URLs.
+- **(c) Keep D2 literal:** then no package can be stored in the product image. Step 7 would wait for a bench-only env, or for the route.
+
+**Q54, Bend rain's screen.**
+- **A10.4 names the loop's last frame** (20:06Z). Its nearest echo is beyond 15 mi, so **its screen is Dry, with the rain on its map**: A10.4's window rule (a) keeps an echo within 30 mi in every frame.
+- **Only frame 0** (19:10Z) has an echo within 15 mi (checked on the host: `1,0,0,…,0`).
+- **(a), recommended:** as A10.4 says.
+- **(b):** frame 0, by A8.10's own rule (the latest frame with an echo within 15 mi), shows PrecipApproaching. The K-BR rows would then be built from it. The code differs only in the frame index.
+
+**Outside every row:**
+- **Any host row, build row or ELF check off its prediction stops before the PR.** It is reported with its cause, and nothing is changed to make it pass.
+- **A K-BR row that differs** is reported pixel by pixel (`k35b.py --diff`), by cause.
+
+**Next:** the code, on `weatherscope/3-5b-firmware`; then the results addendum and the PR. **Q53 and Q54 are needed before the PR merges, not before the code** (A12.24).
