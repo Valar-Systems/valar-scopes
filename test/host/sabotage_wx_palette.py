@@ -9,7 +9,7 @@ with that folder on its include path, every anchor must occur exactly once, the 
 real header's sha256 is compared before and after.
 
   S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
-  S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
+  S-C3c   one rain entry off the table (25 dBZ green 200->204)        -> exactly C3c (Q52: 201 shared 200's RGB565)
   S-C3ef  the snow top set to white                                -> exactly C3e, C3f and C3i
   S-C3g   the snow start set to (0, 140, 140), near rain 1's teal  -> exactly C3g (A10.16: the old plant,
           (20, 30, 180) near the old dimmed blue, would now fail nothing)
@@ -42,7 +42,7 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 SABOTAGES = {
     "S-C3a": ([("constexpr Rgb kMissingHatch = {72, 72, 72};", "constexpr Rgb kMissingHatch = {110, 0, 110};  // SABOTAGE")],
               [r"C3a\b"]),
-    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 201, 0},  /* SABOTAGE */")],
+    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 204, 0},  /* SABOTAGE */")],
               [r"C3c\b"]),
     "S-C3ef": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {255, 255, 255}};  // SABOTAGE")],
                [r"C3e\b", r"C3f\b", r"C3i\b"]),

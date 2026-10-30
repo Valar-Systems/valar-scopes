@@ -35,7 +35,7 @@ SABOTAGES = {
     "S-C4b": ("header", [("{135, 135, 0}, {155, 128, 0},", "{135, 135, 0}, {231, 192, 0},  /* SABOTAGE: code 6 back */")],
               {"C4a:6"}),
     "S-C4c": ("header", [("    {93, 93, 93},      // noCoverage", "    {99, 99, 99},      // noCoverage SABOTAGE")], {"C4c"}),
-    "S-C4d": ("header", [("    {124, 124, 124},   // hatchLine", "    {125, 125, 125},   // hatchLine SABOTAGE")], {"C4d"}),
+    "S-C4d": ("header", [("    {124, 124, 124},   // hatchLine", "    {128, 128, 128},   // hatchLine SABOTAGE")], {"C4d"}),
     "S-C4e": ("header", [("{{0, 108, 206}, {0, 95, 177},", "{{0, 108, 206}, {0, 108, 206},  /* SABOTAGE: snow 2 = snow 1 */")],
               {"C4e:2", "C3e'", "C3h'"}),
     "S-C4g": ("header", [("    {159, 85, 0},      // orangeText", "    {161, 86, 0},      // orangeText SABOTAGE")],
