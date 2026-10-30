@@ -3172,3 +3172,12 @@ passed. ... predictions first and sabotages, and re-graded on 10-29's frames bef
   count falls to 0.
 - **S-dot-slot** turns exactly D1 red: the dot is not found where the plant looks, so its pixels count apart (1).
 - Nothing else changes. Caught by working the case through before writing it, not by running anything.
+
+**A second amendment, still before any sabotage has run (2026-10-30):**
+- **The miss:** the first amendment's "nothing else changes" was wrong.
+- **Why:** D2's "counted apart 1" now comes from the label rule (2b). So **S-label-pass** (a label-touched marker passed
+  silently) turns **D2** red as well as L1.
+- **S-label-pass:** exactly `L1` and `D2` red.
+- **When it was caught:** working through each plant while writing the driver, before the driver had run.
+- The other five sabotages are worked the same way and stand as frozen.
+- The selftest itself (X1, X2) has run: the 25 cases are unchanged, and the six new ones are each as wanted.
