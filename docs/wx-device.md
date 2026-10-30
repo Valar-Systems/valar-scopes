@@ -3099,3 +3099,65 @@ N5 at 18-23. With 10-11 lines an arm, a bin rarely holds 3 lines from each side.
 - N4 is graded as frozen, with this beside it. Whether it stands is for the reviewer.
 
 **Not re-run.** The readings go to the reviewer, and the next design waits on that ruling.
+
+## The checker's two gaps, closed as ruled (2026-10-30): frozen before the code
+
+Ruled: "(1) exclude highlight pixels by their geometry, as rp6_cause1.py finds them, not by dropping 0xF81F from the
+wedge set ... (2) exclude the screen-indicator dots by their fixed positions, exactly. For label strokes, a neighbour
+whose colour is also a label colour reads as ambiguous, and such markers are listed and counted apart, never silently
+passed. ... predictions first and sabotages, and re-graded on 10-29's frames before tonight."
+
+**Read from the source before writing this** (through `wx-fb-check.py`'s own colour sets):
+- `HL = color888(255, 0, 255)` is 0xF81F. It is wedge-only in both looks, and it is no weather, label or plane colour.
+- The screen dots (`DrawScreenIndicator`):
+  - one per screen a swipe reaches. `Screen` is { Radar, List, Stats, Connect, Follow } with `SCREEN_COUNT` 5,
+    and Follow gets no dot, so there are 4;
+  - at x = 120 - (4 - 1) x 6 + 12 x slot (102, 114, 126, 138), y = 224;
+  - Radar, slot 0, is active: r 3, `color888(0, 255, 0)` = 0x07E0. The others are r 2, `color888(0, 80, 0)` = 0x0280.
+- 0x0280 and 0x0320 are each a weather colour of look A, a label colour (`scaleColor(color888(0, 128, 0))`) **and** a
+  plane colour. 0x07E0 is a plane colour only, so the checker today grades the active dot itself as a marker.
+- **In every finished RP6 frame of 10-29 (216 dots), each dot's `fill_circle` raster is complete in its colour.**
+  - Ten dots have pixels of the same colour just **outside** the raster (weather or label pixels in that green).
+  - So "exactly" means: a pixel inside a dot's raster, while the whole raster shows the dot's colour. A pixel of that
+    colour outside the raster is never excluded.
+
+**The rules, as they will be written:**
+- **(1)** A ring pixel showing 0xF81F outside the mask is excluded from the exceptions, and counted as "highlight",
+  when it lies on a highlight or inside a highlight's tag box. Both are found as `rp6_cause1.py` finds them:
+  - **on a highlight:** within 7 ± 0.75 px of a centre that has at least 20 of the frame's 0xF81F pixels at that
+    distance, with a plane colour on or beside the centre;
+  - **inside a tag box:** x from cx - 33 to cx - 9, y from cy - 22 to cy + 3. That box is three 4-letter tags of
+    6 px glyphs at `x - textWidth - 9`, stacked up from `y - 4` by 9 px.
+  - The circle's radius, the tag offset, the 9 px step, the tag strings and `HL` are asserted from the source.
+  - Every other 0xF81F outside the mask stays an exception, so a real lit magenta cell outside the wedge still shows.
+- **(2a)** A pixel of a complete screen dot is excluded from every weather test, and a marker that **is** a complete
+  screen dot is not a marker. The positions, radii and colours are asserted from the source.
+- **(2b)** A marker whose weather-coloured neighbours, after (2a), are **all** label colours too is counted apart and
+  listed: frame, position, size, and how many neighbours are label-and-weather. It does not fail and is not passed
+  silently. **The cost is accepted and named in the docstring:** a real weather pixel in one of those label greens
+  beside a dart goes unseen.
+
+| | check | predicted |
+|---|---|---|
+| **X1** | the selftest's existing 25 cases | unchanged, all as before |
+| **X2** | new cases, each as wanted: **H1** a NEAR highlight (circle and tag) across the middle ring outside the mask, look A: PASS. **H2** CONTROL, a lone 0xF81F on that ring: FAIL. **D1** an outlined dart whose border the slot-2 screen dot covers, drawn after it: PASS. **D2** CONTROL, the same with one 0x0280 pixel at the dot's position and no dot: FAIL. **L1** a 0x0320 label stroke drawn across an outlined dart's border: PASS, with "counted apart 1". **L2** CONTROL, the same stroke in a weather colour that is no label colour: FAIL | all six as wanted |
+| **X3** | sabotages in `test/host/sabotage_wx_fb_check.py`, each planted in memory and run through the selftest: **S-hl-colour** (every 0xF81F excluded by colour) | exactly `H2` red |
+| | **S-hl-off** (the geometry exclusion gone) | exactly `H1` red |
+| | **S-dot-anywhere** (no completeness check) | exactly `D2` red |
+| | **S-dot-slot** (the dots placed for `SCREEN_COUNT`, not `SCREEN_COUNT - 1`) | exactly `D1` red |
+| | **S-label-pass** (a label-touched marker passed, not counted apart) | exactly `L1` red |
+| | **S-label-all** (every weather neighbour read as ambiguous) | exactly `L2`, "no outline, look A" and "the old r=4 disc outline" red |
+| **X4** | 10-29's RP6 frames, trustworthy frames only (`--drop-untrustworthy`), the old checker's baseline: A 16 exceptions and 4 of 168 without an outline (FAIL); B 10 exceptions (FAIL); off PASS | **A:** (1) 0 exceptions, 16 counted as highlight. (2) 0 without an outline, 2 counted apart (the yellow dart, frames `m2-f0` and `m2-f2`). The white dart (`m1-f0`, `m1-f2`) neither fails nor is counted apart: its only weather-coloured neighbours are inside the complete slot-2 dot. Verdict **PASS**. **B:** 0 exceptions, 10 counted as highlight, **PASS**. **off:** its TOTAL line unchanged, **PASS** |
+| **X5** | the same frames as `replay_read.py` runs them (finished, no drop) | all three still **UNTRUSTWORTHY**: the fixes do not touch how a frame is trusted |
+| **X6** | `--anchors` for the new driver | every anchor present exactly once |
+
+- **Reported and not predicted** in X4: the marker, ambiguous and over-weather totals. Removing the active dot from the
+  markers and the dot pixels from the weather tests moves them, by amounts not worked out here.
+- **Where this differs from the ruling's expected numbers:**
+  - the ruling expected "(2)'s 4 failed markers fall to 0 failed, 4 counted apart";
+  - the rules as ruled give **2** counted apart. Two of the four are one white dart whose only weather-coloured
+    neighbours lie inside a complete screen dot. (2a) excludes them as not weather at all, so nothing ambiguous is
+    left to count;
+  - counting those two apart as well would treat a known screen dot as a possible label. Said here so the reviewer
+    can rule the other way before the result.
+- **Outside the set:** stop and report.
