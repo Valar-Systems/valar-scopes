@@ -9201,3 +9201,121 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **Q57, (b):** a guard that would have caught it, `--anchors` also checking each driver's suite counts against the suites' own `kCases`. That is a change to the harness, with its own rows.
 
 **Next:** A12.60, t4's addendum, before any t4 code.
+
+### A12.60 3.5t step t4: A12.43's t4 rows restated for 82 scenes, and the light reference -- frozen before its code (Q58)
+
+**What t4 is** (A12.45's table): the light references, and the light, switch and layout rows.
+- **The rows:** K-light, RP (light), RP-T, LY, SW, TH2′.
+- **The sabotages:** S-KL, S-LY, S-RPT, S-SWB, S-TH2.
+- **It is host work.** No firmware source changes in t4 (the row below proves it). The firmware's theme, Auto and `O` are t5's.
+
+**What has changed since A12.43 froze these rows:**
+- **Step 7 added Bend rain's 6 K rows** (K-BR). So the K scenes are **82: 25 Dallas and 57 Bend** (21 Bend dry, 6 Bend rain, 30 Bend loop), not 76.
+- **S-KL's plant is (158, 146, 138)** (Q50).
+- **The town-label counts behind S-LY, read off the committed references:**
+  - 73 of the 82 scenes place a town label: every Dallas scene; Bend dry and Bend rain at 60 and 30 mi; every Bend loop frame.
+  - 9 place none: Bend dry at 15 mi (7) and Bend rain at 15 mi (2).
+- **The basemap exists in the firmware** (step 7), and its key carries no theme, so a theme switch can never rebuild it. That is SW's base row, and Q58 is about where it can be planted.
+
+#### 1. The light reference (from A12.43 §1-§2 and A12.44's swap, never from `WxTheme.h`)
+
+**`look35.py` gains `THEMES["light"]`.** This is light (b) completed by A12.43's table.
+- **`light-a` and `light-b` stay exactly as A12.22 froze them.** `look35`'s own TH1-TH3 and the viewer's record read them.
+
+| part | light |
+|---|---|
+| ink: background and bands | paper (234, 231, 223) |
+| ink: dim (`N`, the time, the far state line, the loop age) | (96, 92, 86) |
+| ink: the white roles (home marker, near state line, zoom tag, warning band text, loop knob) | (38, 38, 40) |
+| ink: label; halo; peak | (38, 38, 40); (236, 233, 226); (92, 70, 50) |
+| ink: rings; ring numbers and the loop track | (150, 146, 138); (96, 92, 86) |
+| ink: **orange text** (the stale clock, the warning title and sub) | **(159, 85, 0)** |
+| ink: **orange graphic** (the warning polygon and arrow), a new role | **(255, 140, 0)** |
+| palette: 0 (dry, no basemap) | paper |
+| palette: rain 1-13 | light (b): 1 teal (0, 150, 135); 2-4 and 7-12 the table; 5 (135, 135, 0); 6 (155, 128, 0); 13 (0, 0, 0) |
+| palette: 14, no coverage; 15, the hatch line on paper | (93, 93, 93); (124, 124, 124) |
+| **snow 1-13** | **(0, 108, 206), (0, 95, 177), (0, 83, 149), (0, 70, 121), (0, 57, 94), (0, 43, 66); 7-13 hold 6** |
+| basemap | 0 paper; terrain (168, 165, 156) → (240, 237, 228), `floor(v + 0.5)`; water (171, 204, 237); river (96, 146, 206); road (178, 150, 112) |
+| UI and hold ring (no K scene draws them) | fg (38, 38, 40); dim (96, 92, 86); accent (0, 112, 151); warn (143, 94, 0); hold arc (0, 90, 0), track (0, 200, 0) (A12.44's swap) |
+
+- **No K scene draws snow**, because WXC1 v1 carries no precipitation type. Snow and the UI roles are carried for t5's legend and screens.
+
+**`ref35.py`'s `compose` routes its eight literal inks through the theme.**
+
+| what | today | now |
+|---|---|---|
+| the warning polygon and arrow | `ORANGE` | `ink["orange_g"]` |
+| the title and sub | `ORANGE` on a `BLACK` halo | `ink["orange"]` on `ink["halo"]` |
+| the band's two warning lines | `WHITE` | `ink["white"]` |
+| the loop age | `DIMTXT` | `ink["dim"]` |
+| the loop track | `RINGTXT` | `ink["ringtext"]` |
+| the knob | `WHITE` | `ink["white"]` |
+
+- **`DARK_INK` gains `orange_g = ORANGE`.** In Dark every role equals the literal it replaces.
+- **`ref35.py --k --theme light`** writes `k35l.ref.txt` (25 rows), and **`k35b.py --theme light`** writes `k35bl.ref.txt` (57 rows), each with `--check`.
+
+#### 2. The rows
+
+| row | what | expected |
+|---|---|---|
+| **K-light** | the 82 K scenes in Light, through the device's path (`ScreenIn::which` = Light; each theme's pass on its own `Layer`) | **82 of 82 equal** to `k35l.ref.txt` (25) and `k35bl.ref.txt` (57), frame sha256 and every TIME, BAND and LABEL line |
+| **RP (light)** | the replay rows in Light | **180 of 180**: Dallas's 90 (60, 30, 15 mi; overlay off and on) and Bend's 90 (60, 30, 15; B and C) |
+| **RP-T** | the Dallas loop with no warning overlay, and the Bend loop (B), at 60 mi, through ONE `Layer`: frames 0-7 in Dark, 8-14 in Light, each against its full composition in its own theme | **30 of 30** |
+| **LY** | the 82 K scenes, Dark against Light | **82 of 82 identical.** Two parts, below |
+| **TH2′** | `ref35`'s palette closure on four light scenes: the Dallas warning, the Dallas stale, Dallas loop frame 7, Bend loop frame 14 | **0 strays in each.** **Control:** the dark warning render against the light colours finds strays (> 0) |
+| **SW** | `test_wx_switch.cpp` (new): one `Layer` through Auto's own path (`daynight::Decide`, then `wxtheme::Select`) | **SW1** Dark → Light: 1 rebuild, cause theme. **SW2** a no-op evaluation: 0. **SW3** a hover inside the band: 0. **SW4** Light → Dark: 1, cause theme. **SW5** setting the shown theme again: 0. **SW-X control:** a mask change rebuilds with cause mask |
+| K-dark, RP (dark) | unchanged | `test_wx_k35`'s 28 dark checks, `test_wx_k35b`'s 149, `test_wx_replay`'s 90: every one as today |
+
+- **LY's two parts:**
+  1. **The towns:** each placed town (label, side, box) from `ScreenOut`.
+  2. **The peaks:** the set of map-band pixels drawn in label or peak ink, less the home marker's. This is `look35`'s TH1 method, and it covers every peak glyph and label wherever placed.
+  - **Why the peaks are read that way (a restatement of A12.43):** placed peaks are local to `DrawInvariant` and not in `ScreenOut`. Exporting them would be a firmware change.
+  - **The home marker** is taken as the map-band pixels the dark frame draws in dark's white. Only the home marker is white there, apart from rain code 13. Leaving rain 13 out of both masks hides no label, because labels draw over it.
+  - **LY's control, LY-X:** a light frame with its first placed town removed must differ, in both parts.
+- **The suites' counts:**
+
+| suite | now | after t4 | the parts |
+|---|---|---|---|
+| `test_wx_k35` | 28 | 79 | + K-light 25, LY 25, LY-X 1 |
+| `test_wx_replay` | 90 | 195 | + RP light 90, RP-T Dallas 15 |
+| `test_wx_k35b` | 149 | 368 | + K-light 57, RP light 90, RP-T Bend 15, LY 57 |
+| `test_wx_switch` | — | 6, new | SW1-SW5, SW-X |
+| TH2′ (`tools/weatherscope/screens/th2.py`, a `run.sh` block) | — | 5, new | the four scenes and the control |
+
+#### 3. The sabotages, each failing set frozen
+
+| sabotage | plant | fails exactly |
+|---|---|---|
+| **S-KL** | `kLight`'s rings (150, 146, 138) → (158, 146, 138) | K-light: all 82. Nothing else: RP compares a theme with itself; LY reads no ring |
+| **S-LY** | in Light only, no town is placed (`DrawInvariant` hands `PlaceLabels` 0 towns when `which` is Light) | **K-light and LY: the 73 scenes with a town label** (Dallas 25; Bend dry 60 and 30 mi, 14; Bend rain 60 and 30 mi, 4; the Bend loop, 30). **The 9 at 15 mi pass**, with no town label in either theme. LY-X passes. RP and RP-T pass: both sides of each comparison lose the towns |
+| **S-RPT** | the theme left out of `LayerKey` | RP-T: frames 8-14 of both series, 14 rows. SW: SW1 and SW4 (0 rebuilds) |
+| **S-TH2** | `ref35`'s two warning band lines drawn in `WHITE`, not `ink["white"]` | TH2′: the warning scene alone |
+| **S-SWB** | the theme put into the basemap's key | **see Q58** |
+
+- **Each runs as before:** a temp copy, the plant proven applied, the colour proof (Q50) and an `--anchors` entry (Q51).
+- **Where:**
+  - S-KL, S-LY and S-RPT go in a new driver, `sabotage_wx_light.py`, over the four suites;
+  - S-TH2 goes in `sabotage_wx_th2.py`, planting a copy of `ref35.py` that `th2.py` loads by path.
+
+#### 4. Predicted, for the run before the PR
+
+| row | expected |
+|---|---|
+| the references | `ref35.py --k --check` and `k35b.py --check` identical: Dark is unchanged by the routing. **R0 and R0b PASS** with A12.17's recorded hashes. `look35`'s TH1-TH3 as before. `k35l.ref.txt` and `k35bl.ref.txt` regenerate identically |
+| every suite | the counts above, 0 failures, under MinGW and under g++ 13.3 (the same blocks; only the rig's two). Every other suite unchanged |
+| the drivers | **all of them run (A12.59's lesson):** the two new ones as frozen; `sabotage_wx_themed_draw.py` with Q57's fix, S-KD 82; every other as before; towns the rig |
+| the firmware | **no firmware source changes:** flash 1,876,267 B and RAM 59,184 B, exactly main's (`ebb8db17b1b2`), built first as the anchor |
+
+**The outside-the-set branch:**
+- **A K-light row that differs** is the first time the device's light drawing meets an independent reference. It is reported pixel by pixel (`--diff` with the dumps), by cause: the transcription, the device, or the spec. Nothing is changed on either side until ruled.
+- **Any other row or set outside its frozen value stops t4 at that row,** and is reported.
+
+**Q58, S-SWB and SW's base row, for a ruling.**
+- **The problem:** A12.43 froze "the theme put into the basemap's key → SW's base row (1, 0, 0, 1)". In t4 nothing that computes a base key can see a theme.
+  - `MakeBaseKey(h, crc, len, R, mask, terrain)` takes none.
+  - Only t5's manager will hold one.
+  - So a base row in t4 would read 0, 0, 0, 0 by construction: a check that cannot fail. A plant has nowhere to go but the test itself.
+- **(a), recommended:** move SW's base row and S-SWB to t5. There, the manager's own path (`EnsureBase` on a switch) is both the reader and the plant site, graded on the board as BSW already is. t4's SW keeps its layer rows, with S-RPT as their sabotage.
+- **(b):** add `BaseKeyFor(header, package, R, mask, terrain, theme)` to `WxScreens.h` now, theme deliberately ignored, for SW to use and t5's manager to adopt. S-SWB plants there. That is a new device API in a host step.
+
+**Q57 (A12.59) rides in t4's PR if ruled (a).**
