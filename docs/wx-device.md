@@ -3487,3 +3487,17 @@ the counts by cause.
 says so.
 
 **Outside the set:** stop and report.
+
+### Results for the seven drivers' --control, before the merge (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **Z1** | each driver's `control()` and `CONTROL_TABLE`, run through **#510's own** `control_mode` (its `sabotage_common.py`, blob `a27f8772a313`, loaded from outside the repo in place of this branch's pre-#510 copy). In WSL, g++ 13.3.0, Python 3.12.3: all seven read `1 suite(s), all as the table`, exit 0 | **as predicted** |
+| **Z2** | each driver's own run, its unplanted count now checked by `main()` from the same constant: all seven exit 0, every sabotage as before, every real header unchanged | **as predicted** |
+| **Z3** | each table with its count one too high: all seven read `1 OFF`, exit 1 | **as predicted** |
+| **Z4** | the merge of main after #510 lands | waits on #510 |
+
+- **The dispatch is not wired yet.** This branch's `sabotage_common.py` has no `wants_control`, so wiring it now would
+  break every normal run of these drivers, and `run.sh` runs two of them.
+- **It goes in at the merge**, as Z4 says. Until then, a red `host-tests` whose only FAILs are the seven
+  "has no --control mode" lines is expected.

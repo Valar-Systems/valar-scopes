@@ -18,8 +18,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
 
 # run.sh's --anchors pass gives no arguments: the root is then this file's own repo.
-if sc.wants_anchors():
-    ROOT, CXX = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), None
+if sc.wants_anchors() or "--control" in sys.argv:
+    ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 else:
     ROOT, CXX = sys.argv[1], sys.argv[2]
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
@@ -63,6 +64,13 @@ def main():
     src = open(os.path.join(ROOT, "include", "WxS2.h"), encoding="utf-8").read()
     pal = os.path.join(ROOT, "src", "weatherscope", "WxPalette.h")
     test = os.path.join(ROOT, "test", "host", "test_wx_s2.cpp")
+    with tempfile.TemporaryDirectory() as td0:   # the unplanted run, against the real include/
+        exe0 = os.path.join(td0, "t.exe")
+        c0 = subprocess.run([CXX, *FLAGS, "-I" + os.path.join(ROOT, "include"), test, "-o", exe0],
+                            capture_output=True, text=True)
+        r0 = subprocess.run([exe0, ROOT], capture_output=True, text=True) if c0.returncode == 0 else None
+        if r0 is None or r0.returncode != 0 or len(re.findall(r"^\s*ok\b", r0.stdout, re.M)) != OK_COUNT:
+            print(f"  RIG: the unplanted test did not pass with {OK_COUNT} ok lines"); return 2
     bad = 0
     for label, old, new, want in PLANTS:
         if src.count(old) != 1:
@@ -94,6 +102,21 @@ def anchor_entries():
     """Every plant's anchor in the file it plants, for run.sh's --anchors pass (no plant runs)."""
     src = sc.read(os.path.join(ROOT, "include", "WxS2.h"))
     return [(label, "include/WxS2.h", src, old) for label, old, _, _ in PLANTS]
+
+
+# --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
+# its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
+OK_COUNT = 10
+CONTROL_TABLE = {"test_wx_s2": ("ok", OK_COUNT)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        exe = os.path.join(td, "t.exe")
+        subprocess.run([CXX, *FLAGS, "-I" + os.path.join(ROOT, "include"),
+                        os.path.join(ROOT, "test", "host", "test_wx_s2.cpp"), "-o", exe],
+                       capture_output=True, text=True)
+        subprocess.run([exe, ROOT], capture_output=True, text=True)
 
 
 if __name__ == "__main__":

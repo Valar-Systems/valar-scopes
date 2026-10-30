@@ -14,8 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
 
 # run.sh's --anchors pass gives no arguments: the root is then this file's own repo.
-if sc.wants_anchors():
-    ROOT, CXX = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), None
+if sc.wants_anchors() or "--control" in sys.argv:
+    ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 else:
     ROOT, CXX = sys.argv[1], sys.argv[2]
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
@@ -46,6 +47,9 @@ def main():
         c = subprocess.run([CXX, *FLAGS, test, "-o", exe], capture_output=True, text=True)
         if c.returncode != 0:
             print(f"  RIG: the test did not compile\n{c.stderr[-600:]}"); return 2
+        r0 = subprocess.run([exe, ROOT], capture_output=True, text=True)
+        if r0.returncode != 0 or len(re.findall(r"^\s*ok\b", r0.stdout, re.M)) != OK_COUNT:
+            print(f"  RIG: the unplanted test did not pass with {OK_COUNT} ok lines\n{r0.stdout[-600:]}"); return 2
         os.makedirs(os.path.join(tmp, "src"))
         bad = 0
         for label, edits, want in PLANTS:
@@ -71,6 +75,20 @@ def anchor_entries():
     """Every plant's anchor in the file it plants, for run.sh's --anchors pass (no plant runs)."""
     path = os.path.join(ROOT, "src", "AircraftManager.cpp")
     return [(label, "src/AircraftManager.cpp", sc.read(path), old) for label, edits, _ in PLANTS for old, _ in edits]
+
+
+# --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
+# its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
+OK_COUNT = 3
+CONTROL_TABLE = {"test_wx_outline": ("ok", OK_COUNT)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        exe = os.path.join(td, "t.exe")
+        subprocess.run([CXX, *FLAGS, os.path.join(ROOT, "test", "host", "test_wx_outline.cpp"), "-o", exe],
+                       capture_output=True, text=True)
+        subprocess.run([exe, ROOT], capture_output=True, text=True)
 
 
 if __name__ == "__main__":

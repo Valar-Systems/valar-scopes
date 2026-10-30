@@ -25,6 +25,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 
@@ -92,7 +93,7 @@ def main():
     before = (sha(CHECKER), sha(FIXTURE))
     src = sc.read(CHECKER)
     rc, reds, out = red_cases(src)
-    if rc != 0 or reds:
+    if rc != 0 or reds or len(re.findall(r"^\s*ok\b", out, re.M)) != OK_COUNT:
         print(f"control (the real checker): the selftest is not green ({reds}) -- the rig is broken\n{out[-800:]}")
         return 2
     print("control (the real checker): the selftest passes")
@@ -121,6 +122,16 @@ def main():
     print("WX FB CHECK SABOTAGES AS PREDICTED" if not bad and before == after else
           f"WX FB CHECK SABOTAGES: {bad} NOT AS PREDICTED")
     return 0 if not bad and before == after else 1
+
+
+# --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
+# its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
+OK_COUNT = 31
+CONTROL_TABLE = {"wx-fb-check.py": ("ok", OK_COUNT)}
+
+
+def control():
+    subprocess.run([sys.executable, "-I", CHECKER, "--selftest"], capture_output=True, text=True)
 
 
 def anchor_entries():

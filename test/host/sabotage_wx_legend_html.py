@@ -41,7 +41,7 @@ def main():
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     with tempfile.TemporaryDirectory() as td:
         r, err = run(os.path.join(ROOT, "include"), td, "control")
-        if r is None or r.returncode != 0:
+        if r is None or r.returncode != 0 or len(re.findall(r"^\s*ok\b", r.stdout, re.M)) != OK_COUNT:
             print(f"control (the real header): did not pass -- the rig is broken\n{err}{r.stdout if r else ''}")
             return 2
         print("control (the real header): all legend checks pass")
@@ -62,6 +62,17 @@ def main():
     after = sha(HEADER)
     print(f"real include/WxLegendHtml.h unchanged: {before == after} ({after[:12]})")
     return 0 if good and before == after else 1
+
+
+# --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
+# its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
+OK_COUNT = 8
+CONTROL_TABLE = {"test_wx_legend_html": ("ok", OK_COUNT)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(os.path.join(ROOT, "include"), td, "control")
 
 
 def anchor_entries():

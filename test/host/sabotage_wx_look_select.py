@@ -66,7 +66,7 @@ def main():
     ok = True
     with tempfile.TemporaryDirectory() as td:
         r, err = build_and_run(make_tree(td, "control"), td, "control")
-        if r is None or r.returncode != 0:
+        if r is None or r.returncode != 0 or len(re.findall(r"^\s*ok\b", r.stdout, re.M)) != OK_COUNT:
             print(f"control (the real headers): did not pass -- the rig is broken\n{err}{r.stdout if r else ''}")
             return 2
         print("control (the real headers): all look select checks pass")
@@ -82,6 +82,17 @@ def main():
     after = {rel: sha(os.path.join(ROOT, rel)) for rel in FILES}
     print(f"real headers unchanged: {before == after}")
     return 0 if ok and before == after else 1
+
+
+# --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
+# its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
+OK_COUNT = 2
+CONTROL_TABLE = {"test_wx_look_select": ("ok", OK_COUNT)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        build_and_run(make_tree(td, "control"), td, "control")
 
 
 def anchor_entries():
