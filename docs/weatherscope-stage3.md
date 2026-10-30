@@ -8363,3 +8363,94 @@ This is CLAUDE.md's *a guard that silently stopped existing*: the driver was the
 - **The proposal:** each driver gains an `--anchors` mode that only asserts that every anchor occurs exactly once (no compile, a second or two), and `run.sh` runs all of them.
 - **Why:** a refactor that strands a plant then fails the host suite in the PR that caused it, not six PRs later.
 - **The mode's own control:** one anchor deliberately mangled must turn it red.
+
+### A12.50 Ruled 2026-10-30 (source: reviewer chat, pasted by Daniel): Q50 and Q51 -- the colour proof, S-KD's rerun, the --anchors pass; their predictions, frozen before the code
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-30
+>
+> 1. The merges: #502, #503 and #504 as ruled. I checked #504's squash: main's parent plus the approved head, exactly.
+>
+> 2. Q50: as recommended.
+> - S-KD's plant is re-registered at (72, 64, 64), and t4's S-KL at (158, 146, 138). S-KD's first reading (0 of 76) stays on record as BLIND: the plant never reached the panel, because RGB565 keeps 5 bits of red and 64 and 65 share them.
+> - The rule from now on: every colour plant proves it survives to the panel before it runs. Its RGB565 value must differ from the original's, or the plant refuses to run. That is "prove the plant took" for colours.
+> - Apply that proof once to every existing colour plant in the drivers, and report any that fail it.
+> - Rerun S-KD from the pushed fix, with its set frozen before the run. The diagnostic run's 76 rows are noted, not graded.
+>
+> 3. Q51: as proposed. run.sh gains an --anchors pass that checks every sabotage driver's anchors are present exactly once in the current tree, without running any plant, so CI fails the PR that strands one. The gap goes on record: sabotage_wx_layout.py's anchors were stranded from #501 until now. My review of #501 ran only #501's own driver, so the gap went past me too.
+>
+> 4. Then t3's PR, with Q49's guard in its own commit, as built.
+
+**S-KD's first reading stays on record as BLIND:** 0 of 76. The plant never reached the panel. RGB565 keeps 5 bits of red, and 64 and 65 share them. The diagnostic run's 76 rows (A12.49) are noted, not graded.
+
+#### 1. The colour proof, and its one-time audit
+
+**The proof, in `test/host/sabotage_common.py`:**
+- **The rule:** for every `{r, g, b}` triple a plant's edit changes, the planted colour's RGB565 value (5-6-5, as the panel holds it) must differ from the original's. **If it does not, the plant refuses to run,** and the driver prints `REFUSED` with both values.
+- **Wired into every driver's plant path,** so a future colour plant in any driver meets it.
+- **A plant that inserts a colour where none stood** (S-NL's `Rgb{1, 2, 3}` in place of `th.white`) must name the pair it replaces: here, dark's white (255, 255, 255).
+
+**The audit, computed now from the drivers' own plant strings:** 21 colour plants. Each must keep the RGB565 value of every triple it changes different.
+
+| driver | plants | verdict |
+|---|---|---|
+| k35 | S-K1 | passes (`0xb596` → `0xbd96`) |
+| palette (C3) | S-C3a, S-C3ef, S-C3g, S-h (5 colours), S-C3j, S-i, S-TEAL, S-C3k, S-C3l | each passes |
+| palette (C3) | **S-C3c** | **fails:** (0, 200, 0) → (0, 201, 0), both `0x0640`. Green keeps 6 bits, and 200 and 201 share them |
+| theme (C4) | S-C4a, S-C4b, S-C4c, S-C4e, S-C4g, S-HOLD (2 colours) | each passes |
+| theme (C4) | **S-C4d** | **fails:** (124, 124, 124) → (125, 125, 125), both `0x7bef` |
+| t3 | S-KD as re-registered (72, 64, 64); S-NL against dark's white | both pass |
+| t4 (not yet in code) | S-KL as re-registered (158, 146, 138) | passes |
+
+**So, predicted:**
+- **the palette driver** refuses **S-C3c**, and its 10 others (9 in its table, and S-PIN on the pinned table's copy) fail exactly their frozen sets;
+- **the theme driver** refuses **S-C4d**, and its 12 others fail exactly theirs;
+- **each prints NOT ALL AS PREDICTED,** because a refused plant is not a result;
+- every other driver is unchanged.
+
+**Both refused plants still fail their own rows today.** C3c and C4d grade RGB888, so neither is blind the way S-KD was. They fail the panel rule all the same, and the rule now refuses them.
+
+**For the ruling (Q52), re-registrations under the proof,** each set unchanged:
+- **S-C3c → (0, 204, 0),** `0x0660`: still off the pinned table, so still exactly {C3c};
+- **S-C4d → (128, 128, 128),** `0x8410`: 28.84 against paper, under A, so still exactly {C4d}.
+
+#### 2. S-KD from the pushed fix
+
+| row | frozen before the run |
+|---|---|
+| S-KD, plant (72, 64, 64) | **fails exactly 76 checks:** the 25 Dallas K screens (`k35:K:*`) and the 51 Bend rows (`k35b:*`). **Nothing else** across k35, k35b, replay, layout, basemap and theme. The unplanted mirror's control: 0 failures |
+| S-NL | as A12.49: 1 hit, at the plant's line |
+
+#### 3. The --anchors pass (Q51)
+
+- **Every driver (18) gains `--anchors`:** it asserts that each plant's anchor occurs **exactly once** in the current tree, and runs no plant and compiles nothing.
+  - **A text plant:** its anchor string, in the file it plants.
+  - **A plant built by a function** (basemap's S-ORDER, S-PEAKFIRST): the function run on the real text, its own uniqueness asserts included.
+  - **A data plant:**
+    - loop's frames and its manifest entries, and its test-source edit;
+    - loop_render's two frames in `screens.ref.json`;
+    - server_crops' victim crops, each longer than the byte it flips;
+    - towns' first and last entries.
+- **`run.sh` runs every `test/host/sabotage_*.py` with `--anchors`.**
+  - A driver whose file does not handle `--anchors` is refused **without being run**, so a new driver cannot slip past, or start compiling plants inside the host suite.
+  - It prints each driver's plant and anchor counts.
+- **Its control (`test/host/sabotage_anchors_control.py`, in `run.sh`):**
+  - a copy of `sabotage_daynight.py` beside a copy of `DayNight.h` with one anchor mangled must **exit 1** and name the plant;
+  - the same copy, unmangled, must **exit 0**.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| the pass, at t3's head plus this work | **18 of 18 drivers exit 0**, every anchor present exactly once |
+| its control | mangled: exit 1, naming the plant; unmangled: exit 0 |
+| host suites | MinGW all pass; g++ 13.3 the same blocks and counts, only the rig's two. The new block is the anchors pass |
+| firmware | **unchanged from t3:** flash 1,630,839 B, RAM 59,024 B. Only `test/host` and `run.sh` change |
+
+#### 4. Then t3's PR
+
+- **Its commits:** Q49's guard alone; t3; this addendum's Q50 and Q51.
+- **Its record:** S-C3c and S-C4d refused, pending Q52.
+
+**The outside-the-set branch:** any row outside its frozen value stops at that row, and is reported with its cause before anything changes.
