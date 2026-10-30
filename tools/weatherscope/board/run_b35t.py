@@ -6,21 +6,23 @@ the run at the first unexplained screen change.
     <penv python> -I tools/weatherscope/board/run_b35t.py <COMx> <board host> <empty out dir> --bsw-only   (S-SWB's pass)
 
 run_b35's capture() and waits and run_b35b's WatchedTrace are imported, not copied. The steps:
-  theme  a POST of wx-theme alone to the board's /save: a partial POST (no cfg-form, no cfg-toggles), so no other
-         setting is touched. "#HOST post wx-theme=<v>" goes into the trace before the request, the reply's status after.
+  theme  a POST of wx-theme alone to the board's /save, with the page's own X-Blipscope header (the save's CSRF guard
+         refuses a POST without it): a partial POST (no cfg-form, no cfg-toggles), so no other setting is touched. The
+         page's fields are read before and after, and only booleans are printed: only the asked fields changed, and
+         they hold what was asked (Q64). "#HOST post wx-theme=<v>" goes into the trace before the request.
          First light, then dark, so the dark switch is always seen: the board's theme before the run is not assumed.
   B1     per theme (dark, then light): the eight scenarios at 60 mi with terrain off, each captured 2 s after its screen
          line; at the next bdry, G, "[wx] terrain on", bdry's recompose, capture bdry-C; brain's next showing, brain-C;
          then G, "[wx] terrain off". 600 s per theme.
   B3     per theme: at a scenario screen line, S, the legend, capture, T.
+  place  (Q64 (a), ruled) before BSW, a partial POST of latitude and longitude alone: the Dallas loop fixture's crop
+         centre, read from the fixture's header into memory and never printed, verified as for a theme. Auto needs a
+         location and the bench board had none (step 7's init line: location=unset). The page cannot clear a location,
+         so the board keeps this public place afterwards, and Daniel can enter another on its page any time.
   BSW    POST wx-theme=auto; at bdry's screen line (R=60), 96 O, 0.2 s apart; then R (the build records).
   BSW-L  O up to one press before BSW's first phase change; at a scenario screen line, T; at "[wx] screen=loop", O (the
          switching press); the loop's end and the recompose; then O to the wrap (offset 0, where BSW began).
---bsw-only runs only BSW (S-SWB's image, A12.66 section 5).
---location fixture (Q64, open: use only once ruled) posts, before BSW, the centre of the Dallas loop fixture's first crop
-as the board's latitude and longitude -- a public fixture's place, read from its own header and never printed -- because
-Auto needs a location and the bench board has none (step 7's init line: location=unset). The page cannot clear a
-location again, so the board keeps it afterwards; the run says so.
+--bsw-only runs only BSW (S-SWB's image, A12.66 section 5), on the place the full run already set.
 Prints no coordinate and no board address. The trace keeps times; the committed record does not (Q62, A12.67).
 """
 import importlib.util, json, os, re, sys, time, urllib.parse, urllib.request
@@ -43,21 +45,54 @@ PRESSES, PRESS_S = 96, 0.2
 OFFSET = re.compile(r"^\[wx\] auto offset=\+(\d+) min phase=(\w+)$")
 
 
+# The page's own form fields, read back from GET / (the Weatherscope form, A12.66): what a save can change. Held in
+# memory to compare, never printed or written: the location is among them (Q64).
+FIELDS = {"latitude": re.compile(r"name=\"latitude\"[^>]*value='([^']*)'"),
+          "longitude": re.compile(r"name=\"longitude\"[^>]*value='([^']*)'"),
+          "brightness": re.compile(r"name=\"brightness\"[^>]*value='([^']*)'")}
+
+
+def read_fields(host):
+    with urllib.request.urlopen(f"http://{host}/", timeout=10) as r:
+        html = r.read().decode("utf-8", "replace")
+    f = {k: (m.group(1) if m else None) for k, rx in FIELDS.items() for m in [rx.search(html)]}
+    f["autodim"] = bool(re.search(r'name="autodim" type="checkbox" checked', html))
+    sel = re.search(r'<option value="(auto|light|dark)" selected>', html)
+    f["wx-theme"] = sel.group(1) if sel else None
+    if None in (f["latitude"], f["longitude"], f["brightness"]):
+        raise RuntimeError("the page's form fields were not all found")
+    return f
+
+
+def post_fields(tr, host, label, fields, stored_as_asked):
+    """A partial POST of `fields` alone to /save (with the page's own X-Blipscope header, its CSRF guard), verified
+    against the page read before and after: only the asked fields changed, and they hold what was asked. Booleans only
+    (Q64): no field's value is ever printed."""
+    try:
+        before = read_fields(host)
+        req = urllib.request.Request(f"http://{host}/save", method="POST", headers={"X-Blipscope": "1"},
+                                     data=urllib.parse.urlencode(fields).encode())
+        with urllib.request.urlopen(req, timeout=10) as r:
+            status = r.status
+        time.sleep(1.5)   # the save is applied on the loop task (configChanged), then the page reads NVS
+        after = read_fields(host)
+    except Exception as e:
+        tr.note(f"#HOST post {label}: ERROR {type(e).__name__}")
+        return False
+    only = all(before[k] == after[k] for k in before if k not in fields)
+    asked = stored_as_asked(after)
+    tr.note(f"#HOST post {label}: HTTP {status}; only the asked fields changed: {only}; stored as asked: {asked}")
+    return status == 200 and only and asked
+
+
 def post_theme(tr, host, v):
     tr.note(f"#HOST post wx-theme={v}")
-    try:
-        req = urllib.request.Request(f"http://{host}/save", data=urllib.parse.urlencode({"wx-theme": v}).encode(),
-                                     method="POST")
-        with urllib.request.urlopen(req, timeout=10) as r:
-            tr.note(f"#HOST post wx-theme={v}: HTTP {r.status}")
-            return r.status == 200
-    except Exception as e:
-        tr.note(f"#HOST post wx-theme={v}: ERROR {type(e).__name__}")
-        return False
+    return post_fields(tr, host, f"wx-theme={v}", {"wx-theme": v}, lambda a: a["wx-theme"] == v)
 
 
 def post_fixture_location(tr, host):
-    """Q64 (a): the Dallas loop fixture's centre, from its own header (ref35.centre), never printed."""
+    """Q64 (a): the Dallas loop fixture's centre, from its own header (ref35.centre), never printed. The device stores a
+    coordinate through CoordParse::Format (4 dp), so "as asked" is equality at 4 dp."""
     spec = importlib.util.spec_from_file_location("ref35", os.path.join(HERE, "..", "screens", "ref35.py"))
     ref35 = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ref35)
@@ -65,15 +100,9 @@ def post_fixture_location(tr, host):
     h, _ = ref35.decode(os.path.join(ref35.LOOP, names[0]))
     lat, lon = ref35.centre(h)
     tr.note("#HOST post location=<the Dallas loop fixture's centre> (Q64)")
-    try:
-        req = urllib.request.Request(f"http://{host}/save", method="POST", data=urllib.parse.urlencode(
-            {"latitude": "%.6f" % lat, "longitude": "%.6f" % lon}).encode())
-        with urllib.request.urlopen(req, timeout=10) as r:
-            tr.note(f"#HOST post location: HTTP {r.status}")
-            return r.status == 200
-    except Exception as e:
-        tr.note(f"#HOST post location: ERROR {type(e).__name__}")
-        return False
+    near = lambda s, v: abs(float(s) - round(v, 4)) < 5e-5
+    return post_fields(tr, host, "location", {"latitude": "%.6f" % lat, "longitude": "%.6f" % lon},
+                       lambda a: near(a["latitude"], lat) and near(a["longitude"], lon))
 
 
 def b1(tr, host, out, caps, theme, last):
@@ -193,10 +222,6 @@ def bswl(tr, host, last, k):
 
 def main(argv):
     only = "--bsw-only" in argv
-    fixture = "--location" in argv and argv[argv.index("--location") + 1:argv.index("--location") + 2] == ["fixture"]
-    if "--location" in argv:
-        i = argv.index("--location")
-        argv = argv[:i] + argv[i + 2:]
     argv = [a for a in argv if a != "--bsw-only"]
     if len(argv) != 4:
         print(__doc__)
@@ -226,9 +251,11 @@ def main(argv):
             last = time.time()
             last = b1(tr, host, out, caps, "light", last)
             last = b3(tr, host, out, caps, "light", last)
-        if fixture:
+        if not only:
+            t_place = time.time()
             post_fixture_location(tr, host)
-            tr.wait(r"^\[wx\] init; location=set ", time.time() - 1, 8)
+            if not tr.wait(r"^\[wx\] init; location=set ", t_place, 8)[1]:
+                tr.note("#HOST place: no [wx] init; location=set line after the POST")
         last, k = bsw(tr, host, last)
         tr.note(f"#HOST BSW: the first phase change came at a press {'found' if k else 'NOT found'}")
         if not only and k and 1 < k <= PRESSES:
