@@ -4,6 +4,7 @@ in a temporary folder: the plant is asserted to have applied (needle present onc
     python -I tools/wx-replay/sabotage_proxy.py"""
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -39,7 +40,13 @@ PLANTS = [
     ("S-instr: no key seen reads clean, not instrument",
      '        if not self.keys:\n            return f"SCAN instrument',
      '        if False:\n            return f"SCAN instrument'),
+    ("S-synth-leak: K6's own hexes forwarded, not answered",
+     '            if e is not None:   # exactly the feed\'s own hexes; any other is forwarded below\n',
+     '            if False:\n'),
 ]
+# Plants predicted to turn EXACTLY one named case red (docs/wx-device.md, P4); the others need only turn it red.
+EXACT = {"S-synth-leak: K6's own hexes forwarded, not answered":
+         "nothing forwarded for a K6 hex: its enrich is answered locally"}
 
 
 def sha(p):
@@ -52,6 +59,7 @@ def main():
     bad = 0
     with tempfile.TemporaryDirectory(prefix="wx-replay-sabotage-") as tmp:
         copy = os.path.join(tmp, "proxy.py")
+        shutil.copyfile(os.path.join(HERE, "synth_feed.py"), os.path.join(tmp, "synth_feed.py"))   # proxy.py imports it
         open(copy, "w", encoding="utf-8", newline="\n").write(src)
         r = subprocess.run([sys.executable, "-I", copy, "--selftest"], capture_output=True, text=True, timeout=120)
         ctrl = r.returncode == 0
@@ -68,7 +76,7 @@ def main():
             assert open(copy, encoding="utf-8").read() == planted
             r = subprocess.run([sys.executable, "-I", copy, "--selftest"], capture_output=True, text=True, timeout=120)
             fails = [l.strip()[6:] for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
-            red = r.returncode != 0
+            red = r.returncode != 0 and (name not in EXACT or fails == [EXACT[name]])
             why = (f"{len(fails)} FAIL: {fails[0]}" + (" ..." if len(fails) > 1 else "")) if fails else \
                 (r.stderr.strip().splitlines() or ["no output"])[-1][:100]
             print(f"  {'ok ' if red else 'BAD'}  {name}: selftest exit {r.returncode} ({why})")

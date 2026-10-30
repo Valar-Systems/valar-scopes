@@ -8,10 +8,14 @@ What it holds, only in memory and never written anywhere:
   - a /wx/cref request's lat/lon, for that one request, to re-centre the crop;
   - the X-Blip-Key and X-Blip-Device values seen in E2:08's requests, for the end scan (RS3). Nothing reads a key file.
 It never logs, prints or stores a header, a query, a body, a coordinate or an address. Its log has five fields:
-    <utc> <route> <replay|forwarded|refused> <status> <bytes>
+    <utc> <route> <replay|synth|forwarded|refused> <status> <bytes>
 with the route one of ROUTES. Every line is checked against LOG_LINE before it is written.
 
-    python -I proxy.py --allow-file F --crop C --log L [--port 8765] [--r-km 161] [--max-minutes 60]
+    python -I proxy.py --allow-file F --crop C --log L [--port 8765] [--r-km 161] [--max-minutes 60] [--synth-k6]
+
+--synth-k6 (K6; docs/wx-device.md, "The proxy's K6 routes"): GET /blips is answered from the synthetic feed
+(synth_feed.py), re-centred on the query and honouring its limit; GET /enrich/{hex} is answered locally for exactly
+the feed's 60 hexes and forwarded for any other. Both log as `synth`. The query is held for that request only.
     python -I proxy.py --selftest
 
 `--allow-file` names the one-line file holding E2:08's bench-LAN address: the only client answered (RS2). The proxy
@@ -42,6 +46,9 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlsplit
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # run under -I: the feed sits beside this file
+import synth_feed
+
 PRODUCTION = "scopes.valarsystems.com"
 API = "/api/v1/blipscope"
 # RFC 9110 7.6.1's hop-by-hop fields, plus the two legacy ones every proxy also drops. Any field Connection names is
@@ -50,7 +57,7 @@ HOP = ("connection", "keep-alive", "proxy-authenticate", "proxy-authorization", 
        "transfer-encoding", "upgrade")
 ROUTES = ("wx/cref", "blips", "enrich", "config", "airports", "photo", "other")
 LOG_LINE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (wx/cref|blips|enrich|config|airports|photo|other) "
-                      r"(replay|forwarded|refused) \d{3} \d+$")
+                      r"(replay|synth|forwarded|refused) \d{3} \d+$")
 
 
 def utc():
@@ -162,7 +169,7 @@ class Upstream:
 
 
 class Proxy:
-    def __init__(self, allow_ip, crop, log_path, upstream):
+    def __init__(self, allow_ip, crop, log_path, upstream, synth=None):
         self.allow_ip = allow_ip
         self.crop = crop
         self.mode = "old"
@@ -174,6 +181,8 @@ class Proxy:
         self.refused = self.chunked = self.r_mismatch = self.errors = 0
         self.keys, self.ids = set(), set()
         self.last_allowed = None
+        self.synth, self.synth_t0, self.blips_n = synth, time.monotonic(), 0
+        self.kinds = {}
 
     def note(self, route, kind, status, nbytes):
         line = f"{utc()} {route} {kind} {status} {nbytes}"
@@ -182,6 +191,7 @@ class Proxy:
         with self.lock:
             self.log.write(line + "\n")
             self.log.flush()
+            self.kinds[(route, kind)] = self.kinds.get((route, kind), 0) + 1
             if kind == "refused":
                 self.refused += 1
             else:
@@ -192,7 +202,9 @@ class Proxy:
         per = " ".join(f"{r}={self.counts[r]}" for r in ROUTES)
         return (f"STATUS mode={self.mode} {per} refused={self.refused} chunked={self.chunked} "
                 f"r_mismatch={self.r_mismatch} errors={self.errors} key_seen={yn(self.keys)} id_seen={yn(self.ids)} "
-                f"since_last_request_s={age}")
+                f"since_last_request_s={age} "
+                + " ".join(f"{r}_{k}={self.kinds.get((r, k), 0)}" for r in ("blips", "enrich")
+                           for k in ("synth", "forwarded")))
 
     def scan(self, spec):
         """RS3: the key and the id only as seen in E2:08's requests, from memory; the address from the allow-list. The
@@ -316,6 +328,31 @@ class Handler(BaseHTTPRequestHandler):
                                           ("Content-Length", str(len(data)))], data)
             P.note(route, "replay", 200, len(data))
             return
+
+        if P.synth is not None and route == "blips" and self.command == "GET":
+            q = parse_qs(urlsplit(self.path).query)
+            try:
+                lat0, lon0, r_km = float(q["lat"][0]), float(q["lon"][0]), float(q["r"][0])
+                limit = int(q.get("limit", ["40"])[0])
+            except (KeyError, IndexError, ValueError):
+                P.note(route, "synth", 400, self.error_json(400, "Bad Request", "bad_query"))
+                return
+            del q
+            with P.lock:
+                k, P.blips_n = P.blips_n, P.blips_n + 1
+            doc = P.synth.blips(P.synth.k6_ids(k, limit), time.monotonic() - P.synth_t0, time.time(), lat0, lon0, r_km)
+            del lat0, lon0
+            data = json.dumps(doc, separators=(",", ":")).encode()
+            self.reply(200, "OK", [("Content-Type", "application/json"), ("Content-Length", str(len(data)))], data)
+            P.note(route, "synth", 200, len(data))
+            return
+        if P.synth is not None and route == "enrich" and self.command == "GET":
+            e = P.synth.enrich(urlsplit(self.path).path.rsplit("/", 1)[-1])
+            if e is not None:   # exactly the feed's own hexes; any other is forwarded below
+                data = json.dumps(e, separators=(",", ":")).encode()
+                self.reply(200, "OK", [("Content-Type", "application/json"), ("Content-Length", str(len(data)))], data)
+                P.note(route, "synth", 200, len(data))
+                return
 
         try:
             status, reason, rh, data, chunked = P.upstream.request(self.command, self.path,
@@ -589,6 +626,31 @@ def selftest():
     check("key_found=yes" in P.scan({"files": [clean, planted]}), "the scan, the key planted: found")
     check("address_found=yes" in P.scan({"files": [addr]}), "the scan, the address in a file: found")
     check("address_found=no" in P.scan({"files": [clean], "trace": [addr]}), "the scan, the address only in the trace: not graded")
+    print("K6: the synthetic routes (--synth-k6)")
+    seen = []
+    echo = _echo_server(seen, False)
+    feed = synth_feed.Feed("k6", 60)
+    PK = Proxy("127.0.0.1", crop, os.path.join(tmp, "log-k6.txt"), Upstream("127.0.0.1", echo.server_address[1], tls=False),
+               synth=feed)
+    srvk, portk = _start(PK)
+    q = "/blips?lat=44.06&lon=-121.32&r=160&limit=40"
+    st, _, _, d1 = _ask(portk, "GET", API + q, SENT)
+    st2, _, _, d2 = _ask(portk, "GET", API + q, SENT)
+    j1, j2 = json.loads(d1), json.loads(d2)
+    check(st == 200 and j1["v"] == 1 and len(j1["a"]) == 40 and not seen, "K6 /blips: 200, v 1, 40 rows, nothing forwarded")
+    check(st2 == 200 and j2["a"][0][0] == feed.c[20]["hex"], "K6 /blips again: the other set (its first row is contact 20)")
+    st, _, _, de = _ask(portk, "GET", API + "/enrich/" + feed.c[7]["hex"] + "?cs=X&lat=1&lon=2", SENT)
+    je = json.loads(de)
+    check(st == 200 and je["t"] and je["op"] and not seen, "nothing forwarded for a K6 hex: its enrich is answered locally")
+    st, _, _, _ = _ask(portk, "GET", API + "/enrich/abcdef", SENT)
+    check(st == 200 and len(seen) == 1, "any other hex's enrich is forwarded")
+    PK.log.flush()
+    kl = open(PK.log_path).read().splitlines()
+    check([l.split()[1:3] for l in kl] == [["blips", "synth"], ["blips", "synth"], ["enrich", "synth"], ["enrich", "forwarded"]]
+          and all(LOG_LINE.match(l) for l in kl) and not any(w in l.lower() for l in kl for w in ("lat", "lon", "?", "x-blip")),
+          "the K6 log: blips synth, enrich synth, enrich forwarded; fixed fields, no coordinate, query or header")
+    check("blips_synth=2 blips_forwarded=0 enrich_synth=1 enrich_forwarded=1" in PK.status(), "STATUS counts each route by disposition")
+    srvk.shutdown(); srvk.server_close(); echo.shutdown(); echo.server_close(); PK.log.close()
     check(re.match(r"^SCAN files_read=\d+ missing=\d+ key_seen=yes key_found=(yes|no) id_found=(yes|no) "
                    r"address_found=(yes|no) log_lines=\d+ log_fixed_fields=(yes|no) "
                    r"log_has_lat_lon_header_or_query=(yes|no)$", P.scan({"files": [clean]})) is not None,
@@ -610,6 +672,7 @@ def main():
     ap.add_argument("--r-km", type=int, default=161)
     ap.add_argument("--log")
     ap.add_argument("--max-minutes", type=float, default=60)
+    ap.add_argument("--synth-k6", action="store_true")
     a = ap.parse_args()
     if a.selftest:
         sys.exit(selftest())
@@ -617,7 +680,7 @@ def main():
         ap.error("--allow-file, --crop and --log are required")
     allow = open(a.allow_file).read().strip()
     crop = Crop(open(a.crop, "rb").read(), a.r_km)
-    P = Proxy(allow, crop, a.log, Upstream(PRODUCTION))
+    P = Proxy(allow, crop, a.log, Upstream(PRODUCTION), synth=synth_feed.Feed("k6", 60) if a.synth_k6 else None)
     serve(P, own_address_toward(allow), a.port, a.max_minutes)
 
 

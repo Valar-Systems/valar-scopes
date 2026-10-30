@@ -3556,3 +3556,20 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
 | **P4** | a new plant, **S-synth-leak**: K6's own hexes forwarded, not answered | exactly the case "nothing forwarded for a K6 hex" red |
 
 **Outside the set:** stop and report.
+
+### Results for the proxy's K6 routes (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **P1** | the selftest's earlier cases, all pass | **as predicted** |
+| **P2** | the new cases, all pass. `/blips` gives 40 rows with nothing forwarded, then the other set (its first row is contact 20). A K6 hex's enrich is answered locally, and `abcdef`'s is forwarded. The log reads `blips synth` ×2, `enrich synth`, `enrich forwarded`, in fixed fields, with no coordinate, query or header. `STATUS` reads `blips_synth=2 blips_forwarded=0 enrich_synth=1 enrich_forwarded=1` | **as predicted** |
+| **P3** | `sabotage_proxy.py`: the unplanted control passes (it now copies `synth_feed.py` beside its copy), and all 8 existing plants turn the selftest red | **as predicted** |
+| **P4** | **S-synth-leak**: the selftest exits 1, but with **`KeyError: 't'`** and no FAIL line, not with exactly the named case red | **OFF** |
+
+**P4, off as graded: the cause is the selftest, not the proxy.**
+- **The mechanism:** the new case reads `je["t"]` **before** `check()`. So when the plant forwards a K6 hex's enrich, the
+  stand-in's reply has no `t`, and the selftest dies on the lookup instead of failing the one case.
+- **The alternative, excluded:** that the plant did not apply. The driver asserts the needle once and the copy
+  changed, and the crash is in exactly the line the plant redirects.
+- **The remedy, not made until ruled:** read the fields inside the check (`je.get("t")`), so a wrong answer is a FAIL
+  line, not a crash. The plant is then predicted to turn exactly that case red.
