@@ -3297,3 +3297,113 @@ Ruled:
 
 **Outside the set, for both:** stop and report. That includes a heap failure at n = 60. The fetch comment records 60
 contacts once starving TLS handshakes. If K6b fails, K6c is not read as a frame cost.
+
+## Rulings of 2026-10-30 ~18:10Z, and what they need answered first
+
+Recorded as received (Daniel pasted them):
+- **The D0 slot:** no E2:08 window from 19:45Z to 21:45Z, every day, until lifted.
+- **The test identity:** production checks leave E2:08's identity. No `smoke-prod.sh` or `watch-upstream.sh` runs under
+  E2:08's pair. T7 re-runs under the test identity once its PR lands.
+- **Tonight's overnight touch watch** runs to 13:00Z.
+- **The checker:** S-dot-slot's remedy (a fixture) and "counted apart by cause".
+- **K6 and W5⁗:** amended (real labels for K6; W5⁗ centred on E2:08's own location).
+
+**Tonight, as built (scratchpad, not graded until the run):**
+- `night_launch.sh` runs the redo at 06:00:30Z, then `watch_overnight.py`.
+- **The watch:**
+  - it holds one trace from the redo's exit until 13:00:00Z;
+  - it lists every `[touch]` line after RP6's end, verbatim with its UTC time;
+  - it names every gap over 2 min in the `[health]`/`[perf]` lines as BLIND, the gap between the two traces included;
+  - at 13:00Z it runs `read_mac`, then RS5's checks (the page, and production's server-side record).
+- **The touch detector** is the one that fired on W5″, and on 10-29's arm A it finds the 4 lines of the two swipes at
+  18:09:11-13Z.
+- **A second path, found and fixed before tonight:** the server-side reader (`ae_watch.py`, used by RP3/RS4/RS5) read
+  E2:08's id from the Windows variable Daniel removed today. It now falls back to the token file's `blip-device` line,
+  never printed. On a past window it reads E2:08's routes again: `/blips` 80 weighted.
+
+### K6 and W5⁗: answers from the code and E2:08's page
+
+**E2:08's page** (names and states only): `infotext` on.
+- **Of the label fields only `info-type` is on.** Callsign, operator, speed and the rest are off.
+- **`logbook` off, `lb-enabled` off.**
+
+**What K6's enriched synthetic contacts would write, and what clears it:**
+- **The logbook.** `NoteContact`, `NoteCountry`, `NoteType`, `NoteOperator`, `NoteAirport` and `ConsiderAircraftOfDay`
+  are all gated on `logbookEnabled`, which `lb-enabled` forces on.
+  - With both off, as on E2:08 now, nothing is written.
+  - Were either on, the writes would reach NVS (namespace `logbook`, a 10-min debounce): no reboot clears them, and the
+    hourly leaderboard submit would carry them to production.
+  - **So K6 and W5⁗ refuse to start unless both read off.** Only those two booleans are read.
+- **RAM only, cleared by the reboot each run ends with (`read_mac`):** the enrichment LRU, each tracked contact's
+  enrichment, `todayContacts` and `todayPeak` (no NVS writer), and the photo sprite. The local enrich answer offers no
+  photo, so none is fetched.
+
+**Label rows.**
+- `LabelLayout` draws a field only when it is enabled and non-empty, at most 3 lines (`labellines::Select`).
+- **On E2:08 today:** an enriched real contact draws **1** line (type). An unenriched or non-ICAO one draws **0**.
+- **On the factory default** (callsign, type, operator and speed on), a real contact draws **3**.
+- **Not decided here.** K6 at E2:08's own settings measures 1 line. The 85 ms decision is for every customer, and the
+  default is the worst case. Two routes:
+  - **(a)** run K6's arm with E2:08's label fields set to the factory default, and restored after. The original
+    booleans are written into the run record before any change, so a crash loses nothing private;
+  - **(b)** measure at E2:08's 1 line and add the other two lines' cost from a host measurement.
+  - **I recommend (a). It needs a ruling.**
+
+**K6's hexes and the local `/v1/enrich`:**
+- **The hexes:** 60 hexes outside `NON_ICAO_RANGES` and the military ranges, in one allocated block.
+- **The local answer:** the proxy answers `/v1/enrich` for exactly those 60 hexes. It fills type and operator from
+  common real values (B738, A320, A21N, B739, E75L, CRJ9, ...; Southwest, Alaska, United, Delta, American, SkyWest,
+  Horizon, ...). Registration and route stay empty (both default off). Callsigns come from the feed, airline-style.
+- **Every other route is forwarded unchanged.** The proxy's log counts each route as local or forwarded, by name only.
+- **The prediction:** `/v1/enrich` forwarded **0**, and `/v1/photo` forwarded **0**.
+
+**The NEAR/HIGH/FAST highlight share.**
+- **From the code:** each frame highlights the nearest, the highest and the fastest contact, so at most 3, whatever
+  n is. A contact that is two of them stacks two tags on one circle.
+- **The generator keeps the three distinct:** 3 circles and 3 tags every frame, 3 of 60 contacts (5 %).
+- **W5‴'s real traffic:** 3 or fewer of n = 18-37 (8-17 %).
+- **The per-frame highlight cost is the same in both.**
+
+**W5⁗:**
+- **The centre:** E2:08's own location, read from its page into memory only. Never printed, logged or written, and
+  E2:08's config is not touched (as ruled, the same privacy as K6's re-centring).
+- **Does anything N adds scale with label rows? No.**
+  - `LabelLines.h`, `AircraftInfoFields` and `LabelLayout` are unchanged since `962ccb7`.
+  - N's per-frame additions (the outline, the layer push, the sweep over weather, the span recording) all return
+    early unless the layer is shown: `DrawWeatherUnder`'s first test, `WxOutlineNow`, and `DrawSweepOverWeather`'s
+    first test.
+  - In local mode `WxEnabled()` is false.
+  - **So W5⁗ keeps the non-ICAO hexes:** no enrichment at all, and nothing to answer locally.
+
+### The checker's follow-ups, frozen before the code
+
+**The fixture.** `test/host/fixtures/wx_screen_dots.json`, measured from 10-29's frames, not from the source:
+- the frames: every finished RP6 frame (A, B and off: 54);
+- the scan: every candidate centre in rows 218-230 and r in {2, 3}, whose `fill_circle` raster is wholly one dot
+  colour;
+- the keep rule: positions in ≥ 90 % of the frames.
+
+| | check | predicted |
+|---|---|---|
+| **F1** | the fixture's positions | exactly 4: (102, 224, r 3, 0x07E0), (114, 224, r 2, 0x0280), (126, 224, r 2, 0x0280), (138, 224, r 2, 0x0280), each in 54 of 54 frames (216 instances). Any other candidate in under 10 % of the frames. The fixture's sha256 is recorded here when it is written |
+| **F2** | the selftest's D1 and D2 | drawn from the fixture, not from `src` |
+
+**Counted apart, by cause.** Every marker whose pass depends on an excluded neighbour is listed and counted apart by
+what touched it:
+- **screen dot:** a weather-coloured neighbour inside a complete dot;
+- **label:** every remaining weather-coloured neighbour is also a label colour;
+- **highlight:** 0xF81F is no weather colour, so the highlight can never be a marker's weather neighbour. Its column
+  is 0 by construction. Its exclusions are counted in (1).
+
+A marker with both causes is listed with both, and counted once in the total. "0 without an outline" is printed beside
+the counts by cause.
+
+| | check | predicted |
+|---|---|---|
+| **C1** | the selftest | D1: counted apart by screen dot 1. D2: by label 1. L1: by label 1. Every other case as before |
+| **C2** | 10-29's frames, trustworthy only | **A:** (1) 0 exceptions, highlight 16. (2) 0 without an outline; counted apart **4**: screen dot 2 (the white dart, `m1-f0`, `m1-f2`), label 2 (the yellow dart, `m2-f0`, `m2-f2`), highlight 0. **PASS.** **B:** (1) 0, highlight 10, **PASS** ((2)'s counts reported). **off:** unchanged, **PASS** |
+| **C3** | the same frames, not dropped | all three **UNTRUSTWORTHY** |
+| **C4** | the sabotages | S-hl-colour exactly `H2`. S-hl-off exactly `H1`. S-dot-anywhere exactly `D2` (it reads screen dot 1, not label 1). **S-dot-slot exactly `D1`** (the original miss stays on record; with the dots drawn from the fixture, the checker's moved positions no longer agree). **S-dot-slot′:** slot 2 moved 1 px in a copy of the fixture, exactly `D1`; **its control**, the copy unmoved, nothing red. S-label-pass exactly `L1`, `D2`. S-label-all exactly `L2`, "no outline, look A", "the old r=4 disc outline". **S-dot-silent** (a dot-touched marker passed and not counted) exactly `D1` |
+| **C5** | `--anchors` | every anchor present exactly once |
+
+**Outside the set:** stop and report.
