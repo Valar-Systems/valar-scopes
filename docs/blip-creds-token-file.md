@@ -154,3 +154,11 @@ bench does. That is a reading of the changelog, not an observation, and C1 is th
 
 **Outside the set:** stop and report. That includes Node refusing the `.mts` (for example
 `ERR_UNKNOWN_FILE_EXTENSION`). The remedy (Node 24 for the proxy leg, or a flag) waits for a ruling.
+
+### Results for the selftest in CI (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **C1** | the step's own log on `090f6a3`, proxy leg, Node v22.23.4: the four `ok` lines (`depth 2`, `depth 2`, `depth 1`, `depth 2`) and `SELFTEST PASSED`. No `ExperimentalWarning` appeared | **as predicted**: CI runs the `.mts` the way the bench does |
+| **C2** | the dashboard leg's log holds no line of the step | **as predicted** |
+| **C3** | CI's total on `090f6a3`: 38 runs, 35 success, 3 skipped, none failed | **as predicted** |
