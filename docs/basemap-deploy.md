@@ -350,3 +350,44 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **It reached me at 17:27Z,** twelve hours after its deadline. The earlier "D0: go" it mentions never reached this session.
 - **D0 was not started:** the deadline had passed, and E2:08's window from 06:00Z has no end I can see. A smoke run inside it is ruled out.
 - **D0 waits for a fresh slot.** Everything it needs is prepared, so the slot needs about 30 minutes.
+
+### D0's slot, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-30, ~17:40Z)
+
+> D0: GO, in a fixed slot.
+> - Slot: 20:00-21:30Z today (1:00-2:30 PM PDT). Start between 20:00Z and 20:55Z; finished, or rolled back, by 21:30Z.
+> - If this reaches you after 20:55Z, or you can't start in time: the same slot on the next day, every day until D0 is done.
+>   blipscope-5c keeps E2:08 out of any window from 19:45Z to 21:45Z every day until I lift it.
+> - Run it as you listed: baseline smoke -> deploy.sh production with its /healthz confirmation -> the 15-minute watch -> the
+>   post-deploy smoke. Predictions as you registered them. Anything off them: immediate rollback to c960f98f-..., then report.
+> - Credentials for D0: the token file's pair (E2:08's), both values from the file, with the shell's own pair kept out of
+>   the run. Say how you made sure of that.
+> - Record each smoke run's start and end (UTC, to the minute) in the D0 record. Why: by the code, every smoke run writes
+>   firmware changes into E2:08's fleet record. The /v1/enrich photo-variant check sends X-Blip-FW 6, then 7, under E2:08's
+>   pair; index.ts runs recordFleetFirmware on every authenticated request; fleet.ts appends a change whenever the value
+>   differs. The minutes let anyone reading that record later explain those entries.
+>
+> The shell's other pair: say where it comes from (Windows user variables, this session's own environment, or a profile
+> script), and which it is: the old synthetic beefbeefbeefbeef, E2:08's id, or another id. Labels and booleans only, never a
+> value. Don't use it.
+>
+> D3: carry on with its predictions (the staging binding, /credits, the sweep).
+>
+> AFTER D0 (D0 does not wait on this): a separate test identity for the production checks. Ruled by the reviewer.
+> Why: smoke-prod.sh and watch-upstream.sh sign in as E2:08. Besides the fleet entries above, their requests count as E2:08's
+> in the metrics, in its dev:<id> bucket, and in any "production records E2:08's /blips" read. A leak of the PC's copy could
+> only be contained by revoking E2:08, because re-enrolment returns the same key (docs/bench-key-rotation.md, the 2026-08-31
+> correction). This is the drift that doc's 2026-08-28 finding recorded. beefbeefbeefbeef can't come back: production
+> refuses it (fake-id list, since 08-31), which is likely how the checks drifted back onto real boards' keys.
+> Plan it as its own small PR, predictions first, each with a sabotage:
+> 1. The id: fresh and random, in the device-id shape, not on the fake-id list, and not any board's (not derived from a real
+>    MAC). It lives only in Daniel's token file: never committed, printed or logged.
+> 2. The mint: name the route (the enrolment page, or the bench provisioning route). Give Daniel at most two plain steps for
+>    any human part. The key goes straight into the token file. It never appears in a chat or in any tool's output.
+> 3. The checks run only as the test identity. The token file names it in its own fields, and smoke-prod.sh and
+>    watch-upstream.sh refuse any other pair, from the variables or the file, E2:08's included, before their first request.
+>    Sabotage: E2:08's pair -> refused, 0 requests sent.
+> 4. It is not a unit. The fleet records and the dashboard counts Daniel uses to estimate customer units leave it out,
+>    without its id appearing in the public repo. Sabotage: exclusion removed -> the count rises by one.
+> 5. E2:08's key leaves the PC. List every reader of the token file's blip-key/blip-device. If none needs E2:08's own key
+>    once the checks move, say which two lines Daniel removes himself, and when.
+> 6. Any server-side part deploys staged, in the reserved slot, and is verified after.
