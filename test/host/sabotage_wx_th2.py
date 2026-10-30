@@ -20,6 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SCREENS = os.path.join(ROOT, "tools", "weatherscope", "screens")
 REF35 = os.path.join(SCREENS, "ref35.py")
 TH2 = os.path.join(SCREENS, "th2.py")
+TH2_CHECKS = 5   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
 ROOT_LINE = ("ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))\n")
 BAND = ('        scr.text(int(C - text_w(warning["band1"]) / 2), 197, warning["band1"], 1, ink["white"])\n'
         '        scr.text(int(C - text_w(warning["band2"]) / 2), 207, warning["band2"], 1, ink["white"])\n')
@@ -51,8 +52,8 @@ def run_th2(td, label, text):
     open(copy, "w", encoding="utf-8", newline="\n").write(text)
     r = subprocess.run([sys.executable, "-I", "-B", TH2, "--ref35", copy], capture_output=True, text=True)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
-    if r.returncode not in (0, 1) or not m or int(m.group(1)) != 5:
-        print(f"{label}: th2.py did not run as 5 checks (exit {r.returncode}): the RIG\n{r.stdout[-600:]}{r.stderr[-600:]}")
+    if r.returncode not in (0, 1) or not m or int(m.group(1)) != TH2_CHECKS:
+        print(f"{label}: th2.py did not run as {TH2_CHECKS} checks (exit {r.returncode}): the RIG\n{r.stdout[-600:]}{r.stderr[-600:]}")
         return None
     return {x.group(1) for x in re.finditer(r"^\s*FAIL TH2' (\S+?):", r.stdout, re.M)}   # th2.py: "TH2' <scene>: ..."
 
@@ -89,7 +90,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, th2.py against its count,
 # nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"th2.py": ("checks", 5)}
+CONTROL_TABLE = {"th2.py": ("checks", TH2_CHECKS)}
 
 
 def control():

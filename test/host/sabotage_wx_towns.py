@@ -113,12 +113,20 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {}
+TOWNS_CHECKS = 172   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_towns": ("checks", TOWNS_CHECKS), "make_towns.py": ("line", "WxTowns.h: identical")}
 
 
 def control():
-    raise sc.Skip("needs the Census archive: its control runs make_towns.py --check over the 2025 Gazetteer and "
-                  "SUB-EST2024 files, its two arguments, which no CI runner holds")
+    """Runs when WX_TOWNS_GAZ and WX_TOWNS_SUBEST name the two archives; skips, naming both, only when they don't."""
+    gaz, sub = os.environ.get("WX_TOWNS_GAZ", ""), os.environ.get("WX_TOWNS_SUBEST", "")
+    if not (gaz and sub and os.path.isfile(gaz) and os.path.isfile(sub)):
+        raise sc.Skip("needs the Census archive: set WX_TOWNS_GAZ (the 2025 Gazetteer zip) and WX_TOWNS_SUBEST (the "
+                      "SUB-EST2024 csv) to run it; no CI runner holds them")
+    src = open(TOWNS, encoding="utf-8").read().replace("\r\n", "\n")
+    with tempfile.TemporaryDirectory() as td:
+        _, _, inc = d6b(td, "control", src)
+        d6a(gaz, sub, os.path.join(inc, "WxTowns.h"))
 
 
 if __name__ == "__main__":

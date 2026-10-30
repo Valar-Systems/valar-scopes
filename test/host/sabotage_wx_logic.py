@@ -50,9 +50,10 @@ SABOTAGES = {
               "inline int KtToMph(double kt) { return (int)(kt * kMphPerKt); }  // SABOTAGE")], {"U1", "U3", "U4"}),
     # S-L, re-registered for Q13 (A9.10): every "city", in any case, stripped -- so "Oklahoma City city" loses both
     "S-L": ([("    if (n >= 5 && strcmp(out + n - 5, \" city\") == 0) out[n - 5] = '\\0';",
-              "    for (char* q = out; *q; ++q) if ((q[0] | 32) == 'c' && (q[1] | 32) == 'i' && (q[2] | 32) == 't' && (q[3] | 32) == 'y')"
-              " { memmove(q, q + 4, strlen(q + 4) + 1); --q; }"
-              " for (size_t k = strlen(out); k > 0 && out[k - 1] == ' ';) out[--k] = '\\0'; (void)n;  // SABOTAGE")],
+              # braces on both bodies: g++ 13.3's -Wmisleading-indentation refused the unbraced ones (A12.73)
+              "    for (char* q = out; *q; ++q) { if ((q[0] | 32) == 'c' && (q[1] | 32) == 'i' && (q[2] | 32) == 't' && (q[3] | 32) == 'y')"
+              " { memmove(q, q + 4, strlen(q + 4) + 1); --q; } }"
+              " for (size_t k = strlen(out); k > 0 && out[k - 1] == ' ';) { out[--k] = '\\0'; } (void)n;  // SABOTAGE")],
             {"L4"}),
     "S-H1": ([("    for (size_t e = 0; e < n; ++e) {", "    for (size_t e = 0; e < (n ? 1u : 0u); ++e) {  // SABOTAGE")],
              {"H8", "H20"}),
@@ -148,7 +149,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_logic": ("checks", 121)}
+LOGIC_CHECKS = 121   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_logic": ("checks", LOGIC_CHECKS)}
 
 
 def control():

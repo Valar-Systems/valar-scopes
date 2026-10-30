@@ -102,8 +102,8 @@ def run(td, name, text):
         print(f"{name}: the suite did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
         sys.exit(2)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
-    if not m or int(m.group(1)) != 73:
-        print(f"{name}: {m.group(1) if m else '?'} cases ran, not 73: the RIG")
+    if not m or int(m.group(1)) != LAYOUT_CHECKS:
+        print(f"{name}: {m.group(1) if m else '?'} cases ran, not {LAYOUT_CHECKS}: the RIG")
         sys.exit(2)
     lines = [x.group(0).strip() for x in re.finditer(r"^\s*FAIL \S+.*$", r.stdout, re.M)]
     return r.returncode, {x.split()[1] for x in lines}, lines
@@ -143,7 +143,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_layout": ("checks", 73)}
+LAYOUT_CHECKS = 73   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_layout": ("checks", LAYOUT_CHECKS)}
 
 
 def control():
