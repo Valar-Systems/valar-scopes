@@ -319,6 +319,31 @@ const SABOTAGES = {
     edits: [["4x4 mean of z9 pixels; ", "4x4 MEAN of z9 pixels; "]],
     expect: ["MA1", "MD4", "MG0b"],
   },
+  // The D0 + D2 PR's four (docs/basemap-deploy.md): the builder's stamp check, the handler's commit check, and what
+  // /healthz reports before and after a build.
+  "S-WSTAMP": {
+    file: WORKER, set: "all",
+    edits: [['      if (!/^[0-9a-f]{40}$/.test(commit)) return json(503, { error: "builder_unstamped" }); // §2.4: never build unstamped\n',
+             '      // SABOTAGE S-WSTAMP: the stamp not checked\n']],
+    expect: ["MW18"],
+  },
+  "S-WNOCOMMIT": {
+    file: HANDLER, set: "all",
+    edits: [['  if (!/^[0-9a-f]{40}$/.test(commit)) return errorResponse(500, "builder_invalid");\n',
+             '  // SABOTAGE S-WNOCOMMIT: the builder\'s commit not checked\n']],
+    expect: ["MW19"],
+  },
+  "S-HMADEUP": {
+    file: HANDLER, set: "all",
+    edits: [["commit: lastBuild ? lastBuild.commit : null };", "commit: lastBuild ? lastBuild.commit : \"0\".repeat(40) }; // SABOTAGE S-HMADEUP"]],
+    expect: ["MH2"],
+  },
+  "S-HNOCACHE": {
+    file: HANDLER, set: "all",
+    edits: [["  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null };\n",
+             "  return { rev: BASEMAP_REV, store: null, commit: null }; // SABOTAGE S-HNOCACHE\n"]],
+    expect: ["MH3"],
+  },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
     file: LAYERS, set: "all",

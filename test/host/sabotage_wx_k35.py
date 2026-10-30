@@ -12,6 +12,9 @@ Method:
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "src", "weatherscope")
 FONT = os.path.join(ROOT, "test", "fixtures", "wx", "glcdfont.c")
@@ -27,7 +30,7 @@ ROWS = ["dry-60", "approaching-60", "herenow-60", "warning-60", "stale-60", "cle
 
 # name: (file, [(anchor, replacement)], the registered failing set)
 SABOTAGES = {
-    "S-K1": ("WxRaster.h", [("kLabel{176, 176, 176}", "kLabel{184, 176, 176} /* SABOTAGE */")],
+    "S-K1": ("WxTheme.h", [("    {176, 176, 176},   // label\n", "    {184, 176, 176},   // label SABOTAGE\n")],
              {"K:" + r for r in ROWS}),
     "S-K2": ("WxScreens.h", [("        const int kx = 60 + in.loopIndex * 116 / (kLoopFrames - 1);",
                               "        const int kx = 60 + in.loopIndex * 120 / (kLoopFrames - 1);  // SABOTAGE")],
@@ -63,6 +66,7 @@ def plant_file(path, edits, name):
     src = open(path, encoding="utf-8").read().replace("\r\n", "\n")
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -112,7 +116,12 @@ def main():
             if edits is None:
                 plant_ref(os.path.join(base, "k35.ref.txt"))
             else:
-                plant_file(os.path.join(base, "src", "weatherscope", target), edits, name)
+                try:
+                    plant_file(os.path.join(base, "src", "weatherscope", target), edits, name)
+                except sc.Refused as e:   # Q50: not a result, and not as predicted
+                    print(f"{name}: REFUSED -- {e}")
+                    ok = False
+                    continue
             rc, fails = run(base, name)
             good = rc == 1 and fails == expect
             shown = sorted(fails) if len(fails) <= 6 else f"{len(fails)} cases: {sorted(fails)[:3]} ..."
@@ -127,5 +136,31 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor, for --anchors (no plant runs). S-K4 plants the reference's first LABEL line of dry-60."""
+    out = []
+    for name, (target, edits, _) in SABOTAGES.items():
+        if edits is None:
+            out.append((name, os.path.relpath(REF, ROOT), sc.read(REF),
+                        lambda t: next(l for l in t.split("\n") if l.startswith("LABEL dry-60 "))))
+        else:
+            p = os.path.join(SRC, target)
+            out += [(name, os.path.relpath(p, ROOT), sc.read(p), a) for a, _ in edits]
+    return out
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_k35": ("checks", 28)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(mirror(td, "control"), "control")
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

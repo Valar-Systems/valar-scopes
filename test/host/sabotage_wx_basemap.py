@@ -9,10 +9,13 @@ Method, fixed before any run (A10.11, A12.39):
     plant goes into exactly one copy. (GCC resolves a quoted include from the including file's own directory first, so
     a lone shadowed header would be included twice under two paths.) Each plant asserts its anchor occurs exactly once
     and that the copy differs; the real files' hashes are compared before and after.
-  - The unmodified headers run first, as the control: 84 cases, 0 failures.
+  - The unmodified headers run first, as the control: 92 cases, 0 failures (84, and A12.53's BW 8).
   - Each sabotage's failing lines are printed, so what a failing case saw can be read off the run.
 """
 import hashlib, importlib.util, os, re, subprocess, sys, tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FILES = {
@@ -24,7 +27,7 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_basemap.cpp")
 WX = os.path.join(ROOT, "test", "fixtures", "wx")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
-CASES = 84
+CASES = 92
 
 
 def block(src, start, end):
@@ -82,15 +85,25 @@ SABOTAGES = {
     "S-MASK": ("WxBasemap.h", [("    if (mask & kMaskRivers) {\n", "    if (true) {  // SABOTAGE: the rivers bit ignored\n")],
                {"LN9"}),
     "S-FOLD": ("WxScreens.h",
-               [("    if (c == 0 && base) return wxbase::PaletteRgb(base[y * wxraster::kSize + x]);\n",
-                 "    if (c <= 13 && base) return wxbase::PaletteRgb(base[y * wxraster::kSize + x]);  // SABOTAGE\n")],
+               [("    if (c == 0 && base) {\n",
+                 "    if (c <= 13 && base) {  // SABOTAGE\n")],
                {"BF3"}),
     "S-HATCH": ("WxScreens.h",
-                [("(c == 15 || (c == 14 && terrain)) ?", "((void)terrain, c == 15) ? /* SABOTAGE: 14 solid */")],
+                [("    if (c == 15 || (c == 14 && terrain)) return",
+                  "    if (((void)terrain, c == 15)) return /* SABOTAGE: 14 solid */")],
                 {"BF5"}),
     "S-BKEY": ("WxScreens.h", [("    k.radiusMi = radiusMi;\n    k.latNwMicro = h.latNwMicro;\n",
                                 "    (void)radiusMi;  // SABOTAGE: the radius ignored\n    k.latNwMicro = h.latNwMicro;\n")],
-               {"BK2"}),
+               {"BK2", "BW5", "BW8"}),   # A12.53: BW5 and BW8 read the radius through BaseWhy
+    # A12.53, the key's reason
+    "S-BWFIRST": ("WxScreens.h", [('    if (!valid) return "first";\n', '    (void)valid;  // SABOTAGE: no image is no reason\n')],
+                  {"BW1"}),
+    "S-BWORDER": ("WxScreens.h",
+                  [('    if (built.radiusMi != now.radiusMi) return "zoom";\n    if (built.mask != now.mask) return "mask";\n'
+                    '    if (built.terrain != now.terrain) return "terrain";\n',
+                    '    if (built.terrain != now.terrain) return "terrain";  // SABOTAGE: terrain before zoom\n'
+                    '    if (built.radiusMi != now.radiusMi) return "zoom";\n    if (built.mask != now.mask) return "mask";\n')],
+                  {"BW8"}),
     "S-PEAKFIRST": ("WxScreens.h", s_peakfirst, {"PE5"}),
     "S-PEAKCAP": ("WxScreens.h",
                   [("    for (int k = 0; peaks && k < peaks->Count() && np < kMaxPeaks; ++k) {\n",
@@ -119,6 +132,7 @@ def read(p):
 def plant(name, edits, src):
     out = src
     for anchor, repl in (edits(src) if callable(edits) else edits):
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -213,5 +227,36 @@ def main():
     return 0 if ok and vok and same else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor, for --anchors (no plant runs). A plant built by a function (S-ORDER, S-PEAKFIRST) is
+    run on the real text, so its own uniqueness asserts are the check; validate.py's two needles are checked too."""
+    out = []
+    for name, (fn, edits, _) in SABOTAGES.items():
+        text = sc.read(FILES[fn])
+        label = os.path.relpath(FILES[fn], ROOT)
+        if callable(edits):
+            out.append((name, label, text, lambda t, f=edits: f(t)))
+        else:
+            out += [(name, label, text, a) for a, _ in edits]
+    vp = os.path.join(ROOT, "tools", "weatherscope", "basemap", "validate.py")
+    vt = sc.read(vp)
+    out.append(("S-TCOUNT (validate.py)", os.path.relpath(vp, ROOT), vt, '        if count != 1:\n            raise Bad("kTerrainCount")'))
+    out.append(("S-PCOUNT (validate.py)", os.path.relpath(vp, ROOT), vt, '        if count != lines:\n            raise Bad("kProvenanceCount")'))
+    return out
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_basemap": ("checks", 92)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(td, "control", {k: read(p) for k, p in FILES.items()})
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

@@ -23,6 +23,7 @@
 #include "WxPalette.h"
 #include "WxRaster.h"
 #include "WxRender.h"
+#include "WxTheme.h"
 #include "WxTowns.h"
 
 namespace wxscreens {
@@ -36,7 +37,8 @@ constexpr uint32_t kHoldMs = 30000;
 constexpr int kScenarios = 6;   // wxscen::Kind's order: Dry, Approaching, HereNow, Warning, Stale, Clear (Q15)
 
 struct Cycle {
-    int index = 0;          // into wxscen::Kind
+    int index = 0;          // into the stored scenarios: wxscen::Kind's order, then 3.5b's Bend two (A12.53)
+    int count = kScenarios; // how many the cycle visits: 6, or 8 with Bend's stored data (A12.53)
     uint32_t heldMs = 0;    // unpaused time spent in this scenario
     uint32_t lastMs = 0;
     bool started = false;
@@ -59,7 +61,7 @@ inline bool Step(Cycle& c, uint32_t nowMs, bool storedFeeds)
     c.heldMs += dt;
     if (c.heldMs < kHoldMs) return false;
     c.heldMs = 0;
-    c.index = (c.index + 1) % kScenarios;
+    c.index = (c.index + 1) % c.count;
     return true;
 }
 inline void Pause(Cycle& c, bool paused) { c.paused = paused; }
@@ -443,17 +445,17 @@ struct StateIn {
 
 // The band's line on every screen but the warning's: RADAR STALE (dim) past 30 min; RAIN NOW / SNOW NOW (white); the
 // nearest echo, "RAIN 14 MI E", white within 15 mi and dim beyond; else "54° · NO RAIN" or "NO RAIN 60 MI" (dim, Q20).
-inline void StateLine(const StateIn& in, char* out, size_t cap, Rgb* ink)
+inline void StateLine(const StateIn& in, char* out, size_t cap, wxtheme::Ink* ink)
 {
-    *ink = wxraster::kDim;
+    *ink = wxtheme::Ink::Dim;
     if (in.ageS > kStaleAfterS) {
         snprintf(out, cap, "RADAR STALE");
     } else if (in.hereNow != wxlogic::Precip::None) {
         snprintf(out, cap, "%s", in.hereNow == wxlogic::Precip::Snow ? "SNOW NOW" : "RAIN NOW");
-        *ink = wxraster::kWhite;
+        *ink = wxtheme::Ink::White;
     } else if (in.echo.found) {
         snprintf(out, cap, "RAIN %d MI %s", wxraster::Rnd(in.echo.mi), wxlogic::Compass8(in.echo.bearingDeg));
-        if (in.echo.mi <= 15.0) *ink = wxraster::kWhite;
+        if (in.echo.mi <= 15.0) *ink = wxtheme::Ink::White;
     } else if (in.hasTemp) {
         snprintf(out, cap, "%d\xF8 \xFA NO RAIN", wxraster::Rnd(in.tempF));
     } else {
@@ -462,11 +464,11 @@ inline void StateLine(const StateIn& in, char* out, size_t cap, Rgb* ink)
 }
 
 // The top strip's frame time: orange past 10 min; on the warning screen past 30 min, "4:24 PM · STALE" (Q18).
-inline void TimeText(const char* clock, int64_t ageS, bool warning, char* out, size_t cap, Rgb* ink)
+inline void TimeText(const char* clock, int64_t ageS, bool warning, char* out, size_t cap, wxtheme::Ink* ink)
 {
     if (warning && ageS > kStaleAfterS) snprintf(out, cap, "%s \xFA STALE", clock);
     else snprintf(out, cap, "%s", clock);
-    *ink = ageS > kOrangeAfterS ? wxraster::kOrange : wxraster::kDim;
+    *ink = ageS > kOrangeAfterS ? wxtheme::Ink::OrangeText : wxtheme::Ink::Dim;
 }
 
 // "ZOOM 30 MI" when zoomed in; false at the ladder's top.
@@ -571,9 +573,9 @@ inline Box ArrowBox(const Arrow& a)
     return Box{(int)x0, (int)y0, (int)x1, (int)y1};
 }
 
-inline void DrawArrow(wxraster::Sink& s, const Arrow& a)
+inline void DrawArrow(wxraster::Sink& s, const Arrow& a, Rgb ink)
 {
-    for (int k = 0; k < 3; ++k) wxraster::Line(s, a.seg[k][0], a.seg[k][1], a.seg[k][2], a.seg[k][3], wxraster::kOrange);
+    for (int k = 0; k < 3; ++k) wxraster::Line(s, a.seg[k][0], a.seg[k][1], a.seg[k][2], a.seg[k][3], ink);
 }
 
 // No arrow when the storm is outside the 60 mi view (Q17).
@@ -608,15 +610,21 @@ public:
     virtual void Row(const uint8_t* codes, int n) = 0;
 };
 
-// One map pixel's colour (3.5b's fold, A10.2): off the disc black; a dry pixel (code 0) the basemap image's colour
-// where there is an image, black where there is none; code 14 the hatch when terrain is on (A9.1 D, Q31), solid grey
-// otherwise; code 15 the hatch; every echo the radar's colour, never the basemap's.
-inline Rgb MapPixel(uint8_t c, int x, int y, const uint8_t* base, bool terrain)
+// One map pixel's colour (3.5b's fold, A10.2), in the theme's roles (3.5t, A12.47): off the disc the background; a dry
+// pixel (code 0) the basemap image's colour where there is an image, dry where there is none; code 14 the hatch when
+// terrain is on (A9.1 D, Q31), no coverage otherwise; code 15 the hatch, its line where (x + y) % 4 == 0 and its ground
+// elsewhere; every echo the theme's rain colour (rain only until WXC1 v2, A9.6), never the basemap's.
+inline Rgb MapPixel(uint8_t c, int x, int y, const uint8_t* base, bool terrain, const wxtheme::Theme& th)
 {
-    if (c == wxrender::kOffDisc) return wxraster::kBlack;
-    if (c == 0 && base) return wxbase::PaletteRgb(base[y * wxraster::kSize + x]);
-    const wxpalette::Rgb p = (c == 15 || (c == 14 && terrain)) ? wxpalette::MissingAt(x, y) : wxpalette::Code(c, false);
-    return Rgb{p.r, p.g, p.b};
+    if (c == wxrender::kOffDisc) return th.bg;
+    if (c == 0 && base) {
+        const uint8_t i = base[y * wxraster::kSize + x];
+        return i <= wxbase::kIdxRoad ? th.base[i] : th.base[wxbase::kIdxNothing];   // as PaletteRgb did past 40
+    }
+    if (c == 15 || (c == 14 && terrain)) return (x + y) % wxpalette::kHatchPeriod == 0 ? th.hatchLine : th.hatchGround;
+    if (c >= 1 && c <= 13) return th.rain[c - 1];
+    if (c == 14) return th.noCoverage;
+    return th.dry;
 }
 
 // The map layer: black off the disc, the crop's colours on it (rain only until WXC1 v2, A9.6), hatched where code 15.
@@ -624,15 +632,15 @@ inline Rgb MapPixel(uint8_t c, int x, int y, const uint8_t* base, bool terrain)
 // are not drawn: the bands overwrite them in every composition, so drawing them first was 16,800 wasted writes
 // (A9.23). A 3.5b basemap goes UNDER the radar here, as a dry pixel's colour (MapPixel); with no image (`base` null)
 // and terrain off, every pixel is what it was before 3.5b.
-inline void DrawMap(wxraster::Sink& s, const wxcrop::Header& h, const uint8_t* codes, const wxrender::View& v,
-                    CodeRows* rows, const uint8_t* base = nullptr, bool terrain = false)
+inline void DrawMap(wxraster::Sink& s, const wxtheme::Theme& th, const wxcrop::Header& h, const uint8_t* codes,
+                    const wxrender::View& v, CodeRows* rows, const uint8_t* base = nullptr, bool terrain = false)
 {
     uint8_t row[wxrender::kSize];
     for (int y = 0; y < wxrender::kSize; ++y) {
         for (int x = 0; x < wxrender::kSize; ++x) row[x] = wxrender::CodeAt(h, codes, v, x, y);
         if (rows) rows->Row(row, wxrender::kSize);
         if (y < wxraster::kTopBand || y >= wxraster::kBotBand) continue;
-        for (int x = 0; x < wxrender::kSize; ++x) s.Put(x, y, MapPixel(row[x], x, y, base, terrain));
+        for (int x = 0; x < wxrender::kSize; ++x) s.Put(x, y, MapPixel(row[x], x, y, base, terrain, th));
     }
 }
 
@@ -670,7 +678,7 @@ struct ScreenIn {
     LatLon storm{0, 0};
     int fromDeg = 0;
     char state[40] = "";              // the band's line, every screen but the warning's and the loop's
-    Rgb stateInk{120, 120, 120};
+    wxtheme::Ink stateInk = wxtheme::Ink::Dim;
     bool loop = false;                // the loop's band instead (A9.10's K rows)
     int loopIndex = 0;
     char loopAge[32] = "";            // "%ld MIN AGO" at its widest long: 29 bytes (-Wformat-truncation)
@@ -686,13 +694,16 @@ struct ScreenIn {
     int nPlaces = 0;
     uint32_t pkgCrc = 0, pkgLen = 0;  // the package's identity, for the layer's key
     uint8_t mask = 0;                 // the layers drawn (wxbase::kMask*)
+    // 3.5t (A12.47): the theme the screen is drawn in. Dark is today's look, so every caller that sets nothing draws
+    // what it drew before.
+    wxtheme::Which which = wxtheme::Which::Dark;
 };
 
 struct ScreenOut {
     PlacedLabel labels[kMaxLabels];
     int nLabels = 0;
     char time[40] = "";
-    Rgb timeInk{0, 0, 0};
+    wxtheme::Ink timeInk = wxtheme::Ink::Dim;
 };
 
 // Compose's phases, timed by the caller's clock (A9.22: timing only -- a profile changes no pixel). t[0] is taken on
@@ -724,6 +735,7 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
                           int* nLabels, Profile* prof = nullptr)
 {
     using namespace wxraster;
+    const wxtheme::Theme& th = wxtheme::Get(in.which);
     Box fixed[12];
     int nFixed = 0;
     fixed[nFixed++] = Box{0, 0, kSize - 1, kTopBand - 1};
@@ -731,7 +743,7 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
     const double R = in.radiusMi, ppm = kC / R;
     int rings[3];
     const int nRings = RingsFor(R, rings);
-    for (int i = 0; i < nRings; ++i) RingDots(s, rings[i] * ppm, kRing);
+    for (int i = 0; i < nRings; ++i) RingDots(s, rings[i] * ppm, th.ring);
     Stamp(prof, Profile::kRings + 1);
 
     if (in.warning) {
@@ -739,21 +751,21 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
         for (int i = 0; i < 4; ++i) Project(v, in.polygon[i].lat, in.polygon[i].lon, &px[i], &py[i]);
         for (int i = 0; i < 4; ++i) {
             const int j = (i + 1) % 4;
-            Line(s, px[i], py[i], px[j], py[j], kOrange);
+            Line(s, px[i], py[i], px[j], py[j], th.orangeGraphic);
             fixed[nFixed++] = Box{(int)fmin(px[i], px[j]), (int)fmin(py[i], py[j]), (int)fmax(px[i], px[j]),
                                   (int)fmax(py[i], py[j])};
         }
         const int tx = (int)(kC - TextW(in.wt.top1, 2) / 2.0);
-        Text(s, tx, 36, in.wt.top1, 2, kOrange, &kBlack);
+        Text(s, tx, 36, in.wt.top1, 2, th.orangeText, &th.halo);
         const int sx = (int)(kC - TextW(in.wt.top2, 1) / 2.0);
-        Text(s, sx, 54, in.wt.top2, 1, kOrange, &kBlack);
+        Text(s, sx, 54, in.wt.top2, 1, th.orangeText, &th.halo);
         fixed[nFixed++] = Box{tx - 2, 34, tx + TextW(in.wt.top1, 2) + 2, 36 + 14 + 2};
         fixed[nFixed++] = Box{sx - 2, 52, sx + TextW(in.wt.top2, 1) + 2, 54 + 8 + 2};
         if (in.arrow) {
             double ax, ay;
             Project(v, in.storm.lat, in.storm.lon, &ax, &ay);
             const Arrow a = MakeArrow(ax, ay, in.fromDeg);
-            DrawArrow(s, a);
+            DrawArrow(s, a, th.orangeGraphic);
             fixed[nFixed++] = ArrowBox(a);
         }
     }
@@ -768,13 +780,13 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
     *nLabels = PlaceLabels(in.peaks, towns, order, nTowns, in.radiusMi, Inner(R), fixed, nFixed, peaks, &nPeaks, labels);
     for (int i = 0; i < nPeaks; ++i) {   // peaks first, as ref35.py's compose draws them (3.5b, A10.2)
         const Placed& p = peaks[i].at;
-        PeakGlyph(s, p.ix, p.iy, kLabel);
-        Text(s, p.tx, p.ty, peaks[i].label, 1, kLabel, &kBlack);
+        PeakGlyph(s, p.ix, p.iy, th.peak);
+        Text(s, p.tx, p.ty, peaks[i].label, 1, th.peak, &th.halo);
     }
     for (int i = 0; i < *nLabels; ++i) {
         const Placed& p = labels[i].at;
-        Fill(s, p.ix - 1, p.iy - 1, p.ix + 1, p.iy + 1, kLabel);
-        Text(s, p.tx, p.ty, labels[i].label, 1, kLabel, &kBlack);
+        Fill(s, p.ix - 1, p.iy - 1, p.ix + 1, p.iy + 1, th.label);
+        Text(s, p.tx, p.ty, labels[i].label, 1, th.label, &th.halo);
     }
     Stamp(prof, Profile::kLabels + 1);
 
@@ -789,12 +801,12 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
         int tx, ty;
         Box b;
         if (!PlaceRingLabel(rings[i] * ppm, num, obs, nObs, &tx, &ty, &b)) continue;
-        Text(s, tx, ty, num, 1, kRingText, &kBlack);
+        Text(s, tx, ty, num, 1, th.ringText, &th.halo);
         obs[nObs++] = b;
     }
     Stamp(prof, Profile::kRingLabels + 1);
 
-    HomeMarker(s, kWhite);
+    HomeMarker(s, th.white);
     Stamp(prof, Profile::kHome + 1);
 }
 
@@ -803,23 +815,24 @@ inline void DrawInvariant(wxraster::Sink& s, const ScreenIn& in, const wxrender:
 inline void DrawStripAndBand(wxraster::Sink& s, const ScreenIn& in, ScreenOut* out, Profile* prof)
 {
     using namespace wxraster;
-    Text(s, 117, 3, "N", 1, kDim, nullptr);
+    const wxtheme::Theme& th = wxtheme::Get(in.which);
+    Text(s, 117, 3, "N", 1, th.dim, nullptr);
     TimeText(in.clock, in.loop ? 0 : in.ageS, in.warning, out->time, sizeof out->time, &out->timeInk);
     const TopStrip top = TopStripAt(out->time, in.radiusMi);
-    Text(s, top.timeX, 13, out->time, 1, out->timeInk, nullptr);
-    if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, kWhite, nullptr);
+    Text(s, top.timeX, 13, out->time, 1, wxtheme::InkRgb(th, out->timeInk), nullptr);
+    if (top.hasTag) Text(s, top.tagX, 13, top.tag, 1, th.white, nullptr);
     Stamp(prof, Profile::kStrip + 1);
 
     if (in.warning) {
-        Text(s, (int)(kC - TextW(in.wt.band1, 1) / 2.0), 197, in.wt.band1, 1, kWhite, nullptr);
-        Text(s, (int)(kC - TextW(in.wt.band2, 1) / 2.0), 207, in.wt.band2, 1, kWhite, nullptr);
+        Text(s, (int)(kC - TextW(in.wt.band1, 1) / 2.0), 197, in.wt.band1, 1, th.white, nullptr);
+        Text(s, (int)(kC - TextW(in.wt.band2, 1) / 2.0), 207, in.wt.band2, 1, th.white, nullptr);
     } else if (in.loop) {
-        Text(s, (int)(kC - TextW(in.loopAge, 1) / 2.0), 198, in.loopAge, 1, kDim, nullptr);
-        Fill(s, 60, 212, 179, 213, kRingText);
+        Text(s, (int)(kC - TextW(in.loopAge, 1) / 2.0), 198, in.loopAge, 1, th.dim, nullptr);
+        Fill(s, 60, 212, 179, 213, th.ringText);
         const int kx = 60 + in.loopIndex * 116 / (kLoopFrames - 1);
-        Fill(s, kx, 210, kx + 3, 215, kWhite);
+        Fill(s, kx, 210, kx + 3, 215, th.white);
     } else {
-        Text(s, (int)(kC - TextW(in.state, 2) / 2.0), 198, in.state, 2, in.stateInk, nullptr);
+        Text(s, (int)(kC - TextW(in.state, 2) / 2.0), 198, in.state, 2, wxtheme::InkRgb(th, in.stateInk), nullptr);
     }
     Stamp(prof, Profile::kBand + 1);
 }
@@ -831,13 +844,14 @@ inline void Compose(wxraster::Sink& s, const ScreenIn& in, wxrender::View& v, Sc
                     Profile* prof = nullptr)
 {
     using namespace wxraster;
+    const wxtheme::Theme& th = wxtheme::Get(in.which);
     Stamp(prof, 0);
     wxrender::BuildViewKm(*in.h, &v, in.radiusMi * 1.609344);
     Stamp(prof, Profile::kView + 1);
-    DrawMap(s, *in.h, in.codes, v, rows, in.base, in.terrain);
+    DrawMap(s, th, *in.h, in.codes, v, rows, in.base, in.terrain);
     Stamp(prof, Profile::kMap + 1);
-    Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
-    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
+    Fill(s, 0, 0, kSize - 1, kTopBand - 1, th.bg);
+    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, th.bg);
     Stamp(prof, Profile::kBands + 1);
     DrawInvariant(s, in, v, out->labels, &out->nLabels, prof);
     Stamp(prof, Profile::kReplay + 1);
@@ -860,6 +874,7 @@ struct LayerKey {
     char top1[24], top2[48];
     uint32_t pkgCrc, pkgLen;   // 3.5b (A10.2): a new package or mask rebuilds the layer (its peaks and places)
     int32_t mask;
+    int32_t which;             // 3.5t (A12.47): a theme switch rebuilds the layer, its inks; BaseKey has no theme
 };
 
 inline LayerKey MakeLayerKey(const ScreenIn& in, int scenario)
@@ -871,6 +886,7 @@ inline LayerKey MakeLayerKey(const ScreenIn& in, int scenario)
     k.pkgCrc = in.pkgCrc;
     k.pkgLen = in.pkgLen;
     k.mask = in.mask;
+    k.which = (int32_t)in.which;
     k.latNwMicro = in.h->latNwMicro;
     k.lonNwMicro = in.h->lonNwMicro;
     k.cellLatMicro = in.h->cellLatMicro;
@@ -925,6 +941,25 @@ inline BaseKey MakeBaseKey(const wxcrop::Header& h, uint32_t pkgCrc, uint32_t pk
 }
 
 inline bool SameBase(const BaseKey& a, const BaseKey& b) { return memcmp(&a, &b, sizeof a) == 0; }
+
+// Why the image built for `built` must be rebuilt for `now` (A12.53), or null when it is still right: "first" with no
+// valid image, else the first field that differs, in this order -- the package, the place (the crop's geometry), the
+// zoom, the mask, terrain. "key" when none of those differs, which MakeBaseKey's zeroed padding makes unreachable: a
+// distinct token, never a plausible reason.
+inline const char* BaseWhy(const BaseKey& built, bool valid, const BaseKey& now)
+{
+    if (!valid) return "first";
+    if (SameBase(built, now)) return nullptr;
+    if (built.pkgCrc != now.pkgCrc || built.pkgLen != now.pkgLen) return "package";
+    if (built.latNwMicro != now.latNwMicro || built.lonNwMicro != now.lonNwMicro ||
+        built.cellLatMicro != now.cellLatMicro || built.cellLonMicro != now.cellLonMicro || built.rows != now.rows ||
+        built.cols != now.cols)
+        return "place";
+    if (built.radiusMi != now.radiusMi) return "zoom";
+    if (built.mask != now.mask) return "mask";
+    if (built.terrain != now.terrain) return "terrain";
+    return "key";
+}
 
 // The invariant group, drawn once: a dense palette-index image (0 = not in the layer), its 15 colours, the view it was
 // drawn through, and the labels it placed. 59,488 B on the board (A9.23), in PSRAM.
@@ -1016,10 +1051,11 @@ inline bool ComposeLayered(wxraster::Sink& s, const ScreenIn& in, Layer& l, int 
     }
     Stamp(prof, 0);
     Stamp(prof, Profile::kView + 1);
-    DrawMap(s, *in.h, in.codes, l.view, rows, in.base, in.terrain);
+    const wxtheme::Theme& th = wxtheme::Get(in.which);
+    DrawMap(s, th, *in.h, in.codes, l.view, rows, in.base, in.terrain);
     Stamp(prof, Profile::kMap + 1);
-    Fill(s, 0, 0, kSize - 1, kTopBand - 1, kBlack);
-    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, kBlack);
+    Fill(s, 0, 0, kSize - 1, kTopBand - 1, th.bg);
+    Fill(s, 0, kBotBand, kSize - 1, kSize - 1, th.bg);
     Stamp(prof, Profile::kBands + 1);
     for (int p = Profile::kRings; p <= Profile::kHome; ++p) Stamp(prof, p + 1);
     Replay(s, l);

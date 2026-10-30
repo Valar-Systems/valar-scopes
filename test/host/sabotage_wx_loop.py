@@ -13,6 +13,9 @@ Prints no coordinate.
 """
 import hashlib, json, os, re, shutil, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LOOP = os.path.join(ROOT, "test", "fixtures", "wx", "loop")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_loop.cpp")
@@ -164,5 +167,53 @@ def main(argv):
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: what each plant targets, for --anchors (no plant runs): the frames it edits exist and reach the bytes it
+    edits, the manifest names the frames it moves, and the test-source edit's anchor occurs once."""
+    def frame(name, need):
+        p = os.path.join(LOOP, name)
+        try:
+            data = open(p, "rb").read()
+        except OSError:
+            return (name, os.path.relpath(p, ROOT), None, None)
+        def check(b, need=need):
+            assert len(b) > need, f"{len(b)} bytes, the plant edits byte {need}"
+        return (name, os.path.relpath(p, ROOT), data, check)
+    mp = os.path.join(LOOP, "MANIFEST.json")
+    def names(*want):
+        def check(t):
+            got = [x["name"] for x in json.loads(t)["frames"]]
+            for w in want:
+                assert got.count(w) == 1, f"{w} named {got.count(w)} times in MANIFEST.json"
+        return check
+    def adjacent(t):
+        got = [x["name"] for x in json.loads(t)["frames"]]
+        i = got.index(f("214800"))
+        assert got[i + 1] == f("215200"), "214800 is not followed by 215200"
+    mt = sc.read(mp)
+    out = []
+    for n, (plant_name, need) in {"S-D2a": ("212400", 32), "S-D3": ("214000", 15), "S-D4a": ("213200", 11)}.items():
+        e = frame(f(plant_name), need)
+        out.append((n,) + e[1:])
+    out.append(("S-D2b", os.path.relpath(mp, ROOT), mt, names(f("211200"), f("211600"))))
+    out.append(("S-D4b", os.path.relpath(mp, ROOT), mt, adjacent))
+    out.append(("S-D2c", os.path.relpath(TEST, ROOT), sc.read(TEST), SABOTAGES["S-D2c"][1][0]))
+    return out
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_loop": ("checks", 44)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        exe = build(td, "test_wx_loop", open(TEST, encoding="utf-8").read().replace("\r\n", "\n"))
+        run(exe, copy_loop(td, "control"), "control")
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main(sys.argv))

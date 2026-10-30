@@ -15,6 +15,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
@@ -70,6 +73,7 @@ def main():
             src = open(hp, encoding="utf-8").read().replace("\r\n", "\n")
             out = src
             for a, b in edits:
+                sc.prove_colour(name, a, b)   # Q50: refuses a colour the panel cannot see
                 assert out.count(a) == 1, f"{name}: anchor found {out.count(a)} times:\n{a}"
                 out = out.replace(a, b)
             assert out != src, f"{name}: the copy did not change"
@@ -91,5 +95,37 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in the header (or support.html) it plants, for --anchors (no plant runs)."""
+    out = []
+    for name, header, edits, _test, _must in SABOTAGES:
+        p = SUPPORT if header.startswith("@") else os.path.join(ROOT, "include", header)
+        out += [(name, os.path.relpath(p, ROOT), sc.read(p), a) for a, _ in edits]
+    return out
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_starvation_policy": ("line", "test_starvation_policy: all checks passed"),
+                 "test_usage_report": ("checks", 44)}
+
+
+def control():
+    inc = os.path.join(ROOT, "include")
+    with tempfile.TemporaryDirectory() as td:
+        for test in ("test_starvation_policy.cpp", "test_usage_report.cpp"):
+            tree = os.path.join(td, os.path.splitext(test)[0])
+            shutil.copytree(inc, os.path.join(tree, "include"))
+            os.makedirs(os.path.join(tree, "test", "host"))
+            shutil.copy(os.path.join(ROOT, "test", "host", test), os.path.join(tree, "test", "host", test))
+            exe = os.path.join(tree, "t.exe")
+            subprocess.run([CXX, *FLAGS, os.path.join(tree, "test", "host", test), "-o", exe], capture_output=True, text=True)
+            subprocess.run([exe, METRICS, README, SUPPORT] if test == "test_usage_report.cpp" else [exe],
+                           capture_output=True, text=True)
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

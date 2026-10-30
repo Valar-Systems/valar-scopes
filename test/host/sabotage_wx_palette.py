@@ -9,7 +9,7 @@ with that folder on its include path, every anchor must occur exactly once, the 
 real header's sha256 is compared before and after.
 
   S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
-  S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
+  S-C3c   one rain entry off the table (25 dBZ green 200->204)        -> exactly C3c (Q52: 201 shared 200's RGB565)
   S-C3ef  the snow top set to white                                -> exactly C3e, C3f and C3i
   S-C3g   the snow start set to (0, 140, 140), near rain 1's teal  -> exactly C3g (A10.16: the old plant,
           (20, 30, 180) near the old dimmed blue, would now fail nothing)
@@ -29,6 +29,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxPalette.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_palette.cpp")
@@ -39,7 +42,7 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 SABOTAGES = {
     "S-C3a": ([("constexpr Rgb kMissingHatch = {72, 72, 72};", "constexpr Rgb kMissingHatch = {110, 0, 110};  // SABOTAGE")],
               [r"C3a\b"]),
-    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 201, 0},  /* SABOTAGE */")],
+    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 204, 0},  /* SABOTAGE */")],
               [r"C3c\b"]),
     "S-C3ef": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {255, 255, 255}};  // SABOTAGE")],
                [r"C3e\b", r"C3f\b", r"C3i\b"]),
@@ -69,6 +72,7 @@ def sha(path):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical to the original -- the sabotage did not apply"
@@ -83,7 +87,13 @@ def main():
         for name, (edits, expect) in SABOTAGES.items():
             inc = os.path.join(td, name)
             os.makedirs(inc)
-            open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(plant(name, edits, src))
+            try:
+                planted = plant(name, edits, src)
+            except sc.Refused as e:   # Q50: not a result, and not as predicted
+                print(f"{name}: REFUSED -- {e}")
+                ok = False
+                continue
+            open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(planted)
             exe = os.path.join(td, name + ".exe")
             b = subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
             if b.returncode != 0:
@@ -123,5 +133,33 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    pin = os.path.join(FIXTURES, "NWSReflectivity-metpy-v1.6.3.tbl")   # S-PIN plants a copy of the pinned table
+    out.append(("S-PIN", os.path.relpath(pin, ROOT), sc.read(pin), lambda t: None))
+    return out
+
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_palette": ("ok", 15)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        inc = os.path.join(td, "control")
+        os.makedirs(inc)
+        open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(open(HEADER, encoding="utf-8").read())
+        exe = os.path.join(td, "control.exe")
+        subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
+        subprocess.run([exe, FIXTURES], capture_output=True, text=True)
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

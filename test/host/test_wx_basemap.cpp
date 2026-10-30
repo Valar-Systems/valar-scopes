@@ -1,12 +1,12 @@
 // Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it after the rulings since):
 // the BMPK reader (include/BasemapPackage.h), the basemap rasteriser (src/weatherscope/WxBasemap.h) and the fold, the
-// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 84 named cases in 8 families, and nothing else:
-//   PK 30 (A10.11's 28 + A12.15's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, PE 12.
-// Its sabotages: python -I test/host/sabotage_wx_basemap.py (14, each failing exactly its set).
+// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 92 named cases in 9 families, and nothing else:
+//   PK 30 (A10.11's 28 + A12.15's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, BW 8 (A12.53: the key's reason), PE 12.
+// Its sabotages: python -I test/host/sabotage_wx_basemap.py (16, each failing exactly its set).
 //
 //     test_wx_basemap <test/fixtures/wx>
 //
-// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 84). Prints no coordinate.
+// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 92). Prints no coordinate.
 
 #include <cmath>
 #include <cstdarg>
@@ -33,7 +33,7 @@ namespace {
 using wxraster::Rgb;
 using wxscreens::Box;
 
-constexpr int kCases = 84;
+constexpr int kCases = 92;
 constexpr int kS = wxraster::kSize;
 
 int checks = 0, failures = 0;
@@ -243,10 +243,10 @@ void TR()
                                   "found 1,216)", out240));
     const int r0 = wxbase::RampIndex(0), r7 = wxbase::RampIndex(7), r8 = wxbase::RampIndex(8),
               r128 = wxbase::RampIndex(128), r255 = wxbase::RampIndex(255);
-    const Rgb p1 = wxbase::PaletteRgb(1), p37 = wxbase::PaletteRgb(37);
+    const Rgb p1 = wxtheme::kDark.base[1], p37 = wxtheme::kDark.base[37];   // PaletteRgb retired into the theme (A12.47)
     check("TR4", r0 == 1 && r7 == 1 && r8 == 2 && r128 == 19 && r255 == 37 && Eq(p1, Rgb{10, 10, 12}) &&
                      Eq(p37, Rgb{46, 46, 48}),
-          fmt("RampIndex 0, 7, 8, 128, 255 -> %d, %d, %d, %d, %d; PaletteRgb(1) %s, (37) %s", r0, r7, r8, r128, r255,
+          fmt("RampIndex 0, 7, 8, 128, 255 -> %d, %d, %d, %d, %d; kDark.base[1] %s, [37] %s", r0, r7, r8, r128, r255,
               RgbS(p1).c_str(), RgbS(p37).c_str()));
 }
 
@@ -389,22 +389,25 @@ void BF()
 {
     std::vector<uint8_t> img(kS * kS, 38);
     const Rgb water{10, 34, 72}, black{0, 0, 0}, grey{40, 40, 40}, hatch{72, 72, 72};
-    Rgb c = wxscreens::MapPixel(0, 50, 60, img.data(), false);
+    Rgb c = wxscreens::MapPixel(0, 50, 60, img.data(), false, wxtheme::kDark);
     check("BF1", Eq(c, water), "code 0, the image: " + RgbS(c));
-    c = wxscreens::MapPixel(0, 50, 60, nullptr, false);
+    c = wxscreens::MapPixel(0, 50, 60, nullptr, false, wxtheme::kDark);
     check("BF2", Eq(c, black), "code 0, no image: " + RgbS(c));
-    c = wxscreens::MapPixel(5, 50, 60, img.data(), false);
+    c = wxscreens::MapPixel(5, 50, 60, img.data(), false, wxtheme::kDark);
     const wxpalette::Rgb r5 = wxpalette::Code(5, false);
     check("BF3", Eq(c, Rgb{r5.r, r5.g, r5.b}), "code 5, the image: " + RgbS(c) + " (want Code(5, false), the radar)");
-    c = wxscreens::MapPixel(14, 50, 60, img.data(), false);
+    c = wxscreens::MapPixel(14, 50, 60, img.data(), false, wxtheme::kDark);
     check("BF4", Eq(c, grey), "code 14, terrain off: " + RgbS(c));
-    const Rgb a = wxscreens::MapPixel(14, 10, 10, img.data(), true), b = wxscreens::MapPixel(14, 10, 11, img.data(), true);
+    const Rgb a = wxscreens::MapPixel(14, 10, 10, img.data(), true, wxtheme::kDark),
+              b = wxscreens::MapPixel(14, 10, 11, img.data(), true, wxtheme::kDark);
     check("BF5", Eq(a, hatch) && Eq(b, black), "code 14, terrain on: (10, 10) " + RgbS(a) + ", (10, 11) " + RgbS(b));
-    const Rgb a0 = wxscreens::MapPixel(15, 10, 10, img.data(), false), b0 = wxscreens::MapPixel(15, 10, 11, img.data(), false);
-    const Rgb a1 = wxscreens::MapPixel(15, 10, 10, img.data(), true), b1 = wxscreens::MapPixel(15, 10, 11, img.data(), true);
+    const Rgb a0 = wxscreens::MapPixel(15, 10, 10, img.data(), false, wxtheme::kDark),
+              b0 = wxscreens::MapPixel(15, 10, 11, img.data(), false, wxtheme::kDark);
+    const Rgb a1 = wxscreens::MapPixel(15, 10, 10, img.data(), true, wxtheme::kDark),
+              b1 = wxscreens::MapPixel(15, 10, 11, img.data(), true, wxtheme::kDark);
     check("BF6", Eq(a0, hatch) && Eq(b0, black) && Eq(a1, hatch) && Eq(b1, black),
           "code 15: off " + RgbS(a0) + " " + RgbS(b0) + ", on " + RgbS(a1) + " " + RgbS(b1));
-    c = wxscreens::MapPixel(wxrender::kOffDisc, 0, 0, img.data(), false);
+    c = wxscreens::MapPixel(wxrender::kOffDisc, 0, 0, img.data(), false, wxtheme::kDark);
     check("BF7", Eq(c, black), "off the disc, the image: " + RgbS(c));
 
     const std::vector<uint8_t> clear = Read("loop/synthetic-clear.wxc");   // the Dallas loop's dry crop (ref35 CLEAR)
@@ -419,7 +422,7 @@ void BF()
     if (ok) wxrender::BuildViewKm(h, &v, 60 * 1.609344);
     Rec s;
     Rows withImg, without;
-    if (ok) wxscreens::DrawMap(s, h, codes.data(), v, &withImg, img.data(), false);
+    if (ok) wxscreens::DrawMap(s, wxtheme::kDark, h, codes.data(), v, &withImg, img.data(), false);
     long bandPuts = 0, onWater = 0, onOther = 0, offBlack = 0, offOther = 0;
     for (int y = 0; ok && y < kS; ++y)
         for (int x = 0; x < kS; ++x) {
@@ -435,7 +438,7 @@ void BF()
           fmt("band Puts %ld; on-disc map pixels water %ld (want 36,828), other %ld; off-disc black %ld, other %ld",
               bandPuts, onWater, onOther, offBlack, offOther));
     Rec s2;
-    if (ok) wxscreens::DrawMap(s2, h, codes.data(), v, &without);
+    if (ok) wxscreens::DrawMap(s2, wxtheme::kDark, h, codes.data(), v, &without);
     check("BF9", ok && withImg.all.size() == 240u * 240u && withImg.all == without.all,
           fmt("CodeRows: %zu and %zu codes, %s", withImg.all.size(), without.all.size(),
               withImg.all == without.all ? "byte-identical" : "DIFFERENT"));
@@ -469,6 +472,40 @@ void BK()
     for (const Bk& k : kBk) {
         const bool same = wxscreens::SameBase(k0, k.k);
         check(k.name, ok && same == k.reused, fmt("%s (want %s)", same ? "reused" : "rebuilt", k.reused ? "reused" : "rebuilt"));
+    }
+}
+
+// ------------------------------------------------------------------------------------------------ BW (8)
+// The key's reason (A12.53): BaseWhy names the first field that differs, in the order package, place, zoom, mask,
+// terrain; "first" with no valid image; null when the image is still right. Over BK's own keys and geometries.
+void BW()
+{
+    const std::vector<uint8_t> dA = Read("loop/shsr-20240521-210400.wxc"), bend = Read("bend-loop/shsr-20240602-191000.wxc");
+    wxcrop::Header a, c;
+    const bool ok = wxcrop::ParseHeader(dA.data(), dA.size(), &a) == wxcrop::Status::Ok &&
+                    wxcrop::ParseHeader(bend.data(), bend.size(), &c) == wxcrop::Status::Ok;
+    const uint8_t all = wxbase::kMaskAll;
+    const wxscreens::BaseKey k0 = wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 60, all, false);
+    struct Bw {
+        const char* name;
+        bool valid;
+        wxscreens::BaseKey now;
+        const char* want;   // null: reused
+    };
+    const Bw kBw[] = {
+        {"BW1", false, k0, "first"},
+        {"BW2", true, k0, nullptr},
+        {"BW3", true, wxscreens::MakeBaseKey(a, 0x0BADF00Du, 205094, 60, all, false), "package"},
+        {"BW4", true, wxscreens::MakeBaseKey(c, 0x1234ABCDu, 205093, 60, all, false), "place"},
+        {"BW5", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 30, all, false), "zoom"},
+        {"BW6", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 60, all & ~wxbase::kMaskRivers, false), "mask"},
+        {"BW7", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 60, all, true), "terrain"},
+        {"BW8", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 30, all, true), "zoom"},
+    };
+    for (const Bw& w : kBw) {
+        const char* got = wxscreens::BaseWhy(k0, w.valid, w.now);
+        const bool same = got && w.want ? std::strcmp(got, w.want) == 0 : got == w.want;
+        check(w.name, ok && same, fmt("%s (want %s)", got ? got : "null: reused", w.want ? w.want : "null: reused"));
     }
 }
 
@@ -609,6 +646,8 @@ int main(int argc, char** argv)
     BF();
     std::printf("== BK, the basemap key ==\n");
     BK();
+    std::printf("== BW, the basemap key's reason ==\n");
+    BW();
     std::printf("== PE, the peaks ==\n");
     PE();
     std::printf("%d checks, %d failures\n", checks, failures);

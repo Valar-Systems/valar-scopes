@@ -432,7 +432,7 @@ Each stage is reviewed and merged before it deploys, as Daniel's standing deploy
 |---|---|---|
 | **D0** | the code on main; the proxy deployed with **no `BASEMAP` binding** | `/basemap` answers `503 not_configured`; `/healthz` gains `basemap: "not_configured"`; `smoke-prod.sh` gains a `/basemap` check that passes on exactly `503 not_configured` or `200` with `BMPK` magic + ETag + `validate()` → `kOk`, and treats anything else as FAIL |
 | **D1** | the bucket; the ingest; verify → repair → verify; seal `current` | the verifier's full enumeration: every object present with its sha256, 0 missing, read twice at an interval (the store is static). **The dry run's size is reported before any put; over 6 GB means stop** |
-| **D2** | the builder Worker, staging then production, **no route**, deployed by a script that stamps `BUILD_COMMIT` as `deploy.sh` does | dry-runs show the `BASEMAP_STORE` R2 binding in both envs; nothing can reach it yet |
+| **D2** | the builder Worker, staging then production, **no route**, deployed by a script that stamps `BUILD_COMMIT` as `deploy.sh` does | dry-runs show the `STORE` R2 binding in both envs (it read `BASEMAP_STORE` until Q1 was ruled, `docs/basemap-deploy.md`); nothing can reach it yet |
 | **D3** | the proxy's `BASEMAP` binding, **staging** | **V1:** `/healthz` `basemap` = `{store, rev, commit}`, with the builder's commit. **V2:** smoke's `/basemap` passes "wired" at a cleared public centre. **V3:** the same request with `If-None-Match` → **304**. **V4:** EGLL → `404 no_coverage`. **V5:** MM2, MM4, MM5, MM6 |
 | **D4** | the same binding, **production** | V1-V4 on production, then **V6:** the fleet's own traffic under P5's rules (B = 60 min before, A = 5-65 min after): fleet 5xx in A **0**; fleet 4xx **0**; devices in B but not A **0**; `/blips` A/B **0.4-2.5**; `/basemap` requests from fleet devices **0** (no shipped firmware asks), excluding the smoke's own |
 
@@ -2655,3 +2655,43 @@ The pass ran on `264a087` with the fixtures on disk. Its source under `proxy/` i
 - **D0's own pieces are not in #486.**
   - **The plan's D0 row requires** `/healthz` to gain `basemap: "not_configured"`, and `smoke-prod.sh` to gain a `/basemap` check (exactly `503 not_configured`, or `200` with BMPK magic, an ETag and `validate()` → kOk; anything else FAIL).
   - **Neither exists yet.** They go in their own PR, as §9 says each stage's predictions do, after #486.
+
+### A2.48 Ruling, verbatim, and the merge record (2026-10-29)
+
+Source: the reviewer chat, pasted by Daniel, 2026-10-29. Item 1 of the message; items 2 and 3, the deploy plan's rulings, are recorded in `docs/basemap-deploy.md`.
+
+> 1. A2.46: the fix as proposed. The PK branch of caseOf becomes MV\/PK-[A-Za-z0-9-]+(?=:), and no other branch changes. The colon on every branch stays not done, for the reason you give. S-VTERRCOUNT's and S-VPROVCOUNT's first readings stay on record as the miss, with its cause: the hyphen defect, on a second path A2.45 didn't list. The void C-STOREPROV run stays on record as an instrument failure.
+>
+> #486: approved to merge at the head you push with exactly these changes from ce7c0e6: the A2.46 and A2.47 records (docs/basemap-route.md) and 2942fbc's pattern change in the harness. Before merging, all of these must hold:
+> - the full pass reads 46 of 46 as frozen, the two sets exactly as A2.45 froze them, 0 runtime failures;
+> - its control grades a PK title whose id doesn't end at its colon as UNNAMED;
+> - CI's total on that head is counted, with every check that ran passing;
+> - git diff ce7c0e6 <head> shows only those two files.
+> Then a clean squash, --match-head-commit with that head, no --admin, and the head named in the merge record. Anything else in the diff, or any row off, voids this approval and comes back to me.
+
+**The head:** `435de48211e4`, pushed with exactly those changes.
+
+**The four conditions, each read before the merge:**
+
+| condition | reading |
+|---|---|
+| the full pass, on that head (18:42Z to 19:13Z) | **46 of 46 AS PREDICTED:** S-VTERRCOUNT {MV/PK-terrain-count}, S-VPROVCOUNT {MV/PK-prov-count}; C-LOADFAIL AS PREDICTED; baselines ingest 10 in 1, mv 31 in 1, all 132 in 16; 50 runs, **0 runtime failures**; exit 0 |
+| the control | `caseOf`, taken from the committed harness at `435de48`: `MV/PK-terrain count: …` grades **`UNNAMED(…)`**, and the hyphenated ids come through whole. At `ce7c0e6` the same titles grade as the cut-down `MV/PK-terrain` and `MV/PK-prov` |
+| CI on that head | **38 checks, all finished: 35 passed, 3 skipped** |
+| `git diff --name-only ce7c0e6 435de48` | `docs/basemap-route.md` and `proxy/scripts/sabotage-basemap.mjs` only (read again from the remote's head before merging) |
+
+**The merge:** squashed as **`ca30b88288d0`** at 19:14:32Z, with `--match-head-commit 435de48211e4…` and no `--admin`. The merge message names the head and the four readings.
+
+**Checked after the merge, on main:**
+- `proxy/` and this doc are **byte-identical** to the approved head.
+- Main's other differences are exactly the 19 files of #502 to #504, which landed in between, byte-identical to #504's head. None is under `proxy/`.
+
+**Before the branch went:**
+- #505 was retargeted to `main` before `feat/basemap-route` was deleted, so the stacked PR stayed open.
+- The side branch `feat/basemap-route-a1215` was deleted too. Its tip is in the approved head's history.
+
+**A slip in my worktree, recovered, with no artifact touched.**
+- **What happened:** to make the harness's anchors match after the rebase, I converted CRLF to LF across `proxy/` by bytes. That also rewrote binary files that held a `\r\n` byte pair: 192 photos, fonts and others.
+- **The recovery:** they were restored from git. All **242** binary files under `proxy/` now hash to their committed blobs (`git hash-object --no-filters`), and `git status` reads clean.
+- **Nothing was committed or pushed** in between.
+- **The method since:** checkout with `core.eol=lf`, never a byte rewrite.

@@ -21,6 +21,7 @@
 import { execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { TokenFileError, resolveBlipCreds } from "./token-file";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -443,8 +444,14 @@ async function loadApFamily(
   // NO CREDENTIALS MEANS NO CHECK, AND IT SAYS SO LOUDLY. Skipping quietly would
   // leave a run that looks identical to a verified one, which is the failure this
   // whole procedure is built against.
-  const probeKey = process.env.BLIP_KEY ?? "";
-  const probeDev = process.env.BLIP_DEVICE ?? "";
+  // BLIP_KEY/BLIP_DEVICE while they are set, else the token file (docs/blip-creds-token-file.md). Never printed.
+  let probeKey = "", probeDev = "", credWhy = "";
+  try {
+    ({ key: probeKey, device: probeDev } = resolveBlipCreds());
+  } catch (e) {
+    if (!(e instanceof TokenFileError)) throw e;
+    credWhy = e.message;
+  }
   const canProbe = probeKey.length > 0 && probeDev.length > 0;
   let before: { lat: number; lon: number } | null = null;
   if (canProbe) {
@@ -452,7 +459,8 @@ async function loadApFamily(
     console.log(`ap: sentinel BEFORE = ${before ? `${before.lat},${before.lon}` : "(absent)"}`);
   } else {
     console.log("");
-    console.log("ap: !!! RULE 3 NOT EXERCISED -- BLIP_KEY/BLIP_DEVICE are not set, so the");
+    console.log("ap: !!! RULE 3 NOT EXERCISED -- BLIP_KEY/BLIP_DEVICE are not set (nor in the token file), so the");
+    if (credWhy) console.log("ap: !!! (the token file: " + credWhy + ")");
     console.log("ap: !!! sentinel cannot be probed through the live path. This run proves");
     console.log("ap: !!! only that wrangler accepted the writes.");
     console.log("");

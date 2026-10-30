@@ -14,6 +14,9 @@ Method, fixed before any run (A12.45):
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FILES = {"DayNight.h": os.path.join(ROOT, "include", "DayNight.h"),
          "SolarDim.h": os.path.join(ROOT, "include", "SolarDim.h")}
@@ -103,6 +106,7 @@ def main():
             texts = dict(real)
             src = texts[fn]
             for old, new in edits:
+                sc.prove_colour(name, old, new)   # Q50: refuses a colour the panel cannot see
                 assert src.count(old) == 1, (name, old[:50], src.count(old))
                 src = src.replace(old, new)
             assert src != texts[fn], name
@@ -122,5 +126,24 @@ def main():
     return 0 if ok else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    return [(name, os.path.relpath(FILES[fn], ROOT), sc.read(FILES[fn]), a)
+            for name, (fn, edits, _) in SABOTAGES.items() for a, _ in edits]
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_daynight": ("checks", 28), "scan_daynight_symbols.sh": ("exit", 0)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(td, "control", {k: read(p) for k, p in FILES.items()})
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

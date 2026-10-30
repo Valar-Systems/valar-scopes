@@ -47,6 +47,13 @@
 
 set -uo pipefail
 
+# BLIP_KEY/BLIP_DEVICE: the variables while they are set, else the token file, read through token-file.ts by a single
+# re-run of this script (scripts/blip-creds.sh; docs/blip-creds-token-file.md). The directory is resolved here, before
+# anything changes it, so this works from the repo root and from proxy/ alike. No value is ever printed.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/blip-creds.sh"
+blip_creds_or_reexec "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 BASE="${BASE:-https://scopes.valarsystems.com}"
 KEY="${BLIP_KEY:-}"
 # Bend, OR -- the reference tile used throughout the checklist.
@@ -332,6 +339,23 @@ else
   printf 'RESULT: FAIL -- neither the inert answer nor a crop\n'; fail=$((fail+1))
 fi
 rm -f "$WX_TMP" "$WX_HDR"
+
+# The basemap (docs/basemap-route.md §9; docs/basemap-deploy.md, Q5). Until the proxy's BASEMAP binding exists (D3,
+# D4) the ONLY passing answers are 503 not_configured, or a 200 BMPK package with an ETag that the proxy's own
+# validate() accepts -- so the smoke refuses exactly what the device would. The verdict lives in basemap-verdict.sh,
+# graded by basemap-verdict.selftest.sh in CI. The body is binary, so it is never dumped.
+printf '\n===== /basemap (the smoke'"'"'s own lat, lon and r) =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/basemap-verdict.sh"
+BASEMAP_PROXY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BM_TMP="$(mktemp)"
+BM_HDR="$(mktemp)"
+BM_STATUS="$(curl -s --max-time 30 -o "$BM_TMP" -D "$BM_HDR" -w '%{http_code}' "${AUTH[@]}" \
+  "$BASE/api/v1/blipscope/basemap?lat=$LAT&lon=$LON&r=$R")"
+printf 'HTTP %s, %s bytes\n' "$BM_STATUS" "$(wc -c < "$BM_TMP" | tr -d ' ')"
+BM_VERDICT="$(basemap_verdict "$BM_STATUS" "$BM_TMP" "$BM_HDR")"
+printf 'RESULT: %s\n' "$BM_VERDICT"
+case "$BM_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+rm -f "$BM_TMP" "$BM_HDR"
 
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \

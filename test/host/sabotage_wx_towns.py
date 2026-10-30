@@ -12,6 +12,9 @@ file's hash is compared before and after. Prints no coordinate.
 """
 import hashlib, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TOWNS = os.path.join(ROOT, "src", "weatherscope", "WxTowns.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_towns.cpp")
@@ -95,5 +98,32 @@ def main(argv):
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: S-D6a plants the first entry and S-D6b the last; each must occur exactly once, for --anchors."""
+    def first(t):
+        e = list(ENTRY.finditer(t))
+        assert len(e) >= 2, f"{len(e)} entries"
+        assert t.count(e[0].group(0)) == 1, "the first entry is not unique"
+    def last(t):
+        e = list(ENTRY.finditer(t))
+        assert len(e) >= 2, f"{len(e)} entries"
+        assert t.count(e[-1].group(0)) == 1, "the last entry is not unique"
+    src = sc.read(TOWNS)
+    return [("S-D6a", os.path.relpath(TOWNS, ROOT), src, first), ("S-D6b", os.path.relpath(TOWNS, ROOT), src, last)]
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {}
+
+
+def control():
+    raise sc.Skip("needs the Census archive: its control runs make_towns.py --check over the 2025 Gazetteer and "
+                  "SUB-EST2024 files, its two arguments, which no CI runner holds")
+
+
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main(sys.argv))

@@ -3,6 +3,12 @@
 #include <math.h>
 #include <time.h>
 
+// M_PI is not ISO C++. The Arduino core provides it on every board; a strict host build (MinGW, -std=c++11)
+// does not. Inert wherever M_PI is already defined, so no device unit changes (Q49 (a), ruled 2026-10-29).
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // Low-precision solar elevation (degrees) at lat/lon for a UTC epoch -- enough to
 // drive the night auto-dim (sun below -0.833 deg = civil horizon). One shared copy
 // for every edition manager, so they all dim identically and a fix lands once; the
