@@ -65,3 +65,62 @@ That is the second-path failure CLAUDE.md names. So all four move together, thro
 
 T7 runs only after Daniel has moved the values. Until then every reader behaves exactly as today, because the
 variables are set.
+
+## Results (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **T1** | `token-file.test.ts`: both purposes parse beside the old ones, and an unknown key is skipped. For `blip-key`, inside a git tree, others-readable, malformed, duplicate and empty are each refused, and no message carries a value. The 19 existing cases are unchanged and pass | **as predicted** |
+| **T2** | `resolveBlipCreds` with both variables set returns them, with source `BLIP_KEY + BLIP_DEVICE`. Its read double throws, and it is never called | **as predicted**, graded at the one function both ingests call (below) |
+| **T3** | the variables unset and the file set: the file's values, with source `BLIPSCOPE_TOKEN_FILE (blip-key) + BLIPSCOPE_TOKEN_FILE (blip-device)`. With neither: a `TokenFileError` naming the variable, never a value | **as predicted**, at the same function |
+| **T4** | `with-blip-creds.mts --selftest`: one re-run, the child holds both values at their lengths (31, 16), and neither value is in any byte written | **as predicted** |
+| **T5** | the selftest's child, with the variables set: no re-run (`reexec 0 depth 1`). **The real readers too:** `smoke-prod.sh` and `watch-upstream.sh` with `EXAMPLE` values and `BASE=http://127.0.0.1:9` print no wrapper line, get past their credential gate (33 check headers; the watch line), and print no value | **as predicted** |
+| **T6** | the selftest's child, unset twice: exactly one re-run (`depth 2`), and the file's reason named. **The real readers:** with the variables unset and a file without the lines, each prints exactly one wrapper line naming `no "blip-key" line`, then its own "not set", and exits 2. No value is printed | **as predicted** |
+| **T7** | `smoke-prod.sh` against production after Daniel's move | **waits on Daniel** |
+
+**How T2 and T3 reach the ingests, since the ingests were not run.** An ingest run downloads the corpus before it
+checks credentials, and then writes KV, so neither is run for a test.
+- Both call `resolveBlipCreds()` and nothing else for the pair: `git grep` finds no other read of `BLIP_KEY` or
+  `BLIP_DEVICE` in them.
+- On a `TokenFileError` each keeps its existing path, and adds one line naming the file's reason:
+  - `ingest-routes.ts` prints `REFUSING` and exits 1;
+  - `ingest-airports.ts` prints `RULE 3 NOT EXERCISED`.
+- So T2 and T3 are graded at that function and by reading the two call sites. That is the weaker form, said here so
+  it is not mistaken for a run.
+
+**The sabotages, each in a copy except where stated:**
+
+| | the plant | read | verdict |
+|---|---|---|---|
+| **control** | none, in the copy rig | `SELFTEST PASSED` | the rig reproduces the baseline |
+| **S-echo** | the wrapper logs the key | exactly "T4: neither value appears" BAD | **as predicted** |
+| **S-noguard** | both checks of the guard variable removed (the helper's and the wrapper's) | exactly T6 BAD, `ran: runaway, depth 4`, caught by the re-run counter | **as predicted** |
+| S-noguard-bash (extra) | only the helper's check removed | exactly T6 BAD, with no run: the wrapper's own check refused the second re-run | as predicted. The selftest does not print the child's stderr, so the "refusing" line itself was not read |
+| S-noguard-wrapper (extra) | only the wrapper's check removed | `SELFTEST PASSED`: the helper's check alone holds | as predicted |
+| **S-filefirst** | both layers: the helper goes to the file with the variables set, and `resolveToken` reads the file first | the selftest: exactly T5 BAD, `ran: key 31 dev 16 reexec 1 depth 2`. vitest, the TypeScript plant **in place**: exactly 2 failed, "CI's named variable wins…" and T2 ("the file was read"); 22 passed | **as predicted** |
+
+- After every plant, the real files' sha256 is unchanged and `git diff` is clean. The in-place plant was restored
+  from a byte copy.
+- **The guard is checked twice,** in the helper and in the wrapper. The plan named one guard. S-noguard removes both,
+  as "the guard removed" means. The two extra rows show that each check alone stops a second re-run.
+
+**What was added before the sabotages ran, and why:**
+- **The re-run counter.** S-noguard's frozen prediction says "caught by a re-run counter". The selftest had none, so
+  a runaway would have hung it instead of failing. Its child now counts its own starts (`CREDS_DEPTH`) and stops
+  itself past 3. The unplanted selftest still passes, with `depth 1` and `depth 2` where predicted.
+
+**A rig failure, recorded and not counted.** The first run of the copies placed them one level under the system temp
+directory.
+- `token-file.ts` takes the repo root as two directories above itself, so each copy's "repo" became the temp
+  directory. That directory holds the selftest's token file, so every copy refused it as "inside a git working tree".
+- Every copy failed T4 and T6 for that reason, the unplanted ones included. The control that would have shown it,
+  an unplanted copy, was not in that run.
+- The in-place TypeScript plant also missed its anchor (the checkout is CRLF). The driver then ran vitest anyway, so
+  that run's "exit 0" is not a result either.
+- **The fix:**
+  - copies sit at `<tmp>/repo-<label>/proxy/scripts`;
+  - the control runs first and must pass, or the run stops;
+  - anchors follow the file's own line ending;
+  - a failed in-place plant restores and stops.
+- Everything above is from the second run. **The real-reader rows are from the first run.** They ran on the real files
+  in place, which the copy rig does not touch.
