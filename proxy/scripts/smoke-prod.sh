@@ -47,6 +47,13 @@
 
 set -uo pipefail
 
+# BLIP_KEY/BLIP_DEVICE: the variables while they are set, else the token file, read through token-file.ts by a single
+# re-run of this script (scripts/blip-creds.sh; docs/blip-creds-token-file.md). The directory is resolved here, before
+# anything changes it, so this works from the repo root and from proxy/ alike. No value is ever printed.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/blip-creds.sh"
+blip_creds_or_reexec "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 BASE="${BASE:-https://scopes.valarsystems.com}"
 KEY="${BLIP_KEY:-}"
 # Bend, OR -- the reference tile used throughout the checklist.
