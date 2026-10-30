@@ -10040,3 +10040,51 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 | the firmware | no firmware file changes |
 
 **The outside-the-set branch:** a driver, a lint result or a count off its row stops the follow-up at that row, and is reported before anything changes.
+
+### A12.71 The follow-up stopped at its first row: the lint's pre-fix L2 set is off its frozen value (Q65); #511 now on main at `8be4690`
+
+**#511, moved onto main.**
+- **Host suites on the rebased head `8be4690`,** both compilers:
+  - **MinGW:** ALL HOST TESTS PASSED;
+  - **g++ 13.3** (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`): only the rig's two;
+  - in both, every `== ` header and every count line equals the tested `d9edd17` run's.
+- **Then:**
+  - the force-push, leased on the old head `d9edd17d1960`;
+  - #511 retargeted to main: head `8be4690d4726`, one commit;
+  - only then was `weatherscope/harness-control` deleted on the remote, at its tip `76607fcb9dc8` with no PR based on it. #511 stayed open throughout.
+- **CI on the new head, and main's CI on the merge commit `31cb44c`,** are counted once every run has finished.
+
+**t5 follows t4:** `weatherscope/3-5t-t5` is rebased onto `8be4690` as `dcd6627` and `e9ab32f`, and pushed (no PR).
+- Its tree differs from before only in #509's two files, so A12.68's measured rows stand.
+
+**The follow-up: `lint_driver_counts.py` written first, and run on t4's unfixed drivers, A12.70's first row.** It is committed locally (`1303b00`) and **not pushed**.
+
+| part | frozen (A12.70) | measured |
+|---|---|---|
+| **L1** | 17 drivers: all but light, themed_draw and towns | **17, exactly those** |
+| **L2** | **5 literals in 4 drivers:** k35 (1), layout (1), replay (2), th2 (1) | **9 literals in 8 drivers:** those 5, **plus** `sabotage_daynight.py:28`, `sabotage_wx_basemap.py:30`, `sabotage_wx_theme.py:26` and `sabotage_wx_server_crops.py:45` |
+| exit | 1 | 1 |
+
+**The four extra literals, by cause:**
+- **daynight's `CHECKS = 28`, basemap's `CASES = 92` and theme's `CHECKS = 72`: my prediction was wrong, not the lint.**
+  - L2, as A12.70 wrote it, exempts "the constant's own single definition", meaning the constant the table reads.
+  - These three tables read a literal, not their constant, so each constant's definition is a second copy of the count, and L2 flags it correctly.
+  - A12.70's own inventory listed all three as "a constant the table does not read". The L2 row then failed to carry them over.
+- **server_crops' `data[32] ^= 0x10`: a false positive of the lint as written.**
+  - `0x10` is the bit its sabotage flips in the crop's first code nibble, and it equals that driver's table count, 16, by coincidence.
+  - It is a bit mask, not a count, and L2 cannot tell the two apart.
+
+**Stopped, as A12.70's outside-the-set branch requires.** No driver has been changed and nothing is pushed.
+
+**Q65, for the ruling:**
+- **(a), recommended:**
+  - **Re-register the pre-fix L2 set at the 8 literals that are copies of a count:** the 5 predicted plus the three constant definitions.
+  - **Narrow L2 by one stated exemption:** an operand of a bitwise operator (`^`, `&`, `|`, `<<`, `>>`, and their augmented forms) is a mask or a shift, not a count. It takes its place beside the slice-bound exemption.
+  - **The lint's control gains a third case,** so the exemption cannot quietly widen: a count literal written as a bitwise operand elsewhere is still flagged when it sits in a comparison.
+  - **A12.70's post-fix row is unchanged:** 0 flagged, with the control red on both mangled copies.
+- **(b):** keep L2 as it stands, and name server_crops' mask as a constant (`CODE_NIBBLE_BIT = 0x10`), so the literal no longer appears. The lint stays simpler; the driver changes for the lint's sake.
+
+**Unaffected by the stop:**
+- t4 (#511);
+- t5's board work (after the watch);
+- tonight's watch.
