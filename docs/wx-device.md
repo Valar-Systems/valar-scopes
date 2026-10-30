@@ -3634,3 +3634,11 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
 - **Each in its own announced window.**
 - **First:** `wt-wxdevice` is fast-forwarded to this branch's head once the overnight watch ends, so N, the proxy and
   the feeds are #445 as it now stands.
+
+**The D0 hold, lifted (ruled 2026-10-30 ~21:05Z):**
+- D0 is done: production is `31cb44c`. Nothing changed for devices beyond the inert basemap route and #499's UK code.
+- **The daily 19:45-21:45Z hold on E2:08 is lifted.** D4's production deploy gets its own slot later.
+- **The two drivers now block only tonight's RP6 redo and overnight watch** (2026-10-31 05:55-13:05Z), a dated
+  interval. D4's slot is added when it is sent.
+- **New hashes:** `w5pppp_run.py` `a75bd29d5f3b`, `k6_run.py` `7871627d386f` (from `make_k6.py` `04831d2eaba4`).
+- Everything else stands, T7 included: it still waits on the test identity.
