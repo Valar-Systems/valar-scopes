@@ -3004,3 +3004,41 @@ and a label's stroke as weather. Its `amb` rule exempts a marker whose **own** c
 **The checker's gap, proposed and not made:** a neighbour whose colour is also a plane or label colour reads as
 ambiguous, and a marker touched only by such neighbours is counted apart, not failed. This needs predictions and a
 ruling. Like (1), it trades sight: a real weather pixel in one of those greens next to a dart would then go unseen.
+
+## CI's anchors pass: the six wx sabotage drivers gain `--anchors` (2026-10-30), frozen before the code
+
+**What happened.** `host-tests` has been red on every head of this branch since `81a4e4c`:
+`81a4e4c`, `f1606c3`, `b150310`, `5d5dfcc` and `f3872f2`. It was first read here at `f3872f2`, so it stayed red
+across five pushes before anyone looked.
+- **The cause is main, not this branch.** Main's #506 (`5850956`) made `run.sh` require every
+  `test/host/sabotage_*.py` to answer `--anchors`, and to refuse without running any driver that cannot.
+- **CI tests this PR merged into main,** so the six drivers this branch added were refused:
+  - `sabotage_wx_legend_html.py`;
+  - `sabotage_wx_look_select.py` (since `b150310`);
+  - `sabotage_wx_outline.py`;
+  - `sabotage_wx_policy.py`;
+  - `sabotage_wx_s2.py`;
+  - `sabotage_wx_sweep.py`.
+- **Nothing else failed.** The `5d5dfcc` log's only FAIL lines are those six, then `HOST TESTS FAILED`.
+- **The watcher read the run count, not the verdict.** A green count of runs said nothing about whether one of them
+  was red.
+
+**The change: test-only, no firmware, so no image changes** (W5‴ is flashing this branch's image as this is written).
+- **`test/host/sabotage_common.py`, byte-identical to main's.** The same blob, so a later merge of main adds nothing
+  and conflicts with nothing.
+- **Each of the six drivers:**
+  - puts its own directory on `sys.path` and imports `sabotage_common as sc`, as main's drivers do;
+  - gains an `anchor_entries()` that lists every plant's anchors in the file it plants;
+  - gains the dispatch `if sc.wants_anchors(): sys.exit(sc.anchors_mode(...))`.
+- **`outline` and `s2` read `<root> <cxx>` from argv.** Under `--anchors` they take the root from their own path
+  instead, since `run.sh` passes `--anchors` alone.
+
+| | check | predicted |
+|---|---|---|
+| **A1** | each driver's `--anchors` on this tree | exit 0, "all present exactly once", at these counts (plants / anchors): `legend_html` 1/1, `look_select` 2/2, `outline` 2/4, `policy` 10/15, `s2` 6/6, `sweep` 4/4 |
+| **A2** | the control: each driver's entries, with its first anchor removed from the text in memory | `anchors_mode` returns 1 and names that plant, for all six |
+| **A3** | the drivers' own runs, unchanged (`run.sh` in WSL, g++ 13.3) | every one as predicted, as before. `run.sh` fails only on the two rig gaps, as before |
+| **A4** | `sabotage_common.py` | its blob sha equals `origin/main`'s |
+| **A5** | CI on the pushed head | `host-tests` green; the anchors pass lists the six at A1's counts |
+
+**Outside the set:** stop and report.
