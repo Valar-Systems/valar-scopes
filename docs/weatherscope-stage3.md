@@ -9086,3 +9086,60 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
   - **The precedent:** q3 graded `psram_q` after its full run (A12.35).
   - **A12.24:** a stop for a ruling stops only that item and its dependents.
 - **Its results follow in A12.58.**
+
+### A12.58 3.5b's results (step 9): step 7's board run -- every row holds but the PSRAM blocks (Q56); #508
+
+**The run:** `run-2026-10-30-step7`, 04:17Z-04:36Z, one open.
+- **The image:** #507's head `d44abbab36f8`, `firmware.bin` `823fcca81598`, written as A12.57 records.
+- **All 21 captures graded at their pair.** The live watcher stopped nothing, and TCP :80 was up 0.5 s after the close.
+- **Redacted** (one IPv4, one BSSID, one SSID, from one Wi-Fi line); the grade is identical before and after.
+- **Graded by `grade_b35b.py`** (`996c4e5`'s exact block rows), against the anchor run and the boot capture.
+
+| row (A12.55, as Q55 amends it) | predicted | measured | |
+|---|---|---|---|
+| boot | env, slot, A12.53's `[wx] bend` line | all three; the line exactly | holds |
+| B1, Dallas | the six exact | 6 of 6 at 57,600, lines, picks, believed | holds |
+| B1, Bend | `bdry-60-B`, `bdry-60-C`, `brain-60-B` or `-C` by the trace's terrain | **`bdry-60-B` `cc45e64c1a03`, `bdry-60-C` `a8a23e5f71e4`, `brain-60-C` `6813124ceae0`**, each equal to `k35b.ref.txt`, 7 of 7 lines, believed with its terrain clause | holds |
+| base lines | A12.53's counts, `fnv` by (R, terrain), reasons by transition | **17 of 17**: `first` (c9a61df9), `terrain` (af490350), `no` ×10, `zoom` ×5, the tap `no` | holds |
+| `build_us` | printed; ≤ 5,000,000 | terrain off at 60: **241,165**; terrain on: **993,081-993,191** (60), **1,022,211-1,022,212** (30), **1,085,458-1,085,675** (15) | holds; inside A12.53's stated estimates |
+| `psram_used` | 227,144 ± 2,000 | **227,168** | holds |
+| `psram_base` free delta | 71,888-73,888 | **72,972** | holds |
+| **blocks, exactly** | **57,600 / 9,776 / 4,512** | **58,356 / 9,972 / 4,596** | **off: Q56 (A12.57)** |
+| BZ | 7 of 7 against `bdry-<R>-C`, with A12.53's base lines | **7 of 7 exact; each base line as tabled** | holds |
+| **B2-Bend** | 15 hashes against `render_ref`'s, epochs, pacing, rate, hash; **every draw ≤ 37,470 and ≤ 38,000**; the layer; the tap reuses the image; the screen after exact | **15 of 15; epochs; intervals 69,691-70,219 (spread 528); 14.29 fps; draws 33,905-34,716 µs**; layer 3,422 px valid; `rebuilt=no at=tap … af490350`; `brain-60-C` exact | holds |
+| B2-Dallas | as the anchor; every frame ≤ 36,421 (60) and ≤ 36,267 (warning) | **34,853-35,909 and 34,697-35,754**; 15 of 15 hashes each; screens after exact | holds |
+| B3 | the legend and the screen after it exact | exact; `legend_check --fb` exit 0 | holds |
+| sabotages | 8 of 8 red | **8 of 8** (S-B1c, S-B2d and S-BASE among them) | holds |
+| `/diag/fb` | every fetch finished; waits ≤ 100,000 | 42 of 42; 4,649-14,496 µs; verdict (i) | holds |
+| the watcher | 0 unexplained | **72 of 72 explained** | holds |
+| totals | | **153 checks, 1 failing (the blocks)** | |
+
+**What the numbers say:**
+- **The fold costs less than A10.3 feared.** With terrain on, every dry pixel reads the basemap. Yet **the Bend loop draws 33,905-34,716 µs, about 1,000 µs faster than Dallas's** (34,853-35,909 on this image; 34,880-36,121 on the anchor).
+  - Why is not examined here.
+  - **B2-Bend's 37,470 µs bound holds with 2,754 µs to spare.**
+- **Dallas is unchanged by step 7.** Its loops draw within −868 to +652 µs of the anchor's, frame for frame: the two images' run-to-run spread, with every frame under its bound. Its six screens and the legend on the glass are byte-identical to the anchor's and to q3's, by RGB-pixel sha256.
+- **A terrain-on base build takes about 1 s; a terrain-off one, 0.24 s.**
+  - **What that costs:** a zoom on a Bend screen with terrain on holds the next frame for about a second. Every BZ step still fit its budget (5.2 s + 1.1 s).
+  - **Hoisting `LevelPixel`'s invariants is the lever** A12.53 named, and it would change TR's frozen arithmetic, so it waits on a ruling. It matters only when terrain becomes a customer setting, with the route.
+
+**The B1 images, for Daniel** (RGB-pixel sha256; PNGs in the run's folder):
+
+| image | sha256 |
+|---|---|
+| dry | `aa4e44ab086d` (= q3, = the anchor) |
+| approaching | `fd0aaa6b7f22` (=) |
+| here-now | `c908d1730680` (=) |
+| warning | `250b5aa7be55` (=) |
+| stale | `710d6ee1f4bb` (=) |
+| clear | `de37a89877e0` (=) |
+| **Bend dry, terrain off** | **`3821ffb141a0`** |
+| **Bend dry, terrain on** | **`22c5881cb170`** |
+| **Bend rain, terrain on** | **`ba9fd97babb3`** |
+| the legend | `932094ef7a4f` (=) |
+
+**#508** carries the tools and both runs' records. It is cherry-picked onto main from `weatherscope/3-5b-board`, blob-identical over its 47 paths; that branch is deleted once #508 merges.
+
+**3.5b is done but for Q56.** The board holds #507's image.
+
+**Next, as ruled:** t4. It is independent of Q56, which is about how PSRAM rows are priced.
