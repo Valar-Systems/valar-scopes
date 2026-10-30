@@ -34,6 +34,7 @@ const PROD_HOST = "scopes.valarsystems.com";
 const EDITION_FLAGS = [
   "FEATURE_EAM", "FEATURE_SPACE", "FEATURE_SEISMIC", "FEATURE_BIRDING",
   "FEATURE_FISHING", "FEATURE_CLAUDESCOPE", "FEATURE_SPEED", "FEATURE_WEATHERSCOPE",
+  "FEATURE_REMOTE",
 ];
 
 // ---- platformio.ini ---------------------------------------------------------
