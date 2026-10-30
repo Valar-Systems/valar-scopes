@@ -10109,3 +10109,103 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
   - **That makes 35 jobs: 32 success, 3 skipped, 0 failed.**
 - 35 + 19 = 54: every check run is accounted for. **No job of the head's complete set failed or was cancelled.**
 - #511 is `MERGEABLE`/`CLEAN`.
+
+### A12.73 Ruled 2026-10-30 ~21:05Z (source: reviewer chat, pasted by Daniel): #511 approved and merged; Q65 (a) with the mask pinned -- and the follow-up's added rows (S-A2 and S-L on g++ 13.3; every driver in full on CI), frozen before their code
+
+**The ruling, verbatim:**
+
+> For: Weatherscope Code, from the reviewer chat, 2026-10-30 ~21:05Z
+>
+> #511: approved to merge at 8be4690d4726. CI is accepted as you counted it (35 jobs: 32 success, 3 skipped, 0 failed; the
+> 19 cancelled runs superseded and accounted for in A12.72).
+> - Merge it as a clean squash with --match-head-commit, no --admin, and record main's CI on the merge commit. If the
+>   head moves, this approval lapses.
+> - Checked here: the range-diff shows t4's patch identical to d9edd17, and the tree differs only in #509's two files.
+> - My run on Linux g++ 13.3:
+>   - host suites: all pass except the rig's xtensa line;
+>   - anchors: 20 drivers, plus ANCHORS-CTL ok;
+>   - controls: 19 run, 1 skipped (towns), plus CONTROLS-CTL ok (k35b's 368 against 143);
+>   - all 20 drivers in full: ALL AS PREDICTED, or the real file unchanged, except towns (exit 2, no archive) and two
+>     plants that don't compile under g++ 13.3:
+>     - sabotage_wx_crop.py's S-A2: -Werror=mismatched-new-delete, at test_wx_crop.cpp's operator delete;
+>     - sabotage_wx_logic.py's S-L: -Werror=misleading-indentation, at the plant's one-line for clause.
+>   - Both stops also happen on main without #511, so neither one blocks it.
+>
+> Q65: (a) for the 8 real copies. They are re-registered, with the miss (5 predicted, 9 found) kept.
+> - The bit mask in server_crops: not a category exemption. Pin it by file, exact line text and reason, so it covers that
+>   one line and nothing else. If the line changes, the lint flags it again.
+> - Its control: the same literal anywhere else, bitwise or not, is flagged.
+>
+> Added to that follow-up PR, predictions first:
+> - Make S-A2 and S-L compile under g++ 13.3 as well as MinGW, so every plant runs on CI's compiler.
+> - The full driver runs took about a minute here on two cores. Say whether CI should run every driver in full (towns
+>   skipped with its reason). That would have caught Q57 and these two stops.
+
+**#511, merged.**
+- **The checks first, fresh:**
+  - the head was still `8be4690d4726`, `MERGEABLE`/`CLEAN`;
+  - main was still `31cb44c`;
+  - the workflow runs were the six A12.72 counted.
+- **The merge:** squash, `--match-head-commit 8be4690d4726d32b6d16c2506da4bcd3de2fdff9`, no `--admin`, at 2026-10-30T21:04:47Z, as **`4763f4de23a607e18984c8468fa0c6a1e6bcaee5`**.
+- **After the merge:**
+  - its parent is `31cb44c`, and it changes #511's 17 paths;
+  - **main's tree equals the approved head's** (compared).
+- **`weatherscope/3-5t-t4` was deleted on the remote** at its tip `8be4690`, with no PR based on it.
+- **Main's CI on the merge commit** is recorded when every run has finished.
+
+**t5 and the follow-up follow main.**
+- `weatherscope/3-5t-t5` is now `56bed07` and `583980b` on `4763f4d`, with its tree identical to before (pushed, no PR).
+- The follow-up's branch is `fb2a1d7` on `4763f4d` (local).
+
+**Q65: (a), as ruled.**
+- **The re-registered pre-fix L2 set:** the 8 real copies.
+  - the 5 first predicted: k35 1, layout 1, replay 2, th2 1;
+  - the 3 my prediction missed: daynight's `CHECKS = 28`, basemap's `CASES = 92`, theme's `CHECKS = 72`.
+  - **The miss stays on record:** 5 predicted, 9 found.
+- **The mask is pinned, not exempted as a category.** The lint carries one pin: the file `sabotage_wx_server_crops.py`, the exact line text `        data[32] ^= 0x10                     # the first run's code nibble`, and the reason (the bit S-SC flips in the crop's first code nibble: a mask, not a count).
+  - It covers that line and nothing else. If the line's text changes, the lint flags it again.
+
+**The lint's rows, re-registered:**
+
+| row | expected |
+|---|---|
+| pre-fix (the drivers as on main) | **L1:** 17 drivers. **L2:** the 8 copies, in 7 drivers. The pinned line is not flagged. Exit 1 |
+| post-fix | **0 flagged, exit 0** |
+| its control | **5 cases:** <br>• the clean copy: nothing flagged; <br>• a table literal: L1; <br>• a run-path literal: L2; <br>• **the pinned literal on another line of server_crops, once bitwise and once in a comparison: L2 each**; <br>• **the pinned line with its text changed: L2** |
+
+**S-A2 and S-L, made to compile under g++ 13.3** (reproduced here first, in WSL: both stops exactly as the reviewer reports, and nothing else in either driver).
+
+- **S-A2 (`sabotage_wx_crop.py`):**
+  - **The cause:** the plant puts a `std::vector` into `Validate`. Once inlined, g++ 13.3 sees `operator new`'s pointer reach the test's replacement `operator delete`, which calls `free`, and raises `-Wmismatched-new-delete`.
+  - **The fix is in the plant, not the test:** it allocates with `malloc`, which the test already maps to its own counted `CountedMalloc` in `WxCrop.h`'s code, and frees what it took.
+    - The include it adds becomes `<stdlib.h>` instead of `<vector>`.
+    - **No warning is silenced** and the test file does not change.
+  - **Its failing set is unchanged:** A6's "heap allocations", with the count printed. Predicted under both compilers.
+- **S-L (`sabotage_wx_logic.py`):**
+  - **The cause:** the plant's two `for` clauses each have an unbraced body followed by another statement on the same line.
+  - **The fix:** braces around both bodies. Nothing else in the plant moves.
+  - **Its failing set is unchanged:** `{L4}`, under both compilers.
+- **Every other plant under g++ 13.3:** as the reviewer found, ALL AS PREDICTED.
+
+**Should CI run every driver in full? Yes, recommended:**
+- **What it would have caught:**
+  - Q57: themed_draw's RIG, stale since #507;
+  - these two stops, invisible to every CI run until a reviewer ran them by hand;
+  - and **towns, which has never once run in CI.**
+- **The cost:** about a minute on two cores (the reviewer's measurement); here, under a minute on MinGW. Each driver works only in temp directories, so nothing collides with the suites.
+- **The block:** a "sabotage drivers, in full" block after the controls block.
+  - It runs each driver with CI's compiler and treats any nonzero exit as a failure.
+  - Towns runs with its two archives when `WX_TOWNS_GAZ` and `WX_TOWNS_SUBEST` are set; otherwise it is SKIPPED with its reason, counted apart.
+- **`--control` stays:** it names the suite and the count when a table drifts, which a full run's RIG line does not always do. The two blocks answer different questions.
+
+**Predicted for the follow-up PR as a whole** (A12.70's rows plus these):
+
+| row | expected |
+|---|---|
+| the lint | as re-registered above |
+| S-A2, S-L | ALL AS PREDICTED under MinGW and g++ 13.3, sets unchanged |
+| every driver in full, both compilers | 19 exit 0; towns with its archives ALL AS PREDICTED, without them SKIPPED |
+| `run.sh`, both compilers | today's headers and counts, plus the lint's lines in the controls block and the new full-run block (one more `== ` header). CI has no archive, so towns is SKIPPED there |
+| the firmware | no firmware file changes |
+
+**The outside-the-set branch:** any row off its value stops the follow-up at that row, and is reported before anything changes.
