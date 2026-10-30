@@ -208,9 +208,10 @@ def main(argv):
     pb = sorted({l for l in lines if l.startswith("[wx] psram_base=")})
     if len(pb) == 1:
         k = g35.kv(pb[0])
+        # Q55 (A12.57): each new block's allocated size is graded EXACTLY; the free delta keeps the method's band
         ok = PSRAM_BASE_BAND[0] <= int(k["psram_base"]) <= PSRAM_BASE_BAND[1] and k["ok"] == "1" and \
-            all(BLOCKS[b] <= int(k[b]) <= BLOCKS[b] + 12 for b in BLOCKS)
-        row("psram_base", ok, pb[0][5:] + f" (free delta {PSRAM_BASE_BAND[0]:,}-{PSRAM_BASE_BAND[1]:,}; blocks {BLOCKS}, up to +12)")
+            all(int(k[b]) == BLOCKS[b] for b in BLOCKS)
+        row("psram_base", ok, pb[0][5:] + f" (free delta {PSRAM_BASE_BAND[0]:,}-{PSRAM_BASE_BAND[1]:,}; blocks exactly {BLOCKS})")
     else:
         row("psram_base", False, f"{len(pb)} distinct psram_base lines (want 1)")
 
