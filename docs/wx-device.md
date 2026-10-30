@@ -2823,7 +2823,7 @@ So it retires now, with its predictions frozen first (below).
 | **R2** | S-w (re-anchored to the lit line) `W3-in`; S-span and S-noclr `W3-in`, `W5a`; S-spanrec `W3-in`, `W5a`, `W5b`. The real header's sha256 is unchanged | **as predicted**, after one rig fix (below) |
 | **R3** | `git grep` in `src`, `include`, `test`, `scripts`: only `compare-form-fields.py`'s own synthetic selftest page | **as predicted** |
 | **R4** | `Sweep over weather (bench)` absent from both ELFs. The bench strings are in `wxlook` and absent from shipping | **as predicted** |
-| **R5** | the bench page's field set | read at the next board run |
+| **R5** | the bench page's field set, read at K5's run (below) | **as predicted** |
 | **R6** | the shipping draw path | by R1, as predicted (no byte-identity was predicted) |
 
 - **The rig fix inside R2:** S-noclr's anchor still spelled `BlendOne`'s old signature, so its first run could not
@@ -2851,7 +2851,7 @@ So it retires now, with its predictions frozen first (below).
 | **K4** | the shipping ELF holds both labels and none of `Sweep over weather (bench)`, `Weather look (bench)`, `[health] sweepscan=`, `[health] outline=`, `[bench] scan0=`, `[bench] layer copy:`, `[wx-bench]`. `wxlook` holds the labels and every bench string | **as predicted** |
 | **S-label** | red rows `K1` | **as predicted** |
 | **S-default** | red rows `K1`, `K2`; and in `check_wx_wiring.py`'s selftest the inverted rule turns exactly "K3 (the rule)" red | as predicted for K2 and K3. **K1 also goes red.** That was stated before the first run (in the sabotage's own text), because K1's "A selected for an empty value" reads through the same rule |
-| **K5** | the board | at the next board run, in an announced window |
+| **K5** | the board, 2026-10-30 (below) | the select, the legend and both sets **as predicted**; the two "rebuilt" rows **off as graded**, a reader defect |
 
 **What the first path established, kept on the second:**
 - **The bench-hook marker:** `check-no-bench-hooks.sh`'s marker was the bench select's label. That label is now
@@ -2910,3 +2910,97 @@ Interleaving puts both groups across the whole session, so drift reaches both al
 stops the session; a voided arm is recorded and the rest graded.
 
 **The readings go to the reviewer.**
+
+## K5 and R5 on E2:08 (2026-10-30, 14:36:51-14:50:51Z; announced 7:37-8:00 AM PDT)
+
+The shipping env `blipscope-s3-128`, flashed app-only. One trace for the whole window, which was static when read (164
+lines, read twice). Then the board went back to `wxlook` for R5.
+
+| | read | verdict |
+|---|---|---|
+| **K5, the select** | banner `env=blipscope-s3-128`. The select reads A (selected) "Brighter rain, outlined planes", then B "Fainter rain, no outlines". No bench string on the page | **as predicted** |
+| **K5, the legend with A** | `check-wx-legend` PASS (look A: 6 rows, 15 swatches, 0 not the layer's colour) | **as predicted** |
+| **K5, set to B** | `cfg_post --select wx-look B`: VERIFIED, only `wx-look` changed. The select reads B, and the legend PASSes as look B | **as predicted** |
+| **K5, "rebuilt" after B** | the script read **False**. The trace holds `14:38:07Z [wx] layer rebuilt in 32 ms (look B)` | **off as graded: a reader defect** (below) |
+| **K5, back to A** | VERIFIED. The select reads A, and the legend PASSes as look A | **as predicted** |
+| **K5, "rebuilt" after A** | the script read **False**. The trace holds `14:38:34Z [wx] layer rebuilt in 33 ms (look A)` | **off as graded: the same defect** |
+| **R5** | `compare-form-fields`, the bench page before against after: exactly one difference, `wx-sweep` only in the first page | **as predicted** |
+
+**The two "rebuilt" rows: the reader's start time, not the board.**
+- `k5_run.py`'s `cfg()` returns `now()` **after** the POST has completed, and the rows compare against that time.
+- The device rebuilds the layer while it answers the POST, within the same second. The trace stamps whole seconds, so
+  the line sorts before the start time: `14:38:07Z` against 14:38:07 and a fraction.
+- **The alternative, and why the trace excludes it:** these could have been the layer's ordinary rebuilds on a new
+  frame rather than the setting's. Those land every 2 minutes at :45 (14:37:45, 14:39:45, 14:41:45, all look A).
+  `14:38:07Z` is the trace's only look B line, and `14:38:34Z` is off that cadence.
+- **Not re-run.** The rows stay off as graded. Any later use of this reader takes its start time before the POST.
+
+After R5 the board runs `wxlook` again, with the layer on and look A.
+
+## RP6's two observations: their causes, read on 10-29's frames (2026-10-30)
+
+Ruled: the causes are named in the redo's analysis, by reading frames and code. These readings use the 10-29 session's
+frames, so the redo starts from named causes. The redo's analysis re-runs the same scripts on its own frames.
+- `rp6_cause1.py`: the classes and their control.
+- `rp6_cause2.py`: the maps and colours.
+- `rp6_crops.py`: crops, to look at.
+
+### (1) The wedge-colour ring exceptions: a wedge colour drawn elsewhere, the NEAR/HIGH/FAST highlight
+
+**All 26 exceptions (16 in A, 10 in B) are one colour, 0xF81F.**
+- **Where the code draws it:** `DrawAircraftInfo`'s highlight. `HL = color888(255, 0, 255)` is a radius-7 circle about
+  the contact plus a NEAR/HIGH/FAST tag, drawn at `x - textWidth - 9`, stacked upward from `y - 4`.
+- **Why the checker counts it as a wedge colour:** `WxPalette.h`'s magenta rain level {255, 0, 255}, lit to full by the
+  sweep, is exactly 0xF81F. The look's weather set holds that level only dimmed. And no other set of the checker's
+  holds the highlight colour.
+
+**In the frames, every exception is part of a highlight.**
+- **8 lie on a highlight circle.** A circle here is a centre with ≥ 20 magenta pixels at radius 7 ± 0.75, and a plane
+  colour on or beside the centre.
+- **18 lie inside a highlight tag's box,** to the left of such a circle, where the code draws the tag.
+- **0 lie on neither.**
+- **The control, so "neither" can fire:** one 0xF81F pixel was planted on a ring, 0.84 rad outside the mask and more
+  than 40 px from every highlight. It reads **neither**, and the 26 still read 8 and 18.
+
+**The mask is excluded.** The nearest exception lies **0.59 rad** outside the mask's edge, and most lie more than
+1 rad outside it. Spill past an edge would sit at the edge.
+
+**So (1) is the checker's colour set, not the firmware.** The highlight is a deliberate overlay. The fix belongs in the
+checker and is not made here. It waits on a ruling, because it has a cost either way:
+- dropping 0xF81F from the wedge set would also blind the checker to a real lit magenta cell outside the wedge;
+- excluding highlight pixels by their geometry, the way this script finds them, keeps that sight.
+
+### (2) The 4 of 168 markers without an outline: outside the named set
+
+**The four are two contacts, each seen in two frames.**
+- A white dart (0xFFFF), in frames 3 and 5, at r 97-99.
+- A yellow dart (0xFFE0), in frames 6 and 8, at r 70-71.
+
+**The special-contact reticle is excluded.** `SpecialColor` is orange, blue or violet, drawn at full brightness. None
+of these is white or yellow.
+
+**Partial markers are excluded as the cause.**
+- **The checker:** a marker fails when any 8-neighbour has a weather colour of the look.
+- **The crops:** each dart is drawn whole, with its black outline. The outline is broken only where something drawn
+  **after** it touches the dart.
+- **Why it must have been drawn after:** the outline is eight 1 px offset copies, which blacken every 8-neighbour of
+  the dart. So nothing drawn earlier can touch it.
+
+**What touches them, read in the frames and found in the code:**
+
+| contact | the touching pixels | the element | drawn after the outline because |
+|---|---|---|---|
+| white, frames 3 and 5 | 0x0280, a filled r=2 disc at (126, 224) | `DrawScreenIndicator`'s inactive screen dot, `fillCircle(…, 2, color888(0, 80, 0))`. In the frame, the active dot is 0x07E0, r=3, at x 102, and the inactive dots are 0x0280 at x 114, 126 and 138, y 224, as the code places them | the screen indicator is drawn after the whole radar scene |
+| yellow, frames 6 and 8 | 0x0280 and 0x0320, the 1 px stroke of a glyph ("V" of a label reading "VS22") | a contact label, `scaleColor(color888(0, 128, 0), brightness)`, which fades to exactly those two | each contact draws trail, label, outline and marker in turn. So a label that touches this dart belongs to a contact drawn later in the loop |
+
+**Both colours are also weather colours of look A,** and plane and label colours too. So the checker reads a screen dot
+and a label's stroke as weather. Its `amb` rule exempts a marker whose **own** colour is ambiguous, but not a
+**neighbour** whose colour is.
+
+**Is it a look A defect? Not by the ruling's test.** It is not the reticle, and each of the four darts has its outline.
+- A later overlay (a label, a screen dot) lying across an outlined dart happens the same way with the layer off.
+- On glass, the dart still never meets a cell of its own colour, which is what the outline is for (WD4f).
+
+**The checker's gap, proposed and not made:** a neighbour whose colour is also a plane or label colour reads as
+ambiguous, and a marker touched only by such neighbours is counted apart, not failed. This needs predictions and a
+ruling. Like (1), it trades sight: a real weather pixel in one of those greens next to a dart would then go unseen.
