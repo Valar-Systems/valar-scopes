@@ -15,6 +15,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SET = sys.argv[1] if len(sys.argv) > 1 else "server"
 SRC = os.path.join(ROOT, "test", "fixtures", "wx", SET)
@@ -53,5 +56,22 @@ def main():
         return 0 if good else 1
 
 
+def anchor_entries():
+    """Q51: the victim crops the two runs flip (run.sh's comments: the server set's default, and opuk's), each longer
+    than the byte 32 it flips, for --anchors (no plant runs)."""
+    out = []
+    for s, v in (("server", "kmci-80km-partly-outside.wxc"), ("opuk", "man-161km.wxc")):
+        p = os.path.join(ROOT, "test", "fixtures", "wx", s, v)
+        try:
+            data = open(p, "rb").read()
+        except OSError:
+            data = None
+        def check(b):
+            assert len(b) > 32, f"{len(b)} bytes, the plant flips byte 32"
+        out.append((f"S-SC ({s}/{v})", os.path.relpath(p, ROOT), data, check))
+    return out
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

@@ -243,10 +243,10 @@ void TR()
                                   "found 1,216)", out240));
     const int r0 = wxbase::RampIndex(0), r7 = wxbase::RampIndex(7), r8 = wxbase::RampIndex(8),
               r128 = wxbase::RampIndex(128), r255 = wxbase::RampIndex(255);
-    const Rgb p1 = wxbase::PaletteRgb(1), p37 = wxbase::PaletteRgb(37);
+    const Rgb p1 = wxtheme::kDark.base[1], p37 = wxtheme::kDark.base[37];   // PaletteRgb retired into the theme (A12.47)
     check("TR4", r0 == 1 && r7 == 1 && r8 == 2 && r128 == 19 && r255 == 37 && Eq(p1, Rgb{10, 10, 12}) &&
                      Eq(p37, Rgb{46, 46, 48}),
-          fmt("RampIndex 0, 7, 8, 128, 255 -> %d, %d, %d, %d, %d; PaletteRgb(1) %s, (37) %s", r0, r7, r8, r128, r255,
+          fmt("RampIndex 0, 7, 8, 128, 255 -> %d, %d, %d, %d, %d; kDark.base[1] %s, [37] %s", r0, r7, r8, r128, r255,
               RgbS(p1).c_str(), RgbS(p37).c_str()));
 }
 
@@ -389,22 +389,25 @@ void BF()
 {
     std::vector<uint8_t> img(kS * kS, 38);
     const Rgb water{10, 34, 72}, black{0, 0, 0}, grey{40, 40, 40}, hatch{72, 72, 72};
-    Rgb c = wxscreens::MapPixel(0, 50, 60, img.data(), false);
+    Rgb c = wxscreens::MapPixel(0, 50, 60, img.data(), false, wxtheme::kDark);
     check("BF1", Eq(c, water), "code 0, the image: " + RgbS(c));
-    c = wxscreens::MapPixel(0, 50, 60, nullptr, false);
+    c = wxscreens::MapPixel(0, 50, 60, nullptr, false, wxtheme::kDark);
     check("BF2", Eq(c, black), "code 0, no image: " + RgbS(c));
-    c = wxscreens::MapPixel(5, 50, 60, img.data(), false);
+    c = wxscreens::MapPixel(5, 50, 60, img.data(), false, wxtheme::kDark);
     const wxpalette::Rgb r5 = wxpalette::Code(5, false);
     check("BF3", Eq(c, Rgb{r5.r, r5.g, r5.b}), "code 5, the image: " + RgbS(c) + " (want Code(5, false), the radar)");
-    c = wxscreens::MapPixel(14, 50, 60, img.data(), false);
+    c = wxscreens::MapPixel(14, 50, 60, img.data(), false, wxtheme::kDark);
     check("BF4", Eq(c, grey), "code 14, terrain off: " + RgbS(c));
-    const Rgb a = wxscreens::MapPixel(14, 10, 10, img.data(), true), b = wxscreens::MapPixel(14, 10, 11, img.data(), true);
+    const Rgb a = wxscreens::MapPixel(14, 10, 10, img.data(), true, wxtheme::kDark),
+              b = wxscreens::MapPixel(14, 10, 11, img.data(), true, wxtheme::kDark);
     check("BF5", Eq(a, hatch) && Eq(b, black), "code 14, terrain on: (10, 10) " + RgbS(a) + ", (10, 11) " + RgbS(b));
-    const Rgb a0 = wxscreens::MapPixel(15, 10, 10, img.data(), false), b0 = wxscreens::MapPixel(15, 10, 11, img.data(), false);
-    const Rgb a1 = wxscreens::MapPixel(15, 10, 10, img.data(), true), b1 = wxscreens::MapPixel(15, 10, 11, img.data(), true);
+    const Rgb a0 = wxscreens::MapPixel(15, 10, 10, img.data(), false, wxtheme::kDark),
+              b0 = wxscreens::MapPixel(15, 10, 11, img.data(), false, wxtheme::kDark);
+    const Rgb a1 = wxscreens::MapPixel(15, 10, 10, img.data(), true, wxtheme::kDark),
+              b1 = wxscreens::MapPixel(15, 10, 11, img.data(), true, wxtheme::kDark);
     check("BF6", Eq(a0, hatch) && Eq(b0, black) && Eq(a1, hatch) && Eq(b1, black),
           "code 15: off " + RgbS(a0) + " " + RgbS(b0) + ", on " + RgbS(a1) + " " + RgbS(b1));
-    c = wxscreens::MapPixel(wxrender::kOffDisc, 0, 0, img.data(), false);
+    c = wxscreens::MapPixel(wxrender::kOffDisc, 0, 0, img.data(), false, wxtheme::kDark);
     check("BF7", Eq(c, black), "off the disc, the image: " + RgbS(c));
 
     const std::vector<uint8_t> clear = Read("loop/synthetic-clear.wxc");   // the Dallas loop's dry crop (ref35 CLEAR)
@@ -419,7 +422,7 @@ void BF()
     if (ok) wxrender::BuildViewKm(h, &v, 60 * 1.609344);
     Rec s;
     Rows withImg, without;
-    if (ok) wxscreens::DrawMap(s, h, codes.data(), v, &withImg, img.data(), false);
+    if (ok) wxscreens::DrawMap(s, wxtheme::kDark, h, codes.data(), v, &withImg, img.data(), false);
     long bandPuts = 0, onWater = 0, onOther = 0, offBlack = 0, offOther = 0;
     for (int y = 0; ok && y < kS; ++y)
         for (int x = 0; x < kS; ++x) {
@@ -435,7 +438,7 @@ void BF()
           fmt("band Puts %ld; on-disc map pixels water %ld (want 36,828), other %ld; off-disc black %ld, other %ld",
               bandPuts, onWater, onOther, offBlack, offOther));
     Rec s2;
-    if (ok) wxscreens::DrawMap(s2, h, codes.data(), v, &without);
+    if (ok) wxscreens::DrawMap(s2, wxtheme::kDark, h, codes.data(), v, &without);
     check("BF9", ok && withImg.all.size() == 240u * 240u && withImg.all == without.all,
           fmt("CodeRows: %zu and %zu codes, %s", withImg.all.size(), without.all.size(),
               withImg.all == without.all ? "byte-identical" : "DIFFERENT"));

@@ -16,6 +16,9 @@ Method, fixed before any run (A9.14, A9.16):
 """
 import hashlib, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxScreens.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_layout.cpp")
@@ -28,23 +31,34 @@ SABOTAGES = {
     "S-RANK": ([("    for (int i = 1; i < n; ++i) {\n        const int v = order[i];",
                  "    for (int i = n; i < n; ++i) {  // SABOTAGE: file order\n        const int v = order[i];")],
                {"LB1", "LB2a", "LB3", "LB4", "LB5"}),
-    "S-IC": ([("    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;\n",
-               "    (void)inner;  // SABOTAGE: no anchor test\n"),
-              ("        if (!ClearsCentre(b, inner)) continue;\n", "        // SABOTAGE: no box test\n")],
+    # S-IC's anchor is PlaceTown's copy of the line: PlacePeak (3.5b step 5, #501) carries the same one, which left
+    # this driver unable to run from #501 until 3.5t t3 (A12.49).
+    "S-IC": ([("inline Placed PlaceTown(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,\n"
+                "                        const Box* placed, int nPlaced)\n{\n    Placed p;\n    const double c = wxraster::kC;\n"
+                "    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;\n",
+                "inline Placed PlaceTown(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,\n"
+                "                        const Box* placed, int nPlaced)\n{\n    Placed p;\n    const double c = wxraster::kC;\n"
+                "    (void)inner;  // SABOTAGE: no anchor test\n"),
+              # the box test moved into BoxFree in 3.5b step 5 (#501), which PlaceTown calls
+              ("    if (!ClearsCentre(b, inner)) return false;\n", "    (void)inner;  // SABOTAGE: no box test\n")],
              {"IC1", "IC3", "IC4"}),
     "S-OV": ([("constexpr int kAir = 4;", "constexpr int kAir = 0;  // SABOTAGE")],
              {"OV2", "OV4", "OV5b", "OV5d", "OV6b", "SD3"}),
-    "S-SIDE": ([("    if (x < c) {\n        const Box b = cands[0];",
+    # PlaceTown's copy, pinned by its own txs line: PlacePeak (#501) carries the same side choice
+    "S-SIDE": ([("    int txs[2] = {ix + 4, ix - 4 - w};\n    char sides[2] = {'R', 'L'};\n    if (x < c) {\n        const Box b = cands[0];",
+                 "    int txs[2] = {ix + 4, ix - 4 - w};\n    char sides[2] = {'R', 'L'};\n"
                  "    if (false) {  // SABOTAGE: always right first\n        const Box b = cands[0];")],
                {"SD2", "OV6a"}),
-    "S-CAP": ([("    const int cap = Cap(radiusMi);\n",
+    # PlaceTowns' use site, pinned by its signature's tail: PlaceLabels (#501) asks Cap() the same way
+    "S-CAP": ([("                      int nFixed, PlacedLabel* out)\n{\n    const int cap = Cap(radiusMi);\n",
+                "                      int nFixed, PlacedLabel* out)\n{\n"
                 "    const int cap = 8;  // SABOTAGE: 8 at every zoom\n    (void)radiusMi;\n")],
               {"LB4", "LB5"}),
     "S-RING": ([("        if (0.15 * R <= kAll[i] && kAll[i] <= 0.85 * R) mi[n++] = kAll[i];",
                  "        if (0.0 * R <= kAll[i] && kAll[i] <= 1.0 * R) mi[n++] = kAll[i];  // SABOTAGE")],
                {"RG1", "RG2", "RG3"}),
-    "S-ST15": ([("        if (in.echo.mi <= 15.0) *ink = wxraster::kWhite;",
-                 "        if (in.echo.mi < 15.0) *ink = wxraster::kWhite;  // SABOTAGE")], {"ST3"}),
+    "S-ST15": ([("        if (in.echo.mi <= 15.0) *ink = wxtheme::Ink::White;",
+                 "        if (in.echo.mi < 15.0) *ink = wxtheme::Ink::White;  // SABOTAGE")], {"ST3"}),
     "S-STALE": ([("    if (in.ageS > kStaleAfterS) {", "    if (in.ageS >= kStaleAfterS) {  // SABOTAGE"),
                  ("    if (warning && ageS > kStaleAfterS) snprintf", "    if (warning && ageS >= kStaleAfterS) snprintf"),
                  ("    *ink = ageS > kOrangeAfterS ?", "    *ink = ageS >= kOrangeAfterS ?")],
@@ -66,6 +80,7 @@ def sha(p):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -119,5 +134,14 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    return out
+
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

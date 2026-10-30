@@ -14,6 +14,9 @@ The unmodified mirror runs first, as the control: 90/0 and 28/0.
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "src", "weatherscope")
 FONT = os.path.join(ROOT, "test", "fixtures", "wx", "glcdfont.c")
@@ -66,6 +69,7 @@ def plant(path, edits, name):
     src = open(path, encoding="utf-8").read().replace("\r\n", "\n")
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -117,5 +121,12 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in WxScreens.h, for --anchors (no plant runs)."""
+    p = os.path.join(SRC, "WxScreens.h")
+    return [(name, os.path.relpath(p, ROOT), sc.read(p), a) for name, (edits, _) in SABOTAGES.items() for a, _ in edits]
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

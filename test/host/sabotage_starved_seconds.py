@@ -15,6 +15,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
@@ -70,6 +73,7 @@ def main():
             src = open(hp, encoding="utf-8").read().replace("\r\n", "\n")
             out = src
             for a, b in edits:
+                sc.prove_colour(name, a, b)   # Q50: refuses a colour the panel cannot see
                 assert out.count(a) == 1, f"{name}: anchor found {out.count(a)} times:\n{a}"
                 out = out.replace(a, b)
             assert out != src, f"{name}: the copy did not change"
@@ -91,5 +95,15 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in the header (or support.html) it plants, for --anchors (no plant runs)."""
+    out = []
+    for name, header, edits, _test, _must in SABOTAGES:
+        p = SUPPORT if header.startswith("@") else os.path.join(ROOT, "include", header)
+        out += [(name, os.path.relpath(p, ROOT), sc.read(p), a) for a, _ in edits]
+    return out
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

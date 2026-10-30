@@ -14,6 +14,9 @@ Method, fixed before any run (A12.46):
 """
 import hashlib, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxTheme.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_theme.cpp")
@@ -32,7 +35,7 @@ SABOTAGES = {
     "S-C4b": ("header", [("{135, 135, 0}, {155, 128, 0},", "{135, 135, 0}, {231, 192, 0},  /* SABOTAGE: code 6 back */")],
               {"C4a:6"}),
     "S-C4c": ("header", [("    {93, 93, 93},      // noCoverage", "    {99, 99, 99},      // noCoverage SABOTAGE")], {"C4c"}),
-    "S-C4d": ("header", [("    {124, 124, 124},   // hatchLine", "    {125, 125, 125},   // hatchLine SABOTAGE")], {"C4d"}),
+    "S-C4d": ("header", [("    {124, 124, 124},   // hatchLine", "    {128, 128, 128},   // hatchLine SABOTAGE")], {"C4d"}),
     "S-C4e": ("header", [("{{0, 108, 206}, {0, 95, 177},", "{{0, 108, 206}, {0, 108, 206},  /* SABOTAGE: snow 2 = snow 1 */")],
               {"C4e:2", "C3e'", "C3h'"}),
     "S-C4g": ("header", [("    {159, 85, 0},      // orangeText", "    {161, 86, 0},      // orangeText SABOTAGE")],
@@ -110,6 +113,13 @@ def main():
         for name, (which, edits, frozen) in SABOTAGES.items():
             texts = dict(real)
             src = texts[which]
+            try:
+                for old, new in edits:
+                    sc.prove_colour(name, old, new)   # Q50: refuses a colour the panel cannot see
+            except sc.Refused as e:   # Q50: not a result, and not as predicted
+                print(f"{name}: REFUSED -- {e}")
+                ok = False
+                continue
             for old, new in edits:
                 assert src.count(old) == 1, (name, old[:50], src.count(old))
                 src = src.replace(old, new)
@@ -130,5 +140,13 @@ def main():
     return 0 if ok else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor in the header or the test it plants, for --anchors (no plant runs)."""
+    files = {"header": HEADER, "test": TEST}
+    return [(name, os.path.relpath(files[which], ROOT), sc.read(files[which]), a)
+            for name, (which, edits, _) in SABOTAGES.items() for a, _ in edits]
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

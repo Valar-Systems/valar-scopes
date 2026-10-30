@@ -12,10 +12,6 @@
 //
 // Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing or short, or a check count other than 28).
 
-// SolarDim.h uses M_PI, which the Arduino core provides on the board. MinGW's math.h hides it under -std=c++11
-// (__STRICT_ANSI__) unless this is defined before the first include; glibc's g++ exposes it regardless. Set here, not
-// in the shared header, which eight editions include.
-#define _USE_MATH_DEFINES
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

@@ -1181,6 +1181,73 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
+# NL (docs/weatherscope-stage3.md A11.5, A12.47): no colour literal in the Weatherscope's drawing code -- every colour
+# is a role in WxTheme.h. The scope is src/weatherscope/ minus WxTheme.h, WxPalette.h and bench/; the allowlist is empty.
+# Its control: pointed at WxTheme.h, it must find that file's literals. Its plant: python -I test/host/sabotage_wx_themed_draw.py
+echo
+echo "== WxTheme NL: no colour literal in drawing code =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; NL's scan cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/scan_wx_colour_literals.py"
+  rc=$?
+  if [ "$rc" -ge 2 ]; then
+    echo "FAIL: NL's scan did not run (exit $rc). This is the RIG, not the code."
+    exit 2
+  elif [ "$rc" -ne 0 ]; then
+    echo "  FAIL NL colour literals in drawing code"
+    fail=1
+  else
+    echo "  ok   NL 0 colour literals"
+  fi
+  "$PY" "$ROOT/test/host/scan_wx_colour_literals.py" "$ROOT/src/weatherscope/WxTheme.h" > "$OUT/nl_control.log" 2>&1
+  rc=$?
+  if [ "$rc" -eq 1 ]; then
+    echo "  ok   NL-control the scan finds WxTheme.h's literals: $(tail -1 "$OUT/nl_control.log")"
+  else
+    echo "  FAIL NL-control pointed at WxTheme.h, the scan found nothing (exit $rc): it cannot see a literal"
+    fail=1
+  fi
+fi
+
+# Q51 (docs/weatherscope-stage3.md A12.49, A12.50): every sabotage driver's anchors present exactly once in the current
+# tree. No plant runs and nothing compiles, so a refactor that strands a plant fails HERE, in the PR that strands it --
+# sabotage_wx_layout.py's were stranded from #501 to 3.5t's t3 because nothing ran the drivers. A driver is recognised by
+# its --anchors dispatch (sc.wants_anchors()); one without it is refused WITHOUT being run. sabotage_common.py (the shared
+# module) and sabotage_anchors_control.py (this pass's control: a mangled anchor must turn it red) are not drivers.
+echo
+echo "== sabotage anchors: every test/host/sabotage_*.py --anchors =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the sabotage anchors cannot be checked."
+  fail=1
+else
+  nd=0
+  for d in "$ROOT"/test/host/sabotage_*.py; do
+    b=$(basename "$d")
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py) continue ;; esac
+    nd=$((nd + 1))
+    if ! grep -q "sc.wants_anchors()" "$d"; then
+      echo "  FAIL $b has no --anchors mode (refused without running it)"
+      fail=1
+      continue
+    fi
+    "$PY" "$d" --anchors > "$OUT/anchors.log" 2>&1
+    rc=$?
+    line=$(grep "^ANCHORS " "$OUT/anchors.log" | tail -1)
+    if [ "$rc" -eq 0 ] && [ -n "$line" ]; then
+      echo "  ok   $line"
+    else
+      echo "  FAIL $b --anchors (exit $rc):"
+      cat "$OUT/anchors.log"
+      fail=1
+    fi
+  done
+  echo "  $nd driver(s) checked"
+  "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py
