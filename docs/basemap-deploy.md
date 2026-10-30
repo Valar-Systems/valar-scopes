@@ -176,3 +176,40 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 | S-WSTAMP | **exactly {MW18}** |
 | the full pass | **50 of 50 AS PREDICTED** (the 46, then S-WSTAMP {MW18}, S-WNOCOMMIT {MW19}, S-HMADEUP {MH2} and S-HNOCACHE {MH3}). C-LOADFAIL AS PREDICTED; baselines ingest 10 in 1, mv 31 in 1, all 137 in 17; 0 runtime failures |
 | CI on the PR's head | every check finished, none failing |
+
+## Rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-30)
+
+> 1. #486: merged as ruled. I checked the squash: its parent plus the approved head, exactly.
+>
+> 2. #505, MW18: the fix as proposed. The control asks only for the layers MW's store holds, and keeps §5.4's four shapes. The first reading stays on record as the miss, with its cause: the control threw before the refusal ran, so the row never exercised its subject. Push with --force-with-lease, then the frozen MW18, S-WSTAMP {MW18}, 50 of 50 and CI, then #505 up for review.
+>
+> 3. build()'s throw on a requested layer with no files: turn "only synthetic stores reach it" into a reading before D4 (the production route). A census over the sealed store's own index, from the local verified copy: every region holds at least one file for each layer the builder reads from it. If any region doesn't, name it and stop; build() then returns a status instead of throwing, as its own change.
+>
+> 4. D0: the carried proxy/ commits are cleared to ship with it, #499's /wx changes included (UK points answer 503 wx_stale until R3, as ruled for R2). wx-ingest stays undeployed until R3. D0 comes after #505's review and merge, outside any replay window, with its smoke run.
+
+## The region census (item 3): predictions, frozen before its script
+
+**What the builder reads from a region:**
+- `build()` reads **water, rivers, roads and peaks** from the regions whose box meets the square (RD-P6). Places and population come from the whole manifest, not from regions.
+- `regionsFor` builds two kinds of region:
+  - **a county region** takes that county's `tl_2024_<GEOID>_areawater` (water) and `tl_2024_<GEOID>_linearwater` (rivers);
+  - **a state region** takes `tl_2024_<FIPS>_prisecroads` (roads) and `DomesticNames_<USPS>_Text` (peaks).
+- **So "each layer the builder reads from it" is** {water, rivers} for a county region and {roads, peaks} for a state region.
+
+**The census:** `scripts/basemap-census-regions.ts`.
+- **What it reads:** the sealed store's `index.json` and `manifest.json` through `assembleStore`, the same local verified copy (every object checked by sha256) that `basemap-grade-store.ts` uses. It prints the store id and the index's sha256, so the reading names the bytes it read.
+- **What it checks:** every region holds either ≥1 water **and** ≥1 rivers file and no other layer, **or** ≥1 roads **and** ≥1 peaks file and no other layer.
+- **What it does with any other region:** it **names it** (its index, its box, the files it holds) and exits 1.
+- **The rest of its output:** identifiers and counts, never a coordinate beyond a named region's box.
+
+| row | predicted |
+|---|---|
+| **R-CENSUS** on the sealed store | **3,195 regions: 3,144 county regions** (each ≥1 water and ≥1 rivers file, nothing else) **and 51 state regions** (each ≥1 roads and ≥1 peaks file, nothing else); **0 regions of any other shape**; exit 0 |
+| **its control, C-CENSUS** | the same census over a copy of the index with one county region's rivers file removed: it **names that county** and exits 1 |
+| **anything else** | a count other than 3,144 and 51, a region of another shape, or a store it cannot read (BLIND): **stop and report.** If a region lacks a layer, `build()` returning a status instead of throwing becomes its own change, as ruled |
+
+**What R-CENSUS does not settle, named now so it is not mistaken for the whole argument.**
+- **What it shows:** every region carries its layers.
+- **What it does not show:** that every square the route accepts meets a region of each kind.
+- **The gap:** coverage is per 0.01° cell. An origin in a covered cell could sit up to about 1.4 km from the nearest state polygon. At `r = 1` the square reaches only about 1 km, so near a coast or border it might meet no state region, or no county region.
+- **On record,** with a reading proposed in the report. Not run here.
