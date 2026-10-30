@@ -8520,3 +8520,43 @@ Both still fail their own rows, because C3c and C4d grade RGB888. Neither reache
 Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. That is the refusal working, and #506's record says so.
 
 **Next, as ordered:** #506 for review. Then 3.5b's step 7, its predictions frozen against #506's themed drawing once merged.
+
+### A12.52 Ruled 2026-10-30 (source: reviewer chat, pasted by Daniel): Q52 as proposed; #506 approved and merged
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-30
+>
+> 1. Q52: as proposed. S-C3c re-registered at (0, 204, 0) and S-C4d at (128, 128, 128). Each now differs from its original in RGB565, and each fails exactly its own row, {C3c} and {C4d}. The audit's two refusals stay on record: the colour proof working as ruled.
+>
+> 2. #506: approved at the head that adds exactly Q52's two plant changes to 534015637bc9, with main merged in first since its base has moved (no file in common with #486, and it applies cleanly). Before merging, all of these must hold:
+> - sabotage_wx_palette.py and sabotage_wx_theme.py read ALL AS PREDICTED, with S-C3c {C3c} and S-C4d {C4d}, and every colour plant passes the proof;
+> - CI's total on that head is counted, with every check that ran passing;
+> - git diff 534015637bc9 <head> shows only those two drivers, plus main's own changes.
+> Then a clean squash, --match-head-commit with that head, no --admin, and the head named in the record. Any hand resolution, other change or row off comes back to me.
+> I reproduced #506 on Linux g++ 13.3 with -Werror: all 19 Weatherscope host suites pass with your counts (k35 28, k35b 143, replay 90, basemap 84, layout 73, screens 15, theme 72, daynight 28, and the rest); NL reads 0 in 16 files with its control at 57; all 18 drivers' --anchors are clean, and the anchors control goes red on its mangled anchor; sabotage_wx_themed_draw.py reads S-KD at exactly the 76 (25 Dallas, 51 Bend) and S-NL as predicted, with the real tree unchanged.
+>
+> 3. Then 3.5b's step 7, its predictions frozen against #506's merged drawing, as ruled.
+
+**Q52, applied** (`366377e`, on `534015637bc9`):
+- **The re-registrations:**
+  - S-C3c → (0, 204, 0): RGB565 `0x0640` → `0x0660`;
+  - S-C4d → (128, 128, 128): RGB565 `0x7bef` → `0x8410`;
+  - palette's docstring names the new value and why.
+- **The audit, re-run:** **21 colour plants, 0 failing the proof.**
+- **The two drivers, run in full:**
+  - **palette: 11 of 11 AS PREDICTED** (S-C3c fails exactly C3c; S-PIN as frozen), 0 refused, exit 0;
+  - **theme: 13 sabotages, ALL AS PREDICTED** (S-C4d fails exactly {C4d}), 0 refused.
+- **The audit's two refusals stay on record** (A12.51): the colour proof working as ruled.
+
+**#506, merged.**
+- **Main merged in first,** since #486 (`ca30b88288d0`) had moved the base.
+  - **The merge needed no hand resolution.**
+  - **The head, `ef0c50ce538b`, against `534015637bc9`:** exactly the two drivers (their blobs equal `366377e`'s), plus main's own 58 paths (each blob equal to main's).
+  - **One instrument error on the way, found and recorded:** the first blob comparison reported `.github/workflows/workers.yml` as differing. Git Bash had rewritten `origin/main:.github/…` into `origin\main;.github\…`, so `rev-parse` returned nothing. With `MSYS_NO_PATHCONV=1`, every one of main's 58 paths equals main's.
+- **Before the push:** both compilers on `ef0c50ce538b`. MinGW: ALL HOST TESTS PASSED, the anchors pass 18 drivers. g++ 13.3 (`Ubuntu 13.3.0-6ubuntu2~24.04.1`): the same blocks and counts, only the rig's two.
+- **CI on `ef0c50ce538b`:** 35 check runs, all completed (read twice, 60 s apart): 32 success and 3 release-only skips (promote, ship-alert, version), 0 failed.
+- **The merge:** squash, `--match-head-commit ef0c50ce538bd59210acfcc6cd541711c848efa4`, no `--admin`, at 2026-10-30T02:57:00Z, as **`58509562c620`**.
+- **After:** parent `ca30b88288d0`; 35 paths; **main's tree equals the approved head's**. No PR was based on the branch; it was checked at `ef0c50ce538b`, deleted, and `ls-remote` shows 0.
+
+**Next, as ruled:** 3.5b's step 7, its predictions frozen against #506's merged drawing (main `58509562c620`), before any step 7 code.
