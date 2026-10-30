@@ -3596,3 +3596,18 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
 **E2:08's starting state, read today (names and booleans only):** `data-source` cloud, `local-url` empty.
 - So W5⁗'s restore is `data-source` back to cloud and `local-url` cleared. No private value is held anywhere.
 - **W5⁗ refuses to start unless both still read so,** and the logbook and leaderboard read off.
+
+**CI on `24eb1b8`** (every run finished): 36 runs, 33 success, 3 skipped, none failed. `host-tests` passed.
+
+**G4 amended before anything ran (2026-10-30):**
+- **The error:** G4 as frozen ("12 polls a minute in every window: the local feed polls on the same cadence machine")
+  is wrong.
+- **What the code says:** `CurrentPollIntervalMs()` applies the active/idle/night cadence to the cloud source only.
+  The local source polls every **1000 ms** (`LOCAL_FETCH_INTERVAL`, `AircraftManager.cpp`'s source setup).
+- **G4 now:** 0 touches, and **about 60 polls a minute** in every window, on both images.
+- **What else follows:**
+  - the windows' placement at boot + 3 min, which kept them inside the cloud's active cadence, is moot in local mode.
+    It stays, so the arms keep W5‴'s timing;
+  - at boot, local mode prints `[source] local receiver: <URL>`, so W5⁗'s traces hold the PC's LAN address beside
+    E2:08's own. Traces stay out of the repo, and are never quoted.
+- **When it was caught:** reading the poll code to build the driver, before the driver existed.
