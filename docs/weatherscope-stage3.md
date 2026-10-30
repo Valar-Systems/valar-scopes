@@ -9567,3 +9567,135 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 - **The cause is known this time:** `wt-t4` was a fresh worktree that had never run `pio run`. t4's firmware build, a frozen row anyway, installed the libraries. The repeat passed every block.
 
 **Q59 and Q60 are open.** t4's PR waits on Q59 (through the harness PR), and its driver sets on Q60.
+
+### A12.66 3.5t step t5: the firmware's theme, Auto, the dim, `O` and the config page, and the board rows -- frozen before its code (Q61-Q63)
+
+**What t5 is** (A12.45's table, with Q58): the firmware's half of 3.5t.
+- **It adds:** the `wx-theme` setting, Auto on the 20 s tick, the dim from the same phase, the bench byte `O`, the config page's Theme field, and the board rows.
+- **The board rows:** B1, B3 and BSW in both themes; SW's base row and S-SWB (moved here by Q58); the B1 images to Daniel.
+- **It stacks on t4** (`d9edd17`, local, held for Q59 and Q60). Its code starts once this addendum is ruled. Its board work comes after tonight's touch watch, which runs 06:00-13:00Z.
+
+#### 1. The firmware (`WeatherscopeManager`, the config page)
+
+**1. The state: one 8-byte block in the manager.** It is inserted between `bool nightDim` and `unsigned long lastBrightnessCheck`:
+- `wxtheme::Setting themeSetting` and `wxtheme::Read themeRead`: `wx-theme` as `ParseSetting` reads it;
+- `daynight::Phase phase`: Auto's verdict;
+- `wxtheme::Which which`: the theme on the screen;
+- `wxtheme::Which composedWhich`: the theme the cached scenario was composed in;
+- `int16_t autoOffsetMin`: `O`'s offset, 0 off the bench.
+- The header includes `DayNight.h` and `WxTheme.h`. Both are pure headers, and the `.cpp` already includes the second.
+
+**2. `Th()` reads `which`.** Today it is a free function that always returns `kDark` (A12.47). It becomes a member.
+- The legend, the hold ring, the splash and the status all draw through it already.
+- `screenIn->which = which` is set after every `FromScenario` and `FromLoopFrame`: in `BuildScenario`, `StartLoop` and `DrawLoopFrame`.
+
+**3. The 20 s tick.** `UpdateBrightness` keeps its 20 s cadence and its name.
+- **Its night test becomes `daynight::Evaluate`:** `phase = Evaluate(phase, utc > 1600000000, hasLatLon, lat, lon, utc + 60 * autoOffsetMin)`.
+- **The dim becomes `wxtheme::NightDim(autoDim, phase)`.** The brightness rule is unchanged: a fifth, floored at 10.
+- **Two named changes from today, as TD ruled them:**
+  - the dim follows the hysteresis band: it comes on at -1.833° at dusk and goes off at +0.167° at dawn, not at -0.833° both ways;
+  - a lost clock keeps the last phase, where today it un-dims.
+- **A dim that changes prints `[wx] dim=<0|1> brightness=<n>`.** Nothing is printed on a tick that changes nothing.
+
+**4. The switch.** After the tick, and again after the gestures, `want = Select(themeSetting, phase)`.
+- **When `want != which` and the mode is not Loop:**
+  - `which = want`;
+  - it prints `[wx] theme=<dark|light> was=<dark|light> setting=<auto|light|dark> phase=<Unknown|Day|Night>`.
+- **In Loop it waits**, so no switch lands inside a loop. It applies at the first Update after `FinishLoop`.
+  - The loop's layer is built at the tap in the shown theme, and `ComposeLayered` never sees the theme change inside a frame.
+  - The loop's `layer_rebuilds` stays 0 (A9.23's rule).
+- **The splash, the status screen and the legend** are drawn every frame from `Th()`, so they change at the next frame.
+
+**5. The recompose.** In Scenario mode, whenever `composedWhich != which`, the scenario is rebuilt (`BuildScenario`, build reason `theme`), and `BuildScenario` sets `composedWhich`.
+- **This covers every path to a stale cached screen:** a switch on the scenario screen; one during the legend, rebuilt when it closes; and one deferred over a loop.
+- **On a Bend scenario**, the rebuild runs `EnsureBase`. Its key carries no theme, so its line reads `rebuilt=no`. **That is SW's base row** (Q58).
+
+**6. The grounds.** The splash and the status screen fill with `Th().bg` before they draw. `main.cpp`'s black clear for every edition stays (A12.43 §1).
+
+**7. The setting.** `Initialise` reads `wx-theme` through `ParseSetting`. It runs at boot and after every config save.
+- **The init line gains** ` theme=<auto|light|dark> read=<known|unset|unknown>`.
+- **An unknown value is named, never coerced** (TP): ` stored=<token> len=<n>`, its first 24 bytes as a `wxscenes::Token`.
+  - It is free text, so a prefix is still a true prefix. The length shows when it was cut.
+
+**8. `O`: stored mode only, gated like the others.**
+- **What it does:**
+  - `autoOffsetMin = (autoOffsetMin + 15) % 1440`;
+  - one evaluation, at once;
+  - it prints `[wx] auto offset=+<N> min phase=<Unknown|Day|Night>`;
+  - then the switch check.
+- **It is a setting, not a touch:** it does not reset the idle return (like `G`), and it is accepted in every mode.
+- **It prints no elevation** (Q48).
+
+**9. The config page.** The Display fieldset gains a **Theme** select: Auto, Light, Dark. Its hint reads "Auto follows the sun at your location: light by day, dark at night."
+- **The page** marks the stored value as `selected`. An absent or unknown value selects Auto, which is how the device reads it too.
+- **The save writes `wx-theme` only when the posted value is exactly `auto`, `light` or `dark`.**
+  - **Any other value is refused:** nothing is written, `[POST] rejected wx-theme: not auto, light or dark` is printed, and the reply says so. This is CLAUDE.md's set rule: refuse what is not a member, never coerce it.
+  - **An absent field is left alone** (a partial POST, as `cfg-form` already allows).
+  - A select is not a checkbox, so `cfg-toggles` is unaffected.
+
+#### 2. Sizes and memory, frozen before the build
+
+**The anchor** (A12.65): main `ebb8db17b1b2`.
+- flash **1,876,267 B**;
+- RAM **59,184 B** (`.dram0.data` 23,392 + `.dram0.bss` 35,792);
+- `appManager` **4,608 B** (`nm -S`).
+
+| row | predicted |
+|---|---|
+| **RAM** | **59,192 B exactly (+8); band 59,184-59,200.** `appManager` grows 4,608 → **4,616**. The block's 7 bytes and 1 of padding sit at a 4-aligned offset (`configuredBrightness` starts the 8-aligned word after `deviceLon`, and `nightDim` ends its first half). So every later member moves by 8, and all their alignments hold. No new static. The band is for `.bss`'s neighbours, as A12.53's −4 was. **If inside, it is re-registered exactly with every byte placed** |
+| **PSRAM** | **no new allocation:** `psram_used` and `psram_base` equal the anchor run's readings (A12.57's baselines, Q56's model) |
+| **flash** | **1,877,267-1,882,267 B** (+1,000 to +6,000). **`kLight`'s 261 B add 0:** the table is already in main's image, found exactly once in `firmware.bin` (its snow run and its tail), because WxScreens selects a theme at runtime. **What remains** is code and strings: the page's select and its processor, the save's check, the manager's prints, `Evaluate`, `Select` and `O`. **If inside, it is re-registered part by part from the two ELFs (`nm -S`)** |
+
+#### 3. The host work
+
+| row | what | expected |
+|---|---|---|
+| **W-T** | `screen_watch.py` learns the switch. **Explaining it:** a `[wx] theme=` line is explained by a sent `O`, or by the runner's `#HOST post wx-theme=<v>` line, within 3 s; a `[wx] screen=scenario <name>` that repeats the shown scene is explained within 3 s of a theme line. **Not screen changes:** `[wx] dim=` and `[wx] auto offset=` lines are recorded but are not screen changes | its self-test cases pass. **The controls:** a theme line with neither within 3 s is UNEXPLAINED, and so is a repeated scene line with no theme line |
+| **L-T** | `legend_check.py --theme light`: the light table derived in the script from A12.43 §1-§2 with A12.44, never from `WxTheme.h`. L1 grades the light swatches; L5's ground is paper, and a label box holds only paper or the label ink; L6's non-ground pixels lie within 112 px | the dark legend graded as `--theme light` fails L1 and L5 (the control); dark's own grading is unchanged |
+| suites | the host suites | **every count as A12.65's.** No host test compiles the manager |
+| drivers | every driver, in full and `--control` (A12.59's lesson) | **as A12.65's**; `run.sh` green under both compilers, only the rig's two |
+
+#### 4. The board (907069326E64, after the watch window and the ruling)
+
+**The setup:**
+- one serial open, never reopened (`bench-trace` rules), with the live watcher;
+- `/diag/fb` captures and the config POSTs go to the board's host, which is never printed;
+- the write is `flash_plan`, then the app alone at 0x20000, then the `[ota-slot]` read, with `read-mac` and the boot read chained in one command.
+
+| row | what | expected |
+|---|---|---|
+| boot | the init and memory lines | `theme=auto read=unset` (the board has never stored `wx-theme`; if it has, the value is named). `psram_used` and `psram_base` as §2 |
+| **B1-dark** | POST `wx-theme=dark`; then step 7's B1 (A12.55): the eight scenarios at 60 mi with terrain off, then `G` and Bend's two with terrain on | every capture and its `k` lines **exact against `k35.ref.txt` and `k35b.ref.txt`**: Dallas six, `bdry-60-B/C`, `brain-60-B/C` |
+| **B1-light** | POST `wx-theme=light`: `[wx] theme=light was=dark setting=light`, then the recompose; then the same captures | every one **exact against `k35l.ref.txt` and `k35bl.ref.txt`**. Bend's terrain on the glass in both themes (A12.48). **The images in both themes go to Daniel** |
+| **B3** | S on a scenario, capture the legend, then T; in each theme | `legend_check.py --fb --theme dark` and `--theme light` both pass |
+| **BSW** | POST `wx-theme=auto`; at `bdry`'s screen line, 96 `O` presses 0.2 s apart | **96 `[wx] auto offset=` lines** (+15 … +1425, then 0). **Exactly 2 `[wx] theme=` lines,** one each way, **and, with `autodim=1` as the init line prints it, exactly 2 `[wx] dim=` lines at the same two presses.** Each switch is followed by a recompose: `screen=scenario` repeating the scene, with the build reason `theme`. **SW's base row: on Bend, each recompose's base line reads `rebuilt=no`, so 0 base rebuilds from a switch.** Nothing on the other 94 presses. The watcher: 0 unexplained |
+| **BSW-L** | the deferral: press `O` to one press before the switch BSW found; then T; then `O` during the loop | the `[wx] auto offset=` line prints during the loop. **`[wx] theme=` prints only after `[wx] loop records=… layer_rebuilds=0`**, then the recompose |
+| restore | POST `wx-theme=auto` | the board ends with `wx-theme=auto` stored. It had none before; this is named |
+
+- **If a switch lands off Bend** (`bdry`'s 30 s hold ends inside the walk), the base row reads "not observed", and BSW runs again at the next `bdry` (3 tries).
+- **A real dusk or dawn inside the run** switches the theme on the 20 s tick with no `O` and no POST. The watcher reports it as unexplained and the run stops. That is the outside-the-set branch, reported.
+
+#### 5. S-SWB on the board (Q63)
+
+- **The plant:** a copy of `WeatherscopeManager.cpp` whose `EnsureBase` key carries the theme: `MakeBaseKey(h, b.pk.crc32, b.pk.size + (uint32_t)which, R, …)`.
+- **The image** is built from a mirror and flashed by the same write rules.
+- **It must fail exactly SW's base row:** BSW on that image reads `rebuilt=package` at the two switch presses. Every other BSW row holds.
+- **Then t5's real image goes back on**, and its boot read is checked.
+- **The colour proof does not apply:** this is not a colour plant. **`--anchors`** gains the anchor in a board-sabotage list that `run.sh` checks, like the drivers'.
+
+#### 6. For the ruling
+
+- **Q61, BSW's line.** A12.43 froze "exactly 2 `[wx] layer rebuilt=theme` lines". The firmware has no such line to print:
+  - a stored scenario is composed whole by `Compose` into the cached sprite, with no `Layer`;
+  - the layer is the loop's, built at every tap;
+  - a switch never lands inside a loop (§1.4).
+  - **(a), recommended:** BSW grades the switch as §4 does: 2 `[wx] theme=` lines, each with its recompose (build reason `theme`) and, on Bend, `rebuilt=no`. BSW-L grades that the loop's layer is never rebuilt by a switch.
+  - **(b):** compose the stored scenario through a `Layer` as well, so a switch prints a layer rebuild. That is new device work for a log line.
+- **Q62, the committed record and the board's location.** The theme, dim and `O` lines print when the phase flips. A trace's timestamps, with the date, put dusk and dawn on record, and those two give the board's latitude (from the day's length) and longitude (from solar noon). That is the same disclosure as the elevation Q48 kept out of the log.
+  - **(a), recommended:** the committed record of BSW and BSW-L holds the verdicts and the counts. The raw trace stays local, and only its sha256 is committed. Every committed log line is stripped of its time. B1 and B3, which print no phase, are committed as today.
+  - **(b):** commit the trace with the theme, dim and `O` lines' times redacted.
+- **Q63, S-SWB on the board.** It needs two extra writes (the planted image, then t5's again), plus a third BSW. **(a), recommended:** as §5. **(b):** grade SW's base row on the board without a sabotage. It would be a check that has never been seen to fail, which this file's rules count as unproven.
+
+**The outside-the-set branch, pre-registered:**
+- **A size outside its band,** or any board row off its value, stops t5 at that row. It is reported with its cause before anything changes.
+- **Any count off its frozen value** (the 96 `O` lines, the 2 switches, the 2 dims, the base row's 0) is reported as it stands. It is never explained after the fact.
