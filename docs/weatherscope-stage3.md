@@ -8917,3 +8917,82 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 1. The tools, with their host checks. The watcher replayed on q3's committed trace must read 0 unexplained, and must catch q2's legend-without-`S` at 04:18:22Z, as A12.35 recorded it. q2's trace is on this machine, uncommitted and never published; only its counts are reported.
 2. The anchor's write and run.
 3. Step 7's write and run, once Q54 is ruled.
+
+### A12.56 3.5b step 8, the anchor run of main's image: every A12.55 row holds but two -- stopped for a ruling (Q55)
+
+**The tools first** (`weatherscope/3-5b-board` @ `18a795bf7bc8`, stacked on #507; no PR until the runs are done):
+- **The watcher, replayed** on q3's committed trace: 48 of 48 changes explained.
+  - **Its control:** q2's trace (on this machine, never published) reads 1 unexplained: `[wx] screen=legend` at 04:18:22Z (21:18:22 PDT), the change A12.35 recorded.
+- **The Bend code-hash reference:** B9 anchor held; spike `a5db678`, the commit Dallas's `screens.ref.json` names.
+  - 15 distinct hashes, **0 equal to a Dallas frame's** (the control); `--check` matches.
+
+**The write** (A12.33's method):
+- **The image:** main `58509562c620`, `firmware.bin` 1,631,248 B, sha256 `cc5917f531ff`.
+- **`flash_plan.py`:** the write `0x0020000-0x01AE40F` touches app0 only.
+- **The port:** COM6, resolved from `907069326E64`. esptool read MAC `90:70:69:32:6e:64`, wrote 1,631,248 B at `0x00020000`, verified the hash, exit 0.
+- **The boot, read twice:**
+  - **The first read missed it:** it opened about 8 s after the write's reset, and caught only `[wx] init`. As `boot_read.py` says, the slot was not inferred.
+  - **The board was then reset with `read-mac`** (no write), and `boot_read.py` opened at once. It read `[build] env=weatherscope-s3-128 fw=v18` and `[ota-slot] boot running=app0 @0x020000` at 0.21 s.
+
+**The run, `run-2026-10-30-anchor`:**
+- **Its shape:** `run_b35.py`, one open, 03:50Z-04:05Z. All 17 captures graded at their first pair; TCP :80 up 0.5 s after the close.
+- **Redacted** (one IPv4, one BSSID, one SSID, all from one Wi-Fi line); the grade is identical before and after.
+
+| row (A12.55) | predicted | measured | |
+|---|---|---|---|
+| B1 | the six exact, lines, picks, believed | 6 of 6 at 57,600, lines equal, picks `212400`/`220000`, believed | holds |
+| **PSRAM** | **`psram_used` 221,132 B**, inside A9.23's band | **221,020 B**, inside the band | **off by −112 B** |
+| BZ | 7 of 7 exact on Dallas dry | 7 of 7 | holds |
+| B2 hashes, epochs | 15 of 15 each loop | 15 of 15 and 15 of 15 | holds |
+| B2 pacing, rate | 70,000 ± 5,000, spread ≤ 10,000, ≥ 14 fps | 69,989-71,063 (spread 1,074), 14.27 fps; 69,855-70,144 (289), 14.29 fps | holds |
+| B2 draw, hash | ≤ 45,000; ≤ 5,000 | 34,880-36,121 and 34,931-35,967; 4,037-4,215 and 4,049-4,119 | holds |
+| **B2's draw range** | **every frame within A9.23's 28,000-36,000** | **60 mi: frames 8 and 11 at 36,054 and 36,121.** Warning: all in | **off** |
+| B2 layer, after the loop | as in G | `build_us` 20,119 and 20,664, 3,063 px, valid; both screens after the loops exact | holds |
+| B3 | the legend and the screen after it exact | exact; `legend_check --fb` exit 0 | holds |
+| sabotages | 5 of 5 red | 5 of 5 | holds |
+| `/diag/fb` | every fetch finished; waits ≤ 100,000 | as predicted; verdict "(i) a copy inside the redraw -- (ii) and (iii) excluded" | holds |
+| the watcher | 0 unexplained | 47 of 47 explained | holds |
+
+**This is t3's first board run, and its Dark pixels on the glass equal q3's.** Every image's RGB-pixel sha256 is identical to A12.35's:
+
+| image | sha256 |
+|---|---|
+| dry | `aa4e44ab086d` |
+| approaching | `fd0aaa6b7f22` |
+| here-now | `c908d1730680` |
+| warning | `250b5aa7be55` |
+| stale | `710d6ee1f4bb` |
+| clear | `de37a89877e0` |
+| the legend | `932094ef7a4f` |
+
+**The PSRAM miss, −112 B.**
+- **What the boot printed:** `in=472 out=688 layer=59504`.
+- **The structures, measured with the env's compiler in both trees:**
+  - Q's tree: `ScreenIn` 432, `ScreenOut` 688, `Layer` 59,488. That is exactly what q3's own line printed, so the measurement is checked.
+  - Main's: 472, 688, 59,504.
+  - `View` 992, `Scenario` 368 and `Cycle` 16 are the same in both, and so is the town table (171 towns).
+- **So the structures predict +56 B over q3's 221,076. The board read −56 B.**
+- **No structure in the group explains the 112 B.** Two causes remain, and the data cannot separate them:
+  - **(1)** another task's PSRAM allocation inside one of the two measuring windows. Wi-Fi and LWIP run elsewhere, and A9.23 carries ±2,000 for this method.
+  - **(2)** the allocator placing differently sized blocks with different overhead.
+- **What would separate them:** `heap_caps_get_allocated_size()` per block for this group, a firmware change. I do not propose it now: the band holds, and A12.37 item 3 asks it of 3.5b's buffers, which print it.
+
+**The draw-range miss.**
+- **The measurement:** main's own image, **with no probe**, draws at 60 mi in 34,880-36,121 µs. q3's probe build drew 34,776-36,063.
+- **What it supports:** A12.35's alternative, "main moved since G", for the rise A12.37 left open. Most of B2-DRAW's rise was not the probe's.
+- **My prediction was wrong, not the image.** I assumed main would draw like G (33,705 at most), when q3 had already shown a later base drawing above 36,000.
+- **What it means for B2-Bend:** main's maxima (36,121 at 60 and 35,967 on the warning screen) sit below the 36,480 that B2-Bend's 37,470 µs was built from. The frozen bound and its formula stand.
+
+**Stopped, as A12.55 says:** step 7's write waits on this ruling, and on Q54.
+
+**Q55, for a ruling.**
+- **(a), recommended:**
+  - **Re-register the anchor as measured,** which A12.37 makes the baseline: `psram_used` 221,020 B; the largest draws 36,121 (60) and 35,967 (warning).
+  - **Step 7's rows then read, unchanged in form:**
+    - `psram_used` 227,144 B ± 2,000 (221,020 + 6,124);
+    - every Dallas frame ≤ 36,421 µs (60) and ≤ 36,267 µs (warning);
+    - every Bend frame ≤ 37,470 µs.
+  - **Retire A9.23's 28,000-36,000 range as a prediction** for images after G. Both of its misses (q3's and this one) stay on record.
+- **(b):** the per-block PSRAM print for this group first, as a firmware change of its own with its own rows, to separate (1) from (2) before step 7's run.
+
+**Independent of the ruling (A12.24):** nothing on this item. #507 waits on Q53 and Q54, and this item on Q55.
