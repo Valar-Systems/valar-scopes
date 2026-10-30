@@ -131,3 +131,34 @@ directory.
   (`tsc --noEmit --strict --module nodenext`, with its import): exit 0.
 - **The selftest:** T4-T6 run only when someone runs the selftest. Running it in the Workers workflow would make them
   a check that runs. That is proposed here, not added.
+
+## Follow-up: the wrapper's selftest in CI (approved 2026-10-30), frozen before the change
+
+The reviewer: "as its own small follow-up after the merge, if CI's Node runs .mts the way the bench's does. Say which."
+
+**Which Node.** CI's Workers job sets up Node "22". A CI log of this PR's last run reads
+`Found in cache @ /opt/hostedtoolcache/node/22.23.4/x64`, so CI runs **v22.23.4**; the bench runs v24.18.0. Node's
+changelog has type stripping on by default from 22.18.0. So the prediction is that CI runs the `.mts` the way the
+bench does. That is a reading of the changelog, not an observation, and C1 is the observation.
+
+**The change:** one step in `workers.yml`'s test job, on the proxy leg only, after smoke's `/basemap` selftest:
+`node scripts/with-blip-creds.mts --selftest`.
+
+| | check | predicted |
+|---|---|---|
+| **C1** | the step's own log on the PR's first head with the step | the four `ok` lines (`depth 2`, `depth 2`, `depth 1`, `depth 2`, as on the bench) and `SELFTEST PASSED`, exit 0. A type-stripping `ExperimentalWarning` on stderr may appear; it is not a failure |
+| **C2** | the dashboard leg | the step is skipped there (`if: matrix.worker == 'proxy'`) |
+| **C3** | CI's total on that head | none failed |
+
+**C1 is read from the step's log, not from the job's colour.** A skipped or wrongly guarded step is green too.
+
+**Outside the set:** stop and report. That includes Node refusing the `.mts` (for example
+`ERR_UNKNOWN_FILE_EXTENSION`). The remedy (Node 24 for the proxy leg, or a flag) waits for a ruling.
+
+### Results for the selftest in CI (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **C1** | the step's own log on `090f6a3`, proxy leg, Node v22.23.4: the four `ok` lines (`depth 2`, `depth 2`, `depth 1`, `depth 2`) and `SELFTEST PASSED`. No `ExperimentalWarning` appeared | **as predicted**: CI runs the `.mts` the way the bench does |
+| **C2** | the dashboard leg's log holds no line of the step | **as predicted** |
+| **C3** | CI's total on `090f6a3`: 38 runs, 35 success, 3 skipped, none failed | **as predicted** |
