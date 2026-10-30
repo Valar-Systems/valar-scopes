@@ -3535,3 +3535,24 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
 - the proxy's K6 routes (`/blips` and `/v1/enrich` answered locally, logged by route as local or forwarded);
 - the two drivers (the label fields recorded, set and restored; the logbook and leaderboard refusal; W5⁗'s local-mode
   switch and its restore).
+
+### The proxy's K6 routes: frozen before the code
+
+**`tools/wx-replay/proxy.py --synth-k6`.**
+- Without the flag, nothing changes: the RP6 sessions run as before, and only `/wx/cref` is answered locally.
+- **With it:**
+  - **`GET /blips`** is answered from the generator, re-centred on the query and honouring its `limit`. The query is
+    held in memory for that request only.
+  - **`GET /enrich/{hex}`** is answered locally for exactly K6's 60 hexes, and forwarded for any other hex.
+  - **Every other route** is forwarded unchanged.
+  - **The log** gains one disposition, `synth`, inside its fixed fields. `STATUS` adds `blips_synth`,
+    `blips_forwarded`, `enrich_synth` and `enrich_forwarded`.
+
+| | check | predicted |
+|---|---|---|
+| **P1** | the selftest's earlier cases | unchanged, all pass |
+| **P2** | new selftest cases, with a synth proxy over the stand-in upstream | `/blips`: 200, `v` 1, 40 rows, nothing reaches the stand-in. A second `/blips` carries the other set (its first row is contact 20). `/enrich/<a K6 hex>`: 200, type and operator filled, nothing forwarded. `/enrich/abcdef`: forwarded (the stand-in sees it). The log holds `blips synth`, `enrich synth` and `enrich forwarded` lines, all fixed fields, with no coordinate, query or header. `STATUS` counts `blips_synth=2 enrich_synth=1 enrich_forwarded=1` |
+| **P3** | `sabotage_proxy.py`: its existing plants | as before |
+| **P4** | a new plant, **S-synth-leak**: K6's own hexes forwarded, not answered | exactly the case "nothing forwarded for a K6 hex" red |
+
+**Outside the set:** stop and report.
