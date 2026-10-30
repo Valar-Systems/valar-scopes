@@ -203,7 +203,13 @@ describe("MW, the endpoint", () => {
   it("MW18: an unstamped bundle refuses every build as builder_unstamped, with no store read", async () => {
     const s = await mwStore();
     let reads = 0;
-    const STORE = { async get(k: string) { reads++; const v = s.store.objects.get(k); return v ? { arrayBuffer: async () => v.slice().buffer } : null; } } as unknown as R2Bucket;
+    // Writes count into MP2's audit, as builderOver's stub's do: this row runs the builder too, so MP2's "no store
+    // write across every MW row" must see its runs (basemap-deploy.md: S-PWRITE found this stub outside the audit).
+    shims++;
+    const STORE = {
+      async get(k: string) { reads++; const v = s.store.objects.get(k); return v ? { arrayBuffer: async () => v.slice().buffer } : null; },
+      async put() { allWrites++; return null; }, async delete() { allWrites++; },
+    } as unknown as R2Bucket;
     const at = { lat0Micro: 370_000, lon0Micro: 590_000, epsMm: 100_584 };
     const levels = [{ radiusMm: 24_743_664, n: 246 }, { radiusMm: 49_487_328, n: 246 }, { radiusMm: 98_974_656, n: 246 }];
     // §5.4's four shapes, asking only for the layers MW's store holds (water, roads; terrain on the terrain shape). As
