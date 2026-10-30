@@ -3161,3 +3161,14 @@ passed. ... predictions first and sabotages, and re-graded on 10-29's frames bef
   - counting those two apart as well would treat a known screen dot as a possible label. Said here so the reviewer
     can rule the other way before the result.
 - **Outside the set:** stop and report.
+
+**Amended before any code (2026-10-30), D2 alone:**
+- **The error:** D2 as frozen above ("one 0x0280 pixel at the dot's position and no dot: FAIL") cannot fail.
+  0x0280 is a label colour too, so under (2b) the dart it touches is **counted apart**, not failed. That is the cost
+  the ruling accepted.
+- **D2 now:** the same frame. Wanted: PASS with "counted apart 1".
+- **D1 is sharpened:** PASS with "counted apart **0**". The complete dot is excluded, so nothing is left to count.
+- **S-dot-anywhere** (the completeness check dropped) still turns exactly D2 red: the lone pixel is excluded, and the
+  count falls to 0.
+- **S-dot-slot** turns exactly D1 red: the dot is not found where the plant looks, so its pixels count apart (1).
+- Nothing else changes. Caught by working the case through before writing it, not by running anything.
