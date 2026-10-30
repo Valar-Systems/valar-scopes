@@ -340,3 +340,13 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **The weak confirmation is all D2 has.** The stamp and the binding come from the deploy's own output, and the version from Cloudflare's deployment list.
 - **The proof is D3:** after one `/basemap` build through the bound staging proxy, `/healthz`'s `basemap.commit` must read `9f44a1a273b54a6890253c2126b17dc3a742c76c`.
 - **Until then nothing can reach either builder.** Neither has a route, and no proxy binds them.
+
+### D0's go, received after its deadline (2026-10-30)
+
+**The ruling, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-30):**
+
+> D0 hasn't happened: production's /healthz still reads c06dc17, with no basemap field. If my "D0: go" from earlier didn't reach you, this is it: D0 now, as your plan and pre-registered rows say, finished before 05:30Z (10:30 PM PDT). E2:08 has a window from 06:00Z. Your smoke runs use E2:08's own credentials, and one starved E2:08's feed for 90 s today, so none may run inside an E2:08 window.
+
+- **It reached me at 17:27Z,** twelve hours after its deadline. The earlier "D0: go" it mentions never reached this session.
+- **D0 was not started:** the deadline had passed, and E2:08's window from 06:00Z has no end I can see. A smoke run inside it is ruled out.
+- **D0 waits for a fresh slot.** Everything it needs is prepared, so the slot needs about 30 minutes.
