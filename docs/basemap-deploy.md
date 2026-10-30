@@ -300,3 +300,43 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **So on the sealed store,** `build()`'s throw on a requested layer with no files **cannot be reached through the route**. Only a synthetic store reaches it, which is now a reading rather than an argument.
 
 **What would reopen it:** a new store, since the census and the sweep read this one by its sha256.
+
+## #505: approved, merged; D2 deployed (2026-10-30)
+
+### The ruling, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-30)
+
+> #505: approved at b0aa07876293.
+> - The rows read as frozen: the full pass 50 of 50 with S-PWRITE exactly {MP2}; the census; R-SWEEP at r = 1 with 0 squares meeting no county or state region over all 11,675,779 covered origins, and C-SWEEP's control finding Texas's 515,962. build()'s throw is unreachable through the route on the sealed store, tied to its sha256; a new store reopens it, as you say.
+> - I read the code against the rulings: the builder's compile-time stamp (makeBuilder, "UNSTAMPED" by default in every env, so an unstamped bundle refuses every build); deploy.sh --builder with the full 40-hex stamp, a dirty tree refused with no ALLOW_DIRTY, and its own output called the weak confirmation; /healthz's basemap from the last builder 200 only, null before, and builder_invalid on a bad commit header; the smoke's /basemap verdict through the proxy's own validate(), printing no coordinates.
+> - One note for the record, no change: staging and production builders bind the same sealed bucket. That's fine for a read-only builder whose writes MP2 audits to zero, but it means staging must never get a writing build.
+> - CI's total on that head: 38, of which 35 passed and 3 skipped. Main has moved by #506 only, with no file in common, and I checked that the squash applies cleanly. Merge with a clean squash, --match-head-commit, no --admin, the head named in the record. If the head moves, the approval lapses. Record main's CI on the merge commit.
+>
+> Then D2 (deploy.sh --builder: staging, then production), and D0 on production outside any replay window, with its smoke run and the carried commits listed first. Then the D3 PR with the sweep, and D4 after it. wx-ingest stays undeployed until R3.
+
+**The note is carried as a rule:** staging and production builders bind the same sealed bucket, so **staging must never get a writing build.** MP2 is what holds every build to zero writes, and it runs on every PR touching the builder.
+
+### The merge
+
+- **Before merging:** the head was still `b0aa07876293`, main had moved by #506 only, and the squash applied cleanly to main.
+- **The merge:** squashed as **`9f44a1a273b5`** at 04:11:34Z, with `--match-head-commit b0aa0787…` and no `--admin`. The merge message names the head and its readings.
+- **Checked on main afterwards:**
+  - `proxy/`, both docs and `workers.yml` are **byte-identical to the approved head**;
+  - every other difference is #506's 35 files, byte-identical to #506's commit;
+  - `feat/basemap-deploy` was deleted, with no PR based on it.
+- **Main's CI on the merge commit:** **38 checks, all finished: 36 passed, 2 skipped.** All four workflows (workers, firmware, device-ids, no-traffic-captures) succeeded. A push to main skips a different set than a PR run.
+
+### D2: the builder Worker, deployed (as predicted)
+
+**Where from:** `scripts/deploy.sh --builder <env>`, run from a clean checkout detached at `9f44a1a`.
+- **The preflight:** no `CLOUDFLARE_API_TOKEN` in the shell or at user level (both booleans). The OAuth login is on the pinned account, with `workers_scripts (write)`.
+- **Main's moves:** main gained one commit (#507) between the merge and the deploy, touching nothing in `proxy/`, and `deploy.sh` said so without blocking.
+
+| env | result |
+|---|---|
+| staging, 04:21:23Z | **as predicted:** stamped with the full `9f44a1a273b54a6890253c2126b17dc3a742c76c`; `env.STORE (blipscope-basemap) R2 Bucket`; no route ("No deploy targets"); exit 0. Version **`98800bfe-c74f-4d12-8616-b7f073deccec`**, listed by `wrangler deployments list` at 100% |
+| production, 04:21:40Z | **as predicted:** the same stamp, binding and no route; exit 0. Version **`9ba96cf6-f1b0-4d92-ade3-dcf2f4d37e38`**, at 100% |
+
+**What this proves, and what it does not (Q3):**
+- **The weak confirmation is all D2 has.** The stamp and the binding come from the deploy's own output, and the version from Cloudflare's deployment list.
+- **The proof is D3:** after one `/basemap` build through the bound staging proxy, `/healthz`'s `basemap.commit` must read `9f44a1a273b54a6890253c2126b17dc3a742c76c`.
+- **Until then nothing can reach either builder.** Neither has a route, and no proxy binds them.
