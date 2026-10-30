@@ -338,6 +338,13 @@ const SABOTAGES = {
     edits: [["commit: lastBuild ? lastBuild.commit : null };", "commit: lastBuild ? lastBuild.commit : \"0\".repeat(40) }; // SABOTAGE S-HMADEUP"]],
     expect: ["MH2"],
   },
+  // The D3 PR's (docs/basemap-deploy.md): the ETOPO1 credit dropped from the credits page.
+  "S-ACREDIT": {
+    file: "src/photolicense.ts", set: "all",
+    edits: [["const TERRAIN_CREDITS: readonly string[] = CREDIT_BITS.map(([, text]) => text);",
+             "const TERRAIN_CREDITS: readonly string[] = CREDIT_BITS.filter(([b]) => b !== 4).map(([, text]) => text); // SABOTAGE S-ACREDIT"]],
+    expect: ["MA2"],
+  },
   "S-HNOCACHE": {
     file: HANDLER, set: "all",
     edits: [["  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null };\n",
