@@ -15,7 +15,7 @@
 #ifdef FEATURE_CLOUD_FEED
 #include "CloudFeed.h"        // NormalizeBaseUrl + the CLOUD_FEED_BASE default, for the leaderboard link
 #endif
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
 #include "AircraftInfoFields.h"   // radar-only; filtered out of the FEATURE_EAM/FEATURE_SPACE builds
 #include "FrameBuffer.h"
 #include <esp_heap_caps.h>
@@ -419,7 +419,7 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // The radar serves /diag/fb to everyone; of the editions, the Missileer PHOTO_MODE build
 // (env:missileer-photo) serves it, for product screenshots of the real glass, and Weatherscope
 // serves the radar's own route (docs/weatherscope-stage3.md A8.7).
-#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE)) || defined(FEATURE_WEATHERSCOPE)
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)) || (defined(FEATURE_EAM) && defined(PHOTO_MODE)) || defined(FEATURE_WEATHERSCOPE)
 // The viewer page for /diag/fb. Its own literal rather than part of CONFIG_HTML:
 // it takes no %PLACEHOLDER% substitution, so it is served with send_P and the
 // percent sign is an ordinary character here.
@@ -576,7 +576,7 @@ static const char FB_VIEWER_HTML[] PROGMEM = R"(
 )";
 #endif
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
 static const char CONFIG_HTML[] PROGMEM = R"(
 <html>
     <head>
@@ -2526,6 +2526,87 @@ static const char CONFIG_HTML[] PROGMEM = R"(
     </body>
 </html>
 )";
+#elif defined(FEATURE_REMOTE)
+// FEATURE_REMOTE (Remote) config page: location and UTC offset -- both optional; they drive the night
+// auto-dim and put the quiet hour's update check at 03:00 local -- and display. The device list
+// (discovery, adding a window or curtain, per-device gesture) arrives with the feature work
+// (docs/remote-edition.md). No secret yet. Shares the page chrome / JS pattern with the other editions.
+static const char CONFIG_HTML[] PROGMEM = R"(
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Configure Remote</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='rgb(10,18,6)'/><rect x='3.5' y='3' width='9' height='10' fill='none' stroke='rgb(163,230,53)' stroke-width='1.2'/><line x1='3.5' y1='8' x2='12.5' y2='8' stroke='rgb(163,230,53)' stroke-width='1.2'/></svg>">
+        <style>:root{--ink:#d9f99d;--line:#84cc16;--dim:#4d7c0f;--btn:#a3e635;--text:#e6edea}</style>
+)" CONFIG_SHELL_CSS R"(
+    </head>
+    <body>
+        <fieldset class="wrap">
+            <legend>Configure Remote &mdash; Windows &amp; curtains</legend>
+
+            <div class="status">
+                <span>%DEVICE_NAME%.local</span>
+                <span>%DEVICE_IP%</span>
+                <span>WiFi %WIFI_RSSI% dBm</span>
+                <span>firmware v%FW_VERSION% (Remote)</span>
+                <span title="Build env and compiled features">%BUILD_ID%</span>
+            </div>
+
+            <form id="cfg" action="/save" method="POST">
+                <input type="hidden" name="cfg-form" value="1">
+
+                <fieldset>
+                    <legend>Windows &amp; curtains</legend>
+                    <span class="hint">No window or curtain can be added in this build yet.</span>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Location &amp; time</legend>
+                    <div class="row">
+                        <label class="field">
+                            <span>Latitude:</span>
+                            <input name="latitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LATITUDE%' class="grow">
+                        </label>
+                        <label class="field">
+                            <span>Longitude:</span>
+                            <input name="longitude" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" value='%LONGITUDE%' class="grow">
+                        </label>
+                    </div>
+                    <label class="field mt">
+                        <span>UTC offset (hrs):</span>
+                        <input name="tz-offset" type="number" min="-12" max="14" step="0.5" value='%TZ_OFFSET%' placeholder='%TZ_AUTO%' class="w6">
+                    </label>
+                    <span class="hint mt">Both optional. Your location dims the screen at night. Your location or a UTC offset puts the nightly update check at 3&nbsp;am your time; with neither it runs at 03:00 UTC. Leave the offset blank to work it out from your location. Tip: paste into either location box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo; and &ldquo;44.058&deg;N 121.315&deg;W&rdquo; both work.</span>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Display</legend>
+                    <div class="field">
+                        <label class="check"><input name="autodim" type="checkbox" %AUTODIM%><span>Auto-dim at night</span></label>
+                    </div>
+                    <label class="field mt">
+                        <span>Brightness:</span>
+                        <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
+                        <span id="brival" class="hint"></span>
+                    </label>
+                </fieldset>
+
+                <div class="savebar">
+                    <input type="submit" value="Save" class="btn">
+                    <span id="result"></span>
+                </div>
+            </form>
+
+            <div class="foot">
+                <a href="https://github.com/Valar-Systems/valar-scopes/wiki" target="_blank" rel="noopener">Help &amp; documentation</a>
+                <button type="button" id="resetwifi" class="btn-danger">Reset WiFi</button>
+            </div>
+        </fieldset>
+)" CONFIG_SHELL_JS R"(
+    </body>
+</html>
+)";
 #endif
 
 // Escape a user-sourced value before it is echoed into the config page. Without
@@ -2684,7 +2765,7 @@ void ConfigurationWebServer::Initialise() {
         // read all values up front so the processor lambda can capture by value
         Preferences prefs;
         prefs.begin("config", true);
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
         const String latitude = HtmlEscape(prefs.getString("latitude", ""));
         const String longitude = HtmlEscape(prefs.getString("longitude", ""));
         // Saved location profiles (home / work / trip); the config-page JS loads
@@ -3140,10 +3221,28 @@ void ConfigurationWebServer::Initialise() {
         const String longitude = HtmlEscape(prefs.getString("longitude", ""));
         const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
+#elif defined(FEATURE_REMOTE)
+        // FEATURE_REMOTE: load the Remote config fields -- location, UTC offset and display; no masked
+        // secret yet. tz-offset is the RADAR'S key under the radar's rule (its load, above): AUTO IS THE
+        // ABSENCE OF THE KEY, so the field renders empty when the key is absent and the derived zone is
+        // shown as a placeholder -- a 0 nobody typed is never posted back. main.cpp's
+        // QuietHourOffsetSec() reads these same keys, which is what puts the quiet hour on local time.
+        const String latitude = HtmlEscape(prefs.getString("latitude", ""));
+        const String longitude = HtmlEscape(prefs.getString("longitude", ""));
+        const String tzOffset = prefs.isKey("tz-offset")
+            ? HtmlEscape(prefs.getString("tz-offset", ""))
+            : String("");
+        const int    tzAutoZone = (int)lround(longitude.toFloat() / 15.0);
+        const String tzAuto = longitude.length() == 0
+            ? String("Auto - set your location")
+            : String("Auto - UTC") + (tzAutoZone >= 0 ? "+" : "") + String(tzAutoZone)
+                  + " from location";
+        const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
+        const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
 #endif
         prefs.end();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
         // mask secrets before sending to client
         std::fill(openskySecret.begin(), openskySecret.end(), '*');
         std::fill(mqttPass.begin(), mqttPass.end(), '*');
@@ -3160,7 +3259,7 @@ void ConfigurationWebServer::Initialise() {
         // FEATURE_SPACE has no secret fields yet (no API keys until the key-gated screens land).
 
         // template processor called once per %PLACEHOLDER% token found in CONFIG_HTML.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
@@ -3529,6 +3628,28 @@ void ConfigurationWebServer::Initialise() {
                 return "";
             }
         );
+#elif defined(FEATURE_REMOTE)
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/html",
+            (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, tzOffset, tzAuto, autoDimEnabled, brightness]
+            (const String& var) -> String {
+                if (var == "LATITUDE")       return latitude;
+                if (var == "LONGITUDE")      return longitude;
+                if (var == "TZ_OFFSET")      return tzOffset;
+                if (var == "TZ_AUTO")        return tzAuto;
+                if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
+                if (var == "BRIGHTNESS")     return brightness;
+                if (var == "FW_VERSION")     return String(FW_VERSION);
+                // Free function, so no capture list changes -- every edition's
+                // processor answers this identically. See BuildIdentity.h.
+                if (var == "BUILD_ID")       return BuildIdentity::Summary();
+                if (var == "DEVICE_NAME")    return deviceName;
+                if (var == "DEVICE_IP")      return deviceIp;
+                if (var == "WIFI_RSSI")      return wifiRssi;
+                return "";
+            }
+        );
 #endif
         // never cache the config page: a stale copy (e.g. predating a new option)
         // would hide controls and, once submitted, silently clear the missing fields
@@ -3673,7 +3794,7 @@ void ConfigurationWebServer::Initialise() {
 
         prefs.begin("config", false);
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
         TrySaveCoord("latitude", true);
         TrySaveCoord("longitude", false);
         // Saved location profiles (home / work / trip).
@@ -3989,6 +4110,25 @@ void ConfigurationWebServer::Initialise() {
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
         SaveToggle("autodim");
+#elif defined(FEATURE_REMOTE)
+        // FEATURE_REMOTE: persist the Remote config fields. No secret yet.
+        TrySaveCoord("latitude", true);
+        TrySaveCoord("longitude", false);
+        TrySaveParam("brightness");
+        // tz-offset: the radar's rule (its save, above), restated because that branch is radar-only.
+        // An empty field is AUTO, and auto is the ABSENCE of the key -- never a stored "" (isKey() would
+        // turn true and the placeholder would vanish) and never a stored 0 nobody typed.
+        if (const auto* tzParam = request->getParam("tz-offset", true)) {
+            const String tzValue = tzParam->value();
+            if (tzValue.length() == 0) {
+                if (prefs.isKey("tz-offset")) prefs.remove("tz-offset");
+            } else {
+                prefs.putString("tz-offset", tzValue);
+            }
+        }
+
+        // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
+        SaveToggle("autodim");
 #endif
         // Read the STORED location back before closing, so the warning below
         // reflects what the device will actually run with -- not merely what this
@@ -4026,8 +4166,9 @@ void ConfigurationWebServer::Initialise() {
         // customer MUST supply, and it is the one most likely to be skipped.
         //
         // Editions that plot something near you only; Space/EAM/Claudescope/Speed
-        // have no geography and must not be nagged about it.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED)
+        // have no geography and must not be nagged about it. Nor Remote: its
+        // location is optional (night dim and the quiet hour's local time only).
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_REMOTE)
         if (savedLat.isEmpty() || savedLon.isEmpty()) {
             // Flags only -- this line printed the coordinate that WAS set.
             Serial.printf("[POST] saved, but location incomplete (lat=%s lon=%s)\n",
@@ -4071,7 +4212,7 @@ void ConfigurationWebServer::Initialise() {
 
     // Forget WiFi credentials and reboot into the WiFiManager setup portal. The
     // response is sent first; the restart is deferred a moment so it can flush.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
     /* -----------------------------------------------------------------------
      * ENROLLMENT KEY LANDING — the only path that may write "cloud-key-fac".
      *
@@ -4184,7 +4325,7 @@ void ConfigurationWebServer::Initialise() {
 
 // /diag/fb and /diag/fb.html: the radar's, and Weatherscope's too (docs/weatherscope-stage3.md A8.7: the same
 // route, code path and access rules; only this guard is widened). The logbook below stays radar-only.
-#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || defined(FEATURE_WEATHERSCOPE)
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)) || defined(FEATURE_WEATHERSCOPE)
     // Spotting-logbook export (radar edition). Serves the persisted lifelist straight
     // from NVS as JSON -- read-only, so it's safe from the async task alongside the
     // loop-task logbook writer (at most one debounce interval stale).
@@ -4374,7 +4515,7 @@ void ConfigurationWebServer::Initialise() {
     });
 #endif
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
     server.on("/logbook.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
         // Ask the loop task to flush a dirty logbook. It cannot help THIS
         // response -- the stream below is already reading NVS on this task -- but
