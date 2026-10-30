@@ -9829,3 +9829,82 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 
 **The board run** (B1 and B3 in both themes, BSW, BSW-L, then S-SWB's window) **is announced to Daniel before it starts.**
 - It runs after tonight's watch (06:00-13:00Z) and after Q64 is ruled.
+
+### A12.69 Ruled 2026-10-30 ~18:10Z (source: reviewer chat, pasted by Daniel): Q64 (a) -- what a set location starts in t5's image, from the code; and the runner's POSTs, which needed the save's CSRF header
+
+**The ruling, verbatim:**
+
+> For: Weatherscope Code, from the reviewer chat, 2026-10-30 ~18:10Z
+>
+> Q64: (a), as recommended.
+> - Before BSW, the runner sets the board's latitude and longitude to the Dallas loop fixture's crop centre, read from the
+>   fixture's header into memory and never printed. Use a partial POST of those two fields alone, verified as "only the asked
+>   fields changed", printing booleans only.
+> - Before that, say from the code whether a set location starts any request in t5's image that an unset one doesn't. If it
+>   does, name it and show it can't change B1, B3 or BSW.
+> - The record says the board now holds the Dallas fixture's place (public), and that Daniel can enter another place on its
+>   page any time. Q62's rule stands: no times.
+> - Tonight's watch (06:00-13:00Z) as planned. E2:08 runs its own watch the same night.
+> - The board run comes after the watch and is announced to Daniel, as you planned. For #510 and #511, send the counts with
+>   the approval request once every run has finished.
+
+**1. What a set location starts in t5's image, from the code.**
+
+**The method:**
+- the TUs t5's build compiled (its 37 object files under `.pio/build/weatherscope-s3-128/src`) were searched for every reader of the stored location;
+- each reader's preprocessor branch was read;
+- the ELF was checked for the two network clients the env compiles.
+
+**Every reader in the image:**
+
+| reader | what it does with the location | a request? |
+|---|---|---|
+| `WeatherscopeManager::Initialise` → `EvaluateDayNight` | `daynight::Evaluate`: the sun's elevation, so Auto's phase and the dim (A12.66) | **no:** arithmetic only |
+| `main.cpp`'s `QuietHourOffsetSec` | the quiet hour's local offset when `tz-offset` is absent. Weatherscope's page has no `tz-offset`, so it is derived from the longitude: `lround(lon / 15)` h (`LocalOffset.h`) | **not a new one.** See below |
+| the config page (Weatherscope's branch) | GET shows it; `/save` writes it and warns when incomplete; `/location` writes it from a browser | **no:** the device answers; it does not ask |
+| `ConfigMigration` | at a config-revision upgrade, removes a `tz-offset` of `"0"` | **no**, and the board has no `tz-offset` |
+
+**Clients the env compiles but the image does not hold:** `CloudFeed.cpp` and `GameClient.cpp`. t5's ELF has **0** symbols of either; nothing reaches them, and the linker dropped them. **No other compiled TU reads the location.**
+
+**The answer: a set location starts no request that an unset one does not.**
+- **The one thing it moves is the quiet hour** (not built in photo mode only). Each day, at local 03:00, it reboots the board and runs the update check after the reboot.
+- **That reboot and its check happen every day whatever the location.** Only their hour depends on it:
+  - **unset:** lon 0, offset 0, **03:00Z**;
+  - **with the Dallas fixture's place:** **−6 h, so 09:00Z.** That is the place's rounded hour, which is all that is printed of it.
+
+**Why it cannot change B1, B3 or BSW:**
+- **The run's window:** it starts after tonight's watch ends at 13:00Z and lasts about an hour, nowhere near 09:00Z or 03:00Z.
+- **A reboot inside it could not change a result silently:**
+  - a reboot drops the board's USB link, so the one serial open stops on its read error and the run is stopped, never graded on;
+  - the boot's `[wx] init` would show in the trace;
+  - Q55's rule refuses to grade a run whose trace was cut.
+- **B1 and B3 read nothing of the location:** the stored scenarios compose from the fixtures' own crops, headers and clocks (A9.10).
+- **BSW reads it, by design:** that is Q64's point.
+
+**A consequence beyond the run, named so it surprises nobody.** Once the place is set, this board's quiet hour moves to **09:00Z (02:00 PDT)**, inside any later overnight watch window like tonight's.
+- **Tonight's watch is unaffected:** the board still has no location tonight, so its quiet hour is 03:00Z, before the 06:00Z start.
+- **A later watch on this board** should expect one quiet reboot at 09:00Z, or a `tz-offset` should be entered for the board.
+
+**2. The runner, as ruled, and a defect it would have met on the board.**
+- **The defect: `/save`'s CSRF guard (`RejectCrossOrigin`) answers 403 to any POST without an `X-Blipscope` header.** The page's own JavaScript sends `X-Blipscope: 1`. `run_b35t.py` as committed at `bd13f57` sent none.
+  - **Every config POST in the run would have been refused:** both themes, auto, and the place.
+  - It was found by reading the code for this question, before any board use.
+- **The fix** (`ce2f6cb`, on t5's branch):
+  - **the header:** every POST carries `X-Blipscope: 1`, as the page does;
+  - **verification:** every POST reads the page's own form fields (latitude, longitude, autodim, brightness, `wx-theme`) before and after, in memory only, and prints **two booleans**: only the asked fields changed, and they hold what was asked. Coordinates are compared at the device's 4 dp (`CoordParse::Format`).
+  - **The place step is part of the full run:** a partial POST of latitude and longitude alone, before BSW, of the Dallas loop fixture's crop centre, read from its header and never printed.
+- **Checked off the board:** against a local mock of the page built from the **real Weatherscope template** in `ConfigurationWebServer.cpp`, which applies a POST as the save does.
+  - **4 / 0:** an honest theme save and the place save each read `True`/`True`.
+  - **The controls:** a save that also clears autodim reads "only the asked fields changed: False", and a POST without the header fails (403).
+  - **Every printed line is a boolean or a status.**
+
+**3. The record, as ruled.**
+- **The board now holds the Dallas loop fixture's place,** which is public, after the run.
+- **Daniel can enter another place on its page at any time.**
+- **No time from BSW or BSW-L is committed** (Q62).
+
+**4. Tonight's watch** runs as planned, 06:00-13:00Z, with no write to 907069326E64. E2:08's own watch the same night belongs to its own session; this session does not touch that board.
+
+**5. #510 and #511:** the counts went to Daniel with the approval request, once every run had finished and a second read showed the counts were no longer moving:
+- **#510** at `76607fcb9dc8`: 35 check runs, 32 success, 3 skipped (promote, version, ship-alert), 0 failed;
+- **#511** at `d9edd17d1960`: 34 check runs, 32 success, 2 skipped (version, promote), 0 failed.
