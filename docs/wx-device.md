@@ -3432,3 +3432,58 @@ the counts by cause.
   longer draws from the positions the checker grades against.
 - **Tonight's redo is graded both ways:** by this checker, and by the one before `1494bcd`, which `wt-anchors` holds
   as blob `a8d06e46e598`.
+
+## Rulings of 2026-10-30 ~18:25Z: K6's labels, and #510's --control
+
+**K6's labels: route (a)**, ruled: "Measure what customers run, through the draw path itself, not extrapolated."
+
+**The factory default, from `AircraftInfoFields.cpp` and `LabelLines.h`:**
+- Five fields ship on: callsign, type, operator, ground speed, barometric altitude.
+- At most 3 lines draw, by `PRIORITY` (type, callsign, barometric altitude, speed, then the table's order).
+- **So a default contact draws type, callsign and barometric altitude.** Operator ranks below the 3-line cap and is
+  not drawn.
+
+**What each synthetic contact fills:**
+- callsign and barometric altitude from `/blips`;
+- type, and operator as ruled, from the proxy's local `/v1/enrich`.
+
+**K6's run, as ruled:**
+- **Before the arm:** the run record holds E2:08's 16 label fields' on/off states (names and states only).
+- **For the arm alone:** the factory default is set (5 on, 11 off).
+- **At the end, and in `finally`:** the recorded states are restored, read back, and one boolean is printed:
+  `label fields as before`.
+- **The announcement carries the manual undo:** "If the run dies, the record names E2:08's label fields and their
+  states; re-tick them on its page."
+
+### #510's --control: the seven drivers, frozen before the code
+
+- **The contract** (`sabotage_common.control_mode`, #510): the driver's own unplanted run, each suite's count checked
+  against its `CONTROL_TABLE`.
+- **Every one of the seven suites prints `ok` lines and no count line.** Measured in WSL (g++ 13.3, Python 3.12.3),
+  each built and run as its driver builds and runs it:
+
+| driver | suite | count |
+|---|---|---|
+| `sabotage_wx_fb_check` | `wx-fb-check.py` (the selftest) | ok 31 |
+| `sabotage_wx_legend_html` | `test_wx_legend_html` | ok 8 |
+| `sabotage_wx_look_select` | `test_wx_look_select` | ok 2 |
+| `sabotage_wx_outline` | `test_wx_outline` (on the real `src`) | ok 3 |
+| `sabotage_wx_policy` | `test_wx_policy` | ok 27 |
+| `sabotage_wx_s2` | `test_wx_s2` (on the real `include`) | ok 10 |
+| `sabotage_wx_sweep` | `test_wx_sweep` | ok 5 |
+
+**Each count lives in one place,** a constant read by both `main()` and `CONTROL_TABLE`.
+- **`main()`'s own unplanted run checks it too:** a count off is the rig (exit 2), not a pass.
+- **`outline` and `s2` have no unplanted run in `main()` today.** They gain one, before their plants.
+
+| | check | predicted |
+|---|---|---|
+| **Z1** | each driver's `--control`, under #510's `sabotage_common` | `CONTROL <driver>: 1 suite(s), all as the table`, exit 0, at the counts above |
+| **Z2** | each driver's own run | as before: every sabotage as predicted, exit 0. Its unplanted count is now checked too |
+| **Z3** | the control's own control: a copy of each driver with its count one too high | `1 OFF`, exit 1, for all seven |
+| **Z4** | when main is merged after #510 lands | `test/host/sabotage_common.py` conflicts add/add. This branch's copy is main's pre-#510 blob (`09f8af21f6aa`), so **main's is taken whole**. The seven get the `if sc.wants_control():` dispatch, before `--anchors`. `run.sh`'s control pass lists the seven as all as the table |
+
+**Until then:** a red `host-tests` whose only FAILs are the seven "has no --control mode" lines is expected. Each report
+says so.
+
+**Outside the set:** stop and report.
