@@ -9428,3 +9428,27 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - No board is touched by the dry run.
 
 **Then t4,** as A12.60 froze it, with Q58 (a): SW's base row and S-SWB move to t5.
+
+### A12.62 The harness PR, before its code: the same driver holds a second stale count (Q59)
+
+**Found by reading, before any harness code.**
+- **`sabotage_wx_themed_draw.py`'s suite table** holds `test_wx_k35b`'s 143, which Q57 fixes. It also holds **`test_wx_basemap`'s 84**.
+- **Step 7 made basemap 92** (BW1-BW8, A12.53). The driver's full run on main never reached it: it stops at the first suite that reads RIG, and k35b comes before basemap.
+- **Every other suite count in that table is current:** k35 28, replay 90, layout 73, theme 72.
+- **The other 17 drivers read as predicted on main** (A12.59), so this is the only other stale count among them.
+
+**What it means for A12.61:**
+- **Its control table** for this driver already lists basemap at 92, read off main's run.
+- **Its change list** names only k35b's 143 → 149. With that change alone, this driver's `--control` and its full run would read the rig at basemap. So A12.61's "17 exit 0" would be off for this driver.
+
+**Q59, for a ruling.**
+- **(a), recommended:** the harness PR also sets the driver's basemap count from 84 to 92. It is the same defect, from the same step. **Its rows are A12.61's, unchanged:**
+  - 17 controls exit 0, and towns is skipped;
+  - the full run ALL AS PREDICTED, with S-KD's 82;
+  - the 143 copy red.
+- **(b):** fix only what Q57 names, and let this driver's control stay red until a further PR.
+
+**Until the ruling:**
+- **The harness code is written and run locally, and not pushed.** The predictions above are frozen with it.
+- **Independent of Q59 (A12.24):** t4's code proceeds locally, as A12.60 froze it with Q58 (a). It does not touch this driver.
+- **The touch watch is armed:** it is waiting for 06:00Z, with its dry run as A12.61 predicted (step 7's 72 changes all explained; q2's one at 04:18:22Z caught).
