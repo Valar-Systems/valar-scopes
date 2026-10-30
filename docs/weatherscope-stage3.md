@@ -8815,3 +8815,105 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **The board's values are as A12.53 froze them.**
 - **Step 8 starts with main's image on the board as the anchor** (A12.37). Its addendum freezes the runner's sequence before any write to the board.
 - **Q53 and Q54 must be ruled before #507 merges.**
+
+### A12.55 3.5b step 8: the anchor run and the board run -- the runner, the grader, the watcher and the predictions, frozen before any write to the board
+
+**The order** (A10.8 step 8; A12.37's anchor rule). Each write is A12.33's method: `flash_plan.py`'s ranges beside the partition table first, `firmware.bin` alone at `0x20000` to the port resolved from `907069326E64`, then the boot's `[build] env=` and `[ota-slot]` lines.
+1. **The anchor:** main's own image on the board, run by 3.5a's tools as they are, plus the watcher (below).
+   - The image is `58509562c620`, built clean: `firmware.bin` 1,631,248 B, sha256 `cc5917f531ff`. A rebuild's sha differs only by WiFiManager's build stamps; flash and RAM reproduce exactly.
+   - **Its numbers are step 7's baseline:** each Dallas loop's `draw_us`, and `psram_used`.
+2. **Step 7's image, after Q54 is ruled.** Q54 (b) would change the image (Bend rain's frame), so this write waits on it. Q53 changes no byte of the image.
+   - `#507`'s head is `d44abbab36f8`, as built: `firmware.bin` 1,876,672 B, `823fcca81598`.
+   - It is run by the Bend-aware runner and grader below.
+3. **The tools:** `flash_plan.py` (`weatherscope/light-bench`, blob `51b2e33b4736`) and `boot_read.py` (`weatherscope/build-q`, blob `cf258f3837fd`), run from their pushed branches.
+   - The new ones go on `weatherscope/3-5b-board`, stacked on #507, with the runs' redacted records: `run_b35b.py`, `grade_b35b.py`, `screen_watch.py`, and the Bend loop's code-hash reference.
+   - **That PR follows the runs.** #507 keeps its head.
+
+**The watcher, `screen_watch.py`** (A12.29's standing rule).
+- **It runs live inside `run_b35b.py`, and after the fact on both runs' traces.**
+- **A change is explained only by one of these:**
+  - `[wx] screen=legend` within 3 s of a sent `S`;
+  - `[wx] screen=loop` within 3 s of a sent `T`;
+  - `[wx] zoom in|out|... ` within 3 s of a sent `U` or `D`, or `[wx] zoom hold` within 3 s of a sent `H`;
+  - `[wx] screen=scenario <name>`, when it is:
+    - the cycle's next scene after the last one shown (Dallas's six, then `bdry`, `brain`);
+    - or within 3 s of a zoom line, a `[wx] terrain on|off` line, a `[wx] loop records=` line, or a `T` sent while the legend was open.
+- **Unexplained, every time:**
+  - `[wx] zoom idle` (no run waits 10 minutes);
+  - `[wx] hold ring on` (no run sends `P`);
+  - a `[wx] gesture` line for a byte the runner did not send;
+  - anything else.
+- **The first unexplained change stops the live run.** It is printed with its time in Pacific time (PDT, UTC−7). A second one opens a bench-only touch investigation (A12.29).
+
+**The anchor run: `run_b35.py` and `grade_b35.py` unchanged, plus the watcher.** Predicted:
+
+| row | predicted |
+|---|---|
+| B1 | the six at 60 mi, each 57,600 of 57,600 against `k35.ref.txt`, with its lines; picks `212400` / `220000`; each believed |
+| PSRAM | `psram_used` **221,132 B**. That is q3's 221,076 + `ScreenIn` 432 → 472 + `Layer` 59,488 → 59,504 (both read off q3's own line, against this image's sizes measured on xtensa; `ScreenOut` stays 688). Inside A9.23's band |
+| BZ | 7 of 7 on Dallas dry, each exact |
+| B2, both loops | 15 of 15 code hashes against `screens.ref.json`; the epochs; intervals 70,000 ± 5,000, spread ≤ 10,000; ≥ 14 fps; `draw_us` ≤ 45,000; `hash_us` ≤ 5,000; the layer line; the screen after each loop exact |
+| B2's draw range | every frame within A9.23's 28,000-36,000. t3 changed no Dallas pixel; its theme read per map pixel is the only new cost |
+| B3 | the legend exact; the screen after it exact |
+| sabotages | 5 of 5 red |
+| `/diag/fb` | every fetch finished, every wait ≤ 100,000 µs |
+| the watcher | 0 unexplained |
+
+- **These rows are t3's first board run as well.**
+- **Any row off stops step 8 before step 7's write,** and is reported. The anchor's draws and `psram_used` are recorded as measured either way: they are what main's image does.
+
+**Step 7's run, `run_b35b.py`:** one open, never reopened. It is `run_b35.py`'s rules (the 1 s rule, the snapshot rule, captures over `/diag/fb`), with the Bend steps:
+- **B1.**
+  - The eight scenarios at 60 mi, each captured 2 s after its screen line. Terrain is off, the default.
+  - **After `bdry`'s capture:** `G`, then `[wx] terrain on` (within 2 s) and `bdry`'s recomposed screen line (within 5 s). 0.5 s later, a capture, `bdry-C`.
+  - **Terrain then stays on.** So `brain` is graded with whichever terrain state the trace shows when it is captured.
+  - The budget is 330 s.
+- **BZ, on Bend dry with terrain on, in three blocks** (A9.21 item 2's dry-hold rule, on `bdry`'s hold):
+  - from `bdry R=60`: `U`, `U` (→ 30, → 15);
+  - from `bdry R=15`: `U`, `D` (→ 15 at the edge, → 30);
+  - from `bdry R=30`: `D`, `H`, `H` (→ 60, → 15, → 60).
+  - **A step's budget** is 5.2 s plus the largest terrain-on base `build_us` the trace has shown so far, rounded up to 0.1 s.
+  - **A block runs only if** 1 s + its steps' budgets fit the 25 s left of the hold. Otherwise it waits for the next `bdry`, three times at most; then that block FAILs.
+  - The zoom persists across the cycle, so each block starts where the last one ended.
+- **B2.**
+  - At the next Bend scenario at 60 mi with terrain on: 2 s, `T`, the loop and its end, 0.5 s, a capture, `postloop-bend`.
+  - Then the next Dallas scenario at 60: `T`, `postloop`.
+  - Then the next `warning R=60`: `T`, `postloop-warning`.
+- **B3:** `S`, the legend, its capture; `T`; `postlegend`.
+- **The boot's own lines** come from the trace opened right after the write (`boot_read.py`'s open, with every line kept). The USJ hands over a boot's buffered lines in one burst at the open: facts about that boot, never live state.
+
+**`grade_b35b.py`'s rows.** Every expected value comes from the other side:
+- **The pixels and lines:** from `k35.ref.txt` (Dallas) and `k35b.ref.txt` (Bend), each first checked by its own `--check`.
+- **Dallas's code hashes:** from `screens.ref.json`.
+- **Bend's code hashes:** from `render_ref.py`'s `render()` with the spike's own decoder, at the same commit `screens_ref.py` uses. That is the Dallas reference's method, on the 15 Bend crops.
+
+| row | predicted |
+|---|---|
+| boot | `[build] env=weatherscope-s3-128`, `[ota-slot] boot running=app0 @0x020000`, and A12.53's `[wx] bend` line exactly. A boot burst without the `bend` line is BLIND, not a pass |
+| B1, Dallas | the six, exact, as the anchor's |
+| B1, Bend | `bdry-60-B`, `bdry-60-C`, and `brain-60-B` or `-C` by the trace's terrain state: each 57,600 of 57,600 against `k35b.ref.txt`, with its TIME, BAND and LABEL lines |
+| the belief rule | as `grade_b35`'s, plus a Bend clause: **the last `[wx] terrain` line before the first fetch gives the expected state** (none means off), and none arrives during the fetches |
+| base lines | `rings=30 rivers=135 roads=354 places=9 peaks=16`, `level` = `terrain`; **`fnv` by (R, terrain) exactly A12.53's table**; each reason the one its transition gives: the trace's first Bend build `first`, then `terrain`, `zoom` or `no` against the previous base line |
+| `psram_used` | **the anchor's + 6,124**, ±2,000 (expected exactly: 227,256 if the anchor reads 221,132) |
+| `psram_base` | A12.53's: free delta 71,888-73,888; `image=57600 state=9776 scratch=4512`, each up to +12; `ok=1` |
+| BZ | 7 of 7, each exact against `bdry-<R>-C`, with its base line: zoom `5b4bce94`, zoom `55f38024`, no `55f38024`, zoom `5b4bce94`, zoom `af490350`, zoom `55f38024`, zoom `af490350` |
+| `build_us` | printed, not graded; **over 5,000,000 µs stops the run** |
+| **B2-Bend** | 15 records; 15 of 15 code hashes against `render_ref`'s; the Bend epochs ascending, equal to `bend-loop/MANIFEST.json`'s; pacing, rate and `hash_us` as Dallas's; **every `draw_us` ≤ 37,470 µs** (B2-Bend's frozen bound) and ≤ 38,000; the layer line `rebuilt=tap valid=1`; the base line at the tap `rebuilt=no at=tap R=60 terrain=1 fnv=af490350`; the screen after the loop exact |
+| B2-Dallas | both loops as the anchor's, and **every frame's `draw_us` ≤ the anchor's largest in the same loop + 300 µs** (A10.3's +300, against main's own image) |
+| B3 | as the anchor's |
+| sabotages | the anchor's five, plus three, **8 of 8 red**: **S-B1c** `bdry-60-C`'s snapshot against `bdry-60-B`'s reference; **S-B2d** Bend record 3 against Bend reference 4; **S-BASE** a terrain-on base line's `fnv` against the terrain-off value |
+| `/diag/fb` | as the anchor's. Its earlier-scene check maps Dallas tags only: a tag carries no terrain state, so Bend captures rest on the pixels and the belief rule. Stated, not silent |
+| the watcher | 0 unexplained |
+
+- **The B1 images are kept for Daniel:** the eight, plus `bdry-C`, by RGB-pixel sha256.
+
+**Outside every row:**
+- **Stop, report, change nothing.**
+- **An unexplained screen change stops live**, with its Pacific time.
+- **A failure to believe a capture is a FAIL,** as in 3.5a.
+- **A row that cannot be read** (a missing line, a missing capture) is BLIND, and is never a pass.
+
+**Next:**
+1. The tools, with their host checks. The watcher replayed on q3's committed trace must read 0 unexplained, and must catch q2's legend-without-`S` at 04:18:22Z, as A12.35 recorded it. q2's trace is on this machine, uncommitted and never published; only its counts are reported.
+2. The anchor's write and run.
+3. Step 7's write and run, once Q54 is ruled.
