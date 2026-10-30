@@ -14,6 +14,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEST = os.path.join(ROOT, "test", "host", "test_wx_look_select.cpp")
 FILES = {"include/WxS2.h": None, "include/WxLookSelectHtml.h": None, "src/weatherscope/WxPalette.h": None}
@@ -81,5 +84,12 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Every plant's anchor in the file it plants, for run.sh's --anchors pass (no plant runs)."""
+    return [(name, rel, sc.read(os.path.join(ROOT, rel)), old) for name, (_, rel, old, _) in SABOTAGES.items()]
+
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

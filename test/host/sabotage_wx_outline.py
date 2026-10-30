@@ -10,7 +10,14 @@ import subprocess
 import sys
 import tempfile
 
-ROOT, CXX = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
+
+# run.sh's --anchors pass gives no arguments: the root is then this file's own repo.
+if sc.wants_anchors():
+    ROOT, CXX = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), None
+else:
+    ROOT, CXX = sys.argv[1], sys.argv[2]
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
 DOT_OUTLINE = "else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);"
@@ -60,5 +67,13 @@ def main():
     return 0 if bad == 0 else 1
 
 
+def anchor_entries():
+    """Every plant's anchor in the file it plants, for run.sh's --anchors pass (no plant runs)."""
+    path = os.path.join(ROOT, "src", "AircraftManager.cpp")
+    return [(label, "src/AircraftManager.cpp", sc.read(path), old) for label, edits, _ in PLANTS for old, _ in edits]
+
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

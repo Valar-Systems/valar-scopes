@@ -12,6 +12,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "include", "WxLegendHtml.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_legend_html.cpp")
@@ -61,5 +64,12 @@ def main():
     return 0 if good and before == after else 1
 
 
+def anchor_entries():
+    """Every plant's anchor in the file it plants, for run.sh's --anchors pass (no plant runs)."""
+    return [("S-leg", os.path.relpath(HEADER, ROOT), sc.read(HEADER), OLD)]
+
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())
