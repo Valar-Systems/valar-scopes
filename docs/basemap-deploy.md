@@ -213,3 +213,45 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **What it does not show:** that every square the route accepts meets a region of each kind.
 - **The gap:** coverage is per 0.01° cell. An origin in a covered cell could sit up to about 1.4 km from the nearest state polygon. At `r = 1` the square reaches only about 1 km, so near a coast or border it might meet no state region, or no county region.
 - **On record,** with a reading proposed in the report. Not run here.
+
+## The 2026-10-30 rulings carried out: MW18 as frozen; the census as frozen; S-PWRITE off-prediction, stopped for a ruling
+
+**Pushed with lease as `b1a7d29`:** the run record, the MW18 fix, then this ruling's record with the census's predictions.
+
+| row | result |
+|---|---|
+| MW18 | **as frozen:** passes |
+| CI on `b1a7d29` | **38 checks, all finished: 35 passed, 3 skipped** |
+| the full pass on `b1a7d29` | **49 of 50 AS PREDICTED**, including S-WSTAMP {MW18}, S-WNOCOMMIT {MW19}, S-HMADEUP {MH2} and S-HNOCACHE {MH3}. Baselines ingest 10 in 1, mv 31 in 1, all 137 in 17; C-LOADFAIL AS PREDICTED (BLIND, now 61 not run); 54 runs, 0 runtime failures |
+| **S-PWRITE** | **OFF-PREDICTION:** failing **{MP2, MW18}** against its frozen {MP2} |
+| **R-CENSUS** | **as frozen:** store `4c0875738f38`, `index.json` sha256 `63a9c1429db1`, **3,195 regions: 3,144 county regions** (≥1 water and ≥1 rivers file, nothing else), **51 state regions** (≥1 roads and ≥1 peaks file, nothing else), **0 of any other shape**; exit 0 |
+| **C-CENSUS** | **as frozen:** it planted region 0 (county 01001) without its rivers file. The census named exactly that region (`holds {water}`, its box, `tl_2024_01001_areawater.zip`) and exited 1 |
+
+**The census answers item 3's question for the regions:** every region holds each layer the builder reads from it. The small-r edge named above is not covered by it, and stays on record.
+
+**The first launch of the pass did not run:** my own command `cd`'d into a directory it was already in, so the log path was never set. That is an instrument failure, not a reading. The pass above is the re-run.
+
+**S-PWRITE's cause:** MW18's control runs the stamped builder over **a store stub of its own, with only `get`**. S-PWRITE makes the builder call `STORE.put` before building, so MW18 throws `TypeError: env.STORE.put is not a function`. This was confirmed by planting S-PWRITE alone and running MW18, with `worker.ts` restored from a byte copy and its sha256 checked.
+
+**The alternative, and why the data excludes it:** that MW18 fails for some reason of its own.
+- **Its failures across the pass:** MW18 passes in the baseline and in every other sabotage's run, including the other three in `worker.ts`'s neighbourhood (S-WSTAMP fails exactly MW18, and S-WNOCOMMIT, S-HMADEUP and S-HNOCACHE do not touch it).
+- **The direct test:** it fails under S-PWRITE alone, with that error.
+
+**What it exposed, which is the real finding:**
+- **The audit MP2 relies on:** MP2 asserts "no store write across every MW row". It counts writes through `builderOver`'s stub.
+- **The path that missed it:** MW18 built its own stub instead, so **MW18's builder runs were never inside MP2's audit**. It is a second path that does not go through the first path's guard.
+- **The A2.16 re-check missed it too.** When MW18 was added, I re-checked the frozen sets by reasoning, not against MW18's own scaffolding.
+
+**Proposed fix** (committed locally, **not pushed** until a ruling):
+- **The change:** MW18's store stub gains `put` and `delete` that count into the same `allWrites` and `shims` MP2 reads, as `builderOver`'s stub does. Nothing else changes.
+- **Its effect:** under S-PWRITE, the write is counted (MP2 fails, as it must) and MW18 runs to its end (it does not throw).
+- **The alternative, not recommended:** re-registering S-PWRITE as {MP2, MW18}. It would grade a TypeError as a signal, and leave MW18 outside MP2's audit.
+
+**Frozen predictions for the fix, if ruled:**
+
+| row | predicted |
+|---|---|
+| S-PWRITE | **exactly {MP2}** |
+| MW18 and MP2 | **both pass**; MP2 now audits MW18's builder runs, with 0 writes |
+| the full pass | **50 of 50 AS PREDICTED**, C-LOADFAIL AS PREDICTED, 0 runtime failures |
+| CI on the PR's head | every check finished, none failing |
