@@ -2814,3 +2814,29 @@ So it retires now, with its predictions frozen first (below).
 | **R6** | the shipping draw path | unchanged in behaviour. R1's look-4 rows are byte-identical, and the shipping image only ever drew look 4. The shipping binary is **not** predicted byte-identical, because look 3's branch was compiled into it |
 
 **Then K1-K5** (the look as a shipping setting) follow, on top of this, as frozen.
+
+### Results for look 3's retirement, local (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **R1** | W2, W3-out, W3-in, W5a, W5b all pass. W3's wedge is still **7,283** px on average (now 32 runs, one sweep look); W5's span bytes and marked pixels are still **7,278.5** | **as predicted** |
+| **R2** | S-w (re-anchored to the lit line) `W3-in`; S-span and S-noclr `W3-in`, `W5a`; S-spanrec `W3-in`, `W5a`, `W5b`. The real header's sha256 is unchanged | **as predicted**, after one rig fix (below) |
+| **R3** | `git grep` in `src`, `include`, `test`, `scripts`: only `compare-form-fields.py`'s own synthetic selftest page | **as predicted** |
+| **R4** | `Sweep over weather (bench)` absent from both ELFs. The bench strings are in `wxlook` and absent from shipping | **as predicted** |
+| **R5** | the bench page's field set | read at the next board run |
+| **R6** | the shipping draw path | by R1, as predicted (no byte-identity was predicted) |
+
+- **The rig fix inside R2:** S-noclr's anchor still spelled `BlendOne`'s old signature, so its first run could not
+  plant, and it stopped as a rig failure, not a result. It was re-anchored to the new signature with the same plant,
+  and all four sabotages were re-run.
+- **The rest:** `run.sh` (g++ 13.3.0, WSL) fails only on the two rig gaps (the xtensa block; R0/R0b without Pillow).
+  Both images build.
+- **Not in the source any more, and not predicted:** `check-no-bench-hooks.sh`'s marker is "Weather look (bench)", the
+  look select's label. K renames that label, so K must give the check a new bench-only marker in the same change. That
+  is K's work, and it is noted there.
+
+**The redo's tools, ready** (scratchpad; not graded until the run):
+- `replay_redo.py` is derived from `replay_run.py` by `make_redo.py`, with every cut asserted: no span arm, no
+  Daniel's looks, the trace 52 min, the window at least 80 min, and no sweep look in the start state.
+- `replay_read.py` gains the touch check inside every arm, as ruled. **Shown able to fire:** on yesterday's session it
+  reads arm A **VOID** (4 `[touch]` lines).

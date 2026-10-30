@@ -912,8 +912,6 @@ void AircraftManager::Initialise()
 #ifdef WX_LOOK_AB
     // The bench env only (docs/wx-device.md, WD4 addendum 2): Daniel compares look A and look B on the glass.
     wxLook = configServer.GetStoredString("wx-look") == "B" ? wxs2::Look::B : wxs2::Look::A;
-    // WD6: Daniel compares the sweep's looks 3 and 4 on the glass; absent means 4, the look the image draws.
-    wxSweepLook = configServer.GetStoredString("wx-sweep") == "3" ? wxsweep::Look::SeeThrough : wxsweep::Look::Lit;
 #endif
     wxSpriteReady = false;   // a save can change the look, the home or the range: rebuild on the next shown frame
 #endif
@@ -2097,8 +2095,7 @@ void AircraftManager::MeasureCopyFloor()
         uint32_t blended = 0;
         for (int i = 0; i < 10; ++i) {
             const uint32_t t = micros();
-            blended += wxsweep::BlendRows(wxsweep::Look::Lit, wxs2::Percent(wxs2::Look::A), z, SCREEN_SIZE, 0,
-                                          SCREEN_SIZE - 1, [](int, int) { return (uint16_t)0; },
+            blended += wxsweep::BlendRows(wxs2::Percent(wxs2::Look::A), z, SCREEN_SIZE, 0, SCREEN_SIZE - 1,
                                           [](int, int, uint16_t) {}, [](int, int) { return (uint8_t)0; });
             sc[i] = micros() - t;
         }
@@ -3454,8 +3451,7 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #endif
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
     const uint32_t blended = wxsweep::Blend(
-        wxSweepLook, wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
-        [&](int x, int y) { return (uint16_t)__builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
+        wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
         [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
         [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
 #ifdef WX_LOOK_AB

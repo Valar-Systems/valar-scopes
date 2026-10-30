@@ -1,7 +1,8 @@
 #pragma once
-// The sweep over the weather layer (docs/wx-device.md, WD6): looks 3 (see-through) and 4 (lit), as ruled after
-// Daniel saw the mockup ("i like 3 or 4"). Pure C++11, no Arduino: test/host/test_wx_sweep.cpp grades it, and
-// AircraftManager::DrawSweepOverWeather runs the same code on the canvas buffer.
+// The sweep over the weather layer (docs/wx-device.md, WD6): look 4, lit, Daniel's pick ("i like 4: lit"). Look 3,
+// see-through, was retired on 2026-10-30: on the glass Daniel found no difference, and it cost the same within 0.1 ms.
+// Pure C++11, no Arduino: test/host/test_wx_sweep.cpp grades it, and AircraftManager::DrawSweepOverWeather runs the
+// same code on the canvas buffer.
 //
 // THE WEDGE IS TODAY'S, PIXEL FOR PIXEL. DrawRadarSweep (include/DrawHelpers.h) fills 18 triangles from the beam
 // backwards with LovyanGFX's fillTriangle; this file ports that rasteriser line for line (LGFXBase.cpp fillTriangle
@@ -20,8 +21,6 @@ constexpr float kTail = 1.0f;   // DrawRadarSweep's TAIL: the afterglow behind t
 constexpr int kSegs = 18;       // DrawRadarSweep's SEGS
 constexpr int kPeak = 120;      // DrawRadarSweep's PEAK: the green level next to the beam
 
-enum class Look : uint8_t { SeeThrough = 3, Lit = 4 };
-
 /** Slice i's green level (1 = next to the beam, kSegs = the tail), exactly DrawRadarSweep's expression. */
 inline uint8_t SliceLevel(int i)
 {
@@ -32,14 +31,6 @@ inline uint8_t SliceLevel(int i)
 
 /** The opaque wedge's colour at `lvl`: (0, lvl, 0) in RGB565, as fillTriangle stores color888(0, lvl, 0). */
 inline uint16_t Green565(uint8_t lvl) { return (uint16_t)((lvl & 0xFC) << 3); }
-
-/** Look 3: the wedge's level added to the pixel's green, clamped at full; red and blue untouched. */
-inline uint16_t SeeThrough565(uint16_t c, uint8_t lvl)
-{
-    const int g8 = ((c >> 5) & 0x3F) << 2;
-    const int up = g8 + lvl > 255 ? 255 : g8 + lvl;
-    return (uint16_t)((c & ~(0x3F << 5)) | ((up >> 2) << 5));
-}
 
 /** Look 4's percent: the look's own at the tail (lvl 0), 100 at the beam (lvl kPeak). */
 inline int LitPercent(int pct, uint8_t lvl) { return pct + ((100 - pct) * lvl + kPeak / 2) / kPeak; }
@@ -217,29 +208,28 @@ inline uint32_t Rasterise(int cx, int cy, int radius, float angle, uint8_t* slic
 
 namespace detail {
 // One wedge pixel's colour, shared by both loops below so they cannot disagree about it.
-template <typename Get, typename Set, typename Code>
-inline void BlendOne(Look look, int pct, uint8_t mark, int x, int y, Get& get, Set& set, Code& code)
+template <typename Set, typename Code>
+inline void BlendOne(int pct, uint8_t mark, int x, int y, Set& set, Code& code)
 {
     const uint8_t lvl = SliceLevel(mark);
-    if (look == Look::SeeThrough) set(x, y, SeeThrough565(get(x, y), lvl));
-    else set(x, y, Lit565(code(x, y), pct, lvl));
+    set(x, y, Lit565(code(x, y), pct, lvl));
 }
 }  // namespace detail
 
 /** Blends the wedge marked in `slice` over the frame, once per pixel, then clears those marks, visiting only each
- *  row's span from Rasterise (`rowLo` / `rowHi`). `get(x, y)` and `set(x, y, c)` read and write logical RGB565 at screen
- *  coordinates; `code(x, y)` is the layer's code there. `pct` is the layer's look percent (WxS2). Returns the pixels
- *  blended. The device's path. */
-template <typename Get, typename Set, typename Code>
-inline uint32_t Blend(Look look, int pct, uint8_t* slice, int w, int yLo, int yHi, const int16_t* rowLo,
-                      const int16_t* rowHi, Get&& get, Set&& set, Code&& code)
+ *  row's span from Rasterise (`rowLo` / `rowHi`). `set(x, y, c)` writes logical RGB565 at screen coordinates;
+ *  `code(x, y)` is the layer's code there. `pct` is the layer's look percent (WxS2). Returns the pixels blended. The
+ *  device's path. */
+template <typename Set, typename Code>
+inline uint32_t Blend(int pct, uint8_t* slice, int w, int yLo, int yHi, const int16_t* rowLo, const int16_t* rowHi,
+                      Set&& set, Code&& code)
 {
     uint32_t n = 0;
     for (int y = yLo; y <= yHi; ++y) {
         uint8_t* row = slice + (size_t)y * w;
         for (int x = rowLo[y]; x <= rowHi[y]; ++x) {
             if (row[x] == 0) continue;
-            detail::BlendOne(look, pct, row[x], x, y, get, set, code);
+            detail::BlendOne(pct, row[x], x, y, set, code);
             row[x] = 0;
             ++n;
         }
@@ -249,15 +239,15 @@ inline uint32_t Blend(Look look, int pct, uint8_t* slice, int w, int yLo, int yH
 
 /** The same blend over WHOLE rows, as it was before the B1 fix: the host test's reference for Blend, and the bench's
  *  measure of what scanning an empty byte costs. Not the device's path. */
-template <typename Get, typename Set, typename Code>
-inline uint32_t BlendRows(Look look, int pct, uint8_t* slice, int w, int yLo, int yHi, Get&& get, Set&& set, Code&& code)
+template <typename Set, typename Code>
+inline uint32_t BlendRows(int pct, uint8_t* slice, int w, int yLo, int yHi, Set&& set, Code&& code)
 {
     uint32_t n = 0;
     for (int y = yLo; y <= yHi; ++y) {
         uint8_t* row = slice + (size_t)y * w;
         for (int x = 0; x < w; ++x) {
             if (row[x] == 0) continue;
-            detail::BlendOne(look, pct, row[x], x, y, get, set, code);
+            detail::BlendOne(pct, row[x], x, y, set, code);
             row[x] = 0;
             ++n;
         }

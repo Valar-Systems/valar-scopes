@@ -650,8 +650,6 @@ private:
     uint8_t* wxSweepSpans = nullptr;  // the B1 fix: each row's first and last marked column, 2 x SCREEN_SIZE int16
     bool wxNeedsRebuild = false;     // a new crop (or view) has not been built into the layer yet
     wxs2::Look wxLook = wxs2::Look::A;   // the shipping look until Daniel picks; B only via the bench env (WD4 add. 2)
-    // WD6: the sweep over a shown layer. 4 (lit) until Daniel picks; 3 (see-through) only via the bench env.
-    wxsweep::Look wxSweepLook = wxsweep::Look::Lit;
     LGFX_Sprite wxSprite;             // wraps wxLayer565 (setBuffer): pushed in place of the frame clear
     bool wxSpriteReady = false;       // wxSprite holds the layer built for the inputs below
     wxpolicy::Show wxShowing = wxpolicy::Show::Nothing;   // this frame's decision, made in DrawWeatherUnder
