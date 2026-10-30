@@ -527,3 +527,43 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 | MA1, MA2 | both pass |
 | the full pass | **51 of 51 AS PREDICTED**, C-LOADFAIL AS PREDICTED, 0 runtime failures |
 | CI on the PR's head | every check finished, none failing |
+
+## D0: done in its slot, every prediction held (2026-10-30, 20:00-20:19Z)
+
+**The tree:** main's tip, recorded at 20:00:38Z and again just before `deploy.sh`, was **`31cb44c5376b`** (#510, test/host only, landed after `bea882a`).
+- `git diff --stat 9f44a1a 31cb44c` over the Worker's inputs (`proxy/src`, `proxy/wrangler.toml`, `proxy/package.json`, `proxy/package-lock.json`, `proxy/tsconfig.json`, the four `embed-*.mjs` and everything they read) reads **0 files**.
+- **The one `proxy/` commit since `9f44a1a`** is #500 (`d256ff0`), scripts and a test only. So the Worker built from `31cb44c` equals the one built from `9f44a1a`.
+- **The deploy and both smoke runs used that one tree:** a clean checkout of `31cb44c`, with `smoke-prod.sh` from it.
+
+**Credentials:** both smoke runs went through `d0-smoke2.sh`. The shell's pair was removed with `unset` in a subshell, and #500's wrapper passed the token file's pair through the child's environment only. Its proof read `file-key=yes file-dev=yes shell-key=no shell-dev=no` before each run. No credential value was on any command line of mine (smoke-prod.sh's own `curl -H` aside, accepted for D0).
+
+| step | time (UTC) | result |
+|---|---|---|
+| **the baseline smoke** | **20:00Z to 20:01Z** | PASS 34, FAIL 2, SKIPPED 1. FAILs: `/basemap` 404 (the route predates production) and `/healthz` `wx.opuk` (the Worker predates opuk). SKIPPED: `/v1/photo` (the live aircraft drawn had no stock photo) |
+| **the expectation, written before the deploy** | 20:01:45Z | after D0: `/basemap` PASS (inert); `wx.opuk` PASS ("not ingesting yet": #499 carried, `wx-ingest` undeployed); `/v1/photo` PASS or SKIP by the aircraft drawn; every other check as the baseline. So 36/0/1 or 37/0/0 |
+| **`deploy.sh production`** | 20:01:57Z to 20:02:08Z | exit 0; version **`2eb4aa5e-512a-4a8a-b586-8a77bfdfca4e`**, at 100% per `wrangler deployments list`; no `BASEMAP` binding listed; **`confirm-deploy`: `/healthz` reports `commit=31cb44c`**, as re-registered |
+| **`/healthz` after** | 20:02Z | `commit: 31cb44c`, **`basemap: "not_configured"`**, `wx.opuk: {"frameAgeS":null,"coveredShare":null}` |
+| **the watch, [20:02:08Z, 20:17:08Z)** | see below | **0 fleet 5xx, 0 401, 0 403** |
+| **the post-deploy smoke** | **20:17Z to 20:17Z** | **PASS 37, FAIL 0, SKIPPED 0.** The only verdicts that changed from the baseline: `wx.opuk` FAIL → PASS ("not ingesting yet"), `/basemap` FAIL → PASS (`503 not_configured`, the inert answer), `/v1/photo` SKIPPED → PASS. Exactly the expectation written before the deploy |
+
+**The watch, honestly.** The production tail closed three times on its own, with nothing on its stderr but the config warning, so the filter ended each time on end-of-stream. I restarted it each time.
+- **Observed: 806 s of 900, in three spans,** all KEEP:
+  - 20:02:17-20:05:55Z, 313 events;
+  - 20:06:16-20:14:08Z, 633 events;
+  - 20:14:25-20:16:21Z, 127 events.
+- **Totals:** **1,073 events, 0 5xx, 0 401, 0 403.** One flagged event was a client-cancelled 200 on `/missileer/archive`.
+- **Unobserved by the tail: 94 s,** at the start, between restarts and at the end.
+
+**The second instrument closes the gaps.**
+- **Why it can:** the proxy's own `METRICS` dataset records every request at status ≥ 400 unsampled (`metrics.ts`, `record()`).
+- **The query:** over exactly [20:02:08Z, 20:17:08Z), route-indexed points only, counts and statuses only (never a blob). It read **701 points, 1,340 requests, 0 at 5xx, 401 or 403, and 0 `err5xx` points**.
+- **Its control:** the same query over the two smoke windows finds the smokes' own refusals. The baseline's window has 2 × 403; the post-deploy window has 2 × 403 and 1 × 503, that smoke's own `/basemap` `not_configured`. So it can see a 403 and a 503.
+- **A second control fired as designed:** its list of non-route families showed one I had not excluded (`sitefeed`, 78 points), so the counts were re-run on route-indexed points only.
+
+**Two transient things, recorded:**
+- **The watch's three disconnects,** above.
+- **One `wrangler deployments list` failure:** Cloudflare's `internal server error [code: 10500]` on an older version's details. The retry read the active version at 100%.
+
+**Rollback:** not needed. The target stays `c960f98f-6654-4c1d-bb58-3e981c77a271`.
+
+**What D0 established:** production serves `/basemap` as the inert `503 not_configured` and reports `basemap: "not_configured"`. The route is in place and nothing can reach a builder until D4 binds one.
