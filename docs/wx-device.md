@@ -2716,3 +2716,101 @@ tell was **0 check runs** on the head.
 **Rain at 00:10Z (5:10 PM PDT):** the keyless probe read 5 echo cells within 50 km and 18 within 100 km. **No capture
 was started.** The frozen capture protocol read outside the set this morning at busy traffic, and its next form waits on
 the ruling. The probe keeps logging every 10 min.
+
+**The overnight log** (48 polls, 00:11-08:02Z): echo within 50 km in 6 polls, at most 8 cells. No capture was started.
+
+## Rulings, 2026-10-30 (reviewer chat, pasted by Daniel; read from GitHub, replacing anything earlier that day), with their source
+
+1. **The captures (RP6)** are redone on the replay's recorded rain, not on live rain.
+   - **When:** at night, when traffic is low and nobody is at the glass, provided the night's dimming does not change
+     the framebuffer (say which, from the code). If it does, the quietest daylight hour instead.
+   - **Which nights:** any from 06:00Z (11 PM PDT), not during a map-server production deploy.
+   - **Announced** to Daniel in Pacific time, with RS6's sentence.
+   - `replay_read.py` gains the touch check inside every arm, and any touch voids that arm.
+   - The keyless probe keeps logging live rain, and a real-rain capture can still run if a good one comes.
+2. **RP6's two observations get their causes named** in that run's analysis, by reading the frames and the code:
+   - (1) the wedge-colour ring exceptions: the mask, or a wedge colour drawn elsewhere;
+   - (2) the 4 of 168 markers without an outline: the special-contact reticle, or partial markers. If it is the
+     reticle, drawn outside the outline loop, **it is a look A defect to fix**, since A is the default.
+3. **Look A stays the default** (Daniel's choice), and **its outline must never push the frame past the 85 ms
+   ceiling.**
+   - K1-K5 go ahead now, as frozen.
+   - Look A is measured at the cap instead of extrapolated: a recorded local feed replayed in local mode at 60
+     contacts, with predictions first.
+   - If the measured p95 at 60 crosses 85 ms, look A drops the outline above a contact count set from that measurement,
+     with a 2 ms margin, as its own change. Daniel is told in plain words.
+4. **Look 3 (see-through) retires now,** unless the capture protocol's arms use it. Daniel's look found no difference,
+   and its cost was the same within 0.1 ms.
+5. **W5″: VOID**, as its rule says: a person at the glass in O3, at 9:55 AM PDT.
+   - Its limit goes on record too: the morning's traffic rose and fell, O2 never overlapped O1 and O3, and the matched-n
+     control could not run.
+   - **Design W5‴ for drifting traffic,** for example more and shorter alternations, so each image sees the same n
+     range.
+     - Its control must be shown able to fail, on a planted drift in recorded lines.
+     - It carries the same touch gate, and the sun-up condition if the protocol needs it.
+   - Freeze it and run it; the readings go to the reviewer.
+   - The −0.5 ms over 3 bins is noted, not graded.
+6. **Daniel's looks, in his words, are the B1 fix's eye check:** "a tiny bit choppier, but almost not noticeable". That
+   closes the smoothness look.
+7. **#500:** the plan reads right; carry on to its code.
+   - The variables keep precedence until Daniel's move, and the file after it.
+   - No tool prints a value.
+   - T7 waits on Daniel.
+8. **The CI gap is recorded.** From now on, a watcher that sees 0 check runs on a head stops and says so. "Not settled"
+   is not a reading.
+
+### What the code says, for rulings 1, 3 and 4 (read before acting on them)
+
+**1. Night dimming does not change the framebuffer.**
+- Auto-dim sets only the panel's backlight: `tft.setBrightness(target)` in the brightness update
+  (`AircraftManager.cpp`, the `autoDim && night` rule).
+- Nothing in the draw path reads `currentBrightness` or `configuredBrightness`. The `brightness` argument of
+  `DrawAircraftInfo` is each plane's own fade, `blip`, not the panel's level.
+- **The night clock,** which would replace the radar at night when nothing is airborne, is **off** on E2:08: its page
+  shows "night-clock" unchecked.
+- **Night's other effects** are on the poll cadence (night 60 s when idle; the arms' POSTs re-arm the active cadence)
+  and the preventive reboot after 7 days of uptime (the session reboots first, by `read_mac`). Neither touches pixels.
+
+So **the redo runs at night,** from 06:00Z.
+
+**3. "In local mode" cannot measure look A's outline.**
+- The layer, and with it the outline, needs the cloud source:
+  `WxEnabled()` = `wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty()` (`AircraftManager.cpp:3248`).
+- In local mode no layer is shown, so `WxOutlineNow()` is false and the outline is never drawn.
+
+**The alternative, for a ruling** (not built):
+- The replay proxy also answers `/api/v1/blipscope/blips` from a recorded 60-contact response, re-centred on the
+  request like the crop. Then the outline runs in look A at the cap, over the replay's rain.
+- **This widens the approved route.** RS4 has every route but `/wx/cref` forwarded unchanged. So it needs the ruling:
+  - which routes are answered locally;
+  - where the recording comes from: production's own `/blips` at a busy public point, recorded **without** E2:08's
+    key, needs a key of its own, which is the problem change 1 of the replay ruling ruled out.
+
+  A synthetic 60-contact response, from public positions with no key, is the other route.
+- **Its predictions are frozen once the route is ruled.**
+
+**4. Look 3 is not used by the capture protocol's arms:** every arm and every session start state is sweep look 4.
+So it retires now, with its predictions frozen first (below).
+
+## Look 3's retirement (ruled 2026-10-30): frozen before its code
+
+**The code.**
+- **`WxSweep.h`:** `SeeThrough565` and `Look::SeeThrough` go.
+  - The sweep has one look, lit, so the `Look` parameter and the `get` reader, which only look 3 used, leave `Blend`,
+    `BlendRows` and `BlendOne`.
+  - `Lit565`, `Rasterise`, the spans and the B1 fix are unchanged.
+- **`AircraftManager`:** `wxSweepLook` and its read of `wx-sweep` go, and `DrawSweepOverWeather` calls the one look.
+- **The config page:** "Sweep over weather (bench)", the `wx-sweep` select and its save go. A stored `wx-sweep` key
+  stays in NVS unread, which is harmless.
+- **The bench drivers' start-state checks** stop requiring "sweep look 4"; there is no other look to be in.
+
+| | check | predicted |
+|---|---|---|
+| **R1** | host, `test_wx_sweep.cpp`, with W1 (look 3 alone) removed and look 3 dropped from W3 and W5a | **W2, W3-out, W3-in, W5a, W5b all pass**, with W3's and W5a's look-4 halves unchanged: the same pixels, the same averages (W3's 7,283; W5's 7,278.5) |
+| **R2** | sabotages: S-w re-anchored to the new `BlendOne` (the lit line), plus S-span, S-spanrec and S-noclr | each turns exactly its rows red, as before: S-w `W3-in`; S-span and S-noclr `W3-in`, `W5a`; S-spanrec `W3-in`, `W5a`, `W5b` |
+| **R3** | the repo: `git grep` for `SeeThrough`, `wxSweepLook`, `"wx-sweep"` and `Sweep over weather` in `src`, `include`, `test` and `scripts` | **0** matches, except `compare-form-fields.py`'s own synthetic selftest page |
+| **R4** | the ELFs | `Sweep over weather (bench)` is absent from both `wxlook` and the shipping ELF. The bench strings are still in `wxlook` and absent from shipping (F0's prefixes) |
+| **R5** | the bench page on E2:08 (the next board run) | `compare-form-fields` against the page before: **exactly one** difference, `wx-sweep` only in the first page |
+| **R6** | the shipping draw path | unchanged in behaviour. R1's look-4 rows are byte-identical, and the shipping image only ever drew look 4. The shipping binary is **not** predicted byte-identical, because look 3's branch was compiled into it |
+
+**Then K1-K5** (the look as a shipping setting) follow, on top of this, as frozen.
