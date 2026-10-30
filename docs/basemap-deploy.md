@@ -567,3 +567,40 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 **Rollback:** not needed. The target stays `c960f98f-6654-4c1d-bb58-3e981c77a271`.
 
 **What D0 established:** production serves `/basemap` as the inert `503 not_configured` and reports `basemap: "not_configured"`. The route is in place and nothing can reach a builder until D4 binds one.
+
+### D0 accepted; S-ANOTICE re-registered (source: reviewer chat, pasted by Daniel, 2026-10-30 ~21:05Z)
+
+> D0: accepted as done, every prediction held.
+> - Production is 31cb44c (version 2eb4aa5e-512a-4a8a-b586-8a77bfdfca4e), with no BASEMAP binding. The rollback target
+>   stays c960f98f-... (c06dc17).
+> - The watch's coverage is accepted as stated: 806 of 900 s by tail, and the 94 s closed by the proxy's own unsampled
+>   >=400 metrics, whose control saw the smokes' own refusals. Record both, and the three tail reconnects.
+> - The daily slot hold is lifted. D4 gets its own slot when its PR is approved.
+>
+> S-ANOTICE: your question hasn't reached me. Reading edbc5b2: MA2 reads SRTM's notice out of docs/basemap-attribution.md,
+> so S-ANOTICE (the notice deleted from that file) now fails MA1 and MA2.
+> - If that is the stop: re-register S-ANOTICE as {MA1, MA2}. Keep the original {MA1} and the miss on record, with the
+>   reason: MA2 reads the notice from the file by design (both sides).
+> - The lesson also goes on record: adding MA2 needed the A2.16 re-check of every frozen set before the full pass ran, and
+>   that check would have caught this. Run it for every new row from now on.
+> - If it is anything else, stop and send it to me.
+>
+> Then: the D0 record goes up with that change, the full pass goes with the D3 PR's approval request, and the
+> test-identity PR runs in parallel.
+
+**D0's coverage, as accepted:** 806 of 900 s by tail, in three spans, with **three tail reconnects** (20:05:55Z to 20:06:16Z, 20:14:08Z to 20:14:25Z, and the end at 20:16:21Z). The remaining 94 s were closed by `METRICS`' unsampled ≥ 400 points, whose control saw the smokes' own refusals. Both are recorded in the D0 section above.
+
+**S-ANOTICE: it is that stop.**
+- **The set is re-registered as `{MA1, MA2}`** in `sabotage-basemap.mjs`, with the reason beside it: MA2 reads the notice from the file, by design (both sides).
+- **The original `{MA1}` and the miss stay on record** in the run section above.
+- **My proposed fix is superseded.** It had MA2 take the notice from MA1's constant. It was committed locally and never pushed; it was dropped from the branch by this ruling. MA2 reads the notice from `docs/basemap-attribution.md`, as at `edbc5b2`.
+
+**The lesson, as ruled:** adding MA2 needed the A2.16 re-check of every frozen set **before the full pass ran**, and that check would have caught this. **It runs for every new row from now on.** For MA2 it is now done by reading MA2's setup, not by reasoning:
+- **MA2's inputs are three files:** `src/basemap/provenance.ts` (`CREDIT_BITS`), `docs/basemap-attribution.md` (the notice line) and `src/photolicense.ts` (the page).
+- **Of the harness's 52 entries, three edit one of them:**
+  - **S-ANOTICE** deletes the notice line: **{MA1, MA2}**, re-registered.
+  - **S-MREV** edits `"4x4 mean of z9 pixels; "`, which is in `LEVELS_TEXT` (`provenance.ts` line 21), not in `CREDIT_BITS` (lines 14-19), so MA2 does not read it: it stays **{MA1, MD4, MG0b}**.
+  - **S-ACREDIT** edits the page: **{MA2}**.
+- **No other entry touches an MA2 input.**
+
+**Predicted for the full pass on the pushed head:** **51 of 51 AS PREDICTED**, with S-ANOTICE {MA1, MA2}, S-ACREDIT {MA2} and S-MREV {MA1, MD4, MG0b}. C-LOADFAIL AS PREDICTED; baselines ingest 10 in 1, mv 31 in 1, all 138 in 17; 0 runtime failures.

@@ -311,7 +311,9 @@ const SABOTAGES = {
     file: ATTRIBUTION, set: "all",
     edits: [["  - **SRTM's notice**, from SRTM's specification §3.15 b as joerd quotes it, with the year of production inserted: \"© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.\"\n",
              "  - SABOTAGE S-ANOTICE: the notice deleted\n"]],
-    expect: ["MA1"],
+    // Re-registered by ruling (2026-10-30, docs/basemap-deploy.md), from {MA1}: MA2 reads the notice from this file by
+    // design (both sides), so deleting it fails both rows. The original {MA1} and the miss stay on record.
+    expect: ["MA1", "MA2"],
   },
   // MD4's own sabotage (A2.35): the processing text changed, the same length, with rev unchanged.
   "S-MREV": {
