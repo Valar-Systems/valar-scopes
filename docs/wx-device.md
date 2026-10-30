@@ -2692,3 +2692,27 @@ The reviewer's ruling and its two additions follow in the next section.
   outline is capped by n, or the ceiling stands as the bar.
 
 **The order, once ruled:** the code, then K1-K4 locally, CI, and K5 on E2:08 in an announced window.
+
+### CI had not run since `44504af`; main merged in (2026-10-29)
+
+**What I found:** #445 had conflicted with main since main moved, in `test/host/run.sh`, and GitHub runs no
+`pull_request` workflow on a PR that cannot merge. So **none of the commits after `44504af` had been through CI**: the B1
+fix, the span change and every record since. My watcher had read a dead CI as "not settled" until it timed out. The
+tell was **0 check runs** on the head.
+
+**The merge, `7c5c559`:**
+- **The one conflict:** main inserted the opuk crops block (K12) and #445 the RadarProjection and WxLayer blocks at the
+  same place. Both are kept, each block whole, in this order: server crops, opuk (K12), RadarProjection, WxLayer.
+- The earlier insertion-only resolver refused this merge, since #445 has two insertions against the base. So it was
+  resolved by a script that asserts the exact shape it read.
+- **Before the push:**
+  - both s3-128 images build;
+  - `run.sh` (g++ 13.3.0, WSL) passes every block it can run;
+  - two rig gaps only: the xtensa block, and Weatherscope's R0/R0b, which needs Pillow and this WSL has none. R0/R0b
+    is `run.sh`'s last block, so nothing after it went unrun.
+- **CI on `7c5c559`:** **36 check runs, 33 success, 3 release-only skips, 0 failed.** That is the first CI over today's
+  code.
+
+**Rain at 00:10Z (5:10 PM PDT):** the keyless probe read 5 echo cells within 50 km and 18 within 100 km. **No capture
+was started.** The frozen capture protocol read outside the set this morning at busy traffic, and its next form waits on
+the ruling. The probe keeps logging every 10 min.
