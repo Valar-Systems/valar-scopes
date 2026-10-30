@@ -9766,3 +9766,66 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 - **L1 is exact on 10 of 21 swatches:** rain 1-4 and 7-12, which light (b) keeps. **The 11 that differ:** rain 5, 6 and 13; snow 1-6; no coverage (14); and no data (15).
 - **L2 passes.**
 - **The re-registered row:** L1 10/21, L2 passes, **L5 and L6 fail**, exit 1. The control runs on step 7's own legend snapshot and its serial lines, where `--theme dark` must still pass as before.
+
+### A12.68 3.5t step t5's code: every A12.66 row measured so far holds, RAM to the byte; the board run waits on Q64 (the bench board has no location)
+
+**The code:** `weatherscope/3-5t-t5` @ `bd13f57`, one commit on t4 (`d9edd17`, #511).
+- **It is pushed without a PR,** so the work cannot be lost. Its PR follows #511, and its board rows come first.
+
+**The firmware, as A12.66 §1 froze it:**
+- **The state:** the 8-byte block after `nightDim`.
+- **`Th()`** is a member reading `which`, and `screenIn->which` is set after every `FromScenario` and `FromLoopFrame`.
+- **The tick:** `daynight::Evaluate` on the clock `O` moves, then `wxtheme::NightDim`, with `[wx] dim=` printed on a change.
+- **The switch:** `MaybeSwitchTheme`, after the tick and after the gestures, never in a loop.
+- **The recompose:** by `composedWhich`, build reason `theme`. `composedWhich` is set first, so a failed build is not retried every Update.
+- **The rest:** the splash and status grounds; the init line's ` theme= read=` (an unknown value named by token and length); `O`.
+- **The config page:** the Theme select, and the save writes only `auto`, `light` or `dark`, refusing anything else.
+
+| row (A12.66 §2-§3) | predicted | measured |
+|---|---|---|
+| **RAM** | 59,192 exactly (+8); `appManager` 4,608 → 4,616 | **59,192.** `appManager` **4,616** (`0x1208`); `.dram0.bss` 35,792 → 35,800, `.dram0.data` unchanged. **Every byte placed** |
+| **flash** | 1,877,267-1,882,267 | **1,879,503 (+3,236), inside** |
+| PSRAM | no new allocation | no new allocation in the code. The board's lines are read at the board run |
+| warnings | (not frozen) | **the anchor's set exactly.** The only differences are two line numbers in `ConfigurationWebServer.cpp`, moved by the added markup |
+| **L-T** | the control as A12.67 re-registered it | step 7's own legend (`snap-legend-0.bin`, its committed `serial.txt`): **`--theme dark` passes as before** (21/21, L5 the ground, L6 109.0 px). **`--theme light` reads L1 10/21, the 11 differing exactly rain 5, 6, 13, snow 1-6, 14 and 15; L2 passes; L5 and L6 fail; exit 1** |
+| **W-T** | the self-test passes; the controls UNEXPLAINED | **`screen_watch.py --selftest`: 4 / 0,** both controls UNEXPLAINED. Step 7's committed trace still reads 72 changes, 72 explained, as main's watcher reads it |
+| suites | every count as A12.65's | **MinGW on `bd13f57`: ALL HOST TESTS PASSED;** the same 155 `== ` headers and every count line equal to t4's run. The anchors block adds one line, `plant_s_swb.py` present once (a board plant). Controls: 20 drivers, 19 run, 1 skipped. **g++ 13.3** (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`): **the same 155 headers and every count line equal to MinGW's; only the rig's two** (no xtensa; no Pillow at R0) |
+| drivers | as A12.65's | **all 20 in full on t5's tree: every one's last line equal to t4's run** (19 exit 0, ALL AS PREDICTED or the real file unchanged; towns exit 2, the rig) |
+
+**The flash, re-registered part by part** (`nm -S`, the two ELFs):
+- **`.flash.rodata` +1,068:**
+  - `CONFIG_HTML` **+559**, exactly the select block's bytes (counted from the diff, LF);
+  - **+509 unnamed:** the new format strings and names. Strings of 4 bytes and more net **+347** (406 new less the old init string's 59). The rest is shorter names, string merging and alignment.
+- **`.flash.text` +2,168:**
+  - **+1,978 across 44 symbols:** the save's handler +292, `DrawStatus` +276, `Initialise` +211, `EvaluateDayNight` +205 (new), `DrawSplash` +160, `DrawLegend` +135, the page's GET handler +128 and its processor +84, `ParseSetting` +110 (new), `MaybeSwitchTheme` +109 (new), `DrawHoldRing` +100, `OnAutoOffsetByte` +83 (new), `UpdateBrightness` −122, and the rest under 70 each;
+  - **+190 unnamed** (literal pools and alignment).
+- **`.iram0.text`** unchanged.
+
+**The board's tools (host-checked before any board use):**
+- **`run_b35t.py`:** A12.66 §4's steps, with the watcher live.
+  - The config POSTs set `wx-theme` alone: a partial POST, so `cfg-form` is absent and no toggle is touched (the save's own rule).
+  - It POSTs light, then dark, so the dark switch is always seen and the board's theme before the run is never assumed.
+- **`grade_b35t.py`:**
+  - B1 against the four references, each first checked by its own generator;
+  - B3 by `legend_check.py`;
+  - BSW and BSW-L by A12.66's counts, with the belief rule extended to the theme;
+  - per Q62, it prints no time and never which press switched.
+  - **`--selftest`: 7 / 0 on synthetic walks** (never a board's). The controls each fail on their own row: S-SWB's walk graded as t5's fails the base row with `['package', 'package']`, t5's graded as S-SWB fails it with `['no', 'no']`, a missing theme line fails the switch count, and dims under `autodim=0` fail the dim count.
+  - **Its first self-test failed the correct walk,** on a bug in the grader (it read the scene name from the wrong token). It was fixed before any board use. The self-test is what found it.
+- **`plant_s_swb.py`:**
+  - it refuses the real tree, and its `--anchors` joins `run.sh`'s anchors block (1 anchor, present once);
+  - **the planted image builds:** flash 1,879,507, 4 B over t5's, so the plant reaches the image.
+
+**Q64: Auto needs a location, and the bench board has none. Found before any board run.**
+- **The fact:** step 7's boot record on main reads `[wx] init; location=unset` for 907069326E64.
+  - `Evaluate` keeps `Unknown` without a location, by design (TD), so Auto stays Dark.
+  - **BSW on this board, as it stands, would read 0 switches.** A12.66 checked the init line's `autodim` and missed its `location`.
+- **(a), recommended:** before BSW, the runner POSTs a public fixture's place as the board's latitude and longitude: the Dallas loop fixture's crop centre, read from the fixture's own header and never printed (`run_b35t.py --location fixture`).
+  - **Its dusk and dawn are Dallas's, not the bench's,** so Q62's record carries no information about the bench at all.
+  - **The stored screens do not read the device's location,** so B1 and B3 are unaffected.
+  - **The page cannot clear a location,** so the board keeps that place afterwards, and the run says so.
+- **(b):** Daniel enters the bench's own location on the config page before the run, and Q62's record rule covers its times.
+- **(c):** BSW without a location. It would then grade only that Auto stays Dark with no switch: the gate, not the switch.
+
+**The board run** (B1 and B3 in both themes, BSW, BSW-L, then S-SWB's window) **is announced to Daniel before it starts.**
+- It runs after tonight's watch (06:00-13:00Z) and after Q64 is ruled.
