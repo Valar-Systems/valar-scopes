@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
 
 # run.sh's --anchors pass gives no arguments: the root is then this file's own repo.
-if sc.wants_anchors() or "--control" in sys.argv:
+if sc.wants_anchors() or sc.wants_control():
     ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 else:
@@ -92,6 +92,8 @@ def control():
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

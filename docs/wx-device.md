@@ -3501,3 +3501,12 @@ says so.
   break every normal run of these drivers, and `run.sh` runs two of them.
 - **It goes in at the merge**, as Z4 says. Until then, a red `host-tests` whose only FAILs are the seven
   "has no --control mode" lines is expected.
+
+### Z4: #510 on main, merged (2026-10-30)
+
+#510 landed at 18:21:23Z (`31cb44c`), and #445 read CONFLICTING. GitHub runs no PR CI on a conflicting PR, so the
+watcher read **NO CI** on `4aefbec` and stopped, as it should.
+
+| | read | verdict |
+|---|---|---|
+| **Z4** | **The merge:** its only conflict was `test/host/sabotage_common.py`, add/add, and **main's was taken whole** (blob `a27f8772a313`). `run.sh` auto-merged. **The seven** got the `sc.wants_control()` dispatch before `--anchors`; `outline` and `s2`'s argv test now reads it too. **Both passes, every driver, in WSL** (g++ 13.3.0, Python 3.12.3): every `--anchors` all present exactly once; every `--control` all as the table, the seven included, except main's `sabotage_wx_towns.py`, which SKIPs for its stated reason (the Census archive). `sabotage_controls_control.py` exit 0. `outline` and `s2` run as before | **as predicted** |

@@ -112,6 +112,8 @@ def anchor_entries():
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
     if sc.wants_anchors():
         sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())
