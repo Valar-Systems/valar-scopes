@@ -9699,3 +9699,70 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 **The outside-the-set branch, pre-registered:**
 - **A size outside its band,** or any board row off its value, stops t5 at that row. It is reported with its cause before anything changes.
 - **Any count off its frozen value** (the 96 `O` lines, the 2 switches, the 2 dims, the base row's 0) is reported as it stands. It is never explained after the fact.
+
+### A12.67 Ruled 2026-10-30 (source: reviewer chat, pasted by Daniel): Q59 (a); Q60 accepted; Q61, Q62 and Q63 (a); the watch as armed -- #510 and #511 up, the trace audit, and t5's L-T control re-registered before it runs
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-30
+>
+> 1. Q59: (a). The harness PR also sets the driver's basemap count from 84 to 92: the same defect, from the same step. A12.61's rows stand as written (17 controls exit 0 with towns skipped; the full run ALL AS PREDICTED with S-KD's 82; the 143 copy red). Push it, count CI, and send it to me for approval; then t4's PR on top.
+> 2. Q60: accepted. The five plants' new sets were frozen in A12.64 before they ran, and they held. A12.60's "as before" stays on record as the miss: whole-set drivers move whenever a suite they compile gains rows, so a plan that adds rows re-registers those drivers' sets before running them. The th2 driver's trailing-colon capture is an instrument defect, fixed before any commit, with the set exactly as frozen; record it as such.
+> 3. Q61: (a). BSW grades the switch by its own lines: 2 `[wx] theme=` lines, each with its recompose (build reason `theme`) and `rebuilt=no` on Bend. BSW-L grades that no switch rebuilds the loop's layer. A12.43's "layer rebuilt=theme" was written for a path the firmware doesn't have; record it as corrected at design time, not as a run's miss. No device work for a log line.
+> 4. Q62: (a). The committed record of BSW and BSW-L holds verdicts and counts only. The raw trace stays local, with only its sha256 committed, and every committed log line is stripped of its time. Also check the traces already on main for phase lines (dim, theme) with times. Any found give only about city-level position (a minute of time is about 20 km of longitude), so no history rewrite: record what you find, and stop adding them.
+> 5. Q63: (a). S-SWB runs on the board, with its two extra writes and the third BSW, under A12.33's write rule, in an announced window.
+> 6. Tonight's watch as armed.
+
+**1. Q59: (a).**
+- **#510 is up** at `76607fcb9dc8`, on main `d256ff0`, which had not moved. It carries both of the themed-draw driver's counts (149 and 92). Its rows are A12.61's as written, measured in A12.63.
+- CI is being counted. The count goes to the reviewer with the request for approval.
+
+**t4 is #511,** at `d9edd17d1960`, based on `weatherscope/harness-control` (stacked on #510).
+- **Before #510's branch is deleted at its merge, #511 is retargeted to main.** Deleting a PR's base branch closes the PR.
+
+**2. Q60: accepted. On record:**
+- **The miss:** A12.60's "every other driver as before". Whole-set drivers move whenever a suite they compile gains rows. **So a plan that adds rows re-registers the sets of every driver compiling those suites before running them.** A12.66 adds no suite rows, so no driver's set moves in t5.
+- **`sabotage_wx_th2.py`'s trailing-colon capture was an instrument defect,** fixed before any commit, with the set exactly as frozen.
+
+**3. Q61: (a).** A12.43's "exactly 2 `[wx] layer rebuilt=theme` lines" was written for a path the firmware doesn't have. **It was corrected at design time (A12.66), not as a run's miss.** BSW and BSW-L grade the switch as A12.66 §4 states them.
+
+**4. Q62: (a).** BSW's and BSW-L's committed record follows the ruling: verdicts and counts only, the raw trace local with its sha256 committed, and every committed log line stripped of its time.
+
+**The audit of main** (`d256ff0`): every tracked file read from `origin/main`, its phase lines counted.
+- **The patterns:**
+  - Blipscope's `[dim] brightness -> <n> (night|day)`, the only firmware line that prints a phase change. Weatherscope's main image prints no dim or theme line.
+  - Any `[wx] theme=`, `[wx] dim=` or `[wx] auto offset=` line, and `phase=Day|Night`.
+- **The tool prints counts only,** never a line's time and never a derived position.
+
+| file | phase lines | timed on their own line | timed day/night changes |
+|---|---|---|---|
+| `bench-logs/fresh-boot-acceptance-2026-08-24T172307Z.log` | 5 | 5 | **4** |
+| `bench-logs/fresh-boot-acceptance-2026-08-24T172309Z.log` | 5 | 5 | **4** |
+| `bench-logs/com118-capture-2026-08-19.txt` | 2 | 2 | **1** |
+| `bench-logs/fresh-boot-acceptance-2026-08-23T032416Z.log` | 8 | 8 | 0 (one state) |
+| `bench-logs/fresh-boot-acceptance-2026-08-23T032015Z.log` | 1 | 1 | 0 |
+| `bench-logs/com119-capture-2026-08-19.txt` | 1 | 1 | 0 |
+| `bench-logs/com119-factory-reset.log` | 1 | 1 | 0 |
+| `bench-logs/jxl-s3-128-soak-shipconfig-2026-07-10.log` | 19 | 0 | — |
+| 6 more bench logs (`bindctl`, `bindfinal`, `board-01`, `board-01-fixed`, `com119-no-location`, `soak-s3-128-densesky-cloud`) | 1-4 each, 11 | 0 | — |
+| `docs/v11-quiet-hour-plan.md` | 2 | 0 on the line; **1 stated in its prose** (line 1095, a dim line's UTC time) | — |
+
+- **The totals:** 15 files and 54 phase lines.
+  - **23 carry their own time,** and **9 of those are timed day/night changes,** which are live transitions rather than a boot-time state.
+  - **The doc states one more time in prose.**
+  - **The 31 untimed lines** sit in bench logs that hold clock times on other lines, so a neighbouring line could date some of them. This was not traced line by line.
+- **No Weatherscope trace on main** has a phase line.
+- **As ruled: no history rewrite, and no more added.** From now on, any bench log or record committed from an image with day/night lines has those lines' times stripped before the commit.
+  - **This is a rule, not yet a control.** A check that refuses a committed log with a timed phase line, as `scripts/check_device_ids.py` refuses an unlisted id, would make it one. It is offered, not built.
+
+**5. Q63: (a).** S-SWB runs on the board in an announced window, under A12.33's write rule: the planted image, the third BSW, then t5's image again.
+
+**6. The watch:** as armed. 06:00Z-13:00Z, no write to 907069326E64.
+
+**t5's code has started** (`weatherscope/3-5t-t5`, stacked on t4, local). Its results come in their own addendum.
+
+**One of A12.66's rows is re-registered before it runs, found while writing it.** L-T's control row says the dark legend graded as `--theme light` "fails L1 and L5". That is incomplete:
+- **L6 must fail too:** under light, every pixel of dark's black ground is non-paper, so the farthest one lies in a corner, beyond 112 px.
+- **L1 is exact on 10 of 21 swatches:** rain 1-4 and 7-12, which light (b) keeps. **The 11 that differ:** rain 5, 6 and 13; snow 1-6; no coverage (14); and no data (15).
+- **L2 passes.**
+- **The re-registered row:** L1 10/21, L2 passes, **L5 and L6 fail**, exit 1. The control runs on step 7's own legend snapshot and its serial lines, where `--theme dark` must still pass as before.
