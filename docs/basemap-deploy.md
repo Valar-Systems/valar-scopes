@@ -255,3 +255,32 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 | MW18 and MP2 | **both pass**; MP2 now audits MW18's builder runs, with 0 writes |
 | the full pass | **50 of 50 AS PREDICTED**, C-LOADFAIL AS PREDICTED, 0 runtime failures |
 | CI on the PR's head | every check finished, none failing |
+
+## Rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-30, the second message of the day)
+
+> 1. S-PWRITE: the fix as proposed. MW18's stub gains put and delete, counting into the same audit MP2 reads, so MP2 now audits MW18's builder runs. Re-registering S-PWRITE as {MP2, MW18} stays not done, for your reason. The first reading stays on record as the miss, with its cause: MP2's audit had a second path around it, and the re-check reasoned about MW18 instead of reading its setup. The void first launch stays on record too.
+> 2. The census: accepted as read. 3,195 regions; every county region holds water and rivers, every state region roads and peaks; the control names 01001.
+> 3. The open gap: yes, measure it before D4. Sweep the covered cells at the route's smallest accepted r, and count the squares that meet no region of a kind. If the count is 0, record it and the gap closes. If it isn't, name the cells and stop: the builder then handles that case without throwing, as its own change with predictions (a status, or the layer built empty, your proposal), before D4.
+> 4. On this yes: push the record, the census and the fix; then the full pass at 50 of 50, CI on the new head, and #505 up for review. D2 and D0 follow its merge, as ruled.
+
+## The small-r sweep (item 3): predictions, frozen before its script
+
+**The terms, each taken from the builder's own code:**
+- **The accepted origins** are exactly the cells `coverage.bin` lists. `build()` refuses an origin unless `covered(cov, h, c)` holds for its own 0.01° cell, `h` and `c` in integer hundredths of a degree.
+- **The smallest accepted r is 1 km.** `quantise` makes `rKm = max(1, round(r))`.
+- **Why r = 1 is the worst case:** the square is `squareBox(makeFrame(h·10⁴, c·10⁴, r·10⁶, ε), r·10⁶)`, and squares nest as r grows. If every r = 1 square meets a region of each kind, every larger square does too.
+- **A region of each kind** means a county region (water, rivers) and a state region (roads, peaks), as R-CENSUS read them. RD-P6's test is `boxMeets`.
+
+**The sweep:** `scripts/basemap-sweep-small-r.ts`.
+- **What it reads:** the sealed store through `assembleStore`, as the census does. It prints the store id and the sha256 of `index.json` and `coverage.bin`.
+- **What it does:** it visits every covered origin once, builds its r = 1 square with the builder's own `makeFrame` and `squareBox`, and tests that square against every region with `boxMeets`.
+- **What it counts:** the squares that meet **no county region**, and those that meet **no state region**.
+- **Its self-check:** the number of origins visited must equal the sum of `coverage.bin`'s ranges.
+
+| row | predicted, and what each result means |
+|---|---|
+| **R-SWEEP** on the sealed store | **Both counts 0** → recorded, and **the gap closes**. **Either count above 0** → the cells are **named**, and I **stop**: the builder then handles that case without throwing, as its own change with predictions, before D4 |
+| **its control, C-SWEEP** | the same sweep with **Texas's state region (FIPS 48) removed** from an in-memory copy: **more than 0** squares meet no state region, **every one inside Texas's box**, and the county count is unchanged from R-SWEEP |
+| **anything else** | an origin count that differs from the coverage file's own sum, a store it cannot read, or a control that does not turn: **BLIND, stop and report** |
+
+**Where it lands:** in the D3 PR, before D4, so #505's head does not move again. These predictions are pushed with #505 first.
