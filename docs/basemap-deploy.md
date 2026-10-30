@@ -446,3 +446,46 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 4. D3's deploy and verification, as the test identity.
 5. The D4 PR, with the smoke's `/credits` half.
 6. D4, outside any replay window.
+
+### Rulings before D0, verbatim (source: reviewer chat, pasted by Daniel, 2026-10-30 ~18:15Z and ~18:25Z)
+
+> D0: go at 20:00Z as you laid out, with one change before it starts and one correction to the record.
+>
+> 1. No credential value on any command line. As described, d0-smoke.sh hands the file's values to `env` as NAME=value arguments. A value in an argument is in that process's command line, readable by any process listing for as long as the process lives (on Windows that can be the whole smoke run). Another session listing processes would print it, which is how the 2026-08-28 leak happened.
+>    - Use `env -u BLIP_KEY -u BLIP_DEVICE` with no values, and let main's smoke-prod.sh read the token file itself (#500's path). Exporting the values inside a subshell also works.
+>    - Re-run the proof and its control that way, booleans only.
+>    - smoke-prod.sh's own curl calls still pass the key as a -H argument, briefly, on every request. That is accepted for D0 and fixed in the test-identity PR (item 7 below).
+> 2. The record: "since then main has gained only non-proxy/ commits" isn't exact. One proxy/ commit has landed since 9f44a1a: #500 (d256ff0), which changes only scripts and a test (the token-file readers, smoke-prod.sh, watch-upstream.sh, confirm-deploy.sh's hint line). Nothing the Worker builds from has changed (proxy/src, wrangler.toml, the package files), so the Worker built from 9f44a1a equals main's. Record it that way, and say which tree's smoke-prod.sh ran.
+>
+> The shell's other pair: accepted as labelled. It stays unused and goes away when VS Code restarts.
+>
+> Q-D3a: as recommended. The test-identity PR mints the one identity on staging and on production, through the same route, and D3's deploy and verification run as it. The test-identity PR and the D3 PR go in parallel, each reviewed on its own. D3's deploy waits for the staging credential.
+>
+> Q-D3b: as recommended. The smoke's /credits half lands in D4's PR; MA2 holds the page in CI until then.
+>
+> The order: D0 -> (the test-identity PR and the D3 PR, in parallel) -> D3's deploy and verification, as the test identity -> the D4 PR with the /credits half -> D4, in the reserved slot, with its smokes run as the test identity.
+>
+> Added to the test-identity PR:
+> 7. No credential on a command line. Today each curl gets the key as -H "X-Blip-Key: ...". Move it to stdin or a file descriptor (curl -H @- or -K -). Check: during a run, scan every process's command line in memory, printing only a boolean (false). Control: the old way prints true.
+> 8. Staging: say which route mints there, and whether staging's enrolment needs a human step at all.
+
+> The deploy: (b). Deploy from main's tip with no escape hatch, so the deploy and the smoke share one tree.
+> - Re-registered before the run (not a miss): /healthz reports main's tip, as recorded immediately before deploy.sh runs, instead of 9f44a1a. The record shows that tip, and `git diff --stat 9f44a1a <tip>` reading 0 files over everything the Worker is built from: proxy/src, proxy/wrangler.toml, the package files, and the generators deploy.sh runs (embed-*.mjs).
+> - If main moves after you record the tip (#510 may land before 20:00Z; it touches test/host only), re-record and re-check before deploying. If any of those Worker inputs differs from 9f44a1a, stop: that isn't D0.
+> - Everything else as pre-registered, including the rollback target c960f98f-...
+>
+> The runner: accepted as rerun (file yes/yes, shell no/no; the control flips and refuses with exit 2; no request sent).
+>
+> For the test-identity PR, item 5: blipscope-5c's production-record reader (the one its RP rows use) now reads E2:08's device id from the token file. It needs E2:08's id, not its key. So the key can leave the PC while the id stays, under a field name that says it identifies whose records to read and is not a credential. List it with the other readers.
+
+**Carried out before the slot:**
+- **The runner is `d0-smoke2.sh`** (scratchpad), run from a clean checkout of main's tree.
+  - It strips the shell's pair with `unset` inside a subshell, and sets `BLIPSCOPE_TOKEN_FILE` (a path).
+  - It lets #500's `blip-creds.sh` re-run the smoke through `with-blip-creds.mts`, which passes the file's pair in the child's environment only.
+  - **Its proof:** a probe down the same path reads `file-key=yes file-dev=yes shell-key=no shell-dev=no`.
+  - **Its control:** with the shell's pair kept, it reads `file-key=no file-dev=no shell-key=yes shell-dev=yes` and refuses with exit 2. Neither sent a request.
+- **The Worker's inputs, as checked:** `proxy/src`, `proxy/wrangler.toml`, `proxy/package.json`, `proxy/package-lock.json`, `proxy/tsconfig.json`.
+  - **`deploy.sh` runs no generator.** Its four embed generators run by hand, and their outputs are committed under `proxy/src/*.generated.ts`, held by CI's `--check` steps.
+  - **The check covers them anyway:** the four `embed-*.mjs` scripts and everything they read (`proxy/pages`, `proxy/fonts`, `include/DeviceIdentity.h`, `scripts/device-id-allowlist.txt`).
+  - **Every path in the set exists,** so an empty diff cannot come from a mistyped path.
+- **At 18:2xZ, main's tip was `bea882ad4475`:** `git diff --stat 9f44a1a bea882ad4475` over that set reads **0 files**. It is re-recorded and re-checked immediately before `deploy.sh` runs.
