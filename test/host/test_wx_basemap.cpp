@@ -1,12 +1,12 @@
 // Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it after the rulings since):
 // the BMPK reader (include/BasemapPackage.h), the basemap rasteriser (src/weatherscope/WxBasemap.h) and the fold, the
-// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 84 named cases in 8 families, and nothing else:
-//   PK 30 (A10.11's 28 + A12.15's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, PE 12.
-// Its sabotages: python -I test/host/sabotage_wx_basemap.py (14, each failing exactly its set).
+// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 92 named cases in 9 families, and nothing else:
+//   PK 30 (A10.11's 28 + A12.15's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, BW 8 (A12.53: the key's reason), PE 12.
+// Its sabotages: python -I test/host/sabotage_wx_basemap.py (16, each failing exactly its set).
 //
 //     test_wx_basemap <test/fixtures/wx>
 //
-// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 84). Prints no coordinate.
+// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 92). Prints no coordinate.
 
 #include <cmath>
 #include <cstdarg>
@@ -33,7 +33,7 @@ namespace {
 using wxraster::Rgb;
 using wxscreens::Box;
 
-constexpr int kCases = 84;
+constexpr int kCases = 92;
 constexpr int kS = wxraster::kSize;
 
 int checks = 0, failures = 0;
@@ -475,6 +475,40 @@ void BK()
     }
 }
 
+// ------------------------------------------------------------------------------------------------ BW (8)
+// The key's reason (A12.53): BaseWhy names the first field that differs, in the order package, place, zoom, mask,
+// terrain; "first" with no valid image; null when the image is still right. Over BK's own keys and geometries.
+void BW()
+{
+    const std::vector<uint8_t> dA = Read("loop/shsr-20240521-210400.wxc"), bend = Read("bend-loop/shsr-20240602-191000.wxc");
+    wxcrop::Header a, c;
+    const bool ok = wxcrop::ParseHeader(dA.data(), dA.size(), &a) == wxcrop::Status::Ok &&
+                    wxcrop::ParseHeader(bend.data(), bend.size(), &c) == wxcrop::Status::Ok;
+    const uint8_t all = wxbase::kMaskAll;
+    const wxscreens::BaseKey k0 = wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 60, all, false);
+    struct Bw {
+        const char* name;
+        bool valid;
+        wxscreens::BaseKey now;
+        const char* want;   // null: reused
+    };
+    const Bw kBw[] = {
+        {"BW1", false, k0, "first"},
+        {"BW2", true, k0, nullptr},
+        {"BW3", true, wxscreens::MakeBaseKey(a, 0x0BADF00Du, 205094, 60, all, false), "package"},
+        {"BW4", true, wxscreens::MakeBaseKey(c, 0x1234ABCDu, 205093, 60, all, false), "place"},
+        {"BW5", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 30, all, false), "zoom"},
+        {"BW6", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 60, all & ~wxbase::kMaskRivers, false), "mask"},
+        {"BW7", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 60, all, true), "terrain"},
+        {"BW8", true, wxscreens::MakeBaseKey(a, 0x1234ABCDu, 205093, 30, all, true), "zoom"},
+    };
+    for (const Bw& w : kBw) {
+        const char* got = wxscreens::BaseWhy(k0, w.valid, w.now);
+        const bool same = got && w.want ? std::strcmp(got, w.want) == 0 : got == w.want;
+        check(w.name, ok && same, fmt("%s (want %s)", got ? got : "null: reused", w.want ? w.want : "null: reused"));
+    }
+}
+
 // ------------------------------------------------------------------------------------------------ PE (12)
 class Peaks : public wxscreens::PeakSet {
 public:
@@ -612,6 +646,8 @@ int main(int argc, char** argv)
     BF();
     std::printf("== BK, the basemap key ==\n");
     BK();
+    std::printf("== BW, the basemap key's reason ==\n");
+    BW();
     std::printf("== PE, the peaks ==\n");
     PE();
     std::printf("%d checks, %d failures\n", checks, failures);

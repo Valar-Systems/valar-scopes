@@ -2,8 +2,10 @@
 // DEVICE's path -- bmpk::Validate, wxbase::Build, wxscenes::FromScenario / FromLoopFrame + FromPackage, then
 // wxscreens::Compose (Bend dry) or ComposeLayered (the loop, through one Layer, as the firmware) -- each held to
 // tools/weatherscope/screens/k35b.py's independent rendering (test/fixtures/wx/k35b.ref.txt) at 57,600 of 57,600
-// pixels with its time, band and placed town labels. Then the 90 replay rows (each loop frame through the layer equals
-// its full composition, at 15, 30 and 60 mi, B and C), and two controls that prove both comparisons can fail.
+// pixels with its time, band and placed town labels; A12.53 adds Bend rain (the loop's last frame as a stored
+// scenario, Kind::Dry, as the firmware builds it) at 60, 30 and 15 mi, B and C. Then the 90 replay rows (each loop
+// frame through the layer equals its full composition, at 15, 30 and 60 mi, B and C), and two controls that prove both
+// comparisons can fail.
 //
 //     test_wx_k35b <test/fixtures/wx> <k35b.ref.txt> [--dump <dir>]     --dump writes each frame for k35b.py --diff
 //
@@ -33,7 +35,7 @@ typedef std::vector<uint8_t> Bytes;
 
 namespace {
 
-constexpr int kCases = 143;   // 21 + 30 K rows, 90 replay rows, 2 controls
+constexpr int kCases = 149;   // 21 + 6 + 30 K rows, 90 replay rows, 2 controls
 constexpr int kOffsetPt = -420;   // Pacific (PDT) on 2024-06-02 (A10.4)
 
 // SHA-256, as in test_wx_k35.cpp.
@@ -284,6 +286,33 @@ int main(int argc, char** argv)
             dumpFrame(name, img);
             grade(name, Lines(name, in, out, img));
         }
+
+    std::printf("== K-BR: Bend rain, the loop's last frame as a stored scenario, 60, 30 and 15 mi, B and C (A12.53) ==\n");
+    {
+        static wxscen::Scenario sr;
+        if (!wxscen::Build(wxscen::Kind::Dry, frames[14].h, frames[14].codes.data(), &sr)) {
+            std::printf("Build failed (the RIG)\n");
+            return 2;
+        }
+        for (int mi : {60, 30, 15})
+            for (int k = 5; k < 7; ++k) {
+                const Variant& v = kVariants[k];
+                static PkgView pv;
+                if (!Prepare(pk, frames[14].h, mi, v.mask, v.terrain, sc, &pv)) { std::printf("Prepare failed (the RIG)\n"); return 2; }
+                static wxscreens::ScreenIn in;
+                in = wxscreens::ScreenIn();
+                wxscenes::FromScenario(sr, frames[14].h, frames[14].codes.data(), mi, townOrder, &in, kOffsetPt);
+                wxscenes::FromPackage(pk, pv.img.data(), v.mask, v.terrain, &pv.places, pv.order, &pv.peaks, &in);
+                Rgb565 img;
+                static wxscreens::ScreenOut out;
+                out = wxscreens::ScreenOut();
+                wxscreens::Compose(img, in, view, &out);
+                char name[32];
+                std::snprintf(name, sizeof name, "brain-%d-%s", mi, v.name);
+                dumpFrame(name, img);
+                grade(name, Lines(name, in, out, img));
+            }
+    }
 
     std::printf("== K-BL: the Bend loop at 60 mi, B and C, through one Layer ==\n");
     static wxscreens::Layer layer;

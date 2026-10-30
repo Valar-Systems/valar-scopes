@@ -1430,7 +1430,7 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 # Weatherscope's screen layer (src/weatherscope/WxScreens.h): the stored-mode cycle, titles and clock,
-# docs/weatherscope-stage3.md A8.20 as A9.10 re-registered it: 15 cases. Its sabotages:
+# docs/weatherscope-stage3.md A8.20 as A9.10 re-registered it: 15 cases, and A12.53's CY8 and CY9: 17. Its sabotages:
 # python -I test/host/sabotage_wx_screens.py
 echo
 echo "== WxScreens =="
@@ -1467,7 +1467,7 @@ fi
 
 # Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it): the BMPK reader
 # (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- 84 named
-# cases. Its sabotages: python -I test/host/sabotage_wx_basemap.py
+# cases, and A12.53's 8 for the key's reason: 92. Its sabotages: python -I test/host/sabotage_wx_basemap.py
 echo
 echo "== WxBasemap =="
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_basemap.cpp" -o "$OUT/test_wx_basemap.exe" 2>"$OUT/build.log"; then
@@ -1488,7 +1488,7 @@ fi
 # A9.10 and A9.18: 28 checks. Its sabotages: python -I test/host/sabotage_wx_k35.py
 # Weatherscope 3.5b's Bend K rows and replay rows (docs/weatherscope-stage3.md A10.6, A12.41): 21 Bend dry rows and
 # 30 Bend loop rows through the device's path against tools/weatherscope/screens/k35b.py's independent rendering
-# (test/fixtures/wx/k35b.ref.txt), 90 replay rows, and 2 controls: 143 checks.
+# (test/fixtures/wx/k35b.ref.txt), A12.53's 6 Bend rain rows, 90 replay rows, and 2 controls: 149 checks.
 echo
 echo "== WxK35b =="
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_k35b.cpp" -o "$OUT/test_wx_k35b.exe" 2>"$OUT/build.log"; then
