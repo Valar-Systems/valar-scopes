@@ -8748,3 +8748,70 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **A K-BR row that differs** is reported pixel by pixel (`k35b.py --diff`), by cause.
 
 **Next:** the code, on `weatherscope/3-5b-firmware`; then the results addendum and the PR. **Q53 and Q54 are needed before the PR merges, not before the code** (A12.24).
+
+### A12.54 3.5b step 7's results (#507 @ `d44abbab36f8`): every A12.53 row holds; Q53 and Q54 open
+
+**The code:** `weatherscope/3-5b-firmware` @ `d44abbab36f8`, one commit on main `58509562c620`. **#507.**
+
+**The host rows:**
+
+| row | A12.53 predicted | measured |
+|---|---|---|
+| `test_wx_screens` | 17 / 0 | **17 / 0** |
+| `sabotage_wx_screens.py` | 5 of 5: S-CYN {CY8, CY9}; S-CY, S-CY2, S-WT, S-CK unchanged | **5 of 5 as predicted**; `WxScreens.h` unchanged |
+| `test_wx_basemap` | 92 / 0 | **92 / 0**: BW1-BW8 as tabled |
+| `sabotage_wx_basemap.py` | 16 of 16: S-BWFIRST {BW1}, S-BWORDER {BW8}, S-BKEY {BK2, BW5, BW8}; the other 13 unchanged | **16 of 16 as predicted**; the validator's two as before; the three real headers unchanged |
+| `test_wx_k35b` | 149 / 0 | **149 / 0.** K-BR: `brain-60/30/15-B/C` each 57,600 of 57,600 px, with their time, band and labels (4, 4, 2, 2, 0, 0) |
+| `k35b.py --write`, then `--check` | the 6 rows inserted after the `bdry` rows; every existing line byte-identical | **one insertion of 30 lines (6 rows), at line 116; nothing else changed; `--check` identical** |
+| every other suite | unchanged | **unchanged.** Main's own suite (`58509562c620`, MinGW, the same machine) differs from this branch's in exactly those three counts: 15 → 17, 84 → 92, 143 → 149 |
+| NL | 0; its control 57 | **0 in 16 files; the control 57** |
+| `--anchors` | 18 drivers clean; the control red | **18 clean** (basemap 18 plants with 20 anchors, screens 5 with 5); **the control exit 1 mangled, 0 unmangled** |
+| compilers | MinGW: all pass. g++ 13.3: the same blocks and counts, only the rig's two | **MinGW: ALL HOST TESTS PASSED, 141 blocks. g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0: the same 141 blocks, every count identical, only the rig's two** (no xtensa; no Pillow at R0/R0b) |
+
+**The build rows** (the clean rebuild of `d44abbab36f8` reproduces the first build exactly):
+
+| row | A12.53 predicted | measured |
+|---|---|---|
+| flash | 1,872,880-1,882,883 B | **1,876,267 B (+245,428): inside, re-registered exactly** |
+| RAM | 59,180-59,212 B; expected 59,188 | **59,184 B (+160): inside; re-registered exactly.** 4 B under the expected value, accounted below |
+| ELF | the 17 blobs once each; the 17 Dallas controls once each | **17 of 17 and 17 of 17**, in `firmware.elf` and `firmware.bin` |
+| partitions | byte-identical to main's | **identical** (3,072 B, `28f336fe57a9`) |
+| D2 | `weather.gov`, `noaa`, `ncep`, `mrms` 0; `amazonaws` 2, both inside `bend.bmpk`'s range, 0 outside | **exactly that. The row waits on Q53** |
+| other envs | none compiles `src/weatherscope/` | none |
+
+- **`firmware.bin`:** 1,876,672 B, sha256 `823fcca81598`.
+
+**The flash, part by part,** from the two ELFs (main's rebuilt clean in its own worktree, which reproduced 1,630,839 / 59,024):
+
+| part | bytes |
+|---|---|
+| `.rodata.wx_bend`: the 17 blobs, plus 27 B of `.balign`, measured between `wx_bend_00_start` and `wx_bend_package_end` | **236,041** |
+| named rodata: CRC32's nibble table 64, the Bend feed's two pointer tables 120, four vtables 96, `kScenarioName` +8, an assert's `__func__` +29; one literal pool renamed (±56) | +317 |
+| new string literals: the six new log lines' formats, the row format, the reason and scene tokens, IDF's `heap_caps.c` assert strings (WiFiManager's build stamps change, net 0) | +600 |
+| rodata remainder: strings under 4 B, which the count skips, and alignment | +138 |
+| `.flash.text`, by mangled symbol, each address once: `BasemapPackage.h` 2,821 (Validate and the walkers, with their instantiations); `WxBasemap.h` 2,610; `WxScenes.h`'s loaders 194; the manager 1,922; the stored feeds 174; libm's `ceil` 310; `heap_caps_get_allocated_size` 59; the static initialiser 35; `WxScreens.h` −15; four others (+4, +2, −4, −4), net −2 | +8,108 |
+| `.flash.text` remainder: literal pools and alignment, which carry no symbol | +224 |
+| **total** | **+245,428** |
+
+- **The header code first reached is 5,625 B,** against A12.53's measured estimate of about 7,300. That estimate's probe carried its own glue and counted aliases twice.
+
+**The RAM, every byte placed:**
+- **`.dram0.bss` +160:** `appManager` 4,456 → 4,608 (+152, as predicted), and the Bend feed's guard variable +8.
+- **`.dram0.data` +0.** The Bend feed's 4 B static did not grow the section.
+  - Every object after it moved by 4 B. That shifts two alignment pads: the pad before `gpio_context` grows from 3 to 7, and the one before `s_spinlock` shrinks from 1,068 to 1,060. Net 0.
+  - The objects in the section sum to 14,696 → 14,700, and the bytes between them to 8,696 → 8,692.
+- **So the expected value's miss is mine:** I priced the static's 4 B without checking the section's own slack. The band was set wide enough for that, and the value is inside it.
+
+**Three instrument errors on the way, all mine, none the code's:**
+1. **The first host runs collided.** I started MinGW and g++ 13.3 at once in one worktree. `run.sh` writes to a fixed `.pio/hosttest`, so the MinGW run tried to execute a Linux binary (exit 126, the rig).
+   - Both runs were discarded. The WSL run was stopped, and a check showed no `run.sh` left inside WSL.
+   - The suites were then run one at a time. **The rule: one `run.sh` per worktree at a time.**
+2. **The worktree was a sparse checkout without `proxy/src/`**, inherited from the source clone at `git worktree add`.
+   - The UsageReport block read BLIND (`metrics.ts` unreadable).
+   - Sparse was disabled for this worktree only (its own `config.worktree`; the clone's own setting unchanged), and the run repeated.
+3. **The first symbol diff merged constructor aliases** by demangling (+436 over the section). It was redone on mangled names, counting each address once.
+
+**Unchanged and next:**
+- **The board's values are as A12.53 froze them.**
+- **Step 8 starts with main's image on the board as the anchor** (A12.37). Its addendum freezes the runner's sequence before any write to the board.
+- **Q53 and Q54 must be ruled before #507 merges.**
