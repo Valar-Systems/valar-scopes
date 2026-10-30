@@ -33,6 +33,8 @@
 #    define DEVICE_PRODUCT_NAME "Claudescope"
 #  elif defined(FEATURE_WEATHERSCOPE)
 #    define DEVICE_PRODUCT_NAME "Weatherscope"
+#  elif defined(FEATURE_REMOTE)
+#    define DEVICE_PRODUCT_NAME "Remote"
 #  else
 #    define DEVICE_PRODUCT_NAME "Blipscope"
 #  endif

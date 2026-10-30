@@ -70,6 +70,9 @@ namespace BuildIdentity {
 #ifdef FEATURE_WEATHERSCOPE
         add("weatherscope");
 #endif
+#ifdef FEATURE_REMOTE
+        add("remote");
+#endif
 #ifdef SOAK_TEST
         add("soak");
 #endif
@@ -103,6 +106,8 @@ namespace BuildIdentity {
     constexpr char PRODUCT_WORDMARK[] = "SPEEDSCOPE";
 #elif defined(FEATURE_WEATHERSCOPE)
     constexpr char PRODUCT_WORDMARK[] = "WEATHERSCOPE";
+#elif defined(FEATURE_REMOTE)
+    constexpr char PRODUCT_WORDMARK[] = "REMOTE";   // working name (docs/remote-edition.md)
 #else
     constexpr char PRODUCT_WORDMARK[] = "BLIPSCOPE";
 #endif

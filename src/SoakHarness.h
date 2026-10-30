@@ -22,7 +22,7 @@
 
 #if defined(FEATURE_EAM) || defined(FEATURE_SPACE) || defined(FEATURE_SEISMIC) || \
     defined(FEATURE_BIRDING) || defined(FEATURE_FISHING) || defined(FEATURE_CLAUDESCOPE) || \
-    defined(FEATURE_SPEED) || defined(FEATURE_WEATHERSCOPE)
+    defined(FEATURE_SPEED) || defined(FEATURE_WEATHERSCOPE) || defined(FEATURE_REMOTE)
 #error "SOAK_TEST is a radar-app harness; build it on a radar env"
 #endif
 

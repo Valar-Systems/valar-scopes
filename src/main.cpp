@@ -51,8 +51,8 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 // The active app is a compile-time choice: the radar (default), the FEATURE_EAM monitor, the
 // FEATURE_SPACE (Spacescope) monitor, the FEATURE_SEISMIC earthquake radar, the FEATURE_BIRDING
 // sightings radar, the FEATURE_FISHING (Reelscope) console, the FEATURE_CLAUDESCOPE usage gauge,
-// the FEATURE_SPEED (Speedscope) speed-radar, or the FEATURE_WEATHERSCOPE (Weatherscope) weather
-// radar. All expose the same
+// the FEATURE_SPEED (Speedscope) speed-radar, the FEATURE_WEATHERSCOPE (Weatherscope) weather
+// radar, or the FEATURE_REMOTE (Remote) window + curtain control. All expose the same
 // Initialise()/Update()/Draw() surface, so loop() drives `appManager` without knowing which it is.
 // The radar's sweep/models headers are radar-only.
 #if defined(FEATURE_EAM)
@@ -71,6 +71,9 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 #include "speed/SpeedManager.h"
 #elif defined(FEATURE_WEATHERSCOPE)
 #include "weatherscope/WeatherscopeManager.h"
+#elif defined(FEATURE_REMOTE)
+#include "remote/RemoteManager.h"
+#include "remote/UpdateHold.h"
 #else
 #include "AircraftManager.h"
 #include "DrawHelpers.h"
@@ -169,6 +172,8 @@ ClaudescopeManager appManager(configServer, authHandler, http, tft);
 SpeedManager appManager(configServer, authHandler, http, tft);
 #elif defined(FEATURE_WEATHERSCOPE)
 WeatherscopeManager appManager(configServer, authHandler, http, tft);
+#elif defined(FEATURE_REMOTE)
+RemoteManager appManager(configServer, authHandler, http, tft);
 #else
 AircraftManager appManager(configServer, authHandler, http, tft);
 // The Aviation radar is the #else fallthrough, so "which edition is this?" has no
@@ -738,7 +743,7 @@ void setup()
 
 void loop()
 {
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
   // Frame-time instrumentation (radar builds): the whole pass -- update, draw,
   // flush -- is one sample; AircraftManager logs avg/p95 + heap every 30 s and
   // shouts when a budget breaks. u32 micros() wrap-around subtracts correctly.
@@ -753,7 +758,7 @@ void loop()
   // the first would leave the other's request latched to fire on the next pass,
   // which after a reboot means a second, unrequested reset.
   factoryreset::Tier tier = configServer.ConsumeResetTier();
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
   tier = factoryreset::Larger(tier, appManager.ConsumeResetTier());
 #endif
   if (tier != factoryreset::Tier::None) {
@@ -859,9 +864,18 @@ void loop()
     // instrument, because it reports correctly while the behaviour is wrong.
     const quiet::Decision d =
         quiet::Step(qs, (uint32_t)time(nullptr), QuietHourOffsetSec(), millis());
-    if (d != quiet::Decision::None) {
+#ifdef FEATURE_REMOTE
+    // The Remote holds a fired decision while a window or curtain it controls is moving: while it
+    // reboots into the update it cannot send STOP. Held, not skipped -- Step records its own fire,
+    // so a skipped decision would be lost for the day (src/remote/UpdateHold.h).
+    static quiet::Decision remoteHeld = quiet::Decision::None;
+    const quiet::Decision arm = remote::HoldUpdate(d, appManager.HoldsUpdate(), remoteHeld);
+#else
+    const quiet::Decision arm = d;
+#endif
+    if (arm != quiet::Decision::None) {
       Serial.printf("[quiet] %s -> deferring update check to reboot\n",
-                    quiet::DecisionName(d));
+                    quiet::DecisionName(arm));
       // scheduled=true: the quiet hour is held to its own 20 h minimum, not the 24 h cap (#377).
       DeferUpdateCheckToReboot(ESP.getMaxAllocHeap(), /*scheduled=*/true); // does not return if it arms
     }
@@ -874,7 +888,7 @@ void loop()
   if (configServer.ConsumeConfigChanged())
     appManager.Initialise();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
   // Somebody opened the Collection page. Flush a dirty logbook HERE, on the loop
   // task that owns it, so the next read is current -- the page is served from
   // NVS and would otherwise lag the live book by up to the persist debounce.
@@ -904,7 +918,7 @@ void loop()
   // backbuffer, each shifted into place by a BandCanvas, then pushed to its screen
   // rows. The scene is drawn once per band; the app advances per-frame state (animation
   // tick, trail sampling) only on the first pass so the bands stay in sync.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
   const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView()
                         && !appManager.NightClockActive()  // no beam under the night clock face
                         && !appManager.SweepSuppressed();  // and none over data too old to be live
@@ -923,7 +937,7 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
     if (drawScan)
       DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
 #endif
@@ -950,7 +964,7 @@ void loop()
   // still being assembled.
   framebuf::FrameDone();
 
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && !defined(FEATURE_REMOTE)
   appManager.RecordFrameUs(micros() - frameStartUs);
 
 #ifdef FEATURE_CLOUD_FEED
