@@ -53,6 +53,7 @@ TWO THINGS THE RADAR DRAWS ON PURPOSE, set apart as ruled (2026-10-30; docs/wx-d
       those label greens beside a dart is not seen as one.
 """
 import glob
+import json
 import math
 import os
 import re
@@ -60,6 +61,14 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = H = 240
+# The screen dots as MEASURED on 10-29's real frames (docs/wx-device.md, F1), for the selftest's frames only. Never the
+# source's positions: a selftest drawn from the same positions the checker grades against cannot see them move.
+DOT_FIXTURE = os.path.join(ROOT, "test", "host", "fixtures", "wx_screen_dots.json")
+
+
+def fixture_dots():
+    d = json.load(open(DOT_FIXTURE, encoding="utf-8"))
+    return [(e["x"], e["y"], e["r"], int(e["colour"], 16)) for e in d["dots"]]
 
 
 def read(rel):
@@ -367,7 +376,8 @@ def grade(frames, look, src, drop=False):
            + (", ".join(f"r={r} {col:#06x}" for r, col in ungradable) or "none")]
     WO = src["wedge_only"][look]
     tot = {"exc": 0, "ex_r": 0, "markers": 0, "fail": 0, "ex_m": 0, "ambig": 0, "graded": 0, "dropped": 0,
-           "masked_r": 0, "masked_m": 0, "wedge_out": 0, "hl": 0, "apart": 0, "dotm": 0}
+           "masked_r": 0, "masked_m": 0, "wedge_out": 0, "hl": 0, "apart": 0, "dotm": 0,
+           "a_dot": 0, "a_label": 0, "a_hl": 0}
     for n, f in enumerate(frames):
         wm = wedge_mask(f, src, n, out) if trustworthy(f, rings, n, out) else None
         if wm is None:
@@ -397,6 +407,7 @@ def grade(frames, look, src, drop=False):
                             hl += 1; continue   # the NEAR/HIGH/FAST highlight, by its geometry (ruled 2026-10-30)
                     exc += 1; wout += 1
         mk = fail = exm = amb = mm = apart = dotm = 0
+        by = {"screen dot": 0, "label": 0, "highlight": 0}   # highlight: 0xF81F is no weather colour, so 0 by construction
         for c, comp in markers(f, src["marker"], own):
             if comp <= dots:              # a screen dot, not a contact
                 dotm += 1; continue
@@ -405,32 +416,42 @@ def grade(frames, look, src, drop=False):
             if c in amb_set:
                 amb += 1; continue
             mk += 1
-            border = neighbours(comp) - dots
+            whole = neighbours(comp)
+            border = whole - dots
+            dot_wet = [p for p in whole & dots if at(f, *p) in Wc]   # weather-coloured, but a complete screen dot's
             wet = [p for p in border if at(f, *p) in Wc]
-            if any(at(f, *p) in Wc for p in neighbours(comp, 3) - neighbours(comp) - dots): exm += 1
-            if wet:
-                xs, ys = [p[0] for p in comp], [p[1] for p in comp]
-                where = f"marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px)"
-                if all(at(f, *p) in src["label"] for p in wet):
-                    apart += 1
-                    out.append(f"frame {n}: COUNTED APART, {where}: {len(wet)} of {len(border)} neighbours are weather "
-                               "colours, every one also a label colour")
-                else:
-                    fail += 1
-                    out.append(f"frame {n}: {where}: {len(wet)} of {len(border)} neighbours are weather")
+            if any(at(f, *p) in Wc for p in neighbours(comp, 3) - whole - dots): exm += 1
+            xs, ys = [p[0] for p in comp], [p[1] for p in comp]
+            where = f"marker at x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)} ({len(comp)} px)"
+            if wet and not all(at(f, *p) in src["label"] for p in wet):
+                fail += 1
+                out.append(f"frame {n}: {where}: {len(wet)} of {len(border)} neighbours are weather")
+                continue
+            # Passed only because an exclusion took its weather-coloured neighbours: counted apart, by cause, and
+            # listed, so "0 without an outline" never hides a marker an exclusion passed (ruled 2026-10-30).
+            causes = []
+            if dot_wet: causes.append("screen dot")
+            if wet: causes.append("label")
+            if causes:
+                apart += 1
+                for k in causes: by[k] += 1
+                out.append(f"frame {n}: COUNTED APART ({' + '.join(causes)}), {where}: "
+                           f"{len(dot_wet)} screen-dot and {len(wet)} label-and-weather neighbours")
         out.append(f"frame {n}: rings exceptions {exc} (a wedge colour outside the wedge {wout}), highlight {hl}, "
                    f"exercised {ex}, masked {mr}; markers {mk} (ambiguous {amb}, masked {mm}, screen dots {dotm}), "
-                   f"over weather {exm}, without an outline {fail}, counted apart {apart}")
+                   f"over weather {exm}, without an outline {fail}, counted apart {apart} (screen dot "
+                   f"{by['screen dot']}, label {by['label']}, highlight {by['highlight']})")
         for k, v in zip(("exc", "ex_r", "markers", "fail", "ex_m", "ambig", "masked_r", "masked_m", "wedge_out",
-                         "hl", "apart", "dotm"),
-                        (exc, ex, mk, fail, exm, amb, mr, mm, wout, hl, apart, dotm)):
+                         "hl", "apart", "dotm", "a_dot", "a_label", "a_hl"),
+                        (exc, ex, mk, fail, exm, amb, mr, mm, wout, hl, apart, dotm,
+                         by["screen dot"], by["label"], by["highlight"])):
             tot[k] += v
     out.append(f"TOTAL look {look}: frames graded {tot['graded']}, dropped as UNTRUSTWORTHY {tot['dropped']}; "
                f"(1) ring exceptions {tot['exc']} (a wedge colour outside the wedge {tot['wedge_out']}), "
                f"highlight {tot['hl']}, exercised {tot['ex_r']}, masked {tot['masked_r']}; "
                f"(2) markers {tot['markers']}, over weather {tot['ex_m']}, without an outline {tot['fail']}, "
-               f"counted apart {tot['apart']}, ambiguous {tot['ambig']}, masked {tot['masked_m']}, "
-               f"screen dots {tot['dotm']}")
+               f"counted apart {tot['apart']} (screen dot {tot['a_dot']}, label {tot['a_label']}, highlight "
+               f"{tot['a_hl']}), ambiguous {tot['ambig']}, masked {tot['masked_m']}, screen dots {tot['dotm']}")
     if tot["graded"] == 0:
         out.append("no trustworthy frame"); return "UNTRUSTWORTHY", out
     r1 = "FAIL" if tot["exc"] else ("BLIND" if tot["ex_r"] == 0 else "PASS")
@@ -586,15 +607,16 @@ def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, we
         put(f, circ, hc); put(f, tag, hc)
     if dots:
         # A dart whose border the slot-2 screen dot covers (the dots are drawn after the radar), then the dots: all
-        # complete, or slot 2 as one pixel of its colour where the dot would be.
-        x2, y2, _r2, c2 = src["dots"][2]
+        # complete, or slot 2 as one pixel of its colour where the dot would be. Drawn from the measured fixture.
+        fdots = fixture_dots()
+        x2, y2, _r2, c2 = fdots[2]
         dx_, dy_ = x2, y2 - 6
         for ox in (-1, 0, 1):
             for oy in (-1, 0, 1):
                 if ox or oy:
                     s = set(); fill_circle(s, dx_ + ox, dy_ + oy, 3); put(f, s, 0)
         s = set(); fill_circle(s, dx_, dy_, 3); put(f, s, colour)
-        for k, (x, y, r, c) in enumerate(src["dots"]):
+        for k, (x, y, r, c) in enumerate(fdots):
             if k == 2 and dots == "pixel":
                 put(f, [(x, y - 2)], c); continue
             s = set(); fill_circle(s, x, y, r); put(f, s, c)
@@ -645,10 +667,13 @@ def selftest(src):
         ok = 0.184 <= wm[1] <= 0.189 and verdict == "PASS"
         return ("PASS" if ok else "FAIL"), out + lines
 
-    def apart_case(kw, want_apart):
+    def apart_case(kw, want):
         verdict, lines = grade([synth(src, look="A", **kw)], "A", src)
-        got = int(re.search(r"counted apart (\d+)", next(l for l in lines if l.startswith("TOTAL"))).group(1))
-        return (verdict if got == want_apart else f"{verdict} with counted apart {got}"), lines
+        m = re.search(r"counted apart \d+ \(screen dot (\d+), label (\d+), highlight (\d+)\)",
+                      next(l for l in lines if l.startswith("TOTAL")))
+        got = {"screen dot": int(m.group(1)), "label": int(m.group(2)), "highlight": int(m.group(3))}
+        full = {"screen dot": 0, "label": 0, "highlight": 0, **want}
+        return (verdict if got == full else f"{verdict} with counted apart {got}"), lines
     cases = [
         ("as drawn, look A",                          lambda: on({}, "A"),                               "PASS"),
         ("weather drawn over the rings",              lambda: on(dict(weather_over_rings=True), "A"),    "FAIL"),
@@ -684,12 +709,12 @@ def selftest(src):
         ("H1 a NEAR highlight (circle and tag) across the middle ring outside the mask",
                                                       lambda: on(dict(highlight="near"), "A"),           "PASS"),
         ("H2 CONTROL: a lone 0xF81F on that ring",    lambda: on(dict(highlight="lone"), "A"),           "FAIL"),
-        ("D1 a dart whose border the slot-2 screen dot covers (counted apart 0)",
-                                                      lambda: apart_case(dict(dots="full"), 0),          "PASS"),
-        ("D2 the same with one dot-coloured pixel and no dot (counted apart 1)",
-                                                      lambda: apart_case(dict(dots="pixel"), 1),         "PASS"),
-        ("L1 a label-and-weather stroke across an outlined dart (counted apart 1)",
-                                                      lambda: apart_case(dict(stroke="label"), 1),       "PASS"),
+        ("D1 a dart whose border the slot-2 screen dot covers (counted apart: screen dot 1)",
+                                                      lambda: apart_case(dict(dots="full"), {"screen dot": 1}), "PASS"),
+        ("D2 the same with one dot-coloured pixel and no dot (counted apart: label 1)",
+                                                      lambda: apart_case(dict(dots="pixel"), {"label": 1}), "PASS"),
+        ("L1 a label-and-weather stroke across an outlined dart (counted apart: label 1)",
+                                                      lambda: apart_case(dict(stroke="label"), {"label": 1}), "PASS"),
         ("L2 CONTROL: the same stroke in a weather colour that is no label colour",
                                                       lambda: on(dict(stroke="weather"), "A"),           "FAIL"),
     ]

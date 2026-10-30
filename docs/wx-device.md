@@ -3414,3 +3414,21 @@ the counts by cause.
 - **The rule added, before any frame was scanned:** a candidate is kept only if no other candidate of the same colour
   in the same frame has a raster that contains its raster (the maximal discs).
 - F1's prediction is unchanged.
+
+### Results for the checker's follow-ups (2026-10-30)
+
+| | read | verdict |
+|---|---|---|
+| **F1** | the scan (`measure_dots.py`, scratchpad) over 54 finished frames kept exactly 4 positions: (102, 224, r 3, 0x07E0), (114, 224, r 2, 0x0280), (126, 224, r 2, 0x0280), (138, 224, r 2, 0x0280), each in 54 of 54 frames (216 instances). Every other candidate is a weather blob at x 170-173, in at most 2 frames. `test/host/fixtures/wx_screen_dots.json`, sha256 `bf89c2ad053e0781ff92b366b22809ba0a5c06185b948bf521b8714421c61628` | **as predicted** (with the maximality rule amended in before the scan) |
+| **F2** | D1 and D2 draw their dots from the fixture (`fixture_dots()`), never from `src` | done |
+| **C1** | the selftest: D1 counted apart by screen dot 1, D2 by label 1, L1 by label 1; every other case as before | **as predicted** |
+| **C2** | 10-29's frames, trustworthy only. **A:** (1) 0 exceptions, highlight 16; (2) 0 without an outline, **counted apart 4: screen dot 2** (the white dart, frames 3 and 5, `m1-f0`/`m1-f2`), **label 2** (the yellow dart, frames 6 and 8, `m2-f0`/`m2-f2`), highlight 0; **PASS**. **B:** (1) 0, highlight 10, **PASS** ((2): 95 without an outline, counted apart 30, all label). **off:** unchanged, **PASS** | **as predicted** |
+| **C3** | the same frames, not dropped | all three **UNTRUSTWORTHY**, **as predicted** |
+| **C4** | the sabotages: S-hl-colour `H2`; S-hl-off `H1`; S-dot-anywhere `D2`; **S-dot-slot `D1`**; S-dot-silent `D1`; S-label-pass `L1`, `D2`; S-label-all `L2`, "no outline, look A", "the old r=4 disc outline"; **S-dot-slot′ `D1`**, **its control nothing red**. The real checker and fixture unchanged | **as predicted** |
+| **C5** | `--anchors`: 9 plants, 9 anchors, all present exactly once | **as predicted** |
+
+- **Run on two Pythons:** the selftest and C5 also ran under WSL's Python 3.12.3, with the same result.
+- **S-dot-slot's first run (nothing red) stays on record above.** It turns `D1` red only now, because the selftest no
+  longer draws from the positions the checker grades against.
+- **Tonight's redo is graded both ways:** by this checker, and by the one before `1494bcd`, which `wt-anchors` holds
+  as blob `a8d06e46e598`.
