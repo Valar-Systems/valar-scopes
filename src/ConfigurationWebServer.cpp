@@ -1,6 +1,10 @@
 #include "ConfigVocabulary.h"
 #include "ConfigurationWebServer.h"
 #include "NtfyTopic.h" // the generated private topic (spec 14.1)
+#ifdef FEATURE_CLOUD_FEED
+#include "WxLegendHtml.h" // the Weather section's legend (docs/wx-device.md WD8)
+#include "WxLookSelectHtml.h" // the Weather section's look select (docs/wx-device.md K1)
+#endif
 #include "ConfigMigration.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -915,6 +919,7 @@ R"(
                         fields with scheduled service.
                     </span>
                 </fieldset>
+                %WXSECTION%
 
                 </div><!-- /sec -->
 
@@ -2744,6 +2749,11 @@ void ConfigurationWebServer::Initialise() {
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
         const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
+        // Weather under the planes (WD5): absent means OFF, the same default AircraftManager reads.
+        const String wxLayerEnabled = HtmlEscape(prefs.getString("wx-layer", "false"));
+        // The weather look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through
+        // wxs2::LookFromStored, so absence means look A, the default Daniel chose.
+        const String wxLookStored = prefs.getString("wx-look", "");
         const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
         const String airportsMin = HtmlEscape(prefs.isKey("airports-min") ? prefs.getString("airports-min", "all") : "all");
         const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
@@ -3164,7 +3174,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, radius, radiusUnit, openskyClientId, openskySecret, dataSource, localUrl, localDetails, scanlineEnabled, fadeEnabled, infoTextEnabled, triangleEnabled, wxLayerEnabled, wxLookStored, airportsEnabled, trailEnabled, altColorEnabled, highlightEnabled, autoDimEnabled, nightClockOn, brightness, tzOffset, tzAuto, radarUp, watchlist, ntfyTopic, milShow, milAlert, heliShow, spcShow, emgAlert, tonesOn, milVisual, emgVisual, visualNight, logbookOn, lbEnabled, lbName, lbLink, lbStanding, followTarget, followTrack, followUp, followDown, followLost, startSection, creditsLink, airportsMin, loc0Name, loc0Lat, loc0Lon, loc1Name, loc1Lat, loc1Lon, loc2Name, loc2Lat, loc2Lon, lookupOn, lookupAlert, lookupDist, mqttOn, mqttHost, mqttPort, mqttUser, mqttPass, mqttBase, mqttDisco, infoFieldsHtml
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
@@ -3202,6 +3212,24 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
+#ifdef FEATURE_CLOUD_FEED
+                // Only a cloud build can fetch weather, so only a cloud build shows the box.
+                // The Display tab's Weather section (docs/wx-device.md WD8): every weather setting, with its heading,
+                // and under the switch the legend of what the layer draws in the look in use (WxLegendHtml.h, its
+                // colours from wxs2 at serve time). Layout only: the fields' names, values and defaults are unchanged.
+                if (var == "WXSECTION")
+                    return String("<fieldset><legend>Weather</legend><div class=\"grid3\">")
+                         + "<label class=\"check\"><input name=\"wx-layer\" type=\"checkbox\" "
+                         + (wxLayerEnabled == "true" ? "checked" : "") + "><span>Weather radar (beta)</span></label>"
+                         // The look, a shipping setting since 2026-10-29 (K1): Daniel's labels, values "A"/"B", absent
+                         // = A. WxLookSelectHtml.h holds no '%' (the page's %PLACEHOLDER% processing would eat it).
+                         + wxlookselect::Html(wxLookStored.c_str()).c_str()
+                         + "</div>"
+                         + wxlegendhtml::Html(wxs2::LookFromStored(wxLookStored.c_str())).c_str()
+                         + "</fieldset>";
+#else
+                if (var == "WXSECTION")      return "";   // a build without the feed has no weather, so no section
+#endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
                 if (var == "ALTCOLOR")       return altColorEnabled == "true" ? "checked" : "";
@@ -3761,6 +3789,10 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("fade");
         SaveToggle("triangle");
         SaveToggle("airports");
+        SaveToggle("wx-layer");
+#ifdef FEATURE_CLOUD_FEED
+        TrySaveParam("wx-look");   // a shipping setting since 2026-10-29 (docs/wx-device.md K1); absent stays absent
+#endif
         TrySaveParam("airports-min");
         SaveToggle("trail");
         SaveToggle("altcolor");

@@ -1,4 +1,6 @@
 #include "AircraftManager.h"
+#include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
+#include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
 #include "BrightnessLog.h"
@@ -22,6 +24,9 @@
 #include "SpecialAircraft.h"
 #include "AlertEdge.h"      // one rule for when an alert edge is spent: once it can be seen
 #include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
+#include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
+#include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
+#include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
 // Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
 // (10 min, RadarZoom.h) with no touch. RADAR_ZOOM_IDLE_MS is a BENCH-ONLY override --
@@ -368,7 +373,7 @@ static constexpr size_t MAX_AIRCRAFT = 60;
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
 // The same task also serves the cloud feed and its /api/v1/blipscope/config fetch (kind), so all
 // blocking cloud I/O shares the one TLS client + keep-alive connection.
-enum class FetchKind : uint8_t { Feed, CloudConfig, Airports };
+enum class FetchKind : uint8_t { Feed, CloudConfig, Airports, Weather };
 
 struct FetchRequest {
     FetchKind kind = FetchKind::Feed;
@@ -391,6 +396,11 @@ struct FetchRequest {
                                      // Same rule and the same reason as otaMem: taken on
                                      // the LOOP task at request build time, because the
                                      // take writes NVS and commits the delta.
+    uint8_t* wxBuf = nullptr;        // Weather: the loop's landing buffer (PSRAM). Written only while this
+                                     // request is in flight -- one in flight at most, behind fetchInFlight.
+    String wxIfNoneMatch;            // Weather: WxPolicy's If-None-Match, "" for none
+    wxpolicy::Query wxAsked;         // Weather: the query this request carries
+    uint32_t wxSeq = 0;              // Weather: this request's number from wxpolicy::OnSend (WD5 addendum 6)
 #endif
 };
 struct FetchResult {
@@ -403,6 +413,12 @@ struct FetchResult {
     long dataEpoch = 0;              // cloud blips snapshot time t (0 = not cloud)
     CloudFeed::Config config;        // CloudConfig kind only
     std::vector<CloudFeed::CloudAirport> airports; // Airports kind only
+    int wxStatus = 0;                // Weather: HTTP status (<= 0 = network failure)
+    size_t wxLen = 0;                // Weather: bytes landed (0 unless a whole body fit)
+    size_t wxClaimed = 0;            // Weather: the length the server claimed (> cap = refused for size)
+    String wxEtag;                   // Weather: the reply's ETag
+    wxpolicy::Query wxAsked;         // Weather: the query this answers
+    uint32_t wxSeq = 0;              // Weather: the request number this answers
 #endif
     // Measurement carried back to the loop task, which owns the counters (this
     // struct crosses a queue; the fetch task must not touch loop state).
@@ -886,6 +902,23 @@ void AircraftManager::Initialise()
     // sweep beam: unset (or "true") = on, matching the radar's drawScan gate in main.cpp
     const String renderSweep = configServer.GetStoredString("scanline");
     displaySweep = renderSweep.isEmpty() || renderSweep == "true";
+
+#ifdef FEATURE_CLOUD_FEED
+    // Weather under the planes (docs/wx-device.md, WD5): ABSENT MEANS OFF. A new key with an off default needs
+    // no ConfigMigration entry; making the default ON later would (CLAUDE.md, "a default only reaches keys
+    // that were never saved"). test/host/check_wx_wiring.py reads this line and the config page's default.
+    wxLayerEnabled = configServer.GetStoredString("wx-layer") == "true";
+    if (wxLayerEnabled) AllocateWeatherBuffers();
+    // The look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through the one rule the page uses,
+    // so absence means look A, the default Daniel chose.
+    wxLook = wxs2::LookFromStored(configServer.GetStoredString("wx-look").c_str());
+#ifdef WX_LOOK_AB
+    // check-no-bench-hooks.sh's marker for this bench image: absent from every slug-ful image (it was the look
+    // select's "(bench)" label until the look became a shipping setting).
+    Serial.println("[wx-bench] the weather bench image (WX_LOOK_AB)");
+#endif
+    wxSpriteReady = false;   // a save can change the look, the home or the range: rebuild on the next shown frame
+#endif
 
     // paint-and-fade blips: unset (or "true") = on. Only takes effect with the sweep on.
     const String renderFade = configServer.GetStoredString("fade");
@@ -1754,6 +1787,13 @@ void AircraftManager::Update()
             lastFetch = now;
             RequestFetch();
         }
+#ifdef FEATURE_CLOUD_FEED
+        // Weather (docs/wx-device.md, WD5) is queued BEHIND the feed: only on a pass where the feed is not due,
+        // so it never preempts a poll. Off -- the default -- means WxPolicy answers no, ever (WD3 (a)).
+        else if (wxpolicy::ShouldFetch(wxState, WxEnabled(), (uint32_t)now)) {
+            RequestWeather(now);   // the pass's own clock: the attempt is the send (WD5 addendum 6)
+        }
+#endif
     }
 }
 
@@ -1943,6 +1983,148 @@ void AircraftManager::DrawStaleIndicator(BandCanvas& backbuffer) const
     backbuffer.drawString(buf, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(buf) / 2, 14);
 }
 
+#ifdef WX_LOOK_AB
+void AircraftManager::RecordSweepUs(uint32_t us, bool blended)
+{
+    const uint16_t capped = (uint16_t)std::min(us, (uint32_t)0x7FFF);
+    sweepSampleBuf[sweepSampleCount % FRAME_SAMPLES] = (uint16_t)(capped | (blended ? 0x8000u : 0u));
+    sweepSampleCount++;
+}
+
+void AircraftManager::ReportSweep()
+{
+    // The frame figure's own method: the last FRAME_SAMPLES calls, p95 at the same index of a sorted copy.
+    const size_t n = std::min(sweepSampleCount, FRAME_SAMPLES);
+    if (n == 0) return;
+    uint16_t sorted[FRAME_SAMPLES];
+    uint32_t sum = 0;
+    unsigned blend = 0;
+    for (size_t i = 0; i < n; ++i) {
+        sorted[i] = sweepSampleBuf[i] & 0x7FFF;
+        sum += sorted[i];
+        if (sweepSampleBuf[i] & 0x8000) ++blend;
+    }
+    std::sort(sorted, sorted + n);
+    Serial.printf("[health] sweep=%lu/%uus n=%u blend=%u\n", (unsigned long)(sum / n),
+                  (unsigned)sorted[(size_t)((n - 1) * 0.95f)], (unsigned)n, blend);
+
+    // Step C: the clear-or-push call, by the same method, and how many of those calls pushed the layer.
+    const size_t nc = std::min(clearSampleCount, FRAME_SAMPLES);
+    if (nc > 0) {
+        uint32_t csum = 0;
+        unsigned pushes = 0;
+        for (size_t i = 0; i < nc; ++i) {
+            sorted[i] = clearSampleBuf[i] & 0x7FFF;
+            csum += sorted[i];
+            if (clearSampleBuf[i] & 0x8000) ++pushes;
+        }
+        std::sort(sorted, sorted + nc);
+        Serial.printf("[health] clear=%lu/%uus n=%u push=%u\n", (unsigned long)(csum / nc),
+                      (unsigned)sorted[(size_t)((nc - 1) * 0.95f)], (unsigned)nc, pushes);
+    }
+    // Step C: the blend path's three parts, each an average over its last calls.
+    const size_t np = std::min(partSampleCount, FRAME_SAMPLES);
+    if (np > 0) {
+        uint32_t ps[3] = {0, 0, 0};
+        for (int k = 0; k < 3; ++k)
+            for (size_t i = 0; i < np; ++i) ps[k] += partSampleBuf[k][i];
+        Serial.printf("[health] sweepparts=%lu/%lu/%luus n=%u\n", (unsigned long)(ps[0] / np), (unsigned long)(ps[1] / np),
+                      (unsigned long)(ps[2] / np), (unsigned)np);
+    }
+    // Step C's copy floor, measured once at boot and reprinted here so a trace opened after the boot still sees it.
+    Serial.printf("[bench] memcpy=%luus memset=%luus (115200 B, PSRAM, median of 10, at boot)\n",
+                  (unsigned long)copyFloorMemcpyUs, (unsigned long)copyFloorMemsetUs);
+    // The B1 fix's run (docs/wx-device.md). F7: the look A outline per frame, by the frame figure's method.
+    const size_t no = std::min(outlineSampleCount, FRAME_SAMPLES);
+    if (no > 0) {
+        uint32_t osum = 0;
+        for (size_t i = 0; i < no; ++i) { sorted[i] = outlineSampleBuf[i]; osum += sorted[i]; }
+        std::sort(sorted, sorted + no);
+        Serial.printf("[health] outline=%lu/%uus n=%u\n", (unsigned long)(osum / no),
+                      (unsigned)sorted[(size_t)((no - 1) * 0.95f)], (unsigned)no);
+    }
+    // F4: what the blend visited and blended, averaged over the calls since the last report.
+    if (sweepScanCalls > 0)
+        Serial.printf("[health] sweepscan=%lu/%lu n=%lu\n", (unsigned long)(sweepScanBytes / sweepScanCalls),
+                      (unsigned long)(sweepScanPx / sweepScanCalls), (unsigned long)sweepScanCalls);
+    sweepScanBytes = sweepScanPx = sweepScanCalls = 0;
+    // F3's per-byte scan cost and F1's copy check, reprinted like the copy floor.
+    Serial.printf("[bench] scan0=%luus (BlendRows over an all-zero 240-row slice, 57600 B, PSRAM, median of 10, at boot)\n",
+                  (unsigned long)copyScan0Us);
+    static const char* kCheck[] = { "no", "yes", "unchecked (no PSRAM for the copy)" };
+    if (layerCopyCheck >= 0)
+        Serial.printf("[bench] layer copy: memcpy equals pushSprite: %s\n", kCheck[layerCopyCheck]);
+}
+
+void AircraftManager::CheckLayerCopy(LGFX_Sprite& sp, uint8_t* dst)
+{
+    // F1, once: the canvas as the push leaves it, against the canvas as the memcpy leaves it. Each starts from a
+    // different fill, so a push that skipped a pixel could not pass by leaving the other's byte behind.
+    constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;
+    uint8_t* viaPush = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
+    if (viaPush == nullptr) { layerCopyCheck = 2; return; }
+    memset(dst, 0xA5, kBytes);
+    wxSprite.pushSprite(&sp, 0, 0);
+    memcpy(viaPush, dst, kBytes);
+    memset(dst, 0x5A, kBytes);
+    memcpy(dst, wxLayer565, kBytes);
+    layerCopyCheck = memcmp(dst, viaPush, kBytes) == 0 ? 1 : 0;
+    heap_caps_free(viaPush);
+    Serial.printf("[bench] layer copy: memcpy equals pushSprite: %s\n", layerCopyCheck == 1 ? "yes" : "no");
+}
+
+void AircraftManager::MeasureCopyFloor()
+{
+    constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;
+    uint8_t* a = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
+    uint8_t* b = (uint8_t*)heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM);
+    if (a && b) {
+        uint32_t cp[10], st[10];
+        memset(a, 0x5A, kBytes);
+        for (int i = 0; i < 10; ++i) { const uint32_t t = micros(); memcpy(b, a, kBytes); cp[i] = micros() - t; }
+        for (int i = 0; i < 10; ++i) { const uint32_t t = micros(); memset(b, i, kBytes); st[i] = micros() - t; }
+        std::sort(cp, cp + 10);
+        std::sort(st, st + 10);
+        copyFloorMemcpyUs = cp[5];
+        copyFloorMemsetUs = st[5];
+    }
+    heap_caps_free(a);
+    heap_caps_free(b);
+    // F3's a: BlendRows over an all-zero 240-row slice, which visits every byte and blends none -- the cost of scanning
+    // alone. The lambdas are never called; the count is checked so the loop cannot be dropped.
+    constexpr size_t kSlice = (size_t)SCREEN_SIZE * SCREEN_SIZE;
+    uint8_t* z = (uint8_t*)heap_caps_calloc(kSlice, 1, MALLOC_CAP_SPIRAM);
+    if (z) {
+        uint32_t sc[10];
+        uint32_t blended = 0;
+        for (int i = 0; i < 10; ++i) {
+            const uint32_t t = micros();
+            blended += wxsweep::BlendRows(wxs2::Percent(wxs2::Look::A), z, SCREEN_SIZE, 0, SCREEN_SIZE - 1,
+                                          [](int, int, uint16_t) {}, [](int, int) { return (uint8_t)0; });
+            sc[i] = micros() - t;
+        }
+        std::sort(sc, sc + 10);
+        copyScan0Us = blended == 0 ? sc[5] : 0;
+        heap_caps_free(z);
+    }
+}
+
+void AircraftManager::RecordClearUs(uint32_t us, bool pushed)
+{
+    const uint16_t capped = (uint16_t)std::min(us, (uint32_t)0x7FFF);
+    clearSampleBuf[clearSampleCount % FRAME_SAMPLES] = (uint16_t)(capped | (pushed ? 0x8000u : 0u));
+    clearSampleCount++;
+}
+
+void AircraftManager::RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, uint32_t beamUs)
+{
+    const uint32_t v[3] = {rasteriseUs, blendUs, beamUs};
+    for (int k = 0; k < 3; ++k)
+        partSampleBuf[k][partSampleCount % FRAME_SAMPLES] = (uint16_t)std::min(v[k], (uint32_t)0xFFFF);
+    partSampleCount++;
+}
+#endif
+
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
@@ -1950,6 +2132,12 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
     frameSampleBuf[frameSampleCount % FRAME_SAMPLES] = capped;
     frameSampleCount++;
+#ifdef WX_LOOK_AB
+    // F7: this frame's outline time (0 when no outline was drawn), on the frame ring's own index.
+    outlineSampleBuf[outlineSampleCount % FRAME_SAMPLES] = (uint16_t)std::min(outlineFrameUs, (uint32_t)0xFFFF);
+    outlineSampleCount++;
+    outlineFrameUs = 0;
+#endif
     // Interval-spanning worst frame (see the member comment): catches a stall
     // anywhere in the 30 s window, not just the last FRAME_SAMPLES frames.
     if (capped > frameMaxTenths) frameMaxTenths = capped;
@@ -2095,6 +2283,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                   (unsigned)currentBrightness, (unsigned)configuredBrightness,
                   (autoDim && nightNow) ? " NIGHT" : "",
                   IsDataStale() ? "  DATA STALE" : "");
+#ifdef WX_LOOK_AB
+    ReportSweep();   // W4': its own line, right after the frame line, bench image only
+#endif
 
     // ---- Follow Mode stage 1: the §18.1 measurement -------------------------
     //
@@ -2694,6 +2885,34 @@ void AircraftManager::RunFetchTask()
             continue;
         }
 
+        // Weather crop (docs/wx-device.md, WD5): a binary GET into the loop's landing buffer, on this same
+        // task and keep-alive connection. One in flight at most, so the loop never reads the buffer mid-write.
+        if (req->kind == FetchKind::Weather) {
+            std::vector<std::pair<String, String>> hdrs = CloudFeed::Headers(req->cloudKey);
+            if (!req->wxIfNoneMatch.isEmpty()) hdrs.push_back({ "If-None-Match", req->wxIfNoneMatch });
+            size_t len = 0;
+            String etag;
+            const HttpResult r = http.GetBytes(
+                CloudFeed::WeatherUrl(req->cloudBase, "cref"),
+                { { "lat", wireloc::Center(req->lat) },   // 2 dp on the wire, as WxQuery() assumes
+                  { "lon", wireloc::Center(req->lon) },
+                  { "r", String((int)lround(req->rangeKm)) } },
+                hdrs, req->wxBuf, wxcrop::kMaxBytes, len, etag);
+            res->ok = r.success;
+            res->wxStatus = r.statusCode;
+            res->wxLen = len;
+            res->wxClaimed = r.bodyBytes;
+            res->wxEtag = etag;
+            res->wxAsked = req->wxAsked;
+            res->wxSeq = req->wxSeq;
+            if (!r.success && r.statusCode <= 0)
+                fetchHardFailures++;
+            delete req;
+            if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
+                delete res;
+            continue;
+        }
+
         // Airport-overlay fetch (/api/v1/blipscope/airports): same one-off GET pattern as the
         // config fetch above. The reply is server-capped (<= 60 rows, ~2 KB),
         // so the streaming decode stays trivial on the C3-class heap.
@@ -3022,6 +3241,239 @@ bool AircraftManager::RequestCloudAirports()
     delete req;
     return false;
 }
+
+// ---- Weather under the planes (docs/wx-device.md, WD5) -------------------------------------------------
+
+bool AircraftManager::WxEnabled() const
+{
+    return wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty();
+}
+
+// The query exactly as the request carries it: lat/lon through the wire's own rounding (wireloc::Center ==
+// Fmt2(Round2(v))) and r as lround of the CONFIGURED range, like the airports fetch -- one crop serves every
+// zoom level (WD2 graded the layer at zoom x1, x0.6 and x0.3 of the crop's own r).
+wxpolicy::Query AircraftManager::WxQuery() const
+{
+    wxpolicy::Query q;
+    q.lat100 = (int32_t)lround(wireloc::Round2(lat) * 100.0);
+    q.lon100 = (int32_t)lround(wireloc::Round2(lon) * 100.0);
+    q.rKm = (int32_t)lround(rangeKmCfg);
+    return q;
+}
+
+bool AircraftManager::AllocateWeatherBuffers()
+{
+    if (wxBuffersOk) return true;
+    if (wxAllocTried) return false;   // a failed allocation leaves the layer off; not retried on every save
+    wxAllocTried = true;
+    const size_t px = (size_t)SCREEN_SIZE * (size_t)SCREEN_SIZE;
+    struct Buf { const char* name; size_t bytes; uint8_t** p; };
+    Buf bufs[] = { { "landing", wxcrop::kMaxBytes, &wxLanding }, { "held", wxcrop::kMaxBytes, &wxHeld },
+                   { "cells", kWxCellsMax, &wxCells }, { "pixels", px, &wxPixels },
+                   { "layer565", 2 * px, &wxLayer565 }, { "sweep", px, &wxSweepSlice },
+                   { "spans", 4 * (size_t)SCREEN_SIZE, &wxSweepSpans } };   // the B1 fix: two int16 per row
+    const uint32_t before = ESP.getFreePsram();
+    size_t total = 0;
+    for (Buf& b : bufs) {
+        // PSRAM only: never a fallback to the internal heap, which the TLS handshake needs (CLAUDE.md).
+        *b.p = (uint8_t*)heap_caps_malloc(b.bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        Serial.printf("[wx] alloc %s %u B: %s\n", b.name, (unsigned)b.bytes, *b.p ? "ok" : "FAILED");
+        if (*b.p == nullptr) {
+            for (Buf& f : bufs) { if (*f.p) { heap_caps_free(*f.p); *f.p = nullptr; } }   // all or none
+            Serial.println("[wx] buffers FAILED: the layer stays off");
+            return false;
+        }
+        total += b.bytes;
+    }
+    wxSprite.setBuffer(wxLayer565, SCREEN_SIZE, SCREEN_SIZE, 16);   // no allocation: the PSRAM buffer above
+    memset(wxSweepSlice, 0, px);   // WD6: no pixel is in the wedge until Rasterise marks it
+    wxBuffersOk = true;
+    // WD5d reads this line: psram_free must fall by `total` within 1,024 B.
+    Serial.printf("[wx] buffers: total %u B; psram_free %u -> %u\n", (unsigned)total, (unsigned)before,
+                  (unsigned)ESP.getFreePsram());
+    return true;
+}
+
+bool AircraftManager::RequestWeather(unsigned long now)
+{
+    if (!WxEnabled()) return false;
+    const wxpolicy::Query q = WxQuery();
+    wxpolicy::OnQuery(wxState, q);    // (d) a location or range change drops the held crop and its ETag
+    FetchRequest* req = new FetchRequest();
+    req->kind = FetchKind::Weather;
+    req->cloudBase = cloudUrl;
+    req->cloudKey = cloudKey;
+    req->lat = lat;
+    req->lon = lon;
+    req->rangeKm = rangeKmCfg;
+    req->wxBuf = wxLanding;
+    req->wxAsked = q;
+    if (const char* inm = wxpolicy::IfNoneMatch(wxState, q)) req->wxIfNoneMatch = inm;
+    // The attempt is recorded HERE, at the send, with the same `now` the loop just asked ShouldFetch with -- never
+    // at the reply, whose later millis() underflowed against that `now` and fired 23 requests in 5 s on 2026-10-26
+    // (docs/wx-device.md, WD5 addendum 6).
+    const uint32_t seq = wxpolicy::OnSend(wxState, (uint32_t)now);
+    req->wxSeq = seq;
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
+        fetchInFlight = true;
+        return true;
+    }
+    Serial.println("[wx] request DROPPED: fetch queue full");
+    delete req;
+    // Never sent: answered at once as a network failure, so it backs off rather than retrying every pass.
+    wxpolicy::OnResponse(wxState, seq, q, -1, 0, false, 0, false, nullptr, (uint32_t)millis());
+    return false;
+}
+
+void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, const String& etag,
+                                     const wxpolicy::Query& asked, uint32_t seq)
+{
+    // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
+    // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
+    wxcrop::Header h;
+    const bool whole = status == 200 && len > 0 && len == claimed;
+    const bool valid = whole && wxcrop::Validate(wxLanding, len, &h) == wxcrop::Status::Ok;
+    bool all14 = valid;
+    if (valid)
+        wxcrop::ForEachRun(wxLanding, len, [&](uint16_t, uint16_t, uint32_t, uint8_t code) {
+            if (code != wxcrop::kCodeNoCoverage) all14 = false;
+        });
+    const uint32_t bytes = (uint32_t)(claimed > len ? claimed : len);
+    const wxpolicy::Outcome o = wxpolicy::OnResponse(wxState, seq, asked, status, bytes, valid, valid ? h.frameEpoch : 0,
+                                                     all14, etag.isEmpty() ? nullptr : etag.c_str(), (uint32_t)millis());
+    if (o == wxpolicy::Outcome::Replaced) {
+        memcpy(wxHeld, wxLanding, len);
+        wxHeldLen = len;
+        wxNeedsRebuild = true;
+    }
+    // WD5t1: every 200's length and the first 6 bytes of its sha256, to match against the server's bytes for
+    // the same query and frame.
+    char sha[13] = "-";
+    if (status == 200 && len > 0) {
+        uint8_t d[32];
+        mbedtls_sha256(wxLanding, len, d, 0);
+        for (int i = 0; i < 6; ++i) snprintf(sha + i * 2, 3, "%02x", d[i]);
+    }
+    static const char* kOutcome[] = { "replaced", "not-modified", "kept", "error" };
+    Serial.printf("[wx] status=%d len=%u claimed=%u sha=%s outcome=%s frame=%lu next=%lus\n", status, (unsigned)len,
+                  (unsigned)claimed, sha, kOutcome[(int)o], (unsigned long)wxState.frameEpoch,
+                  (unsigned long)(wxState.intervalMs / 1000));
+}
+
+// Rebuilt only when its inputs change -- a new crop, the home, the zoom's view radii, the rotation, the look (WD2's
+// inputs) -- so a steady frame is one sprite copy instead of a fill (Part B, B1).
+bool AircraftManager::RebuildWeatherLayer()
+{
+    wxcrop::Header h;
+    if (wxcrop::DecodeInto(wxHeld, wxHeldLen, wxCells, kWxCellsMax, &h) != wxcrop::Status::Ok) {
+        Serial.println("[wx] rebuild: the held crop did not decode; the layer stays off");
+        return false;
+    }
+    const unsigned long t0 = millis();
+    // ProjectAt's inputs, exactly: the planes and the weather are one projection (WD1, WD2).
+    wxlayer::View v;
+    v.homeLat = lat;
+    v.homeLon = lon;
+    v.rLat = viewRadLat;
+    v.rLon = viewRadLon;
+    v.rotSin = rotSin;
+    v.rotCos = rotCos;
+    v.size = SCREEN_SIZE;
+    wxlayer::Build(h, wxCells, v, wxPixels);
+    wxSprite.fillScreen(0);
+    for (int y = 0; y < SCREEN_SIZE; ++y)
+        for (int x = 0; x < SCREEN_SIZE; ++x) {
+            const uint32_t c = wxs2::Pixel888(wxPixels[(size_t)y * SCREEN_SIZE + x], x, y, wxLook);
+            if (c != 0) wxSprite.drawPixel(x, y, c);   // RGB888 in; the sprite stores its own 16-bit format
+        }
+    wxBuiltLat = lat;
+    wxBuiltLon = lon;
+    wxBuiltRadLat = viewRadLat;
+    wxBuiltRadLon = viewRadLon;
+    wxBuiltRotSin = rotSin;
+    wxBuiltRotCos = rotCos;
+    wxBuiltLook = wxLook;
+    wxSpriteReady = true;
+    wxNeedsRebuild = false;
+    // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
+    Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
+    return true;
+}
+
+bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
+{
+    wxShowing = wxpolicy::Show::Nothing;
+    // Only the radar scope itself: not the List, Stats or Follow faces, not under a card, not the no-location or
+    // night-clock faces, which own their whole screen.
+    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) return false;
+    const time_t now = time(nullptr);
+    wxShowing = wxpolicy::WhatToShow(wxState, true, now > 1600000000, (uint32_t)now);
+    if (wxShowing != wxpolicy::Show::Crop) return false;
+    const bool stale = wxNeedsRebuild || !wxSpriteReady || wxBuiltLat != lat || wxBuiltLon != lon ||
+                       wxBuiltRadLat != viewRadLat || wxBuiltRadLon != viewRadLon || wxBuiltRotSin != rotSin ||
+                       wxBuiltRotCos != rotCos || wxBuiltLook != wxLook;
+    if (stale && !RebuildWeatherLayer()) {
+        wxShowing = wxpolicy::Show::Nothing;
+        return false;
+    }
+    // The B1 fix (docs/wx-device.md): one memcpy of the whole layer when the canvas is one band of the whole frame in
+    // the layer's own format -- the guard DrawSweepOverWeather uses. Step C timed the sprite push at 6.82 ms against a
+    // 5.15 ms memcpy of the same 115,200 B. Anything else pushes the sprite, as before.
+    LGFX_Sprite& sp = canvas.sprite();
+    uint8_t* const dst = (uint8_t*)sp.getBuffer();
+    const bool flat = canvas.offsetY() == 0 && sp.width() == SCREEN_SIZE && sp.height() == SCREEN_SIZE &&
+                      sp.getColorDepth() == 16 && dst != nullptr && wxLayer565 != nullptr;
+#ifdef WX_LOOK_AB
+    if (flat && layerCopyCheck < 0) CheckLayerCopy(sp, dst);   // F1, once: the memcpy against the push it replaces
+#endif
+    if (flat) memcpy(dst, wxLayer565, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+    else wxSprite.pushSprite(&sp, 0, -canvas.offsetY());
+    return true;
+}
+
+bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
+{
+    // Only over a layer DrawWeatherUnder pushed this frame; with the layer off, today's opaque wedge draws instead.
+    if (wxShowing != wxpolicy::Show::Crop || !wxBuffersOk || wxSweepSlice == nullptr || wxSweepSpans == nullptr)
+        return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    // One band, the whole frame: BANDED_RENDER is false on every SKU. Anything else draws today's wedge.
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16)
+        return false;
+    uint16_t* const px = (uint16_t*)sp.getBuffer();
+    if (px == nullptr) return false;
+    int y0 = 0, y1 = -1;
+#ifdef WX_LOOK_AB
+    const uint32_t tRaster = micros();   // step C (docs/wx-device.md): the three parts, timed, bench image only
+#endif
+    // The B1 fix: Rasterise records each row's span, and Blend visits only that (docs/wx-device.md).
+    int16_t* const rowLo = (int16_t*)wxSweepSpans;
+    int16_t* const rowHi = rowLo + SCREEN_SIZE;
+    wxsweep::Rasterise(cx, cy, radius, angle, wxSweepSlice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1, rowLo, rowHi);
+#ifdef WX_LOOK_AB
+    const uint32_t tBlend = micros();
+#endif
+    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
+    const uint32_t blended = wxsweep::Blend(
+        wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+        [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+#ifdef WX_LOOK_AB
+    const uint32_t tBeam = micros();
+#endif
+    DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+#ifdef WX_LOOK_AB
+    RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
+    // F4: the bytes the blend visited and the pixels it blended, counted after the timed parts.
+    for (int y = y0; y <= y1; ++y)
+        if (rowHi[y] >= rowLo[y]) sweepScanBytes += (uint32_t)(rowHi[y] - rowLo[y] + 1);
+    sweepScanPx += blended;
+    sweepScanCalls++;
+#else
+    (void)blended;
+#endif
+    return true;
+}
 #endif
 
 void AircraftManager::ConsumeFetchResult()
@@ -3046,6 +3498,11 @@ void AircraftManager::ConsumeFetchResult()
     AckBootReasonReport(res->ok);
 
 #ifdef FEATURE_CLOUD_FEED
+    if (res->kind == FetchKind::Weather) {
+        ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxAsked, res->wxSeq);
+        delete res;
+        return;
+    }
     if (res->kind == FetchKind::CloudConfig) {
         if (res->ok) {
             cloudCfg = res->config;
@@ -3489,6 +3946,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     }
     DrawRadarCircles(backbuffer);
     DrawStaleIndicator(backbuffer); // escalating banner: STALE -> STALE <age> -> NO DATA <age>
+    DrawWeatherNote(backbuffer);    // weather outside coverage: a note, not an empty overlay (WD3 f)
 
     // Hoisted out of the per-aircraft loop below: one cheap age comparison per
     // frame instead of one per contact (up to MAX_AIRCRAFT of them), so the ladder
@@ -3621,10 +4079,26 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                                           : lgfx::color888(0, 255, 0));
             const uint32_t markerColor = scaleColor(baseColor, blip);
 
-            if (displayTriangles)
-                DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
-            else
-                backbuffer.fillCircle(x, y, 3, markerColor);
+            // Over weather, look A outlines each plane in black, 1 px out (WD5; WD4 addendum 2), so a faded plane
+            // is never the same colour as the cell under it (WD4f). With no layer shown, nothing here changes.
+            // The outline is 8 black copies of the marker, one per 1 px offset, for BOTH kinds: a disc 1 px larger
+            // misses 8 of the dot's 32 neighbours under LovyanGFX's raster (WD5 addendum 3; test_wx_outline.cpp).
+            const bool outline = WxOutlineNow();
+#ifdef WX_LOOK_AB
+            const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
+#endif
+            if (outline)
+                for (int oy = -1; oy <= 1; ++oy)
+                    for (int ox = -1; ox <= 1; ++ox) {
+                        if (ox == 0 && oy == 0) continue;
+                        if (displayTriangles) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
+                        else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
+                    }
+#ifdef WX_LOOK_AB
+            if (outline) outlineFrameUs += micros() - outlineT0;
+#endif
+            if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
+            else backbuffer.fillCircle(x, y, 3, markerColor);
         }
 
         // special contact (military / special callsign / helicopter): a coloured
@@ -4743,28 +5217,31 @@ std::pair<int, int> AircraftManager::ProjectCoordinateToScreen(float predLat, fl
 
 std::pair<int, int> AircraftManager::ProjectAt(float predLat, float predLon, double rLat, double rLon) const
 {
-    const float dLon = predLon - lon;
-    const float dLat = predLat - lat;
+    // The projection lives in include/RadarProjection.h, ONCE: the weather layer inverts the same function
+    // (docs/wx-device.md, WD1; held bit-identical to this function's old body by test_radar_projection.cpp).
+    return radarproj::Project(predLat, predLon, lat, lon, rLat, rLon, rotSin, rotCos, SCREEN_SIZE);
+}
 
-    const float normLon = (dLon + rLon) / (2.0f * rLon);
-    const float normLat = (dLat + rLat) / (2.0f * rLat);
+bool AircraftManager::WxOutlineNow() const
+{
+#ifdef FEATURE_CLOUD_FEED
+    return wxShowing == wxpolicy::Show::Crop && wxs2::Outline(wxLook);
+#else
+    return false;
+#endif
+}
 
-    float x = normLon * SCREEN_SIZE;
-    float y = SCREEN_SIZE - (normLat * SCREEN_SIZE);
-
-    // Window-up: rotate the picture about the centre so bearing radarUpDeg reads
-    // "up". Screen space is isotropic here (radLon is pre-scaled by cos(lat) so
-    // the scan box is square on the ground), which makes a plain screen-space
-    // rotation geometrically correct. Everything downstream of this projection
-    // (blips, trails, taps, the sweep's paint-crossing test) rotates with it.
-    if (rotSin != 0.0f || rotCos != 1.0f) {
-        constexpr float C = SCREEN_SIZE / 2.0f;
-        const float px = x - C, py = y - C;
-        x = C + px * rotCos + py * rotSin;
-        y = C - px * rotSin + py * rotCos;
-    }
-
-    return { static_cast<int>(x), static_cast<int>(y) };
+void AircraftManager::DrawWeatherNote(BandCanvas& backbuffer) const
+{
+#ifdef FEATURE_CLOUD_FEED
+    if (wxShowing != wxpolicy::Show::OutsideCoverage) return;
+    static const char kNote[] = "No weather coverage";   // WD3 (f): said, never shown as an empty (dry) overlay
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(140, 140, 140));
+    backbuffer.drawString(kNote, SCREEN_SIZE_DIV_2 - (int)backbuffer.textWidth(kNote) / 2, SCREEN_SIZE - 44);
+#else
+    (void)backbuffer;
+#endif
 }
 
 bool AircraftManager::ZoomCulled(int x, int y) const

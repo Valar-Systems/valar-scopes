@@ -27,6 +27,9 @@
 #include "FollowRouting.h" // which face, and whether a swipe can produce one
 #include "FollowLog.h" // Follow Mode post-flight record (spec 11)
 #include "CloudFeed.h" // no-op unless FEATURE_CLOUD_FEED
+#include "WxPolicy.h" // weather under the planes: when to fetch, what to keep (pure; WD3)
+#include "WxS2.h"     // weather under the planes: its colours, looks A and B (pure; WD4)
+#include "WxSweep.h"  // the sweep over the weather, looks 3 and 4 (pure; WD6)
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
@@ -629,6 +632,33 @@ private:
     // every loop pass.
     unsigned long cloudAirportsRetryMs = 0;
 
+    // Weather under the planes (docs/wx-device.md, WD5). OFF unless "wx-layer" is "true". The five buffers are
+    // PSRAM, allocated once at the first enable and never freed (WD5 addendum 2); a failed allocation leaves the
+    // layer off. wxLanding is written by the FETCH task while a weather request is in flight (one at most, behind
+    // fetchInFlight); everything else here is the loop task's.
+    bool wxLayerEnabled = false;
+    bool wxBuffersOk = false;
+    bool wxAllocTried = false;
+    wxpolicy::State wxState;
+    uint8_t* wxLanding = nullptr;     // the response body lands here
+    uint8_t* wxHeld = nullptr;        // WD3's held crop, replaced only on Outcome::Replaced
+    size_t wxHeldLen = 0;
+    uint8_t* wxCells = nullptr;       // wxcrop::DecodeInto's output, kWxCellsMax
+    uint8_t* wxPixels = nullptr;      // wxlayer::Build's output, one code per screen pixel
+    uint8_t* wxLayer565 = nullptr;    // the layer, RGB565, two bytes per screen pixel
+    uint8_t* wxSweepSlice = nullptr;  // WD6: the wedge's slice per screen pixel, cleared as it is blended
+    uint8_t* wxSweepSpans = nullptr;  // the B1 fix: each row's first and last marked column, 2 x SCREEN_SIZE int16
+    bool wxNeedsRebuild = false;     // a new crop (or view) has not been built into the layer yet
+    wxs2::Look wxLook = wxs2::Look::A;   // the user's look ("wx-look", K1); A by default, Daniel's choice
+    LGFX_Sprite wxSprite;             // wraps wxLayer565 (setBuffer): pushed in place of the frame clear
+    bool wxSpriteReady = false;       // wxSprite holds the layer built for the inputs below
+    wxpolicy::Show wxShowing = wxpolicy::Show::Nothing;   // this frame's decision, made in DrawWeatherUnder
+    double wxBuiltLat = 0, wxBuiltLon = 0, wxBuiltRadLat = 0, wxBuiltRadLon = 0;   // ProjectAt's inputs at the build
+    float wxBuiltRotSin = 0.0f, wxBuiltRotCos = 1.0f;
+    wxs2::Look wxBuiltLook = wxs2::Look::A;
+    bool RebuildWeatherLayer();       // decode the held crop, wxlayer::Build, S2 into the sprite
+    static constexpr size_t kWxCellsMax = 406u * 406u;   // #451 P1: the largest box, with its rounding cell
+
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.
     bool lbEnabled = false;
@@ -813,6 +843,28 @@ private:
     static constexpr size_t FRAME_SAMPLES = 128;
     uint16_t frameSampleBuf[FRAME_SAMPLES] = {0}; // 0.1 ms units
     size_t frameSampleCount = 0;                  // ring write index (wraps)
+#ifdef WX_LOOK_AB
+    // W4': the last FRAME_SAMPLES sweep calls, in microseconds capped at 0x7FFF, bit 15 set when the blend path ran.
+    uint16_t sweepSampleBuf[FRAME_SAMPLES] = {0};
+    size_t sweepSampleCount = 0;
+    // Step C: the clear-or-push call (us, capped at 0x7FFF, bit 15 set when the layer was pushed), and the three parts.
+    uint16_t clearSampleBuf[FRAME_SAMPLES] = {0};
+    size_t clearSampleCount = 0;
+    uint16_t partSampleBuf[3][FRAME_SAMPLES] = {{0}};
+    size_t partSampleCount = 0;
+    uint32_t copyFloorMemcpyUs = 0, copyFloorMemsetUs = 0;   // step C, measured once at boot (0: not measured)
+    // The B1 fix's run (docs/wx-device.md, F1-F7): the look A outline loop's time per frame (summed in the frame,
+    // recorded by RecordFrameUs), the bytes the blend visited and the pixels it blended since the last report, the
+    // cost of scanning an empty slice at boot, and whether the layer's memcpy equals the push it replaced.
+    uint16_t outlineSampleBuf[FRAME_SAMPLES] = {0};
+    size_t outlineSampleCount = 0;
+    uint32_t outlineFrameUs = 0;
+    uint32_t sweepScanBytes = 0, sweepScanPx = 0, sweepScanCalls = 0;
+    uint32_t copyScan0Us = 0;
+    int8_t layerCopyCheck = -1;   // -1 not yet, 0 differs, 1 identical, 2 could not check (no PSRAM for the copy)
+    void ReportSweep();
+    void CheckLayerCopy(LGFX_Sprite& sp, uint8_t* dst);
+#endif
     // Worst single loop pass since the last health report (0.1 ms units). The
     // avg/p95 above are computed only over the last FRAME_SAMPLES frames (~a few
     // seconds), so a transient multi-second stall EARLIER in the 30 s window is
@@ -1126,6 +1178,12 @@ private:
     // because the retry condition is then already satisfied-away. See #129.
     bool RequestCloudConfig();                  // loop: queue a /api/v1/blipscope/config fetch on the fetch task
     bool RequestCloudAirports();                // loop: queue a /api/v1/blipscope/airports fetch on the fetch task
+    bool RequestWeather(unsigned long now);     // loop: queue a /api/v1/blipscope/wx/cref fetch (WD5), behind the feed
+    void ConsumeWeather(int status, size_t len, size_t claimed, const String& etag, const wxpolicy::Query& asked,
+                        uint32_t seq);
+    bool AllocateWeatherBuffers();              // the five PSRAM buffers, once (WD5 addendum 2)
+    bool WxEnabled() const;                     // switch on, buffers allocated, cloud source configured
+    wxpolicy::Query WxQuery() const;            // the query the request carries, from the wire's own rounding
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
     // loop: queue a /api/v1/blipscope/enrich lookup.
@@ -1250,6 +1308,28 @@ public:
     void FlushLogbookForFetch() { if (logbookEnabled) logbook.MaybePersistForFetch(); }
     void Update();
     void Draw(BandCanvas& backbuffer, bool firstPass);
+#ifdef FEATURE_CLOUD_FEED
+    // Weather under the planes (docs/wx-device.md, WD5): main.cpp's band loop calls this BEFORE the sweep. On the
+    // radar scope, with a crop WxPolicy allows, it pushes the cached layer and returns true; otherwise false, and
+    // the frame is cleared as before.
+    bool DrawWeatherUnder(BandCanvas& canvas);
+    // The sweep over the weather (docs/wx-device.md, WD6): main.cpp calls this in place of DrawRadarSweep. Over a
+    // layer pushed THIS frame it blends the wedge (look 3 or 4) and draws today's beam, returning true; otherwise
+    // false, and today's opaque wedge draws -- so with the layer off nothing changes.
+    bool DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle);
+#endif
+#ifdef WX_LOOK_AB
+    // W4' (docs/wx-device.md, WD6'), bench image only: main.cpp times the sweep call and records it here, with the
+    // path it took. The 30 s [health] report prints it on its own line: sweep=<avg>/<p95>us n=<k> blend=<b>.
+    void RecordSweepUs(uint32_t us, bool blended);
+    // Step C (docs/wx-device.md, ruled 2026-10-29), bench image only: the clear-or-push call (main.cpp's band loop;
+    // `pushed` = the layer was pushed instead of the fill) and the blend path's three parts, each its last
+    // FRAME_SAMPLES calls; the 30 s [health] report prints them after the sweep= line.
+    void RecordClearUs(uint32_t us, bool pushed);
+    void RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, uint32_t beamUs);
+    // Step C, once at boot: a full screen's 115,200 B copied PSRAM to PSRAM and filled, each the median of 10.
+    void MeasureCopyFloor();
+#endif
     bool IsRadarView() const { return screen == Screen::Radar && !inDetail; }
     // Is the detail card up? Distinct from !IsRadarView(), which is also true on
     // the List and Stats screens -- a caller that needs "a card is covering the
@@ -1274,6 +1354,8 @@ public:
     // screen shows a big seven-segment clock instead of a dead scope. main.cpp also
     // consults this to suppress the sweep beam under the clock face.
     bool NightClockActive() const;
+    bool WxOutlineNow() const;                  // this frame shows the layer in a look that outlines the planes
+    void DrawWeatherNote(BandCanvas& backbuffer) const;   // WD3 (f): "outside coverage", never an empty overlay
     // Current sweep beam angle in radians; main.cpp draws the beam from this so it
     // matches the paint-and-fade crossing test exactly (single source of truth).
     float CurrentSweepAngle() const { return sweepAngle; }

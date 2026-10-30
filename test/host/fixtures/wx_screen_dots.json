@@ -1,0 +1,34 @@
+{
+ "what": "the radar's screen dots, measured on 10-29's RP6 frames (docs/wx-device.md F1), never read from the source",
+ "frames": 54,
+ "dots": [
+  {
+   "x": 102,
+   "y": 224,
+   "r": 3,
+   "colour": "0x07e0",
+   "instances": 54
+  },
+  {
+   "x": 114,
+   "y": 224,
+   "r": 2,
+   "colour": "0x0280",
+   "instances": 54
+  },
+  {
+   "x": 126,
+   "y": 224,
+   "r": 2,
+   "colour": "0x0280",
+   "instances": 54
+  },
+  {
+   "x": 138,
+   "y": 224,
+   "r": 2,
+   "colour": "0x0280",
+   "instances": 54
+  }
+ ]
+}
