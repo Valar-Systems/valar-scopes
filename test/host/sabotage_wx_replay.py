@@ -1,16 +1,19 @@
 """Runs test_wx_replay.cpp and test_wx_k35.cpp against SABOTAGED copies of src/weatherscope/WxScreens.h. Each must fail
-EXACTLY the sets registered in docs/weatherscope-stage3.md A9.23, and nothing else.
+EXACTLY the sets registered in docs/weatherscope-stage3.md A9.23, and nothing else; 3.5t t4's rows (RP light, RP-T,
+K-light) each plant reaches were registered in A12.64 (Q60) before it ran.
 
     python -I test/host/sabotage_wx_replay.py
 
   S-RP1  a layer kept across a zoom change: SameLayer ignores the radius.
-         test_wx_replay fails exactly the 60 rows at 30 and 15 mi, in both warning states; test_wx_k35 fails nothing.
+         test_wx_replay fails exactly the 60 rows at 30 and 15 mi, in both warning states, and the same 60 in Light
+         (120); test_wx_k35 fails nothing.
   S-RP2  one label missing from the layer: the build erases its first placed label's box from the layer's image.
-         test_wx_replay fails all 90 rows; test_wx_k35 fails exactly the 15 K:loop rows.
+         test_wx_replay fails all 90 rows, all 90 in Light and RP-T's 15 (195); test_wx_k35 fails exactly the 15 K:loop
+         rows and the 15 KL:loop rows (30).
 
 The plants go into a MIRROR of src/weatherscope (and the font WxRaster.h includes by a relative path), never the real
 files; each asserts its anchor occurs once and that the copy differs; the real files are hashed before and after.
-The unmodified mirror runs first, as the control: 90/0 and 28/0.
+The unmodified mirror runs first, as the control: 195/0 and 79/0.
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
 
@@ -28,8 +31,10 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 
-ROWS = {w: [f"RP:{w}-{R}-{i:02d}" for R in (60, 30, 15) for i in range(15)] for w in ("off", "warn")}
-KLOOP = {f"K:loop-{i:02d}" for i in range(15)}
+ROWS = {w: [f"{p}:{w}-{R}-{i:02d}" for p in ("RP", "RPL") for R in (60, 30, 15) for i in range(15)]   # RPL: A12.64
+        for w in ("off", "warn")}
+RPT = {f"RPT:dallas-{i:02d}" for i in range(15)}   # A12.64
+KLOOP = {f"{p}:loop-{i:02d}" for p in ("K", "KL") for i in range(15)}   # KL: A12.64
 
 SABOTAGES = {
     "S-RP1": ([("inline bool SameLayer(const LayerKey& a, const LayerKey& b) { return memcmp(&a, &b, sizeof a) == 0; }",
@@ -45,7 +50,7 @@ SABOTAGES = {
                 "            for (int x = e.x0; x <= e.x1; ++x)\n"
                 "                if (x >= 0 && x < 240 && y >= 0 && y < 240) q[y * 240 + x] = 0;\n"
                 "    }\n")],
-              {"replay": set(ROWS["off"]) | set(ROWS["warn"]), "k35": KLOOP}),
+              {"replay": set(ROWS["off"]) | set(ROWS["warn"]) | RPT, "k35": KLOOP}),
 }
 
 
@@ -85,7 +90,7 @@ def run(base, name, which):
         sys.exit(2)
     args = [exe, LOOP] if which == "replay" else [exe, LOOP, REF]
     r = subprocess.run(args, capture_output=True, text=True)
-    want = 90 if which == "replay" else 28
+    want = 195 if which == "replay" else 79
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
     if r.returncode not in (0, 1) or not m or int(m.group(1)) != want:
         print(f"{name}/{which}: exit {r.returncode}, {m.group(1) if m else '?'} checks (want {want}): the RIG")
@@ -128,7 +133,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_replay": ("checks", 90), "test_wx_k35": ("checks", 28)}
+CONTROL_TABLE = {"test_wx_replay": ("checks", 195), "test_wx_k35": ("checks", 79)}
 
 
 def control():

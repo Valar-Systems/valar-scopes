@@ -32,9 +32,9 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 SUITES = {   # name: (arguments, checks)
-    "k35": ([LOOP, os.path.join(WX, "k35.ref.txt")], 28),
-    "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 149),   # Q57 (A12.61): K-BR's 6 rows, step 7
-    "replay": ([LOOP], 90),
+    "k35": ([LOOP, os.path.join(WX, "k35.ref.txt")], 79),   # 3.5t t4 (A12.60): K-light, LY, LY-X
+    "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 368),   # Q57 (A12.61): 149; t4 (A12.60): K-light, RP light, RP-T, LY
+    "replay": ([LOOP], 195),   # 3.5t t4 (A12.60): RP light, RP-T
     "layout": ([LOOP], 73),
     "basemap": ([WX], 92),   # Q59 (A12.62): BW1-BW8, step 7
     "theme": ([WX], 72),
