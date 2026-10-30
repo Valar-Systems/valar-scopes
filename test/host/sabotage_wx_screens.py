@@ -1,6 +1,6 @@
 """Runs test_wx_screens.cpp against SABOTAGED copies of src/weatherscope/WxScreens.h. Each must fail EXACTLY the set of
-named cases frozen in docs/weatherscope-stage3.md A8.20 (S-LF and S-UN retired with LF and UN by A9.10), and
-nothing else.
+named cases frozen in docs/weatherscope-stage3.md A8.20 (S-LF and S-UN retired with LF and UN by A9.10), and A12.53's
+S-CYN, and nothing else.
 
     python -I test/host/sabotage_wx_screens.py
 
@@ -22,6 +22,9 @@ SABOTAGES = {
     "S-CY": ([("    if (!storedFeeds) return false;\n", "    (void)storedFeeds;  // SABOTAGE: the stored-feeds test removed\n")],
              {"CY3"}),
     "S-CY2": ([("    if (c.paused) return false;\n", "    // SABOTAGE: the pause ignored\n")], {"CY4", "CY5"}),
+    # 3.5b (A12.53): the cycle wraps at its own count, so Bend's two are visited
+    "S-CYN": ([("    c.index = (c.index + 1) % c.count;\n",
+                "    c.index = (c.index + 1) % kScenarios;  // SABOTAGE: Dallas's six only\n")], {"CY8", "CY9"}),
     "S-WT": ([("    if (rank < 0 || rank > 3) return false;",
                "    if (rank < 0 || rank > 3 || rank == 1) return false;  // SABOTAGE: Snow Squall's title dropped")],
              {"WT2"}),

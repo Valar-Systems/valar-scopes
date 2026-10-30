@@ -37,7 +37,8 @@ constexpr uint32_t kHoldMs = 30000;
 constexpr int kScenarios = 6;   // wxscen::Kind's order: Dry, Approaching, HereNow, Warning, Stale, Clear (Q15)
 
 struct Cycle {
-    int index = 0;          // into wxscen::Kind
+    int index = 0;          // into the stored scenarios: wxscen::Kind's order, then 3.5b's Bend two (A12.53)
+    int count = kScenarios; // how many the cycle visits: 6, or 8 with Bend's stored data (A12.53)
     uint32_t heldMs = 0;    // unpaused time spent in this scenario
     uint32_t lastMs = 0;
     bool started = false;
@@ -60,7 +61,7 @@ inline bool Step(Cycle& c, uint32_t nowMs, bool storedFeeds)
     c.heldMs += dt;
     if (c.heldMs < kHoldMs) return false;
     c.heldMs = 0;
-    c.index = (c.index + 1) % kScenarios;
+    c.index = (c.index + 1) % c.count;
     return true;
 }
 inline void Pause(Cycle& c, bool paused) { c.paused = paused; }
@@ -940,6 +941,25 @@ inline BaseKey MakeBaseKey(const wxcrop::Header& h, uint32_t pkgCrc, uint32_t pk
 }
 
 inline bool SameBase(const BaseKey& a, const BaseKey& b) { return memcmp(&a, &b, sizeof a) == 0; }
+
+// Why the image built for `built` must be rebuilt for `now` (A12.53), or null when it is still right: "first" with no
+// valid image, else the first field that differs, in this order -- the package, the place (the crop's geometry), the
+// zoom, the mask, terrain. "key" when none of those differs, which MakeBaseKey's zeroed padding makes unreachable: a
+// distinct token, never a plausible reason.
+inline const char* BaseWhy(const BaseKey& built, bool valid, const BaseKey& now)
+{
+    if (!valid) return "first";
+    if (SameBase(built, now)) return nullptr;
+    if (built.pkgCrc != now.pkgCrc || built.pkgLen != now.pkgLen) return "package";
+    if (built.latNwMicro != now.latNwMicro || built.lonNwMicro != now.lonNwMicro ||
+        built.cellLatMicro != now.cellLatMicro || built.cellLonMicro != now.cellLonMicro || built.rows != now.rows ||
+        built.cols != now.cols)
+        return "place";
+    if (built.radiusMi != now.radiusMi) return "zoom";
+    if (built.mask != now.mask) return "mask";
+    if (built.terrain != now.terrain) return "terrain";
+    return "key";
+}
 
 // The invariant group, drawn once: a dense palette-index image (0 = not in the layer), its 15 colours, the view it was
 // drawn through, and the labels it placed. 59,488 B on the board (A9.23), in PSRAM.

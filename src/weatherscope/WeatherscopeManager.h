@@ -34,6 +34,12 @@ namespace wxcrop { struct Header; }
 // unreachable on a customer unit before any Weatherscope ships (A8.19, A8.20, Q21). The feeds are reached only
 // through wx::MakeFeeds(), never by name (D1). No aircraft PPI sweep: main.cpp gates the sweep out of this build.
 //
+// Step 3.5b (A10.2, A10.4, A12.53): the stored cycle gains a second place, Bend -- Bend dry (a SYNTHETIC all-dry crop,
+// Q33) and Bend rain (its loop's last frame), on a Pacific clock, drawn over Bend's stored basemap package: its image
+// under the dry pixels, its places and peaks. A tap on either plays Bend's loop. The image is rebuilt only when its key
+// changes (a zoom, terrain, another package or place), printed either way, and never inside a loop frame. The bench
+// byte G toggles terrain (stored mode only, under the same gate; Q29).
+//
 // Memory: this object is a global, so it holds only small state and pointers; the frame path (the cached screen
 // sprite, the code grid, the screen's input and output, the view, the town ranking, the loop's records) lives in
 // PSRAM, allocated once at the first Initialise.
@@ -91,6 +97,8 @@ private:
 
     // the frame path, in PSRAM (made once)
     bool buffersReady = false;
+    bool pkgOk = false;        // 3.5b: Bend's package validated and its blocks allocated (A12.53)
+    bool terrain = false;      // 3.5b: the bench byte G's terrain, off by default (Q29)
     LGFX_Sprite* screenSprite = nullptr;       // the current scenario's whole screen, composed once per scenario + zoom
     uint8_t* grid = nullptr;                   // decoded codes
     size_t gridCells = 0;
@@ -102,10 +110,14 @@ private:
     wxscreens::Cycle* cycle = nullptr;
     wxscreens::Layer* layer = nullptr;         // the loop's frame-invariant layer (A9.23), built at the tap
     LoopRecord* records = nullptr;
+    struct Basemap;                            // 3.5b (A12.53): the package, its image, places, peaks and key
+    Basemap* bmap = nullptr;
 
     // the loop's frames and the scenario picks (A8.10's rule, applied on the device)
     wx::CropBytes history[kLoopFrames];
     size_t nHistory = 0;
+    wx::CropBytes bendHistory[kLoopFrames];    // 3.5b: Bend's loop, oldest first (A10.4)
+    size_t nBendHistory = 0;
     int pickApproaching = -1, pickDry = -1;
     char pickApproachingName[7] = "none", pickDryName[7] = "none";   // "212400": the frames' UTC clocks
     size_t psramUsed = 0;   // the frame path's PSRAM, measured once in MakeBuffers
@@ -208,6 +220,11 @@ private:
     void PickFrames();
     bool DecodeCrop(const wx::CropBytes& crop, wxcrop::Header* h);
     void BuildScenario();
+    bool OnBend() const;
+    void EnsureBase(const wxcrop::Header& h, const char* at);
+    void ApplyPackage();
+    int PsramBaseLine(char* out, size_t cap) const;
+    void OnTerrainByte();
     int ZoomMiles() const;
     void ApplyZoom(int idx, const char* why);
     void StartLoop();

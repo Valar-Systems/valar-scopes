@@ -34,4 +34,15 @@ public:
 // only through Feeds::clear, which only the stored factory fills.
 CropBytes StoredSyntheticClear();
 
+// 3.5b's stored Bend place (A10.4, A12.53), embedded by WxBendData.S: its loop's 15 SeamlessHSR crops
+// (test/fixtures/wx/bend-loop/, oldest first), its SYNTHETIC all-dry crop (Q33) and its basemap package
+// (test/fixtures/wx/basemap/bend.bmpk). Reached only through Feeds' bend members, which only the stored factory fills.
+class StoredBendFeed : public WxFeed {
+public:
+    CropBytes Latest() const override;
+    size_t History(CropBytes* out, size_t max) const override;
+};
+CropBytes StoredBendClear();
+PackageBytes StoredBendPackage();
+
 }  // namespace wx

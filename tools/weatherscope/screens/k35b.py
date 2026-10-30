@@ -1,7 +1,7 @@
 """3.5b's Bend K rows (docs/weatherscope-stage3.md A10.6, A12.41), re-derived here -- never from the C++: 21 Bend dry
-rows (60, 30 and 15 mi x towns only, + water, + rivers, + roads, + peaks, all (B), all + terrain (C)) and 30 Bend loop
-rows (15 frames at 60 mi, B and C), rendered through ref35.compose from look35's package path (bend.bmpk by the format
-doc's section 9). Written in k35.ref.txt's form as test/fixtures/wx/k35b.ref.txt, which test_wx_k35b.cpp reproduces
+rows (60, 30 and 15 mi x towns only, + water, + rivers, + roads, + peaks, all (B), all + terrain (C)), 6 Bend rain rows
+(A12.53: the loop's last frame as a scenario, 60, 30 and 15 mi x B and C) and 30 Bend loop rows (15 frames at 60 mi, B
+and C), rendered through ref35.compose from look35's package path (bend.bmpk by the format doc's section 9). Written in k35.ref.txt's form as test/fixtures/wx/k35b.ref.txt, which test_wx_k35b.cpp reproduces
 through the device's path. Prints no coordinate.
 
     python -I tools/weatherscope/screens/k35b.py --write | --check | --diff <dir> [--dump <dir>]
@@ -78,6 +78,10 @@ def rows():
     if len(names) != 15:
         sys.exit(f"K35b: {len(names)} Bend loop frames, not 15")
     frames = [r.decode(os.path.join(look.BEND, n)) for n in names]
+    hR, cR = frames[-1]   # A12.53: Bend rain, the loop's last frame as a stored scenario (no loop band)
+    for mi in (60, 30, 15):
+        for vname, mask, terrain in VARIANTS[5:]:
+            out.append(row("brain-%d-%s" % (mi, vname), hR, cR, mi, mask, terrain))
     newest = frames[-1][0]["epoch"]
     for i, (h, c) in enumerate(frames):
         mins = (newest - h["epoch"]) // 60

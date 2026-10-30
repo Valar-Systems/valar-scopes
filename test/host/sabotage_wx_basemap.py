@@ -9,7 +9,7 @@ Method, fixed before any run (A10.11, A12.39):
     plant goes into exactly one copy. (GCC resolves a quoted include from the including file's own directory first, so
     a lone shadowed header would be included twice under two paths.) Each plant asserts its anchor occurs exactly once
     and that the copy differs; the real files' hashes are compared before and after.
-  - The unmodified headers run first, as the control: 84 cases, 0 failures.
+  - The unmodified headers run first, as the control: 92 cases, 0 failures (84, and A12.53's BW 8).
   - Each sabotage's failing lines are printed, so what a failing case saw can be read off the run.
 """
 import hashlib, importlib.util, os, re, subprocess, sys, tempfile
@@ -27,7 +27,7 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_basemap.cpp")
 WX = os.path.join(ROOT, "test", "fixtures", "wx")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
-CASES = 84
+CASES = 92
 
 
 def block(src, start, end):
@@ -94,7 +94,16 @@ SABOTAGES = {
                 {"BF5"}),
     "S-BKEY": ("WxScreens.h", [("    k.radiusMi = radiusMi;\n    k.latNwMicro = h.latNwMicro;\n",
                                 "    (void)radiusMi;  // SABOTAGE: the radius ignored\n    k.latNwMicro = h.latNwMicro;\n")],
-               {"BK2"}),
+               {"BK2", "BW5", "BW8"}),   # A12.53: BW5 and BW8 read the radius through BaseWhy
+    # A12.53, the key's reason
+    "S-BWFIRST": ("WxScreens.h", [('    if (!valid) return "first";\n', '    (void)valid;  // SABOTAGE: no image is no reason\n')],
+                  {"BW1"}),
+    "S-BWORDER": ("WxScreens.h",
+                  [('    if (built.radiusMi != now.radiusMi) return "zoom";\n    if (built.mask != now.mask) return "mask";\n'
+                    '    if (built.terrain != now.terrain) return "terrain";\n',
+                    '    if (built.terrain != now.terrain) return "terrain";  // SABOTAGE: terrain before zoom\n'
+                    '    if (built.radiusMi != now.radiusMi) return "zoom";\n    if (built.mask != now.mask) return "mask";\n')],
+                  {"BW8"}),
     "S-PEAKFIRST": ("WxScreens.h", s_peakfirst, {"PE5"}),
     "S-PEAKCAP": ("WxScreens.h",
                   [("    for (int k = 0; peaks && k < peaks->Count() && np < kMaxPeaks; ++k) {\n",

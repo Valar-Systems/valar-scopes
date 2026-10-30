@@ -19,6 +19,11 @@ struct Feeds {
     // Stored mode's SYNTHETIC all-dry crop for its Clear scenario (Q15, A9.10). Empty unless `stored`: like the
     // cycle, it must be unreachable on a customer unit.
     CropBytes clear;
+    // 3.5b (A10.4, A12.53): stored mode's second place, Bend -- its loop's 15 crops behind a feed, its SYNTHETIC all-dry
+    // crop (Q33) and its stored basemap package. Null and empty unless `stored`, like `clear`.
+    const WxFeed* bendRadar;
+    CropBytes bendClear;
+    PackageBytes bendPackage;
 };
 
 Feeds MakeFeeds();
