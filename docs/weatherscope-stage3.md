@@ -8454,3 +8454,69 @@ This is CLAUDE.md's *a guard that silently stopped existing*: the driver was the
 - **Its record:** S-C3c and S-C4d refused, pending Q52.
 
 **The outside-the-set branch:** any row outside its frozen value stops at that row, and is reported with its cause before anything changes.
+
+### A12.51 Q50 and Q51 as A12.50 froze them: every row holds; S-C3c and S-C4d refused by the proof, Q52 open; t3 is #506
+
+**The code:** `weatherscope/3-5t-themed-draw` @ `534015637bc9`, as **#506**. Three commits on main `564468e9665d`:
+
+| commit | what |
+|---|---|
+| `ddd85579ef3d` | Q49's guard, alone |
+| `da2cc1f2a98a` | t3 (A12.49) |
+| `534015637bc9` | the harness: Q50 and Q51 |
+
+**Against A12.50:**
+
+| row | frozen | measured |
+|---|---|---|
+| **S-KD, from the fix** (72, 64, 64) | exactly 76: the 25 Dallas K screens and the 51 Bend rows; nothing else across six suites; control 0 | **76 (25 Dallas, 51 Bend); extra none, missing none; control 0** |
+| S-NL | 1 hit, at the plant's line | **1 hit, at line 808** |
+| the proof, palette (C3) | S-C3c refused; the other 10 as frozen | **S-C3c REFUSED** (`0x0640` both ways); **10 AS PREDICTED** (9 tabled and S-PIN) |
+| the proof, theme (C4) | S-C4d refused; the other 12 as frozen | **S-C4d REFUSED** (`0x7bef` both ways); **12 AS PREDICTED** |
+| every other driver | as frozen | each run in full, AS PREDICTED (below) |
+| `--anchors` | 18 of 18 exit 0 | **18 of 18, every anchor present exactly once** (counts below) |
+| its control | mangled: exit 1, naming the plant; unmangled: exit 0 | **mangled exit 1, naming S-DN1; unmangled exit 0** |
+| host suites | MinGW all pass; 13.3 the same blocks and counts, only the rig's two | **as predicted**, under both. The only block new since t3 is the anchors pass |
+| firmware | unchanged from t3 | **unchanged:** the harness commit touches `test/host` only (21 files, 0 under `src/`, `include/` or `platformio.ini`) |
+
+**Every driver run in full (MinGW):**
+- **As predicted:** daynight 6; starved_seconds 5; basemap 14 + 2; crop 5; k35 5; layout 11; legend 4; logic 24; loop 6; loop_render 2; replay 2; scenarios 5; screens 4; server_crops on both of its runs (the server set, and opuk's `man-161km.wxc`); themed_draw 2.
+- **Not run:** towns, which needs the Census zip. Its two anchors are checked by the pass.
+
+**The anchors, per driver (plants / anchors):**
+
+| driver | plants | anchors |
+|---|---|---|
+| daynight | 6 | 6 |
+| starved_seconds | 5 | 5 |
+| basemap | 16 | 18 |
+| crop | 5 | 6 |
+| k35 | 5 | 5 |
+| layout | 11 | 14 |
+| legend | 4 | 4 |
+| logic | 24 | 25 |
+| loop | 6 | 6 |
+| loop_render | 2 | 2 |
+| palette | 11 | 11 |
+| replay | 2 | 2 |
+| scenarios | 5 | 5 |
+| screens | 4 | 4 |
+| server_crops | 2 | 2 |
+| theme | 13 | 13 |
+| themed_draw | 2 | 2 |
+| towns | 2 | 2 |
+
+**One finding while wiring the pass:** the `sabotage_*.py` glob also matches `sabotage_common.py` (the shared module) and `sabotage_anchors_control.py` (the control). `run.sh` excludes the two by name, and recognises a driver by its `sc.wants_anchors()` dispatch, not by the filename.
+
+#### Q52, for the ruling: the two plants the proof refuses
+
+Both still fail their own rows, because C3c and C4d grade RGB888. Neither reaches the panel, so the rule refuses them.
+
+| plant | now | proposed | its set |
+|---|---|---|---|
+| S-C3c | (0, 200, 0) → (0, 201, 0), `0x0640` both ways | **(0, 204, 0)**, `0x0660`: still off the pinned table | {C3c}, unchanged |
+| S-C4d | (124, 124, 124) → (125, 125, 125), `0x7bef` both ways | **(128, 128, 128)**, `0x8410`: 28.84 against paper, under A | {C4d}, unchanged |
+
+Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. That is the refusal working, and #506's record says so.
+
+**Next, as ordered:** #506 for review. Then 3.5b's step 7, its predictions frozen against #506's themed drawing once merged.
