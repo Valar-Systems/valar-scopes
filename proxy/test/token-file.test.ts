@@ -4,6 +4,7 @@ import {
   TokenFileError,
   parseTokenFile,
   readTokenFile,
+  resolveBlipCreds,
   resolveToken,
   type TokenFileIo,
 } from "../scripts/token-file";
@@ -193,5 +194,63 @@ describe("resolveToken", () => {
     expect(msg).toContain(`${TOKEN_FILE_ENV} is not set`);
     expect(msg).not.toContain(SECRET_AN);
     expect(thrown(() => resolveToken("analytics-read", undefined, io))).toContain(TOKEN_FILE_ENV);
+  });
+});
+
+// docs/blip-creds-token-file.md: BLIP_KEY / BLIP_DEVICE from the Windows user environment to the token file.
+describe("blip-key and blip-device (T1-T3)", () => {
+  const KEY = "blip-SECRET-key-0003";
+  const DEV = "0000000000000000"; // EXAMPLE -- not a real device
+  const BLIP = `${GOOD}blip-key=${KEY}\nblip-device = ${DEV}\nsome-future-key=ignored\n`;
+
+  it("T1: both new purposes parse beside the old ones, and an unknown key is still skipped", () => {
+    const io = fakeIo({ env: { [TOKEN_FILE_ENV]: PATH }, files: { [PATH]: BLIP } });
+    expect(readTokenFile("blip-key", io)).toBe(KEY);
+    expect(readTokenFile("blip-device", io)).toBe(DEV);
+    expect(readTokenFile("kv-read", io)).toBe(SECRET_KV);
+  });
+
+  it("T1: the refusals hold for the new purposes, and no message carries a value", () => {
+    const inRepo = "/work/valar-scopes/tokens";
+    const msgs = [
+      thrown(() => readTokenFile("blip-key", fakeIo({ env: { [TOKEN_FILE_ENV]: inRepo }, files: { [inRepo]: BLIP } }))),
+      thrown(() => readTokenFile("blip-key", fakeIo({ env: { [TOKEN_FILE_ENV]: PATH }, files: { [PATH]: BLIP },
+                                                       modes: { [PATH]: 0o100644 } }))),
+      thrown(() => parseTokenFile(`blip-key=${KEY}\n${KEY}\n`, "blip-key", PATH)),
+      thrown(() => parseTokenFile(`blip-key=${KEY}\nblip-key=${KEY}\n`, "blip-key", PATH)),
+      thrown(() => parseTokenFile("blip-key=\n", "blip-key", PATH)),
+      thrown(() => parseTokenFile(GOOD, "blip-device", PATH)),
+    ];
+    expect(msgs[0]).toContain("inside");
+    expect(msgs[1]).toContain("readable by others");
+    expect(msgs[2]).toContain("not key=value");
+    expect(msgs[3]).toContain("appears twice");
+    expect(msgs[4]).toContain("is empty");
+    expect(msgs[5]).toContain('no "blip-device" line');
+    for (const m of msgs) {
+      expect(m).not.toContain(KEY);
+      expect(m).not.toContain(SECRET_KV);
+    }
+  });
+
+  it("T2: the variables set, they are used and the file is never opened", () => {
+    const io = fakeIo({ env: { BLIP_KEY: "var-key", BLIP_DEVICE: DEV, [TOKEN_FILE_ENV]: PATH }, files: { [PATH]: BLIP } });
+    io.read = () => { throw new Error("the file was read"); };
+    expect(resolveBlipCreds(io)).toEqual({ key: "var-key", device: DEV, source: "BLIP_KEY + BLIP_DEVICE" });
+  });
+
+  it("T3: the variables unset, the file supplies both, and the source is names only", () => {
+    const io = fakeIo({ env: { [TOKEN_FILE_ENV]: PATH }, files: { [PATH]: BLIP } });
+    const c = resolveBlipCreds(io);
+    expect(c.key).toBe(KEY);
+    expect(c.device).toBe(DEV);
+    expect(c.source).toBe(`${TOKEN_FILE_ENV} (blip-key) + ${TOKEN_FILE_ENV} (blip-device)`);
+    expect(c.source).not.toContain(KEY);
+  });
+
+  it("T3: neither the variables nor the file: a TokenFileError naming the variable, never a value", () => {
+    const msg = thrown(() => resolveBlipCreds(fakeIo({ env: {} })));
+    expect(msg).toContain(`${TOKEN_FILE_ENV} is not set`);
+    expect(msg).toContain("blip-key");
   });
 });

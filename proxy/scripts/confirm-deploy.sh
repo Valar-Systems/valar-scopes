@@ -41,7 +41,7 @@ report() { # report <token> <live> <sha> <host> <scheme> <minutes>
   case "$1" in
     CONFIRMED)
       printf '  \033[32mconfirmed\033[0m: /healthz reports commit=%s\n' "$2"
-      printf '\nNow run the smoke test:  BLIP_KEY=... ./scripts/smoke-prod.sh\n'; return 0 ;;
+      printf '\nNow run the smoke test:  ./scripts/smoke-prod.sh  (BLIP_KEY/BLIP_DEVICE, or the token file: docs/blip-creds-token-file.md)\n'; return 0 ;;
     CANNOT_OBSERVE)
       printf '  \033[31mCANNOT OBSERVE\033[0m: /healthz never answered 200 in %s minutes.\n' "$6"
       printf '  This is NOT "probably fine" -- nothing has confirmed what is running.\n'

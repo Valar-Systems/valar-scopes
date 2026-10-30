@@ -95,6 +95,7 @@ import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
 import { q, sh } from "./shquote";
+import { TokenFileError, resolveBlipCreds } from "./token-file";
 
 /** One request for the whole corpus, from the CC0 source of record. */
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
@@ -510,10 +511,17 @@ async function main() {
   const base = args.env === "production"
     ? "https://scopes.valarsystems.com"
     : "https://scopes-staging.valarsystems.com";
-  const key = process.env["BLIP_KEY"] ?? "";
-  const device = process.env["BLIP_DEVICE"] ?? "";
+  // BLIP_KEY/BLIP_DEVICE while they are set, else the token file (docs/blip-creds-token-file.md). Never printed.
+  let key = "", device = "", why = "";
+  try {
+    ({ key, device } = resolveBlipCreds());
+  } catch (e) {
+    if (!(e instanceof TokenFileError)) throw e;
+    why = e.message;
+  }
   if (!key || !device) {
-    console.error("REFUSING: BLIP_KEY/BLIP_DEVICE are unset, so nothing can be read back through");
+    console.error("REFUSING: BLIP_KEY/BLIP_DEVICE are unset and the token file did not supply them, so nothing can be read back through");
+    if (why) console.error("  (the token file: " + why + ")");
     console.error("the live path. An unverified build must not publish a fresh row count.");
     process.exit(1);
   }
