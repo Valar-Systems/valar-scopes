@@ -9319,3 +9319,112 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **(b):** add `BaseKeyFor(header, package, R, mask, terrain, theme)` to `WxScreens.h` now, theme deliberately ignored, for SW to use and t5's manager to adopt. S-SWB plants there. That is a new device API in a host step.
 
 **Q57 (A12.59) rides in t4's PR if ruled (a).**
+
+### A12.61 Ruled 2026-10-30 (source: reviewer chat, pasted by Daniel): Q57 in a harness PR with a CI guard; Q58 (a); t4 as frozen; tonight's touch watch -- the harness PR's design and predictions, and the watch's plan, frozen before either
+
+**The ruling, verbatim:**
+
+> Weatherscope Code: from the reviewer chat, 2026-10-30
+>
+> 1. Q57: fixed as you recommend, but in a small harness PR before t4's, not inside it. The driver's k35b count becomes 149, and S-KD's set is re-registered at 82 (25 Dallas, 57 Bend: t3's 51 Bend rows plus Bend rain's 6). The gap goes on record, and part of it is mine: my review of #507 ran only its two changed drivers and the anchors pass, so sabotage_wx_themed_draw.py reading RIG went past me too. From now on I run all 18 drivers before approving a PR that changes a test, a header or a reference file.
+>
+> 2. The same harness PR gives the class a CI guard. Each driver gains --control: its unplanted run alone, building its suites and checking each one's count against the driver's own table, with nothing planted. run.sh runs it for every driver in host-tests, so a driver that can't run fails the PR that breaks it, as --anchors does for anchors. The towns driver, which needs the Census archive, is listed as skipped with that reason, not silently passed. Predictions first: every driver's control passes on main once the 149 fix is in, and a copy with 143 restored goes red.
+>
+> 3. Q58: as recommended. SW's base row and S-SWB move to t5, where the manager holds the theme and the key can carry it. No theme-ignoring helper goes into the device code just to give t4 something to plant.
+>
+> 4. t4 as A12.60 froze it, otherwise unchanged: the light reference completed in look35's light theme; ref35's eight colours through the theme, with dark unchanged; the 82 K-light rows, RP, RP-T, LY and TH2′; flash and RAM equal to main's.
+>
+> 5. Tonight's passive touch watch of 907069326E64 stands: from 06:00Z to 13:00Z (11 PM to 6 AM PDT), no write to the board, its serial trace read through screen_watch.py. Announce it to Daniel as a hands-off window, and report every screen change no gesture byte caused and every raw touch line, with time and kind, no coordinates.
+
+**The gap, on record:**
+- **From #507's merge until this harness PR,** `sabotage_wx_themed_draw.py` could not run: S-KD and S-NL went unguarded.
+- **My review of step 7 ran two of its 18 drivers, and so did the reviewer's.** Both of us now run all 18 before a PR that changes a test, a header or a reference file.
+- **The guard below makes that a check that runs,** not a rule to be remembered.
+
+#### The harness PR (before t4's)
+
+**What it changes** (test and tooling only):
+1. **`sabotage_wx_themed_draw.py`:** `test_wx_k35b`'s count 143 → **149**; its docstring's Bend rows 51 → 57.
+   - **S-KD's set is re-registered at 82:** 25 Dallas, plus 57 Bend (t3's 51 and Bend rain's 6). The driver already derives it from `k35b.ref.txt`.
+2. **`--control` in all 18 drivers.** `sabotage_common.py` gains `wants_control()` and `control_mode(driver, runs, table)`.
+   - **Each driver's `control()`** runs its own unplanted path (the same function its main run calls "control"), and hands back each suite's exit code and output.
+   - **`control_mode` reads each suite's count**, and checks it against the driver's own table with nothing planted:
+     - a suite that prints `N checks, M failures` must print the table's N, with 0 failures and exit 0;
+     - a suite that prints one `ok` line per check (crop, palette, legend, server crops) must print the table's number of `ok` lines, with no `FAIL` line and exit 0;
+     - the starvation policy suite prints no count: its pass line, `test_starvation_policy: all checks passed`, and exit 0.
+   - **Exits:** 0 pass; 1 a count, a failure or an exit off; 2 the rig. **3 is SKIPPED, with the reason printed:** only the towns driver, which needs the Census archive.
+3. **`run.sh`'s new block, "sabotage controls",** runs every driver's `--control` right after the anchors pass.
+   - **`CXX` is passed to each driver explicitly.** `run.sh` does not export it, and on CI's Linux a driver would otherwise fall back to the MinGW path.
+   - **An exit of 3 prints `SKIP <driver>: <reason>`** and is counted apart. Any other non-zero sets `fail`.
+4. **`sabotage_controls_control.py`**, the guard's own control, like `sabotage_anchors_control.py`. A copy of `sabotage_wx_themed_draw.py` with 143 restored must exit 1, naming `test_wx_k35b`'s 149 against 143; the unmangled copy must exit 0.
+
+**The tables** are each suite's count on main today, from A12.58's MinGW run of `run.sh`, with the driver's own arguments:
+
+| driver | suites: count |
+|---|---|
+| `sabotage_daynight.py` | `test_daynight` 28 |
+| `sabotage_starved_seconds.py` | `test_starvation_policy` (the pass line); `test_usage_report` 44 |
+| `sabotage_wx_basemap.py` | `test_wx_basemap` 92 |
+| `sabotage_wx_crop.py` | `test_wx_crop` 27 ok |
+| `sabotage_wx_k35.py` | `test_wx_k35` 28 |
+| `sabotage_wx_layout.py` | `test_wx_layout` 73 |
+| `sabotage_wx_legend.py` | `test_wx_legend` 4 ok |
+| `sabotage_wx_logic.py` | `test_wx_logic` 121 |
+| `sabotage_wx_loop.py` | `test_wx_loop` 44 |
+| `sabotage_wx_loop_render.py` | `test_wx_loop_render` 15 |
+| `sabotage_wx_palette.py` | `test_wx_palette` 15 ok |
+| `sabotage_wx_replay.py` | `test_wx_replay` 90; `test_wx_k35` 28 |
+| `sabotage_wx_scenarios.py` | `test_wx_scenarios` 12 |
+| `sabotage_wx_screens.py` | `test_wx_screens` 17 |
+| `sabotage_wx_server_crops.py` | `test_wx_server_crops` over the driver's own set, its ok lines counted on main (`run.sh` runs the suite twice, over two sets) |
+| `sabotage_wx_theme.py` | `test_wx_theme` 72 |
+| `sabotage_wx_themed_draw.py` | `test_wx_k35` 28, `test_wx_k35b` 149, `test_wx_replay` 90, `test_wx_layout` 73, `test_wx_basemap` 92, `test_wx_theme` 72; the NL scan of the real `WxScreens.h`, 0 hits |
+| `sabotage_wx_towns.py` | **SKIPPED: needs the Census archive** |
+
+- **Where a driver runs a suite with arguments other than `run.sh`'s,** its table holds the count of its own run on main. Any such difference is printed beside the entry in the PR, not hidden.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| every driver's `--control` on the PR's head | **17 exit 0**; towns exit 3, `SKIP sabotage_wx_towns.py: needs the Census archive` |
+| the guard's control | the 143 copy **exit 1**, naming `test_wx_k35b` 149 against 143; the unmangled copy exit 0 |
+| `sabotage_wx_themed_draw.py`, run in full | **ALL AS PREDICTED:** the control clean; S-KD fails exactly the 82 (25 + 57); S-NL as before; the real tree unchanged |
+| every driver, run in full | as before: 16 ALL AS PREDICTED, plus themed_draw now; towns the rig |
+| `--anchors` | 18 clean; its control red on its mangled anchor |
+| every host suite | unchanged; ALL HOST TESTS PASSED (MinGW); g++ 13.3 the same blocks, only the rig's two; the new block green in both |
+| CI's host-tests job | the new block green; every other check as on main |
+| the firmware | no firmware file changes |
+
+**The outside-the-set branch:** a control that fails on main, beyond the stale 143, is a driver already broken. It is reported by name, before anything is changed for it.
+
+#### Tonight's passive touch watch (item 5)
+
+**The window:** 2026-10-31 **06:00:00Z to 13:00:00Z** (11 PM to 6 AM PDT). **A hands-off window for the Weatherscope board, announced to Daniel.**
+- **The board holds #507's image** (`823fcca81598`). Nothing is written to it before, during or after the window.
+
+**The method** (`tools/weatherscope/board/touch_watch.py`; the dry run below comes before the window):
+- **One pyserial open at 06:00Z,** to the port resolved from `907069326E64`, with DTR and RTS false before the open. It is **never reopened**, and **nothing is written**.
+- **Every line is kept** with its host time.
+- **A read error stops the trace and is reported** (`bench-trace.ps1`'s rule). It is never reattached.
+- **The port is closed at 13:00Z.**
+
+**What is reported, with time (UTC and PDT) and kind, and no coordinate** (the firmware prints none):
+- every screen change `screen_watch.py` cannot explain, with the 8-scene cycle and no byte sent;
+- every raw touch line: TouchWatchdog's `[touch-wd]` lines (wedges, recoveries, NACK probes, re-inits, the no-autosleep write), the manager's `[wx] hold ring on|off`, and any `[health]` line's touch fields;
+- any boot (`[build]` and `[ota-slot]` lines), as a fact.
+
+**Pre-registered:**
+- **The cycle advances every 30 s,** so about 840 explained changes.
+- **With no hand on the board, 0 unexplained changes and 0 hold-ring lines.**
+  - Any unexplained change is a touch the board saw with no gesture byte, reported with its time.
+  - A second one opens the bench-only touch investigation A12.29 set out.
+- **`[touch-wd]` lines are counted and listed,** with no prediction of their number. The watchdog's probes run on their own schedule.
+- **A trace that stops early is reported as stopped,** with the time it stopped. Nothing after that time is inferred.
+
+**The dry run, before the window:** `touch_watch.py --replay` over step 7's committed trace.
+- It must report that run's 72 changes as all explained, with its gesture bytes taken from the trace's `#HOST send` lines.
+- **Its control:** q2's local trace reports 1 unexplained change, at 04:18:22Z.
+- No board is touched by the dry run.
+
+**Then t4,** as A12.60 froze it, with Q58 (a): SW's base row and S-SWB move to t5.
