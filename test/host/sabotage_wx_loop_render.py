@@ -13,6 +13,9 @@ files' hashes are compared before and after.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RENDER = os.path.join(ROOT, "src", "weatherscope", "WxRender.h")
 LOOP = os.path.join(ROOT, "test", "fixtures", "wx", "loop")
@@ -87,5 +90,16 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: S-K2a's anchor in WxRender.h, and the two frames S-K2b swaps in screens.ref.json, for --anchors."""
+    def frames(t):
+        got = [x["name"] for x in json.loads(t)["frames"]]
+        for w in (P + "213600.wxc", P + "214000.wxc"):
+            assert got.count(w) == 1, f"{w} named {got.count(w)} times"
+    return [("S-K2a", os.path.relpath(RENDER, ROOT), sc.read(RENDER), "v->homeLat + 1.0 * (kCentre"),
+            ("S-K2b", os.path.relpath(REF, ROOT), sc.read(REF), frames)]
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

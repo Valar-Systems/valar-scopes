@@ -12,6 +12,9 @@ Method:
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "src", "weatherscope")
 FONT = os.path.join(ROOT, "test", "fixtures", "wx", "glcdfont.c")
@@ -63,6 +66,7 @@ def plant_file(path, edits, name):
     src = open(path, encoding="utf-8").read().replace("\r\n", "\n")
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -112,7 +116,12 @@ def main():
             if edits is None:
                 plant_ref(os.path.join(base, "k35.ref.txt"))
             else:
-                plant_file(os.path.join(base, "src", "weatherscope", target), edits, name)
+                try:
+                    plant_file(os.path.join(base, "src", "weatherscope", target), edits, name)
+                except sc.Refused as e:   # Q50: not a result, and not as predicted
+                    print(f"{name}: REFUSED -- {e}")
+                    ok = False
+                    continue
             rc, fails = run(base, name)
             good = rc == 1 and fails == expect
             shown = sorted(fails) if len(fails) <= 6 else f"{len(fails)} cases: {sorted(fails)[:3]} ..."
@@ -127,5 +136,19 @@ def main():
     return 0 if ok and before == after else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor, for --anchors (no plant runs). S-K4 plants the reference's first LABEL line of dry-60."""
+    out = []
+    for name, (target, edits, _) in SABOTAGES.items():
+        if edits is None:
+            out.append((name, os.path.relpath(REF, ROOT), sc.read(REF),
+                        lambda t: next(l for l in t.split("\n") if l.startswith("LABEL dry-60 "))))
+        else:
+            p = os.path.join(SRC, target)
+            out += [(name, os.path.relpath(p, ROOT), sc.read(p), a) for a, _ in edits]
+    return out
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

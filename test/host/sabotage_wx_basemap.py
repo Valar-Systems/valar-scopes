@@ -14,6 +14,9 @@ Method, fixed before any run (A10.11, A12.39):
 """
 import hashlib, importlib.util, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FILES = {
     "BasemapPackage.h": os.path.join(ROOT, "include", "BasemapPackage.h"),
@@ -120,6 +123,7 @@ def read(p):
 def plant(name, edits, src):
     out = src
     for anchor, repl in (edits(src) if callable(edits) else edits):
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -214,5 +218,24 @@ def main():
     return 0 if ok and vok and same else 1
 
 
+def anchor_entries():
+    """Q51: every plant's anchor, for --anchors (no plant runs). A plant built by a function (S-ORDER, S-PEAKFIRST) is
+    run on the real text, so its own uniqueness asserts are the check; validate.py's two needles are checked too."""
+    out = []
+    for name, (fn, edits, _) in SABOTAGES.items():
+        text = sc.read(FILES[fn])
+        label = os.path.relpath(FILES[fn], ROOT)
+        if callable(edits):
+            out.append((name, label, text, lambda t, f=edits: f(t)))
+        else:
+            out += [(name, label, text, a) for a, _ in edits]
+    vp = os.path.join(ROOT, "tools", "weatherscope", "basemap", "validate.py")
+    vt = sc.read(vp)
+    out.append(("S-TCOUNT (validate.py)", os.path.relpath(vp, ROOT), vt, '        if count != 1:\n            raise Bad("kTerrainCount")'))
+    out.append(("S-PCOUNT (validate.py)", os.path.relpath(vp, ROOT), vt, '        if count != lines:\n            raise Bad("kProvenanceCount")'))
+    return out
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

@@ -1211,6 +1211,43 @@ else
   fi
 fi
 
+# Q51 (docs/weatherscope-stage3.md A12.49, A12.50): every sabotage driver's anchors present exactly once in the current
+# tree. No plant runs and nothing compiles, so a refactor that strands a plant fails HERE, in the PR that strands it --
+# sabotage_wx_layout.py's were stranded from #501 to 3.5t's t3 because nothing ran the drivers. A driver is recognised by
+# its --anchors dispatch (sc.wants_anchors()); one without it is refused WITHOUT being run. sabotage_common.py (the shared
+# module) and sabotage_anchors_control.py (this pass's control: a mangled anchor must turn it red) are not drivers.
+echo
+echo "== sabotage anchors: every test/host/sabotage_*.py --anchors =="
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the sabotage anchors cannot be checked."
+  fail=1
+else
+  nd=0
+  for d in "$ROOT"/test/host/sabotage_*.py; do
+    b=$(basename "$d")
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py) continue ;; esac
+    nd=$((nd + 1))
+    if ! grep -q "sc.wants_anchors()" "$d"; then
+      echo "  FAIL $b has no --anchors mode (refused without running it)"
+      fail=1
+      continue
+    fi
+    "$PY" "$d" --anchors > "$OUT/anchors.log" 2>&1
+    rc=$?
+    line=$(grep "^ANCHORS " "$OUT/anchors.log" | tail -1)
+    if [ "$rc" -eq 0 ] && [ -n "$line" ]; then
+      echo "  ok   $line"
+    else
+      echo "  FAIL $b --anchors (exit $rc):"
+      cat "$OUT/anchors.log"
+      fail=1
+    fi
+  done
+  echo "  $nd driver(s) checked"
+  "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py

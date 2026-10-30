@@ -2,7 +2,7 @@
 
   S-NL  `Rgb{1, 2, 3}` planted in a copy of src/weatherscope/WxScreens.h: NL's scan finds exactly 1 hit, at the plant's
         line. (The real file: 0.)
-  S-KD  dark's ring ink (64, 64, 64) -> (65, 64, 64) in a copy of WxTheme.h: K-dark fails all 25 Dallas K screens and all
+  S-KD  dark's ring ink (64, 64, 64) -> (72, 64, 64) in a copy of WxTheme.h: K-dark fails all 25 Dallas K screens and all
         51 Bend rows, and nothing else, across six suites (k35, k35b, replay, layout, basemap, theme).
 
     python -I test/host/sabotage_wx_themed_draw.py
@@ -14,8 +14,13 @@ Method, as sabotage_wx_k35.py's:
     after.
   - Each plant asserts its anchor occurs once and that the copy differs.
   - A suite that does not compile or run is the RIG, never a result.
+S-KD's first plant, (65, 64, 64), read BLIND (0 of 76): RGB565 keeps 5 bits of red and 64 and 65 share them, so it never
+reached the panel (A12.49). Re-registered at (72, 64, 64) by ruling (A12.50), and the colour proof now refuses such a plant.
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "src", "weatherscope")
@@ -54,7 +59,8 @@ def read(p):
     return open(p, "rb").read().decode("utf-8").replace("\r\n", "\n")
 
 
-def plant(text, old, new, name):
+def plant(text, old, new, name, pairs=None):
+    sc.prove_colour(name, old, new, pairs)   # Q50: refuses a colour the panel cannot see
     assert text.count(old) == 1, (name, old[:60], text.count(old))
     out = text.replace(old, new)
     assert out != text, name
@@ -91,7 +97,8 @@ def main():
 
     # S-NL
     screens = read(os.path.join(SRC, "WxScreens.h"))
-    planted = plant(screens, "    HomeMarker(s, th.white);\n", "    HomeMarker(s, Rgb{1, 2, 3});   // SABOTAGE\n", "S-NL")
+    planted = plant(screens, "    HomeMarker(s, th.white);\n", "    HomeMarker(s, Rgb{1, 2, 3});   // SABOTAGE\n", "S-NL",
+                    pairs=[((255, 255, 255), (1, 2, 3))])   # the literal stands in for dark's white
     plant_line = planted[:planted.index("Rgb{1, 2, 3}")].count("\n") + 1
     with tempfile.TemporaryDirectory() as td:
         real = subprocess.run([sys.executable, "-I", SCAN, os.path.join(SRC, "WxScreens.h")], capture_output=True, text=True)
@@ -106,7 +113,7 @@ def main():
 
     # S-KD
     theme = read(os.path.join(SRC, "WxTheme.h"))
-    planted = plant(theme, "    {64, 64, 64},      // ring\n", "    {65, 64, 64},      // ring SABOTAGE\n", "S-KD")
+    planted = plant(theme, "    {64, 64, 64},      // ring\n", "    {72, 64, 64},      // ring SABOTAGE\n", "S-KD")
     frozen = {"k35:K:" + r for r in DALLAS} | {"k35b:" + r for r in bend_rows()}
     with tempfile.TemporaryDirectory() as td:
         ctl = run_suites(td, "control", theme)
@@ -129,5 +136,13 @@ def main():
     return 0 if ok else 1
 
 
+def anchor_entries():
+    """Q51: S-NL's anchor in WxScreens.h and S-KD's in WxTheme.h, for --anchors (no plant runs)."""
+    s, t = os.path.join(SRC, "WxScreens.h"), os.path.join(SRC, "WxTheme.h")
+    return [("S-NL", os.path.relpath(s, ROOT), sc.read(s), "    HomeMarker(s, th.white);\n"),
+            ("S-KD", os.path.relpath(t, ROOT), sc.read(t), "    {64, 64, 64},      // ring\n")]
+
 if __name__ == "__main__":
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())
