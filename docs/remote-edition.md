@@ -184,3 +184,27 @@ says. Work stops, the result is recorded as it is, and nothing is fixed until th
 ### Results
 
 (Appended after the runs; predictions above are not edited.)
+
+**P0 -- OFF-PREDICTION (2026-10-30). Work on the measurement chain stopped here for a ruling.**
+
+Dumps: at P (751cc53) and at I (98c82b2), PlatformIO `ProjectConfig` with interpolation
+expanded (no `${` left in either; sha256 of the two dumps begin `56220866b643` and
+`30be43b98bae`). Observed differences:
+
+| difference | predicted? |
+|---|---|
+| new section `env:remote-s3-128` | yes |
+| `[filters] editions_off` gains `-<remote/>` | yes |
+| `build_src_filter` of 29 existing envs gains exactly that token, nothing else in those envs | yes |
+| **`[common] build_src_filter` gains exactly that token** (inserted once, nothing else) | **no** |
+| any other option of any existing env | none observed |
+
+The 14 existing envs with no difference are the ones whose filter does not expand
+`editions_off`: the three animtest envs, gametest-s3-128, hwtest-s3-146, the eight probe envs, and
+weatherscope-bench-s3-128.
+
+What the prediction got wrong: it enumerated `[filters]` and the env sections and left out
+`[common]`, which also expands `editions_off` (it is the radar's default source set, line
+"build_src_filter = +<*> ${filters.editions_off} ..."). The predicted SET was incomplete; the
+diff tool classified the row by section and flagged it, as written. No build has been run.
+Not continued: B, S, and every prediction after P0, until the reviewer rules.
