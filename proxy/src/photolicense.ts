@@ -6,6 +6,8 @@
 // See proxy/README.md "Stock photo library for cloud mode" and
 // blipscope-military-photo-sourcing.md for the sourcing playbook these encode.
 
+import { CREDIT_BITS } from "./basemap/provenance";
+
 // A manifest row. The ingest script refuses any upload missing a required field
 // (everything but the ingest-filled `blobKey`/`changesNoted`).
 export interface ManifestEntry {
@@ -199,6 +201,12 @@ export function pointerKey(kind: "type" | "hex", target: string, size?: number):
 // only -- no local file paths).
 export const MANIFEST_KEY = "photo:manifest";
 
+// The basemap's terrain credits (docs/basemap-attribution.md; docs/basemap-deploy.md, the D3 PR's C2): the builder's own
+// texts, so the credits page cannot drift from what a package's PROVENANCE says. MA2 holds the page to them.
+const TERRAIN_CREDITS: readonly string[] = CREDIT_BITS.map(([, text]) => text);
+/** SRTM's notice, with the year of production (docs/basemap-attribution.md, AQ1). */
+export const SRTM_NOTICE = "© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.";
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -272,6 +280,11 @@ licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" rel="noope
 <a href="https://opendatacommons.org/licenses/odbl/1-0/" rel="noopener">ODbL 1.0</a>.</li>
 <li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>
 <li>Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.</li>
+<li>Basemap water, rivers, roads, places and summits from the U.S. Census Bureau's TIGER/Line 2024, the 2025 Census
+Gazetteer and SUB-EST2024, and USGS GNIS Domestic Names: works of the United States government.</li>
+<li>Basemap terrain from AWS Terrain Tiles (Terrarium, zoom 9).</li>
+${TERRAIN_CREDITS.map((t) => `<li>${esc(t)}</li>`).join("\n")}
+<li>SRTM: ${esc(SRTM_NOTICE)}</li>
 </ul>
 <p class="note">Both aircraft-data sources are credited here permanently, regardless of
 which served any given response. We sponsor adsb.fi and adsb.lol: the data is theirs and
