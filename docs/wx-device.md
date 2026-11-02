@@ -3703,3 +3703,18 @@ Graded by `replay_read.py` as frozen (`a3e39089a5d5`). It loads `wt-wxdevice`'s 
 | **touch events** after RP6's end (06:39:01Z) to 13:00:00Z | **0** | **as predicted** |
 | **liveness** | 5,692 periodic lines, **no BLIND span** over 2 min, the gap between the two traces included | the 0 is not blind |
 | **after 13:00Z** | `read_mac` exit 0. The page: layer on, look A, `cloud-url` blank. Production's record shows E2:08's own `/blips` (5 points in 13:01-13:06Z) | **as ruled** |
+
+**CI on `484a789`, red, and not from this branch (2026-11-02):**
+- **The totals:** 36 runs, 32 success, 3 skipped, **1 failure**: `host-tests`. Its only FAIL is "the WXC1 decoder test did
+  not compile".
+- **The diagnostic:** `test_wx_crop.cpp:47:51`, `-Werror=mismatched-new-delete`, on a runner whose `Image:` line reads
+  **`ubuntu-26.04` (g++ 15)**.
+- **The file is main's (#429) and byte-identical on both** (blob `c24c7444c813`). Main's last green `host-tests`
+  (`4763f4d`) ran on `ubuntu-24.04`. Every workflow asks for `ubuntu-latest`, which GitHub is moving to 26.04 run by run.
+- **The same diagnostic** once failed under g++ 11.4. Its exemption lapsed when CI settled on 13.3.
+- **`run.sh` exited 2 at "== WxCrop ==",** so every later block is **unrun on g++ 15**, not passed: the wx sweep, policy
+  and legend suites, the anchors and control passes. This run says nothing about them.
+- **Not fixed here.** It is main's test, and every PR and main will meet it as the image rolls out. Raised for a ruling:
+  - pin `runs-on: ubuntu-24.04` for `host-tests`;
+  - make the test compile under g++ 15 in main (its replacement `operator new`/`delete` pair);
+  - or both.
