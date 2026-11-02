@@ -10252,3 +10252,41 @@ The lint's control file was not changed after the result.
 - **(b):** build that case so the constant goes along with the literal (delete `K35_CHECKS = 79` and every read of it), so only L1 can fire. It isolates L1, at the cost of a less realistic mangle: the stale-table failure this lint exists for leaves the constant in place.
 
 **Main's CI on #511's merge commit `4763f4d`** is still running (19 of 32 done at 21:10Z, all success so far). It is recorded when every run has finished.
+
+### A12.75 The passive touch watch (A12.61 item 5): 844 screen changes, every one explained, 0 touch lines, 0 boots; main's CI on #511's merge; t5's board window announced
+
+**The watch, as A12.61 froze it.**
+- **The port:** COM6, resolved from `907069326E64`, opened once at **2026-10-31T06:00:00.242Z** with DTR and RTS false, and closed at **13:00:00.148Z**.
+- **Nothing was written, and it was never reopened.**
+- **The board held #507's image** (`823fcca81598`).
+- **The trace's first line is 06:00:00.245Z and its last 12:59:39.825Z.** The largest gap between two lines is **30.4 s**, the cycle's own interval, so the trace never stopped early.
+
+| pre-registered (A12.61) | measured |
+|---|---|
+| about 840 explained changes (a 30 s cycle) | **844:** 843 by the 8-scene cycle, 1 the first scene seen |
+| 0 unexplained changes | **0** |
+| 0 hold-ring lines | **0** |
+| `[touch-wd]` lines counted and listed (no prediction) | **0** |
+| any `[health]` touch field | **0** (`[health]` printed no touch field) |
+| any boot (`[build]`, `[ota-slot]`), as a fact | **0** |
+
+- **The tally:** 14,648 lines in all, **13,803 `[wx]` and 844 `[fb]`** (each change's push line); no other kind appeared.
+- **No touch reached the board in seven hours with no hand on it.** So nothing opens A12.29's touch investigation.
+- **The record:** `report.txt`, `summary.json`, `watch-notes.txt` and the trace go into t5's PR as `tools/weatherscope/board/run-2026-10-31-touchwatch/`.
+  - **What the trace holds:** only `[wx]` and `[fb]` lines.
+  - **Scanned before commit:** 0 LAN addresses, 0 BSSIDs, 0 network names, 0 coordinates.
+  - **Its times stay:** #507's image prints no phase line, so Q62's rule does not reach it.
+- **After the window:** on 2026-11-02 the board answers on TCP :80 in 1.9 s, so it is running its app.
+  - Whether it rebooted in the two days since is not visible from here, and is not inferred.
+
+**Main's CI on #511's merge commit `4763f4d`** (A12.73's ruling): **35 check runs, all completed: 33 success, 2 skipped (promote, version), 0 failed.** Read twice, unmoved.
+
+**t5's board window, announced to Daniel before it starts:**
+- **When:** 2026-11-02, from about 17:00Z to 18:45Z (09:00-10:45 PST: daylight time ended on 2026-11-01).
+- **Away from both quiet hours:** 03:00Z with no place, 09:00Z once the place is set (A12.69).
+- **The write:** t5's image, rebuilt at `583980b`, written alone at 0x20000 after `flash_plan`, with `read-mac` and the boot read chained.
+- **The run:** `run_b35t.py` in full: B1 and B3 in each theme, the place (Q64 (a)), BSW and BSW-L. It is graded by `grade_b35t.py` with the boot read.
+- **Then S-SWB** (Q63 (a)): the planted image's write, BSW on it (`--bsw-only`, graded `--swb`), and t5's image written again with its boot read.
+- **Nothing else is touched;** E2:08 is another session's.
+
+**Q66 is still open.** The follow-up waits for it, and nothing in this window depends on it.
