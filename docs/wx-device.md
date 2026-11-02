@@ -3642,3 +3642,64 @@ watcher read **NO CI** on `4aefbec` and stopped, as it should.
   interval. D4's slot is added when it is sent.
 - **New hashes:** `w5pppp_run.py` `a75bd29d5f3b`, `k6_run.py` `7871627d386f` (from `make_k6.py` `04831d2eaba4`).
 - Everything else stands, T7 included: it still waits on the test identity.
+
+## The RP6 redo and the overnight touch watch (2026-10-31, 06:00-13:09Z; announced 11 PM-6 AM PDT)
+
+**The redo** (`REPLAY-session-20261031T0600Z`): window opened 06:00:30Z, the driver done at 06:54:36Z. Every step ran:
+- RC1, RS1, RS2, the override set;
+- RP1, RP2;
+- the three RP6 arms, 6 moments each, every frame finished;
+- RS5 (cleared, the 5 min after, the server-side record);
+- the recovery, RS3's scan, the proxy stopped.
+
+It ended inside its 85 min ceiling because the steps were done.
+
+Graded by `replay_read.py` as frozen (`a3e39089a5d5`). It loads `wt-wxdevice`'s checker, which is the new one
+(`acee925`, blob `bac9f35bce1e`):
+
+| | read | verdict |
+|---|---|---|
+| RC1, RP1, RP2, RP3, RP4 | as the reader states them (RP1: S-old not drawn, 0 rebuilt; RP2: replaced, 1 rebuilt, weather drawn; RP3: 36 `[perf]` lines, median 12 polls; 50 `/blips` points through the proxy) | **as predicted** |
+| RS1-RS5 | RS3's scan: 83 files, the key, the id and the address not found, the log in fixed fields only. The proxy stopped and its port refuses. The PC's own request got 403. Production recorded E2:08 through the proxy. `cloud-url` blank after, and production's `/blips` in the 5 min after | **as predicted** |
+| **RP6 A** | **PASS**, 18/18 frames finished, 0 touches | **as predicted** |
+| **RP6 B** | **UNTRUSTWORTHY**, 18/18 finished, 0 touches | **OUTSIDE THE SET** |
+| **RP6 off** | **PASS**, 18/18 finished, 0 touches | **as predicted** |
+
+**RP6 B, outside the set: the cause, read in the frames.**
+- **Two of B's 18 frames** (`m1-f2` and `m4-f2`) show the beam's head as **two blobs**, so the wedge locator refuses them,
+  as written.
+- **The beam's head** is a filled r 2 disc in 0xAFF5, drawn at the disc's edge (r ≈ 120). The outer range ring (r 119)
+  crosses it.
+- **Near the bottom of the screen, the ring's 1 px line cuts the head clean in two:**
+  - `m1-f2`: 10 px at y 238 and 3 px at y 236;
+  - `m4-f2`: 8 px at y 237 and 8 px at y 235.
+  - Each pair is separated by one ring row, at the same x.
+- **So the instrument refuses an angle where the ring bisects the head.** It is not a frame defect. A and off did not hit
+  that angle this time.
+- **With those two frames dropped, B grades PASS:** (1) 0 ring exceptions. (2) is not graded in look B.
+- **The remedy, not made (it needs predictions and a ruling):** the locator counts head-coloured pieces as one head
+  when only ring pixels separate them.
+
+**Graded by both checkers, as ruled:**
+
+| arm | the old checker (`a8d06e46e598`, before `1494bcd`) | the new checker (`bac9f35bce1e`, `acee925`) |
+|---|---|---|
+| A | **FAIL**: (1) 94 ring exceptions, all "a wedge colour outside the wedge"; (2) 1 without an outline | **PASS**: (1) 0, **highlight 94**; (2) 0 without an outline, counted apart 0; screen dots 72 |
+| B, not dropped | UNTRUSTWORTHY | UNTRUSTWORTHY (the head split, above) |
+| B, dropped | **FAIL**: (1) 69 | **PASS**: (1) 0, **highlight 69**; (2) not graded, 8 counted apart (all label) |
+| off | PASS | PASS |
+
+**RP6's two causes, confirmed on the redo's own frames:**
+- **(1) The ring exceptions are the NEAR/HIGH/FAST highlight.** Every one of the old checker's 94 (A) and 69 (B)
+  exceptions is a pixel the new checker sets apart as highlight, by geometry. The counts match exactly.
+- **(2) The old checker's one marker without an outline in A is the active screen dot**, not a dart: frame 0, x 99-105,
+  y 221-227, 37 px, which is the r 3 dot at (102, 224) exactly. The new checker does not grade a complete screen dot as
+  a marker; it is among its 72 screen dots, 4 a frame. No dart in A passes by an exclusion (counted apart 0).
+
+**The overnight touch watch** (`watch_overnight.py`, trace `trace-overnight-2026-10-30-2354.log`):
+
+| | read | verdict |
+|---|---|---|
+| **touch events** after RP6's end (06:39:01Z) to 13:00:00Z | **0** | **as predicted** |
+| **liveness** | 5,692 periodic lines, **no BLIND span** over 2 min, the gap between the two traces included | the 0 is not blind |
+| **after 13:00Z** | `read_mac` exit 0. The page: layer on, look A, `cloud-url` blank. Production's record shows E2:08's own `/blips` (5 points in 13:01-13:06Z) | **as ruled** |
