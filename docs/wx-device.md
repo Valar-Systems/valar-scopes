@@ -4141,3 +4141,47 @@ not account for +1.1 ms as added work.
 **For the ruling on G2′:** the next W5 measures the same two images, so this reading does not change its design. A
 layout-only control (N against N with a shift) would separate placement from the instrument, as an extra arm or a run
 of its own. That is the reviewer's call.
+
+### The next W5 (W5⁵): G1′ and G2′, frozen before the code
+
+**W5⁗'s misses stay on record:** G1 OFF on 6 step-edge lines, and G2 INSTRUMENT (3 shared bins against a floor of 4).
+The rulings (~17:05Z): G1, any line within 1 s of a step is transitional; G2, every plateau lengthened so each yields
+at least 3 lines per arm on the two-arm side; the restore remedy; the PC quiet in the window.
+
+**The design, changed only where ruled:**
+- **The feed's schedule** (`synth_feed.SCHEDULE`, W5 only; K6's sets are untouched):
+  - n is 24 until 330 s after the flash, 28 to 480 s, 32 to 630 s, then 36;
+  - so the steps are at **180, 330, 480 and 630 s** (180 is 24 → 24, as before);
+  - every plateau is **150 s** long, where it was 90.
+- **The window:** from 180 s to **780 s** after the flash (10 min, was 6). Each arm's trace is held **14.5 min**.
+  - **Ten arms,** O1 N1 … O5 N5, about 2 h 50 min in all, so the window asked for is **3 h 15 min**.
+- **G1′, the transitional rule:** a line whose whole-second stamp lies from **1 s before** a step to 10 s after it is
+  transitional (was 0 to 10 s after).
+- **Lines per plateau, worked before the code** over every phase of the 30 s health tick, with whole-second stamps,
+  G1′'s exclusion and the window's 30 s rule:
+  - the minimum per arm is **3** at n = 24 and **4** at n = 28, 32 and 36;
+  - so the two-arm side (O2 + O4) holds at least 6 lines in every bin.
+- **The restore** (the ruling's points 1 to 3):
+  - after each trace closes, the next step is the flash, which leaves download mode;
+  - after the last arm: read_mac and the page, then the restore and its read-back;
+  - a failed read-back is retried after the final `wxlook` flash, and if it still fails: **RESTORE FAILED**, said at
+    once.
+- **The PC, made checkable rather than promised:**
+  - the driver refuses to start an arm while a build or test process runs (`em++`, `clang`, `xtensa`, `pio`,
+    `scons`, `node`, `vitest`);
+  - it records the PC's CPU load once a minute through every arm;
+  - an arm whose load exceeds 50 % for 2 minutes in a row is marked **PC-LOADED** and reported, not graded.
+- **Unchanged:** O = `962ccb7`, N = this branch's head, both the shipping env; G3's ±1 ms; G4 (no touch; polls 54-66 a
+  minute); the reader's statistic (medians of p95 per bin, ≥ 3 lines per side per bin, the control's floor of 4 bins).
+
+| | check | predicted |
+|---|---|---|
+| **G1′** | every line outside G1′'s transitional window | n at its plateau (± 1) on **every** line, in every arm |
+| **G2′** | the control, (O1+O3+O5) − (O2+O4) | **4** shared bins (24, 28, 32, 36), each side ≥ 3 lines per bin, and the control within **± 1 ms** |
+| **G3** | the grade, N − O, at matched n | within **± 1 ms**. Item 5 above names placement as a way it could fall outside with no added work |
+| **G4** | touches, and polls a minute | 0 touches; 54-66 polls in every minute read |
+| **G5** | the restore | "feed source as before: True" after the final flash, with no retry needed |
+| **G6** | the PC | no arm refused or marked PC-LOADED |
+
+**Outside the set** (any row, or a reading this table does not name): stop and report. That includes an arm with fewer
+lines than worked out above, since that would mean the phase arithmetic is wrong.
