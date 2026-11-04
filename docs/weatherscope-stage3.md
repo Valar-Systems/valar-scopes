@@ -11218,3 +11218,13 @@ So it is once per boot. A second one in the same boot, one with no boot before i
 **CI**, from #526's job list: the PR touches `tools/weatherscope/board/screen_watch.py` only, which matches no path filter. **38 check runs, 35 success, 3 skipped, 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
 
 **A question, not done here:** the selftest runs only by hand. If you want it in CI, it is one `run.sh` line in a later PR, with its lines predicted.
+
+### A12.92 Q71 (a): one sabotage row re-registered BEFORE it runs (S-W1: 3 cases, not 2)
+
+Before any sabotage ran, each was applied case by case to the selftest as written. A12.91 froze **S-W1 (the new rule removed) as "cases 5 and 10 FAIL (2 failures)"**. That is wrong.
+- **Why:** case 6, "a second resolution in the same boot", expects `["Auto's first resolution at boot", None]`. With the rule gone, its first line gets `None` too.
+- **Re-registered:** **S-W1 fails cases 5, 6 and 10 (3 failures).**
+- **Unchanged:** S-W2 (case 6), S-W3 (case 8) and S-W4 (case 9), one failure each. Applied the same way, each holds.
+- **The family, a seventh time:** a control's count written from the cases in mind, not by running the rule over every case. **This time it was caught before the run.**
+
+The selftest itself ran first, as frozen: 10 checks, 0 failures.
