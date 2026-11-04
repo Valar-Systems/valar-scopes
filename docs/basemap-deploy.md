@@ -831,3 +831,65 @@ then reads 2 or 3, which is reported as an extra invocation from another isolate
 **MM2's wall** stays off and kept, and is not re-registered for D3 (ruling 4). It is D4's to explain first.
 
 **Outside the set:** stop and report.
+
+### Main's CI on #532's merge, recorded (ruling 1)
+
+**c039a5e, from the finished run (0 unfinished):**
+- **41 check runs:** 39 success, 2 skipped (`promote`, `version`), 0 failed.
+- **Why 4 fewer than f740f10's 45:** f740f10 also ran `photos` (2 runs) and `photo-drift` (2).
+  - `photos` triggers on pushes to `proxy/photos/**`. #525 changed `credits.html` there; #532 changed no file under that path.
+  - `photo-drift` runs after `photos` (`workflow_run`).
+- **The alternative,** that the two should have run on c039a5e and did not start, is ruled out by those triggers.
+
+### MM4 and MM5 re-read inside the TTL (2026-11-04, 21:57Z): MM4 and the builder count OFF; stopped
+
+**The requests.** Sent as the test identity, with Weatherscope's query at KDEN.
+
+| | sent | answer | the proxy's invocation |
+|---|---|---|---|
+| **B** | 21:57:02Z | 200, 214,179 B, `BMPK`, an ETag; response at 21:57:11Z | `cpuTimeMs` 13, `wallTimeMs` 7,851 |
+| **R** | 21:57:21Z, 10 s after B's response | 200, 214,179 B, `BMPK`, **the same ETag as B's** | `cpuTimeMs` **25**, `wallTimeMs` **18,652** |
+| **I** | 21:57:49Z, 38 s after B's response, `If-None-Match` B's ETag | 304 | `cpuTimeMs` 0, `wallTimeMs` 1 |
+
+**The builder** (GraphQL, read at 22:00:33Z, window [21:55, 22:00)): one row, the 21:57 minute, status `success`.
+- **2 invocations,** 0 errors.
+- Wall p50 7.63 s, p99 18.24 s.
+
+| row | predicted | read | verdict |
+|---|---|---|---|
+| **B** | 200, BMPK, an ETag | 200, BMPK, an ETag | as registered |
+| **MM4 (R)** | 200 from the cache, `cpuTimeMs` ≤ 10 | 200 from **the builder**, `cpuTimeMs` 25 | **off** |
+| **MM5, V3 (I)** | 304, `cpuTimeMs` ≤ 5 | 304, `cpuTimeMs` 0 | as registered |
+| **the builder count** | exactly 1; R and I add 0 | **2: R added 1** | **off** |
+
+**The second builder invocation is R's.**
+- All three requests fall in the 21:57 minute.
+- That minute's two builder walls are 7.63 s and 18.24 s (with two samples, those are its p50 and p99). They match B's and R's proxy walls, 7.85 s and 18.65 s.
+- I's wall was 1 ms, too short for a builder call.
+- That rules out any caller other than these three requests.
+
+**Why R reached the builder: two causes, and the data rules out neither.** The handler skips the builder for a plain
+repeat only when **both** of these hold (`proxy/src/basemap/handler.ts:53-58`):
+- the isolate knows the store id (`knownStore`, within `STORE_TTL_MS`);
+- `caches.default` holds the package under the ETag's key. B's request writes that copy in `waitUntil`, after its response.
+
+The two causes:
+- **(a) Another isolate.** R landed on an isolate that did not know the store id. This is the risk the registration
+  named, and it is reported as registered: **an extra builder invocation, from another isolate**, if (a) is the cause.
+- **(b) B's isolate, with the Cache API missing.** R landed on B's isolate, which knew the store id. `cache.match` found
+  no copy, so R fell through to the builder.
+
+**Nothing read so far separates (a) from (b):**
+- No log line and no invocation event carries an isolate id.
+- Nothing records `cache.match`'s result.
+- All seven `/basemap` requests since 21:24Z were answered in one data centre, SJC. That does not separate isolates
+  inside it.
+
+**Recorded beside the two causes, not as a choice between them.** In D3 the 200 cache-hit path has **not been seen
+once**: MM4 has reached the builder both times, first past the TTL and now inside it. The 304 path has been seen, at
+0 ms. The two paths share `knownStore`; only the 200 path also needs the Cache API.
+
+R's build took 18.7 s against B's 7.9 s, for the same package. That is MM2's open question, which is D4's. It is
+recorded here and not graded.
+
+**Stopped.** V2 is not read, and no request has been sent since I.
