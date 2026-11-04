@@ -16,6 +16,7 @@
 #include "Layout.h"
 #include "SolarDim.h"
 #include "TouchPoll.h"
+#include "TouchWatchdog.h"   // the CST816 supervisor; inert unless variant::TOUCH_WATCHDOG (A12.84)
 #include "WxCrop.h"
 #include "WxLegend.h"
 #include "WxLogic.h"
@@ -702,6 +703,7 @@ void WeatherscopeManager::Update()
         if (mode == Mode::Scenario) ApplyZoom(idx, "hold");
     }
     HandleTouch();
+    LogTouchWatchdog();
     HandleSerialGestures();
     MaybeSwitchTheme();   // after 'O'
     ServiceDiagText();   // A9.42: /diag/wx, answered on this task
@@ -889,10 +891,34 @@ void WeatherscopeManager::EndHoldGrace(const longpress::GraceEnd& e)
     if (e.swipe) ClassifyStroke(e.dx, e.dy);
 }
 
+// A12.84: the supervisor's counters every 10 minutes from boot, in the radar's own [health] line, so one reader serves
+// both. A rising probe count is what separates "runs and is healthy" from "never runs"; [touch-wd] lines alone
+// cannot, since a healthy chip prints none (A12.75's watch read 0 of them, and that said nothing).
+void WeatherscopeManager::LogTouchWatchdog()
+{
+    if constexpr (variant::TOUCH_WATCHDOG) {
+        const unsigned long now = millis();
+        if (now - lastTouchWdHealthMs < 10UL * 60UL * 1000UL) return;
+        lastTouchWdHealthMs = now;
+        const auto& wd = TouchWatchdog::GetStats();
+        Serial.printf("[health] touch-wd wedges=%lu recovered=%lu/%lu (soft=%lu hard=%lu) wakes=%lu probes=%lu/%lu maxOutage=%lums rebootRec=%lu\n",
+                      (unsigned long)wd.wedges, (unsigned long)wd.recoveries,
+                      (unsigned long)wd.recoverAttempts, (unsigned long)wd.softRecoveries,
+                      (unsigned long)wd.hardRecoveries, (unsigned long)wd.wakes,
+                      (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed,
+                      (unsigned long)wd.maxOutageMs, (unsigned long)wd.rebootsRecommended);
+    }
+}
+
 void WeatherscopeManager::HandleTouch()
 {
     int32_t tx = 0, ty = 0;
     TouchPoll poll = ReadTouch(tft, http, tx, ty);
+    // A12.84: the CST816 supervisor -- wedge detection and its recovery ladder -- fed the REAL read: before 'P''s
+    // synthetic press below, which is no proof the chip answered, and only when a read happened. mayProbe is true:
+    // touch has its own I2C bus on the S3, and nothing serializes it against the network (CLAUDE.md).
+    if constexpr (variant::TOUCH_WATCHDOG)
+        if (poll != TouchPoll::Skipped) TouchWatchdog::OnPoll(tft, poll == TouchPoll::Touched, true);
     if (benchPress) {   // 'P' (stored mode only, A9.34): a synthetic finger at the centre, through this same path
         poll = TouchPoll::Touched;
         tx = SCREEN_SIZE_DIV_2;
