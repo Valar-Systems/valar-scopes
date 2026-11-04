@@ -134,4 +134,14 @@ describe("renderCreditsHtml", () => {
     const line = "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.";
     expect(html.split(line).length - 1).toBe(1);
   });
+
+  // docs/wx-opuk.md M5: OPERA's CC BY 4.0 attribution, before opuk serves anywhere, in the wording docs/uk-data.md A2.1
+  // accepted. One line, no markup inside, ASCII bytes (&deg;); smoke-prod.sh searches the live page for the same bytes.
+  it("carries the OPERA line exactly once", () => {
+    const html = renderCreditsHtml([]);
+    const line = "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by " +
+      "Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; " +
+      "grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.";
+    expect(html.split(line).length - 1).toBe(1);
+  });
 });

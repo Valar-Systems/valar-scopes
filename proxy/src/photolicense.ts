@@ -280,6 +280,7 @@ licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" rel="noope
 <a href="https://opendatacommons.org/licenses/odbl/1-0/" rel="noopener">ODbL 1.0</a>.</li>
 <li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>
 <li>Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.</li>
+<li>Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.</li>
 <li>Basemap water, rivers, roads, places and summits from the U.S. Census Bureau's TIGER/Line 2024, the 2025 Census
 Gazetteer and SUB-EST2024, and USGS GNIS Domestic Names: works of the United States government.</li>
 <li>Basemap terrain from AWS Terrain Tiles (Terrarium, zoom 9).</li>

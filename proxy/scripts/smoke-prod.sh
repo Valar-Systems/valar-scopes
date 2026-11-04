@@ -719,6 +719,11 @@ contains "/credits (public; photo library + CC-BY attribution)" 200 "Blipscope c
 contains "/credits carries the NOAA MRMS line" 200 \
   "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA." "$BASE/credits"
 
+# OPERA's CC BY 4.0 attribution (docs/wx-opuk.md M5), before /wx serves opuk anywhere: the same bytes as the
+# template, on one line with no markup inside (the degree sign as &deg;, so the bytes are ASCII).
+contains "/credits carries the OPERA line" 200 \
+  "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET." "$BASE/credits"
+
 # The self-hosted webfonts. Requested BY PATH rather than scraped out of the page
 # so this still fails loudly if the page stops asking for them (which would mean
 # the page changed, not that the fonts are fine).
