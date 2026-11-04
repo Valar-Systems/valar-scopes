@@ -55,6 +55,8 @@ jobs:
 
   test:
     runs-on: ubuntu-24.04
+    # A hang ends here, not at GitHub's 6 hours: the test-identity selftest hung 40+ minutes on b7f9f7a.
+    timeout-minutes: 20
     strategy:
       fail-fast: false # one Worker failing should not hide the other's result
       matrix:
@@ -107,12 +109,25 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/basemap-verdict.selftest.sh
 
-      # BLIP_KEY/BLIP_DEVICE through the token file (docs/blip-creds-token-file.md, T4-T6): one re-run, the values
-      # arrive at their lengths, neither EXAMPLE value appears in any byte written, and a re-run counter so a runaway
-      # is red, not a hang. The .mts runs by Node's type stripping, on by default from 22.18.
-      - name: The blip-creds wrapper (selftest)
-        if: matrix.worker == 'proxy'
-        run: node scripts/with-blip-creds.mts --selftest
+      # The test identity (docs/test-identity.md), which replaced the blip-creds wrapper. The mint script against a
+      # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output
+      # scan must catch); EXAMPLE values only. Under tsx, because it imports the Worker's own deviceIdFromMac.
+      - name: The test identity's mint (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: npx tsx scripts/mint-test-identity.selftest.mts
+      # The checks as the test identity (TI1, TI1b, S-TIGUARD, TI2, TI7 and its control): the real smoke-prod.sh and
+      # watch-upstream.sh against a local stub; a board's pair refused with 0 requests; the key never on a command line.
+      - name: The checks run only as the test identity (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: npx tsx scripts/test-identity.selftest.mts
+      # TX2 and S-TXRECON: reconcile-fleet.py leaves the test identity out of "KV ONLY" (a fixture; no KV touched).
+      - name: reconcile-fleet leaves the test identity out (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: python3 ../scripts/reconcile-fleet.selftest.py
+      # S-TXNOEXCL: the dashboard's exclusion removed must make TX1 fail with "Devices seen" up by exactly one.
+      - name: The dashboard's test-identity exclusion (sabotage)
+        if: ${{ !cancelled() && matrix.worker == 'dashboard' }}
+        run: node scripts/sabotage-test-identity.mjs
       # The firmware's host test parses this fixture with CoordParse; it must be what
       # the helper's formatCoord actually emits, or that test grades a stale contract.
       - name: The locate-format fixture matches the helper's formatter

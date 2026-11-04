@@ -66,6 +66,21 @@ PROXY = REPO / "proxy"
 ID_RE = re.compile(r"^[0-9a-f]{8,32}$")
 
 
+def test_device_ids() -> set:
+    """The production checks' TEST identity (docs/test-identity.md, item 4): the token file's test-device. It is not a
+    unit, so it is never reported as 'KV ONLY'. Read from the file BLIPSCOPE_TOKEN_FILE names (the id never enters the
+    repo); empty when that is unset. Never printed."""
+    import os
+    path = os.environ.get("BLIPSCOPE_TOKEN_FILE", "").strip()
+    if not path or not Path(path).is_file():
+        return set()
+    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
+        key, eq, value = line.strip().partition("=")
+        if eq and key.strip() == "test-device" and ID_RE.match(value.strip()):
+            return {value.strip()}
+    return set()
+
+
 def die(msg: str, code: int = 2) -> None:
     print("\nreconcile: " + msg, file=sys.stderr)
     sys.exit(code)
@@ -329,6 +344,15 @@ def main() -> None:
                errfile.read_text(encoding="utf-8", errors="replace").strip() or "(empty)"))
     print("  observed %d live row(s) -- probe can see presence, so absence is meaningful\n"
           % len(kv_ids))
+
+    # The test identity is not a unit (docs/test-identity.md): left out AFTER the presence control above, so it can
+    # never make an empty listing look like a working probe. Its id is never printed, only the count.
+    test_ids = test_device_ids()
+    left_out = sum(1 for d in kv_ids if d in test_ids)
+    kv_ids = [d for d in kv_ids if d not in test_ids]  # the test identity is not a unit
+    print("  test identity: %s; %d row(s) left out as not a unit\n"
+          % ("read from the token file" if test_ids else "none configured (BLIPSCOPE_TOKEN_FILE unset or no test-device)",
+             left_out))
 
     detail = {}
     if not args.no_detail:

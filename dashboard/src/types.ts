@@ -9,6 +9,9 @@ export interface Env {
   // NOTHING else -- it is a read credential for telemetry, not an account key.
   CF_ACCOUNT_ID?: string;
   CF_API_TOKEN?: string; // secret
+  // secret: the production checks' TEST identity, comma separated (docs/test-identity.md, item 4). Never a unit, so
+  // every counter leaves it out; set from the token file through stdin, never committed or printed.
+  TEST_DEVICE_IDS?: string;
   AE_DATASET?: string; // defaults to blipscope_proxy
 
   // Render-drift status is read from GitHub (the photo-drift workflow's check run).
