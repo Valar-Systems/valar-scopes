@@ -32,15 +32,15 @@
   }
 
   /* ---------- FRONT ---------- */
-  .masthead{border-bottom:1.5px solid var(--chassis);padding-bottom:9px;margin-bottom:14px}
+  .masthead{border-bottom:1.5px solid var(--chassis);padding-bottom:8px;margin-bottom:11px}
   .wordmark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:25px;
             letter-spacing:.12em;line-height:1;color:var(--chassis)}
   .tagline{font-size:8.4px;letter-spacing:.13em;text-transform:uppercase;
            color:var(--ink-faint);margin-top:6px;font-weight:500}
 
-  .lede{font-size:11px;color:var(--ink-soft);line-height:1.5;margin-bottom:15px}
+  .lede{font-size:10.5px;color:var(--ink-soft);line-height:1.4;margin-bottom:8px}
 
-  .step{display:grid;grid-template-columns:22px 1fr;gap:9px;margin-bottom:13px}
+  .step{display:grid;grid-template-columns:22px 1fr;gap:9px;margin-bottom:9px}
   .num{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;
        color:var(--paper);background:var(--chassis);height:18px;width:18px;
        display:flex;align-items:center;justify-content:center;margin-top:1px}
@@ -63,7 +63,7 @@
   .b-head{font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;
           letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
           padding-bottom:5px;border-bottom:1px solid var(--rule);margin-bottom:11px}
-  .b-sec{margin-bottom:15px}
+  .b-sec{margin-bottom:12px}
   .b-sec p{font-size:10.2px;line-height:1.5;color:var(--ink-soft)}
   .b-sec p + p{margin-top:7px}
 
@@ -76,7 +76,7 @@
   .chip b{font-family:'JetBrains Mono',monospace;font-weight:500;font-size:8.6px;
           color:var(--ink);letter-spacing:.02em}
 
-  .fix{margin-bottom:10px}
+  .fix{margin-bottom:8px}
   .fix h4{font-size:10.2px;font-weight:600;color:var(--ink);margin-bottom:2px}
   .fix p{font-size:9.7px;line-height:1.47;color:var(--ink-soft)}
 
@@ -88,10 +88,18 @@
   .foot .origin{font-family:'Space Grotesk',sans-serif;font-size:8.4px;font-weight:500;
                 letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-top:8px}
 
-  .qr-slot{width:0.78in;height:0.78in;flex:none;
-           border:1px dashed var(--rule);display:flex;align-items:center;
-           justify-content:center;text-align:center;font-size:6.4px;line-height:1.3;
-           color:var(--ink-faint);letter-spacing:.04em}
+  /* The build guide sits at the top of the FRONT: most buyers build the kit
+     themselves, so the first thing they need is the instructions, before the
+     setup steps below. */
+  .guide{display:flex;gap:12px;align-items:center;background:#f1f2f4;
+         border-left:3px solid var(--chassis);padding:8px 10px;margin-bottom:9px}
+  .qr-slot{width:0.86in;flex:none;text-align:center}
+  .qr-slot .qr{display:block;width:0.86in;height:0.86in;background:#fff;padding:3px}
+  .qr-slot .qr-url{display:block;font-family:'JetBrains Mono',monospace;font-size:6px;
+                   color:var(--ink-soft);margin-top:3px;letter-spacing:.01em}
+  .guide h2{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;
+            color:var(--chassis);line-height:1.2;margin-bottom:4px}
+  .guide p{font-size:9.6px;line-height:1.45;color:var(--ink-soft)}
   .label{font-family:'JetBrains Mono',monospace;font-size:9px;color:#fff;
          background:rgba(0,0,0,.35);padding:2px 8px;letter-spacing:.1em}
 </style>
@@ -107,13 +115,20 @@
     <div class="tagline">Live aircraft radar for your desk</div>
   </div>
 
-  <p class="lede">Setting up takes about three minutes.</p>
+  <div class="guide">
+    <div class="qr-slot"><svg class="qr" viewBox="0 0 29 29" shape-rendering="crispEdges" role="img" aria-label="QR code for https://valarsystems.com/blipscope"><path fill="#15171a" d="M0 0h7v1h-7zM8 0h4v1h-4zM15 0h2v1h-2zM18 0h1v1h-1zM22 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h1v1h-1zM11 1h1v1h-1zM16 1h2v1h-2zM19 1h1v1h-1zM22 1h1v1h-1zM28 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM8 2h4v1h-4zM15 2h2v1h-2zM22 2h1v1h-1zM24 2h3v1h-3zM28 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM9 3h2v1h-2zM12 3h1v1h-1zM16 3h2v1h-2zM20 3h1v1h-1zM22 3h1v1h-1zM24 3h3v1h-3zM28 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM8 4h2v1h-2zM14 4h3v1h-3zM18 4h2v1h-2zM22 4h1v1h-1zM24 4h3v1h-3zM28 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM9 5h2v1h-2zM15 5h3v1h-3zM22 5h1v1h-1zM28 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h7v1h-7zM10 7h1v1h-1zM12 7h2v1h-2zM15 7h2v1h-2zM0 8h1v1h-1zM3 8h6v1h-6zM10 8h1v1h-1zM12 8h2v1h-2zM16 8h3v1h-3zM21 8h1v1h-1zM24 8h1v1h-1zM26 8h3v1h-3zM0 9h1v1h-1zM3 9h2v1h-2zM8 9h6v1h-6zM16 9h6v1h-6zM23 9h2v1h-2zM26 9h2v1h-2zM1 10h10v1h-10zM12 10h2v1h-2zM15 10h2v1h-2zM21 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM1 11h1v1h-1zM8 11h2v1h-2zM13 11h1v1h-1zM17 11h1v1h-1zM19 11h1v1h-1zM23 11h3v1h-3zM28 11h1v1h-1zM0 12h2v1h-2zM3 12h1v1h-1zM5 12h3v1h-3zM9 12h2v1h-2zM13 12h1v1h-1zM15 12h2v1h-2zM19 12h1v1h-1zM22 12h2v1h-2zM28 12h1v1h-1zM1 13h2v1h-2zM4 13h2v1h-2zM12 13h5v1h-5zM18 13h1v1h-1zM21 13h8v1h-8zM0 14h1v1h-1zM2 14h2v1h-2zM6 14h1v1h-1zM8 14h3v1h-3zM12 14h2v1h-2zM15 14h8v1h-8zM24 14h1v1h-1zM26 14h1v1h-1zM28 14h1v1h-1zM0 15h3v1h-3zM4 15h1v1h-1zM11 15h2v1h-2zM16 15h1v1h-1zM18 15h1v1h-1zM21 15h1v1h-1zM23 15h1v1h-1zM26 15h1v1h-1zM28 15h1v1h-1zM1 16h1v1h-1zM6 16h3v1h-3zM10 16h1v1h-1zM12 16h1v1h-1zM14 16h3v1h-3zM19 16h2v1h-2zM23 16h1v1h-1zM25 16h1v1h-1zM0 17h2v1h-2zM3 17h3v1h-3zM10 17h6v1h-6zM18 17h4v1h-4zM24 17h1v1h-1zM26 17h2v1h-2zM0 18h5v1h-5zM6 18h1v1h-1zM11 18h2v1h-2zM15 18h1v1h-1zM17 18h1v1h-1zM19 18h1v1h-1zM21 18h1v1h-1zM24 18h2v1h-2zM28 18h1v1h-1zM0 19h5v1h-5zM7 19h3v1h-3zM11 19h2v1h-2zM14 19h3v1h-3zM18 19h2v1h-2zM21 19h1v1h-1zM24 19h3v1h-3zM0 20h2v1h-2zM3 20h1v1h-1zM5 20h2v1h-2zM8 20h2v1h-2zM13 20h2v1h-2zM16 20h2v1h-2zM19 20h9v1h-9zM8 21h1v1h-1zM10 21h1v1h-1zM12 21h1v1h-1zM14 21h2v1h-2zM17 21h2v1h-2zM20 21h1v1h-1zM24 21h2v1h-2zM0 22h7v1h-7zM8 22h5v1h-5zM14 22h7v1h-7zM22 22h1v1h-1zM24 22h2v1h-2zM0 23h1v1h-1zM6 23h1v1h-1zM8 23h1v1h-1zM10 23h1v1h-1zM14 23h4v1h-4zM19 23h2v1h-2zM24 23h1v1h-1zM0 24h1v1h-1zM2 24h3v1h-3zM6 24h1v1h-1zM8 24h1v1h-1zM10 24h7v1h-7zM19 24h7v1h-7zM27 24h2v1h-2zM0 25h1v1h-1zM2 25h3v1h-3zM6 25h1v1h-1zM8 25h1v1h-1zM10 25h1v1h-1zM13 25h1v1h-1zM15 25h2v1h-2zM19 25h3v1h-3zM28 25h1v1h-1zM0 26h1v1h-1zM2 26h3v1h-3zM6 26h1v1h-1zM11 26h1v1h-1zM13 26h1v1h-1zM15 26h1v1h-1zM18 26h1v1h-1zM23 26h2v1h-2zM26 26h3v1h-3zM0 27h1v1h-1zM6 27h1v1h-1zM9 27h4v1h-4zM15 27h2v1h-2zM18 27h2v1h-2zM22 27h1v1h-1zM25 27h2v1h-2zM28 27h1v1h-1zM0 28h7v1h-7zM8 28h3v1h-3zM15 28h2v1h-2zM19 28h2v1h-2zM22 28h1v1h-1zM24 28h2v1h-2z"/></svg><span class="qr-url">valarsystems.com/blipscope</span></div>
+    <div>
+      <h2>Building the DIY Kit? Start here.</h2>
+      <p>Scan for the build guide: printing the case, putting it together, and help if you get stuck.</p>
+    </div>
+  </div>
+
 
   <div class="step">
     <div class="num">1</div>
     <div>
       <h3>Plug it in</h3>
-      <p>Use the included cable and any USB power adapter or computer port. The screen lights up in about three seconds.</p>
+      <p>Use a USB-C cable and any USB power adapter or computer port. The screen lights up in about three seconds.</p>
     </div>
   </div>
 
@@ -122,7 +137,7 @@
     <div>
       <h3>Join its Wi-Fi</h3>
       <p class="join-how">Point your phone's camera at the screen and tap Join. No prompt? Join the Wi-Fi network named on the screen. After you tap Join, the setup page takes a few seconds to appear.</p>
-      <p>A setup page opens. Choose your home Wi-Fi and enter your password.</p>
+      <p>A setup page opens. Choose your home Wi-Fi and enter your password. If no page opens, go to <span class="mono">192.168.4.1</span> in a browser.</p>
     </div>
   </div>
 
@@ -130,14 +145,14 @@
     <div class="num">3</div>
     <div>
       <h3>Tell it where you are</h3>
-      <p>The screen now shows an address like <span class="mono">blipscope-326e20.local</span>. Open it in a browser on the same Wi-Fi.</p>
-      <p>Go to <strong>gps-coordinates.org</strong>, enter your address, and copy the latitude and longitude. Paste them into the <strong>Latitude</strong> box — both boxes fill in. Click <strong>Save</strong>.</p>
+      <p>Your Blipscope now shows a QR code. Scan it with your phone, or type the address under it into a browser on the same Wi-Fi.</p>
+      <p>On that page, tap <strong>Use my location</strong> and allow it. It saves on its own. Or copy your latitude and longitude from <strong>gps-coordinates.org</strong> into the <strong>Latitude</strong> box and click <strong>Save</strong>.</p>
     </div>
   </div>
 
   <div class="payoff">
     <p>Aircraft appear within seconds.</p>
-    <div class="nameplate">Your device’s name <span class="fill"></span></div>
+    <div class="nameplate">Your Device ID <span class="fill"></span></div>
   </div>
 </div>
 
@@ -153,13 +168,12 @@
 
   <div class="b-sec">
     <div class="b-head">What the screen tells you</div>
-    <p>If updates stop arriving, Blipscope says so rather than showing a frozen picture:</p>
+    <p>If updates stop arriving, Blipscope says so rather than freezing, and catches up on its own when data returns:</p>
     <div class="status">
       <div class="chip"><span class="dot live"></span><span>Sweeping — data is current</span></div>
       <div class="chip"><span class="dot amber"></span><span><b>STALE 2m</b> waiting on new data</span></div>
       <div class="chip"><span class="dot dead"></span><span><b>NO DATA</b> aircraft greyed out</span></div>
     </div>
-    <p>It catches up on its own the moment data returns.</p>
   </div>
 
   <div class="b-sec">
@@ -179,19 +193,23 @@
       <h4>Stuck on setup, or can’t reach it</h4>
       <p>Unplug it and plug it back in. The screen shows <span class="mono">TOUCH &amp; HOLD</span> for three seconds — touch it and keep holding until it says <span class="mono">WI-FI RESET</span>. Then start again at step 2.</p>
     </div>
+
+    <div class="fix">
+      <h4>Screen works but taps do nothing</h4>
+      <p>Unplug and replug. Still no touch? Email us your Device ID.</p>
+    </div>
   </div>
 
   <div class="foot">
     <div class="foot-row">
       <div>
         <div class="links">
-          valarsystems.com/blipscope<br>
+          <span>Build guide &amp; help</span> valarsystems.com/blipscope<br>
           <span>Questions</span> support@valarsystems.com
         </div>
         <div class="origin">Valar Systems · Bend, Oregon</div>
         <p class="note">Aircraft data comes from volunteer networks we help fund.</p>
       </div>
-      <div class="qr-slot">QR<br>valarsystems.com<br>/blipscope</div>
     </div>
   </div>
 </div>
