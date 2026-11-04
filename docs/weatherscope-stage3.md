@@ -11107,3 +11107,34 @@ step at that row, and is reported before anything changes.
 - **(b)** Re-run W4 **without** the `read-mac` reset. W3's close (DTR/RTS false) left the board running, so no boot happens at the run's start, and Auto has already resolved. The watcher is unchanged.
 - **(c)** Run W4 at Dallas night: no switch at boot, since Dark goes to Dark. Time-dependent, so not recommended.
 - **Recommended: (a).** A device behaviour the watcher cannot explain will stop the next run too. (b) only avoids the boot this time.
+
+### A12.90 Q70 (b) measured: AS PREDICTED on every A12.88 row, with one local prediction of mine off and named; its PR's CI predicted; disk space under the new rule
+
+**The disk rule (~19:00Z):**
+- **Checked at the end of these runs: C: had 3.9 GB free,** far under 30 GB.
+- **Freed:** 33 of my own regenerable folders (`.pio/build` and `.pio/hosttest` in my worktrees), listed with sizes first: **4,710 MB.**
+- **Kept:** `wt-swb/.pio/build`, which holds the TouchWatchdog clean image whose sha and size are on record. Nothing else was touched: no `libdeps`, records, archives or source.
+- **Now 15.5 GB free,** still under 30 GB. **So I start no large build and no full sabotage run until there is room.** Q70 (b)'s sweeps were already done.
+
+**Q70 (b), every A12.88 row** (on main `d72e3e9`; rebased since onto `ec4f0d4`, #517, which touches no `test/host/` file):
+
+| row | measured |
+|---|---|
+| every driver in full, clean, MinGW and g++ 13.3 | **AS PREDICTED:** all 20 drivers' stdout **byte-identical** to main's, exit 0, on both. Towns ran with its archives |
+| `--anchors`, the lint | 20/20 present; 0 flagged; the lint's control 6/6 |
+| the forced sweep: each driver at its first plant, both compilers | **AS PREDICTED, 20 of 20 on each:** <br>• exit 2, the last line `the RIG: ['<plant>']`; <br>• the only lines that differ are that plant's own result lines and the summary's verdict; <br>• every other plant's lines equal the clean run's. <br>Where the plant's result line still prints after the RIG (loop_render's S-K2a, light's S-KL, th2's S-TH2), it reads OFF |
+| a real RIG: a copy with A12.82's one-line S-H3, g++ 13.3 | **AS PREDICTED:** `S-H3: did not compile`, then `S-H3: the RIG -- recorded`; the other 23 AS PREDICTED; `the RIG: ['S-H3']`, exit 2 |
+| `sabotage_rig_control.py` | **passes** (clean; S-R1 and S-X forced, each exit 2 named alone, the other 23 equal). **Its own control:** run against main's drivers, which have no seam, it **FAILS** (the forced runs exit 0) |
+| `run.sh` against today (main's `run.sh` on main's host tree, A12.84's logs), MinGW and g++ 13.3 | **AS PREDICTED:** every one of today's lines in order (2,500 and 2,471), **plus exactly the control's 4 lines;** exits 0 and 2 as today, `FAILED BLOCKS:` unchanged |
+
+**OFF, and mine:** before the run.sh runs, I froze a local row against the wrong base.
+- **The base:** main's `run.sh` run on (b)'s tree, rather than today's run.
+- **What it did:** main's `run.sh` globs `sabotage_*.py`, so it took the new `sabotage_rig_control.py` for a 21st driver and refused it in the anchors and controls blocks, which have no such modes. The base run was red (MinGW exit 1), and nothing in (b) caused it.
+- **The family, a sixth time:** the rule I failed to apply was the base script's own glob, run over the new tree.
+- **The frozen A12.88 row compares with today,** and against today it holds, as above. Nothing in (b) changes for this.
+
+**(b)'s CI, predicted from #516's job list** (A12.85):
+- (b) changes `test/host/` only. So no path-filtered workflow runs: not print-cards, workers, provisioner, or #513's web-renderer (whose paths are `src/**` and the like).
+- **#517 changed the device-ids job's steps, not its count.**
+- **Predicted: 38 check runs, 35 success, 3 skipped (ship-alert, promote, version), 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+  - **Both legs green.** The 26.04 leg runs the drivers and the new control under g++ 15.2. A g++ 15 failure there is off this row and stops (b).
