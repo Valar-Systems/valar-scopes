@@ -214,3 +214,14 @@ cookies or absolute URLs in the built files, with a planted control for each. Pr
 | **F3** | `--selftest`: the CONTROL passes. **All 14 plants** exit 1 with exactly one finding in their own category: eval ×3, storage ×5, cookies ×2, absolute URL ×3, and the wasm's `evil.sh`. The empty folder exits 2 | **as predicted** |
 | **F4** | the probe pair from the same build: **1** eval finding without the flag (`emscripten_run_script=ptr=>{eval(...)}`), **0** with it | **as predicted** |
 | **F6** | `git diff 8f6b280 -- src include lib platformio.ini`: empty | **as predicted** |
+
+**F5's count, predicted before the push.** It is taken from the last finished run's job list, #518's head
+`8f6b28082ca0`: **41** checks, 37 success and 4 skipped, after the speedscope job's re-run.
+- **This PR runs four of those workflows:** `firmware`, `device-ids`, `no-traffic-captures` and `web-renderer`, the
+  last because its own paths match.
+- **The 41st was `print-cards`,** a push run triggered by that force-push's own diff. This push's diff, from the old
+  remote head to this one, is `docs/bend-site-feed.md` alone (from #520). It matches no branch-agnostic push filter, so
+  no push run is expected.
+- **The prediction:** **40** checks, **36 success** and **4 skipped** (`version`, `promote`, `ship-alert`, and
+  `publish`, since there is no tag on a pull request), **0 failed**.
+- **Outside the set:** stop and report.
