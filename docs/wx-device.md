@@ -3986,3 +3986,59 @@ instrument that would show it, and the control did not reach its floor.
     restore. This is said here so the ruling can cover it.
 - **Nothing private was written anywhere:** the location stayed in memory, and the URL lives only in the scratchpad's
   private file.
+
+## Rulings of 2026-11-04 ~17:05Z
+
+- **W5⁗: INSTRUMENT accepted.** G3's +1.1 ms is reported, not graded.
+  1. **The restore remedy is mandatory before any driver runs again:**
+     - every driver runs `read_mac` and waits for the page before any restore;
+     - a failed restore is retried after the final flash;
+     - a restore that still fails stops and reports at once;
+     - K6's driver closes its trace only after the restore and its read-back, not at a fixed 22 min.
+  2. **G1:** any line within 1 s of a step is transitional (the stamps are whole seconds). Re-registered with the miss
+     kept.
+  3. **G2:** every plateau is lengthened so that each yields at least 3 lines per arm on the two-arm side. Predictions
+     first.
+  4. **The bench PC does nothing heavy during a measured window:** no builds, sabotage runs or re-grades.
+  5. **Before the next W5:** find from the code what N adds per frame on the layer-off path.
+- **P4:** the race remedy is approved: note before reply, drain before close, and `_ask` returns `None` on a connection
+  error. Predicted: all four rows, on 3 runs of 3. Then K6, with the restore remedy above.
+- **RP6:** complete; the corrected premise is accepted. `records-device` is accepted. The TouchWatchdog comment is done
+  as queued.
+
+### P4's race remedy, as ruled: frozen before the code
+
+**Read from the code before writing it: the order is not only the refused path's.** All eleven of the proxy's replies
+reply first and note second. Two more selftest cases read the log or the counts the moment a reply arrives: "the K6
+log" and "STATUS counts each route by disposition". Both read right after the forwarded `/enrich/abcdef`, so race 1
+reaches them too, though it has not landed in any run. "Note before reply" is therefore made on **every** path.
+
+**The remedy, as it will be made:**
+- **Note before reply, on all eleven paths.** A reader that holds a reply then holds its line.
+  - **What this changes:** a line is now written for a reply that is about to be sent. If the send then fails, the line
+    stands. It records the disposition, not the delivery.
+  - `error_json` notes as well as replies, so its three callers stop noting its return value.
+- **Drain before close, on the two refused paths.** These are the two paths that close with request bytes possibly
+  unread:
+  - the 403 for another client (any body that client sent);
+  - the 501 for a chunked body, which is never read.
+
+  Each one stops sending (`shutdown(SHUT_WR)`), reads and discards until the client closes or 1 s passes, then closes.
+  That is a lingering close. The forwarded paths that close have read the whole request first, so they are unchanged.
+- **`_ask` returns `(None, [], {}, b"")` on a connection error** (`OSError` or `http.client.HTTPException`). A broken
+  exchange then fails its case by a FAIL line.
+- **Named, not changed:**
+  - **What remains:** the replay cases unpack the crop's bytes (`struct.unpack_from`) outside a check. A broken
+    exchange there would still be a traceback, which is an instrument failure by the 11-04 rule.
+  - **Why it is left:** they run on the allowed client and never close, so neither race reaches them.
+- **The plants are untouched:** `sabotage_proxy.py` is unchanged, and every needle stays in `proxy.py` exactly once
+  (the driver asserts it).
+
+| | check | predicted, on each of 3 runs |
+|---|---|---|
+| **P1′** | the unplanted selftest | every case PASS, exit 0 |
+| **P3′** | the 8 earlier plants, under the traceback rule | each `ok`, red by FAIL lines, no traceback |
+| **P4′** | S-synth-leak | exit 1, no traceback, exactly the 3 FAIL lines in order: own case, the K6 log, STATUS |
+| **P5′** | S-other-cascade | exactly the 4 FAIL lines in order: own case, "any other hex's enrich is forwarded", the K6 log, STATUS |
+
+**Outside the set,** on any run and any row: stop and report. K6 holds.
