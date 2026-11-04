@@ -203,3 +203,71 @@ the scrub changes one comment line in `src/` (`GameClient.cpp:14`) and one messa
 (`check-config-form.py:415`). `firmware` builds as on main.
 
 **Outside the set:** stop and report, with no fix until a ruling.
+
+## Results
+
+### Two misses, recorded before anything was pushed
+
+**W2, first run: OFF-PREDICTION.** The scrub replaced **name 93**, BSSID 22, LAN 100 in 32 files. W2 predicted name
+107.
+- **What the guard saw.** On the scrubbed tree it reported **14 name findings**, every one a WiFiManager
+  `Connecting to NEW AP: <ssid>` or `SAVED` line, in 7 bench-logs.
+- **The cause.** Those logs end lines in `\r\r\n` (serial output; one of them holds 759 bare CRs). The guard strips
+  every trailing CR from a line; the scrub stripped one. A `connecting` value cannot cross a CR, so on those 14 lines
+  the scrub's pattern never matched, while the guard's did.
+- **Checked against main's blobs, not inferred.** The lines that end in two or more CRs number 2,109. Comparing the two
+  line definitions over all of them gives a gap of exactly **name 14, BSSID 0, LAN 0, in 7 files**.
+- **The alternative, and why the data excludes it.** The 14 might have been other networks, values the scrub would
+  have refused. They are not: the fixed scrub compares every value to the bench name in memory and refuses anything
+  else, and it refused none.
+- **The fix (local, unpushed until a ruling).** The 32 files were restored to HEAD (32 of 32 byte-identical). The
+  scrub now uses the guard's line, stripping every trailing CR and restoring them on write. Re-run from the clean tree:
+  **name 107, BSSID 22, LAN 100 in 32 files**, W2's numbers.
+
+**W3, first run: OFF-PREDICTION.** It read **name 1**. The finding was in this PR's own guard: a selftest label in
+`scripts/check_wifi.py` read as a quoted value after an `ssid` assignment. The label was reworded. The guard was
+right: it was the first file of this PR it had been run over.
+
+**Found while building, before any row ran (not misses):**
+- **Decode first.** The guard's first draft skipped files by extension: 420, against the 414 that are truly binary.
+  Six tracked files with a "binary" extension decode as text: five ASCII STEP files and one terrain `.bin`. The guard
+  now decodes first and scans whatever decodes; the binary list only excuses a file that does not decode, as this doc
+  already described.
+- **The selftest's anchor.** Every planted tree carries an anchor, so that a plant is judged FAILED rather than BLIND.
+  The first anchor was a placeholder in an `assoc` line, which would have reddened every plant through BLIND under
+  S-W4N or S-W4P, not just the plant each sabotage targets. It is now three contexts of three kinds, passing by a
+  printf format and a setup-AP name.
+
+### The sabotages' red sets, registered before any of them ran
+
+**The mechanism.** S-W4* and S-W5* are in-memory edits to the guard's source, applied to a loaded copy. Each edit is
+asserted to apply exactly once, and the file on disk is checked byte-identical before and after.
+
+Each sabotage is read three ways:
+- **W3:** the guard on the real tree.
+- **full:** the selftest as CI runs it, with its precheck, which first requires the real tree to pass.
+- **rows:** the selftest's rows without that precheck. `selftest(precheck=False)` exists only for this.
+
+The inputs behind each set were read first:
+- 142 placeholder contexts sit outside allowlisted lines, in 39 files;
+- the entries' lines hold LAN only (10), `ssid_eq` only (3), `wm_scan` (2) or `ssid_arg` (1);
+- the README entry's line holds no network context;
+- no allowlisted line occurs at a second path.
+
+| sabotage | W3 | full | rows red (and only these) |
+|---|---|---|---|
+| **S-W4N**: `assoc` and `ssid_eq` removed | exit 1: 3 entries **idle** (their `ssid_eq` lines lose their finding), 0 findings | exit 2 (RIG) | (a), (b) |
+| **S-W4B**: the BSSID pattern never matches | exit 0 (no BSSID left to find, none allowlisted) | exit 1 | (c), (d), (e) |
+| **S-W4L**: the LAN pattern never matches | exit 1: 10 entries **idle** | exit 2 (RIG) | (f), (f)'s count, the real allowed line, (g), (h) |
+| **S-W4P**: the placeholder pass removed | exit 1: **name 142** | exit 2 (RIG) | the placeholders row |
+| **S-W5G**: allowlist matched on the line's hash alone | exit 0 | exit 1 | (g) |
+| **S-W5J**: an undecodable file counted as binary | exit 0 | exit 1 | (j) |
+| **S-W5K**: BLIND never set | exit 0 | exit 1 | (k) |
+| **S-W3**: `bench-logs/bindctl-2026-08-07-2023.log` restored from main | exit 1: **3 findings, all in that file**: name 1, BSSID 1, LAN 1 | exit 2 (RIG) | not run |
+| **S-W7**: the scrub run with `--everywhere` on a fresh copy of main | W7: the bench name **0 times** (the 4 attributions replaced), and both `proxy/photos` files changed | | |
+
+**Two consequences, said before they are seen:**
+- S-W4B is invisible to W3. The tree holds no BSSID, so only the selftest's plants can catch a dead BSSID pattern.
+  That is what the control is for.
+- S-W4N and S-W4L are caught by W3 itself, through the idle rule. An allowance whose line stops producing a finding is
+  refused, so removing a context or a range is visible on the real tree.

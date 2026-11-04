@@ -9,13 +9,13 @@
 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 *wm:AutoConnect 
 *wm:Connect Wifi, ATTEMPT # 1 of 5
-*wm:Connecting to SAVED AP: Tony
+*wm:Connecting to SAVED AP: <ssid redacted>
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:AutoConnect: SUCCESS 
-*wm:STA IP Address: 192.168.86.55
+*wm:STA IP Address: <lan-ip redacted>
 [WiFi] autoConnect() returned true (connected)
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-46 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-46 dBm
 [WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
 [ota] channel=s3-128 current=7 latest=7
 [web] config server listening on :80 (http://Blipscope-31D918.local)
