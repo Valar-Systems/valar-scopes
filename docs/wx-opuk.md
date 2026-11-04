@@ -672,3 +672,22 @@ before the figure was reported.
   `ENRICH_KV`, `METRICS`, `WX`, and the `[vars]`.
 - **PD6's instrument** (`tools/wx/pd6_fleet.py`, N6's with both E2:08 and the test identity excluded), on a control
   window of 20:30-21:00Z: 1,726 fleet requests, 11 devices, 1,182 `/blips`, 4xx 0, 5xx 0. Readable.
+
+### PD: the production step (2026-11-04 21:30:36-21:31:14Z), and the readings
+
+**Production, by `deploy.sh production` from the clean checkout at `f740f10`:** exit 0.
+- **New version `504ecc43-dfe8-4a26-bc76-24da0ba13819`;** `confirm-deploy.sh`: "/healthz reports commit=f740f10".
+- **The rollback target:** `2eb4aa5e` (read just before; production was at `31cb44c`).
+- **Settled before any reading:** `/healthz` reported `f740f10` three times, 30 s apart (21:31:34, 21:32:04,
+  21:32:35Z).
+
+| | got | verdict |
+|---|---|---|
+| **PD0** | carried: exactly `a27e00a` (#512), `1beba4e` (#521), `e8dfa45` (#522) and `f740f10` (#525) | as predicted |
+| **PD1** | read before: 38 checks, 37 PASS, the one FAIL the OPERA line | as predicted (20:08Z) |
+| **PD2** | `smoke-prod.sh` on production, as the test identity, 21:32:45Z: **PASS 38, FAIL 0, SKIPPED 0**. "/credits carries the OPERA line": marker present, PASS. The `opuk` verdict: PASS, "not ingesting yet" | as predicted |
+| **PD3** | `/wx/cref` at Bend and at KMCI: 200, `WXC1`, ETag `cref`, **no `X-Wx-Max-Age`**, `X-Wx-Frame` present. The same as before the deploy | as predicted |
+| **PD4** | `/wx/cref` and `/wx/opuk` at LHR: **503 `wx_stale`, no `X-Wx-Max-Age`**; `/healthz` `wx.opuk` `{frameAgeS: null, coveredShare: null}` | as predicted |
+| **PD5** | `/healthz` reports `f740f10` on staging (21:21Z) and on production. Production's bindings, from `wrangler versions view`, are **identical, all 30 lines**, to those of the version replaced (`2eb4aa5e`). The rollback targets were recorded before each step | as predicted |
+| **PD7** | the live `/credits`, 21:33:08Z: 237 rows, **176 licensed, every label at its predicted count** (CC BY-SA 4.0 48, 2.0 36, 3.0 18, 3.0 AU 12; CC BY 2.0 32, 4.0 24, 3.0 3, 2.5 2; OGL v1.0 1), 61 public domain; "adsbdb" **0**; the standing-data line **once**; the ShareAlike clause on **114** rows, all 114 naming their own licence; the paragraph **once** | as predicted |
+| PD6 | the fleet, 21:31:14-22:01:14Z, read twice after the window closes | pending |
