@@ -720,3 +720,49 @@ KATL (33.6407, -84.4277).
   row.
 
 **Outside the set:** stop and report.
+
+### D3, read on staging (2026-11-04, 21:24-21:32Z): three readings OFF, stopped
+
+| row | read | verdict |
+|---|---|---|
+| **the deploy row** | `/healthz` `commit f740f10`; wrangler `cc4dcf89` at 21:21:13Z; MH2 as read at 21:21:36Z | as registered |
+| **MM2's control A** | GraphQL, the builder, [20:21:13Z, 21:21:13Z): **0 invocations** | as registered |
+| **no one else reached the builder** | [21:21:13Z, 21:24:48Z): **0** | as registered |
+| **MM2: HTTP** | KDEN at 21:24:48Z: **200, 214,179 bytes, BMPK magic, an ETag** (`bm1-1-4c0875738f38-…`) | as registered |
+| **MM2's control B** | the 21:24 minute: **exactly 1 invocation**, status `success` | as registered |
+| **MM2: CPU** | **2,334,418 µs**, under 3,000,000 | as registered |
+| **MM2: wall** | **22,245,516 µs (22.2 s)**, against 8,000,000 or less | **OFF** |
+| **V1** | `/healthz`: read 1 (21:25:18Z) `{rev 1, store null, commit null}`; **read 2 (21:25:28Z) `{rev 1, store 4c0875738f38, commit 9f44a1a273b54a6890253c2126b17dc3a742c76c}`** | as registered (the first non-null read) |
+| **MM4: HTTP** | KDEN again at 21:27:09Z: 200, the same bytes and ETag | as registered |
+| **MM4: builder calls** | the 21:27 minute: **1 invocation** (CPU 1,782,837 µs, wall 11.7 s), against 0 | **OFF** |
+| **MM5, V3: HTTP** | KDEN with `If-None-Match` at 21:29:22Z: **304** | as registered |
+| **MM5: builder calls** | the 21:29 minute: **1 invocation** (CPU 2,501,166 µs, wall 13.1 s), against 0 | **OFF** |
+| **V4: HTTP** | EGLL at 21:31:36Z: **404 `no_coverage`** | as registered |
+| **#525's live-page row** | staging `/credits` (21:25:47Z): 237 photo rows. First-licence tally: CC BY-SA 4.0 48, 2.0 36, 3.0 18, 3.0 AU 12; CC BY 2.0 32, 4.0 24, 3.0 3, 2.5 2; OGL v1.0 1; Public domain 61. The clause on 114 rows, the paragraph once; adsbdb 0; standing-data once; OPERA once | as registered |
+| **not read, stopped first** | V4's builder minute (not yet in analytics at 21:31:50Z); MM4's and MM5's proxy CPU; MM6; the rollback window; V2 (waits for #532) | — |
+
+**MM4 and MM5, the cause: my own registered procedure, not the design they test.**
+- The handler believes an isolate's store id for **`STORE_TTL_MS = 60_000`** (`handler.ts:19`).
+- After that it asks the builder, as a full build: the CPU of the 21:27 and 21:29 invocations is a full build's.
+- **I registered at least 2 minutes between builder-reaching requests,** so each minute's count would be one
+  request's. That spacing put MM4 and MM5 past the 60 s TTL **by construction**. Both rows assume the isolate still
+  knows the store.
+- **The alternative,** that MM4 and MM5 landed on a different isolate (read 1 of V1 shows another isolate answering), is
+  not excluded either. Even inside the TTL, a request that lands on an isolate other than the one that built calls the
+  builder.
+- So the rows **were not tested as designed.** They need a reading made inside the TTL. Proposed re-reading, for a
+  ruling:
+  - a fresh build, then the repeat and the `If-None-Match` request **within 60 s** of it;
+  - **the build's minute (or that minute plus the next) reads exactly 1 builder invocation**;
+  - the isolate risk is stated as such.
+
+**MM2's wall: a real OFF reading of the frozen band.**
+- Builder wall time was **22.2 s** for the cold KDEN build. The two rebuilds took **11.7 s** and **13.1 s**. All three
+  are above 8 s.
+- The CPU band holds.
+- GraphQL's `wallTime` is the invocation's duration, including the waits on the store's R2 reads. So the gap between
+  CPU (~2 s) and wall (11-22 s) is time spent waiting on the store.
+- **This matters before D4:** a device's request timeout has to allow for it.
+
+**Rollback:** not done. Every answer was correct (200, 304, 404 `no_coverage`), with no 5xx and no `builder_invalid`.
+The rollback target stays `c7fa5f84` if the ruling asks for it.
