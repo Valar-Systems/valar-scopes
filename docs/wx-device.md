@@ -4185,3 +4185,21 @@ at least 3 lines per arm on the two-arm side; the restore remedy; the PC quiet i
 
 **Outside the set** (any row, or a reading this table does not name): stop and report. That includes an arm with fewer
 lines than worked out above, since that would mean the phase arithmetic is wrong.
+
+## Ruling of 2026-11-04 ~17:50Z: a per-product age limit, before #445 merges
+
+**The reading that led to it** (the UK data session, A3.15 on `docs/uk-data-r1`): at #445's 600 s age limit, UK radar
+(`opuk`) blanks **5.5 %** of the time, 7.3 times an hour. Even an ideal ingest would blank 2.2 %, because OPERA's
+frames arrive about 252 s late. At 720 s the figure is 0.69 %.
+
+**Ruled:**
+- **The server states each product's limit with the crop.** The channel, a response header or a field in the crop's
+  header, is agreed with the UK data session, which proposes it.
+- **#445 reads it, clamps it to [600, 900], and defaults to 600** when it is absent or invalid. `cref` stays at 600.
+- **Predictions first:** a host test for the read, the clamp and the default, with a sabotage: the clamp removed lets
+  5,000 through.
+- **It joins #445's remaining items** (K6 and W5). The geography layer still starts the day #445 merges.
+
+**Where it stands:** waiting on the UK data session's channel proposal. The read's test depends on the channel. The
+clamp and the default do not, and they are registered together with the read once the channel is known, so the
+predictions are frozen once.
