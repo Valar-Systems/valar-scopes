@@ -10905,3 +10905,41 @@ string:
 **The outside-the-set branch:** a wake (`wakes > 0`), any failed probe, a wedge, or a count outside 55-61 per 10
 minutes stops at that row and is reported. A NACKing probe on a chip whose 0xFE reads 1 would be a finding about the chip
 or the bus, not something to tune away.
+
+### A12.85 #516 (the follow-up): CI AS PREDICTED (38: 35 success, 3 skipped, 0 failed), both legs green, g++ 15 included; (3)'s sabotage on 26.04, its CI count predicted before the push; the TouchWatchdog change built, its image rows AS PREDICTED
+
+**#516 at `4d95c632dc53`:** **38 check runs, 35 success, 3 skipped (promote, ship-alert, version), 0 failed, read twice: AS PREDICTED** (A12.84). firmware 36, with 17 build legs, `host-tests (ubuntu-24.04)`, `host-tests (ubuntu-26.04)` and the `host-tests` aggregator; device-ids 1; no-traffic-captures 1. **37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`,** as predicted. No path-filtered workflow ran.
+
+**Both legs, from their own logs:**
+
+| leg | image | compiler | result |
+|---|---|---|---|
+| `host-tests (ubuntu-24.04)` | `ubuntu-24.04` | g++ 13.3.0 | 156 `== ` lines, `ALL HOST TESTS PASSED`, no `FAILED BLOCKS:`; 19 drivers `ok` in full, towns SKIP; the lint 0 flagged |
+| `host-tests (ubuntu-26.04)` | `ubuntu-26.04` | **g++ 15.2.0** | **the same:** 156 `== ` lines, `ALL HOST TESTS PASSED`, no `FAILED BLOCKS:`; 19 drivers `ok`, towns SKIP; the lint 0 flagged |
+
+- **Every block ran on both legs, and both are green,** as A12.77 froze.
+- **No further g++ 15 failure:** the crop operators were the only one, so (2) and (3) take the 26.04 leg from red at WxCrop to green throughout.
+- **Observed, not a result:** for about 25 minutes after the 26.04 leg finished (15:50:27Z, every step a success, its log complete), GitHub's API still reported that job `in_progress` and the aggregator `queued`. Both then settled to the times shown, and the aggregator ran in 3 s. The count above was taken after they settled, read twice.
+
+**(3)'s sabotage on 26.04, its count predicted before the push.**
+- **The branch:** `weatherscope/one-count-sab26` is #516's head plus one commit restoring main's old `test_wx_crop.cpp` (a direct `std::free` in `operator delete`).
+- **It runs as a draft PR,** closed and deleted after.
+- **The legs, as A12.82 re-registered:**
+  - **the 26.04 leg FAILs.** `FAILED BLOCKS:` lists exactly `the rig: WxCrop (exit 2)`, `failed: sabotage controls: ...` and `failed: sabotage drivers, in full: ...`, and every later block prints its header and result;
+  - **the 24.04 leg is green;**
+  - **the `host-tests` aggregator fails.**
+- **The count, from #516's job list:**
+  - the push carries one file under `test/host/`, so no path-filtered workflow runs;
+  - **38 check runs: 33 success, 2 failed (`host-tests (ubuntu-26.04)`, `host-tests`), 3 skipped (ship-alert, promote, version).**
+
+**TouchWatchdog, built locally** on `weatherscope/touchwd` (`bb2ee31`, on main `d479d72`; not pushed; no board time until the plan is ruled). The image rows A12.84 froze:
+
+| row | expected | measured |
+|---|---|---|
+| `TouchWatchdog::OnPoll` in the ELF | present (0 on main) | **present** (3 `TouchWatchdog` symbols; main's image: 0) |
+| `[touch-wd] no-autosleep applied` | absent | **absent** |
+| the `[health] touch-wd` format | present once | **present once,** byte-identical to the radar's line |
+| `firmware.bin` growth | 1,700-2,600 B | **+1,904 B** (1,879,904 -> 1,881,808, main's tree built beside it) |
+| anchors | unchanged | **every driver's `--anchors` and `plant_s_swb.py --anchors` present once;** no host test compiles `WeatherscopeManager.cpp` |
+
+- **The board rows wait for the plan's ruling:** the 1-hour watch, S-TW, and B1/B3.
