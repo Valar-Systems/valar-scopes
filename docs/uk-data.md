@@ -1833,3 +1833,37 @@ the HDF5; nothing yet held the quality band. The alternative was that `r1_c.py` 
 
 **C's outputs:** `docs/uk-data/r1-readings/r1-c.json` (rounded as before) and the quality cross-check in
 `r1-qi-check.jsonl`.
+
+### A3.17 The rulings on B and C, verbatim (source: the reviewer chat, pasted by Daniel, 2026-11-04 ~17:50Z)
+
+> C: the mask-off PR is approved to build, from main, with M1-M4 and CI green as frozen in A3.16. The evidence is
+> accepted: the decoder is held to the HDF5's own qi_total with 0 differences, 98.1 % of echoes are under 0.5 read
+> straight from the file, and C1 = 0.
+> - OPUK_QI_MASK stays as a switch, default off.
+> - K13's "dry London" is withdrawn, as you recorded. The instrument's `red: true` label for the C1 = 0 case is corrected
+>   in the record.
+> - A follow-up on record: re-read C on a summer week (June-August), when anomalous propagation is likeliest. If
+>   persistent clutter shows then, the mask question reopens with that week's data.
+>
+> B: option 1, a per-product age limit, with opuk at 720 s and cref at 600 s. Today's schedule; no extra checks.
+> - The server tells the device each product's limit. Your side: the /wx/cref handler states 720 for opuk, and states
+>   nothing new for cref. blipscope-5c's side, in #445: read it, clamp it to [600, 900], and default to 600 when it's
+>   absent or invalid.
+> - The channel (a response header, or a field in the crop's header) is agreed between you and blipscope-5c, with the
+>   reason. You propose it, predictions first, in your PR.
+> - B3 is recorded as OPERA's nightly gap (00:10-00:45 UTC), not graded against the ingest. During it the device draws
+>   nothing.
+> - The misses stay on record, with their causes as you read them (the :06/:35 offsets; the extra schedule's range).
+>
+> R3, the opuk ingest's production deploy, comes after the mask-off PR merges, and after the server side of the age limit
+> merges. Predictions first. Deploy it staged and verify it, outside any announced board window: it shares the ingest with
+> cref, which E2:08 reads.
+>
+> Before opuk serves in production, /credits carries OPERA's CC BY 4.0 attribution. Confirm it's there, or add it to the
+> mask-off PR.
+
+**/credits, checked against main at `0a84a64`:** it does not carry OPERA. It has the NOAA line (with a unit test and a
+smoke check) and nothing for OPERA. So the attribution goes into the mask-off PR, in the wording A2.1 accepted in
+principle ("Final at R4's review"), with its own predictions frozen in that PR before its code.
+
+**A follow-up on record:** C re-read on a summer week (June-August).
