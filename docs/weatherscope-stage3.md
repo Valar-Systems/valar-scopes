@@ -10290,3 +10290,70 @@ The lint's control file was not changed after the result.
 - **Nothing else is touched;** E2:08 is another session's.
 
 **Q66 is still open.** The follow-up waits for it, and nothing in this window depends on it.
+
+### A12.76 3.5t step t5's board run: every A12.66 row as predicted; S-SWB red on SW's base row alone; one instrument gap (Q67); the planted image outlived its window
+
+**The code:** `weatherscope/3-5t-t5` @ `a6287f172eef`, on main `4763f4d`, pushed. Its PR follows this addendum.
+
+**The window (announced in A12.75), 2026-11-02:**
+- **The write:** t5's image, rebuilt at `583980b`: flash **1,879,503** and RAM **59,192** (A12.68's, exactly), `firmware.bin` sha256 `085ae795ff0a`.
+  - `flash_plan`: app0 only.
+  - Written at 0x20000 to the board whose MAC is `90:70:69:32:6e:64`, hash verified.
+- **The boot read** (`read-mac`, chained):
+  - `[ota-slot] boot running=app0 @0x020000`;
+  - `psram_used=227168` (A12.57's 227,144 ± 2,000);
+  - `psram_base` image 58,356, state 9,972, scratch 4,596, ok=1 (Q56's sizes);
+  - `[wx] init; … theme=auto read=unset`.
+- **The run** (`run_b35t.py`, one open, the watcher live): about 20 minutes, **0 unexplained changes,** and TCP :80 up 2.0 s after the close.
+- **Graded by `grade_b35t.py` with the boot read: ALL AS PREDICTED.**
+
+| row (A12.66 §4) | measured |
+|---|---|
+| boot | as above, each as predicted |
+| theme POSTs | light, dark, light, auto: each `HTTP 200; only the asked fields changed: True; stored as asked: True`, each switch line as designed (`phase=Unknown` before the place) |
+| **B1-dark** | **10 of 10 exact** (frame sha256 and every k line): the Dallas six, `bdry-60-B/C`, `brain-60-B/C` |
+| **B1-light** | **10 of 10 exact** against `k35l.ref.txt` / `k35bl.ref.txt`. **The B1 images in both themes are in the record** as PNGs (`B1-dark-*`, `B1-light-*`) |
+| **B3** | `legend_check --theme dark` and `--theme light`: both pass |
+| **the place** (Q64 (a)) | the partial POST of latitude and longitude: `True` / `True`; then `[wx] init; location=set` |
+| **BSW** | 96 offset lines, +15 … +1425, then 0; **2 phase changes; 2 switches**, dark→light and light→dark; **2 dims** (autodim=1); both switches recomposed; **SW's base row `['no', 'no']`**; 2 builds `why=theme` in the R dump |
+| **BSW-L** | 1 offset line inside the loop; `layer_rebuilds=0`; **the switch printed after the loop's records** |
+| watcher | 0 unexplained |
+
+**S-SWB (Q63 (a)): red on SW's base row alone.**
+- **The image:** t5's sources plus the plant, built in a scratch worktree, sha256 `ebdfda82d2a4`. `flash_plan` again; written, hash verified.
+- **Its boot read:** app0; the PSRAM lines as t5's; `location=set … theme=auto read=known`.
+- **BSW on it (`--bsw-only`), graded `--swb`:**
+  - **SW's base row: `['package', 'package']`.** The base is rebuilt at both switches, as planted.
+  - **Every other BSW row holds:** 96 offsets, 2 phase changes, 2 switches, 2 dims, 2 recomposes, 2 `why=theme` builds, 0 unexplained.
+  - So the base row has now been seen to fail. That is the point of the plant.
+- **t5's image went back on afterwards** (sha `085ae795ff0a`, compressed 1,167,931 B as at its first write; S-SWB's was 1,167,982). Its boot read: app0, the same PSRAM lines, `theme=auto read=known`, `location=set`. TCP :80 answers.
+
+**Q67, an instrument gap, not a run's result.**
+- **What happened:** `grade_b35t.py --swb` printed one FAIL: "boot theme: the init line reads theme=auto read=known".
+- **Why it is the grader, not the run:**
+  - the boot row hard-codes `read=unset`, which is true only of a board that never stored `wx-theme`;
+  - A12.66's own boot row says "if it has, the value is named", and t5's run had stored `auto`;
+  - so `read=known` is the predicted reading for S-SWB's boot.
+  - S-SWB's frozen rows (A12.66 §5: the base row red, every other BSW row as before) all hold.
+- **Recommended:** the boot row takes the expected stored setting from the caller (`--boot-setting auto:known`, default `auto:unset`).
+  - With a control: t5's first boot graded with `auto:known` must fail it.
+  - Fixed only once ruled.
+
+**Two defects in the new record publisher, caught before any commit:**
+- **The first attempt refused, correctly:** `serial.txt` and the boot reads carry the boot's Wi-Fi lines (the BSSID's last two octets and the LAN address).
+  - `publish_t5_record.py` now redacts exactly those two fields, then scans for any network name or address not redacted.
+- **That refusal also showed a defect in the publisher itself:** it had written some files before the refusal.
+  - It now prepares and scans every file in memory, and writes nothing unless all pass.
+  - The partial files were removed.
+- **The committed records** (`run-2026-11-02-t5/`, `run-2026-11-04-swb/`) carry no time, no address, no BSSID and no network name.
+  - `trace.txt` and `lines.json` stay local, with their sha256 in `SHA256SUMS.local` (Q62).
+
+**The planted image outlived its window. Recorded as a fact, not excused.**
+- **When:** S-SWB's image was written at about 17:12Z on 2026-11-02, inside the window A12.75 announced (to 18:45Z). Its BSW pass and t5's rewrite did not happen until **2026-11-04 04:27-04:33Z**, in a second window announced at that time.
+- **How long:** the board ran the planted image for about **35 hours** outside an announced window, through the 09:00Z quiet-hour reboot on 2026-11-03, which booted it into the same image.
+- **The reach:** it is bench-only and the plant touches only the basemap's rebuild key. No customer unit carries either image.
+- **The rule it breaks is mine:** a sabotaged image stays on the board only for the length of its own pass.
+
+**The record of the touch watch** (A12.75) is in the same commit, as `run-2026-10-31-touchwatch/`.
+
+**Q66 is still open** (the follow-up's lint control).
