@@ -10480,3 +10480,41 @@ On main `a27e00a`, the same count holds (#512 touched no workflow).
 - **The pin:** 26 lines in 9 workflows.
 - **The guard's row:** 26 `runs-on` lines, 0 `ubuntu-latest`, exit 0.
 - **Unchanged:** A12.77's CI row (40 jobs: 37 success, 3 skipped, 0 failed), counted from the jobs that run, not from these lines.
+
+### A12.79 `ubuntu-latest` has moved: #514's host-tests failed on ubuntu-26.04, not on t5's code; and the pin PR is held at its guard's first run (Q68)
+
+**#514's CI on `a6287f172eef`, counted once every run had finished, read twice:**
+- **35 check runs: 31 success, 3 skipped (ship-alert, promote, version), 1 failure: `host-tests`.**
+- **The failure is the runner image, not t5:**
+  - the job's log reads `Runner Image … Image: ubuntu-26.04`, with `g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0`;
+  - `run.sh` stopped at `== WxCrop ==`: "the WXC1 decoder test did not compile", at `test/host/test_wx_crop.cpp:47:51`, with `-Werror=mismatched-new-delete`;
+  - 49 `== ` headers had printed when it stopped.
+  - **This is blipscope-5c's report (2ff8c3d), arriving.** `ubuntu-latest` now resolves to 26.04 for at least some runs.
+- **It is main's file, not t5's.** t5 does not touch `test_wx_crop.cpp`, and the same job on main's tree meets the same image.
+- **Until the pin lands, any PR whose `host-tests` draws a 26.04 runner fails the required check.** #514 included.
+
+**The pin PR (A12.77 (1a), A12.78), held at its guard's first run: two misses, both mine.**
+- **The code** is on `weatherscope/pin-runners` at `ebcafec`, on main `a27e00a`: local, not pushed.
+  - **The pin itself:** 26 lines → `ubuntu-24.04`.
+  - **The guard:** `scripts/check_runners.py` and its job.
+  - `check_workflow_concurrency.py` and its selftest still pass.
+- **Measured against A12.78's row** (26 `runs-on` lines, 0 naming ubuntu-latest, exit 0): **27 lines, 2 flagged, exit 1;** and its selftest exit 1.
+
+| miss | cause |
+|---|---|
+| **27 lines, not 26** | **the guard job adds its own `runs-on` line.** A12.78 counted the existing lines and left out the new job's, the same family as Q65 and Q66: the rule was not applied to the change itself |
+| **2 flagged** | **the guard flags its own job's text:** its comment ("No job runs on ubuntu-latest …") and its step name ("No job on ubuntu-latest") contain the literal string. A plain substring check cannot tell a label from prose about the label. A defect in the guard as I wrote it, seen on its first run |
+
+**Stopped, as the outside-the-set rule requires.** Nothing has changed since the run, and nothing is pushed.
+
+**Q68, for the ruling, recommended (a):**
+- **The guard reads a line's code, not its comments:** text after a `#` that starts a comment is ignored.
+  - A step's `name:` value is still read, so the step is renamed "No job on a floating image label" rather than exempted.
+- **The guard's row, re-registered with each rule written against each line (Q66's instruction):** 27 `runs-on` lines (the 26 pinned plus the guard's own), 0 naming ubuntu-latest, exit 0.
+- **Its selftest, unchanged:** the planted line is flagged, by file and line, alone; the real tree passes.
+- **A second case** so the comment rule cannot widen: a planted `runs-on: ubuntu-latest  # pinned` (a comment after the label) is still flagged.
+- **A12.77's CI row stands:** 40 jobs, 37 success, 3 skipped, 0 failed.
+
+**Because the move is live, an expedited ruling is asked for.** The pin is the change every PR now needs before its `host-tests` can be trusted.
+- **After it lands, #514 is rebased onto main** and counted again. Its `host-tests` then runs on 24.04, where t5's suites passed on both compilers (A12.68).
+- **The follow-up's 26.04 leg, crop operators and `run.sh` keep-going** stay as A12.77 froze them.
