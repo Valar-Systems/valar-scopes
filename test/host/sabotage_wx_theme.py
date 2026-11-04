@@ -105,6 +105,7 @@ def main():
     before = {"WxTheme.h": sha(HEADER), "test_wx_theme.cpp": sha(TEST)}
     real = {"header": read(HEADER), "test": read(TEST)}
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         rc, fails, _ = run(td, "control", real["header"], real["test"])
         good = rc == 0 and fails == set()
@@ -125,7 +126,11 @@ def main():
                 src = src.replace(old, new)
             assert src != texts[which], name
             texts[which] = src
-            rc, fails, lines = run(td, name, texts["header"], texts["test"])
+            res = rigs.run(name, run, td, name, texts["header"], texts["test"], rig_if=lambda r: r[1] is None)
+            if res is None:
+                ok = False
+                continue
+            rc, fails, lines = res
             good = fails is not None and fails == frozen
             ok &= good
             print(f"{name} ({which}): failing {sorted(fails or [])}, predicted {sorted(frozen)} -> "
@@ -137,7 +142,7 @@ def main():
     ok &= same
     print(f"the real files unchanged: {same} ({', '.join(k + ' ' + v[:12] for k, v in after.items())})")
     print(f"{len(SABOTAGES)} sabotages: {'ALL AS PREDICTED' if ok else 'NOT ALL AS PREDICTED'}")
-    return 0 if ok else 1
+    return rigs.close(0 if ok else 1)
 
 
 def anchor_entries():

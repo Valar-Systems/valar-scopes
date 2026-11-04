@@ -96,15 +96,15 @@ def run(td, name, text):
                         "-I" + os.path.join(ROOT, "include"), TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, LOOP], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the suite did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
     if not m or int(m.group(1)) != LAYOUT_CHECKS:
         print(f"{name}: {m.group(1) if m else '?'} cases ran, not {LAYOUT_CHECKS}: the RIG")
-        sys.exit(2)
+        raise sc.Rig(name)
     lines = [x.group(0).strip() for x in re.finditer(r"^\s*FAIL \S+.*$", r.stdout, re.M)]
     return r.returncode, {x.split()[1] for x in lines}, lines
 
@@ -113,13 +113,22 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok, off = True, []
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails, _ = run(td, "control", src)
+        try:
+            rc, fails, _ = run(td, "control", src)
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real header): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (edits, frozen) in SABOTAGES.items():
-            rc, fails, lines = run(td, name, plant(name, edits, src))
+            res = rigs.run(name, run, td, name, plant(name, edits, src))
+            if res is None:
+                ok = False
+                off.append(name)
+                continue
+            rc, fails, lines = res
             good = rc == 1 and fails == frozen
             if not good:
                 off.append(name)
@@ -131,7 +140,7 @@ def main():
     print(f"the real src/weatherscope/WxScreens.h unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else
                                               f"OFF-PREDICTION ({', '.join(off) or 'the control'}): STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():

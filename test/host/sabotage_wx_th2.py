@@ -61,6 +61,7 @@ def run_th2(td, label, text):
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
     base = rooted(sc.read(REF35))
     planted = plant(base, BAND, BAND.replace('ink["white"])', 'WHITE)   # SABOTAGE'), "S-TH2",
                     pairs=[((38, 38, 40), (255, 255, 255))])   # the literal stands in for light's white role
@@ -70,7 +71,7 @@ def main():
         ok &= good_c
         print(f"control (the copy, ROOT alone): failing {sorted(ctl) if ctl is not None else 'RIG'} -> "
               f"{'AS PREDICTED' if good_c else 'OFF-PREDICTION'}")
-        got = run_th2(td, "S-TH2", planted)
+        got = rigs.run("S-TH2", run_th2, td, "S-TH2", planted, rig_if=lambda r: r is None)
     frozen = {"warning-60"}
     good = got is not None and got == frozen
     ok &= good
@@ -80,7 +81,7 @@ def main():
     ok &= after == before
     print(f"the real tools/weatherscope/screens unchanged: {after == before} ({after[:12]})")
     print(f"1 sabotage: {'ALL AS PREDICTED' if ok else 'NOT ALL AS PREDICTED'}")
-    return 0 if ok else 1
+    return rigs.close(0 if ok else 1)
 
 
 def anchor_entries():

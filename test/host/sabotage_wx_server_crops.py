@@ -37,6 +37,9 @@ def main():
             return 2
         clean = subprocess.run([exe, SRC], capture_output=True, text=True)
         print(f"control (committed fixtures): exit {clean.returncode}")
+        rigs = sc.Rigs()
+        if rigs.forced("S-SC"):
+            return rigs.close(1)
         fx = os.path.join(td, "fx")
         shutil.copytree(SRC, fx)
         p = os.path.join(fx, VICTIM)
@@ -54,7 +57,7 @@ def main():
               f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         for l in fails:
             print("    " + l)
-        return 0 if good else 1
+        return rigs.close(0 if good else 1)
 
 
 def anchor_entries():

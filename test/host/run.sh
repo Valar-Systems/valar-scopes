@@ -1435,7 +1435,7 @@ else
   nd=0
   for d in "$ROOT"/test/host/sabotage_*.py; do
     b=$(basename "$d")
-    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py) continue ;; esac
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py|sabotage_rig_control.py) continue ;; esac
     nd=$((nd + 1))
     if ! grep -q "sc.wants_anchors()" "$d"; then
       echo "  FAIL $b has no --anchors mode (refused without running it)"
@@ -1490,7 +1490,7 @@ else
   ns=0
   for d in "$ROOT"/test/host/sabotage_*.py; do
     b=$(basename "$d")
-    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py) continue ;; esac
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py|sabotage_rig_control.py) continue ;; esac
     nd=$((nd + 1))
     if ! grep -q "sc.wants_control()" "$d"; then
       echo "  FAIL $b has no --control mode (refused without running it)"
@@ -1548,7 +1548,7 @@ else
   ns=0
   for d in "$ROOT"/test/host/sabotage_*.py; do
     b=$(basename "$d")
-    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py) continue ;; esac
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py|sabotage_rig_control.py) continue ;; esac
     nd=$((nd + 1))
     if [ "$b" = sabotage_wx_towns.py ]; then
       if [ -f "${WX_TOWNS_GAZ:-}" ] && [ -f "${WX_TOWNS_SUBEST:-}" ]; then
@@ -1571,6 +1571,11 @@ else
     fi
   done
   echo "  $nd driver(s): $((nd - ns)) run, $ns skipped"
+  # Q70 (b) (A12.88): this block's own control -- a driver keeps going past a plant it cannot grade. The
+  # real sabotage_wx_logic.py, forced by SABOTAGE_FORCE_RIG at its first plant and its last, must exit 2 naming
+  # that plant alone, with every other plant's line as the clean run prints it.
+  CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_rig_control.py"
+  [ "$?" -ne 0 ] && fail=1
 fi
   exit "$fail"
 )

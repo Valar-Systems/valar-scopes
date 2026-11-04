@@ -17,7 +17,8 @@ Exit 0 nothing flagged; 1 a driver flagged; 2 the rig.
 import ast, glob, os, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SKIP = {"sabotage_common.py", "sabotage_anchors_control.py", "sabotage_controls_control.py"}
+SKIP = {"sabotage_common.py", "sabotage_anchors_control.py", "sabotage_controls_control.py",
+        "sabotage_rig_control.py"}
 KINDS = ("checks", "ok")
 PINS = [
     ("sabotage_wx_server_crops.py", "        data[32] ^= 0x10                     # the first run's code nibble",

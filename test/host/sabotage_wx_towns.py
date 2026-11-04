@@ -37,11 +37,11 @@ def d6b(td, name, text):
                         "-I" + os.path.join(ROOT, "include"), TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe], capture_output=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG")
-        sys.exit(2)
+        raise sc.Rig(name)
     out = r.stdout.decode("utf-8", "replace")
     return r.returncode, {m.group(1) for m in re.finditer(r"^\s*FAIL (D6:\d+)", out, re.M)}, inc
 
@@ -60,8 +60,12 @@ def main(argv):
     src = open(TOWNS, encoding="utf-8").read().replace("\r\n", "\n")
     entries = list(ENTRY.finditer(src))
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails, inc = d6b(td, "control", src)
+        try:
+            rc, fails, inc = d6b(td, "control", src)
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         arc, aword = d6a(argv[1], argv[2], os.path.join(inc, "WxTowns.h"))
         good = rc == 0 and not fails and arc == 0 and aword == "identical"
         print(f"control: D6(b) exit {rc}, failing {sorted(fails)}; --check exit {arc}, {aword} -> "
@@ -73,8 +77,9 @@ def main(argv):
         assert src.count(anchor) == 1, f"S-D6a: anchor found {src.count(anchor)} times"
         planted = anchor.replace(" city\"", "é city\"", 1)
         assert planted != anchor
-        rc, fails, _ = d6b(td, "S-D6a", src.replace(anchor, planted))
-        good = rc == 1 and fails == {"D6:1"}
+        res = rigs.run("S-D6a", d6b, td, "S-D6a", src.replace(anchor, planted))
+        rc, fails, _ = res if res is not None else (None, set(), None)
+        good = res is not None and rc == 1 and fails == {"D6:1"}
         print(f"S-D6a: failing {sorted(fails)}, predicted ['D6:1'] -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
 
@@ -88,14 +93,15 @@ def main(argv):
         os.makedirs(os.path.join(td, "S-D6b"))
         p = os.path.join(td, "S-D6b", "WxTowns.h")
         open(p, "w", encoding="utf-8", newline="\n").write(src.replace(anchor, planted))
-        arc, aword = d6a(argv[1], argv[2], p)
-        good = arc == 1 and aword == "DIFFERS"
+        res = None if rigs.forced("S-D6b") else d6a(argv[1], argv[2], p)
+        arc, aword = res if res is not None else (None, None)
+        good = res is not None and arc == 1 and aword == "DIFFERS"
         print(f"S-D6b: --check exit {arc}, {aword}; predicted exit 1, DIFFERS -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
     after = sha(TOWNS)
     print(f"the real src/weatherscope/WxTowns.h unchanged: {before == after} ({after[:12]})")
     print("2 sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():

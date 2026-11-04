@@ -116,6 +116,7 @@ def report(name, got, frozen, note=""):
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
     dallas, bend = ref_rows("k35.ref.txt"), ref_rows("k35b.ref.txt")
     if len(dallas) != 25 or len(bend) != 57:
         print(f"the references hold {len(dallas)} Dallas and {len(bend)} Bend rows, not 25 and 57: the RIG")
@@ -144,14 +145,14 @@ def main():
         ok &= good_c
         print(f"control (the unplanted mirror): failing {sorted(ctl) if ctl is not None else 'RIG'} -> "
               f"{'AS PREDICTED' if good_c else 'OFF-PREDICTION'}")
-        ok &= report("S-KL", run_suites(td, "S-KL", {"WxTheme.h": s_kl}), kl, " (K-light: 25 Dallas, 57 Bend)")
-        ok &= report("S-LY", run_suites(td, "S-LY", {"WxScreens.h": s_ly}), ly, " (K-light and LY on 73 scenes)")
-        ok &= report("S-RPT", run_suites(td, "S-RPT", {"WxScreens.h": s_rpt}), rpt, " (RP-T 8-14 of both series, SW1, SW4)")
+        ok &= report("S-KL", rigs.run("S-KL", run_suites, td, "S-KL", {"WxTheme.h": s_kl}, rig_if=lambda r: r is None), kl, " (K-light: 25 Dallas, 57 Bend)")
+        ok &= report("S-LY", rigs.run("S-LY", run_suites, td, "S-LY", {"WxScreens.h": s_ly}, rig_if=lambda r: r is None), ly, " (K-light and LY on 73 scenes)")
+        ok &= report("S-RPT", rigs.run("S-RPT", run_suites, td, "S-RPT", {"WxScreens.h": s_rpt}, rig_if=lambda r: r is None), rpt, " (RP-T 8-14 of both series, SW1, SW4)")
     after = tree_sha()
     ok &= after == before
     print(f"the real tree unchanged: {after == before} ({after[:12]})")
     print(f"3 sabotages: {'ALL AS PREDICTED' if ok else 'NOT ALL AS PREDICTED'}")
-    return 0 if ok else 1
+    return rigs.close(0 if ok else 1)
 
 
 def anchor_entries():
