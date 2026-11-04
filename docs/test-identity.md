@@ -143,3 +143,22 @@ A leak of that key can only be contained by revoking E2:08, because re-enrolment
 | **TM1** | `mint-test-identity.ts --env production` against a local stub of the provision route | writes exactly `test-mac`, `test-device` and `test-key`; its whole output, scanned for the stub's key, the MAC and the id, finds each **0 times**; a second run **refuses**, because the fields exist |
 | **TM1s** | `--env staging` against the stub | writes exactly `test-key-staging`; **refuses** if the stub answers a different id from `test-device`; output scan **0 times** |
 | **TM2** | the live mint, **production now**, staging once Q-T1 is answered | 200 with the locally computed id; the key is 64 hex; `/v1/config` as the test identity answers **200 with `X-Blip-Auth: device`**. On staging, also: the key differs from production's |
+
+**One sequencing point, stated before the code:** TM2's `/v1/config` check runs **after TD1**.
+- **Why:** an authenticated request as the new id writes it into the dashboard's request points. The mint itself is unauthenticated (the provision token, no device key), so it writes none.
+- **So the order is:** mint, set `TEST_DEVICE_IDS`, deploy the dashboard's exclusion (TD1), and only then make the first authenticated request as the test identity. The id is never counted as a unit, even briefly.
+
+## Q-T1 answered, verbatim (source: Daniel, 2026-11-04)
+
+> For: map server, from Daniel: Q-T1 — I don't have staging's provision token. Make a new one as ruled (staging only, written to the file and set through stdin, never displayed).
+
+**The rotation:** `proxy/scripts/rotate-staging-provision-token.sh`.
+- **Staging only:** `--env staging` is fixed in the script, and nothing in it names production.
+- **The value:** 32 random bytes as 64 hex, made by `node:crypto` and written by redirection straight into `%USERPROFILE%\.config\valar-flasher\provision-token-staging`. It refuses if that file already exists.
+- **Setting it:** `wrangler secret put PROVISION_TOKEN --env staging`, with **stdin from the file**. The value is never an argument.
+- **Its proof that nothing was displayed:** all of the run's captured output is scanned for the value, with the pattern read from the file.
+
+| row | predicted |
+|---|---|
+| **R-T1** | the file holds **64** characters (the length is printed, never the value); `wrangler secret put` exits 0 and reports `PROVISION_TOKEN` uploaded to **`blipscope-proxy-staging`**; `wrangler secret list --env staging` lists `PROVISION_TOKEN` (names only); **the value appears 0 times** in everything captured |
+| **R-T1's proof that it works** | TM2 on staging: the provision route answers **200** with this token |
