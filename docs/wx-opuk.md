@@ -820,7 +820,7 @@ Nothing in it changes a step taken.
 **Data beside the rows:** in those 30 minutes, `opuk` logged **59 checks, 0 errors** (stored 7, backfilled 2,
 already-stored 50). `pruned` appears only on the 7 storing and 2 backfilling checks.
 
-**Finding 3, before R3-5b is read: the frozen bound cannot hold at most moments, by design.** Written at 22:50Z,
+**Finding 3, before R3-5b is read: the frozen bound cannot hold at most moments, by design.** Written at 22:47Z,
 before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5) and the logs only.
 
 - **Measured** (Workers Logs, `opuk`'s storing checks, 22:09:39-22:44:40Z): frames come every 300 s. Each is stored
