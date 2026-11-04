@@ -3,7 +3,9 @@
 // ComposeLayered (the 15 loop frames, through one Layer, as the firmware) into an RGB565 buffer -- each held
 // to tools/weatherscope/screens/ref35.py's independent rendering (test/fixtures/wx/k35.ref.txt) at 57,600 of 57,600
 // pixels (equal sha256 of the big-endian RGB565 frame), with its time, band texts and placed labels. Also AR1's drawn
-// pixel set (A9.14) and SC1/SC2's C++ half (the synthetic clear crop through WxCrop.h).
+// pixel set (A9.14) and SC1/SC2's C++ half (the synthetic clear crop through WxCrop.h). 3.5t t4 (A12.60) adds the same
+// 25 screens in Light against ref35.py --k --theme light (k35l.ref.txt, beside the loop dir), and LY: each screen's
+// placement, Dark against Light, with LY-X its control. 79 checks.
 //
 //     test_wx_k35 <loop dir> <k35.ref.txt> [--dump <dir>]     --dump writes each frame for ref35.py --k --diff
 //
@@ -159,6 +161,36 @@ std::vector<std::string> Lines(const std::string& name, const wxscreens::ScreenI
     return l;
 }
 
+// 3.5t t4 (A12.60): LY's two parts. The LABEL lines (each placed town: label, side, box), and the map-band pixels drawn
+// in the theme's label or peak ink, less the home marker's -- the pixels the DARK frame draws in dark's white (rain 13
+// is white in dark too, and leaving it out of both masks hides no label: labels draw over it).
+std::vector<std::string> Labels(const std::vector<std::string>& lines)
+{
+    std::vector<std::string> out;
+    for (const auto& l : lines)
+        if (l.compare(0, 6, "LABEL ") == 0) out.push_back(l);
+    return out;
+}
+
+uint16_t P565(wxraster::Rgb c) { return (uint16_t)(((c.r >> 3) << 11) | ((c.g >> 2) << 5) | (c.b >> 3)); }
+uint16_t At(const Rgb565& img, int x, int y)
+{
+    return (uint16_t)((img.px[2 * (y * 240 + x)] << 8) | img.px[2 * (y * 240 + x) + 1]);
+}
+
+std::set<int> InkMask(const Rgb565& img, const Rgb565& dark, const wxtheme::Theme& th)
+{
+    std::set<int> m;
+    const uint16_t home = P565(wxtheme::kDark.white), a = P565(th.label), b = P565(th.peak);
+    for (int y = wxraster::kTopBand; y < wxraster::kBotBand; ++y)
+        for (int x = 0; x < 240; ++x) {
+            if (At(dark, x, y) == home) continue;
+            const uint16_t v = At(img, x, y);
+            if (v == a || v == b) m.insert(y * 240 + x);
+        }
+    return m;
+}
+
 }  // namespace
 
 int main(int argc, char** argv)
@@ -297,9 +329,117 @@ int main(int argc, char** argv)
         check("AR1PIX", line == ar1Ref, std::to_string(pts.set.size()) + " pixels" + (line == ar1Ref ? "" : ": " + line));
     }
 
+    // ---------------------------------------------------------------------------------------- 3.5t t4 (A12.60)
+    std::printf("== K-light: the 25 screens in Light, against ref35.py --k --theme light ==\n");
+    std::map<std::string, std::vector<std::string>> lref;
+    std::vector<std::string> lightOrder;
+    {
+        Bytes lb;
+        const std::string lp = dir + "/../k35l.ref.txt";
+        if (!ReadFile(lp, &lb)) { std::printf("cannot read %s (the RIG)\n", lp.c_str()); return 2; }
+        std::istringstream is(std::string(lb.begin(), lb.end()));
+        std::string line;
+        while (std::getline(is, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.empty() || line[0] == '#' || line.compare(0, 4, "AR1 ") == 0) continue;
+            std::istringstream ls(line);
+            std::string tag, row;
+            ls >> tag >> row;
+            if (!lref.count(row)) lightOrder.push_back(row);
+            lref[row].push_back(line);
+        }
+    }
+    // The same 25 inputs, built again as the firmware builds them; each theme's loop rows through its own Layer.
+    struct Scene {
+        std::string name;
+        wxscreens::ScreenIn in;
+        bool layered;
+    };
+    static std::vector<Scene> scenes;
+    for (const Sc& c : scs) {
+        static wxscen::Scenario s;
+        if (!wxscen::Build(c.kind, c.f->h, c.f->codes.data(), &s)) { std::printf("Build %s failed (the RIG)\n", c.name); return 2; }
+        scenes.push_back(Scene{c.name, wxscreens::ScreenIn(), false});
+        wxscenes::FromScenario(s, c.f->h, c.f->codes.data(), c.R, order, &scenes.back().in);
+    }
+    for (int i = 0; i < 15; ++i) {
+        char n[16];
+        std::snprintf(n, sizeof n, "loop-%02d", i);
+        scenes.push_back(Scene{n, wxscreens::ScreenIn(), true});
+        wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, 60, order, &scenes.back().in);
+    }
+    static wxscreens::Layer layerD, layerL;
+    struct Shot {
+        Rgb565 img;
+        std::vector<std::string> lines;
+        int firstTown = -1;
+    };
+    auto shoot = [&](const Scene& sc, wxtheme::Which which, wxscreens::Layer& lay, const int* ord, int nTowns) {
+        static wxscreens::ScreenIn in;
+        in = sc.in;
+        in.which = which;
+        if (ord) {
+            in.order = ord;
+            in.nTowns = nTowns;
+        }
+        Shot shot;
+        static wxscreens::ScreenOut out;
+        out = wxscreens::ScreenOut();
+        if (sc.layered) wxscreens::ComposeLayered(shot.img, in, lay, -1, &out);
+        else wxscreens::Compose(shot.img, in, view, &out);
+        shot.lines = Lines(sc.name, in, out, shot.img);
+        shot.firstTown = out.nLabels ? out.labels[0].town : -1;
+        return shot;
+    };
+    std::vector<Shot> darkShots, lightShots;
+    for (const Scene& sc : scenes) {
+        darkShots.push_back(shoot(sc, wxtheme::Which::Dark, layerD, nullptr, 0));
+        lightShots.push_back(shoot(sc, wxtheme::Which::Light, layerL, nullptr, 0));
+    }
+    for (size_t k = 0; k < scenes.size(); ++k) {
+        const auto it = lref.find(scenes[k].name);
+        const std::vector<std::string> empty;
+        const std::vector<std::string>& want = it == lref.end() ? empty : it->second;
+        const std::vector<std::string>& gotL = lightShots[k].lines;
+        bool ok = want == gotL;
+        std::string why = "57,600 of 57,600 px, time, band and " + std::to_string(Labels(gotL).size()) + " labels equal";
+        if (!ok) {
+            size_t j = 0;
+            while (j < want.size() && j < gotL.size() && want[j] == gotL[j]) ++j;
+            why = "first difference, line " + std::to_string(j + 1) + ": want \"" +
+                  (j < want.size() ? want[j] : std::string("(none)")) + "\", got \"" +
+                  (j < gotL.size() ? gotL[j] : std::string("(none)")) + "\"";
+        }
+        check("KL:" + scenes[k].name, ok, why);
+    }
+
+    std::printf("== LY: placement is colour-blind, Dark against Light ==\n");
+    for (size_t k = 0; k < scenes.size(); ++k) {
+        const std::vector<std::string> ld = Labels(darkShots[k].lines), ll = Labels(lightShots[k].lines);
+        const std::set<int> md = InkMask(darkShots[k].img, darkShots[k].img, wxtheme::kDark);
+        const std::set<int> ml = InkMask(lightShots[k].img, darkShots[k].img, wxtheme::kLight);
+        const bool same = ld == ll && md == ml;
+        check("LY:" + scenes[k].name, same, std::to_string(ld.size()) + " town labels, " + std::to_string(md.size()) +
+                                                " label/peak-ink px" + (same ? ", equal in both themes" : "; DIFFER"));
+    }
+    {   // LY-X, the control: dry-60 in Light, ranked without its first placed town, must differ from the dark one
+        const int first = darkShots[0].firstTown;
+        static int ord2[256];
+        int n2 = 0;
+        for (unsigned i = 0; i < wxtowns::kCount; ++i)
+            if (order[i] != first) ord2[n2++] = order[i];
+        const Shot x = shoot(scenes[0], wxtheme::Which::Light, layerL, ord2, n2);
+        const bool labels = Labels(x.lines) != Labels(darkShots[0].lines);
+        const bool mask = InkMask(x.img, darkShots[0].img, wxtheme::kLight) != InkMask(darkShots[0].img, darkShots[0].img,
+                                                                                       wxtheme::kDark);
+        check("LY-X", first >= 0 && labels && mask, std::string(scenes[0].name) + " without its first placed town: labels " +
+                                                        (labels ? "differ" : "EQUAL") + ", mask " + (mask ? "differs" : "EQUAL"));
+    }
+
     std::printf("%d checks, %d failures\n", checks, failures);
-    if (checks != 28 || refOrder.size() != 25) {
-        std::printf("the RIG: %d checks (want 28), %u reference rows (want 25)\n", checks, (unsigned)refOrder.size());
+    if (checks != 79 || refOrder.size() != 25 || lightOrder.size() != 25) {
+        std::printf("the RIG: %d checks (want 79), %u and %u reference rows (want 25 and 25)\n", checks,
+                    (unsigned)refOrder.size(), (unsigned)lightOrder.size());
         return 2;
     }
     return failures ? 1 : 0;

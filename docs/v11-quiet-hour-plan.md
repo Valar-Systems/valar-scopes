@@ -496,7 +496,7 @@ The row is therefore NOT relabelled and the gate is NOT closed:
 The real B2a is registered below as **B2a-REAL**, and it reaches the fallback
 through the customer's own first-run path rather than in isolation.
 
-Daniel power-cycled COM119 (`Blipscope-31D918`, 192.168.86.32) and set the clock
+Daniel power-cycled COM119 (`Blipscope-31D918`, <lan-ip redacted>) and set the clock
 offset to -7. The capture caught **both** boots, which is more than was asked for
 and is the reason two separate things got closed at once:
 

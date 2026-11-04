@@ -51,7 +51,9 @@ describe("WS2: crops from R2 tiles equal crops from the flat grid", () => {
     }
     console.log(`WS2 identical ${same} / ${n}`);
     expect(same).toBe(200);
-  });
+    // An explicit timeout with margin (docs/wx-test-timeouts.md): CI read it at 2.0-3.5 s, and 5.6 s on a slow runner,
+    // past vitest's 5 s default. 60 s is 10.7x the worst reading. The check is unchanged.
+  }, 60_000);
 
   it("SABOTAGE: ty/tx swapped in the tile reader must leave at least one crop differing", async () => {
     let differ = 0;

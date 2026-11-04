@@ -434,7 +434,9 @@ describe("K4': the tile-count swap on 3 x 2 tiles", () => {
     const d = roundTripDiffs(G, bytes, { ...m, tilesX: m.tilesY, tilesY: m.tilesX });
     console.log(`K4' sabotage (tilesY for tilesX on 3 x 2): cells differing ${d} of ${G.ni * G.nj}`);
     expect(d).toBeGreaterThan(0);
-  });
+    // The file's SLOW, as its other heavy tests (docs/wx-test-timeouts.md): CI read it at 3.1-4.0 s, and 5.4 s on a
+    // slow runner, past vitest's 5 s default. The check is unchanged.
+  }, SLOW);
 });
 
 // ---- K5, K7, K8: the dispatch, the ETag, the age limit, through the endpoint ------------------------------------------
@@ -697,12 +699,19 @@ function k15(mask: MaskOpts) {
   return [operaCode(40, 0.4, mask), operaCode(40, 0.5, mask), operaCode(40, 0.9, mask), operaCode(40, 0.4, off)];
 }
 
-describe("K15: the mask switch", () => {
-  it("on: (40, 0.4) 0, (40, 0.5) 6, (40, 0.9) 6; off: (40, 0.4) 6; default on at 0.5", () => {
-    expect(OPUK_QI_MASK).toEqual({ on: true, threshold: 0.5 });
-    expect(k15(OPUK_QI_MASK)).toEqual([0, 6, 6, 6]);
+// M1 (docs/wx-opuk.md, the mask off): K15 restated for a default of off. The switch's own behaviour, switched on, is
+// K15's frozen rows, unchanged.
+const MASK_ON: MaskOpts = { on: true, threshold: 0.5 };
+
+describe("K15 / M1: the mask switch, default off", () => {
+  it("the default is off at 0.5: (40, 0.4) 6, (40, 0.5) 6, (40, 0.9) 6", () => {
+    expect(OPUK_QI_MASK).toEqual({ on: false, threshold: 0.5 });
+    expect([operaCode(40, 0.4), operaCode(40, 0.5), operaCode(40, 0.9)]).toEqual([6, 6, 6]);
+  });
+  it("switched on: (40, 0.4) 0, (40, 0.5) 6, (40, 0.9) 6; off: (40, 0.4) 6 -- K15's frozen rows", () => {
+    expect(k15(MASK_ON)).toEqual([0, 6, 6, 6]);
   });
   it("SABOTAGE: <= for < -- (40, 0.5) masks", () => {
-    expect(k15({ ...OPUK_QI_MASK, cmp: "le" })).toEqual([0, 0, 6, 6]);
+    expect(k15({ ...MASK_ON, cmp: "le" })).toEqual([0, 0, 6, 6]);
   });
 });

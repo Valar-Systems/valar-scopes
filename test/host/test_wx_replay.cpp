@@ -1,7 +1,9 @@
 // Weatherscope 3.5a's layer replay (src/weatherscope/WxScreens.h, docs/weatherscope-stage3.md A9.21 item 3, A9.23 H1):
 // every loop frame drawn through ComposeLayered must equal the full Compose of the same input at 57,600 of 57,600
 // pixels, with the same labels -- the 15 frames at 60, 30 and 15 mi, without and then with the warning overlay: 90
-// rows, through ONE Layer in that order, so a layer that is not rebuilt when it should be is caught.
+// rows, through ONE Layer in that order, so a layer that is not rebuilt when it should be is caught. 3.5t t4 (A12.60):
+// the same 90 in Light through a Layer of their own, and RP-T's Dallas half -- warning overlay off, 60 mi, ONE Layer,
+// frames 0-7 in Dark and 8-14 in Light, each against its full composition in its own theme. 195 rows.
 //
 //     test_wx_replay <loop dir>
 //
@@ -21,7 +23,7 @@
 
 namespace {
 
-constexpr int kRows = 90;
+constexpr int kRows = 195;   // 90 in Dark; 3.5t t4 (A12.60): the same 90 in Light, and RP-T's 15
 
 int checks = 0, failures = 0;
 void check(const std::string& name, bool ok, const std::string& what)
@@ -137,6 +139,62 @@ int main(int argc, char** argv)
         }
     }
     std::printf("layer rebuilds: %d (printed, not graded)\n", rebuilds);
+
+    // ---------------------------------------------------------------------------------------- 3.5t t4 (A12.60)
+    static wxscreens::Layer layerL;   // the light rows' own layer, through the same 90 in the same order
+    for (int w = 0; w < 2; ++w) {
+        std::printf("== RP light: the loop frames in Light, warning overlay %s ==\n", w ? "ON" : "off");
+        for (int R : {60, 30, 15}) {
+            for (int i = 0; i < 15; ++i) {
+                static wxscreens::ScreenIn in;
+                in = wxscreens::ScreenIn();
+                wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, R, order, &in);
+                if (w) {
+                    in.warning = true;
+                    for (int k = 0; k < 4; ++k) in.polygon[k] = win.polygon[k];
+                    in.wt = win.wt;
+                    in.arrow = win.arrow;
+                    in.storm = win.storm;
+                    in.fromDeg = win.fromDeg;
+                }
+                in.which = wxtheme::Which::Light;
+                Rgb565 full, layered;
+                static wxscreens::ScreenOut a, b;
+                a = wxscreens::ScreenOut();
+                b = wxscreens::ScreenOut();
+                wxscreens::Compose(full, in, view, &a);
+                wxscreens::ComposeLayered(layered, in, layerL, 3, &b);
+                int equal = 0;
+                for (int q = 0; q < 240 * 240; ++q) equal += full.px[q] == layered.px[q];
+                char name[32];
+                std::snprintf(name, sizeof name, "RPL:%s-%d-%02d", w ? "warn" : "off", R, i);
+                check(name, equal == 240 * 240 && SameLabels(a, b),
+                      std::to_string(equal) + " of 57600 px equal; labels " + (SameLabels(a, b) ? "equal" : "DIFFER"));
+            }
+        }
+    }
+    std::printf("== RP-T, Dallas: one Layer, frames 0-7 in Dark and 8-14 in Light, each against its own theme's full composition ==\n");
+    {
+        static wxscreens::Layer lt;
+        for (int i = 0; i < 15; ++i) {
+            static wxscreens::ScreenIn in;
+            in = wxscreens::ScreenIn();
+            wxscenes::FromLoopFrame(frames[i].h, frames[i].codes.data(), i, frames[14].h.frameEpoch, 60, order, &in);
+            in.which = i < 8 ? wxtheme::Which::Dark : wxtheme::Which::Light;
+            Rgb565 full, layered;
+            static wxscreens::ScreenOut a, b;
+            a = wxscreens::ScreenOut();
+            b = wxscreens::ScreenOut();
+            wxscreens::Compose(full, in, view, &a);
+            wxscreens::ComposeLayered(layered, in, lt, 3, &b);
+            int equal = 0;
+            for (int q = 0; q < 240 * 240; ++q) equal += full.px[q] == layered.px[q];
+            char name[32];
+            std::snprintf(name, sizeof name, "RPT:dallas-%02d", i);
+            check(name, equal == 240 * 240 && SameLabels(a, b),
+                  std::string(i < 8 ? "Dark" : "Light") + ": " + std::to_string(equal) + " of 57600 px equal");
+        }
+    }
     std::printf("%d checks, %d failures\n", checks, failures);
     if (checks != kRows) {
         std::printf("the RIG: %d rows, not %d\n", checks, kRows);

@@ -52,12 +52,12 @@
 20:44:13 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 20:44:15 *wm:17 networks found
 20:44:31 *wm:Connect Wifi, ATTEMPT # 1 of 5
-20:44:31 *wm:Connecting to NEW AP: Tony
-20:44:31 [WiFi] Associated with "Tony", waiting for IP...
-20:44:32 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-50 dBm
+20:44:31 *wm:Connecting to NEW AP: <ssid redacted>
+20:44:31 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+20:44:32 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 20:44:33 *wm:Connect to new AP [SUCCESS] 
 20:44:33 *wm:Got IP Address: 
-20:44:33 *wm:192.168.86.32 
+20:44:33 *wm:<lan-ip redacted> 
 20:44:33 [WiFi] Portal saved credentials, attempting to connect...
 20:44:33 *wm:config portal exiting 
 20:44:34 [WiFi] autoConnect() returned true (connected)
@@ -85,12 +85,12 @@
 20:44:39 [  3406][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 20:44:39 *wm:AutoConnect 
 20:44:39 *wm:Connect Wifi, ATTEMPT # 1 of 5
-20:44:39 *wm:Connecting to SAVED AP: Tony
+20:44:39 *wm:Connecting to SAVED AP: <ssid redacted>
 20:44:39 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-20:44:39 [WiFi] Associated with "Tony", waiting for IP...
-20:44:39 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-50 dBm
+20:44:39 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+20:44:39 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 20:44:41 *wm:AutoConnect: SUCCESS 
-20:44:41 *wm:STA IP Address: 192.168.86.32
+20:44:41 *wm:STA IP Address: <lan-ip redacted>
 20:44:41 [WiFi] autoConnect() returned true (connected)
 20:44:41 [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
 20:44:49 [ota] channel=s3-128 current=7 latest=7
@@ -167,13 +167,13 @@
 20:49:48 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 20:49:49 *wm:18 networks found
 20:50:05 *wm:Connect Wifi, ATTEMPT # 1 of 5
-20:50:07 *wm:Connecting to NEW AP: Tony
+20:50:07 *wm:Connecting to NEW AP: <ssid redacted>
 20:50:07 [WiFi] DISCONNECTED  reason=4 (ASSOC_EXPIRE)
-20:50:08 [WiFi] Associated with "Tony", waiting for IP...
-20:50:08 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-52 dBm
+20:50:08 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+20:50:08 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-52 dBm
 20:50:09 *wm:Connect to new AP [SUCCESS] 
 20:50:09 *wm:Got IP Address: 
-20:50:09 *wm:192.168.86.32 
+20:50:09 *wm:<lan-ip redacted> 
 20:50:09 [WiFi] Portal saved credentials, attempting to connect...
 20:50:09 *wm:config portal exiting 
 20:50:10 [WiFi] autoConnect() returned true (connected)
@@ -201,12 +201,12 @@
 20:50:15 [  3397][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 20:50:15 *wm:AutoConnect 
 20:50:15 *wm:Connect Wifi, ATTEMPT # 1 of 5
-20:50:15 *wm:Connecting to SAVED AP: Tony
+20:50:15 *wm:Connecting to SAVED AP: <ssid redacted>
 20:50:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-20:50:15 [WiFi] Associated with "Tony", waiting for IP...
-20:50:16 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-52 dBm
+20:50:15 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+20:50:16 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-52 dBm
 20:50:18 *wm:AutoConnect: SUCCESS 
-20:50:18 *wm:STA IP Address: 192.168.86.32
+20:50:18 *wm:STA IP Address: <lan-ip redacted>
 20:50:18 [WiFi] autoConnect() returned true (connected)
 20:50:18 [WiFi] pinned AP ch=1 RSSI=-52 dBm for the next boot
 20:50:22 [ota] channel=s3-128 current=7 latest=7
@@ -440,9 +440,9 @@
 21:04:34 [WiFi] credentials saved: portal will time out after 180 s and retry them
 21:04:34 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 21:04:34 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
-21:04:34 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
-21:04:34 [WiFi] Associated with "Tony", waiting for IP...
-21:04:34 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-58 dBm
+21:04:34 [WiFi] fast join: ch=1 bssid=<bssid redacted>
+21:04:34 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+21:04:34 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-58 dBm
 21:04:34 [WiFi] fast join OK in 1651 ms
 21:04:34 [WiFi] pinned AP ch=1 RSSI=-58 dBm for the next boot
 21:04:34 ESP-ROM:esp32s3-20210327
@@ -464,10 +464,10 @@
 21:04:34 [WiFi] credentials saved: portal will time out after 180 s and retry them
 21:04:34 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 21:04:34 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
-21:04:37 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+21:04:37 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 21:04:37 [WiFi] DISCONNECTED  reason=4 (ASSOC_EXPIRE)
-21:04:39 [WiFi] Associated with "Tony", waiting for IP...
-21:04:39 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-59 dBm
+21:04:39 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+21:04:39 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-59 dBm
 21:04:40 [WiFi] fast join OK in 2700 ms
 21:04:40 [WiFi] pinned AP ch=1 RSSI=-59 dBm for the next boot
 21:04:52 [ota] channel=s3-128 current=7 latest=7

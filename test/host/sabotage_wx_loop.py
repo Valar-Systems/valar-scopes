@@ -91,7 +91,7 @@ def build(td, name, src):
     b = subprocess.run([CXX, *FLAGS, "-I" + os.path.join(ROOT, "include"), p, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return exe
 
 
@@ -99,7 +99,7 @@ def run(exe, d, name):
     r = subprocess.run([exe, d], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {m.group(1) for m in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}, r.stdout
 
 
@@ -117,13 +117,20 @@ def main(argv):
     before = tree_hash(LOOP)
     src = open(TEST, encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        exe = build(td, "real", src)
-        rc, fails, _ = run(exe, copy_loop(td, "control"), "control")
+        try:
+            exe = build(td, "real", src)
+            rc, fails, _ = run(exe, copy_loop(td, "control"), "control")
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (an unmodified copy): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (plant, edit, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             d = copy_loop(td, name)
             e = exe
             if plant:
@@ -134,8 +141,18 @@ def main(argv):
                 assert src.count(edit[0]) == 1, f"{name}: anchor found {src.count(edit[0])} times, need exactly 1"
                 s2 = src.replace(*edit)
                 assert s2 != src, f"{name}: the test copy is unchanged"
-                e = build(td, name, s2)
-            rc, fails, out = run(e, d, name)
+                try:
+                    e = build(td, name, s2)
+                except sc.Rig:
+                    rigs.add(name)
+                    ok = False
+                    continue
+            try:
+                rc, fails, out = run(e, d, name)
+            except sc.Rig:
+                rigs.add(name)
+                ok = False
+                continue
             good = rc == 1 and fails == expect
             short = sorted(x.replace(P, "") for x in fails)
             print(f"{name}: failing {short}, predicted {sorted(x.replace(P, '') for x in expect)} -> "
@@ -164,7 +181,7 @@ def main(argv):
     print(f"the committed test/fixtures/wx/loop/ unchanged: {before == after} ({after[:12]})")
     n = len(SABOTAGES) + (1 if d1 else 0)
     print(f"{n} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():
@@ -202,7 +219,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_loop": ("checks", 44)}
+LOOP_CHECKS = 44   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_loop": ("checks", LOOP_CHECKS)}
 
 
 def control():

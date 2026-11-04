@@ -37,6 +37,9 @@ def main():
             return 2
         clean = subprocess.run([exe, SRC], capture_output=True, text=True)
         print(f"control (committed fixtures): exit {clean.returncode}")
+        rigs = sc.Rigs()
+        if rigs.forced("S-SC"):
+            return rigs.close(1)
         fx = os.path.join(td, "fx")
         shutil.copytree(SRC, fx)
         p = os.path.join(fx, VICTIM)
@@ -54,7 +57,7 @@ def main():
               f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         for l in fails:
             print("    " + l)
-        return 0 if good else 1
+        return rigs.close(0 if good else 1)
 
 
 def anchor_entries():
@@ -74,7 +77,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_server_crops": ("ok", 16)}
+SERVER_CROPS_OKS = 16   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_server_crops": ("ok", SERVER_CROPS_OKS)}
 
 
 def control():

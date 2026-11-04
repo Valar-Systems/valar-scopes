@@ -1,0 +1,161 @@
+name: web-renderer
+
+# The radar firmware compiled to WebAssembly, for the website (docs/web-renderer.md).
+#
+# A SEPARATE workflow on purpose: nothing here is a job the firmware's release graph waits on, so a red web build
+# can never hold back version.txt or touch a device-facing asset. It only ever writes assets named
+# blipscope-web-*, and it reads every other asset on the release before and after to prove it.
+#
+#   push / pull_request   both models build and pass the headless smoke test (tools/web-renderer/smoke.mjs)
+#   release: published    the same, from the release tag's own source; the PUBLISHED models' set goes on the release
+#   workflow_dispatch     the same for an existing release tag (the first set went on v18 this way)
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'src/**', 'include/**', 'platformio.ini', 'tools/web-renderer/**', 'proxy/fonts/**',
+             '.github/workflows/web-renderer.yml' ]
+  pull_request:
+    paths: [ 'src/**', 'include/**', 'platformio.ini', 'tools/web-renderer/**', 'proxy/fonts/**',
+             '.github/workflows/web-renderer.yml' ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing release tag to build from and attach to (e.g. v18)'
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  EMSDK_VERSION: '6.0.13'
+  # Published models: their set goes on the release. A model that is built but not yet announced is listed in
+  # BUILT only (Daniel announces the 2.1 in; until then it is a workflow artifact).
+  PUBLISHED: 's3-128'
+  BUILT: 's3-128 s3-21'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      fw: ${{ steps.ver.outputs.fw }}
+      tag: ${{ steps.src.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Which source
+        id: src
+        run: |
+          TAG="${{ inputs.tag || github.event.release.tag_name || '' }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "the firmware source: ${TAG:-this commit}"
+
+      # A release build compiles the TAG'S firmware units with this tree's tools/web-renderer.
+      - uses: actions/checkout@v4
+        if: steps.src.outputs.tag != ''
+        with:
+          ref: ${{ steps.src.outputs.tag }}
+          path: src-tag
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-web-${{ hashFiles('platformio.ini') }}
+      - name: The firmware's libraries (from the source tree's own platformio.ini)
+        run: |
+          pip install -q platformio
+          SRC="${{ steps.src.outputs.tag != '' && 'src-tag' || '.' }}"
+          (cd "$SRC" && pio pkg install -e blipscope-s3-128 >/dev/null)
+          echo "LIBDEPS=$PWD/$SRC/.pio/libdeps/blipscope-s3-128" >> "$GITHUB_ENV"
+          echo "SRC_ROOT=$PWD/$SRC" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ env.EMSDK_VERSION }}
+      - name: Emscripten ${{ env.EMSDK_VERSION }}
+        run: |
+          [ -d ~/emsdk ] || git clone -q https://github.com/emscripten-core/emsdk.git ~/emsdk
+          cd ~/emsdk && ./emsdk install "$EMSDK_VERSION" >/dev/null && ./emsdk activate "$EMSDK_VERSION" >/dev/null
+          source ./emsdk_env.sh >/dev/null && emcc --version | head -1
+
+      - name: Build every model
+        id: ver
+        run: |
+          source ~/emsdk/emsdk_env.sh >/dev/null
+          for sku in $BUILT; do bash tools/web-renderer/build.sh "$sku" "$PWD/web-dist"; done
+          echo "fw=$(node -p 'require("./web-dist/web-manifest.json").version')" >> "$GITHUB_OUTPUT"
+
+      - name: The headless smoke test, every model (docs/web-renderer.md R3-R6)
+        run: |
+          for sku in $BUILT; do node tools/web-renderer/smoke.mjs "web-dist/$sku"; done
+
+      # Radar and List only, read from the frames the firmware drew (docs/web-renderer-carousel.md, WC2 and WC3).
+      - name: The carousel, every model
+        run: |
+          for sku in $BUILT; do node tools/web-renderer/carousel.mjs "web-dist/$sku"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blipscope-web-v${{ steps.ver.outputs.fw }}
+          path: web-dist/
+
+  publish:
+    needs: build
+    if: needs.build.outputs.tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.build.outputs.tag }}
+      FW: ${{ needs.build.outputs.fw }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: blipscope-web-v${{ needs.build.outputs.fw }}
+          path: web-dist
+
+      - name: The release exists and is published
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft,tagName --jq '"\(.tagName) draft=\(.isDraft)"' | tee rel.txt
+          grep -q 'draft=false' rel.txt
+
+      - name: Stage the published models' set, with its sha256 manifest
+        run: |
+          mkdir stage
+          cp "web-dist/blipscope-web-render-v$FW.js" "web-dist/blipscope-web-mono-v$FW.woff2" \
+             web-dist/blipscope-web-fonts-LICENSE.txt stage/
+          for sku in $PUBLISHED; do cp "web-dist/$sku/blipscope-web-$sku-v$FW.js" "web-dist/$sku/blipscope-web-$sku-v$FW.wasm" stage/; done
+          (cd stage && sha256sum * > "blipscope-web-v$FW.sha256")
+          ls -l stage
+          # Only our own names, ever.
+          ! ls stage | grep -v '^blipscope-web-'
+
+      - name: Every other asset, before
+        run: gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name | startswith("blipscope-web-") | not) | "\(.name) \(.size) \(.downloadCount)"' | sort > before.txt && cat before.txt
+
+      - name: Upload
+        run: gh release upload "$TAG" stage/* -R "$GITHUB_REPOSITORY" --clobber
+
+      - name: Read back -- the set by sha256, every other asset unchanged
+        run: |
+          mkdir back && gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p 'blipscope-web-*' -D back
+          (cd back && sha256sum -c "blipscope-web-v$FW.sha256")
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name | startswith("blipscope-web-") | not) | "\(.name) \(.size) \(.downloadCount)"' | sort > after.txt
+          # Names and sizes must match exactly. A download count is NOT compared for equality -- a device fetching
+          # its firmware during the upload raises it -- it must only never decrease (a decrease means the asset was
+          # replaced, which resets its count).
+          diff <(cut -d' ' -f1,2 before.txt) <(cut -d' ' -f1,2 after.txt)
+          join before.txt after.txt | awk '{ if ($5 < $3) { print "download count DECREASED: " $1 " " $3 " -> " $5; bad = 1 } }
+                                           END { exit bad }'
+          echo "other assets unchanged: $(wc -l < after.txt) (names and sizes equal; no download count decreased)"

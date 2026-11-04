@@ -10,6 +10,8 @@
 #include "LongPressPolicy.h"
 #include "RadarZoom.h"
 #include "WxFeedFactory.h"
+#include "DayNight.h"
+#include "WxTheme.h"
 
 // The screen layer's types, used here only through pointers: their headers (and the town table) are included by
 // WeatherscopeManager.cpp alone.
@@ -39,6 +41,11 @@ namespace wxcrop { struct Header; }
 // under the dry pixels, its places and peaks. A tap on either plays Bend's loop. The image is rebuilt only when its key
 // changes (a zoom, terrain, another package or place), printed either way, and never inside a loop frame. The bench
 // byte G toggles terrain (stored mode only, under the same gate; Q29).
+//
+// 3.5t t5 (A12.66): the theme. wx-theme (Auto, Light, Dark; config page) and Auto's day/night phase, decided on the
+// 20 s tick with its hysteresis (DayNight.h), choose the theme every screen is drawn in; the night dim follows the
+// same phase. A switch never lands inside a loop: it waits for the loop's end, and the cached scenario is recomposed
+// in the new theme. The bench byte O moves the clock Auto reads by +15 min (stored mode only, the same gate).
 //
 // Memory: this object is a global, so it holds only small state and pointers; the frame path (the cached screen
 // sprite, the code grid, the screen's input and output, the view, the town ranking, the loop's records) lives in
@@ -93,6 +100,14 @@ private:
     // brightness / night-dim
     uint8_t currentBrightness = 255;
     bool nightDim = false;
+    // 3.5t t5 (A12.66): the theme, one 8-byte block -- wx-theme as ParseSetting reads it, Auto's phase, the theme on
+    // the screen, the theme the cached scenario was composed in, and O's offset (0 off the bench).
+    wxtheme::Setting themeSetting = wxtheme::Setting::Auto;
+    wxtheme::Read themeRead = wxtheme::Read::Unset;
+    daynight::Phase phase = daynight::Phase::Unknown;
+    wxtheme::Which which = wxtheme::Which::Dark;
+    wxtheme::Which composedWhich = wxtheme::Which::Dark;
+    int16_t autoOffsetMin = 0;
     unsigned long lastBrightnessCheck = 0;
 
     // the frame path, in PSRAM (made once)
@@ -215,6 +230,10 @@ private:
     int touchStartX = 0, touchStartY = 0, touchLastX = 0, touchLastY = 0;
 
     void UpdateBrightness();
+    void EvaluateDayNight();
+    void MaybeSwitchTheme();
+    void OnAutoOffsetByte();
+    const wxtheme::Theme& Th() const { return wxtheme::Get(which); }   // the theme on the screen (t5)
     void LogFeeds() const;
     void MakeBuffers();
     void PickFrames();

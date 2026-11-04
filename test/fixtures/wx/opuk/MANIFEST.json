@@ -11,14 +11,14 @@
    "airport": "LHR",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 45,
-   "sha256": "0c570048343881e92c1d0454ccf0580247e419ca1bfcefd45d4d56cebd2b2ec4",
+   "bytes": 124,
+   "sha256": "9333dc5ad1df80d8899d44bc2af09b05ce1d045ccc1de6b6eab9c3a0585ccdfa",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 6,
-   "cellsSha256": "44bf0607e63d50e052ee48d40de76dc8bf46a77be1d2f4f27554776f8df012ba"
+   "echoCells": 68,
+   "cellsSha256": "68f37f915fb81e5b6ea7ce2db97e640d26bf71f136d61fe12654b480fa317d50"
   },
   {
    "name": "man-161km.wxc",
@@ -26,14 +26,14 @@
    "airport": "MAN",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 271,
-   "sha256": "f047b684714c2361c17d683603d2cf1c459e76781e27c0a87dd8abdd92985ad1",
+   "bytes": 7543,
+   "sha256": "21622567072d10fec3b7a35f27466a4c6de8fdaa7418ed88c9fae65ce68d8c2a",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 186,
-   "cellsSha256": "d1e37354b589da45f87925b8a8b3cd935319bcabd0857c152163cef1df314254"
+   "echoCells": 31413,
+   "cellsSha256": "d5a482dc85154f7b200b6f3aab91ac96082e57a5915977d26ec632087d190707"
   },
   {
    "name": "edi-161km.wxc",
@@ -41,14 +41,14 @@
    "airport": "EDI",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 230,
-   "sha256": "496ebb0404920c931cee0b3f9f6412e8c95f045dd1dd115a65999821ac78b9e4",
+   "bytes": 10008,
+   "sha256": "7014f22eb072657d153cce14f49c7fd3c0d090e0e65ca3c944ed6ef8d5c58e1e",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 191,
-   "cellsSha256": "257fde094ced0f849162e40161a1eab4c1adcf24f83ad06743b276c41523db9d"
+   "echoCells": 34471,
+   "cellsSha256": "d819a3620ab4af0dd10692b16d60327230f30ab1d23ebdc495dcfc8afc4dc336"
   },
   {
    "name": "gla-161km.wxc",
@@ -56,14 +56,14 @@
    "airport": "GLA",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 156,
-   "sha256": "fb91acb28d582933bcec88984d9ded665e465b9f46f6580de4c386ef75ab4923",
+   "bytes": 11663,
+   "sha256": "5d98fccc7c48deeaab2464c0232bc873b6bc296ef98a8fe0f6d0482bffdd3861",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 102,
-   "cellsSha256": "8b165512a9b5df602459391dd0b7ab09a62714982d1d94749efa1a2c1221274f"
+   "echoCells": 39526,
+   "cellsSha256": "ac08c796bcf9bf08618ea7c88e36f9ed7a947e00c5195aac5b41f9f5c10947e7"
   },
   {
    "name": "bfs-161km.wxc",
@@ -71,14 +71,14 @@
    "airport": "BFS",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 175,
-   "sha256": "81845a87d793758cff32c13f962126867ef46caa0a9c2e5154d2203546b84e63",
+   "bytes": 10493,
+   "sha256": "87858646713059be9d4a9751ffb41037efc6f805a8efb82126570501eadf015a",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 90,
-   "cellsSha256": "f8fbba0827e1c0164c5dc304be62307cb751b37c9e844fdd143257822a4dd2e9"
+   "echoCells": 30600,
+   "cellsSha256": "74b372e15b445a59cd59be1f5fb2401f98b9763a8531c4d9554e4756da3f5fa7"
   },
   {
    "name": "abz-161km.wxc",
@@ -86,14 +86,14 @@
    "airport": "ABZ",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 851,
-   "sha256": "213e26a0756ad8888b310bb7f31f3311d4813bd39cad1181bd5136794ae007a7",
+   "bytes": 10796,
+   "sha256": "10a99f57a0b01b9cd8441857966d1339243a748d92c4690bf67f472f5cce731b",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 995,
-   "cellsSha256": "bd3f64958001ccd27748e8c9a21fee4430a1f46b0182561204957bef9463b8b7"
+   "echoCells": 49516,
+   "cellsSha256": "e589c376f324d091c0e02dcd71c37ef195e3849d141b2b01721acd476df119b0"
   },
   {
    "name": "cwl-161km.wxc",
@@ -101,14 +101,14 @@
    "airport": "CWL",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 146,
-   "sha256": "21ee3563a98600d5b9c791a633723cd2006716d369abfcd19451db73f2d6ccf6",
+   "bytes": 2151,
+   "sha256": "b4a26ba48160799729b8cdf06493cb5a0a524715b1c012198c8370af701b3a1a",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 63,
-   "cellsSha256": "a59aa77a070ed7af83fdf80d9d1dc5c64b7dec3906c3290be279910f9c673958"
+   "echoCells": 5719,
+   "cellsSha256": "7cf12196aa36ea515cddc4743c0117157fa86151b05cf882163a3f5809eadf9e"
   },
   {
    "name": "nqy-161km.wxc",
@@ -116,14 +116,14 @@
    "airport": "NQY",
    "rKm": 161,
    "frame": "opuk from OPERA 20261028T0255",
-   "bytes": 100,
-   "sha256": "1c76cc5623fd50499491e063d038eed75cad6e261c73f097a44a0d5d7b927ac2",
+   "bytes": 838,
+   "sha256": "4a8e4411a205c15901b937b4c607f71d0daf84908ab93b2bcf0546b507a37757",
    "coarsen": 1,
    "flagged": false,
    "rows": 295,
    "cols": 405,
-   "echoCells": 32,
-   "cellsSha256": "6a51498561503b28872cf220979ae877f23f0ea61c8381270782431a1dc889c1"
+   "echoCells": 871,
+   "cellsSha256": "38dd7a0d0e9ea3d3740018146d38fb858f1752b16bb29063c24fb61cb62adc45"
   }
  ]
 }

@@ -16,7 +16,7 @@
 2026-10-26T20:46:32.702Z [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
 2026-10-26T20:46:32.702Z [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 2026-10-26T20:46:32.702Z [WiFi] fast join: ch=1 bssid=<redacted>
-2026-10-26T20:46:32.702Z [WiFi] Associated with "Tony", waiting for IP...
+2026-10-26T20:46:32.702Z [WiFi] Associated with "<ssid redacted>", waiting for IP...
 2026-10-26T20:46:32.702Z [WiFi] CONNECTED  IP=<board-ip>  RSSI=-30 dBm
 2026-10-26T20:46:32.702Z [WiFi] fast join OK in 3700 ms
 2026-10-26T20:46:32.702Z [WiFi] pinned AP ch=1 RSSI=-30 dBm for the next boot

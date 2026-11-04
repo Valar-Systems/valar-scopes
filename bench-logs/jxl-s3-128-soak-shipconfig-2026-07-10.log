@@ -57,14 +57,14 @@
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to NEW AP: Tony
+*wm:[2] Connecting to NEW AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -114,12 +114,12 @@
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-79 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-79 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] Connect to new AP [SUCCESS] 
 *wm:[2] Got IP Address: 
-*wm:[2] 192.168.86.54 
+*wm:[2] <lan-ip redacted> 
 *wm:[3] [CB] _savewificallback calling 
 [WiFi] Portal saved credentials, attempting to connect...
 *wm:[3] shutdownConfigPortal 
@@ -412,8 +412,8 @@
 [fetch] task: done ok=0 http=-1 reuse=0 in 30ms
 [WiFi] DISCONNECTED  reason=204 (HANDSHAKE_TIMEOUT)
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-64 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-64 dBm
 [fetch] task: req kind=0 @1928794
 [WARN] Blipscope Cloud returned HTTP 401; keeping current picture
 [fetch] task: done ok=0 http=401 reuse=0 in 921ms
@@ -502,7 +502,7 @@
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -614,7 +614,7 @@
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -630,12 +630,12 @@
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-64 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-64 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 12258 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -1907,8 +1907,8 @@
 [WiFi] DISCONNECTED  reason=204 (HANDSHAKE_TIMEOUT)
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-70 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-70 dBm
 [fetch] task: req kind=0 @2186906
 [fetch] task: done ok=1 http=200 reuse=0 in 1011ms
 [fetch] task: req kind=0 @2191955
@@ -2762,7 +2762,7 @@
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -2771,7 +2771,7 @@
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -2787,12 +2787,12 @@
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-62 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-62 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2357 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [fetch] task: req kind=0 @640067
@@ -2835,7 +2835,7 @@
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -3012,7 +3012,7 @@
 *wm:[3] . 
 *wm:[3] Connection result: WL_DISCONNECTED
 *wm:[2] Connect Wifi, ATTEMPT # 2 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
@@ -3032,7 +3032,7 @@
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -3048,12 +3048,12 @@
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-66 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-66 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 18670 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -18795,7 +18795,7 @@ UserSideException: could not open port 'COM118': PermissionError(13, 'Access is 
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -18907,7 +18907,7 @@ UserSideException: could not open port 'COM118': PermissionError(13, 'Access is 
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -18924,12 +18924,12 @@ UserSideException: could not open port 'COM118': PermissionError(13, 'Access is 
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-77 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-77 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 12358 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -73366,7 +73366,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -73478,7 +73478,7 @@ Reconnecting to COM118 ......	 Connected!
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -73495,12 +73495,12 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-67 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-67 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 12370 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -73547,7 +73547,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -73709,7 +73709,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[3] . 
 *wm:[3] Connection result: WL_CONNECTION_LOST
 *wm:[2] Connect Wifi, ATTEMPT # 2 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
@@ -73776,7 +73776,7 @@ E (19020) wifi:sta is connecting, cannot set config
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -73792,12 +73792,12 @@ E (19020) wifi:sta is connecting, cannot set config
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-55 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-55 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 23222 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -77386,7 +77386,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -77395,7 +77395,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -77411,12 +77411,12 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-65 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-65 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2347 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=5 latest=4
@@ -77474,7 +77474,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -77482,7 +77482,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -77499,12 +77499,12 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-64 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-64 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2326 ms
-*wm:[2] STA IP Address: 192.168.86.54
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -79294,8 +79294,8 @@ Reconnecting to COM118 .....	 Connected!
 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=435/0 maxOutage=0ms rebootRec=0
 [WiFi] DISCONNECTED  reason=5 (ASSOC_TOOMANY)
 *wm:[3] [EVENT] WIFI_REASON:  5
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.54  RSSI=-67 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-67 dBm
 [fetch] task: req kind=0 @4387594
 [4387595][E][ssl_client.cpp:41] _handle_error(): [data_to_read():425]: (-76) UNKNOWN ERROR CODE (004C)
 [4387605][E][NetworkClientSecure.cpp:313] available(): Closing connection on failed available check
@@ -137345,7 +137345,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -137353,7 +137353,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -137370,12 +137370,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-80 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-80 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2261 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 === [capture] attach attempt 2026-07-17 11:07:15 port=COM118 pid=50644 failStreak=0 ===
@@ -137384,7 +137384,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -137392,7 +137392,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -137408,12 +137408,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-60 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-60 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2246 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -137911,7 +137911,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -137920,7 +137920,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -137940,8 +137940,8 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2340 ms
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-61 dBm
-*wm:[2] STA IP Address: 192.168.86.32
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-61 dBm
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -138370,7 +138370,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -138378,7 +138378,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -138395,12 +138395,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-62 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-62 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2275 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -145574,7 +145574,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -145583,7 +145583,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -145599,12 +145599,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-65 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-65 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2340 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -151940,7 +151940,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -151948,7 +151948,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -151965,12 +151965,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-66 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-66 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2258 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -153266,7 +153266,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -153274,7 +153274,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -153301,12 +153301,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-76 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-76 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 3340 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -153360,8 +153360,8 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=29/0 maxOutage=0ms rebootRec=0
 [WiFi] DISCONNECTED  reason=5 (ASSOC_TOOMANY)
 *wm:[3] [EVENT] WIFI_REASON:  5
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-58 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-58 dBm
 [321189][E][ssl_client.cpp:41] _handle_error(): [data_to_read():425]: (-76) UNKNOWN ERROR CODE (004C)
 [321198][E][NetworkClientSecure.cpp:313] available(): Closing connection on failed available check
 [health] frame avg=32.4ms p95=33.2ms max=44.5ms  heap free=86824 largest=39924  allocFail=0 hardFail=5  interval=5000ms
@@ -153372,7 +153372,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -153380,7 +153380,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -153397,12 +153397,12 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-58 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-58 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2346 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -158545,8 +158545,8 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 [WiFi] DISCONNECTED  reason=204 (HANDSHAKE_TIMEOUT)
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-75 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-75 dBm
 [74719479][E][NetworkClientSecure.cpp:159] connect(): start_ssl_client: connect failed: -1
 [GET] HTTP Error (-1): connection refused
 [cloud] enrich a9dc0b: HTTP -1 connection refused
@@ -158866,7 +158866,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] . 
 *wm:[3] Connection result: WL_CONNECTION_LOST
 *wm:[2] Connect Wifi, ATTEMPT # 2 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
@@ -158925,7 +158925,7 @@ E (121222) wifi:sta is connecting, cannot set config
        Handshake frames lost (not a key mismatch): RF/power instability or weak signal. Try lower TX power / better supply.
 *wm:[3] [EVENT] WIFI_REASON:  204
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -158941,12 +158941,12 @@ E (121222) wifi:sta is connecting, cannot set config
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-72 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-72 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 29202 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -159980,7 +159980,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
@@ -159989,7 +159989,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -160005,12 +160005,12 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-68 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-68 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2348 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -160363,7 +160363,7 @@ Reconnecting to COM118 .........................................................
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -160380,12 +160380,12 @@ Reconnecting to COM118 .........................................................
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-66 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-66 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 10829 ms
-*wm:[2] STA IP Address: 192.168.86.32
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-326E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
@@ -161227,10 +161227,10 @@ Reconnecting to COM118 ....	 Connected!
 *wm:[2] [SYS] Chip Cores: 2
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
-[WiFi] fast join: ch=6 bssid=60:B7:6E:8F:97:19
+[WiFi] fast join: ch=6 bssid=<bssid redacted>
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-64 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-64 dBm
 [WiFi] fast join OK in 1651 ms
 [WiFi] pinned AP ch=6 RSSI=-64 dBm for the next boot
 [ota] channel=s3-128 current=4 latest=4
@@ -161478,13 +161478,13 @@ Reconnecting to COM118 ....	 Connected!
 [health] frame avg=30.5ms p95=31.3ms max=32.9ms  heap free=135220 largest=86004  allocFail=0 hardFail=8  interval=1000ms
 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=269/0 maxOutage=0ms rebootRec=0
 === [capture] attach attempt 2026-07-21 12:22:33 port=COM118 pid=92088 failStreak=0 ===
-[WiFi] fast join: ch=6 bssid=60:B7:6E:8F:97:19
+[WiFi] fast join: ch=6 bssid=<bssid redacted>
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
 [WiFi] DISCONNECTED  reason=201 (NO_AP_FOUND)
        SSID not found: check spelling/range. The ESP32-C3 is 2.4GHz-only and cannot see 5GHz networks.
 [WiFi] DISCONNECTED  reason=36 (STA_LEAVING)
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-64 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-64 dBm
 [WiFi] fast join OK in 4050 ms
 [WiFi] pinned AP ch=6 RSSI=-64 dBm for the next boot
 [ota] channel=s3-128 current=4 latest=4
@@ -161723,10 +161723,10 @@ Reconnecting to COM118 ....	 Connected!
 *wm:[2] [SYS] Chip Cores: 2
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
-[WiFi] fast join: ch=6 bssid=60:B7:6E:8F:97:19
+[WiFi] fast join: ch=6 bssid=<bssid redacted>
 [WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.32  RSSI=-65 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-65 dBm
 [WiFi] fast join OK in 1651 ms
 [WiFi] pinned AP ch=6 RSSI=-65 dBm for the next boot
 [ota] channel=s3-128 current=4 latest=4

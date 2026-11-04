@@ -351,3 +351,33 @@ control, it shows the instrument separating off from on.
 weather layer first, so S3 is expected to deploy first, and this PR follows it. The version to roll back to is read
 from `wrangler deployments list` at deploy time and recorded on this PR. This deploy's B window starts only after
 S3's A window has closed, so the two fleet comparisons never overlap.
+
+## The on-stage, recorded (2026-11-04; ruled by the reviewer ~17:05Z)
+
+**What happened.** The staged sequence ran, but not as planned here:
+- **The off-stage** was #461's S2, 2026-10-23 (version `e31772f4`, switch off), as addendum 6 records.
+- **The switch went on** with a production deploy right after #464 merged. #464 merged at 2026-10-26 16:33:02Z, and
+  production's first `sitefeed` event of any kind is at **16:58:58Z**, 26 minutes later. That was despite the hold
+  recorded on 10-26 (no site reader for L2).
+- **Who deployed is not established here.** `wrangler deployments list --env production` names it, and needs the
+  OAuth login.
+- **On 2026-11-04** production's `/healthz` reports `31cb44c` (the map server's D0, 10-30). That commit's
+  `wrangler.toml` sets production `SITE_FEED_BEND = "on"`.
+
+**The ruling:** leave production as it is. This deploy is recorded as #464's on-stage.
+
+**L1, read from production's Analytics Engine** (dataset `blipscope_proxy`, production's own; staging writes to
+`blipscope_proxy_staging`):
+
+| | read | verdict |
+|---|---|---|
+| **L1**, the first hour (16:58:58-17:58:58Z, 10-26) | `written` **45**, `write_error` **0** (also `refused_30s` 72, `skipped_not_covered` 64) | **passes** |
+| `write_error` since | **13**, each isolated: 10-27 13:20:21Z (2), 10-28 14:29:29Z and 15:05:18Z, 10-29 16:14:21Z, 16:14:35Z, 18:15:22Z, 18:16:33Z and 18:16:36Z, 10-30 15:30:15Z, 15:30:18Z, 15:30:55Z and 16:10:37Z. **None since 10-30 16:10:37Z** | recorded |
+| `written` in all, to 2026-11-04 16:42:47Z | 17,197 | the writer runs every day |
+
+- **L2 is not read.** It needs a site reader, which does not exist yet.
+- **Addendum 6's positive control is not graded.** Its window starts at T1, the deploy's `/healthz` confirmation,
+  which was not recorded. The first event (16:58:58Z) is reported instead.
+
+**No production deploy follows this record.** #512's `/credits` lines go live with the map server's D4, and
+production deploys stay with the map server.

@@ -32,9 +32,9 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 SUITES = {   # name: (arguments, checks)
-    "k35": ([LOOP, os.path.join(WX, "k35.ref.txt")], 28),
-    "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 149),   # Q57 (A12.61): K-BR's 6 rows, step 7
-    "replay": ([LOOP], 90),
+    "k35": ([LOOP, os.path.join(WX, "k35.ref.txt")], 79),   # 3.5t t4 (A12.60): K-light, LY, LY-X
+    "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 368),   # Q57 (A12.61): 149; t4 (A12.60): K-light, RP light, RP-T, LY
+    "replay": ([LOOP], 195),   # 3.5t t4 (A12.60): RP light, RP-T
     "layout": ([LOOP], 73),
     "basemap": ([WX], 92),   # Q59 (A12.62): BW1-BW8, step 7
     "theme": ([WX], 72),
@@ -94,22 +94,26 @@ def run_suites(td, label, theme_text):
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
 
     # S-NL
-    screens = read(os.path.join(SRC, "WxScreens.h"))
-    planted = plant(screens, "    HomeMarker(s, th.white);\n", "    HomeMarker(s, Rgb{1, 2, 3});   // SABOTAGE\n", "S-NL",
-                    pairs=[((255, 255, 255), (1, 2, 3))])   # the literal stands in for dark's white
-    plant_line = planted[:planted.index("Rgb{1, 2, 3}")].count("\n") + 1
-    with tempfile.TemporaryDirectory() as td:
-        real = subprocess.run([sys.executable, "-I", SCAN, os.path.join(SRC, "WxScreens.h")], capture_output=True, text=True)
-        copy = os.path.join(td, "WxScreens.h")
-        open(copy, "w", encoding="utf-8", newline="\n").write(planted)
-        r = subprocess.run([sys.executable, "-I", SCAN, copy], capture_output=True, text=True)
-    hits = re.findall(r":(\d+): R\d", r.stdout)
-    good = real.returncode == 0 and r.returncode == 1 and hits == [str(plant_line)]
-    ok &= good
-    print(f"S-NL: the real WxScreens.h exit {real.returncode} ({real.stdout.strip().splitlines()[-1]}); planted at line "
-          f"{plant_line}: exit {r.returncode}, hits at lines {hits} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+    if rigs.forced("S-NL"):
+        ok = False
+    else:
+        screens = read(os.path.join(SRC, "WxScreens.h"))
+        planted = plant(screens, "    HomeMarker(s, th.white);\n", "    HomeMarker(s, Rgb{1, 2, 3});   // SABOTAGE\n", "S-NL",
+                        pairs=[((255, 255, 255), (1, 2, 3))])   # the literal stands in for dark's white
+        plant_line = planted[:planted.index("Rgb{1, 2, 3}")].count("\n") + 1
+        with tempfile.TemporaryDirectory() as td:
+            real = subprocess.run([sys.executable, "-I", SCAN, os.path.join(SRC, "WxScreens.h")], capture_output=True, text=True)
+            copy = os.path.join(td, "WxScreens.h")
+            open(copy, "w", encoding="utf-8", newline="\n").write(planted)
+            r = subprocess.run([sys.executable, "-I", SCAN, copy], capture_output=True, text=True)
+        hits = re.findall(r":(\d+): R\d", r.stdout)
+        good = real.returncode == 0 and r.returncode == 1 and hits == [str(plant_line)]
+        ok &= good
+        print(f"S-NL: the real WxScreens.h exit {real.returncode} ({real.stdout.strip().splitlines()[-1]}); planted at line "
+              f"{plant_line}: exit {r.returncode}, hits at lines {hits} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
 
     # S-KD
     theme = read(os.path.join(SRC, "WxTheme.h"))
@@ -121,7 +125,7 @@ def main():
         ok &= good_c
         print(f"control (the unplanted mirror): failing {sorted(ctl) if ctl is not None else 'RIG'} -> "
               f"{'AS PREDICTED' if good_c else 'OFF-PREDICTION'}")
-        got = run_suites(td, "S-KD", planted)
+        got = rigs.run("S-KD", run_suites, td, "S-KD", planted, rig_if=lambda r: r is None)
     good = got is not None and got == frozen
     ok &= good
     if got is not None:
@@ -133,7 +137,7 @@ def main():
     ok &= after == before
     print(f"the real tree unchanged: {after == before} ({after[:12]})")
     print(f"2 sabotages: {'ALL AS PREDICTED' if ok else 'NOT ALL AS PREDICTED'}")
-    return 0 if ok else 1
+    return rigs.close(0 if ok else 1)
 
 
 def anchor_entries():

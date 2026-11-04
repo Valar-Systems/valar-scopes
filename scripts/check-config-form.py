@@ -481,7 +481,7 @@ def selftest() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", help="check a live device instead of the source, e.g. http://192.168.86.32")
+    ap.add_argument("--url", help="check a live device instead of the source, e.g. http://<lan-ip redacted>")
     ap.add_argument("--selftest", action="store_true", help="prove the checker catches each violation")
     args = ap.parse_args()
 

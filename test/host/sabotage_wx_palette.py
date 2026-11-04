@@ -83,8 +83,12 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         for name, (edits, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             inc = os.path.join(td, name)
             os.makedirs(inc)
             try:
@@ -98,7 +102,9 @@ def main():
             b = subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
             if b.returncode != 0:
                 print(f"{name}: did not compile (rig)\n{b.stderr}")
-                return 2
+                rigs.add(name)
+                ok = False
+                continue
             r = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
             fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
             matched = [sum(1 for l in fails if re.search(rx, l)) for rx in expect]
@@ -117,20 +123,24 @@ def main():
         open(os.path.join(fx, name), "wb").write(data + b"beefbeefbeefbeef\n")
         assert open(os.path.join(fx, name), "rb").read() != data, "S-PIN: the table copy did not change"
         exe = os.path.join(td, "real.exe")
-        b = subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe], capture_output=True, text=True)
-        if b.returncode != 0:
+        b = None if rigs.forced("S-PIN") else subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe],
+                                                             capture_output=True, text=True)
+        if b is not None and b.returncode != 0:
             print(f"S-PIN: did not compile (rig)\n{b.stderr}")
-            return 2
-        r = subprocess.run([exe, fx], capture_output=True, text=True)
-        fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
-        good = r.returncode == 1 and len(fails) == 1 and re.search(r"FAIL\s+pin\b", fails[0]) is not None
-        print(f"S-PIN: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
-        for l in fails:
-            print(f"    {l}")
-        ok &= good
+            rigs.add("S-PIN")
+        if b is None or b.returncode != 0:
+            ok = False
+        else:
+            r = subprocess.run([exe, fx], capture_output=True, text=True)
+            fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+            good = r.returncode == 1 and len(fails) == 1 and re.search(r"FAIL\s+pin\b", fails[0]) is not None
+            print(f"S-PIN: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+            for l in fails:
+                print(f"    {l}")
+            ok &= good
     after = sha(HEADER)
     print(f"real src/weatherscope/WxPalette.h unchanged: {before == after} ({after[:12]})")
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():
@@ -144,7 +154,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_palette": ("ok", 15)}
+PALETTE_OKS = 15   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_palette": ("ok", PALETTE_OKS)}
 
 
 def control():

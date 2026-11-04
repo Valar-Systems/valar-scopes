@@ -1,0 +1,451 @@
+# No committed file names the bench network (predictions first)
+
+**The ruling (reviewer chat, pasted by Daniel, 2026-11-04), verbatim:**
+
+> New, in parallel with #513: the Wi-Fi scrub. Daniel's decision: current files only, no history rewrite.
+> - What: main's tree holds two Wi-Fi network names (in "Associated with" lines, 77 of them), two router BSSIDs (22
+>   occurrences, bench-logs/, since 2026-08-07) and private LAN addresses (127, in 23 files). They are in bench-logs/,
+>   tools/weatherscope/board/ records and docs/wifi-join-failure-eero.md. Find the rest with your own scan.
+> - The PR replaces each one with a fixed placeholder. Never print a value: compare in memory, print counts only.
+> - A CI guard in the forbidden.py style refuses, in any committed file: a network name in an association or ssid
+>   context, a BSSID in any bssid context, and a private LAN address. Device MACs and device ids are out of its scope.
+> - An allowlist covers documented examples, pinned by path and exact line.
+> - Its control: a planted name, a planted BSSID and a planted LAN address are each refused, and the placeholders pass.
+> - Predictions first: each category's count before (as your scan measures it) and 0 after.
+> - Weatherscope's #514 redacts its own five new files. Other sessions' branches meet the guard when they next merge
+>   main, and each redacts its own.
+
+Every number below was read by a script that compares values in memory and prints only counts, classes and
+`path:line`. No value appears in this file, in a commit message, or in any tool output of this work.
+
+## What is on main (`892fe2b`), measured before any change
+
+**The scan.** Every tracked file: 1,002 decode as UTF-8 text and are scanned. 414 are skipped, and every one of them
+has a binary extension (jpg 245, png 72, wxc 55, bmpk 31, bin 5, woff2 3, 3mf 2, pdf 1). No tracked file is UTF-16 or
+another non-UTF-8 text. *Not scanned, said out loud:* text inside images and inside the one PDF
+(`docs/Blipscope-WiFi-Field-Test.pdf`; its source page, `docs/field-test-guide.html`, is scanned).
+
+### The contexts
+
+A **network name** is the value in one of these contexts (any case):
+
+| context | form | where it comes from |
+|---|---|---|
+| `assoc` | `Associated with "<ssid>"` (quoted; also `\"..\"` and `'..'`) | the firmware's join log |
+| `connecting` | `Connecting to SAVED AP: <ssid>` (or `NEW`) | WiFiManager |
+| `wm_scan` | `*wm:[2] AP: -71 <ssid>`, `*wm:[2] DUP AP: <ssid>` | WiFiManager's scan list |
+| `ssid_colon` | `SSID: <ssid>`, colon directly after the word | logs, the setup screen |
+| `ssid_eq` | `ssid = "<ssid>"` (quoted), `ssid=<ssid>` (bare, no spaces), `data-ssid='<ssid>'` | code, URLs, the portal's HTML |
+| `ssid_key` | a quoted `ssid` key with a quoted value, as in JSON | records |
+| `ssid_arg` | `-Ssid "<ssid>"`, `--ssid "<ssid>"` | script usage |
+| `connected_with` | ESP-IDF's `connected with <ssid>, aid` | the IDF log; none in the tree today |
+
+A value **passes** when it is empty, a placeholder (`<...>`), a printf format (`%s`), a template variable (`${x}`,
+`{x}`), or a device's own setup-AP name (`<edition>scope-` and six hex digits, made from its MAC: out of scope).
+Anything else is a finding.
+
+A **BSSID** is a MAC-shaped value after `bssid` or `bss` (`check_bssid.py`'s pattern, unchanged). A **private LAN
+address** is any address in 10/8, 172.16/12 or 192.168/16.
+
+### Network names: 113 findings, 113 lines, 32 files
+
+- **107 are one name, the bench network's:**
+  - 71 in `assoc` lines (the firmware's join log);
+  - 36 in `connecting` lines (WiFiManager).
+  - By directory: bench-logs 98, tools/weatherscope/board 9. They are in 28 files.
+- **6 are not a network**, and go on the allowlist:
+  - `scripts/redact-vectors.txt:11`, `:12` and `:13`: the redaction test's inputs, deliberately unredacted.
+  - `scripts/wifi-join-capture.ps1:29`: a usage example.
+  - `include/WiFiManagerHelpers.h:569`: a comment showing the scan entry's HTML.
+  - `src/AircraftManager.cpp:4169`: UI copy for an absent SSID.
+- **59 contexts already pass:** placeholders, one printf format, and 28 setup-AP names.
+
+**This differs from the ruling's description.** My scan finds one distinct network name, in 71 association lines,
+not two names in 77.
+- The 80 association contexts in the tree are:
+  - 71 that hold the name;
+  - 8 placeholders, all `<ssid>` (Weatherscope's runs of 2026-10-30, and the eero doc);
+  - 1 printf format (`src/main.cpp`).
+- The name is also in 36 WiFiManager lines, which the ruling does not list.
+
+If the ruling's second name is a value my contexts do not see, please name its line or its context, and it becomes a
+row here.
+
+**`docs/wifi-join-failure-eero.md`:** my scan finds no network name, BSSID or private address in it. Its one
+association line already holds `<ssid>`, and it has no MAC-shaped value and no private address at all. The same
+request applies: name what was seen there.
+
+**The bench name also appears 4 times outside any network context:**
+- where: `proxy/photos/credits.html` (2) and `proxy/photos/manifest.json` (2);
+- what: word-bounded, inside photo attributions; it is a common word.
+
+Those are licence attributions. The scrub replaces only inside a context, so it does not touch them (row W7).
+
+### BSSIDs: 22 findings, 22 lines, 13 files, 2 distinct values
+
+All are in `bench-logs/`, each the fast-join line (`[WiFi] fast join: ch=1 bssid=<MAC>`). They are exactly the 13
+files `check_bssid.py` allows by name (`docs/bssid-guard.md`).
+
+### Private LAN addresses: 152 occurrences, 149 lines, 37 files, 13 distinct values
+
+- **bench-logs: 127 in 23 files**, the ruling's count. tools/weatherscope/board: 0.
+- **The portal address, 192.168.4.1: 40 occurrences in 40 lines, 16 files.**
+  - 31 are in bench-logs, every one a WiFiManager portal line: `*wm:AP IP address:`, `*wm:[2] -> `, and its DNS
+    server.
+  - 9 are in docs/, proxy/ and src/, each naming the setup portal.
+  - None of the bench's own addresses shares the portal's /24.
+- **The rest: 112 occurrences.**
+  - **100 are real, and the scrub replaces them,** in 100 lines across 23 files: bench-logs 96, docs 2, scripts 1,
+    src 1. Outside bench-logs they are:
+    - `docs/nvs-config-flip-2026-08-27.md:15`;
+    - `docs/v11-quiet-hour-plan.md:499` and `scripts/check-config-form.py:415`, both the bench board's address as the
+      logs carry it;
+    - `src/game/GameClient.cpp:14`, a dev-server address in a build-flag comment.
+  - **12 are documented examples, and go on the allowlist,** in 10 lines across 7 files:
+    - `README.md:308`, `src/AircraftManager.cpp:543`, `src/ConfigurationWebServer.cpp:857`, `:1090`, `:2281` and
+      `:2374`, `src/speed/SpeedFeedClient.h:33` and `tools/claudescope-sidecar/README.md:42`: the "e.g." value and the
+      config form's `placeholder=` hints;
+    - `include/QrRender.h:24`: an illustrated URL length;
+    - `proxy/test/locatepage.test.ts:88`: a fixture of private hosts the page must refuse.
+
+**How I separated real values from examples, so the reviewer can check it:**
+- A value that appears in any log is real wherever it appears, even under "e.g.".
+- A value that is in no log is an example only where its line marks it as one: "e.g." or "for example", a
+  `placeholder=` attribute, a test fixture, or an illustrated length.
+- Everything else is real. That is why the two unmarked values (the nvs doc and the game-client comment) are
+  scrubbed, though neither is in a log.
+
+### The categories, before and after
+
+| category | findings before (empty allowlist) | scrubbed | allowlisted | passes by value | findings after |
+|---|---|---|---|---|---|
+| network name | **113** (113 lines, 32 files) | 107 (107 lines, 28 files) | 6 lines, 6 findings | | **0** |
+| BSSID | **22** (22 lines, 13 files) | 22 (13 files) | 0 | | **0** |
+| private LAN | **152** (149 lines, 37 files) | 100 (100 lines, 23 files) | 10 lines, 12 findings | 40, the portal (Q-W2) | **0** |
+
+**The scrub touches 32 files:** bench-logs 19, tools/weatherscope/board 9, docs 2, scripts 1, src 1. The allowlist has
+**16 entries**.
+
+## The change
+
+1. **The scrub.** Each value is replaced in place by one fixed placeholder per category, only inside its context:
+   - `<ssid redacted>` for a network name;
+   - `<bssid redacted>` for a BSSID;
+   - `<lan-ip redacted>` for a LAN address.
+
+   The first two are the tokens the recorders' redaction already writes. A scratch script does it; it is not
+   committed. It computes the new text in memory, writes it, and prints counts per category and per file. Nothing
+   else in any line changes.
+2. **The guard, `scripts/check_wifi.py`,** in `forbidden.py`'s style: it prints verdicts, `path:line` and the
+   category, never a value.
+   - **Its contexts and pass rule** are exactly the tables above.
+   - **Its allowlist is `scripts/wifi-allow.txt`.** Each entry is the path, the SHA-256 of the exact line (without its
+     line ending), and a reason.
+     - The hash pins the exact line without repeating its value, so the allowlist carries nothing to guard.
+     - An entry whose path and line match no tracked line is refused as **stale**.
+     - An entry whose line has no finding is refused as **allowing nothing**.
+     - The same line at another path, or with one character changed, is not allowed.
+   - **Unreadable is FAIL.** A tracked file that is neither UTF-8 nor UTF-16 with a BOM, and whose extension is not
+     on the binary list, is refused by name. A UTF-16 file with a BOM is decoded and scanned.
+   - **BLIND is exit 2.** The guard exits 2 if `git ls-files` fails, if it scans no file, or if it sees no network
+     context at all. After the scrub the tree still holds at least 107 placeholder contexts, so seeing none means the
+     guard cannot see.
+   - Exit codes: 0 clean; 1 a finding, a stale or idle entry, or an unreadable file; 2 rig or BLIND.
+3. **CI.** The `device-ids` workflow runs the guard and its selftest.
+
+**Beyond the ruling, named so they can be struck:**
+
+- **Q-W1: `check_bssid.py` folds into the new guard.** After the scrub its 13 named files carry no BSSID, and it refuses
+  a stale allowance, so as it stands the scrub turns it red.
+  - *Recommended:* one guard per rule. It is deleted; its three plant forms (the fast-join line, `BSSID:` with dashes,
+    the jdiag `bss` line) move into the new selftest; `docs/bssid-guard.md` gains a superseded note; and two comments
+    that cite it (`scripts/check_redaction_vectors.py`, `scripts/redact-vectors.txt`) are updated.
+  - *Alternative:* keep it, with an empty allowance and without its stale-file plant. Two guards would then hold one
+    rule.
+- **Q-W2: 192.168.4.1 passes by value.**
+  - Why it identifies nothing: it is the ESP32 SoftAP's fixed portal address, the same on every board. Where a router
+    uses it (eero's default gateway), it is the same on every such router.
+  - *Alternative:* allowlist its 40 lines by path and line, 56 entries in all.
+- **Q-W3, a follow-up, not in this PR.** The recorders' shared rule set (`scripts/redact-line.ps1`,
+  `scripts/redact_line.py`) does not redact the `assoc` line, the `connecting` line or a LAN address, so every future
+  bench log meets this guard unredacted. I recommend adding those rules the #473 way, vectors included, as their own
+  PR.
+
+## Predictions
+
+| | check | predicted |
+|---|---|---|
+| **W1** | the guard on main's tree (`892fe2b`), with the PR's allowlist | **exit 1**, with exactly the "scrubbed" column: name 107, BSSID 22, LAN 100 findings. Its 16 entries are each used once; 0 stale, 0 unreadable |
+| **W1b** | the same, with an empty allowlist | **exit 1**: name 113, BSSID 22, LAN 112 (152 with the portal not exempt) |
+| **W2** | the scrub | **107 + 22 + 100 replacements in 32 files**, and nothing else. Every changed line differs from main only at the replaced spans, every touched file keeps its line count and line endings, and no other file changes |
+| **W3** | the guard on the branch | **exit 0**: 0 findings in each category; 16 entries, each used; 0 stale; 0 unreadable. It sees at least 107 network contexts, all passing |
+| **W4** | the control (selftest), each plant on its own, in a copy of the tree | each turns the guard red naming exactly the planted file and category: **(a)** a name in an `assoc` line; **(b)** a name after `ssid=`; **(c)** a BSSID in the fast-join form; **(d)** `BSSID:` with dashes; **(e)** the jdiag `bss` form; **(f)** one address each from 10/8, 172.16/12 and 192.168/16 (3 findings). **The placeholders pass:** a file holding all three placeholders in their contexts has 0 findings |
+| **W5** | the allowlist and the rig, in the same selftest | **(g)** an allowlisted line copied to another path is red; **(h)** the allowlisted line with one character changed is red, and its entry is stale; **(i)** an entry for a line with no finding is refused; **(j)** a tracked text file that does not decode is refused as unreadable; **(k)** an empty tree exits 2 (BLIND) |
+| **W6** | the rest | `check_redaction_vectors.py` and its selftest pass (only comments change); `check_device_ids.py` and `check_workflow_concurrency.py` (with its selftest) pass |
+| **W7** | the bench name in the tree after the scrub | **exactly 4 occurrences, all in `proxy/photos/`** (the attributions). So the scrub missed no context and touched no attribution |
+
+**The sabotages.** Each must turn its row red, and each is run once and observed red before the row is believed:
+
+| sabotage | turns red |
+|---|---|
+| **S-W3**: one scrubbed log restored from main | W3, naming that file, in all its categories |
+| **S-W4N**: the `assoc` and `ssid_eq` contexts removed from the guard | W4 (a) and (b) |
+| **S-W4B**: the BSSID pattern removed | W4 (c), (d), (e) |
+| **S-W4L**: the LAN pattern removed | W4 (f) |
+| **S-W4P**: the placeholder pass removed | W4's placeholder control, and W3 |
+| **S-W5G**: the allowlist keyed on the line's hash alone, path ignored | W5 (g) |
+| **S-W5J**: an undecodable file skipped instead of refused | W5 (j) |
+| **S-W5K**: the BLIND rule removed | W5 (k) |
+| **S-W7**: the scrub widened to replace the name anywhere, not only in a context | W7 (the attributions change) |
+
+**CI on the PR:** `device-ids` is green with the new steps. Every other workflow is unaffected: outside logs and docs,
+the scrub changes one comment line in `src/` (`GameClient.cpp:14`) and one message string in a script
+(`check-config-form.py:415`). `firmware` builds as on main.
+
+**Outside the set:** stop and report, with no fix until a ruling.
+
+## Results
+
+### Two misses, recorded before anything was pushed
+
+**W2, first run: OFF-PREDICTION.** The scrub replaced **name 93**, BSSID 22, LAN 100 in 32 files. W2 predicted name
+107.
+- **What the guard saw.** On the scrubbed tree it reported **14 name findings**, every one a WiFiManager
+  `Connecting to NEW AP: <ssid>` or `SAVED` line, in 7 bench-logs.
+- **The cause.** Those logs end lines in `\r\r\n` (serial output; one of them holds 759 bare CRs). The guard strips
+  every trailing CR from a line; the scrub stripped one. A `connecting` value cannot cross a CR, so on those 14 lines
+  the scrub's pattern never matched, while the guard's did.
+- **Checked against main's blobs, not inferred.** The lines that end in two or more CRs number 2,109. Comparing the two
+  line definitions over all of them gives a gap of exactly **name 14, BSSID 0, LAN 0, in 7 files**.
+- **The alternative, and why the data excludes it.** The 14 might have been other networks, values the scrub would
+  have refused. They are not: the fixed scrub compares every value to the bench name in memory and refuses anything
+  else, and it refused none.
+- **The fix (local, unpushed until a ruling).** The 32 files were restored to HEAD (32 of 32 byte-identical). The
+  scrub now uses the guard's line, stripping every trailing CR and restoring them on write. Re-run from the clean tree:
+  **name 107, BSSID 22, LAN 100 in 32 files**, W2's numbers.
+
+**W3, first run: OFF-PREDICTION.** It read **name 1**. The finding was in this PR's own guard: a selftest label in
+`scripts/check_wifi.py` read as a quoted value after an `ssid` assignment. The label was reworded. The guard was
+right: it was the first file of this PR it had been run over.
+
+**Found while building, before any row ran (not misses):**
+- **Decode first.** The guard's first draft skipped files by extension: 420, against the 414 that are truly binary.
+  Six tracked files with a "binary" extension decode as text: five ASCII STEP files and one terrain `.bin`. The guard
+  now decodes first and scans whatever decodes; the binary list only excuses a file that does not decode, as this doc
+  already described.
+- **The selftest's anchor.** Every planted tree carries an anchor, so that a plant is judged FAILED rather than BLIND.
+  The first anchor was a placeholder in an `assoc` line, which would have reddened every plant through BLIND under
+  S-W4N or S-W4P, not just the plant each sabotage targets. It is now three contexts of three kinds, passing by a
+  printf format and a setup-AP name.
+
+### The sabotages' red sets, registered before any of them ran
+
+**The mechanism.** S-W4* and S-W5* are in-memory edits to the guard's source, applied to a loaded copy. Each edit is
+asserted to apply exactly once, and the file on disk is checked byte-identical before and after.
+
+Each sabotage is read three ways:
+- **W3:** the guard on the real tree.
+- **full:** the selftest as CI runs it, with its precheck, which first requires the real tree to pass.
+- **rows:** the selftest's rows without that precheck. `selftest(precheck=False)` exists only for this.
+
+The inputs behind each set were read first:
+- 142 placeholder contexts sit outside allowlisted lines, in 39 files;
+- the entries' lines hold LAN only (10), `ssid_eq` only (3), `wm_scan` (2) or `ssid_arg` (1);
+- the README entry's line holds no network context;
+- no allowlisted line occurs at a second path.
+
+| sabotage | W3 | full | rows red (and only these) |
+|---|---|---|---|
+| **S-W4N**: `assoc` and `ssid_eq` removed | exit 1: 3 entries **idle** (their `ssid_eq` lines lose their finding), 0 findings | exit 2 (RIG) | (a), (b) |
+| **S-W4B**: the BSSID pattern never matches | exit 0 (no BSSID left to find, none allowlisted) | exit 1 | (c), (d), (e) |
+| **S-W4L**: the LAN pattern never matches | exit 1: 10 entries **idle** | exit 2 (RIG) | (f), (f)'s count, the real allowed line, (g), (h) |
+| **S-W4P**: the placeholder pass removed | exit 1: **name 143** (see the correction below) | exit 2 (RIG) | the placeholders row |
+| **S-W5G**: allowlist matched on the line's hash alone | exit 0 | exit 1 | (g) |
+| **S-W5J**: an undecodable file counted as binary | exit 0 | exit 1 | (j) |
+| **S-W5K**: BLIND never set | exit 0 | exit 1 | (k) |
+| **S-W3**: `bench-logs/bindctl-2026-08-07-2023.log` restored from main | exit 1: **3 findings, all in that file**: name 1, BSSID 1, LAN 1 | exit 2 (RIG) | not run |
+| **S-W7**: the scrub run with `--everywhere` on a fresh copy of main | W7: the bench name **0 times** (the 4 attributions replaced), and both `proxy/photos` files changed | | |
+
+**A correction, made before any sabotage ran.** S-W4P's W3 count was first written as 142, read at the tree before
+this section existed. Committing this section (`eadf471`) added one placeholder context, its own example of the
+WiFiManager line, so the input moved under the number. Re-read at `eadf471`: **143, in 39 files**. This correction
+is prose only, so it adds no context.
+
+**Two consequences, said before they are seen:**
+- S-W4B is invisible to W3. The tree holds no BSSID, so only the selftest's plants can catch a dead BSSID pattern.
+  That is what the control is for.
+- S-W4N and S-W4L are caught by W3 itself, through the idle rule. An allowance whose line stops producing a finding is
+  refused, so removing a context or a range is visible on the real tree.
+
+### The rows (local, at `d895880`; Windows, Python 3.14)
+
+| | read | verdict |
+|---|---|---|
+| **W1** | the guard on a clean checkout of main (`892fe2b`), with this PR's allowlist: **exit 1; name 107, BSSID 22, LAN 100**; 16 entries, stale 0, idle 0, unreadable 0 | as predicted |
+| **W1b** | the same with an empty allowlist: **exit 1; name 113, BSSID 22, LAN 112** | as predicted |
+| **W2** | first run **name 93**: OFF-PREDICTION, recorded above. Second run, from a clean tree: **name 107, BSSID 22, LAN 100 in 32 files** (bench-logs 19, tools 9, docs 2, scripts 1, src 1). Read without the guard's patterns: 32 files keep their line count, CRLF and bare-CR counts, and BOM. 229 changed lines; each one is the old line with exactly its spans replaced by placeholders (229 placeholders added), and **0 lines differ in any other way**. No other file changed | as predicted on the second run |
+| **W3** | first run **name 1**: OFF-PREDICTION, recorded above. Then: **exit 0; 0 / 0 / 0**; 16 entries each used; stale 0, idle 0, unreadable 0; 183 network contexts seen, 177 passing | as predicted after the label fix |
+| **W4** | (a) to (f) each red naming exactly its file and category, (f) with 3 findings; the placeholders file **exit 0, 0 findings** | as predicted |
+| **W5** | (g), (h) (red, and the entry stale), (i) (idle), (j) (unreadable) red; (k) exit 2 | as predicted |
+| **W6** | `check_redaction_vectors.py` 10 vectors equal, and its selftest; `check_device_ids.py` OK; `check_workflow_concurrency.py` and its selftest OK | as predicted |
+| **W7** | the bench name in the tree: **4, all in `proxy/photos/`** | as predicted |
+
+### The sabotages, each run once and observed
+
+The unsabotaged control, loaded the same way, reads W3 exit 0, full exit 0, rows exit 0 with none red. The guard
+file on disk is byte-identical before and after.
+
+| sabotage | read | verdict |
+|---|---|---|
+| **S-W4N** | W3 exit 1, idle 3; full exit 2; rows red (a), (b) | as registered |
+| **S-W4B** | W3 exit 0; full exit 1; rows red (c), (d), (e) | as registered |
+| **S-W4L** | W3 exit 1, idle 10; full exit 2. **The rows run CRASHED**: `IndexError` at `check_wifi.py:271`, after 8 of 14 rows. (f) and its count were red; the real allowed line, (g) and (h) **never ran** | **OFF-PREDICTION** |
+| **S-W4P** | W3 exit 1, **name 143**; full exit 2; rows red: the placeholders row | as registered |
+| **S-W5G** | W3 exit 0; full exit 1; rows red (g) | as registered |
+| **S-W5J** | W3 exit 0; full exit 1; rows red (j) | as registered |
+| **S-W5K** | W3 exit 0; full exit 1; rows red (k) | as registered |
+| **S-W3** | `bindctl-2026-08-07-2023.log` restored from main: W3 exit 1, **3 findings, all in that file: name 1, BSSID 1, LAN 1**; full exit 2. Restored byte-identical | as registered |
+| **S-W7** | the scrub with `--everywhere` on a clean main: name 111 (107 + the 4 attributions), 34 files including both `proxy/photos` files; W7 reads the bench name **0 times** | as registered: W7 red |
+
+**S-W4L, the cause.** With the LAN pattern dead, the README entry's line has no finding, and the selftest's allowlist
+rows read the line's category as `line_findings(line)[0][0]`, the first finding of a line that no longer has one. In
+CI the precheck stops first (exit 2, through the 10 idle entries), so CI goes red either way. But a selftest row that
+crashes instead of reporting red is a defect: it hides which rows would have caught the break.
+
+**The fix, proposed and NOT made, pending a ruling:**
+- The rows take the category without assuming a finding: `cats = line_findings(line)[0]`, then `cat = cats[0] if cats
+  else "none"`.
+- S-W4L is re-registered as rows exit 1, with red: (f), (f)'s count, the real allowed line, (g) and (h).
+
+**The harness, not a row.** The rehearsal script's first run crashed on its own S-W4N edit, which set a context to
+`None` instead of removing it. That happened before any sabotage result was read, and the edit now removes both
+contexts.
+
+## The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~17:05Z)
+
+> #517, the Wi-Fi scrub:
+> - My correction: there is one network name, not two. My scan counted the placeholder "<ssid>" as a second name, and
+>   docs/wifi-join-failure-eero.md holds nothing to scrub. Record it as my error.
+> - W2: the fix is approved (the scrub uses the guard's line definition), with the first run's 93 kept on record. W3's
+>   relabel: approved.
+> - S-W4L: the fix is approved and the row re-registered: rows exit 1 with 5 rows red. A crash is an instrument failure,
+>   never a red.
+> - S-W4P's 142 -> 143, corrected before any sabotage ran: accepted.
+> - Q-W1: yes, fold check_bssid.py into the new guard. One guard, no stale allowances.
+> - Q-W2: yes, 192.168.4.1 passes by value (the ESP32's own portal address). Its control: any other 192.168.4.x is
+>   still flagged.
+> - Q-W3: yes, a follow-up PR with recorder redaction rules at capture time (the association line, the WiFiManager line,
+>   LAN addresses), predictions first.
+> - The guard's selftest plants synthetic values only: never the real name, a real BSSID or a real address.
+> - Commit the sabotage harness. Commit the scrub script too if it holds patterns only and no values; the guard's run over
+>   the tree is the proof.
+> - Then push d0d6fbf with the S-W4L fix and mark #517 ready.
+
+**Recorded as the ruling directs:** the ruling's description of two network names was the reviewer's error. Their
+scan counted the placeholder `<ssid>` as a second name, and `docs/wifi-join-failure-eero.md` holds nothing to scrub.
+This PR's scan was right on both counts.
+
+## Registered before the code that follows (2026-11-04)
+
+### What changes
+
+1. **The S-W4L fix, as ruled.** The selftest's allowlist rows take the line's category without assuming a finding:
+   `cats = line_findings(line)[0]`, then `cat = cats[0] if cats else "none"`.
+2. **Q-W2's control, a new selftest row (l):** one file holding the portal address and four other addresses in its
+   /24 (`.2`, `.10`, `.11`, `.100`).
+   - **Predicted:** exit 1, with exactly **4 findings, all LAN, naming that file**. The portal passes; `.10` and `.11`
+     prove that "starts with the portal" is not the rule.
+   - Every planted address is built at run time.
+3. **Its sabotage, S-W2PORTAL:** the exemption widened from the one address to its whole /24.
+   - **W3: exit 0.** The tree holds no other address in the portal's /24 (read: 0).
+   - **full: exit 1.**
+   - **rows red: (l) only.**
+4. **S-W4L's red set grows by one, registered before running.** Row (l) uses the LAN pattern too, so with that
+   pattern dead it goes red as well.
+   - The ruled set was 5 rows; **it is now 6:** (f), (f)'s count, the real allowed line, (g), (h) and **(l)**.
+   - Rows exit 1. W3: exit 1 with 10 idle entries. full: exit 2.
+   - **The A2.16 re-check, every other sabotage against (l)'s inputs** (the LAN pattern, the portal comparison, the
+     anchor): S-W4N, S-W4B, S-W4P, S-W5G, S-W5J and S-W5K touch none of them. Their sets are unchanged.
+5. **A crash is an instrument failure, never a red.** The harness prints `INSTRUMENT FAILURE` for any crash, and that
+   sabotage is not as registered.
+6. **The sabotage harness is committed:** `scripts/check_wifi_sabotage.py`. It runs these, and exits 0 only if every
+   one is as registered:
+   - the unsabotaged control;
+   - S-W4N, S-W4B, S-W4L, S-W4P, S-W5G, S-W5J, S-W5K and S-W2PORTAL, as in-memory edits of the guard's source, each
+     asserted to apply once, with the file on disk unchanged;
+   - S-W3, the one log restored from `892fe2b` in place, then restored from a byte copy and its sha256 checked;
+   - S-W7, the scrub with `--everywhere`, read from `892fe2b` in memory (below);
+   - **W8**, below.
+7. **The scrub script is committed:** `scripts/wifi_scrub.py`.
+   - It holds patterns and placeholders only, and imports the guard's patterns.
+   - It derives the bench name in memory from the logs it reads.
+   - `--rev <sha> --dry` reads a git revision instead of the working tree, and writes nothing.
+   - **With no bench name in its input, every name value it meets is refused, not replaced.**
+8. **W8, the plants are synthetic.** Compared in memory against the real values at `892fe2b`, none of these equals the
+   bench name, either real BSSID or any real LAN address:
+   - the planted name, the two planted MACs and the planted addresses, the new row (l) included;
+   - the README example line that (g) and (h) copy.
+
+   It prints booleans only.
+
+**My error, recorded (2026-11-04).** This section was first pushed in `5a70efb` with **one LAN finding in its own
+text**: it wrote out the portal's /24 as an address. The guard reported it, and the commit and push went ahead
+anyway, because the command chained the guard with `;` where it needed `&&`. So `5a70efb`'s `device-ids` is red on
+this doc's own line. The line is reworded here, LOCAL ONLY until a ruling, and from now on the guard gates every
+commit with `&&`.
+
+### Frozen predictions
+
+| | check | predicted |
+|---|---|---|
+| **W3** | the guard on the branch | exit 0; 0 / 0 / 0; 16 entries, each used; stale, idle and unreadable 0 |
+| **W4, W5** | the selftest | every row as predicted, **15 rows**, (l) included |
+| **W2'** | `wifi_scrub.py --rev 892fe2b --dry` | name 107, BSSID 22, LAN 100, in 32 files; the bench name left in that in-memory tree: **4, all in `proxy/photos/`** |
+| **S-W7** | `wifi_scrub.py --rev 892fe2b --dry --everywhere` | name 111, in 34 files, both `proxy/photos` files included; the bench name left: **0** |
+| **W2''** | `wifi_scrub.py` on the branch's working tree | nothing to replace: 0 / 0 / 0, 0 files, exit 0 |
+| **the sabotages** | `check_wifi_sabotage.py` | each as registered, with S-W4L's 6 rows and S-W2PORTAL's (l); 0 instrument failures; the guard byte-identical; **exit 0** |
+| **W8** | in the harness | every planted value is synthetic: **0 equal a real value** |
+| **W6** | the rest | as before |
+| **CI on the pushed head** | | every check finishes success, or skipped as main's runs skip; none failed |
+
+**Outside the set:** stop and report, with no fix until a ruling.
+
+### Read (local, at `ef8b953` and the harness tidy after it; Windows, Python 3.14)
+
+| | read | verdict |
+|---|---|---|
+| **W3** | exit 0; 0 / 0 / 0; 16 entries, each used; stale, idle and unreadable 0 (1,420 tracked, 1,006 scanned) | as predicted |
+| **W4, W5** | **15 rows**, every one ok, including (l): exit 1, 4 findings, all LAN, in its file | as predicted |
+| **W2'** | `--rev 892fe2b --dry`: name 107, BSSID 22, LAN 100 in 32 files; the bench name left: 4, both `proxy/photos` files | as predicted |
+| **S-W7** | `--rev 892fe2b --dry --everywhere`: name 111 in 34 files, both `proxy/photos` files included; the bench name left: 0 | as registered |
+| **W2''** | on the branch's working tree: 0 / 0 / 0 in 0 files, "no bench name in these logs", exit 0; the tree unchanged | as predicted |
+| **the sabotages** | the control green. S-W4N, S-W4B, S-W4P (name 143), S-W5G, S-W5J, S-W5K: as before. **S-W4L: rows exit 1, red (f), (f)'s count, the real allowed line, (g), (h), (l)**, W3 idle 10, full 2. **S-W2PORTAL: W3 exit 0, full exit 1, rows red (l)**. S-W3: 3 findings in that file, restored byte-identical. 0 instrument failures; the guard byte-identical. **Exit 0** | as registered |
+| **W8** | the planted name, the planted MACs, the planted addresses and the README example line's address: **none equals a real value** (read in memory: 1 name, 2 BSSIDs, 7 addresses) | as predicted |
+| **W6** | the redaction vectors and their selftest, device ids, workflow concurrency and its selftest: all exit 0 | as predicted |
+
+**The harness tidy.** Python 3.14 warned at `return 3` inside a `finally` block, so the restore-failed exit now comes
+after the block. That changes no reading. The harness was run again on the tidied file: **all as registered, exit 0**.
+
+**CI on `5a70efb`, read:** `device-ids` failed on exactly one finding, `docs/wifi-scrub.md:360: lan`, the line
+recorded above. That run scanned the PR merged with today's main (1,465 tracked), so #514's new Weatherscope files
+passed the guard there.
+
+## Merged (2026-11-04)
+
+**CI on `d537e4a`: 40 check runs, 36 success, 4 skipped, 0 failed, against the 38 I predicted.** The two extra jobs were
+`build` and `publish`, from #518's new `web-renderer` workflow. #518 merged at 17:56:23Z, five seconds before the PR's
+runs started, so the run tested the PR merged with it.
+- **Ruled (~19:00Z):** the count re-registered at 40, with the miss kept.
+- **The rule from now on:** re-read main right before the push, not when the prediction is written.
+
+**The merge.** `ec4f0d472fc9`, 19:02:42Z: squash with `--match-head-commit d537e4a`, no `--admin`. The remote branch was
+deleted by hand. The reviewer checked that the squash carries exactly `d537e4a`'s changes.
+
+**main's CI on `ec4f0d4`:** 40 check runs, the same on two reads. 37 success, 3 skipped (`publish`, `promote`,
+`version`), 0 failed. `device-ids`, the guard on main, is green.
+
+**The reviewer's independent scan of main afterwards**, by value for what the scrub removed:
+- the network name and the two BSSIDs: none;
+- the seven LAN addresses: none in any file's contents. **But two file NAMES carried one**, so `check_wifi.py` (which
+  read contents only) could not see them. That is #527: both files renamed, and every tracked path checked.
+

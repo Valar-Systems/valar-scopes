@@ -55,6 +55,25 @@ THEMES = {
 }
 
 
+# --------------------------------------------------------------------------------------- the light theme (A12.60)
+# Light (b) completed from A12.43's table (its sections 1 and 2, with A12.44's hold-ring swap) -- never from WxTheme.h:
+# dry, no coverage and the hatch on paper; the orange split into its text and its graphic; and the snow ramp and the UI
+# roles, which no K scene draws (WXC1 v1 carries no precipitation type), carried for t5's legend. light-a and light-b
+# above stay exactly as A12.22 froze them, for TH1-TH3 and the viewer's record.
+def light_theme():
+    pal = light_pal("b")
+    pal.update({0: PAPER, 14: (93, 93, 93), 15: (124, 124, 124)})
+    snow = {1: (0, 108, 206), 2: (0, 95, 177), 3: (0, 83, 149), 4: (0, 70, 121), 5: (0, 57, 94), 6: (0, 43, 66)}
+    snow.update({c: snow[6] for c in range(7, 14)})
+    return dict(ink=dict(LIGHT_INK, orange=(159, 85, 0), orange_g=(255, 140, 0)), pal=pal, nothing=PAPER,
+                terrain=ramp((168, 165, 156)), water=(171, 204, 237), river=(96, 146, 206), road=(178, 150, 112),
+                snow=snow, ui=dict(fg=(38, 38, 40), dim=(96, 92, 86), accent=(0, 112, 151), warn=(143, 94, 0),
+                                   hold_arc=(0, 90, 0), hold_track=(0, 200, 0)))
+
+
+THEMES["light"] = light_theme()
+
+
 # --------------------------------------------------------------------------------------- the package by §9
 def package_scene(view, rl_mm=98_974_656, mask=15, terrain=True):
     """(index image 240 x 240 by A10.2's table: 0 nothing, 1-37 terrain level + 1, 38 water, 39 river, 40 road;

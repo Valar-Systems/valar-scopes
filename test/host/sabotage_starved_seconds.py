@@ -58,8 +58,12 @@ def main():
     real = [os.path.join(inc, h) for h in ("UsageReport.h", "StarvationPolicy.h")] + [SUPPORT]
     before = {h: sha(h) for h in real}
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         for i, (name, header, edits, test, must) in enumerate(SABOTAGES):
+            if rigs.forced(name):
+                ok = False
+                continue
             tree = os.path.join(td, f"s{i}")
             shutil.copytree(inc, os.path.join(tree, "include"))
             os.makedirs(os.path.join(tree, "test", "host"))
@@ -82,7 +86,9 @@ def main():
             b = subprocess.run([CXX, *FLAGS, os.path.join(tree, "test", "host", test), "-o", exe], capture_output=True, text=True)
             if b.returncode != 0:
                 print(f"{name}: did not compile (rig)\n{b.stderr}")
-                return 2
+                rigs.add(name)
+                ok = False
+                continue
             args = [exe, METRICS, README, support] if test == "test_usage_report.cpp" else [exe]
             r = subprocess.run(args, capture_output=True, text=True)
             fails = [l.strip() for l in r.stdout.splitlines() if "FAIL" in l]
@@ -92,7 +98,7 @@ def main():
             ok &= good
     after = {h: sha(h) for h in before}
     print(f"real headers and support.html unchanged: {before == after}")
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():
@@ -105,8 +111,9 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
+USAGE_REPORT_CHECKS = 44   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
 CONTROL_TABLE = {"test_starvation_policy": ("line", "test_starvation_policy: all checks passed"),
-                 "test_usage_report": ("checks", 44)}
+                 "test_usage_report": ("checks", USAGE_REPORT_CHECKS)}
 
 
 def control():

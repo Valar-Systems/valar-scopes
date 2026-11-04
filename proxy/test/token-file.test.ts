@@ -4,7 +4,7 @@ import {
   TokenFileError,
   parseTokenFile,
   readTokenFile,
-  resolveBlipCreds,
+  resolveTestIdentity,
   resolveToken,
   type TokenFileIo,
 } from "../scripts/token-file";
@@ -233,24 +233,46 @@ describe("blip-key and blip-device (T1-T3)", () => {
     }
   });
 
-  it("T2: the variables set, they are used and the file is never opened", () => {
-    const io = fakeIo({ env: { BLIP_KEY: "var-key", BLIP_DEVICE: DEV, [TOKEN_FILE_ENV]: PATH }, files: { [PATH]: BLIP } });
-    io.read = () => { throw new Error("the file was read"); };
-    expect(resolveBlipCreds(io)).toEqual({ key: "var-key", device: DEV, source: "BLIP_KEY + BLIP_DEVICE" });
+});
+
+// docs/test-identity.md: the TEST identity, the only pair the production checks and both ingests may use. blip-key and
+// blip-device stay parseable (above) but nothing resolves them any more: resolveBlipCreds is gone.
+describe("the test identity (resolveTestIdentity)", () => {
+  const DEV = "0000000000000000"; // EXAMPLE -- records-device, not a real device
+  const TDEV = "ab".repeat(8); // EXAMPLE test-device, built at run time so no 16-hex literal sits in the repo
+  const TKEY = "c".repeat(64), TKEYS = "d".repeat(64); // EXAMPLE keys
+  const FILE = `${GOOD}blip-key=blip-SECRET-key-0003\nblip-device=${DEV}\ntest-device=${TDEV}\ntest-key=${TKEY}\ntest-key-staging=${TKEYS}\nrecords-device=${DEV}\n`;
+  const io = (env: Record<string, string | undefined> = {}, text = FILE) => fakeIo({ env: { [TOKEN_FILE_ENV]: PATH, ...env }, files: { [PATH]: text } });
+
+  it("production takes test-key, staging test-key-staging, the same test-device; the source is names only", () => {
+    expect(resolveTestIdentity("production", io())).toEqual({ key: TKEY, device: TDEV, source: `${TOKEN_FILE_ENV} (test-device + test-key)` });
+    expect(resolveTestIdentity("staging", io())).toEqual({ key: TKEYS, device: TDEV, source: `${TOKEN_FILE_ENV} (test-device + test-key-staging)` });
   });
 
-  it("T3: the variables unset, the file supplies both, and the source is names only", () => {
-    const io = fakeIo({ env: { [TOKEN_FILE_ENV]: PATH }, files: { [PATH]: BLIP } });
-    const c = resolveBlipCreds(io);
-    expect(c.key).toBe(KEY);
-    expect(c.device).toBe(DEV);
-    expect(c.source).toBe(`${TOKEN_FILE_ENV} (blip-key) + ${TOKEN_FILE_ENV} (blip-device)`);
-    expect(c.source).not.toContain(KEY);
+  it("BLIP_KEY or BLIP_DEVICE set: refused before the file is opened, whatever the value", () => {
+    for (const env of [{ BLIP_KEY: TKEY }, { BLIP_DEVICE: TDEV }, { BLIP_KEY: "x", BLIP_DEVICE: DEV }]) {
+      const i = io(env);
+      i.read = () => { throw new Error("the file was read"); };
+      const msg = thrown(() => resolveTestIdentity("production", i));
+      expect(msg).toMatch(/BLIP_(KEY|DEVICE) is set/);
+      expect(msg).not.toContain(TKEY);
+    }
   });
 
-  it("T3: neither the variables nor the file: a TokenFileError naming the variable, never a value", () => {
-    const msg = thrown(() => resolveBlipCreds(fakeIo({ env: {} })));
-    expect(msg).toContain(`${TOKEN_FILE_ENV} is not set`);
-    expect(msg).toContain("blip-key");
+  it("test-device equal to records-device (a board's id): refused", () => {
+    const msg = thrown(() => resolveTestIdentity("production", io({}, FILE.replace(`test-device=${TDEV}`, `test-device=${DEV}`))));
+    expect(msg).toContain("equals records-device");
+  });
+
+  it("a missing or misshapen test field: refused, and no message carries a value", () => {
+    const msgs = [
+      thrown(() => resolveTestIdentity("staging", io({}, FILE.replace(/^test-key-staging=.*$/m, "")))),
+      thrown(() => resolveTestIdentity("production", io({}, FILE.replace(`test-key=${TKEY}`, "test-key=short")))),
+      thrown(() => resolveTestIdentity("production", io({}, FILE.replace(`test-device=${TDEV}`, "test-device=XYZ")))),
+    ];
+    expect(msgs[0]).toContain('no "test-key-staging" line');
+    expect(msgs[1]).toContain("not in its shape");
+    expect(msgs[2]).toContain("not in its shape");
+    for (const m of msgs) for (const v of [TKEY, TKEYS, TDEV, "blip-SECRET-key-0003"]) expect(m).not.toContain(v);
   });
 });

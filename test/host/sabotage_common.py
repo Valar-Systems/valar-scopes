@@ -23,6 +23,58 @@ class Refused(Exception):
     """A colour plant that cannot reach the panel. The driver reports it as REFUSED, never as a result."""
 
 
+class Rig(Exception):
+    """Q70 (b), A12.88: a plant that cannot be graded -- it did not compile, its suite did not run, or a count is off the
+    driver's table. Raised after the reason is printed. A driver records the plant and goes on to the next one, so one
+    plant that cannot build on a compiler no longer hides every plant after it (S-H3 behind S-L, A12.82); it exits 2 at
+    the end. The CONTROL (the unplanted run) is not a plant and keeps today's behaviour: where its RIG ended the driver
+    at once with exit 2, it still does, and in --control mode a Rig is reported as the RIG, exit 2, as before."""
+
+
+class Rigs:
+    """The plants a driver could not grade, in order (Q70 (b), A12.88).
+      forced(name)  A12.88's seam, at the top of a plant: when SABOTAGE_FORCE_RIG names it, the plant is recorded as the
+                    RIG before it builds and True is returned (skip it). It can only make a plant the RIG, never pass
+                    one; nothing sets it but sabotage_rig_control.py and a hand-run sweep.
+      add(name)     records a plant that could not be graded; its reason is already printed.
+      run(name, fn) forced(), then fn(*args); a Rig it raises is recorded. Returns fn's result, or None for the RIG.
+                    rig_if: for a helper that reports its RIG by a value rather than a Rig (its --control path relies
+                    on returning), a test of the result; a true one is recorded, and the result is returned unchanged.
+      close(code)   after the driver's own summary: no RIG, `code`; else the list printed and 2 (today's RIG exit)."""
+
+    def __init__(self):
+        self.names = []
+
+    def forced(self, name):
+        if os.environ.get("SABOTAGE_FORCE_RIG") != name:
+            return False
+        print(f"{name}: made the RIG by SABOTAGE_FORCE_RIG (A12.88's seam)")
+        self.add(name)
+        return True
+
+    def add(self, name):
+        print(f"{name}: the RIG -- recorded; the next plant runs")
+        self.names.append(name)
+
+    def run(self, name, fn, *args, rig_if=None, **kwargs):
+        if self.forced(name):
+            return None
+        try:
+            result = fn(*args, **kwargs)
+        except Rig:
+            self.add(name)
+            return None
+        if rig_if is not None and rig_if(result):
+            self.add(name)
+        return result
+
+    def close(self, code):
+        if not self.names:
+            return code
+        print(f"the RIG: {self.names}")
+        return 2
+
+
 def p565(c):
     r, g, b = c
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
@@ -137,7 +189,8 @@ def control_mode(driver, control_fn, table):
                 if r.returncode != 0:
                     bad.append(f"{suite}: did not compile")
             elif _norm(argv[0]) in built:
-                runs.append((built[_norm(argv[0])], r.returncode, r.stdout if isinstance(r.stdout, str) else ""))
+                out = r.stdout if isinstance(r.stdout, str) else (r.stdout or b"").decode("utf-8", "replace")
+                runs.append((built[_norm(argv[0])], r.returncode, out))
             elif _script(argv):
                 out = r.stdout if isinstance(r.stdout, str) else (r.stdout or b"").decode("utf-8", "replace")
                 runs.append((_script(argv), r.returncode, out))

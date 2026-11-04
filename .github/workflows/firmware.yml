@@ -32,7 +32,7 @@ jobs:
   # CONFIG_HTML trend is visible per-commit rather than measured when someone
   # gets suspicious.
   config-form:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -68,7 +68,7 @@ jobs:
   # this checker has been wrong three times, and each time a passing run and a
   # clean codebase looked identical.
   follow-privacy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -85,7 +85,7 @@ jobs:
   # (or to none) and land as permanent wrong entries in an owner's lifelist.
   # --selftest first, same reasoning as config-form above.
   icao-country:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,7 +107,7 @@ jobs:
   # the firmware's non-ICAO table blanks a real aircraft, which is the exact
   # symptom of the enrichment bug that table was added to cure.
   range-parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -134,7 +134,7 @@ jobs:
   # stale, because a list that accumulates dead entries decays back into the
   # hand-maintained one that failed.
   sku-readers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the checker catches each violation
@@ -148,7 +148,7 @@ jobs:
   # RELEASING.md runs this against the exact commit before the tag is pushed;
   # here it keeps main itself from losing the gate.
   tag-workflow:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the checker catches each violation
@@ -165,7 +165,7 @@ jobs:
   # is derived from the source here; here, not in print-cards.yml, because it is a
   # FIRMWARE change that makes the card wrong. --selftest first, as above.
   card-gestures:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -183,7 +183,7 @@ jobs:
         run: bash scripts/fresh-boot-acceptance.sh --selftest
 
   release-envs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -204,7 +204,7 @@ jobs:
   # against a parser broken on purpose; the note in the script says why and what
   # replaced it.
   adsbdb-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the gate's matrix parser before the gate is trusted
@@ -217,11 +217,22 @@ jobs:
   # version.txt ship while a shipping SKU sat failed. Floor + anchor + selftest,
   # run here on every push so matrix drift surfaces long before a release night.
   publish-receipts:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the publish-receipt gate, both directions
         run: bash scripts/check-publish-receipts.sh --selftest
+
+  # No job runs on ubuntu-latest (docs/ci-runners.md): that label moves to a new image under every workflow at once.
+  # Every runs-on names its image, and this guard refuses a line that drifts back.
+  runners:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: The guard must be able to refuse
+        run: python3 scripts/check_runners.py --selftest
+      - name: No job on a floating image label
+        run: python3 scripts/check_runners.py
 
   # HOST TESTS, on every PR and every push to main. test/host/run.sh was only ever
   # run by hand, so a red host test could merge -- and the weather layer's decoder
@@ -238,8 +249,16 @@ jobs:
   # run on CI: red, "no xtensa toolchain found" -- the rig refusing correctly.
   # Proved red by a planted WxCrop.h sabotage before it was required:
   # docs/host-tests-ci.md.
-  host-tests:
-    runs-on: ubuntu-latest
+  #
+  # A12.77 (1b): the host tests on two images. ubuntu-24.04 is today's; ubuntu-26.04 (g++ 15) is where ubuntu-latest
+  # went, so a defect only the newer compiler sees is found here first, not on a PR that drew it at random.
+  host-tests-leg:
+    name: host-tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -252,13 +271,25 @@ jobs:
       - name: Host tests
         run: bash test/host/run.sh
 
+  # The required check keeps its name, host-tests, and passes only when BOTH legs pass: branch protection requires this
+  # context, so the two legs are required through it without any change there (A12.77 (1b)).
+  host-tests:
+    needs: host-tests-leg
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Both legs must pass
+        run: |
+          echo "host-tests-leg: ${{ needs.host-tests-leg.result }}"
+          test "${{ needs.host-tests-leg.result }}" = "success"
+
   # ---------------------------------------------------------------------------
   # skus.yml is the one place a leg's status is declared. Validated here, BEFORE
   # anything is compiled, so a contradiction -- a build-only leg carrying a slug,
   # a shipping leg without one -- stops the run immediately instead of surfacing
   # as a mystery at publish time.
   skus:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.gen.outputs.matrix }}
     steps:
@@ -294,7 +325,7 @@ jobs:
   # checkout makes it BLIND (exit 2), never a pass. --check-wiring fails CI if someone takes this
   # job out of build's needs: a gate that can be deleted without anything noticing protects nothing.
   customer-entry:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -307,7 +338,7 @@ jobs:
         run: python3 scripts/check-customer-entry.py
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [skus, customer-entry]
     strategy:
       fail-fast: false
@@ -521,7 +552,7 @@ jobs:
   ship-alert:
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -574,7 +605,7 @@ jobs:
     # certified. Only harness legs stopped being load-bearing.
     if: always() && github.event_name == 'release'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # Before its verdict is used, same rule as the adsbdb gate: a check that
@@ -678,7 +709,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'release' && needs.version.result == 'success' }}
     needs: version
     environment: release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # ORDER IS PROVEN HERE, NOT BY WHERE A LINE SITS. This reads version.txt

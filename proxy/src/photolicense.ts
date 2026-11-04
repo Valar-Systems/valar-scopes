@@ -6,6 +6,8 @@
 // See proxy/README.md "Stock photo library for cloud mode" and
 // blipscope-military-photo-sourcing.md for the sourcing playbook these encode.
 
+import { CREDIT_BITS } from "./basemap/provenance";
+
 // A manifest row. The ingest script refuses any upload missing a required field
 // (everything but the ingest-filled `blobKey`/`changesNoted`).
 export interface ManifestEntry {
@@ -199,6 +201,12 @@ export function pointerKey(kind: "type" | "hex", target: string, size?: number):
 // only -- no local file paths).
 export const MANIFEST_KEY = "photo:manifest";
 
+// The basemap's terrain credits (docs/basemap-attribution.md; docs/basemap-deploy.md, the D3 PR's C2): the builder's own
+// texts, so the credits page cannot drift from what a package's PROVENANCE says. MA2 holds the page to them.
+const TERRAIN_CREDITS: readonly string[] = CREDIT_BITS.map(([, text]) => text);
+/** SRTM's notice, with the year of production (docs/basemap-attribution.md, AQ1). */
+export const SRTM_NOTICE = "© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.";
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -207,19 +215,48 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// License display + link for the credits page. PD/own need only a courtesy
-// credit; CC-BY/SA and OGL need the license link (and SA a changes-noted line,
-// carried per-entry).
-const LICENSE_META: Record<string, { label: string; url?: string }> = {
-  "PD-USGov": { label: "Public domain" }, // covers PD-USGov, CC0, and self-released PD (civil long tail)
-  own: { label: "Used with permission" },
-  "CC-BY": { label: "CC BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/" },
-  "CC-BY-SA": { label: "CC BY-SA 4.0", url: "https://creativecommons.org/licenses/by-sa/4.0/" },
-  OGL: {
-    label: "Open Government Licence v3.0",
-    url: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
-  },
-};
+// The licence as the row's OWN record states it (docs/credits-correctness.md). A row's `license` is its Commons file's
+// LicenseShortName, which carries the version and, for a ported licence, the jurisdiction ("CC BY-SA 3.0 au"). The
+// label and the deed link are built from those and never from a default: every CC row used to show 4.0 and every OGL
+// row v3.0, the plausible wrong answer. A CC or OGL token with no version gets its raw text and no link.
+const CC_TOKEN = /^CC[\s-]+(BY(?:[\s-]+SA)?)[\s-]+(\d\.\d)(?:[\s-]+([A-Za-z]{2}))?$/i;
+const OGL_TOKEN = /^OGL[\s-]*v?(\d)(?:\.0)?$/i;
+
+export function licenseDisplay(raw: string): { label: string; url?: string; sa: boolean } {
+  const cls = classifyLicense(raw);
+  const token = raw.trim();
+  if (cls === "PD-USGov") return { label: "Public domain", sa: false }; // PD-USGov, CC0 and self-released PD
+  if (cls === "own") return { label: "Used with permission", sa: false };
+  if (cls === "CC-BY" || cls === "CC-BY-SA") {
+    const m = CC_TOKEN.exec(token);
+    if (!m) return { label: token, sa: cls === "CC-BY-SA" };
+    const kind = m[1]!.toUpperCase().replace(/[\s-]+/g, "-"); // "BY" | "BY-SA"
+    const version = m[2]!;
+    const port = m[3]?.toLowerCase();
+    return {
+      label: `CC ${kind} ${version}${port ? ` ${port.toUpperCase()}` : ""}`,
+      url: `https://creativecommons.org/licenses/${kind.toLowerCase()}/${version}/${port ? `${port}/` : ""}`,
+      sa: kind === "BY-SA",
+    };
+  }
+  if (cls === "OGL") {
+    const m = OGL_TOKEN.exec(token);
+    if (!m) return { label: token, sa: false };
+    return {
+      label: `Open Government Licence v${m[1]}.0`,
+      url: `https://www.nationalarchives.gov.uk/doc/open-government-licence/version/${m[1]}/`,
+      sa: false,
+    };
+  }
+  return { label: token, sa: false };
+}
+
+/** The photo section's ShareAlike paragraph (ROADMAP B4): stated once; each BY-SA row then names its own licence. */
+export const SHAREALIKE_NOTE =
+  "ShareAlike: each CC BY-SA image here is adapted for the device display, and the adapted image is available under " +
+  "the same licence as its original, named on its line.";
+/** The per-row ShareAlike clause, followed on each BY-SA row by that row's own licence. */
+export const SHAREALIKE_CLAUSE = "this adapted image is available under the same licence,";
 
 // Render the attribution page from the manifest. Satisfies CC-BY / CC-BY-SA /
 // OGL attribution in one place and courtesy-credits the PD shots. Pure string
@@ -229,19 +266,16 @@ export function renderCreditsHtml(entries: ManifestEntry[]): string {
     .slice()
     .sort((a, b) => a.target.localeCompare(b.target))
     .map((e) => {
-      const cls = classifyLicense(e.license);
-      const meta = LICENSE_META[cls] ?? { label: e.license };
-      const lic = meta.url
-        ? `<a href="${esc(meta.url)}" rel="noopener">${esc(meta.label)}</a>`
-        : esc(meta.label);
-      const changes =
-        cls === "CC-BY-SA" && e.changesNoted ? ` &mdash; ${esc(e.changesNoted)}` : "";
+      const d = licenseDisplay(e.license);
+      const lic = d.url ? `<a href="${esc(d.url)}" rel="noopener">${esc(d.label)}</a>` : esc(d.label);
+      const changes = d.sa && e.changesNoted ? ` &mdash; ${esc(e.changesNoted)}` : "";
+      const shareAlike = d.sa ? `${changes ? ";" : " &mdash;"} ${SHAREALIKE_CLAUSE} ${lic}` : "";
       const src = e.source
         ? ` &middot; <a href="${esc(e.source)}" rel="noopener">source</a>`
         : "";
       return (
         `<li><strong>${esc(e.target)}</strong> &mdash; ${esc(e.credit)} ` +
-        `(${esc(e.author)}) &middot; ${lic}${changes}${src}</li>`
+        `(${esc(e.author)}) &middot; ${lic}${changes}${shareAlike}${src}</li>`
       );
     })
     .join("\n");
@@ -270,8 +304,15 @@ licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" rel="noope
 <a href="https://github.com/sdr-enthusiasts/plane-alert-db" rel="noopener">plane-alert-db</a>
 &mdash; &copy; its contributors, licensed under
 <a href="https://opendatacommons.org/licenses/odbl/1-0/" rel="noopener">ODbL 1.0</a>.</li>
-<li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>
+<li>Route data from <a href="https://github.com/vradarserver/standing-data" rel="noopener">vradarserver/standing-data</a>,
+released into the public domain under <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">CC0 1.0</a>.</li>
 <li>Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.</li>
+<li>Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.</li>
+<li>Basemap water, rivers, roads, places and summits from the U.S. Census Bureau's TIGER/Line 2024, the 2025 Census
+Gazetteer and SUB-EST2024, and USGS GNIS Domestic Names: works of the United States government.</li>
+<li>Basemap terrain from AWS Terrain Tiles (Terrarium, zoom 9).</li>
+${TERRAIN_CREDITS.map((t) => `<li>${esc(t)}</li>`).join("\n")}
+<li>SRTM: ${esc(SRTM_NOTICE)}</li>
 </ul>
 <p class="note">Both aircraft-data sources are credited here permanently, regardless of
 which served any given response. We sponsor adsb.fi and adsb.lol: the data is theirs and
@@ -282,6 +323,7 @@ volunteers pay for it.</p>
 Blipscope devices in cloud mode. Public-domain
 images are credited as a courtesy; CC BY, CC BY-SA, and OGL images are attributed as
 their licenses require. Images are resized for the device display.</p>
+<p class="note">${esc(SHAREALIKE_NOTE)}</p>
 <ul>
 ${rows}
 </ul>
