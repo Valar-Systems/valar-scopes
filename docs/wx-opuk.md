@@ -944,3 +944,16 @@ before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5)
 **R3-5b′ overall:** both reads pass. The listing moved forward by exactly two frames between the reads (22:15→22:25
 oldest, 23:10→23:20 newest), at 12 frames each time. The one miss is my margin expectation on read 1 (54.3 s),
 recorded above with its cause.
+
+**Ruling, pasted ~23:40Z (verbatim):**
+
+> Accepted as read: R3-2's gate at all six reads (104-168 s); R3-5a as predicted (pruned only on the 15 stored and 2
+> backfilled checks); R3-5b' PASS on both reads, 12 frames each, 0 below the cut, the sabotage 1 below on the oldest.
+> The instrument's first run on cref (the cap applied to the wrong product) was its proving run, recorded, not a
+> reading.
+>
+> Your margin expectation: the miss is yours and recorded with its cause (log time against the check's start). No
+> corrected range is needed: the ruled row is the bound, and the margin is printed, not graded.
+>
+> Carry on: R3-6 and R3-7 at 00:12Z and 00:17Z, then the full R3 report. R4's predictions (smoke's UK check) come
+> after it.
