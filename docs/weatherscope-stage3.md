@@ -10810,3 +10810,98 @@ On main `a27e00a`, the same count holds (#512 touched no workflow).
 - **Its `run.sh` is regenerated** from that main by the same rewriter.
 - **Both compilers are re-run.**
 - **The CI count is re-derived** from what the push carries.
+
+### A12.84 #514 merged (`d479d7255d3e`) as ruled; main's CI recorded; the follow-up rebased and measured AS PREDICTED on both compilers, its CI predicted before the push; the TouchWatchdog plan, frozen before its code
+
+**#514's fix, measured against A12.83:**
+
+| row | expected | measured |
+|---|---|---|
+| the five files | one line each; the name 5 -> 0 across #514's files | **as predicted:** each changed in exactly the association line, now `"<redacted>"`; the name, compared in memory against `95650b7`'s blobs, 5 -> 0 |
+| `--selftest` | (1) and (2) refused by exactly the new rule; (3) the redacted form passes; (4) the record files pass; exit 0 | **as predicted:** exit 0, 16 record files. **Before the redaction, (4) failed on exactly the five files** |
+| the control's sabotage (the rule removed in a copy) | exit 1, (1) and (2) not refused | **as predicted** |
+| #514's CI on `45570999220b` | 36: 33 success, 3 skipped, 0 failed, all `ubuntu-24.04`; no print-cards | **as predicted,** read twice. The logs of the 33 jobs that ran each report `Image: ubuntu-24.04`. No print-cards run |
+
+**The merge, as ruled:**
+- **The checks:**
+  - the head is one commit on `95650b7`, changing exactly the six paths;
+  - the PR was `MERGEABLE`/`CLEAN`;
+  - main was unmoved at `892fe2b`;
+  - no PR was based on the branch.
+- **Squash with `--match-head-commit 45570999220b05afe5304a5bfd465bb9ac1b10f0`,** no `--admin`, at 2026-11-04T15:29:27Z, as **`d479d7255d3e`**.
+- **Afterwards:**
+  - its parent is `892fe2b`, and it changes 52 paths;
+  - **main's tree equals the approved head's;**
+  - `weatherscope/3-5t-t5` is deleted on the remote.
+
+**Main's CI on `d479d7255d3e`:**
+- **Predicted before it ran,** from `892fe2b`'s push run: the push matches no path filter, so 36 check runs (firmware 34 with ship-alert run, device-ids 1, no-traffic-captures 1), 34 success, 2 skipped (promote, version).
+- **Measured: as predicted,** read twice, every job on `ubuntu-24.04`.
+
+#### The follow-up, rebased onto `d479d72` and measured
+
+**The rebase was clean.** Its `run.sh` is **byte-equal** to the rewriter's output from the new main's `run.sh`, which now carries #514's board plant in the anchors block.
+
+**Rows** (predicted in the local `predictions.md` before the runs; `base2` is the new main's own `run.sh` on this tree):
+
+| run | predicted | measured |
+|---|---|---|
+| `base2`, MinGW | exit 0 | **exit 0** |
+| the follow-up, MinGW | exit 0; base2's lines in order; the one new header; exactly the 49 extra lines | **AS PREDICTED:** <br>• exit 0, no `FAILED BLOCKS:`; <br>• 156 `== ` lines; <br>• all 2,451 of base2's lines in order; <br>• the 49 extra lines **equal, line for line,** to A12.82's |
+| `base2`, g++ 13.3 | exit 2 (the board TU, R0) | **exit 2** |
+| the follow-up, g++ 13.3 | exit 2; `FAILED BLOCKS:` exactly R0 (the rig) and the board TU; the full block's 19 `ok` and towns SKIP | **AS PREDICTED:** <br>• exit 2, `FAILED BLOCKS:` exactly those two; <br>• all 2,420 of base2's lines in order; <br>• 53 extra lines: the 49, the list's 3 and `HOST TESTS FAILED`; <br>• **19 drivers `ok`,** `sabotage_wx_logic.py` among them (26 AS PREDICTED lines); towns SKIP |
+| `sabotage_wx_logic.py` in full, S-H3 split (Q70 (a)) | 24/24, S-H3 `{H9, H20}` | **24/24 AS PREDICTED under MinGW and g++ 13.3;** `--anchors`, `--control` and the lint unchanged |
+
+**The follow-up's CI, re-derived from what this push carries** (A12.83 said this would be re-derived after the rebase):
+- **The last finished run's job list:** #514 at `45570999220b`, 36: firmware 34, device-ids 1, no-traffic-captures 1.
+- **firmware:** minus `host-tests`, plus `host-tests (ubuntu-24.04)`, `host-tests (ubuntu-26.04)` and the `host-tests` aggregator: **36** (33 success, 3 skipped: ship-alert, promote, version).
+- **The push:** a new branch whose seven commits change 24 paths (`test/host/`, the firmware workflow, `docs/ci-runners.md`). None matches print-cards', workers' or provisioner's `paths`, and neither do the PR's files. **So no path-filtered workflow runs.**
+- **Predicted: 38 check runs, 35 success, 3 skipped, 0 failed.** 37 jobs on `ubuntu-24.04`, and 1 on `ubuntu-26.04`.
+- **Both legs green,** every block run on each (A12.77). A g++ 15 failure on the 26.04 leg is off this row: it stops the follow-up, is listed, and is reported.
+- **After it, (3)'s sabotage on 26.04,** as re-registered in A12.82, through a draft PR from a throwaway branch.
+
+#### TouchWatchdog on Weatherscope: the plan, frozen before its code
+
+**What it adds** (as accepted ~15:00Z): wedge detection, the recovery ladder and their counters. The no-sleep re-arm is
+not part of it: `MaintainNoSleep` is compiled out of every env.
+
+**The call.** In `WeatherscopeManager::HandleTouch()`, right after `ReadTouch()`:
+```cpp
+if constexpr (variant::TOUCH_WATCHDOG)
+    if (poll != TouchPoll::Skipped) TouchWatchdog::OnPoll(tft, poll == TouchPoll::Touched, true);
+```
+- **Before the `benchPress` override.** A synthetic press ('P') is not proof the chip answered, so it never reaches the
+  watchdog as `sawTouch`.
+- **Not on a skipped poll:** no read happened then.
+- **`mayProbe` is true,** as on the radar: touch has its own I2C bus on the S3, and nothing serializes it against the
+  network (CLAUDE.md, item 2).
+
+**The reader: a heartbeat.** Every 10 minutes from boot, `Update()` prints the radar's own line, with the same format
+string:
+`[health] touch-wd wedges=%lu recovered=%lu/%lu (soft=%lu hard=%lu) wakes=%lu probes=%lu/%lu maxOutage=%lums rebootRec=%lu`
+- **One format, so one reader serves both editions.**
+- **Why it is needed:** `probes` rising is the only thing that separates "runs and is healthy" from "never runs". A12.75's
+  watch read 0 `[touch-wd]` lines, and that could not tell the two apart.
+- **The reader is specified now,** as CLAUDE.md requires. The next passive watch's grader counts the `[health] touch-wd`
+  lines and requires `probes` to rise between them.
+
+**Not in this plan, each for the ruling:**
+- **`RebootRecommended()` is not acted on.** The watchdog's own line still says when a wedge outlives 90 s. The radar's
+  capped idle reboot needs the NVS run counter and a "touch unavailable" screen, which Weatherscope lacks; porting it is
+  its own step.
+- **`CST816_DISABLE_AUTOSLEEP` stays undefined,** as the finding accepted.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| the image | `TouchWatchdog::OnPoll` present in the ELF (0 `TouchWatchdog` symbols today); `[touch-wd] no-autosleep applied` absent; the `[health] touch-wd` format present once |
+| its size | `firmware.bin` grows by 1,700-2,600 B: `TouchWatchdog.cpp.o`'s linked sections are 1,774 B today (built and dropped), plus the call and the heartbeat |
+| host suites, every driver, `--anchors` | unchanged: no host test compiles `WeatherscopeManager.cpp`, and no anchor sits in `HandleTouch()` or `Update()` |
+| the board, a 1-hour passive watch on the clean image (907069326E64) | 6 `[health] touch-wd` lines, one every 10 min ± one loop pass. Each shows `wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 rebootRec=0 maxOutage=0ms`, failed probes 0, and the ok-probe count, which is cumulative, rising by 55-61 from one line to the next (the first line counts from boot). The ceiling is 61: one probe every 10 s, plus one at the window's start. Each probe is scheduled 10 s after the poll that ran it, so loop latency can only lower the count, and 55 allows a mean pass up to ~0.9 s. There are no release-edge probes, since nothing touches the screen. No other `[touch-wd]` line |
+| **the control: S-TW, a planted image without the `OnPoll` call** | the heartbeat prints, with `probes=0/0` on every line. That proves the line separates "runs" from "never runs". The planted image is restored, and its boot read is taken, inside the same window (the window rule) |
+| touch behaviour | unchanged: the B1/B3 run (`run_b35t.py`) grades ALL AS PREDICTED on the clean image |
+
+**The outside-the-set branch:** a wake (`wakes > 0`), any failed probe, a wedge, or a count outside 55-61 per 10
+minutes stops at that row and is reported. A NACKing probe on a chip whose 0xFE reads 1 would be a finding about the chip
+or the bus, not something to tune away.
