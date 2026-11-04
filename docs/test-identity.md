@@ -162,3 +162,44 @@ A leak of that key can only be contained by revoking E2:08, because re-enrolment
 |---|---|
 | **R-T1** | the file holds **64** characters (the length is printed, never the value); `wrangler secret put` exits 0 and reports `PROVISION_TOKEN` uploaded to **`blipscope-proxy-staging`**; `wrangler secret list --env staging` lists `PROVISION_TOKEN` (names only); **the value appears 0 times** in everything captured |
 | **R-T1's proof that it works** | TM2 on staging: the provision route answers **200** with this token |
+
+## The code and its rows, run (2026-11-04)
+
+**What the code is:**
+- **`token-file.ts`:** the five new fields, `tokenFileKeys`, and **`resolveTestIdentity`**, the single refusal point.
+- **`mint-test-identity.ts`,** with its selftest.
+- **`test-identity.sh` and `with-test-identity.mts`:** the re-run, and the `curl` function that sends the headers on stdin.
+- **The callers:** `smoke-prod.sh` and `watch-upstream.sh` run through those; **both ingests** use `resolveTestIdentity`, and `ingest-routes.ts`'s curl now reads its headers from stdin.
+- **The dashboard's exclusion** (`testDeviceIds`, `notTestDevice`, in seven counters and both ledger readers).
+- **`reconcile-fleet.py`'s exclusion.**
+- **Removed:** `blip-creds.sh`, `with-blip-creds.mts`, `resolveBlipCreds` and its CI step. Nothing reads `blip-key` or `blip-device` any more.
+- **CI runs all five selftests.**
+- **The repo's device-id check** reads OK over the tree at HEAD (1,422 tracked files): every EXAMPLE id is built at run time. One 16-hex literal in the mint selftest's first commit was caught and removed.
+
+| row | result |
+|---|---|
+| **R-T1** | **as predicted:** 64 characters; `wrangler secret put` exit 0, uploaded to `blipscope-proxy-staging`; listed; the value **0 times** in everything captured (04:49:04Z to 04:49:12Z) |
+| **TM1** | **as predicted:** exactly `test-mac`, `test-device` and `test-key` written; the key, MAC and id in the output **0 times**; a second run refused |
+| **TM1s** | **as predicted:** exactly `test-key-staging` written, 0 times in the output; a different id refused, with nothing written |
+| **TM-R** | as predicted: `records-device` written equal to `blip-device`, the id 0 times in the output |
+| **S-TMPRINT** | **as predicted:** a copy that prints the key is caught (1 time) |
+| **TM2, the mint** | **as predicted.** Production (04:56:06Z): the route's id equals the Worker's own `deviceIdFromMac`, the key is 64 hex, three fields written. Staging (04:56:11Z): **200 with the rotated token** (R-T1's proof), the same id, a 64-hex key different from production's, `test-key-staging` written. `records-device` added. No value shown. **TM2's `/v1/config` check waits for TD1**, as recorded above |
+| **TI1** | **as predicted:** `smoke-prod.sh` and `watch-upstream.sh`, with a board's pair in `BLIP_KEY`/`BLIP_DEVICE`: exit 2, **0 requests** counted |
+| **TI1b** | **as predicted:** `test-device` equal to `records-device`: exit 2, 0 requests |
+| **S-TIGUARD** | **as predicted:** the refusal removed, a request is sent, so TI1 would fail |
+| **TI2** | **as predicted:** 37 requests to the stub; every `X-Blip-Device` is `test-device` and every `X-Blip-Key` is `test-key`; the board's pair **never** sent |
+| **TI7** | **as predicted: false.** The key or id was on no process's command line across 71 samples, which saw a curl in 32 |
+| **TI7's control** | **as predicted: true.** The old way, the key as a curl argument |
+| **TX1** | **as predicted:** every counter leaves the `TEST_DEVICE_IDS` id out; "Devices seen" is 2. Its control: with no secret, 3. A malformed entry is refused, never quoted into the SQL |
+| **S-TXNOEXCL** | **as predicted:** the exclusion removed, TX1 fails with **3 where 2 was expected**; its control still passes |
+| **TX2** | **as predicted:** `kv-only=0`, consistent, exit 0; the test id never printed |
+| **S-TXRECON** | **as predicted:** the exclusion removed, **`kv-only=1`**, exit 1 |
+
+**Two of my own slips, recorded:**
+- **The mint selftest deadlocked** on its first run. It blocked its own stub server with `spawnSync`. It was stopped, the hung process chain cleared, and it was rewritten async.
+- **A `cd` into a directory I was already in** skipped one edit. It was caught by the count check, and nothing was changed until the re-run.
+
+**What is left, and it waits for the merge:**
+- **TD1:** deploy the dashboard with its exclusion and set `TEST_DEVICE_IDS` from the token file through stdin, staged, in a reserved slot. Verify "Devices seen" is the same before and after one production smoke as the test identity.
+- **Then TM2's `/v1/config` check** on production and staging.
+- **Then item 5's conditions** for Daniel's two lines.
