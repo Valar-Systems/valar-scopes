@@ -8,6 +8,9 @@
 - add no upstream load and only cheap CPU to device traffic;
 - be self-contained behind one switch, so it can be removed in one small PR.
 
+**Changed 2026-11-04 (Daniel): the writer rule is now 10 s, not 30 s.** See "The 10 s writer throttle" at the end.
+The sections below are the original design and its records, and they keep the 30 s they were written with.
+
 **His decisions (2026-10-21):**
 1. **A durable snapshot, in a Durable Object.** KV's worst-case visible age is about 100 s, and KV can't enforce once-per-30 s strictly across colos.
 2. **The write runs in `waitUntil`** and can never slow or fail a device response; its errors are counted.

@@ -13,8 +13,8 @@
 // only when that whole circle lies inside the fetched area -- so it is complete, and it says nothing about
 // where the fetch was centred.
 //
-//   writer (device path)    -> per-isolate 30 s guard -> waitUntil(DO PUT)   [never awaited by the device]
-//   BendSnapshotDO          -> refuses a write within 30 s of the STORED row's own time (global by construction)
+//   writer (device path)    -> per-isolate 10 s guard -> waitUntil(DO PUT)   [never awaited by the device]
+//   BendSnapshotDO          -> refuses a write within 10 s of the STORED row's own time (global by construction)
 //   BendFeed.snapshot()     -> colo cache (10 s) -> DO GET -> no planes past 120 s
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import type { NormalizedAircraft } from "../schema";
@@ -25,8 +25,10 @@ import type { Env } from "../types";
 export const BEND = { lat: 44.058, lon: -121.315 } as const;
 /** 30 mi (Daniel, 2026-10-21): the circle the snapshot keeps. */
 export const RADIUS_KM = 48.28;
-/** At most one stored write per 30 s, enforced on the STORED row's own time. */
-export const WRITE_MIN_INTERVAL_MS = 30_000;
+/** At most one stored write per 10 s, enforced on the STORED row's own time. 30 s until 2026-11-04 (Daniel): the
+ *  site measured a median age of 21 s and a max of 42 s with it (docs/bend-site-feed.md, "The 10 s writer throttle").
+ *  It gates only how often the snapshot is SAVED; nothing here fetches an upstream. */
+export const WRITE_MIN_INTERVAL_MS = 10_000;
 /** Past this, the reader serves no planes (the site shows the age and an empty sky). */
 export const MAX_SHOW_AGE_S = 120;
 /** Reads are cached this long in the visitor's colo, so a spike can't flood the one instance. */
@@ -177,7 +179,7 @@ function count(env: Env, event: string): void {
   }
 }
 
-// One send per isolate per 30 s. Only keeps Durable Object traffic small; the 30 s RULE is the DO's.
+// One send per isolate per 10 s. Only keeps Durable Object traffic small; the 10 s RULE is the DO's.
 let lastSendMs = 0;
 let lastSkipCountMs = 0;
 
@@ -225,14 +227,14 @@ export function bendWriter(env: Env, ctx: ExecutionContext, latQ: string, lonQ: 
   };
 }
 
-/** The storage the 30 s rule reads. A Durable Object's storage, or a test's shared Map. */
+/** The storage the 10 s rule reads. A Durable Object's storage, or a test's shared Map. */
 export interface SnapStorage {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
 }
 
 /**
- * The Durable Object's logic. The 30 s rule reads the STORED row's own `writtenAt` on every write, never
+ * The Durable Object's logic. The 10 s rule reads the STORED row's own `writtenAt` on every write, never
  * an instance field -- so it holds across isolates, colos, and a restart of the object itself.
  */
 export class BendStore {
@@ -244,6 +246,8 @@ export class BendStore {
   async write(snap: Snapshot): Promise<"written" | "refused_30s"> {
     const prev = await this.storage.get<Stored>("snap");
     const now = this.now();
+    // "refused_30s" keeps its name (the 30 s rule's) so the event's readers and series continue; it counts refusals
+    // by WRITE_MIN_INTERVAL_MS, whatever its value (docs/bend-site-feed.md, "The 10 s writer throttle").
     if (prev && now - prev.writtenAt < WRITE_MIN_INTERVAL_MS) return "refused_30s";
     await this.storage.put<Stored>("snap", { ...snap, writtenAt: now });
     return "written";
