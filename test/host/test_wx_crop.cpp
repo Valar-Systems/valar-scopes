@@ -30,22 +30,27 @@
 // ---- allocation counting (A6) ------------------------------------------------------------------
 static long g_allocs = 0;
 static bool g_counting = false;
+// The replacement operators reach malloc and free through pointers no compiler can see through, so none pairs a `new`
+// with a `free`: g++ 15 refused the direct std::free here (-Werror=mismatched-new-delete at the inlined delete, A12.77
+// item 2). No pragma, no flag and no compiler-version test; g++ 13, g++ 15 and MinGW all compile the same code.
+static void* (*volatile g_mallocFn)(std::size_t) = std::malloc;
+static void (*volatile g_freeFn)(void*) = std::free;
 void* operator new(std::size_t n)
 {
     if (g_counting) ++g_allocs;
-    void* p = std::malloc(n ? n : 1);
+    void* p = g_mallocFn(n ? n : 1);
     if (!p) throw std::bad_alloc();
     return p;
 }
 void* operator new[](std::size_t n)
 {
     if (g_counting) ++g_allocs;
-    void* p = std::malloc(n ? n : 1);
+    void* p = g_mallocFn(n ? n : 1);
     if (!p) throw std::bad_alloc();
     return p;
 }
-void operator delete(void* p) noexcept { std::free(p); }
-void operator delete[](void* p) noexcept { std::free(p); }
+void operator delete(void* p) noexcept { g_freeFn(p); }
+void operator delete[](void* p) noexcept { g_freeFn(p); }
 inline void* CountedMalloc(std::size_t n) { if (g_counting) ++g_allocs; return std::malloc(n); }
 inline void* CountedCalloc(std::size_t a, std::size_t b) { if (g_counting) ++g_allocs; return std::calloc(a, b); }
 inline void* CountedRealloc(void* p, std::size_t n) { if (g_counting) ++g_allocs; return std::realloc(p, n); }

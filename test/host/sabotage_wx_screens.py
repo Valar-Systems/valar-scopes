@@ -92,7 +92,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_screens": ("checks", 17)}
+SCREENS_CHECKS = 17   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_screens": ("checks", SCREENS_CHECKS)}
 
 
 def control():

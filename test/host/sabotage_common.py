@@ -137,7 +137,8 @@ def control_mode(driver, control_fn, table):
                 if r.returncode != 0:
                     bad.append(f"{suite}: did not compile")
             elif _norm(argv[0]) in built:
-                runs.append((built[_norm(argv[0])], r.returncode, r.stdout if isinstance(r.stdout, str) else ""))
+                out = r.stdout if isinstance(r.stdout, str) else (r.stdout or b"").decode("utf-8", "replace")
+                runs.append((built[_norm(argv[0])], r.returncode, out))
             elif _script(argv):
                 out = r.stdout if isinstance(r.stdout, str) else (r.stdout or b"").decode("utf-8", "replace")
                 runs.append((_script(argv), r.returncode, out))
