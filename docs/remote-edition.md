@@ -365,3 +365,119 @@ run of each read BLIND at the Wi-Fi QR test for want of `.pio/libdeps`; the rig,
 - WSL also ends in its two known rigs, reported rather than folded in: `FAIL: no xtensa toolchain
   found` (the board half; MinGW's run has the toolchain) and `no python with Pillow` (R0/R0b, the
   last blocks).
+
+## 5. Feature step F2 -- reading a device: the event stream, pure and host-tested
+
+Written before the code. F2 turns the bytes of a device's `GET /events` stream into the snapshot F1's
+policy reads (`coverpolicy::Device`), and builds the one URL a command goes to. No socket, task or clock
+of its own: the link (a later step) feeds it bytes and times. Three pieces:
+
+- `src/remote/SseStream.h` (pure): an incremental HTTP chunked-transfer decoder, then an SSE framer.
+- `src/remote/EsphomeModel.{h,cpp}` (ArduinoJson only, the firmware's own copy): one device's model.
+- `test/host/test_remote_stream.cpp`, built like `test_game_config.cpp`: against the ArduinoJson in
+  `.pio/libdeps`, refusing (exit 2, the rig) a version other than platformio.ini's pin.
+
+### What the wire is (ESPHome 2026.6.5, read from source, not observed)
+
+From `components/web_server_idf/web_server_idf.cpp` and `components/web_server/web_server.cpp` at the tag
+both products are built on:
+
+- The stream is HTTP **chunked**: each event is one chunk whose size line is `%08x` (zero-padded hex), then
+  `retry: N`, `id: N`, `event: <type>`, `data: <json>`, each ending CRLF, and a blank CRLF line.
+- On connect: a `ping` carrying the page config (`title` = the friendly name), the `sorting_group`s, then
+  one `state` event per entity with full detail (it carries `domain` and `name`); after that, a `state` on
+  every change (no `domain`) and a `ping` (`{"uptime":N}`) every 10 s.
+- **While the connect dump is still iterating, bare state updates are DROPPED, not queued**
+  (`deferrable_send_state`: "allow all json details_all to go through before publishing bare state
+  events"). So the dump's own cover entry can be stale, and the first bare state event is proof the dump
+  has finished. That is F2's definition of LIVE.
+- Each state carries `name_id` (`cover/Glasscalibur`) and the legacy `id` (`cover-glasscalibur`); the source
+  says `id` takes the `name_id` form, and `name_id` goes, in 2026.8.0.
+
+The fixtures under `test/fixtures/remote/` are TRANSCRIPTIONS of that source, the weaker form of a
+contract check: they can catch this code disagreeing with my reading of ESPHome, not my reading being
+wrong. A capture from a real unit replaces them on the bench (the hardware test plan).
+
+Why a second chunked decoder: `ChunkedSocketStream` (src/HttpRequestManager.cpp) is a blocking `Stream`
+adapter for one-shot fetches, file-local, with a fetch-length timeout; a stream that lives for hours and is
+fed whatever the socket has needs an incremental one. What the first establishes, and this one must too:
+the size line is hex with an optional `;extension`, a chunk's data is followed by CRLF, size 0 ends the
+body. What it does on garbage, this one does differently and deliberately: a malformed size line BREAKS
+the stream (the link drops and reconnects); it never skips ahead looking for the next plausible line.
+
+### The model's rules
+
+- **LIVE** = this connection has delivered the cover's entry AND at least one bare state event. Before
+  that it is Unknown, though the dump's values still land in the snapshot (so a STOP decision uses them).
+  A disconnect, or 25,000 ms with no event of any kind (pings come every 10 s), is Offline; the last
+  reported operation is kept, so a device last seen moving still draws a STOP.
+- **The cover** is the first `cover` entity seen; its name (from `name_id`, or the 2026.8 `id`) gives
+  `/cover/<percent-encoded name>/<action>`, and with neither, the legacy object id (`cover-<x>` gives
+  `/cover/<x>/<action>`). A SECOND, different cover makes the device unsupported: no command path, never Live.
+- **Values are validated, never coerced.** A `position` outside 0..1, or a `current_operation` other than
+  IDLE / OPENING / CLOSING, rejects that event whole (counted); the model keeps its previous values.
+- **Motion**: OPENING/CLOSING sets the direction; any change of position, or a non-IDLE operation, stamps
+  `lastMotionMs` (this is what makes Glasscalibur's back-off, IDLE while moving, visible to F1).
+- **Obstruction (Glasscalibur only; ruled 2026-10-30)**: `StallGuard Trips` and `Vibration Stall Trips`.
+  The first value after a connect is the baseline; an increase is an obstruction, pending until
+  acknowledged; a decrease (the reset button) re-baselines silently. Re-baselined on every reconnect, so
+  trips while the remote was not listening never fire.
+- **Tamper (Glasscalibur only)**: `Tamper Detected` ON, or `State` = TAMPERED. Acknowledging hides it until
+  it clears and comes back (a new episode is pending again). The remote never presses `Clear Tamper Alert`.
+- **Only what it reads is parsed.** An event is JSON-parsed only if it names the cover, `State`,
+  `Tamper Detected` or one of the two trip counters; the accelerometer, logs, pings and every other entity
+  pass through unparsed. An SSE line longer than 3,072 bytes drops its whole event (counted); it is never
+  truncated, because half a JSON object is a different object.
+
+### Predictions (frozen before the code)
+
+One line per named check, ending `N checks, M failures`; clean on MinGW g++ 5.1 and WSL g++ 13.3:
+
+- **K1** the Glasscalibur fixture, chunked as the IDF server chunks it (`%08x` per event), decodes to the
+  same bytes fed whole and fed split at every byte boundary of its first three events.
+- **K2** a size line with an extension (`1A;x=y`) decodes; a size line that is not hex breaks the stream,
+  and nothing after it is delivered.
+- **K3** a size-0 chunk ends the stream.
+- **W1** framing the same events fed whole and split at every byte boundary gives identical events.
+- **W2** CRLF and LF line endings give identical events.
+- **W3** a comment line (`:`) and the `retry`/`id` fields leave type and data untouched.
+- **W4** a 3,073-byte `data:` line drops that event (counted once); the next event arrives intact.
+- **W5** two `data:` lines join with a newline.
+- **M1** the Glasscalibur connect dump and then one bare `State` event: Live; cover `Glasscalibur`, by
+  name; position 500; Idle; no alarm; counters baselined (StallGuard 3, Vibration 1).
+- **M2** the same dump with no bare event after it: still Unknown, but the snapshot already carries the
+  dump's operation and position.
+- **M3** the Ropener dump and a bare event: Live; cover `Ropener`; no alarm.
+- **M4** bare OPENING at 0.52: Opening, direction Opening, motion stamped. IDLE at 0.50 then 0.47: Idle,
+  stamped each time. IDLE at 0.47 again: not stamped.
+- **M5** position 0.0 is 0, 1.0 is 1000, 0.4996 is 500; -0.1 and 1.2 are each rejected (unchanged, +1 reject each).
+- **M6** `current_operation` "WOBBLING": rejected, unchanged, +1 reject.
+- **M7** StallGuard 3 to 3: nothing; 3 to 4: pending; acknowledged: cleared; 4 to 4: nothing; 4 to 0:
+  nothing, re-baselined; 0 to 1: pending. One Vibration Stall increment: pending.
+- **M8** disconnected with StallGuard at 4, reconnected to a dump saying 6: nothing pending.
+- **M9** Tamper Detected ON: pending; acknowledged while still ON: not pending; OFF then ON: pending again.
+  `State` TAMPERED with Tamper Detected OFF: pending.
+- **M10** a second, different cover: unsupported, no command path, not Live.
+- **M11** command paths: by name `/cover/Glasscalibur/open`; legacy id only `/cover/glasscalibur/open`; a
+  name with a space `/cover/Kitchen%20Window/stop`; the 2026.8 shape (`id` = `cover/Glasscalibur`, no
+  `name_id`) `/cover/Glasscalibur/close`.
+- **M12** accelerometer, log, `sorting_group` and uptime-ping events change nothing and are never
+  JSON-parsed (the parse count does not move).
+- **M13** Live, then no event for 24,999 ms: Live; 25,000 ms: Offline. A ping in between keeps it Live.
+  Offline after an OPENING keeps Opening in the snapshot.
+
+### Sabotages (copies of the headers, as in F1; each must fail exactly its set)
+
+| plant | what it breaks | predicted red set |
+|---|---|---|
+| SX1 | a malformed size line is skipped instead of breaking the stream | K2 |
+| SX2 | an oversize line is truncated to 3,072 bytes instead of dropping the event | W4 |
+| SX3 | Live on the cover's dump entry, without the bare-event proof | M2 |
+| SX4 | an out-of-range position is clamped instead of rejected | M5 |
+| SX5 | an unknown `current_operation` is read as IDLE | M6 |
+| SX6 | the trip counters are not re-baselined on a reconnect | M8 |
+| SX7 | acknowledging tamper is not undone by a new episode | M9 |
+| SX8 | the name is not percent-encoded | M11 |
+| SX9 | the parse prefilter is removed | M12 |
+
+**Outside the set** stops the step for a ruling, as before.
