@@ -55,6 +55,8 @@ jobs:
 
   test:
     runs-on: ubuntu-24.04
+    # A hang ends here, not at GitHub's 6 hours: the test-identity selftest hung 40+ minutes on b7f9f7a.
+    timeout-minutes: 20
     strategy:
       fail-fast: false # one Worker failing should not hide the other's result
       matrix:

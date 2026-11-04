@@ -111,6 +111,11 @@ async function sampleWhile(p: Promise<unknown>, needles: string[]) {
     const lines = await commandLines(); samples++;
     if (lines.some((l) => /curl/i.test(l) && l.includes(BASE.replace("http://", "")))) curlSeen++;
     if (lines.some((l) => needles.some((n) => l.includes(n)))) hit = true;
+    // A macrotask yield, on both platforms. On Linux commandLines() is all-synchronous, so without it this loop only
+    // awaits resolved promises and the event loop never runs: the child's 'close' (which sets done), the stub's replies
+    // and the kill timers all starve. That hung CI on b7f9f7a for 40+ minutes (docs/test-identity.md). S-TISTARVE
+    // removes this line and must hang (sabotage-tistarve.mjs, a bounded wait).
+    await new Promise((r) => setTimeout(r, 20));
   }
   return { samples, curlSeen, hit };
 }
