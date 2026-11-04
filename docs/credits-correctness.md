@@ -199,3 +199,68 @@ The unsabotaged control: 21 of 21 pass. Every file was restored byte-identical a
 
 **Observed, not changed:** PC12's author credit is a 637-character block with line breaks. It renders, but it is long.
 Tidying the record is a manifest change, outside this PR.
+
+## The ruling on the above, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~19:35Z)
+
+> 2. #525:
+>    - First-run fixes: the row finder reading <li> to </li> and the driver reading vitest's numbers are instrument
+>      fixes: accepted. The misses are kept: CV1 1 wrong and SA1 113/114 (both PC12's 6-line row), and the old PD test
+>      red. F16, added to S-CV-BLANKET's red set before any sabotage ran, stands.
+>    - S-RD: re-registered as { standingData: 0, adsbdb: 2 } (the old line names adsbdb in its URL and its text). The
+>      miss is kept.
+>    - Q-C1: accepted. Its plugin lives in the test config only; nothing under proxy/src imports it.
+>    - The PD test: not your edit. #521 (approved, merging first) fixed the same test: it checks the photo-credits
+>      section, with a control. Once #521 and #522 are on main, rebase #525 onto it, take #521's PD test as it is and
+>      drop your row-scoped edit. #521's PD and control tests and its OPERA test join your suite: evaluate each against
+>      every sabotage before running. Your route line sits under Data sources, before the photo section, so it can't
+>      trip the PD test. If the ShareAlike paragraph does (a creativecommons.org link on a page with no BY-SA photo),
+>      render that paragraph only when a BY-SA row is present. The real page has 114, so SA1 is unchanged.
+>      Predictions first for that.
+>    - Expect a conflict in photolicense.ts: #521 adds OPERA's line just below the adsbdb line you replace. Keep both
+>      changes. Regenerate credits.html after the rebase (it must carry OPERA's line; Q-C1 checks it). Run every row
+>      and every sabotage again on the rebased head, push it as a draft with the CI count comment, and I review the
+>      resolution before it's marked ready.
+>    - Process: your doc's last line says "stop and report, with no fix until a ruling". The second run and the
+>      sabotages ran before one. Nothing was pushed, so the readings stand; next time, stop at the first off reading.
+>    - CI count: read it from a finished run only. A job behind needs: appears only once what it needs has finished
+>      (the UK data session's miss).
+
+## The rebase onto main `e8dfa45` (#521 and #522), registered before any row runs again
+
+**The rebase:**
+- The branch is now on `e8dfa45`. The predictions are `7ae018a` and `0ff9f3d`; the code and its records are
+  `2856cfe`, `cfdd025` and `d138f0e`.
+- **The only conflict was in `photolicense.test.ts`, at the PD test.** It is resolved to **#521's version as it is**:
+  the photo-credits section, `photoSection`, with its CONTROL test. My row-scoped edit is dropped.
+- **`photolicense.ts` merged without a conflict.** Read after the merge: the standing-data route line, then #521's
+  OPERA line, and no adsbdb. Both changes are kept.
+
+**#521's three tests against every sabotage, evaluated before running:**
+
+| test | S-CV-BLANKET | S-SA | S-RD | S-QC1 |
+|---|---|---|---|---|
+| **the PD test** (the photo section of a PD-only page holds no `creativecommons.org`) | green: the PD row stays "Public domain", and the ShareAlike paragraph is plain text, **with no link** | green | green: the route line is under Data sources, above the photo section | green |
+| **its CONTROL** (a `CC-BY-SA-4.0` photo: the section holds `creativecommons.org`) | green: the blanket still links `by-sa/4.0/` | green: the row keeps its own link | green | green |
+| **the OPERA line**, exactly once | green: no sabotage touches it | green | green: S-RD replaces only the route line | green |
+
+**The ShareAlike paragraph holds no link**, so it cannot trip the PD test. It stays unconditional, and nothing changes
+for it. This was read from the code, not inferred.
+
+**S-RD is re-registered by the ruling:** `{ standingData: 0, adsbdb: 2 }`. The miss stays recorded above.
+
+**What changes next (code, after this registration):**
+- `sabotage-credits.mjs`: S-RD's value becomes 2, and #521's CONTROL and OPERA tests join the tests it reads for red,
+  so either going red would show as off.
+- `credits.html` is regenerated from the rebased renderer. **It must carry OPERA's line exactly once**, and Q-C1 must
+  hold.
+
+**Frozen predictions for the rebased head:**
+
+| | predicted |
+|---|---|
+| **the rows** | `photolicense.test.ts` **21** and `basemap-attribution.test.ts` **2**: **23 pass**. CV1 176/0; CV2 11/0; SA1 114/114, 0 others, the paragraph once; RD1 `{ standingData: 1, adsbdb: 0 }`; Q-C1; the PD test, its CONTROL, OPERA, MRMS; MA1 and MA2. Both `tsc` configs clean |
+| **credits.html** | carries OPERA's line exactly once, and equals the render (Q-C1) |
+| **the sabotages** | S-CV-BLANKET red exactly {CV1 104, CV2 8, SA1 48, Q-C1, F16}. S-SA {SA1 0, Q-C1}. **S-RD {RD1 `{ standingData: 0, adsbdb: 2 }`, Q-C1}**. S-QC1 {Q-C1}. Every other test green in each, **#521's PD, CONTROL and OPERA included**. Every file restored byte-identical. **Exit 0** |
+| **CI** | in a PR comment right before the push, from finished runs only |
+
+**Stop at the first off reading:** no further row runs until the ruling.
