@@ -11138,3 +11138,83 @@ step at that row, and is reported before anything changes.
 - **#517 changed the device-ids job's steps, not its count.**
 - **Predicted: 38 check runs, 35 success, 3 skipped (ship-alert, promote, version), 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
   - **Both legs green.** The 26.04 leg runs the drivers and the new control under g++ 15.2. A g++ 15 failure there is off this row and stops (b).
+
+### A12.91 #526 merged (`46bea3104866`) and main's CI AS PREDICTED; 15 worktrees removed (5,119 MB); the Temp split; the board hold from 21:30Z; Q71 (a) frozen before its code
+
+**#526, merged as approved** (~20:15Z ruling at `894cf6c5fc83`):
+- **The merge:** squash, `--match-head-commit`, no `--admin`, at 2026-11-04T19:42:17Z, as **`46bea3104866`**.
+- **Main had moved** to `e8dfa45` (#521, #522: proxy/wx and opuk fixtures only). The merge's parent is `e8dfa45`, it changes #526's 24 paths, and **its `test/host/` equals the approved head's.** The branch is deleted.
+- **Main's CI on `46bea3104866`,** predicted before the merge: 38 check runs, 36 success, 2 skipped (promote, version), 37 jobs on `ubuntu-24.04` and 1 on `ubuntu-26.04`. **AS PREDICTED,** read twice.
+
+**The 15 worktrees** (Daniel's OK), each removed by `git -C vs worktree remove`, never `--force`:
+- **The checks before each:** `git status --porcelain` empty, and its HEAD found on GitHub (every one is a merged PR's head, a branch, or main).
+- **`wt-t1`, the first, stopped mid-delete on "Filename too long".** Git unregistered it and deleted 136 MB, then hit a path past Windows' 260 characters.
+  - The leftover (93 MB; no `.git` link, its branch still in `vs`) was finished with `rm`.
+  - The other 14 went through cleanly with `-c core.longpaths=true`.
+- **Freed: 5,119 MB on disk** (df agrees, to within the other sessions' own writes). C: read 38 GB free afterwards.
+- **Left:** `vs` (the clone the worktrees hang off), `wtq`, `wt-swb`, `wt-oc`, `wt-pin` and `wt-doc`. Every branch is still in `vs`.
+
+**The Temp split** (read-only, `os.scandir` stats only): `%TEMP%` holds **67.9 GB** in 734,479 files.
+- **Claude session scratchpads:**
+  - those started from the Blipscope repo, 25.8 GB:
+    - other sessions 10.35, 8.50 and 3.26 GB;
+    - **this session 3.55 GB** (about 13 GB this afternoon);
+  - Glasscalibur 3.4 GB, valar-eam-feed 1.9 GB, valarscopes-site 0.6 GB.
+- **Other apps' leftovers, about 20 GB:** Outlook logging 0.9 GB, Diagnostics 0.8, Adobe and Creative Cloud 1.2, installers, ~2,300 `DANPUTER-*` and ~1,900 `{GUID}` folders, and ~9 GB under long names.
+- **Why Windows' "Remove files" leaves them:**
+  - files held open by running sessions, WSL and editors;
+  - git's read-only object files;
+  - **paths past 260 characters, which this scratchpad's depth reaches.** That is the same wall `git worktree remove` hit on `wt-t1`.
+
+**The hold:** no board window starts from 21:30Z until Daniel says it is over, and none that would run past 21:30Z starts. W4's re-run waits for Q71's PR and for the end of the hold.
+
+**Record only (Q71's ruling): how long a daytime boot shows Dark before Auto resolves.**
+- **On W4's trace:** the switch is logged in **the same millisecond** as `[wx] init` (18:40:36.251Z, 14.0 s after the serial open).
+- **In the code:** `main.cpp`'s loop runs `Update()` before `Draw()`, and the first `Update()` evaluates Auto (`UpdateBrightness`, first call) and switches before the first `Draw()`. **So no frame is drawn in Dark.**
+- **What the screen shows before it** is `main.cpp`'s boot screens during setup (Wi-Fi, feeds; ~15 s), which the theme does not paint.
+- **The one case that could flash:** a boot whose clock is not yet valid at the first `Update()`. Auto cannot resolve there, so the screen shows Dark until the first 20 s tick after the clock is set. That was not the case on this boot.
+- **Not a t5 follow-up on this evidence.**
+
+#### Q71 (a), frozen before its code: `screen_watch.py` explains Auto's first resolution after a boot
+
+**The rule, as narrow as ruled:** a `[wx] theme=` line that neither a sent `O` nor the runner's POST explains is explained as **"Auto's first resolution at boot"** only when all four hold:
+- **(i)** it carries `setting=auto`;
+- **(ii)** a `[wx] init;` line came before it;
+- **(iii)** it is within 3 s of that `[wx] init;` line;
+- **(iv)** it is the first `[wx] theme=` line since that boot.
+
+So it is once per boot. A second one in the same boot, one with no boot before it, one later than 3 s, or one not in Auto stays unexplained and stops the run.
+
+**Its selftest: the existing 4 cases unchanged, plus 6 new ones.** Synthetic lines and synthetic times only, so no sun-phase time is committed (Q62):
+
+| case | lines | expected explanations |
+|---|---|---|
+| 5. the explained one | init, theme (auto), scene | `["Auto's first resolution at boot", "the first scene seen"]` |
+| 6. CONTROL: a second in the same boot | init, theme (auto), theme (auto) | `["Auto's first resolution at boot", None]` |
+| 7. CONTROL: no boot before it | theme (auto) | `[None]` |
+| 8. CONTROL: later than 3 s after the boot | init, then 5 s later theme (auto) | `[None]` |
+| 9. CONTROL: not Auto | init, `theme=light ... setting=light` (no POST) | `[None]` |
+| 10. a second boot re-arms it | init, theme (auto), init, theme (auto) | `["Auto's first resolution at boot", "Auto's first resolution at boot"]` |
+
+- **The tally:** `10 checks, 0 failures`, exit 0.
+
+**The selftest's own sabotages** (copies, each asserted to apply), each red exactly where it should be:
+
+| sabotage | expected |
+|---|---|
+| S-W1: the new rule removed | cases 5 and 10 FAIL (2 failures) |
+| S-W2: the once-per-boot guard (iv) removed | case 6 FAILS (1) |
+| S-W3: the 3 s window (iii) removed | case 8 FAILS (1) |
+| S-W4: the `setting=auto` test (i) removed | case 9 FAILS (1) |
+
+**Replays of the local board traces** (`--scenes 8`; the traces stay local):
+- **Unchanged:** b33d-run1 5/0, the touch watch 844/0, t5 264/0, S-SWB 108/0 (changes/unexplained).
+- **W4's trace (touchwd): 1 unexplained becomes 0** (explained 1/1).
+
+**Nothing else moves:**
+- no `run.sh` block runs this selftest today, so host-test output is unchanged;
+- no firmware file changes.
+
+**CI**, from #526's job list: the PR touches `tools/weatherscope/board/screen_watch.py` only, which matches no path filter. **38 check runs, 35 success, 3 skipped, 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+
+**A question, not done here:** the selftest runs only by hand. If you want it in CI, it is one `run.sh` line in a later PR, with its lines predicted.
