@@ -58,3 +58,9 @@
 - Re-publishing v18's web set from later source would break "v18's web set is v18's firmware". That is not proposed.
 
 **Outside the set:** stop and report.
+
+**Added before any run: WC2's control.**
+- **The check:** `tools/web-renderer/carousel.mjs` drives the swipes and reads each frame's own text and dots.
+- **The control:** it is also run against a web build of **main's unchanged** `AircraftManager`, with the same tools
+  and the same flag. There it must **fail**: Stats or Connect reached, and 4 dots.
+- **Why it is needed:** a check that passes on both builds proves nothing about the change.
