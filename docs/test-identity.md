@@ -343,3 +343,39 @@ request carries the test identity and none carries a board's pair.
 
 **`251a3ca`'s own CI.** That head is registration only, and still held the unfixed sampler without the timeout, so its
 `workers` run was **cancelled at about 17:25Z** before it could hang. It is not a reading.
+
+## Merged, deployed and verified (2026-11-04)
+
+**The ruling (reviewer chat, pasted by Daniel, ~18:25Z), in part:**
+- the proxy-leg row is re-registered: `test (proxy)` runs every step whose `if:` holds in the proxy leg (25), and
+  steps 13 and 24 are dashboard-only; the miss is kept;
+- approved to merge at `cf3fa536ecb3`;
+- then TD1, TM2's `/v1/config`, and item 5's conditions.
+
+**The merge.** `d72e3e909cf5`, 18:08:48Z: squash with `--match-head-commit cf3fa536ecb3`, no `--admin`. GitHub showed
+MERGEABLE CLEAN, and main's protection is not strict, so no main merge was needed. The remote branch was deleted by
+hand, because a worktree held the local one.
+
+**main's CI on `d72e3e9`:** 41 check runs, the same on two reads. 39 success, 2 skipped (`promote`, `version`), 0
+failed. The four push workflows (`device-ids`, `workers`, `no-traffic-captures`, `firmware`) are green. Its last
+firmware job only got a runner at 18:49Z, so the first bounded wait hit its cap; the count was read after a second
+wait, once every job had finished.
+
+**TD1, TM2 and item 5's runs**, registered on #513 before any of them ran (issuecomment-6638339107):
+
+| | read | verdict |
+|---|---|---|
+| **what the deploy carries** | production's dashboard was last deployed 2026-09-25 (it shipped `5fd65fa`). Since then, only #513 changes deployed dashboard code (`src/analytics.ts`, `src/types.ts`) | as stated |
+| **the secret and the deploy** | `TEST_DEVICE_IDS` set from the token file's `test-device`, through a shell variable and `printf` into `wrangler secret put --env production`; nothing id-shaped in its log. The dashboard deployed from `d72e3e9` as version `dd9297a1` (18:13:11Z). Its secret list names `CF_API_TOKEN` and `TEST_DEVICE_IDS` | as predicted |
+| **TD1** | the merged commit's own `fleetTotals` and `seenDevices`, 24 h, against live Analytics; the rendered page is behind Access. **Before:** "Devices seen" 10 with the exclusion, 10 raw, the test id in neither set. **After** one production smoke: **10 with the exclusion, 11 raw**, the test id in the raw set only. The set with the exclusion gained 0 ids and lost 0 | as predicted |
+| **the smoke** (production, as the test identity) | PASS 37, FAIL 0, SKIPPED 0. The auth path read `device`. The key and the id appear 0 times in its output | as predicted |
+| **TM2's `/v1/config`** | production: HTTP 200, `X-Blip-Auth: device`. Staging (`test-key-staging`): HTTP 200, `X-Blip-Auth: device` | as predicted |
+| **watch-upstream** (production, 12 polls at 15 s) | exit 0; 12 fresh, 0 "other" | as predicted |
+
+**Item 5, Daniel's two lines (`blip-key=`, `blip-device=`):**
+- condition 1 holds: this PR is merged, and its server part is deployed and verified;
+- condition 2 holds: one smoke and one watch-upstream run passed as the test identity on production;
+- condition 3 holds, per the ruling of ~19:35Z: blipscope-5c's reader prefers `records-device` and confirms it with
+  one read.
+- **Daniel may delete both lines.** Nothing on main reads them. The one-time `--add-records-device` copy is done.
+

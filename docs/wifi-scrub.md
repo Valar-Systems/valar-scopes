@@ -429,3 +429,23 @@ after the block. That changes no reading. The harness was run again on the tidie
 **CI on `5a70efb`, read:** `device-ids` failed on exactly one finding, `docs/wifi-scrub.md:360: lan`, the line
 recorded above. That run scanned the PR merged with today's main (1,465 tracked), so #514's new Weatherscope files
 passed the guard there.
+
+## Merged (2026-11-04)
+
+**CI on `d537e4a`: 40 check runs, 36 success, 4 skipped, 0 failed, against the 38 I predicted.** The two extra jobs were
+`build` and `publish`, from #518's new `web-renderer` workflow. #518 merged at 17:56:23Z, five seconds before the PR's
+runs started, so the run tested the PR merged with it.
+- **Ruled (~19:00Z):** the count re-registered at 40, with the miss kept.
+- **The rule from now on:** re-read main right before the push, not when the prediction is written.
+
+**The merge.** `ec4f0d472fc9`, 19:02:42Z: squash with `--match-head-commit d537e4a`, no `--admin`. The remote branch was
+deleted by hand. The reviewer checked that the squash carries exactly `d537e4a`'s changes.
+
+**main's CI on `ec4f0d4`:** 40 check runs, the same on two reads. 37 success, 3 skipped (`publish`, `promote`,
+`version`), 0 failed. `device-ids`, the guard on main, is green.
+
+**The reviewer's independent scan of main afterwards**, by value for what the scrub removed:
+- the network name and the two BSSIDs: none;
+- the seven LAN addresses: none in any file's contents. **But two file NAMES carried one**, so `check_wifi.py` (which
+  read contents only) could not see them. That is #527: both files renamed, and every tracked path checked.
+
