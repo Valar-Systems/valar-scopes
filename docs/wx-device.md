@@ -4107,3 +4107,37 @@ The plants' 11 needles were each found in `proxy.py` exactly once before the run
 banner is read as usual.
 
 **The next W5's driver** gets the same four points when G1′ and G2′ are built.
+
+### Item 5: what N adds per frame with the layer off, read from the code
+
+**What was compared.** Both of W5⁗'s arms ran the shipping env `blipscope-s3-128`: O from `962ccb7`, N from
+`2ff8c3d`. Code that only the bench image compiles (`WX_LOOK_AB`) is left out. With the layer off, `wx-layer` is absent
+or false, so `WxEnabled()` is false.
+
+| where | how often | what N runs that O did not |
+|---|---|---|
+| `loop()`: `DrawWeatherUnder` | every frame | one store, then `WxEnabled()` (four loads) is false: return |
+| `loop()`: `DrawSweepOverWeather` | every frame, sweep on | one compare (`wxShowing` is not `Crop`): return |
+| `DrawRadar`: `DrawWeatherNote` | every frame | one compare: return |
+| `DrawRadar`: `WxOutlineNow()` | every contact | one compare, false: no outline is drawn |
+| `DrawRadarSweep`, via `DrawRadarSweepBeam` | every frame | the beam's end is computed again: one more `cos` and one more `sin` |
+| `Update()`: `wxpolicy::ShouldFetch` | every loop pass | `enabled` is false: return |
+| `FetchRequest` / `FetchResult` | every poll | two empty `String`s and a few integers more, no allocation |
+| `ProjectAt` | every contact and trail point | nothing: `radarproj::Project` is the same body with the same types, inline, and is held bit-identical by its host test |
+
+**Together that is a few microseconds a frame,** about three orders of magnitude under G3's +1.1 ms. So the code does
+not account for +1.1 ms as added work.
+
+**What remains, named and not excluded:**
+- **Placement.**
+  - N's shipping image is **19,808 B larger** (1,949,680 against 1,929,872, the two images W5⁗ flashed).
+  - The draw path runs from flash through the cache, so moving it can change frame time without adding any work.
+  - Nothing read so far excludes this. Testing it means N against N with only a layout shift.
+- **The instrument.** G2's own control moved −0.8 ms between identical O images, over 3 bins. +1.1 ms is the same
+  order as the instrument's own spread, which is why the run is INSTRUMENT.
+- **The PC.** The WebAssembly builds ran during N2, O3 and N3 (recorded above). The device measures its own frames, but
+  the PC served the feed.
+
+**For the ruling on G2′:** the next W5 measures the same two images, so this reading does not change its design. A
+layout-only control (N against N with a shift) would separate placement from the instrument, as an extra arm or a run
+of its own. That is the reviewer's call.
