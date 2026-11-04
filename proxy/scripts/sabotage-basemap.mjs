@@ -311,7 +311,9 @@ const SABOTAGES = {
     file: ATTRIBUTION, set: "all",
     edits: [["  - **SRTM's notice**, from SRTM's specification §3.15 b as joerd quotes it, with the year of production inserted: \"© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.\"\n",
              "  - SABOTAGE S-ANOTICE: the notice deleted\n"]],
-    expect: ["MA1"],
+    // Re-registered by ruling (2026-10-30, docs/basemap-deploy.md), from {MA1}: MA2 reads the notice from this file by
+    // design (both sides), so deleting it fails both rows. The original {MA1} and the miss stay on record.
+    expect: ["MA1", "MA2"],
   },
   // MD4's own sabotage (A2.35): the processing text changed, the same length, with rev unchanged.
   "S-MREV": {
@@ -337,6 +339,13 @@ const SABOTAGES = {
     file: HANDLER, set: "all",
     edits: [["commit: lastBuild ? lastBuild.commit : null };", "commit: lastBuild ? lastBuild.commit : \"0\".repeat(40) }; // SABOTAGE S-HMADEUP"]],
     expect: ["MH2"],
+  },
+  // The D3 PR's (docs/basemap-deploy.md): the ETOPO1 credit dropped from the credits page.
+  "S-ACREDIT": {
+    file: "src/photolicense.ts", set: "all",
+    edits: [["const TERRAIN_CREDITS: readonly string[] = CREDIT_BITS.map(([, text]) => text);",
+             "const TERRAIN_CREDITS: readonly string[] = CREDIT_BITS.filter(([b]) => b !== 4).map(([, text]) => text); // SABOTAGE S-ACREDIT"]],
+    expect: ["MA2"],
   },
   "S-HNOCACHE": {
     file: HANDLER, set: "all",

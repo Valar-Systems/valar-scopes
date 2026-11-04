@@ -202,6 +202,13 @@ class_name = "BendSnapshotDO"
 binding = "WX"
 bucket_name = "blipscope-wx"
 
+# The basemap builder (docs/basemap-deploy.md, D3): /basemap answers 503 not_configured without this binding. STAGING
+# ONLY until D4's PR binds production. The builder shares the sealed bucket with production's and never writes (MP2),
+# so staging must never get a writing build.
+[[env.staging.services]]
+binding = "BASEMAP"
+service = "blipscope-basemap-staging"
+
 # Workers Rate Limiting binding (per-colo token buckets, 60 s period).
 # RL_IP: a household NATs 1-3 devices behind one IP; the fastest tier polls every
 # 2 s (30 rpm) + enrich taps, so 120 rpm covers 3 fast devices with margin.
