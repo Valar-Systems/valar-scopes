@@ -75,7 +75,13 @@ const REQUIRED = {
   quickstart: [
     { what: "wordmark", card: 0, sel: ".wordmark", text: "BLIPSCOPE" },
     { what: "step 2 (join)", card: 0, sel: ".join-how", text: JOIN, exact: true },
-    { what: "QR", card: 1, sel: ".qr-slot", text: "valarsystems.com" },
+    // The Device ID line holds a child (the blank to write on), so it is not a leaf and
+    // the per-leaf fit check never measured it: on 2026-11-04 a redesign pushed it off
+    // the bottom of the front and every check passed. Required, so it is measured.
+    { what: "Device ID line", card: 0, sel: ".nameplate", text: "Your Device ID" },
+    // The QR moved to the FRONT (card 0) on 2026-11-04: most buyers build the kit
+    // themselves, so the build guide is the first thing on the card.
+    { what: "QR", card: 0, sel: ".qr-slot", text: "valarsystems.com" },
     // EXACT, not "contains": the card design lives in Canva and the repo is the
     // source of truth for the WORDING, so any change to this sentence -- here or
     // there -- has to be a deliberate edit to NOTE, never a quiet divergence.
