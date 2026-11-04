@@ -4573,6 +4573,35 @@ after #445.
 | **WR6** | the diff from `519edec` | touches only `tools/web-renderer/` and `docs/`, so device bytes cannot change |
 | **M6** | CI | predicted from finished runs and main at the push, and committed before the push |
 
+**(A), local results** (the code is `9391d28`):
+- **WR5:** as predicted. The tree reads OFF (exit 0). `--selftest`: the control exits 0 and the plant exits 1; the
+  real files are unchanged (`3fba26a44b83`, `316ddcd512b7`). Under g++ 13.3.0 the shim's `setBuffer` parses, and the
+  firmware's call (`:3290`'s exact form) resolves. `bash -n build.sh` is clean.
+- **WR6:** as predicted. The diff from `519edec` touches `docs/wx-device.md`, `docs/web-renderer.md` and five files
+  under `tools/web-renderer/`. Nothing else in `run.sh` or the workflows reads `tools/web-renderer/`.
+- **WR1-WR4:** these are CI's (a local web build waits for 30 GB).
+
+**M6, frozen before the push. Main at the push** is `c039a5efda86`, read twice. It is one commit past my merge (#532:
+`docs/` and `proxy/` only, no workflow changed) and merges clean with this head.
+- **From finished runs:**
+  - main's push `43afaac`: 40 check-runs (4 workflows);
+  - #531's PR head: 40 (36 success, 4 skipped: `promote`, `version`, `ship-alert`, `publish`);
+  - `8fb24fb`: 41, which is main's 40 plus #445's `build (blipscope-s3-128-wxlook)`;
+  - the backup branch's first push: one `print-cards` push run (1 job, success).
+- **The pull_request runs:** the same 4 workflows as `8fb24fb`. With main in the base, the PR's diff no longer
+  touches `proxy/`, `dashboard/`, the print-card or provisioner paths.
+- **The push run:** the push diff `8fb24fb..head` carries main's change to `.github/workflows/print-cards.yml`.
+  Print-cards is the only workflow that runs on a push to a branch other than main, so it runs once (the Q69 shape).
+- **Predicted, on the pushed head:** **42 check-runs: 38 success, 4 skipped, 0 failure.**
+  - the 4 skipped are `promote`, `version`, `ship-alert` and `publish`;
+  - the web-renderer `build` passes, with WR3/WR4 as predicted;
+  - both host-test legs pass;
+  - `build (blipscope-s3-128-wxlook)` passes;
+  - `print-cards` passes.
+- **The backup branch then takes the same head:** its diff from `519edec` touches no print-cards path, so it adds no
+  run.
+- **Counted only when no run is queued.**
+
 **What WR5 cannot see, said here so it is not mistaken for coverage:** a page can pass `wx-layer` at runtime through
 `web_config_set`, and the website's own page code is in another repo. That path is WR1's to stop: the module aborts
 with the message, never corrupts memory. The abort itself is never reached today and nothing here makes it fire. A
