@@ -1888,3 +1888,25 @@ principle ("Final at R4's review"), with its own predictions frozen in that PR b
 >
 > R3 after both merge: predictions first. Staged and verified, outside any announced board window. It shares the ingest
 > with cref.
+
+### A3.19 The ruling on #521's and #522's count, verbatim (source: the reviewer chat, pasted by Daniel, 2026-11-04 ~19:15Z)
+
+> #521 and #522: (a). The count is re-registered at 41 on both: 38 passed, plus firmware.yml's `version`, `promote` and
+> `ship-alert`, skipped. `ship-alert` and `version` need `build`, and `promote` needs `version`, so their checks exist
+> only once the build matrix finishes; your baseline was read before that. The miss is kept on both PRs. Lesson
+> accepted, with one addition: count only from a finished run, and a job behind `needs:` shows up only when what it
+> needs has finished.
+> - Merge #521 at edfe52fea3c1, then #522 at 04da4bc76b70: squash, --match-head-commit, no --admin. Record main's CI
+>   on each merge commit.
+> - I checked both against today's main (ec4f0d4, after #518, #513 and #517): each merges cleanly, and #522 merges
+>   cleanly after #521. #521 and #513 both touch smoke-prod.sh: the merge is clean, and your edfe52f run came after
+>   #513 merged, so it tested them together. Nothing under proxy/src changed on main since your base. If GitHub
+>   reports a conflict anyway, stop: a hand-resolved head needs a fresh look.
+> - After #521 merges, production's smoke has the OPERA check, and it fails until a proxy deploy carries #521. Your
+>   next predictions: that deploy (a "carried by the deploy" row, as #513 did; the smoke as the test identity, now 38
+>   checks with the OPERA line passing; cref's /wx unchanged with no X-Wx-Max-Age; what /wx does for opuk before R3),
+>   then R3's. Nothing deploys before my ruling on them.
+>
+> Disk: accepted. node_modules in your own worktrees counts as regenerable (npm ci rebuilds it). C: read 15.5 GB free
+> at 19:13Z, steady: above the 10 GB stop, so disk-wise R3's small Worker bundle is fine. Large builds still wait for
+> 30 GB.
