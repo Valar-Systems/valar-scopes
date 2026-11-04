@@ -61,3 +61,15 @@ states a limit.
 smoke asks at Bend, which `cref` serves, and a header that is never sent there cannot be failed by it.
 
 **Outside the set:** any other reading means stop and report.
+
+## The readings (2026-11-04): every row as predicted
+
+`test/wx-age.test.ts`, with `test/wx-endpoint.test.ts` and `test/wx-opera.test.ts` beside it: 64 of 64 pass.
+- **A1:** LHR's 200 and its 304 both carry `X-Wx-Max-Age: 720`.
+- **A2:** KMCI's 200 and 304 carry none.
+- **A3:** CDG and PHNL, `cref`'s all-14 crops, carry none.
+- **A4:** `/wx/opuk` at LHR carries 720.
+- **A5:** the 503, 400 and 404 carry none.
+- **A6, the sabotage:** with the header taken from the requested product, LHR's 200 (served from `opuk`, its ETag
+  says so) carries none. The row turns red.
+- **A7:** `opuk` states 720, `cref` nothing.
