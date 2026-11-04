@@ -147,6 +147,10 @@ jobs:
           mkdir back && gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p 'blipscope-web-*' -D back
           (cd back && sha256sum -c "blipscope-web-v$FW.sha256")
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name | startswith("blipscope-web-") | not) | "\(.name) \(.size) \(.downloadCount)"' | sort > after.txt
-          # Names and sizes must match exactly; a download count may only grow (devices keep checking in).
+          # Names and sizes must match exactly. A download count is NOT compared for equality -- a device fetching
+          # its firmware during the upload raises it -- it must only never decrease (a decrease means the asset was
+          # replaced, which resets its count).
           diff <(cut -d' ' -f1,2 before.txt) <(cut -d' ' -f1,2 after.txt)
-          echo "other assets unchanged: $(wc -l < after.txt)"
+          join before.txt after.txt | awk '{ if ($5 < $3) { print "download count DECREASED: " $1 " " $3 " -> " $5; bad = 1 } }
+                                           END { exit bad }'
+          echo "other assets unchanged: $(wc -l < after.txt) (names and sizes equal; no download count decreased)"
