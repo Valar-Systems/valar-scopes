@@ -10943,3 +10943,29 @@ or the bus, not something to tune away.
 | anchors | unchanged | **every driver's `--anchors` and `plant_s_swb.py --anchors` present once;** no host test compiles `WeatherscopeManager.cpp` |
 
 - **The board rows wait for the plan's ruling:** the 1-hour watch, S-TW, and B1/B3.
+
+### A12.86 (3)'s sabotage on ubuntu-26.04: AS PREDICTED. #516 is ready for review at `4d95c632dc53`
+
+**The sabotage** (#519, a draft from `weatherscope/one-count-sab26`: #516's head plus main's old `test_wx_crop.cpp`), against A12.82 and A12.85:
+
+| row | predicted | measured |
+|---|---|---|
+| the 26.04 leg | FAILs: g++ 15 refuses the old file | **AS PREDICTED:** <br>• `Image: ubuntu-26.04`, g++ 15.2.0; <br>• `test_wx_crop.cpp:47:51 -Werror=mismatched-new-delete`; <br>• `Process completed with exit code 2` |
+| `FAILED BLOCKS:` | exactly WxCrop (the rig), sabotage controls, sabotage drivers in full | **exactly those three, in that form** |
+| every later block | prints its header and result | **all 156 `== ` lines,** identical to #516's clean 26.04 leg and in its order |
+| what is missing against the clean leg | WxCrop's suite, the crop driver's two `ok` lines, the pass summary | **exactly those (36 lines),** and nothing else |
+| the 24.04 leg | green | **green:** g++ 13.3.0, 156 `== ` lines, `ALL HOST TESTS PASSED` |
+| the `host-tests` aggregator | fails | **fails** |
+| the count | 38: 33 success, 2 failed, 3 skipped | **AS PREDICTED,** read twice: the two failures are `host-tests (ubuntu-26.04)` and `host-tests` |
+
+- **The grader** compares two job logs line by line. **Its control:** run on #516's clean log against itself, it found no `FAILED BLOCKS:` match and 0 missing lines, so it can tell the two apart.
+- **#519 is closed,** and its branch deleted on the remote and locally.
+- **Seen on both #516 and #519:** GitHub's API reported a host-tests leg `in_progress` for 10-25 minutes after its job had finished, with every step complete and its log final. Every count here was read twice, after the statuses settled.
+
+**#516 at `4d95c632dc53`: every A12.77, A12.70, A12.73, A12.83 and A12.84 row measured, all AS PREDICTED.**
+- **CI:** 38 check runs, 35 success, 3 skipped, 0 failed. Both legs are green, the 26.04 leg on g++ 15.2.0.
+- **(3)'s sabotage:** as above.
+- **Locally, both compilers, base and new:** A12.84.
+- **The keep-going control:** A12.82.
+- **The PR is `MERGEABLE`/`CLEAN`** on main `d479d72`.
+- **Ready for review.** It is not merged without an approval pasted at its exact head.
