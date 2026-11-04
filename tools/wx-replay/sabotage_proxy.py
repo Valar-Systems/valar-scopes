@@ -1,6 +1,7 @@
 """Proves proxy.py's selftest can fail (docs/wx-device.md, the replay route). Each plant goes into a COPY of proxy.py
-in a temporary folder: the plant is asserted to have applied (needle present once, copy changed), the copy's
---selftest must exit non-zero, and the real file's sha256 is checked unchanged at the end.
+in a temporary folder: the plant is asserted to have applied (each needle present once, copy changed), the copy's
+--selftest must turn red BY ITS OWN FAIL LINES, and the real file's sha256 is checked unchanged at the end. A copy that
+writes a traceback is an instrument failure, never a red (ruled 2026-11-04: a case fails by its own FAIL line).
     python -I tools/wx-replay/sabotage_proxy.py"""
 import hashlib
 import os
@@ -43,10 +44,21 @@ PLANTS = [
     ("S-synth-leak: K6's own hexes forwarded, not answered",
      '            if e is not None:   # exactly the feed\'s own hexes; any other is forwarded below\n',
      '            if False:\n'),
+    # Two edits: the leak, and the "other hex" case's old cumulative read (P5'), to show the decoupling is load-bearing.
+    ("S-other-cascade: the leak, with the other hex's case reading the whole run again",
+     [('            if e is not None:   # exactly the feed\'s own hexes; any other is forwarded below\n',
+       '            if False:\n'),
+      ('    mine = seen[n0:]\n',
+       '    mine = seen[0:]   # SABOTAGE S-other-cascade: the old cumulative read\n')]),
 ]
-# Plants predicted to turn EXACTLY one named case red (docs/wx-device.md, P4); the others need only turn it red.
-EXACT = {"S-synth-leak: K6's own hexes forwarded, not answered":
-         "nothing forwarded for a K6 hex: its enrich is answered locally"}
+OWN = "nothing forwarded for a K6 hex: its enrich is answered locally"
+OTHER = "any other hex's enrich is forwarded"
+LOG = "the K6 log: blips synth, enrich synth, enrich forwarded; fixed fields, no coordinate, query or header"
+STATUS = "STATUS counts each route by disposition"
+# Plants predicted to turn EXACTLY these cases red, in this order (docs/wx-device.md, P4' and P5'); the others need
+# only turn the selftest red by FAIL lines.
+EXACT = {"S-synth-leak: K6's own hexes forwarded, not answered": [OWN, LOG, STATUS],
+         "S-other-cascade: the leak, with the other hex's case reading the whole run again": [OWN, OTHER, LOG, STATUS]}
 
 
 def sha(p):
@@ -65,20 +77,28 @@ def main():
         ctrl = r.returncode == 0
         print(f"  {'ok ' if ctrl else 'BAD'}  CONTROL: the unplanted copy's selftest passes (exit {r.returncode})")
         bad += 0 if ctrl else 1
-        for name, needle, plant in PLANTS:
-            if src.count(needle) != 1:
-                print(f"  BAD  {name}: the needle is not in proxy.py exactly once, so the plant cannot apply")
+        for entry in PLANTS:
+            name, edits = (entry[0], [(entry[1], entry[2])]) if len(entry) == 3 else entry
+            if any(src.count(n) != 1 for n, _ in edits):
+                print(f"  BAD  {name}: a needle is not in proxy.py exactly once, so the plant cannot apply")
                 bad += 1
                 continue
-            planted = src.replace(needle, plant)
-            assert planted != src
+            planted = src
+            for n, pl in edits:
+                planted = planted.replace(n, pl)
+            assert planted != src and all(pl in planted for _, pl in edits)
             open(copy, "w", encoding="utf-8", newline="\n").write(planted)
             assert open(copy, encoding="utf-8").read() == planted
             r = subprocess.run([sys.executable, "-I", copy, "--selftest"], capture_output=True, text=True, timeout=120)
             fails = [l.strip()[6:] for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
-            red = r.returncode != 0 and (name not in EXACT or fails == [EXACT[name]])
+            crashed = "Traceback (most recent call last)" in r.stderr
+            red = r.returncode == 1 and bool(fails) and not crashed and (name not in EXACT or fails == EXACT[name])
             why = (f"{len(fails)} FAIL: {fails[0]}" + (" ..." if len(fails) > 1 else "")) if fails else \
                 (r.stderr.strip().splitlines() or ["no output"])[-1][:100]
+            if crashed:
+                why = "an instrument failure, a traceback: " + (r.stderr.strip().splitlines() or [""])[-1][:90]
+            if name in EXACT:
+                why += "; FAIL lines " + ("exactly as predicted" if fails == EXACT[name] else f"not as predicted: {fails}")
             print(f"  {'ok ' if red else 'BAD'}  {name}: selftest exit {r.returncode} ({why})")
             bad += 0 if red else 1
     after = sha(REAL)

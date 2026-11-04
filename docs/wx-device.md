@@ -3812,3 +3812,59 @@ follow when it ends.
 | **P5′** | **S-other-cascade**, a new plant: case 4's old cumulative read restored, together with S-synth-leak | FAIL lines exactly, in order: own case, "any other hex's enrich is forwarded", the K6 log, STATUS. So the decoupling is what keeps case 4 green under P4′ |
 
 **Outside the set:** stop and report.
+
+### Results for P4, re-registered (2026-11-04)
+
+**The fix, as made:**
+- Every K6 case reads through `_json()` (`{}` for a body that is not a JSON object) and `.get`.
+- The "other hex" case reads only its own request (`seen[n0:]`).
+- `sabotage_proxy.py` counts a plant red only when its copy exits 1 with FAIL lines and no traceback. A traceback is
+  BAD: an instrument failure.
+- The new plant **S-other-cascade** carries two edits.
+
+**First, a run that is not the graded one, kept:**
+- **What happened:** the first patch to `sabotage_proxy.py` failed its own anchor assertion (a heredoc), so the **old**
+  driver ran against the patched `proxy.py`.
+- **What it showed:**
+  - S-synth-leak failed by 3 FAIL lines, with no traceback. P4′'s three, though the old driver graded them against
+    its single expected line.
+  - **S-allow's copy crashed:** `ConnectionAbortedError: [WinError 10053]`, where its last run (`proxy-sab.out`) had
+    turned red by 2 FAIL lines.
+- **What followed:** a race was in view before any graded run, so the graded driver was **run three times**, and all
+  three are reported. One sample of a race reads whichever way it lands.
+
+| | run 1 (04:56Z) | run 2 (04:57Z) | run 3 (04:58Z) | verdict |
+|---|---|---|---|---|
+| **P1′** the unplanted selftest | every case PASS | every case PASS | every case PASS | **as predicted** |
+| **P3′** the 8 earlier plants | all `ok`, by FAIL lines | **S-instr BAD: a traceback**, `ConnectionAbortedError` (WinError 10053) | all `ok`, by FAIL lines | **OFF** (run 2) |
+| **P4′** S-synth-leak | exactly the 3 lines, in order | **4 lines**: "any other client: 403, an other/refused line, and nothing forwarded" first, then the 3 | exactly the 3 lines, in order | **OFF** (run 2) |
+| **P5′** S-other-cascade | exactly the 4 lines | exactly the 4 lines | exactly the 4 lines | **as predicted** |
+
+**Off as graded. The cause is the selftest's refused-client case, not the P4 fix, read from the code:**
+- **The case:** "any other client: 403, an other/refused line, and nothing forwarded" (a proxy that allows only
+  127.0.0.2, asked from 127.0.0.1). It runs before every K6 case, in every plant's copy.
+- **Race 1, a FAIL that is not the code's property:**
+  - The refused path replies first and notes second (`self.reply(403, ...)`, then `P.note("other", "refused", ...)`).
+  - The case reads the log the moment its response arrives, so the line can still be missing.
+  - It is the race `local_feed.py`'s selftest met on 10-30, fixed there by noting first.
+- **Race 2, a crash:**
+  - The refused connection is closed with the request still unread on the socket, so Windows can reset it.
+  - The client then reads `ConnectionAbortedError` instead of the 403, inside `_ask`, outside any check. Under
+    the 11-04 rule that is an instrument failure.
+- **The alternative, and why the data excludes it:** that the P4 fix or the new plant caused it.
+  - S-instr's plant touches only the scan, after this case.
+  - S-allow (the accidental run) and S-instr (run 2) have nothing in common but this case.
+  - Runs 1 and 3 of the same code are clean.
+- **Not fixed: it waits for a ruling.** The remedy proposed:
+  - the refused path notes before it replies, and drains the request before closing;
+  - the selftest's `_ask` returns a status of `None` on a connection error, so a broken exchange is that case's FAIL
+    line, never a crash.
+  - Predicted: then all four rows as registered, on 3 runs of 3.
+- **K6 holds behind it,** as its dependent ("K6 after the P4 fix").
+- **On record:** the race was in the selftest in every earlier run. Those runs met it in neither direction.
+
+**The production-record reader (`ae_watch.py`, scratchpad), switched as ruled:**
+- The mint script's line is already in the token file: `records-device` present, True.
+- `e208()` now reads `records-device` if present, else `blip-device`, and the HKCU variable only while it exists.
+- Read back as booleans: the id came from `records-device`. It is 16 hex, and it equals the `blip-device` line: True.
+- Nothing printed but those names and booleans. `ae_watch.py` is sha256 `dbad89c4b838` now.

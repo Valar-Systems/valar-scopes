@@ -516,6 +516,15 @@ def _start(P):
     return srv, srv.server_address[1]
 
 
+def _json(data):
+    """A body as a JSON object, or {} when it is not one: the selftest's cases read through this, never json.loads."""
+    try:
+        j = json.loads(data)
+    except (ValueError, TypeError):
+        return {}
+    return j if isinstance(j, dict) else {}
+
+
 def selftest():
     fails = []
 
@@ -636,14 +645,21 @@ def selftest():
     q = "/blips?lat=44.06&lon=-121.32&r=160&limit=40"
     st, _, _, d1 = _ask(portk, "GET", API + q, SENT)
     st2, _, _, d2 = _ask(portk, "GET", API + q, SENT)
-    j1, j2 = json.loads(d1), json.loads(d2)
-    check(st == 200 and j1["v"] == 1 and len(j1["a"]) == 40 and not seen, "K6 /blips: 200, v 1, 40 rows, nothing forwarded")
-    check(st2 == 200 and j2["a"][0][0] == feed.c[20]["hex"], "K6 /blips again: the other set (its first row is contact 20)")
+    # Every field is read inside its check (ruled 2026-11-04): a wrong answer is a FAIL line, never a crash.
+    j1, j2 = _json(d1), _json(d2)
+    a1, a2 = j1.get("a") or [], j2.get("a") or []
+    check(st == 200 and j1.get("v") == 1 and len(a1) == 40 and not seen, "K6 /blips: 200, v 1, 40 rows, nothing forwarded")
+    check(st2 == 200 and bool(a2) and bool(a2[0]) and a2[0][0] == feed.c[20]["hex"],
+          "K6 /blips again: the other set (its first row is contact 20)")
     st, _, _, de = _ask(portk, "GET", API + "/enrich/" + feed.c[7]["hex"] + "?cs=X&lat=1&lon=2", SENT)
-    je = json.loads(de)
-    check(st == 200 and je["t"] and je["op"] and not seen, "nothing forwarded for a K6 hex: its enrich is answered locally")
+    je = _json(de)
+    check(st == 200 and bool(je.get("t")) and bool(je.get("op")) and not seen,
+          "nothing forwarded for a K6 hex: its enrich is answered locally")
+    n0 = len(seen)   # this case reads its own request only, so a leak above it cannot turn it red (P4')
     st, _, _, _ = _ask(portk, "GET", API + "/enrich/abcdef", SENT)
-    check(st == 200 and len(seen) == 1, "any other hex's enrich is forwarded")
+    mine = seen[n0:]
+    check(st == 200 and len(mine) == 1 and mine[0]["line"].startswith(f"GET {API}/enrich/abcdef "),
+          "any other hex's enrich is forwarded")
     PK.log.flush()
     kl = open(PK.log_path).read().splitlines()
     check([l.split()[1:3] for l in kl] == [["blips", "synth"], ["blips", "synth"], ["enrich", "synth"], ["enrich", "forwarded"]]
