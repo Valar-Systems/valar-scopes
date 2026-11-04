@@ -44,14 +44,21 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         for name, (edits, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             inc = os.path.join(td, name); os.makedirs(inc)
             open(os.path.join(inc, "WxLegend.h"), "w", encoding="utf-8", newline="\n").write(plant(name, edits, src))
             exe = os.path.join(td, name + ".exe")
             b = subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
             if b.returncode != 0:
-                print(f"{name}: did not compile (rig)\n{b.stderr}"); return 2
+                print(f"{name}: did not compile (rig)\n{b.stderr}")
+                rigs.add(name)
+                ok = False
+                continue
             r = subprocess.run([exe], capture_output=True, text=True)
             fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
             matched = [sum(1 for l in fails if re.search(rx, l)) for rx in expect]
@@ -62,7 +69,7 @@ def main():
             ok &= good
     after = sha(HEADER)
     print(f"real src/weatherscope/WxLegend.h unchanged: {before == after} ({after[:12]})")
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 def anchor_entries():
     """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""

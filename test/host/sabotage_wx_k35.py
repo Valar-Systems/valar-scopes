@@ -94,23 +94,27 @@ def run(base, name):
                         TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, LOOP, os.path.join(base, "k35.ref.txt")], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout[-2000:]}")
-        sys.exit(2)
+        raise sc.Rig(name)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
     if not m or int(m.group(1)) != K35_CHECKS:
         print(f"{name}: {m.group(1) if m else '?'} checks, not {K35_CHECKS}: the RIG")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
 
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails = run(mirror(td, "control"), "control")
+        try:
+            rc, fails = run(mirror(td, "control"), "control")
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real code, mirrored): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
@@ -125,7 +129,11 @@ def main():
                     print(f"{name}: REFUSED -- {e}")
                     ok = False
                     continue
-            rc, fails = run(base, name)
+            res = rigs.run(name, run, base, name)
+            if res is None:
+                ok = False
+                continue
+            rc, fails = res
             good = rc == 1 and fails == expect
             shown = sorted(fails) if len(fails) <= 6 else f"{len(fails)} cases: {sorted(fails)[:3]} ..."
             want = sorted(expect) if len(expect) <= 6 else f"{len(expect)} cases"
@@ -136,7 +144,7 @@ def main():
     after = tree_sha()
     print(f"the real src/weatherscope, font and reference unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():

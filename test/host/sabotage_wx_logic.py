@@ -111,11 +111,11 @@ def run(td, name, header_text):
                        capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the suite did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     fails = {m.group(1) for m in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
     return r.returncode, fails
 
@@ -124,13 +124,21 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails = run(td, "control", src)
+        try:
+            rc, fails = run(td, "control", src)
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real header): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (edits, expect) in SABOTAGES.items():
-            rc, fails = run(td, name, plant(name, edits, src))
+            res = rigs.run(name, run, td, name, plant(name, edits, src))
+            if res is None:
+                ok = False
+                continue
+            rc, fails = res
             graded = fails if "RK" in expect else fails - {"RK"}
             good = rc == 1 and graded == expect
             rk_note = "" if "RK" in expect else f"  (RK, not graded here: {'FAIL' if 'RK' in fails else 'ok'})"
@@ -140,7 +148,7 @@ def main():
     after = sha(HEADER)
     print(f"the real src/weatherscope/WxLogic.h unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():

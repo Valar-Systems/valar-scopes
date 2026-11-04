@@ -89,32 +89,44 @@ def run(base, name, which):
                         TESTS[which], "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}/{which}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     args = [exe, LOOP] if which == "replay" else [exe, LOOP, REF]
     r = subprocess.run(args, capture_output=True, text=True)
     want = REPLAY_CHECKS if which == "replay" else K35_CHECKS
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
     if r.returncode not in (0, 1) or not m or int(m.group(1)) != want:
         print(f"{name}/{which}: exit {r.returncode}, {m.group(1) if m else '?'} checks (want {want}): the RIG")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
 
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         base = mirror(td, "control")
         for which in ("replay", "k35"):
-            rc, fails = run(base, "control", which)
+            try:
+                rc, fails = run(base, "control", which)
+            except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+                return 2
             good = rc == 0 and not fails
             print(f"control/{which}: exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
             ok &= good
         for name, (edits, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             base = mirror(td, name)
             plant(os.path.join(base, "src", "weatherscope", "WxScreens.h"), edits, name)
             for which in ("replay", "k35"):
-                rc, fails = run(base, name, which)
+                try:
+                    rc, fails = run(base, name, which)
+                except sc.Rig:
+                    rigs.add(name)
+                    ok = False
+                    break
                 want = expect[which]
                 good = fails == want and rc == (1 if want else 0)
                 print(f"{name}/{which}: failing {len(fails)} {sorted(fails)[:3]}{' ...' if len(fails) > 3 else ''}, "
@@ -125,7 +137,7 @@ def main():
     after = tree_sha()
     print(f"the real src/weatherscope, font and reference unchanged: {before == after} ({after[:12]})")
     print("2 sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
 
 
 def anchor_entries():

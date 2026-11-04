@@ -97,6 +97,7 @@ def main():
     before = {k: sha(p) for k, p in FILES.items()}
     real = {k: read(p) for k, p in FILES.items()}
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         rc, fails, _ = run(td, "control", real)
         good = rc == 0 and fails == set()
@@ -111,7 +112,11 @@ def main():
                 src = src.replace(old, new)
             assert src != texts[fn], name
             texts[fn] = src
-            rc, fails, lines = run(td, name, texts)
+            res = rigs.run(name, run, td, name, texts, rig_if=lambda r: r[1] is None)
+            if res is None:
+                ok = False
+                continue
+            rc, fails, lines = res
             good = fails is not None and fails == frozen
             ok &= good
             print(f"{name} ({fn}): failing {sorted(fails or [])}, predicted {sorted(frozen)} -> "
@@ -123,7 +128,7 @@ def main():
     ok &= same
     print(f"the real headers unchanged: {same} ({', '.join(k + ' ' + v[:12] for k, v in after.items())})")
     print(f"{len(SABOTAGES)} sabotages: {'ALL AS PREDICTED' if ok else 'NOT ALL AS PREDICTED'}")
-    return 0 if ok else 1
+    return rigs.close(0 if ok else 1)
 
 
 def anchor_entries():
