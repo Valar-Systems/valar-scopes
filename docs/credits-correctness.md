@@ -272,3 +272,80 @@ for it. This was read from the code, not inferred.
 | **credits.html** | regenerated: one line added, **OPERA's, exactly once**; adsbdb 0; the standing-data line once | as predicted |
 | **the rows** | **23 pass** (`photolicense.test.ts` 21, `basemap-attribution.test.ts` 2). CV1, CV2, SA1, RD1, Q-C1; #521's PD test, its CONTROL and OPERA; MRMS; MA1 and MA2. Both `tsc` configs clean | as predicted |
 | **the sabotages** | the control: 23 of 23. **S-CV-BLANKET** red exactly {CV1 104, CV2 8, SA1 48, Q-C1, F16}. **S-SA** {SA1 0, Q-C1}. **S-RD** {RD1 `{ standingData: 0, adsbdb: 2 }`, Q-C1}. **S-QC1** {Q-C1}. #521's PD, CONTROL and OPERA stayed green in each. Every file restored byte-identical. **Exit 0** | as registered |
+
+## CI on `fef1596`: OFF-PREDICTION, and the ruling (2026-11-04)
+
+**The reading.** 41 check runs, as predicted, but **37 success, 3 skipped and 1 FAILED**. I predicted 0 failed.
+- The failure: `test (proxy)`, `npm test`, a single test, `photos.test.ts:79`, at line 89 (`toContain("adsbdb")`).
+- The suite's totals: 882 tests, 880 passed, 1 skipped, 1 failed (67 files).
+- The cause: "the rest of the proxy suite passes" was predicted from two files. The miss is kept.
+
+**The ruling, verbatim (reviewer chat, pasted by Daniel, ~20:15Z):**
+
+> #525: your fix is accepted, with one more in the same file. The miss is kept: "the rest of the proxy suite passes"
+> was predicted from two files. Your new practice stands, plus: run the whole suite before predicting the count.
+> 1. photos.test.ts:89: toContain("vradarserver/standing-data") in place of "adsbdb", as you propose. RD1 keeps
+>    adsbdb's absence.
+> 2. photos.test.ts:68 is blind. Its fixture's licence is the unversioned "CC-BY", which #525 now renders as the raw
+>    token with no link, yet the test still passes: it finds creativecommons.org/licenses/by/4.0/ in OPERA's data-source
+>    line, which #521 added. (My review of #521 missed this.) Make the fixture's licence a versioned token, as the real
+>    records are (e.g. "CC BY 2.0"), and assert that row's own link in the photo-credits section only, as #521's
+>    photoSection does. S-CV-BLANKET (forced 4.0) must turn it red.
+> 3. A2.16: both changed assertions are new rows. Evaluate them against every sabotage before running. Expected:
+>    S-CV-BLANKET reddens (2), S-RD reddens (1), and the others leave both green. The driver runs photos.test.ts too, so
+>    it can see them. Register the new red sets in the docs first.
+> 4. Then the whole proxy suite locally, all four sabotages on the new head, and CI re-registered at 41 check runs:
+>    38 success, 3 skipped, 0 failed.
+> 5. Approved at that head if its diff from fef1596 is only photos.test.ts, the driver's file list and red sets, and
+>    the docs; the whole suite passes; every sabotage reads as registered; and CI matches. Then merge as before (squash,
+>    --match-head-commit, no --admin) and record main's CI on the merge commit. Anything else: stop and report.
+> 6. For the record: a new line on a shared page can make another test's whole-page assertion pass for the wrong
+>    reason. When a change adds text to a page, search the tests for assertions the new text could satisfy, as well as
+>    for text it removes.
+
+## The two new rows, registered before any edit or run
+
+**The rows:**
+- **P89** (`photos.test.ts`, "always credits BOTH aircraft-data sources"): `toContain("vradarserver/standing-data")` in
+  place of `toContain("adsbdb")`. The test's other assertions are unchanged.
+- **P68** ("renders the manifest as public HTML with no key required"):
+  - the fixture's licence becomes **"CC BY 2.0"**, a versioned token as the real records are;
+  - the assertion is scoped to the photo-credits section, the way #521's `photoSection` is: **the A343 row in that
+    section holds its own link, `https://creativecommons.org/licenses/by/2.0/`**.
+
+**The driver** (`sabotage-credits.mjs`):
+- **its file list** gains `test/photos.test.ts`;
+- **its red sets** gain P68 and P89;
+- it also reads `photos.test.ts`'s third `/credits` test (the empty-but-valid page) for red.
+
+Nothing else in it changes.
+
+**A2.16: each new row against every sabotage, evaluated before running:**
+
+| | S-CV-BLANKET (every CC row forced to 4.0) | S-SA | S-RD (adsbdb's line in place of standing-data's) | S-QC1 |
+|---|---|---|---|---|
+| **P68** | **red**: the A343 row links `by/4.0/`, not `by/2.0/` | green: a BY row carries no clause | green | green |
+| **P89** | green | green | **red**: the page holds no standing-data line | green |
+| **the empty-but-valid page** | green | green | green | green |
+
+**So the sets become:**
+- **S-CV-BLANKET:** {CV1 104, CV2 8, SA1 48, Q-C1, F16, **P68**}
+- **S-SA:** {SA1 0, Q-C1}, unchanged
+- **S-RD:** {RD1 `{ standingData: 0, adsbdb: 2 }`, Q-C1, **P89**}
+- **S-QC1:** {Q-C1}, unchanged
+
+The other tests stay green in each, #521's PD, CONTROL and OPERA included. The other `photos.test.ts` tests do not
+read the credits page.
+
+**Also searched, for the text this PR ADDS** (point 6): no other whole-page assertion in the tree can be satisfied by
+it. These are the paragraph and clause texts, the `/by/2.0/`-style deeds, `standing-data` and `publicdomain/zero`.
+
+**Frozen predictions:**
+
+| | predicted |
+|---|---|
+| **the whole proxy suite, locally** | **882 tests: 881 pass, 1 skipped, 0 failed; 67 files.** A timeout is an instrument failure: stop and report |
+| **the sabotages** | each red set exactly as above; every file restored byte-identical; exit 0 |
+| **the diff from `fef1596`** | `proxy/test/photos.test.ts`, `proxy/scripts/sabotage-credits.mjs` (its file list and red sets) and this doc. Nothing else |
+| **CI** | **41 check runs: 38 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed**, as re-registered by the ruling |
+
