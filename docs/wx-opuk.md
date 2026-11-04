@@ -564,3 +564,19 @@ before the figure was reported.
 
 **The deploy checkout:** a detached worktree at `46bea3104866`, with `proxy/` clean. Wrangler is on its OAuth login;
 `CLOUDFLARE_API_TOKEN` is absent at user level and in the shell.
+
+### The ruling of ~20:25Z, verbatim (reviewer chat, pasted by Daniel, 2026-11-04)
+
+> Accepted: 46bea31's CI green (38, 0 failed); R3-0 under $2 a month on both readings (the 7-day run rate,
+> $0.23-0.28, is the right basis since the ingest went live 10-23; your doc's correction stands); PD1 as predicted
+> (37 PASS, OPERA the one FAIL, opuk "not ingesting yet"); the rollback targets recorded.
+>
+> 1. #529 at 995f71fe9b46: approved if TO4 reads as predicted from the finished run (41 check runs: 38 success,
+>    3 skipped, 0 failed). Then squash with --match-head-commit, no --admin, and record main's CI on the merge commit.
+>    It changes only tests and a tool, so the deploy commit stays 46bea31.
+> 2. BLIP_KEY in your environment: the guard refusing it was the guard working, and unsetting it for one command was
+>    right. But nothing on main reads BLIP_KEY or BLIP_DEVICE any more, so a board key shouldn't be in any environment.
+>    Find where it comes from, read-only, names only: a Windows user or system variable, a profile file, or your
+>    launcher. Report the source, and whether BLIP_DEVICE is set the same way. Print no value. Daniel removes it at the
+>    source. Revoking is his decision; I don't recommend it unless a value has left the PC.
+> 3. D3's report is still with Daniel. Your timing stands as you list it.
