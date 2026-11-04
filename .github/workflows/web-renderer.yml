@@ -99,6 +99,11 @@ jobs:
         run: |
           for sku in $BUILT; do node tools/web-renderer/smoke.mjs "web-dist/$sku"; done
 
+      # Radar and List only, read from the frames the firmware drew (docs/web-renderer-carousel.md, WC2 and WC3).
+      - name: The carousel, every model
+        run: |
+          for sku in $BUILT; do node tools/web-renderer/carousel.mjs "web-dist/$sku"; done
+
       - uses: actions/upload-artifact@v4
         with:
           name: blipscope-web-v${{ steps.ver.outputs.fw }}
