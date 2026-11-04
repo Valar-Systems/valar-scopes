@@ -81,3 +81,13 @@ leg: this PR touches `proxy/`, so `device-ids`, `firmware`, `no-traffic-captures
 
 **After merge:** D3 resumes as ruled. V2 reads the fixed smoke, and V2's `/basemap` request is one more builder
 invocation, counted in MM2's GraphQL window.
+
+## Read (local, `1cb7e12`; Windows; every reading as registered)
+
+| | read | verdict |
+|---|---|---|
+| **typecheck** | `tsc --noEmit` clean for `tsconfig.json` and for `tsconfig.scripts.json` | as expected |
+| **SQ1, SQ2, SQ-C** | `test/smoke-basemap-query.test.ts`: 3 tests, all pass | as predicted |
+| **the whole proxy suite** | **68 files (67 passed, 1 skipped); 885 tests: 884 passed, 1 skipped, 0 failed**; exit 0; no timeout | as predicted |
+| **the sabotages** (`sabotage-smoke-basemap.mjs`, the WHOLE suite each) | the control: 884 passed, 1 skipped, of 885, 0 failed. **S-SQ: exactly {SQ1, SQ2} failed** (2 of 885). **S-SQP: exactly {SQ-C} failed.** Both files restored byte-identical. TIME_WAIT at each start: 186, 7,782 and 414, all under the 8,000 gate | as registered |
+
