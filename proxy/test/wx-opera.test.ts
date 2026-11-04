@@ -434,7 +434,9 @@ describe("K4': the tile-count swap on 3 x 2 tiles", () => {
     const d = roundTripDiffs(G, bytes, { ...m, tilesX: m.tilesY, tilesY: m.tilesX });
     console.log(`K4' sabotage (tilesY for tilesX on 3 x 2): cells differing ${d} of ${G.ni * G.nj}`);
     expect(d).toBeGreaterThan(0);
-  });
+    // The file's SLOW, as its other heavy tests (docs/wx-test-timeouts.md): CI read it at 3.1-4.0 s, and 5.4 s on a
+    // slow runner, past vitest's 5 s default. The check is unchanged.
+  }, SLOW);
 });
 
 // ---- K5, K7, K8: the dispatch, the ETag, the age limit, through the endpoint ------------------------------------------
