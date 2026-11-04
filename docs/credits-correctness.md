@@ -110,3 +110,49 @@ step's `if:` evaluated per leg, and from main as it is at that moment.
 regeneration.
 
 **Outside the set:** stop and report, with no fix until a ruling.
+
+## Results
+
+### The first run of the rows: three readings OFF-PREDICTION (recorded before anything was pushed)
+
+**Before any row ran, the test file twice failed to load.** These were instrument failures, not readings.
+- The cause: an `.html` file imported with `?raw` (and then with a `?text` query) never reaches a plugin under
+  vitest-pool-workers.
+- Q-C1 now imports the committed file as a virtual module, `virtual:committed-credits`, which a small plugin in
+  `vitest.config.mts` reads in Node. That is tests only; the deployed Worker is untouched.
+
+**Then the first run** (`photolicense.test.ts` and `basemap-attribution.test.ts`, Windows): 3 failed, 18 passed.
+
+| test | read | predicted |
+|---|---|---|
+| **CV1** | 176 checked, **1 wrong** | 0 wrong |
+| **SA1** | **113 of 114** BY-SA rows | 114 of 114 |
+| **the existing "courtesy-credits PD" test** | **red**: the page holds `creativecommons.org` | "the rest of the suite passes" |
+
+CV2, RD1, Q-C1, MA1, MA2 and the MRMS line passed.
+
+- **CV1 and SA1: one row, and the instrument, not the renderer.**
+  - PC12's `author` field (637 characters) holds line breaks; it is the only record of the 237 that does. So its
+    `<li>` spans 6 lines.
+  - The test's row finder read only the line the row starts on, so it never saw PC12's link or clause.
+  - **Read in full, PC12's row is right:** it has its own `by-sa/4.0/` link, and the ShareAlike clause followed by
+    that link.
+  - The alternative is a renderer bug confined to one row. The data excludes it: the full row holds exactly the
+    expected link and clause, and no other row is wrong.
+- **The PD test: my change, not evaluated against an existing test.**
+  - It asserted that the whole PAGE holds no `creativecommons.org`, and the new route line links the CC0 deed at
+    `creativecommons.org/publicdomain/zero/1.0/`.
+  - The rows' rule would have caught this if I had read every existing assertion against the change before freezing.
+    That is the same family as the conditional-step miss of #513.
+
+**The fix, committed locally and pushed only after the ruling:**
+- the row finder reads from a row's `<li>` to its `</li>`;
+- the PD test checks the PD **row** for a licence link, not the page.
+
+**Re-registered, before the fixed tests run:**
+- CV1: 176 checked, 0 wrong. SA1: 114 of 114, 0 others, the paragraph once. The PD test passes.
+- Every other row and every sabotage set is unchanged. Re-evaluated against the new row finder: PC12 is BY-SA 4.0, so
+  the blanket does not make it wrong; 104 and 66 stand.
+
+**Observed, not changed:** PC12's author credit is a 637-character block with line breaks. It renders, but it is long.
+Tidying the record is a manifest change, outside this PR.

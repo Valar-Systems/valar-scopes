@@ -30,3 +30,9 @@ declare module "*.py?raw" {
   const text: string;
   export default text;
 }
+
+// vitest.config.mts's committed-credits plugin: proxy/photos/credits.html as its exact text (Q-C1).
+declare module "virtual:committed-credits" {
+  const text: string;
+  export default text;
+}
