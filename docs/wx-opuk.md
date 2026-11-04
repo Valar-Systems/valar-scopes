@@ -790,3 +790,13 @@ Nothing in it changes a step taken.
   - **The rollback target, read just before:** `582612da-e1b0-4a02-bf9e-de72c5d78157`.
 - **The timed reads** (`tools/r3_schedule.sh`) run at +5, +10, +15, +20, +30 and +60 min, with the `/wx` probe at +15
   and +16 min.
+
+**Pinned at 22:10Z, before R3-2's log half is read: "the first 30 min" are the 30 full minutes after the deploy minute,
+22:08:00-22:38:00Z.**
+- The deploy minute (22:07) is excluded: its `:00` check ran at 22:07:06Z, before the deploy at 22:07:22Z, and would
+  count as a missing check.
+- The rule is the one ruled at ~21:55Z: at most 2 minutes missing one of `cref`'s checks, and no minute missing both.
+
+**An early look at +3 min (22:10:24Z), not a graded row:**
+- `opuk` logged 5 checks: stored 2, backfilled 2, already-stored 1, **0 errors**.
+- `pruned` appears only on the storing and backfilling checks.
