@@ -357,7 +357,7 @@ This PR's scan was right on both counts.
      prove that "starts with the portal" is not the rule.
    - Every planted address is built at run time.
 3. **Its sabotage, S-W2PORTAL:** the exemption widened from the one address to its whole /24.
-   - **W3: exit 0.** The tree holds no other address in 192.168.4.0/24 (read: 0).
+   - **W3: exit 0.** The tree holds no other address in the portal's /24 (read: 0).
    - **full: exit 1.**
    - **rows red: (l) only.**
 4. **S-W4L's red set grows by one, registered before running.** Row (l) uses the LAN pattern too, so with that
@@ -387,6 +387,12 @@ This PR's scan was right on both counts.
    - the README example line that (g) and (h) copy.
 
    It prints booleans only.
+
+**My error, recorded (2026-11-04).** This section was first pushed in `5a70efb` with **one LAN finding in its own
+text**: it wrote out the portal's /24 as an address. The guard reported it, and the commit and push went ahead
+anyway, because the command chained the guard with `;` where it needed `&&`. So `5a70efb`'s `device-ids` is red on
+this doc's own line. The line is reworded here, LOCAL ONLY until a ruling, and from now on the guard gates every
+commit with `&&`.
 
 ### Frozen predictions
 

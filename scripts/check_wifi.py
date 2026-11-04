@@ -196,6 +196,18 @@ def main(argv):
     return code
 
 
+def plant_values():
+    """The selftest's synthetic values, built at run time: a literal one would trip this check on itself. Never the
+    real name, a real BSSID or a real address -- scripts/check_wifi_sabotage.py's W8 compares them with the real ones."""
+    near = ".".join(["192", "168", "4"])
+    return {
+        "name": "Planted" + "Net",
+        "macs": [":".join(["AA", "BB", "CC", "DD", "EE", "F1"]), "-".join(["aa", "bb", "cc", "dd", "ee", "f1"])],
+        "lan": [".".join(o) for o in (["10", "20", "30", "40"], ["172", "20", "1", "9"], ["192", "168", "77", "23"])],
+        "near_portal": [f"{near}.{x}" for x in ("2", "10", "11", "100")],
+    }
+
+
 def _tree(files):
     """A temporary tree holding exactly these {path: bytes}."""
     tmp = tempfile.mkdtemp(prefix="wifi-")
@@ -214,10 +226,8 @@ def selftest(precheck=True):
         print("RIG: git ls-files or the allowlist failed"); return 2
     if precheck and verdict(judge(ROOT, files, allow)) != 0:
         print("RIG: the real tree must pass before the selftest means anything"); return 2
-    # Every planted value is built here, never written out: a literal one would trip the check on this file.
-    name = "Planted" + "Net"
-    m1, m2 = ":".join(["AA", "BB", "CC", "DD", "EE", "F1"]), "-".join(["aa", "bb", "cc", "dd", "ee", "f1"])
-    lan = [".".join(o) for o in (["10", "20", "30", "40"], ["172", "20", "1", "9"], ["192", "168", "77", "23"])]
+    pv = plant_values()
+    name, (m1, m2), lan, near_portal = pv["name"], pv["macs"], pv["lan"], pv["near_portal"]
     assoc, ssid_eq, saved = "[WiFi] Associ" + "ated with", "ss" + "id=", "*wm:[1] Connecting to SAVED " + "AP:"
     # An anchor that every planted tree carries, so a plant is judged FAILED rather than BLIND: three passing contexts
     # of three kinds, passing by a printf format and a setup-AP name rather than a placeholder. Removing one context or
@@ -268,7 +278,10 @@ def selftest(precheck=True):
     src = open(os.path.join(ROOT, rel), "rb").read()
     lines = decode(src).split("\n")
     line = next(ln.rstrip("\r") for ln in lines if line_hash(ln.rstrip("\r")) == h)
-    cat = line_findings(line)[0][0]
+    # Never assume the line still has a finding: with a pattern broken it has none, and the rows below must then read
+    # red, not crash (S-W4L, docs/wifi-scrub.md). A crash is an instrument failure, never a red.
+    cats = line_findings(line)[0]
+    cat = cats[0] if cats else "none"
     expect("the real allowed line, at its own path", {rel: src}, [(rel, h, why)], 0, [])
     expect("(g) the allowed line at another path", {rel: src, "docs/plant-g.md": (line + "\n").encode()},
            [(rel, h, why)], 1, [("docs/plant-g.md", cat)])
@@ -280,6 +293,18 @@ def selftest(precheck=True):
            [("docs/plant-i.md", line_hash(quiet), "idle")], 1, [("idle", "docs/plant-i.md")])
     expect("(j) a text file that does not decode", {"bench-logs/plant-j.log": b"ok\n\x80\x81\x82 not utf-8\n"},
            [], 1, [("unreadable", "bench-logs/plant-j.log")])
+    # (l) Q-W2's control: only the portal address itself passes. Its /24 neighbours are flagged, .10 and .11 included,
+    # so "starts with the portal" is not the rule.
+    body_l = f"portal {PORTAL} " + " ".join(f"n{i} {a}" for i, a in enumerate(near_portal)) + "\n"
+    tmp = _tree(dict([anchor, ("docs/plant-l.md", body_l.encode())]))
+    try:
+        v = judge(tmp, [anchor[0], "docs/plant-l.md"], [])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    ok = verdict(v) == 1 and len(v["findings"]) == 4 and all(f[0] == "docs/plant-l.md" and f[2] == "lan" for f in v["findings"])
+    fails += not ok
+    print(f"  {'ok  ' if ok else 'FAIL'} (l) the portal passes, its /24 neighbours do not: exit {verdict(v)}, "
+          f"{len(v['findings'])} finding(s), want 4, all lan in docs/plant-l.md")
     v = judge(tempfile.gettempdir(), [], [])
     ok = verdict(v) == 2
     fails += not ok
