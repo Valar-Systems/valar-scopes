@@ -154,5 +154,20 @@ CV2, RD1, Q-C1, MA1, MA2 and the MRMS line passed.
 - Every other row and every sabotage set is unchanged. Re-evaluated against the new row finder: PC12 is BY-SA 4.0, so
   the blanket does not make it wrong; 104 and 66 stand.
 
+**One more sabotage set amended, before any sabotage ran.** Every test was evaluated against every sabotage, the
+existing ones included.
+- The edited existing test, "renders license links for CC-BY-SA" (F16), now renders `CC BY-SA 2.0` and expects
+  `by-sa/2.0/`. **S-CV-BLANKET reddens it too.**
+- So S-CV-BLANKET's set is: CV1 (104 wrong), CV2 (8 of 11), SA1 (66, so `saOk` 48), Q-C1 and the F16 test.
+- The others are unchanged.
+  - **S-SA:** SA1 (`saOk` 0) and Q-C1.
+  - **S-RD:** RD1 (standing-data 0, adsbdb 1) and Q-C1.
+  - **S-QC1:** Q-C1 alone.
+- In each, every other test stays green: MA1, MA2, the MRMS line, the PD test, and the classifier, validator and key
+  tests.
+
+They are run by `proxy/scripts/sabotage-credits.mjs`. Each sabotage is an in-place edit, restored from a byte copy with
+its sha256 checked. The script exits 0 only if every red set is exactly as registered.
+
 **Observed, not changed:** PC12's author credit is a 637-character block with line breaks. It renders, but it is long.
 Tidying the record is a manifest change, outside this PR.
