@@ -169,5 +169,33 @@ existing ones included.
 They are run by `proxy/scripts/sabotage-credits.mjs`. Each sabotage is an in-place edit, restored from a byte copy with
 its sha256 checked. The script exits 0 only if every red set is exactly as registered.
 
+### The second run of the rows (local, `a52114f`; Windows)
+
+**All 21 pass** (`photolicense.test.ts` 19, `basemap-attribution.test.ts` 2): CV1 176/0, CV2 11/0, SA1 114/114 with 0
+others and the paragraph once, RD1, Q-C1, the PD test, MA1, MA2 and the MRMS line. `tsc --noEmit` is clean for
+`tsconfig.json` and for `tsconfig.scripts.json`.
+
+### The sabotages (`node scripts/sabotage-credits.mjs`): one OFF-PREDICTION
+
+The unsabotaged control: 21 of 21 pass. Every file was restored byte-identical after each sabotage.
+
+| sabotage | read | verdict |
+|---|---|---|
+| **S-CV-BLANKET** | red: CV1 (`{ checked: 176, wrong: 104 }`), CV2 (`{ checked: 11, wrong: 8 }`), SA1 (`saOk: 48`), Q-C1, F16. Nothing else | as registered |
+| **S-SA** | red: SA1 (`saOk: 0`), Q-C1. Nothing else | as registered |
+| **S-RD** | red: RD1 and Q-C1, the set as registered. But **RD1 read `{ standingData: 0, adsbdb: 2 }`**; I registered adsbdb **1** | **OFF-PREDICTION** |
+| **S-QC1** | red: Q-C1 alone | as registered |
+
+- **S-RD, the cause: my registration, not the code.** The old line holds "adsbdb" twice: in its link
+  (`www.adsbdb.com`) and as the link text. RD1 counts occurrences of the string, and I counted the line. It is the
+  rule-applied-to-the-input miss again.
+  - The alternative is a second adsbdb line somewhere on the page. The data excludes it: the same render reads
+    "adsbdb" 0 times without the sabotage, and the sabotage edits exactly one line.
+  - **Proposed re-registration, by ruling only:** S-RD reads `{ standingData: 0, adsbdb: 2 }`. Until then the
+    committed driver keeps 1, and reports S-RD as NOT AS REGISTERED.
+- **The driver's own fault, found on the way, an instrument fix.** Its first two runs read S-SA's and S-RD's counts as
+  "NOT SEEN". The cause: vitest writes zero as `+0`, and the driver matched strings. It now reads the numbers out of
+  the message. With that fix S-SA reads `saOk: 0`, its registered value. These were not off-predictions of S-SA.
+
 **Observed, not changed:** PC12's author credit is a 637-character block with line breaks. It renders, but it is long.
 Tidying the record is a manifest change, outside this PR.
