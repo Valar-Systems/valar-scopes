@@ -520,3 +520,26 @@ attempt. **So the deploy commit is `46bea31`** (#526; `git diff e8dfa45 46bea31 
 > 5. The K4' timeout fix goes ahead, predictions first: each test's duration from CI's logs on both legs, and an
 >    explicit timeout with margin (or a faster test); their checks and sabotages unchanged. It doesn't hold up the
 >    deploy.
+
+### R3-0, read before any deploy (2026-11-04 ~20:06Z, `tools/wx/cost_read.py`): UNDER $2 by either method
+
+**As frozen, the last 30 days (10-05 to 11-04):**
+- **Workers CPU 17.25 M ms:** `blipscope-wx-ingest` 13.06 M, `blipscope-proxy` 4.18 M.
+- **R2:** Class A 742 k; Class B 2.77 M.
+- **The overage, with `opuk`'s increment, is $0.00.**
+
+**Why that sum understates a month.** The ingest went live on 10-23, so it ran for about 12 of the 30 days. **So the
+projection is also made from the run rate:** the last 7 full days × 30/7. That is a correction to how I project, added
+before the figure was reported.
+- **CPU 36.0 M ms a month.** The ingest runs at 0.96 M a day, so the account is already past the 30 M included,
+  without `opuk`.
+- **Class A 976 k, Class B 5.42 M.**
+- **With `opuk`'s increment** (CPU +5.1-7.8 M, Class A +26 k, Class B +430 k): **overage $0.23-0.28 a month.**
+
+**Verdict: under Daniel's $2 a month by either method.** Class A sits near its 1 M allowance at the run rate, with
+`opuk` adding 26 k.
+
+**The read's controls:**
+- the script totals (13.06 M + 4.18 M + small) equal the account sum;
+- unclassed R2 actions are printed, not dropped: `GetBucketNotificationConfiguration` 6 and
+  `GetBucketSippyConfiguration` 3.
