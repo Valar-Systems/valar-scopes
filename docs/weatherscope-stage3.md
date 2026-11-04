@@ -11228,3 +11228,21 @@ Before any sabotage ran, each was applied case by case to the selftest as writte
 - **The family, a seventh time:** a control's count written from the cases in mind, not by running the rule over every case. **This time it was caught before the run.**
 
 The selftest itself ran first, as frozen: 10 checks, 0 failures.
+
+### A12.93 #530 merged (`8b42f5cd97ac`), main's CI AS PREDICTED; where my "38 GB" came from; W4 waits for the hold to end
+
+**#530 (Q71 (a)), merged as approved** (~20:55Z, at `8e0ede98b1cd`):
+- **The merge:** squash, `--match-head-commit`, no `--admin`, at 2026-11-04T20:56:39Z, as **`8b42f5cd97ac`**.
+- **Main had moved** to `f740f10` (#525, #527, #528, #529, with no workflow change). The merge changes `screen_watch.py` alone, equal to the approved head's. The branch is deleted.
+- **Main's CI on `8b42f5cd97ac`,** predicted before the merge: 38 check runs, 36 success, 2 skipped (promote, version), 37 jobs on `ubuntu-24.04` and 1 on `ubuntu-26.04`. **AS PREDICTED,** read twice.
+
+**The "38 GB" figure:**
+- **The command:** `df -h /c` in Git Bash (`/c` is C:, NTFS).
+- **When:** run at about 20:06Z, right after the worktree removals. It printed `C: 465G 428G 38G 93% /c`, in GiB.
+- **The error:** it was true when read (your own 20:10Z reading was 37.2), but **I put it in my ~20:33Z report without re-reading, after C: had fallen to about 25 GB.** A reading must carry its time, or be read again. Same family as "read it twice".
+- **Two routes, read together at 20:57Z:**
+  - `Get-PSDrive C` (PowerShell): 27,989,942,272 bytes = **26.07 GiB** (27.99 GB decimal);
+  - `df -B1M --output=avail /c`: 26,694 MiB.
+- **They agree with your 26.0 at 20:51Z.** At 21:13Z: 26,322 MiB.
+
+**W4:** waits for Daniel to say the hold is over. A window started now would run past 21:30Z. When it opens, the window is announced first, on the clean image (no rebuild), from `screen_watch.py` as merged.
