@@ -204,3 +204,13 @@ cookies or absolute URLs in the built files, with a planted control for each. Pr
 | **F6** | device images | no file under `src/`, `include/`, `lib/` or `platformio.ini` changes (`git diff` empty) |
 
 **Outside the set:** stop and report.
+
+### Results for the follow-up (2026-11-04, local; F5 waits on the PR's CI)
+
+| | read | verdict |
+|---|---|---|
+| **F1** | both models built with `build.sh` at `8f6b280` (no flag) and at this branch (the flag): s3-128 loader 22,086 B and wasm 699,723 B, s3-21 loader 22,081 B and wasm 695,957 B, each **byte-identical** to its pair (`cmp`) | **as predicted** |
+| **F2** | `check_site_rules.mjs` on the new build: 3 JS files read, **0 findings**. Each wasm holds **4 URL strings, 0 off the list**. Probe: **0** eval. Exit 0 | **as predicted** |
+| **F3** | `--selftest`: the CONTROL passes. **All 14 plants** exit 1 with exactly one finding in their own category: eval ×3, storage ×5, cookies ×2, absolute URL ×3, and the wasm's `evil.sh`. The empty folder exits 2 | **as predicted** |
+| **F4** | the probe pair from the same build: **1** eval finding without the flag (`emscripten_run_script=ptr=>{eval(...)}`), **0** with it | **as predicted** |
+| **F6** | `git diff 8f6b280 -- src include lib platformio.ini`: empty | **as predicted** |
