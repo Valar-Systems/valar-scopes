@@ -76,6 +76,22 @@ def line_findings(line):
     return cats, seen
 
 
+def masked(text):
+    """`text` with each finding's span replaced by its placeholder. Every printed PATH goes through this: a file's name
+    can carry the very value the guard refuses (docs/wifi-paths.md), and the guard never prints a value."""
+    spans = set()
+    for rx in NAME.values():
+        for m in rx.finditer(text):
+            g = next((k for k in range(1, m.re.groups + 1) if m.group(k) is not None), None)
+            if g and not passes(m.group(g)):
+                spans.add((m.start(g), m.end(g), "<ssid redacted>"))
+    spans |= {(m.start(2), m.end(2), "<bssid redacted>") for m in BSSID.finditer(text)}
+    spans |= {(m.start(1), m.end(1), "<lan-ip redacted>") for m in PRIVATE.finditer(text) if m.group(1) != PORTAL}
+    for a, b, ph in sorted(spans, reverse=True):
+        text = text[:a] + ph + text[b:]
+    return text
+
+
 def line_hash(line):
     return hashlib.sha256(line.encode("utf-8")).hexdigest()
 
@@ -117,6 +133,7 @@ def judge(root, files, allow):
     findings, unreadable, scanned, binary, seen, seen_pass = [], [], 0, 0, 0, 0
     for rel in files:
         rel = rel.replace(os.sep, "/")
+        findings += [(rel, 0, c) for c in line_findings(rel)[0]]  # every tracked PATH too (docs/wifi-paths.md)
         base = rel.rsplit("/", 1)[-1]
         is_binary = "." in base and base.rsplit(".", 1)[-1].lower() in BINARY_EXT
         # Decode first: anything that decodes is scanned whatever its extension (STEP files are ASCII). The binary list
@@ -179,13 +196,16 @@ def main(argv):
         return 2
     v = judge(root, files, allow)
     for rel, n, cat in v["findings"]:
-        print(f"FAIL {rel}:{n}: {cat}. Replace it with its placeholder (docs/wifi-scrub.md), or allowlist a documented example")
+        if n == 0:
+            print(f"FAIL {masked(rel)}: its NAME carries a {cat} value. Rename the file (docs/wifi-paths.md); a path cannot be allowlisted")
+        else:
+            print(f"FAIL {masked(rel)}:{n}: {cat}. Replace it with its placeholder (docs/wifi-scrub.md), or allowlist a documented example")
     for rel, _ in v["stale"]:
-        print(f"FAIL {rel}: an allowlist entry matches no line now (stale): drop it")
+        print(f"FAIL {masked(rel)}: an allowlist entry matches no line now (stale): drop it")
     for rel, _ in v["idle"]:
-        print(f"FAIL {rel}: an allowlist entry's line has no finding (allows nothing): drop it")
+        print(f"FAIL {masked(rel)}: an allowlist entry's line has no finding (allows nothing): drop it")
     for rel in v["unreadable"]:
-        print(f"FAIL {rel}: neither UTF-8 nor UTF-16 with a BOM, and not a known binary type: cannot be checked")
+        print(f"FAIL {masked(rel)}: neither UTF-8 nor UTF-16 with a BOM, and not a known binary type: cannot be checked")
     by = {c: sum(1 for f in v["findings"] if f[2] == c) for c in ("name", "bssid", "lan")}
     code = verdict(v)
     state = {0: "OK", 1: "FAILED", 2: "BLIND (scanned nothing, or saw no network context)"}[code]
@@ -205,6 +225,7 @@ def plant_values():
         "macs": [":".join(["AA", "BB", "CC", "DD", "EE", "F1"]), "-".join(["aa", "bb", "cc", "dd", "ee", "f1"])],
         "lan": [".".join(o) for o in (["10", "20", "30", "40"], ["172", "20", "1", "9"], ["192", "168", "77", "23"])],
         "near_portal": [f"{near}.{x}" for x in ("2", "10", "11", "100")],
+        "lan_path": ".".join(["10", "77", "0", "42"]),  # (m): in a file's NAME, outside the portal's /24
     }
 
 
@@ -305,6 +326,17 @@ def selftest(precheck=True):
     fails += not ok
     print(f"  {'ok  ' if ok else 'FAIL'} (l) the portal passes, its /24 neighbours do not: exit {verdict(v)}, "
           f"{len(v['findings'])} finding(s), want 4, all lan in docs/plant-l.md")
+    # (m) a file whose NAME holds a private address, its contents clean (docs/wifi-paths.md): red, naming exactly it.
+    plant_m = f"bench-logs/logbook-{pv['lan_path']}-plant.json"
+    tmp = _tree(dict([anchor, (plant_m, b"{}\n")]))
+    try:
+        v = judge(tmp, [anchor[0], plant_m], [])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    ok = verdict(v) == 1 and v["findings"] == [(plant_m, 0, "lan")]
+    fails += not ok
+    print(f"  {'ok  ' if ok else 'FAIL'} (m) a file whose NAME holds a private address: exit {verdict(v)}, "
+          f"{len(v['findings'])} finding(s), want exactly 1, that path's, lan")
     v = judge(tempfile.gettempdir(), [], [])
     ok = verdict(v) == 2
     fails += not ok
