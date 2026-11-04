@@ -722,3 +722,24 @@ ingest:**
 - **Without new keys, R3-5 reads BLIND, which counts as FAIL.**
 
 **PD6** is read once its window (21:31:14-22:01:14Z) has closed.
+
+### The block of ~21:30Z, verbatim (reviewer chat, pasted by Daniel, 2026-11-04; it replaces the ~21:25Z block)
+
+> Recorded: f740f10's CI green (45 checks, 43 passed, 2 skipped, 0 failed).
+>
+> D3 is held up by a smoke defect (#532) that only matters once staging has the basemap binding, so your deploy no
+> longer waits for D3:
+> 1. Start PD now, from f740f10: staging first, production not before 21:30Z. Your staging step carries #512's staging
+>    BASEMAP binding, as PD5 says; the map server reads D3's rows on that deploy afterwards.
+> 2. Run no smoke against staging after your staging step: its /basemap check is the defect #532 fixes. PD's rows
+>    don't need one.
+> 3. Everything else as ruled at ~20:55Z: PD0 (four), PD1-PD7, and R3 inside the hold after a clean PD, started by
+>    23:30Z.
+> 4. Tell Daniel the time of your staging step (UTC): the map server needs it.
+
+**Pasted after the steps it covers, and the same in substance as the ~21:25Z block they ran under:**
+- staging at 21:21:06Z, from `f740f10`, with the `BASEMAP` binding, and no staging smoke;
+- production from 21:30:36Z, not before 21:30Z;
+- the staging time given to Daniel in the report.
+
+Nothing in it changes a step taken.
