@@ -114,3 +114,32 @@ A leak of that key can only be contained by revoking E2:08, because re-enrolment
 | **TD1, the dashboard deploy** | staged, in a reserved slot | "Devices seen" is **the same** before and after one production smoke run as the test identity |
 
 **Anything outside these rows:** stop and report, with no fix until a ruling. **The A2.16 re-check runs for every new row** before any full pass: each row's inputs are read, and every sabotage that touches them is checked.
+
+## Rulings, verbatim (source: reviewer chat, pasted by Daniel, 2026-11-04 ~04:45Z)
+
+> #513: the plan is accepted.
+> - Q-T1: asked of Daniel. If he holds staging's PROVISION_TOKEN, he puts it into
+>   %USERPROFILE%\.config\valar-flasher\provision-token-staging. If he answers no, the rotation is approved: staging
+>   only, the new value written to that file and piped to `wrangler secret put` through stdin, never displayed.
+> - Q-T2: yes, the dashboard Worker secret TEST_DEVICE_IDS, set from the token file through stdin.
+> - Q-T3: yes, both ingest scripts move to the test identity, with ingest-routes.ts's key off its command line.
+> - Q-T4: yes, the names as listed, with the mint script adding records-device in place.
+> - Build and mint production first. Staging follows once Q-T1 is answered. Mark #513 ready when the code and its rows are
+>   in.
+
+(The same message approved #512, recorded in `docs/basemap-deploy.md`.)
+
+**One refinement the ruled order forces, stated before any code.**
+- **Why:** minting production first and staging later means staging must send **the same MAC**, to get the same id. So the MAC has to persist.
+- **Where it persists:** the token file, as **`test-mac`**. It is not a credential, but with the public salt it derives the id, so it is kept exactly as the id is: only in the token file, never committed, printed or logged.
+- **The mint script's two runs:**
+  - **`--env production`** writes **three fields:** `test-mac`, `test-device` and `test-key`.
+  - **`--env staging`** reads `test-mac`, checks that staging's answer carries `test-device`, and writes **one field**, `test-key-staging`.
+- **`--add-records-device`** adds `records-device` from `blip-device` in place (Q-T4).
+- **TM1 and TM2, restated:**
+
+| row | what | predicted |
+|---|---|---|
+| **TM1** | `mint-test-identity.ts --env production` against a local stub of the provision route | writes exactly `test-mac`, `test-device` and `test-key`; its whole output, scanned for the stub's key, the MAC and the id, finds each **0 times**; a second run **refuses**, because the fields exist |
+| **TM1s** | `--env staging` against the stub | writes exactly `test-key-staging`; **refuses** if the stub answers a different id from `test-device`; output scan **0 times** |
+| **TM2** | the live mint, **production now**, staging once Q-T1 is answered | 200 with the locally computed id; the key is 64 hex; `/v1/config` as the test identity answers **200 with `X-Blip-Auth: device`**. On staging, also: the key differs from production's |
