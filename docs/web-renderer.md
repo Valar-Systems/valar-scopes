@@ -142,3 +142,65 @@ not a reason to change the source.
 | **R7** | Chrome, the preview page served on 127.0.0.1: every resource from that one origin (`app.js`, `scene.js`, the manifest, the render module, the loader, the wasm, **`blipscope-web-mono-v18.woff2`**). `document.fonts`: `BlipscopeMono loaded`. With `?live=1`, the firmware's own `/blips` requests went to the same origin (2 in the first 8 s) | **as predicted**. Two "AdobeClean" faces in `document.fonts` come from a browser extension; no request for them is in the page's resource list |
 | **R8** | CI on `a639199`: the `web-renderer` workflow green, both models built and smoked. One red elsewhere, the repo's workflow-concurrency convention (C1): the new workflow's PR block was not the standard one. **Fixed in the next commit**; the checker passes locally | **as predicted** for R8. C1's red recorded, fixed |
 | **R9, R10** | after the merge (the `v18` dispatch) | **not yet** |
+
+## Follow-up: the site's content rules, frozen before the code (2026-11-04)
+
+**The request.** The website session, through Daniel, gave the artifact five rules: no eval
+(`-sDYNAMIC_EXECUTION=0`), no inline scripts, every file loaded by relative path, no third-party requests, and no
+cookies, `localStorage` or IndexedDB.
+
+**The approval** (the reviewer, ~17:30Z): `-sDYNAMIC_EXECUTION=0`, plus a CI check that fails on eval, storage,
+cookies or absolute URLs in the built files, with a planted control for each. Predictions first.
+
+**Measured before freezing.** These were design reads, not graded:
+- **The v18 build already meets the rules.** The s3-128 loader and the render module hold none of the patterns below.
+- **The flag changes nothing in this build.** With `-sDYNAMIC_EXECUTION=0` the s3-128 loader and wasm come out
+  byte-identical. A bogus `-s` setting fails the same build, so the flag did reach the link line.
+  - **So the artifact cannot show that the flag took. A probe can.** A program calling `emscripten_run_script`,
+    linked without the flag, has one `eval(` in its loader. With the flag it has none.
+- **The wasm holds four URL strings, all firmware constants:** `https://auth.opensky-network.org`,
+  `https://opensky-network.org`, `https://ntfy.sh`, and the shim's placeholder `https://web.invalid`.
+  - None of them can be fetched. The wasm reaches the network only through the loader's one fetch import, and that
+    answers every path but `/blips` and `/enrich` locally (R6).
+- **`scene.js` holds `https://page.invalid/`** as a base for parsing URLs. It is the preview page's synthetic scene,
+  not a release asset.
+
+**The design:**
+- **`build.sh`:** `-sDYNAMIC_EXECUTION=0` joins the link flags. Those flags are shared with a probe,
+  `tools/web-renderer/probe/dynamic.cpp`, which calls `emscripten_run_script`. The probe is linked beside every build
+  into `<dist>/probe/`, and it is not a release asset.
+- **`tools/web-renderer/check_site_rules.mjs`** scans:
+  - **every `blipscope-web-*.js`** (each model's loader and the render module), for four categories:
+    - **eval:** `eval(`; `Function(` called, with or without `new`; a string passed to `setTimeout` or `setInterval`;
+    - **storage:** `localStorage`, `sessionStorage`, `indexedDB`, `caches.`, `navigator.storage`;
+    - **cookies:** `document.cookie`, `cookieStore`;
+    - **absolute URL:** `http://`, `https://`, `ws://`, `wss://`, and a string literal that starts with `//`.
+  - **every `blipscope-web-*.wasm`,** for absolute URL strings, against a named allow-list of exactly the four above.
+    Any other URL fails, so a new one in the firmware gets a human look before the site runs it.
+  - **the probe's loader,** for eval. That is the evidence the flag took.
+  - **Exit codes:**
+    - **0:** clean.
+    - **1:** any finding. Each finding is printed with its category and file.
+    - **2:** it read no loader, no render module or no probe. An instrument that read nothing does not pass.
+- **`--selftest`** works on copies in a temporary folder. It asserts each plant applied, then grades:
+  - **the CONTROL:** clean copies of the real files pass;
+  - **one plant per pattern** (13 in the JS; one new URL in a wasm copy, `ntfy.sh` changed to `evil.sh` at the same
+    length): each exits 1 with exactly one finding, in its own category;
+  - **an empty folder:** exits 2.
+- **In CI** (`web-renderer.yml`, the build job, after the build):
+  - the selftest;
+  - the checker on `web-dist`;
+  - **the flag's control:** the probe linked again without the flag must fail the checker by exactly one eval finding.
+- **Already-published v18 assets are unaffected.** With the flag the artifact is byte-identical, so nothing is
+  republished.
+
+| | check | predicted |
+|---|---|---|
+| **F1** | both models built locally with and without the flag | loaders and wasm **byte-identical** (s3-128 was measured above; s3-21 is predicted) |
+| **F2** | the checker on the real local build, both models | 3 JS files read, **0 findings**; 2 wasm files read, URL strings **exactly the four allowed**; the probe has **0** eval; exit 0 |
+| **F3** | `--selftest` | the CONTROL passes; **14 plants**, each exit 1 with exactly one finding in its own category; the empty folder exits 2 |
+| **F4** | the flag's control, locally and in CI | without the flag the probe fails by exactly **one eval** finding; with the build's flags it passes |
+| **F5** | CI on the PR | `web-renderer` green: both models built and smoked (R3-R6 as before), and the new step passes. The total is predicted from the job list before the push |
+| **F6** | device images | no file under `src/`, `include/`, `lib/` or `platformio.ini` changes (`git diff` empty) |
+
+**Outside the set:** stop and report.
