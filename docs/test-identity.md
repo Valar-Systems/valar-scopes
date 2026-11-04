@@ -326,3 +326,20 @@ The run was cancelled at about 17:10Z (`41855255168`, `completed cancelled`).
 | **CI on the pushed head** | every check finishes: all success, except `version`, `ship-alert` and `promote`, skipped as before. Nothing cancelled. `test (proxy)` runs **every** step, including the TI rows on Linux (as above) and steps 12-24 |
 
 **Outside the set:** stop and report, with no fix until a ruling.
+
+### Read before the push (`18e65a5`)
+
+| row | read | verdict |
+|---|---|---|
+| **Linux (WSL), the checks' selftest** | Ubuntu 24.04, portable Node v22.23.4 (sha256 checked), `npm ci` on the committed tree. TI1 ×2 (by the `BLIP_*` reason), TI1b, S-TIGUARD, TI2 (31 requests, every one as the test identity), **TI7: false, 3,784 `/proc` samples, a curl seen in 3,776**, TI7's control: true. **SELFTEST PASSED, exit 0, in 87 s** | as predicted |
+| **Linux (WSL), S-TISTARVE** | control: exit 0 in 87 s. Sabotaged: **KILLED at the 300 s deadline, after `S-TIGUARD`, before `TI2`**. Both files restored byte-identical. **Exit 0** | as registered |
+| **Windows, the checks' selftest** | every row as predicted, SELFTEST PASSED, 141 s. `sabotage-tistarve.mjs` on Windows: exit 2 (BLIND, needs Linux), as designed | as predicted |
+
+**TI2's request count differs by platform** (31 on Linux, 37 on Windows). TI2 predicts no count, only that every
+request carries the test identity and none carries a board's pair.
+
+**The first WSL attempt never ran.** Git Bash rewrote the `/mnt/c/...` script path into a Windows path, and WSL exited
+127 before anything started. It was re-run with `MSYS_NO_PATHCONV=1`. It produced no reading.
+
+**`251a3ca`'s own CI.** That head is registration only, and still held the unfixed sampler without the timeout, so its
+`workers` run was **cancelled at about 17:25Z** before it could hang. It is not a reading.
