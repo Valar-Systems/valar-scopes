@@ -4378,3 +4378,39 @@ anchors, each present exactly once), its control, and WA1 with its selftest. CI 
   - make the row's refused 200 one that answers a **superseded query**, a refusal reason no plant touches;
   - predicted: S-b2 → exactly (b), and every other row as above.
   - The other way is to predict S-b2 → `['b', 'h']` as a true cascade. The reviewer's call.
+
+### W5⁵'s driver and reader, built (scratchpad; not graded until the run)
+
+| file | sha256 (12) | what |
+|---|---|---|
+| `w5p5_read.py` | `a85b26de97db` | Derived from W5⁗'s frozen reader by `make_w5p5_read.py`, every needle found exactly once. G2′'s steps and plateaus; G1′'s transitional rule (from 1 s before a step); the lines-per-plateau floor (3, 4, 4, 4: under it is outside the set); G5 and G6 read from the driver's record. Its selftest passes, including a new case showing the 1 s edge exists: a line 0.6 s before a step is transitional under G1′ and would read OFF under the old rule |
+| `w5p5_run.py` | `33a8a8512ae2` | W5⁗'s driver with only the ruled changes (detailed below) |
+
+**What `w5p5_run.py` changes:**
+- **The window:** each one runs from boot + 3 to boot + 13 min; traces 14.5 min; the session check spans 195 min.
+- **The restore remedy, in one function (`finish()`) that runs on every path, a stop included:**
+  - read_mac and the page come before the restore, after the last trace's close;
+  - wxlook is flashed back, then a failed restore is retried once after that flash;
+  - if it still fails: RESTORE FAILED, exit 3.
+  - W5⁗'s flash-back sat after its `try/finally`, so it never ran on a stop. Now it is inside.
+- **G6, the PC:**
+  - an arm waits while a build or test process runs, and is refused after 10 min;
+  - the CPU load is sampled every minute, and an arm is PC-LOADED on two consecutive samples over 50 %.
+- **The 2026-11-04 hold** (from 21:30Z, until Daniel lifts it) is a blocked window in the driver itself.
+
+**Rehearsed on its own functions** (`w5p5_rehearsal.py`, `ede9692a005b`, against stubs):
+- **R1 to R8 all fired as written:**
+  - R1: read_mac before the restore;
+  - R2: the retry after the flash succeeds;
+  - R3: RESTORE FAILED, exit 3;
+  - R4: the retry still runs when the flash-back fails;
+  - R5: a stop mid-arm, so no read_mac, but the flash-back runs;
+  - R6: refused after 10 min of a busy PC;
+  - R7: PC-LOADED needs two consecutive samples;
+  - R8: the hold refuses a session that would cross 21:30Z.
+- **Its controls, two plants:**
+  - read_mac removed turns **exactly R1** BAD;
+  - the retry removed turns **exactly R2 and R4** BAD.
+
+**When:** W5⁵ needs about 3 h 15 min of E2:08. It starts only after Daniel lifts the hold, in its own announced
+window.
