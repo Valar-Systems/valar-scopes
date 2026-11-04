@@ -759,3 +759,17 @@ Nothing in it changes a step taken.
 > 3. R3-6: 0 CPU-limit errors stays the gate (any error: roll back). The p99 is still graded against 4,000 ms, but with
 >    cref alone at 2,711 ms, a p99 between 4,000 and 5,000 ms with no CPU-limit error is reported, not rolled back.
 > 4. Start R3 when PD6 reads clean, inside the hold, started by 23:30Z.
+
+### The new R2 read keys, shown to work (2026-11-04 21:58:09Z)
+
+**The ruling (reviewer chat, pasted by Daniel, ~22:10Z), verbatim:**
+> Daniel has put new R2 read keys (Object Read only, blipscope-wx) in the token file as r2-wx-read-id and
+> r2-wx-read-secret. Before R3-5b, show they work: list cref's frames (a count and the newest one's age; no key printed).
+> If that reads, R3-5b goes back to +70 min, as first registered. If it still answers 401, stop and report; R3 itself
+> isn't held by it. Also, booleans only: are blip-key and blip-device still in the file?
+
+**Read:**
+- **`tools/wx/r3_list.py wx/cref/frames/`:** **30 frames, the newest 89 s old, the oldest 3,571 s.** That is `cref`'s
+  hour at its 2-minute cadence, the shape I5's readings knew.
+- **So R3-5b returns to +70 min,** as first registered.
+- **The token file, as booleans:** `blip-key` absent; `blip-device` absent.

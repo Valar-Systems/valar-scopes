@@ -20,10 +20,10 @@ probe() {   # label product lat lon r
   magic="$(head -c 4 "$body" | tr -cd 'A-Z0-9')"
   etag="$(grep -i '^etag:' "$hdr" | tr -d '\r' | grep -oE 'wx1-[a-z0-9]+' | head -1)"
   age="$(grep -i '^x-wx-max-age:' "$hdr" | tr -d '\r' | cut -d' ' -f2)"
-  frame="$(grep -ci '^x-wx-frame:' "$hdr")"
+  frame="$(grep -i '^x-wx-frame:' "$hdr" | tr -d '' | cut -d' ' -f2)"
   err="$(grep -oE '"error":"[a-z_]+"' "$body" | head -1)"
-  printf '%-22s HTTP %s  magic [%s]  etag-product [%s]  X-Wx-Max-Age [%s]  X-Wx-Frame %s  %s\n' \
-    "$1" "$st" "$magic" "${etag#wx1-}" "${age:-none}" "$([ "$frame" = 1 ] && echo present || echo absent)" "$err"
+  printf '%-22s HTTP %s  magic [%s]  etag-product [%s]  X-Wx-Max-Age [%s]  X-Wx-Frame [%s]  %s\n' \
+    "$1" "$st" "$magic" "${etag#wx1-}" "${age:-none}" "${frame:-absent}" "$err"
   rm -f "$hdr" "$body"
 }
 probe "/wx/cref Bend (smoke)" cref "$LAT" "$LON" "$R"
