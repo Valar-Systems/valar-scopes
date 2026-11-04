@@ -743,3 +743,19 @@ ingest:**
 - the staging time given to Daniel in the report.
 
 Nothing in it changes a step taken.
+
+### R3 re-registered before it starts, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~21:55Z)
+
+> PD so far: accepted (staging 21:21:06Z, production 21:30:36Z on f740f10; PD0-PD5 and PD7 as predicted). PD6 as
+> registered, after its window.
+>
+> R3, before it starts, re-registered by ruling (the frozen rows kept beside them):
+> 1. R3-2: your restatement. The gate stays cref's frameAgeS <= 600 at every read. The log half: in the first 30 min,
+>    at most 2 minutes missing one of cref's checks and no minute missing both, as today's baseline (178/180). Worse
+>    than that is off, with the escape as registered.
+> 2. R3-5 splits. R3-5a, the logs' pruned field at +70 min: as registered. R3-5b, the listing: read once Daniel's new
+>    read keys are in the token file; at +70 min if they're there by then, otherwise as soon as they are. Until it's
+>    read it is unread, not a pass, and it doesn't gate R3.
+> 3. R3-6: 0 CPU-limit errors stays the gate (any error: roll back). The p99 is still graded against 4,000 ms, but with
+>    cref alone at 2,711 ms, a p99 between 4,000 and 5,000 ms with no CPU-limit error is reported, not rolled back.
+> 4. Start R3 when PD6 reads clean, inside the hold, started by 23:30Z.
