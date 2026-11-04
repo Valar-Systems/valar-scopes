@@ -136,8 +136,8 @@ def main():
         open(path, "wb").write(keep)
         restored = hashlib.sha256(open(path, "rb").read()).hexdigest() == k_sha
         print(f"   restored byte-identical: {restored}")
-        if not restored:
-            return 3
+    if not restored:
+        return 3
 
     # S-W7 (and its control, W2'): the scrub over BASE in memory, with and without --everywhere.
     texts = S.read_rev(BASE)

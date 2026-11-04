@@ -409,3 +409,23 @@ commit with `&&`.
 | **CI on the pushed head** | | every check finishes success, or skipped as main's runs skip; none failed |
 
 **Outside the set:** stop and report, with no fix until a ruling.
+
+### Read (local, at `ef8b953` and the harness tidy after it; Windows, Python 3.14)
+
+| | read | verdict |
+|---|---|---|
+| **W3** | exit 0; 0 / 0 / 0; 16 entries, each used; stale, idle and unreadable 0 (1,420 tracked, 1,006 scanned) | as predicted |
+| **W4, W5** | **15 rows**, every one ok, including (l): exit 1, 4 findings, all LAN, in its file | as predicted |
+| **W2'** | `--rev 892fe2b --dry`: name 107, BSSID 22, LAN 100 in 32 files; the bench name left: 4, both `proxy/photos` files | as predicted |
+| **S-W7** | `--rev 892fe2b --dry --everywhere`: name 111 in 34 files, both `proxy/photos` files included; the bench name left: 0 | as registered |
+| **W2''** | on the branch's working tree: 0 / 0 / 0 in 0 files, "no bench name in these logs", exit 0; the tree unchanged | as predicted |
+| **the sabotages** | the control green. S-W4N, S-W4B, S-W4P (name 143), S-W5G, S-W5J, S-W5K: as before. **S-W4L: rows exit 1, red (f), (f)'s count, the real allowed line, (g), (h), (l)**, W3 idle 10, full 2. **S-W2PORTAL: W3 exit 0, full exit 1, rows red (l)**. S-W3: 3 findings in that file, restored byte-identical. 0 instrument failures; the guard byte-identical. **Exit 0** | as registered |
+| **W8** | the planted name, the planted MACs, the planted addresses and the README example line's address: **none equals a real value** (read in memory: 1 name, 2 BSSIDs, 7 addresses) | as predicted |
+| **W6** | the redaction vectors and their selftest, device ids, workflow concurrency and its selftest: all exit 0 | as predicted |
+
+**The harness tidy.** Python 3.14 warned at `return 3` inside a `finally` block, so the restore-failed exit now comes
+after the block. That changes no reading. The harness was run again on the tidied file: **all as registered, exit 0**.
+
+**CI on `5a70efb`, read:** `device-ids` failed on exactly one finding, `docs/wifi-scrub.md:360: lan`, the line
+recorded above. That run scanned the PR merged with today's main (1,465 tracked), so #514's new Weatherscope files
+passed the guard there.
