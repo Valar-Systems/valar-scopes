@@ -4653,6 +4653,22 @@ functions) run against the real shim.
   `sabotage_setbuffer.mjs`, `docs/` and `.github/workflows/web-renderer.yml`.
 - AB1-AB3 and AB5 are CI's.
 
+**The abort case in CI, on `baac757` (pushed 22:45:45Z; read at 23:02:14Z, with no run queued twice in a row): all
+as predicted.**
+- **AB1:** R7 `ok` on both models. Thrown: `"Aborted(). Build with -sASSERTIONS for more info."`; the message
+  printed. Smoke reads 11 `ok` per model (22 in all) and `WEB RENDERER SMOKE AS PREDICTED` twice.
+- **AB2:** the step ran 22:55:32Z-22:56:14Z (42 s; ~40 s predicted).
+  - **Sabotaged:** "thrown nothing; the message absent". R7 `FAIL`; exit 1, `red ["R7"]`. This is the job's only
+    `FAIL` line, and it is the predicted one.
+  - **Control:** the real build exits 0 with R7 `ok`.
+  - The real shim is unchanged (`ba5c04802783`). The driver prints `SETBUFFER SABOTAGE AS PREDICTED`.
+- **AB3:** carousel 5 `ok` per model, `CAROUSEL AS PREDICTED` twice.
+- **AB5:** 41 check-runs, 37 success, 4 skipped (`promote`, `ship-alert`, `version`, `publish`), 0 failure, with no
+  print-cards run. Main at the push was `c039a5efda86`, read twice.
+
+**The abort has now been seen to fire** (R7 on both models), **and its absence has been seen to fail** (AB2). Neither
+is a claim about reasoning; both are runs.
+
 **What WR5 cannot see, said here so it is not mistaken for coverage:** a page can pass `wx-layer` at runtime through
 `web_config_set`, and the website's own page code is in another repo. That path is WR1's to stop: the module aborts
 with the message, never corrupts memory. The abort itself is never reached today and nothing here makes it fire. A
