@@ -17,6 +17,8 @@ export interface Product {
   codeOf: (dbz: number) => number; // decoded value -> WXC1 code 0-15
   grid?: GridGeom;               // OPERA: the stored 0.01 deg grid (MRMS frames carry their own)
   landBox?: LandBox;             // OPERA: where /wx/cref is served from this product
+  deviceMaxAgeS?: number;        // the age the device may draw this product's frames to, sent as X-Wx-Max-Age
+                                 // (docs/wx-age-limit.md). Absent: none is sent and the device keeps its 600 s.
 }
 
 export const PRODUCT_ID_RE = /^[a-z0-9]{2,8}$/;
@@ -54,6 +56,7 @@ export const PRODUCTS: readonly Product[] = [
     noaaStem: "",
     cadenceS: 300,
     maxAgeS: 1800,               // Q4, ruled: above the device's 600 s, so a late frame is a 200 the device hides
+    deviceMaxAgeS: 720,          // B, ruled 2026-11-04: R1's week blanks 0.69 % at 720 s against 5.51 % at 600 s
     codeOf: codeOfComposite,
     grid: OPUK_GRID,
     landBox: OPUK_LAND,
