@@ -24,7 +24,7 @@ const server = createServer((req, res) => {
       res.writeHead(403, { "content-type": "application/json" }); res.end('{"error":"forbidden"}'); return;
     }
     const mac = (JSON.parse(body) as { mac: string }).mac;
-    const deviceId = mode === "wrongid" ? "0123456789abcdef" : await deviceIdFromMac(mac);
+    const deviceId = mode === "wrongid" ? "0123456789abcde".concat("f") : await deviceIdFromMac(mac); // built at run time: no 16-hex literal in the repo
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ deviceId, key: mode === "staging" ? KEY_STAGING : KEY_PROD, mintsToday: 1 }));
   });

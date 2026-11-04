@@ -107,12 +107,12 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/basemap-verdict.selftest.sh
 
-      # BLIP_KEY/BLIP_DEVICE through the token file (docs/blip-creds-token-file.md, T4-T6): one re-run, the values
-      # arrive at their lengths, neither EXAMPLE value appears in any byte written, and a re-run counter so a runaway
-      # is red, not a hang. The .mts runs by Node's type stripping, on by default from 22.18.
-      - name: The blip-creds wrapper (selftest)
+      # The test identity (docs/test-identity.md), which replaced the blip-creds wrapper. The mint script against a
+      # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output
+      # scan must catch); EXAMPLE values only. Under tsx, because it imports the Worker's own deviceIdFromMac.
+      - name: The test identity's mint (selftest)
         if: matrix.worker == 'proxy'
-        run: node scripts/with-blip-creds.mts --selftest
+        run: npx tsx scripts/mint-test-identity.selftest.mts
       # The firmware's host test parses this fixture with CoordParse; it must be what
       # the helper's formatCoord actually emits, or that test grades a stale contract.
       - name: The locate-format fixture matches the helper's formatter

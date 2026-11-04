@@ -13,8 +13,8 @@
  *   blip-key=<the bench device's key>          (docs/blip-creds-token-file.md)
  *   blip-device=<the bench device's id>
  *
- * BLIP_KEY / BLIP_DEVICE keep precedence while they are set (resolveBlipCreds);
- * once they leave the Windows user environment, the file supplies them.
+ * blip-key / blip-device (E2:08's pair) are parsed but resolved by NOTHING since docs/test-identity.md:
+ * the checks and ingests run as the test identity (resolveTestIdentity), and refuse BLIP_KEY / BLIP_DEVICE.
  *
  * WHY NOT CLOUDFLARE_API_TOKEN. wrangler PREFERS that variable over a
  * `wrangler login` session, so a KV-scoped token left at user level shadows the
@@ -205,18 +205,6 @@ export function resolveToken(
   const ci = ciVar ? env[ciVar] : undefined;
   if (ci) return { token: ci, source: ciVar! };
   return { token: readTokenFile(purpose, io ?? nodeIo()), source: `${TOKEN_FILE_ENV} (${purpose})` };
-}
-
-/**
- * BLIP_KEY and BLIP_DEVICE (docs/blip-creds-token-file.md), for every reader of the pair: smoke-prod.sh and
- * watch-upstream.sh (through with-blip-creds.mts) and both ingests. Each comes from its variable while that is set,
- * else from the file -- resolveToken's own precedence, per variable. Throws TokenFileError naming what is missing,
- * never a value. `source` is NAMES only, safe to print.
- */
-export function resolveBlipCreds(io?: TokenFileIo): { key: string; device: string; source: string } {
-  const k = resolveToken("blip-key", "BLIP_KEY", io);
-  const d = resolveToken("blip-device", "BLIP_DEVICE", io);
-  return { key: k.token, device: d.token, source: k.source === d.source ? k.source : `${k.source} + ${d.source}` };
 }
 
 // ---------------------------------------------------------------- the real io

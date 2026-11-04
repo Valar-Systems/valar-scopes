@@ -1,5 +1,9 @@
 # BLIP_KEY / BLIP_DEVICE: from the Windows user environment to the token file
 
+> **Superseded by [docs/test-identity.md](test-identity.md).** The production checks and both ingests no longer read
+> `blip-key` / `blip-device`: they run only as the test identity, and they refuse `BLIP_KEY` / `BLIP_DEVICE`.
+> `blip-creds.sh`, `with-blip-creds.mts` and `resolveBlipCreds` are removed. This file stays as the record of #500.
+
 **Ruled 2026-10-29** (reviewer chat, pasted by Daniel): "BLIP_KEY/BLIP_DEVICE leave the Windows user environment for
 the token file, read per shell like the other tokens. Daniel moves the values himself; you change smoke-prod's reader,
 reviewed." Not urgent. This file is the plan and its predictions, pushed before any code.
