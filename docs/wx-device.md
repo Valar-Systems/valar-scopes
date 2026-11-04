@@ -4311,3 +4311,19 @@ Average and p95 are close (99.9 and 102.0), so this is a steady cost, not spikes
 **Run on both compilers** (WSL g++ 13.3, and MinGW, which the sabotage driver uses), then `run.sh` in full.
 
 **Outside the set:** stop and report.
+
+**One amendment, found while writing the test and before any run. The miss stays on record.**
+- **The two rows that collide:**
+  - AL4 and AL5 say "hidden at 721" and "hidden at 601" in rows tagged (h);
+  - AL9 says S-c1, which deletes `WhatToShow`'s age check, turns **exactly** (c) red.
+- **Both cannot hold:** with the age check gone nothing is ever hidden, so those (h) rows would go red beside (c).
+  AL7's "(h) never shown older than 900" has the same flaw.
+- **The amendment keeps every plant on exactly its own property**, as AL9 requires:
+  - **(h) checks the held limit itself, and "shown at the limit":**
+    - AL4: a 200 with `720` holds 720 and is shown at 720 s old; with none, it holds 600;
+    - AL5: a 304 with none holds **600**, never 720;
+    - AL7 (h): the held limit is never above 900, and after every 304 and every replacing 200 it equals that reply's
+      clamped header.
+  - **Hiding past the limit stays (c)'s job:** (c)'s table row (hidden at 601 with no header), and (c)'s random check,
+    which now compares against the **held** limit.
+- **The counts are unchanged:** 34 `ok` lines, 6 table rows and 1 random line in (h).
