@@ -1,6 +1,6 @@
 """Grades 3.5t step t5's board run (docs/weatherscope-stage3.md A12.66 section 4, A12.67) from run_b35t.py's output.
 
-    <penv python> -I tools/weatherscope/board/grade_b35t.py <run dir> [<boot.txt>] [--swb]
+    <penv python> -I tools/weatherscope/board/grade_b35t.py <run dir> [<boot.txt>] [--swb] [--boot-setting S:R]
 
 Every expected value comes from the OTHER side of the contract:
   - B1's frames and lines from the four committed references (k35.ref.txt, k35l.ref.txt, k35b.ref.txt, k35bl.ref.txt),
@@ -10,6 +10,8 @@ Every expected value comes from the OTHER side of the contract:
 THE BELIEF RULE (grade_b35b's, with a theme clause): the last "[wx] theme=" line before a capture's first fetch gives its
 theme, the last "[wx] terrain on|off" its terrain (none = off), and neither line arrives during its fetches.
 --swb grades S-SWB's pass (A12.66 section 5): BSW with the base rebuilt ("package") at the two switches.
+--boot-setting S:R (Q67, A12.80) is the wx-theme the boot read must name, as `theme=S read=R`: auto:unset (the default) for
+a board that never stored one, auto:known once a run has stored it (A12.66's "if it has, the value is named").
 Q62 (A12.67): prints verdicts and counts only -- never a line's time, never which press switched. Prints no coordinate.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
@@ -218,7 +220,7 @@ def grade_bswl(lines):
     return all(ok for _, ok, _ in rows)
 
 
-def grade_boot(path):
+def grade_boot(path, setting="auto:unset"):
     text = open(path, encoding="utf-8", errors="replace").read()
     used = [int(m.group(1)) for m in re.finditer(r"\[wx\] psram_used=(\d+) ", text)]
     base = [dict(re.findall(r"(\w+)=(\d+)", m.group(0))) for m in re.finditer(r"\[wx\] psram_base=.*", text)]
@@ -227,8 +229,9 @@ def grade_boot(path):
              f"{used[0] if used else '?'} (want {PSRAM_USED} +/- {PSRAM_BAND})"),
             ("boot psram_base", bool(base) and all(base[0].get(k) == v for k, v in PSRAM_BLOCKS.items()),
              f"{ {k: base[0].get(k) for k in PSRAM_BLOCKS} if base else '?'}"),
-            ("boot theme", bool(init) and " theme=auto read=unset" in init.group(0),
+            ("boot theme", bool(init) and " theme=%s read=%s" % tuple(setting.split(":")) in init.group(0) + " ",
              "the init line reads " + (re.search(r"theme=\S+ read=\S+", init.group(0)).group(0) if init and "theme=" in init.group(0) else "NO theme"))]
+    rows[-1] = (rows[-1][0], rows[-1][1], rows[-1][2] + f" (want theme={setting.replace(':', ' read=')})")
     for name, ok, what in rows:
         print(f"  {'ok  ' if ok else 'FAIL'} {name}: {what}")
     return all(ok for _, ok, _ in rows)
@@ -298,6 +301,15 @@ def selftest():
             got = grade_bsw(lines, swb) and (swb or grade_bswl(lines))
         bad += got != want
         print(f"  {'ok  ' if got == want else 'FAIL'} {name}: {'passes' if got else 'fails'} (want {'pass' if want else 'fail'})")
+    # Q67's control (A12.80): t5's first boot, from its committed record, names no stored theme (read=unset)
+    first = os.path.join(HERE, "run-2026-11-02-t5", "boot-t5.txt")
+    for setting, want in (("auto:unset", True), ("auto:known", False)):
+        with contextlib.redirect_stdout(io.StringIO()):
+            got = grade_boot(first, setting)
+        bad += got != want
+        cases.append(setting)
+        print(f"  {'ok  ' if got == want else 'FAIL'} t5's first boot graded --boot-setting {setting}: "
+              f"{'passes' if got else 'fails'} (want {'pass' if want else 'fail'})")
     print(f"{len(cases)} checks, {bad} failures")
     return 1 if bad else 0
 
@@ -306,6 +318,14 @@ def main(argv):
     if len(argv) == 2 and argv[1] == "--selftest":
         return selftest()
     swb = "--swb" in argv
+    setting = "auto:unset"
+    if "--boot-setting" in argv:
+        i = argv.index("--boot-setting")
+        setting = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
+        if not re.fullmatch(r"(auto|light|dark):(known|unset|unknown)", setting):
+            print(f"REFUSED: --boot-setting takes <auto|light|dark>:<known|unset|unknown>, not {setting!r} (the rig)")
+            return 2
     argv = [a for a in argv if a != "--swb"]
     if len(argv) not in (2, 3):
         print(__doc__)
@@ -316,7 +336,7 @@ def main(argv):
     watch = json.load(open(os.path.join(run, "watch.json")))
     ok = True
     if len(argv) == 3:
-        ok &= grade_boot(argv[2])
+        ok &= grade_boot(argv[2], setting)
     if not swb:
         REF = refs()
         ok &= grade_b1(run, lines, caps, REF)
