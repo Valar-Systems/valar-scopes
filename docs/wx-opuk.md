@@ -691,3 +691,34 @@ before the figure was reported.
 | **PD5** | `/healthz` reports `f740f10` on staging (21:21Z) and on production. Production's bindings, from `wrangler versions view`, are **identical, all 30 lines**, to those of the version replaced (`2eb4aa5e`). The rollback targets were recorded before each step | as predicted |
 | **PD7** | the live `/credits`, 21:33:08Z: 237 rows, **176 licensed, every label at its predicted count** (CC BY-SA 4.0 48, 2.0 36, 3.0 18, 3.0 AU 12; CC BY 2.0 32, 4.0 24, 3.0 3, 2.5 2; OGL v1.0 1), 61 public domain; "adsbdb" **0**; the standing-data line **once**; the ShareAlike clause on **114** rows, all 114 naming their own licence; the paragraph **once** | as predicted |
 | PD6 | the fleet, 21:31:14-22:01:14Z, read twice after the window closes | pending |
+
+### R3's instruments, proved before R3 (2026-11-04 ~21:35Z): two findings that need a ruling
+
+**`tools/wx/r3_reads.py` (logs, CPU) and `tools/wx/r3_list.py` (the bucket listing), each tried on today's `cref`-only
+ingest:**
+- **CPU (R3-6), 19:00-21:00Z:** 125 invocations, all `success`, 0 errors. **p50 734 ms, p99 2,711 ms.** The bar of
+  4,000 ms leaves about 1.3 s for `opuk`.
+- **Logs (R3-2, R3-5's log half, R3-7):** unsampled (ABR level 1) in 1-hour windows. 0 `opuk` events before R3.
+
+**Finding 1 -- R3-2's log half, as frozen, can fail on today's baseline.**
+- **The frozen row:** "`cref`'s `:00` and `:30` checks both log in every minute", with "a miss means roll back at
+  once".
+- **The baseline, 18:30-21:30Z, before any R3 change:** both checks logged in **178 of 180 minutes**, with 0 error
+  lines. At 21:15Z the `:30` check left no line, while its `:00` check (2,187 ms) and both neighbours did.
+- **Why it cannot be read from here:** whether a missing line is a check that did not run or a line the logs dropped.
+  `/healthz`'s `frameAgeS` is the freshness gate either way.
+- **A restatement, proposed, NOT applied:**
+  - R3-2's gate stays `frameAgeS` ≤ 600 at every read;
+  - the log half becomes: in the first 30 min, **at most 2 minutes missing one check, and no minute missing both**
+    (the baseline's rate: 2 in 180).
+
+**Finding 2 -- R3-5's listing cannot be read: the R2 read keys are refused.**
+- **The finding:** `r2-wx-read-id` and `r2-wx-read-secret` get `401 Unauthorized` on `blipscope-wx`, for `cref`'s
+  frames as well as `opuk`'s.
+- **The alternative, a fault in my signer, is excluded:** the same signing chain reproduces AWS's published SigV4
+  example for ListObjects exactly, and R2 says "Unauthorized", not "SignatureDoesNotMatch".
+- **The keys' shape is as expected** (a 32-character id, a 64-hex secret). They have most likely expired or been
+  revoked since the 10-23 reads.
+- **Without new keys, R3-5 reads BLIND, which counts as FAIL.**
+
+**PD6** is read once its window (21:31:14-22:01:14Z) has closed.
