@@ -1867,3 +1867,24 @@ smoke check) and nothing for OPERA. So the attribution goes into the mask-off PR
 principle ("Final at R4's review"), with its own predictions frozen in that PR before its code.
 
 **A follow-up on record:** C re-read on a summer week (June-August).
+
+### A3.18 The rulings on #521 and #522, verbatim (source: the reviewer chat, pasted by Daniel, 2026-11-04 ~18:25Z)
+
+> #521:
+> - The credits-test fix is approved: the check reads the photo-credits section only. Predictions as frozen: the
+>   public-domain photo passes, and a CC-BY-SA-4.0 one still fails. Its control: the PD photo moved into the
+>   CC-licensed form turns it red.
+> - M1-M5 accepted, as read: 192,184 echo cells against 1,665 masked; M3's renders; K11 0.27-0.34 s CPU a frame, 54.6 MB
+>   peak; M5 with its control.
+> - Approved to merge at the head that adds exactly that fix on top of b265b3ce6941. CI complete, 0 failed, with the
+>   count predicted before the push. Squash with --match-head-commit, no --admin; record main's CI. Anything else: send
+>   it to me.
+>
+> #522: X-Wx-Max-Age is the channel, ruled for both sides. The reasons are accepted: WXC1 v1 stays frozen, a 304 restates
+> the header, and a lost header falls back to 600.
+> - blipscope-5c implements the device side in #445 (my block to it).
+> - #522 can leave draft now. A device that doesn't read the header is unaffected.
+> - Approved to merge at 04da4bc76b70 once its CI is complete with 0 failed and the count predicted. Same merge terms.
+>
+> R3 after both merge: predictions first. Staged and verified, outside any announced board window. It shares the ingest
+> with cref.
