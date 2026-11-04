@@ -259,12 +259,17 @@ The inputs behind each set were read first:
 | **S-W4N**: `assoc` and `ssid_eq` removed | exit 1: 3 entries **idle** (their `ssid_eq` lines lose their finding), 0 findings | exit 2 (RIG) | (a), (b) |
 | **S-W4B**: the BSSID pattern never matches | exit 0 (no BSSID left to find, none allowlisted) | exit 1 | (c), (d), (e) |
 | **S-W4L**: the LAN pattern never matches | exit 1: 10 entries **idle** | exit 2 (RIG) | (f), (f)'s count, the real allowed line, (g), (h) |
-| **S-W4P**: the placeholder pass removed | exit 1: **name 142** | exit 2 (RIG) | the placeholders row |
+| **S-W4P**: the placeholder pass removed | exit 1: **name 143** (see the correction below) | exit 2 (RIG) | the placeholders row |
 | **S-W5G**: allowlist matched on the line's hash alone | exit 0 | exit 1 | (g) |
 | **S-W5J**: an undecodable file counted as binary | exit 0 | exit 1 | (j) |
 | **S-W5K**: BLIND never set | exit 0 | exit 1 | (k) |
 | **S-W3**: `bench-logs/bindctl-2026-08-07-2023.log` restored from main | exit 1: **3 findings, all in that file**: name 1, BSSID 1, LAN 1 | exit 2 (RIG) | not run |
 | **S-W7**: the scrub run with `--everywhere` on a fresh copy of main | W7: the bench name **0 times** (the 4 attributions replaced), and both `proxy/photos` files changed | | |
+
+**A correction, made before any sabotage ran.** S-W4P's W3 count was first written as 142, read at the tree before
+this section existed. Committing this section (`eadf471`) added one placeholder context, its own example of the
+WiFiManager line, so the input moved under the number. Re-read at `eadf471`: **143, in 39 files**. This correction
+is prose only, so it adds no context.
 
 **Two consequences, said before they are seen:**
 - S-W4B is invisible to W3. The tree holds no BSSID, so only the selftest's plants can catch a dead BSSID pattern.
