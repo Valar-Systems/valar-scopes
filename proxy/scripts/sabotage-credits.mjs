@@ -16,6 +16,9 @@ const TESTS = {
   MA1: "MA1: every credit", MA2: "MA2: /credits carries",
   // #521's, joined at the rebase: evaluated against every sabotage before running, green in each.
   CONTROL: "CONTROL: the same photo in the CC-licensed form", OPERA: "carries the OPERA line",
+  // photos.test.ts's /credits tests (docs/credits-correctness.md, P68 and P89; registered before running).
+  P68: "renders the manifest as public HTML", P89: "always credits BOTH aircraft-data sources",
+  PEMPTY: "serves an empty-but-valid page",
 };
 
 const SABOTAGES = [
@@ -27,7 +30,7 @@ const SABOTAGES = [
       ['    if (!m) return { label: token, sa: false };\n    return {\n      label: `Open Government Licence v${m[1]}.0`,',
        '    if (!m || m) return { label: "Open Government Licence v3.0", url: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/", sa: false }; // SABOTAGE\n    return {\n      label: `Open Government Licence v${m[1]}.0`,'],
     ],
-    red: { CV1: "{ checked: 176, wrong: 104 }", CV2: "{ checked: 11, wrong: 8 }", SA1: "saOk: 48", QC1: null, F16: null },
+    red: { CV1: "{ checked: 176, wrong: 104 }", CV2: "{ checked: 11, wrong: 8 }", SA1: "saOk: 48", QC1: null, F16: null, P68: null },
   },
   {
     name: "S-SA", file: SRC,
@@ -41,7 +44,7 @@ const SABOTAGES = [
       '<li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>',
     ]],
     // Re-registered by ruling (2026-11-04 ~19:35Z): the old line names adsbdb twice, in its URL and its text.
-    red: { RD1: "{ standingData: 0, adsbdb: 2 }", QC1: null },
+    red: { RD1: "{ standingData: 0, adsbdb: 2 }", QC1: null, P89: null },
   },
   {
     name: "S-QC1", file: HTML,
@@ -51,7 +54,7 @@ const SABOTAGES = [
 ];
 
 function runTests() {
-  const r = spawnSync("npx", ["vitest", "run", "test/photolicense.test.ts", "test/basemap-attribution.test.ts"], { shell: true, encoding: "utf8" });
+  const r = spawnSync("npx", ["vitest", "run", "test/photolicense.test.ts", "test/basemap-attribution.test.ts", "test/photos.test.ts"], { shell: true, encoding: "utf8" });
   const out = ((r.stdout ?? "") + (r.stderr ?? "")).replace(/\x1b\[[0-9;]*m/g, "");
   const total = /Tests\s+(?:(\d+) failed \| )?(\d+) passed \((\d+)\)/.exec(out);
   return { out, total };
