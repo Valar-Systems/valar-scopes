@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
 // BMPK fixtures are binary (docs/basemap-route.md, MV/ME/MG). A test imports one as a Uint8Array of the file's exact
@@ -14,8 +15,23 @@ const bmpkBytes = {
   },
 };
 
+// The committed proxy/photos/credits.html as its exact text, `import x from "virtual:committed-credits"`
+// (docs/credits-correctness.md, Q-C1: the committed file against the render). A virtual module, because an .html import
+// never reaches a plugin under vitest-pool-workers: `?raw` and a `?text` query both failed to load. Tests only.
+const CREDITS_HTML = fileURLToPath(new URL("./photos/credits.html", import.meta.url));
+const committedCredits = {
+  name: "committed-credits",
+  resolveId(source: string) {
+    return source === "virtual:committed-credits" ? "\0virtual:committed-credits" : null;
+  },
+  load(id: string) {
+    if (id !== "\0virtual:committed-credits") return null;
+    return `export default ${JSON.stringify(readFileSync(CREDITS_HTML, "utf8"))};\n`;
+  },
+};
+
 export default defineWorkersConfig({
-  plugins: [bmpkBytes],
+  plugins: [bmpkBytes, committedCredits],
   test: {
     poolOptions: {
       workers: {
