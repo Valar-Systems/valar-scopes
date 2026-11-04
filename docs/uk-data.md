@@ -1586,3 +1586,15 @@ It answered:
   - given a threshold it must trip, the watcher creates `PAUSE` and exits 2;
   - after the loop's end, the watcher exits 0 and creates no `PAUSE`.
 - **The scripts:** `docs/uk-data/instruments/r1_loop.sh` and `r1_watch.sh`.
+
+### A3.11 The ruling on A3.10, verbatim (source: the reviewer chat, pasted by Daniel, 2026-11-04 ~05:05Z)
+
+> A3.10: accepted.
+> - The restart on Daniel's "1" is accepted: same cycle, same frozen end (16:00Z), and frames after 16:00Z dropped by time.
+> - The watcher now writing PAUSE is accepted as how the disk rule is carried out. The rule itself is unchanged.
+> - The rehearsal on copies is accepted as the check that it can fire.
+> - The record of where the disk went is noted. The collection holds about 0.9 GB; the rest is WSL's virtual disk and
+>   PlatformIO's caches, which aren't yours to touch.
+>
+> Next as you planned: the last run after 16:00Z, then T, B and C. C's reading comes to me with the clutter-mask proposal
+> before R3, predictions first.
