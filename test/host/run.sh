@@ -73,10 +73,25 @@ AJSON_PIN="$(sed -n 's|.*bblanchon/ArduinoJson @ \([0-9.]*\).*|\1|p' "$ROOT/plat
 FLAGS="-std=c++11 -Wall -Wextra -Werror -O1 -static-libgcc -static-libstdc++"
 
 fail=0
+# A12.77 item (3): one failed block cannot leave the rest unrun. Each block below runs in its own subshell; its own
+# `exit 2` (the rig, a compile failure included) ends that block only, and note_block records it. The summary lists
+# every failed block and exits 2 if any failed as the rig, else 1 if any failed, else 0. A variable the setup sets
+# for later blocks is set OUTSIDE the subshells (PY, SHIM_INCLUDES), so every block still sees it.
+FAILED_BLOCKS=""
+RIG_BLOCKS=""
+note_block() {   # $1 the block's exit, $2 its header
+  case "$1" in
+    0) ;;
+    1) FAILED_BLOCKS="$FAILED_BLOCKS|$2"; fail=1 ;;
+    *) RIG_BLOCKS="$RIG_BLOCKS|$2 (exit $1)"; fail=1 ;;
+  esac
+}
 
 # --- 1. the tests ------------------------------------------------------------
 echo
 echo "== DrillMachine =="
+(
+  fail=0
 if ! "$CXX" $FLAGS $INCLUDES \
       "$ROOT/src/game/DrillMachine.cpp" \
       "$ROOT/test/host/test_drill_machine.cpp" \
@@ -105,8 +120,13 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+  exit "$fail"
+)
+note_block $? "DrillMachine"
 echo
 echo "== ConfigMigration =="
+(
+  fail=0
 # Pure half only: Apply() touches NVS and cannot run here. The RULE is what
 # matters and the rule is a constexpr predicate, so it is graded off-device --
 # same split as GameFormat.
@@ -125,9 +145,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "ConfigMigration"
 
 echo
 echo "== FollowState + FollowGeometry =="
+(
+  fail=0
 # Follow's state machine, its copy, and the local face's ring ladder.
 #
 # NO NEW -I. The test reaches the headers by relative path, exactly as
@@ -270,6 +295,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "FollowState + FollowGeometry"
 
 # --- what actually collides on the radar (2026-09-17) ----------------------
 #
@@ -281,6 +309,8 @@ fi
 # draw-site arithmetic rather than asserting that "some overlap was found".
 echo
 echo "== overlap count (labels AND badges) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_overlap_count.cpp" \
       -o "$OUT/test_overlap_count.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the overlap count test did not compile"
@@ -294,6 +324,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "overlap count (labels AND badges)"
 
 # --- the coordinate boxes a customer actually types into (2026-09-17) -------
 #
@@ -311,6 +344,8 @@ fi
 echo
 echo "== coordinate parsing (the iOS minus) =="
 SHIM_INCLUDES="-I$ROOT/test/host/arduino_shim"
+(
+  fail=0
 if ! "$CXX" $FLAGS $INCLUDES $SHIM_INCLUDES "$ROOT/test/host/test_coord_parse.cpp" \
       -o "$OUT/test_coord_parse.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the coordinate test did not compile"
@@ -324,9 +359,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "coordinate parsing (the iOS minus)"
 
 echo
 echo "== touch-wedge reboot cap: constants, chain, resets, rung order (TouchWedgePolicy.h) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_touch_wedge.cpp" -o "$OUT/test_touch_wedge.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the touch-wedge test did not compile"
   cat "$OUT/build.log"
@@ -339,9 +379,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "touch-wedge reboot cap: constants, chain, resets, rung order (TouchWedgePolicy.h)"
 
 echo
 echo "== radar swipe-to-zoom: the ladder, one step, the idle test (RadarZoom.h) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_radar_zoom.cpp" -o "$OUT/test_radar_zoom.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the radar-zoom test did not compile"
   cat "$OUT/build.log"
@@ -354,9 +399,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "radar swipe-to-zoom: the ladder, one step, the idle test (RadarZoom.h)"
 
 echo
 echo "== long press to toggle zoom: ring start, threshold, rejoin, consumed release (LongPressPolicy.h) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_long_press.cpp" -o "$OUT/test_long_press.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the long-press test did not compile"
   cat "$OUT/build.log"
@@ -369,9 +419,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "long press to toggle zoom: ring start, threshold, rejoin, consumed release (LongPressPolicy.h)"
 
 echo
 echo "== seven-segment shapes: no seam before the far cap (SevenSegmentShapes.h) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_sevenseg_shapes.cpp" -o "$OUT/test_sevenseg_shapes.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the seven-segment shapes test did not compile"
   cat "$OUT/build.log"
@@ -384,9 +439,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "seven-segment shapes: no seam before the far cap (SevenSegmentShapes.h)"
 
 echo
 echo "== seven-segment 1 vs the letter I: the 1's flag (SevenSegmentShapes.h + glcdfont.h) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_sevenseg_one.cpp" -o "$OUT/test_sevenseg_one.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the seven-segment 1 test did not compile"
   cat "$OUT/build.log"
@@ -402,8 +462,13 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "seven-segment 1 vs the letter I: the 1's flag (SevenSegmentShapes.h + glcdfont.h)"
 
 echo "== quiet-hour reboot vs the reboot cap: scheduled held to 20 h, not 24 h (RebootCap.h, #377) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_quiet_cap.cpp" -o "$OUT/test_quiet_cap.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the quiet-cap test did not compile"
   cat "$OUT/build.log"
@@ -416,9 +481,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "quiet-hour reboot vs the reboot cap: scheduled held to 20 h, not 24 h (RebootCap.h, #377)"
 
 echo
 echo "== precise on device, coarse on the wire (WireLocation.h) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_wire_location.cpp"       -o "$OUT/test_wire_location.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the wire-location test did not compile"
   cat "$OUT/build.log"
@@ -431,9 +501,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "precise on device, coarse on the wire (WireLocation.h)"
 
 echo
 echo "== \"Use my location\": the helper's format, parsed by the firmware =="
+(
+  fail=0
 # The INPUT comes from the other side: test/fixtures/locate-format.txt is written by
 # proxy/scripts/locate-fixture.mjs from the helper's own formatCoord, and workers.yml
 # fails if it is stale. Every line must parse in CoordParse and land within 0.00005.
@@ -453,9 +528,14 @@ elif [ "$rc" -eq 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "\\\"Use my location\\\": the helper's format, parsed by the firmware"
 
 echo
 echo "== USB open-on-computer planner (what the keyboard may type) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS $SHIM_INCLUDES "$ROOT/test/host/test_usb_open.cpp"       -o "$OUT/test_usb_open.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the USB open test did not compile"
   cat "$OUT/build.log"
@@ -512,6 +592,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "USB open-on-computer planner (what the keyboard may type)"
 
 # --- 1e. the generated borders, and the chunked cull that draws them ---------
 #
@@ -523,6 +606,8 @@ fi
 # the data is the thing under test, and it needs no Arduino either.
 echo
 echo "== state / province / international borders =="
+(
+  fail=0
 if ! "$CXX" $FLAGS $INCLUDES       "$ROOT/test/host/test_state_borders.cpp"       "$ROOT/src/anim/StateBorders.cpp"       -o "$OUT/test_state_borders.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the border test did not compile"
   cat "$OUT/build.log"
@@ -543,8 +628,13 @@ if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_config_vocab.cpp" -o "$OUT/te
   echo "FAIL: the config vocabulary test did not compile"; cat "$OUT/build.log"; exit 2
 fi
 "$OUT/test_config_vocab.exe" || fail=1
+  exit "$fail"
+)
+note_block $? "state / province / international borders"
 
 echo "== StarvationPolicy =="
+(
+  fail=0
 # Pure predicate, graded against values captured off two real boards during the
 # 2026-08-24 A/B soak. It is host-tested rather than bench-tested on purpose: the
 # only live reproduction of the bug is COM119 in its current fragmented state,
@@ -562,9 +652,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "StarvationPolicy"
 
 echo
 echo "== NetWatchPolicy =="
+(
+  fail=0
 # The reachability ladder. Host-tested because the DECISIONS are a pure function
 # of two counters and a clock, and the case counts here (both trigger conditions
 # independently, every recovery point, a refused reboot, a 20-minute backoff, and
@@ -584,9 +679,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "NetWatchPolicy"
 
 echo
 echo "== QuietHourPolicy =="
+(
+  fail=0
 # The daily reboot schedule. Host-tested because its two hazards -- an hour that
 # happens twice and an hour that never happens -- reach this device via a CONFIG
 # EDIT (there are no DST rules; see the header), which would take six months to
@@ -605,9 +705,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "QuietHourPolicy"
 
 echo
 echo "== QuietHourPolicy (bench override) =="
+(
+  fail=0
 # The SAME header, built a second time with the flag set. A compile-time
 # constant can only be tested by building twice, and the value is deliberately
 # compile-time: a shipping build must contain no path that can move the reboot
@@ -625,9 +730,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "QuietHourPolicy (bench override)"
 
 echo
 echo "== BootReportPolicy =="
+(
+  fail=0
 # One boot, one report, DELIVERED not merely sent. Host-tested because the case
 # that matters -- first check-in fails, second succeeds -- needs a network
 # failure at an exact moment, and because the retry's own hazard (two rows for
@@ -645,9 +755,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "BootReportPolicy"
 
 echo
 echo "== LocalOffset =="
+(
+  fail=0
 # ONE derivation of local time, because there were two and the second dropped
 # the longitude fallback -- scheduling every unset board's 03:00 reboot at 03:00
 # UTC. The first case in the file is that branch.
@@ -664,8 +779,13 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "LocalOffset"
 
 echo "== GameFormat (device/server agreement) =="
+(
+  fail=0
 #
 # The fixture is generated by the OTHER side of the contract -- valar-eam-feed's
 # scripts/emit-device-fixture.ts, which fetches the deployed /config and calls
@@ -699,8 +819,13 @@ elif [ "$rc" -ne 0 ]; then
 fi
 
 echo
+  exit "$fail"
+)
+note_block $? "GameFormat (device/server agreement)"
 echo
 echo "== DrillPolicy + KeyTurn (the decisions around the drill) =="
+(
+  fail=0
 # Whether a message is offered, the clock gate, T on the monotonic clock, the
 # touch targets, and the key-turn recogniser -- pulled OUT of EamManager (an
 # Arduino TU that cannot run here) so they can be graded. Same narrow -I.
@@ -717,8 +842,13 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "DrillPolicy + KeyTurn (the decisions around the drill)"
 
 echo "== GameProtocol + TouchCadence (the game client's pure half) =="
+(
+  fail=0
 # The request bodies and reply decisions the game client makes against
 # valar-eam-feed src/routes/game.ts, and the key-window sample cadence. The
 # Arduino half (src/game/GameClient.cpp) only does HTTP and JSON. Same narrow -I.
@@ -735,8 +865,13 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "GameProtocol + TouchCadence (the game client's pure half)"
 
 echo "== Derive (device/server agreement on class and T) =="
+(
+  fail=0
 #
 # Same shape as GameFormat, for the derivation. The fixture is emitted by
 # valar-eam-feed's scripts/emit-derivation-fixture.ts from the server's own
@@ -761,6 +896,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "Derive (device/server agreement on class and T)"
 
 # --- 1b. THE SAME TU, COMPILED FOR THE BOARD ---------------------------------
 #
@@ -785,6 +923,8 @@ fi
 # exactly that and nothing it cannot back up.
 echo
 echo "== the same TU, for the board =="
+(
+  fail=0
 # .exe on Windows, no suffix on Linux (CI): both spellings, so CI runs this half too.
 XCXX="$(ls "$HOME"/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++.exe \
            "$HOME"/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++ 2>/dev/null | head -1)"
@@ -833,6 +973,9 @@ elif [ "$rc" -eq 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "the same TU, for the board"
 
 # ---------------------------------------------------------------------------
 # The Missileer clock's ON WATCH count: last value on a failed fetch, "--" only
@@ -840,6 +983,8 @@ fi
 # counts this device -- a local +1 would double it). Pure header, no -I needed.
 echo
 echo "== ON WATCH count (Missileer clock) =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_on_watch.cpp" -o "$OUT/test_on_watch.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the on-watch tests did not compile"
   cat "$OUT/build.log"
@@ -872,6 +1017,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 elif [ "$rc" -ne 0 ]; then
   fail=1
 fi
+  exit "$fail"
+)
+note_block $? "ON WATCH count (Missileer clock)"
 
 # --- 2. the purity gate, and the control that proves it can fire -------------
 #
@@ -900,6 +1048,8 @@ for cand in python3 python py; do
   [ -n "$c" ] || continue
   if "$c" -c "pass" >/dev/null 2>&1; then PY="$c"; break; fi
 done
+(
+  fail=0
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; the follow privacy guard cannot run."
   echo "      Reporting this as the rig being incomplete rather than as a pass."
@@ -915,9 +1065,14 @@ else
   rc=$?
   if [ "$rc" -ne 0 ]; then fail=1; fi
 fi
+  exit "$fail"
+)
+note_block $? "follow privacy (spec 17)"
 
 echo
 echo "== Missileer E-4B table (docs/missileer-e4b-table.md) =="
+(
+  fail=0
 # The four cited E-4B addresses, and none of the four C-2A Greyhounds the table once held. The selftest includes
 # the ruled sabotage -- one C-2A address put back into the REAL file's text, in memory -- and must see it fail.
 if [ -z "$PY" ]; then
@@ -934,9 +1089,14 @@ else
   rc=$?
   if [ "$rc" -ne 0 ]; then fail=1; fi
 fi
+  exit "$fail"
+)
+note_block $? "Missileer E-4B table (docs/missileer-e4b-table.md)"
 
 echo
 echo "== purity gate =="
+(
+  fail=0
 if "$CXX" $FLAGS $INCLUDES \
       "$ROOT/test/host/no_arduino.cpp" \
       -o "$OUT/no_arduino.exe" 2>"$OUT/no_arduino.log"; then
@@ -969,6 +1129,9 @@ else
     fail=1
   fi
 fi
+  exit "$fail"
+)
+note_block $? "purity gate"
 
 # --- 3. no forbidden symbols crept in via some other route -------------------
 #
@@ -978,6 +1141,8 @@ fi
 # around the gate above.
 echo
 echo "== forbidden symbols =="
+(
+  fail=0
 # COMMENTS ARE STRIPPED FIRST, and the patterns require a CALL or a member
 # access rather than a bare word. The first version matched the word "millis"
 # inside its own explanatory comment and "micros" inside "microseconds", and
@@ -1002,9 +1167,14 @@ if [ -s "$OUT/symbols.log" ]; then
 else
   echo "ok   no Arduino-core symbols in the pure TU"
 fi
+  exit "$fail"
+)
+note_block $? "forbidden symbols"
 
 echo
 echo "== usage report: the Follow flag (v15 item 2) =="
+(
+  fail=0
 # Shim includes (UsageStore.h needs Arduino String + Preferences); the binary is
 # handed AircraftManager.cpp so it can assert the setter is actually CALLED.
 if ! "$CXX" $FLAGS -I"$ROOT/test/host/arduino_shim" "$ROOT/test/host/test_follow_flag.cpp" \
@@ -1071,6 +1241,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "usage report: the Follow flag (v15 item 2)"
 
 # include/DayNight.h, Auto's day/night decision, and the first test of include/SolarDim.h's SunElevationDeg
 # (docs/weatherscope-stage3.md A11.4, A12.43, A12.45): 28 checks against NOAA's algorithm (tools/weatherscope/
@@ -1078,6 +1251,8 @@ fi
 # reference's --check. Its sabotages: python -I test/host/sabotage_daynight.py
 echo
 echo "== DayNight =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_daynight.cpp" -o "$OUT/test_daynight.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the DayNight test did not compile"
   cat "$OUT/build.log"
@@ -1090,7 +1265,12 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "DayNight"
 echo "== DayNight SY: no product symbol in include/DayNight.h =="
+(
+  fail=0
 bash "$ROOT/test/host/scan_daynight_symbols.sh" "$ROOT/include/DayNight.h"
 rc=$?
 if [ "$rc" -ge 2 ]; then
@@ -1109,12 +1289,17 @@ else
   "$PY" "$ROOT/tools/weatherscope/daynight_ref.py" --check
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "DayNight SY: no product symbol in include/DayNight.h"
 
 # The WXC1 weather-crop decoder (include/WxCrop.h), shared by Weatherscope and the Blipscope weather
 # layer, against crops the weather spike's OWN encoder wrote (test/fixtures/wx/, two references in
 # MANIFEST.json). Its two sabotages run from test/host/sabotage_wx_crop.py.
 echo
 echo "== WxCrop =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_crop.cpp" -o "$OUT/test_wx_crop.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the WXC1 decoder test did not compile"
   cat "$OUT/build.log"
@@ -1127,10 +1312,15 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxCrop"
 
 # Weatherscope Stage 1's renderer (src/weatherscope/WxRender.h) against render_ref.py's screen, byte for byte.
 echo
 echo "== WxRender =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_render.cpp" -o "$OUT/test_wx_render.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope renderer test did not compile"
   cat "$OUT/build.log"
@@ -1143,12 +1333,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxRender"
 
 # Weatherscope's palette (src/weatherscope/WxPalette.h) against the pinned MetPy table and the ruled properties
 # (docs/weatherscope-stage2.md, addenda 2, 4, 5 and 8: C3 a-j; code 1 teal and C3 k-l by docs/weatherscope-stage3.md
 # A10.16). Its sabotages: python -I test/host/sabotage_wx_palette.py
 echo
 echo "== WxPalette =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_palette.cpp" -o "$OUT/test_wx_palette.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope palette test did not compile"
   cat "$OUT/build.log"
@@ -1161,6 +1356,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxPalette"
 
 # Weatherscope's theme table (src/weatherscope/WxTheme.h; docs/weatherscope-stage3.md A12.43, A12.44, A12.46): the
 # light palette held to C4 (CIEDE2000 behind Sharma's 34 pairs, WCAG behind its published grey, text in RGB888 and in
@@ -1168,6 +1366,8 @@ fi
 # Its sabotages: python -I test/host/sabotage_wx_theme.py
 echo
 echo "== WxTheme =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_theme.cpp" -o "$OUT/test_wx_theme.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope theme test did not compile"
   cat "$OUT/build.log"
@@ -1180,12 +1380,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxTheme"
 
 # NL (docs/weatherscope-stage3.md A11.5, A12.47): no colour literal in the Weatherscope's drawing code -- every colour
 # is a role in WxTheme.h. The scope is src/weatherscope/ minus WxTheme.h, WxPalette.h and bench/; the allowlist is empty.
 # Its control: pointed at WxTheme.h, it must find that file's literals. Its plant: python -I test/host/sabotage_wx_themed_draw.py
 echo
 echo "== WxTheme NL: no colour literal in drawing code =="
+(
+  fail=0
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; NL's scan cannot run."
   fail=1
@@ -1210,6 +1415,9 @@ else
     fail=1
   fi
 fi
+  exit "$fail"
+)
+note_block $? "WxTheme NL: no colour literal in drawing code"
 
 # Q51 (docs/weatherscope-stage3.md A12.49, A12.50): every sabotage driver's anchors present exactly once in the current
 # tree. No plant runs and nothing compiles, so a refactor that strands a plant fails HERE, in the PR that strands it --
@@ -1218,6 +1426,8 @@ fi
 # module) and sabotage_anchors_control.py (this pass's control: a mangled anchor must turn it red) are not drivers.
 echo
 echo "== sabotage anchors: every test/host/sabotage_*.py --anchors =="
+(
+  fail=0
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; the sabotage anchors cannot be checked."
   fail=1
@@ -1259,6 +1469,9 @@ else
   "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "sabotage anchors: every test/host/sabotage_*.py --anchors"
 
 # Q57 (docs/weatherscope-stage3.md A12.61): every sabotage driver's --control -- its unplanted run alone, building its
 # suites and checking each one's count against the driver's own table, nothing planted -- so a driver that cannot run
@@ -1267,6 +1480,8 @@ fi
 # sabotage_controls_control.py is this block's own control: a copy with a stale count must turn it red.
 echo
 echo "== sabotage controls: every test/host/sabotage_*.py --control =="
+(
+  fail=0
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; the sabotage controls cannot run."
   fail=1
@@ -1299,13 +1514,75 @@ else
   echo "  $nd driver(s): $((nd - ns)) run, $ns skipped"
   CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_controls_control.py"
   [ "$?" -ne 0 ] && fail=1
+  # A12.70: one count, one place. A driver whose CONTROL_TABLE or run path regrows a count literal fails here. The
+  # lint's own control runs first (a clean driver and five mangled copies, each flagged exactly as frozen), and its
+  # failure is the RIG: a lint that cannot flag is indistinguishable from drivers that are clean.
+  "$PY" -I -B "$ROOT/test/host/lint_driver_counts.py" --control
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: the driver-count lint's own control did not pass. This is the RIG."
+    exit 2
+  fi
+  "$PY" -I -B "$ROOT/test/host/lint_driver_counts.py"
+  [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "sabotage controls: every test/host/sabotage_*.py --control"
+
+# A12.73: every sabotage driver IN FULL -- each plant applied, built with this run's compiler and graded against its
+# frozen set -- so a driver whose plants drift fails the PR that drifts them, not the next person to run it by hand
+# (themed_draw's RIG from #507; S-A2 and S-L under g++ 13.3). Any nonzero exit is a failure. sabotage_wx_towns.py needs
+# the Census archives: it runs when WX_TOWNS_GAZ and WX_TOWNS_SUBEST name two files, and is SKIPPED with its reason,
+# counted apart, when they don't (CI holds no archive). --control (above) stays: it names the suite and the count when a
+# table drifts, which a full run's RIG line does not always do.
+echo
+echo "== sabotage drivers, in full: every test/host/sabotage_*.py =="
+(
+  fail=0
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the sabotage drivers cannot run."
+  fail=1
+else
+  nd=0
+  ns=0
+  for d in "$ROOT"/test/host/sabotage_*.py; do
+    b=$(basename "$d")
+    case "$b" in sabotage_common.py|sabotage_anchors_control.py|sabotage_controls_control.py) continue ;; esac
+    nd=$((nd + 1))
+    if [ "$b" = sabotage_wx_towns.py ]; then
+      if [ -f "${WX_TOWNS_GAZ:-}" ] && [ -f "${WX_TOWNS_SUBEST:-}" ]; then
+        CXX="$CXX" "$PY" "$d" "$WX_TOWNS_GAZ" "$WX_TOWNS_SUBEST" > "$OUT/full.log" 2>&1
+      else
+        echo "  SKIP $b: needs the Census archives (set WX_TOWNS_GAZ and WX_TOWNS_SUBEST)"
+        ns=$((ns + 1))
+        continue
+      fi
+    else
+      CXX="$CXX" "$PY" "$d" > "$OUT/full.log" 2>&1
+    fi
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      echo "  ok   $b: $(grep -c 'AS PREDICTED' "$OUT/full.log") AS PREDICTED line(s)"
+    else
+      echo "  FAIL $b (exit $rc):"
+      cat "$OUT/full.log"
+      fail=1
+    fi
+  done
+  echo "  $nd driver(s): $((nd - ns)) run, $ns skipped"
+fi
+  exit "$fail"
+)
+note_block $? "sabotage drivers, in full: every test/host/sabotage_*.py"
 
 # The device's WXC1 decoder against crops the SERVER PATH made (proxy/src/wx/handler.ts over a synthetic
 # WXG1; docs/wx-server.md WS7). proxy/scripts/wx-fixtures.ts writes them and workers.yml fails if they are
 # stale. Its sabotage: python -I test/host/sabotage_wx_server_crops.py
 echo
 echo "== WX server crops =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_server_crops.cpp" -o "$OUT/test_wx_server_crops.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the WX server crop test did not compile"
   cat "$OUT/build.log"
@@ -1318,12 +1595,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WX server crops"
 
 # K12 (docs/wx-opuk.md): the same decoder against the opuk crops -- eight UK airports over a REAL frame, served by
 # /wx/cref's dispatch (test/fixtures/wx/opuk/, written by the same generator; workers.yml fails if stale).
 # Its sabotage: python -I test/host/sabotage_wx_server_crops.py opuk man-161km.wxc
 echo
 echo "== WX opuk crops (K12) =="
+(
+  fail=0
 "$OUT/test_wx_server_crops.exe" "$ROOT/test/fixtures/wx/opuk"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
@@ -1331,11 +1613,16 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WX opuk crops (K12)"
 
 # Weatherscope's legend layout (src/weatherscope/WxLegend.h) against the round-screen rules (addendum 8: G1-G4).
 # Its sabotages: python -I test/host/sabotage_wx_legend.py. The board's pixels: test/fixtures/wx/legend_check.py.
 echo
 echo "== WxLegend =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_legend.cpp" -o "$OUT/test_wx_legend.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope legend test did not compile"
   cat "$OUT/build.log"
@@ -1348,11 +1635,16 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLegend"
 
 # Weatherscope's feed interfaces (src/weatherscope/WxFeeds.h) against fakes, with no Arduino core and no stored
 # implementation (docs/weatherscope-stage3.md A6.2, D1). Its sabotage: python -I tools/weatherscope/s32/s32.py d1host --sabotage
 echo
 echo "== WxFeeds =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_feeds.cpp" -o "$OUT/test_wx_feeds.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope feed-interface test did not compile"
   cat "$OUT/build.log"
@@ -1365,9 +1657,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxFeeds"
 
 echo
 echo "== pre-build patches: which libraries count as declared (docs/prebuild-patches.md, T2) =="
+(
+  fail=0
 # The rule that decides "FATAL" vs "not a dependency" when a patch target is missing. It errs
 # toward FATAL: a library is declared if its name appears anywhere in a lib_deps entry.
 if [ -z "$PY" ]; then
@@ -1377,12 +1674,17 @@ else
   "$PY" "$ROOT/scripts/prebuild_patch.py" --selftest
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "pre-build patches: which libraries count as declared (docs/prebuild-patches.md, T2)"
 
 # Weatherscope's screen logic (src/weatherscope/WxLogic.h) against its frozen truth tables, docs/weatherscope-stage3.md
 # A8.2 and A8.8: 118 named cases, plus RK on the real KDFW crop against ring_ref.py's independent value. Its 24
 # sabotages: python -I test/host/sabotage_wx_logic.py
 echo
 echo "== WxLogic =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_logic.cpp" -o "$OUT/test_wx_logic.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope logic test did not compile"
   cat "$OUT/build.log"
@@ -1402,11 +1704,16 @@ else
   "$PY" "$ROOT/test/fixtures/wx/ring_ref.py" --check
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WxLogic"
 
 # Weatherscope's loop crops (test/fixtures/wx/loop/) graded by the device decoder against the encoder's own cells,
 # docs/weatherscope-stage3.md A8.10 and A8.13: D2-D4. Its sabotages: python -I test/host/sabotage_wx_loop.py
 echo
 echo "== WxLoop =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_loop.cpp" -o "$OUT/test_wx_loop.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope loop test did not compile"
   cat "$OUT/build.log"
@@ -1419,12 +1726,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLoop"
 
 # Weatherscope's town subset (src/weatherscope/WxTowns.h) through LabelText, docs/weatherscope-stage3.md A8.14: D6(b).
 # D6(a), regeneration, needs the Census zip: tools/weatherscope/towns/make_towns.py <zip> --check. Its sabotages:
 # python -I test/host/sabotage_wx_towns.py <zip>
 echo
 echo "== WxTowns =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_towns.cpp" -o "$OUT/test_wx_towns.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope towns test did not compile"
   cat "$OUT/build.log"
@@ -1437,12 +1749,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxTowns"
 
 # Weatherscope's four scenarios (src/weatherscope/WxScenarios.h) through Choose and the text functions, against
 # scenarios.py's reference, docs/weatherscope-stage3.md A8.15: K3. Its sabotages:
 # python -I test/host/sabotage_wx_scenarios.py
 echo
 echo "== WxScenarios =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_scenarios.cpp" -o "$OUT/test_wx_scenarios.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope scenarios test did not compile"
   cat "$OUT/build.log"
@@ -1462,6 +1779,9 @@ else
   "$PY" "$ROOT/tools/weatherscope/loop/scenarios.py" --check
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WxScenarios"
 
 # Weatherscope's loop frames through the device's render path (WxCrop.h + WxRender.h) against render_ref.py's
 # screens (test/fixtures/wx/loop/screens.ref.json), docs/weatherscope-stage3.md A8.16: K2. The reference's own
@@ -1469,6 +1789,8 @@ fi
 # python -I test/host/sabotage_wx_loop_render.py
 echo
 echo "== WxLoopRender =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_loop_render.cpp" -o "$OUT/test_wx_loop_render.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope loop render test did not compile"
   cat "$OUT/build.log"
@@ -1481,12 +1803,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLoopRender"
 
 # Weatherscope's screen layer (src/weatherscope/WxScreens.h): the stored-mode cycle, titles and clock,
 # docs/weatherscope-stage3.md A8.20 as A9.10 re-registered it: 15 cases, and A12.53's CY8 and CY9: 17. Its sabotages:
 # python -I test/host/sabotage_wx_screens.py
 echo
 echo "== WxScreens =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_screens.cpp" -o "$OUT/test_wx_screens.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope screens test did not compile"
   cat "$OUT/build.log"
@@ -1499,12 +1826,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxScreens"
 
 # Weatherscope 3.5a's layout rules (src/weatherscope/WxScreens.h, WxRaster.h): labels, rings, the state line,
 # the time, the warning texts, the arrow and zoom, docs/weatherscope-stage3.md A9.10: 73 cases. Its sabotages:
 # python -I test/host/sabotage_wx_layout.py. Whole frames are the K rows'.
 echo
 echo "== WxLayout =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_layout.cpp" -o "$OUT/test_wx_layout.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope layout test did not compile"
   cat "$OUT/build.log"
@@ -1517,12 +1849,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLayout"
 
 # Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it): the BMPK reader
 # (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- 84 named
 # cases, and A12.53's 8 for the key's reason: 92. Its sabotages: python -I test/host/sabotage_wx_basemap.py
 echo
 echo "== WxBasemap =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_basemap.cpp" -o "$OUT/test_wx_basemap.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope basemap test did not compile"
   cat "$OUT/build.log"
@@ -1535,6 +1872,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxBasemap"
 
 # Weatherscope 3.5a's K rows: 25 screens through the device's path (WxScenes.h + Compose) against ref35.py's
 # independent rendering (test/fixtures/wx/k35.ref.txt, regenerated by ref35.py --k --check), docs/weatherscope-stage3.md
@@ -1548,6 +1888,8 @@ fi
 # Bend 15 (one Layer, frames 0-7 Dark and 8-14 Light) and LY's 57: 368 checks.
 echo
 echo "== WxK35b =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_k35b.cpp" -o "$OUT/test_wx_k35b.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope Bend K test did not compile"
   cat "$OUT/build.log"
@@ -1560,9 +1902,14 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxK35b"
 
 echo
 echo "== WxK35 =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_k35.cpp" -o "$OUT/test_wx_k35.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope K test did not compile"
   cat "$OUT/build.log"
@@ -1575,6 +1922,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxK35"
 
 # Weatherscope 3.5a's layer replay: every loop frame through ComposeLayered equal to the full Compose at 57,600 px,
 # at 60, 30 and 15 mi, without and with the warning overlay, docs/weatherscope-stage3.md A9.23: 90 rows; 3.5t t4
@@ -1582,6 +1932,8 @@ fi
 # test/host/sabotage_wx_replay.py, and t4's S-RPT in python -I test/host/sabotage_wx_light.py
 echo
 echo "== WxReplay =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_replay.cpp" -o "$OUT/test_wx_replay.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope replay test did not compile"
   cat "$OUT/build.log"
@@ -1594,12 +1946,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxReplay"
 
 # Weatherscope 3.5t t4's theme switch (docs/weatherscope-stage3.md A12.60): one Layer through Auto's own path
 # (daynight::Decide, then wxtheme::Select), each step's rebuilds counted and their cause named by the LayerKey fields
 # that changed: SW1-SW5 and SW-X, 6 checks. Its sabotage: S-RPT in python -I test/host/sabotage_wx_light.py
 echo
 echo "== WxSwitch =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_switch.cpp" -o "$OUT/test_wx_switch.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the Weatherscope switch test did not compile"
   cat "$OUT/build.log"
@@ -1612,12 +1969,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxSwitch"
 
 # Weatherscope 3.5t t4's TH2' (docs/weatherscope-stage3.md A12.60): ref35.py's palette closure on four light scenes
 # (the Dallas warning and stale, Dallas loop frame 7, Bend loop frame 14) and its control, 5 checks. Needs no Pillow, so
 # it runs before R0. Its sabotage: python -I test/host/sabotage_wx_th2.py
 echo
 echo "== Weatherscope TH2' (the light reference's palette closure) =="
+(
+  fail=0
 "$PY" -I -B "$ROOT/tools/weatherscope/screens/th2.py"
 rc=$?
 if [ "$rc" -ge 2 ]; then
@@ -1625,6 +1987,9 @@ if [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "Weatherscope TH2' (the light reference's palette closure)"
 
 # --- the served game config, through the device's parser (GameConfig.h) ------
 #
@@ -1637,6 +2002,8 @@ fi
 # predictions: docs/game-config-parse-test.md.
 echo
 echo "== GameConfig (the served /config, through ParseGameConfig) =="
+(
+  fail=0
 if [ -z "$JSON_INCLUDES" ]; then
   echo "  BLIND: no ArduinoJson under .pio/libdeps (run pio run once)"
   echo "FAIL: the GameConfig test could not be built (BLIND)"
@@ -1658,6 +2025,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "GameConfig (the served /config, through ParseGameConfig)"
 
 # Weatherscope's reference controls (docs/weatherscope-stage3.md A12.18): ref35.py's R0 against the reviewer's 3.5a
 # mockups and geo35.py's R0b against the Bend mockups, from the pinned fixtures in test/fixtures/wx/r0/. Pillow is
@@ -1665,6 +2035,8 @@ fi
 # never a skip.
 echo
 echo "== Weatherscope R0 and R0b (the reference's controls, A12.18) =="
+(
+  fail=0
 if [ -z "$PY" ] || ! "$PY" -c "import PIL" >/dev/null 2>&1; then
   echo "FAIL: no python with Pillow; R0 and R0b cannot run. This is the RIG, not the code."
   exit 2
@@ -1678,11 +2050,20 @@ if [ "$rc" -eq 2 ]; then echo "FAIL: R0 refused its fixtures (the rig)"; exit 2;
 rc=$?
 if [ "$rc" -eq 2 ]; then echo "FAIL: R0b refused its fixtures (the rig)"; exit 2; fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "Weatherscope R0 and R0b (the reference's controls, A12.18)"
 
 echo
+if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
+  echo "FAILED BLOCKS:"
+  printf "%s\n" "$RIG_BLOCKS" | tr "|" "\n" | sed "/^$/d; s/^/  the rig: /"
+  printf "%s\n" "$FAILED_BLOCKS" | tr "|" "\n" | sed "/^$/d; s/^/  failed:  /"
+fi
 if [ "$fail" -eq 0 ]; then
   echo "ALL HOST TESTS PASSED"
 else
   echo "HOST TESTS FAILED"
 fi
+[ -n "$RIG_BLOCKS" ] && exit 2
 exit "$fail"

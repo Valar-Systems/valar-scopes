@@ -96,7 +96,8 @@ def control():
     first_def = sc_src.index("\ndef ") + 1
     cases = [
         ("the clean driver", "sabotage_wx_k35.py", k35, []),
-        ("a table literal", "sabotage_wx_k35.py", k35.replace(table, '("checks", 79)'), ["L1"]),
+        # Q66 (a): the table's literal is L1, and the constant it no longer reads is a second copy, L2 (A12.74)
+        ("a table literal", "sabotage_wx_k35.py", k35.replace(table, '("checks", 79)'), ["L1", "L2"]),
         ("a run-path literal", "sabotage_wx_k35.py", k35.replace(check, "!= 79"), ["L2"]),
         ("the pinned literal elsewhere, bitwise", "sabotage_wx_server_crops.py",
          sc_src[:first_def] + "MASK = 0x10 ^ 0\n" + sc_src[first_def:], ["L2"]),
@@ -112,8 +113,8 @@ def control():
             os.makedirs(d)
             p = os.path.join(d, base)
             open(p, "w", encoding="utf-8").write(text)
-            got = [rule for rule, _, _ in lint(p)]
-            good = got == want
+            got = sorted(rule for rule, _, _ in lint(p))
+            good = got == sorted(want)
             ok &= good
             print(f"  {'ok  ' if good else 'FAIL'} LINT-CTL {name}: flagged {got} (want {want})")
     return 0 if ok else 1
