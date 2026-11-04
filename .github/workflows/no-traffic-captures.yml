@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   no-traffic-captures:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # The selftest first: a check that cannot catch a planted capture proves nothing.

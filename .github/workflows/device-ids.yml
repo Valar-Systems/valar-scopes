@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   no-real-device-ids:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # No committed file carries a BSSID beyond the 13 named logs (docs/bssid-guard.md), and the
