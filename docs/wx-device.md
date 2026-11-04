@@ -4507,3 +4507,47 @@ chain is backed up to `backup/wx-device-merge-1104` (`50e359c`).
 | **M4′** | `run.sh` on WSL g++ 13.3 | the only failed blocks are the rig's two (no xtensa toolchain; no Pillow) |
 
 **Outside the set:** stop and report.
+
+**M2b, results:** as predicted.
+- With no arguments, the output is byte-identical to the old-argument run (g++ 13.3.0). The driver's sha moved
+  `823282732f07` → `ca179be40cd1`, so the change applied.
+- `--anchors` (6 plants, 6 anchors) and `--control` (ok 10): byte-identical to their runs before the change.
+- The lint flags 0.
+
+**M4′, result:** as predicted. `run.sh` on WSL g++ 13.3.0, 21:56:06Z-22:01:34Z, exit 2.
+- The only failed blocks are the rig's two: no xtensa toolchain, and no Pillow for R0/R0b.
+- The full driver pass is green: 26 run, 1 skipped (towns, as always), and `sabotage_wx_s2.py` AS PREDICTED.
+
+**(2), read before the code: the ruling's condition cannot be met by a `setBuffer`. Stopped for a new ruling.**
+1. **The ruling's test, answered.** The firmware writes `wxLayer565` only through the sprite (`fillScreen`,
+   `drawPixel`, `:3387`/`:3391`). It READS it directly: `memcpy(dst, wxLayer565, ...)` at `:3433` (the flat path, on
+   every shown frame) and `:2071` (`CheckLayerCopy`, `WX_LOOK_AB` only). By that test, the shim uses the given buffer.
+2. **But the shim has no pixels.** It records vector commands, and `LGFX_Sprite::getBuffer()` returns `this` as a
+   non-null token.
+   - The flat path copies 115,200 B into `dst = sp.getBuffer()`, which is over the canvas sprite object.
+   - `DrawSweepOverWeather` writes `uint16_t` pixels through the same pointer.
+   - In a web build that reached the weather path, either one is memory corruption, however `setBuffer` is written.
+3. **The web build never reaches that path today.** `web_config.cpp`'s map has no `wx-layer`, so `wxLayerEnabled`
+   is false. `AllocateWeatherBuffers()` (`:912`) never runs, and `setBuffer` is compiled but never called.
+4. **A second build failure is predicted, not observed.** `web_http.cpp` defines `HttpRequestManager` without
+   `GetBytes`, which the fetch task calls at `:2896`. Emscripten fails the link on an undefined symbol by default,
+   and `build.sh` sets no override.
+5. **So "the smoke frames show the weather layer drawn" is a feature, not a fix.** It needs:
+   - `wx-layer` on in the web config;
+   - a `GetBytes` in `web_http.cpp` that fetches `/wx` through the site's Worker (the site session's side);
+   - a raster form for a per-pixel layer in a vector shim (today, 57,600 `drawPixel` per rebuild);
+   - the two raw-pointer paths kept out of the web build.
+
+**Options:**
+- **(A) Compile only, with weather staying off on the site, as it is today.**
+  - `setBuffer` mirrors `createSprite`: it records w, h and depth, and the layer is never enabled, so its contents
+    are never read.
+  - `web_http.cpp` gains a `GetBytes` that answers as a network failure.
+  - The off-ness is made structural: a check fails if the web config turns `wx-layer` on while `getBuffer()` is a
+    token.
+  - Acceptance: CI's web build green, its smoke and carousel checks as on main, and device bytes unchanged (only
+    `tools/web-renderer/` changes).
+- **(B) Weather on the website.** A separate item after #445. It needs Daniel's go and the site session's Worker
+  side.
+
+**Recommended: (A) for #445.**

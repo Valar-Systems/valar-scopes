@@ -1,7 +1,10 @@
 """WD4's sabotages (docs/wx-device.md, WD4 and its addenda): each plants ONE break into a copy of include/WxS2.h and
 requires the host test to turn red in exactly the checks named, no fewer and no more.
 
-    python -I sabotage_wx_s2.py <repo-root> <c++ compiler>       exit 0 every sabotage as predicted, 1 otherwise, 2 rig
+    python -I sabotage_wx_s2.py [<repo-root> <c++ compiler>]     exit 0 every sabotage as predicted, 1 otherwise, 2 rig
+
+With no arguments the root is this file's own repo and the compiler is $CXX, as in sabotage_wx_policy.py (run.sh's
+full pass runs every driver that way; docs/wx-device.md, M2b). An explicit pair is still honoured.
 
 The copy lives in a temporary tree mirroring the repo's (include/WxS2.h beside src/weatherscope/WxPalette.h), because
 WxS2.h includes the palette by a relative path: a copy without it would compile against nothing, or against the real
@@ -17,12 +20,12 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device.md, "CI's anchors pass")
 
-# run.sh's --anchors pass gives no arguments: the root is then this file's own repo.
-if sc.wants_anchors() or sc.wants_control():
+# run.sh's --anchors, --control and full passes give no arguments: the root is then this file's own repo.
+if not (sc.wants_anchors() or sc.wants_control()) and sys.argv[1:]:
+    ROOT, CXX = sys.argv[1:]
+else:
     ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
-else:
-    ROOT, CXX = sys.argv[1], sys.argv[2]
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
 PLANTS = [
