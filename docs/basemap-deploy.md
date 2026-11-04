@@ -628,3 +628,95 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **Weatherscope has the fix.** No other failure.
 
 **D3's deploy and verification** wait for the staging test identity (`docs/test-identity.md`), now minted. They run once #513 is merged.
+
+## D3, re-registered: the UK data session's deploy (registered before any D3 row is read, 2026-11-04)
+
+**The rulings, verbatim (reviewer chat, pasted by Daniel).** From ~20:55Z, the D3 part:
+
+> D3, ruled:
+> 1. The commit: (c), main's tip f740f10, once main's CI on it reads green (two reads). Not main at deploy time.
+>    Staging gets #512, #521, #522 and #525.
+> 2. Re-evaluate every frozen D3 row against #521, #522 and #525 before running. A row that changes is re-registered in
+>    the docs first, with its reason; anything you can't settle that way, stop and ask.
+> 3. MM2: GraphQL analytics in place of Workers Logs, accepted with two controls registered before D3: it counts the
+>    build request(s) D3 makes through the bound staging proxy (at least 1), and it reads 0 for the hour before D3. If
+>    it can't see the build, MM2 is BLIND, which is a FAIL: stop.
+> 4. Also read #525's live-page row on staging, read-only: the preview of the UK data session's PD7.
+> 5. Report through Daniel. The UK data session then deploys the same commit to staging and production; that is
+>    #525's deploy.
+
+From ~21:25Z:
+
+> 2. D3 changes shape, to keep the deploy moving: the UK data session deploys f740f10 to staging and production now
+>    (its PD), and that staging step is D3's deploy. Re-register D3 in the docs before reading:
+>    - deployed by the UK data session, at the time it gives Daniel;
+>    - V1 and the other rows read after that deploy; V2 after #532 merges, since it needs the fixed smoke;
+>    - MM2's GraphQL window starts at that deploy, and its control hour (0 invocations) is the hour before it, read
+>      from analytics after the fact.
+>    A row that can no longer be read as frozen, say so; don't stretch it.
+> 3. If any D3 row reads off on staging: stop and report. Staging's rollback target is c7fa5f84 (the UK data session
+>    recorded it). Production is unaffected: its binding stays absent.
+
+**The deploy.**
+- It was made by the UK data session from `f740f10`.
+- `wrangler deployments list --env staging` (read-only) shows version **`cc4dcf89`**, created **21:21:13Z** by Daniel's
+  account. It replaced **`c7fa5f84`**, the rollback target.
+- **T0 is the time the UK data session gives Daniel.** If that differs from 21:21:13Z by more than 2 minutes, I report
+  it before reading.
+- main's CI on `f740f10` read green on two reads: 45 runs, 43 success, 2 skipped, 0 failed.
+
+**Read before this registration, recorded rather than re-read.** At 21:21:36Z, checking whether the deploy had
+happened, I read staging's `/healthz`: `commit f740f10`, `basemap {rev: 1, store: null, commit: null}`. That is the
+deploy row's MH2 value as #512 froze it. This re-registration changes who deploys, not MH2's value, so the reading stands
+as made.
+
+**#521, #522 and #525 against every frozen D3 row: none changes.**
+- No D3 row reads `/credits` (its smoke half is D4's) or `/wx`.
+- No basemap or `/healthz` code changed after #512.
+- The smoke's `/basemap` check is unchanged in this commit. It is broken (`docs/smoke-basemap-query.md`, #532); that
+  is a defect, not a change carried by these three PRs.
+
+**The instruments, checked read-only before registering:**
+- **GraphQL `workersInvocationsAdaptive`** returns `sum{requests}`, `quantiles{cpuTimeP50, cpuTimeP99, wallTimeP50,
+  wallTimeP99}` (microseconds) and `dimensions{datetimeMinute, status}`. For `blipscope-basemap-staging` over the 3 h
+  before 21:20Z it read **0 rows**.
+- **Staging's Workers Logs** events carry `$workers.cpuTimeMs`, `$workers.wallTimeMs`, `$workers.outcome` and the
+  request path and status.
+
+### The rows, as they are now read
+
+**Every `/basemap` request is mine:**
+- made as the test identity (`test-key-staging`, `curl -K -`);
+- with Weatherscope's query: `eps=100584`, `layers=water,rivers,roads,peaks,places,terrain`,
+  `levels=24743664:246,49487328:246,98974656:246`;
+- each request that reaches the builder at least 2 minutes from the next, so each minute's count is one request's.
+
+**The centres are public airports:** KDEN (39.8617, -104.6731), EGLL (51.4700, -0.4543) and, only if MM6 needs it,
+KATL (33.6407, -84.4277).
+
+| row | read how | predicted |
+|---|---|---|
+| **the deploy row** | staging `/healthz` `commit`, plus wrangler's record of the deploy | `f740f10`; `cc4dcf89` at 21:21:13Z. MH2 as read above |
+| **MM2's control A** | GraphQL, the builder, **[T0 - 60 min, T0)**, read after the fact | **0 invocations** |
+| **no one else reached the builder** | GraphQL, the builder, [T0, my first `/basemap` request) | **0**. Any invocation there is not mine: off, stop |
+| **MM2** | the first request, KDEN r 97 with terrain: a cold build. GraphQL for that minute | **control B: exactly 1 invocation.** Its CPU **≤ 3,000,000 µs** and wall **≤ 8,000,000 µs**. HTTP 200, BMPK magic and an ETag. A miss of control B is BLIND, which is a FAIL: stop |
+| **V1** | after the KDEN build, staging `/healthz` `basemap`, up to 5 reads 10 s apart (the field is the answering isolate's last build) | the first non-null reads `commit 9f44a1a273b54a6890253c2126b17dc3a742c76c`, a non-null `store`, `rev 1`. All 5 null: off, stop |
+| **MM4** | the same request, at least 2 min later | 200; the proxy's `$workers.cpuTimeMs` **≤ 10**; **0** builder invocations in its minute |
+| **MM5, V3** | the same request with `If-None-Match: <its ETag>` | **304**; `cpuTimeMs` **≤ 5**; **0** builder invocations, so 0 store reads (the store is read only by the builder) |
+| **V4** | EGLL, the same query | **`404 no_coverage`**; exactly **1** builder invocation in its minute (the proxy has no coverage check of its own) |
+| **MM6** | the KDEN build, if its builder CPU was over 200 ms | the proxy's `$workers.outcome` is `ok`, and the builder's GraphQL `status` is `success`: no exceeded CPU or memory. **If its CPU was 200 ms or less:** one KATL r 222 build, read the same way, which is one more invocation in its own minute |
+| **V2** | after #532 merges: the fixed smoke, `BASE` staging, as the test identity | its `/basemap` verdict **"PASS -- wired"**, and 1 builder invocation in its minute. The smoke's other checks are reported as read, not graded |
+| **#525's live-page row** | staging `/credits`, read-only | each row's first licence link tallies CC BY-SA 4.0 48, 2.0 36, 3.0 18, 3.0 AU 12; CC BY 2.0 32, 4.0 24, 3.0 3, 2.5 2; OGL v1.0 1; Public domain 61. The ShareAlike clause on 114 rows, the paragraph once; "adsbdb" 0; the standing-data line once; OPERA's line once |
+| **the rollback window** | staging's Analytics (`blipscope_proxy_staging`), **[T0, T0 + 15 min)**, read after the fact: device 5xx, 401 and 403, with the test identity excluded | **0** |
+| **the stop rules** | any `500 builder_invalid`; builder exceeded CPU or memory above 0; any off reading | none. Any of them: stop and report. The rollback target is `c7fa5f84` |
+
+### Rows that can no longer be read as frozen, said so
+
+- **The deploy row's "`deploy.sh staging`: its confirmation reads the stamp".** The deploy and its confirmation were
+  the UK data session's. I read the stamp from `/healthz` and wrangler's record instead.
+- **§9's "roll the proxy back AT ONCE" on a fleet 5xx, 401 or 403 in [T, T + 15 min).** I read that window after the
+  fact, so "at once" cannot be mine. An off reading there is a stop and a report.
+- **MH2's "before any build".** It was read once, at 21:21:36Z, before this registration (above), not as a registered
+  row.
+
+**Outside the set:** stop and report.
