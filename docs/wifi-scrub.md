@@ -320,3 +320,86 @@ crashes instead of reporting red is a defect: it hides which rows would have cau
 **The harness, not a row.** The rehearsal script's first run crashed on its own S-W4N edit, which set a context to
 `None` instead of removing it. That happened before any sabotage result was read, and the edit now removes both
 contexts.
+
+## The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~17:05Z)
+
+> #517, the Wi-Fi scrub:
+> - My correction: there is one network name, not two. My scan counted the placeholder "<ssid>" as a second name, and
+>   docs/wifi-join-failure-eero.md holds nothing to scrub. Record it as my error.
+> - W2: the fix is approved (the scrub uses the guard's line definition), with the first run's 93 kept on record. W3's
+>   relabel: approved.
+> - S-W4L: the fix is approved and the row re-registered: rows exit 1 with 5 rows red. A crash is an instrument failure,
+>   never a red.
+> - S-W4P's 142 -> 143, corrected before any sabotage ran: accepted.
+> - Q-W1: yes, fold check_bssid.py into the new guard. One guard, no stale allowances.
+> - Q-W2: yes, 192.168.4.1 passes by value (the ESP32's own portal address). Its control: any other 192.168.4.x is
+>   still flagged.
+> - Q-W3: yes, a follow-up PR with recorder redaction rules at capture time (the association line, the WiFiManager line,
+>   LAN addresses), predictions first.
+> - The guard's selftest plants synthetic values only: never the real name, a real BSSID or a real address.
+> - Commit the sabotage harness. Commit the scrub script too if it holds patterns only and no values; the guard's run over
+>   the tree is the proof.
+> - Then push d0d6fbf with the S-W4L fix and mark #517 ready.
+
+**Recorded as the ruling directs:** the ruling's description of two network names was the reviewer's error. Their
+scan counted the placeholder `<ssid>` as a second name, and `docs/wifi-join-failure-eero.md` holds nothing to scrub.
+This PR's scan was right on both counts.
+
+## Registered before the code that follows (2026-11-04)
+
+### What changes
+
+1. **The S-W4L fix, as ruled.** The selftest's allowlist rows take the line's category without assuming a finding:
+   `cats = line_findings(line)[0]`, then `cat = cats[0] if cats else "none"`.
+2. **Q-W2's control, a new selftest row (l):** one file holding the portal address and four other addresses in its
+   /24 (`.2`, `.10`, `.11`, `.100`).
+   - **Predicted:** exit 1, with exactly **4 findings, all LAN, naming that file**. The portal passes; `.10` and `.11`
+     prove that "starts with the portal" is not the rule.
+   - Every planted address is built at run time.
+3. **Its sabotage, S-W2PORTAL:** the exemption widened from the one address to its whole /24.
+   - **W3: exit 0.** The tree holds no other address in 192.168.4.0/24 (read: 0).
+   - **full: exit 1.**
+   - **rows red: (l) only.**
+4. **S-W4L's red set grows by one, registered before running.** Row (l) uses the LAN pattern too, so with that
+   pattern dead it goes red as well.
+   - The ruled set was 5 rows; **it is now 6:** (f), (f)'s count, the real allowed line, (g), (h) and **(l)**.
+   - Rows exit 1. W3: exit 1 with 10 idle entries. full: exit 2.
+   - **The A2.16 re-check, every other sabotage against (l)'s inputs** (the LAN pattern, the portal comparison, the
+     anchor): S-W4N, S-W4B, S-W4P, S-W5G, S-W5J and S-W5K touch none of them. Their sets are unchanged.
+5. **A crash is an instrument failure, never a red.** The harness prints `INSTRUMENT FAILURE` for any crash, and that
+   sabotage is not as registered.
+6. **The sabotage harness is committed:** `scripts/check_wifi_sabotage.py`. It runs these, and exits 0 only if every
+   one is as registered:
+   - the unsabotaged control;
+   - S-W4N, S-W4B, S-W4L, S-W4P, S-W5G, S-W5J, S-W5K and S-W2PORTAL, as in-memory edits of the guard's source, each
+     asserted to apply once, with the file on disk unchanged;
+   - S-W3, the one log restored from `892fe2b` in place, then restored from a byte copy and its sha256 checked;
+   - S-W7, the scrub with `--everywhere`, read from `892fe2b` in memory (below);
+   - **W8**, below.
+7. **The scrub script is committed:** `scripts/wifi_scrub.py`.
+   - It holds patterns and placeholders only, and imports the guard's patterns.
+   - It derives the bench name in memory from the logs it reads.
+   - `--rev <sha> --dry` reads a git revision instead of the working tree, and writes nothing.
+   - **With no bench name in its input, every name value it meets is refused, not replaced.**
+8. **W8, the plants are synthetic.** Compared in memory against the real values at `892fe2b`, none of these equals the
+   bench name, either real BSSID or any real LAN address:
+   - the planted name, the two planted MACs and the planted addresses, the new row (l) included;
+   - the README example line that (g) and (h) copy.
+
+   It prints booleans only.
+
+### Frozen predictions
+
+| | check | predicted |
+|---|---|---|
+| **W3** | the guard on the branch | exit 0; 0 / 0 / 0; 16 entries, each used; stale, idle and unreadable 0 |
+| **W4, W5** | the selftest | every row as predicted, **15 rows**, (l) included |
+| **W2'** | `wifi_scrub.py --rev 892fe2b --dry` | name 107, BSSID 22, LAN 100, in 32 files; the bench name left in that in-memory tree: **4, all in `proxy/photos/`** |
+| **S-W7** | `wifi_scrub.py --rev 892fe2b --dry --everywhere` | name 111, in 34 files, both `proxy/photos` files included; the bench name left: **0** |
+| **W2''** | `wifi_scrub.py` on the branch's working tree | nothing to replace: 0 / 0 / 0, 0 files, exit 0 |
+| **the sabotages** | `check_wifi_sabotage.py` | each as registered, with S-W4L's 6 rows and S-W2PORTAL's (l); 0 instrument failures; the guard byte-identical; **exit 0** |
+| **W8** | in the harness | every planted value is synthetic: **0 equal a real value** |
+| **W6** | the rest | as before |
+| **CI on the pushed head** | | every check finishes success, or skipped as main's runs skip; none failed |
+
+**Outside the set:** stop and report, with no fix until a ruling.
