@@ -476,3 +476,29 @@ shared with `cref`, which E2:08 reads.
 
 - **The escape:** anything else means stop. In production, roll the ingest back first.
 - **R4 follows:** smoke's UK check at a public airport, asserting `opuk` and `X-Wx-Max-Age: 720`.
+
+### The ruling on PD0-PD6 and R3, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~20:00Z)
+
+> 1. Main's CI at 1beba4e: two timeouts are an instrument failure, neither a pass nor a code red. Record both attempts
+>    (that run and the re-run). The deploy gates on e8dfa45's own run, the last commit that changes proxy/, finishing
+>    green. 46bea31 (#526) changed nothing under proxy/.
+> 2. The timeouts get a fix, not only a re-run. K4' also hit vitest's 5 s default in my own run earlier today, so it sits
+>    near the limit. Small PR, predictions first: each of the two tests' durations, read from CI's logs on both legs,
+>    and an explicit timeout with margin for each (or a faster test). Their checks and sabotages are unchanged.
+> 3. PD0-PD6: accepted as frozen. The deploy commit: 46bea31 if e8dfa45's CI finishes green; otherwise your timeout
+>    fix's merge commit (it changes only tests, so PD0 stays exactly #512, #521 and #522). Use that commit, not main at
+>    deploy time. The order: the map server deploys D3 (staging) from the same commit first; your deploy, staging then
+>    production, waits for D3's report through Daniel.
+> 4. R3-0 to R3-8: accepted as frozen. R3 runs after your PD report, at a slot you propose in it; I confirm the slot is
+>    outside every announced board window before you start. Put R3-0's cost figure in that report too: over $2 a month
+>    means stop and ask Daniel.
+
+**Main's CI at `1beba4e`, both attempts (run 41897250440):**
+- **Attempt 1:** `workers` / `test (proxy)` failed on two 5 s timeouts, with no wrong answer (867 passed, 2 timed
+  out, 1 skipped): `test/wx-opera.test.ts:432` (K4′'s sabotage) and `test/wx-crop.test.ts:42` (WS2's 200 crops).
+  `test (dashboard)` and `manifest-drift` passed.
+- **Attempt 2** (the failed jobs re-run): `test (proxy)` passed. Final: 41 check-runs, 39 success, 2 skipped, 0 failed.
+- **Per the ruling,** this was an instrument failure: neither a pass nor a code red.
+
+**`e8dfa45`'s own run:** 41 check-runs, 39 success, 2 skipped (`promote`, `version`), 0 failed, on the first
+attempt. **So the deploy commit is `46bea31`** (#526; `git diff e8dfa45 46bea31 -- proxy/` is empty).
