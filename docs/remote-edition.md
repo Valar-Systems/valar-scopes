@@ -214,3 +214,66 @@ set gains "`[common] build_src_filter` gains the same `-<remote/>` token". Conti
 as frozen; P2's byte-identical images are the real proof that the change is inert. (Same ruling:
 both bench boards logged 0 touches over 7 unattended hours on 10-31, and a hold to start motion
 stays the default anyway, as a motor-safety choice.)
+
+**P1 (2026-11-04).** B built at I (98c82b2) from an empty `.pio`: 42 of 43 existing envs built.
+`probe-s3-128-screenstate` failed, first error `src/probe/ScreenStateProbe.cpp:111:18: error: too few
+arguments to function 'void game::DrawDrill(...)'`. That env is already broken on main and is the
+subject of open PR #399; it is not in skus.yml. Recorded and not fixed here, per P1's own fallback. At S
+it fails with the same first error line, as that fallback predicts.
+
+**P2 -- OFF-PREDICTION. Work on the scaffold's measurement stopped here for a ruling.**
+
+S built at the scaffold head (c0b73b7) in the same worktree: 42 of 43 built (the same one failed).
+
+| | predicted | observed |
+|---|---|---|
+| P2: S image byte-identical to B | 42 of 42 | **0 of 42** |
+| C2a: the envs compiling `src/main.cpp.o`, B vs S | equal sets | equal: 28 and 28 |
+| C2b: an existing env's S log compiling under `src/remote/` | none | none (0 of 43 logs) |
+| C2c | -- | **not run** (see below) |
+
+**Why: the method's premise was false, and the method section says so in the wrong words.** It said
+"PlatformIO wipes `.pio/build` when `platformio.ini` changes", and put I before B to dodge that.
+PlatformIO's `compute_project_checksum` (platformio/project/helpers.py) also hashes the project's
+FILE STRUCTURE -- every `.c/.cc/.cpp/.h/.hpp/.s/.S` path under include/, src/ and lib/. Adding
+`src/remote/` changed it, so `.pio/build` was wiped and S was a FULL rebuild (S compiled exactly as
+many files as B: 165 and 165 for animtest-s3-128, 258 and 258 for blipscope-pro-s3-21), which
+re-stamps every build-time string.
+
+**Every differing byte was then accounted, and none of it is the change** (tool: CLAUDE.md's regions;
+a byte outside them is "a different build"):
+
+- **37 of 42** images differ ONLY in the named regions: `app_elf_sha256` (32 at 0xB0), the trailing
+  image SHA (32), the checksum byte (1), WiFiManager's `aboutdate` stamp and the core's
+  `Software Info:` stamp (the latter stores `__TIME__` and `__DATE__` as two strings, `20:43:24\0Nov  3 2026`).
+- **5 of 42 differ beyond them, and each is the same mechanism, traced in the bytes: string tail-merging
+  keyed on the timestamp's value.** The linker may store a short string as the tail of a longer one.
+  - `blipscope-s3-128-densesky`, `-fetchtrace`, `-joindiag`, `blipscope-s3-146-cloud`: at B their
+    `Software Info` time ended in `:15` (20:53:15, 20:54:15, 20:55:15, 21:05:15), so the standalone
+    `"15"` was merged INTO it; at S it was not, so a `15\0` entry reappears in WiFiManager's string pool
+    after `custom\0` and everything after it shifts (167,249 / 310,313 / 168,078 bytes, and
+    fetchtrace's image grows 16 bytes across a padding boundary). Control: the clean
+    `blipscope-s3-128` and `blipscope-s3-128-cloud` have `15\0` there in BOTH B and S, and no
+    timestamp of theirs ends in 15.
+  - `quakescope-s3-146`: 3 bytes, one literal-pool pointer. At S the `"20"` it points to is the tail of
+    `22:00:20\0Nov  3 2026`; at B (stamp 21:20:24) it was a standalone `20\0`.
+
+So a rebuild of the same source can move bytes OUTSIDE CLAUDE.md's five regions, whenever a timestamp's
+last digits happen to match a short string: the 75-byte accounting assumes a stable layout, and the
+layout depends on the clock. (A candidate for that CLAUDE.md corollary; not edited here.)
+
+**C2c was not run.** As frozen it requires the restored rebuild to be identical to B, which a full
+rebuild has already made impossible -- running it would produce a known failure about the rig.
+
+Proposed for the ruling (not done): rebuild B at I **with the scaffold's three new files present**, so
+I and the head share a file structure and S is genuinely incremental; then P2 can be measured as
+frozen. The alternative is to accept the accounting above as the proof of inertness.
+
+**A defect outside every prediction above: the network name `Remote` makes a version-2 setup QR.**
+Found by the full host suite on the feature branch (section 4's results), and it belongs to THIS PR:
+`test/host/test_wifi_qr.cpp` sweeps every `DEVICE_PRODUCT_NAME` in `include/DeviceIdentity.h` and pins
+the setup screen's Wi-Fi QR at exactly version 3 (the 148 px symbol). `WIFI:T:nopass;S:Remote-FFFFFF;;`
+is 31 bytes, which is version 2; every other product name is 9+ characters and lands on version 3. Both
+compilers fail it identically. The scaffold's predictions never ran the host suite -- a gap in the set,
+not only in the result -- and P5 (CI green) would have failed on the host-tests job. Not fixed: the fix
+is a product network name, which is a ruling.
