@@ -4256,3 +4256,58 @@ Average and p95 are close (99.9 and 102.0), so this is a steady cost, not spikes
   the outline was the margin, and with five filled label lines it is not.
 - **So nothing is changed.** Off-prediction: stop and report. The decision, and whether K6 is re-run with E2:08's own
   labels beside the factory default's, are the reviewer's.
+
+## Ruling of 2026-11-04 ~18:25Z: the age limit's channel, and #445's side, frozen before the code
+
+**The channel, ruled:**
+- the server sends **`X-Wx-Max-Age: <seconds>`** on every 200 and 304 whose served product is `opuk` (720);
+- `cref` sends none, and errors send none;
+- the server side is the UK data session's #522, which also documents the device side (`docs/wx-age-limit.md`).
+
+**#445's side, as ruled:**
+- read the header on `/wx/cref`'s 200 and 304: 1 to 5 digits, clamped to [600, 900], and 600 when it is absent or
+  invalid;
+- a 304 restates it for the held frame;
+- the host test covers the read, the clamp, the default and the 304 case;
+- **the sabotages:** with the clamp removed, 5000 gets through; and a 304 that loses the header falls back to 600,
+  never to the old value.
+
+**The design:**
+- **`WxPolicy.h`, a new property (h):**
+  - `MaxAgeFromHeader(const char*)`: 1-5 ASCII digits, clamped to [600, `kMaxAgeCapS` = 900], and 600 for anything
+    else, absence included;
+  - `State` holds `maxAgeS`, the held frame's limit:
+    - a replacing 200 sets it from its own header;
+    - every 304 sets it from its header, so an absent header gives 600;
+    - a query change resets it to 600;
+    - a refused 200 and an error leave it alone, because the held frame did not change.
+  - **(c) becomes the held frame's limit:** `WhatToShow` hides at `maxAgeS`, not at a fixed 600.
+- **`OnResponse` gains the header's value, with no default argument,** so a caller that forgets it does not compile.
+  The never-sent path passes `nullptr`, since its status is an error and the value is never read.
+- **The device:**
+  - `HttpRequestManager::GetBytes` collects `X-Wx-Max-Age` (five headers, was four) and returns it;
+  - `FetchResult` carries it;
+  - `ConsumeWeather` hands it to `OnResponse`.
+  - The `[wx]` line's format is unchanged, because readers parse it.
+- **The wiring, checked from the source (`check_wx_wiring.py`, a new check WA1):** `GetBytes` collects
+  `X-Wx-Max-Age`, and `ConsumeWeather`'s `OnResponse` call passes the fetched value. This is the second path the
+  policy test cannot see: a header never collected would read as "absent", 600, forever, and every policy test would
+  stay green.
+
+| | check | predicted |
+|---|---|---|
+| **AL1** | the read | `"720"` → 720, `"600"` → 600, `"900"` → 900, `"00720"` → 720 |
+| **AL2** | the clamp | `"5000"`, `"99999"` and `"901"` → 900; `"599"`, `"1"` and `"0"` → 600 |
+| **AL3** | absent or invalid | absent, `""`, `"abc"`, `"72O"`, `"-720"`, `"+720"`, `" 720"`, `"720 "`, `"7.2e2"`, `"123456"`, `"0x2D0"` → 600 |
+| **AL4** | a 200 | with `720`: shown at 720 s old, hidden at 721. With none: hidden at 601 |
+| **AL5** | a 304, the held frame at 720 | a 304 with `720`: still 720. A 304 with **none: 600** (hidden at 601), never 720. A 304 with `5000`: 900 (shown at 900, hidden at 901) |
+| **AL6** | what leaves the limit alone | a refused (older) 200 carrying `900` leaves 720; a 503 leaves 720; a query change gives 600 |
+| **AL7** | 200,000 random steps, with headers drawn from {none, 600, 720, 900, 5000, abc} | (c) never shown older than the held limit; (h) never shown older than 900 at all, and after every 304 and every replacing 200 the held limit equals that reply's clamped header: **0 violations** each |
+| **AL8** | `test_wx_policy` | **34** `ok` lines (was 27: six table rows and one random line, all (h)); every earlier line unchanged; exit 0 |
+| **AL9** | `sabotage_wx_policy.py` | the control passes at 34. **S-h1, the clamp removed:** exactly (h) red. **S-h2, a 304 without the header keeps the old value:** exactly (h) red. Every earlier plant still turns exactly its own property red, with S-c1 re-anchored to the new (c) line |
+| **AL10** | `check_wx_wiring.py` | WA1 passes. Its selftest plant, the header dropped from `GetBytes`' collect list, turns **exactly WA1** red. The earlier checks and plants are unchanged |
+| **AL11** | the shipping env and `wxlook` | both build. Their `[wx]` lines are unchanged |
+
+**Run on both compilers** (WSL g++ 13.3, and MinGW, which the sabotage driver uses), then `run.sh` in full.
+
+**Outside the set:** stop and report.
