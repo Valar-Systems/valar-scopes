@@ -203,3 +203,48 @@ A leak of that key can only be contained by revoking E2:08, because re-enrolment
 - **TD1:** deploy the dashboard with its exclusion and set `TEST_DEVICE_IDS` from the token file through stdin, staged, in a reserved slot. Verify "Devices seen" is the same before and after one production smoke as the test identity.
 - **Then TM2's `/v1/config` check** on production and staging.
 - **Then item 5's conditions** for Daniel's two lines.
+
+## CI on `3f9e655`: the mint selftest off-prediction on Linux; stopped for a ruling (2026-11-04)
+
+**CI: 38 checks, all finished: 33 passed, 3 skipped (`version`, `ship-alert`, `promote`) and 2 failed.**
+- **`host-tests`: the ruled known image issue.** `ubuntu-26.04`, and exactly one `FAIL:` line, `the WXC1 decoder test did not compile`.
+- **`test (proxy)`: off-prediction.** The step "The test identity's mint (selftest)" failed:
+
+| row in CI | reading |
+|---|---|
+| TM1 | OFF: exit 2; fields unchanged `{blip-device, kv-read}` |
+| TM1 (second run) | OFF: exit 2 |
+| TM1s | OFF: exit 2; fields unchanged |
+| TM1s (a different id) | "as predicted", **but for the wrong reason**: every run refused, so this one did too |
+| TM-R | OFF: exit 2 |
+| S-TMPRINT | OFF: the key 0 times, because the copy refused before printing |
+
+**The steps after it never ran:** the checks' selftest, reconcile's selftest and the dashboard sabotage. A failed step skips the rest, so **the TI rows have no Linux reading yet.**
+
+**The cause:** **`token-file.ts` refuses, on POSIX only, a token file that others can read** (mode & 077), and both selftests write their scratch token files with `writeFileSync`'s default mode, **644** under the runner's umask. On Windows that check is skipped, which is why every row passed locally.
+
+**The alternatives, and why the data excludes them:**
+- **The network, the stub, or the provision-token file:** every row exited with the mint's own refusal code (2, not a crash's 1). **TM-R, `--add-records-device`, makes no request and reads no provision token**, yet it refused too. The only step every run shares is reading the scratch token file, and the only POSIX-only refusal there is the mode check.
+- **The inside-a-git-tree check:** the scratch directory is under `os.tmpdir()` (`/tmp` on the runner), outside any checkout.
+
+**What it also exposed:**
+- **"TM1s (a different id)" passed in CI only because everything was refused.** It asserted an exit code, not its reason.
+- **TI1 asserts only `REFUSED`.** On Linux it would pass for the same wrong reason.
+- **Both rows must name their reason.**
+
+**Proposed fix** (committed locally, **not pushed** until a ruling):
+1. **The scratch token files are `chmod 600`** in both selftests (`fresh()` in the mint's, `tokens()` in the checks').
+2. **Each refusal row asserts its reason:**
+   - "TM1s (a different id)" requires `the route's id equals test-device: no`;
+   - TI1 requires `BLIP_KEY is set` or `BLIP_DEVICE is set`.
+3. **Each selftest step in `workers.yml` runs even after an earlier one fails** (`if: ${{ !cancelled() && … }}`), so one red step cannot hide the others' readings.
+
+**Frozen predictions for the fix, if ruled:**
+
+| row | predicted |
+|---|---|
+| **CI, the mint selftest (Linux)** | **TM1, TM1 (second run), TM1s, TM1s (a different id, by its reason), TM-R and S-TMPRINT all as predicted** |
+| **CI, the checks' selftest (Linux)** | TI1 ×2 (by the `BLIP_*` reason), TI1b, S-TIGUARD, TI2, **TI7 (sampling `/proc`) false with a curl seen**, and TI7's control true: all as predicted |
+| **CI, reconcile and the dashboard** | TX2 and S-TXRECON, and S-TXNOEXCL: as predicted |
+| **CI, everything else** | green, except `host-tests` if it lands on `ubuntu-26.04` and fails only at the WXC1 compile, the ruled known issue |
+| **locally (Windows)** | both selftests still pass every row |
