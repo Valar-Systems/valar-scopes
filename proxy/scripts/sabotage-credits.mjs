@@ -14,6 +14,8 @@ const TESTS = {
   CV1: "CV1: the real manifest", CV2: "CV2: one row per form", SA1: "SA1: 114 of 114", RD1: "RD1: credits",
   QC1: "Q-C1: equals", F16: "renders license links for CC-BY-SA", PD: "courtesy-credits PD", MRMS: "carries the NOAA MRMS",
   MA1: "MA1: every credit", MA2: "MA2: /credits carries",
+  // #521's, joined at the rebase: evaluated against every sabotage before running, green in each.
+  CONTROL: "CONTROL: the same photo in the CC-licensed form", OPERA: "carries the OPERA line",
 };
 
 const SABOTAGES = [
@@ -38,7 +40,8 @@ const SABOTAGES = [
       '<li>Route data from <a href="https://github.com/vradarserver/standing-data" rel="noopener">vradarserver/standing-data</a>,\nreleased into the public domain under <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">CC0 1.0</a>.</li>',
       '<li>Route data from <a href="https://www.adsbdb.com" rel="noopener">adsbdb</a>.</li>',
     ]],
-    red: { RD1: "{ standingData: 0, adsbdb: 1 }", QC1: null },
+    // Re-registered by ruling (2026-11-04 ~19:35Z): the old line names adsbdb twice, in its URL and its text.
+    red: { RD1: "{ standingData: 0, adsbdb: 2 }", QC1: null },
   },
   {
     name: "S-QC1", file: HTML,
