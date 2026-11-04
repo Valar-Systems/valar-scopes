@@ -27,7 +27,7 @@ import wifi_scrub as S  # noqa: E402
 ROOT, SRC, BASE = C.ROOT, os.path.join(HERE, "check_wifi.py"), "892fe2b"
 S_W3_FILE = "bench-logs/bindctl-2026-08-07-2023.log"
 LABELS = ["(a)", "(b)", "(c)", "(d)", "(e)", "(f) one", "(f) counts", "the placeholders pass", "the real allowed line",
-          "(g)", "(h)", "(i)", "(j)", "(l)", "(k)"]
+          "(g)", "(h)", "(i)", "(j)", "(l)", "(m)", "(k)"]
 EDITS = {
     "S-W4N": [("# check_bssid.py's pattern, unchanged",
                "NAME.pop(\"assoc\"); NAME.pop(\"ssid_eq\")\n# check_bssid.py's pattern, unchanged")],
@@ -40,12 +40,14 @@ EDITS = {
                "            else:\n                binary += 1\n            continue\n        except OSError:")],
     "S-W5K": [('"blind": scanned == 0 or seen == 0}', '"blind": False}')],
     "S-W2PORTAL": [('if m.group(1) != PORTAL]', 'if not m.group(1).startswith(PORTAL.rsplit(".", 1)[0] + ".")]')],
+    "S-WPATH": [("findings += [(rel, 0, c) for c in line_findings(rel)[0]]", "pass  # SABOTAGE S-WPATH")],
 }
 # sabotage: (W3 exit, full exit, rows red) -- docs/wifi-scrub.md, registered before the run
 PRED = {
     "S-W4N": (1, 2, {"(a)", "(b)"}),
     "S-W4B": (0, 1, {"(c)", "(d)", "(e)"}),
-    "S-W4L": (1, 2, {"(f) one", "(f) counts", "the real allowed line", "(g)", "(h)", "(l)"}),
+    "S-W4L": (1, 2, {"(f) one", "(f) counts", "the real allowed line", "(g)", "(h)", "(l)", "(m)"}),
+    "S-WPATH": (0, 1, {"(m)"}),
     "S-W4P": (1, 2, {"the placeholders pass"}),
     "S-W5G": (0, 1, {"(g)"}),
     "S-W5J": (0, 1, {"(j)"}),
@@ -170,7 +172,7 @@ def main():
     hits = {
         "the planted name": pv["name"] in real["name"] or any(n and n.lower() == pv["name"].lower() for n in real["name"]),
         "a planted MAC": any(m.replace("-", ":").upper() in real["bssid"] for m in pv["macs"]),
-        "a planted address": any(a in real["lan"] for a in pv["lan"] + pv["near_portal"]),
+        "a planted address": any(a in real["lan"] for a in pv["lan"] + pv["near_portal"] + [pv["lan_path"]]),
         "the README example line's address": any(m.group(1) in real["lan"] for m in C.PRIVATE.finditer(readme)),
     }
     ok = not any(hits.values()) and len(real["bssid"]) == 2 and len(real["lan"]) > 0 and bench is not None
