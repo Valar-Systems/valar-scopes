@@ -1659,3 +1659,9 @@ The instruments are proved first on synthetic data, each control and sabotage in
 - **The sabotage:** C2's run with the mask off gives C2 = C1, which is red unless C1 is 0.
 
 **Outside the set:** any reading not listed in A1.3 or here means stop and report.
+
+### A3.13 The ruling on A3.12 and the instruments, verbatim (source: the reviewer chat, pasted by Daniel, 2026-11-04 ~05:30Z)
+
+> A3.12 and the instruments (da7f1bb): accepted. Run them as planned once the loop logs its end: the 8 daily decode checks
+> and the listing check, then T, B and C. C's reading comes to me with the clutter-mask proposal, predictions first,
+> before R3.
