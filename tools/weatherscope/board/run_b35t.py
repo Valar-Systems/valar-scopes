@@ -236,6 +236,15 @@ def main(argv):
     tr.note(f"#HOST opened {port}; acting only on screen lines from t_open + 1 s" + ("; BSW only (S-SWB)" if only else ""))
     last = t_open + 1.0
     try:
+        # the run starts right after read-mac's reset: wait for the board's first scenario and its web server before any
+        # POST, so no config request lands on a board still booting
+        if not tr.wait(SCREEN, t_open, 90)[1]:
+            tr.note("#HOST no scenario screen line within 90 s of the open")
+        t_up = time.time()
+        while time.time() - t_up < 60 and not rb.tcp(host):
+            time.sleep(2)
+        tr.note(f"#HOST the board's web server {'answers' if rb.tcp(host) else 'does NOT answer'}")
+        last = time.time()
         if not only:
             post_theme(tr, host, "light")
             time.sleep(3)
