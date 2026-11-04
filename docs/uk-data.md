@@ -1598,3 +1598,64 @@ It answered:
 >
 > Next as you planned: the last run after 16:00Z, then T, B and C. C's reading comes to me with the clutter-mask proposal
 > before R3, predictions first.
+
+### A3.12 T, B and C: what the frozen rows leave open, pinned before any instrument runs (2026-11-04, ~05:20Z)
+
+**Nothing below has been computed on the week.** No instrument runs on the week before the loop logs `loop ended`.
+The instruments are proved first on synthetic data, each control and sabotage included.
+
+**The week, and its controls.**
+- **The week's frames:** every `DBZH` `.tiff` key whose V lies in **[2026-10-28T00:00Z, 2026-11-04T16:00Z]**. Later
+  frames are dropped by time, as ruled.
+- **The gap rule's 7 days** are the UTC days 10-28 to 11-03. A day is **wholly held** when every key listed with a V
+  on that day has its frame held (its `.json` and `.tiles`). The part of 11-04 up to 16:00Z counts in the readings,
+  not in the gap rule.
+- **The listing control:** for every key in more than one listing, the `.tiff`'s `LastModified` is identical in all.
+  One that differs means stop.
+- **The decode control:** `decode_check.py` on each of the 8 held `.h5` files (one a UTC day, 10-28 to 11-04). One
+  mismatch makes T, B and C BLIND.
+
+**T.**
+- **T1:** the steps between consecutive V's, sorted.
+- **T2:** P − V per key, with P the `.tiff`'s `LastModified` (A2.1, note 1). p50 and p95 by the nearest-rank method.
+- **T3:** the 300 s slots from 10-28T00:00Z to 11-04T16:00Z inclusive, **2,209**, of which slots with no key.
+- **The sabotage:** every third key, by V, dropped.
+
+**B.**
+- **The offset:** read from `cref`'s `wx_ingest` events in Workers Logs (`t0` = event time − `ms`) over the newest
+  24 h the logs hold.
+  - **Two numbers:** the median of `t0` mod 60 for the `:00` checks, and the same for the `:30` checks.
+  - **If either cannot be read,** B is graded with both checks at offsets 0 s and 5 s, and both must meet the
+    predictions.
+- **The model:**
+  - **A check** at time t stores the newest frame with P ≤ t, which is servable from t + `b`.
+  - **The served frame** at time s is the newest frame stored by a check with t + `b` ≤ s.
+  - **The device** polls at φ + 60 n, and from its reply holds the frame served at the poll. It draws while
+    now − V ≤ 600 s (`WhatToShow`: blank only when the age is over 600).
+- **The span measured:** [10-28T00:10Z, 11-04T16:00Z]. Starting 600 s in removes the start-up blank that frames
+  before the week would have covered.
+- **The readings:**
+  - **B2:** blank intervals in the span, over its hours, averaged over the 60 phases.
+  - **B3:** the longest over every phase.
+- **The extra checks:** besides `:00` and `:30`, a check at V + 240 + 10 k s (k = 0, 1, …) until one finds the frame
+  listed, at the `:00` checks' offset.
+  - **B4:** their count a day, times 8 ms of CPU, and one listing each.
+- **`b` = 2 s graded;** B printed at 0 and 5 s, and with the reply 1 s late.
+
+**C.**
+- **The grid:** the collection's stored UK window, on the HDF5's georeference (the corrected corner).
+- **An echo:** value ≥ 15 (NaN and −9,999,000 are not). **The mask:** quality < t, strict, with t = 0.5 graded.
+- **Isolated:** the 11 × 11 neighbourhood centred on the cell (±5), clipped at the window's edge, holds ≤ 3 echoes,
+  the cell included.
+- **C2's masked run** recomputes isolation over the masked echoes.
+- **Persistent:** isolated in at least 0.10 × N of the week's N held frames.
+- **C3:** over the week, the unmasked run's non-isolated echoes with quality < 0.5, over all its non-isolated echoes.
+- **C4:** the cell-frames ≥ 65 dBZ, unmasked and masked; and C1-C3 at t = 0.1, 0.2, …, 0.9.
+- **The control's cell:** the first cell in row-major order that is covered (not −9,999,000) in every frame and whose
+  11 × 11 neighbourhood holds no echo in any frame. Planted at 40 dBZ in every frame:
+  - with quality 1.0, **C1 + 1 and C2 + 1**;
+  - with quality 0.2, **C1 + 1 and C2 unchanged.**
+  - If no such cell exists, the control is BLIND, so C is BLIND.
+- **The sabotage:** C2's run with the mask off gives C2 = C1, which is red unless C1 is 0.
+
+**Outside the set:** any reading not listed in A1.3 or here means stop and report.
