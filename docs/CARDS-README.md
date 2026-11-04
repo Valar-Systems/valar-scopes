@@ -1,17 +1,19 @@
 # Print cards
 
-**The card design lives in Canva; the cards in this repo (`docs/*card*.html`) are the fallback and the source of truth for the wording only** — `scripts/check-print-cards.mjs` asserts two sentences **exactly** in CI — the data note, and step 2's join instruction (*"Point your phone's camera at the screen and tap Join. No prompt? Join the Wi-Fi network named on the screen. After you tap Join, the setup page takes a few seconds to appear."*, since v15's Wi-Fi QR setup screen) — so Canva and the repo cannot drift on copy.
+**The quick-start card is printed from this repo** (Daniel, 2026-11-04): `docs/blipscope-quickstart-card.html` is the design and the wording, and the `print-cards` CI job's `print-cards-pdf` artifact (`blipscope-quickstart-card-4x6.pdf`) is the file that goes to the printer. The Canva design ("Blipscope Quick Start Card") is retired; don't edit it, and don't print it. The features card is unchanged: still designed in Canva, with this repo holding its wording.
+
+`scripts/check-print-cards.mjs` asserts two sentences **exactly** in CI: the data note, and step 2's join instruction (*"Point your phone's camera at the screen and tap Join. No prompt? Join the Wi-Fi network named on the screen. After you tap Join, the setup page takes a few seconds to appear."*, since v15's Wi-Fi QR setup screen). It also requires the build-guide QR on the front and the Device ID line.
 
 ## Pending: v16 (not on any printed card yet)
 
 - **Zoom:** *"Swipe up on the radar to zoom in; swipe down to zoom out."* Swipe-to-zoom ships in
-  v16 (PR #374). The Canva edit is made **when v16 is promoted, not before**: the 50 units ship on
+  v16 (PR #374). The card edit is made **when v16 is promoted, not before**: the 50 units ship on
   v15, whose firmware has no zoom, so a card that mentioned it would describe a feature the unit
   in the box does not have.
 
 ## Pending: v17 (ships in v17; not on any card yet)
 
-The Canva edit is made **when v17 is promoted, not before**, together with any v16 line still
+The card edit is made **when v17 is promoted, not before**, together with any v16 line still
 pending: units shipped before then run firmware without it.
 
 - **Long-press zoom** (`docs/v17-long-press-zoom.md`; PRs #388 and #411; replaced double-tap,
