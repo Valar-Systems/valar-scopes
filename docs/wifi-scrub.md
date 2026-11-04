@@ -276,3 +276,47 @@ is prose only, so it adds no context.
   That is what the control is for.
 - S-W4N and S-W4L are caught by W3 itself, through the idle rule. An allowance whose line stops producing a finding is
   refused, so removing a context or a range is visible on the real tree.
+
+### The rows (local, at `d895880`; Windows, Python 3.14)
+
+| | read | verdict |
+|---|---|---|
+| **W1** | the guard on a clean checkout of main (`892fe2b`), with this PR's allowlist: **exit 1; name 107, BSSID 22, LAN 100**; 16 entries, stale 0, idle 0, unreadable 0 | as predicted |
+| **W1b** | the same with an empty allowlist: **exit 1; name 113, BSSID 22, LAN 112** | as predicted |
+| **W2** | first run **name 93**: OFF-PREDICTION, recorded above. Second run, from a clean tree: **name 107, BSSID 22, LAN 100 in 32 files** (bench-logs 19, tools 9, docs 2, scripts 1, src 1). Read without the guard's patterns: 32 files keep their line count, CRLF and bare-CR counts, and BOM. 229 changed lines; each one is the old line with exactly its spans replaced by placeholders (229 placeholders added), and **0 lines differ in any other way**. No other file changed | as predicted on the second run |
+| **W3** | first run **name 1**: OFF-PREDICTION, recorded above. Then: **exit 0; 0 / 0 / 0**; 16 entries each used; stale 0, idle 0, unreadable 0; 183 network contexts seen, 177 passing | as predicted after the label fix |
+| **W4** | (a) to (f) each red naming exactly its file and category, (f) with 3 findings; the placeholders file **exit 0, 0 findings** | as predicted |
+| **W5** | (g), (h) (red, and the entry stale), (i) (idle), (j) (unreadable) red; (k) exit 2 | as predicted |
+| **W6** | `check_redaction_vectors.py` 10 vectors equal, and its selftest; `check_device_ids.py` OK; `check_workflow_concurrency.py` and its selftest OK | as predicted |
+| **W7** | the bench name in the tree: **4, all in `proxy/photos/`** | as predicted |
+
+### The sabotages, each run once and observed
+
+The unsabotaged control, loaded the same way, reads W3 exit 0, full exit 0, rows exit 0 with none red. The guard
+file on disk is byte-identical before and after.
+
+| sabotage | read | verdict |
+|---|---|---|
+| **S-W4N** | W3 exit 1, idle 3; full exit 2; rows red (a), (b) | as registered |
+| **S-W4B** | W3 exit 0; full exit 1; rows red (c), (d), (e) | as registered |
+| **S-W4L** | W3 exit 1, idle 10; full exit 2. **The rows run CRASHED**: `IndexError` at `check_wifi.py:271`, after 8 of 14 rows. (f) and its count were red; the real allowed line, (g) and (h) **never ran** | **OFF-PREDICTION** |
+| **S-W4P** | W3 exit 1, **name 143**; full exit 2; rows red: the placeholders row | as registered |
+| **S-W5G** | W3 exit 0; full exit 1; rows red (g) | as registered |
+| **S-W5J** | W3 exit 0; full exit 1; rows red (j) | as registered |
+| **S-W5K** | W3 exit 0; full exit 1; rows red (k) | as registered |
+| **S-W3** | `bindctl-2026-08-07-2023.log` restored from main: W3 exit 1, **3 findings, all in that file: name 1, BSSID 1, LAN 1**; full exit 2. Restored byte-identical | as registered |
+| **S-W7** | the scrub with `--everywhere` on a clean main: name 111 (107 + the 4 attributions), 34 files including both `proxy/photos` files; W7 reads the bench name **0 times** | as registered: W7 red |
+
+**S-W4L, the cause.** With the LAN pattern dead, the README entry's line has no finding, and the selftest's allowlist
+rows read the line's category as `line_findings(line)[0][0]`, the first finding of a line that no longer has one. In
+CI the precheck stops first (exit 2, through the 10 idle entries), so CI goes red either way. But a selftest row that
+crashes instead of reporting red is a defect: it hides which rows would have caught the break.
+
+**The fix, proposed and NOT made, pending a ruling:**
+- The rows take the category without assuming a finding: `cats = line_findings(line)[0]`, then `cat = cats[0] if cats
+  else "none"`.
+- S-W4L is re-registered as rows exit 1, with red: (f), (f)'s count, the real allowed line, (g) and (h).
+
+**The harness, not a row.** The rehearsal script's first run crashed on its own S-W4N edit, which set a context to
+`None` instead of removing it. That happened before any sabotage result was read, and the edit now removes both
+contexts.
