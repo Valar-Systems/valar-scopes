@@ -800,3 +800,11 @@ Nothing in it changes a step taken.
 **An early look at +3 min (22:10:24Z), not a graded row:**
 - `opuk` logged 5 checks: stored 2, backfilled 2, already-stored 1, **0 errors**.
 - `pruned` appears only on the storing and backfilling checks.
+
+**R3, the first 15 minutes (`tools/r3_schedule.sh`):**
+
+| | got | verdict so far |
+|---|---|---|
+| **R3-2's gate** | `cref` `frameAgeS` **104 s** (+5, 22:12:25Z), **163 s** (+10), **108 s** (+15) | as predicted so far (+20, +30, +60 still to read) |
+| **R3-3** | at +15 (22:22:22Z): `opuk` `frameAgeS` **444 s**, `coveredShare` **0.75077**. It was already present at +5 (446 s, 0.75077) | as predicted |
+| **R3-4** | at +15, as the test identity. `/wx/cref` at LHR: **200, `WXC1`, ETag `opuk`, `X-Wx-Max-Age: 720`, `X-Wx-Frame` 1793830500** (22:15:00Z), which is `opuk`'s latest (`/healthz`, seconds later: 448 s old). `/wx/opuk` at LHR: the same. Bend and KMCI: 200, `WXC1`, ETag `cref`, no `X-Wx-Max-Age`, as PD3 | as predicted |
