@@ -819,3 +819,41 @@ Nothing in it changes a step taken.
 
 **Data beside the rows:** in those 30 minutes, `opuk` logged **59 checks, 0 errors** (stored 7, backfilled 2,
 already-stored 50). `pruned` appears only on the 7 storing and 2 backfilling checks.
+
+**Finding 3, before R3-5b is read: the frozen bound cannot hold at most moments, by design.** Written at 22:50Z,
+before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5) and the logs only.
+
+- **Measured** (Workers Logs, `opuk`'s storing checks, 22:09:39-22:44:40Z): frames come every 300 s. Each is stored
+  **251-291 s after its epoch** (8 checks in a row; the first three, at the deploy, ran 491-1,150 s because of the
+  backfill). `pruned` is 0 on all of them, because no frame is an hour old yet.
+- **The code:** `opuk` prunes only on a check that stores a frame (Q5, as ruled). It cuts epochs older than
+  `now - 3,600` *at that moment*.
+- **What follows:** if a frame of epoch E is stored at about E + 280 s, the cut is E - 3,320, so the oldest frame kept
+  is E - 3,300, aged **3,580 s** at the prune. That frame passes 3,600 s about 20 s later and stays until the next
+  storing check, about 300 s later. It is then **3,880 s** old.
+  - So for about 280 of every 300 s, the oldest frame is **3,600-3,880 s** old.
+- **R3-5b's frozen row,** "none older than 3,600 s except the one `latest` names", therefore reads as off at almost
+  any moment. The exception doesn't help: `latest` names the newest frame.
+
+**Expected at 23:17:40Z** (arithmetic, not a reading): the last storing check is about 23:14:40Z, for the 23:10 frame.
+- **12 frames,** epochs 22:15:00-23:10:00Z; **oldest about 3,760 s.**
+- The same at 23:27:40Z.
+- The pre-deploy backfill (21:50, 21:55, 22:00) is pruned one per storing check from about 22:54:40Z on. So R3-5a
+  should show `pruned` 1 on the storing checks from then on, and 0 before.
+
+**Alternative, and why the frozen row can't separate it:** a prune that fails also leaves frames over 3,600 s old.
+- The bound that can tell the two apart is the one `pruneOld` itself establishes: **every epoch is at least
+  (the last storing check's time - 3,600 s)**, except the one `latest` names. The time comes from the logs.
+- A prune that didn't run fails that bound, by at least one frame.
+
+**Proposed for a ruling** (the frozen row stays beside it):
+- **R3-5b′:** at most 13 frames (12 expected; 11 if a store lags past 300 s), and every epoch at least the last
+  storing check's time minus 3,600 s, except `latest`'s.
+- **Sabotage:** evaluate the same listing with the last storing time moved forward 300 s, which pretends a prune ran
+  that didn't. It must FAIL on the oldest frame.
+
+**Until ruled, R3-5b is not read.**
+- It is read-only, so a later read loses nothing.
+- Read against the frozen row, it would almost surely call a healthy prune off, and the escape would then roll back
+  a healthy ingest.
+- Unread is not a pass. R3-5a, R3-2's +60 gate, R3-6 and R3-7 go ahead as registered.
