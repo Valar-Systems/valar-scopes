@@ -4327,3 +4327,13 @@ Average and p95 are close (99.9 and 102.0), so this is a steady cost, not spikes
   - **Hiding past the limit stays (c)'s job:** (c)'s table row (hidden at 601 with no header), and (c)'s random check,
     which now compares against the **held** limit.
 - **The counts are unchanged:** 34 `ok` lines, 6 table rows and 1 random line in (h).
+
+**A second amendment, also before any run: AL10 becomes two checks, each with its own plant.** The wiring check reads
+one source file per check, and WA1 spans two.
+- **WA1 (GetBytes):** `HttpRequestManager.cpp` collects `X-Wx-Max-Age`, passes the collect list's own size rather
+  than a literal count, and returns the value. **Its plant,** the header dropped from the list, turns exactly
+  WA1 (GetBytes) red.
+- **WA1 (AircraftManager):** the fetch task stores the value in the result, `ConsumeFetchResult` passes it on, and
+  `ConsumeWeather`'s `OnResponse` call hands it over. **Its plant,** that call passing `nullptr` instead, turns exactly
+  WA1 (AircraftManager) red.
+- **Why the second plant is needed:** without it, the second half would be a check that has never been seen to fail.
