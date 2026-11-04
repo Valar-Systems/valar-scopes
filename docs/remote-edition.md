@@ -277,3 +277,21 @@ is 31 bytes, which is version 2; every other product name is 9+ characters and l
 compilers fail it identically. The scaffold's predictions never ran the host suite -- a gap in the set,
 not only in the result -- and P5 (CI green) would have failed on the host-tests job. Not fixed: the fix
 is a product network name, which is a ruling.
+
+**Correction (reviewer, 2026-11-04 ~15:00Z; verified here).** Section 3's description, the scaffold's
+RemoteManager comment and commit e403a1d's message said that feeding `TouchWatchdog::OnPoll` re-arms the
+CST816's `DisAutoSleep`. It does not, on any env. `MaintainNoSleep` sits behind
+`#ifdef CST816_DISABLE_AUTOSLEEP` (src/TouchWatchdog.cpp:56, :115) and no env defines that flag (0 of 44 in
+PlatformIO's expanded config). The built image agrees, with an anchor control: `blipscope-s3-128` carries
+the watchdog's `controller dead on the bus` string (1) and not MaintainNoSleep's `no-autosleep applied` (0).
+What `OnPoll` gives the Remote is wedge detection and the recovery ladder. The comment is corrected; the
+commit message stands as history. (CLAUDE.md's TouchWatchdog paragraph and the comment at
+include/variants/s3_128.h:90 still describe the re-arm as active; not edited here.)
+
+**What the Remote's design counts on instead, stated for the plan.** Nothing in it counts on a
+firmware re-arm. STOP on touch-down does count on the chip reporting the FIRST contact promptly, including
+after a long idle. Two things carry that, neither of them firmware: the per-batch inspection gate
+(INCOMING-INSPECTION.md: this CST816D ships `DisAutoSleep` 0xFE = 1, a batch without it is rejected, and
+0xFE reads the same after a reset), and the first-tap-after-idle inspection item (#381, PR #382 open). The
+hardware test plan will measure the STOP path directly: a window moving under the mock, the remote
+untouched for 30+ minutes, and the first touch must be the STOP.
