@@ -502,3 +502,21 @@ shared with `cref`, which E2:08 reads.
 
 **`e8dfa45`'s own run:** 41 check-runs, 39 success, 2 skipped (`promote`, `version`), 0 failed, on the first
 attempt. **So the deploy commit is `46bea31`** (#526; `git diff e8dfa45 46bea31 -- proxy/` is empty).
+
+### The ruling that replaces the ~20:00Z block, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~20:15Z)
+
+> Records accepted: main's CI at 1beba4e (the first run's two timeouts, an instrument failure, and the re-run's pass,
+> both kept); e8dfa45: 41 check runs, 39 success, 2 skipped, 0 failed.
+>
+> 1. PD0-PD6 and R3-0 to R3-8: accepted as frozen.
+> 2. The commit: 46bea31 (main now: #526 on top of e8dfa45; nothing under proxy/ changed), once its own CI reads green.
+>    Not main at deploy time. PD0 stays exactly #512, #521 and #522.
+> 3. The order: the map server deploys D3 (staging) from 46bea31 first. Start PD once Daniel pastes you D3's report
+>    reading as predicted; if D3 is off, wait for my ruling. PD's staging step may run as soon as D3 is done; its
+>    production step not before 21:30Z, when the board hold starts.
+> 4. R3: inside the hold, as soon as every PD row has read as predicted, with no further go from me. Anything off in PD
+>    means no R3: stop and report. Read R3-0's figure before the deploy: over $2 a month means stop and ask Daniel.
+>    If R3 hasn't started by 23:30Z, don't start it: report, and I'll set a new slot.
+> 5. The K4' timeout fix goes ahead, predictions first: each test's duration from CI's logs on both legs, and an
+>    explicit timeout with margin (or a faster test); their checks and sabotages unchanged. It doesn't hold up the
+>    deploy.
