@@ -773,3 +773,20 @@ Nothing in it changes a step taken.
   hour at its 2-minute cadence, the shape I5's readings knew.
 - **So R3-5b returns to +70 min,** as first registered.
 - **The token file, as booleans:** `blip-key` absent; `blip-device` absent.
+
+**PD6, read twice after its window (21:31:14-22:01:14Z), at 22:04:19Z and 22:07:01Z: as predicted.**
+- Both reads are identical: 1,582 fleet requests, 11 devices, 1,053 `/blips`;
+- fleet 4xx **0**; 5xx other than no-upstream `/blips` 503s **0**; those 503s **0** (0 % of `/blips`);
+- E2:08 and the test identity excluded.
+
+**Every PD row read as predicted (PD0-PD7). So R3 started inside the hold, with no further go,** as ruled.
+
+### R3 (2026-11-04, from 22:07:22Z)
+
+- **R3-0:** read before any deploy (20:06Z): under $2 a month on both readings.
+- **R3-1:** `npx wrangler deploy -c wx-ingest.wrangler.toml` from the clean checkout at `f740f10`, 22:07:22-22:07:26Z,
+  exit 0.
+  - New version **`d37d9a21-7587-437b-bb1e-563462a0ffea`**: binding `WX` (`blipscope-wx`), cron `* * * * *`.
+  - **The rollback target, read just before:** `582612da-e1b0-4a02-bf9e-de72c5d78157`.
+- **The timed reads** (`tools/r3_schedule.sh`) run at +5, +10, +15, +20, +30 and +60 min, with the `/wx` probe at +15
+  and +16 min.
