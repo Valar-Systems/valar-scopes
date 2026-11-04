@@ -88,14 +88,20 @@
 | **the rest** | MA1, MA2, the MRMS line, and the rest of the proxy suite | pass. The one changed expectation is the old blanket test, which now expects no link for the unversioned token |
 | **after merge** | the proxy deployed to production, the carried commits listed first; then the live `/credits`, fetched | each licence label occurs as often as the manifest's rows hold it (the 9 in the table above); "adsbdb" 0 times; standing-data once; the ShareAlike notice on 114 rows |
 
-**The sabotages, each run once and observed red:**
+**The sabotages, each run once and observed red.** Amended before any code existed (the first table, in
+`5325216`, listed only each sabotage's target row). Every row was then evaluated against every sabotage:
+- Q-C1 compares the committed file with the render, so every renderer sabotage reddens it.
+- SA1's clause names the row's own label, so the blanket reddens it as well.
+- CV2 counts its unversioned row too: 11 rows.
 
-| sabotage | turns red |
+| sabotage | turns red (and only these) |
 |---|---|
-| **S-CV-BLANKET:** every CC version forced to 4.0 and OGL to v3.0, the old blanket | CV1 with **exactly 104 rows wrong** (66 BY-SA, 37 BY, 1 OGL); CV2 with **7 of 10 wrong** (all but BY 4.0, BY-SA 4.0 and OGL v3.0) |
-| **S-SA:** the per-row ShareAlike clause removed | SA1, with **114 rows missing it** |
-| **S-RD:** the adsbdb route line restored | RD1 ("adsbdb" once) |
-| **S-QC1:** one line of `credits.html` edited | Q-C1 |
+| **S-CV-BLANKET:** every CC row forced to 4.0 with no port, the unversioned row included (the old behaviour), and OGL to v3.0 | **CV1: exactly 104 rows wrong** (66 BY-SA, 37 BY, 1 OGL). **CV2: 8 of 11 wrong**: all but BY 4.0, BY-SA 4.0 and OGL v3.0. **SA1: 66 rows** naming the wrong licence. **Q-C1** |
+| **S-SA:** the per-row ShareAlike clause removed, the paragraph kept | **SA1: 114 rows missing it. Q-C1** |
+| **S-RD:** the adsbdb route line put back in place of the standing-data line | **RD1:** "adsbdb" once and standing-data 0 times. **Q-C1** |
+| **S-QC1:** one line of `credits.html` edited | **Q-C1** only |
+
+In each, MA1, MA2 and the MRMS line stay green.
 
 **CI:** the job count is predicted in a PR comment right before the push, read from the last finished run with every
 step's `if:` evaluated per leg, and from main as it is at that moment.
