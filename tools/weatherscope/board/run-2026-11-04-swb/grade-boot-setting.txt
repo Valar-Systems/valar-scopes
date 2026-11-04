@@ -1,0 +1,13 @@
+  ok   boot psram_used: 227168 (want 227144 +/- 2000)
+  ok   boot psram_base: {'image': '58356', 'state': '9972', 'scratch': '4596', 'ok': '1'}
+  ok   boot theme: the init line reads theme=auto read=known (want theme=auto read=known)
+  ok   BSW offsets: 96 offset lines, +15 ... +1425 then 0
+  ok   BSW location: the last init line before BSW: location=set
+  ok   BSW phase changes: 2 phase changes across the 96 presses
+  ok   BSW switches: 2 [wx] theme= lines: ['dark->light', 'light->dark']
+  ok   BSW dims: 2 [wx] dim= lines (autodim=1: want 2)
+  ok   BSW recompose: 2 of 2 switches followed by their recompose
+  ok   SW base row (S-SWB): the base line at each switch on Bend: ['package', 'package'] (want ['package', 'package'])
+  ok   BSW build reasons: 2 builds with why=theme in the R dump
+  ok   watcher: 0 unexplained
+ALL AS PREDICTED

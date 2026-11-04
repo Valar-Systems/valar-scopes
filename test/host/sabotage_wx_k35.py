@@ -26,6 +26,8 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 
+K35_CHECKS = 79   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+
 ROWS = ["dry-60", "approaching-60", "herenow-60", "warning-60", "stale-60", "clear-60", "approaching-30",
         "approaching-15", "dry-30", "dry-15"] + ["loop-%02d" % i for i in range(15)]
 
@@ -98,8 +100,8 @@ def run(base, name):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout[-2000:]}")
         sys.exit(2)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
-    if not m or int(m.group(1)) != 79:
-        print(f"{name}: {m.group(1) if m else '?'} checks, not 79: the RIG")
+    if not m or int(m.group(1)) != K35_CHECKS:
+        print(f"{name}: {m.group(1) if m else '?'} checks, not {K35_CHECKS}: the RIG")
         sys.exit(2)
     return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
@@ -151,7 +153,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_k35": ("checks", 79)}
+CONTROL_TABLE = {"test_wx_k35": ("checks", K35_CHECKS)}
 
 
 def control():

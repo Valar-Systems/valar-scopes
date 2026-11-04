@@ -37,11 +37,14 @@ SABOTAGES = {
     "S-A1": ([("    if (p != total) return Status::Underrun;\n",
                "    (void)total;  // SABOTAGE S-A1: the underrun check is gone\n")],
              [r"A2\s+neg-run-short", r"A5\s+0/50 sabotaged twins refused"]),
-    "S-A2": ([("#include <string.h>\n", "#include <string.h>\n#include <vector>\n"),
+    # S-A2 allocates with malloc, which the test counts through its own CountedMalloc: a std::vector here tripped
+    # g++ 13.3's -Wmismatched-new-delete at the test's replacement operator delete (A12.73).
+    "S-A2": ([("#include <string.h>\n", "#include <string.h>\n#include <stdlib.h>\n"),
               ("inline Status Validate(const uint8_t* data, size_t len, Header* out)\n{\n",
                "inline Status Validate(const uint8_t* data, size_t len, Header* out)\n{\n"
-               "    std::vector<uint8_t> scratch(16, 1);  // SABOTAGE S-A2: an allocation on every call\n"
-               "    if (scratch[0] != 1) return Status::TooShort;\n")],
+               "    uint8_t* scratch = (uint8_t*)malloc(16);  // SABOTAGE S-A2: an allocation on every call\n"
+               "    if (!scratch) return Status::TooShort;\n"
+               "    free(scratch);\n")],
              [r"A6\s+\d+ heap allocations"]),
     "S-A3a": ([("    if (v == 0) return Status::ZeroRun;\n", "    // SABOTAGE S-A3a: zero-length runs accepted\n")],
               [r"A3\s+a zero-length long run"]),
@@ -111,7 +114,8 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_wx_crop": ("ok", 27)}
+CROP_OKS = 27   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_crop": ("ok", CROP_OKS)}
 
 
 def control():

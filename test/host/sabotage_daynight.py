@@ -133,7 +133,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
 # count, nothing planted. run.sh runs it for every driver.
-CONTROL_TABLE = {"test_daynight": ("checks", 28), "scan_daynight_symbols.sh": ("exit", 0)}
+CONTROL_TABLE = {"test_daynight": ("checks", CHECKS), "scan_daynight_symbols.sh": ("exit", 0)}
 
 
 def control():
