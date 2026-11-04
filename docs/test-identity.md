@@ -248,3 +248,81 @@ A leak of that key can only be contained by revoking E2:08, because re-enrolment
 | **CI, reconcile and the dashboard** | TX2 and S-TXRECON, and S-TXNOEXCL: as predicted |
 | **CI, everything else** | green, except `host-tests` if it lands on `ubuntu-26.04` and fails only at the WXC1 compile, the ruled known issue |
 | **locally (Windows)** | both selftests still pass every row |
+
+## CI on `b7f9f7a`: the checks' selftest hung on Linux; ruled (2026-11-04)
+
+**CI: 39 checks.**
+- 35 passed.
+- 3 were skipped: `version`, `ship-alert` and `promote`, as before.
+- 1 was **cancelled by ruling**: `test (proxy)`.
+- **The mint selftest passed on Linux** (step 10). The `3f9e655` fix holds.
+- **Step 11, the checks' selftest: OFF-PREDICTION.** It ran from 15:13:12Z and was still running 40+ minutes later.
+  The steps after it (12-24) never ran.
+
+**Why this is its first Linux reading.** At `3f9e655` step 11 was skipped, because step 10 failed under the old
+stop-at-the-first-failure wiring.
+
+**The cause.** On Linux, `sampleWhile` awaited `commandLines()`, which only reads `/proc` synchronously, inside
+`while (!done)`. A loop that awaits only already-resolved promises never yields to the event loop. So these never ran:
+- the smoke child's `close`, which sets `done`;
+- the stub server's replies;
+- the 240/420 s kill timers.
+
+On Windows the sampler waits on a PowerShell process, a real event wait, so it passed locally.
+
+**The alternative, and why the data excludes it.** It could have been `smoke-prod.sh` itself hanging on Linux. But
+with a healthy event loop the selftest's own 420 s timer would have killed the smoke run, and the step ran for 40+
+minutes. A timer that cannot fire is the starvation itself.
+
+**Repro (scratch, Windows Node).** The same loop shape, with a 2 s timer of its own:
+- the sync-only body hangs until the external `timeout` (exit 124), and its 2 s timer never fires;
+- the control, with one `setTimeout` yield per iteration, finishes after 2 samples.
+
+### The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~17:05Z)
+
+> #513:
+> - Cancel the hung run now.
+> - The fix is approved, with the miss kept: sampleWhile yields a macrotask per sample on both platforms. TI2, TI7 and
+>   TI7's control are re-registered as passing on Linux.
+> - Its sabotage (the yield removed) is graded by a bounded wait: the harness kills it at a fixed time and reads that as
+>   red. Nothing may wait unbounded.
+> - timeout-minutes: 20 on the workers test job: approved.
+> - Then push, count CI against the frozen rows, mark #513 ready and send the approval request.
+
+The run was cancelled at about 17:10Z (`41855255168`, `completed cancelled`).
+
+### The fix, and what is registered before it runs
+
+- **The fix.** `sampleWhile` ends each sample with `await new Promise((r) => setTimeout(r, 20))`, on both platforms.
+- **`timeout-minutes: 20`** on the workers `test` job.
+- **main merged into the branch first** (`5819b9d`). main's #515 rewrote the line the timeout sits beside. CI already
+  tests the PR merged with main, so the merge changes nothing CI sees.
+- **S-TISTARVE, the sabotage:** `proxy/scripts/sabotage-tistarve.mjs`, run from `proxy/`.
+  - **Linux only.** The starvation needs the synchronous `/proc` sampler. On any other platform it exits 2 (BLIND)
+    and says why.
+  - **The deadline is fixed at 300 s.** A healthy run took 141 s on Windows; TI2 alone is 37 requests at 2.5 s.
+  - **Its control:** the unsabotaged selftest, under the same deadline, must finish with exit 0. That proves the
+    deadline is longer than a healthy run.
+  - **The sabotage:** the yield line removed from the selftest (its anchor must appear exactly once), then the same
+    run under the same deadline. The harness kills the whole process group at 300 s.
+  - **Red is:** killed at the deadline, having printed `S-TIGUARD` and not `TI2`, because the hang sits in TI2's
+    sampler.
+  - **Not red:** a run that ends by itself before the deadline is an instrument failure, whether it crashed or passed.
+    It exits 1, never 0.
+  - **Restore:** the selftest and `token-file.ts` are restored from byte copies and their sha256 checked (the
+    selftest's own S-TIGUARD edits `token-file.ts`). A failed restore exits 3.
+  - Exit codes: 0 as registered, 1 off, 2 BLIND, 3 restore failed.
+- **Where it runs: once, on Linux, before the push.** That is WSL Ubuntu 24.04, with a portable Node 22 unpacked in a
+  scratch directory (no system package installed), on a copy of the branch's committed tree.
+  - It is not a CI step: it costs about 7 minutes. That is named so it can be added.
+
+**Frozen predictions:**
+
+| row | predicted |
+|---|---|
+| **Linux (WSL), the checks' selftest** | TI1 ×2 (by the `BLIP_*` reason), TI1b, S-TIGUARD, TI2, **TI7 (sampling `/proc`): false, with a curl seen**, TI7's control: true. **SELFTEST PASSED, exit 0, in under 300 s** |
+| **Linux (WSL), S-TISTARVE** | the control finishes, exit 0, under 300 s; the sabotaged run is **killed at 300 s, after `S-TIGUARD` and before `TI2`**; both files restored byte-identical. **Exit 0** |
+| **Windows, the checks' selftest** | every row as predicted (read before this registration: 141 s, SELFTEST PASSED) |
+| **CI on the pushed head** | every check finishes: all success, except `version`, `ship-alert` and `promote`, skipped as before. Nothing cancelled. `test (proxy)` runs **every** step, including the TI rows on Linux (as above) and steps 12-24 |
+
+**Outside the set:** stop and report, with no fix until a ruling.
