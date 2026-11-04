@@ -622,3 +622,15 @@ before the figure was reported.
   - the ShareAlike paragraph exactly once.
 - **If the published manifest has changed since that table,** its own counts are printed beside the table's, read
   read-only with `--remote`.
+
+**PD7's instrument, `tools/wx/credits_pd7.py`, proved before the deploy:**
+- **On #525's own render** (`proxy/photos/credits.html` at `f740f10`): **every pinned count as predicted.**
+  - 9 labels, 176 licensed rows, 61 "Public domain";
+  - 0 "adsbdb", the standing-data line once;
+  - the clause on 114 rows, each naming its own licence;
+  - the paragraph once.
+- **Its control, today's live production** (which predates #525): **not as predicted.** 175 licensed rows under the
+  old labels, "adsbdb" twice, no standing-data line, no ShareAlike clause. The instrument tells the two pages apart.
+- **One defect, found by that dry run and fixed before any live reading:** it first searched for the plain phrase
+  "Route data from vradarserver/standing-data". The template links the name, so the plain phrase never appears, and it
+  read 0. It now matches the line by its own anchor (`Route data from <a href="https://github.com/vradarserver/standing-data"`).
