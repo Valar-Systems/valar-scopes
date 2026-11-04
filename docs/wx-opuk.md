@@ -651,3 +651,24 @@ before the figure was reported.
 >    don't need one.
 > 3. Everything else as ruled at ~20:55Z: PD0 (four), PD1-PD7, R3 inside the hold after a clean PD, started by 23:30Z.
 > 4. Tell Daniel the time of your staging step (UTC): the map server needs it.
+
+### PD: the staging step (2026-11-04 21:21:06-21:21:16Z), and the controls read before production
+
+**Staging, by `deploy.sh staging` from the clean checkout at `f740f10`:** exit 0.
+- **New version `cc4dcf89-7d85-465c-8b3f-de29a0dfdc19`;** `confirm-deploy.sh`: "/healthz reports commit=f740f10".
+- **#512's binding is on it:** `env.BASEMAP (blipscope-basemap-staging)`.
+- **The rollback target, read just before:** `c7fa5f84` (staging was at `c06dc17`).
+- **`deploy.sh`'s note:** `f740f10` is 2 commits behind main, neither touching `proxy/`. `f740f10` was deployed as
+  ruled.
+- **No smoke was run against staging,** as ruled (#532).
+
+**Read before production, on production (still `31cb44c`):**
+- **The `/wx` probe** (`tools/wx/pd_wx.sh`, as the test identity):
+  - `/wx/cref` at Bend (smoke's query) and at KMCI: 200, `WXC1`, ETag `cref`, no `X-Wx-Max-Age`, `X-Wx-Frame` present;
+  - `/wx/cref` and `/wx/opuk` at LHR: 503 `wx_stale`, no header;
+  - `/healthz` `wx.opuk` `{frameAgeS: null, coveredShare: null}`.
+  - That is PD3's and PD4's shape, before the deploy.
+- **Production's bindings,** from `wrangler versions view 2eb4aa5e`, are saved for PD5's comparison: Durable Objects,
+  `ENRICH_KV`, `METRICS`, `WX`, and the `[vars]`.
+- **PD6's instrument** (`tools/wx/pd6_fleet.py`, N6's with both E2:08 and the test identity excluded), on a control
+  window of 20:30-21:00Z: 1,726 fleet requests, 11 devices, 1,182 `/blips`, 4xx 0, 5xx 0. Readable.
