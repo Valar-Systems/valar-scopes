@@ -1,0 +1,1 @@
+lines read: 14648; screen changes: 844; unexplained: 0; raw touch lines: 0; [health] lines with touch fields: 0; boots: 0
