@@ -8,7 +8,8 @@
 //   (a) disabled means 0 requests, ever;
 //   (b) a 200 replaces the held crop only if it is <= 32,768 bytes, valid (wxcrop::Validate Ok), no older
 //       than the held frame, and answers the current query -- otherwise the held crop is kept;
-//   (c) never shown older than 600 s by the NTP clock, and never shown without a set clock;
+//   (c) never shown older than the held frame's age limit by the NTP clock (600 s unless (h) says otherwise), and
+//       never shown without a set clock;
 //   (d) If-None-Match is sent only with an ETag earned by the current query; a query change drops both;
 //   (e) every 60 s while enabled; errors back off 60 -> 120 -> 240 -> 480 -> 600 s, reset by a 200 or 304;
 //   (f) a crop entirely of 14 is held but shown as "outside coverage", never as an empty (dry) overlay;
@@ -16,13 +17,18 @@
 //       time, a reply never moves the interval's start and never triggers a refetch, and a reply that never comes
 //       ends after kReplyTimeoutMs as a failed attempt (the backoff). WD5 addendum 6: the 2026-10-26 /wx storm was a
 //       reply-time attempt compared against the pass's earlier `now`, which underflowed to "due".
+//   (h) the age limit is the server's, per product (ruled 2026-11-04 ~18:25Z): X-Wx-Max-Age on a 200 or 304, 1-5
+//       ASCII digits, clamped to [600, 900], and 600 when absent or anything else. A replacing 200 sets the held
+//       frame's limit, every 304 restates it (an absent header is 600, never the old value), a query change resets
+//       it to 600; a refused 200 or an error leaves it, since the held frame did not change.
 #include <stdint.h>
 #include <string.h>
 
 namespace wxpolicy {
 
 constexpr uint32_t kMaxBytes = 32768;
-constexpr uint32_t kMaxAgeS = 600;
+constexpr uint32_t kMaxAgeS = 600;      // (c)/(h) the default age limit, and the floor of any stated one
+constexpr uint32_t kMaxAgeCapS = 900;   // (h) the ceiling: no server statement shows a frame older than this
 constexpr uint32_t kPollMs = 60000;
 constexpr uint32_t kMaxBackoffMs = 600000;
 constexpr size_t kEtagMax = 96;
@@ -39,6 +45,7 @@ struct State {
     Query query;                  // the query the held crop and ETag answer
     bool haveCrop = false;
     uint32_t frameEpoch = 0;      // the held crop's frame time (UTC s)
+    uint32_t maxAgeS = kMaxAgeS;  // (h) the held frame's age limit, from its X-Wx-Max-Age
     bool allNoCoverage = false;   // every cell of the held crop is 14
     char etag[kEtagMax] = {0};    // "" = none
     uint32_t intervalMs = kPollMs;
@@ -53,6 +60,21 @@ struct State {
 enum class Show : uint8_t { Nothing, Crop, OutsideCoverage };
 enum class Outcome : uint8_t { Replaced, NotModified, Kept, Error };
 
+/** (h) X-Wx-Max-Age's value as the policy uses it: 1-5 ASCII digits, clamped to [kMaxAgeS, kMaxAgeCapS]; kMaxAgeS
+ *  when absent (nullptr or "") or anything else -- a sign, a space, a sixth digit, a letter. */
+inline uint32_t MaxAgeFromHeader(const char* v)
+{
+    if (v == nullptr || v[0] == 0) return kMaxAgeS;
+    uint32_t n = 0;
+    for (size_t i = 0; v[i] != 0; ++i) {
+        if (i >= 5 || v[i] < '0' || v[i] > '9') return kMaxAgeS;
+        n = n * 10 + (uint32_t)(v[i] - '0');
+    }
+    if (n < kMaxAgeS) return kMaxAgeS;          // (h) the clamp, below
+    if (n > kMaxAgeCapS) return kMaxAgeCapS;    // (h) the clamp, above
+    return n;
+}
+
 /** The current query has changed (a location or range save): what is held answers another query. */
 inline void OnQuery(State& s, const Query& q)
 {
@@ -60,6 +82,7 @@ inline void OnQuery(State& s, const Query& q)
     s.query = q;
     s.haveCrop = false;                                   // (d) the crop answered the old query
     s.frameEpoch = 0;
+    s.maxAgeS = kMaxAgeS;                                 // (h) no held frame: the default
     s.allNoCoverage = false;
     s.etag[0] = 0;                                        // (d) and so did its ETag
 }
@@ -104,16 +127,18 @@ inline const char* IfNoneMatch(const State& s, const Query& q)
 }
 
 /** The reply to request `seq`, made for `asked`. status <= 0 is a network failure. `valid` is
- *  wxcrop::Validate()==Ok on the body; `frameEpoch`/`allNoCoverage` come from that body. `nowMs` is the reply's
- *  arrival, kept for diagnostics only: the interval runs from the send (g). */
+ *  wxcrop::Validate()==Ok on the body; `frameEpoch`/`allNoCoverage` come from that body. `maxAge` is the reply's
+ *  X-Wx-Max-Age value or nullptr (h): no default, so a caller that forgets it does not compile. `nowMs` is the
+ *  reply's arrival, kept for diagnostics only: the interval runs from the send (g). */
 inline Outcome OnResponse(State& s, uint32_t seq, const Query& asked, int status, uint32_t bytes, bool valid,
-                          uint32_t frameEpoch, bool allNoCoverage, const char* etag, uint32_t nowMs)
+                          uint32_t frameEpoch, bool allNoCoverage, const char* etag, const char* maxAge, uint32_t nowMs)
 {
     if (!s.inFlight || seq != s.seq) return Outcome::Kept;   // (g) late or stray: changes nothing
     s.inFlight = false;                                   // (g) answered
     s.lastReplyMs = nowMs;                                // (g) never lastAttemptMs
     if (status == 304) {
         s.intervalMs = kPollMs;                           // (e) reset
+        s.maxAgeS = MaxAgeFromHeader(maxAge);             // (h) a 304 restates it: absent is 600, never the old value
         return Outcome::NotModified;
     }
     if (status != 200) {
@@ -127,6 +152,7 @@ inline Outcome OnResponse(State& s, uint32_t seq, const Query& asked, int status
     if (s.haveCrop && frameEpoch < s.frameEpoch) return Outcome::Kept;   // (b) never backwards
     s.haveCrop = true;
     s.frameEpoch = frameEpoch;
+    s.maxAgeS = MaxAgeFromHeader(maxAge);                 // (h) the new frame's own limit
     s.allNoCoverage = allNoCoverage;
     s.etag[0] = 0;
     if (etag) { strncpy(s.etag, etag, kEtagMax - 1); s.etag[kEtagMax - 1] = 0; }
@@ -138,7 +164,7 @@ inline Show WhatToShow(const State& s, bool enabled, bool clockSet, uint32_t now
 {
     if (!enabled || !s.haveCrop) return Show::Nothing;
     if (!clockSet) return Show::Nothing;                  // (c) never without a set clock
-    if (nowEpoch > s.frameEpoch && nowEpoch - s.frameEpoch > kMaxAgeS) return Show::Nothing;   // (c)
+    if (nowEpoch > s.frameEpoch && nowEpoch - s.frameEpoch > s.maxAgeS) return Show::Nothing;   // (c) at the held limit
     if (s.allNoCoverage) return Show::OutsideCoverage;    // (f) the note, never an empty overlay
     return Show::Crop;
 }

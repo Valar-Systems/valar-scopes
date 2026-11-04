@@ -31,7 +31,7 @@ SABOTAGES = {
     "S-b1 no size cap": ("b", [("    if (bytes > kMaxBytes) return Outcome::Kept;          // (b) over the cap\n",
                                 "    (void)bytes;   // SABOTAGE S-b1: the cap is gone\n")]),
     "S-b2 an older epoch accepted": ("b", [("    if (s.haveCrop && frameEpoch < s.frameEpoch) return Outcome::Kept;   // (b) never backwards\n", "")]),
-    "S-c1 no age check": ("c", [("    if (nowEpoch > s.frameEpoch && nowEpoch - s.frameEpoch > kMaxAgeS) return Show::Nothing;   // (c)\n",
+    "S-c1 no age check": ("c", [("    if (nowEpoch > s.frameEpoch && nowEpoch - s.frameEpoch > s.maxAgeS) return Show::Nothing;   // (c) at the held limit\n",
                                  "    (void)nowEpoch;   // SABOTAGE S-c1: the age check is gone\n")]),
     "S-c2 an unset clock read as epoch 0": ("c", [("    if (!clockSet) return Show::Nothing;                  // (c) never without a set clock\n",
                                                    "    (void)clockSet;   // SABOTAGE S-c2: an unset clock is trusted\n")]),
@@ -64,6 +64,16 @@ SABOTAGES = {
          "        if ((uint32_t)(nowMs - s.sentMs) < kReplyTimeoutMs) return false;   // SABOTAGE: unsigned again\n"),
         ("    return (int32_t)(nowMs - s.lastAttemptMs) >= (int32_t)s.intervalMs;   // (e), and (g): later than now is not due\n",
          "    return (uint32_t)(nowMs - s.lastAttemptMs) >= s.intervalMs;   // SABOTAGE: unsigned again\n"),
+    ]),
+    # (h), ruled 2026-11-04 ~18:25Z: the clamp removed lets 5000 through; a 304 that loses the header keeps the old value.
+    "S-h1 the clamp removed": ("h", [
+        ("    if (n < kMaxAgeS) return kMaxAgeS;          // (h) the clamp, below\n", ""),
+        ("    if (n > kMaxAgeCapS) return kMaxAgeCapS;    // (h) the clamp, above\n",
+         "    (void)kMaxAgeCapS;   // SABOTAGE S-h1: the clamp is gone\n"),
+    ]),
+    "S-h2 a 304 without the header keeps the old value": ("h", [
+        ("        s.maxAgeS = MaxAgeFromHeader(maxAge);             // (h) a 304 restates it: absent is 600, never the old value\n",
+         "        if (maxAge) s.maxAgeS = MaxAgeFromHeader(maxAge);   // SABOTAGE S-h2: absent keeps the old value\n"),
     ]),
 }
 
@@ -109,7 +119,7 @@ def main():
                 print(f"{name}: did not compile (rig)\n{err}")
                 return 2
             fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
-            tags = sorted({m.group(1) for l in fails for m in [re.search(r"FAIL\s+\(([a-g])\)", l)] if m})
+            tags = sorted({m.group(1) for l in fails for m in [re.search(r"FAIL\s+\(([a-h])\)", l)] if m})
             good = r.returncode == 1 and tags == [prop]
             print(f"{name}: exit {r.returncode}; red properties {tags or 'none'} (want ['{prop}']) -> "
                   f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
@@ -121,7 +131,7 @@ def main():
 
 # --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
 # its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
-OK_COUNT = 27
+OK_COUNT = 34   # 27 + (h)'s six table rows and one random line (docs/wx-device.md, AL8)
 CONTROL_TABLE = {"test_wx_policy": ("ok", OK_COUNT)}
 
 

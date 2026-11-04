@@ -1,5 +1,5 @@
 // WD3 (docs/wx-device.md): the weather fetch policy (include/WxPolicy.h), as a table and as properties
-// checked over random event sequences. One line per property, tagged (a)-(g), so the sabotage script
+// checked over random event sequences. One line per property, tagged (a)-(h), so the sabotage script
 // (test/host/sabotage_wx_policy.py) can require that exactly the sabotaged property goes red.
 // Exit: 0 ok, 1 a check failed.
 #include <cstdio>
@@ -12,7 +12,7 @@
 using namespace wxpolicy;
 
 static int failures = 0;
-static long viol[7] = {0, 0, 0, 0, 0, 0, 0};          // (a)..(g)
+static long viol[8] = {0, 0, 0, 0, 0, 0, 0, 0};       // (a)..(h)
 static void table(bool ok, char p, const char* what)
 {
     std::printf("  %s  (%c) table: %s\n", ok ? "ok  " : "FAIL", p, what);
@@ -23,11 +23,16 @@ static Query Q(int a, int b, int r) { Query q; q.lat100 = a; q.lon100 = b; q.rKm
 
 // The device's order (WD5 addendum 6): a request is SENT (OnSend records the attempt), then answered. The rows
 // (a)-(f) send and answer at the same clock, as before; (g) below separates the two.
+static Outcome ReplyA(State& s, const Query& asked, int status, uint32_t bytes, bool valid, uint32_t fe, bool all14,
+                      const char* etag, const char* maxAge, uint32_t nowMs)
+{
+    const uint32_t seq = OnSend(s, nowMs);
+    return OnResponse(s, seq, asked, status, bytes, valid, fe, all14, etag, maxAge, nowMs);
+}
 static Outcome Reply(State& s, const Query& asked, int status, uint32_t bytes, bool valid, uint32_t fe, bool all14,
                      const char* etag, uint32_t nowMs)
 {
-    const uint32_t seq = OnSend(s, nowMs);
-    return OnResponse(s, seq, asked, status, bytes, valid, fe, all14, etag, nowMs);
+    return ReplyA(s, asked, status, bytes, valid, fe, all14, etag, nullptr, nowMs);
 }
 
 static void Table()
@@ -71,7 +76,7 @@ static void TableG()
     const Query q1 = Q(3930, -9471, 80);
     { State s; OnQuery(s, q1); const uint32_t n = OnSend(s, 0);
       const bool before = !ShouldFetch(s, true, 0) && !ShouldFetch(s, true, 399);
-      OnResponse(s, n, q1, 304, 0, false, 0, false, nullptr, 400);
+      OnResponse(s, n, q1, 304, 0, false, 0, false, nullptr, nullptr, 400);
       table(before && !ShouldFetch(s, true, 400) && !ShouldFetch(s, true, 59999) && ShouldFetch(s, true, 60000), 'g',
             "sent at 0, a 304 at +0.4 s: not due until +60 s from the SEND, and the reply triggers nothing"); }
     { State s; OnQuery(s, q1); OnSend(s, 0);
@@ -80,16 +85,16 @@ static void TableG()
       table(held && ended && !ShouldFetch(s, true, 119999) && ShouldFetch(s, true, 120000), 'g',
             "a lost reply: in flight until +30 s, then a failed attempt -- 120 s, due at +120 s from the send"); }
     { State s; OnQuery(s, q1); const uint32_t n = OnSend(s, 0); ShouldFetch(s, true, 30000);
-      const Outcome o = OnResponse(s, n, q1, 200, 5000, true, 1000, false, "\"e1\"", 31000);
+      const Outcome o = OnResponse(s, n, q1, 200, 5000, true, 1000, false, "\"e1\"", nullptr, 31000);
       table(o == Outcome::Kept && !s.haveCrop && s.intervalMs == 120000 && !s.inFlight, 'g',
             "a reply after its timeout changes nothing"); }
     { State s; OnQuery(s, q1); const uint32_t n = OnSend(s, 0);
-      const Outcome o = OnResponse(s, n + 1, q1, 304, 0, false, 0, false, nullptr, 400);
+      const Outcome o = OnResponse(s, n + 1, q1, 304, 0, false, 0, false, nullptr, nullptr, 400);
       table(o == Outcome::Kept && s.inFlight && !ShouldFetch(s, true, 401), 'g', "a stray reply changes nothing"); }
     // H1 (WD5 addendum 7): exactly the 2026-10-26 order -- a time recorded 2 ms AFTER the `now` the pass asks with.
     { State s; OnQuery(s, q1); const uint32_t n = OnSend(s, 1002);
       const bool held = !ShouldFetch(s, true, 1000) && s.inFlight;
-      OnResponse(s, n, q1, 304, 0, false, 0, false, nullptr, 1003);
+      OnResponse(s, n, q1, 304, 0, false, 0, false, nullptr, nullptr, 1003);
       table(held && !ShouldFetch(s, true, 1000) && !ShouldFetch(s, true, 61001) && ShouldFetch(s, true, 61002), 'g',
             "today's order: a time recorded 2 ms after now is in flight, then not due -- never underflowed to due"); }
 }
@@ -113,7 +118,7 @@ static LoopCount RunLoop()
             if (replyPending) {
                 replyPending = false;
                 if (!replyLost)
-                    OnResponse(s, replySeq, q, replyStatus, 5000, true, 1000 + (uint32_t)k, false, "\"e\"", now + 2);
+                    OnResponse(s, replySeq, q, replyStatus, 5000, true, 1000 + (uint32_t)k, false, "\"e\"", nullptr, now + 2);
             }
         }
         if (slotBusy) continue;
@@ -147,6 +152,42 @@ static void Loop()
 // ---- random event sequences, with a model of what each property requires --------------------------
 static uint32_t g_seed = 20261020;
 static uint32_t rnd() { g_seed = g_seed * 1664525u + 1013904223u; return g_seed >> 8; }
+
+// (h) the age limit (ruled 2026-11-04 ~18:25Z): X-Wx-Max-Age read, clamped to [600, 900], 600 when absent or invalid; a
+// 304 restates it. These rows check the HELD limit and "shown at the limit" only: hiding past it is (c)'s, so a
+// sabotage of (c) cannot turn these red, and one of (h) cannot turn (c)'s red.
+static void TableH()
+{
+    const Query q1 = Q(3930, -9471, 80), q2 = Q(3931, -9471, 80);
+    table(MaxAgeFromHeader("720") == 720 && MaxAgeFromHeader("600") == 600 && MaxAgeFromHeader("900") == 900 &&
+          MaxAgeFromHeader("00720") == 720, 'h', "the read: 720, 600 and 900, and 00720 as 720");
+    table(MaxAgeFromHeader("5000") == 900 && MaxAgeFromHeader("99999") == 900 && MaxAgeFromHeader("901") == 900 &&
+          MaxAgeFromHeader("599") == 600 && MaxAgeFromHeader("1") == 600 && MaxAgeFromHeader("0") == 600, 'h',
+          "the clamp: 5000, 99999 and 901 to 900; 599, 1 and 0 to 600");
+    { const char* bad[] = {nullptr, "", "abc", "72O", "-720", "+720", " 720", "720 ", "7.2e2", "123456", "0x2D0"};
+      bool all = true;
+      for (const char* b : bad) all = all && MaxAgeFromHeader(b) == 600;
+      table(all, 'h', "absent or invalid (11 forms, a sixth digit and a sign among them): 600"); }
+    { State s; OnQuery(s, q1); ReplyA(s, q1, 200, 5000, true, 1000, false, "\"e1\"", "720", 0);
+      State t; OnQuery(t, q1); ReplyA(t, q1, 200, 5000, true, 1000, false, "\"e1\"", nullptr, 0);
+      table(s.maxAgeS == 720 && WhatToShow(s, true, true, 1720) == Show::Crop && t.maxAgeS == 600, 'h',
+            "a 200 with 720 holds 720 and is shown at 720 s old; with none it holds 600"); }
+    { State s; OnQuery(s, q1); ReplyA(s, q1, 200, 5000, true, 1000, false, "\"e1\"", "720", 0);
+      ReplyA(s, q1, 304, 0, false, 0, false, nullptr, "720", 60000);
+      const bool stays = s.maxAgeS == 720 && WhatToShow(s, true, true, 1720) == Show::Crop;
+      ReplyA(s, q1, 304, 0, false, 0, false, nullptr, nullptr, 120000);
+      const bool lost = s.maxAgeS == 600;
+      ReplyA(s, q1, 304, 0, false, 0, false, nullptr, "5000", 180000);
+      const bool capped = s.maxAgeS == 900 && WhatToShow(s, true, true, 1900) == Show::Crop;
+      table(stays && lost && capped, 'h', "a 304 restates it: 720 stays 720; NONE gives 600, never 720; 5000 gives 900"); }
+    { State s; OnQuery(s, q1); ReplyA(s, q1, 200, 5000, true, 2000, false, "\"e2\"", "720", 0);
+      ReplyA(s, q1, 200, 5000, true, 1880, false, "\"e1\"", "900", 60000);      // refused: older
+      const bool refused = s.maxAgeS == 720;
+      ReplyA(s, q1, 503, 0, false, 0, false, nullptr, nullptr, 120000);
+      const bool error = s.maxAgeS == 720;
+      OnQuery(s, q2);
+      table(refused && error && s.maxAgeS == 600, 'h', "a refused 200 and a 503 leave the held 720; a query change gives 600"); }
+}
 
 static void Random(long steps)
 {
@@ -182,7 +223,13 @@ static void Random(long steps)
             else if (r < 55) status = -1;
             char tag[32]; std::snprintf(tag, sizeof tag, "\"t%lu\"", (unsigned long)i);
             const uint32_t before = s.intervalMs;
-            const Outcome o = Reply(s, qs[askedIdx], status, bytes, valid, fe, all14, tag, nowMs);
+            static const char* const kHdr[6] = {nullptr, "600", "720", "900", "5000", "abc"};
+            static const uint32_t kWant[6] = {600, 600, 720, 900, 900, 600};   // (h) the model
+            const int hi = (int)(rnd() % 6);
+            const uint32_t prevMax = s.maxAgeS;
+            const Outcome o = ReplyA(s, qs[askedIdx], status, bytes, valid, fe, all14, tag, kHdr[hi], nowMs);
+            if (status == 304 || o == Outcome::Replaced) { if (s.maxAgeS != kWant[hi]) ++viol[7]; }   // (h)
+            else if (s.maxAgeS != prevMax) ++viol[7];                                // (h) refused or error: unchanged
             if (o == Outcome::Replaced) {
                 if (bytes > kMaxBytes || !valid || askedIdx != qi || (had && fe < prevEpoch)) ++viol[1];   // (b)
                 earnedEtag = tag; earnedFor = qi;
@@ -194,7 +241,8 @@ static void Random(long steps)
             if (s.intervalMs != expectInterval) ++viol[4];                           // (e)
         }
         const Show sh = WhatToShow(s, enabled, clockSet, clockSet ? nowEpoch : 0);
-        if (sh != Show::Nothing && (!clockSet || (nowEpoch > s.frameEpoch && nowEpoch - s.frameEpoch > kMaxAgeS))) ++viol[2];   // (c)
+        if (sh != Show::Nothing && (!clockSet || (nowEpoch > s.frameEpoch && nowEpoch - s.frameEpoch > s.maxAgeS))) ++viol[2];   // (c)
+        if (s.maxAgeS > 900) ++viol[7];                                              // (h) never above the cap
         if (sh == Show::Crop && s.allNoCoverage) ++viol[5];                         // (f)
     }
 }
@@ -204,14 +252,16 @@ int main()
     std::printf("WxPolicy.h: the weather fetch policy\n");
     Table();
     TableG();
+    TableH();
     Loop();
     const long steps = 200000;
     Random(steps);
-    const char* name[7] = {"disabled means 0 requests", "a 200 replaces only when small, valid, current and not older",
-                           "never shown older than 600 s or without a clock", "If-None-Match only with the current query's ETag",
+    const char* name[8] = {"disabled means 0 requests", "a 200 replaces only when small, valid, current and not older",
+                           "never shown older than the held limit or without a clock", "If-None-Match only with the current query's ETag",
                            "60 s polling; errors back off to a 600 s cap; 200/304 reset", "an all-14 crop is shown as outside coverage",
-                           "the attempt is the send; one in flight; a lost reply times out (table + loop)"};
-    for (int p = 0; p < 7; ++p) {
+                           "the attempt is the send; one in flight; a lost reply times out (table + loop)",
+                           "the age limit: read, clamped to [600, 900], 600 when absent; a 304 restates it"};
+    for (int p = 0; p < 8; ++p) {
         const bool ok = viol[p] == 0;
         std::printf("  %s  (%c) %ld random steps: %s -- %ld violations\n", ok ? "ok  " : "FAIL", 'a' + p, steps, name[p], viol[p]);
         if (!ok) ++failures;

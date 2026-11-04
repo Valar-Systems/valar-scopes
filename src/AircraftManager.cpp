@@ -417,6 +417,7 @@ struct FetchResult {
     size_t wxLen = 0;                // Weather: bytes landed (0 unless a whole body fit)
     size_t wxClaimed = 0;            // Weather: the length the server claimed (> cap = refused for size)
     String wxEtag;                   // Weather: the reply's ETag
+    String wxMaxAge;                 // Weather: the reply's X-Wx-Max-Age, "" when absent (WxPolicy (h))
     wxpolicy::Query wxAsked;         // Weather: the query this answers
     uint32_t wxSeq = 0;              // Weather: the request number this answers
 #endif
@@ -2891,18 +2892,19 @@ void AircraftManager::RunFetchTask()
             std::vector<std::pair<String, String>> hdrs = CloudFeed::Headers(req->cloudKey);
             if (!req->wxIfNoneMatch.isEmpty()) hdrs.push_back({ "If-None-Match", req->wxIfNoneMatch });
             size_t len = 0;
-            String etag;
+            String etag, maxAge;
             const HttpResult r = http.GetBytes(
                 CloudFeed::WeatherUrl(req->cloudBase, "cref"),
                 { { "lat", wireloc::Center(req->lat) },   // 2 dp on the wire, as WxQuery() assumes
                   { "lon", wireloc::Center(req->lon) },
                   { "r", String((int)lround(req->rangeKm)) } },
-                hdrs, req->wxBuf, wxcrop::kMaxBytes, len, etag);
+                hdrs, req->wxBuf, wxcrop::kMaxBytes, len, etag, maxAge);
             res->ok = r.success;
             res->wxStatus = r.statusCode;
             res->wxLen = len;
             res->wxClaimed = r.bodyBytes;
             res->wxEtag = etag;
+            res->wxMaxAge = maxAge;
             res->wxAsked = req->wxAsked;
             res->wxSeq = req->wxSeq;
             if (!r.success && r.statusCode <= 0)
@@ -3321,11 +3323,11 @@ bool AircraftManager::RequestWeather(unsigned long now)
     Serial.println("[wx] request DROPPED: fetch queue full");
     delete req;
     // Never sent: answered at once as a network failure, so it backs off rather than retrying every pass.
-    wxpolicy::OnResponse(wxState, seq, q, -1, 0, false, 0, false, nullptr, (uint32_t)millis());
+    wxpolicy::OnResponse(wxState, seq, q, -1, 0, false, 0, false, nullptr, nullptr, (uint32_t)millis());
     return false;
 }
 
-void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, const String& etag,
+void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, const String& etag, const String& maxAge,
                                      const wxpolicy::Query& asked, uint32_t seq)
 {
     // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
@@ -3340,7 +3342,9 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
         });
     const uint32_t bytes = (uint32_t)(claimed > len ? claimed : len);
     const wxpolicy::Outcome o = wxpolicy::OnResponse(wxState, seq, asked, status, bytes, valid, valid ? h.frameEpoch : 0,
-                                                     all14, etag.isEmpty() ? nullptr : etag.c_str(), (uint32_t)millis());
+                                                     all14, etag.isEmpty() ? nullptr : etag.c_str(),
+                                                     maxAge.isEmpty() ? nullptr : maxAge.c_str(),   // (h)
+                                                     (uint32_t)millis());
     if (o == wxpolicy::Outcome::Replaced) {
         memcpy(wxHeld, wxLanding, len);
         wxHeldLen = len;
@@ -3499,7 +3503,7 @@ void AircraftManager::ConsumeFetchResult()
 
 #ifdef FEATURE_CLOUD_FEED
     if (res->kind == FetchKind::Weather) {
-        ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxAsked, res->wxSeq);
+        ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxMaxAge, res->wxAsked, res->wxSeq);
         delete res;
         return;
     }

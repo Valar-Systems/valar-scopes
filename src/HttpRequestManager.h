@@ -93,9 +93,10 @@ public:
     // in advance. A 304 has no body (len = 0). result.bodyBytes is the length the server claimed (cap + 1 for an
     // over-cap chunked body), so a caller can tell "too big" from "empty". On any refusal or error status the
     // socket is closed: a half-read body would poison the keep-alive connection for the next request.
+    // maxAge is the reply's X-Wx-Max-Age, "" when absent (WxPolicy (h); on a 200 or a 304 alike).
     [[nodiscard]] HttpResult GetBytes(const String& url, const std::vector<std::pair<String, String>>& params,
                                       const std::vector<std::pair<String, String>>& headers,
-                                      uint8_t* buf, size_t cap, size_t& len, String& etag);
+                                      uint8_t* buf, size_t cap, size_t& len, String& etag, String& maxAge);
 
     // GET over https validated against a PINNED root chain, on the SAME shared client.
     //

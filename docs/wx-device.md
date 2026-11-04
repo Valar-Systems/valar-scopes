@@ -4337,3 +4337,44 @@ one source file per check, and WA1 spans two.
   `ConsumeWeather`'s `OnResponse` call hands it over. **Its plant,** that call passing `nullptr` instead, turns exactly
   WA1 (AircraftManager) red.
 - **Why the second plant is needed:** without it, the second half would be a check that has never been seen to fail.
+
+### Results for the age limit (2026-11-04)
+
+**As made:**
+
+| file | sha256 (12) |
+|---|---|
+| `WxPolicy.h` | `29ff1918fc04` |
+| `test_wx_policy.cpp` | `a57418706c3a` |
+| `sabotage_wx_policy.py` | `9ba5147149a2` |
+| `check_wx_wiring.py` | `0d024e67cb9b` |
+
+`HttpRequestManager` and `AircraftManager` carry the header, as designed.
+
+| | read | verdict |
+|---|---|---|
+| **AL1-AL6** | every (h) table row `ok`, on MinGW and on WSL g++ 13.3.0 | **as predicted** (AL4 and AL5 as amended) |
+| **AL7** | 200,000 random steps: (c) 0 violations against the held limit; (h) 0 | **as predicted** |
+| **AL8** | **34** `ok` lines, exit 0, on both compilers; the 27 earlier lines unchanged | **as predicted** |
+| **AL9** | the control passes at 34. S-h1 → exactly (h). S-h2 → exactly (h). S-c1, re-anchored → exactly (c). Every other earlier plant → exactly its own property, **except S-b2: `['b', 'h']`** | **OFF** (S-b2) |
+| **AL10** | WA1 (GetBytes) and WA1 (AircraftManager) pass. Each plant turns exactly its own check red, and the six earlier checks and plants are unchanged | **as predicted** (as amended) |
+| **AL11** | `blipscope-s3-128` 1,950,144 B and `blipscope-s3-128-wxlook` 1,952,896 B both build. No `[wx]` print line is changed | **as predicted** |
+
+**`run.sh` in full on WSL (g++ 13.3.0): exit 2, from the rig alone.** No xtensa toolchain, and no Pillow for
+Weatherscope's R0/R0b. Every other block passed, including the anchors pass (`sabotage_wx_policy.py`: 12 plants, 18
+anchors, each present exactly once), its control, and WA1 with its selftest. CI is the authority.
+
+**AL9, off as graded. The cause is the test's sixth (h) row, read from the code:**
+- **The row:** "a refused 200 leaves the held limit" refuses the 200 by sending an **older** frame.
+- **What S-b2 does:** it removes "never backwards", so that older 200 is taken, and with it its own limit of 900. The
+  (h) row then sees 900 where it expects the held 720.
+- **So this is a cascade from (b) into (h)**, the same shape as P4′'s case 4. The (h) code is not at fault: S-h1 and
+  S-h2 each turn exactly (h) red, and the random (h) check stays clean under S-b2 (0 violations), because it reads the
+  actual outcome.
+- **The alternative, and why the data excludes it:** that the (h) code is wrong under (b)'s break. The random (h)
+  check, which follows each reply's actual outcome, reads 0 violations under S-b2. Only the table row, which assumes
+  the refusal, goes red.
+- **The remedy proposed, not made (it waits for a ruling):**
+  - make the row's refused 200 one that answers a **superseded query**, a refusal reason no plant touches;
+  - predicted: S-b2 → exactly (b), and every other row as above.
+  - The other way is to predict S-b2 → `['b', 'h']` as a true cascade. The reviewer's call.

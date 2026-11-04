@@ -615,11 +615,12 @@ HttpResult HttpRequestManager::Post(const String& url, const String& body, const
 
 HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std::pair<String, String>>& params,
                                         const std::vector<std::pair<String, String>>& headers,
-                                        uint8_t* buf, size_t cap, size_t& len, String& etag)
+                                        uint8_t* buf, size_t cap, size_t& len, String& etag, String& maxAge)
 {
     HttpResult result{ false, 0, "", "" };
     len = 0;
     etag = "";
+    maxAge = "";
     const String fullUrl = url + BuildQueryString(params);
 #ifdef ALERT_BENCH
     BenchFetchLine(fullUrl);
@@ -629,8 +630,10 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
     HTTPClient& http = ClientFor(fullUrl); // scheme-pinned instance (see header)
 
     // The same single retry on a stale keep-alive socket as Get() and GetJson() (see Get() for why).
-    // Transfer-Encoding tells a chunked reply from a close-delimited one; ETag is what WxPolicy revalidates with.
-    static const char* kCollectHeaders[] = { "Transfer-Encoding", "ETag", "X-Cache", "X-Upstream" };
+    // Transfer-Encoding tells a chunked reply from a close-delimited one; ETag is what WxPolicy revalidates with;
+    // X-Wx-Max-Age is the served product's age limit (WxPolicy (h)). The count passed below is the array's own size,
+    // so a header added here cannot be listed and silently never collected.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding", "ETag", "X-Cache", "X-Upstream", "X-Wx-Max-Age" };
     const unsigned long reqStartMs = millis();
     int responseCode = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -640,7 +643,7 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
         http.setConnectTimeout(5000);
         http.setTimeout(5000);
-        http.collectHeaders(kCollectHeaders, 4);
+        http.collectHeaders(kCollectHeaders, sizeof(kCollectHeaders) / sizeof(kCollectHeaders[0]));
         for (const auto& header : headers)
             http.addHeader(header.first, header.second);
         responseCode = http.GET();
@@ -660,6 +663,7 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
         result.cacheState = http.header("X-Cache");
         result.upstream = http.header("X-Upstream");
         etag = http.header("ETag");
+        maxAge = http.header("X-Wx-Max-Age");
         const int bodyLen = http.getSize(); // Content-Length, or -1 when chunked/unknown
         if (responseCode == 304) {
             result.success = true;           // no body, by definition

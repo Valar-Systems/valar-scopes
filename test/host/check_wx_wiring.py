@@ -5,6 +5,10 @@
         - src/ConfigurationWebServer.cpp renders it from  prefs.getString("wx-layer", "false").
   WD5t4 HttpRequestManager::GetBytes holds the body in no String: no getString( and no String assigned from
         the stream.
+  WA1   the age limit's header reaches the policy (ruled 2026-11-04 ~18:25Z): GetBytes collects X-Wx-Max-Age with
+        the list's own size as the count and returns it; the fetch task stores it, and ConsumeWeather's OnResponse
+        call hands it over. A header never collected would read as absent -- 600 -- forever, with every policy
+        test green: this is the path those tests cannot see.
 
     python -I check_wx_wiring.py <repo root>              exit 0 all pass; 1 a check failed; 2 cannot read
     python -I check_wx_wiring.py <repo root> --selftest   each check against a copy with ONE planted break; every
@@ -87,8 +91,33 @@ def k3_page(page):
                 else f"defaults {defaults}; select and legend through the rule: {through}")
 
 
+def wa1_hrm(hrm):
+    """WA1: GetBytes collects X-Wx-Max-Age, counts the list by its own size, and returns the value."""
+    body = get_bytes_body(hrm)
+    if body is None:
+        return False, "HttpRequestManager::GetBytes not found"
+    arr = re.search(r'kCollectHeaders\[\]\s*=\s*\{([^}]*)\}', body)
+    listed = bool(arr) and '"X-Wx-Max-Age"' in arr.group(1)
+    sized = "http.collectHeaders(kCollectHeaders, sizeof(kCollectHeaders) / sizeof(kCollectHeaders[0]));" in body
+    returned = 'maxAge = http.header("X-Wx-Max-Age");' in body
+    ok = listed and sized and returned
+    return ok, (f"listed {listed}, counted by its own size {sized}, returned {returned}")
+
+
+def wa1_am(am):
+    """WA1: the fetch task stores the value, ConsumeFetchResult passes it, ConsumeWeather hands it to OnResponse."""
+    stored = "res->wxMaxAge = maxAge;" in am
+    passed = "ConsumeWeather(res->wxStatus, res->wxLen, res->wxClaimed, res->wxEtag, res->wxMaxAge," in am
+    m = re.search(r'\nvoid AircraftManager::ConsumeWeather\(.*?\n\}\n', am, re.S)
+    call = re.search(r'wxpolicy::OnResponse\(wxState,[^;]*;', m.group(0), re.S) if m else None
+    handed = bool(call) and "maxAge.c_str()" in call.group(0)
+    ok = stored and passed and handed
+    return ok, f"stored {stored}, passed {passed}, handed to OnResponse {handed}"
+
+
 CHECKS = [("WD5b (AircraftManager)", "am", wd5b_am), ("WD5b (config page)", "page", wd5b_page), ("WD5t4", "hrm", wd5t4),
-          ("K3 (the rule)", "wxs2", k3_rule), ("K3 (AircraftManager)", "am", k3_am), ("K3 (config page)", "page", k3_page)]
+          ("K3 (the rule)", "wxs2", k3_rule), ("K3 (AircraftManager)", "am", k3_am), ("K3 (config page)", "page", k3_page),
+          ("WA1 (GetBytes)", "hrm", wa1_hrm), ("WA1 (AircraftManager)", "am", wa1_am)]
 
 
 def run(src):
@@ -126,6 +155,10 @@ def main():
                                  "#ifdef WX_LOOK_AB\n    wxLook = wxs2::LookFromStored(configServer.GetStoredString(\"wx-look\").c_str());\n#endif\n")),
             ("the page's look default B", "K3 (config page)", "page",
              lambda s: s.replace('prefs.getString("wx-look", "")', 'prefs.getString("wx-look", "B")')),
+            ("the age header dropped from the collect list", "WA1 (GetBytes)", "hrm",
+             lambda s: s.replace('"X-Upstream", "X-Wx-Max-Age" };', '"X-Upstream" };')),
+            ("ConsumeWeather hands OnResponse nullptr for the age", "WA1 (AircraftManager)", "am",
+             lambda s: s.replace("maxAge.isEmpty() ? nullptr : maxAge.c_str(),   // (h)", "nullptr,   // SABOTAGE: the age dropped")),
         ]
         bad = 0
         for label, target, key, plant in sabotages:
