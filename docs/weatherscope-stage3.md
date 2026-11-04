@@ -11014,3 +11014,57 @@ or the bus, not something to tune away.
 - the B-run's record through `publish_t5_record.py`, with its scan and its control.
 
 The raw traces stay local, sha256 only.
+
+### A12.88 Q70 (b), frozen before its code: every sabotage driver keeps going past a plant it cannot grade
+
+**The ruling (~17:05Z):** "(b) approved as its own PR after the follow-up: a driver keeps going past a plant that doesn't
+compile, records that plant as the RIG, and exits nonzero at the end."
+
+**Today, read from the 20 drivers on main `05864ca`:**
+- **15 drivers stop at a plant they cannot grade**: it did not compile, its suite did not run, or a count is off its table. Each prints the reason, then `sys.exit(2)` or `return 2`. So every plant after it goes ungraded, on that compiler, until someone fixes the first. That is how S-H3 and the eight plants after it never ran under g++ 13.3 (A12.82).
+- **Five go on, but grade such a plant OFF-PREDICTION (exit 1) rather than the RIG:** daynight, theme, th2, themed_draw, and parts of light.
+
+#### The change
+
+**`sabotage_common.py` gains two things:**
+- **`class Rig(Exception)`:** a plant that cannot be graded.
+- **`force_rig(name)`, a seam:** when `SABOTAGE_FORCE_RIG` names the plant, it raises `Rig` before that plant builds. It can only make a plant the RIG; it can never pass one, and it is unset everywhere but the controls below.
+
+**In every driver:**
+- **Every path that today ends the run on a plant** raises `sc.Rig` instead, after printing exactly what it prints today.
+- **The plant loop catches it** and prints `<plant>: the RIG -- recorded; the next plant runs`. Then the next plant runs.
+- **The five that grade such a plant OFF** move to the same rule: the RIG, not OFF.
+
+**What does NOT change:**
+- **The control (the unplanted run) is not a plant.** Its RIG still ends the driver at once with exit 2, because nothing after it can be graded against it.
+- **`--control` and `--anchors`.**
+- **Every line a driver prints when no plant is the RIG.**
+
+**The end, when a plant was the RIG:**
+- The summary's last line names every such plant: `the RIG: [...]`.
+- **Exit 2,** whatever the other plants did. That is today's RIG code, and `run.sh` reads it as the rig.
+
+**The control that runs:** `test/host/sabotage_rig_control.py`, at the end of `run.sh`'s full-driver block.
+- **It runs the real logic driver twice** (nothing copied, nothing edited): once with `SABOTAGE_FORCE_RIG=S-R1` (its first plant) and once with `S-X` (its last).
+- **Each run must:**
+  - exit 2;
+  - name exactly that plant as the RIG;
+  - grade the other 23 plants AS PREDICTED, each line equal to the clean run's.
+- **Its failure fails the block,** as `sabotage_controls_control.py`'s does.
+
+#### Predicted
+
+| row | expected |
+|---|---|
+| every driver in full, clean tree, MinGW and g++ 13.3 | **stdout byte-identical to main's driver, diffed driver by driver; exit 0.** Towns with its archives, the same |
+| `--control` and `--anchors`, every driver | output identical; the lint 0 flagged |
+| **the forced sweep** (local, MinGW and g++ 13.3): each driver with its FIRST plant forced | **exit 2:** <br>• that plant is named as the RIG; <br>• every other plant's line is equal to the clean run's; <br>• the summary names that plant alone. <br>For a one-plant driver (server_crops' `S-SC`, th2's `S-TH2`) there is no later plant, so: exit 2 with that plant named |
+| a real RIG, not the seam (local, g++ 13.3): a copy of the logic driver with A12.82's one-line S-H3 restored | **S-H3 the RIG; the other 23 AS PREDICTED; exit 2.** That is the A12.82 probe's result, now from the driver itself |
+| `sabotage_rig_control.py` | both runs as above; exit 0 |
+| `run.sh`, MinGW and g++ 13.3 | the full block's 19 `ok` lines and towns SKIP as today, plus the control's lines. Every other line unchanged |
+| CI | predicted from the last finished run's job list when the PR goes up: both legs green, every block run |
+
+**The outside-the-set branch:** any driver whose clean output differs by a byte, or a forced run off its row, stops this
+step at that row, and is reported before anything changes.
+
+**When:** after the TouchWatchdog board window (17:15Z-19:45Z) closes. Its sweeps load the host for some minutes, and the window's B-run is timing-sensitive.
