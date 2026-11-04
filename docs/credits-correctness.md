@@ -349,3 +349,15 @@ it. These are the paragraph and clause texts, the `/by/2.0/`-style deeds, `stand
 | **the diff from `fef1596`** | `proxy/test/photos.test.ts`, `proxy/scripts/sabotage-credits.mjs` (its file list and red sets) and this doc. Nothing else |
 | **CI** | **41 check runs: 38 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed**, as re-registered by the ruling |
 
+### Read (local, `6b55342`; Windows; every reading as registered)
+
+| | read | verdict |
+|---|---|---|
+| **the diff from `fef1596`** | `docs/credits-correctness.md`, `proxy/scripts/sabotage-credits.mjs` (+6 / -3: its file list, the three `photos.test.ts` tests it reads, the two red sets) and `proxy/test/photos.test.ts`. Nothing else | as predicted |
+| **the whole proxy suite** | `npx vitest run`: **67 files, 66 passed, 1 skipped; 882 tests, 881 passed, 1 skipped, 0 failed**; exit 0; no timeout | as predicted |
+| **the sabotages** | the control: 35 of 35. **S-CV-BLANKET** red exactly {CV1 104, CV2 8, SA1 48, Q-C1, F16, **P68**}. S-SA {SA1 0, Q-C1}. **S-RD** {RD1 `{ standingData: 0, adsbdb: 2 }`, Q-C1, **P89**}. S-QC1 {Q-C1}. Every file restored byte-identical. **Exit 0** | as registered |
+
+**A gate I skipped, recorded.** TIME_WAIT read 12,761 when the sabotage run started, above the 8,000 at which these
+workers runs have read BLIND before. I ran anyway; that was my error. **No run was blind:** the control passed 35 of 35,
+and every run's summary parsed with its red set exact.
+
