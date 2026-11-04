@@ -44,3 +44,12 @@ out at vitest's 5,000 ms default, with no wrong answer. The re-run of the failed
 | **TO4** | CI on the PR head, **counted only from the finished run** | **41 check-runs: 38 success, 3 skipped** (`version`, `promote`, `ship-alert`), **0 failed.** Both tests pass, with their durations printed (not graded) |
 
 **Outside the set:** any other reading means stop and report.
+
+## The readings before the PR's CI (2026-11-04)
+
+- **TO1, as predicted:** the diff is `proxy/test/wx-crop.test.ts` and `proxy/test/wx-opera.test.ts`, 6 insertions and
+  2 deletions. Each test's closing line gains its timeout, plus two comment lines. Nothing else changes.
+- **TO2, as predicted:** both files pass locally, 54 of 54 (WS2 2,375 ms, K4′ 3,792 ms).
+- **TO3, as predicted:** with the K4′ test's timeout planted at 1 ms (applied: sha `b797b650eccb` → `f977a07b9245`),
+  the test is **red, "Test timed out in 1ms"**. The file was restored from a byte copy (sha `b797b650eccb` again).
+- **TO4** is read from the PR's finished CI run.
