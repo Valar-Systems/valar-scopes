@@ -37,6 +37,7 @@ const T = mkdtempSync(join(tmpdir(), "tid-selftest-"));
 const tokens = (name: string, device = TDEV) => {
   const f = join(T, name);
   writeFileSync(f, `# EXAMPLE token file\nkv-read=EXAMPLE-not-a-token\nblip-key=${BKEY}\nblip-device=${BDEV}\ntest-device=${device}\ntest-key=${TKEY}\ntest-key-staging=${"d".repeat(64)}\nrecords-device=${RDEV}\n`);
+  chmodSync(f, 0o600); // token-file.ts refuses an others-readable file on POSIX (CI on 3f9e655)
   return f;
 };
 // the curl stand-in: counts each call and answers nothing
@@ -64,7 +65,9 @@ const withShim = { PATH: `${SHIM}${delimiter}${process.env.PATH}`, SHIM_COUNT: C
 for (const s of ["scripts/smoke-prod.sh", "scripts/watch-upstream.sh"]) {
   writeFileSync(COUNT, "");
   const r = await run(s, { ...withShim, BLIPSCOPE_TOKEN_FILE: tokens("t1"), BLIP_KEY: BKEY, BLIP_DEVICE: BDEV });
-  row(`TI1 ${s.split("/")[1]}`, r.code === 2 && shimCount() === 0 && /REFUSED/.test(r.out), `exit ${r.code}; requests counted ${shimCount()}`);
+  // by its REASON, not any refusal: a refusal for another cause (a file mode, say) would otherwise pass here
+  const byReason = /BLIP_(KEY|DEVICE) is set/.test(r.out);
+  row(`TI1 ${s.split("/")[1]}`, r.code === 2 && shimCount() === 0 && byReason, `exit ${r.code}; refused because BLIP_* is set: ${byReason}; requests counted ${shimCount()}`);
 }
 // ---- TI1b: test-device equal to records-device is refused, with 0 requests -----------------------------------------
 writeFileSync(COUNT, "");

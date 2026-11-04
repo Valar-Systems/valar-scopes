@@ -111,20 +111,20 @@ jobs:
       # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output
       # scan must catch); EXAMPLE values only. Under tsx, because it imports the Worker's own deviceIdFromMac.
       - name: The test identity's mint (selftest)
-        if: matrix.worker == 'proxy'
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
         run: npx tsx scripts/mint-test-identity.selftest.mts
       # The checks as the test identity (TI1, TI1b, S-TIGUARD, TI2, TI7 and its control): the real smoke-prod.sh and
       # watch-upstream.sh against a local stub; a board's pair refused with 0 requests; the key never on a command line.
       - name: The checks run only as the test identity (selftest)
-        if: matrix.worker == 'proxy'
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
         run: npx tsx scripts/test-identity.selftest.mts
       # TX2 and S-TXRECON: reconcile-fleet.py leaves the test identity out of "KV ONLY" (a fixture; no KV touched).
       - name: reconcile-fleet leaves the test identity out (selftest)
-        if: matrix.worker == 'proxy'
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
         run: python3 ../scripts/reconcile-fleet.selftest.py
       # S-TXNOEXCL: the dashboard's exclusion removed must make TX1 fail with "Devices seen" up by exactly one.
       - name: The dashboard's test-identity exclusion (sabotage)
-        if: matrix.worker == 'dashboard'
+        if: ${{ !cancelled() && matrix.worker == 'dashboard' }}
         run: node scripts/sabotage-test-identity.mjs
       # The firmware's host test parses this fixture with CoordParse; it must be what
       # the helper's formatCoord actually emits, or that test grades a stale contract.

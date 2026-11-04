@@ -5,7 +5,7 @@
 //
 //   npx tsx scripts/mint-test-identity.selftest.mts
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -34,7 +34,9 @@ const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
 const T = mkdtempSync(join(tmpdir(), "mint-selftest-"));
 const ptoken = join(T, "provision-token"); writeFileSync(ptoken, "EXAMPLE-provision-token\n");
-const fresh = (name: string, text = "# EXAMPLE token file\nkv-read=EXAMPLE-not-a-token\nblip-device=0000000000000000\n") => { const f = join(T, name); writeFileSync(f, text); return f; };
+// chmod 600: token-file.ts refuses, on POSIX, a token file others can read. Without it every run is refused on Linux
+// (CI on 3f9e655), while Windows, where the mode is not checked, passed every row.
+const fresh = (name: string, text = "# EXAMPLE token file\nkv-read=EXAMPLE-not-a-token\nblip-device=0000000000000000\n") => { const f = join(T, name); writeFileSync(f, text); chmodSync(f, 0o600); return f; };
 // ASYNC on purpose: the stub runs in THIS process, so a blocking spawnSync would starve it and the child would wait
 // forever on its fetch (the first version of this selftest deadlocked exactly that way).
 const run = (script: string, tokens: string, args: string[]) => new Promise<{ code: number | null; out: string }>((done) => {
@@ -69,7 +71,9 @@ row("TM1s", c.code === 0 && k2 === "blip-device,kv-read,test-device,test-key,tes
   `exit ${c.code}; fields now {${k2}}; secrets in the output: ${count(c.out, [...secrets1, KEY_STAGING])} times`);
 const f2 = fresh("tokens-wrongid"); mode = "prod"; await run(MINT, f2, ["--env", "production"]); mode = "wrongid";
 const d = await run(MINT, f2, ["--env", "staging"]);
-row("TM1s (a different id)", d.code === 2 && !tokenFileKeys(readFileSync(f2, "utf8")).has("test-key-staging"), `exit ${d.code}; test-key-staging written: ${tokenFileKeys(readFileSync(f2, "utf8")).has("test-key-staging")}`);
+// by its REASON: an exit code alone passed in CI when every run was refused for another reason
+const byReason = /the route's id equals test-device: no/.test(d.out);
+row("TM1s (a different id)", d.code === 2 && byReason && !tokenFileKeys(readFileSync(f2, "utf8")).has("test-key-staging"), `exit ${d.code}; refused because the id differs: ${byReason}; test-key-staging written: ${tokenFileKeys(readFileSync(f2, "utf8")).has("test-key-staging")}`);
 
 // records-device, in place (Q-T4)
 const e = await run(MINT, f1, ["--add-records-device"]);
