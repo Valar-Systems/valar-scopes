@@ -264,3 +264,11 @@ for it. This was read from the code, not inferred.
 | **CI** | in a PR comment right before the push, from finished runs only |
 
 **Stop at the first off reading:** no further row runs until the ruling.
+
+### Read on the rebased head (`e56ed3f`; Windows; every reading as registered)
+
+| | read | verdict |
+|---|---|---|
+| **credits.html** | regenerated: one line added, **OPERA's, exactly once**; adsbdb 0; the standing-data line once | as predicted |
+| **the rows** | **23 pass** (`photolicense.test.ts` 21, `basemap-attribution.test.ts` 2). CV1, CV2, SA1, RD1, Q-C1; #521's PD test, its CONTROL and OPERA; MRMS; MA1 and MA2. Both `tsc` configs clean | as predicted |
+| **the sabotages** | the control: 23 of 23. **S-CV-BLANKET** red exactly {CV1 104, CV2 8, SA1 48, Q-C1, F16}. **S-SA** {SA1 0, Q-C1}. **S-RD** {RD1 `{ standingData: 0, adsbdb: 2 }`, Q-C1}. **S-QC1** {Q-C1}. #521's PD, CONTROL and OPERA stayed green in each. Every file restored byte-identical. **Exit 0** | as registered |
