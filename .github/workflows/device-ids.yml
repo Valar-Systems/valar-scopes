@@ -22,10 +22,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      # No committed file carries a BSSID beyond the 13 named logs (docs/bssid-guard.md), and the
-      # recorders' two redaction implementations agree. pwsh is on the ubuntu image.
-      - run: python3 scripts/check_bssid.py
-      - run: python3 scripts/check_bssid.py --selftest
+      # No committed file names the bench network: a network name in an association or ssid context, a
+      # BSSID, a private LAN address (docs/wifi-scrub.md; it absorbed check_bssid.py). And the recorders'
+      # two redaction implementations agree. pwsh is on the ubuntu image.
+      - run: python3 scripts/check_wifi.py
+      - run: python3 scripts/check_wifi.py --selftest
       - run: python3 scripts/check_redaction_vectors.py
       - run: python3 scripts/check_redaction_vectors.py --selftest
       # Full history is NOT needed and is not wanted: this scans the tree at

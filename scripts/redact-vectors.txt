@@ -1,7 +1,7 @@
 # Redaction vectors: <input> TAB <expected>. scripts/check_redaction_vectors.py runs every input through BOTH
 # scripts/redact-line.ps1 (PowerShell) and scripts/redact_line.py (Python), and requires both to equal <expected>.
 # {MAC1} and {MAC2} are filled in by the checker with placeholders (never a real access point): no literal MAC is
-# committed here, because scripts/check_bssid.py would refuse this file. docs/bssid-guard.md.
+# committed here, because scripts/check_wifi.py would refuse this file. docs/bssid-guard.md, docs/wifi-scrub.md.
 13:18:49 [WiFi] fast join: ch=1 bssid={MAC1}	13:18:49 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 [WiFi] fast join: ch=6 BSSID: {MAC2}	[WiFi] fast join: ch=6 BSSID: <bssid redacted>
 [jdiag]   bss {MAC1} ch=11 band=2.4 rssi=-60 enc=wpa2	[jdiag]   bss <bssid redacted> ch=11 band=2.4 rssi=-60 enc=wpa2

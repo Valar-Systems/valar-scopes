@@ -1,5 +1,10 @@
 # No committed log carries a BSSID (predictions first)
 
+> **Superseded on 2026-11-04 by [wifi-scrub.md](wifi-scrub.md).** The 13 logs this check allowed by name were
+> scrubbed, so the allowance had no reason left. `scripts/check_bssid.py` folded into `scripts/check_wifi.py`, which
+> keeps its pattern and its three plant forms and also refuses network names and private LAN addresses. The record
+> below is kept as it was.
+
 **The ruling (reviewer chat, pasted by Daniel, 2026-10-23), verbatim:** "No history rewrite. The two BSSIDs have been
 public since August, GitHub keeps merged PRs' commits reachable regardless, and a rewrite would change every SHA that
 approvals, releases and records cite. Whether to take the home network out of location databases is Daniel's call,

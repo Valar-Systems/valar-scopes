@@ -3018,14 +3018,14 @@
 *wm:[4] STA static IP:
 *wm:[3] setSTAConfig static ip not set, skipping 
 *wm:[2] Connect Wifi, ATTEMPT # 1 of 5
-*wm:[2] Connecting to SAVED AP: Tony
+*wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password:<redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
 *wm:[3] . 
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
@@ -3042,12 +3042,12 @@
 *wm:[3] . 
 *wm:[3] . 
 *wm:[3] . 
-[WiFi] CONNECTED  IP=192.168.86.51  RSSI=-61 dBm
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-61 dBm
 *wm:[3] Connection result: WL_CONNECTED
 *wm:[4] lastconxresult: WL_CONNECTED
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2251 ms
-*wm:[2] STA IP Address: 192.168.86.51
+*wm:[2] STA IP Address: <lan-ip redacted>
 *wm:[4] hostname: STA:  Blipscope-51C12C
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=c3-128 current=4 latest=4

@@ -157,12 +157,12 @@ entry 0x403c88b8
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 *wm:18 networks found
 *wm:Connect Wifi, ATTEMPT # 1 of 5
-*wm:Connecting to NEW AP: Tony
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-50 dBm
+*wm:Connecting to NEW AP: <ssid redacted>
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 *wm:Connect to new AP [SUCCESS] 
 *wm:Got IP Address: 
-*wm:192.168.86.55 
+*wm:<lan-ip redacted> 
 [WiFi] Portal saved credentials, attempting to connect...
 *wm:config portal exiting 
 [WiFi] autoConnect() returned true (connected)
@@ -189,12 +189,12 @@ entry 0x403c88b8
 [  3326][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 *wm:AutoConnect 
 *wm:Connect Wifi, ATTEMPT # 1 of 5
-*wm:Connecting to SAVED AP: Tony
+*wm:Connecting to SAVED AP: <ssid redacted>
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-53 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-53 dBm
 *wm:AutoConnect: SUCCESS 
-*wm:STA IP Address: 192.168.86.55
+*wm:STA IP Address: <lan-ip redacted>
 [WiFi] autoConnect() returned true (connected)
 [WiFi] pinned AP ch=1 RSSI=-53 dBm for the next boot
 [ota] channel=s3-128 current=5 latest=4
@@ -344,10 +344,10 @@ entry 0x403c88b8
 *wm:v2.0.17  D:2
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
-[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] fast join: ch=1 bssid=<bssid redacted>
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-50 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 [WiFi] fast join OK in 1700 ms
 [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
 [ota] channel=s3-128 current=5 latest=4
@@ -388,9 +388,9 @@ entry 0x403c88b8
 *wm:v2.0.17  D:2
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
-[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] fast join: ch=1 bssid=<bssid redacted>
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
 ESP-ROM:esp32s3-20210327
 Build:Mar 27 2021
 rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
@@ -409,10 +409,10 @@ entry 0x403c88b8
 *wm:v2.0.17  D:2
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
-[WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
+[WiFi] fast join: ch=1 bssid=<bssid redacted>
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-55 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-55 dBm
 [WiFi] fast join OK in 1699 ms
 [WiFi] pinned AP ch=1 RSSI=-55 dBm for the next boot
 [ota] channel=s3-128 current=5 latest=4

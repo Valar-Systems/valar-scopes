@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 // THE BASE URL: a build flag, local only.
 //
-//   PLATFORMIO_BUILD_FLAGS="-DGAME_API_BASE='\"http://192.168.1.20:3000\"' -DGAME_CAPSULE_ID=111"
+//   PLATFORMIO_BUILD_FLAGS="-DGAME_API_BASE='\"http://<lan-ip redacted>:3000\"' -DGAME_CAPSULE_ID=111"
 //   pio run -e missileer-s3-128
 //
 // (PlatformIO shlex-splits the variable: the single quotes keep the C string's
