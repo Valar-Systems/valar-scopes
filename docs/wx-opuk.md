@@ -580,3 +580,45 @@ before the figure was reported.
 >    launcher. Report the source, and whether BLIP_DEVICE is set the same way. Print no value. Daniel removes it at the
 >    source. Revoking is his decision; I don't recommend it unless a value has left the PC.
 > 3. D3's report is still with Daniel. Your timing stands as you list it.
+
+### The ruling of ~20:55Z, verbatim (reviewer chat, pasted by Daniel, 2026-11-04): one combined deploy
+
+> Recorded: #529 merged as 78e16c5, main's CI 41 (39/2/0) on the first attempt; K4' 4,505 ms.
+>
+> #525 (the map server's /credits fix) merged before your deploy, so it's one combined deploy:
+> 1. The commit: f740f10 (main's tip), once main's CI on it reads green. Not main at deploy time. It replaces 46bea31.
+> 2. PD0 is re-registered by this ruling to exactly four: #512, #521, #522 and #525. PD1 stands as read (production
+>    hasn't changed); PD2-PD6 stand.
+> 3. New PD7, registered before the deploy: #525 on production's live /credits, as docs/credits-correctness.md's
+>    after-merge row predicts (each licence label as often as the manifest's rows hold it; adsbdb 0 times;
+>    standing-data once; the ShareAlike notice on 114 rows). If PD7 is off: report it, no rollback for that alone (PD2
+>    covers the page rendering), and R3 may still go if PD1-PD6 read as predicted.
+> 4. The order stands: the map server's D3 (staging, from f740f10) first; start PD when Daniel pastes you D3's report
+>    reading as predicted; production not before 21:30Z; R3 inside the hold, started by 23:30Z.
+
+**Checked against `f740f10` before the deploy:**
+- **PD0's list, as re-registered:** from production's `31cb44c` to `f740f10`, the commits that change `proxy/src` or
+  `proxy/wrangler.toml` are exactly four: `a27e00a` (#512), `1beba4e` (#521), `e8dfa45` (#522) and `f740f10` (#525).
+- **The two credit lines survive #525 byte for byte:** OPERA's line once in the template and once in smoke; the NOAA
+  line once. `proxy/package-lock.json` is unchanged from `46bea31`.
+
+**PD7's counting, pinned from the renderer before the deploy** (`renderCreditsHtml` at `f740f10`).
+- **Why a raw count would mislead:**
+  - every BY-SA row prints its licence link twice (once as the row's licence, once at the end of its ShareAlike
+    clause);
+  - OPERA's data-source line holds "CC BY 4.0";
+  - "CC BY-SA 3.0" is a prefix of "CC BY-SA 3.0 AU".
+- **So PD7 reads the live page's photo-credits section** (after `<h2>Photo credits</h2>`), row by row. Each `<li>`'s
+  own licence is the first label after `) &middot; `.
+- **Predicted, as `docs/credits-correctness.md`'s table and after-merge row give them:**
+  - CC BY-SA 4.0: 48; CC BY-SA 2.0: 36; CC BY-SA 3.0: 18; CC BY-SA 3.0 AU: 12;
+  - CC BY 2.0: 32; CC BY 4.0: 24; CC BY 3.0: 3; CC BY 2.5: 2;
+  - Open Government Licence v1.0: 1;
+  - 176 licensed rows in all.
+- **Also predicted:**
+  - "adsbdb" **0** times anywhere on the page;
+  - "Route data from vradarserver/standing-data" exactly **once**;
+  - the per-row ShareAlike clause on exactly **114** rows, each naming its own row's licence;
+  - the ShareAlike paragraph exactly once.
+- **If the published manifest has changed since that table,** its own counts are printed beside the table's, read
+  read-only with `--remote`.
