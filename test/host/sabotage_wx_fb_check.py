@@ -18,6 +18,9 @@ An unplanted run must pass first, or nothing here means anything.
   S-label-pass     a label-touched marker passed and not counted        -> exactly L1 and D2
   S-label-all      every weather neighbour read as a label's            -> exactly L2, "no outline, look A", "the old
                                                                            r=4 disc outline"
+  S-head-join-off  RP6 B's head: the ring-pixel join removed            -> exactly J1
+  S-head-join-any  the join's colour test dropped (a ring position of   -> exactly J2
+                   any colour bridges two pieces)
 """
 import contextlib
 import hashlib
@@ -56,6 +59,10 @@ SABOTAGES = {
     "S-label-all": (["L2", "no outline, look A", "the old r=4 disc outline"],
                     [('            if wet and not all(at(f, *p) in src["label"] for p in wet):\n',
                       "            if False:   # SABOTAGE S-label-all\n")]),
+    "S-head-join-off": (["J1"], [("    comps = join_across_rings(f, head_pieces(hs), src)\n",
+                                  "    comps = head_pieces(hs)   # SABOTAGE S-head-join-off\n")]),
+    "S-head-join-any": (["J2"], [("        if at(f, *p) != col: continue\n",
+                                  "        pass   # SABOTAGE S-head-join-any\n")]),
 }
 # The fixture plants: (name, wanted red cases, slot-2 x shift). Shift 0 is the control: the same route, unmoved.
 FIXTURE_PLANTS = [("S-dot-slot'", ["D1"], 1), ("S-dot-slot' control", [], 0)]
@@ -77,7 +84,7 @@ def red_cases(text):
 
 def short(label):
     """A case's name as the predictions use it: its code (H1, D2, ...) when it has one, else the whole label."""
-    m = re.match(r"([HDL]\d) ", label)
+    m = re.match(r"([HDLJ]\d) ", label)
     return m.group(1) if m else label
 
 
@@ -126,7 +133,7 @@ def main():
 
 # --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
 # its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
-OK_COUNT = 31
+OK_COUNT = 33
 CONTROL_TABLE = {"wx-fb-check.py": ("ok", OK_COUNT)}
 
 

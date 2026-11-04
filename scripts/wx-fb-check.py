@@ -34,7 +34,9 @@ THE CHECKS, as ruled (R3-R5, 2026-10-26; addendum 5 records the definitions):
 THE WEDGE MASK (ruled 2026-10-28), for the layer-on arms only. Look 4's sweep draws colours over the weather that are
 not weather colours, so (1) and (2) are graded OUTSIDE its wedge; the wedge's interior is W3's, on the host. The beam
 is located from each frame: exactly one blob of the head colour at the disc's edge (117-123 px out), and >= 70 % of
-the beam line's 101 ray samples in its colour; anything else makes the frame UNTRUSTWORTHY, never a pass. Masked: the
+the beam line's 101 ray samples in its colour; anything else makes the frame UNTRUSTWORTHY, never a pass. The rings are
+drawn after the head, so two head pieces that ONE ring pixel (in its ring's colour) touches both of are one blob (ruled
+2026-11-04); pieces separated by anything else stay two. Masked: the
 centre (12 px) and the 1.0 rad tail behind the beam, plus 0.06 rad each side. Outside the mask, a ring pixel showing a
 wedge-only colour (a lit colour or a wedge green that is no other colour the frame can hold) is an exception.
 
@@ -264,10 +266,8 @@ BEAM_MIN = 0.70       # the share of the beam's 101 ray samples (r = 10..110) th
 DISC_R = 120
 
 
-def wedge_mask(f, src, n, out):
-    """Look 4's wedge in frame f, located from the frame itself. (in_mask, share), or None: UNTRUSTWORTHY."""
-    cx = src["centre"]
-    hs = {(i % W, i // W) for i, c in enumerate(f) if c == src["head"]}
+def head_pieces(hs):
+    """The 8-connected pieces of the head-coloured pixels hs."""
     comps, seen = [], set()
     for p in hs:
         if p in seen: continue
@@ -280,6 +280,39 @@ def wedge_mask(f, src, n, out):
                          if (q[0] + dx, q[1] + dy) in hs and (q[0] + dx, q[1] + dy) not in comp)
         seen |= comp
         comps.append(comp)
+    return comps
+
+
+def join_across_rings(f, comps, src):
+    """RP6 B's head (ruled 2026-11-04; docs/wx-device.md J0-J7): the rings are drawn after the head, so a ring's 1 px
+    line can cut it in two. Two pieces are one head when a SINGLE ring pixel, showing its own ring's colour, is
+    8-adjacent to a pixel of each. Nothing else joins: no other colour, no ring colour off a ring, no longer path (a
+    path along a ring would join any two heads that touch it). The bridge is never part of the head."""
+    if len(comps) < 2:
+        return comps
+    _, own = ring_geometry(src)
+    where = {p: k for k, c in enumerate(comps) for p in c}
+    root = list(range(len(comps)))
+
+    def find(k):
+        while root[k] != k:
+            root[k] = root[root[k]]; k = root[k]
+        return k
+    for p, col in own.items():
+        if at(f, *p) != col: continue
+        touched = {find(where[q]) for q in neighbours({p}) if q in where}
+        for k in touched: root[k] = min(touched)
+    merged = {}
+    for k, c in enumerate(comps):
+        merged.setdefault(find(k), set()).update(c)
+    return list(merged.values())
+
+
+def wedge_mask(f, src, n, out):
+    """Look 4's wedge in frame f, located from the frame itself. (in_mask, share), or None: UNTRUSTWORTHY."""
+    cx = src["centre"]
+    hs = {(i % W, i // W) for i, c in enumerate(f) if c == src["head"]}
+    comps = join_across_rings(f, head_pieces(hs), src)
     if len(comps) != 1:
         out.append(f"frame {n}: the beam's head: {len(comps)} blobs, not exactly one (UNTRUSTWORTHY)")
         return None
@@ -547,7 +580,7 @@ def draw_wedge(f, src, look, th, head="edge", beam_dtheta=0.0):
 
 def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, weather=True, trail=False,
           blob_ring=1, blob_r=30, blob_dx=0, glyph=None, beam=True, theta=math.pi, head="edge", beam_dtheta=0.0,
-          plant=None, highlight=None, dots=None, stroke=None):
+          plant=None, highlight=None, dots=None, stroke=None, head_gap=False):
     """A layer-on frame drawn in the device's order: weather, the sweep (look 4's wedge, the beam and its head), rings,
     trail and label, outline, marker. The beam points west by default, away from every case's subject (east)."""
     f = [0] * (W * H)
@@ -563,6 +596,12 @@ def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, we
     if beam: draw_wedge(f, src, look, theta, head, beam_dtheta)
     if rings:
         for s, col in ring_pts: put(f, s, col)
+    if head_gap:
+        # J2's CONTROL: every pixel touching both of the head's pieces painted black (0x0000, no ring's colour), so the
+        # pieces are separated by non-ring pixels only.
+        pieces = head_pieces({(i % W, i // W) for i, c in enumerate(f) if c == src["head"]})
+        assert len(pieces) == 2, "the head is not in two pieces: the control means nothing"
+        put(f, neighbours(pieces[0]) & neighbours(pieces[1]), 0)
     if weather and weather_over_rings: put(f, blob, rain)
     if plant:
         # A missing ring pixel showing a wedge-only colour: on the middle ring, outside the mask (north) or inside it.
@@ -654,6 +693,9 @@ def synth_off(src, outline=False, rings=True, on_ring=True, label=False, outer_c
     return f
 
 
+J_THETA = -3.03   # a beam angle where the selftest's raster has the outer ring cut the head in two (3 + 5 px)
+
+
 def selftest(src):
     on = lambda kw, look: grade([synth(src, look=look, **kw)], look, src)
     off = lambda kw, excl=True: grade_off([synth_off(src, **kw)], src, ring_exclusion=excl)
@@ -666,6 +708,13 @@ def selftest(src):
         verdict, lines = grade([f], look, src)
         ok = 0.184 <= wm[1] <= 0.189 and verdict == "PASS"
         return ("PASS" if ok else "FAIL"), out + lines
+
+    def split_case(gap):
+        f = synth(src, look="A", theta=J_THETA, head_gap=gap)
+        if not gap:
+            hs = {(i % W, i // W) for i, c in enumerate(f) if c == src["head"]}
+            assert len(head_pieces(hs)) == 2, "the outer ring does not cut the head in two here: the case means nothing"
+        return grade([f], "A", src)
 
     def apart_case(kw, want):
         verdict, lines = grade([synth(src, look="A", **kw)], "A", src)
@@ -717,6 +766,11 @@ def selftest(src):
                                                       lambda: apart_case(dict(stroke="label"), {"label": 1}), "PASS"),
         ("L2 CONTROL: the same stroke in a weather colour that is no label colour",
                                                       lambda: on(dict(stroke="weather"), "A"),           "FAIL"),
+        # RP6 B's head (ruled 2026-11-04): the outer ring, drawn after the head, cuts it in two at this angle.
+        ("J1 the beam's head cut in two by the outer ring (one ring pixel touches both pieces)",
+                                                      lambda: split_case(False),                         "PASS"),
+        ("J2 CONTROL: the same pieces separated by black pixels, not ring pixels",
+                                                      lambda: split_case(True),                          "UNTRUSTWORTHY"),
     ]
     bad = 0
     for label, run, want in cases:

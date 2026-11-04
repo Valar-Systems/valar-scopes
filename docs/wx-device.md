@@ -3868,3 +3868,53 @@ follow when it ends.
 - `e208()` now reads `records-device` if present, else `blip-device`, and the HKCU variable only while it exists.
 - Read back as booleans: the id came from `records-device`. It is 16 hex, and it equals the `blip-device` line: True.
 - Nothing printed but those names and booleans. `ae_watch.py` is sha256 `dbad89c4b838` now.
+
+### Results for RP6 B's head (2026-11-04)
+
+**The fix:** `head_pieces()` and `join_across_rings()` in `scripts/wx-fb-check.py` (blob `d79136285dbf`), called by
+`wedge_mask`. Its selftest case `J1` uses θ = −3.03 (`J_THETA`). It asserts the ring really cuts that frame's head in
+two, so the case cannot pass vacuously. `J2` paints black every pixel touching both pieces. The sabotages are in
+`test/host/sabotage_wx_fb_check.py`.
+
+The re-grades are `regrade_j.py` (`1b3b739d70d2`) and `regrade_j_why.py` (`54a7610869f8`), scratchpad, run on the
+new checker in `wt-merge510`. Finished frames only, selected as `replay_read.py` selects them.
+
+| | read | verdict |
+|---|---|---|
+| **J0** | 31 earlier cases unchanged. M5 two heads: UNTRUSTWORTHY, "2 blobs" | **as predicted** |
+| **J1** | PASS: "the beam at −3.032 rad, its head 119.0 px out, beam hits 101/101" | **as predicted** |
+| **J2** | UNTRUSTWORTHY, "the beam's head: 2 blobs" | **as predicted** |
+| **J3** | S-head-join-off: exactly `J1` red. On the redo's B frames, the planted copy reads `m1-f2` and `m4-f2` **UNTRUSTWORTHY, "2 blobs"**. The real checker reads both PASS (the head 119.6 and 119.1 px out) | **as predicted** |
+| **J4** | S-head-join-any: exactly `J2` red | **as predicted** |
+| **J5** | `--control`: 33 ok, all as the table. `--anchors`: 11 plants, 11 anchors, all present exactly once. Every earlier sabotage as before. The real checker and the fixture are unchanged | **as predicted** |
+| **J6** | **The redo, not dropped:** B **PASS on all 18**, (1) 0 exceptions, highlight 80; (2) not graded, counted apart 8 (all label). **A: PASS**, (1) 0, highlight 94; (2) 0 without an outline, counted apart 0 (unchanged). **off: PASS** (unchanged) | **as predicted** |
+| **J7** | **10-29, not dropped:** A, B and off all **UNTRUSTWORTHY** (their ring-coverage frames). **Trustworthy only:** B unchanged (13 graded, 5 dropped, highlight 10, 95 without an outline, counted apart 30, all label). off unchanged (14 graded, 4 dropped). **A: three frames joined, not one;** see below | **OUTSIDE THE SET** (A) |
+
+**J7's A, outside the set: the premise was wrong, not the fix.**
+- **What was predicted:** one "2 blobs" frame, joining or not.
+- **What the frames hold:** **three**: `m1-f1`, `m2-f1` and `m4-f1`.
+  - Without the join, read by both the S-head-join-off copy and 10-30's checker (blob `bac9f35bce1e`), A drops
+    **9 = 6 ring coverage (`m3-f0..f2`, `m5-f0..f2`) + 3 head**.
+  - A fourth split head, `m3-f1`, is dropped first by the ring check.
+- **All three join (branch (i)).** In each, only ring pixels separate the pieces, in the r 119 ring's colour 0x0640:
+  - `m1-f1`: 3 + 10 px, 5 ring pixels between;
+  - `m2-f1`: 3 + 13 px, 5 between;
+  - `m4-f1`: 5 + 8 px, 7 between.
+- **The joined frames are graded, and A reads PASS:** 12 graded, 6 dropped. (1) 0 exceptions, highlight 26. (2) 0
+  without an outline, counted apart 5 (screen dot 2, label 3).
+  - The three newly graded frames add highlight 10 and one label case.
+  - These are reported, not predicted.
+
+**A correction to the 10-29 record** (in "RP6, read for its cause"): it reads "every one but one trips on 'ring r=...'
+... the other is 'the beam's head: 2 blobs' in A". **It is 6 and 3, not 8 and 1.** The total (9 of 18) was right; the
+split was not. J7's premise was copied from that line. **Caught by:** listing every dropped frame with its reason
+before reading J7, once the dropped count fell by 3, not 1.
+
+**RP6's completion waits on the ruling for J7's A.** Nothing else depends on it.
+
+**PC load during W5⁗, recorded so it can be checked against the arms:**
+- the sabotage runs, 04:56-04:58Z;
+- these re-grades, about 05:03-05:07Z.
+
+The device measures its own frames, and the PC only serves the feed. G2's O-against-O control is what would show an
+effect.
