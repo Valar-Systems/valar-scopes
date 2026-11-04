@@ -66,6 +66,7 @@
 | OTA | the four `OtaUpdater.cpp` entry points answer "nothing to report" |
 | Wi-Fi, its setup screens | not compiled (they live in `main.cpp`). The Connect screen draws the shim's address, `192.0.2.10` (RFC 5737), and its QR. **It cannot be hidden without a firmware change**, so it is reported here and not changed |
 | MQTT | never connects |
+| the weather layer (#445) | **off**: `wx-layer` is never on in the web config (`check_wx_off.mjs`, run by `build.sh` with its selftest). Its fetch (`GetBytes`) answers as a dead socket, with no request. A page that turns it on stops at the shim's `setBuffer`, which aborts with a message: the shim has no pixels, and the layer's raw-buffer paths would corrupt memory. Weather on the website is a separate item (docs/wx-device.md, (B)) |
 | the touch chip | always healthy |
 | backlight dimming | reported to the page; `render.js` applies it only if asked |
 | the 2.1 in board's buzzer and IMU | silent; no reading |
