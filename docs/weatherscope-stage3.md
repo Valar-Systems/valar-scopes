@@ -10463,3 +10463,20 @@ The lint's control file was not changed after the result.
 - **As ruled, its plan, with predictions first, follows t5 (#514).**
 
 **#514's CI** is being counted. Main has moved to `a27e00a` (#512), which shares no file with #514.
+
+### A12.78 One count in A12.77 re-registered before its code ran: 26 `runs-on` lines, not 25
+
+**The frozen row:** A12.77's pin PR says "25 lines in 9 workflows", and the guard's row expects "25 `runs-on` lines".
+
+**The listing that count was taken from shows 26:**
+- **17 in the firmware workflow:** lines 35, 71, 88, 110, 137, 151, 168, 186, 207, 220, 242, 261, 297, 310, 519, 572 and 676.
+- **9 elsewhere:** device-ids, no-traffic-captures, photo-drift, photos, print-cards, provisioner and refresh-data, 1 each; workers, 2.
+
+On main `a27e00a`, the same count holds (#512 touched no workflow).
+
+**I miscounted while writing.** Nothing had run: no line was edited and the guard does not exist yet.
+
+**Re-registered:**
+- **The pin:** 26 lines in 9 workflows.
+- **The guard's row:** 26 `runs-on` lines, 0 `ubuntu-latest`, exit 0.
+- **Unchanged:** A12.77's CI row (40 jobs: 37 success, 3 skipped, 0 failed), counted from the jobs that run, not from these lines.
