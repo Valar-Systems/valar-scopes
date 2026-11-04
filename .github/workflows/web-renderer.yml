@@ -37,7 +37,7 @@ env:
   BUILT: 's3-128 s3-21'
 
 concurrency:
-  group: web-renderer-${{ github.event_name }}-${{ github.ref }}-${{ inputs.tag || github.event.release.tag_name || '' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

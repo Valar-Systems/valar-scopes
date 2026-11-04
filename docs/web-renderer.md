@@ -108,3 +108,37 @@ I merge, then dispatch for `v18`. The tag is reported then. Daniel can say other
 
 **Outside the set:** stop and report. A web build that cannot compile `v18`'s source unmodified is outside the set,
 not a reason to change the source.
+
+## Results (2026-11-04)
+
+**S1, a defect found during the build, before any graded run, and fixed. Recorded because it was nearly invisible.**
+- **How it showed:** the smoke test's R3 query check failed on the s3-21 build. It sent `lat=44.60` for 44.0582, and
+  `12.50` for 12.05, while s3-128 sent `44.06`. Every fraction whose first digit is 0 had its two digits swapped.
+- **The cause, by elimination:**
+  - **Not the firmware:** the member read 44.058200 in memory.
+  - **Not the formatter:** `wireloc::Center` and `%.2f` are correct on the frame loop, and in a fresh test fiber.
+  - **Not the variant:** a rebuild **moved** the fault to the s3-128 build, with no source change.
+  - **The cause:** `%.2f` was wrong only on the fetch task's own stack, where it gave "44.60" and "%.9f" gave
+    "44.58200000". That stack came from `malloc`, which here returns **8-aligned** blocks; its base was 2402488,
+    8 mod 16. The wasm C ABI requires 16.
+  - Whether a task's stack landed 16-aligned depended on heap layout. That is why the fault moved with the binary.
+- **The fix:** the fiber stacks come from `aligned_alloc(16, …)`, asserted at task creation. The same build then gives
+  "44.06 | 44.058200000" inside the fetch task and sends `lat=44.06`.
+- **Two instruments that did not see it:**
+  - AddressSanitizer: under it the fiber scheduler never ran a task, so ASan is blind here.
+  - `-O0`: the fault survived it, which ruled out the optimiser.
+- **A second hazard found on the way:** `build.sh` rebuilt an object only when its `.cpp` was newer, so a shim header
+  change could leave a stale object. It now rebuilds everything unless `INCREMENTAL=1`.
+- **The spike (`dc81ceb`) carried the same latent fault.** Its scene ignored the query, so nothing showed.
+
+| | read | verdict |
+|---|---|---|
+| **R1** | `git diff a27e00a HEAD -- src include lib platformio.ini` is empty. `blipscope-s3-128` at this branch's head against `a27e00a` (main): both 1,929,872 B. **70 differing bytes**, every one in the rebuild regions: `app_elf_sha256` @0xB0 (32), WiFiManager's two `__TIME__` strings (3 + 2), the checksum and trailing SHA-256 (33). **Zero payload bytes.** The firmware workflow's file is unchanged | **as predicted** |
+| **R2** | every listed firmware unit compiles unmodified for s3-128 and s3-21, at this branch and at `v18` (`SRC_ROOT=`): four builds, 684 K / 680 K wasm | **as predicted** |
+| **R3** | CI, both models, 70 s each: every request under `/api/v1/blipscope/`; the query `lat=44.06&lon=-121.32&r=40&limit=40`; **no header** (27 inits read, `credentials: "omit"`); `/blips` **14 in 70 s, 12.0 a minute**; 24 contacts with labels; `/config` and `/airports` answered locally (2), 0 from the loop | **as predicted** (s3-21 after S1's fix) |
+| **R4** | `/enrich` 404: 9 hexes asked, **at most 3 times** each; no type line | **as predicted** |
+| **R5** | type lines drawn: EC35 SR22 DH8D P28A E75L B739 B763 B38M C68A A320 C172 A20N | **as predicted** |
+| **R6** | `https://elsewhere.invalid/...` and `/config` through the probe: 404 and 404, **0** requests | **as predicted** |
+| **R7** | Chrome, the preview page served on 127.0.0.1: every resource from that one origin (`app.js`, `scene.js`, the manifest, the render module, the loader, the wasm, **`blipscope-web-mono-v18.woff2`**). `document.fonts`: `BlipscopeMono loaded`. With `?live=1`, the firmware's own `/blips` requests went to the same origin (2 in the first 8 s) | **as predicted**. Two "AdobeClean" faces in `document.fonts` come from a browser extension; no request for them is in the page's resource list |
+| **R8** | CI on `a639199`: the `web-renderer` workflow green, both models built and smoked. One red elsewhere, the repo's workflow-concurrency convention (C1): the new workflow's PR block was not the standard one. **Fixed in the next commit**; the checker passes locally | **as predicted** for R8. C1's red recorded, fixed |
+| **R9, R10** | after the merge (the `v18` dispatch) | **not yet** |
