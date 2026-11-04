@@ -543,3 +543,24 @@ before the figure was reported.
 - the script totals (13.06 M + 4.18 M + small) equal the account sum;
 - unclassed R2 actions are printed, not dropped: `GetBucketNotificationConfiguration` 6 and
   `GetBucketSippyConfiguration` 3.
+
+### PD1, read before the deploy (2026-11-04 20:08:16Z): as predicted
+
+- **Production was at `31cb44c`** (`/healthz`, read just before).
+- **The whole `smoke-prod.sh`, as the test identity, from the deploy checkout at `46bea31`:** **38 checks, PASS 37,
+  FAIL 1, SKIPPED 0.**
+  - The one FAIL is exactly **`/credits carries the OPERA line`** (marker MISSING), the check's own control.
+  - The `opuk` covered-share verdict reads **PASS, "not ingesting yet: no opuk frame"**.
+- **The first attempt, 20:08:02Z, was refused before any request** ("BLIP_KEY is set in this environment"): the test
+  identity's guard firing on the user-level `BLIP_KEY`. Re-run with `BLIP_KEY` and `BLIP_DEVICE` unset for that one
+  command.
+- **The log holds no key-shaped value** (0 runs of 64 hex). The one line naming `X-Blip-Key` is the script's banner,
+  "value never printed".
+
+**Rollback targets, read before any deploy (`wrangler deployments list`):**
+- proxy production `2eb4aa5e-512a-4a8a-b586-8a77bfdfca4e` (10-30, `31cb44c`);
+- proxy staging `c7fa5f84-7342-49bd-8b77-12e09fe34bc8` (11-04 04:49Z);
+- `blipscope-wx-ingest` `582612da-e1b0-4a02-bf9e-de72c5d78157` (#472, 10-23: the pre-R2 ingest, `cref` only).
+
+**The deploy checkout:** a detached worktree at `46bea3104866`, with `proxy/` clean. Wrangler is on its OAuth login;
+`CLOUDFLARE_API_TOKEN` is absent at user level and in the shell.
