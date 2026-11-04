@@ -1,11 +1,12 @@
 """Builds the COMMITTED record of a t5 board run from its raw (local) run directory, under Q62 (A12.67): no time is
 committed. The raw trace and lines.json stay local; only their sha256 goes in. captures.json loses every time field.
-serial.txt, the boot reads and the grade go in with the boot's Wi-Fi fields redacted (the LAN address and the BSSID's
-tail), then a scan for addresses, network names, ISO times and coordinates. The graded B1 and B3 snapshots go in as
-PNGs (the B1 images in both themes go to Daniel, A12.43).
+serial.txt, the boot reads and the grade go in with the boot's Wi-Fi fields redacted (the LAN address, the BSSID's
+tail, and the network's name on the association line, A12.83), then a scan for addresses, network names, ISO times and
+coordinates. The graded B1 and B3 snapshots go in as PNGs (the B1 images in both themes go to Daniel, A12.43).
 EVERY file is prepared and scanned in memory first; nothing is written unless all of them pass.
 
     python -I publish_t5_record.py <raw run dir> <record dir> [<boot.txt> ...] [--grade <grade.txt>]
+    python -I publish_t5_record.py --selftest      (the association rule's control; prints no name)
 """
 import hashlib, json, os, re, struct, sys, zlib
 
@@ -15,7 +16,14 @@ SCAN = [("a LAN address", re.compile(r"\b(192\.168|10\.\d+|172\.(1[6-9]|2\d|3[01
         ("a BSSID", re.compile(r"\b([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b")),
         ("a network name", re.compile(r"(?i)\bb?ssid\s*[=:]\s*(?!<redacted>)\S")),
         ("an ISO time", re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")),
-        ("a coordinate-like number", re.compile(r"(?<![\w.])-?\d{1,3}\.\d{4,}(?![\w.])"))]
+        ("a coordinate-like number", re.compile(r"(?<![\w.])-?\d{1,3}\.\d{4,}(?![\w.])")),
+        # A12.83: the firmware names the network it joins as `[WiFi] Associated with "<name>"`, a form the ssid rule
+        # above cannot see. Any quoted string, single or double, on a line that mentions association is refused unless
+        # it is the placeholder.
+        ("a network name on an association line",
+         re.compile(r"(?im)^[^\n]*associat[^\n]*?([\"'])(?!<redacted>\1)[^\"'\n]*\1"))]
+ASSOC_LINE = re.compile(r"(?i)associat")
+QUOTED = re.compile(r"([\"'])(?!<redacted>\1)[^\"'\n]*\1")
 
 
 def png_bytes(rgb565):
@@ -36,9 +44,54 @@ def png_bytes(rgb565):
 def redact(name, text):
     text, n_ip = re.subn(r"(\[WiFi\] CONNECTED\s+IP=)\S+", r"\1<redacted>", text)
     text, n_bssid = re.subn(r"(?i)(\bbssid=)\S+", r"\1<redacted>", text)
-    if n_ip or n_bssid:
-        print(f"{name}: redacted {n_ip} LAN address(es) and {n_bssid} BSSID(s)")
+    n_name = 0
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if ASSOC_LINE.search(line):
+            lines[i], n = QUOTED.subn(lambda m: m.group(1) + "<redacted>" + m.group(1), line)
+            n_name += n
+    text = "\n".join(lines)
+    if n_ip or n_bssid or n_name:
+        print(f"{name}: redacted {n_ip} LAN address(es), {n_bssid} BSSID(s) and {n_name} network name(s)")
     return text
+
+
+def selftest():
+    """The association rule's control (A12.83): planted FAKE names only, and nothing printed but rule names and verdicts.
+    (1) a double-quoted name on an association line is refused by exactly that rule; (2) single-quoted, the same;
+    (3) redact() of (1) passes every rule and the fake name is gone; (4) every text file in this publisher's record
+    directories passes every rule."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    fake = "PlantedNet"
+    rule = "a network name on an association line"
+    ok = True
+
+    def hits(t):
+        return [w for w, rx in SCAN if rx.search(t)]
+
+    for label, line in (("(1) double-quoted", f'  6.39s [WiFi] Associated with "{fake}", waiting for IP...\n'),
+                        ("(2) single-quoted", f"  6.39s [WiFi] Associated with '{fake}', waiting for IP...\n")):
+        good = hits(line) == [rule]
+        ok &= good
+        print(f"  {'ok  ' if good else 'FAIL'} {label}: refused by {hits(line)} (want [{rule!r}])")
+    red = redact("(3)", f'  6.39s [WiFi] Associated with "{fake}", waiting for IP...\n')
+    good = hits(red) == [] and fake not in red and '"<redacted>"' in red
+    ok &= good
+    print(f"  {'ok  ' if good else 'FAIL'} (3) the redacted form: refused by {hits(red)} (want []); the fake name gone: {fake not in red}")
+    n, ok4 = 0, True
+    for d in ("run-2026-11-02-t5", "run-2026-11-04-swb"):
+        for f in sorted(os.listdir(os.path.join(here, d))):
+            if f.endswith(".png"):
+                continue
+            n += 1
+            h = hits(open(os.path.join(here, d, f), encoding="utf-8", errors="replace").read())
+            ok4 &= not h
+            if h:
+                print(f"  FAIL (4) {d}/{f}: refused by {h}")
+    ok &= ok4
+    print(f"  {'ok  ' if ok4 else 'FAIL'} (4) {n} record file(s) checked")
+    print("SELFTEST " + ("PASSED" if ok else "FAILED"))
+    return 0 if ok else 1
 
 
 def main(argv):
@@ -81,4 +134,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(selftest() if sys.argv[1:] == ["--selftest"] else main(sys.argv))

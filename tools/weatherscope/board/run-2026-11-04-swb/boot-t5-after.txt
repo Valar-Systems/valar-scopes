@@ -16,7 +16,7 @@
   0.62s [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
   3.57s [wifi-reset] boot touch window: driver=1 polls=146 touched=0
   3.78s [WiFi] fast join: ch=1 bssid=<redacted>
-  6.26s [WiFi] Associated with "Tony", waiting for IP...
+  6.26s [WiFi] Associated with "<redacted>", waiting for IP...
   7.51s [WiFi] CONNECTED  IP=<redacted>  RSSI=-50 dBm
   7.51s [WiFi] fast join OK in 3900 ms
   7.51s [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot

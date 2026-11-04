@@ -1,7 +1,7 @@
 #HOST opened COM6; acting only on screen lines from t_open + 1 s; BSW only (S-SWB)
 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 [WiFi] fast join: ch=1 bssid=<redacted>
-[WiFi] Associated with "Tony", waiting for IP...
+[WiFi] Associated with "<redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<redacted>  RSSI=-50 dBm
 [WiFi] fast join OK in 4250 ms
 [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
