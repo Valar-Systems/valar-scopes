@@ -208,3 +208,9 @@ What the prediction got wrong: it enumerated `[filters]` and the env sections an
 "build_src_filter = +<*> ${filters.editions_off} ..."). The predicted SET was incomplete; the
 diff tool classified the row by section and flagged it, as written. No build has been run.
 Not continued: B, S, and every prediction after P0, until the reviewer rules.
+
+**Ruling (reviewer, 2026-11-04 ~04:45Z).** P0 is re-registered with the miss kept: its predicted
+set gains "`[common] build_src_filter` gains the same `-<remote/>` token". Continue with P1 and P2
+as frozen; P2's byte-identical images are the real proof that the change is inert. (Same ruling:
+both bench boards logged 0 touches over 7 unattended hours on 10-31, and a hold to start motion
+stays the default anyway, as a motor-safety choice.)
