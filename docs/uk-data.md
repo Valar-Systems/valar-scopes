@@ -1548,3 +1548,41 @@ User-Agent.
   - from Cloudflare's egress, not one fixed address;
   - with a User-Agent naming us and a contact URL (K14).
   - That is not the "heavy traffic" the clause guards against.
+
+### A3.10 The collection paused by the disk rule, and resumed (2026-11-04)
+
+**The disk rule (ruled 2026-10-28):** "If free space falls below 5 GB, pause the collection and report."
+
+**What happened:**
+- **The watcher fired at 23:30:03Z on 11-03,** with 1 GB free.
+- **Its notice reached the session only at 04:27Z on 11-04.** The watcher of the time only exited; it did not stop the
+  loop. So the collection ran twice after the threshold, at 00:38Z and 03:42Z, both without error (2,340 frames held).
+- **The loop was stopped at 04:27:47Z** and the pause written to `loop.log`.
+- **The collection was not what filled the disk.** It holds about 900 MB (876 MB of frames, 17 MB of HDF5, 7 MB else),
+  against a fall from about 39 GB free on 10-29 to 1 GB. The largest items found:
+  - WSL Ubuntu's virtual disk, 53.1 GB, being written at the time;
+  - `~/.platformio`, 14.2 GB, and the repo's `.pio`, 7.7 GB.
+- **About 16.5 GB was freed between 04:27Z and 04:36Z by something outside this session** (nothing was deleted by it).
+  `df` and two Windows counters agreed at 17,722 MB, steady over 20 s.
+- **No data was at risk.** The cache holds the previous UTC day and today. All of 11-03 was already collected, and any
+  run before 11-06 00:00Z collects every frame up to the frozen end.
+
+**The decision, Daniel, 2026-11-04, verbatim:** "1".
+
+It answered:
+> 1. **Resume**, with the disk watcher re-armed: catch-up runs on the 3-hour cycle to 16:00Z, or one final run after
+>    16:00Z. Either way the frozen window is complete.
+> 2. **Or close the collection at 03:44Z** and read T, B and C on what's held.
+
+**Done, 04:48:14Z:** the loop was re-armed on the same cycle and the same end, 2026-11-04T16:00Z, and so is the watcher.
+- **The loop's last run lands just after 16:00Z,** as the original loop's would have. That covers both readings of (1).
+  Frames after 16:00Z are filtered out by time at the readings.
+- **One change in how the ruling is carried out, not in the ruling:** below 5 GB, the watcher now pauses the
+  collection itself, instead of only exiting. It writes `PAUSE` in the collection folder, and the loop skips every run
+  while that file exists.
+- **Rehearsed on copies before arming:**
+  - with `PAUSE` present, the collector does not run;
+  - without it, the collector runs;
+  - given a threshold it must trip, the watcher creates `PAUSE` and exits 2;
+  - after the loop's end, the watcher exits 0 and creates no `PAUSE`.
+- **The scripts:** `docs/uk-data/instruments/r1_loop.sh` and `r1_watch.sh`.
