@@ -10357,3 +10357,109 @@ The lint's control file was not changed after the result.
 **The record of the touch watch** (A12.75) is in the same commit, as `run-2026-10-31-touchwatch/`.
 
 **Q66 is still open** (the follow-up's lint control).
+
+### A12.77 Ruled 2026-11-04 ~04:45Z (source: reviewer chat, pasted by Daniel): Q66 (a); the CI runner rows added to the follow-up; the watch accepted; TouchWatchdog -- the pin PR and the follow-up's new rows, frozen before their code
+
+**The ruling, verbatim:**
+
+> For: Weatherscope Code, from the reviewer chat, 2026-11-04 ~04:45Z
+>
+> Q66: (a). The table-literal case is re-registered at ['L1', 'L2'], with the miss kept. The realistic mangle, the constant
+> left in place, is the failure this lint exists for. On the repeat: before freezing a lint's control, write each rule out
+> against each case, the way the map server now re-checks every frozen set for a new row.
+>
+> Added to the one-count follow-up, predictions first (raised by blipscope-5c in 2ff8c3d; it hits every PR):
+> GitHub is moving `ubuntu-latest` to ubuntu-26.04 (g++ 15). There, main's test_wx_crop.cpp:47 fails with
+> -Werror=mismatched-new-delete, and run.sh exits at "== WxCrop ==", leaving every later block unrun. Ruled: all three of
+> the following.
+> 1. No job runs on ubuntu-latest. Every job is pinned to ubuntu-24.04, and host-tests also runs on ubuntu-26.04, with
+>    both legs required.
+> 2. test_wx_crop.cpp's replacement operator new/delete compiles with -Werror under g++ 13, g++ 15 and MinGW. Don't
+>    disable the warning for the whole build, and don't gate it on a compiler version (the g++ 11.4 exemption lapsed that
+>    way).
+> 3. run.sh keeps going after a failed block, a compile failure included. It fails at the end and lists every failed
+>    block, so one red can't leave the rest unrun.
+> - Predicted: every block runs on both legs, and both are green. Any further g++ 15 failure is listed, then fixed here or
+>   raised.
+> - (3)'s sabotage: the old test_wx_crop.cpp on 26.04. Its block FAILs, and every later block still prints its header and
+>   result.
+> - If the follow-up can't be up within a day, ship (1) alone first as its own PR.
+>
+> The touch watch (A12.75): accepted, 0 touches and 0 boots in 7 hours. E2:08's watch read 0 too.
+>
+> A finding from the Remote edition session, for after t5: only the radar calls TouchWatchdog::OnPoll. If that's true,
+> Weatherscope never re-arms the touch chip's no-sleep setting after the chip silently resets. Your watch's 0
+> `[touch-wd]` lines fit a board that never runs the watchdog. Check it in the code, and if it holds, plan the call with
+> predictions first.
+
+**Q66: (a).** The table-literal case is re-registered at `['L1', 'L2']`, with the miss kept (A12.74).
+- **On the repeat, as ruled:** before any lint's control is frozen, each rule is written out against each case.
+- For the rows below, that is done in the open: every flag a case can raise is named in its row.
+
+**The runner rows: the pin ships first, as its own PR.**
+- **The follow-up carries a run.sh rewrite** (keep going after a failed block, across all 155 sections). It cannot honestly be up and measured on both compilers within a day.
+- **And (1)'s 26.04 leg cannot be green before (2) and (3) land:** on 26.04, `run.sh` stops at WxCrop.
+- **So the split:**
+  - **(1a) the pin PR, now:** every job on `ubuntu-24.04`, and a guard so none can drift back.
+  - **(1b) the 26.04 leg,** with (2) and (3), in the follow-up.
+- Both legs become required there.
+
+#### (1a) The pin PR -- frozen before its code
+
+- **Every `runs-on: ubuntu-latest` becomes `runs-on: ubuntu-24.04`:** 25 lines in 9 workflows (counted on main).
+- **A guard that runs:** `scripts/check_runners.py`, as a new job in the firmware workflow, fails if any line in `.github/workflows/` names `ubuntu-latest`.
+  - **Its `--selftest`:** a temp copy of the workflows with one `runs-on: ubuntu-latest` planted must fail, naming the file and line. The real tree must pass.
+- **The required check `host-tests` is untouched** (main's branch protection requires exactly that context).
+
+| row | expected |
+|---|---|
+| the guard, on the PR's tree | 25 `runs-on` lines, 0 `ubuntu-latest`, exit 0 |
+| its selftest | the planted copy: exit 1, naming the planted line; the real tree: exit 0 |
+| CI on the PR | **40 jobs:** <br>• firmware 33 (30 success, 3 skipped: ship-alert, promote, version, as on #511) plus the guard job, success; <br>• device-ids 1 and no-traffic-captures 1; <br>• workers 2, print-cards 1 and provisioner 1, which run because each lists its own workflow file in `paths`. <br>**37 success, 3 skipped, 0 failed** |
+| results | every job's result as on main's last runs: ubuntu-latest maps to 24.04 today, so the image is the same |
+
+#### (1b), (2) and (3): added to the one-count follow-up -- frozen before their code
+
+**(1b) The 26.04 leg, required:**
+- `host-tests` becomes a two-leg matrix job, `host-tests-leg` on `[ubuntu-24.04, ubuntu-26.04]` with `fail-fast: false`.
+- **A job still named `host-tests`** needs it, `if: always()`, and succeeds only when `needs.host-tests-leg.result` is `success`.
+- So the required context keeps its name, and **both legs are required through it,** with no branch-protection change.
+
+**(2) `test_wx_crop.cpp`'s replacement operators:**
+- **The change:** they reach `malloc` and `free` through function pointers declared `volatile`, so no compiler can pair a `new` with a `free`.
+- **What is not done:** no pragma, no flag and no compiler-version test.
+- **What does not move:** the counting, which is A6's allocation count, is unchanged.
+
+| row | expected |
+|---|---|
+| `test_wx_crop` | 27 ok lines, 0 FAIL, under MinGW, g++ 13.3 and g++ 15 (26.04, in CI) |
+| S-A2 (malloc, A12.73) | red exactly as frozen under all three |
+| a control | a copy with the old direct `std::free` in `operator delete`: g++ 13.3 still compiles it (it does today); on 26.04 it fails, which is (3)'s sabotage below |
+
+**(3) `run.sh` keeps going:**
+- **Each block runs in its own subshell.** A block's `exit 2` (the rig, a compile failure included) and its failure ends that block only. Its name is recorded, and the next block runs.
+- **At the end it prints `FAILED BLOCKS:`** with every failed block's header, and exits **2 if any block failed as the rig, else 1, else 0** (today's meanings).
+- **Variables the setup sets** (compilers, `PY`, flags) stay outside the blocks, so every block still sees them.
+
+| row | expected |
+|---|---|
+| `run.sh` on main's tree, MinGW and g++ 13.3 | the same 155 headers and count lines as today; exit as today: 0 on MinGW, 2 on g++ 13.3 for the rig's two |
+| g++ 13.3, **the rig's two now listed, not fatal** | xtensa and R0 both in `FAILED BLOCKS:`, and **every block after them now runs.** Today the run stops at R0, the last block, so the visible change is the list |
+| **(3)'s sabotage:** the old `test_wx_crop.cpp` on 26.04 (a throwaway branch, pushed so CI runs, then deleted) | the WxCrop block FAILs (the compile); **every later block prints its header and its result;** `FAILED BLOCKS:` lists WxCrop (plus any other g++ 15 failure, each listed) |
+| a local control of (3), no 26.04 needed | a syntax error planted in a copy of `test_wx_crop.cpp`: the same picture under MinGW |
+| both legs on the follow-up's own head | every block runs, **both green.** Any further g++ 15 failure is listed, then fixed in the follow-up or raised |
+
+- **Every driver in full (A12.73)** goes into the same restructured `run.sh` as its own block.
+
+**The watch: accepted** (A12.75). E2:08's watch also read 0.
+
+**TouchWatchdog: the finding holds, from the code and the image.**
+- **The code:** `TouchWatchdog::OnPoll` has exactly one caller, `AircraftManager.cpp:8910`, which is the radar. Nothing in `src/weatherscope/` calls any `TouchWatchdog` function.
+- **The image:** t5's `firmware.elf` holds **0 `TouchWatchdog` symbols.** The linker dropped the whole supervisor, though `s3_128.h` sets `TOUCH_WATCHDOG = true`.
+- **The effect:**
+  - on Weatherscope, nothing re-arms the CST816's DisAutoSleep (0xFE) after the silent chip-internal reset this batch is known to do (CLAUDE.md, INCOMING-INSPECTION.md);
+  - nothing reports a wedge, either;
+  - **the watch's 0 `[touch-wd]` lines are what a board that never runs the watchdog prints.** So they say nothing about the chip.
+- **As ruled, its plan, with predictions first, follows t5 (#514).**
+
+**#514's CI** is being counted. Main has moved to `a27e00a` (#512), which shares no file with #514.
