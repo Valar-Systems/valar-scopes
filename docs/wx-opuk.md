@@ -907,3 +907,32 @@ before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5)
   oldest frame.
 - The two start-time derivations agree within the ±0.5 s rounding both times.
 - 0 lines were BLIND (ABR level 1), with 8 and 10 ingest lines written after each listing.
+
+**R3, +60 and +70:**
+
+| | got | verdict |
+|---|---|---|
+| **R3-2's gate, +60** (23:07:25Z) | `cref` `frameAgeS` **163 s**. All six reads: 104 / 163 / 108 / 166 / 168 / 163 | as predicted |
+| **R3-5a** (read 23:17:45Z, logs 22:07:22-23:17:22Z, ABR 1) | `opuk`: 138 checks, **0 errors**; `pruned` on **stored 15, backfilled 2**, and on no other status | as predicted |
+| **R3-5b′, read 1** (listed 23:17:43Z) | **12 frames**, 22:15:00-23:10:00Z, `latest` 23:10:00Z. Last storing check started 23:14:05.730Z (cross-check -0.4 s), for the 23:10 frame, `pruned` 1. Cut 22:14:05Z: **0 frames below it**. Sabotage (+300 s, cut 22:19:05Z): **1 frame below, the oldest**. 8 ingest lines after the listing | **PASS** on the ruled row |
+
+**Off my own written expectation, not the ruled row: the oldest frame's margin above the cut.**
+- **Predicted** (f6bf0a3, "Expected per read"): 9-49 s. **Got: 54.3 s.**
+- **Cause:** I took the 9-49 s from the write lag measured at the LOG LINE (251-291 s). The bound runs on the check's
+  START, which is earlier by the check's duration.
+  - That duration shows directly here: the 23:14 check logged at 23:14:14Z and started at 23:14:05.73Z, so about 8.3 s.
+  - The start lag is therefore about 246 s, and the margin is 300 - 245.7 = 54.3 s.
+  - This is the same log-time-versus-start distinction pinned for the bound itself; I didn't carry it into my own
+    arithmetic.
+- **Alternative:** a prune cutting from some other clock. The data doesn't single that out:
+  - any cut between 22:10:00 and 22:15:00 keeps exactly this listing;
+  - and the cross-check ties the start time to the logged `epoch + lagS - ms` within 0.4 s.
+  - So the miss is in the expectation, not the prune.
+- **Not changed:** read 2 (23:27:40Z) is compared against the same frozen expectation. A corrected range waits for a
+  ruling.
+
+**Data beside the rows:**
+- **My side expectation for R3-5a held:** `pruned` 1 on every storing check from 22:54:49Z on, 0 before. The three
+  pre-deploy frames aged out one per check.
+- **The log half over 70 minutes** (graded only over the first 30): 68 of 70 minutes have both of `cref`'s checks,
+  with 0 error lines.
