@@ -10728,3 +10728,85 @@ On main `a27e00a`, the same count holds (#512 touched no workflow).
   - (a) `OnPoll` plus a periodic `[touch-wd]` heartbeat, so a watch can tell "runs and is healthy" from "never runs";
   - (b) also define the flag on `weatherscope-s3-128`;
   - (c) the radar's comment-vs-build gap goes to its owner. It is not edited here.
+
+### A12.83 Ruled ~15:00Z: #514's network-name fix and Q70 (a), frozen before their code
+
+**The ruling (2026-11-04 ~15:00Z), in short:**
+- **#514 is not approved yet.** Five t5 record files carry the Wi-Fi network's name in their "Associated with" line, so A12.76's "no network name" does not hold. publish_t5_record.py's scan missed that form.
+- **The fix:** redact the name in the five files, with the same kind of placeholder as the BSSID. The publisher refuses any quoted network name on a Wi-Fi association line, and its control shows a planted name refused and the redacted form passing. Comparisons happen in memory, and the name is never printed.
+- **Current files only, no history rewrite** (Daniel's decision). The older records on main are left to the map server's scrub PR.
+- **#514 is approved at the head that adds exactly that commit on 95650b7:** the five files plus the publisher and its control, nothing else. Conditions: CI complete, 0 failed, and the count as predicted before the push, from the last finished run's job list. Squash with --match-head-commit, no --admin, and main's CI recorded on the merge commit. Anything else goes back to the reviewer.
+- **Q69:** accepted as measured, and superseded by the new head.
+- **Q70:** (a) now. (b) approved as its own PR after the follow-up: a driver keeps going past a plant that does not compile, records it as the RIG, and exits nonzero at the end.
+- **TouchWatchdog:** accepted as found. It is planned after #514, and the radar's comment goes to blipscope-5c.
+
+**Read before freezing, from #514's tree at `95650b7a5fa1`, in memory, the name never printed:**
+- The name occurs, as a word, **5 times across #514's files**: once in each of the five files the reviewer named, each time as `[WiFi] Associated with "<NAME>", waiting for IP...`.
+- No other line and no other file in #514 holds it.
+
+**Also found before freezing, by applying the scan to all three of #514's record directories, not only the five files:**
+- **The touch watch's `trace.txt` and `watch-notes.txt`** (`run-2026-10-31-touchwatch`, A12.75) **hold ISO times:** every one of the trace's 14,648 lines, and all 3 of the notes'.
+- **Not written by this publisher:** A12.75's watch wrote its own record. Q62 governs BSW/BSW-L's times.
+- **What they hold, counted in memory:**
+  - no `theme`, `dim`, `night`, `dusk`, `dawn`, `daynight` or `Auto` token;
+  - no Wi-Fi field and no coordinate;
+  - `place` occurs only as the basemap's `places=` layer count.
+- **So they carry when the watch ran, and nothing of where.**
+- **They are not changed,** because they are outside the ruled diff. Say if they should go.
+
+#### The #514 commit, frozen
+
+**The diff: 6 paths and nothing else:**
+- the five records:
+  - `run-2026-11-02-t5/serial.txt` and `boot-t5.txt`;
+  - `run-2026-11-04-swb/serial.txt`, `boot-swb.txt` and `boot-t5-after.txt`;
+- `tools/weatherscope/board/publish_t5_record.py`.
+
+**The records:**
+- Each file changes in exactly one line, to `[WiFi] Associated with "<redacted>", waiting for IP...`.
+- The redaction is made by the publisher's own `redact()`, so the committed files are what the fixed publisher writes.
+
+**The publisher:**
+- **`redact()`** also replaces a quoted name on an association line with `"<redacted>"`.
+- **A new SCAN rule, "a network name on an association line":** on any line containing `associat` (any case), a quoted string, single or double, other than `<redacted>` is refused.
+- **`--selftest`, its control.** It prints rule names and booleans only. Planted names are fake; the real one is never used.
+
+**The rows:**
+
+| row | expected |
+|---|---|
+| the five files | each differs from `95650b7` in exactly one line, the association line. **The real name, compared in memory against `95650b7`'s blobs: 5 occurrences before, 0 after,** across all of #514's files |
+| `--selftest` (1): a planted `[WiFi] Associated with "<fake>", waiting for IP...` | refused, by exactly the new rule |
+| `--selftest` (2): the same line single-quoted | refused, by exactly the new rule |
+| `--selftest` (3): `redact()` of the planted line | passes every rule, and the fake name is gone |
+| `--selftest` (4): every text file in the two record directories this publisher writes (`run-2026-11-02-t5`, `run-2026-11-04-swb`) | passes every rule. Exit 0 |
+| **the control's sabotage:** a copy with the new rule removed | **`--selftest` exits 1,** with (1) and (2) not refused |
+| host suites | **untouched:** no file `run.sh` reads changes, and nothing runs the publisher |
+
+**#514's CI, predicted from its last finished run's job list** (`95650b7`: 37 = firmware 34, device-ids 1, no-traffic-captures 1, print-cards 1 on the push):
+- **The push is a fast-forward of one commit,** so it carries these 6 paths alone. None matches print-cards', workers' or provisioner's `paths`: **print-cards does not run.**
+- **The synchronize event runs:** firmware 34 (31 success, 3 skipped: ship-alert, promote, version), device-ids 1, no-traffic-captures 1.
+- **Predicted: 36 check runs, 33 success, 3 skipped, 0 failed, every job on `ubuntu-24.04`.**
+- **Then:** merge as ruled, or, on any other count, send it back.
+
+#### Q70 (a) in the follow-up, frozen
+
+- **The change:** S-H3's plant is split onto two lines:
+  ```
+          if (*snow || *rain) return;
+          if (SnowCode(g + i)) *snow = true;  // SABOTAGE: the first token decides
+  ```
+- **Unchanged:** the anchor, and the failing set `{H9, H20}`.
+
+| row | expected |
+|---|---|
+| `sabotage_wx_logic.py` in full, MinGW and g++ 13.3 | **24/24 AS PREDICTED,** S-H3 `{H9, H20}` (as the A12.82 probe measured on a copy) |
+| `--anchors`, `--control` and the lint | unchanged: anchors present once, the control as the table, 0 flagged |
+| the follow-up's `run.sh`, g++ 13.3 | exit 2, with `FAILED BLOCKS:` exactly `the rig: ... R0 and R0b ...` and `failed: the same TU, for the board`; the full block's 19 exit 0 and towns SKIP |
+| the follow-up's `run.sh`, MinGW | exit 0, as A12.82 |
+
+**When it goes up:**
+- **After #514 merges.** #514 adds a board plant to the anchors block of `run.sh`, so the follow-up is rebased onto the new main.
+- **Its `run.sh` is regenerated** from that main by the same rewriter.
+- **Both compilers are re-run.**
+- **The CI count is re-derived** from what the push carries.
