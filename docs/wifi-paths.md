@@ -69,3 +69,15 @@ evaluated per leg, and from main as it is at that moment.
 **Disk:** C: 20 GB free at 19:23Z, under 30 GB, so no large build. This is two renames and the guard's own runs.
 
 **Outside the set:** stop and report, with no fix until a ruling.
+
+## Results (local, Windows, Python 3.14; every reading as registered)
+
+| | read | verdict |
+|---|---|---|
+| **P1** | the new guard with `--root` on a clean checkout of `ec4f0d4`: exit 1; 1,520 tracked; findings name 0, BSSID 0, **LAN 2, both the paths** in `bench-logs/prelash-backup/`, each printed masked. **0 private addresses in its printed output.** Stale, idle and unreadable 0 | as predicted |
+| **the rename** | done in memory, numbered in sorted order: `logbook-lan-ip-redacted-1-…` and `-2-…`. Neither new name has a finding | as designed |
+| **P2** | the guard on the branch: exit 0; name 0, BSSID 0, LAN 0; 16 entries, each used | as predicted |
+| **P3** | `git diff -M --name-status` against main: **R100 twice** (the two renames), `A docs/wifi-paths.md`, `M` the two scripts. Nothing else | as predicted |
+| **S1** | the selftest: **16 rows**, every one ok. **(m): exit 1, exactly 1 finding, that path's, LAN** | as predicted |
+| **the harness** | the control green. **S-WPATH: W3 0, full 1, rows red (m)**. **S-W4L: W3 1 (idle 10), full 2, rows red (f) one, (f)'s count, the real allowed line, (g), (h), (l), (m)**. **S-W4P: name 149**. S-W2PORTAL: (l) only. S-W4N, S-W4B, S-W5G, S-W5J, S-W5K, S-W3, W2' and S-W7 as before. 0 instrument failures; the guard byte-identical; **exit 0** | as registered |
+| **W8** | the planted name, MACs and addresses, `(m)`'s included, and the README example line's address: none equals a real value | as predicted |
