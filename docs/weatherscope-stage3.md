@@ -10590,3 +10590,141 @@ On main `a27e00a`, the same count holds (#512 touched no workflow).
 - **Predicted: 36 check runs, 33 success, 3 skipped (ship-alert, promote, version), 0 failed, every job on `ubuntu-24.04`.**
   - `host-tests` there is green: the tree's host suites passed under g++ 13.3 (A12.68), and 24.04 is the image.
 - **Any other count is reported before anything is merged.**
+
+### A12.82 Two off-predictions, both stopped and reported: #514's CI is 37, not 36 (Q69), and under g++ 13.3 the follow-up's full-driver block fails at sabotage_wx_logic.py's S-H3 (Q70). Main's CI on `892fe2b` recorded; the rest of the follow-up measured, and held
+
+#### Q69: #514's CI at `95650b7a5fa1` is 37 check runs, not 36
+
+**Measured:** 37 check runs: 34 success, 3 skipped (promote, ship-alert, version), 0 failed. Read twice, unmoved.
+- **A12.81 predicted 36:** 33 success, 3 skipped.
+- **The extra job is print-cards,** a success, from the branch's **push** event. The other 36 are exactly as predicted: firmware 34 (31 success, 3 skipped), device-ids 1, no-traffic-captures 1.
+- **Runners:** all 37 jobs requested `ubuntu-24.04`. The logs of the 34 that ran each report `Image: ubuntu-24.04`. `host-tests` is green there.
+
+**Why print-cards ran. It is my count, not the code:**
+- **The trigger:** print-cards' `push:` trigger has `paths:` but no branch filter (A12.80).
+- **What a push's path filter reads:** it matches the push's own before..after diff, not the PR's files.
+- **What this push carried:** the force-push moved the branch from `a6287f172eef` (on `4763f4de23a6`) to `95650b7a5fa1` (on `892fe2b`). So its diff carries #512's and #515's changes as well as t5's, and #515 changed `.github/workflows/print-cards.yml`. `git diff --name-only a6287f172eef 95650b7a5fa1` lists it.
+- **My error:** A12.81 said no push trigger fires, because "#514's 52 files match none of" the filters. I matched the filters against the PR's files, not against what the push carried.
+- **The alternative, ruled out:** the reading would be that print-cards' path filter does not apply to pushes at all. The data excludes it: #514's earlier pushes did not run print-cards. Its last finished run, on `a6287f1`, was 35 check runs: firmware 33, device-ids 1, no-traffic-captures 1.
+- **The family, a fifth time:** a count predicted from the file list in front of me, not from the rule that decides what runs. That rule is a push's path filter, evaluated on the push's diff, and after a rebase that diff includes main's new commits.
+
+**Q69, for the ruling:**
+- **(a)** accept 37 as measured (34 success, 3 skipped, 0 failed; the extra named above) and approve #514 at `95650b7a5fa1`;
+- **(b)** something else first.
+- **Nothing in #514 changes either way, and it is not merged:** A12.81 requires any other count to be reported first.
+
+#### Main's CI on `892fe2b` (#515's merge commit)
+
+**41 check runs: 39 success, 2 skipped (promote, version), 0 failed.** Read twice.
+- **By workflow:**
+  - firmware 34 (32 success; ship-alert ran on the push and succeeded);
+  - workers 3 (manifest-drift, test (dashboard), test (proxy));
+  - device-ids, no-traffic-captures, provisioner and print-cards, 1 each.
+- **On `ubuntu-24.04` throughout:**
+  - all 41 jobs requested `ubuntu-24.04`;
+  - the logs of the 39 that ran each report `Image: ubuntu-24.04`;
+  - three image versions appear (20261015.610 ×3, 20261021.618 ×27, 20261028.624 ×9), which is the image's own rollout. All three are 24.04.
+
+#### Q70: the follow-up, stopped at its g++ 13.3 row
+
+**The follow-up** (`weatherscope/one-count`, local, three new commits on 5eaaf2b and 057f18c, on `892fe2b`; not pushed):
+- **Q66 (a):** the lint control's table-literal case expects `['L1', 'L2']`. Its cases are compared sorted.
+- **(1b):** `host-tests-leg` on `[ubuntu-24.04, ubuntu-26.04]`, `fail-fast: false`, plus a job still named `host-tests` (`needs` the legs, `if: always()`, succeeds only on `success`).
+  - The guard: 28 `runs-on` lines, 0 naming `ubuntu-latest`.
+  - #515 had left the HOST TESTS comment above the `runners` job; it is moved back above the host tests.
+  - `docs/ci-runners.md` describes the two legs.
+- **(2):** `test_wx_crop.cpp`'s operators reach `malloc` and `free` through `volatile` function pointers. There is no pragma, no flag and no version test.
+- **(3):** `run.sh`, rewritten mechanically from main's by a script (kept local): 62 blocks, each in its own subshell, then `note_block`, then `FAILED BLOCKS:` and exit 2/1/0.
+  - **The setup variables stay outside the blocks, as frozen.** Two blocks on main set a variable that later blocks read: the coordinate block's `SHIM_INCLUDES`, and follow privacy's `PY` finder. Both are hoisted out of their block, unchanged.
+  - **The rewriter refuses any other carried variable** (one a block sets and a later block reads before setting it).
+  - **Its control:** without the `PY` hoist, the rewriter refused, naming `PY` and every block that reads it.
+- **A12.70 and A12.73:** the lint and its control at the end of the controls block (the control's failure is the RIG), and the new block `== sabotage drivers, in full ==` right after it.
+
+**Rows, measured** (each prediction written before its run, in a local `predictions.md`):
+
+| row | predicted | measured |
+|---|---|---|
+| `test_wx_crop`, MinGW / g++ 13.3 | 27 ok, 0 FAIL | **27 ok, 0 FAIL on both;** S-A2 under g++ 13.3 AS PREDICTED |
+| the lint and its control | 0 flagged; control as re-registered | **0 flagged (20 drivers, 1 pinned line); the control 6/6, the table literal now `['L1', 'L2']`** |
+| main's `run.sh` on this tree, MinGW | exit 0 | **exit 0, 155 `== ` lines** |
+| the follow-up's `run.sh`, MinGW | exit 0, no `FAILED BLOCKS:`; base's lines in order plus one header, the lint's 27 lines and the full block's 22 | **AS PREDICTED:** <br>• exit 0; <br>• 156 `== ` lines, differing from base's only in the new header; <br>• all 2,449 of base's non-blank lines in order; <br>• exactly 49 extra lines: <br>&nbsp;&nbsp;– the lint's 6 + 20 + 1; <br>&nbsp;&nbsp;– the full block's header, 19 `ok`, towns' `SKIP` and `20 driver(s): 19 run, 1 skipped` |
+| towns with its archives, MinGW and g++ 13.3 | control all as the table; full ALL AS PREDICTED | **AS PREDICTED on both:** <br>• control 2 suites, all as the table; <br>• S-D6a and S-D6b AS PREDICTED; <br>• `WxTowns.h` unchanged |
+| main's `run.sh`, g++ 13.3 | exit 2: the board TU FAILs (no xtensa), R0 the rig (no Pillow) | **exit 2, as predicted** (155 `== ` lines) |
+| **the follow-up's `run.sh`, g++ 13.3** | exit 2; `FAILED BLOCKS:` exactly two: `the rig: ... R0 and R0b ...` and `failed: the same TU, for the board` | **OFF: three.** <br>• The two predicted, plus `failed: sabotage drivers, in full`: **sabotage_wx_logic.py exits 2 at S-H3** (below). <br>• Everything else as predicted: every one of base's 2,419 non-blank lines in order, 156 `== ` lines, the lint's lines, and the full block's other 18 `ok` and towns' `SKIP`. <br>• The summary prints `HOST TESTS FAILED` after the list. Main's run had none, because it exits inside R0, the last block |
+| the local control of (3), MinGW | three blocks listed, every header printed | **AS PREDICTED** (below) |
+
+**What failed, and why it was never seen:**
+- **S-H3's plant puts two statements on one line:** `if (*snow || *rain) return; if (SnowCode(g + i)) *snow = true;`. g++ 13.3 refuses it with `-Werror=misleading-indentation`; MinGW's g++ does not warn.
+- **The logic driver stops at the first plant that does not compile** (`sys.exit(2)` in `run()`). In A12.73 the reviewer's g++ 13.3 run stopped earlier, at S-L.
+- **So S-H3 and the eight plants after it have never run on g++ 13.3:** S-H4, S-H5, S-T, S-B, S-HL, S-LP, S-LP2 and S-X. S-L's fix (057f18c) is what uncovered S-H3, the same way the fixed WxCrop compile will uncover any later g++ 15 failure.
+- **The A12.73 row "19 exit 0 on both compilers" was frozen on a run that stopped before reaching them.**
+
+**A diagnostic, predicted before it ran:**
+- **The tool:** a scratch copy of the logic driver that records a plant that does not compile and goes on. The tree was not touched.
+- **The prediction, made by applying `-Wall -Wextra -Werror` to each remaining plant's text:** S-H3 is the only plant that does not compile; the other eight compile and are AS PREDICTED. **AS PREDICTED:**
+
+| run of the copy | measured |
+|---|---|
+| g++ 13.3, the plants as they are | the control AS PREDICTED; **23 of 24 plants AS PREDICTED; S-H3 alone does not compile** (`WxLogic.h:109`, misleading-indentation) |
+| g++ 13.3, S-H3 split onto two lines | **24 of 24 AS PREDICTED,** S-H3 failing `{H9, H20}` as frozen; `WxLogic.h` unchanged |
+| MinGW, S-H3 split onto two lines | **24 of 24 AS PREDICTED** |
+
+**Q70, for the ruling:**
+- **(a) Split S-H3's plant onto two lines in the follow-up,** as measured above. Its failing set is unchanged, `{H9, H20}`. The full-driver block's g++ 13.3 row is then re-run, predicted 19 exit 0 and towns SKIPPED, before anything is pushed.
+- **(b) (a), plus a driver-wide change:** every driver records a plant that does not compile and goes on, failing at the end. That is the same keep-going (3) gives `run.sh`, applied to the drivers, so one non-compiling plant cannot hide the rest on a compiler. It touches all 20 drivers; it can be its own follow-up.
+- **(c) Something else.**
+- **Recommended: (a) now; (b) as its own PR,** since g++ 15 on the 26.04 leg is the next compiler to meet these plants.
+- **Until the ruling, the follow-up is held:** nothing is pushed, and S-H3 is unchanged in the tree.
+
+**The local control of (3), predicted before it ran by applying each block's rule to the planted file:**
+- **The plant:** a syntax error after `test_wx_crop.cpp`'s `WxCrop.h` include.
+- **Exit 2,** and `FAILED BLOCKS:` lists exactly three:
+  - `the rig: WxCrop (exit 2)`: its compile fails, and that branch exits 2;
+  - `failed: sabotage controls`: `sabotage_wx_crop.py --control` builds the same planted test;
+  - `failed: sabotage drivers, in full`: the same driver.
+- **`sabotage anchors` stays green:** its anchors are in `WxCrop.h`.
+- **Every `== ` line of the clean run prints, in order.**
+- **The file is restored by bytes and checked by sha256.**
+- **Measured: AS PREDICTED.**
+  - Exit 2, and `FAILED BLOCKS:` lists exactly those three.
+  - All 156 `== ` lines print, identical to the clean run's and in its order.
+  - The crop driver's `--anchors` line is `ok`.
+  - **The only clean-run lines missing** are WxCrop's own suite lines, the crop driver's `--control` and full-run `ok` lines, and the pass summary.
+  - **The restore:** sha256 equal to the original, and `git status` clean afterwards.
+
+**The first keep-going run, disclosed:** it ran in a fresh worktree with no `.pio/libdeps`.
+- Three blocks read BLIND (Wi-Fi QR, the seven-segment 1, GameConfig), and the run listed all three at the end instead of stopping at the first. That is (3) doing its job on a broken rig.
+- It is not a measurement of the tree. The libraries were copied from t5's worktree (same `platformio.ini`), and every row above is from after the copy.
+
+**Re-registered BEFORE they run, for after Q70:**
+- **(3)'s sabotage on 26.04, by applying each block to the old `test_wx_crop.cpp` under g++ 15.** A12.77's row says WxCrop fails "plus any other g++ 15 failure, each listed", and the same rule names two more blocks, so they are named now:
+  - **the 26.04 leg FAILs,** with `FAILED BLOCKS:` listing:
+    - `the rig: WxCrop (exit 2)`;
+    - `failed: sabotage controls`;
+    - `failed: sabotage drivers, in full`: the crop driver builds the old test with `-Werror`, both times;
+    - plus any g++ 15 failure the follow-up's own head shows on that leg. That head runs first, so those are known before this runs.
+  - **Every later block prints its header and its result.**
+  - **The 24.04 leg is green** (g++ 13.3 compiles the old file), and the `host-tests` aggregator fails.
+  - **How it runs:** firmware runs on `pull_request` only, so a pushed branch alone runs nothing. The sabotage is a **draft PR** from a throwaway branch (the follow-up's head plus the old file), closed and its branch deleted after.
+- **The follow-up's CI, predicted from #514's job list** (the last finished run), adjusted for what the follow-up changes:
+  - **firmware:** #514's 34, minus `host-tests`, plus the two legs and the aggregator: **36** (33 success, 3 skipped: ship-alert, promote, version).
+  - **device-ids 1, no-traffic-captures 1.**
+  - **No path-filtered workflow runs:**
+    - the branch is new, on `892fe2b`, so its push carries only the follow-up's files, and none matches print-cards', workers' or provisioner's paths;
+    - the PR's files match none either.
+  - **Predicted: 38 check runs, 35 success, 3 skipped, 0 failed.** 37 jobs on `ubuntu-24.04` and 1 on `ubuntu-26.04`.
+    - **Both legs green, every block run on each,** as A12.77 froze.
+    - A g++ 15 failure on the 26.04 leg is listed by the leg itself, then fixed here or raised.
+  - If main moves before the push, the branch is rebased first, and this count is re-derived from what that push carries.
+
+#### TouchWatchdog, ahead of its plan (read-only; the plan follows #514's merge)
+
+- **The no-sleep re-arm that `s3_128.h` gives as the watchdog's production reason is compiled out of every env.** `MaintainNoSleep` sits under `#ifdef CST816_DISABLE_AUTOSLEEP`, and nothing defines it: not `platformio.ini`, not `include/`, `src/` or `scripts/`.
+- **The shipping radar binary agrees.** v18's `firmware-s3-128.bin` holds `[touch-wd] no-autosleep applied` 0 times.
+  - **The anchor control:** the same binary holds the watchdog's sibling strings, `[health] touch-wd wedges=` once and `[touch-wd] wedged` twice. So the scan can see the watchdog's strings.
+- **INCOMING-INSPECTION.md's census table:** 0xFE reads 1 in every census, including those after an RST pulse. The pulse restores the factory config, and 0xFE=1 is part of it.
+- **So calling `OnPoll` from Weatherscope would add wedge detection, the recovery ladder and counters. It would not re-arm no-sleep, and neither does the radar.**
+- **The plan will ask:**
+  - (a) `OnPoll` plus a periodic `[touch-wd]` heartbeat, so a watch can tell "runs and is healthy" from "never runs";
+  - (b) also define the flag on `weatherscope-s3-128`;
+  - (c) the radar's comment-vs-build gap goes to its owner. It is not edited here.
