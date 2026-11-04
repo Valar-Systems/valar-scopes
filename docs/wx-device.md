@@ -4414,3 +4414,39 @@ anchors, each present exactly once), its control, and WA1 with its selftest. CI 
 
 **When:** W5⁵ needs about 3 h 15 min of E2:08. It starts only after Daniel lifts the hold, in its own announced
 window.
+
+## Main merged in (2026-11-04), and what it surfaced: frozen before the code
+
+**The merge:** main brought 18 commits into this branch with no textual conflict, as `3068ea2`. It holds locally
+until the remedies below are ready, so CI goes from green to green.
+- The Wi-Fi guard reads 0 findings, so none of my records needs redacting.
+- The device-id, runner, concurrency and wiring guards pass, and `blipscope-s3-128` builds.
+
+**Four failures surfaced, none of them in the firmware.** Main's `run.sh` now runs every driver and lints driver
+counts, and #531 changed a line a #445 tool reads.
+
+**The ruling (~21:15Z): remedies 1-3 approved; AL9 ruled.** One correction is noted below at (3).
+
+| | check | predicted |
+|---|---|---|
+| **M1** | `wx-fb-check.py` takes the dot count from `InCarousel`'s **device branch** (it must read exactly `return s != Screen::Follow;`) and asserts `DrawScreenIndicator`'s new lines (`CarouselCount()`, `!InCarousel(...)`) | on the merged tree it reads its sources with no refusal; 4 dots at the positions `test/host/fixtures/wx_screen_dots.json` pins (fixture unchanged); `sabotage_wx_fb_check.py --control` back to **ok 33** |
+| **M1, the plant** | in a copy of the tree, `InCarousel`'s device branch also leaves out Stats | the tool's guard **refuses** (exit 4, naming `InCarousel`'s device branch) |
+| **M1h** | the host case: `check_wx_wiring.py` gains **CAR**, which evaluates the device branch over the `Screen` enum and pins the count at **4** (Radar, List, Stats, Connect) | CAR passes. The selftest gains CAR's plant (the same "leaves out Stats"), which turns **exactly CAR** red: 9 plants, each exact (was 8) |
+| **M2** | `sabotage_wx_outline.py` takes the root from its own path and the compiler from the environment, as `sabotage_wx_policy.py` does. The explicit `<root> <compiler>` `run.sh` passes is still accepted | run with no arguments, **every plant's line equals** its run with the old arguments (same compiler); `--anchors` and `--control` unchanged |
+| **M3′** | **corrected, and it needs the reviewer's OK** (see below) | the lint flags **0** drivers; `sabotage_wx_look_select.py`'s output unchanged; the lint's own `--control` still passes |
+| **AL9′** | `TableH`'s sixth row refuses its 200 by a **superseded query**, a reason no plant touches. A new plant, **S-h3**, applies a refused reply's header anyway: the header is taken right after the 200's interval reset, before any refusal | S-b2 → exactly **(b)**; S-h3 → exactly **(h)**; every other plant as before; the control at **34**; `--anchors` **13 plants, 19 anchors**, each once (was 12 and 18) |
+| **M4** | `run.sh` on WSL g++ 13.3 | the only failed blocks are the rig's (no Pillow, no xtensa). The sabotage controls and drivers in full pass |
+| **M5** | `blipscope-s3-128`, then `blipscope-s3-128-wxlook` (single-env, free space checked) | both build |
+| **M6** | CI | predicted from finished runs and main at the push, before the push |
+
+**M3′, corrected.** The ruling's (3), "reads the 2 from its table's own count", rested on my description, and that
+description was wrong.
+- **What the two flagged lines are:** both `return 2`, the driver's rig exit code. They equal its `ok` count of 2 only
+  by coincidence.
+- **Why the ruled remedy would be wrong:** reading the count there would turn an exit code into `len(...)`.
+- **The lint's own mechanism for this is a PIN:** by file, exact text and reason, as it already does for a mask in
+  `sabotage_wx_server_crops.py`.
+- **The correction:** pin the two lines, with the reason "the rig's exit code, equal to the ok count 2 by coincidence".
+- **It holds for the reviewer's OK:** made locally, and pushed only after that OK.
+
+**Outside the set:** stop and report.
