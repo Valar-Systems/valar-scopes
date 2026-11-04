@@ -4494,3 +4494,16 @@ exercised. `#445`'s last CI (`8fb24fb`, on the merge ref) already showed both:
      either). Only the web build changes; the device's bytes do not.
    - Whether a second error follows the first is unknown. `build.sh` compiles one file at a time under `set -e`, and
      `AircraftManager` is the first, so no later file and no link was attempted. The rest of that file compiled.
+
+**Ruled (~21:55Z):** M1, M1h, M2, AL9′ and M5 accepted. M4 off, with the miss kept. M3′ OK. (1) gets M2's change,
+predictions first. (2) gets a `setBuffer`, with a condition: read the firmware's uses of the buffer first. The local
+chain is backed up to `backup/wx-device-merge-1104` (`50e359c`).
+
+**M2b, frozen before the code: (1), `sabotage_wx_s2.py`.**
+
+| | check | predicted |
+|---|---|---|
+| **M2b** | `sabotage_wx_s2.py` takes its root from its own path and its compiler from `$CXX`, as M2 does. The explicit `<root> <compiler>` that `run.sh` passes is still honoured | with no arguments, its output is **identical** to its run with the old arguments (same compiler, g++ 13.3). `--anchors` and `--control` are **identical** to their runs before the change. The lint flags **0** |
+| **M4′** | `run.sh` on WSL g++ 13.3 | the only failed blocks are the rig's two (no xtensa toolchain; no Pillow) |
+
+**Outside the set:** stop and report.
