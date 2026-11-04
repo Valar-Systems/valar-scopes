@@ -10969,3 +10969,48 @@ or the bus, not something to tune away.
 - **The keep-going control:** A12.82.
 - **The PR is `MERGEABLE`/`CLEAN`** on main `d479d72`.
 - **Ready for review.** It is not merged without an approval pasted at its exact head.
+
+### A12.87 #516 merged (`05864ca28d64`) as ruled; the TouchWatchdog board window announced, 17:15Z-19:45Z, before it opens
+
+**#516, merged as ruled** (approved ~17:05Z at `4d95c632dc53`):
+- **The checks:** head unchanged, `MERGEABLE`/`CLEAN`, CI 38 (35 success, 3 skipped), main unmoved at `d479d72`, no PR based on the branch.
+- **Squash with `--match-head-commit 4d95c632dc530cfa6eed01a44f3737707221060c`,** no `--admin`, at 2026-11-04T16:53:38Z, as **`05864ca28d64`**.
+- **Afterwards:** its parent is `d479d72`; it changes 24 paths; **main's tree equals the approved head's;** `weatherscope/one-count` is deleted on the remote.
+- **Main's CI on `05864ca28d64`,** predicted before the merge from `d479d72`'s push run:
+  - +2 jobs, because host-tests is now two legs and the aggregator;
+  - no path filter matches #516's 24 files;
+  - **38 check runs, 36 success, 2 skipped (promote, version), 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+  - Recorded in the next addendum.
+
+#### The TouchWatchdog board window (A12.84 approved as frozen)
+
+**The board:** 907069326E64, its port resolved by serial. The window is **2026-11-04 17:15Z to 19:45Z**.
+
+**The images, both built on `weatherscope/touchwd` at `122dd5c18663`** (A12.84's change, rebased onto `05864ca`):
+
+| image | firmware.bin | sha256 | checked in the artifact |
+|---|---|---|---|
+| **clean** | 1,881,808 B | `39e258b5be07` | `TouchWatchdog::OnPoll` 1, `GetStats` 1, the `[health] touch-wd` format 1 |
+| **S-TW** (a scratch worktree: the two lines of the `OnPoll` call replaced by one comment, the heartbeat kept) | 1,880,160 B | `9fee8a91efeb` | `OnPoll` 0, `GetStats` 1, the `[health] touch-wd` format 1 |
+
+**Each write:** `flash_plan` (app0 only), `firmware.bin` alone at 0x20000, the hash verified, then `read-mac` and `boot_lines` chained. Never the factory image.
+
+**The order and the predictions** (A12.84's rows):
+- **W1, S-TW** (~17:15Z): the write, then the boot read, then a passive watch: one open, DTR and RTS false, nothing written, about 21 minutes.
+  - **Predicted:** 2 `[health] touch-wd` lines, each `wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=0/0 maxOutage=0ms rebootRec=0`, and no `[touch-wd]` line.
+- **W2, the restore** (~17:38Z): the clean image, then **its boot read, graded `--boot-setting auto:known`** (the board keeps Auto and the Dallas fixture place since t5). That is the window rule: the planted image is restored, with its boot read, inside the window.
+- **W3, the 1-hour watch, clean image** (~17:40Z-18:41Z): passive, as W1.
+  - **Predicted:** 6 `[health] touch-wd` lines, all counters 0 except the ok-probe count, which rises by 55-61 from one line to the next.
+  - **Also:** failed probes 0, and no other `[touch-wd]` line.
+  - **The outside-the-set branch:** a wake, a failed probe, a wedge or a count outside 55-61 stops here and is reported.
+- **W4, B1/B3, clean image** (~18:42Z): `read-mac`, then `run_b35t.py` in full, as t5 ran it.
+  - **Predicted:** `grade_b35t.py` **ALL AS PREDICTED.**
+  - **Also:** any `[health] touch-wd` line during the run shows wedges 0 and failed probes 0. Its taps are the runner's synthetic bytes, which never reach `OnPoll` as `sawTouch`.
+- **The board is left on the clean image.**
+
+**The record:** `tools/weatherscope/board/run-2026-11-04-touchwd/`:
+- the heartbeat lines without their times, and the counts;
+- the boot reads, redacted;
+- the B-run's record through `publish_t5_record.py`, with its scan and its control.
+
+The raw traces stay local, sha256 only.
