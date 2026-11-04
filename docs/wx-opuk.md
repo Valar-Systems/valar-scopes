@@ -640,3 +640,14 @@ before the figure was reported.
 - All six workflows succeeded: `workers`, `firmware`, `device-ids`, `no-traffic-captures`, `photos` and
   `photo-drift`. The last two run because #525 touches `proxy/photos/`.
 - The deploy checkout is a detached worktree at `f740f10b9c08`, with `proxy/` clean.
+
+### The go, verbatim (reviewer chat, pasted by Daniel, 2026-11-04 ~21:25Z)
+
+> D3 is held up by a smoke defect (#532) that only matters once staging has the basemap binding, so your deploy no
+> longer waits for it:
+> 1. Start PD now, from f740f10, once its CI reads green: staging first, production not before 21:30Z. Your staging
+>    step carries #512's staging BASEMAP binding, as PD5 says; the map server reads D3's rows on that deploy afterwards.
+> 2. Run no smoke against staging after your staging step: its /basemap check is the defect #532 fixes. PD's rows
+>    don't need one.
+> 3. Everything else as ruled at ~20:55Z: PD0 (four), PD1-PD7, R3 inside the hold after a clean PD, started by 23:30Z.
+> 4. Tell Daniel the time of your staging step (UTC): the map server needs it.
