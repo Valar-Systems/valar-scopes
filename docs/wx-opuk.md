@@ -857,3 +857,39 @@ before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5)
 - Read against the frozen row, it would almost surely call a healthy prune off, and the escape would then roll back
   a healthy ingest.
 - Unread is not a pass. R3-5a, R3-2's +60 gate, R3-6 and R3-7 go ahead as registered.
+
+**Ruling, pasted ~23:00Z (verbatim):**
+
+> R3 to +30 min: accepted as read (the gate 104-168 s; the log half 29/30 with 22:36 missing its :00, none missing
+> both, 0 errors; R3-8 4xx 0 and 5xx 0 on two identical reads; opuk 59 checks, 0 errors).
+>
+> R3-5b: (a). The frozen bound was wrong for a prune that runs only on storing checks, and I missed it when I accepted
+> R3-5. The miss is kept. Re-registered before any listing, as you wrote it at b19e600: R3-5b' is at most 13 frames
+> (12 expected), and every epoch is at least the last storing check's time (from the logs) minus 3,600 s, except
+> latest's. Its sabotage, the same listing judged with that time moved 300 s later, must FAIL on the oldest frame.
+> R3-5b' off means stop and report, with no rollback for it alone: a failed prune costs storage, not service. Everything
+> else as you list it.
+
+**R3-5b′, pinned before any listing of `wx/opuk/frames/`** (none has been made):
+
+- **"The last storing check's time" is the check's START**, `t0`. That is the clock `pruneOld` cuts from:
+  `ingest-worker.ts` passes `Date.now()`, taken before `ingestOnce`, as `nowMs`. The log line is written after the
+  prune and carries `ms = now - t0`.
+  - So `t0 = event timestamp - ms`, cross-checked against `epoch + lagS - ms/1000` (to ±0.5 s from rounding).
+  - Taking the log line's own time instead would make the bound stricter than the code by the check's duration.
+    The margin is small: the oldest kept frame sits about 9-49 s above the cut at 251-291 s of write lag.
+- **"Storing" means `status` `stored` or `backfilled`.** The last such check counts only if its log line was
+  written no later than the listing.
+- **Order:**
+  1. the listing first, then `wx/opuk/latest`'s epoch (S3 GET, Object Read);
+  2. the logs at least 150 s later, so the line has landed.
+- **Control:** the log read must hold an ingest event written after the listing. Otherwise a late-landing storing
+  line could be missing, so the read is BLIND, which counts as FAIL.
+- **Expected per read:**
+  - 12 frames (at most 13);
+  - the oldest epoch is the last storing check's frame minus 3,300 s, sitting 9-49 s above the cut;
+  - the sabotage (that time + 300 s) fails exactly 1 frame, the oldest.
+- **Off, or BLIND:** stop and report, with no rollback for R3-5b′ alone (as ruled).
+- **Instrument:** `tools/wx/r3_5b.py`. It is proved first on `cref`, whose prune runs on every check with the same
+  `pruneOld`, so its pruning checks are the ones logging `pruned`. That is a control on the instrument, not a reading
+  of R3-5b′.
