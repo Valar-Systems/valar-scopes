@@ -3918,3 +3918,71 @@ before reading J7, once the dropped count fell by 3, not 1.
 
 The device measures its own frames, and the PC only serves the feed. G2's O-against-O control is what would show an
 effect.
+
+### Results for W5⁗ (2026-11-04, 04:51-06:51Z; announced 8:58-11:15 PM PST, opened 8:51 PM)
+
+**The run:** `w5pppp_run.py` (`a75bd29d5f3b`), all ten arms O1-N5, each flashed and read as designed.
+- O = `962ccb7`; N = this branch at `2ff8c3d`.
+- The feed served **6,004** requests with **0** refused (`arms=10`, `last_n=36`).
+- Graded by `w5pppp_read.py` as frozen (`ce17ce7313d9`): **exit 2, INSTRUMENT.**
+
+| | read | verdict |
+|---|---|---|
+| **G4** | 0 touches in every arm. `[perf]` polls 58-59 a minute (amended band 54-66) | **as predicted** |
+| **G1** | 83 lines at their plateau, **6 off**, 16 transitional | **OFF** |
+| **G2** | the control, (O1+O3+O5) − (O2+O4): −0.8 ms over **3** shared bins (28, 32, 36) | **INSTRUMENT** (floor: 4 bins) |
+| **G3** | the grade, N − O: **+1.1 ms** over 4 bins (24 +1.2, 28 +1.0, 32 +0.7, 36 +1.55) | not graded: the run is INSTRUMENT. Reported, and it lies outside ±1 ms |
+
+Per arm (p95 median, ms): O1 54.75, N1 56.4, O2 55.15, N2 55.2, O3 55.0, N3 56.1, O4 55.7, N4 55.8, O5 54.15, N5 56.7.
+Lines per arm 10-11.
+
+**G1 OFF, read for its cause: a timestamp boundary, not a wrong count.**
+- **The six lines:**
+  - O2, O3, O4 and O5 each have one line at "since 270 s" with n = 28, where the reader's plateau is 24;
+  - N5 has one at 360 s (n = 32, plateau 28) and one at 450 s (n = 36, plateau 32).
+- **Every one carries exactly the NEXT plateau's count, and sits within 1 s before its step.**
+- **The mechanism:** the reader measures `since` from the flash's return, a fractional time, but the trace's line
+  stamps are whole seconds (`RX`'s `%H:%M:%SZ`). So a line up to 1 s after a step can read as before it, outside the
+  transitional window `[step, step + 10 s]`.
+  - The feed's own log puts the steps at +269.2 to +270.8 s from each flash. Its stamps are whole seconds too.
+- **The alternative, and why the data excludes it:** a feed or retention fault would put n somewhere other than a
+  plateau. Each of these lines holds the next plateau exactly, and only at a step's edge.
+
+**G2 INSTRUMENT, read for its cause:**
+- The first plateau (24, 180-270 s) is 90 s long. Its first line falls under the window's 30 s rule (`t − 30 s ≥ on`),
+  and the boundary lines above went to bin 28. So bin 24 kept fewer than 3 lines on the two-arm side (O2 + O4).
+- The control met 3 bins, under its floor of 4.
+- The frozen design predicted "about 3 lines per arm" per plateau. For the first plateau that was not true.
+
+**PC load during the arms, recorded as ruled out or not.** On the bench PC:
+- the P4 sabotage runs, 04:56-04:58Z (in O1);
+- the RP6 head re-grades, about 05:03-05:07Z (O1's end, N1's start);
+- the WebAssembly builds for Daniel's demo request, about 05:30-06:00Z (N2, O3, N3).
+
+The device measures its own frames, and the PC only serves the feed. **This is not excluded:** the control is the
+instrument that would show it, and the control did not reach its floor.
+
+**The restore missed, and E2:08 sat on a dead local feed for ~8 h. Outside the set: stop and report.**
+- **What happened:**
+  - N5's trace closed at 06:45:03Z. The s3-128 drops into ROM download mode when a trace closes (recorded 3/3, 10-22).
+  - The restore ran 20 s later: `cfg` exit 1, "config page did not answer". The `finally` restore failed the same way.
+  - The wxlook flash then brought the board back with **`data-source` still `local` and `local-url` still set**.
+  - The driver read that back, said so ("after: wxlook is not back in its start state"), and stopped.
+  - The feed had already stopped, so **from 06:51Z E2:08 polled an address with nothing behind it** until it was
+    restored by hand at **14:44:05Z** (`cfg_post.py`: data-source cloud, local-url cleared). It was read back as
+    `feed source as before: True`.
+- **Production's record agrees** (`ae_watch.py`, the id from `records-device`): E2:08's last points at 04:50Z, none
+  until 14:40-14:45Z, then `/blips`, `/config` and `/airports` again.
+- **The cause is a second path that missed what the first one established.**
+  - Each arm's next FLASH is what brought the board out of download mode after its trace closed.
+  - The restore came after the LAST trace with no flash before it, and nothing in its path ran the recovery
+    (`read_mac`) the redo's driver runs before its page reads.
+- **The remedy, not made (it waits for a ruling):** before the restore, the driver runs `read_mac` and waits for the
+  page. If the restore still fails, it re-attempts after the final flash, before stopping.
+  - **K6's driver, read for the same miss: it does not have it.** It restores the label fields and clears
+    `cloud-url` while its trace is still open, and runs `read_mac` after the close before its last page read.
+  - **Its one exposure is a margin:** a 22 min trace against a timeline of up to 21 min (the first `[wx]` line by
+    4 min, 2 min of retention, the 10 min read, RS5's 5 min). A slower first line would close the trace before the
+    restore. This is said here so the ruling can cover it.
+- **Nothing private was written anywhere:** the location stayed in memory, and the URL lives only in the scratchpad's
+  private file.
