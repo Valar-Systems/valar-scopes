@@ -1778,3 +1778,58 @@ best any ingest could do.
   as the source's gap, not grading it against the ingest. During such a gap the device draws nothing, which is honest.
 - **This is the conclusion outcome (b) named:** #445 needs a per-product age limit before it merges. The row grading
   is (c), so it is put to you rather than taken.
+
+### A3.16 C's readings (2026-11-04, 16:59-17:33Z), and the clutter-mask proposal with its predictions frozen
+
+**C: OUTSIDE THE SET. Stopped for a ruling.** `r1_c.py` over the week's 2,201 held frames, with no errors.
+
+| | got | predicted |
+|---|---|---|
+| **C1** | **0** persistent clutter cells | ≥ 1 |
+| C2 | 0 | ≤ 25 % of C1 |
+| **C3** | **98.0 %** of non-isolated echoes have quality < 0.5 | ≤ 5 % |
+| C4 (printed) | cell-frames ≥ 65 dBZ: **801 unmasked, 2 masked**. C2 is 0 at every threshold; C3 runs from 96.9 % (t = 0.1) to 98.1 % (t = 0.9) | — |
+
+- **The control: as predicted.** The planted cell at quality 1.0 gives C1 1 and C2 1; at quality 0.2, C1 1 and C2 0.
+- **The sabotage is BLIND, as A1.3 foresaw** ("red, unless C1 is 0"). With C1 = 0, turning the mask off cannot change
+  C2. The instrument printed `red: true` here. That label is wrong when C1 is 0, and this line replaces it.
+- **The outcomes that apply:** **(b)**, C1 = 0, "the week shows no clutter; no mask"; and **(d)**, C3 misses, "the mask
+  deletes real rain". Two outcomes at once is "anything else", so **stop and decide.** Both point the same way.
+
+**C3 checked against an independent instrument before being believed.** The decode controls hold the value band to
+the HDF5; nothing yet held the quality band. The alternative was that `r1_c.py` misreads band 2.
+- **Excluded:** each `.h5` carries its own quality field, `dataset1/data1/quality1` (`how/task` =
+  `pl.imgw.quality.qi_total`). On every echo cell of the 8 daily frames, the decoder's quality band equals it:
+  **0 differences.**
+- **From the HDF5 alone, with no code of ours:** 98.1 % of echoes, and 98.1 % of non-isolated echoes, have quality
+  < 0.5 (per frame, 89.5 % to 99.9 %).
+- **The histogram says why.** On echoes, `qi_total` is almost always **exactly 0.0**, with a small group at 1.0 and
+  little between. Across the 8 frames, 173,239 of the 177,937 echoes read 0.0, and 3,188 read 1.0. In this
+  composite, the quality index is not a per-echo clutter score.
+- **And C1 = 0:** no cell is an isolated echo in 10 % of the week's frames. The composite reaches us without
+  persistent specks.
+
+**What this means for R2, already merged.**
+- `OPUK_QI_MASK` is **on, at 0.5**, on main. So it removes about 98 % of the rain `opuk` would serve.
+- **K12's crops and K13's render were made with it on.** The 8 crops on main hold 1,665 echo cells in total, 6 at LHR.
+- **K13's "LHR is all dry" is likely the mask, not the weather,** and is withdrawn as a statement about the weather.
+- Nothing is deployed: R3 has not run, and no device reads `opuk`.
+
+**The proposal: turn the mask off before R3.**
+- `OPUK_QI_MASK = { on: false, threshold: 0.5 }`. The switch stays, so a future product with a real clutter score can
+  use it.
+- Q17 (what a masked echo becomes) is then moot: nothing is masked.
+- **One PR, from main.** Its predictions, frozen here before any code:
+
+| | check | predicted |
+|---|---|---|
+| **M1** | K15, restated for a default of off | with the default: (40 dBZ, QI 0.4) → **6**, (40, 0.5) → 6, (40, 0.9) → 6. With the switch on: K15's frozen rows unchanged (0, 6, 6; off 6), and its sabotage (`<=` for `<`) still red |
+| **M2** | K12 rebuilt with the mask off | each crop's echo cells **≥** its masked count (it cannot fall: the unmasked echoes include the masked ones). **The total ≥ 10 × 1,665 = 16,650.** 8 / 8 decode, and the sabotage fails exactly `man-161km.wxc` |
+| **M3** | K13 re-rendered at LHR, and the ABZ extra | rendered, looked at; no echo count is predicted |
+| **M4** | every other R2 row (K1-K11, K14) | unchanged: the mask is not in their path (K2′ plants quality 0.9; K9's share counts code 14, which the mask never makes) |
+| — | the whole proxy suite, and host-tests | green |
+
+**Outside the set:** any other reading means stop and report.
+
+**C's outputs:** `docs/uk-data/r1-readings/r1-c.json` (rounded as before) and the quality cross-check in
+`r1-qi-check.jsonl`.
