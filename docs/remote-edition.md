@@ -481,3 +481,27 @@ One line per named check, ending `N checks, M failures`; clean on MinGW g++ 5.1 
 | SX9 | the parse prefilter is removed | M12 |
 
 **Outside the set** stops the step for a ruling, as before.
+
+### F2 results (2026-11-04)
+
+Against ArduinoJson 7.4.3 from `.pio/libdeps` (the pin). Header sha256 begins: SseStream.h `83333de08718`,
+EsphomeModel.h `ec5066eaed2f`.
+
+| prediction | observed | held? |
+|---|---|---|
+| clean suite, MinGW g++ 5.1.0 | `21 checks, 0 failures`, exit 0 | yes |
+| clean suite, WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` | `21 checks, 0 failures`, exit 0 | yes |
+| SX1..SX9, MinGW | each failed exactly its frozen set; control clean; real headers unchanged | yes, 9 of 9 |
+| SX1..SX9, WSL g++ 13.3 | `SABOTAGE PASSED` | yes, 9 of 9 |
+
+Two corrections made in the TEST before its first clean run, both visible in the file: a helper named
+`State` collided with `coverpolicy::State` (renamed `StateEvent`), and M8's first draft fed the original dump
+(StallGuard 3) and then a 6, which is not the frozen scenario "a dump saying 6"; it now edits the fixture's
+StallGuard entry to 6 and asserts the edit applied. And one hardening in the MODEL the predictions did not
+cover: a cover name of 64+ characters makes the device unsupported instead of being truncated into a
+different URL.
+
+The full `test/host/run.sh`, both compilers: the new block `21 checks, 0 failures`, F1's still `34 checks,
+0 failures`, the anchors pass lists both new drivers (20 drivers checked). The one real failure is still the
+scaffold's (`Remote-FFFFFF: version 3 (31 B)`, awaiting the name ruling); WSL also ends in its two known
+rigs (no xtensa toolchain; no Pillow).

@@ -1,0 +1,35 @@
+: TRANSCRIBED, NOT CAPTURED. The /events connect dump a Ropener v2.9.0 (VAL3100, ESPHome 2026.6.5) would send,
+: written from components/web_server/web_server.cpp at that tag (docs/remote-edition.md section 5). The weaker
+: form of a contract check; a capture from a real unit replaces it on the bench. Stored LF; sent CRLF.
+retry: 30000
+id: 3131
+event: ping
+data: {"title":"Ropener Curtain","comment":"","ota":false,"log":true,"lang":"en","uptime":17}
+
+event: sorting_group
+data: {"name":"Control","sorting_weight":10}
+
+event: sorting_group
+data: {"name":"StallGuard (experimental)","sorting_weight":70}
+
+event: state
+data: {"name_id":"binary_sensor/WiFi Reset","id":"binary_sensor-wifi_reset","domain":"binary_sensor","name":"WiFi Reset","icon":"","entity_category":2,"value":false,"state":"OFF","sorting_weight":6,"sorting_group":"Diagnostics"}
+
+event: state
+data: {"name_id":"cover/Ropener","id":"cover-ropener","domain":"cover","name":"Ropener","icon":"","entity_category":0,"value":0,"state":"CLOSED","current_operation":"IDLE","position":0,"sorting_weight":1,"sorting_group":"Control"}
+
+event: state
+data: {"name_id":"sensor/SG_RESULT Sensor","id":"sensor-sg_result_sensor","domain":"sensor","name":"SG_RESULT Sensor","icon":"","entity_category":2,"value":0,"state":"0","sorting_weight":3,"sorting_group":"StallGuard (experimental)"}
+
+event: state
+data: {"name_id":"sensor/WiFi Signal","id":"sensor-wifi_signal","domain":"sensor","name":"WiFi Signal","icon":"","entity_category":2,"value":-61,"state":"-61 dBm","sorting_weight":30,"sorting_group":"Diagnostics","uom":"dBm"}
+
+event: state
+data: {"name_id":"switch/StallGuard Enabled","id":"switch-stallguard_enabled","domain":"switch","name":"StallGuard Enabled","icon":"","entity_category":0,"value":false,"state":"OFF","assumed_state":false,"sorting_weight":1,"sorting_group":"StallGuard (experimental)"}
+
+event: state
+data: {"name_id":"text_sensor/StallGuard","id":"text_sensor-stallguard","domain":"text_sensor","name":"StallGuard","icon":"mdi:shield-search","entity_category":2,"value":"Disabled","state":"Disabled","sorting_weight":2,"sorting_group":"StallGuard (experimental)"}
+
+event: state
+data: {"name_id":"text_sensor/State","id":"text_sensor-state","domain":"text_sensor","name":"State","icon":"","entity_category":0,"value":"IDLE","state":"IDLE","sorting_weight":2,"sorting_group":"Control"}
+

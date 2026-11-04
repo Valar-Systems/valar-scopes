@@ -1,0 +1,75 @@
+: TRANSCRIBED, NOT CAPTURED. The /events connect dump a Glasscalibur v2.1.0 (ESPHome 2026.6.5) would send,
+: written from components/web_server/web_server.cpp at that tag (docs/remote-edition.md section 5). The weaker
+: form of a contract check: it catches the model disagreeing with this reading, not the reading being wrong.
+: A capture from a real unit replaces it on the bench. Stored LF; the test sends it CRLF, as the server does.
+retry: 30000
+id: 4242
+event: ping
+data: {"title":"Glasscalibur","comment":"","ota":false,"log":true,"lang":"en","uptime":42}
+
+event: sorting_group
+data: {"name":"Control","sorting_weight":10}
+
+event: sorting_group
+data: {"name":"Motion Tuning","sorting_weight":12}
+
+event: sorting_group
+data: {"name":"Stall Detection","sorting_weight":24}
+
+event: sorting_group
+data: {"name":"Security / Tamper","sorting_weight":45}
+
+event: sorting_group
+data: {"name":"Diagnostics","sorting_weight":60}
+
+event: state
+data: {"name_id":"binary_sensor/Open Limit Switch","id":"binary_sensor-open_limit_switch","domain":"binary_sensor","name":"Open Limit Switch","icon":"","entity_category":2,"value":false,"state":"OFF","sorting_weight":3,"sorting_group":"Diagnostics"}
+
+event: state
+data: {"name_id":"binary_sensor/Close Limit Switch","id":"binary_sensor-close_limit_switch","domain":"binary_sensor","name":"Close Limit Switch","icon":"","entity_category":2,"value":false,"state":"OFF","sorting_weight":4,"sorting_group":"Diagnostics"}
+
+event: state
+data: {"name_id":"binary_sensor/Tamper Detected","id":"binary_sensor-tamper_detected","domain":"binary_sensor","name":"Tamper Detected","icon":"","entity_category":2,"value":false,"state":"OFF","sorting_weight":5,"sorting_group":"Security / Tamper"}
+
+event: state
+data: {"name_id":"cover/Glasscalibur","id":"cover-glasscalibur","domain":"cover","name":"Glasscalibur","icon":"","entity_category":0,"value":0.5,"state":"OPEN","current_operation":"IDLE","position":0.5,"sorting_weight":1,"sorting_group":"Control"}
+
+event: state
+data: {"name_id":"sensor/Accel X","id":"sensor-accel_x","domain":"sensor","name":"Accel X","icon":"","entity_category":2,"value":0.123,"state":"0.123 m/s²","sorting_weight":20,"sorting_group":"Diagnostics","uom":"m/s²"}
+
+event: state
+data: {"name_id":"sensor/Accel Y","id":"sensor-accel_y","domain":"sensor","name":"Accel Y","icon":"","entity_category":2,"value":-0.087,"state":"-0.087 m/s²","sorting_weight":21,"sorting_group":"Diagnostics","uom":"m/s²"}
+
+event: state
+data: {"name_id":"sensor/Accel Z","id":"sensor-accel_z","domain":"sensor","name":"Accel Z","icon":"","entity_category":2,"value":9.791,"state":"9.791 m/s²","sorting_weight":22,"sorting_group":"Diagnostics","uom":"m/s²"}
+
+event: state
+data: {"name_id":"sensor/Motor Temperature","id":"sensor-motor_temperature","domain":"sensor","name":"Motor Temperature","icon":"","entity_category":2,"value":24.5,"state":"24.5 °C","sorting_weight":8,"sorting_group":"Diagnostics","uom":"°C"}
+
+event: state
+data: {"name_id":"sensor/StallGuard Trips","id":"sensor-stallguard_trips","domain":"sensor","name":"StallGuard Trips","icon":"","entity_category":2,"value":3,"state":"3","sorting_weight":11,"sorting_group":"Diagnostics"}
+
+event: state
+data: {"name_id":"sensor/Vibration Stall Trips","id":"sensor-vibration_stall_trips","domain":"sensor","name":"Vibration Stall Trips","icon":"","entity_category":2,"value":1,"state":"1","sorting_weight":12,"sorting_group":"Diagnostics"}
+
+event: state
+data: {"name_id":"sensor/Tamper Trips","id":"sensor-tamper_trips","domain":"sensor","name":"Tamper Trips","icon":"","entity_category":2,"value":0,"state":"0","sorting_weight":13,"sorting_group":"Diagnostics"}
+
+event: state
+data: {"name_id":"sensor/WiFi Signal","id":"sensor-wifi_signal","domain":"sensor","name":"WiFi Signal","icon":"","entity_category":2,"value":-58,"state":"-58 dBm","sorting_weight":30,"sorting_group":"Diagnostics","uom":"dBm"}
+
+event: state
+data: {"name_id":"switch/Child Lock","id":"switch-child_lock","domain":"switch","name":"Child Lock","icon":"","entity_category":0,"value":false,"state":"OFF","assumed_state":false,"sorting_weight":4,"sorting_group":"Control"}
+
+event: state
+data: {"name_id":"switch/Tamper Detection","id":"switch-tamper_detection","domain":"switch","name":"Tamper Detection","icon":"","entity_category":0,"value":false,"state":"OFF","assumed_state":false,"sorting_weight":1,"sorting_group":"Security / Tamper"}
+
+event: state
+data: {"name_id":"button/Clear Tamper Alert","id":"button-clear_tamper_alert","domain":"button","name":"Clear Tamper Alert","icon":"","entity_category":1,"sorting_weight":4,"sorting_group":"Security / Tamper"}
+
+event: state
+data: {"name_id":"text_sensor/State","id":"text_sensor-state","domain":"text_sensor","name":"State","icon":"","entity_category":0,"value":"IDLE","state":"IDLE","sorting_weight":2,"sorting_group":"Control"}
+
+event: state
+data: {"name_id":"text_sensor/Calibration Status","id":"text_sensor-calibration_status","domain":"text_sensor","name":"Calibration Status","icon":"","entity_category":2,"value":"OK: irun=17 SGTHRS=92 (SGmin=180, vib=0.31g)","state":"OK: irun=17 SGTHRS=92 (SGmin=180, vib=0.31g)","sorting_weight":2,"sorting_group":"Calibration"}
+

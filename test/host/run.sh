@@ -387,6 +387,29 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== Remote event stream: chunked SSE, the device model, the command path (SseStream.h, EsphomeModel.h) =="
+# Against the firmware's own ArduinoJson ($JSON_INCLUDES, like GameConfig below), refusing another version.
+# Headers by bare name so test/host/sabotage_remote_stream.py can put planted copies first.
+if [ -z "$AJSON_SRC" ]; then
+  echo "  BLIND: no ArduinoJson under .pio/libdeps (run pio run once)"
+  echo "FAIL: the Remote stream test could not be built (BLIND)"
+  exit 2
+fi
+if ! "$CXX" $FLAGS -I"$ROOT/src/remote" -I"$ROOT/include" $JSON_INCLUDES \
+      "$ROOT/test/host/test_remote_stream.cpp" -o "$OUT/test_remote_stream.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Remote stream test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_remote_stream.exe" "$ROOT/test/fixtures/remote" "$AJSON_PIN"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the Remote stream test did not run, or could not trust its inputs (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 echo "== seven-segment shapes: no seam before the far cap (SevenSegmentShapes.h) =="
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_sevenseg_shapes.cpp" -o "$OUT/test_sevenseg_shapes.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the seven-segment shapes test did not compile"
