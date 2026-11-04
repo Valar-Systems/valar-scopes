@@ -808,3 +808,14 @@ Nothing in it changes a step taken.
 | **R3-2's gate** | `cref` `frameAgeS` **104 s** (+5, 22:12:25Z), **163 s** (+10), **108 s** (+15) | as predicted so far (+20, +30, +60 still to read) |
 | **R3-3** | at +15 (22:22:22Z): `opuk` `frameAgeS` **444 s**, `coveredShare` **0.75077**. It was already present at +5 (446 s, 0.75077) | as predicted |
 | **R3-4** | at +15, as the test identity. `/wx/cref` at LHR: **200, `WXC1`, ETag `opuk`, `X-Wx-Max-Age: 720`, `X-Wx-Frame` 1793830500** (22:15:00Z), which is `opuk`'s latest (`/healthz`, seconds later: 448 s old). `/wx/opuk` at LHR: the same. Bend and KMCI: 200, `WXC1`, ETag `cref`, no `X-Wx-Max-Age`, as PD3 | as predicted |
+
+**R3, to +30 min:**
+
+| | got | verdict |
+|---|---|---|
+| **R3-2's gate** | `cref` `frameAgeS` 104 / 163 / 108 / **166** (+20) / **168** (+30) s | as predicted so far (+60 to read) |
+| **R3-2's log half** (as ruled ~21:55Z; window pinned 22:08-22:38Z) | 30 minutes: **29 with both of `cref`'s checks**; one minute (22:36) is missing its `:00` check; **no minute is missing both**; 0 error lines (unsampled, ABR 1) | as predicted |
+| **R3-8** | the fleet, 22:07:26-22:37:26Z, read at 22:40:51Z and 22:43:09Z, both identical: 1,701 requests, 12 devices, 1,116 `/blips`, **4xx 0, 5xx 0** | as predicted |
+
+**Data beside the rows:** in those 30 minutes, `opuk` logged **59 checks, 0 errors** (stored 7, backfilled 2,
+already-stored 50). `pruned` appears only on the 7 storing and 2 backfilling checks.
