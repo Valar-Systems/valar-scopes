@@ -604,3 +604,27 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **No other entry touches an MA2 input.**
 
 **Predicted for the full pass on the pushed head:** **51 of 51 AS PREDICTED**, with S-ANOTICE {MA1, MA2}, S-ACREDIT {MA2} and S-MREV {MA1, MD4, MG0b}. C-LOADFAIL AS PREDICTED; baselines ingest 10 in 1, mv 31 in 1, all 138 in 17; 0 runtime failures.
+
+## #512 merged: the record (2026-11-04)
+
+**The approval, verbatim** (source: reviewer chat, pasted by Daniel, 2026-11-04 ~04:45Z; the #513 half of the same message is in `docs/test-identity.md`):
+
+> #512: approved to merge at cfb1c2adaa9e. CI accepted as you counted it: 38 checks, 35 passed, 3 skipped.
+> - Checked here, with #512 merged into main 4763f4d: vitest 865 passed, 1 skipped (65 files); tsc clean; S-ACREDIT {MA2},
+>   S-ANOTICE {MA1, MA2} and S-MREV {MA1, MD4, MG0b}, each AS PREDICTED.
+> - No file in common with main since its base (6274664): squash with --match-head-commit, no --admin. Record main's CI
+>   on the merge commit. If its host-tests lands on ubuntu-26.04 and fails only at "the WXC1 decoder test did not
+>   compile", record it as the known image issue; Weatherscope has the fix. Any other failure: stop and report.
+> - D3's deploy and verification wait for the staging test identity, as planned.
+
+**The merge:**
+- **Before merging:** the head was still `cfb1c2adaa9e`, main still `4763f4d`, with 0 files in common since the base `6274664`; the squash applied cleanly.
+- **Squashed as `a27e00a582a9`** at 04:42:08Z, with `--match-head-commit` and no `--admin`. The message names the head.
+- **Checked on main afterwards:** all **6 files #512 changed** are byte-identical to the approved head. Main's other 91 differences are its own commits, byte-identical to `4763f4d`. `feat/basemap-d3` was deleted.
+
+**Main's CI on `a27e00a`: 38 checks, all finished: 35 passed, 2 skipped (`version`, `promote`) and 1 failed: `host-tests`.**
+- **It is the known image issue, as ruled:** the job ran on **`ubuntu-26.04`**, and its log holds **exactly one** `FAIL:` line, `FAIL: the WXC1 decoder test did not compile`.
+- **The cause:** GCC 15 with `-Werror`, a `free()` on a mismatched allocation in `test/host/test_wx_crop.cpp`. `run.sh` then exited 2, with the later blocks unrun.
+- **Weatherscope has the fix.** No other failure.
+
+**D3's deploy and verification** wait for the staging test identity (`docs/test-identity.md`), now minted. They run once #513 is merged.
