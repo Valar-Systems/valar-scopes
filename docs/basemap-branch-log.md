@@ -196,3 +196,89 @@ repeat lands on another isolate is a frequency, and one sample of it is a coin f
 groups, registered as N before any is sent.
 
 **Outside the set:** stop and report.
+
+## Ruled after the predictions, before the code push or any staging read (reviewer chat, pasted by Daniel, ~22:50Z)
+
+> 2. #534: the predictions at 0d6af62 are accepted as frozen, S-W304LATE's re-registration included (found before any
+>    run, the original set kept). Push the code only if every driver reads as predicted, as you say.
+> 3. Q-MK1: read R in 5 groups, each B, R, I as registered, each group more than 60 s after the last. Each group is
+>    graded by your outcome table, and B carries unknown-store in every one. The split of R's labels over the 5 is
+>    reported as the rate, not graded: D4 needs how often, not just which.
+> 4. Q-MK2: no need to ask the UK data session; staging isn't in R3's path. List the carried commits first. If
+>    anything besides #534 has changed the proxy Worker's inputs since f740f10, stop and ask.
+
+**The staging read, as ruled.** It replaces the single group registered above. The outcome table and the instruments
+are unchanged.
+
+- **Before the deploy:**
+  - list the commits carried beyond staging's `f740f10`;
+  - diff the proxy Worker's inputs (`proxy/src`, `proxy/wrangler.toml`, `proxy/pages`, `proxy/fonts`,
+    `proxy/package.json`) from `f740f10` to the commit being deployed. **Anything there besides #534's own change:
+    stop and ask.**
+- **Five groups, G1 to G5,** each B, R and I as registered:
+  - R about 10 s after B's response;
+  - I, with `If-None-Match`, about 20 s after it.
+- **Spacing:** each group's B is sent **more than 60 s after the previous group's last request.** By then every isolate's
+  store id has expired, because an isolate learns it only from a builder response, and none is later than that last
+  request.
+- **Per group:**
+  - **B** must carry **`unknown-store`**. That is the anchor control, in every group. A B without it is BLIND: stop.
+  - **R** is graded by the outcome table above.
+  - **I** is read as registered.
+- **The rate:** the split of R's labels over the five (`hit` / `known-miss` / `unknown-store`) is **reported, not
+  graded.**
+- **The builder count:** GraphQL per minute. A group's B and R can share a minute with the next group only if the spacing
+  above is broken, which is an instrument failure. Each group's minutes are read as that group's.
+
+## The run, first pass (2026-11-04, 22:40-23:15Z): S-RORDER BLIND; stopped, code not pushed
+
+**As predicted:**
+- **Typecheck:** both configs clean.
+- **The whole suite:** **891 passed, 1 skipped (892)**, 67+1 files, exit 0.
+- **`sabotage-basemap.mjs`, the baselines:**
+  - `baseline[ingest]`: 10 cases;
+  - `baseline[mv]`: 31;
+  - **`baseline[all]`: 145 cases in 17 files.**
+
+**The first off reading** came at the driver's 16th sabotage:
+
+    S-RORDER: BLIND (the Workers runtime failed partway (24 baseline cases not run)) [TIME_WAIT 6592 at start]
+
+**Two explanations, and the data rules out neither:**
+- **(a) the known vitest-pool-workers runtime failure** (A2.12);
+- **(b) S-RORDER's plant, which reorders frame clipping, together with the new MK rows**, crashing the runtime in
+  `basemap-endpoint.test.ts`. MK4 builds `r=98`, which no earlier row built. 24 is exactly that file's case count.
+
+A static count of the other files' cases (a regex, 111 against the driver's measured 145) cannot show that no other file
+also has 24.
+
+**What was stopped, and what was not:**
+- The chain was stopped, so `sabotage-smoke-basemap.mjs` and `sabotage-credits.mjs` never started.
+- The basemap driver was left to finish. It holds each original file only in memory and restores it in `finally`, so a
+  kill mid-plant would have left a planted file mixed into uncommitted work.
+
+**Its remaining lines are recorded as read, not acted on.** Every one reads AS PREDICTED:
+- S-W304LATE at its re-registered **{MK2, MK6, MW10}**;
+- the six MK sabotages at their frozen sets;
+- C-LOADFAIL BLIND.
+
+**The driver's tally:**
+- 61 runs; **runtime failures: 0 with nothing run, 1 partway**;
+- highest TIME_WAIT at a run's start 7,882 (gate 8,000); held for ports 1,336 s.
+
+**Afterwards:**
+- The tree held exactly this PR's six files, with no plant text in `proxy/src`, `proxy/scripts/basemap` or
+  `docs/basemap-attribution.md`.
+- **A2.12's note:** a runtime failure **under** the TIME_WAIT gate means the gate alone does not keep the runtime up.
+
+### Ruled on the stop (reviewer chat, pasted by Daniel, ~23:00Z)
+
+> 2. #534, S-RORDER BLIND: stopping was right, and so was letting the driver finish its restores. Its later lines are
+>    recorded as read, not acted on.
+>    - Your re-reading is accepted as frozen: S-RORDER alone, once. {MR2} reads as (a). BLIND with 24 missing points
+>      at (b). Anything else: stop.
+>    - If it's BLIND again: before any further run, make the driver name the files whose cases didn't run, not just
+>      the count. That's an instrument change, registered first, with its own check (a runtime failure planted in one
+>      known file names exactly that file). Then re-run S-RORDER alone.
+>    - A BLIND under the TIME_WAIT gate means the gate alone doesn't keep the runtime up; note it for A2.12.
+>    - Then, as registered: the whole basemap driver again, plus the smoke and credits drivers, before any code push.

@@ -1,3 +1,4 @@
+import type { BasemapBranch } from "./basemap/handler";
 import type { Env } from "./types";
 
 export interface RequestMetric {
@@ -26,6 +27,9 @@ export interface RequestMetric {
    * adding a blob would shift the positional indices existing queries depend on.
    */
   authPath?: "device" | "shared";
+  /** /basemap only: the branch the request took (docs/basemap-branch-log.md). It reaches the log line through
+   *  record()'s spread and is NOT written to the dataset point, whose blobs are positional (see record()). */
+  bm?: BasemapBranch;
 }
 
 // Device attribution for a metric, applied ONLY once a request has proven it

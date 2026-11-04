@@ -3,13 +3,19 @@
 // with no build, serves the Cache API, and otherwise calls the builder Worker over the BASEMAP service binding and
 // VALIDATES what comes back before serving it: a package the validator refuses is never sent (500 builder_invalid).
 //
-// Nothing here logs, and no ETag or cache key holds a coordinate (MP1, MP3): both are built from the query's digest.
+// Nothing here writes a log line of its own, and no ETag or cache key holds a coordinate (MP1, MP3): both are built from
+// the query's digest. The branch a request took rides on the proxy's own request line as `bm` (below).
 import { errorResponse } from "../util";
 import { validate } from "./format";
 import { type Query, etagOf, parseQuery, queryDigest } from "./query";
 
 /** The builder's output version: bumped whenever the same inputs build different bytes (MD4 guards it). */
 export const BASEMAP_REV = 1;
+
+/** Which way a request went (docs/basemap-branch-log.md; MK1-MK7): set on the caller's metric, so it reaches the
+ *  proxy's `evt:"req"` log line and never the dataset point. Four fixed strings: no device id, no query. A 503
+ *  not_configured or a 400 returns before any branch and carries none. */
+export type BasemapBranch = "304-known" | "hit" | "known-miss" | "unknown-store";
 
 export interface BasemapEnv { BASEMAP?: Fetcher }
 
@@ -41,7 +47,7 @@ const packageHeaders = (etag: string) => ({ "content-type": "application/octet-s
 const CACHE_TTL_S = 7 * 24 * 3600;
 const storedHeaders = (etag: string) => ({ "content-type": "application/octet-stream", "cache-control": `max-age=${CACHE_TTL_S}`, etag });
 
-export async function handleBasemap(request: Request, env: BasemapEnv, ctx: ExecutionContext): Promise<Response> {
+export async function handleBasemap(request: Request, env: BasemapEnv, ctx: ExecutionContext, log: { bm?: BasemapBranch } = {}): Promise<Response> {
   if (!env.BASEMAP) return errorResponse(503, "not_configured");
   const p = parseQuery(new URL(request.url));
   if (!p.ok) return errorResponse(400, p.code);
@@ -53,10 +59,11 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
   const id = knownStore(Date.now());
   if (id) {
     const etag = await etagOf(q, BASEMAP_REV, id);
-    if (inm === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } });
+    if (inm === etag) { log.bm = "304-known"; return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } }); }
     const hit = await cache.match(cacheKey(etag));
-    if (hit) return new Response(hit.body, { status: 200, headers: packageHeaders(etag) });
-  }
+    if (hit) { log.bm = "hit"; return new Response(hit.body, { status: 200, headers: packageHeaders(etag) }); }
+    log.bm = "known-miss";
+  } else log.bm = "unknown-store";
 
   // Otherwise the builder: the normalised query only, never the request's own parameters
   let res: Response;

@@ -1,7 +1,7 @@
 // MW and MP (docs/basemap-route.md A1.7): the endpoint, through the proxy's own dispatch, auth and alias, with the
 // builder Worker's real entry over MW's synthetic store behind counting bindings. Each test is named by its case id.
 // MW's store: origin (0.37, 0.59), the location of nothing; one water ring and one primary road in one cell.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
 import { BASEMAP_REV, basemapHealth, resetBasemapIsolate } from "../src/basemap/handler";
@@ -248,6 +248,98 @@ describe("MW, the endpoint", () => {
       // stays about the commit check alone.)
       expect((basemapHealth({ BASEMAP: b.BASEMAP }) as { store: string | null }).store, String(commit)).toBeNull();
     }
+  });
+});
+
+// MK (docs/basemap-branch-log.md): the branch each request took, as `bm` on the proxy's own request line. Each row reads
+// the ONE line of the request it is named for; setup requests are checked for their status only, never their label.
+const LABELS = ["304-known", "hit", "known-miss", "unknown-store"];
+type ReqLine = { evt: string; ep: string; status: number; bm?: string };
+const reqLinesFrom = (from: number): ReqLine[] =>
+  logs.slice(from).filter((l) => l.startsWith('{"evt":"req"')).map((l) => JSON.parse(l) as ReqLine);
+/** One request through capture, and its line: exactly one, or the row is an instrument failure, never a pass. */
+async function mkCall(f: () => Promise<Response>) {
+  const from = logs.length;
+  const res = await capture(f);
+  const lines = reqLinesFrom(from);
+  expect(lines.length, "request lines for one request").toBe(1);
+  return { res, line: lines[0]! };
+}
+const QW98 = QW.replace("r=97", "r=98"); // rKm is round(r): another query, so another ETag and no cached copy
+
+describe("MK, the branch on the proxy's request line", () => {
+  /** MW9's setup, as a setup: a fresh isolate builds MW's query once (its label is not read). */
+  async function mw9() {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    return { b, res: await mw(`/api/v1/blipscope/basemap?${QW}`, b) };
+  }
+
+  it("MK1: a fresh isolate's request is unknown-store, with one builder call", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const { res, line } = await mkCall(() => call(get(`/api/v1/blipscope/basemap?${QW}`), { BASEMAP: b.BASEMAP }));
+    expect([res.status, line.bm, b.n.calls]).toEqual([200, "unknown-store", 1]);
+  });
+
+  it("MK2: If-None-Match with the ETag the isolate knows is 304-known, with no further builder call", async () => {
+    const first = await mw9();
+    expect(first.res.status).toBe(200);
+    const { res, line } = await mkCall(() => call(get(`/api/v1/blipscope/basemap?${QW}`, { "If-None-Match": first.res.headers.get("etag")! }), { BASEMAP: first.b.BASEMAP }));
+    expect([res.status, line.bm, first.b.n.calls]).toEqual([304, "304-known", 1]);
+  });
+
+  it("MK3: the same request again is a hit, with no further builder call", async () => {
+    const first = await mw9();
+    expect(first.res.status).toBe(200);
+    const { res, line } = await mkCall(() => call(get(`/api/v1/blipscope/basemap?${QW}`), { BASEMAP: first.b.BASEMAP }));
+    expect([res.status, line.bm, first.b.n.calls]).toEqual([200, "hit", 1]);
+  });
+
+  it("MK4: a known store with no cached copy is known-miss, with one further builder call", async () => {
+    const first = await mw9();
+    expect(first.res.status).toBe(200);
+    const { res, line } = await mkCall(() => call(get(`/api/v1/blipscope/basemap?${QW98}`), { BASEMAP: first.b.BASEMAP }));
+    expect([res.status, line.bm, first.b.n.calls]).toEqual([200, "known-miss", 2]);
+  });
+
+  it("MK5: a 401, a 400 and a 503 carry no bm", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const cases: Array<[number, () => Promise<Response>]> = [
+      [401, () => call(new Request(`https://proxy.test/api/v1/blipscope/basemap?${QW}`), { BASEMAP: b.BASEMAP })],
+      [400, () => call(get(`/api/v1/blipscope/basemap?${QW.replace("lat=0.37", "lat=91")}`), { BASEMAP: b.BASEMAP })],
+      [503, () => call(get(`/api/v1/blipscope/basemap?${QW}`), { BASEMAP: undefined })],
+    ];
+    for (const [status, f] of cases) {
+      const { res, line } = await mkCall(f);
+      expect([res.status, line.status], String(status)).toEqual([status, status]); // CONTROL: this request's own line
+      expect("bm" in line, String(status)).toBe(false);
+    }
+  });
+
+  it("MK6: every /basemap request line in this file carries one of the four labels or none, and each label was seen", () => {
+    const lines = reqLinesFrom(0).filter((o) => o.ep.endsWith("/basemap"));
+    const seen = new Map(LABELS.map((l) => [l, 0]));
+    for (const o of lines) {
+      if (!("bm" in o)) continue;
+      expect(LABELS, JSON.stringify(o.bm)).toContain(o.bm);
+      seen.set(o.bm!, (seen.get(o.bm!) ?? 0) + 1);
+    }
+    for (const [l, n] of seen) expect(n, `${l} seen`).toBeGreaterThan(0); // CONTROL: the scan saw every label
+  });
+
+  it("MK7: the label goes on the request line only, never into the dataset point", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const writeDataPoint = vi.fn();
+    const { res, line } = await mkCall(() => call(get(`/api/v1/blipscope/basemap?${QW}`), { BASEMAP: b.BASEMAP, METRICS: { writeDataPoint } as unknown as AnalyticsEngineDataset }));
+    expect(res.status).toBe(200);
+    expect(LABELS).toContain(line.bm); // CONTROL: there was a label to leak
+    const points = writeDataPoint.mock.calls.map((c) => c[0] as { blobs: string[] });
+    expect(points.length).toBe(1);
+    expect(points[0]!.blobs.length).toBe(6);
+    for (const l of LABELS) expect(points[0]!.blobs).not.toContain(l);
   });
 });
 
