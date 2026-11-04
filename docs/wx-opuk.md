@@ -936,3 +936,11 @@ before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5)
   pre-deploy frames aged out one per check.
 - **The log half over 70 minutes** (graded only over the first 30): 68 of 70 minutes have both of `cref`'s checks,
   with 0 error lines.
+
+| | got | verdict |
+|---|---|---|
+| **R3-5b′, read 2** (listed 23:27:44Z, 10 min after read 1) | **12 frames**, 22:25:00-23:20:00Z, `latest` 23:20:00Z. Last storing check started 23:24:35.233Z (cross-check +0.4 s), for the 23:20 frame, `pruned` 1. Cut 22:24:35Z: **0 below**. Sabotage (cut 22:29:35Z): **1 below, the oldest**. Margin **24.8 s**, inside the frozen 9-49 s | **PASS** on the ruled row |
+
+**R3-5b′ overall:** both reads pass. The listing moved forward by exactly two frames between the reads (22:15→22:25
+oldest, 23:10→23:20 newest), at 12 frames each time. The one miss is my margin expectation on read 1 (54.3 s),
+recorded above with its cause.
