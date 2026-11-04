@@ -1665,3 +1665,116 @@ The instruments are proved first on synthetic data, each control and sabotage in
 > A3.12 and the instruments (da7f1bb): accepted. Run them as planned once the loop logs its end: the 8 daily decode checks
 > and the listing check, then T, B and C. C's reading comes to me with the clutter-mask proposal, predictions first,
 > before R3.
+
+### A3.14 R1's readings (2026-11-04, from 16:59Z): the controls and T as predicted; B outside the set
+
+**The collection was static before it was read.** The loop logged its end at 16:58:42Z, with no errors and 2,499
+frames held. The frame files (4,998) and the listings' bytes were the same in two reads 30 s apart. `loop.err` is
+empty.
+
+**The controls:**
+- **Decode:** `decode_check.py` on the 8 daily `.h5` files gives **0 differing cells of 2,221,632** on each. `r1_c.py`'s
+  own decoder gives 0 on the same 8 too, so C's decoder is held to the same truth as the control's.
+- **Listing:** no key's `LastModified` changed between listings.
+- **The gap rule:** **7 of 7 days wholly held** (10-28 to 11-03: 288, 284, 286, 288, 288, 288 and 288 keys, none
+  missing a held frame). The week counts. It has 2,201 frames up to 16:00Z on 11-04.
+
+**T: every row as predicted.**
+
+| | got | predicted |
+|---|---|---|
+| T1 | **99.73 %** of steps exactly 300 s | ≥ 99 % |
+| T2 | p50 **252.4 s**, p95 **283.2 s**, **0.64 %** over 450 s | p50 in [240, 265], p95 ≤ 320, ≤ 1 % over 450 |
+| T3 | **8** of 2,209 slots missing (0.36 %) | ≤ 0.5 % |
+
+The sabotage (every third key dropped) is red in the instrument's selftest (T1 0.50).
+
+**B's offsets, read as pinned, with one step added and stated.**
+- **The first read was sampled.** It covered 24 h in one query and returned 423 events spread across the day at
+  sampling (ABR) level 10: 125 `:00` and 143 `:30` checks of `cref`. Medians: 6.025 s and 5.233 s.
+- **Read again in 24 one-hour windows,** each unsampled (ABR level 1, none at the 2,000-event page limit): 1,438 and
+  1,436 checks. Medians **6.019 s and 5.233 s.** The sample agreed. The complete read is the one used.
+- **Every `:30` check reads exactly 5.233 s,** which looked like an artifact, and it is not:
+  - the cron's own `scheduledTime` sits 5.233 s past the minute;
+  - each `:30` check starts exactly 30.000 s after it, on a timer;
+  - the `:00` checks start 0.6-1.6 s after `scheduledTime`.
+  So the checks really run at about :06 and :35.
+
+**B: OUTSIDE THE SET, outcome (c). Stopped for a ruling.** Graded at `b` = 2 s, offsets 6.019 / 5.233 s:
+
+| | today's schedule | predicted | with the extra checks | predicted |
+|---|---|---|---|---|
+| **B1** | **5.51 %** | [2.0, 5.0] | **2.97 %** | [0.5, 2.5] |
+| B2 | 7.31 an hour | [4, 8] | 4.37 an hour | [2, 5] |
+| **B3** | **1,177 s** | ≤ 600 | **1,177 s** | ≤ 600 |
+| B4 | — | — | 768 extra checks a day: 6.1 s of CPU at 8 ms, and 768 listings | printed |
+
+- **B1 and B3 miss on both schedules.** B2 is as predicted.
+- **Neither schedule meets outcome (a)'s bar.** Outcome (b) needed every row as predicted, so this is **(c): stop
+  and decide.**
+- **Printed:** B1 at `b` = 0 is 5.11 / 2.73 %; at `b` = 5 it is 6.15 / 3.37 %; with the reply 1 s late, 5.72 / 3.10 %.
+- **B5:** at a device limit of 720 s, B1 is **0.69 / 0.66 %**; at 900 s, **0.30 / 0.29 %** (today's / extra).
+
+**Data beside the verdict, not a re-grade:**
+- **All 8 missing slots fall between 00:10 and 00:45 UTC,** on 10-29, 10-30 and 11-04. So do the latest frames (up to
+  561 s) and the longest blanks: at the worst phase, 1,177 s at 10-29 00:15 and 877 s at 11-04 00:25. OPERA's
+  composite stalls in that hour on some nights, and that is what breaks B3.
+- **That is not what breaks B1.** At the worst phase, blanks over 300 s hold only 4.7 % of the blank time.
+- **With the checks at :00/:30 exactly** (the schedule my ranges assumed), measured on the same week:
+  - today's schedule: B1 **4.67 %**, inside its range;
+  - with the extra checks: B1 **2.92 %**, still outside its range.
+  - So the measured offsets account for today's miss.
+  - The extra schedule's range was too low on its own account. I have not shown why, and do not offer a
+    cause.
+
+### A3.15 B's stop: the cause as read, and the options (2026-11-04 ~17:15Z, asked for ahead of C)
+
+**More data beside the verdict, not a re-grade:** B at three device limits, measured on the same week at the same
+offsets. "An ideal ingest" serves each frame the instant it is listed (a check at every frame's own P, `b` = 0): the
+best any ingest could do.
+
+| device limit | today's schedule | with the extra checks | an ideal ingest |
+|---|---|---|---|
+| **600 s** (#445 today) | 5.51 %, 7.31/h, 1,177 s | 2.97 %, 4.37/h, 1,177 s | **2.19 %, 2.96/h, 1,169 s** |
+| **720 s** | 0.69 %, 0.15/h, 1,057 s | 0.66 %, 0.13/h, 1,057 s | 0.64 %, 0.13/h, 1,049 s |
+| **900 s** | 0.30 %, 0.03/h, 877 s | 0.29 %, 0.03/h, 877 s | 0.29 %, 0.03/h, 869 s |
+
+(B1, B2, B3 in each cell.)
+
+**The cause, as read.**
+- **B1 and B2 at 600 s are set by the device's limit, not by the ingest.**
+  - A frame reaches OPERA's listing with T2's 252 s median latency (95th percentile 283 s).
+  - That leaves under 50 s of the 300 s that the 600 s limit allows between frames, which is less than the 60 s
+    between the device's polls.
+  - **The alternative, our ingest's timing, is excluded:** an ideal ingest still blanks **2.19 %, 2.96 an hour.** No
+    schedule can reach outcome (a)'s bar (1 %, 1 an hour) at 600 s. The ingest's whole share is the gap between 5.51 %
+    and 2.19 %.
+- **B3 is OPERA's own nightly gap.**
+  - The longest blanks sit on the missing slots and late frames at 00:10-00:45 UTC (10-29, 10-30, 11-04).
+  - **The alternative, an ingest cause, is excluded:** B3 is the same on today's schedule, the extra checks and an
+    ideal ingest (1,177 / 1,177 / 1,169 s). No ingest can serve a frame the source has not published.
+  - B3 shrinks with the device limit only by the limit's own increase (1,177 → 1,057 → 877 s).
+- **Why my ranges missed:**
+  - today's B1 range assumed checks at :00/:30, and production runs them at about :06/:35 (at :00/:30 the week gives
+    4.67 %, inside the range);
+  - the extra schedule's range sat below what the extra checks reach. They land 0.78 points above an ideal ingest (the
+    10 s grid, the 6 s offset, `b`), the only thing that differs between those two runs.
+
+**The options.**
+
+| | what | the week says |
+|---|---|---|
+| **1** | **#445 gets a per-product age limit, with `opuk` at 720 s** (sent by the server per product, or set in #445 for `opuk`); `cref` keeps 600 s; today's schedule; no extra checks | B1 **0.69 %**, B2 **0.15 an hour**: inside outcome (a)'s B1 and B2 bars. B3 1,057 s, only on OPERA's nightly gaps |
+| 2 | the same at 900 s | B1 0.30 %, B2 0.03/h, B3 877 s. Frames up to 15 min old are shown, for 0.4 more points |
+| 3 | keep 600 s and buy the extra checks | B1 2.97 %, B2 4.37/h: the layer still blinks about four times an hour, for 768 more listings a day |
+| 4 | the device polls faster (WD3 (g)) | not modelled. It changes #445's request rate, and at 600 s the floor is set by OPERA's latency |
+
+**Recommended: option 1.**
+- 720 s meets B1 and B2's bar with no new cost. The extra checks buy 0.03 points at 720 s, so they are not worth 768
+  listings a day.
+- A frame is at most 12 min old when shown. That is consistent with `opuk`'s 1,800 s server limit, and fresher than
+  option 2.
+- **B3's bar (≤ 300 s) cannot be met at any limit up to 900 s while OPERA stalls at night.** I recommend recording B3
+  as the source's gap, not grading it against the ingest. During such a gap the device draws nothing, which is honest.
+- **This is the conclusion outcome (b) named:** #445 needs a per-product age limit before it merges. The row grading
+  is (c), so it is put to you rather than taken.

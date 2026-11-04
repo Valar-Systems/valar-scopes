@@ -1,0 +1,9 @@
+{
+ "note": "floats rounded to 6 significant figures in the committed copies; sha256 of each raw file as read",
+ "raw_sha256": {
+  "r1-offsets.json": "8b2cbd694c4ea0f5292fc54a2299a19e8dafeca085747a9ca3ae7ab96e0fcbb7",
+  "r1-offsets-hourly.json": "66ed9d921c75d2bfb539c535ffb29b23b5243aa8640ee217caa329fc961139a3",
+  "r1-tb.json": "1aefee3225b04f7166945fb787c7884620049eb0f8553372063cbc8b574f2f58",
+  "r1-decode.jsonl": "86a4142b6b3771f2ea8cf0c23de4f7130c3e80064c318e8a2aaa5becda52e929"
+ }
+}
