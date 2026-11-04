@@ -4615,6 +4615,31 @@ all as predicted.**
     `316ddcd512b7`). The difference is line endings alone: this worktree is CRLF, and LF-normalised the local files
     give CI's shas, which are also the blobs at `HEAD`.
 
+**The abort case (ruled ~22:40Z), frozen before the code.** Read first:
+- **Where the abort is reached:** `wx-layer` is read in `AircraftManager::Initialise()` (`:911`), which calls
+  `AllocateWeatherBuffers()` and so `setBuffer` (`:3290`). The web build's `web_start()` calls `Initialise()`
+  synchronously, so a module started with `wx-layer` `"true"` must stop inside `_web_start()`.
+- **How emscripten aborts:** `abort()` reports `Aborted(...)` through the module's `printErr` and throws a
+  `RuntimeError` whose message begins `Aborted(`. The shim's own line goes out first, through the same `printErr`.
+- **With the abort removed:** `setBuffer` returns and the module runs on. No crop is ever held, because `GetBytes`
+  is a dead socket, so `WhatToShow` says Nothing and the raw-buffer paths are never reached. Nothing throws and
+  nothing is printed: the two worlds differ in exactly what the case reads.
+- **Where it can run:** a web build needs emscripten, and a local one waits for 30 GB. Every row below is CI's. A
+  workflow step is needed for the sabotage, because the existing steps run fixed commands.
+
+| | change / check | predicted |
+|---|---|---|
+| **AB1** | `smoke.mjs` gains **R7**: a fresh module with `CONFIG` plus `wx-layer` `"true"`. Its fetch is the scene's, so no network. `_web_start()` and 30 frames run inside a `try`. R7 holds when something was thrown with `Aborted` in its message **and** `printErr` carried the shim's own line. That line is read from `shim/LovyanGFX.hpp`'s `setBuffer`, taken from the other side, never retyped; if it cannot be read, the result is INSTRUMENT (exit 2) | CI, each model: R7 `ok`, its line showing the thrown `Aborted(` and the message printed. Smoke **11 `ok`**, 0 FAIL, `WEB RENDERER SMOKE AS PREDICTED`. R3-R6 as before (10 `ok`) |
+| **AB2** | `tools/web-renderer/sabotage_setbuffer.mjs`: in a COPY of `tools/web-renderer` (same depth, so `build.sh` resolves the repo), `setBuffer`'s fprintf and abort are replaced by `createSprite`'s body. The anchor is asserted once and the copy asserted changed; the real shim's sha is compared before and after. s3-128 is built from the copy, and `smoke.mjs --r7-only` is run on it. Its control is `smoke.mjs --r7-only` on the real `web-dist/s3-128`. A new step in `web-renderer.yml` runs it after smoke | the plant applies and the real shim is unchanged. **Sabotaged: exit 1, R7 the only FAIL**, its line showing nothing thrown and the message absent. **Control: exit 0, R7 `ok`.** The driver prints `SETBUFFER SABOTAGE AS PREDICTED` and exits 0 |
+| **AB3** | carousel, each model | 5 `ok`, `CAROUSEL AS PREDICTED`, as before |
+| **AB4** | the diff from `80edf65` | touches only `tools/web-renderer/`, `docs/` and `.github/workflows/web-renderer.yml`, so device bytes cannot change |
+| **AB5** | CI on the pushed head, with main re-read at the push | the push diff touches no print-cards path, so no push run. The same 4 pull_request workflows run: **41 check-runs, 37 success, 4 skipped** (`publish`, `promote`, `ship-alert`, `version`), 0 failure. The web job lengthens by about one model's build (~40 s) |
+
+Local, before the push: `node --check` on both scripts, and the driver's message reading and plant (exported
+functions) run against the real shim.
+
+**Outside the set:** stop and report.
+
 **What WR5 cannot see, said here so it is not mistaken for coverage:** a page can pass `wx-layer` at runtime through
 `web_config_set`, and the website's own page code is in another repo. That path is WR1's to stop: the module aborts
 with the message, never corrupts memory. The abort itself is never reached today and nothing here makes it fire. A
