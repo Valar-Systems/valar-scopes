@@ -4551,3 +4551,32 @@ chain is backed up to `backup/wx-device-merge-1104` (`50e359c`).
   side.
 
 **Recommended: (A) for #445.**
+
+**Ruled (~22:25Z): (A), with one change.** The shim's `setBuffer` fails loudly instead of imitating `createSprite`:
+reaching it means a per-pixel path was reached, and that must stop rather than corrupt memory. (B) is a separate item
+after #445.
+
+**(A), frozen before the code.** Read first:
+- **Link gaps:** #445 adds only headers. Of the `.cpp` files it changes, the web build compiles `AircraftManager`
+  and `CloudFeed` (`CloudFeed` gains one URL function). Every external call #445 added has a definition in the shims:
+  `heap_caps_*`, `mbedtls_sha256`, `ESP.getFreePsram`, `micros`. Of `HttpRequestManager`'s methods, only `GetBytes`
+  is undefined there. So `setBuffer` (compile) and `GetBytes` (link) are the two gaps.
+- **Main's web run (`43afaac`), per model:** smoke 10 `ok`, carousel 5 `ok`.
+
+| | change / check | predicted |
+|---|---|---|
+| **WR1** | the shim's `LGFX_Sprite::setBuffer(void*, int32_t, int32_t, uint8_t)` prints a message naming the per-pixel weather layer and `wx-layer`, then aborts | CI's web build **compiles and links both models** (s3-128, s3-21) |
+| **WR2** | `web_http.cpp`'s `GetBytes` answers as a dead socket: status 0, `len` 0, `etag` and `maxAge` empty, no request, no counter moved | (with WR1) |
+| **WR3** | CI's smoke, each model | **10 `ok`, 0 FAIL, `WEB RENDERER SMOKE AS PREDICTED`**, as on main |
+| **WR4** | CI's carousel, each model | **5 `ok`, `CAROUSEL AS PREDICTED`**, as on main |
+| **WR5** | `tools/web-renderer/check_wx_off.mjs`: the web config's map turns `wx-layer` on (an entry whose value is not `"false"`) while the shim's `getBuffer()` is the stand-in. Any other form of `getBuffer()` is refused (exit 2), never guessed. `build.sh` runs it and its `--selftest` before compiling, so CI runs both for each model | on this tree: **exit 0**. `--selftest`: control (an unplanted copy) **exit 0**; plant (`{"wx-layer", "true"}` in a copy of the web config) **exit 1**; the plant asserted applied; the real files' sha256 unchanged |
+| **WR6** | the diff from `519edec` | touches only `tools/web-renderer/` and `docs/`, so device bytes cannot change |
+| **M6** | CI | predicted from finished runs and main at the push, and committed before the push |
+
+**What WR5 cannot see, said here so it is not mistaken for coverage:** a page can pass `wx-layer` at runtime through
+`web_config_set`, and the website's own page code is in another repo. That path is WR1's to stop: the module aborts
+with the message, never corrupts memory. The abort itself is never reached today and nothing here makes it fire. A
+smoke case that starts a module with `wx-layer` on and expects the abort would prove it. That is not ruled, so it is
+offered, not built.
+
+**Outside the set:** stop and report.
