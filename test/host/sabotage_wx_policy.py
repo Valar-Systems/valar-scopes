@@ -75,6 +75,13 @@ SABOTAGES = {
         ("        s.maxAgeS = MaxAgeFromHeader(maxAge);             // (h) a 304 restates it: absent is 600, never the old value\n",
          "        if (maxAge) s.maxAgeS = MaxAgeFromHeader(maxAge);   // SABOTAGE S-h2: absent keeps the old value\n"),
     ]),
+    # AL9' (ruled 2026-11-04 ~21:15Z): a refused reply's header applied anyway -- taken right after the 200's interval
+    # reset, before any refusal.
+    "S-h3 a refused 200's header applied anyway": ("h", [
+        ("    s.intervalMs = kPollMs;                               // (e) reset: the server answered\n",
+         "    s.intervalMs = kPollMs;                               // (e) reset: the server answered\n"
+         "    s.maxAgeS = MaxAgeFromHeader(maxAge);   // SABOTAGE S-h3: before any refusal\n"),
+    ]),
 }
 
 

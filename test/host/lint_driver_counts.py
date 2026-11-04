@@ -23,6 +23,10 @@ KINDS = ("checks", "ok")
 PINS = [
     ("sabotage_wx_server_crops.py", "        data[32] ^= 0x10                     # the first run's code nibble",
      "the bit S-SC flips in the crop's first code nibble: a mask that equals the driver's count, 16, by coincidence"),
+    ("sabotage_wx_look_select.py", "            return 2",
+     "the rig's exit code (the control did not pass), equal to the ok count 2 by coincidence (docs/wx-device.md, M3')"),
+    ("sabotage_wx_look_select.py", "                return 2",
+     "the rig's exit code (a plant did not compile), equal to the ok count 2 by coincidence (docs/wx-device.md, M3')"),
 ]
 
 

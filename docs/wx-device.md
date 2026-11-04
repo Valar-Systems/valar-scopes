@@ -4449,4 +4449,48 @@ description was wrong.
 - **The correction:** pin the two lines, with the reason "the rig's exit code, equal to the ok count 2 by coincidence".
 - **It holds for the reviewer's OK:** made locally, and pushed only after that OK.
 
+**Amended before any run: what M1 moves.** M1 rewrites the line `S-dot-slot` plants on (`shown, dots = count - 1,
+[]` becomes `shown, dots = len(in_carousel), []`), so that plant is re-anchored to the new line. It keeps its meaning,
+dots placed for `SCREEN_COUNT`, as `shown, dots = count, []`.
+- Predicted: `sabotage_wx_fb_check.py` turns exactly **D1** red for it, as before.
+- Every other plant: as before.
+- Its `--anchors`: the same count, each once.
+
 **Outside the set:** stop and report.
+
+### Results (2026-11-04, local; nothing pushed)
+
+| | result | verdict |
+|---|---|---|
+| **M1** | selftest PASSED; 4 dots drawn as the fixture pins (fixture unchanged); `sabotage_wx_fb_check.py --control` **ok 33**; the full driver AS PREDICTED (`S-dot-slot` exactly **D1**, re-anchored); `--anchors` 11 plants, 11 anchors, each once | AS PREDICTED |
+| **M1, the plant** | the checker's control on the copy passed (exit 0); with the plant it **refused, exit 4**: `InCarousel's device branch changed: re-derive` | AS PREDICTED |
+| **M1h** | CAR passed: `['Radar', 'List', 'Stats', 'Connect']`, `CarouselCount() = 4`; the selftest's 9 plants each turned exactly their own check red | AS PREDICTED |
+| **M2** | with no arguments, the outline driver's lines were **identical** to its run with `<root> g++` (both exit 0); `--anchors` 2 plants, 4 anchors; `--control` ok 3 | AS PREDICTED |
+| **M3′** | the lint flags **0** (3 pinned lines); its `--control` passed 6/6; `sabotage_wx_look_select.py` AS PREDICTED, exit 0 | AS PREDICTED (but held for the reviewer's OK) |
+| **AL9′** | S-b2 → exactly **(b)**; S-h3 → exactly **(h)**; all 13 plants AS PREDICTED; the control at **34**; `--anchors` **13 plants, 19 anchors**, each once | AS PREDICTED |
+| **M4** | `run.sh` on WSL g++ 13.3.0, 21:29:49Z-21:35:30Z, exit 2. Failed blocks: the rig's two (no xtensa toolchain; no Pillow for R0/R0b, the last block, so nothing went unrun) **and the full driver pass, red on `sabotage_wx_s2.py` alone** (IndexError, below). The anchors and controls passes passed | **OFF**: one block outside the set |
+| **M5** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` both build (25.8 GB free before, 25.6 GB after). This commit changes no firmware source | AS PREDICTED |
+| **M6** | not predicted: the push is held while the two items below are ruled | HELD |
+
+**On the record about the M1 plant: two copies failed their control before one passed.** The copy was incomplete
+both times. First `include/WxSweep.h` was missing, then LovyanGFX's `glcdfont.h`. Because the unplanted copy refused
+as well, neither run could distinguish anything, and neither was read as a result.
+
+**OUTSIDE THE SET: two failures the frozen table did not have. Stopped; no fix until the reviewer rules.** "Four
+failures surfaced, none of them in the firmware" was incomplete. Both misses came from reading only what my local runs
+exercised. `#445`'s last CI (`8fb24fb`, on the merge ref) already showed both:
+
+1. **`sabotage_wx_s2.py` has M2's defect:** `ROOT, CXX = sys.argv[1], sys.argv[2]`, an IndexError under `run.sh`'s
+   full pass. CI's host tests on both legs failed on it, and so did M4 here. After M2 it is the only driver that
+   reads `sys.argv[1]`.
+   - Remedy proposed: M2's change, applied to it as well.
+2. **The web build fails to compile `src/AircraftManager.cpp`:** at `:3290`, `wxSprite.setBuffer(wxLayer565,
+   SCREEN_SIZE, SCREEN_SIZE, 16)` meets an `LGFX_Sprite` with no `setBuffer`. That class is the web renderer's
+   draw-recording shim (`tools/web-renderer/shim/LovyanGFX.hpp`). It has `createSprite` and `getBuffer`, but no
+   `setBuffer`.
+   - Seen in CI's `web-renderer` `build` on `8fb24fb`. Not reproduced here: web builds wait for 30 GB free, and C:
+     has 25.6 GB.
+   - Remedy proposed: give the shim a `setBuffer` that does what its `createSprite` does (no allocation in the shim
+     either). Only the web build changes; the device's bytes do not.
+   - Whether a second error follows the first is unknown. `build.sh` compiles one file at a time under `set -e`, and
+     `AircraftManager` is the first, so no later file and no link was attempted. The rest of that file compiled.

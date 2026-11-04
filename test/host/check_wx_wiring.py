@@ -9,6 +9,10 @@
         the list's own size as the count and returns it; the fetch task stores it, and ConsumeWeather's OnResponse
         call hands it over. A header never collected would read as absent -- 600 -- forever, with every policy
         test green: this is the path those tests cannot see.
+  CAR   the device carousel is Radar, List, Stats and Connect -- CarouselCount() == 4 on every PlatformIO env
+        (docs/wx-device.md, M1h). InCarousel's #else branch is EVALUATED over the Screen enum, not matched as text, and
+        CarouselCount() must count InCarousel over SCREEN_COUNT. scripts/wx-fb-check.py's screen dots assume exactly
+        this; a change to it fails here, in the PR that makes it, rather than on the bench.
 
     python -I check_wx_wiring.py <repo root>              exit 0 all pass; 1 a check failed; 2 cannot read
     python -I check_wx_wiring.py <repo root> --selftest   each check against a copy with ONE planted break; every
@@ -115,9 +119,35 @@ def wa1_am(am):
     return ok, f"stored {stored}, passed {passed}, handed to OnResponse {handed}"
 
 
+CAR_DEVICE = ["Radar", "List", "Stats", "Connect"]
+
+
+def car(amh):
+    """CAR: InCarousel's device (#else) branch, evaluated over the Screen enum, admits exactly CAR_DEVICE."""
+    enum = re.search(r"enum class Screen \{([^}]*)\};", amh)
+    m = re.search(r"static constexpr bool InCarousel\(Screen s\)\s*\{\s*#ifdef BLIPSCOPE_WEB_RENDERER[^#]*#else\s*"
+                  r"return ([^;]*);\s*#endif\s*\}", amh)
+    if not enum or not m:
+        return False, "the Screen enum or InCarousel's #ifdef BLIPSCOPE_WEB_RENDERER / #else form not found"
+    screens = [s.strip() for s in enum.group(1).split(",")]
+    expr = " ".join(m.group(1).split())
+    # Only the forms this evaluator understands; anything else is refused, never guessed.
+    if not re.fullmatch(r"(?:\s|\(|\)|&&|\|\||==|!=|\bs\b|Screen::\w+)+", expr):
+        return False, f"InCarousel's device branch is not a comparison of s with Screen:: values: {expr}"
+    py = re.sub(r"Screen::(\w+)", r"'\1'", expr).replace("&&", " and ").replace("||", " or ")
+    unknown = [n for n in re.findall(r"Screen::(\w+)", expr) if n not in screens]
+    if unknown:
+        return False, f"InCarousel names screens the enum lacks: {unknown}"
+    members = [n for n in screens if eval(py, {"__builtins__": {}}, {"s": n})]
+    counted = re.search(r"static constexpr int CarouselCount\(\)\s*\{\s*int n = 0;\s*for \(int i = 0; i < SCREEN_COUNT; "
+                        r"\+\+i\) n \+= InCarousel\(\(Screen\)i\) \? 1 : 0;\s*return n;\s*\}", amh) is not None
+    ok = members == CAR_DEVICE and counted
+    return ok, f"device carousel {members} (CarouselCount() = {len(members)}, want 4), counted from InCarousel {counted}"
+
+
 CHECKS = [("WD5b (AircraftManager)", "am", wd5b_am), ("WD5b (config page)", "page", wd5b_page), ("WD5t4", "hrm", wd5t4),
           ("K3 (the rule)", "wxs2", k3_rule), ("K3 (AircraftManager)", "am", k3_am), ("K3 (config page)", "page", k3_page),
-          ("WA1 (GetBytes)", "hrm", wa1_hrm), ("WA1 (AircraftManager)", "am", wa1_am)]
+          ("WA1 (GetBytes)", "hrm", wa1_hrm), ("WA1 (AircraftManager)", "am", wa1_am), ("CAR", "amh", car)]
 
 
 def run(src):
@@ -134,7 +164,8 @@ def main():
         src = {"am": open(f"{root}/src/AircraftManager.cpp", encoding="utf-8").read(),
                "page": open(f"{root}/src/ConfigurationWebServer.cpp", encoding="utf-8").read(),
                "hrm": open(f"{root}/src/HttpRequestManager.cpp", encoding="utf-8").read(),
-               "wxs2": open(f"{root}/include/WxS2.h", encoding="utf-8").read()}
+               "wxs2": open(f"{root}/include/WxS2.h", encoding="utf-8").read(),
+               "amh": open(f"{root}/src/AircraftManager.h", encoding="utf-8").read()}
     except OSError as e:
         print(f"FAIL: cannot read the sources ({e}). This is the RIG, not the code."); return 2
     if "--selftest" in sys.argv:
@@ -159,6 +190,9 @@ def main():
              lambda s: s.replace('"X-Upstream", "X-Wx-Max-Age" };', '"X-Upstream" };')),
             ("ConsumeWeather hands OnResponse nullptr for the age", "WA1 (AircraftManager)", "am",
              lambda s: s.replace("maxAge.isEmpty() ? nullptr : maxAge.c_str(),   // (h)", "nullptr,   // SABOTAGE: the age dropped")),
+            ("the device carousel also leaves out Stats", "CAR", "amh",
+             lambda s: s.replace("        return s != Screen::Follow;\n",
+                                 "        return s != Screen::Follow && s != Screen::Stats;   // SABOTAGE\n")),
         ]
         bad = 0
         for label, target, key, plant in sabotages:

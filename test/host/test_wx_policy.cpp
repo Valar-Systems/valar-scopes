@@ -180,13 +180,15 @@ static void TableH()
       ReplyA(s, q1, 304, 0, false, 0, false, nullptr, "5000", 180000);
       const bool capped = s.maxAgeS == 900 && WhatToShow(s, true, true, 1900) == Show::Crop;
       table(stays && lost && capped, 'h', "a 304 restates it: 720 stays 720; NONE gives 600, never 720; 5000 gives 900"); }
-    { State s; OnQuery(s, q1); ReplyA(s, q1, 200, 5000, true, 2000, false, "\"e2\"", "720", 0);
-      ReplyA(s, q1, 200, 5000, true, 1880, false, "\"e1\"", "900", 60000);      // refused: older
+    // AL9' (docs/wx-device.md): the refused 200 answers a SUPERSEDED query, with a NEWER frame -- refused by the query
+    // check alone, which no plant touches, so S-b2 (an older frame accepted) cannot turn this (h) row red.
+    { State s; OnQuery(s, q2); OnQuery(s, q1); ReplyA(s, q1, 200, 5000, true, 2000, false, "\"e2\"", "720", 0);
+      ReplyA(s, q2, 200, 5000, true, 3000, false, "\"e3\"", "900", 60000);      // refused: q2 was superseded by q1
       const bool refused = s.maxAgeS == 720;
       ReplyA(s, q1, 503, 0, false, 0, false, nullptr, nullptr, 120000);
       const bool error = s.maxAgeS == 720;
       OnQuery(s, q2);
-      table(refused && error && s.maxAgeS == 600, 'h', "a refused 200 and a 503 leave the held 720; a query change gives 600"); }
+      table(refused && error && s.maxAgeS == 600, 'h', "a refused 200 (a superseded query's) and a 503 leave the held 720; a query change gives 600"); }
 }
 
 static void Random(long steps)

@@ -51,7 +51,7 @@ SABOTAGES = {
     "S-hl-off": (["H1"], [(HL_BLOCK, "                    pass   # SABOTAGE S-hl-off\n")]),
     "S-dot-anywhere": (["D2"], [("        if all(at(f, *p) == c for p in s): out |= s\n",
                                  "        out |= {p for p in s if at(f, *p) == c}   # SABOTAGE S-dot-anywhere\n")]),
-    "S-dot-slot": (["D1"], [("    shown, dots = count - 1, []\n", "    shown, dots = count, []   # SABOTAGE S-dot-slot\n")]),
+    "S-dot-slot": (["D1"], [("    shown, dots = len(in_carousel), []\n", "    shown, dots = count, []   # SABOTAGE S-dot-slot\n")]),
     "S-dot-silent": (["D1"], [('            if dot_wet: causes.append("screen dot")\n',
                                "            pass   # SABOTAGE S-dot-silent\n")]),
     "S-label-pass": (["L1", "D2"], [('            if wet: causes.append("label")\n',

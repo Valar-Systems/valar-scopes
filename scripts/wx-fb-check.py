@@ -174,18 +174,24 @@ def load_source():
     screens = [s.strip() for s in re.search(r"enum class Screen \{([^}]*)\};", hdr).group(1).split(",")]
     count = int(re.search(r"static constexpr int SCREEN_COUNT = (\d+);", hdr).group(1))
     assert len(screens) == count and screens[0] == "Radar", (screens, count)
+    # The carousel is ONE rule (InCarousel, #531): the dots follow its DEVICE branch, the one a board compiles. Only the
+    # form this reading understands is accepted; any other is refused rather than guessed (docs/wx-device.md, M1).
+    ic = re.search(r"static constexpr bool InCarousel\(Screen s\)\s*\{\s*#ifdef BLIPSCOPE_WEB_RENDERER.*?#else\s*(return [^;]*;)",
+                   hdr, re.S)
+    assert ic and ic.group(1) == "return s != Screen::Follow;", "InCarousel's device branch changed: re-derive"
+    in_carousel = [n for n in screens if n != "Follow"]
     d = am.index("void AircraftManager::DrawScreenIndicator(")
     body = am[d:am.index("\n}", d)]
     for s in ("constexpr int cx = SCREEN_SIZE_DIV_2;", "const int y = SCREEN_SIZE - 16;",
-              "const int shown = SCREEN_COUNT - 1;", "if ((Screen)i == Screen::Follow)",
+              "const int shown = CarouselCount();", "if (!InCarousel((Screen)i))",
               "backbuffer.fillCircle(cx - (shown - 1) * 6 + slot * 12, y, active ? 3 : 2,"):
         assert s in body, f"DrawScreenIndicator changed ({s}): re-derive"
     dc = re.search(r"active \? lgfx::color888\((\d+), (\d+), (\d+)\) : lgfx::color888\((\d+), (\d+), (\d+)\)\);", body)
     assert dc, "the screen dots' colours changed: re-derive"
     on_c, off_c = s565(*map(int, dc.groups()[:3])), s565(*map(int, dc.groups()[3:]))
-    shown, dots = count - 1, []
+    shown, dots = len(in_carousel), []
     for i, name in enumerate(screens):
-        if name == "Follow": continue
+        if name not in in_carousel: continue
         x = W // 2 - (shown - 1) * 6 + len(dots) * 12
         dots.append((x, H - 16, 3, on_c) if name == "Radar" else (x, H - 16, 2, off_c))
     return {"centre": centre, "rings": rings, "weather": weather, "marker": marker, "label": labels,
