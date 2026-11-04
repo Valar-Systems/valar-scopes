@@ -4042,3 +4042,28 @@ reaches them too, though it has not landed in any run. "Note before reply" is th
 | **P5′** | S-other-cascade | exactly the 4 FAIL lines in order: own case, "any other hex's enrich is forwarded", the K6 log, STATUS |
 
 **Outside the set,** on any run and any row: stop and report. K6 holds.
+
+### Results for P4's race remedy (2026-11-04, 17:08-17:10Z)
+
+**The remedy, as made** (`proxy.py` sha256 `840e6e43545d`; `sabotage_proxy.py` unchanged, `afb63de32c6f`):
+- every path notes before it replies, all eleven;
+- the two refused paths close by a lingering close (`drain()`);
+- `_ask` returns a status of `None` on a connection error.
+
+The plants' 11 needles were each found in `proxy.py` exactly once before the runs.
+
+| | run 1 (17:08:01Z) | run 2 (17:08:57Z) | run 3 (17:09:53Z) | verdict |
+|---|---|---|---|---|
+| **P1′** the unplanted selftest | 42 PASS, 0 FAIL, exit 0, stderr empty | the same | the same | **as predicted** |
+| **P3′** the 8 earlier plants | all `ok`, by FAIL lines, no traceback | the same | the same | **as predicted** |
+| **P4′** S-synth-leak | exactly the 3 lines, in order | the same | the same | **as predicted** |
+| **P5′** S-other-cascade | exactly the 4 lines, in order | the same | the same | **as predicted** |
+
+**What these runs can and cannot show:**
+- **They show:** no traceback and no stray FAIL line in 3 × 11 copies, where 1 run of 3 had both before.
+- **They cannot show the race is gone.** A race that landed once in three runs can miss three in a row by chance.
+- **What does exclude it is the order:** a case now reads the log only after a reply that was written after its line.
+  For race 2 the guarantee is weaker: a reset can no longer crash the selftest, and the lingering close makes it
+  unlikely.
+
+**K6 now waits only on the restore remedy,** in its own announced window.

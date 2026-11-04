@@ -273,18 +273,35 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.wfile.write(body)
 
-    def error_json(self, status, reason, error):
+    # Every path notes BEFORE it replies (ruled 2026-11-04), so a reader that holds a reply holds its line. A line is
+    # therefore written for a reply about to be sent: it records the disposition, not the delivery.
+    def error_json(self, route, kind, status, reason, error):
         body = json.dumps({"v": 1, "error": error}, separators=(",", ":")).encode()
+        self.server.proxy.note(route, kind, status, len(body))
         self.reply(status, reason, [("Content-Type", "application/json"), ("Content-Length", str(len(body)))], body)
-        return len(body)
+
+    def drain(self):
+        """A lingering close, for a path that closes with the request possibly unread (ruled 2026-11-04). Windows can
+        reset a socket closed with unread bytes, and a reset can discard the reply before the client reads it. So: stop
+        sending, read and discard until the client closes or 1 s passes; the close that follows is then a clean one."""
+        try:
+            self.wfile.flush()
+            self.connection.shutdown(socket.SHUT_WR)
+            self.connection.settimeout(1.0)
+            end = time.monotonic() + 1.0
+            while time.monotonic() < end and self.connection.recv(4096):
+                pass
+        except OSError:
+            pass
 
     def handle_any(self):
         P = self.server.proxy
         items = list(self.headers.items())
         if self.client_address[0] != P.allow_ip:
             self.close_connection = True
-            self.reply(403, "Forbidden", [("Content-Length", "0")], b"")
             P.note("other", "refused", 403, 0)
+            self.reply(403, "Forbidden", [("Content-Length", "0")], b"")
+            self.drain()
             return
         P.last_allowed = time.monotonic()
         for n, v in items:
@@ -297,8 +314,9 @@ class Handler(BaseHTTPRequestHandler):
             # Forwarding a chunked body would need a framing header the device did not send. None is expected.
             P.chunked += 1
             self.close_connection = True
-            self.reply(501, "Not Implemented", [("Content-Length", "0")], b"")
             P.note(route, "refused", 501, 0)
+            self.reply(501, "Not Implemented", [("Content-Length", "0")], b"")
+            self.drain()   # the chunked body is never read
             return
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n) if n > 0 else None
@@ -308,25 +326,25 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 lat_q, lon_q, r_q = quantise(float(q["lat"][0]), float(q["lon"][0]), float(q["r"][0]))
             except (KeyError, IndexError, ValueError):
-                P.note(route, "replay", 400, self.error_json(400, "Bad Request", "bad_query"))
+                self.error_json(route, "replay", 400, "Bad Request", "bad_query")
                 return
             del q
             if r_q != P.crop.r_km:
                 P.r_mismatch += 1
-                P.note(route, "replay", 503, self.error_json(503, "Service Unavailable", "wx_stale"))
+                self.error_json(route, "replay", 503, "Service Unavailable", "wx_stale")
                 return
             stamp = P.crop.frame if P.mode == "old" else int(time.time()) // 60 * 60
             etag = f'"replay-{stamp}"'
             hdrs = [("ETag", etag), ("X-Wx-Frame", str(stamp)), ("Cache-Control", "no-cache")]   # handler.ts's set
             if self.headers.get("If-None-Match") == etag:
-                self.reply(304, "Not Modified", hdrs, b"")
                 P.note(route, "replay", 304, 0)
+                self.reply(304, "Not Modified", hdrs, b"")
                 return
             data = P.crop.variant(lat_q, lon_q, stamp)
             del lat_q, lon_q
+            P.note(route, "replay", 200, len(data))
             self.reply(200, "OK", hdrs + [("Content-Type", "application/octet-stream"),
                                           ("Content-Length", str(len(data)))], data)
-            P.note(route, "replay", 200, len(data))
             return
 
         if P.synth is not None and route == "blips" and self.command == "GET":
@@ -335,7 +353,7 @@ class Handler(BaseHTTPRequestHandler):
                 lat0, lon0, r_km = float(q["lat"][0]), float(q["lon"][0]), float(q["r"][0])
                 limit = int(q.get("limit", ["40"])[0])
             except (KeyError, IndexError, ValueError):
-                P.note(route, "synth", 400, self.error_json(400, "Bad Request", "bad_query"))
+                self.error_json(route, "synth", 400, "Bad Request", "bad_query")
                 return
             del q
             with P.lock:
@@ -343,15 +361,15 @@ class Handler(BaseHTTPRequestHandler):
             doc = P.synth.blips(P.synth.k6_ids(k, limit), time.monotonic() - P.synth_t0, time.time(), lat0, lon0, r_km)
             del lat0, lon0
             data = json.dumps(doc, separators=(",", ":")).encode()
-            self.reply(200, "OK", [("Content-Type", "application/json"), ("Content-Length", str(len(data)))], data)
             P.note(route, "synth", 200, len(data))
+            self.reply(200, "OK", [("Content-Type", "application/json"), ("Content-Length", str(len(data)))], data)
             return
         if P.synth is not None and route == "enrich" and self.command == "GET":
             e = P.synth.enrich(urlsplit(self.path).path.rsplit("/", 1)[-1])
             if e is not None:   # exactly the feed's own hexes; any other is forwarded below
                 data = json.dumps(e, separators=(",", ":")).encode()
-                self.reply(200, "OK", [("Content-Type", "application/json"), ("Content-Length", str(len(data)))], data)
                 P.note(route, "synth", 200, len(data))
+                self.reply(200, "OK", [("Content-Type", "application/json"), ("Content-Length", str(len(data)))], data)
                 return
 
         try:
@@ -360,8 +378,8 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             P.errors += 1
             self.close_connection = True
-            self.reply(502, "Bad Gateway", [("Content-Length", "0")], b"")
             P.note(route, "forwarded", 502, 0)
+            self.reply(502, "Bad Gateway", [("Content-Length", "0")], b"")
             return
         out = back_headers(rh)
         if chunked:
@@ -369,8 +387,8 @@ class Handler(BaseHTTPRequestHandler):
         elif not any(h.lower() == "content-length" for h, _ in out) and status not in (204, 304) and \
                 self.command != "HEAD":
             self.close_connection = True                    # close-delimited upstream: close-delimited here too
-        self.reply(status, reason, out, data, chunked=chunked)
         P.note(route, "forwarded", status, len(data))
+        self.reply(status, reason, out, data, chunked=chunked)
 
     do_GET = do_POST = do_PUT = do_HEAD = do_DELETE = do_OPTIONS = do_PATCH = handle_any
 
@@ -497,16 +515,21 @@ def _echo_server(seen, chunked):
 
 
 def _ask(port, method, target, headers, body=None):
+    """One exchange. A connection error returns a status of None (ruled 2026-11-04), so a broken exchange is its case's
+    FAIL line, never a traceback."""
     c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-    c.putrequest(method, target, skip_host=True, skip_accept_encoding=True)
-    for n, v in headers:
-        c.putheader(n, v)
-    c.endheaders(body)
-    r = c.getresponse()
-    data = r.read()
-    out = (r.status, [n for n, _ in r.getheaders()], dict(r.getheaders()), data)
-    c.close()
-    return out
+    try:
+        c.putrequest(method, target, skip_host=True, skip_accept_encoding=True)
+        for n, v in headers:
+            c.putheader(n, v)
+        c.endheaders(body)
+        r = c.getresponse()
+        data = r.read()
+        return (r.status, [n for n, _ in r.getheaders()], dict(r.getheaders()), data)
+    except (OSError, http.client.HTTPException):
+        return (None, [], {}, b"")
+    finally:
+        c.close()
 
 
 def _start(P):
