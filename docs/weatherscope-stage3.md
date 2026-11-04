@@ -11068,3 +11068,42 @@ compile, records that plant as the RIG, and exits nonzero at the end."
 step at that row, and is reported before anything changes.
 
 **When:** after the TouchWatchdog board window (17:15Z-19:45Z) closes. Its sweeps load the host for some minutes, and the window's B-run is timing-sensitive.
+
+### A12.89 The TouchWatchdog window (17:15Z-18:41Z, closed early): W1-W3 AS PREDICTED; W4's B-run stopped by its own watcher at the board's boot (Q71); the board left on the clean image. Main's CI on `05864ca` recorded
+
+**Main's CI on `05864ca28d64`** (#516's merge): **38 check runs, 36 success, 2 skipped (promote, version), 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`. AS PREDICTED** (A12.87), read twice. Main's own 26.04 leg is green.
+
+**The window, on 907069326E64** (both images and every write as announced in A12.87; each write was hash-verified, app0 only):
+
+| row | predicted | measured |
+|---|---|---|
+| **W1, S-TW** (`9fee8a91efeb`) | 2 heartbeats, all zero, `probes=0/0`; no `[touch-wd]` line | **AS PREDICTED:** <br>• two heartbeats, +600.0 s apart, each `wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=0/0 maxOutage=0ms rebootRec=0`; <br>• 752 lines, 43 screen changes, 0 unexplained, 0 `[touch-wd]` lines |
+| **W2, the restore** (`39e258b5be07`) and its boot read | the boot graded `--boot-setting auto:known` | **done inside the window:** <br>• `[build] env=weatherscope-s3-128`, `[ota-slot] boot running=app0`; <br>• graded: psram_used 227,168 (want 227,144 ± 2,000), psram_base as before, `theme=auto read=known`: **ok** |
+| **W3, the 1-hour watch, clean** | 6 heartbeats; ok probes +55-61 each; every other counter 0; no `[touch-wd]` line | **AS PREDICTED:** <br>• six heartbeats, 599.7-600.4 s apart; <br>• ok probes **58, 118, 178, 238, 298, 358** (+58 from boot, then +60 each); <br>• failed probes, wakes, wedges, recoveries, maxOutage and rebootRec all 0; <br>• 2,127 lines, 122 screen changes, 0 unexplained, 0 `[touch-wd]` lines, 0 boots |
+| **W4, B1/B3, clean** | `grade_b35t.py` ALL AS PREDICTED | **OFF: the run stopped 14 s in, before any capture.** Its watcher flagged `[wx] theme=light was=dark setting=auto phase=Day` as unexplained |
+
+**So the supervisor runs on Weatherscope, and the heartbeat tells "runs" from "never runs":**
+- the clean image's probe count rose 60 every 10 minutes;
+- S-TW's stayed at `0/0`.
+
+**W4, what happened** (from its trace, kept local):
+- `read-mac` reset the board.
+- At boot, `[wx] init; ... theme=auto read=known` was followed **in the same instant** by `[wx] theme=light was=dark setting=auto phase=Day`. That is Auto resolving for the first time at boot. The board's theme starts Dark, and the Dallas fixture place puts 18:40Z in the day.
+- `screen_watch.py` explains a `[wx] theme=` line only by a sent `O` or the runner's own POST within 3 s, so it stopped the run, as it is built to.
+
+**Why t5's run (A12.76) did not meet it, and S-SWB's (A12.80) need not have:**
+- t5's B-run started with **no place on the board** (`location=unset`), so Auto could not resolve. The place was set later in that run.
+- S-SWB's `--bsw-only` pass came after the place. Its boot met it only if Auto resolved to the theme already showing: at night, Dark to Dark prints no line.
+- **The alternative,** that the TouchWatchdog change caused it: excluded. The line is t5's Auto code (`MaybeSwitchTheme`), the image differs from main's only in `HandleTouch()`'s call and the heartbeat, and the 1-hour watch shows the device's theme logic untouched (0 unexplained in 122 changes).
+
+**So it is the B-run's rig, not the change under test.**
+- The B1/B3 row is **unrun,** and the TouchWatchdog PR waits for it, as ruled ("then the PR, with the image rows and the board rows on record").
+- The window closed at 18:41Z. **The board is left on the clean image,** with no planted image on it and TCP :80 up after the runner's close.
+
+**Q71, for the ruling** (nothing changes before it):
+- **(a)** Teach `screen_watch.py` that a `[wx] theme=` line with `setting=auto`, within 3 s of `[wx] init`, is explained: Auto's own first resolution at boot, as legitimate as "the first scene of a boot".
+  - It comes with a selftest case that refuses the same line anywhere else.
+  - It goes in the TouchWatchdog PR, with W4 re-run in a new announced window.
+- **(b)** Re-run W4 **without** the `read-mac` reset. W3's close (DTR/RTS false) left the board running, so no boot happens at the run's start, and Auto has already resolved. The watcher is unchanged.
+- **(c)** Run W4 at Dallas night: no switch at boot, since Dark goes to Dark. Time-dependent, so not recommended.
+- **Recommended: (a).** A device behaviour the watcher cannot explain will stop the next run too. (b) only avoids the boot this time.
