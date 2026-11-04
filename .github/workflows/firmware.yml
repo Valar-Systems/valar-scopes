@@ -223,6 +223,17 @@ jobs:
       - name: Prove the publish-receipt gate, both directions
         run: bash scripts/check-publish-receipts.sh --selftest
 
+  # No job runs on ubuntu-latest (docs/ci-runners.md): that label moves to a new image under every workflow at once.
+  # Every runs-on names its image, and this guard refuses a line that drifts back.
+  runners:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: The guard must be able to refuse
+        run: python3 scripts/check_runners.py --selftest
+      - name: No job on a floating image label
+        run: python3 scripts/check_runners.py
+
   # HOST TESTS, on every PR and every push to main. test/host/run.sh was only ever
   # run by hand, so a red host test could merge -- and the weather layer's decoder
   # (include/WxCrop.h) is graded nowhere else. Its own job, not a step in a build
@@ -238,19 +249,16 @@ jobs:
   # run on CI: red, "no xtensa toolchain found" -- the rig refusing correctly.
   # Proved red by a planted WxCrop.h sabotage before it was required:
   # docs/host-tests-ci.md.
-  # No job runs on ubuntu-latest (docs/ci-runners.md): that label moves to a new image under every workflow at once.
-  # Every runs-on names its image, and this guard refuses a line that drifts back.
-  runners:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: The guard must be able to refuse
-        run: python3 scripts/check_runners.py --selftest
-      - name: No job on a floating image label
-        run: python3 scripts/check_runners.py
-
-  host-tests:
-    runs-on: ubuntu-24.04
+  #
+  # A12.77 (1b): the host tests on two images. ubuntu-24.04 is today's; ubuntu-26.04 (g++ 15) is where ubuntu-latest
+  # went, so a defect only the newer compiler sees is found here first, not on a PR that drew it at random.
+  host-tests-leg:
+    name: host-tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -262,6 +270,18 @@ jobs:
         run: pio run -e blipscope-s3-128
       - name: Host tests
         run: bash test/host/run.sh
+
+  # The required check keeps its name, host-tests, and passes only when BOTH legs pass: branch protection requires this
+  # context, so the two legs are required through it without any change there (A12.77 (1b)).
+  host-tests:
+    needs: host-tests-leg
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Both legs must pass
+        run: |
+          echo "host-tests-leg: ${{ needs.host-tests-leg.result }}"
+          test "${{ needs.host-tests-leg.result }}" = "success"
 
   # ---------------------------------------------------------------------------
   # skus.yml is the one place a leg's status is declared. Validated here, BEFORE
