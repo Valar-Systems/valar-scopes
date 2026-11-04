@@ -371,6 +371,22 @@ fi
 [ "$rc" -ne 0 ] && fail=1
 
 echo
+echo "== Remote motion policy: STOP on touch-down, hold to start, no command from state (CoverPolicy.h) =="
+# CoverPolicy.h is included by bare name so test/host/sabotage_remote_policy.py can put a planted copy first.
+if ! "$CXX" $FLAGS -I"$ROOT/src/remote" -I"$ROOT/include" "$ROOT/test/host/test_remote_policy.cpp" -o "$OUT/test_remote_policy.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the remote policy test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_remote_policy.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+
+echo
 echo "== seven-segment shapes: no seam before the far cap (SevenSegmentShapes.h) =="
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_sevenseg_shapes.cpp" -o "$OUT/test_sevenseg_shapes.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the seven-segment shapes test did not compile"

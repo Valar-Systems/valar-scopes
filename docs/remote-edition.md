@@ -337,3 +337,31 @@ The unplanted copy runs first as the control (all checks pass). A plant whose an
 exactly once, or whose copy is byte-identical to the original, is REFUSED and reported as the rig.
 **Outside the set** -- a plant that fails a check not named, misses one that is named, or a clean
 run that fails anything -- stops the step for a ruling, as in section 3.
+
+### F1 results (2026-11-04)
+
+Header sha256 begins `cdb76dcbb443`, test `b611683268c7`.
+
+| prediction | observed | held? |
+|---|---|---|
+| clean suite, MinGW g++ 5.1.0 | `34 checks, 0 failures`, exit 0 | yes |
+| clean suite, WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0` | `34 checks, 0 failures`, exit 0 | yes |
+| SB1..SB9, MinGW | each failed exactly its frozen set; control clean; real header unchanged | yes, 9 of 9 |
+| SB1..SB9, WSL g++ 13.3 | `SABOTAGE PASSED` | yes, 9 of 9 |
+| `--anchors` (run.sh's pass) | `9 plant(s), 9 anchor(s), all present exactly once` | -- |
+
+The full `test/host/run.sh`, with the new block, after installing the worktree's libraries (the first
+run of each read BLIND at the Wi-Fi QR test for want of `.pio/libdeps`; the rig, not a result):
+
+- the new block: `34 checks, 0 failures` under both compilers; the anchors pass lists the new driver
+  (19 drivers checked).
+- **One real failure, both compilers, and it is NOT F1's: `test_wifi_qr.cpp` fails
+  `Remote-FFFFFF: version 3 (31 B)`.** The test sweeps every `DEVICE_PRODUCT_NAME` and pins the setup
+  screen's Wi-Fi QR at exactly version 3 (the 148 px symbol). `WIFI:T:nopass;S:Remote-FFFFFF;;` is 31
+  bytes, which is version 2; every other product name is 9+ characters and lands on version 3. The
+  name comes from the SCAFFOLD's `DeviceIdentity.h` entry, so the scaffold PR's host-tests job would
+  fail too. Recorded against the scaffold (section 3) and stopped there for a ruling: the fix is a
+  choice of product network name.
+- WSL also ends in its two known rigs, reported rather than folded in: `FAIL: no xtensa toolchain
+  found` (the board half; MinGW's run has the toolchain) and `no python with Pillow` (R0/R0b, the
+  last blocks).
