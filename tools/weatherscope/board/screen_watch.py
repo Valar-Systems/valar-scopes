@@ -15,7 +15,11 @@ A change is EXPLAINED only by:
                                      [wx] terrain on|off line, a [wx] loop records= line, or a T sent with the legend
                                      open; or the first scene of a trace or of a boot ([wx] init); or, repeating the
                                      scene shown, within 3 s of a [wx] theme= line (the recompose, A12.66)
-  [wx] theme=...                     a sent O, or the runner's "#HOST post wx-theme=<v>" line, within 3 s (3.5t t5)
+  [wx] theme=...                     a sent O, or the runner's "#HOST post wx-theme=<v>" line, within 3 s (3.5t t5);
+                                     or Auto's first resolution at boot (Q71 (a), A12.91): setting=auto, within 3 s of
+                                     a [wx] init line, and the first [wx] theme= line since that boot -- once per boot.
+                                     A second one in the same boot, one with no boot before it, one later than 3 s, or
+                                     one not in Auto stays unexplained
 NOT screen changes (recorded by the trace, not judged here): [wx] dim=..., [wx] auto offset=...
 UNEXPLAINED, always: [wx] zoom idle; [wx] hold ring on; a [wx] gesture line for a byte the runner did not send
 (within 3 s); anything else above that does not match its rule. Prints screen names and times: no coordinate.
@@ -43,6 +47,8 @@ class Watcher:
         self.last = None           # the last scene shown
         self.legend = False
         self.changes = []          # (t, line, explanation or None)
+        self.boot_t = None         # the last [wx] init line's time
+        self.boot_theme = False    # a [wx] theme= line seen since that boot (Q71 (a): one resolution per boot)
 
     def _sent_within(self, t, chars):
         return any(c in chars and 0 <= t - ts <= WINDOW_S for ts, c in self.sent)
@@ -66,9 +72,16 @@ class Watcher:
         if line.startswith("[wx] theme="):
             self.marks.append((t, "theme"))
             why = "a sent O" if self._sent_within(t, "O") else "the runner's POST" if self._mark_within(t, ("post",)) else None
+            # Q71 (a), A12.91: Auto resolving at boot -- the board starts Dark, and its first Update switches when the
+            # setting is Auto and the phase says otherwise. Only the first theme line of a boot, within 3 s of its init.
+            if (why is None and " setting=auto " in line + " " and self.boot_t is not None and not self.boot_theme
+                    and 0 <= t - self.boot_t <= WINDOW_S):
+                why = "Auto's first resolution at boot"
+            self.boot_theme = True
             return self._record(t, line, why)
         if line.startswith("[wx] init;"):
             self.last = None
+            self.boot_t, self.boot_theme = t, False
             return None
         if line.startswith("[wx] gesture "):
             ch = line.split()[2]
@@ -118,9 +131,16 @@ def stamp(s):
     return calendar.timegm(time.strptime(base, "%Y-%m-%dT%H:%M:%S")) + int(frac) / 1000.0
 
 
+INIT = "[wx] init; location=set autodim=1 brightness=255 stored=1 theme=auto read=known"
+AUTO_DAY = "[wx] theme=light was=dark setting=auto phase=Day"
+BOOT_WHY = "Auto's first resolution at boot"
+
+
 def selftest():
     """W-T (A12.66): each case's whole list of explanations must equal its expected list. Cases 3 and 4 are the
-    controls: a theme line with no O and no POST, and a repeated scene with no theme line, are both UNEXPLAINED."""
+    controls: a theme line with no O and no POST, and a repeated scene with no theme line, are both UNEXPLAINED.
+    Cases 5-10 (Q71 (a), A12.91): Auto's first resolution at boot is explained; a second one in the same boot, one with
+    no boot before it, one later than 3 s and one not in Auto are not; a second boot re-arms it."""
     cases = [
         ("an O, then the switch and its recompose",
          ["[wx] screen=scenario bdry R=60", "#HOST send b'O'", "[wx] gesture O", "[wx] dim=1 brightness=51",
@@ -137,12 +157,33 @@ def selftest():
         ("CONTROL: a repeated scene with no switch",
          ["[wx] screen=scenario dry R=60", "[wx] screen=scenario dry R=60"],
          ["the first scene seen", None]),
+        # Q71 (a), A12.91: Auto's first resolution at boot, and the four ways a theme line falls outside it. Synthetic
+        # lines and times only (no sun-phase time is committed, Q62). A (t, line) pair sets a line's time.
+        ("Auto resolving at boot",
+         [INIT, AUTO_DAY, "[wx] screen=scenario dry R=60"],
+         [BOOT_WHY, "the first scene seen"]),
+        ("CONTROL: a second resolution in the same boot",
+         [INIT, AUTO_DAY, "[wx] theme=dark was=light setting=auto phase=Night"],
+         [BOOT_WHY, None]),
+        ("CONTROL: no boot before it",
+         [AUTO_DAY],
+         [None]),
+        ("CONTROL: later than 3 s after the boot",
+         [(1000.0, INIT), (1005.0, AUTO_DAY)],
+         [None]),
+        ("CONTROL: not Auto",
+         [INIT, "[wx] theme=light was=dark setting=light phase=Day"],
+         [None]),
+        ("a second boot re-arms it",
+         [INIT, AUTO_DAY, INIT, AUTO_DAY],
+         [BOOT_WHY, BOOT_WHY]),
     ]
     bad = 0
     for name, lines, want in cases:
         w = Watcher(DALLAS + BEND)
-        for i, line in enumerate(lines):
-            w.feed(1000.0 + 0.1 * i, line)
+        for i, item in enumerate(lines):
+            t, line = item if isinstance(item, tuple) else (1000.0 + 0.1 * i, item)
+            w.feed(t, line)
         got = [why for _, _, why in w.changes]
         ok = got == want
         bad += not ok
