@@ -634,3 +634,9 @@ before the figure was reported.
 - **One defect, found by that dry run and fixed before any live reading:** it first searched for the plain phrase
   "Route data from vradarserver/standing-data". The template links the name, so the plain phrase never appears, and it
   read 0. It now matches the line by its own anchor (`Route data from <a href="https://github.com/vradarserver/standing-data"`).
+
+**The deploy commit's own CI, `f740f10`, counted from the finished runs (21:06:51Z): green.**
+- 45 check-runs, all completed: 43 success, 2 skipped (`promote`, `version`), 0 failed.
+- All six workflows succeeded: `workers`, `firmware`, `device-ids`, `no-traffic-captures`, `photos` and
+  `photo-drift`. The last two run because #525 touches `proxy/photos/`.
+- The deploy checkout is a detached worktree at `f740f10b9c08`, with `proxy/` clean.
