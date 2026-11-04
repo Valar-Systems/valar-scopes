@@ -7,7 +7,8 @@ and labels at the same offset from its boot. Positions exist only as offsets fro
 
   W5''''  (local mode, aircraft.json): hexes in SpecialAircraft::NON_ICAO_RANGES, so the device settles enrichment
           offline and no request leaves for them; callsigns "SYNnnn". n follows the schedule: 24 until the window
-          (boot + 180 s), then plateaus of 24, 28, 32, 36 for 90 s each, then 36.
+          (boot + 180 s), then plateaus of 24, 28, 32, 36 for 150 s each, then 36 (G2', ruled 2026-11-04: 90 s
+          plateaus left the first bin under 3 lines on the two-arm side).
   K6      (the replay proxy's /blips and /v1/enrich): hexes in one allocated, non-military block, so the device enriches
           them; airline-style callsigns; the proxy answers /v1/enrich for exactly these 60 hexes from common real
           values (type and operator). /blips honours the request's limit (40) and alternates two overlapping sets,
@@ -35,7 +36,7 @@ OPERATORS = [("SWA", "Southwest Airlines"), ("ASA", "Alaska Airlines"), ("UAL", 
              ("DAL", "Delta Air Lines"), ("AAL", "American Airlines"), ("SKW", "SkyWest Airlines"),
              ("QXE", "Horizon Air"), ("JBU", "JetBlue Airways")]
 CATEGORY = {3: "A3", 4: "A4", 5: "A5", 6: "A6"}   # OpenSky enum -> the local feed's string
-SCHEDULE = [(180, 24), (270, 28), (360, 32), (450, 36)]   # W5'''': (from s, n); before 180 s, 24
+SCHEDULE = [(180, 24), (330, 28), (480, 32), (630, 36)]   # W5 (G2'): (from s, n); before 180 s, 24
 
 
 class Feed:
@@ -157,8 +158,9 @@ def selftest(root):
             ok_hl &= min(dist, key=dist.get) == 0 and max(ids, key=lambda i: feed.c[i]["alt"]) == 1 and \
                 max(ids, key=lambda i: feed.c[i]["kt"]) == 2
     check(ok_hl, "nearest, highest and fastest are contacts 0, 1 and 2 at every sampled moment: three distinct highlights")
-    check([len(w5.w5_ids(t)) for t in (0, 179, 180, 269, 270, 360, 450, 539, 600)] == [24, 24, 24, 24, 28, 32, 36, 36, 36],
-          "the W5'''' schedule: 24 until the window, then 24, 28, 32, 36 for 90 s each")
+    check([len(w5.w5_ids(t)) for t in (0, 179, 180, 329, 330, 479, 480, 629, 630, 779, 900)] ==
+          [24, 24, 24, 24, 28, 28, 32, 32, 36, 36, 36],
+          "the W5 schedule (G2'): 24 until the window, then 24, 28, 32, 36 for 150 s each")
     a, b = k6.k6_ids(0, 40), k6.k6_ids(1, 40)
     check(len(a) == 40 and len(b) == 40 and set(a) | set(b) == set(range(60)) and k6.k6_ids(0, 25) == list(range(25)),
           "K6: each response honours the limit (<= 40), and the two sets together hold all 60")
