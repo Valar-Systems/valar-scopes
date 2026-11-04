@@ -121,10 +121,23 @@ describe("renderCreditsHtml", () => {
     expect(html).not.toContain("<fighting>");
   });
 
+  // Scoped to the photo-credits section (ruled 2026-11-04, docs/wx-opuk.md): the page's data sources may carry a CC
+  // licence link -- OPERA's line does -- but a public-domain PHOTO must not.
+  const photoSection = (html: string) => {
+    const at = html.indexOf("<h2>Photo credits</h2>");
+    expect(at, "CONTROL: the photo-credits section is found").toBeGreaterThan(0);
+    return html.slice(at);
+  };
+
   it("courtesy-credits PD without a license link", () => {
     const html = renderCreditsHtml([entry({ target: "F22", license: "PD-USGov" })]);
     expect(html).toContain("Public domain");
-    expect(html).not.toContain("creativecommons.org");
+    expect(photoSection(html)).not.toContain("creativecommons.org");
+  });
+
+  it("CONTROL: the same photo in the CC-licensed form trips the scoped check", () => {
+    const html = renderCreditsHtml([entry({ target: "F22", license: "CC-BY-SA-4.0" })]);
+    expect(photoSection(html)).toContain("creativecommons.org");
   });
 
   // docs/wx-server.md N1: the weather radar's attribution, worded as that doc has it. /wx serves MRMS crops, so the
