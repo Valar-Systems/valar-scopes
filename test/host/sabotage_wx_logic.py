@@ -62,7 +62,10 @@ SABOTAGES = {
               ('|| Is2(p, "GS") || Is2(p, "UP"); }', '|| Is2(p, "GS") || Is2(p, "UP") || Is2(p, "SN"); }  // SABOTAGE')],
              {"H4", "H7", "H9", "H20"}),
     "S-H3": ([("        if (SnowCode(g + i)) *snow = true;",
-               "        if (*snow || *rain) return; if (SnowCode(g + i)) *snow = true;  // SABOTAGE: the first token decides")],
+               # Q70 (a): two lines, not one -- `if (...) return; if (...)` on one line is -Werror=misleading-indentation
+               # under g++ 13.3, so the plant never compiled there (A12.82)
+               "        if (*snow || *rain) return;\n"
+               "        if (SnowCode(g + i)) *snow = true;  // SABOTAGE: the first token decides")],
              {"H9", "H20"}),
     "S-H4": ([("    if (nowUtc - obsUtc > kObsMaxAgeS) return Precip::None;",
                "    if (nowUtc - obsUtc >= kObsMaxAgeS) return Precip::None;  // SABOTAGE")], {"H22"}),
