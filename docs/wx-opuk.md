@@ -380,3 +380,37 @@ mask at 0.5 removed about 98 % of the rain `opuk` would serve, including in K12'
   - It reads PASS once a Worker with this PR is deployed.
 
 **Outside the set:** any other reading means stop and report.
+
+### The mask off and OPERA on /credits: the readings (2026-11-04, `e0a198f`, `80bba46`)
+
+**M1-M5 read as predicted. One existing test, outside the set, fails, and is stopped for a ruling.**
+
+| | got | verdict |
+|---|---|---|
+| **M1** | the default is off at 0.5: (40, 0.4), (40, 0.5), (40, 0.9) → 6, 6, 6. Switched on, K15's rows: 0, 6, 6; off 6. The sabotage gives 0, 0, 6, 6 (red) | pass |
+| **M2** | every crop ≥ its masked count: LHR 6 → **68**, MAN 186 → 31,413, EDI 191 → 34,471, GLA 102 → 39,526, BFS 90 → 30,600, ABZ 995 → 49,516, CWL 63 → 5,719, NQY 32 → 871. **Total 192,184** (bar 16,650). None coarsened; the largest is 11,663 B. `--check` is clean, and the server set is unchanged. **8 / 8 decode** (WSL, g++ 13.3); the sabotage fails exactly `man-161km.wxc`, `file` and `cells` | pass |
+| **M3** | re-rendered from the same headers (`3f7a026`), looked at (below) | done |
+| **M4** | `test/wx-opera.test.ts` passes, with the same printed readings (K2′ 0 lost of 31,673, K9 0.7508). **K11 re-measured:** CPU 0.343, 0.328, 0.266 s; peak 54.59, 54.35, 54.35 MB; 64 MB held, +64.02 MB | pass |
+| **M5** | the rendered /credits holds OPERA's line exactly once. **The sabotage** (the line removed from the template, asserted applied) turns the unit test red; the template was restored from a byte copy, sha matched. **Smoke's own `contains()`** reads **FAIL** against today's production (HTTP 200, marker missing). Its control, the same function on the same page for the NOAA line, reads PASS | pass |
+
+**M3, looked at:**
+- **`docs/images/wx-opuk-extra-abz.png`:** a broad rain shield across the north and west of the disc, greens with
+  yellow and orange cores in the west, the south-east dry. 20,618 echo pixels, against 478 with the mask on.
+- **`docs/images/wx-opuk-k13-lhr.png`:** 5 echo pixels. London at 02:55 on 10-28 was mostly dry: the crop holds 68 echo
+  cells, against 6 with the mask on.
+  - The earlier "dry London" stays withdrawn, because it was made with the mask on. This render is the weather.
+
+**Outside the set: an existing test fails. Stopped for a ruling.**
+- **The test:** `courtesy-credits PD without a license link` (`test/photolicense.test.ts`, since `f25d14d`,
+  2026-07-16).
+- **What it does:** it renders a public-domain photo entry and asserts the WHOLE page holds no `creativecommons.org`.
+  Its intent is that a public-domain photo gets no CC licence link. OPERA's line carries
+  `https://creativecommons.org/licenses/by/4.0/` in the data-sources block, so it now fails, though the photo entry
+  still renders no CC link.
+- **The kind of failure:** a check that answers a broader question than its name.
+- **The proposed fix, NOT applied:** scope the assertion to the photo-credits section (the page after
+  `<h2>Photo credits</h2>`). **Its predictions, frozen now:**
+  - with OPERA's line present, the scoped assertion **passes** for the public-domain entry;
+  - **its control:** the same scoped assertion **fails** for an entry licensed `CC-BY-SA-4.0`, which shows it can
+    still catch what it exists for.
+- **Until the ruling,** the proxy suite on this branch is red on that one test.
