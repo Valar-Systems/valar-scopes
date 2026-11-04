@@ -41,8 +41,9 @@ export async function wxHealth(env: Env, products: readonly Product[]): Promise<
   return out;
 }
 
-/** `byWindow` exists for K5's sabotage only. */
-export async function handleWx(request: Request, env: Env, productId: string, byWindow = false): Promise<Response> {
+/** `byWindow` exists for K5's sabotage only, and `ageFromRequested` for the age limit's (docs/wx-age-limit.md A6). */
+export async function handleWx(request: Request, env: Env, productId: string, byWindow = false,
+                               ageFromRequested = false): Promise<Response> {
   if (!env.WX) return errorResponse(503, "not_configured");
   const requested = productById(productId);
   if (!requested) return errorResponse(404, "not_found");
@@ -65,7 +66,11 @@ export async function handleWx(request: Request, env: Env, productId: string, by
   if (!rec || Date.now() / 1000 - rec.epoch > p.maxAgeS) return errorResponse(503, "wx_stale");
 
   const etag = cropEtag(p, rec.epoch, q.lat2, q.lon2, q.rKm);
-  const headers = { ETag: etag, "X-Wx-Frame": String(rec.epoch), "Cache-Control": "no-cache" };
+  // The served product's device age limit (docs/wx-age-limit.md), on the 200 and the 304 alike: the limit belongs to
+  // the product, so a 304 restates it. A product that states none sends none, and the device keeps its own 600 s.
+  const ageS = (ageFromRequested ? requested : p).deviceMaxAgeS;
+  const headers: Record<string, string> = { ETag: etag, "X-Wx-Frame": String(rec.epoch), "Cache-Control": "no-cache",
+                                           ...(ageS !== undefined ? { "X-Wx-Max-Age": String(ageS) } : {}) };
   if (request.headers.get("If-None-Match") === etag) return new Response(null, { status: 304, headers });
 
   const m: FrameMeta = frameMeta(p.id, rec.epoch,
