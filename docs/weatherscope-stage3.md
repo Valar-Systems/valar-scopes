@@ -10518,3 +10518,45 @@ On main `a27e00a`, the same count holds (#512 touched no workflow).
 **Because the move is live, an expedited ruling is asked for.** The pin is the change every PR now needs before its `host-tests` can be trusted.
 - **After it lands, #514 is rebased onto main** and counted again. Its `host-tests` then runs on 24.04, where t5's suites passed on both compilers (A12.68).
 - **The follow-up's 26.04 leg, crop operators and `run.sh` keep-going** stay as A12.77 froze them.
+
+### A12.80 Ruled ~05:00Z (Q68 (a), the pin PR approved on conditions; Q67 (a); the window rule) -- the pin PR #515 NOT merged: its CI count is off A12.77's (42, not 40); Q67 applied
+
+**The ruling, as pasted (2026-11-04 ~05:00Z), in short; the paste is in the reviewer chat:**
+- **Q68:** (a), expedited.
+- **The pin PR:** approved at the head pushed, on five conditions. The fourth: "CI on that head: every run finished, 0 failed, and the count as A12.77 predicts (40 jobs: 37 success, 3 skipped)". The fifth: "If any condition fails, don't merge; send it to me."
+- **Q67:** (a).
+- **The planted-image window rule:** a window doesn't end while a planted image is on the board.
+
+**#515, `weatherscope/pin-runners` @ `be42ac2b64c3` (on main `a27e00a`):**
+
+| condition | measured |
+|---|---|
+| **the diff is exactly the pins, the guard, its job and the record** | **yes:** <br>• 26 `runs-on: ubuntu-latest` lines removed and their 26 pins added; <br>• the `runners` job; <br>• `scripts/check_runners.py`; <br>• `docs/ci-runners.md`. <br>Checked line by line; no other change |
+| **the guard's row, as re-registered** | **27 `runs-on` lines, 0 naming ubuntu-latest, exit 0.** Its selftest: the real tree exit 0; the label alone exit 1, naming `device-ids.yml:22`; the label with a comment after it exit 1, naming the same line |
+| **CI: every run finished, 0 failed** | **yes:** every run finished, 0 failed, every job on `ubuntu-24.04` |
+| **CI: the count, 40 jobs (37 success, 3 skipped)** | **NO: 42 check runs, 39 success, 3 skipped (ship-alert, promote, version)** |
+
+**So #515 is not merged,** as the fifth condition requires. Its head is unchanged.
+
+**The two extra jobs, by cause. Both are my count, not the code:**
+
+| workflow | predicted | ran | why |
+|---|---|---|---|
+| workers | 2 jobs | **3:** manifest-drift, test (dashboard), test (proxy) | **its `test` job is a matrix over two workers.** I counted its `runs-on` lines, not its jobs |
+| print-cards | 1 (the PR's) | **2:** the PR's, and the branch's push | **its `push:` trigger has `paths:` but no branch filter,** so pushing the PR's branch ran it too |
+
+- **The rest exactly as predicted:**
+  - firmware 34 (the 33 of a PR run plus the guard job: 31 success, 3 skipped);
+  - device-ids 1, no-traffic-captures 1, provisioner 1;
+  - each run's jobs counted from the workflow runs themselves, and read twice.
+- **The family, a fourth time:** a count frozen from the text I was reading (`runs-on` lines, `paths:` lines), not from the rule that produces it (matrix expansion, an unfiltered `push`).
+
+**For the ruling:** accept the count as measured (42: 39 success, 3 skipped, 0 failed; the two extras named above) and merge #515 at `be42ac2b64c3`. Its diff and guard rows meet their conditions as they stand.
+
+**Q67, applied** (`d2d9106` on t5's branch, local; it goes up with #514's rebase):
+- **The change:** `grade_b35t.py --boot-setting S:R` (default `auto:unset`).
+- **Its control, in `--selftest`** (9 / 0): t5's first boot, from the committed record, passes as `auto:unset` and **fails as `auto:known`**.
+- **S-SWB's boot re-graded with `auto:known`:** **the FAIL clears, and every other row is as recorded.** The diff against the first grade is that one row and the verdict line. It is kept as `grade-boot-setting.txt` beside the original `grade.txt`.
+- **t5's own grade under the default:** still ALL AS PREDICTED.
+
+**The window rule, on record:** a board window does not end while a planted image is on the board. The clean image and its boot read are part of the window, and if a window must stop early, the restore comes first.
