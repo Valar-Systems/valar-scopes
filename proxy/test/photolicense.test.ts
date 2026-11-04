@@ -121,10 +121,23 @@ describe("renderCreditsHtml", () => {
     expect(html).not.toContain("<fighting>");
   });
 
+  // Scoped to the photo-credits section (ruled 2026-11-04, docs/wx-opuk.md): the page's data sources may carry a CC
+  // licence link -- OPERA's line does -- but a public-domain PHOTO must not.
+  const photoSection = (html: string) => {
+    const at = html.indexOf("<h2>Photo credits</h2>");
+    expect(at, "CONTROL: the photo-credits section is found").toBeGreaterThan(0);
+    return html.slice(at);
+  };
+
   it("courtesy-credits PD without a license link", () => {
     const html = renderCreditsHtml([entry({ target: "F22", license: "PD-USGov" })]);
     expect(html).toContain("Public domain");
-    expect(html).not.toContain("creativecommons.org");
+    expect(photoSection(html)).not.toContain("creativecommons.org");
+  });
+
+  it("CONTROL: the same photo in the CC-licensed form trips the scoped check", () => {
+    const html = renderCreditsHtml([entry({ target: "F22", license: "CC-BY-SA-4.0" })]);
+    expect(photoSection(html)).toContain("creativecommons.org");
   });
 
   // docs/wx-server.md N1: the weather radar's attribution, worded as that doc has it. /wx serves MRMS crops, so the
@@ -132,6 +145,16 @@ describe("renderCreditsHtml", () => {
   it("carries the NOAA MRMS line exactly once", () => {
     const html = renderCreditsHtml([]);
     const line = "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.";
+    expect(html.split(line).length - 1).toBe(1);
+  });
+
+  // docs/wx-opuk.md M5: OPERA's CC BY 4.0 attribution, before opuk serves anywhere, in the wording docs/uk-data.md A2.1
+  // accepted. One line, no markup inside, ASCII bytes (&deg;); smoke-prod.sh searches the live page for the same bytes.
+  it("carries the OPERA line exactly once", () => {
+    const html = renderCreditsHtml([]);
+    const line = "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by " +
+      "Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; " +
+      "grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.";
     expect(html.split(line).length - 1).toBe(1);
   });
 });

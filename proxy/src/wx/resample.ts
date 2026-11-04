@@ -10,8 +10,11 @@ import { laea } from "./laea";
 import { NODATA, type OperaGeo } from "./opera";
 import { codeOfComposite } from "./products";
 
-/** The clutter mask (docs/wx-opuk.md K15): one switch, on at 0.5 until C's reading on 2026-11-04 settles it. */
-export const OPUK_QI_MASK = { on: true, threshold: 0.5 };
+/** The clutter mask (docs/wx-opuk.md K15): one switch, OFF (ruled 2026-11-04). R1's C read OPERA's quality index as
+ *  almost always exactly 0.0 on real echoes -- 98.1 % of echoes under 0.5, straight from the HDF5's qi_total -- and no
+ *  persistent clutter in the week (C1 = 0), so at 0.5 it removed nearly all the rain. It stays a switch for a product
+ *  with a real clutter score; a summer week is to be re-read (docs/uk-data.md A3.17). */
+export const OPUK_QI_MASK = { on: false, threshold: 0.5 };
 
 export interface MaskOpts { on: boolean; threshold: number; cmp?: "lt" | "le" }   // cmp "le": K15's sabotage only
 

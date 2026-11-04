@@ -342,3 +342,75 @@ machine. Both readings are under the 0.6 s bar, and R3's production bar (twice N
   - Scattered teal, green and blue cells, dimmed as look A draws them, in a band across the northern half of the disc.
     The southern half is dry.
   - It reads as a weather layer. Without a basemap under it, I cannot judge more than that.
+
+## The clutter mask off, and OPERA on /credits (frozen 2026-11-04, before this PR's code)
+
+**The ruling (reviewer chat, pasted by Daniel, 2026-11-04 ~17:50Z), recorded verbatim in `docs/uk-data.md` A3.17 on
+`docs/uk-data-r1`:**
+- the mask-off PR is approved to build from main, with M1-M4 and CI green as frozen in A3.16 (`db9eb7b`);
+- `OPUK_QI_MASK` stays as a switch, default off;
+- before `opuk` serves in production, /credits carries OPERA's CC BY 4.0 attribution.
+
+**Why the mask goes off:** R1's C read OPERA's quality index (`qi_total`) as almost always exactly 0.0 on real echoes.
+98.1 % of echoes sit under 0.5, read straight from the HDF5. And C1 was 0: no persistent clutter in the week. So the
+mask at 0.5 removed about 98 % of the rain `opuk` would serve, including in K12's crops and K13's render.
+
+**M1-M4, as frozen in A3.16:**
+
+| | check | predicted |
+|---|---|---|
+| **M1** | K15, restated for a default of off | with the default: (40 dBZ, QI 0.4) → **6**, (40, 0.5) → 6, (40, 0.9) → 6. With the switch on: K15's frozen rows unchanged (0, 6, 6; off 6), and its sabotage (`<=` for `<`) still red |
+| **M2** | K12 rebuilt with the mask off | each crop's echo cells **≥** its masked count. **The total ≥ 10 × 1,665 = 16,650.** 8 / 8 decode, and the sabotage fails exactly `man-161km.wxc` |
+| **M3** | K13 re-rendered at LHR, and the ABZ extra | rendered, looked at; no echo count predicted |
+| **M4** | every other R2 row (K1-K11, K14) | unchanged |
+| — | the whole proxy suite, and host-tests | green |
+
+**M5 (new, frozen here): OPERA's line on /credits.**
+- **The wording** is the one A2.1 accepted in principle ("Final at R4's review"). It is held on one line of the
+  template with no markup inside, as the NOAA line is. Its exact bytes:
+  > Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France,
+  > licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&amp;deg; grid and
+  > binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.
+  - The degree sign is written `&deg;` (as the page writes `&mdash;`), so the bytes are ASCII. On one line in the
+    template; wrapped here only.
+- **The unit test:** the rendered page holds that line exactly once, beside the NOAA line's test.
+  - **Its sabotage:** the line removed from the template. The test must turn red; asserted that the plant applied.
+- **The smoke check:** `smoke-prod.sh` gains `contains "/credits carries the OPERA line"` with the same bytes.
+  - **Against today's production** (which predates it), it must read **FAIL**. That is its proof that it can fail.
+  - It reads PASS once a Worker with this PR is deployed.
+
+**Outside the set:** any other reading means stop and report.
+
+### The mask off and OPERA on /credits: the readings (2026-11-04, `e0a198f`, `80bba46`)
+
+**M1-M5 read as predicted. One existing test, outside the set, fails, and is stopped for a ruling.**
+
+| | got | verdict |
+|---|---|---|
+| **M1** | the default is off at 0.5: (40, 0.4), (40, 0.5), (40, 0.9) → 6, 6, 6. Switched on, K15's rows: 0, 6, 6; off 6. The sabotage gives 0, 0, 6, 6 (red) | pass |
+| **M2** | every crop ≥ its masked count: LHR 6 → **68**, MAN 186 → 31,413, EDI 191 → 34,471, GLA 102 → 39,526, BFS 90 → 30,600, ABZ 995 → 49,516, CWL 63 → 5,719, NQY 32 → 871. **Total 192,184** (bar 16,650). None coarsened; the largest is 11,663 B. `--check` is clean, and the server set is unchanged. **8 / 8 decode** (WSL, g++ 13.3); the sabotage fails exactly `man-161km.wxc`, `file` and `cells` | pass |
+| **M3** | re-rendered from the same headers (`3f7a026`), looked at (below) | done |
+| **M4** | `test/wx-opera.test.ts` passes, with the same printed readings (K2′ 0 lost of 31,673, K9 0.7508). **K11 re-measured:** CPU 0.343, 0.328, 0.266 s; peak 54.59, 54.35, 54.35 MB; 64 MB held, +64.02 MB | pass |
+| **M5** | the rendered /credits holds OPERA's line exactly once. **The sabotage** (the line removed from the template, asserted applied) turns the unit test red; the template was restored from a byte copy, sha matched. **Smoke's own `contains()`** reads **FAIL** against today's production (HTTP 200, marker missing). Its control, the same function on the same page for the NOAA line, reads PASS | pass |
+
+**M3, looked at:**
+- **`docs/images/wx-opuk-extra-abz.png`:** a broad rain shield across the north and west of the disc, greens with
+  yellow and orange cores in the west, the south-east dry. 20,618 echo pixels, against 478 with the mask on.
+- **`docs/images/wx-opuk-k13-lhr.png`:** 5 echo pixels. London at 02:55 on 10-28 was mostly dry: the crop holds 68 echo
+  cells, against 6 with the mask on.
+  - The earlier "dry London" stays withdrawn, because it was made with the mask on. This render is the weather.
+
+**Outside the set: an existing test fails. Stopped for a ruling.**
+- **The test:** `courtesy-credits PD without a license link` (`test/photolicense.test.ts`, since `f25d14d`,
+  2026-07-16).
+- **What it does:** it renders a public-domain photo entry and asserts the WHOLE page holds no `creativecommons.org`.
+  Its intent is that a public-domain photo gets no CC licence link. OPERA's line carries
+  `https://creativecommons.org/licenses/by/4.0/` in the data-sources block, so it now fails, though the photo entry
+  still renders no CC link.
+- **The kind of failure:** a check that answers a broader question than its name.
+- **The proposed fix, NOT applied:** scope the assertion to the photo-credits section (the page after
+  `<h2>Photo credits</h2>`). **Its predictions, frozen now:**
+  - with OPERA's line present, the scoped assertion **passes** for the public-domain entry;
+  - **its control:** the same scoped assertion **fails** for an entry licensed `CC-BY-SA-4.0`, which shows it can
+    still catch what it exists for.
+- **Until the ruling,** the proxy suite on this branch is red on that one test.
