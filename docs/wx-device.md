@@ -4203,3 +4203,56 @@ frames arrive about 252 s late. At 720 s the figure is 0.69 %.
 **Where it stands:** waiting on the UK data session's channel proposal. The read's test depends on the channel. The
 clamp and the default do not, and they are registered together with the read once the channel is known, so the
 predictions are frozen once.
+
+### Results for K6 (2026-11-04, 17:38-18:00Z; announced 9:40-10:50 AM PST, opened 9:38 AM)
+
+**The run:** `k6_run.py` (`810cb54c3bba`, the restore remedy), graded by `k6_read.py` as frozen (`20f8acbb87df`, **exit
+1**). E2:08 ran `wxlook` from `2ff8c3d`, unflashed. The trace was read twice, 10 s apart, at 61,986 B both times.
+
+| | read | verdict |
+|---|---|---|
+| **K6a** | n = 60 on **19/19** `[health]` lines | **as predicted** |
+| **K6b** | allocFail 0, hardFail 0, no DATA STALE | **as predicted** |
+| **K6c** | the median p95 at n = 60: **102.0 ms** (19 lines, 99.3-104.3) | **OFF** (76-86) |
+| **RS-K** | at the clear: enrich forwarded 0, photo 0 | **as predicted** |
+| labels | "label fields as before: True" | **as predicted** |
+
+The touch gate read 0 touches. The scan read key, id and address found **no** (14 files read, 0 missing). The proxy
+stopped, and its port refuses connections.
+
+**The restore remedy's first real run, as designed:**
+- 17:52:17Z: the labels were restored and read back, while the trace was open;
+- 17:52:18Z: the clear;
+- 17:57:19Z: RS5's 5 min, then the trace closed;
+- then read_mac (exit 0, first attempt), the page, and "as before: True". No retry was needed.
+
+**K6c, off. The frame, taken apart** from the bench image's own timers (medians over the 19 lines):
+
+| part | per frame |
+|---|---|
+| frame | avg 99.9 ms, p95 102.0 ms; the device's own residual **+18.1 ms** |
+| clear (the layer copy) | 5.1 ms |
+| sweep (blend) | 6.9 ms |
+| outline (look A) | 11.2 ms, **0.186 ms per contact** (the model said 0.1625) |
+| everything else | about 77 ms |
+
+Average and p95 are close (99.9 and 102.0), so this is a steady cost, not spikes.
+
+**The alternatives, named:**
+- **The label lines: the leading candidate, not excluded.**
+  - K6 drew the factory default's **five** label lines (callsign, type, operator, speed, altitude) on 60 contacts,
+    all of them filled, since the synthetic enrich supplies the type and the operator.
+  - The frozen model (35.9 + 0.800 × n) was fitted on W5‴'s arms. There E2:08 shows only its type line, and W5's
+    hexes are non-ICAO, so enrichment settles offline and even that line is empty. Those arms drew no label text, so
+    the model's slope holds no label cost.
+  - The device has no label timer. The test is K6's arm again with E2:08's own labels, as a second arm.
+- **The outline's excess,** 0.186 against 0.1625 ms per contact: +1.4 ms at 60. It is not the size of the miss.
+- **The PC: excluded.** The last build ended at 17:33:41Z, and the window opened at 17:38:19Z. During the window the
+  PC ran git, `gh` and text edits only.
+
+**What the frozen decision would do, and why it waits:**
+- **The decision as frozen:** above 85 ms, look A drops its outline above a count set from this measurement.
+- **Why it would not work:** at n = 60 this frame without its outline is about 91 ms, still over 85. The rule assumed
+  the outline was the margin, and with five filled label lines it is not.
+- **So nothing is changed.** Off-prediction: stop and report. The decision, and whether K6 is re-run with E2:08's own
+  labels beside the factory default's, are the reviewer's.
