@@ -893,3 +893,17 @@ before any listing of `wx/opuk/frames/`. It comes from the code (`pruneOld`, Q5)
 - **Instrument:** `tools/wx/r3_5b.py`. It is proved first on `cref`, whose prune runs on every check with the same
   `pruneOld`, so its pruning checks are the ones logging `pruned`. That is a control on the instrument, not a reading
   of R3-5b′.
+
+**R3-5b′'s instrument, proved on `cref` before the `opuk` read** (a control, not a reading of R3-5b′):
+
+| run | listing | last pruning check (start; cross-check) | bound | sabotage (+300 s) | verdict |
+|---|---|---|---|---|---|
+| 1, 22:56:43Z | 30 frames, 21:56:41-22:54:35Z | 22:56:35.233Z; the two starts agree to -0.4 s | 0 frames below the cut, margin 5.8 s | 3 below, the oldest among them | **FAIL, on the count alone** |
+| 2, 22:59:37Z | 29 frames, 22:00:38-22:56:39Z | 22:59:05.975Z (`pruned` 1); +0.4 s | 0 below, margin 92.0 s | 2 below, the oldest among them | **PASS** |
+
+- **Run 1 found an instrument defect.** It applied R3-5b′'s 13-frame cap, which is `opuk`'s, to `cref`, which keeps
+  about 30 frames an hour. The cap is now scoped to `opuk` only (`MAX_FRAMES`). Nothing else changed.
+- **Run 2 proves the instrument in both directions on one listing:** the bound passes, and the sabotage fails on the
+  oldest frame.
+- The two start-time derivations agree within the ±0.5 s rounding both times.
+- 0 lines were BLIND (ABR level 1), with 8 and 10 ingest lines written after each listing.
