@@ -10560,3 +10560,33 @@ On main `a27e00a`, the same count holds (#512 touched no workflow).
 - **t5's own grade under the default:** still ALL AS PREDICTED.
 
 **The window rule, on record:** a board window does not end while a planted image is on the board. The clean image and its boot read are part of the window, and if a window must stop early, the restore comes first.
+
+### A12.81 Ruled ~05:50Z: #515 approved as measured and merged (`892fe2b54748`); Q67 accepted; #514 rebased, with its CI count predicted before the push
+
+**The ruling (2026-11-04 ~05:50Z), in short:**
+- **#515:** approved at `be42ac2b64c3` as measured. The count is re-registered at 42 check runs (39 success, 3 skipped), with the miss against 40 kept and the two extras named. Main's CI is to be recorded on the merge commit, on `ubuntu-24.04` throughout.
+- **On the repeat:** CI counts are predicted from the last finished run's job list, adjusted for what the change touches (matrices, triggers, path filters), never from `runs-on` lines.
+- **Q67:** accepted as applied (`d2d9106`).
+- **Then:** #514 is rebased, pushed with Q67, and its CI counted again.
+
+**#515, merged.**
+- **The checks first, fresh:** head `be42ac2b64c3`, `MERGEABLE`/`CLEAN`; CI 42 (39 success, 3 skipped), unchanged; main `a27e00a`, unmoved.
+- **The merge:** squash, `--match-head-commit be42ac2b64c315717805e8d9af76832ddcd9c57d`, no `--admin`, at 2026-11-04T05:18:05Z, as **`892fe2b547480d067945fd95e4d86642039173a6`**.
+- **After the merge:**
+  - its parent is `a27e00a`, and it changes #515's 11 paths;
+  - **main's tree equals the approved head's;**
+  - `weatherscope/pin-runners` was deleted on the remote, with no PR based on it.
+- **Main's CI on `892fe2b`** is recorded once every run has finished, with each job's runner label read.
+
+**#514, rebased:** `weatherscope/3-5t-t5` is now four commits on `892fe2b`: `d318515`, `42ca990`, `3c6689e` and `95650b7` (Q67's).
+- **Every host-tested file** (`src/`, `include/`, `test/host/`, `platformio.ini`, the partition table) **is byte-identical to `bd13f57`,** the tree A12.68 measured under MinGW and g++ 13.3.
+- **The rest of the difference** is main's own (#512, #515) and t5's board tools and records.
+
+**#514's CI, predicted before the push, from its last finished run** (`a6287f172eef`: 35 check runs = firmware 33, device-ids 1, no-traffic-captures 1), **adjusted for what changed:**
+- **firmware gains the `runners` job** (#515): 34;
+- **path-filtered workflows:** #514's 52 files match none of workers', print-cards' or provisioner's `paths`, so none of them runs;
+- **the branch push:** every push trigger is main-only, or path-filtered to paths #514 does not touch, so no workflow runs on it;
+- **one force-push:** one `pull_request` synchronize event, so one run set.
+- **Predicted: 36 check runs, 33 success, 3 skipped (ship-alert, promote, version), 0 failed, every job on `ubuntu-24.04`.**
+  - `host-tests` there is green: the tree's host suites passed under g++ 13.3 (A12.68), and 24.04 is the image.
+- **Any other count is reported before anything is merged.**
