@@ -4067,3 +4067,43 @@ The plants' 11 needles were each found in `proxy.py` exactly once before the run
   unlikely.
 
 **K6 now waits only on the restore remedy,** in its own announced window.
+
+### The restore remedy, as made in K6's driver (before its run)
+
+**`k6_run.py`:** `7871627d386f` (kept as `k6_run.v1.py`) became `810cb54c3bba`. The doc's earlier row reads
+`87e6ee89b09c`, from before the W5⁗ window's edits. `k6_read.py` is unchanged (`20f8acbb87df`): it reads
+`label_fields_as_before` and the clear's STATUS, and both are still written.
+
+**The ruling's four points, as applied to K6:**
+1. **read_mac and the page before any restore.**
+   - **The restore at the end of the read runs with the trace open** (point 4). The board is up, and the trace holds
+     the port, so esptool cannot open it and there is no download mode to leave. That restore waits on the page.
+   - **After the trace's close:** read_mac (up to three attempts), the page (up to 180 s), then the read-back.
+   - **A run that stops before any trace opened:** read_mac and the page come first.
+2. **A failed read-back is retried after the recovery.** K6 flashes nothing, so its last board-changing step is the
+   trace's close.
+3. **A retry that fails stops the run and says so at once:** "RESTORE FAILED", with the manual undo. Nothing more is
+   measured: the server-side reads are skipped. The scan and the proxy's stop still run.
+4. **The trace closes only after the restore, its read-back, the clear and RS5's 5 min.** It starts with a 45 min cap
+   and the driver ends it (`kill`). If it ever ends at the cap first, that is recorded (`trace_hit_cap`). The window
+   minimum rises from 50 to 60 min.
+
+**Rehearsed, not reasoned about:**
+- **The rehearsal:** `k6_restore_rehearsal.py` (`619197ef6d06`) runs the driver's own functions, extracted unmodified,
+  against a stubbed page, cfg_post and esptool.
+- **R1 to R6 all fired as written:**
+  - R1: normal;
+  - R2: off, then the retry puts it back;
+  - R3: the retry does not verify, so RESTORE FAILED;
+  - R4: the page is dead, so RESTORE FAILED;
+  - R5: a running trace is killed, then read_mac, then the page, in that order;
+  - R6: a trace that ended at its cap is recorded.
+- **Its controls, two plants in copies:**
+  - the retry removed turns **exactly R2** BAD;
+  - the recovery after the close removed turns **exactly R5** BAD.
+
+**The image:** E2:08 runs `wxlook` from `2ff8c3d`, flashed at the end of W5⁗. Nothing under `src/`, `include/`,
+`lib/` or `platformio.ini` has changed from there to this branch's head, so K6 needs no flash. Its trace's `[build]`
+banner is read as usual.
+
+**The next W5's driver** gets the same four points when G1′ and G2′ are built.
