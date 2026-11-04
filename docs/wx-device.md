@@ -3718,3 +3718,97 @@ Graded by `replay_read.py` as frozen (`a3e39089a5d5`). It loads `wt-wxdevice`'s 
   - pin `runs-on: ubuntu-24.04` for `host-tests`;
   - make the test compile under g++ 15 in main (its replacement `operator new`/`delete` pair);
   - or both.
+
+## Rulings of 2026-11-04 ~04:45Z (read from `484a789` and `2ff8c3d`)
+
+Recorded as received (Daniel pasted them):
+- **The redo and the watch: accepted.** Every row as predicted except RP6 B. Its UNTRUSTWORTHY verdict stays on record
+  with its cause (the outer ring at r 119 bisects the beam's head in `m1-f2` and `m4-f2`).
+- **RP6 B's head: remedy approved, predictions first.** The fix, its control, its sabotage, then a re-grade of the
+  redo's frames and 10-29's. Predicted by the ruling: B PASS on all 18; A and off unchanged. With that, RP6 is complete.
+- **P4: remedy approved.** Read the fields inside the check (`je.get`), and re-register P4 with the miss kept.
+  - **A rule for every selftest of mine from now:** a case fails by its own FAIL line. A crash is an instrument
+    failure, never a pass or a red.
+- **"Counted apart": settled** (ruled 10-30, done in `acee925`). Nothing is open there.
+- **CI red on 26.04: not #445's.** Ruled (pinned images, the test fixed, `run.sh` continuing past a failed block) and
+  assigned to Weatherscope's follow-up PR.
+  - **Until it lands:** a red run whose only failure is "the WXC1 decoder test did not compile" is recorded as the known
+    image issue. No other failure is read past.
+- **K6 and W5⁗: go.** W5⁗ now, K6 after the P4 fix, each in its own window announced in Pacific time (PST since 11-01).
+- **`records-device`:** when the map server's mint script adds it to the token file, the production-record reader reads
+  `records-device` if present, else `blip-device`, and never prints it. Daniel removes `blip-key` and `blip-device` only
+  when #513 says so.
+
+**W5⁗'s window:** announced as 8:58 PM to about 11:15 PM PST (Nov 3). The driver actually opened at **04:51:09Z
+(8:51 PM PST)**, 7 min before the announced start. It is recorded here, not corrected after the fact. Its results
+follow when it ends.
+
+### RP6 B's head: frozen before the code
+
+**The fix, in `wedge_mask`:**
+- The head is still found as 8-connected pieces of the head colour.
+- **Two pieces are one head when a single ring pixel is 8-adjacent to a pixel of each,** that pixel showing its own
+  ring's colour (it sits on a ring's raster, in that ring's colour). Pieces join transitively.
+- **Nothing else joins.** That means no other colour, no ring-coloured pixel off a ring, and no path of more than one
+  pixel.
+- The centroid is still taken over the head's own pixels. A bridge pixel is never part of the head.
+
+**Why exactly one pixel:**
+- The device's rings are `drawCircle` 1 px lines. In `m1-f2` and `m4-f2` the two pieces lie one ring row apart, at the
+  same x.
+- A longer bridge along a ring would join any two heads that touch it. M5's two heads, 1.5 rad apart, both touch the
+  outer ring.
+
+**The selftest's own raster, read as a design aid (`head_split_explore.py`, scratchpad; it reads no capture):**
+- Over 3,600 beam angles, the outer ring cuts the drawn head into 2 pieces at **406** angles, and every one of those
+  pairs has ring bridges.
+- At θ = −3.03 (0.11 rad from the cases' default of π) the pieces are 3 and 5 px, with 5 bridging ring pixels.
+- θ = π itself is not split. That is why no existing case met this.
+
+| | check | predicted |
+|---|---|---|
+| **J0** | the selftest's 31 existing cases | unchanged, all as before. **M5 two heads** stays UNTRUSTWORTHY, "2 blobs" (no single pixel touches both) |
+| **J1** | new case: look A, the beam at θ = −3.03, its head cut in two by the outer ring | **PASS**; the locator line names one head at the disc's edge |
+| **J2** | new case, its CONTROL: the same frame with the bridging ring pixels painted black (0x0000), so a non-ring pixel separates the pieces | **UNTRUSTWORTHY**, "the beam's head: 2 blobs" |
+| **J3** | sabotage **S-head-join-off** (the join removed), in `sabotage_wx_fb_check.py` | exactly `J1` red. The same planted copy run on the redo's B frames `m1-f2` and `m4-f2` reads **UNTRUSTWORTHY**, "2 blobs", for both |
+| **J4** | sabotage **S-head-join-any** (a bridge of any colour) | exactly `J2` red |
+| **J5** | the driver's `--control` and `--anchors` | `OK_COUNT` 33 (31 + J1 + J2), all as the table; every anchor present exactly once |
+| **J6** | the redo's frames, as `replay_read.py` runs them (finished, not dropped) | **B: PASS on all 18**, (1) 0 exceptions; its highlight and counted-apart totals reported, not predicted. **A: unchanged**, PASS, (1) 0, highlight 94; (2) 0 without an outline, counted apart 0. **off: unchanged**, PASS |
+| **J7** | 10-29's frames | **Not dropped:** all three still UNTRUSTWORTHY. Their other untrustworthy frames trip the ring-coverage check (9 / 5 / 4), which the fix does not touch. **Trustworthy only:** B and off unchanged (no B or off frame tripped on the head). **A** holds the one "2 blobs" frame, and either: **(i)** its pieces are separated only by a ring pixel, so it joins and is graded, and A is predicted still PASS, with its changed counts reported and the frame named; or **(ii)** they are not, so it is refused as before and A is unchanged. Which branch is reported, with the pixels between the pieces |
+
+**Outside the set:** stop and report.
+
+### P4, re-registered (the miss kept): frozen before the code
+
+**P4's miss stays on record:** S-synth-leak crashed the selftest (`KeyError: 't'`) instead of failing its case.
+
+**The fix, as ruled:**
+- Every K6 case reads its fields inside the check: `.get`, and a body that is not JSON reads as `{}`. So a wrong answer
+  is a FAIL line, never a crash.
+- **`sabotage_proxy.py` applies the new rule:** a plant whose copy writes a traceback is **BAD** (an instrument failure),
+  never red. The 8 earlier plants each turned red by FAIL lines on their last run (`proxy-sab.out`). So they are
+  predicted to stay `ok`.
+
+**One amendment to the ruling's expected result, worked from the code before any run:**
+- **The ruling expects** "S-synth-leak turns exactly its own case red". Read from the code, the plant reaches four
+  cases:
+  1. **"nothing forwarded for a K6 hex"**, its own case.
+  2. **"the K6 log"** compares the whole log, dispositions included. Under the plant the K6 hex's line genuinely reads
+     `enrich forwarded`. The case observes the leak itself.
+  3. **"STATUS counts each route"**, likewise: `enrich_synth=0 enrich_forwarded=2` is the leak, counted.
+  4. **"any other hex's enrich is forwarded"** reads `len(seen) == 1` across the whole run. The leak's own forward makes
+     it 2. That is a **cascade**: abcdef was forwarded correctly.
+- **Fixed alongside `.get`:** case 4 now reads its own request. The stand-in sees exactly one new request, and it is
+  `/enrich/abcdef`.
+- **Not changed:** cases 2 and 3. Making them blind to the K6 hex's disposition would weaken them. If the reviewer wants
+  exactly one red, they become checks of agreement with the stand-in, not with the expected routing. That is the
+  reviewer's call.
+
+| | check | predicted |
+|---|---|---|
+| **P1′** | the unplanted selftest | every case PASS, exit 0 |
+| **P3′** | `sabotage_proxy.py`'s 8 earlier plants, under the traceback rule | each `ok`, red by FAIL lines, no traceback |
+| **P4′** | **S-synth-leak** | selftest exit 1, **no traceback**. FAIL lines exactly, in order: "nothing forwarded for a K6 hex: its enrich is answered locally", "the K6 log: ...", "STATUS counts each route by disposition". "any other hex's enrich is forwarded" PASS |
+| **P5′** | **S-other-cascade**, a new plant: case 4's old cumulative read restored, together with S-synth-leak | FAIL lines exactly, in order: own case, "any other hex's enrich is forwarded", the K6 log, STATUS. So the decoupling is what keeps case 4 green under P4′ |
+
+**Outside the set:** stop and report.
