@@ -414,3 +414,65 @@ mask at 0.5 removed about 98 % of the rain `opuk` would serve, including in K12'
   - **its control:** the same scoped assertion **fails** for an entry licensed `CC-BY-SA-4.0`, which shows it can
     still catch what it exists for.
 - **Until the ruling,** the proxy suite on this branch is red on that one test.
+
+## The proxy deploy that carries #521 and #522, then R3: predictions, frozen before either (2026-11-04)
+
+**The ruling that asks for them (reviewer chat, pasted by Daniel, 2026-11-04 ~19:15Z, recorded verbatim in
+`docs/uk-data.md` A3.19 on `docs/uk-data-r1`):** "that deploy (a 'carried by the deploy' row, as #513 did; the smoke as
+the test identity, now 38 checks with the OPERA line passing; cref's /wx unchanged with no X-Wx-Max-Age; what /wx does
+for opuk before R3), then R3's. Nothing deploys before my ruling on them."
+
+**Read before freezing (state, not predictions):**
+- **Production's `/healthz`:** commit `31cb44c` (2026-10-30). It already runs R2 (#499 is an ancestor), so `wx` already
+  holds `opuk` with `frameAgeS: null, coveredShare: null`, and a UK `/wx/cref` already answers 503 `wx_stale`.
+- **Staging:** `c06dc17`.
+- **Main:** `e8dfa45`. C: holds 15.5 GB free, the reviewer's reading at 19:13Z.
+
+### The proxy deploy (staging, then production, by `deploy.sh`)
+
+| | check | predicted |
+|---|---|---|
+| **PD0** | **carried by the deploy:** every commit from production's `31cb44c` to the commit deployed that changes `proxy/src` or `proxy/wrangler.toml`, listed at deploy time | **exactly three:** **#512 (`a27e00a`, Basemap D3):** the basemap credits on /credits, and a STAGING-ONLY `BASEMAP` binding; **#521 (`1beba4e`):** OPERA's line on /credits; **#522 (`e8dfa45`):** `X-Wx-Max-Age`. Any other means stop and ask, because its own predictions then apply |
+| **PD1** | `smoke-prod.sh` on production **before** the deploy, as the test identity | **38 checks: 37 PASS, 1 FAIL.** The FAIL is exactly `/credits carries the OPERA line` (marker MISSING): this run is the check's control, proving it can see absence. The opuk covered-share verdict reads PASS, "not ingesting yet" |
+| **PD2** | `smoke-prod.sh` on production **after** the deploy, as the test identity | **38 checks: 38 PASS, 0 FAIL,** the OPERA line among them |
+| **PD3** | `cref`'s `/wx` on production, before and after: `/wx/cref` at Bend (smoke's query) and at KMCI, as the test identity | **unchanged:** 200, `WXC1`, an ETag naming `cref`, **no `X-Wx-Max-Age`**, both times |
+| **PD4** | `/wx` for `opuk` before R3, after the deploy: `/wx/cref` at LHR, `/wx/opuk` at LHR, and `/healthz` | **503 `wx_stale` on both, with no `X-Wx-Max-Age`** (an error carries none); `/healthz` `wx.opuk` is `{frameAgeS: null, coveredShare: null}`. The same as today: no `opuk` frame exists until R3 |
+| **PD5** | the deploy itself | **`/healthz` reports the deployed commit on staging and on production.** Production's bindings equal those of the version it replaces (#512's binding is staging's only). The rollback target is read and recorded before the deploy |
+| **PD6** | the fleet in the 30 min after production's deploy, E2:08 and the test identity excluded, read twice (`n6_fleet.py`, as N6) | **fleet 4xx 0;** fleet 5xx other than `/blips` 503s with no upstream **0**; those 503s **≤ 1 %** of fleet `/blips`. The two reads agree |
+
+- **#512 is another session's stage.** Its commit says "D3's deploy and verification wait for the staging test
+  identity", and its predictions are `docs/basemap-deploy.md`'s.
+  - Deploying main carries it, so **this deploy waits for the reviewer's ruling on the order with the basemap
+    session's D3.**
+  - I do not direct that session.
+- **The escape:** anything else means stop. In production, roll back first.
+
+### R3: the `opuk` ingest's production deploy (after the proxy deploy, and after its own ruling)
+
+**No staging ingest Worker exists** (`wx-ingest.wrangler.toml` has no environments). So "staged" means this order, each
+gate read before the next step:
+1. the cost statement;
+2. the deploy;
+3. **`cref`'s gate at +5 min.** If it misses, roll back at once;
+4. `opuk`'s first frame;
+5. `/wx`;
+6. pruning at +70 min;
+7. CPU at +2 h.
+
+**The deploy runs only at a time the reviewer has confirmed is outside every announced board window:** the ingest is
+shared with `cref`, which E2:08 reads.
+
+| | check | predicted |
+|---|---|---|
+| **R3-0** | **the cost statement, re-read before the deploy** (a new read-only instrument on the GraphQL analytics API: Workers `cpuTimeUs` by `scriptName`, and R2 operations by `actionType`, over the last 30 days), against §5's increments: CPU +4-8M ms a month (K11 × I7's factor of 2, plus empty checks), Class A +26k, Class B +430k | **projected overage under $2 a month**, Daniel's allowance, with the figure stated. Over $2 means stop and ask Daniel |
+| **R3-1** | the deploy: `npx wrangler deploy -c wx-ingest.wrangler.toml` from clean main | a new version; the rollback target (the current version) read and recorded before |
+| **R3-2** | **`cref`'s gate:** `/healthz` `wx.cref.frameAgeS` at +5, +10, +20, +30 and +60 min; `cref`'s `wx_ingest` events in Workers Logs over the first 30 min | **`frameAgeS` ≤ 600 at every read;** `cref`'s `:00` and `:30` checks both log in every minute (minutes where NOAA's own errors log `wx_ingest_error` are counted and printed). **A miss means roll back at once** |
+| **R3-3** | `opuk`'s first frame: `/healthz` `wx.opuk` at +15 min | `frameAgeS` non-null and ≤ 1,800; **`coveredShare` in [0.70, 0.80]** (K9 read 0.7508; the week's footprint moved by one pixel in about 2.2 M) |
+| **R3-4** | `/wx/cref` at LHR and at KMCI, as the test identity, after R3-3 | **LHR:** 200, `WXC1`, an ETag naming `opuk`, **`X-Wx-Max-Age: 720`**, `X-Wx-Frame` = `opuk`'s latest epoch. **KMCI:** as PD3 |
+| **R3-5** | pruning (Q5), at +70 min: a listing of `wx/opuk/frames/`, read twice 10 min apart; and the logs' `pruned` field | **≤ 13 frames, none older than 3,600 s** except the one `latest` names. `pruned` appears only on checks that stored or backfilled a frame |
+| **R3-6** | CPU, `workersInvocationsAdaptive` for `blipscope-wx-ingest`, the first 2 h | **0 CPU-limit errors** (`cpu_ms` 5,000); **invocation p99 ≤ 4,000 ms** (I7 read 2,172 ms for `cref` alone; `opuk` adds one frame build in five minutes, about 0.5-0.8 s in workerd) |
+| **R3-7** | CloudFerro's answers in the first 2 h (Workers Logs: `opuk`'s `wx_ingest_error` lines) | printed, not graded: the count, the statuses, and the attempts |
+| **R3-8** | the fleet in the 30 min after R3's deploy, as PD6 | as PD6. No shipped firmware reads `/wx`, so `opuk` cannot reach the fleet |
+
+- **The escape:** anything else means stop. In production, roll the ingest back first.
+- **R4 follows:** smoke's UK check at a public airport, asserting `opuk` and `X-Wx-Max-Age: 720`.
