@@ -4640,6 +4640,19 @@ functions) run against the real shim.
 
 **Outside the set:** stop and report.
 
+**The abort case, local results (before CI):**
+- Both scripts pass `node --check`.
+- `smoke.mjs --print-setbuffer-message` reads the shim's line back whole: `web renderer: LGFX_Sprite::setBuffer
+  reached -- the per-pixel weather layer (wx-layer) cannot run on a stand-in with no pixels; stopping`.
+- `plant()` on the real shim: it applies once, leaving no abort and no message, and refuses a second application
+  ("found 0 times").
+- The planted shim parses under g++ 13.3.0, with the firmware's call followed by code.
+- The workflow YAML parses (13 steps in `build`, the new one before the upload). The runner guard reads 30 `runs-on`
+  lines, 0 `ubuntu-latest`.
+- **AB4:** as predicted. The diff from `80edf65` is `tools/web-renderer/smoke.mjs`, the new
+  `sabotage_setbuffer.mjs`, `docs/` and `.github/workflows/web-renderer.yml`.
+- AB1-AB3 and AB5 are CI's.
+
 **What WR5 cannot see, said here so it is not mistaken for coverage:** a page can pass `wx-layer` at runtime through
 `web_config_set`, and the website's own page code is in another repo. That path is WR1's to stop: the module aborts
 with the message, never corrupts memory. The abort itself is never reached today and nothing here makes it fire. A

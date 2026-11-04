@@ -104,6 +104,14 @@ jobs:
         run: |
           for sku in $BUILT; do node tools/web-renderer/carousel.mjs "web-dist/$sku"; done
 
+      # Smoke's R7 proves wx-layer on stops at the shim's setBuffer abort. Its sabotage proves R7 can fail: the abort is
+      # removed in a COPY of tools/web-renderer, s3-128 is built from it into a temporary dist (never web-dist, never
+      # uploaded), and R7 must go red there and stay green on the real build (docs/wx-device.md, AB2).
+      - name: R7's sabotage, the setBuffer abort removed (s3-128)
+        run: |
+          source ~/emsdk/emsdk_env.sh >/dev/null
+          node tools/web-renderer/sabotage_setbuffer.mjs web-dist/s3-128
+
       - uses: actions/upload-artifact@v4
         with:
           name: blipscope-web-v${{ steps.ver.outputs.fw }}
