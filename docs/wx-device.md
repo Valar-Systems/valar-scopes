@@ -4602,6 +4602,19 @@ after #445.
   run.
 - **Counted only when no run is queued.**
 
+**M6 and WR1-WR5 in CI, on `1b5bc66` (pushed 22:17:15Z; read at 22:31:48Z, with no run queued twice in a row):
+all as predicted.**
+- **M6:** 42 check-runs, 38 success, 4 skipped (`publish`, `promote`, `ship-alert`, `version`), 0 failure. The runs:
+  `device-ids`, `no-traffic-captures`, `web-renderer` and `firmware` on pull_request, and `print-cards` on push.
+- **WR1:** the web build compiled and linked both models; smoke ran against each model's loader.
+- **WR3:** smoke 10 `ok` per model (20 in all), `WEB RENDERER SMOKE AS PREDICTED` twice.
+- **WR4:** carousel 5 `ok` per model (10 in all), `CAROUSEL AS PREDICTED` twice. 0 `FAIL` lines in the job.
+- **WR5 in CI:** `check_wx_off` read OFF and its selftest passed (control exit 0, plant exit 1) before each model's
+  compile.
+  - CI's shas of the two real files (`ba5c04802783`, `b3ae1d0d6521`) differ from the local run's (`3fba26a44b83`,
+    `316ddcd512b7`). The difference is line endings alone: this worktree is CRLF, and LF-normalised the local files
+    give CI's shas, which are also the blobs at `HEAD`.
+
 **What WR5 cannot see, said here so it is not mistaken for coverage:** a page can pass `wx-layer` at runtime through
 `web_config_set`, and the website's own page code is in another repo. That path is WR1's to stop: the module aborts
 with the message, never corrupts memory. The abort itself is never reached today and nothing here makes it fire. A
