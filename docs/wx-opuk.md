@@ -1416,3 +1416,26 @@ rule.**
 
 **The plant runs about 5.6x slower on Cloudflare than on my laptop:** 10,056 ms for 2 x 800 M rounds, against about
 1.8 s locally. That is a fact about the plant, and why local timing was never the reading.
+
+**The removal lag, measured (read-only, 04:18-04:27Z).** The parked `off` version `2d9013bd`, deployed with no cron at
+04:15:42.768Z, was invoked **6 times, 04:16:06Z to 04:21:06Z**. Each one logged only `wx_dev_off` and used 0 ms CPU.
+- **There was no firing at 04:22:06Z or later.** The count held at 6 over three reads: 04:22:36, 04:24:39 and
+  04:26:41Z.
+- The last firing was **323 s** after the deploy that removed the cron.
+- So **both directions lag by about 5 min**: adding a cron took 268.7 s to the first firing; removing one took up to
+  323 s to the last.
+- With attribution by version id, neither lag moves a phase's count: every firing on a parked version is the park's.
+
+**Proposed for a ruling** (nothing deploys until then; the copy is parked and has been quiet since 04:21:06Z):
+1. **S1 runs a third time, as a new `plantcal` version, read against its own version id.**
+   - `f967798b` is recorded as the second attempt: OFF on its row, 1 record, `C` 10,056 ms.
+   - `2d9013bd` is its park.
+2. **The driver judges the 5-minute rule on `scheduledTime`.**
+   - At the deploy + 360 s, it parks if no finished invocation of the phase's version has a `scheduledTime` within
+     300 s of the deploy. The extra 60 s is because an invocation is only seen when it finishes.
+   - **Caps, adding the 5 min start lag:** S1 15 min, S2 20, S3 75, S4 135.
+3. **S5's row, re-registered before it runs.** "0 invocations in the 10 min after S5's deploy" can't hold with a
+   removal lag of about 323 s. Proposed instead:
+   - after S5's deploy, invocations land **only on S5's version and log only `wx_dev_off`**;
+   - **the last within 10 min of the deploy;**
+   - **then 0 over the next 10 min**, read twice 5 min apart.
