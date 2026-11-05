@@ -748,3 +748,7 @@ colons. The factory's list may come either way.
 | **S-K8** | the bare-MAC rule requires a separator | {K8, A12's "a plain list: one MAC per line, any separator, deduplicated; comments and blanks skipped"} |
 
 **The list reads 946:** 945 plus K8.
+
+**K8, graded (2026-11-05 ~21:30Z): as predicted.** The control ran 98 tests across the six files,
+all green (97 plus K8). **S-K8** turned red exactly {K8, A12's list case}. The file was restored by
+bytes.

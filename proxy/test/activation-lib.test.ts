@@ -187,6 +187,19 @@ describe("M1: the sweep's arithmetic (accepted ~20:15Z)", () => {
   });
 });
 
+describe("K8: a factory MAC list with or without colons (ruled ~21:20Z)", () => {
+  it("accepts the Download Tool's colonless STA form and esptool's colon form, and counts one MAC once", () => {
+    // Made-up 02: (locally administered) MACs, never a factory board. The first line is the Download Tool's
+    // DetectedInfo shape (12 characters, upper case, no colons); the second is esptool's; the third is the
+    // first MAC again in esptool's form.
+    const list = "02000000000A\n02:00:00:00:00:0b\n02:00:00:00:00:0a\n";
+    const imp = parseImport(list);
+    expect(imp).toEqual({ macs: ["02:00:00:00:00:0a", "02:00:00:00:00:0b"], badLines: [], mode: "list" });
+    const seed = parseRecords(list);
+    expect(seed).toEqual({ mode: "macs", ids: [], macs: ["02:00:00:00:00:0a", "02:00:00:00:00:0b"], badLines: [] });
+  });
+});
+
 describe("F1: a failed wrangler call names its cause and never an id (G-1, ruled ~20:35Z)", () => {
   it("keeps the error, masks every id, drops key lines and the known config warning", () => {
     const stderr = [
