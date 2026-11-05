@@ -2,7 +2,7 @@ name: firmware
 
 # Builds every Blipscope SKU. On a published GitHub Release it also attaches each SKU's
 # binary as firmware-<slug>.bin plus a shared version.txt, which is what the on-device
-# variant-aware OTA reads (the 1.46" downloads firmware-s3-146.bin, never another SKU's image).
+# variant-aware OTA reads (the 1.28" Kit S3 downloads firmware-s3-128.bin, never another SKU's image).
 # See RELEASING.md.
 
 on:
@@ -301,6 +301,11 @@ jobs:
         run: python3 scripts/skus.py --selftest
       - name: Validate skus.yml
         run: python3 scripts/skus.py --validate
+      # A RETIRED ROW CANNOT BE PUBLISHED (docs/weatherscope-stage3.md A12.105). Planted into copies of the
+      # real skus.yml and the real skus.py: a retired row given a slug must be refused, and a matrix that
+      # kept retired rows must fail the selftest -- each with exactly its own reason, after two controls.
+      - name: Prove a retired SKU cannot be published
+        run: python3 scripts/skus.py --sabotage
       # PHOTO MODE NEVER SHIPS. The Missileer photo env (product photos: no
       # auto-rotation, no auto-dim, no OTA) must equal its shipping parent plus one
       # flag, be the only env carrying that flag, stay build-only with no slug, and
