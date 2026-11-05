@@ -529,3 +529,27 @@ passed, 1 skipped (895)**: 884 + 5 + 5. The dashboard suite stays at 104.
   - Ages like the daytime prediction (median 10-16 s, max ≤ 30 s) are the website's to read.
 
 **Outside the set:** stop and report.
+
+### #536's T5′, read at 19:05Z on 2026-11-05: as predicted on the graded hour
+
+**The rule, as registered at 03:38Z (hours amended ~04:07Z).** Each hour was predicted at
+`written` 225-242, never above 360, with `write_error` 0. An hour in which a Bend device reaches
+80 or more weighted `/blips` requests in any 10-minute bin is **touched**: reported, not graded.
+The `feeder-device` line was present at 16:58Z, so the touched rule read the two Bend devices by
+id (the feeder and E2:08). Neither id is printed. The reader is `t5p_read.py`, sha256
+`e39c35cdecee`.
+
+| hour | written | refused | skipped | write_error | feeder max / 10 min | E2:08 max / 10 min | verdict |
+|---|---|---|---|---|---|---|---|
+| 17:00-18:00Z | **240** | 315 | 240 | 0 | 40 | 56 | **as predicted** |
+| 18:00-19:00Z | 253 | 256 | 240 | 0 | 51 | **83** (touched) | reported, not graded |
+
+**Each hour also had 11 devices,** with a fleet-wide maximum of 123 and 152. Those are
+non-Bend devices, which the touched rule does not read.
+
+**The 18:00Z hour's 253 is above the band, but it was not graded.** E2:08 crossed the touched
+line (83 ≥ 80), so the rule fixed in advance takes that hour out of grading, whatever its count.
+
+**#540's deploy no longer waits on T5′, but it still waits on the ruling** on its own
+off-prediction: S-N2 turned N2 **and** B5 red; the suite total was off because of a stale
+baseline; and D5's string case cannot fail.
