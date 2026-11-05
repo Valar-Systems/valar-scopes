@@ -46,7 +46,7 @@ import { PRODUCTS } from "./wx/products";
 // migration untestable: while both paths work, every check passes whichever one
 // the caller happens to be exercising, which is why the cutover was verified by
 // showing a SHARED response before an enrolled one rather than the reverse.
-async function authenticate(env: Env, request: Request): Promise<{ bucket: string } | { fakeId: true } | null> {
+async function authenticate(env: Env, request: Request): Promise<{ bucket: string; deviceId: string } | { fakeId: true } | null> {
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
 
@@ -65,7 +65,7 @@ async function authenticate(env: Env, request: Request): Promise<{ bucket: strin
   // never take the fleet down to enforce a list that is almost always empty.
   if (await isRevoked(env, deviceId)) return null;
 
-  if (await verifyDeviceKey(env, deviceId, provided)) return { bucket: `dev:${deviceId}` };
+  if (await verifyDeviceKey(env, deviceId, provided)) return { bucket: `dev:${deviceId}`, deviceId };
   return null;
 }
 
@@ -380,7 +380,7 @@ async function route(
   // handler, same auth, same status codes, byte-identical bodies -- which is the
   // alias contract, and is asserted path-family-by-path-family in the tests.
   if (api.suffix === "blips") return handleBlips(request, env, ctx, meta);
-  if (api.suffix === "config") return handleConfig(request, env);
+  if (api.suffix === "config") return handleConfig(request, env, auth.deviceId);   // the verified id, never the header
   if (api.suffix === "airports") return handleAirports(request, env);
   // Single airport by code (Follow's arc/globe endpoints, and C5's elevation).
   // Matched before the generic 404 and after the tiled overlay, so the two

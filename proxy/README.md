@@ -475,7 +475,7 @@ entrypoint = "BendFeed"
 - The feed is **Bend only by construction**: one fixed snapshot, and `snapshot()` takes no place (test B12 refuses one).
 - Showing any other location needs Samuli's OK first. It is a licensing change before it is a code change.
 
-**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s` and `write_error`. They are counts only, with no location. `refused_30s` keeps its original name; it counts refusals by the current 10 s rule.
+**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s`, `refused_older` and `write_error`. They are counts only, with no location. `refused_30s` keeps its original name; it counts refusals by the current 10 s rule. `refused_older` counts a snapshot refused because its upstream data is older than the stored one's (keep the newest, 2026-11-05).
 
 **Removing it** (one small PR, once the website moves to the worldwide feed):
 1. Set `SITE_FEED_BEND` to anything but `"on"`. That stops every read and write without a code deploy.
@@ -535,7 +535,12 @@ npx wrangler kv key put --binding ENRICH_KV --env staging --remote cfg:fleet \
 ```
 
 Precedence (low → high): baked base < baked model tier < KV `defaults` < KV
-`models[<slug>]`. Add a friendly type name the same way:
+`models[<slug>]` < KV `devices[<id>]`. The device layer is keyed by the
+VERIFIED, lowercased device id from the auth gate, never the raw header. It
+exists for one entry, the Bend feeder's day interval at night (2026-11-05; see
+docs/bend-site-feed.md). A device id is never written into this repo: the
+entry is written to production KV from the token file through `--path`, so it
+appears on no command line. Add a friendly type name the same way:
 `... put tn:A21N "Airbus A321neo"`.
 
 ## Deploy
