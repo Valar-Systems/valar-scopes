@@ -1220,3 +1220,22 @@ ruling names another target. The copy never binds `blipscope-wx`.
 - The full suite has one local-only failure: the CRLF checkout of `credits.html`, recorded with the alternative
   excluded.
 - CI is read when finished. Nothing deploys before the review, the merge and a slot.
+
+**Item 3's cost input: R3-0 re-read against the measured CPU** (read-only, 2026-11-05 ~01:03Z; `cost_read.py`, same
+method as R3-0):
+
+| | R3-0 (projected, 20:06Z) | now (measured) |
+|---|---|---|
+| account Workers CPU, 7-day run rate | -- | **36.67 M ms a month**. About 29 M of it is the `cref` ingest (974,758 ms a day over the last 7 days) |
+| `opuk`'s increment | 4.9-7.7 M ms a month (K11 x I7's factor of 2) | **about 19.3 M ms a month**: 8,640 builds x about 2.2 s (the join: 2,161 ms median alone; +2,255 ms over `cref`'s median when both build), plus about 6 ms x 43,200 non-building invocations |
+| overage a month (run rate) | $0.24-0.30 | **about $0.52 CPU + $0.01 Class A = $0.53** |
+| verdict | UNDER $2 | **UNDER $2** |
+
+- **Why not the simpler window difference:** R3's 2 h (140,267 ms) minus the 19:00-21:00Z `cref`-only baseline
+  (100,750 ms) gives 39,517 ms, or about 14.2 M a month. That **undercounts**, because `cref`'s own CPU differed
+  between the windows: its building median was 1,197 ms in R3 against 1,328 in the baseline. That is the weather,
+  not the code.
+- The per-build figure doesn't depend on `cref`'s weather.
+- Splitting `opuk` into its own Worker or cron moves this CPU to another invocation; it doesn't remove it. The cost
+  stands for either fix shape.
+- S4's measurement replaces the 2.2 s with a figure from `opuk` running alone.
