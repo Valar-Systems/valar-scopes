@@ -1093,7 +1093,7 @@ invocation records joined to each product's check lines by `scheduledTime`). Ove
   - The two deploy-minute invocations that built two `opuk` frames read only 2,274 and 2,512 ms. That's unexplained.
     A fresh isolate after the deploy, or cheaper backfill frames, would each fit, and these data separate neither.
 
-### Plan S: one staging copy of the ingest, for the ruling (proposed 2026-11-05 ~00:45Z; nothing runs before the ruling and a slot)
+### Plan S: one staging copy of the ingest, for the ruling (proposed 2026-11-05 00:40Z; nothing runs before the ruling and a slot)
 
 **Prerequisite, Daniel's: the bucket.** `blipscope-wx-dev` doesn't exist (above), so Daniel creates it, or the
 ruling names another target. The copy never binds `blipscope-wx`.
