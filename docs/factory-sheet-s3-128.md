@@ -45,6 +45,8 @@ esptool --chip esp32s3 --port <PORT> --before default-reset --after hard-reset w
 *(bench)* These Download Tool steps follow Espressif's Flash Download Tool user guide for the
 ESP32-S3 (https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32s3/production_stage/tools/flash_download_tool.html). They have not yet been run on our bench.
 
+**Time per board:** about 1 minute with esptool, of which about 40 seconds is the erase (measured on our bench, 2026-11-05).
+
 **If the computer does not see the board:** press and hold the board's left-side button for 2
 seconds to power it on. On this board, USB power alone may only light the charger LED. *(bench)*
 
@@ -110,6 +112,8 @@ esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset
 5. 每块板：先点击 **ERASE**，等待擦除完成；再点击 **START**，等待显示 **FINISH**（完成）。
 
 *(待验证)* 以上下载工具步骤依据乐鑫 Flash 下载工具 ESP32-S3 用户指南编写（https://docs.espressif.com/projects/esp-test-tools/zh_CN/latest/esp32s3/production_stage/tools/flash_download_tool.html），尚未在我们的测试台上实际运行。
+
+**每块板用时：**使用 esptool 约 1 分钟，其中擦除约 40 秒（2026-11-05 在我们测试台上实测）。
 
 **如果电脑识别不到板子：**长按板子左侧按键 2 秒开机。这块板仅接 USB 时，可能只有充电指示灯亮。*(待验证)*
 

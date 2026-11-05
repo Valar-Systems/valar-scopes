@@ -444,3 +444,38 @@ VERDICT: the download path is the same source
 |---|---|---|
 | `v15 v16` (the control) | exit 1, naming `src/HttpRequestManager.cpp` | exit 1, naming `src/HttpRequestManager.cpp` **and** `NoteOtaAttempt()`. I did not name the second one: same verdict, one more item than predicted |
 | `nosuchref v18` | exit 2, "cannot see" | exit 2 |
+
+### The bench proof, run 2026-11-05 20:35-20:49Z with Daniel at the bench: all as predicted
+
+**The unit:** the Missileer photo unit (serial …E794) on COM16, its port resolved by serial
+before every step. Its registry entry was moved to #545 at 20:34Z, at Daniel's go. The serial
+traces are kept outside the repo and are not committed.
+
+| step | got | verdict |
+|---|---|---|
+| **P0** | ESP32-S3 (QFN56) v0.2, embedded PSRAM 8 MB, flash `ef`/`4018` at 16 MB (read earlier, read-only) | as predicted |
+| **P1** | v18's set (sha `1e1670abc917`) with `--erase-all`: exit 0; **`Hash of data verified.` exactly once**; erase **39.1 s**; whole command **60.1 s** | as predicted |
+| **P2** | `[build] env=blipscope-s3-128 fw=v18`; `[ota-slot] boot running=app0 ... state=UNDEFINED` (F3 observed); the setup QR drawn **~5 s** after the reset. Daniel saw `SETUP` and the QR on the panel, which confirms the 1.28" panel. He did not report the colour or the name | as predicted |
+| **P3** | `[WiFi] autoConnect() returned true`, then one expected first-setup restart, a rejoin, and **`[ota] channel=s3-128 current=18 latest=18`**: no download | as predicted |
+| **P0′** | the MAC esptool prints, run through the mint's derivation, is the id on the unit's own config page: **true** (a boolean; no id, MAC or address printed) | as predicted |
+| **P4′** | `ota-download-path-diff.sh v17 v18`: every item SAME, exit 0 | as predicted |
+| **P4** | v17's set (sha `976ccde6f219`) the same way: exit 0, hash once, erase 37.7 s, 58.6 s. Then Wi-Fi by phone; **`current=17 latest=18`**, `newer firmware available -- updating`, `downloading .../releases/latest/download/firmware-s3-128.bin`, progress 25/50/75/100 in ~47 s; reboot into **`fw=v18`**, `running=app1 @0x660000`; its next check read `current=18 latest=18` | as predicted |
+
+**Also seen, outside the predictions:** after the update, the slot line printed in `setup()` read
+`state=VALID`. The new image was marked valid **before `setup()` ran**: F2 observed on hardware,
+which is why the rollback improvement belongs to a later image (decision 5).
+
+**Decided at the bench (Daniel, ~20:45Z): the factory image stays v18, option (a).** He asked
+whether the factory image should be a neutral "starter" rather than Blipscope. It should not:
+all 600 sell as Blipscope at first, and the chooser comes later in a Blipscope update. The
+alternatives considered were a new neutral starter image (b) and v18 with neutral naming (c).
+Both would have needed a new, unfielded image as the only update path for 600 units, a week
+before the factory date.
+
+**Still marked `(bench)` on the sheet, not yet run:** the Flash Download Tool steps (the tool is
+not installed on this bench) and the power-button note. This unit was already powered when it
+was flashed, so it shows nothing about a cold board.
+
+**After the run:** the unit is back in its app, on v18 in `app1`. The traces were closed by
+process id, and none is left running. Closing them left the board in ROM download mode, and an
+esptool `read-mac` reset it.
