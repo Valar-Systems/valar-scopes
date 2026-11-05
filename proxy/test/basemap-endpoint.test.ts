@@ -527,8 +527,10 @@ describe("MS, A1's stored packages and O1's store id", () => {
     const { store, query } = await mbStore("A8");
     let inflight = 0, max = 0, calls = 0;
     const late = { async get(k: string) { const n = calls++; inflight++; max = Math.max(max, inflight); await new Promise((r) => setTimeout(r, Math.max(1, 40 - 3 * n))); inflight--; return store.get(k); } };
-    const delayed = await build(late, query, { commit: COMMIT });
-    const instant = await build(store, query, { commit: COMMIT });
+    // whole outcomes, a throw included: the same build either way is the property, whatever the build makes
+    const outcome = async (r: { get(k: string): Promise<Uint8Array | null> }) => { try { return await build(r, query, { commit: COMMIT }); } catch (e) { return { threw: String(e) }; } };
+    const delayed = await outcome(late);
+    const instant = await outcome(store);
     expect(delayed).toEqual(instant); // the same result, its bytes included, though later reads arrived first
     expect(calls).toBeGreaterThanOrEqual(6); // CONTROL: enough reads to overlap
     expect(max).toBeGreaterThanOrEqual(2);

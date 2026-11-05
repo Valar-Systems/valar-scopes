@@ -297,7 +297,8 @@ const SABOTAGES = {
   "S-PLOG": {
     file: HANDLER, set: "all",
     edits: [["  const q: Query = p.q;\n", "  const q: Query = p.q;\n  console.log(q.lat2); // SABOTAGE S-PLOG\n"]],
-    expect: ["MP1"],
+    // Re-registered before any run (docs/basemap-a1.md): MS8 also reads every line for the origin. {MP1} stays on record.
+    expect: ["MP1", "MS8"],
   },
   "S-PWRITE": {
     file: WORKER, set: "all",
@@ -367,12 +368,14 @@ const SABOTAGES = {
   "S-MKHIT": {
     file: HANDLER, set: "all",
     edits: [['if (hit) { log.bm = "hit";', 'if (hit) { log.bm = "304-known"; /* SABOTAGE S-MKHIT */']],
-    expect: ["MK3", "MK6"],
+    // Re-registered before any run (docs/basemap-a1.md): MS2's second request is a hit. {MK3, MK6} stays on record.
+    expect: ["MK3", "MK6", "MS2"],
   },
   "S-MKKMISS": {
     file: HANDLER, set: "all",
     edits: [['    log.bm = "known-miss";\n', '    log.bm = "unknown-store"; // SABOTAGE S-MKKMISS\n']],
-    expect: ["MK4", "MK6"],
+    // Re-registered before any run (docs/basemap-a1.md): MS3's 202 is labelled known-miss. {MK4, MK6} stays on record.
+    expect: ["MK4", "MK6", "MS3"],
   },
   "S-MKUNK": {
     file: HANDLER, set: "all",
@@ -405,6 +408,59 @@ const SABOTAGES = {
     file: WORKER, set: "all",
     edits: [["...stat, wallMs: Date.now() - t0 }));", "...stat, wallMs: Date.now() - t0, lat0Micro: q.lat0Micro })); // SABOTAGE S-BB3"]],
     expect: ["BB3"],
+  },
+  // A1's (docs/basemap-a1.md): each plant as #551 froze it. S-MS1's and S-MS8's sets were corrected before any run:
+  // KV's store id feeds every MS path but MS5 and MS9, and MS3 and MS6 read the package key back.
+  "S-MS1": {
+    file: HANDLER, set: "all",
+    edits: [["  const id = mem ?? (pkg ? await storeFromKv(env) : null);\n", "  const id = mem; void storeFromKv; // SABOTAGE S-MS1: the KV read skipped\n"]],
+    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7", "MS8"],
+  },
+  "S-MS2": {
+    file: HANDLER, set: "all",
+    edits: [["      const kept = await pkg.get(pkgKey(id, digest));\n", "      const kept = null as R2ObjectBody | null; // SABOTAGE S-MS2: the stored package never read\n"]],
+    expect: ["MS2", "MS6"],
+  },
+  "S-MS3": {
+    file: HANDLER, set: "all",
+    edits: [["      const quick = await Promise.race([work, sleep(basemapTiming.syncWaitMs).then(() => null)]);\n", "      const quick = await work; void sleep; // SABOTAGE S-MS3: always awaited, never raced\n"]],
+    expect: ["MS3", "MS7"],
+  },
+  "S-MS4": {
+    file: HANDLER, set: "all",
+    edits: [["  if (Date.now() - since < basemapTiming.lockStaleMs) return false;\n", "  void since; return true; // SABOTAGE S-MS4: a held lock ignored\n"]],
+    expect: ["MS4"],
+  },
+  "S-MS5": {
+    file: HANDLER, set: "all",
+    edits: [["  if (Date.now() - since < basemapTiming.lockStaleMs) return false;\n", "  if (since >= 0) return false; // SABOTAGE S-MS5: a stale lock treated as fresh\n"]],
+    expect: ["MS5"],
+  },
+  "S-MS7": {
+    file: HANDLER, set: "all",
+    edits: [["      else if (id && (r.status === 404 || r.status === 422)) await pkg.put(", "      else if (id && false) await pkg.put( /* SABOTAGE S-MS7: errors never kept */"]],
+    expect: ["MS7"],
+  },
+  "S-MS8": {
+    file: HANDLER, set: "all",
+    edits: [["      if (!(r instanceof Response)) await pkg.put(pkgKey(r.storeId, digest), r.bytes);\n", "      if (!(r instanceof Response)) await pkg.put(`${pkgKey(r.storeId, digest)}-${q.lat0Micro}`, r.bytes); // SABOTAGE S-MS8\n"]],
+    expect: ["MS3", "MS6", "MS8"],
+  },
+  "S-MS9": {
+    file: HANDLER, set: "all",
+    edits: [["  const pkg = env.BASEMAP_PKG; // A1 only where bound (MS9)\n", "  const pkg = env.BASEMAP_PKG ?? ({} as R2Bucket); // SABOTAGE S-MS9: absence not checked\n"]],
+    expect: ["MS9"],
+  },
+  "S-MX1": {
+    file: BUILD, set: "all",
+    edits: [["export const READ_AHEAD = 6;", "export const READ_AHEAD = 1; // SABOTAGE S-MX1: one at a time"]],
+    expect: ["MX1"],
+  },
+  "S-MI8": {
+    file: LIB,
+    edits: [["  for (const o of objects) await bucket.put(o.key, o.bytes);\n  let v = await verifyStore(bucket, objects);\n",
+             "  for (const o of objects) await bucket.put(o.key, o.bytes);\n  if (kv) await kv.put(STORE_KV_KEY, \"000000000000\"); // SABOTAGE S-MI8: before the verify\n  let v = await verifyStore(bucket, objects);\n"]],
+    expect: ["MI8"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {

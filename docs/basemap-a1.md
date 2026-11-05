@@ -196,3 +196,54 @@ Each is read from a finished run only.
 - **Q-A1b:** the one-time `bm:store` write for store `4c0875738f38` in staging's `ENRICH_KV`, before the staging
   reading?
 - **Q-A1c:** `SYNC_WAIT_MS` 2,000, `Retry-After` 15 s and `LOCK_STALE_MS` 45,000, as frozen above?
+
+## The code, and the corrections found before any registered run (2026-11-05)
+
+The rulings are the ~19:05Z acceptance of #551's predictions, and Q-A1a-c. **Each change below was found while writing
+the code or computing the sabotages' sets, before the suite or any driver ran as a registered reading.**
+
+1. **KV's `cacheTtl` is 60, not 30.**
+   - The local runtime this repo tests with (`wrangler` 4.35.0) refuses 30: "Invalid cache_ttl of 30. Cache TTL must
+     be at least 60."
+   - That refusal, caught by the read, came back as "no store id", and **every MS row that needs one failed** (MS1-MS4,
+     MS6, MS7). Those failures are the control that the read works.
+   - Cloudflare's runtime has accepted 30 since January 2026, but tests cannot exercise it, so the handler uses 60.
+   - **The cost:** a new store id is seen up to about 60 s after it is written, against about 30 s. Stores change only on
+     a re-ingest.
+2. **MS1 and MS2 build nothing first.** MS1 computes the ETag with `etagOf`, and MS2 puts a package built by `build()`
+   straight into the bucket. A first build through the endpoint would leave a Cache API copy, and MS2's request would
+   then read `hit`, not `stored`.
+3. **MS6 removes the Cache API copy between its two requests.** It stands in for "another data centre", where the
+   Cache API does not hold the package.
+4. **MX1 compares whole outcomes, a thrown error included**, not "ok". A plant that changes what the build makes
+   (budget, terrain) then changes both builds alike, and MX1 keeps testing only C1.
+5. **S-MS1's set is {MS1, MS2, MS3, MS4, MS6, MS7, MS8}, not {MS1}.** With the KV read skipped, no fresh isolate knows
+   the store id. So every MS path that needs one falls back to today's synchronous build. MS5 still builds once, and
+   MS9 never reads KV.
+6. **S-MS8's set is {MS3, MS6, MS8}, not {MS8}.** The plant moves the package's key, and MS3 and MS6 read that key back.
+7. **Three existing sabotages grow,** with the old sets kept on record in the driver:
+   - **S-MKKMISS** {MK4, MK6} → **{MK4, MK6, MS3}**: MS3's 202 is labelled `known-miss`.
+   - **S-MKHIT** {MK3, MK6} → **{MK3, MK6, MS2}**: MS2's second request is a `hit`.
+   - **S-PLOG** {MP1} → **{MP1, MS8}**: MS8 reads every line for the origin.
+
+**Every other existing sabotage keeps its set.** Each was checked against the new rows:
+- the MS rows' labels and keys are their own;
+- MX1 compares outcomes;
+- MI8 is in the ingest's set alone.
+
+**The development runs, not registered readings:**
+- The basemap files read 162 passed, 1 skipped (151 before, plus the 11 new rows).
+- Both typechecks are clean.
+
+**What the registered run is predicted to read** (unchanged from #551, with the corrections above):
+- **The whole suite:** 911 passed, 1 skipped (912), in 69 files.
+- **`sabotage-basemap.mjs`:**
+  - `baseline[all]` **159 cases in 17 files**, `baseline[ingest]` 11, and `baseline[mv]` 31;
+  - **74 runs**: 71 sabotages and 3 baselines;
+  - every sabotage AS PREDICTED (C-LOADFAIL BLIND); exit 0.
+- **`sabotage-smoke-basemap.mjs`,** after TIME_WAIT is under 2,000: CONTROL 911 passed, 1 skipped, of 912, with
+  S-SQ {SQ1, SQ2} and S-SQP {SQ-C}.
+- **`sabotage-credits.mjs`,** after the same wait: CONTROL 35 of 35, with its four sets.
+- **CI on the code push:** 33 check runs: 30 success, 3 skipped, 0 failed.
+
+**Outside the set:** stop and report.
