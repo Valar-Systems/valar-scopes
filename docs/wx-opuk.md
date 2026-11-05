@@ -1353,3 +1353,23 @@ clean checkout at `131c0f776d9a`, exit 0, empty stderr):
 - Tail is only the trigger. **The graded reading is `s_reads.py`** (Logs records + R3-6's instrument), by version id.
 - **Why tail:** a cron schedule change may take time to start firing, and Logs land too late to park between the
   last counted firing and the next. Tail shows a finished invocation within seconds.
+
+**S1, first attempt: the driver crashed after its deploy. The copy is parked; no reading was taken.**
+- `s_drive.py plantcal S1 3 12`, started 03:36:09Z. The tail started, then `plantcal` was deployed:
+  **version `85a35361-2a50-4e72-a814-ae13696e6e4e`**, live 03:36:35Z (`deployments status`).
+- **The crash:** Python decoded wrangler's UTF-8 output as cp1252. The deploy succeeded, but its captured stdout came
+  back `None` and the driver died before counting anything. `plantcal` was left live with no driver, and two
+  `wrangler tail` processes were orphaned.
+- **The safe state, at once:**
+  - **parked** on `off` by hand from the clean checkout: 03:37:24.028-03:37:26.740Z, exit 0, empty stderr, no
+    schedule, **version `e9cb8970-c9ad-41d1-9bc1-0856a25d5c45`**;
+  - both orphan tails stopped by pid (0 left).
+- **What `85a35361` ran,** first read at 03:38:37Z: **0 invocations** in both instruments from 03:12 to 03:40Z.
+  Re-read below before anything is relied on.
+- **The driver fix** (a tool, not a graded instrument):
+  - every subprocess decoded as UTF-8 with `errors="replace"`;
+  - **everything after a phase deploy runs under try/finally that parks on `off`;**
+  - an exit hook kills the tail, so it never outlives the driver.
+  - Tested without deploying: a dry-run's output decodes, and the tail connects and closes (0 left).
+- **Not done without a ruling:** re-running S1 as a new `plantcal` version, with `85a35361` recorded as an aborted
+  attempt. Choosing which version S1's row is read against, after an unexpected event, is the reviewer's call.

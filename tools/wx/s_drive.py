@@ -26,12 +26,12 @@ now = lambda: datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3] + "Z"
 
 
 def deploy(env, label):
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROXY, capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=PROXY, capture_output=True, text=True).stdout.strip()
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROXY, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=PROXY, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
     if head != WANT or dirty or os.environ.get("CLOUDFLARE_API_TOKEN"):
         raise SystemExit(f"REFUSED: head {head[:12]} dirty={bool(dirty)} token={'set' if os.environ.get('CLOUDFLARE_API_TOKEN') else 'unset'}")
     t0 = now()
-    r = subprocess.run(["node", WRANGLER, "deploy", "-c", CFG, "-e", env], cwd=PROXY, capture_output=True, text=True)
+    r = subprocess.run(["node", WRANGLER, "deploy", "-c", CFG, "-e", env], cwd=PROXY, capture_output=True, text=True, encoding="utf-8", errors="replace")
     t1 = now()
     open(os.path.join(SCRATCH, f"plan-s-{label}.out"), "w", encoding="utf-8").write(r.stdout)
     open(os.path.join(SCRATCH, f"plan-s-{label}.err"), "w", encoding="utf-8").write(r.stderr)
@@ -49,7 +49,7 @@ s4 = len(sys.argv) > 5 and sys.argv[5] == "s4"
 events, lock = [], threading.Lock()
 tail_err = open(os.path.join(SCRATCH, f"plan-s-{label}.tail.err"), "w", encoding="utf-8")
 tail = subprocess.Popen(["node", WRANGLER, "tail", "blipscope-wx-ingest-dev", "-c", CFG, "--format", "json"], cwd=PROXY,
-                        stdout=subprocess.PIPE, stderr=tail_err, text=True, encoding="utf-8")
+                        stdout=subprocess.PIPE, stderr=tail_err, text=True, encoding="utf-8", errors="replace")
 
 
 def reader():
@@ -70,12 +70,19 @@ def reader():
                 events.append((time.time(), obj))
 
 
+import atexit
+atexit.register(lambda: tail.poll() is None and tail.kill())   # the tail never outlives the driver
 threading.Thread(target=reader, daemon=True).start()
 time.sleep(12)
 if tail.poll() is not None:
     raise SystemExit("tail exited before the deploy: see the .tail.err file")
-version, t_dep = deploy(env, label)
+try:
+    version, t_dep = deploy(env, label)
+except BaseException:
+    tail.terminate()
+    raise
 t_dep_epoch = time.time()
+parked = False
 
 
 def lines(ev):
@@ -102,21 +109,27 @@ def tally():
 
 
 seen, deadline, why = 0, time.time() + max_min * 60, "TIMEOUT"
-while time.time() < deadline:
-    if tail.poll() is not None:
-        why = "TAIL EXITED"
-        break
-    mine, counted = tally()
-    for e in mine[seen:]:
-        summ = [(l.get("product") or l.get("evt"), l.get("check"), l.get("status") or l.get("result") or l.get("mode")) for l in lines(e)]
-        print(f"  {now()} invocation {len(mine[:seen]) + 1}: outcome {e.get('outcome')} {summ}", flush=True)
-        seen += 1
-    if (counted if s4 else len(mine)) >= target:
-        why = "COUNT REACHED"
-        break
-    time.sleep(1)
-print(f"end of phase {label}: {why} at {now()}; invocations of {version[:8]}: {len(tally()[0])}; counted stored: {tally()[1]}", flush=True)
-park, t_park = deploy("off", f"{label}-park")
+try:
+  while time.time() < deadline:
+      if tail.poll() is not None:
+          why = "TAIL EXITED"
+          break
+      mine, counted = tally()
+      for e in mine[seen:]:
+          summ = [(l.get("product") or l.get("evt"), l.get("check"), l.get("status") or l.get("result") or l.get("mode")) for l in lines(e)]
+          print(f"  {now()} invocation {len(mine[:seen]) + 1}: outcome {e.get('outcome')} {summ}", flush=True)
+          seen += 1
+      if (counted if s4 else len(mine)) >= target:
+          why = "COUNT REACHED"
+          break
+      time.sleep(1)
+  print(f"end of phase {label}: {why} at {now()}; invocations of {version[:8]}: {len(tally()[0])}; counted stored: {tally()[1]}", flush=True)
+except BaseException as err:
+    why = f"DRIVER ERROR {type(err).__name__}: {err}"
+    print(why, flush=True)
+finally:
+    park, t_park = deploy("off", f"{label}-park")
+    parked = True
 time.sleep(90)
 tail.terminate()
 try:
