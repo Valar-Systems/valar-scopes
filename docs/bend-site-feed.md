@@ -653,3 +653,7 @@ matches what is serving is a stop.
   is judged.
 - **Then, pre-approved:** merge at that head with `--squash --match-head-commit`, no `--admin`.
   The order recorded above follows.
+
+**Local, graded before the push: as predicted.** The control ran `config.test.ts` 14 and
+`fleet-device-entry.test.ts` 1, all green, behind the port gate. **S-D5** turned red exactly {D5};
+**S-W** turned red exactly {the tool test}. Both were restored by bytes, sha checked.

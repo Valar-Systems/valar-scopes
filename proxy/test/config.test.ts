@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { TEST_DEVICE, apiRequest, call } from "./helpers";
+import { deriveDeviceKey } from "../src/deviceauth";
+import { TEST_DEVICE, TEST_DEVICE_SECRET, apiRequest, call } from "./helpers";
 
 // A second, allowlisted example id (scripts/device-id-allowlist.txt): never a real device.
 const OTHER_DEVICE = "b2c3d4e5f6a7b8c9";
@@ -183,15 +184,23 @@ describe("/v1/config, the per-device layer", () => {
     await env.ENRICH_KV.delete("cfg:fleet");
   });
 
-  it("D5 a devices layer that is not a plain object, or an entry that is not one, is ignored (no 500)", async () => {
+  // D5 (ruled 2026-11-05 ~19:50Z): the ONE malformed shape the guard decides. An unguarded lookup on a null `devices`
+  // throws, and /v1/config would then fail for EVERY device, so two different devices must both get 200 and the body
+  // they get without the layer. The old string-entry case was dropped as a non-check: spreading a primitive adds only
+  // numbered keys the response never reads, so the body is identical with or without the guard -- shown by running
+  // every shape (docs/bend-site-feed.md, "#540: the ruling of ~19:35Z").
+  it("D5 a null devices layer must not break /v1/config for any device", async () => {
+    const asOther = { "X-Blip-Key": await deriveDeviceKey(TEST_DEVICE_SECRET, OTHER_DEVICE), "X-Blip-Device": OTHER_DEVICE };
     await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ rev: 4 }));
-    const without = await body();
-    for (const fleet of [{ rev: 4, devices: null }, { rev: 4, devices: { [TEST_DEVICE]: "fast" } }]) {
-      await env.ENRICH_KV.put("cfg:fleet", JSON.stringify(fleet));
-      const got = await body();
-      expect(got.status).toBe(200);
-      expect(got.text).toBe(without.text);
+    const without = [await body(), await body(asOther)];
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ rev: 4, devices: null }));
+    const got = [await body(), await body(asOther)];
+    for (const [i, g] of got.entries()) {
+      expect(g.status, `device ${i}`).toBe(200);
+      expect(g.text, `device ${i}`).toBe(without[i]!.text);
     }
+    expect(without[0]!.status).toBe(200);
+    expect(without[1]!.status).toBe(200);
     await env.ENRICH_KV.delete("cfg:fleet");
   });
 });
