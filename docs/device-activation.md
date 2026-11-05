@@ -362,3 +362,37 @@ records, which this session may not read. The plan, for Daniel's answer:
   the deploy.
 
 Predictions for both are frozen once Daniel answers.
+
+### A1-A12's sabotages, graded (2026-11-05 18:19Z): all twelve as predicted
+
+The control (no plant) ran 82 tests across the six files, all green. Each plant turned red exactly
+its frozen set:
+- **1 test:** S-A1, S-A6, S-A9, S-A10, S-A12.
+- **2 tests:** S-A2, S-A4, S-A8.
+- **3 tests:** S-A7.
+- **4 tests:** S-A3, S-A11.
+- **6 tests:** S-A5.
+
+Every file was restored by bytes with its sha checked, and the tree was clean afterwards.
+
+### A correction to R's reader check, made before running it
+
+**R said** "the reader against production, read-only, now". That cannot be run by this session.
+`scripts/reconcile-fleet.py` reads `provisioned.csv` (the `--log` default) **before** it prints
+any instrument, and stops if the file is absent. That file is a provisioning record, which this
+session does not read. It is absent from this worktree, so the tool would stop before the new
+block.
+
+**The check is replaced by a harness** that loads the script, stubs its two KV reads
+(`kv_list_names`, `kv_get_raw`) and calls `report_instruments` directly, with no production read
+at all:
+
+| | stub | predicted lines in the refused section |
+|---|---|---|
+| **H1** | no `enr:refused:` keys | the stated absence (`no enr:refused: counters at all ...`) |
+| **H2** | `2026-11-05:not_listed`=3, `2026-11-05:already_activated`=1, `2026-11-06:not_listed`=2 | `2026-11-05  not_listed      3  already_activated      1` and `2026-11-06  not_listed      2  already_activated      0`, in that order |
+| **H3** | one value unreadable (`None`) | `?` in its column |
+| **S-H** | the new block removed | H1, H2 and H3 all red, because the heading is gone |
+
+The real run against production happens on Daniel's machine, where the record exists, as part of
+the ordinary reconcile.
