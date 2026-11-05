@@ -1767,3 +1767,22 @@ cron, and that deploy has now happened.
   178 of 180.
 
 **State:** parked on `idle` (`9a2c25c6`), firing each minute, logging `wx_dev_off` at 0 ms CPU.
+
+**Ruling, pasted ~19:20Z (verbatim):**
+
+> S3: (a). Recorded OFF on both clauses, causes named, data kept:
+> - The max: two builds in one invocation while the empty bucket filled (1,647-5,733 ms). S3's row should have excluded backfill, as S4's does. That miss is yours, and it stays in the record.
+> - The count: 59 records for 60 firings. The 18:22:45Z invocation logged :00 and then nothing in either instrument. It's recorded as a vanished invocation, cause open (an abnormal end that isn't recorded, or ingestion loss). Production's R3-2 shows the same signature.
+>
+> The control holds where it matters. Single-build cref invocations here read median 1,186 and max 2,548 ms, against production's cref-only median 1,197 and max 2,504. The dev copy measures what production measures. Use those as cref's figures.
+>
+> S4 and S5 run as pinned. Carry two things into the fix's predictions:
+> - An invocation that builds twice (a backfill) costs about twice as much.
+> - About 1 in 60 to 1 in 90 invocations can vanish without a record. The design must tolerate a lost check, and the count rows must allow for it.
+
+- **Carried to the fix's predictions:**
+  - identical work can read about 1.6x apart;
+  - a two-build (backfill) invocation costs about twice a single build;
+  - about 1 in 60 to 1 in 90 invocations can vanish without a record.
+- **`cref`'s figures:** single-build median 1,186 ms, max 2,548 ms. Production's `cref`-only figures were median
+  1,197 and max 2,504.
