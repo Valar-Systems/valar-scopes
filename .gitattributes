@@ -24,8 +24,6 @@ relay/** text eol=lf
 *.bmpk  binary
 # WXC1 weather crops (include/WxCrop.h): binary too, said explicitly rather than left to the heuristic.
 *.wxc   binary
-# OTA identity heads (docs/weatherscope-stage3.md A12.104): the first 352 bytes of real images, never line-converted.
-*.head  binary
 # A stored package's manifest and licence file (docs/weatherscope-stage3.md A12.5): the manifest's sha256 is the
 # package's `store:` id, so both must keep their exact bytes through a Windows checkout.
 test/fixtures/wx/basemap/*.manifest.json -text

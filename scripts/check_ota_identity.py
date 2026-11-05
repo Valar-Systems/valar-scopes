@@ -6,7 +6,7 @@
     python3 scripts/check_ota_identity.py --fleet-sabotage  each fleet rule must refuse a planted copy of the real config
     python3 scripts/check_ota_identity.py --check-table     test/fixtures/ota/identities.txt equals what the fleet derives
     python3 scripts/check_ota_identity.py --emit-table      rewrite that table from the fleet
-    python3 scripts/check_ota_identity.py --extract-head <firmware.bin> <out.head>   the first 352 bytes (host fixtures)
+    python3 scripts/check_ota_identity.py --extract-head <firmware.bin> <out.head.bin>   the first 352 bytes (host fixtures)
     python3 scripts/check_ota_identity.py --selftest
     python3 scripts/check_ota_identity.py --check-wiring
 

@@ -98,8 +98,8 @@ int main(int argc, char** argv)
     root = argv[1];
 
     std::vector<uint8_t> radar, wx, s21;
-    if (!Load("heads/blipscope-s3-128.head", radar) || !Load("heads/weatherscope-s3-128.head", wx) ||
-        !Load("heads/blipscope-pro-s3-21.head", s21) || radar.size() != ota::kHeadBytes ||
+    if (!Load("heads/blipscope-s3-128.head.bin", radar) || !Load("heads/weatherscope-s3-128.head.bin", wx) ||
+        !Load("heads/blipscope-pro-s3-21.head.bin", s21) || radar.size() != ota::kHeadBytes ||
         wx.size() != ota::kHeadBytes || s21.size() != ota::kHeadBytes) {
         std::printf("RIG: the heads in %s/heads are missing or not %u bytes\n", root.c_str(), (unsigned)ota::kHeadBytes);
         return 2;

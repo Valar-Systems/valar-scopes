@@ -11,14 +11,15 @@
 //
 // I1-I6  six refused inputs, four checks each (-why, -log empty, -boot initial only,
 //        -target unchanged): cross-board (foreign), same board other scope (foreign),
-//        a pre-check head (no-record), a wrong magic (no-record), version 2
+//        v18's published pre-check head (no-record), a wrong magic (no-record), version 2
 //        (bad-record), a stream cut at 200 bytes (truncated)
 // C1, C2 CONTROLS, four checks each: the device's own image, and the switch (asking for
 //        weatherscope- on an s3-128): installed, log begin/write/writeRest/end, the
 //        history switches once, the target equals the image. Without them a fake that
 //        ignored every call would pass I1-I6.
-// O10    the 7 identities each asking for their own scope, against the three pre-check
-//        heads: 21 no-record, 0 foreign, 0 flash calls (the s3-146 rows are retired, A12.107)
+// O10    the 7 identities each asking for their own scope, against the two pre-check heads (v18's
+//        published radar image, and the base Weatherscope build): 14 no-record, 0 foreign, 0 flash calls
+//        (the s3-146 rows are retired, A12.107; no CI-built Missileer image exists, A12.110)
 // MAP1-3 the fail mapping (A12.104): the refusal tokens; a short non-image is fail--106 with
 //        no flash call (not truncated); a begin failure is fail-<its error>
 #include <cstdio>
@@ -196,11 +197,12 @@ int main(int argc, char** argv)
     }
     root = argv[1];
     const char* names[] = {"blipscope-s3-128", "weatherscope-s3-128", "blipscope-pro-s3-21",
-                           "pre-blipscope-s3-128", "pre-missileer-s3-128", "pre-weatherscope-s3-128"};
-    std::vector<std::vector<uint8_t> > heads(6);
-    for (int i = 0; i < 6; ++i)
-        if (!Load(std::string("heads/") + names[i] + ".head", heads[i]) || heads[i].size() != ota::kHeadBytes) {
-            std::printf("RIG: heads/%s.head is missing or not %u bytes\n", names[i], (unsigned)ota::kHeadBytes);
+                           "pre-blipscope-s3-128", "pre-weatherscope-s3-128"};
+    const int kHeads = (int)(sizeof names / sizeof names[0]), kFirstPre = 3;
+    std::vector<std::vector<uint8_t> > heads(kHeads);
+    for (int i = 0; i < kHeads; ++i)
+        if (!Load(std::string("heads/") + names[i] + ".head.bin", heads[i]) || heads[i].size() != ota::kHeadBytes) {
+            std::printf("RIG: heads/%s.head.bin is missing or not %u bytes\n", names[i], (unsigned)ota::kHeadBytes);
             return 2;
         }
     const std::vector<uint8_t>&radar = heads[0], &wx = heads[1], &s21 = heads[2];
@@ -215,7 +217,8 @@ int main(int argc, char** argv)
         v2[ota::kRecordOffset + 4] = 2;
         Refused("I1", "the blipscope-pro-s3-21 head, asked for as s3-128", Image(s21), kImage, own, ota::Outcome::Foreign);
         Refused("I2", "the Weatherscope head, asked for as s3-128", Image(wx), kImage, own, ota::Outcome::Foreign);
-        Refused("I3", "a pre-check s3-128 head", Image(heads[3]), kImage, own, ota::Outcome::NoRecord);
+        Refused("I3", "v18's published pre-check s3-128 head", Image(heads[kFirstPre]), kImage, own,
+                ota::Outcome::NoRecord);
         Refused("I4", "a wrong magic", Image(badMagic), kImage, own, ota::Outcome::NoRecord);
         Refused("I5", "record version 2", Image(v2), kImage, own, ota::Outcome::BadRecord);
         Refused("I6", "a stream cut at 200 bytes", Image(radar), 200, own, ota::Outcome::Truncated);
@@ -238,7 +241,7 @@ int main(int argc, char** argv)
             ss >> env >> scope >> board;
             if (scope == "-") scope.clear();
             ++rows;
-            for (int h = 3; h < 6; ++h) {
+            for (int h = kFirstPre; h < kHeads; ++h) {
                 const std::vector<uint8_t> img = Image(heads[h]);
                 FakeFlash flash;
                 FakeSource src(img, img.size());
@@ -250,9 +253,9 @@ int main(int argc, char** argv)
             }
         }
         char buf[160];
-        std::snprintf(buf, sizeof buf, "%d identities x 3 pre-check heads: %d no-record, %d foreign, %d other, %d flash calls "
-                      "(want 21, 0, 0, 0)", rows, noRecord, foreign, other, calls);
-        check(rows == 7 && noRecord == 21 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
+        std::snprintf(buf, sizeof buf, "%d identities x %d pre-check heads: %d no-record, %d foreign, %d other, %d flash calls "
+                      "(want 14, 0, 0, 0)", rows, kHeads - kFirstPre, noRecord, foreign, other, calls);
+        check(rows == 7 && noRecord == 14 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
     }
 
     // ---- MAP1-3: the fail mapping
