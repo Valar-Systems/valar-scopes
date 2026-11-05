@@ -11548,3 +11548,36 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **No other path filter matches.** The branch goes up under a new name, so the push carries only its three commits.
 - **Predicted: 40 check runs, 36 success, 4 skipped (ship-alert, promote, version, publish), 0 failed; 39 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
 - **It merges only after review** (Q74).
+
+### A12.102 #542 and #544 merged as approved; main's CI on each AS PREDICTED. The TouchWatchdog step is closed
+
+**The ruling (~15:10Z):**
+- **#542 is approved at `ccea9eb3987f`** and **#544 at `9d47c09adfe6`,** each as its CI read.
+- The opuk host-test lines are accepted as main's (#521/#522). The base check that left out `test/fixtures/` is recorded as my miss.
+- Squash each with `--match-head-commit`, no `--admin`, and record main's CI on each.
+- No local runs before 16:45Z; gh and CI only. This addendum was appended without Python.
+
+**#542 (the grader fix), merged:**
+- **The merge:** at 2026-11-05T15:06:51Z, as **`d9b1f191cfad`**.
+- **Afterwards:** its parent is `788dab3`, it changes `grade_b35t.py` alone, equal to the approved head's, and the branch is deleted.
+
+**#544 (TouchWatchdog), merged:**
+- **The merge:** at 15:07:28Z, after #542, as **`975816d9bf49`**.
+- **Afterwards:**
+  - its parent is `d9b1f19`;
+  - **its own changed lines are identical to the PR's diff;**
+  - the one file in `src/`, `test/` and `tools/` that differs from the approved head is `grade_b35t.py`, which is #542's;
+  - the branch is deleted, and the two superseded backup branches (`weatherscope/touchwd`, `weatherscope/touchwd-held`, no PR on either) too.
+
+**Main's CI, each predicted before its merge:**
+
+| merge | predicted | measured (read twice) |
+|---|---|---|
+| `d9b1f191cfad` (#542) | 38: 36 success, 2 skipped (promote, version); 37 on 24.04, 1 on 26.04 | **AS PREDICTED** |
+| `975816d9bf49` (#544; `src/**` also runs web-renderer on the push) | 40: 37 success, 3 skipped (promote, version, publish); 39 on 24.04, 1 on 26.04 | **AS PREDICTED** |
+
+**So the TouchWatchdog step is closed:**
+- On the s3-128, Weatherscope runs the CST816 supervisor, which provides wedge detection, the recovery ladder and counters.
+- Its 10-minute `[health] touch-wd` line is the reader, with S-TW as its control and the board rows on record.
+- The bench board (907069326E64) runs the measured clean image, with stored theme `auto`.
+- **Still open, as ruled:** the radar's capped idle reboot for Weatherscope is its own later step. `RebootRecommended()` stays unacted on.
