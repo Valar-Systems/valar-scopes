@@ -430,3 +430,16 @@ under the 30 s writer throttle. With the site's own hold added, its radar crosse
 **Who deploys is not settled by this section.** The standing rule of 2026-11-04 ~17:05Z, recorded above, keeps
 production deploys with the map server. Daniel's message asks for "deploy". Which applies is asked before the deploy,
 not assumed.
+
+**Local results (2026-11-05, before CI)** (the code is `51805c6`):
+- **T1:** as predicted. On the one file, `test/sitefeed-bend.test.ts`, the control passes 16/16.
+  - **S-B5b** (the constant back at `30_000`): 1 failed, 15 passed. The red is B5 alone.
+  - **S-B5** (the rule kept in an instance field): 1 failed, 15 passed. The red is B5 alone.
+  - `bend.ts` was restored from its bytes each time (sha `364b8669fdcd`), never by git.
+- **T3:** as predicted. The diff is the four files named, and `bend.ts`'s imports are unchanged.
+- **T2, local: BLIND twice. The instrument failed both times; neither is a result.**
+  - The Workers runtime lost its module service (`ConnectEx(): #1225 ... refused`, then "No such module") and
+    vitest stopped partway.
+  - The second attempt started at 4,153 TIME_WAIT sockets, under the 8,000 gate, and its own run took the count to
+    15,673. So the full suite exhausts this machine's ephemeral ports by itself.
+  - T2 rests on CI.
