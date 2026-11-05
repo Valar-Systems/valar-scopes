@@ -1,6 +1,9 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiRequest, call } from "./helpers";
+import { TEST_DEVICE, apiRequest, call } from "./helpers";
+
+// A second, allowlisted example id (scripts/device-id-allowlist.txt): never a real device.
+const OTHER_DEVICE = "b2c3d4e5f6a7b8c9";
 
 interface ConfigBody {
   v: number;
@@ -127,5 +130,68 @@ describe("/v1/config", () => {
     const c = await getConfig();
     expect(c.pollActiveMs).toBe(5000);
     expect(c.rev).toBe(1);
+  });
+});
+
+// The per-device layer (docs/bend-site-feed.md, "The feeder's night cadence"; Daniel, 2026-11-05): KV `devices`, keyed
+// by the VERIFIED id, applied last. The requesting device here is TEST_DEVICE.
+describe("/v1/config, the per-device layer", () => {
+  const body = async (headers: Record<string, string> = {}) => {
+    const res = await call(apiRequest("/v1/config", headers));
+    return { status: res.status, text: await res.text() };
+  };
+
+  it("D1 a listed device gets its entry, and every other field as its model resolves", async () => {
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ devices: { [TEST_DEVICE]: { pollNightMs: 15000 } } }));
+    const c = await getConfig();
+    expect(c.pollNightMs).toBe(15000);
+    expect(c.pollIdleMs).toBe(15000);
+    expect(c.pollActiveMs).toBe(5000);
+    expect(c.idleAfterMs).toBe(600000);
+    await env.ENRICH_KV.delete("cfg:fleet");
+  });
+
+  it("D2 an unlisted device gets a body byte-identical to the one with no devices layer", async () => {
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ rev: 4 }));
+    const without = await body();
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ rev: 4, devices: { [OTHER_DEVICE]: { pollNightMs: 15000 } } }));
+    const withOther = await body();
+    expect(withOther.status).toBe(200);
+    expect(withOther.text).toBe(without.text);
+    await env.ENRICH_KV.delete("cfg:fleet");
+  });
+
+  it("D3 the device layer is applied last: it beats the KV model, and fields it leaves out fall through", async () => {
+    await env.ENRICH_KV.put(
+      "cfg:fleet",
+      JSON.stringify({
+        models: { "s3-128": { pollNightMs: 30000, pollIdleMs: 12000 } },
+        devices: { [TEST_DEVICE]: { pollNightMs: 15000 } },
+      }),
+    );
+    const c = await getConfig("s3-128");
+    expect(c.pollNightMs).toBe(15000);
+    expect(c.pollIdleMs).toBe(12000);
+    await env.ENRICH_KV.delete("cfg:fleet");
+  });
+
+  it("D4 the lookup uses the verified, lowercased id: an upper-case header still matches its entry", async () => {
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ devices: { [TEST_DEVICE]: { pollNightMs: 15000 } } }));
+    const res = await call(apiRequest("/v1/config", { "X-Blip-Device": TEST_DEVICE.toUpperCase() }));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as ConfigBody).pollNightMs).toBe(15000);
+    await env.ENRICH_KV.delete("cfg:fleet");
+  });
+
+  it("D5 a devices layer that is not a plain object, or an entry that is not one, is ignored (no 500)", async () => {
+    await env.ENRICH_KV.put("cfg:fleet", JSON.stringify({ rev: 4 }));
+    const without = await body();
+    for (const fleet of [{ rev: 4, devices: null }, { rev: 4, devices: { [TEST_DEVICE]: "fast" } }]) {
+      await env.ENRICH_KV.put("cfg:fleet", JSON.stringify(fleet));
+      const got = await body();
+      expect(got.status).toBe(200);
+      expect(got.text).toBe(without.text);
+    }
+    await env.ENRICH_KV.delete("cfg:fleet");
   });
 });

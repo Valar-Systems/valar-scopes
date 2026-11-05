@@ -201,6 +201,64 @@ describe("B5 the 10 s rule lives in storage", () => {
   });
 });
 
+// Keep the newest (Daniel, 2026-11-05; docs/bend-site-feed.md, "The feeder's night cadence, and keeping the newest"):
+// a snapshot whose upstream time is strictly older than the stored one's never replaces it, on any instance.
+describe("N1-N5 keep the newest snapshot", () => {
+  const store = () => {
+    const map = new Map<string, unknown>();
+    const storage: SnapStorage = {
+      get: async <T>(k: string) => map.get(k) as T | undefined,
+      put: async <T>(k: string, v: T) => void map.set(k, structuredClone(v)),
+    };
+    return storage;
+  };
+  const snap = (t: number): Snapshot => ({ t, source: "adsb.fi", aircraft: [] });
+
+  it("N1 an older t, 10 s later on a NEW instance, is refused_older, and the store still holds the newer", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 10_000;
+    expect(await new BendStore(storage, () => now).write(snap(99))).toBe("refused_older");
+    expect((await new BendStore(storage, () => now).read())?.t).toBe(100);
+  });
+
+  it("N2 an equal t, 10 s later, is written", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 10_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+  });
+
+  it("N3 a newer t, 10 s later, is written", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 10_000;
+    expect(await new BendStore(storage, () => now).write(snap(101))).toBe("written");
+    expect((await new BendStore(storage, () => now).read())?.t).toBe(101);
+  });
+
+  it("N4 older AND within 10 s is refused_30s: the interval is checked first", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 5_000;
+    expect(await new BendStore(storage, () => now).write(snap(99))).toBe("refused_30s");
+  });
+
+  it("N5 on the device path, a Durable Object answering 412 is counted refused_older once, never write_error", async () => {
+    fetchMock.get(LOL).intercept({ path: UPSTREAM_PATH }).reply(200, pointBody(bendSky()));
+    const { ns, calls } = fakeNs(async () => new Response(null, { status: 412 }));
+    const { m, points } = metricsSpy();
+    const res = await call(deviceReq(11), { SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns, METRICS: m });
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(sitefeedEvents(points)).toEqual(["refused_older"]);
+  });
+});
+
 describe("the reader, BendFeed.snapshot()", () => {
   const on = (ns: DurableObjectNamespace) => ({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns });
   const stored = (t: number): Snapshot => ({
