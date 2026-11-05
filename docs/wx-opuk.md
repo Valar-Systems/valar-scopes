@@ -1574,3 +1574,26 @@ propagate to the Cloudflare global network."*
 | proxy suite | 897 passed, 1 skipped (898) | **897 passed, 1 skipped (898)** | as predicted |
 | the plant selftest | PASSED; real PB2 7/7 with `idle` MODE `off`; PB2s FAIL on `cref` alone | **PASSED; real PB2 7/7** (top level, `off`, `idle`, `plantcal`, `plant`, `cref`, `opuk`, each `WX->blipscope-wx-dev` with its MODE; `idle` `"off"`); **PB2s FAIL ["cref"]** | as predicted |
 | check-runs | 41: 38 success, 3 skipped | **41: 38 success, 3 skipped**; device-ids, firmware, no-traffic-captures, workers, all `success` | as predicted |
+
+**Ruling, pasted ~15:10Z (verbatim):**
+
+> #543: approved to merge at 8a4b109f16f0, as its CI read (41: 38 success, 3 skipped, 0 failed; proxy 897 passed, 1 skipped; PB2 7/7; PB2s fails on cref alone). Squash with --match-head-commit, no --admin, and record main's CI. gh and CI are allowed during the E2:08 span.
+>
+> My review: env.idle keeps the cron with MODE off and binds only blipscope-wx-dev. Only S5 deploys off, the config with no cron.
+>
+> Plan S resumes after the map server's 16:45-17:00Z builder slot: once it reports done, or at 17:00Z, whichever comes first. Run S1's fourth attempt with the 15-minute first-invocation window, then S2-S5, parking on idle between phases, as ruled. Nothing on the PC before then.
+
+**#543 merged** (git and gh only; inside the E2:08 span, no Python and no wrangler):
+- Squash with `--match-head-commit 8a4b109f16f0`, no `--admin`, at 15:06:21Z.
+- **Merge commit `788dab3cf200`, 15:06:25Z.** The remote branch is deleted. `[env.idle]` is in main's dev toml.
+- **Main moved underneath it:** #541 (the basemap builder, `048ed7b`) changed 4 files under `proxy/`. Its only
+  `src/` file is `src/basemap/worker.ts`.
+  - **`src/wx/` is unchanged since `131c0f776d9a`.**
+  - `git grep` finds no `basemap` anywhere in `src/wx/`; every import there is relative inside `src/wx/`.
+  - So the dev Worker's code is what #537's and #543's selftests read.
+- Main's CI on `788dab3cf200` is read when finished. Its proxy count includes #541's tests, so the comparison is
+  against main's own previous finished run, not 897.
+- **Plan S's deploy commit is `788dab3cf200`** (`PLAN_S_WANT`). The deploy checkout moves to it with git now.
+  - Its `npm ci` is unchanged if `package-lock.json` is: see the next line.
+  - Plan S resumes at 17:00Z, or when the map server reports its builder slot done, whichever is first.
+- `package-lock.json` and `package.json` are unchanged between `20a0323` (the worktree's `npm ci`) and `788dab3cf200`, so the deploy checkout's `node_modules` stands.
