@@ -1786,3 +1786,32 @@ cron, and that deploy has now happened.
   - about 1 in 60 to 1 in 90 invocations can vanish without a record.
 - **`cref`'s figures:** single-build median 1,186 ms, max 2,548 ms. Production's `cref`-only figures were median
   1,197 and max 2,504.
+
+**S4 (clock-driven): AS PREDICTED.**
+
+| | |
+|---|---|
+| start | offset 45.058 s. `opuk`, **version `d0b57204-62d7-417f-8c5d-26a7eae6dae6`**, 19:22:05.101-19:22:08.721Z, exit 0, empty stderr, `schedule: * * * * *` |
+| end | the 12th counted `stored` at **20:23:45Z** (seen 20:24:57Z); park on `idle`, **version `672798b2-b643-482d-a5b4-694817c52375`**, 20:25:05.102-20:25:13.403Z, exit 0, empty stderr, cron kept |
+| read (`s_reads.py S4`, by version; twice, 20:28:31Z and 20:30:34Z, identical) | **63 records, all `ok`**, 0 unattributed. **N counted = 12** |
+| graded set (the first 12 counted `stored`) | **median 2,055 ms, max 3,123 ms**: within [1,500, 3,000] and <= 4,000 |
+| the rest | n 49, **median 12 ms**, max 24: <= 100 |
+| beside, ungraded | the 2 backfill invocations, 3,321 and 1,775 ms; the firing after the 12th (20:24:45Z) also ran on S4's version |
+
+- **`opuk` alone costs a median of about 2.1 s a build on Cloudflare's runtime** (max 3,123).
+- R3's join had read 2,161 median and 2,948 max for `opuk`-alone invocations in production.
+- A two-build backfill invocation read 3,321, about twice.
+
+**R3-6's instrument counted 71 where the Logs have 63, and the cause is its sampling.**
+- `workersInvocationsAdaptive` by minute: every minute reads 1 invocation at `sampleInterval` 1, except **19:27Z:
+  "10 requests, 77.5 ms", at `sampleInterval` 10**.
+- In the Logs, that minute holds one ordinary firing (19:27:45Z, 7 ms).
+- So one invocation was sampled at 1/10 and scaled into 10. The dataset's sums are estimates, even at one
+  invocation a minute.
+- **That is a property of R3-6's instrument:** its counts and CPU sums can be inflated by a sampled row. Its status
+  and error fields still saw S2's kills 10 for 10.
+- **For the fix's rows:** a count or a total read from it needs `sampleInterval`, or the Logs, beside it. The 71
+  was graded nowhere, and S4's row reads from the Logs.
+
+**S5, started:** `off`, **version `1379f573-61bb-40ed-ad4f-f4f115e1e8fc`**, 20:32:05.104-20:32:09.016Z, exit 0, empty
+stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 min later, as re-registered.
