@@ -1239,3 +1239,14 @@ method as R3-0):
 - Splitting `opuk` into its own Worker or cron moves this CPU to another invocation; it doesn't remove it. The cost
   stands for either fix shape.
 - S4's measurement replaces the 2.2 s with a figure from `opuk` running alone.
+
+**#537's CI at its head `7321f58b2249`, finished 01:19:05Z** (read only after every run completed):
+
+| | predicted (`22707c5`) | got | verdict |
+|---|---|---|---|
+| proxy suite | 897 passed, 1 skipped (898); files 68 passed, 1 skipped (69) | **897 passed, 1 skipped (898); files 68 passed, 1 skipped (69)** | as predicted |
+| "The ingest's dev copy stays out of production (selftest)" | passes | **SELFTEST PASSED:** real PB1 PASS (production 0, anchor 1, dev 1); real PB2 PASS (6/6 `WX->blipscope-wx-dev`); PB1s FAIL (marker 1); PB2s FAIL on `cref` alone | as predicted |
+| check-runs on the head | 41: 38 success, 3 skipped | **41: 38 success, 3 skipped**. Workflows: device-ids, firmware, no-traffic-captures, workers, all `success` | as predicted |
+
+- The local-only Q-C1 failure didn't occur in CI, on an LF checkout, as the exclusion said.
+- **Kept off #537's head:** this record lives here, so the head stays the commit the review reads.
