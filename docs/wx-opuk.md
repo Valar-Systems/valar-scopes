@@ -1687,3 +1687,18 @@ cron, and that deploy has now happened.
 - **S2** is unaffected. Even the lowest reading puts `cpu_ms` 100 at about 79x below one invocation.
 - **S3 and S4** read medians and maxima of real ingest CPU. A ±30% runtime spread on identical work is a fact about
   how wide their rows can fairly be.
+
+**Ruling, pasted ~17:28Z (verbatim):**
+
+> S1: (a). S1 is recorded as OFF on its ±25% clause, with C = 9,480 ms. The spread on identical work (7,939-12,693 ms, with f967798b's 10,056 beside it) is kept as a measurement. S1's job was C for S2, and C is measured: S2's cpu_ms 100 sits about 79x or more below every reading.
+>
+> Go on to S2-S5 as pinned, by the clock. S3's and S4's ranges stay as frozen. If either reads off, name this runtime spread as one alternative. Carry the spread into the opuk fix's CPU predictions later as a margin: identical work can read about 1.6x apart.
+
+- **A guard added to `s_clock.py` before S2 (a tool fix; nothing graded changes).**
+  - S2's invocations are killed by design. If the Logs keep no record of a killed invocation, the 5-min check would
+    park S2 on a false "no invocation".
+  - So when the Logs show none, the check also asks R3-6's instrument (GraphQL, any status) for invocations in
+    [deploy, deploy + 300 s]. Only the phase's version runs in that span.
+  - It parks only if both read 0.
+- **Carried forward:** identical work read up to about 1.6x apart. That margin goes into the `opuk` fix's CPU
+  predictions.

@@ -74,6 +74,21 @@ def invocations(a_s, b_s):
     return inv
 
 
+def graphql_count(a_s, b_s):
+    """R3-6's instrument: the dev script's invocations in [a, b), any status (no version filter)."""
+    tok = next(l.strip().partition("=")[2] for l in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8")
+               if l.strip().partition("=")[0] == "analytics-read")
+    q = """query($acct: String!, $a: Time!, $b: Time!, $s: String!) { viewer { accounts(filter: {accountTag: $acct}) {
+      workersInvocationsAdaptive(limit: 100, filter: {datetime_geq: $a, datetime_lt: $b, scriptName: $s}) { sum { requests } } } } }"""
+    iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    req = urllib.request.Request("https://api.cloudflare.com/client/v4/graphql", method="POST",
+                                 data=json.dumps({"query": q, "variables": {"acct": ACCOUNT, "a": iso(a_s), "b": iso(b_s), "s": SCRIPT}}).encode(),
+                                 headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        g = json.loads(r.read())
+    return sum(x["sum"]["requests"] for x in g["data"]["viewer"]["accounts"][0]["workersInvocationsAdaptive"])
+
+
 def deploy(env, label):
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROXY, capture_output=True, **U).stdout.strip()
     dirty = subprocess.run(["git", "status", "--porcelain"], cwd=PROXY, capture_output=True, **U).stdout.strip()
@@ -160,7 +175,12 @@ try:
             sleep_until(t_dep + 360)
             inv = invocations(t_dep - 5, time.time())
             if not any(st <= t_dep + 300 and d["ver"] == version for st, d in inv.items()):
-                why = "NO FIRST INVOCATION IN 5 MIN"
+                # S2's invocations are killed by design; if the Logs keep no record of those, R3-6's instrument still
+                # counts them. Only this phase's version runs between its deploy and the deploy + 300 s.
+                g = graphql_count(t_dep, t_dep + 300)
+                say(f"no Logs record of {version[:8]} within 300 s; R3-6's instrument counts {g} in that span")
+                if g == 0:
+                    why = "NO FIRST INVOCATION IN 5 MIN"
         if why is None:
             sleep_until(last + 20)
             why = f"{n} firings by the clock"
