@@ -1490,3 +1490,61 @@ propagate to the Cloudflare global network."*
   - The park's removal, deployed 04:39:57Z, is presumably still propagating. The watch continues.
 - **The adds measured so far:** 268.7 s (`f967798b`) and about 592 s (`5e4c9a8b`). `85a35361` had 0 firings in its
   51 s live, and no firing was seen afterwards either: a removal followed it within the minute.
+
+**The PC timetable, to every session, pasted ~04:50Z (verbatim):**
+
+> The PC timetable until tonight's E2:08 windows are done. It replaces my earlier PC rules, including "Plan S may overlap the board windows" and Weatherscope's 13:00Z start. That rule was wrong: Plan S's driver and its wrangler tail run on this PC, and W5⁵'s guard G6 counts them.
+>
+> - Until 10:00Z: the PC is open, except for E2:08 windows.
+>   - The UK's Plan S continues as ruled. By 10:00Z it must be finished, or parked with its driver and every wrangler tail ended.
+>   - Weatherscope may run its two PRs' Python now, finishing by 10:00Z.
+>   - Other sessions' tests and builds may run, finishing by 10:00Z.
+> - 10:00Z to 16:45Z: E2:08 windows only.
+>   - blipscope-5c re-runs W5⁵ in full from 10:00Z, then K6's three arms, each announced, all ending by 16:45Z. Anything that doesn't fit is rescheduled through me.
+>   - No other session runs any Python, any wrangler command (tail, dev or deploy), any build or any test on this PC in that span. Text, git, gh and CI are fine.
+> - From 16:45Z: the PC is open again. The 17:00-19:00Z Bend quiet block, the website's 17:00-17:30Z reading and T5''s 19:05Z read stand as set.
+> - G6 stays as frozen. A session that finds another session's process on the PC reads names and times only, and never touches it.
+> - blipscope-5c: W5⁵ stopping at ~04:50Z because of the UK's tail is recorded as an instrument stop, not a reading. I've received #540 and will review it once its tests have run.
+
+**What of mine was on the PC then** (names and times):
+- The S1c driver's `wrangler tail` ran from about 04:33:39Z and closed at about 04:41:27Z, after the park.
+- From 04:42:23Z, my **read-only watch** started a short `python s_reads.py` every 2 min: 04:42, 04:44, 04:46,
+  04:48, 04:50...
+- At 04:52Z, no node or Python process on the PC was mine.
+- The watch was stopped with TaskStop. A 150 s poll to 04:55:26Z then found **0** of my `s_reads.py` or dev-tail
+  processes, and no bash loop carrying it.
+- So what G6 counted at about 04:50Z was most likely the watch's Python, not the tail.
+
+**Ruling, pasted ~05:00Z (verbatim):**
+
+> The ~04:30Z text you just received was a repeat I gave Daniel to re-paste, and it adds nothing. Your four proposals, ruled:
+> 1. Accepted: an idle park env that keeps the cron, so a park changes only the version. Attribution by version id keeps every phase's count clean.
+> 2. Accepted: a 15-minute first-invocation window, for the one deploy that adds the cron.
+> 3. Accepted: S5 is bounded at 15 minutes for the last invocation after the cron's removal, then 0 over the next 10 minutes, read twice 5 minutes apart.
+> 4. Accepted: a fourth S1 attempt, read against its own version id.
+>
+> Timing: your driver and its wrangler tail run on Daniel's PC, and blipscope-5c's board windows need the PC quiet. After your read-only watch ends at ~05:02Z, run nothing on the PC until Daniel pastes blipscope-5c's "the PC is free" line, or until 13:00Z, whichever comes first. Then run S1's fourth attempt and S2-S5 as pinned. Keep the measured lags (268.7 s and ~592 s) in the record.
+
+**Ruling, pasted ~05:05Z (verbatim):**
+
+> The ~04:30Z text you received earlier was a repeat and adds nothing. Your four proposals, ruled:
+> 1. Accepted: an idle park env that keeps the cron, so a park changes only the version. Attribution by version id keeps every phase's count clean.
+> 2. Accepted: a 15-minute first-invocation window, for the one deploy that adds the cron.
+> 3. Accepted: S5 is bounded at 15 minutes for the last invocation after the cron's removal, then 0 over the next 10 minutes, read twice 5 minutes apart.
+> 4. Accepted: a fourth S1 attempt, read against its own version id.
+>
+> Timing follows the ~04:50Z PC timetable. Start now. By 10:00Z, be finished, or parked with your driver and every wrangler tail ended. Anything left resumes after 16:45Z. Keep the measured lags (268.7 s and ~592 s) in the record.
+
+- **Which governs:** the two agree on the four proposals and differ on timing. **The ~05:05Z text governs.**
+  - It is the later one.
+  - Its timing is the ~04:50Z timetable's: open until 10:00Z, nothing from 10:00Z to 16:45Z, resume after.
+  - The ~05:00Z "until 13:00Z" contradicts that timetable.
+- **The measured lags, kept:**
+  - adding the cron: **268.7 s** (`f967798b`) and **about 592 s** (`5e4c9a8b`);
+  - removing it: firings for **323 s** (`2d9013bd`).
+- **The order from here:**
+  1. The `idle` env as a small PR, predictions first, reviewed and merged.
+  2. S1's fourth attempt, with the 15-min first-invocation window.
+  3. S2-S4, parking on `idle`, with the 5-min rule.
+  4. S5 deploys `off`, with the 15 + 10 min rule.
+  - All of it by 10:00Z or parked; anything left resumes after 16:45Z.
