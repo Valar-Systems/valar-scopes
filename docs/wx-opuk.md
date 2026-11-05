@@ -1885,3 +1885,47 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
   - `cref` -> `582612da`;
   - `opuk` -> `-e inert`, a version change.
   - The stored `opuk` frames stay. Deleting data is Daniel's.
+
+**S5: AS PREDICTED (re-registered row, two reads).**
+
+| | |
+|---|---|
+| start | `off`, **version `1379f573-61bb-40ed-ad4f-f4f115e1e8fc`**, 20:32:05.104-20:32:09.016Z, exit 0, empty stderr, no schedule listed |
+| reads | 20:57:19Z and 21:02:19Z, identical |
+| after the deploy | **6 invocations, every one on `1379f573`, every line `wx_dev_off`**. They ran 20:32:45 to 20:37:45Z, one a minute |
+| the last | **20:37:45Z, 336 s after the deploy**, within 900 s |
+| [deploy + 900 s, deploy + 1,500 s] = [20:47:09, 20:57:09] | **0 invocations** |
+| end | the copy has no cron and has been quiet since 20:37:45Z. **It stays in place, unscheduled**, as ruled. Deleting it and `blipscope-wx-dev` is Daniel's call, after the fix |
+
+**Data beside the row, not graded:**
+- The last firing (20:37:45Z) ended **`canceled`** after 6.8 s of wall time, under three `wx_dev_off` lines: `:00`
+  twice and `:30` once.
+  - Readings: a firing cancelled as the cron's removal took effect and then delivered again under the same
+    `scheduledTime`; or one invocation logged twice.
+- R3-6's instrument shows **6 `success` + 1 `clientDisconnected`** where the Logs show 6.
+  - Readings: the parked version's 20:31:45Z invocation was still running at S5's deploy and is counted by its end
+    time; the cancellation reads as `clientDisconnected`; or sampling.
+  - It isn't graded; S5's row reads from the Logs.
+- **The removal took 336 s here, and 323 s before.**
+
+### Plan S, complete (2026-11-05 03:12-21:02Z)
+
+| phase | version | verdict |
+|---|---|---|
+| S0 | `b350ba72` (`off`) | as predicted (row re-registered ~03:30Z) |
+| S1 | `13cd381e` (fifth attempt; four aborted: `85a35361`, `f967798b`, `5e4c9a8b`, `093b18f7`) | OFF on its +/-25% clause; **`C` = 9,480 ms**; identical work read 7,939-12,693 (ruled (a)) |
+| S2 | `6ebea4e7` | **LIVE: 10 of 10 `exceededCpu`; R3-6 saw `exceededResources` 10/10** |
+| S3 | `d06df358` | OFF: the max was a backfill (5,733) and one invocation vanished (59 of 60). **`cref` single-build median 1,186, max 2,548** (ruled (a)) |
+| S4 | `d0b57204` | **AS PREDICTED: `opuk` alone median 2,055, max 3,123** |
+| S5 | `1379f573` | **AS PREDICTED: last firing 336 s after the cron's removal, then quiet** |
+
+**What Plan S established for the fix:**
+- R3-6's CPU-limit gate can see a kill, and R3's 0 errors meant no kill.
+- The dev copy measures what production measures.
+- `opuk` alone builds in about 2.1 s, with a max of 3.1 s.
+- Four facts the fix's predictions carry:
+  - identical work can read 1.6x apart;
+  - a backfill costs about twice a build;
+  - about 1 in 60 to 1 in 90 invocations vanish;
+  - adaptive GraphQL sums can be inflated by a sampled row.
+- Cron changes take up to 15 min to start or stop; version changes are immediate.
