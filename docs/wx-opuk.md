@@ -1204,3 +1204,19 @@ ruling names another target. The copy never binds `blipscope-wx`.
   - Tests still get an in-memory bucket.
   - Only a `wrangler dev --remote` of the proxy would now reach a real, empty bucket.
   - Staging and production bind `blipscope-wx` and are unchanged.
+
+**Daniel, via the reviewer chat, pasted ~01:00Z (verbatim):**
+
+> Daniel's yes: create the R2 bucket blipscope-wx-dev for Plan S. Deleting it afterwards stays his call. If your token can't create buckets, say so, and Daniel will create it in the dashboard. The rest of the ~00:55Z ruling stands: the PR first, then a slot from me for S0.
+
+- **Already done.** The bucket was created at 00:47:50Z on Daniel's direct word in this session, through the wrangler
+  OAuth login, so no dashboard step is needed.
+
+**Plan S's PR: #537** (`feat/wx-plan-s`).
+- Predictions were frozen first at `22707c5` (00:51:39Z); the code is `7321f58`.
+- Its own record is `docs/wx-plan-s.md`.
+- Locally: all four test sabotages and both bundle sabotages read as predicted. The selftest caught a separable
+  marker in the first draft before the push.
+- The full suite has one local-only failure: the CRLF checkout of `credits.html`, recorded with the alternative
+  excluded.
+- CI is read when finished. Nothing deploys before the review, the merge and a slot.
