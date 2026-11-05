@@ -1929,3 +1929,22 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
   - about 1 in 60 to 1 in 90 invocations vanish;
   - adaptive GraphQL sums can be inflated by a sampled row.
 - Cron changes take up to 15 min to start or stop; version changes are immediate.
+
+**Ruling, pasted ~21:30Z (verbatim):**
+
+> S5: AS PREDICTED. The cancelled last firing and the clientDisconnected row are recorded beside it, ungraded. Plan S is complete, and its table stands as you give it. The dev Worker and blipscope-wx-dev stay in place, unscheduled, until R3' has passed. Deleting them is Daniel's call.
+>
+> Item 3: accepted as proposed. Build it in one PR, with predictions first:
+> 1. The shape: opuk in its own Worker, blipscope-wx-ingest-opuk, with the cref Worker checking only cref. checkAll's default stays both, so PS1 is unchanged.
+> 2. The WX_INGEST stop, plus [env.inert] keeping the cron, so stopping opuk is an immediate version change.
+> 3. cpu_ms 12,000 for each Worker, from the margins as tabled. cref's headroom row is recorded: today's 5,000 sits below a measured two-build cref backfill (5,733 ms).
+> 4. FT1, FT2 and FB2, each with its sabotage. Add one more check: no two deploy targets across both tomls check the same product. Its sabotage gives the opuk entry cref as well.
+> 5. R3', registered in full in the PR before any deploy:
+>    - every row R3 had;
+>    - per-Worker CPU bars from Logs invocation records, with sampleInterval beside any GraphQL figure;
+>    - backfill excluded from graded sets;
+>    - the vanished-invocation margins;
+>    - the order: opuk first, then the cref Worker;
+>    - both rollbacks.
+>    When the PR is ready, I'll set its slot and say whether it needs a board hold.
+> Cost: about $0.53 a month, under $2. Accepted.
