@@ -12270,3 +12270,42 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
   - a stale allowlist entry must be refused.
 - **Its predictions** (the file count, and today's findings, the runner path and any others it turns up) **are frozen in its own addendum, after a read-only first run.**
 - **Its scope question is the reviewer's:** fonts and photos are third-party binaries whose strings are not ours. The proposal scans them anyway and allowlists by sha256, rather than exempting by type.
+
+### A12.112 #552 merged; main's CI AS PREDICTED. The next release is R: its cut gate in RELEASING.md, frozen before the docs PR. Q80 next
+
+**The ruling (~20:15Z):**
+- **#552 is approved at `d97a856b79a8`.** The reviewer reviewed the core:
+  - the record is parsed strictly;
+  - Accept needs the board and the requested scope;
+  - Decide refuses before any write, and O9 showed it on the board.
+- **Q78 and Q79 are done as ruled.**
+- **The path-carrying commits stay in the PR's history,** and main gets only the squash.
+- **Merging makes the next release from main R.** RELEASING.md's cut checklist must name, in plain words:
+  - no install of any pre-check image ever again;
+  - switching works only to scopes published at or after R.
+- **Q80: yes, as its own PR after #552, predictions first.**
+  - Photos are in scope, including their metadata: EXIF and XMP for GPS or location tags.
+  - Fonts are out, allowlisted by hash as third-party files.
+
+**#552, merged:**
+- **The merge:** `84409651daff` at 2026-11-05T20:10:53Z.
+- **Its parent is `3e0a4443e6b5`** (main moved), and its diff equals the PR's (the patch-ids match).
+- **The `test/fixtures/ota/heads/` on main** are the five `*.head.bin` only; no path-carrying head is on main.
+- **The branch is deleted.** `--delete-branch` was not passed, since a worktree holds the local branch; it was deleted by `git push --delete`.
+- **Main's CI** (finished 20:26:30Z, read twice): **33: 30 success, 3 skipped (publish, promote, version), 0 failed**. Firmware 29 (28 + 1), plus `device-ids`, `no-traffic-captures` and web-renderer's 2: **32 on 24.04, 1 on 26.04. AS PREDICTED.**
+
+**The R gate, a docs-only PR (`RELEASING.md` alone):**
+- **The planned-check note** now reads "In `main` since 2026-11-05 (#552), not yet in any release". The next release cut from `main` is **R**, and the note points to the gate.
+- **A "⛔ HARD GATE" at the top of "Cutting a release",** beside the photo-library gate:
+  - **"Is this cut R?":** the tagged commit has `include/OtaIdentity.h`, and `releases/latest`'s `firmware-s3-128.bin` reads `(record: no-record)` under `scripts/check_ota_identity.py --extract-head`.
+  - **Checked both ways before freezing:** v18's image reads `no-record`, and a build at this branch reads `ok`. Main has `include/OtaIdentity.h`.
+  - **If it is R:** no tag until Daniel has said OK, in these words, to four consequences:
+    1. no device on R or later will ever install a pre-check image again, of any scope;
+    2. switching works only to scopes whose image was published at or after R;
+    3. board identities and the record's format are fixed;
+    4. a factory image built before R carries no check, and cannot be returned to over OTA.
+  - "A green CI run is not that OK."
+- **Run locally before the push:** `check_wifi.py` OK and `check_device_ids.py` OK.
+- **The PR's CI, predicted** from #552's job list (no `src/`, `include/`, `platformio.ini`, card or provisioner path, so web-renderer does not run): the firmware workflow's 29 + `device-ids` + `no-traffic-captures` = **31 check runs, 28 success, 3 skipped (ship-alert, promote, version), 0 failed; 30 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+
+**Q80 comes next, as its own PR.** It starts with a read-only run that counts the excused files and their findings. Its predictions are frozen in their own addendum before any code is committed.
