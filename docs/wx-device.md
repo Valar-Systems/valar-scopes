@@ -4794,3 +4794,39 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
   - Both drivers refuse any window outside 10:00-16:45Z. `w5p5_run.py` is now `0ae64866100c` and `k6_arm_run.py`
     `26e51a718186`, and every rehearsal passes.
   - One chained script (`chain_1000Z.sh`) runs them in order and stops at the first failure.
+
+### W5⁵, the full run (2026-11-05 10:00:31-12:33:59Z; 2:00-4:34 AM PST): G3 OFF
+
+- **Ten arms, O1 to N5.** No arm waited, none was PC-LOADED, and none was refused. The feed served 8,347 with 0
+  refused. The restore left E2:08 back as before: `wxlook`, layer on, look A, data-source cloud, local-url empty.
+- **As predicted:**
+  - lines per plateau: every arm at or above the worked minimum;
+  - **G1′:** 155 lines at their plateau, 0 off it, 30 transitional;
+  - **G5:** the restore, back as before, with no retry;
+  - **G6:** no arm PC-LOADED, no start refused.
+- **G3, the grade: OFF.** N − O over the four shared bins [24, 28, 32, 36] is [0.3, 1.5, 2.1, 2.3] ms, a median of
+  **1.8 ms**, against ±1 ms.
+  - The control, (O1+O3+O5) − (O2+O4), reads [0.7, 0.35, 0.05, 0.5], so **0.43 ms**: the instrument resolves the
+    difference.
+  - Per-arm p95 medians: O 53.9-55.3 ms, N 55.8-56.5 ms.
+- **The alternatives, none excluded by this data:**
+  - **(a) #445's own code** costs ~1.8 ms a frame with the layer off.
+  - **(b) Main's commits merged into #445 since `962ccb7`** cost it. N is `baac757`, which holds 18 of main's commits
+    (#531's carousel among them) that O (`962ccb7`) does not, so N − O measures #445 **and** them.
+  - **(c) Placement:** layout or link-order effects with no added work, the possibility Item 5 names.
+- **The run that separates (a) and (b):** O′ = main at #445's merge base with main. Then N − O′ isolates #445. It is
+  not run: off-prediction, so stop and report.
+- **The chain's own bug, on the record:** its "read exit" figures took `$?` after `$(date)`, so they are `date`'s.
+  `w5p5_read.py` in fact reports OFF.
+
+### K6-F (12:34:00-12:34:26Z): stopped at RC1 by a stale input, no measurement
+
+- **What stopped it:** RC1's crop tool refused: "proxy/src/wx/ here differs from origin/main's". `wt-mainenc` is
+  meant to be a clean checkout of `origin/main`, and it is still at `1a4ecf4` while main's encoder has moved.
+- **The stop path restored E2:08:** label fields as before, cloud-url blank, layer on, look A.
+- **K6-L1 never ran:** its session name collided with F's in the same minute. The chain then stopped.
+- **Two more chain bugs, on the record:**
+  - the K6 driver's stop path exits 0, which the chain read as success;
+  - two `--mkdir` calls in one minute collide.
+- **The fixes are not made:** fast-forwarding `wt-mainenc` changes the encoder that makes the crop K6 draws, so it is
+  the reviewer's to rule, alongside G3. The F control in the same sitting would absorb it.
