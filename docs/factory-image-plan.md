@@ -501,3 +501,39 @@ at 0x0 on COM16.
 | **T2** | the panel after an unplug and replug | the setup screen with its QR | anything else: **stop** |
 | **T3** | `esptool verify-flash 0x0 firmware-s3-128.factory.bin` (read-only) | the digest matches: the chip's first 2,059,264 bytes are v18's factory file | a mismatch: **stop**, the tool did not write what the sheet says |
 | **T4** | the first 4 KiB of `app1` (0x660000), read-only, where P4 left v18 | all 0xFF: ERASE wiped the whole chip | any other byte: **stop**, the sheet's ERASE step does not erase the whole chip |
+
+**Results (2026-11-05 ~21:00-21:10Z): T3 is off as frozen. Stopped; a ruling is needed.**
+
+| | got | verdict |
+|---|---|---|
+| **T1** | Daniel followed the sheet in **Develop** mode. He had first picked Factory in the opening dialog and switched to Develop, as the sheet says. ERASE ended in FINISH, and START ended in FINISH. `DoNotChgBin` was already ticked and greyed out: 3.9.11 locks it on. The DetectedInfo box shows `STA: <12 hex, no colons>`, which is **the MAC esptool prints** (it ends E794, the board's serial). AP and BT are base+1 and base+2. **The console never prints `Hash of data verified.`** Its write ends `Compressed 2059264 bytes to 1178113...` and `is stub and send flash finish`, with a `No errors detected.` line before it | as predicted (FINISH). The open question is answered: **no** hash line |
+| **T2** | after a replug: a splash reading **"Blipscope V18"**, a 3-second Wi-Fi-reset countdown, then the setup screen with its QR | as predicted |
+| **T3** | `verify-flash 0x0` over the whole file: **digest mismatch**, exit 2 | **OFF** |
+| **T4** | 4 KiB at `app1` (0x660000), where P4 had left v18: **0 non-0xFF bytes** | as predicted: ERASE wiped the chip |
+
+**T3's cause, named by a read-only check region by region:**
+- **Match:** the bootloader and partition table (0x0-0x9000), otadata (0x1E000-0x20000) and the
+  app (0x20000 onward).
+- **Differs:** the NVS span (0x9000-0x1E000) **only**.
+
+The board booted at T2's replug, **before** T3 ran, and the firmware writes NVS as soon as it
+runs. So a whole-file compare made after a boot fails, whatever the tool wrote. This is the false
+failure `docs/provisioning-mint.md` records from 2026-09-25 ("never a post-boot compare of NVS").
+**The alternative, that the tool wrote the wrong bytes, is excluded** for every region whose
+content the factory file defines: all of them match. **The miss is in my check, not the tool:**
+T3 should have compared the defined regions, or run before any boot.
+
+**F11 was wrong, and is corrected here.** It said the firmware version is not on the screen. A
+fresh unit shows a splash with **"Blipscope V18"** before the setup screen. I missed it when
+reading the source.
+
+**Proposed for a ruling. The sheet is not edited until then:**
+1. **The Flash Download Tool's pass sign** becomes FINISH plus the screen. Its console has no
+   hash line, so `Hash of data verified.` stays the esptool pass sign only.
+2. **Both tools gain the screen sequence** as a pass sign: the splash reading "Blipscope V18",
+   the 3-second countdown, then `SETUP` with the QR. The version on the splash names the image.
+3. **The Download Tool steps** say `DoNotChgBin` is already ticked and locked in 3.9.11, and that
+   the STA value appears as 12 characters without colons (the import accepts both forms).
+4. **A note** that the tool is not code-signed.
+5. **T3 re-graded as a region check:** A, C and D match. That is this run's evidence that the
+   tool wrote exactly what the sheet says.
