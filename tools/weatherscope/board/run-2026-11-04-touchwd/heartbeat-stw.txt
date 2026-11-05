@@ -1,0 +1,4 @@
+grade_touchwd.py --stw 2 on the S-TW image's passive watch (A12.87)
+      first  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=0/0 maxOutage=0ms rebootRec=0
+   +600.0 s  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=0/0 maxOutage=0ms rebootRec=0
+AS PREDICTED
