@@ -624,3 +624,32 @@ matches what is serving is a stop.
 6. verify (`/healthz` reports the commit; `smoke-prod.sh`);
 7. the feeder's KV entry (the id never printed), then Daniel power-cycles the feeder;
 8. the night reading, registered before it is read.
+
+### #540: D5 (a) and the device-entry tool (ruled ~19:50Z), frozen before they run
+
+- **D5 is now the `null` case alone:** "a null devices layer must not break /v1/config for any
+  device". Two different devices (`TEST_DEVICE` and the allowlisted `OTHER_DEVICE`) each get 200
+  and the body they get without the layer. The string-entry case is dropped as a non-check, for
+  the reason recorded above (shown by running it). **S-D5** (the guard removed, as before) turns
+  red exactly {D5}.
+- **`scripts/fleet-device-entry.ts`** writes the feeder's `cfg:fleet` entry. It replaces the
+  hand-written steps above.
+  - **The device** is the token file's `feeder-device` line, never printed. `token-file.ts`
+    learns the key, a list-only change.
+  - **Values:** it refuses any value that is not a whole number from 1000 to 4294967295, which is
+    what `src/CloudFeed.cpp` applies unchanged (`is<unsigned long>`, and the 1000 ms floor every
+    poll interval inherits). The check runs before anything is read or written.
+  - **The write:** it reads, merges, writes from a temporary file, and reads back as one
+    boolean.
+  - **Its one test,** in `test/fleet-device-entry.test.ts`, covers the accepted and refused
+    values, the merge and the read-back with its control. **S-W** (the whole-number check
+    loosened to accept `15000.5`) turns red exactly that test.
+- **Local, before the push:** `config.test.ts` reads 14 and `fleet-device-entry.test.ts` reads 1,
+  all green, behind the port gate.
+- **CI for the new head (the tool's test lands in the Workers suite):** 33 check-runs, 30
+  success, 3 skipped, 0 failed; Workers **911 passed, 1 skipped (912)**, which is 910 plus the
+  tool's one test (D5 is rewritten in place); dashboard 104. Main is at `a3091cd`, which is docs
+  only. If main moves before CI runs, the base is re-read and the counts re-derived before the run
+  is judged.
+- **Then, pre-approved:** merge at that head with `--squash --match-head-commit`, no `--admin`.
+  The order recorded above follows.
