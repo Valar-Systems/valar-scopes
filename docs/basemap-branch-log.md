@@ -282,3 +282,39 @@ also has 24.
 >      known file names exactly that file). Then re-run S-RORDER alone.
 >    - A BLIND under the TIME_WAIT gate means the gate alone doesn't keep the runtime up; note it for A2.12.
 >    - Then, as registered: the whole basemap driver again, plus the smoke and credits drivers, before any code push.
+
+### S-RORDER alone, as ruled (23:22-23:23Z)
+
+    baseline[all]: 0 failing cases (145 cases seen in 17 files) [TIME_WAIT 3168 at start]
+    S-RORDER: AS PREDICTED, failing {MR2} [TIME_WAIT 6314 at start]
+
+**{MR2} reads as (a): the runtime flake.** The driver change that names missing files is therefore not needed.
+
+### The second pass (23:23Z-00:08Z): the basemap driver as predicted; the smoke driver's rig refused; stopped
+
+**`sabotage-basemap.mjs`, the whole driver: AS PREDICTED throughout.**
+- 61 runs, **0 runtime failures**. The highest TIME_WAIT at a run's start was 7,909; held for ports 1,492 s.
+- Baselines: 10, 31 and **145 in 17 files**.
+- **All 58 sabotages as frozen:**
+  - S-W304LATE {MK2, MK6, MW10};
+  - S-MK304 {MK2, MK6}; S-MKHIT {MK3, MK6}; S-MKKMISS {MK4, MK6}; S-MKUNK {MK1, MK6};
+  - S-MKPRE {MK5}; S-MKAE {MK7};
+  - C-LOADFAIL BLIND.
+
+**`sabotage-smoke-basemap.mjs`: its rig refused before any sabotage**, exit 2:
+
+    RIG: the unsabotaged suite must pass first (failed ?, parsed false, timed out false)
+
+- **What the line says:** the unsabotaged whole-suite run produced no parseable `Tests` summary, and did not time out.
+- **The output was not kept.** The driver discards the raw output.
+- **The consequences:** S-SQ and S-SQP were not read. The `&&` chain did not start `sabotage-credits.mjs`. The tree was
+  clean after.
+
+**Two explanations, and the data rules out neither:**
+- **(a) Port exhaustion during the run.**
+  - The driver's gate checks for TIME_WAIT under 8,000 only **at the start**. It started straight after the basemap
+    driver, whose last runs began at up to 7,909.
+  - A whole-suite run (68 files) adds thousands more connections. **TIME_WAIT read 15,721 at 00:08:00Z, just after**,
+    against Windows' 16,384 ephemeral ports.
+- **(b) A real failure** that produced no summary. The same suite at this tree passed whole at ~22:40Z (891 / 1), but
+  without the discarded output this is not excluded.
