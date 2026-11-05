@@ -1193,3 +1193,14 @@ ruling names another target. The copy never binds `blipscope-wx`.
 > Go ahead with the PR now, predictions first and then code. Nothing deploys before three things: my review and the merge, the bucket, and a slot from me for S0. S1-S5 redeploy only the dev Worker and need no further slots. Plan S shares nothing with the proxy, the Bend feed or any board, so it may overlap #536's T5.
 >
 > Held: R4 and node_modules, as before.
+
+**The bucket, on Daniel's direct word in this session (~00:47Z): "yes, create blipscope-wx-dev".**
+- `npx wrangler r2 bucket create blipscope-wx-dev --location wnam --storage-class Standard`: 00:47:50Z, exit 0,
+  empty stderr. The location and storage class match `blipscope-wx` (WNAM, Standard), read just before.
+- `wrangler r2 bucket info` reads back created 00:47:51.762Z, WNAM, Standard, 0 objects, 0 B. The weather buckets are
+  now `blipscope-wx` and `blipscope-wx-dev`.
+- **A side effect to know:** `blipscope-wx-dev` is also the name of the proxy's top-level dev/test binding
+  (`proxy/wrangler.toml`).
+  - Tests still get an in-memory bucket.
+  - Only a `wrangler dev --remote` of the proxy would now reach a real, empty bucket.
+  - Staging and production bind `blipscope-wx` and are unchanged.
