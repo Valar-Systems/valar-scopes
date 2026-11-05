@@ -301,7 +301,8 @@ const SABOTAGES = {
   },
   "S-PWRITE": {
     file: WORKER, set: "all",
-    edits: [["    const r = await build(r2Reader(env.STORE), q, { commit });\n", "    await env.STORE.put(\"sabotage\", \"x\"); // SABOTAGE S-PWRITE\n    const r = await build(r2Reader(env.STORE), q, { commit });\n"]],
+    // Re-anchored (docs/basemap-build-reads.md): the build line now hands r2Reader its stat. The set is unchanged.
+    edits: [["    const r = await build(r2Reader(env.STORE, stat), q, { commit });\n", "    await env.STORE.put(\"sabotage\", \"x\"); // SABOTAGE S-PWRITE\n    const r = await build(r2Reader(env.STORE, stat), q, { commit });\n"]],
     expect: ["MP2"],
   },
   "S-PETAG": {
@@ -388,6 +389,23 @@ const SABOTAGES = {
     edits: [['      blobs: [route, m.cache ?? "", m.upstream ?? "", m.model, m.dev ?? "", m.fw ?? ""],\n', '      blobs: [route, m.cache ?? "", m.upstream ?? "", m.model, m.dev ?? "", m.fw ?? "", ...(m.bm ? [m.bm] : [])], // SABOTAGE S-MKAE\n']],
     expect: ["MK7"],
   },
+  // The BB rows' (docs/basemap-build-reads.md): the builder's read line. S-BB1's set holds BB2 too: the uncounted read
+  // (`current`) is also one of no_coverage's three.
+  "S-BB1": {
+    file: WORKER, set: "all",
+    edits: [["      stat.reads++;\n", "      if (key !== \"bm/v1/current\") stat.reads++; // SABOTAGE S-BB1: one read uncounted\n"]],
+    expect: ["BB1", "BB2"],
+  },
+  "S-BB2": {
+    file: WORKER, set: "all",
+    edits: [["      console.log(JSON.stringify({ evt: \"bm_build\",", "      if (r.ok) console.log(JSON.stringify({ evt: \"bm_build\","]],
+    expect: ["BB2"],
+  },
+  "S-BB3": {
+    file: WORKER, set: "all",
+    edits: [["...stat, wallMs: Date.now() - t0 }));", "...stat, wallMs: Date.now() - t0, lat0Micro: q.lat0Micro })); // SABOTAGE S-BB3"]],
+    expect: ["BB3"],
+  },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
     file: LAYERS, set: "all",
@@ -402,7 +420,8 @@ const sha = (b) => createHash("sha256").update(b).digest("hex");
 const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 // A PK id may hold hyphens (A12.15's neg-terrain-count) and must end at the title's colon, so it is either whole or
 // UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+// BB<n> (docs/basemap-build-reads.md): the builder's read-line rows, named in #539's plan before this pattern knew them.
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // Every vitest run, and how many met a Workers runtime failure (ruled 2026-10-28, A2.12: "If the runtime failure
 // recurs, report how often"). Printed at the end of every pass, zeros included. A run whose output carries the
