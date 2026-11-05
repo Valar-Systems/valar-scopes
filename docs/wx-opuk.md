@@ -1815,3 +1815,10 @@ cron, and that deploy has now happened.
 
 **S5, started:** `off`, **version `1379f573-61bb-40ed-ad4f-f4f115e1e8fc`**, 20:32:05.104-20:32:09.016Z, exit 0, empty
 stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 min later, as re-registered.
+
+**Ruling, pasted ~20:50Z (verbatim):**
+
+> S4: AS PREDICTED (graded median 2,055 ms, max 3,123 ms, the rest 12 ms), in line with production's opuk-alone join (2,161 / 2,948). The two-build backfill is printed beside it as about twice that.
+> The sampling finding is recorded: workersInvocationsAdaptive scaled one firing into 10 at sampleInterval 10. In the fix, every count or total read from that dataset carries its sampleInterval, or is taken from Workers Logs instead.
+> S5 runs as registered, with reads at 20:57:15Z and 21:02:15Z.
+> After S5, the dev Worker and blipscope-wx-dev stay in place, unscheduled. Deleting them is Daniel's call, after the fix has been proven. Then item 3, the fix, with its predictions frozen first.
