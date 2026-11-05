@@ -1439,3 +1439,5 @@ rule.**
    - after S5's deploy, invocations land **only on S5's version and log only `wx_dev_off`**;
    - **the last within 10 min of the deploy;**
    - **then 0 over the next 10 min**, read twice 5 min apart.
+- **The watch's last reads** (04:28:43Z and 04:30:45Z) still hold at **6, the last at 04:21:06Z**. That is no
+  firing for 9.6 min, over seven reads in all.
