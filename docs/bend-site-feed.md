@@ -8,6 +8,9 @@
 - add no upstream load and only cheap CPU to device traffic;
 - be self-contained behind one switch, so it can be removed in one small PR.
 
+**Changed 2026-11-04 (Daniel): the writer rule is now 10 s, not 30 s.** See "The 10 s writer throttle" at the end.
+The sections below are the original design and its records, and they keep the 30 s they were written with.
+
 **His decisions (2026-10-21):**
 1. **A durable snapshot, in a Durable Object.** KV's worst-case visible age is about 100 s, and KV can't enforce once-per-30 s strictly across colos.
 2. **The write runs in `waitUntil`** and can never slow or fail a device response; its errors are counted.
@@ -381,3 +384,62 @@ S3's A window has closed, so the two fleet comparisons never overlap.
 
 **No production deploy follows this record.** #512's `/credits` lines go live with the map server's D4, and
 production deploys stay with the map server.
+
+## The 10 s writer throttle (Daniel, 2026-11-04): frozen before the code
+
+**Why.** The dedicated Bend feeder is running, and the website measured the snapshot's age: median 21 s, max 42 s,
+under the 30 s writer throttle. With the site's own hold added, its radar crossed its 45 s STALE line too often.
+
+**The change: one constant.** `WRITE_MIN_INTERVAL_MS` goes from `30_000` to `10_000` in `src/sitefeed/bend.ts`.
+- It sets three things: the per-isolate send guard, the Durable Object's global rule (read against the stored row's
+  own `writtenAt`), and the period of the `skipped_not_covered` count.
+- **No new upstream load.** `bend.ts` fetches nothing and imports nothing from `../upstreams`. The feeder already
+  polls every 5 s; this changes only how often the snapshot is saved.
+- **The event keeps its name, `refused_30s`,** so its readers and its series continue. It now counts refusals by the
+  10 s rule. This is proposed for the reviewer: the alternative, a rename, starts a new series.
+
+**Read first.**
+- **The baseline, from production's Analytics Engine** (read 2026-11-04 23:54Z; counts only; full hours with the
+  feeder up, 19:00-22:00Z):
+  - `written`: 107, 106, 106, 106 an hour, so one accepted write every ~34 s on average;
+  - `refused_30s`: 189, 165, 208, 123;
+  - `skipped_not_covered`: 107, 109, 117, 104;
+  - `write_error`: 0.
+- **What drives the rate:** `blips.ts`'s fresh TTL is 3 s, so a device polling every 5 s refreshes its tile, and
+  calls the writer, on nearly every poll. Today it is the 30 s guard that binds. At 10 s, the first refresh at least
+  10 s after a send sends again.
+- **What a deploy carries:** production runs `f740f10`. Main's bundle paths (`proxy/src`, `proxy/pages`,
+  `proxy/wrangler.toml`, `proxy/package.json`) have no commit since, so a deploy of main after this merges carries
+  this change only. It is re-read at the deploy.
+- **Main's Workers suite** (CI on `c039a5e`; #533 since is docs only): 884 passed, 1 skipped (885); the dashboard
+  suite 104.
+- **The CI shape:** #532, which touched `proxy/` and `docs/` only, ran firmware, workers, no-traffic-captures and
+  device-ids: 41 check-runs, 38 success, 3 skipped (`promote`, `ship-alert`, `version`).
+
+| | check | predicted |
+|---|---|---|
+| **T1** | B5, rewritten for the new rule and pinned to the literal value: a write at t0 is accepted; at t0+9.999 s, on a NEW instance, refused; at t0+10 s, accepted. Plus `WRITE_MIN_INTERVAL_MS === 10_000` | passes. **S-B5** (the rule kept in an instance field) turns it red. **S-B5b** (the constant back at `30_000`) turns it red. Both are run locally, in a copy, and observed failing |
+| **T2** | the Workers suites, local and CI | proxy **884 passed, 1 skipped (885)**, B5 rewritten in place with no test added or removed; dashboard **104** |
+| **T3** | the diff | `proxy/src/sitefeed/bend.ts` (the constant and its comments), `proxy/test/sitefeed-bend.test.ts` (B5), `proxy/README.md`, `docs/bend-site-feed.md`. No import added to `bend.ts` |
+| **T4** | CI on the PR head | **41 check-runs: 38 success, 3 skipped, 0 failure**, the shape of #532. Main re-read at the push |
+| **T5** | production, the first two full hours after the deploy | `written` **between 220 and 360** in each, and **never above 360** in any full hour: the Durable Object's rule allows one write per 10 s, so a count above 360 would mean the rule is broken. `write_error` **0**. `refused_30s` and `skipped_not_covered` rise. `/healthz` shows the merge commit; `smoke-prod.sh` passes |
+| **T6** | the age the website measures, measured as before (the website's to read) | **median 8-14 s** (was 21 s); **max ≤ 30 s** over a sample like the last (was 42 s). The model's bound is u ≤ 10, plus w ≤ 10 + 12 (the gate plus at most one refresh), plus c ≤ 10, = **42 s**, so the snapshot alone stays under 45 s. The site's own hold is added on top, and it is the site's |
+
+**Outside the set:** stop and report.
+
+**Who deploys is not settled by this section.** The standing rule of 2026-11-04 ~17:05Z, recorded above, keeps
+production deploys with the map server. Daniel's message asks for "deploy". Which applies is asked before the deploy,
+not assumed.
+
+**Local results (2026-11-05, before CI)** (the code is `51805c6`):
+- **T1:** as predicted. On the one file, `test/sitefeed-bend.test.ts`, the control passes 16/16.
+  - **S-B5b** (the constant back at `30_000`): 1 failed, 15 passed. The red is B5 alone.
+  - **S-B5** (the rule kept in an instance field): 1 failed, 15 passed. The red is B5 alone.
+  - `bend.ts` was restored from its bytes each time (sha `364b8669fdcd`), never by git.
+- **T3:** as predicted. The diff is the four files named, and `bend.ts`'s imports are unchanged.
+- **T2, local: BLIND twice. The instrument failed both times; neither is a result.**
+  - The Workers runtime lost its module service (`ConnectEx(): #1225 ... refused`, then "No such module") and
+    vitest stopped partway.
+  - The second attempt started at 4,153 TIME_WAIT sockets, under the 8,000 gate, and its own run took the count to
+    15,673. So the full suite exhausts this machine's ephemeral ports by itself.
+  - T2 rests on CI.

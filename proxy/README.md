@@ -454,7 +454,7 @@ entrypoint = "BendFeed"
 - **It isn't a route.** No public request can reach it, and it takes no device credentials.
 - **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.058, -121.315).
 - **The snapshot carries nothing of the device:** no tile, no radius bucket, no limit.
-- **Writes:** at most once per 30 s, globally (`BendSnapshotDO`, one instance), in `waitUntil`, so they can never slow or fail a device.
+- **Writes:** at most once per 10 s (30 s until 2026-11-04), globally (`BendSnapshotDO`, one instance), in `waitUntil`, so they can never slow or fail a device.
 - **Reads:** cached 10 s per colo.
 
 **The response:**
@@ -475,7 +475,7 @@ entrypoint = "BendFeed"
 - The feed is **Bend only by construction**: one fixed snapshot, and `snapshot()` takes no place (test B12 refuses one).
 - Showing any other location needs Samuli's OK first. It is a licensing change before it is a code change.
 
-**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s` and `write_error`. They are counts only, with no location.
+**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s` and `write_error`. They are counts only, with no location. `refused_30s` keeps its original name; it counts refusals by the current 10 s rule.
 
 **Removing it** (one small PR, once the website moves to the worldwide feed):
 1. Set `SITE_FEED_BEND` to anything but `"on"`. That stops every read and write without a code deploy.

@@ -7,6 +7,7 @@ import {
   BendFeed,
   BendStore,
   RADIUS_KM,
+  WRITE_MIN_INTERVAL_MS,
   __resetSiteFeedForTests,
   covers,
   extract,
@@ -180,8 +181,11 @@ describe("the writer, on the device path", () => {
   });
 });
 
-describe("B5 the 30 s rule lives in storage", () => {
-  it("a write 10 s later on a NEW instance is refused; 31 s later it is accepted", async () => {
+// The rule's VALUE is pinned here as a literal (10 s since 2026-11-04, Daniel; docs/bend-site-feed.md, "The 10 s
+// writer throttle"), never read back from the constant -- a test that followed the constant could not fail.
+describe("B5 the 10 s rule lives in storage", () => {
+  it("is 10 s: a write 9.999 s later on a NEW instance is refused; 10 s later it is accepted", async () => {
+    expect(WRITE_MIN_INTERVAL_MS).toBe(10_000);
     const map = new Map<string, unknown>();
     const storage: SnapStorage = {
       get: async <T>(k: string) => map.get(k) as T | undefined,
@@ -190,9 +194,9 @@ describe("B5 the 30 s rule lives in storage", () => {
     const snap: Snapshot = { t: 100, source: "adsb.fi", aircraft: [] };
     let now = 1_000_000;
     expect(await new BendStore(storage, () => now).write(snap)).toBe("written");
-    now += 10_000;
+    now += 9_999;
     expect(await new BendStore(storage, () => now).write(snap)).toBe("refused_30s");
-    now += 21_000;
+    now += 1;
     expect(await new BendStore(storage, () => now).write(snap)).toBe("written");
   });
 });
