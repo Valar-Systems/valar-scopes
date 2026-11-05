@@ -11314,3 +11314,34 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **(b)** Something else first.
 - **Recommended: (a).**
 - **The TouchWatchdog PR still waits for B1/B3.**
+
+### A12.96 Q72 (a): W4 re-runs in full in a new window, 2026-11-05 03:10Z-04:30Z, announced before it opens
+
+**The ruling (~02:45Z):** Q72 (a). W4 re-runs in full in a new announced window, and only the launch changes. The 00:50Z partial run is not graded. If this run is cut again: stop and report, retry nothing.
+
+**The window: 907069326E64, 2026-11-05 03:10Z to 04:30Z.**
+- **The image:** the clean image on the board since W2 (`39e258b5be07`). No write, no rebuild.
+- **The tools:** main's, at `30d7e55b47f1`. Main has moved since A12.94, but only in `include/variants/s3_128.h`, which the image on the board does not include, and in no board tool.
+- **C:** 72 GB free at 02:59Z.
+- **During the window:** no build and no whole-suite test run from this session.
+
+**The steps, as A12.94's:**
+1. `read-mac`, then `boot_lines`.
+2. `read-mac`, then `run_b35t.py` in full into a new empty directory, `captures/run-2026-11-05-touchwd-w4c`.
+3. `grade_b35t.py` with this window's boot read, `--boot-setting auto:known`.
+
+**What changes, the launch only:**
+- **One bash wrapper (`twd-w4c.sh`), started through the Bash tool's background mode.**
+- **Every Python step runs under `python -u`,** so the runner's log is written as it goes and survives a cut.
+- **The wrapper appends each step's start and exit, with UTC times, line by line.**
+
+**Predicted:** every row as A12.94:
+- the boot read as W2's;
+- **no boot-time theme line** (it is Dallas night);
+- `grade_b35t.py` **ALL AS PREDICTED** (B1 exact in both themes, B3, BSW, BSW-L, the watcher 0 unexplained);
+- every heartbeat with wedges, wakes and failed probes 0, and the ok-probe count rising;
+- TCP :80 up after the close; the board left on the clean image.
+
+**blipscope-5c's E2:08 windows** start at about 03:05Z and run for several hours. So this window overlaps them, and the overlap's times go in the run record. They are separate boards on separate ports.
+
+**If the run is cut again:** stop and report, retry nothing.
