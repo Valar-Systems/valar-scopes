@@ -27,6 +27,11 @@ jobs:
       # two redaction implementations agree. pwsh is on the ubuntu image.
       - run: python3 scripts/check_wifi.py
       - run: python3 scripts/check_wifi.py --selftest
+      # What check_wifi.py EXCUSES, read (docs/weatherscope-stage3.md A12.113): every binary it cannot decode has its
+      # strings scanned under check_wifi.py's own patterns plus a user-directory path, and its photos' EXIF and XMP
+      # checked for location. Fonts are third-party and allowed by hash. The selftest plants into real copies first.
+      - run: python3 scripts/check_binary_strings.py --selftest
+      - run: python3 scripts/check_binary_strings.py
       - run: python3 scripts/check_redaction_vectors.py
       - run: python3 scripts/check_redaction_vectors.py --selftest
       # Full history is NOT needed and is not wanted: this scans the tree at
