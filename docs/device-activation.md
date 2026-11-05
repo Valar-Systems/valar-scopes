@@ -555,3 +555,56 @@ can fail, so a C1 of 0 will mean something. The two sources agree on 20.
 
 If Daniel's bench records do not cover the self-enrolled 18, C1 stops the deploy on them: the
 breakdown named in advance, which needs a ruling.
+
+## Grandfathering (ruled ~19:50Z): frozen before its code and before any production write
+
+**Ruled:**
+- Every device with an enrolment-ledger row is grandfathered, as `activated`.
+- The test identity and `records-device` from the token file are added the same way, with no id
+  printed.
+- Daniel seeds the rest from his bench records.
+- Then C1.
+
+**Read first, read-only, counts and booleans only:**
+- **The ledger:** 22 `enr:dev:` rows, all 16-hex, none fake. That is the 18 seen in the last 30
+  days plus 4 not seen recently. There are no `act:` rows yet.
+- **The token-file ids:**
+
+  | line | in the ledger | authenticated in 30 days |
+  |---|---|---|
+  | `test-device` | no | yes |
+  | `records-device` | no | yes |
+  | `feeder-device` | yes | yes |
+
+  So C0's 20 are exactly the 18 ledger devices plus these two.
+
+**The generation: this cannot be done exactly as written, so it is surfaced here.** "Activated in
+the current key generation" means a `gen` of `HMAC(DEVICE_KEY_SECRET, ...)`. That secret has no
+copy outside the Worker, so no tool can compute it.
+- **The seed writes these rows `activated` with no `gen`.** The gate already treats such a row as
+  activated under every generation (fail closed), so every re-activation is refused, as ruled.
+- **What it does not yet do** is re-open these rows on a rotation, as G does for activated rows.
+- **The fix, proposed for #548 before it deploys:** the Worker stamps the current `gen` onto a
+  gen-less `activated` row the first time it reads one. A post-deploy step then runs the tool's
+  `status` over the grandfathered ids (counts only), so all of them carry the deployed generation
+  before any rotation. This waits for a ruling.
+
+**The tool:** `seed` takes `--state listed|activated` (default `listed`) and two more sources,
+`--ledger` (every `enr:dev:` id) and `--token-ids test-device,records-device`. Counts only, as
+before.
+
+| | check | sabotage |
+|---|---|---|
+| **K7** | `seedWith(store, ids, "activated")` writes `activated` rows, and leaves an existing `listed` row untouched | **S-K7:** the state ignored, so it always writes `listed`. Red: K7 |
+
+The list reads **941**: 940 plus K7.
+
+**The production runs, in this order** (mine before Daniel's, so his `listed` rows cannot pre-empt
+the grandfathered `activated` ones, given that a seed never rewrites a row):
+
+| run | predicted |
+|---|---|
+| **G-1:** `seed --ledger --state activated` | `read 22, already present 0, written 22, repaired 0, missing 0 -> COMPLETE` (a dropped key may be repaired; missing must be 0) |
+| **G-2:** `seed --token-ids test-device,records-device --state activated` | `read 2, already present 0, written 2, ... missing 0 -> COMPLETE` |
+| **C1**, straight after G-2 | exit 0: union 20, with a row 20, **missing 0**. The 30-day window can move a device in or out; any missing id is a stop |
+| **Daniel's seed** | `listed` rows for the rest of his records, skipping the 24 already written |
