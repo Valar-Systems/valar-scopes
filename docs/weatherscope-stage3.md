@@ -11505,3 +11505,46 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **The order, once the PC is free:**
 1. The grader fix's measurements, then its PR.
 2. The TouchWatchdog record and PR, after W4's record is built through the publisher.
+
+### A12.101 (PC open to 10:00Z): #542, the grader fix, measured AS PREDICTED and its CI too; the TouchWatchdog record built; its run.sh rows off in one block, main's opuk fixtures; its CI predicted
+
+**#542, the grader fix (A12.100's rows), at `ccea9eb3987f`:**
+- **Selftest:** 13 checks, 0 failures.
+- **Its sabotages:** the upper bound removed fails exactly the third-theme-build control; `n_pre` ignored fails exactly the night case.
+  - The first reading of the first sabotage was mis-graded by my sabotage script: it cut case names at the first colon. Re-read with the raw FAIL lines printed: AS PREDICTED.
+- **Re-grades:**
+  - W4: ALL AS PREDICTED (3, want 2-3);
+  - t5 and S-SWB unchanged (ALL AS PREDICTED; only the row's text differs).
+- **CI:** **38 check runs, 35 success, 3 skipped, 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`. AS PREDICTED,** read twice.
+- **Ready for review.**
+
+**The TouchWatchdog record** (`tools/weatherscope/board/run-2026-11-04-touchwd/`, built by `publish_t5_record.py`):
+- W4's accepted B-run (`captures.json` without times, `serial.txt` redacted, its grade);
+- the three boot reads (S-TW, the restore, W4), each with the network name, BSSID and LAN address redacted;
+- `heartbeat-stw.txt` (2 lines, `probes=0/0`) and `heartbeat-clean.txt` (6 lines, 58 to 358), each AS PREDICTED;
+- the raw traces' sha256 only.
+- `check_wifi.py` OK and `check_device_ids.py` OK with it staged; no committed file carries an ISO time.
+
+**The branch,** rebased onto main `7bafc4b` (no conflict). Three commits: the change, the board tools (`grade_touchwd.py`, `plant_s_tw.py`, `run.sh`'s anchors line) and the record.
+- **Main's firmware changes since the measured image (`122dd5c`'s build):** comments in `include/variants/s3_128.h`, and radar and game files. None changes the Weatherscope image's code.
+
+**Its `run.sh`, MinGW and g++ 13.3, against #526's head logs as base.** OFF in one block:
+- **As predicted:**
+  - the one extra line, `ok ANCHORS plant_s_tw.py: 1 plant(s), 1 anchor(s), all present exactly once (a board plant)`;
+  - exits 0 and 2, `FAILED BLOCKS:` unchanged (R0 the rig; the board TU);
+  - every other base line in order.
+- **OFF, the WX server crops (opuk) block:**
+  - the 4 UK crops' 8 lines read new hashes;
+  - 4 more crops (bfs, abz, cwl, nqy) add 8 `ok` lines;
+  - all pass.
+- **The cause is main's, not this PR's:** #521/#522 changed 9 opuk fixtures after #526's head.
+  - **Main's own CI host-tests on `7bafc4b` prints the same lines,** for example `lhr ... 9333dc5ad1df` and `nqy ... 4a8e4411a205`.
+  - This PR changes no fixture.
+- **My error, a ninth time:** before choosing the base I checked `test/host/`, `include/` and `src/` for changes since it, but not `test/fixtures/`, which `run.sh` also reads.
+
+**The TouchWatchdog PR's CI, predicted from #542's job list plus the paths it touches:**
+- **firmware 36** (33 success, 3 skipped), **device-ids 1, no-traffic-captures 1.**
+- **web-renderer 2:** its `pull_request` paths include `src/**`, and its last PR run had `build` (success) and `publish` (skipped).
+- **No other path filter matches.** The branch goes up under a new name, so the push carries only its three commits.
+- **Predicted: 40 check runs, 36 success, 4 skipped (ship-alert, promote, version, publish), 0 failed; 39 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+- **It merges only after review** (Q74).
