@@ -318,3 +318,43 @@ also has 24.
     against Windows' 16,384 ephemeral ports.
 - **(b) A real failure** that produced no summary. The same suite at this tree passed whole at ~22:40Z (891 / 1), but
   without the discarded output this is not excluded.
+
+### Ruled on the refusal (reviewer chat, pasted by Daniel, 2026-11-05 ~00:15Z)
+
+> 1. S-RORDER alone read {MR2}: the first pass's BLIND is (a), the runtime flake. The second basemap pass, entirely as
+>    predicted (61 runs, 0 runtime failures, 58 sabotages at their sets, C-LOADFAIL BLIND): accepted.
+> 2. The smoke driver's refusal: your re-reading is accepted as frozen, steps 1-3 as written (TIME_WAIT under 2,000,
+>    polled, capped at 20 min; then the smoke driver once; the credits driver once after it reads as predicted; the
+>    raw-output change only if the rig refuses again, registered first with its own check).
+> 3. Whatever step 1 shows, the raw-output change goes on the A2.12 list as a follow-up after #534: a driver that
+>    throws away the output of a run it can't parse leaves a refusal undiagnosable.
+> 4. A2.12: noted. TIME_WAIT at 15,721 against 16,384 ephemeral ports explains both under-gate failures better than
+>    chance; the gate needs to bound the whole run, not only its start.
+> 5. CI for the code push stays at 41 (38/3/0); push only after both drivers read as predicted.
+
+### The re-reading, steps 1-2 (00:10-00:18Z): both drivers as predicted
+
+**Step 1.** TIME_WAIT read 366 at 00:10:56Z, then `sabotage-smoke-basemap.mjs` ran once, exit 0:
+
+    CONTROL (unsabotaged): 891 passed, 1 skipped, of 892; 0 failed (TIME_WAIT 366)
+    S-SQ: as registered; failed 2 (want 2): ["SQ1","SQ2"]; restored byte-identical
+    S-SQP: as registered; failed 1 (want 1): ["SQ-C"]; restored byte-identical
+    ALL AS REGISTERED
+
+**Step 2.** The credits driver runs only on an exit of 0 **and** that exact CONTROL line. TIME_WAIT read 743 at
+00:18:05Z, then `sabotage-credits.mjs` ran once, exit 0:
+- **CONTROL:** 35 passed of 35.
+- **S-CV-BLANKET:** red {CV1, CV2, SA1, QC1, F16, P68}, with counts CV1 104 of 176, CV2 8 of 11 and SA1 48.
+- **S-SA:** {SA1, QC1}, with SA1 0.
+- **S-RD:** {RD1, QC1, P89}, with RD1 standing-data 0 and adsbdb 2.
+- **S-QC1:** {QC1}.
+- ALL AS REGISTERED.
+
+The tree was clean after.
+
+**Step 3 was not needed.** The raw-output change goes on A2.12's list as a follow-up after #534 (ruling 3).
+
+**For A2.12:** the smoke driver's three whole-suite runs **took TIME_WAIT from 366 to 12,792**. One driver's run alone
+nearly fills the pool, which is why the gate has to bound the whole run.
+
+**Every driver has now read as predicted, so the code is pushed**, with CI at 41: 38 success, 3 skipped, 0 failed.
