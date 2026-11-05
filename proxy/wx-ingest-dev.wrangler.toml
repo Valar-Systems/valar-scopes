@@ -3,7 +3,7 @@
 # from its dry-run output and fails on any other binding (PB2).
 #
 # One env per phase; every env names the SAME Worker, so a phase is a redeploy, never a second Worker:
-#   npx wrangler deploy -c wx-ingest-dev.wrangler.toml -e <off|plantcal|plant|cref|opuk>
+#   npx wrangler deploy -c wx-ingest-dev.wrangler.toml -e <off|idle|plantcal|plant|cref|opuk>
 # The top level is `off` too, so a deploy without -e is inert. Bindings and vars do not inherit, so each env
 # repeats them; triggers and limits are repeated too, so no phase depends on inheritance rules.
 # Deleting this Worker, and the bucket, is Daniel's call.
@@ -40,6 +40,25 @@ head_sampling_rate = 1
 [env.off.vars]
 MODE = "off"
 [[env.off.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# The park between phases (docs/wx-plan-s.md §5): MODE off, but the cron KEPT, so a park changes only the version.
+# A cron change takes up to 15 min to propagate (Cloudflare's docs; measured 268.7 s and ~592 s to start, 323 s to
+# stop); a version change is immediate. Only S5 deploys `off`, the one config with no cron.
+[env.idle]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.idle.triggers]
+crons = ["* * * * *"]
+[env.idle.limits]
+cpu_ms = 30000
+[env.idle.observability]
+enabled = true
+head_sampling_rate = 1
+[env.idle.vars]
+MODE = "off"
+[[env.idle.r2_buckets]]
 binding = "WX"
 bucket_name = "blipscope-wx-dev"
 

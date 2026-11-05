@@ -5,7 +5,7 @@
 //   PB1  production's bundle (wx-ingest.wrangler.toml) holds PLANT_MARKER 0 times.
 //        Anchor: it holds "wx_ingest_error" (else the read is BLIND). Control: the dev bundle (-e plant) holds the
 //        marker exactly once (else this check cannot see the plant: BLIND).
-//   PB2  each of the dev config's 6 deploy targets (top level + 5 envs) binds exactly one R2 bucket, WX ->
+//   PB2  each of the dev config's 7 deploy targets (top level + 6 envs) binds exactly one R2 bucket, WX ->
 //        blipscope-wx-dev, with MODE as the toml's table says. Control: production's dry-run reads WX -> blipscope-wx
 //        (else the parse is BLIND).
 //
@@ -24,7 +24,7 @@ const PROD_TOML = "wx-ingest.wrangler.toml";
 const DEV_TOML = "wx-ingest-dev.wrangler.toml";
 const DEV_ENTRY = "src/wx/ingest-dev-worker.ts";
 const ANCHOR = "wx_ingest_error";
-const DEV_TARGETS = [[null, "off"], ["off", "off"], ["plantcal", "plant"], ["plant", "plant"], ["cref", "cref"], ["opuk", "opuk"]];
+const DEV_TARGETS = [[null, "off"], ["off", "off"], ["idle", "off"], ["plantcal", "plant"], ["plant", "plant"], ["cref", "cref"], ["opuk", "opuk"]];
 
 // The marker is read from the dev entry itself (the other side of the contract), never retyped here.
 const markerMatch = /export const PLANT_MARKER = "([^"]+)";/.exec(readFileSync(join(PROXY, DEV_ENTRY), "utf8"));
