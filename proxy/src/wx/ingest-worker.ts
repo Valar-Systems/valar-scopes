@@ -38,11 +38,16 @@ export async function checkAll(env: IngestEnv, label: string, doFetch: Fetch = w
   }));
 }
 
+/** What this Worker (blipscope-wx-ingest) checks: cref only. opuk has its own Worker, blipscope-wx-ingest-opuk
+ *  (ingest-opuk-worker.ts; docs/wx-opuk-split.md), so one product's build never shares an invocation's CPU with the
+ *  other's. FT1 and FX (test/wx-ingest-split.test.ts) hold this to the tomls. */
+export const CREF_WORKER: readonly Product[] = PRODUCTS.filter((p) => p.id === "cref");
+
 export default {
   async scheduled(controller: ScheduledController, env: IngestEnv): Promise<void> {
-    await checkAll(env, ":00");
+    await checkAll(env, ":00", undefined, undefined, undefined, CREF_WORKER);
     const wait = 30_000 - (Date.now() - controller.scheduledTime);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    await checkAll(env, ":30");
+    await checkAll(env, ":30", undefined, undefined, undefined, CREF_WORKER);
   },
 } satisfies ExportedHandler<IngestEnv>;

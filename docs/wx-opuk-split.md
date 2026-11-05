@@ -129,3 +129,26 @@ target is read and recorded before each one.
 **The escape:** anything else means stop. In production, roll back first the Worker that the off row is about.
 - R3′-5b′ (as ruled) and R3′-7 (printed) roll nothing back alone.
 - A row read off on the runtime spread names that spread as one alternative, as ruled ~17:28Z.
+
+## 4. Local readings, before the push (CI is the authority)
+
+Predictions frozen at `61aece0a` (21:15:52Z), before any code.
+
+- **Typecheck** and **typecheck:scripts:** green.
+- **`test/wx-ingest-split.test.ts`:** 4 passed (FT1, FT2a, FT2b, FX).
+- **The sabotages** (`scripts/sabotage-wx-split.py`): **all as predicted.** Each file was restored by bytes with
+  its sha256 matching.
+
+  | sabotage | failed |
+  |---|---|
+  | FT1s | FT1, FX |
+  | FT2s | FT2b, FX |
+  | FXs | FT2a, FX |
+
+- **`check-wx-plant.mjs --selftest`: SELFTEST PASSED.**
+  - Real PB1: production 0, `opuk` bundle 0, both anchors 1, dev 1.
+  - Real FB2: top level `WX->blipscope-wx` with `"on"`; `inert` `WX->blipscope-wx` with `"off"`.
+  - PB1s FAIL (production 1). PB2s FAIL on `cref` alone. FB2s FAIL on `inert` alone.
+- **Found while building, not a reading:** writing the FB2s regex through a shell heredoc lost its backslashes. The
+  file wouldn't parse (`node --check`), so it was caught before any run. The line was rebuilt with exact backslashes:
+  10, the same as PB2s's line, and 0 stray CR bytes.

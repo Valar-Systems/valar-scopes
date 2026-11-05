@@ -30,8 +30,23 @@ const committedCredits = {
   },
 };
 
+// The two production ingest tomls as their exact text, `import t from "virtual:wx-ingest-tomls"` (docs/wx-opuk-split.md,
+// FX: no two deploy targets check the same product -- read from what deploys, not restated). Tests only.
+const INGEST_TOMLS = ["wx-ingest.wrangler.toml", "wx-ingest-opuk.wrangler.toml"];
+const wxIngestTomls = {
+  name: "wx-ingest-tomls",
+  resolveId(source: string) {
+    return source === "virtual:wx-ingest-tomls" ? "\0virtual:wx-ingest-tomls" : null;
+  },
+  load(id: string) {
+    if (id !== "\0virtual:wx-ingest-tomls") return null;
+    const files = Object.fromEntries(INGEST_TOMLS.map((f) => [f, readFileSync(fileURLToPath(new URL(`./${f}`, import.meta.url)), "utf8")]));
+    return `export default ${JSON.stringify(files)};\n`;
+  },
+};
+
 export default defineWorkersConfig({
-  plugins: [bmpkBytes, committedCredits],
+  plugins: [bmpkBytes, committedCredits, wxIngestTomls],
   test: {
     poolOptions: {
       workers: {

@@ -36,3 +36,10 @@ declare module "virtual:committed-credits" {
   const text: string;
   export default text;
 }
+
+// vitest.config.mts's wx-ingest-tomls plugin: the two production ingest tomls as their exact text, by file name
+// (docs/wx-opuk-split.md, FX).
+declare module "virtual:wx-ingest-tomls" {
+  const files: Record<string, string>;
+  export default files;
+}
