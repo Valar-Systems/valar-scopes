@@ -731,3 +731,20 @@ in production until #548's gate deploys.
 - **#548's deploy gate is met.** Stock boards Daniel holds that were never provisioned are not in
   `provisioned.csv`. If any is to activate, its MAC goes in through `import` (or `seed` before
   the deploy).
+
+### A MAC list with or without colons (ruled ~21:20Z, from #545's bench): frozen before its test
+
+The Flash Download Tool shows the STA MAC as 12 characters without colons; esptool prints it with
+colons. The factory's list may come either way.
+- **The code already accepts both.** `parseImport`'s bare-MAC rule takes an optional separator, and
+  A12's list case includes a MAC with no separator.
+- **K8 pins it on its own,** in the shapes the factory will actually send: uppercase without
+  colons (as the tool shows it), lowercase with colons, and the same MAC in both forms counted
+  once. It runs through both `parseImport` (`import`) and `parseRecords` (`seed`), with no bad
+  line.
+
+| | sabotage | predicted red, exactly |
+|---|---|---|
+| **S-K8** | the bare-MAC rule requires a separator | {K8, A12's "a plain list: one MAC per line, any separator, deduplicated; comments and blanks skipped"} |
+
+**The list reads 946:** 945 plus K8.
