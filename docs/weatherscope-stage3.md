@@ -11345,3 +11345,42 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **blipscope-5c's E2:08 windows** start at about 03:05Z and run for several hours. So this window overlaps them, and the overlap's times go in the run record. They are separate boards on separate ports.
 
 **If the run is cut again:** stop and report, retry nothing.
+
+### A12.97 W4 (03:10Z window) stopped at its first row: the board's stored theme is Light, left by the cut 00:50Z run. My prediction, off (Q73)
+
+**What happened, from the wrapper's timed log** (`python -u` throughout; nothing cut, so every log is whole):
+- 03:10:11Z port resolved (COM6, by serial).
+- `read-mac`.
+- `boot_lines`, exit 0.
+- `read-mac`.
+- 03:10:34Z `run_b35t` start, then 03:10:51Z `run_b35t exit=1`.
+- `grade_b35t` exit 1.
+
+**The boot read:** `env=weatherscope-s3-128`, app0, psram as W2's, but **`[wx] init; ... theme=light read=known`**, followed at once by **`[wx] theme=light was=dark setting=light phase=Night`.**
+- **A12.94 and A12.96 predicted `theme=auto read=known` and no boot-time theme line. OFF.**
+
+**The run:** after `read-mac`, the board booted inside the runner's open and printed the same pair. The watcher stopped the run on `[wx] theme=light was=dark setting=light phase=Night`, 15 s in, before any capture.
+- **The watcher did exactly what #530 ruled:** a boot-time resolution of a fixed Light setting is not Auto, so it stays unexplained.
+- The runner closed normally: TCP :80 up after 2.2 s.
+
+**The grade:**
+- psram_used (227,168) and psram_base ok;
+- **the boot theme FAIL** (`theme=light` against `auto`);
+- B1 0 captures, BSW and BSW-L did not run, the watcher STOPPED.
+- NOT ALL AS PREDICTED.
+
+**The cause, from the 00:50Z run's own trace:** its last POST was `wx-theme=light`, at 00:59:32Z, verified as stored. It was cut at 01:01:44Z, during light B1 and before BSW, whose first act POSTs `wx-theme=auto`. **So the board has kept the Light setting since.**
+- **The alternative,** that something else changed the setting, is excluded: only the runner writes it here, and its last write is in the trace.
+- **The family, an eighth time:** the prediction assumed the board's state from t5's runs, not from what the last thing to touch it left behind. The cut run's last POST was on record (A12.95: "half of light B1").
+
+**The board now:** clean image (no write since W2), stored theme **Light**, TCP :80 up. Nothing retried. The window (to 04:30Z) is otherwise unused.
+
+**Overlap with blipscope-5c's E2:08 windows:** mine ran 03:10:11Z to 03:11:00Z. If theirs began at about 03:05Z as announced, that is the overlap. They are separate boards on separate ports.
+
+**Q73, for the ruling:**
+- **(a)** Before W4, put the board's stored theme back to **Auto**: the state t5's runs and A12.94 assumed, and the one the cut run interrupted.
+  - **How:** one partial POST of `wx-theme=auto`, with the page's X-Blipscope header, the page's fields read before and after, and only that field allowed to change. That is how `run_b35t.py` posts. It is a config write, not a firmware write.
+  - **Then** W4 in full in a new announced window, every row as A12.94. At Dallas night, Auto resolves Dark to Dark with no line. By day, #530's rule explains it.
+- **(b)** Widen the watcher so that any setting's first resolution at boot (Light or Dark too) is explained, in its own PR. #530 kept "not Auto" unexplained by ruling, so this needs one.
+- **(c)** Start W4 without the second `read-mac`, so no boot happens inside the runner's open. The runner's own first POST sets the theme anyway.
+- **Recommended: (a).** It restores the state every earlier prediction rests on, and changes neither the watcher nor the procedure.
