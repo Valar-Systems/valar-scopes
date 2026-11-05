@@ -4778,3 +4778,19 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
 - **The K6 driver** (`de6fc5384e69`, regenerated) also refuses any window overlapping 16:45-19:15Z, #536's daytime
   quiet block with margins. Its rehearsals pass. It has no PC guard of its own: on 11-04 its quiet PC was kept by
   hand.
+
+**W5⁵, attempt 2 (04:24-05:08Z; 8:24-9:08 PM PST): an instrument stop, not a reading (ruled ~04:50Z and ~05:15Z).**
+- **O1** (04:28-04:38Z) overlapped another session's `wrangler tail` (from 04:33:38Z), so it cannot be part of a
+  clean run.
+- **The guard held N1** from 04:39:50Z until that tail ended at about 04:41Z. N1 then ran 04:45:33-04:55:33Z.
+- **Stopped under the reviewer's PC timetable (~04:50Z).** The other sessions have the PC until 10:00Z, so the run
+  was stopped through its own rehearsed path: an inert, clearly named process the guard counts as busy
+  (`w5p5-stop-request...`). O2 was refused at 05:07:29Z.
+- **The restore ran as designed:** read_mac, the page, data-source cloud and local-url cleared ("feed source as
+  before: True"), then `wxlook` flashed back, with layer on and look A (05:08:44Z).
+- **Records kept:** `w5p5-times.attempt1-0339Z.json` and `w5p5-times.attempt2-0424Z.json`, with their logs.
+- **The windows now run from 10:00Z (2:00 AM PST):** W5⁵ in full (all ten arms), then K6-F, K6-L1 and K6-L0, all
+  ending by 16:45Z.
+  - Both drivers refuse any window outside 10:00-16:45Z. `w5p5_run.py` is now `0ae64866100c` and `k6_arm_run.py`
+    `26e51a718186`, and every rehearsal passes.
+  - One chained script (`chain_1000Z.sh`) runs them in order and stops at the first failure.
