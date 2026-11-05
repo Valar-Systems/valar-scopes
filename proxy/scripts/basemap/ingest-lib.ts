@@ -7,7 +7,7 @@
 // there (MI1, S-IBUS). Peaks (feature_class = Summit) and places (LSAD = 25) are filtered HERE ALONE: the store
 // does not keep those columns, so a change to either predicate is a change to the store, not to the builder.
 
-import { type Box, type Feature, type FeatureKind, decodeFeature, encodeCell, encodeFeature } from "../../src/basemap/store";
+import { type Box, type Feature, type FeatureKind, STORE_KV_KEY, decodeFeature, encodeCell, encodeFeature } from "../../src/basemap/store";
 export { type Box, type Feature, type FeatureKind, decodeFeature, encodeCell, encodeFeature }; // the codec lives with the builder, which reads it
 const te = new TextEncoder();
 
@@ -252,10 +252,14 @@ export async function verifyStore(bucket: StoreBucket, objects: StoreObject[]): 
   return { missing, mismatched };
 }
 
+/** O1 (docs/basemap-a1.md): where the proxy learns the sealed store's id. One put, after the seal. */
+export interface StoreKv { put(key: string, value: string): Promise<void> }
+
 /** write -> verify -> repair -> verify, and only then `current`, as the LAST write (MI7, S-ISEAL). A store that
- *  is still not clean after `repairs` rounds is left unsealed and reported, never sealed with a gap in it. */
+ *  is still not clean after `repairs` rounds is left unsealed and reported, never sealed with a gap in it. With `kv`,
+ *  the store id goes to `bm:store` only AFTER `current` (MI8): never for an unsealed store. */
 export async function publishStore(
-  bucket: StoreBucket, objects: StoreObject[], currentKey: string, currentBody: Uint8Array, repairs = 2,
+  bucket: StoreBucket, objects: StoreObject[], currentKey: string, currentBody: Uint8Array, repairs = 2, kv?: StoreKv,
 ): Promise<{ sealed: boolean; rounds: number; missing: string[]; mismatched: string[] }> {
   for (const o of objects) await bucket.put(o.key, o.bytes);
   let v = await verifyStore(bucket, objects);
@@ -268,5 +272,10 @@ export async function publishStore(
   }
   if (v.missing.length || v.mismatched.length) return { sealed: false, rounds, ...v };
   await bucket.put(currentKey, currentBody);
+  if (kv) {
+    const id = (JSON.parse(new TextDecoder().decode(currentBody)) as { storeId?: unknown }).storeId;
+    if (typeof id !== "string" || !/^[0-9a-f]{12}$/.test(id)) throw new Error("current names no store: bm:store not written");
+    await kv.put(STORE_KV_KEY, id);
+  }
   return { sealed: true, rounds, ...v };
 }

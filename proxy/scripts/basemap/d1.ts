@@ -149,3 +149,11 @@ export class WranglerBucket implements StoreBucket {
     return r;
   }
 }
+
+/** O1 (docs/basemap-a1.md, MI8): the sealed store's id to `bm:store` in each named KV namespace, through the same paced
+ *  wrangler as the bucket. publishStore calls it once, after the seal; the value is a store id, never a secret. */
+export const wranglerKv = (proxyDir: string, namespaceIds: string[]) => ({
+  async put(key: string, value: string): Promise<void> {
+    for (const ns of namespaceIds) await paced(proxyDir, ["kv", "key", "put", key, value, "--namespace-id", ns, "--remote"]);
+  },
+});

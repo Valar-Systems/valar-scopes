@@ -57,6 +57,12 @@ id = "0000000000000000000000000000dev0" # placeholder: tests/dev run in-memory; 
 binding = "WX"
 bucket_name = "blipscope-wx-dev"
 
+# A1's stored packages (docs/basemap-a1.md). DEV/TEST ONLY here: tests get an in-memory bucket. Staging binds its own
+# bucket below; production gets one at D4. The builder never binds it, so the store stays read-only to the builder.
+[[r2_buckets]]
+binding = "BASEMAP_PKG"
+bucket_name = "blipscope-basemap-pkg-dev"
+
 [[analytics_engine_datasets]]
 binding = "METRICS"
 dataset = "blipscope_proxy"
@@ -208,6 +214,12 @@ bucket_name = "blipscope-wx"
 [[env.staging.services]]
 binding = "BASEMAP"
 service = "blipscope-basemap-staging"
+
+# A1's stored packages (docs/basemap-a1.md): STAGING ONLY until D4. Its own bucket, so nothing here can write where the
+# store lives; read and written by this proxy alone.
+[[env.staging.r2_buckets]]
+binding = "BASEMAP_PKG"
+bucket_name = "blipscope-basemap-pkg-staging"
 
 # Workers Rate Limiting binding (per-colo token buckets, 60 s period).
 # RL_IP: a household NATs 1-3 devices behind one IP; the fastest tier polls every

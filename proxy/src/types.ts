@@ -11,6 +11,9 @@ export interface Env {
   WX?: R2Bucket;
   // The builder Worker `blipscope-basemap` (docs/basemap-route.md §2.1). Unbound until D3; the route answers 503 not_configured.
   BASEMAP?: Fetcher;
+  // A1's stored packages (docs/basemap-a1.md): bound in the proxy only, never in the builder. Unbound, /basemap behaves
+  // exactly as before A1 (MS9).
+  BASEMAP_PKG?: R2Bucket;
 
   // Optional: absent in `wrangler dev`/tests (miniflare can't emulate the beta
   // binding), enforced in staging/production.
