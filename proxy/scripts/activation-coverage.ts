@@ -48,8 +48,9 @@ if (!DATASET[env] || !Number.isInteger(days) || days < 1 || days > 90) {
 }
 
 async function aeDevices(token: string): Promise<Set<string>> {
-  const sql = `SELECT DISTINCT blob5 AS dev FROM ${DATASET[env]} ` +
-    `WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob5 != '' LIMIT ${AE_LIMIT}`;
+  // GROUP BY, not SELECT DISTINCT: Analytics Engine's SQL refuses DISTINCT with HTTP 422 (C0, 2026-11-05).
+  const sql = `SELECT blob5 AS dev FROM ${DATASET[env]} ` +
+    `WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob5 != '' GROUP BY dev LIMIT ${AE_LIMIT}`;
   const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/analytics_engine/sql`,
     { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: sql });
   if (!res.ok) cannotSee(`Analytics Engine answered HTTP ${res.status}`);
