@@ -193,7 +193,14 @@ def grade_bsw(lines, swb):
                  f"the base line at each switch on Bend: {reasons} (want {[want_reason] * 2})"))
     t_r = next((t for t, l in lines if t > t_e and l.startswith("[wx] builds n=")), None)
     whys = [l for t, l in lines if t_r and t >= t_r and re.match(r"^\[wx\] build \d+ why=theme ", l)]
-    rows.append(("BSW build reasons", len(whys) == 2, f"{len(whys)} builds with why=theme in the R dump"))
+    # A12.99/A12.100: BSW begins by POSTing wx-theme=auto. By day Auto resolves to the theme already shown and nothing
+    # switches; at night it switches at once, and that recompose is a why=theme build of its own, in the 8-build dump
+    # unless it has already rotated out. So the dump holds BSW's two switches, plus at most the POST's own (n_pre).
+    t_post = max((t for t, l in lines if t < t_s and l == "#HOST post wx-theme=auto"), default=None)
+    n_pre = sum(1 for t, l in lines if t_post is not None and t_post < t < t_s and THEME.match(l))
+    rows.append(("BSW build reasons", 2 <= len(whys) <= 2 + n_pre,
+                 f"{len(whys)} builds with why=theme in the R dump (want {2 if not n_pre else f'2-{2 + n_pre}'}: "
+                 f"BSW's two switches, plus {n_pre} switch(es) by the auto POST before BSW, if still in the dump)"))
     for name, ok, what in rows:
         print(f"  {'ok  ' if ok else 'FAIL'} {name}: {what}")
     return all(ok for _, ok, _ in rows)
@@ -237,8 +244,10 @@ def grade_boot(path, setting="auto:unset"):
     return all(ok for _, ok, _ in rows)
 
 
-def synthetic(switch_at=(40, 88), base="no", drop_theme=False, autodim=True):
-    """A BSW and a BSW-L trace as the firmware would print them (A12.66), for --selftest. Synthetic, never a board's."""
+def synthetic(switch_at=(40, 88), base="no", drop_theme=False, autodim=True, night_post=False, theme_builds=(2, 5)):
+    """A BSW and a BSW-L trace as the firmware would print them (A12.66), for --selftest. Synthetic, never a board's.
+    night_post: BSW's auto POST switching at once (A12.99), its theme line before BSW starts. theme_builds: the
+    positions of the why=theme builds in the 8-build R dump."""
     t, out = 0.0, []
 
     def add(l, dt=0.05):
@@ -247,6 +256,9 @@ def synthetic(switch_at=(40, 88), base="no", drop_theme=False, autodim=True):
         out.append((t, l))
 
     add(f"[wx] init; location=set autodim={int(autodim)} brightness=255 stored=1 theme=auto read=known")
+    add("#HOST post wx-theme=auto")
+    if night_post:
+        add("[wx] theme=dark was=light setting=auto phase=Night")
     add("[wx] screen=scenario bdry R=60")
     add("#HOST BSW starts")
     phase = "Day"
@@ -270,7 +282,7 @@ def synthetic(switch_at=(40, 88), base="no", drop_theme=False, autodim=True):
     add("#HOST send b'R'")
     add("[wx] builds n=8 of 8")
     for j in range(8):
-        add(f"[wx] build {j} why={'theme' if j in (2, 5) else 'cycle'} scene=bdry mi=60->60 decode=1")
+        add(f"[wx] build {j} why={'theme' if j in theme_builds else 'cycle'} scene=bdry mi=60->60 decode=1")
     add("#HOST BSW-L starts")
     add("[wx] screen=loop R=60")
     add("[wx] auto offset=+600 min phase=Night")
@@ -291,7 +303,12 @@ def selftest():
              ("CONTROL: S-SWB's walk graded as t5's", dict(base="package"), False, False),
              ("CONTROL: t5's walk graded as S-SWB", dict(), True, False),
              ("CONTROL: a switch with no theme line", dict(drop_theme=True), False, False),
-             ("CONTROL: autodim off but dims printed", dict(), False, False)]
+             ("CONTROL: autodim off but dims printed", dict(), False, False),
+             # A12.100: BSW's own auto POST switching at night (A12.99's W4), and the two ways the count can be wrong
+             ("BSW's auto POST resolving at night, its build in the dump", dict(night_post=True, theme_builds=(0, 6, 7)), False, True),
+             ("the same, the POST's build already out of the dump", dict(night_post=True, theme_builds=(6, 7)), False, True),
+             ("CONTROL: a third theme build with no switch before BSW", dict(theme_builds=(0, 6, 7)), False, False),
+             ("CONTROL: one theme build only", dict(theme_builds=(7,)), False, False)]
     bad = 0
     for name, kw, swb, want in cases:
         lines = synthetic(**kw)
