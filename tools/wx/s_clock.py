@@ -1,0 +1,174 @@
+"""Plan S, driven by the clock (ruled ~17:12Z 2026-11-05; docs/wx-opuk.md). No tail: the cron is live and kept by
+`idle`, so firings are regular. A trigger, not a reading -- the graded count is s_reads.py by version id.
+
+  PLAN_S_WANT=<merged sha> python -I s_clock.py <env> <label> <N>      a fixed-count phase (S1 3, S2 10, S3 60)
+  PLAN_S_WANT=<merged sha> python -I s_clock.py opuk <label> s4        S4: until the 12th counted `stored` (cap 135 min)
+  PLAN_S_WANT=<merged sha> python -I s_clock.py off <label> s5         S5: deploy `off` (removes the cron), no park
+
+  1. the firing offset: the last two invocations' scheduledTime in Workers Logs (must be 60 s +/- 2 s apart)
+  2. deploy the phase ~20 s after a firing starts (its next N firings are the phase's)
+  3. a phase longer than 6 min is checked at the deploy + 360 s: no invocation of its version started within 300 s
+     of the deploy -> park now and report (the ~03:55Z rule, judged on scheduledTime)
+  4. park on `idle` ~20 s after the phase's Nth firing starts (S4: at the first slot after the 12th counted stored)
+  Any error after the phase deploy parks on `idle` (try/finally). Read-only Logs; tokens never printed.
+"""
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import time
+import urllib.request
+from datetime import datetime, timezone
+
+SCRATCH = r"C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\fb8462e7-ee3a-4757-8b09-2d0165eb9254\scratchpad"
+PROXY = os.path.join(SCRATCH, "wt-plan-s", "proxy")
+WRANGLER = os.path.join(PROXY, "node_modules", "wrangler", "bin", "wrangler.js")
+WANT = os.environ.get("PLAN_S_WANT", "")
+CFG = "wx-ingest-dev.wrangler.toml"
+ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"
+SCRIPT = "blipscope-wx-ingest-dev"
+U = dict(text=True, encoding="utf-8", errors="replace")
+hms = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M:%S.%f")[:-3] + "Z"
+say = lambda *a: print(datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3] + "Z", *a, flush=True)
+
+
+def token():
+    for line in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"):
+        k, _, v = line.strip().partition("=")
+        if k == "observability-read":
+            return v
+    raise SystemExit("no observability-read")
+
+
+def invocations(a_s, b_s):
+    """{scheduledTime: {ver, checks}} for the dev script, from Workers Logs."""
+    evs, off = [], None
+    while True:
+        body = {"queryId": "plan-s-clock", "timeframe": {"from": int(a_s * 1000), "to": int(b_s * 1000)}, "view": "events",
+                "limit": 2000, "parameters": {"filters": [{"key": "$metadata.service", "operation": "eq", "type": "string", "value": SCRIPT}]}}
+        if off:
+            body["offset"] = off
+        req = urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/observability/telemetry/query",
+                                     data=json.dumps(body).encode(), method="POST",
+                                     headers={"Authorization": "Bearer " + token(), "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            page = json.loads(r.read())["result"]["events"]["events"]
+        evs += page
+        if len(page) < 2000:
+            break
+        off = page[-1]["$metadata"]["id"]
+    inv = {}
+    for e in evs:
+        w = e.get("$workers") or {}
+        st = (w.get("event") or {}).get("scheduledTime")
+        if st is None:
+            continue
+        d = inv.setdefault(st, {"ver": None, "checks": []})
+        if (w.get("scriptVersion") or {}).get("id"):
+            d["ver"] = w["scriptVersion"]["id"]
+        s = e.get("source") or {}
+        if s.get("product"):
+            d["checks"].append((s["product"], s.get("status") or s.get("evt")))
+    return inv
+
+
+def deploy(env, label):
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROXY, capture_output=True, **U).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=PROXY, capture_output=True, **U).stdout.strip()
+    if len(WANT) != 40 or head != WANT or dirty or os.environ.get("CLOUDFLARE_API_TOKEN"):
+        raise SystemExit(f"REFUSED: head {head[:12]} want {WANT[:12]} dirty={bool(dirty)}")
+    t0 = time.time()
+    r = subprocess.run(["node", WRANGLER, "deploy", "-c", CFG, "-e", env], cwd=PROXY, capture_output=True, **U)
+    t1 = time.time()
+    open(os.path.join(SCRATCH, f"plan-s-{label}.out"), "w", encoding="utf-8").write(r.stdout)
+    open(os.path.join(SCRATCH, f"plan-s-{label}.err"), "w", encoding="utf-8").write(r.stderr)
+    m = re.search(r"Current Version ID: (\S+)", r.stdout)
+    trig = [l.strip() for l in r.stdout.splitlines() if "schedule" in l or "triggers" in l]
+    say(f"deploy {label} (-e {env}) {hms(t0)} -> {hms(t1)} exit {r.returncode} version {m.group(1) if m else None} "
+        f"stderr {len(r.stderr)} bytes | {trig}")
+    if r.returncode != 0 or not m:
+        raise SystemExit("deploy failed")
+    return m.group(1), t1
+
+
+def sleep_until(t):
+    while time.time() < t:
+        time.sleep(min(1.0, max(0.0, t - time.time())))
+
+
+def slot_after(t, offs, lo=20, hi=40):
+    """The first time >= t that sits lo..hi s after a firing start (firings at offs mod 60)."""
+    k = math.floor((t - offs) / 60)
+    while True:
+        start = k * 60 + offs
+        if start + hi >= t:
+            return max(t, start + lo)
+        k += 1
+
+
+env, label, how = sys.argv[1], sys.argv[2], sys.argv[3]
+# 1. the firing offset, from the last two invocations
+now = time.time()
+inv = invocations(now - 600, now)
+sts = sorted(inv)[-2:]
+if len(sts) < 2 or abs((sts[1] - sts[0]) - 60) > 2:
+    raise SystemExit(f"REFUSED: no regular firing to read an offset from (last starts: {[hms(s) for s in sts]})")
+offs = sts[1] % 60
+say(f"firing offset {offs:.3f} s past the minute (last two starts {hms(sts[0])}, {hms(sts[1])})")
+
+if how == "s5":
+    sleep_until(slot_after(time.time(), offs))
+    version, t_dep = deploy(env, label)
+    say(f"S5 deployed; read at the deploy + 1,500 s = {hms(t_dep + 1500)} and 5 min later")
+    sys.exit(0)
+
+# 2. the phase deploy, ~20 s after a firing start
+dep_at = slot_after(time.time() + 5, offs)
+first = math.floor((dep_at - offs) / 60) * 60 + offs + 60      # the phase's first firing
+sleep_until(dep_at)
+version, t_dep = deploy(env, label)
+parked, why = False, None
+try:
+    if how == "s4":
+        cap, checked = t_dep + 135 * 60, False
+        while True:
+            time.sleep(60)
+            inv = invocations(t_dep - 5, time.time())
+            mine = sorted((st, d) for st, d in inv.items() if d["ver"] == version)
+            if not checked and time.time() > t_dep + 360:
+                checked = True
+                if not any(st <= t_dep + 300 for st, _ in mine):
+                    why = "NO FIRST INVOCATION IN 5 MIN"
+                    break
+            seq = [(st, s) for st, d in mine for p, s in d["checks"] if p == "opuk" and s in ("stored", "backfilled")]
+            last_bf = max((st for st, s in seq if s == "backfilled"), default=None)
+            counted = sorted(st for st, s in seq if s == "stored" and (last_bf is None or st > last_bf))
+            say(f"S4: {len(mine)} invocations of {version[:8]}, counted stored {len(counted)}")
+            if len(counted) >= 12:
+                why = f"12th counted stored at {hms(counted[11])}"
+                break
+            if time.time() > cap:
+                why = "CAP 135 MIN"
+                break
+    else:
+        n = int(how)
+        last = first + 60 * (n - 1)
+        say(f"phase {label}: {n} firings, {hms(first)} .. {hms(last)}; park at {hms(last + 20)}")
+        if last + 20 > t_dep + 360:
+            sleep_until(t_dep + 360)
+            inv = invocations(t_dep - 5, time.time())
+            if not any(st <= t_dep + 300 and d["ver"] == version for st, d in inv.items()):
+                why = "NO FIRST INVOCATION IN 5 MIN"
+        if why is None:
+            sleep_until(last + 20)
+            why = f"{n} firings by the clock"
+except BaseException as err:
+    why = f"DRIVER ERROR {type(err).__name__}: {err}"
+finally:
+    say(f"end of phase {label}: {why}")
+    sleep_until(slot_after(time.time(), offs))
+    park, t_park = deploy("idle", f"{label}-park")
+say(f"phase {label}: version {version} deployed {hms(t_dep)}, parked {park} at {hms(t_park)}; read with "
+    f"s_reads.py <phase> {datetime.fromtimestamp(t_dep, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')} <after the park> {version}")

@@ -1641,3 +1641,22 @@ a version change only, and should fire on the next minute. The 15-min window was
 cron, and that deploy has now happened.
 
 **The adds measured:** 268.7 s, about 592 s, about 539 s. **The removal:** 323 s.
+
+**Ruling, pasted ~17:12Z (verbatim):**
+
+> S1's fourth attempt is recorded as a tool stop, with no reading: 093b18f7 ran 0 invocations, and the tail closed by itself at about 7 minutes. All three proposals are accepted:
+> 1. Phases are driven by the clock, not the tail. Read the firing offset from the last two idle firings, deploy a phase about 20 s after a firing starts, and park about 20 s after its Nth firing starts. The graded count stays s_reads.py by version id. A count other than N reads off: stop and report.
+> 2. S4's graded set is the first 12 counted stored by scheduledTime. Later ones are printed beside them, ungraded.
+> 3. S1's fifth attempt runs with the 5-minute first-invocation window, since the cron is live.
+> Record the tail's ~7-minute end as an instrument limit; nothing graded relies on a tail any more. Start when you receive this. The map server's builder slot may run alongside: it's a different Worker and shares nothing.
+
+- **The tail's limit, recorded:** a `wrangler tail` on the dev Worker ended itself after about 7 min with exit 0
+  (S1d, 17:01:34Z). Nothing graded relies on a tail.
+- **`tools/wx/s_clock.py` replaces `s_drive.py`** for every phase from here.
+  - **Offset:** from the last two firings in the Logs, which must be 60 s +/- 2 s apart.
+  - **Phase deploy:** 20-40 s after a firing start, so the phase's first firing is the next one.
+  - **Park on `idle`:** 20 s after the Nth firing's start.
+  - **The 5-min rule:** a phase longer than 6 min is checked at the deploy + 360 s.
+  - **S4:** polls the Logs each minute and parks at the first slot after the 12th counted `stored` (cap 135 min).
+  - **S5:** deploys `off` in a slot and does not park.
+  - Any error after a phase deploy parks on `idle`.
