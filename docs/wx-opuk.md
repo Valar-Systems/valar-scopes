@@ -1476,3 +1476,17 @@ propagate to the Cloudflare global network."*
   deploy (04:16:06Z).
 - **The alternative,** that the trigger isn't registering at all, is not excluded for `5e4c9a8b` alone. But
   `f967798b`'s firing shows the same config does register.
+
+- **The ~04:30Z ruling was pasted a second time, unchanged** (received after the report above). It is recorded once,
+  above, and was already applied: S1's third attempt ran under it.
+  - It doesn't cover the report sent after that attempt, so **no fourth attempt and no change to parking runs** until
+    that report is ruled.
+- **The late firing, from the read-only watch:** `5e4c9a8b`'s cron add **did register**. Its first firing was at
+  **04:43:45Z, about 592 s (9.9 min) after its deploy**.
+  - It landed on the **parked** version `09f14eca` and logged only `wx_dev_off`, with 0 ms CPU.
+  - Firings followed at 04:44:45Z and 04:45:45Z; that is three by the 04:46:27Z read.
+  - So the alternative, "never registered", is now excluded for `5e4c9a8b`: the add was slow, about 592 s, inside the
+    documented 15 min.
+  - The park's removal, deployed 04:39:57Z, is presumably still propagating. The watch continues.
+- **The adds measured so far:** 268.7 s (`f967798b`) and about 592 s (`5e4c9a8b`). `85a35361` had 0 firings in its
+  51 s live, and no firing was seen afterwards either: a removal followed it within the minute.
