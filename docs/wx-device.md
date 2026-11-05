@@ -4737,3 +4737,24 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
 | `k6_arms_rehearsal.py` | `9ac0317d23f9` | `arm_labels` extracted unmodified and run on the real 11-04 record and the source's default. A1-A6 pass: F has 5 on; L1 equals the record (`info-type` only); L1 refuses a differing field; L0 has all 15 off; a 16th field is refused; an unknown arm is refused. The plant (L1's check removed) turns **exactly A3** BAD |
 | `k6_arms_grade.py` | `e868e46c609e` | The selftest passes 15/15: (a), (b), (c), and (d) by each of its routes, with the band edges (86/86.1, 95, 98.9/99) on the right side |
 | `w5p5_run.py` | `21e426232ff6` | Its block now ends at 03:05Z (was "until Daniel lifts the hold"). The rehearsal's R1-R8 all fire, R8 included: a window from 20:00Z is refused, and one after the block is clear |
+
+**Before the windows start (2026-11-05 ~03:40Z):**
+- **#536's T5 read OFF**: night polling, ruled ~03:30Z, with no rollback. T5′ and T6′ are registered on #536 and graded
+  in Bend daytime. The windows were released at ~03:30Z, so both drivers' blocks now end at 03:35Z.
+  - `w5p5_run.py` is now `233703cb60fe` and `k6_arm_run.py` `be194441bdee` (regenerated). The rehearsals pass on both:
+    W5⁵'s R1-R8, the arms' A1-A6 with the plant turning exactly A3, and the restore's R1-R6.
+- **The night cadence, read from the firmware.**
+  - W5⁵ moves E2:08 to `data-source local`, which polls every 1 s, so the night cadence does not reach it. W5⁗ ran at
+    night too.
+  - K6 stays on the cloud path (the `cloud-url` override), so tonight it polls every **60 s** where the 11-04 arm
+    polled every 15 s by day.
+  - The same-sitting F control is what absorbs that. If F lands outside 99-105 ms, the frozen outcome is **(d)**, by
+    design.
+  - Running K6 tonight also keeps E2:08 normal for T5′'s daytime hours: both windows end before 16:00Z.
+- **Weatherscope's W4 re-run may overlap** (another board, another port). Any overlap is recorded with each arm,
+  along with the PC guard's own readings.
+- **The 3 `write_error` at 00:40Z: their text is not readable.**
+  - The writer counts the event and logs nothing.
+  - The Durable Object's own record shows all 23 invocation groups from 00:30 to 00:50Z as `success`, with 0 errors.
+  - The token held here has no access to Workers Logs (HTTP 403).
+  - So a reset during the deploy's turnover is possible, and is not shown.
