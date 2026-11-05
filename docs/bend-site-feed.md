@@ -553,3 +553,74 @@ line (83 ≥ 80), so the rule fixed in advance takes that hour out of grading, w
 **#540's deploy no longer waits on T5′, but it still waits on the ruling** on its own
 off-prediction: S-N2 turned N2 **and** B5 red; the suite total was off because of a stale
 baseline; and D5's string case cannot fail.
+
+### #540: the ruling of ~19:35Z, re-registered and frozen before anything runs
+
+**Re-registered, the misses kept:**
+- The Workers total for the first head was **907** (main's 897 at `131c0f7`, plus 10).
+- **S-N2's set is {N2, B5}.** B5 guards "an equal time is accepted", so the code stands.
+- The TIME_WAIT gate is a script that refuses to start a run above 8,000.
+
+**D5: the case the ruling asks for cannot be built against this guard. Shown by running it, for
+a ruling.**
+
+The ruling asks for a malformed-entry case that the shape guard decides. Each shape was run with
+the guard removed:
+
+| `devices` / entry | unguarded result |
+|---|---|
+| entry a string, a number, an array, or `null` | **identical** to the no-layer config. Spreading a primitive adds only numbered keys, and the response reads named fields only |
+| `devices` a string or an array | identical: the lookup returns `undefined` |
+| **`devices: null`** | **throws `TypeError`, and `/v1/config` fails for every device** |
+
+So the guard decides exactly one case, `devices: null`, and that is the one where a bad KV entry
+would break `/v1/config` for everyone. **D5's `null` case already is that check, and it failed
+under S-D5.**
+
+A malformed field inside an object entry, such as `{ "pollNightMs": "15000" }`, does reach the
+listed device. The firmware is already safe from it: `src/CloudFeed.cpp:214` applies the field
+only if `is<unsigned long>()`, and `:233` clamps night to at least idle.
+
+**Proposed, for the ruling:**
+- **(a)** D5 becomes the `null` case alone, renamed for what it guards ("a null `devices` must not
+  break /v1/config for any device"), and asserts that two different devices both get 200. S-D5 is
+  its sabotage. The string case is dropped as a non-check.
+- **(b)** Option (a) plus a field-level guard in the proxy that applies only finite, positive,
+  numeric fields from an entry. That case can fail, but it duplicates what the firmware already
+  refuses.
+
+(a) is recommended.
+
+**CI for the new head, from #540's own finished run after #549.** That run is `ebbee6f`, tested
+merged into `dd1246e`, and read 33 check-runs (30 success, 3 skipped), Workers **910 passed, 1
+skipped (911)** (main's 900 at `788dab3`, plus 10), and dashboard 104. Main has since moved to
+`a3091cd` (#551), which is docs only and changes no count. **Predicted for the new head:**
+- 33 check-runs: 30 success, 3 skipped;
+- Workers 910 + n passed, 1 skipped, where n is the number of cases the D5 ruling adds (0 under
+  (a), 1 under (b));
+- dashboard 104.
+
+**The deploy bundle, predicted before the dry run.** The proof will be `wrangler deploy --dry-run
+--env production --outdir ... --metafile` from the merge commit, reading the esbuild metafile's
+`inputs`.
+- **In the bundle:** #540's `src/config.ts`, `src/index.ts` and `src/sitefeed/bend.ts`, and #534's
+  `src/basemap/handler.ts`, `src/index.ts` and `src/metrics.ts`.
+- **Not in the bundle:** #537's `src/wx/ingest-worker.ts` and `src/wx/ingest-dev-worker.ts`, and
+  #541's `src/basemap/worker.ts`.
+- The changed-file list is complete. `git diff 9eb8dde..a3091cd -- proxy/src` names exactly those
+  six, plus #540's own.
+- **Any other changed file in the inputs: stop and ask.**
+
+**Rollback targets, recorded first** (ruled): staging **`3b12b9ea`**, production **`c8f33459`**.
+They are re-read from `wrangler deployments list` before the deploy. A target that no longer
+matches what is serving is a stop.
+
+**The order,** after the D5 ruling:
+1. the change, then CI as predicted;
+2. the reviewer's approval at a SHA, then the merge;
+3. main's **finished** CI;
+4. the bundle proof from the merge commit;
+5. staging, then production, by the merge commit's name, **before #548 merges**;
+6. verify (`/healthz` reports the commit; `smoke-prod.sh`);
+7. the feeder's KV entry (the id never printed), then Daniel power-cycles the feeder;
+8. the night reading, registered before it is read.
