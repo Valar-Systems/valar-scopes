@@ -4,6 +4,48 @@
 the plan is ruled. D4's original scope, the production `BASEMAP` binding and the smoke's `/credits` half
 (`docs/basemap-deploy.md`), waits for these prerequisites.
 
+## Ruled: the plan of record (reviewer chat, pasted by Daniel, 2026-11-05 ~04:30Z)
+
+**This ruling decides the plan.** Where §2's recommendation (O5) or §3's target differs from it, the ruling stands.
+
+> #539, D4's plan: received, and its CI on fa4c77a read as predicted. The facts are accepted, including the finding
+> that a cold build can't reach a device through today's Get() path (a 5 s wait against builds of 7.6-22 s).
+>
+> Q-D4a: O1, not O5.
+> - O5 puts the normalised query into the builder's URL. Its cache key, and the builder's request logs if they record
+>   the URL, would then hold the query's coordinates. The route's own rules keep coordinates out of every cache key and
+>   ETag (MP3), and the handler logs nothing (MP1). The plan doesn't address this.
+> - A device's repeat is mostly a revalidation. Once the store id is readable, O1 serves every If-None-Match with a 304
+>   and no build, in any data centre. Only a full repeat (R) in another data centre still builds.
+> - O1 as follows: write the store id to KV only when a store is sealed, not on every builder 200, which would also run
+>   into KV's limit of one write a second per key. Read it with cacheTtl. The Cache API key stays the digest, and MP1
+>   and MP3 stay as they are.
+> - O5 comes back only if the re-read under O1 shows cross-data-centre R costing devices real builds, and then only
+>   with a design that keeps coordinates out of the builder's URL, cache key and logs.
+>
+> Q-D4b: yes. Build the builder's read instrument as proposed: counts and milliseconds only, BB1-BB3, each with its
+> sabotage, predictions as frozen, staging only. Ask me for a slot before its staging deploy.
+>
+> Q-D4c: 2.5 s is accepted as the cold-build target. Grade it as the p95 of cold-build wall over a staging set
+> registered before it's read, not the median. If parallel reads can't reach it, the three alternatives come back for a
+> decision.
+>
+> Q-D4d: no message now. You own the Blipscope's basemap client, so the 5 s wait becomes a requirement in its plan. If
+> the client then needs anything changed in the shared Get() path, that goes to blipscope-5c through me.
+>
+> #539: approved to merge as the plan of record at the head that adds this ruling verbatim, once that head's CI reads
+> 38: 35 success, 3 skipped, 0 failed. Squash with --match-head-commit, no --admin, and record main's CI.
+
+**What this changes in the plan, read against it:**
+- **§2:** O1 is the option.
+  - The KV key is written **only when a store is sealed**, never on a builder 200.
+  - It is read with `cacheTtl`.
+  - The Cache API key stays the query's digest, and MP1 and MP3 are unchanged.
+  - O5 is set aside, on the conditions above.
+- **§3:** the instrument (BB1-BB3) is approved for **staging only**, with a slot asked for before its deploy. The 2.5 s
+  target is graded as the **p95** of cold-build wall over a staging set registered before it is read.
+- **§1.6:** the 5 s wait is a requirement in the plan for the Blipscope's basemap client, which the map server owns.
+
 ## The rulings, verbatim (reviewer chat, pasted by Daniel)
 
 From ~02:45Z, on MM4's staging read:
