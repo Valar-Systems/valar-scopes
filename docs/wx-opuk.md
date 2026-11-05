@@ -1948,3 +1948,27 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
 >    - both rollbacks.
 >    When the PR is ready, I'll set its slot and say whether it needs a board hold.
 > Cost: about $0.53 a month, under $2. Accepted.
+
+**Item 3's PR: #556** (`feat/wx-opuk-worker`).
+- Predictions and R3-prime (R3′) were frozen first at `61aece0a` (21:15:52Z, `docs/wx-opuk-split.md`). The code is
+  `41da3b47f553`.
+- Locally: 4/4 tests passed; FT1s, FT2s and FXs read as predicted; the selftest passed.
+
+**#556's CI at `41da3b47f553`, finished (read 21:42Z):**
+
+| | predicted (`61aece0a`) | got | verdict |
+|---|---|---|---|
+| proxy suite | 915 passed, 1 skipped (916); files 70 + 1 (71) | **915 passed, 1 skipped (916); files 70 + 1 (71)** | as predicted |
+| the plant selftest | PASSED; PB1 production 0 and `opuk` 0; FB2 2/2; FB2s FAIL on `inert` alone | **as predicted** (PB1 0/0, anchors 1/1, dev 1; FB2 PASS; PB1s FAIL 1; PB2s FAIL `cref`; FB2s FAIL `inert`) | as predicted |
+| **check-runs on the head** | **41** (38 success, 3 skipped) | **34** (31 success, 3 skipped); all four workflows `success` | **OFF** |
+
+**The count's cause, read from the two heads' check-run lists:**
+- Compared with #543's head (41), #556's lacks exactly the eight `build (*-s3-146)` legs and has one new
+  `ota-identity` job.
+- Main's firmware workflow changed between the two bases:
+  - #549 (`dd1246e0`) retired the 1.46" SKUs from CI;
+  - `84409651` added the OTA identity job.
+- 41 - 8 + 1 = 34, and every one concluded. **This PR changes no firmware workflow file.**
+- **The miss is mine:** I took the basis from earlier PR heads instead of from the base's own workflow at the time.
+- **The alternative,** jobs that failed to start, is excluded: the two lists differ by exactly those nine names, and
+  all 34 concluded.
