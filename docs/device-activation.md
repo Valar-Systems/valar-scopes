@@ -667,3 +667,33 @@ written.
 - **S-M** (stamped counted from the state): red exactly {M1}.
 - Both files were restored by bytes, sha checked. The list count (944) is read from drained ports
   before the push.
+
+### G-1's instrument fix (ruled ~20:35Z): frozen before its code
+
+**Ruled:** G-1 is recorded as an instrument stop with nothing written. The miss is that the tool
+hid its own cause.
+
+**The fix.** On a failed wrangler call, the tool prints stderr and stdout's non-key lines through
+one function, `failureText`:
+- every 16-hex run is masked as `<id>`;
+- lines carrying a key (`"name":`) are dropped;
+- the known "unsafe fields are experimental" config warning, and the header lines around it, are
+  dropped;
+- the result is capped.
+
+| | check | sabotage |
+|---|---|---|
+| **F1** (unit) | given a stdout of id-shaped key lines plus an `[ERROR]` line, and a stderr of the config warning: the text keeps the error, masks every id (no 16-hex run survives), and drops the warning | **S-F:** the mask removed. Red: exactly {F1} |
+| **F2** (one CLI run against a planted failure) | a fake `npx` on `PATH`, in a scratch directory and for that one run only, exits 1. Its stdout carries three id-shaped key lines (allowlisted fake ids) and an error line. `activation.ts seed --ledger --state activated --staging` must exit 1, and print the error line with **no 16-hex run** in all its output. **CONTROL:** that output contains `<id>` or the planted error text, so it said something | |
+
+**The list reads 945:** 944 plus F1.
+
+**Then, once each, in order:**
+
+| run | predicted | outside the set |
+|---|---|---|
+| **G-1** (re-run once) | `read 22, already present 0, written 22, repaired 0, missing 0 -> COMPLETE` (a repair may appear; missing must be 0) | **stop and report, with the cause now visible.** No retry |
+| **G-2** | `read 2, already present 0, written 2, ... missing 0 -> COMPLETE` | stop |
+| **C1** | exit 0: union 20, with a row 20, missing 0 | stop |
+| **Daniel's seed** (`provisioned.csv`, once) | counts only, ending in `COMPLETE` | Daniel reports it; I read nothing of the file |
+| **C1 again** | exit 0, missing 0 | stop |
