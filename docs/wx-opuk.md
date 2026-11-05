@@ -1304,3 +1304,33 @@ method as R3-0):
   5. S4 (`opuk`, until N = 12 counted `stored`, at most 120 min);
   6. S5 (`off`), then read S4 and S5.
 - A park creates a version and changes no reading. Each park's time and version id are recorded with the phases.
+
+### Plan S runs (2026-11-05)
+
+**Main's CI at `131c0f776d9a`, finished 03:12:20Z:**
+- **41 check-runs: 39 success, 2 skipped, 0 failed**, as the ruling's basis.
+- The four workflows were device-ids, firmware, no-traffic-captures and workers.
+- Proxy suite 897 passed, 1 skipped (898). The plant selftest passed.
+- **S0's slot opened.**
+
+**S0, deployed 03:12:47.344-03:12:51.534Z** (`npx wrangler deploy -c wx-ingest-dev.wrangler.toml -e off` from the
+clean checkout at `131c0f776d9a`, exit 0, empty stderr):
+- Worker **`blipscope-wx-ingest-dev`**. The deploy says "Deployed blipscope-wx-ingest-dev triggers" and lists **no
+  schedule**.
+- Version **`b350ba72-d910-43d3-bd92-68e8acfe2f15`**. `deployments status`: 100%, created 03:12:50.678Z.
+- **The version record** (`wrangler versions view --json`):
+  - `limits.cpu_ms` **30000**, `usage_model` standard, handlers `["scheduled"]`;
+  - bindings: **`WX` -> `blipscope-wx-dev` (`r2_bucket`)**, and **`MODE` = `off` (`plain_text`)**.
+
+**S0 is stopped on its row's wording, not on the copy.**
+- S0's frozen row says "the version record shows **exactly one binding**, `WX` -> `blipscope-wx-dev`". The record
+  has **two**:
+  - the bucket;
+  - the `MODE` var, which every env carries by design. It is in §1's table, PB2 checks it, and the review read it.
+- **What it would take for the record to be wrong:** a second bucket, or a binding to `blipscope-wx`. Neither is
+  there.
+  - PB2's own wording, "exactly one R2 binding ... and `MODE` as in the table", is what was meant, and it holds.
+  - S0's row is the looser text, and I wrote it.
+- **Under the rule** (anything outside the table: stop and report), S0 stops here and waits for a ruling.
+- **The copy is inert:** no cron, and `MODE` off. So the stop costs nothing but time. Nothing after S0 runs until
+  ruled.
