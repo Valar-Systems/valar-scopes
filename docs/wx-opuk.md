@@ -1548,3 +1548,21 @@ propagate to the Cloudflare global network."*
   3. S2-S4, parking on `idle`, with the 5-min rule.
   4. S5 deploys `off`, with the 15 + 10 min rule.
   - All of it by 10:00Z or parked; anything left resumes after 16:45Z.
+
+**The `idle` env's PR: #543** (`feat/wx-plan-s-idle`).
+- Predictions frozen first at `f0a0622` (04:56:50Z, `docs/wx-plan-s.md` §5); the code is `8a4b109f16f0`.
+- Locally the plant selftest passed: PB2 7/7 (`idle` MODE `off`); PB2s FAIL on `cref` alone.
+- CI is read when finished, then it waits for review and merge.
+
+**Pinned before any of it runs** (tools on this branch):
+- **`s_drive.py`:**
+  - deploys only from `PLAN_S_WANT`, the commit #543 merges as, and refuses if it's unset;
+  - parks on **`idle`** by default;
+  - `--first 900` for S1's fourth attempt, the one deploy that adds the cron; 300 s for every later phase;
+  - judged on `scheduledTime` at the window + 60 s.
+- **S5's read** (`s_reads.py S5 <S5 deploy> <now> <S5 version>`):
+  - every invocation that starts at or after S5's deploy carries S5's version and logs only `wx_dev_off`;
+  - the last starts within **900 s** of the deploy;
+  - **0** start in **[deploy + 900 s, deploy + 1,500 s]**;
+  - read twice, at or after the deploy + 1,500 s and again 5 min later.
+  - Before the deploy + 1,500 s, it reads "NOT YET", never a pass.

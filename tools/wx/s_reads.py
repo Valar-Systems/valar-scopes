@@ -154,7 +154,20 @@ elif phase in ("S3", "S4"):
     else:
         out["verdict"] = "AS PREDICTED" if ok else "OFF: outside the row -> stop and decide"
 elif phase == "S5":
-    n = sum(v["invocations"] for v in by_status.values())
-    out.update({"r3_6_invocations": n, "logs_invocations": len(rows)})
-    out["verdict"] = "AS PREDICTED: 0 invocations" if n == 0 and not rows else "OFF: the copy still runs"
+    # re-registered ~05:05Z: from S5's deploy (the window's start; version = S5's), invocations land only on S5's
+    # version and log only wx_dev_off; the last starts within 900 s of the deploy; then 0 in [deploy+900, deploy+1500].
+    dep = ms(a) / 1000
+    wrong_ver = [hms(st) for st, d in inv.items() if st >= dep and want_ver and d["ver"] not in (None, want_ver)]
+    not_off = [hms(st) for st, d in inv.items() if st >= dep and any(c[0] != "wx_dev_off" for c in d["checks"])]
+    starts = sorted(st for st in inv if st >= dep)
+    late = [hms(st) for st in starts if st > dep + 900]
+    quiet = [hms(st) for st in starts if dep + 900 <= st < dep + 1500]
+    covered = ms(b) / 1000 >= dep + 1500
+    out.update({"after_deploy": len(starts), "last": hms(starts[-1]) if starts else None, "other_version": wrong_ver,
+                "not_wx_dev_off": not_off, "after_900s": late, "in_quiet_window": quiet, "quiet_window_covered": covered})
+    if not covered:
+        out["verdict"] = "NOT YET: the window must reach the deploy + 1,500 s"
+    else:
+        ok = not wrong_ver and not not_off and not late and not quiet
+        out["verdict"] = "AS PREDICTED" if ok else "OFF: outside S5's row"
 print(json.dumps(out, indent=1))
