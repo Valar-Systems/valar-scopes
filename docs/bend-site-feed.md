@@ -657,3 +657,65 @@ matches what is serving is a stop.
 **Local, graded before the push: as predicted.** The control ran `config.test.ts` 14 and
 `fleet-device-entry.test.ts` 1, all green, behind the port gate. **S-D5** turned red exactly {D5};
 **S-W** turned red exactly {the tool test}. Both were restored by bytes, sha checked.
+
+### #540 deployed (2026-11-05), the feeder's entry written, and the night reading registered
+
+**The merge.** #540 was squash-merged as `3e0a444`, pinned to its head `e3b94fc`, after CI read
+as pre-approved:
+- 33 check-runs: 30 success, 3 skipped, 0 failed;
+- Workers 911 passed, 1 skipped (912);
+- dashboard 104.
+
+Main's own CI on `3e0a444` then finished: 33 check-runs, 31 success, 2 skipped, 0 failed, read
+twice 60 s apart. All four workflows succeeded.
+
+**The bundle proof, from the merge commit.** `wrangler deploy --dry-run --env production
+--metafile` took 49 inputs.
+- **Changed since production's `9eb8dde` and in the bundle, exactly:** `src/basemap/handler.ts`,
+  `src/config.ts`, `src/index.ts`, `src/metrics.ts`, `src/sitefeed/bend.ts`.
+- **Not in the bundle:** `src/wx/ingest-worker.ts`, `src/wx/ingest-dev-worker.ts` and
+  `src/basemap/worker.ts`.
+- **#543 (`788dab3`), carried and accepted,** touches only its dev ingest config, a script and a
+  doc. `deploy.sh` deploys the basemap builder only with `--builder`.
+- **Main had moved by one commit** (#552, firmware OTA identity), which touches no `proxy/` file.
+  `deploy.sh` reported it and did not block.
+
+| | staging | production |
+|---|---|---|
+| rollback target, read before and again just before the deploy | `3b12b9ea` | `c8f33459` |
+| deployed from `3e0a444` by `deploy.sh` | 20:24Z, version `968d9f23` | 20:26Z, version `5e7f481c` |
+| `/healthz` commit, read twice | `3e0a444`, `3e0a444` | `3e0a444`, `3e0a444` |
+| `smoke-prod.sh` as the test identity | PASS 38, FAIL 0 | PASS 38, FAIL 0 |
+| the test identity's `/config` (unlisted) | `pollNightMs` 60000 | `pollNightMs` 60000, before and after the entry |
+
+**The first staging smoke was refused before sending anything.** `BLIP_KEY` was inherited by
+the shell, a known stale copy, and the script runs only as the test identity. It was re-run with
+`BLIP_KEY` and `BLIP_DEVICE` unset.
+
+**The feeder's entry**, written with `scripts/fleet-device-entry.ts` (the id from the token file,
+never printed):
+- the dry run read `devices entries 0 -> 1; setting pollNightMs = 15000 on the feeder` and wrote
+  nothing;
+- the write, at 20:27:31Z, read back `read-back verified: true`.
+
+**Next:** Daniel power-cycles the feeder, so it fetches its new config.
+
+#### The night reading, registered before it is read
+
+**Hours:** 2026-11-06 **06:00-07:00Z** and **07:00-08:00Z** (22:00-24:00 PST), night by the
+solar clock in Bend.
+
+**The precondition:** Daniel's power-cycle, reported before 06:00Z. If it has not happened, the
+reading moves to the next night and is re-registered, not read.
+
+**The reader:** a copy of `t5p_read.py` with these hours and N0 added. It prints counts only and
+never an id; its sha is recorded before it runs.
+
+| | check | predicted | outside the set |
+|---|---|---|---|
+| **N0**, did the cadence take | the feeder's maximum weighted `/blips` in a 10-minute bin, in each hour, read by its id | **35-45**, one poll every 15 s (40). The old night cadence (60 s) would read about 10 | about 10: the entry did not reach the feeder. **Stop** |
+| **N1**, per hour | production `written` | **225-242**, never above 360, `write_error` 0 | **stop and report** |
+| **N2** | `refused_older` per hour | reported beside N1, with no band: the first night reading of the new counter | |
+| **touched** | an hour in which **E2:08** reaches 80 or more in a 10-minute bin | reported, not graded. The feeder's own rate is the subject now, so the rule reads E2:08 only | |
+
+The ages a visitor sees (median 10-16 s, maximum ≤ 30 s) are the website's to read.
