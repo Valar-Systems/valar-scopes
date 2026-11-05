@@ -1660,3 +1660,30 @@ cron, and that deploy has now happened.
   - **S4:** polls the Logs each minute and parks at the first slot after the 12th counted `stored` (cap 135 min).
   - **S5:** deploys `off` in a slot and does not park.
   - Any error after a phase deploy parks on `idle`.
+
+**S1, fifth attempt (clock-driven, from `788dab3cf200`): the count is exact, but one clause of the row is OFF.**
+
+| | |
+|---|---|
+| start | offset **45.058 s** past the minute, from the last two `idle` firings (17:16:45.058Z, 17:17:45.058Z). `plantcal`, **version `13cd381e-09d2-4212-81b5-165be45a6090`**, 17:18:12.794-17:18:16.918Z, exit 0, empty stderr, `schedule: * * * * *` |
+| end | park on `idle`, **version `46aa8e6c-6df1-4d84-b09b-9fcbe36bb3d6`**, 17:21:05.101-17:21:11.618Z, exit 0, empty stderr, cron kept |
+| read (`s_reads.py S1`, by version; twice, 17:24:32Z and 17:26:04Z, identical) | **3 records, all `ok`** (17:18:45, 17:19:45, 17:20:45Z), 0 unattributed. CPU **7,939 / 12,693 / 9,480 ms**, wall 32.4-36.3 s. Every plant line has `result` 3554693450 |
+| R3-6's instrument (no version filter, 17:18:16-17:22:00Z) | 4 `success`, 0 errors: the 3 of `13cd381e` plus the `idle` park's 17:21:45Z firing. Consistent with the Logs |
+
+**S1's row applied:**
+- 3 records, all `ok`: **yes**.
+- `C` = 9,480 ms (the median), and `C` ≥ 500: **yes**.
+- **Each within ±25% of `C`** (7,110-11,850): **no. 12,693 is +33.9%.** So **S1 is OFF.**
+
+**Cause, and the alternative:**
+- The three invocations ran the identical loop: the same `iter` and the same `result`. So the 1.6x spread (7.9-12.7 s)
+  belongs to the runtime's CPU accounting, not the plant.
+- With `f967798b`'s 10,056 ms, four readings of the same work span 7,939-12,693.
+- **The ±25% was my prediction**, and it assumed identical work reads identically. That miss is mine.
+- What the runtime does underneath can't be separated here: different machines, or contention on one. Either way it
+  is outside the plant.
+
+**What it means beyond S1:**
+- **S2** is unaffected. Even the lowest reading puts `cpu_ms` 100 at about 79x below one invocation.
+- **S3 and S4** read medians and maxima of real ingest CPU. A ±30% runtime spread on identical work is a fact about
+  how wide their rows can fairly be.
