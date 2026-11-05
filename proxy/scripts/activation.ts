@@ -5,6 +5,7 @@
  *   npx tsx scripts/activation.ts reset  <16-hex id> [--staging]
  *   npx tsx scripts/activation.ts status <16-hex id> [--staging]
  *   npx tsx scripts/activation.ts import <file>      [--staging]   MACs one per line, or esptool logs
+ *   npx tsx scripts/activation.ts seed   <file>      [--staging]   BEFORE #548 deploys: bench records into KV
  *
  * The id is the one the customer reads off the Connect screen or the config page.
  *
@@ -14,19 +15,31 @@
  *
  * PRINTS NO ID: counts and states only, including for ids read from a file. A file line that is
  * not a MAC is named by its number. Exit 0 done, 1 refused or unreachable, 2 usage.
+ *
+ * SEED is the one operation that does not go through the route, because it runs BEFORE the route
+ * exists in production (docs/device-activation.md, "Seeding before the deploy"). It writes `listed`
+ * rows straight into KV with `wrangler kv bulk put`, under the caller's own `wrangler login` session,
+ * from the proxy directory whatever the caller's cwd. It never rewrites an existing row, and it
+ * verifies, repairs and verifies again (a bulk put drops keys silently). wrangler's own output is
+ * captured, never printed: a key listing is a list of ids. Exit 0 complete, 1 incomplete.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { ACTIVATION_ID_RE, MAX_BATCH } from "../src/activation";
-import { chunk, errorCode, parseImport, sumAdd, summarize } from "./activation-lib";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { ACTIVATION_ID_RE, actKey, MAX_BATCH } from "../src/activation";
+import { deviceIdFromMac } from "../src/provision";
+import {
+  chunk, errorCode, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, type SeedStore,
+} from "./activation-lib";
 
 const BASES = { production: "https://scopes.valarsystems.com", staging: "https://scopes-staging.valarsystems.com" } as const;
 const TOKEN_FILES = { production: "provision-token", staging: "provision-token-staging" } as const;
 
 function usage(msg: string): never {
   console.error(`activation: ${msg}`);
-  console.error("usage: activation.ts add|reset|status <16-hex id> [--staging]   |   activation.ts import <file> [--staging]");
+  console.error("usage: activation.ts add|reset|status <16-hex id> [--staging]   |   activation.ts import|seed <file> [--staging]");
   process.exit(2);
 }
 
@@ -40,7 +53,60 @@ const env = args.includes("--staging") ? "staging" : "production";
 const rest = args.filter((a) => a !== "--staging");
 const [op, target] = rest;
 if (rest.length !== 2 || !op || !target) usage("expected an operation and one argument");
-if (op !== "add" && op !== "reset" && op !== "status" && op !== "import") usage("the operation must be add, reset, status or import");
+if (op !== "add" && op !== "reset" && op !== "status" && op !== "import" && op !== "seed") {
+  usage("the operation must be add, reset, status, import or seed");
+}
+
+// wrangler resolves wrangler.toml from its cwd, so it runs from the proxy directory however this was started.
+const PROXY_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/** One wrangler call, output captured. On failure: the exit code and stderr with every 16-hex run masked. */
+function wrangler(argv: string[]): string {
+  const r = spawnSync(["npx", "wrangler", ...argv].join(" "), { cwd: PROXY_DIR, shell: true, encoding: "utf8" });
+  if (r.status !== 0) {
+    const err = String(r.stderr ?? "").replace(/[0-9a-f]{16}/gi, "<id>").slice(-600);
+    refuse(`wrangler ${argv.slice(0, 3).join(" ")} failed (exit ${r.status}):\n${err}`);
+  }
+  return String(r.stdout ?? "");
+}
+
+/** The live KV as a SeedStore. Every listing is --remote: without it wrangler reads a local store and answers [] (exit 0). */
+function wranglerStore(envName: string): SeedStore {
+  const common = ["--binding=ENRICH_KV", `--env=${envName}`, "--remote"];
+  return {
+    async listedIds() {
+      const out = wrangler(["kv", "key", "list", "--prefix=act:", ...common]);
+      let keys: unknown;
+      try {
+        keys = JSON.parse(out.slice(out.indexOf("[")));
+      } catch {
+        return refuse("the act: listing was not JSON; nothing is believed");
+      }
+      if (!Array.isArray(keys)) return refuse("the act: listing was not a list");
+      const ids = new Set<string>();
+      for (const k of keys) {
+        const id = String((k as { name?: unknown }).name ?? "").slice("act:".length);
+        if (ACTIVATION_ID_RE.test(id)) ids.add(id);
+      }
+      return ids;
+    },
+    async putListed(ids) {
+      const dir = mkdtempSync(join(tmpdir(), "act-seed-"));
+      try {
+        const listedAt = new Date().toISOString();
+        for (const [i, batch] of chunk([...ids], 1000).entries()) {
+          const path = join(dir, `seed-${i}.json`);
+          writeFileSync(path, JSON.stringify(batch.map((id) => ({
+            key: actKey(id), value: JSON.stringify({ v: 1, state: "listed", listedAt, resets: 0 }),
+          }))));
+          wrangler(["kv", "bulk", "put", JSON.stringify(path), ...common]);
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  };
+}
 
 function token(): string {
   const f = join(homedir(), ".config", "valar-flasher", TOKEN_FILES[env]);
@@ -73,6 +139,19 @@ async function post(body: Record<string, unknown>, tok: string): Promise<Record<
 }
 
 async function main(): Promise<void> {
+  if (op === "seed") {
+    if (!existsSync(target!)) usage("the records file does not exist");
+    const parsed = parseRecords(readFileSync(target!, "utf8"));
+    if (parsed.badLines.length > 0) {
+      refuse(`${parsed.badLines.length} line(s) are not a record (line ${parsed.badLines.slice(0, 20).join(", ")}); nothing was written`);
+    }
+    const ids = parsed.mode === "macs" ? [...new Set(await Promise.all(parsed.macs.map(deviceIdFromMac)))] : parsed.ids;
+    if (ids.length === 0) refuse("the file holds no id or MAC; nothing was written");
+    console.log(`seed (${env}): ${ids.length} unique id(s) from a ${parsed.mode} file`);
+    const result = await seedWith(wranglerStore(env), ids);
+    console.log(summarizeSeed(env, result));
+    process.exit(result.complete ? 0 : 1);
+  }
   if (op === "import") {
     if (!existsSync(target!)) usage("the import file does not exist");
     const parsed = parseImport(readFileSync(target!, "utf8"));

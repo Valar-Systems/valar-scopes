@@ -102,3 +102,138 @@ export function errorCode(body: unknown): string {
   const e = (body as { error?: unknown } | null)?.error;
   return typeof e === "string" && /^[a-z_]{1,40}$/.test(e) ? e : "unknown";
 }
+
+/* ===========================================================================
+ * THE SEED (docs/device-activation.md, "Seeding before the deploy"): Daniel's bench
+ * records written as `listed` rows straight into KV, before the admin route exists.
+ * ======================================================================== */
+
+const ID16 = /^[0-9a-f]{16}$/;
+
+export interface ParsedRecords {
+  mode: "csv" | "ids" | "macs";
+  /** csv and ids modes: unique, lowercase, in first-seen order. */
+  ids: string[];
+  /** macs mode: for the caller to derive with the mint's own function. */
+  macs: string[];
+  /** 1-based numbers of the lines that are not what the mode expects. Never their content. */
+  badLines: number[];
+}
+
+/**
+ * CSV mode when the first non-blank line is a header naming a `device_id` column (provisioned.csv's
+ * shape); ids mode when every content line is 16 hex; otherwise MAC/log mode (parseImport).
+ */
+export function parseRecords(text: string): ParsedRecords {
+  const lines = text.split(/\r?\n/);
+  const first = lines.findIndex((l) => l.trim() !== "" && !l.trim().startsWith("#"));
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  const badLines: number[] = [];
+  const add = (id: string) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
+
+  const header = first >= 0 ? (lines[first] as string).split(",").map((h) => h.trim().toLowerCase()) : [];
+  const col = header.indexOf("device_id");
+  if (col >= 0) {
+    for (let i = first + 1; i < lines.length; i++) {
+      const line = lines[i] as string;
+      if (line.trim() === "") continue;
+      const id = (line.split(",")[col] ?? "").trim().toLowerCase();
+      if (ID16.test(id)) add(id);
+      else badLines.push(i + 1);
+    }
+    return { mode: "csv", ids, macs: [], badLines };
+  }
+  const content = lines.map((l, i) => [l.trim(), i + 1] as const).filter(([l]) => l !== "" && !l.startsWith("#"));
+  if (content.length > 0 && content.every(([l]) => ID16.test(l.toLowerCase()))) {
+    for (const [l] of content) add(l.toLowerCase());
+    return { mode: "ids", ids, macs: [], badLines: [] };
+  }
+  const p = parseImport(text);
+  return { mode: "macs", ids: [], macs: p.macs, badLines: p.badLines };
+}
+
+/** The ids that get a new row: every intended id that has none. A seed NEVER rewrites an existing row. */
+export function planSeed(intended: readonly string[], existing: ReadonlySet<string>): string[] {
+  return intended.filter((id) => !existing.has(id));
+}
+
+/** The two operations the seed needs from a store; wrangler in the CLI, a Map in the tests. */
+export interface SeedStore {
+  /** The ids that have an `act:` row now. */
+  listedIds(): Promise<Set<string>>;
+  /** Write a `listed` row for each id. May silently drop some (a KV bulk put does). */
+  putListed(ids: readonly string[]): Promise<void>;
+}
+
+export interface SeedResult {
+  read: number;
+  alreadyPresent: number;
+  written: number;
+  repaired: number;
+  missing: number;
+  complete: boolean;
+}
+
+/**
+ * WRITE, VERIFY, REPAIR, VERIFY (CLAUDE.md: a KV bulk put drops keys silently, and `Success!` means
+ * nothing). The result is counts only, and it says complete only when the store, read back, holds
+ * every intended id.
+ */
+export async function seedWith(store: SeedStore, intended: readonly string[]): Promise<SeedResult> {
+  const before = await store.listedIds();
+  const toWrite = planSeed(intended, before);
+  if (toWrite.length > 0) await store.putListed(toWrite);
+  let present = await store.listedIds();
+  const dropped = toWrite.filter((id) => !present.has(id));
+  if (dropped.length > 0) {
+    await store.putListed(dropped);
+    present = await store.listedIds();
+  }
+  const missing = intended.filter((id) => !present.has(id)).length;
+  return {
+    read: intended.length,
+    alreadyPresent: intended.length - toWrite.length,
+    written: toWrite.length,
+    repaired: dropped.filter((id) => present.has(id)).length,
+    missing,
+    complete: missing === 0,
+  };
+}
+
+export function summarizeSeed(env: string, r: SeedResult): string {
+  return `seed (${env}): read ${r.read}, already present ${r.alreadyPresent}, written ${r.written}, ` +
+    `repaired ${r.repaired}, missing ${r.missing} -> ${r.complete ? "COMPLETE" : "INCOMPLETE"}`;
+}
+
+/* ===========================================================================
+ * THE COVERAGE CHECK's arithmetic (scripts/activation-coverage.ts): who authenticated,
+ * against who has a row. Counts and one boolean; the ids stay in the caller's memory.
+ * ======================================================================== */
+
+export interface Coverage {
+  union: number;
+  listed: number;
+  missing: number;
+  missingWithLedgerRow: number;
+  missingWithoutLedgerRow: number;
+  testIdentityMissing: boolean | null;
+}
+
+export function coverage(
+  seen: ReadonlySet<string>,
+  listed: ReadonlySet<string>,
+  ledger: ReadonlySet<string>,
+  testDevice: string | null,
+): Coverage {
+  const missing = [...seen].filter((id) => !listed.has(id));
+  const withLedger = missing.filter((id) => ledger.has(id)).length;
+  return {
+    union: seen.size,
+    listed: seen.size - missing.length,
+    missing: missing.length,
+    missingWithLedgerRow: withLedger,
+    missingWithoutLedgerRow: missing.length - withLedger,
+    testIdentityMissing: testDevice === null ? null : missing.includes(testDevice),
+  };
+}

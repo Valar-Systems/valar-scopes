@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { chunk, errorCode, parseImport, sumAdd, summarize } from "../scripts/activation-lib";
+import {
+  chunk, coverage, errorCode, parseImport, parseRecords, planSeed, seedWith, sumAdd, summarize, summarizeSeed,
+  type SeedStore,
+} from "../scripts/activation-lib";
 
 /* ===========================================================================
  * A12 (docs/device-activation.md): the tool prints no id, and reads a factory's
@@ -75,5 +78,85 @@ describe("A12: parseImport reads a plain list and an esptool log", () => {
 
   it("chunks to the route's batch size", () => {
     expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+});
+
+/* ===========================================================================
+ * K1-K6 (docs/device-activation.md, "Seeding before the deploy"). Fake ids from
+ * scripts/device-id-allowlist.txt; made-up 02: MACs.
+ * ======================================================================== */
+
+const A = "1111222233334444", B = "aaaabbbbccccdddd", C = "0123456789abcdef";
+
+/** A store that drops `drop` on the first put (once) or on every put (always). */
+function memStore(dropFirst: string | null, dropAlways: string | null): SeedStore & { rows: Set<string>; puts: string[][] } {
+  const rows = new Set<string>();
+  const puts: string[][] = [];
+  let first = true;
+  return {
+    rows, puts,
+    async listedIds() { return new Set(rows); },
+    async putListed(ids) {
+      puts.push([...ids]);
+      for (const id of ids) {
+        if (id === dropAlways) continue;
+        if (first && id === dropFirst) continue;
+        rows.add(id);
+      }
+      first = false;
+    },
+  };
+}
+
+describe("K: the seed", () => {
+  it("K1: CSV mode reads the device_id column, names a bad row by its line number, ignores other columns", () => {
+    const csv = `ts,device_id,mac,source\n2026-08-01,${A},02:00:00:00:00:01,provisioned\n2026-08-02,not-an-id,02:00:00:00:00:02,\n\n2026-08-03,${B.toUpperCase()},02:00:00:00:00:03,\n`;
+    const p = parseRecords(csv);
+    expect(p.mode).toBe("csv");
+    expect(p.ids).toEqual([A, B]);
+    expect(p.macs).toEqual([]);
+    expect(p.badLines).toEqual([3]);
+    expect(JSON.stringify(p)).not.toContain("not-an-id");
+  });
+
+  it("K2: ids mode for 16 hex per line; MAC/log mode otherwise", () => {
+    const ids = parseRecords(`# stock boards\n${A}\n${B}\n${A}\n`);
+    expect(ids).toEqual({ mode: "ids", ids: [A, B], macs: [], badLines: [] });
+    const macs = parseRecords("02:00:00:00:00:01\n02:00:00:00:00:02\n");
+    expect(macs.mode).toBe("macs");
+    expect(macs.macs).toEqual(["02:00:00:00:00:01", "02:00:00:00:00:02"]);
+  });
+
+  it("K3: the plan skips every id that already has a row", () => {
+    expect(planSeed([A, B, C], new Set([B]))).toEqual([A, C]);
+    expect(planSeed([A], new Set([A]))).toEqual([]);
+  });
+
+  it("K4: a key dropped silently on the first put is repaired, and the result says so", async () => {
+    const store = memStore(B, null);
+    const r = await seedWith(store, [A, B, C]);
+    expect(r).toEqual({ read: 3, alreadyPresent: 0, written: 3, repaired: 1, missing: 0, complete: true });
+    expect(store.puts).toEqual([[A, B, C], [B]]);
+    expect(summarizeSeed("staging", r)).toBe("seed (staging): read 3, already present 0, written 3, repaired 1, missing 0 -> COMPLETE");
+  });
+
+  it("K5: a key that never lands leaves the seed INCOMPLETE, never a success", async () => {
+    const r = await seedWith(memStore(null, C), [A, B, C]);
+    expect(r.missing).toBe(1);
+    expect(r.complete).toBe(false);
+    expect(summarizeSeed("production", r)).toContain("INCOMPLETE");
+    expect(summarizeSeed("production", r)).not.toMatch(/[0-9a-f]{16}/);
+  });
+});
+
+describe("K6: the coverage arithmetic", () => {
+  it("counts the union, the listed, the missing split by ledger, and the test-identity boolean", () => {
+    const seen = new Set([A, B, C]);
+    expect(coverage(seen, new Set([A]), new Set([B]), C)).toEqual({
+      union: 3, listed: 1, missing: 2, missingWithLedgerRow: 1, missingWithoutLedgerRow: 1, testIdentityMissing: true,
+    });
+    expect(coverage(seen, new Set([A, B, C]), new Set(), null)).toEqual({
+      union: 3, listed: 3, missing: 0, missingWithLedgerRow: 0, missingWithoutLedgerRow: 0, testIdentityMissing: null,
+    });
   });
 });
