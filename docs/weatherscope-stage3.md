@@ -12020,3 +12020,83 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **Predicted for main's push after the merge:** 30, 28 success, 2 skipped (promote, version).
 
 **3.4 stays paused** until #549 merges, then resumes with A12.105's restated rows.
+
+### A12.107 #549 merged; 3.4 resumes over the 9-leg matrix: its restated rows, the cross-board input, and O9's acknowledged send, frozen before the code changes
+
+**The ruling (~18:38Z):** #549 approved at `306f83736b70` and merged (squash, `--match-head-commit`, no `--admin`). Then 3.4 resumes with:
+- A12.105's rows over 7 envs;
+- `blipscope-pro-s3-21` as the cross-board input;
+- O9's paced-send re-run, with its predictions frozen first.
+
+**#549, merged:**
+- **The merge:** `dd1246e09722` at 2026-11-05T18:38:01Z.
+- **Its parent is `867db6ae3c01`:** main gained one commit after my base.
+- **Its diff equals the PR's** (the patch-ids match), it touches 5 files, and the branch is deleted.
+- **Main's CI on it is predicted** at 30: 28 success, 2 skipped (promote, version). It is recorded in the next addendum.
+
+**3.4's branch:** `weatherscope/ota-identity-paused` (`b26036002ac8`) is rebased onto main at or after `dd1246e09722`. The PR goes up from a branch named `weatherscope/ota-identity`.
+
+**The offering side skips retired rows** (`scripts/check_ota_identity.py`).
+- **`derive()` reads only rows whose status is not `retired`.** A retired env is not built, so there is no image to check, and its table is no fleet's.
+- **`--fleet` prints:** `fleet: 9 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 7, s3-175-amoled 1, s3-21 1`, then PASS.
+- **`--fleet-sabotage`:** S-O5 and S-Q76 each exactly one problem, as before; the unplanted run 0.
+- **`--check-table`:** `identities.txt` at **7 rows**: `blipscope-s3-128`, `blipscope-pro-s3-21`, `missileer-s3-128`, `missileer-photo`, `weatherscope-s3-128`, `blipscope-pro-s3-175-amoled` and `blipscope-s3-128-joindiag`, in `skus.yml` order.
+- **The selftest gains one case:** a retired env on another partition table is not a Q76 problem. Without the skip it would be one, so the case can fail.
+
+**`test_ota_identity`, still 22 checks, restated:**
+- **P3:** the real `blipscope-pro-s3-21` head parses to board `s3-21`, scope empty.
+- **R1:** 21/21 (7 envs × 3 scopes).
+- **M1:** 27 accepted, 22 refused, 0 off.
+- **M2:** 66 of 66 refused.
+- **M3:** 11 accepted, 38 refused (16 cross-scope), 0 off.
+- **O4-v-a:** an `s3-128` refuses the real `blipscope-pro-s3-21` head.
+- **O4-v-b:** an `s3-21` refuses the real `s3-128` head.
+- **Every other check unchanged.**
+
+**`test_ota_install`, still 36 checks, restated:**
+- **I1:** the real `blipscope-pro-s3-21` head, asked for as `s3-128`, is `foreign`.
+- **O10:** 7 identities × 3 pre-check heads: **21 `no-record`**, 0 `foreign`, 0 other, 0 flash calls.
+- **Every other check unchanged.**
+
+**The fixtures:** `heads/blipscope-pro-s3-21.head` (the first 352 bytes of a build at the resumed head) replaces `heads/blipscope-s3-146.head`. The three pre-check heads stay as they are.
+
+**The sabotages, the same check names, each exactly its set:**
+
+| plant | test_ota_identity | test_ota_install | total |
+|---|---|---|---|
+| S-ID1b | M3 (16 off), O4-ii, O4-iii | I2's four | 7 |
+| S-ID2b | M1 (22 off), M2 (22 of 66 accepted), M3 (10 off), O4-v-a, O4-v-b | I1's four | 9 |
+| S-O8a | — | I1-I5 each `-log`, `-boot`, `-target`; I6 `-why`, `-log`, `-target`; O10; MAP2 | 20 |
+| S-O8b | — | I1-I6 each `-log`, `-target`; O10; MAP2 | 14 |
+| S-ID3 | — | I3's four, I4's four, O10 | 9 |
+
+**O9's acknowledged send** (the reviewer's condition, A12.105).
+- **The protocol:**
+  - The device's source asks for each chunk. It prints `[ota-bench] more` and reads at most 64 bytes, one USB full-speed packet.
+  - The host sends exactly one chunk per request, and never more than the device has asked for.
+  - So no more than 64 bytes are ever in flight, and the device's receive buffer cannot overrun.
+  - When the device's byte budget is used up, its reads return 0 at once and it asks for nothing more.
+- **The cases are unchanged:** the board asks for its own `weatherscope-` scope on `s3-128`.
+- **Predicted:**
+  - **the Blipscope `s3-128` head (352 bytes, 6 chunks):** `refused-foreign`, the boot label and the slot hash unchanged, 0 screen lines;
+  - **the `blipscope-pro-s3-21` head (352 bytes):** `refused-foreign`, both unchanged, 0 screen lines;
+  - **CONTROL, its own head with the stream cut at 8 KB (128 chunks):** `fail-6` about 30 s after the last chunk (writeRest's 300 empty reads), the slot hash **changed**, the boot label unchanged, a `progress 0` screen line. This is what proves on the bench that the control writes.
+  - Host-side, every chunk sent was asked for, and the device asked for exactly as many as were sent, plus none after the budget.
+- **The window:** announced before it starts, on `907069326E64` only.
+  - It writes the bench image built at the PR head (app0), reads its boot, and runs the three cases.
+  - It ends with `39e258b5be07` written back and its boot read.
+  - **If the CONTROL reads the RIG again: stop and report, and retry nothing.**
+
+**run.sh, predicted:**
+- **under WSL (g++ 13.3):** exit 2, with exactly two failed blocks, "the same TU, for the board" (no xtensa) and "Weatherscope R0 and R0b" (no Pillow). Everything else is green, including both OTA blocks and both drivers in the anchors, controls and full passes.
+- **under MinGW on Windows:** exit 0, which gives those two blocks their real reading.
+
+**The PR's CI** (from the 30-run main after #549, plus this PR's paths):
+- the firmware workflow, 28 jobs + the new `ota-identity` job = 29;
+- `device-ids` and `no-traffic-captures`, 2;
+- `web-renderer` (`src/**`), 2: `build`, and `publish` skipped.
+- **Predicted: 33 check runs, 29 success, 4 skipped (ship-alert, promote, version, publish); 32 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+
+**The disclosure stands:** the two pre-check radar and Missileer heads carry a local toolchain path at 0x120 (A12.105). The reviewer may swap them for v18's `firmware-s3-128.bin` head before merge.
+
+**Outside these predictions: stop and decide.**
