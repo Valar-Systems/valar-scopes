@@ -243,3 +243,31 @@ export function coverage(
     testIdentityMissing: testDevice === null ? null : missing.includes(testDevice),
   };
 }
+
+/* ===========================================================================
+ * THE SWEEP (accepted ~20:15Z): after #548 deploys, every grandfathered id is read once
+ * through the Worker's `status`, which writes the current generation onto it. What the
+ * sweep reports is read back from KV, not inferred from the answers.
+ * ======================================================================== */
+
+export interface SweepCounts {
+  swept: number;
+  activated: number;
+  stamped: number;
+  unstamped: number;
+}
+
+/** `states[i]` is what status answered for id i; `gens[i]` is the gen read back from its row (absent: undefined/null). */
+export function sweepCounts(states: readonly string[], gens: ReadonlyArray<unknown>): SweepCounts {
+  const stamped = gens.filter((g) => typeof g === "string" && /^[0-9a-f]{12}$/.test(g)).length;
+  return {
+    swept: states.length,
+    activated: states.filter((s) => s === "activated").length,
+    stamped,
+    unstamped: states.length - stamped,
+  };
+}
+
+export function summarizeSweep(env: string, c: SweepCounts): string {
+  return `sweep (${env}): swept ${c.swept}, activated ${c.activated}, stamped ${c.stamped}, unstamped ${c.unstamped}`;
+}

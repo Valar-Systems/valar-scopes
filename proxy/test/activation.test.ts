@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:test";
 import { deriveDeviceKey } from "../src/deviceauth";
 import { REVOKED_KEY, resetRevocationCache } from "../src/revocation";
-import { actKey, MAX_BATCH } from "../src/activation";
+import { actKey, keyGeneration, MAX_BATCH } from "../src/activation";
 import { deviceIdFromMac } from "../src/provision";
 import { SUPPORT_EMAIL } from "../src/support";
 import fixture from "./fixtures/mint-equivalence.json";
@@ -313,5 +313,31 @@ describe("R: refused activations are counted (ruled ~18:15Z)", () => {
       expect(v).toMatch(/^\d+$/);
       expect(v).not.toContain(LISTED);
     }
+  });
+});
+
+describe("L: the lazy generation write for grandfathered rows (accepted ~20:15Z)", () => {
+  const ROTATED = { DEVICE_KEY_SECRET: "a-rotated-device-secret" };
+  // What the seed writes for a grandfathered device: activated, no gen (only the Worker can compute one).
+  const seedActivated = (id: string) => env.ENRICH_KV.put(actKey(id), JSON.stringify({
+    v: 1, state: "activated", listedAt: "2026-11-05T20:00:00Z", activatedAt: "2026-11-05T20:00:00Z", resets: 0,
+  }));
+
+  it("L1: a row with no generation gets the current one on its first read through the Worker", async () => {
+    await seedActivated(LISTED);
+    expect((await admin({ op: "status", ids: [LISTED] })).body.state).toBe("activated");
+    const row = await env.ENRICH_KV.get<{ gen?: string }>(actKey(LISTED), "json");
+    expect(row?.gen).toBe(await keyGeneration(SECRET));
+    expect(row?.gen).toMatch(/^[0-9a-f]{12}$/);
+    expect((await activate(LISTED)).status).toBe(409);
+  });
+
+  it("L2: after a simulated rotation, a stamped row re-opens once", async () => {
+    await seedActivated(LISTED);
+    await admin({ op: "status", ids: [LISTED] });          // the sweep's read: stamps the current generation
+    const rotated = await activate(LISTED, ROTATED);
+    expect(rotated.status).toBe(200);
+    expect(rotated.body.key).toBe(await deriveDeviceKey("a-rotated-device-secret", LISTED));
+    expect((await activate(LISTED, ROTATED)).status).toBe(409);
   });
 });

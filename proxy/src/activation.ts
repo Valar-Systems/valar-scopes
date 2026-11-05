@@ -86,8 +86,23 @@ async function readRow(env: Env, id: string): Promise<ActivationRow | null> {
   return raw as unknown as ActivationRow;
 }
 
-export async function activationState(env: Env, id: string, gen: string): Promise<ActivationState> {
+/**
+ * THE LAZY GENERATION WRITE (accepted 2026-11-05 ~20:15Z). A row seeded `activated` before the gate deployed carries
+ * no `gen` -- no tool can compute one, the secret lives only here. The first time the Worker reads such a row it writes
+ * the CURRENT generation onto it, so from then on it is refused under that generation and re-opened once by a
+ * rotation, exactly like a row the gate activated itself. The post-deploy sweep reads every grandfathered row once
+ * through `status`, so they are all stamped before any rotation can happen.
+ */
+async function readStamped(env: Env, id: string, gen: string): Promise<ActivationRow | null> {
   const row = await readRow(env, id);
+  if (row === null || row.state !== "activated" || typeof row.gen === "string") return row;
+  const stamped: ActivationRow = { ...row, gen };
+  await env.ENRICH_KV.put(actKey(id), JSON.stringify(stamped));
+  return stamped;
+}
+
+export async function activationState(env: Env, id: string, gen: string): Promise<ActivationState> {
+  const row = await readStamped(env, id, gen);
   return row === null ? "not_listed" : effectiveState(row, gen);
 }
 
@@ -99,7 +114,7 @@ export async function activationState(env: Env, id: string, gen: string): Promis
  * writing later would hand out a key the list does not know was issued.
  */
 export async function claimActivation(env: Env, id: string, nowIso: string, gen: string): Promise<ActivationState> {
-  const row = await readRow(env, id);
+  const row = await readStamped(env, id, gen);
   if (row === null) return "not_listed";
   if (effectiveState(row, gen) === "activated") return "activated";
   const next: ActivationRow = { ...row, state: "activated", activatedAt: nowIso, gen };

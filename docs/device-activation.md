@@ -660,3 +660,10 @@ written.
   no id.
 - **S-M:** "stamped" counted from the state instead of the `gen`. Predicted red: exactly {M1}.
 - **The list reads 944.** S-L is still predicted red exactly {L1, L2}.
+
+**L and M, graded (2026-11-05 ~20:06Z): as predicted.**
+- **The control** ran 96 tests across the six files, all green: 93 plus L1, L2 and M1.
+- **S-L** (the lazy write removed): red exactly {L1, L2}.
+- **S-M** (stamped counted from the state): red exactly {M1}.
+- Both files were restored by bytes, sha checked. The list count (944) is read from drained ports
+  before the push.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chunk, coverage, errorCode, parseImport, parseRecords, planSeed, seedWith, sumAdd, summarize, summarizeSeed,
+  summarizeSweep, sweepCounts,
   type SeedStore,
 } from "../scripts/activation-lib";
 
@@ -173,5 +174,15 @@ describe("K6: the coverage arithmetic", () => {
     expect(coverage(seen, new Set([A, B, C]), new Set(), null)).toEqual({
       union: 3, listed: 3, missing: 0, missingWithLedgerRow: 0, missingWithoutLedgerRow: 0, testIdentityMissing: null,
     });
+  });
+});
+
+describe("M1: the sweep's arithmetic (accepted ~20:15Z)", () => {
+  it("counts stamped from the gen read back, not from the state, and prints no id", () => {
+    const c = sweepCounts(["activated", "activated", "activated", "listed"], ["0123456789ab", undefined, "not-a-gen", "abcdef012345"]);
+    expect(c).toEqual({ swept: 4, activated: 3, stamped: 2, unstamped: 2 });
+    const line = summarizeSweep("production", c);
+    expect(line).toBe("sweep (production): swept 4, activated 3, stamped 2, unstamped 2");
+    expect(line).not.toMatch(/[0-9a-f]{16}/);
   });
 });

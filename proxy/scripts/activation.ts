@@ -8,6 +8,7 @@
  *   npx tsx scripts/activation.ts seed   <file>      [--staging] [--state listed|activated]   BEFORE #548 deploys
  *   npx tsx scripts/activation.ts seed   --ledger    [--staging] --state activated              grandfather enr:dev:
  *   npx tsx scripts/activation.ts seed   --token-ids test-device,records-device --state activated
+ *   npx tsx scripts/activation.ts sweep  --ledger | --token-ids test-device,records-device    AFTER #548 deploys
  *
  * The id is the one the customer reads off the Connect screen or the config page.
  *
@@ -33,8 +34,10 @@ import { fileURLToPath } from "node:url";
 import { ACTIVATION_ID_RE, actKey, MAX_BATCH } from "../src/activation";
 import { deviceIdFromMac } from "../src/provision";
 import {
-  chunk, errorCode, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, type SeedState, type SeedStore,
+  chunk, errorCode, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, summarizeSweep, sweepCounts,
+  type SeedState, type SeedStore,
 } from "./activation-lib";
+import { bulkGet, kvTargetFromWranglerToml } from "./kv-rest";
 import { readTokenFile, type TokenPurpose } from "./token-file";
 
 const BASES = { production: "https://scopes.valarsystems.com", staging: "https://scopes-staging.valarsystems.com" } as const;
@@ -64,14 +67,15 @@ const fromLedger = args.includes("--ledger");
 const rest = args.filter((a, i) => !["--staging", "--ledger", "--state", "--token-ids"].includes(a)
   && !["--state", "--token-ids"].includes(args[i - 1] ?? ""));
 const [op, target] = rest;
-const seedFromStore = op === "seed" && (fromLedger || tokenIds !== undefined);
+const seedFromStore = (op === "seed" || op === "sweep") && (fromLedger || tokenIds !== undefined);
 if (seedFromStore ? rest.length !== 1 : rest.length !== 2 || !target) usage("expected an operation and one argument");
 if (!op) usage("expected an operation");
 if (seedState !== "listed" && seedState !== "activated") usage("--state must be listed or activated");
 if (fromLedger && tokenIds !== undefined) usage("seed takes one source: a file, --ledger, or --token-ids");
-if (op !== "add" && op !== "reset" && op !== "status" && op !== "import" && op !== "seed") {
-  usage("the operation must be add, reset, status, import or seed");
+if (op !== "add" && op !== "reset" && op !== "status" && op !== "import" && op !== "seed" && op !== "sweep") {
+  usage("the operation must be add, reset, status, import, seed or sweep");
 }
+if (op === "sweep" && !seedFromStore) usage("sweep takes --ledger or --token-ids");
 
 // wrangler resolves wrangler.toml from its cwd, so it runs from the proxy directory however this was started.
 const PROXY_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -192,6 +196,30 @@ async function main(): Promise<void> {
       from = `the token file (${purposes.join(", ")})`;
     }
     if (ids.length === 0) refuse(`no id came from ${from}; nothing was written`);
+    if (op === "sweep") {
+      // THE SWEEP (after #548 deploys): one `status` per id THROUGH THE WORKER, which writes the current generation
+      // onto a grandfathered row; then the rows are read back with the kv-read token and the gen counted from what KV
+      // holds, never inferred from the answers. Counts only.
+      console.log(`sweep (${env}): ${ids.length} unique id(s) from ${from}`);
+      const tok = token();
+      const states: string[] = [];
+      for (const id of ids) {
+        const answer = await post({ op: "status", ids: [id] }, tok);
+        states.push(typeof answer.state === "string" ? answer.state : "unknown");
+      }
+      const t = kvTargetFromWranglerToml(join(PROXY_DIR, "wrangler.toml"), env, readTokenFile("kv-read"));
+      const rows = await bulkGet(t, ids.map((id) => actKey(id)));
+      const gens = ids.map((id) => {
+        try {
+          return (JSON.parse(rows[actKey(id)] ?? "null") as { gen?: unknown } | null)?.gen;
+        } catch {
+          return undefined;
+        }
+      });
+      const c = sweepCounts(states, gens);
+      console.log(summarizeSweep(env, c));
+      process.exit(c.stamped === c.swept ? 0 : 1);
+    }
     console.log(`seed (${env}): ${ids.length} unique id(s) from ${from}, as ${seedState}`);
     const result = await seedWith(wranglerStore(env), ids, seedState as SeedState);
     console.log(summarizeSeed(env, result));
