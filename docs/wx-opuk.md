@@ -1823,7 +1823,7 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
 > S5 runs as registered, with reads at 20:57:15Z and 21:02:15Z.
 > After S5, the dev Worker and blipscope-wx-dev stay in place, unscheduled. Deleting them is Daniel's call, after the fix has been proven. Then item 3, the fix, with its predictions frozen first.
 
-### Item 3: the fix, proposed for a ruling (2026-11-05 ~20:45Z; no code before the ruling, and the PR's predictions come first)
+### Item 3: the fix, proposed for a ruling (2026-11-05 ~20:36Z; no code before the ruling, and the PR's predictions come first)
 
 **The shape: `opuk` in its own Worker, `blipscope-wx-ingest-opuk`. Recommended over a second cron in the same Worker.**
 
