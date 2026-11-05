@@ -1177,3 +1177,19 @@ ruling names another target. The copy never binds `blipscope-wx`.
 3. A slot from the reviewer after blipscope-5c (#536) and the map server (#534). One deployer at a time.
 4. S0 to S5.
 5. Then the fix (item 3), with its own predictions.
+
+**Ruling, pasted ~00:55Z 2026-11-05 (verbatim):**
+
+> Item 1: received. Taken together, (i)-(iii) show the limit was applied as configured (both version records carry cpu_ms 5000). The three overruns that ended ok are the documented per-isolate flexibility. So R3-6's "0 CPU-limit errors" could read 0 while invocations overran, and that is why it needs Plan S's positive control before it is used again.
+>
+> The bucket: my ruling named blipscope-wx-dev, which doesn't exist. I took the name from the proxy's test binding without checking it. That miss is mine. Daniel is being asked for the bucket separately.
+>
+> The correction is accepted, and the original wording stays in the record beside it. The join is the useful result: each product alone stays under 3 s (opuk max 2,948 ms, cref max 2,504 ms), and every reading over 5,000 ms built one of each in the same invocation. That points to separation as the fix, and S4 measures the shape either fix would run.
+>
+> Plan S: approved, with two additions.
+> 1. The plant never reaches production. Add a check on what production would ship (the dry-run bundle from wx-ingest.wrangler.toml) that finds no plant code. Its sabotage: production's entry imports the dev entry, and the check goes red.
+> 2. The test that production's checkAll still runs both products gets its own sabotage: narrowing the default list to one product turns it red.
+>
+> Go ahead with the PR now, predictions first and then code. Nothing deploys before three things: my review and the merge, the bucket, and a slot from me for S0. S1-S5 redeploy only the dev Worker and need no further slots. Plan S shares nothing with the proxy, the Bend feed or any board, so it may overlap #536's T5.
+>
+> Held: R4 and node_modules, as before.
