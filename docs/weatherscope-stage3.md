@@ -11692,3 +11692,202 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - A second pass recomputed the splits 16/56 (by board) and 18/4 (by scope), which agree.
 
 **Outside these predictions:** any count off its frozen value stops 3.4 for a ruling. 3.4's code waits for the Q75 and Q76 rulings; nothing else in Stage 3 depends on them.
+
+### A12.104 Ruled: Q75 (b), Q76 (a); 3.4 may start. What the plan still said to freeze "at 3.4, before its code", frozen here
+
+**The ruling (reviewer chat, ~17:12Z, pasted by Daniel):**
+> "A12.103: accepted, with predictions as frozen, and the old rows' two mistakes kept in the record.
+> - Q75: (b). The device accepts an image only if its board matches and its scope is the one the device asked for. A switch asks for the new scope's file, so switching still works, and a mislabelled same-board image is refused again.
+> - Q76: (a). A CI rule that every skus.yml env of one board names one partition table, flash size and memory type, with its sabotage.
+> - 3.4's code may start, predictions as frozen, in its own PR. RELEASING.md is revised in that PR. The release that adds the check still needs Daniel's OK at cut time, with its consequences named in plain words.
+> - Keeping Daniel's unit count out of the public doc was right."
+
+**So the rows in force are A12.103's (b) rows.** That means:
+- O1-b (i) and (ii), with S-ID1b and S-ID2b;
+- O4, O7, O9 and O11 as originally frozen, with the cross-board inputs added. O7 has 6 refused inputs, O8 is red on all 6, and O7′'s second control is the switch;
+- O10′ and S-ID3;
+- O2′, O3, O5 and O6;
+- Q76 (a).
+
+**Read before freezing (installed framework 3.3.9; main at `975816d9bf49`):**
+- **The linker script has no `KEEP` for `.rodata_custom_desc`.** In `sections.ld` it is listed second in `.flash.appdesc`, as section 3.1 said, but not kept. So the record must be referenced from code, or `--gc-sections` drops it.
+- **0x120 is right after `esp_app_desc_t`.** In the pre-check Weatherscope image (the TouchWatchdog build) it holds `WXC1`: the embedded radar fixture, the first thing in `.rodata`. The magic below differs from it.
+- **No framework archive uses the section.**
+  - A search of every `.a` in `framework-arduinoespressif32-libs/esp32s3` finds `.rodata_custom_desc` in **0** archives.
+  - **Control:** the same search finds `.rodata_desc` in `libesp_app_format.a`. So 0 means "not there", not "cannot see".
+- **`pio project config --json-output` resolves every env's `extends` and `${...}`** in about 1 s, with no platform install. CI's fleet derivation reads it, so no second ini parser is written.
+- **`missileer-photo` compiles `OtaUpdater.cpp` but never runs a check:** `PHOTO_MODE` skips `MaybeUpdateFirmware` (`main.cpp`).
+  - It carries a record, since `LogOtaSlot` references it, and it has no OTA URL.
+  - It stays in the O1′ matrix as an identity. It is never a requester in practice.
+
+**The record, byte for byte** (64 bytes at file offset 0x120; `include/OtaIdentity.h`):
+
+| offset in record | bytes | value |
+|---|---|---|
+| 0 | 4 | magic `56 53 49 44` ("VSID"). The four bytes are pairwise distinct (`static_assert`), and it is neither `WXC1` nor `esp_app_desc_t`'s `32 54 cd ab`. |
+| 4 | 1 | record version, `1` |
+| 5 | 1 | record length, `64` |
+| 6 | 1 | board length, 1-24 |
+| 7 | 1 | scope length, 0-24 |
+| 8 | 24 | board (`variant::SLUG`), NUL-padded |
+| 32 | 24 | scope (`FW_OTA_PREFIX`), NUL-padded |
+| 56 | 8 | reserved, zero |
+
+- **Parsing:**
+  - **`no-record`:** the magic is not there.
+  - **`bad-record`:**
+    - a version other than 1, or a length other than 64;
+    - a board length of 0 or over 24, or a scope length over 24;
+    - a byte outside `[a-z0-9-]` inside a length;
+    - a non-zero byte after a length, or in the reserved field.
+- **`kHeadBytes` = 0x120 + 64 = 352.**
+- **The device's own record** is built in `src/OtaIdentity.cpp` by a C++17 `constexpr` function from `variant::SLUG` and `FW_OTA_PREFIX`. `static_assert`s hold its size, the magic's distinctness, both lengths and the alphabet, so a bad slug fails the build.
+- **It is referenced by a new boot line,** printed by `LogOtaSlot` from a parse of the record's own bytes: `[ota-id] board=<board> scope=<scope or -> (record v1)`. That line is the reference that keeps the record linked, and the device's statement of what it is.
+  - If the record does not parse, the line reads `[ota-id] own record unreadable (<reason>)`. That is never expected; O2 is what proves it.
+
+**The decision, `ota::Install(source, flash, total, requested)`** (`include/OtaInstall.h`, header-only, C++11 for the host):
+1. Read up to `kHeadBytes` from the stream, never past `total`.
+2. **If at least one byte arrived and the first is not `0xE9`:** `fail--106`, today's token for a non-image. It comes before any refusal, so an HTML error page served with 200 keeps its token.
+3. **If fewer than `kHeadBytes` arrived:** `refused-truncated`.
+4. **Parse:** `refused-no-record` or `refused-bad-record`.
+5. **`Accept(requested, candidate)`,** an exact match of board and scope: false is `refused-foreign`. `requested` is `Request(variant::SLUG, <scope asked for>)`, and the firmware URL is built from **the same** `Request`, so the name fetched and the name checked cannot differ.
+6. **Only then the flash:**
+   - `begin(total)`, `write(head)`, `writeRest(stream, total − 352)`, `end()`;
+   - any failure is `fail-<Updater error>`;
+   - success restarts.
+
+**The fail mapping (A1.2: "frozen at 3.4, before its code"):**
+
+| condition | today (`HTTPUpdate`) | the new path |
+|---|---|---|
+| the GET fails (connection, TLS, timeout) | `fail-<code>`, −1 to −11 | same |
+| 204 or 304 | no token: the pre-armed `incomplete` stands (`HTTP_UPDATE_NO_UPDATES`) | same. A quirk kept, not fixed here; GitHub's CDN answers neither. |
+| 404 / 403 / any other non-200 | `fail--102` / `fail--103` / `fail--104` | same |
+| 200 with no or zero `Content-Length` | `fail--101` | same |
+| no OTA partition / image larger than it | `fail--108` / `fail--100` | same, checked before the head is read, as today |
+| first byte not `0xE9` | `fail--106` | same (step 2) |
+| `x-MD5` present and malformed | `fail--105` | same; the header is still collected |
+| `begin` / `write` / `writeStream` / `end` fails | `fail-<1..14>` | same |
+| **the stream ends before 352 bytes** | `fail-<writeStream error>` | **`refused-truncated`** (Q77) |
+
+- **Q77, two frozen texts disagree on one row; I default to A1.2 step 1.**
+  - A1.2 says a condition that existed before keeps its `fail-<n>` token. A1.2 step 1, and A1.3's O7, say a short head read is `truncated`.
+  - A stream that ends before 352 bytes existed before. So the two disagree on that one condition.
+  - **The default:** the specific text wins, so the token is `refused-truncated`. It is refused before any flash call, which is the property O7 tests.
+  - The alternative is `fail-6`. It is a one-line change if the reviewer rules it.
+- **What the new open does not send:** HTTPUpdate's `x-ESP32-*` headers (the station, AP and base MAC addresses, the sketch MD5 and SHA-256, the sizes). GitHub's CDN reads none of them, so dropping them sends no device identifier to a third party.
+- **It keeps:**
+  - HTTP/1.0, so there is no chunked transfer;
+  - the 8 s timeout;
+  - `HTTPC_FORCE_FOLLOW_REDIRECTS`;
+  - the user agent `ESP32-http-Update`;
+  - the pinned roots;
+  - the request bus held for the whole download.
+- **The refusal line is `[ota] refused <reason>: requested=<scope><board> image=<scope><board or ->>`.** A1.2 wrote `running=`; under (b) the thing compared is the request, so the key says so. Nothing reads the line yet.
+- **The screen (A2.1):**
+  - the bar is first drawn after `begin` succeeds;
+  - `[ota] screen: progress 0` and `[ota] screen: progress 100` are logged on the first and last draws;
+  - `[ota] screen: status Update failed` is logged on a failure;
+  - a refusal draws and logs nothing.
+
+**The host tests, with their counts frozen:**
+- **`test/host/test_ota_identity.cpp`, 22 checks:**
+  - **P1-P3:** the real heads parse to their board and scope (`blipscope-s3-128`, `weatherscope-s3-128`, `blipscope-s3-146`).
+  - **P4-P12:** one per parse rule above, nine in all.
+  - **R1:** `Request(board(r), s)` names r's board for all 15 envs × 9 scopes, 135/135.
+  - **M1, O1-b (i):** 91 accepted and 134 refused, 0 off the rule.
+  - **M2:** 1,206 of 1,206 cross-board refusals over every scope.
+  - **M3, O1-b (ii):** 19 accepted and 206 refused, 72 of them cross-scope, 0 off the rule.
+  - **O4-own (CONTROL):** `s3-128` asking for its own scope accepts the real `s3-128` head.
+  - **O4-ii:** the real Weatherscope head, asked for as `s3-128`, is refused.
+  - **O4-iii:** the real `s3-128` head, asked for as `weatherscope-s3-128`, is refused.
+  - **O4-iv (the switch):** an `s3-128` device asking for `weatherscope-` accepts the real Weatherscope head.
+  - **O4-v-a, O4-v-b:** cross-board both ways, refused.
+- **`test/host/test_ota_install.cpp`, 36 checks.** A fake source and a fake flash: the flash logs calls in order and keeps a boot **history**, `end()` switches the boot to the target slot, and `revert()` exists only for the sabotage.
+  - **I1-I6, the six refused inputs,** each with four checks (`-why`, `-log` empty, `-boot` history initial only, `-target` unchanged):
+    - I1: the cross-board head (`blipscope-s3-146`), `foreign`;
+    - I2: the same-board other-scope head (Weatherscope, asked for as `s3-128`), `foreign`;
+    - I3: the pre-check head, `no-record`;
+    - I4: a wrong magic, `no-record`;
+    - I5: version 2, `bad-record`;
+    - I6: a stream cut at 200 bytes, `truncated`.
+  - **C1 (own image) and C2 (the switch),** four checks each: installed; log `begin, write…, end`; the history switches once; the target equals the image.
+  - **O10:** the 15 identities, each asking for its own scope, against the three pre-check heads. 45 `no-record`, 0 `foreign`, 0 flash calls.
+  - **MAP1:** the four refusal tokens.
+  - **MAP2:** a 100-byte non-image is `fail--106` with no flash call, not `truncated`.
+  - **MAP3:** a `begin` failure (error 4) is `fail-4`, with no write after it.
+  - **Every run prints each refused input's final boot label** as an info line, not a check. A1.3's point: a final-state assertion would PASS the withdrawn design.
+- **Fixtures:**
+  - `test/fixtures/ota/identities.txt`: the 15 rows, `env scope board`, scope `-` when empty.
+  - `test/fixtures/ota/heads/*.head`, each the first 352 bytes of a real image:
+    - at this branch: `blipscope-s3-128`, `weatherscope-s3-128`, `blipscope-s3-146`;
+    - at `975816d9bf49`: `pre-blipscope-s3-128`, `pre-missileer-s3-128`, `pre-weatherscope-s3-128`.
+  - The heads are marked `binary` in `.gitattributes`.
+
+**The sabotages, each with its exact failing set** (anything else red, or any of these green, is OFF):
+
+| driver | plant | test_ota_identity | test_ota_install | total |
+|---|---|---|---|---|
+| `sabotage_ota_identity.py` | **S-ID1b:** `Accept` compares the board only | M3, O4-ii, O4-iii | I2-why, I2-log, I2-boot, I2-target | 7 |
+| | **S-ID2b:** `Accept` compares the scope only | M1, M2, M3, O4-v-a, O4-v-b | I1-why, I1-log, I1-boot, I1-target | 9 |
+| `sabotage_ota_install.py` (the name A1.3 froze) | **S-O8a:** the withdrawn design. Write, `end()`, then decide, and `revert()` on a refusal. | — | I1-I5 each `-log`, `-boot`, `-target` (15); I6 `-why` (FlashFailed), `-log`, `-target` (I6's history stays clean: the cut stream never reaches `end`); O10; MAP2 | 20 |
+| | **S-O8b:** decide after `begin` and the first `write` | — | I1-I6 each `-log`, `-target` (12); O10; MAP2. **Every `-boot` stays green:** the target assertion works on its own. | 14 |
+| | **S-ID3:** a missing record is written anyway | — | I3 and I4, all four checks each (8); O10 | 9 |
+
+- **S-O8a's run also prints I1-I5's final boot label as `app0`.** That is the "final state PASS, history FAIL" A1.3 said the run would show.
+- **Both drivers have `--anchors` and `--control`,** with their suite counts as named constants (the lint's L1/L2). So run.sh's three driver passes pick them up with no list to edit.
+
+**The offering side, `scripts/check_ota_identity.py`:**
+- **The image mode, as a build-job step on every row** (no `if:`), after the flash-manifest step and before "Attach to release" and the receipt. `--check-wiring` holds it there.
+  - It reads the record at 0x120 and requires it to equal the env's identity, derived from `pio project config`: the scope from its `FW_OTA_PREFIX` define, the board from its `BLIPSCOPE_VARIANT_*` flag through `Variant.h` to the header's `SLUG`.
+  - **The record must be present exactly when the image carries `LogOtaSlot`'s `[ota-slot] ` format string,** which references it. So the two rows with no OTA path must read `no-record`. The anchor is read from the image, not assumed.
+  - **On a slug-ful row:** the record's scope + board must equal the slug, and the flash manifest's slug. **This is O4 (i).**
+  - **BLIND (exit 2)** without the `[build] env=` anchor.
+- **The fleet mode, in a new `ota-identity` job** (ubuntu-24.04; installs PlatformIO and runs `pio project config`, no build). It runs, in order:
+  - **`--selftest`:** synthetic records and configs; each rule has a case only it catches.
+  - **`--check-wiring`.**
+  - **`--fleet-sabotage`:** S-O5 (`blipscope-s3-128`'s slug edited to `eam-s3-128` in a copy of `skus.yml`) and S-Q76 (`weatherscope-s3-128`'s partitions edited to `default_16MB.csv` in a copy of `platformio.ini`) must **each** be refused, naming its own rule and nothing else.
+  - **`--fleet`:**
+    - **O5:** every slug-ful row's slug equals `FW_OTA_PREFIX + variant::SLUG`. Today that is 1 row.
+    - **Q76:** every `skus.yml` env of one board names one partition table, flash size and memory type. Today: `s3-128` 7 envs, `s3-146` 8, `s3-21` 1, `s3-175-amoled` 1.
+  - **`--check-table`:** `identities.txt` equals what the fleet derives. The table's membership is "compiles `src/OtaUpdater.cpp`", read from the resolved `build_src_filter`. The image mode cross-checks it from the other side on every leg.
+- **Registered where the repo requires:**
+  - `skus.py`'s `ALLOWED_MENTIONS` (it reads the build job's steps, not the matrix);
+  - `check-no-bench-hooks.sh`'s `MARKERS` gains `[ota-bench]`.
+
+**O9's bench env, kept out of `skus.yml`:** `weatherscope-otabench-s3-128`, which is the product env plus `-DWX_OTA_BENCH`.
+- **Why it stays out:** it would change O1′'s population, which is frozen at 15. The precedent is `blipscope-s3-128-otatest` and `-otafault`.
+- **How it is scanned:** every slug-ful image in CI is scanned for its marker.
+- **The source:**
+  - A serial key feeds `ota::Install` the real adapter, over a source read from USB-CDC. The host sends `OTA <total> <n>\n` and then `n` bytes.
+  - The device prints `[ota-bench] result=<token> boot=<label before>/<label after> slot=<sha256 before, 12 hex>/<after>`. The slot hash covers the inactive slot's first 64 KB.
+- **Predicted** (`tools/weatherscope/board/ota_bench.py`), the board asking for its own `weatherscope-` scope:
+  - **the Blipscope `s3-128` head:** `refused-foreign`, the boot label and the slot hash unchanged;
+  - **the `blipscope-s3-146` head:** `refused-foreign`, both unchanged;
+  - **CONTROL, its own head with the stream cut at 8 KB:** `fail-6` (the Updater's `writeStream` aborts with `UPDATE_ERROR_STREAM` after 300 empty reads), the slot hash **changed**, the boot label unchanged.
+- **The ELF grep:** the marker is in the bench ELF, and in none of the four product ELFs built here.
+- **Its window is announced before it starts,** on `907069326E64` only. It ends with the measured clean image (`39e258b5be07`) written back and its boot read, per the window rule.
+
+**Also in the PR:**
+- `RELEASING.md`'s planned-check note, rewritten to A12.103's consequences with (b);
+- the edition-neutral parts of `CLAUDE.md` are not touched.
+
+**Not in this PR:**
+- A3.1's reader (R1/R2) is blipscope-5c's, agreed with it, and must be in place before R ships;
+- O11 runs on R's candidate on E2:08;
+- O6 is observed at the next real version bump.
+
+**The order:**
+1. this addendum;
+2. the code;
+3. the host suites and every driver, under WSL g++ 13.3 and the 26.04 leg's g++ 15 in CI;
+4. the builds:
+   - at `975816d9bf49`: the 3 pre-check envs;
+   - at the head: the 3 heads' envs, `missileer-s3-128` and the bench env;
+5. O2 and O4 (i) locally on those images; `--fleet`, `--fleet-sabotage` and `--check-table` locally;
+6. O9's window;
+7. the PR, with its CI predicted before it runs.
+
+**Before any build,** `df` is checked against 30 GB. Each env's build output is deleted once its image is copied out.
+
+**Outside every prediction here: stop and decide.**
