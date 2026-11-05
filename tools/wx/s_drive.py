@@ -117,8 +117,13 @@ try:
       mine, counted = tally()
       for e in mine[seen:]:
           summ = [(l.get("product") or l.get("evt"), l.get("check"), l.get("status") or l.get("result") or l.get("mode")) for l in lines(e)]
-          print(f"  {now()} invocation {len(mine[:seen]) + 1}: outcome {e.get('outcome')} {summ}", flush=True)
+          stm = (e.get("event") or {}).get("scheduledTime")
+          after = f"{stm / 1000 - t_dep_epoch:.1f} s after the deploy" if isinstance(stm, (int, float)) else "no scheduledTime"
+          print(f"  {now()} invocation {seen + 1}: scheduledTime {datetime.fromtimestamp(stm / 1000, timezone.utc).strftime('%H:%M:%S.%f')[:-3] + 'Z' if isinstance(stm, (int, float)) else '-'} ({after}) outcome {e.get('outcome')} {summ}", flush=True)
           seen += 1
+      if not mine and time.time() - t_dep_epoch > 300:   # the ~03:55Z ruling: no phase waits open-ended
+          why = "NO FIRST INVOCATION IN 5 MIN"
+          break
       if (counted if s4 else len(mine)) >= target:
           why = "COUNT REACHED"
           break

@@ -1380,3 +1380,17 @@ clean checkout at `131c0f776d9a`, exit 0, empty stderr):
   - **Explanation, not a finding:** a change of cron trigger can take more than a minute to start firing.
   - **The alternative:** the trigger never registered at all. These data don't separate the two; S1's re-run will,
     because the driver counts live and parks only on the count.
+
+**Ruling, pasted ~03:55Z (verbatim):**
+
+> S1: your proposal is accepted.
+> - 85a35361 is recorded as an aborted attempt: live 03:36:35Z for 51 s, 0 invocations, ungraded. e9cb8970 is the park.
+> - S1 re-runs as a new plantcal version, read against its own version id. S2-S5 then run as pinned.
+> - The driver fix is accepted as a tool fix: UTF-8 decoding, park-on-off under try/finally, and the exit hook on the tail.
+>
+> One addition, for every phase deploy from here: record the time from the deploy to the first invocation. If no invocation arrives within 5 minutes of a phase deploy, park on off and report. That separates "slow to start" from "never registered", and no phase can wait open-ended.
+
+- **In the driver:** it prints each invocation's `scheduledTime` and the seconds from the phase's deploy.
+  - No invocation of the phase's version within 300 s of its deploy: it parks on `off` and ends with
+    "NO FIRST INVOCATION IN 5 MIN".
+  - The graded time is read from the Logs records (`scheduledTime` minus the deploy's end).
