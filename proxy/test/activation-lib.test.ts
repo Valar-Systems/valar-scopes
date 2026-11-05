@@ -88,20 +88,22 @@ describe("A12: parseImport reads a plain list and an esptool log", () => {
 
 const A = "1111222233334444", B = "aaaabbbbccccdddd", C = "0123456789abcdef";
 
-/** A store that drops `drop` on the first put (once) or on every put (always). */
-function memStore(dropFirst: string | null, dropAlways: string | null): SeedStore & { rows: Set<string>; puts: string[][] } {
+/** A store that drops `drop` on the first put (once) or on every put (always); `states` records what each id holds. */
+function memStore(dropFirst: string | null, dropAlways: string | null): SeedStore & { rows: Set<string>; puts: string[][]; states: Map<string, string> } {
   const rows = new Set<string>();
+  const states = new Map<string, string>();
   const puts: string[][] = [];
   let first = true;
   return {
-    rows, puts,
+    rows, puts, states,
     async listedIds() { return new Set(rows); },
-    async putListed(ids) {
+    async putRows(ids, state) {
       puts.push([...ids]);
       for (const id of ids) {
         if (id === dropAlways) continue;
         if (first && id === dropFirst) continue;
         rows.add(id);
+        states.set(id, state);
       }
       first = false;
     },
@@ -146,6 +148,19 @@ describe("K: the seed", () => {
     expect(r.complete).toBe(false);
     expect(summarizeSeed("production", r)).toContain("INCOMPLETE");
     expect(summarizeSeed("production", r)).not.toMatch(/[0-9a-f]{16}/);
+  });
+});
+
+describe("K7: grandfathering writes activated rows (ruled ~19:50Z)", () => {
+  it("seedWith(..., \"activated\") writes activated rows and leaves an existing listed row untouched", async () => {
+    const store = memStore(null, null);
+    store.rows.add(A);
+    store.states.set(A, "listed");
+    const r = await seedWith(store, [A, B, C], "activated");
+    expect(r).toEqual({ read: 3, alreadyPresent: 1, written: 2, repaired: 0, missing: 0, complete: true });
+    expect(store.states.get(A)).toBe("listed");
+    expect(store.states.get(B)).toBe("activated");
+    expect(store.states.get(C)).toBe("activated");
   });
 });
 

@@ -158,12 +158,18 @@ export function planSeed(intended: readonly string[], existing: ReadonlySet<stri
   return intended.filter((id) => !existing.has(id));
 }
 
+export type SeedState = "listed" | "activated";
+
 /** The two operations the seed needs from a store; wrangler in the CLI, a Map in the tests. */
 export interface SeedStore {
-  /** The ids that have an `act:` row now. */
+  /** The ids that have an `act:` row now, in any state. */
   listedIds(): Promise<Set<string>>;
-  /** Write a `listed` row for each id. May silently drop some (a KV bulk put does). */
-  putListed(ids: readonly string[]): Promise<void>;
+  /**
+   * Write a row in `state` for each id. May silently drop some (a KV bulk put does). An `activated` row is written
+   * with no `gen`: no tool can compute the generation (it is keyed by DEVICE_KEY_SECRET, which only the Worker holds),
+   * and the gate reads a gen-less activated row as activated under every generation -- refused, fail closed.
+   */
+  putRows(ids: readonly string[], state: SeedState): Promise<void>;
 }
 
 export interface SeedResult {
@@ -180,14 +186,14 @@ export interface SeedResult {
  * nothing). The result is counts only, and it says complete only when the store, read back, holds
  * every intended id.
  */
-export async function seedWith(store: SeedStore, intended: readonly string[]): Promise<SeedResult> {
+export async function seedWith(store: SeedStore, intended: readonly string[], state: SeedState = "listed"): Promise<SeedResult> {
   const before = await store.listedIds();
   const toWrite = planSeed(intended, before);
-  if (toWrite.length > 0) await store.putListed(toWrite);
+  if (toWrite.length > 0) await store.putRows(toWrite, state);
   let present = await store.listedIds();
   const dropped = toWrite.filter((id) => !present.has(id));
   if (dropped.length > 0) {
-    await store.putListed(dropped);
+    await store.putRows(dropped, state);
     present = await store.listedIds();
   }
   const missing = intended.filter((id) => !present.has(id)).length;

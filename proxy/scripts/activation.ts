@@ -5,7 +5,9 @@
  *   npx tsx scripts/activation.ts reset  <16-hex id> [--staging]
  *   npx tsx scripts/activation.ts status <16-hex id> [--staging]
  *   npx tsx scripts/activation.ts import <file>      [--staging]   MACs one per line, or esptool logs
- *   npx tsx scripts/activation.ts seed   <file>      [--staging]   BEFORE #548 deploys: bench records into KV
+ *   npx tsx scripts/activation.ts seed   <file>      [--staging] [--state listed|activated]   BEFORE #548 deploys
+ *   npx tsx scripts/activation.ts seed   --ledger    [--staging] --state activated              grandfather enr:dev:
+ *   npx tsx scripts/activation.ts seed   --token-ids test-device,records-device --state activated
  *
  * The id is the one the customer reads off the Connect screen or the config page.
  *
@@ -31,8 +33,9 @@ import { fileURLToPath } from "node:url";
 import { ACTIVATION_ID_RE, actKey, MAX_BATCH } from "../src/activation";
 import { deviceIdFromMac } from "../src/provision";
 import {
-  chunk, errorCode, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, type SeedStore,
+  chunk, errorCode, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, type SeedState, type SeedStore,
 } from "./activation-lib";
+import { readTokenFile, type TokenPurpose } from "./token-file";
 
 const BASES = { production: "https://scopes.valarsystems.com", staging: "https://scopes-staging.valarsystems.com" } as const;
 const TOKEN_FILES = { production: "provision-token", staging: "provision-token-staging" } as const;
@@ -50,9 +53,22 @@ function refuse(msg: string): never {
 
 const args = process.argv.slice(2);
 const env = args.includes("--staging") ? "staging" : "production";
-const rest = args.filter((a) => a !== "--staging");
+// --state and --token-ids take a value; --ledger and --staging are flags. Everything else is positional.
+const valueOf = (flag: string): string | undefined => {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] : undefined;
+};
+const seedState = valueOf("--state") ?? "listed";
+const tokenIds = valueOf("--token-ids");
+const fromLedger = args.includes("--ledger");
+const rest = args.filter((a, i) => !["--staging", "--ledger", "--state", "--token-ids"].includes(a)
+  && !["--state", "--token-ids"].includes(args[i - 1] ?? ""));
 const [op, target] = rest;
-if (rest.length !== 2 || !op || !target) usage("expected an operation and one argument");
+const seedFromStore = op === "seed" && (fromLedger || tokenIds !== undefined);
+if (seedFromStore ? rest.length !== 1 : rest.length !== 2 || !target) usage("expected an operation and one argument");
+if (!op) usage("expected an operation");
+if (seedState !== "listed" && seedState !== "activated") usage("--state must be listed or activated");
+if (fromLedger && tokenIds !== undefined) usage("seed takes one source: a file, --ledger, or --token-ids");
 if (op !== "add" && op !== "reset" && op !== "status" && op !== "import" && op !== "seed") {
   usage("the operation must be add, reset, status, import or seed");
 }
@@ -90,15 +106,17 @@ function wranglerStore(envName: string): SeedStore {
       }
       return ids;
     },
-    async putListed(ids) {
+    async putRows(ids, state) {
       const dir = mkdtempSync(join(tmpdir(), "act-seed-"));
       try {
-        const listedAt = new Date().toISOString();
+        const now = new Date().toISOString();
+        // An activated row carries no gen: the generation is keyed by DEVICE_KEY_SECRET, which only the Worker holds.
+        const row = state === "activated"
+          ? { v: 1, state, listedAt: now, activatedAt: now, resets: 0 }
+          : { v: 1, state, listedAt: now, resets: 0 };
         for (const [i, batch] of chunk([...ids], 1000).entries()) {
           const path = join(dir, `seed-${i}.json`);
-          writeFileSync(path, JSON.stringify(batch.map((id) => ({
-            key: actKey(id), value: JSON.stringify({ v: 1, state: "listed", listedAt, resets: 0 }),
-          }))));
+          writeFileSync(path, JSON.stringify(batch.map((id) => ({ key: actKey(id), value: JSON.stringify(row) }))));
           wrangler(["kv", "bulk", "put", JSON.stringify(path), ...common]);
         }
       } finally {
@@ -139,6 +157,46 @@ async function post(body: Record<string, unknown>, tok: string): Promise<Record<
 }
 
 async function main(): Promise<void> {
+  if (seedFromStore) {
+    let ids: string[];
+    let from: string;
+    if (fromLedger) {
+      // Every enrolment-ledger id (enr:dev:), read with the same --remote listing; never printed.
+      const out = wrangler(["kv", "key", "list", "--prefix=enr:dev:", "--binding=ENRICH_KV", `--env=${env}`, "--remote"]);
+      let keys: unknown;
+      try {
+        keys = JSON.parse(out.slice(out.indexOf("[")));
+      } catch {
+        return refuse("the enr:dev: listing was not JSON; nothing was written");
+      }
+      if (!Array.isArray(keys)) return refuse("the enr:dev: listing was not a list; nothing was written");
+      ids = keys.map((k) => String((k as { name?: unknown }).name ?? "").slice("enr:dev:".length))
+        .filter((id) => ACTIVATION_ID_RE.test(id));
+      from = "the enrolment ledger";
+    } else {
+      const purposes = (tokenIds ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      const allowed = new Set(["test-device", "records-device"]);
+      if (purposes.length === 0 || purposes.some((x) => !allowed.has(x))) usage("--token-ids takes test-device and/or records-device");
+      ids = [];
+      for (const purpose of purposes) {
+        let id: string;
+        try {
+          id = readTokenFile(purpose as TokenPurpose).trim().toLowerCase();
+        } catch {
+          return refuse(`the token file has no usable ${purpose} line; nothing was written`);
+        }
+        if (!ACTIVATION_ID_RE.test(id)) return refuse(`the ${purpose} line is not a 16-hex id; nothing was written`);
+        ids.push(id);
+      }
+      ids = [...new Set(ids)];
+      from = `the token file (${purposes.join(", ")})`;
+    }
+    if (ids.length === 0) refuse(`no id came from ${from}; nothing was written`);
+    console.log(`seed (${env}): ${ids.length} unique id(s) from ${from}, as ${seedState}`);
+    const result = await seedWith(wranglerStore(env), ids, seedState as SeedState);
+    console.log(summarizeSeed(env, result));
+    process.exit(result.complete ? 0 : 1);
+  }
   if (op === "seed") {
     if (!existsSync(target!)) usage("the records file does not exist");
     const parsed = parseRecords(readFileSync(target!, "utf8"));
@@ -147,8 +205,8 @@ async function main(): Promise<void> {
     }
     const ids = parsed.mode === "macs" ? [...new Set(await Promise.all(parsed.macs.map(deviceIdFromMac)))] : parsed.ids;
     if (ids.length === 0) refuse("the file holds no id or MAC; nothing was written");
-    console.log(`seed (${env}): ${ids.length} unique id(s) from a ${parsed.mode} file`);
-    const result = await seedWith(wranglerStore(env), ids);
+    console.log(`seed (${env}): ${ids.length} unique id(s) from a ${parsed.mode} file, as ${seedState}`);
+    const result = await seedWith(wranglerStore(env), ids, seedState as SeedState);
     console.log(summarizeSeed(env, result));
     process.exit(result.complete ? 0 : 1);
   }
