@@ -4811,8 +4811,13 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
   - Per-arm p95 medians: O 53.9-55.3 ms, N 55.8-56.5 ms.
 - **The alternatives, none excluded by this data:**
   - **(a) #445's own code** costs ~1.8 ms a frame with the layer off.
-  - **(b) Main's commits merged into #445 since `962ccb7`** cost it. N is `baac757`, which holds 18 of main's commits
-    (#531's carousel among them) that O (`962ccb7`) does not, so N − O measures #445 **and** them.
+  - **(b) Main's commits merged into #445 since `962ccb7`** cost it. N is `baac757`, which holds **42** of main's
+    commits that O (`962ccb7`) does not, so N − O measures #445 **and** them.
+    - 13 of the 42 touch firmware paths. Some are Weatherscope-only.
+    - Among them are #531's carousel and **`908a74c`, "trace writes never block the draw loop" (HWCDC TX timeout 0)**,
+      which acts on the draw loop's timing directly.
+    - #445's own firmware commits: 20.
+    - (An earlier line here said "18". That was the count since #445's previous merge, not since O.)
   - **(c) Placement:** layout or link-order effects with no added work, the possibility Item 5 names.
 - **The run that separates (a) and (b):** O′ = main at #445's merge base with main. Then N − O′ isolates #445. It is
   not run: off-prediction, so stop and report.
