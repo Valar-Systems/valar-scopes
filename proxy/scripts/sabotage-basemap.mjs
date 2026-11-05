@@ -416,7 +416,9 @@ const SABOTAGES = {
   "S-MS1": {
     file: HANDLER, set: "all",
     edits: [["  const id = mem ?? (pkg ? await storeFromKv(env) : null);\n", "  const id = mem; void storeFromKv; // SABOTAGE S-MS1: the KV read skipped\n"]],
-    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7", "MS8"],
+    // Re-registered by ruling (~20:45Z), the miss kept: {MS1, MS2, MS3, MS4, MS6, MS7, MS8}. MS8's covered first request
+    // teaches the isolate the store id, so its second request takes the known path without KV, and it stays green.
+    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7"],
   },
   "S-MS2": {
     file: HANDLER, set: "all",

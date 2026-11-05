@@ -124,7 +124,7 @@ keeps its current assertions and labels.
 | **MS5** | a lock older than 45 s: the request takes it over, and the builder is called **once** |
 | **MS6** | a build finishing inside 2 s gets 200 synchronously, and the package is stored. A fresh isolate then reads it as `stored` |
 | **MS7** | a `no_coverage` build finishing after the 202 is stored as `.err`. The retry gets **404, `stored-error`**, with 0 builder calls |
-| **MS8** | every key written to `BASEMAP_PKG` matches `^bm/v1/(pkg\|pkg-lock)/[0-9a-f]{12}/[0-9a-f]{24}(\.err)?$`. No coordinate appears in any key or log line (`0.37`, `0.59`, 370000, 590000). CONTROL: at least 3 keys written |
+| **MS8** | every key written to `BASEMAP_PKG` matches `^bm/v1/(pkg\|pkg-lock)/[0-9a-f]{12}/[0-9a-f]{24}(\.err)?$`. No coordinate appears in any key or log line (`0.37`, `0.59`, 370000, 590000). CONTROL: at least 3 keys written. *Under S-MS1 (KV skipped) it stays green: its covered first request teaches the isolate the store id, so its second request takes the known path without KV (ruled ~20:45Z).* |
 | **MS9** | `BASEMAP_PKG` unbound: today's behaviour exactly (MW9's shape: 200, 1 call, 5 reads), and no 202 |
 | **MX1** | C1: a store stub that delays each read sees **between 2 and 6** reads at once, and the package equals the sequential build's **byte for byte** |
 | **MI8** | after a **sealed** publish, KV `bm:store` holds the store id. After an **unsealed** one, it is unset |
@@ -320,3 +320,29 @@ the tree was clean after.
 
 **Open, for a ruling before the rerun: S-MS1's set.** Proposed, with the miss kept on record: **{MS1, MS2, MS3, MS4, MS6,
 MS7}**. MS8 keeps its own S-MS8, and S-PLOG's set covers its logs.
+
+### Ruled on S-MS1, and the rerun (reviewer chat, pasted by Daniel, ~20:45Z)
+
+> Q-S1: yes. S-MS1 is re-registered as {MS1, MS2, MS3, MS4, MS6, MS7}, with the miss kept: MS8's covered first request
+> teaches the isolate the store id, so its second request takes the known path without KV. Note that in the doc beside
+> MS8.
+> The duplicate-id guard is accepted, with its scope stated (literal titles only; the baselines' counts cover generated
+> ones) and the old tree's MI8 collision as its free control.
+> Rerun from the suite onward with your four predictions. If all read as predicted, push A1's PR with CI predicted at
+> 33: 30 success, 3 skipped, 0 failed, and send it for review. #540 is now live in production, so A1's merge is no
+> longer held for it. Both A1 and #548 change the proxy, so I'll set their merge order when both are ready.
+
+**The rerun's four predictions, frozen before it starts:**
+1. **`--selftest-dups`:**
+   - control **0** duplicates;
+   - the planted copy gives **exactly 6** duplicates, all naming the copy;
+   - the copy is removed; exit 0.
+2. **The whole suite:** **911 passed, 1 skipped (912)**.
+3. **`sabotage-basemap.mjs`:**
+   - the guard passes;
+   - `baseline[all]` **159 cases in 17 files**, `baseline[ingest]` **11**, and `baseline[mv]` 31;
+   - **74 runs**;
+   - every sabotage AS PREDICTED (C-LOADFAIL BLIND); exit 0.
+4. **The smoke and credits drivers,** each after TIME_WAIT is under 2,000:
+   - smoke: CONTROL **911 passed, 1 skipped, of 912**, with S-SQ {SQ1, SQ2} and S-SQP {SQ-C};
+   - credits: CONTROL 35 of 35, with its four sets.
