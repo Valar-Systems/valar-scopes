@@ -705,3 +705,19 @@ one function, `failureText`:
   runs; it showed the planted `Authentication error [code: 10000]` line with its id as `<id>`,
   and the key lines were gone. The fake `npx` lived in a scratch directory and was on `PATH` for
   that one run only.
+
+### G-1 (re-run once), G-2 and C1, production, 2026-11-05 20:21-20:22Z: all as predicted
+
+| run | got |
+|---|---|
+| **G-1** `seed --ledger --state activated` | `read 22, already present 0, written 22, repaired 0, missing 0 -> COMPLETE`, exit 0 |
+| **G-2** `seed --token-ids test-device,records-device --state activated` | `read 2, already present 0, written 2, repaired 0, missing 0 -> COMPLETE`, exit 0 |
+| **C1** | exit 0: Analytics Engine 20, `fw:` 20, union 20; **with a row 20, missing 0**; the test identity not missing |
+
+**One difference from the stopped run, recorded and not interpreted:** the tool was launched with
+`node_modules/.bin/tsx`, not `npx tsx`. Its own wrangler calls still go through `npx wrangler`,
+where the first run failed, so this neither explains nor excludes that failure. The cause stays
+unknown, and the tool would now print it.
+
+**Next:** Daniel's seed (`provisioned.csv`, once), then C1 again. The rows written so far are inert
+in production until #548's gate deploys.
