@@ -171,3 +171,108 @@ The tree was clean after.
 >   registered. Anything outside the set: stop and report.
 > - The slot is yours alone. If the UK's Plan S still has phases left to run after 16:45Z, it resumes once you report
 >   done or at 17:00Z, whichever comes first.
+
+## The staging reading (2026-11-05, 16:55-17:21Z): outside the set; stopped
+
+**The relabel, as ruled (Q-BB1).** `readMs` and `maxReadMs` are **"read spans, including the CPU since the previous
+read"**. In Workers, `Date.now()` advances only at I/O, so each span also holds the CPU work done since the read before
+it. The spans add up to the build's wall. The measurement of waiting is **the builder's wall minus its GraphQL CPU, per
+build**.
+
+### The rulings, verbatim (reviewer chat, pasted by Daniel)
+
+From ~15:08Z, the slot moved:
+
+> Your builder slot moves: it starts when Daniel pastes blipscope-5c's "the PC is free" line, or at 16:55Z, whichever
+> comes first, and it lasts at most 15 minutes. Everything else stands as registered: #541 merged first, rollback target
+> first, the deploy from the merge commit by name, three KDEN builds more than 60 s apart, and done reported when
+> finished. The 17:00-19:00Z Bend quiet block doesn't constrain you, because your builds touch nothing in Bend.
+
+From ~17:12Z, after the refusal below:
+
+> (A). I read it too: from 048ed7b to main, 0 builder inputs changed (src/basemap, basemap.wrangler.toml, the package
+> files, tsconfig). The skipped commits are #543's two dev-Worker files, plus firmware and tools.
+> - Deploy 048ed7b by name with ALLOW_BEHIND=1, builder only. Record the skipped commits and that 0-file builder diff
+>   beside the rollback target (98800bfe).
+> - New slot: 15 minutes from when you receive this. The UK's dev-Worker phases may run alongside: it's a different
+>   Worker and shares nothing. Everything else is as registered: three KDEN builds more than 60 s apart, each bm_build
+>   line found with status 200 as the anchor, graded by the frozen table, done reported.
+> - The refusal stays in the record. deploy.sh's behind-check reads all of proxy/, so it fires on files the builder
+>   doesn't use. Follow-up: propose narrowing it per target (proxy inputs vs builder inputs), with a sabotage.
+
+From ~17:28Z, on the reading:
+
+> #541's reading: recorded as outside the set, and stopping was right. Staging stays on proxy 3b12b9ea and builder
+> 46addd75, with 98800bfe as the rollback target.
+>
+> - Q-BB1: accept the subtraction as the measurement: wall minus the builder's GraphQL CPU, per build. readMs is
+>   relabelled in the doc as "read spans, including the CPU since the previous read", because Date.now() advances only
+>   at I/O. No new per-read instrument for now. The next change is graded end to end on wall time.
+> - Q-BB2: yes. Re-register the read count as 53, the builder's own count, which BB1 proves exact. The miss stays on
+>   record. R2's per-minute dataset (57, 51, missing) is not used for per-build counts again.
+> - What the reading changes for D4: CPU alone was 2.28-4.11 s per build, so parallel reads by themselves can't reach
+>   the 2.5 s p95 target. Each build also read 15.2 MB to make one package. The next proposal, predictions first,
+>   covers both: the reads' waiting (about 80% of wall) and the CPU and bytes behind it. If neither gets there, bring the
+>   alternatives for a decision: pre-building, a longer device timeout, or a "202, retry" answer.
+> - The deploy.sh behind-check narrowing stays a follow-up.
+
+### Merged, and main's CI
+
+- **#541** merged as `048ed7b` (approved at `4a0c455`, CI 41: 38 success, 3 skipped, 0 failed).
+- **Main's CI on `048ed7b`** (15:25:46Z): **41 check runs: 39 success, 2 skipped, 0 failed.** It has the same 41 names
+  as `20a0323`'s run, as predicted.
+
+### The slot
+
+**The start.** The slot began at **16:55:18Z**. No "the PC is free" line had come.
+
+**The rollback target, read first:** **`98800bfe-c74f-4d12-8616-b7f073deccec`**, D2's staging builder (2026-10-30).
+
+**The refusal, which stays in the record.**
+- At 16:55:39Z, `./scripts/deploy.sh --builder staging` at `048ed7b` refused, exit 1: "this tree is 1 commit(s) behind
+  origin/main in proxy/ … would REVERT these: 788dab3".
+- Main had moved after #541's merge: `788dab3` (#543), `d9b1f19` (#542) and `975816d` (#544).
+- **The builder-input diff,** `048ed7b..975816d` over `proxy/src/basemap`, `basemap.wrangler.toml`, the package files
+  and `tsconfig`, is **0 files**. #543's `proxy/` files are `scripts/check-wx-plant.mjs` and
+  `wx-ingest-dev.wrangler.toml`. #542 and #544 are firmware and tools.
+- I stopped, with nothing deployed, and reported. Ruled (A).
+
+**The deploy, as ruled.**
+- At 17:16:53Z, re-read first: main still `975816d`, the same three skipped commits, 0 builder-input files.
+- `ALLOW_BEHIND=1 ./scripts/deploy.sh --builder staging` at `048ed7b`, exit 0.
+- **Builder version `46addd75-64dc-4570-bb9a-f01583bb3574`**, stamped `048ed7be9466cbbfb0f01b303d6826d525187b6f`.
+- The proxy was not redeployed. `CLOUDFLARE_API_TOKEN` read absent in the shell and at user level (a boolean).
+
+**The three KDEN builds.** As the test identity, each 75 s after the previous response. Stderr held 3 identity lines
+naming fields only, and nothing else.
+
+| | sent | HTTP | proxy `bm`, data centre | `bm_build`: reads | bytes | read spans / wallMs | longest span | builder wall, CPU (GraphQL) | wall − CPU |
+|---|---|---|---|---|---|---|---|---|---|
+| K1 | 17:17:09Z | 200, BMPK | `unknown-store`, SJC | **53** | 15,215,034 | 11,368 / 11,368 | 483 | 12.45 s, 2.28 s | 10.2 s |
+| K2 | 17:18:37Z | 200, BMPK | `unknown-store`, SJC | **53** | 15,215,034 | 16,482 / 16,485 | 2,716 | 17.37 s, 4.11 s | 13.3 s |
+| K3 | 17:20:11Z | 200, BMPK | `unknown-store`, LAX | **53** | 15,215,034 | 14,670 / 14,670 | 1,658 | 15.70 s, 2.79 s | 12.9 s |
+
+**The anchor control held.** Each build's `bm_build` line was found, with status 200, and the proxy labelled each one
+`unknown-store`.
+
+**Graded against the frozen table: outside the set.**
+- `reads` was **53** three times, not 57.
+- The read spans were not under half of the wall: they **equal** it.
+- So the reading is "none of the above". **Stopped.** No conclusion was acted on, and no rollback was needed: every
+  answer was correct.
+
+**What the ruling made of it:**
+- **The read count is re-registered as 53**, the builder's own count, which BB1 proves exact. The "57" row stays on
+  record as the miss. It was R2's per-minute figure for MM2's build, not the build's.
+- **R2's per-minute dataset is not used for per-build counts again.** It read 57 and 51 for K1's and K2's minutes, and
+  K3's minute was missing at 17:21Z.
+- **The read-span row** could not fire, by construction, as above. Waiting is wall minus CPU: **10.2-13.3 s, about 80% of
+  wall**, over 53 one-at-a-time reads.
+
+**Where the environments stand:**
+- **Staging:** proxy `3b12b9ea`, builder `46addd75`. The builder's rollback target is `98800bfe`.
+- **Production:** unchanged, with no binding.
+
+**Next, as ruled:** a proposal, predictions first, that covers both the reads' waiting and the CPU (2.28-4.11 s) and
+bytes (15.2 MB) behind each build, against the 2.5 s p95 target. If neither gets there, the alternatives come back for a
+decision: pre-building, a longer device timeout, or "202, retry".
