@@ -1618,3 +1618,26 @@ propagate to the Cloudflare global network."*
 - If the first firing starts later than about 12 min after the deploy, three invocations can't finish inside the cap.
   The driver then ends on TIMEOUT, and that is stop-and-report.
 - Run as ruled, with neither limit changed.
+
+**S1, fourth attempt (from `788dab3cf200`): the tail exited mid-phase, so the phase ended and I'm reporting. No
+reading was taken.**
+
+| | |
+|---|---|
+| start | `plantcal`, **version `093b18f7-45e5-4a02-acff-79ff98cc2cb1`**, 16:54:42.622-16:54:46.195Z, exit 0, empty stderr, `schedule: * * * * *` |
+| what ended it | **`wrangler tail` exited on its own at 17:01:34Z** (about 7 min after it started), with exit code 0 and empty stderr. The driver ended the phase on "TAIL EXITED", as designed |
+| park (end) | **`idle`, version `756c43f6-3ec8-45eb-964d-d36b9d8f4f75`**, 17:01:34.419-17:01:38.619Z, exit 0, empty stderr, **`schedule: * * * * *` kept** |
+| what `093b18f7` ran | **0 invocations** (Logs and R3-6, 16:54:46Z to 17:05:39Z) |
+| the cron add | **first firing 17:03:45Z, about 539 s after `093b18f7`'s deploy**, on the `idle` park. Then 17:04:45Z; both `ok`, `wx_dev_off` only, 0 ms CPU, attributed to `756c43f6`. 0 unattributed |
+
+**Why the tail exited is not known.** Two readings, which these data don't separate:
+- Cloudflare closed the tail session. Exit 0 and no stderr fit a clean close from the far side.
+- wrangler's tail ends itself after a quiet period. No event had arrived in its 7 min.
+- Two earlier tails of the same length were closed by the driver itself before either could show it (S1b 6.9 min,
+  S1c 7.8 min). So "about 7 min" may be a session limit that has simply not been met before.
+
+**What changes now:** the cron is live and kept by `idle`, firing at :45 past each minute. So the next phase deploy is
+a version change only, and should fire on the next minute. The 15-min window was for the one deploy that adds the
+cron, and that deploy has now happened.
+
+**The adds measured:** 268.7 s, about 592 s, about 539 s. **The removal:** 323 s.
