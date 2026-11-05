@@ -11891,3 +11891,109 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **Before any build,** `df` is checked against 30 GB. Each env's build output is deleted once its image is copied out.
 
 **Outside every prediction here: stop and decide.**
+
+### A12.105 The 1.46" (s3-146) scopes retired from CI, releases and the identity plan: frozen before the PR's code. 3.4 paused; what it measured
+
+**The rulings (reviewer chat, pasted by Daniel):**
+- **~17:55Z, on Daniel's decision:** the 1.46" (s3-146) scopes will likely never be made or sold. Retire them from CI, from release publishing and from Stage 3's identity plan; their code stays in the repo. One PR, predictions first:
+  1. a read-only fleet check first;
+  2. the s3-146 envs leave every workflow's build matrix, with the check-run count predicted;
+  3. no s3-146 asset is built or published from the next release on, and earlier releases are untouched;
+  4. the rows are marked `retired` in `skus.yml`, not deleted, with a sabotage proving a retired SKU can't be published;
+  5. O1′ and O10′ re-derived over the remaining boards.
+  - This PR goes before 3.4's code, so 3.4 is paused until it merges.
+- **~18:10Z:** proceed.
+  - **Step 1 is accepted** as `smoke-prod.sh`'s own `/v1/config` loop.
+  - **The non-radar blind spot is noted.** It changes nothing, since v18 already carries no s3-146 asset.
+  - **The mis-scoped query is recorded as disclosed,** and a rule follows: from now on a query is scoped to model names and hashed ids **before** it runs.
+  - **For 3.4's resumption:**
+    - the cross-board inputs move to `blipscope-pro-s3-21`, with those rows' predictions restated first;
+    - a WSL run.sh prediction names the two blocks that need xtensa and Pillow;
+    - O9's control is a RIG, not a reading. Before it re-runs, the 8 KB send is paced or acknowledged, predictions come first, and the bench proves the control writes.
+
+**Step 1, as measured** (read-only, production Analytics Engine, 30 days to ~17:57Z; no id printed, only hashed):
+
+| | |
+|---|---|
+| requests with model `s3-146` | 26, all `/v1/config`, from 3 sources: two hash-match the token file's `test-device` and `records-device`, one has no id |
+| the same counts, day by day | `c3-128`, `s3-21`, `s3-175-amoled`: `smoke-prod.sh:562`'s model loop |
+| feed-route points with model `s3-146` | **0** |
+| anchor control | `s3-128`: 694,013 request points from 21 devices; `ota`, `boot` and `usage` points name `s3-128` only |
+| releases | the newest s3-146 asset is on v12 (a prerelease); `latest` (v18) has none. All s3-146 assets of all releases: 3 downloads, cumulative |
+
+**3.4, paused at `b26036002ac8`** (branch `weatherscope/ota-identity-paused`, no PR). What it measured, for the record; A12.104's rows:
+- **Held:**
+  - the suites, 22/0 and 36/0, under MinGW and WSL g++ 13.3;
+  - every sabotage exactly its frozen set: S-ID1b 7, S-ID2b 9, S-O8a 20 (final boot `app0` on all six), S-O8b 14, S-ID3 9;
+  - `--anchors`, `--control` and the count lint;
+  - the offering side: its selftest, `--fleet`, S-O5 and S-Q76 each exactly one problem, the table at 15;
+  - the record at 0x120 in four real images (`VSID`, v1, 64), O2 PASS on each, O4 (i) refused both ways, a pre-check image refused under a slug;
+  - the bench marker in the bench ELF only;
+  - the device's own `[ota-id] board=s3-128 scope=weatherscope- (record v1)` line on the board;
+  - O9's two refusals: `refused-foreign`, the boot label and the slot hash unchanged, 0 screen lines.
+- **Not held:**
+  - **my run.sh prediction under WSL** (exit 0; it was 2, from the two blocks that need xtensa and Pillow, as in the 11-04 and 11-05 WSL logs);
+  - **O9's CONTROL, a RIG:** no result line within 60 s. The suspected cause is USB-CDC bytes lost on the 8 KB send, so the device's byte budget never drained.
+  - The board was restored to `39e258b5be07` at 17:55:26Z, with its boot read.
+- **Two design findings, made before measurement:**
+  - **`Update.writeStream` can't continue a stream after the head is read.** It peeks for `0xE9` first, so the adapter writes the rest itself, with writeStream's 300 × 100 ms patience. The token is still `fail-6`.
+  - **A 32-bit `.exe` named `*install*` won't start on Windows** (installer detection). So the suite's binary is `test_ota_decision`.
+- **One disclosure for 3.4's PR:** the two pre-check radar and Missileer heads carry a local toolchain path at 0x120, the first bytes of `.rodata`, which names the build machine's user directory. `docs/prebuild-patches.md` on main already does. The alternative is v18's published `firmware-s3-128.bin` head, which carries a CI path.
+
+**The retirement PR, predicted** (from main at `15c8a2da`):
+- **`skus.yml`:** the 8 s3-146 rows become `status: retired`, kept, not deleted:
+  - `blipscope-s3-146`, `missileer-s3-146`, `orbitscope-s3-146`, `quakescope-s3-146`, `quillscope-s3-146`, `reelscope-s3-146`, `claudescope-s3-146` and `speedscope-s3-146`.
+- **`scripts/skus.py`:**
+  - `retired` joins the valid statuses;
+  - a retired row carrying a slug is refused;
+  - `--matrix-json` leaves retired rows out;
+  - `--all-envs`, read only by the adsbdb gate as "what CI builds", is replaced by `--build-envs` (shipping and build-only), and the gate is pointed at it;
+  - `--validate` reads `17 leg(s), 1 shipping (s3-128), 8 build-only, 8 retired`.
+- **Its selftest gains three cases,** each refusing or holding on its own:
+  - a retired row with a slug is refused;
+  - a retired row is absent from the matrix;
+  - the real file's matrix holds no retired env.
+  - With the existing eight cases and the real-file line, that is **12 ok** lines.
+- **A new `--sabotage` mode,** run by a new step in the `skus` job ("Prove a retired SKU cannot be published"):
+  - **S-R1:** a copy of the real `skus.yml` with the first retired row given its old slug (`s3-146`). `--validate` must refuse with exactly one problem, "is retired but carries slug".
+  - **S-R2:** a copy of `skus.py` with the matrix's retired exclusion removed. Its `--selftest` must exit 1, failing exactly the two matrix cases.
+- **RELEASING.md:**
+  - a "retired row" subsection beside the compile-only one;
+  - the seven edition-table rows marked retired;
+  - the `s3-146` naming examples replaced by live boards;
+  - a retirement note beside the C3 one.
+- **Not touched:**
+  - no env in `platformio.ini`, and no source;
+  - `smoke-prod.sh`'s probe (ruled);
+  - every earlier release;
+  - `check_release_envs.mjs`. Its row regex already accepts `retired`, and a slug-less row only has to exist in `platformio.ini`, which all eight still do.
+- **What the retirement costs:** with no CI row, the s3-146 envs will stop being compiled, so a later break in them will go unseen. RELEASING.md's compile-only section explains that is how the AMOLED env once rotted. That is accepted here, by the ruling.
+
+**The check-run count, from the last finished firmware run on main** (`975816d9bf49`: 36 jobs, 17 build legs, 8 of them s3-146):
+- **The firmware workflow:** 28 jobs (9 build legs).
+- **This PR's run:** the firmware workflow + `device-ids` + `no-traffic-captures`. No path filter matches (no `src/`, `include/`, `platformio.ini`, card or provisioner path).
+  - **Predicted: 30 check runs, 27 success, 3 skipped (ship-alert, promote, version); 29 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
+- **Main's push after the merge:** 30, 28 success, 2 skipped (promote, version).
+
+**O1′ and O10′ restated over the remaining boards** (A12.103's (b) rows; the 7 envs with an OTA path, retired rows excluded):
+- **The population:** `blipscope-s3-128`, `blipscope-s3-128-joindiag`, `missileer-s3-128`, `missileer-photo`, `weatherscope-s3-128`, `blipscope-pro-s3-21` and `blipscope-pro-s3-175-amoled`. That is 5 identities and 3 scopes (none, `eam-`, `weatherscope-`).
+- **The counts** (hand counts, matched by the scratch script):
+
+| row | was (15 envs) | now (7 envs) |
+|---|---|---|
+| R1 | 135/135 | **21/21** (7 × 3) |
+| M1, O1-b (i), the switch matrix | 91 accepted, 134 refused | **27 accepted, 22 refused** (49 pairs) |
+| M2, every scope | 1,206 of 1,206 refused | **66 of 66** |
+| M3, O1-b (ii), own scope | 19 accepted, 206 refused (72 cross-scope) | **11 accepted, 38 refused (16 cross-scope)** |
+| O10′ | 45 `no-record`, 0 `foreign` | **21 `no-record`, 0 `foreign`** (7 × 3 pre-check heads) |
+| S-ID1b's off pairs | (i) 0, (ii) 72 | **(i) 0, (ii) 16** |
+| S-ID2b's off pairs | (i) 134, (ii) 22; M2 134 | **(i) 22, (ii) 10; M2 22** |
+| Q76's boards | `s3-128` 7, `s3-146` 8, `s3-21` 1, `s3-175-amoled` 1 | **`s3-128` 7, `s3-21` 1, `s3-175-amoled` 1** |
+| the identity table | 15 rows | **7 rows** |
+
+- **Unchanged:** the suites' check counts (22, 36) and every sabotage's failing check names.
+- **The cross-board real head becomes `blipscope-pro-s3-21`'s** (ruled), in P3, O4-v-a, O4-v-b and I1. O9's second refusal becomes `refused-s3-21`.
+- **The O4 (iv) wording is unchanged:** an s3-128 still refuses another board's head.
+- **O9's control re-run** gets its own predictions when 3.4 resumes.
+
+**Outside these predictions: stop and decide.**
