@@ -11415,3 +11415,42 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **After:** the run's BSW posts `wx-theme=auto`, so a run that completes leaves the board on Auto. Its last stored theme is read back after the run and recorded.
 
 **If cut, or any row off:** stop and report, retry nothing. Any overlap with E2:08's windows is recorded by my window's times (03:45Z to its end).
+
+### A12.99 W4 (03:45Z window) ran in full: B1 20/20 exact, B3, BSW-L, the watcher, the boot read and the heartbeats all AS PREDICTED; one BSW row OFF, 3 theme builds where 2 were frozen (Q74)
+
+**The run** (A12.98's launch; every step's start and exit timed; nothing cut):
+- 03:45:07Z port resolved (COM6, by serial).
+- `read-mac`, `boot_lines`, `read-mac`.
+- 03:45:30Z `run_b35t` start, then **04:06:48Z exit 0**.
+- `grade_b35t` exit 1.
+- The stored theme was read back after the run.
+- The board left on the clean image; TCP :80 up after 1.9 s.
+
+**AS PREDICTED:**
+
+| row | measured |
+|---|---|
+| the boot read (predicted from the read-back `auto`) | psram_used 227,168, psram_base as W2's, `theme=auto read=known`. **No theme line at boot** (Dallas night) |
+| B1 | **20 of 20 captures frame- and line-exact,** dark and light, the 8 scenes plus `bdry-60-C` and `brain-60-C` each |
+| B3 | `legend_check` exit 0 in both themes |
+| BSW | offsets (96, +15 ... +1425 then 0), location set, 2 phase changes, 2 switches (dark->light, light->dark), 2 dims, both recomposes, the Bend base row `['no', 'no']` |
+| BSW-L | the press inside the loop, `layer_rebuilds=0`, the switch deferred past the loop's records |
+| the watcher | **0 unexplained** |
+| the heartbeats in the run | `wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 rebootRec=0`, **ok probes 58 then 118**, failed 0 |
+| after | stored theme read back `auto` |
+
+**OFF: "BSW build reasons", 3 builds with `why=theme` in the R dump, against the frozen 2.**
+- **The R dump** is the board's last 8 builds (`builds n=8 of 47`): `theme` (scene approaching), 5 `cycle` builds (herenow to bdry), then `theme`, `theme` (bdry).
+- **Where the first one came from, in the trace:** BSW begins by POSTing `wx-theme=auto`. Here, at Dallas night, Auto resolved at once: `[wx] theme=dark was=light setting=auto phase=Night`, recomposing the scene then showing (approaching). That build is inside the 8-build window.
+- **Why t5's run read 2:** t5's BSW (11-02) ran in Dallas **daytime.** The same POST resolved Auto to Light, the theme already showing, so it made no switch and no build. Its two theme builds were BSW's own dusk and dawn.
+- **So the row's "exactly 2" assumes a daytime BSW:** the POST's own switch is counted whenever it happens at night. The frozen value was mine (A12.66), written for the daytime run it was first measured on.
+- **The alternative,** that the TouchWatchdog change adds a build, is excluded. The extra build is exactly the POST's resolution, on the scene shown at that instant, and the other 5 builds in the dump are the cycle's own, as in t5's.
+
+**Overlap with blipscope-5c's E2:08 windows:** mine ran 03:45:07Z to 04:06:57Z; any E2:08 window open in that span is the overlap. They are separate boards on separate ports. No build and no whole-suite run here during it.
+
+**Q74, for the ruling:**
+- **(a) Accept W4 as measured,** the third theme build named above, and let the TouchWatchdog PR go up.
+  - Its touch row is B1/B3, all exact. The off row is t5's BSW count, met at night.
+  - **Then fix the grader in its own small PR, predictions first:** count only the `why=theme` builds BSW's 96 presses made (the last two in the dump), or expect the POST's switch when the phase at the POST differs from the theme shown.
+- **(b)** Re-run W4 in Dallas daytime, where the row holds as frozen. That leaves the grader's time-of-day dependence in place.
+- **Recommended: (a).**
