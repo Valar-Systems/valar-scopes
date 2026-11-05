@@ -443,3 +443,89 @@ not assumed.
   - The second attempt started at 4,153 TIME_WAIT sockets, under the 8,000 gate, and its own run took the count to
     15,673. So the full suite exhausts this machine's ephemeral ports by itself.
   - T2 rests on CI.
+
+## The feeder's night cadence, and keeping the newest snapshot (Daniel, 2026-11-05 ~04:25Z): frozen before the code
+
+**Why.** #536's T5 showed every untouched scope polling every 60 s at night (the firmware's solar rule), so the
+snapshot can be ~75 s old, and the web build shows STALE. Daniel would rather the feeder keep its daytime cadence
+than relax the site's rule. A review of who can write (any covering device, E2:08 and the production smoke test
+included) found one real gap: the store accepts a write 10 s after its last save without checking the data's own
+time, so an older upstream response can replace a newer snapshot.
+
+**His decisions:**
+1. **The cadence: a per-device override layer in the proxy's config**, keyed by device id in the fleet's KV config
+   (`cfg:fleet.devices`) and applied last. It gets one entry, for the feeder: the day interval at night. Every
+   unlisted device is unchanged, there is no firmware change, and deleting the entry undoes it.
+2. **The snapshot: keep the newest.** The store refuses a snapshot whose data is older than the one it holds, and
+   counts each refusal as its own event. Any covered writer may write; there is no preferred writer.
+
+**Read first:**
+- `/config` is reached only past the auth gate, so the handler takes the **verified** id from it (`auth.bucket`,
+  `dev:<id>`, lowercased by `authenticate`), never the raw header.
+- Config precedence today: BASE < baked model < KV defaults < KV model. 9 tests in `config.test.ts`.
+- The store's rule today is the 10 s interval only. 16 tests in `sitefeed-bend.test.ts`. The Workers suite on main
+  reads 884 passed, 1 skipped (885).
+- **The feeder's model, inferred:** every Bend stream polled exactly every 60 s at night. An s3-146 or s3-21 would
+  poll every 45 s, so the feeder is taken to be an **s3-128**, whose day idle interval is **15 s**. Its entry is
+  `{ "pollNightMs": 15000 }`.
+
+### 1. The per-device layer
+
+**The change:**
+- `handleConfig(request, env, deviceId)` resolves to {...BASE, ...model, ...KV defaults, ...KV model, ...KV
+  `devices[deviceId]`}, where `deviceId` is the verified identity.
+- A `devices` that is not a plain object, or an entry that is not one, is ignored, and the device then gets exactly
+  the config it gets without the layer.
+
+| | check | sabotage, which must turn exactly it red |
+|---|---|---|
+| **D1** | a listed device gets its entry: `pollNightMs` 15000, every other field as its model resolves | |
+| **D2** | an unlisted device of the same model gets a body **byte-identical** to the one with no `devices` layer | **S-D2:** the first entry applied to every device |
+| **D3** | precedence: with the KV model at `pollNightMs` 30000 and the device entry at 15000, the answer is 15000; `pollIdleMs`, absent from the entry, comes from the KV model | **S-D3:** the device layer spread before the KV model |
+| **D4** | the lookup uses the verified, lowercased id: a request whose header carries the id in upper case still matches its lower-case entry | **S-D4:** the raw header read instead of the verified id |
+| **D5** | `devices: null`, or an entry that is a string: the config equals the no-layer config, with no 500 | **S-D5:** the shape guard removed (the lookup on `null` throws) |
+
+D1's sabotage is S-D3, so it is not separate. Predicted: `config.test.ts` reads **14** tests (9 + D1-D5), all
+passing.
+
+### 2. Keep the newest
+
+**The change:**
+- `BendStore.write` keeps the 10 s rule **first** (`refused_30s`). Then it refuses a snapshot whose upstream time `t`
+  is **strictly older** than the stored one's, returning `refused_older`. An equal `t` is accepted.
+- The Durable Object answers 204 written, 409 `refused_30s`, and **412 `refused_older`**. The writer counts 412 as
+  `refused_older`, never as `write_error`.
+
+| | check | sabotage, which must turn exactly it red |
+|---|---|---|
+| **N1** | stored `t` = 100; 10 s later, on a **new instance**, `t` = 99 is `refused_older`, and the store still reads `t` = 100 | **S-N1:** the age check removed |
+| **N2** | an equal `t` (100), 10 s later: `written` | **S-N2:** `<=` in place of `<` |
+| **N3** | a newer `t` (101), 10 s later: `written` | (S-N1's control: N3 stays green under it) |
+| **N4** | older **and** within 10 s: `refused_30s`, the interval first | **S-N4:** the age check moved before the interval |
+| **N5** | on the device path, a Durable Object answering 412 is counted `refused_older` once, and `write_error` 0 | **S-N5:** 412 mapped to `write_error` |
+
+Predicted: `sitefeed-bend.test.ts` reads **21** tests (16 + N1-N5), all passing. The Workers suite reads **894
+passed, 1 skipped (895)**: 884 + 5 + 5. The dashboard suite stays at 104.
+
+**The docs:** `proxy/README.md`'s count list gains `refused_older`, and its config precedence gains "< KV device".
+
+### After the code: no deploy before #536's T5′ read at 19:05Z
+
+- **The deploy:** as ruled, staging then production, `deploy.sh` from the merge commit, read after main's
+  **finished** CI. What it carries is listed first, and the rollback target recorded.
+- **Its checks:** `/healthz` shows the commit and `smoke-prod.sh` passes. The test identity is unlisted, so its
+  `/config` is unchanged: `pollNightMs` 60000.
+- **The KV entry,** only after the deploy is verified:
+  - `cfg:fleet` is read, the one `devices` entry is merged in, and the value is written from a temporary file
+    (`--path`), so the id is on no command line and in no output. The id comes from the token file's
+    `feeder-device` line and goes into production KV only, never into the repo or any record.
+  - The read-back is verified structurally, as one boolean: `devices` holds exactly one key, equal to the token
+    file's id, whose value is `{ "pollNightMs": 15000 }`, and every other field of `cfg:fleet` is unchanged.
+  - Daniel power-cycles the feeder.
+- **The night reading:** registered before it is read, once the feeder has re-fetched its config.
+  - Production `written` at **225-242 an hour** at night. The daytime derivation applies: the feeder at 15 s
+    controls it, and E2:08 at 60 s fits no extra write into a 15 s gap.
+  - The new `refused_older` count is read beside it.
+  - Ages like the daytime prediction (median 10-16 s, max ≤ 30 s) are the website's to read.
+
+**Outside the set:** stop and report.
