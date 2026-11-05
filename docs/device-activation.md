@@ -608,3 +608,24 @@ the grandfathered `activated` ones, given that a seed never rewrites a row):
 | **G-2:** `seed --token-ids test-device,records-device --state activated` | `read 2, already present 0, written 2, ... missing 0 -> COMPLETE` |
 | **C1**, straight after G-2 | exit 0: union 20, with a row 20, **missing 0**. The 30-day window can move a device in or out; any missing id is a stop |
 | **Daniel's seed** | `listed` rows for the rest of his records, skipping the 24 already written |
+
+### G-1, 2026-11-05 20:00Z: outside the set, stopped, nothing written
+
+- **Ruled ~20:15Z:** write the grandfathered rows, activated without a generation, as G-1 and G-2.
+  Any reading other than the predicted ones stops the run.
+- **G-1** (`seed --ledger --state activated`, production) **exited 1 with no output.**
+- **It failed at its first step,** listing the ledger, before any write. Production holds **no**
+  `act:` rows afterwards: a by-hand listing reads `[]`.
+- **Why the cause is hidden:** the tool's failure message showed the last 600 characters of
+  wrangler's stderr, which were two copies of the "unsafe fields" config warning. The error itself
+  went to stdout, which the tool drops on failure. **The tool hid the cause,** the
+  filtered-output failure CLAUDE.md warns about.
+- **The same listing by hand, a minute later,** exited 0 and returned 22 keys (counted, not
+  printed). So the failure was transient, or depended on something in the tool's call that a hand
+  call does not have. The two cannot be told apart from what was kept.
+- **Proposed, for a ruling:**
+  1. On failure, the tool prints stdout's non-key lines as well as stderr, with ids masked and the
+     known config warning dropped, so a failure names its cause.
+  2. G-1 is then re-run under the same prediction.
+
+  Nothing else changes, and Daniel's seed and C1 wait.
