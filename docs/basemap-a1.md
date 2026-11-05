@@ -346,3 +346,30 @@ MS7}**. MS8 keeps its own S-MS8, and S-PLOG's set covers its logs.
 4. **The smoke and credits drivers,** each after TIME_WAIT is under 2,000:
    - smoke: CONTROL **911 passed, 1 skipped, of 912**, with S-SQ {SQ1, SQ2} and S-SQP {SQ-C};
    - credits: CONTROL 35 of 35, with its four sets.
+
+## The rerun (2026-11-05, 20:35-21:38Z): as predicted through the basemap driver; the smoke driver's two plants unreadable
+
+**As predicted:**
+1. **`--selftest-dups`:** control 0; the planted copy gave 6 duplicates, all naming the copy; the copy was removed; exit 0.
+2. **Typechecks:** clean. **The whole suite:** **911 passed, 1 skipped (912)**.
+3. **`sabotage-basemap.mjs`** (20:38-21:28Z), exit 0:
+   - the guard passed;
+   - `baseline[all]` **159 in 17 files**, `baseline[ingest]` **11**, `baseline[mv]` 31;
+   - **74 runs, 0 runtime failures**;
+   - **all 71 sabotages AS PREDICTED**, among them S-ISIZE {MI7, MI9}, S-MS1 {MS1, MS2, MS3, MS4, MS6, MS7}, S-MI9
+     {MI9}, S-PLOG {MP1, MS8}, S-MKHIT {MK3, MK6, MS2}, S-MKKMISS {MK4, MK6, MS3}, and C-LOADFAIL BLIND.
+
+**Off: `sabotage-smoke-basemap.mjs`** (TIME_WAIT 162 at 21:32:06Z), exit 1:
+- CONTROL **911 passed, 1 skipped, of 912**, as predicted;
+- then **S-SQ and S-SQP: "INSTRUMENT FAILURE (timed out false, summary parsed false)"**, so "2 NOT AS REGISTERED".
+- These are instrument failures, never reds. The chain did not start the credits driver, and the tree was clean after.
+
+**Two explanations, and the data rules out neither:**
+- **(a) Port exhaustion from the driver's own back-to-back whole-suite runs.** Its gate is under 8,000 at each run's
+  start only (A2.12). **TIME_WAIT read 16,715 at 21:38:02Z**, just after.
+- **(b) Another session's process on the PC.** It started **21:35:32Z**, with a command line matching `vitest` or
+  `sabotage-`, under a shell snapshot that is not this session's. Only its name and start time were read, and it was not
+  touched (G6). It overlapped the driver's two sabotaged runs.
+
+The driver throws away the raw output of a run it cannot parse, the A2.12 follow-up, so which of (a) and (b) it was cannot
+be read.
