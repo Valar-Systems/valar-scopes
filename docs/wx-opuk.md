@@ -1454,3 +1454,25 @@ rule.**
 **The measured lags, as ruled to be kept:**
 - **About 269 s** from a deploy that adds the cron to its first firing (`f967798b`: 268.7 s).
 - **Firings for about 323 s** after a deploy that removes it (`2d9013bd`: 6 firings, the last 323 s after).
+
+**S1, third attempt: no invocation within 5 min, so parked and reported, as ruled.**
+- **Phase deploy:** `plantcal`, **version `5e4c9a8b-8e53-400d-aad8-51e937ca7ce2`**, 04:33:51.104-04:33:53.882Z,
+  exit 0, empty stderr, `schedule: * * * * *` listed.
+- **The rule fired as designed** at the deploy + 360 s (04:39:54.046Z): no finished invocation of `5e4c9a8b` had
+  started within 300 s of the deploy.
+- **Park:** `off`, **version `09f14eca-0f0c-4302-b6c8-d7bc278e3ad1`**, 04:39:54.089-04:39:57.320Z, exit 0, empty
+  stderr, no schedule.
+- **What fired** (Logs and R3-6, 04:30Z to 04:41:27Z): **0 invocations**. The tail saw none either. A late firing
+  from this cron add, on the parked version, is being watched read-only.
+
+**Cause, from Cloudflare's own docs** (`/workers/configuration/cron-triggers/`): *"Changes such as adding a new Cron
+Trigger, updating an old Cron Trigger, or deleting a Cron Trigger may take several minutes (up to 15 minutes) to
+propagate to the Cloudflare global network."*
+- Every park on `off` deletes the cron, and every phase adds it back. So each phase starts a fresh propagation of up
+  to 15 min.
+- The three adds so far: `85a35361`, 0 in 51 s; `f967798b`, 268.7 s; `5e4c9a8b`, more than 360 s. One removal:
+  323 s. All are inside the documented 15 min.
+- **A version change, by contrast, is immediate:** the park `2d9013bd` was invoked on its own version 24 s after its
+  deploy (04:16:06Z).
+- **The alternative,** that the trigger isn't registering at all, is not excluded for `5e4c9a8b` alone. But
+  `f967798b`'s firing shows the same config does register.
