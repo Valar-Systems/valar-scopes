@@ -498,3 +498,19 @@ Both need a ruling (seed them, or exempt them) rather than an improvised fix.
   - **The anchor did its job:** the check refused instead of reporting coverage it could not see.
   - **C0 and C1 wait for Daniel** to add `kv-read=<a Workers KV Storage: Read token>`.
     Nothing else changes.
+
+### K's sabotages and the list (2026-11-05 18:48-18:50Z): as predicted
+
+- **The control** ran 92 tests across the six files, all green.
+- **S-K3** (the plan returns every id): red exactly {K3}.
+- **S-K4** (the repair pass removed): red exactly {K4}. K5 stayed green under it, as named.
+- **S-K6** (listed ids counted as missing): red exactly {K6}.
+- **Restored by bytes** (`activation-lib.ts` `410b19e2c8c0`). `vitest list` read **940** from a
+  drained start (TIME_WAIT 2,569).
+
+**What remains before #548 can deploy:**
+1. Daniel adds `kv-read=` to the token file.
+2. C0 runs (predicted exit 1, everything missing).
+3. Daniel seeds from his records.
+4. C1 runs (predicted exit 0).
+5. A missing id stops the deploy, and the breakdown above names who it is likely to be.
