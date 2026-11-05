@@ -629,3 +629,25 @@ the grandfathered `activated` ones, given that a seed never rewrites a row):
   2. G-1 is then re-run under the same prediction.
 
   Nothing else changes, and Daniel's seed and C1 wait.
+
+### The lazy generation write (accepted ~20:15Z): frozen before its code
+
+- **The change.** When the Worker reads an `activated` row with no `gen`, through the gate or
+  through `status`, it writes the current `gen` onto that row **before** evaluating it. The row
+  then behaves like every other activated row: refused under its generation, re-opened once by a
+  rotation. `effectiveState`'s fail-closed branch for a row without a generation stays as
+  defence, but is no longer reached through these paths.
+
+| | check | sabotage |
+|---|---|---|
+| **L1** | a row seeded `activated` with no `gen`: one `status` through the Worker leaves it carrying `keyGeneration(SECRET)` (12 hex), and an activation is then 409 | **S-L:** the write removed |
+| **L2** | after that stamp, a simulated rotation (a different `DEVICE_KEY_SECRET`) re-opens it once: 200 with the rotated key, then 409 | (S-L) |
+
+- **S-L predicted red, exactly:** {L1, L2}. Without the stamp, L1's row has no `gen`, and L2's
+  rotated activation is refused (fail closed).
+- **The list reads 943:** 941 plus L1 and L2.
+- **After #548 deploys, the sweep.** `activation.ts sweep --ledger` and `sweep --token-ids
+  test-device,records-device` call `status` through the Worker for each grandfathered id, then
+  read the rows back with the `kv-read` token. They print counts only.
+  - **Predicted:** 24 ids swept, 24 `activated`, **24 carrying a 12-hex `gen`**, 0 without.
+  - The sweep's own code and test land with this change. Its production run waits for the deploy.
