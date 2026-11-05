@@ -721,3 +721,13 @@ unknown, and the tool would now print it.
 
 **Next:** Daniel's seed (`provisioned.csv`, once), then C1 again. The rows written so far are inert
 in production until #548's gate deploys.
+
+### Daniel's seed and C1 again (2026-11-05 ~20:25Z): as predicted
+
+- **Daniel's seed** (`provisioned.csv`, run once, by Daniel) reported `read 5, already present 5,
+  written 0, repaired 0, missing 0`. Every bench-provisioned board in that file was already
+  covered by G-1 and G-2, so it wrote nothing. Nothing of the file was read by this session.
+- **C1 again:** exit 0. Analytics Engine 20, `fw:` 20, union 20; **with a row 20, missing 0**.
+- **#548's deploy gate is met.** Stock boards Daniel holds that were never provisioned are not in
+  `provisioned.csv`. If any is to activate, its MAC goes in through `import` (or `seed` before
+  the deploy).
