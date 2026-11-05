@@ -343,6 +343,53 @@ describe("MK, the branch on the proxy's request line", () => {
   });
 });
 
+// BB (docs/basemap-build-reads.md): the builder's one line per build, about its store reads, in counts and
+// milliseconds only. Each of BB1 and BB2 reads the ONE line its own request produced.
+type BuildLine = { evt: string; status: number; reads: number; bytes: number; readMs: number; maxReadMs: number; wallMs: number };
+const BUILD_KEYS = ["evt", "status", "reads", "bytes", "readMs", "maxReadMs", "wallMs"];
+const buildLinesFrom = (from: number): BuildLine[] =>
+  logs.slice(from).filter((l) => l.startsWith('{"evt":"bm_build"')).map((l) => JSON.parse(l) as BuildLine);
+
+describe("BB, the builder's read line", () => {
+  it("BB1: a 200's one line counts exactly the reads the store saw", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const from = logs.length;
+    const res = await mw(`/api/v1/blipscope/basemap?${QW}`, b);
+    expect(res.status).toBe(200);
+    const lines = buildLinesFrom(from);
+    expect(lines.length, "build lines for one build").toBe(1);
+    const l = lines[0]!;
+    expect([l.status, l.reads, b.n.reads]).toEqual([200, 5, 5]);
+    expect(l.bytes).toBeGreaterThan(0); // CONTROL: it measured something
+    for (const k of BUILD_KEYS.slice(1)) expect(Number.isInteger((l as unknown as Record<string, number>)[k]), k).toBe(true);
+    expect(l.maxReadMs).toBeLessThanOrEqual(l.readMs);
+  });
+
+  it("BB2: no_coverage writes its line too, with 3 reads", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const from = logs.length;
+    const res = await mw(`/api/v1/blipscope/basemap?${QW.replace("lat=0.37", "lat=10.00")}`, b);
+    expect(res.status).toBe(404);
+    const lines = buildLinesFrom(from);
+    expect(lines.length, "build lines for one build").toBe(1);
+    expect([lines[0]!.status, lines[0]!.reads]).toEqual([404, 3]);
+  });
+
+  it("BB3: every build line holds exactly its seven fields, integers only, and nothing of the query", () => {
+    const lines = logs.filter((l) => l.startsWith('{"evt":"bm_build"'));
+    expect(lines.length).toBeGreaterThanOrEqual(3); // CONTROL: there were lines to check
+    for (const raw of lines) {
+      const o = JSON.parse(raw) as Record<string, unknown>;
+      expect(Object.keys(o), raw).toEqual(BUILD_KEYS);
+      for (const k of BUILD_KEYS.slice(1)) expect(Number.isInteger(o[k]), `${k} in ${raw}`).toBe(true);
+      expect(raw.includes("0.37") || raw.includes("0.59"), raw).toBe(false);
+      expect(Object.values(o).some((v) => v === 370_000 || v === 590_000), raw).toBe(false);
+    }
+  });
+});
+
 describe("MP, privacy (over every MW row above)", () => {
   it("MP1: no log line holds the origin", () => {
     expect(logs.filter((l) => l.includes("0.37") || l.includes("0.59"))).toEqual([]);
