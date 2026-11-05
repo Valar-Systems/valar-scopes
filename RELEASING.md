@@ -13,9 +13,11 @@ are versioned and released **together** from a single commit, and each device se
   SKU only ever downloads its own image.
 - The flow lives in [src/OtaUpdater.cpp](src/OtaUpdater.cpp); `FW_VERSION` is in
   [src/OtaUpdater.h](src/OtaUpdater.h).
-- **Planned, not yet in any release: the OTA identity check.** It is specified in
+- **In `main` since 2026-11-05 (#552), not yet in any release: the OTA identity check.** The
+  next release cut from `main` carries it, and that release is **R** -- see the gate at the top of
+  "Cutting a release" below. It is specified in
   [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md), §3, Addendum 1 (2026-10-21) and
-  A12.103-A12.104 (2026-11-05). From the release that adds it:
+  A12.103-A12.110 (2026-11-05). From the release that adds it:
   - every image carries a 64-byte identity record at file offset 0x120 naming its **board**
     (`variant::SLUG`) and its **scope** (`FW_OTA_PREFIX`) as two fields
     ([include/OtaIdentity.h](include/OtaIdentity.h));
@@ -57,6 +59,37 @@ are versioned and released **together** from a single commit, and each device se
   (A5.3).
 
 ## Cutting a release
+
+> ### ⛔ HARD GATE — R, the first release that carries the OTA identity check, needs Daniel's explicit OK at cut time
+>
+> **Is this cut R?** It is, while the commit you will tag has `include/OtaIdentity.h` and the
+> image `releases/latest` serves carries no identity record:
+>
+> ```sh
+> git ls-tree --name-only <commit-you-will-tag> -- include/OtaIdentity.h     # prints the path: the check is in
+> gh release download --clobber -p firmware-s3-128.bin -D /tmp/latest-fw    # the image the fleet runs now
+> python3 scripts/check_ota_identity.py --extract-head /tmp/latest-fw/firmware-s3-128.bin /tmp/latest-fw/head.bin
+> #  "(record: no-record)" -> latest predates the check, so THIS cut is R
+> #  "(record: ok)"        -> R has already shipped; this gate does not apply
+> ```
+>
+> **If it is R, do not tag until Daniel has said OK to these, in these words** (ruled
+> 2026-10-21, restated 2026-11-05). A green CI run is not that OK:
+>
+> 1. **No device on R or later will ever install a pre-check image again** -- not its own
+>    scope's, not any other scope's, not an old binary re-published under a higher
+>    `version.txt`. Every image built before R has no identity record, and is refused. A
+>    rollback past R is a new build that carries the record. USB flashing is unaffected.
+> 2. **Switching scope works only to scopes whose image was published at or after R.** A
+>    switch asks for the chosen scope's file; if that file predates R, the device refuses it.
+> 3. **Board identities and the record's format are fixed.** Renaming a board's
+>    `variant::SLUG`, or changing the record incompatibly, strands every device on it until a
+>    transitional release that accepts both is already on the fleet.
+> 4. **A factory image built before R carries no check.** Devices running it accept what they
+>    fetch; once on R, they cannot go back to it over OTA. A factory image that should check
+>    from first boot is built at or after R.
+>
+> The full statement of each is under "How OTA works" above.
 
 > ### ⛔ HARD GATE — the photo square library must be published BEFORE any release that raises `FW_VERSION` to `FULLBLEED_MIN_FW` (7) or above
 >
