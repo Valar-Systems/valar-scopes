@@ -1601,3 +1601,10 @@ propagate to the Cloudflare global network."*
 **Ruling, pasted ~15:08Z (verbatim):**
 
 > Plan S now resumes after the map server reports its builder slot done, or at 17:15Z, whichever comes first (it was 17:00Z). Everything else stands as ruled.
+
+**Main's CI at `788dab3cf200` (#543's merge), finished 15:29:46Z:**
+- **41 check-runs: 39 success, 2 skipped, 0 failed.** The four workflows were device-ids, firmware,
+  no-traffic-captures and workers.
+- **Proxy suite 900 passed, 1 skipped (901).** That equals main's previous finished run at `048ed7be9466` (#541's
+  merge): 900 passed, 1 skipped. So #543 added no tests, as predicted; the +3 over 897 are #541's.
+- The plant selftest passed.
