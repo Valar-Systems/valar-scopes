@@ -732,3 +732,13 @@ against 35-45. Data already in hand shows that band fails on noise alone.
 
 **The reader** is `n540_read.py`, sha256 `1a66b80f70bb`. It runs once, at 08:05Z on 2026-11-06,
 from a timer.
+
+**The power-cycle, as reported (both recorded, neither reconciled):**
+- Daniel's message in this session said "power cycled just now". It arrived at about 20:31Z by this
+  session's clock.
+- The reviewer's block of about 21:28Z relays that it was power-cycled "by ~21:27Z". That block's
+  labels ran ahead of the clock by roughly 15-20 minutes (`docs/device-activation.md`, "Record
+  fix").
+
+Either way it was before 06:00Z, so the precondition holds, and the reading goes ahead as
+registered (the reviewer confirmed this in the same block).
