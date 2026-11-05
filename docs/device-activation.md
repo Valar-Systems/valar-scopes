@@ -732,7 +732,7 @@ in production until #548's gate deploys.
   `provisioned.csv`. If any is to activate, its MAC goes in through `import` (or `seed` before
   the deploy).
 
-### A MAC list with or without colons (ruled ~21:20Z, from #545's bench): frozen before its test
+### A MAC list with or without colons (committed 21:13Z, `c7479f6b`, from #545's bench): frozen before its test
 
 The Flash Download Tool shows the STA MAC as 12 characters without colons; esptool prints it with
 colons. The factory's list may come either way.
@@ -749,6 +749,56 @@ colons. The factory's list may come either way.
 
 **The list reads 946:** 945 plus K8.
 
-**K8, graded (2026-11-05 ~21:30Z): as predicted.** The control ran 98 tests across the six files,
+**K8, graded (2026-11-05 21:14Z, `7dd3a0e8`): as predicted.** The control ran 98 tests across the six files,
 all green (97 plus K8). **S-K8** turned red exactly {K8, A12's list case}. The file was restored by
 bytes.
+
+**`vitest list` read 946**, as predicted, at 21:29Z on `7dd3a0e8`.
+
+**Record fix (ruled at about 21:29Z by the clock).** Two time labels above ran ahead of the clock,
+and are now replaced with commit times: "ruled ~21:20Z" became `c7479f6b`'s 21:13Z, and "graded
+~21:30Z" became `7dd3a0e8`'s 21:14Z. **The other reviewer-block labels cited in this doc carry the
+same skew of roughly 15-20 minutes:** "~19:50Z", "~20:15Z", "~20:35Z" and "~21:20Z". For example,
+G-1's first run (20:00:08Z by the clock) followed a ruling quoted as "~20:15Z". They are left as
+quoted, and this note dates them. From here on, every time in this doc is read from `date -u` or
+from a commit.
+
+## Watch mode for production (Daniel's decision; ruled at about 21:29Z by the clock): frozen before its code
+
+**This rules Fact 4's off-switch question.**
+- **The var.** `ACTIVATION_GATE = "watch" | "enforce"`: production `"watch"`, staging
+  `"enforce"`. A missing or unknown value acts as **enforce** (fail closed). The tests set no var,
+  so every existing row runs under enforce, unchanged.
+- **What watch does.** The gate reads and writes exactly as under enforce:
+  - a listed id's first activation writes `activated`;
+  - the generation write and the post-deploy sweep are unchanged.
+
+  Where enforce would answer 403 `not_listed` or 409 `already_activated`, watch carries on to
+  minting and returns the key, as main does today. Each would-be refusal bumps
+  `enr:watch:<yyyy-mm-dd>:<reason>`, **never** `enr:refused:`. Watch writes no `act:` row for an
+  unlisted id, and no watch key or value contains an id.
+- **The reader.** `reconcile-fleet.py` prints the watch counts per day beside the refused counts,
+  labelled as would-be refusals.
+- **Staging under enforce stops nothing in use today** (point e), read before this change:
+  - staging has **no** `enr:day:` counters in their 40-day window, **no** ledger rows, and only the
+    three fake rows from R0;
+  - its 35 enrol requests in 30 days are 21 at 200 (page loads: there were no mints), 7 at 403 and
+    7 at 400 (the smoke's POSTs, refused before the gate in either mode).
+
+| | check | sabotage | predicted red, exactly |
+|---|---|---|---|
+| **W1** | watch: an unlisted id gets 200 with `deriveDeviceKey(SECRET, id)`, `enr:watch:<day>:not_listed` = `1`, no `act:` row, no `enr:refused:` key, and no id in any `enr:watch:` key or value | **S-W1:** watch refuses anyway (the mode ignored) | {W1, W2}: W2's second activation is refused too |
+| **W2** | watch: a listed id's first activation is 200 and its row reads `activated`; its second is 200 with the key, and `enr:watch:<day>:already_activated` = `1` | **S-W2:** watch skips the write (a read instead of the claim) | {W2} |
+| **W3** | a missing value, and the unknown values `"WATCH"`, `"off"` and `""`, refuse an unlisted id with 403 `not_listed`, as A1 does | **S-W3:** default to watch (anything but `"enforce"` is watch) | every test that expects a gate refusal with no var set: {A1, A3 "the first activation gets ...", A4 "reset re-opens exactly one more activation", G1, R1, L1, L2, W3, enroll's "refuses the repeat, and after a reset returns the SAME key"}. Nine, each checked against the plant before running |
+| **W4** | `scripts/check-activation-gate.sh`: the production and staging dry-runs list `env.ACTIVATION_GATE ("watch")` and `("enforce")` respectively; exit 0 | **S-W4:** production's var removed from `wrangler.toml` | the script exits 1, naming production |
+| **H4** | the reconcile harness: given `enr:watch:` keys, the would-be-refusal section prints them per day; with none, it says so | **S-H2:** the watch block removed | H4 red (H1-H3 green) |
+
+- **The list reads 949:** 946 plus W1, W2 and W3. W4 and H4 are scripts, not vitest cases.
+- **CI for the reviewed head,** predicted from the latest finished proxy-code PR run (#540 at
+  `e3b94fc`: 33 check-runs, 30 success, 3 skipped). #548 touches the same workflows, so: **33,
+  30 success, 3 skipped, 0 failed**.
+  - **Workers on the merge with main:** main's 911 plus #548's 49 (the list's 949 minus its base
+    900) is **960 passed, 1 skipped**, and Q-C1 passes, because CI checks out LF.
+  - **dashboard 104.**
+- **(f)** Production goes to `"enforce"` only when Daniel says so: a one-line PR, a deploy from
+  that named commit, and W4's check on it. The watch counts reach him first.
