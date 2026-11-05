@@ -1,7 +1,7 @@
 # Blipscope 1.28" board: factory flashing sheet / 工厂烧录说明
 
-**DRAFT.** Due to the factory 2026-11-11. Items marked *(bench)* are confirmed or filled in by the
-bench proof in [factory-image-plan.md](factory-image-plan.md) before the sheet is sent.
+**Final**, apart from the factory's answer on which tool it uses. Every step below was run on our
+bench on 2026-11-05 ([factory-image-plan.md](factory-image-plan.md), section 4).
 
 | | |
 |---|---|
@@ -31,19 +31,22 @@ Use **one** of the two tools.
 esptool --chip esp32s3 --port <PORT> --before default-reset --after hard-reset write-flash --erase-all --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin
 ```
 
-**B. Espressif Flash Download Tool:**
+**B. Espressif Flash Download Tool** (version 3.9.11, from Espressif's own download server,
+https://dl.espressif.com/public/flash_download_tool.zip):
 1. Start the tool. In its first window, choose the chip type **ESP32-S3**: set **ChipType** to
    `ESP32-S3`, **WorkMode** to `Develop`, and **LoadMode** to `USB`. Click **OK**. Any other chip
    type is wrong for this board.
 2. In the first row, select `firmware-s3-128.factory.bin`, enter the address `0x0`, and tick the
    row. Leave every other row empty and unticked.
-3. Tick **DoNotChgBin**, so the file is written exactly as it is.
+3. **DoNotChgBin** is already ticked and locked in this version. Leave it as it is, so the file is
+   written exactly as it is.
 4. Select the board's COM port.
-5. For each board: click **ERASE** and wait until it finishes. Then click **START** and wait until
-   it shows **FINISH**.
+5. For each board: click **ERASE** and wait for **FINISH**. Then click **START** and wait for
+   **FINISH**.
 
-*(bench)* These Download Tool steps follow Espressif's Flash Download Tool user guide for the
-ESP32-S3 (https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32s3/production_stage/tools/flash_download_tool.html). They have not yet been run on our bench.
+The tool is **not code-signed**, so Windows may warn when it is opened, and the factory's IT may
+need to allow it. Its user guide for the ESP32-S3:
+https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32s3/production_stage/tools/flash_download_tool.html
 
 **Time per board:** about 1 minute with esptool, of which about 40 seconds is the erase (measured on our bench, 2026-11-05).
 
@@ -53,15 +56,17 @@ fallback.
 
 ### 3. Pass signs: a board passes only if both appear
 
-1. **The flash log shows `Hash of data verified.` exactly once.**
-   - For esptool, look in its printed output.
-   - For the Flash Download Tool, look in its console window. *(bench)*
-   - The line missing, or appearing twice, is a **FAIL**, even if the tool says it finished.
-2. **The screen shows a green `SETUP` with a QR code and the unit's name, on a black background,**
-   within 15 seconds after the board resets.
-   - esptool resets the board itself.
-   - After the Flash Download Tool, unplug and replug the board.
-   - A black screen, an orange screen, or a board that keeps restarting is a **FAIL**.
+1. **The tool reports success:**
+   - **esptool:** its output shows `Hash of data verified.` **exactly once**. The line missing, or
+     appearing twice, is a **FAIL**, even if esptool exits normally.
+   - **Flash Download Tool:** START ends in **FINISH**. This tool does not print the hash line.
+2. **The screen shows this sequence** within about 15 seconds after the board resets:
+   1. a splash screen reading **"Blipscope V18"**;
+   2. a 3-second countdown;
+   3. a green **`SETUP`** with a QR code and the unit's name, on a black background.
+   - esptool resets the board itself. After the Flash Download Tool, unplug and replug the board.
+   - A splash with any other version, a black screen, an orange screen, or a board that keeps
+     restarting is a **FAIL**.
 
 **On a FAIL:** flash the board once more. If it fails again, set it aside, label it, and report
 it. Do not ship it.
@@ -78,12 +83,14 @@ normally.
 Record the MAC address of **every** board that passes:
 - **esptool** prints it near the top of its output, on a line like
   `MAC: AA:BB:CC:DD:EE:FF` (example only).
-- **The Flash Download Tool** shows it in the detected-chip information. Record the **STA** MAC
-  (the Wi-Fi station MAC), which is the same value esptool prints as `MAC:`. *(bench)*
+- **The Flash Download Tool** shows it in its DetectedInfo box. Record the value after **STA:**.
+  It appears as 12 characters without colons, such as `AABBCCDDEEFF` (example only), and it is the
+  same value esptool prints as `MAC:`. Do not record the AP or BT values.
 
 Put the MACs in one plain text file, one MAC per line, and send it to Valar Systems
-(daniel@valarsystems.com) together with the shipment. Saving all the esptool logs and sending them
-instead is also fine. **A board whose MAC is not on the list cannot be activated by its customer.**
+(daniel@valarsystems.com) together with the shipment. With colons or without them, both are fine.
+Saving all the esptool logs and sending them instead is also fine. **A board whose MAC is not on
+the list cannot be activated by its customer.**
 
 ---
 
@@ -104,15 +111,17 @@ instead is also fine. **A board whose MAC is not on the list cannot be activated
 esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset write-flash --erase-all --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin
 ```
 
-**B. 乐鑫 Flash 下载工具（Flash Download Tool）：**
+**B. 乐鑫 Flash 下载工具（Flash Download Tool）**（3.9.11 版，来自乐鑫官方下载服务器
+https://dl.espressif.com/public/flash_download_tool.zip）：
 1. 打开工具，在第一个窗口中选择芯片类型 **ESP32-S3**：**ChipType** 选 `ESP32-S3`，**WorkMode** 选
    `Develop`，**LoadMode** 选 `USB`，点击 **OK**。选择其他芯片类型对这块板都是错误的。
 2. 在第一行选择 `firmware-s3-128.factory.bin`，地址填 `0x0`，并勾选该行。其他行全部留空、不勾选。
-3. 勾选 **DoNotChgBin**，使文件按原样写入。
+3. 此版本中 **DoNotChgBin** 已默认勾选并锁定，保持不变即可，文件会按原样写入。
 4. 选择该板子的 COM 端口。
-5. 每块板：先点击 **ERASE**，等待擦除完成；再点击 **START**，等待显示 **FINISH**（完成）。
+5. 每块板：先点击 **ERASE**，等待显示 **FINISH**；再点击 **START**，等待显示 **FINISH**。
 
-*(待验证)* 以上下载工具步骤依据乐鑫 Flash 下载工具 ESP32-S3 用户指南编写（https://docs.espressif.com/projects/esp-test-tools/zh_CN/latest/esp32s3/production_stage/tools/flash_download_tool.html），尚未在我们的测试台上实际运行。
+该工具**没有代码签名**，打开时 Windows 可能会弹出警告，工厂 IT 可能需要放行。ESP32-S3 版用户指南：
+https://docs.espressif.com/projects/esp-test-tools/zh_CN/latest/esp32s3/production_stage/tools/flash_download_tool.html
 
 **每块板用时：**使用 esptool 约 1 分钟，其中擦除约 40 秒（2026-11-05 在我们测试台上实测）。
 
@@ -120,14 +129,16 @@ esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset
 
 ### 3. 合格标志：两项都出现才算合格
 
-1. **烧录日志中出现 `Hash of data verified.`，且只出现一次。**
-   - esptool：看它输出的内容。
-   - Flash 下载工具：看它的控制台窗口。*(待验证)*
-   - 没有这一行，或出现两次，即为**不合格**，即使工具显示已完成。
-2. **板子复位后 15 秒内，屏幕在黑色背景上显示绿色的 `SETUP`、二维码和设备名称。**
-   - esptool 会自动复位板子。
-   - 使用 Flash 下载工具后，请拔下再插上板子。
-   - 黑屏、橙色屏幕或反复重启，即为**不合格**。
+1. **工具报告成功：**
+   - **esptool：**输出中出现 `Hash of data verified.`，且**只出现一次**。没有这一行或出现两次，
+     即为**不合格**，即使 esptool 正常退出。
+   - **Flash 下载工具：**点击 START 后显示 **FINISH**。该工具不会打印上述校验行。
+2. **板子复位后约 15 秒内，屏幕依次显示：**
+   1. 启动画面显示 **"Blipscope V18"**；
+   2. 3 秒倒计时；
+   3. 黑色背景上的绿色 **`SETUP`**、二维码和设备名称。
+   - esptool 会自动复位板子；使用 Flash 下载工具后，请拔下再插上板子。
+   - 启动画面显示其他版本、黑屏、橙色屏幕或反复重启，即为**不合格**。
 
 **不合格时：**再烧录一次。如果仍不合格，请将板子单独放置、贴上标记并报告。不要出货。
 
@@ -140,8 +151,8 @@ monitor 等）。关闭串口可能使这块板停留在下载模式并黑屏。
 
 请记录**每一块**合格板子的 MAC 地址：
 - **esptool** 会在输出开头附近打印，格式如 `MAC: AA:BB:CC:DD:EE:FF`（仅为示例）。
-- **Flash 下载工具**会在检测到的芯片信息中显示 MAC。请记录 **STA** MAC（Wi-Fi Station MAC），它与
-  esptool 打印的 `MAC:` 是同一个值。*(待验证)*
+- **Flash 下载工具**会在 DetectedInfo 框中显示 MAC。请记录 **STA:** 后面的值，它显示为 12 个字符、
+  不带冒号，例如 `AABBCCDDEEFF`（仅为示例），与 esptool 打印的 `MAC:` 是同一个值。不要记录 AP 或 BT 的值。
 
 把所有 MAC 写入一个纯文本文件，每行一个 MAC，随货一起发送给 Valar Systems（daniel@valarsystems.com）。
-也可以保存全部 esptool 日志并直接发送日志。**不在清单上的板子，客户将无法激活。**
+带冒号或不带冒号均可。也可以保存全部 esptool 日志并直接发送日志。**不在清单上的板子，客户将无法激活。**

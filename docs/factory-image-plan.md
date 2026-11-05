@@ -214,7 +214,9 @@ With no saved Wi-Fi and no earlier join failure, the unit draws the setup screen
 `SETUP`, a QR code and the unit's name on a black background (`include/BootScreen.h:111`, drawn
 from `include/WiFiManagerHelpers.h:769`). The name is the same one its setup Wi-Fi network uses.
 The amber version of the screen (`:763`) appears only after a failed join, so a fresh unit should
-never show it. **The firmware version is not on the screen.**
+never show it. **Corrected 2026-11-05 (ruled ~21:20Z): the firmware version IS on the screen.** A fresh unit
+first shows a splash reading "Blipscope V18", then a 3-second Wi-Fi-reset countdown, then the setup screen.
+This was seen at the bench (T2). The original line here said the version was not shown, and it was wrong.
 
 On serial the build prints `[build] env=blipscope-s3-128 fw=v18 features=…`
 (`include/BuildIdentity.h:125`). On this board, closing a serial capture has left the chip in
@@ -537,3 +539,12 @@ reading the source.
 4. **A note** that the tool is not code-signed.
 5. **T3 re-graded as a region check:** A, C and D match. That is this run's evidence that the
    tool wrote exactly what the sheet says.
+
+**Ruled ~21:20Z.**
+- T1, T2 and T4 are accepted as predicted.
+- **T3 stays recorded as OFF.** It is re-graded as the region check: the bootloader and partition
+  table, otadata and the app all match. The miss is kept: it was in the check, not the tool.
+- All five sheet edits are accepted, and F11 is corrected in place. The sheet is final apart from
+  the factory's answer on which tool it uses.
+- The import tool must accept a MAC list with or without colons, with a test (on #548).
+- COM16 stays reserved until the sheet merges, then is released.
