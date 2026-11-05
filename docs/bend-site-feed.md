@@ -719,3 +719,16 @@ never an id; its sha is recorded before it runs.
 | **touched** | an hour in which **E2:08** reaches 80 or more in a 10-minute bin | reported, not graded. The feeder's own rate is the subject now, so the rule reads E2:08 only | |
 
 The ages a visitor sees (median 10-16 s, maximum ≤ 30 s) are the website's to read.
+
+**The precondition is met.** Daniel power-cycled the feeder at about 20:31Z on 2026-11-05.
+
+**N0 amended before any run.** As registered, N0 read the feeder's **maximum** 10-minute bin
+against 35-45. Data already in hand shows that band fails on noise alone.
+- T5′ read the feeder's maximum bin at **51** at this same 15 s cadence. Cache hits are sampled at
+  10% and weighted ×10, so a single bin is noisy.
+- **N0 is now the hour's mean per 10-minute bin** (the hour's weighted total / 6) against
+  **30-50**. That still separates 40 (15 s) from about 10 (the old 60 s night cadence).
+- **The touched rule applies to N1 only.** N0's subject is the feeder, so N0 is graded every hour.
+
+**The reader** is `n540_read.py`, sha256 `1a66b80f70bb`. It runs once, at 08:05Z on 2026-11-06,
+from a timer.
