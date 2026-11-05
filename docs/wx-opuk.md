@@ -1597,3 +1597,7 @@ propagate to the Cloudflare global network."*
   - Its `npm ci` is unchanged if `package-lock.json` is: see the next line.
   - Plan S resumes at 17:00Z, or when the map server reports its builder slot done, whichever is first.
 - `package-lock.json` and `package.json` are unchanged between `20a0323` (the worktree's `npm ci`) and `788dab3cf200`, so the deploy checkout's `node_modules` stands.
+
+**Ruling, pasted ~15:08Z (verbatim):**
+
+> Plan S now resumes after the map server reports its builder slot done, or at 17:15Z, whichever comes first (it was 17:00Z). Everything else stands as ruled.
