@@ -4676,3 +4676,55 @@ smoke case that starts a module with `wx-layer` on and expects the abort would p
 offered, not built.
 
 **Outside the set:** stop and report.
+
+## The board windows after the hold (2026-11-05): W5⁵'s N, and K6's label arms, frozen before either runs
+
+**When.** W5⁵ starts no earlier than 03:05Z, and only after #536's T5 has read as predicted (ruled ~00:56Z). Then K6's
+arms run, each in its own announced window. C: has 60 GB free.
+
+**W5⁵'s N, registered before the run.**
+- **What is frozen:** N is "#445's `blipscope-s3-128` at its head (`wt-wxdevice`)".
+- **What moved:** `wt-wxdevice` is still at `0399050`. #445's head is `baac757`, whose firmware differs from `0399050`'s
+  in 9 files: the age limit's device side, #531's carousel, and main's other merged changes.
+- **So N is built from `baac757`.** `wt-wxdevice` is fast-forwarded to `origin/feat/wx-device`, and its build banner
+  is read before the first arm.
+- **O is unchanged:** main's `962ccb7`, in `wt-bendon`.
+- **The flash-back** is `wxlook` from the same tree, so after W5⁵ E2:08 runs `baac757`'s `wxlook`.
+- G1′, G2′ and every other W5⁵ row are unchanged.
+
+**K6's arms (ruled ~00:56Z), with one count corrected.** The ruling says 16 label fields. The source has **15** at
+`2ff8c3d` (11-04's image), at `baac757` and on main, and the 11-04 record holds 15: `info-type` on and 14 off. So:
+- **K6-L1:** E2:08's own fields, `info-type` on and the other 14 off, checked against the 11-04 record's 15 states
+  before the arm. Anything else: stop.
+- **K6-L0:** all 15 off.
+- **K6-F, the control:** the factory default, 5 on (callsign, type, operator, speed, baroalt). It is run again in
+  this sitting, because the bench image will be `baac757`'s `wxlook`, not 11-04's `2ff8c3d`.
+- **Everything else as on 11-04:** 60 synthetic contacts, look A, and the proxy's `--synth-k6` mode. The fields are
+  restored after each arm, and the restore is verified ("label fields as before: True").
+- **Order:** F, then L1, then L0, each in its own window. The control comes first, so a moved reference is seen
+  before anything is graded against it.
+
+**Every arm:** K6a n = 60 on ≥ 90 % of its `[health]` lines; K6b `allocFail` 0, `hardFail` 0, no DATA STALE; RS-K
+enrich and photo forwarded 0 at the clear; label fields as before: True.
+
+**The frame p95 at n = 60** (the median over the arm's lines):
+
+| | F (control) | L1 | L0 |
+|---|---|---|---|
+| predicted | **99-105 ms** (11-04: 102.0; nothing a frame draws changed between `2ff8c3d` and `baac757` beyond the dots' carousel rule) | **L0 + 1 to 8 ms** | **76-86 ms** (the frozen model, 83.9, without any label cost) |
+
+**The outcomes, pre-registered:**
+- **(a) The labels are the cost:** L0 in 76-86, F − L0 ≥ 12 ms, and L1 − L0 in 1-8 ms. The outline decision is then
+  re-derived with the label cost known, as its own step.
+- **(b) Not the labels:** L0 ≥ 95 ms. The excess lies elsewhere: report.
+- **(c) Partly the labels:** L0 between 86 and 95 ms: report.
+- **(d) Outside the set:** F outside 99-105 (the control moved), L1 < L0 − 2 ms, any per-arm row failing, or an arm
+  with fewer than 10 readable lines. The instrument is unreliable here: stop and decide.
+
+**The tools, built and checked before the first arm:**
+- `k6_run.py` gains the arm (`F`, `L1`, `L0`). L1 checks the 15 states against the 11-04 record and refuses on any
+  difference. L0 sets all 15 off.
+- `k6_read.py` grades each arm's K6a, K6b, RS-K and label rows, unchanged. Its K6c line (the 11-04 band) is not used
+  for the arms.
+- A new `k6_arms_grade.py` applies the table above to the three p95s. It is selftested on synthetic values: one
+  case per outcome, (a) to (d).
