@@ -1006,3 +1006,25 @@ recorded above with its cause.
 **Not done, pending the ruling:**
 - `wt-deploy`'s `node_modules` is kept. A ruled roll-forward or a further action would need its `wrangler`.
 - R4 waits: it asserts `opuk` at LHR, and `opuk` is no longer being ingested.
+
+**Ruling, pasted ~00:36Z 2026-11-05 (verbatim):**
+
+> R3: received. The rollback at 00:18:33Z was the frozen escape, carried out correctly. R3-6 stays OFF in the record, with the miss kept: the prediction assumed 0.5-0.8 s per opuk build, and the reading says 2-3 s.
+>
+> Ruled (a): stay rolled back and bring a fix. (b) is declined:
+> - it moves R3-6's bar to the reading;
+> - opuk could still exhaust the invocation cref runs in;
+> - it relies on a cpu_ms whose enforcement we can't yet explain.
+>
+> 1. Read-only, now:
+>    (i) the limits the deployed d37d9a21 version actually carried, read from the version itself (wrangler versions view or the API), not from the toml;
+>    (ii) for the three 5.4-6.1 s invocations: cpuTime, wallTime and outcome, as their invocation records give them;
+>    (iii) what Cloudflare's docs say about how cpu_ms is enforced on scheduled events.
+> 2. With that report, send a plan for one staging copy of the ingest on blipscope-wx-dev, used for two things:
+>    - a positive control for the CPU-limit instrument: a planted over-limit invocation (a known busy loop under a low cpu_ms) must appear as a CPU-limit outcome in the same instrument; if it doesn't, that gate is BLIND;
+>    - an opuk build's CPU on Cloudflare's runtime: real OPERA frames, N builds registered before any is sent, and a cref-only control in the same instrument. Local timing doesn't count.
+>    Say how the copy stops running when the measurement ends (its cron removed). Deleting it is Daniel's call. Nothing deploys until I rule the plan and give a slot. One deployer at a time: blipscope-5c (#536) and then the map server (#534) are ahead of you.
+> 3. Then the fix, with predictions frozen first. My lean is to give opuk its own Worker, which keeps its CPU, its deploys and rollbacks, and its upstream away from cref (tonight's CloudFerro listing timeouts are the example). A separate cron in the same Worker is the alternative; give the trade-offs. cref's own headroom gets a row of its own: it peaked at 3,621 ms against cpu_ms 5,000, a limit the toml says was sized at 10x A4's 0.53 s. Re-read R3-0's cost against the measured CPU.
+> 4. R3 re-runs after the fix, in a slot I set outside board windows.
+>
+> Held: R4, until R3 passes. Keep wt-deploy/proxy/node_modules (C: had 60,141 MiB free at 00:31Z). The stored opuk frames stay in the bucket: deleting data is Daniel's call, and nothing shipped requests /wx yet.
