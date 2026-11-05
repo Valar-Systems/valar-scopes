@@ -1266,3 +1266,27 @@ method as R3-0):
 > - PB1's first draft couldn't see its own sabotage (esbuild kept the loop without the marker). You fixed it before the push and recorded it, and the miss stays in the record.
 >
 > S0: your slot opens once #537 is merged and main's CI has finished with 0 failed. No other deploy is queued. S1-S5 then need no further slots; record each phase's start and end. Plan S touches nothing shared, so it may overlap T5 and the board windows. Anything outside the table: stop and report.
+
+**#537 merged:** squash, `--match-head-commit 7321f58b2249`, no `--admin`.
+- Merge commit `131c0f776d9a`, 02:59:56Z. The remote branch is deleted.
+- `git ls-tree origin/main` lists all six new files.
+- Main had moved underneath it (#523, #524), but **`git diff 7321f58b2249 origin/main -- proxy/` is empty.** So the
+  dev Worker that S0 deploys bundles exactly what #537's CI tested.
+- Main's CI on the merge commit is read when finished. Basis: 41, with 39 success and 2 skipped. `photos` and
+  `web-renderer` don't fire on this change.
+
+**Plan S's reader, pinned before S0** (`tools/wx/s_reads.py`; the tables are §3 of `docs/wx-plan-s.md`, frozen at
+`22707c5`):
+- **Phase attribution:** each invocation belongs to the phase whose **version id** it carries
+  (`$workers.scriptVersion.id`, confirmed present on a production record: it reads `582612da`). The window bounds
+  `scheduledTime` from one phase's deploy to the next.
+- **S1 and S2 counts:** the next phase is deployed after the 3rd (S1) or 10th (S2) invocation's `:30` check and
+  before the next firing. If an extra invocation still lands on the old version, the phase reads it, and its row
+  (3 records, or "10 invocations") is then off: stop and report.
+- **S4's graded set:** the invocations whose `stored` check counts toward N, i.e. after the last `backfilled`.
+  - The backfill invocations print beside it, ungraded.
+  - "The rest" means S4's non-building invocations.
+  - S4 ends at the 12th counted `stored`, or at 120 min.
+- **S5:** R3-6's instrument and the Logs over the 10 min after S5's deploy, read twice 5 min apart. Both must show
+  0 invocations.
+- **Each phase's start (its deploy's time and version id) and end** are recorded, as ruled.
