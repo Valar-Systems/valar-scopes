@@ -1441,3 +1441,16 @@ rule.**
    - **then 0 over the next 10 min**, read twice 5 min apart.
 - **The watch's last reads** (04:28:43Z and 04:30:45Z) still hold at **6, the last at 04:21:06Z**. That is no
   firing for 9.6 min, over seven reads in all.
+
+**Ruling, pasted ~04:30Z (verbatim):**
+
+> S1: all three proposals are accepted, and the misses are kept.
+> 1. f967798b is S1's second attempt: OFF, 1 record, C = 10,056 ms. 2d9013bd is its park. S1 runs a third time as a new plantcal version, read against its own version id.
+> 2. The driver judges the 5-minute rule on scheduledTime. At deploy + 360 s it parks if no finished invocation of the phase's version started within 300 s of the deploy. The caps are S1 15 min, S2 20, S3 75 and S4 135.
+> 3. S5 is re-registered before it runs. After S5's deploy, invocations land only on S5's version and log only wx_dev_off. The last one comes within 10 min of the deploy, then 0 over the next 10 min, read twice 5 min apart.
+>
+> Keep both measured lags in the record: about 269 s from deploy to the first firing, and firings for about 323 s after a park. A plant invocation costs about 10 s of CPU, so S2's overrun at cpu_ms 100 is about 100x, which makes the control easier to read, not harder. Anything outside the table: stop and report.
+
+**The measured lags, as ruled to be kept:**
+- **About 269 s** from a deploy that adds the cron to its first firing (`f967798b`: 268.7 s).
+- **Firings for about 323 s** after a deploy that removes it (`2d9013bd`: 6 firings, the last 323 s after).

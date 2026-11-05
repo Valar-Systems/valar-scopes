@@ -121,7 +121,10 @@ try:
           after = f"{stm / 1000 - t_dep_epoch:.1f} s after the deploy" if isinstance(stm, (int, float)) else "no scheduledTime"
           print(f"  {now()} invocation {seen + 1}: scheduledTime {datetime.fromtimestamp(stm / 1000, timezone.utc).strftime('%H:%M:%S.%f')[:-3] + 'Z' if isinstance(stm, (int, float)) else '-'} ({after}) outcome {e.get('outcome')} {summ}", flush=True)
           seen += 1
-      if not mine and time.time() - t_dep_epoch > 300:   # the ~03:55Z ruling: no phase waits open-ended
+      # the ~03:55Z and ~04:30Z rulings: judged on scheduledTime. At the deploy + 360 s (an invocation is seen only
+      # when it finishes), park if no finished invocation of this version STARTED within 300 s of the deploy.
+      starts = [(e.get("event") or {}).get("scheduledTime") for e in mine]
+      if time.time() - t_dep_epoch > 360 and not any(isinstance(x, (int, float)) and x / 1000 <= t_dep_epoch + 300 for x in starts):
           why = "NO FIRST INVOCATION IN 5 MIN"
           break
       if (counted if s4 else len(mine)) >= target:
