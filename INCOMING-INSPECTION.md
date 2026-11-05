@@ -149,9 +149,12 @@ The write experiment must show the register is **writable**:
 **PASS: `write=ok` and `readback=1`.** `write=NACK` or `readback=0` ⇒ **REJECT** — that is the
 C3's DOA class, where the no-sleep insurance cannot be applied at all.
 
-> Production insurance: shipping firmware runs `MaintainNoSleep` (write + verify) regardless, so
-> a board that merely *drifts* is re-armed at runtime. That insurance is **not** a substitute for
-> this gate — it cannot save a batch where 0xFE is unwritable.
+> **There is no runtime insurance, so this gate is the only protection.** `MaintainNoSleep` (write +
+> verify of 0xFE) is compiled only under `CST816_DISABLE_AUTOSLEEP`, which no env sets, so shipping
+> firmware never re-arms 0xFE. (This paragraph said otherwise until 2026-11-04.) On a conforming
+> board it has no need to: 0xFE reads the same in every census, including after the RST pulse that
+> returns the chip to its factory config (above), and the factory value is 1. A batch whose 0xFE is 0
+> or unwritable is caught here or not at all.
 
 ---
 
