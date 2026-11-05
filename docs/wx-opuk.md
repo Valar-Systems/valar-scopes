@@ -1394,3 +1394,25 @@ clean checkout at `131c0f776d9a`, exit 0, empty stderr):
   - No invocation of the phase's version within 300 s of its deploy: it parks on `off` and ends with
     "NO FIRST INVOCATION IN 5 MIN".
   - The graded time is read from the Logs records (`scheduledTime` minus the deploy's end).
+
+**S1, second attempt: OFF its row (1 record, not 3). The driver parked early, on its own misreading of the 5-minute
+rule.**
+
+| | |
+|---|---|
+| phase deploy | `plantcal`, **version `f967798b-029e-4bb6-8734-ffdac604d581`**, 04:10:33.840-04:10:38.181Z, exit 0, empty stderr; the deploy listed `schedule: * * * * *` |
+| **time to first invocation** (the ~03:55Z ruling's figure) | first `scheduledTime` **04:15:06.895Z**, **268.7 s after the deploy**. Inside 5 min. The cron is **slow to start**, not unregistered, which is also why `85a35361` ran 0 in its 51 s |
+| why it parked anyway | the driver judged the rule on the tail event's ARRIVAL, which comes when the invocation **finishes** (wall 35.1 s). At 300 s (04:15:38Z) the first invocation was still running; its event arrived about 4 s later. **The rule is about the invocation, so it should be judged on `scheduledTime`.** That is my defect |
+| park | `off`, **version `2d9013bd-7b25-4f22-b2d5-56694f88eeab`**, 04:15:38.341-04:15:42.768Z, exit 0, empty stderr, no schedule listed |
+| `f967798b`'s one invocation (Logs and R3-6, agreeing) | `ok`, **`cpuTimeMs` 10,056**, `wallTimeMs` 35,109. Two plant lines, both `result` 3554693450, with `iter` 800,000,000 |
+| S1's row applied | records **1** (not 3): **OFF**. `C` (one record) = 10,056 ms, so "`C` ≥ 500" holds; "each within ±25%" can't be read from one |
+
+**After the park: the removed cron kept firing.**
+- The parked `off` version `2d9013bd` was invoked at **04:16:06Z and 04:17:06Z**, each logging `wx_dev_off` twice and
+  touching nothing.
+- So removing a cron lags too, as adding one did.
+- **This bears on S5's frozen row** (0 invocations in the 10 min after S5's deploy). How long the removal lags is
+  being watched now, read-only.
+
+**The plant runs about 5.6x slower on Cloudflare than on my laptop:** 10,056 ms for 2 x 800 M rounds, against about
+1.8 s locally. That is a fact about the plant, and why local timing was never the reading.
