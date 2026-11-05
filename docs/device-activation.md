@@ -290,3 +290,75 @@ exact set of failing tests**, by file and title, across `activation`, `activatio
 
 Every plant is asserted to have applied, run against those six files under the port gate, and
 restored by bytes with a sha check. **A set that differs in either direction is a stop.**
+
+## The reviewer's ruling of ~18:15Z: frozen before its code
+
+**Ruled:**
+- There is no activation cap, and none is added. The allowlist plus one Turnstile per guess is the
+  gate.
+- Refused activations are counted, so a guessing pattern would be visible; a cap comes later only
+  if that count calls for one.
+- "Activated" is scoped to the key generation, so a rotation re-opens every listed id once without
+  manual resets.
+- The tool's credential file is accepted.
+
+### G: activation scoped to the key generation
+
+- **The generation.** The row records `gen` when it is activated: the first 12 hex characters of
+  `HMAC-SHA256(DEVICE_KEY_SECRET, "activation-gen")`. It is a keyed fingerprint of the current
+  secret, never the secret and never a plain hash of it.
+- **The rule.** An `activated` row refuses only when its `gen` equals the current one. A row
+  activated under an earlier secret activates once more, and is rewritten with the new `gen`. A
+  row with no `gen` refuses (fail closed); nothing deployed writes one.
+- **`status` reports the effective state:** `listed` for a row activated under an earlier
+  generation.
+- **The known limit grows by one line.** After a rotation, every listed id is open once, so a
+  guesser can race the owner for that one activation. The remedy is the same: a reset, or
+  revocation.
+
+| | check | sabotage |
+|---|---|---|
+| **G1** | activate under secret A: 200; again under A: 409; under rotated B: 200 with key = `deriveDeviceKey(B, id)`; again under B: 409. The row's `gen` is 12 hex and changes with the secret | **S-G1**: `gen` ignored, so an `activated` row always refuses |
+| **G2** | `status`: an id activated under A reads `activated` asked under A, and `listed` asked under B | (S-G1) |
+
+**S-G1 predicted red, exactly:** G1 and G2. A4's rotation case goes through a reset, so it stays
+green.
+
+### R: refused activations counted, and read where people already look
+
+- **The counter.** Each refusal by the gate bumps `enr:refused:<yyyy-mm-dd>:<reason>`, where the
+  reason is `not_listed` or `already_activated`. It is best effort, like `enr:day:`, with the same
+  40-day TTL, and it never carries an id.
+  - A refusal before the gate (no solve, revoked, a fake id) is not an activation refusal and
+    bumps nothing.
+  - A mint bumps only `enr:day:`, as before.
+- **The reader.** `scripts/reconcile-fleet.py` prints refused activations per day beside
+  enrolments per day. That tool is run whenever anyone asks about the fleet, so the count appears
+  without anyone choosing to look for it.
+
+| | check | sabotage |
+|---|---|---|
+| **R1** | one `not_listed` refusal and one `already_activated` refusal make exactly `1` and `1` under today's keys; a mint and an `unverified` solve add nothing | **S-R1**: the bump removed |
+| **R2** | no key or value under `enr:refused:` contains the id; every value is an integer | (S-R1's control: R2 stays green) |
+
+**S-R1 predicted red, exactly:** R1.
+
+**The reader against production, read-only, now.** Nothing deployed writes these counters yet, so
+the predicted output is the stated absence: no `enr:refused:` counters, with KV shown readable by
+the `fw:` listing above it. The reconcile's other sections print as they always do.
+
+**Counts.** 4 new tests (G1, G2, R1, R2), so `vitest list` reads **934**. The run is all green
+except Q-C1, until the `.gitattributes` fix is on this branch's base.
+
+### The seeding (deploy order): waiting on Daniel
+
+The ruling seeds the list from Daniel's bench records before the deploy. Those are provisioning
+records, which this session may not read. The plan, for Daniel's answer:
+- **(i)** a seed script **Daniel** runs on his records, printing counts only, with the count he
+  expects stated before it runs;
+- **(ii)** a production coverage check this session can run: every device id already seen
+  authenticating in production (`fw:` rows) and every id in the enrolment ledger (`enr:dev:`) must
+  have an `act:` row. It prints counts only (seen, listed, missing), and missing must be 0 before
+  the deploy.
+
+Predictions for both are frozen once Daniel answers.
