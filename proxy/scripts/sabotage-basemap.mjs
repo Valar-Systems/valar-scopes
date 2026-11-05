@@ -9,7 +9,7 @@
 // run comes first: with nothing planted, nothing may fail. Exit 0 only when every sabotage lands exactly.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +41,9 @@ const SABOTAGES = {
     file: LIB,
     edits: [["    if (got.length !== o.bytes.length || (await sha256Hex(got)) !== (await sha256Hex(o.bytes))) mismatched.push(o.key);\n",
              "    if (got.length !== o.bytes.length) mismatched.push(o.key); // SABOTAGE S-ISIZE: size only\n"]],
-    expect: ["MI7"],
+    // Re-registered by ruling (docs/basemap-a1.md, A1's first run, ~20:05Z), the miss kept: {MI7}. Under a sizes-only
+    // verify, MI9's same-size corruption seals and bm:store is written, so MI9 is right to go red too.
+    expect: ["MI7", "MI9"],
   },
   "S-ISEAL": {
     file: LIB,
@@ -456,11 +458,12 @@ const SABOTAGES = {
     edits: [["export const READ_AHEAD = 6;", "export const READ_AHEAD = 1; // SABOTAGE S-MX1: one at a time"]],
     expect: ["MX1"],
   },
-  "S-MI8": {
+  // Renamed by ruling from S-MI8 (~20:05Z): the row is MI9, since MI8 was already basemap-regions.test.ts's.
+  "S-MI9": {
     file: LIB,
     edits: [["  for (const o of objects) await bucket.put(o.key, o.bytes);\n  let v = await verifyStore(bucket, objects);\n",
-             "  for (const o of objects) await bucket.put(o.key, o.bytes);\n  if (kv) await kv.put(STORE_KV_KEY, \"000000000000\"); // SABOTAGE S-MI8: before the verify\n  let v = await verifyStore(bucket, objects);\n"]],
-    expect: ["MI8"],
+             "  for (const o of objects) await bucket.put(o.key, o.bytes);\n  if (kv) await kv.put(STORE_KV_KEY, \"000000000000\"); // SABOTAGE S-MI9: before the verify\n  let v = await verifyStore(bucket, objects);\n"]],
+    expect: ["MI9"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
@@ -478,6 +481,55 @@ const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 // UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
 // BB<n> (docs/basemap-build-reads.md): the builder's read-line rows, named in #539's plan before this pattern knew them.
 const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+
+// THE DUPLICATE-ID GUARD (ruled 2026-11-05 ~20:05Z, docs/basemap-a1.md). Grading is by case id, so two rows sharing an id
+// grade as one -- A1's first run, where a new MI8 met basemap-regions.test.ts's MI8 and baseline[all] read 158 for 159.
+// Before anything runs, every LITERAL test title under test/ is read; an id that names rows in two files, or two
+// different "<ID>:" rows in one file, is refused (exit 2) with each duplicate printed. Sub-cases written "<ID> (a): ..."
+// are one row. Titles built at run time (it.each, template expressions) are not seen: the baselines' case counts are what
+// catch those, as they caught MI8.
+function duplicateCaseIds(testDir = join(PROXY, "test")) {
+  const byId = new Map();
+  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-9-]+)[^"'`]*)\1/g;
+  for (const f of readdirSync(testDir).filter((n) => n.endsWith(".test.ts")).sort()) {
+    for (const m of readFileSync(join(testDir, f), "utf8").matchAll(TITLE)) {
+      const title = m[2], id = caseOf(title);
+      if (id.startsWith("UNNAMED(")) continue;
+      if (!byId.has(id)) byId.set(id, new Map());
+      const files = byId.get(id);
+      if (!files.has(f)) files.set(f, new Set());
+      files.get(f).add(title);
+    }
+  }
+  const dups = [];
+  for (const [id, files] of byId) {
+    if (files.size > 1) { dups.push(`${id}: in ${[...files.keys()].join(" and ")}`); continue; }
+    const [[f, ts]] = [...files];
+    const whole = [...ts].filter((t) => t.startsWith(`${id}:`));
+    if (whole.length > 1) dups.push(`${id}: ${whole.length} rows in ${f}`);
+  }
+  return dups;
+}
+if (process.argv[2] === "--selftest-dups") {
+  // The guard's sabotage (as ruled): a copy of a test file planted beside it must be refused, every duplicate naming the
+  // copy; the copy is then removed and its absence checked. CONTROL first: the tree as it is holds no duplicate.
+  const control = duplicateCaseIds();
+  const copy = join(PROXY, "test", "basemap-zz-dupcopy.test.ts");
+  writeFileSync(copy, readFileSync(join(PROXY, "test", "basemap-ingest.test.ts")));
+  let planted;
+  try { planted = duplicateCaseIds(); } finally { rmSync(copy, { force: true }); }
+  const gone = !existsSync(copy);
+  console.log(`dup selftest: control ${control.length} duplicate(s)${control.length ? `: ${control.join("; ")}` : ""}; planted copy -> ${planted.length} duplicate(s), all naming the copy: ${planted.length > 0 && planted.every((d) => d.includes("basemap-zz-dupcopy.test.ts"))}; copy removed: ${gone}`);
+  process.exit(control.length === 0 && planted.length > 0 && planted.every((d) => d.includes("basemap-zz-dupcopy.test.ts")) && gone ? 0 : 1);
+}
+{
+  const dups = duplicateCaseIds();
+  if (dups.length) {
+    console.log("RIG: duplicate case ids -- the driver grades by id, so each of these would grade as one row:");
+    for (const d of dups) console.log(`  ${d}`);
+    process.exit(2);
+  }
+}
 
 // Every vitest run, and how many met a Workers runtime failure (ruled 2026-10-28, A2.12: "If the runtime failure
 // recurs, report how often"). Printed at the end of every pass, zeros included. A run whose output carries the

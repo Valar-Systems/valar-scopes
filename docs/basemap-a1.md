@@ -247,3 +247,76 @@ the code or computing the sabotages' sets, before the suite or any driver ran as
 - **CI on the code push:** 33 check runs: 30 success, 3 skipped, 0 failed.
 
 **Outside the set:** stop and report.
+
+## The registered run, first pass (2026-11-05, 19:28-~20:25Z): stopped at two off readings, a third read after
+
+**As predicted:**
+- **Typechecks:** clean.
+- **The whole suite:** **911 passed, 1 skipped (912)**.
+
+**`sabotage-basemap.mjs`: the off readings.**
+1. **S-ISIZE: OFF**, failing {MI7, MI8} against {MI7}.
+   - S-ISIZE makes `verifyStore` compare sizes only. The new row's unsealed case is MI7's same-size corruption, so under
+     the plant the store seals and `bm:store` is written.
+   - **My miss:** the ingest family was not checked against the new row.
+2. **`baseline[all]`: OFF**, 158 cases against 159.
+   - **The cause:** the new row's id, **MI8, was already `basemap-regions.test.ts`'s** ("each county reads its
+     AREAWATER and LINEARWATER…"). The driver grades by id, so the two rows counted once, and a red on either would have
+     been indistinguishable.
+   - **My miss:** MS, MX and MO were checked across the tree, but MI only in the ingest file.
+
+**What was stopped:** the chain stopped the smoke and credits drivers. The basemap driver finished its restores, and
+the tree was clean after.
+
+**Read after the stop, not acted on:**
+- 69 of 71 sabotages AS PREDICTED, among them:
+  - S-PLOG {MP1, MS8}, S-MKHIT {MK3, MK6, MS2} and S-MKKMISS {MK4, MK6, MS3}, at their re-registered sets;
+  - every S-MS but S-MS1;
+  - S-MX1 and S-MI8.
+- 74 runs, 0 runtime failures.
+
+**A third off reading, S-MS1:** failing {MS1, MS2, MS3, MS4, MS6, MS7}, against the corrected set, which also held MS8.
+**MS8 stayed green.**
+- **The cause, my miss:** MS8's first (covered) request builds, and that build teaches the isolate the store id
+  (`learnStore`).
+- So its second request takes the known path, lock then `.err`, even with KV skipped. The "at least 3 keys" control
+  holds.
+
+### Ruled on the first two (reviewer chat, pasted by Daniel, ~20:05Z)
+
+> A1's run: both offs are recorded as your prediction misses, and stopping with the restores finished was right.
+> - Accepted: your row becomes MI9, after you check the whole test tree that MI9 is unused. S-MI8 becomes S-MI9 {MI9}.
+> - Re-registered, miss kept: S-ISIZE {MI7, MI9}. MI9 going red under a sizes-only verify is correct.
+> - baseline[all]: predicted 159.
+> - One addition before the rerun: the driver refuses to run if any row id appears in two rows anywhere in the tree, and
+>   prints the duplicate. Its sabotage: plant a duplicate id in a copy, and the driver must refuse. This class of miss
+>   merges two rows silently, so it should be caught by the tool, not by review.
+> - Then rerun the whole registered run from the suite onward, as before. A1 merges only after #540 is live in
+>   production, as ruled.
+
+### Done, as ruled
+
+**The rename.** MI9 was checked across the whole test tree first: **0 uses**. The row is now **MI9**, S-MI8 is now
+**S-MI9 {MI9}**, and **S-ISIZE is {MI7, MI9}**, with {MI7} kept on record in the driver.
+
+**The duplicate-id guard,** in `sabotage-basemap.mjs`:
+- **When:** before any baseline.
+- **What it reads:** every **literal** test title under `test/`.
+- **What it refuses (exit 2, each duplicate printed):** an id that names rows in two files, or two different `<ID>:`
+  rows in one file. Sub-cases `<ID> (a): …` are one row.
+- **What it does not see:** titles built at run time (`it.each`, template expressions). The baselines' case counts catch
+  those, as they caught MI8.
+- **Read-only, before it went in:**
+  - on the tree as it was, it reported exactly **MI8: in basemap-ingest.test.ts and basemap-regions.test.ts**: the real
+    collision, a free control that it can see one;
+  - after the rename, **0 duplicates over 92 ids**.
+
+**Its sabotage, `--selftest-dups`:**
+- **The control:** the tree as it is must show 0 duplicates.
+- **The plant:** a copy of `basemap-ingest.test.ts`, written beside it, must be refused, every duplicate naming the copy.
+- **Cleanup:** the copy is then removed and its absence checked.
+- **Predicted:** **control 0; the copy gives exactly 6 duplicates** (MI2, MI6, MI-column, MI-roundtrip, MI7, MI9: the
+  file's literal ids); **all name the copy; the copy is removed; exit 0.**
+
+**Open, for a ruling before the rerun: S-MS1's set.** Proposed, with the miss kept on record: **{MS1, MS2, MS3, MS4, MS6,
+MS7}**. MS8 keeps its own S-MS8, and S-PLOG's set covers its logs.
