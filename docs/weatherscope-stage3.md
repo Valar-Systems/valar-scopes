@@ -11454,3 +11454,54 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
   - **Then fix the grader in its own small PR, predictions first:** count only the `why=theme` builds BSW's 96 presses made (the last two in the dump), or expect the POST's switch when the phase at the POST differs from the theme shown.
 - **(b)** Re-run W4 in Dallas daytime, where the row holds as frozen. That leaves the grader's time-of-day dependence in place.
 - **Recommended: (a).**
+
+### A12.100 Q74 (a) ruled; the PC is closed to me until 13:00Z or blipscope-5c's "the PC is free"; the grader fix frozen before its code
+
+**The ruling (~04:15Z):**
+- **Q74: (a).** W4 is accepted as measured. BSW's build-reason row stays recorded as off, with its cause named: the night-time theme switch.
+- **The TouchWatchdog PR** may go up, and merges only after review.
+- **The grader fix** is its own small PR, predictions first.
+- **The PC:** the overlap permission is withdrawn. blipscope-5c's W5⁵ guard refuses any other Python on the PC, and W4 stopped it after one arm.
+  - **Until Daniel pastes "the PC is free", or 13:00Z, whichever is first:** nothing runs here. No windows, no Python, no builds or tests, WSL included.
+  - Code, docs and PRs, relying on CI, are allowed.
+
+**So, until then:**
+- **The TouchWatchdog PR waits.** Its committed record (`run-2026-11-04-touchwd/`, A12.87) is built by `publish_t5_record.py`, with its scan and control. That is a Python run, so the PR goes up after the PC is free.
+- **This addendum was appended without Python.**
+
+#### The grader fix, frozen before its code (`grade_b35t.py`, "BSW build reasons")
+
+**The rule today:** exactly 2 `why=theme` builds in the R dump after BSW. That holds only when BSW's own `wx-theme=auto` POST switches nothing: by day, Auto resolves to the theme already showing. At night the POST switches at once, and its recompose build sits in the 8-build dump (A12.99: builds 0, 6 and 7 are theme builds).
+
+**The new rule:**
+- **`n_pre`** = the number of `[wx] theme=` lines after BSW's last `#HOST post wx-theme=auto` and before `#HOST BSW starts`. That is the POST's own switch: 0 by day, 1 at night.
+- **The row passes when the dump's `why=theme` count is between 2 and 2 + `n_pre`.**
+  - The range, not "2 + `n_pre`" exactly, because the POST's build can already have rotated out of the 8-build dump. That happens when it landed several scenes before `bdry`.
+  - **A missing BSW switch is still caught** by the separate "BSW recompose" row, which requires both switches' recomposes.
+- **The row's text names both numbers.**
+
+**Its selftest:** the 7 BSW/BSW-L cases and the 2 boot cases unchanged. `synthetic()` gains two parameters: `night_post` (the POST and its pre-BSW theme line) and `theme_builds` (the dump's theme positions; default `(2, 5)`, as now). Plus 4 new cases:
+
+| case | expected |
+|---|---|
+| BSW's auto POST resolving at night, its build in the dump (theme builds at 0, 6, 7) | passes |
+| the same, the POST's build already out of the dump (6, 7) | passes |
+| CONTROL: a third theme build with no switch before BSW (0, 6, 7, no `night_post`) | fails |
+| CONTROL: one theme build only (7) | fails |
+
+- **The tally:** `13 checks, 0 failures`.
+
+**The sabotages (copies):**
+- **the upper bound removed:** the third-theme-build control passes wrongly, 1 failure;
+- **`n_pre` ignored** (exactly 2, as now): the night case fails, 1 failure.
+
+**The real runs re-graded** (local, after the PC is free; the raw traces stay local):
+- **W4** (`run-2026-11-05-touchwd-w4`, its boot `auto:known`): **ALL AS PREDICTED**, the row reading 3 theme builds, want 2-3.
+- **t5's run** (A12.76): ALL AS PREDICTED, unchanged (2, want 2).
+- **S-SWB's** (`--swb`, `auto:known`): as recorded in A12.81's re-grade, unchanged.
+
+**CI:** one file under `tools/weatherscope/board/`, matching no path filter. **38 check runs, 35 success, 3 skipped, 0 failed.**
+
+**The order, once the PC is free:**
+1. The grader fix's measurements, then its PR.
+2. The TouchWatchdog record and PR, after W4's record is built through the publisher.
