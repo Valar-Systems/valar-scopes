@@ -1250,3 +1250,19 @@ method as R3-0):
 
 - The local-only Q-C1 failure didn't occur in CI, on an LF checkout, as the exclusion said.
 - **Kept off #537's head:** this record lives here, so the head stays the commit the review reads.
+
+**Ruling, pasted ~02:45Z 2026-11-05 (verbatim):**
+
+> #537: approved to merge at 7321f58b2249, as its CI read:
+> - 41 check runs: 38 success, 3 skipped, 0 failed;
+> - proxy suite: 897 passed, 1 skipped;
+> - the plant selftest passed.
+> Squash with --match-head-commit, no --admin. Record main's CI from a finished run (a proxy push on main has read 41: 39 success, 2 skipped).
+>
+> My review:
+> - checkAll's product list defaults to PRODUCTS, so production's call is unchanged. PS1 and its sabotage (the default narrowed to one product) cover it.
+> - The dev entry: the plant is bounded by count, logs its result, and carries PLANT_MARKER with the loop. MODE off or unknown touches nothing. cref and opuk call production's checkAll with one product.
+> - The toml: every env names blipscope-wx-ingest-dev, so S1-S5 redeploy one Worker. Each env binds only blipscope-wx-dev (PB2, 6 of 6). The top level and env.off have no cron.
+> - PB1's first draft couldn't see its own sabotage (esbuild kept the loop without the marker). You fixed it before the push and recorded it, and the miss stays in the record.
+>
+> S0: your slot opens once #537 is merged and main's CI has finished with 0 failed. No other deploy is queued. S1-S5 then need no further slots; record each phase's start and end. Plan S touches nothing shared, so it may overlap T5 and the board windows. Anything outside the table: stop and report.
