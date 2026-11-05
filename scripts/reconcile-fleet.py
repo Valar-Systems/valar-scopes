@@ -236,6 +236,34 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
     print("    the enrol page (fixed 2026-09-01) -- that is the scale this flags at %d." % alert)
     print()
 
+    # --- Instrument: refused activations (enr:refused:) -------------------
+    # docs/device-activation.md, R (ruled 2026-11-05). There is no activation cap,
+    # so this count is the thing that would show someone guessing ids. It is
+    # printed here, on every run, because a count nobody reads is no count at
+    # all. Keys are enr:refused:<day>:<reason>; the id is never in them.
+    names = kv_list_names("enr:refused:", env, errfile)
+    print("  Refused activations per day (last %d): not a Valar unit / already activated" % days)
+    if not names:
+        print("    (no enr:refused: counters at all -- KV is readable, since fw: listed above,")
+        print("     so this is a real absence: nothing has been refused, or the counters")
+        print("     have aged out of their 40-day TTL.)")
+    else:
+        by_day = {}
+        for n in names:
+            day, _, reason = n[len("enr:refused:"):].partition(":")
+            v = kv_get_raw(n, env, errfile)
+            try:
+                count = int(v)
+            except (TypeError, ValueError):
+                count = None
+            by_day.setdefault(day, {})[reason] = count
+        for day in sorted(by_day)[-days:]:
+            r = by_day[day]
+            shown = ["?" if r.get(k, 0) is None else str(r.get(k, 0)) for k in ("not_listed", "already_activated")]
+            print("    %s  not_listed %6s  already_activated %6s" % (day, shown[0], shown[1]))
+        print("    note: days with no refusals have no key and are simply absent above.")
+    print()
+
     # --- Instrument A: the fleet firmware table (fw:) ---------------------
     print("  Instrument A (fw: rows) -- OTA outcome observation")
     if not detail:

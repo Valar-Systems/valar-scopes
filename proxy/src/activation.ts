@@ -18,7 +18,9 @@ import type { Env } from "./types";
  * near-consecutive, so a determined person can derive a real unit's id and
  * activate it first. The remedy is the reset (and revocation). KV is
  * eventually consistent, so two activations of one listed id racing across
- * locations can both succeed; same remedy.
+ * locations can both succeed; same remedy. After a DEVICE_KEY_SECRET rotation
+ * every listed id is open once more (keyGeneration), so a guesser can race the
+ * owner for that one activation too; same remedy.
  * ======================================================================== */
 
 /** Real device ids are SHA-256(MAC || salt)[:8] as hex: exactly 16 characters. */
@@ -36,9 +38,35 @@ export interface ActivationRow {
   activatedAt?: string;
   /** How many times Daniel has re-opened this id. */
   resets: number;
+  /** The key generation the activation was made under (keyGeneration), so a rotation re-opens it once. */
+  gen?: string;
 }
 
 export type ActivationState = "not_listed" | "listed" | "activated";
+
+/**
+ * THE KEY GENERATION: a keyed fingerprint of the current DEVICE_KEY_SECRET (ruled 2026-11-05 ~18:15Z).
+ *
+ * "Activated" means "activated under THIS secret". A rotation changes every device key, so every listed
+ * id must be able to fetch its new one -- once -- without 600 manual resets. HMAC, not a plain hash: the
+ * stored value says which generation, and nothing about the secret.
+ */
+export async function keyGeneration(secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode("activation-gen")));
+  return [...mac].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
+}
+
+/**
+ * The state a row has UNDER `gen`, used by the gate and by status alike so the two cannot disagree.
+ * An activation made under an earlier generation is open again. A row activated with no generation was
+ * never written by this code; it refuses (fail closed) rather than being read as re-opened.
+ */
+function effectiveState(row: ActivationRow, gen: string): "listed" | "activated" {
+  if (row.state === "listed") return "listed";
+  return typeof row.gen === "string" && row.gen !== gen ? "listed" : "activated";
+}
 
 const isObject = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
@@ -58,9 +86,9 @@ async function readRow(env: Env, id: string): Promise<ActivationRow | null> {
   return raw as unknown as ActivationRow;
 }
 
-export async function activationState(env: Env, id: string): Promise<ActivationState> {
+export async function activationState(env: Env, id: string, gen: string): Promise<ActivationState> {
   const row = await readRow(env, id);
-  return row === null ? "not_listed" : row.state;
+  return row === null ? "not_listed" : effectiveState(row, gen);
 }
 
 /**
@@ -70,11 +98,11 @@ export async function activationState(env: Env, id: string): Promise<ActivationS
  * key only for an activation that has already been recorded. Returning first and
  * writing later would hand out a key the list does not know was issued.
  */
-export async function claimActivation(env: Env, id: string, nowIso: string): Promise<ActivationState> {
+export async function claimActivation(env: Env, id: string, nowIso: string, gen: string): Promise<ActivationState> {
   const row = await readRow(env, id);
   if (row === null) return "not_listed";
-  if (row.state === "activated") return "activated";
-  const next: ActivationRow = { ...row, state: "activated", activatedAt: nowIso };
+  if (effectiveState(row, gen) === "activated") return "activated";
+  const next: ActivationRow = { ...row, state: "activated", activatedAt: nowIso, gen };
   await env.ENRICH_KV.put(actKey(id), JSON.stringify(next));
   return "listed";
 }
@@ -102,6 +130,7 @@ function record(f: Record<string, string | number>): void {
  * 400:    { error: "bad_request" | "bad_op" | "empty" | "bad_entry" | "status_takes_one" }
  *         { error: "too_many", max }
  * 403:    { error: "forbidden" }                   missing/wrong token, or PROVISION_TOKEN unset
+ * 503:    { error: "not_configured" }              status with no DEVICE_KEY_SECRET (no generation to read under)
  *
  * A RESPONSE NEVER CARRIES AN ID, and a refusal never repeats the entry it refused:
  * the tool's output is a transcript, and an id in it is an id in a transcript.
@@ -156,8 +185,10 @@ export async function handleActivationAdmin(request: Request, env: Env): Promise
 
   if (op === "status") {
     if (ids.size !== 1) return json({ error: "status_takes_one" }, 400);
+    // The state is the EFFECTIVE one under the current key generation, as the gate sees it.
+    if (!env.DEVICE_KEY_SECRET) return json({ error: "not_configured" }, 503);
     const [only] = ids;
-    return json({ op, state: await activationState(env, only as string) });
+    return json({ op, state: await activationState(env, only as string, await keyGeneration(env.DEVICE_KEY_SECRET)) });
   }
 
   const nowIso = new Date().toISOString();

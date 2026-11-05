@@ -256,3 +256,62 @@ describe("A11: a call is all or nothing, and bounded", () => {
     expect((await admin({ op: "status", ids: [LISTED, OTHER] })).body.error).toBe("status_takes_one");
   });
 });
+
+describe("G: activation is scoped to the key generation (ruled ~18:15Z)", () => {
+  const ROTATED = { DEVICE_KEY_SECRET: "a-rotated-device-secret" };
+  const gen = async (id: string) => (await env.ENRICH_KV.get<{ gen?: string }>(actKey(id), "json"))?.gen;
+
+  it("G1: a rotation re-opens a listed id once; the row's gen is 12 hex and follows the secret", async () => {
+    await admin({ op: "add", ids: [LISTED] });
+    expect((await activate(LISTED)).status).toBe(200);
+    const genA = await gen(LISTED);
+    expect(genA).toMatch(/^[0-9a-f]{12}$/);
+    expect((await activate(LISTED)).status).toBe(409);
+
+    const rotated = await activate(LISTED, ROTATED);
+    expect(rotated.status).toBe(200);
+    expect(rotated.body.key).toBe(await deriveDeviceKey("a-rotated-device-secret", LISTED));
+    const genB = await gen(LISTED);
+    expect(genB).toMatch(/^[0-9a-f]{12}$/);
+    expect(genB).not.toBe(genA);
+    expect((await activate(LISTED, ROTATED)).status).toBe(409);
+  });
+
+  it("G2: status reports the effective state under each generation", async () => {
+    await admin({ op: "add", ids: [LISTED] });
+    await activate(LISTED);
+    expect((await admin({ op: "status", ids: [LISTED] })).body.state).toBe("activated");
+    expect((await admin({ op: "status", ids: [LISTED] }, TOKEN, ROTATED)).body.state).toBe("listed");
+  });
+});
+
+describe("R: refused activations are counted (ruled ~18:15Z)", () => {
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  it("R1: one not_listed and one already_activated refusal count 1 and 1; a mint and an unverified solve add nothing", async () => {
+    await activate(OTHER);                 // not_listed
+    await admin({ op: "add", ids: [LISTED] });
+    await activate(LISTED);                // a mint
+    await activate(LISTED);                // already_activated
+    solveOk = false;
+    await activate(OTHER);                 // unverified: refused before the gate
+    solveOk = true;
+    expect(await env.ENRICH_KV.get(`enr:refused:${today()}:not_listed`)).toBe("1");
+    expect(await env.ENRICH_KV.get(`enr:refused:${today()}:already_activated`)).toBe("1");
+  });
+
+  it("R2: no refused-counter key or value carries the id, and every value is an integer", async () => {
+    await activate(OTHER);
+    await admin({ op: "add", ids: [LISTED] });
+    await activate(LISTED);
+    await activate(LISTED);
+    const { keys } = await env.ENRICH_KV.list({ prefix: "enr:refused:" });
+    for (const k of keys) {
+      expect(k.name).not.toContain(OTHER);
+      expect(k.name).not.toContain(LISTED);
+      const v = await env.ENRICH_KV.get(k.name);
+      expect(v).toMatch(/^\d+$/);
+      expect(v).not.toContain(LISTED);
+    }
+  });
+});

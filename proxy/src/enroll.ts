@@ -2,7 +2,7 @@ import { refusesFakeId } from "./fakeids";
 import type { Env } from "./types";
 import { deriveDeviceKey } from "./deviceauth";
 import { isRevoked } from "./revocation";
-import { claimActivation } from "./activation";
+import { claimActivation, keyGeneration } from "./activation";
 import { SUPPORT_EMAIL } from "./support";
 
 /* ===========================================================================
@@ -123,6 +123,17 @@ async function bumpDayCounter(env: Env, day: string): Promise<number> {
 }
 
 /**
+ * Refused activations per day and reason (docs/device-activation.md, R). Best effort and 40-day TTL, like
+ * the enrolment counter, and keyed by day and reason only: the id is in the log line, never in the key.
+ * There is no cap (ruled 2026-11-05); this count is what would show a guessing pattern and call for one.
+ */
+async function bumpRefused(env: Env, day: string, reason: "not_listed" | "already_activated"): Promise<void> {
+  const key = `enr:refused:${day}:${reason}`;
+  const prev = Number((await env.ENRICH_KV.get(key)) ?? "0");
+  await env.ENRICH_KV.put(key, String(prev + 1), { expirationTtl: 60 * 60 * 24 * 40 });
+}
+
+/**
  * POST /blipscope/enroll — activate a listed device id for a solved challenge.
  *
  * Body: { id: "<deviceId>", token: "<cf-turnstile-response>" }
@@ -185,16 +196,18 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   // FIRST ACTIVATION WINS. The key is a pure function of the id, so a repeat that
   // returned it would hand a guesser the real owner's key; a repeat is therefore
   // refused until Daniel re-opens the id (scripts/activation.ts reset). This retires
-  // the old idempotent repeat -- including its job after a DEVICE_KEY_SECRET rotation,
-  // which is now a reset followed by an activation: the key below is derived from the
-  // CURRENT secret on every activation, reset or not, and a test pins exactly that.
-  const gate = await claimActivation(env, id, nowIso);
+  // the old idempotent repeat. "Activated" is scoped to the KEY GENERATION (ruled
+  // ~18:15Z): a DEVICE_KEY_SECRET rotation re-opens every listed id once, so each can
+  // fetch its new key without a manual reset, and the key below is derived from the
+  // CURRENT secret on every activation; tests pin both.
+  const gate = await claimActivation(env, id, nowIso, await keyGeneration(secret));
   if (gate !== "listed") {
     const refused = gate === "activated" ? "already_activated" : "not_listed";
     // A refused activation is the abuse signal now -- a guessed id lands here -- so it
-    // is logged the way a mint is, rather than left to be inferred.
+    // is logged the way a mint is, and COUNTED where scripts/reconcile-fleet.py prints it.
     console.log(`enroll refused=${refused} id=${id} host=${solve.hostname ?? "?"} `
       + `cc=${request.headers.get("CF-IPCountry") ?? "?"}`);
+    await bumpRefused(env, day, refused);
     return json({ error: refused, id, support: SUPPORT_EMAIL }, refused === "not_listed" ? 403 : 409);
   }
 
