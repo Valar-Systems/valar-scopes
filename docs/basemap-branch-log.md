@@ -358,3 +358,198 @@ The tree was clean after.
 nearly fills the pool, which is why the gate has to bound the whole run.
 
 **Every driver has now read as predicted, so the code is pushed**, with CI at 41: 38 success, 3 skipped, 0 failed.
+
+## After the merge: #534 on staging, and MM4 in five groups (2026-11-05): MM4 OFF, cause (a), in every group
+
+### The rulings, verbatim (reviewer chat, pasted by Daniel)
+
+From ~00:28Z, the deploy's conditions (the merge approval itself is recorded on #534):
+
+> 2. The staging deploy comes after blipscope-5c's #536 deploy (staging, then production, after the UK data session's R3
+>    report). One deployer at a time: start only when Daniel pastes blipscope-5c's "#536 live" line. Q-MK2 is amended
+>    because #536 was ruled to deploy first and be carried:
+>    - Carried beyond f740f10: 8b42f5c (#530), 43afaac (#531), c039a5e (#532), 7fe8f8c (#533), 9eb8dde (#536), and your
+>      merge commit. Beyond staging's 9eb8dde: yours only.
+>    - The Worker-input diff from f740f10 to your merge commit is exactly four files: proxy/src/sitefeed/bend.ts (#536);
+>      proxy/src/basemap/handler.ts, proxy/src/index.ts and proxy/src/metrics.ts (#534). Add proxy/package-lock.json to
+>      the paths you diff, because it sets the bundled dependency versions (it hasn't changed since f740f10). Anything
+>      else: stop and ask.
+>    - Before you deploy, staging's and production's /healthz must both show 9eb8dde.
+>    - The rollback target is no longer cc4dcf89, because that would take #536 off staging too. The new target is the
+>      staging version that blipscope-5c's deploy creates. Read it from wrangler deployments list just before you
+>      deploy, check that it matches blipscope-5c's line, and record it.
+>    - Staging's /healthz must report your merge commit before anything is read.
+> 3. MM4's five groups, as ruled in Q-MK1:
+>    - G1-G5, each with B, R and I, the groups more than 60 s apart;
+>    - B's unknown-store anchor in every group;
+>    - R graded by your table, and the split reported as the rate.
+>    They touch only staging's /basemap, so they may run during #536's two-hour production read (T5).
+
+From ~00:55Z, the start line:
+
+> #536 live: production /healthz 9eb8dde since 00:36:09Z (version c8f33459-0277-4c96-a0dd-1394bd7a0ac5); staging
+> 9eb8dde (version b28687a5-df01-423c-a481-3402778a24f3).
+> - Map server: this is your start line. Your other condition still applies: main's CI on 20a0323 must have finished
+>   with 0 failed and the same 41 names as 9eb8dde's run. Staging's rollback target is b28687a5.
+
+From ~02:45Z, on the readings below:
+
+> - MM4 is OFF, cause (a) named. All 5 Rs and all 5 Is landed on isolates that didn't know the store id,
+>   same-data-centre repeats included. B's anchor held in every group, so the instrument saw the label, and the labels
+>   and builder counts agree minute by minute. The rate, reported: hit 0, known-miss 0, unknown-store 5.
+> - Staging stays on 3b12b9ea. The rollback target stays b28687a5.
+> - For D4: at this traffic a fresh isolate is the normal case. A repeat and an If-None-Match revalidation must be
+>   served without a build, even on an isolate that has never seen the store id. D4's plan says how, predictions
+>   first. MM2's build wall (8.9-14.5 s here) stays a prerequisite beside it.
+
+### Before the deploy (00:46-00:47Z)
+
+**Main's CI:**
+- **On 20a0323**, from the finished run (00:45:12Z): **41 check runs: 39 success, 2 skipped (`promote`, `version`), 0
+  failed.**
+- **Main's finished run on 9eb8dde** (00:36:50Z) is also 41 check runs: 39 success and 2 skipped. The two runs have the
+  same 41 names and the same conclusion per name.
+
+**Main** was still `20a0323`, and the checkout was a clean, detached `20a0323`.
+- **Carried beyond `f740f10`:** `8b42f5c`, `43afaac`, `c039a5e`, `7fe8f8c`, `9eb8dde` and `20a0323`.
+- **The Worker-input diff,** `f740f10..20a0323`, over `proxy/src`, `wrangler.toml`, `pages`, `fonts`, `package.json`
+  and `package-lock.json`, is exactly:
+  - `proxy/src/basemap/handler.ts`;
+  - `proxy/src/index.ts`;
+  - `proxy/src/metrics.ts`;
+  - `proxy/src/sitefeed/bend.ts`.
+
+  `package-lock.json` is unchanged.
+
+**`/healthz`:** staging read `9eb8dde` and production read `9eb8dde`.
+
+**The rollback target, recorded: `b28687a5-df01-423c-a481-3402778a24f3`.** It is staging's newest deployment
+(`wrangler deployments list --env staging`, created 00:35:36Z), and it matches blipscope-5c's line.
+
+**The credential check:** `CLOUDFLARE_API_TOKEN` read absent both in the shell and at user level (a presence check that
+prints a boolean), so wrangler used the OAuth login.
+
+### The deploy (00:47:01-00:47:10Z)
+
+- `./scripts/deploy.sh staging`, from `proxy/` at `20a0323`, exit 0.
+- **Staging version `3b12b9ea-2de7-4750-8044-737c112fc598`.**
+- `deploy.sh`'s confirmation, and a separate read at 00:47:16Z, both show staging's `/healthz` at **`20a0323`**. That
+  was read before any MM4 request.
+
+### The five groups (00:47:22-00:56:15Z)
+
+**How the requests were made:**
+- As the test identity, at KDEN, with Weatherscope's query.
+- R about 10 s after B's response.
+- I, with `If-None-Match` set to B's ETag, about 20 s after it.
+- Each group's B 75 s after the previous group's last response (the ruling asks for more than 60 s).
+- Every request is in the requester's log (`mm4-groups.sh`).
+
+**What each column comes from:**
+- The **answer** time, data centre, `bm` and proxy CPU come from staging's `/basemap` request line and its invocation
+  event.
+- **"ETag = B's"** compares the response's ETag with its group's B, in memory: a boolean, so no ETag is printed here.
+
+| request | sent | answered | data centre | status | `bm` | ETag = B's | proxy CPU |
+|---|---|---|---|---|---|---|---|
+| G1 B | 00:47:22Z | 00:47:37Z | SEA | 200, 214,179 B, BMPK | `unknown-store` | (itself) | 14 ms |
+| G1 R | 00:47:48Z (+11 s) | 00:47:59Z | SEA | 200, 214,179 B, BMPK | **`unknown-store`** | yes | 20 ms |
+| G1 I | 00:48:00Z (+23 s) | 00:48:13Z | SJC | 304 | `unknown-store` | yes | 28 ms |
+| G2 B | 00:49:28Z | 00:49:37Z | SJC | 200, 214,179 B, BMPK | `unknown-store` | (itself) | 18 ms |
+| G2 R | 00:49:47Z (+10 s) | 00:49:58Z | SEA | 200, 214,179 B, BMPK | **`unknown-store`** | yes | 18 ms |
+| G2 I | 00:49:58Z (+21 s) | 00:50:12Z | SEA | 304 | `unknown-store` | yes | 13 ms |
+| G3 B | 00:51:27Z | 00:51:40Z | SJC | 200, 214,179 B, BMPK | `unknown-store` | (itself) | 10 ms |
+| G3 R | 00:51:50Z (+10 s) | 00:52:02Z | SEA | 200, 214,179 B, BMPK | **`unknown-store`** | yes | 16 ms |
+| G3 I | 00:52:02Z (+22 s) | 00:52:14Z | SEA | 304 | `unknown-store` | yes | 13 ms |
+| G4 B | 00:53:29Z | 00:53:44Z | SJC | 200, 214,179 B, BMPK | `unknown-store` | (itself) | 17 ms |
+| G4 R | 00:53:54Z (+10 s) | 00:54:07Z | SEA | 200, 214,179 B, BMPK | **`unknown-store`** | yes | 12 ms |
+| G4 I | 00:54:07Z (+23 s) | 00:54:18Z | SEA | 304 | `unknown-store` | yes | 18 ms |
+| G5 B | 00:55:34Z | 00:55:45Z | SEA | 200, 214,179 B, BMPK | `unknown-store` | (itself) | 17 ms |
+| G5 R | 00:55:55Z (+10 s) | 00:56:05Z | SEA | 200, 214,179 B, BMPK | **`unknown-store`** | yes | 14 ms |
+| G5 I | 00:56:05Z (+20 s) | 00:56:15Z | SEA | 304 | `unknown-store` | yes | 22 ms |
+
+**The labels were read twice:**
+- 00:56:28Z: 14 lines, while G5's I was not yet in.
+- **00:58:25Z: 15 lines, 15 of them with `bm`.**
+
+The earlier minutes read identically both times.
+
+**The builder count** (GraphQL, by the minute each request was sent; read twice, the same both times):
+
+| minute | 00:47 | 00:48 | 00:49 | 00:51 | 00:52 | 00:53 | 00:54 | 00:55 | 00:56 |
+|---|---|---|---|---|---|---|---|---|---|
+| builder invocations, all `success` | 2 | 1 | 3 | 2 | 1 | 2 | 1 | 2 | 1 |
+| the requests sent in it | G1 B, R | G1 I | G2 B, R, I | G3 B, R | G3 I | G4 B, R | G4 I | G5 B, R | G5 I |
+
+The totals: **15 invocations, 0 errors**. Builder CPU ran 1.38-3.98 s, and wall 8.9-14.5 s.
+
+### Graded by the registered table
+
+- **B's anchor control held in every group.** All five Bs carry `unknown-store`, so the instrument sees the label.
+- **R: OFF in all five, cause (a).** Every R landed on an isolate that did not know the store id, 10-11 s after its
+  group's build. Every R's ETag equals its B's.
+- **I: the registered alternative in all five.** Each I landed on an isolate that did not know the store id, so it is
+  `unknown-store`, with one more builder invocation and a post-build 304. It is reported as such. Its proxy CPU was
+  13-28 ms, so the ≤ 5 band (the `304-known` path) does not apply.
+- **The labels and the builder count agree, minute by minute:** 15 labels of `unknown-store` against 15 invocations. No
+  row falls in "stop and decide", and nothing falls outside the table.
+
+**The rate, reported, not graded:**
+- **R's split over the five groups: `hit` 0, `known-miss` 0, `unknown-store` 5.**
+- Counting I as well, **10 of 10 follow-up requests sent 10-23 s after a build reached an isolate that did not know the
+  store id.**
+
+**Read beside it, not graded:**
+- The requests were answered in two data centres: SEA (10) and SJC (5).
+- **Same-data-centre repeats were `unknown-store` too:**
+  - G1's B and R, both in SEA;
+  - the R-to-I pairs of G2, G3 and G4, in SEA;
+  - all three of G5, in SEA.
+
+  So the cause is not data-centre routing alone.
+
+**Staging:** every answer was correct (200 ×10, 304 ×5), with no 5xx and no `builder_invalid`. It stays on `3b12b9ea`,
+and the rollback target stays `b28687a5`.
+
+### The scripts as they ran, and the ruling's three points
+
+**The scripts.** They were run from the scratchpad and are committed byte for byte in
+[basemap-branch-log/instruments/](basemap-branch-log/instruments/). All five were last modified before the run began
+(00:29Z, and 21:24Z / 21:55Z the day before):
+
+| file | role | sha256 |
+|---|---|---|
+| `mm4-request.sh` | one request, as the test identity | `1b6cfcad93943e7dd04b808cd3d51e76f1d18b25ddc7fe6772b44d8065008576` |
+| `mm4-groups.sh` | the five groups and their timing | `247e5c2aef9ed0676f14fb3a1f4e56c5fef33808b54be902cfc22f7724fa5bed` |
+| `mm4-lines.mts` | the reader: `/basemap` request lines with `bm` | `1df4cc8b454acda434d2408b76af0ab4256edb14b50083576ef050364ba65c17` |
+| `d3-graphql.mts` | the builder's invocations per minute | `8df5f5a11ef32e3b80f7ec29e8f0e38638f816a89a7a3dd31d8fa4c4862f1201` |
+| `d3-cpu.mts` | the proxy's invocation events: CPU, wall, outcome | `f0ed5ebf54105aab256b5b3acc10e54e7ab0eafd3decb72173ad88d98a8f1147` |
+
+Their paths are the scratchpad's (`./wt-main/proxy/scripts/...`), so they run from a scratch directory that holds a
+checkout as `wt-main`, not from here.
+
+**1. Authentication: holds.** It is the same path `smoke-prod.sh` uses:
+- `mm4-request.sh` sources `proxy/scripts/test-identity.sh`. `test_identity_or_reexec` re-runs it through
+  `with-test-identity.mts`.
+- That wrapper resolves the test identity from the token file (`test-device` + `test-key-staging`) and passes it to
+  the child **in the environment only**, with `BLIP_KEY`/`BLIP_DEVICE` removed.
+- `blip_auth_curl` builds the two header lines with the `printf` builtin and sends them to `curl -K -` on stdin.
+- **No key or id value is on any command line.** The only arguments are the label and, for I, B's ETag.
+
+**Read from the run itself:**
+- the run's stderr holds **exactly 15** lines `with-test-identity: the test identity for staging, from
+  BLIPSCOPE_TOKEN_FILE (test-device + test-key-staging)`, one per request, plus 15 token-file permission notes, and
+  nothing else;
+- in the run's output, the only run of 16 or more hex characters is the ETag's 24-hex query digest, 15 times, each in
+  `bm1-1-4c0875738f38-…`.
+
+**2. No coordinate finer than 2 dp in either output: holds.**
+- **The requester's output:** 0 numbers with three or more decimals.
+- **The readers' output:** 17, and **all 17 are ISO timestamps** (milliseconds).
+- **CONTROL:** the same pattern finds the 2 four-decimal numbers in `mm4-request.sh`'s own query, so it can see one.
+- **That query** is KDEN's published airport coordinate (39.8617, -104.6731), the one D3 recorded above. It is
+  **in the script's source and in the request**, never in its output. The Worker quantises it to 2 dp before any key
+  or digest.
+
+**3. The scripts are in this PR:** both of the ruling's (`mm4-groups.sh` and the reader `mm4-lines.mts`), plus the
+request script `mm4-groups.sh` calls and the two readers whose figures appear in the tables.
