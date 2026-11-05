@@ -208,8 +208,15 @@ def derive(root, skus_path):
     return out
 
 
+def built(derived):
+    """The rows CI builds: a `status: retired` row is not built (skus.yml, A12.105), so it has no image to check
+    and its partition table is no fleet's."""
+    return [d for d in derived if d[0].get("status") != "retired"]
+
+
 def fleet_problems(derived):
-    """[(rule, text)]: O5 per slug-ful row, Q76 per board and field."""
+    """[(rule, text)]: O5 per slug-ful row, Q76 per board and field -- over the built rows only."""
+    derived = built(derived)
     problems = []
     for r, scope, board, _ in derived:
         if r["slug"] and r["slug"] != scope + board:
@@ -230,7 +237,7 @@ def fleet_problems(derived):
 
 
 def table_text(derived):
-    lines = ["%s %s %s" % (r["env"], scope or "-", board) for r, scope, board, c in derived
+    lines = ["%s %s %s" % (r["env"], scope or "-", board) for r, scope, board, c in built(derived)
              if compiles(c, "OtaUpdater.cpp")]
     return TABLE_HEADER + "\n".join(lines) + "\n"
 
@@ -239,11 +246,11 @@ def run_fleet(root=ROOT, skus_path=skus.DEFAULT, quiet=False):
     derived = derive(root, skus_path)
     problems = fleet_problems(derived)
     if not quiet:
-        boards = {}
-        for r, _, board, _ in derived:
+        boards, live = {}, built(derived)
+        for r, _, board, _ in live:
             boards[board] = boards.get(board, 0) + 1
-        print("fleet: %d skus.yml env(s); slug-ful %d; boards %s"
-              % (len(derived), sum(1 for r, _, _, _ in derived if r["slug"]),
+        print("fleet: %d built skus.yml env(s) (%d retired, skipped); slug-ful %d; boards %s"
+              % (len(live), len(derived) - len(live), sum(1 for r, _, _, _ in live if r["slug"]),
                  ", ".join("%s %d" % (b, n) for b, n in sorted(boards.items()))))
         for rule, text in problems:
             print("  FAIL %s %s" % (rule, text))
@@ -406,9 +413,11 @@ def selftest():
 
     def fleet(rows):
         d = []
-        for env, slug, c in rows:
+        for row in rows:
+            env, slug, c = row[:3]
             f = flags_of(c)
-            d.append(({"env": env, "slug": slug}, scope_of(f), board_of(f, vt), c))
+            d.append(({"env": env, "slug": slug, "status": row[3] if len(row) > 3 else "build-only"},
+                      scope_of(f), board_of(f, vt), c))
         return [p[0] for p in fleet_problems(d)]
 
     base = [("blipscope-s3-128", "s3-128", cfg("", "S3_128")), ("weatherscope-s3-128", None, cfg("weatherscope-", "S3_128")),
@@ -423,6 +432,8 @@ def selftest():
         ("Q76: another memory type", base[:1] + [("weatherscope-s3-128", None, cfg("weatherscope-", "S3_128",
                                                                                     mem="qio_qspi"))] + base[2:], ["Q76"]),
         ("two boards may differ", base, []),
+        ("a retired env on another table is skipped", base + [("gone-s3-128", None, cfg("", "S3_128", parts="d.csv"),
+                                                               "retired")], []),
     ]
     for name, rows, want in fleet_cases:
         got = fleet(rows)
@@ -485,9 +496,9 @@ def image_mode(argv):
     env, path = args
     try:
         data = open(path, "rb").read()
-        rows = {r["env"]: (r, s, b) for r, s, b, _ in derive(ROOT, skus.DEFAULT)}
+        rows = {r["env"]: (r, s, b) for r, s, b, _ in built(derive(ROOT, skus.DEFAULT))}
         if env not in rows:
-            raise Blind("%s is not a skus.yml env" % env)
+            raise Blind("%s is not a built skus.yml env (absent, or retired)" % env)
         _, scope, board = rows[env]
         mslug = None
         if "--manifest" in opts:

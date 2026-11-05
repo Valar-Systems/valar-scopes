@@ -17,8 +17,8 @@
 //        weatherscope- on an s3-128): installed, log begin/write/writeRest/end, the
 //        history switches once, the target equals the image. Without them a fake that
 //        ignored every call would pass I1-I6.
-// O10    the 15 identities each asking for their own scope, against the three pre-check
-//        heads: 45 no-record, 0 foreign, 0 flash calls
+// O10    the 7 identities each asking for their own scope, against the three pre-check
+//        heads: 21 no-record, 0 foreign, 0 flash calls (the s3-146 rows are retired, A12.107)
 // MAP1-3 the fail mapping (A12.104): the refusal tokens; a short non-image is fail--106 with
 //        no flash call (not truncated); a begin failure is fail-<its error>
 #include <cstdio>
@@ -195,7 +195,7 @@ int main(int argc, char** argv)
         return 2;
     }
     root = argv[1];
-    const char* names[] = {"blipscope-s3-128", "weatherscope-s3-128", "blipscope-s3-146",
+    const char* names[] = {"blipscope-s3-128", "weatherscope-s3-128", "blipscope-pro-s3-21",
                            "pre-blipscope-s3-128", "pre-missileer-s3-128", "pre-weatherscope-s3-128"};
     std::vector<std::vector<uint8_t> > heads(6);
     for (int i = 0; i < 6; ++i)
@@ -203,7 +203,7 @@ int main(int argc, char** argv)
             std::printf("RIG: heads/%s.head is missing or not %u bytes\n", names[i], (unsigned)ota::kHeadBytes);
             return 2;
         }
-    const std::vector<uint8_t>&radar = heads[0], &wx = heads[1], &s146 = heads[2];
+    const std::vector<uint8_t>&radar = heads[0], &wx = heads[1], &s21 = heads[2];
 
     const ota::Identity own = ota::Request("s3-128", "");
     const ota::Identity toWx = ota::Request("s3-128", "weatherscope-");
@@ -213,7 +213,7 @@ int main(int argc, char** argv)
         std::vector<uint8_t> badMagic = radar, v2 = radar;
         badMagic[ota::kRecordOffset] = 0x57;
         v2[ota::kRecordOffset + 4] = 2;
-        Refused("I1", "the blipscope-s3-146 head, asked for as s3-128", Image(s146), kImage, own, ota::Outcome::Foreign);
+        Refused("I1", "the blipscope-pro-s3-21 head, asked for as s3-128", Image(s21), kImage, own, ota::Outcome::Foreign);
         Refused("I2", "the Weatherscope head, asked for as s3-128", Image(wx), kImage, own, ota::Outcome::Foreign);
         Refused("I3", "a pre-check s3-128 head", Image(heads[3]), kImage, own, ota::Outcome::NoRecord);
         Refused("I4", "a wrong magic", Image(badMagic), kImage, own, ota::Outcome::NoRecord);
@@ -251,8 +251,8 @@ int main(int argc, char** argv)
         }
         char buf[160];
         std::snprintf(buf, sizeof buf, "%d identities x 3 pre-check heads: %d no-record, %d foreign, %d other, %d flash calls "
-                      "(want 45, 0, 0, 0)", rows, noRecord, foreign, other, calls);
-        check(rows == 15 && noRecord == 45 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
+                      "(want 21, 0, 0, 0)", rows, noRecord, foreign, other, calls);
+        check(rows == 7 && noRecord == 21 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
     }
 
     // ---- MAP1-3: the fail mapping

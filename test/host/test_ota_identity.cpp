@@ -5,11 +5,12 @@
 //
 // P1-P3   the real heads parse to their board and scope
 // P4-P12  one check per parse rule
-// R1      a request always names the device's own board: 15 envs x 9 scopes
+// R1      a request always names the device's own board: 7 envs x 3 scopes
 // M1      O1-b (i), the switch matrix: asking for the candidate's scope on one's own board
-//         accepts exactly the same-board pairs -- 91 accepted, 134 refused
-// M2      no scope at all makes a cross-board image acceptable: 1,206 of 1,206 refused
-// M3      O1-b (ii), asking for one's own scope: 19 accepted, 206 refused, 72 of them cross-scope
+//         accepts exactly the same-board pairs -- 27 accepted, 22 refused
+// M2      no scope at all makes a cross-board image acceptable: 66 of 66 refused
+// M3      O1-b (ii), asking for one's own scope: 11 accepted, 38 refused, 16 of them cross-scope
+// (over the 7 built envs with an OTA path: the s3-146 rows are retired, A12.105, A12.107)
 // O4-*    the same rule on the real heads: own (CONTROL), a same-board other-scope image both
 //         ways, the switch, cross-board both ways
 //
@@ -96,10 +97,10 @@ int main(int argc, char** argv)
     }
     root = argv[1];
 
-    std::vector<uint8_t> radar, wx, s146;
+    std::vector<uint8_t> radar, wx, s21;
     if (!Load("heads/blipscope-s3-128.head", radar) || !Load("heads/weatherscope-s3-128.head", wx) ||
-        !Load("heads/blipscope-s3-146.head", s146) || radar.size() != ota::kHeadBytes ||
-        wx.size() != ota::kHeadBytes || s146.size() != ota::kHeadBytes) {
+        !Load("heads/blipscope-pro-s3-21.head", s21) || radar.size() != ota::kHeadBytes ||
+        wx.size() != ota::kHeadBytes || s21.size() != ota::kHeadBytes) {
         std::printf("RIG: the heads in %s/heads are missing or not %u bytes\n", root.c_str(), (unsigned)ota::kHeadBytes);
         return 2;
     }
@@ -126,7 +127,7 @@ int main(int argc, char** argv)
     {
         struct Want { const char* id; const std::vector<uint8_t>* head; const char* board; const char* scope; };
         const Want wants[] = {{"P1", &radar, "s3-128", ""}, {"P2", &wx, "s3-128", "weatherscope-"},
-                              {"P3", &s146, "s3-146", ""}};
+                              {"P3", &s21, "s3-21", ""}};
         for (const Want& w : wants) {
             ota::Parsed p;
             const ota::Identity id = FromHead(*w.head, &p);
@@ -175,7 +176,7 @@ int main(int argc, char** argv)
         char buf[96];
         std::snprintf(buf, sizeof buf, "a request names the asker's own board: %d/%d (%u envs x %u scopes)", good, n,
                       (unsigned)envs.size(), (unsigned)scopes.size());
-        check(good == n && n == 135, "R1", buf);
+        check(good == n && n == 21, "R1", buf);
     }
     {
         int acc = 0, ref = 0, off = 0;
@@ -186,9 +187,9 @@ int main(int argc, char** argv)
                 off += a != (envs[i].board == envs[j].board);
             }
         char buf[128];
-        std::snprintf(buf, sizeof buf, "switch matrix: %d accepted, %d refused, %d off the rule (want 91, 134, 0)", acc,
+        std::snprintf(buf, sizeof buf, "switch matrix: %d accepted, %d refused, %d off the rule (want 27, 22, 0)", acc,
                       ref, off);
-        check(acc == 91 && ref == 134 && off == 0, "M1", buf);
+        check(acc == 27 && ref == 22 && off == 0, "M1", buf);
     }
     {
         int ref = 0, n = 0;
@@ -201,8 +202,8 @@ int main(int argc, char** argv)
                 }
             }
         char buf[128];
-        std::snprintf(buf, sizeof buf, "cross-board, every scope asked for: %d of %d refused (want 1206 of 1206)", ref, n);
-        check(ref == n && n == 1206, "M2", buf);
+        std::snprintf(buf, sizeof buf, "cross-board, every scope asked for: %d of %d refused (want 66 of 66)", ref, n);
+        check(ref == n && n == 66, "M2", buf);
     }
     {
         int acc = 0, ref = 0, crossScope = 0, off = 0;
@@ -216,22 +217,22 @@ int main(int argc, char** argv)
             }
         char buf[160];
         std::snprintf(buf, sizeof buf,
-                      "own-scope matrix: %d accepted, %d refused (%d cross-scope), %d off the rule (want 19, 206 (72), 0)",
+                      "own-scope matrix: %d accepted, %d refused (%d cross-scope), %d off the rule (want 11, 38 (16), 0)",
                       acc, ref, crossScope, off);
-        check(acc == 19 && ref == 206 && crossScope == 72 && off == 0, "M3", buf);
+        check(acc == 11 && ref == 38 && crossScope == 16 && off == 0, "M3", buf);
     }
 
     // ---- O4 on the real heads
     {
-        const ota::Identity radarId = FromHead(radar), wxId = FromHead(wx), s146Id = FromHead(s146);
+        const ota::Identity radarId = FromHead(radar), wxId = FromHead(wx), s21Id = FromHead(s21);
         const ota::Identity own128 = ota::Request("s3-128", ""), wx128 = ota::Request("s3-128", "weatherscope-");
-        const ota::Identity own146 = ota::Request("s3-146", "");
+        const ota::Identity own21 = ota::Request("s3-21", "");
         check(ota::Accept(own128, radarId), "O4-own", "s3-128 asking for its own scope accepts the real s3-128 head (CONTROL)");
         check(!ota::Accept(own128, wxId), "O4-ii", "s3-128 asking for its own scope refuses the real Weatherscope head");
         check(!ota::Accept(wx128, radarId), "O4-iii", "asking for weatherscope-s3-128 refuses the real s3-128 head");
         check(ota::Accept(wx128, wxId), "O4-iv", "the switch: an s3-128 asking for weatherscope- accepts the real Weatherscope head");
-        check(!ota::Accept(own128, s146Id), "O4-v-a", "an s3-128 refuses the real blipscope-s3-146 head");
-        check(!ota::Accept(own146, radarId), "O4-v-b", "an s3-146 refuses the real s3-128 head");
+        check(!ota::Accept(own128, s21Id), "O4-v-a", "an s3-128 refuses the real blipscope-pro-s3-21 head");
+        check(!ota::Accept(own21, radarId), "O4-v-b", "an s3-21 refuses the real s3-128 head");
     }
 
     std::printf("%d checks, %d failures\n", checks, failures);

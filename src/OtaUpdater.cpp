@@ -338,17 +338,32 @@ Download OpenAndInstall(WiFiClientSecure& client, const String& url, const ota::
 // carry it unseen.
 namespace {
 
-// A byte budget over Serial: after `left` bytes it reads 0 at once, so a cut stream
-// ends in writeRest's 300 empty reads rather than in Serial's timeout.
+// A byte budget over Serial, ACKNOWLEDGED (A12.107). Every chunk of at most 64 bytes --
+// one USB full-speed packet -- is asked for with a "[ota-bench] more" line, and the host
+// sends exactly one chunk per request, so no more than 64 bytes are ever in flight and the
+// receive buffer cannot overrun. (The first run, unpaced, lost bytes on its 8 KB send while
+// the Updater erased a sector, and its budget never drained.) After `left` bytes it reads 0
+// at once and asks for nothing more, so a cut stream ends in writeRest's 300 empty reads
+// rather than in Serial's timeout.
 struct SerialBudget {
     size_t left;
+    uint8_t chunk[64];
+    size_t have = 0, pos = 0;
     size_t read(uint8_t* buf, size_t n)
     {
-        if (n > left) n = left;
-        if (n == 0) return 0;
-        const size_t got = Serial.readBytes(buf, n);
-        left -= got;
-        return got;
+        if (pos == have) {
+            if (left == 0) return 0;
+            const size_t want = left < sizeof chunk ? left : sizeof chunk;
+            Serial.println("[ota-bench] more");
+            have = Serial.readBytes(chunk, want);
+            pos = 0;
+            left -= have;
+            if (have == 0) return 0;
+        }
+        if (n > have - pos) n = have - pos;
+        memcpy(buf, chunk + pos, n);
+        pos += n;
+        return n;
     }
 };
 
