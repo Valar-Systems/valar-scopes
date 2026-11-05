@@ -134,3 +134,40 @@ added steps to `workers`, not jobs. The predictions-only push is the docs-only 3
 before it is read. That comes with the parallel-read change.
 
 **Outside the set:** stop and report.
+
+## The run (2026-11-05, 04:47-05:43Z): every prediction as frozen
+
+**The code's own checks:**
+- **Typecheck:** both configs clean.
+- **The whole suite:** **900 passed, 1 skipped (901)**, 68+1 files, exit 0. Main's baseline at the same tree was 897 + 1.
+
+**`sabotage-basemap.mjs`, the whole driver** (04:52-05:33Z, exit 0):
+- Baselines: 10, 31 and **148 cases in 17 files**.
+- **64 runs, 0 runtime failures.** The highest TIME_WAIT at a run's start was 7,945; held for ports 1,449 s.
+- **All 61 sabotages AS PREDICTED**, among them:
+  - S-BB1 {BB1, BB2}, S-BB2 {BB2}, S-BB3 {BB3};
+  - S-PWRITE {MP2} on its new anchor;
+  - S-W304LATE {MK2, MK6, MW10};
+  - C-LOADFAIL BLIND.
+
+**`sabotage-smoke-basemap.mjs`,** after TIME_WAIT 26 (05:35Z), exit 0:
+- CONTROL **900 passed, 1 skipped, of 901**;
+- S-SQ {SQ1, SQ2}; S-SQP {SQ-C};
+- "ALL AS REGISTERED".
+
+**`sabotage-credits.mjs`,** after TIME_WAIT 264 (05:42Z), exit 0:
+- CONTROL 35 of 35;
+- S-CV-BLANKET, S-SA, S-RD and S-QC1 at their sets and counts;
+- "ALL AS REGISTERED".
+
+The tree was clean after.
+
+### The slot, ruled (reviewer chat, pasted by Daniel, 2026-11-05 ~05:10Z)
+
+> #541's builder staging deploy and reading: the slot is 16:45-17:00Z, on these conditions:
+> - #541 is approved and merged first. Send its report (CI read from a finished run, the sabotage drivers' results) for
+>   my review before 16:30Z. If it isn't merged by then, the slot moves to after T5''s 19:05Z read.
+> - Deploy from the merge commit by name, record the builder's rollback target first, and read the three KDEN builds as
+>   registered. Anything outside the set: stop and report.
+> - The slot is yours alone. If the UK's Plan S still has phases left to run after 16:45Z, it resumes once you report
+>   done or at 17:00Z, whichever comes first.
