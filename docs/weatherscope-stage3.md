@@ -12232,3 +12232,41 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **The CI, read from a finished run:** 33 check runs, 29 success, 4 skipped (ship-alert, promote, version, publish), 0 failed; 32 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.
 
 **Outside these predictions: stop and decide.**
+
+### A12.111 #552 at `d97a856b79a8`: Q78 (a) and Q79 (a) measured, every A12.110 row AS PREDICTED, its CI too. Plus the strings-scan proposal (Q80)
+
+**The change:**
+- the heads become `*.head.bin`;
+- the radar pre-check head is v18's published image's first 352 bytes. The asset's sha256 is `5a5f662bd51b302199f07e9f0dea3a9462f6d871d68b039a6a0f48844cbc8e2d`, equal to GitHub's recorded digest;
+- the Missileer pre-check head is removed;
+- `.gitattributes` loses its `*.head` line;
+- `tools/weatherscope/ota/scan_heads.py` is added.
+
+| row (A12.110) | measured |
+|---|---|
+| the scan | the CONTROL (a planted `C:/Users/` path) flagged. **5 heads, 0 findings.** Four contain no path at all; `pre-blipscope-s3-128.head.bin` holds one, `/home/runner/.platformio/packages/framework-arduinoespressif32/l`, shown as the allowed runner path. 0 IP addresses, 0 network names, 0 device ids; exit 0. The PR shows the command and the output. |
+| `check_wifi.py`, `check_device_ids.py`, run locally | `unreadable 0; OK` and OK |
+| `test_ota_identity` | 22 checks, 0 failures, under MinGW and WSL g++ 13.3 |
+| `test_ota_install` | 36 checks, 0 failures: I3 on v18's head `no-record`; O10 `7 identities x 2 pre-check heads: 14 no-record, 0 foreign, 0 other, 0 flash calls` |
+| the sabotages | S-ID1b 7, S-ID2b 9, S-O8a 20 (final boot `app0` ×6), S-O8b 14, S-ID3 9, under both compilers; `--anchors`, `--control` and the lint clean |
+| **#552's CI** (finished 20:08:11Z, read twice) | **33: 29 success, 4 skipped (publish, ship-alert, promote, version), 0 failed**. Firmware 29 jobs (28 on 24.04 + 1 on 26.04), plus `device-ids`, `no-traffic-captures` and web-renderer's 2, all on 24.04: **32 + 1. AS PREDICTED.** |
+
+**A fact the reviewer should hold:** the earlier, path-carrying heads are in this PR's first commits on GitHub.
+- The squash merge does not carry them to main.
+- No history is rewritten (Daniel's precedent for #514).
+
+**One instrument note:** the first waiter for this CI was unbounded. It waited for "at least 33" check runs, so a lower count, itself an off-prediction, would have waited forever. I stopped it before it read anything and replaced it with an hour-bounded one; no orphan survived (checked by command line).
+
+**Q80, the follow-up proposal (for a later ruling, not this PR): a strings scan of every binary `check_wifi.py` excuses.**
+- **Why:** `check_wifi.py` decodes what it can and excuses an undecodable file only by extension (`BINARY_EXT`). So the bytes of every excused binary are never read: 463 files today, the images, fonts, PNGs, `.wxc`, `.bmpk` and `.bin`. The heads were read once, by hand, for this PR. Nothing reads the others.
+- **The proposal:**
+  - **`scripts/check_binary_strings.py`** runs in the device-ids workflow, beside `check_wifi.py`, over every tracked file that `check_wifi.py` excuses.
+  - **It reads the same list,** imported from `check_wifi.py`, not restated, so the two cannot drift.
+  - **It extracts printable runs** of 6 bytes or more, and UTF-16LE runs.
+  - **It applies `check_wifi.py`'s own name, BSSID and LAN patterns,** plus a user-directory path pattern.
+  - **An allowlist names each allowed string,** by file and by sha256 of the string, the way `check_wifi.py`'s does. The runner prefix is a first entry.
+- **Its sabotages, each to be shown failing before it is trusted:**
+  - a planted SSID-shaped string, a BSSID, a `192.168.x.y` and a `C:/Users/<name>/` path, each inside a copy of a real PNG and a real `.bin`, must each be flagged;
+  - a stale allowlist entry must be refused.
+- **Its predictions** (the file count, and today's findings, the runner path and any others it turns up) **are frozen in its own addendum, after a read-only first run.**
+- **Its scope question is the reviewer's:** fonts and photos are third-party binaries whose strings are not ours. The proposal scans them anyway and allowlists by sha256, rather than exempting by type.
