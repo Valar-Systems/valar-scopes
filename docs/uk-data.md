@@ -1955,3 +1955,57 @@ the line LPS's IPR team gave in writing.
 - **Places:** OSNI Gazetteer, and NISRA boundaries for the ranking.
 - **Water (DAERA lakes)** is consistent. NISRA's populations are OGL, but they are only used through the boundary join.
 - **The docs PR (A.3) waits** for that ruling, so it records one settled answer, not a partial one.
+
+### A3.22 B, the OPERA coverage survey: predictions, frozen before any code (2026-11-05 ~21:50Z)
+
+**Frames.**
+- The source the ingest reads is `https://s3.waw3-1.cloudferro.com/openradar-24h`, and it keeps 24 hours. So
+  2026-11-04's frames are already gone.
+- **The latest full UTC day the source will hold is 2026-11-05, 00:00-23:00Z hourly.** Every one of those 24 frames
+  is present together only between the 23:00 frame's arrival (about 23:05Z) and the 00:00 frame's expiry (about
+  00:00Z on 11-06).
+- **Plan:**
+  - list, then download 00:00-21:00Z now, oldest first, one request at a time;
+  - 22:00 and 23:00Z after they land;
+  - nothing else.
+- **Predicted:** **24 readable**. Fewer than 20 means stop and report. At most 24 frames plus their listings, under
+  1 GB, in my scratch only. Free disk was 43 GB at 21:36Z.
+- **No deploy, no Worker, bucket or KV write anywhere, and the ingest untouched.** The frames are deleted
+  afterwards.
+
+**The reader and georeferencing:**
+- `parseHead`, with K1's corner rule, from `proxy/src/wx/opera.ts`, and `laea` from `proxy/src/wx/laea.ts`, imported
+  unchanged and run under `tsx`.
+- The tiles are decoded with `readWindow`'s own loop over the whole raster. **No change to `opera.ts`.**
+- **Predicted:** every frame parses, with corner **`cirrus-slip`** (as K1 read). Width, height, pixel size and LAEA
+  parameters are identical in all 24.
+
+**Classification, as opuk's `operaCode`:**
+- `NaN` (undetect) or any finite value other than `NODATA` (-9999000) is **covered**.
+- `NODATA` is **not covered**.
+
+**Countries:**
+- **Natural Earth 1:10m admin-0 countries, v5.1.2** (the GitHub release's GeoJSON, `ne_10m_admin_0_countries`). The
+  version is read from the release tag and recorded.
+- Each polygon is projected vertex by vertex into the frame's LAEA and rasterised onto the composite grid by the
+  **pixel-centre rule** (even-odd scanline).
+- **in-domain land pixels:** country pixels inside the raster.
+- **whole land:** the polygon's area in LAEA, which is equal-area, divided by one pixel's area.
+- **in-domain %** = in-domain land / whole land. **covered %** = covered / in-domain land, per frame, as a median.
+- **Ranked:** in-domain >= 50% and >= 100 pixels. The rest are listed apart with their numbers.
+- Admin-0 "countries" include overseas parts: France includes French Guiana, so its in-domain % is below 100. That
+  is said as read, not corrected.
+
+**The controls** (each with a sabotage that must turn it red; a sabotage that doesn't is BLIND, which is FAIL):
+
+| | the check | predicted | sabotage | predicted under it |
+|---|---|---|---|---|
+| **C1** same reading | frame **2026-11-05 20:00Z**. The survey's classification is sampled at each `OPUK_GRID` cell centre (the containing composite pixel), as the share of cells covered. The reference is that frame's `coveredShare` as opuk's code computed it: the `wx_ingest` line logged when Plan S's S4 stored it (`blipscope-wx-ingest-dev`, code at `788dab3cf200`, the same `buildOperaFrame` as production). That is the number `wx-opuk-verdict.sh` reads from `/healthz` when the frame is `latest` | **within +/-0.005** (absolute) of the reference. **Not exact:** opuk's `resample` gives a cell holding several pixel centres echo over nodata over undetect, while the survey takes the centre pixel. They differ only on coverage edges | **C1s:** undetect counted as uncovered | **red, far outside +/-0.005**. In November most covered cells are undetect. The undetect count in the box is printed |
+| **C2** geometry | ranked countries with in-domain 100%: pixels x pixel area against the polygon's LAEA area | **within +/-3%** for every one | **C2s:** rasterise with the pixel size x1.1 | **red for every one** (about -17%) |
+| **C3** placement | Shetland: UK pixels whose centres lie at lat 59.8-61.0, lon -2.2 to -0.6 | **covered < 5% in each of the 24 frames** (R1: no radar coverage) | **C3s:** the raster flipped north-south | **red** (> 5%): the box's rows then read the domain's far south. If it isn't red, another sabotage that is red is picked (pre-ruled), and the miss kept |
+
+- **Contributing radars by country prefix:** reported only if the files carry a node list. Whether they do is read
+  from the GeoTIFF's own tags, not assumed.
+- **Coverage only:** clutter, quality and latency are not graded.
+- **Escape:** anything else means stop and report. The report goes in my reply, with no PR until it's read: the
+  ranked table, the controls and sabotages (predicted and observed), the script's sha256 and its command line.
