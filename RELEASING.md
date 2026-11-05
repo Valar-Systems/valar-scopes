@@ -14,28 +14,41 @@ are versioned and released **together** from a single commit, and each device se
 - The flow lives in [src/OtaUpdater.cpp](src/OtaUpdater.cpp); `FW_VERSION` is in
   [src/OtaUpdater.h](src/OtaUpdater.h).
 - **Planned, not yet in any release: the OTA identity check.** It is specified in
-  [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md), §3 and Addendum 1 (2026-10-21).
-  From the release that adds it:
-  - every image carries an identity record, `<FW_OTA_PREFIX><variant::SLUG>`, at file
-    offset 0x120;
-  - CI refuses to publish an image whose record disagrees with the name it would be
-    published under;
-  - a device reads the record from the first bytes of the download and refuses an image
-    whose record is missing or isn't its own, **before anything is written to flash**.
+  [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md), §3, Addendum 1 (2026-10-21) and
+  A12.103-A12.104 (2026-11-05). From the release that adds it:
+  - every image carries a 64-byte identity record at file offset 0x120 naming its **board**
+    (`variant::SLUG`) and its **scope** (`FW_OTA_PREFIX`) as two fields
+    ([include/OtaIdentity.h](include/OtaIdentity.h));
+  - CI refuses to publish an image whose record disagrees with its env or with the name it
+    would be published under, and refuses a fleet in which two envs of one board name different
+    partition tables (`scripts/check_ota_identity.py`);
+  - a device reads the record from the first 352 bytes of the download and installs the image
+    only if it is **exactly what the device asked for: its own board, and the scope in its
+    request** -- **before anything is written to flash**. A normal update asks for the device's
+    own scope; a scope switch asks for the chosen scope's file, so every scope's release for a
+    board stays installable when it is the one asked for. A refusal draws nothing on screen and
+    records `refused-<reason>` (`no-record`, `bad-record`, `foreign`, `truncated`).
 
   What that release makes permanent:
-  - **No OTA downgrade past it.** Images built before it carry no record, so every device
-    running the check refuses them. That includes an old binary re-published under a
-    higher `version.txt`. A rollback must be a new build that carries the record. USB
-    flashing is unaffected.
-  - **Identities are permanent.** A device refuses every later image if its edition
-    prefix or slug is renamed, or if the record's layout changes incompatibly. Each of
-    those needs its own ruling and, first, a transitional release on the fleet that
-    accepts both.
+  - **No OTA downgrade past it, in any scope.** Images built before it carry no record, so every
+    device running the check refuses them -- its own scope's and every other scope's alike. That
+    includes an old binary re-published under a higher `version.txt`, and a switch to a scope
+    whose published image predates the release. A rollback must be a new build that carries the
+    record. USB flashing is unaffected.
+  - **Board identities and the record's format are permanent.** A device refuses every later
+    image if its board's `variant::SLUG` is renamed, or if the record's layout changes
+    incompatibly. Each needs its own ruling and, first, a transitional release on the fleet that
+    accepts both. A scope prefix rename strands nothing through the check: a device asking by the
+    old name gets a 404 (`fail--102`), as fetch-by-name already does.
+  - **A factory image built before it carries no check and no record.** Devices running it
+    accept whatever they fetch, and once on this release they refuse that factory image over OTA;
+    only a cable puts it back. A factory image that should check from first boot, or be reachable
+    over OTA later, is built at or after this release.
 
-  **Before cutting that release (ruled 2026-10-21):** it needs **Daniel's explicit OK at
-  cut time, with both consequences above named in plain words**: no OTA downgrade past
-  it, and fixed identities. A green CI run is not that OK.
+  **Before cutting that release (ruled 2026-10-21, kept 2026-11-05):** it needs **Daniel's
+  explicit OK at cut time, with these consequences named in plain words**: no OTA downgrade past
+  it in any scope, fixed board identities, and where the factory image stands. A green CI run is
+  not that OK.
 
   **No prerelease, bench test or otherwise (ruled 2026-10-21),** until what each release
   job does on a prerelease publish has been brought to the reviewer and Daniel has OK'd
