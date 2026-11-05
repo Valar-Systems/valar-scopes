@@ -1028,3 +1028,152 @@ recorded above with its cause.
 > 4. R3 re-runs after the fix, in a slot I set outside board windows.
 >
 > Held: R4, until R3 passes. Keep wt-deploy/proxy/node_modules (C: had 60,141 MiB free at 00:31Z). The stored opuk frames stay in the bucket: deleting data is Daniel's call, and nothing shipped requests /wx yet.
+
+### The ruling's item 1, read-only (2026-11-05 ~00:36-00:40Z)
+
+**(i) The limits each version carried, from the version records** (`wrangler versions view <id> --json`, not the toml):
+
+| version | `script_runtime.limits.cpu_ms` | `usage_model` | binding |
+|---|---|---|---|
+| `d37d9a21` (R3, rolled back) | **5000** | standard | `WX` -> `blipscope-wx` |
+| `582612da` (live since 00:18:33Z) | **5000** | standard | `WX` -> `blipscope-wx` |
+
+**(ii) The three invocations, from their Workers Logs invocation records** (`$workers.*`):
+
+| scheduledTime | `cpuTimeMs` | `wallTimeMs` | `outcome` |
+|---|---|---|---|
+| 22:19:05.233Z | **5,426** | 38,313 | **`ok`** |
+| 23:19:05.233Z | **6,072** | 38,807 | **`ok`** |
+| 23:29:05.233Z | **6,020** | 39,689 | **`ok`** |
+
+- The GraphQL per-minute figures (5,426.5 / 6,072.8 / 6,020.0) agree to the millisecond. So the two instruments
+  read one quantity.
+- `wallTimeMs` is about 38-40 s: the `:00` check, the wait to `:30`, then the `:30` check.
+
+**(iii) What Cloudflare's docs say** (developers.cloudflare.com, read 2026-11-05):
+
+- **On the limit itself.** `/workers/platform/limits/#cpu-time` and `/workers/wrangler/configuration/#limits` both say:
+  *"Each isolate has some built-in flexibility to allow for cases where your Worker infrequently runs over the
+  configured limit. If your Worker starts hitting the limit consistently, its execution will be terminated according
+  to the limit configured."*
+  - Neither page quantifies "infrequently" or "consistently".
+  - The over-limit outcome is `exceededCpu` (in analytics and Logpush).
+  - The Workflows page calls the same thing `exceededResources` in Workers metrics.
+- **Specific to scheduled events:** the limits table gives Workers Paid **"CPU time per Cron Trigger: 30 seconds
+  (< 1 hour interval)"**. The pricing page says a Cron Trigger invocation may use up to 15 minutes. The two pages
+  disagree.
+  - Nothing else on either page is specific to how `cpu_ms` is enforced on scheduled events.
+- **So:** 3 of 127 invocations over a 5,000 ms limit, ending `ok`, is what the documented "flexibility" describes.
+  - It also means **R3-6's gate, "0 CPU-limit errors", can stay at 0 while invocations run over the limit.** Whether
+    it can ever fire is the positive control's question.
+
+**A premise of item 2 doesn't hold: there is no `blipscope-wx-dev` bucket.**
+- `wrangler r2 bucket list` (read-only) shows 4 buckets. The weather one is `blipscope-wx` alone.
+- `blipscope-wx-dev` is the name of the proxy's **top-level dev/test binding** (`proxy/wrangler.toml`: "DEV/TEST
+  ONLY: tests get an in-memory bucket"). Staging and production both bind `blipscope-wx`.
+- Creating the bucket is an account change, so the plan below lists it as Daniel's.
+
+**Beside item 1, read-only: per invocation, what each product built** (`tools/wx/r3_minute_join.py`: Workers Logs
+invocation records joined to each product's check lines by `scheduledTime`). Over R3's 131 invocations, all `ok`:
+
+| built in the invocation | n | median CPU (ms) | max (ms) |
+|---|---|---|---|
+| nothing | 52 | 26 | 58 |
+| one `opuk` frame, no `cref` frame | 12 | **2,161** | 2,948 |
+| one `cref` frame, no `opuk` frame | 53 | 1,197 | 2,504 |
+| **one of each** | 12 | **3,452** | **6,072** |
+| two `opuk` (the deploy's backfill), with and without `cref` | 1 + 1 | 2,274 / 2,512 | |
+
+- Baseline, `582612da` with `cref` alone (19:00-21:00Z): building invocations have a median of 1,328 and a max of
+  3,621; the rest have a median of 20.
+- **What this changes in my R3 report:** I wrote "one `opuk` build adds about 2-3 s" with no alternative named.
+  - The 12 invocations where `opuk` built alone bear that out: 1,515-2,948 ms.
+  - The cause of the **over-5,000 readings** is more specific: all three are invocations where **both** products
+    built a frame (3 of the 12 such).
+  - The two deploy-minute invocations that built two `opuk` frames read only 2,274 and 2,512 ms. That's unexplained.
+    A fresh isolate after the deploy, or cheaper backfill frames, would each fit, and these data separate neither.
+
+### Plan S: one staging copy of the ingest, for the ruling (proposed 2026-11-05 ~00:45Z; nothing runs before the ruling and a slot)
+
+**Prerequisite, Daniel's: the bucket.** `blipscope-wx-dev` doesn't exist (above), so Daniel creates it, or the
+ruling names another target. The copy never binds `blipscope-wx`.
+
+**The code, one PR (predictions frozen in it before the code):**
+- **`proxy/wx-ingest-dev.wrangler.toml`.**
+  - Worker name `blipscope-wx-ingest-dev`, in every env block, so it's one Worker and never the production name.
+  - `workers_dev = false`, no routes.
+  - `WX` -> `blipscope-wx-dev`, repeated in each env block, because bindings don't inherit.
+  - Observability on, `head_sampling_rate = 1`.
+  - One `[env.<phase>]` per phase below, each setting `MODE`, `cpu_ms` and `crons`.
+- **`proxy/src/wx/ingest-dev-worker.ts`,** a dev-only entry that nothing in production imports. Its `scheduled()`
+  keeps production's shape: a `:00` check, then a `:30` check in the same invocation. By `MODE`:
+  - **`plant`:** a synthetic busy loop, a fixed integer iteration count `ITER` whose result is logged so it can't be
+    optimised away. It touches no bucket and no upstream. (`Date.now()` doesn't advance during CPU in workerd, so the
+    loop is bounded by count, not by time.)
+  - **`cref` / `opuk`:** `checkAll` over that one product. `checkAll` gains an optional product list, defaulting to
+    `PRODUCTS`, so production's call is unchanged. A test asserts production's entry still runs both products.
+- **Host tests:** the filter; production's default; the plant's result is deterministic.
+
+**The phases, one deploy each to the same Worker; every version record is read and printed after its deploy:**
+
+| phase | env | `cpu_ms` | runs | for |
+|---|---|---|---|---|
+| **S0** | `off` | 30,000 | **no cron** | deployed inert. Its version record must show exactly one binding, `WX` -> `blipscope-wx-dev`, and no schedule, before anything is armed |
+| **S1** | `plantcal` | 30,000 | 3 invocations | the plant's own CPU, `C`, read in the same instrument. `ITER` is chosen locally to aim at about 2,000 ms; local timing only picks the count and is not a reading |
+| **S2** | `plant` | **100** | **10 invocations**, one a minute | **the positive control.** Same code and `ITER` as S1, at 1/20 of its CPU, every invocation, because the docs tolerate *infrequent* overruns |
+| **S3** | `cref` | 30,000 | 60 invocations | the `cref`-only control |
+| **S4** | `opuk` | 30,000 | until **N = 12** `stored` checks | an `opuk` build on Cloudflare's runtime |
+| **S5** | `off` | 30,000 | **no cron** | the stop |
+
+- `cpu_ms` 30,000 is the documented cap for a sub-hourly Cron Trigger, so S3 and S4 read the CPU uncut.
+- **Instruments:** R3-6's own (`workersInvocationsAdaptive` by status, now with a script-name argument) and the
+  Workers Logs invocation records (`$workers.outcome`, `cpuTimeMs`, `wallTimeMs`), joined per invocation by
+  `r3_minute_join.py`.
+
+**S1, frozen:**
+- **As predicted:** 3 records, all `ok`, each within ±25% of their median `C`.
+- **Off, then stop:** `C` under 500 ms, because S2's overrun would then be under 5x.
+
+**S2's verdict table, frozen:**
+
+| result | means |
+|---|---|
+| at least 1 of the 10 is `exceededCpu` in Logs, **and** R3-6's instrument shows a non-success status in the window | **the CPU-limit gate is LIVE.** The count is printed |
+| at least 9 records, all `ok` / `success` | **the gate is BLIND:** it can't see a CPU-limit outcome, so tonight's "0 CPU-limit errors" proved nothing |
+| anything else (fewer than 9 records, the two instruments disagree, an outcome outside `ok` / `exceededCpu` / `exceededResources`) | the instrument is unreliable at this scale: **stop and decide** |
+
+**S3 and S4, frozen** (from tonight's join):
+
+| phase | invocations that built a frame | the rest | escape |
+|---|---|---|---|
+| **S3** | median in **[900, 1,700] ms**, max ≤ 4,000 (tonight 1,197 / 2,504; baseline 1,328 / 3,621) | median ≤ 100 ms | outside -> stop and decide |
+| **S4** | median in **[1,500, 3,000] ms**, max ≤ 4,000 (tonight, `opuk` alone: 2,161 / 2,948) | median ≤ 100 ms | outside -> stop and decide |
+
+- **S4's count:** N = 12 counts only `stored` checks, starting after the empty bucket's backfill is done (the first
+  `stored` after the last `backfilled`).
+- **S4's window** closes at the 12th, or at 120 min. Fewer than 12 by then: the count is reported with CloudFerro's
+  error lines. Fewer than 6 is BLIND.
+- **S4's entry runs `opuk` alone,** which is exactly the invocation either fix shape would run (its own Worker, or
+  its own cron). So S4 measures the fix's real invocation.
+
+**S5, the stop:**
+- The `off` env is re-deployed: no cron, and `MODE` isn't `plant`.
+- **Verified:** the version record shows no schedule, and R3-6's instrument shows 0 invocations of
+  `blipscope-wx-ingest-dev` over 10 min after it, read twice 5 min apart.
+- **Deleting the Worker and the bucket is Daniel's.**
+
+**Cost and footprint:**
+- About 3.5 h of wall time: S0 5 min, S1 4, S2 11, S3 60, S4 up to 120, S5 15.
+- At most about 250 invocations, and under about 0.4 M CPU ms (about 1.3% of the 30 M included a month).
+- R2 operations on the dev bucket under 1,000.
+- **Upstreams:**
+  - S3 adds one NOAA reader for an hour.
+  - S4 makes the dev copy CloudFerro's only reader from us, since production's `opuk` is rolled back.
+- Nothing touches `blipscope-wx`, the proxy, or any board.
+
+**Order:**
+1. The PR, reviewed and merged.
+2. The bucket, from Daniel.
+3. A slot from the reviewer after blipscope-5c (#536) and the map server (#534). One deployer at a time.
+4. S0 to S5.
+5. Then the fix (item 3), with its own predictions.
