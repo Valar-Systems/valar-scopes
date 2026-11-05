@@ -4728,3 +4728,12 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
   for the arms.
 - A new `k6_arms_grade.py` applies the table above to the three p95s. It is selftested on synthetic values: one
   case per outcome, (a) to (d).
+
+**The tools, built and checked** (scratchpad; 2026-11-05, before any window):
+
+| file | sha256 (12) | checked |
+|---|---|---|
+| `k6_arm_run.py` | `793a889aa195` | Derived from `k6_run.py` (`810cb54c3bba`, unchanged) by `make_k6_arms.py` (`7e5e15022d59`): 5 edits, each anchor found once. They add the arm argument, `arm_labels()`, its call, the arm's labels in place of the default's, and the block to 03:05Z. The restore rehearsal passes every branch, R1-R6, on it and on the original |
+| `k6_arms_rehearsal.py` | `9ac0317d23f9` | `arm_labels` extracted unmodified and run on the real 11-04 record and the source's default. A1-A6 pass: F has 5 on; L1 equals the record (`info-type` only); L1 refuses a differing field; L0 has all 15 off; a 16th field is refused; an unknown arm is refused. The plant (L1's check removed) turns **exactly A3** BAD |
+| `k6_arms_grade.py` | `e868e46c609e` | The selftest passes 15/15: (a), (b), (c), and (d) by each of its routes, with the band edges (86/86.1, 95, 98.9/99) on the right side |
+| `w5p5_run.py` | `21e426232ff6` | Its block now ends at 03:05Z (was "until Daniel lifts the hold"). The rehearsal's R1-R8 all fire, R8 included: a window from 20:00Z is refused, and one after the block is clear |
