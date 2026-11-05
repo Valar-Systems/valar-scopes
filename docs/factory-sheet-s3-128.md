@@ -32,8 +32,9 @@ esptool --chip esp32s3 --port <PORT> --before default-reset --after hard-reset w
 ```
 
 **B. Espressif Flash Download Tool:**
-1. Start the tool. Set **ChipType** to `ESP32-S3`, **WorkMode** to `Develop`, and **LoadMode** to
-   `USB`. Click **OK**.
+1. Start the tool. In its first window, choose the chip type **ESP32-S3**: set **ChipType** to
+   `ESP32-S3`, **WorkMode** to `Develop`, and **LoadMode** to `USB`. Click **OK**. Any other chip
+   type is wrong for this board.
 2. In the first row, select `firmware-s3-128.factory.bin`, enter the address `0x0`, and tick the
    row. Leave every other row empty and unticked.
 3. Tick **DoNotChgBin**, so the file is written exactly as it is.
@@ -41,8 +42,8 @@ esptool --chip esp32s3 --port <PORT> --before default-reset --after hard-reset w
 5. For each board: click **ERASE** and wait until it finishes. Then click **START** and wait until
    it shows **FINISH**.
 
-*(bench)* These Download Tool steps follow Espressif's user guide. They have not yet been run on
-our bench.
+*(bench)* These Download Tool steps follow Espressif's Flash Download Tool user guide for the
+ESP32-S3 (https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32s3/production_stage/tools/flash_download_tool.html). They have not yet been run on our bench.
 
 **If the computer does not see the board:** press and hold the board's left-side button for 2
 seconds to power it on. On this board, USB power alone may only light the charger LED. *(bench)*
@@ -101,14 +102,14 @@ esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset
 ```
 
 **B. 乐鑫 Flash 下载工具（Flash Download Tool）：**
-1. 打开工具，**ChipType** 选 `ESP32-S3`，**WorkMode** 选 `Develop`，**LoadMode** 选 `USB`，点击
-   **OK**。
+1. 打开工具，在第一个窗口中选择芯片类型 **ESP32-S3**：**ChipType** 选 `ESP32-S3`，**WorkMode** 选
+   `Develop`，**LoadMode** 选 `USB`，点击 **OK**。选择其他芯片类型对这块板都是错误的。
 2. 在第一行选择 `firmware-s3-128.factory.bin`，地址填 `0x0`，并勾选该行。其他行全部留空、不勾选。
 3. 勾选 **DoNotChgBin**，使文件按原样写入。
 4. 选择该板子的 COM 端口。
 5. 每块板：先点击 **ERASE**，等待擦除完成；再点击 **START**，等待显示 **FINISH**（完成）。
 
-*(待验证)* 以上下载工具步骤依据乐鑫用户指南编写，尚未在我们的测试台上实际运行。
+*(待验证)* 以上下载工具步骤依据乐鑫 Flash 下载工具 ESP32-S3 用户指南编写（https://docs.espressif.com/projects/esp-test-tools/zh_CN/latest/esp32s3/production_stage/tools/flash_download_tool.html），尚未在我们的测试台上实际运行。
 
 **如果电脑识别不到板子：**长按板子左侧按键 2 秒开机。这块板仅接 USB 时，可能只有充电指示灯亮。*(待验证)*
 
