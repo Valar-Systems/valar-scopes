@@ -1,0 +1,112 @@
+# blipscope-wx-ingest-dev -- Plan S's staging copy of the weather ingest (docs/wx-plan-s.md). Bound ONLY to
+# blipscope-wx-dev: never the production bucket, never a route. scripts/check-wx-plant.mjs reads every config below
+# from its dry-run output and fails on any other binding (PB2).
+#
+# One env per phase; every env names the SAME Worker, so a phase is a redeploy, never a second Worker:
+#   npx wrangler deploy -c wx-ingest-dev.wrangler.toml -e <off|plantcal|plant|cref|opuk>
+# The top level is `off` too, so a deploy without -e is inert. Bindings and vars do not inherit, so each env
+# repeats them; triggers and limits are repeated too, so no phase depends on inheritance rules.
+# Deleting this Worker, and the bucket, is Daniel's call.
+name = "blipscope-wx-ingest-dev"
+main = "src/wx/ingest-dev-worker.ts"
+compatibility_date = "2025-12-01"   # production's ingest date
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+workers_dev = false
+
+[triggers]
+crons = []
+[limits]
+cpu_ms = 30000
+[observability]
+enabled = true
+head_sampling_rate = 1
+[vars]
+MODE = "off"
+[[r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# S0 and S5: deployed inert. No cron, and MODE off.
+[env.off]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.off.triggers]
+crons = []
+[env.off.limits]
+cpu_ms = 30000
+[env.off.observability]
+enabled = true
+head_sampling_rate = 1
+[env.off.vars]
+MODE = "off"
+[[env.off.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# S1: the plant's own CPU, uncut (30 000 ms is the documented cap for a sub-hourly Cron Trigger).
+[env.plantcal]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.plantcal.triggers]
+crons = ["* * * * *"]
+[env.plantcal.limits]
+cpu_ms = 30000
+[env.plantcal.observability]
+enabled = true
+head_sampling_rate = 1
+[env.plantcal.vars]
+MODE = "plant"
+[[env.plantcal.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# S2: the positive control. The same plant under cpu_ms 100, every minute (the docs tolerate INFREQUENT overruns).
+[env.plant]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.plant.triggers]
+crons = ["* * * * *"]
+[env.plant.limits]
+cpu_ms = 100
+[env.plant.observability]
+enabled = true
+head_sampling_rate = 1
+[env.plant.vars]
+MODE = "plant"
+[[env.plant.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# S3: cref alone, the control.
+[env.cref]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.cref.triggers]
+crons = ["* * * * *"]
+[env.cref.limits]
+cpu_ms = 30000
+[env.cref.observability]
+enabled = true
+head_sampling_rate = 1
+[env.cref.vars]
+MODE = "cref"
+[[env.cref.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# S4: opuk alone -- the invocation either fix shape would run.
+[env.opuk]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.opuk.triggers]
+crons = ["* * * * *"]
+[env.opuk.limits]
+cpu_ms = 30000
+[env.opuk.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opuk.vars]
+MODE = "opuk"
+[[env.opuk.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"

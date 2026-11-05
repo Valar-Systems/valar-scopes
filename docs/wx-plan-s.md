@@ -98,3 +98,43 @@ change the file, and the failure count must move, or the sabotage did not apply)
 **Instruments:** R3-6's own (`workersInvocationsAdaptive`, per status and per minute, for the dev script's name), and the
 Workers Logs invocation records (`$workers.outcome`, `cpuTimeMs`, `wallTimeMs`), joined per invocation by
 `tools/wx/r3_minute_join.py` (on `docs/wx-opuk-r3`).
+
+## 4. Local readings, before the push (CI is the authority)
+
+Predictions frozen at `22707c5` (00:51:39Z), before any code.
+
+- **Typecheck** and **typecheck:scripts:** green.
+- **`test/wx-ingest-dev.test.ts`:** 6 passed.
+- **The test sabotages** (`proxy/scripts/sabotage-wx-plan-s.py`): **all as predicted.** Each file was restored by
+  bytes, with its sha256 matching the original.
+
+  | sabotage | failed |
+  |---|---|
+  | PS1s | PS1 |
+  | PS2s | PS2, PS6 |
+  | PS3s | PS3 |
+  | PS45s | PS4, PS5 |
+
+- **`check-wx-plant.mjs`:**
+  - **PB1 PASS:** production's bundle holds the marker 0 times, with anchor 1 and 1 in the dev bundle.
+  - **PB2 PASS:** all 6 dev targets bind `WX` -> `blipscope-wx-dev`, each with its `MODE`.
+  - **`--selftest` PASSED:** PB1s reads FAIL with the marker found once; PB2s reads FAIL on `cref` alone.
+  - **With no Cloudflare login at all** (an empty home, no token): PASS. CI has no credentials for this step and
+    needs none.
+- **Found while building, by the selftest, before any push:**
+  - The first draft named `PLANT_MARKER` only in `devCheck`'s log line.
+  - PB1s then read **PASS**. Its bundle held the loop's constants twice and the marker 0 times: esbuild kept
+    `plant()` and dropped everything that named the marker.
+  - So a production import of the loop alone would have passed PB1.
+  - **The fix:** `plant()`'s own guard throws `PLANT_MARKER`, so the marker travels with the loop. PB1s then read
+    FAIL as predicted.
+  - The prediction didn't change; the check was made able to see what it was predicted to see.
+- **The full proxy suite, locally: 1 failed, 896 passed, 1 skipped (898).** The total is the frozen +6.
+  - The one failure is `photolicense.test.ts` Q-C1: the committed `credits.html` against its render.
+  - **The alternative, that this PR broke it, is excluded:**
+    - the PR touches neither of Q-C1's inputs (`proxy/photos/`, `photolicense.ts`: an empty diff);
+    - this worktree checks `credits.html` out with CRLF endings, all 291 of them (`git ls-files --eol`:
+      `i/lf w/crlf`), and the render emits LF;
+    - main's CI, on an LF checkout, reads 891 passed.
+  - The reading that counts is the PR's CI: **897 passed, 1 skipped (898).**
+- **The CI step** is the one `--selftest`. It runs the real check, which must PASS, then both sabotages.

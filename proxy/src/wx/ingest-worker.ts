@@ -6,7 +6,7 @@
 // overlapping run or a retry can only find the work already done.
 
 import { type Fetch, type IngestOpts, DEFAULT_OPTS, NoaaError, ingestOnce } from "./ingest";
-import { PRODUCTS } from "./products";
+import { type Product, PRODUCTS } from "./products";
 
 export interface IngestEnv { WX: R2Bucket }
 
@@ -16,11 +16,14 @@ const workerFetch: Fetch = (u, init) => fetch(u, init);
 
 /** One check of every product, the products concurrently (docs/uk-data.md §1.3): opuk's listing and range reads
  *  overlap cref's NOAA fetch instead of queueing behind it. Each product's check is caught on its own, so one
- *  product's failure never stops another's. doFetch, log and opts are injectable for the tests. */
+ *  product's failure never stops another's. doFetch, log and opts are injectable for the tests. `products` is
+ *  for the staging copy (ingest-dev-worker.ts, docs/wx-plan-s.md), which checks one product at a time; production
+ *  passes nothing, so it checks every product (PS1 in test/wx-ingest-dev.test.ts). */
 export async function checkAll(env: IngestEnv, label: string, doFetch: Fetch = workerFetch,
                                log: (line: string) => void = (l) => console.log(l),
-                               opts: IngestOpts = DEFAULT_OPTS): Promise<void> {
-  await Promise.all(PRODUCTS.map(async (p) => {
+                               opts: IngestOpts = DEFAULT_OPTS,
+                               products: readonly Product[] = PRODUCTS): Promise<void> {
+  await Promise.all(products.map(async (p) => {
     const t0 = Date.now();
     try {
       const r = await ingestOnce(env.WX, p, t0, doFetch, opts);
