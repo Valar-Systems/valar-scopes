@@ -407,3 +407,75 @@ the ordinary reconcile.
 - **S-R1** (the bump removed): red exactly {R1}.
 - **The reconcile reader:** H1-H3 pass. Under S-H (the block removed) all three fail.
 - Every planted file was restored by bytes, and the tree was clean afterwards.
+
+## Seeding before the deploy (ruled ~18:45Z): frozen before its code
+
+**The order:**
+1. Daniel seeds the list from his bench records with the tool.
+2. This session runs the production coverage check as the control. **Any device id that has
+   authenticated in production in the last 30 days and has no row stops the deploy.**
+3. The factory's list is imported with the same tool when it arrives.
+
+### The seed: `activation.ts seed`, run by Daniel
+
+The admin route does not exist in production until #548 deploys, so the seed writes KV directly
+with `wrangler kv bulk put`, under Daniel's own `wrangler login` session.
+- **Input.** It reads a CSV with a `device_id` column (the shape `provisioned.csv` has), a plain
+  list of 16-hex ids, or MACs and esptool logs (ids derived with the mint's own function).
+- **It never rewrites an existing row.** A re-run, or a seed after an activation, leaves every
+  existing `act:` row alone.
+- **It writes, verifies, repairs and verifies again,** because a bulk put can drop keys
+  silently. That is CLAUDE.md's practice, and a dropped key here is a customer refused.
+- **It prints counts only:** ids read, already present, written, repaired, missing after repair.
+  The id file it hands to wrangler is a temporary file, deleted afterwards. Exit 0 complete,
+  1 incomplete, 2 usage.
+
+| | check (in `activation-lib`, with an in-memory store) | sabotage |
+|---|---|---|
+| **K1** | CSV mode: ids come from the `device_id` column; a row whose `device_id` is not 16 hex is reported by line number; other columns are ignored | |
+| **K2** | list mode (16 hex per line) and MAC/log mode (MACs returned for derivation) | |
+| **K3** | the plan skips every id that already has a row | **S-K3:** the plan returns every id. Red: K3 |
+| **K4** | a store that silently drops one key on the first bulk put: the repair writes exactly that key, and the result reads written 3, repaired 1, missing 0 | **S-K4:** the repair pass removed. Red: K4 |
+| **K5** | a store that drops the same key on every put: the result reads missing 1, not complete, and never claims success | (S-K4's control: K5 stays green) |
+
+### The production check: `activation-coverage.ts`, run by this session
+
+Every input is read-only: the `kv-read` and `analytics-read` lines of the token file. Nothing is
+written.
+- **Who authenticated in the last 30 days, from two instruments:**
+  - Analytics Engine: the verified device id (`blob5`) on per-request and boot points;
+  - the `fw:` rows whose `lastSeen` is within 30 days.
+
+  The check takes the union. `fw:` alone would miss a device that authenticates without sending a
+  firmware version. Ids on the repo's fake-id allowlist are excluded: production refuses them.
+- **It compares that union with the `act:` rows,** and prints counts only:
+  - the size of each source, and of the union;
+  - how many have a row, and how many are missing;
+  - of the missing, how many have an enrolment-ledger row (`enr:dev:`, boards that self-enrolled)
+    and how many do not;
+  - one boolean: whether the test identity (the token file's `test-device`) is among the missing.
+- **Anchor controls.** Each source must return at least one id, and the `act:`/`enr:dev:` listings
+  must be able to see `cfg:fleet`. Any that cannot is exit 2, "cannot see", never a pass.
+- **Exit:** 0 missing none, 1 missing some, 2 cannot see.
+
+| | check (the pure `coverage()`) | sabotage |
+|---|---|---|
+| **K6** | given a union, the listed set, the ledger and the test id, it returns the exact counts and the boolean | **S-K6:** listed ids counted as missing. Red: K6 |
+
+**Counts:** 6 new tests (K1-K6), so `vitest list` reads **940**.
+
+**The runs:**
+
+| run | when | predicted | outside the set |
+|---|---|---|---|
+| **C0** | now, before any seed (the negative control) | exit 1, missing = the union, because no `act:` row exists | 0 missing, or exit 2: **stop**, the check is blind |
+| **R0** | a staging rehearsal of the seed by this session: three fake allowlisted ids, run twice | first run: read 3, written 3, missing 0; second run: already 3, written 0 | anything else: **stop** before Daniel runs it |
+| **C1** | after Daniel's seed | exit 0, missing 0 | missing > 0: **the deploy stops**. Read the breakdown, which is named below |
+
+**The likeliest breakdown if C1 misses, named before it runs:**
+- **Self-enrolled boards:** a missing id **with** a ledger row is a board that self-enrolled and is
+  not in Daniel's bench records.
+- **The test identity:** it authenticates in production every day (`smoke-prod.sh`), so it is in
+  the union and will be missing unless the seed includes it.
+
+Both need a ruling (seed them, or exempt them) rather than an improvised fix.
