@@ -8,14 +8,19 @@
 
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
-#include <HTTPUpdate.h>
+#include <HTTPUpdate.h>   // the HTTP_UE_* failure codes, kept as the fail-<n> tokens (A12.104)
+#include <Update.h>
 #include <Preferences.h>
 #include <time.h>
 #include <esp_ota_ops.h>
 #include <WiFi.h>
+#ifdef WX_OTA_BENCH
+#include <mbedtls/sha256.h>
+#endif
 
 #include "HeapHealth.h"
 #include "BootReportPolicy.h"
+#include "OtaInstall.h"
 
 namespace {
 
@@ -70,14 +75,19 @@ void NoteOtaAttempt(int fwTo, uint32_t preLargest)
 
 // Failure is recorded in the same boot, so post is the heap right after the
 // attempt -- the interesting number when asking why an update didn't fit.
-void NoteOtaFailed(int err)
+void NoteOtaResult(const String& res)
 {
     Preferences p;
     if (!p.begin(OTA_MEM_NS, false))
         return;
     p.putUInt("post", ESP.getMaxAllocHeap());
-    p.putString("res", String("fail-") + err);
+    p.putString("res", res);
     p.end();
+}
+
+void NoteOtaFailed(int err)
+{
+    NoteOtaResult(String("fail-") + err);
 }
 
 // "releases/latest/download/<asset>" always resolves to the newest published
@@ -105,9 +115,18 @@ const char* VERSION_URL = OTA_RELEASE_BASE "/version.txt";
 #define FW_OTA_PREFIX ""
 #endif
 
-String FirmwareUrl()
+// WHAT THIS DEVICE ASKS FOR: its own board, and its own scope (OtaIdentity.h). The URL
+// and the identity check are both built from this one request, so the name fetched
+// and the name checked cannot disagree. A scope switch is a request for another scope
+// on the same board; nothing here can ask for another board.
+ota::Identity OwnRequest()
 {
-    return String(OTA_RELEASE_BASE "/firmware-") + FW_OTA_PREFIX + variant::SLUG + ".bin";
+    return ota::Request(variant::SLUG, FW_OTA_PREFIX);
+}
+
+String FirmwareUrl(const ota::Identity& req)
+{
+    return String(OTA_RELEASE_BASE "/firmware-") + req.scope + req.board + ".bin";
 }
 
 // X.509 validation needs a roughly-correct clock (cert validity periods), but the
@@ -158,7 +177,232 @@ void drawProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
     board::DisplayFlush(tft); // RGB panels: make the paint visible (no-op on SPI SKUs)
 }
 
+// The bar's first and last draws each say so on serial (A2.1): absence cannot be seen
+// on a panel, so "a refusal draws nothing" is checked by counting these lines.
+void ScreenProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
+{
+    drawProgress(tft, fb, pct);
+    Serial.printf("[ota] screen: progress %d\n", pct);
+}
+
+// ota::Install's source over the download stream.
+struct StreamSource {
+    Stream& s;
+    size_t read(uint8_t* buf, size_t n) { return s.readBytes(buf, n); }
+};
+
+// ota::Install's flash: a thin adapter over Update (A1.2).
+//
+// writeRest is a loop over Update.write, NOT Update.writeStream: writeStream insists
+// that the stream's next byte is the image magic 0xE9, which is true at the start of
+// an image and false once the 352-byte head has been read. The loop keeps
+// writeStream's patience exactly -- 300 empty reads 100 ms apart, then
+// UPDATE_ERROR_STREAM -- so a stalled download still records fail-6.
+class UpdateFlash {
+public:
+    UpdateFlash(LGFX& tft, LGFX_Sprite& fb, const String& md5) : tft_(tft), fb_(fb), md5_(md5) {}
+
+    bool begin(size_t total)
+    {
+        if (!Update.begin(total, U_FLASH)) {
+            err_ = Update.getError();
+            return false;
+        }
+        if (md5_.length() && !Update.setMD5(md5_.c_str())) {
+            err_ = HTTP_UE_SERVER_FAULTY_MD5;
+            Update.abort();
+            return false;
+        }
+        ScreenProgress(tft_, fb_, 0);   // the bar's first draw: after acceptance, never for a refusal
+        return true;
+    }
+
+    size_t write(const uint8_t* buf, size_t n)
+    {
+        const size_t w = Update.write(const_cast<uint8_t*>(buf), n);
+        if (w != n) err_ = Update.getError();
+        return w;
+    }
+
+    template <class Source>
+    size_t writeRest(Source& src, size_t n)
+    {
+        uint8_t buf[1024];
+        size_t done = 0;
+        int empty = 0;
+        while (done < n) {
+            const size_t got = src.read(buf, n - done < sizeof buf ? n - done : sizeof buf);
+            if (got == 0) {
+                if (++empty >= 300) {
+                    err_ = UPDATE_ERROR_STREAM;
+                    Update.abort();
+                    return done;
+                }
+                delay(100);
+                continue;
+            }
+            empty = 0;
+            if (write(buf, got) != got) return done;
+            done += got;
+        }
+        return done;
+    }
+
+    bool end()
+    {
+        ScreenProgress(tft_, fb_, 100);   // every byte is written: the bar's last draw, as httpUpdate drew it
+        if (!Update.end()) {
+            err_ = Update.getError();
+            return false;
+        }
+        return true;
+    }
+
+    int error() const { return err_; }
+
+private:
+    LGFX& tft_;
+    LGFX_Sprite& fb_;
+    String md5_;
+    int err_ = 0;
+};
+
+// THE DOWNLOAD, opened here rather than by httpUpdate.update(), so the identity is
+// read from the stream BEFORE anything is written (A1.2). Every condition httpUpdate
+// turned into an HTTP_UE_* code keeps that code (A12.104's mapping), and the request
+// is shaped as httpUpdate shaped it -- HTTP/1.0 (no chunked transfer), its timeout,
+// forced redirects (latest/download redirects to GitHub's CDN), its user agent --
+// minus the x-ESP32-* headers, which carried the device's MAC addresses to a CDN
+// that reads none of them.
+struct Download {
+    enum Kind { Failed, NoUpdate, Done } kind;
+    int code;           // Failed: the fail-<n> code
+    ota::Result result; // Done: what ota::Install decided
+};
+
+Download OpenAndInstall(WiFiClientSecure& client, const String& url, const ota::Identity& req,
+                        LGFX& tft, LGFX_Sprite& fb)
+{
+    Download d;
+    d.kind = Download::Failed;
+    d.code = 0;   // httpUpdate's code when HTTPClient::begin refused the URL
+    memset(&d.result, 0, sizeof d.result);
+
+    HTTPClient http;
+    if (!http.begin(client, url))
+        return d;
+    http.useHTTP10(true);
+    http.setTimeout(8000);
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    http.setUserAgent("ESP32-http-Update");
+    http.addHeader("Cache-Control", "no-cache");
+    const char* keys[] = {"x-MD5"};
+    http.collectHeaders(keys, 1);
+
+    const int code = http.GET();
+    if (code <= 0) {
+        d.code = code;
+    } else if (code == HTTP_CODE_NO_CONTENT || code == HTTP_CODE_NOT_MODIFIED) {
+        d.kind = Download::NoUpdate;
+    } else if (code != HTTP_CODE_OK) {
+        d.code = code == HTTP_CODE_NOT_FOUND ? HTTP_UE_SERVER_FILE_NOT_FOUND
+               : code == HTTP_CODE_FORBIDDEN ? HTTP_UE_SERVER_FORBIDDEN
+               : HTTP_UE_SERVER_WRONG_HTTP_CODE;
+    } else {
+        const int len = http.getSize();
+        const int space = ESP.getFreeSketchSpace();
+        if (len <= 0) {
+            d.code = HTTP_UE_SERVER_NOT_REPORT_SIZE;
+        } else if (!space) {
+            d.code = HTTP_UE_NO_PARTITION;
+        } else if (len > space) {
+            d.code = HTTP_UE_TOO_LESS_SPACE;
+        } else {
+            StreamSource src{*http.getStreamPtr()};
+            UpdateFlash flash(tft, fb, http.header("x-MD5"));
+            d.result = ota::Install(src, flash, (size_t)len, req);
+            d.kind = Download::Done;
+        }
+    }
+    http.end();   // after a refusal this closes the connection 352 bytes in
+    return d;
+}
+
 } // namespace
+
+#ifdef WX_OTA_BENCH
+// O9's bench source (docs/weatherscope-stage3.md A1.3, A12.104): ota::Install with the
+// REAL adapter, fed an image's first bytes over USB-CDC instead of a download, so the
+// board -- not a fake -- shows whether a refusal touches flash. Bench env only; its
+// "[ota-bench]" marker is in check-no-bench-hooks.sh's list, so no shipping image can
+// carry it unseen.
+namespace {
+
+// A byte budget over Serial: after `left` bytes it reads 0 at once, so a cut stream
+// ends in writeRest's 300 empty reads rather than in Serial's timeout.
+struct SerialBudget {
+    size_t left;
+    size_t read(uint8_t* buf, size_t n)
+    {
+        if (n > left) n = left;
+        if (n == 0) return 0;
+        const size_t got = Serial.readBytes(buf, n);
+        left -= got;
+        return got;
+    }
+};
+
+// sha256 of the inactive slot's first 64 KB, 12 hex: whether anything was written.
+void SlotSha12(const esp_partition_t* slot, char* out)
+{
+    mbedtls_sha256_context c;
+    mbedtls_sha256_init(&c);
+    mbedtls_sha256_starts(&c, 0);
+    uint8_t buf[1024];
+    for (size_t off = 0; off < 65536; off += sizeof buf) {
+        esp_partition_read(slot, off, buf, sizeof buf);
+        mbedtls_sha256_update(&c, buf, sizeof buf);
+    }
+    uint8_t d[32];
+    mbedtls_sha256_finish(&c, d);
+    mbedtls_sha256_free(&c);
+    for (int i = 0; i < 6; ++i) snprintf(out + 2 * i, 3, "%02x", d[i]);
+}
+
+}  // namespace
+
+void OtaBenchRun(LGFX& tft)
+{
+    // The bench env is the s3-128, whose GC9A01 the bar draws on directly (drawProgress): the sprite is never
+    // created or touched, it only fills the adapter's signature.
+    LGFX_Sprite fb(&tft);
+    Serial.setTimeout(3000);
+    const String line = Serial.readStringUntil('\n');
+    unsigned long total = 0, n = 0;
+    if (sscanf(line.c_str(), "OTA %lu %lu", &total, &n) != 2 || total == 0 || n > total) {
+        Serial.println("[ota-bench] bad header");
+        Serial.setTimeout(1000);
+        return;
+    }
+    const esp_partition_t* slot = esp_ota_get_next_update_partition(nullptr);
+    const esp_partition_t* bootBefore = esp_ota_get_boot_partition();
+    char shaBefore[13], shaAfter[13];
+    SlotSha12(slot, shaBefore);
+    Serial.println("[ota-bench] go");
+    SerialBudget src{(size_t)n};
+    UpdateFlash flash(tft, fb, String());
+    const ota::Result r = ota::Install(src, flash, (size_t)total, OwnRequest());
+    uint8_t sink[64];
+    while (src.left && src.read(sink, sizeof sink)) {}   // a refusal leaves the rest unread: drain it
+    SlotSha12(slot, shaAfter);
+    const esp_partition_t* bootAfter = esp_ota_get_boot_partition();
+    char tok[32];
+    ota::Token(r, tok, sizeof tok);
+    Serial.printf("[ota-bench] result=%s boot=%s/%s slot=%s/%s\n", tok, bootBefore ? bootBefore->label : "?",
+                  bootAfter ? bootAfter->label : "?", shaBefore, shaAfter);
+    Serial.setTimeout(1000);
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // REBOOT-THEN-FETCH. Declared in OtaUpdater.h; EXTERNAL LINKAGE ON PURPOSE --
@@ -326,6 +570,19 @@ void LogOtaSlot(const char* when)
                   stateName,
                   next ? next->label : "?",
                   FW_VERSION);
+
+    // What this image says it is, read back from its own identity record
+    // (OtaIdentity.cpp). This read is also what keeps the record in the image: the
+    // linker script does not KEEP its section, so an unread record would be dropped.
+    uint8_t rec[ota::kRecordSize];
+    memcpy(rec, &ota::kOwnRecord, sizeof rec);
+    ota::Identity own;
+    const ota::Parsed p = ota::ParseRecord(rec, own);
+    if (p == ota::Parsed::Ok)
+        Serial.printf("[ota-id] board=%s scope=%s (record v%u)\n", own.board, own.scope[0] ? own.scope : "-",
+                      (unsigned)rec[4]);
+    else
+        Serial.printf("[ota-id] own record unreadable (%s)\n", p == ota::Parsed::NoRecord ? "no-record" : "bad-record");
 }
 
 void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
@@ -352,7 +609,8 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
 
     const int latest = ver.response.toInt();
 
-    Serial.printf("[ota] channel=%s%s current=%d latest=%d\n", FW_OTA_PREFIX, variant::SLUG, FW_VERSION, latest);
+    const ota::Identity req = OwnRequest();
+    Serial.printf("[ota] channel=%s%s current=%d latest=%d\n", req.scope, req.board, FW_VERSION, latest);
     if (latest <= FW_VERSION)
         return; // already up to date
 
@@ -391,19 +649,18 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
                   ESP.getFreeHeap(), preLargest,
                   heaphealth::FreeInternal8Bit(), (int)heaphealth::CanHandshake());
     NoteOtaAttempt(latest, preLargest);
-    drawProgress(tft, fb, 0);
+    // Nothing is drawn yet: the bar appears only once the image is accepted (A2.1), so a
+    // refused head never flashes a 0% bar.
 
     WiFiClientSecure updClient;
     updClient.setCACert(OTA_ROOT_CAS);
 
-    httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    httpUpdate.rebootOnUpdate(true);
     // Repaint only on a whole-percent change: each paint is a full-frame push +
-    // panel flush, and the callback fires per network chunk.
+    // panel flush, and the callback fires per flash sector.
     static int lastPct = -1;
     lastPct = -1;
-    httpUpdate.onProgress([&tft, &fb](int current, int total) {
-        const int pct = total > 0 ? (int)((current * 100L) / total) : 0;
+    Update.onProgress([&tft, &fb](size_t current, size_t total) {
+        const int pct = total > 0 ? (int)((current * 100ULL) / total) : 0;
         if (pct != lastPct) {
             lastPct = pct;
             drawProgress(tft, fb, pct);
@@ -431,7 +688,7 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
 
 #ifdef OTA_FAULT_AT_PCT
             // Bench-only fault injection (never compiled into a shipping env). Drops the
-            // link mid-transfer to exercise the failure path deliberately: httpUpdate must
+            // link mid-transfer to exercise the failure path deliberately: the download must
             // fail, NoteOtaFailed must record it, ReleaseBus() must run, and the device
             // must come back to a working radar rather than wedging with the bus held.
             // A partial OTA that bricks a unit is worse than one that never starts.
@@ -445,18 +702,46 @@ void MaybeUpdateFirmware(LGFX& tft, LGFX_Sprite& fb, HttpRequestManager& http)
         }
     });
 
-    const String firmwareUrl = FirmwareUrl();
+    const String firmwareUrl = FirmwareUrl(req);
     Serial.printf("[ota] downloading %s\n", firmwareUrl.c_str());
-    const t_httpUpdate_return ret = httpUpdate.update(updClient, firmwareUrl);
-    if (ret == HTTP_UPDATE_FAILED) {
-        Serial.printf("[ota] update failed (%d): %s\n",
-                      httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-        NoteOtaFailed(httpUpdate.getLastError());
+    const Download d = OpenAndInstall(updClient, firmwareUrl, req, tft, fb);
+    Update.onProgress(nullptr);   // the lambda captures this frame's tft/fb by reference
+
+    if (d.kind == Download::Done && d.result.outcome == ota::Outcome::Installed) {
+        // The pre-armed "incomplete" stands; the new image finalises it as "ok".
+        Serial.println("[ota] update installed; restarting");
+        Serial.flush();
+        delay(150);
+        ESP.restart();
+    }
+
+    if (d.kind == Download::Done && ota::IsRefusal(d.result.outcome)) {
+        // A REFUSAL DRAWS NOTHING (A2.1, ruled A4.1): the customer cannot act on it,
+        // and it repeats on every check until a correctly labelled image is published.
+        // The record and this line carry it.
+        char res[32], image[2 * ota::kFieldMax + 1];
+        ota::Token(d.result, res, sizeof res);
+        if (d.result.imageKnown)
+            snprintf(image, sizeof image, "%s%s", d.result.image.scope, d.result.image.board);
+        else
+            snprintf(image, sizeof image, "-");
+        Serial.printf("[ota] refused %s: requested=%s%s image=%s\n", res + strlen("refused-"), req.scope,
+                      req.board, image);
+        NoteOtaResult(res);
+    } else if (d.kind == Download::NoUpdate) {
+        // httpUpdate's HTTP_UPDATE_NO_UPDATES: nothing written, and the pre-armed
+        // "incomplete" stands, as it always has (A12.104 keeps the quirk).
+        Serial.println("[ota] the server answered 204/304: no update");
+    } else {
+        const int err = d.kind == Download::Done ? d.result.error : d.code;
+        Serial.printf("[ota] update failed (%d)\n", err);
+        NoteOtaFailed(err);
         drawStatus(tft, fb, "Update failed");
+        Serial.println("[ota] screen: status Update failed");
         delay(2000);
     }
-    // HTTP_UPDATE_OK reboots automatically (rebootOnUpdate(true)), so this only runs on
-    // the failure and no-update paths -- the success path never needs the bus again.
+    // An installed image restarts above, so this runs on every other path -- the
+    // success path never needs the bus again.
     http.ReleaseBus();
 }
 

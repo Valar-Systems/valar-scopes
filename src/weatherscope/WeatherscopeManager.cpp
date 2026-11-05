@@ -11,6 +11,9 @@
 #include <stdlib.h>   // before WxLogic.h, which calls strtod without including it (A8.15)
 
 #include "DeviceIdentity.h"
+#ifdef WX_OTA_BENCH
+#include "OtaUpdater.h"   // OtaBenchRun: O9's bench source (A12.104)
+#endif
 #include "FrameBuffer.h"
 #include "DiagText.h"      // /diag/wx (A9.42)
 #include "Layout.h"
@@ -959,6 +962,9 @@ void WeatherscopeManager::HandleSerialGestures()
 {
     while (Serial.available()) {
         const int ch = Serial.read();
+#ifdef WX_OTA_BENCH
+        if (ch == 'B') { OtaBenchRun(tft); continue; }   // O9 (A12.104): the OTA bench source, this env only
+#endif
         if (!feeds.stored) continue;
         const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'P' || ch == 'L' ||
                            ch == 'R' || ch == 'G' || ch == 'O';
