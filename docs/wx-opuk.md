@@ -1566,3 +1566,11 @@ propagate to the Cloudflare global network."*
   - **0** start in **[deploy + 900 s, deploy + 1,500 s]**;
   - read twice, at or after the deploy + 1,500 s and again 5 min later.
   - Before the deploy + 1,500 s, it reads "NOT YET", never a pass.
+
+**#543's CI at its head `8a4b109f16f0`, finished 05:16:20Z** (read only after every run completed):
+
+| | predicted (`f0a0622`) | got | verdict |
+|---|---|---|---|
+| proxy suite | 897 passed, 1 skipped (898) | **897 passed, 1 skipped (898)** | as predicted |
+| the plant selftest | PASSED; real PB2 7/7 with `idle` MODE `off`; PB2s FAIL on `cref` alone | **PASSED; real PB2 7/7** (top level, `off`, `idle`, `plantcal`, `plant`, `cref`, `opuk`, each `WX->blipscope-wx-dev` with its MODE; `idle` `"off"`); **PB2s FAIL ["cref"]** | as predicted |
+| check-runs | 41: 38 success, 3 skipped | **41: 38 success, 3 skipped**; device-ids, firmware, no-traffic-captures, workers, all `success` | as predicted |
