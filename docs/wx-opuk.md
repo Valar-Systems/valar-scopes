@@ -1727,3 +1727,43 @@ cron, and that deploy has now happened.
   - a sampling or reporting step in how `cpuTimeMs` is accounted for killed invocations.
 - Telling them apart needs a second `cpu_ms` value. That is not in Plan S. It matters to the fix: the real kill line
   above `cpu_ms` is unknown, so the fix budgets against `cpu_ms` itself.
+
+**S3 (clock-driven): OFF, on two clauses. Stopped.**
+
+| | |
+|---|---|
+| start | offset 45.058 s. `cref`, **version `d06df358-bfc6-4111-9f7e-990b37980c66`**, 17:58:05.106-17:58:08.801Z, exit 0, empty stderr, `schedule: * * * * *` |
+| end | park on `idle`, **version `9a2c25c6-2d2b-4d3c-b05f-1c16b60e1fde`**, 18:58:05.118-18:58:10.465Z, exit 0, empty stderr, cron kept |
+| read (`s_reads.py S3`, by version; twice, 19:02:02Z and 19:04:07Z, identical) | **60 firings seen, 59 invocation records**, all `ok`; R3-6: **59 `success`**, 0 errors. Building: n 33, **median 1,336**, **max 5,733**. The rest: n 26, median 19.5, max 35 |
+
+**S3's row applied:**
+
+| clause | got | |
+|---|---|---|
+| building median in [900, 1,700] ms | 1,336 | holds |
+| **building max <= 4,000 ms** | **5,733** | **OFF** |
+| the rest's median <= 100 ms | 19.5 | holds |
+| **N firings (the ~17:12Z rule: a count other than N reads off)** | **60 firings seen, 59 with a record** | **OFF** |
+
+**The max: a two-build invocation during the empty bucket's backfill.**
+- 18:01:45Z read 5,733 ms. It built **two** frames: `stored` at `:00`, `backfilled` at `:30`.
+- All four two-build invocations came while the empty dev bucket filled: **1,647, 3,066, 3,231, 5,733 ms**.
+- **Single-build invocations: n 29, median 1,186, max 2,548, min 783.** All inside S3's row.
+- **Alternatives named:**
+  - two builds in one invocation (the data shows exactly that, and 5,733 is about 2,867 per build);
+  - the runtime's spread on identical work (up to about 1.6x), as ruled. These data don't exclude it as a
+    contributor.
+- **The miss is mine.** S4's graded set was pinned to exclude its backfill; S3's row wasn't, though the same empty
+  bucket meant the same backfill.
+
+**The count: one firing with no invocation record.**
+- 18:22:45Z logged its `:00` line (`cref`, `already-stored`) and then **nothing: no `:30` line and no outcome record**.
+- R3-6's instrument doesn't count it either: 59, not 60.
+- **Alternatives:**
+  - the invocation ended abnormally after its `:00` check, and neither instrument records such an end;
+  - both instruments lost it in ingestion, together with the `:30` line.
+  - Three separate items missing at once leans toward the first, but doesn't exclude the second.
+- Production has the same signature: R3-2's log half had one minute missing a check (22:36), and the baseline has
+  178 of 180.
+
+**State:** parked on `idle` (`9a2c25c6`), firing each minute, logging `wx_dev_off` at 0 ms CPU.
