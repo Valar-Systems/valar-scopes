@@ -12131,3 +12131,41 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **The window ended with `39e258b5be07` written back,** booted with its stored theme `auto`.
 
 **The PR's CI is predicted in A12.107:** 33 check runs, 29 success, 4 skipped (ship-alert, promote, version, publish); 32 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.
+
+### A12.109 #552's CI: OFF-PREDICTION, one check. `check_wifi.py` cannot read the six `.head` fixtures. No fix until ruled (Q78)
+
+**Predicted (A12.107):** 33 check runs, 29 success, 4 skipped, 0 failed.
+
+**Measured** (head `2397948bc1b9`, read twice, finished 19:19:05Z):
+- **33 check runs: 28 success, 4 skipped** (publish, promote, version, ship-alert), **1 failed: `no-real-device-ids`**.
+- **The firmware workflow:** 29 jobs, 28 on `ubuntu-24.04` and 1 on `ubuntu-26.04`.
+  - Every one of them passed: all 9 build legs, with the new image step; the new `ota-identity` job, on a fresh PlatformIO; and both host-test legs.
+- **The count, the skipped set and the runner split are as predicted. One success is a failure.**
+
+**The cause, read from the failed job's log and reproduced locally:**
+- **It is `scripts/check_wifi.py`,** in the device-ids workflow. It refuses all six fixtures in `test/fixtures/ota/heads/`: "neither UTF-8 nor UTF-16 with a BOM, and not a known binary type: cannot be checked" (`unreadable 6`, `findings name 0, bssid 0, lan 0`).
+- **Its rule:** a file that does not decode is excused only if its extension is in `BINARY_EXT`. That list has `bin`, `wxc` and `bmpk`, but not `head`.
+- **The guard did its job.** It would not vouch for files it could not read.
+- **The miss is mine:**
+  - I predicted the device-ids checks without running them locally (`check_device_ids.py` passes; the pre-commit hook covers device ids only);
+  - a new binary file type has to pass that extension rule.
+  - It is the predict-by-applying-the-rule family again.
+
+**Q78, the remedy (recommended: (a)).** Each option's predictions are frozen now:
+- **(a), recommended: rename the six fixtures `*.head` to `*.head.bin`.**
+  - `bin` is already a type `check_wifi.py` excuses, and `.gitattributes` already marks `*.bin` binary, so my `*.head` line goes. **No guard is touched.**
+  - The two suites, the two drivers' `FIXTURES` and the docs name the new files.
+  - **Predicted:**
+    - `check_wifi.py` locally: 0 unreadable, PASS;
+    - the suites still 22 and 36, 0 failures;
+    - every sabotage unchanged;
+    - **the PR's CI: 33, 29 success, 4 skipped, 0 failed.**
+- **(b): add `head` to `check_wifi.py`'s `BINARY_EXT`.** The same predictions. It touches a privacy guard's exemption list, which (a) avoids.
+- **(c): store the heads as hex text,** which the guard would decode and scan. Not recommended: a hex dump hides any string from a text scan just as well, so the scan would prove nothing, and it costs code in both suites.
+- **What the heads hold, so the excusal is an informed one:**
+  - the image header and `esp_app_desc_t`: version, build time and date, the IDF version, the ELF hash;
+  - then 64 bytes at 0x120: a record, or the start of `.rodata`.
+  - The two pre-check radar and Missileer heads carry a local toolchain path there (A12.105's disclosure).
+  - No Wi-Fi name, BSSID or LAN address can be in an image's first 352 bytes: none is compiled into the firmware.
+
+**For every later PR:** `scripts/check_wifi.py` and `scripts/check_device_ids.py` run locally before a push, with the CI prediction.
