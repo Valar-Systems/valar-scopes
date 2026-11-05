@@ -12309,3 +12309,58 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **The PR's CI, predicted** from #552's job list (no `src/`, `include/`, `platformio.ini`, card or provisioner path, so web-renderer does not run): the firmware workflow's 29 + `device-ids` + `no-traffic-captures` = **31 check runs, 28 success, 3 skipped (ship-alert, promote, version), 0 failed; 30 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.**
 
 **Q80 comes next, as its own PR.** It starts with a read-only run that counts the excused files and their findings. Its predictions are frozen in their own addendum before any code is committed.
+
+### A12.113 #553 (the R gate) measured; Q80, the strings and metadata scan of every excused binary: its first run, design and predictions, frozen before its code. Q81 for the one finding
+
+**#553** (`RELEASING.md` alone, head `0985c83ea9b4`; CI finished 20:43:15Z, read twice): **31 check runs, 28 success, 3 skipped (version, promote, ship-alert), 0 failed**. Firmware 29 (28 + 1), plus `device-ids` and `no-traffic-captures`: **30 on 24.04, 1 on 26.04**. Web-renderer did not run. **AS PREDICTED.** It merges only after review.
+
+**Q80's read-only first run** (declared in A12.111 and A12.112; it printed counts and masked paths only, never a matched string or a coordinate):
+
+| | |
+|---|---|
+| the population | of 1,605 tracked files, **463 are excused by `check_wifi.py`** (undecodable, with an extension in `BINARY_EXT`): `3mf` 2, `bin` 10, `bmpk` 31, `jpg` 245, `pdf` 1, `png` 116, `woff2` 3, `wxc` 55 |
+| string findings | **0**: no network-name context, BSSID or LAN address under `check_wifi.py`'s own patterns, and no user-directory path, in ASCII or UTF-16LE runs of 6 bytes or more |
+| XMP location tags | **0** |
+| EXIF GPS | **1**: `proxy/photos/src/c700.jpg`. A GPS IFD with latitude and longitude tags, both **non-zero**, plus 13 more GPS tags. |
+| its provenance (`proxy/photos/manifest.json`) | Wikimedia Commons, "Cessna Citation Longitude N807QS", author "Sewageboy", CC BY 4.0. Added in `1e97587b` (2026-07-17). The GPS is the photographer's shooting location, already public in Commons' copy. It is not ours, and not Daniel's. |
+| fonts | 3 (`woff2`). Out of scope (ruled), allowlisted by hash |
+
+**The design** (`scripts/check_binary_strings.py`, its allowlist `scripts/binary-allow.txt`):
+- **It takes its population, its patterns and its decode from `check_wifi.py` by import,** never restated. So "what check_wifi excuses" and "what this scans" cannot drift.
+- **Scanned** (everything excused but fonts):
+  - printable ASCII and UTF-16LE runs of 6 bytes or more, under `check_wifi.py`'s `line_findings` (name, bssid, lan);
+  - a user-directory path (`C:/Users/<x>`, `/Users/<x>`, `/home/<x>`; GitHub's `/home/runner/` is allowed and named);
+  - for `jpg`, `jpeg`, `png` and `webp`: EXIF GPS (a GPS IFD holding a latitude or longitude tag) and XMP location tags.
+- **Fonts** (`woff`, `woff2`, `ttf`, `otf`) are not scanned. Each must match an allowlist entry by path and sha256, so a new or changed font fails until it is reviewed.
+- **The allowlist:**
+  - an allowance names a kind, a path, the file's sha256 and a reason;
+  - **stale** (the file's hash changed) and **idle** (no finding of that kind) allowances are refused, as `check_wifi.py`'s are;
+  - it prints verdicts, kinds and masked paths. It never prints a value or a coordinate.
+- **`--selftest` plants into copies of real tracked files,** in a scratch tree. Each must turn it red naming exactly its file and kind:
+  - an SSID context, a BSSID context, a LAN address and a `C:/Users/<x>/` path, in a copy of a real PNG and of a real `.bin`;
+  - an EXIF GPS block, in a copy of a real JPEG;
+  - an XMP location tag, in a copy of a real PNG;
+  - one byte changed in a copy of a font (not allowlisted);
+  - a stale allowance and an idle one (refused).
+  - **Control:** the unplanted copies pass.
+- **Its wiring:** two steps in the device-ids workflow's job, after `check_wifi.py`: the selftest, then the scan. No new job.
+
+**Q81, the one finding (recommended: (a)):**
+- **(a), recommended: allowlist `c700.jpg` for `exif-gps` by its sha256.**
+  - **The reason:** CC BY 4.0, from Wikimedia Commons; the photographer's metadata, public in the source.
+  - **The scan reads:** 1 allowed, 0 findings, exit 0.
+- **(b): strip the GPS IFD from our copy.**
+  - **The scan reads:** 0 findings.
+  - **The cost:**
+    - the source file's bytes change, so the photo library's content address changes;
+    - a merge touching `proxy/photos/**` starts the `photos` workflow on main, which writes to production;
+    - it alters a licensed third-party file.
+  - **So it is not recommended for this PR.** If the ruling is (b), it is its own PR, scheduled like an ingest.
+
+**Predicted, once Q81 is ruled:**
+- **the selftest:** every plant red on exactly its file and kind; the control passes;
+- **the scan:** 463 excused, 3 fonts matched by hash, 460 scanned, **0 findings**; under (a), 1 allowed (`c700.jpg`, `exif-gps`); exit 0;
+- **`check_wifi.py` and `check_device_ids.py` OK,** run locally;
+- **the PR's CI:** `scripts/`, the workflow and the allowlist only, with no web-renderer path. Firmware 29 + `device-ids` + `no-traffic-captures` = **31 check runs, 28 success, 3 skipped, 0 failed; 30 on 24.04, 1 on 26.04.**
+
+**Outside these predictions: stop and decide.**
