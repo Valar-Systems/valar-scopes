@@ -384,3 +384,16 @@ and the UK session both saw it) while CI's LF checkout passed. The other byte-co
 | **L4** | CI | unchanged: its checkout was already LF | |
 
 These checks run only on Windows: CI cannot show L1-L3, because its checkout never had the CR.
+
+**Results (2026-11-05, Windows, graded on `206d21f`): all as predicted.**
+
+| | got |
+|---|---|
+| **L0** | 105,991 bytes, 291 CR (a fresh worktree of `origin/main` at `15c8a2d`) |
+| **L1** | a fresh worktree of `206d21f`: 105,700 bytes, 0 CR, sha256 `8286e69ad3af` on disk and in the blob, byte-identical |
+| **L2** | `git add --renormalize .` staged nothing |
+| **L3** | `photolicense.test.ts`: 21 of 21 passed, Q-C1 included, with TIME_WAIT 7,527 at the start (under the gate) |
+
+**The control for L3 is the same test in the CRLF checkout.** The #548 worktree, without the rule, failed Q-C1 on
+both of its full runs (`47d67e6`), so the check can fail, and the rule is the only difference between the two
+results.
