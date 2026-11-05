@@ -71,10 +71,21 @@ emcc -O2 -c "$LIBDEPS/QRCode/src/qrcode.c" -I"$LIBDEPS/QRCode/src" -o "$OBJ/qrco
 for f in "${WEB[@]}"; do build "$HERE/web/$f.cpp" "$OBJ/$f.o"; done
 
 NAME=blipscope-web-$SKU-v$FW
-em++ "${objs[@]}" -O2 ${EXTRA_LD:-} -o "$OUT/$NAME.js" \
-  -sASYNCIFY -sASYNCIFY_STACK_SIZE=65536 -sSTACK_SIZE=1048576 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=33554432 \
-  -sMODULARIZE -sEXPORT_NAME="BlipscopeRadar_${SKU//-/_}" -sENVIRONMENT=web,node \
+# DYNAMIC_EXECUTION=0: no eval and no new Function anywhere in the glue (the site's CSP; docs/web-renderer.md, the
+# follow-up). It changes no byte of this build, so the artifact cannot show it took: the probe below does.
+LINK=(-O2 -sASYNCIFY -sASYNCIFY_STACK_SIZE=65536 -sSTACK_SIZE=1048576 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=33554432
+      -sMODULARIZE -sENVIRONMENT=web,node -sDYNAMIC_EXECUTION=0)
+em++ "${objs[@]}" "${LINK[@]}" ${EXTRA_LD:-} -o "$OUT/$NAME.js" -sEXPORT_NAME="BlipscopeRadar_${SKU//-/_}" \
   -sEXPORTED_FUNCTIONS="$EXPORTS" -sEXPORTED_RUNTIME_METHODS=HEAPF32,HEAPU8,HEAPU32,UTF8ToString,ccall
+
+# The flag's probe, and its control (F4): a program that needs eval, linked with these same flags and again with only
+# DYNAMIC_EXECUTION=0 removed. check_site_rules.mjs requires none in the first and exactly one in the second. Not shipped.
+CONTROL=()
+for f in "${LINK[@]}"; do [ "$f" = -sDYNAMIC_EXECUTION=0 ] || CONTROL+=("$f"); done
+[ $(( ${#LINK[@]} - ${#CONTROL[@]} )) -eq 1 ] || { echo "the link flags do not hold -sDYNAMIC_EXECUTION=0 exactly once"; exit 3; }
+mkdir -p "$DIST/probe"
+em++ "$HERE/probe/dynamic.cpp" "${LINK[@]}" -sEXPORT_NAME=DynamicProbe -o "$DIST/probe/dynamic-probe.js"
+em++ "$HERE/probe/dynamic.cpp" "${CONTROL[@]}" -sEXPORT_NAME=DynamicProbe -o "$DIST/probe/dynamic-probe-control.js"
 
 # Beside the model: the render module, the font (one source: proxy/fonts, the leaderboard page's self-hosted
 # JetBrains Mono, SIL OFL 1.1) and its licence, the preview page, and the manifest the preview reads.

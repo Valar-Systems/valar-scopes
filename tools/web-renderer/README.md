@@ -36,6 +36,11 @@ radar.setTextMode("smooth");                    // or "device" (the panel's glcd
 - It requests nothing else from anywhere, including `/config`, `/airports` and photos.
 - It sends no header.
 - It posts nothing.
+- It uses no eval (it is linked with `-sDYNAMIC_EXECUTION=0`), no storage of any kind and no cookies, and it has no
+  inline script. Every file comes from a URL the page passes.
+
+These are checked on the built files in CI by `check_site_rules.mjs`, which plants each pattern in a copy and must
+catch it.
 
 **Cadence, the firmware's own:**
 - every 5 s for 10 minutes after load or a touch;
@@ -49,6 +54,7 @@ pio pkg install -e blipscope-s3-128                    # the firmware's librarie
 tools/web-renderer/build.sh s3-128                     # dist/s3-128/blipscope-web-s3-128-v<N>.{js,wasm}, render, font
 tools/web-renderer/build.sh s3-21                      # the 2.1 in (built; published when announced)
 node tools/web-renderer/smoke.mjs tools/web-renderer/dist/s3-128      # the headless checks, R3-R6
+node tools/web-renderer/check_site_rules.mjs tools/web-renderer/dist  # the site's content rules (--selftest too)
 cd tools/web-renderer/dist && python -m http.server 8087               # the preview page (synthetic scene)
 ```
 
