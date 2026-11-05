@@ -12364,3 +12364,30 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **the PR's CI:** `scripts/`, the workflow and the allowlist only, with no web-renderer path. Firmware 29 + `device-ids` + `no-traffic-captures` = **31 check runs, 28 success, 3 skipped, 0 failed; 30 on 24.04, 1 on 26.04.**
 
 **Outside these predictions: stop and decide.**
+
+### A12.114 #553 merged; main's CI AS PREDICTED. Q80 built as frozen (#555): every row and its CI AS PREDICTED
+
+**The ruling (~21:00Z):**
+- #553 is approved at `0985c83ea9b4`.
+- Q81 (a): allowlist `c700.jpg` for `exif-gps` by its sha256, with its provenance as the reason.
+- Q80: build the scanner as frozen in A12.113, in its own PR, with its CI at 31: 28 success, 3 skipped, 0 failed.
+
+**#553, merged:**
+- **The merge:** `7cca8983517e` at 2026-11-05T20:49:48Z. Its parent is `84409651daff`, its diff equals the PR's (the patch-ids match), and the branch is deleted.
+- **Main's CI** (finished 21:05:17Z, read twice): **31: 29 success, 2 skipped (promote, version), 0 failed**. Firmware 29 (28 + 1), plus `device-ids` and `no-traffic-captures`: 30 + 1. Web-renderer did not run. **AS PREDICTED.**
+
+**#555, Q80** (branch `weatherscope/binary-strings`, head `f27aa4023ab1`; `scripts/check_binary_strings.py`, `scripts/binary-allow.txt`, two steps in the device-ids job):
+
+| row (A12.113) | measured |
+|---|---|
+| the selftest | every plant red on exactly its file and kind: name, bssid, lan and path in a real png and a real bin; EXIF GPS in a real jpg; XMP location in a real png; a font with one byte changed. A stale allowance refused, an idle one refused. The control passes. Planted into copies of `docs/images/blipscope-detail-card.jpg`, `docs/images/weatherscope-stage1-kdfw-reference.png`, `proxy/fonts/grotesk.woff2` and `proxy/test/fixtures/wx/opera/20261028T0255.ranges.bin`. |
+| the scan | `463 excused by check_wifi.py (3mf 2, bin 10, bmpk 31, jpg 245, pdf 1, png 116, woff2 3, wxc 55); 3 font(s) settled by hash, 460 scanned; findings 0, allowed 1, stale 0, idle 0`, OK. The same line locally and in CI. |
+| the allowance is load-bearing | without the `c700.jpg` line: `findings 1`, `FINDING exif-gps: proxy/photos/src/c700.jpg`, FAILED |
+| the guards, local | `check_wifi.py` `unreadable 0; OK`; `check_device_ids.py` OK; `check_workflow_concurrency.py` OK, and its selftest; `check_runners.py`; `skus.py --check-readers` |
+| **#555's CI** (finished 21:21:22Z, read twice) | **31: 28 success, 3 skipped (promote, version, ship-alert), 0 failed**. Firmware 29 (28 + 1), `device-ids`, `no-traffic-captures`: **30 + 1. AS PREDICTED.** |
+
+**Two things fixed before the push, recorded so the frozen rows are not read as having held on the first try:**
+- **The selftest's plant strings first sat in the script's source as literals.** `check_wifi.py` flagged the script itself: a name and a BSSID on one line, a LAN address on the next. They are now built in pieces, as `check_wifi.py` writes its own patterns.
+- **The first local run printed "allowed 4".** That counted the three fonts as allowances beside "3 font(s) settled by hash". The count line now reports the fonts once and the `c700.jpg` allowance as 1, as A12.113 phrased it. The numbers underneath did not change.
+
+**#555 merges only after review.**
