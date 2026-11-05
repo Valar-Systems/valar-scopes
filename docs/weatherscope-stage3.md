@@ -12391,3 +12391,93 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **The first local run printed "allowed 4".** That counted the three fonts as allowances beside "3 font(s) settled by hash". The count line now reports the fonts once and the `c700.jpg` allowance as 1, as A12.113 phrased it. The numbers underneath did not change.
 
 **#555 merges only after review.**
+
+### A12.115 #555 merged; main's CI AS PREDICTED. Q82, the scanner's four gaps: predictions for review, before any code
+
+**The ruling (~21:36Z):**
+- **#555 is approved at `f27aa4023ab1`.**
+- **The reviewer's own run of the head** (Linux, Python 3.13):
+  - the scan line exactly, the selftest passing, `check_wifi.py` and `check_device_ids.py` OK;
+  - the 463 excused files searched for the scrubbed values themselves: the name in ASCII and UTF-16, the BSSIDs as text and as raw 6 bytes, the LAN addresses. **0 hits.**
+  - inside the two `.3mf` files (33 members) and the PDF's extracted text (`pdftotext`, 4 pages): 0 pattern findings, 0 value hits.
+- **Q82 is a follow-up PR after #555,** with its predictions reviewed before any code. None of it changes today's result.
+
+**#555, merged:**
+- **The merge:** `12569fa05dfd` at 2026-11-05T21:37:42Z. Its parent is `7cca8983517e`, its diff equals the PR's (the patch-ids match), and the branch is deleted.
+- **Main's CI, predicted from #553's main run:** 31, 29 success, 2 skipped (promote, version), 0 failed; 30 + 1. Measured (finished 21:54:50Z, read twice): **31: 29 success, 2 skipped (promote, version), 0 failed**; firmware 29 (28 + 1), `device-ids`, `no-traffic-captures`, 30 + 1, no web-renderer run. **AS PREDICTED.**
+
+**Q82, the four gaps, each with its fix, its plant and its sabotage.** Every row below is new or changed. Today's population and findings do not move.
+
+**(a) The population can drift.**
+- **The gap:**
+  - `check_wifi.py`'s `judge` decodes a binary extension with `utf-8-sig` only (line 143), while its `decode()` tries UTF-16 after a BOM.
+  - So a `.bin` that starts `FF FE` and is valid UTF-16 is excused by `check_wifi.py`, and **decodes** under the `decode()` that #555 calls. Neither reads it.
+  - The reviewer built one with a planted name: `check_wifi.py` counted it binary, #555 scanned 0.
+  - No tracked binary starts with a BOM today.
+- **The fix:**
+  - one function in `check_wifi.py`, `excused(rel, raw)` (True when the file has a `BINARY_EXT` extension and does not decode as `judge` decodes it);
+  - `judge` calls it, and #555 calls it in place of its own test;
+  - **`check_wifi.py`'s count line stays as today:** 1,607 tracked, 1,144 scanned, 463 binary.
+- **Plant (a new selftest row):** a `.bin` of `FF FE` + a UTF-16LE planted name, in the scratch tree. It must be flagged `name` on exactly that file.
+- **Sabotage S-Q82a:** #555's `excused()` put back on `cw.decode()`. **Exactly the BOM row turns red.**
+
+**(b) The font row proves less than its name says** (the reviewer's miss, and **mine**: I designed it, and A12.113 froze it "(not allowlisted)").
+- **The gap:** its allowlist is empty, so it stays red even with the byte change removed. It proves "a font with no allowance fails", not "a changed font fails".
+- **The fix:**
+  - **rename the row:** "a font with no allowance fails" (its plant: none; its allowlist: empty);
+  - **add a row, "an allowlisted font with one byte changed":** the allowance holds the original hash, and the copy has one byte flipped. Predicted: **stale 1 (that font's allowance) and one `font` finding on exactly that font,** nothing else.
+  - **The existing control is the new row's no-plant twin:** allowed, unchanged, clean.
+
+**(c) It cannot see inside compressed files.**
+- **The gap:**
+  - the `.3mf` files are zips, and the PDF's text is glyph-encoded (Skia);
+  - so a name and a user path planted in a deflated member, or in a Flate stream, are invisible to #555's raw strings, and found once inflated.
+- **The fix:**
+  - **zip-family members** (`zip`, `3mf`) are read with `zipfile`, `gz` and `tgz` with `gzip`, `tar` and `tgz` members with `tarfile`, and `xz` with `lzma`, all from the standard library. Each member's inflated bytes go under the same patterns (strings, plus EXIF and XMP for an image member). A finding is reported as `<container>!<member>`.
+  - **A PDF is allowed only by its exact hash,** like a font. Its allowance records a text read: `pdftotext` 4.00, counts only, never a value.
+  - **A container that cannot be opened** (`7z`, an encrypted or corrupt zip) is a `container` finding: it fails until reviewed and allowed by hash.
+- **Plants (new selftest rows):**
+  - a copy of a real `.3mf` with one new **deflated** member holding a planted name and a `C:/Users/<x>/` path: findings `name` and `path` on that member, nothing else;
+  - a copy of the real PDF with a Flate stream appended holding a planted name. Its hash changes, so: **stale 1 and one `pdf` finding**;
+  - a truncated copy of the `.3mf` (an unopenable zip): one `container` finding.
+- **Sabotage S-Q82c, container reading off** (zip members not read, and the PDF scanned as raw bytes with no hash rule): **exactly the `.3mf` member row and the PDF row turn red.** The unopenable-zip row also turns red, since nothing tries to open it, so the set is those three rows.
+- **Today, predicted:**
+  - **the two `.3mf`, 33 members read** (17 + 16; 23 of them deflated): 0 findings;
+  - **the PDF:** my text read (`pdftotext` 4.00, here in Git Bash; counts only) is **predicted** at 4 pages and 0 pattern findings, the reviewer's measurement. **Mine is not run yet:** it is part of the measurement, after this review.
+  - The PDF is then allowed by hash: **allowed 2** (`c700.jpg` `exif-gps`, and the PDF).
+
+**(d) A committed Wi-Fi settings dump would pass.**
+- **The gap:**
+  - settings store a network name with no context around it;
+  - a short name falls under the 6-byte run floor;
+  - a BSSID in NVS is 6 raw bytes. The firmware's own fast-reconnect namespace `wifi-fast` stores one (`putBytes("bssid", …, 6)`, `include/WiFiManagerHelpers.h`).
+- **The tell, a new kind `wifi-store`:**
+  - a scanned file that **is not an ESP app image** (first byte `E9` and `esp_app_desc_t`'s magic `32 54 CD AB` at 0x20);
+  - which holds any of ESP-IDF's Wi-Fi NVS namespace `nvs.net80211`, or the firmware's `wifi-fast` or `wifi-join`.
+  - All three are strings inside every firmware image (`libnet80211.a` holds `nvs.net80211`, `sta.ssid`, `sta.pswd`, `sta.bssid`, `bssid.set` and `sta.apinfo`). That is why an app image is exempt.
+- **Plants (new selftest rows):**
+  - a copy of a real `.bin` (the opera ranges fixture) with an NVS-shaped `nvs.net80211` / `sta.ssid` entry planted: one `wifi-store` finding;
+  - **control:** the same strings planted into a copy of a real `.head.bin` (an app image): no finding.
+- **Real-scan control:** today's 10 `.bin` fixtures do not trip it. Predicted: **0 `wifi-store`.**
+- **Sabotage S-Q82d, the tell off:** exactly the `wifi-store` plant row turns red.
+
+**The sabotages run from a new `--sabotage` mode,** as `skus.py --sabotage` does.
+- It plants each code change into a copy of the script beside a copy of `check_wifi.py`, runs that copy's `--selftest`, and requires exactly the predicted rows red.
+- **Controls first:** the unplanted copy's selftest passes, and the real scan reads as below.
+- **A third step in the device-ids job:** `--selftest`, `--sabotage`, then the scan. No new job.
+
+**The predicted scan line after Q82:** `463 excused by check_wifi.py (…unchanged…); 3 font(s) settled by hash, 2 container(s) read (33 members), 1 pdf settled by hash, 457 scanned; findings 0, allowed 2, stale 0, idle 0`, OK.
+- **The exact wording is frozen with the code,** and its numbers here: 463, 3, 2, 33, 1, 0 findings, 2 allowed, 0 stale, 0 idle.
+
+**The selftest after Q82:**
+- 14 rows today + (a) 1 + (b) 1 added (the renamed row is not new) + (c) 3 + (d) 2 = **21 rows**, every one as named above;
+- `--sabotage`: S-Q82a 1 row red, S-Q82c 3, S-Q82d 1, each exactly its set; the controls ok.
+
+**The PR's CI** (`scripts/` and the device-ids workflow only): **31 check runs, 28 success, 3 skipped, 0 failed; 30 on 24.04, 1 on 26.04.**
+
+**For the reviewer's review, before code:**
+- **(c)'s sabotage set is 3 rows, not 2:** the unopenable-container row also depends on container reading.
+- **(d)'s tell exempts any ESP app image.** A full firmware image committed by mistake is not a settings dump, and is not what this guards.
+- **The PDF's allowance records my text read's counts.** If the reviewer prefers its own read as the record, the counts are the same.
+
+**Outside these predictions: stop and decide.**
