@@ -13,7 +13,8 @@ this stays dependency-free and so the rows remain greppable by eye.
   python scripts/skus.py --matrix-json      # GitHub Actions matrix `include`
   python scripts/skus.py --shipping-slugs   # space-separated, for the gate
   python scripts/skus.py --shipping-envs
-  python scripts/skus.py --all-envs
+  python scripts/skus.py --build-envs       # every leg CI builds (shipping + build-only; never retired)
+  python scripts/skus.py --sabotage         # prove a retired row cannot be published (A12.105)
   python scripts/skus.py --check-readers   # who else reads the build matrix?
   python scripts/skus.py --selftest         # prove the validator can refuse
 """
@@ -31,7 +32,7 @@ ROW = re.compile(
     r"(?:,\s*slug:\s*(?P<slug>[A-Za-z0-9_.-]+)\s*)?\}\s*$"
 )
 
-VALID_STATUS = ("shipping", "build-only")
+VALID_STATUS = ("shipping", "build-only", "retired")
 
 
 class SkuError(Exception):
@@ -80,6 +81,15 @@ def validate(rows):
                 "        exactly what darkened OTA discovery on 2026-09-17.\n"
                 "        Either drop the slug, or promote it to status: shipping."
                 % (r["line"], r["env"], r["slug"]))
+        # A RETIRED LEG IS NOT BUILT AND PUBLISHES NOTHING (docs/weatherscope-stage3.md A12.105).
+        # A slug on one would name an asset for hardware that will never be sold.
+        if r["status"] == "retired" and r["slug"]:
+            problems.append(
+                "line %d: env %s is retired but carries slug '%s'.\n"
+                "        A retired leg is not built and publishes nothing; a slug would\n"
+                "        name an OTA asset for hardware that is not made or sold.\n"
+                "        Either drop the slug, or bring it back as build-only or shipping."
+                % (r["line"], r["env"], r["slug"]))
         if r["status"] == "shipping" and not r["slug"]:
             problems.append(
                 "line %d: env %s is shipping but has no slug.\n"
@@ -110,6 +120,12 @@ def validate(rows):
     if problems:
         raise SkuError("\n".join(problems))
     return rows
+
+
+def matrix(rows):
+    """The CI build matrix's `include`: every row but the retired ones, which are not built."""
+    return [({"env": r["env"], "slug": r["slug"]} if r["slug"] else {"env": r["env"]})
+            for r in rows if r["status"] != "retired"]
 
 
 def load(path=DEFAULT):
@@ -308,12 +324,30 @@ def _selftest():
          "skus:\n  - { env: blipscope-s3-128 }\n",
          False, "cannot parse as a SKU row")
 
+    case("a retired leg carrying a slug is REFUSED",
+         GOOD + "  - { env: blipscope-s3-146, status: retired, slug: s3-146 }\n",
+         False, "is retired but carries slug")
+
+    def held(name, ok_, detail):
+        nonlocal rc
+        print("  %s  %s%s" % ("ok  " if ok_ else "FAIL", name, "" if ok_ else ": " + detail))
+        rc |= 0 if ok_ else 1
+
+    rows_ = validate(parse(GOOD + "  - { env: blipscope-s3-146, status: retired }\n"))
+    envs_ = [i["env"] for i in matrix(rows_)]
+    held("a retired leg is left out of the matrix",
+         "blipscope-s3-146" not in envs_ and "orbitscope-s3-146" in envs_, "the matrix is %s" % envs_)
+
     # The real file must itself be valid, and must say what we think it says.
     try:
         rows = load()
         ship = [r["slug"] for r in rows if r["status"] == "shipping"]
         print("  ok    %s parses: %d leg(s), shipping slug(s): %s"
               % (os.path.basename(DEFAULT), len(rows), " ".join(ship)))
+        retired = {r["env"] for r in rows if r["status"] == "retired"}
+        leaked = retired & {i["env"] for i in matrix(rows)}
+        held("the real file's matrix holds no retired env (%d retired)" % len(retired), not leaked,
+             "retired but in the matrix: %s" % sorted(leaked))
     except SkuError as e:
         print("  FAIL  the real skus.yml does not validate:\n%s" % e)
         rc = 1
@@ -325,10 +359,82 @@ def _selftest():
     return rc
 
 
+# ---------------------------------------------------------------------------
+# A RETIRED ROW CANNOT BE PUBLISHED: proved against the REAL file and the REAL code
+# (docs/weatherscope-stage3.md A12.105). The selftest's cases are synthetic; these
+# plant into copies of what is actually in the tree, and each must be refused with
+# exactly its own reason. A guard nobody has seen refuse is not evidence.
+#
+#   S-R1  the real skus.yml with a retired row given its old slug -> --validate refuses,
+#         with exactly one problem: "is retired but carries slug"
+#   S-R2  this script with the matrix's retired exclusion removed -> its --selftest
+#         fails exactly the two matrix cases, and nothing else
+# Plus the controls: the unplanted file validates, and the unplanted copy's selftest passes.
+
+S_R1 = ("  - { env: blipscope-s3-146, status: retired }",
+        "  - { env: blipscope-s3-146, status: retired, slug: s3-146 }")
+# Split so this file holds the anchor once, in matrix(), and not a second time here.
+S_R2 = ('            for r in rows if r["status"] != ' + '"retired"]',
+        '            for r in rows]  # SABOTAGE S-R2: the retired exclusion removed')
+S_R2_FAILS = ["a retired leg is left out of the matrix", "the real file's matrix holds no retired env"]
+
+
+def _problems(text):
+    """validate()'s problems, one per entry (continuation lines are indented)."""
+    try:
+        validate(parse(text))
+        return []
+    except SkuError as e:
+        return [p for p in str(e).split("\n") if not p.startswith(" ")]
+
+
+def _sabotage():
+    import shutil, subprocess, tempfile
+    ok = True
+    real_yml = open(DEFAULT, encoding="utf-8").read().replace("\r\n", "\n")
+    real_py = open(os.path.abspath(__file__), encoding="utf-8").read().replace("\r\n", "\n")
+
+    clean = _problems(real_yml)
+    print("  %s control: the real skus.yml validates (%d problem(s))" % ("ok  " if not clean else "FAIL", len(clean)))
+    ok &= not clean
+
+    assert real_yml.count(S_R1[0]) == 1, "S-R1: the anchor row is not in skus.yml exactly once"
+    got = _problems(real_yml.replace(S_R1[0], S_R1[1]))
+    good = len(got) == 1 and "is retired but carries slug" in got[0]
+    print("  %s S-R1 a retired row with a slug: %d problem(s) %s" % ("ok  " if good else "FAIL", len(got), got))
+    ok &= good
+
+    def selftest_of(src):
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "scripts"))
+            open(os.path.join(td, "scripts", "skus.py"), "w", encoding="utf-8", newline="\n").write(src)
+            shutil.copy(DEFAULT, os.path.join(td, "skus.yml"))
+            r = subprocess.run([sys.executable, "-I", os.path.join(td, "scripts", "skus.py"), "--selftest"],
+                               capture_output=True, text=True)
+        fails = [l.strip()[len("FAIL"):].strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+        return r.returncode, fails
+
+    rc, fails = selftest_of(real_py)
+    print("  %s control: the unplanted selftest, run from a copy: exit %d, %d failing" % (
+        "ok  " if rc == 0 and not fails else "FAIL", rc, len(fails)))
+    ok &= rc == 0 and not fails
+
+    assert real_py.count(S_R2[0]) == 1, "S-R2: the anchor line is not in skus.py exactly once"
+    rc, fails = selftest_of(real_py.replace(S_R2[0], S_R2[1]))
+    names = sorted(f.split(" (")[0].split(":")[0] for f in fails)
+    good = rc == 1 and names == sorted(S_R2_FAILS)
+    print("  %s S-R2 the matrix keeps retired rows: selftest exit %d, failing %s" % ("ok  " if good else "FAIL", rc, names))
+    ok &= good
+    print("SABOTAGE " + ("PASSED: a retired row cannot be published" if ok else "FAILED"))
+    return 0 if ok else 1
+
+
 def main(argv):
     mode = argv[1] if len(argv) > 1 else "--validate"
     if mode == "--selftest":
         return _selftest()
+    if mode == "--sabotage":
+        return _sabotage()
     try:
         rows = load()
     except (SkuError, OSError) as e:
@@ -337,14 +443,13 @@ def main(argv):
 
     if mode == "--validate":
         ship = [r for r in rows if r["status"] == "shipping"]
-        print("skus.yml OK: %d leg(s), %d shipping (%s), %d build-only."
+        print("skus.yml OK: %d leg(s), %d shipping (%s), %d build-only, %d retired."
               % (len(rows), len(ship), " ".join(r["slug"] for r in ship),
-                 len(rows) - len(ship)))
+                 sum(1 for r in rows if r["status"] == "build-only"),
+                 sum(1 for r in rows if r["status"] == "retired")))
         return 0
     if mode == "--matrix-json":
-        inc = [({"env": r["env"], "slug": r["slug"]} if r["slug"] else {"env": r["env"]})
-               for r in rows]
-        print(json.dumps({"include": inc}, separators=(",", ":")))
+        print(json.dumps({"include": matrix(rows)}, separators=(",", ":")))
         return 0
     if mode == "--shipping-slugs":
         print(" ".join(r["slug"] for r in rows if r["status"] == "shipping"))
@@ -352,8 +457,8 @@ def main(argv):
     if mode == "--shipping-envs":
         print(" ".join(r["env"] for r in rows if r["status"] == "shipping"))
         return 0
-    if mode == "--all-envs":
-        print(" ".join(r["env"] for r in rows))
+    if mode == "--build-envs":
+        print(" ".join(i["env"] for i in matrix(rows)))
         return 0
     if mode == "--check-readers-selftest":
         return _readers_selftest()

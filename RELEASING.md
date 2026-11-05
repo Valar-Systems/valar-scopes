@@ -9,7 +9,7 @@ are versioned and released **together** from a single commit, and each device se
 - A device checks `releases/latest/download/version.txt` — a single integer, the latest
   firmware version, shared by all SKUs.
 - If that integer is greater than the device's compiled `FW_VERSION`, the device downloads
-  **`firmware-<slug>.bin`**, where `<slug>` is its own `variant::SLUG` (e.g. `s3-146`). Each
+  **`firmware-<slug>.bin`**, where `<slug>` is its own `variant::SLUG` (e.g. `s3-128`). Each
   SKU only ever downloads its own image.
 - The flow lives in [src/OtaUpdater.cpp](src/OtaUpdater.cpp); `FW_VERSION` is in
   [src/OtaUpdater.h](src/OtaUpdater.h).
@@ -363,7 +363,7 @@ A checklist item a person signs off is the whole point.
 A new SKU needs three entries that stay in sync:
 
 1. `variant::SLUG` in its `include/variants/<sku>.h`
-2. an `[env:*]` in `platformio.ini`, named `<product>-<board>` (e.g. `blipscope-s3-146`, `quakescope-s3-146`)
+2. an `[env:*]` in `platformio.ini`, named `<product>-<board>` (e.g. `blipscope-s3-128`, `missileer-s3-128`)
 3. its row in `skus.yml` -- `status: shipping` with a `slug` only if a customer can
    actually be running it; otherwise `status: build-only` and no slug. The slug MUST
    equal `FW_OTA_PREFIX` + `variant::SLUG` (it names the OTA asset devices download).
@@ -395,6 +395,24 @@ by the very change that sweep was checking. Leaving an env out of CI because it
 isn't a product yet is how it becomes an env that no longer builds; the compile-only
 row is the way to say "build this, don't ship it" instead.
 
+### A SKU that will not ship: the retired row
+
+A board that is not going to be made or sold gets `status: retired` and no slug:
+
+```yaml
+- { env: blipscope-s3-146, status: retired }
+```
+
+CI leaves a retired row out of the build matrix entirely: it is not compiled, not
+gated and never published, and `skus.py --validate` refuses one that carries a slug.
+`skus.py --sabotage` proves both on every run, against the real file and the real
+code. The row stays so the decision is visible and the env's code stays findable;
+bringing a board back is a status change in `skus.yml`, like any promotion.
+
+**What retiring costs, and it is accepted when it is chosen:** a retired env is no
+longer compiled, so a later break in it goes unseen -- the way the AMOLED env rotted
+above. Retire a board only when it is genuinely not coming back soon.
+
 ## Missileer builds — a separate OTA channel
 
 The `missileer-*` envs build a different **product** (Missileer, the EAM monitor, `-DFEATURE_EAM`; see
@@ -403,7 +421,7 @@ board, the Missileer envs set `-DFW_OTA_PREFIX="eam-"`, and their CI slug is pre
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `missileer-s3-146` | `eam-s3-146` → `firmware-eam-s3-146.bin` |
+| `missileer-s3-146` | retired 2026-11-05: no asset (was `eam-s3-146` → `firmware-eam-s3-146.bin`) |
 
 These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar and Missileer together),
 and a device only ever downloads its own `<prefix><slug>` binary. Releasing is otherwise identical
@@ -417,7 +435,7 @@ and a CI slug prefixed to match so an Orbitscope device never pulls a radar or M
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `orbitscope-s3-146` | `space-s3-146` → `firmware-space-s3-146.bin` |
+| `orbitscope-s3-146` | retired 2026-11-05: no asset (was `space-s3-146` → `firmware-space-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases radar, Missileer, and Orbitscope together).
 
@@ -429,7 +447,7 @@ and a CI slug prefixed to match so a Quakescope device never pulls a radar, Miss
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `quakescope-s3-146` | `seismic-s3-146` → `firmware-seismic-s3-146.bin` |
+| `quakescope-s3-146` | retired 2026-11-05: no asset (was `seismic-s3-146` → `firmware-seismic-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases radar, Missileer, Orbitscope, and Quakescope together).
 
@@ -441,7 +459,7 @@ and a CI slug prefixed to match so a Quillscope device never pulls another editi
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `quillscope-s3-146` | `birding-s3-146` → `firmware-birding-s3-146.bin` |
+| `quillscope-s3-146` | retired 2026-11-05: no asset (was `birding-s3-146` → `firmware-birding-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -453,7 +471,7 @@ and a CI slug prefixed to match so a Reelscope device never pulls another editio
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `reelscope-s3-146` | `fishing-s3-146` → `firmware-fishing-s3-146.bin` |
+| `reelscope-s3-146` | retired 2026-11-05: no asset (was `fishing-s3-146` → `firmware-fishing-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -465,7 +483,7 @@ and a CI slug prefixed to match so a Claudescope device never pulls another edit
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `claudescope-s3-146` | `claudescope-s3-146` → `firmware-claudescope-s3-146.bin` |
+| `claudescope-s3-146` | retired 2026-11-05: no asset (was `claudescope-s3-146` → `firmware-claudescope-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -478,7 +496,7 @@ slug prefixed to match so a Speedscope device never pulls another edition's imag
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `speedscope-s3-146` | `speed-s3-146` → `firmware-speed-s3-146.bin` |
+| `speedscope-s3-146` | retired 2026-11-05: no asset (was `speed-s3-146` → `firmware-speed-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -487,6 +505,15 @@ Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 The `weatherscope-s3-128` env builds a ninth **product** (the Weatherscope edition, `-DFEATURE_WEATHERSCOPE`; see [CLAUDE.md](CLAUDE.md) and [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md)) on the 1.28" Kit S3. It sets `-DFW_OTA_PREFIX="weatherscope-"`, so its channel would be `firmware-weatherscope-s3-128.bin`, but its `skus.yml` row is **build-only with no slug**: CI compiles it on every run and publishes nothing. A Weatherscope device asking for its asset gets a 404 and flashes nothing.
 
 It gets a slug only after the OTA identity check ("How OTA works" above) is on the fleet, and knowing that a slug-ful leg that fails withholds `version.txt` for every SKU.
+
+## Retired: the 1.46" (s3-146) builds
+
+Retired 2026-11-05, on Daniel's decision: the 1.46" (s3-146) scopes will likely never be
+made or sold. Their eight `skus.yml` rows are `status: retired`, so CI no longer builds
+them and no release from the next one on carries an s3-146 asset. Earlier releases are
+untouched: the newest carrying one is v12 (a prerelease), and `latest` (v18) has none, so
+a 1.46" unit already receives nothing new. Their code -- the variant header, the envs,
+the board files -- stays in the tree. See docs/weatherscope-stage3.md, A12.105.
 
 ## Legacy note: the retired C3
 

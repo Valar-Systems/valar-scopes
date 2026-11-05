@@ -106,11 +106,12 @@ ANCHOR_ENV="blipscope-s3-128"
 # is not built by CI, so scanning it would be scanning a stale local artifact.
 # Rows with no `slug:` ARE included -- those are compile-only SKUs, built and
 # scanned but never published. An image you can flash is an image that must be
-# clean, whether or not a release ever carries it.
+# clean, whether or not a release ever carries it. Rows with `status: retired` are
+# NOT included: CI does not build them (skus.yml; docs/weatherscope-stage3.md A12.105).
 parse_matrix_envs() {
   # $1 is accepted and ignored: the env list lives in skus.yml now. The signature
   # is kept so the selftest below still exercises this function as a unit.
-  "$PY_BIN" "$SKUS_PY" --all-envs | tr " " "\n" | sed "/^$/d"
+  "$PY_BIN" "$SKUS_PY" --build-envs | tr " " "\n" | sed "/^$/d"
 }
 
 # ---------------------------------------------------------------------------
