@@ -11997,3 +11997,26 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **O9's control re-run** gets its own predictions when 3.4 resumes.
 
 **Outside these predictions: stop and decide.**
+
+### A12.106 The s3-146 retirement PR (#549), measured: every row AS PREDICTED, its CI too. It merges only after review
+
+**#549** (branch `weatherscope/retire-s3-146`, head `306f83736b70`, from main at `15c8a2da`). A12.105's rows:
+
+| check | predicted | measured |
+|---|---|---|
+| `skus.py --selftest` | 12 ok | **12 ok** |
+| `skus.py --validate` | `17 leg(s), 1 shipping (s3-128), 8 build-only, 8 retired` | **as predicted** |
+| `skus.py --sabotage` | S-R1 exactly one problem, "is retired but carries slug"; S-R2's selftest exit 1, failing exactly the two matrix cases; both controls ok | **as predicted** |
+| the matrix and `--build-envs` | 9 legs, 1 slug-ful, 0 s3-146 | **as predicted** |
+| `check-adsbdb-out.sh --selftest` | passes, 9 envs, anchor present | **as predicted** |
+| the PR's CI (read twice, 18:29:53Z and 18:30:54Z, all completed) | 30: 27 success, 3 skipped (ship-alert, promote, version); 29 on `ubuntu-24.04`, 1 on `ubuntu-26.04` | **AS PREDICTED**: firmware 28 jobs (27 + 1) plus `device-ids` and `no-traffic-captures` on 24.04; 0 s3-146 runs |
+
+**Also passing:** `check_photo_mode.mjs`, `check_release_envs.mjs` and `check-publish-receipts.sh` with their selftests; `--check-readers`; `check_runners.py`; the customer-entry, tag-workflow, concurrency and OTA-URL wiring checks.
+
+**Two things on the way, neither an off-prediction:**
+- **The first S-R2 run refused to plant.** Its anchor appeared twice, the second copy inside the sabotage's own constant. That is the plant's guard working. The constant is split, so the anchor occurs once, in `matrix()`.
+- **A first `check-adsbdb-out.sh` edit through a heredoc did not apply** (the backslash trap). With `--all-envs` already gone from `skus.py`, the gate's selftest refused: unknown mode, nothing parsed, the anchor missing. That is the gate failing loudly on a broken pipe rather than scanning nothing. The edit was redone with the editor.
+
+**Predicted for main's push after the merge:** 30, 28 success, 2 skipped (promote, version).
+
+**3.4 stays paused** until #549 merges, then resumes with A12.105's restated rows.
