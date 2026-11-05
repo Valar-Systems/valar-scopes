@@ -12169,3 +12169,66 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
   - No Wi-Fi name, BSSID or LAN address can be in an image's first 352 bytes: none is compiled into the firmware.
 
 **For every later PR:** `scripts/check_wifi.py` and `scripts/check_device_ids.py` run locally before a push, with the CI prediction.
+
+### A12.110 Q78 (a) and Q79 (a) ruled: the heads become `*.head.bin`, the radar pre-check head is cut from v18, the Missileer one dropped. Restated before the push
+
+**The rulings (reviewer chat, pasted by Daniel):**
+- **~19:40Z, Q78 (a):** rename the fixtures to `*.head.bin`, with two additions before merge:
+  1. no build-machine path in the repo;
+  2. show once in the PR, with the command and its output, that the printable strings of every head hold no path, IP address, network name or device id.
+  - CI is read at 33: 29 success, 4 skipped, 0 failed, from a finished run.
+  - A strings scan of every binary the guard excuses is a separate, later proposal.
+- **~20:00Z, Q79 (a):**
+  - addition 2 means a path that names a person or a machine;
+  - GitHub's runner path (`/home/runner/…`) names neither, and is already public inside v18's published `firmware-s3-128.bin`;
+  - the radar pre-check head is cut from that published image, and the runner path is named in the PR as the one path allowed;
+  - the Missileer pre-check head is dropped, since no CI-built one exists;
+  - O10 and I3 are restated before the push.
+
+**The heads, after the change** (`test/fixtures/ota/heads/`, each the first 352 bytes of a real image):
+
+| file | cut from | at 0x120 |
+|---|---|---|
+| `blipscope-s3-128.head.bin` | a build at this branch (unchanged bytes) | the record, `s3-128` |
+| `weatherscope-s3-128.head.bin` | the same | the record, `weatherscope-s3-128` |
+| `blipscope-pro-s3-21.head.bin` | the same | the record, `s3-21` |
+| `pre-blipscope-s3-128.head.bin` | **v18's published `firmware-s3-128.bin`** (CI-built, the image the fleet runs) | `/home/runner/.platformio/…`, the start of `.rodata` |
+| `pre-weatherscope-s3-128.head.bin` | the build at `975816d9bf49` (unchanged bytes) | `WXC1`, the embedded crop |
+
+`pre-missileer-s3-128.head` is removed. The `*.head` line goes from `.gitattributes`, since `*.bin` is already marked binary.
+
+**The restated rows** (the suites' counts are unchanged, at 22 and 36):
+
+| row | was (A12.107) | now |
+|---|---|---|
+| I3 | a pre-check `s3-128` head, built locally | **v18's published head**, `no-record`, with no flash call |
+| O10 | 7 identities × 3 pre-check heads: 21 `no-record` | **7 × 2: 14 `no-record`**, 0 `foreign`, 0 other, 0 flash calls |
+| S-O8a, S-O8b, S-ID3 | 20, 14, 9 | **unchanged.** O10 stays one check; I3's four checks are read on the new head. |
+
+**The scan, committed as `tools/weatherscope/ota/scan_heads.py`:**
+- **What it does:**
+  - it prints every printable run of 4+ bytes in each head;
+  - it checks each run for a path, an IPv4 address, a network-name context and a 16-hex device id;
+  - it names `/home/runner/` as **the one path prefix allowed**, flagged and explained, never silently skipped.
+- **Its CONTROL:** in memory, a copy of a head gets `C:/Users/someone/` planted into it, and must be flagged as a forbidden path. Otherwise the scan is BLIND, and exits 2.
+- **Predicted:**
+  - 5 heads;
+  - **4 clean;**
+  - `pre-blipscope-s3-128.head.bin` with one path, `/home/runner/.platformio/packages/framework-arduinoespressif32/l…`, allowed;
+  - 0 IP addresses, 0 network names, 0 device ids;
+  - the control flagged;
+  - exit 0.
+- **The PR shows the command and this output.**
+
+**The guards, run locally this time** (A12.109's rule):
+- `scripts/check_wifi.py`: 0 unreadable, PASS;
+- `scripts/check_device_ids.py`: OK.
+
+**Locally, before the push:**
+- both suites at 22 and 36 under MinGW and WSL g++ 13.3;
+- both drivers in full, `--anchors` and `--control`;
+- the count lint.
+
+**The CI, read from a finished run:** 33 check runs, 29 success, 4 skipped (ship-alert, promote, version, publish), 0 failed; 32 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.
+
+**Outside these predictions: stop and decide.**
