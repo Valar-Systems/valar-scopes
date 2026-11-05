@@ -1702,3 +1702,28 @@ cron, and that deploy has now happened.
   - It parks only if both read 0.
 - **Carried forward:** identical work read up to about 1.6x apart. That margin goes into the `opuk` fix's CPU
   predictions.
+
+**S2 (clock-driven): LIVE, as predicted.**
+
+| | |
+|---|---|
+| start | offset 45.058 s. `plant` (`cpu_ms` 100), **version `6ebea4e7-2527-4e13-b196-b1eec8eeb6ae`**, 17:41:05.102-17:41:09.300Z, exit 0, empty stderr, `schedule: * * * * *`. The 5-min check at the deploy + 360 s found a Logs record, so the GraphQL fallback wasn't needed |
+| end | park on `idle`, **version `7528c59b-136d-4993-8bce-2ad205fb8d6f`**, 17:51:05.101-17:51:11.025Z, exit 0, empty stderr, cron kept |
+| Logs (by version; twice, 17:55:00Z and 17:57:05Z, identical) | **10 records, 10 of 10 `exceededCpu`**, at 17:41:45 through 17:50:45Z, one a minute. 0 unattributed. No check line logged, because each was killed inside its `:00` plant |
+| R3-6's own instrument (`workersInvocationsAdaptive` by status, the same window) | **`exceededResources`: 10 invocations, 10 errors**. No `success` row |
+| S2's table | at least 1 `exceededCpu` in Logs **and** a non-success status in R3-6's instrument: **LIVE, 10 of 10** |
+
+- **What this settles:** R3-6's gate ("0 CPU-limit errors") **can see a CPU-limit outcome.** A planted overrun reads
+  as `exceededResources` with an error per invocation. So R3's reading of 0 errors means no invocation was killed;
+  it does not mean the instrument was blind.
+
+**Data beside the rows, not a finding: where the kill landed.**
+- Every killed invocation read **`cpuTimeMs` 2,100 exactly**, all ten, under `cpu_ms` 100. That is 21x the limit,
+  and wall time was 2.1-2.5 s.
+- **Readings this fits, which one limit value can't separate:**
+  - the kill comes at `cpu_ms` + 2,000 ms of grace. Under production's 5,000 that would be about 7,000, which fits
+    R3's 5.4-6.1 s invocations ending `ok`;
+  - a floor of about 2.1 s, below which no limit bites;
+  - a sampling or reporting step in how `cpuTimeMs` is accounted for killed invocations.
+- Telling them apart needs a second `cpu_ms` value. That is not in Plan S. It matters to the fix: the real kill line
+  above `cpu_ms` is unknown, so the fix budgets against `cpu_ms` itself.
