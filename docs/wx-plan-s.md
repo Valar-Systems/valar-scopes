@@ -138,3 +138,41 @@ Predictions frozen at `22707c5` (00:51:39Z), before any code.
     - main's CI, on an LF checkout, reads 891 passed.
   - The reading that counts is the PR's CI: **897 passed, 1 skipped (898).**
 - **The CI step** is the one `--selftest`. It runs the real check, which must PASS, then both sabotages.
+
+## 5. The `idle` park env (ruled ~05:05Z 2026-11-05; predictions first, before the code)
+
+**Why.** Parking on `off` removes the cron and every phase adds it back. Cloudflare's docs give a cron trigger change
+"up to 15 minutes" to propagate, and the dev copy measured it:
+- adding the cron: 268.7 s and about 592 s to the first firing;
+- removing it: firings for 323 s afterwards.
+
+A version change is immediate. So **a park now keeps the cron and changes only the version.**
+
+**What this PR adds:**
+- **`[env.idle]`** in `proxy/wx-ingest-dev.wrangler.toml`: the same Worker name, `crons = ["* * * * *"]`,
+  `MODE = "off"`, `cpu_ms` 30000, `WX` -> `blipscope-wx-dev` only, observability on.
+- **`check-wx-plant.mjs`'s PB2** reads **7** deploy targets: the top level, `off`, `idle`, `plantcal`, `plant`,
+  `cref`, `opuk`. The new target expects `MODE` `off`.
+- Nothing in `src/` or `test/` changes.
+
+**Predicted, read only from finished runs:**
+
+| check | predicted |
+|---|---|
+| proxy suite | unchanged from `131c0f776d9a`: **897 passed, 1 skipped (898)**, files 68 passed, 1 skipped (69) |
+| the plant selftest (CI step) | **SELFTEST PASSED**. Real PB1 PASS (production 0, anchor 1, dev 1). Real PB2 PASS on **7/7**, `idle`'s MODE `"off"`. PB1s FAIL (marker 1). PB2s FAIL on **`cref` alone, the other 6 passing** |
+| check-runs on the head | **41**: 38 success, 3 skipped |
+
+**Predicted at each `idle` park, when it runs:**
+- the deploy lists `schedule: * * * * *`;
+- the version record shows exactly one R2 binding, `WX` -> `blipscope-wx-dev`, `MODE` = `off`, no other binding,
+  and `cpu_ms` 30000;
+- invocations on a park version log only `wx_dev_off`.
+
+**The first-invocation windows, as ruled ~05:05Z:**
+- the one deploy that adds the cron (S1's fourth attempt) has **15 min**;
+- every later phase deploy has **5 min**, judged on `scheduledTime` at the deploy + 360 s.
+- **S5 (`off`, removing the cron):** the last invocation within **15 min** of S5's deploy, then **0 over the next
+  10 min**, read twice 5 min apart.
+
+**Escape:** anything else means stop and report.
