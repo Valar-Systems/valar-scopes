@@ -396,3 +396,14 @@ at all:
 
 The real run against production happens on Daniel's machine, where the record exists, as part of
 the ordinary reconcile.
+
+### G and R, graded on `869c556` (2026-11-05 18:24-18:29Z): all as predicted
+
+- **The run:** 933 passed, 1 skipped (`basemap-md2`), 1 failed (Q-C1 only, the CRLF artifact).
+- **The list:** `vitest list` read **934**, from a drained start (TIME_WAIT 73). One earlier list
+  returned no tests at all: it started at TIME_WAIT above 15,000 straight after the sabotage runs.
+  That was an instrument failure, not a count.
+- **S-G1** (`gen` ignored): red exactly {G1, G2}, from a control of 86 all green.
+- **S-R1** (the bump removed): red exactly {R1}.
+- **The reconcile reader:** H1-H3 pass. Under S-H (the block removed) all three fail.
+- Every planted file was restored by bytes, and the tree was clean afterwards.
