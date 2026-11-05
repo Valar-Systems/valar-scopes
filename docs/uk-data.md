@@ -1956,7 +1956,7 @@ the line LPS's IPR team gave in writing.
 - **Water (DAERA lakes)** is consistent. NISRA's populations are OGL, but they are only used through the boundary join.
 - **The docs PR (A.3) waits** for that ruling, so it records one settled answer, not a partial one.
 
-### A3.22 B, the OPERA coverage survey: predictions, frozen before any code (2026-11-05 ~21:50Z)
+### A3.22 B, the OPERA coverage survey: predictions, frozen before any code (2026-11-05 21:38Z)
 
 **Frames.**
 - The source the ingest reads is `https://s3.waw3-1.cloudferro.com/openradar-24h`, and it keeps 24 hours. So
