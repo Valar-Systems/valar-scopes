@@ -2009,3 +2009,81 @@ the line LPS's IPR team gave in writing.
 - **Coverage only:** clutter, quality and latency are not graded.
 - **Escape:** anything else means stop and report. The report goes in my reply, with no PR until it's read: the
   ranked table, the controls and sabotages (predicted and observed), the script's sha256 and its command line.
+
+### A3.23 B's reading: OPERA's coverage by country (graded run 2026-11-05 23:09:00Z, 2026-11-05's 24 hourly frames)
+
+**Inputs:**
+- **Frames:** 24 of 24 readable, 2026-11-05 00:00-23:00Z hourly, from `openradar-24h`. Fetched one request at a time
+  (00:00-21:00Z at 21:39-21:40Z, 22:00Z at 22:08Z, 23:00Z at 23:08Z), every one HTTP 200, 46,959,585 B in total.
+  The sha256 of each is in `frames/manifest.json` in my scratch.
+- **Raster:** 3800 x 4400 at 1,000 m, LAEA (lat0 55, lon0 10). The corner is **`cirrus-slip`** in all 24, as predicted.
+- **Natural Earth 1:10m admin-0 countries v5.1.2** (GitHub release tag), 258 countries; file sha256
+  `239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255`.
+- **The reader:** `parseHead` and `laea` from `proxy/src/wx/`, identical to main. The script is
+  `b_survey.mts`, sha256 `5a9590f0fac754020e1d7df563dc5dad3908293b1992bb52a56c21f197eef5c5`.
+- **The command:** `node ../wt-plan-s/proxy/node_modules/tsx/dist/cli.mjs b_survey.mts frames
+  ne/ne_10m_admin_0_countries.geojson $REF 20261105T2000`, where `$REF` is the 20:00Z frame's logged `coveredShare` in full (0.750772231862 to 12 places; its full float sits in the S4 log line, uncopied here because a 16-digit run trips the device-id hook). Output sha256
+  `0b0d43ac4363093b840655aaa763a57b78946b856f13bc1c60156b6374c1a6bd`.
+- **A development pass** over the first 22 frames ran first. It is not the reading, and the graded run's controls
+  match it.
+
+**The controls, all as predicted:**
+
+| | predicted | observed |
+|---|---|---|
+| **C1** (frame 20:00Z) | within +/-0.005 of the reference 0.7507722 | **0.7508004 (+0.000028)** |
+| **C1s** (undetect counted as uncovered) | red, far outside | **red: 0.0562 (-0.6945)**; undetect cells in the box: **1,531,016 of 2,204,325** |
+| **C2** (39 ranked countries wholly in-domain) | each within +/-3% | **all 39 within; the largest are Malta +1.94% and Jersey -1.72%** |
+| **C2s** (pixel size x1.1) | red for every one | **red for all 39: -15.5% to -18.6%** |
+| **C3** (Shetland, 1,365 pixels) | < 5% covered in each frame | **0% in all 24** |
+| **C3s** (north-south flip) | red | **red: 100% in every frame** |
+
+**The ranking** (in-domain >= 50% and >= 100 pixels; covered = data or undetect, which is the radar footprint).
+Radars come from each frame's own node list (156-162 nodes a frame), by OPERA prefix, as median (min-max):
+
+| country | in-domain % | covered % (median) | lowest frame | frames | its own radars |
+|---|---|---|---|---|---|
+| Aland, Andorra, Austria, Belgium, Bosnia and Herzegovina, Croatia, Czechia, Denmark, Estonia, Finland, Germany, Hungary, Ireland, Isle of Man, Jersey, Liechtenstein, Lithuania, Luxembourg, Malta, Moldova, Montenegro, Netherlands, Poland, Romania, Slovakia, Slovenia, Switzerland | 98.3-101.9 | **100.00** | 100.00 | 24 | be 3, hr 5, cz 2, dk 5 (4-5), ee 2, fi 12, de 17 (15-17), hu 5 (4-5), ie 2, lt 2, mt 1, nl 2, pl 8 (7-10), ro 7 (6-7), sk 4, si 2, ch 5; **none in the node list** for at, ba, ax, ad, im, je, li, lu, md, me |
+| France | 86.0 (its overseas parts are outside) | **100.00** | 100.00 | 24 | fr 24 (23-24) |
+| Portugal | 96.3 | **100.00** | 100.00 | 24 | pt 3 |
+| Sweden | 100.0 | **100.00** | 99.39 (00:00Z) | 24 | se 11 |
+| Iceland | 100.0 | **99.99** | 99.99 | 24 | is 3 |
+| **United Kingdom** | 100.0 | **99.44** | 99.44 | 24 | uk 15 (14-15) |
+| Norway | 83.7 | **99.29** | 99.29 | 24 | no 11 |
+| Latvia | 100.0 | **97.90** | 97.90 | 24 | none listed |
+| Spain | 98.5 | **92.58** | 92.58 | 24 | es 9 |
+| Serbia | 100.0 | **90.99** | 90.99 | 24 | none listed |
+| Italy | 100.0 | **70.57** | 70.57 | 24 | **none listed** |
+| Bulgaria | 100.0 | **67.88** | 65.15 (13:00Z) | 24 | none listed |
+| Belarus | 100.0 | **45.05** | 45.05 | 24 | none listed |
+| Albania | 99.9 | **27.53** | 27.53 | 24 | none listed |
+| Ukraine | 81.5 | **25.75** | 25.75 | 24 | none listed |
+| Kosovo | 100.0 | **17.25** | 17.25 | 24 | none listed |
+| Faroe Islands | 100.6 | **0.00** | 0.00 | 24 | none listed |
+| Greece | 100.0 | **0.00** | 0.00 | 24 | none listed |
+| North Macedonia | 100.0 | **0.00** | 0.00 | 24 | none listed |
+
+**Listed apart** (under 50% in-domain, or under 100 pixels), as in-domain % / pixels / covered % (median):
+- Morocco 24.1 / 142,833 / 21.53
+- Russia 9.1 / 1,548,111 / 16.61
+- Turkey 27.3 / 212,896 / 0
+- Tunisia 46.7 / 73,065 / 0
+- Algeria 11.6 / 268,411 / 0
+- Greenland 5.5 / 119,529 / 0
+- San Marino 102.8 / 62 / 100
+- Monaco 100.9 / 19 / 100
+- Gibraltar 108.3 / 4 / 100
+- Guernsey 100 / 74 / 100
+
+**Read beside the table, not graded:**
+- **Coverage hardly moves within the day.** For every country except Sweden (00:00Z) and Bulgaria (13:00Z), the
+  lowest frame equals the median. Covered includes undetect, so this is the radar network's footprint, not the
+  weather.
+- **Some countries are covered with none of their own radars in the node list:** Austria, Luxembourg, Moldova and
+  Latvia at 98-100%, and Italy at 70.6%. That fits neighbours' radars reaching across the border.
+  - The alternative, a country prefix the survey doesn't recognise, is excluded only where the node list shows no
+    other unrecognised prefix. All 24 prefixes found are ISO-2 codes or `uk`, and none of them is at, it, lu, md or
+    lv.
+- **Above 100% in-domain** (Malta 101.9, Gibraltar 108.3) is pixel-centre quantisation on tiny polygons, the same
+  effect C2 bounds at +/-3% for the ranked ones.
+- **The frames stay in my scratch until the reviewer has read this**, then they are deleted as allowed.
