@@ -12100,3 +12100,34 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **The disclosure stands:** the two pre-check radar and Missileer heads carry a local toolchain path at 0x120 (A12.105). The reviewer may swap them for v18's `firmware-s3-128.bin` head before merge.
 
 **Outside these predictions: stop and decide.**
+
+### A12.108 #549 closed on main's CI; 3.4 measured over the 9-leg matrix: every A12.107 row AS PREDICTED, O9 included. Its PR goes up
+
+**Main's CI on `dd1246e09722` (#549):** 30 check runs, 28 success, 2 skipped (promote, version), 0 failed, 0 s3-146 runs. Read twice, finished at 18:56:46Z. **AS PREDICTED.**
+
+**3.4, rebased onto `dd1246e09722`, at `2397948bc1b9`:**
+
+| row (A12.107) | measured |
+|---|---|
+| the offering side | selftest PASSED, with the new case: a retired env on another table is skipped. **Control:** with the skip removed, exactly that case fails. `--fleet`: `9 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 7, s3-175-amoled 1, s3-21 1`, PASS. S-O5 and S-Q76 one problem each; unplanted 0. The table: 7 rows, in the frozen order. |
+| O2 on real images (5 envs built at `5d32f08532df`) | PASS on `blipscope-pro-s3-21` (`VSID`, board `s3-21`), `weatherscope-s3-128`, `blipscope-s3-128` (slug agrees) and `missileer-s3-128`. A retired env given to the image mode reads BLIND. |
+| `test_ota_identity` | 22 checks, 0 failures: P3 `s3-21`; R1 21/21; M1 27/22; M2 66 of 66; M3 11/38 (16); O4-v-a and O4-v-b on the `s3-21` head |
+| `test_ota_install` | 36 checks, 0 failures: I1 the `s3-21` head `foreign`; O10 7 identities × 3, 21 `no-record`, 0 flash calls |
+| the sabotages | S-ID1b 7 (M3 16 off), S-ID2b 9 (M1 22 off, M2 44 of 66 refused, M3 10 off), S-O8a 20 (final boot `app0` ×6), S-O8b 14, S-ID3 9, each exactly its set. `--anchors`, `--control` and the count lint clean. |
+| run.sh under WSL (g++ 13.3) | exit 2, the failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b". Both OTA blocks and both drivers green. **AS PREDICTED.** |
+| run.sh under MinGW (g++ 5.1) | **exit 0**, ALL HOST TESTS PASSED; the xtensa and Pillow blocks green here |
+
+**O9, the acknowledged send.** The window on `907069326E64`, 18:49 to 18:52:58Z:
+- **The bench image `bef9820e144d`,** built at `5d32f08532df`, was written to app0 and booted: `[ota-id] board=s3-128 scope=weatherscope- (record v1)`.
+- **The three cases:**
+
+| case | measured |
+|---|---|
+| the Blipscope `s3-128` head | 6 requests for 6 chunks, 0 after the budget; `refused-foreign`; boot `app0` → `app0`; slot `3faf475653d7` unchanged; 0 screen lines |
+| the `blipscope-pro-s3-21` head | the same: 6 for 6, `refused-foreign`, boot and slot unchanged, 0 screen lines |
+| CONTROL, its own head cut at 8 KB | 128 requests for 128 chunks, 0 after the budget; **`fail-6`**; boot unchanged; slot `3faf475653d7` → `7ec834092800` (**changed**); screen `progress 0` |
+
+- **All three AS PREDICTED.** The bench now shows the control writes, so the refusals' "unchanged" means something.
+- **The window ended with `39e258b5be07` written back,** booted with its stored theme `auto`.
+
+**The PR's CI is predicted in A12.107:** 33 check runs, 29 success, 4 skipped (ship-alert, promote, version, publish); 32 on `ubuntu-24.04`, 1 on `ubuntu-26.04`.
