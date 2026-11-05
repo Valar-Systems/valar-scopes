@@ -396,7 +396,7 @@ async function route(
   const wxMatch = api.suffix.match(/^wx\/([^/]+)$/);
   if (wxMatch) return handleWx(request, env, wxMatch[1] as string);
   // The map under the planes: one BMPK v1 package for a location and radius (docs/basemap-route.md).
-  if (api.suffix === "basemap") return handleBasemap(request, env, ctx);
+  if (api.suffix === "basemap") return handleBasemap(request, env, ctx, meta);
   return errorResponse(404, "not_found");
 }
 

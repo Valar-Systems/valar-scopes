@@ -282,9 +282,11 @@ const SABOTAGES = {
   },
   "S-W304LATE": {
     file: HANDLER, set: "all",
-    edits: [['    if (inm === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } });\n    const hit = await cache.match(cacheKey(etag));\n',
+    edits: [['    if (inm === etag) { log.bm = "304-known"; return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } }); }\n    const hit = await cache.match(cacheKey(etag));\n',
              '    const hit = await cache.match(cacheKey(etag)); // SABOTAGE S-W304LATE: no comparison before the builder\n']],
-    expect: ["MW10"],
+    // Re-registered (docs/basemap-branch-log.md), from A1.7's {MW10}: with no comparison, MK2's request is a hit and
+    // 304-known is never logged. The anchor follows the labelled line. The original {MW10} stays on record there.
+    expect: ["MK2", "MK6", "MW10"],
   },
   "S-WNOSTORECHECK": {
     file: BUILD, set: "all",
@@ -352,6 +354,39 @@ const SABOTAGES = {
     edits: [["  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null };\n",
              "  return { rev: BASEMAP_REV, store: null, commit: null }; // SABOTAGE S-HNOCACHE\n"]],
     expect: ["MH3"],
+  },
+  // The MK rows' (docs/basemap-branch-log.md): each branch's label swapped for ANOTHER valid label, so MK6's set check
+  // stays green and only the branch's own row (and MK6's "each label seen" control) can catch it; a label set before
+  // the branch; and the label leaked into the dataset point.
+  "S-MK304": {
+    file: HANDLER, set: "all",
+    edits: [['{ log.bm = "304-known"; return new Response(null, { status: 304,', '{ log.bm = "hit"; /* SABOTAGE S-MK304 */ return new Response(null, { status: 304,']],
+    expect: ["MK2", "MK6"],
+  },
+  "S-MKHIT": {
+    file: HANDLER, set: "all",
+    edits: [['if (hit) { log.bm = "hit";', 'if (hit) { log.bm = "304-known"; /* SABOTAGE S-MKHIT */']],
+    expect: ["MK3", "MK6"],
+  },
+  "S-MKKMISS": {
+    file: HANDLER, set: "all",
+    edits: [['    log.bm = "known-miss";\n', '    log.bm = "unknown-store"; // SABOTAGE S-MKKMISS\n']],
+    expect: ["MK4", "MK6"],
+  },
+  "S-MKUNK": {
+    file: HANDLER, set: "all",
+    edits: [['  } else log.bm = "unknown-store";\n', '  } else log.bm = "known-miss"; // SABOTAGE S-MKUNK\n']],
+    expect: ["MK1", "MK6"],
+  },
+  "S-MKPRE": {
+    file: HANDLER, set: "all",
+    edits: [['  if (!env.BASEMAP) return errorResponse(503, "not_configured");\n', '  log.bm = "unknown-store"; // SABOTAGE S-MKPRE: labelled before any branch\n  if (!env.BASEMAP) return errorResponse(503, "not_configured");\n']],
+    expect: ["MK5"],
+  },
+  "S-MKAE": {
+    file: "src/metrics.ts", set: "all",
+    edits: [['      blobs: [route, m.cache ?? "", m.upstream ?? "", m.model, m.dev ?? "", m.fw ?? ""],\n', '      blobs: [route, m.cache ?? "", m.upstream ?? "", m.model, m.dev ?? "", m.fw ?? "", ...(m.bm ? [m.bm] : [])], // SABOTAGE S-MKAE\n']],
+    expect: ["MK7"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
