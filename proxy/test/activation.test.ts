@@ -341,3 +341,42 @@ describe("L: the lazy generation write for grandfathered rows (accepted ~20:15Z)
     expect((await activate(LISTED, ROTATED)).status).toBe(409);
   });
 });
+
+describe("W: watch mode (Daniel's decision; production starts on watch)", () => {
+  const WATCH = { ACTIVATION_GATE: "watch" };
+  const today = () => new Date().toISOString().slice(0, 10);
+  const watchKeys = async () => (await env.ENRICH_KV.list({ prefix: "enr:watch:" })).keys.map((k) => k.name);
+
+  it("W1: an unlisted id gets its key in watch, counted once, with no act: row and no id in the count", async () => {
+    const r = await activate(OTHER, WATCH);
+    expect(r.status).toBe(200);
+    expect(r.body.key).toBe(await deriveDeviceKey(SECRET, OTHER));
+    expect(await env.ENRICH_KV.get(`enr:watch:${today()}:not_listed`)).toBe("1");
+    expect(await row(OTHER)).toBeNull();
+    expect((await env.ENRICH_KV.list({ prefix: "enr:refused:" })).keys).toEqual([]);
+    for (const k of await watchKeys()) {
+      expect(k).not.toContain(OTHER);
+      expect(await env.ENRICH_KV.get(k)).toMatch(/^\d+$/);
+    }
+  });
+
+  it("W2: a listed id's first activation writes activated in watch; its second gets the key and is counted once", async () => {
+    await admin({ op: "add", ids: [LISTED] });
+    expect((await activate(LISTED, WATCH)).status).toBe(200);
+    expect((await row(LISTED))?.state).toBe("activated");
+    const second = await activate(LISTED, WATCH);
+    expect(second.status).toBe(200);
+    expect(second.body.key).toBe(await deriveDeviceKey(SECRET, LISTED));
+    expect(await env.ENRICH_KV.get(`enr:watch:${today()}:already_activated`)).toBe("1");
+    expect((await env.ENRICH_KV.list({ prefix: "enr:refused:" })).keys).toEqual([]);
+  });
+
+  it("W3: a missing or unknown mode enforces: an unlisted id is refused as A1 is", async () => {
+    for (const mode of [undefined, "WATCH", "off", ""]) {
+      const r = await activate(OTHER, { ACTIVATION_GATE: mode });
+      expect(r.status, String(mode)).toBe(403);
+      expect(r.body.error, String(mode)).toBe("not_listed");
+      expect(r.body.key, String(mode)).toBeUndefined();
+    }
+  });
+});

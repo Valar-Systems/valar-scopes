@@ -802,3 +802,13 @@ from a commit.
   - **dashboard 104.**
 - **(f)** Production goes to `"enforce"` only when Daniel says so: a one-line PR, a deploy from
   that named commit, and W4's check on it. The watch counts reach him first.
+
+**Watch mode, graded (2026-11-05 21:31-21:35Z by the clock): all as predicted.**
+- **The control** ran 101 tests across the six files, all green (98 plus W1, W2 and W3).
+- **S-W1:** red exactly {W1, W2}. **S-W2:** exactly {W2}. **S-W3:** exactly the nine named
+  above.
+- **W4:** the dry runs list production `("watch")` and staging `("enforce")`, exit 0. **S-W4**
+  (production's var removed from `wrangler.toml`): exit 1, naming production. `wrangler.toml` was
+  restored by bytes, sha checked.
+- **H4:** the reconcile harness passes H1-H4. **S-H2** (the watch block removed) fails H4 alone.
+- Every planted file was restored by bytes.

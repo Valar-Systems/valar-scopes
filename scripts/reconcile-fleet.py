@@ -264,6 +264,34 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
         print("    note: days with no refusals have no key and are simply absent above.")
     print()
 
+    # --- Instrument: would-be refusals in watch mode (enr:watch:) ---------
+    # docs/device-activation.md, "Watch mode" (Daniel, 2026-11-05). Production starts
+    # with the gate on "watch": every activation it WOULD refuse is counted here and
+    # the key is issued anyway. These are the counts Daniel reads before deciding to
+    # enforce, so they are printed on every run, beside the real refusals above.
+    names = kv_list_names("enr:watch:", env, errfile)
+    print("  Would-be refusals per day in watch mode (last %d): not a Valar unit / already activated" % days)
+    if not names:
+        print("    (no enr:watch: counters at all -- KV is readable, since fw: listed above,")
+        print("     so this is a real absence: watch has not been on, or nothing would have")
+        print("     been refused, or the counters have aged out of their 40-day TTL.)")
+    else:
+        by_day = {}
+        for n in names:
+            day, _, reason = n[len("enr:watch:"):].partition(":")
+            v = kv_get_raw(n, env, errfile)
+            try:
+                count = int(v)
+            except (TypeError, ValueError):
+                count = None
+            by_day.setdefault(day, {})[reason] = count
+        for day in sorted(by_day)[-days:]:
+            r = by_day[day]
+            shown = ["?" if r.get(k, 0) is None else str(r.get(k, 0)) for k in ("not_listed", "already_activated")]
+            print("    %s  not_listed %6s  already_activated %6s  (would-be, key issued)" % (day, shown[0], shown[1]))
+        print("    note: days with none have no key and are simply absent above.")
+    print()
+
     # --- Instrument A: the fleet firmware table (fw:) ---------------------
     print("  Instrument A (fw: rows) -- OTA outcome observation")
     if not detail:
