@@ -1822,3 +1822,66 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
 > The sampling finding is recorded: workersInvocationsAdaptive scaled one firing into 10 at sampleInterval 10. In the fix, every count or total read from that dataset carries its sampleInterval, or is taken from Workers Logs instead.
 > S5 runs as registered, with reads at 20:57:15Z and 21:02:15Z.
 > After S5, the dev Worker and blipscope-wx-dev stay in place, unscheduled. Deleting them is Daniel's call, after the fix has been proven. Then item 3, the fix, with its predictions frozen first.
+
+### Item 3: the fix, proposed for a ruling (2026-11-05 ~20:45Z; no code before the ruling, and the PR's predictions come first)
+
+**The shape: `opuk` in its own Worker, `blipscope-wx-ingest-opuk`. Recommended over a second cron in the same Worker.**
+
+| | **own Worker** (recommended) | second cron, same Worker |
+|---|---|---|
+| CPU per invocation | one product per invocation | one product per invocation (each cron is its own invocation). **Equal** |
+| `cpu_ms` | its own, sized for `opuk` | one value for both, sized for the larger |
+| deploy and rollback | independent: an `opuk` change never redeploys `cref` | one version: rolling back `opuk` rolls back `cref` too |
+| an upstream down (tonight's CloudFerro timeouts) | its own invocations, logs and errors | its own invocations; the logs are told apart only by their lines |
+| instruments | its own `scriptName` in Workers Logs and GraphQL | one script, split by log line |
+| cron | the new Worker's first cron: up to 15 min to start (measured 268.7 s, ~592 s, ~539 s) | a second cron expression on the existing Worker is also a cron change, up to 15 min. **Two identical `* * * * *` can't coexist**, so it needs a second spelling and dispatch on `controller.cron` |
+| cost | +43,200 invocations a month, inside the 10 M included; CPU unchanged | the same |
+| new parts | a second toml, entry and deploy target | dispatch on a cron string |
+
+**The code (one PR):**
+- **The `cref` Worker** (`blipscope-wx-ingest`, same toml, same `main`): its `scheduled` checks **`cref` only**,
+  through `checkAll`'s product list. `checkAll`'s default stays both products, so PS1 is unchanged.
+- **The `opuk` Worker:** a new entry, `src/wx/ingest-opuk-worker.ts`, with the same `:00` / `:30` shape, checking
+  **`opuk` only**.
+  - It has a stop switch, the var `WX_INGEST`: `on` checks `opuk`; anything else logs one `wx_ingest_off` line and
+    does nothing.
+  - A new `proxy/wx-ingest-opuk.wrangler.toml` binds `WX` -> `blipscope-wx`, with `WX_INGEST` `on`, and an
+    **`[env.inert]`** with the same name, the cron kept and `WX_INGEST` `off`.
+  - **Its stop is a version change, which is immediate, not a cron removal** (which lags 323 s or more). This is
+    tonight's `idle` lesson.
+- **`cref`'s rollback** stays `582612da`.
+
+**Sizing `cpu_ms`, with the three margins ruled ~17:28Z and ~19:20Z:**
+
+| Worker | measured single-build max | x2, a backfill | x1.6, the runtime spread | **proposed `cpu_ms`** | today |
+|---|---|---|---|---|---|
+| `cref` | 3,621 (production baseline 19-21Z; S3 2,548; R3 2,504) | 7,242 | 11,587 | **12,000** | 5,000 |
+| `opuk` | 3,123 (S4; production 2,948) | 6,246 | 9,994 | **12,000** | (new) |
+
+- **`cref`'s headroom row:** today's 5,000 was sized at 10x A4's 0.53 s. A two-build `cref` backfill at the
+  baseline max would read about 7,242, already over it. S3's two-build invocation read 5,733.
+- 12,000 is under the documented 30,000 cap for a sub-hourly Cron Trigger.
+- **The limit is budgeted as `cpu_ms` itself,** never as the grace that S2's 2,100-at-100 suggests.
+
+**The PR's checks, predictions to be frozen in it before its code** (each with a sabotage):
+- **FT1:** the `cref` Worker's entry checks only `cref`. Sabotage: its list gains `opuk`, and FT1 goes red.
+- **FT2:** the `opuk` entry checks only `opuk` when `WX_INGEST` is `on`. With anything else it logs one line and
+  touches no bucket and no upstream. Sabotage: the off branch falls through to a check.
+- **FB2:** PB2's method on the new toml. Its top level and `inert` each bind exactly one R2 bucket, `WX` ->
+  `blipscope-wx`, with `WX_INGEST` as set. The `cref` toml is unchanged in bindings. Sabotage: one bound elsewhere.
+- **Suite and CI counts, from a finished run.**
+
+**R3′, the re-run, outlined here and frozen in full before its deploy:**
+- **Order:**
+  1. the `opuk` Worker first. It is new, so its first firing is up to 15 min away.
+  2. then the `cref` Worker to main's `cref`-only code. Its cron is unchanged, so that is a version change.
+- **CPU per Worker from Workers Logs invocation records**, not from adaptive sums. Every R3-6-style figure carries
+  its `sampleInterval`.
+- **Count rows allow the vanished-invocation margin**, about 1 in 60 to 1 in 90:
+  - in 30 min, at most 2 minutes missing one `cref` check, and **at most 1 missing both**;
+  - a vanished invocation is a minute missing both, and at that rate one in 30 min is likely, not rare.
+- **Backfill is excluded from graded CPU sets**, as S4's was.
+- **Rollback:**
+  - `cref` -> `582612da`;
+  - `opuk` -> `-e inert`, a version change.
+  - The stored `opuk` frames stay. Deleting data is Daniel's.
