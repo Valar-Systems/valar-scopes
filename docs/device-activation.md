@@ -651,3 +651,12 @@ the grandfathered `activated` ones, given that a seed never rewrites a row):
   read the rows back with the `kv-read` token. They print counts only.
   - **Predicted:** 24 ids swept, 24 `activated`, **24 carrying a 12-hex `gen`**, 0 without.
   - The sweep's own code and test land with this change. Its production run waits for the deploy.
+
+**Amendment, before any run (the count contradicted the text).** The block above says the sweep's
+code and test land with this change, but it counted only L1 and L2, so its **943** was wrong as
+written.
+- **M1, the sweep's arithmetic:** given the states `status` returned and the `gen` values read
+  back, the counts are exact (swept, activated, stamped, unstamped), and the line it prints holds
+  no id.
+- **S-M:** "stamped" counted from the state instead of the `gen`. Predicted red: exactly {M1}.
+- **The list reads 944.** S-L is still predicted red exactly {L1, L2}.
