@@ -11246,3 +11246,31 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **They agree with your 26.0 at 20:51Z.** At 21:13Z: 26,322 MiB.
 
 **W4:** waits for Daniel to say the hold is over. A window started now would run past 21:30Z. When it opens, the window is announced first, on the clean image (no rebuild), from `screen_watch.py` as merged.
+
+### A12.94 The hold is over (~00:36Z): W4's window announced, 2026-11-05 00:50Z-02:00Z, before it opens
+
+**The hold** that began at 21:30Z is over, as ruled (~00:36Z): the UK data session's R3 has reported and nothing of it is still running.
+
+**W4's window: 907069326E64, 2026-11-05 00:50Z to 02:00Z.**
+- **The image:** the clean TouchWatchdog image already on the board since W2 (`39e258b5be07`). There is **no write and no rebuild,** as ruled.
+- **The tools:** main's, at `20a0323592e1`, so `screen_watch.py` is as #530 merged. Main's newer commits touch no board tool and no Weatherscope file.
+- **C:** 60 GB free at 00:35Z. W4 builds nothing.
+
+**The steps:**
+1. `read-mac` (a reset) and `boot_lines` (the boot read).
+2. `read-mac` again, then `run_b35t.py` in full (theme posts, B1 and B3 in each theme, place, BSW, BSW-L) into a new empty directory.
+3. `grade_b35t.py` with this window's boot read, `--boot-setting auto:known`.
+
+**Predicted:**
+
+| row | expected |
+|---|---|
+| the boot read | `[build] env=weatherscope-s3-128`, `[ota-slot] boot running=app0`, `theme=auto read=known`; graded ok on the psram and theme rows, as W2's was |
+| the boot's Auto resolution | 00:50Z is Dallas night, so Auto resolves Dark to Dark and **prints no theme line**. If one does appear, it must be explained by #530's rule and nothing else |
+| `grade_b35t.py` | **ALL AS PREDICTED:** <br>• B1 exact in both themes; <br>• B3; <br>• BSW and BSW-L as t5's run; <br>• the watcher 0 unexplained |
+| the heartbeat lines in the run's trace | every one with `wedges=0`, failed probes 0, `wakes=0`, `rebootRec=0`, and the ok-probe count rising. That last point is also the proof the board runs the **clean** image, since S-TW would read `0/0` |
+| after | TCP :80 up after the runner's close; the board left on the clean image |
+
+**The outside-the-set branch:** any row off its value stops the window at that row. Nothing is retried or changed before it is reported.
+
+**Then the TouchWatchdog PR,** with the image rows (A12.85) and the board rows (A12.89, and this window's).
