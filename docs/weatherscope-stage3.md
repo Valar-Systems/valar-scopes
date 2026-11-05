@@ -11274,3 +11274,43 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **The outside-the-set branch:** any row off its value stops the window at that row. Nothing is retried or changed before it is reported.
 
 **Then the TouchWatchdog PR,** with the image rows (A12.85) and the board rows (A12.89, and this window's).
+
+### A12.95 W4 (00:50Z window): the B-run was ended from the host side 11.6 min in, mid-B1 light. Stopped, not retried (Q72)
+
+**What ran, all as predicted until the cut:**
+- **The boot read** (`read-mac`, then `boot_lines`):
+  - `[build] env=weatherscope-s3-128`, `[ota-slot] boot running=app0`;
+  - `psram_used=227168`;
+  - `[wx] init; ... theme=auto read=known`.
+- **No boot-time theme line:** it is Dallas night, so Auto resolves Dark to Dark and prints nothing, as predicted.
+- **The B-run** (`run_b35t.py` in full, main's tools at `20a0323592e1`):
+  - The theme POSTs, light then dark, were each verified (HTTP 200, only the asked fields changed, stored as asked), and the `[wx] theme=` lines they caused were explained by the runner's POST.
+  - **Dark B1** (the eight scenes, `bdry-C`, `brain-C`) and **dark B3** (the legend) were captured, then half of **light B1** (clear, herenow, stale, warning).
+  - 30 captures in all.
+  - The watcher, replayed: **35 screen changes, 35 explained, 0 unexplained.**
+- **The heartbeat in the run's trace:** `[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=58/0 maxOutage=0ms rebootRec=0`, 10 min after the boot. So the **clean** image is running with the supervisor live, not S-TW.
+
+**The cut, at 01:01:44Z:**
+- The trace ends with the runner's own `#HOST closing the port`, right after a normal `light-clear 1 ... finished` fetch.
+- **No `captures.json` was written,** so there is nothing to grade.
+- **The runner's log is empty (0 bytes):** its buffered stdout was never flushed.
+- **The PowerShell wrapper never logged `run_b35t exit=`.** The tool reported the background command "failed, exit code 1", and no Python process remained.
+
+**The reading, with the alternative named:**
+- **The board or the runner failing does not fit:**
+  - the board's last lines are ordinary finished fetches, with no boot and no error line;
+  - a runner exception would have printed a traceback into its log, and the log is empty.
+- **The host side ending both processes does fit:** the wrapper and its child were both gone, and the runner's `finally` ran (`closing the port`) without a flush.
+- **That run went through the PowerShell tool's background mode.** My 60-minute passive watches, run through the Bash tool's background mode, were not cut. That points at the PowerShell tool's background run. It is consistent with everything seen, but not proven.
+
+**The board afterwards:** TCP :80 open in 2.1 s at 01:12Z. It is still on the clean image, with no write since W2 and no planted image. The window holds until 02:00Z, unused.
+
+**Q72, for the ruling:**
+- **(a) Re-run W4 in full,** unchanged except for the rig:
+  - through the Bash tool's background mode, the way the 60-minute watches ran;
+  - `python -u`, so the runner's log survives any cut;
+  - into a new empty directory, with every row as A12.94 predicted.
+  - **Either** in what is left of this window, if ruled before ~01:25Z (a full run is about 30 min), **or** in a new announced window.
+- **(b)** Something else first.
+- **Recommended: (a).**
+- **The TouchWatchdog PR still waits for B1/B3.**
