@@ -11581,3 +11581,114 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - Its 10-minute `[health] touch-wd` line is the reader, with S-TW as its control and the board rows on record.
 - The bench board (907069326E64) runs the measured clean image, with stored theme `auto`.
 - **Still open, as ruled:** the radar's capped idle reboot for Weatherscope is its own later step. `RebootRecommended()` stays unacted on.
+
+### A12.103 OTA identity tied to the board, not the scope: Stage 3's identity rows revised, frozen before any 3.4 code
+
+**The heads-up (reviewer chat, ~15:30Z, pasted by Daniel), in substance:**
+- Daniel plans to flash every production `s3-128` board with one factory image. The customer chooses a scope at setup and can switch later.
+- So the check must tie a device's identity to its **hardware** (the `s3-128` board), not to its scope. Another `s3-128` scope's release must stay installable.
+- Revise the identity rows (the O1 matrix and O10's downgrade consequence) with predictions first, before any 3.4 code.
+- Nothing in it ships without Daniel's OK at cut time, as already ruled (A5.3).
+
+**Read first, on main at `975816d9bf49`, before anything here was written:**
+- **No identity code exists yet.** `git grep` for `OtaIdentity`, `rodata_custom_desc` and `kHeadBytes` in `src/`, `include/` and `scripts/` finds nothing.
+- **`RELEASING.md`'s "Planned, not yet in any release" note** states the old rule: the record is `<FW_OTA_PREFIX><variant::SLUG>`, and "identities are permanent".
+- **The boards and scopes,** from `skus.yml` and each env's flags. There are 17 rows, and 15 of them compile the OTA path:
+
+| board (`variant::SLUG`) | envs with an OTA path | scopes (`FW_OTA_PREFIX`) | partition table |
+|---|---|---|---|
+| `s3-128` | 5: `blipscope-s3-128` (the one slug-ful row), `blipscope-s3-128-joindiag`, `missileer-s3-128`, `missileer-photo`, `weatherscope-s3-128` | 3: none, `eam-`, `weatherscope-` | `partitions-s3-16mb-bignvs.csv`, all 5 |
+| `s3-146` | 8: the radar and seven editions | 8, one each | `default_16MB.csv`, all 8 |
+| `s3-21` | 1 | none | `default_16MB.csv` |
+| `s3-175-amoled` | 1 | none | `default_16MB.csv` |
+
+- **Two rows have no OTA path at all.** `animtest-s3-128` (`-<*> +<animtest_main.cpp> +<anim/>`) and `weatherscope-bench-s3-128` (`-<*> +<weatherscope/bench/>`) compile no `OtaUpdater`. They never check anything, and they carry no record.
+
+**Two things in the old rows were already wrong.** I found them while re-deriving the rows; they are not results.
+- **O1's "every prefix + slug is unique" is false for today's `skus.yml`.**
+  - `missileer-photo` and `missileer-s3-128` are both `eam-s3-128`, and `blipscope-s3-128-joindiag` and `blipscope-s3-128` are both `s3-128`.
+  - Each pair is two builds of one scope for one board, which is legitimate.
+  - What must be unique is a **published** name, and that is the offering side's job (O5). So the clause moves there: unique among slug-ful rows.
+- **O1's and O2's "every env in `skus.yml`" includes the two rows with no OTA path.** O1′ runs over the 15 that have one, and O2′ predicts `no-record` for the other two.
+
+**The record and the rule.**
+- **The record carries the board and the scope as two separate fields,** each length-prefixed. It stays at 0x120 and at most 64 bytes, with the same magic and a record version.
+  - **Why two fields:** a joined string can't be split, because slugs contain hyphens. `eam-s3-128` could be scope `eam-` on `s3-128`, or no scope on a board called `eam-s3-128`.
+  - **The scope still travels in every image.** The offering side needs it (O4 (i), O5), the refusal log prints it, and section 1.3's `X-Blip-Model` note still takes its value from it.
+- **(a), the rule as the heads-up states it:** `Accept(running, candidate)` is true exactly when the record is well formed and `candidate.board == running.board`. The scope is not compared.
+- **Q75 below asks whether the device should also check that the image is the scope it asked for.** That is option (b). Its rows are frozen here too, so whichever is ruled has its predictions before code.
+
+**The rows, revised under (a):**
+
+| row | was | now, predicted |
+|---|---|---|
+| **O1′** (host): the accept matrix | exact match: true on the diagonal only | Over the 15 envs × 15, 225 ordered pairs:<br>• **91 accepted:** every pair on one board, 25 on `s3-128`, 64 on `s3-146` and 1 each on the other two;<br>• **134 refused,** every one a cross-board pair.<br>**72 pairs flip** from refused to accepted against the old rule (16 on `s3-128`, 56 on `s3-146`). The old rule's 19 accepted pairs stay accepted. |
+| **O1′'s sabotages** (new) | — | • **S-ID1, the old exact-match rule:** red on exactly the **72** cross-scope pairs, and nothing else.<br>• **S-ID2, the board compare removed:** red on exactly the **134** cross-board pairs, and nothing else.<br>Each must fail its own set alone. |
+| **O2′** (host): from real images | the record equals `<FW_OTA_PREFIX><variant::SLUG>` | For each of the 15 envs' built images, the record's board equals its `variant::SLUG` and its scope equals its `FW_OTA_PREFIX`.<br>**`animtest-s3-128` and `weatherscope-bench-s3-128` read `no-record`:** with no OTA path, they compile no record. |
+| **O4′**: the mislabel | refused on both sides | • **(i) the offering side, unchanged:** Weatherscope's image as `firmware-s3-128.bin`, with its manifest slug `s3-128`, is refused, both identities named, and nothing is uploaded.<br>• **(ii) now accepted:** `Accept`, from an `s3-128` device, of the real Weatherscope image's record is **true**.<br>• **(iii) now accepted:** the same the other way round.<br>• **(iv) new, the device side's remaining job:** the real `blipscope-s3-146` image offered to an `s3-128` device is **false**, and the `s3-128` image offered to an `s3-146` device is **false**. |
+| **O7′** (host): a refused image never touches flash | 5 refused inputs, the first a Weatherscope head offered to `s3-128` | • **The first refused input becomes the real `blipscope-s3-146` head offered to `s3-128` (`foreign`).** The other four are unchanged, so there are still 5.<br>• **A second CONTROL:** the real Weatherscope head offered to `s3-128` is **accepted**. The log is `begin, write…, end`, the boot history switches once, and the target equals the image. |
+| **O8′**: the two "check moved" sabotages | O7 red on all 5 | Unchanged: **red on all 5 refused inputs.**<br>**Both controls stay green** under both sabotages, because an accepted image makes the same calls whether the check runs before or after. |
+| **O9′** (bench, `907069326E64`) | refused: a Blipscope `s3-128` head | Under (a) that head would be accepted on an `s3-128` board. So **the refused input becomes the `blipscope-s3-146` head (`foreign`).** The control is unchanged. |
+| **O10′** (host): the downgrade consequence | every identity refuses the pre-check `s3-128` head as `no-record` | **Every one of the 15 refuses the pre-check heads of all three `s3-128` scopes:** `blipscope-s3-128`, `missileer-s3-128` and `weatherscope-s3-128`, each built at 3.4's base.<br>That is **45 refusals, all `no-record`, 0 `foreign`.** The record is parsed before the board is compared, so a pre-check head cannot even be refused as `foreign`.<br>No pre-check image has the record's magic at 0x120. |
+| **S-ID3,** O10′'s sabotage (new) | — | **A "transitional" leniency that accepts a missing record.**<br>• O10′ is red on **45 of 45**;<br>• O7′'s pre-check and wrong-magic inputs are red.<br>It is the change a later release is likeliest to want, which is why it gets a control. |
+| **O11:** A3.4's refused case | another edition's image for the same board, under B's name: `refused-foreign` | Under (a) that image is **accepted.** So the refused case becomes **another board's image** (`blipscope-s3-146`), built from R's candidate and served under B's name:<br>• `refused-foreign`;<br>• 0 screen lines;<br>• A is still running after a power cycle. |
+
+**Unchanged:**
+- O3, O5 and O6. O5 now also carries uniqueness among slug-ful names.
+- A2.1's screen rows. A cross-scope install draws the bar like any accepted image.
+- A3.3's `no-record` sabotage.
+
+**The consequences, revised (A1.4, and `RELEASING.md`):**
+- **No OTA downgrade past R, now across scopes as well.**
+  - A device on R refuses every pre-R image of **every** scope (O10′). So a customer can switch only to a scope whose published image was built at or after R.
+  - Every slug-ful leg of a release is built from that release's source, so every scope published on R or later qualifies.
+  - A scope with no slug has nothing to switch to: the fetch gets a 404, a `fail-<n>`.
+- **What becomes permanent is the board and the record format, not the scope.**
+  - A device is stranded on OTA if its board's `variant::SLUG` is renamed or the record changes incompatibly.
+  - Renaming a scope prefix no longer strands anything through the check.
+- **The factory image joins the matrix when it exists,** with its own record and board `s3-128`.
+  - **If it is built before R,** it carries no check and no record. Devices running it accept whatever they fetch. Once a device is on R, it refuses that factory image over OTA, and only a cable puts it back.
+  - **So a factory image that should check from first boot,** or be reachable over OTA later, is built at or after R.
+- **Under (a), the device no longer refuses a same-board mislabel.**
+  - Weatherscope's image published as `firmware-s3-128.bin` would be accepted by every Blipscope `s3-128` device. Those devices would then run Weatherscope, and fetch Weatherscope's file from then on.
+  - So A1.4's "a mislabelled publish costs a head read, not a brick" holds only for a cross-board mislabel. A same-board mislabel silently changes the scope of every device on that board.
+  - The offering side is then the only guard, and it covers only publishes made by the release workflow. A direct `gh release upload`, which is how O11's image B goes up, bypasses it.
+- **USB flashing is unaffected,** as before.
+- **`RELEASING.md`'s note still describes the old rule.** It is revised in 3.4's code PR, where the record becomes real.
+  - R can't be cut before that PR, because R is the release that ships it.
+  - Daniel's cut-time OK then names these consequences.
+
+**Q75: what else the device checks (recommended: (b)).**
+- **(a) the board only,** as above. Its cost is the mislabel bullet above: a same-board mislabel changes every device's scope, and a hand upload is unguarded.
+- **(b), recommended: the board, and the scope the device asked for.**
+  - **The device knows which scope it requested.** A normal update asks for `firmware-<its own scope><board>.bin`, and a switch asks for the chosen scope's file.
+  - **So the decision becomes `Accept(requested, candidate)`, an exact match,** where `requested` is built from the **running board** and the requested scope.
+  - **What that keeps:**
+    - the device's identity is its hardware, as the heads-up says;
+    - every `s3-128` scope's release stays installable when it is the one asked for;
+    - O4's device side keeps its refusal: an image that isn't what was asked for costs a head read.
+  - **What it constrains:** a switch has to fetch by a name that carries the scope, which today's fetch-by-name already does. A path that installs without naming a scope, such as a catalogue URL or a local upload, would need its own rule. No such path exists today.
+  - **Its rows, frozen now:**
+    - **O1-b (i), the switch matrix.** For every ordered pair (running r, candidate c) of the 15, `Accept(Request(board(r), scope(c)), c)` is true on exactly the **91** same-board pairs. For the 134 cross-board pairs it is false for **every** one of the 9 scopes in the tree: **1,206 of 1,206** refused.
+    - **O1-b (ii), its own scope.** `Accept(Request(board(r), scope(r)), c)` is true on exactly the **19** pairs of equal identity. The **72** cross-scope pairs are refused, which is O4 (ii) and (iii) as originally frozen.
+    - **S-ID1b, compare the board only** (rule (a)): (i) **0** red; (ii) exactly the **72** red.
+    - **S-ID2b, compare the scope only:** (i) the **134** cross-board pairs red; (ii) **22** red. Those 22 are the cross-board pairs that share a scope: 18 with no prefix, 4 with `eam-`.
+    - **O4, O7, O9 and O11 stay as originally frozen,** reading "running" as "requested for its own scope". In addition:
+      - O7′'s and O9′'s cross-board inputs are added, refused as `foreign`. O7 then has 6 refused inputs, and O8 is red on all 6.
+      - O7′'s second control becomes the switch: an `s3-128` request for `weatherscope-` accepts the real Weatherscope head.
+      - O10′ and S-ID3 hold unchanged.
+
+**Q76: the partition table (recommended: (a)).** An OTA install writes the app only. The partition table stays whatever the factory flash wrote, so "the same board" also has to mean "the same table".
+- **Today it holds by coincidence.** All 5 `s3-128` envs name `partitions-s3-16mb-bignvs.csv`, and all 8 `s3-146` envs name `default_16MB.csv`. **Nothing enforces it.**
+- **(a), recommended:** the offering side's check gains one rule: every `skus.yml` env of one board names the same partition table, flash size and memory type, the factory env included once it exists.
+  - Its sabotage, one `s3-128` env edited to `default_16MB.csv`, must turn it red.
+  - It is a check that runs, and it is cheap.
+- **(b):** a table digest in the record, compared on the device against its own table. It also covers devices whose table predates the env, but it costs record space and a device-side change.
+- **(c):** leave it as a stated rule. Not recommended: CLAUDE.md calls a written rule the weakest form of a fix.
+
+**Checked before freezing:**
+- Every count above was derived by hand first.
+- A scratch script then recomputed it over the env table typed from `platformio.ini` (`s7/id_counts.py`, kept local). It agreed with every total it prints: the envs, identities and scopes; the 225, 91, 134, 19 and 72; the 1,206; and each sabotage's red set.
+- A second pass recomputed the splits 16/56 (by board) and 18/4 (by scope), which agree.
+
+**Outside these predictions:** any count off its frozen value stops 3.4 for a ruling. 3.4's code waits for the Q75 and Q76 rulings; nothing else in Stage 3 depends on them.
