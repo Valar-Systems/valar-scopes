@@ -479,3 +479,22 @@ written.
   the union and will be missing unless the seed includes it.
 
 Both need a ruling (seed them, or exempt them) rather than an improvised fix.
+
+### The seed and the coverage check, first results (2026-11-05 ~18:45Z, on `e33553d`)
+
+- **The full run:** 939 passed, 1 skipped (`basemap-md2`), 1 failed (Q-C1 only, the CRLF
+  artifact). That is 940 listed, as predicted; the list itself is re-read on drained ports with
+  the K sabotages.
+- **R0, the staging rehearsal: as predicted.**
+  - Run 1: `read 3, already present 0, written 3, repaired 0, missing 0 -> COMPLETE`, exit 0.
+  - Run 2: `read 3, already present 3, written 0, repaired 0, missing 0 -> COMPLETE`, exit 0.
+
+  This proves the wrangler write, the `--remote` listing (it saw its own three rows), and that a
+  seed never rewrites a row. **Three fake-id rows are left in staging KV**: `act:` for the
+  allowlisted fakes `1111222233334444`, `aaaabbbbccccdddd` and `0123456789abcdef`, all `listed`.
+- **C0: outside the set, stopped.** It exited 2, "cannot see", where exit 1 was predicted.
+  - **Cause:** the token file has no `kv-read` line. It holds `analytics-read`, but nothing that can
+    read KV over REST.
+  - **The anchor did its job:** the check refused instead of reporting coverage it could not see.
+  - **C0 and C1 wait for Daniel** to add `kv-read=<a Workers KV Storage: Read token>`.
+    Nothing else changes.
