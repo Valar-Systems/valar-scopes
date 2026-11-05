@@ -514,3 +514,19 @@ Both need a ruling (seed them, or exempt them) rather than an improvised fix.
 3. Daniel seeds from his records.
 4. C1 runs (predicted exit 0).
 5. A missing id stops the deploy, and the breakdown above names who it is likely to be.
+
+### C0, second attempt (2026-11-05 19:13Z): stopped again, cause named, not fixed
+
+- **The `kv-read` line was present** (a boolean check), and the KV anchor passed: `cfg:fleet`
+  read back, and the absent key read null.
+- **The check still exited 2,** "cannot see": **Analytics Engine answered HTTP 422.**
+- **Cause, from a read-only probe that printed the error text and counts only:** the API answers
+  `selection used unsupported features: SELECT DISTINCT`. Analytics Engine's SQL does not support
+  `SELECT DISTINCT`. The same selection written as `... GROUP BY dev` answers HTTP 200 (25 rows,
+  20 of them 16-hex; no row printed). `usage-stats.ts`, which works, uses `GROUP BY` for the same
+  reason.
+- **The alternative, that the token lacks the scope, is excluded:** the `GROUP BY` probe used the
+  same token and was answered.
+- **Proposed, for a ruling:** change the one query to `GROUP BY dev`, then re-run C0 under its
+  frozen prediction (exit 1, everything missing). The 422 itself shows the anchor working: it
+  refused instead of passing on a source it could not read.
