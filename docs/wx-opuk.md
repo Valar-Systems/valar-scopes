@@ -1290,3 +1290,17 @@ method as R3-0):
 - **S5:** R3-6's instrument and the Logs over the 10 min after S5's deploy, read twice 5 min apart. Both must show
   0 invocations.
 - **Each phase's start (its deploy's time and version id) and end** are recorded, as ruled.
+
+**One more procedural pin before S0: parking between phases.**
+- A phase is read from the Logs and from GraphQL, which land minutes late. Left on its own version meanwhile, a
+  phase would keep firing and change its own count.
+- So after each phase's last counted invocation, the copy is **re-deployed on `off`** (inert: no cron, `MODE` off)
+  while that phase is read. The next phase deploys only if the read is as predicted.
+- The order:
+  1. S0 (`off`);
+  2. S1 (`plantcal`, 3 invocations), park, read;
+  3. S2 (`plant`, 10), park, read;
+  4. S3 (`cref`, 60), park, read;
+  5. S4 (`opuk`, until N = 12 counted `stored`, at most 120 min);
+  6. S5 (`off`), then read S4 and S5.
+- A park creates a version and changes no reading. Each park's time and version id are recorded with the phases.
