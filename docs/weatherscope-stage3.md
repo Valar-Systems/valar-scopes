@@ -11384,3 +11384,34 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **(b)** Widen the watcher so that any setting's first resolution at boot (Light or Dark too) is explained, in its own PR. #530 kept "not Auto" unexplained by ruling, so this needs one.
 - **(c)** Start W4 without the second `read-mac`, so no boot happens inside the runner's open. The runner's own first POST sets the theme anyway.
 - **Recommended: (a).** It restores the state every earlier prediction rests on, and changes neither the watcher nor the procedure.
+
+### A12.98 Q73 (a): the stored theme put back to Auto and read back; W4's window announced, 2026-11-05 03:45Z-05:00Z
+
+**The ruling (~03:30Z):** Q73 (a). One POST of `wx-theme=auto`, sent the way `run_b35t.py` posts and read back before anything else. Then W4 in a new announced window, with the boot read predicted from the stored theme just read back. **The A12.97 miss stays in the record.** There was no overlap at 03:10Z: E2:08's windows were held by T5.
+
+**The POST, at 03:34Z** (`run_b35t.py`'s own `post_theme`, imported, not copied):
+- the page's fields were read before and after, with the X-Blipscope header;
+- **stored theme before: `light`;**
+- HTTP 200; only the asked field changed: True; stored as asked: True;
+- **read back: `auto`.**
+- Booleans and the theme value only were printed, no location field. It is a config write, nothing more.
+
+**W4's window: 907069326E64, 2026-11-05 03:45Z to 05:00Z.**
+- **The image:** the clean image on the board since W2. No write, no rebuild.
+- **The tools:** main's at `30d7e55b47f1`, with no board tool changed since A12.96.
+- **The launch:** A12.96's. The bash wrapper goes through the Bash tool's background mode, every Python step under `python -u`, and each step's start and exit are timed.
+- **C:** 70+ GB free. No build and no whole-suite run during the window.
+
+**The boot read, predicted from the theme just read back (`auto`):**
+- `[wx] init; ... theme=auto read=known`;
+- at 03:45Z it is Dallas night (21:45 CST), so Auto resolves Dark to Dark and **no `[wx] theme=` line prints at boot;**
+- psram as W2's.
+
+**Every other row as A12.94:**
+- `grade_b35t.py` **ALL AS PREDICTED** (B1 exact in both themes, B3, BSW, BSW-L, the watcher 0 unexplained);
+- every heartbeat with wedges, wakes and failed probes 0, and the ok-probe count rising;
+- TCP :80 up after the close.
+
+**After:** the run's BSW posts `wx-theme=auto`, so a run that completes leaves the board on Auto. Its last stored theme is read back after the run and recorded.
+
+**If cut, or any row off:** stop and report, retry nothing. Any overlap with E2:08's windows is recorded by my window's times (03:45Z to its end).
