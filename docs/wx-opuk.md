@@ -957,3 +957,52 @@ recorded above with its cause.
 >
 > Carry on: R3-6 and R3-7 at 00:12Z and 00:17Z, then the full R3 report. R4's predictions (smoke's UK check) come
 > after it.
+
+**R3, +2 h: R3-6 is off, and the ingest is ROLLED BACK.**
+
+| | got | verdict |
+|---|---|---|
+| **R3-6** (`workersInvocationsAdaptive`, 22:07:22-00:07:22Z; read at 00:12:04Z and 00:17:09Z, identical) | 127 invocations, all `success`, **0 errors (0 CPU-limit errors)**; CPU total 140,267 ms; **p50 738.4 ms, p99 6,020.0 ms** | **OFF.** The gate (0 CPU-limit errors) holds, but the p99 is over 4,000 ms (graded) and over the ruled 5,000 ms ceiling of the report-only band |
+| **R3-7** (Workers Logs, the same window, ABR 1) | `opuk`: 237 checks, **0 `wx_ingest_error` lines** (already-stored 210, stored 25, backfilled 2) | printed, not graded |
+
+**The escape, as registered: rolled back first.**
+- Before: `wrangler deployments status` showed `d37d9a21` at 100%, unchanged since R3-1.
+- `npx wrangler rollback 582612da-e1b0-4a02-bf9e-de72c5d78157 -c wx-ingest.wrangler.toml -m "..." -y` from `wt-deploy`
+  ran **00:18:31-00:18:34Z, exit 0, empty stderr.** The deployment is dated 00:18:33.814Z, with `582612da` at 100%.
+- **After:**
+  - The last `opuk` check **started at 00:18:35.233Z**. It was the `:30` check of the 00:18 invocation, which began
+    under `d37d9a21` before the rollback. It logged at 00:19:08Z.
+  - No `opuk` event since, through 00:24:29Z.
+  - `cref`: 5 of 5 minutes with both checks, 0 error lines (00:19-00:24Z).
+  - `/healthz` `cref` `frameAgeS` read 134 s (00:18:50Z) and 173 s (00:25:32Z).
+  - `opuk` `frameAgeS` keeps growing (1,233 s at 00:25:32Z), as it must with no `opuk` ingest.
+
+**Where the p99 came from** (read-only, per-minute CPU, after the rollback):
+
+| minute | CPU (ms) | what ran |
+|---|---|---|
+| 23:19Z | 6,072.8 | an `opuk` storing minute |
+| 23:29Z | 6,020.0 | an `opuk` storing minute |
+| 22:19Z | 5,426.5 | an `opuk` storing minute |
+| next: 22:39, 23:39, 22:49Z | 3,772.7 / 3,579.8 / 3,325.8 | storing minutes |
+
+- So the cost is `opuk`'s frame build at steady state, not the deploy's backfill transient: the backfill minutes
+  (22:08-22:09Z) read 2,512.6 ms at most.
+- **Baseline, `cref` alone, 19:00-21:00Z** (same instrument): the worst minute was 3,621.1 ms; none over 4,000.
+- So one `opuk` build adds up to about 2-3 s of CPU in workerd, against R3-6's assumed 0.5-0.8 s.
+- **Three invocations of 5.4-6.1 s ended `success` under `cpu_ms = 5000`.** I can't say which of two readings is
+  right:
+  - the limit has slack, or isn't applied to these invocations as configured;
+  - or the analytics' `cpuTime` counts time the limit doesn't.
+  - Either way, R3-6's bar was set on the measured quantity, and the measured quantity is over it.
+
+**After R3-7's window, before the rollback (data, not graded):**
+- From about 00:09Z, CloudFerro's listing timed out: **18 `wx_ingest_error` lines**, each
+  `OPERA list The operation was aborted due to timeout`, after 3 attempts.
+- One `:30` check (00:16:35Z) did get its list after 3 attempts (`already-stored`).
+- `cref` was unaffected: 10 of 11 minutes with both checks. The one miss is 00:07, the window's own edge, where
+  the `:00` check ran at 00:07:06Z, before the window opened.
+
+**Not done, pending the ruling:**
+- `wt-deploy`'s `node_modules` is kept. A ruled roll-forward or a further action would need its `wrangler`.
+- R4 waits: it asserts `opuk` at LHR, and `opuk` is no longer being ingested.
