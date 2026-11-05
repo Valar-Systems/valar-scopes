@@ -1,12 +1,14 @@
 // MW and MP (docs/basemap-route.md A1.7): the endpoint, through the proxy's own dispatch, auth and alias, with the
 // builder Worker's real entry over MW's synthetic store behind counting bindings. Each test is named by its case id.
 // MW's store: origin (0.37, 0.59), the location of nothing; one water ring and one primary road in one cell.
+import { env as cf } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
-import { BASEMAP_REV, basemapHealth, resetBasemapIsolate } from "../src/basemap/handler";
+import { BASEMAP_REV, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
+import { etagOf, parseQuery } from "../src/basemap/query";
 import builder, { makeBuilder } from "../src/basemap/worker";
-import { type SynthDef, COMMIT, lonLatOf, writeSynthStore } from "./basemap-synth";
+import { type SynthDef, COMMIT, lonLatOf, mbStore, writeSynthStore } from "./basemap-synth";
 import { apiRequest, call } from "./helpers";
 
 const QW = "lat=0.37&lon=0.59&r=97&eps=100584&layers=water,roads";
@@ -387,6 +389,150 @@ describe("BB, the builder's read line", () => {
       expect(raw.includes("0.37") || raw.includes("0.59"), raw).toBe(false);
       expect(Object.values(o).some((v) => v === 370_000 || v === 590_000), raw).toBe(false);
     }
+  });
+});
+
+// MS (docs/basemap-a1.md): A1, "202, retry" with stored packages, and O1, the store id from KV. Each row uses its own
+// radius, so its keys are its own; the bucket and KV are the test environment's (in memory). MX1: C1's parallel reads.
+const pkgBucket = () => (cf as unknown as { BASEMAP_PKG: R2Bucket }).BASEMAP_PKG;
+const storeKv = () => (cf as unknown as { ENRICH_KV: KVNamespace }).ENRICH_KV;
+const qOf = (qs: string) => { const p = parseQuery(new URL(`https://x/?${qs}`)); if (!p.ok) throw new Error(p.code); return p.q; };
+const buildQ = (qs: string) => { const q = qOf(qs); return { lat0Micro: q.lat0Micro, lon0Micro: q.lon0Micro, rKm: q.rKm, epsMm: q.epsMm, mask: q.mask, levels: q.levels }; };
+/** builderOver's counting builder, each call delayed: slower than the test's shortened wait. */
+function slowOver(objects: Map<string, Uint8Array>, delayMs: number) {
+  const b = builderOver(objects);
+  const BASEMAP = { async fetch(input: RequestInfo, init?: RequestInit) { await new Promise((r) => setTimeout(r, delayMs)); return b.BASEMAP.fetch(input, init); } } as unknown as Fetcher;
+  return { BASEMAP, n: b.n };
+}
+const at = (r: number, lat = "0.37") => QW.replace("r=97", `r=${r}`).replace("lat=0.37", `lat=${lat}`);
+const basemapPath = (qs: string) => `/api/v1/blipscope/basemap?${qs}`;
+
+describe("MS, A1's stored packages and O1's store id", () => {
+  it("MS1: KV's store id lets a fresh isolate answer If-None-Match with 304-kv and no builder call", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const etag = await etagOf(qOf(at(101)), BASEMAP_REV, s.storeId);
+    const { res, line } = await mkCall(() => call(get(basemapPath(at(101)), { "If-None-Match": etag }), { BASEMAP: b.BASEMAP }));
+    expect([res.status, line.bm, b.n.calls]).toEqual([304, "304-kv", 0]);
+  });
+
+  it("MS2: a package kept in BASEMAP_PKG is served on a fresh isolate as stored, with no builder call; then it is a hit", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const built = await build(s.store, buildQ(at(102)), { commit: COMMIT });
+    if (!built.ok) throw new Error("MS2's fixture did not build (BLIND)");
+    await pkgBucket().put(pkgKey(s.storeId, await basemapDigest(qOf(at(102)))), built.bytes);
+    await storeKv().put("bm:store", s.storeId);
+    const first = await mkCall(() => call(get(basemapPath(at(102))), { BASEMAP: b.BASEMAP }));
+    expect([first.res.status, first.line.bm, b.n.calls]).toEqual([200, "stored", 0]);
+    expect(new Uint8Array(await first.res.arrayBuffer())).toEqual(built.bytes);
+    const again = await mkCall(() => call(get(basemapPath(at(102))), { BASEMAP: b.BASEMAP }));
+    expect([again.res.status, again.line.bm, b.n.calls]).toEqual([200, "hit", 0]);
+  });
+
+  it("MS3: a build slower than the wait answers 202 (Retry-After 15, known-miss); then its package is kept and the lock gone", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = slowOver(s.store.objects, 300);
+    const digest = await basemapDigest(qOf(at(103)));
+    await storeKv().put("bm:store", s.storeId);
+    basemapTiming.syncWaitMs = 50;
+    try {
+      const { res, line } = await mkCall(() => call(get(basemapPath(at(103))), { BASEMAP: b.BASEMAP }));
+      expect([res.status, res.headers.get("retry-after"), line.bm]).toEqual([202, "15", "known-miss"]);
+    } finally { basemapTiming.syncWaitMs = SYNC_WAIT_MS; }
+    expect(b.n.calls).toBe(1);
+    expect(await pkgBucket().head(pkgKey(s.storeId, digest))).not.toBeNull();
+    expect(await pkgBucket().head(lockKey(s.storeId, digest))).toBeNull();
+  });
+
+  it("MS4: while a fresh lock is held, a second request is 202 in-flight and starts no build", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const digest = await basemapDigest(qOf(at(104)));
+    await storeKv().put("bm:store", s.storeId);
+    await pkgBucket().put(lockKey(s.storeId, digest), "", { customMetadata: { at: String(Date.now()) } });
+    const { res, line } = await mkCall(() => call(get(basemapPath(at(104))), { BASEMAP: b.BASEMAP }));
+    expect([res.status, line.bm, b.n.calls]).toEqual([202, "in-flight", 0]);
+  });
+
+  it("MS5: a lock older than 45 s is taken over: the builder is called once", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const digest = await basemapDigest(qOf(at(105)));
+    await storeKv().put("bm:store", s.storeId);
+    await pkgBucket().put(lockKey(s.storeId, digest), "", { customMetadata: { at: String(Date.now() - 60_000) } });
+    const { res } = await mkCall(() => call(get(basemapPath(at(105))), { BASEMAP: b.BASEMAP }));
+    expect([res.status, b.n.calls]).toEqual([200, 1]);
+  });
+
+  it("MS6: a build within the wait answers 200 and keeps its package; elsewhere it is then served as stored", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const first = await mkCall(() => call(get(basemapPath(at(106))), { BASEMAP: b.BASEMAP }));
+    expect([first.res.status, b.n.calls]).toEqual([200, 1]);
+    // "elsewhere": another isolate in a data centre whose Cache API does not hold the copy
+    await (caches as unknown as { default: Cache }).default.delete(cacheKey(first.res.headers.get("etag")!));
+    resetBasemapIsolate();
+    const second = await mkCall(() => call(get(basemapPath(at(106))), { BASEMAP: b.BASEMAP }));
+    expect([second.res.status, second.line.bm, b.n.calls]).toEqual([200, "stored", 1]);
+  });
+
+  it("MS7: a no_coverage build that ends after the 202 is kept as an error; the retry is 404 stored-error with no builder call", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = slowOver(s.store.objects, 300);
+    const digest = await basemapDigest(qOf(at(107, "10.00")));
+    await storeKv().put("bm:store", s.storeId);
+    basemapTiming.syncWaitMs = 50;
+    try {
+      const first = await mkCall(() => call(get(basemapPath(at(107, "10.00"))), { BASEMAP: b.BASEMAP }));
+      expect(first.res.status).toBe(202);
+    } finally { basemapTiming.syncWaitMs = SYNC_WAIT_MS; }
+    expect(await pkgBucket().head(errKey(s.storeId, digest))).not.toBeNull();
+    resetBasemapIsolate();
+    const retry = await mkCall(() => call(get(basemapPath(at(107, "10.00"))), { BASEMAP: b.BASEMAP }));
+    expect([retry.res.status, retry.line.bm, b.n.calls]).toEqual([404, "stored-error", 1]);
+  });
+
+  it("MS8: every key A1 writes is the store id and the digest only, and no line holds the origin", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const real = pkgBucket(), keys: string[] = [];
+    const rec = {
+      put: (k: string, v: unknown, o?: R2PutOptions) => { keys.push(k); return real.put(k, v as never, o); },
+      get: (k: string) => real.get(k), head: (k: string) => real.head(k), delete: (k: string) => real.delete(k),
+    } as unknown as R2Bucket;
+    const from = logs.length;
+    expect((await mkCall(() => call(get(basemapPath(at(108))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }))).res.status).toBe(200);
+    expect((await mkCall(() => call(get(basemapPath(at(108, "10.00"))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }))).res.status).toBe(404);
+    expect(keys.length).toBeGreaterThanOrEqual(3); // CONTROL: a lock and a package, then a lock and an error
+    for (const k of keys) {
+      expect(k).toMatch(/^bm\/v1\/(pkg|pkg-lock)\/[0-9a-f]{12}\/[0-9a-f]{24}(\.err)?$/);
+      for (const c of ["370000", "590000", "100000"]) expect(k).not.toContain(c);
+    }
+    for (const l of logs.slice(from)) for (const c of ["0.37", "0.59", "10.00"]) expect(l, l).not.toContain(c);
+  });
+
+  it("MS9: with BASEMAP_PKG unbound, /basemap is exactly as before A1: 200, one builder call, five reads", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const { res } = await mkCall(() => call(get(basemapPath(at(109))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: undefined }));
+    expect([res.status, b.n.calls, b.n.reads]).toEqual([200, 1, 5]);
+  });
+
+  it("MX1: C1 reads up to 6 at a time and builds the same result whatever order the reads arrive in", async () => {
+    const { store, query } = await mbStore("A8");
+    let inflight = 0, max = 0, calls = 0;
+    const late = { async get(k: string) { const n = calls++; inflight++; max = Math.max(max, inflight); await new Promise((r) => setTimeout(r, Math.max(1, 40 - 3 * n))); inflight--; return store.get(k); } };
+    const delayed = await build(late, query, { commit: COMMIT });
+    const instant = await build(store, query, { commit: COMMIT });
+    expect(delayed).toEqual(instant); // the same result, its bytes included, though later reads arrived first
+    expect(calls).toBeGreaterThanOrEqual(6); // CONTROL: enough reads to overlap
+    expect(max).toBeGreaterThanOrEqual(2);
+    expect(max).toBeLessThanOrEqual(6);
   });
 });
 
