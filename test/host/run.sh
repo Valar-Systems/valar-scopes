@@ -1466,6 +1466,17 @@ else
     cat "$OUT/anchors.log"
     fail=1
   fi
+  # A12.84/A12.87: S-TW's plant, the touch supervisor's board control (its OnPoll call removed), the same way.
+  "$PY" "$ROOT/tools/weatherscope/board/plant_s_tw.py" --anchors > "$OUT/anchors.log" 2>&1
+  rc=$?
+  line=$(grep "^ANCHORS " "$OUT/anchors.log" | tail -1)
+  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then
+    echo "  ok   $line (a board plant)"
+  else
+    echo "  FAIL plant_s_tw.py --anchors (exit $rc):"
+    cat "$OUT/anchors.log"
+    fail=1
+  fi
   "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
   [ "$?" -ne 0 ] && fail=1
 fi
