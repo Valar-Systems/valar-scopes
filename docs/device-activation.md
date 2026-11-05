@@ -208,3 +208,47 @@ baseline + new, means stop: report it, and fix nothing until it has been ruled o
 
 **No deploy from this session.** The route ships with a deploy that the deploy authority decides
 on, followed straight away by the import (fact 4).
+
+## Results
+
+### S-0, 2026-11-05 17:57Z: off-prediction (one extra red), waiting for a ruling
+
+The run used the full change (route, page, admin route, tool) with the existing tests unmodified:
+901 tests, 892 passed, 8 failed, 1 skipped.
+
+- **The seven predicted reds failed exactly as named:** five in `enroll.test.ts` and two in
+  `fakeids.test.ts`.
+- **An eighth red is outside the set:** `photolicense.test.ts`, "Q-C1: equals the render of the
+  committed manifest".
+
+**Diagnosis of the eighth red, read-only.** This worktree checks files out with
+`core.autocrlf=true`.
+- `proxy/photos/credits.html` is 105,991 bytes on disk, with 291 CRLF line endings.
+- The committed blob is 105,700 bytes, with 291 LF and no CR.
+- 105,991 - 105,700 = 291: the difference is exactly the carriage returns.
+- Q-C1 compares that file on disk with the render byte for byte.
+
+**The alternative, that the change broke Q-C1, is excluded** for two reasons:
+- The change touches no file that the render or Q-C1 reads (`src/enroll.ts`,
+  `src/enrollpage.ts`, `src/index.ts`, `src/provision.ts`, plus new files).
+- The line endings account for the whole byte difference.
+
+CI checks the file out with LF. **Not fixed; it waits for a ruling.**
+
+**The baseline, corrected.** I recorded the baseline above as 1040, but that was the line count
+of `vitest list`'s output, which includes 140 lines of runtime warnings. The list holds **900**
+tests. The run counted 901: the one extra is `basemap-md2.test.ts`'s conditionally skipped case,
+which the run reports and the list leaves out. Comparisons stay list against list.
+
+### The next run's predictions (frozen 2026-11-05, before it)
+
+- **The list.** `vitest list` at head shows **930** tests: 900 plus 30 new.
+  - 20 in `activation.test.ts`: A7's loop makes three.
+  - 8 in `activation-lib.test.ts`.
+  - 2 for A2 in `enrollpage.test.ts`.
+
+  The seven adapted cases are rewritten in place: none is added and none is lost.
+- **The run.** Every case is green **except Q-C1**, which stays red in this CRLF checkout for the
+  reason above, unless a ruling changes what this run should include.
+- **Then each sabotage** A1-A12 turns red exactly the check its row names, and the restore by
+  bytes returns the run to the line above.
