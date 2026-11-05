@@ -530,3 +530,28 @@ Both need a ruling (seed them, or exempt them) rather than an improvised fix.
 - **Proposed, for a ruling:** change the one query to `GROUP BY dev`, then re-run C0 under its
   frozen prediction (exit 1, everything missing). The 422 itself shows the anchor working: it
   refused instead of passing on a source it could not read.
+
+### C0, re-run after the accepted `GROUP BY` fix (2026-11-05 19:21Z, `feffe1d`): as predicted
+
+The fix is ruled an instrument fix (~19:35Z), and the miss stays recorded: Analytics Engine's SQL
+does not support `SELECT DISTINCT`.
+
+```
+activation coverage (production, last 30 days)
+  authenticated: Analytics Engine 20, fw: 20, union 20
+  with an act: row 0, MISSING 20
+    missing with an enrolment-ledger row (self-enrolled): 18
+    missing without one: 2
+    the test identity among the missing: true
+VERDICT: MISSING ROWS -- the deploy stops
+```
+
+**Exit 1, with every authenticated device missing,** because no `act:` row exists yet. The check
+can fail, so a C1 of 0 will mean something. The two sources agree on 20.
+
+**What this says about C1, before Daniel seeds:**
+- 18 of the 20 have an enrolment-ledger row, which means they self-enrolled.
+- 2 do not, and one of those is the test identity.
+
+If Daniel's bench records do not cover the self-enrolled 18, C1 stops the deploy on them: the
+breakdown named in advance, which needs a ruling.
