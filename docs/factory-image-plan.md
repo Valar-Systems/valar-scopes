@@ -479,3 +479,25 @@ was flashed, so it shows nothing about a cold board.
 **After the run:** the unit is back in its app, on v18 in `app1`. The traces were closed by
 process id, and none is left running. Closing them left the board in ROM download mode, and an
 esptool `read-mac` reset it.
+
+### The Flash Download Tool steps, proven by hand (Daniel's go, 2026-11-05 ~20:55Z): predictions first
+
+**The tool.** `flash_download_tool.zip` from `dl.espressif.com/public/`, linked from Espressif's
+ESP32-S3 user guide.
+- 25,943,693 bytes. Its MD5 `72713e571a3115c91e89ee0320f6e186` equals the server's ETag, and its
+  sha256 is `c1fbf280aa04…`.
+- It unzipped safely (every entry checked to stay inside its own directory) to 9 entries.
+- The one program is `flash_download_tool_3.9.11.exe`, the latest version in Espressif's release
+  notes.
+- **It is not code-signed.** Authenticode reports `NotSigned`. Windows may warn, and a factory's
+  IT policy may block it, so the sheet says so.
+
+**Daniel runs it by hand**, following the sheet's English steps exactly, with v18's factory file
+at 0x0 on COM16.
+
+| | check | predicted | outside the set |
+|---|---|---|---|
+| **T1** | what the tool shows | ERASE completes; START ends in **FINISH**. Whether its console shows `Hash of data verified.` is **reported, not predicted**, which is the open `(bench)` question | an error, or no FINISH: **stop** |
+| **T2** | the panel after an unplug and replug | the setup screen with its QR | anything else: **stop** |
+| **T3** | `esptool verify-flash 0x0 firmware-s3-128.factory.bin` (read-only) | the digest matches: the chip's first 2,059,264 bytes are v18's factory file | a mismatch: **stop**, the tool did not write what the sheet says |
+| **T4** | the first 4 KiB of `app1` (0x660000), read-only, where P4 left v18 | all 0xFF: ERASE wiped the whole chip | any other byte: **stop**, the sheet's ERASE step does not erase the whole chip |
