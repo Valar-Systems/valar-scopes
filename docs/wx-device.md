@@ -4758,3 +4758,23 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
   - The Durable Object's own record shows all 23 invocation groups from 00:30 to 00:50Z as `success`, with 0 errors.
   - The token held here has no access to Workers Logs (HTTP 403).
   - So a reset during the deploy's turnover is possible, and is not shown.
+
+**W5⁵, the first attempt (2026-11-05 03:39-04:06Z; 7:39-8:06 PM PST): stopped by its PC guard after one arm.**
+- O1 ran as designed, 03:42:59-03:52:59Z, with the old image and no `wx-layer` field.
+- Before N1, the guard found a `python.exe` it counts as a build or test process.
+  - It waited 10 min (03:55-04:05Z) and refused, as rehearsed in R6: "N1: the PC is still busy after 10 min (python.exe):
+    refused".
+  - The process was not this session's: nothing ran from here in that window. The guard reads names only, never a
+    command line, so whose it was is not known here. Weatherscope's W4 re-run, which the reviewer said might
+    overlap, is the obvious candidate and is not confirmed.
+  - None was running at 04:07:40Z.
+- **The restore ran on that path, as designed:**
+  - read_mac, then the page;
+  - data-source cloud and local-url cleared ("feed source as before: True");
+  - `wxlook` flashed back, with layer on and look A.
+  - E2:08 is back in its production state.
+- **Not graded:** one arm of ten is not a W5⁵.
+- **The decision is the reviewer's:** G6 counts every `python.exe` on the PC, which a permitted W4 overlap trips.
+- **The K6 driver** (`de6fc5384e69`, regenerated) also refuses any window overlapping 16:45-19:15Z, #536's daytime
+  quiet block with margins. Its rehearsals pass. It has no PC guard of its own: on 11-04 its quiet PC was kept by
+  hand.
