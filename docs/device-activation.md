@@ -252,3 +252,41 @@ which the run reports and the list leaves out. Comparisons stay list against lis
   reason above, unless a ruling changes what this run should include.
 - **Then each sabotage** A1-A12 turns red exactly the check its row names, and the restore by
   bytes returns the run to the line above.
+
+### The next run, graded (2026-11-05 18:13Z): as predicted
+
+- **The list:** `vitest list` read **930**.
+- **The run:** 931 = 929 passed, 1 skipped (`basemap-md2`'s conditional case), and 1 failed: **Q-C1
+  only**, the CRLF artifact, recorded as a miss with its cause named (ruling ~18:15Z).
+- **Two attempts before it were void as instruments and are not results:**
+  - The first crashed with `ECONNRESET` while shutting down and reported 71 files with no test
+    results. It ran straight after a `vitest list` that was still releasing its runtimes.
+  - The second I started at TIME_WAIT **15,626**, over the frozen gate. That is my slip, the second
+    one today, so the gate is now a script that refuses to start above 8,000 instead of a habit.
+
+### The sabotages' red sets, evaluated test by test before any of them runs
+
+The row-level rule above, "each sabotage turns red exactly the check its row names", is
+**incomplete for four plants.** I found that by applying each plant to every test in the six files
+it can reach, before running anything: S-A3, S-A5, S-A8 and S-A11 also break tests in other rows
+that rely on the same property. The sets below replace that sentence for grading. **Each is the
+exact set of failing tests**, by file and title, across `activation`, `activation-lib`, `enroll`,
+`enrollpage`, `fakeids` and `provision`. A control with no plant must run all green first.
+
+| plant (where) | predicted red, exactly |
+|---|---|
+| **S-A1**: only the `not_listed` refusal skipped (`enroll.ts`) | A1 "403 not_listed, no key, and nothing written" |
+| **S-A2**: the id removed from the `mailto:` body (`enrollpage.ts`) | A2's two cases: "not_listed: the id, ..." and "CONTROL already_activated: ..." |
+| **S-A3**: the `activated` write skipped (`activation.ts` `claimActivation`) | A3 "the first activation gets the derived key; ..."; A4 "reset re-opens exactly one more activation" (the reset then finds a `listed` row); A10 "add on an activated id leaves it activated"; `enroll` "refuses the repeat, and after a reset returns the SAME key" |
+| **S-A4**: the reset's write skipped | A4 "reset re-opens exactly one more activation"; A4 "after a SECRET ROTATION, reset + activation ..." |
+| **S-A5**: the gate moved above the solve (and so above revocation) | A1 (siteverify is never called); A5's two cases; A6 "a revoked listed id ..."; `enroll` "REFUSES when the solve does not verify — the oracle test"; `enroll` "refuses to enroll a revoked id, and issues no key" |
+| **S-A6**: the claim moved above the revocation check | A6 "a revoked listed id is refused as revoked and keeps its activation unused" |
+| **S-A7**: the admin token check removed | A7's three token cases (missing, wrong, unset on the Worker) |
+| **S-A8**: the `add` answer echoes its ids | A8 "add, reset and status answer in counts or a state"; A10 "add on an activated id leaves it activated" (its exact-body check) |
+| **S-A9**: the salt dropped from the admin route's MAC derivation | A9 "each fixture MAC lists the id whose sha256 the fixture records" |
+| **S-A10**: `add` overwrites an activated row | A10 "add on an activated id leaves it activated" |
+| **S-A11**: `add` writes each id as it is validated | A3 "the first activation gets ..." (its `listed` count reads 0); A8; A10 "add on an activated id ..."; A11 "one malformed entry refuses the call, ..." |
+| **S-A12**: `summarize`'s add line appends an id (`activation-lib.ts`) | A12 "add, reset and status lines carry no id even when the answer does" |
+
+Every plant is asserted to have applied, run against those six files under the port gate, and
+restored by bytes with a sha check. **A set that differs in either direction is a stop.**
