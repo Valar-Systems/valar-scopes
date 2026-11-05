@@ -1334,3 +1334,22 @@ clean checkout at `131c0f776d9a`, exit 0, empty stderr):
 - **Under the rule** (anything outside the table: stop and report), S0 stops here and waits for a ruling.
 - **The copy is inert:** no cron, and `MODE` off. So the stop costs nothing but time. Nothing after S0 runs until
   ruled.
+
+**Ruling, pasted ~03:30Z (verbatim):**
+
+> S0: as predicted, with its row's wording re-registered and the miss kept. "Exactly one binding" meant one R2 binding. The version record shows exactly one, WX → blipscope-wx-dev, beside the MODE var (off, plain text) that the plan's table and PB2 already name. Nothing else is bound. The row now reads: exactly one R2 binding, WX → blipscope-wx-dev; MODE = off; no other binding; cpu_ms 30000; no schedule.
+>
+> Your three pins are accepted:
+> - attribution by version id;
+> - parking at off between phases, with each park's time and version recorded;
+> - S4's graded set.
+>
+> S1 may start at once, then S1-S5 as pinned. Anything outside the table: stop and report.
+
+**How each phase is ended (procedure, not a reading).**
+- `tools/wx/s_drive.py` holds `wrangler tail` open on the dev Worker, deploys the phase, and counts the phase's
+  invocations as they complete. It parks on `off` at the phase's count: S1 3, S2 10, S3 60, S4 12 counted
+  `stored`. If the count isn't reached in time, it parks anyway and says TIMEOUT.
+- Tail is only the trigger. **The graded reading is `s_reads.py`** (Logs records + R3-6's instrument), by version id.
+- **Why tail:** a cron schedule change may take time to start firing, and Logs land too late to park between the
+  last counted firing and the next. Tail shows a finished invocation within seconds.
