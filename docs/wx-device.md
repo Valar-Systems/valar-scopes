@@ -4835,3 +4835,41 @@ enrich and photo forwarded 0 at the clear; label fields as before: True.
   - two `--mkdir` calls in one minute collide.
 - **The fixes are not made:** fast-forwarding `wt-mainenc` changes the encoder that makes the crop K6 draws, so it is
   the reviewer's to rule, alongside G3. The F control in the same sitting would absorb it.
+
+### K6's label arms (2026-11-05, Bend daytime; one at a time, as ruled ~15:10Z): outcome (d)
+
+- **Before the arms:** `wt-mainenc` was fast-forwarded to main's head, **`048ed7be9466`**, where its `proxy/src/wx`
+  matches main's (ruled ~15:10Z; it had been clean at `1a4ecf4`).
+- **L0 alone** reserved to 16:55Z (ruled ~15:08Z). In `k6_arm_run.py` (`c0d09dfe71f6`, rehearsals passing) the block
+  start is 16:55Z for L0 and 16:45Z for every other arm.
+
+| arm | window | label lines | p95 median at n = 60 | rows (K6a, K6b, RS-K, labels) |
+|---|---|---|---|---|
+| F, the control | 15:06:25-15:28:33Z | 5 | **103.6 ms** (19 lines, 100.0-104.7), in its 99-105 band | as predicted |
+| L1 | 15:29:00-15:50:54Z | 1 (`info-type`) | **79.1 ms** (19 lines, 74.3-80.5) | as predicted |
+| L0 | 15:51:10-16:13:19Z | 0 | **68.7 ms** (19 lines, 66.3-69.6) | as predicted |
+
+- **`k6_arms_grade.py` (`e868e46c609e`): (d), "none of (a)-(c)", exit 2.**
+  - L0 is under its 76-86 band, and L1 − L0 is 10.4 ms, over its 1-8.
+  - **Outside the set: stop and decide.** The outline rule waits for the reviewer.
+- **What the numbers say:**
+  - Labels cost far more than predicted: five lines cost 34.9 ms over none, and the type line alone 10.4 ms.
+  - The frozen model (83.9 ms at n = 60) sits ~15 ms above the no-label frame.
+- Every arm restored its fields and verified them. E2:08 was on production from 16:13:16Z, and the windows were done at
+  16:13Z.
+- Each reader's K6c line still grades the 11-04 band, which is why F's and L0's readers exit 1; that line is not used
+  for the arms, as frozen.
+- RS3's scan reads `missing=2` in every arm (0 on 11-04). Key, id and address were all found "no".
+
+### The 10:00Z chain's three bugs, and their fixes
+
+1. **The readers' exit figures came from `date`.** `echo "$(date ...) ... exit $?"` takes `$?` after the command
+   substitution.
+   - **Fix:** capture `rc=$?` right after each command, as the one-at-a-time K6 runs did.
+2. **The K6 driver's stop path exits 0,** so the chain read K6-F's RC1 stop as success.
+   - **Fix:** success is the session's own record holding a completed arm (`index.json` has `k6_arm`), not the exit code.
+3. **Two `--mkdir` calls in one minute collide.**
+   - **Fix:** session names carry seconds and the pid.
+
+The fixes are written into `chain_1000Z.sh` and `make_k6_arms.py` before the next chain, and rehearsed off E2:08.
+Today's arms ran one at a time, the fallback the reviewer allowed.
