@@ -2,6 +2,39 @@
 
 **Status: a proposal, predictions first.** Docs only: no code and no deploy. It answers the ~17:28Z ruling.
 
+## Ruled: the plan of record (reviewer chat, pasted by Daniel, 2026-11-05 ~18:25Z)
+
+**This ruling decides the proposal.** Where §3-§5 differ from it, the ruling stands.
+
+> #547, the cold build: received. The profile is accepted as read-only facts, with its control (53 reads, 15,215,034
+> bytes, the same 214,179-byte package). So is the conclusion: while CPU alone is 2.3-4.1 s, no change to the build
+> alone can be predicted under 2.5 s p95.
+>
+> Q-CB1: A1, "202, retry" with stored packages, together with O1 as ruled (the store id from KV names the package key).
+> In A1's PR, predictions first:
+> - Packages go where the store's own objects never are: their own bucket, or a prefix the store never uses. The store
+>   stays read-only to the builder. Name which, with its binding.
+> - Keys stay bm/v1/pkg/<storeId>/<digest>, with no coordinate, so MP3 holds.
+> - A second request for a query whose build is still running gets 202 without starting a second build, or the plan
+>   states what allowing it costs.
+> - waitUntil's limit against a 12-17 s build is checked against Cloudflare's documentation and shown on staging before
+>   it's relied on.
+> - C1's parallel reads go inside A1, to shorten the background build.
+> - The device side (202 and Retry-After) goes into your basemap client's plan as a requirement. No firmware calls
+>   /basemap yet.
+>
+> Q-CB2: no probe now. A1 doesn't depend on the CPU gap, and builds become rare under it. Revisit the gap if the
+> builder's CPU ever matters for limits or cost.
+>
+> Q-CB3: yes, C2's ingest changes belong in the ingest's own plan.
+>
+> #547: approved to merge as the plan of record at the head that adds this ruling verbatim, once that head's CI reads
+> 38: 35 success, 3 skipped, 0 failed. Squash with --match-head-commit, no --admin, and record main's CI. Delete the
+> 15 MB of fetched profile objects: they're regenerable.
+
+**Done on receipt:** the 15 MB of fetched profile objects (53 files) were deleted from the scratchpad. They are
+regenerable.
+
 ## The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-05 ~17:28Z, the D4 part)
 
 > - What the reading changes for D4: CPU alone was 2.28-4.11 s per build, so parallel reads by themselves can't reach
