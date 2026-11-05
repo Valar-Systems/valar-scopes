@@ -1,6 +1,19 @@
 # The 1.28" factory image: facts, options, and the bench proof
 
-**Status: facts and options, for Daniel's decision. Nothing has been built or flashed.**
+**Status: decided 2026-11-05 (~17:40Z). Bench-proof predictions frozen; nothing flashed yet.**
+
+**Daniel's decisions, all as recommended below:**
+1. **Partition table:** today's, unchanged (T1).
+2. **Bootloader:** the stock ESP-IDF 5.5.4 one, as in every published factory set (L1).
+3. **eFuses:** none burned. **Erase:** the factory erases the whole chip before writing.
+4. **Device keys:** customers activate at setup against a server-side allowlist
+   (`docs/device-activation.md`, a separate PR). The factory image is the same either way.
+5. **The rollback test is skipped for now.** No prerelease is created. Deferring the "valid" mark
+   until an image is healthy (L1's follow-up) comes in a later update, with its own proof.
+
+**Deliverables, due 2026-11-11:** the file and the factory sheet
+([factory-sheet-s3-128.md](factory-sheet-s3-128.md), English and Chinese). That is a day before
+the factory needs them. Daniel provides the stock unit for the bench proof.
 Requested by the reviewer on 2026-11-05 (~15:30Z). This is the plan for one image that a factory
 writes to a run of Kit S3 boards (`blipscope-s3-128`), needed by about 2026-11-12. Every 1.28"
 scope is to be reachable from that image later, with the chooser and edition switching
@@ -19,8 +32,8 @@ five things:
 
 Everything else is an app image, and the first OTA replaces it.
 
-Sections 2 and 3 carry recommendations. The decisions in section 2 are Daniel's, and
-nothing in sections 3 and 4 is built or run before he makes them.
+Sections 2 and 3 were written as recommendations, before the decisions above. They are kept as
+the record of what was weighed.
 
 ---
 
@@ -215,7 +228,7 @@ burn is irreversible.
 
 ---
 
-## 2. Options (Daniel decides)
+## 2. Options (decided 2026-11-05: T1, L1, no eFuses, a full erase, activation by allowlist)
 
 ### The partition table
 
@@ -295,7 +308,7 @@ flash writes, and a power cut during the write bricks the unit.
 
 ---
 
-## 3. The factory image (proposed, on T1 + L1)
+## 3. The factory image (decided: T1 + L1, a full erase, no eFuses)
 
 - **Release: v18** (commit `672eab75eb6c`, Latest since 2026-10-20).
   - Its factory set is CI-built and launch-gated, and it is published with a manifest and a scan.
@@ -314,18 +327,25 @@ flash writes, and a power cut during the write bricks the unit.
       0x0 firmware-s3-128.factory.bin
   ```
 
+  - `--erase-all` erases the whole chip and then writes, in the same command. That is the
+    decided full erase.
   - `keep` leaves the image's own DIO / 80 MHz / 16 MB header untouched. A development
     upload's `--flash-size detect` rewrites it.
   - In Espressif's Flash Download Tool the equivalent is one file at 0x0, *DoNotChgBin* ticked
     and *Erase* ticked.
 - **The per-unit pass, which the factory can see:**
-  1. **The flash log contains `Hash of data verified.`** Its absence is a fail even on exit 0:
-     esptool skips the check silently on a ROM that cannot hash
-     (`docs/provisioning-mint.md`).
+  1. **The flash log contains `Hash of data verified.` exactly once.** Its absence is a fail
+     even on exit 0: esptool skips the check silently on a ROM that cannot hash
+     (`docs/provisioning-mint.md`). There is one file and one region, so a second
+     occurrence means a second write that should not exist.
   2. **After the automatic reset, the setup screen appears:** a green `SETUP`, a QR code and the
      unit's name on black (F11). A black screen, an amber screen, a different screen or a reboot
      loop is a fail.
   3. **The unit is unplugged without opening a serial port** (F11).
+  4. **The unit's MAC goes on the per-unit list** that comes back with the shipment. The list
+     feeds the activation allowlist. esptool prints it as `MAC:`; the device id derives from
+     exactly that MAC (`ESP_MAC_WIFI_STA`, `include/DeviceIdentity.h:54`), and P0′ proves it on
+     the bench.
 - **No new release for a version mark on screen.** The hash check proves the right bytes landed
   and the setup screen proves they boot.
 - **The board must have 16 MB of flash, because the table needs it.** P0 checks this. A batch
@@ -334,34 +354,93 @@ flash writes, and a power cut during the write bricks the unit.
 
 ---
 
-## 4. The bench proof (after the decision; predictions frozen before any step runs)
+## 4. The bench proof (predictions frozen 2026-11-05, before any write)
 
-**The unit is a stock 1.28" Kit S3 from the new batch.** It is not E2:08, the Bend feeder,
-Weatherscope's board (6E:64), a Missileer board (E9D8, E794) or the Remote's board. It is
-identified by its USB serial; that serial stays in the bench log, and no device id is
-recorded. One `bench-trace.ps1` capture is held open across each power cycle and never
-reopened mid-step. The log follows the redaction rules: no Wi-Fi name, BSSID or LAN address.
+**The unit is the Missileer photo unit, serial ending E794, on COM16.** Daniel released it for
+this proof on 2026-11-05 (~17:45Z): it is free to erase and flash, and nothing else uses it.
+- **Its port is resolved by serial before every step**, never taken from the COM number.
+- **No device id is recorded,** and neither is its MAC beyond the serial suffix already in the
+  board registry.
+- **One `bench-trace.ps1` capture is held open across each power cycle** and never reopened
+  mid-step.
+- **The log follows the redaction rules:** no Wi-Fi name, BSSID or LAN address.
 
-Each step lists its prediction and what any other result means. **"None of the above" is
-always a stop:** the premise or the instrument is wrong, and the run waits for a ruling.
+**Two notes on the unit:**
+- **The board registry still shows a reservation on it** from 2026-10-12 (the photo shoot).
+  Daniel's release supersedes it; the registry itself is not edited from here.
+- **Its panel size is established by its record, not measured.** USB cannot read the panel. It
+  is the unit that ran the 1.28" Missileer photo build (`missileer-photo`, which is
+  `missileer-s3-128` plus `PHOTO_MODE`) for the product photos. P2 confirms it: a 1.46" board
+  shows a black screen under an s3-128 image.
+
+**P0 is done (read-only, 2026-11-05 ~17:55Z),** and it matched the prediction:
+- **Chip:** `ESP32-S3 (QFN56) (revision v0.2)`.
+- **Features:** `Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded PSRAM 8MB (AP_3v3)`.
+- **Flash:** manufacturer `ef`, device `4018` (Winbond, 128 Mbit). `Detected flash size: 16MB`,
+  quad mode set in eFuse, 3.3 V.
+- **USB:** USB-Serial/JTAG mode.
+- **MAC:** esptool's `MAC:` line matches the registry serial. It is not printed here.
+
+**Each step below lists its prediction and what any other result means.** "None of the above" is
+always a stop: the premise or the instrument is wrong, and the run waits for a ruling. The
+phone steps (P3, P4) need Daniel at the bench, because the setup QR is scanned by a phone.
 
 | step | what is done | predicted | outside the prediction |
 |---|---|---|---|
-| **P0** | `esptool flash-id`, `read-mac` (read-only) | the chip is an ESP32-S3; the flash reports 16 MB | under 16 MB: **stop**, the batch cannot take this table |
-| **P1** | the factory command (section 3) with the v18 factory set | exit 0; `Hash of data verified.` exactly once; erase 15-120 s; whole command under 4 min | no hash line: **fail** whatever the exit code; times outside the band are recorded and the band revisited before the factory gets a number |
-| **P2** | first boot after the automatic reset | the green setup screen (`SETUP`, QR and name) within 15 s; serial shows `[build] env=blipscope-s3-128 fw=v18` | any other screen, a reboot, or no banner: **stop** |
-| **P3** | Wi-Fi setup by phone from the QR | it joins (`[WiFi] autoConnect() returned true`); the OTA check reads `version.txt` = 18 through the pinned roots and reports up to date, with no download | a TLS or fetch failure: **stop**, because it means the factory app's OTA client (F8) cannot reach the server from a fresh unit |
-| **P4** | the OTA hop: write v17's factory set with the same command, set up Wi-Fi, let it update to the latest release (v18) | it downloads `firmware-s3-128.bin` and reboots into v18, whose banner shows `fw=v18`; otadata selects `app1` | no update, or a failed one: **stop** |
-| **P5a** | a bad image that dies before `initArduino()` (a global constructor that aborts), delivered by OTA from a pinned prerelease | it panics once; at the next boot the bootloader marks it ABORTED and returns to the previous slot; the previous banner returns | it boot-loops on the bad image: **stop**, rollback is not working as F1 says |
-| **P5b** | a bad image that crashes inside `setup()` | **no** rollback: it boot-loops on the bad image (F2); recovered by P1's USB flash, which proves USB recovery from a boot loop | it rolls back: **stop**, F2 is wrong somewhere and the follow-up under L1 needs re-planning |
+| **P0** | `esptool flash-id` (read-only) | ESP32-S3, 8 MB PSRAM, 16 MB flash | **done, as predicted** (above) |
+| **P1** | the factory command (section 3), `--erase-all`, with v18's factory set | exit 0; `Hash of data verified.` exactly once; the chip erase 15-120 s; the whole command under 4 min | no hash line or two: **fail** whatever the exit code; a time outside the band is recorded and the band revisited before the factory gets a number |
+| **P2** | first boot after the automatic reset | the green setup screen (`SETUP`, QR and name) within 15 s; serial shows `[build] env=blipscope-s3-128 fw=v18` | any other screen, a black screen, a reboot or no banner: **stop** |
+| **P3** | Wi-Fi setup by phone from the QR (Daniel) | it joins (`[WiFi] autoConnect() returned true`); the OTA check reads `version.txt` = 18 through the pinned roots and reports up to date, with no download | a TLS or fetch failure: **stop**, because it means the factory app's OTA client (F8) cannot reach the server from a fresh unit |
+| **P0′** | the MAC esptool prints, run through the mint's derivation (`deviceIdFromMac`), compared with the id the unit's config page shows. A script prints only the boolean | `true` | `false`: **stop**, because the factory's MAC list would build the wrong allowlist |
+| **P4′** | `bash scripts/ota-download-path-diff.sh v17 v18` | exit 0: every item on the download path is the same source | exit 1: P4 proves v17's code only. **Stop and decide** |
+| **P4** | the OTA hop: v17's factory set written with the same command, Wi-Fi set up by phone (Daniel), and the unit left to update to the latest release (v18) | it downloads `firmware-s3-128.bin` and reboots into v18, whose banner shows `fw=v18`; otadata selects `app1` | no update, or a failed one: **stop** |
 
-**P4 is the closest a bench can get to "OTA to the latest release" from today's image.** v18 is
-the latest release, so a unit on v18 has nothing to update to. P4 runs the same update from v17
-(the download and apply code did not change, F8). P3 covers v18's own reach to the server. The
-v18 to v19 hop is first exercised when v19 is released.
+**Not run, by decision:** the bad-update rollback test (P5a and P5b in the first draft). No
+prerelease is created. The rollback improvement comes later with its own proof (decision 5).
 
-**P5 needs an approval this plan cannot give itself.** Delivering a bad image by OTA needs a
-version gate above the running image that the fleet cannot see. The existing pattern is a bench
-build pinned to a prerelease tag (`blipscope-s3-128-otatest`, `platformio.ini:1161`). That means
-either a new prerelease or new assets on an existing tag, both of which are public changes to
-the repo. It is listed for a ruling rather than assumed.
+**P4 is the closest a bench can get to "OTA to the latest release" from today's image.**
+- **Why not from v18 itself:** v18 is the latest release, so a unit on v18 has nothing to update
+  to.
+- **Why the v17 update counts for v18:** P4 runs the update from v17. P4′ is what lets it stand
+  for v18's own code: the download path is the same source in both.
+- **What else covers v18:** P3 covers v18's own reach to the server.
+- **The v18 to v19 hop** is first exercised when v19 is released.
+
+### P4′: read while writing this row (2026-11-05), and to be re-run on the bench day
+
+This check was run while the row was written, so it is a record, not a blind prediction. The
+script is committed so it can be re-run against the tags as they are on the bench day.
+
+```
+OTA download path, v17 (523cd736526c) -> v18 (672eab75eb6c)
+  SAME     MaybeUpdateFirmware()  4b884eef0bc1  (121 lines)
+  SAME     FirmwareUrl()  36b6e92c81a1  (4 lines)
+  SAME     WaitForClock()  c8b2af9d1da6  (10 lines)
+  SAME     NoteOtaAttempt()  ddc1ca30f6c5  (21 lines)
+  SAME     NoteOtaFailed()  a94d858da019  (9 lines)
+  SAME     drawProgress()  f193ef865397  (20 lines)
+  SAME     drawStatus()  1cab93413e75  (7 lines)
+  SAME     LogOtaSlot()  6afd84c7fc6d  (23 lines)
+  SAME     include/OtaCerts.h  93343da442d7
+  SAME     src/HttpRequestManager.h  299afd9e31ca
+  SAME     src/HttpRequestManager.cpp  b2964de0a16a
+  SAME     the platform pin: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.39/platform-espressif32.zip
+  (whole-file, for the record:)
+     src/OtaUpdater.cpp | 15 ++++++++-------
+     src/OtaUpdater.h   | 16 +++++++++++++---
+     2 files changed, 21 insertions(+), 10 deletions(-)
+VERDICT: the download path is the same source
+```
+
+**What the whole-file diff contains,** for the record and outside the verdict:
+- `FW_VERSION` 17 to 18.
+- The quiet-hour reboot cap (#377): `DeferUpdateCheckToReboot` and `DeferRebootWithCause` gained
+  a `scheduled` argument, and their two callers in `src/main.cpp` pass it. That decides *when* a
+  deferred check reboots, not how an update is fetched or applied.
+
+**The check can fail, which makes its result mean something:**
+
+| run | predicted | got |
+|---|---|---|
+| `v15 v16` (the control) | exit 1, naming `src/HttpRequestManager.cpp` | exit 1, naming `src/HttpRequestManager.cpp` **and** `NoteOtaAttempt()`. I did not name the second one: same verdict, one more item than predicted |
+| `nosuchref v18` | exit 2, "cannot see" | exit 2 |
