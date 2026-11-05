@@ -697,3 +697,11 @@ one function, `failureText`:
 | **C1** | exit 0: union 20, with a row 20, missing 0 | stop |
 | **Daniel's seed** (`provisioned.csv`, once) | counts only, ending in `COMPLETE` | Daniel reports it; I read nothing of the file |
 | **C1 again** | exit 0, missing 0 | stop |
+
+**F1 and F2, graded (2026-11-05 ~20:22Z): as predicted.**
+- **F1:** the control ran 97 tests across the six files, all green. **S-F** (the mask removed)
+  turned red exactly {F1}. The file was restored by bytes.
+- **F2:** the CLI against the planted failure exited **1**. Its whole output held **0** 16-hex
+  runs; it showed the planted `Authentication error [code: 10000]` line with its id as `<id>`,
+  and the key lines were gone. The fake `npx` lived in a scratch directory and was on `PATH` for
+  that one run only.

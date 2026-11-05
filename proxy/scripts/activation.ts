@@ -34,7 +34,8 @@ import { fileURLToPath } from "node:url";
 import { ACTIVATION_ID_RE, actKey, MAX_BATCH } from "../src/activation";
 import { deviceIdFromMac } from "../src/provision";
 import {
-  chunk, errorCode, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, summarizeSweep, sweepCounts,
+  chunk, errorCode, failureText, parseImport, parseRecords, seedWith, sumAdd, summarize, summarizeSeed, summarizeSweep,
+  sweepCounts,
   type SeedState, type SeedStore,
 } from "./activation-lib";
 import { bulkGet, kvTargetFromWranglerToml } from "./kv-rest";
@@ -80,12 +81,15 @@ if (op === "sweep" && !seedFromStore) usage("sweep takes --ledger or --token-ids
 // wrangler resolves wrangler.toml from its cwd, so it runs from the proxy directory however this was started.
 const PROXY_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** One wrangler call, output captured. On failure: the exit code and stderr with every 16-hex run masked. */
+/**
+ * One wrangler call, output captured. On failure: the exit code, then stderr AND stdout's non-key lines through
+ * failureText (ids masked, the known config warning dropped), so a failure names its cause and never an id.
+ */
 function wrangler(argv: string[]): string {
   const r = spawnSync(["npx", "wrangler", ...argv].join(" "), { cwd: PROXY_DIR, shell: true, encoding: "utf8" });
   if (r.status !== 0) {
-    const err = String(r.stderr ?? "").replace(/[0-9a-f]{16}/gi, "<id>").slice(-600);
-    refuse(`wrangler ${argv.slice(0, 3).join(" ")} failed (exit ${r.status}):\n${err}`);
+    refuse(`wrangler ${argv.slice(0, 3).join(" ")} failed (exit ${r.status}):\n` +
+      failureText(String(r.stdout ?? ""), String(r.stderr ?? "")));
   }
   return String(r.stdout ?? "");
 }

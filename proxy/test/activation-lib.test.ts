@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chunk, coverage, errorCode, parseImport, parseRecords, planSeed, seedWith, sumAdd, summarize, summarizeSeed,
-  summarizeSweep, sweepCounts,
+  summarizeSweep, sweepCounts, failureText,
   type SeedStore,
 } from "../scripts/activation-lib";
 
@@ -184,5 +184,29 @@ describe("M1: the sweep's arithmetic (accepted ~20:15Z)", () => {
     const line = summarizeSweep("production", c);
     expect(line).toBe("sweep (production): swept 4, activated 3, stamped 2, unstamped 2");
     expect(line).not.toMatch(/[0-9a-f]{16}/);
+  });
+});
+
+describe("F1: a failed wrangler call names its cause and never an id (G-1, ruled ~20:35Z)", () => {
+  it("keeps the error, masks every id, drops key lines and the known config warning", () => {
+    const stderr = [
+      "\x1b[33m▲ \x1b[43;33m[\x1b[43;30mWARNING\x1b[43;33m]\x1b[0m \x1b[1mProcessing wrangler.toml configuration:\x1b[0m",
+      "    - \"env.production\" environment configuration",
+      "      - \"unsafe\" fields are experimental and may change or break at any time.",
+    ].join("\n");
+    const stdout = [
+      "[",
+      `  { "name": "enr:dev:${A}" },`,
+      `  { "name": "enr:dev:${B}" },`,
+      "]",
+      `✘ [ERROR] A request to the Cloudflare API failed for ${C}: Authentication error [code: 10000]`,
+    ].join("\n");
+    const text = failureText(stdout, stderr);
+    expect(text).toContain("Authentication error [code: 10000]");
+    expect(text).toContain("<id>");
+    expect(text).not.toMatch(/[0-9a-f]{16}/i);
+    expect(text).not.toContain("unsafe");
+    expect(text).not.toContain("Processing wrangler.toml");
+    expect(failureText("", "")).toBe("(wrangler printed nothing)");
   });
 });

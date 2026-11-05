@@ -271,3 +271,24 @@ export function sweepCounts(states: readonly string[], gens: ReadonlyArray<unkno
 export function summarizeSweep(env: string, c: SweepCounts): string {
   return `sweep (${env}): swept ${c.swept}, activated ${c.activated}, stamped ${c.stamped}, unstamped ${c.unstamped}`;
 }
+
+/* ===========================================================================
+ * A FAILED WRANGLER CALL MUST NAME ITS CAUSE AND NEVER AN ID (G-1, ruled ~20:35Z).
+ * G-1's first run showed the tail of stderr -- two copies of a config warning -- while the
+ * error itself was on stdout, which was dropped. Both streams go through this.
+ * ======================================================================== */
+
+const ANSI = /\x1b\[[0-9;]*m/g;
+// wrangler's warning about the env's experimental "unsafe" ratelimit fields: printed on every call, never the cause.
+const KNOWN_NOISE = [/unsafe" fields are experimental/, /^\s*▲?\s*\[?WARNING\]?\s*Processing wrangler\.toml configuration:?\s*$/,
+  /^\s*-\s*"env\.(production|staging)" environment configuration\s*$/];
+
+export function failureText(stdout: string, stderr: string, cap = 1200): string {
+  const lines = `${stderr}\n${stdout}`.replace(ANSI, "").split(/\r?\n/)
+    .filter((l) => l.trim() !== "")
+    .filter((l) => !/"name"\s*:/.test(l))                 // a key listing is a list of ids: never shown
+    .filter((l) => !KNOWN_NOISE.some((re) => re.test(l)))
+    .map((l) => l.replace(/[0-9a-f]{16}/gi, "<id>"));
+  const text = lines.join("\n");
+  return text.length > cap ? `${text.slice(0, cap)}\n...` : text || "(wrangler printed nothing)";
+}
