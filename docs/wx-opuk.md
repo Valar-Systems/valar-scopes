@@ -1373,3 +1373,10 @@ clean checkout at `131c0f776d9a`, exit 0, empty stderr):
   - Tested without deploying: a dry-run's output decodes, and the tail connects and closes (0 left).
 - **Not done without a ruling:** re-running S1 as a new `plantcal` version, with `85a35361` recorded as an aborted
   attempt. Choosing which version S1's row is read against, after an unexpected event, is the reviewer's call.
+
+- **Re-read at 03:41:36Z, 3 min after the first:** still **0 invocations** of any dev version from 03:12 to 03:42Z
+  (Logs: 0 records; R3-6's instrument: no rows). So `85a35361` never fired during its 51 s live (03:36:35-03:37:26Z),
+  across one minute boundary.
+  - **Explanation, not a finding:** a change of cron trigger can take more than a minute to start firing.
+  - **The alternative:** the trigger never registered at all. These data don't separate the two; S1's re-run will,
+    because the driver counts live and parks only on the count.
