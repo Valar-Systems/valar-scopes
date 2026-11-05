@@ -1608,3 +1608,13 @@ propagate to the Cloudflare global network."*
 - **Proxy suite 900 passed, 1 skipped (901).** That equals main's previous finished run at `048ed7be9466` (#541's
   merge): 900 passed, 1 skipped. So #543 added no tests, as predicted; the +3 over 897 are #541's.
 - The plant selftest passed.
+
+**Ruling, pasted ~16:52Z (verbatim):**
+
+> Go. #543's merge is verified: 788dab3 equals the approved head's patch, and main's CI is recorded. Start Plan S now from 788dab3: S1's fourth attempt with the 15-minute first-invocation window, then S2-S5, parking on idle between phases, as ruled. Record each phase's start and end. Anything outside the table: stop and report.
+
+**Stated before S1's fourth attempt, not re-registered:**
+- S1's cap (15 min, ruled ~04:30Z) is as long as its first-invocation window (15 min, ruled ~05:05Z).
+- If the first firing starts later than about 12 min after the deploy, three invocations can't finish inside the cap.
+  The driver then ends on TIMEOUT, and that is stop-and-report.
+- Run as ruled, with neither limit changed.
