@@ -48,7 +48,8 @@ ESP32-S3 (https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32s3/p
 **Time per board:** about 1 minute with esptool, of which about 40 seconds is the erase (measured on our bench, 2026-11-05).
 
 **If the computer does not see the board:** press and hold the board's left-side button for 2
-seconds to power it on. On this board, USB power alone may only light the charger LED. *(bench)*
+seconds to power it on. On our bench the board came on by itself from USB (2026-11-05), so this is only a
+fallback.
 
 ### 3. Pass signs: a board passes only if both appear
 
@@ -115,7 +116,7 @@ esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset
 
 **每块板用时：**使用 esptool 约 1 分钟，其中擦除约 40 秒（2026-11-05 在我们测试台上实测）。
 
-**如果电脑识别不到板子：**长按板子左侧按键 2 秒开机。这块板仅接 USB 时，可能只有充电指示灯亮。*(待验证)*
+**如果电脑识别不到板子：**长按板子左侧按键 2 秒开机。在我们的测试台上，板子接上 USB 后会自行开机（2026-11-05），因此这只是备用方法。
 
 ### 3. 合格标志：两项都出现才算合格
 
