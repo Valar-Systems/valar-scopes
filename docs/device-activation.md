@@ -1067,3 +1067,116 @@ decision.
 
 25 rows are stamped. Production stays on `"watch"` until Daniel says otherwise, and the watch
 counts reach him before that decision.
+
+## Follow-ups (ruled 2026-11-06 ~18:12Z): Daniel's decisions, and the watch counts
+
+### The watch counts since the deploy: predicted before they are read
+
+**What is read:** production's `enr:watch:<day>:<reason>` counters since #548 went live (03:28Z, 2026-11-06), and the
+`enr:refused:` counters. Read with the `kv-read` token, through `scripts/kv-rest.ts`. The keys name a day and a reason
+and nothing else; their values are counts. No id is read or printed.
+
+**The anchor control:** `cfg:fleet` must read back and a known-absent key must read null, as the coverage check
+requires. Otherwise the read is "cannot see".
+
+| | counter | predicted |
+|---|---|---|
+| **WC1** | `enr:watch:2026-11-06:not_listed` | **absent (0)**. The one board that enrolled since the ledger seed did so at 23:30Z on 11-05, before the gate existed, and has not been seen since |
+| **WC2** | `enr:watch:2026-11-06:already_activated` | **absent (0)** |
+| **WC3** | any `enr:refused:` key | **none**: production is in watch, which counts and never refuses |
+
+**Outside the set:** any count is reported as read. **A `not_listed` count is said plainly: it is a real board that
+would have been refused.**
+
+### The watch counts, read (2026-11-06, 18:46Z): one row off
+
+The anchor held: `cfg:fleet` read back, and a known-absent key read null.
+
+| | read | verdict |
+|---|---|---|
+| **WC1** `not_listed` | **absent** | **as predicted**: no unlisted board has enrolled since the deploy |
+| **WC2** `already_activated` | **1** (on 2026-11-06) | **OFF** (predicted absent) |
+| **WC3** `enr:refused:` | **none** | **as predicted** |
+
+**What WC2's 1 is:** one enrolment since 03:28Z came from an id whose `act:` row was already activated. Watch mode
+let it through, gave it its key, and counted it. **Under enforce it would have been refused with 409
+`already_activated`, and needed a reset to recover.**
+
+**Whose it is, the counts cannot say, and the candidates are named rather than chosen:**
+- **(i)** a customer's unit that lost its key (a factory reset, or a Wi-Fi reset that re-enrols) and enrolled again:
+  the case enforce turns into a support reset;
+- **(ii)** the board that enrolled at 23:30Z on 11-05, grandfathered as activated at 04:32Z, enrolling again
+  afterwards;
+- **(iii)** a bench or test board. Not the COM16 board: today's proof left it at SETUP, with no Wi-Fi.
+
+**Proposed (not run), for a ruling, since the ruling asked for counts only:** a read-only characterisation in the
+shape of `extra-id.mts`. For the ledger rows whose last enrolment is after 03:28Z: the count, each one's first and
+last enrolment to the minute, its `act:` state, and its `fw:` model. Never an id. That separates (i) from (ii), and
+says whether (iii) is a known bench board.
+
+### Item 4 (ruled ~18:12Z): the stale line, the example MAC, and Daniel's decisions. Predicted before the edits
+
+| | check | predicted |
+|---|---|---|
+| **A4-1** | the diff against the merge base | exactly `docs/device-enrollment.md` (one sentence near line 109), `proxy/src/provision.ts` (`normalizeMac`'s comment, one line) and this file |
+| **A4-2** | `provision.ts` | its only changed line is the comment. No Espressif-prefixed (`90:70:69`) example is left, and the new one is from the RFC 7042 documentation range, `00:00:5E:00:53:xx` |
+| **A4-3** | before the push | `check_device_ids.py`, `check_wifi.py` and `skus.py --check-readers` pass |
+| **A4-4** | CI on the PR, read with nothing queued, twice | **34: 31 success, 3 skipped** (`promote`, `version`, `ship-alert`), 0 failed. Baseline: #556's PR run (34: 31 success, 3 skipped), which also touched `proxy/` and postdates main's last job-set change, `84409651`; main's last workflow change is `259e8688`, a step |
+
+**Outside the set:** stop and report.
+
+### Daniel's decisions (2026-11-06, ruled ~18:12Z)
+
+- **The list is filled a whole batch at a time.** The factory's MAC list is imported with `activation.ts import` when
+  each batch arrives. **No shipped gate and no Shopify link get built.**
+- **The accepted limit:** a shelf board activated by someone who guessed its id stays accepted. The fix is a reset
+  (`activation.ts reset`).
+- **Production stays in watch mode for a while.** Daniel wants data before any refusals. No enforce PR is prepared
+  until he asks.
+
+**Item 4, as made:**
+- `docs/device-enrollment.md`'s historical argument now says the stateless design *had* no allowlist, and points
+  here.
+- `normalizeMac`'s comment uses `00:00:5E:00:53:01` (RFC 7042's documentation range) in place of an
+  Espressif-prefixed example that read like a real unit's.
+
+### WC2's characterisation (approved ~18:54Z): predicted before the read
+
+**What is read (read-only, `kv-read`):** the ledger rows (`enr:dev:`) whose last enrolment is after 03:28Z on 11-06.
+For each: its first and last enrolment to the minute, its `act:` state and whether it carries a `gen`, and its `fw:`
+model and last-seen time. **Never an id.** It runs behind the same anchor control.
+
+**Today's board activity, to set beside it:**
+- **W-CR** on Weatherscope's board, 18:08-18:26Z;
+- the **COM16** proof, 18:40-18:42Z, which left that board at SETUP with no Wi-Fi;
+- **E2:08:** not flashed today (the bench window did not run).
+
+| | check | predicted |
+|---|---|---|
+| **WX1** | ledger rows enrolled after 03:28Z | **exactly 1** |
+| **WX2** | that row | `act:` **activated, stamped**; its last enrolment **inside W-CR's window (18:08-18:26Z)**; its model Weatherscope's |
+| **WX3** | the COM16 board and E2:08 | **no** row last enrolled in the COM16 proof's minutes, and none for E2:08 today |
+
+**Outside the set:** report what is read, and say which activity it matches, if any.
+
+### WC2's characterisation, read (18:55Z)
+
+The anchor held. Ledger rows: 23.
+
+| | read | verdict |
+|---|---|---|
+| **WX1** | rows last enrolled after 03:28Z: **1** | **as predicted** |
+| **WX2** | that row: first enrolment **2026-11-05T23:30Z**, last **2026-11-06T16:30Z**, 2 enrolments; `act:` activated, stamped; `fw:` **s3-128**, last seen **18:05Z** | **OFF**: not inside W-CR's window and not Weatherscope's model |
+| **WX3** | no row for the COM16 proof or for E2:08 | **as predicted** |
+
+**Which activity it matches: none of the three.** It is the board that enrolled at 23:30Z on 11-05, three hours after
+the ledger seed, and was grandfathered as activated by this morning's guarded re-seed (04:32Z). It enrolled again at
+16:30Z today, which is what WC2 counted. It is live, seen at 18:05Z, two hours after the second enrolment.
+
+**My miss:** WX2 assumed the count came from today's bench activity. The data excludes that: W-CR is 18:08-18:26Z and
+the enrolment was at 16:30Z; the model is `s3-128`, not Weatherscope's.
+
+**Why it matters for enforce, stated plainly:** a live, grandfathered s3-128 enrolled a second time in normal use.
+Under enforce, that second enrolment would have been refused with 409 `already_activated`, and the unit would have
+needed a support reset. Whatever makes a working unit enrol again (a Wi-Fi reset, a settings reset, or something
+else) is not known from these rows. That question bears on the enforce decision, and is left open here.

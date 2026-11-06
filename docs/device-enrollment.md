@@ -106,8 +106,8 @@ is the argument to re-read before anyone proposes it again.**
 
 **It is a key oracle, not a mint.** Because the key is a pure function of the id
 and nothing else, an endpoint that returns `HMAC(secret, id)` for a submitted id
-returns a valid key for *any* id. There is no allowlist for a made-up id to fail
-against, because the stateless design has no list at all. "Enrollment" is not a
+returns a valid key for *any* id. The stateless design had no allowlist for a made-up
+id to fail against. (One exists now, since #548: see [device-activation.md](device-activation.md).) "Enrollment" is not a
 grant of anything — it is the server performing the one computation an attacker
 cannot.
 

@@ -44,7 +44,7 @@ export async function tokenMatches(presented: string, expected: string | undefin
   return diff === 0;
 }
 
-/** "90:70:69:31:E2:08" / "90-70-..." / "907069..." -> "90:70:69:31:e2:08", or null. */
+/** "00:00:5E:00:53:01" / "00-00-5E-00-53-01" / "00005E005301" -> "00:00:5e:00:53:01", or null. */
 export function normalizeMac(raw: unknown): string | null {
   const h = String(raw ?? "").toLowerCase().replace(/[^0-9a-f]/g, "");
   if (h.length !== 12) return null;
