@@ -2234,3 +2234,40 @@ objects after 1 days", for all prefixes, enabled**.
 - The two backfills filled the holes left in the 20-minute window by the stop.
 - Pruning of 1 per check starts once the first frames written after the redeploy pass an hour old. Their epochs
   are not in these lines, so no time is given here. R3′-5b′ reads that state.
+
+**R3′-5a′ over the whole window, and an instrument note:**
+- The scheduled full-window read (`r3p.py lines`, 15:11:30-16:21:30Z, read 16:21:52Z) came back **sampled at
+  ABR 10**: 23 events against 69 for the 24-minute read at 15:36Z.
+  - It missed the 15:12:21Z check, so it named the 15:12:47Z backfill as the "first storing check".
+  - That is the sample, not the row. Every storing check it did see appears in the unsampled reads with the same
+    `pruned` (15:12:47Z backfilled 0; 15:54:23Z stored 0; 16:04:25Z stored 1). The alternative, that the sampled
+    read is right and the full ones wrong, is excluded because it is a strict subset of them.
+- **Re-read unsampled** in 15-minute pieces at 16:22:15Z, **all at ABR 1, 0 error lines:**
+
+| piece | lines | storing checks and `pruned` |
+|---|---|---|
+| 15:11:30-15:35:30Z (the 15:36Z read) | 45 | **15:12:21Z stored 12**; 15:12:47Z bf 0; 15:13:28Z bf 0; 15:14:58Z 0; 15:19:24Z 0; 15:24:21Z 0; 15:29:21Z 0 |
+| 15:35:30-15:50:30Z | 30 | 15:39:28Z 0; 15:44:56Z 0; 15:49:50Z 0 |
+| 15:50:30-16:05:30Z | 30 | 15:54:23Z 0; 15:59:21Z 1; 16:04:25Z 1 |
+| 16:05:30-16:21:30Z | 32 | 16:09:23Z 1; 16:14:22Z 1; 16:19:52Z 1 |
+
+- **R3′-5a′ as predicted over the whole window:** exactly 12 first, then 0 or 1 on each of the 15 storing checks
+  after it.
+- `r3p.py` prints `abr_levels` but does not refuse a sampled read. It should, the way a BLIND read refuses. Noted
+  for the next tools change, not made here.
+
+**R3′-5b′ (`r3_5b.py opuk 150 blipscope-wx-ingest-opuk`):**
+
+| read | got | verdict |
+|---|---|---|
+| **1** (listed 16:21:54Z) | **12 frames** (15:20:00Z to 16:15:00Z), `latest` 16:15:00Z. Last pruner: 16:19:44.872Z, stored, `pruned` 1. Cut 15:19:44Z: **0 frames below**. +300 s sabotage (cut 15:24:44Z): **FAIL on the oldest**, 15:20:00Z. Margin 15.1 s (printed). Blind: none | **PASS** |
+| **2** (listed 16:31:35Z) | **12 frames** (15:30:00Z to 16:25:00Z), `latest` 16:25:00Z. Last pruner: 16:29:15.897Z, stored, `pruned` 1. Cut 15:29:15Z: **0 frames below**. +300 s sabotage (cut 15:34:15Z): **FAIL on the oldest**, 15:30:00Z. Margin 44.1 s (printed). Blind: none | **PASS** |
+
+- **The two reads were 9 min 41 s apart, not 10 min.** The driver took an expected 170 s run time off the wait,
+  and read 1 finished sooner than that. Both reads are clean, and they are distinct states: different oldest
+  frames, different last pruners.
+
+**R3′: every re-registered check read as predicted. As ruled ~15:07Z, R3′ is complete.**
+- `opuk` Worker: `a4e6c685`, top level, `WX_INGEST` on, cpu_ms 12000.
+- `cref` Worker: `257f49eb`, `cref`-only.
+- The 7-day cost re-read is due about 2026-11-13. R4 and node_modules stay held.
