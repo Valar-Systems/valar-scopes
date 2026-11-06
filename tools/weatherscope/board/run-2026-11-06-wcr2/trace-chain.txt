@@ -1,0 +1,666 @@
+# trace-chain.txt, redacted (publish_wcr.py): timestamps relative to the first line; LAN IP and BSSID masked; 8 theme/phase line(s) removed (counts only, never times).
+t+   0.000 #HOST send b'r'
+t+   0.203 
+t+   0.203 [build] env=weatherscope-touchbench-s3-128 fw=v18 features=no-cloud+weatherscope
+t+   0.203 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+t+   0.203 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+t+   0.203 [ota-id] board=s3-128 scope=weatherscope- (record v1)
+t+   0.203 [boot] reset reason=USB
+t+   0.203 [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+t+   0.203 [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+t+   0.203 [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+t+   0.204 [quiet] armed: reboot at local 03:00, tz-offset=unset (-21600 s) -- local hour now 13
+t+   0.204 [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=241652)
+t+   0.204 [bright] first-light/default -> 255
+t+   0.204 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
+t+   0.204 *wm:v2.0.17  D:2
+t+   0.204 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+t+   0.204 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+   0.204 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+t+   0.204 [WiFi] fast join: ch=1 bssid=<redacted>
+t+   0.204 [WiFi] Associated with "<ssid>", waiting for IP...
+t+   0.204 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-45 dBm
+t+   0.204 [WiFi] fast join OK in 3750 ms
+t+   0.204 [WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
+t+   0.204 [ota] channel=weatherscope-s3-128 current=18 latest=18
+t+   0.204 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+   0.204 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+t+   0.204 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+t+   0.204 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+t+   0.204 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+   0.204 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+   0.204 [touch-wd] boot: run=0 (stored 0, reset not power-on)
+t+   0.204 [heap] handshake ballast reserved (16717 B); free8=196344
+t+   0.204 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+   0.204 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+   0.204 [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40797
+t+   0.204 [wx] prof dry-60 view=3571 map=22174 bands=3150 rings=7632 warning=4 labels=3420 ringlabels=458 home=23 replay=4 strip=107 band=240 sum=40783 compose_us=40797
+t+   0.204 [wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+t+   0.204 [wx] k TIME dry-60 5:00%20PM dim
+t+   0.204 [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+t+   0.204 [wx] k LABEL dry-60 Dallas R 150 130 190 138
+t+   0.204 [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+t+   0.204 [wx] k LABEL dry-60 Plano R 152 95 186 103
+t+   0.204 [wx] k LABEL dry-60 Garland R 166 114 212 122
+t+   0.204 [wx] k LABEL dry-60 Frisco R 144 80 184 88
+t+   0.204 [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+t+   0.204 [wx] k LABEL dry-60 Denton L 68 72 110 80
+t+   0.204 [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+t+   0.204 [wx] screen=scenario dry R=60
+t+   0.204 [fb] push 5000 draws 1-108 n=108 phases=2 push_us=25795-25866
+t+   0.204 [touch-bench] chip DEAD from boot; keys: w=toggle dead/alive r=state (idle 20s, healthy 180s)
+t+   0.204 [touch-wd] WEDGE #1: controller dead on the bus; ladder engaged
+t+   0.204 [touch-wd] still dead; next re-init (soft) in 15s
+t+   0.204 [touch-bench] t=29039 run=0 stored=0 unavailable=0 wedgeSeen=0 chip=DEAD
+t+   1.047 [touch-bench] t=30023 boot summary: reset=USB run=0 stored=0 unavailable=0 chip=DEAD
+t+  11.655 [touch-wd] still dead; next re-init (hard) in 40s
+t+  11.673 #HOST fb boot1-control 0: 115200 B, strip absent
+t+  12.392 #HOST fb boot1-control 1: 115200 B, strip absent
+t+  13.071 #HOST fb boot1-control 2: 115200 B, strip absent
+t+  20.130 [wx] fbcopy n=816 min=5355 max=8264 mean=5419
+t+  20.342 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+  20.342 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+  20.342 [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40738
+t+  20.342 [wx] prof approaching-60 view=3573 map=22156 bands=3151 rings=7616 warning=4 labels=3422 ringlabels=437 home=23 replay=3 strip=100 band=238 sum=40723 compose_us=40738
+t+  20.342 [wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+t+  20.342 [wx] k TIME approaching-60 4:24%20PM dim
+t+  20.342 [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+t+  20.342 [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+t+  20.342 [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+t+  20.342 [wx] k LABEL approaching-60 Plano R 152 95 186 103
+t+  20.342 [wx] k LABEL approaching-60 Garland R 166 114 212 122
+t+  20.342 [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+t+  20.342 [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+t+  20.342 [wx] k LABEL approaching-60 Denton L 68 72 110 80
+t+  20.342 [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+t+  20.342 [wx] screen=scenario approaching R=60
+t+  20.342 [fb] push 103c draws 109-924 n=816 phases=2 push_us=25808-35378
+t+  31.176 #HOST send b'P'
+t+  31.309 [wx] gesture P
+t+  31.524 [wx] hold ring on
+t+  32.155 [wx] zoom hold 60 -> 15 mi
+t+  32.155 [wx] fbcopy n=325 min=5357 max=6409 mean=5388
+t+  32.155 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+  32.155 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+  32.155 [wx] scn=approaching R=15 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=35165
+t+  32.155 [wx] prof approaching-15 view=3572 map=21919 bands=3152 rings=3454 warning=4 labels=2437 ringlabels=167 home=26 replay=3 strip=188 band=228 sum=35150 compose_us=35165
+t+  32.155 [wx] k ROW approaching-15 90f850f639e64b7d1f017e64b62133d9097eea96167100d02b19b9dea80937a6
+t+  32.155 [wx] k TIME approaching-15 4:24%20PM dim
+t+  32.155 [wx] k BAND approaching-15 S RAIN%2014%20MI%20E white
+t+  32.155 [wx] k LABEL approaching-15 Irving R 151 139 191 147
+t+  32.155 [wx] k LABEL approaching-15 Lewisville L 86 32 152 40
+t+  32.155 [wx] k LABEL approaching-15 Carrollton L 120 66 186 74
+t+  32.155 [wx] k LABEL approaching-15 Euless L 62 143 104 151
+t+  32.155 [wx] k LABEL approaching-15 Keller R 33 97 73 105
+t+  32.155 [wx] screen=scenario approaching R=15
+t+  32.369 [fb] push 113c draws 925-1249 n=325 phases=2 push_us=25806-25894
+t+  50.162 [wx] fbcopy n=436 min=5357 max=6213 mean=5384
+t+  50.162 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+  50.162 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+  50.162 [wx] scn=herenow R=15 frame=212400 screen=PrecipNow synthetic=1 compose_us=35185
+t+  50.162 [wx] prof herenow-15 view=3589 map=21925 bands=3154 rings=3444 warning=4 labels=2437 ringlabels=201 home=23 replay=4 strip=208 band=182 sum=35171 compose_us=35185
+t+  50.162 [wx] k ROW herenow-15 8aabbee0aa35a33eef657e98c51f13e50389678a53952a02d78f29a3bf98c75d
+t+  50.162 [wx] k TIME herenow-15 4:24%20PM dim
+t+  50.162 [wx] k BAND herenow-15 S RAIN%20NOW white
+t+  50.162 [wx] k LABEL herenow-15 Irving R 151 139 191 147
+t+  50.162 [wx] k LABEL herenow-15 Lewisville L 86 32 152 40
+t+  50.162 [wx] k LABEL herenow-15 Carrollton L 120 66 186 74
+t+  50.162 [wx] k LABEL herenow-15 Euless L 62 143 104 151
+t+  50.162 [wx] k LABEL herenow-15 Keller R 33 97 73 105
+t+  50.162 [wx] screen=scenario herenow R=15
+t+  50.363 [fb] push 110f draws 1250-1685 n=436 phases=2 push_us=25802-25918
+t+  53.068 [touch-wd] still dead; next re-init (hard) in 120s
+t+  80.150 [wx] fbcopy n=727 min=5357 max=6489 mean=5390
+t+  80.354 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+  80.354 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+  80.354 [wx] scn=warning R=15 frame=212400 screen=Warning synthetic=1 compose_us=46298
+t+  80.354 [wx] prof warning-15 view=3565 map=21928 bands=3153 rings=3453 warning=11129 labels=2231 ringlabels=264 home=22 replay=4 strip=195 band=328 sum=46272 compose_us=46298
+t+  80.354 [wx] k ROW warning-15 34a862a296004933a1ac4a1ef5b90b3d8b0485b17d8f54715935a7ed932fe550
+t+  80.354 [wx] k TIME warning-15 4:24%20PM dim
+t+  80.354 [wx] k BAND warning-15 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+t+  80.354 [wx] k BAND warning-15 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+t+  80.354 [wx] k LABEL warning-15 Irving R 151 139 191 147
+t+  80.354 [wx] k LABEL warning-15 Euless L 62 143 104 151
+t+  80.354 [wx] k LABEL warning-15 Keller R 33 97 73 105
+t+  80.354 [wx] k LABEL warning-15 Coppell R 141 81 187 89
+t+  80.354 [wx] k LABEL warning-15 Hurst L 20 150 56 158
+t+  80.354 [wx] screen=scenario warning R=15
+t+  80.354 [fb] push 120f draws 1686-2412 n=727 phases=2 push_us=25802-25930
+t+  80.782 [touch-wd] wedge #1 has outlived 90s; recommending reboot at next idle
+t+ 110.280 [wx] fbcopy n=728 min=5357 max=6341 mean=5385
+t+ 110.280 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 110.280 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 110.280 [wx] scn=stale R=15 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=35562
+t+ 110.280 [wx] prof stale-15 view=3586 map=22189 bands=3153 rings=3487 warning=4 labels=2433 ringlabels=208 home=23 replay=2 strip=199 band=263 sum=35547 compose_us=35562
+t+ 110.280 [wx] k ROW stale-15 da46f2e271c0704951c7c366bef25e38da08e8696d07dc235a2f0447010c7b8d
+t+ 110.280 [wx] k TIME stale-15 4:24%20PM orange
+t+ 110.280 [wx] k BAND stale-15 S RADAR%20STALE dim
+t+ 110.280 [wx] k LABEL stale-15 Irving R 151 139 191 147
+t+ 110.280 [wx] k LABEL stale-15 Lewisville L 86 32 152 40
+t+ 110.280 [wx] k LABEL stale-15 Carrollton L 120 66 186 74
+t+ 110.280 [wx] k LABEL stale-15 Euless L 62 143 104 151
+t+ 110.280 [wx] k LABEL stale-15 Keller R 33 97 73 105
+t+ 110.280 [wx] screen=scenario stale R=15
+t+ 110.280 [fb] push 130f draws 2413-3140 n=728 phases=2 push_us=25803-25903
+t+ 111.192 #HOST send b'L'
+t+ 111.326 [wx] gesture L
+t+ 111.326 [wx] hold ring off
+t+ 131.265 [touch-wd] wedged past the outage bound and idle: touch reboot 1 of 3
+t+ 131.265 [touch-wd] run 0 -> 1 (NVS write: touch reboot)
+t+ 131.265 [touch-wd] restarting (cause SW_TOUCHWD stamped)
+t+ 131.466 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+t+ 131.466 ESP-ROM:esp32s3-20210327
+t+ 131.466 Build:Mar 27 2021
+t+ 131.466 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+t+ 131.466 Saved PC:0x4037abd6
+t+ 131.466 SPIWP:0xee
+t+ 131.466 mode:DIO, clock div:1
+t+ 131.466 load:0x3fce2820,len:0x10cc
+t+ 131.466 load:0x403c8700,len:0xc2c
+t+ 131.466 load:0x403cb700,len:0x30c0
+t+ 131.466 entry 0x403c88b8
+t+ 131.881 
+t+ 131.881 [build] env=weatherscope-touchbench-s3-128 fw=v18 features=no-cloud+weatherscope
+t+ 131.881 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+t+ 131.881 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+t+ 131.881 [ota-id] board=s3-128 scope=weatherscope- (record v1)
+t+ 131.881 [boot] reset reason=SW
+t+ 131.881 [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+t+ 131.881 [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+t+ 131.881 [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+t+ 131.881 [quiet] armed: reboot at local 03:00, tz-offset=unset (-21600 s) -- local hour now 13
+t+ 131.881 [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=241652)
+t+ 132.096 [   307][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
+t+ 132.096 [bright] first-light/default -> 255
+t+ 132.096 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
+t+ 132.096 *wm:v2.0.17  D:2
+t+ 132.311 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+t+ 132.311 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+ 135.222 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+t+ 135.222 [WiFi] fast join: ch=1 bssid=<redacted>
+t+ 136.041 [WiFi] Associated with "<ssid>", waiting for IP...
+t+ 137.663 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-47 dBm
+t+ 137.663 [WiFi] fast join OK in 2350 ms
+t+ 137.663 [WiFi] pinned AP ch=1 RSSI=-47 dBm for the next boot
+t+ 145.525 [ota] channel=weatherscope-s3-128 current=18 latest=18
+t+ 145.525 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+ 145.525 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+t+ 145.525 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+t+ 145.525 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+t+ 145.525 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 145.739 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 145.739 [touch-wd] boot: run=1 (stored 1, reset not power-on)
+t+ 145.739 [heap] handshake ballast reserved (16717 B); free8=196336
+t+ 149.669 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 149.669 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 149.669 [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40768
+t+ 149.669 [wx] prof dry-60 view=3572 map=22172 bands=3150 rings=7626 warning=4 labels=3417 ringlabels=437 home=23 replay=3 strip=109 band=240 sum=40753 compose_us=40768
+t+ 149.669 [wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+t+ 149.669 [wx] k TIME dry-60 5:00%20PM dim
+t+ 149.669 [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+t+ 149.669 [wx] k LABEL dry-60 Dallas R 150 130 190 138
+t+ 149.669 [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+t+ 149.669 [wx] k LABEL dry-60 Plano R 152 95 186 103
+t+ 149.669 [wx] k LABEL dry-60 Garland R 166 114 212 122
+t+ 149.669 [wx] k LABEL dry-60 Frisco R 144 80 184 88
+t+ 149.669 [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+t+ 149.669 [wx] k LABEL dry-60 Denton L 68 72 110 80
+t+ 149.669 [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+t+ 149.669 [wx] screen=scenario dry R=60
+t+ 149.669 [fb] push 5000 draws 1-108 n=108 phases=2 push_us=25796-25939
+t+ 149.669 [touch-bench] chip DEAD from boot; keys: w=toggle dead/alive r=state (idle 20s, healthy 180s)
+t+ 150.087 [touch-wd] WEDGE #1: controller dead on the bus; ladder engaged
+t+ 155.490 [touch-wd] still dead; next re-init (soft) in 15s
+t+ 161.950 [touch-bench] t=30011 boot summary: reset=SW run=1 stored=1 unavailable=0 chip=DEAD
+t+ 171.105 [touch-wd] still dead; next re-init (hard) in 40s
+t+ 179.621 [wx] fbcopy n=820 min=5357 max=6300 mean=5388
+t+ 179.621 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 179.621 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 179.621 [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40708
+t+ 179.621 [wx] prof approaching-60 view=3576 map=22142 bands=3151 rings=7615 warning=4 labels=3427 ringlabels=413 home=24 replay=2 strip=100 band=238 sum=40692 compose_us=40708
+t+ 179.621 [wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+t+ 179.621 [wx] k TIME approaching-60 4:24%20PM dim
+t+ 179.621 [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+t+ 179.621 [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+t+ 179.621 [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+t+ 179.621 [wx] k LABEL approaching-60 Plano R 152 95 186 103
+t+ 179.621 [wx] k LABEL approaching-60 Garland R 166 114 212 122
+t+ 179.621 [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+t+ 179.621 [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+t+ 179.621 [wx] k LABEL approaching-60 Denton L 68 72 110 80
+t+ 179.621 [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+t+ 179.621 [wx] screen=scenario approaching R=60
+t+ 179.621 [fb] push 103c draws 109-928 n=820 phases=2 push_us=25809-25901
+t+ 209.629 [wx] fbcopy n=821 min=5356 max=6636 mean=5384
+t+ 209.629 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 209.629 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 209.629 [wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40688
+t+ 209.629 [wx] prof herenow-60 view=3582 map=22144 bands=3151 rings=7622 warning=3 labels=3419 ringlabels=441 home=23 replay=3 strip=101 band=184 sum=40673 compose_us=40688
+t+ 209.629 [wx] k ROW herenow-60 afb36e9d0ed8f0eb35ff971c335c5496c893f44cf920ae0f1d52b5a421f05062
+t+ 209.629 [wx] k TIME herenow-60 4:24%20PM dim
+t+ 209.629 [wx] k BAND herenow-60 S RAIN%20NOW white
+t+ 209.629 [wx] k LABEL herenow-60 Dallas R 150 130 190 138
+t+ 209.629 [wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+t+ 209.629 [wx] k LABEL herenow-60 Plano R 152 95 186 103
+t+ 209.629 [wx] k LABEL herenow-60 Garland R 166 114 212 122
+t+ 209.629 [wx] k LABEL herenow-60 Frisco R 144 80 184 88
+t+ 209.629 [wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+t+ 209.629 [wx] k LABEL herenow-60 Denton L 68 72 110 80
+t+ 209.629 [wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+t+ 209.629 [wx] screen=scenario herenow R=60
+t+ 209.629 [fb] push 113c draws 929-1749 n=821 phases=2 push_us=25808-25925
+t+ 212.392 [touch-wd] still dead; next re-init (hard) in 120s
+t+ 239.646 [wx] fbcopy n=821 min=5357 max=6382 mean=5390
+t+ 239.647 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 239.647 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 239.647 [wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=47780
+t+ 239.647 [wx] prof warning-60 view=3560 map=22142 bands=3151 rings=7627 warning=6365 labels=3857 ringlabels=601 home=21 replay=3 strip=101 band=337 sum=47765 compose_us=47780
+t+ 239.647 [wx] k ROW warning-60 770ad291122d7857dc6cbe73a24d5322a04a3c82b444cf4c6e046e7122d35fef
+t+ 239.647 [wx] k TIME warning-60 4:24%20PM dim
+t+ 239.647 [wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+t+ 239.647 [wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+t+ 239.647 [wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+t+ 239.647 [wx] k LABEL warning-60 Garland R 166 114 212 122
+t+ 239.647 [wx] k LABEL warning-60 McKinney R 162 74 214 82
+t+ 239.647 [wx] k LABEL warning-60 Denton L 68 72 110 80
+t+ 239.647 [wx] k LABEL warning-60 Mesquite R 171 135 223 143
+t+ 239.647 [wx] k LABEL warning-60 Allen R 161 87 195 95
+t+ 239.647 [wx] k LABEL warning-60 Mansfield L 52 161 112 169
+t+ 239.647 [wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+t+ 239.647 [wx] screen=scenario warning R=60
+t+ 239.647 [fb] push 123c draws 1750-2570 n=821 phases=2 push_us=25809-25937
+t+ 240.047 [touch-wd] wedge #1 has outlived 90s; recommending reboot at next idle
+t+ 240.047 [touch-wd] wedged past the outage bound and idle: touch reboot 2 of 3
+t+ 240.047 [touch-wd] run 1 -> 2 (NVS write: touch reboot)
+t+ 240.047 [touch-wd] restarting (cause SW_TOUCHWD stamped)
+t+ 240.247 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+t+ 240.247 ESP-ROM:esp32s3-20210327
+t+ 240.247 Build:Mar 27 2021
+t+ 240.247 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+t+ 240.247 Saved PC:0x4037abd6
+t+ 240.247 SPIWP:0xee
+t+ 240.247 mode:DIO, clock div:1
+t+ 240.247 load:0x3fce2820,len:0x10cc
+t+ 240.247 load:0x403c8700,len:0xc2c
+t+ 240.247 load:0x403cb700,len:0x30c0
+t+ 240.247 entry 0x403c88b8
+t+ 240.662 
+t+ 240.662 [build] env=weatherscope-touchbench-s3-128 fw=v18 features=no-cloud+weatherscope
+t+ 240.662 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+t+ 240.662 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+t+ 240.662 [ota-id] board=s3-128 scope=weatherscope- (record v1)
+t+ 240.662 [boot] reset reason=SW
+t+ 240.662 [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+t+ 240.662 [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+t+ 240.662 [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+t+ 240.662 [quiet] armed: reboot at local 03:00, tz-offset=unset (-21600 s) -- local hour now 13
+t+ 240.662 [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=241652)
+t+ 240.876 [   307][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
+t+ 240.876 [bright] first-light/default -> 255
+t+ 240.876 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
+t+ 240.876 *wm:v2.0.17  D:2
+t+ 241.090 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+t+ 241.090 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+ 244.064 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+t+ 244.064 [WiFi] fast join: ch=1 bssid=<redacted>
+t+ 244.700 [WiFi] Associated with "<ssid>", waiting for IP...
+t+ 246.402 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
+t+ 246.402 [WiFi] fast join OK in 2350 ms
+t+ 246.402 [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
+t+ 256.921 [ota] channel=weatherscope-s3-128 current=18 latest=18
+t+ 256.921 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+ 256.921 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+t+ 256.921 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+t+ 256.921 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+t+ 256.921 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 257.134 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 257.134 [touch-wd] boot: run=2 (stored 2, reset not power-on)
+t+ 257.134 [heap] handshake ballast reserved (16717 B); free8=196316
+t+ 260.901 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 260.901 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 260.901 [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40768
+t+ 260.901 [wx] prof dry-60 view=3574 map=22173 bands=3150 rings=7627 warning=4 labels=3415 ringlabels=437 home=23 replay=3 strip=106 band=240 sum=40752 compose_us=40768
+t+ 260.901 [wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+t+ 260.901 [wx] k TIME dry-60 5:00%20PM dim
+t+ 260.901 [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+t+ 260.901 [wx] k LABEL dry-60 Dallas R 150 130 190 138
+t+ 260.901 [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+t+ 260.901 [wx] k LABEL dry-60 Plano R 152 95 186 103
+t+ 260.901 [wx] k LABEL dry-60 Garland R 166 114 212 122
+t+ 260.901 [wx] k LABEL dry-60 Frisco R 144 80 184 88
+t+ 260.901 [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+t+ 260.901 [wx] k LABEL dry-60 Denton L 68 72 110 80
+t+ 260.901 [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+t+ 260.901 [wx] screen=scenario dry R=60
+t+ 261.115 [fb] push 5000 draws 1-108 n=108 phases=2 push_us=25798-25850
+t+ 261.115 [touch-bench] chip DEAD from boot; keys: w=toggle dead/alive r=state (idle 20s, healthy 180s)
+t+ 261.531 [touch-wd] WEDGE #1: controller dead on the bus; ladder engaged
+t+ 267.019 [touch-wd] still dead; next re-init (soft) in 15s
+t+ 270.575 [touch-bench] t=30009 boot summary: reset=SW run=2 stored=2 unavailable=0 chip=DEAD
+t+ 282.382 [touch-wd] still dead; next re-init (hard) in 40s
+t+ 290.844 [wx] fbcopy n=820 min=5357 max=6441 mean=5392
+t+ 291.059 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 291.059 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 291.059 [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40704
+t+ 291.059 [wx] prof approaching-60 view=3597 map=22143 bands=3152 rings=7613 warning=4 labels=3419 ringlabels=402 home=23 replay=2 strip=96 band=238 sum=40689 compose_us=40704
+t+ 291.059 [wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+t+ 291.059 [wx] k TIME approaching-60 4:24%20PM dim
+t+ 291.059 [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+t+ 291.059 [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+t+ 291.059 [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+t+ 291.059 [wx] k LABEL approaching-60 Plano R 152 95 186 103
+t+ 291.059 [wx] k LABEL approaching-60 Garland R 166 114 212 122
+t+ 291.059 [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+t+ 291.059 [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+t+ 291.059 [wx] k LABEL approaching-60 Denton L 68 72 110 80
+t+ 291.059 [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+t+ 291.059 [wx] screen=scenario approaching R=60
+t+ 291.059 [fb] push 103c draws 109-928 n=820 phases=2 push_us=25808-25932
+t+ 321.033 [wx] fbcopy n=821 min=5356 max=6588 mean=5389
+t+ 321.033 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 321.033 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 321.033 [wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40714
+t+ 321.033 [wx] prof herenow-60 view=3583 map=22143 bands=3155 rings=7614 warning=4 labels=3420 ringlabels=465 home=23 replay=3 strip=105 band=184 sum=40699 compose_us=40714
+t+ 321.033 [wx] k ROW herenow-60 afb36e9d0ed8f0eb35ff971c335c5496c893f44cf920ae0f1d52b5a421f05062
+t+ 321.033 [wx] k TIME herenow-60 4:24%20PM dim
+t+ 321.034 [wx] k BAND herenow-60 S RAIN%20NOW white
+t+ 321.034 [wx] k LABEL herenow-60 Dallas R 150 130 190 138
+t+ 321.034 [wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+t+ 321.034 [wx] k LABEL herenow-60 Plano R 152 95 186 103
+t+ 321.034 [wx] k LABEL herenow-60 Garland R 166 114 212 122
+t+ 321.034 [wx] k LABEL herenow-60 Frisco R 144 80 184 88
+t+ 321.034 [wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+t+ 321.034 [wx] k LABEL herenow-60 Denton L 68 72 110 80
+t+ 321.034 [wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+t+ 321.034 [wx] screen=scenario herenow R=60
+t+ 321.034 [fb] push 113c draws 929-1749 n=821 phases=2 push_us=25808-25909
+t+ 323.754 [touch-wd] still dead; next re-init (hard) in 120s
+t+ 350.997 [wx] fbcopy n=821 min=5355 max=6496 mean=5395
+t+ 350.997 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 350.997 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 350.997 [wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=47778
+t+ 350.997 [wx] prof warning-60 view=3555 map=22146 bands=3151 rings=7620 warning=6367 labels=3854 ringlabels=608 home=21 replay=3 strip=101 band=337 sum=47763 compose_us=47778
+t+ 350.997 [wx] k ROW warning-60 770ad291122d7857dc6cbe73a24d5322a04a3c82b444cf4c6e046e7122d35fef
+t+ 350.997 [wx] k TIME warning-60 4:24%20PM dim
+t+ 350.997 [wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+t+ 350.997 [wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+t+ 350.997 [wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+t+ 350.997 [wx] k LABEL warning-60 Garland R 166 114 212 122
+t+ 350.997 [wx] k LABEL warning-60 McKinney R 162 74 214 82
+t+ 350.997 [wx] k LABEL warning-60 Denton L 68 72 110 80
+t+ 350.997 [wx] k LABEL warning-60 Mesquite R 171 135 223 143
+t+ 350.997 [wx] k LABEL warning-60 Allen R 161 87 195 95
+t+ 350.997 [wx] k LABEL warning-60 Mansfield L 52 161 112 169
+t+ 350.997 [wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+t+ 350.997 [wx] screen=scenario warning R=60
+t+ 350.997 [fb] push 123c draws 1750-2570 n=821 phases=2 push_us=25809-25906
+t+ 351.401 [touch-wd] wedge #1 has outlived 90s; recommending reboot at next idle
+t+ 351.401 [touch-wd] wedged past the outage bound and idle: touch reboot 3 of 3
+t+ 351.401 [touch-wd] run 2 -> 3 (NVS write: touch reboot)
+t+ 351.401 [touch-wd] restarting (cause SW_TOUCHWD stamped)
+t+ 351.616 [WiFi] DISCONNECTED  reason=8 (ASSOC_LEAVE)
+t+ 351.616 ESP-ROM:esp32s3-20210327
+t+ 351.616 Build:Mar 27 2021
+t+ 351.616 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+t+ 351.616 Saved PC:0x4037abd6
+t+ 351.616 SPIWP:0xee
+t+ 351.616 mode:DIO, clock div:1
+t+ 351.616 load:0x3fce2820,len:0x10cc
+t+ 351.616 load:0x403c8700,len:0xc2c
+t+ 351.616 load:0x403cb700,len:0x30c0
+t+ 351.616 entry 0x403c88b8
+t+ 352.018 
+t+ 352.018 [build] env=weatherscope-touchbench-s3-128 fw=v18 features=no-cloud+weatherscope
+t+ 352.018 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+t+ 352.018 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+t+ 352.018 [ota-id] board=s3-128 scope=weatherscope- (record v1)
+t+ 352.018 [boot] reset reason=SW
+t+ 352.018 [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+t+ 352.018 [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+t+ 352.018 [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+t+ 352.018 [quiet] armed: reboot at local 03:00, tz-offset=unset (-21600 s) -- local hour now 13
+t+ 352.018 [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=241652)
+t+ 352.218 [   307][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
+t+ 352.218 [bright] first-light/default -> 255
+t+ 352.433 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
+t+ 352.433 *wm:v2.0.17  D:2
+t+ 352.433 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+t+ 352.433 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+ 355.325 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+t+ 355.526 [WiFi] fast join: ch=1 bssid=<redacted>
+t+ 356.143 [WiFi] Associated with "<ssid>", waiting for IP...
+t+ 357.815 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-45 dBm
+t+ 357.815 [WiFi] fast join OK in 2350 ms
+t+ 357.815 [WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
+t+ 365.094 [ota] channel=weatherscope-s3-128 current=18 latest=18
+t+ 365.094 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+ 365.094 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+t+ 365.094 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+t+ 365.295 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+t+ 365.295 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 365.497 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 365.497 [touch-wd] boot: run=3 (stored 3, reset not power-on) -- touch unavailable, no touch reboots this boot
+t+ 365.497 [heap] handshake ballast reserved (16717 B); free8=196344
+t+ 369.251 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 369.251 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 369.251 [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40786
+t+ 369.251 [wx] prof dry-60 view=3569 map=22175 bands=3155 rings=7624 warning=4 labels=3425 ringlabels=445 home=23 replay=3 strip=107 band=240 sum=40770 compose_us=40786
+t+ 369.251 [wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+t+ 369.251 [wx] k TIME dry-60 5:00%20PM dim
+t+ 369.251 [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+t+ 369.251 [wx] k LABEL dry-60 Dallas R 150 130 190 138
+t+ 369.251 [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+t+ 369.251 [wx] k LABEL dry-60 Plano R 152 95 186 103
+t+ 369.251 [wx] k LABEL dry-60 Garland R 166 114 212 122
+t+ 369.251 [wx] k LABEL dry-60 Frisco R 144 80 184 88
+t+ 369.251 [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+t+ 369.251 [wx] k LABEL dry-60 Denton L 68 72 110 80
+t+ 369.251 [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+t+ 369.251 [wx] screen=scenario dry R=60
+t+ 369.251 [fb] push 5000 draws 1-104 n=104 phases=2 push_us=25792-25875
+t+ 369.452 [touch-bench] chip DEAD from boot; keys: w=toggle dead/alive r=state (idle 20s, healthy 180s)
+t+ 369.855 [touch-wd] WEDGE #1: controller dead on the bus; ladder engaged
+t+ 375.292 [touch-wd] still dead; next re-init (soft) in 15s
+t+ 381.922 [touch-bench] t=30020 boot summary: reset=SW run=3 stored=3 unavailable=1 chip=DEAD
+t+ 390.856 [touch-wd] still dead; next re-init (hard) in 40s
+t+ 399.234 [wx] fbcopy n=792 min=5355 max=6761 mean=5391
+t+ 399.234 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 399.234 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 399.234 [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40693
+t+ 399.234 [wx] prof approaching-60 view=3579 map=22145 bands=3151 rings=7621 warning=3 labels=3415 ringlabels=408 home=23 replay=3 strip=95 band=236 sum=40679 compose_us=40693
+t+ 399.234 [wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+t+ 399.234 [wx] k TIME approaching-60 4:24%20PM dim
+t+ 399.234 [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+t+ 399.234 [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+t+ 399.234 [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+t+ 399.234 [wx] k LABEL approaching-60 Plano R 152 95 186 103
+t+ 399.234 [wx] k LABEL approaching-60 Garland R 166 114 212 122
+t+ 399.234 [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+t+ 399.234 [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+t+ 399.234 [wx] k LABEL approaching-60 Denton L 68 72 110 80
+t+ 399.234 [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+t+ 399.234 [wx] screen=scenario approaching R=60
+t+ 399.435 [fb] push 103c draws 105-896 n=792 phases=2 push_us=25805-25892
+t+ 405.934 #HOST fb boot4 0: 115200 B, strip light
+t+ 406.641 #HOST fb boot4 1: 115200 B, strip light
+t+ 407.278 #HOST fb boot4 2: 115200 B, strip light
+t+ 429.247 [wx] fbcopy n=790 min=5355 max=7831 mean=5428
+t+ 429.247 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 429.247 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 429.247 [wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40708
+t+ 429.247 [wx] prof herenow-60 view=3578 map=22143 bands=3150 rings=7624 warning=4 labels=3421 ringlabels=459 home=24 replay=2 strip=103 band=184 sum=40692 compose_us=40708
+t+ 429.247 [wx] k ROW herenow-60 afb36e9d0ed8f0eb35ff971c335c5496c893f44cf920ae0f1d52b5a421f05062
+t+ 429.247 [wx] k TIME herenow-60 4:24%20PM dim
+t+ 429.247 [wx] k BAND herenow-60 S RAIN%20NOW white
+t+ 429.247 [wx] k LABEL herenow-60 Dallas R 150 130 190 138
+t+ 429.247 [wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+t+ 429.247 [wx] k LABEL herenow-60 Plano R 152 95 186 103
+t+ 429.247 [wx] k LABEL herenow-60 Garland R 166 114 212 122
+t+ 429.247 [wx] k LABEL herenow-60 Frisco R 144 80 184 88
+t+ 429.247 [wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+t+ 429.247 [wx] k LABEL herenow-60 Denton L 68 72 110 80
+t+ 429.247 [wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+t+ 429.247 [wx] screen=scenario herenow R=60
+t+ 429.462 [fb] push 113c draws 897-1686 n=790 phases=2 push_us=25804-36932
+t+ 432.187 [touch-wd] still dead; next re-init (hard) in 120s
+t+ 459.252 [wx] fbcopy n=793 min=5357 max=6474 mean=5387
+t+ 459.252 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 459.252 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 459.252 [wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=47780
+t+ 459.252 [wx] prof warning-60 view=3558 map=22146 bands=3151 rings=7623 warning=6370 labels=3853 ringlabels=601 home=21 replay=3 strip=101 band=337 sum=47764 compose_us=47780
+t+ 459.252 [wx] k ROW warning-60 770ad291122d7857dc6cbe73a24d5322a04a3c82b444cf4c6e046e7122d35fef
+t+ 459.252 [wx] k TIME warning-60 4:24%20PM dim
+t+ 459.252 [wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+t+ 459.252 [wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+t+ 459.253 [wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+t+ 459.253 [wx] k LABEL warning-60 Garland R 166 114 212 122
+t+ 459.253 [wx] k LABEL warning-60 McKinney R 162 74 214 82
+t+ 459.253 [wx] k LABEL warning-60 Denton L 68 72 110 80
+t+ 459.253 [wx] k LABEL warning-60 Mesquite R 171 135 223 143
+t+ 459.253 [wx] k LABEL warning-60 Allen R 161 87 195 95
+t+ 459.253 [wx] k LABEL warning-60 Mansfield L 52 161 112 169
+t+ 459.253 [wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+t+ 459.253 [wx] screen=scenario warning R=60
+t+ 459.466 [fb] push 123c draws 1687-2479 n=793 phases=2 push_us=25803-25923
+t+ 459.892 [touch-wd] wedge #1 has outlived 90s; recommending reboot at next idle
+t+ 489.383 [wx] fbcopy n=794 min=5356 max=6550 mean=5391
+t+ 489.383 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 489.383 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 489.383 [wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=40950
+t+ 489.383 [wx] prof stale-60 view=3579 map=22171 bands=3151 rings=7638 warning=4 labels=3477 ringlabels=512 home=23 replay=5 strip=106 band=267 sum=40933 compose_us=40950
+t+ 489.383 [wx] k ROW stale-60 450ada567b1ded53e6ebee4087307b1f6d53ef24ce79d35b3eb3636e6f1c17d0
+t+ 489.383 [wx] k TIME stale-60 4:24%20PM orange
+t+ 489.383 [wx] k BAND stale-60 S RADAR%20STALE dim
+t+ 489.383 [wx] k LABEL stale-60 Dallas R 150 130 190 138
+t+ 489.383 [wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+t+ 489.383 [wx] k LABEL stale-60 Plano R 152 95 186 103
+t+ 489.383 [wx] k LABEL stale-60 Garland R 166 114 212 122
+t+ 489.383 [wx] k LABEL stale-60 Frisco R 144 80 184 88
+t+ 489.383 [wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+t+ 489.383 [wx] k LABEL stale-60 Denton L 68 72 110 80
+t+ 489.383 [wx] k LABEL stale-60 Mansfield L 52 161 112 169
+t+ 489.383 [wx] screen=scenario stale R=60
+t+ 489.383 [fb] push 133c draws 2480-3273 n=794 phases=2 push_us=25805-25918
+t+ 519.324 [wx] fbcopy n=794 min=5357 max=6428 mean=5388
+t+ 519.324 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 519.324 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 519.324 [wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=40890
+t+ 519.324 [wx] prof clear-60 view=3557 map=22278 bands=3154 rings=7628 warning=4 labels=3425 ringlabels=458 home=23 replay=2 strip=100 band=249 sum=40878 compose_us=40890
+t+ 519.324 [wx] k ROW clear-60 e4701102e592737fa6403da5e34271b4ff9983f9a06dd5b0a1ed601ac05e1ad6
+t+ 519.324 [wx] k TIME clear-60 5:00%20PM dim
+t+ 519.324 [wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+t+ 519.324 [wx] k LABEL clear-60 Dallas R 150 130 190 138
+t+ 519.324 [wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+t+ 519.324 [wx] k LABEL clear-60 Plano R 152 95 186 103
+t+ 519.324 [wx] k LABEL clear-60 Garland R 166 114 212 122
+t+ 519.324 [wx] k LABEL clear-60 Frisco R 144 80 184 88
+t+ 519.324 [wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+t+ 519.324 [wx] k LABEL clear-60 Denton L 68 72 110 80
+t+ 519.324 [wx] k LABEL clear-60 Mansfield L 52 161 112 169
+t+ 519.324 [wx] screen=scenario clear R=60
+t+ 519.324 [fb] push 143c draws 3274-4067 n=794 phases=2 push_us=25804-25917
+t+ 549.312 [wx] fbcopy n=794 min=5355 max=6356 mean=5395
+t+ 549.525 [wx] base build_us=240819 rebuilt=first at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+t+ 549.525 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 549.525 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 549.525 [wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40776
+t+ 549.525 [wx] prof bdry-60-B view=3588 map=21337 bands=3402 rings=7795 warning=4 labels=3732 ringlabels=470 home=23 replay=4 strip=110 band=282 sum=40747 compose_us=40776
+t+ 549.525 [wx] k ROW bdry-60-B d5da605269a6e248762fae48697d23ec0b293bbd6db046b4b3be4f670e477a72
+t+ 549.525 [wx] k TIME bdry-60-B 1:06%20PM dim
+t+ 549.525 [wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+t+ 549.525 [wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+t+ 549.525 [wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+t+ 549.525 [wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+t+ 549.525 [wx] k LABEL bdry-60-B Culver R 128 52 168 60
+t+ 549.525 [wx] screen=scenario bdry R=60
+t+ 549.738 [fb] push 153c draws 4068-4861 n=794 phases=2 push_us=25804-25929
+t+ 553.654 [touch-wd] still dead; next re-init (hard) in 120s
+t+ 579.377 [wx] fbcopy n=788 min=5355 max=6423 mean=5386
+t+ 579.377 [wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+t+ 579.578 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 579.578 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 579.579 [wx] scn=brain R=60 frame=200600 screen=Dry synthetic=0 compose_us=40893
+t+ 579.579 [wx] prof brain-60-B view=3601 map=21357 bands=3179 rings=7783 warning=3 labels=3988 ringlabels=570 home=23 replay=5 strip=108 band=263 sum=40880 compose_us=40893
+t+ 579.579 [wx] k ROW brain-60-B 3f4584d937ea2429e5fe52cbb57dcd80279ebdd1e5c9c29b2cf4eda5af1818cd
+t+ 579.579 [wx] k TIME brain-60-B 1:06%20PM dim
+t+ 579.579 [wx] k BAND brain-60-B S RAIN%2020%20MI%20W dim
+t+ 579.579 [wx] k LABEL brain-60-B Redmond R 131 88 177 96
+t+ 579.579 [wx] k LABEL brain-60-B Sisters L 49 83 97 91
+t+ 579.579 [wx] k LABEL brain-60-B La%20Pine L 56 167 104 175
+t+ 579.579 [wx] k LABEL brain-60-B Culver R 128 52 168 60
+t+ 579.579 [wx] screen=scenario brain R=60
+t+ 579.579 [fb] push 163c draws 4862-5649 n=788 phases=2 push_us=25804-25920
+t+ 609.364 [wx] fbcopy n=792 min=5356 max=6346 mean=5388
+t+ 609.364 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 609.364 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 609.364 [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40752
+t+ 609.565 [wx] prof dry-60 view=3580 map=22165 bands=3149 rings=7619 warning=4 labels=3418 ringlabels=431 home=23 replay=3 strip=103 band=242 sum=40737 compose_us=40752
+t+ 609.565 [wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+t+ 609.565 [wx] k TIME dry-60 5:00%20PM dim
+t+ 609.565 [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+t+ 609.565 [wx] k LABEL dry-60 Dallas R 150 130 190 138
+t+ 609.565 [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+t+ 609.565 [wx] k LABEL dry-60 Plano R 152 95 186 103
+t+ 609.565 [wx] k LABEL dry-60 Garland R 166 114 212 122
+t+ 609.565 [wx] k LABEL dry-60 Frisco R 144 80 184 88
+t+ 609.565 [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+t+ 609.565 [wx] k LABEL dry-60 Denton L 68 72 110 80
+t+ 609.565 [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+t+ 609.565 [wx] screen=scenario dry R=60
+t+ 609.565 [fb] push 173c draws 5650-6441 n=792 phases=2 push_us=25805-25937
+t+ 639.351 [wx] fbcopy n=794 min=5357 max=6470 mean=5384
+t+ 639.553 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 639.553 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 639.553 [wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40840
+t+ 639.553 [wx] prof approaching-60 view=3566 map=22147 bands=3156 rings=7624 warning=4 labels=3426 ringlabels=538 home=23 replay=4 strip=101 band=235 sum=40824 compose_us=40840
+t+ 639.553 [wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+t+ 639.553 [wx] k TIME approaching-60 4:24%20PM dim
+t+ 639.553 [wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+t+ 639.553 [wx] k LABEL approaching-60 Dallas R 150 130 190 138
+t+ 639.553 [wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+t+ 639.553 [wx] k LABEL approaching-60 Plano R 152 95 186 103
+t+ 639.553 [wx] k LABEL approaching-60 Garland R 166 114 212 122
+t+ 639.553 [wx] k LABEL approaching-60 Frisco R 144 80 184 88
+t+ 639.553 [wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+t+ 639.553 [wx] k LABEL approaching-60 Denton L 68 72 110 80
+t+ 639.553 [wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+t+ 639.553 [wx] screen=scenario approaching R=60
+t+ 639.553 [fb] push 103c draws 6442-7235 n=794 phases=2 push_us=25805-25931
+t+ 669.487 [wx] fbcopy n=793 min=5357 max=6482 mean=5390
+t+ 669.487 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 669.487 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 669.487 [wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40697
+t+ 669.487 [wx] prof herenow-60 view=3582 map=22149 bands=3152 rings=7623 warning=3 labels=3421 ringlabels=445 home=23 replay=3 strip=97 band=183 sum=40681 compose_us=40697
+t+ 669.487 [wx] k ROW herenow-60 afb36e9d0ed8f0eb35ff971c335c5496c893f44cf920ae0f1d52b5a421f05062
+t+ 669.487 [wx] k TIME herenow-60 4:24%20PM dim
+t+ 669.487 [wx] k BAND herenow-60 S RAIN%20NOW white
+t+ 669.487 [wx] k LABEL herenow-60 Dallas R 150 130 190 138
+t+ 669.487 [wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+t+ 669.487 [wx] k LABEL herenow-60 Plano R 152 95 186 103
+t+ 669.487 [wx] k LABEL herenow-60 Garland R 166 114 212 122
+t+ 669.487 [wx] k LABEL herenow-60 Frisco R 144 80 184 88
+t+ 669.487 [wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+t+ 669.487 [wx] k LABEL herenow-60 Denton L 68 72 110 80
+t+ 669.487 [wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+t+ 669.487 [wx] screen=scenario herenow R=60
+t+ 669.487 [fb] push 113c draws 7236-8028 n=793 phases=2 push_us=25803-25908
+t+ 675.040 [touch-wd] still dead; next re-init (hard) in 120s
+t+ 699.522 [wx] fbcopy n=793 min=5357 max=6436 mean=5385
+t+ 699.522 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+ 699.522 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+ 699.522 [wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=47797
+t+ 699.522 [wx] prof warning-60 view=3554 map=22141 bands=3151 rings=7628 warning=6379 labels=3857 ringlabels=611 home=20 replay=4 strip=105 band=332 sum=47782 compose_us=47797
+t+ 699.522 [wx] k ROW warning-60 770ad291122d7857dc6cbe73a24d5322a04a3c82b444cf4c6e046e7122d35fef
+t+ 699.522 [wx] k TIME warning-60 4:24%20PM dim
+t+ 699.522 [wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+t+ 699.522 [wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+t+ 699.522 [wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+t+ 699.522 [wx] k LABEL warning-60 Garland R 166 114 212 122
+t+ 699.522 [wx] k LABEL warning-60 McKinney R 162 74 214 82
+t+ 699.522 [wx] k LABEL warning-60 Denton L 68 72 110 80
+t+ 699.522 [wx] k LABEL warning-60 Mesquite R 171 135 223 143
+t+ 699.522 [wx] k LABEL warning-60 Allen R 161 87 195 95
+t+ 699.522 [wx] k LABEL warning-60 Mansfield L 52 161 112 169
+t+ 699.522 [wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+t+ 699.522 [wx] screen=scenario warning R=60
+t+ 699.522 [fb] push 123c draws 8029-8821 n=793 phases=2 push_us=25805-25932
