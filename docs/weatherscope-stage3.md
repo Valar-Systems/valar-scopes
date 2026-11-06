@@ -13407,3 +13407,164 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **At `fb6569483b2b`, predicted BEFORE its push:** **33 checks: 29 success, 4 skipped (version, promote, ship-alert, publish), 0 failed.** The web job is derived: the record adds files under `tools/weatherscope/board/` only, which no check builds.
 
 **What remains for #571:** the merge waits for #445 (still OPEN at 19:34Z). After #445, main is merged into the branch, with its own prediction from 8 identities (A12.127), then the merge by the rule.
+
+### A12.130 Step 3.5c, the swipe screens: the plan, for review before any code
+
+**Why now:** the reviewer (~19:47Z) asked for an item that depends on neither #445 nor #571.
+- **Where 3.5c stands:** the order is 3.5b → 3.4 → 3.5t → 3.5c (A11.2, Q35), and the first three are done.
+- **What depends on what:**
+  - this plan, the one-time capture (step 2) and the host-rendered layouts for Daniel (step 3) touch neither PR;
+  - the device code (step 6) does, through `WeatherscopeManager.cpp`/`.h`, which #571 changes, so it waits for #571's merge (itself after #445).
+- **Nothing below is code,** and no 3.5c code is written until this plan is ruled.
+
+#### What A9.1 E rules
+
+> E. The swipe screens (3.5c). Map, forecast, conditions, alerts, legend; a tap on any returns to the map. Sources, all free: api.weather.gov /points, /gridpoints forecast and hourly, /stations observations, /alerts?point=. Forecast: the next 24 h as a strip (temperature and chance of precipitation per hour) with the week below, headline "NEXT RAIN TUE NIGHT". Conditions: temperature, wind, humidity, the day's high and low. Alerts: the watches and advisories that don't trigger the warning screen, with their start and end. Same type sizes and colours as the map. Propose each layout as a host-rendered reference first; Daniel judges them on the glass.
+
+**Also binding:**
+- the device never talks to NWS itself (D2);
+- Stage 3 serves stored data behind the feed interfaces (section 2);
+- 3.5c's screens are written on the theme table from their first line (A11.2);
+- every text pair meets the text rule, ≥ 4.5:1 in RGB888 and RGB565 (C4g).
+
+#### What exists, read from main (`fb3e171ac107`)
+
+- **Gestures** (`WeatherscopeManager`):
+  - on the map: a tap opens the loop, a left swipe opens the legend, an up or down swipe zooms, and a long press toggles 60/15;
+  - a right swipe does nothing;
+  - on the legend, a tap returns to the map;
+  - the scenario cycle pauses while the legend is up (`wxscreens::Pause`).
+- **Feeds** (`WxFeeds.h`):
+  - `ObsFeed` keeps present weather, the time and the temperature ("nothing else is kept");
+  - `AlertFeed` keeps event, headline and expiry;
+  - there is **no forecast feed**.
+- **Stored data** (`StoredFeeds.cpp`): fetched once by the session at implementation time and trimmed to the kept fields. The image carries no coordinates, polygons, area names, ids, URLs or sender addresses.
+- **The look:** the default 6 × 8 font at sizes 1-3, and the theme table (87 roles, both themes).
+- **The independent reference:** `ref35.py` re-implements a screen's rules in Python, never from the device's C++, and the device's path reproduces it in the K rows.
+
+#### N, navigation (proposed)
+
+| # | rule |
+|---|---|
+| N1 | Left swipe steps forward: map → forecast → conditions → alerts → legend. Right swipe steps back one. |
+| N2 | The ends stop: a right swipe on the map and a left swipe on the legend do nothing (Q88) |
+| N3 | A tap on any screen but the map returns to the map. The legend's tap does this today |
+| N4 | On the map, everything is unchanged: tap → loop, up/down → zoom, long press → 60/15 |
+| N5 | The scenario cycle pauses on every screen but the map, as the legend does now, and resumes on return |
+| N6 | Ten minutes without a touch on a screen other than the map returns it to the map, on the same idle clock the zoom's idle return reads (Q89) |
+
+#### D, data (proposed)
+
+**`ForecastFeed`, new in `WxFeeds.h`, plain C++.** A `Forecast` holds:
+- `issuedUtc`;
+- **24 hourly entries:** start (UTC), temperature (°F), and chance of precipitation (%), each with a "has" flag, because NWS sends nulls;
+- **up to 14 day-part periods:** name (`Tue`, `Tue Night`), daytime or not, temperature, chance of precipitation, and a short forecast trimmed to 24 characters.
+
+**`Observation` gains** wind direction (degrees), wind and gust (mph) and relative humidity (%), each with a "has" flag.
+
+**`Alert` gains** its start (`onset`, else `effective`) in UTC. Which alerts are the warning screen's stays screen logic, unchanged. The alerts screen lists the rest.
+
+**The day's high and low** come from the forecast's first daytime and first night period (Q92). The observation's 24-hour max and min are often null.
+
+**Stored, as before:**
+- **The capture:** one fetch by the session at implementation time, for the Dallas fixture place (Q94):
+  - `/points`;
+  - the gridpoint `forecast` and `forecast/hourly`;
+  - the nearest station's `observations/latest`;
+  - `/alerts/active?point=`.
+- **Trimming:** only the fields above are kept, compiled in as records with a provenance header. The raw documents carry coordinates, office codes, grid numbers and URLs, so **they stay outside the repo.**
+- **A synthetic alert list,** labelled synthetic, is the populated alerts state if the capture holds no watch or advisory.
+- **"Now":** in stored mode the screens take the forecast's `issuedUtc` as "now", as the map takes its frame's time. The live path, later and through the proxy (section 7), takes the device's clock.
+- **The capture's User-Agent** names the project and `daniel@valarsystems.com`, as api.weather.gov asks. The data is US Government work.
+
+#### S, the screens (proposed layouts, to be drawn as host references first)
+
+**Every screen:**
+- the theme's `bg`, the disc, and the map's type sizes and colours;
+- a size-1 title in the frame-time slot (centred, y = 13): `FORECAST`, `NOW` or `ALERTS`;
+- every text row placed by the chord rule (`discgeom::ChordWidthPx`), so it is wholly on the glass;
+- **an option, not ruled (Q93):** five position dots under the content, the current one bright.
+
+**Forecast:**
+- **The headline:** `NEXT RAIN TUE NIGHT`, size 2, on one or two centred lines from y = 34.
+  - The first hourly entry at or above the threshold (Q91) names the period: `NEXT RAIN 4 PM`.
+  - Failing that, the first day-part period at or above it: `NEXT RAIN TUE NIGHT`.
+  - Failing both: `NO RAIN IN 7 DAYS`.
+  - The word follows the period's short forecast: `SNOW` when it names snow and not rain (Q95).
+- **The 24-hour strip,** y 76-136:
+  - 24 columns, 7 px each, centred;
+  - a chance bar per hour, rising from the baseline (height = chance × 40 px), in a new `chanceBar` role;
+  - the temperature as a 1 px line in a new `tempLine` role;
+  - the low and high labelled at the strip's ends;
+  - hour ticks every 6 h, labelled `6P`, `12A`, ….
+- **The week:** up to 7 size-1 rows from y = 148, 10 px apart, for example `TUE  72/50  40%`. Each row's width is checked against its chord.
+
+**Conditions:**
+- the temperature at size 4 (`72°`), centred near y = 56;
+- below it, three size-2 rows: `WIND NW 12` (with `G 20` when there is a gust), `HUMIDITY 45%`, `HI 75  LO 52`;
+- the observation's time, size 1 and dim, in the band. It turns orange when the observation is over 90 minutes old, as the map's frame time does when stale (A9.1 B).
+
+**Alerts:**
+- up to four entries, each two size-1 rows: the event (`WIND ADVISORY`), then `TUE 3 PM - WED 9 AM`, dim;
+- with more: `+2 MORE`;
+- with none: `NO WATCHES OR ADVISORIES`, dim and centred (Q90);
+- ordered by start time;
+- the warning screen's four events never appear here.
+
+**The legend:** unchanged.
+
+**The theme:** new roles (`chanceBar`, `tempLine`, and any the references show they need) in both themes. The table's `static_assert` grows by exactly that many; every new text pair joins C4g's rows, with RGB565 values frozen before the code.
+
+#### T, how it will be tested
+
+The truth tables and sabotage sets are frozen in their own addendum before any code (step 5).
+- **The logic, in pure headers, host-tested:**
+  - navigation (N1-N6) as a page model in `WxScreens.h`;
+  - the headline rule;
+  - the strip's scaling;
+  - the alerts' selection and order;
+  - the chord fits.
+- **The independent reference:** each screen's rules re-implemented in Python, in both themes, from the trimmed records, never from the device. The K rows grade the device's path pixel for pixel.
+- **The colour-literal scan** covers the new code. The D2 gate keeps NWS hostnames out of the image.
+- **On the board** (`907069326E64`):
+  - every screen reached by serial gestures, both themes;
+  - `/diag/fb` read three times per screen, by A12.122's rule (a failed fetch is the instrument);
+  - the four images kept for Daniel.
+
+#### O, the order inside 3.5c
+
+1. **This plan, ruled.**
+2. **The capture,** predictions first: which documents, the kept fields and their counts, the provenance header, and the D2 scan of the trimmed records.
+3. **The independent reference renderer and the host PNGs** (every screen, both themes, with and without the position dots) **to Daniel.** No device code yet.
+4. **Daniel's pick,** and any change to the layouts.
+5. **The truth tables and sabotage sets,** frozen.
+6. **The device code** (`WxFeeds.h`, `StoredFeeds`, the pure headers, `WeatherscopeManager`'s screens and navigation), **after #571 merges**, with the host tests, the K rows and CI predicted before its push.
+7. **The board run,** announced, and the results.
+
+#### Questions, each with a recommendation
+
+- **Q88, the ends.**
+  - **(a) [recommended]** Stop at both ends (N2): a list a finger can't fall off.
+  - **(b)** Wrap the legend to the map.
+- **Q89, the idle return (N6).**
+  - **(a) [recommended]** Ten minutes on the zoom's idle clock returns any screen but the map to the map. A desk device should not sit on a list.
+  - **(b)** Stay until touched.
+- **Q90, no alerts.**
+  - **(a) [recommended]** Show the screen saying `NO WATCHES OR ADVISORIES`. Saying "none" is information.
+  - **(b)** Skip it in the swipe order.
+- **Q91, the headline's threshold.**
+  - **(a) [recommended]** 30 %, where NWS wording turns from "slight chance" to "chance".
+  - **(b)** 20 %.
+  - **(c)** 50 %.
+- **Q92, the high and low.**
+  - **(a) [recommended]** The forecast's first daytime and first night period.
+  - **(b)** The observation's 24-hour max and min, often null.
+- **Q93, the position dots.**
+  - **(a) [recommended]** Draw both versions in step 3 and let Daniel judge on the host PNGs. A9.1 E does not mention them.
+  - **(b)** Leave them out.
+- **Q94, the stored place.**
+  - **(a) [recommended]** Dallas, the map's primary scenarios, with Bend later through the same path.
+  - **(b)** Dallas and Bend now.
+- **Q95, snow.**
+  - **(a) [recommended]** `NEXT SNOW` when the period's short forecast names snow and not rain; otherwise `NEXT RAIN`.
+  - **(b)** Always `NEXT RAIN`, as the ruling's example reads.
