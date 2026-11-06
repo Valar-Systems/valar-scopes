@@ -91,6 +91,8 @@ export function servedProduct(requested: Product, lat: number, lon: number, byWi
 export const frameKey = (p: Product, epoch: number) => `wx/${p.id}/frames/${epoch}.wxg`;
 export const framesPrefix = (p: Product) => `wx/${p.id}/frames/`;
 export const latestKey = (p: Product) => `wx/${p.id}/latest`;
+/** Stage 1c (docs/wx-opera-map-r2.md): an OPERA product's resample map, named by a hash of its geometry key. */
+export const mapObjectKey = (p: Product, hash: string) => `wx/${p.id}/map/${hash}.wxm`;
 /** The tile cache's key (off until Stage 2 decides from measurements; docs/wx-server.md). */
 export const tileCacheKey = (p: Product, epoch: number, ty: number, tx: number) =>
   `https://wx-cache.internal/${p.id}/${epoch}/t/${ty}-${tx}`;

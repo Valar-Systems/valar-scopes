@@ -142,6 +142,57 @@ def check(html: str, label: str, rendered: bool) -> list[str]:
     return problems
 
 
+# ---------------------------------------------------------------------------
+# LITERAL '%' IN A PAGE TEMPLATE (ruled 2026-10-28; docs/wx-device.md "Rulings on the bench look select").
+#
+# The page goes through ESPAsyncWebServer's %PLACEHOLDER% processing, and so does the HTML a template processor
+# returns. A literal '%' there is read as the start of a placeholder: everything up to the next '%' is taken as its
+# name and served as nothing. That is how the bench "Weather look (bench)" select lost option B from b56d883 on --
+# "A: 40 % + outline ... B: 25 %" served as "A: 40 " -- so R2's comparison was never possible on the glass. The
+# static pages were already clean; the bug lived in a processor's return value, so both are read.
+PLACEHOLDER_RE = re.compile(r"%[A-Z0-9_]+%")
+PROCESSOR_RE = re.compile(r"\(const String ?& ?var\)[^{]*\{")
+BACKSLASH = "\\"
+
+
+def _lambda_body(text: str, start: int) -> str:
+    """The brace-matched body that opens just before `start`, skipping string literals."""
+    depth, i = 1, start
+    while depth and i < len(text):
+        c = text[i]
+        if c == '"':
+            j = i + 1
+            while j < len(text) and not (text[j] == '"' and text[j - 1] != BACKSLASH):
+                j += 1
+            i = j
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return text[start:i]
+
+
+def literal_percents(text: str, pages: list[tuple[str, str]]) -> list[str]:
+    """Every literal '%' outside a %PLACEHOLDER%, in the static pages and in every template processor's literals."""
+    problems: list[str] = []
+    for label, body in pages:
+        rest = PLACEHOLDER_RE.sub("", body)
+        n = rest.count("%")
+        if n:
+            k = rest.index("%")
+            problems.append(f"{label}: {n} literal '%' outside a %PLACEHOLDER% (first near "
+                            f"{rest[max(0, k - 30):k + 10]!r}) -- the template processor eats it")
+    lit_re = re.compile(r'"((?:[^"' + re.escape(BACKSLASH) + r"]|" + re.escape(BACKSLASH) + r'.)*)"')
+    for m in PROCESSOR_RE.finditer(text):
+        line = text.count("\n", 0, m.start()) + 1
+        for lit in lit_re.findall(_lambda_body(text, m.end())):
+            if "%" in PLACEHOLDER_RE.sub("", lit):
+                problems.append(f"the template processor at line {line} returns a literal '%' in {lit[:70]!r} -- "
+                                "the template processor eats it (and everything up to the next '%')")
+    return problems
+
+
 def source_pages() -> list[tuple[str, str]]:
     """Every CONFIG_HTML raw-string literal in the source, with a usable label."""
     text = open(SRC, encoding="utf-8", errors="replace").read()
@@ -398,6 +449,24 @@ def selftest() -> int:
         if problems:
             bad += 1
             print(f"        expected no problems, got: {problems}")
+    # The literal-'%' rule. The sabotage the ruling names: one '%' put back into a fixed label.
+    proc = ('auto p = [](const String& var) -> String {\n'
+            '    if (var == "ROW") return String("<select name=\\"wx-look\\"><option value=\\"A\\">A: 40 percent + outline'
+            '</option><option value=\\"B\\">B: 25 %s</option></select>");\n'
+            '    return "";\n};\n')
+    pct_cases = [
+        ("S-pct: one '%' put back into a fixed label (a processor)", proc % "%", [], True),
+        ("a static page with a CSS 100%", "", [("page", '<style>.w{width:100%}</style><form id="cfg"></form>')], True),
+        ("a processor returning '50 %'", 'auto q = [](const String& var) -> String { return "<b>50 %</b>"; };', [], True),
+        ("a '%%' (still a literal)", 'auto r = [](const String& var) -> String { return "<b>%%</b>"; };', [], True),
+        ("the fixed label (no '%')", proc % "percent", [], False),
+        ("a %NAME% placeholder", "", [("page", '<input name="a" value="%LAT_VALUE%">')], False),
+    ]
+    for label, text, pages, want in pct_cases:
+        got = bool(literal_percents(text, pages))
+        print(f"{'ok  ' if got == want else 'FAIL'}  {'detects' if want else 'allows'}: {label}")
+        if got != want:
+            bad += 1
     # The extractor must be able to REFUSE. A source with no assignment has to
     # come back empty so main() can exit 2 rather than certify nothing.
     blind = start_section_literals("int main() { return 0; }")
@@ -469,6 +538,16 @@ def main() -> int:
                 print(f"        - {p}")
         else:
             print(f"ok    {size}  {label}")
+
+    if not rendered:
+        pct = literal_percents(cpp_text, pages)
+        if pct:
+            failed += 1
+            print(f"FAIL  literal '%' in a page template: {len(pct)}")
+            for p in pct:
+                print(f"        - {p}")
+        else:
+            print("ok    no literal '%' outside a %PLACEHOLDER%, in the static pages or any template processor")
 
     print()
     print(f"CONFIG_HTML total: {total:,} B of flash across {len(pages)} page(s)")

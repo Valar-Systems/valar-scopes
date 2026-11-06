@@ -165,6 +165,17 @@ HttpResult HttpRequestManager::Get(const String&, const std::vector<std::pair<St
     web::g_net.local404++;
     return Answer(404, "");
 }
+// GetBytes() is the weather layer's path (WxPolicy), asked only with wx-layer on: the website does not draw weather
+// (docs/wx-device.md, (A)). If it is ever asked, it answers as a dead socket -- status 0, nothing read, no request.
+HttpResult HttpRequestManager::GetBytes(const String&, const std::vector<std::pair<String, String>>&,
+                                        const std::vector<std::pair<String, String>>&, uint8_t*, size_t, size_t& len,
+                                        String& etag, String& maxAge)
+{
+    len = 0;
+    etag = String();
+    maxAge = String();
+    return Answer(0, "");
+}
 HttpResult HttpRequestManager::Post(const String&, const String&, const std::vector<std::pair<String, String>>&)
 {
     web::g_net.posts++;

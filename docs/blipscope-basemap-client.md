@@ -111,7 +111,41 @@ hues; that will be its own decision when Light is designed.
   3. K1 (`BASEMAP_NAME_KEY`);
   4. the dense-area code;
   5. the deploy-inputs code.
+- **The map layer is on by default** (§6). DO1 to DO4 hold in the shipping build, and DOC1 to DOC3 have run as registered.
 
-**CI for this docs-only PR, predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
-failed.** The baseline is #566's finished docs-only run (31 = 28/3), which postdates `84409651`, the last change to the
-set of jobs.
+**CI for #569 (this document's first PR, docs-only), predicted: 31 check runs: 28 success, 3 skipped (`promote`,
+`ship-alert`, `version`), 0 failed.** The baseline is #566's finished docs-only run (31 = 28/3), which postdates
+`84409651`, the last change to the set of jobs.
+
+## 6. The map layer's setting: on by default
+
+**Daniel's requirement** (reviewer chat, pasted by Daniel, 2026-11-06 ~20:25Z), verbatim:
+
+> the map layer is on by default when it ships, for every device that hasn't set it.
+
+**Why this needs rules rather than one constant.** CLAUDE.md's *a default only reaches keys that were never saved* is
+the hazard. The config page posts the whole form. So the first save writes whatever the box showed, and a device's
+"never set" ends there. #238 shipped a default nobody received for exactly this reason. Here the hazard works for us
+only while the key is new and the page shows it ticked.
+
+| | requirement |
+|---|---|
+| **DO1: the default is a named constant** | `MAP_DEFAULT_ON = true` sits beside `LOGBOOK_DEFAULT_ON` in `include/ConfigMigration.h`. **The device and the config page** both resolve the stored value through `configmigration::ResolveToggle()`. Neither holds a literal of its own (the logbook's page once did) |
+| **DO2: the key is new** | **No released firmware has ever written the key** (NVS key ≤ 15 characters). So on every device in the field it reads unset, and the default reaches it with no migration. Checked when the client is written: the name has no match in main's `src/` and `include/`, nor in any release tag's tree. **If any release ever wrote it**, or an earlier name for the same layer, with another default, DO2 fails. The client then needs a `ConfigMigration` revision that **clears** the key (as rev 3 did for the logbook) |
+| **DO3: an unset key renders ticked** | So the first save after the update writes `"true"`. From then on, a stored `"false"` can only be a deliberate untick, and no later migration may clear it (the logbook's "going forward" rule). A page that leaves the box out sends no `cfg-toggles` entry for it, so the save leaves the key alone (`include/ConfigVocabulary.h`) |
+| **DO4: no release shows it unticked first** | **No release may render the box unticked, even behind a flag:** not a beta, not an OTA channel, not a staged rollout. Every device that saved its form on such a build would hold an explicit `"false"`, and DO1 would reach none of them. If one does ship, DO2's clearing migration becomes a requirement before the layer ships |
+
+**The checks, registered here before any client code:**
+
+| row | check | predicted | its control or sabotage |
+|---|---|---|---|
+| **DOC1** | host test of `ResolveToggle` with `MAP_DEFAULT_ON`: stored `nullptr`, `""`, `"true"`, `"false"` | on, on, on, **off** | the `"false"` row is the control: an explicit untick wins. Sabotage `MAP_DEFAULT_ON = false`: the `nullptr` and `""` rows go red |
+| **DOC2** | the config page's render of a device with **no** map key | the box is `checked` | sabotage: the page reads a literal `"false"` in place of the helper, and DOC2 goes red. **How DOC2 runs is registered with the client code**, because the page has no host render test today. If no check can be written, the client PR says so, and DOC3 becomes the only check |
+| **DOC3** | bench, on a radar bench board picked under CLAUDE.md's bench-board rules: a board that **saved its form on the current release** (it has a location; the map key reads absent), flashed with the client | the map draws at first boot. The page shows the box ticked. The key is still absent until a save | the control: untick and save, then reboot. Expected: the key is `"false"`, the map stays off after the reboot, and the box stays unticked |
+
+DOC3 runs on the board population the requirement is about. A factory-fresh board passes DOC1 and DOC2 by construction.
+The devices in the field are the ones that have already saved a form.
+
+**CI for this PR (docs-only), predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
+failed.** The baseline is #578's finished docs-only run (31 = 28/3). It postdates `84409651`, the last change to the set
+of jobs; the two workflow commits since (`12569fa0`, `259e8688`) only add steps to `device-ids.yml`.
