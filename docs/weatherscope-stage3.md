@@ -14561,3 +14561,31 @@ G16 stays green under both.
 **Read twice, finished, 60 s apart:** 34 checks, 30 success, 4 skipped (promote, publish, ship-alert, version), 0 failed. Predicted: PR 34: 30/4/0. All four workflows concluded success: firmware, `device-ids`, `no-traffic-captures`, `web-renderer`.
 
 **#571 merges only** on a pasted approval at `f9f778be55d3`, after main's CI on its current head has finished, with main re-read in the merge command.
+
+### A12.149 Q105-Q108 ruled (~23:26Z) and applied locally; #571 approved at `f9f778be55d3`
+
+**The ruling:**
+- **#571:** approved at `f9f778be55d3`, to merge under Q-M1 once its CI double-reads PR 34: 30/4/0 and main's CI on its current head has finished. Any other reading is a stop. #582 merges after it.
+- **Q105 (a):** `startUtc` on each period, in the record and in the device's struct.
+- **Q106 (a):** dots on the three new screens only. The map and the legend stay as they are.
+- **Q107 (a), on one condition:** `S` is a bench-only shortcut to the legend. Every new navigation row (N1-N6) drives the swipes with `N` and `V` only, never `S`, so the swipe path is what gets tested.
+- **Q108 (a):** S-G5's set is {G8, G11, G14}, with no code change.
+- **The extended scrub (A12.145):** go as stated, after #571 and #583 merge. If the cards' paths trigger the print-cards workflow, it counts in the PR's CI prediction.
+
+**Q108, the record.** The {G8} prediction stays on record as my miss. G11's and G14's plants are serial-form, so with the serial rule off those two rows have nothing to find. Option (b) would only have moved that dependence to S-G1. Applied at `406e0c603fcf`: `--sabotage` passes, with all 8 plants exact and the control at 18 rows.
+
+**Q105, measured.** `trim_nws.py` re-ran from the raw capture outside the repo.
+
+| row | predicted | measured |
+|---|---|---|
+| the trim's `--selftest` | 6 checks, 0 failures | **as predicted** |
+| `dallas-day.json` | one integer per period, nothing else | **as predicted:** identical to `9fc5dd509971` but for 14 `startUtc` values, ascending; now 8,542 bytes, `11a15766c117` |
+| the 10 renders | unchanged | **as predicted:** all 10 RGB hashes equal A12.139's |
+
+The first hourly entry falls inside the first period, as H16 needs.
+
+**The print-cards trigger, read from the workflow:** `docs/*card*.html`. Both quickstart cards match, so **the scrub PR runs the `print-cards` workflow**, and its CI prediction counts it.
+
+**What Q107's condition changes in A12.144.** The N table is host-graded by event, not by byte, so it is unchanged. At step 7, every navigation row is driven by `N` and `V`, and `S` appears only where a closed runner uses it.
+
+**Next, in order:** #571 merges under Q-M1; step 6's device code starts from main after it, with its CI predicted before its push; the scrub's rewrite follows #583.
