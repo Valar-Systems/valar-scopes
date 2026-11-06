@@ -812,3 +812,258 @@ from a commit.
   restored by bytes, sha checked.
 - **H4:** the reconcile harness passes H1-H4. **S-H2** (the watch block removed) fails H4 alone.
 - Every planted file was restored by bytes.
+
+## #548 merged, and its deploy: results held for the review, then predictions frozen before the deploy
+
+**Held back so the head would not move under the review** (all read at `f98e9b18`):
+- **CI, finished:** 34 check-runs, 31 success, 3 skipped (`promote`, `version`, `ship-alert`),
+  0 failed. Tested merged into `7cca898`.
+- **Workers:** 960 passed, 1 skipped (961). **Dashboard:** 104.
+- **The miss on the count:** I predicted 33. The cause is `ota-identity`, a job #552 (`8440965`)
+  added to main after #540's run, the one I predicted from. #548 touches no workflow file. The
+  miss is kept and re-registered at 34 (reviewer, the block labelled ~00:56Z).
+  - **The rule from it, for all sessions:** a CI baseline run must postdate main's last workflow
+    change, and the prediction names that commit.
+- **Local:** `vitest list` read 949. The full suite read 948 passed, 1 skipped, and Q-C1 (CRLF)
+  as the only failure, on a re-run from TIME_WAIT 11.
+  - **The first full run was void:** `ConnectEx` #1225 on all 71 files, from port exhaustion,
+    while the map server's smoke driver was running too. The rule from it, for all sessions: one
+    whole-suite run at a time, and before any whole-suite vitest or sabotage driver, no other
+    session's `vitest` or `sabotage-` process may be running, and TIME_WAIT must be under 2,000.
+
+**The merge.** Approved at `f98e9b18`, and squash-merged as **`5c300417`** at 00:58:26Z (by the
+clock).
+- **Main's CI on it, predicted before reading:** 34 check-runs, 32 success, 2 skipped (`promote`,
+  `version`), 0 failed.
+  - **The baseline is #548's own run.** Main's last workflow change, `12569fa0` (#555),
+    postdates that run, but it adds two steps to the existing `device-ids` job and no job. On
+    main, `ship-alert` runs.
+
+**The deploy, predicted before any of it runs:**
+
+| step | predicted | outside the set |
+|---|---|---|
+| **What it carries** beyond production's `3e0a444` | only #548 touches `proxy/`. Changed and **in the bundle** (esbuild metafile inputs): exactly `src/activation.ts`, `src/enroll.ts`, `src/enrollpage.ts`, `src/index.ts`, `src/provision.ts`, `src/support.ts`. **Not in it:** `src/types.ts` (type-only imports, also absent from #540's inputs) and every `proxy/scripts/*` file. `wrangler.toml`'s two vars are config, checked by W4 | any other changed file in the inputs: **stop and ask** |
+| **W4** on `5c300417` | `check-activation-gate.sh`: production `("watch")`, staging `("enforce")`, exit 0 | **stop** |
+| **Rollback targets**, re-read just before | staging `968d9f23`, production `5e7f481c` (#540's deploys) | a different version serving: **stop** |
+| **Staging** (`deploy.sh staging`, from `5c300417`) | `/healthz` reads `5c30041` on two reads; smoke 38 PASS, 0 FAIL as the test identity. Its enrol POSTs are refused before the gate | **stop**, and production waits |
+| **Production** (outside 06:00-08:00Z, #540's night window) | `/healthz` reads `5c30041` on two reads; smoke 38 PASS, 0 FAIL; the test identity's `/config` unchanged (`pollNightMs` 60000) | **stop**; the rollback target is `5e7f481c` |
+| **The sweep**, through the Worker | `sweep --ledger`: swept 22, activated 22, **stamped 22**, unstamped 0. `sweep --token-ids test-device,records-device`: swept 2, activated 2, **stamped 2**. **24 stamped** in all | any unstamped: **stop and report** |
+| **C1 again**, after the sweep | exit 0, missing 0 | **stop** |
+
+Production stays on `"watch"` until Daniel says otherwise. The watch counts reach him before that
+decision.
+
+**The deploy, as run.**
+
+- **What it carries: outside the set, stopped (01:14:48Z, by the clock).**
+  - **The reading.** The dry run (`--env production`, from `5c300417`, clean tree) exited 0. Its
+    metafile (`53f98177f73d`, 28,089 B) lists 51 inputs. The changed list is
+    `git diff --name-only 3e0a444 5c300417 -- proxy`: 17 files, 7 under `src/` and 4 under
+    `scripts/`. The two lists' intersection came back **empty**, and `src/types.ts` read as absent.
+  - **Why it stopped.** The row's only outside-the-set branch was "any other changed file in the
+    inputs". An empty intersection was not registered, so the deploy stopped there.
+  - **The cause is the instrument, not the bundle.** Python on Windows wrote the inputs list in
+    text mode: 50 CR bytes in 51 lines. The changed list, written by `git`, has 0 CR bytes. `comm`
+    compares bytes, so `src/activation.ts\r` can never equal `src/activation.ts`. The `^src/types.ts$`
+    grep is blind for the same reason, so "types.ts absent" is unread too. Both files were read as
+    bytes at 01:16:32Z.
+  - **The alternative, and why it is excluded:** a bundle that really carries none of the changed
+    files, for example a dry run built from another tree. Excluded because the same inputs file's
+    first line is `src/activation.ts`, which is a changed file. That one line is all of the result
+    seen so far. The rest of the intersection, and whether `src/types.ts` is absent, are unread.
+  - **W4 ran in the same command,** before the bundle result was read: production `("watch")`,
+    staging `("enforce")`, exit 0. **As predicted.**
+  - **Nothing has been deployed.** The rollback targets are re-read just before staging, as the
+    table says.
+- **The proposed instrument fix (written, compiled, not run):** `b548_bundle.py` in the session
+  scratchpad, sha256 `e048618fd17a`. One Python process makes the whole comparison in memory, with
+  no file written between the two sides:
+  - it reads the metafile's inputs, and the `git diff` output captured to a file and read as bytes;
+  - it splits both on `\n` **only**, and strips the `proxy/` prefix. `splitlines()` would quietly
+    fold a CRLF away, which would leave A-CR unable to fire and S-B1 unable to fail;
+  - it grades membership with one test. Before any absence is believed, three anchors must pass, in
+    this order, stopping at the first that fails:
+    - **A-SAME:** 51 inputs and 17 changed; the metafile's sha256 still reads `53f98177f73d`.
+      It is the same artifact, not rebuilt.
+    - **A-CR:** no element of either list contains a `\r`.
+    - **A-ENTRY:** `src/index.ts`, the entry module, is found in the inputs by the same membership
+      test that grades the result.
+  - Any anchor that fails means "cannot see": exit 2, stop.
+- **Two sabotages of the fixed instrument (proposed, not run).** They run after the graded run, and
+  the graded run is believed only if both read as predicted:
+  - **S-B1, the CRLF plant** (`--inputs-from` the old CRLF list). Predicted: A-SAME passes, then
+    `CANNOT SEE: A-CR (50 inputs and 0 changed lines carry a CR)`, exit 2.
+  - **S-B2, the drop plant** (`--drop src/enroll.ts`, applied after the anchors so it tests the
+    grading itself). Predicted: anchors pass; the intersection is the other five;
+    `OUTSIDE THE SET: predicted and absent: src/enroll.ts`; exit 1.
+- **New frozen predictions for the re-run** (the same metafile):
+
+| | predicted | outside the set |
+|---|---|---|
+| anchors | A-CR, A-ENTRY and A-SAME pass | any fails: **cannot see, stop** |
+| changed and in the bundle | exactly `src/activation.ts`, `src/enroll.ts`, `src/enrollpage.ts`, `src/index.ts`, `src/provision.ts`, `src/support.ts` | another changed file in the inputs: **stop and ask**. One of the six absent: **stop and ask** |
+| not in the bundle | `src/types.ts`, and all 4 `scripts/*` files | any of them present: **stop and ask** |
+| verdict | `VERDICT: as predicted`, exit 0 | exit 1 or 2: **stop** |
+
+  Then the rest of the table above, unchanged. If the ruling lands after 06:00Z, production waits
+  for 08:00Z, the end of #540's night window. Staging can go as soon as the re-run reads as
+  predicted.
+
+**The ruling (~02:40Z):** the cause is accepted, and `b548_bundle.py` is approved to run as written.
+
+- **The bundle proof, re-run at 02:58:07Z: as predicted.**
+  - Graded run: the anchors pass (meta `53f98177f73d`, 51 inputs, 17 changed). Changed and in the
+    bundle: exactly the six. Exit 0.
+  - **S-B1:** `CANNOT SEE: A-CR (50 inputs and 0 changed lines carry a CR)`, exit 2.
+  - **S-B2:** the other five, then `OUTSIDE THE SET: predicted and absent: src/enroll.ts`, exit 1.
+- **Rollback targets, re-read at 02:58:17Z: as predicted.** Staging `968d9f23`, production
+  `5e7f481c`.
+- **Staging, 03:00:58Z to 03:02:08Z: as predicted.**
+  - `deploy.sh staging` from `5c300417`, exit 0. The new version is `6833b32c`, and the binding
+    list shows `env.ACTIVATION_GATE ("enforce")`.
+  - `deploy.sh`'s own fetch: "2 commit(s) behind origin/main, none touching proxy/".
+  - `/healthz` read `5c300417` in the confirmation and on two more reads.
+  - Smoke as the test identity: PASS 38, FAIL 0.
+  - The enrol POSTs are refused before the gate: 403 `unverified` and 400 `bad_request`.
+  - **#548 staging verified at 03:02Z.**
+- **Production: outside the set, stopped (03:02:43Z).**
+  - **The reading:** `deploy.sh production` refused, exit 1, with "this tree is 2 commit(s) behind
+    origin/main in proxy/". Nothing was uploaded, and `/healthz` still reads `3e0a444` on two reads.
+  - **The cause:** main moved. Two `proxy/` commits from other sessions landed between 03:01Z and
+    03:02:40Z: `9db83163` (#556, the opuk split) and `9b511dc2` (basemap A1).
+  - **The alternative, and why it is excluded:** a stale ref inside `deploy.sh`. Excluded because
+    `deploy.sh` fetches `origin main` itself, and, from the worktree root, `git rev-list` reads 2
+    commits in `proxy/` and names exactly these two.
+  - **My own pre-check was blind.** It read "0 behind", but it ran from inside `proxy/`, where
+    `-- proxy/` names `proxy/proxy/`, so it could only ever read 0. The guard that executes caught
+    what that check could not. A path-scoped check runs from the root.
+- **What the two commits carry.** Neither changes production's config:
+  - `9b511dc2`'s `wrangler.toml` change adds the `BASEMAP_PKG` bucket for dev/test and staging only
+    ("production gets one at D4"). Its code (`src/basemap/*`, `src/types.ts`) is in the proxy
+    bundle.
+  - `9db83163` changes the wx-ingest Workers' own tomls and entry files. The proxy bundle imports
+    neither entry file.
+  - Production runs `3e0a444`, which has neither commit. So deploying `5c300417` reverts nothing
+    production runs. `deploy.sh`'s word "REVERTED" is measured against main's tip.
+- **Proposed, for a ruling (not run):**
+  - **(a), recommended:** `ALLOW_BEHIND=1 ./scripts/deploy.sh production` from `5c300417`. That is
+    the commit whose bundle was proven and that staging runs. Main's two commits reach production
+    in their own sessions' deploys, which carry #548 as an ancestor.
+  - **(b):** merge main into the deploy tree and deploy its tip. That would put basemap A1's code
+    in production ahead of D4, and the opuk split's code outside its session's slot. It would also
+    need a new bundle proof. Not recommended.
+- **Frozen predictions for (a):**
+
+| step | predicted | outside the set |
+|---|---|---|
+| `deploy.sh`'s banner | `ALLOW_BEHIND=1`, listing exactly `9b511dc2` and `9db83163` | any other commit listed: **stop and ask** |
+| the upload | the binding list shows `env.ACTIVATION_GATE ("watch")` | anything else: **stop** |
+| production's checks | `/healthz` `5c30041` on two reads; smoke 38 PASS, 0 FAIL; the test identity's `pollNightMs` 60000 | **stop**; roll back to `5e7f481c` |
+| the sweep, then C1 | as in the table above: 24 stamped, then exit 0 | as above |
+
+  Production goes only outside 06:00-08:00Z; if the ruling lands after 06:00Z, it waits until
+  after 08:00Z. The UK session's R3′ waits on the "#548 production verified" line. Staging now
+  runs `5c300417`, without basemap A1's code; a staging deploy from main carries #548 as an
+  ancestor.
+
+**The ruling (~03:25Z): (a).**
+
+- **Rollback target, recorded first (03:26:50Z):** production on `5e7f481c`, `/healthz`
+  `3e0a444` on two reads. From the root, main's lead in `proxy/` was exactly `9b511dc2` and
+  `9db83163`.
+- **Production, 03:27:08Z to 03:28:12Z: as predicted.**
+  - `ALLOW_BEHIND=1 ./scripts/deploy.sh production` from `5c300417`, exit 0. The warning listed
+    exactly `9b511dc2` and `9db83163`. The new version is `3053d6b4`, and the binding list shows
+    `env.ACTIVATION_GATE ("watch")`.
+  - `/healthz` read `5c300417` in the confirmation and on two more reads.
+  - The test identity's `/config`: 200, `pollNightMs` 60000.
+  - Smoke: PASS 38, FAIL 0. The enrol POSTs are refused before the gate: 403 `unverified` and
+    400 `bad_request`.
+- **The sweep: outside the set, stopped (03:28:47Z).** The token-id sweep and C1 have not run.
+  - **The reading:** `sweep --ledger` exited 1: "23 unique id(s) from the enrolment ledger;
+    swept 23, activated 22, stamped 22, unstamped 1". Predicted: 22, 22, 22, 0.
+  - **The cause:** the enrolment ledger grew after it was seeded. G-1's ledger seed read 22 ids
+    at 20:21:39Z. A read-only check (`diag548/extra-id.mts` in the session scratchpad; it prints
+    counts, states, field names and times to the minute, and never an id) found exactly one
+    ledger id that is not activated and stamped:
+    - it has **no `act:` row**;
+    - its `enr:dev:` row says first and last enrolment **2026-11-05T23:30Z**;
+    - its `fw:` row is an `s3-128`, first and last seen 23:30Z.
+    It enrolled about three hours after the seed, while production still ran `3e0a444` with no
+    gate, so nothing refused or counted it.
+  - **The alternative, and why it is excluded:** one of the 22 seeded rows lost its stamp or its
+    state. Excluded because the 22 ids the seed wrote all answered `activated` with a stamped
+    `gen`, and the one odd id has no row at all. It is a 23rd id, not one of the 22.
+  - **Whose board, as inference only:** not the #545 bench board on the timing. That board's
+    Wi-Fi setup was at 20:47Z (P4), and it was fully erased again at 21:03Z (the Download Tool
+    run). `fw:` refreshes `lastSeen` at most hourly while a device is in use (`src/fleet.ts`), so
+    a `lastSeen` of 23:30Z, read at 03:30Z, means no request since about then. A board online for
+    under an hour fits a test or a short setup better than a desk unit left running, but the data
+    does not exclude a customer's unit.
+  - **The gap this exposes:** the ledger seed was a snapshot taken seven hours before the
+    deploy. The sweep's "22" was frozen from that snapshot and never re-read just before the
+    deploy: an anchor against a target that was still moving.
+- **Proposed, for a ruling (not run):**
+  - **(A), recommended:** grandfather it, since it enrolled before the gate existed. Re-run
+    `seed --ledger --state activated`. A seed never rewrites an existing row (`planSeed`), so it
+    writes only rows that are missing. **The guard comes first:** the ledger can now also grow
+    by watch-mode enrolments of unlisted boards, and a ledger seed would grandfather those too.
+    So immediately before the seed, `extra-id.mts` must read 23 ledger ids and exactly one
+    without an activated row, with a first enrolment before 03:27:08Z.
+  - **(B):** leave it unlisted. Watch counts it if it ever enrols again, and C1 reads exit 1,
+    missing 1, until it is decided. It must be decided before enforce.
+- **Frozen predictions for (A):**
+
+| step | predicted | outside the set |
+|---|---|---|
+| the guard (`extra-id.mts`) | ledger ids 23; exactly 1 not activated and stamped, no `act:` row, first enrolment 2026-11-05T23:30Z | anything else: **stop, nothing written** |
+| `seed --ledger --state activated` | read 23, already present 22, written 1, repaired 0, missing 0 -> COMPLETE | read not 23, or written not 1: **stop and report** |
+| `sweep --ledger` | swept 23, activated 23, stamped 23, unstamped 0 | any unstamped: **stop** |
+| `sweep --token-ids test-device,records-device` | swept 2, activated 2, stamped 2, unstamped 0 | any unstamped: **stop** |
+| C1 (`activation-coverage.ts`) | exit 0, missing 0 | **stop** |
+
+  25 stamped in all. Under (B): the token-id sweep as above, then C1 exit 1, missing 1.
+
+**The ruling (~04:22Z): (A).** The "#548 production verified" line is released by the ruling:
+**#548 production verified at 03:28Z.**
+
+- **The dry run.** `activation.ts seed` has no dry-run flag. Its write guard is `planSeed`: it
+  writes only ids with a ledger row and no `act:` row, and never rewrites a row. So the dry run is
+  the read-only guard frozen in (A), which computes the same set, with counts only.
+- **The guard, 04:23:55Z: as frozen.** 23 ledger ids, exactly one not activated and stamped. That
+  one has no `act:` row and a first enrolment of 2026-11-05T23:30Z.
+- **The seed: outside the set, stopped (04:24:12Z).**
+  - **The reading:** `seed --ledger --state activated` exited 1 after 4 s, with nothing on stdout.
+    Stderr: "wrangler kv key list failed (exit 1)", then `Authentication error [code: 10000]`
+    from the KV keys API. Wrangler then reported the OAuth login, with `workers_kv (write)` among
+    its scopes.
+  - **Nothing was written.** The listing that failed is the seed's first step, and its refusal
+    comes before `planSeed` and before any put. Read back at 04:24:56Z: still 23 ledger ids and
+    one with no `act:` row.
+  - **The cause: a transient authentication failure at the KV API.** At 04:25:16Z the same
+    `wrangler kv key list --prefix=enr:dev: --remote` (a read; counts printed) exited 0 with 23
+    keys and no code 10000.
+  - **The alternatives, and why they are excluded:**
+    - *A `CLOUDFLARE_API_TOKEN` shadowing the login:* absent in the shell and at user level, and
+      the command ran with it unset.
+    - *A login without KV permission, or an expired login:* the same login listed the keys 64 s
+      later, and its scopes include `workers_kv (write)`.
+  - **Likely the same as G-1's first failure,** which also stopped at the ledger listing, before
+    `failureText` could show why. That run re-ran once and came out as predicted.
+- **Proposed (not run):** re-run unchanged, once: the guard, then the seed, with the frozen
+  predictions of (A). If the seed fails the same way again, stop: a second failure is not a
+  transient.
+
+**The ruling (~04:30Z): one retry, unchanged.** Every step read as predicted:
+
+| step (by the clock) | read |
+|---|---|
+| the guard, 04:32:29Z | 23 ledger ids; exactly one not activated and stamped, with no `act:` row and a first enrolment of 2026-11-05T23:30Z |
+| `seed --ledger --state activated`, 04:32:32Z | exit 0: read 23, already present 22, written 1, repaired 0, missing 0 -> COMPLETE |
+| `sweep --ledger`, 04:32:51Z | exit 0: swept 23, activated 23, stamped 23, unstamped 0 |
+| `sweep --token-ids test-device,records-device`, 04:32:57Z | exit 0: swept 2, activated 2, stamped 2, unstamped 0 |
+| C1 (`activation-coverage.ts --env production --days 30`), 04:33:16Z | exit 0: authenticated 21 (Analytics Engine 21, `fw:` 21, union 21); with an `act:` row 21; **missing 0** |
+
+25 rows are stamped. Production stays on `"watch"` until Daniel says otherwise, and the watch
+counts reach him before that decision.
