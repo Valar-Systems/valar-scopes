@@ -2177,3 +2177,15 @@ objects after 1 days", for all prefixes, enabled**.
 >    If these read as predicted, R3′ is complete. No board hold is needed for this redeploy.
 > 4. The 7-day cost re-read around 2026-11-13: yes.
 > 5. R4 and node_modules stay held.
+
+**Before the `opuk` redeploy (frozen at about 15:11Z):**
+- **The rollback target:** `-e inert`. The current `opuk` version is **`a1c8c3b9-e905-487a-984c-032a65c7fca9`**
+  (inert, 100%). `cref` is `257f49eb` (100%).
+- **The listing, just before** (`r3_list.py wx/opuk/frames/`, 15:11:00Z): **12 frames, all older than an hour**.
+  The newest is 34,261 s old (05:40:00Z), the oldest 37,561 s (04:45:00Z). So **N = 12**.
+- **Re-registered, as ruled:**
+  - **R3′-5a′:** the first storing check after the redeploy prunes **exactly 12**, then at most 1 per storing
+    check.
+  - **R3′-5b′:** re-read at the redeploy + 70 min, twice, 10 min apart, as ruled ~23:00Z on 11-04.
+  - **R3′-3 and R3′-4 (LHR):** re-read at the first firing + 10 min, as registered.
+- **No board hold**, as ruled.
