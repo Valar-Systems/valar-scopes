@@ -13807,3 +13807,39 @@ The bars (graphic): dark 11.1404, light 4.5143.
 - **The count:** 5 screens × 2 themes × 2 (dots, none) = **20 PNGs** (40 files with the 3× copies), **0 chord refusals.**
 - **The night Conditions** (Q92): after the night capture (00:30Z or later, A12.131), 4 more PNGs, predicted to read `HI <tomorrow's daytime high>`.
 - **Anything off these rows:** stop and report.
+
+### A12.134 Step 3, the day renders: every A12.133 row AS PREDICTED (20 renders, 0 refusals). To Daniel as local files; the night capture is due after 00:30Z
+
+**The renderer:** `tools/weatherscope/screens/ref35c.py` (`c8fd4ab0a2bf`), reading `test/fixtures/wx/nws/dallas-day.json` (`9fc5dd509971`). Both are committed locally on `weatherscope/swipe-screens` (`fc545247e9eb`, not pushed).
+- **The guards** on that commit all exit 0: `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py`.
+- **The PNGs** are written outside the repo (`scratchpad/ref35c-png/`), at 1× and 3×. The record below gives each render's RGB-pixel sha256, which identifies a render whatever the PNG encoder.
+
+| row (A12.133) | predicted | measured |
+|---|---|---|
+| forecast, capture | `NO RAIN` / `IN 7 DAYS`; no bar over 6 px; 7 week rows | **as predicted.** No hourly chance in the next 24 h, so no bars; 7 rows (FRI-THU) |
+| forecast, SYNTHETIC-RAIN | `NEXT RAIN` / `TUE NIGHT`; bars up to 10 px | **as predicted** (the 25 % hour gives 10 px) |
+| conditions, day | `HI 68  LO 53`; no gust; observed time dim | **as predicted** (`70°`, `WIND N 13`, `HUMIDITY 53%`, `OBSERVED 1:40 PM`, fresh) |
+| alerts, SYNTHETIC | 4 entries and `+1 MORE` | **as predicted** |
+| alerts, capture | `NO WATCHES OR ADVISORIES` | **as predicted** |
+| the count | 20 renders (40 files), 0 chord refusals | **20 written, 0 refused** |
+
+**The renders, by RGB-pixel sha256 (12 hex):**
+
+| screen | dark | dark, dots | light | light, dots |
+|---|---|---|---|---|
+| forecast, capture | `0a4700d68fc4` | `c72717eeabc9` | `3c9a8639ee48` | `af21e24ea4db` |
+| forecast, SYNTHETIC-RAIN | `5c166dfc7769` | `638164bed63c` | `545d8c9aa78b` | `6e3d698d77d0` |
+| conditions, day | `a2ab9a66d1be` | `5dabcb8016d5` | `913b27da1c80` | `e0f5390301fc` |
+| alerts, SYNTHETIC | `23306a1e9e15` | `125de10c070f` | `67ed972600a4` | `06a913cb2ebb` |
+| alerts, capture | `b2dfbd410f87` | `30255d7fe359` | `9a879f20ff01` | `d5bda7e698ce` |
+
+**Read by eye, a host picture and not glass,** for Daniel to judge rather than to change here:
+- **The forecast:** the hour labels (y 141-147) sit directly on the first week row (y 148), with no gap.
+- **Conditions:** at size 4 the degree glyph (`0xF8`) renders as a heavy block beside the digits.
+- **Alerts:** four entries and `+1 MORE` fill the upper half; the lower half stays empty.
+- **The dots** are small, 3 × 3 px, five 10 px apart.
+
+**Still to come:**
+- **The night Conditions (Q92):** the night capture is due after 00:30Z, by A12.131's tools and predictions; then its 4 renders, predicted to read `HI <tomorrow's daytime high>`. If this session is not running after 00:30Z, the derived case stands in, labelled and with its caveat (A12.131).
+- **Step 4:** Daniel's pick from these, and any change to the layouts. No device code before it, and none before #571 merges.
+- **Next on my side:** the MAC scrub's plan and predictions (Daniel's decision, A12.133). Its PR waits for #445 and #571.
