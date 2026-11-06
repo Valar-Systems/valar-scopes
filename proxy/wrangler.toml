@@ -111,6 +111,8 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.staging.vars]
 SITE_FEED_BEND = "on"                     # Bend site feed switch (docs/bend-site-feed.md); anything else = off
+# The activation gate (docs/device-activation.md, "Watch mode"): staging ENFORCES. A missing or unknown value enforces.
+ACTIVATION_GATE = "enforce"
 # Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
 #
 # A VAR, NOT A SECRET, and the distinction is not cosmetic: the sitekey is
@@ -270,6 +272,10 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.production.vars]
 SITE_FEED_BEND = "on"                     # Bend site feed switch (docs/bend-site-feed.md); anything else = off.
+# The activation gate starts in WATCH (Daniel, 2026-11-05): it decides and counts every would-be refusal
+# (enr:watch:) but still issues the key. "enforce" only when Daniel says so: a one-line PR, a deploy from that
+# named commit, and scripts/check-activation-gate.sh on it. A missing or unknown value ENFORCES (fail closed).
+ACTIVATION_GATE = "watch"
                                           # ON from addendum 5, deployed after #461's S2 shipped the code with it OFF
                                           # and the existing service checked out (Daniel's deploy rule, step 2).
 # Turnstile sitekey for the device-enrolment page. Public by construction (it is

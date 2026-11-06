@@ -6,6 +6,7 @@ import { handleEnrich } from "./enrich";
 import { recordFleetFirmware } from "./fleet";
 import { handleEnroll } from "./enroll";
 import { handleProvision } from "./provision";
+import { handleActivationAdmin } from "./activation";
 import { enrollHtml } from "./enrollpage";
 import { locateResponse } from "./locatepage";
 import {
@@ -182,7 +183,10 @@ async function route(
   // Provisioning POSTs too, for the same reason: the board has no key yet. It is
   // authenticated by its OWN token, not a device key (src/provision.ts).
   const isProvisionSubmit = url.pathname === `${PAGE_PREFIX}/provision` && request.method === "POST";
-  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit && !isProvisionSubmit) {
+  // The activation list's edits, on the same bench credential (src/activation.ts).
+  const isActivationSubmit = url.pathname === `${PAGE_PREFIX}/activation` && request.method === "POST";
+  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit && !isProvisionSubmit
+      && !isActivationSubmit) {
     return errorResponse(405, "method_not_allowed");
   }
 
@@ -276,6 +280,10 @@ async function route(
   // is a 405, never a page, because nothing about this route is for a browser.
   if (url.pathname === `${PAGE_PREFIX}/provision`) {
     return request.method === "POST" ? handleProvision(request, env) : errorResponse(405, "method_not_allowed");
+  }
+  // The activation allowlist's edits (docs/device-activation.md). POST only, like the mint.
+  if (url.pathname === `${PAGE_PREFIX}/activation`) {
+    return request.method === "POST" ? handleActivationAdmin(request, env) : errorResponse(405, "method_not_allowed");
   }
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,

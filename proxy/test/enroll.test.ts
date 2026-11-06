@@ -4,13 +4,16 @@ import { deriveDeviceKey } from "../src/deviceauth";
 import { REVOKED_KEY, resetRevocationCache } from "../src/revocation";
 import { routeTemplate } from "../src/metrics";
 import { AUTH_HEADERS, call, testEnv, TEST_KEY } from "./helpers";
+import { actKey } from "../src/activation";
 
 /* ===========================================================================
  * ENROLLMENT — the three properties that must hold, each asserted rather than
  * argued, and each with a control proving the assertion can fail.
  *
  *   1. NO SOLVE, NO KEY. The endpoint is a mint, never an oracle.
- *   2. IDEMPOTENT. A reflashed board re-enrolls to the SAME key, not a wall.
+ *   2. FIRST ACTIVATION WINS (was: idempotent, until 2026-11-05). A repeat is
+ *      refused until Daniel resets the id; after a reset the key is re-derived
+ *      from the CURRENT secret. The allowlist itself: activation.test.ts.
  *   3. REVOCATION SURVIVES A REFLASH. "Reflash to escape revocation" is the
  *      first thing anyone would try, so it is a test and not a paragraph.
  * ======================================================================== */
@@ -60,8 +63,14 @@ async function enroll(body: unknown, overrides: Record<string, unknown> = {}) {
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
+/** Put an id on the activation list (or back to "listed": what a reset does). docs/device-activation.md. */
+async function list(id: string) {
+  await env.ENRICH_KV.put(actKey(id), JSON.stringify({ v: 1, state: "listed", listedAt: "2026-11-05T00:00:00Z", resets: 0 }));
+}
+
 describe("enrollment mints only against a verified solve", () => {
   it("issues the derived key when the challenge verifies", async () => {
+    await list(DEVICE_ID);
     const r = await enroll({ id: DEVICE_ID, token: "good-token" });
     expect(r.status).toBe(200);
     expect(r.body.status).toBe("enrolled");
@@ -127,68 +136,73 @@ describe("enrollment mints only against a verified solve", () => {
   });
 });
 
-describe("enrollment is idempotent across a reflash", () => {
-  it("returns the SAME key and says already_enrolled", async () => {
-    // Blipscope -> Missileer -> Blipscope, or a full erase. The id is derived
-    // from the efuse MAC, so it is unchanged; the key is a pure function of the
-    // id, so re-enrolling is a re-derivation and not a re-issue. A customer who
-    // reflashed must not hit a wall.
+describe("a repeat activation needs a reset (first activation wins)", () => {
+  // UNTIL 2026-11-05 THIS BLOCK PINNED IDEMPOTENCY: a reflashed board re-enrolled to the same key.
+  // The activation allowlist (docs/device-activation.md) retired that on purpose -- the key is a
+  // pure function of the id, so a repeat that returned it would hand a guesser the owner's key.
+  // Each case below keeps the property it used to guard and states how it holds now: through
+  // Daniel's reset (scripts/activation.ts), simulated here by putting the row back to "listed".
+  it("refuses the repeat, and after a reset returns the SAME key", async () => {
+    await list(DEVICE_ID);
     const first = await enroll({ id: DEVICE_ID, token: "t1" });
     const second = await enroll({ id: DEVICE_ID, token: "t2" });
+    await list(DEVICE_ID);
+    const third = await enroll({ id: DEVICE_ID, token: "t3" });
 
     expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    expect(second.body.key).toBe(first.body.key);
-    expect(first.body.status).toBe("enrolled");
-    expect(second.body.status).toBe("already_enrolled");
-    expect(second.body.enrollments).toBe(2);
+    expect(second.status).toBe(409);
+    expect(second.body.error).toBe("already_activated");
+    expect(second.body.key).toBeUndefined();
+    expect(third.status).toBe(200);
+    expect(third.body.key).toBe(first.body.key);
+    expect(third.body.enrollments).toBe(2);
   });
   // ---- A ROTATED DEVICE MUST GET A NEW KEY, NOT A RECEIPT --------------------
   //
   // Asked on 2026-08-31 with a rotated board sitting on the verify page reading
-  // "Already verified": does that path re-derive against the CURRENT secret, or
-  // short-circuit on the enrolment record existing and send nothing useful?
-  //
-  // It re-derives, because `key` is computed BEFORE the ledger read and returned
-  // on both branches. This pins that. If the derivation ever moves below the
-  // ledger read, or `key` is dropped from the repeat branch as redundant, a
-  // rotated device would be told it is fine while still 401ing.
-  it("after a SECRET ROTATION, already_enrolled carries a NEW key", async () => {
+  // "Already verified". The repeat path that answered it no longer exists; the
+  // recovery is a reset and an activation, and the key must be derived from the
+  // CURRENT secret on that path too, never replayed from anything stored.
+  it("after a SECRET ROTATION, a reset re-activation carries a NEW key", async () => {
+    await list(DEVICE_ID);
     const before = await enroll({ id: DEVICE_ID, token: "t1" });
     expect(before.body.status).toBe("enrolled");
 
-    // The rotation: same device, same id, different DEVICE_KEY_SECRET.
+    await list(DEVICE_ID);
     const after = await enroll({ id: DEVICE_ID, token: "t2" },
                                { DEVICE_KEY_SECRET: "a-rotated-device-secret" });
 
     expect(after.status).toBe(200);
-    expect(after.body.status).toBe("already_enrolled");
-    expect(typeof after.body.key).toBe("string");
+    expect(after.body.status).toBe("enrolled");
     expect(after.body.key).toMatch(/^[0-9a-f]{64}$/);
     expect(after.body.key).not.toBe(before.body.key);   // the whole point
   });
 
-  it("CONTROL: without a rotation the repeat key is unchanged", async () => {
-    // Without this, the assertion above passes against an endpoint that returns
-    // a random string, or one that changes the key on every call -- which would
-    // break the reflash case the idempotency test exists for.
+  it("CONTROL: without a rotation a reset re-activation key is unchanged", async () => {
+    // Was vacuous for a moment on 2026-11-05: with the repeat refused, both keys were
+    // undefined and toBe() passed. The definedness assertions are what make it a control.
+    await list(DEVICE_ID);
     const a = await enroll({ id: DEVICE_ID, token: "t1" });
+    await list(DEVICE_ID);
     const b = await enroll({ id: DEVICE_ID, token: "t2" });
+    expect(a.body.key).toMatch(/^[0-9a-f]{64}$/);
+    expect(b.body.key).toMatch(/^[0-9a-f]{64}$/);
     expect(b.body.key).toBe(a.body.key);
   });
 
 
 
-  it("logs the repeat in the ledger rather than blocking it", async () => {
-    await enroll({ id: DEVICE_ID, token: "t1" });
-    await enroll({ id: DEVICE_ID, token: "t2" });
-    await enroll({ id: DEVICE_ID, token: "t3" });
+  it("logs every activation in the ledger, across resets", async () => {
+    for (const t of ["t1", "t2", "t3"]) {
+      await list(DEVICE_ID);
+      await enroll({ id: DEVICE_ID, token: t });
+    }
     const row = await env.ENRICH_KV.get<{ enrollments: number; firstAt: string; lastAt: string }>(
       `enr:dev:${DEVICE_ID}`,
       "json",
     );
     expect(row?.enrollments).toBe(3);
-    // firstAt is the ORIGINAL enrollment: a reflash must not erase the history
+    // firstAt is the ORIGINAL activation: a reset must not erase the history
     // that makes a repeat legible as a repeat.
     expect(new Date(row!.lastAt) >= new Date(row!.firstAt)).toBe(true);
   });
@@ -198,6 +212,8 @@ describe("enrollment is idempotent across a reflash", () => {
     // "something is wrong". If this counter stops being written, abuse becomes
     // invisible rather than merely unmeasured.
     const day = new Date().toISOString().slice(0, 10);
+    await list(DEVICE_ID);
+    await list("b2c3d4e5f6a7b8c9");
     await enroll({ id: DEVICE_ID, token: "t1" });
     await enroll({ id: "b2c3d4e5f6a7b8c9", token: "t2" });
     expect(Number(await env.ENRICH_KV.get(`enr:day:${day}`))).toBe(2);

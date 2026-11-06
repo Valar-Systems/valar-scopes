@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { enrollHtml } from "../src/enrollpage";
+import { SUPPORT_EMAIL } from "../src/support";
 
 /* ===========================================================================
  * THE ENROL PAGE'S INLINE SCRIPT, ACTUALLY EXECUTED.
@@ -33,6 +34,8 @@ interface Harness {
   /** null when the script bailed before installing the callback (no valid id). */
   solve: ((token: string) => void) | null;
   posts: Array<{ url: string; body: unknown }>;
+  /** The stubbed elements, so a test can read what the page rendered. */
+  nodes: Record<string, { hidden: boolean; className: string; innerHTML: string; textContent: string }>;
 }
 
 /** Execute the page's inline <script> against a minimal stub environment. */
@@ -70,7 +73,7 @@ function runPage(query: string, fetchImpl?: (url: string, init: any) => Promise<
   );
   fn(win, doc, { search: query }, fetchStub, () => 0, URLSearchParams);
 
-  return { solve: typeof win.onSolve === "function" ? win.onSolve : null, posts };
+  return { solve: typeof win.onSolve === "function" ? win.onSolve : null, posts, nodes };
 }
 
 describe("enrol page submits once per load", () => {
@@ -119,5 +122,49 @@ describe("enrol page submits once per load", () => {
     const h = runPage("?id=not-a-device-id");
     expect(h.solve).toBeNull();
     expect(h.posts.length).toBe(0);
+  });
+});
+
+/* ===========================================================================
+ * A2 (docs/device-activation.md): a refusal a customer can act on in one tap.
+ * The page is run, not grepped: the id must reach the rendered text AND both
+ * halves of the pre-filled email, decoded the way a mail client decodes them.
+ * ======================================================================== */
+describe("A2: the activation refusals carry the id and a pre-filled email", () => {
+  const ID = "0123456789abcdef";
+  const refuse = (status: number, error: string) => (_url: string, _init: any) =>
+    Promise.resolve({ status, json: () => Promise.resolve({ error, id: ID, support: SUPPORT_EMAIL }) });
+  const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+  const mailto = (html: string) => {
+    const m = html.match(/href="mailto:([^"?]+)\?([^"]+)"/);
+    if (!m) return null;
+    const q = new URLSearchParams(m[2]!);
+    return { to: m[1], subject: q.get("subject") ?? "", body: q.get("body") ?? "" };
+  };
+
+  it("not_listed: the id, the address, the email link and the own-receiver line", async () => {
+    const h = runPage(`?id=${ID}`, refuse(403, "not_listed"));
+    h.solve!("token-1");
+    await flush();
+    const html = h.nodes.out.innerHTML;
+    expect(html).toContain("not registered as a Valar unit");
+    expect(html).toContain(ID);
+    expect(html).toContain(SUPPORT_EMAIL);
+    expect(html).toContain("own receiver");
+    const link = mailto(html);
+    expect(link).not.toBeNull();
+    expect(link!.to).toBe(SUPPORT_EMAIL);
+    expect(link!.subject).toContain(ID);
+    expect(link!.body).toContain(ID);
+  });
+
+  it("CONTROL already_activated: its own message, also carrying the id", async () => {
+    const h = runPage(`?id=${ID}`, refuse(409, "already_activated"));
+    h.solve!("token-1");
+    await flush();
+    const html = h.nodes.out.innerHTML;
+    expect(html).toContain("already been activated");
+    expect(html).not.toContain("not registered as a Valar unit");
+    expect(mailto(html)!.body).toContain(ID);
   });
 });
