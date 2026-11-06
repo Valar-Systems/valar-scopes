@@ -5137,6 +5137,42 @@ approved as predicted, and MG5 is accepted as a derived prediction.
 
 MG5 is read after the push.
 
+**MG5, read (17:40Z): OFF.** CI on `503dd96563fa`: 34 check-runs (as predicted), but **2 failures**: `sku-readers`
+and `ota-identity`. As ruled, the bench window does not start, and it moves.
+1. **`sku-readers`:** "these files reference the firmware workflow and are not on the reviewed list: docs/wx-device.md".
+   - **The cause:** my merge-prediction text above named the firmware workflow's file, once. The 10-26 ruling forbids
+     exactly that, and it was in my notes.
+   - **The alternative, and why it is excluded:** an older mention brought in by the merge. Excluded: the file at the
+     merge base has none, and the one at the head is in my new paragraph.
+2. **`ota-identity`:** "`test/fixtures/ota/identities.txt` is not what the fleet derives; fleet only:
+   `blipscope-s3-128-wxlook - s3-128`".
+   - **The cause:** #552's table lists every env that compiles `OtaUpdater.cpp`. #445's `skus.yml` adds that bench
+     env, and the merge brought main's table without its row.
+   - **The alternative, and why it is excluded:** a broken derivation. Excluded: the check names exactly that one env,
+     and nothing else differs.
+   - MG5's count was derived from job keys; the job's CONTENT reads the fleet's envs, and I did not apply it.
+
+**My process misses, recorded:**
+- **I did not run the firmware workflow's own jobs locally before the push.** My off-prediction notes ask for exactly
+  that. Both failures would have shown locally.
+- **While reading the cause, I ran `check_ota_identity.py --emit-table`, expecting a preview. It writes the table.**
+  The working copy was changed by one row, `+blipscope-s3-128-wxlook - s3-128`. It was restored from HEAD at once, and
+  its blob hash then equalled HEAD's. Nothing was committed or pushed. That was a mutating command used to answer a
+  question.
+
+**Proposed fixes (not applied):**
+- **P1:** the paragraph says "the firmware workflow" in place of its file name. The rule is not to name the file, so
+  the doc is not added to `ALLOWED_MENTIONS`.
+- **P2:** `identities.txt` gains exactly that one row, by `--emit-table` (the check's documented remedy). The diff is
+  one line.
+
+**New frozen predictions, for after a ruling:**
+- Locally, before the push: `skus.py --check-readers` passes; `check_ota_identity.py --check-table` passes; the
+  device-id and Wi-Fi checks pass.
+- CI: **34: 30 success, 4 skipped, 0 failed.**
+- **The window:** at 18:45Z still, if the ruling lands by about 18:05Z (the fixes, the local checks, the push, and
+  about 15 min of CI). Otherwise, a time Daniel picks.
+
 ### Daniel's bench window (ruled ~17:15Z: 18:45Z, about 45 min, once Daniel confirms): frozen before it opens
 
 **The protocol is the replay session's** (RC1, RP2, RP6's three arms, RS1-RS6, the restore remedy, the scan: "The
