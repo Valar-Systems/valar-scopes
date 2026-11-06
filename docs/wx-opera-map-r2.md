@@ -225,3 +225,7 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 
 **State:** `opuk` runs `b7626571` (stage 1a). The map object stays in `wx/opuk/map/`; nothing reads it now, and
 `expire-1d` removes it. Stage 1c's code remains in main, unused in production until a ruling.
+
+**After the rollback** (23:30:42Z to 23:41:30Z, read 23:42:07Z, 900 s pieces, ABR [1]): storing checks at 23:34:29Z and
+23:39:23Z, each `stored` with `pruneKeys` 900 and **no `map` field**, so stage 1a's code is what runs. Already-stored 20,
+**0 error lines**. `/healthz`: `frameAgeS` 428, `coveredShare` 0.7508.
