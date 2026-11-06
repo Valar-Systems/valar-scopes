@@ -5099,4 +5099,28 @@ existed in this worktree):
 - `blipscope-s3-128`: SUCCESS, exit 0, 69 s (17:10-17:11Z);
 - `blipscope-s3-128-wxlook`: SUCCESS, exit 0, 68 s (17:11-17:12Z), with 30.8 GB free at its start.
 
+### Main merged into #445: frozen before the merge
+
+**Read first (read-only, 17:13Z):**
+- Main is 40 commits ahead of #445's merge base, `43afaacd4bd8` (2026-11-04).
+- `git merge-tree` finds **one conflict**: `scripts/check-no-bench-hooks.sh`, the `MARKERS` line. Main (#552,
+  `84409651`) added `"[ota-bench]"`; #445 added `"[wx-bench]"`.
+- The 7 other files changed on both sides auto-merge: `firmware.yml`, `web-renderer.yml`, `docs/web-renderer.md`,
+  `platformio.ini`, `skus.yml`, `test/host/run.sh`, `tools/web-renderer/build.sh`.
+- **Job keys:** main added exactly one job, `ota-identity` (#552), and #445 adds none. `web-renderer.yml`,
+  `device-ids.yml` and `no-traffic-captures.yml` have the same job keys at the base, on main and on #445. Main's
+  matrix lost the 8 s3-146 legs (#549).
+
+| | step | predicted |
+|---|---|---|
+| **MG1** | `git merge origin/main`, at its head then, named | exactly that one conflict. Resolved as the union, main's marker first: `... "[bench-force-starve]" "[ota-bench]" "[wx-bench]" )`. No other conflict |
+| **MG2** | `run.sh` under WSL | exit 2: exactly the two environment blocks failed, and `sabotage_wx_towns.py` SKIP in both driver passes (now named); everything else green, the avionics block and drivers included |
+| **MG3** | both builds | SUCCESS |
+| **MG4** | `check_device_ids.py` and `check_wifi.py`, before the push | OK, 0 findings |
+| **MG5** | CI on the pushed head, read only when nothing is queued, twice | **34 check-runs: 30 success, 4 skipped** (`publish`, `promote`, `ship-alert`, `version`), 0 failed |
+
+**MG5 is derived by the rule, not read from a baseline.** No finished run of this PR's workflow set postdates main's
+last job-set change (`84409651`); main's last workflow change, `259e8688`, adds a step. The derivation is AB5's 41
+(37 success + 4 skipped), minus the 8 s3-146 legs, plus `ota-identity`: 34. **Outside the set:** stop and report.
+
 **Outside the set:** stop and report.
