@@ -240,3 +240,92 @@ W2-R guards. The dir was synthetic and has been removed.
 - **So the margin is about 1,650 under the 15,000 ceiling,** and about 3,000 under the ports. A suite that grows by a
   tenth reaches the ceiling, and the ceiling is then what says so.
 
+## Q-A212a: a sabotage run must count the CONTROL's tests, and W5 must refuse for its reason (predictions first)
+
+Ruled (reviewer chat, pasted by Daniel), verbatim. From 2026-11-06 ~02:40Z:
+
+> 6. #560 is approved to merge at 0532de62, under the same merge rule.
+>    - My Linux run: --selftest 11 of 12, --selftest-plants 1 of 8. Every off is W5-C, the real-reader control, which
+>      can't run here (no Windows netstat). That's expected, and it fails closed rather than passing.
+>    - One thing it exposed: under P-BUF, W5 stayed green here, because its planted command can't run on Linux and the
+>      reader refused for that reason instead. W5 checks that the reader refused, not why.
+> 7. Q-A212a: yes, as its own small PR after #560, with its plant (one file's cases dropped). Fold in W5: it must require
+>    the buffer refusal by its reason.
+
+**The two defects:**
+- **A sabotage run's total is never compared with the CONTROL's.**
+  - A partial runtime failure drops a file's cases **without failing them**, so a sabotage could read "as registered"
+    over a suite missing whole files.
+  - `sabotage-basemap.mjs` already guards its own runs this way (C-LOADFAIL).
+- **W5 checks THAT the reader refused, not WHY.**
+  - On Linux there is no `netstat`, so the reader refuses for that reason, and W5 passed under P-BUF there.
+  - A guard that passes for the wrong reason has not been seen working.
+
+**Read first, on main `62944845`** (2026-11-06 04:54:43Z, under the ruled conditions: TIME_WAIT 13, no other `vitest`
+or `sabotage-` process):
+- `npx vitest run`: **73 files (72 passed, 1 skipped); 976 tests: 975 passed, 1 skipped, 0 failed**; exit 0, in 38 s.
+- **TIME_WAIT peaked at 13,411** in samples during the run, **and read 13,539 just after.**
+  - That is up from 13,357 at 961 tests, so the margin under the 15,000 ceiling is now about 1,460.
+  - This is the growth §A2.12 said the ceiling would announce.
+
+### The change
+
+1. **`dropped(base, r)`:** when a graded sabotage run's total (`Tests … (N)`) differs from the CONTROL's, it is an
+   **instrument failure**, "cases dropped: the run counted N tests, the CONTROL M", and its raw output is kept.
+   - **A larger total fails too:** a sabotage cannot add tests, so a larger count means the tree moved.
+2. **W5 requires the refusal's reason:** the reader's error must name `ENOBUFS`, the code Node's `spawnSync` gives when
+   output passes `maxBuffer`. Its detail now prints the refusal it saw.
+
+### Predictions
+
+**1. `--selftest`: 14 of 14 as registered, exit 0.**
+- **The 12 checks of §A2.12, unchanged,** except that W5 now reads "refused (netstat failed (ENOBUFS))".
+- **T1 and T1-C run first,** so P-RIGEXIT's red set does not move:
+
+| id | planted | predicted |
+|---|---|---|
+| **T1** | a CONTROL of `Tests  975 passed \| 1 skipped (976)`, and a run of `Tests  2 failed \| 970 passed \| 1 skipped (973)` | "cases dropped: the run counted 973 tests, the CONTROL 976" |
+| **T1-C** | CONTROL: the same CONTROL, and a run of `Tests  2 failed \| 973 passed \| 1 skipped (976)` | graded |
+
+**2. `--selftest-plants`: 10 of 10 as predicted, exit 0.**
+- **The eight of §A2.12 keep their red sets:** C-PLANTS {}, P-RAW {R1, W1, W3}, P-INRUN {W1, W1-C, W3},
+  P-START {W2-R, W2}, P-CEIL {W1}, P-TABLE {W4} and P-BUF {W5}, each exit 1 except C-PLANTS (0).
+  - **P-RIGEXIT:** {W2-R, W2, W2-C, W3, W4, W4-C, W5, W5-C}, exit 2. T1 and T1-C print before it dies.
+- **And two new plants:**
+
+| plant | the defect | red, exit |
+|---|---|---|
+| **P-TOTAL** | the total comparison removed | {T1}, 1 |
+| **P-NOTNETSTAT** | the reader runs a command that does not exist, so it refuses with `ENOENT`, the Linux case | {W5, W5-C}, 1. **A W5 that checked only THAT it refused would stay green here, as on Linux** |
+
+**3. The driver, whole, once,** under the ruled conditions (checked by the operator's wrapper first). Exit 0:
+- CONTROL **975 passed, 1 skipped, of 976; 0 failed**;
+- S-SQ {SQ1, SQ2}, failed 2; S-SQP {SQ-C}, failed 1;
+- **each sabotage run counts 976**, so `dropped` stays silent;
+- starts under 2,000, and each peak near 13,500, under 15,000;
+- no `raw output kept` line; ALL AS REGISTERED; the tree clean after.
+
+**CI, baseline named: 34 check runs: 31 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.**
+- **The baseline:** #561's finished run, a `proxy/` PR.
+- It postdates `84409651` (#552), the last change to the set of jobs. Main's last workflow change is `259e8688` (#558),
+  steps only.
+
+**The outcomes, written before any run:**
+
+| reading | then |
+|---|---|
+| everything as predicted | open the PR, read CI |
+| W5 refuses but not with `ENOBUFS` | the reason code is not what I believe; stop and report the code it printed |
+| a plant OFF-PREDICTION, or a selftest line off | stop and report, with the printed lines |
+| a driver run reads "cases dropped" | the guard fired on a real run: stop; its raw output is kept; ruling |
+| a driver run on the ceiling, or a RIG | as §A2.12: stop and report |
+| **anything else** | stop and decide |
+
+### Read (2026-11-06, `c83887e6`, Windows; every reading as predicted)
+
+| step | read | verdict |
+|---|---|---|
+| **1. `--selftest`** (04:57:48Z) | 14 of 14 as registered, exit 0. T1: "cases dropped: the run counted 973 tests, the CONTROL 976". T1-C: graded. **W5: "refused (netstat failed (ENOBUFS))"**. W5-C read 22 | as predicted |
+| **2. `--selftest-plants`** (to 04:59:06Z) | 10 of 10 as predicted, exit 0. The eight of §A2.12 at their sets; **P-TOTAL {T1}; P-NOTNETSTAT {W5, W5-C}**. P-RIGEXIT's copy again left its plant target reading `PLANTED`, and that synthetic dir was removed | as predicted |
+| **3. the driver, whole** (wait clear 04:59:39Z: TIME_WAIT 10, no other `vitest` or `sabotage-` process; exit 0 at 05:04:59Z) | CONTROL **975 passed, 1 skipped, of 976; 0 failed** (start 11, peak 13,537). **S-SQ {SQ1, SQ2}** (start 1,458, peak 13,536). **S-SQP {SQ-C}** (start 1,794, peak 13,536). Each counted 976, so no "cases dropped". No `raw output kept` line. ALL AS REGISTERED. The tree was clean after | as predicted |
+
