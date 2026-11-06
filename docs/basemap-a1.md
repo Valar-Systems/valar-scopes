@@ -593,3 +593,134 @@ These are added to section 6's set. They run first, before the other nine airpor
 - **The baseline:** #560's finished run (a `proxy/` PR, 34 = 31/3, first check run about 01:52Z). It postdates the last
   change to the set of jobs, `84409651` (#552).
 - **Main's last workflow change** is `259e8688` (#558), which adds a step only.
+
+## 9. The staging slot (2026-11-06, 03:27-04:38Z): A1 on staging; read, with three offs ruled
+
+### The rulings, verbatim (reviewer chat, pasted by Daniel)
+
+From ~04:22Z, point 6:
+
+> 6. The slot:
+>    - Q-S1: yes. SR3 is re-registered as "200, stored or hit, never in-flight", miss kept (the handler reads the Cache API
+>      before R2). Run the nine.
+>    - Q-S2: the 2.5 s target stands, graded on the server's ms with nearest-rank p95 over the ten. KSEA's 2,530 ms is
+>      recorded off, so that row is already off. Read the nine for the other rows as they come.
+>    - After the slot, the SYNC_WAIT_MS proposal: set it from the target, with its own predictions, as its own PR. D4's
+>      production plan waits for it.
+>    - The builder's commit: confirm it from health after builds have run. If basemap.commit still reads null once the
+>      answering isolate has built, stop and report.
+
+From ~04:32Z, points 2 to 6:
+
+> 2. Q-S3: keep KJFK; don't replace it.
+>    - Its row is re-registered as "422 stored-error, kept, never rebuilt", miss kept. A1 did what it should with a
+>      too_large build.
+>    - Pre-ruled for the rest of the slot: any other too_large build reads the same way and is recorded, not a stop.
+>    - Run the remaining four (KDFW, KMIA, KBOS, KMSP). Read KATL's retry and +50 s now, recording the real delays.
+> 3. KJFK is also a product finding, and D4 waits on it: at these parameters, a New York Blipscope would get no map at
+>    all. Before D4's production plan, propose with predictions first what a scope in a dense area gets. Examples: the
+>    builder fits the budget by dropping detail, or the client asks again for a coarser package. KJFK is its registered
+>    row.
+> 4. Q-S4: re-read the cancellation counter over the same two windows with process.exit removed, so it exits naturally.
+>    Accept the result only if it exits cleanly and its anchors hold.
+> 5. Stopping: noted. Kill the driver by pid first, as you now do.
+> 6. The 2.5 s row stays off (KSEA 2,530, KSFO 2,570). Keep reading it. The SYNC_WAIT_MS proposal comes after the slot,
+>    as ruled.
+
+### Before the reading
+
+- **The slot opened** when Daniel pasted "#548 staging verified" (about 03:27Z). Staging and production were both on
+  `5c300417` (#548).
+- **The rollback targets, recorded first:**
+  - proxy staging `6833b32c-905e-4f87-8ef0-74bebebd0040` (#548's deploy, 03:01:08Z);
+  - builder staging `46addd75-64dc-4570-bb9a-f01583bb3574` (#541's, 2026-11-05 17:16:58Z).
+  - **Neither was used.**
+- **Carried commits:** each was read against the bundle's real inputs (§ "Read first" in `docs/deploy-behind-per-target.md`).
+  - From `5c300417` (the proxy) and from `048ed7b` (the builder) to `9b511dc2`, **only A1 touches either Worker's
+    inputs.**
+  - #545, #558 and #556 touch none. A1's own `types.ts` change is erased at compile time.
+- **`bm:store`:**
+  - **Read first:** the store's own `bm/v1/current` pointer names `4c0875738f38`. The KV key was absent: an anchor read
+    listed staging's one `cfg:` key, and `bm:` held 0 keys.
+  - **Written once at 03:30:38Z** in staging's `ENRICH_KV`, and read back equal twice, a minute apart.
+- **The deploys, from `9b511dc2` by name** (its main CI finished first: 34 check runs, 32 success, 2 skipped):
+  - **Proxy:** `4790510d-899e-4f63-847b-7079ae658ff9`. `confirm-deploy` read `/healthz` = `9b511dc2`.
+  - **Builder:** `cf2142c3-bb2c-4ff4-80fa-32df633e58fc`, stamped `9b511dc274c34ea3e86318973b9de304e3a600c3`.
+- **The builder's commit, confirmed after the builds (04:28:39Z):** 3 of 10 `/healthz` reads show exactly that commit,
+  with store `4c0875738f38`. The other 7 are null (isolates that had not built), and none shows another commit.
+
+### The ten, read
+
+Server-side `ms` and the colo come from each request's own log line. Every request went through the test identity,
+with headers on stdin.
+
+| airport | first: `known-miss`, ms | second: `in-flight` | retry | +50 s | the one build (status, reads, MB, wall ms) | package / lock |
+|---|---|---|---|---|---|---|
+| KSEA (SR1: a concurrent pair) | **2,530** (SJC) | 729 (SEA) | 200 `stored`, 148 | 200 `hit`, 18 | 200, 58, 21.5, 6,614 | present / absent |
+| KSFO | **2,570** (SEA) | 396 (SJC) | 200 `stored`, 192 | 200 `stored`, 138 | 200, 50, 16.1, 5,085 | present / absent |
+| KLAX | 2,419 (SEA) | 413 (SJC) | 200 `stored`, 194 | 200 `hit`, 140 | 200, 49, 15.7, 4,580 | present / absent |
+| KORD | 2,310 (SJC) | 217 (SJC) | 200 `stored`, 282 | 200 `stored`, 290 | 200, 52, 23.4, 4,479 | present / absent |
+| **KJFK** | 2,397 (SJC) | 263 (SJC) | **422 `stored-error`**, 312 | **422 `stored-error`**, 320 | **422**, 57, 38.4, 7,525 | no package (its 422 kept) / not read |
+| KATL | 2,317 (SJC) | 350 (SEA) | 200 `stored`, 541, **at 355 s** | 200 `stored`, 316, **at 356 s** | 200, 50, 26.8, 4,237 | present / absent |
+| KDFW | 2,250 (SJC) | 312 (SJC) | 200 `stored`, 347 | 200 `stored`, 352 | 200, 50, 19.8, 5,467 | present / absent |
+| KMIA | 2,473 (SEA) | 301 (SEA) | 200 `stored`, 164 | 200 `hit`, 52 | 200, 48, 18.1, 5,212 | present / absent |
+| KBOS | 2,336 (SJC) | 311 (SEA) | 200 `stored`, 255 | 200 `stored`, 116 | 200, 57, 36.9, 8,384 | present / absent |
+| KMSP | 2,307 (SJC) | 322 (SJC) | 200 `stored`, 191 | 200 `hit`, 28 | 200, 67, 27.0, 5,825 | present / absent |
+
+**Graded against the rows as registered and re-registered:**
+
+| row | read | verdict |
+|---|---|---|
+| **§6: the first request is 202 `known-miss`** | 10 of 10 | as predicted |
+| **§6: under 2.5 s at p95** (server `ms`, nearest-rank over the ten = the maximum) | **2,570 ms.** KSEA 2,530 and KSFO 2,570 are over; the other eight are 2,250-2,473 | **off, as ruled.** It stays off |
+| **§6 / SR2: the second request is 202 `in-flight`, with no second build** | 10 of 10; **exactly one build per query** | as predicted |
+| **§6: the retry is 200 `stored`, under 2.5 s at p95** | 9 of 9 built packages; p95 541 ms | as predicted |
+| **KJFK** (re-registered: "422 `stored-error`, kept, never rebuilt") | 422 `stored-error` twice, one build | as re-registered |
+| **SR1: create-once** | the pair landed in **two colos** (SEA, SJC); one `known-miss`, one `in-flight`, one build; the package present and the lock absent | as predicted, so **no rollback** |
+| **SR3** (re-registered: "200, `stored` or `hit`, never `in-flight`") | 9 of 9 built: 5 `stored`, 4 `hit`; never `in-flight`. KATL's was read at 356 s, as ruled | as re-registered |
+| **SR4: no lock is left** | 9 packages present, 0 locks | as predicted |
+| **totals: exactly 10 builder invocations** | 10 `bm_build` lines: 9 × 200, 1 × 422 | as predicted |
+| **totals: 0 cancellation lines** | **0 in each of the three windows.** Anchors: 4, 18 and 18 request lines; each read exited cleanly (Q-S4) | as predicted |
+| **totals: 10 packages and 0 locks** | 9 packages, KJFK's 422 kept, 0 locks | as re-registered (KJFK) |
+
+### The offs, and what happened around them
+
+- **SR3's label** (`hit`, not `stored`) **was my miss:** the handler reads the Cache API before R2. It was re-registered
+  by ruling.
+- **The 2.5 s row is off,** and stays off by ruling.
+  - **What the first request is made of:** `SYNC_WAIT_MS` (2,000) plus what runs before the race (the KV read, the R2
+    reads, the lock create), about 250 to 570 ms here.
+  - **That is the SYNC_WAIT_MS proposal's input,** as ruled.
+- **KJFK built `too_large`** (422; 57 reads, 38.4 MB read).
+  - A1 kept the 422 and did not rebuild.
+  - **The product finding** (ruling ~04:32Z, point 3) waits for its own proposal, before D4.
+- **The stop overran by three requests.**
+  - I decided to stop on KJFK's retry at 04:27:20Z, but the stop tool left `a1-phase.sh` running.
+  - It sent KJFK's +50 s and KATL's first and second requests before I found it by command line and killed its tree
+    (04:28:02Z).
+  - Drivers are now killed by pid first.
+- **The cancellation counter's first reads crashed at exit:** a libuv assertion after `process.exit`, printed *after*
+  their results.
+  - **The re-read,** with no `process.exit` (Q-S4), exited cleanly with its anchors holding: 0 and 0.
+  - The last window was read with the fixed counter.
+
+**C1's effect, for the record:** cold builds took 4.2 to 8.4 s of wall time here. That compares with 7.6 to 22 s before
+parallel reads (MM2, #541), though the places and the colos differ.
+
+### State after the slot
+
+- **Staging runs A1:** proxy `4790510d` and builder `cf2142c3`, both from `9b511dc2`.
+- **Staging's bucket** holds 9 packages and KJFK's 422 record. They expire under the 30-day rule (4b).
+
+**Before D4's production plan,** as ruled, two proposals with predictions first:
+- what a scope in a dense area gets, with KJFK as its registered row;
+- `SYNC_WAIT_MS`, set from the 2.5 s target.
+
+**The instruments, as run** (scratchpad paths), are in `docs/basemap-a1/instruments/`:
+- `a1-request.sh`, `a1-phase.sh`, `a1-r2probe.mts`, `a1-cancel.mts`, `bb-lines.mts`;
+- `ci-wait.sh`, and `merge-by-rule.sh` (the ~04:22Z merge rule);
+- `mm4-lines.mts` is already in `docs/basemap-branch-log/instruments/`.
+
+**CI for this records PR (docs only), predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`,
+`version`), 0 failed.** The baseline is #562's finished docs-only run (31 = 28/3). It postdates `84409651`, the last
+change to the set of jobs.
