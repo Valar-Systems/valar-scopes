@@ -52,16 +52,24 @@ const MODEL_DEFAULTS: Record<string, Partial<ModelConfig>> = {
 };
 
 // Fleet overrides live in KV key `cfg:fleet` -- one `wrangler kv key put`, no
-// deploy: { rev, minFw, defaults: {...}, models: { "<slug>": {...} } }.
-// Precedence (low -> high): BASE < baked model < KV defaults < KV model.
+// deploy: { rev, minFw, defaults: {...}, models: { "<slug>": {...} }, devices: { "<id>": {...} } }.
+// Precedence (low -> high): BASE < baked model < KV defaults < KV model < KV device.
 interface FleetConfig {
   rev?: number;
   minFw?: string;
   defaults?: Partial<ModelConfig>;
   models?: Record<string, Partial<ModelConfig>>;
+  // The per-device layer (Daniel, 2026-11-05; docs/bend-site-feed.md, "The feeder's night cadence"): one entry for the
+  // Bend feeder, its day interval at night. Every device not listed is unchanged; deleting the entry undoes it.
+  devices?: Record<string, Partial<ModelConfig>>;
 }
 
-export async function handleConfig(request: Request, env: Env): Promise<Response> {
+const isPlainObject = (x: unknown): x is Record<string, unknown> =>
+  typeof x === "object" && x !== null && !Array.isArray(x);
+
+// `deviceId` is the VERIFIED, lowercased identity from the auth gate (index.ts authenticate), never the raw header:
+// /config is reached only past that gate.
+export async function handleConfig(request: Request, env: Env, deviceId: string): Promise<Response> {
   const model = (request.headers.get("X-Blip-Model") ?? "").trim();
   let fleet: FleetConfig = {};
   try {
@@ -69,12 +77,17 @@ export async function handleConfig(request: Request, env: Env): Promise<Response
   } catch {
     // malformed KV JSON must not brick config: serve baked defaults
   }
+  // A `devices` or an entry that is not a plain object is ignored: the device then gets exactly what it gets without it.
+  const devices: unknown = isPlainObject(fleet) ? fleet.devices : undefined;
+  const entry: unknown = isPlainObject(devices) ? devices[deviceId] : undefined;
+  const device: Partial<ModelConfig> = isPlainObject(entry) ? (entry as Partial<ModelConfig>) : {};
 
   const resolved: ModelConfig = {
     ...BASE,
     ...(MODEL_DEFAULTS[model] ?? {}),
     ...(fleet.defaults ?? {}),
     ...(fleet.models?.[model] ?? {}),
+    ...device,
   };
 
   return jsonResponse({

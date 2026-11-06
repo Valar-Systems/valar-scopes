@@ -1466,6 +1466,17 @@ else
     cat "$OUT/anchors.log"
     fail=1
   fi
+  # A12.84/A12.87: S-TW's plant, the touch supervisor's board control (its OnPoll call removed), the same way.
+  "$PY" "$ROOT/tools/weatherscope/board/plant_s_tw.py" --anchors > "$OUT/anchors.log" 2>&1
+  rc=$?
+  line=$(grep "^ANCHORS " "$OUT/anchors.log" | tail -1)
+  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then
+    echo "  ok   $line (a board plant)"
+  else
+    echo "  FAIL plant_s_tw.py --anchors (exit $rc):"
+    cat "$OUT/anchors.log"
+    fail=1
+  fi
   "$PY" "$ROOT/test/host/sabotage_anchors_control.py"
   [ "$?" -ne 0 ] && fail=1
 fi
@@ -1870,6 +1881,54 @@ fi
   exit "$fail"
 )
 note_block $? "WxFeeds"
+
+# The OTA identity record and the accept rule (include/OtaIdentity.h; docs/weatherscope-stage3.md A12.103, A12.104):
+# the real heads, every parse rule, and the two matrices over today's identities (test/fixtures/ota/identities.txt,
+# which CI's ota-identity job holds equal to the fleet). Its sabotages: python -I test/host/sabotage_ota_identity.py
+echo
+echo "== OTA identity: the record and the accept rule (OtaIdentity.h) =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_ota_identity.cpp" -o "$OUT/test_ota_identity.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the OTA identity test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_ota_identity.exe" "$ROOT/test/fixtures/ota"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the OTA identity test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "OTA identity: the record and the accept rule (OtaIdentity.h)"
+
+# The install decision (include/OtaInstall.h; A1.3's O7 and O10, A12.104): a refused image makes no flash call --
+# asserted on a boot HISTORY, since the withdrawn design switches back and a final state would pass it.
+# The binary is NOT named after the source: Windows' installer detection makes a 32-bit .exe whose name contains
+# "install" (MinGW's) demand elevation, and it exits 126 "Permission denied" without running.
+# Its sabotages: python -I test/host/sabotage_ota_install.py
+echo
+echo "== OTA install: a refused image never touches flash (OtaInstall.h) =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_ota_install.cpp" -o "$OUT/test_ota_decision.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the OTA install test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_ota_decision.exe" "$ROOT/test/fixtures/ota"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the OTA install test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "OTA install: a refused image never touches flash (OtaInstall.h)"
 
 echo
 echo "== pre-build patches: which libraries count as declared (docs/prebuild-patches.md, T2) =="

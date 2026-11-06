@@ -2,6 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { deriveDeviceKey } from "../src/deviceauth";
 import { FAKE_DEVICE_IDS } from "../src/fakeids.generated";
 import { apiRequest, call } from "./helpers";
+import { env as testKv } from "cloudflare:test";
+import { actKey } from "../src/activation";
+
+// Since the activation allowlist (docs/device-activation.md), an id must be LISTED to enrol at all; the
+// guard's controls below list theirs first, so the only thing that can refuse them is still the guard.
+const list = (id: string) =>
+  testKv.ENRICH_KV.put(actKey(id), JSON.stringify({ v: 1, state: "listed", listedAt: "2026-11-05T00:00:00Z", resets: 0 }));
 
 // Production refuses ids from the repo's fake-id allowlist; staging does not.
 // Every request below carries a VALID key derived for its id, so the only thing
@@ -78,12 +85,14 @@ describe("fake-id guard on enrol", () => {
   });
 
   it("CONTROL production: a real-shaped id is NOT refused by the guard", async () => {
+    await list(REAL);
     const res = await enroll(REAL, PROD);
     expect(res.status).not.toBe(403);
     expect(siteverify).toBe(1);
   });
 
   it("staging: a fake id is not refused by the guard", async () => {
+    await list(FAKE);
     const res = await enroll(FAKE, STAGING);
     expect(res.status).not.toBe(403);
     expect(siteverify).toBe(1);

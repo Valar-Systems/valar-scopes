@@ -628,3 +628,365 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **Weatherscope has the fix.** No other failure.
 
 **D3's deploy and verification** wait for the staging test identity (`docs/test-identity.md`), now minted. They run once #513 is merged.
+
+## D3, re-registered: the UK data session's deploy (registered before any D3 row is read, 2026-11-04)
+
+**The rulings, verbatim (reviewer chat, pasted by Daniel).** From ~20:55Z, the D3 part:
+
+> D3, ruled:
+> 1. The commit: (c), main's tip f740f10, once main's CI on it reads green (two reads). Not main at deploy time.
+>    Staging gets #512, #521, #522 and #525.
+> 2. Re-evaluate every frozen D3 row against #521, #522 and #525 before running. A row that changes is re-registered in
+>    the docs first, with its reason; anything you can't settle that way, stop and ask.
+> 3. MM2: GraphQL analytics in place of Workers Logs, accepted with two controls registered before D3: it counts the
+>    build request(s) D3 makes through the bound staging proxy (at least 1), and it reads 0 for the hour before D3. If
+>    it can't see the build, MM2 is BLIND, which is a FAIL: stop.
+> 4. Also read #525's live-page row on staging, read-only: the preview of the UK data session's PD7.
+> 5. Report through Daniel. The UK data session then deploys the same commit to staging and production; that is
+>    #525's deploy.
+
+From ~21:25Z:
+
+> 2. D3 changes shape, to keep the deploy moving: the UK data session deploys f740f10 to staging and production now
+>    (its PD), and that staging step is D3's deploy. Re-register D3 in the docs before reading:
+>    - deployed by the UK data session, at the time it gives Daniel;
+>    - V1 and the other rows read after that deploy; V2 after #532 merges, since it needs the fixed smoke;
+>    - MM2's GraphQL window starts at that deploy, and its control hour (0 invocations) is the hour before it, read
+>      from analytics after the fact.
+>    A row that can no longer be read as frozen, say so; don't stretch it.
+> 3. If any D3 row reads off on staging: stop and report. Staging's rollback target is c7fa5f84 (the UK data session
+>    recorded it). Production is unaffected: its binding stays absent.
+
+**The deploy.**
+- It was made by the UK data session from `f740f10`.
+- `wrangler deployments list --env staging` (read-only) shows version **`cc4dcf89`**, created **21:21:13Z** by Daniel's
+  account. It replaced **`c7fa5f84`**, the rollback target.
+- **T0 is the time the UK data session gives Daniel.** If that differs from 21:21:13Z by more than 2 minutes, I report
+  it before reading.
+- main's CI on `f740f10` read green on two reads: 45 runs, 43 success, 2 skipped, 0 failed.
+
+**Read before this registration, recorded rather than re-read.** At 21:21:36Z, checking whether the deploy had
+happened, I read staging's `/healthz`: `commit f740f10`, `basemap {rev: 1, store: null, commit: null}`. That is the
+deploy row's MH2 value as #512 froze it. This re-registration changes who deploys, not MH2's value, so the reading stands
+as made.
+
+**#521, #522 and #525 against every frozen D3 row: none changes.**
+- No D3 row reads `/credits` (its smoke half is D4's) or `/wx`.
+- No basemap or `/healthz` code changed after #512.
+- The smoke's `/basemap` check is unchanged in this commit. It is broken (`docs/smoke-basemap-query.md`, #532); that
+  is a defect, not a change carried by these three PRs.
+
+**The instruments, checked read-only before registering:**
+- **GraphQL `workersInvocationsAdaptive`** returns `sum{requests}`, `quantiles{cpuTimeP50, cpuTimeP99, wallTimeP50,
+  wallTimeP99}` (microseconds) and `dimensions{datetimeMinute, status}`. For `blipscope-basemap-staging` over the 3 h
+  before 21:20Z it read **0 rows**.
+- **Staging's Workers Logs** events carry `$workers.cpuTimeMs`, `$workers.wallTimeMs`, `$workers.outcome` and the
+  request path and status.
+
+### The rows, as they are now read
+
+**Every `/basemap` request is mine:**
+- made as the test identity (`test-key-staging`, `curl -K -`);
+- with Weatherscope's query: `eps=100584`, `layers=water,rivers,roads,peaks,places,terrain`,
+  `levels=24743664:246,49487328:246,98974656:246`;
+- each request that reaches the builder at least 2 minutes from the next, so each minute's count is one request's.
+
+**The centres are public airports:** KDEN (39.8617, -104.6731), EGLL (51.4700, -0.4543) and, only if MM6 needs it,
+KATL (33.6407, -84.4277).
+
+| row | read how | predicted |
+|---|---|---|
+| **the deploy row** | staging `/healthz` `commit`, plus wrangler's record of the deploy | `f740f10`; `cc4dcf89` at 21:21:13Z. MH2 as read above |
+| **MM2's control A** | GraphQL, the builder, **[T0 - 60 min, T0)**, read after the fact | **0 invocations** |
+| **no one else reached the builder** | GraphQL, the builder, [T0, my first `/basemap` request) | **0**. Any invocation there is not mine: off, stop |
+| **MM2** | the first request, KDEN r 97 with terrain: a cold build. GraphQL for that minute | **control B: exactly 1 invocation.** Its CPU **≤ 3,000,000 µs** and wall **≤ 8,000,000 µs**. HTTP 200, BMPK magic and an ETag. A miss of control B is BLIND, which is a FAIL: stop |
+| **V1** | after the KDEN build, staging `/healthz` `basemap`, up to 5 reads 10 s apart (the field is the answering isolate's last build) | the first non-null reads `commit 9f44a1a273b54a6890253c2126b17dc3a742c76c`, a non-null `store`, `rev 1`. All 5 null: off, stop |
+| **MM4** | the same request, at least 2 min later | 200; the proxy's `$workers.cpuTimeMs` **≤ 10**; **0** builder invocations in its minute |
+| **MM5, V3** | the same request with `If-None-Match: <its ETag>` | **304**; `cpuTimeMs` **≤ 5**; **0** builder invocations, so 0 store reads (the store is read only by the builder) |
+| **V4** | EGLL, the same query | **`404 no_coverage`**; exactly **1** builder invocation in its minute (the proxy has no coverage check of its own) |
+| **MM6** | the KDEN build, if its builder CPU was over 200 ms | the proxy's `$workers.outcome` is `ok`, and the builder's GraphQL `status` is `success`: no exceeded CPU or memory. **If its CPU was 200 ms or less:** one KATL r 222 build, read the same way, which is one more invocation in its own minute |
+| **V2** | after #532 merges: the fixed smoke, `BASE` staging, as the test identity | its `/basemap` verdict **"PASS -- wired"**, and 1 builder invocation in its minute. The smoke's other checks are reported as read, not graded |
+| **#525's live-page row** | staging `/credits`, read-only | each row's first licence link tallies CC BY-SA 4.0 48, 2.0 36, 3.0 18, 3.0 AU 12; CC BY 2.0 32, 4.0 24, 3.0 3, 2.5 2; OGL v1.0 1; Public domain 61. The ShareAlike clause on 114 rows, the paragraph once; "adsbdb" 0; the standing-data line once; OPERA's line once |
+| **the rollback window** | staging's Analytics (`blipscope_proxy_staging`), **[T0, T0 + 15 min)**, read after the fact: device 5xx, 401 and 403, with the test identity excluded | **0** |
+| **the stop rules** | any `500 builder_invalid`; builder exceeded CPU or memory above 0; any off reading | none. Any of them: stop and report. The rollback target is `c7fa5f84` |
+
+### Rows that can no longer be read as frozen, said so
+
+- **The deploy row's "`deploy.sh staging`: its confirmation reads the stamp".** The deploy and its confirmation were
+  the UK data session's. I read the stamp from `/healthz` and wrangler's record instead.
+- **§9's "roll the proxy back AT ONCE" on a fleet 5xx, 401 or 403 in [T, T + 15 min).** I read that window after the
+  fact, so "at once" cannot be mine. An off reading there is a stop and a report.
+- **MH2's "before any build".** It was read once, at 21:21:36Z, before this registration (above), not as a registered
+  row.
+
+**Outside the set:** stop and report.
+
+### D3, read on staging (2026-11-04, 21:24-21:32Z): three readings OFF, stopped
+
+| row | read | verdict |
+|---|---|---|
+| **the deploy row** | `/healthz` `commit f740f10`; wrangler `cc4dcf89` at 21:21:13Z; MH2 as read at 21:21:36Z | as registered |
+| **MM2's control A** | GraphQL, the builder, [20:21:13Z, 21:21:13Z): **0 invocations** | as registered |
+| **no one else reached the builder** | [21:21:13Z, 21:24:48Z): **0** | as registered |
+| **MM2: HTTP** | KDEN at 21:24:48Z: **200, 214,179 bytes, BMPK magic, an ETag** (`bm1-1-4c0875738f38-…`) | as registered |
+| **MM2's control B** | the 21:24 minute: **exactly 1 invocation**, status `success` | as registered |
+| **MM2: CPU** | **2,334,418 µs**, under 3,000,000 | as registered |
+| **MM2: wall** | **22,245,516 µs (22.2 s)**, against 8,000,000 or less | **OFF** |
+| **V1** | `/healthz`: read 1 (21:25:18Z) `{rev 1, store null, commit null}`; **read 2 (21:25:28Z) `{rev 1, store 4c0875738f38, commit 9f44a1a273b54a6890253c2126b17dc3a742c76c}`** | as registered (the first non-null read) |
+| **MM4: HTTP** | KDEN again at 21:27:09Z: 200, the same bytes and ETag | as registered |
+| **MM4: builder calls** | the 21:27 minute: **1 invocation** (CPU 1,782,837 µs, wall 11.7 s), against 0 | **OFF** |
+| **MM5, V3: HTTP** | KDEN with `If-None-Match` at 21:29:22Z: **304** | as registered |
+| **MM5: builder calls** | the 21:29 minute: **1 invocation** (CPU 2,501,166 µs, wall 13.1 s), against 0 | **OFF** |
+| **V4: HTTP** | EGLL at 21:31:36Z: **404 `no_coverage`** | as registered |
+| **#525's live-page row** | staging `/credits` (21:25:47Z): 237 photo rows. First-licence tally: CC BY-SA 4.0 48, 2.0 36, 3.0 18, 3.0 AU 12; CC BY 2.0 32, 4.0 24, 3.0 3, 2.5 2; OGL v1.0 1; Public domain 61. The clause on 114 rows, the paragraph once; adsbdb 0; standing-data once; OPERA once | as registered |
+| **not read, stopped first** | V4's builder minute (not yet in analytics at 21:31:50Z); MM4's and MM5's proxy CPU; MM6; the rollback window; V2 (waits for #532) | — |
+
+**MM4 and MM5, the cause: my own registered procedure, not the design they test.**
+- The handler believes an isolate's store id for **`STORE_TTL_MS = 60_000`** (`handler.ts:19`).
+- After that it asks the builder, as a full build: the CPU of the 21:27 and 21:29 invocations is a full build's.
+- **I registered at least 2 minutes between builder-reaching requests,** so each minute's count would be one
+  request's. That spacing put MM4 and MM5 past the 60 s TTL **by construction**. Both rows assume the isolate still
+  knows the store.
+- **The alternative,** that MM4 and MM5 landed on a different isolate (read 1 of V1 shows another isolate answering), is
+  not excluded either. Even inside the TTL, a request that lands on an isolate other than the one that built calls the
+  builder.
+- So the rows **were not tested as designed.** They need a reading made inside the TTL. Proposed re-reading, for a
+  ruling:
+  - a fresh build, then the repeat and the `If-None-Match` request **within 60 s** of it;
+  - **the build's minute (or that minute plus the next) reads exactly 1 builder invocation**;
+  - the isolate risk is stated as such.
+
+**MM2's wall: a real OFF reading of the frozen band.**
+- Builder wall time was **22.2 s** for the cold KDEN build. The two rebuilds took **11.7 s** and **13.1 s**. All three
+  are above 8 s.
+- The CPU band holds.
+- GraphQL's `wallTime` is the invocation's duration, including the waits on the store's R2 reads. So the gap between
+  CPU (~2 s) and wall (11-22 s) is time spent waiting on the store.
+- **This matters before D4:** a device's request timeout has to allow for it.
+
+**Rollback:** not done. Every answer was correct (200, 304, 404 `no_coverage`), with no 5xx and no `builder_invalid`.
+The rollback target stays `c7fa5f84` if the ruling asks for it.
+
+### The ruling on the stop, verbatim (reviewer chat, pasted by Daniel, ~21:55Z)
+
+> 1. #532 at 639e513bd818: approved; CI matched. Merge (squash, --match-head-commit, no --admin), record main's CI on
+>    the merge commit, then read V2.
+> 2. D3: no rollback. Every answer staging gave was right; staging stays on cc4dcf89. Push the readings (7a95b03).
+> 3. MM4 and MM5: the first readings (1 builder call each) are kept as the miss; the procedure spaced them past
+>    STORE_TTL_MS. Re-register and re-read them inside the TTL as you propose: a fresh build whose minute (or that
+>    minute and the next) reads exactly 1 builder invocation, then the repeat and the If-None-Match request within
+>    60 s of it, adding 0. State the isolate risk in the registration; an extra invocation from another isolate is
+>    reported as such, not explained away.
+> 4. MM2's wall time (22.2 s against <= 8 s): off, kept, not re-registered for D3. It blocks D4: before D4's
+>    predictions, find where the 11-13 s goes (how many R2 reads a build makes and how long they take), and have D4
+>    state a cold-build wall time against the device's request timeout, with margin.
+> 5. The rows not read when you stopped (V4's builder minute, MM4's and MM5's proxy CPU, MM6, the rollback window):
+>    read as registered, from analytics where the time has passed. V2 after #532 merges.
+
+### The rows not read at the stop, read after the fact (as registered)
+
+Read at 21:53-21:56Z. GraphQL's earlier minutes read identically to the 21:31:50Z read, so the data is static.
+
+| row | read | verdict |
+|---|---|---|
+| **V4's builder minute** | the 21:31 minute: **exactly 1 invocation**, status `success`; CPU 27,143 µs, wall 0.68 s (the builder answering `no_coverage`) | as registered |
+| **MM4's proxy CPU** | the 21:27:09Z request's invocation event: 200, outcome `ok`, **`cpuTimeMs` 22** against ≤ 10 | **off**: the kept miss. The request went to the builder because the store id had expired, so it is not the cache-hit path the row measures |
+| **MM5's proxy CPU** | the 21:29:22Z request: 304, `ok`, **`cpuTimeMs` 19** against ≤ 5 | **off**: the kept miss, for the same reason |
+| **MM6** | the KDEN build: builder CPU 2,334 ms, over 200. The proxy's invocation `outcome ok` (`cpuTimeMs` 36); the builder's GraphQL `status success`. No exceeded CPU or memory | as registered |
+| **the rollback window** | staging's Analytics, [21:21:13Z, 21:36:13Z): device 5xx **0**, 401 **0**, 403 **0**, from 0 devices other than the test identity. The query does see traffic: the test identity's 4 requests and 5 unattributed | as registered |
+
+**The instrument for the proxy CPU.** It is the staging proxy's **invocation** events (`$metadata.type`
+`cf-worker-event`), matched by the path in their URL and by time. The proxy's own per-request log line (`cf-worker`)
+carries no CPU field. A first query filtered on a `path` key that only the log lines carry, so it found none of the
+invocation events. That was an instrument fault, fixed before any value was read.
+
+### MM4 and MM5, re-registered inside the TTL (before any request)
+
+**The requests.** As the test identity, with Weatherscope's query at KDEN:
+- **B:** the build. Its isolate's store id expired long ago, so it is a builder invocation.
+- **R:** the repeat, sent about 10 s after B's response.
+- **I:** with `If-None-Match` set to B's ETag, about 20 s after B's response.
+
+R and I are **both within 60 s of B's response**, the moment its isolate learns the store id (`STORE_TTL_MS = 60_000`).
+
+| row | predicted |
+|---|---|
+| **B** | 200, BMPK, an ETag |
+| **MM4 (R)** | **200 from the cache: the proxy's `cpuTimeMs` ≤ 10** |
+| **MM5, V3 (I)** | **304: `cpuTimeMs` ≤ 5** |
+| **the builder count** | GraphQL: B's minute, or B's minute and the next if the three straddle a minute, reads **exactly 1 invocation**. R and I add **0** |
+
+**The isolate risk, stated.** The store id and the "this isolate knows the store" condition are per isolate. If R or I
+lands on an isolate other than the one that built (V1's first read did), that request calls the builder. **The count
+then reads 2 or 3, which is reported as an extra invocation from another isolate.** It is not explained away.
+
+### V2 (after #532 merges, and after main's CI on its merge commit is recorded)
+
+- **The run:** the fixed smoke, from a checkout of main with #532, `BASE` staging, as the test identity.
+- **Predicted:** its `/basemap` verdict **"PASS -- wired"**, and **1** builder invocation in its minute.
+- **The smoke's request:** Bend r 97, Weatherscope's query. It runs at least 3 minutes after the B, R and I group, so
+  its invocation is in a minute of its own.
+- **The smoke's other checks** are reported as read, not graded.
+
+**MM2's wall** stays off and kept, and is not re-registered for D3 (ruling 4). It is D4's to explain first.
+
+**Outside the set:** stop and report.
+
+### Main's CI on #532's merge, recorded (ruling 1)
+
+**c039a5e, from the finished run (0 unfinished):**
+- **41 check runs:** 39 success, 2 skipped (`promote`, `version`), 0 failed.
+- **Why 4 fewer than f740f10's 45:** f740f10 also ran `photos` (2 runs) and `photo-drift` (2).
+  - `photos` triggers on pushes to `proxy/photos/**`. #525 changed `credits.html` there; #532 changed no file under that path.
+  - `photo-drift` runs after `photos` (`workflow_run`).
+- **The alternative,** that the two should have run on c039a5e and did not start, is ruled out by those triggers.
+
+### MM4 and MM5 re-read inside the TTL (2026-11-04, 21:57Z): MM4 and the builder count OFF; stopped
+
+**The requests.** Sent as the test identity, with Weatherscope's query at KDEN.
+
+| | sent | answer | the proxy's invocation |
+|---|---|---|---|
+| **B** | 21:57:02Z | 200, 214,179 B, `BMPK`, an ETag; response at 21:57:11Z | `cpuTimeMs` 13, `wallTimeMs` 7,851 |
+| **R** | 21:57:21Z, 10 s after B's response | 200, 214,179 B, `BMPK`, **the same ETag as B's** | `cpuTimeMs` **25**, `wallTimeMs` **18,652** |
+| **I** | 21:57:49Z, 38 s after B's response, `If-None-Match` B's ETag | 304 | `cpuTimeMs` 0, `wallTimeMs` 1 |
+
+**The builder** (GraphQL, read at 22:00:33Z, window [21:55, 22:00)): one row, the 21:57 minute, status `success`.
+- **2 invocations,** 0 errors.
+- Wall p50 7.63 s, p99 18.24 s.
+
+| row | predicted | read | verdict |
+|---|---|---|---|
+| **B** | 200, BMPK, an ETag | 200, BMPK, an ETag | as registered |
+| **MM4 (R)** | 200 from the cache, `cpuTimeMs` ≤ 10 | 200 from **the builder**, `cpuTimeMs` 25 | **off** |
+| **MM5, V3 (I)** | 304, `cpuTimeMs` ≤ 5 | 304, `cpuTimeMs` 0 | as registered |
+| **the builder count** | exactly 1; R and I add 0 | **2: R added 1** | **off** |
+
+**The second builder invocation is R's.**
+- All three requests fall in the 21:57 minute.
+- That minute's two builder walls are 7.63 s and 18.24 s (with two samples, those are its p50 and p99). They match B's and R's proxy walls, 7.85 s and 18.65 s.
+- I's wall was 1 ms, too short for a builder call.
+- That rules out any caller other than these three requests.
+
+**Why R reached the builder: two causes, and the data rules out neither.** The handler skips the builder for a plain
+repeat only when **both** of these hold (`proxy/src/basemap/handler.ts:53-58`):
+- the isolate knows the store id (`knownStore`, within `STORE_TTL_MS`);
+- `caches.default` holds the package under the ETag's key. B's request writes that copy in `waitUntil`, after its response.
+
+The two causes:
+- **(a) Another isolate.** R landed on an isolate that did not know the store id. This is the risk the registration
+  named, and it is reported as registered: **an extra builder invocation, from another isolate**, if (a) is the cause.
+- **(b) B's isolate, with the Cache API missing.** R landed on B's isolate, which knew the store id. `cache.match` found
+  no copy, so R fell through to the builder.
+
+**Nothing read so far separates (a) from (b):**
+- No log line and no invocation event carries an isolate id.
+- Nothing records `cache.match`'s result.
+- All seven `/basemap` requests since 21:24Z were answered in one data centre, SJC. That does not separate isolates
+  inside it.
+
+**Recorded beside the two causes, not as a choice between them.** In D3 the 200 cache-hit path has **not been seen
+once**: MM4 has reached the builder both times, first past the TTL and now inside it. The 304 path has been seen, at
+0 ms. The two paths share `knownStore`; only the 200 path also needs the Cache API.
+
+R's build took 18.7 s against B's 7.9 s, for the same package. That is MM2's open question, which is D4's. It is
+recorded here and not graded.
+
+**Stopped.** V2 is not read, and no request has been sent since I.
+
+### The ruling on the re-read, verbatim (reviewer chat, pasted by Daniel, ~22:30Z)
+
+> #532: main's CI on c039a5e recorded (41: 39 success, 2 skipped, 0 failed). The 4 fewer than f740f10 are photos and
+> photo-drift, which trigger on proxy/photos/** only. Accepted.
+>
+> D3:
+> 1. Q-D3a: yes, push c8c2c7e. The off readings stay on record as read.
+> 2. Q-D3c: V2 may go now. It doesn't touch the cache path, and the stop covers rows the off reading can affect. Then
+>    read the other registered rows not yet read (V4's builder minute, MM6, the rollback window), from analytics where
+>    the time has passed.
+> 3. Q-D3b: MM4 stays off for D3, the miss kept, and moves to D4's prerequisites beside MM2:
+>    - a PR, predictions first, that puts the branch taken on the proxy's /basemap log line (304-known, hit,
+>      known-miss, unknown-store): no device id and no query, with a test per branch and a sabotage per label;
+>    - under it, MM4 read again on staging, inside the TTL;
+>    - D4's plan states how a request that lands on a fresh isolate is served. Today it can't hit the cache without the
+>      store id, so a device that lands on a fresh isolate pays a full build (8-19 s here). That and MM2's wall time
+>      are the two things D4 has to answer.
+> 4. Then close D3 in the docs with MM2 and MM4 off and carried to D4. No staging rollback.
+
+**V4's builder minute, MM6 and the rollback window had already been read.** They were read after the fact at
+21:53-21:56Z, under ruling 5 of ~21:55Z, and are recorded above in "The rows not read at the stop" (pushed in
+`0c43ef9`):
+- V4's builder minute: 1 invocation;
+- MM6: `ok` / `success`;
+- the rollback window: 0.
+
+All three are as registered. They are not read a second time.
+
+### V2, read (2026-11-04, 22:23Z)
+
+**The run.**
+- The fixed smoke, from main at `c039a5e` (#532's merge), detached.
+- `BASE` staging, as the test identity. Its stderr names "the test identity for staging, from BLIPSCOPE_TOKEN_FILE
+  (test-device + test-key-staging)".
+- 22:23:13-22:23:59Z, exit 0.
+
+**The baseline before it.** The builder over [21:58:00Z, 22:23:05Z): **0 invocations.**
+
+| row | predicted | read | verdict |
+|---|---|---|---|
+| **V2: the verdict** | "PASS -- wired" | HTTP 200, 205,214 bytes; `RESULT: PASS -- wired: a BMPK package, ETag "bm1-1-4c0875738f38-…", validate() kOk` | as registered |
+| **V2: the builder** | 1 invocation in its minute | the 22:23 minute: **1**, status `success`; nothing else in [22:23:00Z, 22:26:50Z) | as registered |
+
+**Read, not graded:**
+- **The smoke's summary:** PASS 38, FAIL 0, SKIPPED 0.
+- **The build:** builder CPU 3,277,575 µs, wall 22.0 s. The proxy's invocation: 200, `ok`, `cpuTimeMs` 31, `wallTimeMs`
+  22,187.
+- The CPU is above MM2's KDEN band (3,000,000 µs), for a different centre (Bend). The wall is MM2's question again. Both
+  go to D4.
+
+### The stop rules over the whole of D3, read [21:21:13Z, 22:27:36Z)
+
+- **The builder:** 7 invocations in 6 minutes. Every one has status `success`, with 0 errors and no exceeded CPU or
+  memory.
+- **Staging's `/basemap` log lines:** 8, every one mine by time: MM2, MM4, MM5, V4, B, R, I and V2.
+  - Statuses: 200 ×5, 304 ×2, 404 ×1.
+  - **No 500, so no `builder_invalid`.** All 8 were answered in SJC.
+- **The 7 builder invocations are those requests'.** MM2, MM4, MM5, V4, B, R and V2 made one each; I made none (304,
+  0 ms). **So nobody else reached the builder during D3.**
+
+**Verdict:** none of the stop rules fired, as registered.
+
+## D3: closed (2026-11-04), with MM2 and MM4 off and carried to D4
+
+| row | final |
+|---|---|
+| the deploy row | as registered |
+| MM2's control A, and control B | as registered |
+| no one else reached the builder | as registered, and over the whole of D3 (above) |
+| MM2: HTTP, and CPU | as registered |
+| **MM2: wall** | **OFF, kept:** 22.2 s for the cold KDEN build, against 8 s or less. **Carried to D4** |
+| V1 | as registered |
+| **MM4** | **OFF, kept, both readings.** Past the TTL: the procedure's miss. Inside the TTL: R reached the builder, from another isolate or through a Cache API miss, and the two are not separated. **Carried to D4** |
+| MM5, V3 | The first reading's builder call and CPU are kept as the miss. The re-read inside the TTL is as registered: 304, `cpuTimeMs` 0 |
+| V4, and its builder minute | as registered |
+| MM6 | as registered |
+| V2 | as registered |
+| #525's live-page row | as registered |
+| the rollback window | as registered |
+| the stop rules | as registered |
+
+**Where each environment stands:**
+- **Staging** stays on `cc4dcf89` (`f740f10`), with the `BASEMAP` binding. There is no rollback.
+- **Production's** binding stays absent.
+
+**D4's prerequisites, as ruled, before D4's predictions:**
+1. **MM2's wall.** Find where a build's wall time goes: how many R2 reads a build makes, and how long they take. D4
+   then states a cold-build wall time against the device's request timeout, with margin. D3's walls for the six builds:
+   22.2, 11.7, 13.1, 7.6, 18.2 and 22.0 s, with CPU from 1.4 to 3.8 s. V4's `no_coverage` was 0.7 s.
+2. **MM4.**
+   - A PR, predictions first, puts the branch taken on the proxy's `/basemap` log line: `304-known`, `hit`,
+     `known-miss` or `unknown-store`.
+   - It carries no device id and no query, and has a test per branch and a sabotage per label.
+   - Under it, MM4 is read again on staging, inside the TTL.
+3. **A fresh isolate.** D4's plan states how a request that lands on one is served. Today such a request cannot hit
+   the cache without the store id, so it pays a full build: 7.6 to 22 s in D3.

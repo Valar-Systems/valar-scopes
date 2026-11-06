@@ -9,33 +9,48 @@ are versioned and released **together** from a single commit, and each device se
 - A device checks `releases/latest/download/version.txt` — a single integer, the latest
   firmware version, shared by all SKUs.
 - If that integer is greater than the device's compiled `FW_VERSION`, the device downloads
-  **`firmware-<slug>.bin`**, where `<slug>` is its own `variant::SLUG` (e.g. `s3-146`). Each
+  **`firmware-<slug>.bin`**, where `<slug>` is its own `variant::SLUG` (e.g. `s3-128`). Each
   SKU only ever downloads its own image.
 - The flow lives in [src/OtaUpdater.cpp](src/OtaUpdater.cpp); `FW_VERSION` is in
   [src/OtaUpdater.h](src/OtaUpdater.h).
-- **Planned, not yet in any release: the OTA identity check.** It is specified in
-  [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md), §3 and Addendum 1 (2026-10-21).
-  From the release that adds it:
-  - every image carries an identity record, `<FW_OTA_PREFIX><variant::SLUG>`, at file
-    offset 0x120;
-  - CI refuses to publish an image whose record disagrees with the name it would be
-    published under;
-  - a device reads the record from the first bytes of the download and refuses an image
-    whose record is missing or isn't its own, **before anything is written to flash**.
+- **In `main` since 2026-11-05 (#552), not yet in any release: the OTA identity check.** The
+  next release cut from `main` carries it, and that release is **R** -- see the gate at the top of
+  "Cutting a release" below. It is specified in
+  [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md), §3, Addendum 1 (2026-10-21) and
+  A12.103-A12.110 (2026-11-05). From the release that adds it:
+  - every image carries a 64-byte identity record at file offset 0x120 naming its **board**
+    (`variant::SLUG`) and its **scope** (`FW_OTA_PREFIX`) as two fields
+    ([include/OtaIdentity.h](include/OtaIdentity.h));
+  - CI refuses to publish an image whose record disagrees with its env or with the name it
+    would be published under, and refuses a fleet in which two envs of one board name different
+    partition tables (`scripts/check_ota_identity.py`);
+  - a device reads the record from the first 352 bytes of the download and installs the image
+    only if it is **exactly what the device asked for: its own board, and the scope in its
+    request** -- **before anything is written to flash**. A normal update asks for the device's
+    own scope; a scope switch asks for the chosen scope's file, so every scope's release for a
+    board stays installable when it is the one asked for. A refusal draws nothing on screen and
+    records `refused-<reason>` (`no-record`, `bad-record`, `foreign`, `truncated`).
 
   What that release makes permanent:
-  - **No OTA downgrade past it.** Images built before it carry no record, so every device
-    running the check refuses them. That includes an old binary re-published under a
-    higher `version.txt`. A rollback must be a new build that carries the record. USB
-    flashing is unaffected.
-  - **Identities are permanent.** A device refuses every later image if its edition
-    prefix or slug is renamed, or if the record's layout changes incompatibly. Each of
-    those needs its own ruling and, first, a transitional release on the fleet that
-    accepts both.
+  - **No OTA downgrade past it, in any scope.** Images built before it carry no record, so every
+    device running the check refuses them -- its own scope's and every other scope's alike. That
+    includes an old binary re-published under a higher `version.txt`, and a switch to a scope
+    whose published image predates the release. A rollback must be a new build that carries the
+    record. USB flashing is unaffected.
+  - **Board identities and the record's format are permanent.** A device refuses every later
+    image if its board's `variant::SLUG` is renamed, or if the record's layout changes
+    incompatibly. Each needs its own ruling and, first, a transitional release on the fleet that
+    accepts both. A scope prefix rename strands nothing through the check: a device asking by the
+    old name gets a 404 (`fail--102`), as fetch-by-name already does.
+  - **A factory image built before it carries no check and no record.** Devices running it
+    accept whatever they fetch, and once on this release they refuse that factory image over OTA;
+    only a cable puts it back. A factory image that should check from first boot, or be reachable
+    over OTA later, is built at or after this release.
 
-  **Before cutting that release (ruled 2026-10-21):** it needs **Daniel's explicit OK at
-  cut time, with both consequences above named in plain words**: no OTA downgrade past
-  it, and fixed identities. A green CI run is not that OK.
+  **Before cutting that release (ruled 2026-10-21, kept 2026-11-05):** it needs **Daniel's
+  explicit OK at cut time, with these consequences named in plain words**: no OTA downgrade past
+  it in any scope, fixed board identities, and where the factory image stands. A green CI run is
+  not that OK.
 
   **No prerelease, bench test or otherwise (ruled 2026-10-21),** until what each release
   job does on a prerelease publish has been brought to the reviewer and Daniel has OK'd
@@ -44,6 +59,37 @@ are versioned and released **together** from a single commit, and each device se
   (A5.3).
 
 ## Cutting a release
+
+> ### ⛔ HARD GATE — R, the first release that carries the OTA identity check, needs Daniel's explicit OK at cut time
+>
+> **Is this cut R?** It is, while the commit you will tag has `include/OtaIdentity.h` and the
+> image `releases/latest` serves carries no identity record:
+>
+> ```sh
+> git ls-tree --name-only <commit-you-will-tag> -- include/OtaIdentity.h     # prints the path: the check is in
+> gh release download --clobber -p firmware-s3-128.bin -D /tmp/latest-fw    # the image the fleet runs now
+> python3 scripts/check_ota_identity.py --extract-head /tmp/latest-fw/firmware-s3-128.bin /tmp/latest-fw/head.bin
+> #  "(record: no-record)" -> latest predates the check, so THIS cut is R
+> #  "(record: ok)"        -> R has already shipped; this gate does not apply
+> ```
+>
+> **If it is R, do not tag until Daniel has said OK to these, in these words** (ruled
+> 2026-10-21, restated 2026-11-05). A green CI run is not that OK:
+>
+> 1. **No device on R or later will ever install a pre-check image again** -- not its own
+>    scope's, not any other scope's, not an old binary re-published under a higher
+>    `version.txt`. Every image built before R has no identity record, and is refused. A
+>    rollback past R is a new build that carries the record. USB flashing is unaffected.
+> 2. **Switching scope works only to scopes whose image was published at or after R.** A
+>    switch asks for the chosen scope's file; if that file predates R, the device refuses it.
+> 3. **Board identities and the record's format are fixed.** Renaming a board's
+>    `variant::SLUG`, or changing the record incompatibly, strands every device on it until a
+>    transitional release that accepts both is already on the fleet.
+> 4. **A factory image built before R carries no check.** Devices running it accept what they
+>    fetch; once on R, they cannot go back to it over OTA. A factory image that should check
+>    from first boot is built at or after R.
+>
+> The full statement of each is under "How OTA works" above.
 
 > ### ⛔ HARD GATE — the photo square library must be published BEFORE any release that raises `FW_VERSION` to `FULLBLEED_MIN_FW` (7) or above
 >
@@ -363,7 +409,7 @@ A checklist item a person signs off is the whole point.
 A new SKU needs three entries that stay in sync:
 
 1. `variant::SLUG` in its `include/variants/<sku>.h`
-2. an `[env:*]` in `platformio.ini`, named `<product>-<board>` (e.g. `blipscope-s3-146`, `quakescope-s3-146`)
+2. an `[env:*]` in `platformio.ini`, named `<product>-<board>` (e.g. `blipscope-s3-128`, `missileer-s3-128`)
 3. its row in `skus.yml` -- `status: shipping` with a `slug` only if a customer can
    actually be running it; otherwise `status: build-only` and no slug. The slug MUST
    equal `FW_OTA_PREFIX` + `variant::SLUG` (it names the OTA asset devices download).
@@ -395,6 +441,24 @@ by the very change that sweep was checking. Leaving an env out of CI because it
 isn't a product yet is how it becomes an env that no longer builds; the compile-only
 row is the way to say "build this, don't ship it" instead.
 
+### A SKU that will not ship: the retired row
+
+A board that is not going to be made or sold gets `status: retired` and no slug:
+
+```yaml
+- { env: blipscope-s3-146, status: retired }
+```
+
+CI leaves a retired row out of the build matrix entirely: it is not compiled, not
+gated and never published, and `skus.py --validate` refuses one that carries a slug.
+`skus.py --sabotage` proves both on every run, against the real file and the real
+code. The row stays so the decision is visible and the env's code stays findable;
+bringing a board back is a status change in `skus.yml`, like any promotion.
+
+**What retiring costs, and it is accepted when it is chosen:** a retired env is no
+longer compiled, so a later break in it goes unseen -- the way the AMOLED env rotted
+above. Retire a board only when it is genuinely not coming back soon.
+
 ## Missileer builds — a separate OTA channel
 
 The `missileer-*` envs build a different **product** (Missileer, the EAM monitor, `-DFEATURE_EAM`; see
@@ -403,7 +467,7 @@ board, the Missileer envs set `-DFW_OTA_PREFIX="eam-"`, and their CI slug is pre
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `missileer-s3-146` | `eam-s3-146` → `firmware-eam-s3-146.bin` |
+| `missileer-s3-146` | retired 2026-11-05: no asset (was `eam-s3-146` → `firmware-eam-s3-146.bin`) |
 
 These ride the **same** `version.txt` gate (one `FW_VERSION` bump releases radar and Missileer together),
 and a device only ever downloads its own `<prefix><slug>` binary. Releasing is otherwise identical
@@ -417,7 +481,7 @@ and a CI slug prefixed to match so an Orbitscope device never pulls a radar or M
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `orbitscope-s3-146` | `space-s3-146` → `firmware-space-s3-146.bin` |
+| `orbitscope-s3-146` | retired 2026-11-05: no asset (was `space-s3-146` → `firmware-space-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases radar, Missileer, and Orbitscope together).
 
@@ -429,7 +493,7 @@ and a CI slug prefixed to match so a Quakescope device never pulls a radar, Miss
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `quakescope-s3-146` | `seismic-s3-146` → `firmware-seismic-s3-146.bin` |
+| `quakescope-s3-146` | retired 2026-11-05: no asset (was `seismic-s3-146` → `firmware-seismic-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases radar, Missileer, Orbitscope, and Quakescope together).
 
@@ -441,7 +505,7 @@ and a CI slug prefixed to match so a Quillscope device never pulls another editi
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `quillscope-s3-146` | `birding-s3-146` → `firmware-birding-s3-146.bin` |
+| `quillscope-s3-146` | retired 2026-11-05: no asset (was `birding-s3-146` → `firmware-birding-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -453,7 +517,7 @@ and a CI slug prefixed to match so a Reelscope device never pulls another editio
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `reelscope-s3-146` | `fishing-s3-146` → `firmware-fishing-s3-146.bin` |
+| `reelscope-s3-146` | retired 2026-11-05: no asset (was `fishing-s3-146` → `firmware-fishing-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -465,7 +529,7 @@ and a CI slug prefixed to match so a Claudescope device never pulls another edit
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `claudescope-s3-146` | `claudescope-s3-146` → `firmware-claudescope-s3-146.bin` |
+| `claudescope-s3-146` | retired 2026-11-05: no asset (was `claudescope-s3-146` → `firmware-claudescope-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -478,7 +542,7 @@ slug prefixed to match so a Speedscope device never pulls another edition's imag
 
 | env | slug (CI + OTA asset) |
 | --- | --- |
-| `speedscope-s3-146` | `speed-s3-146` → `firmware-speed-s3-146.bin` |
+| `speedscope-s3-146` | retired 2026-11-05: no asset (was `speed-s3-146` → `firmware-speed-s3-146.bin`) |
 
 Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 
@@ -487,6 +551,15 @@ Same `version.txt` gate (one `FW_VERSION` bump releases every edition together).
 The `weatherscope-s3-128` env builds a ninth **product** (the Weatherscope edition, `-DFEATURE_WEATHERSCOPE`; see [CLAUDE.md](CLAUDE.md) and [docs/weatherscope-stage3.md](docs/weatherscope-stage3.md)) on the 1.28" Kit S3. It sets `-DFW_OTA_PREFIX="weatherscope-"`, so its channel would be `firmware-weatherscope-s3-128.bin`, but its `skus.yml` row is **build-only with no slug**: CI compiles it on every run and publishes nothing. A Weatherscope device asking for its asset gets a 404 and flashes nothing.
 
 It gets a slug only after the OTA identity check ("How OTA works" above) is on the fleet, and knowing that a slug-ful leg that fails withholds `version.txt` for every SKU.
+
+## Retired: the 1.46" (s3-146) builds
+
+Retired 2026-11-05, on Daniel's decision: the 1.46" (s3-146) scopes will likely never be
+made or sold. Their eight `skus.yml` rows are `status: retired`, so CI no longer builds
+them and no release from the next one on carries an s3-146 asset. Earlier releases are
+untouched: the newest carrying one is v12 (a prerelease), and `latest` (v18) has none, so
+a 1.46" unit already receives nothing new. Their code -- the variant header, the envs,
+the board files -- stays in the tree. See docs/weatherscope-stage3.md, A12.105.
 
 ## Legacy note: the retired C3
 

@@ -41,11 +41,13 @@ export const TOKEN_FILE_ENV = "BLIPSCOPE_TOKEN_FILE";
 // test-mac, test-device, test-key, test-key-staging: the TEST identity the production checks run as, written by
 // mint-test-identity.ts (docs/test-identity.md). records-device: E2:08's id, which identifies whose production records
 // to read and is NOT a credential. blip-key/blip-device: E2:08's pair, read by no check once docs/test-identity.md lands.
+// feeder-device: the Bend feeder's id, read by scripts/fleet-device-entry.ts to key its cfg:fleet entry; never printed.
 export type TokenPurpose =
   | "kv-read" | "analytics-read" | "blip-key" | "blip-device"
-  | "test-mac" | "test-device" | "test-key" | "test-key-staging" | "records-device";
+  | "test-mac" | "test-device" | "test-key" | "test-key-staging" | "records-device" | "feeder-device";
 export const PURPOSES: readonly TokenPurpose[] = [
   "kv-read", "analytics-read", "blip-key", "blip-device", "test-mac", "test-device", "test-key", "test-key-staging", "records-device",
+  "feeder-device",
 ];
 
 export const FORMAT_HELP =

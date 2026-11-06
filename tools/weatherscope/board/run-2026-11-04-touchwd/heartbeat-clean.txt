@@ -1,0 +1,8 @@
+grade_touchwd.py --clean 6 on the clean image's passive watch (A12.87)
+      first  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=58/0 maxOutage=0ms rebootRec=0
+   +600.1 s  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=118/0 maxOutage=0ms rebootRec=0
+   +599.7 s  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=178/0 maxOutage=0ms rebootRec=0
+   +600.0 s  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=238/0 maxOutage=0ms rebootRec=0
+   +600.4 s  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=298/0 maxOutage=0ms rebootRec=0
+   +599.7 s  [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=358/0 maxOutage=0ms rebootRec=0
+AS PREDICTED

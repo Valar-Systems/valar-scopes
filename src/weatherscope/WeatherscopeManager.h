@@ -109,6 +109,7 @@ private:
     wxtheme::Which composedWhich = wxtheme::Which::Dark;
     int16_t autoOffsetMin = 0;
     unsigned long lastBrightnessCheck = 0;
+    unsigned long lastTouchWdHealthMs = 0;   // A12.84: the touch supervisor's 10-minute [health] line
 
     // the frame path, in PSRAM (made once)
     bool buffersReady = false;
@@ -252,6 +253,7 @@ private:
     void OpenLegend();
     void CloseLegend();
     void HandleTouch();
+    void LogTouchWatchdog();
     void HandleSerialGestures();
     void ClassifyStroke(int dx, int dy);
     void EndHoldGrace(const longpress::GraceEnd& e);

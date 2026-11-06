@@ -347,13 +347,21 @@ rm -f "$WX_TMP" "$WX_HDR"
 # D4) the ONLY passing answers are 503 not_configured, or a 200 BMPK package with an ETag that the proxy's own
 # validate() accepts -- so the smoke refuses exactly what the device would. The verdict lives in basemap-verdict.sh,
 # graded by basemap-verdict.selftest.sh in CI. The body is binary, so it is never dumped.
-printf '\n===== /basemap (the smoke'"'"'s own lat, lon and r) =====\n'
+printf '\n===== /basemap (the smoke'"'"'s own lat and lon, Weatherscope'"'"'s query) =====\n'
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/basemap-verdict.sh"
 BASEMAP_PROXY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The query a device sends: Weatherscope's, from tools/weatherscope/basemap/make_package.py (R_MM, TOLERANCE_MM,
+# LEVELS_MM x LEVEL_N) and docs/basemap-route.md §3 (all six layers). The route REQUIRES eps and layers, and levels with
+# terrain: with only lat, lon and r this check could pass only on the inert 503, and read 400 bad_eps once a binding
+# existed (docs/smoke-basemap-query.md). test/smoke-basemap-query.test.ts reads this URL and make_package.py.
+BM_R=97
+BM_EPS=100584
+BM_LAYERS="water,rivers,roads,peaks,places,terrain"
+BM_LEVELS="24743664:246,49487328:246,98974656:246"
 BM_TMP="$(mktemp)"
 BM_HDR="$(mktemp)"
 BM_STATUS="$(curl -s --max-time 30 -o "$BM_TMP" -D "$BM_HDR" -w '%{http_code}' "${AUTH[@]}" \
-  "$BASE/api/v1/blipscope/basemap?lat=$LAT&lon=$LON&r=$R")"
+  "$BASE/api/v1/blipscope/basemap?lat=$LAT&lon=$LON&r=$BM_R&eps=$BM_EPS&layers=$BM_LAYERS&levels=$BM_LEVELS")"
 printf 'HTTP %s, %s bytes\n' "$BM_STATUS" "$(wc -c < "$BM_TMP" | tr -d ' ')"
 BM_VERDICT="$(basemap_verdict "$BM_STATUS" "$BM_TMP" "$BM_HDR")"
 printf 'RESULT: %s\n' "$BM_VERDICT"

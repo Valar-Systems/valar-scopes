@@ -1,0 +1,50 @@
+# blipscope-wx-ingest-opuk -- the opuk ingest in its own Worker (docs/wx-opuk-split.md). A THIRD Worker built from this
+# package, beside the proxy and the cref ingest (wx-ingest.wrangler.toml). It has no route and no public surface; its
+# only entry is the cron. It writes opuk's frames to the same bucket the proxy reads.
+#
+#   npx wrangler deploy -c wx-ingest-opuk.wrangler.toml            # ingesting (WX_INGEST "on")
+#   npx wrangler deploy -c wx-ingest-opuk.wrangler.toml -e inert   # the stop: the cron KEPT, WX_INGEST "off"
+#
+# The stop is a version change, which takes effect at once; removing the cron would take up to 15 minutes to propagate
+# (Cloudflare's docs; measured 323-336 s on the dev copy). Bindings and vars do not inherit, so [env.inert] repeats
+# them; scripts/check-wx-plant.mjs reads both targets' bindings from their dry-runs (FB2).
+name = "blipscope-wx-ingest-opuk"
+main = "src/wx/ingest-opuk-worker.ts"
+compatibility_date = "2025-12-01"   # the cref ingest's date
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+workers_dev = false
+
+[triggers]
+crons = ["* * * * *"]
+
+# opuk alone: single-build max 3,123 ms (Plan S, S4), x2 for a backfill invocation, x1.6 for the runtime's spread on
+# identical work = 9,994 -> 12,000. Under the documented 30,000 cap for a sub-hourly Cron Trigger.
+[limits]
+cpu_ms = 12000
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[vars]
+WX_INGEST = "on"
+
+[[r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.inert]
+name = "blipscope-wx-ingest-opuk"
+workers_dev = false
+[env.inert.triggers]
+crons = ["* * * * *"]
+[env.inert.limits]
+cpu_ms = 12000
+[env.inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.inert.vars]
+WX_INGEST = "off"
+[[env.inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"

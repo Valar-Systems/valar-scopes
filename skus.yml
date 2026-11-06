@@ -22,8 +22,14 @@
 #                       cannot rot, publishes no asset, and CANNOT withhold
 #                       version.txt however badly it fails.
 #
-# `scripts/skus.py --validate` refuses a build-only row with a slug and a
-# shipping row without one. It runs in CI before anything is built, so the
+#   status: retired     MUST NOT carry a slug, and is NOT BUILT: CI leaves it out of
+#                       the matrix entirely, so it publishes nothing and is no
+#                       longer compiled. The row stays so the decision stays
+#                       visible and the env's code stays findable; promoting it
+#                       back is a status change here, like any other.
+#
+# `scripts/skus.py --validate` refuses a build-only or retired row with a slug and a
+# shipping row without one; `--sabotage` proves a retired row cannot be published. It runs in CI before anything is built, so the
 # contradiction is a build error rather than a silent re-arming of a
 # fleet-blocking leg.
 #
@@ -50,10 +56,6 @@ skus:
   # ship. When it ships, this row gains `status: shipping` and a slug.
   - { env: blipscope-pro-s3-21, status: build-only }
 
-  # Every 1.46" panel row. The panel does not exist as a product, so nothing
-  # below can be in anyone's hands.
-  - { env: blipscope-s3-146, status: build-only }
-  - { env: missileer-s3-146, status: build-only }
   # missileer-s3-128: bring-up (USB keyboard, FEATURE_USB_OPEN, TinyUSB mode); no slug until it ships.
   - { env: missileer-s3-128, status: build-only }
   # missileer-photo: missileer-s3-128 + -DPHOTO_MODE, for product photos. BUILD-ONLY
@@ -61,12 +63,6 @@ skus:
   # release carries it and no OTA channel can serve it. scripts/check_photo_mode.mjs
   # fails CI if this row gains a slug or a shipping status.
   - { env: missileer-photo, status: build-only }
-  - { env: orbitscope-s3-146, status: build-only }
-  - { env: quakescope-s3-146, status: build-only }
-  - { env: quillscope-s3-146, status: build-only }
-  - { env: reelscope-s3-146, status: build-only }
-  - { env: claudescope-s3-146, status: build-only }
-  - { env: speedscope-s3-146, status: build-only }
   # weatherscope-s3-128: the Weatherscope edition (docs/weatherscope-stage3.md). No slug until the OTA
   # identity check is on the fleet (Stage 3, section 3), so CI publishes nothing for it.
   - { env: weatherscope-s3-128, status: build-only }
@@ -78,3 +74,17 @@ skus:
   - { env: weatherscope-bench-s3-128, status: build-only }
   # the Wi-Fi join diagnostic bench env: the only build of include/JoinDiagScreen.h (docs/joindiag-ci.md)
   - { env: blipscope-s3-128-joindiag, status: build-only }
+
+  # ---- RETIRED -------------------------------------------------------------
+  # Not built, not published, no slug. Retired 2026-11-05 on Daniel's decision: the
+  # 1.46" (s3-146) scopes will likely never be made or sold. Their code stays in the
+  # repo. The newest release carrying an s3-146 asset is v12 (a prerelease); v18 has
+  # none, and earlier releases are untouched (docs/weatherscope-stage3.md A12.105).
+  - { env: blipscope-s3-146, status: retired }
+  - { env: missileer-s3-146, status: retired }
+  - { env: orbitscope-s3-146, status: retired }
+  - { env: quakescope-s3-146, status: retired }
+  - { env: quillscope-s3-146, status: retired }
+  - { env: reelscope-s3-146, status: retired }
+  - { env: claudescope-s3-146, status: retired }
+  - { env: speedscope-s3-146, status: retired }

@@ -85,12 +85,12 @@ namespace variant {
     constexpr bool HAS_IMU       = false; // QMI8658 exists on-board; integration deferred
     constexpr bool TOUCH_WATCHDOG = true;       // ON here and off on every other S3 SKU. It was
                                                 // armed to A/B the CST816 wedge against the C3;
-                                                // that comparison ended with the C3, but the
-                                                // supervisor stays for a PRODUCTION reason:
-                                                // MaintainNoSleep re-arms the touch IC's
-                                                // DisAutoSleep (0xFE) after a silent chip-internal
-                                                // reset, which this batch's CST816 does. See
-                                                // INCOMING-INSPECTION.md.
+                                                // that ended with the C3. It stays to detect and
+                                                // recover a wedge (probe, re-init, capped reboot).
+                                                // It does NOT re-arm DisAutoSleep (0xFE): no env
+                                                // builds MaintainNoSleep, and this batch keeps
+                                                // 0xFE=1 across resets, so the incoming gate is
+                                                // the protection (INCOMING-INSPECTION.md, sec. 3).
 
     // OTA + identity. SLUG names the per-SKU release asset (firmware-<SLUG>.bin / version-<SLUG>.txt).
     constexpr char SLUG[] = "s3-128";

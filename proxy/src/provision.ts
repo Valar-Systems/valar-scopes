@@ -29,8 +29,9 @@ const hex = (buf: ArrayBuffer): string => [...new Uint8Array(buf)].map((b) => b.
 
 // CONSTANT TIME, AND LENGTH-BLIND. Both sides are SHA-256'd first, so the compare
 // always walks 64 characters whatever was presented: an early exit on a length
-// mismatch would tell a caller how long the token is.
-async function tokenMatches(presented: string, expected: string | undefined): Promise<boolean> {
+// mismatch would tell a caller how long the token is. Exported for the activation
+// admin route (src/activation.ts), which takes the same credential.
+export async function tokenMatches(presented: string, expected: string | undefined): Promise<boolean> {
   if (!expected) return false; // unset secret = every request refused (fails closed)
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([

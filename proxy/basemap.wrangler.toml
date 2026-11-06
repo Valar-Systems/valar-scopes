@@ -38,6 +38,12 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 [env.staging.limits]
 cpu_ms = 14530
 
+# Workers Logs, STAGING ONLY (docs/basemap-build-reads.md): the builder's one line per build (BB1-BB3) is read from
+# here. Without it the builder had no events at all (0 over MM4's 15 builds). Production is unchanged.
+[env.staging.observability]
+enabled = true
+head_sampling_rate = 1
+
 # The same, read-only store as production: there is one sealed store, and the builder never writes.
 [[env.staging.r2_buckets]]
 binding = "STORE"

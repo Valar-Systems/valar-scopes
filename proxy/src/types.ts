@@ -11,6 +11,9 @@ export interface Env {
   WX?: R2Bucket;
   // The builder Worker `blipscope-basemap` (docs/basemap-route.md §2.1). Unbound until D3; the route answers 503 not_configured.
   BASEMAP?: Fetcher;
+  // A1's stored packages (docs/basemap-a1.md): bound in the proxy only, never in the builder. Unbound, /basemap behaves
+  // exactly as before A1 (MS9).
+  BASEMAP_PKG?: R2Bucket;
 
   // Optional: absent in `wrangler dev`/tests (miniflare can't emulate the beta
   // binding), enforced in staging/production.
@@ -25,6 +28,9 @@ export interface Env {
   DEVICE_KEY_SECRET?: string; // HMAC secret for per-device keys -- now the ONLY way in
   PROVISION_TOKEN?: string; // bench auth for POST /blipscope/provision (src/provision.ts); unset = every mint refused
   REFUSE_FAKE_DEVICE_IDS?: string; // "true" in production ONLY: 403 for ids on the repo's fake-id allowlist (src/fakeids.ts)
+  // The activation gate's mode (docs/device-activation.md): "watch" counts would-be refusals and still mints; anything
+  // else, including absent, ENFORCES. Production starts on "watch", staging "enforce".
+  ACTIVATION_GATE?: string;
   TURNSTILE_SITEKEY?: string;    // PUBLIC. Rendered into the enrol page; empty renders the page's
                                  // "cannot verify" state, which is the same state a blocked
                                  // network produces and is therefore already handled.

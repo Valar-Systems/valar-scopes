@@ -7,6 +7,7 @@ import {
   BendFeed,
   BendStore,
   RADIUS_KM,
+  WRITE_MIN_INTERVAL_MS,
   __resetSiteFeedForTests,
   covers,
   extract,
@@ -180,8 +181,11 @@ describe("the writer, on the device path", () => {
   });
 });
 
-describe("B5 the 30 s rule lives in storage", () => {
-  it("a write 10 s later on a NEW instance is refused; 31 s later it is accepted", async () => {
+// The rule's VALUE is pinned here as a literal (10 s since 2026-11-04, Daniel; docs/bend-site-feed.md, "The 10 s
+// writer throttle"), never read back from the constant -- a test that followed the constant could not fail.
+describe("B5 the 10 s rule lives in storage", () => {
+  it("is 10 s: a write 9.999 s later on a NEW instance is refused; 10 s later it is accepted", async () => {
+    expect(WRITE_MIN_INTERVAL_MS).toBe(10_000);
     const map = new Map<string, unknown>();
     const storage: SnapStorage = {
       get: async <T>(k: string) => map.get(k) as T | undefined,
@@ -190,10 +194,68 @@ describe("B5 the 30 s rule lives in storage", () => {
     const snap: Snapshot = { t: 100, source: "adsb.fi", aircraft: [] };
     let now = 1_000_000;
     expect(await new BendStore(storage, () => now).write(snap)).toBe("written");
-    now += 10_000;
+    now += 9_999;
     expect(await new BendStore(storage, () => now).write(snap)).toBe("refused_30s");
-    now += 21_000;
+    now += 1;
     expect(await new BendStore(storage, () => now).write(snap)).toBe("written");
+  });
+});
+
+// Keep the newest (Daniel, 2026-11-05; docs/bend-site-feed.md, "The feeder's night cadence, and keeping the newest"):
+// a snapshot whose upstream time is strictly older than the stored one's never replaces it, on any instance.
+describe("N1-N5 keep the newest snapshot", () => {
+  const store = () => {
+    const map = new Map<string, unknown>();
+    const storage: SnapStorage = {
+      get: async <T>(k: string) => map.get(k) as T | undefined,
+      put: async <T>(k: string, v: T) => void map.set(k, structuredClone(v)),
+    };
+    return storage;
+  };
+  const snap = (t: number): Snapshot => ({ t, source: "adsb.fi", aircraft: [] });
+
+  it("N1 an older t, 10 s later on a NEW instance, is refused_older, and the store still holds the newer", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 10_000;
+    expect(await new BendStore(storage, () => now).write(snap(99))).toBe("refused_older");
+    expect((await new BendStore(storage, () => now).read())?.t).toBe(100);
+  });
+
+  it("N2 an equal t, 10 s later, is written", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 10_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+  });
+
+  it("N3 a newer t, 10 s later, is written", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 10_000;
+    expect(await new BendStore(storage, () => now).write(snap(101))).toBe("written");
+    expect((await new BendStore(storage, () => now).read())?.t).toBe(101);
+  });
+
+  it("N4 older AND within 10 s is refused_30s: the interval is checked first", async () => {
+    const storage = store();
+    let now = 1_000_000;
+    expect(await new BendStore(storage, () => now).write(snap(100))).toBe("written");
+    now += 5_000;
+    expect(await new BendStore(storage, () => now).write(snap(99))).toBe("refused_30s");
+  });
+
+  it("N5 on the device path, a Durable Object answering 412 is counted refused_older once, never write_error", async () => {
+    fetchMock.get(LOL).intercept({ path: UPSTREAM_PATH }).reply(200, pointBody(bendSky()));
+    const { ns, calls } = fakeNs(async () => new Response(null, { status: 412 }));
+    const { m, points } = metricsSpy();
+    const res = await call(deviceReq(11), { SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns, METRICS: m });
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(sitefeedEvents(points)).toEqual(["refused_older"]);
   });
 });
 

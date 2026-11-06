@@ -361,3 +361,39 @@ it. These are the paragraph and clause texts, the `/by/2.0/`-style deeds, `stand
 workers runs have read BLIND before. I ran anyway; that was my error. **No run was blind:** the control passed 35 of 35,
 and every run's summary parsed with its red set exact.
 
+## Windows checkouts: `credits.html` keeps LF (2026-11-05; predictions frozen before the proof)
+
+**Why.** On a Windows checkout (`core.autocrlf=true`) `proxy/photos/credits.html` is written with CRLF:
+- on disk it is 105,991 bytes with 291 carriage returns;
+- the committed blob is 105,700 bytes and LF;
+- the 291-byte difference is the carriage returns, nothing else.
+
+Q-C1 compares that file with the LF render byte for byte, so it failed locally on every Windows run (the #548 session
+and the UK session both saw it) while CI's LF checkout passed. The other byte-compared pages already carry
+`text eol=lf` (`proxy/pages/*.html`, `proxy/src/pages.generated.ts`); this file did not. **The fix is one rule in
+`.gitattributes`:** `proxy/photos/credits.html text eol=lf`.
+
+**Predictions:**
+
+| | check | predicted | outside the set |
+|---|---|---|---|
+| **L0** (control, no rule) | the file in a fresh Windows worktree of `origin/main` | 105,991 bytes, 291 CR | (read before the rule: as predicted) |
+| **L1** | the file in a **fresh** worktree of the commit that carries the rule | 105,700 bytes, 0 CR, its sha256 equal to the committed blob's | any CR, or a different sha: **stop** |
+| **L2** | `git add --renormalize .` in that worktree | stages nothing: the blob is already LF | anything staged: **stop** |
+| **L3** | `photolicense.test.ts` run there, behind the port gate | all green, **Q-C1 included** | Q-C1 red: **stop**, the cause is not the line endings |
+| **L4** | CI | unchanged: its checkout was already LF | |
+
+These checks run only on Windows: CI cannot show L1-L3, because its checkout never had the CR.
+
+**Results (2026-11-05, Windows, graded on `206d21f`): all as predicted.**
+
+| | got |
+|---|---|
+| **L0** | 105,991 bytes, 291 CR (a fresh worktree of `origin/main` at `15c8a2d`) |
+| **L1** | a fresh worktree of `206d21f`: 105,700 bytes, 0 CR, sha256 `8286e69ad3af` on disk and in the blob, byte-identical |
+| **L2** | `git add --renormalize .` staged nothing |
+| **L3** | `photolicense.test.ts`: 21 of 21 passed, Q-C1 included, with TIME_WAIT 7,527 at the start (under the gate) |
+
+**The control for L3 is the same test in the CRLF checkout.** The #548 worktree, without the rule, failed Q-C1 on
+both of its full runs (`47d67e6`), so the check can fail, and the rule is the only difference between the two
+results.

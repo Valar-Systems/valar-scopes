@@ -95,6 +95,13 @@ jobs:
           for sku in $BUILT; do bash tools/web-renderer/build.sh "$sku" "$PWD/web-dist"; done
           echo "fw=$(node -p 'require("./web-dist/web-manifest.json").version')" >> "$GITHUB_OUTPUT"
 
+      # No eval, storage, cookies or absolute URL in the built files, and the probe that shows -sDYNAMIC_EXECUTION=0
+      # took. The selftest plants each pattern in a copy and must catch it exactly (docs/web-renderer.md, F2-F4).
+      - name: The site's content rules, with a planted control for each
+        run: |
+          node tools/web-renderer/check_site_rules.mjs --selftest web-dist
+          node tools/web-renderer/check_site_rules.mjs web-dist
+
       - name: The headless smoke test, every model (docs/web-renderer.md R3-R6)
         run: |
           for sku in $BUILT; do node tools/web-renderer/smoke.mjs "web-dist/$sku"; done

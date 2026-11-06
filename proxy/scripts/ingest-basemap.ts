@@ -19,7 +19,7 @@ import { CURRENT_KEY } from "../src/basemap/store";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { coverageRows, encodeCoverage } from "./basemap/coverage";
 import { regionsFor } from "./basemap/regions";
-import { BUCKET, WranglerBucket, assembleStore, paceStats } from "./basemap/d1";
+import { BUCKET, WranglerBucket, assembleStore, paceStats, wranglerKv } from "./basemap/d1";
 import { tilesForCoverage } from "./basemap/terrain-plan";
 import { BIT, Layer, encodeTileBits, tileBits } from "./basemap/tile-bits";
 import { dirname, join, resolve } from "node:path";
@@ -531,7 +531,9 @@ async function d1Cmd(cache: string): Promise<void> {
   }
   // publishStore, unchanged: puts `todo`, verifies it, repairs at most twice, verifies, and seals only when clean.
   // On resume every object outside `todo` was verified just above, after its last put.
-  const r = await publishStore(bucket, todo, CURRENT_KEY, current);
+  // O1 (docs/basemap-a1.md): `--kv-namespace <id>`, once per proxy environment, writes bm:store after the seal (MI8).
+  const kvIds = process.argv.flatMap((a, i) => (a === "--kv-namespace" && process.argv[i + 1] ? [process.argv[i + 1]!] : []));
+  const r = await publishStore(bucket, todo, CURRENT_KEY, current, 2, kvIds.length ? wranglerKv(resolve(dirname(fileURLToPath(import.meta.url)), ".."), kvIds) : undefined);
   console.log(JSON.stringify({ sealed: r.sealed, repairRounds: r.rounds, missing: r.missing.length, mismatched: r.mismatched.length, puts: bucket.puts, gets: bucket.gets, putFailures: bucket.putFailures.length, calls: paceStats.calls, rateLimited: paceStats.rateLimited }, null, 1));
   for (const f of bucket.putFailures.slice(0, 5)) console.error(`put failed: ${f}`);
   if (!r.sealed) process.exitCode = 1;

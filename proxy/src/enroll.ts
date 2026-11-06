@@ -2,6 +2,8 @@ import { refusesFakeId } from "./fakeids";
 import type { Env } from "./types";
 import { deriveDeviceKey } from "./deviceauth";
 import { isRevoked } from "./revocation";
+import { claimActivation, keyGeneration } from "./activation";
+import { SUPPORT_EMAIL } from "./support";
 
 /* ===========================================================================
  * DEVICE ENROLLMENT — how a board we did not flash gets its per-device key.
@@ -49,7 +51,7 @@ export interface EnrollLedgerRow {
   id: string;
   firstAt: string;
   lastAt: string;
-  /** How many times this id has enrolled. >1 is a reflash, not an attack. */
+  /** How many times this id has activated. >1 means Daniel re-opened it (src/activation.ts). */
   enrollments: number;
   /** Siteverify's view of where the solve happened. Recorded, never enforced. */
   hostnames: string[];
@@ -121,13 +123,30 @@ async function bumpDayCounter(env: Env, day: string): Promise<number> {
 }
 
 /**
- * POST /blipscope/enroll — mint (or re-mint) a device key for a solved challenge.
+ * Refused activations per day and reason (docs/device-activation.md, R). Best effort and 40-day TTL, like
+ * the enrolment counter, and keyed by day and reason only: the id is in the log line, never in the key.
+ * There is no cap (ruled 2026-11-05); this count is what would show a guessing pattern and call for one.
+ */
+async function bumpRefused(env: Env, day: string, reason: "not_listed" | "already_activated"): Promise<void> {
+  await bumpCounter(env, `enr:refused:${day}:${reason}`);
+}
+
+/** A best-effort day counter, 40-day TTL. Its key is day and reason only; an id never reaches a key or a value. */
+async function bumpCounter(env: Env, key: string): Promise<void> {
+  const prev = Number((await env.ENRICH_KV.get(key)) ?? "0");
+  await env.ENRICH_KV.put(key, String(prev + 1), { expirationTtl: 60 * 60 * 24 * 40 });
+}
+
+/**
+ * POST /blipscope/enroll — activate a listed device id for a solved challenge.
  *
  * Body: { id: "<deviceId>", token: "<cf-turnstile-response>" }
- * 200:  { status: "enrolled" | "already_enrolled", id, key, enrollments }
+ * 200:  { status: "enrolled", id, key, enrollments }
  * 400:  { error: "bad_request" }         malformed id, or no token at all
  * 403:  { error: "unverified" }          the solve did not verify
  * 403:  { error: "revoked" }             this id is revoked; no key is issued
+ * 403:  { error: "not_listed", id, support }         not a Valar unit (src/activation.ts)
+ * 409:  { error: "already_activated", id, support }  its one activation is used; Daniel resets it
  * 503:  { error: "not_configured" }      secrets missing on this deployment
  */
 export async function handleEnroll(request: Request, env: Env): Promise<Response> {
@@ -165,31 +184,51 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   // auth path already refuses; this is defence in depth, not the only barrier.)
   if (await isRevoked(env, id)) return json({ error: "revoked" }, 403);
 
-  const key = await deriveDeviceKey(secret, id);
   const now = new Date();
   const nowIso = now.toISOString();
   const day = nowIso.slice(0, 10);
 
+  // THE ACTIVATION GATE: only boards Daniel sold activate (docs/device-activation.md,
+  // ruled 2026-11-05). Its POSITION is the design, and both neighbours are load-bearing:
+  //
+  //   - AFTER THE SOLVE, or the route becomes a free oracle for which ids are real
+  //     units: "not_listed" vs "unverified" would answer without a challenge. After
+  //     it, every answer costs one solve. There is a test that fails if this moves up.
+  //   - AFTER REVOCATION, so a revoked id is refused as revoked, never learns its list
+  //     state, and never spends its one activation.
+  //
+  // FIRST ACTIVATION WINS. The key is a pure function of the id, so a repeat that
+  // returned it would hand a guesser the real owner's key; a repeat is therefore
+  // refused until Daniel re-opens the id (scripts/activation.ts reset). This retires
+  // the old idempotent repeat. "Activated" is scoped to the KEY GENERATION (ruled
+  // ~18:15Z): a DEVICE_KEY_SECRET rotation re-opens every listed id once, so each can
+  // fetch its new key without a manual reset, and the key below is derived from the
+  // CURRENT secret on every activation; tests pin both.
+  //
+  // WATCH MODE (Daniel, 2026-11-05; docs/device-activation.md, "Watch mode"). The gate reads and writes exactly as
+  // under enforce -- a listed id's first activation still writes `activated` -- but a would-be refusal is COUNTED
+  // (enr:watch:, never enr:refused:) and the key is issued anyway, as before the gate existed. Only the exact string
+  // "watch" selects it: absent, misspelt or anything else ENFORCES, so a broken config fails closed.
+  const watch = env.ACTIVATION_GATE === "watch";
+  const gate = await claimActivation(env, id, nowIso, await keyGeneration(secret));
+  if (gate !== "listed") {
+    const refused = gate === "activated" ? "already_activated" : "not_listed";
+    // A refused activation is the abuse signal now -- a guessed id lands here -- so it
+    // is logged the way a mint is, and COUNTED where scripts/reconcile-fleet.py prints it.
+    console.log(`enroll ${watch ? "watch" : "refused"}=${refused} id=${id} host=${solve.hostname ?? "?"} `
+      + `cc=${request.headers.get("CF-IPCountry") ?? "?"}`);
+    if (!watch) {
+      await bumpRefused(env, day, refused);
+      return json({ error: refused, id, support: SUPPORT_EMAIL }, refused === "not_listed" ? 403 : 409);
+    }
+    await bumpCounter(env, `enr:watch:${day}:${refused}`);
+  }
+
+  const key = await deriveDeviceKey(secret, id);
   const prev = await env.ENRICH_KV.get<EnrollLedgerRow>(ledgerKey(id), "json");
 
-  // IDEMPOTENT BY CONSTRUCTION, AND SAID SO OUT LOUD.
-  //
-  // THE ORDER ABOVE IS LOAD-BEARING, and was questioned on 2026-08-31 while a
-  // rotated board sat on this page reading "Already verified". `key` is derived
-  // from the CURRENT secret BEFORE this ledger read, and is returned on BOTH
-  // branches -- so an already_enrolled response carries a FRESHLY DERIVED key,
-  // which is exactly what a device needs after a DEVICE_KEY_SECRET rotation.
-  //
-  // This is not a short-circuit and must not become one. If the ledger read ever
-  // moves above the derivation, or `key` is dropped from the repeat branch as
-  // "redundant", a rotated device would be told it is fine while still 401ing --
-  // a screen reporting a conclusion drawn from the wrong signal. There is a test.
-  //
-  // The key is a pure function of the id, so a second enrollment cannot produce
-  // a different one — re-enrolling is a re-derivation, not a re-issue. A
-  // customer who reflashed (Blipscope -> Missileer -> Blipscope, or a full
-  // erase) must not hit a wall, so this is a plain 200 with a message rather
-  // than a 409. The ledger LOGS the repeat instead of blocking it.
+  // The ledger still counts every activation of the id (a reset and a re-activation
+  // make two), and keeps the first one's date: the history that makes a reset legible.
   const row: EnrollLedgerRow = {
     id,
     firstAt: prev?.firstAt ?? nowIso,
@@ -214,7 +253,7 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   );
 
   return json({
-    status: row.enrollments === 1 ? "enrolled" : "already_enrolled",
+    status: "enrolled",
     id,
     key,
     enrollments: row.enrollments,

@@ -1,7 +1,8 @@
 // The builder Worker, `blipscope-basemap` (docs/basemap-route.md §2.1, §2.4). It is reached only through the proxy's
 // BASEMAP service binding, never from the internet: it takes the proxy's NORMALISED query as JSON, builds over its R2
 // binding, and answers the package or a JSON error. It does no auth, no rate limiting and no caching (the proxy's), and
-// it logs nothing about the request: the query holds the origin.
+// it logs nothing about the request: the query holds the origin. Its one line per build (BB1-BB3,
+// docs/basemap-build-reads.md) is about the build's store reads, in counts and milliseconds only.
 import { type BuildQuery, type StoreReader, build } from "./build";
 
 // The commit this bundle was built from, stamped at deploy by `deploy.sh --builder` with --define, exactly as the proxy
@@ -12,9 +13,24 @@ declare const BUILD_COMMIT: string;
 
 export interface BuilderEnv { STORE: R2Bucket }
 
-/** The R2 binding as build.ts's StoreReader. */
-export const r2Reader = (b: R2Bucket): StoreReader => ({
-  async get(key) { const o = await b.get(key); return o ? new Uint8Array(await o.arrayBuffer()) : null; },
+/** What one build read from the store (BB1-BB3): counts and milliseconds, nothing from the query. */
+export interface ReadStat { reads: number; bytes: number; readMs: number; maxReadMs: number }
+
+/** The R2 binding as build.ts's StoreReader, counting and timing each read into `stat` when given one. */
+export const r2Reader = (b: R2Bucket, stat?: ReadStat): StoreReader => ({
+  async get(key) {
+    const t0 = Date.now();
+    const o = await b.get(key);
+    const v = o ? new Uint8Array(await o.arrayBuffer()) : null;
+    if (stat) {
+      const ms = Date.now() - t0;
+      stat.reads++;
+      stat.bytes += v ? v.length : 0;
+      stat.readMs += ms;
+      if (ms > stat.maxReadMs) stat.maxReadMs = ms;
+    }
+    return v;
+  },
 });
 
 const json = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -38,7 +54,10 @@ export function makeBuilder(commit: string) {
       let q: BuildQuery | null = null;
       try { q = asQuery(await request.json()); } catch { q = null; }
       if (!q) return json(400, { error: "bad_query" });
-      const r = await build(r2Reader(env.STORE), q, { commit });
+      const t0 = Date.now(), stat: ReadStat = { reads: 0, bytes: 0, readMs: 0, maxReadMs: 0 };
+      const r = await build(r2Reader(env.STORE, stat), q, { commit });
+      // One line per build, whatever its outcome: integers only, nothing from the query (BB1-BB3)
+      console.log(JSON.stringify({ evt: "bm_build", status: r.ok ? 200 : r.status, ...stat, wallMs: Date.now() - t0 }));
       if (!r.ok) return json(r.status, { error: r.code });
       // x-basemap-commit: the proxy's /healthz reports it (Q4), so D3 can prove which builder is bound
       return new Response(r.bytes, { status: 200, headers: { "content-type": "application/octet-stream", "x-basemap-store": r.storeId, "x-basemap-commit": commit } });

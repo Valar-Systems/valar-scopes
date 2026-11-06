@@ -2,7 +2,7 @@ name: firmware
 
 # Builds every Blipscope SKU. On a published GitHub Release it also attaches each SKU's
 # binary as firmware-<slug>.bin plus a shared version.txt, which is what the on-device
-# variant-aware OTA reads (the 1.46" downloads firmware-s3-146.bin, never another SKU's image).
+# variant-aware OTA reads (the 1.28" Kit S3 downloads firmware-s3-128.bin, never another SKU's image).
 # See RELEASING.md.
 
 on:
@@ -301,6 +301,11 @@ jobs:
         run: python3 scripts/skus.py --selftest
       - name: Validate skus.yml
         run: python3 scripts/skus.py --validate
+      # A RETIRED ROW CANNOT BE PUBLISHED (docs/weatherscope-stage3.md A12.105). Planted into copies of the
+      # real skus.yml and the real skus.py: a retired row given a slug must be refused, and a matrix that
+      # kept retired rows must fail the selftest -- each with exactly its own reason, after two controls.
+      - name: Prove a retired SKU cannot be published
+        run: python3 scripts/skus.py --sabotage
       # PHOTO MODE NEVER SHIPS. The Missileer photo env (product photos: no
       # auto-rotation, no auto-dim, no OTA) must equal its shipping parent plus one
       # flag, be the only env carrying that flag, stay build-only with no slug, and
@@ -336,6 +341,30 @@ jobs:
         run: python3 scripts/check-customer-entry.py --check-wiring
       - name: FW_VERSION has a customer entry whose lines map to merged work
         run: python3 scripts/check-customer-entry.py
+
+  # THE FLEET'S OTA IDENTITIES (docs/weatherscope-stage3.md A12.103, A12.104). Every slug-ful row's slug is its
+  # FW_OTA_PREFIX + variant::SLUG (O5); every skus.yml env of one board names one partition table, flash size and
+  # memory type (Q76) -- an OTA writes the app only, so a device keeps the table it was flashed with and every
+  # scope's image for that board must fit it; and the host tests' identity table is what the fleet derives. Read
+  # from `pio project config`, which resolves extends and ${...}, so no second ini parser exists. Each rule is
+  # first made to refuse a planted copy of the real config.
+  ota-identity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Prove the checker refuses each violation
+        run: python3 scripts/check_ota_identity.py --selftest
+      - name: Prove each fleet rule refuses a planted copy of the real config
+        run: python3 scripts/check_ota_identity.py --fleet-sabotage
+      - name: Every slug is its identity, one partition table per board
+        run: python3 scripts/check_ota_identity.py --fleet
+      - name: The host tests' identity table is the fleet's
+        run: python3 scripts/check_ota_identity.py --check-table
 
   build:
     runs-on: ubuntu-24.04
@@ -459,6 +488,15 @@ jobs:
             --trace ".pio/libdeps/${{ matrix.env }}" \
             --trace "$HOME/.platformio/packages" \
             --emit "publish/factory-scan-${{ matrix.slug }}.json"
+      # THE IMAGE SAYS WHAT IT IS, AND IT IS WHAT IT WILL BE PUBLISHED AS (docs/weatherscope-stage3.md A12.104). The
+      # identity record at 0x120 must equal this env's FW_OTA_PREFIX + variant::SLUG, read from the resolved config;
+      # an env with no OTA path must carry none; and on a slug-ful row it must equal the slug and the flash manifest's
+      # slug -- so no image can be published under another scope's or board's name (O4 (i)). Every row, no `if:`;
+      # after the manifest it reads, before the upload and the receipt. --check-wiring holds it here.
+      - name: OTA identity in the image (${{ matrix.env }})
+        run: |
+          python3 scripts/check_ota_identity.py --check-wiring
+          python3 scripts/check_ota_identity.py "${{ matrix.env }}" ".pio/build/${{ matrix.env }}/firmware.bin" ${{ matrix.slug && format('--slug {0} --manifest publish/flash-manifest-{0}.json', matrix.slug) || '' }}
       # The gate prints the tail of the failing build's log inline, which is
       # usually enough. This keeps the whole thing when it is not: a control that
       # comes back blind is exactly the case where the interesting line is above
