@@ -12582,3 +12582,21 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **Row 23's `.bin`** (`proxy/test/fixtures/wx/opera/20261028T0255.ranges.bin`) starts with `49`, not `E9`. So S-Q82e ("`E9` alone exempts") turns exactly row 25 red, as frozen.
 - **`check_wifi.py`'s line is unchanged by the change.** Main's copy and this branch's, on the same tree, both read `1619 tracked, 1156 scanned, 463 binary … OK`.
 - **A12.116's "1,607 / 1,144" was written before main gained 12 tracked text files** (two commits since #555, from other sessions). The binary count, 463, is unchanged.
+
+### A12.117 Q82 built (#558): every A12.116 and A12.116a row AS PREDICTED, locally and in CI
+
+**#558** (branch `weatherscope/binary-strings-q82`, head `a2b81760f321`, from main at `7b70745a`). Its files: `scripts/check_wifi.py` (`excused()`), `scripts/check_binary_strings.py`, `scripts/binary-allow.txt` (the PDF entry), and the device-ids workflow (the `--sabotage` step).
+
+| row | predicted | measured |
+|---|---|---|
+| `check_wifi.py`'s line | unchanged by the change | main's copy and this branch's, on the same tree: `1619 tracked, 1156 scanned, 463 binary; … OK`, identical. Its selftest passes. |
+| `--selftest` | 25 rows, each exactly its file and kind | **25 ok,** locally and in CI. Planted into copies of the PDF, a jpg, a png, a `.3mf`, a font, the opera `.bin` and a `.head.bin`. |
+| `--sabotage` | control clean; S-Q82a {15}; S-Q82c {17-22}; S-Q82d {23, 25}; S-Q82e {25} | **exactly those,** locally and in CI |
+| the scan | `463 excused …; 3 font(s) and 1 pdf settled by hash, 2 container(s) read (33 members), 457 scanned; findings 0, allowed 1, stale 0, idle 0` | **that line,** locally and in CI |
+| the PDF's text read | `pdftotext` 4.00 (Xpdf): 4 pages, 0 findings, 0 network contexts; lines not predicted to match poppler's 153 | 4 pages, **124 lines** (69 non-blank), 0 findings, 0 user paths, 0 network contexts. Recorded in the PDF's allowance with the reviewer's poppler read. |
+| the guards, local | all OK | `check_wifi.py` (and its selftest), `check_device_ids.py`, `check_workflow_concurrency.py` (and its selftest), `check_runners.py`, `skus.py --check-readers` |
+| **#558's CI** (baseline: #555's PR run, postdating main's last workflow change `12569fa05dfd`; finished 01:21:29Z, read twice) | 31: 28 success, 3 skipped, 0 failed; 30 + 1 | **31: 28 success, 3 skipped (version, promote, ship-alert), 0 failed**; firmware 29 (28 + 1), `device-ids`, `no-traffic-captures`; web-renderer did not run. **AS PREDICTED.** |
+
+**One defect caught before running,** in review of my own code. The selftest built row 23's NVS plant from `WIFI_STORE[0]`. Under S-Q82d, which empties that tuple, the selftest would have crashed rather than turned rows 23 and 25 red. The plant is now built on its own.
+
+**#558 merges only after review.**
