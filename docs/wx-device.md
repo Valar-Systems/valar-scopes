@@ -4954,6 +4954,22 @@ Blipscope's drawing decides through `Drawn()`.
   41 %. The plant would have turned [L2] red either way; the change keeps its comment true.
 - `sabotage_wx_look_select.py`'s S-label is re-anchored on the new label, as "Brighter rai".
 
+**Amended before `wx-fb-check.py` was edited: its selftest, case by case.** Rule (2) was gated
+`r2 = "n/a" if look != "A"`. Opening it to look B changes what two existing look-B cases mean, since both draw markers
+with no edge:
+- **"look B, no outline (weather on the middle ring, ungradable in B)"** becomes "look B, the edge drawn (...)", with
+  the edge drawn. Predicted **BLIND**, as before: (1) has nothing gradable, since that ring's colour is a weather
+  colour of B.
+- **"look B, weather across the outer ring"** becomes "look B, the edge drawn, weather across the outer ring".
+  Predicted **PASS**, as before.
+  - From the source's rings (119, 78, 39): the marker's centre sits 33.5 px from the outer blob's centre (radius 30),
+    so weather lies 2-3 px out and (2) is exercised.
+- **New: "look B, no edge, weather across the outer ring"** → **FAIL**. Its 1 px border is wet.
+- **The synth's rain colour:** it drew "code 8, red" as (255, 0, 0) at the look's percent, and code 8 is now magenta.
+  It becomes codes 6-7's red, (230, 0, 0) at the look's percent, still guarded by its `assert rain in weather`.
+- **Every other case: as before.** The selftest reads **34** cases (33 + 1), and `sabotage_wx_fb_check.py`'s
+  `--control` count moves 33 → 34 in its one place.
+
 **Outside the set:** stop and report.
 
 **Outside the set:** stop and report.
