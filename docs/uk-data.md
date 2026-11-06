@@ -2152,3 +2152,15 @@ Radars come from each frame's own node list (156-162 nodes a frame), by OPERA pr
   #556 first, so both merges wait for it.
 - **The wording fix is queued for the next docs change:** "LPS's answer covers the four datasets Daniel's question
   named". That change touches #557's A1.1d after it merges, and this record.
+
+**#557 merged, and the NI gate lifted.**
+- The ~01:04Z block reached this session after ~02:40Z. #556 merged first, as ordered (`9db83163a60d`, 03:01:01Z);
+  its main CI read as predicted, 34 (32 success, 2 skipped) and 964/1.
+- #557 then merged: squash, `--match-head-commit d155686cba5d`, no `--admin`, branch deleted. **Merge commit
+  `ac5f85090394`, 03:16:30Z.**
+- The guard re-read main's head (`9b511dc274c3`, another session's `/basemap` code) and waited until its CI had
+  finished with 0 failures (03:16:27Z) before merging.
+- **The NI gate is lifted:** §A1.1d is in main. NI still ships only with GB under the UK map plan.
+- Main's CI on `ac5f8509` is predicted at 31 (29 success, 2 skipped), as on `12569fa0`, and is read when finished.
+- **Queued for the next docs change** (the ~02:40Z ruling): §A1.1d's "LPS's answer named all four datasets" becomes
+  "LPS's answer covers the four datasets Daniel's question named".
