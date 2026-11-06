@@ -509,3 +509,19 @@ seconds, so it keeps listing.
   - **R2, 16:00-18:00Z:** ListObjects 142 and 139 an hour (a list carries no object name, so `cref` and `opuk` are
     not split); DeleteObjects 46 and 56; PutObject `wx/cref` 56 and 55, `wx/opuk` 25 and 25.
 - **No board hold,** as ruled. Start and end are announced through the reviewer chat.
+
+**Started 18:37:27Z, as announced.** Main CI on `36d0b657` read **34 = 32 success, 2 skipped, 0 failed**, as
+predicted, in two reads (18:36:56Z and 18:37:04Z).
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml` from `wt-pkd`, detached at `36d0b657`, clean.
+  Start 18:37:27.146Z, **end 18:37:31.507Z (T), exit 0.**
+  - Stderr held only wrangler's warning that several environments are defined and none was named. The top level was
+    the target, as registered.
+  - Bindings printed: `env.WX` (blipscope-wx), `env.WX_INGEST` ("on"); schedule `* * * * *`.
+  - **Version `b7626571-e7dd-4f62-9afa-80f4e0e73d5b`.**
+- **First firing:** scheduledTime **18:38:14Z**, 43.9 s after T.
+
+| row | got | verdict |
+|---|---|---|
+| **PKD-1** (`versions view --json`) | `b7626571`: bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 | as predicted |
+| **PKD-3** (first firing + 10 min, 18:48:18Z) | `wx.opuk` `frameAgeS` **499**, `coveredShare` **0.7508**. LHR, on `/wx/cref` and `/wx/opuk`: ETag **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` 1793990400 (18:40:00Z), which is the frame `/healthz` names at 18:48:23Z (503 s). Controls: Bend and KMCI `cref`, no max-age | as predicted |
+| early look at PKD-2 (T to 18:47:14Z, read 18:48:23Z, 900 s pieces, ABR [1]) | 19 `opuk` lines; storing checks 18:39:53Z and 18:44:27Z, each **`pruneKeys` 900** with no `pruned`; already-stored 17; **0 error lines** | as PKD-2 predicts; PKD-2 itself is read at T+72 min |
