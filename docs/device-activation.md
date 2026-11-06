@@ -1158,3 +1158,25 @@ model and last-seen time. **Never an id.** It runs behind the same anchor contro
 | **WX3** | the COM16 board and E2:08 | **no** row last enrolled in the COM16 proof's minutes, and none for E2:08 today |
 
 **Outside the set:** report what is read, and say which activity it matches, if any.
+
+### WC2's characterisation, read (18:55Z)
+
+The anchor held. Ledger rows: 23.
+
+| | read | verdict |
+|---|---|---|
+| **WX1** | rows last enrolled after 03:28Z: **1** | **as predicted** |
+| **WX2** | that row: first enrolment **2026-11-05T23:30Z**, last **2026-11-06T16:30Z**, 2 enrolments; `act:` activated, stamped; `fw:` **s3-128**, last seen **18:05Z** | **OFF**: not inside W-CR's window and not Weatherscope's model |
+| **WX3** | no row for the COM16 proof or for E2:08 | **as predicted** |
+
+**Which activity it matches: none of the three.** It is the board that enrolled at 23:30Z on 11-05, three hours after
+the ledger seed, and was grandfathered as activated by this morning's guarded re-seed (04:32Z). It enrolled again at
+16:30Z today, which is what WC2 counted. It is live, seen at 18:05Z, two hours after the second enrolment.
+
+**My miss:** WX2 assumed the count came from today's bench activity. The data excludes that: W-CR is 18:08-18:26Z and
+the enrolment was at 16:30Z; the model is `s3-128`, not Weatherscope's.
+
+**Why it matters for enforce, stated plainly:** a live, grandfathered s3-128 enrolled a second time in normal use.
+Under enforce, that second enrolment would have been refused with 409 `already_activated`, and the unit would have
+needed a support reset. Whatever makes a working unit enrol again (a Wi-Fi reset, a settings reset, or something
+else) is not known from these rows. That question bears on the enforce decision, and is left open here.
