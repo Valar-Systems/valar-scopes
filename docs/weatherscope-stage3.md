@@ -13109,3 +13109,34 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **The committed record** redacts BSSID, LAN IP and network names, and keeps counts, never times, for theme and phase lines.
 
 **W-CR waits** for Q85's ruling and the host run after it. It is announced in chat before its first flash. No board window has been opened; the board is untouched since A12.108.
+
+### A12.123 Q85 (b) ruled and applied: S-TW's anchor is whole again, and the host run reads as predicted. The PR goes up; W-CR is announced
+
+**The ruling (~17:00Z):**
+- **Q85 (b), with the miss kept on record.** The two `OnPoll` lines in `HandleTouch` are restored byte-for-byte, and the real-touch clear becomes its own `if constexpr` after them. A closed step's instrument is not re-anchored to fit new code.
+- **Rebuild and re-check only the two Weatherscope images.**
+- **Re-run the host suite** and predict exit 2 from exactly the two environment blocks. Anything else: stop and report.
+- **New standing rule:** run the sabotage-anchors check across **every** driver before any full run.
+- **Accepted as recorded:** A12.121's corrections and the setup-checklist fix.
+
+**Applied:**
+- **`d5611ef76a92`:** the `OnPoll` lines appear in the diff against main only as context.
+- **`bb857f4f87d2`:** the W-CR runner waits 20 s, not 5, for its first bench reply. The edition reads serial only after its 4 s splash. This is an instrument change made before its first use, and no row moves.
+
+| row | predicted | measured |
+|---|---|---|
+| every driver's and plant's anchors, BEFORE the full run (the new rule) | all present exactly once | **25 of 25** `--anchors` (the 23 `test/host` drivers, `plant_s_swb.py`, `plant_s_tw.py`); `plant_s_wait.py` (no `--anchors` mode) **finds each of its 2 anchors once** |
+| `weatherscope-s3-128` | no bench marker | 1,881,424 B, `2c8389ab3652`; **no marker**; carries the cap, the strip's words, the refusal and the Device ID row |
+| `weatherscope-touchbench-s3-128` | `[touch-bench]`, no other marker | 1,882,000 B, `10942a49ae98`; **`--expect "[touch-bench]"` OK** |
+| the radar images (not rebuilt) | as in A12.122 | `1f79810cd738` no marker; `b37b0544600e` `[touch-bench]` only |
+| the guards on `d5611ef76a92` | OK | `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py`, workflow concurrency, runners, the skus reader sweep, `check-setup-banner.mjs`, `check-config-form.py`: **all OK** |
+| WSL `run.sh` (g++ 13.3) | exit 2 from exactly the two environment blocks | **exit 2; FAILED BLOCKS exactly the two:** R0/R0b (the rig, Pillow) and "the same TU, for the board" (xtensa). The anchors block ok (23 drivers + the two plants); the new block `32 checks, 0 failures`; 23 drivers (22 run, 1 skipped); **AS PREDICTED** |
+
+**PR #571** was opened at `bb857f4f87d2` (17:16:24Z), with the CI prediction as A12.119: **33 checks, 29 success, 4 skipped** (version, promote, ship-alert, publish). Main is at `c2caa9d43609`; since this branch's base it has gained only docs (#567, #569, #570), and the job set is unchanged. **It merges only after #445.**
+
+**W-CR is announced:**
+- **When:** from **17:22Z**, to about **18:15Z**.
+- **Where:** `907069326E64` only, its port resolved by serial.
+- **The images:** `weatherscope-touchbench-s3-128` (`10942a49ae98`) through `app-only-write.py`, then the clean `39e258b5be07` written back.
+- **The rows:** B0–B6 as frozen in A12.119, A12.121 and A12.122.
+- **When it ends:** only after the clean image's boot line reads `theme=auto`.
