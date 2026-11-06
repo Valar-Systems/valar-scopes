@@ -2130,3 +2130,26 @@ as the merge.
 - The window is historical, so it was read again in the script's own format, twice, at 05:45 and 05:47Z. Those
   two reads are the row's reading.
 - The fault was in my call, not the fleet or the script. PD6 and R3-8 were read with the right format.
+| **R3′-5b′** (`r3_5b.py opuk 150 blipscope-wx-ingest-opuk`; twice, 10 min apart) | **read 1, listed 05:36:02Z:** 12 frames, 04:35-05:30Z; last storing check started 05:34:44.872Z (cross-check -0.5 s), `pruned` 1; 0 below the cut; the sabotage puts 1 below, the oldest; margin 15.1 s; **PASS**. **Read 2, listed 05:45:43Z:** 12 frames, 04:45-05:40Z; last storing check started 05:44:15.491Z (+0.3 s); 0 below; the sabotage FAILs on the oldest; margin 44.5 s; **PASS** | as predicted |
+| **R3′-5a** (`blipscope-wx-ingest-opuk`, 04:25:53-05:35:53Z, read 05:36:00Z, ABR 1) | `pruned` on **stored 14 and backfilled 2 only**. Then 0 on every storing check until 05:14:22Z, and **1** on each from 05:19:20Z. **But the first storing check (04:33:19Z) pruned 0, not 12** | **OFF**, on "the first storing check prunes exactly 12" |
+
+**R3′-5a's escape: the `opuk` Worker stopped first, as registered.**
+- R3′-5a isn't one of the rows that roll nothing back alone, so `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml
+  -e inert` ran at **05:48:35.534-05:48:38.067Z**: exit 0, empty stderr.
+- Version **`a1c8c3b9-e905-487a-984c-032a65c7fca9`** (100%), with `WX_INGEST` `off` and the cron kept. Before it,
+  `ea5970ba` was at 100%.
+- The `cref` Worker (`257f49eb`) is untouched. The stored `opuk` frames stay.
+
+**The cause, read-only:** `wrangler r2 bucket lifecycle list blipscope-wx` shows a rule **`expire-1d`: "Expire
+objects after 1 days", for all prefixes, enabled**.
+- R3's 12 stale frames were written from about 23:14Z on 11-04 to 00:09Z on 11-05.
+- At my 21:13:50Z listing on 11-05 they were 21-22 h old. By R3′-1a they were 28-29 h old, past the rule's
+  threshold, so they had been expired before `opuk`'s first storing check could prune them.
+- **The miss is mine:** I took "exactly 12" from a listing 7 h old and didn't read the bucket's own lifecycle rule.
+- **Alternatives, not excluded outright:**
+  - a deletion by another session or by a person; nothing points to one, and deleting data is Daniel's;
+  - the old `cref` Worker pruning `opuk`'s prefix; its `pruneOld` lists `framesPrefix(p)` for its own product.
+  - The rule fully explains the 0.
+- **The prune itself works:** later checks prune 1 frame each, and R3′-5b′ passed both listings.
+- **Beside it:** the same 1-day expiry applies to `wx/*/latest`. A product whose ingest stops for over a day loses
+  its `latest` pointer too.
