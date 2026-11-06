@@ -4850,4 +4850,15 @@ blocks are the rig's two (xtensa, Pillow). Then `blipscope-s3-128` and `blipscop
 **CI:** predicted at the push, from finished runs that postdate main's last job-set change and from main at the push.
 #445 also needs main merged in first, with its own predictions, because its last run predates both #549 and #552.
 
+**Amended before any code (C7, `wx-fb-check.py`):**
+- **Its plane colours need no addition.** Cyan and white are already two of `altitudeColor`'s five, which it reads
+  from the source.
+- **Its rule (2), "outlines, look A", becomes "outlines, both looks",** because Q1 gives look B the edge. `--look B`
+  then grades (2) as `--look A` does.
+- **Its rule (3), "an outline drawn while no layer is shown", stands as written** for the `--off` arm, the switch off.
+  C3 ties the edge to the switch, so a switch-off frame still has no edge. A frame with the switch on and no crop
+  showing (stale, or outside coverage) now draws the edge. No arm captures that state, and nothing claims to grade it.
+- **Its selftest:** a look-B case of rule (2) is added, a marker with no edge beside weather, which must FAIL. The
+  selftest's count rises by that one case.
+
 **Outside the set:** stop and report.
