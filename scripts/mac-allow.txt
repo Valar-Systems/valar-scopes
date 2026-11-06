@@ -1,0 +1,2 @@
+# Lines scripts/check_macs.py excuses: path<TAB>line<TAB>reason. A path and a line, never the token; an entry whose
+# line has no finding is refused. For a short hash that happens to begin with an Espressif OUI. Empty on purpose.

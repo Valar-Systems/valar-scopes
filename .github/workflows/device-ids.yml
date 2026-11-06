@@ -42,6 +42,11 @@ jobs:
       # would be permanently red, and a control that can never pass is a control
       # somebody disables. See scripts/check_device_ids.py.
       - run: python3 scripts/check_device_ids.py
+      # No committed file names a board's MAC, whole or by its device name (scripts/check_macs.py; it needs no registry).
+      # The selftest plants one twin of each form, and each sabotage must turn exactly its rows red.
+      - run: python3 scripts/check_macs.py
+      - run: python3 scripts/check_macs.py --selftest
+      - run: python3 scripts/check_macs.py --sabotage
       # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
       - run: python3 scripts/check_workflow_concurrency.py
       - run: python3 scripts/check_workflow_concurrency.py --selftest
