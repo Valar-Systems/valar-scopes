@@ -13280,7 +13280,7 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 
 **The record:** `tools/weatherscope/board/run-2026-11-06-wcr/` (11 files: the runner outputs, the redacted traces, the four verify logs, the two `app-only-write` logs).
 - **What the redaction does:** timestamps are relative to each trace's first line; LAN IPs and BSSIDs are masked; network names are written as `<ssid>`; 12 theme/phase lines are removed, with their count kept and never their times.
-- **What caught my misses:** `check_wifi.py` caught 5 network names (`Associated with "..."`) that my first redaction missed. My own leak check then caught my second pass writing `bssid=<ssid>`.
+- **What caught my misses:** `check_wifi.py` caught 5 network names (`Associated with "<ssid>"`) that my first redaction missed. My own leak check then caught my second pass writing `bssid=<ssid>`.
 - **Both were amended before any push,** so neither ever reached the remote. Final: `check_wifi.py` OK (name 0, bssid 0, lan 0), `check_device_ids.py` OK, `check_binary_strings.py` OK.
 
 **#571's CI rerun at `9e33982cf6fa`:** started 17:57:58Z and read twice after it finished. **33 checks: 29 success, 4 skipped, 0 failed. AS PREDICTED** (A12.126; the web job derived, not built here).
