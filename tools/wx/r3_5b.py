@@ -12,7 +12,7 @@ counts, epochs and times only (never a key's value beyond its epoch).
   after the listing (the read cannot rule out a pruning line still landing).
 
 Pruning checks: opuk = status stored/backfilled (the ruling's "storing check"); cref = any check logging `pruned`
-(cref prunes on every successful check). Usage: python -I r3_5b.py <opuk|cref> [wait_s]
+(cref prunes on every successful check). Usage: python -I r3_5b.py <opuk|cref> [wait_s] [service, default blipscope-wx-ingest]
 """
 import datetime
 import hashlib
@@ -66,7 +66,7 @@ def logs(tok, a_ms, b_ms):
     while True:
         body = {"queryId": "uk-r3-5b", "timeframe": {"from": a_ms, "to": b_ms}, "view": "events", "limit": 2000,
                 "parameters": {"filters": [{"key": "$metadata.service", "operation": "eq", "type": "string",
-                                            "value": "blipscope-wx-ingest"}]}}
+                                            "value": SERVICE}]}}
         if off:
             body["offset"] = off
         req = urllib.request.Request(
@@ -94,6 +94,8 @@ def judge(epochs, latest_epoch, t_last_s, cap):
 
 product = sys.argv[1]
 wait_s = int(sys.argv[2]) if len(sys.argv) > 2 else 150
+# R3' (docs/wx-opuk-split.md): opuk has its own Worker, so its pruning lines are in its own service
+SERVICE = sys.argv[3] if len(sys.argv) > 3 else "blipscope-wx-ingest"
 assert product in ("opuk", "cref"), product
 t = tf()
 akid, secret = t["r2-wx-read-id"], t["r2-wx-read-secret"]
