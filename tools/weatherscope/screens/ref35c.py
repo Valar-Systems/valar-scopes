@@ -1,16 +1,18 @@
-"""Weatherscope 3.5c's host renders (docs/weatherscope-stage3.md A12.130, A12.133): the forecast, conditions and alerts
-screens drawn from the trimmed NWS records alone, for Daniel's look -- no device code exists yet, so nothing here is read
-from one. The font is ref35.py's pinned glcdfont (FT1). Every text row is checked against the disc's chord, written
-here: a row (top y, height h) fits when its visible width <= int(2 * sqrt(120^2 - dy^2)) - 8, dy the larger of
-|y - 120| and |y + h - 120|. A row that does not fit is REFUSED: no PNG is written and the row is named.
+"""Weatherscope 3.5c's host renders (docs/weatherscope-stage3.md A12.130, A12.133, A12.138): the forecast, conditions and
+alerts screens drawn from the trimmed NWS records alone, for Daniel's look -- no device code exists yet, so nothing here
+is read from one. The font is ref35.py's pinned glcdfont (FT1). Every text row is checked against the disc's chord,
+written here: a row (top y, height h) fits when its visible width <= int(2 * sqrt(120^2 - dy^2)) - 8, dy the larger of
+|y - 120| and |y + h - 120|. A row that does not fit is REFUSED: no PNG is written and the row is named. So is a screen
+with two text items within 2 px of each other (A12.138): each text() call is one item, its box the pixels it lit.
 
     python -I tools/weatherscope/screens/ref35c.py <out dir outside the repo> [--night <night record>]
+    python -I tools/weatherscope/screens/ref35c.py --selftest     # S-L: the forecast before A12.138 must read 0 px
 
 Writes each screen at 1x and 3x as PNG (zlib, no Pillow) and prints its RGB-pixel sha256 (12 hex) -- the identity of
-a render, which survives any PNG encoder. Prints no coordinate.
-Exit 0 every render written; 1 a refusal (nothing written for that render); 2 the rig.
+a render, which survives any PNG encoder -- and its smallest text gap. Prints no coordinate.
+Exit 0 every render written; 1 a refusal (nothing written for that render) or a failed selftest; 2 the rig.
 """
-import datetime, hashlib, importlib.util, json, math, os, struct, sys, zlib
+import datetime, hashlib, importlib.util, json, math, os, struct, sys, tempfile, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DAY = os.path.join(ROOT, "test", "fixtures", "wx", "nws", "dallas-day.json")
@@ -30,6 +32,11 @@ THEMES = {   # the roles A12.133 names, as WxTheme.h's tables hold them
 WARNING_SCREEN = {"Tornado Warning", "Snow Squall Warning", "Severe Thunderstorm Warning", "Flash Flood Warning"}
 WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+BAND_TOP, BAND_ROWS = 16, 206   # rows 16-221: under the title (last row 15), above the current dot (top row 222)
+MIN_GAP = 3                     # two text items 2 px apart or closer are refused
+# The forecast strip (A12.138): the hour labels sit under the axis and the week stays where it was, so the strip is shorter.
+FORECAST = {"axis": 132, "plot_bottom": 127, "plot_scale": 47, "low_label": 123, "hours": 135}
+FORECAST_BEFORE = {"axis": 137, "plot_bottom": 132, "plot_scale": 52, "low_label": 128, "hours": 141}   # S-L only
 
 
 def chord(y, h):
@@ -44,6 +51,7 @@ class Screen:
         self.t = THEMES[theme]
         self.px = [[self.t["bg"]] * SIZE for _ in range(SIZE)]
         self.refusals = []
+        self.items = []   # one (text, x0, y0, x1, y1) per text() call: the box of the pixels it lit
 
     def put(self, x, y, col):
         if 0 <= x < SIZE and 0 <= y < SIZE:
@@ -73,16 +81,32 @@ class Screen:
         w = len(s) * 6 * size - size
         if w > chord(y, 8 * size):
             self.refusals.append(f"'{s}' at y={y} size {size}: {w} px > chord {chord(y, 8 * size)}")
+        lit = []
         for i, ch in enumerate(s):
             g = FONT[ord(ch) & 0xFF]
             for cx in range(5):
                 for cy in range(7):
                     if g[cx] & (1 << cy):
-                        self.rect(x + (i * 6 + cx) * size, y + cy * size, x + (i * 6 + cx) * size + size - 1,
-                                  y + cy * size + size - 1, col)
+                        px, py = x + (i * 6 + cx) * size, y + cy * size
+                        self.rect(px, py, px + size - 1, py + size - 1, col)
+                        lit += [(px, py), (px + size - 1, py + size - 1)]
+        if lit:
+            self.items.append((s, min(p[0] for p in lit), min(p[1] for p in lit), max(p[0] for p in lit), max(p[1] for p in lit)))
 
     def centred(self, s, y, size, role):
         self.text(C - (len(s) * 6 * size) // 2, y, s, size, role)
+
+    def min_gap(self):
+        """(gap, a, b): the closest two text items. A gap is the larger of the horizontal and vertical blank pixels
+        between two boxes, negative when they overlap, and deliberately not clamped: an overlap reads as one."""
+        best = None
+        for i, a in enumerate(self.items):
+            for b in self.items[i + 1:]:
+                dx = max(a[1], b[1]) - min(a[3], b[3]) - 1
+                dy = max(a[2], b[2]) - min(a[4], b[4]) - 1
+                if best is None or max(dx, dy) < best[0]:
+                    best = (max(dx, dy), a[0], b[0])
+        return best
 
     def rgb(self):
         return b"".join(bytes(c) for row in self.px for c in row)
@@ -131,16 +155,23 @@ def headline(rec):
     return "NO RAIN", "IN 7 DAYS"
 
 
-def frame(s, title, page, dots):
+def frame(s, title, page):
     s.centred(title, 9, 1, "uiDim")
-    if dots:
-        for i, cx in enumerate((100, 110, 120, 130, 140)):
-            s.rect(cx - 1, 223, cx + 1, 225, s.t["uiFg"] if i == page else s.t["uiDim"])
+    for i, cx in enumerate((100, 110, 120, 130, 140)):
+        if i == page:
+            s.rect(cx - 2, 222, cx + 2, 226, s.t["uiFg"])   # 5 px as well as brighter: a shade alone is faint in light
+        else:
+            s.rect(cx - 1, 223, cx + 1, 225, s.t["uiDim"])
 
 
-def forecast(rec, theme, dots):
+def block_top(h):
+    """The row that centres an h-row block between the title and the dots; an odd remainder goes below."""
+    return BAND_TOP + (BAND_ROWS - h) // 2
+
+
+def forecast(rec, theme, f=FORECAST):
     s = Screen(theme)
-    frame(s, "FORECAST", 1, dots)
+    frame(s, "FORECAST", 1)
     a, b = headline(rec)
     whole = f"{a} {b}"
     if len(whole) * 12 - 2 <= chord(34, 16):
@@ -151,22 +182,22 @@ def forecast(rec, theme, dots):
     hrs = rec["hourly"][:24]
     temps = [h["tempF"] for h in hrs if h["hasTemp"]]
     tmin, tmax = min(temps), max(temps)
-    s.rect(36, 137, 203, 137, s.t["uiDim"])
+    s.rect(36, f["axis"], 203, f["axis"], s.t["uiDim"])
     pts = []
     for i, h in enumerate(hrs):
         x0 = 36 + 7 * i
         if h["hasPop"] and h["pop"] > 0:
             ht = int(math.floor(h["pop"] * 40 / 100 + 0.5))
             if ht > 0:
-                s.rect(x0 + 1, 137 - ht, x0 + 5, 136, s.t["uiAccent"])
+                s.rect(x0 + 1, f["axis"] - ht, x0 + 5, f["axis"] - 1, s.t["uiAccent"])
         if h["hasTemp"]:
-            pts.append((x0 + 3, 132 - int(math.floor((h["tempF"] - tmin) * 52 / max(1, tmax - tmin) + 0.5))))
+            pts.append((x0 + 3, f["plot_bottom"] - int(math.floor((h["tempF"] - tmin) * f["plot_scale"] / max(1, tmax - tmin) + 0.5))))
         if local(h["startUtc"]).hour % 6 == 0:
             lab = hour_text(h["startUtc"], spaced=False).replace("AM", "A").replace("PM", "P")
-            s.text(x0 + 3 - (len(lab) * 6) // 2, 141, lab, 1, "uiDim")
+            s.text(x0 + 3 - (len(lab) * 6) // 2, f["hours"], lab, 1, "uiDim")
     for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
         s.line(x0, y0, x1, y1, s.t["orangeText"])
-    for v, y in ((tmax, 76), (tmin, 128)):
+    for v, y in ((tmax, 76), (tmin, f["low_label"])):
         lab = f"{v}{DEG}"
         s.text(32 - (len(lab) * 6 - 1), y, lab, 1, "uiFg")
     for j, d in enumerate(days(rec)[:7]):
@@ -178,11 +209,20 @@ def forecast(rec, theme, dots):
     return s
 
 
-def conditions(rec, theme, dots):
+def conditions(rec, theme):
     s = Screen(theme)
-    frame(s, "NOW", 2, dots)
+    frame(s, "NOW", 2)
     o = rec["observation"]
-    s.centred(f"{o['tempF']}{DEG}" if o["hasTemp"] else "--", 40, 4, "uiFg")
+    top = block_top(127)   # 28 temperature, a 20 gap, then three 14-row lines and a 7-row one, 10 apart
+    if o["hasTemp"]:
+        # The degree sign is size 2 beside size-4 digits, at the natural advance. The glyph's first lit row and the
+        # digits' are both row 0, so one y levels their tops. The two are centred as one.
+        digits = f"{o['tempF']}"
+        x = C - (len(digits) * 24 + 10) // 2
+        s.text(x, top, digits, 4, "uiFg")
+        s.text(x + len(digits) * 24, top, DEG, 2, "uiFg")
+    else:
+        s.centred("--", top, 4, "uiFg")
     if not o["hasWind"]:
         wind = "WIND --"
     elif o["windMph"] == 0:
@@ -191,32 +231,34 @@ def conditions(rec, theme, dots):
         wind = f"WIND {DIRS[int(math.floor((o['windDirDeg'] + 22.5) / 45)) % 8]} {o['windMph']}" if o["hasWindDir"] else f"WIND {o['windMph']}"
         if o["hasGust"] and o["gustMph"] > o["windMph"]:
             wind += f" G{o['gustMph']}"
-    s.centred(wind, 88, 2, "uiFg")
-    s.centred(f"HUMIDITY {o['humidityPct']}%" if o["hasHumidity"] else "HUMIDITY --", 112, 2, "uiFg")
+    s.centred(wind, top + 48, 2, "uiFg")
+    s.centred(f"HUMIDITY {o['humidityPct']}%" if o["hasHumidity"] else "HUMIDITY --", top + 72, 2, "uiFg")
     hi = next((p["tempF"] for p in rec["periods"] if p["isDaytime"]), None)
     lo = next((p["tempF"] for p in rec["periods"] if not p["isDaytime"]), None)
-    s.centred(f"HI {hi if hi is not None else '--'}  LO {lo if lo is not None else '--'}", 136, 2, "uiFg")
+    s.centred(f"HI {hi if hi is not None else '--'}  LO {lo if lo is not None else '--'}", top + 96, 2, "uiFg")
     stale = rec["capturedUtc"] - o["timeUtc"] > 90 * 60
-    s.centred(f"OBSERVED {clock(o['timeUtc'])}", 198, 1, "orangeText" if stale else "uiDim")
+    s.centred(f"OBSERVED {clock(o['timeUtc'])}", top + 120, 1, "orangeText" if stale else "uiDim")
     return s, hi, lo, stale
 
 
-def alerts(items, theme, dots, now):
+def alerts(items, theme, now):
     s = Screen(theme)
-    frame(s, "ALERTS", 3, dots)
+    frame(s, "ALERTS", 3)
     shown = sorted([a for a in items if a["event"] not in WARNING_SCREEN], key=lambda a: a["startUtc"])
     if not shown:
         s.centred("NO WATCHES OR ADVISORIES", 116, 1, "uiDim")
         return s, 0, 0
+    n, more = min(4, len(shown)), max(0, len(shown) - 4)
+    top = block_top(26 * n + 7 if more else 26 * n - 9)
     for i, a in enumerate(shown[:4]):
-        y = 36 + 26 * i
+        y = top + 26 * i
         s.centred(a["event"].upper(), y, 1, "uiWarn")
         span = (f"{WEEKDAYS[local(a['startUtc']).weekday()]} {hour_text(a['startUtc'])} - "
                 f"{WEEKDAYS[local(a['endUtc']).weekday()]} {hour_text(a['endUtc'])}")
         s.centred(span, y + 10, 1, "uiDim")
-    if len(shown) > 4:
-        s.centred(f"+{len(shown) - 4} MORE", 140, 1, "uiDim")
-    return s, min(4, len(shown)), max(0, len(shown) - 4)
+    if more:
+        s.centred(f"+{more} MORE", top + 26 * n, 1, "uiDim")
+    return s, n, more
 
 
 def synthetic_rain(rec):
@@ -246,10 +288,45 @@ def write_png(px_rgb, path, scale):
     open(path, "wb").write(data)
 
 
+def emit(name, scr, extra, out):
+    """Writes one render, or refuses it and writes nothing. True when written."""
+    gap = scr.min_gap()
+    why = list(scr.refusals)
+    if gap is not None and gap[0] < MIN_GAP:
+        why.append(f"text gap {gap[0]} px: '{gap[1]}' and '{gap[2]}'")
+    if why:
+        print(f"REFUSED {name}: " + "; ".join(why))
+        return False
+    rgb = scr.rgb()
+    write_png(rgb, os.path.join(out, f"{name}.png"), 1)
+    write_png(rgb, os.path.join(out, f"{name}@3x.png"), 3)
+    print(f"{name}: rgb {hashlib.sha256(rgb).hexdigest()[:12]}  gap {gap[0] if gap else '-'} px  {extra if extra else ''}")
+    return True
+
+
+def selftest():
+    """S-L (A12.138): the forecast as it stood before the ruling must read 0 px and be refused, with no PNG written, in
+    both themes. CONTROL: the frozen layout reads at least MIN_GAP and writes one, so the check is not refusing everything."""
+    rec = json.load(open(DAY, encoding="utf-8"))
+    bad = 0
+    with tempfile.TemporaryDirectory() as out:
+        for t in THEMES:
+            old, new = forecast(rec, t, FORECAST_BEFORE), forecast(rec, t)
+            old_written = emit(f"before-{t}", old, (), out)
+            new_written = emit(f"control-{t}", new, (), out)
+            ok = (old.min_gap()[0] == 0 and not old_written and not os.path.exists(os.path.join(out, f"before-{t}.png"))
+                  and new.min_gap()[0] >= MIN_GAP and new_written and os.path.exists(os.path.join(out, f"control-{t}.png")))
+            print(f"S-L {t}: before reads {old.min_gap()[0]} px, control reads {new.min_gap()[0]} px: {'ok' if ok else 'FAILED'}")
+            bad += 0 if ok else 1
+    return 1 if bad else 0
+
+
 def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 2
+    if argv[1] == "--selftest":
+        return selftest()
     out = os.path.abspath(argv[1])
     os.makedirs(out, exist_ok=True)
     rec = json.load(open(DAY, encoding="utf-8"))
@@ -257,30 +334,20 @@ def main(argv):
     if "--night" in argv:
         night = json.load(open(argv[argv.index("--night") + 1], encoding="utf-8"))
     jobs = []
-    for theme in ("dark", "light"):
-        for dots in (False, True):
-            tag = f"{theme}{'-dots' if dots else ''}"
-            if night is None:
-                jobs.append((f"forecast-capture-{tag}", lambda t=theme, d=dots: (forecast(rec, t, d), headline(rec))))
-                syn = synthetic_rain(rec)
-                jobs.append((f"forecast-SYNTHETIC-RAIN-{tag}", lambda t=theme, d=dots, r=syn: (forecast(r, t, d), headline(r))))
-                jobs.append((f"conditions-day-{tag}", lambda t=theme, d=dots: conditions(rec, t, d)))
-                jobs.append((f"alerts-SYNTHETIC-{tag}", lambda t=theme, d=dots: alerts(rec["syntheticAlerts"]["items"], t, d, rec["capturedUtc"])))
-                jobs.append((f"alerts-capture-{tag}", lambda t=theme, d=dots: alerts(rec["alerts"], t, d, rec["capturedUtc"])))
-            else:
-                jobs.append((f"conditions-night-{tag}", lambda t=theme, d=dots: conditions(night, t, d)))
+    for t in ("dark", "light"):
+        if night is None:
+            syn = synthetic_rain(rec)
+            jobs.append((f"forecast-capture-{t}", lambda t=t: (forecast(rec, t), headline(rec))))
+            jobs.append((f"forecast-SYNTHETIC-RAIN-{t}", lambda t=t, r=syn: (forecast(r, t), headline(r))))
+            jobs.append((f"conditions-day-{t}", lambda t=t: conditions(rec, t)))
+            jobs.append((f"alerts-SYNTHETIC-{t}", lambda t=t: alerts(rec["syntheticAlerts"]["items"], t, rec["capturedUtc"])))
+            jobs.append((f"alerts-capture-{t}", lambda t=t: alerts(rec["alerts"], t, rec["capturedUtc"])))
+        else:
+            jobs.append((f"conditions-night-{t}", lambda t=t: conditions(night, t)))
     refused = 0
     for name, job in jobs:
         res = job()
-        scr, extra = res[0], res[1:]
-        if scr.refusals:
-            refused += 1
-            print(f"REFUSED {name}: " + "; ".join(scr.refusals))
-            continue
-        rgb = scr.rgb()
-        write_png(rgb, os.path.join(out, f"{name}.png"), 1)
-        write_png(rgb, os.path.join(out, f"{name}@3x.png"), 3)
-        print(f"{name}: rgb {hashlib.sha256(rgb).hexdigest()[:12]}  {extra if extra else ''}")
+        refused += 0 if emit(name, res[0], res[1:], out) else 1
     print(f"{len(jobs) - refused} render(s) written ({2 * (len(jobs) - refused)} files), {refused} refused")
     return 1 if refused else 0
 
