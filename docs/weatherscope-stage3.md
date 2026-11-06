@@ -13171,3 +13171,28 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **Either way:** the rest of W-CR is unchanged. It is re-announced before its first flash.
 
 **PR #571 is unaffected:** its CI runs as predicted, and it merges after #445.
+
+### A12.125 PR #571's CI: OFF-PREDICTION, one check. The web renderer cannot link `ota::FlashWriteActive()`. No fix until ruled (Q87)
+
+**Measured.** The run started 17:16:30Z (after `84409651`, the last job-set change) and finished by 17:28:31Z. It was read twice, 30 s apart: **33 checks, 28 success, 4 skipped (promote, ship-alert, version, publish), 1 failed: `build`**, the web-renderer's. **Predicted: 33 checks, 29 success, 4 skipped, 0 failed.** So the count and the skips are as predicted, and one success is a failure.
+
+**The cause:** read from the job's log.
+- **The link error:** `wasm-ld: error: ... AircraftManager.o: undefined symbol: ota::FlashWriteActive()`.
+- **Why the web build has no definition:** it links the radar's `AircraftManager.o` without `OtaUpdater.cpp`. Its `tools/web-renderer/web/web_ota.cpp` stubs "the four OtaUpdater.cpp entry points the radar calls".
+- **The new call:** through `TouchWedgeDevice.h`, the radar now calls a fifth, and the web build has no definition of it.
+- **What builds:** the compile succeeded, so the shims cover `Preferences` and the rest. Only the link failed.
+- **Which models:** the web renderer builds the radar SKUs only (s3-128, s3-21), never Weatherscope.
+
+**The miss, by name.** `AircraftManager.o` has a second link target, the web renderer, and I predicted its `build` without building it.
+- **Why it didn't happen locally:** no `emcc` is active on this machine (WSL has an emsdk checkout, not activated).
+- **Why it read as safe:** `ota::FlashWriteActive()` was added to `OtaUpdater.h` as a device API. That premise ("the radar's OtaUpdater calls are stubbed for the web") lives in a file the PR did not touch.
+- **The family:** the second-path table in CLAUDE.md, in a link step.
+
+**Q87. Where does the web build get its answer?**
+- **(a) [recommended]** `web_ota.cpp` gains a fifth stub: `bool ota::FlashWriteActive() { return false; }`. The demo has no flash writer, so `false` is the truth there. Its header comment is updated from "four" to "five".
+  - **Nothing device-side changes:** no image is rebuilt, and nothing host-compiled moves.
+  - **Predicted:** the next PR run at the new head reads **33 checks: 29 success, 4 skipped, 0 failed**.
+  - **Before the push:** every driver's anchors 25/25 again (the standing rule). No driver reads `web_ota.cpp`.
+- **(b)** Make the flag header-only (an inline function returning a function-local static), so no link symbol is needed. This changes measured device code, and the two Weatherscope images and the two radar images would be rebuilt and re-checked.
+
+**Also open:** Q86 (A12.124). W-CR waits for it. The merge waits for #445 as ruled.
