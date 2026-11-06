@@ -1321,6 +1321,58 @@ serial line just before `ESP.restart()` (the portal-success restart, `main.cpp:5
 `main.cpp:540`; the touch watchdog, `AircraftManager.cpp:1471`/`1503`), so a serial capture names which one fired. The
 fleet's 4 crash boots on 3 devices are a separate firmware finding, reported on their own.
 
+Restarts before a board has its key stay invisible to this instrument (reviewer, ~20:13Z): the record above shows
+none and excludes none.
+
+### The fleet's crash boots (ruling ~20:13Z): predicted before the read
+
+Read-only; devices appear as ordinals, never as ids, and no clock time is printed. Frozen at 20:18:07Z, before the
+tool existed; read at 20:18:36Z. Two independent lower bounds on how long a device ran before its crash: **U-alive**,
+from its previous boot point to its last request before the crash boot, and **U-usage**, the uptime of its last
+hourly usage report. **G** is the outage (the crash, the reboot and the rejoin).
+
+| crash | device | token | U-alive (previous boot) | G | U-usage | since last fw change / enrolment |
+|---|---|---|---|---|---|---|
+| 1 | #1 (1 crash) | `TASK_WDT` | 1,038.9 min (`SW`) | 0.9 min | 17 h | none in record / 7,370.8 min |
+| 2 | #2 (2 crashes) | `PANIC` | **10.2 min (`POWERON`)** | 1.6 min | 0 h | none in record / 1,866.3 min |
+| 3 | #3 (1 crash) | `TASK_WDT` | 480.3 min (`SW`) | 0.5 min | 7 h | 9,451.7 / 60,347.7 min |
+| 4 | #2 | `PANIC` | **5.1 min (`POWERON`)** | 1.2 min | 0 h | none in record / 1,969.1 min |
+
+| | predicted | verdict |
+|---|---|---|
+| control | 4 crash boots on 3 devices, as at 20:00Z | **held** |
+| **C-count** | crashes per device {2, 1, 1} | **as predicted** |
+| **C-setup** | none within 60 min of an enrolment or a firmware change | **as predicted** (closest: 1,866 min) |
+| **C-alive** | every crash after more than 60 min running | **OFF**: device #2, after 10.2 and 5.1 min |
+
+**My miss:** C-alive. **The lead:** device #2 panicked twice, about 103 min apart, each within about 10 min of a
+power-on: a candidate repeatable early-runtime fault. #1 and #3 are task-watchdog trips after hours of running.
+
+**Is device #2 a bench board? No** (read 20:29Z; predicted no). The device id is the first 8 bytes of
+SHA-256(MAC || salt) (`include/DeviceIdentity.h`); computed in-process for E2:08, COM16, Weatherscope's board and the
+Missileer board from their USB serials, and compared with the token file's test, records and feeder lines, it matches
+none of them. The control held: the test MAC derives exactly the test identity. The Remote's board could not be
+checked: its MAC is not held.
+
+### A crash address in the boot report: proposal, approved for a bench proof (~20:25Z), not for v19
+
+v18 already writes a crash dump to flash on every panic and nothing reads it. The framework it links has
+`CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y` (ELF, CRC32), `CONFIG_ESP_COREDUMP_CHECK_BOOT=y` and
+`CONFIG_ESP_TASK_WDT_PANIC=y`; the s3-128's table has `coredump` at `0xFF0000`, 64 KB; and v18's source has no
+`esp_core_dump` use. So a later firmware can read `esp_core_dump_get_summary()` on a `PANIC` or watchdog boot (the
+crash PC, the crashed task, the build's ELF hash) and report it in a new header under the same deliver-until-
+acknowledged policy, erasing the dump only after the acknowledgement. A `TASK_WDT` dump names the watchdog's context,
+not the starved task, so that name is stashed in an `RTC_NOINIT` word by the task-watchdog hook. The Worker validates
+the report by shape and rejects anything else, never truncating.
+
+**Design condition (reviewer, ~20:25Z):** the reporter checks the dump's build hash and **erases, without reporting,
+any dump from an image it does not know**: a factory board can carry a leftover from a factory test program.
+
+**The bench proof comes first** (K1-K5, predictions as frozen), on E2:08 or COM16, never the feeder: a planted panic
+leaves a dump; the dump fits in 64 KB (the risk: if not, the partition must grow, which is a factory-image and OTA
+question); its PC resolves on the bench build; a planted starvation reads `TASK_WDT` with the dump naming another
+context; and the dump survives an OTA. v19 does not wait for it.
+
 ### The design property, stated as a property
 
 **The gate writes `activated` before the key reaches the board.** `claimActivation` runs at the top of the
