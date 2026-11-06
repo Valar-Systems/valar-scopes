@@ -570,6 +570,9 @@ reading the source.
 
 ## Sheet edits of 2026-11-06 (Daniel's; ruled ~18:22Z): predictions, frozen before the edits
 
+*The E3 follow-up (ruled ~18:54Z): nothing left to edit. The note below already marks this section superseded, and it
+merged with the sheet in #574 (`fb3e171a`).*
+
 **Superseded by the ruling of ~18:34Z (below), with this section kept as it was frozen.** E3's line about boards written to before was dropped (~18:29Z, then ~18:34Z): production is START only for every board. The bench item E6 named, the write without the erase, is proven by B1 below.
 
 The factory reads the sheet from main, so this is a docs-only PR that goes up today. Before the edits:
