@@ -643,7 +643,10 @@ def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, we
     r1, hc = src["rings"][1][0], src["hl"]["colour"]
     if stroke:
         # A later contact's label stroke across this marker's border: a label-and-weather green, or plain weather.
-        sc = 0x0320 if stroke == "label" else rain
+        # The label-and-weather colour is drawn from the sets the headers give (F3, 2026-11-06), never typed: it was
+        # 0x0320 (Weatherscope's A code 2) until the avionics look, which made that a colour the layer never draws.
+        both = sorted(src["label"] & src["weather"][look])
+        sc = (both[0] if both else None) if stroke == "label" else rain
         assert sc in src["weather"][look] and (sc in src["label"]) == (stroke == "label"), "the stroke means nothing"
         put(f, [(mx + 4, my), (mx + 5, my + 1), (mx + 6, my + 2)], sc)
     if highlight == "lone":
@@ -740,6 +743,15 @@ def selftest(src):
         got = {"screen dot": int(m.group(1)), "label": int(m.group(2)), "highlight": int(m.group(3))}
         full = {"screen dot": 0, "label": 0, "highlight": 0, **want}
         return (verdict if got == full else f"{verdict} with counted apart {got}"), lines
+
+    def branch_case():
+        # The ungradable-ring branch, kept under a test that can fail (F2, 2026-11-06). The avionics palette makes no
+        # ring a weather colour in either look, so the real palette never reaches it: the same look-B frame is graded
+        # with the middle ring's colour added to B's weather set. Without the branch, that ring is graded and PASSes.
+        src2 = dict(src)
+        src2["weather"] = dict(src["weather"])
+        src2["weather"]["B"] = src["weather"]["B"] | {src["rings"][1][1]}
+        return grade([synth(src2, look="B")], "B", src2)
     cases = [
         ("as drawn, look A",                          lambda: on({}, "A"),                               "PASS"),
         ("weather drawn over the rings",              lambda: on(dict(weather_over_rings=True), "A"),    "FAIL"),
@@ -749,8 +761,10 @@ def selftest(src):
         ("no rings (a mid-draw frame)",               lambda: on(dict(rings=False), "A"),                "UNTRUSTWORTHY"),
         ("no weather on the screen",                  lambda: on(dict(weather=False), "A"),              "BLIND"),
         # Look B outlines its planes since the avionics ruling (2026-11-06, Q1), so (2) grades it as it grades A.
-        ("look B, the edge drawn (weather on the middle ring, ungradable in B)",
-                                                      lambda: on({}, "B"),                               "BLIND"),
+        ("look B, the edge drawn, weather on the middle ring (gradable: no ring is a weather colour now)",
+                                                      lambda: on({}, "B"),                               "PASS"),
+        ("look B, the middle ring's colour made a weather colour of B (the ungradable branch, synthetic)",
+                                                      branch_case,                                       "BLIND"),
         ("look B, the edge drawn, weather across the outer ring",
                                                       lambda: on(dict(blob_ring=0), "B"),                "PASS"),
         ("look B, no edge, weather across the outer ring",

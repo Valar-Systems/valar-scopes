@@ -133,7 +133,7 @@ def main():
 
 # --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
 # its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
-OK_COUNT = 34   # with the look-B no-edge case (the avionics look, 2026-11-06)
+OK_COUNT = 35   # with the look-B no-edge case and the synthetic ungradable-ring case (2026-11-06)
 CONTROL_TABLE = {"wx-fb-check.py": ("ok", OK_COUNT)}
 
 

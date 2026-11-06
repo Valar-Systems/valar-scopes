@@ -27,9 +27,10 @@ static void W2()
         for (int code = 0; code <= 15; ++code)
             for (int lvl = 0; lvl <= kPeak; ++lvl) {
                 const uint16_t out = Lit565((uint8_t)code, pct, (uint8_t)lvl);
-                if (code >= 1 && code <= 13) {
-                    // From the code's own percent (WD7, written here independently: light rain x 55/40, half up).
-                    const int base = code == 1 ? (pct * 55 + 20) / 40 : pct;
+                // The lit codes are 2-13, typed here independently: drizzle (code 1) is hidden since 2026-11-06 and
+                // shows the wedge's green, as code 0 does (F1; docs/wx-device.md, the avionics look's first run).
+                if (code >= 2 && code <= 13) {
+                    const int base = pct;
                     const int p = base + ((100 - base) * lvl + kPeak / 2) / kPeak;
                     if (out != wxs2::To565(wxs2::Pack(wxs2::EchoAt((uint8_t)code, p)))) ++bad;
                     if (lvl == 0 && out != wxs2::To565(wxs2::Pixel888((uint8_t)code, 0, 0, l))) ++bad;   // the layer's own

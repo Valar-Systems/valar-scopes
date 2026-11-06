@@ -5030,4 +5030,33 @@ with no edge:
 
 **Outside the set:** stop and report.
 
+### The ruling (~15:39Z): F1-F3 approved, misses kept. The re-run (16:30Z): one reading off, stopped
+
+**As predicted:**
+- `test_wx_sweep`: W2 ok, **0 mismatches**, and every row passes.
+- `sabotage_wx_sweep`: its control passes, and its 4 plants read as stated: S-w {W3-in}; S-span {W3-in, W5a};
+  S-spanrec {W3-in, W5a, W5b}; S-noclr {W3-in, W5a}.
+- `wx-fb-check --selftest`: **35 ok, 0 FAIL**, so the run reached L1 and every case after it:
+  - L1 PASS, L2 FAIL, J1 PASS, J2 UNTRUSTWORTHY;
+  - the middle-ring look-B case PASS, and the synthetic branch case BLIND.
+- Everything else as in the first run: `test_wx_avionics` and its 5 plants; S2, legend, look select and outline, with
+  their drivers; `check-wx-legend` 7 of 7.
+- `sabotage_wx_fb_check`: its control passes, and 10 of its 11 plant rows read as stated.
+
+**Off: `sabotage_wx_fb_check`'s S-label-all.**
+- **The reading:** red {L2, "no outline, look A", "the old r=4 disc outline", **"look B, no edge, weather across the
+  outer ring"**}. The frozen set has the first three.
+- **The cause:** the plant replaces rule (2)'s wet-border FAIL with `if False:`, so every case that expects (2) to
+  fail a marker goes red. The case I added is look B's twin of "no outline, look A", and it fails through the same
+  line.
+- **The alternative, and why it is excluded:** the plant breaking something else in look B. Excluded because the
+  plant's only change is that one line, and the case's FAIL in the clean run comes from it ("without an outline 1").
+- **My miss, and it is a known shape:** a new case moves older drivers' whole sets (memory `sabotage-drivers-not-in-ci`,
+  "register before running"). I registered the selftest's new cases and its count, and not the plants that grade them.
+
+**Proposed fix (not applied):** S-label-all's set gains "look B, no edge, weather across the outer ring", in the code
+and its docstring. Predicted on the re-run: all 11 plant rows as stated, and the driver exits 0.
+
+**Outside the set:** stop and report.
+
 **Outside the set:** stop and report.
