@@ -4660,3 +4660,98 @@ smoke case that starts a module with `wx-layer` on and expects the abort would p
 offered, not built.
 
 **Outside the set:** stop and report.
+
+## Ruling of 2026-11-06 ~04:40Z: the avionics look (Daniel's decision, the Blipscope only). The plan, before predictions
+
+Started after #540's 08:05Z reading, as ruled. Nothing below is code, and nothing is frozen yet: five points are the
+reviewer's to decide first, because each one changes what the predictions say.
+
+**What is there today** (read at `baac7575`):
+- **The layer's colour** is `wxs2::EchoAt(code, pct)` = `Dim(wxpalette::Rain(code), pct)`: Weatherscope's table,
+  read through `WxPalette.h`.
+  - At rest the layer is at the look's percent: A 40, B 25. Code 1 has its own, ×55/40 (WD7): A 55, B 34.
+  - The lit sweep (look 4, `WxSweep.h`) raises a code from that percent toward 100 at the beam, through the same
+    `EchoAt`.
+  - 14, 15 and dry come from `WxPalette.h`'s `kNoCoverage`, `kMissingHatch` and `kDry`. The layer has no snow: the crop
+    carries no type until WXC1 v2.
+- **The planes:**
+  - colour: `altitudeColor()` when the altitude-colour setting is on, plain green when it is off, grey at no-data;
+  - faded by `RadarBlipBrightness`, floor 0.30;
+  - look A only: a 1 px black outline, the marker drawn 8 times at 1 px offsets (WD5), measured at **0.1625 ms per
+    contact** (W5) and **0.186** (K6, 60 contacts, five label lines).
+- **The legend** (`WxLegendHtml.h`) draws every swatch from `wxs2::Pixel888`, so the swatches follow the layer by
+  construction. Its rows are Weatherscope's: Light rain 1-4, Moderate 5-7, Heavy 8-10, Hail possible 11-13.
+- **`check-wx-legend.py`** asserts `EchoAt`'s source line as written (`return wxpalette::Dim(wxpalette::Rain(code),
+  pct);`).
+
+**The plan:**
+1. **`include/WxAvionics.h`**, the Blipscope's own table. It is pure C++11 and reuses only `WxPalette.h`'s `Rgb` type
+   and `Dim()`:
+
+   | code | dBZ | colour |
+   |---|---|---|
+   | 1 | 15-20 | dim green (0, 90, 0) |
+   | 2-3 | 20-30 | green (0, 200, 0) |
+   | 4-5 | 30-40 | yellow (240, 220, 0) |
+   | 6-7 | 40-50 | red (230, 0, 0) |
+   | 8-13 | 50+ | magenta (255, 0, 255) |
+
+   Anything else is dry. `WxS2.h`'s `EchoAt` reads it in place of `wxpalette::Rain`. Its header comment's "ONE table"
+   is amended for this case, citing the ruling. `WxPalette.h` is not touched.
+2. **Plane colour with the layer shown** (`wxpolicy::Show::Crop`): a pure function in the same header. Cyan
+   (0, 255, 255) below 3,000 m and white (255, 255, 255) at and above it.
+   - An unknown altitude (NaN) gets white, as `altitudeColor` treats it today.
+   - Emergencies (red), no-data grey, and every reticle, ring and badge are unchanged.
+   - With the layer not shown, today's colours.
+3. **The edge:** today's outline (8 black copies at 1 px), drawn whenever the layer is shown (Q1).
+4. **The tests,** in a new `test/host/test_wx_avionics.cpp`:
+   - **AV1, every band edge:** codes 1, 2, 3, 4, 5, 6, 7, 8 and 13 map to their colours at 100 %, and 0, 14, 15 and 16
+     give no echo colour.
+   - **AV2, flat inside a band:** codes in one band are equal at every percent from 0 to 100.
+   - **AV3, Weatherscope's table is unchanged:** a 64-bit FNV-1a over the values of every `WxPalette.h` constant
+     (`kRainTable`, `kRain75`, `kRain1`, `kSnowTable`, `kSnowTopCode`, `kDry`, `kNoCoverage`, `kMissingHatch`,
+     `kHatchPeriod`), pinned to the value read at the freeze. It hashes values, not file bytes, so a comment edit is
+     not a table edit.
+   - **AV4, the planes' colour:** 2,999.9 m is cyan; 3,000.0 m is white; NaN is white.
+   - **AV5, neither plane colour is a layer colour:** at every fade from 0.30 to 1.0 (10⁻⁵ steps, the device's
+     truncation), in RGB565, neither matches any colour the layer can draw, in either look, across the lit sweep's
+     whole range of percents. Pixels 14 and 15 are included.
+   - **The two ruled sabotages, in `sabotage_wx_avionics.py`:**
+     - **S-AV-read:** `EchoAt` reads `wxpalette::Rain` again → exactly AV1 red. Code 3 alone would survive, because
+       Weatherscope's code 3 is also (0, 200, 0).
+     - **S-AV-edit:** one value of Weatherscope's table changed by one → exactly AV3 red. `test_wx_palette.cpp`'s own C3
+       checks would go red too, since they hold the table to the pinned file.
+5. **What moves with it:** the expected colours in `test_wx_s2.cpp` and `test_wx_sweep.cpp`, the legend test, and
+   `check-wx-legend.py`'s source-line assert, with every driver over them run before any push.
+   - Each moved case, and each driver's set, is frozen once the questions below are ruled.
+   - Nothing changes in the web build: its layer stays off, and `check_wx_off` still guards that.
+
+**The edge's cost, as far as it can be predicted now:**
+- **Look A:** no change. It already draws exactly this edge, and swapping the marker's colour costs nothing.
+- **Look B,** if it gains the edge (Q1): **+0.16 to 0.19 ms per contact** (W5's 0.1625 and K6's 0.186). That is about
+  **+5.5 to 6.3 ms at 34 contacts** and **+9.8 to 11.2 ms at 60**.
+- **Against #445's budget, the firmware's own gate:** frame p95 under the model (35.9 + 0.800 × n) plus 10 ms, and an
+  absolute ceiling of 85 ms.
+  - At E2:08's usual counts (16 to 34), B with the edge stays within the gate by the same arithmetic that holds for A.
+  - At 60 contacts, K6 already put A at 102 ms, over the ceiling, with five label lines. B with the edge would land
+    where A is. That is K6's open question, not a new one.
+- **Measured in Daniel's bench window:** the outline's own timer (`outlineFrameUs`, the WX_LOOK_AB build), per contact,
+  in look B, and the window's `[health] BUDGET BROKEN` lines.
+
+**The five questions for the reviewer:**
+- **Q1, the edge in look B.** Look B is "below the fade floor, no outline" by its definition. The ruling gives every
+  plane an edge while the layer is on. Does B gain it? My reading is **yes**.
+- **Q2, code 1's percent.** "Look 4 keeps its dim and lit percentages" is read here to include WD7's ×55/40 for code 1.
+  At rest, dim green is then (0, 50, 0) in A and (0, 31, 0) in B; without it, (0, 36, 0) and (0, 23, 0). Keep ×55/40?
+  My reading is **keep**: it changes the table and nothing else.
+- **Q3, the legend's rows.** Weatherscope's rows straddle the new bands: "Light rain" 1-4 would show dim green, green,
+  green and yellow. The proposal is five rows by band, labelled in dBZ (15-20, 20-30, 30-40, 40-50, 50+), plus "No
+  radar coverage" and "No data". Or keep Weatherscope's rows?
+- **Q4, the altitude-colour setting.** With the layer shown, cyan and white replace both the altitude colours and the
+  plain green of a device with the setting off. Is that right?
+- **Q5, what "fits" means.** The proposal: in Daniel's window, look B's frame p95 with the edge stays under the
+  firmware's gate at the window's contact count (0 `BUDGET BROKEN` lines), and the edge's own timer reads 0.16-0.19 ms
+  per contact. Outside that band, "instrument": stop. If it does not fit, B ships white and cyan without the edge, and
+  that is said.
+
+**Outside the set:** none yet. The predictions are frozen after the ruling.
