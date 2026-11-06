@@ -2223,3 +2223,14 @@ objects after 1 days", for all prefixes, enabled**.
 | **R3′-3** (`/healthz` `wx.opuk`) | `frameAgeS` **440**, `coveredShare` **0.7508** (`cref` 102 beside it) | as predicted (age <= 1,800; share in [0.70, 0.80]) |
 | **R3′-4** (`pd-wx.sh`, LHR) | `/wx/cref` LHR: HTTP 200, `WXC1`, ETag product **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` **1793978100** (15:15:00Z). `/wx/opuk` LHR the same. `/healthz` `opuk` 444 s at the same read, so its frame is 15:15:00Z, the one served | as predicted |
 | controls in the same probe | `/wx/cref` Bend and KMCI: ETag `cref`, no `X-Wx-Max-Age`, frame 1793978437 (15:20:37Z) | as before |
+
+**R3′-5a′ (`r3p.py lines blipscope-wx-ingest-opuk`, 15:11:30-15:35:30Z, read 15:36:04Z, ABR 1):**
+
+| row | got | verdict |
+|---|---|---|
+| **R3′-5a′** | **First storing check: 15:12:21Z, `stored`, `pruned` 12.** The six after it: backfilled 15:12:47Z and 15:13:28Z, then stored at 15:14:58Z, 15:19:24Z, 15:24:21Z and 15:29:21Z, **each `pruned` 0** | as predicted (exactly 12, then at most 1 each) |
+| beside it | 45 product lines, all `opuk`. Statuses: already-stored 38, stored 5, backfilled 2. `pruned` appears only on storing checks (7 of 7). **0 error lines** | printed, not graded |
+
+- The two backfills filled the holes left in the 20-minute window by the stop.
+- Pruning of 1 per check starts once the first frames written after the redeploy pass an hour old, from about
+  16:05Z. R3′-5b′ reads that state.
