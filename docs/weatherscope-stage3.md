@@ -13957,3 +13957,15 @@ The bars (graphic): dark 11.1404, light 4.5143.
 3. M1, M2 and the rows after it.
 4. Only then the push of the merge commit, behind both guards.
 5. #571 then merges on a pasted approval at the new SHA, after main's CI on its current head has finished, never before.
+
+### A12.137 A12.136's M0 restated: main moved by one docs file before the merge commit
+
+**What moved:** main went from `caf63cc9d9cc` to `1ce7a73a5e60` (#581) after A12.136 was written. The merge command checks main's head first, so it refused, and no merge commit was made.
+
+**The change:** `docs/blipscope-basemap-client.md` only. Nothing under `.github`, `skus.yml`, `src`, `include`, `test/host`, `platformio.ini`, `tools/web-renderer` or `scripts`.
+
+**M0, restated:** the trial on `1ce7a73a5e60` shows 0 conflicted files, tree `b7a524257380`. The merge commit's tree is that one.
+
+**Every other row stands.** R2's baseline stays run 42297875773: the firmware inputs are the same, because #581 touches none. The CI prediction stands, since the job set is unchanged: PR 34: 30/4/0; main 34: 31/3/0.
+
+**If main moves again by docs only** (none of the paths above), the merge commit's tree is the trial's, and it is recorded with the results rather than restated here. Any other move restates A12.136 before the commit.
