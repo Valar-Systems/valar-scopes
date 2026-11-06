@@ -14034,3 +14034,81 @@ The bars (graphic): dark 11.1404, light 4.5143.
 **Unchanged:** the record, the guards' exit codes on the commit, and the headlines (`NO RAIN` / `IN 7 DAYS`; `NEXT RAIN` / `TUE NIGHT`).
 
 **The stop:** any row off stops the step. Nothing goes to Daniel until D1-D7 and S-L read as predicted. Step 5 waits for him.
+
+### A12.139 The merge's rows: M8 OFF-PREDICTION, the Weatherscope images are 48 B larger, fully accounted. Nothing pushed (Q103). Step 4's renders all AS PREDICTED, for Daniel
+
+#### The merge (A12.136, A12.137)
+
+The merge commit is `1ff5bf6c9d61`, local only. Main has since moved twice more by docs only (to `6d7823e11c24`), which A12.137 allows without a restatement.
+
+| row | predicted | measured |
+|---|---|---|
+| **M0** the tree | `b7a524257380`, no hand resolution | **as predicted** |
+| **M1** anchors | 33 of 33; `plant_s_wait.py` 2 anchors once each | **as predicted:** 31 drivers and 2 plants exit 0; the plant reads [1, 1] |
+| **M2** `run.sh`, WSL g++ 13.3 | exit 2, the two environment blocks, the towns skip, lint 0 of 31 | **as predicted:** exit 2; FAILED BLOCKS exactly "Weatherscope R0 and R0b" and "the same TU, for the board"; "31 driver(s): 30 run, 1 skipped" in both passes; lint 31, 0 flagged. Gate at start: no other run, TIME_WAIT 461. stderr empty |
+| **M3** R1 | 44 `ok`, exit 0, output `2d401f4b9543` | **as predicted**, in the log and in a separate build, read twice |
+| **M4** the cap | 32 checks, 0 failures; five sets | **as predicted:** `32 checks, 0 failures`; `sabotage_touch_wedge_cap.py` 6 AS PREDICTED lines |
+| **M5** OTA identity | 22 checks, 0 failures, the counts, the sets | **as predicted:** R1 24/24; M1 38, 26, 0; M2 78 of 78; M3 16, 48 (22), 0; O10 16 no-record; `sabotage_ota_identity.py` 6 AS PREDICTED lines, `sabotage_ota_install.py` 3 |
+| **M6** radar images | markers as stated | **as predicted:** `blipscope-s3-128` 1,946,528 B `9c44d9f588ff`, no marker; `-touchbench` 1,947,360 B `46c47a567b61`, `[touch-bench]` only; `-wxlook` 1,949,616 B `4ed817f33811`, `[wx-bench]` only |
+| **M7** R2 | main 14 strings, merged 15, the hold line added, none removed | **as predicted**, against main's CI image from run 42297875773 (1,944,352 B, `04fc563eb819`) |
+| **M8** Weatherscope images | same size as #571's, 1,881,424 B and 1,882,000 B | **OFF-PREDICTION: 1,881,472 B and 1,882,048 B, +48 B each.** Markers as predicted: `639421319156` no marker; `d6cd9d1859e6` `[touch-bench]` only. It carries no new text |
+| **M9** the web build | both models link and pass | **held by the stop, not run** |
+| **M10** the guards | all exit 0 | **held by the stop, not run** |
+
+**The miss, by name.** I reasoned that `GetBytes` is unreferenced in a Weatherscope build, so it would not reach the image. True of the function. But its unwind record does, and that premise was about the linker, which I never checked.
+
+**The 48 B, all of it:**
+
+| where | saved #571 image | merged image | change |
+|---|---|---|---|
+| rodata segment | 679,164 B | 679,224 B | **+60 B** |
+| flash text segment | 1,097,792 B | 1,097,784 B | **-8 B** |
+| data segment | 23,408 B | 23,408 B | 0 |
+| the two IRAM segments, summed | 80,916 B | 80,916 B | 0 (a 60 B shift between them) |
+| image file, with its 16-byte padding, checksum and hash | 1,881,424 B | 1,881,472 B | **+48 B** |
+
+- **The +60 B is `GetBytes`'s `.eh_frame` record.** The link map shows `.eh_frame` from `HttpRequestManager.cpp.o` going from 2,200 B to 2,260 B. The function is collected at link, with 0 `GetBytes` symbols in either ELF, but its record stays.
+- **The -8 B is three functions in that same file:** `GetSecure` -4, `ReadBodyYielding` -4, `NoteTls` +1, then alignment.
+- **Segments +52 B becomes file +48 B:** both sizes reproduce exactly from the segment sums and the image format's padding.
+
+**The instrument.** The pre-merge ELF was rebuilt at `6e55431d3e5c` in `wt-pr`, because #571's own ELF had been overwritten. That rebuild is 1,881,664 B, not 1,881,424 B: `PLATFORMIO_LIBDEPS_DIR` lengthened two library path strings (+236 B). So it is used for symbols and objects only, and the table above compares the saved image.
+
+**The alternative, named:** the merge changed something Weatherscope runs.
+- **Excluded for 37 of the 38 objects under `src/`:** every compared section is byte-identical (all but `.eh_frame` and debug sections).
+- **Excluded for the cap:** `TouchWedgeCap.h`, `TouchWedgeDevice.h`, `SaveLock.h`, `TouchBench.h` and all of `src/weatherscope/` are byte-identical, so W-CR's code did not move.
+- **Not fully excluded for the 38th, `HttpRequestManager.cpp.o`.** #445's source change there is one added function and no changed line, but the compiler laid the file out differently. Other functions' bytes differ, some at instruction level: the one I disassembled (`JsonVariantConst::as<bool>`) reads 2 instructions longer in the listing. I did not compare the rest instruction by instruction. So I can say the source is unchanged, not that every instruction is.
+- **The new radar lines are not in the image:** `wx-layer`, `wx-look` and `WXSECTION` each appear 0 times.
+
+**Q103. Does W-CR stand, and does the merge go on?**
+- **(a) [recommended]** W-CR stands. The cap's code is byte-identical, and the only object that moved is HTTP code the same radar-side change touched with one added function. M8 is recorded as my miss. M9 and M10 run, then the push behind both guards, with the CI prediction unchanged (PR 34: 30/4/0; main 34: 31/3/0).
+- **(b)** As (a), plus a short board read on the merged clean image (`639421319156`), in a new window: boot, theme, `/diag/fb`, and a Weatherscope feed fetch, since HTTP is the code that moved.
+- **(c)** Re-take W-CR in full on the merged bench image (`d6cd9d1859e6`).
+
+#### 3.5c step 4 (A12.138)
+
+`ref35c.py` is `743130738136`, committed locally on `weatherscope/swipe-screens` at `79be410e1d9f`. `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py` all exit 0.
+
+| row | predicted | measured |
+|---|---|---|
+| **D1** | 10 written, 0 refusals | **as predicted** (20 files) |
+| **D2** | 61 dot pixels, one 5 × 5 `uiFg`, four 3 × 3 `uiDim` | **as predicted,** all 10 renders, by pixel set |
+| **D3** | axis row 132; 133-134 blank; labels 135-141; 142-147 blank; week 148-214 | **as predicted,** both forecast screens, both themes |
+| **D4** | digits and degree from row 55; degree to row 62; blank 16-54 and 182-221; `OBSERVED` 175-181 | **as predicted,** both themes |
+| **D5** | blank 16-62 and 174-221 | **as predicted,** both themes |
+| **D6** | 16 px differ, inside the dot's box | **as predicted,** both themes |
+| **D7** | gaps 3, 3, 4, 3, 100 | **as predicted,** both themes |
+| **S-L** | the old forecast reads 0 px and is refused; the control reads 3 | **as predicted,** both themes; the refused render wrote no PNG |
+
+`check35c.py` reads D2-D6 from the PNGs' pixels and imports nothing from the renderer: 20 rows, 0 off.
+
+**The renders, by RGB-pixel sha256 (12 hex):**
+
+| screen | dark | light |
+|---|---|---|
+| forecast, capture | `c4af0a390556` | `d6800d9c8222` |
+| forecast, SYNTHETIC-RAIN | `a2e62330c7c1` | `0cd4e249b8c1` |
+| conditions, day | `7e9b8d2f3a85` | `474e1700b97b` |
+| alerts, SYNTHETIC | `1f1d827bb2e5` | `16d9ace47375` |
+| alerts, capture | `a189a8b85888` | `20141a0f32d0` |
+
+**Sent to Daniel as local files** (a host picture, not glass). Step 5 waits for him. The night Conditions is still due after 00:30Z, now 2 renders.
