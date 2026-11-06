@@ -1,0 +1,13 @@
+# Weatherscope 3.5c K rows (docs/weatherscope-stage3.md A12.144): written by tools/weatherscope/screens/ref35c.py
+# --k --write, checked by its --k --check; read by test/host/test_wx_swipe.cpp.
+# dallas-day.json 11a15766c1171671b02dbafe167c58534a8740142320b76f6332f41644be104d (LF-normalised)
+ROW forecast-capture-dark d126535a5436372a93ba35f6ef63141bdfd97780943275b3ed1805b7dcd5534c
+ROW forecast-SYNTHETIC-RAIN-dark 41b070f4597fbdcb8dab093c1b258e885a82beaba26307d219064d5a2fb5fdef
+ROW conditions-day-dark 26158ec69c9da77939a4a00aacbcf47f382ac43b19a47caf498e21c5796e72fa
+ROW alerts-SYNTHETIC-dark eb93e5426a5ed857b3c33eeec06858cfa9dd7590baa23f9f98eade421b76ad19
+ROW alerts-capture-dark f90f5635a8903d6844b2de28ae536626c28c62fb32b919be82bcd2a89e2fdaa8
+ROW forecast-capture-light 175f0f9601d57d8ea5ac0a310959a5abdf8b552e59cc951f366c6262cd32044f
+ROW forecast-SYNTHETIC-RAIN-light 8c5a9f06a7671f6e58bf931e5ab154bf5413c003bfa1069646f718518f31803c
+ROW conditions-day-light fce72fefcbb0059bfe689e1aaeffb618010bb5d151a7ea1f00b25e75ed0a9c66
+ROW alerts-SYNTHETIC-light da06f7e831e5203b0fae0f99ee0ded79b86b985b0ee7728f459807aaacf3d7cc
+ROW alerts-capture-light 1777176aa7b4f894f20614702de2323314a65acecac17107b32281ce0c12fc4b

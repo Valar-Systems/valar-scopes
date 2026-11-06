@@ -7,6 +7,8 @@ with two text items within 2 px of each other (A12.138): each text() call is one
 
     python -I tools/weatherscope/screens/ref35c.py <out dir outside the repo> [--night <night record>]
     python -I tools/weatherscope/screens/ref35c.py --selftest     # S-L: the forecast before A12.138 must read 0 px
+    python -I tools/weatherscope/screens/ref35c.py --k --write    # test/fixtures/wx/nws/k35c.ref.txt, the K rows
+    python -I tools/weatherscope/screens/ref35c.py --k --check    # that file still matches what this draws
 
 Writes each screen at 1x and 3x as PNG (zlib, no Pillow) and prints its RGB-pixel sha256 (12 hex) -- the identity of
 a render, which survives any PNG encoder -- and its smallest text gap. Prints no coordinate.
@@ -16,6 +18,7 @@ import datetime, hashlib, importlib.util, json, math, os, struct, sys, tempfile,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DAY = os.path.join(ROOT, "test", "fixtures", "wx", "nws", "dallas-day.json")
+K_REF = os.path.join(ROOT, "test", "fixtures", "wx", "nws", "k35c.ref.txt")
 OFFSET_MIN = -360   # CST, read from the capture's first hourly entry; fixed per stored case (A12.133)
 SIZE, C = 240, 120
 _spec = importlib.util.spec_from_file_location("ref35", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ref35.py"))
@@ -111,6 +114,15 @@ class Screen:
     def rgb(self):
         return b"".join(bytes(c) for row in self.px for c in row)
 
+    def rgb565(self):
+        """The frame the K rows hash: 57,600 big-endian RGB565 pixels, truncated as color565 does."""
+        out = bytearray()
+        for row in self.px:
+            for r, g, b in row:
+                v = (r >> 3) << 11 | (g >> 2) << 5 | b >> 3
+                out += bytes((v >> 8, v & 0xFF))
+        return bytes(out)
+
 
 def local(utc):
     return datetime.datetime.fromtimestamp(utc + OFFSET_MIN * 60, tz=datetime.timezone.utc)
@@ -142,16 +154,31 @@ def weekday(rec, k):
     return WEEKDAYS[(local(rec["capturedUtc"]).weekday() + k) % 7]
 
 
+def next_word(period):
+    """Q95: SNOW when the period's short forecast names snow and not rain; otherwise RAIN."""
+    t = period["short"].lower() if period else ""
+    return "NEXT SNOW" if "snow" in t and "rain" not in t else "NEXT RAIN"
+
+
+def period_at(rec, utc):
+    """Q105: the period holding an hour, the last one starting at or before it. An hour before them all has none."""
+    hit = None
+    for p in rec["periods"]:
+        if p["startUtc"] <= utc:
+            hit = p
+    return hit
+
+
 def headline(rec):
     for h in rec["hourly"][:24]:
         if h["hasPop"] and h["pop"] >= 30:
-            return "NEXT RAIN", hour_text(h["startUtc"])
+            return next_word(period_at(rec, h["startUtc"])), hour_text(h["startUtc"])
     for d in days(rec):
         for p, night in ((d["day"], False), (d["night"], True)):
             if p and p["hasPop"] and p["pop"] >= 30:
                 if d["k"] == 0:
-                    return "NEXT RAIN", "TONIGHT" if night else "TODAY"
-                return "NEXT RAIN", weekday(rec, d["k"]) + (" NIGHT" if night else "")
+                    return next_word(p), "TONIGHT" if night else "TODAY"
+                return next_word(p), weekday(rec, d["k"]) + (" NIGHT" if night else "")
     return "NO RAIN", "IN 7 DAYS"
 
 
@@ -288,6 +315,53 @@ def write_png(px_rgb, path, scale):
     open(path, "wb").write(data)
 
 
+def job_list(rec, night):
+    jobs = []
+    for t in ("dark", "light"):
+        if night is None:
+            syn = synthetic_rain(rec)
+            jobs.append((f"forecast-capture-{t}", lambda t=t: (forecast(rec, t), headline(rec))))
+            jobs.append((f"forecast-SYNTHETIC-RAIN-{t}", lambda t=t, r=syn: (forecast(r, t), headline(r))))
+            jobs.append((f"conditions-day-{t}", lambda t=t: conditions(rec, t)))
+            jobs.append((f"alerts-SYNTHETIC-{t}", lambda t=t: alerts(rec["syntheticAlerts"]["items"], t, rec["capturedUtc"])))
+            jobs.append((f"alerts-capture-{t}", lambda t=t: alerts(rec["alerts"], t, rec["capturedUtc"])))
+        else:
+            jobs.append((f"conditions-night-{t}", lambda t=t: conditions(night, t)))
+    return jobs
+
+
+def k_text():
+    """The K reference: one ROW per screen, named as the PNGs are, plus the record's own hash (LF-normalised)."""
+    rec = json.load(open(DAY, encoding="utf-8"))
+    day = hashlib.sha256(open(DAY, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
+    lines = ["# Weatherscope 3.5c K rows (docs/weatherscope-stage3.md A12.144): written by tools/weatherscope/screens/ref35c.py",
+             "# --k --write, checked by its --k --check; read by test/host/test_wx_swipe.cpp.",
+             f"# dallas-day.json {day} (LF-normalised)"]
+    for name, job in job_list(rec, None):
+        scr = job()[0]
+        lines.append(f"ROW {name} {hashlib.sha256(scr.rgb565()).hexdigest()}")
+    return "\n".join(lines) + "\n"
+
+
+def k_main(argv):
+    want = k_text()
+    if "--write" in argv:
+        open(K_REF, "w", encoding="ascii", newline="\n").write(want)
+        print(f"wrote {want.count('ROW ')} rows")
+        return 0
+    if "--check" in argv:
+        try:
+            have = open(K_REF, encoding="ascii").read().replace("\r\n", "\n")
+        except OSError:
+            print("k35c.ref.txt cannot be read")
+            return 2
+        ok = have == want
+        print(f"k35c.ref.txt: {want.count('ROW ')} rows, {'as this renderer draws them' if ok else 'STALE: it differs from what this renderer draws'}")
+        return 0 if ok else 1
+    print(__doc__)
+    return 2
+
+
 def emit(name, scr, extra, out):
     """Writes one render, or refuses it and writes nothing. True when written."""
     gap = scr.min_gap()
@@ -327,23 +401,15 @@ def main(argv):
         return 2
     if argv[1] == "--selftest":
         return selftest()
+    if argv[1] == "--k":
+        return k_main(argv)
     out = os.path.abspath(argv[1])
     os.makedirs(out, exist_ok=True)
     rec = json.load(open(DAY, encoding="utf-8"))
     night = None
     if "--night" in argv:
         night = json.load(open(argv[argv.index("--night") + 1], encoding="utf-8"))
-    jobs = []
-    for t in ("dark", "light"):
-        if night is None:
-            syn = synthetic_rain(rec)
-            jobs.append((f"forecast-capture-{t}", lambda t=t: (forecast(rec, t), headline(rec))))
-            jobs.append((f"forecast-SYNTHETIC-RAIN-{t}", lambda t=t, r=syn: (forecast(r, t), headline(r))))
-            jobs.append((f"conditions-day-{t}", lambda t=t: conditions(rec, t)))
-            jobs.append((f"alerts-SYNTHETIC-{t}", lambda t=t: alerts(rec["syntheticAlerts"]["items"], t, rec["capturedUtc"])))
-            jobs.append((f"alerts-capture-{t}", lambda t=t: alerts(rec["alerts"], t, rec["capturedUtc"])))
-        else:
-            jobs.append((f"conditions-night-{t}", lambda t=t: conditions(night, t)))
+    jobs = job_list(rec, night)
     refused = 0
     for name, job in jobs:
         res = job()
