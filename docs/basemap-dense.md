@@ -296,3 +296,44 @@ The baseline is #572's finished run, a `proxy/` PR that postdates `84409651`.
 3. Step 0's PR.
 
 **Neither run starts before 20:30Z,** the UK session's slot on this machine.
+
+### Read (2026-11-06, `dc5c0cdf`): S-SECSUM as predicted; the smoke driver off, my miss
+
+| check | read | verdict |
+|---|---|---|
+| **S-SECSUM, alone** (wait clear 20:45:03Z: TIME_WAIT 13, no other `vitest` or `sabotage-` process; exit 0 at 20:45:45Z) | baseline[all] **167** cases in 17 files, 0 failing. **Failing {BB4, MN6}.** 2 runs, 0 runtime failures. Highest TIME_WAIT at a run's start 3,139 (gate 8,000) | **as predicted** |
+| **the smoke driver, whole** (wait clear 20:47:39Z: TIME_WAIT 48; stopped by pid at about 20:50Z) | CONTROL **991 passed, 1 skipped, of 992**, 0 failed (TIME_WAIT start 35, peak 13,469) | **off, my miss** (predicted 983 / 1 / 984). S-SQ and S-SQP were not read: I stopped the driver at the first off |
+
+**First, the wrapper's own miss** (it changes no reading):
+- `st0b-drivers.sh` looked for S-SECSUM's line as the text `{MN6, BB4}`, but the driver prints the set sorted,
+  `{BB4, MN6}`.
+- So the wrapper stopped after a reading that was as predicted.
+- The smoke driver then ran from a second wrapper (`st0c-smoke.sh`) with the same gate.
+
+**Why 992, with every case accounted for:**
+- **The 976 in the prediction** is main's count read at `62944845` (`docs/basemap-sync-wait.md`).
+- **This branch then merged main** at `36d0b657` (#573, merged in by `7eb782d9`), and #573 adds 8 proxy tests.
+- **Main's own CI, on the commits themselves:**
+  - the `workers` run on `551fd030` (#573's parent) reads **975 passed, 1 skipped (976)**;
+  - the run on `36d0b657` reads **983 passed, 1 skipped (984)**.
+- **984 + step 0's 8** (MN1-MN6, BB4, BB5) = **992**, with nothing left over.
+- **The alternative,** that step 0 adds 16 cases rather than 8, is excluded. Main's 984 is read from CI on the exact
+  commit merged in, and 992 − 984 = 8.
+- **The miss:** the count was restated after the merge, in the corrections at `1610be06`, without being read again. The
+  input had moved.
+
+**The stop:**
+- **What was killed, by pid:** the driver's node process, its `timeout` and the wrapper. No driver process remained.
+- **The kill landed during S-SQ,** so `proxy/scripts/smoke-prod.sh` still held its plant (the `eps` parameter dropped).
+- **The restore:** from HEAD, since the tree was clean before the run (porcelain 0). The file's blob reads
+  `9bd63ee14a5e` again, porcelain 0, 0 CR.
+
+**The TIME_WAIT margin:**
+- **The CONTROL's peak,** 13,469, is 1,531 under the driver's 15,000 ceiling and 2,915 under Windows' 16,384 ports.
+- **Not under 1,000.**
+
+**Proposed for a ruling (Q-ST0b):**
+- **Re-register the smoke driver** as CONTROL **991 / 1 / 992**, S-SQ {SQ1, SQ2} and S-SQP {SQ-C}, each run counting 992.
+- **Then run it whole.** If it reads as predicted, step 0's PR goes up.
+- **The PR's suite line becomes 992** (991 passed, 1 skipped).
+- **The PR's CI prediction does not change:** 34 = 31/3/0.
