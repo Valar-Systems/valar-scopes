@@ -14112,3 +14112,116 @@ The merge commit is `1ff5bf6c9d61`, local only. Main has since moved twice more 
 | alerts, capture | `a189a8b85888` | `20141a0f32d0` |
 
 **Sent to Daniel as local files** (a host picture, not glass). Step 5 waits for him. The night Conditions is still due after 00:30Z, now 2 renders.
+
+### A12.140 The MAC scrub: predictions, and two findings that need a ruling first (Q102, Q104). Nothing in the repo changes yet
+
+**Rulings this rests on:** Q98 (a) with a generic twin rule, Q99, Q100, Q101 (~21:25Z).
+
+**The counts, on main at `6d7823e11c24`, every text file (463 binaries skipped), no value printed:**
+
+| class | count | files |
+|---|---|---|
+| refused today: serial form, the boards' | 58 | 12 |
+| refused today: colon or dash, universally administered | 11 | 6 |
+| refused today: a shifted twin (`02` then a board's first five bytes) | 2 | 2 (#583 regenerates both) |
+| allowed by rule: locally administered 36, multicast 2, broadcast 1, all-zero 2 | 41 | - |
+| allowed: documentation range | 4 | - |
+| tracked file NAMES holding either form | 0 | 0 |
+
+**The set is 5 MACs:** 4 registered boards and the unregistered one in the 08-06 animtest doc, each with a distinct last-two-byte label. 0 hash collisions. The plan branch, at `c12f10e307ce`, holds more: 75 serial and 13 colon or dash in its two Weatherscope docs (main's copies hold 35 and 7), and it gets the same relabel in its own commit.
+
+**The registry exists (Q100).** `~/.config/blipscope/boards`, beside the token file, was created once from the repo's own table. It has 5 entries, one `name=serial` per line, and refuses to overwrite. No value was printed or put on a command line. `BLIPSCOPE_BOARDS_FILE` overrides the path, and the default reaches every session on this machine with no setup.
+
+#### Q102. The generic twin rule fires 0 times; the real twins need a second rule
+
+**The ruled rule (T1):** refuse a locally administered address whose OUI, with the local bit cleared, is Espressif's.
+
+**Simulated on main: T1 fires 0 times.** The real twins are `02` followed by the board's first five bytes, so the board's OUI sits in bytes 2-4. Clearing the local bit gives `00:90:70`, which is nobody's. T1 catches a different real form, the one a chip derives by setting the local bit on its own first byte.
+
+**T2 fires exactly 2 times, on the two twins:** a locally administered first byte, then an Espressif OUI in bytes 2-4. It needs no registry either, so CI can run it. It catches none of the 36 allowed local test values.
+
+- **(a) [recommended]** Both rules. T1 catches the derived form, and T2 the shifted form, which is the only one this repo has actually held.
+- **(b)** T1 alone, as ruled. After #583 no twin remains, so nothing fails today, but the next shifted twin passes.
+
+#### Q104. A device's name carries the last three MAC bytes, and that defeats the scrub's reason
+
+**Found while reading `trace-close/run.ps1`.** Its default name is `weatherscope-<last three bytes>.local`. The firmware names every device that way, and the OUI is one of 376 public values. So a name gives at most 376 candidates for a full MAC, and Daniel's reason for the scrub was that a MAC plus the public salt gives the device id.
+
+**Counted on main, the 5 boards' suffixes, no value printed:**
+
+| form | count | files |
+|---|---|---|
+| as a name suffix (`<word>-xxxxxx`) | 197 | 59 |
+| bare 6-hex | 8 | 4 |
+
+- **Where:** 16 files in `bench-logs/`, 38 under `tools/weatherscope/` (committed run records), 6 docs, `CLAUDE.md` and 3 scripts or tools.
+- **The guard as ruled does not see it,** since a 6-hex token is not a MAC.
+- **The labels are safe:** two bytes leave 65,536 candidates per OUI.
+
+Options:
+- **(a) [recommended]** Extend the scrub. Each suffix of the 5 boards becomes the board's label in the name, spelled `weatherscope-6e64`, in every form above, and the three tools read the name from the registry. The guard gains a generic rule: a product name followed by 6 hex is refused, with `xxxxxx` and made-up examples allowed. It rewrites about 60 files, mostly records, so **it is Daniel's call.** The records' meaning does not change, and each file is redacted as BSSIDs already are.
+- **(b)** Keep the scrub to full MACs, and record that the tree still gives a board's MAC to anyone who tries 376 OUIs. The history keeps full MACs either way, as ruled.
+
+#### The predictions, under Q102 (a). Q104's rows follow its ruling
+
+**The tools:**
+- **`scripts/board-port.py`:** `BOARDS` keeps name, product, role and rule, and the serial field becomes the short label. The serial comes from the registry.
+  - **`--serial` is removed,** since it prints a value. `--label` replaces it.
+  - **`--list` prints labels.**
+  - **It refuses with a clear message, exit 4,** on a missing registry, a board absent from it, a duplicate serial, a malformed line (by line number, never content), or a path inside a git working tree. On POSIX it also refuses a file others can read; on Windows it warns, as `token-file.ts` does.
+  - **`--selftest`** uses a temporary registry of made-up values, and passes on a machine with no registry.
+- **`scripts/bench-flash.ps1`:** its four comment rows become labels, and `$Serial` becomes the label from `--label`, so its flash logs name the board without its MAC.
+- **`tools/weatherscope/trace-close/run.ps1`:** the default `$Serial` is removed, and its one use, an error message, names the board. Its verdict table does not move.
+- **`CLAUDE.md`:** the bench-board table and the `spelled ...` sentence use labels.
+- **`platformio.ini`:** its one comment.
+
+**The guard, `scripts/check_macs.py`,** with `scripts/espressif-ouis.txt` (376 OUIs, 6 hex each, from the IEEE list) and `scripts/mac-allow.txt` (path, line, reason; empty today). It reads files as `check_wifi.py` does. Exit 0 clean, 1 refused, 2 BLIND. Its output gives path, line and class, never a token.
+
+| row | case | result |
+|---|---|---|
+| **G1** | colon, universally administered, outside the documentation range | refused |
+| **G2** | the same, dash form | refused |
+| **G3** | CONTROL: the documentation range, both forms | allowed |
+| **G4** | CONTROL: locally administered, no Espressif OUI in either place | allowed |
+| **G5** | CONTROL: multicast, broadcast, all-zero | allowed |
+| **G6** | T1 | refused |
+| **G7** | T2 | refused |
+| **G8** | a 12-hex token beginning with an Espressif OUI, either case | refused |
+| **G9** | CONTROL: a 12-hex token with any other prefix | allowed |
+| **G10** | CONTROL: a 16-hex or 64-hex run beginning with an Espressif OUI | allowed |
+| **G11** | an allowlist entry excuses its own path and line; a stale entry is refused | as stated |
+| **G12** | an OUI table under 300 entries, or 0 files scanned | exit 2 |
+| **G13** | a 12-hex or longer token in the OUI table or the allowlist | refused, so neither can store a MAC or a hash |
+| **G14** | a token in a tracked file's NAME | refused |
+
+The selftest's values are built at run time from made-up parts, so the script holds no token.
+
+**One sabotage for each rule, planted in a copy, failing exactly:**
+
+| plant | change | fails |
+|---|---|---|
+| **S-G1** | the colon form not matched | {G1} |
+| **S-G2** | the dash form not matched | {G2} |
+| **S-G3** | T1 off | {G6} |
+| **S-G4** | T2 off | {G7} |
+| **S-G5** | the serial rule off | {G8} |
+| **S-G6** | the store check off | {G13} |
+
+**CI:** three new steps in the `device-ids` job (`check_macs.py`, `--selftest`, `--sabotage`). No job and no leg is added, so no count moves.
+
+**Counts after, on the PR's tree:**
+- Serial 0, universally administered 0, T1 0, T2 0, in every file.
+- Allowed by rule 41; documentation range 4 plus #583's 6 added lines, read at PR time.
+- `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py` exit 0.
+- 0 of 463 binaries carry a set member.
+
+**Before the PR, on Windows, and only on board 6E:64:** `board-port.py weatherscope` resolves the same port as before, and `--upload` is not run outside a window. A control runs it with `BLIPSCOPE_BOARDS_FILE` pointed at a missing file: exit 4 and the message, with its side effect stubbed (no USB).
+
+**The order, as ruled:**
+1. #445 merged (done).
+2. #571 merged (waits for Q103), and #583 merged.
+3. The survey re-run on main at that head, and these counts restated if they moved.
+4. Main-based PR, with the CI prediction written before the push and its baseline named.
+5. **The PR says it merges only with no bench window running,** because every session's bench tools change with it.
+
+**Not touched:** git history, as ruled.
