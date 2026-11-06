@@ -2036,3 +2036,15 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
 >    There is no latest start. Production rollbacks stay yours, at once, as registered.
 > 4. A board hold covers R3′: no board window in blipscope-5c or Weatherscope from R3′-1a until your R3′-8 read (30 minutes after R3′-1b). Daniel pastes the hold, and it ends when he pastes your R3′-8 line to them.
 > 5. Cost: the 12 s caps put a ceiling of about $20 a month on a runaway month (both Workers at the cap every minute). R3′-6 guards the first 2 hours, and R3′-0 stays the gate (under $2). Re-run R3′-0's cost read 7 days after R3′ and report it.
+
+**Before #556's merge (2026-11-06 ~02:50Z):**
+- **Main's CI on both heads had finished:**
+  - `5c300417` (#548): 34, 32 success, 2 skipped;
+  - `7b70745a` (#545): 31, 29 success, 2 skipped.
+  - Main's head was still `7b70745a`.
+- **Predicted for main's CI on #556's merge commit**, read only from a finished run: **34 check-runs, 32 success,
+  2 skipped, 0 failed; proxy suite 964 passed, 1 skipped (965).**
+  - **Baseline:** #548's main run at `5c300417`, the last main push that ran the Workers workflow.
+  - **Main's last workflow change** is `12569fa0`, which added steps only. The last change to the set of jobs is
+    `84409651` (#552, `ota-identity`), and #548's run includes it.
+  - The suite count is the reviewer's run of the merge with `7b70745a`: main's 960 plus #556's 4.
