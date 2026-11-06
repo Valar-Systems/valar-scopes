@@ -2215,3 +2215,11 @@ objects after 1 days", for all prefixes, enabled**.
   - But a storing check writes its frame, moves `latest` to it, and only then prunes. So all 12 are older than
     the cut and none is `latest`'s.
   - The prediction stays **exactly 12**. Any other count is off.
+
+**R3′-3 and R3′-4 after the redeploy (first firing 15:12:14Z + 10 min; read 15:22:19Z):**
+
+| row | got | verdict |
+|---|---|---|
+| **R3′-3** (`/healthz` `wx.opuk`) | `frameAgeS` **440**, `coveredShare` **0.7508** (`cref` 102 beside it) | as predicted (age <= 1,800; share in [0.70, 0.80]) |
+| **R3′-4** (`pd-wx.sh`, LHR) | `/wx/cref` LHR: HTTP 200, `WXC1`, ETag product **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` **1793978100** (15:15:00Z). `/wx/opuk` LHR the same. `/healthz` `opuk` 444 s at the same read, so its frame is 15:15:00Z, the one served | as predicted |
+| controls in the same probe | `/wx/cref` Bend and KMCI: ETag `cref`, no `X-Wx-Max-Age`, frame 1793978437 (15:20:37Z) | as before |
