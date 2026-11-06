@@ -12481,3 +12481,85 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **The PDF's allowance records my text read's counts.** If the reviewer prefers its own read as the record, the counts are the same.
 
 **Outside these predictions: stop and decide.**
+
+### A12.116 Q82 approved with four additions; the counts restated before the code
+
+**The ruling (2026-11-06 ~00:56Z):**
+- Q82 (A12.115) is approved with four additions (c1, c2, c3, d2), and the PDF row renamed.
+- The counts are restated here before code, then the build follows. No further ruling is needed unless something else changes, and the PR is reviewed once.
+- **The CI baseline is #555's PR run.** It postdates main's last workflow change, which is #555 itself (`12569fa05dfd`). **New rule, for all sessions: a CI baseline must postdate main's last workflow change, and is named with the prediction.**
+- **The reviewer's PDF read, for comparison:** poppler, 4 pages, 153 lines, 0 findings, 0 network contexts.
+
+**The additions:**
+- **c1, bounded inflation:**
+  - a per-file cap on inflated bytes, **64 MiB**;
+  - past it, the container fails as `container`;
+  - the selftest passes a small cap to its own row.
+- **c2, a nested container:** a member that is itself a container, by magic (zip `PK\x03\x04`, gzip `1F 8B`, xz `FD 37 7A 58 5A 00`, tar `ustar` at 257), is not opened and not passed. It fails as `container`.
+- **c3, members are judged by their own extension:** a `.png` member gets the EXIF and XMP checks.
+- **d2, the flash-dump case:** a copy that starts with `E9` but has no app descriptor magic at 0x20 (a bootloader, or a full flash dump) is not an app image, so the names in it are `wifi-store`. Its own sabotage, S-Q82e ("E9 alone exempts"), turns exactly that row red.
+- **The PDF row is "a changed PDF fails"** (point 3): it proves a changed PDF fails by its hash, not that its content is read. The planted Flate stream is incidental.
+
+**The selftest's rows, restated:**
+
+| # | row | expected |
+|---|---|---|
+| 1 | control: the unplanted copies (png, jpg, bin, woff2, 3mf, pdf, head.bin), with the font and PDF allowed | clean |
+| 2-9 | name, bssid, lan and path, each in a real png and a real bin | exactly that kind on exactly that file |
+| 10 | an EXIF GPS block in a real jpg | `exif-gps` |
+| 11 | an XMP location tag in a real png | `xmp-location` |
+| 12 | **renamed:** a font with no allowance fails (no plant; empty allowlist) | `font` |
+| 13 | a stale allowance | stale 1 |
+| 14 | an idle allowance | idle 1 |
+| 15 | (a) an `FF FE` UTF-16 `.bin` with a planted name | `name` |
+| 16 | (b) an allowlisted font with one byte changed | stale 1 + `font` on exactly that font |
+| 17 | (c) a deflated member in a real `.3mf` with a name and a user path | `name` and `path` on `<3mf>!<member>` |
+| 18 | (c) **a changed PDF fails** (a Flate stream appended) | stale 1 + `pdf` |
+| 19 | (c) an unopenable `.3mf` (truncated) | `container` |
+| 20 | (c1) a `.3mf` past a small selftest cap | `container` |
+| 21 | (c2) a zip stored inside a copy of a `.3mf` | `container` |
+| 22 | **(c3), added here:** a `.png` member with an EXIF GPS block in a copy of a `.3mf` | `exif-gps` on `<3mf>!<member>.png` |
+| 23 | (d) the Wi-Fi NVS names in a copy of a real `.bin` | `wifi-store` |
+| 24 | (d) control: the same names in a copy of a real `.head.bin` (an app image) | clean |
+| 25 | (d2) the same names in a copy that starts `E9` with no app descriptor at 0x20 | `wifi-store` |
+
+**25 rows, not the reviewer's 24.**
+- **The difference is row 22.** c3 is a behaviour, and without a row it would be the "rule nobody has seen reject anything" this file warns about.
+- **The reviewer asked for a correction here if the code saw it differently.** This is that correction, made before code.
+
+**`--sabotage`:**
+- **How it runs:** it plants into a copy of the script beside a copy of `check_wifi.py`, and runs that copy's `--selftest --root <the real tree>`. Each plant must turn **exactly** these rows red:
+
+| sabotage | rows red | count |
+|---|---|---|
+| S-Q82a: `excused` back on `check_wifi.decode()` | 15 | 1 |
+| S-Q82c: container reading off (members not read; the PDF scanned as raw bytes, with no hash rule; no cap; no nesting test) | 17, 18, 19, 20, 21, 22 | **6** (the reviewer's 5, plus row 22) |
+| S-Q82d: the `wifi-store` tell off | 23, 25 | 2 |
+| S-Q82e: `E9` alone exempts | 25 | 1 |
+
+- **Controls first:** the unplanted copy's selftest passes, and an anchor that is missing refuses to plant rather than reporting green.
+- **Every anchor occurs exactly once** in the script. The constants are split, as S-R2 taught.
+
+**`check_wifi.py`:**
+- **One `excused(rel, raw)`,** called by `judge` and by `check_binary_strings.py`.
+- **Its own line is unchanged:** 1,607 tracked, 1,144 scanned, 463 binary, 0 findings.
+- **Its `--selftest` passes as before.**
+
+**The scan, predicted:**
+- **463 excused** (unchanged);
+- **3 fonts and 1 PDF settled by hash;**
+- **2 containers read, 33 members,** under the 64 MiB cap;
+- **457 scanned;**
+- **0 findings, allowed 2** (`c700.jpg` `exif-gps`, and the PDF); stale 0, idle 0.
+- **Outside the set: stop.** Row 22's check now runs on the `.3mf` members' own files too. An `exif-gps`, or a nested container, inside today's `.3mf` would be such a finding.
+
+**The PDF's recorded read** (`pdftotext` 4.00, Git Bash; counts only).
+- **This `pdftotext` is Xpdf's 4.00, not poppler's,** so its line count may differ from the reviewer's 153. Line breaking differs between the two, and that difference is registered here, not explained after.
+- **Predicted:** 4 pages, 0 findings, 0 network contexts; the line count not predicted to match.
+- **The PDF's allowance records the counts measured.**
+
+**The device-ids job** runs `--selftest`, `--sabotage`, then the scan. A step adds no check run.
+
+**The PR's CI.** The baseline is #555's PR run, which postdates main's last workflow change (`12569fa05dfd`, #555 itself). **Predicted: 31 check runs, 28 success, 3 skipped (ship-alert, promote, version), 0 failed; 30 on 24.04, 1 on 26.04.**
+
+**Before the push:** `check_wifi.py` and `check_device_ids.py` run locally.
