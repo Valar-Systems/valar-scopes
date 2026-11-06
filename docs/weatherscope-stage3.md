@@ -14555,3 +14555,9 @@ G16 stays green under both.
 **The workflow:** three steps added to the `device-ids` job, on the local branch only.
 
 **Waiting:** Q105-Q107 (step 5), Q108, #571's CI at `f9f778be55d3`, then #571's and #583's merges.
+
+### A12.148 #571's CI at `f9f778be55d3`: AS PREDICTED
+
+**Read twice, finished, 60 s apart:** 34 checks, 30 success, 4 skipped (promote, publish, ship-alert, version), 0 failed. Predicted: PR 34: 30/4/0. All four workflows concluded success: firmware, `device-ids`, `no-traffic-captures`, `web-renderer`.
+
+**#571 merges only** on a pasted approval at `f9f778be55d3`, after main's CI on its current head has finished, with main re-read in the merge command.
