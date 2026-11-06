@@ -91,3 +91,130 @@ invocation, counted in MM2's GraphQL window.
 | **the whole proxy suite** | **68 files (67 passed, 1 skipped); 885 tests: 884 passed, 1 skipped, 0 failed**; exit 0; no timeout | as predicted |
 | **the sabotages** (`sabotage-smoke-basemap.mjs`, the WHOLE suite each) | the control: 884 passed, 1 skipped, of 885, 0 failed. **S-SQ: exactly {SQ1, SQ2} failed** (2 of 885). **S-SQP: exactly {SQ-C} failed.** Both files restored byte-identical. TIME_WAIT at each start: 186, 7,782 and 414, all under the 8,000 gate | as registered |
 
+## A2.12: the port gate holds over the whole run, and an ungraded run keeps its output (predictions first)
+
+Ruled (reviewer chat, pasted by Daniel, 2026-11-06 ~00:56Z), verbatim:
+
+> 3. The A2.12 follow-up (keep the raw output of an unparseable run; hold the TIME_WAIT gate over the whole run, each
+>    with its own check) is its own small PR after A1's push.
+
+**Why.** This driver refused twice, and neither refusal could be diagnosed:
+- **#534's rig refusal** (2026-11-05 ~00:08Z): the gate read TIME_WAIT under 8,000 at the run's start only. The run
+  started at about 7,900, and 15,721 was read just after.
+- **A1's two instrument failures** (2026-11-05 ~21:38Z): 16,715 was read just after, with another session's
+  whole-suite run on the PC at the same time.
+- **Both times the driver threw away the run's output.**
+
+**Read first, on main `7b70745a`** (2026-11-06 01:30Z, under the ruled conditions: TIME_WAIT 22, no other `vitest` or
+`sabotage-` process):
+- `npx vitest run`: **72 files (71 passed, 1 skipped); 961 tests: 960 passed, 1 skipped, 0 failed**; exit 0, in 46 s.
+- **TIME_WAIT peaked at 13,283** in samples taken every 5 s during the run, **and read 13,357 just after.** One run
+  from an empty pool comes within about 3,000 of Windows' 16,384 ephemeral ports.
+
+### The change (`proxy/scripts/sabotage-smoke-basemap.mjs`)
+
+1. **The start gate:** a run starts only when TIME_WAIT is **under 2,000**, polled every 5 s. Past 20 minutes it is a
+   RIG (exit 2), never a reading. Both numbers are the ruling's.
+2. **The gate holds over the whole run.**
+   - TIME_WAIT is sampled every 5 s **during** the run, and once at its end, and each run's line prints its start
+     value, its peak and how long it waited.
+   - A run whose peak reaches **15,000** is an **instrument failure**, whatever its summary says. A port-starved
+     run can drop a file's cases without marking them failed.
+   - **Why 15,000:** it sits between every count read after a passing whole-suite run (12,768 to about 13,800, and
+     13,357 above) and every count read after a failing one (15,721 and 16,715).
+3. **An ungraded run keeps its output.** When a run is not graded, its stdout and stderr go whole to a file under
+   `os.tmpdir()/sabotage-smoke-basemap/`. The driver prints the file's path, the byte counts and the last 20 lines.
+   - "Not graded" means: timed out, no parseable summary, the ceiling reached, or the reader failed mid-run.
+   - The same goes for a CONTROL run that refuses for failures.
+
+**Three defects found while writing it, fixed here.** Each has its own check, and each can be struck:
+- **The reader failed open.** A failed `netstat` gave 0 lines, so a count of 0, which opened the gate. It now refuses
+  when `netstat` errors or prints no connection table (W4).
+- **The reader would read low at the ceiling.** `spawnSync`'s default buffer is 1 MB. At about 66 bytes a row, that
+  is about 15,900 rows, so near 15,000 TIME_WAIT the output is truncated and the count silently low. That figure is
+  computed, not measured. The 8,000 gate never reached it; the 15,000 ceiling does. The buffer is now 64 MB, and an
+  overflow is a refusal (W5).
+- **A RIG mid-plant left the sabotage in the tree.** The gate's RIG called `process.exit` inside the plant's `try`,
+  which skips `finally`. A RIG is now returned from inside a plant, and the file is restored first (W2-R).
+
+**Unchanged:**
+- the two sabotages (S-SQ and S-SQP) and their registered sets;
+- the exit codes;
+- the whole-suite command.
+
+The ruled "no other session's `vitest` or `sabotage-` process" condition stays in the operator's wrapper, as before.
+The driver does not check it.
+
+### Predictions
+
+**1. `--selftest`.** No vitest runs and no repo file is touched. Every check runs the driver's own `gradedRun`,
+`withPlant` and readers on planted commands (small `.cjs` files in a temp dir) and planted TIME_WAIT readings. The
+planted values reach the code through a parameter, never an environment variable. **12 of 12 as registered, exit 0:**
+
+| id | planted | predicted |
+|---|---|---|
+| **R1** | a run that prints a marker on stdout, another on stderr, exits 1, and has no summary | `summary not parsed`; the file is kept, and it holds both markers |
+| **R1-C** | CONTROL: a run printing `Tests  3 passed (3)` | graded, 3 passed of 3; no file kept |
+| **W1** | TIME_WAIT 100 at the start and the first sample, **15,000 only at the second sample**, 100 after | `ports: TIME_WAIT peaked at 15000 ...`; the file is kept |
+| **W1-C** | CONTROL: the same with 14,999 | graded, peak 14,999; no file kept |
+| **W2-R** | a temp file planted, then a run whose gate reads 2,000 | a RIG is returned; the file is restored byte-identical |
+| **W2** | the gate reads 2,000 for the whole (planted, 400 ms) cap | RIG; the planted command never ran (its marker file is absent) |
+| **W2-C** | CONTROL: the gate reads 1,999 | it starts; the marker file is present |
+| **W3** | the reader **throws only at the second sample** | `the TIME_WAIT reader failed during the run (planted reader failure)`; the file is kept |
+| **W4** | `netstat` text with a `TIME_WAIT` row and no table header | refused, never counted |
+| **W4-C** | CONTROL: a table of 3 `TIME_WAIT` rows and 1 `ESTABLISHED` | 3 |
+| **W5** | the real `netstat` against a 1,000-byte buffer | refused, never a truncated count |
+| **W5-C** | CONTROL: the real reader on this machine | an integer |
+
+**2. `--selftest-plants`.** Each plant edits a **copy** of the driver's code, above a cut line, so a plant's anchor is
+never also found in the plant table. The copy then runs `--selftest`. The checks it reddens (NOT AS REGISTERED, or
+never printed) and its exit status must equal the registered ones exactly. **8 of 8 as predicted, exit 0:**
+
+| plant | the defect | red, exit |
+|---|---|---|
+| **C-PLANTS** | none: the copy, asserted equal to the source | {}, 0 |
+| **P-RAW** | `keepRaw` writes nothing (it still prints its path) | {R1, W1, W3}, 1 |
+| **P-INRUN** | no sampling during the run (start and end only) | {W1, W1-C, W3}, 1 |
+| **P-START** | the start gate admits 2,000 (`<=`) | {W2-R, W2}, 1 |
+| **P-CEIL** | the ceiling needs more than 15,000 (`>`) | {W1}, 1 |
+| **P-TABLE** | the table-header check removed | {W4}, 1 |
+| **P-BUF** | `netstat`'s error and exit status ignored | {W5}, 1 |
+| **P-RIGEXIT** | the old behaviour: the gate's RIG exits the process | {W2-R, W2, W2-C, W3, W4, W4-C, W5, W5-C}, 2: the copy dies inside W2-R's plant, so nothing after it prints |
+
+**3. The driver itself, whole, once,** under the ruled conditions, checked by the operator's wrapper first (TIME_WAIT
+under 2,000 and no other session's `vitest` or `sabotage-` process, polled every 15 s, capped at 20 minutes). Exit 0:
+
+    CONTROL (unsabotaged): 960 passed, 1 skipped, of 961; 0 failed (TIME_WAIT start <2,000, peak <15,000; ...)
+    S-SQ: as registered; failed 2 (want 2): ["SQ1","SQ2"] ...; TIME_WAIT start <2,000, peak <15,000; ...
+    S-SQP: as registered; failed 1 (want 1): ["SQ-C"] ...; TIME_WAIT start <2,000, peak <15,000; ...
+    ALL AS REGISTERED
+
+- **No `raw output kept` line:** every run is graded.
+- **The tree is clean after.**
+- **Each peak is predicted near 13,300**, from the read-first run above.
+
+**4. Then the credits driver once,** unchanged by this PR: CONTROL 35 of 35, and its four sabotages as registered.
+
+**CI**, baseline named: **34 check runs: 31 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.**
+- **The baseline:** #559's finished run, a `proxy/` PR. Its first check run started 2026-11-06T01:08:09Z, after
+  main's last workflow change `12569fa0` (2026-11-05T21:37:41Z).
+- `workers.yml` has no job-level path condition, so a PR touching only `proxy/scripts/` runs the same jobs.
+
+**The outcomes, written before any run:**
+
+| reading | means | then |
+|---|---|---|
+| everything above as predicted | the change works as registered | open the PR, read CI |
+| a selftest line NOT AS REGISTERED, or a plant OFF-PREDICTION | a check or a plant is not what this table says | stop and report, with the printed lines; no fix until a ruling |
+| a driver run is an INSTRUMENT FAILURE on the ceiling (peak at or above 15,000) | the ceiling, or the 2,000 start gate, does not fit this suite | stop; its raw output is kept; ruling |
+| a driver RIG at the start gate's 20-minute cap | the PC is busy | stop and report |
+| CONTROL other than 960 / 1 / 961 | the tree moved, or the suite is unstable | stop and report |
+| **anything else** | the instrument is unreliable at this scale | stop and decide |
+
+**Not in this PR, for a ruling** (Q-A212a): a graded sabotage run's **total** is never compared with the CONTROL's.
+- A partial runtime failure drops a file's cases **without failing them**, so today a sabotage could read "as
+  registered" over a suite missing whole files.
+- `sabotage-basemap.mjs` already guards its own runs this way (C-LOADFAIL: every baseline case must be seen again).
+- **I recommend its own small PR after this one,** with its own plant: a run with one file's cases dropped must read
+  as an instrument failure.
+
