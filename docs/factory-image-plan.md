@@ -5,7 +5,13 @@
 **Daniel's decisions, all as recommended below:**
 1. **Partition table:** today's, unchanged (T1).
 2. **Bootloader:** the stock ESP-IDF 5.5.4 one, as in every published factory set (L1).
-3. **eFuses:** none burned. **Erase:** the factory erases the whole chip before writing.
+3. **eFuses:** none burned. **Erase:** ~~the factory erases the whole chip before writing~~ **changed by Daniel on
+   2026-11-06:**
+   - the full chip erase is only for the 3 pre-production samples, and for any board that had anything written to
+     it before (a test program, for example);
+   - production boards (new chips, which arrive blank) are not erased: the one file is written at `0x0` (the Flash
+     Download Tool's START only; esptool without `--erase-all`).
+   - See "Sheet edits of 2026-11-06" below.
 4. **Device keys:** customers activate at setup against a server-side allowlist
    (`docs/device-activation.md`, a separate PR). The factory image is the same either way.
 5. **The rollback test is skipped for now.** No prerelease is created. Deferring the "valid" mark
@@ -565,3 +571,17 @@ The factory reads the sheet from main, so this is a docs-only PR that goes up to
 | **E8** | CI on the PR, read only with nothing queued, twice | **31: 28 success, 3 skipped** (`promote`, `version`, `ship-alert`), 0 failed. Baseline: #568's PR run, a docs-only PR that started after main's last job-set change, `84409651` (#552); main's last workflow change is `259e8688`, a step |
 
 **Outside the set:** stop and report.
+
+**The edits, as made (E6's record):**
+- **Decision 3** above records Daniel's change of 2026-11-06.
+- **DoNotChgBin and the board's flash settings.** With DoNotChgBin ticked, the Flash Download Tool writes the file
+  unchanged, so the tool's SPI SPEED, SPI MODE and FLASH SIZE govern the download only. The board boots with the
+  file's own header, as on our bench.
+  - That header, read from the v18 factory file itself (sha256 `1e1670abc917`, 2,059,264 bytes): magic `0xE9`,
+    **DIO**, **16 MB**, **80 MHz**.
+- **One thing the sheet now says that our bench did not run.** The sheet's opening line says every step was run on
+  our bench on 2026-11-05. Two of today's steps were not:
+  - the production write without the erase: P1 ran with `--erase-all`;
+  - the tool with BAUD 1152000 and these SPI settings.
+  The line is unchanged here, by E5. It is reported for a ruling: a bench run of the no-erase write, or a wording
+  change.
