@@ -4876,4 +4876,74 @@ nothing it draws. The rest of the ~15:07Z ruling stands. C5's seven rows are fin
 - **C3:** `WxOutlineNow()` returns `WxEnabled()`. **C4:** the marker's base colour is
   `WxEnabled() ? Plane(alt) : today's`, with no-data grey first as today.
 
+### Re-registered (ruling of ~15:18Z, Daniel's decision): drizzle hidden. Before the code that touches code 1
+
+**As ruled:**
+- Code 1 (15-20 dBZ) is **not drawn** on the Blipscope: it draws as dry. Codes 2-13 are unchanged.
+- Q2's ×55/40 for code 1 is moot.
+- The legend loses "Very light".
+- The bench window shows this cockpit default. Bringing drizzle back is a one-line change and its own ruling.
+
+**"Draws as dry" means exactly what code 0 does, in the layer and under the sweep.** Giving code 1 a black colour
+would not do it: look 4's `Lit565` would then draw code 1 as black inside the green wedge, a hole where code 0 shows
+the wedge's green.
+
+**What changes against the frozen C1-C8:**
+
+| | change |
+|---|---|
+| **C1′** | `WxAvionics.h` gains `kFirstDrawn = 2` and `Drawn(code)` (codes `kFirstDrawn`-13). `Echo()` returns `kDry` for any code not drawn. `kDimGreen` stays in the table, so drizzle comes back by setting `kFirstDrawn = 1`: the one line the ruling names. |
+| **C2′** | `WxS2.h`: `EchoAt` and `Pixel888` draw a code only when `wxavionics::Drawn(code)`, so code 1 gives `kDry` and the background, as code 0 does. `CodePercent` stays, dormant: its code-1 branch reaches no pixel while `kFirstDrawn` is 2. Its comment says so. |
+| **C2″** | `WxSweep.h`'s `Lit565` lights a code only when `wxavionics::Drawn(code)`. Anything else, code 1 included, is the wedge's green, as code 0 is. The call text `wx-fb-check.py` asserts, `LitPercent(wxs2::CodePercent(code, pct), lvl)`, is unchanged. |
+| **C5′** | The legend's rows: Light (2-3), Moderate (4-5), Heavy (6-7), Intense (8-13), No radar coverage (14), No data (15). **6 rows, 14 swatches**, and no swatch for code 1. |
+| **C7′** | `check-wx-legend.py` and `wx-fb-check.py` read the drawn codes as `kFirstDrawn`-13 from `WxAvionics.h`. Code 1's colour and percent leave their weather and lit sets. |
+
+`wxcrop::IsEcho` is unchanged. It is the crop's own meaning, used by Weatherscope and the replay tools; the
+Blipscope's drawing decides through `Drawn()`.
+
+**The tests, restated (`test_wx_avionics.cpp`, 7 checks):**
+
+| | check | predicted |
+|---|---|---|
+| **AV1** | the band edges at 100 %: 2, 3, 4, 5, 6, 7, 8 and 13 their colours; **code 1 dry (the ruled addition)**; 0, 14, 15 and 16 dry | ok |
+| **AV2** | flat inside a band, as frozen | ok |
+| **AV3** | Weatherscope's table hash, **17800467619102092433**, as frozen | ok |
+| **AV4** | `Plane()`, as frozen | ok |
+| **AV5** | faded cyan and white against the layer's colours (codes 2-13 through the lit range, plus 14 and 15) | 0 equal |
+| **AV6** | the anchors, **8** (code 1's two dropped). A: 2 → (0, 80, 0), 5 → (96, 88, 0), 7 → (92, 0, 0), 13 → (102, 0, 102). B: 2 → (0, 50, 0), 5 → (60, 55, 0), 7 → (58, 0, 0), 13 → (64, 0, 64) | ok |
+| **AV7** | **code 1 draws exactly as code 0**: `Pixel888` on a 16 × 16 patch, and `Lit565` at every level 0 to `kPeak`, in both looks | ok |
+
+**`sabotage_wx_avionics.py`, 5 plants:**
+- **S-AV-drizzle (the ruled one):** `kFirstDrawn = 1`, so code 1 is drawn dim green → exactly **{AV1, AV7}**.
+- **S-AV-read:** `EchoAt` reads `wxpalette::Rain` → exactly **{AV1, AV2, AV5, AV6}**, as frozen. `Drawn()` still
+  gates code 1, so AV7 stays green.
+- **S-AV-edit** → {AV3}. **S-AV-alt** → {AV4}. **S-AV-plane** → {AV4, AV5}. All as frozen.
+
+**`test_wx_s2.cpp`, still 10 `ok` lines:**
+- WD4b: codes 2-13 are the table at the look's percent and never the background; **code 1 is `kDry`**. Its anchors
+  are AV6's.
+- **WD4e is retired:** light rain below code 2 in L* has no subject once code 1 is not drawn. **WD4g** takes its
+  place: code 1 is the background at every pixel of a 16 × 16 patch. The driver's parser widens from `WD4[a-f]` to
+  `WD4[a-g]`.
+
+**`sabotage_wx_s2.py`, 5 plants (was 6):**
+- **"S-t1 code 1 at the plain percent" is retired.** It plants into `CodePercent`'s code-1 branch, which reaches no
+  pixel now, so it could not turn anything red: a plant that cannot fire proves nothing.
+- **"S-t2 code 1 from the old blue":** its inserted line comes before `Drawn()`, so code 1 is drawn → **{WD4b A,
+  WD4b B, WD4g A, WD4g B}**.
+- **Unchanged:** "code 13 as the table's black" {WD4b A, WD4b B}; "the dim dropped" {WD4b A, WD4b B}, as amended at
+  `68a87fbc`; "B at A's factor" {WD4b B}; "14 drawn as 0" {WD4c A, WD4c B}.
+- The copy tree gains `include/WxAvionics.h`, as does `sabotage_wx_look_select.py`'s. Neither changes a set.
+
+**`test_wx_legend_html.cpp`:**
+- **[L1]:** the 6 labels above, and no snow.
+- **[L2]:** echo swatches for 2-13 (12 found), each `wxs2`'s colour. The anchor is A's code 2, `rgb(0,80,0)`. There is
+  no `data-code="1"`.
+- **[L3]:** unchanged.
+- **[L4]:** no '%', and **14 swatches**.
+
+**`wx-fb-check.py`'s selftest:** one look-B case of rule (2) is added, as amended.
+
+**Outside the set:** stop and report.
+
 **Outside the set:** stop and report.
