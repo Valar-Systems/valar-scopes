@@ -154,11 +154,23 @@ def frames(tr, ip, out, label):
 
 
 ROWS = []
+RIGS = []
 
 
 def row(name, ok, detail):
     ROWS.append((name, ok, detail))
     print(f"{name}: {'AS PREDICTED' if ok else 'OFF-PREDICTION'} -- {detail}", flush=True)
+
+
+def rig(name, detail):
+    """The instrument could not read the row: never a pass and never a red (A12.127)."""
+    RIGS.append((name, detail))
+    print(f"{name}: the RIG -- {detail}", flush=True)
+
+
+def tally(seen):
+    """(frames showing the strip, failed fetches). A failed fetch is not a frame and is never counted as one."""
+    return sum(1 for x in seen if x not in (None, "error")), seen.count("error")
 
 
 def until(t):
@@ -196,7 +208,11 @@ def chain(port, ip, out):
             t0 = time.time()
         until(t0 + 40)
         ctl = frames(tr, ip, out, "boot1-control")
-        row("B4c CONTROL", ctl.count(None) == 3, f"the strip in {3 - ctl.count(None)} of 3 boot-1 frames (predicted 0)")
+        nc, ne = tally(ctl)
+        if ne:
+            rig("B4c CONTROL", f"{ne} of 3 fetches failed: no reading")
+        else:
+            row("B4c CONTROL", nc == 0, f"the strip in {nc} of 3 boot-1 frames (predicted 0)")
         until(t0 + 60)
         tr.send(b"P")
         t_p = time.time()
@@ -235,9 +251,12 @@ def chain(port, ip, out):
             return 1
         until(t4 + 40)
         b4 = frames(tr, ip, out, "boot4")
-        shown = [x for x in b4 if x not in (None, "error")]
-        row("B4 the strip on glass", len(shown) >= 2, f"the strip in {len(shown)} of 3 boot-4 frames ({', '.join(map(str, b4))};"
-            f" predicted >= 2)")
+        n4, ne = tally(b4)
+        if ne:
+            rig("B4 the strip on glass", f"{ne} of 3 fetches failed: no reading")
+        else:
+            row("B4 the strip on glass", n4 >= 2, f"the strip in {n4} of 3 boot-4 frames ({', '.join(map(str, b4))};"
+                f" predicted >= 2)")
         until(t4 + 360)
         rec4 = tr.between(REC, t4, t4 + 360)
         cap4 = tr.between(CAP_LINE, t4, t4 + 360)
@@ -282,8 +301,11 @@ def clear(port, ip, out):
         row("B5 'w' in time", t - boot5 <= 30, f"'w' at device t={(t - boot5):.1f} s (predicted <= 30)")
         until(boot5 + 40)
         before = frames(tr, ip, out, "boot5-before")
-        nb = len([x for x in before if x not in (None, "error")])
-        row("B5 strip after 'w'", nb >= 2, f"the strip in {nb} of 3 frames (predicted >= 2)")
+        nb, ne = tally(before)
+        if ne:
+            rig("B5 strip after 'w'", f"{ne} of 3 fetches failed: no reading")
+        else:
+            row("B5 strip after 'w'", nb >= 2, f"the strip in {nb} of 3 frames (predicted >= 2)")
         t_run, _ = tr.wait(r"\[touch-wd\] run 3 -> 0 \(NVS write: an hour without the wedge\)$", t_open, boot5 + 200 - time.time())
         t_leave, _ = tr.wait(r"\[touch-wd\] an hour without the wedge: leaving touch unavailable$", t_open, 5)
         ok = t_run is not None and t_leave is not None and t_run - boot5 >= 179.0
@@ -291,7 +313,11 @@ def clear(port, ip, out):
             f"leaving line {'seen' if t_leave else 'MISSING'}")
         time.sleep(2)
         after = frames(tr, ip, out, "boot5-after")
-        row("B5 strip cleared", after.count(None) == 3, f"the strip in {3 - after.count(None)} of 3 frames (predicted 0)")
+        na, ne = tally(after)
+        if ne:
+            rig("B5 strip cleared", f"{ne} of 3 fetches failed: no reading")
+        else:
+            row("B5 strip cleared", na == 0, f"the strip in {na} of 3 frames (predicted 0)")
         t_r = time.time()
         tr.send(b"r")
         t, l = tr.wait(BENCH_R, t_r, 5)
@@ -327,5 +353,14 @@ if __name__ == "__main__":
         print(__doc__)
         sys.exit(2)
     phase, port, ip, out = sys.argv[1:]
+    # An empty address made every /diag/fb fetch fail in W-CR's first chain (A12.127): refuse it before any open.
+    if phase != "bootread" and not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+        print("REFUSED: the board address is not an IPv4 address (resolve the name first): the RIG")
+        sys.exit(2)
     os.makedirs(out, exist_ok=True)
-    sys.exit({"chain": chain, "clear": clear, "bootread": bootread}[phase](port, ip, out))
+    rc = {"chain": chain, "clear": clear, "bootread": bootread}[phase](port, ip, out)
+    if RIGS and rc == 0:
+        rc = 2   # a row the instrument could not read is never a pass
+    if RIGS:
+        print(f"the RIG: {len(RIGS)} row(s) unread -- {', '.join(n for n, _ in RIGS)}")
+    sys.exit(rc)
