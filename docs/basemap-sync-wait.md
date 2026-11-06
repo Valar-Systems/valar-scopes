@@ -170,3 +170,91 @@ which I'll ask for.
 **1,443 under the 15,000 ceiling**.
 
 **The tree was clean after each run.**
+
+## The fresh ten on staging (2026-11-06, 18:11-18:21Z): the target met; the first-request row off
+
+### The rulings, verbatim (reviewer chat, pasted by Daniel)
+
+From ~17:45Z:
+
+> Q-SLOT -> granted, after the merge and its main CI:
+> - Deploy staging from #572's merge commit, by name. Record the rollback target first.
+> - Before deploying, name the Worker-input diff from staging's current source commit. If it holds more than #572's
+>   handler.ts change, list those commits and confirm each was merged and approved.
+> - Rows as frozen: first requests at most 2,170 ms (server ms, nearest-rank p95 over the ten, which is their maximum),
+>   and the other rows as in section 9.
+> - Staging only, so it may overlap blipscope-5c's 18:45Z bench window. Announce start and end.
+> - Step 0's code still waits for the ten's reading.
+
+From ~18:26Z:
+
+> Q-SW4 -> yes on both. The first-request row is OFF and stays on record as your miss: the prediction assumed the
+> pre-race work's earlier maximum, and it read 314-718 ms. The target is met: nearest-rank p95 2,318 ms, under 2,500.
+> Every other row as registered.
+>
+> Q-SW3 -> yes, 182 ms is thin. The pre-race spread alone was about 400 ms, and its maximum rose from 570 to 718 ms
+> between two sets of ten. S2 is wanted before D4: read the package and its .err in parallel, predictions first, then a
+> fresh ten on staging in its own slot.
+> - Order: step 0's code first (on D4's critical path, predictions registered), then S2. Both before D4.
+
+### Before the reading
+
+- **The slot,** announced at 18:11Z and ended at 18:21Z, staging only. It started after #572 merged (`551fd030`) and main's
+  CI on it read 34 check runs: 32 success, 2 skipped, 0 failed.
+- **The rollback target, recorded first:** proxy staging `4790510d-899e-4f63-847b-7079ae658ff9` (A1's deploy). **It was
+  not used.**
+- **The Worker-input diff from staging's running commit `9b511dc2`,** read from each Worker's own bundle list (a dry run
+  with a metafile) at `551fd030`:
+  - **the proxy's 55 inputs:** **one commit, #572**, changing one file, `handler.ts`: the constant 2,000 → 1,600 and its
+    comment;
+  - **the builder's 13 inputs:** **0 commits**, so it was not redeployed and stays on `cf2142c3`.
+- **Deployed:** proxy staging **`d4b73151-0a02-4869-b881-0152debb92c9`**, from `551fd030` by name. `confirm-deploy` read
+  `/healthz` = `551fd030`.
+
+### The ten, read
+
+Server `ms` and colo come from each request's own log line. Every request went through the test identity, with headers
+on stdin.
+
+| airport | first: `known-miss`, ms (colo) | second: `in-flight`, ms | retry, ms | +50 s, ms | the one build: reads, MB, wall ms | package / lock |
+|---|---|---|---|---|---|---|
+| KPHX | **2,318** (DFW; the first request after the deploy) | 380 | `stored` 189 | `hit` 36 | 59, 12.2, 3,532 | present / absent |
+| KLAS | 2,055 (DFW) | 356 | `stored` 201 | `hit` 33 | 49, 12.4, 3,026 | present / absent |
+| KSLC | 2,007 (DFW) | 407 | `stored` 311 | `hit` 27 | 62, 14.6, 3,762 | present / absent |
+| KPDX | 1,916 (DFW) | 345 | `stored` 216 | `hit` 13 | 58, 20.3, 3,143 | present / absent |
+| KSAN | **2,176** (SJC) | 278 | `stored` 283 | `stored` 159 | 46, 13.8, 2,370 | present / absent |
+| KIAH | **2,315** (SJC) | 430 | `stored` 336 | `hit` 20 | 49, 16.0, 2,790 | present / absent |
+| KMCO | 1,914 (SJC) | 285 | `stored` 302 | `stored` 139 | 50, 24.1, 4,411 | present / absent |
+| KCLT | 2,045 (DFW) | 324 | `stored` 210 | `hit` 20 | 53, 42.1, 3,902 | present / absent |
+| KDTW | 2,128 (SJC) | 275 | `stored` 185 | `hit` 206 | 63, 14.3, 5,175 | present / absent |
+| KSTL | 1,942 (SJC) | 290 | `stored` 158 | `hit` 48 | 56, 18.2, 3,783 | present / absent |
+
+| row | read | verdict |
+|---|---|---|
+| **the first request: 202 `known-miss`, at most 2,170 ms** (server `ms`, nearest-rank p95 over the ten = the maximum) | 10 of 10 `known-miss`; **p95 2,318 ms** (KPHX 2,318, KIAH 2,315, KSAN 2,176 over 2,170) | **off, my miss** (ruled ~18:26Z). The prediction assumed the pre-race work's earlier maximum (570 ms); it read **314 to 718 ms** |
+| **the 2.5 s target** | 2,318 ms | **met**: 182 ms under. Ruled thin, so S2 is wanted before D4 |
+| the second: 202 `in-flight`, with no second build | 10 of 10; **exactly 10 builds**, one per query, all 200 | as registered |
+| the retry: 200 `stored`, under 2.5 s at p95 | 10 of 10; p95 336 ms | as registered |
+| +50 s: 200, `stored` or `hit`, never `in-flight` | 8 `hit`, 2 `stored` | as registered |
+| cancellation lines | **0** (anchor 40 request lines; a clean exit) | as registered |
+| packages and locks | 10 packages present, 0 locks | as registered |
+
+**Two readings of the off, and the data does not separate them:**
+- **a cold isolate after the deploy:** KPHX was the first request after it;
+- **plain variance in the pre-race KV and R2 reads:** KIAH, the sixth request, ran as long, and the high values came from
+  both colos.
+
+**Cold builds took 2.4 to 5.2 s of wall time here,** against 4.2 to 8.4 s in §9's set. The places and colos differ, so
+this is not a controlled comparison.
+
+**State after the slot:**
+- staging runs proxy `d4b73151` (`551fd030`) and builder `cf2142c3` (`9b511dc2`);
+- the bucket's new objects expire under the 30-day rule;
+- the instruments, as run, are in `docs/basemap-a1/instruments/` (`a1-phase.sh`'s `ten` phase, and `a1-r2probe.mts`'s
+  ten).
+
+**Next, as ruled:** step 0's code, then S2. Both land before D4.
+
+**CI for this records PR (docs only), predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`,
+`version`), 0 failed.** The baseline is #569's finished docs-only run (31 = 28/3), which postdates `84409651`, the last
+change to the set of jobs.
