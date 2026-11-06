@@ -17,7 +17,9 @@ An unplanted run must pass first, or nothing here means anything.
   S-dot-silent     a dot-touched marker passed and not counted          -> exactly D1
   S-label-pass     a label-touched marker passed and not counted        -> exactly L1 and D2
   S-label-all      every weather neighbour read as a label's            -> exactly L2, "no outline, look A", "the old
-                                                                           r=4 disc outline"
+                                                                           r=4 disc outline", and look B's twin
+                                                                           "look B, no edge, weather across the outer
+                                                                           ring" (2026-11-06)
   S-head-join-off  RP6 B's head: the ring-pixel join removed            -> exactly J1
   S-head-join-any  the join's colour test dropped (a ring position of   -> exactly J2
                    any colour bridges two pieces)
@@ -56,7 +58,8 @@ SABOTAGES = {
                                "            pass   # SABOTAGE S-dot-silent\n")]),
     "S-label-pass": (["L1", "D2"], [('            if wet: causes.append("label")\n',
                                      "            pass   # SABOTAGE S-label-pass\n")]),
-    "S-label-all": (["L2", "no outline, look A", "the old r=4 disc outline"],
+    "S-label-all": (["L2", "look B, no edge, weather across the outer ring", "no outline, look A",
+                     "the old r=4 disc outline"],
                     [('            if wet and not all(at(f, *p) in src["label"] for p in wet):\n',
                       "            if False:   # SABOTAGE S-label-all\n")]),
     "S-head-join-off": (["J1"], [("    comps = join_across_rings(f, head_pieces(hs), src)\n",

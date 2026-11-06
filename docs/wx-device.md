@@ -5059,4 +5059,22 @@ and its docstring. Predicted on the re-run: all 11 plant rows as stated, and the
 
 **Outside the set:** stop and report.
 
+### The ruling (~16:33Z): the S-label-all fix approved, miss kept. Results, and the next predictions
+
+- **`sabotage_wx_fb_check`, re-run (17:00Z): as predicted.** All 11 plant rows as stated; S-label-all red {L2, "look
+  B, no edge, weather across the outer ring", "no outline, look A", "the old r=4 disc outline"}. Exit 0. The checker
+  and its fixture were unchanged.
+- **Standing from this ruling:** for every new case, before freezing, check each existing plant against it, and
+  restate any set it joins.
+
+**Predicted before they run:**
+
+| | run | predicted |
+|---|---|---|
+| **R1** | `bash test/host/run.sh` under `wsl -d Ubuntu-24.04` (g++ 13.3) | **exit 2, with exactly the two environment blocks failed**, as on every WSL run: "the same TU, for the board" (no xtensa) and "Weatherscope R0 and R0b" (no Pillow). Everything else is green, and specifically: the new "WX avionics" block, 7 ok, and its driver AS PREDICTED; WxS2, the legend, the look select, the sweep and the outline as above; "sabotage anchors", every anchor once, the avionics driver's 5 included; "sabotage controls", every driver's control, the avionics driver at 7 and the fb-check driver at 35; the driver-count lint, 0 flagged |
+| **R2** | `pio run -e blipscope-s3-128` | builds, exit 0 |
+| **R3** | `pio run -e blipscope-s3-128-wxlook` | builds, exit 0 |
+
+The two builds run one at a time, after a free-space check (30 GB floor). **Outside the set:** stop and report.
+
 **Outside the set:** stop and report.
