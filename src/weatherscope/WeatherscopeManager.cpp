@@ -941,12 +941,13 @@ void WeatherscopeManager::HandleTouch()
     // A12.84: the CST816 supervisor -- wedge detection and its recovery ladder -- fed the REAL read: before 'P''s
     // synthetic press below, which is no proof the chip answered, and only when a read happened. mayProbe is true:
     // touch has its own I2C bus on the S3, and nothing serializes it against the network (CLAUDE.md).
-    if constexpr (variant::TOUCH_WATCHDOG) {
+    if constexpr (variant::TOUCH_WATCHDOG)
         if (poll != TouchPoll::Skipped) TouchWatchdog::OnPoll(tft, poll == TouchPoll::Touched, true);
-        // Reset 1 of the touch-wedge cap (A12.119): the CHIP answered, so the chain is broken. The same real read,
-        // before 'P' -- a synthetic press is no proof the controller is alive.
+    // Reset 1 of the touch-wedge cap (A12.119): the CHIP answered, so the chain is broken. The same real read, before
+    // 'P' -- a synthetic press is no proof the controller is alive. Its own statement: the two lines above are S-TW's
+    // anchor (tools/weatherscope/board/plant_s_tw.py, a closed step's instrument), kept byte-for-byte (Q85 (b)).
+    if constexpr (variant::TOUCH_WATCHDOG)
         if (poll == TouchPoll::Touched) touchCap.OnRealTouch(touchwedge::Device());
-    }
     if (benchPress) {   // 'P' (stored mode only, A9.34): a synthetic finger at the centre, through this same path
         poll = TouchPoll::Touched;
         tx = SCREEN_SIZE_DIV_2;
