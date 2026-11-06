@@ -13009,3 +13009,29 @@ S-CR1 to S-CR4 plant `TouchWedgeCap.h` only, and their sets are unchanged.
 - **What stays the same:** the WSL `run.sh` prediction (exit 2, the two env blocks), and the driver count (23).
 
 **#445's merge, if it lands first, gets its own addendum before the merge commit.** It will predict the conflicted files, the resolution, every row re-run and the CI.
+
+### A12.121 Before any run: B3 and CR28 corrected -- the cap-holds line cannot be reached through Boot and Tick, on the radar today as here
+
+**Found while writing the driver,** before anything was compiled or run.
+
+**The radar's rung fires only while touch is NOT already unavailable:**
+```
+wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
+```
+- **Why the boot after the third reboot never fires it:** `AtBoot` marks that boot unavailable (`run >= CAP`), so its rung never fires.
+- **So `OnRung`'s refusal, `wedged again at run=%u: the cap holds -- touch unavailable, no reboot`, is unreachable** through boot and loop. It is defence in depth: `test_touch_wedge.cpp` pins it with a hand-built state that the boot "did not classify", which no boot produces. The same holds for the shared driver: `Cap` offers no path to that state.
+
+**Two frozen rows said otherwise. Both are corrected here, before measurement:**
+
+| row | was (A12.119) | now |
+|---|---|---|
+| **B3**, boot 4 | at `recommending reboot`: `wedged again at run=3: the cap holds ...` | boot 4's line `boot: run=3 (stored 3, reset not power-on) -- touch unavailable, no touch reboots this boot`; the watchdog's `recommending reboot` line at its time; **no `[touch-wd]` line from the cap after the boot line, and no restart in 6 min** |
+| **CR28** | the chain's lines byte-equal to the radar's formats, "and the cap-holds line" | the whole transcript of 6 simulated boots, compared whole. In order:<br>• boot 1's line;<br>• for k = 1..3: `touch reboot k of 3`, `run k-1 -> k (NVS write: touch reboot)`, `restarting (cause SW_TOUCHWD stamped)`, then the next boot's line (boot 4's with the unavailable suffix);<br>• boots 5 and 6's unavailable boot lines;<br>• **and nothing else.** |
+
+**What is unchanged:**
+- S-CR1's set, {CR1, CR2, CR4, CR28}. With both halves of the cap removed, boots 4–6 restart and print `touch reboot 3 of 3`, so the transcript differs.
+- Every other row, set and count.
+
+**The cap-holds string stays in both images.** R2's string set is unchanged by this correction.
+
+**One reading of the frozen B3 is now known to be impossible, and was caught before the window.** Had it been measured, boot 4's silence would have read as off-prediction. It is recorded here so the window's B3 is graded against the corrected row.
