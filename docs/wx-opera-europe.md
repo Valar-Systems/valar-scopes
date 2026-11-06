@@ -454,3 +454,58 @@ seconds, so it keeps listing.
   set. Under Q-WORKERS, ten Workers each finish their own product at their own time, so no one Worker holds a whole
   set. Stage 1b's predictions will name how the shared record is written, and what one product's failure does to
   the others.
+
+### 11.1 The stage 1a deploy to production `opuk` (the record)
+
+**The ruling, 2026-11-06 ~18:22Z, verbatim:**
+
+> For: UK data session, from the reviewer chat, 2026-11-06 ~18:22Z
+>
+> #570's merge recorded: by the rule, tree checked.
+>
+> #573 (stage 1a, prune by key) -> approved to merge at 3594321d3bcc. Predictions frozen first; PK1-PK5 and all five sabotages as predicted; CI 34 = 31/3/0 from a baseline after the last job-set change. My read of pruneByKey: exactly 900 whole-minute keys strictly before the cut, never latest's frame, under the 1,000-key delete limit. Merge by the rule (Q-M1).
+>
+> Deploy slot granted after the merge and its main CI: PKD-0 to PKD-6 as registered in section 11, rollback target opuk a4e6c685 recorded first, only the opuk Worker. No board hold: the 18:45Z bench window replays rain over Bend, which never reads opuk. Announce start and end.
+> - One amendment before it runs: a Logs read that comes back sampled (ABR above 1) may be re-read once over a narrower window. A second sampled read is BLIND, BLIND fails the row, and the frozen rollback applies.
+>
+> Stage 1b -> (b) is the design (each product's latest in KV, no shared record, products stay independent), but not now. Next as you planned: 1c's predictions on its own branch, then measure with M6. Build 1b only if M6 still reads over $2/month.
+>
+> The -c user.email slip: recorded; the rule stands.
+
+**#573 merged** at 18:24:54Z as `36d0b657ece7`, by the rule.
+- Main's head H was `551fd0303675` (#572), with its CI finished: 34 = 32 success, 2 skipped.
+- The merge command re-read `origin/main`, found it still H, and merged with `--match-head-commit 3594321d3bcc`.
+- The squash tree equals `merge-tree(H, 3594321d3bcc)` (`b2df01358385`).
+- **Main CI on `36d0b657`, predicted 34 = 32 success, 2 skipped, 0 failed.** The baseline is #572's finished main
+  run on `551fd030`, a `proxy/` main push after the last job-set change (`84409651`).
+
+**PKD-0, recorded before the deploy:**
+- **What `opuk` runs now:** `wrangler deployments status` gives **`a4e6c685-295b-4f7b-a839-e1ad12c633a5` at 100%**,
+  created 15:11:29Z.
+- **The rollback:** `wrangler rollback a4e6c685-295b-4f7b-a839-e1ad12c633a5 -c wx-ingest-opuk.wrangler.toml`,
+  straight back to that version. The fallback is a redeploy from the clean checkout of `9db83163` (scratchpad
+  `wt-plan-s`).
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml`, at the top level, from a clean detached
+  checkout of `36d0b657` (`wt-pkd`, with `npm ci` from its own lockfile). **Only the `opuk` Worker.** The `cref`
+  Worker (`257f49eb`) and the proxy are not touched.
+
+**The read plan, frozen before the start, with the ~18:22Z amendment applied.** T is the deploy's end.
+- **Every Logs read is cut into 900 s pieces** (`R3P_CHUNK_S=900`, tools at `55e81d76` on docs/wx-opuk-r3):
+  PKD-2's 70 minutes and PKD-6's 2 hours. Every piece must read at ABR 1, and the tool refuses otherwise.
+  - A refused read is re-read **once** in 450 s pieces.
+  - A second sampled read is **BLIND, BLIND fails the row, and the rollback applies.**
+- **PKD-4** uses `r3_5b.py`'s default 1,200 s lookback; a sampled read is re-read once at 600 s (`8e2776d5`). A
+  second sampled read is BLIND.
+- **When each row is read:**
+  - PKD-2: T to T+70 min, read at T+72 min.
+  - PKD-3: the first firing + 10 min.
+  - PKD-4: T+70 and T+80 min.
+  - PKD-6: T to T+2 h, read at T+2 h+5 min.
+  - PKD-5: [T-2 h, T) against [T, T+2 h), read at T+2 h+10 min (`r2_ops.py`, `3a737da6`), printed only.
+- **The "before" figures, not graded:**
+  - **CPU** (`r3p.py cpu`, 16:25-18:25Z in 900 s pieces): ABR [1], 120 records all `ok`; single builds n 24,
+    median 1,971.5 ms, **max 4,227 ms**; the rest median 10 ms. That max is well above R3′-6's 2,545 ms, on the old
+    code, so the spread is wider than R3′-6 showed. PKD-6's max bound of 5,000 ms stands as registered.
+  - **R2, 16:00-18:00Z:** ListObjects 142 and 139 an hour (a list carries no object name, so `cref` and `opuk` are
+    not split); DeleteObjects 46 and 56; PutObject `wx/cref` 56 and 55, `wx/opuk` 25 and 25.
+- **No board hold,** as ruled. Start and end are announced through the reviewer chat.
