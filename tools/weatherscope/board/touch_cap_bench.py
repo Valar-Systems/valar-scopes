@@ -36,8 +36,6 @@ Exit 0 every row AS PREDICTED, 1 a row OFF-PREDICTION, 2 the rig (the instrument
 """
 import os, re, subprocess, sys, threading, time, urllib.request
 
-import serial
-
 N = 240
 BOX = (32, 42, 174, 36)   # x, y, w, h (A12.119; test_touch_wedge_cap CR20)
 # WxTheme.h's roles, RGB888: uiWarn and bg of each theme.
@@ -77,6 +75,7 @@ class Trace:
     def __init__(self, port, out, name):
         self.lines, self.lock, self.stop = [], threading.Lock(), False
         self.f = open(os.path.join(out, f"trace-{name}.txt"), "w", encoding="utf-8", newline="\n")
+        import serial   # here, so --selftest runs where pyserial is absent
         self.ser = serial.Serial()
         self.ser.port, self.ser.baudrate, self.ser.timeout = port, 115200, 0.2
         self.ser.dtr, self.ser.rts = False, False   # BEFORE the open: an open must not reset the board
@@ -163,14 +162,30 @@ def row(name, ok, detail):
 
 
 def rig(name, detail):
-    """The instrument could not read the row: never a pass and never a red (A12.127)."""
+    """The instrument could not read the row: UNREAD, never a pass and never a red (A12.127, A12.128)."""
     RIGS.append((name, detail))
-    print(f"{name}: the RIG -- {detail}", flush=True)
+    print(f"{name}: INSTRUMENT -- unread: {detail}", flush=True)
 
 
 def tally(seen):
     """(frames showing the strip, failed fetches). A failed fetch is not a frame and is never counted as one."""
     return sum(1 for x in seen if x not in (None, "error")), seen.count("error")
+
+
+def grade_frames(name, seen, want, detail):
+    """One /diag/fb row from its reads. Any failed fetch leaves the row UNREAD (INSTRUMENT); otherwise want(shown)
+    grades it, and `detail` is formatted with the count shown."""
+    shown, errors = tally(seen)
+    if errors:
+        rig(name, f"{errors} of {len(seen)} fetches failed: no reading")
+    else:
+        row(name, want(shown), detail.format(shown=shown))
+
+
+def valid_address(ip):
+    """A dotted IPv4 address, each part 0-255 -- anything else is refused before a port is opened (A12.127)."""
+    m = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", ip or "")
+    return bool(m) and all(int(p) <= 255 for p in m.groups())
 
 
 def until(t):
@@ -208,11 +223,7 @@ def chain(port, ip, out):
             t0 = time.time()
         until(t0 + 40)
         ctl = frames(tr, ip, out, "boot1-control")
-        nc, ne = tally(ctl)
-        if ne:
-            rig("B4c CONTROL", f"{ne} of 3 fetches failed: no reading")
-        else:
-            row("B4c CONTROL", nc == 0, f"the strip in {nc} of 3 boot-1 frames (predicted 0)")
+        grade_frames("B4c CONTROL", ctl, lambda n: n == 0, "the strip in {shown} of 3 boot-1 frames (predicted 0)")
         until(t0 + 60)
         tr.send(b"P")
         t_p = time.time()
@@ -251,12 +262,8 @@ def chain(port, ip, out):
             return 1
         until(t4 + 40)
         b4 = frames(tr, ip, out, "boot4")
-        n4, ne = tally(b4)
-        if ne:
-            rig("B4 the strip on glass", f"{ne} of 3 fetches failed: no reading")
-        else:
-            row("B4 the strip on glass", n4 >= 2, f"the strip in {n4} of 3 boot-4 frames ({', '.join(map(str, b4))};"
-                f" predicted >= 2)")
+        grade_frames("B4 the strip on glass", b4, lambda n: n >= 2,
+                     "the strip in {shown} of 3 boot-4 frames (" + ", ".join(map(str, b4)) + "; predicted >= 2)")
         until(t4 + 360)
         rec4 = tr.between(REC, t4, t4 + 360)
         cap4 = tr.between(CAP_LINE, t4, t4 + 360)
@@ -301,11 +308,7 @@ def clear(port, ip, out):
         row("B5 'w' in time", t - boot5 <= 30, f"'w' at device t={(t - boot5):.1f} s (predicted <= 30)")
         until(boot5 + 40)
         before = frames(tr, ip, out, "boot5-before")
-        nb, ne = tally(before)
-        if ne:
-            rig("B5 strip after 'w'", f"{ne} of 3 fetches failed: no reading")
-        else:
-            row("B5 strip after 'w'", nb >= 2, f"the strip in {nb} of 3 frames (predicted >= 2)")
+        grade_frames("B5 strip after 'w'", before, lambda n: n >= 2, "the strip in {shown} of 3 frames (predicted >= 2)")
         t_run, _ = tr.wait(r"\[touch-wd\] run 3 -> 0 \(NVS write: an hour without the wedge\)$", t_open, boot5 + 200 - time.time())
         t_leave, _ = tr.wait(r"\[touch-wd\] an hour without the wedge: leaving touch unavailable$", t_open, 5)
         ok = t_run is not None and t_leave is not None and t_run - boot5 >= 179.0
@@ -313,11 +316,7 @@ def clear(port, ip, out):
             f"leaving line {'seen' if t_leave else 'MISSING'}")
         time.sleep(2)
         after = frames(tr, ip, out, "boot5-after")
-        na, ne = tally(after)
-        if ne:
-            rig("B5 strip cleared", f"{ne} of 3 fetches failed: no reading")
-        else:
-            row("B5 strip cleared", na == 0, f"the strip in {na} of 3 frames (predicted 0)")
+        grade_frames("B5 strip cleared", after, lambda n: n == 0, "the strip in {shown} of 3 frames (predicted 0)")
         t_r = time.time()
         tr.send(b"r")
         t, l = tr.wait(BENCH_R, t_r, 5)
@@ -348,13 +347,60 @@ def bootread(port, ip, out):
         tr.close()
 
 
+def selftest():
+    """No hardware (A12.128): the two fixes, each with a control. Prints one line per check and "N checks, M failures".
+    Its plants: tools/weatherscope/board/sab_touch_cap_bench.py."""
+    import contextlib, io, tempfile
+    results = []
+
+    def check(cid, ok, what):
+        results.append(ok)
+        print(f"  {'ok  ' if ok else 'FAIL'}  {cid}: {what}")
+
+    def graded(name, seen, want):
+        buf = io.StringIO()
+        nrows, nrigs = len(ROWS), len(RIGS)
+        with contextlib.redirect_stdout(buf):
+            grade_frames(name, seen, want, "{shown} shown")
+        line = buf.getvalue()
+        return {"instrument": len(RIGS) == nrigs + 1 and len(ROWS) == nrows and "INSTRUMENT" in line
+                              and "AS PREDICTED" not in line and "OFF-PREDICTION" not in line,
+                "row": ROWS[-1][1] if len(ROWS) == nrows + 1 else None}
+
+    err3 = ["error", "error", "error"]
+    check("ST1", graded("t-control", err3, lambda n: n == 0)["instrument"],
+          "three failed fetches on an absence row (B4c's) read INSTRUMENT, never a reading")
+    check("ST2", graded("t-shown", err3, lambda n: n >= 2)["instrument"],
+          "three failed fetches on a presence row (B4's) read INSTRUMENT, never 'strip shown'")
+    c1 = graded("t-c1", ["light", "light", None], lambda n: n >= 2)["row"]
+    c2 = graded("t-c2", [None, None, None], lambda n: n == 0)["row"]
+    c3 = graded("t-c3", [None, None, None], lambda n: n >= 2)["row"]
+    check("ST3", c1 is True and c2 is True and c3 is False,
+          "CONTROL: real frames are graded, both ways (2 shown passes >= 2; 0 shown passes 0 and fails >= 2)")
+    check("ST4", graded("t-mixed", ["light", "error", "light"], lambda n: n >= 2)["instrument"],
+          "one failed fetch among three leaves the row unread (INSTRUMENT)")
+    with tempfile.TemporaryDirectory() as td:
+        r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "chain", "COM_NONE", "", td],
+                           capture_output=True, text=True)
+    check("ST5", r.returncode == 2 and "REFUSED" in r.stdout,
+          f"an empty address is refused before any port is opened (exit {r.returncode})")
+    bad = ["", "weatherscope-326e64.local", "256.1.1.1", "1.2.3", "1.2.3.4.5"]
+    check("ST6", not any(valid_address(a) for a in bad) and valid_address("192.0.2.1"),
+          "a name, a part over 255, three or five parts are refused; CONTROL: 192.0.2.1 is accepted")
+    failures = results.count(False)
+    print(f"{len(results)} checks, {failures} failures")
+    return 1 if failures else 0
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--selftest"]:
+        sys.exit(selftest())
     if len(sys.argv) != 5 or sys.argv[1] not in ("chain", "clear", "bootread"):
         print(__doc__)
         sys.exit(2)
     phase, port, ip, out = sys.argv[1:]
     # An empty address made every /diag/fb fetch fail in W-CR's first chain (A12.127): refuse it before any open.
-    if phase != "bootread" and not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+    if phase != "bootread" and not valid_address(ip):
         print("REFUSED: the board address is not an IPv4 address (resolve the name first): the RIG")
         sys.exit(2)
     os.makedirs(out, exist_ok=True)
