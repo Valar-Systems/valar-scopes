@@ -55,10 +55,11 @@ def list_page(akid, secret, prefix, token=None):
 t = tf()
 akid, secret = t["r2-wx-read-id"], t["r2-wx-read-secret"]
 prefix = sys.argv[1]
-keys, token = [], None
+keys, sizes, token = [], [], None
 while True:
     x = list_page(akid, secret, prefix, token)
     keys += re.findall(r"<Key>([^<]+)</Key>", x)
+    sizes += [int(s) for s in re.findall(r"<Size>(\d+)</Size>", x)]
     m = re.search(r"<NextContinuationToken>([^<]+)</NextContinuationToken>", x)
     if "<IsTruncated>true</IsTruncated>" in x and m:
         token = m.group(1)
@@ -68,4 +69,7 @@ now = time.time()
 ages = sorted(now - int(k.rsplit("/", 1)[1].split(".")[0]) for k in keys if re.search(r"/\d+\.wxg$", k))
 print(json.dumps({"prefix": prefix, "read_at": datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%SZ"),
                   "objects": len(keys), "frames": len(ages),
-                  "newest_age_s": round(ages[0]) if ages else None, "oldest_age_s": round(ages[-1]) if ages else None}))
+                  "newest_age_s": round(ages[0]) if ages else None, "oldest_age_s": round(ages[-1]) if ages else None,
+                  # stage 1c: the byte sizes of the objects that are not frames (the map objects), never their keys
+                  "other_sizes": [s for k, s in zip(keys, sizes) if not re.search(r"/\d+\.wxg$", k)]
+                                 if len(sizes) == len(keys) else "size count disagrees with key count"}))
