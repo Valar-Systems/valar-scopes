@@ -258,3 +258,73 @@ this is not a controlled comparison.
 **CI for this records PR (docs only), predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`,
 `version`), 0 failed.** The baseline is #569's finished docs-only run (31 = 28/3), which postdates `84409651`, the last
 change to the set of jobs.
+
+## S2: the package and its `.err` read in parallel (predictions first)
+
+### The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~18:26Z)
+
+> Q-SW3 -> yes, 182 ms is thin. The pre-race spread alone was about 400 ms, and its maximum rose from 570 to 718 ms
+> between two sets of ten. S2 is wanted before D4: read the package and its .err in parallel, predictions first, then a
+> fresh ten on staging in its own slot.
+> - Order: step 0's code first (on D4's critical path, predictions registered), then S2. Both before D4.
+
+### The change
+
+**In `handler.ts`, a known store id's miss reads its package and its `.err` with one `Promise.all`.** It no longer reads
+the `.err` only after the package read misses. Everything after the reads is unchanged:
+- a valid package answers `stored`;
+- a remembered 404 or 422 answers `stored-error`;
+- otherwise the create-once lock, then the race.
+
+**What it saves:** one sequential R2 read on every cold first request. The pre-race work's spread (314 to 718 ms across the
+fresh ten) is what made the margin thin.
+
+**What it costs, stated because a registered property changes.**
+- `docs/basemap-cold-build.md` says each retry is served *"from one R2 read"*. Under S2 a stored request makes **two**
+  reads (the package and its `.err`), in parallel.
+- Its latency is the slower of the two.
+- One more R2 Class B read per stored request: $0.36 per million beyond the free 10 million a month.
+- **That line becomes "from one round of R2 reads".**
+
+**The alternative, not proposed now:**
+- **What it is:** keep a 404 or 422 under the package's own key, as a small JSON record in place of a package.
+- **What it would give:** one read answers all three outcomes, and the stored path stays at one read.
+- **Why not now:** it changes A1's key layout (`.err` goes) and MS7 and MS8's rows, which is more than the ruling asked.
+  It is named here so that it is a choice, not a default.
+
+### Rows
+
+| row | what | predicted |
+|---|---|---|
+| **MS1 to MS9** | A1's rows, unchanged | green: every outcome is the same |
+| **MS10** (new) | a known miss over a bucket whose `get` is delayed 100 ms and records when each read starts and ends | **the `.err` read starts before the package read resolves**: the two overlap. The answer is unchanged (202 `known-miss` under a shortened wait) |
+
+**The plant:**
+- **S-S2SEQ:** the reads made sequential again, so the `.err` read starts only after the package read resolves. Red set
+  **{MS10}**.
+- **Re-anchored, like step 0's four:** **S-MS2** ("the stored package never read") anchors the package-read line S2
+  rewrites. It moves onto the new line with the same defect, and keeps its set {MS2, MS6}. Every other plant is checked
+  with the anchor check, and a compile check of the planted file (the guard approved ~19:43Z, done by hand until its PR
+  lands), before any run.
+
+**Counts:**
+- **The suite:** main's count at the branch base, plus 1 (MS10).
+- **`baseline[all]`:** +1.
+- **The driver:** one run more (S-S2SEQ), with every set as registered.
+- **The smoke driver's CONTROL** follows the suite.
+
+### The staging reading (in its own slot, after merge and deploy)
+
+**A fresh registered ten, never built before,** at the slot's parameters: KPIT, KBWI, KMEM, KOKC, KABQ, KTUS, KRNO,
+KBOI, KGEG and KOMA. **The same shape and instruments as the last ten.**
+
+| row | predicted |
+|---|---|
+| **the first request: 202 `known-miss`** (server `ms`, nearest-rank p95 over the ten = the maximum) | **at most 2,318 ms**, the last ten's p95: S2 can only remove work. **Under the 2.5 s target** |
+| the pre-race work (`ms` − 1,600, per request) | **reported, never graded:** its spread is the thing being measured, and two sets of ten have already moved its maximum |
+| the second, the retry, +50 s, the builds, cancellations, packages and locks | as the last ten |
+
+**Outside the set:** stop and report.
+
+**CI for the code PR:** a `proxy/` PR, **34 check runs: 31 success, 3 skipped, 0 failed**. The baseline is named when
+the PR opens, from the latest finished `proxy/` PR run that postdates `84409651`.
