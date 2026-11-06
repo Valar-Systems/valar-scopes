@@ -429,7 +429,9 @@ const SABOTAGES = {
   },
   "S-SECSUM": {
     file: BUDGET, set: "all",
-    edits: [["if (k) b[k] += sectionSize(s);", "if (k) b[k] += k === \"provenance\" ? 0 : sectionSize(s); // SABOTAGE S-SECSUM"]],
+    // A BLOCK comment (Q-ST0, ruled ~19:43Z): the anchor sits inside a one-line loop, and the first run's `//` comment
+    // swallowed the loop's closing brace, so the planted file did not compile and read BLIND (my miss, kept on record)
+    edits: [["if (k) b[k] += sectionSize(s);", "if (k) b[k] += k === \"provenance\" ? 0 : sectionSize(s); /* SABOTAGE S-SECSUM */"]],
     // Corrected before any run: BB4's control (secProv over 0) catches it too
     expect: ["MN6", "BB4"],
   },

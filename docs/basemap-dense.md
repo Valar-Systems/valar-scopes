@@ -263,3 +263,36 @@ Predicted:
 
 **CI for the code PR, predicted: 34 check runs: 31 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.**
 The baseline is #572's finished run, a `proxy/` PR that postdates `84409651`.
+
+### Read (2026-11-06, `1610be06`): one plant off, my miss
+
+| check | read | verdict |
+|---|---|---|
+| `tsc --noEmit`, both configs | clean | as predicted |
+| **`sabotage-basemap.mjs`, whole** (wait clear 18:38:23Z: TIME_WAIT 75, no other `vitest` or `sabotage-` process; exit 1 at 19:30:05Z) | baselines **11 / 31 / 167** (17 files); **77 runs, 0 runtime failures**; **73 of 74 sabotages AS PREDICTED**, among them S-PRIMARYDROP {MB4, MN1, MN6}, S-BB2 {BB2, BB3}, S-BB3 {BB3}, S-NOCOUNT unchanged, S-LADDER {MN1, MN6}, S-RUNG {MN3}, and C-LOADFAIL BLIND. Highest TIME_WAIT at a run's start: 7,914 | as predicted, **but one** |
+| **S-SECSUM** | **BLIND** (72 baseline cases not run, from MB1 on) | **off, my miss: a plant that did not compile** (ruled ~19:43Z) |
+| the smoke driver | **not run:** the wrapper stops at the first off | |
+
+**Why S-SECSUM read BLIND:**
+- **The cause:** its anchor sits inside a one-line loop in `layerBytes`:
+  `for (const s of sections) { const k = LAYER_OF[s.type]; if (k) b[k] += sectionSize(s); }`.
+  - The replacement ended with a line comment, `// SABOTAGE S-SECSUM`, which commented out the loop's closing `}`.
+  - So the planted `budget.ts` did not compile, and every test file importing it failed to load.
+- **The anchor check could not see it:** it proves each anchor is found exactly once, not that the planted file
+  compiles.
+
+**The fix (Q-ST0, ruled ~19:43Z):**
+- **The change:** a block comment, `/* SABOTAGE S-SECSUM */`.
+- **Checked before any run, in memory, with TypeScript's own parser:**
+  - the unplanted `budget.ts` parses;
+  - **the BLIND run's plant reports `'}' expected`**;
+  - the fixed plant parses;
+  - the anchor check still reads 74 of 74.
+
+**Then, as ruled:**
+1. S-SECSUM alone, predicted **{MN6, BB4}**.
+2. The smoke driver whole, predicted CONTROL **983 / 1 / 984**, with S-SQ and S-SQP as registered and its TIME_WAIT margin
+   reported.
+3. Step 0's PR.
+
+**Neither run starts before 20:30Z,** the UK session's slot on this machine.
