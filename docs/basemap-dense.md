@@ -370,3 +370,35 @@ landed on this branch since `7eb782d9`.
 CONTROL line, with the new figures unchanged in shape.
 
 **If it has to be stopped:** the driver's child pids are recorded first, and the whole tree goes with `taskkill /T`.
+
+### Read (2026-11-06, `276a9335dcea`): as re-registered
+
+| check | read | verdict |
+|---|---|---|
+| **the smoke driver, whole** (wait clear 21:47:13Z: TIME_WAIT 58, no other `vitest` or `sabotage-` process; exit 0 at 21:54:08Z) | CONTROL **991 passed, 1 skipped, of 992**, 0 failed (start 60, peak 13,587). S-SQ **{SQ1, SQ2}** (start 378, peak 13,596). S-SQP **{SQ-C}** (start 401, peak 13,608). Both restored byte-identical. No raw output kept. **ALL AS REGISTERED** | **as predicted** |
+
+- **Each run counted 992.** The driver treats a sabotage run whose total differs from CONTROL's as an instrument failure,
+  so "ALL AS REGISTERED" covers it.
+- **The tree afterwards:** porcelain 0, and `smoke-prod.sh`'s blob reads `9bd63ee14a5e`.
+- **The TIME_WAIT margin:** the highest peak, 13,608, is 1,392 under the driver's 15,000 ceiling and 2,776 under Windows'
+  16,384 ports. Not under 1,000.
+
+So step 0's registered checks are all read:
+- `sabotage-basemap.mjs` whole: 77 runs, as registered, with S-SECSUM's plant corrected and read alone.
+- S-SECSUM alone: {BB4, MN6}.
+- The smoke driver, as above.
+
+### CI for the code PR, corrected before it goes up: 35 = 32/3/0, not 34
+
+**Predicted: 35 check runs: 32 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The ruled 34 = 31/3/0
+predates #445.
+
+- **The cause:** #445 (`caf63cc9`) added `blipscope-s3-128-wxlook` to `skus.yml`, which is one more leg of the firmware
+  matrix, so main's last job-set change is now `caf63cc9`, not `84409651`.
+- **Read from main's own pushes:** the docs push `b5c9c6e9` was 31 (29/2), with 0 `wxlook` legs. The docs push `1ce7a73a`
+  is 32 (30/2), with 1.
+- **So 35 is 34 + 1, derived.** No proxy PR has finished since `caf63cc9`, so it has no direct baseline yet.
+- **The suite on CI reads 998** (997 passed, 1 skipped), not this tree's 992, because a PR's CI runs the merge ref: main's
+  990 (`workers` on `51757039ed01`) plus step 0's 8.
+- **This branch was not merged with main,** so the 992 read above stands for this tree. The merge is clean, and none of
+  main's newer commits touch the basemap's files.
