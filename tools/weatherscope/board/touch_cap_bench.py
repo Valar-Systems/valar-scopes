@@ -177,9 +177,10 @@ def chain(port, ip, out):
     try:
         t_open = time.time()
         tr.send(b"r")
-        t, l = tr.wait(BENCH_R, t_open, 5)
+        # 20 s: the edition reads serial only after its 4 s splash, so a reply just after a reset takes ~8 s.
+        t, l = tr.wait(BENCH_R, t_open, 20)
         if t is None:
-            tr.note("#HOST no [touch-bench] state line in 5 s: the RIG")
+            tr.note("#HOST no [touch-bench] state line in 20 s: the RIG")
             return 2
         ms, run, stored = (int(x) for x in re.search(BENCH_R, l).groups()[:3])
         boot1 = t - ms / 1000.0
@@ -273,7 +274,7 @@ def clear(port, ip, out):
         row("B5 boot 5", "run=3 (stored 3, reset not power-on) -- touch unavailable" in l, l.split("] ", 1)[1])
         tr.send(b"w")
         tr.send(b"r")
-        t, l = tr.wait(BENCH_R, t_open, 5)
+        t, l = tr.wait(BENCH_R, t_open, 20)   # answered after the splash, as in chain
         if t is None:
             tr.note("#HOST no [touch-bench] state line: the RIG")
             return 2
