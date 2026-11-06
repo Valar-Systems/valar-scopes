@@ -321,3 +321,11 @@ or `sabotage-` process):
 | a driver run on the ceiling, or a RIG | as §A2.12: stop and report |
 | **anything else** | stop and decide |
 
+### Read (2026-11-06, `c83887e6`, Windows; every reading as predicted)
+
+| step | read | verdict |
+|---|---|---|
+| **1. `--selftest`** (04:57:48Z) | 14 of 14 as registered, exit 0. T1: "cases dropped: the run counted 973 tests, the CONTROL 976". T1-C: graded. **W5: "refused (netstat failed (ENOBUFS))"**. W5-C read 22 | as predicted |
+| **2. `--selftest-plants`** (to 04:59:06Z) | 10 of 10 as predicted, exit 0. The eight of §A2.12 at their sets; **P-TOTAL {T1}; P-NOTNETSTAT {W5, W5-C}**. P-RIGEXIT's copy again left its plant target reading `PLANTED`, and that synthetic dir was removed | as predicted |
+| **3. the driver, whole** (wait clear 04:59:39Z: TIME_WAIT 10, no other `vitest` or `sabotage-` process; exit 0 at 05:04:59Z) | CONTROL **975 passed, 1 skipped, of 976; 0 failed** (start 11, peak 13,537). **S-SQ {SQ1, SQ2}** (start 1,458, peak 13,536). **S-SQP {SQ-C}** (start 1,794, peak 13,536). Each counted 976, so no "cases dropped". No `raw output kept` line. ALL AS REGISTERED. The tree was clean after | as predicted |
+
