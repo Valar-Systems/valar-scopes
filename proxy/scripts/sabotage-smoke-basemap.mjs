@@ -12,7 +12,9 @@
 //     is an instrument failure whatever its summary says: a port-starved run can drop a file's cases unmarked;
 //   - the reader refuses when netstat fails, overflows its buffer, or prints no connection table, rather than
 //     counting 0 (or a truncated count) and opening the gate;
-//   - a RIG is returned, never exited on, inside a plant, so the planted file is always restored.
+//   - a RIG is returned, never exited on, inside a plant, so the planted file is always restored;
+//   - a sabotage run must count exactly the CONTROL's tests, or it is an instrument failure (Q-A212a): a partial
+//     runtime failure drops a file's cases without failing them.
 // THE RAW OUTPUT OF A RUN IT DOES NOT GRADE IS KEPT (A2.12): stdout and stderr, whole, in a file under
 // os.tmpdir()/sabotage-smoke-basemap/, whose path, size and last lines are printed. A refusal can be diagnosed.
 //
@@ -140,6 +142,9 @@ async function withPlant(file, from, to, fn) {
 }
 
 const ports = (r) => `TIME_WAIT start ${r.start}, peak ${r.peak}; held ${r.held} s`;
+// A sabotage run must count every test the CONTROL counted (Q-A212a, ruled 2026-11-06 ~02:40Z). A partial runtime failure
+// drops a file's cases WITHOUT failing them, so a different total is an instrument failure, never "as registered".
+const dropped = (base, r) => (r.total[4] !== base.total[4] ? `cases dropped: the run counted ${r.total[4]} tests, the CONTROL ${base.total[4]}` : null);
 const WHOLE_SUITE = ["npx vitest run", [], { shell: true }];
 
 async function driver() {
@@ -156,6 +161,7 @@ async function driver() {
   for (const s of SABOTAGES) {
     const r = await withPlant(s.file, s.from, s.to, () => gradedRun(s.name, WHOLE_SUITE[0], WHOLE_SUITE[1], WHOLE_SUITE[2]));
     if (r.rig) { console.log(`RIG: ${s.name}: ${r.rig} (the file is byte-identical to before)`); return 2; }
+    if (!r.why && (r.why = dropped(base, r))) r.kept = keepRaw(r, r.why, RAW_DIR);
     if (r.why) { console.log(`${s.name}: INSTRUMENT FAILURE (${r.why}); ${ports(r)}; restored byte-identical`); off++; continue; }
     const failedCount = Number(r.total[1] ?? 0);
     const matched = s.red.every((p) => r.names.filter((n) => n.startsWith(p)).length === 1);
@@ -171,7 +177,7 @@ async function driver() {
 }
 
 // The selftest: every check runs the driver's own gradedRun / withPlant / readers on PLANTED commands and readings.
-const SELFTEST_IDS = ["R1", "R1-C", "W1", "W1-C", "W2-R", "W2", "W2-C", "W3", "W4", "W4-C", "W5", "W5-C"];
+const SELFTEST_IDS = ["T1", "T1-C", "R1", "R1-C", "W1", "W1-C", "W2-R", "W2", "W2-C", "W3", "W4", "W4-C", "W5", "W5-C"];
 const TABLE_SAMPLE = "\r\nActive Connections\r\n\r\n  Proto  Local Address          Foreign Address        State\r\n" +
   "  TCP    127.0.0.1:50001        127.0.0.1:8787         TIME_WAIT\r\n  TCP    127.0.0.1:50002        127.0.0.1:8787         TIME_WAIT\r\n" +
   "  TCP    127.0.0.1:50003        127.0.0.1:8787         ESTABLISHED\r\n  TCP    [::1]:50004            [::1]:8787             TIME_WAIT\r\n";
@@ -193,6 +199,13 @@ async function selftest() {
   const refuses = (f) => { try { f(); return false; } catch { return true; } };
   let off = 0;
   const check = (id, ok, detail) => { off += !ok; console.log(`${id}: ${ok ? "as registered" : "NOT AS REGISTERED"}; ${detail}`); };
+
+  const total = (t) => ({ total: SUMMARY.exec(t) });
+  const ctl = total(" Tests  975 passed | 1 skipped (976)");
+  const t1 = dropped(ctl, total(" Tests  2 failed | 970 passed | 1 skipped (973)"));
+  check("T1", !!t1?.startsWith("cases dropped:"), `a sabotage run counting 973 tests against the CONTROL's 976: ${t1 ?? "graded"}`);
+  const t1c = dropped(ctl, total(" Tests  2 failed | 973 passed | 1 skipped (976)"));
+  check("T1-C", t1c === null, `CONTROL, the same 976 with 2 failed: ${t1c ?? "graded"}`);
 
   let r = await node("R1", noSummary, fixed(100));
   const body = kept(r) ? readFileSync(r.kept, "utf8") : "";
@@ -224,8 +237,11 @@ async function selftest() {
   check("W4", w4, `netstat text with no connection table: ${w4 ? "refused" : `counted ${parseTimeWait(headless)}`}`);
   let n = parseTimeWait(TABLE_SAMPLE);
   check("W4-C", n === 3, `CONTROL, a table of 3 TIME_WAIT rows and 1 ESTABLISHED: read ${n}`);
-  const w5 = refuses(() => netstatTimeWait(1000));
-  check("W5", w5, `netstat's output past a 1,000-byte buffer: ${w5 ? "refused" : `counted ${netstatTimeWait(1000)}`}`);
+  // W5 must refuse FOR ITS REASON (Q-A212a): a reader that refuses for any other reason (no netstat on Linux) is not
+  // the buffer guard working.
+  const refusal = (f) => { try { f(); return null; } catch (e) { return e.message; } };
+  const w5 = refusal(() => netstatTimeWait(1000));
+  check("W5", !!w5?.includes("ENOBUFS"), `netstat's output past a 1,000-byte buffer: ${w5 ? `refused (${w5})` : "counted, not refused"}`);
   try { n = netstatTimeWait(); } catch (e) { n = e.message; }
   check("W5-C", Number.isInteger(n), `CONTROL, the real reader on this machine: read ${n}`);
 
@@ -277,6 +293,10 @@ const PLANTS = [
   { name: "P-BUF", from: "if (r.error || r.status !== 0) throw", to: "if (false) throw", red: ["W5"], exit: 1 },
   { name: "P-RIGEXIT", from: "if (Date.now() - t0 > capMs) return {", to: "if (Date.now() - t0 > capMs) process.exit(2); if (false) return {",
     red: ["W2-R", "W2", "W2-C", "W3", "W4", "W4-C", "W5", "W5-C"], exit: 2 },
+  // Q-A212a: the total comparison removed; and the reader made to refuse for the WRONG reason (no such command), which
+  // a W5 that checks only THAT it refused would pass, as it did on Linux.
+  { name: "P-TOTAL", from: "r.total[4] !== base.total[4] ?", to: "false ? /* PLANT P-TOTAL */", red: ["T1"], exit: 1 },
+  { name: "P-NOTNETSTAT", from: 'spawnSync("netstat", ["-an"]', to: 'spawnSync("netstat-zz-missing", ["-an"]', red: ["W5", "W5-C"], exit: 1 },
 ];
 
 const mode = process.argv[2];
