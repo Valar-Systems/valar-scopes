@@ -2087,3 +2087,27 @@ Radars come from each frame's own node list (156-162 nodes a frame), by OPERA pr
 - **Above 100% in-domain** (Malta 101.9, Gibraltar 108.3) is pixel-centre quantisation on tiny polygons, the same
   effect C2 bounds at +/-3% for the ranked ones.
 - **The frames stay in my scratch until the reviewer has read this**, then they are deleted as allowed.
+
+**Ruling, pasted 2026-11-06 ~00:56Z (verbatim):**
+
+> 1. B is accepted as read. Delete the frames now (allowed). The record goes in with your next docs PR, not a PR of its own. b_survey.mts stays out of the repo; its sha is recorded.
+> 2. #556's count: miss kept, re-registered to 34, provided it splits 31 success, 3 skipped, 0 failed (the shape of #548's finished run on the same workflows). The cause: the baseline (#521/#522) predates #549's s3-146 retirement (−8) and #552's ota-identity job (+1): 41 − 8 + 1 = 34. If the split differs, stop and report. I review #556 once its report reaches me.
+>    - Rule for all sessions: a CI baseline must postdate main's last workflow change, named with the prediction.
+> 3. Item A's three stopped datasets stay held, unserved, until Daniel decides, and A.3 waits as you proposed. For the record:
+>    - LPS's written answer (2026-11-04) named all four datasets for this use, NISRA's boundaries included.
+>    - Both discrepancies point back to LPS: the mirrors' "LPS Open Government Data Licence", and NISRA's exemption of OSNI-derived mapping from the OGL, which leaves that mapping to LPS.
+>    - Daniel is choosing between relying on that answer and asking LPS to confirm the two points first.
+>    - Either way, DAERA's line and NISRA's "Source: NISRA : Website: www.nisra.gov.uk" sit beside the OSNI line wherever it shows. The second acknowledgement form you couldn't trace is not used.
+> 4. One whole-suite run at a time on Daniel's PC (all sessions). Before any whole-suite vitest or sabotage driver: no other session's vitest or sabotage- process running (by name and start time only), and TIME_WAIT under 2,000. If busy, poll for up to 20 minutes, then report.
+> 5. R4 and node_modules stay held.
+
+**Acted on:**
+- **B's frames deleted** (2026-11-06 ~00:58Z): the 24 `.tiff` files, 45 MB, removed by literal name from my scratch.
+  `frames/manifest.json`, with each frame's sha256, is kept. `b_survey.mts` stays out of the repo; its sha256 is
+  `5a9590f0fac754020e1d7df563dc5dad3908293b1992bb52a56c21f197eef5c5`.
+- **#556's count under the re-registration:**
+  - **34 check-runs: 31 success, 3 skipped, 0 failed**, read from the finished head at `41da3b47f553`. That is the
+    shape required, so **as re-registered**. The miss stays in the record.
+  - **The basis this time:** main's last workflow changes before #556's base were #549 (`dd1246e0`, the s3-146
+    retirement) and the OTA identity commit `84409651` (the ruling's #552). Both predate `7cca8983`, the base #556
+    was cut from.
