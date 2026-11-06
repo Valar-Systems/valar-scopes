@@ -220,8 +220,9 @@ const SABOTAGES = {
   },
   "S-NOCOUNT": {
     file: BUDGET, set: "all",
-    // dropped.water never counts a drop, in every place the bisection sets it
-    edits: [["const w = smallestFit(rings.length, (k) => { d.water = k; return", "const w = smallestFit(rings.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ return"],
+    // dropped.water never counts a drop, in every place the bisection sets it. Re-anchored for step 0
+    // (docs/basemap-dense.md): the attempt now records the full drop's bytes; the defect is the same
+    edits: [["const w = smallestFit(rings.length, (k) => { d.water = k; const got", "const w = smallestFit(rings.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ const got"],
             ["  if (w) { d.water = w.k; return", "  if (w) { d.water = 0; return"],
             ["  d.water = rings.length;\n", "  d.water = 0;\n"]],
     expect: ["MB2", "MB3", "MB5", "MB7", "MB8b"],
@@ -234,17 +235,18 @@ const SABOTAGES = {
   },
   "S-PRIMARYDROP": {
     file: BUDGET, set: "all",
-    edits: [["  if (r) { d.roads = r.k; return { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }; }\n  return null;\n",
-             "  if (r) { d.roads = r.k; return { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }; }\n" +
+    // Re-anchored for step 0 (docs/basemap-dense.md): the same step, after the "no secondary" line. Its set grows by MN1
+    // and MN6, which read A at 623 as a 422
+    edits: [["  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it\n",
+             "  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it\n" +
              "  // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries\n" +
              "  const base2 = withRoads(rOrder.length), r2 = base2.roads ?? [];\n" +
              "  const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n" +
              "  const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n" +
              "  const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...base2, roads: r2.filter((_, i) => !gone.has(i)) }; };\n" +
              "  const p = smallestFit(pOrder.length, (k) => { d.roads = rOrder.length + k; return fits(withPrim(k), tol); });\n" +
-             "  if (p) { d.roads = rOrder.length + p.k; return { content: withPrim(p.k), toleranceMm: tol, dropped: d, sections: p.got }; }\n" +
-             "  return null;\n"]],
-    expect: ["MB4"],
+             "  if (p) { d.roads = rOrder.length + p.k; return done(3, { content: withPrim(p.k), toleranceMm: tol, dropped: d, sections: p.got }); }\n"]],
+    expect: ["MB4", "MN1", "MN6"],
   },
   "S-TERRCAP": {
     file: BUDGET, set: "all",
@@ -403,13 +405,35 @@ const SABOTAGES = {
   },
   "S-BB2": {
     file: WORKER, set: "all",
-    edits: [["      console.log(JSON.stringify({ evt: \"bm_build\",", "      if (r.ok) console.log(JSON.stringify({ evt: \"bm_build\","]],
-    expect: ["BB2"],
+    // Re-anchored for step 0 (docs/basemap-dense.md): the line is now buildLine()'s. BB3's new control (a 404 line seen)
+    // catches it too
+    edits: [["      console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0)));", "      if (r.ok) console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0))); // SABOTAGE S-BB2"]],
+    expect: ["BB2", "BB3"],
   },
   "S-BB3": {
     file: WORKER, set: "all",
-    edits: [["...stat, wallMs: Date.now() - t0 }));", "...stat, wallMs: Date.now() - t0, lat0Micro: q.lat0Micro })); // SABOTAGE S-BB3"]],
+    // Re-anchored for step 0: the same leaked coordinate, added to buildLine()'s line
+    edits: [["      console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0)));", "      console.log(JSON.stringify({ ...buildLine(r, stat, Date.now() - t0), lat0Micro: q.lat0Micro })); // SABOTAGE S-BB3"]],
     expect: ["BB3"],
+  },
+  // Step 0 (docs/basemap-dense.md): the ladder's own defects, each with its registered set
+  "S-LADDER": {
+    file: BUDGET, set: "all",
+    edits: [["if (k === rOrder.length) nt[3] = lastBytes;", "if (k === rOrder.length) nt[3] = nt[0]!; /* SABOTAGE S-LADDER: the first value for the last */"]],
+    expect: ["MN1", "MN6"],
+  },
+  "S-RUNG": {
+    file: BUDGET, set: "all",
+    edits: [["return done(2, {", "return done(1, { /* SABOTAGE S-RUNG */"]],
+    expect: ["MN3"],
+  },
+  "S-SECSUM": {
+    file: BUDGET, set: "all",
+    // A BLOCK comment (Q-ST0, ruled ~19:43Z): the anchor sits inside a one-line loop, and the first run's `//` comment
+    // swallowed the loop's closing brace, so the planted file did not compile and read BLIND (my miss, kept on record)
+    edits: [["if (k) b[k] += sectionSize(s);", "if (k) b[k] += k === \"provenance\" ? 0 : sectionSize(s); /* SABOTAGE S-SECSUM */"]],
+    // Corrected before any run: BB4's control (secProv over 0) catches it too
+    expect: ["MN6", "BB4"],
   },
   // A1's (docs/basemap-a1.md): each plant as #551 froze it. S-MS1's and S-MS8's sets were corrected before any run:
   // KV's store id feeds every MS path but MS5 and MS9, and MS3 and MS6 read the package key back.

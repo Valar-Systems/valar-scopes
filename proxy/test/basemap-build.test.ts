@@ -47,6 +47,51 @@ describe("MB, §6's budget", () => {
   it("MB8b: A8 at 1,321 doubles ε, then drops ring 1", async () => expect(await mb("A8", 1321)).toMatchObject({ status: 200, totalBytes: 1330, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "1 / 0", eps: "100.584" }));
 });
 
+// MN (docs/basemap-dense.md, step 0): what §6's ladder measured, carried on build()'s 200 and 422 for the builder's
+// bm_build line. A's figures come from MB1-MB5, already on main: as built 812; at 2ε still 812 (its 2-vertex lines do
+// not simplify, and the header's ε field is fixed-width); every ring dropped over 667 (MB3); every secondary too, 624.
+async function ml(which: "A" | "B", cap: number) {
+  const s = await mbStore(which);
+  return build(s.store, s.query, { commit: COMMIT, capBytes: cap });
+}
+const tooLarge = (r: BuildResult) => { if (r.ok || r.status !== 422) throw new Error(`not a 422: ${r.ok ? 200 : r.status}`); return r; };
+const sumOf = (b: object) => Object.values(b as Record<string, number>).reduce((a, x) => a + x, 0);
+
+describe("MN, step 0's ladder", () => {
+  it("MN1: A at 623 is too large, and its ladder reads 812, 812, x, 624 with 667 < x < 812", async () => {
+    const r = tooLarge(await ml("A", 623));
+    expect(r.ladder.rung).toBe(-1);
+    expect(r.ladder.nt.length).toBe(4);
+    const [n0, n1, n2, n3] = r.ladder.nt as [number, number, number, number];
+    expect([n0, n1, n3]).toEqual([812, 812, 624]);
+    expect(n2).toBeGreaterThan(667);
+    expect(n2).toBeLessThan(812);
+    for (let i = 1; i < 4; i++) expect(r.ladder.nt[i]!, `rung ${i}`).toBeLessThanOrEqual(r.ladder.nt[i - 1]!);
+    expect(n3).toBeGreaterThan(623); // the ladder ends over the cap: that is why it is a 422
+  });
+  it("MN2: A at 812 fits as built: rung 0, and no nt on a 200", async () => {
+    const r = ok(await ml("A", 812));
+    expect([r.ladder.rung, r.ladder.nt]).toEqual([0, []]);
+  });
+  it("MN3: A at 811 doubles ε, then drops ring 1: rung 2", async () => expect(ok(await ml("A", 811)).ladder.rung).toBe(2));
+  it("MN4: A at 624 drops every ring and every secondary: rung 3", async () => expect(ok(await ml("A", 624)).ladder.rung).toBe(3));
+  it("MN5: B at 841 fits at 2ε: rung 1", async () => expect(ok(await ml("B", 841)).ladder.rung).toBe(1));
+  it("MN6: the header, every directory entry and the layers' bytes sum to the final non-terrain bytes", async () => {
+    // A and B have no terrain, so a package's non-terrain bytes are all of its bytes (RD20)
+    let count624 = 0;
+    for (const [w, cap] of [["A", 812], ["A", 811], ["A", 624], ["B", 841]] as const) {
+      const r = ok(await ml(w, cap));
+      const n = decode(r.bytes).sections.length;
+      if (w === "A" && cap === 624) count624 = n;
+      expect(32 + 16 * n + sumOf(r.ladder.sections), `${w} at ${cap}`).toBe(r.bytes.length);
+    }
+    // the 422's last rung tried is A at 624's package exactly: every ring and every secondary dropped, at 2ε
+    const t = tooLarge(await ml("A", 623));
+    expect(count624).toBeGreaterThan(0); // CONTROL: the 624 package was read
+    expect(32 + 16 * count624 + sumOf(t.ladder.sections), "A at 623").toBe(t.ladder.nt[3]);
+  });
+});
+
 describe("ME, the encoder through build()", () => {
   it("ME3: a vertex at (E, S) = (R, -R) quantises to (32767, -32767) and the package is kOk", async () => {
     const s = await me3Store();
