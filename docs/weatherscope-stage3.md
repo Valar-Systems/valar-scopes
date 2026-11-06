@@ -13371,3 +13371,39 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - W-CR2 touches only `907069326E64`, through the port resolved from its serial.
 - E2:08 is another board on another port, and no process or port is shared.
 - If the two windows overlap, this is the record of it.
+
+### A12.129 W-CR2 (19:15Z-19:32:40Z): B4c and B4 re-taken and AS PREDICTED, every fetch read; every re-measured row as before. W-CR is complete
+
+**The window:** `907069326E64` (COM6, resolved by serial), 19:15:00Z to 19:32:40Z, inside the announced 19:15Z-19:45Z.
+- **The runner:** `touch_cap_bench.py` `7659be50aefc`, re-hashed at the start, writing into a new empty directory.
+- **The address:** resolved only after TCP :80 answered following the bench flash (19:15:48Z), and checked as IPv4 before `chain` and again before `clear`.
+- **No overlap with E2:08 was observed from this side:** this window touched only `907069326E64`.
+
+| row | predicted | measured |
+|---|---|---|
+| B0-1 / B0-2 (`verify-flash`) | OK, exit 0 / mismatch, nonzero | **matched, exit 0 / mismatch, exit 2** |
+| the bench image | verified | `rc 0, verified` |
+| B0 stored run | S = 0 | **S = 0** (`r` reply at device 29,039 ms) |
+| **B4c CONTROL** (graded here) | the strip in **0 of 3** at T0 + 40 s | **3 of 3 fetches read (115,200 B each); the strip in 0 of 3. AS PREDICTED** |
+| B1 | recommend before `L`; no reboot while held; reboot 1 at L + 20.0-21.0 s | recommend at T0 + 109.6 s; **no reboot while held; L + 20.07 s** |
+| B2 | reboots 2 and 3 within 1.0 s of recommend; three writes and stamps | **+0.00 s each; all seen** |
+| **B4** (graded here) | the strip in **≥ 2 of 3** at boot 4 + 40 s | **3 of 3 fetches read; the strip in 3 of 3 (light). AS PREDICTED** |
+| B3 | boot 4 unavailable; no cap line, no restart in 360 s | **as predicted** |
+| B5 | boot 5 run 3; `w` ≤ 30 s; strip ≥ 2 of 3; the reset at 180 s; strip 0 of 3; `r` all zero | **boot 5 run 3 not power-on; `w` at 19.3 s; 3 of 3; the reset at device 180.0 s; 0 of 3; `run=0 stored=0 unavailable=0`.** All six fetches read |
+| B6 | verified; OK / mismatch; `env=weatherscope-s3-128`, `theme=auto read=known`; TCP :80 | **verified; exit 0 / exit 2; both lines; TCP :80 open** |
+
+**So W-CR is complete:**
+- B4c and B4 are read, and as predicted.
+- Every other row reproduced its earlier measurement.
+- **The board is left as before:** the clean image, `39e258b5be07`, verified on the chip; the stored theme `auto`; `touch-wd/run` 0, read back by `r` before the restore.
+
+**The record:** `tools/weatherscope/board/run-2026-11-06-wcr2/`, redacted as A12.127's.
+- **What the redaction removed:** 12 theme/phase lines (counts only); LAN IP, BSSID and network names masked.
+- **The leak check and both whole-tree guards exit 0.**
+- **It is commit `fb6569483b2b`** on `weatherscope/touch-cap`, pushed after this addendum, gated on `check_wifi.py && check_device_ids.py`.
+
+**PR #571:**
+- **At `138c68d7ba3f`:** read twice after it finished, **33 checks: 29 success, 4 skipped, 0 failed. AS PREDICTED** (A12.128).
+- **At `fb6569483b2b`, predicted BEFORE its push:** **33 checks: 29 success, 4 skipped (version, promote, ship-alert, publish), 0 failed.** The web job is derived: the record adds files under `tools/weatherscope/board/` only, which no check builds.
+
+**What remains for #571:** the merge waits for #445 (still OPEN at 19:34Z). After #445, main is merged into the branch, with its own prediction from 8 identities (A12.127), then the merge by the rule.
