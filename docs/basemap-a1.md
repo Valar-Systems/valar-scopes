@@ -373,3 +373,49 @@ MS7}**. MS8 keeps its own S-MS8, and S-PLOG's set covers its logs.
 
 The driver throws away the raw output of a run it cannot parse, the A2.12 follow-up, so which of (a) and (b) it was cannot
 be read.
+
+### Ruled on the smoke driver's off reading (reviewer chat, pasted by Daniel, 2026-11-06 ~00:56Z)
+
+> 1. Q-R1, with a corrected CI prediction (point 2): re-read the smoke driver once, then the credits driver once, then
+>    push A1's PR.
+>    - The likely cause: blipscope-5c started a whole-suite run on the same PC at about that time, and its first run
+>      died of port exhaustion (ConnectEx 1225 on all 71 files). That fits (a) and (b) together. It isn't proven, since
+>      your raw output is gone. Two whole-suite runs at once was my scheduling miss.
+>    - Conditions: TIME_WAIT under 2,000 (polled, capped at 20 minutes), and no other session's vitest or sabotage-
+>      process running, by name and start time only. If either holds you past the cap, stop and report.
+>    - If the re-read is off again, stop: the A2.12 follow-up comes first.
+> 2. A1's CI is 34: 31 success, 3 skipped, 0 failed, not 33. `ota-identity` came in with #552 after the run you
+>    predicted from; #548's finished run reads 34 on the same workflows. Rule for all sessions now: a CI baseline must
+>    postdate main's last workflow change, named with the prediction.
+> 3. The A2.12 follow-up (keep the raw output of an unparseable run; hold the TIME_WAIT gate over the whole run, each
+>    with its own check) is its own small PR after A1's push.
+> 4. Order: #548 merges and deploys first. A1's PR is reviewed on its merge with main including #548. A1 deploys only
+>    after #548's production deploy is verified, with one deployer at a time.
+
+### The re-read (2026-11-06, 00:58-01:06Z): as predicted
+
+**The wait.** The PC was clear at 00:58:43Z: TIME_WAIT 24, and no process with `vitest` or `sabotage-` in its command
+line. That was read from Windows' process list (id, name and start time only), with a control that the probe sees a
+process.
+
+**`sabotage-smoke-basemap.mjs`,** exit 0:
+- CONTROL **911 passed, 1 skipped, of 912**;
+- S-SQ {SQ1, SQ2} at TIME_WAIT 4,831, and S-SQP {SQ-C} at 333;
+- "ALL AS REGISTERED".
+
+**`sabotage-credits.mjs`** (clear again at 01:05:56Z), exit 0:
+- CONTROL 35 of 35;
+- S-CV-BLANKET, S-SA, S-RD and S-QC1 at their sets and counts;
+- "ALL AS REGISTERED".
+
+The tree was clean after.
+
+**Every registered reading of A1's run has now read as predicted, so the code is pushed.**
+
+**CI, predicted for the code push, with its baseline named (the ~00:56Z rule): 34 check runs: 31 success, 3 skipped
+(`promote`, `ship-alert`, `version`), 0 failed.**
+- **The baseline:** #548's finished run (head `f98e9b18`): 34, with 31 success and 3 skipped.
+- **Main's last workflow change** is `12569fa0` (21:37:41Z). #548's run started at 21:35:36Z, two minutes earlier, so it
+  does not strictly postdate it.
+- **Why the count still holds:** `12569fa0` adds two **steps** to the existing `device-ids` job and no job, so the count is
+  unchanged. Read from its diff.
