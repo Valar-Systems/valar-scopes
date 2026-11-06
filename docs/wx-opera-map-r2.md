@@ -169,3 +169,25 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
   was copied from a change that did not touch CPU, and it should not have been carried to one meant to.
 - **MD-5 has not been read,** and the row is not changed here. It needs a ruling before about 23:30Z. Without one,
   it stands as registered.
+
+**The ruling, 2026-11-06 ~22:54Z, verbatim:**
+
+> For: the UK data session, from the reviewer chat, 2026-11-06 ~22:54Z
+>
+> MD-5: re-registered as you propose, before the read.
+> - Rollback band: median [300, 2,580] ms, with max <= 5,000 ms and 0 exceededCpu unchanged. Outside the band is off, and off rolls opuk back to b7626571 at once, as registered.
+> - The prediction, graded on its own: a median of 490-810 ms, from your own basis (K11's 0.25-0.41 s x 1.97). A median inside the band but outside that range is off-prediction: report it; opuk stays up, with no rollback.
+> - [1,008, 2,580] stays in the record as your miss: a band copied from a change that wasn't meant to touch CPU onto one that was.
+> - This holds only if MD-5's CPU is still unread when it arrives. If anything was read first, the row stands as registered.
+
+**The condition holds: MD-5's CPU was unread when the ruling arrived.**
+- No CPU read has run since the 1c deploy. The last was the 18:40-19:40Z control, on stage 1a's version.
+- The driver reaches MD-5 at about 23:30:06Z, and at the check below it had not: `md5.json` did not exist and the
+  log held no MD-5 line.
+
+**MD-5, as re-registered:**
+| | |
+|---|---|
+| **rollback band** | median in **[300, 2,580] ms**; max <= 5,000 ms; 0 `exceededCpu`. Outside it is off, and rolls `opuk` back to `b7626571` at once |
+| **prediction, graded on its own** | median **490-810 ms**. Inside the band but outside this range is off-prediction: reported, with no rollback |
+| **the miss, kept** | [1,008, 2,580]: a band copied from a change not meant to touch CPU onto one that was |
