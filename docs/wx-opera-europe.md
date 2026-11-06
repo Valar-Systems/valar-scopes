@@ -531,3 +531,22 @@ predicted, in two reads (18:36:56Z and 18:37:04Z).
 
 - No read so far needed the amendment's re-read: every Logs read came back at ABR [1].
 - The two PKD-4 reads were exactly 10 min 1 s apart, as planned. R3′'s pair had been 9 min 41 s apart.
+
+| row | got | verdict |
+|---|---|---|
+| **PKD-6** (T to T+2 h, 18:37:31Z to 20:37:31Z, read 20:42:33Z, 900 s pieces, **ABR [1]**) | 120 records, **all `ok`, 0 `exceededCpu`**. Single builds: n 24, **median 1,676 ms, max 4,496 ms**. The rest: n 96, median 9.5 ms, max 23. No backfill. p99 2,887 ms. GraphQL: `success` 115, 0 errors, `sampleInterval` 1 | as predicted (median in [1,008, 2,580]; max <= 5,000) |
+| **PKD-5** (R2 operations on blipscope-wx, read 20:47:34Z) | full hours: **before** 17:00Z ListObjects **139**, DeleteObjects 56, PutObject `wx/cref` 55, `wx/opuk` 25. **After** 19:00Z: ListObjects **145**, DeleteObjects 23, PutObject `wx/cref` 60, `wx/opuk` 27. The edge hours are partial | printed, not graded: **no visible fall** |
+
+- **PKD-6's max of 4,496 ms is close to its 5,000 ms bound.** The same read before the deploy, on the old code, gave
+  4,227 ms. So the spread is the build's own, and there is about 10% headroom on the bound.
+- **PKD-5 could not see the change, and why.**
+  - ListObjects was expected to fall by about 12 an hour; it read 139 before and 145 after.
+  - In the same two hours, DeleteObjects went from 56 to 23, and delete behaviour did not change at all. A sampled
+    dataset that moves by 33 on an unchanged action cannot show a 12 an hour step in about 140.
+  - **The alternative, that `opuk` still lists, is excluded by the running code.** Every production storing check
+    carries `pruneKeys` (PKD-2), which only the stage 1a code writes, and PK1 shows that code makes 0 lists on a
+    storing check. The saving will show, if anywhere, in the 7-day cost re-read's 30-day Class A totals.
+
+**Stage 1a's deploy is complete: every graded row read as predicted.** Ended 20:47:35Z.
+- `opuk` runs `b7626571` (prune by key).
+- No rollback was needed. No Logs read was sampled, so the amendment's re-read was never used.
