@@ -1809,6 +1809,28 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+echo
+echo "== WX layer switch =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_layer_switch.cpp" -o "$OUT/test_wx_layer_switch.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather switch test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_layer_switch.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the weather switch test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the weather switch sabotages cannot run."
+  fail=1
+else
+  CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_wx_layer_switch.py"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # WD5o, the dot marker's black outline (docs/wx-device.md, WD5 addendum 3): the construction is read from
 # src/AircraftManager.cpp and rasterised with LovyanGFX's fillCircle, ported. The bench cannot grade it, since
 # markers are triangles by default. Its sabotages: test/host/sabotage_wx_outline.py, run below.
@@ -1836,7 +1858,7 @@ fi
 
 echo
 echo "== WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4) =="
-# Read from the source: "wx-layer" is OFF by default in both of its readers, and GetBytes holds no String body.
+# Read from the source: "wx-layer" is ON by default in both of its readers, and GetBytes holds no String body.
 # The selftest plants one break per check in a copy and requires exactly that check to go red.
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; the weather wiring cannot be checked."

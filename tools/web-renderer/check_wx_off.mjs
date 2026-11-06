@@ -7,8 +7,9 @@
 //   node tools/web-renderer/check_wx_off.mjs --selftest              its control and its plant, each in a copy
 //
 // Read, not guessed: any getBuffer() other than the token below, or a web config whose settings map cannot be
-// found, is refused (exit 2). "On" is any map entry for "wx-layer" whose value is not "false" (the firmware turns the
-// layer on for exactly "true"; anything else is not "off" in a way this check can vouch for).
+// found, is refused (exit 2). "Off" is exactly one map entry {"wx-layer", "false"}. An ABSENT entry is ON: since v19 the
+// firmware reads an unset key as on (include/WxLayerSwitch.h), so the website must say "false" in writing, and any
+// other value is not "off" in a way this check can vouch for.
 //
 // NOT covered here, and not mistaken for coverage: a page can pass "wx-layer" at runtime (web_config_set), and the
 // website's page code lives in another repo. That path is the shim's setBuffer, which aborts with a message.
@@ -37,11 +38,14 @@ export function check(dir) {
   if (!map) return { code: 2, why: "the web config's settings map was not found: re-derive" };
   const entries = [...map[1].matchAll(/\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}/g)].map((m) => [m[1], m[2]]);
   const wx = entries.filter(([k]) => k === "wx-layer");
+  if (wx.length === 0)
+    return { code: 1, why: "the web config has no wx-layer entry, and the firmware reads an absent key as ON " +
+                           "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
   const on = wx.filter(([, v]) => v !== "false");
   if (on.length)
     return { code: 1, why: `the web config turns wx-layer on (${on.map(([, v]) => JSON.stringify(v)).join(", ")}) ` +
                            "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
-  return { code: 0, why: `wx-layer ${wx.length ? "\"false\"" : "absent"} in the web config's map (${entries.length} entries); ` +
+  return { code: 0, why: `wx-layer "false" in the web config's map (${entries.length} entries); ` +
                          "getBuffer() is the stand-in" };
 }
 
@@ -69,6 +73,15 @@ function selftest() {
     fs.writeFileSync(cfg, out);
     if (fs.readFileSync(cfg, "utf8") === src) { console.log("RIG: the plant did not apply"); return 2; }
     cases.push(['plant: {"wx-layer", "true"} in a copy of the web config', planted, 1]);
+    // The entry removed: since v19 the firmware reads an absent key as ON, so absence must not pass.
+    const absent = copy("absent");
+    const cfgA = path.join(absent, "web", "web_config.cpp");
+    const srcA = fs.readFileSync(cfgA, "utf8");
+    const entry = '{"wx-layer", "false"},';
+    if (srcA.split(entry).length !== 2) { console.log(`RIG: the plant's anchor occurs ${srcA.split(entry).length - 1} times, need 1`); return 2; }
+    fs.writeFileSync(cfgA, srcA.replace(entry, "/* PLANT: the entry removed */"));
+    if (fs.readFileSync(cfgA, "utf8") === srcA) { console.log("RIG: the plant did not apply"); return 2; }
+    cases.push(['plant: the wx-layer entry removed from a copy of the web config', absent, 1]);
     for (const [label, dir, want] of cases) {
       const r = check(dir);
       const ok = r.code === want;

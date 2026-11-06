@@ -5332,7 +5332,7 @@ updates reads it as unset. Only a board that ran a #445 bench image can hold a s
 aborts, with that check green: absent stops meaning off. The ruled position (the website does not draw weather, (A))
 needs the entry written down and the check changed to refuse absence. Included here for that reason.
 
-**The rule, and where it lives.** A new `include/WxSwitch.h`, `wxswitch::On(const char* stored)`: on for unset or
+**The rule, and where it lives.** A new `include/WxLayerSwitch.h`, `wxlayerswitch::On(const char* stored)`: on for unset or
 `"true"`, off for anything else, the sweep's own idiom (`displaySweep`). AircraftManager reads through it; the page's
 default becomes `"true"`. A new header rather than a line in `WxPolicy.h`, so no existing suite or driver moves.
 
@@ -5345,12 +5345,12 @@ default becomes `"true"`. A new header rather than a line in `WxPolicy.h`, so no
 | **S-WS-today** | restoring today's rule (`== "true"`) turns **exactly WS1** red |
 | **S-WS-always** | `return true` turns **exactly WS3, WS4** red |
 | **S-WS-notfalse** | `!= "false"` turns **exactly WS4** red |
-| **WD5b** (re-registered) | `check_wx_wiring.py`: AircraftManager's one read is `wxswitch::On(configServer.GetStoredString("wx-layer").c_str())`; the page's defaults are all `"true"`. Its two plants become today's read and today's default, each turning exactly its own check red. The other checks and plants do not move |
+| **WD5b** (re-registered) | `check_wx_wiring.py`: AircraftManager's one read is `wxlayerswitch::On(configServer.GetStoredString("wx-layer").c_str())`; the page's defaults are all `"true"`. Its two plants become today's read and today's default, each turning exactly its own check red. The other checks and plants do not move |
 | **WO1** | `web_config.cpp`'s map carries `{"wx-layer", "false"}`; `check_wx_off.mjs` reads `"false"` and exits 0 |
 | **WO2** | `check_wx_off.mjs` refuses an **absent** entry (exit 1), with a new selftest plant that removes it; its existing control and plants hold |
 | **WO3** | smoke R1-R7 and R7's sabotage pass in CI: the website still draws, without weather |
 | **B1** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` build |
-| **run.sh** (WSL, g++ 13.3) | exits 2 from the two environment blocks ("the same TU, for the board", "Weatherscope R0 and R0b"), with `sabotage_wx_towns.py` SKIP, and nothing else red; the new "WX switch" block passes |
+| **run.sh** (WSL, g++ 13.3) | exits 2 from the two environment blocks ("the same TU, for the board", "Weatherscope R0 and R0b"), with `sabotage_wx_towns.py` SKIP, and nothing else red; the new "WX layer switch" block passes |
 | **CI** | **34 = 30 success, 4 skipped, 0 failed**, from #445's finished run on `6ab863383dc4`: the same four workflows (device-ids, firmware, no-traffic-captures, web-renderer), and that run already carried the workflow change #445 merged, main's last |
 
 **Stated so they are not found later:**
@@ -5364,3 +5364,9 @@ default becomes `"true"`. A new header rather than a line in `WxPolicy.h`, so no
 - **The label** stays "Weather radar (beta)". Whether "(beta)" stays on a default-on feature is Daniel's call.
 
 **Outside the set:** a reader of the default that this section does not name, or any row above reading otherwise: stop.
+
+**Corrected 2026-11-06 21:39Z, before any code ran (my miss).** This section first named `include/WxSwitch.h`,
+`wxswitch::On`, `test_wx_switch.cpp` and a "WX switch" block. Main already has a `test_wx_switch.cpp` and a "WxSwitch"
+block: Weatherscope's theme switch (A12.43). The write was refused. The names above are now `WxLayerSwitch.h`,
+`wxlayerswitch::On`, `test_wx_layer_switch.cpp`, `sabotage_wx_layer_switch.py` and "WX layer switch"; every row and
+every prediction is unchanged.
