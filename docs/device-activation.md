@@ -1280,10 +1280,46 @@ between its two enrolments reproduce the 19:32Z read exactly (76 = 24 + 0 + 52).
 causes. The board runs firmware 18 (its `fw:` row), whose key landing does not reboot, so the key landing did not cause
 this boot: something else restarted the board 1.6 min after it enrolled. That does not touch G1's grading, which
 rests on the requests before the enrolment. The boot's reset reason (one token from a known set, no id) would say
-whether it was a power cycle, a software restart or a crash. Its meanings are frozen; the read waits for a ruling.
+whether it was a power cycle, a software restart or a crash. Its meanings were frozen at 19:52Z; it read `SW`, a
+software restart (R1, below).
 
 So the customer's working, grandfathered board enrolled a second time **while it held a working key**, most likely by
 opening the enrolment page again. Under enforce that is a 409, as the next section states.
+
+### Restarts around setup: boot reasons, predicted before the read (rulings ~19:55Z, ~19:58Z, ~19:59Z)
+
+Daniel reported that the Bend feeder restarted by itself several times during its setup on 11-04, and recalls that it
+was right after activation; with the customer board's boot 1.6 min after its second enrolment, that is two boards
+restarting around setup. Read-only, counts and reset-reason tokens only; the feeder was not touched, and its id came
+only from the operator's token file and was never printed.
+
+**What a boot record can see, from v18's source.** The Worker writes a boot point only past the auth gate
+(`recordBoot`, `proxy/src/metrics.ts`), from the `X-Blip-Boot` header, which the board sends once per boot on its first
+check-in and keeps pending until a check-in is acknowledged (`include/BootReportPolicy.h`). The token is that boot's
+reset reason (`OtaUpdater.cpp:277-291`): `SW` is the firmware's own `ESP.restart()`; `PANIC`, `INT_WDT`, `TASK_WDT`,
+`WDT` and `CPU_LOCKUP` are crashes. So a board with no key reports no boot at all, recorded boots are a lower bound,
+and a crash loop shows as at most one recorded boot.
+
+Frozen at 19:59:58Z, before the tool existed; read at 20:00Z, every control held:
+
+| | predicted | read | verdict |
+|---|---|---|---|
+| **R1** the customer board, boots in the 10 min after its second enrolment | >= 1, the first at +1.6 min, a crash token | **1**, at **+1.6 min**, **`SW`** (fw 18) | **OFF**: a software restart, not a crash |
+| **R2** the feeder, boots from 30 min before its first enrolment (11-04) to 2 h after | 0 before (invisible); >= 1 after, at least one a crash token | **2**: **+0.0 min `SW`**, **+3.4 min `SW`** (fw 18) | **OFF**: no crash token |
+| **R3** the fleet, 14 days, boots by reason | `SW` most common; >= 1 device with a crash token | 335 boots, none without a reason: `SW` 142, `POWERON` 118, `USB` 71, `PANIC` 2, `TASK_WDT` 2, all s3-128 fw 18; **3 devices** with a crash token, neither the feeder nor the customer board | **as predicted** |
+
+**My misses:** I predicted crashes for both boards, following the report, and both read `SW`. And my table missed a
+property of the instrument: a boot point is stamped when the board **delivers** its reason, not when it booted. The
+feeder's "+0.0 `SW`" is a restart from before its key, delivered at its first authenticated check-in; that fits the
+restart v18 makes after its setup portal succeeds (`main.cpp:557`). Restarts before a board's key remain invisible to
+this instrument, so a crash loop during the feeder's Wi-Fi setup is neither shown nor excluded.
+
+**What it shows:** after activation, each board restarted itself by software once within minutes (the customer board
+at +1.6 min, the feeder at +3.4 min), and neither restart was a crash. v18's software restarts each print their own
+serial line just before `ESP.restart()` (the portal-success restart, `main.cpp:557`; the deferred update reboot,
+`OtaUpdater.cpp:261-270`; a reset tier, `main.cpp:689`; Wi-Fi down for 10 min, `main.cpp:730`; the portal failing,
+`main.cpp:540`; the touch watchdog, `AircraftManager.cpp:1471`/`1503`), so a serial capture names which one fired. The
+fleet's 4 crash boots on 3 devices are a separate firmware finding, reported on their own.
 
 ### The design property, stated as a property
 
