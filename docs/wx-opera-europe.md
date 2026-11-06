@@ -27,6 +27,31 @@ written, instead of finding it out on the dev Worker.
 
 R3′ completed at about 16:34Z (docs/wx-opuk-r3, `e3304b95`), and this plan was started after it.
 
+## 0b. The ruling on this plan (2026-11-06 ~17:08Z), verbatim
+
+> For: UK data session, from the reviewer chat, 2026-11-06 ~17:08Z
+>
+> #570 (radar beyond the UK) is approved to merge at 9fa9d717bce2 once its CI reads 31: 28 success, 3 skipped, 0 failed. Merge by the rule.
+>
+> The rulings:
+> 1. Q-COST (Daniel, 2026-11-06): (b). The cheaper parts come first, each its own change with predictions:
+>    - prune by key;
+>    - one latest record for all OPERA products;
+>    - the resample map from R2.
+>    Then the dev-Worker measurement, M1–M6 as frozen. If M6 projects the total over $2 a month: stop and ask Daniel. Nothing goes to production before that.
+>    The two R2 changes also touch today's production opuk. Deploy each by the rule, with an R3′-style registration and its rollback target recorded first.
+> 2. Q-UKBOX: yes. Today's UK land box stays served beside the polygons, so no UK point loses opuk.
+> 3. Q-WORKERS: one Worker per product, #556's pattern: an [env.<id>] per product, each with its own cron, cpu_ms 12,000 and inert stop.
+> 4. Q-COAST: decided later, on the code stage's printed figure, as you proposed.
+> 5. Record beside §4: my earlier estimate to Daniel (20 cents to $1.50 a month) was mine and wrong. The plan's model is the one that counts.
+
+- **#570 merged** at 17:12:06Z as `c2caa9d43609`, by the rule: main's head H `459d50feb0ca` had finished its CI and
+  was re-read in the merge command, and the squash tree equals `merge-tree(H, 9fa9d717bce2)`. Its CI read 31: 28
+  success, 3 skipped, 0 failed, as predicted.
+- **Stage 1 is now the three cheaper parts, in the ruled order:** 1a prune by key (§11), 1b one `latest` record for
+  all OPERA products, 1c the resample map from R2. Each is its own change with predictions. The code stage and the
+  dev-Worker measurement follow, and nothing for the new products goes to production before M6.
+
 ## 1. The list: 40 countries
 
 **The source** is A3.23 (`docs/opera-coverage-2026-11-05.md`): the survey's output `graded.json`, sha256
@@ -224,6 +249,8 @@ British Isles product: its grid grows, and the device sees an ETag change once.
   with 0.9 M of headroom. The served crops add up to 4 tile reads per 200 for each European device.
 - **Storage:** about 0.2 GB, under 10 GB: **$0.**
 - **Total: about $4.02 a month. Across the 1.6x band on CPU, $2.93 to $5.75. Over $2 at both ends.**
+- **Recorded beside this, as ruled ~17:08Z (item 5), in the reviewer's words:** "my earlier estimate to Daniel (20
+  cents to $1.50 a month) was mine and wrong. The plan's model is the one that counts."
 
 **The cheaper parts, each a measured change of its own, with projected effects:**
 
@@ -346,3 +373,84 @@ All of these are read-only and offline, run in my scratch with Python 3 and nump
   `eu_rules.json` and the same files.
 - **No coordinate of a device or a person appears here.** The rule rectangles and the border crossings are public
   geography, like `OPUK_LAND` in `products.ts`.
+
+## 11. Stage 1a: prune by key (predictions frozen before any code, 2026-11-06)
+
+**What changes: the OPERA products only.** Today that means `opuk`. `cref` is unchanged: its frame epochs carry
+seconds, so it keeps listing.
+- **Today:** `pruneOld` lists `wx/opuk/frames/` on every storing check. That is a ListObjects, R2 Class A. It then
+  deletes the frames older than the cut, `now - RETAIN_S`, never the one `latest` names.
+- **New, `pruneByKey`:** the candidates are every whole-minute epoch `e` with `cut - 54,000 <= e < cut`, which is
+  **900 keys**, minus the key `latest` names. One `bucket.delete(keys)` removes them. That is a DeleteObjects, which
+  is free. **No ListObjects.**
+  - **Why whole minutes, not the 5-minute cadence:** `epochOfKey` fixes an OPERA frame's seconds at 0, so every
+    frame epoch is a whole minute. A frame published off the 5-minute grid would escape a 300 s step.
+  - **Why 15 hours:** that is 900 keys, under the binding's 1,000 a call, and it cleans up after any stop shorter
+    than that. R3′'s stop was 9 h 23 min. Older strays are left to `expire-1d`, which stays.
+- **The log:** an OPERA storing check's `wx_ingest` line carries **`pruneKeys`** (the candidates sent: 900, or 899
+  when `latest`'s key is inside the window) **instead of `pruned`**. R2's delete does not say which keys existed.
+  `cref`'s `pruned` is unchanged.
+- **What it saves:** one ListObjects per storing check, 8,640 a month for `opuk`. Over §3's 10 products, Class A
+  falls from $0.85 to about $0.46 a month.
+- **Before the deploy, a tools change:** `tools/wx/r3_5b.py` and `r3p.py` learn `pruneKeys`, and refuse a Logs read
+  at an ABR level other than 1 (R3′'s note). That is read-only tooling on the R3 branch, with its own sabotage: a
+  read forced to ABR 10 must refuse.
+
+**The checks (vitest, `proxy/test/wx-opera.test.ts`):**
+
+| check | what | predicted | sabotage | predicted under it |
+|---|---|---|---|---|
+| **PK1** (K10 re-registered as **K10′**) | a storing check on `opuk`, then a check that stores nothing, counting R2 `list` and `delete` calls | storing: **0 lists, 1 delete**. Not storing: **0 lists, 0 deletes** | **PK1s-a:** prune by listing (`IngestX.pruneBy: "list"`). **PK1s-b:** `pruneAlways`, K10's own sabotage, kept | **a: red,** the storing check lists 1. **b: red,** the non-storing check deletes 1 |
+| **PK2** the keys left, compared as whole lists | `pruneByKey` on a bucket seeded with `opuk` frames every 300 s from 18 h ago to now, plus one frame exactly at the cut, plus one at a whole minute off the 5-minute grid inside the window, with `latest` naming a frame inside the window | **left = every frame at or after the cut, the frame `latest` names, and every frame older than `cut - 54,000`** | **PK2s-a:** the bound inclusive at the cut. **PK2s-b:** `latest`'s key not excluded. **PK2s-c:** a 300 s step | **a: red,** the frame at the cut goes. **b: red,** `latest`'s frame goes. **c: red,** the off-grid frame stays |
+| **PK3** against today's prune | the same seeded bucket, pruned by `pruneOld` and by `pruneByKey` | **identical**, except the frames older than `cut - 54,000`, which only `pruneOld` removes | (covered by PK2's sabotages) | |
+| **PK4** `cref` unchanged (control) | a `cref` storing check | it **still lists (at least 1)**, and its line still carries `pruned` | | |
+| **PK5** the count | `pruneByKey`'s return | **900** with `latest` outside the window; **899** with it inside | | |
+
+**The deploy to production `opuk`, R3′-style, registered now.** It runs only after review, merge and a slot.
+
+| row | what | predicted |
+|---|---|---|
+| **PKD-0** | the rollback target, recorded first | `opuk` is `a4e6c685-295b-4f7b-a839-e1ad12c633a5` (top level, `WX_INGEST` on). Only the `opuk` Worker is deployed, from a clean checkout of the merge commit. The `cref` Worker (`257f49eb`) and the proxy are not deployed: the change does not reach them |
+| **PKD-1** | the version record | bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 |
+| **PKD-2** | every storing check in the first 70 min (Logs, ABR 1 only) | `stored` or `backfilled`, **`pruneKeys` 900** and no `pruned` field; **0 error lines** |
+| **PKD-3** | at the first firing + 10 min, R3′-3 and R3′-4's reads | `wx.opuk` `frameAgeS` <= 1,800 and `coveredShare` in [0.70, 0.80]. LHR: ETag `opuk`, `X-Wx-Max-Age` 720, frame = `latest` |
+| **PKD-4** | R3′-5b′'s rule at +70 min, read twice 10 min apart | **<= 13 frames**; every epoch >= the last storing start - 3,600, except `latest`'s; the +300 s sabotage fails on the oldest |
+| **PKD-5** | R2 ListObjects on blipscope-wx per hour, the 2 h before against the 2 h after (R2 analytics, with its sample interval) | **printed, not graded:** the dataset is sampled. Expected to fall by about `opuk`'s storing checks, about 12 an hour |
+| **PKD-6** | CPU, R3′-6's method over 2 h, ABR 1 | `opuk` single-build median in **[1,008, 2,580] ms** (R3′-6's 1,612.5, x and ÷ 1.6); max <= 5,000 ms; **0 `exceededCpu`** |
+| escape | anything outside these rows | **roll `opuk` back to `a4e6c685` at once**, stop and report |
+
+- **No board hold is proposed.** It is `opuk` only, as for the 15:07Z redeploy; the reviewer's call.
+- **CI for this change's PR:** it touches `proxy/`, so `workers.yml` runs. **Predicted: 34 = 31 success, 3 skipped,
+  0 failed.**
+  - Baseline: #565's PR run on `da52c54f55eb`, which touches `proxy/`, started 2026-11-06T05:06:16Z and finished:
+    34 = 31/3/0.
+  - It postdates the last job-set change, `84409651` (#552), and the last workflow change, `259e8688` (#558, a
+    step).
+**The readings before the push (2026-11-06, the code at this PR's second commit):**
+- **`tsc --noEmit`:** clean.
+- **vitest, the two files changed** (`test/wx-opera.test.ts` and `test/wx-ingest.test.ts`, not the whole suite):
+  **71 of 71 passed, exit 0.** It started at 17:34:39Z, after the poller saw no other session's vitest or `sabotage-`
+  process and TIME_WAIT under 2,000. Another session's vitest was running when the code was ready, so the run waited
+  for it.
+
+| row | got | verdict |
+|---|---|---|
+| **PK1** | storing: 0 lists, 1 delete, `pruneKeys` 900, no `pruned`. Then `already-stored`: 0 lists, 0 deletes. **PK1s-a** (prune by listing): the storing check lists. **PK1s-b** (`pruneAlways`): the second check deletes 1 | as predicted; both sabotages red |
+| **PK2** | seeded 218; **left 38 = expected 38**, as whole lists (13 at or after the cut, `latest`'s, 24 strays). **PK2s-a:** the frame at the cut goes. **PK2s-b:** `latest`'s frame goes. **PK2s-c:** the off-grid frame stays | as predicted; all three sabotages red |
+| **PK3** | 14 left by listing and 38 by key; the 24 strays are the whole difference | as predicted |
+| **PK4** | `cref` stored with 1 list and `pruned` 0 (a number), no `pruneKeys` | as predicted |
+| **PK5** | 899 with `latest` inside the window, 900 with it outside | as predicted |
+
+- **The tools change** is `6ac157d0` on docs/wx-opuk-r3:
+  - **Controls:** `r3p.py lines` at ABR [1] read normally, exit 0; `r3_5b.py opuk` at 17:25:31Z read ABR [1] and
+    passed, its +300 s sabotage failing on the oldest frame.
+  - **Sabotage:** with `R3P_FORCE_ABR=10`, `r3p.py`'s three modes each refuse with exit 2, and `r3_5b.py` reads
+    BLIND.
+  - **Unforced, the API sampled a read itself.** `r3_5b.py` at 17:22:54Z, over a window of about 21 minutes, came
+    back at **ABR [100]**, found no pruning check, and read BLIND. That is the case the guard exists for: the
+    sampling is real and it varies from call to call.
+
+- **Ahead, for stage 1b (one `latest` record):** §4's "one write a set" assumed a single writer for each 5-minute
+  set. Under Q-WORKERS, ten Workers each finish their own product at their own time, so no one Worker holds a whole
+  set. Stage 1b's predictions will name how the shared record is written, and what one product's failure does to
+  the others.
