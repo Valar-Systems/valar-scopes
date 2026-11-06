@@ -13196,3 +13196,50 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **(b)** Make the flag header-only (an inline function returning a function-local static), so no link symbol is needed. This changes measured device code, and the two Weatherscope images and the two radar images would be rebuilt and re-checked.
 
 **Also open:** Q86 (A12.124). W-CR waits for it. The merge waits for #445 as ruled.
+
+### A12.126 Q86 and Q87 ruled: B0/B6 read app0 back by `verify-flash`; the web stub added. Predictions frozen, and W-CR announced for 18:08Z-18:40Z
+
+**The ruling (~17:45Z):**
+- **Q85 (b)** is accepted as reported in A12.123.
+- **Q86:** B0 becomes `esptool verify-flash` on app0, predictions first.
+  - If its pass case fails, stop and report: that would point at the flash, not the cable.
+  - A new announced window. It may overlap blipscope-5c's 18:45Z window only if recorded.
+- **Q87:** a fifth stub in `web_ota.cpp`, `ota::FlashWriteActive()` returning `false`.
+  - The miss stays on record: 33 = 28/4/1 against 29/4/0 predicted.
+  - The rerun is predicted with the web job DERIVED, not built here (no `emcc`).
+
+**Q87, applied:**
+- **`9e33982cf6fa`:** `tools/web-renderer/web/web_ota.cpp` gains `bool ota::FlashWriteActive() { return false; }`, and its comment now says five.
+- **Before the push:** every driver's and plant's anchors pass (**25 of 25**), as do `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py`.
+- **No device file changed,** so no image is rebuilt. The bench image is still `10942a49ae98`.
+
+**PR #571's next run, predicted at `9e33982cf6fa`: 33 checks, 29 success, 4 skipped (version, promote, ship-alert, publish), 0 failed.**
+- **The web-renderer's `build` is DERIVED, not built:** no `emcc` is active here.
+- **The derivation:** the only error in the failed run was the one undefined symbol. The compile had succeeded, and the stub now defines exactly that symbol, with the declaration `OtaUpdater.h` already gives the web build.
+- **If the web job fails for any other reason:** that is outside this prediction. Stop and report.
+
+**B0 and B6's read-back, frozen** (esptool 5.3.0; `verify-flash` hashes the region on the chip and compares; it writes nothing):
+
+| row | command | predicted |
+|---|---|---|
+| B0-1 | `verify-flash 0x20000 <the clean image's firmware.bin>`, its file hash re-checked first as **`39e258b5be07`** | **verify OK, exit 0** |
+| B0-2 CONTROL | `verify-flash 0x20000 <the bench image's firmware.bin>` (`10942a49ae98`) | **a mismatch, nonzero exit** |
+| B6-1 / B6-2 | the same two, after the clean image is written back | OK, exit 0 / a mismatch, nonzero |
+
+- **If B0-1 passes:** the `read-flash` failure at `0xA0000` (A12.124) is recorded as the transfer's, an instrument failure.
+- **If B0-1 fails:** stop and report, write nothing, and open no plant.
+- **If B0-2 does not report a mismatch:** the check cannot fail, so stop and report.
+
+**W-CR is announced:**
+- **When:** 18:08Z to 18:40Z, ending before blipscope-5c's 18:45Z window. No overlap is planned.
+- **Where:** `907069326E64` only, its port resolved by serial.
+- **The steps:**
+  1. B0 (verify-flash ×2);
+  2. the bench image (`10942a49ae98`) through `app-only-write.py`;
+  3. `chain`;
+  4. `clear`;
+  5. B6: the clean `39e258b5be07` through `app-only-write.py`, verify-flash ×2, `bootread`, TCP :80.
+- **How the runner launches** (Q72's lessons): through the Bash tool's background mode, with `python -u`, into a new empty directory.
+- **Rows B0–B6** as frozen in A12.119, A12.121 and A12.122, with B0's and B6's read-back now as above.
+- **If the window must stop early,** the clean image and its boot read come first. **It ends only when the boot line reads `theme=auto`.**
+- **During it:** no build and no whole-suite run from this session.
