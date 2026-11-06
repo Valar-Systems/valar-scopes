@@ -5094,4 +5094,9 @@ The two builds run one at a time, after a free-space check (30 GB floor). **Outs
   - **Proposed:** WSL predictions name it from now on, as a third environment item beside the two blocks.
 - The merge and the push wait for the ruling on this item. The builds (R2, R3) do not depend on it and go ahead.
 
+**R2 and R3, read: as predicted.** Built from PowerShell, one at a time, incrementally (both build directories already
+existed in this worktree):
+- `blipscope-s3-128`: SUCCESS, exit 0, 69 s (17:10-17:11Z);
+- `blipscope-s3-128-wxlook`: SUCCESS, exit 0, 68 s (17:11-17:12Z), with 30.8 GB free at its start.
+
 **Outside the set:** stop and report.
