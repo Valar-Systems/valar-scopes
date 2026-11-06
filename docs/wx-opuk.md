@@ -2109,3 +2109,8 @@ as the merge.
   **Equal.** The squash's parent is `9b511dc2`.
 
 ### R3′ (2026-11-06, from ~04:25Z)
+
+| row | got | verdict |
+|---|---|---|
+| **R3′-pre** (04:13-04:23Z, read 04:24:39Z, ABR 1) | the running `cref` Worker is `582612da` (100%, since the 00:18:33Z rollback on 11-05). Its Logs show **20 product lines, all `cref`**; 10 of 10 minutes have both checks; 0 error lines. The `opuk` Worker doesn't exist yet (`code: 10007`) | as predicted |
+| **R3′-0** (read 04:24:54Z, `cost_read.py`) | **UNDER $2**: run-rate projection $0.25-0.30 a month with `opuk`. **Measured re-read: about $0.52 a month** (run rate 37.48 M CPU ms + `opuk` at S4's 2,055 ms x 8,640 builds + 12 ms x 43,200 = 55.76 M; Class A 0.95 M, under 1 M) | as predicted |
