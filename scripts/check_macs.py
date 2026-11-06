@@ -355,7 +355,8 @@ SABOTAGES = {
     "S-G2": ('return "colon" if sep == ":" else "dash"', 'return "colon" if sep == ":" else None', {"G2"}),
     "S-G3": ('if ("%02X" % (octets[0] & ~2)) + h[2:6] in ouis:', "if False:", {"G6"}),
     "S-G4": ("if h[2:8] in ouis:", "if False:", {"G7"}),
-    "S-G5": ("if m.group(1)[:6].upper() in ouis:", "if False:", {"G8"}),
+    # G11's and G14's plants are serial-form, so they lean on this rule too (Q108).
+    "S-G5": ("if m.group(1)[:6].upper() in ouis:", "if False:", {"G8", "G11", "G14"}),
     "S-G6": ('return [(rel, n, "store") for n, line in enumerate(text.split("\\n"), 1) if LONG_HEX.search(line)]', "return []", {"G13"}),
     "S-G7": ("if m.group(1).lower() not in EXAMPLES:", "if False:", {"G15"}),
     "S-G8": ('EXAMPLES = ("a1b2c3", "00e000")', 'EXAMPLES = type("Any", (), {"__contains__": lambda s, x: True, "__getitem__": lambda s, i: ("a1b2c3", "00e000")[i]})()', {"G15"}),
