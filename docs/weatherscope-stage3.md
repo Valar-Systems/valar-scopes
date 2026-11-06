@@ -12923,3 +12923,89 @@ Neither Q83 nor Q84 moves a count.
 - **After:** main's CI on the merge is recorded.
 
 **Asked:** Q83 and Q84, plus a ruling on the plan as a whole.
+
+### A12.120 A12.119 approved: Q83 (a), Q84 (a); merge after #445; a refused save tells the user. Its rows frozen before the code
+
+**The ruling (~15:40Z):**
+1. **Q83:** both editions, through the shared code. The save lock closes a real tear on the radar today.
+2. **Q84:** yes. This PR adds the read-only Device ID row to Weatherscope's config page.
+3. **Sequencing:** build and test now, but merge only after #445 has merged. #445 changes `AircraftManager.cpp`/`.h` and `ConfigurationWebServer.cpp` heavily and is v19's critical path. If #445 lands first, main is merged into this branch, never the reverse. That merge is predicted on its own.
+4. **A refused save must tell the user.** The page shows a plain message, never a silent failure, with a host-test row for it and a sabotage (the message dropped turns it red).
+5. **W-CR as planned.**
+6. **CI accepted:** the PR 33: 29/4; main on the merge 33: 30/3. Merge by the rule.
+
+**What ruling 4 needs, read from the page before any code** (main at `000112ae`):
+- **`/save`'s script shows the response body whatever its status.** `fetch` → `r.text()` → `st.textContent=t`. So a refusal's body reaches the page, but two things are wrong with it.
+  - **The colour:** a refusal is coloured red only if its text contains `MISSING`.
+  - **The checklist (a defect, found reading the page):** any response without `MISSING` counts as a clean save and calls `bpSetupDone()`. So a refused save would tick off "Set your location" for a location the device never stored. Same family as #383, in the other direction.
+- **`/location`'s script** treats any status other than 200 as a failure, but shows its own fixed sentence, *The device did not save that location, so nothing changed.*, never the device's reason.
+- **`/enroll-key`** (radar) shows the response text in an alert.
+- **A connection that drops before any answer** reaches the existing `save failed - device unreachable`. That is not silent; it is unchanged, and it is what a refusal falls to if the restart beats its reply onto the wire.
+
+**The refusal, frozen.**
+- **The words, the same on every path:** `NOT SAVED - the scope is restarting. Try again in a minute.` That is the page's own `NOT SAVED - ...` style. There is no quote or backslash in it, so it sits in JSON unescaped.
+- **HTTP 503 for each endpoint:**
+
+| endpoint | shape |
+|---|---|
+| `/save` | `text/plain`, the sentence |
+| `/enroll-key` | `text/plain`, the sentence |
+| `/location` | `application/json`, `{"ok":false,"error":"<the sentence>"}` |
+
+- **Built by one function in `include/SaveLock.h`,** `savelock::SaveScope`. It is an RAII admit that the three handlers open after their cross-origin check:
+  - it either admits the save, holding the gate until its scope ends on any return path;
+  - or it sends the refusal and reports not admitted.
+- **The gate itself:** `Open` / saving (a count) / `HeldForRestart`, with transitions in a critical section on the device. The touch-cap's `Io::TryHoldSave()` takes `HeldForRestart` only from `Open`, and never releases it.
+
+**The page, two changes** (the shared shell script, so every edition gets them):
+1. **The `/save` result:** `ok=r.ok` is kept from the response, and `w=!ok||/MISSING/.test(t)`. A refused save shows the device's sentence in the failure colour and does not tick the checklist. The `if(!w&&window.bpSetupDone)window.bpSetupDone();` substring that `check-setup-banner.mjs` looks for is unchanged.
+2. **`/location`'s failure:** `bpLocFail(j&&j.error?String(j.error):'The device did not save that location, so nothing changed.')`. The device's reason is shown when it sends one; the old sentence stays for every other failure.
+
+**Rows added, C++** (`test_touch_wedge_cap.cpp`, through `SaveLock.h` directly, with a fake request recording `send`):
+
+| # | row |
+|---|---|
+| CR29 | the gate: a save in progress refuses the restart hold; after its scope ends the hold is taken; once held, a save is refused, and no scope end reopens it |
+| CR30 | a refused `/save` answers 503 `text/plain` with exactly the sentence |
+| CR31 | a refused `/location` answers 503 `application/json` with exactly `{"ok":false,"error":"<the sentence>"}` |
+| CR32 | CONTROL: an admitted save sends nothing itself, and holds the gate until its scope ends |
+
+**The suite becomes 32 checks.** Clean: 32 `ok`, exit 0, under MinGW and WSL g++ 13.3.
+
+**Sabotage, added to `sabotage_touch_wedge_cap.py`:**
+
+| plant | change | fails |
+|---|---|---|
+| **S-CR5** the message dropped | the refusal's body is sent empty | {CR30, CR31} |
+
+S-CR1 to S-CR4 plant `TouchWedgeCap.h` only, and their sets are unchanged.
+
+**Rows added, the page** (`scripts/check-setup-banner.mjs`, run by the config-form CI job). It runs the page's own script:
+- `/save`'s result through a named `window.bpSaveResult(ok,t)`, which the save path calls;
+- `/location`'s failure branch, extracted from `var j=x[1];if(x[0]!==200` to its `return}`.
+
+| # | row |
+|---|---|
+| JS1 | a refused `/save` (503, the sentence) puts exactly the sentence in the result line, in the failure colour |
+| JS2 | a refused `/save` does not call `bpSetupDone()` |
+| JS3 | CONTROL: a clean save (200, no `MISSING`) calls it once, not in the failure colour |
+| JS4 | a refused `/location` (503 with `error`) calls `bpLocFail` with exactly the sentence |
+| JS5 | CONTROL: a `/location` failure without `error` (400 `{"ok":false}`) still says *The device did not save that location, so nothing changed.* |
+
+- **Counts:** 8 checks today → **13**, all ok, exit 0.
+- **`--selftest`:** 5 plants today → **8**. Each new plant exits 1:
+  - the refused save's text dropped (`st.textContent=''`): JS1 red;
+  - a refused save ticks the checklist (`!ok||` removed): JS1 and JS2 red;
+  - the location's error text dropped: JS4 red.
+
+**Q84's row:** in Weatherscope's form, the radar's markup, `<span>Device ID:</span>` with a read-only `%DEVICE_ID%` input. No `name`, so it is never posted and stores nothing.
+- **Its value:** `DeviceIdentity::LeaderboardId()`, the string the strip shows.
+- **`check-config-form.py`:**
+  - all 9 pages still hold every invariant;
+  - Weatherscope's page is 3,946 B plus exactly the inserted row's bytes, and every other page is unchanged.
+
+**Unchanged from A12.119:** every other row, R1–R5, CR1–CR28, S-CR1–S-CR4, W-CR's B0–B6, and the CI prediction.
+- **Why the new work moves no count:** it adds no job and no leg; the page check runs inside the config-form job that already runs.
+- **What stays the same:** the WSL `run.sh` prediction (exit 2, the two env blocks), and the driver count (23).
+
+**#445's merge, if it lands first, gets its own addendum before the merge commit.** It will predict the conflicted files, the resolution, every row re-run and the CI.
