@@ -4861,4 +4861,19 @@ blocks are the rig's two (xtensa, Pillow). Then `blipscope-s3-128` and `blipscop
 - **Its selftest:** a look-B case of rule (2) is added, a marker with no edge beside weather, which must FAIL. The
   selftest's count rises by that one case.
 
+**The reviewer's ruling of ~15:16Z on the held Snow row:** leave it out. Recorded as ruled, beside Q3: **the reviewer's
+miss.** Q3's premise, "snow still draws", was wrong: the Blipscope has no snow path, so a blue row would describe
+nothing it draws. The rest of the ~15:07Z ruling stands. C5's seven rows are final.
+
+**Amended before C3 and C4 were written: "the layer is on" is `WxEnabled()`, not the bare switch.**
+- `WxEnabled()` (`AircraftManager.cpp`) is `wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty()`:
+  the switch on, the buffers allocated, and the cloud source in use. It does not depend on whether a frame is
+  present, which is what Q4 asks.
+- **Why not the bare switch:**
+  - with a failed allocation, the header's own comment says the layer stays off;
+  - on OpenSky or a local feed, the layer never draws.
+  In both cases the bare switch would turn the planes cyan and white over no weather at all.
+- **C3:** `WxOutlineNow()` returns `WxEnabled()`. **C4:** the marker's base colour is
+  `WxEnabled() ? Plane(alt) : today's`, with no-data grey first as today.
+
 **Outside the set:** stop and report.
