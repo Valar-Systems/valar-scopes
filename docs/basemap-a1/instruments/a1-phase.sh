@@ -20,7 +20,9 @@ case "$PHASE" in
   rest) LIST=("KSFO 37.62 -122.38" "KLAX 33.94 -118.41" "KORD 41.98 -87.90" "KJFK 40.64 -73.78" "KATL 33.64 -84.43"
               "KDFW 32.90 -97.04" "KMIA 25.79 -80.29" "KBOS 42.36 -71.01" "KMSP 44.88 -93.22") ;;
   last4) LIST=("KDFW 32.90 -97.04" "KMIA 25.79 -80.29" "KBOS 42.36 -71.01" "KMSP 44.88 -93.22") ;;  # ruled ~04:32Z, after KJFK's stop
-  *) echo "usage: $0 sr1|rest|last4"; exit 2 ;;
+  ten) LIST=("KPHX 33.43 -112.01" "KLAS 36.08 -115.15" "KSLC 40.79 -111.98" "KPDX 45.59 -122.60" "KSAN 32.73 -117.19"
+             "KIAH 29.98 -95.34" "KMCO 28.43 -81.31" "KCLT 35.21 -80.94" "KDTW 42.21 -83.35" "KSTL 38.75 -90.37") ;;  # SYNC_WAIT's fresh ten (Q-SW2)
+  *) echo "usage: $0 sr1|rest|last4|ten"; exit 2 ;;
 esac
 echo "phase $PHASE starts $(date -u +%H:%M:%S.%3NZ)"
 for a in "${LIST[@]}"; do
