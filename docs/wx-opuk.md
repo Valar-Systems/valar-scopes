@@ -2232,5 +2232,5 @@ objects after 1 days", for all prefixes, enabled**.
 | beside it | 45 product lines, all `opuk`. Statuses: already-stored 38, stored 5, backfilled 2. `pruned` appears only on storing checks (7 of 7). **0 error lines** | printed, not graded |
 
 - The two backfills filled the holes left in the 20-minute window by the stop.
-- Pruning of 1 per check starts once the first frames written after the redeploy pass an hour old, from about
-  16:05Z. R3′-5b′ reads that state.
+- Pruning of 1 per check starts once the first frames written after the redeploy pass an hour old. Their epochs
+  are not in these lines, so no time is given here. R3′-5b′ reads that state.
