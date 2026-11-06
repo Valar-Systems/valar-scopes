@@ -12563,3 +12563,22 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **The PR's CI.** The baseline is #555's PR run, which postdates main's last workflow change (`12569fa05dfd`, #555 itself). **Predicted: 31 check runs, 28 success, 3 skipped (ship-alert, promote, version), 0 failed; 30 on 24.04, 1 on 26.04.**
 
 **Before the push:** `check_wifi.py` and `check_device_ids.py` run locally.
+
+### A12.116a Two clarifications to A12.116, frozen before the code (neither changes a row, a set or a count of findings)
+
+**1. The scan line counts the PDF once.**
+- **A12.116 said both** "3 fonts and 1 PDF settled by hash" and "allowed 2 (`c700.jpg` `exif-gps`, and the PDF)". That counts the PDF twice, the fonts' lesson from #555's first run (A12.114) again.
+- **The line reports a hash-settled file once.** Predicted: `…; 3 font(s) and 1 pdf settled by hash, 2 container(s) read (33 members), 457 scanned; findings 0, allowed 1, stale 0, idle 0`. **Allowed 1 is `c700.jpg`.**
+
+**2. A hash-settled allowance (font, pdf) is idle only if its file is no longer that class.**
+- **The rule:** it is settled by extension plus hash, not by a finding.
+- **Real runs are unchanged:** a `.pdf` or a font always yields its kind, so the two definitions agree in every real run.
+- **Why it matters to S-Q82c** (container reading off, with the PDF scanned raw and no hash rule):
+  - under the finding-based definition, the base PDF allowance would turn idle in **every** row, and all 25 rows would go red;
+  - under this one, only the PDF row turns red, through its stale hash, which is A12.116's frozen set.
+- **S-Q82c stays rows 17-22, 6 rows.**
+
+**Also checked:**
+- **Row 23's `.bin`** (`proxy/test/fixtures/wx/opera/20261028T0255.ranges.bin`) starts with `49`, not `E9`. So S-Q82e ("`E9` alone exempts") turns exactly row 25 red, as frozen.
+- **`check_wifi.py`'s line is unchanged by the change.** Main's copy and this branch's, on the same tree, both read `1619 tracked, 1156 scanned, 463 binary … OK`.
+- **A12.116's "1,607 / 1,144" was written before main gained 12 tracked text files** (two commits since #555, from other sessions). The binary count, 463, is unchanged.
