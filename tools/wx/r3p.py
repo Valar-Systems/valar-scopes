@@ -85,7 +85,7 @@ if mode == "lines":
     evs, abr = events(service, ms(a), ms(b))
     abr = abr1(abr)
     by_product, minutes, statuses, pruned_on, errors, storing = {}, {}, {}, {}, [], []
-    prunekeys_on = {}
+    prunekeys_on, map_on = {}, {}
     for e in evs:
         s = e.get("source") or {}
         p = s.get("product")
@@ -100,6 +100,9 @@ if mode == "lines":
             pruned_on[f"{p}:{st}"] = pruned_on.get(f"{p}:{st}", 0) + 1
         if "pruneKeys" in s:          # stage 1a: an OPERA prune by key reports the keys it sent
             prunekeys_on[f"{p}:{st}:{s['pruneKeys']}"] = prunekeys_on.get(f"{p}:{st}:{s['pruneKeys']}", 0) + 1
+        if "map" in s or "mapRefused" in s:   # stage 1c: where a build's resample map came from
+            mk = f"{p}:{st}:{s.get('map')}" + (":refused" if s.get("mapRefused") else "")
+            map_on[mk] = map_on.get(mk, 0) + 1
         if st in ("stored", "backfilled"):
             storing.append((e["timestamp"], p, st, s.get("pruned"), s.get("pruneKeys")))
         if s.get("evt") == "wx_ingest_error":
@@ -115,7 +118,7 @@ if mode == "lines":
     print(json.dumps({"service": service, "window": [a, b], "abr_levels": abr, "events": len(evs), "lines_by_product": by_product,
                       "minutes": len(span), "cref_minutes_both": cref_both, "cref_minutes_missing_one": cref_one,
                       "cref_minutes_missing_both": cref_none, "cref_minutes_with_error": cref_err,
-                      "statuses": statuses, "pruned_on": pruned_on, "pruneKeys_on": prunekeys_on,
+                      "statuses": statuses, "pruned_on": pruned_on, "pruneKeys_on": prunekeys_on, "map_on": map_on,
                       "first_storing_check": first_store, "storing_checks": [row(*s) for s in storing],
                       "errors": errors}, indent=1))
 
@@ -129,14 +132,19 @@ elif mode == "cpu":
         st = (w.get("event") or {}).get("scheduledTime")
         if st is None or not (ms(a) / 1000 <= st < ms(b) / 1000):
             continue
-        d = inv.setdefault(st, {"cpu": None, "outcome": None, "builds": []})
+        d = inv.setdefault(st, {"cpu": None, "outcome": None, "builds": [], "maps": []})
         if "outcome" in w:
             d["cpu"], d["outcome"] = w.get("cpuTimeMs"), w.get("outcome")
         s = e.get("source") or {}
         if s.get("product") == product and s.get("status") in ("stored", "backfilled"):
             d["builds"].append(s["status"])
+            d["maps"].append(s.get("map"))      # stage 1c: cache / r2 / built (absent before 1c)
     recs = [d for d in inv.values() if d["outcome"] is not None]
     single = [d["cpu"] for d in recs if d["builds"] == ["stored"]]
+    by_map = {}
+    for d in recs:
+        if d["builds"] == ["stored"]:
+            by_map.setdefault(str(d["maps"][0]), []).append(d["cpu"])
     rest = [d["cpu"] for d in recs if not d["builds"]]
     beside = [{"cpu": d["cpu"], "builds": d["builds"]} for d in recs if d["builds"] and d["builds"] != ["stored"]]
     allc = sorted(d["cpu"] for d in recs if isinstance(d["cpu"], (int, float)))
@@ -154,6 +162,7 @@ elif mode == "cpu":
     print(json.dumps({"service": service, "product": product, "window": [a, b], "abr_levels": abr, "records": len(recs),
                       "invocations_seen": len(inv), "outcomes": outcomes, "exceededCpu": outcomes.get("exceededCpu", 0),
                       "single_build": {"n": len(single), "median": med(single), "max": max(single) if single else None},
+                      "single_build_by_map": {k: {"n": len(v), "median": med(v), "max": max(v)} for k, v in sorted(by_map.items())},
                       "rest": {"n": len(rest), "median": med(rest), "max": max(rest) if rest else None},
                       "beside_backfill_or_multi": beside,
                       "p99_all": allc[min(len(allc) - 1, int(0.99 * len(allc)))] if allc else None,
