@@ -13644,3 +13644,54 @@ The truth tables and sabotage sets are frozen in their own addendum before any c
 - A document that is not 200, or a structural prediction that fails: stop and report, with nothing trimmed.
 - A refusal by the trim tool: stop and report.
 - The raw documents are never committed and never printed.
+
+### A12.132 Step 2: the day capture made, every structural prediction held, but by a slip; then the trim REFUSED its own provenance string. Stopped, nothing written (Q97)
+
+**The capture: all six documents AS PREDICTED (20:02Z).**
+
+| # | document | predicted | measured |
+|---|---|---|---|
+| 1 | points | 200; three links present | **200; present** |
+| 2 | forecast | 200; 14 periods; every temperature °F and non-null | **200; 14; yes** |
+| 3 | hourly | 200; ≥ 48 periods, all °F | **200; 156; yes** |
+| 4 | stations | 200; ≥ 1 | **200; 75** |
+| 5 | observation | 200 | **200** |
+| 6 | alerts | 200; a feature list | **200; a list** |
+
+**Reported, as A12.131 said it would be:**
+- chance-of-precipitation nulls: 0 of 48 hourly, 0 of 14 periods;
+- **the first period is daytime,** as predicted for about 14:05 Dallas time;
+- one observation null, the gust;
+- **0 alerts.** So the populated alerts case will be the synthetic list.
+
+**The slip, in full.**
+- **What I meant to run:** a test of the tool's refusal of an output directory inside the repo. It was not meant to fetch anything.
+- **Why the refusal did not fire:** the tool compared paths as strings. Its root came out in the long spelling (`DanielFrenkel`), my argument in the 8.3 short spelling (`DANIEL~1`). So the real day capture ran, by the frozen tool and User-Agent.
+- **Where the raw documents went:** into an untracked folder inside the `wt-35c` worktree. They carry coordinates, an office, grid numbers, station ids and URLs.
+- **What happened to them:** they were moved outside the repo (`scratchpad/nws-raw/day`) within a minute. The tree was clean afterwards (`git status`). They were never staged, committed or printed: the tool prints counts only.
+- **The guard, fixed:** `inside_repo()` now compares each ancestor with the repo root by file identity (`os.path.samefile`).
+- **`--selftest`:** 4 checks, 0 failures:
+  - CN1 the root;
+  - CN2 a new subdirectory;
+  - **CN3 the same spelled with 8.3 short names;**
+  - CN4 CONTROL, a sibling is outside.
+- **Its sabotage,** the old string compare restored in a copy: exactly {CN3} red.
+- **The slipped spelling re-run with the network stubbed out:** `REFUSED`, exit 2, before any fetch.
+- **The data is kept:** it is the one day capture A12.131 froze, fetched with the frozen tool and User-Agent, and every prediction held. Re-fetching would be a second capture with nothing to correct.
+
+**The trim: REFUSED (stopped by A12.131's rule).**
+- **`trim_nws.py --selftest`:** 6 checks, 0 failures. A clean record passes; an extra key, `http`, `.gov`, `@` and a three-decimal number are each refused.
+- **On the real capture it refused one field:** `$.source`, `a banned fragment`.
+- **The cause is mine:** the provenance string I wrote reads "api.weather.gov, fetched once by the session…", and `.gov` is on the list A12.131 froze. Nothing came from the data.
+- **Nothing was written:** `test/fixtures/wx/nws/` does not exist.
+- **The tools** are committed locally on `weatherscope/swipe-screens` (`422eee0b3b4e`; `capture_nws.py` `d4d386375d59`, `trim_nws.py` `ee6820a145ac`), **not pushed.**
+
+**Q97. The provenance string.**
+- **(a) [recommended]** Name the source without its hostname: "the NWS API, fetched once by the session (A12.131), trimmed by trim_nws.py". The refusal list stays exactly as frozen.
+- **(b)** Exempt the `source` field from the `.gov` refusal. This opens a hole in the one check that keeps hostnames out of the image.
+- **Predicted after (a):**
+  - the trim writes `dallas-day.json` with 0 refusals;
+  - 48 hourly entries, 14 periods (the first daytime), 0 alerts and 5 synthetic alerts;
+  - under 8 KB.
+
+**Waiting on Q97:** the trim, and so step 3 (the host references for Daniel). The night capture (after 00:30Z) is independent and follows A12.131 as frozen.
