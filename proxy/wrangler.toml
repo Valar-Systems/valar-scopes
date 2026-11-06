@@ -59,6 +59,8 @@ bucket_name = "blipscope-wx-dev"
 
 # A1's stored packages (docs/basemap-a1.md). DEV/TEST ONLY here: tests get an in-memory bucket. Staging binds its own
 # bucket below; production gets one at D4. The builder never binds it, so the store stays read-only to the builder.
+# A1 ALSO NEEDS THE SECRET BASEMAP_NAME_KEY (docs/basemap-name-key.md): a bucket without it is treated as no bucket, with no
+# error, and /healthz's basemap.keyed is what shows it. The secret goes on first.
 [[r2_buckets]]
 binding = "BASEMAP_PKG"
 bucket_name = "blipscope-basemap-pkg-dev"
@@ -219,6 +221,7 @@ service = "blipscope-basemap-staging"
 
 # A1's stored packages (docs/basemap-a1.md): STAGING ONLY until D4. Its own bucket, so nothing here can write where the
 # store lives; read and written by this proxy alone.
+# Needs the secret BASEMAP_NAME_KEY too (see the note at the top-level binding).
 [[env.staging.r2_buckets]]
 binding = "BASEMAP_PKG"
 bucket_name = "blipscope-basemap-pkg-staging"
