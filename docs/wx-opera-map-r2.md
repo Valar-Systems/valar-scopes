@@ -54,6 +54,28 @@
 - If most production builds are cold, CPU per build could fall by about half. If most are warm, by little. §4's
   "about $1.8 total" depends on which, and is unproven until M6.
 
+## 3a. The readings before the push (2026-11-06)
+
+- **`tsc --noEmit`:** clean.
+- **vitest, the two files changed** (`test/wx-opera.test.ts`, `test/wx-ingest.test.ts`): **77 of 77 passed, exit 0.**
+  - It started at 19:44:01Z, in the slot the reviewer granted ~19:43Z, after the start rules held: TIME_WAIT 14 and
+    no other session's vitest.
+  - Two earlier 20-minute windows (to 19:04:38Z and 19:25:18Z) found the machine busy and gave up, as the suite rule
+    says.
+
+| row | got | verdict |
+|---|---|---|
+| **MP1** | `built`, then `r2`, then `cache`; one object under `wx/opuk/map/` after the first | as predicted |
+| **MP1s** (R2 level off) | the second cold build reads `built`; nothing stored | red, as predicted |
+| **MP2** | the three frames byte-identical | as predicted |
+| **MP2s** (one Int32 of `cellOf`: a no-coverage pixel, 496, moved into a covered echo-free cell, 145497) | through `r2`, the frame **differs** | red, as predicted |
+| **MP3** (an object written for a window one column narrower, under the right key and metadata) | `built` with `mapRefused: true`, the frame identical to MP2's; the next cold build reads `r2`, so the bad object was replaced | as predicted |
+| **MP3s** (validation skipped) | the wrong map is used: the frame **differs** (through `r2`) | red, as predicted |
+| **MP4** | **17,716,016 B = 16 + 4 x (2,224,675 window pixels + 2,204,325 cells)** | as predicted |
+| **MP5** | `opuk`'s storing check carries `map`; `cref`'s carries neither `map` nor `mapRefused` | as predicted |
+
+- The existing K-tests, PK1 among them, still pass through the new path.
+
 ## 4. CI and the merge
 
 - **Predicted: 34 = 31 success, 3 skipped, 0 failed.** It touches `proxy/`.

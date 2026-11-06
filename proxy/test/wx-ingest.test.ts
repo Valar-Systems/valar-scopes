@@ -158,6 +158,16 @@ describe("WS5: idempotent ingest", () => {
     expect(typeof r.pruned).toBe("number");
     expect(r.pruneKeys).toBeUndefined();
   });
+
+  // MP5 (docs/wx-opera-map-r2.md): the map field is an OPERA product's; cref's line carries none.
+  it("MP5: a cref storing check's result carries no map field", async () => {
+    const gz = await synthGribGz({ ...GRID, values });
+    const r = await ingestOnce(env.WX!, cref, NOW, fakeNoaa(() => [T2], gz).doFetch);
+    console.log(`MP5 cref ${r.status}: map ${r.map}, mapRefused ${r.mapRefused}`);
+    expect(r.status).toBe("stored");
+    expect(r.map).toBeUndefined();
+    expect(r.mapRefused).toBeUndefined();
+  });
 });
 
 // #472 (docs/wx-ingest-noaa-blips.md): the ingest rides out NOAA blips. Short timeouts are injected so these run in ms.
