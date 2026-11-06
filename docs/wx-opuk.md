@@ -2189,3 +2189,13 @@ objects after 1 days", for all prefixes, enabled**.
   - **R3′-5b′:** re-read at the redeploy + 70 min, twice, 10 min apart, as ruled ~23:00Z on 11-04.
   - **R3′-3 and R3′-4 (LHR):** re-read at the first firing + 10 min, as registered.
 - **No board hold**, as ruled.
+
+**The `opuk` redeploy (2026-11-06):**
+- `wrangler deploy -c wx-ingest-opuk.wrangler.toml` from the clean checkout of `9db83163`, top level: start
+  15:11:27.109Z, end **15:11:30.916Z, exit 0**, stderr 0 bytes. Bindings printed: `env.WX` (blipscope-wx),
+  `env.WX_INGEST` ("on"); schedule `* * * * *`.
+- **The version record** (`versions view --json`): **`a4e6c685-295b-4f7b-a839-e1ad12c633a5`**, bindings exactly
+  `WX` -> `blipscope-wx` and `WX_INGEST` = "on", `cpu_ms` 12000. As registered.
+- **First firing:** scheduledTime **15:12:14Z**, 44.9 s after the deploy's end (a version change, so no cron
+  propagation).
+- `cref` stays `257f49eb`, untouched.
