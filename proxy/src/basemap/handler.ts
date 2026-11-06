@@ -25,8 +25,10 @@ export type BasemapBranch = "304-known" | "304-kv" | "hit" | "stored" | "stored-
 
 export interface BasemapEnv { BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; ENRICH_KV?: KVNamespace }
 
-/** A1's constants, as ruled (Q-A1c). Mutable for tests only, which shorten the waits. */
-export const SYNC_WAIT_MS = 2_000, RETRY_AFTER_S = 15, LOCK_STALE_MS = 45_000;
+/** A1's constants, as ruled (Q-A1c). SYNC_WAIT_MS is set from the 2.5 s target (Q-SW1, docs/basemap-sync-wait.md): the
+ *  target minus the pre-race work's nearest-rank p95 over the slot's ten (570 ms) minus a 330 ms margin. Mutable for
+ *  tests only, which shorten the waits. */
+export const SYNC_WAIT_MS = 1_600, RETRY_AFTER_S = 15, LOCK_STALE_MS = 45_000;
 export const basemapTiming = { syncWaitMs: SYNC_WAIT_MS, lockStaleMs: LOCK_STALE_MS };
 /** A1's keys: the store id and the query's 24-hex digest only, never a coordinate (MS8). */
 export const pkgKey = (storeId: string, digest: string) => `bm/v1/pkg/${storeId}/${digest}`;

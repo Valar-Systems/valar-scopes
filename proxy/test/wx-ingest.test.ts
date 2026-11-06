@@ -139,6 +139,25 @@ describe("WS5: idempotent ingest", () => {
     expect(r.pruned).toBe(2);
     expect(left).toEqual([frameKey(cref, young), frameKey(cref, e2)].sort());
   });
+
+  // PK4 (docs/wx-opera-europe.md section 11), the control: only OPERA products prune by key; cref still lists.
+  it("PK4: cref still prunes by listing -- its storing check lists, and carries pruned, not pruneKeys", async () => {
+    let lists = 0;
+    const WX = new Proxy(env.WX!, {
+      get(t, prop) {
+        const v = Reflect.get(t, prop);
+        if (prop === "list") return (...a: unknown[]) => { lists++; return (v as (...x: unknown[]) => unknown).apply(t, a); };
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    }) as R2Bucket;
+    const gz = await synthGribGz({ ...GRID, values });
+    const r = await ingestOnce(WX, cref, NOW, fakeNoaa(() => [T2], gz).doFetch);
+    console.log(`PK4 cref ${r.status}: ${lists} list(s), pruned ${r.pruned}, pruneKeys ${r.pruneKeys}`);
+    expect(r.status).toBe("stored");
+    expect(lists).toBeGreaterThanOrEqual(1);
+    expect(typeof r.pruned).toBe("number");
+    expect(r.pruneKeys).toBeUndefined();
+  });
 });
 
 // #472 (docs/wx-ingest-noaa-blips.md): the ingest rides out NOAA blips. Short timeouts are injected so these run in ms.
