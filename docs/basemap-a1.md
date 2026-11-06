@@ -523,6 +523,17 @@ default. `Default Multipart Abort Rule`: enabled, all prefixes, "Abort incomplet
 | step 4 not OK | stop and report. No second add and no removal without a ruling |
 | **anything else** | stop and decide |
 
+**Read (2026-11-06, registered at `f7bf74af`, 03:10:15Z; every step as predicted):**
+
+| step | read | verdict |
+|---|---|---|
+| **1. `--selftest`** | 12 of 12 as registered, exit 0. L-ABSENT read MISSING; the four B- plants read BLIND | as predicted |
+| **2. before the add** (03:10:29Z and 03:11:31Z) | **MISSING, exit 1, both times;** the only rule listed was `Default Multipart Abort Rule` | as predicted |
+| **3. the add** (03:11:44Z) | exit 0, with an empty stderr: "Added lifecycle rule 'bm-pkg-30d' to bucket 'blipscope-basemap-pkg-staging'." | as predicted |
+| **4. after the add** (03:11:53Z and 03:12:54Z) | **OK, exit 0, both times:** `Default Multipart Abort Rule` unchanged, and `bm-pkg-30d`: enabled Yes; (all prefixes); "Expire objects after 30 days" | as predicted |
+
+**The rule is on `blipscope-basemap-pkg-staging` now.** Production's bucket gets the same command and check at D4.
+
 ### 4c. The slot's create-once rows (registered now, read in the slot)
 
 These are added to section 6's set. They run first, before the other nine airports.
