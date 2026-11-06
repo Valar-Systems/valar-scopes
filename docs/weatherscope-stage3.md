@@ -14236,3 +14236,24 @@ Found by adding each list up against its own total after the push. Neither chang
 | Q104, "Where" | 38 files under `tools/weatherscope/` | **35 run records there.** The other two are tools, already among the "3 scripts or tools": `run_b.py` and `trace-close/run.ps1`, with `scripts/fresh-boot-acceptance.sh` |
 
 **Q104's total is 61 distinct files:** 16 in `bench-logs/`, 35 run records, 6 docs, `CLAUDE.md` and 3 scripts or tools. The table's 59 and 4 overlap in 2 files.
+
+### A12.142 Q102-Q104 ruled (~22:49Z); M0 restated on main at `6d7823e11c24`; step 5 goes
+
+**The ruling:**
+- **Q103 (a).** W-CR stands: it graded the cap, and the cap's code is byte-identical. M8 stays on record as my miss. The merged HTTP code gets its board read at 3.5c's board run (step 7). M9 and M10 run, then the push behind both guards, with CI as predicted.
+- **A move of main before the push:** one that touches nothing under `src/`, `include/`, `test/host/`, `tools/`, `platformio.ini`, `skus.yml` or `.github/` is restated like A12.137, with M0's trial re-run and M10 read on the new merge commit. Anything else is a stop.
+- **Q102 (a).** Both rules, T1 and T2, each with a planted twin of its form.
+- **Q104 (a), Daniel's call.** The scrub extends to the device-name suffixes. History stays untouched.
+- **3.5c step 4 accepted.** Daniel has looked, and step 5 goes.
+
+**The lesson from M8, for later size predictions:** an unreferenced function's unwind record (`.eh_frame`) can stay in the image after the linker drops the function.
+
+**M0, restated.**
+- **The move:** main is at `6d7823e11c24`, recorded in A12.139, one commit past the merge commit's second parent `1ce7a73a5e60`.
+- **What it touches:** `docs/device-activation.md` and `docs/factory-image-plan.md`, and nothing in the ruling's paths.
+- **The trial:** 0 conflicted files, tree `84ba2d862cd1`.
+- **The new merge commit** goes on top of `1ff5bf6c9d61`, and its tree is that one.
+
+**On that commit:** M9 and M10 are read, as predicted in A12.136. M1-M8 stand, because the commit adds only those two docs.
+
+**The CI prediction is unchanged:** PR 34: 30/4/0; main on the squash 34: 31/3/0. Main's head is a docs commit, so its own run reads 32 (30 success, 2 skipped); the web-renderer workflow does not run on docs. The job-set baseline stays main's run on `caf63cc9d9cc`.
