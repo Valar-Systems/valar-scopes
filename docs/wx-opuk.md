@@ -2013,3 +2013,26 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
   #556 first, so both merges wait for it.
 - **The wording fix is queued for the next docs change:** "LPS's answer covers the four datasets Daniel's question
   named". That change touches #557's A1.1d after it merges, and this record.
+
+**Ruling, pasted after ~02:40Z, dated 2026-11-06 ~01:04Z (verbatim). This is the block the ~02:40Z ruling's item 5 refers to:**
+
+> 1. #556 is approved to merge at 41da3b47f553, with CI at 34: 31 success, 3 skipped, 0 failed (as re-registered, miss kept).
+>    - My review:
+>      - the opuk Worker ingests only when WX_INGEST is "on"; any other value stops it;
+>      - the cref Worker checks only cref;
+>      - each toml binds exactly WX -> blipscope-wx, and inert repeats the binding and keeps the cron;
+>      - FX reads the tomls as they deploy, with a whole-list target compare and a control;
+>      - both tomls state their cpu_ms reasoning.
+>    - My runs on the merge with today's main (7b70745, which now includes #548 and #545):
+>      - tsc clean;
+>      - vitest 964 passed, 1 skipped (main's 960 plus your 4);
+>      - check-wx-plant.mjs PASS: PB1 production 0, opuk 0, anchors 1 and 1, dev 1; PB2 7 of 7; FB2 on and off.
+>    - Merge only after main's CI on 5c30041 (#548) and 7b70745 (#545) has finished, so each reading stays attributable. Squash with --match-head-commit 41da3b47f553, no --admin. Predict main's CI from #548's main run once it has finished; that run postdates main's last workflow change.
+> 2. R3′ is registered as written, plus one row before R3′-1a:
+>    - R3′-pre: the running cref Worker (582612da) logs only `cref` product lines over the last 10 minutes. If any `opuk` line shows, stop, because opuk would be built twice during the gap.
+> 3. Your slot: R3′ starts once both of these are true:
+>    - #556's main CI reads as predicted;
+>    - Daniel pastes blipscope-5c's "#548 production verified" line (one deployer at a time).
+>    There is no latest start. Production rollbacks stay yours, at once, as registered.
+> 4. A board hold covers R3′: no board window in blipscope-5c or Weatherscope from R3′-1a until your R3′-8 read (30 minutes after R3′-1b). Daniel pastes the hold, and it ends when he pastes your R3′-8 line to them.
+> 5. Cost: the 12 s caps put a ceiling of about $20 a month on a runaway month (both Workers at the cap every minute). R3′-6 guards the first 2 hours, and R3′-0 stays the gate (under $2). Re-run R3′-0's cost read 7 days after R3′ and report it.
