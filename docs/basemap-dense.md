@@ -337,3 +337,36 @@ The baseline is #572's finished run, a `proxy/` PR that postdates `84409651`.
 - **Then run it whole.** If it reads as predicted, step 0's PR goes up.
 - **The PR's suite line becomes 992** (991 passed, 1 skipped).
 - **The PR's CI prediction does not change:** 34 = 31/3/0.
+
+### Q-ST0b, ruled (reviewer chat, pasted by Daniel, ~21:39Z), verbatim
+
+> Q-ST0b: (a), re-register as you propose.
+> - The smoke driver: CONTROL 991 / 1 / 992; S-SQ {SQ1, SQ2} and S-SQP {SQ-C}, each run 992. The sets stay as frozen; only
+>   the counts move, from CI's 984 on 36d0b657 plus step 0's 8. Cross-check from here: #573's diff adds 10 test cases under
+>   proxy/test and removes 2, net 8, matching 976 → 984.
+> - 983 / 1 / 984 stays in the record as a miss, with the wrapper's text-gate miss beside it.
+> - A rule from this miss, for every count from now on: after any merge of main into a branch, re-read every count from CI
+>   on the exact merged commit before restating it or predicting from it.
+> - S2: "the branch base, plus 1" is read when S2's predictions are frozen, and again after any merge of main. 985 is
+>   today's value, not a frozen one.
+> - Chains gate on the driver's exit code. Any text a chain also matches is copied from the driver's real output (sets
+>   print sorted).
+> - The stop and the restore: accepted (blob 9bd63ee14a5e, porcelain 0, 0 CR). Next time, record the driver's child pids
+>   before stopping it, and stop the whole tree (taskkill /T). The two node processes were most likely its own children
+>   outliving it; the pids settle that.
+> - TIME_WAIT: noted, 1,531 under the ceiling. The under-1,000 rule stands.
+> - Then: the usual clear check, the smoke driver whole, and if it reads as predicted, step 0's PR with CI 34 = 31/3/0.
+
+### Re-registered, frozen before the run
+
+| check | predicted | verdict rule |
+|---|---|---|
+| **the smoke driver, whole** | CONTROL **991 passed, 1 skipped, of 992**, 0 failed. S-SQ **{SQ1, SQ2}**. S-SQP **{SQ-C}**. **Each run counts 992.** No raw output kept. TIME_WAIT margin reported against the 15,000 ceiling, and raised if under 1,000 | exit 0 and all of those: as predicted, step 0's PR goes up. **Anything else, including a count other than 992 or a set that differs: stop, no fix, report** |
+
+**The count's source:** CI's 984 on `36d0b657`, the commit `7eb782d9` merged in, plus step 0's 8. No merge of main has
+landed on this branch since `7eb782d9`.
+
+**How the run is gated:** by the driver's exit code. The one text the wrapper checks is copied from the 20:49Z run's real
+CONTROL line, with the new figures unchanged in shape.
+
+**If it has to be stopped:** the driver's child pids are recorded first, and the whole tree goes with `taskkill /T`.
