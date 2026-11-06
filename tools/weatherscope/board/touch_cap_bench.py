@@ -1,4 +1,4 @@
-"""W-CR (docs/weatherscope-stage3.md A12.119-A12.122): the touch-wedge cap on 907069326E64, with the bench image
+"""W-CR (docs/weatherscope-stage3.md A12.119-A12.122): the touch-wedge cap on 6E:64, with the bench image
 weatherscope-touchbench-s3-128 (TouchBench.h: the chip DEAD from boot, idle 20 s, healthy reset 180 s).
 
     <penv python> -I tools/weatherscope/board/touch_cap_bench.py chain   <COMx> <board-ip> <out dir>
