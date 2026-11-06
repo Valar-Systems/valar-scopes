@@ -148,3 +148,6 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 |---|---|---|
 | **MD-0** (21:24:36-21:24:40Z) | `b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%; `wx/opuk/map/` **0 objects** | as predicted |
 | **MD-1** (`versions view --json`) | `a55d1557`: bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 | as predicted |
+| **first firing** | scheduledTime **21:25:14Z**, 8.9 s after T | printed |
+| **MD-2** (first firing + 10 min, 21:35:19Z) | `wx/opuk/map/`: **1 object, 17,716,016 B**. `wx.opuk` `frameAgeS` **320**, `coveredShare` **0.7508**. LHR, on `/wx/cref` and `/wx/opuk`: ETag **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` 1794000600 (21:30:00Z), the frame `/healthz` names at 21:35:26Z (326 s). Controls: Bend and KMCI `cref`, no max-age | as predicted |
+| early look at MD-3 (T to 21:34:14Z, read 21:35:26Z, 900 s pieces, ABR [1]) | 18 `opuk` lines. The **first storing check, 21:29:32Z: `stored`, `map` `built`, `pruneKeys` 900**, no `pruned`, no `mapRefused`; already-stored 17; **0 error lines** | as MD-3 predicts; MD-3 itself is read at T+72 min |
