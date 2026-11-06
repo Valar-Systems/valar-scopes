@@ -5370,3 +5370,23 @@ default becomes `"true"`. A new header rather than a line in `WxPolicy.h`, so no
 block: Weatherscope's theme switch (A12.43). The write was refused. The names above are now `WxLayerSwitch.h`,
 `wxlayerswitch::On`, `test_wx_layer_switch.cpp`, `sabotage_wx_layer_switch.py` and "WX layer switch"; every row and
 every prediction is unchanged.
+
+### The layer on by default, results (2026-11-06, 21:39-21:47Z, local)
+
+| | read | verdict |
+|---|---|---|
+| **WS1-WS4** | unset on, `"true"` on, `"false"` off, any other value off | as predicted |
+| **S-WS-today** | restoring today's rule: red rows `WS1` | **as predicted, exactly the unset case** |
+| **S-WS-always** | red rows `WS3`, `WS4` | as predicted |
+| **S-WS-notfalse** | red rows `WS4` | as predicted |
+| **WD5b** | AircraftManager's 1 read through `wxlayerswitch::On`; the page's 1 default `"true"`; each of today's rules, planted, turns exactly its own check red; every other check and plant unmoved | as predicted |
+| **WO1** | `check_wx_off`: exit 0, `wx-layer "false"` in the map (8 entries) | as predicted |
+| **WO2** | the entry removed: exit 1; control and the `"true"` plant hold | as predicted |
+| **B1** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` built, stamped after the code commit | as predicted |
+| **run.sh** (g++ 13.3.0) | exit 2 from exactly "the same TU, for the board" and "Weatherscope R0 and R0b", `sabotage_wx_towns.py` SKIP, nothing else red; "WX layer switch" passes | as predicted |
+
+**WO3 and CI** are read on the push.
+
+**My misses, both before any reading:** the name collision corrected above; and the driver's first plants ended in a
+`//` comment, which swallowed the closing brace of a one-line function, so they did not compile. That was the rig
+(exit 2), not a reading: the plants now use `/* */`.
