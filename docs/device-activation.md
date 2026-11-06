@@ -966,3 +966,61 @@ decision.
   after 08:00Z. The UK session's R3′ waits on the "#548 production verified" line. Staging now
   runs `5c300417`, without basemap A1's code; a staging deploy from main carries #548 as an
   ancestor.
+
+**The ruling (~03:25Z): (a).**
+
+- **Rollback target, recorded first (03:26:50Z):** production on `5e7f481c`, `/healthz`
+  `3e0a444` on two reads. From the root, main's lead in `proxy/` was exactly `9b511dc2` and
+  `9db83163`.
+- **Production, 03:27:08Z to 03:28:12Z: as predicted.**
+  - `ALLOW_BEHIND=1 ./scripts/deploy.sh production` from `5c300417`, exit 0. The warning listed
+    exactly `9b511dc2` and `9db83163`. The new version is `3053d6b4`, and the binding list shows
+    `env.ACTIVATION_GATE ("watch")`.
+  - `/healthz` read `5c300417` in the confirmation and on two more reads.
+  - The test identity's `/config`: 200, `pollNightMs` 60000.
+  - Smoke: PASS 38, FAIL 0. The enrol POSTs are refused before the gate: 403 `unverified` and
+    400 `bad_request`.
+- **The sweep: outside the set, stopped (03:28:47Z).** The token-id sweep and C1 have not run.
+  - **The reading:** `sweep --ledger` exited 1: "23 unique id(s) from the enrolment ledger;
+    swept 23, activated 22, stamped 22, unstamped 1". Predicted: 22, 22, 22, 0.
+  - **The cause:** the enrolment ledger grew after it was seeded. G-1's ledger seed read 22 ids
+    at 20:21:39Z. A read-only check (`diag548/extra-id.mts` in the session scratchpad; it prints
+    counts, states, field names and times to the minute, and never an id) found exactly one
+    ledger id that is not activated and stamped:
+    - it has **no `act:` row**;
+    - its `enr:dev:` row says first and last enrolment **2026-11-05T23:30Z**;
+    - its `fw:` row is an `s3-128`, first and last seen 23:30Z.
+    It enrolled about three hours after the seed, while production still ran `3e0a444` with no
+    gate, so nothing refused or counted it.
+  - **The alternative, and why it is excluded:** one of the 22 seeded rows lost its stamp or its
+    state. Excluded because the 22 ids the seed wrote all answered `activated` with a stamped
+    `gen`, and the one odd id has no row at all. It is a 23rd id, not one of the 22.
+  - **Whose board, as inference only:** not the #545 bench board on the timing. That board's
+    Wi-Fi setup was at 20:47Z (P4), and it was fully erased again at 21:03Z (the Download Tool
+    run). `fw:` refreshes `lastSeen` at most hourly while a device is in use (`src/fleet.ts`), so
+    a `lastSeen` of 23:30Z, read at 03:30Z, means no request since about then. A board online for
+    under an hour fits a test or a short setup better than a desk unit left running, but the data
+    does not exclude a customer's unit.
+  - **The gap this exposes:** the ledger seed was a snapshot taken seven hours before the
+    deploy. The sweep's "22" was frozen from that snapshot and never re-read just before the
+    deploy: an anchor against a target that was still moving.
+- **Proposed, for a ruling (not run):**
+  - **(A), recommended:** grandfather it, since it enrolled before the gate existed. Re-run
+    `seed --ledger --state activated`. A seed never rewrites an existing row (`planSeed`), so it
+    writes only rows that are missing. **The guard comes first:** the ledger can now also grow
+    by watch-mode enrolments of unlisted boards, and a ledger seed would grandfather those too.
+    So immediately before the seed, `extra-id.mts` must read 23 ledger ids and exactly one
+    without an activated row, with a first enrolment before 03:27:08Z.
+  - **(B):** leave it unlisted. Watch counts it if it ever enrols again, and C1 reads exit 1,
+    missing 1, until it is decided. It must be decided before enforce.
+- **Frozen predictions for (A):**
+
+| step | predicted | outside the set |
+|---|---|---|
+| the guard (`extra-id.mts`) | ledger ids 23; exactly 1 not activated and stamped, no `act:` row, first enrolment 2026-11-05T23:30Z | anything else: **stop, nothing written** |
+| `seed --ledger --state activated` | read 23, already present 22, written 1, repaired 0, missing 0 -> COMPLETE | read not 23, or written not 1: **stop and report** |
+| `sweep --ledger` | swept 23, activated 23, stamped 23, unstamped 0 | any unstamped: **stop** |
+| `sweep --token-ids test-device,records-device` | swept 2, activated 2, stamped 2, unstamped 0 | any unstamped: **stop** |
+| C1 (`activation-coverage.ts`) | exit 0, missing 0 | **stop** |
+
+  25 stamped in all. Under (B): the token-id sweep as above, then C1 exit 1, missing 1.
