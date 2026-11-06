@@ -13299,3 +13299,75 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
   - **S-ID2b (the scope only)** still fails exactly {M1, M2, M3, O4-v-a, O4-v-b}. The new row's empty scope adds more cross-board, same-scope pairs.
   - No failing check becomes vacuous.
 - **When #571 merges main after #445,** that merge is predicted from 8 identities, on its own.
+
+### A12.128 W-CR's graded rows accepted; B4 and B4c re-taken in W-CR2 (19:15Z-19:45Z). The runner fix proven, the plan branch scrubbed, pushes gated
+
+**The ruling (~18:52Z):**
+- **Accepted as predicted:** B0, B1, B2/B3, B5 and B6. B5's 179.9 s is recorded within the trace's ~0.2 s resolution.
+- **B4 and B4c are unread** (BLIND, my launch miss). They are re-taken in a new announced window with the fixed runner and the frozen predictions; W-CR completes only then.
+- **Before that window:** prove the runner fix, with hashes and one sabotage per fix. Record whether every B5 and B6 fetch succeeded.
+- **The guard slip is recorded.** Every push is now gated with `&&` on the exit codes of `check_wifi.py` and `check_device_ids.py` over the whole tree.
+- **The plan branch:** merge main in, taking main's scrubbed copies on conflicts, and report the whole-tree count before and after.
+
+**B5's and B6's fetches, recorded:**
+- **B5:** all six `/diag/fb` fetches succeeded, each 115,200 B. The three after `w` show the strip (light); the three after the reset show none.
+- **B6 makes no fetch.** Its rows are the `verify-flash` pair, the serial boot read and TCP :80.
+- **So no B5 or B6 row is unread.**
+
+**The runner fix, proven** (`tools/weatherscope/board/touch_cap_bench.py`, sha256 **`7659be50aefc`**):
+- **What changed:** the four frame rows now go through `grade_frames()`. Any failed fetch prints `INSTRUMENT -- unread` and records the row as unread, never as a pass or a red. `valid_address()` refuses anything that is not dotted IPv4 with every part ≤ 255, before any port is opened.
+- **`--selftest`,** 6 checks, no hardware:
+  - ST1 and ST2: three failed fetches on B4c's row and on B4's read INSTRUMENT;
+  - ST3 CONTROL: real frames are graded both ways;
+  - ST4: one failure among three leaves the row unread;
+  - ST5: an empty address exits 2, `REFUSED`;
+  - ST6: a name, a part over 255, and three or five parts are refused; CONTROL: `192.0.2.1` is accepted.
+- **The order, disclosed:** the clean selftest ran once (6 / 0) before the sabotage sets were written down. The sets were frozen in the driver before either plant ran.
+- **`tools/weatherscope/board/sab_touch_cap_bench.py`** (sha256 **`e28cdf1cecfe`**):
+
+| plant | change | fails |
+|---|---|---|
+| control | none | **6 checks, 0 failures** |
+| **S-TB1** | W-CR's defect restored: a failed fetch counted as a frame | **{ST1, ST2, ST4}** |
+| **S-TB2** | the address check removed | **{ST5, ST6}** |
+
+- Exactly those sets. The real runner was unchanged by the run.
+
+**The plan branch, scrubbed: `ab509eb86419`.**
+- **Before** (main's `check_wifi.py` over the whole tree at `dd28057d15f4`): **name 102, bssid 22, lan 102 -- FAILED.**
+- **The merge:** main merged in, with 27 conflicts.
+  - **26 take main's copy:** the branch's old Weatherscope code and tests, the 2026-10-25 run record (`serial.txt`, `trace.txt`), the basemap format doc, and two loop/screens tools.
+  - **One keeps this branch's copy:** `docs/weatherscope-stage3.md`. Main's is an older snapshot, and taking it would delete A12.103-A12.127. This is the one deviation from "main's copy on any conflict", made because of what the file is. The scan shows it carries no finding.
+- **What differs from main afterwards:** three files, the plan doc and the two `run-2026-10-26-glassX` files. Everything under `src/` and `test/` is identical to main.
+- **After: name 0, bssid 0, lan 0 -- OK.**
+- **The push** went only through `check_wifi.py && check_device_ids.py && git push`, after checking the remote tip was the merge's first parent.
+
+**PR #571:**
+- **At `d6d36fd057f1`:** read twice after it finished, **33 checks: 29 success, 4 skipped, 0 failed. AS PREDICTED.**
+- **At `138c68d7ba3f`** (the runner proof; two files under `tools/weatherscope/board/`, which no check builds): **33 checks, 29 success, 4 skipped, 0 failed,** with the web job derived, not built here.
+- **Disclosed:** this prediction was written about two minutes after the push, but before any check could finish.
+
+**W-CR2 is announced: 19:15Z to 19:45Z, on `907069326E64` only.** Its purpose is to re-take B4c and B4.
+
+**The steps:**
+1. B0: `verify-flash` pass and control.
+2. The bench image (`10942a49ae98`) through `app-only-write.py`.
+3. **Wait until TCP :80 answers, then resolve the address. The launch refuses to start unless it is IPv4,** and the runner refuses it too.
+4. `chain` (runner `7659be50aefc`).
+5. `clear`, which also returns `touch-wd/run` to 0.
+6. B6: the clean image, `verify-flash` pass and control, `bootread`, TCP :80.
+
+**Graded here, as frozen in A12.122:**
+- **B4c CONTROL:** at T0 + 40 s in boot 1, the strip in **0 of 3** frames.
+- **B4:** at boot 4 + 40 s, the strip in **≥ 2 of 3**.
+
+**Everything else is re-measured against its existing prediction and reported** (B0-B3, B5, B6). Should a re-measured row differ, it is reported as found, not re-graded.
+
+**Stops:**
+- **A failed fetch** makes its row INSTRUMENT (unread). It is reported, not retaken inside the window.
+- **If B0's `verify-flash` pass case fails:** stop and report, and write nothing.
+
+**The overlap with blipscope-5c's rescheduled E2:08 window, recorded:**
+- W-CR2 touches only `907069326E64`, through the port resolved from its serial.
+- E2:08 is another board on another port, and no process or port is shared.
+- If the two windows overlap, this is the record of it.
