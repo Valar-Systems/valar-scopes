@@ -2064,3 +2064,20 @@ each merge.
     (`no-real-device-ids`). The set of jobs is unchanged, so the prediction's basis stands under the refined rule.
     **Main's last workflow change is now `259e8688`, steps only.**
 - **For #557's merge:** main's head is re-read, and its CI checked finished, in the same command that merges.
+
+**Main's CI on #556's merge `9db83163a60d`, finished 03:12:53Z: as predicted.**
+- **34 check-runs: 32 success, 2 skipped, 0 failed.** The workflows were device-ids, firmware, no-traffic-captures
+  and workers, all `success`.
+- **Proxy suite 964 passed, 1 skipped (965).**
+- `259e8688`'s own run finished separately, 03:10:43Z: 31, 29 success, 2 skipped.
+- **R3′'s first condition is met** (#556's main CI as predicted). The second, Daniel pasting blipscope-5c's "#548
+  production verified" line, is awaited.
+- **The deploy checkout** is `wt-plan-s`, detached at `9db83163a60d`: clean, lockfile unchanged, `node_modules`
+  valid.
+
+**#557's merge, guarded:** main's head is re-read, and its CI checked finished with 0 failures, in the same command
+as the merge.
+- At 03:13:19Z main had moved again, to `9b511dc274c3` (another session's `/basemap` A1 code, no workflow change),
+  with one run pending. **The guard refused, and nothing was merged.**
+- A background loop retries the same guard every 30 s for up to 40 min. It merges only when the head it read is
+  still main's head and that head's CI has finished clean.
