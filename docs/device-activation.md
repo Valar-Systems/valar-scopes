@@ -909,3 +909,60 @@ decision.
   Then the rest of the table above, unchanged. If the ruling lands after 06:00Z, production waits
   for 08:00Z, the end of #540's night window. Staging can go as soon as the re-run reads as
   predicted.
+
+**The ruling (~02:40Z):** the cause is accepted, and `b548_bundle.py` is approved to run as written.
+
+- **The bundle proof, re-run at 02:58:07Z: as predicted.**
+  - Graded run: the anchors pass (meta `53f98177f73d`, 51 inputs, 17 changed). Changed and in the
+    bundle: exactly the six. Exit 0.
+  - **S-B1:** `CANNOT SEE: A-CR (50 inputs and 0 changed lines carry a CR)`, exit 2.
+  - **S-B2:** the other five, then `OUTSIDE THE SET: predicted and absent: src/enroll.ts`, exit 1.
+- **Rollback targets, re-read at 02:58:17Z: as predicted.** Staging `968d9f23`, production
+  `5e7f481c`.
+- **Staging, 03:00:58Z to 03:02:08Z: as predicted.**
+  - `deploy.sh staging` from `5c300417`, exit 0. The new version is `6833b32c`, and the binding
+    list shows `env.ACTIVATION_GATE ("enforce")`.
+  - `deploy.sh`'s own fetch: "2 commit(s) behind origin/main, none touching proxy/".
+  - `/healthz` read `5c300417` in the confirmation and on two more reads.
+  - Smoke as the test identity: PASS 38, FAIL 0.
+  - The enrol POSTs are refused before the gate: 403 `unverified` and 400 `bad_request`.
+  - **#548 staging verified at 03:02Z.**
+- **Production: outside the set, stopped (03:02:43Z).**
+  - **The reading:** `deploy.sh production` refused, exit 1, with "this tree is 2 commit(s) behind
+    origin/main in proxy/". Nothing was uploaded, and `/healthz` still reads `3e0a444` on two reads.
+  - **The cause:** main moved. Two `proxy/` commits from other sessions landed between 03:01Z and
+    03:02:40Z: `9db83163` (#556, the opuk split) and `9b511dc2` (basemap A1).
+  - **The alternative, and why it is excluded:** a stale ref inside `deploy.sh`. Excluded because
+    `deploy.sh` fetches `origin main` itself, and, from the worktree root, `git rev-list` reads 2
+    commits in `proxy/` and names exactly these two.
+  - **My own pre-check was blind.** It read "0 behind", but it ran from inside `proxy/`, where
+    `-- proxy/` names `proxy/proxy/`, so it could only ever read 0. The guard that executes caught
+    what that check could not. A path-scoped check runs from the root.
+- **What the two commits carry.** Neither changes production's config:
+  - `9b511dc2`'s `wrangler.toml` change adds the `BASEMAP_PKG` bucket for dev/test and staging only
+    ("production gets one at D4"). Its code (`src/basemap/*`, `src/types.ts`) is in the proxy
+    bundle.
+  - `9db83163` changes the wx-ingest Workers' own tomls and entry files. The proxy bundle imports
+    neither entry file.
+  - Production runs `3e0a444`, which has neither commit. So deploying `5c300417` reverts nothing
+    production runs. `deploy.sh`'s word "REVERTED" is measured against main's tip.
+- **Proposed, for a ruling (not run):**
+  - **(a), recommended:** `ALLOW_BEHIND=1 ./scripts/deploy.sh production` from `5c300417`. That is
+    the commit whose bundle was proven and that staging runs. Main's two commits reach production
+    in their own sessions' deploys, which carry #548 as an ancestor.
+  - **(b):** merge main into the deploy tree and deploy its tip. That would put basemap A1's code
+    in production ahead of D4, and the opuk split's code outside its session's slot. It would also
+    need a new bundle proof. Not recommended.
+- **Frozen predictions for (a):**
+
+| step | predicted | outside the set |
+|---|---|---|
+| `deploy.sh`'s banner | `ALLOW_BEHIND=1`, listing exactly `9b511dc2` and `9db83163` | any other commit listed: **stop and ask** |
+| the upload | the binding list shows `env.ACTIVATION_GATE ("watch")` | anything else: **stop** |
+| production's checks | `/healthz` `5c30041` on two reads; smoke 38 PASS, 0 FAIL; the test identity's `pollNightMs` 60000 | **stop**; roll back to `5e7f481c` |
+| the sweep, then C1 | as in the table above: 24 stamped, then exit 0 | as above |
+
+  Production goes only outside 06:00-08:00Z; if the ruling lands after 06:00Z, it waits until
+  after 08:00Z. The UK session's R3′ waits on the "#548 production verified" line. Staging now
+  runs `5c300417`, without basemap A1's code; a staging deploy from main carries #548 as an
+  ancestor.
