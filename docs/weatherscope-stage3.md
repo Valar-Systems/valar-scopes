@@ -13891,3 +13891,69 @@ The bars (graphic): dark 11.1404, light 4.5143.
 - the device-id and Wi-Fi checks still green;
 - the survey re-run on main at PR time, since main will have moved;
 - the PR after #445 and #571, CI predicted before the push.
+
+### A12.136 Merging main into #571: its own prediction, from 8 identities, before the merge commit
+
+**Recorded first:** #571's run at `6e55431d3e5c` read **33 checks: 29 success, 4 skipped, 0 failed**, twice, as predicted.
+
+**The state, read twice (21:38Z and 21:40Z, unmoved):** main is `caf63cc9d9cc` (#445 merged). #571 is `6e55431d3e5c`, clean. The merge base is `000112ae8d41`.
+
+**The trial, `git merge-tree --write-tree`:** 0 conflicted files, tree `35b78a648a6e`. That is a text result, not a build. Five files changed on both sides, and all five merge automatically:
+
+| file | main adds | #571 adds |
+|---|---|---|
+| `platformio.ini` | +12 lines | +13 lines |
+| `src/AircraftManager.cpp` | +514 / -26 lines | +22 / -144 lines |
+| `src/AircraftManager.h` | +82 lines | +4 / -8 lines |
+| `src/ConfigurationWebServer.cpp` | +33 / -1 lines | +35 / -8 lines |
+| `test/host/run.sh` | +205 lines | +23 lines |
+
+**What #445 could have broken, read before any code.** The hold rests on two premises: every user save goes through `SaveScope`, and every flash write sets `FlashWriteActive`. So I read main's diff for a second path:
+- **No new write route.** The merged tree keeps the same three `SaveScope` sites (`/save`, `/location`, `/enroll-key`). #445's one new route is `/diag/wx`, a GET.
+- **Its two saved keys sit inside `/save`,** under that handler's `SaveScope`: `wx-layer` at line 3833 and `wx-look` at line 3835 of the merged file (the handler opens at 3640).
+- **No new writer.** No added line under `src/` or `include/` holds `Preferences`, a `put*` call, `nvs_*`, `Update.`, `esp_partition_*`, `esp_ota_*`, `LittleFS` or a restart.
+- **The names #571 removed are gone.** `touchWedge`, `touchWedgeStored`, `touchWedgeSeenThisBoot`, `AtBoot` and `OnRung` each appear 0 times in the merged `AircraftManager.cpp` and `.h`.
+- **The strip stays on top.** `DrawWeatherUnder` replaces the clear in `main.cpp`, before `appManager.Draw`. `DrawTouchUnavailable` is still called last inside `Draw`.
+- **The cap's sites are untouched.** #445's nearest changed line is 17 lines from any of the 7 `touchCap` sites (`DrawWeatherNote`, the function above).
+- **Byte-identical to #571's head:** `TouchWedgeCap.h`, `TouchWedgeDevice.h`, `SaveLock.h`, `TouchBench.h`, all of `src/weatherscope/`, `test_touch_wedge.cpp`, `test_touch_wedge_cap.cpp`, the cap's driver and the board tools. Main left `src/TouchWatchdog.*` unchanged.
+
+**The 8 identities.** The reviewer asked for a report if the new row breaks a set's logic. **I see no reason it does.** `blipscope-s3-128-wxlook` is one more radar-scope row on s3-128, with no slug. Main's test already holds the counts I derived, so they are checked here on the merged tree, not changed by it.
+
+**Predicted, in order. The first off reading stops everything, with nothing pushed:**
+
+| row | what | predicted |
+|---|---|---|
+| **M0** | the merge commit | tree `35b78a648a6e`, no hand resolution. If main moves first, the trial is re-run and this addendum restated before the commit. |
+| **M1** | every driver's anchors, before the full run | **33 of 33** `--anchors` exit 0: 31 `test/host` drivers (35 `sabotage_*.py` less the 4 `run.sh` excludes: main's 30 plus #571's) plus `plant_s_swb.py` and `plant_s_tw.py`. `plant_s_wait.py` finds each of its 2 anchors once. |
+| **M2** | `run.sh` under WSL g++ 13.3 | **exit 2.** Failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b". `sabotage_wx_towns.py` SKIP in both driver passes: "31 driver(s): 30 run, 1 skipped". Count lint 0 of 31 flagged. Every other block ok. Started only once no other session's `run.sh`, sabotage or vitest process is running. |
+| **M3** | R1, the radar's own test | byte-identical; 44 `ok`, exit 0, output sha256 `2d401f4b9543` |
+| **M4** | the cap | `32 checks, 0 failures`; S-CR1 to S-CR5 fail {CR1, CR2, CR4, CR28}, {CR5, CR6}, {CR18, CR19, CR20}, {CR9, CR10, CR11}, {CR30, CR31} |
+| **M5** | OTA identity | 22 checks, 0 failures. R1 24; M1 38 accepted, 26 refused, 0 off; M2 78 of 78 refused; M3 16 accepted, 48 refused (22 cross-scope), 0 off. O10: "8 identities x 2 pre-check heads: 16 no-record". S-ID1b {M3, O4-ii, O4-iii}; S-ID2b {M1, M2, M3, O4-v-a, O4-v-b}. |
+| **M6** | radar images, on 3 envs | `blipscope-s3-128` no bench marker. `blipscope-s3-128-touchbench` passes `--expect "[touch-bench]"` (R4). `blipscope-s3-128-wxlook` passes `--expect "[wx-bench]"`. Sizes are read, not predicted. |
+| **M7** | R2, re-derived from main's new image | main's CI-built `firmware-s3-128` from run 42297875773 holds **14** `[touch-wd]` strings, the merged image **15**. The one added is exactly the hold line, and none is removed. CONTROL: main's set holds `touch reboot %u of %u`. Both images pass the banner anchor. |
+| **M8** | Weatherscope images, on 2 envs | `weatherscope-touchbench-s3-128` passes `--expect "[touch-bench]"`. `weatherscope-s3-128` has no marker. **Each is the same size as #571's: 1,881,424 B and 1,882,000 B.** By the rule: main's changes reachable from a Weatherscope build add no code it calls (`GetBytes` is unreferenced, `DrawRadarSweepBeam` is the radar's). Any differing byte must fall in the build-timestamp regions CLAUDE.md accounts for. |
+| **M9** | the web build, **measured this time** (A12.125's miss) | Under WSL with emsdk 6.0.13, the version CI pins: both models link (s3-128, s3-21); `check_site_rules.mjs`, its `--selftest`, `smoke.mjs` and `carousel.mjs` pass on both; `sabotage_setbuffer.mjs` passes on s3-128. |
+| **M10** | the guards | `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py`, `check_workflow_concurrency.py`, `check_runners.py`, `skus.py --check-readers`, `check_ota_identity.py --fleet`, `check-config-form.py`: all exit 0. `check-setup-banner.mjs`: 13 checks, 8 selftest plants. |
+
+**The CI prediction, written before the push.**
+- **The last workflow and job-set change is `caf63cc9d9cc` itself** (committed 21:32:54Z). It adds the leg `build (blipscope-s3-128-wxlook)` through a `skus.yml` row, so 33 no longer holds.
+- **Baselines, both after that change:**
+  - #445's last PR run, at `6ab863383dc4`: **34 checks, 30 success, 4 skipped** (promote, version, ship-alert, publish). Its check names are #571's 33 plus exactly that leg, by a whole-list diff.
+  - Main's run on `caf63cc9d9cc` (started 21:34:41Z, read finished twice): **34 checks, 31 success, 3 skipped** (promote, publish, version).
+- **Paths:** the PR's diff against main is #571's own files, so the same four workflows run: firmware, `device-ids`, `no-traffic-captures`, `web-renderer`. `workers` does not.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR, at the merge head | 34 | 30 | 4 (promote, version, ship-alert, publish) | 0 |
+| main on the squash | 34 | 31 | 3 (promote, publish, version) | 0 |
+
+**Disk:** 33 GB free on C:. `df` runs before each of the five builds, and under 30 GB none starts.
+
+**W-CR is not re-taken if M8 holds.** Its rows graded the Weatherscope bench image, and M8 shows that image's code did not move. If M8 is off, that is a stop: the ruling then decides whether W-CR stands.
+
+**The order:**
+1. This addendum, pushed behind both guards.
+2. The merge commit, locally, in `wt-oc`.
+3. M1, M2 and the rows after it.
+4. Only then the push of the merge commit, behind both guards.
+5. #571 then merges on a pasted approval at the new SHA, after main's CI on its current head has finished, never before.
