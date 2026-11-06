@@ -14257,3 +14257,22 @@ Found by adding each list up against its own total after the push. Neither chang
 **On that commit:** M9 and M10 are read, as predicted in A12.136. M1-M8 stand, because the commit adds only those two docs.
 
 **The CI prediction is unchanged:** PR 34: 30/4/0; main on the squash 34: 31/3/0. Main's head is a docs commit, so its own run reads 32 (30 success, 2 skipped); the web-renderer workflow does not run on docs. The job-set baseline stays main's run on `caf63cc9d9cc`.
+
+### A12.143 M9 and M10 as predicted on the merge commit `1f46c725e2a7`; M0 restated once more; the push follows
+
+**M0, restated.** Main moved to `ace08e6b06df` while A12.142 was being pushed: one docs file, `docs/wx-device.md`, nothing in the ruling's paths. The merge command re-reads main, so it refused, and no commit was made on `6d7823e11c24`. The new trial shows 0 conflicted files, tree `701d84bf76f8`. **The merge commit is `1f46c725e2a7`, that tree.** Against `1ff5bf6c9d61` it adds three docs and nothing else, so M1-M8 stand.
+
+| row | predicted | measured on `1f46c725e2a7` |
+|---|---|---|
+| **M9** the web build, emsdk 6.0.13 under WSL | both models link; site rules, its selftest, smoke and carousel pass on both; R7's sabotage passes on s3-128 | **as predicted:** s3-128 and s3-21 link; site rules 0 findings, selftest 14 plants; `WEB RENDERER SMOKE AS PREDICTED` on both; `CAROUSEL AS PREDICTED` on both; `SETBUFFER SABOTAGE AS PREDICTED`. The sabotage's copy is gone, and the tree is clean |
+| **M10** the guards | all exit 0; 13 checks, 8 selftest rows | **as predicted:** `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py`, `check_workflow_concurrency.py`, `check_runners.py`, `skus.py --check-readers`, `check_ota_identity.py --fleet` (fleet PASS), `check-config-form.py` (9 pages), `check-setup-banner.mjs` (13, and its selftest 8) |
+
+**A12.125's gap is closed:** the web renderer was built and run locally, not derived.
+
+**Two starts that do not count, disclosed:**
+- **The first M10** ran on `1ff5bf6c9d61`, because the merge had just been refused. All exit 0, but it is not the graded run.
+- **The first M9 launch** never started: Git Bash rewrote its `/mnt/c` path (exit 127). Nothing was built. It was re-run with path conversion off.
+
+**The CI prediction for `1f46c725e2a7`, as ruled:** PR 34 checks: 30 success, 4 skipped (promote, version, ship-alert, publish), 0 failed. Main on the squash: 34: 31/3/0. The baselines are A12.136's.
+
+**#571 merges only** on a pasted approval at the exact SHA, after main's CI on its current head has finished.
