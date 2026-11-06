@@ -106,7 +106,15 @@ M1-M6 as frozen in §4 of the plan.
 
 ## 6. CI and the merge
 
-**Predicted: 34 = 31 success, 3 skipped, 0 failed.** It touches `proxy/`.
-- Baseline: #579's finished PR run on `c63a9290677f`, started 2026-11-06T20:11:26Z.
-- Last job-set change: `84409651` (#552). Last workflow change: `259e8688` (a step). Re-read at the push.
-- Merge by the rule.
+**Predicted: 35 = 32 success, 3 skipped, 0 failed.** It touches `proxy/`, and no firmware `src/`.
+
+**Re-frozen before the PR was opened, 2026-11-06 ~22:05Z.** This section first said 34, from #579's run. The re-read
+at the push found main had moved under it:
+- **The last job-set change is now `caf63cc9` (#445),** which adds the matrix leg `blipscope-s3-128-wxlook`
+  (`skus.yml`) and two steps. It is also the last workflow change.
+- **The baseline:** main's finished run on `1ce7a73a` (#581, docs-only), started 2026-11-06T21:48:32Z, after that
+  change: **32 = 30 success, 2 skipped.** Docs-only main pushes were 31 before it, so the leg adds exactly 1.
+- **The prediction, by that rule:** a `proxy/` PR was 34 = 31/3 (#579's finished run on `c63a9290677f`), so it is now
+  35 = 32/3.
+
+Merge by the rule.
