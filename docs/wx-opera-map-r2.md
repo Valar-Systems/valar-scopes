@@ -151,3 +151,21 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 | **first firing** | scheduledTime **21:25:14Z**, 8.9 s after T | printed |
 | **MD-2** (first firing + 10 min, 21:35:19Z) | `wx/opuk/map/`: **1 object, 17,716,016 B**. `wx.opuk` `frameAgeS` **320**, `coveredShare` **0.7508**. LHR, on `/wx/cref` and `/wx/opuk`: ETag **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` 1794000600 (21:30:00Z), the frame `/healthz` names at 21:35:26Z (326 s). Controls: Bend and KMCI `cref`, no max-age | as predicted |
 | early look at MD-3 (T to 21:34:14Z, read 21:35:26Z, 900 s pieces, ABR [1]) | 18 `opuk` lines. The **first storing check, 21:29:32Z: `stored`, `map` `built`, `pruneKeys` 900**, no `pruned`, no `mapRefused`; already-stored 17; **0 error lines** | as MD-3 predicts; MD-3 itself is read at T+72 min |
+| **MD-4 read 1** (listed 22:35:10Z, ABR [1]) | **12 frames**, 21:35:00Z to 22:30:00Z; `latest` 22:30:00Z. Last pruner 22:34:15.726Z, `stored`, `pruneKeys` 900. Cut 21:34:15Z: **0 below**. +300 s sabotage (cut 21:39:15Z): **fails on the oldest**, 21:35:00Z. Margin 44.3 s. Blind: none | **PASS** |
+| **MD-4 read 2** (listed 22:45:06Z, ABR [1]) | **12 frames**, 21:45:00Z to 22:40:00Z; `latest` 22:40:00Z. Last pruner 22:44:15.399Z, `stored`, `pruneKeys` 900. Cut 21:44:15Z: **0 below**. +300 s sabotage (cut 21:49:15Z): **fails on the oldest**, 21:45:00Z. Margin 44.6 s. Blind: none | **PASS** |
+| **MD-3** (T to T+70 min, 21:25:06Z to 22:35:06Z, read 22:47:38Z, 900 s pieces, **ABR [1]**) | 140 `opuk` lines. **14 storing checks**, each `stored` with **`pruneKeys` 900**, no `pruned`, **no `mapRefused`**. First: 21:29:32Z, `built`. **By `map`: `built` 1, `r2` 13, `cache` 0.** Already-stored 126. **0 error lines** | as predicted |
+
+**What MD-3's split says: `cache` 0.**
+- Not one of the 14 builds found its map in the isolate. They all ran cold, so before stage 1c every build was
+  rebuilding the map. K11's split (map 0.55-0.59 s, frame 0.25-0.41 s in Node) was the whole cost on every build.
+- **The alternative,** that isolates do persist and something else clears the cache, is not excluded by this read.
+  The only thing that clears it is `clearMapCache`, which is test-only, so a new isolate is the reading it fits.
+  Either way the count is the count: 0 of 14 reused a map.
+
+**Raised before MD-5 is read, about 22:50Z: MD-5's band can fail in the good direction.**
+- MD-5's median band is [1,008, 2,580] ms, taken from PKD-6's row. §3 of this doc says CPU "could fall by about
+  half" if builds are cold, and half of PKD-6's 1,676 ms is about 840 ms, under the band's floor.
+- As registered, that is off, and off rolls `opuk` back to `b7626571`: the row would undo a working saving. The band
+  was copied from a change that did not touch CPU, and it should not have been carried to one meant to.
+- **MD-5 has not been read,** and the row is not changed here. It needs a ruling before about 23:30Z. Without one,
+  it stands as registered.
