@@ -1124,3 +1124,18 @@ says whether (iii) is a known bench board.
 | **A4-4** | CI on the PR, read with nothing queued, twice | **34: 31 success, 3 skipped** (`promote`, `version`, `ship-alert`), 0 failed. Baseline: #556's PR run (34: 31 success, 3 skipped), which also touched `proxy/` and postdates main's last job-set change, `84409651`; main's last workflow change is `259e8688`, a step |
 
 **Outside the set:** stop and report.
+
+### Daniel's decisions (2026-11-06, ruled ~18:12Z)
+
+- **The list is filled a whole batch at a time.** The factory's MAC list is imported with `activation.ts import` when
+  each batch arrives. **No shipped gate and no Shopify link get built.**
+- **The accepted limit:** a shelf board activated by someone who guessed its id stays accepted. The fix is a reset
+  (`activation.ts reset`).
+- **Production stays in watch mode for a while.** Daniel wants data before any refusals. No enforce PR is prepared
+  until he asks.
+
+**Item 4, as made:**
+- `docs/device-enrollment.md`'s historical argument now says the stateless design *had* no allowlist, and points
+  here.
+- `normalizeMac`'s comment uses `00:00:5E:00:53:01` (RFC 7042's documentation range) in place of an
+  Espressif-prefixed example that read like a real unit's.
