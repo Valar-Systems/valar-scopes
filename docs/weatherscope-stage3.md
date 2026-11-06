@@ -13140,3 +13140,34 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **The images:** `weatherscope-touchbench-s3-128` (`10942a49ae98`) through `app-only-write.py`, then the clean `39e258b5be07` written back.
 - **The rows:** B0–B6 as frozen in A12.119, A12.121 and A12.122.
 - **When it ends:** only after the clean image's boot line reads `theme=auto`.
+
+### A12.124 W-CR stopped at B0: the app0 read-back instrument failed three times. Nothing was written, and the window closed on the clean image. Q86
+
+**The window opened at 17:22:04Z, as announced, on `907069326E64` (COM6, resolved by serial; MAC `90:70:69:32:6e:64`). B0's first step is the read-back of app0's first 1,881,808 B, predicted `39e258b5be07`. It never produced a reading. esptool 5.3.0, over USB-Serial-JTAG:**
+
+| try | method | result |
+|---|---|---|
+| 1 | one `read-flash 0x20000 1881808` | `Packet content transfer stopped` |
+| 2 | 256 KB pieces in ONE download-mode session (`--before no-reset` after the first) | pieces 0 and 1 read; piece 2 (flash `0xA0000`): `The chip stopped responding` |
+| 3 | 256 KB pieces, each its OWN session (`default-reset` / `hard-reset`) | pieces 0 and 1 read again; **piece 2 again**: `Packet content transfer stopped` |
+
+- **Between tries 2 and 3,** `read-mac` (no write) brought the board back, and TCP :80 answered.
+- **Before try 3,** I checked that a reset during the boot's Wi-Fi join can't cost the board its credentials. The join-failure counter counts only completed failed joins and changes only the portal's timeout. No reset-counting failsafe exists in the code.
+- **What this means:** the failure is not the session shape. It recurs at the same piece. Pieces 0 and 1 read the same both times.
+
+**I stopped there rather than change the method of a ruled row.**
+- **Nothing was written:** every command was a read or `read-mac`, and the bench image was never flashed.
+- **The close-out read:** `read-mac`, then one open (DTR and RTS false), 17:25Z:
+  - `[build] env=weatherscope-s3-128`, the product env, not the bench;
+  - the `[wx] init` line `theme=auto read=known`;
+  - TCP :80 open about 15 s after the close.
+- **The window closed at 17:25:37Z.** The board is as A12.108 left it. The banner names the env, not the build; nothing in this window could have changed the build.
+
+**Q86. How is app0 read back?**
+- **(a) [recommended] `esptool verify-flash 0x20000 <file>`.** The stub hashes the flash region ON the chip and compares the result with the file's, with no bulk transfer. `app-only-write.py` already relies on the same mechanism ("Hash of data verified").
+  - **Predicted, before and after:** OK against the clean build's `firmware.bin` (`39e258b5be07`).
+  - **CONTROL, in the same session:** against the bench image's file (`10942a49ae98`), it must report a **mismatch**. A verify that cannot fail would prove nothing.
+- **(b)** Keep `read-flash`, with the ROM loader (`--no-stub`) or with smaller pieces for the failing region. It is still a bulk transfer, so the same failure stays possible, and it is slow.
+- **Either way:** the rest of W-CR is unchanged. It is re-announced before its first flash.
+
+**PR #571 is unaffected:** its CI runs as predicted, and it merges after #445.
