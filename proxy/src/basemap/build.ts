@@ -9,7 +9,7 @@
 import { type Section, TYPE, encode } from "./format";
 import { type Frame, type Pt, makeFrame } from "./frame";
 import { type LayerKind, LayerSet, type Place, type Rivers, type Road, rankPeaks } from "./layers";
-import { CAP_BYTES, type Dropped, EPS_STEP, fitBudget } from "./budget";
+import { CAP_BYTES, type Dropped, EPS_STEP, type Ladder, fitBudget, newLadder } from "./budget";
 import { levelTiles, mosaicOf, summitElevation, terrainLevel, z9Pixel } from "./terrain";
 import { type FileRef, type Layer, type ProvenanceInput, layerDigests, provenanceLines } from "./provenance";
 import { type Box, CURRENT_KEY, type StoreIndex, boxMeets, covered, decodeCell, decodeTerrariumPng, storeKeys, tileBitsOf } from "./store";
@@ -18,10 +18,10 @@ export interface StoreReader { get(key: string): Promise<Uint8Array | null> }
 export interface BuildQuery { lat0Micro: number; lon0Micro: number; rKm: number; epsMm: number; mask: number; levels: Array<{ radiusMm: number; n: number }> }
 export const MASK = { water: 1, rivers: 2, roads: 4, peaks: 8, places: 16, terrain: 32 } as const;
 export type BuildResult =
-  | { ok: true; bytes: Uint8Array; storeId: string }
+  | { ok: true; bytes: Uint8Array; storeId: string; ladder: Ladder }
   | { ok: false; status: 404; code: "no_coverage" }
   | { ok: false; status: 503; code: "basemap_unavailable"; why: string }
-  | { ok: false; status: 422; code: "too_large" };
+  | { ok: false; status: 422; code: "too_large"; ladder: Ladder };
 
 const K = 111.0;
 const unavailable = (why: string): BuildResult => ({ ok: false, status: 503, code: "basemap_unavailable", why });
@@ -186,10 +186,11 @@ export async function build(store: StoreReader, q: BuildQuery, opts: { commit: s
     s.push({ type: TYPE.PROVENANCE, text: new TextEncoder().encode(p.text), lines: p.lines });
     return s;
   };
-  const fitted = fitBudget(q.epsMm, opts.capBytes ?? CAP_BYTES, (tol) => at[tol]!, assemble);
-  if (!fitted) return { ok: false, status: 422, code: "too_large" };
+  const ladder = newLadder(); // step 0: what the ladder measured, for the builder's bm_build line
+  const fitted = fitBudget(q.epsMm, opts.capBytes ?? CAP_BYTES, (tol) => at[tol]!, assemble, ladder);
+  if (!fitted) return { ok: false, status: 422, code: "too_large", ladder };
   const bytes = encode({ lat0Micro: q.lat0Micro, lon0Micro: q.lon0Micro, radiusMm: rMm, toleranceMm: fitted.toleranceMm, sections: fitted.sections });
-  return { ok: true, bytes, storeId };
+  return { ok: true, bytes, storeId, ladder };
 }
 
 /** A store that names something it does not hold: answered as 503 basemap_unavailable, never as a partial package. */

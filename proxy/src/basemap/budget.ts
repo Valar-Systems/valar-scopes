@@ -45,32 +45,70 @@ export interface Dropped { water: number; roads: number }
 export interface Droppable { water?: Pt[][]; roads?: Array<{ cls: 1 | 2; pts: Pt[] }> }
 export interface Fitted<C> { content: C; toleranceMm: number; dropped: Dropped; sections: Section[] }
 
+/** The bytes each non-terrain section adds (its body, as nonTerrainBytes counts it), by layer. An absent layer adds 0. */
+export interface LayerBytes { water: number; rivers: number; roads: number; peaks: number; places: number; provenance: number }
+
+/**
+ * Step 0 (docs/basemap-dense.md): what the ladder measured, for the builder's bm_build line. Counts only, and nothing new
+ * is measured: every value is the nonTerrainBytes of an assembly the ladder already does.
+ */
+export interface Ladder {
+  /** The step that fitted: 0 as built, 1 after ε × 2, 2 while dropping water, 3 while dropping secondary roads; -1 none. */
+  rung: number;
+  /** On a 422 only: the non-terrain bytes at each rung's FULL step -- [ε, ε × 2, every ring dropped, every secondary
+   *  dropped too]. A rung with nothing to drop repeats the value before it. Empty on a 200. */
+  nt: number[];
+  /** By layer: the package built's sections, or (on a 422) the last rung tried's. */
+  sections: LayerBytes;
+}
+export const newLadder = (): Ladder => ({ rung: 0, nt: [], sections: { water: 0, rivers: 0, roads: 0, peaks: 0, places: 0, provenance: 0 } });
+
+const LAYER_OF: Partial<Record<number, keyof LayerBytes>> = {
+  [TYPE.WATER]: "water", [TYPE.RIVERS]: "rivers", [TYPE.ROADS]: "roads", [TYPE.PEAKS]: "peaks", [TYPE.PLACES]: "places", [TYPE.PROVENANCE]: "provenance",
+};
+export function layerBytes(sections: Section[]): LayerBytes {
+  const b = newLadder().sections;
+  for (const s of sections) { const k = LAYER_OF[s.type]; if (k) b[k] += sectionSize(s); }
+  return b;
+}
+
 /**
  * §6. `make(tolMm)` builds the layers at a tolerance; `assemble(content, dropped, tolMm)` writes every section of the
- * package, PROVENANCE included. The content's `water` and `roads` are the items §6 may drop.
+ * package, PROVENANCE included. The content's `water` and `roads` are the items §6 may drop. `ladder`, when given, is
+ * filled with what the ladder measured (step 0); it never changes what is built.
  */
 export function fitBudget<C extends Droppable>(
   toleranceMm: number, capBytes: number, make: (tolMm: number) => C, assemble: (c: C, d: Dropped, tolMm: number) => Section[],
+  ladder?: Ladder,
 ): Fitted<C> | null {
   const d: Dropped = { water: 0, roads: 0 };
-  const fits = (c: C, tol: number) => { const s = assemble(c, d, tol); return nonTerrainBytes(s) <= capBytes ? s : null; };
+  let last: Section[] = [], lastBytes = 0;
+  const fits = (c: C, tol: number) => { const s = assemble(c, d, tol); last = s; lastBytes = nonTerrainBytes(s); return lastBytes <= capBytes ? s : null; };
+  const done = (rung: number, f: Fitted<C>): Fitted<C> => {
+    if (ladder) { ladder.rung = rung; ladder.nt = []; ladder.sections = layerBytes(f.sections); }
+    return f;
+  };
+  const nt: number[] = [];
 
   let content = make(toleranceMm);
   let s = fits(content, toleranceMm);
-  if (s) return { content, toleranceMm, dropped: d, sections: s };
+  nt.push(lastBytes);
+  if (s) return done(0, { content, toleranceMm, dropped: d, sections: s });
 
   const tol = toleranceMm * EPS_STEP; // §6 step 1: once (RD13: the header holds the ε used)
   content = make(tol);
   s = fits(content, tol);
-  if (s) return { content, toleranceMm: tol, dropped: d, sections: s };
+  nt.push(lastBytes);
+  if (s) return done(1, { content, toleranceMm: tol, dropped: d, sections: s });
 
   // §6 step 2: water rings, smallest area first (RD18), the survivors kept in source order
   const rings = content.water ?? [];
   const wOrder = dropOrder(rings.map(ringArea2));
   const base = content;
   const withWater = (k: number): C => { const gone = new Set(wOrder.slice(0, k)); return { ...base, water: rings.filter((_, i) => !gone.has(i)) }; };
-  const w = smallestFit(rings.length, (k) => { d.water = k; return fits(withWater(k), tol); });
-  if (w) { d.water = w.k; return { content: withWater(w.k), toleranceMm: tol, dropped: d, sections: w.got }; }
+  const w = smallestFit(rings.length, (k) => { d.water = k; const got = fits(withWater(k), tol); if (k === rings.length) nt[2] = lastBytes; return got; });
+  if (w) { d.water = w.k; return done(2, { content: withWater(w.k), toleranceMm: tol, dropped: d, sections: w.got }); }
+  if (nt.length < 3) nt.push(nt[1]!); // no ring to drop: the value before it
   d.water = rings.length;
   content = withWater(rings.length);
 
@@ -80,8 +118,10 @@ export function fitBudget<C extends Droppable>(
   const rOrder = dropOrder(secondary.map((i) => roadLength(roads[i]!.pts))).map((k) => secondary[k]!);
   const noWater = content;
   const withRoads = (k: number): C => { const gone = new Set(rOrder.slice(0, k)); return { ...noWater, roads: roads.filter((_, i) => !gone.has(i)) }; };
-  const r = smallestFit(rOrder.length, (k) => { d.roads = k; return fits(withRoads(k), tol); });
-  if (r) { d.roads = r.k; return { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }; }
+  const r = smallestFit(rOrder.length, (k) => { d.roads = k; const got = fits(withRoads(k), tol); if (k === rOrder.length) nt[3] = lastBytes; return got; });
+  if (r) { d.roads = r.k; return done(3, { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }); }
+  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it
+  if (ladder) { ladder.rung = -1; ladder.nt = nt; ladder.sections = layerBytes(last); }
   return null;
 }
 
