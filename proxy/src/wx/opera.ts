@@ -105,9 +105,17 @@ export function parseHead(head: Uint8Array, anyTiepoint = false): OperaGeo {
            ulx, uly, xs, ys, corner, proj };
 }
 
+/** How far a product's window may pass each raster edge, in pixels (docs/wx-opera-dev-measure.md). The bound is
+ *  STATED per product: "the window leaves the raster" is how a wrong georeference shows up, so a plain clamp would
+ *  throw that guard away. */
+export interface OverrunPx { n?: number; s?: number; w?: number; e?: number }
+export interface WindowOpts { overrunPx?: OverrunPx | undefined; allowAny?: boolean }   // allowAny: WO2s only
+
 /** The source pixels a grid needs: its cell-boundary rectangle's four edges, sampled every cell, projected, floored.
- *  The same rule as tools/wx/opera_fixture.py. */
-export function windowFor(geo: OperaGeo, g: GridGeom, P: Laea = laea(geo.proj)): [number, number, number, number] {
+ *  The same rule as tools/wx/opera_fixture.py. Clipped to the raster within the product's stated overrun; refused
+ *  past it. A cell past the raster then reads no coverage (buildMap's fill -1), which is the truth. */
+export function windowFor(geo: OperaGeo, g: GridGeom, P: Laea = laea(geo.proj),
+                          o: WindowOpts = {}): [number, number, number, number] {
   const north = g.la1 + g.dj / 2, south = g.la1 - (g.nj - 1) * g.dj - g.dj / 2;
   const west = g.lo1 - g.di / 2, east = g.lo1 + (g.ni - 1) * g.di + g.di / 2;
   const nlat = Math.round((north - south) / g.dj), nlon = Math.round((east - west) / g.di);
@@ -119,9 +127,13 @@ export function windowFor(geo: OperaGeo, g: GridGeom, P: Laea = laea(geo.proj)):
   };
   for (let i = 0; i <= nlon; i++) { take(west + ((east - west) * i) / nlon, north); take(west + ((east - west) * i) / nlon, south); }
   for (let j = 0; j <= nlat; j++) { take(west, south + ((north - south) * j) / nlat); take(east, south + ((north - south) * j) / nlat); }
-  const w: [number, number, number, number] = [Math.floor(rmin), Math.floor(rmax), Math.floor(cmin), Math.floor(cmax)];
-  if (w[0] < 0 || w[2] < 0 || w[1] >= geo.height || w[3] >= geo.width) throw new OperaRefused("the window leaves the raster");
-  return w;
+  const [r0, r1, c0, c1] = [Math.floor(rmin), Math.floor(rmax), Math.floor(cmin), Math.floor(cmax)];
+  const a = o.overrunPx ?? {};
+  if (!o.allowAny && (-r0 > (a.n ?? 0) || r1 - (geo.height - 1) > (a.s ?? 0) ||
+                      -c0 > (a.w ?? 0) || c1 - (geo.width - 1) > (a.e ?? 0))) {
+    throw new OperaRefused("the window leaves the raster");
+  }
+  return [Math.max(r0, 0), Math.min(r1, geo.height - 1), Math.max(c0, 0), Math.min(c1, geo.width - 1)];
 }
 
 async function inflate(b: Uint8Array): Promise<Uint8Array> {
@@ -133,10 +145,10 @@ export interface OperaWindow { geo: OperaGeo; window: [number, number, number, n
                                value: Float32Array; quality: Float32Array; }
 
 /** Read a grid's window of one frame: the head, then one range per window row of tiles. Row-major, north first. */
-export async function readWindow(fetchRange: RangeFetch, g: GridGeom, band = 0): Promise<OperaWindow> {
+export async function readWindow(fetchRange: RangeFetch, g: GridGeom, band = 0, o: WindowOpts = {}): Promise<OperaWindow> {
   const head = await fetchRange(0, HEAD_BYTES - 1);
   const geo = parseHead(head);
-  const win = windowFor(geo, g);
+  const win = windowFor(geo, g, undefined, o);
   const [r0, r1, c0, c1] = win;
   const rows = r1 - r0 + 1, cols = c1 - c0 + 1;
   const value = new Float32Array(rows * cols), quality = new Float32Array(rows * cols);
