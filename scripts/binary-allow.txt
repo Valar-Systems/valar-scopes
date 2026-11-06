@@ -1,13 +1,15 @@
 # What scripts/check_binary_strings.py allows (docs/weatherscope-stage3.md A12.113, Q80, Q81).
 # kind<TAB>path<TAB>SHA-256 of the whole file<TAB>why. The hash pins the exact bytes allowed: a changed file is a stale
-# entry, and an entry whose file has no finding of that kind is idle. Both are refused, so an allowance cannot outlive
-# its reason.
+# entry, and an entry whose file has no finding of that kind is idle (a font or pdf entry: whose file is no longer a font
+# or pdf, A12.116a). Both are refused, so an allowance cannot outlive its reason.
 #
 # Fonts are third-party files, out of the scan's scope (Q80): each is allowed by hash, so a new or changed font fails
 # until it is reviewed. Self-hosted Google Fonts 'latin' subsets under the SIL Open Font License 1.1 (proxy/fonts/LICENSE-FONTS.txt).
 font	proxy/fonts/grotesk.woff2	67c0b55714050bcab1833cafaa937cd4fc64a618ba5bfdb0e7d750d6001b62a3	third-party font (OFL 1.1), self-hosted for the leaderboard page
 font	proxy/fonts/inter.woff2	1e61128f5e83f486c63c85310a5171fcb62c822241d881d087a6698912711cc8	third-party font (OFL 1.1), self-hosted for the leaderboard page
 font	proxy/fonts/mono.woff2	f824d3d29e747f13d636206461b3f0531fd96455f585028965d24868527c6806	third-party font (OFL 1.1), self-hosted for the leaderboard page
+# A PDF is not read: it is allowed only by its exact hash, after a recorded text read, counts only (Q82 (c)).
+pdf	docs/Blipscope-WiFi-Field-Test.pdf	382f831cde7465126e3a1a18c8bc138505716d14303a12e4385be52e2564ea23	the field-test document, text read 2026-11-06: pdftotext 4.00 (Xpdf) 4 pages, 124 lines, 0 findings, 0 network contexts; poppler (the reviewer) 4 pages, 153 lines, 0 findings, 0 network contexts
 # Q81 (a): a Wikimedia Commons photo, "Cessna Citation Longitude N807QS" by Sewageboy, CC BY 4.0
 # (proxy/photos/manifest.json). Its EXIF GPS is the photographer's location, public in Commons' copy; the file stays
 # byte-identical to its licensed source.
