@@ -9,10 +9,10 @@ import { describe, expect, it } from "vitest";
 import { VIEW, cropCellBox, quantise, viewDegrees } from "../src/wx/crop";
 import { FrameBuilder, type FrameMeta, type GridGeom, frameMeta, objectBytes, readHeader, tileBytes, tileOffset, tiledCellAt } from "../src/wx/grid";
 import { type LatestRecord, handleWx, readLatest } from "../src/wx/handler";
-import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, ingestOnce } from "../src/wx/ingest";
+import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, PRUNE_BACK_S, RETAIN_S, ingestOnce, pruneByKey, pruneOld } from "../src/wx/ingest";
 import { WGS84, laea } from "../src/wx/laea";
 import { HEAD_BYTES, NODATA, type OperaGeo, OperaRefused, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
-import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, latestKey, servedProduct } from "../src/wx/products";
+import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, framesPrefix, latestKey, servedProduct } from "../src/wx/products";
 import { type MaskOpts, OPUK_QI_MASK, mapFor, operaCode, prepareCentreOnly, resample } from "../src/wx/resample";
 import dryBin from "./fixtures/wx/opera/20261029T0130.ranges.bin";
 import dryExp from "./fixtures/wx/opera/20261029T0130.expected.json";
@@ -92,16 +92,17 @@ async function bandSha(v: Float32Array) {
 }
 
 /** env.WX with every list() counted (K10). */
-function countingLists() {
-  let lists = 0;
+function countingOps() {
+  let lists = 0, deletes = 0;
   const WX = new Proxy(env.WX!, {
     get(t, prop) {
       const v = Reflect.get(t, prop);
       if (prop === "list") return (...a: unknown[]) => { lists++; return (v as (...x: unknown[]) => unknown).apply(t, a); };
+      if (prop === "delete") return (...a: unknown[]) => { deletes++; return (v as (...x: unknown[]) => unknown).apply(t, a); };
       return typeof v === "function" ? v.bind(t) : v;
     },
   }) as R2Bucket;
-  return { WX, lists: () => lists };
+  return { WX, lists: () => lists, deletes: () => deletes };
 }
 
 // ---- LAEA against pyproj -------------------------------------------------------------------------------------------
@@ -638,25 +639,100 @@ describe("K9: the covered share", () => {
   }, SLOW);
 });
 
-describe("K10: opuk prunes only on the check that stores a frame", () => {
+// K10 as re-registered by stage 1a (docs/wx-opera-europe.md section 11, PK1): opuk still prunes only on the check that
+// stores a frame, and that prune is now BY KEY -- one delete, no list.
+describe("K10 re-registered (PK1): opuk prunes only on a storing check, by key", () => {
   const run = async (x: IngestX) => {
     const t = (epochOf(DRY) + 300) * 1000;
-    const a = countingLists();
+    const a = countingOps();
     const stored = await ingestOnce(a.WX, opuk, t, operaFetch(DRY), undefined, x);
-    const b = countingLists();
+    const b = countingOps();
     const again = await ingestOnce(b.WX, opuk, t + 30_000, operaFetch(DRY), undefined, x);
-    return { stored: stored.status, storeLists: a.lists(), again: again.status, againLists: b.lists() };
+    return { stored: stored.status, storeLists: a.lists(), storeDeletes: a.deletes(), pruneKeys: stored.pruneKeys,
+             pruned: stored.pruned, again: again.status, againLists: b.lists(), againDeletes: b.deletes() };
   };
-  it("a storing check prunes; a check that stores nothing makes 0 R2 lists", async () => {
+  it("storing: 0 lists, 1 delete; storing nothing: 0 lists, 0 deletes", async () => {
     const r = await run({});
-    console.log(`K10: ${r.stored} with ${r.storeLists} list(s), then ${r.again} with ${r.againLists}`);
+    console.log(`PK1: ${r.stored} with ${r.storeLists} list(s), ${r.storeDeletes} delete(s), pruneKeys ${r.pruneKeys}; ` +
+                `then ${r.again} with ${r.againLists} list(s), ${r.againDeletes} delete(s)`);
     expect([r.stored, r.again]).toEqual(["stored", "already-stored"]);
-    expect(r.storeLists).toBeGreaterThan(0);
-    expect(r.againLists).toBe(0);
+    expect([r.storeLists, r.storeDeletes, r.againLists, r.againDeletes]).toEqual([0, 1, 0, 0]);
+    expect(r.pruneKeys).toBe(900);
+    expect(r.pruned).toBeUndefined();
   }, SLOW);
-  it("SABOTAGE: prune on every check -- the second check lists", async () => {
-    expect((await run({ pruneAlways: true })).againLists).toBeGreaterThan(0);
+  it("SABOTAGE PK1s-a: prune by listing -- the storing check lists", async () => {
+    expect((await run({ pruneBy: "list" })).storeLists).toBeGreaterThan(0);
   }, SLOW);
+  it("SABOTAGE PK1s-b: prune on every check (K10's own) -- the second check deletes", async () => {
+    expect((await run({ pruneAlways: true })).againDeletes).toBe(1);
+  }, SLOW);
+});
+
+// PK2, PK3, PK5: what a prune by key leaves, against a seeded bucket. T0 is the cut, a whole 5-minute mark; frames sit
+// every 300 s from 18 h before `now` to `now`, plus one at a whole minute OFF the 5-minute grid inside the window, and
+// `latest` names a frame inside the window (it never does in production, where a storing check moves it first).
+describe("PK2, PK3, PK5: a prune by key, on a seeded bucket", () => {
+  const T0 = 1_793_970_000;                                  // the cut: 300 * 5,979,900
+  const NOW = (T0 + RETAIN_S) * 1000;
+  const OFF_GRID = T0 - 420, LATEST = T0 - 1200;
+  const seeded = [...Array.from({ length: 217 }, (_, k) => T0 - 61_200 + 300 * k), OFF_GRID].sort((a, b) => a - b);
+  const keys = (es: number[]) => es.map((e) => frameKey(opuk, e)).sort();
+  const seed = async (latestAt: number) => {
+    const have = await env.WX!.list({ prefix: framesPrefix(opuk) });
+    if (have.objects.length) await env.WX!.delete(have.objects.map((o) => o.key));
+    for (const e of seeded) await env.WX!.put(frameKey(opuk, e), "x");
+    await env.WX!.put(latestKey(opuk), JSON.stringify({ product: opuk.id, epoch: latestAt, key: frameKey(opuk, latestAt) }));
+  };
+  const left = async () => (await env.WX!.list({ prefix: framesPrefix(opuk) })).objects.map((o) => o.key).sort();
+  // the rule, written out: at or after the cut; latest's; older than the window (left to expire-1d)
+  const expected = keys(seeded.filter((e) => e >= T0 || e === LATEST || e < T0 - PRUNE_BACK_S));
+
+  it("PK2: left = at/after the cut + latest's + older than the window, as whole lists; PK5: 899 sent", async () => {
+    await seed(LATEST);
+    const sent = await pruneByKey(env.WX!, opuk, NOW);
+    const got = await left();
+    console.log(`PK2: seeded ${seeded.length}, left ${got.length} (expected ${expected.length}); PK5: sent ${sent}`);
+    expect(got).toEqual(expected);
+    expect(got.length).toBe(38);                             // 13 at/after the cut + latest's + 24 strays
+    expect(sent).toBe(899);
+  });
+  it("PK5: with latest outside the window, 900 keys are sent", async () => {
+    await seed(T0 + RETAIN_S);
+    expect(await pruneByKey(env.WX!, opuk, NOW)).toBe(900);
+  });
+  it("SABOTAGE PK2s-a: the bound inclusive at the cut -- the frame AT the cut goes", async () => {
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW, { inclusiveCut: true });
+    const got = await left();
+    expect(got).not.toEqual(expected);
+    expect(got).not.toContain(frameKey(opuk, T0));
+  });
+  it("SABOTAGE PK2s-b: latest's key not excluded -- latest's frame goes", async () => {
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW, { ignoreLatest: true });
+    const got = await left();
+    expect(got).not.toEqual(expected);
+    expect(got).not.toContain(frameKey(opuk, LATEST));
+  });
+  it("SABOTAGE PK2s-c: a 300 s step -- the off-grid frame stays", async () => {
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW, { stepS: 300 });
+    const got = await left();
+    expect(got).not.toEqual(expected);
+    expect(got).toContain(frameKey(opuk, OFF_GRID));
+  });
+  it("PK3: against today's prune (pruneOld) -- the same, except the strays only pruneOld reaches", async () => {
+    await seed(LATEST);
+    await pruneOld(env.WX!, opuk, NOW);
+    const byList = await left();
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW);
+    const byKey = await left();
+    const strays = keys(seeded.filter((e) => e < T0 - PRUNE_BACK_S));
+    console.log(`PK3: by list ${byList.length}, by key ${byKey.length}, strays ${strays.length}`);
+    expect(byKey.filter((k) => !strays.includes(k))).toEqual(byList);
+    expect(byKey.filter((k) => strays.includes(k))).toEqual(strays);
+  });
 });
 
 /** The request kinds that went out without K14's User-Agent. */

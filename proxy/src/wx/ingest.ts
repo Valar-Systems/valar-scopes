@@ -22,8 +22,8 @@ const LOOKBACK_S = 20 * 60;
 
 export type Fetch = (input: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<Response>;
 
-/** Test-only switches: K10's and K14's sabotages. Production passes none. */
-export interface IngestX { pruneAlways?: boolean; uaOff?: "list" | "head" | "tiles" }
+/** Test-only switches: K10's (as re-registered for PK1) and K14's sabotages. Production passes none. */
+export interface IngestX { pruneAlways?: boolean; pruneBy?: "list"; uaOff?: "list" | "head" | "tiles" }
 
 /** One NOAA request's attempt policy (docs/wx-ingest-noaa-blips.md). NOAA's S3 is reached through Cloudflare, and
  *  on 2026-10-23 it answered 520/522/525 or hung for 24-288 s on about a quarter of the runs. */
@@ -203,6 +203,7 @@ export async function advanceLatest(bucket: R2Bucket, p: Product, rec: LatestRec
 export interface IngestResult {
   status: "no-frame" | "already-stored" | "lost-race" | "stored" | "backfilled";
   key?: string; epoch?: number; latest?: LatestOutcome; pruned?: number; bytes?: number; coveredShare?: number;
+  pruneKeys?: number;            // OPERA: the keys a prune by key SENT (R2's delete does not say which existed)
   attempts?: { list: number; get: number };
 }
 
@@ -260,7 +261,12 @@ export async function ingestOnce(bucket: R2Bucket, p: Product, nowMs: number, do
                                                  ingestedAt: nowMs, ...g });
   }
   // Q5, ruled: opuk prunes only on the check that writes a frame (R2 Class A); cref prunes on every check, as before.
-  if (p.source !== "opera" || wrote || x.pruneAlways) out.pruned = await pruneOld(bucket, p, nowMs);
+  // Stage 1a (docs/wx-opera-europe.md section 11): an OPERA product prunes BY KEY, with no ListObjects at all.
+  if (p.source !== "opera") out.pruned = await pruneOld(bucket, p, nowMs);
+  else if (wrote || x.pruneAlways) {
+    if (x.pruneBy === "list") out.pruned = await pruneOld(bucket, p, nowMs);
+    else out.pruneKeys = await pruneByKey(bucket, p, nowMs);
+  }
   return out;
 }
 
@@ -290,4 +296,34 @@ export async function pruneOld(bucket: R2Bucket, p: Product, nowMs: number): Pro
   } while (cursor);
   if (old.length) await bucket.delete(old);
   return old.length;
+}
+
+/** How far back an OPERA prune reaches by key (docs/wx-opera-europe.md section 11): 15 h, 900 whole minutes, under
+ *  the R2 binding's 1,000 keys a delete. A stray older than this -- left by a stop longer than 15 h -- is the
+ *  bucket's expire-1d rule's. */
+export const PRUNE_BACK_S = 54_000;
+
+/** Test-only switches: PK2's sabotages. Production passes none. */
+export interface PruneSabotage { inclusiveCut?: boolean; ignoreLatest?: boolean; stepS?: number }
+
+/** Stage 1a: an OPERA product's frames older than RETAIN_S, deleted BY KEY, with no ListObjects (R2 Class A). An
+ *  OPERA frame's epoch is a whole minute (epochOfKey fixes its seconds at 0), so every frame that can exist in
+ *  [cut - PRUNE_BACK_S, cut) is one of these 900 keys, and one delete (DeleteObjects, free) sends them all. A key
+ *  that does not exist is a no-op, so the count returned is the keys SENT, not the frames removed. Never the frame
+ *  `latest` names. */
+export async function pruneByKey(bucket: R2Bucket, p: Product, nowMs: number, s: PruneSabotage = {}): Promise<number> {
+  const cut = nowMs / 1000 - RETAIN_S;
+  const cur = await bucket.get(latestKey(p));
+  const named = cur ? (JSON.parse(await cur.text()) as LatestRecord).key : null;
+  const keep = s.ignoreLatest ? null : named;
+  const step = s.stepS ?? 60;
+  // the newest candidate: the last step strictly before the cut (at or before it, for PK2s-a only)
+  const newest = s.inclusiveCut ? Math.floor(cut / step) * step : Math.ceil(cut / step) * step - step;
+  const keys: string[] = [];
+  for (let e = newest; e >= cut - PRUNE_BACK_S; e -= step) {
+    const k = frameKey(p, e);
+    if (k !== keep) keys.push(k);
+  }
+  if (keys.length) await bucket.delete(keys);
+  return keys.length;
 }

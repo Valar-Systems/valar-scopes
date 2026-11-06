@@ -426,6 +426,30 @@ seconds, so it keeps listing.
     34 = 31/3/0.
   - It postdates the last job-set change, `84409651` (#552), and the last workflow change, `259e8688` (#558, a
     step).
+**The readings before the push (2026-11-06, the code at this PR's second commit):**
+- **`tsc --noEmit`:** clean.
+- **vitest, the two files changed** (`test/wx-opera.test.ts` and `test/wx-ingest.test.ts`, not the whole suite):
+  **71 of 71 passed, exit 0.** It started at 17:34:39Z, after the poller saw no other session's vitest or `sabotage-`
+  process and TIME_WAIT under 2,000. Another session's vitest was running when the code was ready, so the run waited
+  for it.
+
+| row | got | verdict |
+|---|---|---|
+| **PK1** | storing: 0 lists, 1 delete, `pruneKeys` 900, no `pruned`. Then `already-stored`: 0 lists, 0 deletes. **PK1s-a** (prune by listing): the storing check lists. **PK1s-b** (`pruneAlways`): the second check deletes 1 | as predicted; both sabotages red |
+| **PK2** | seeded 218; **left 38 = expected 38**, as whole lists (13 at or after the cut, `latest`'s, 24 strays). **PK2s-a:** the frame at the cut goes. **PK2s-b:** `latest`'s frame goes. **PK2s-c:** the off-grid frame stays | as predicted; all three sabotages red |
+| **PK3** | 14 left by listing and 38 by key; the 24 strays are the whole difference | as predicted |
+| **PK4** | `cref` stored with 1 list and `pruned` 0 (a number), no `pruneKeys` | as predicted |
+| **PK5** | 899 with `latest` inside the window, 900 with it outside | as predicted |
+
+- **The tools change** is `6ac157d0` on docs/wx-opuk-r3:
+  - **Controls:** `r3p.py lines` at ABR [1] read normally, exit 0; `r3_5b.py opuk` at 17:25:31Z read ABR [1] and
+    passed, its +300 s sabotage failing on the oldest frame.
+  - **Sabotage:** with `R3P_FORCE_ABR=10`, `r3p.py`'s three modes each refuse with exit 2, and `r3_5b.py` reads
+    BLIND.
+  - **Unforced, the API sampled a read itself.** `r3_5b.py` at 17:22:54Z, over a window of about 21 minutes, came
+    back at **ABR [100]**, found no pruning check, and read BLIND. That is the case the guard exists for: the
+    sampling is real and it varies from call to call.
+
 - **Ahead, for stage 1b (one `latest` record):** §4's "one write a set" assumed a single writer for each 5-minute
   set. Under Q-WORKERS, ten Workers each finish their own product at their own time, so no one Worker holds a whole
   set. Stage 1b's predictions will name how the shared record is written, and what one product's failure does to
