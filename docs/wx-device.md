@@ -5288,3 +5288,30 @@ reported, at n = 6.
 - **The window now runs about 50 min:** the shipping step adds about 5.
 
 **Outside the set:** stop and report.
+
+### The ruling (~18:26Z): (a). Results (2026-11-06, 18:28-18:35Z, local; then pushed)
+
+**The misses stay on record:** mine (`run.sh` not re-run after P2) and the reviewer's (the ~18:00Z block named four
+checks and left out the host tests that read `identities.txt`). (b) and (c) are declined.
+
+- **The five frozen counts take the 8-identity values,** with the comments that state them:
+  - `test_ota_identity.cpp`: R1 24/24; M1 38, 26, 0; M2 78 of 78; M3 16, 48 (22), 0;
+  - `test_ota_install.cpp`: O10 rows 8, 16 no-record, 0, 0, 0.
+  - Nothing else in #552's files changes.
+- **Every OTA driver's set, re-checked by the rule before any run:**
+  - S-ID1b (Accept compares the board only): {M3, O4-ii, O4-iii, I2 x4}, unchanged. M1 and M2 stay green because
+    their pairs are same-scope or cross-board; cross-scope same-board pairs still exist.
+  - S-ID2b (Accept compares the scope only): {M1, M2, M3, O4-v-a, O4-v-b, I1 x4}, unchanged.
+  - The install driver's S-O8a, S-O8b and S-ID3 each keep O10, which goes red by its flash calls, not by the count.
+  - None needed a change.
+- **Before the run:** no other session's vitest, sabotage or `run.sh` process, on Windows or in WSL; TIME_WAIT 18.
+- **`run.sh` under WSL: as predicted.**
+  - Exit 2, with exactly "the same TU, for the board" and "Weatherscope R0 and R0b" failed, and `sabotage_wx_towns.py`
+    SKIP in both driver passes.
+  - The OTA identity suite: 22 checks, 0 failures (R1, M1, M2 and M3 at their new values). O10: "8 identities x 2
+    pre-check heads: 16 no-record".
+  - `sabotage_ota_identity.py` 6 AS PREDICTED lines and `sabotage_ota_install.py` 3; their anchors and controls as the
+    tables; the count lint 0 of 30 flagged.
+- **The four checks:** `skus.py --check-readers` OK; `check_ota_identity.py` `--selftest`, `--fleet-sabotage`,
+  `--fleet` and `--check-table` all pass; device ids OK; Wi-Fi OK.
+- **CI on the push, predicted:** 34 checks: 30 success, 4 skipped, 0 failed.
