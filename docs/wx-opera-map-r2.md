@@ -136,3 +136,15 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 - **Tools** on docs/wx-opuk-r3: `r3p.py` counts storing checks by `map` (`map_on`) and splits single-build CPU by
   `map` (`de32c2ff`). `r3_list.py` prints non-frame objects' sizes (`b984a087`); its control lists `wx/opuk/` as 12
   frames plus `latest` at 212 B.
+
+**The record.** Main CI on `51757039` read **34 = 32 success, 2 skipped, 0 failed**, as predicted (20:15:56Z and
+20:16:02Z). The PKD set was reported at about 20:48Z. Started at about 21:25Z, on Daniel's "resume".
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml --env=""` from `wt-1cd`, detached at
+  `51757039`, clean. Start 21:24:59.173Z, **end 21:25:06.701Z (T), exit 0**, stderr empty.
+  - Main had moved on to `b5c9c6e9f976` by then. The registered commit was deployed, not main's head.
+  - **Version `a55d1557-f8df-48d5-9df4-c00112276eac`.**
+
+| row | got | verdict |
+|---|---|---|
+| **MD-0** (21:24:36-21:24:40Z) | `b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%; `wx/opuk/map/` **0 objects** | as predicted |
+| **MD-1** (`versions view --json`) | `a55d1557`: bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 | as predicted |
