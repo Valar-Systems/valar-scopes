@@ -3,6 +3,7 @@
 // second product -- Weatherscope's, say -- is a row here plus its code mapping and nothing else.
 
 import type { GridGeom } from "./grid";
+import type { OverrunPx } from "./opera";
 
 /** Where /wx/cref is answered from a regional product instead (docs/wx-opuk.md, K5): inclusive bounds, degrees. */
 export interface LandBox { latS: number; latN: number; lonW: number; lonE: number }
@@ -17,6 +18,7 @@ export interface Product {
   codeOf: (dbz: number) => number; // decoded value -> WXC1 code 0-15
   grid?: GridGeom;               // OPERA: the stored 0.01 deg grid (MRMS frames carry their own)
   landBox?: LandBox;             // OPERA: where /wx/cref is served from this product
+  overrunPx?: OverrunPx;         // OPERA: how far its window may pass the raster (docs/wx-opera-dev-measure.md)
   deviceMaxAgeS?: number;        // the age the device may draw this product's frames to, sent as X-Wx-Max-Age
                                  // (docs/wx-age-limit.md). Absent: none is sent and the device keeps its 600 s.
 }

@@ -212,7 +212,7 @@ export async function buildOperaFrame(p: Product, key: string, epoch: number, do
     return got.value;
   };
   const g = p.grid!;
-  const w = await readWindow(fetchRange, g);
+  const w = await readWindow(fetchRange, g, 0, { overrunPx: p.overrunPx });
   const mv = await mapVia(bucket, p, w.geo, w.window, g, x);
   const { codes, covered } = resample(w.value, w.quality, mv.m, g);
   const fb = new FrameBuilder(frameMeta(p.id, epoch, g));

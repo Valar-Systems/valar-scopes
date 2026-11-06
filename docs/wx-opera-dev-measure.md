@@ -73,6 +73,25 @@ and it has no test today.
 
 **Also:** `tsc`, and the changed test files, under the machine rules.
 
+**The readings before the push (2026-11-06):**
+- **`tsc --noEmit`:** clean.
+- **vitest, the three files concerned** (`test/wx-dev-products.test.ts`, `test/wx-opera.test.ts`,
+  `test/wx-ingest.test.ts`): **87 of 87, exit 0.** It started at 21:30:16Z, on the start rules: TIME_WAIT 26 and no
+  other session's vitest.
+- **`check-wx-plant.mjs`:** PASS. `--selftest` passed: PB1s, PB2s on `cref` alone, and FB2s each still fail.
+
+| row | got | verdict |
+|---|---|---|
+| **WO1** | `opwe` rows 1887-3835, cols 472-2169, 3,309,402 px. `opux` rows 974-2960, cols 38-1635, 3,175,226 px. **`opsn` clipped to row 0 with `n: 54`**, 2,163,980 px. **`opmt` clipped to row 4399 with `s: 43`**, 196,105 px. All inside the raster, and equal to the Python sizing to the pixel | as predicted |
+| **WO2** | 53 px for `opsn` and 42 px for `opmt`: **refused**, so 54 and 43 are exact. **WO2s** (unbounded clamp): not refused | as predicted; red |
+| **WO3** | `opsn`, `opmt` and `OPUK_GRID` 12° north, none stated: all **refused** | as predicted |
+| **WO4** | `opmt`: **13,226 cells** with `fill` -1, **0 of them** anything but 14; the last row reads all 14 | as predicted |
+| **WO5** (control) | `OPUK_GRID`: the fixture's window, 2,224,675 px | as predicted |
+| **DP1** | the four rows equal §3 of the plan as whole values: cells, tiles, frame bytes, age limits | as predicted |
+| **DP2** | `PRODUCTS` is exactly `cref`, `opuk`. **DP2s:** `opwe` added fails the check | as predicted; red |
+| **DP3** | an unknown MODE logs `wx_dev_mode_error` and touches no bucket; MODE `opmt` gives lines for `opmt` alone | as predicted |
+| **PB2** | **11 of 11** on `blipscope-wx-dev` | as predicted |
+
 ## 5. The measurement, after this PR merges
 
 M1-M6 as frozen in §4 of the plan.
