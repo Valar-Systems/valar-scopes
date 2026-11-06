@@ -2119,3 +2119,14 @@ as the merge.
 | **R3′-3** (`/healthz`, 04:43:24Z, the first firing + 10 min) | `opuk` `frameAgeS` **505**, `coveredShare` **0.750769** | as predicted (<= 1,800; in [0.70, 0.80]) |
 | **R3′-4** (`/wx` probe as the test identity, 04:43:25Z and 04:43:29Z, identical) | **LHR:** 200, `WXC1`, ETag `opuk`, `X-Wx-Max-Age: 720`, `X-Wx-Frame` 1793939700 (04:35:00Z), which is `opuk`'s latest by its `frameAgeS`. **KMCI and Bend:** 200, `WXC1`, ETag `cref`, no `X-Wx-Max-Age`, `X-Wx-Frame` 1793940040 | as predicted |
 | **R3′-1b** (`npx wrangler deploy -c wx-ingest.wrangler.toml` from `9db83163a60d`, clean, no token) | the rollback target, read just before: **`582612da-e1b0-4a02-bf9e-de72c5d78157`** (100%). **04:44:00.284-04:44:03.622Z, exit 0, empty stderr.** Version **`257f49eb-6c01-45e5-94fa-4fd3a7e268eb`** (100%, created 04:44:02.555Z); `schedule: * * * * *` listed. Version record: **exactly one R2 binding, `WX` -> `blipscope-wx`; no vars; `cpu_ms` 12000** | as predicted |
+| **R3′-2's gate** (`/healthz` `wx.cref.frameAgeS`) | **152 / 91 / 92 / 94 / 90 s** at +5, +10, +20, +30, +60 min after R3′-1b (04:49:07, 04:54:06, 05:04:08, 05:14:04, 05:44:07Z) | as predicted (<= 600 at every read) |
+| **R3′-2's log half** (`blipscope-wx-ingest`, 04:45:00-05:15:00Z, read 05:15:45Z, ABR 1) | **30 of 30 minutes with both of `cref`'s checks; 0 missing one; 0 missing both; 0 error lines** | as predicted (<= 2 missing one, <= 1 missing both) |
+| **R3′-9** (the same window, by service) | `blipscope-wx-ingest`: **60 product lines, all `cref`**. `blipscope-wx-ingest-opuk`: **60, all `opuk`** (stored 6, already-stored 54) | as predicted |
+| **R3′-8** (the fleet, 04:44:03-05:14:03Z) | **661 requests, 11 devices, 410 `/blips`, 4xx 0, 5xx 0**; two identical reads, 05:45:01Z and 05:47:34Z | as predicted |
+
+**R3′-8's first two reads were an instrument failure, not a reading.**
+- The schedule (05:17 and 05:20Z) passed `pd6_fleet.py` ISO times with `T` and `Z`. Its SQL wraps them in
+  `toDateTime('...')`, which takes `YYYY-MM-DD HH:MM:SS`, so the API answered **HTTP 422** both times.
+- The window is historical, so it was read again in the script's own format, twice, at 05:45 and 05:47Z. Those
+  two reads are the row's reading.
+- The fault was in my call, not the fleet or the script. PD6 and R3-8 were read with the right format.
