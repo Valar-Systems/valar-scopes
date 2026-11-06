@@ -2164,3 +2164,16 @@ objects after 1 days", for all prefixes, enabled**.
   - the `cref` Worker is `257f49eb`, live and `cref`-only;
   - the `opuk` Worker is on its stop, `a1c8c3b9` (`WX_INGEST` off, cron kept).
   - It waits for the ruling on R3′-5a.
+
+**Ruling, pasted 2026-11-06 ~15:07Z (verbatim):**
+
+> 1. R3′-6 and R3′-7: recorded, as predicted.
+> 2. R3′-5a: (a). It's off on the "first store prunes exactly 12" clause, miss kept. The cause: the bucket's expire-1d rule had removed R3's 12 stale frames before R3′ ran, and the registration (from the 21:13:50Z listing) didn't account for the lifecycle's timing. Your stop at 05:48:35Z followed the escape as registered.
+> 3. Redeploy `opuk` at the top level (WX_INGEST on), from the same clean checkout of 9db83163. Record the rollback target (`-e inert`) first. Re-registered before the redeploy:
+>    - a listing just before it, counting the `opuk` frames older than an hour;
+>    - the first storing check prunes exactly that many, then at most 1 per storing check;
+>    - R3′-5b′ re-read at +70 min, read twice;
+>    - R3′-3 and R3′-4 (LHR) re-read after the first firing.
+>    If these read as predicted, R3′ is complete. No board hold is needed for this redeploy.
+> 4. The 7-day cost re-read around 2026-11-13: yes.
+> 5. R4 and node_modules stay held.
