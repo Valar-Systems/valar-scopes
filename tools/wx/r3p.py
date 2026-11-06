@@ -42,6 +42,18 @@ hms = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M:%SZ")
 T = tf()
 
 
+def abr1(abr):
+    """A sampled Logs read is refused (R3' found one at ABR 10 that missed checks; docs/wx-opera-europe.md section 11):
+    only ABR 1 on every page is a full read. R3P_FORCE_ABR is the sabotage seam: set, it replaces the levels the API
+    reported, and the read must refuse (exit 2)."""
+    if os.environ.get("R3P_FORCE_ABR"):
+        abr = [int(os.environ["R3P_FORCE_ABR"])]
+    if abr != [1]:
+        print(json.dumps({"refused": f"sampled Logs read (ABR {abr}); re-read in shorter pieces"}))
+        sys.exit(2)
+    return abr
+
+
 def events(service, a_ms, b_ms):
     evs, abr, t0 = [], set(), a_ms
     while t0 < b_ms:
@@ -68,7 +80,9 @@ mode = sys.argv[1]
 if mode == "lines":
     service, a, b = sys.argv[2], sys.argv[3], sys.argv[4]
     evs, abr = events(service, ms(a), ms(b))
+    abr = abr1(abr)
     by_product, minutes, statuses, pruned_on, errors, storing = {}, {}, {}, {}, [], []
+    prunekeys_on = {}
     for e in evs:
         s = e.get("source") or {}
         p = s.get("product")
@@ -81,8 +95,10 @@ if mode == "lines":
         statuses[f"{p}:{st}"] = statuses.get(f"{p}:{st}", 0) + 1
         if "pruned" in s:
             pruned_on[f"{p}:{st}"] = pruned_on.get(f"{p}:{st}", 0) + 1
+        if "pruneKeys" in s:          # stage 1a: an OPERA prune by key reports the keys it sent
+            prunekeys_on[f"{p}:{st}:{s['pruneKeys']}"] = prunekeys_on.get(f"{p}:{st}:{s['pruneKeys']}", 0) + 1
         if st in ("stored", "backfilled"):
-            storing.append((e["timestamp"], p, st, s.get("pruned")))
+            storing.append((e["timestamp"], p, st, s.get("pruned"), s.get("pruneKeys")))
         if s.get("evt") == "wx_ingest_error":
             errors.append({"product": p, "at": hms(e["timestamp"] / 1000), "err": str(s.get("err"))[:80], "attempts": s.get("attempts")})
     span = range(ms(a) // 60000, ms(b) // 60000)
@@ -91,17 +107,19 @@ if mode == "lines":
     cref_none = sum(1 for m in span if not minutes.get(("cref", m)))
     cref_err = sum(1 for m in span if any(ev == "wx_ingest_error" for _, ev in minutes.get(("cref", m), set())))
     storing.sort()
-    first_store = next(({"at": hms(t / 1000), "product": p, "status": st, "pruned": pr} for t, p, st, pr in storing), None)
+    row = lambda t, p, st, pr, pk: {"at": hms(t / 1000), "product": p, "status": st, "pruned": pr, "pruneKeys": pk}
+    first_store = next((row(*s) for s in storing), None)
     print(json.dumps({"service": service, "window": [a, b], "abr_levels": abr, "events": len(evs), "lines_by_product": by_product,
                       "minutes": len(span), "cref_minutes_both": cref_both, "cref_minutes_missing_one": cref_one,
                       "cref_minutes_missing_both": cref_none, "cref_minutes_with_error": cref_err,
-                      "statuses": statuses, "pruned_on": pruned_on, "first_storing_check": first_store,
-                      "storing_checks": [{"at": hms(t / 1000), "product": p, "status": st, "pruned": pr} for t, p, st, pr in storing],
+                      "statuses": statuses, "pruned_on": pruned_on, "pruneKeys_on": prunekeys_on,
+                      "first_storing_check": first_store, "storing_checks": [row(*s) for s in storing],
                       "errors": errors}, indent=1))
 
 elif mode == "cpu":
     service, product, a, b = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
     evs, abr = events(service, ms(a), ms(b) + 120_000)
+    abr = abr1(abr)
     inv = {}
     for e in evs:
         w = e.get("$workers") or {}
@@ -142,6 +160,7 @@ elif mode == "first":
     service, dep = sys.argv[2], sys.argv[3]
     d = ms(dep) / 1000
     evs, abr = events(service, ms(dep) - 60_000, int(datetime.now(timezone.utc).timestamp() * 1000))
+    abr = abr1(abr)
     sts = sorted({(e.get("$workers") or {}).get("event", {}).get("scheduledTime") for e in evs} - {None})
     after = [s for s in sts if s >= d]
     print(json.dumps({"service": service, "deploy": dep, "first": hms(after[0]) if after else None,

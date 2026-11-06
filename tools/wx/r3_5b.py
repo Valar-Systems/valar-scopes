@@ -8,10 +8,12 @@ counts, epochs and times only (never a key's value beyond its epoch).
      cross-checked against epoch + lagS - ms/1000 where the line carries them
   4. PASS iff frames <= 13 (opuk only) and every epoch >= t_last - 3,600 s, except the one latest names
      SABOTAGE: the same listing judged with t_last + 300 s must FAIL, on the oldest frame
-  BLIND (= FAIL) if the listing is empty, latest is unreadable, no pruning check is found, or no log line was written
-  after the listing (the read cannot rule out a pruning line still landing).
+  BLIND (= FAIL) if the listing is empty, latest is unreadable, no pruning check is found, no log line was written
+  after the listing (the read cannot rule out a pruning line still landing), or the Logs read was sampled (any page
+  at an ABR level other than 1; the environment variable R3P_FORCE_ABR forces one, as the sabotage).
 
-Pruning checks: opuk = status stored/backfilled (the ruling's "storing check"); cref = any check logging `pruned`
+Pruning checks: opuk = status stored/backfilled (the ruling's "storing check"; since stage 1a its line carries
+`pruneKeys`, the keys a prune by key sent, instead of `pruned`); cref = any check logging `pruned`
 (cref prunes on every successful check). Usage: python -I r3_5b.py <opuk|cref> [wait_s] [service, default blipscope-wx-ingest]
 """
 import datetime
@@ -62,7 +64,8 @@ def s3_get(akid, secret, path, q=None):
 
 
 def logs(tok, a_ms, b_ms):
-    evs, off = [], None
+    """Every page's ABR level is kept: one sampled page makes the whole read sampled."""
+    evs, off, levels = [], None, set()
     while True:
         body = {"queryId": "uk-r3-5b", "timeframe": {"from": a_ms, "to": b_ms}, "view": "events", "limit": 2000,
                 "parameters": {"filters": [{"key": "$metadata.service", "operation": "eq", "type": "string",
@@ -77,8 +80,9 @@ def logs(tok, a_ms, b_ms):
             res = json.loads(r.read())["result"]
         page = res["events"]["events"]
         evs += page
+        levels.add(res.get("statistics", {}).get("abr_level"))
         if len(page) < 2000:
-            return evs, res.get("statistics", {}).get("abr_level")
+            return evs, sorted(levels, key=str)
         off = page[-1]["$metadata"]["id"]
 
 
@@ -126,6 +130,8 @@ else:
 # 2. wait, then the logs around the listing
 time.sleep(wait_s)
 evs, abr = logs(t["observability-read"], int((t_list - 1200) * 1000), int(time.time() * 1000))
+if os.environ.get("R3P_FORCE_ABR"):           # the sabotage seam (docs/wx-opera-europe.md section 11): a read
+    abr = [int(os.environ["R3P_FORCE_ABR"])]   # reported as sampled must come out BLIND
 t_list_ms = int(t_list * 1000)
 after_listing = sum(1 for e in evs if e["timestamp"] > t_list_ms and (e.get("source") or {}).get("evt") in ("wx_ingest", "wx_ingest_error"))
 pruners = []
@@ -137,7 +143,7 @@ for e in evs:
     if is_pruner and e["timestamp"] <= t_list_ms:
         t0 = (e["timestamp"] - s["ms"]) / 1000
         t0b = (s["epoch"] + s["lagS"] - s["ms"] / 1000) if isinstance(s.get("epoch"), int) and isinstance(s.get("lagS"), int) else None
-        pruners.append((t0, t0b, s.get("status"), s.get("epoch"), s.get("pruned")))
+        pruners.append((t0, t0b, s.get("status"), s.get("epoch"), s.get("pruned"), s.get("pruneKeys")))
 pruners.sort()
 
 out = {"product": product, "listed_at": hms(t_list), "frames": len(epochs),
@@ -153,11 +159,14 @@ if not pruners:
     blind.append("no pruning check before the listing")
 if after_listing == 0:
     blind.append("no log line after the listing")
+if abr != [1]:
+    blind.append(f"sampled Logs read (ABR {abr}): a pruning check may be missing; re-read")
 if pruners:
-    t0, t0b, st, ep, pr = pruners[-1]
+    t0, t0b, st, ep, pr, pk = pruners[-1]
     out["last_pruner"] = {"start": datetime.datetime.fromtimestamp(t0, datetime.timezone.utc).strftime("%H:%M:%S.%fZ")[:-4] + "Z",
                           "start_from_epoch_lagS_diff_s": round(t0b - t0, 1) if t0b is not None else None,
-                          "status": st, "frame": hms(ep) if isinstance(ep, int) else None, "pruned": pr}
+                          "status": st, "frame": hms(ep) if isinstance(ep, int) else None, "pruned": pr,
+                          "pruneKeys": pk}
     if t0b is not None and abs(t0b - t0) > 1.5:
         blind.append("the two start times disagree by more than 1.5 s")
     if epochs:
