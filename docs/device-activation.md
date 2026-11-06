@@ -1054,3 +1054,16 @@ decision.
 - **Proposed (not run):** re-run unchanged, once: the guard, then the seed, with the frozen
   predictions of (A). If the seed fails the same way again, stop: a second failure is not a
   transient.
+
+**The ruling (~04:30Z): one retry, unchanged.** Every step read as predicted:
+
+| step (by the clock) | read |
+|---|---|
+| the guard, 04:32:29Z | 23 ledger ids; exactly one not activated and stamped, with no `act:` row and a first enrolment of 2026-11-05T23:30Z |
+| `seed --ledger --state activated`, 04:32:32Z | exit 0: read 23, already present 22, written 1, repaired 0, missing 0 -> COMPLETE |
+| `sweep --ledger`, 04:32:51Z | exit 0: swept 23, activated 23, stamped 23, unstamped 0 |
+| `sweep --token-ids test-device,records-device`, 04:32:57Z | exit 0: swept 2, activated 2, stamped 2, unstamped 0 |
+| C1 (`activation-coverage.ts --env production --days 30`), 04:33:16Z | exit 0: authenticated 21 (Analytics Engine 21, `fw:` 21, union 21); with an `act:` row 21; **missing 0** |
+
+25 rows are stamped. Production stays on `"watch"` until Daniel says otherwise, and the watch
+counts reach him before that decision.
