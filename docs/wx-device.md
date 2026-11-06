@@ -5105,7 +5105,7 @@ existed in this worktree):
 - Main is 40 commits ahead of #445's merge base, `43afaacd4bd8` (2026-11-04).
 - `git merge-tree` finds **one conflict**: `scripts/check-no-bench-hooks.sh`, the `MARKERS` line. Main (#552,
   `84409651`) added `"[ota-bench]"`; #445 added `"[wx-bench]"`.
-- The 7 other files changed on both sides auto-merge: `firmware.yml`, `web-renderer.yml`, `docs/web-renderer.md`,
+- The 7 other files changed on both sides auto-merge: the firmware workflow, `web-renderer.yml`, `docs/web-renderer.md`,
   `platformio.ini`, `skus.yml`, `test/host/run.sh`, `tools/web-renderer/build.sh`.
 - **Job keys:** main added exactly one job, `ota-identity` (#552), and #445 adds none. `web-renderer.yml`,
   `device-ids.yml` and `no-traffic-captures.yml` have the same job keys at the base, on main and on #445. Main's
