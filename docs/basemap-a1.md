@@ -419,3 +419,166 @@ The tree was clean after.
   does not strictly postdate it.
 - **Why the count still holds:** `12569fa0` adds two **steps** to the existing `device-ids` job and no job, so the count is
   unchanged. Read from its diff.
+
+## 8. After the merge: the conditions on A1, predictions first
+
+### The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~02:40Z), points 3 to 5
+
+> 3. #559 (A1) is approved to merge at 8656dbc0 (CI 34: 31/3/0, as predicted). Mark it ready. Before merging, wait until
+>    main's CI on its current head has finished. Squash with --match-head-commit 8656dbc0, no --admin.
+> 4. Three conditions on A1. None blocks this merge:
+>    a. Keyed names. queryDigest is an unkeyed SHA-256 of the normalised query, whose centre is quantised to 0.01°.
+>       Enumerating that grid (about 6.5 × 10^8 points per parameter set) takes minutes on a laptop. So every pkg, err
+>       and lock name in BASEMAP_PKG maps back to a requester's location to about 1 km, with an upload time, which
+>       defeats MP1/MP3's purpose in a persistent, listable store.
+>       - Before any production BASEMAP_PKG binding: one keyed digest (HMAC-SHA-256 under a server secret; propose
+>         which) for object names, ETags and cache keys alike.
+>       - Check: the plain SHA-256 of the query key appears in no object name or ETag. Sabotage: the unkeyed digest
+>         turns it red.
+>       - Nothing shipped holds a basemap ETag, so no device re-downloads.
+>    b. Retention, Daniel's decision (2026-11-06): stored packages are kept for 30 days, then deleted automatically.
+>       - An R2 lifecycle rule, 30 days from upload: on blipscope-basemap-pkg-staging now, and on production's bucket at
+>         D4. Read it back after it's set.
+>       - A check that reads the rule, with a sabotage (the rule absent turns it red).
+>       - This is Daniel's OK for that deletion rule only.
+>    c. The staging slot is the first test of R2's real create-once semantics, since miniflare isn't R2. Register rows
+>       that show:
+>       - a cold query takes the lock, builds, stores, and the lock object is gone afterwards;
+>       - a second request inside the build gets 202 in-flight;
+>       - no query stays in-flight past LOCK_STALE_MS.
+>       If the first row fails (If-None-Match: * not honoured), stop and roll staging back.
+> 5. The slot: A1's staging deploy opens once Daniel pastes blipscope-5c's "#548 staging verified" line. It may overlap
+>    the UK session's R3′, which is production-only and shares no Worker with it. Production stays one deployer at a time.
+
+### #559's merge: main moved under it, so the ruled condition did not hold at the moment of merge
+
+**What I did:**
+- At 03:00:23Z I read main's head `7b70745a` as finished: 31 check runs, 29 success, 2 skipped, two reads 60 s apart.
+- At 03:01:07Z I registered the prediction for main's push CI on #559, then marked #559 ready.
+- At 03:01:44Z I merged it at `8656dbc0`. The squash commit is `9b511dc274c3`.
+
+**What moved in between:** two other merges landed on main.
+- `259e8688` (#558) at 03:00:29Z;
+- `9db83163` (#556, the opuk split) at 03:01:01Z.
+
+So the squash went onto `9db83163`, whose CI had not finished.
+
+**My miss:** I did not re-read main's head immediately before merging. The condition is about main's **current** head,
+and a read 80 s old is not a reading of it. This is the "read it twice" rule in this repo's `CLAUDE.md`, applied to a
+base branch.
+
+**What it changed, read from the artifacts:**
+- **The squash tree equals the 3-way merge of `9db83163` and `8656dbc0`** (`git merge-tree`, tree `ca5be9462394`). It is
+  A1, unaltered, on top of the two commits.
+- **No file is touched both by A1 and by those two commits.**
+- **#558 adds a step to `device-ids`, not a job,** so the set of jobs is unchanged since `84409651` (#552), and the
+  registered main-CI prediction stands.
+- **Main's push CI on `9b511dc2` is the first test of the combination,** and it is read below.
+
+**#560 is held** until the reviewer rules on this. The procedure I propose for it: wait for main's head H to finish its CI,
+then, in the same shell command as the merge, re-read `origin/main` and merge only if it is still H.
+
+### 4b. Retention: the 30-day lifecycle rule (staging now; production's bucket at D4)
+
+**Read first (03:03:31Z, `wrangler r2 bucket lifecycle list blipscope-basemap-pkg-staging`, exit 0):** one rule, R2's
+default. `Default Multipart Abort Rule`: enabled, all prefixes, "Abort incomplete multipart uploads after 7 days".
+
+**The command:**
+
+    npx wrangler r2 bucket lifecycle add blipscope-basemap-pkg-staging bm-pkg-30d --expire-days 30 -y
+
+- **No prefix,** so the rule covers every object in the bucket: the packages, their `.err` records, and any lock left
+  behind.
+- **`add`, not `set`.** `set` replaces the whole configuration and would drop R2's default rule.
+- **What it sends,** read from wrangler 4.35.0's source: a rule `{ id: "bm-pkg-30d", enabled: true, conditions: {},
+  deleteObjectsTransition: { condition: { type: "Age", maxAge: 2592000 } } }`, added to the existing rules.
+
+**The check: `node scripts/check-pkg-lifecycle.mjs <bucket>`.**
+- **OK (exit 0)** only when an **enabled** rule expires objects **after exactly 30 days**, its prefix covers
+  `bm/v1/pkg/`, and no other enabled expiry rule covers that prefix.
+- **MISSING (exit 1)** when no such rule exists. **CONFLICT (exit 1)** when one does, but a second expiry also covers the
+  prefix.
+- **BLIND (exit 2) unless wrangler both exited 0 and printed a result,** either a rule or its "There are no lifecycle
+  rules" line.
+  - Wrangler prints `Listing lifecycle rules for bucket '…'` **before** it fetches, so that line alone proves nothing.
+  - A listing for a different bucket is BLIND too.
+
+**Predictions, in the order they run:**
+
+| step | predicted |
+|---|---|
+| **1. `--selftest`** (planted listings in wrangler's format; no wrangler call) | **12 of 12 as registered**, exit 0: C-OK OK. **L-ABSENT (the ruled sabotage: the rule absent) MISSING.** L-31 MISSING; L-OFF (disabled) MISSING; L-PREFIX (`bm/v2/`) MISSING; C-PREFIX (`bm/v1/`) OK; L-SECOND (a 7-day expiry beside ours) CONFLICT; L-NONE ("no lifecycle rules") MISSING. B-EXIT (exit 1 with a good listing) BLIND; B-AUTH BLIND; B-EMPTY (the listing line only) BLIND; B-BUCKET (another bucket's listing) BLIND |
+| **2. the check on the real bucket, before the add, twice, a minute apart** | **MISSING, exit 1, both times,** listing only `Default Multipart Abort Rule`. This is the ruled sabotage's state on the real bucket, so the check is seen to go red against R2 itself, not only against a plant |
+| **3. the add** | exit 0 |
+| **4. the check after the add, twice, a minute apart** | **OK, exit 0, both times:** `Default Multipart Abort Rule` unchanged, and `bm-pkg-30d`: enabled Yes; (all prefixes); "Expire objects after 30 days" |
+
+**Outcomes:**
+
+| reading | then |
+|---|---|
+| all as predicted | record; at D4 the same command and check run on production's bucket |
+| a selftest line off | stop before any wrangler call |
+| step 2 not MISSING, or other rules present | stop; no add |
+| the add exits non-zero | stop and report; no retry |
+| step 4 not OK | stop and report. No second add and no removal without a ruling |
+| **anything else** | stop and decide |
+
+### 4c. The slot's create-once rows (registered now, read in the slot)
+
+These are added to section 6's set. They run first, before the other nine airports.
+
+| row | what it shows | predicted |
+|---|---|---|
+| **SR1** (first) | **create-once is honoured.** KSEA, alone: two requests launched together, then the retry | one **202 `known-miss`** (it took the lock) and one **202 `in-flight`** (R2 refused its create). **Exactly 1 builder invocation** in KSEA's window. The retry reads **200 `stored`**. Then KSEA's **package reads present** and its **lock reads absent** |
+| **SR2** | a second request inside the build | for each of the other nine, the request about 2 s after the first reads **202 `in-flight`**, with no second builder invocation (as section 6) |
+| **SR3** | nothing stays in-flight past `LOCK_STALE_MS` | for each of the 10, a request **50 s after its first** reads **200 `stored`**. No `in-flight` line for any query comes later than 45 s after that query's first request |
+| **SR4** | no lock is left | after the reading, for each of the 10: the **package reads present** and the **lock reads absent** |
+
+**If SR1 fails, stop and roll staging back** (proxy and builder, to the versions recorded before the deploy).
+- **The failure shapes:** two `known-miss` answers, two builder invocations, or a lock present after the build.
+- **What each means:** `If-None-Match: *` was not honoured, or the lock was never deleted.
+
+**The probe for SR1 and SR4:** `wrangler r2 object get <bucket>/<key> --remote --pipe`, per key.
+- **Present** means exit 0 with bytes. **Absent** means exit 1 with wrangler's exact "The specified key does not exist."
+  **Anything else is BLIND.** Both readings are from wrangler 4.35.0's source.
+- `--remote` is required: without it wrangler reads a local bucket. `--pipe` is required: without it wrangler writes the
+  object to a file named by its key.
+- **The package read is the anchor:** a lock reads "absent" only for a query whose package read "present" in the same
+  pass.
+- **The keys come from the handler's own `parseQuery`, `queryDigest`, `pkgKey` and `lockKey`,** imported, never
+  re-implemented.
+- **Output:** one boolean pair per airport. No key, digest or coordinate is printed.
+
+### 4a. Keyed names: the proposal (Q-A1d), for a ruling before any code
+
+**K1, recommended: a new Worker secret `BASEMAP_NAME_KEY`** on the proxy, one per environment.
+- **Its value:** 32 random bytes, generated in-session and sent to `wrangler secret put` on stdin. It is never printed
+  and has no human copy.
+- **Why no copy is needed:** losing or rotating it costs only cold builds. Packages are derived data. The old names stop
+  being read, and the 30-day rule (4b) removes them.
+
+**K2: derive it from an existing secret** (for example HKDF over `DEVICE_KEY_SECRET` with a label).
+- It needs no new secret.
+- **Not recommended:** it couples a device-key rotation to the map store, and production's `DEVICE_KEY_SECRET` has no
+  held copy.
+
+**The PR, after this one, predictions first:**
+- One digest, `HMAC-SHA-256(BASEMAP_NAME_KEY, the normalised query key)`, for every pkg, err and lock name, the ETag and
+  the Cache API key.
+- **The check:** the plain SHA-256 of the query key appears in no object name, ETag or cache key, with a control that
+  the keyed one does appear.
+- **Its sabotage:** the unkeyed digest turns it red.
+- **With `BASEMAP_PKG` bound but no key, the proxy does not store.** It fails closed, as MS9 does when the bucket is
+  unbound.
+
+**Staging and devices:**
+- **The slot's reading can run on staging under unkeyed names**, since the ruling gates only the production binding.
+  Those staging objects then age out under 4b.
+- **No device holds a basemap ETag,** so no device re-downloads (the ruling's own note).
+
+### CI for this PR, predicted
+
+**34 check runs: 31 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.**
+- **The baseline:** #560's finished run (a `proxy/` PR, 34 = 31/3, first check run about 01:52Z). It postdates the last
+  change to the set of jobs, `84409651` (#552).
+- **Main's last workflow change** is `259e8688` (#558), which adds a step only.
