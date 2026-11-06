@@ -102,6 +102,34 @@ def decode(raw):
     return raw.decode("utf-8-sig")
 
 
+def is_binary_ext(rel):
+    base = rel.rsplit("/", 1)[-1]
+    return "." in base and base.rsplit(".", 1)[-1].lower() in BINARY_EXT
+
+
+def as_text(rel, raw):
+    """The text judge() scans, or UnicodeDecodeError. A BINARY_EXT file is decoded as UTF-8 only: a BOM does not make a
+    .bin into UTF-16 text."""
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff") and not is_binary_ext(rel):
+        return raw.decode("utf-16")
+    return raw.decode("utf-8-sig")
+
+
+def excused(rel, raw):
+    """True when this guard does not read `rel` as text: a BINARY_EXT extension and bytes as_text() cannot decode.
+
+    THE ONE DEFINITION. judge() calls it, and so does scripts/check_binary_strings.py, which reads exactly these files.
+    They once decided it separately -- this file with as_text(), that one with decode() -- and a BOM-led UTF-16 .bin fell
+    between them: excused here, "decodable" there, read by neither (docs/weatherscope-stage3.md A12.115, Q82 (a))."""
+    if not is_binary_ext(rel):
+        return False
+    try:
+        as_text(rel, raw)
+        return False
+    except UnicodeDecodeError:
+        return True
+
+
 def tracked(root):
     r = subprocess.run(["git", "-C", root, "ls-files", "-z"], capture_output=True)
     if r.returncode != 0:
@@ -134,20 +162,20 @@ def judge(root, files, allow):
     for rel in files:
         rel = rel.replace(os.sep, "/")
         findings += [(rel, 0, c) for c in line_findings(rel)[0]]  # every tracked PATH too (docs/wifi-paths.md)
-        base = rel.rsplit("/", 1)[-1]
-        is_binary = "." in base and base.rsplit(".", 1)[-1].lower() in BINARY_EXT
         # Decode first: anything that decodes is scanned whatever its extension (STEP files are ASCII). The binary list
-        # only excuses a file that does NOT decode; any other undecodable file cannot be checked, and is refused.
+        # only excuses a file that does NOT decode -- excused(), shared with check_binary_strings.py, which reads those --
+        # and any other undecodable file cannot be checked, and is refused.
         try:
             raw = open(os.path.join(root, rel), "rb").read()
-            text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") and not is_binary else raw.decode("utf-8-sig")
-        except UnicodeDecodeError:
-            if is_binary:
-                binary += 1
-            else:
-                unreadable.append(rel)
-            continue
         except OSError:
+            unreadable.append(rel)
+            continue
+        if excused(rel, raw):
+            binary += 1
+            continue
+        try:
+            text = as_text(rel, raw)
+        except UnicodeDecodeError:
             unreadable.append(rel)
             continue
         scanned += 1
