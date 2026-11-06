@@ -2048,3 +2048,19 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
   - **Main's last workflow change** is `12569fa0`, which added steps only. The last change to the set of jobs is
     `84409651` (#552, `ota-identity`), and #548's run includes it.
   - The suite count is the reviewer's run of the merge with `7b70745a`: main's 960 plus #556's 4.
+
+**#556 merged:** squash, `--match-head-commit 41da3b47f553`, no `--admin`, at 03:00:58Z.
+- **Merge commit `9db83163a60d`, 03:01:01Z.** The remote branch is deleted.
+
+**A miss of the ~02:40Z rule, mine.** The rule says to wait until main's CI on its current head has finished before
+each merge.
+- At 02:50Z main's head was `7b70745a`, with CI finished. By the merge it was **`259e8688`** (Q82's
+  `check_binary_strings.py` gaps, another session's), pushed at about 03:00:32Z, 26 s before my merge.
+- Its firmware and device-ids runs were still in progress. **I didn't re-read main's head right before merging.**
+- **What it cost, checked:**
+  - Every workflow's push concurrency group is its own `run_id`, with `cancel-in-progress` only for PRs. So my
+    merge couldn't cancel `259e8688`'s runs, and each commit's runs stay attributable by its SHA.
+  - `259e8688` changed `.github/workflows/device-ids.yml` by **adding a step** to the one existing job
+    (`no-real-device-ids`). The set of jobs is unchanged, so the prediction's basis stands under the refined rule.
+    **Main's last workflow change is now `259e8688`, steps only.**
+- **For #557's merge:** main's head is re-read, and its CI checked finished, in the same command that merges.
