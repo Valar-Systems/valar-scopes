@@ -209,3 +209,57 @@ Predicted:
 **Outside the set:** stop and report.
 
 **The order stands** (~15:07Z): this lands after the `SYNC_WAIT_MS` code and its ten.
+
+### Corrections found while writing the code, before any run (2026-11-06)
+
+**These are registered before any run, each with its cause. The original sets above are kept as written.**
+
+**1. Two ids renamed, because the driver grades by id:**
+- **ML1 to ML6 → MN1 to MN6.** `ML` ids already exist in the layers suite (ML4, ML6, ML7, ML11, ML13), and the driver's
+  duplicate-id guard would refuse two rows with one id.
+- **BL1 → BB5.** The driver's id pattern (`M[A-Z]…`, `BB\d+`, `MV/PK-…`) would read `BL1` as UNNAMED.
+- The rows themselves are unchanged.
+
+**2. ML6's identity, stated exactly:** RD20 counts every directory entry, terrain's included, so the identity is
+32 + 16 × **all** sections + the layers' bytes.
+- Fixtures A and B have no terrain (only A8 adds it), so for MN6's cases the two wordings give the same number.
+
+**3. Four existing plants re-anchored, each with the same defect.**
+- **Why:** step 0 rewrote the lines they anchored. The driver's own `plant()` found 0 anchors for each, and 67 of the 71
+  planted cleanly.
+- **S-NOCOUNT:** one of its three edits now anchors the water attempt's new `const got`. **Its set is unchanged:**
+  {MB2, MB3, MB5, MB7, MB8b}. A count rendered as 0 has the same digit count as 9 or 1, so every size, and every MN
+  value, is the same.
+- **S-PRIMARYDROP:** the same primary-dropping step, placed after the new "no secondary" line. **Its set grows
+  {MB4} → {MB4, MN1, MN6}.** A now fits at 623, so MN1's 422 is gone, and MN6 reads that 422 too.
+- **S-BB2:** "only a 200 logs", now on `buildLine()`'s call. **Its set grows {BB2} → {BB2, BB3}:** BB3's new control
+  requires a 404 line to have been seen.
+- **S-BB3:** the same leaked coordinate, added to `buildLine()`'s line. **Its set is unchanged:** {BB3}.
+
+**4. One new plant's set corrected:** **S-SECSUM {MN6} → {MN6, BB4}.**
+- BB4's control (`secProv` over 0) also catches provenance recorded as 0.
+- BB4's comparison itself stays green, since the line and `build()` both go through `layerBytes`.
+
+**5. Every other existing plant was evaluated against MN1-MN6, BB3, BB4 and BB5, and none moves:**
+- **The plants whose sets hold no MB row** leave A and B byte-identical. The MB rows pin their exact totals.
+- **S-BTWICE** (ε × 4): A's lines do not simplify, and the header's ε field and PROVENANCE's requested ε keep their
+  widths. B still fits after the ε step.
+- **S-DROPORDER, S-ROADORDER:** a full drop's bytes do not depend on order, and at 811 any one ring suffices.
+- **S-TERRCAP, S-TNOMARGIN:** A, B and BB4's query carry no terrain.
+- **S-BB1:** BB4 compares the ladder, not the reads.
+- **The `query.ts` plants:** BB4's expected ladder goes through the same `parseQuery` as the proxy's request.
+- **The ingest-set plants** run no MN or BB row.
+- **C-LOADFAIL** still reads BLIND, since `basemap-build.test.ts` imports the layers too.
+
+**The anchor check after these edits: 74 of 74 sabotages plant cleanly.** It uses the driver's own table and its own
+`plant()`, and it is the same check that found the four.
+
+**Counts, restated with the renames:**
+- **The suite:** 976 + 8 (MN1-MN6, BB4, BB5) = **984** (983 passed, 1 skipped).
+- **`baseline[all]`:** **167** cases in 17 files.
+- **The driver:** **77 runs** (74 sabotages and 3 baselines), **every one AS PREDICTED**, with C-LOADFAIL BLIND among
+  them.
+- **The smoke driver:** CONTROL **983 / 1 / 984**, with S-SQ and S-SQP as registered and the TIME_WAIT margin reported.
+
+**CI for the code PR, predicted: 34 check runs: 31 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.**
+The baseline is #572's finished run, a `proxy/` PR that postdates `84409651`.

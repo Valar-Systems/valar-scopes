@@ -7,7 +7,7 @@ import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
 import { BASEMAP_REV, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
 import { etagOf, parseQuery } from "../src/basemap/query";
-import builder, { makeBuilder } from "../src/basemap/worker";
+import builder, { buildLine, makeBuilder } from "../src/basemap/worker";
 import { type SynthDef, COMMIT, lonLatOf, mbStore, writeSynthStore } from "./basemap-synth";
 import { apiRequest, call } from "./helpers";
 
@@ -349,6 +349,10 @@ describe("MK, the branch on the proxy's request line", () => {
 // milliseconds only. Each of BB1 and BB2 reads the ONE line its own request produced.
 type BuildLine = { evt: string; status: number; reads: number; bytes: number; readMs: number; maxReadMs: number; wallMs: number };
 const BUILD_KEYS = ["evt", "status", "reads", "bytes", "readMs", "maxReadMs", "wallMs"];
+// Step 0 (docs/basemap-dense.md): a built package or a too_large also carries the ladder; a 422 its four rungs too
+const SEC_KEYS = ["secWater", "secRivers", "secRoads", "secPeaks", "secPlaces", "secProv"];
+const KEYS_200 = [...BUILD_KEYS, "rung", "cap", ...SEC_KEYS];
+const KEYS_422 = [...BUILD_KEYS, "rung", "cap", "nt0", "nt1", "nt2", "nt3", ...SEC_KEYS];
 const buildLinesFrom = (from: number): BuildLine[] =>
   logs.slice(from).filter((l) => l.startsWith('{"evt":"bm_build"')).map((l) => JSON.parse(l) as BuildLine);
 
@@ -379,16 +383,48 @@ describe("BB, the builder's read line", () => {
     expect([lines[0]!.status, lines[0]!.reads]).toEqual([404, 3]);
   });
 
-  it("BB3: every build line holds exactly its seven fields, integers only, and nothing of the query", () => {
+  it("BB3: every build line holds exactly its fields (a 200 its 15, any line without a ladder its 7), integers only, and nothing of the query", () => {
     const lines = logs.filter((l) => l.startsWith('{"evt":"bm_build"'));
     expect(lines.length).toBeGreaterThanOrEqual(3); // CONTROL: there were lines to check
+    const seen = new Set<unknown>();
     for (const raw of lines) {
       const o = JSON.parse(raw) as Record<string, unknown>;
-      expect(Object.keys(o), raw).toEqual(BUILD_KEYS);
-      for (const k of BUILD_KEYS.slice(1)) expect(Number.isInteger(o[k]), `${k} in ${raw}`).toBe(true);
+      const keys = o.status === 200 ? KEYS_200 : o.status === 422 ? KEYS_422 : BUILD_KEYS;
+      seen.add(o.status);
+      expect(Object.keys(o), raw).toEqual(keys);
+      for (const k of keys.slice(1)) expect(Number.isInteger(o[k]), `${k} in ${raw}`).toBe(true);
       expect(raw.includes("0.37") || raw.includes("0.59"), raw).toBe(false);
       expect(Object.values(o).some((v) => v === 370_000 || v === 590_000), raw).toBe(false);
     }
+    expect(seen.has(200) && seen.has(404), "CONTROL: both a 200 line and a 404 line were checked").toBe(true);
+  });
+
+  it("BB4: a 200's line carries the ladder build() measures for the same store and query", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const from = logs.length;
+    const res = await mw(`/api/v1/blipscope/basemap?${QW}`, b);
+    expect(res.status).toBe(200);
+    const lines = buildLinesFrom(from);
+    expect(lines.length, "build lines for one build").toBe(1);
+    const l = lines[0]! as unknown as Record<string, number>;
+    const p = parseQuery(new URL(`https://x.invalid/api/v1/blipscope/basemap?${QW}`));
+    if (!p.ok) throw new Error(p.code);
+    const r = await build({ get: async (k: string) => s.store.objects.get(k) ?? null }, p.q, { commit: COMMIT });
+    if (!r.ok) throw new Error(`not built: ${r.status}`);
+    const x = r.ladder.sections;
+    expect([l.rung, l.cap, l.secWater, l.secRivers, l.secRoads, l.secPeaks, l.secPlaces, l.secProv])
+      .toEqual([r.ladder.rung, 32_768, x.water, x.rivers, x.roads, x.peaks, x.places, x.provenance]);
+    expect(l.secProv).toBeGreaterThan(0); // CONTROL: the ladder measured something
+  });
+
+  it("BB5: a 422's line carries the ladder's four rungs, in order, as integers", () => {
+    const line = buildLine(
+      { ok: false, status: 422, code: "too_large", ladder: { rung: -1, nt: [9, 8, 7, 6], sections: { water: 1, rivers: 2, roads: 3, peaks: 4, places: 5, provenance: 6 } } },
+      { reads: 11, bytes: 12, readMs: 13, maxReadMs: 14 }, 15);
+    expect(Object.keys(line)).toEqual(KEYS_422);
+    expect([line.nt0, line.nt1, line.nt2, line.nt3]).toEqual([9, 8, 7, 6]);
+    expect([line.status, line.rung, line.cap, line.secProv]).toEqual([422, -1, 32_768, 6]);
   });
 });
 
