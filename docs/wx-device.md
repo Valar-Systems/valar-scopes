@@ -5137,4 +5137,36 @@ approved as predicted, and MG5 is accepted as a derived prediction.
 
 MG5 is read after the push.
 
+### Daniel's bench window (ruled ~17:15Z: 18:45Z, about 45 min, once Daniel confirms): frozen before it opens
+
+**The protocol is the replay session's** (RC1, RP2, RP6's three arms, RS1-RS6, the restore remedy, the scan: "The
+replay route" and the K6 driver's rules). A driver derived from `replay_redo.py` runs it. **The changes, all to fit
+45 min:**
+- **A flash first:** `bench-flash.ps1 -PioEnv blipscope-s3-128-wxlook -Board blipscope-bench -AppOnly -NoCapture`,
+  from this branch's pushed head, `503dd96563fa`. App only, so NVS and E2:08's settings are kept.
+- **RP1 (S-old, the age limit's sabotage) is dropped.** It was proven on 10-29 and 10-31 and is not this window's
+  question. MODE fresh is set before the reboot, so the first `[wx]` line after it is the fresh crop.
+- **The arms are shorter:** A 10 min, B 6 min, off 6 min (were 11 each), each after a 60 s settle following its
+  setting.
+
+**Predicted:**
+
+| | check | predicted |
+|---|---|---|
+| **V1** | the flash, and which image runs | bench-flash exit 0. The page's look select reads exactly "Brighter rain" and "Fainter rain", labels only this build carries. The boot banner reads `[build] env=blipscope-s3-128-wxlook` and `[wx-bench]` |
+| **V2** | the start state, read after the flash | layer on, look A, cloud-url blank. Otherwise the driver stops before RC1 |
+| **V3** | RC1 and RP2 | the crop tool exits 0; the device's parser reads the crop Ok. The first `[wx]` line after the reboot is `replaced` with the fresh frame, and `layer rebuilt` follows |
+| **V4, the edge's own timer** | the `[health] outline=` lines inside each arm, per contact (the line's average divided by the `[health] frame` line's n) | **0.16-0.19 ms per contact, in arm A and in arm B**. Outside that band reads "instrument": stop. Arm off: no `outline=` line |
+| **V5, B1's on−off, reported apart** | medians of the `frame p95` lines wholly inside each arm | **reported, not graded**: (A − off) and (B − off), each raw and minus that arm's edge time per frame. The layer's own cost was measured directly at 3.82 ms (push − fill) |
+| **V6, over-budget lines** | `[health] BUDGET BROKEN` in each arm | **0** in every arm, at the window's contact count (reported). The 60-contact case stays K6's |
+| **V7, the restore** | RS5 | the cloud-url cleared, layer on, look A; no proxy request in the 5 min after; the page "as before" |
+| **V8, RS3** | the scan | no address, key, id or coordinate in the driver's log, the proxy's log or the run record |
+
+**Daniel's three, his call and not graded:** drizzle hidden (the cockpit default); the lit sweep on the new colours;
+the black edge on the cyan and white planes.
+
+**The window holds nothing else.** This session starts no build, test or other flash from the window's start to
+RS3's end. The driver does not measure the PC's load (W5⁵'s did), so that is a statement about this session, not a
+reading. **Outside the set** (any row, or a reading this table does not name): stop and report.
+
 **Outside the set:** stop and report.
