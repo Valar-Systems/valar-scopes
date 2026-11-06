@@ -2111,3 +2111,23 @@ Radars come from each frame's own node list (156-162 nodes a frame), by OPERA pr
   - **The basis this time:** main's last workflow changes before #556's base were #549 (`dd1246e0`, the s3-146
     retirement) and the OTA identity commit `84409651` (the ruling's #552). Both predate `7cca8983`, the base #556
     was cut from.
+
+**Ruling, pasted 2026-11-06 ~00:58Z (verbatim):**
+
+> Item A, Daniel's decision: use the data under LPS's written answer of 2026-11-04. No further confirmation will be asked of LPS.
+> 1. The three stopped datasets are released: OSNI 50K Transport, the OSNI Gazetteer, and NISRA's settlement boundaries (with the populations, for the ranking). Record in A.3:
+>    - LPS's answer named all four datasets for this use, and both discrepancies point back to LPS;
+>    - Daniel decided on 2026-11-06 to rely on that answer;
+>    - the mirrors' wording and NISRA's exemption, recorded beside it.
+> 2. Credits, wherever NI-derived data shows: the OSNI line (verbatim, with the OGL link), DAERA's line, and NISRA's "Source: NISRA : Website: www.nisra.gov.uk". The checks and sabotages are as already ruled.
+> 3. A.3 now records one settled answer, so it can go up. Predict CI from main's run of 12569fa (31: 29 success, 2 skipped), with ship-alert skipped on a PR: 31: 28 success, 3 skipped, 0 failed. I review before merge. The NI gate lifts when it merges; NI still ships only with GB under the UK map plan.
+
+**A.3 is PR #557** (`docs/ni-gate-lps`, head `d155686cba5d`).
+- It adds `docs/uk-data.md` §A1.1d on main, with a pointer from §2.1's NI licences block.
+- It also adds item B's record as `docs/opera-coverage-2026-11-05.md`, as ruled ~00:56Z.
+- No personal names, email addresses or phone numbers are added. A scan of the added lines found 0 addresses.
+- **Predicted CI:** 31 check-runs, 28 success, 3 skipped, 0 failed.
+  - **Baseline:** main's finished run at `12569fa0` (31: 29 success, 2 skipped).
+  - `12569fa0` is itself main's last workflow change (2026-11-05 13:37).
+  - `ship-alert` skips on a PR.
+  - It is read only from a finished run.
