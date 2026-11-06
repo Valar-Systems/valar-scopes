@@ -9,8 +9,8 @@ import { FrameBuilder, frameMeta, readHeader, type GridGeom } from "./grid";
 import { decodeMrms, parseGrib2 } from "./mrms";
 import type { LatestRecord } from "./handler";
 import { readWindow, type RangeFetch } from "./opera";
-import { type Product, frameKey, framesPrefix, latestKey } from "./products";
-import { mapFor, resample } from "./resample";
+import { type Product, frameKey, framesPrefix, latestKey, mapObjectKey } from "./products";
+import { type ResampleMap, buildMap, cacheMap, cachedMap, decodeMap, encodeMap, mapKey, resample } from "./resample";
 
 export const NOAA_BUCKET = "https://noaa-mrms-pds.s3.amazonaws.com";
 /** OPERA's 24 h cache (docs/uk-data.md A3.9: no published limit; about 3 requests a minute from us). */
@@ -23,7 +23,8 @@ const LOOKBACK_S = 20 * 60;
 export type Fetch = (input: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<Response>;
 
 /** Test-only switches: K10's (as re-registered for PK1) and K14's sabotages. Production passes none. */
-export interface IngestX { pruneAlways?: boolean; pruneBy?: "list"; uaOff?: "list" | "head" | "tiles" }
+export interface IngestX { pruneAlways?: boolean; pruneBy?: "list"; uaOff?: "list" | "head" | "tiles";
+                           mapR2?: "off"; mapNoCheck?: boolean }   // the last two: MP1s and MP3s
 
 /** One NOAA request's attempt policy (docs/wx-ingest-noaa-blips.md). NOAA's S3 is reached through Cloudflare, and
  *  on 2026-10-23 it answered 520/522/525 or hung for 24-288 s on about a quarter of the runs. */
@@ -159,8 +160,46 @@ export async function buildFrame(p: Product, epoch: number, gz: Uint8Array,
 
 /** One OPERA frame into a WXG1 object: the head and the window's tile rows by range (each with K14's User-Agent),
  *  resampled onto the product's grid. Returns the frame and its covered share (K9). */
+export type MapSource = "cache" | "r2" | "built";
+
+/** Stage 1c (docs/wx-opera-map-r2.md): the resample map from the isolate cache, else from R2, else built -- and then
+ *  written to R2 for the next cold isolate. A stored map is used only if decodeMap validates it against the window
+ *  and grid in hand AND its metadata holds this exact key; a refused one is rebuilt and overwritten. */
+export async function mapVia(bucket: R2Bucket | undefined, p: Product, geo: Parameters<typeof mapKey>[0],
+                             win: [number, number, number, number], g: GridGeom, x: IngestX = {}):
+                             Promise<{ m: ResampleMap; src: MapSource; refused: boolean }> {
+  const key = mapKey(geo, win, g);
+  const hit = cachedMap(key);
+  if (hit) return { m: hit, src: "cache", refused: false };
+  const useR2 = bucket !== undefined && x.mapR2 !== "off";
+  let objKey = "", refused = false;
+  if (useR2) {
+    const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
+    objKey = mapObjectKey(p, Array.from(d.subarray(0, 16), (v) => v.toString(16).padStart(2, "0")).join(""));
+    const o = await bucket.get(objKey);
+    if (o) {
+      const m = decodeMap(await o.arrayBuffer(), win[1] - win[0] + 1, win[3] - win[2] + 1, g.ni * g.nj, x.mapNoCheck);
+      if (m && (x.mapNoCheck || o.customMetadata?.key === key)) {
+        cacheMap(key, m);
+        return { m, src: "r2", refused: false };
+      }
+      refused = true;
+    }
+  }
+  const m = buildMap(geo, win, g);
+  cacheMap(key, m);
+  if (useR2) {
+    // create-only, unless a refused object sits under the key: then it is replaced
+    const onlyIf = refused ? {} : { onlyIf: new Headers({ "If-None-Match": "*" }) };
+    await bucket.put(objKey, encodeMap(m), { customMetadata: { key }, ...onlyIf });
+  }
+  return { m, src: "built", refused };
+}
+
+export interface OperaBuild { fb: FrameBuilder; covered: number; map: MapSource; mapRefused: boolean }
+
 export async function buildOperaFrame(p: Product, key: string, epoch: number, doFetch: Fetch, opts: IngestOpts,
-                                      attempts: { get: number }, x: IngestX = {}): Promise<{ fb: FrameBuilder; covered: number }> {
+                                      attempts: { get: number }, x: IngestX = {}, bucket?: R2Bucket): Promise<OperaBuild> {
   const url = `${OPERA_BUCKET}/${key}`;
   let first = true;
   const fetchRange: RangeFetch = async (a, z) => {
@@ -174,10 +213,11 @@ export async function buildOperaFrame(p: Product, key: string, epoch: number, do
   };
   const g = p.grid!;
   const w = await readWindow(fetchRange, g);
-  const { codes, covered } = resample(w.value, w.quality, mapFor(w.geo, w.window, g), g);
+  const mv = await mapVia(bucket, p, w.geo, w.window, g, x);
+  const { codes, covered } = resample(w.value, w.quality, mv.m, g);
   const fb = new FrameBuilder(frameMeta(p.id, epoch, g));
   for (let r = 0; r < g.nj; r++) fb.setRow(r, codes.subarray(r * g.ni, (r + 1) * g.ni));
-  return { fb, covered };
+  return { fb, covered, map: mv.src, mapRefused: mv.refused };
 }
 
 export type LatestOutcome = "advanced" | "created" | "kept-newer" | "conflict";
@@ -204,6 +244,7 @@ export interface IngestResult {
   status: "no-frame" | "already-stored" | "lost-race" | "stored" | "backfilled";
   key?: string; epoch?: number; latest?: LatestOutcome; pruned?: number; bytes?: number; coveredShare?: number;
   pruneKeys?: number;            // OPERA: the keys a prune by key SENT (R2's delete does not say which existed)
+  map?: MapSource; mapRefused?: boolean;   // OPERA, stage 1c: where the resample map came from
   attempts?: { list: number; get: number };
 }
 
@@ -235,7 +276,9 @@ export async function ingestOnce(bucket: R2Bucket, p: Product, nowMs: number, do
     let bytes: Uint8Array;
     let customMetadata: Record<string, string> | undefined;
     if (p.source === "opera") {
-      const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x);
+      const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket);
+      out.map = b.map;
+      if (b.mapRefused) out.mapRefused = true;
       bytes = b.fb.bytes;
       customMetadata = { coveredShare: String(b.covered) };   // K9: carried into `latest` by whichever check moves it
       out.coveredShare = b.covered;

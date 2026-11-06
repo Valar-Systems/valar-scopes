@@ -13,7 +13,8 @@ import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, PRUNE_BACK_S, RETAIN_
 import { WGS84, laea } from "../src/wx/laea";
 import { HEAD_BYTES, NODATA, type OperaGeo, OperaRefused, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
 import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, framesPrefix, latestKey, servedProduct } from "../src/wx/products";
-import { type MaskOpts, OPUK_QI_MASK, mapFor, operaCode, prepareCentreOnly, resample } from "../src/wx/resample";
+import { type MaskOpts, OPUK_QI_MASK, buildMap, cachedMap, clearMapCache, encodeMap, mapFor, mapKey, operaCode, prepareCentreOnly,
+         resample } from "../src/wx/resample";
 import dryBin from "./fixtures/wx/opera/20261029T0130.ranges.bin";
 import dryExp from "./fixtures/wx/opera/20261029T0130.expected.json";
 import dryRanges from "./fixtures/wx/opera/20261029T0130.ranges.json";
@@ -733,6 +734,118 @@ describe("PK2, PK3, PK5: a prune by key, on a seeded bucket", () => {
     expect(byKey.filter((k) => !strays.includes(k))).toEqual(byList);
     expect(byKey.filter((k) => strays.includes(k))).toEqual(strays);
   });
+});
+
+// ---- Stage 1c (docs/wx-opera-map-r2.md): the resample map from R2, MP1-MP4 ------------------------------------------
+
+describe("Stage 1c: the resample map from R2", () => {
+  const T = (epochOf(DRY) + 300) * 1000;
+  const mapsPrefix = `wx/${opuk.id}/map/`;
+  const wipe = async (prefix: string) => {
+    const l = await env.WX!.list({ prefix });
+    if (l.objects.length) await env.WX!.delete(l.objects.map((o) => o.key));
+  };
+  // one storing check of the DRY frame, from no frames and no latest, so every call builds
+  const store = async (x: IngestX = {}) => {
+    await wipe(framesPrefix(opuk));
+    await env.WX!.delete(latestKey(opuk));
+    const r = await ingestOnce(env.WX!, opuk, T, operaFetch(DRY), undefined, x);
+    const o = await env.WX!.get(frameKey(opuk, r.epoch!));
+    return { r, bytes: new Uint8Array(await o!.arrayBuffer()) };
+  };
+  const maps = async () => (await env.WX!.list({ prefix: mapsPrefix })).objects;
+  const same = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
+  // replace the one stored map's bytes, keeping its metadata (the key), so only what the bytes say can refuse it
+  const restore = async (bytes: Uint8Array) => {
+    const [obj] = await maps();
+    const cur = await env.WX!.get(obj!.key);
+    await env.WX!.put(obj!.key, bytes, { customMetadata: cur!.customMetadata });
+  };
+
+  it("MP1: built, then r2, then cache; MP2: the three frames identical; MP4: the object's size", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    const objs = await maps();
+    clearMapCache();
+    const b = await store();
+    const c = await store();
+    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const px = (w.window[1] - w.window[0] + 1) * (w.window[3] - w.window[2] + 1), cells = OPUK_GRID.ni * OPUK_GRID.nj;
+    console.log(`MP1: ${a.r.map}, ${b.r.map}, ${c.r.map}; MP4: ${objs.length} object(s), ${objs[0]?.size} B = ` +
+                `16 + 4 x (${px} window px + ${cells} cells) = ${16 + 4 * (px + cells)}; ` +
+                `MP2: identical ${same(a.bytes, b.bytes) && same(b.bytes, c.bytes)}`);
+    expect([a.r.status, a.r.map, b.r.map, c.r.map]).toEqual(["stored", "built", "r2", "cache"]);
+    expect(objs.length).toBe(1);
+    expect(objs[0]!.size).toBe(16 + 4 * (px + cells));
+    expect(same(a.bytes, b.bytes) && same(b.bytes, c.bytes)).toBe(true);
+    expect(a.r.mapRefused).toBeUndefined();
+  }, SLOW);
+
+  it("SABOTAGE MP1s: the R2 level off -- the second cold build reads built, and nothing is stored", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    await store({ mapR2: "off" });
+    clearMapCache();
+    const b = await store({ mapR2: "off" });
+    expect(b.r.map).toBe("built");
+    expect((await maps()).length).toBe(0);
+  }, SLOW);
+
+  it("SABOTAGE MP2s: one Int32 of the stored cellOf altered -- the frame through r2 differs", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const m = cachedMap(mapKey(w.geo, w.window, OPUK_GRID))!;
+    const codes = resample(w.value, w.quality, m, OPUK_GRID).codes;
+    // a no-coverage pixel moved into a covered, echo-free cell that has pixel centres: that cell must turn 14
+    const i = m.cellOf.findIndex((cell, k) => cell >= 0 && w.value[k] === NODATA);
+    const cB = codes.findIndex((code, k) => code === 0 && m.fill[k] === -2);
+    const bytes = encodeMap(m);
+    new DataView(bytes.buffer).setInt32(16 + 4 * i, cB, true);
+    await restore(bytes);
+    clearMapCache();
+    const b = await store();
+    console.log(`MP2s: pixel ${i} -> cell ${cB}; through ${b.r.map}, identical ${same(a.bytes, b.bytes)}`);
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(cB).toBeGreaterThanOrEqual(0);
+    expect(b.r.map).toBe("r2");
+    expect(same(a.bytes, b.bytes)).toBe(false);
+  }, SLOW);
+
+  // a map built for a window one column narrower: right key and metadata, wrong counts and length
+  const narrower = async () => {
+    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const [r0, r1, c0, c1] = w.window;
+    return encodeMap(buildMap(w.geo, [r0, r1, c0, c1 - 1], OPUK_GRID));
+  };
+  it("MP3: an object written for another window is refused and rebuilt; the frame is the right one", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    await restore(await narrower());
+    clearMapCache();
+    const b = await store();
+    clearMapCache();
+    const c = await store();
+    console.log(`MP3: ${b.r.map} (refused ${b.r.mapRefused}), identical ${same(a.bytes, b.bytes)}; then ${c.r.map}`);
+    expect([b.r.map, b.r.mapRefused]).toEqual(["built", true]);
+    expect(same(a.bytes, b.bytes)).toBe(true);
+    expect(c.r.map).toBe("r2");                              // the refused object was replaced
+  }, SLOW);
+
+  it("SABOTAGE MP3s: validation skipped -- the wrong map is used, and the frame differs or the build throws", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    await restore(await narrower());
+    clearMapCache();
+    let red: string;
+    try {
+      const b = await store({ mapNoCheck: true });
+      red = same(a.bytes, b.bytes) ? "" : `frame differs (through ${b.r.map})`;
+    } catch (err) {
+      red = `threw: ${String(err).slice(0, 80)}`;
+    }
+    console.log(`MP3s: ${red || "NOT RED"}`);
+    expect(red).not.toBe("");
+  }, SLOW);
 });
 
 /** The request kinds that went out without K14's User-Agent. */
