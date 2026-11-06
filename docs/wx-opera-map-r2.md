@@ -191,3 +191,37 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 | **rollback band** | median in **[300, 2,580] ms**; max <= 5,000 ms; 0 `exceededCpu`. Outside it is off, and rolls `opuk` back to `b7626571` at once |
 | **prediction, graded on its own** | median **490-810 ms**. Inside the band but outside this range is off-prediction: reported, with no rollback |
 | **the miss, kept** | [1,008, 2,580]: a band copied from a change not meant to touch CPU onto one that was |
+
+**MD-5, read 23:30:07Z (21:25:06Z to 23:25:06Z, 900 s pieces, ABR [1]): OFF, under the band's floor.**
+
+| | got | against |
+|---|---|---|
+| records | 120, **all `ok`, 0 `exceededCpu`** | as predicted |
+| **single-build median** | **264.5 ms** (n 24) | **under the band's 300 ms: OFF.** Under the prediction's 490-810 ms too |
+| single-build max | 1,873 ms (the one `built`) | <= 5,000 ms: as predicted |
+| split by `map` (printed) | **`built`:** n 1, 1,873 ms. **`r2`:** n 23, median **261 ms**, max 473 ms. **`cache`:** none | M5's reading for `opuk` |
+| the rest | n 96, median 10 ms, max 22 | |
+| p99 of all | 473 ms | |
+
+**Rolled back as ruled, at once:** `wrangler rollback b7626571-... -c wx-ingest-opuk.wrangler.toml --env="" -m ... -y`,
+23:30:37.756Z to 23:30:41.721Z, exit 0, stderr empty. `deployments status` read back: **`b7626571` at 100%.**
+`/healthz` at 23:31:10Z: `opuk` `frameAgeS` 371, `coveredShare` 0.7508; 12 frames listed.
+
+**The floor was there to catch a build that had stopped doing its work. That is not what it caught:**
+- **Stored frames are unchanged.** Over 19:00-20:00Z (old map path) and 22:00-23:00Z (`r2`), both at ABR [1] with 12
+  stored frames each: **`bytes` 1,179,712 on all 24**, and `coveredShare` from 0.750769 to 0.750773 against 0.75077
+  to 0.750773. `coveredShare` is computed through the map, so a wrong map would move it.
+- **MP2** showed the frame through `r2` byte-identical to `built` on the real fixture.
+- **MD-2 and MD-4** showed frames landing and being served.
+- **Wall time per check fell with it:** a median of about 12.1 s to 8.5 s.
+
+**Why the prediction missed: my basis was wrong, in the same direction as the band.**
+- 490-810 ms was K11's Node frame cost (0.25-0.41 s) x 1.97, the factor from PKD-6's 1,676 ms against K11's 0.85 s.
+  That applied one factor to both the frame and the map.
+- The Worker reads otherwise: **`built` 1,873 ms, `r2` 261 ms.** The frame costs about what K11 measured in Node, and
+  nearly all of the excess was the map, about 1.6 s.
+- So the map was **about 86% of a build,** and 1c removes it. The floor of 300 ms, which I proposed, sat above the
+  real cost.
+
+**State:** `opuk` runs `b7626571` (stage 1a). The map object stays in `wx/opuk/map/`; nothing reads it now, and
+`expire-1d` removes it. Stage 1c's code remains in main, unused in production until a ruling.
