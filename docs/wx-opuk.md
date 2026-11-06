@@ -2089,3 +2089,23 @@ as the merge.
 > 3. R4 and node_modules stay held.
 
 - **The board hold is in place.** R3′ waits only for the "#548 production verified" line.
+
+**Ruling, pasted 2026-11-06 ~04:22Z (verbatim):**
+
+> 1. Main's CI on ac5f8509: recorded, as predicted.
+> 2. R3′'s second condition is met, by ruling: #548's production deploy is deployed and checked (blipscope-5c, ~04:00Z). Its remaining steps (a one-board re-seed, the token-id sweep, C1) deploy nothing. Start R3′ now, in the registered order: R3′-pre, R3′-0, R3′-1a. The board hold is in place.
+>    - The map server's A1 staging slot is running alongside. It is staging only and shares no Worker with R3′.
+>    - If blipscope-5c has to roll back #548's production deploy during R3′, Daniel tells you. Mark any R3′ row read across it.
+> 3. A merge rule for all sessions:
+>    - wait for main's head H to finish its CI;
+>    - in the same command as the merge, re-read origin/main and merge only if it is still H;
+>    - afterwards, check the squash tree against merge-tree(H, PR head).
+> 4. R4 and node_modules stay held.
+
+**The rule's after-check, applied to both of my merges** (read-only):
+- **#556:** merge-tree(`259e8688`, `41da3b47f553`) = `2d220734ead1`, and `9db83163`'s tree = `2d220734ead1`.
+  **Equal.** The squash's parent is `259e8688`.
+- **#557:** merge-tree(`9b511dc274c3`, `d155686cba5d`) = `7fae89fc0fd2`, and `ac5f8509`'s tree = `7fae89fc0fd2`.
+  **Equal.** The squash's parent is `9b511dc2`.
+
+### R3′ (2026-11-06, from ~04:25Z)
