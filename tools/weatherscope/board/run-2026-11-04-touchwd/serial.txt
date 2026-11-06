@@ -1,0 +1,1958 @@
+#HOST opened COM6; acting only on screen lines from t_open + 1 s
+[wifi-reset] boot touch window: driver=1 polls=146 touched=0
+[WiFi] fast join: ch=1 bssid=<redacted>
+[WiFi] Associated with "<redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<redacted>  RSSI=-45 dBm
+[WiFi] fast join OK in 3750 ms
+[WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
+[ota] channel=weatherscope-s3-128 current=18 latest=18
+[web] config server listening on :80 (http://Weatherscope-326E64.local)
+[wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+[wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+[wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] init; location=set autodim=1 brightness=255 stored=1 theme=auto read=known
+[heap] handshake ballast reserved (16717 B); free8=196444
+[wx] dim=1 brightness=51
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40985
+[wx] prof dry-60 view=3564 map=22319 bands=3157 rings=7664 warning=3 labels=3439 ringlabels=447 home=19 replay=3 strip=109 band=248 sum=40972 compose_us=40985
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 5000 draws 1-108 n=108 phases=2 push_us=25776-25852
+#HOST the board's web server answers
+#HOST post wx-theme=light
+[GET] Handling request to config web server...
+[GET] heap free=192852 largest-block=131060
+[ 21694][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[POST] Handling form submission to config web server...
+[wx] init; location=set autodim=1 brightness=255 stored=1 theme=light read=known
+[wx] theme=light was=dark setting=light phase=Night
+[wx] fbcopy n=99 min=5355 max=7452 mean=5441
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40935
+[wx] prof dry-60 view=3575 map=22310 bands=3152 rings=7624 warning=3 labels=3458 ringlabels=426 home=19 replay=2 strip=107 band=244 sum=40920 compose_us=40935
+[wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST post wx-theme=light: HTTP 200; only the asked fields changed: True; stored as asked: True
+[GET] Handling request to config web server...
+[GET] heap free=192436 largest-block=131060
+[ 24289][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+#HOST post wx-theme=dark
+[GET] Handling request to config web server...
+[GET] heap free=192184 largest-block=131060
+[ 27932][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[POST] Handling form submission to config web server...
+[wx] init; location=set autodim=1 brightness=255 stored=1 theme=dark read=known
+[wx] theme=dark was=light setting=dark phase=Night
+[wx] fbcopy n=168 min=5355 max=7038 mean=5408
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40935
+[wx] prof dry-60 view=3560 map=22336 bands=3153 rings=7634 warning=3 labels=3434 ringlabels=435 home=20 replay=2 strip=100 band=244 sum=40921 compose_us=40935
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST post wx-theme=dark: HTTP 200; only the asked fields changed: True; stored as asked: True
+[GET] Handling request to config web server...
+[GET] heap free=191924 largest-block=131060
+[ 31693][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[wx] fbcopy n=547 min=5355 max=7535 mean=5399
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=41039
+[wx] prof approaching-60 view=3564 map=22383 bands=3153 rings=7644 warning=3 labels=3440 ringlabels=467 home=20 replay=1 strip=110 band=239 sum=41024 compose_us=41039
+[wx] k ROW approaching-60 1ff92e45d2c13fe65a8aba141a31235a76ab93153e934095f93f430fe8ba1bf0
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 109-922 n=814 phases=2 push_us=25809-39448
+#HOST fetch dark-approaching 0: 115200 B torn=false seq=1027 phase=2,2 tag=113c0404,113c0404 finished=true wait=5013 sha 1ff92e45d2c1
+#HOST fetch dark-approaching 1: 115200 B torn=false seq=1060 phase=2,2 tag=113c0425,113c0425 finished=true wait=5015 sha 1ff92e45d2c1
+[wx] fbcopy n=821 min=5355 max=7271 mean=5407
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40885
+[wx] prof herenow-60 view=3588 map=22288 bands=3153 rings=7623 warning=3 labels=3437 ringlabels=463 home=20 replay=2 strip=106 band=187 sum=40870 compose_us=40885
+[wx] k ROW herenow-60 78a497c19d61768e7214559db225b073ca9ca67d0b0453b0296fd4e34ca395e1
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 923-1743 n=821 phases=2 push_us=25806-36439
+#HOST fetch dark-herenow 0: 115200 B torn=false seq=1844 phase=2,2 tag=123c0735,123c0735 finished=true wait=5004 sha 78a497c19d61
+#HOST fetch dark-herenow 1: 115200 B torn=false seq=1877 phase=3,3 tag=123c0755,123c0755 finished=true wait=5005 sha 78a497c19d61
+[wx] fbcopy n=821 min=5355 max=7217 mean=5405
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=48093
+[wx] prof warning-60 view=3557 map=22376 bands=3153 rings=7655 warning=6365 labels=3878 ringlabels=630 home=20 replay=2 strip=109 band=331 sum=48076 compose_us=48093
+[wx] k ROW warning-60 b36abcad1811d7f047ab31710b05256b5b1d2995db6d7a7481c19d3e2d756d1d
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 1744-2564 n=821 phases=2 push_us=25809-35565
+#HOST fetch dark-warning 0: 115200 B torn=false seq=2671 phase=2,2 tag=133c0a70,133c0a70 finished=true wait=9390 sha b36abcad1811
+#HOST fetch dark-warning 1: 115200 B torn=false seq=2702 phase=2,2 tag=133c0a8f,133c0a8f finished=true wait=5008 sha b36abcad1811
+[wx] fbcopy n=822 min=5355 max=7515 mean=5409
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=40981
+[wx] prof stale-60 view=3584 map=22294 bands=3153 rings=7629 warning=3 labels=3439 ringlabels=464 home=19 replay=4 strip=109 band=269 sum=40967 compose_us=40981
+[wx] k ROW stale-60 9c252347c3edc80660b8fe5dc2fa94f72ee25edf821a832debef4aa01c09cc46
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[fb] push 133c draws 2565-3386 n=822 phases=2 push_us=25807-35222
+#HOST fetch dark-stale 0: 115200 B torn=false seq=3489 phase=2,2 tag=143c0da2,143c0da2 finished=true wait=9296 sha 9c252347c3ed
+#HOST fetch dark-stale 1: 115200 B torn=false seq=3521 phase=2,2 tag=143c0dc2,143c0dc2 finished=true wait=14142 sha 9c252347c3ed
+[wx] fbcopy n=821 min=5355 max=7070 mean=5405
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=41439
+[wx] prof clear-60 view=3558 map=22765 bands=3153 rings=7662 warning=2 labels=3439 ringlabels=460 home=20 replay=1 strip=109 band=255 sum=41424 compose_us=41439
+[wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[fb] push 143c draws 3387-4207 n=821 phases=2 push_us=25809-29342
+#HOST fetch dark-clear 0: 115200 B torn=false seq=4310 phase=2,2 tag=153c10d7,153c10d7 finished=true wait=5003 sha 07155bc1474d
+#HOST fetch dark-clear 1: 115200 B torn=false seq=4341 phase=2,2 tag=153c10f6,153c10f6 finished=true wait=5039 sha 07155bc1474d
+[wx] fbcopy n=822 min=5355 max=7939 mean=5406
+[wx] base build_us=241052 rebuilt=first at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40291
+[wx] prof bdry-60-B view=3611 map=21329 bands=3153 rings=7636 warning=2 labels=3738 ringlabels=406 home=20 replay=4 strip=100 band=277 sum=40276 compose_us=40291
+[wx] k ROW bdry-60-B cc45e64c1a03632f68baae38a095feb0e76132bf0c7b0346ebfb240a04af4ac3
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+[fb] push 153c draws 4208-5029 n=822 phases=2 push_us=25806-36660
+#HOST fetch dark-bdry 0: 115200 B torn=false seq=5132 phase=2,2 tag=163c140d,163c140d finished=true wait=9120 sha cc45e64c1a03
+#HOST fetch dark-bdry 1: 115200 B torn=false seq=5164 phase=2,2 tag=163c142d,163c142d finished=true wait=5006 sha cc45e64c1a03
+[wx] fbcopy n=816 min=5297 max=7752 mean=5409
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=brain R=60 frame=200600 screen=Dry synthetic=0 compose_us=40300
+[wx] prof brain-60-B view=3599 map=21389 bands=3154 rings=7626 warning=3 labels=3725 ringlabels=410 home=20 replay=4 strip=100 band=257 sum=40287 compose_us=40300
+[wx] k ROW brain-60-B d9fb13c8700625c1d1d7663f1bce4a4f0a7efdfa6086f186ec305c71030aa25b
+[wx] k TIME brain-60-B 1:06%20PM dim
+[wx] k BAND brain-60-B S RAIN%2020%20MI%20W dim
+[wx] k LABEL brain-60-B Redmond R 131 88 177 96
+[wx] k LABEL brain-60-B Sisters L 49 83 97 91
+[wx] k LABEL brain-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL brain-60-B Culver R 128 52 168 60
+[wx] screen=scenario brain R=60
+[fb] push 163c draws 5030-5845 n=816 phases=2 push_us=25809-36644
+#HOST fetch dark-brain 0: 115200 B torn=false seq=5946 phase=2,2 tag=173c173b,173c173b finished=true wait=5008 sha d9fb13c87006
+#HOST fetch dark-brain 1: 115200 B torn=false seq=5977 phase=2,2 tag=173c175a,173c175a finished=true wait=4769 sha d9fb13c87006
+[wx] fbcopy n=819 min=5355 max=7560 mean=5416
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41009
+[wx] prof dry-60 view=3571 map=22312 bands=3153 rings=7656 warning=2 labels=3458 ringlabels=465 home=19 replay=3 strip=111 band=245 sum=40995 compose_us=41009
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 173c draws 5846-6664 n=819 phases=2 push_us=25807-37611
+#HOST fetch dark-dry 0: 115200 B torn=false seq=6769 phase=2,2 tag=103c1a72,103c1a72 finished=true wait=5037 sha 012cada2ea01
+#HOST fetch dark-dry 1: 115200 B torn=false seq=6800 phase=2,2 tag=103c1a91,103c1a91 finished=true wait=4794 sha 012cada2ea01
+#HOST B1 dark: captured ['approaching', 'bdry', 'brain', 'clear', 'dry', 'herenow', 'stale', 'warning'] with terrain off
+[wx] fbcopy n=821 min=5355 max=8576 mean=5407
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40982
+[wx] prof approaching-60 view=3567 map=22350 bands=3153 rings=7636 warning=2 labels=3441 ringlabels=450 home=19 replay=1 strip=111 band=238 sum=40968 compose_us=40982
+[wx] k ROW approaching-60 1ff92e45d2c13fe65a8aba141a31235a76ab93153e934095f93f430fe8ba1bf0
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 6665-7485 n=821 phases=2 push_us=25808-36455
+[wx] fbcopy n=824 min=5355 max=6320 mean=5382
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40881
+[wx] prof herenow-60 view=3584 map=22292 bands=3153 rings=7624 warning=3 labels=3440 ringlabels=452 home=20 replay=1 strip=110 band=187 sum=40866 compose_us=40881
+[wx] k ROW herenow-60 78a497c19d61768e7214559db225b073ca9ca67d0b0453b0296fd4e34ca395e1
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 7486-8309 n=824 phases=2 push_us=25805-25950
+[wx] fbcopy n=823 min=5355 max=6265 mean=5392
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=48019
+[wx] prof warning-60 view=3553 map=22305 bands=3156 rings=7649 warning=6365 labels=3878 ringlabels=629 home=20 replay=2 strip=112 band=333 sum=48002 compose_us=48019
+[wx] k ROW warning-60 b36abcad1811d7f047ab31710b05256b5b1d2995db6d7a7481c19d3e2d756d1d
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 8310-9132 n=823 phases=2 push_us=25807-25942
+[wx] fbcopy n=824 min=5355 max=6331 mean=5391
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=41009
+[wx] prof stale-60 view=3580 map=22290 bands=3153 rings=7632 warning=3 labels=3434 ringlabels=458 home=20 replay=3 strip=108 band=314 sum=40995 compose_us=41009
+[wx] k ROW stale-60 9c252347c3edc80660b8fe5dc2fa94f72ee25edf821a832debef4aa01c09cc46
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[fb] push 133c draws 9133-9956 n=824 phases=2 push_us=25809-25901
+[wx] fbcopy n=824 min=5355 max=6341 mean=5386
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=41111
+[wx] prof clear-60 view=3554 map=22463 bands=3153 rings=7645 warning=2 labels=3442 ringlabels=444 home=20 replay=2 strip=113 band=256 sum=41094 compose_us=41111
+[wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[fb] push 143c draws 9957-10780 n=824 phases=2 push_us=25808-25906
+[wx] fbcopy n=825 min=5354 max=6339 mean=5384
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40342
+[wx] prof bdry-60-B view=3584 map=21365 bands=3153 rings=7650 warning=3 labels=3725 ringlabels=438 home=20 replay=2 strip=107 band=281 sum=40328 compose_us=40342
+[wx] k ROW bdry-60-B cc45e64c1a03632f68baae38a095feb0e76132bf0c7b0346ebfb240a04af4ac3
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+[fb] push 153c draws 10781-11605 n=825 phases=2 push_us=25807-25931
+#HOST send b'G'
+[wx] gesture G
+[wx] terrain on
+[wx] fbcopy n=3 min=5357 max=5362 mean=5358
+[wx] base build_us=993275 rebuilt=terrain at=scenario R=60 terrain=1 level=1 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=af490350
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40249
+[wx] prof bdry-60-C view=3608 map=21339 bands=3154 rings=7630 warning=2 labels=3720 ringlabels=385 home=20 replay=2 strip=97 band=279 sum=40236 compose_us=40249
+[wx] k ROW bdry-60-C a8a23e5f71e4c6035c3fdadd6b33cbf13ca391915ab03b3abe08c5fcb7a34135
+[wx] k TIME bdry-60-C 1:06%20PM dim
+[wx] k BAND bdry-60-C S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-C Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-C Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-C La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-C Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+#HOST fetch dark-bdry-C 0: 115200 B torn=false seq=11706 phase=2,2 tag=163c2dbb,163c2dbb finished=true wait=4977 sha a8a23e5f71e4
+#HOST fetch dark-bdry-C 1: 115200 B torn=false seq=11738 phase=2,2 tag=163c2ddb,163c2ddb finished=true wait=5600 sha a8a23e5f71e4
+[wx] fbcopy n=790 min=5355 max=7226 mean=5416
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=1 level=1 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=af490350
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=brain R=60 frame=200600 screen=Dry synthetic=0 compose_us=40326
+[wx] prof brain-60-C view=3598 map=21422 bands=3153 rings=7635 warning=3 labels=3724 ringlabels=395 home=24 replay=2 strip=100 band=256 sum=40312 compose_us=40326
+[wx] k ROW brain-60-C 6813124ceae0e68ee2bf9c51690889f55a29d2fee05c211193b225f570949916
+[wx] k TIME brain-60-C 1:06%20PM dim
+[wx] k BAND brain-60-C S RAIN%2020%20MI%20W dim
+[wx] k LABEL brain-60-C Redmond R 131 88 177 96
+[wx] k LABEL brain-60-C Sisters L 49 83 97 91
+[wx] k LABEL brain-60-C La%20Pine L 56 167 104 175
+[wx] k LABEL brain-60-C Culver R 128 52 168 60
+[wx] screen=scenario brain R=60
+[fb] push 163c draws 11606-12398 n=793 phases=2 push_us=25808-36664
+#HOST fetch dark-brain-C 0: 115200 B torn=false seq=12505 phase=2,2 tag=173c30da,173c30da finished=true wait=14118 sha 6813124ceae0
+#HOST fetch dark-brain-C 1: 115200 B torn=false seq=12535 phase=2,2 tag=173c30f8,173c30f8 finished=true wait=5006 sha 6813124ceae0
+[wx] fbcopy n=819 min=5355 max=8348 mean=5405
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40888
+[wx] prof dry-60 view=3574 map=22311 bands=3153 rings=7621 warning=3 labels=3434 ringlabels=409 home=20 replay=2 strip=104 band=243 sum=40874 compose_us=40888
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 173c draws 12399-13217 n=819 phases=2 push_us=25809-35561
+#HOST send b'G'
+[wx] gesture G
+[wx] terrain off
+[wx] fbcopy n=824 min=5355 max=6276 mean=5386
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=41832
+[wx] prof approaching-60 view=3572 map=22334 bands=3629 rings=7980 warning=3 labels=3437 ringlabels=487 home=20 replay=4 strip=108 band=244 sum=41818 compose_us=41832
+[wx] k ROW approaching-60 1ff92e45d2c13fe65a8aba141a31235a76ab93153e934095f93f430fe8ba1bf0
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 13218-14041 n=824 phases=2 push_us=25808-25924
+#HOST send b'S'
+[wx] gesture S
+[wx] screen=legend
+WX,legend,swatches=21
+WXL,0,rain,1,144,48,12,12
+WXL,1,rain,2,158,48,12,12
+WXL,2,rain,3,172,48,12,12
+WXL,3,rain,4,186,48,12,12
+WXL,4,rain,5,144,70,12,12
+WXL,5,rain,6,158,70,12,12
+WXL,6,rain,7,172,70,12,12
+WXL,7,rain,8,144,92,12,12
+WXL,8,rain,9,158,92,12,12
+WXL,9,rain,10,172,92,12,12
+WXL,10,rain,11,144,114,12,12
+WXL,11,rain,12,158,114,12,12
+WXL,12,rain,13,172,114,12,12
+WXL,13,snow,1,144,136,12,12
+WXL,14,snow,2,158,136,12,12
+WXL,15,snow,3,172,136,12,12
+WXL,16,snow,4,186,136,12,12
+WXL,17,snow,5,200,136,12,12
+WXL,18,snow,6,214,136,12,12
+WXL,19,nocov,14,144,158,12,12
+WXL,20,nodata,15,144,180,12,12
+WXT,0,36,50,60,8
+WXT,1,36,72,48,8
+WXT,2,36,94,30,8
+WXT,3,36,116,78,8
+WXT,4,36,138,96,8
+WXT,5,36,160,102,8
+WXT,6,36,182,42,8
+[fb] push 113c draws 14042-14074 n=33 phases=2 push_us=25808-25844
+#HOST fetch dark-legend 0: 115200 B torn=false seq=14154 phase=2,2 tag=3000374b,3000374b finished=true wait=5141 sha 12bcb72c0786
+#HOST fetch dark-legend 1: 115200 B torn=false seq=14185 phase=2,2 tag=3000376a,3000376a finished=true wait=5007 sha 12bcb72c0786
+#HOST send b'T'
+[wx] gesture T
+[wx] screen=scenario approaching R=60
+[fb] push 3000 draws 14075-14196 n=122 phases=2 push_us=25795-36956
+#HOST post wx-theme=light
+[GET] Handling request to config web server...
+[GET] heap free=190928 largest-block=131060
+[535170][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[POST] Handling form submission to config web server...
+[wx] init; location=set autodim=1 brightness=255 stored=1 theme=light read=known
+[wx] theme=light was=dark setting=light phase=Night
+[wx] fbcopy n=64 min=5355 max=19729 mean=5603
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40937
+[wx] prof approaching-60 view=3562 map=22316 bands=3153 rings=7637 warning=3 labels=3446 ringlabels=438 home=20 replay=3 strip=107 band=237 sum=40922 compose_us=40937
+[wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[GET] Handling request to config web server...
+[GET] heap free=190664 largest-block=131060
+[537768][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+#HOST post wx-theme=light: HTTP 200; only the asked fields changed: True; stored as asked: True
+[wx] fbcopy n=755 min=5355 max=7950 mean=5398
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40892
+[wx] prof herenow-60 view=3589 map=22290 bands=3153 rings=7623 warning=3 labels=3435 ringlabels=467 home=23 replay=2 strip=106 band=187 sum=40878 compose_us=40892
+[wx] k ROW herenow-60 afb36e9d0ed8f0eb35ff971c335c5496c893f44cf920ae0f1d52b5a421f05062
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 14197-14982 n=786 phases=2 push_us=25808-39190
+#HOST fetch light-herenow 0: 115200 B torn=false seq=15087 phase=2,2 tag=123c3af0,123c3af0 finished=true wait=5007 sha afb36e9d0ed8
+#HOST fetch light-herenow 1: 115200 B torn=false seq=15118 phase=2,2 tag=123c3b0f,123c3b0f finished=true wait=5005 sha afb36e9d0ed8
+[wx] fbcopy n=821 min=5354 max=7478 mean=5410
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=47944
+[wx] prof warning-60 view=3558 map=22289 bands=3153 rings=7631 warning=6358 labels=3875 ringlabels=600 home=20 replay=2 strip=107 band=335 sum=47928 compose_us=47944
+[wx] k ROW warning-60 770ad291122d7857dc6cbe73a24d5322a04a3c82b444cf4c6e046e7122d35fef
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 14983-15803 n=821 phases=2 push_us=25807-35484
+#HOST fetch light-warning 0: 115200 B torn=false seq=15910 phase=2,2 tag=133c3e27,133c3e27 finished=true wait=5879 sha 770ad291122d
+#HOST fetch light-warning 1: 115200 B torn=false seq=15955 phase=2,2 tag=133c3e54,133c3e54 finished=true wait=10146 sha 770ad291122d
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=58/0 maxOutage=0ms rebootRec=0
+[wx] fbcopy n=822 min=5355 max=7415 mean=5413
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=41007
+[wx] prof stale-60 view=3573 map=22290 bands=3152 rings=7664 warning=3 labels=3437 ringlabels=474 home=20 replay=3 strip=107 band=271 sum=40994 compose_us=41007
+[wx] k ROW stale-60 450ada567b1ded53e6ebee4087307b1f6d53ef24ce79d35b3eb3636e6f1c17d0
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[fb] push 133c draws 15804-16625 n=822 phases=2 push_us=25808-36723
+#HOST fetch light-stale 0: 115200 B torn=false seq=16730 phase=2,2 tag=143c415b,143c415b finished=true wait=12846 sha 450ada567b1d
+#HOST fetch light-stale 1: 115200 B torn=false seq=16763 phase=2,2 tag=143c417c,143c417c finished=true wait=4621 sha 450ada567b1d
+[wx] fbcopy n=821 min=5355 max=7738 mean=5422
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=40988
+[wx] prof clear-60 view=3554 map=22402 bands=3154 rings=7635 warning=3 labels=3429 ringlabels=422 home=20 replay=2 strip=105 band=249 sum=40975 compose_us=40988
+[wx] k ROW clear-60 e4701102e592737fa6403da5e34271b4ff9983f9a06dd5b0a1ed601ac05e1ad6
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[fb] push 143c draws 16626-17446 n=821 phases=2 push_us=25807-36088
+#HOST fetch light-clear 0: 115200 B torn=false seq=17548 phase=2,2 tag=153c448d,153c448d finished=true wait=14051 sha e4701102e592
+#HOST fetch light-clear 1: 115200 B torn=false seq=17581 phase=2,2 tag=153c44ae,153c44ae finished=true wait=5003 sha e4701102e592
+[wx] fbcopy n=823 min=5355 max=7806 mean=5413
+[wx] base build_us=241036 rebuilt=terrain at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40231
+[wx] prof bdry-60-B view=3608 map=21309 bands=3152 rings=7631 warning=3 labels=3717 ringlabels=383 home=20 replay=2 strip=98 band=280 sum=40203 compose_us=40231
+[wx] k ROW bdry-60-B d5da605269a6e248762fae48697d23ec0b293bbd6db046b4b3be4f670e477a72
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+[fb] push 153c draws 17447-18269 n=823 phases=2 push_us=25807-35520
+#HOST fetch light-bdry 0: 115200 B torn=false seq=18372 phase=2,2 tag=163c47c5,163c47c5 finished=true wait=12110 sha d5da605269a6
+#HOST fetch light-bdry 1: 115200 B torn=false seq=18403 phase=2,2 tag=163c47e4,163c47e4 finished=true wait=9805 sha d5da605269a6
+[wx] fbcopy n=816 min=5355 max=7901 mean=5412
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=brain R=60 frame=200600 screen=Dry synthetic=0 compose_us=40333
+[wx] prof brain-60-B view=3596 map=21387 bands=3183 rings=7636 warning=3 labels=3719 ringlabels=411 home=20 replay=2 strip=101 band=261 sum=40319 compose_us=40333
+[wx] k ROW brain-60-B 3f4584d937ea2429e5fe52cbb57dcd80279ebdd1e5c9c29b2cf4eda5af1818cd
+[wx] k TIME brain-60-B 1:06%20PM dim
+[wx] k BAND brain-60-B S RAIN%2020%20MI%20W dim
+[wx] k LABEL brain-60-B Redmond R 131 88 177 96
+[wx] k LABEL brain-60-B Sisters L 49 83 97 91
+[wx] k LABEL brain-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL brain-60-B Culver R 128 52 168 60
+[wx] screen=scenario brain R=60
+[fb] push 163c draws 18270-19085 n=816 phases=2 push_us=25806-30346
+#HOST fetch light-brain 0: 115200 B torn=false seq=19186 phase=2,2 tag=173c4af3,173c4af3 finished=true wait=5003 sha 3f4584d937ea
+#HOST fetch light-brain 1: 115200 B torn=false seq=19217 phase=2,2 tag=173c4b12,173c4b12 finished=true wait=5003 sha 3f4584d937ea
+[wx] fbcopy n=819 min=5355 max=7796 mean=5411
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40902
+[wx] prof dry-60 view=3568 map=22316 bands=3153 rings=7616 warning=3 labels=3440 ringlabels=423 home=19 replay=2 strip=100 band=248 sum=40888 compose_us=40902
+[wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 173c draws 19086-19904 n=819 phases=2 push_us=25809-35535
+#HOST fetch light-dry 0: 115200 B torn=false seq=20008 phase=2,2 tag=103c4e29,103c4e29 finished=true wait=4668 sha f381c43d6f32
+#HOST fetch light-dry 1: 115200 B torn=false seq=20043 phase=2,2 tag=103c4e4c,103c4e4c finished=true wait=5006 sha f381c43d6f32
+[wx] fbcopy n=821 min=5355 max=8607 mean=5417
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40993
+[wx] prof approaching-60 view=3566 map=22348 bands=3154 rings=7638 warning=3 labels=3441 ringlabels=460 home=19 replay=1 strip=106 band=243 sum=40979 compose_us=40993
+[wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 19905-20725 n=821 phases=2 push_us=25808-36400
+#HOST fetch light-approaching 0: 115200 B torn=false seq=20828 phase=2,2 tag=113c515d,113c515d finished=true wait=9730 sha cdd2cabc2513
+#HOST fetch light-approaching 1: 115200 B torn=false seq=20860 phase=2,2 tag=113c517d,113c517d finished=true wait=5010 sha cdd2cabc2513
+#HOST B1 light: captured ['approaching', 'bdry', 'brain', 'clear', 'dry', 'herenow', 'stale', 'warning'] with terrain off
+[wx] fbcopy n=821 min=5355 max=7984 mean=5421
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=41239
+[wx] prof herenow-60 view=3575 map=22605 bands=3153 rings=7670 warning=3 labels=3436 ringlabels=469 home=20 replay=1 strip=104 band=189 sum=41225 compose_us=41239
+[wx] k ROW herenow-60 afb36e9d0ed8f0eb35ff971c335c5496c893f44cf920ae0f1d52b5a421f05062
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 20726-21546 n=821 phases=2 push_us=25807-35500
+[wx] fbcopy n=823 min=5355 max=6912 mean=5395
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=48080
+[wx] prof warning-60 view=3557 map=22299 bands=3152 rings=7664 warning=6396 labels=3888 ringlabels=648 home=19 replay=3 strip=109 band=328 sum=48063 compose_us=48080
+[wx] k ROW warning-60 770ad291122d7857dc6cbe73a24d5322a04a3c82b444cf4c6e046e7122d35fef
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 21547-22369 n=823 phases=2 push_us=25805-25899
+[wx] fbcopy n=824 min=5355 max=6363 mean=5389
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=41349
+[wx] prof stale-60 view=3583 map=22633 bands=3154 rings=7663 warning=3 labels=3436 ringlabels=466 home=20 replay=1 strip=106 band=270 sum=41335 compose_us=41349
+[wx] k ROW stale-60 450ada567b1ded53e6ebee4087307b1f6d53ef24ce79d35b3eb3636e6f1c17d0
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[fb] push 133c draws 22370-23193 n=824 phases=2 push_us=25807-25940
+[wx] fbcopy n=824 min=5355 max=6553 mean=5388
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=41086
+[wx] prof clear-60 view=3558 map=22414 bands=3152 rings=7662 warning=2 labels=3442 ringlabels=452 home=20 replay=2 strip=114 band=254 sum=41072 compose_us=41086
+[wx] k ROW clear-60 e4701102e592737fa6403da5e34271b4ff9983f9a06dd5b0a1ed601ac05e1ad6
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[fb] push 143c draws 23194-24017 n=824 phases=2 push_us=25809-25932
+[wx] fbcopy n=825 min=5355 max=6337 mean=5386
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40607
+[wx] prof bdry-60-B view=3589 map=21622 bands=3151 rings=7668 warning=2 labels=3721 ringlabels=436 home=20 replay=2 strip=102 band=281 sum=40594 compose_us=40607
+[wx] k ROW bdry-60-B d5da605269a6e248762fae48697d23ec0b293bbd6db046b4b3be4f670e477a72
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+[fb] push 153c draws 24018-24842 n=825 phases=2 push_us=25806-25919
+#HOST send b'G'
+[wx] gesture G
+[wx] terrain on
+[wx] fbcopy n=5 min=5357 max=5401 mean=5367
+[wx] base build_us=993096 rebuilt=terrain at=scenario R=60 terrain=1 level=1 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=af490350
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40347
+[wx] prof bdry-60-C view=3607 map=21375 bands=3156 rings=7638 warning=2 labels=3721 ringlabels=425 home=20 replay=2 strip=105 band=282 sum=40333 compose_us=40347
+[wx] k ROW bdry-60-C f58127ef6c16efaf62ec1975d805f9330c95d194c60155bef6ff622547f07290
+[wx] k TIME bdry-60-C 1:06%20PM dim
+[wx] k BAND bdry-60-C S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-C Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-C Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-C La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-C Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+#HOST fetch light-bdry-C 0: 115200 B torn=false seq=24917 phase=2,2 tag=163c6156,163c6156 finished=true wait=9402 sha f58127ef6c16
+#HOST fetch light-bdry-C 1: 115200 B torn=false seq=24950 phase=2,2 tag=163c6177,163c6177 finished=true wait=5010 sha f58127ef6c16
+[wx] fbcopy n=788 min=5355 max=7790 mean=5421
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=1 level=1 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=af490350
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=brain R=60 frame=200600 screen=Dry synthetic=0 compose_us=40325
+[wx] prof brain-60-C view=3603 map=21399 bands=3151 rings=7636 warning=3 labels=3717 ringlabels=419 home=20 replay=1 strip=102 band=261 sum=40312 compose_us=40325
+[wx] k ROW brain-60-C d7b11660e9b1db8ef8187abcab8ad735d9f9d226c33d3dcf3aa0615140e4b8d6
+[wx] k TIME brain-60-C 1:06%20PM dim
+[wx] k BAND brain-60-C S RAIN%2020%20MI%20W dim
+[wx] k LABEL brain-60-C Redmond R 131 88 177 96
+[wx] k LABEL brain-60-C Sisters L 49 83 97 91
+[wx] k LABEL brain-60-C La%20Pine L 56 167 104 175
+[wx] k LABEL brain-60-C Culver R 128 52 168 60
+[wx] screen=scenario brain R=60
+[fb] push 163c draws 24843-25635 n=793 phases=2 push_us=25806-35468
+#HOST fetch light-brain-C 0: 115200 B torn=false seq=25737 phase=2,2 tag=173c648a,173c648a finished=true wait=4898 sha d7b11660e9b1
+#HOST fetch light-brain-C 1: 115200 B torn=false seq=25768 phase=3,3 tag=173c64a8,173c64a8 finished=true wait=5001 sha d7b11660e9b1
+[wx] fbcopy n=819 min=5353 max=8489 mean=5411
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40890
+[wx] prof dry-60 view=3574 map=22324 bands=3157 rings=7619 warning=3 labels=3439 ringlabels=394 home=20 replay=2 strip=100 band=243 sum=40875 compose_us=40890
+[wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST send b'G'
+[fb] push 173c draws 25636-26454 n=819 phases=2 push_us=25805-35634
+[wx] gesture G
+[wx] terrain off
+[wx] fbcopy n=824 min=5355 max=6432 mean=5392
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=41294
+[wx] prof approaching-60 view=3569 map=22290 bands=3216 rings=7900 warning=3 labels=3444 ringlabels=487 home=20 replay=5 strip=106 band=239 sum=41279 compose_us=41294
+[wx] k ROW approaching-60 cdd2cabc25136e78906edba7ce65964672a8c5fd9f7906882409aaec06aa8869
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+[fb] push 103c draws 26455-27278 n=824 phases=2 push_us=25806-25923
+#HOST send b'S'
+[wx] gesture S
+[wx] screen=legend
+WX,legend,swatches=21
+WXL,0,rain,1,144,48,12,12
+WXL,1,rain,2,158,48,12,12
+WXL,2,rain,3,172,48,12,12
+WXL,3,rain,4,186,48,12,12
+WXL,4,rain,5,144,70,12,12
+WXL,5,rain,6,158,70,12,12
+WXL,6,rain,7,172,70,12,12
+WXL,7,rain,8,144,92,12,12
+WXL,8,rain,9,158,92,12,12
+WXL,9,rain,10,172,92,12,12
+WXL,10,rain,11,144,114,12,12
+WXL,11,rain,12,158,114,12,12
+WXL,12,rain,13,172,114,12,12
+WXL,13,snow,1,144,136,12,12
+WXL,14,snow,2,158,136,12,12
+WXL,15,snow,3,172,136,12,12
+WXL,16,snow,4,186,136,12,12
+WXL,17,snow,5,200,136,12,12
+WXL,18,snow,6,214,136,12,12
+WXL,19,nocov,14,144,158,12,12
+WXL,20,nodata,15,144,180,12,12
+WXT,0,36,50,60,8
+WXT,1,36,72,48,8
+WXT,2,36,94,30,8
+WXT,3,36,116,78,8
+WXT,4,36,138,96,8
+WXT,5,36,160,102,8
+WXT,6,36,182,42,8
+[fb] push 113c draws 27279-27308 n=30 phases=2 push_us=25811-25939
+#HOST fetch light-legend 0: 115200 B torn=false seq=27387 phase=2,2 tag=30006afc,30006afc finished=true wait=14280 sha 2ec3763bebfb
+#HOST fetch light-legend 1: 115200 B torn=false seq=27424 phase=3,3 tag=30006b20,30006b20 finished=true wait=5004 sha 2ec3763bebfb
+#HOST send b'T'
+[wx] gesture T
+[wx] screen=scenario approaching R=60
+[fb] push 3000 draws 27309-27434 n=126 phases=2 push_us=25798-30402
+#HOST post location=<the Dallas loop fixture's centre> (Q64)
+[GET] Handling request to config web server...
+[GET] heap free=190960 largest-block=131060
+[1020003][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[POST] Handling form submission to config web server...
+[wx] init; location=set autodim=1 brightness=255 stored=1 theme=light read=known
+#HOST post location: HTTP 200; only the asked fields changed: True; stored as asked: True
+#HOST post wx-theme=auto
+[GET] Handling request to config web server...
+[GET] heap free=190252 largest-block=131060
+[1022591][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[GET] Handling request to config web server...
+[GET] heap free=189804 largest-block=131060
+[1023192][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[POST] Handling form submission to config web server...
+[wx] init; location=set autodim=1 brightness=255 stored=1 theme=auto read=known
+[wx] theme=dark was=light setting=auto phase=Night
+[wx] fbcopy n=149 min=5355 max=7994 mean=5429
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=approaching R=60 frame=212400 screen=PrecipApproaching synthetic=0 compose_us=40888
+[wx] prof approaching-60 view=3578 map=22312 bands=3153 rings=7625 warning=2 labels=3436 ringlabels=414 home=20 replay=2 strip=94 band=237 sum=40873 compose_us=40888
+[wx] k ROW approaching-60 1ff92e45d2c13fe65a8aba141a31235a76ab93153e934095f93f430fe8ba1bf0
+[wx] k TIME approaching-60 4:24%20PM dim
+[wx] k BAND approaching-60 S RAIN%2014%20MI%20E white
+[wx] k LABEL approaching-60 Dallas R 150 130 190 138
+[wx] k LABEL approaching-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL approaching-60 Plano R 152 95 186 103
+[wx] k LABEL approaching-60 Garland R 166 114 212 122
+[wx] k LABEL approaching-60 Frisco R 144 80 184 88
+[wx] k LABEL approaching-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL approaching-60 Denton L 68 72 110 80
+[wx] k LABEL approaching-60 Mansfield L 52 161 112 169
+[wx] screen=scenario approaching R=60
+#HOST post wx-theme=auto: HTTP 200; only the asked fields changed: True; stored as asked: True
+[GET] Handling request to config web server...
+[GET] heap free=189904 largest-block=131060
+[1025760][E][Preferences.cpp:506] getString(): nvs_get_str len fail: brightness NOT_FOUND
+[wx] fbcopy n=668 min=5355 max=6548 mean=5391
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=herenow R=60 frame=212400 screen=PrecipNow synthetic=1 compose_us=40876
+[wx] prof herenow-60 view=3583 map=22297 bands=3154 rings=7623 warning=3 labels=3435 ringlabels=456 home=19 replay=2 strip=103 band=187 sum=40862 compose_us=40876
+[wx] k ROW herenow-60 78a497c19d61768e7214559db225b073ca9ca67d0b0453b0296fd4e34ca395e1
+[wx] k TIME herenow-60 4:24%20PM dim
+[wx] k BAND herenow-60 S RAIN%20NOW white
+[wx] k LABEL herenow-60 Dallas R 150 130 190 138
+[wx] k LABEL herenow-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL herenow-60 Plano R 152 95 186 103
+[wx] k LABEL herenow-60 Garland R 166 114 212 122
+[wx] k LABEL herenow-60 Frisco R 144 80 184 88
+[wx] k LABEL herenow-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL herenow-60 Denton L 68 72 110 80
+[wx] k LABEL herenow-60 Mansfield L 52 161 112 169
+[wx] screen=scenario herenow R=60
+[fb] push 113c draws 27435-28221 n=787 phases=2 push_us=25807-39495
+[wx] fbcopy n=824 min=5355 max=6729 mean=5387
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=warning R=60 frame=212400 screen=Warning synthetic=1 compose_us=47958
+[wx] prof warning-60 view=3557 map=22294 bands=3153 rings=7627 warning=6365 labels=3878 ringlabels=605 home=20 replay=2 strip=107 band=334 sum=47942 compose_us=47958
+[wx] k ROW warning-60 b36abcad1811d7f047ab31710b05256b5b1d2995db6d7a7481c19d3e2d756d1d
+[wx] k TIME warning-60 4:24%20PM dim
+[wx] k BAND warning-60 1 HAIL%201%20IN%20%FA%20WIND%2060%20MPH
+[wx] k BAND warning-60 2 STORM%2014%20MI%20E%20%FA%20NE%2035%20MPH
+[wx] k LABEL warning-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL warning-60 Garland R 166 114 212 122
+[wx] k LABEL warning-60 McKinney R 162 74 214 82
+[wx] k LABEL warning-60 Denton L 68 72 110 80
+[wx] k LABEL warning-60 Mesquite R 171 135 223 143
+[wx] k LABEL warning-60 Allen R 161 87 195 95
+[wx] k LABEL warning-60 Mansfield L 52 161 112 169
+[wx] k LABEL warning-60 Cedar%20Hill R 128 159 192 167
+[wx] screen=scenario warning R=60
+[fb] push 123c draws 28222-29045 n=824 phases=2 push_us=25808-25938
+[wx] fbcopy n=824 min=5355 max=6411 mean=5386
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=stale R=60 frame=212400 screen=PrecipApproaching synthetic=1 compose_us=41033
+[wx] prof stale-60 view=3581 map=22351 bands=3153 rings=7644 warning=3 labels=3435 ringlabels=456 home=19 replay=1 strip=106 band=270 sum=41019 compose_us=41033
+[wx] k ROW stale-60 9c252347c3edc80660b8fe5dc2fa94f72ee25edf821a832debef4aa01c09cc46
+[wx] k TIME stale-60 4:24%20PM orange
+[wx] k BAND stale-60 S RADAR%20STALE dim
+[wx] k LABEL stale-60 Dallas R 150 130 190 138
+[wx] k LABEL stale-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL stale-60 Plano R 152 95 186 103
+[wx] k LABEL stale-60 Garland R 166 114 212 122
+[wx] k LABEL stale-60 Frisco R 144 80 184 88
+[wx] k LABEL stale-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL stale-60 Denton L 68 72 110 80
+[wx] k LABEL stale-60 Mansfield L 52 161 112 169
+[wx] screen=scenario stale R=60
+[fb] push 133c draws 29046-29869 n=824 phases=2 push_us=25808-25942
+[wx] fbcopy n=824 min=5355 max=6427 mean=5390
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=clear R=60 frame=220000 screen=Dry synthetic=1 compose_us=41104
+[wx] prof clear-60 view=3558 map=22401 bands=3153 rings=7664 warning=2 labels=3457 ringlabels=463 home=20 replay=3 strip=114 band=256 sum=41091 compose_us=41104
+[wx] k ROW clear-60 07155bc1474db30ad464e324ddfd1e802df3764ba9865df84973eb9fc1bd18b5
+[wx] k TIME clear-60 5:00%20PM dim
+[wx] k BAND clear-60 S 54%F8%20%FA%20NO%20RAIN dim
+[wx] k LABEL clear-60 Dallas R 150 130 190 138
+[wx] k LABEL clear-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL clear-60 Plano R 152 95 186 103
+[wx] k LABEL clear-60 Garland R 166 114 212 122
+[wx] k LABEL clear-60 Frisco R 144 80 184 88
+[wx] k LABEL clear-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL clear-60 Denton L 68 72 110 80
+[wx] k LABEL clear-60 Mansfield L 52 161 112 169
+[wx] screen=scenario clear R=60
+[fb] push 143c draws 29870-30693 n=824 phases=2 push_us=25807-25925
+[wx] fbcopy n=825 min=5355 max=6337 mean=5382
+[wx] base build_us=240939 rebuilt=terrain at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40392
+[wx] prof bdry-60-B view=3597 map=21371 bands=3165 rings=7655 warning=3 labels=3724 ringlabels=446 home=20 replay=3 strip=100 band=279 sum=40363 compose_us=40392
+[wx] k ROW bdry-60-B cc45e64c1a03632f68baae38a095feb0e76132bf0c7b0346ebfb240a04af4ac3
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+#HOST BSW starts
+#HOST BSW: 96 O presses
+#HOST send b'O'
+[fb] push 153c draws 30694-31518 n=825 phases=2 push_us=25807-25927
+[wx] gesture O
+[wx] auto offset=+15 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+30 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+45 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+60 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+75 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+90 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+105 min phase=Night
+[wx] gesture O
+[wx] auto offset=+120 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+135 min phase=Night
+[wx] gesture O
+[wx] auto offset=+150 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+165 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+180 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+195 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+210 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+225 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+240 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+255 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+270 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+285 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+300 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+315 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+330 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+345 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+360 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+375 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+390 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+405 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+420 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+435 min phase=Night
+[wx] gesture O
+[wx] auto offset=+450 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+465 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+480 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+495 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+510 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+525 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] dim=0 brightness=255
+[wx] auto offset=+540 min phase=Day
+[wx] theme=light was=dark setting=auto phase=Day
+[wx] fbcopy n=194 min=5355 max=6263 mean=5398
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40588
+[wx] prof bdry-60-B view=3596 map=21334 bands=3151 rings=7897 warning=3 labels=3731 ringlabels=455 home=19 replay=6 strip=104 band=278 sum=40574 compose_us=40588
+[wx] k ROW bdry-60-B d5da605269a6e248762fae48697d23ec0b293bbd6db046b4b3be4f670e477a72
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+555 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+570 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+585 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+600 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+615 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+630 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+645 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+660 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+675 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+690 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+705 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+720 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+735 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+750 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+765 min phase=Day
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+780 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+795 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+810 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+825 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+840 min phase=Day
+[wx] gesture O
+[wx] auto offset=+855 min phase=Day
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+870 min phase=Day
+[wx] gesture O
+[wx] auto offset=+885 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+900 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+915 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+930 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+945 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+960 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+975 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+990 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1005 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1020 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1035 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1050 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1065 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1080 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1095 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1110 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1125 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1140 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1155 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1170 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] dim=1 brightness=51
+[wx] auto offset=+1185 min phase=Night
+[wx] theme=dark was=light setting=auto phase=Night
+[wx] fbcopy n=235 min=5355 max=6306 mean=5395
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=bdry R=60 frame=200600 screen=Dry synthetic=1 compose_us=40317
+[wx] prof bdry-60-B view=3606 map=21324 bands=3153 rings=7638 warning=3 labels=3721 ringlabels=446 home=20 replay=2 strip=108 band=282 sum=40303 compose_us=40317
+[wx] k ROW bdry-60-B cc45e64c1a03632f68baae38a095feb0e76132bf0c7b0346ebfb240a04af4ac3
+[wx] k TIME bdry-60-B 1:06%20PM dim
+[wx] k BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+[wx] k LABEL bdry-60-B Redmond R 131 88 177 96
+[wx] k LABEL bdry-60-B Sisters L 49 83 97 91
+[wx] k LABEL bdry-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL bdry-60-B Culver R 128 52 168 60
+[wx] screen=scenario bdry R=60
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1200 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1215 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1230 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1245 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1260 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1275 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1290 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1305 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1320 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1335 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1350 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1365 min phase=Night
+[wx] gesture O
+[wx] auto offset=+1380 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1395 min phase=Night
+[wx] gesture O
+[wx] auto offset=+1410 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1425 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+0 min phase=Night
+#HOST BSW ends
+#HOST send b'R'
+[wx] gesture R
+[wx] builds n=8 of 47
+[wx] build 0 why=theme scene=approaching mi=60->60 decode=2173 scen=16665 from=44875 compose=40888 sha=4420 print=937 total=110494 prints=17 short=0 frame=154716
+[wx] build 1 why=cycle scene=herenow mi=60->60 decode=2175 scen=15629 from=44529 compose=40876 sha=4433 print=925 total=109068 prints=17 short=0 frame=145604
+[wx] build 2 why=cycle scene=warning mi=60->60 decode=2171 scen=32873 from=646 compose=47958 sha=4500 print=945 total=89675 prints=18 short=0 frame=126123
+[wx] build 3 why=cycle scene=stale mi=60->60 decode=2175 scen=15613 from=44481 compose=41033 sha=4423 print=986 total=109186 prints=17 short=0 frame=145537
+[wx] build 4 why=cycle scene=clear mi=60->60 decode=752 scen=4072 from=6603 compose=41104 sha=4414 print=978 total=58416 prints=17 short=0 frame=94721
+[wx] build 5 why=cycle scene=bdry mi=60->60 decode=916 scen=4790 from=250720 compose=40392 sha=4445 print=1009 total=302458 prints=14 short=0 frame=338808
+[wx] build 6 why=theme scene=bdry mi=60->60 decode=949 scen=4775 from=9683 compose=40588 sha=4438 print=789 total=61550 prints=14 short=0 frame=98665
+[wx] build 7 why=theme scene=bdry mi=60->60 decode=938 scen=4776 from=9680 compose=40317 sha=4439 print=761 total=61259 prints=14 short=0 frame=98399
+[wx] writes n=64 of 764
+[wx] write 700 t=1108323570 asked=45 wrote=45 free=3942 plugged=1 connected=1 us=24
+[wx] write 701 t=1108323636 asked=56 wrote=56 free=3961 plugged=1 connected=1 us=24
+[wx] write 702 t=1108323692 asked=44 wrote=44 free=3969 plugged=1 connected=1 us=9
+[wx] write 703 t=1108323751 asked=49 wrote=49 free=3989 plugged=1 connected=1 us=8
+[wx] write 704 t=1108323779 asked=32 wrote=32 free=3940 plugged=1 connected=1 us=8
+[wx] write 705 t=1138254506 asked=46 wrote=46 free=4096 plugged=1 connected=1 us=46
+[wx] write 706 t=1138306936 asked=58 wrote=58 free=4096 plugged=1 connected=1 us=49
+[wx] write 707 t=1138307040 asked=63 wrote=63 free=4096 plugged=1 connected=1 us=8
+[wx] write 708 t=1138307125 asked=73 wrote=73 free=4096 plugged=1 connected=1 us=8
+[wx] write 709 t=1138307286 asked=161 wrote=161 free=4087 plugged=1 connected=1 us=8
+[wx] write 710 t=1138307330 asked=85 wrote=85 free=3990 plugged=1 connected=1 us=9
+[wx] write 711 t=1138307381 asked=35 wrote=35 free=3905 plugged=1 connected=1 us=8
+[wx] write 712 t=1138307413 asked=51 wrote=51 free=3934 plugged=1 connected=1 us=8
+[wx] write 713 t=1138307484 asked=47 wrote=47 free=3947 plugged=1 connected=1 us=9
+[wx] write 714 t=1138307543 asked=51 wrote=51 free=3964 plugged=1 connected=1 us=9
+[wx] write 715 t=1138307602 asked=45 wrote=45 free=3977 plugged=1 connected=1 us=13
+[wx] write 716 t=1138307666 asked=48 wrote=48 free=3996 plugged=1 connected=1 us=8
+[wx] write 717 t=1138307707 asked=45 wrote=45 free=3948 plugged=1 connected=1 us=25
+[wx] write 718 t=1138307768 asked=56 wrote=56 free=3967 plugged=1 connected=1 us=8
+[wx] write 719 t=1138307824 asked=44 wrote=44 free=3975 plugged=1 connected=1 us=8
+[wx] write 720 t=1138307883 asked=49 wrote=49 free=3995 plugged=1 connected=1 us=8
+[wx] write 721 t=1138307910 asked=32 wrote=32 free=3946 plugged=1 connected=1 us=25
+[wx] write 722 t=1168260043 asked=46 wrote=46 free=4096 plugged=1 connected=1 us=45
+[wx] write 723 t=1168510731 asked=138 wrote=138 free=4096 plugged=1 connected=1 us=50
+[wx] write 724 t=1168555899 asked=58 wrote=58 free=4096 plugged=1 connected=1 us=49
+[wx] write 725 t=1168556014 asked=63 wrote=63 free=4096 plugged=1 connected=1 us=8
+[wx] write 726 t=1168556084 asked=72 wrote=72 free=4033 plugged=1 connected=1 us=8
+[wx] write 727 t=1168556245 asked=162 wrote=162 free=4025 plugged=1 connected=1 us=9
+[wx] write 728 t=1168556274 asked=86 wrote=86 free=3863 plugged=1 connected=1 us=8
+[wx] write 729 t=1168556308 asked=36 wrote=36 free=3777 plugged=1 connected=1 us=24
+[wx] write 730 t=1168556355 asked=48 wrote=48 free=3805 plugged=1 connected=1 us=8
+[wx] write 731 t=1168556420 asked=47 wrote=47 free=3821 plugged=1 connected=1 us=8
+[wx] write 732 t=1168556477 asked=45 wrote=45 free=3838 plugged=1 connected=1 us=9
+[wx] write 733 t=1168556520 asked=50 wrote=50 free=3793 plugged=1 connected=1 us=8
+[wx] write 734 t=1168556577 asked=46 wrote=46 free=3807 plugged=1 connected=1 us=8
+[wx] write 735 t=1168556623 asked=31 wrote=31 free=3825 plugged=1 connected=1 us=9
+[wx] write 736 t=1175635762 asked=46 wrote=46 free=4096 plugged=1 connected=1 us=30
+[wx] write 737 t=1175645426 asked=128 wrote=128 free=4096 plugged=1 connected=1 us=29
+[wx] write 738 t=1175690758 asked=58 wrote=58 free=4096 plugged=1 connected=1 us=49
+[wx] write 739 t=1175690875 asked=63 wrote=63 free=4096 plugged=1 connected=1 us=8
+[wx] write 740 t=1175690958 asked=72 wrote=72 free=4096 plugged=1 connected=1 us=9
+[wx] write 741 t=1175691120 asked=162 wrote=162 free=4088 plugged=1 connected=1 us=9
+[wx] write 742 t=1175691149 asked=86 wrote=86 free=3926 plugged=1 connected=1 us=8
+[wx] write 743 t=1175691199 asked=36 wrote=36 free=3904 plugged=1 connected=1 us=9
+[wx] write 744 t=1175691231 asked=48 wrote=48 free=3868 plugged=1 connected=1 us=8
+[wx] write 745 t=1175691295 asked=47 wrote=47 free=3884 plugged=1 connected=1 us=8
+[wx] write 746 t=1175691336 asked=45 wrote=45 free=3837 plugged=1 connected=1 us=25
+[wx] write 747 t=1175691395 asked=50 wrote=50 free=3856 plugged=1 connected=1 us=9
+[wx] write 748 t=1175691436 asked=46 wrote=46 free=3806 plugged=1 connected=1 us=24
+[wx] write 749 t=1175691480 asked=31 wrote=31 free=3824 plugged=1 connected=1 us=8
+[wx] write 750 t=1184261322 asked=46 wrote=46 free=4096 plugged=1 connected=1 us=27
+[wx] write 751 t=1184270981 asked=128 wrote=128 free=4096 plugged=1 connected=1 us=28
+[wx] write 752 t=1184316038 asked=58 wrote=58 free=4096 plugged=1 connected=1 us=49
+[wx] write 753 t=1184316152 asked=63 wrote=63 free=4096 plugged=1 connected=1 us=16
+[wx] write 754 t=1184316228 asked=72 wrote=72 free=4033 plugged=1 connected=1 us=8
+[wx] write 755 t=1184316386 asked=162 wrote=162 free=4025 plugged=1 connected=1 us=9
+[wx] write 756 t=1184316415 asked=86 wrote=86 free=3863 plugged=1 connected=1 us=8
+[wx] write 757 t=1184316450 asked=36 wrote=36 free=3777 plugged=1 connected=1 us=8
+[wx] write 758 t=1184316481 asked=48 wrote=48 free=3741 plugged=1 connected=1 us=24
+[wx] write 759 t=1184316544 asked=47 wrote=47 free=3757 plugged=1 connected=1 us=8
+[wx] write 760 t=1184316599 asked=45 wrote=45 free=3774 plugged=1 connected=1 us=9
+[wx] write 761 t=1184316662 asked=50 wrote=50 free=3793 plugged=1 connected=1 us=9
+[wx] write 762 t=1184316720 asked=46 wrote=46 free=3807 plugged=1 connected=1 us=8
+[wx] write 763 t=1184316747 asked=31 wrote=31 free=3761 plugged=1 connected=1 us=9
+[wx] frames n=160 of 32099
+[wx] frame 31939 start=1183971508 dt=0 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31940 start=1184007770 dt=36262 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31941 start=1184044039 dt=36269 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31942 start=1184081804 dt=37765 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31943 start=1184118080 dt=36276 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31944 start=1184154303 dt=36223 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31945 start=1184190568 dt=36265 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31946 start=1184226834 dt=36266 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31947 start=1184325233 dt=98399 ring=0 flags=--R scene=bdry mi=60
+[wx] frame 31948 start=1184361515 dt=36282 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31949 start=1184397796 dt=36281 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31950 start=1184434015 dt=36219 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31951 start=1184470875 dt=36860 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31952 start=1184507163 dt=36288 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31953 start=1184543426 dt=36263 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31954 start=1184579809 dt=36383 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31955 start=1184616076 dt=36267 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31956 start=1184652972 dt=36896 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31957 start=1184690306 dt=37334 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31958 start=1184726593 dt=36287 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31959 start=1184762817 dt=36224 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31960 start=1184799073 dt=36256 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31961 start=1184835344 dt=36271 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31962 start=1184872243 dt=36899 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31963 start=1184908564 dt=36321 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31964 start=1184944831 dt=36267 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31965 start=1184981048 dt=36217 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31966 start=1185017341 dt=36293 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31967 start=1185054236 dt=36895 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31968 start=1185090572 dt=36336 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31969 start=1185126956 dt=36384 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31970 start=1185163193 dt=36237 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31971 start=1185199692 dt=36499 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31972 start=1185235984 dt=36292 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31973 start=1185272862 dt=36878 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31974 start=1185309209 dt=36347 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31975 start=1185345499 dt=36290 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31976 start=1185381743 dt=36244 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31977 start=1185418025 dt=36282 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31978 start=1185454918 dt=36893 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31979 start=1185491195 dt=36277 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31980 start=1185527758 dt=36563 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31981 start=1185564026 dt=36268 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31982 start=1185600254 dt=36228 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31983 start=1185636531 dt=36277 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31984 start=1185673437 dt=36906 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31985 start=1185709854 dt=36417 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31986 start=1185746151 dt=36297 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31987 start=1185782389 dt=36238 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31988 start=1185818726 dt=36337 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31989 start=1185855725 dt=36999 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31990 start=1185891997 dt=36272 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31991 start=1185928265 dt=36268 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31992 start=1185964496 dt=36231 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31993 start=1186000727 dt=36231 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31994 start=1186036993 dt=36266 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31995 start=1186073927 dt=36934 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31996 start=1186110197 dt=36270 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31997 start=1186146498 dt=36301 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31998 start=1186182745 dt=36247 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 31999 start=1186219132 dt=36387 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32000 start=1186256071 dt=36939 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32001 start=1186292356 dt=36285 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32002 start=1186328657 dt=36301 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32003 start=1186364937 dt=36280 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32004 start=1186401155 dt=36218 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32005 start=1186437427 dt=36272 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32006 start=1186474376 dt=36949 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32007 start=1186510652 dt=36276 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32008 start=1186547002 dt=36350 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32009 start=1186583225 dt=36223 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32010 start=1186619447 dt=36222 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32011 start=1186655757 dt=36310 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32012 start=1186692666 dt=36909 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32013 start=1186729063 dt=36397 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32014 start=1186765403 dt=36340 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32015 start=1186801626 dt=36223 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32016 start=1186838048 dt=36422 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32017 start=1186875031 dt=36983 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32018 start=1186911304 dt=36273 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32019 start=1186947654 dt=36350 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32020 start=1186983925 dt=36271 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32021 start=1187020135 dt=36210 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32022 start=1187056440 dt=36305 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32023 start=1187093351 dt=36911 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32024 start=1187129629 dt=36278 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32025 start=1187165890 dt=36261 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32026 start=1187202210 dt=36320 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32027 start=1187238464 dt=36254 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32028 start=1187275426 dt=36962 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32029 start=1187311777 dt=36351 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32030 start=1187348247 dt=36470 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32031 start=1187384603 dt=36356 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32032 start=1187420830 dt=36227 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32033 start=1187457199 dt=36369 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32034 start=1187494154 dt=36955 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32035 start=1187530434 dt=36280 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32036 start=1187567459 dt=37025 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32037 start=1187603738 dt=36279 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32038 start=1187639989 dt=36251 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32039 start=1187676949 dt=36960 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32040 start=1187713230 dt=36281 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32041 start=1187749440 dt=36210 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32042 start=1187785756 dt=36316 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32043 start=1187821985 dt=36229 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32044 start=1187858378 dt=36393 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32045 start=1187894651 dt=36273 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32046 start=1187930876 dt=36225 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32047 start=1187968172 dt=37296 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32048 start=1188004474 dt=36302 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32049 start=1188040733 dt=36259 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32050 start=1188077012 dt=36279 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32051 start=1188113210 dt=36198 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32052 start=1188149429 dt=36219 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32053 start=1188186350 dt=36921 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32054 start=1188222646 dt=36296 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32055 start=1188258866 dt=36220 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32056 start=1188295140 dt=36274 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32057 start=1188331368 dt=36228 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32058 start=1188367788 dt=36420 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32059 start=1188404109 dt=36321 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32060 start=1188440378 dt=36269 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32061 start=1188476809 dt=36431 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32062 start=1188513083 dt=36274 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32063 start=1188549329 dt=36246 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32064 start=1188586197 dt=36868 ring=0 flags=--- scene=bdry mi=60
+#HOST BSW: the first phase change came at a press found
+#HOST BSW-L positioning: 35 O presses
+#HOST send b'O'
+[wx] frame 32065 start=1188622499 dt=36302 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32066 start=1188658736 dt=36237 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32067 start=1188695021 dt=36285 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32068 start=1188731248 dt=36227 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32069 start=1188767477 dt=36229 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32070 start=1188803797 dt=36320 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32071 start=1188840046 dt=36249 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32072 start=1188876287 dt=36241 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32073 start=1188912559 dt=36272 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32074 start=1188948809 dt=36250 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32075 start=1188985186 dt=36377 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32076 start=1189021489 dt=36303 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32077 start=1189057724 dt=36235 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32078 start=1189094063 dt=36339 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32079 start=1189130348 dt=36285 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32080 start=1189166576 dt=36228 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32081 start=1189203684 dt=37108 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32082 start=1189240004 dt=36320 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32083 start=1189277413 dt=37409 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32084 start=1189314765 dt=37352 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32085 start=1189351877 dt=37112 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32086 start=1189388165 dt=36288 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32087 start=1189424436 dt=36271 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32088 start=1189460678 dt=36242 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32089 start=1189497046 dt=36368 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32090 start=1189533316 dt=36270 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32091 start=1189569558 dt=36242 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32092 start=1189606790 dt=37232 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32093 start=1189643124 dt=36334 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32094 start=1189679348 dt=36224 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32095 start=1189715628 dt=36280 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32096 start=1189751846 dt=36218 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32097 start=1189788063 dt=36217 ring=0 flags=--- scene=bdry mi=60
+[wx] frame 32098 start=1189824373 dt=36310 ring=0 flags=--- scene=bdry mi=60
+[wx] gesture O
+[wx] auto offset=+15 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+30 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+45 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+60 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+75 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+90 min phase=Night
+[wx] gesture O
+[wx] auto offset=+105 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+120 min phase=Night
+[wx] gesture O
+[wx] auto offset=+135 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+150 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+165 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+180 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+195 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+210 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+225 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+240 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+255 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+270 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+285 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+300 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+315 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+330 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+345 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+360 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+375 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+390 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+405 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+420 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+435 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+450 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+465 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+480 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+495 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+510 min phase=Night
+[wx] gesture O
+[wx] auto offset=+525 min phase=Night
+[wx] fbcopy n=383 min=5355 max=6393 mean=5393
+[wx] base build_us=0 rebuilt=no at=scenario R=60 terrain=0 level=0 rings=30 rivers=135 roads=354 places=9 peaks=16 fnv=c9a61df9
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=brain R=60 frame=200600 screen=Dry synthetic=0 compose_us=40287
+[wx] prof brain-60-B view=3598 map=21394 bands=3153 rings=7627 warning=3 labels=3723 ringlabels=398 home=20 replay=2 strip=100 band=256 sum=40274 compose_us=40287
+[wx] k ROW brain-60-B d9fb13c8700625c1d1d7663f1bce4a4f0a7efdfa6086f186ec305c71030aa25b
+[wx] k TIME brain-60-B 1:06%20PM dim
+[wx] k BAND brain-60-B S RAIN%2020%20MI%20W dim
+[wx] k LABEL brain-60-B Redmond R 131 88 177 96
+[wx] k LABEL brain-60-B Sisters L 49 83 97 91
+[wx] k LABEL brain-60-B La%20Pine L 56 167 104 175
+[wx] k LABEL brain-60-B Culver R 128 52 168 60
+[wx] screen=scenario brain R=60
+[fb] push 163c draws 31519-32330 n=812 phases=2 push_us=25805-25946
+[health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=118/0 maxOutage=0ms rebootRec=0
+[wx] fbcopy n=822 min=5354 max=6592 mean=5384
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41003
+[wx] prof dry-60 view=3572 map=22313 bands=3152 rings=7656 warning=3 labels=3435 ringlabels=443 home=20 replay=2 strip=145 band=249 sum=40990 compose_us=41003
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+[fb] push 173c draws 32331-33152 n=822 phases=2 push_us=25808-25927
+#HOST BSW-L starts
+#HOST send b'T'
+[wx] gesture T
+[wx] layer build_us=20096 pixels=3063 valid=1 rebuilt=tap R=60
+[wx] screen=loop R=60
+#HOST send b'O'
+[wx] gesture O
+[wx] dim=0 brightness=255
+[wx] auto offset=+540 min phase=Day
+[wx] loop records=15 period_us=70000 R=60 layer_rebuilds=0
+[wx] lrec 0 epoch=1716325440 sha=e68e194436ec69e3c44054eaa0347b02b5b62733b904fe71b25db95279fa148a start_us=1229674143 draw_us=34840 hash_us=4064
+[wx] lrec 1 epoch=1716325680 sha=20355546cdd48add1f9a2002ae7ebfccedd048a5e685309a2448679215e68bb5 start_us=1229744714 draw_us=35271 hash_us=4090
+[wx] lrec 2 epoch=1716325920 sha=9ec5b49d608a9b4e1b4e32e20efb1a629d8b03c6de7bf772c49a57271cc8cec6 start_us=1229814142 draw_us=35214 hash_us=4076
+[wx] lrec 3 epoch=1716326160 sha=e597e2d41be5bfa9e79ec23c78b4e6b3644847e1919bb03c108bf5310b580ab8 start_us=1229884134 draw_us=35224 hash_us=4070
+[wx] lrec 4 epoch=1716326400 sha=4886961a644a67e35ef346b1093dfe70e8631eb303a8ed370f3e8931af93a115 start_us=1229954443 draw_us=35491 hash_us=4089
+[wx] lrec 5 epoch=1716326640 sha=fc1ab7ab35136bc1cd32dcf8dc9170ea418f3f871c6339be0798dd94325e9b39 start_us=1230024133 draw_us=35372 hash_us=4062
+[wx] lrec 6 epoch=1716326880 sha=24455c23b3bf1304cc07c358c4157bef2d05580389e1acb79f7eba68e83ec194 start_us=1230094133 draw_us=35265 hash_us=4051
+[wx] lrec 7 epoch=1716327120 sha=e3be1c880746ff84ad3e38532cf8ac39418a35b52f0fc12e253b06424524957f start_us=1230164142 draw_us=35451 hash_us=4051
+[wx] lrec 8 epoch=1716327360 sha=e14f4aadaca055fd1d582a790cd60d2e6bbe69d0eba0832e2f6c208768a702ce start_us=1230234134 draw_us=35482 hash_us=4081
+[wx] lrec 9 epoch=1716327600 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=1230304133 draw_us=35438 hash_us=4072
+[wx] lrec 10 epoch=1716327840 sha=c1df4bc4a3e3046a4df7dc55daaccbf17bc28d9cfde71fd0a68f3bea0a2068df start_us=1230374142 draw_us=35547 hash_us=4112
+[wx] lrec 11 epoch=1716328080 sha=8c7847628a851679ac39397f1e9e51a1a6975e0d28198767113c95afadd8b79b start_us=1230444138 draw_us=35479 hash_us=4055
+[wx] lrec 12 epoch=1716328320 sha=132fa89334bcafca9633ae8fe141f3eb81737fbc9bf35e03348887dc3dab51b0 start_us=1230514131 draw_us=35435 hash_us=4068
+[wx] lrec 13 epoch=1716328560 sha=1239cdb1fa072a7a0ce721fb0263f48e5b727b13cfaaacda22f0843377fb94ac start_us=1230584131 draw_us=35359 hash_us=4056
+[wx] lrec 14 epoch=1716328800 sha=3dc9114b93b2b43b964870fbac866dc662db0cf7ed5bf1cd6a2d325b54c74600 start_us=1230654134 draw_us=35320 hash_us=4077
+[wx] lprof 0 decode=1973 view=1 map=26642 bands=3147 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2541 strip=121 band=135 sum=32592 draw_us=34840 hash_us=4064
+[wx] lprof 1 decode=2150 view=1 map=26806 bands=3149 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2545 strip=167 band=135 sum=32808 draw_us=35271 hash_us=4090
+[wx] lprof 2 decode=2274 view=1 map=26656 bands=3168 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2579 strip=170 band=133 sum=32712 draw_us=35214 hash_us=4076
+[wx] lprof 3 decode=2391 view=1 map=26594 bands=3150 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2543 strip=114 band=132 sum=32539 draw_us=35224 hash_us=4070
+[wx] lprof 4 decode=2497 view=1 map=26685 bands=3148 rings=2 warning=1 labels=1 ringlabels=1 home=0 replay=2541 strip=167 band=134 sum=32681 draw_us=35491 hash_us=4089
+[wx] lprof 5 decode=2477 view=1 map=26630 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2539 strip=138 band=135 sum=32601 draw_us=35372 hash_us=4062
+[wx] lprof 6 decode=2450 view=1 map=26572 bands=3149 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2544 strip=117 band=133 sum=32521 draw_us=35265 hash_us=4051
+[wx] lprof 7 decode=2598 view=1 map=26567 bands=3184 rings=2 warning=0 labels=1 ringlabels=1 home=1 replay=2540 strip=116 band=136 sum=32549 draw_us=35451 hash_us=4051
+[wx] lprof 8 decode=2594 view=0 map=26621 bands=3153 rings=2 warning=0 labels=1 ringlabels=1 home=1 replay=2540 strip=138 band=133 sum=32590 draw_us=35482 hash_us=4081
+[wx] lprof 9 decode=2614 view=1 map=26562 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2557 strip=116 band=137 sum=32531 draw_us=35438 hash_us=4072
+[wx] lprof 10 decode=2616 view=1 map=26635 bands=3149 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2541 strip=159 band=137 sum=32627 draw_us=35547 hash_us=4112
+[wx] lprof 11 decode=2594 view=1 map=26618 bands=3153 rings=2 warning=1 labels=0 ringlabels=1 home=1 replay=2539 strip=135 band=136 sum=32587 draw_us=35479 hash_us=4055
+[wx] lprof 12 decode=2624 view=1 map=26579 bands=3153 rings=2 warning=1 labels=0 ringlabels=1 home=1 replay=2539 strip=117 band=126 sum=32520 draw_us=35435 hash_us=4068
+[wx] lprof 13 decode=2551 view=1 map=26578 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2539 strip=115 band=127 sum=32518 draw_us=35359 hash_us=4056
+[wx] lprof 14 decode=2475 view=1 map=26643 bands=3153 rings=1 warning=1 labels=1 ringlabels=1 home=1 replay=2539 strip=133 band=90 sum=32564 draw_us=35320 hash_us=4077
+[fb] push 103c draws 33153-33184 n=32 phases=2 push_us=25808-25854
+[fb] push 203c draws 33185-33185 n=1 phases=2 push_us=25832-25832
+[fb] push 213c draws 33186-33186 n=1 phases=2 push_us=25837-25837
+[fb] push 223c draws 33187-33187 n=1 phases=2 push_us=25836-25836
+[fb] push 233c draws 33188-33188 n=1 phases=2 push_us=25829-25829
+[fb] push 243c draws 33189-33189 n=1 phases=2 push_us=25832-25832
+[fb] push 253c draws 33190-33190 n=1 phases=2 push_us=25829-25829
+[fb] push 263c draws 33191-33191 n=1 phases=2 push_us=25856-25856
+[fb] push 273c draws 33192-33192 n=1 phases=2 push_us=25829-25829
+[fb] push 283c draws 33193-33193 n=1 phases=2 push_us=25819-25819
+[fb] push 293c draws 33194-33194 n=1 phases=2 push_us=25868-25868
+[fb] push 2a3c draws 33195-33195 n=1 phases=2 push_us=25829-25829
+[fb] push 2b3c draws 33196-33196 n=1 phases=2 push_us=25833-25833
+[fb] push 2c3c draws 33197-33197 n=1 phases=2 push_us=25858-25858
+[fb] push 2d3c draws 33198-33198 n=1 phases=2 push_us=25833-25833
+[wx] screen=scenario dry R=60
+[fb] push 2e3c draws 33199-33199 n=1 phases=2 push_us=25826-25826
+[wx] theme=light was=dark setting=auto phase=Day
+[wx] fbcopy n=33 min=5356 max=5922 mean=5404
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=41067
+[wx] prof dry-60 view=3562 map=22354 bands=3153 rings=7669 warning=3 labels=3450 ringlabels=478 home=20 replay=3 strip=114 band=245 sum=41051 compose_us=41067
+[wx] k ROW dry-60 f381c43d6f32822979f7286c199d74f1bc475fc3bb7dbee6f5f870f902c4a743
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST BSW-L ends
+#HOST BSW-L wrap: 60 O presses
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+555 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+570 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+585 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+600 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+615 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+630 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+645 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+660 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+675 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+690 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+705 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+720 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+735 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+750 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+765 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+780 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+795 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+810 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+825 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+840 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+855 min phase=Day
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+870 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+885 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+900 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+915 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+930 min phase=Day
+[wx] gesture O
+[wx] auto offset=+945 min phase=Day
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+960 min phase=Day
+[wx] gesture O
+[wx] auto offset=+975 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+990 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1005 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1020 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1035 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1050 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1065 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1080 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1095 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1110 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1125 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1140 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1155 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1170 min phase=Day
+#HOST send b'O'
+[wx] gesture O
+[wx] dim=1 brightness=51
+[wx] auto offset=+1185 min phase=Night
+[wx] theme=dark was=light setting=auto phase=Night
+[wx] fbcopy n=289 min=5355 max=6374 mean=5393
+[wx] pick approaching=212400 dry=220000 psram_used=227168
+[wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+[wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40883
+[wx] prof dry-60 view=3581 map=22314 bands=3154 rings=7619 warning=2 labels=3435 ringlabels=399 home=19 replay=1 strip=101 band=243 sum=40868 compose_us=40883
+[wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+[wx] k TIME dry-60 5:00%20PM dim
+[wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+[wx] k LABEL dry-60 Dallas R 150 130 190 138
+[wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+[wx] k LABEL dry-60 Plano R 152 95 186 103
+[wx] k LABEL dry-60 Garland R 166 114 212 122
+[wx] k LABEL dry-60 Frisco R 144 80 184 88
+[wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+[wx] k LABEL dry-60 Denton L 68 72 110 80
+[wx] k LABEL dry-60 Mansfield L 52 161 112 169
+[wx] screen=scenario dry R=60
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1200 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1215 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1230 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1245 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1260 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1275 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1290 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1305 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1320 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1335 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1350 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1365 min phase=Night
+#HOST send b'O'
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1380 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1395 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+1410 min phase=Night
+[wx] gesture O
+[wx] auto offset=+1425 min phase=Night
+#HOST send b'O'
+[wx] gesture O
+[wx] auto offset=+0 min phase=Night
+#HOST closing the port

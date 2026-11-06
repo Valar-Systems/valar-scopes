@@ -13,6 +13,9 @@ files' hashes are compared before and after.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RENDER = os.path.join(ROOT, "src", "weatherscope", "WxRender.h")
 LOOP = os.path.join(ROOT, "test", "fixtures", "wx", "loop")
@@ -36,7 +39,7 @@ def build(td, name, render_text):
                         "-I" + os.path.join(ROOT, "include"), TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return exe
 
 
@@ -44,7 +47,7 @@ def run(exe, ref, name):
     r = subprocess.run([exe, LOOP, ref], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {m.group(1) for m in re.finditer(r"^\s*FAIL (K2:\d{6})", r.stdout, re.M)}
 
 
@@ -54,9 +57,13 @@ def main():
     ref = json.load(open(REF))
     flip_set = {"K2:" + f["name"][len(P):len(P) + 6] for f in ref["frames"] if f["screenSha256"] != f["flipSha256"]}
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        exe = build(td, "control", render_src)
-        rc, fails = run(exe, REF, "control")
+        try:
+            exe = build(td, "control", render_src)
+            rc, fails = run(exe, REF, "control")
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control: exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
@@ -65,8 +72,9 @@ def main():
         assert render_src.count(anchor) == 1, f"S-K2a: anchor found {render_src.count(anchor)} times"
         planted = render_src.replace(anchor, "v->homeLat + -1.0 * (kCentre")
         assert planted != render_src
-        rc, fails = run(build(td, "S-K2a", planted), REF, "S-K2a")
-        good = rc == 1 and fails == flip_set
+        res = rigs.run("S-K2a", lambda: run(build(td, "S-K2a", planted), REF, "S-K2a"))
+        rc, fails = res if res is not None else (None, set())
+        good = res is not None and rc == 1 and fails == flip_set
         print(f"S-K2a: {len(fails)} failing, predicted the {len(flip_set)} whose flip differs; "
               f"sets {'equal' if fails == flip_set else 'DIFFER: ' + str(sorted(fails ^ flip_set))} -> "
               f"{'AS PREDICTED' if good else 'OFF-PREDICTION'}")
@@ -77,15 +85,40 @@ def main():
         assert json.load(open(REF)) != ref, "S-K2b: the copy is unchanged"
         p = os.path.join(td, "S-K2b-screens.ref.json")
         open(p, "w", newline="\n").write(json.dumps(ref, indent=1) + "\n")
-        rc, fails = run(exe, p, "S-K2b")
-        good = rc == 1 and fails == {"K2:213600"}
+        res = rigs.run("S-K2b", run, exe, p, "S-K2b")
+        rc, fails = res if res is not None else (None, set())
+        good = res is not None and rc == 1 and fails == {"K2:213600"}
         print(f"S-K2b: failing {sorted(fails)}, predicted ['K2:213600'] -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
     after = (sha(RENDER), sha(REF))
     print(f"the real WxRender.h and screens.ref.json unchanged: {before == after}")
     print("2 sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: S-K2a's anchor in WxRender.h, and the two frames S-K2b swaps in screens.ref.json, for --anchors."""
+    def frames(t):
+        got = [x["name"] for x in json.loads(t)["frames"]]
+        for w in (P + "213600.wxc", P + "214000.wxc"):
+            assert got.count(w) == 1, f"{w} named {got.count(w)} times"
+    return [("S-K2a", os.path.relpath(RENDER, ROOT), sc.read(RENDER), "v->homeLat + 1.0 * (kCentre"),
+            ("S-K2b", os.path.relpath(REF, ROOT), sc.read(REF), frames)]
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+LOOP_RENDER_CHECKS = 15   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_loop_render": ("checks", LOOP_RENDER_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(build(td, "control", open(RENDER, encoding="utf-8").read().replace("\r\n", "\n")), REF, "control")
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

@@ -1,0 +1,25 @@
+{
+ "role": "wet",
+ "stamp": "20261028T0255",
+ "window": [
+  1059,
+  2883,
+  417,
+  1635
+ ],
+ "sha256_value_band": "0380be23a66002df602e4a5cf46ee1d6411e8b3f38742d89cfb6f454791be012",
+ "counts": {
+  "nodata": 818321,
+  "undetect": 1196129,
+  "echo_ge_15": 110240
+ },
+ "projection": {
+  "lat_0": 55.0,
+  "lon_0": 10.0,
+  "x_0": 1950000.0,
+  "y_0": -2100000.0
+ },
+ "cross_check": "sha equal: HDF5 and tifffile (full COG)",
+ "h5_sha256": "abf6bcc81f6eb660d0260d1b3819bec52be574fb223cd7338d350aa2e56bfd8f",
+ "tif_sha256": "46e0aa9bb2b0e928d728caabc24ea62810b54137c83f4f53bee5b1abc99d60c9"
+}

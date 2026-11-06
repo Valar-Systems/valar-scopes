@@ -1,0 +1,19 @@
+{
+ "files": {
+  "generator-pop.json": "08d7710971d8b5f4c821a385a8305aef1754bef3da292d3525f00d6e52bcc170",
+  "r0b-inputs.json": "a4effe85dd42a1571d0d8b49483805dd9268a4c190e43c9a89c1d72c8fa599cc",
+  "r0b-terrain.bin": "ee86cbb71db9aa00ee01c16ec03e7129ea87df9cda2e127ac167ca4e5a29af1c",
+  "screen-bend-A.png": "eded766b9c838ebad136eb2891516018266953dc72e0517d4fc393e1ec5e8f29",
+  "screen-bend-B.png": "f216ee3a03bd2de1b25afa360f7d5f19188137c265827352d312fd9d95f2a826",
+  "screen-bend-C.png": "65e03e89807d9742da50da97c26c0d6b8d2e68936c9e88b6fee7c29846a32fef",
+  "screen-proposed-approaching.png": "83e8c827ffec753a5bfbcb731812fda1c192021cb0f98899c24f9aa472371dfa",
+  "screen-proposed-dry.png": "44ecdcfa6871235d5ada42014a02b31658c383ecc33eb7ef337082499577e136",
+  "screen-proposed-herenow.png": "3c5cfca88585a72819642ea468d329c139d47b04baaea4ca2296f6c43d810967",
+  "screen-proposed-warning.png": "5d03953844a183d4d1ef5524b188f3c23f1b6cdc5c2d94c9aa22ea6b9c2c240f",
+  "screen-zoom-15.png": "eb7b822e0c8a7a28550e5953e780c7c563abfb3ec6e6ddbcaeec7bf7e9b09ede",
+  "screen-zoom-30.png": "61e32a5285ebbcfb8d6c42b04619d1f1c476caa2ef65e69d313a0528e4f53237",
+  "screen-zoom-60.png": "a2cdeba8f285e2a6d6591579d7c18237e2d89e42be3f7111c9c16d78e8d39a82",
+  "towns-a7f21fb.txt": "f5a15865908c912510a9b6dffd00c29770ee2f9481617ce49fe42e56bb5eb382"
+ },
+ "what": "R0 (3.5a) and R0b (3.5b) fixtures for CI (A12.18.3); every file below must hash to its pin"
+}

@@ -22,6 +22,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "include", "WxCrop.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_crop.cpp")
@@ -34,11 +37,14 @@ SABOTAGES = {
     "S-A1": ([("    if (p != total) return Status::Underrun;\n",
                "    (void)total;  // SABOTAGE S-A1: the underrun check is gone\n")],
              [r"A2\s+neg-run-short", r"A5\s+0/50 sabotaged twins refused"]),
-    "S-A2": ([("#include <string.h>\n", "#include <string.h>\n#include <vector>\n"),
+    # S-A2 allocates with malloc, which the test counts through its own CountedMalloc: a std::vector here tripped
+    # g++ 13.3's -Wmismatched-new-delete at the test's replacement operator delete (A12.73).
+    "S-A2": ([("#include <string.h>\n", "#include <string.h>\n#include <stdlib.h>\n"),
               ("inline Status Validate(const uint8_t* data, size_t len, Header* out)\n{\n",
                "inline Status Validate(const uint8_t* data, size_t len, Header* out)\n{\n"
-               "    std::vector<uint8_t> scratch(16, 1);  // SABOTAGE S-A2: an allocation on every call\n"
-               "    if (scratch[0] != 1) return Status::TooShort;\n")],
+               "    uint8_t* scratch = (uint8_t*)malloc(16);  // SABOTAGE S-A2: an allocation on every call\n"
+               "    if (!scratch) return Status::TooShort;\n"
+               "    free(scratch);\n")],
              [r"A6\s+\d+ heap allocations"]),
     "S-A3a": ([("    if (v == 0) return Status::ZeroRun;\n", "    // SABOTAGE S-A3a: zero-length runs accepted\n")],
               [r"A3\s+a zero-length long run"]),
@@ -60,6 +66,7 @@ def sha(path):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical to the original -- the sabotage did not apply"
@@ -70,8 +77,12 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         for name, (edits, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             inc = os.path.join(td, name)
             os.makedirs(inc)
             open(os.path.join(inc, "WxCrop.h"), "w", encoding="utf-8", newline="\n").write(plant(name, edits, src))
@@ -79,7 +90,9 @@ def main():
             b = subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
             if b.returncode != 0:
                 print(f"{name}: did not compile (rig)\n{b.stderr}")
-                return 2
+                rigs.add(name)
+                ok = False
+                continue
             r = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
             fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
             matched = [sum(1 for l in fails if re.search(rx, l)) for rx in expect]
@@ -95,8 +108,35 @@ def main():
             ok &= good
     after = sha(HEADER)
     print(f"real include/WxCrop.h unchanged: {before == after} ({after[:12]})")
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    return out
+
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CROP_OKS = 27   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_crop": ("ok", CROP_OKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        inc = os.path.join(td, "control")
+        os.makedirs(inc)
+        open(os.path.join(inc, "WxCrop.h"), "w", encoding="utf-8", newline="\n").write(open(HEADER, encoding="utf-8").read())
+        exe = os.path.join(td, "control.exe")
+        subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
+        subprocess.run([exe, FIXTURES], capture_output=True, text=True)
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

@@ -125,7 +125,7 @@ export async function fleetRows(env: Env, hours: number): Promise<DeviceRow[]> {
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
       AND ${REQUEST_POINTS}
-      AND blob5 != ''
+      AND blob5 != ''${notTestDevice(env, "blob5")}
     GROUP BY dev
     ORDER BY requests DESC
     LIMIT 500`;
@@ -169,7 +169,7 @@ export async function fleetTotals(env: Env, hours: number): Promise<FleetTotals>
       SUM(IF(blob1 IN ('/api/v1/blipscope/photo', '/v1/photo'), double4, 0.0)) AS cards,
       SUM(IF(blob5 = '', double4, 0.0)) AS unattributed
     FROM ${ds}
-    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS}`;
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS}${notTestDevice(env, "blob5")}`;
   const out = await runSql<Record<string, number | string>>(env, sql);
   const r = out.data[0] ?? {};
   return {
@@ -194,7 +194,7 @@ export async function firmwareSpread(env: Env, hours: number): Promise<FwRow[]> 
   const sql = `
     SELECT blob6 AS fw, blob4 AS model, count(DISTINCT blob5) AS devices
     FROM ${ds}
-    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''${notTestDevice(env, "blob5")}
     GROUP BY fw, model
     ORDER BY model, fw`;
   const out = await runSql<{ fw: string; model: string; devices: number | string }>(env, sql);
@@ -307,7 +307,7 @@ export async function usageRows(env: Env, hours: number, dev?: string): Promise<
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR
       AND ${USAGE_POINTS}
-      AND blob4 != ''
+      AND blob4 != ''${notTestDevice(env, "blob4")}
       ${oneDevice}
     GROUP BY dev
     ORDER BY card_opens DESC, reports DESC
@@ -343,7 +343,7 @@ export async function seenDevices(env: Env, hours: number): Promise<Set<string>>
   const sql = `
     SELECT blob5 AS dev
     FROM ${ds}
-    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''
+    WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR AND ${REQUEST_POINTS} AND blob5 != ''${notTestDevice(env, "blob5")}
     GROUP BY dev
     LIMIT ${SEEN_CAP}`;
   const out = await runSql<{ dev: string }>(env, sql);
@@ -372,6 +372,18 @@ export function deviceIdLiteral(s: string): string {
   return s;
 }
 
+// The production checks' TEST identity (docs/test-identity.md, item 4) is NOT a unit, so every counter Daniel uses to
+// estimate units leaves it out. The ids come from the TEST_DEVICE_IDS secret (comma separated), never from the repo.
+// Each must be in the id shape (deviceIdLiteral), or the dashboard refuses rather than counts it.
+export function testDeviceIds(env: Env): string[] {
+  return (env.TEST_DEVICE_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(deviceIdLiteral);
+}
+/** The SQL that leaves the test identity out of a device column; empty when none is configured. */
+export function notTestDevice(env: Env, col: "blob4" | "blob5"): string {
+  const ids = testDeviceIds(env);
+  return ids.length ? ` AND ${col} NOT IN (${ids.map((i) => `'${i}'`).join(", ")})` : "";
+}
+
 // The enrolment ledger (proxy/src/enroll.ts): one `enr:dev:<id>` row per device
 // that ever enrolled. Its lastAt is the last ENROLMENT, not the last time the
 // device was heard from -- a single enrolment is the signature of a working unit
@@ -387,12 +399,13 @@ export async function enrolledButSilent(
   seen: Set<string>,
 ): Promise<{ rows: SilentRow[]; total: number; enrolled: number }> {
   const ids: string[] = [];
+  const test = new Set(testDeviceIds(env)); // the test identity is not a unit (docs/test-identity.md)
   let cursor: string | undefined;
   do {
     const page = await env.ENRICH_KV.list({ prefix: "enr:dev:", cursor });
     for (const k of page.keys) {
       const id = k.name.slice("enr:dev:".length);
-      if (DEVICE_ID.test(id)) ids.push(id);
+      if (DEVICE_ID.test(id) && !test.has(id)) ids.push(id);
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
@@ -432,12 +445,13 @@ export interface LedgerRow {
 // lastAt is the last ENROLMENT, never the last time a device was heard from.
 export async function readLedger(env: Env, cap = 500): Promise<LedgerRow[]> {
   const ids: string[] = [];
+  const test = new Set(testDeviceIds(env)); // the test identity is not a unit (docs/test-identity.md)
   let cursor: string | undefined;
   do {
     const page = await env.ENRICH_KV.list({ prefix: "enr:dev:", cursor });
     for (const k of page.keys) {
       const id = k.name.slice("enr:dev:".length);
-      if (DEVICE_ID.test(id)) ids.push(id);
+      if (DEVICE_ID.test(id) && !test.has(id)) ids.push(id);
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
@@ -575,7 +589,7 @@ export async function firstRequestTimes(env: Env, routes: readonly string[]): Pr
     SELECT blob5 AS dev, MIN(timestamp) AS first
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR
-      AND blob1 IN (${routes.map((r) => `'${r}'`).join(", ")}) AND blob5 != ''
+      AND blob1 IN (${routes.map((r) => `'${r}'`).join(", ")}) AND blob5 != ''${notTestDevice(env, "blob5")}
     GROUP BY dev
     LIMIT ${SEEN_CAP}`;
   const out = await runSql<{ dev: string; first: string }>(env, sql);
@@ -593,7 +607,7 @@ export async function firstSeenTimes(env: Env): Promise<Map<string, string>> {
     SELECT blob5 AS dev, MIN(timestamp) AS first
     FROM ${ds}
     WHERE timestamp > NOW() - INTERVAL '${RETENTION_HOURS}' HOUR
-      AND blob1 LIKE '/%' AND blob5 != ''
+      AND blob1 LIKE '/%' AND blob5 != ''${notTestDevice(env, "blob5")}
     GROUP BY dev
     LIMIT ${SEEN_CAP}`;
   const out = await runSql<{ dev: string; first: string }>(env, sql);

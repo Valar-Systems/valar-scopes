@@ -8,6 +8,11 @@
 // yesterday's crops. The expected cells in the manifest are the ENCODER's own cells (what it was asked to
 // encode, from the flat grid), not a decode of the bytes, so the device decoder is graded against an
 // independent answer. Every centre is a public airport cleared by the spike's forbidden.py.
+//
+// K12 (docs/wx-opuk.md) adds a second set in test/fixtures/wx/opuk/: eight crops over a REAL frame -- the wet K1
+// fixture (proxy/test/fixtures/wx/opera/) through the COG reader and the resampling -- served by /wx/cref's
+// dispatch at eight UK airports, r = 161 km. --check covers both sets, so a change to the reader or the
+// resampling cannot leave the device grading yesterday's crops.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,11 +21,17 @@ import { fileURLToPath } from "node:url";
 import { cropCellBox, encodeBox, quantise } from "../src/wx/crop";
 import { FrameBuilder, type GridGeom, frameMeta } from "../src/wx/grid";
 import { handleWx, type LatestRecord } from "../src/wx/handler";
-import { PRODUCTS, frameKey, latestKey } from "../src/wx/products";
+import { type RangeFetch, readWindow } from "../src/wx/opera";
+import { OPUK_GRID, PRODUCTS, frameKey, latestKey, productById } from "../src/wx/products";
+import { mapFor, resample } from "../src/wx/resample";
 import type { Env } from "../src/types";
 import { CONUS, flatCellAt, synthCodes } from "../test/wx-synth";
 
-const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "test", "fixtures", "wx", "server");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OUT = join(HERE, "..", "..", "test", "fixtures", "wx", "server");
+const OUT_OPUK = join(HERE, "..", "..", "test", "fixtures", "wx", "opuk");
+const OPUK_FRAME = "20261028T0255";           // the wet K1 fixture: echo runs in every crop, not only 0s and 14s
+const OPUK_AIRPORTS = ["LHR", "MAN", "EDI", "GLA", "BFS", "ABZ", "CWL", "NQY"];
 const EPOCH = 1761000000;                      // fixed, so the fixtures are reproducible
 const cref = PRODUCTS[0]!;
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -108,15 +119,90 @@ async function main() {
   }, null, 1) + "\n";
   files["MANIFEST.json"] = new TextEncoder().encode(manifest);
 
+  const o = await opukSet();
+
   if (check) {
-    const bad = Object.entries(files).filter(([n, b]) => !existsSync(join(OUT, n)) || sha(readFileSync(join(OUT, n))) !== sha(b)).map(([n]) => n);
-    if (bad.length) { console.log(`STALE: test/fixtures/wx/server/ differs from the server path in ${bad.join(", ")} -- run npx tsx scripts/wx-fixtures.ts`); process.exit(1); }
-    console.log(`wx server fixtures current: ${crops.length} crops + MANIFEST.json`);
+    let stale = false;
+    for (const [dir, label, fs] of [[OUT, "server", files], [OUT_OPUK, "opuk", o.files]] as const) {
+      const bad = Object.entries(fs).filter(([n, b]) => !existsSync(join(dir, n)) || sha(readFileSync(join(dir, n))) !== sha(b)).map(([n]) => n);
+      if (bad.length) { console.log(`STALE: test/fixtures/wx/${label}/ differs from the server path in ${bad.join(", ")} -- run npx tsx scripts/wx-fixtures.ts`); stale = true; }
+    }
+    if (stale) process.exit(1);
+    console.log(`wx server fixtures current: ${crops.length} crops + MANIFEST.json; opuk: ${o.crops.length} crops + MANIFEST.json`);
     return;
   }
-  mkdirSync(OUT, { recursive: true });
-  for (const [n, b] of Object.entries(files)) writeFileSync(join(OUT, n), b);
-  for (const c of crops) console.log(`${c.name.padEnd(34)} ${String(c.bytes).padStart(6)} B  k=${c.coarsen} ${c.flagged ? "flagged" : "       "} ${c.rows}x${c.cols}  ${c.kind}`);
+  for (const [dir, fs] of [[OUT, files], [OUT_OPUK, o.files]] as const) {
+    mkdirSync(dir, { recursive: true });
+    for (const [n, b] of Object.entries(fs)) writeFileSync(join(dir, n), b);
+  }
+  for (const c of [...crops, ...o.crops]) console.log(`${c.name.padEnd(34)} ${String(c.bytes).padStart(6)} B  k=${c.coarsen} ${c.flagged ? "flagged" : "       "} ${c.rows}x${c.cols}  ${c.kind}`);
+}
+
+/** K12: the opuk set. The frame is real (the wet K1 fixture, read and resampled by the production code); the
+ *  request is the device's own (/wx/cref), so the crop comes through the dispatch; the expected cells are the
+ *  encoder's, from the flat resampled grid. Pins Date.now itself: main() has restored it by now. */
+async function opukSet() {
+  const realNow = Date.now;
+  Date.now = () => (EPOCH + 60) * 1000;
+  try { return await opukSetPinned(); } finally { Date.now = realNow; }
+}
+
+async function opukSetPinned() {
+  const opuk = productById("opuk")!;
+  const dir = join(HERE, "..", "test", "fixtures", "wx", "opera");
+  const idx = JSON.parse(readFileSync(join(dir, `${OPUK_FRAME}.ranges.json`), "utf8")) as { ranges: number[][] };
+  const bin = new Uint8Array(readFileSync(join(dir, `${OPUK_FRAME}.ranges.bin`)));
+  const offs = new Map<string, number>();
+  let at = 0;
+  for (const [a, z] of idx.ranges) { offs.set(`${a}-${z}`, at); at += z! - a! + 1; }
+  const rf: RangeFetch = async (a, z) => {
+    const s = offs.get(`${a}-${z}`);
+    if (s === undefined) throw new Error(`opuk frame: range ${a}-${z} is not in the fixture`);
+    return bin.slice(s, s + z - a + 1);
+  };
+  const g = OPUK_GRID;
+  const w = await readWindow(rf, g);
+  const { codes, covered } = resample(w.value, w.quality, mapFor(w.geo, w.window, g), g);
+  const r2 = new MemR2();
+  const m = frameMeta("opuk", EPOCH, g);
+  const fb = new FrameBuilder(m);
+  for (let r = 0; r < g.nj; r++) fb.setRow(r, codes.subarray(r * g.ni, (r + 1) * g.ni));
+  await r2.put(frameKey(opuk, EPOCH), fb.bytes);
+  const rec: LatestRecord = { product: "opuk", epoch: EPOCH, key: frameKey(opuk, EPOCH), ingestedAt: 0, ...g, tile: m.tile, coveredShare: covered };
+  await r2.put(latestKey(opuk), JSON.stringify(rec));
+  const env = { WX: r2 } as unknown as Env;
+  const cellAt = flatCellAt(g, codes);
+  const uk = new Map(readFileSync(join(HERE, "..", "test", "fixtures", "wx-airports-uk.txt"), "utf8").split(/\r?\n/)
+    .filter((l) => l.trim() && !l.startsWith("#")).map((l) => { const [id, lat, lon] = l.trim().split(/\s+/); return [id!, { lat: Number(lat), lon: Number(lon) }] as const; }));
+  const crops = [];
+  const files: Record<string, Uint8Array> = {};
+  for (const id of OPUK_AIRPORTS) {
+    const a = uk.get(id);
+    if (!a) throw new Error(`${id} is not in wx-airports-uk.txt`);
+    const name = `${id.toLowerCase()}-161km.wxc`;
+    const res = await handleWx(new Request(`https://proxy.test/api/v1/blipscope/wx/cref?lat=${a.lat.toFixed(2)}&lon=${a.lon.toFixed(2)}&r=161`), env, "cref");
+    if (res.status !== 200) throw new Error(`${name}: handleWx answered ${res.status}`);
+    if (!res.headers.get("ETag")?.includes("-opuk-")) throw new Error(`${name}: /wx/cref was not served from opuk`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const enc = encodeBox(g, EPOCH, cropCellBox(g, quantise(a.lat, a.lon, 161)), cellAt);
+    if (sha(bytes) !== sha(enc.bytes)) throw new Error(`${name}: the handler's bytes differ from the encoder's`);
+    let echo = 0;
+    for (const c of enc.cells) if (c >= 1 && c <= 13) echo++;
+    files[name] = bytes;
+    crops.push({ name, kind: "opuk, real frame", airport: id, rKm: 161, frame: `opuk from OPERA ${OPUK_FRAME}`, bytes: bytes.length,
+      sha256: sha(bytes), coarsen: enc.coarsen, flagged: enc.flagged, rows: enc.rows, cols: enc.cols, echoCells: echo,
+      cellsSha256: sha(enc.cells) });
+  }
+  const manifest = JSON.stringify({
+    format: "WXC1 v1, made by the server path (proxy/src/wx/handler.ts, /wx/cref dispatched to opuk) over a REAL frame in an in-memory R2",
+    generator: "proxy/scripts/wx-fixtures.ts (regenerate; workers.yml runs --check)",
+    frame: `OPERA ${OPUK_FRAME} DBZH, via proxy/src/wx/opera.ts and resample.ts (proxy/test/fixtures/wx/opera/)`,
+    expected: "cellsSha256 = sha256 of the ENCODER's own cells (row-major codes), not of a decode",
+    epoch: EPOCH,
+    crops,
+  }, null, 1) + "\n";
+  files["MANIFEST.json"] = new TextEncoder().encode(manifest);
+  return { crops, files };
 }
 
 main().catch((e) => { console.log(`FAIL: ${e instanceof Error ? e.message : String(e)}`); process.exit(2); });

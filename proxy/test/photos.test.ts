@@ -53,7 +53,7 @@ describe("GET /credits", () => {
           source: "https://commons.wikimedia.org/wiki/File:HB-JMB.jpg",
           author: "Jane Spotter",
           credit: "Airbus A340 by Jane Spotter",
-          license: "CC-BY",
+          license: "CC BY 2.0", // a versioned token, as the real records are (docs/credits-correctness.md, P68)
           layer: "auto",
           autoPicked: false,
         },
@@ -65,7 +65,14 @@ describe("GET /credits", () => {
     expect(res.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
     const html = await res.text();
     expect(html).toContain("Airbus A340 by Jane Spotter");
-    expect(html).toContain("creativecommons.org/licenses/by/4.0/");
+    // P68: the row's OWN link, in the photo-credits section only. A whole-page search was blind: it found
+    // creativecommons.org/licenses/by/4.0/ in OPERA's data-source line (docs/credits-correctness.md).
+    const photos = html.slice(html.indexOf("<h2>Photo credits</h2>"));
+    expect(html.indexOf("<h2>Photo credits</h2>"), "CONTROL: the photo-credits section is found").toBeGreaterThan(0);
+    const at = photos.indexOf("<li><strong>A343</strong>");
+    const row = photos.slice(at, photos.indexOf("</li>", at));
+    expect(at, "CONTROL: the A343 row is in the photo-credits section").toBeGreaterThanOrEqual(0);
+    expect(row).toContain('href="https://creativecommons.org/licenses/by/2.0/"');
   });
 
   it("serves an empty-but-valid page when nothing has been ingested", async () => {
@@ -86,7 +93,8 @@ describe("GET /credits", () => {
     expect(html).toContain('href="https://adsb.lol"');
     expect(html).toContain("ODbL 1.0");
     expect(html).toContain("Mictronics aircraft database");
-    expect(html).toContain("adsbdb");
+    // P89: the route data's actual source (docs/credits-correctness.md). RD1 holds adsbdb's absence.
+    expect(html).toContain("vradarserver/standing-data");
     // adsb.fi grants no ODbL -- the licence must not be attached to its sentence.
     expect(html).toMatch(/adsb\.lol<\/a>\s*&mdash;\s*&copy; adsb\.lol contributors/);
   });

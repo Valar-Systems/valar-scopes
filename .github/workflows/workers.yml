@@ -13,9 +13,9 @@ name: workers
 on:
   push:
     branches: [main]
-    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", "test/fixtures/wx/basemap/**", "tools/weatherscope/basemap/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
   pull_request:
-    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
+    paths: ["proxy/**", "dashboard/**", "test/fixtures/wx/server/**", "test/fixtures/wx/opuk/**", "test/fixtures/wx/basemap/**", "tools/weatherscope/basemap/**", ".github/workflows/workers.yml", ".github/workflows/photo-drift.yml"]
 
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
@@ -32,7 +32,7 @@ jobs:
   # so a network or credential problem reads as "the drift check could not run"
   # instead of "the Worker suite failed", which are different facts.
   manifest-drift:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,7 +54,9 @@ jobs:
           python proxy/scripts/check-manifest-drift.py
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # A hang ends here, not at GitHub's 6 hours: the test-identity selftest hung 40+ minutes on b7f9f7a.
+    timeout-minutes: 20
     strategy:
       fail-fast: false # one Worker failing should not hide the other's result
       matrix:
@@ -94,6 +96,47 @@ jobs:
       - name: The locate page sends no request carrying the position
         if: matrix.worker == 'proxy'
         run: node scripts/check-locate-page.mjs
+
+      # smoke-prod.sh's opuk covered-share verdict (docs/wx-opuk.md, K9): nine canned /healthz bodies, the whole
+      # verdict list compared, and a sabotage (the zero test dropped) that must turn exactly the share-0 case.
+      - name: smoke's opuk covered-share verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/wx-opuk-verdict.selftest.sh
+
+      # smoke-prod.sh's /basemap verdict (docs/basemap-deploy.md, Q5): seven canned answers, the whole verdict list
+      # compared, and a sabotage (the validate() call skipped) that must turn exactly the kCrc case.
+      - name: smoke's /basemap verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/basemap-verdict.selftest.sh
+
+      # Plan S (docs/wx-plan-s.md): read from `wrangler deploy --dry-run`, i.e. what would ship. PB1: the ingest's dev
+      # copy's plant is in no byte of production's bundle (anchored on production's own log string, controlled by the
+      # dev bundle carrying the marker exactly once). PB2: every dev deploy target binds only blipscope-wx-dev. The
+      # selftest runs the real check (must PASS), then PB1s (production's entry re-exporting the plant: must FAIL) and
+      # PB2s (one dev env bound to blipscope-wx: must FAIL on that env alone). Dry-runs only; no credentials.
+      - name: The ingest's dev copy stays out of production (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-wx-plant.mjs --selftest
+
+      # The test identity (docs/test-identity.md), which replaced the blip-creds wrapper. The mint script against a
+      # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output
+      # scan must catch); EXAMPLE values only. Under tsx, because it imports the Worker's own deviceIdFromMac.
+      - name: The test identity's mint (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: npx tsx scripts/mint-test-identity.selftest.mts
+      # The checks as the test identity (TI1, TI1b, S-TIGUARD, TI2, TI7 and its control): the real smoke-prod.sh and
+      # watch-upstream.sh against a local stub; a board's pair refused with 0 requests; the key never on a command line.
+      - name: The checks run only as the test identity (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: npx tsx scripts/test-identity.selftest.mts
+      # TX2 and S-TXRECON: reconcile-fleet.py leaves the test identity out of "KV ONLY" (a fixture; no KV touched).
+      - name: reconcile-fleet leaves the test identity out (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: python3 ../scripts/reconcile-fleet.selftest.py
+      # S-TXNOEXCL: the dashboard's exclusion removed must make TX1 fail with "Devices seen" up by exactly one.
+      - name: The dashboard's test-identity exclusion (sabotage)
+        if: ${{ !cancelled() && matrix.worker == 'dashboard' }}
+        run: node scripts/sabotage-test-identity.mjs
       # The firmware's host test parses this fixture with CoordParse; it must be what
       # the helper's formatCoord actually emits, or that test grades a stale contract.
       - name: The locate-format fixture matches the helper's formatter

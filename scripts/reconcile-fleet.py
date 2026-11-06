@@ -66,6 +66,21 @@ PROXY = REPO / "proxy"
 ID_RE = re.compile(r"^[0-9a-f]{8,32}$")
 
 
+def test_device_ids() -> set:
+    """The production checks' TEST identity (docs/test-identity.md, item 4): the token file's test-device. It is not a
+    unit, so it is never reported as 'KV ONLY'. Read from the file BLIPSCOPE_TOKEN_FILE names (the id never enters the
+    repo); empty when that is unset. Never printed."""
+    import os
+    path = os.environ.get("BLIPSCOPE_TOKEN_FILE", "").strip()
+    if not path or not Path(path).is_file():
+        return set()
+    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
+        key, eq, value = line.strip().partition("=")
+        if eq and key.strip() == "test-device" and ID_RE.match(value.strip()):
+            return {value.strip()}
+    return set()
+
+
 def die(msg: str, code: int = 2) -> None:
     print("\nreconcile: " + msg, file=sys.stderr)
     sys.exit(code)
@@ -221,6 +236,62 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
     print("    the enrol page (fixed 2026-09-01) -- that is the scale this flags at %d." % alert)
     print()
 
+    # --- Instrument: refused activations (enr:refused:) -------------------
+    # docs/device-activation.md, R (ruled 2026-11-05). There is no activation cap,
+    # so this count is the thing that would show someone guessing ids. It is
+    # printed here, on every run, because a count nobody reads is no count at
+    # all. Keys are enr:refused:<day>:<reason>; the id is never in them.
+    names = kv_list_names("enr:refused:", env, errfile)
+    print("  Refused activations per day (last %d): not a Valar unit / already activated" % days)
+    if not names:
+        print("    (no enr:refused: counters at all -- KV is readable, since fw: listed above,")
+        print("     so this is a real absence: nothing has been refused, or the counters")
+        print("     have aged out of their 40-day TTL.)")
+    else:
+        by_day = {}
+        for n in names:
+            day, _, reason = n[len("enr:refused:"):].partition(":")
+            v = kv_get_raw(n, env, errfile)
+            try:
+                count = int(v)
+            except (TypeError, ValueError):
+                count = None
+            by_day.setdefault(day, {})[reason] = count
+        for day in sorted(by_day)[-days:]:
+            r = by_day[day]
+            shown = ["?" if r.get(k, 0) is None else str(r.get(k, 0)) for k in ("not_listed", "already_activated")]
+            print("    %s  not_listed %6s  already_activated %6s" % (day, shown[0], shown[1]))
+        print("    note: days with no refusals have no key and are simply absent above.")
+    print()
+
+    # --- Instrument: would-be refusals in watch mode (enr:watch:) ---------
+    # docs/device-activation.md, "Watch mode" (Daniel, 2026-11-05). Production starts
+    # with the gate on "watch": every activation it WOULD refuse is counted here and
+    # the key is issued anyway. These are the counts Daniel reads before deciding to
+    # enforce, so they are printed on every run, beside the real refusals above.
+    names = kv_list_names("enr:watch:", env, errfile)
+    print("  Would-be refusals per day in watch mode (last %d): not a Valar unit / already activated" % days)
+    if not names:
+        print("    (no enr:watch: counters at all -- KV is readable, since fw: listed above,")
+        print("     so this is a real absence: watch has not been on, or nothing would have")
+        print("     been refused, or the counters have aged out of their 40-day TTL.)")
+    else:
+        by_day = {}
+        for n in names:
+            day, _, reason = n[len("enr:watch:"):].partition(":")
+            v = kv_get_raw(n, env, errfile)
+            try:
+                count = int(v)
+            except (TypeError, ValueError):
+                count = None
+            by_day.setdefault(day, {})[reason] = count
+        for day in sorted(by_day)[-days:]:
+            r = by_day[day]
+            shown = ["?" if r.get(k, 0) is None else str(r.get(k, 0)) for k in ("not_listed", "already_activated")]
+            print("    %s  not_listed %6s  already_activated %6s  (would-be, key issued)" % (day, shown[0], shown[1]))
+        print("    note: days with none have no key and are simply absent above.")
+    print()
+
     # --- Instrument A: the fleet firmware table (fw:) ---------------------
     print("  Instrument A (fw: rows) -- OTA outcome observation")
     if not detail:
@@ -329,6 +400,15 @@ def main() -> None:
                errfile.read_text(encoding="utf-8", errors="replace").strip() or "(empty)"))
     print("  observed %d live row(s) -- probe can see presence, so absence is meaningful\n"
           % len(kv_ids))
+
+    # The test identity is not a unit (docs/test-identity.md): left out AFTER the presence control above, so it can
+    # never make an empty listing look like a working probe. Its id is never printed, only the count.
+    test_ids = test_device_ids()
+    left_out = sum(1 for d in kv_ids if d in test_ids)
+    kv_ids = [d for d in kv_ids if d not in test_ids]  # the test identity is not a unit
+    print("  test identity: %s; %d row(s) left out as not a unit\n"
+          % ("read from the token file" if test_ids else "none configured (BLIPSCOPE_TOKEN_FILE unset or no test-device)",
+             left_out))
 
     detail = {}
     if not args.no_detail:

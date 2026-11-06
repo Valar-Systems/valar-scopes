@@ -16,6 +16,9 @@ Method, fixed before any run (A9.14, A9.16):
 """
 import hashlib, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxScreens.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_layout.cpp")
@@ -28,23 +31,34 @@ SABOTAGES = {
     "S-RANK": ([("    for (int i = 1; i < n; ++i) {\n        const int v = order[i];",
                  "    for (int i = n; i < n; ++i) {  // SABOTAGE: file order\n        const int v = order[i];")],
                {"LB1", "LB2a", "LB3", "LB4", "LB5"}),
-    "S-IC": ([("    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;\n",
-               "    (void)inner;  // SABOTAGE: no anchor test\n"),
-              ("        if (!ClearsCentre(b, inner)) continue;\n", "        // SABOTAGE: no box test\n")],
+    # S-IC's anchor is PlaceTown's copy of the line: PlacePeak (3.5b step 5, #501) carries the same one, which left
+    # this driver unable to run from #501 until 3.5t t3 (A12.49).
+    "S-IC": ([("inline Placed PlaceTown(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,\n"
+                "                        const Box* placed, int nPlaced)\n{\n    Placed p;\n    const double c = wxraster::kC;\n"
+                "    if ((x - c) * (x - c) + (y - c) * (y - c) < inner * inner) return p;\n",
+                "inline Placed PlaceTown(const char* label, double x, double y, double inner, const Box* fixed, int nFixed,\n"
+                "                        const Box* placed, int nPlaced)\n{\n    Placed p;\n    const double c = wxraster::kC;\n"
+                "    (void)inner;  // SABOTAGE: no anchor test\n"),
+              # the box test moved into BoxFree in 3.5b step 5 (#501), which PlaceTown calls
+              ("    if (!ClearsCentre(b, inner)) return false;\n", "    (void)inner;  // SABOTAGE: no box test\n")],
              {"IC1", "IC3", "IC4"}),
     "S-OV": ([("constexpr int kAir = 4;", "constexpr int kAir = 0;  // SABOTAGE")],
              {"OV2", "OV4", "OV5b", "OV5d", "OV6b", "SD3"}),
-    "S-SIDE": ([("    if (x < c) {\n        const Box b = cands[0];",
+    # PlaceTown's copy, pinned by its own txs line: PlacePeak (#501) carries the same side choice
+    "S-SIDE": ([("    int txs[2] = {ix + 4, ix - 4 - w};\n    char sides[2] = {'R', 'L'};\n    if (x < c) {\n        const Box b = cands[0];",
+                 "    int txs[2] = {ix + 4, ix - 4 - w};\n    char sides[2] = {'R', 'L'};\n"
                  "    if (false) {  // SABOTAGE: always right first\n        const Box b = cands[0];")],
                {"SD2", "OV6a"}),
-    "S-CAP": ([("    const int cap = Cap(radiusMi);\n",
+    # PlaceTowns' use site, pinned by its signature's tail: PlaceLabels (#501) asks Cap() the same way
+    "S-CAP": ([("                      int nFixed, PlacedLabel* out)\n{\n    const int cap = Cap(radiusMi);\n",
+                "                      int nFixed, PlacedLabel* out)\n{\n"
                 "    const int cap = 8;  // SABOTAGE: 8 at every zoom\n    (void)radiusMi;\n")],
               {"LB4", "LB5"}),
     "S-RING": ([("        if (0.15 * R <= kAll[i] && kAll[i] <= 0.85 * R) mi[n++] = kAll[i];",
                  "        if (0.0 * R <= kAll[i] && kAll[i] <= 1.0 * R) mi[n++] = kAll[i];  // SABOTAGE")],
                {"RG1", "RG2", "RG3"}),
-    "S-ST15": ([("        if (in.echo.mi <= 15.0) *ink = wxraster::kWhite;",
-                 "        if (in.echo.mi < 15.0) *ink = wxraster::kWhite;  // SABOTAGE")], {"ST3"}),
+    "S-ST15": ([("        if (in.echo.mi <= 15.0) *ink = wxtheme::Ink::White;",
+                 "        if (in.echo.mi < 15.0) *ink = wxtheme::Ink::White;  // SABOTAGE")], {"ST3"}),
     "S-STALE": ([("    if (in.ageS > kStaleAfterS) {", "    if (in.ageS >= kStaleAfterS) {  // SABOTAGE"),
                  ("    if (warning && ageS > kStaleAfterS) snprintf", "    if (warning && ageS >= kStaleAfterS) snprintf"),
                  ("    *ink = ageS > kOrangeAfterS ?", "    *ink = ageS >= kOrangeAfterS ?")],
@@ -66,6 +80,7 @@ def sha(p):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -81,15 +96,15 @@ def run(td, name, text):
                         "-I" + os.path.join(ROOT, "include"), TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, LOOP], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the suite did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
-    if not m or int(m.group(1)) != 73:
-        print(f"{name}: {m.group(1) if m else '?'} cases ran, not 73: the RIG")
-        sys.exit(2)
+    if not m or int(m.group(1)) != LAYOUT_CHECKS:
+        print(f"{name}: {m.group(1) if m else '?'} cases ran, not {LAYOUT_CHECKS}: the RIG")
+        raise sc.Rig(name)
     lines = [x.group(0).strip() for x in re.finditer(r"^\s*FAIL \S+.*$", r.stdout, re.M)]
     return r.returncode, {x.split()[1] for x in lines}, lines
 
@@ -98,13 +113,22 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok, off = True, []
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails, _ = run(td, "control", src)
+        try:
+            rc, fails, _ = run(td, "control", src)
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real header): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (edits, frozen) in SABOTAGES.items():
-            rc, fails, lines = run(td, name, plant(name, edits, src))
+            res = rigs.run(name, run, td, name, plant(name, edits, src))
+            if res is None:
+                ok = False
+                off.append(name)
+                continue
+            rc, fails, lines = res
             good = rc == 1 and fails == frozen
             if not good:
                 off.append(name)
@@ -116,8 +140,30 @@ def main():
     print(f"the real src/weatherscope/WxScreens.h unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else
                                               f"OFF-PREDICTION ({', '.join(off) or 'the control'}): STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    return out
+
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+LAYOUT_CHECKS = 73   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_layout": ("checks", LAYOUT_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(td, "control", open(HEADER, encoding="utf-8").read().replace("\r\n", "\n"))
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

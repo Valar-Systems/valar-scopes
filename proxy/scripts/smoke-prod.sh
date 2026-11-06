@@ -26,36 +26,46 @@
 # assert more than a status code on purpose -- a 200 that serves the WRONG thing
 # is exactly the failure a status-only probe cannot see.
 #
-# The device key is read from your environment and is NEVER printed, logged, or
-# echoed by this script; only the header name appears in output. Run it yourself:
+# It signs in ONLY as the test identity (docs/test-identity.md), read from the token
+# file, and is NEVER printed, logged, echoed or put on a command line; only the
+# header names appear in output. Run it yourself:
 #
-#   export BLIP_KEY='...'                 # your prod device key (not stored here)
-#   export BLIP_DEVICE='<bench device id>' # REQUIRED -- the only auth path
+#   export BLIPSCOPE_TOKEN_FILE=~/.config/blipscope/tokens   # holds test-device, test-key, test-key-staging
 #   ./scripts/smoke-prod.sh               # defaults to production
-#   BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh
+#   BASE=https://scopes-staging.valarsystems.com ./scripts/smoke-prod.sh   # uses test-key-staging
 #
-# BLIP_DEVICE is MANDATORY since the shared BLIP_KEYS list was removed
-# (2026-08-13): a bare X-Blip-Key is no longer a credential. See the AUTH block
+# BLIP_KEY / BLIP_DEVICE are REFUSED: these checks never sign in as a board. A
+# bare X-Blip-Key has not been a credential since the shared BLIP_KEYS list was
+# removed (2026-08-13), so the id always travels with it. See the AUTH block
 # below. The run announces which credential it expects and asserts it before any
 # check that depends on it.
 #
-# NOTE ON ENVIRONMENTS: staging has its OWN DEVICE_KEY_SECRET, so a
-# production key answers 401 there. That presents as seven unrelated failures
-# and is a credential mismatch, not a staging defect.
+# NOTE ON ENVIRONMENTS: staging has its OWN DEVICE_KEY_SECRET, which is why the
+# test identity holds a separate staging key (test-key-staging) for the same id.
 #
 # Prints PASS/FAIL per check plus the raw response body for eyeballing.
 
 set -uo pipefail
 
+# THE TEST IDENTITY (docs/test-identity.md). This script runs ONLY as it, never as a board: test-identity.sh re-runs it
+# once through with-test-identity.mts, which refuses BLIP_KEY/BLIP_DEVICE, a records-device id and any missing test
+# field before the first request, and passes test-device + test-key (test-key-staging for staging) in the environment
+# only. blip_auth_curl then sends the key to curl on STDIN (-K -), never as an argument. The directory is resolved here,
+# before anything changes it, so this works from the repo root and from proxy/ alike. No value is ever printed.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/test-identity.sh"
+test_identity_or_reexec "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+blip_auth_curl
+
 BASE="${BASE:-https://scopes.valarsystems.com}"
-KEY="${BLIP_KEY:-}"
+KEY="${TEST_IDENTITY_KEY:-}"
 # Bend, OR -- the reference tile used throughout the checklist.
 LAT="${LAT:-44.06}"
 LON="${LON:--121.32}"
 R="${R:-160}"
 
 if [ -z "$KEY" ]; then
-  echo "BLIP_KEY is not set. export BLIP_KEY='<your prod key>' and re-run." >&2
+  echo "No test identity key (docs/test-identity.md: mint it with scripts/mint-test-identity.ts)." >&2
   exit 2
 fi
 
@@ -66,22 +76,22 @@ fi
 # X-Blip-Device id it was minted for. This script is the only thing checking
 # production, so it was made to survive that change rather than discover it.
 #
-# BLIP_DEVICE is therefore REQUIRED. Set it and
-# every authed call below carries the id.
+# The id is therefore REQUIRED, and it is the TEST identity's (docs/test-identity.md):
+# every authed call below carries it.
 #
 # ONE ARRAY, used at every authed call site, so a header cannot be added to some
 # requests and forgotten on others -- which is how you get a script that proves
-# the device path works on the two endpoints someone remembered.
-DEVICE="${BLIP_DEVICE:-}"
+# the device path works on the two endpoints someone remembered. The array is now a
+# marker, (--blip-auth), set by blip_auth_curl: the curl function it defines sends
+# both headers on stdin (-K -), so neither value is ever a process argument.
+DEVICE="${TEST_IDENTITY_DEVICE:-}"
 if [ -z "$DEVICE" ]; then
   # Refuse rather than run. Without the id every authed check below 401s, and a
-  # wall of failures reads as "production is down" when it means "you forgot an
-  # environment variable" -- the most expensive way to learn that.
-  echo "BLIP_DEVICE is not set, and since BLIP_KEYS was removed a bare key is not" >&2
-  echo "a credential. export BLIP_DEVICE='<your bench device id>' and re-run." >&2
+  # wall of failures reads as "production is down" when it means "the identity is
+  # missing" -- the most expensive way to learn that.
+  echo "No test identity device (docs/test-identity.md: mint it with scripts/mint-test-identity.ts)." >&2
   exit 2
 fi
-AUTH=(-H "X-Blip-Key: $KEY" -H "X-Blip-Device: $DEVICE")
 
 # What the auth path is EXPECTED to be, asserted below rather than assumed.
 # Only "device" is reachable now; the variable survives so the assertion stays
@@ -302,6 +312,15 @@ else
   fail=$((fail+1))
 fi
 
+# opuk's covered share (docs/wx-opuk.md, K9): read from the /healthz body fetched above. A frame whose share is 0
+# or missing means the UK is served "no coverage" everywhere, which a 200 crop would never show. The verdict and
+# its cases live in wx-opuk-verdict.sh, graded by wx-opuk-verdict.selftest.sh in CI.
+printf '\n===== /healthz wx.opuk covered share =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-opuk-verdict.sh"
+OPUK_VERDICT="$(wx_opuk_verdict "$HEALTH_BODY")"
+printf 'RESULT: %s\n' "$OPUK_VERDICT"
+case "$OPUK_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+
 # Weather (docs/wx-server.md). Until Daniel binds a WX bucket the route is deliberately inert, and the ONLY
 # passing answers are: 503 not_configured (not wired yet), or 200 with a WXC1 crop and an ETag (wired). A
 # 404 means the deployed Worker has no /wx route; a 503 wx_stale means it is wired and the ingest is not
@@ -323,6 +342,31 @@ else
   printf 'RESULT: FAIL -- neither the inert answer nor a crop\n'; fail=$((fail+1))
 fi
 rm -f "$WX_TMP" "$WX_HDR"
+
+# The basemap (docs/basemap-route.md §9; docs/basemap-deploy.md, Q5). Until the proxy's BASEMAP binding exists (D3,
+# D4) the ONLY passing answers are 503 not_configured, or a 200 BMPK package with an ETag that the proxy's own
+# validate() accepts -- so the smoke refuses exactly what the device would. The verdict lives in basemap-verdict.sh,
+# graded by basemap-verdict.selftest.sh in CI. The body is binary, so it is never dumped.
+printf '\n===== /basemap (the smoke'"'"'s own lat and lon, Weatherscope'"'"'s query) =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/basemap-verdict.sh"
+BASEMAP_PROXY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The query a device sends: Weatherscope's, from tools/weatherscope/basemap/make_package.py (R_MM, TOLERANCE_MM,
+# LEVELS_MM x LEVEL_N) and docs/basemap-route.md §3 (all six layers). The route REQUIRES eps and layers, and levels with
+# terrain: with only lat, lon and r this check could pass only on the inert 503, and read 400 bad_eps once a binding
+# existed (docs/smoke-basemap-query.md). test/smoke-basemap-query.test.ts reads this URL and make_package.py.
+BM_R=97
+BM_EPS=100584
+BM_LAYERS="water,rivers,roads,peaks,places,terrain"
+BM_LEVELS="24743664:246,49487328:246,98974656:246"
+BM_TMP="$(mktemp)"
+BM_HDR="$(mktemp)"
+BM_STATUS="$(curl -s --max-time 30 -o "$BM_TMP" -D "$BM_HDR" -w '%{http_code}' "${AUTH[@]}" \
+  "$BASE/api/v1/blipscope/basemap?lat=$LAT&lon=$LON&r=$BM_R&eps=$BM_EPS&layers=$BM_LAYERS&levels=$BM_LEVELS")"
+printf 'HTTP %s, %s bytes\n' "$BM_STATUS" "$(wc -c < "$BM_TMP" | tr -d ' ')"
+BM_VERDICT="$(basemap_verdict "$BM_STATUS" "$BM_TMP" "$BM_HDR")"
+printf 'RESULT: %s\n' "$BM_VERDICT"
+case "$BM_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+rm -f "$BM_TMP" "$BM_HDR"
 
 # 2. blips over Bend
 hit "/v1/blips (Bend ${LAT},${LON} r=${R})" 200 \
@@ -680,6 +724,16 @@ fi
 # attribution they require is this page. If it stops serving, the photos on every
 # device in the field are being used out of compliance.
 contains "/credits (public; photo library + CC-BY attribution)" 200 "Blipscope credits" "$BASE/credits"
+
+# The weather radar's attribution (docs/wx-server.md, N1-N4). /wx serves crops derived from NOAA MRMS, so the
+# credits page must say so, in exactly these bytes: the template holds them on one line with no markup inside.
+contains "/credits carries the NOAA MRMS line" 200 \
+  "Weather radar derived from NOAA MRMS data. Not endorsed by NOAA." "$BASE/credits"
+
+# OPERA's CC BY 4.0 attribution (docs/wx-opuk.md M5), before /wx serves opuk anywhere: the same bytes as the
+# template, on one line with no markup inside (the degree sign as &deg;, so the bytes are ASCII).
+contains "/credits carries the OPERA line" 200 \
+  "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET." "$BASE/credits"
 
 # The self-hosted webfonts. Requested BY PATH rather than scraped out of the page
 # so this still fails loudly if the page stops asking for them (which would mean

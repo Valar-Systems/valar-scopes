@@ -15,22 +15,31 @@
 # adsb.lol's 429s are UPSTREAM; a device never sees a 429. It sees staleness. That
 # is why this measures stale/down rates rather than trying to count 429s.
 #
-# The key is read from your environment and never printed.
-#   export BLIP_KEY='...'
+# It signs in ONLY as the test identity, from the token file (docs/test-identity.md); the key is never printed or put
+# on a command line, and BLIP_KEY/BLIP_DEVICE are refused.
+#   export BLIPSCOPE_TOKEN_FILE=~/.config/blipscope/tokens
 #   ./scripts/watch-upstream.sh                 # default 24 h, 30 s cadence
 #   HOURS=1 INTERVAL=15 ./scripts/watch-upstream.sh
 #   BASE=https://scopes-staging.valarsystems.com ./scripts/watch-upstream.sh
 
 set -uo pipefail
 
+# THE TEST IDENTITY (docs/test-identity.md), exactly as smoke-prod.sh: re-run once through with-test-identity.mts, which
+# refuses BLIP_KEY/BLIP_DEVICE and any other pair before the first request; blip_auth_curl sends the key to curl on
+# stdin, never as an argument. The directory is resolved here, before anything changes it. No value is ever printed.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/test-identity.sh"
+test_identity_or_reexec "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+blip_auth_curl
+
 BASE="${BASE:-https://scopes.valarsystems.com}"
-KEY="${BLIP_KEY:-}"
+KEY="${TEST_IDENTITY_KEY:-}"
 LAT="${LAT:-44.06}"; LON="${LON:--121.32}"; R="${R:-160}"
 INTERVAL="${INTERVAL:-30}"
 HOURS="${HOURS:-24}"
 OUT="${OUT:-upstream-watch-$(date +%Y%m%d-%H%M%S).log}"
 
-[ -n "$KEY" ] || { echo "BLIP_KEY not set. export BLIP_KEY='<prod key>'" >&2; exit 2; }
+[ -n "$KEY" ] || { echo "No test identity key (docs/test-identity.md)." >&2; exit 2; }
 
 # Same rule as smoke-prod.sh: with BLIP_KEYS removed (2026-08-13) a bare
 # X-Blip-Key is not a credential at all, so the device id has to travel with it.
@@ -38,11 +47,11 @@ OUT="${OUT:-upstream-watch-$(date +%Y%m%d-%H%M%S).log}"
 # so a missing id would otherwise produce a log full of 401s that looks exactly
 # like a genuine outage -- the single most misleading output this script could
 # produce, since detecting outages is the entire job.
-[ -n "${BLIP_DEVICE:-}" ] || {
-  echo "BLIP_DEVICE not set. export BLIP_DEVICE='<device id>' (a bare key is not a credential)" >&2
+[ -n "${TEST_IDENTITY_DEVICE:-}" ] || {
+  echo "No test identity device (docs/test-identity.md; a bare key is not a credential)." >&2
   exit 2
 }
-AUTH=(-H "X-Blip-Key: $KEY" -H "X-Blip-Device: $BLIP_DEVICE")
+# AUTH is (--blip-auth), set by blip_auth_curl: both headers go to curl on stdin.
 
 fresh=0; stale=0; warm=0; down=0; other=0; n=0
 worst_start=""; worst_len=0; cur_start=""; cur_len=0

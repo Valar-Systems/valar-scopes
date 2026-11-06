@@ -30,8 +30,7 @@ struct Rgb {
 };
 inline bool operator==(Rgb a, Rgb b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
 
-constexpr Rgb kBlack{0, 0, 0}, kWhite{255, 255, 255}, kDim{120, 120, 120}, kLabel{176, 176, 176},
-    kOrange{255, 140, 0}, kRing{64, 64, 64}, kRingText{96, 96, 96};
+// No colour is named here (3.5t, A12.47): every colour a screen draws is a role in WxTheme.h.
 
 // Where pixels go: a 240 x 240 buffer on the host, the backbuffer sprite on the board.
 class Sink {

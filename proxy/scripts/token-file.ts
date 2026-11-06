@@ -10,6 +10,11 @@
  *   # blank lines and # comments are ignored
  *   kv-read=<Workers KV Storage: Read token>
  *   analytics-read=<Account Analytics: Read token>
+ *   blip-key=<the bench device's key>          (docs/blip-creds-token-file.md)
+ *   blip-device=<the bench device's id>
+ *
+ * blip-key / blip-device (E2:08's pair) are parsed but resolved by NOTHING since docs/test-identity.md:
+ * the checks and ingests run as the test identity (resolveTestIdentity), and refuse BLIP_KEY / BLIP_DEVICE.
  *
  * WHY NOT CLOUDFLARE_API_TOKEN. wrangler PREFERS that variable over a
  * `wrangler login` session, so a KV-scoped token left at user level shadows the
@@ -33,8 +38,17 @@
 
 export const TOKEN_FILE_ENV = "BLIPSCOPE_TOKEN_FILE";
 
-export type TokenPurpose = "kv-read" | "analytics-read";
-export const PURPOSES: readonly TokenPurpose[] = ["kv-read", "analytics-read"];
+// test-mac, test-device, test-key, test-key-staging: the TEST identity the production checks run as, written by
+// mint-test-identity.ts (docs/test-identity.md). records-device: E2:08's id, which identifies whose production records
+// to read and is NOT a credential. blip-key/blip-device: E2:08's pair, read by no check once docs/test-identity.md lands.
+// feeder-device: the Bend feeder's id, read by scripts/fleet-device-entry.ts to key its cfg:fleet entry; never printed.
+export type TokenPurpose =
+  | "kv-read" | "analytics-read" | "blip-key" | "blip-device"
+  | "test-mac" | "test-device" | "test-key" | "test-key-staging" | "records-device" | "feeder-device";
+export const PURPOSES: readonly TokenPurpose[] = [
+  "kv-read", "analytics-read", "blip-key", "blip-device", "test-mac", "test-device", "test-key", "test-key-staging", "records-device",
+  "feeder-device",
+];
 
 export const FORMAT_HELP =
   `${TOKEN_FILE_ENV} names a file OUTSIDE the repo, set per shell ` +
@@ -117,11 +131,11 @@ export function insideRepoOrGitTree(p: string, io: TokenFileIo): boolean {
   }
 }
 
-/** The token for one purpose, from the file BLIPSCOPE_TOKEN_FILE names. Never printed. */
-export function readTokenFile(purpose: TokenPurpose, io: TokenFileIo = nodeIo()): string {
+/** The token file's text and path, with every refusal readTokenFile applies. `what` names the caller's need. */
+export function readTokenFileText(what: string, io: TokenFileIo = nodeIo()): { text: string; path: string } {
   const path = io.env[TOKEN_FILE_ENV];
   if (!path || !path.trim()) {
-    throw new TokenFileError(`${TOKEN_FILE_ENV} is not set, so there is no ${purpose} token. ${FORMAT_HELP}`);
+    throw new TokenFileError(`${TOKEN_FILE_ENV} is not set, so there is no ${what}. ${FORMAT_HELP}`);
   }
   const p = path.trim();
   if (!io.exists(p)) throw new TokenFileError(`${TOKEN_FILE_ENV} points at ${p}, which does not exist. ${FORMAT_HELP}`);
@@ -133,7 +147,51 @@ export function readTokenFile(purpose: TokenPurpose, io: TokenFileIo = nodeIo())
   } else if ((io.mode(p) & 0o077) !== 0) {
     throw new TokenFileError(`${p} is readable by others (mode ${(io.mode(p) & 0o777).toString(8)}); run: chmod 600 ${p}`);
   }
-  return parseTokenFile(io.read(p), purpose, p);
+  return { text: io.read(p), path: p };
+}
+
+/** The token for one purpose, from the file BLIPSCOPE_TOKEN_FILE names. Never printed. */
+export function readTokenFile(purpose: TokenPurpose, io: TokenFileIo = nodeIo()): string {
+  const { text, path } = readTokenFileText(`${purpose} token`, io);
+  return parseTokenFile(text, purpose, path);
+}
+
+/** The KEYS present in a token file's text (never a value): what mint-test-identity.ts refuses to overwrite. */
+export function tokenFileKeys(text: string): Set<string> {
+  const keys = new Set<string>();
+  for (const raw of text.replace(/^﻿/, "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq > 0) keys.add(line.slice(0, eq).trim());
+  }
+  return keys;
+}
+
+/**
+ * The TEST identity (docs/test-identity.md): the ONLY pair smoke-prod.sh, watch-upstream.sh and both ingests may use.
+ * Refused, with a TokenFileError and before any request:
+ *   - BLIP_KEY or BLIP_DEVICE set in the environment, whatever its value (the checks never sign in as a board);
+ *   - test-device equal to the file's records-device (E2:08's id), so a board's pair written into the test fields
+ *     is refused too;
+ *   - a missing test field, or one out of shape (16 and 64 lowercase hex).
+ * It never reads blip-key or blip-device. `source` is NAMES only, safe to print.
+ */
+export function resolveTestIdentity(target: "production" | "staging", io: TokenFileIo = nodeIo()): { key: string; device: string; source: string } {
+  for (const v of ["BLIP_KEY", "BLIP_DEVICE"]) {
+    if (io.env[v]) throw new TokenFileError(`${v} is set in this environment. The production checks run only as the test identity (docs/test-identity.md): unset ${v}.`);
+  }
+  const keyField: TokenPurpose = target === "staging" ? "test-key-staging" : "test-key";
+  const { text, path } = readTokenFileText(`test identity (test-device + ${keyField})`, io);
+  const device = parseTokenFile(text, "test-device", path);
+  const key = parseTokenFile(text, keyField, path);
+  if (!/^[0-9a-f]{16}$/.test(device) || !/^[0-9a-f]{64}$/.test(key)) {
+    throw new TokenFileError(`${path}: test-device or ${keyField} is not in its shape (16 and 64 lowercase hex; values not shown).`);
+  }
+  if (tokenFileKeys(text).has("records-device") && parseTokenFile(text, "records-device", path) === device) {
+    throw new TokenFileError(`${path}: test-device equals records-device, a real board's id: refused (docs/test-identity.md).`);
+  }
+  return { key, device, source: `${TOKEN_FILE_ENV} (test-device + ${keyField})` };
 }
 
 /**

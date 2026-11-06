@@ -1,0 +1,96 @@
+{
+ "errors": 0,
+ "new": [
+  {
+   "key": "OPERA@20261028T0400@0@ACRR.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:10:05.955Z",
+   "first_seen": "04:10:15Z",
+   "seen_minus_lm_s": 9.5
+  },
+  {
+   "key": "OPERA@20261028T0400@0@RATE.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:10:03.674Z",
+   "first_seen": "04:10:04Z",
+   "seen_minus_lm_s": 0.4
+  },
+  {
+   "key": "OPERA@20261028T0405@0@DBZH.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:09:09.148Z",
+   "first_seen": "04:09:18Z",
+   "seen_minus_lm_s": 9.1
+  },
+  {
+   "key": "OPERA@20261028T0410@0@DBZH.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:14:08.773Z",
+   "first_seen": "04:14:13Z",
+   "seen_minus_lm_s": 4.9
+  },
+  {
+   "key": "OPERA@20261028T0415@0@ACRR.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:25:05.219Z",
+   "first_seen": "04:25:12Z",
+   "seen_minus_lm_s": 7.6
+  },
+  {
+   "key": "OPERA@20261028T0415@0@DBZH.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:19:10.677Z",
+   "first_seen": "04:19:20Z",
+   "seen_minus_lm_s": 9.5
+  },
+  {
+   "key": "OPERA@20261028T0415@0@RATE.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:25:02.567Z",
+   "first_seen": "04:25:12Z",
+   "seen_minus_lm_s": 10.3
+  },
+  {
+   "key": "OPERA@20261028T0420@0@DBZH.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:24:09.555Z",
+   "first_seen": "04:24:16Z",
+   "seen_minus_lm_s": 6.8
+  },
+  {
+   "key": "OPERA@20261028T0425@0@DBZH.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:29:04.039Z",
+   "first_seen": "04:29:11Z",
+   "seen_minus_lm_s": 7.5
+  },
+  {
+   "key": "OPERA@20261028T0430@0@DBZH.h5",
+   "src": "op",
+   "lm": "2026-10-28T04:34:05.625Z",
+   "first_seen": "04:34:06Z",
+   "seen_minus_lm_s": 0.8
+  },
+  {
+   "key": "202610280400_ODIM_ng_radar_rainrate_composite_1km_UK.h5",
+   "src": "mo",
+   "lm": "2026-10-28T04:07:08.000Z",
+   "first_seen": "04:07:12Z",
+   "seen_minus_lm_s": 5.0
+  },
+  {
+   "key": "202610280415_ODIM_ng_radar_rainrate_composite_1km_UK.h5",
+   "src": "mo",
+   "lm": "2026-10-28T04:21:55.000Z",
+   "first_seen": "04:21:58Z",
+   "seen_minus_lm_s": 3.1
+  },
+  {
+   "key": "202610280430_ODIM_ng_radar_rainrate_composite_1km_UK.h5",
+   "src": "mo",
+   "lm": "2026-10-28T04:35:34.000Z",
+   "first_seen": "04:35:37Z",
+   "seen_minus_lm_s": 4.0
+  }
+ ]
+}

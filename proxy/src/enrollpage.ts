@@ -28,6 +28,8 @@
  * what makes a request trustworthy.
  * ======================================================================== */
 
+import { SUPPORT_EMAIL } from "./support";
+
 /**
  * The enrol page.
  *
@@ -64,7 +66,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </head><body>
 <div class="card">
   <h1>Verify your device</h1>
-  <p class="sub">One check, once per board. This is how a self-flashed Blipscope gets aircraft data.</p>
+  <p class="sub">One check, once per board. It activates Blipscope Cloud on a board bought from Valar Systems.</p>
 
   <p>Device: <span class="id" id="devid">-</span></p>
 
@@ -88,6 +90,16 @@ button:disabled{opacity:.5;cursor:not-allowed}
   document.getElementById('devid').textContent = id || 'missing';
 
   function show(html, cls){ out.hidden=false; out.className=cls||''; out.innerHTML=html; }
+
+  // A REFUSAL A CUSTOMER CAN ACT ON IN ONE TAP (docs/device-activation.md). The id is the
+  // one validated below (hex only), so it is safe in markup; the address is the server's
+  // own constant (src/support.ts), so the JSON a refusal carries and this link agree.
+  var SUPPORT = '${SUPPORT_EMAIL}';
+  function supportBlock(subject, body){
+    var href = 'mailto:'+SUPPORT+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+    return '<p class="sub">Device id: <span class="id">'+id+'</span></p>'+
+           '<p class="sub"><a href="'+href+'">Email '+SUPPORT+'</a> - the message already carries this id.</p>';
+  }
 
   if(!/^[0-9a-f]{8,32}$/.test(id)){
     gate.hidden = true;
@@ -137,15 +149,31 @@ button:disabled{opacity:.5;cursor:not-allowed}
       .then(function(res){
         gate.hidden = true;
         if(res.s !== 200){
-          var msg = res.j && res.j.error === 'revoked'
+          var err = res.j && res.j.error;
+          if(err === 'not_listed'){
+            show('<p class="bad"><b>This board is not registered as a Valar unit.</b></p>'+
+                 '<p class="sub">Only boards bought from Valar Systems can activate Blipscope Cloud. '+
+                 'If you bought this one from us, email us its device id and we will sort it out.</p>'+
+                 supportBlock('Blipscope activation: '+id, 'My Blipscope will not activate. Device id: '+id)+
+                 '<p class="sub">It can still show aircraft from your own receiver (dump1090 or readsb) '+
+                 'or your OpenSky account: choose either on its settings page.</p>');
+            return;
+          }
+          if(err === 'already_activated'){
+            show('<p class="bad"><b>This board has already been activated.</b></p>'+
+                 '<p class="sub">If it is yours and it was fully erased, email us its device id and we will '+
+                 're-open it for you.</p>'+
+                 supportBlock('Blipscope re-activation: '+id, 'Please re-open my Blipscope. Device id: '+id));
+            return;
+          }
+          var msg = err === 'revoked'
             ? 'This device has been revoked. Please get in touch.'
-            : res.j && res.j.error === 'unverified'
+            : err === 'unverified'
               ? 'The check did not pass. Reload and try again.'
               : 'Verification is unavailable right now. Please try again later.';
           show('<p class="bad">'+msg+'</p>');
           return;
         }
-        var already = res.j.status === 'already_enrolled';
         // HAND IT BACK TO THE DEVICE PAGE if this window was opened by one.
         // targetOrigin '*' is deliberate and safe here: the opener is an
         // http://<name>.local origin we cannot know in advance, and the payload
@@ -159,12 +187,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
             handed = true;
           }
         } catch(e){}
-        show('<p class="ok"><b>'+(already?'Already verified.':'Verified.')+'</b></p>'+
+        show('<p class="ok"><b>Verified.</b></p>'+
              (handed
                ? '<p class="sub">Sent back to your device. You can close this window.</p>'
                : '<p class="sub">Copy this key into the <b>Access key</b> box on your device\\'s settings page:</p>'+
-                 '<div class="k">'+res.j.key+'</div>') +
-             (already ? '<p class="sub">This board has verified before. A fresh key was issued just now and is the one above - if this board was already working, nothing changes.</p>' : ''));
+                 '<div class="k">'+res.j.key+'</div>'));
       })
       .catch(function(){
         gate.hidden = true;

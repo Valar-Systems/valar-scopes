@@ -2,7 +2,7 @@ name: firmware
 
 # Builds every Blipscope SKU. On a published GitHub Release it also attaches each SKU's
 # binary as firmware-<slug>.bin plus a shared version.txt, which is what the on-device
-# variant-aware OTA reads (the 1.46" downloads firmware-s3-146.bin, never another SKU's image).
+# variant-aware OTA reads (the 1.28" Kit S3 downloads firmware-s3-128.bin, never another SKU's image).
 # See RELEASING.md.
 
 on:
@@ -32,7 +32,7 @@ jobs:
   # CONFIG_HTML trend is visible per-commit rather than measured when someone
   # gets suspicious.
   config-form:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -68,7 +68,7 @@ jobs:
   # this checker has been wrong three times, and each time a passing run and a
   # clean codebase looked identical.
   follow-privacy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -85,7 +85,7 @@ jobs:
   # (or to none) and land as permanent wrong entries in an owner's lifelist.
   # --selftest first, same reasoning as config-form above.
   icao-country:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,7 +107,7 @@ jobs:
   # the firmware's non-ICAO table blanks a real aircraft, which is the exact
   # symptom of the enrichment bug that table was added to cure.
   range-parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -134,7 +134,7 @@ jobs:
   # stale, because a list that accumulates dead entries decays back into the
   # hand-maintained one that failed.
   sku-readers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the checker catches each violation
@@ -148,7 +148,7 @@ jobs:
   # RELEASING.md runs this against the exact commit before the tag is pushed;
   # here it keeps main itself from losing the gate.
   tag-workflow:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the checker catches each violation
@@ -165,7 +165,7 @@ jobs:
   # is derived from the source here; here, not in print-cards.yml, because it is a
   # FIRMWARE change that makes the card wrong. --selftest first, as above.
   card-gestures:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -183,7 +183,7 @@ jobs:
         run: bash scripts/fresh-boot-acceptance.sh --selftest
 
   release-envs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -204,7 +204,7 @@ jobs:
   # against a parser broken on purpose; the note in the script says why and what
   # replaced it.
   adsbdb-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the gate's matrix parser before the gate is trusted
@@ -217,11 +217,22 @@ jobs:
   # version.txt ship while a shipping SKU sat failed. Floor + anchor + selftest,
   # run here on every push so matrix drift surfaces long before a release night.
   publish-receipts:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Prove the publish-receipt gate, both directions
         run: bash scripts/check-publish-receipts.sh --selftest
+
+  # No job runs on ubuntu-latest (docs/ci-runners.md): that label moves to a new image under every workflow at once.
+  # Every runs-on names its image, and this guard refuses a line that drifts back.
+  runners:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: The guard must be able to refuse
+        run: python3 scripts/check_runners.py --selftest
+      - name: No job on a floating image label
+        run: python3 scripts/check_runners.py
 
   # HOST TESTS, on every PR and every push to main. test/host/run.sh was only ever
   # run by hand, so a red host test could merge -- and the weather layer's decoder
@@ -238,19 +249,39 @@ jobs:
   # run on CI: red, "no xtensa toolchain found" -- the rig refusing correctly.
   # Proved red by a planted WxCrop.h sabotage before it was required:
   # docs/host-tests-ci.md.
-  host-tests:
-    runs-on: ubuntu-latest
+  #
+  # A12.77 (1b): the host tests on two images. ubuntu-24.04 is today's; ubuntu-26.04 (g++ 15) is where ubuntu-latest
+  # went, so a defect only the newer compiler sees is found here first, not on a PR that drew it at random.
+  host-tests-leg:
+    name: host-tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install PlatformIO
-        run: pip install --upgrade platformio
+        run: pip install --upgrade platformio pillow==12.3.0   # pillow: R0/R0b (A12.18), pinned: R0a' rests on its rasteriser
       - name: Build blipscope-s3-128 (installs the cross-compiler and the libraries)
         run: pio run -e blipscope-s3-128
       - name: Host tests
         run: bash test/host/run.sh
+
+  # The required check keeps its name, host-tests, and passes only when BOTH legs pass: branch protection requires this
+  # context, so the two legs are required through it without any change there (A12.77 (1b)).
+  host-tests:
+    needs: host-tests-leg
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Both legs must pass
+        run: |
+          echo "host-tests-leg: ${{ needs.host-tests-leg.result }}"
+          test "${{ needs.host-tests-leg.result }}" = "success"
 
   # ---------------------------------------------------------------------------
   # skus.yml is the one place a leg's status is declared. Validated here, BEFORE
@@ -258,7 +289,7 @@ jobs:
   # a shipping leg without one -- stops the run immediately instead of surfacing
   # as a mystery at publish time.
   skus:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.gen.outputs.matrix }}
     steps:
@@ -270,6 +301,11 @@ jobs:
         run: python3 scripts/skus.py --selftest
       - name: Validate skus.yml
         run: python3 scripts/skus.py --validate
+      # A RETIRED ROW CANNOT BE PUBLISHED (docs/weatherscope-stage3.md A12.105). Planted into copies of the
+      # real skus.yml and the real skus.py: a retired row given a slug must be refused, and a matrix that
+      # kept retired rows must fail the selftest -- each with exactly its own reason, after two controls.
+      - name: Prove a retired SKU cannot be published
+        run: python3 scripts/skus.py --sabotage
       # PHOTO MODE NEVER SHIPS. The Missileer photo env (product photos: no
       # auto-rotation, no auto-dim, no OTA) must equal its shipping parent plus one
       # flag, be the only env carrying that flag, stay build-only with no slug, and
@@ -294,7 +330,7 @@ jobs:
   # checkout makes it BLIND (exit 2), never a pass. --check-wiring fails CI if someone takes this
   # job out of build's needs: a gate that can be deleted without anything noticing protects nothing.
   customer-entry:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -306,8 +342,32 @@ jobs:
       - name: FW_VERSION has a customer entry whose lines map to merged work
         run: python3 scripts/check-customer-entry.py
 
+  # THE FLEET'S OTA IDENTITIES (docs/weatherscope-stage3.md A12.103, A12.104). Every slug-ful row's slug is its
+  # FW_OTA_PREFIX + variant::SLUG (O5); every skus.yml env of one board names one partition table, flash size and
+  # memory type (Q76) -- an OTA writes the app only, so a device keeps the table it was flashed with and every
+  # scope's image for that board must fit it; and the host tests' identity table is what the fleet derives. Read
+  # from `pio project config`, which resolves extends and ${...}, so no second ini parser exists. Each rule is
+  # first made to refuse a planted copy of the real config.
+  ota-identity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Prove the checker refuses each violation
+        run: python3 scripts/check_ota_identity.py --selftest
+      - name: Prove each fleet rule refuses a planted copy of the real config
+        run: python3 scripts/check_ota_identity.py --fleet-sabotage
+      - name: Every slug is its identity, one partition table per board
+        run: python3 scripts/check_ota_identity.py --fleet
+      - name: The host tests' identity table is the fleet's
+        run: python3 scripts/check_ota_identity.py --check-table
+
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [skus, customer-entry]
     strategy:
       fail-fast: false
@@ -423,6 +483,15 @@ jobs:
             --trace ".pio/libdeps/${{ matrix.env }}" \
             --trace "$HOME/.platformio/packages" \
             --emit "publish/factory-scan-${{ matrix.slug }}.json"
+      # THE IMAGE SAYS WHAT IT IS, AND IT IS WHAT IT WILL BE PUBLISHED AS (docs/weatherscope-stage3.md A12.104). The
+      # identity record at 0x120 must equal this env's FW_OTA_PREFIX + variant::SLUG, read from the resolved config;
+      # an env with no OTA path must carry none; and on a slug-ful row it must equal the slug and the flash manifest's
+      # slug -- so no image can be published under another scope's or board's name (O4 (i)). Every row, no `if:`;
+      # after the manifest it reads, before the upload and the receipt. --check-wiring holds it here.
+      - name: OTA identity in the image (${{ matrix.env }})
+        run: |
+          python3 scripts/check_ota_identity.py --check-wiring
+          python3 scripts/check_ota_identity.py "${{ matrix.env }}" ".pio/build/${{ matrix.env }}/firmware.bin" ${{ matrix.slug && format('--slug {0} --manifest publish/flash-manifest-{0}.json', matrix.slug) || '' }}
       # The gate prints the tail of the failing build's log inline, which is
       # usually enough. This keeps the whole thing when it is not: a control that
       # comes back blind is exactly the case where the interesting line is above
@@ -516,7 +585,7 @@ jobs:
   ship-alert:
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -569,7 +638,7 @@ jobs:
     # certified. Only harness legs stopped being load-bearing.
     if: always() && github.event_name == 'release'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # Before its verdict is used, same rule as the adsbdb gate: a check that
@@ -673,7 +742,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'release' && needs.version.result == 'success' }}
     needs: version
     environment: release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # ORDER IS PROVEN HERE, NOT BY WHERE A LINE SITS. This reads version.txt

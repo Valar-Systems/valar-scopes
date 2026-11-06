@@ -6,9 +6,9 @@
 20:20:15 [WiFi] credentials saved: portal will time out after 180 s and retry them
 20:20:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 20:20:15 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
-20:20:15 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
-20:20:15 [WiFi] Associated with "Tony", waiting for IP...
-20:20:15 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-45 dBm
+20:20:15 [WiFi] fast join: ch=1 bssid=<bssid redacted>
+20:20:15 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+20:20:15 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-45 dBm
 20:20:15 [WiFi] fast join OK in 1650 ms
 20:20:15 [WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
 20:20:15 [ota] channel=s3-128 current=7 latest=7

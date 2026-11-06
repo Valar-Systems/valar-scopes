@@ -1,0 +1,48 @@
+  0.42s 
+  0.42s [build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope
+  0.42s [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+  0.42s [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+  0.42s [boot] reset reason=USB
+  0.42s [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+  0.42s [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+  0.42s [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+  0.42s [quiet] armed: reboot at local 03:00, tz-offset=unset (+0 s) -- local hour now 4
+  0.42s [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=241652)
+  0.63s [   301][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
+  0.63s [bright] first-light/default -> 255
+  0.63s [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292692
+  0.63s *wm:v2.0.17  D:2
+  0.63s [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+  0.63s [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+  3.77s [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+  3.77s [WiFi] fast join: ch=1 bssid=<bssid>
+  6.27s [WiFi] Associated with "<ssid>", waiting for IP...
+  7.33s [WiFi] CONNECTED  IP=<board-ip>  RSSI=-31 dBm
+  7.33s [WiFi] fast join OK in 3700 ms
+  7.33s [WiFi] pinned AP ch=1 RSSI=-31 dBm for the next boot
+ 15.31s [ota] channel=weatherscope-s3-128 current=18 latest=18
+ 15.31s [web] config server listening on :80 (http://Weatherscope-326E64.local)
+ 15.31s [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+ 15.31s [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+ 15.31s [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+ 15.31s [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+ 15.51s [wx] pick approaching=212400 dry=220000 psram_used=227168
+ 15.51s [wx] init; location=unset autodim=1 brightness=255 stored=1
+ 15.51s [heap] handshake ballast reserved (16717 B); free8=195780
+ 19.44s [wx] pick approaching=212400 dry=220000 psram_used=227168
+ 19.44s [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+ 19.44s [wx] scn=dry R=60 frame=220000 screen=Dry synthetic=0 compose_us=40757
+ 19.44s [wx] prof dry-60 view=3575 map=22179 bands=3152 rings=7614 warning=3 labels=3428 ringlabels=426 home=20 replay=1 strip=97 band=247 sum=40742 compose_us=40757
+ 19.44s [wx] k ROW dry-60 012cada2ea01dfb05de46600bc7cbf2117f97833964e2a755e2aad3808a1275f
+ 19.44s [wx] k TIME dry-60 5:00%20PM dim
+ 19.44s [wx] k BAND dry-60 S RAIN%2024%20MI%20S dim
+ 19.44s [wx] k LABEL dry-60 Dallas R 150 130 190 138
+ 19.44s [wx] k LABEL dry-60 Fort%20Worth L 20 132 86 140
+ 19.44s [wx] k LABEL dry-60 Plano R 152 95 186 103
+ 19.44s [wx] k LABEL dry-60 Garland R 166 114 212 122
+ 19.44s [wx] k LABEL dry-60 Frisco R 144 80 184 88
+ 19.44s [wx] k LABEL dry-60 Grand%20Prairie R 121 146 203 154
+ 19.44s [wx] k LABEL dry-60 Denton L 68 72 110 80
+ 19.44s [wx] k LABEL dry-60 Mansfield L 52 161 112 169
+ 19.44s [wx] screen=scenario dry R=60
+ 19.44s [fb] push 5000 draws 1-123 n=123 phases=2 push_us=25774-25912

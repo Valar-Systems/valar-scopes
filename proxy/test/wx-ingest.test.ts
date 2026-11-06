@@ -4,7 +4,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import type { LatestRecord } from "../src/wx/handler";
 import { readLatest } from "../src/wx/handler";
-import { type Fetch, type IngestOpts, NoaaError, advanceLatest, epochOfKey, ingestOnce } from "../src/wx/ingest";
+import { type Fetch, type IngestOpts, NoaaError, OPERA_BUCKET, advanceLatest, epochOfKey, ingestOnce } from "../src/wx/ingest";
 import { checkAll } from "../src/wx/ingest-worker";
 import { PRODUCTS, frameKey, framesPrefix, latestKey } from "../src/wx/products";
 import { synthGribGz } from "./wx-grib";
@@ -139,6 +139,25 @@ describe("WS5: idempotent ingest", () => {
     expect(r.pruned).toBe(2);
     expect(left).toEqual([frameKey(cref, young), frameKey(cref, e2)].sort());
   });
+
+  // PK4 (docs/wx-opera-europe.md section 11), the control: only OPERA products prune by key; cref still lists.
+  it("PK4: cref still prunes by listing -- its storing check lists, and carries pruned, not pruneKeys", async () => {
+    let lists = 0;
+    const WX = new Proxy(env.WX!, {
+      get(t, prop) {
+        const v = Reflect.get(t, prop);
+        if (prop === "list") return (...a: unknown[]) => { lists++; return (v as (...x: unknown[]) => unknown).apply(t, a); };
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    }) as R2Bucket;
+    const gz = await synthGribGz({ ...GRID, values });
+    const r = await ingestOnce(WX, cref, NOW, fakeNoaa(() => [T2], gz).doFetch);
+    console.log(`PK4 cref ${r.status}: ${lists} list(s), pruned ${r.pruned}, pruneKeys ${r.pruneKeys}`);
+    expect(r.status).toBe("stored");
+    expect(lists).toBeGreaterThanOrEqual(1);
+    expect(typeof r.pruned).toBe("number");
+    expect(r.pruneKeys).toBeUndefined();
+  });
 });
 
 // #472 (docs/wx-ingest-noaa-blips.md): the ingest rides out NOAA blips. Short timeouts are injected so these run in ms.
@@ -152,6 +171,9 @@ type Step = "ok" | "hang" | number;                    // a number is an HTTP st
 function scripted(visible: string[], gz: Uint8Array, list: Step[], get: Step[] = ["ok"], honourSignal = true) {
   const n = { list: 0, get: 0 };
   const doFetch: Fetch = (u, init) => {
+    // checkAll now checks opuk concurrently (docs/wx-opuk.md): its requests get a final 404 and never consume a
+    // step of the NOAA script these tests are about.
+    if (u.startsWith(OPERA_BUCKET)) return Promise.resolve(new Response("", { status: 404 }));
     const kind = u.includes("list-type=2") ? "list" : "get";
     const plan = kind === "list" ? list : get;
     const step = plan[Math.min(n[kind], plan.length - 1)]!;
@@ -256,7 +278,7 @@ describe("#472: the ingest rides out NOAA blips", () => {
     const lines: string[] = [];
     await checkAll({ WX: env.WX! }, ":00", scripted([T2], gz, [520, "ok"]).doFetch, (l) => lines.push(l), FAST);
     await checkAll({ WX: env.WX! }, ":30", scripted([T2], gz, [525]).doFetch, (l) => lines.push(l), FAST);
-    const [ok, bad] = lines.map((l) => JSON.parse(l));
+    const [ok, bad] = lines.map((l) => JSON.parse(l)).filter((l) => l.product === "cref");
     expect([ok.evt, ok.attempts.list]).toEqual(["wx_ingest", 2]);
     expect([bad.evt, bad.attempts]).toEqual(["wx_ingest_error", 3]);
   });

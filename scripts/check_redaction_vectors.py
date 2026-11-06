@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VECTORS = os.path.join(ROOT, "scripts", "redact-vectors.txt")
-# Placeholders, built here so no committed file carries a literal MAC after "bssid" (check_bssid.py refuses that).
+# Placeholders, built here so no committed file carries a literal MAC after "bssid" (check_wifi.py refuses that).
 TOKENS = {"{MAC1}": ":".join(["AA", "BB", "CC", "DD", "EE", "F1"]), "{MAC2}": "-".join(["aa", "bb", "cc", "dd", "ee", "f1"])}
 
 

@@ -12,3 +12,34 @@ declare module "*.txt" {
   const text: string;
   export default text;
 }
+
+// wrangler's default module rule imports .bin as an ArrayBuffer (a Data module): the opuk fixtures' byte ranges.
+declare module "*.bin" {
+  const data: ArrayBuffer;
+  export default data;
+}
+
+// vitest.config.mts's bmpk-bytes plugin imports a .bmpk fixture as its exact bytes.
+declare module "*.bmpk" {
+  const bytes: Uint8Array;
+  export default bytes;
+}
+
+// Vite's ?raw import of a Python source (ME1b reads synth.py's own data lines).
+declare module "*.py?raw" {
+  const text: string;
+  export default text;
+}
+
+// vitest.config.mts's committed-credits plugin: proxy/photos/credits.html as its exact text (Q-C1).
+declare module "virtual:committed-credits" {
+  const text: string;
+  export default text;
+}
+
+// vitest.config.mts's wx-ingest-tomls plugin: the two production ingest tomls as their exact text, by file name
+// (docs/wx-opuk-split.md, FX).
+declare module "virtual:wx-ingest-tomls" {
+  const files: Record<string, string>;
+  export default files;
+}

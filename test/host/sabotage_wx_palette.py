@@ -1,5 +1,6 @@
 """Runs test_wx_palette.cpp against SABOTAGED copies of src/weatherscope/WxPalette.h; each must turn the suite
-red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4, 5 and 8) and nothing else.
+red, failing EXACTLY the checks predicted in docs/weatherscope-stage2.md (addenda 2, 4, 5 and 8), re-registered for
+code 1's teal by docs/weatherscope-stage3.md A10.16, and nothing else.
 
     python -I test/host/sabotage_wx_palette.py
 
@@ -8,12 +9,16 @@ with that folder on its include path, every anchor must occur exactly once, the 
 real header's sha256 is compared before and after.
 
   S-C3a   the missing hatch planted as Stage 1's violet (110, 0, 110) -> exactly C3a
-  S-C3c   one rain entry off by one unit (25 dBZ green 200->201)      -> exactly C3c
+  S-C3c   one rain entry off the table (25 dBZ green 200->204)        -> exactly C3c (Q52: 201 shared 200's RGB565)
   S-C3ef  the snow top set to white                                -> exactly C3e, C3f and C3i
-  S-C3g   the snow start set to (20, 30, 180), close to rain's blue -> exactly C3g
+  S-C3g   the snow start set to (0, 140, 140), near rain 1's teal  -> exactly C3g (A10.16: the old plant,
+          (20, 30, 180) near the old dimmed blue, would now fail nothing)
   S-h     the snow ramp started at (165, 205, 245), near its top    -> exactly C3h (it barely steps)
   S-i     the snow top set to (240, 245, 255), near white          -> exactly C3i
   S-C3j   rain 12 (violet) set to (45, 45, 45), near no coverage    -> exactly C3c and C3j
+  S-TEAL  rain 1 back to the old dimmed blue (0, 0, 135)            -> exactly C3d
+  S-C3k   rain 1 set near the grey, (40, 46, 44)                    -> exactly C3d and C3k
+  S-C3l   rain 1 brighter than rain 2, (200, 255, 230)              -> exactly C3d and C3l
   S-PIN   the REAL header, run on a fixtures copy whose pinned table has an id appended -> exactly pin
 Exit 0 only when EVERY sabotage turns the suite red in exactly the predicted way.
 """
@@ -23,6 +28,9 @@ import re
 import subprocess
 import sys
 import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxPalette.h")
@@ -34,11 +42,11 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 SABOTAGES = {
     "S-C3a": ([("constexpr Rgb kMissingHatch = {72, 72, 72};", "constexpr Rgb kMissingHatch = {110, 0, 110};  // SABOTAGE")],
               [r"C3a\b"]),
-    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 201, 0},  /* SABOTAGE */")],
+    "S-C3c": ([("{0, 255, 0},   {0, 200, 0},", "{0, 255, 0},   {0, 204, 0},  /* SABOTAGE */")],
               [r"C3c\b"]),
     "S-C3ef": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {255, 255, 255}};  // SABOTAGE")],
                [r"C3e\b", r"C3f\b", r"C3i\b"]),
-    "S-C3g": ([("kSnowTable[6] = {{0, 110, 210},", "kSnowTable[6] = {{20, 30, 180},  /* SABOTAGE */")],
+    "S-C3g": ([("kSnowTable[6] = {{0, 110, 210},", "kSnowTable[6] = {{0, 140, 140},  /* SABOTAGE */")],
               [r"C3g\b"]),
     "S-h": ([("constexpr Rgb kSnowTable[6] = {{0, 110, 210}, {66, 129, 218}, {98, 149, 226}, {124, 169, 234}, {148, 190, 242}, {170, 212, 250}};",
               "constexpr Rgb kSnowTable[6] = {{165, 205, 245}, {166, 206, 246}, {167, 208, 247}, {168, 209, 248}, "
@@ -48,6 +56,12 @@ SABOTAGES = {
               [r"C3c\b", r"C3j\b"]),
     "S-i": ([("{148, 190, 242}, {170, 212, 250}};", "{148, 190, 242}, {240, 245, 255}};  // SABOTAGE: near white")],
             [r"C3i\b"]),
+    "S-TEAL": ([("constexpr Rgb kRain1 = {0, 150, 135};", "constexpr Rgb kRain1 = {0, 0, 135};  // SABOTAGE: the old dimmed blue")],
+               [r"C3d\b"]),
+    "S-C3k": ([("constexpr Rgb kRain1 = {0, 150, 135};", "constexpr Rgb kRain1 = {40, 46, 44};  // SABOTAGE: near the grey")],
+              [r"C3d\b", r"C3k\b"]),
+    "S-C3l": ([("constexpr Rgb kRain1 = {0, 150, 135};", "constexpr Rgb kRain1 = {200, 255, 230};  // SABOTAGE: brighter than rain 2")],
+              [r"C3d\b", r"C3l\b"]),
 }
 
 
@@ -58,6 +72,7 @@ def sha(path):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical to the original -- the sabotage did not apply"
@@ -68,16 +83,28 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         for name, (edits, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             inc = os.path.join(td, name)
             os.makedirs(inc)
-            open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(plant(name, edits, src))
+            try:
+                planted = plant(name, edits, src)
+            except sc.Refused as e:   # Q50: not a result, and not as predicted
+                print(f"{name}: REFUSED -- {e}")
+                ok = False
+                continue
+            open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(planted)
             exe = os.path.join(td, name + ".exe")
             b = subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
             if b.returncode != 0:
                 print(f"{name}: did not compile (rig)\n{b.stderr}")
-                return 2
+                rigs.add(name)
+                ok = False
+                continue
             r = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
             fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
             matched = [sum(1 for l in fails if re.search(rx, l)) for rx in expect]
@@ -96,21 +123,54 @@ def main():
         open(os.path.join(fx, name), "wb").write(data + b"beefbeefbeefbeef\n")
         assert open(os.path.join(fx, name), "rb").read() != data, "S-PIN: the table copy did not change"
         exe = os.path.join(td, "real.exe")
-        b = subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe], capture_output=True, text=True)
-        if b.returncode != 0:
+        b = None if rigs.forced("S-PIN") else subprocess.run([CXX, *FLAGS, "-I" + os.path.dirname(HEADER), TEST, "-o", exe],
+                                                             capture_output=True, text=True)
+        if b is not None and b.returncode != 0:
             print(f"S-PIN: did not compile (rig)\n{b.stderr}")
-            return 2
-        r = subprocess.run([exe, fx], capture_output=True, text=True)
-        fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
-        good = r.returncode == 1 and len(fails) == 1 and re.search(r"FAIL\s+pin\b", fails[0]) is not None
-        print(f"S-PIN: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
-        for l in fails:
-            print(f"    {l}")
-        ok &= good
+            rigs.add("S-PIN")
+        if b is None or b.returncode != 0:
+            ok = False
+        else:
+            r = subprocess.run([exe, fx], capture_output=True, text=True)
+            fails = [l.strip() for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+            good = r.returncode == 1 and len(fails) == 1 and re.search(r"FAIL\s+pin\b", fails[0]) is not None
+            print(f"S-PIN: suite exit {r.returncode}; {len(fails)} failing check(s) -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
+            for l in fails:
+                print(f"    {l}")
+            ok &= good
     after = sha(HEADER)
     print(f"real src/weatherscope/WxPalette.h unchanged: {before == after} ({after[:12]})")
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    pin = os.path.join(FIXTURES, "NWSReflectivity-metpy-v1.6.3.tbl")   # S-PIN plants a copy of the pinned table
+    out.append(("S-PIN", os.path.relpath(pin, ROOT), sc.read(pin), lambda t: None))
+    return out
+
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+PALETTE_OKS = 15   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_palette": ("ok", PALETTE_OKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        inc = os.path.join(td, "control")
+        os.makedirs(inc)
+        open(os.path.join(inc, "WxPalette.h"), "w", encoding="utf-8", newline="\n").write(open(HEADER, encoding="utf-8").read())
+        exe = os.path.join(td, "control.exe")
+        subprocess.run([CXX, *FLAGS, "-I" + inc, TEST, "-o", exe], capture_output=True, text=True)
+        subprocess.run([exe, FIXTURES], capture_output=True, text=True)
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

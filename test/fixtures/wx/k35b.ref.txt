@@ -1,0 +1,356 @@
+# Weatherscope 3.5b Bend K rows (docs/weatherscope-stage3.md A10.6, A12.41): written by
+# tools/weatherscope/screens/k35b.py --write, checked by its --check; read by test/host/test_wx_k35b.cpp.
+# Texts: printable ASCII, else %XX; '-' empty.
+# font bd6d60ecb9cc350a83f209d7c62de2fe5f6ce3402d5598cde2988b5b44e83e02
+# bend.bmpk 0e257a0a47a15f308ada084cf3303afdf32386cca5f2d3c8e8d8e4122f6ef0fd
+# bend-loop MANIFEST.json 4e4aceae52698400e1f5945b1363beb9683a08a87c4abebc11c31556a3452752 (LF-normalised)
+# bend synthetic-clear.wxc 16be18f62224376f21c36ea422a7f32a530481a5fa396cdc5def45acef06abbc
+ROW bdry-60-towns 7b44c10747260975b4b875ef8b4366879745e1fd436fc3bd6a6f8e74ec6e6c49
+TIME bdry-60-towns 1:06%20PM dim
+BAND bdry-60-towns S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-towns Redmond R 131 88 177 96
+LABEL bdry-60-towns Madras R 133 32 173 40
+LABEL bdry-60-towns Sisters L 49 83 97 91
+LABEL bdry-60-towns La%20Pine L 56 167 104 175
+LABEL bdry-60-towns Culver R 128 52 168 60
+ROW bdry-60-water 520ef2a13611dfa9cd19f8cd0618d1d12d0dfe5f119f55c262e29a269277315e
+TIME bdry-60-water 1:06%20PM dim
+BAND bdry-60-water S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-water Redmond R 131 88 177 96
+LABEL bdry-60-water Madras R 133 32 173 40
+LABEL bdry-60-water Sisters L 49 83 97 91
+LABEL bdry-60-water La%20Pine L 56 167 104 175
+LABEL bdry-60-water Culver R 128 52 168 60
+ROW bdry-60-rivers ec2c82c9c6110799586124092e2d237cf847abbeecf439425135832b65025c90
+TIME bdry-60-rivers 1:06%20PM dim
+BAND bdry-60-rivers S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-rivers Redmond R 131 88 177 96
+LABEL bdry-60-rivers Madras R 133 32 173 40
+LABEL bdry-60-rivers Sisters L 49 83 97 91
+LABEL bdry-60-rivers La%20Pine L 56 167 104 175
+LABEL bdry-60-rivers Culver R 128 52 168 60
+ROW bdry-60-roads 46da654f143f024287ea455fb1d476258acf56fa2fb993a290a27f7b1b243dfc
+TIME bdry-60-roads 1:06%20PM dim
+BAND bdry-60-roads S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-roads Redmond R 131 88 177 96
+LABEL bdry-60-roads Madras R 133 32 173 40
+LABEL bdry-60-roads Sisters L 49 83 97 91
+LABEL bdry-60-roads La%20Pine L 56 167 104 175
+LABEL bdry-60-roads Culver R 128 52 168 60
+ROW bdry-60-peaks c1ea351417e89c091a329494ffa73a83a5fd28be5d2e2e99eb9f7f6669b63807
+TIME bdry-60-peaks 1:06%20PM dim
+BAND bdry-60-peaks S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-peaks Redmond R 131 88 177 96
+LABEL bdry-60-peaks Sisters L 49 83 97 91
+LABEL bdry-60-peaks La%20Pine L 56 167 104 175
+LABEL bdry-60-peaks Culver R 128 52 168 60
+ROW bdry-60-B cc45e64c1a03632f68baae38a095feb0e76132bf0c7b0346ebfb240a04af4ac3
+TIME bdry-60-B 1:06%20PM dim
+BAND bdry-60-B S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-B Redmond R 131 88 177 96
+LABEL bdry-60-B Sisters L 49 83 97 91
+LABEL bdry-60-B La%20Pine L 56 167 104 175
+LABEL bdry-60-B Culver R 128 52 168 60
+ROW bdry-60-C a8a23e5f71e4c6035c3fdadd6b33cbf13ca391915ab03b3abe08c5fcb7a34135
+TIME bdry-60-C 1:06%20PM dim
+BAND bdry-60-C S NO%20RAIN%2060%20MI dim
+LABEL bdry-60-C Redmond R 131 88 177 96
+LABEL bdry-60-C Sisters L 49 83 97 91
+LABEL bdry-60-C La%20Pine L 56 167 104 175
+LABEL bdry-60-C Culver R 128 52 168 60
+ROW bdry-30-towns 557931daaee6e0b442fd0edcf162b30fb864e60d02ab2807f5d4319d210c7bab
+TIME bdry-30-towns 1:06%20PM dim
+BAND bdry-30-towns S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-towns Redmond R 144 60 190 68
+LABEL bdry-30-towns Sisters R 70 51 116 59
+ROW bdry-30-water 4bbb880be388ed476813ed61ed120be5fc1dca6bc2524868719c61e3c00f8b77
+TIME bdry-30-water 1:06%20PM dim
+BAND bdry-30-water S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-water Redmond R 144 60 190 68
+LABEL bdry-30-water Sisters R 70 51 116 59
+ROW bdry-30-rivers f552eb591b742ede62c40744209a07061f1181a4dc2d77621c9783af0e5ca188
+TIME bdry-30-rivers 1:06%20PM dim
+BAND bdry-30-rivers S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-rivers Redmond R 144 60 190 68
+LABEL bdry-30-rivers Sisters R 70 51 116 59
+ROW bdry-30-roads 0a62f2ee8056f0472b5a5cfb8da51906886080ba9645946d42b8ab2d3597d4ee
+TIME bdry-30-roads 1:06%20PM dim
+BAND bdry-30-roads S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-roads Redmond R 144 60 190 68
+LABEL bdry-30-roads Sisters R 70 51 116 59
+ROW bdry-30-peaks 4a8037c31391baf21354df65ca34d8a28ec06c3f09c6f8fe609bb2fae660f46a
+TIME bdry-30-peaks 1:06%20PM dim
+BAND bdry-30-peaks S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-peaks Redmond R 144 60 190 68
+LABEL bdry-30-peaks Sisters R 70 51 116 59
+ROW bdry-30-B e8c1901b50a30f7ad156175c1cbc93e15aebb53edb1547154a9b85dbe209d4ea
+TIME bdry-30-B 1:06%20PM dim
+BAND bdry-30-B S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-B Redmond R 144 60 190 68
+LABEL bdry-30-B Sisters R 70 51 116 59
+ROW bdry-30-C d83bfd66c9a82767b81eb481b23b15848319b31a1bdfc063e7d606b0c3153185
+TIME bdry-30-C 1:06%20PM dim
+BAND bdry-30-C S NO%20RAIN%2060%20MI dim
+LABEL bdry-30-C Redmond R 144 60 190 68
+LABEL bdry-30-C Sisters R 70 51 116 59
+ROW bdry-15-towns 7d681ca83ff899417999785ba1d608d2c46c334f1714c2ee12e90b6ac1fb9408
+TIME bdry-15-towns 1:06%20PM dim
+BAND bdry-15-towns S NO%20RAIN%2060%20MI dim
+ROW bdry-15-water 7d681ca83ff899417999785ba1d608d2c46c334f1714c2ee12e90b6ac1fb9408
+TIME bdry-15-water 1:06%20PM dim
+BAND bdry-15-water S NO%20RAIN%2060%20MI dim
+ROW bdry-15-rivers 582a401c1d1cd0727ddc6ecd20a7aa7d8c92094ece255d41d7f1c0d090171ab7
+TIME bdry-15-rivers 1:06%20PM dim
+BAND bdry-15-rivers S NO%20RAIN%2060%20MI dim
+ROW bdry-15-roads c7ed808e17150939d052efc0f6227f5b435ebde171ff857df498f0a913f96c87
+TIME bdry-15-roads 1:06%20PM dim
+BAND bdry-15-roads S NO%20RAIN%2060%20MI dim
+ROW bdry-15-peaks 7d681ca83ff899417999785ba1d608d2c46c334f1714c2ee12e90b6ac1fb9408
+TIME bdry-15-peaks 1:06%20PM dim
+BAND bdry-15-peaks S NO%20RAIN%2060%20MI dim
+ROW bdry-15-B be94c591df1357a4d684aa939d13d0f1f6609b2cdc597776f0c5610e101e7c9e
+TIME bdry-15-B 1:06%20PM dim
+BAND bdry-15-B S NO%20RAIN%2060%20MI dim
+ROW bdry-15-C 2e3f32f66ac9bf79b4549ff07779ca5ccef2fe7023e0e689a8da16ff4f8ba4c2
+TIME bdry-15-C 1:06%20PM dim
+BAND bdry-15-C S NO%20RAIN%2060%20MI dim
+ROW brain-60-B d9fb13c8700625c1d1d7663f1bce4a4f0a7efdfa6086f186ec305c71030aa25b
+TIME brain-60-B 1:06%20PM dim
+BAND brain-60-B S RAIN%2020%20MI%20W dim
+LABEL brain-60-B Redmond R 131 88 177 96
+LABEL brain-60-B Sisters L 49 83 97 91
+LABEL brain-60-B La%20Pine L 56 167 104 175
+LABEL brain-60-B Culver R 128 52 168 60
+ROW brain-60-C 6813124ceae0e68ee2bf9c51690889f55a29d2fee05c211193b225f570949916
+TIME brain-60-C 1:06%20PM dim
+BAND brain-60-C S RAIN%2020%20MI%20W dim
+LABEL brain-60-C Redmond R 131 88 177 96
+LABEL brain-60-C Sisters L 49 83 97 91
+LABEL brain-60-C La%20Pine L 56 167 104 175
+LABEL brain-60-C Culver R 128 52 168 60
+ROW brain-30-B 5e27507ba444122a23c3afac80340248af93402c7103c072ed2a51f2ec634115
+TIME brain-30-B 1:06%20PM dim
+BAND brain-30-B S RAIN%2020%20MI%20W dim
+LABEL brain-30-B Redmond R 144 60 190 68
+LABEL brain-30-B Sisters R 70 51 116 59
+ROW brain-30-C 598942cde6bc5e25101862af7299ba5b556c369caa1b2b3b4dceeeb1a23fc0de
+TIME brain-30-C 1:06%20PM dim
+BAND brain-30-C S RAIN%2020%20MI%20W dim
+LABEL brain-30-C Redmond R 144 60 190 68
+LABEL brain-30-C Sisters R 70 51 116 59
+ROW brain-15-B 190f736fe4f748234370a29f72ccb81173f9369dded89e6ac5bd14badf0841b5
+TIME brain-15-B 1:06%20PM dim
+BAND brain-15-B S RAIN%2020%20MI%20W dim
+ROW brain-15-C d86dbdba003c2536ed834d42857c6b3e3155e31ce7491389210a922c12fff2b4
+TIME brain-15-C 1:06%20PM dim
+BAND brain-15-C S RAIN%2020%20MI%20W dim
+ROW bloop-00-B 5d75b03ec40c7e7182488c46c3bd1031a76eb4b1d981b82e6388411aaf1fad73
+TIME bloop-00-B 12:10%20PM dim
+BAND bloop-00-B L 56%20MIN%20AGO 0
+LABEL bloop-00-B Redmond R 131 88 177 96
+LABEL bloop-00-B Sisters L 49 83 97 91
+LABEL bloop-00-B La%20Pine L 56 167 104 175
+LABEL bloop-00-B Culver R 128 52 168 60
+ROW bloop-00-C 226b56d748acb696e31eaf9ccf5c8ca7a2da0089da0d4a99ce18ec7069c80926
+TIME bloop-00-C 12:10%20PM dim
+BAND bloop-00-C L 56%20MIN%20AGO 0
+LABEL bloop-00-C Redmond R 131 88 177 96
+LABEL bloop-00-C Sisters L 49 83 97 91
+LABEL bloop-00-C La%20Pine L 56 167 104 175
+LABEL bloop-00-C Culver R 128 52 168 60
+ROW bloop-01-B e5fbb446e5b1c314a805c3f9d8afd59d4476706cac5e6af49a7290a99b097c39
+TIME bloop-01-B 12:14%20PM dim
+BAND bloop-01-B L 52%20MIN%20AGO 1
+LABEL bloop-01-B Redmond R 131 88 177 96
+LABEL bloop-01-B Sisters L 49 83 97 91
+LABEL bloop-01-B La%20Pine L 56 167 104 175
+LABEL bloop-01-B Culver R 128 52 168 60
+ROW bloop-01-C 6df67492f0c1804ef728d9b63172085ae12269d2ee35064cb7d474c208b7bd4e
+TIME bloop-01-C 12:14%20PM dim
+BAND bloop-01-C L 52%20MIN%20AGO 1
+LABEL bloop-01-C Redmond R 131 88 177 96
+LABEL bloop-01-C Sisters L 49 83 97 91
+LABEL bloop-01-C La%20Pine L 56 167 104 175
+LABEL bloop-01-C Culver R 128 52 168 60
+ROW bloop-02-B b1fee61c977e7fe0a22f76bc8031ebbdffabcddd5e817e5cbbdd481fcc4f1eda
+TIME bloop-02-B 12:18%20PM dim
+BAND bloop-02-B L 48%20MIN%20AGO 2
+LABEL bloop-02-B Redmond R 131 88 177 96
+LABEL bloop-02-B Sisters L 49 83 97 91
+LABEL bloop-02-B La%20Pine L 56 167 104 175
+LABEL bloop-02-B Culver R 128 52 168 60
+ROW bloop-02-C 242143e65c2a27e498a3c44f70873fb99d6ec1f8da11957331d129388da0215b
+TIME bloop-02-C 12:18%20PM dim
+BAND bloop-02-C L 48%20MIN%20AGO 2
+LABEL bloop-02-C Redmond R 131 88 177 96
+LABEL bloop-02-C Sisters L 49 83 97 91
+LABEL bloop-02-C La%20Pine L 56 167 104 175
+LABEL bloop-02-C Culver R 128 52 168 60
+ROW bloop-03-B b0272c7b461d7786b5233578d4f54aacc7574b76396816244c4100db1b63fbc9
+TIME bloop-03-B 12:22%20PM dim
+BAND bloop-03-B L 44%20MIN%20AGO 3
+LABEL bloop-03-B Redmond R 131 88 177 96
+LABEL bloop-03-B Sisters L 49 83 97 91
+LABEL bloop-03-B La%20Pine L 56 167 104 175
+LABEL bloop-03-B Culver R 128 52 168 60
+ROW bloop-03-C e1ee02c53580db0d8642b90083bad3ef473dc0f48206fdb2545ffcba2e6a7120
+TIME bloop-03-C 12:22%20PM dim
+BAND bloop-03-C L 44%20MIN%20AGO 3
+LABEL bloop-03-C Redmond R 131 88 177 96
+LABEL bloop-03-C Sisters L 49 83 97 91
+LABEL bloop-03-C La%20Pine L 56 167 104 175
+LABEL bloop-03-C Culver R 128 52 168 60
+ROW bloop-04-B e4a36e788def1f9a13e4d5c4b119d322a1b659c0b106f6d1e7ca0708e8f33b88
+TIME bloop-04-B 12:26%20PM dim
+BAND bloop-04-B L 40%20MIN%20AGO 4
+LABEL bloop-04-B Redmond R 131 88 177 96
+LABEL bloop-04-B Sisters L 49 83 97 91
+LABEL bloop-04-B La%20Pine L 56 167 104 175
+LABEL bloop-04-B Culver R 128 52 168 60
+ROW bloop-04-C db371fed7cba5e184623947758cca6292cca003eb916c7f9ccaa7ef97351af41
+TIME bloop-04-C 12:26%20PM dim
+BAND bloop-04-C L 40%20MIN%20AGO 4
+LABEL bloop-04-C Redmond R 131 88 177 96
+LABEL bloop-04-C Sisters L 49 83 97 91
+LABEL bloop-04-C La%20Pine L 56 167 104 175
+LABEL bloop-04-C Culver R 128 52 168 60
+ROW bloop-05-B 97a463ff2a2d26bb6002be8dfed7fd59586acd7cebf17839707c02d6bdee411b
+TIME bloop-05-B 12:30%20PM dim
+BAND bloop-05-B L 36%20MIN%20AGO 5
+LABEL bloop-05-B Redmond R 131 88 177 96
+LABEL bloop-05-B Sisters L 49 83 97 91
+LABEL bloop-05-B La%20Pine L 56 167 104 175
+LABEL bloop-05-B Culver R 128 52 168 60
+ROW bloop-05-C c13be6a9e2f70846442c48983228d12fc200ea8d8c63f42fc64d04e31e47fc8d
+TIME bloop-05-C 12:30%20PM dim
+BAND bloop-05-C L 36%20MIN%20AGO 5
+LABEL bloop-05-C Redmond R 131 88 177 96
+LABEL bloop-05-C Sisters L 49 83 97 91
+LABEL bloop-05-C La%20Pine L 56 167 104 175
+LABEL bloop-05-C Culver R 128 52 168 60
+ROW bloop-06-B ad0dbc0021a4cac73be6de65cd640934f8525a5db8d97b52ebd5b848088807f9
+TIME bloop-06-B 12:34%20PM dim
+BAND bloop-06-B L 32%20MIN%20AGO 6
+LABEL bloop-06-B Redmond R 131 88 177 96
+LABEL bloop-06-B Sisters L 49 83 97 91
+LABEL bloop-06-B La%20Pine L 56 167 104 175
+LABEL bloop-06-B Culver R 128 52 168 60
+ROW bloop-06-C eec0f9ec7f7a41a6c9f25290817a3d0556c839a1daed5498feed368aed02456e
+TIME bloop-06-C 12:34%20PM dim
+BAND bloop-06-C L 32%20MIN%20AGO 6
+LABEL bloop-06-C Redmond R 131 88 177 96
+LABEL bloop-06-C Sisters L 49 83 97 91
+LABEL bloop-06-C La%20Pine L 56 167 104 175
+LABEL bloop-06-C Culver R 128 52 168 60
+ROW bloop-07-B 916da5225d71eb93321c624c6d9284b158b66aa8acf49090fa985e8cdff72b17
+TIME bloop-07-B 12:38%20PM dim
+BAND bloop-07-B L 28%20MIN%20AGO 7
+LABEL bloop-07-B Redmond R 131 88 177 96
+LABEL bloop-07-B Sisters L 49 83 97 91
+LABEL bloop-07-B La%20Pine L 56 167 104 175
+LABEL bloop-07-B Culver R 128 52 168 60
+ROW bloop-07-C 3107e81db9084dfb15d6ed19cd9a4a8410bdcb4a29bafa3796b7c53828f59b77
+TIME bloop-07-C 12:38%20PM dim
+BAND bloop-07-C L 28%20MIN%20AGO 7
+LABEL bloop-07-C Redmond R 131 88 177 96
+LABEL bloop-07-C Sisters L 49 83 97 91
+LABEL bloop-07-C La%20Pine L 56 167 104 175
+LABEL bloop-07-C Culver R 128 52 168 60
+ROW bloop-08-B 0ef0d6e1325deda9a0bd35f2c7cdbdf432ddc19afd3970d8fa439999f6a8e6f4
+TIME bloop-08-B 12:42%20PM dim
+BAND bloop-08-B L 24%20MIN%20AGO 8
+LABEL bloop-08-B Redmond R 131 88 177 96
+LABEL bloop-08-B Sisters L 49 83 97 91
+LABEL bloop-08-B La%20Pine L 56 167 104 175
+LABEL bloop-08-B Culver R 128 52 168 60
+ROW bloop-08-C 2182fbae4dfa285cbe53fd5d7c7873cf967aca037d8bfc338a70b9c7ae9e68d7
+TIME bloop-08-C 12:42%20PM dim
+BAND bloop-08-C L 24%20MIN%20AGO 8
+LABEL bloop-08-C Redmond R 131 88 177 96
+LABEL bloop-08-C Sisters L 49 83 97 91
+LABEL bloop-08-C La%20Pine L 56 167 104 175
+LABEL bloop-08-C Culver R 128 52 168 60
+ROW bloop-09-B 90c5601dceacc7dc7c5f17a6245ee566d72fc9735f8bef3d9461cd33881c485a
+TIME bloop-09-B 12:46%20PM dim
+BAND bloop-09-B L 20%20MIN%20AGO 9
+LABEL bloop-09-B Redmond R 131 88 177 96
+LABEL bloop-09-B Sisters L 49 83 97 91
+LABEL bloop-09-B La%20Pine L 56 167 104 175
+LABEL bloop-09-B Culver R 128 52 168 60
+ROW bloop-09-C 3779753cb7fd55fae395750874bf18febe8e8a656502e39e92ec32761bd09daa
+TIME bloop-09-C 12:46%20PM dim
+BAND bloop-09-C L 20%20MIN%20AGO 9
+LABEL bloop-09-C Redmond R 131 88 177 96
+LABEL bloop-09-C Sisters L 49 83 97 91
+LABEL bloop-09-C La%20Pine L 56 167 104 175
+LABEL bloop-09-C Culver R 128 52 168 60
+ROW bloop-10-B 17a67cb5eed8668bbd5ca055550ea3730fde6a88f250bd7dae97f85273385d9f
+TIME bloop-10-B 12:50%20PM dim
+BAND bloop-10-B L 16%20MIN%20AGO 10
+LABEL bloop-10-B Redmond R 131 88 177 96
+LABEL bloop-10-B Sisters L 49 83 97 91
+LABEL bloop-10-B La%20Pine L 56 167 104 175
+LABEL bloop-10-B Culver R 128 52 168 60
+ROW bloop-10-C 1b1d0a37226011abf8a7689cb459c33be348125ccb84967d658fb2c4aa44f057
+TIME bloop-10-C 12:50%20PM dim
+BAND bloop-10-C L 16%20MIN%20AGO 10
+LABEL bloop-10-C Redmond R 131 88 177 96
+LABEL bloop-10-C Sisters L 49 83 97 91
+LABEL bloop-10-C La%20Pine L 56 167 104 175
+LABEL bloop-10-C Culver R 128 52 168 60
+ROW bloop-11-B 29619994ad964ce6eb6090d48468aa333bb2965f2a1510e0fe5395dc055cce92
+TIME bloop-11-B 12:54%20PM dim
+BAND bloop-11-B L 12%20MIN%20AGO 11
+LABEL bloop-11-B Redmond R 131 88 177 96
+LABEL bloop-11-B Sisters L 49 83 97 91
+LABEL bloop-11-B La%20Pine L 56 167 104 175
+LABEL bloop-11-B Culver R 128 52 168 60
+ROW bloop-11-C 17090c97b180e032b9a4c08bde1905cdf86febf9d438e56a95d2dbc497a996a4
+TIME bloop-11-C 12:54%20PM dim
+BAND bloop-11-C L 12%20MIN%20AGO 11
+LABEL bloop-11-C Redmond R 131 88 177 96
+LABEL bloop-11-C Sisters L 49 83 97 91
+LABEL bloop-11-C La%20Pine L 56 167 104 175
+LABEL bloop-11-C Culver R 128 52 168 60
+ROW bloop-12-B 1d549a1d521159f202bc6a237fd1740d30fd75f2ab5812b736c2d831e334d0bd
+TIME bloop-12-B 12:58%20PM dim
+BAND bloop-12-B L 8%20MIN%20AGO 12
+LABEL bloop-12-B Redmond R 131 88 177 96
+LABEL bloop-12-B Sisters L 49 83 97 91
+LABEL bloop-12-B La%20Pine L 56 167 104 175
+LABEL bloop-12-B Culver R 128 52 168 60
+ROW bloop-12-C 4ed47cd89b97441f9e4b2c3eb06f2af65ac0824ff39ba580912d18e66936ef6e
+TIME bloop-12-C 12:58%20PM dim
+BAND bloop-12-C L 8%20MIN%20AGO 12
+LABEL bloop-12-C Redmond R 131 88 177 96
+LABEL bloop-12-C Sisters L 49 83 97 91
+LABEL bloop-12-C La%20Pine L 56 167 104 175
+LABEL bloop-12-C Culver R 128 52 168 60
+ROW bloop-13-B 604eed0b1c9c72283f9f8d98728c76dd92a432bea1fe25434142e48fce261045
+TIME bloop-13-B 1:02%20PM dim
+BAND bloop-13-B L 4%20MIN%20AGO 13
+LABEL bloop-13-B Redmond R 131 88 177 96
+LABEL bloop-13-B Sisters L 49 83 97 91
+LABEL bloop-13-B La%20Pine L 56 167 104 175
+LABEL bloop-13-B Culver R 128 52 168 60
+ROW bloop-13-C 044d39c99373d50ab729adcae56aa0364d44584c8b9df82137bdc91a29e5ce49
+TIME bloop-13-C 1:02%20PM dim
+BAND bloop-13-C L 4%20MIN%20AGO 13
+LABEL bloop-13-C Redmond R 131 88 177 96
+LABEL bloop-13-C Sisters L 49 83 97 91
+LABEL bloop-13-C La%20Pine L 56 167 104 175
+LABEL bloop-13-C Culver R 128 52 168 60
+ROW bloop-14-B 3ab08b35524e5bc3c8f4bd1ddf84093734eb50b75f75544c9beaa0e535be0457
+TIME bloop-14-B 1:06%20PM dim
+BAND bloop-14-B L NOW 14
+LABEL bloop-14-B Redmond R 131 88 177 96
+LABEL bloop-14-B Sisters L 49 83 97 91
+LABEL bloop-14-B La%20Pine L 56 167 104 175
+LABEL bloop-14-B Culver R 128 52 168 60
+ROW bloop-14-C 15c3a5a9e8183e85673a585228bb456e6c3d29301d3978819f39cee6fc82de7c
+TIME bloop-14-C 1:06%20PM dim
+BAND bloop-14-C L NOW 14
+LABEL bloop-14-C Redmond R 131 88 177 96
+LABEL bloop-14-C Sisters L 49 83 97 91
+LABEL bloop-14-C La%20Pine L 56 167 104 175
+LABEL bloop-14-C Culver R 128 52 168 60

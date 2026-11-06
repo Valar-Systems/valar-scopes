@@ -174,6 +174,13 @@ bool ConsumeDeferredCheckFlag();
 // it woke up in. `when` labels the call site ("boot", "post-update").
 void LogOtaSlot(const char* when);
 
+#ifdef WX_OTA_BENCH
+// O9's bench source (docs/weatherscope-stage3.md A1.3, A12.104): reads "OTA <total> <n>" and a newline, then n
+// bytes, from Serial; runs ota::Install with the REAL flash adapter; prints one "[ota-bench] result=..." line.
+// Bench env only (weatherscope-otabench-s3-128).
+void OtaBenchRun(LGFX& tft);
+#endif
+
 /**
  * Why this boot happened, as a short stable token: POWERON, SW (a deliberate
  * ESP.restart(), which is what the deferred update check does), PANIC, INT_WDT,

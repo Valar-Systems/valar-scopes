@@ -1,5 +1,6 @@
 """Runs test_wx_k35.cpp against SABOTAGED copies of the device's screen code, and of its reference. Each must fail
-EXACTLY the set registered in docs/weatherscope-stage3.md A9.18 before the run, and nothing else.
+EXACTLY the set registered in docs/weatherscope-stage3.md A9.18 before the run, and nothing else. 3.5t t4's rows
+(K-light, LY) joined the suite; the KL rows each plant reaches were registered in A12.64 (Q60) before it ran.
 
     python -I test/host/sabotage_wx_k35.py
 
@@ -7,10 +8,13 @@ Method:
   - The plants go into a MIRROR of src/weatherscope (and the vendored font, which WxRaster.h includes by a relative
     path), never the real files: a quoted #include finds its sibling first, so a single copied header would be
     silently bypassed. Each plant asserts its anchor occurs once and that the copy differs; the real tree's files are
-    hashed before and after. The unmodified mirror runs first, as the control: 28 checks, 0 failures.
+    hashed before and after. The unmodified mirror runs first, as the control: 79 checks, 0 failures.
   - S-K4 plants into a copy of the REFERENCE (test/fixtures/wx/k35.ref.txt), so the label comparison is shown to be live.
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "src", "weatherscope")
@@ -22,22 +26,24 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 
+K35_CHECKS = 79   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+
 ROWS = ["dry-60", "approaching-60", "herenow-60", "warning-60", "stale-60", "clear-60", "approaching-30",
         "approaching-15", "dry-30", "dry-15"] + ["loop-%02d" % i for i in range(15)]
 
 # name: (file, [(anchor, replacement)], the registered failing set)
 SABOTAGES = {
-    "S-K1": ("WxRaster.h", [("kLabel{176, 176, 176}", "kLabel{184, 176, 176} /* SABOTAGE */")],
+    "S-K1": ("WxTheme.h", [("    {176, 176, 176},   // label\n", "    {184, 176, 176},   // label SABOTAGE\n")],
              {"K:" + r for r in ROWS}),
     "S-K2": ("WxScreens.h", [("        const int kx = 60 + in.loopIndex * 116 / (kLoopFrames - 1);",
                               "        const int kx = 60 + in.loopIndex * 120 / (kLoopFrames - 1);  // SABOTAGE")],
-             {"K:loop-%02d" % i for i in range(2, 15)}),
+             {p + "loop-%02d" % i for p in ("K:", "KL:") for i in range(2, 15)}),   # A12.64: the light knob moves too
     "S-K3": ("WxScreens.h", [("    const int travel = (fromDeg + 180) % 360;",
                               "    const int travel = fromDeg % 360;  // SABOTAGE")],
-             {"K:warning-60", "AR1PIX"}),
+             {"K:warning-60", "AR1PIX", "KL:warning-60"}),   # A12.64
     "S-K4": ("k35.ref.txt", None, {"K:dry-60"}),
     "S-K5": ("WxScreens.h", [("constexpr int64_t kStaleAfterS = 1800;", "constexpr int64_t kStaleAfterS = 3600;  // SABOTAGE")],
-             {"K:stale-60"}),
+             {"K:stale-60", "KL:stale-60"}),   # A12.64
 }
 
 
@@ -63,6 +69,7 @@ def plant_file(path, edits, name):
     src = open(path, encoding="utf-8").read().replace("\r\n", "\n")
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -87,23 +94,27 @@ def run(base, name):
                         TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, LOOP, os.path.join(base, "k35.ref.txt")], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout[-2000:]}")
-        sys.exit(2)
+        raise sc.Rig(name)
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
-    if not m or int(m.group(1)) != 28:
-        print(f"{name}: {m.group(1) if m else '?'} checks, not 28: the RIG")
-        sys.exit(2)
+    if not m or int(m.group(1)) != K35_CHECKS:
+        print(f"{name}: {m.group(1) if m else '?'} checks, not {K35_CHECKS}: the RIG")
+        raise sc.Rig(name)
     return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
 
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails = run(mirror(td, "control"), "control")
+        try:
+            rc, fails = run(mirror(td, "control"), "control")
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real code, mirrored): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
@@ -112,8 +123,17 @@ def main():
             if edits is None:
                 plant_ref(os.path.join(base, "k35.ref.txt"))
             else:
-                plant_file(os.path.join(base, "src", "weatherscope", target), edits, name)
-            rc, fails = run(base, name)
+                try:
+                    plant_file(os.path.join(base, "src", "weatherscope", target), edits, name)
+                except sc.Refused as e:   # Q50: not a result, and not as predicted
+                    print(f"{name}: REFUSED -- {e}")
+                    ok = False
+                    continue
+            res = rigs.run(name, run, base, name)
+            if res is None:
+                ok = False
+                continue
+            rc, fails = res
             good = rc == 1 and fails == expect
             shown = sorted(fails) if len(fails) <= 6 else f"{len(fails)} cases: {sorted(fails)[:3]} ..."
             want = sorted(expect) if len(expect) <= 6 else f"{len(expect)} cases"
@@ -124,8 +144,34 @@ def main():
     after = tree_sha()
     print(f"the real src/weatherscope, font and reference unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor, for --anchors (no plant runs). S-K4 plants the reference's first LABEL line of dry-60."""
+    out = []
+    for name, (target, edits, _) in SABOTAGES.items():
+        if edits is None:
+            out.append((name, os.path.relpath(REF, ROOT), sc.read(REF),
+                        lambda t: next(l for l in t.split("\n") if l.startswith("LABEL dry-60 "))))
+        else:
+            p = os.path.join(SRC, target)
+            out += [(name, os.path.relpath(p, ROOT), sc.read(p), a) for a, _ in edits]
+    return out
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_k35": ("checks", K35_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(mirror(td, "control"), "control")
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

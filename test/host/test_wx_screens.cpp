@@ -1,6 +1,7 @@
 // Weatherscope's scenario cycle and text helpers (src/weatherscope/WxScreens.h) against the truth table frozen in
-// docs/weatherscope-stage3.md A8.20, re-registered by A9.10: 15 named cases (CY1-CY7, WT1-WT5, CK1-CK3). 3.5a's
-// layout rules are test_wx_layout.cpp's. Its sabotages: python -I test/host/sabotage_wx_screens.py.
+// docs/weatherscope-stage3.md A8.20, re-registered by A9.10: 15 named cases (CY1-CY7, WT1-WT5, CK1-CK3), and 3.5b's
+// two (A12.53: CY8, CY9, the cycle with Bend's two scenarios): 17. 3.5a's layout rules are test_wx_layout.cpp's. Its
+// sabotages: python -I test/host/sabotage_wx_screens.py.
 
 #include <cstdio>
 #include <cstdlib>
@@ -76,6 +77,22 @@ void Cases()
         Step(c, 0, true);
         const bool a = Step(c, 30000, true);
         check("CY7", a && c.index == 4, "Warning -> index " + std::to_string(c.index));
+    }
+    {   // 3.5b (A12.53): with Bend's two, Clear is followed by Bend dry ...
+        Cycle c;
+        c.count = 8;
+        c.index = 5;
+        Step(c, 0, true);
+        const bool a = Step(c, 30000, true);
+        check("CY8", a && c.index == 6, "count 8: Clear -> index " + std::to_string(c.index));
+    }
+    {   // ... and Bend rain by Dallas's first
+        Cycle c;
+        c.count = 8;
+        c.index = 7;
+        Step(c, 0, true);
+        const bool a = Step(c, 30000, true);
+        check("CY9", a && c.index == 0, "count 8: Bend rain -> index " + std::to_string(c.index));
     }
 
     std::printf("== WT: the warning title ==\n");

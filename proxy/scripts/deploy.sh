@@ -28,10 +28,17 @@
 
 set -uo pipefail
 
+# --builder deploys the basemap builder Worker (basemap.wrangler.toml) instead of the proxy, through the SAME guards
+# (docs/basemap-deploy.md, Q2 and Q3 as ruled). Three things differ, each because the builder needs it: the stamp is
+# the FULL 40-hex commit (PROVENANCE pins it and --check checks it out), a dirty tree is refused with no ALLOW_DIRTY
+# escape (a "-dirty" stamp is not a commit, so the builder would refuse every build), and there is no /healthz to
+# confirm against (the builder has no route; D3's binding test is the proof).
+BUILDER=""
+if [ "${1:-}" = "--builder" ]; then BUILDER=1; shift; fi
 ENVIRONMENT="${1:-}"
 case "$ENVIRONMENT" in
   production|staging) ;;
-  *) echo "usage: $0 <production|staging>" >&2; exit 2 ;;
+  *) echo "usage: $0 [--builder] <production|staging>" >&2; exit 2 ;;
 esac
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
@@ -48,6 +55,12 @@ fatal() { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- %s\n' "$1" >&2; }
 # files count: an untracked .ts under src/ is every bit as importable as a tracked
 # one, and "it wasn't in git" is exactly the property that makes it dangerous.
 DIRTY="$(git status --porcelain -- proxy/)"
+if [ -n "$DIRTY" ] && [ -n "$BUILDER" ]; then
+  fatal "proxy/ has uncommitted changes, and the builder's stamp must be a commit (ALLOW_DIRTY does not apply to --builder)."
+  printf '\n%s\n\n' "$DIRTY" >&2
+  echo "A builder stamped <sha>-dirty refuses every build (builder_unstamped). Commit, push, and deploy from a clean tree." >&2
+  exit 1
+fi
 if [ -n "$DIRTY" ]; then
   if [ "${ALLOW_DIRTY:-}" != "1" ]; then
     fatal "proxy/ has uncommitted changes, and wrangler bundles the working tree."
@@ -124,13 +137,28 @@ fi
 # ---- 3. stamp what is actually being shipped --------------------------------
 SHA="$(git rev-parse --short HEAD)"
 [ -n "$DIRTY" ] && SHA="${SHA}-dirty"
+# The builder's stamp is the FULL commit: its PROVENANCE names it, and --check checks it out (a dirty tree never reaches here)
+[ -n "$BUILDER" ] && SHA="$(git rev-parse HEAD)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 printf 'deploying to \033[1m%s\033[0m\n' "$ENVIRONMENT"
 printf '  commit  %s  (%s)\n' "$SHA" "$BRANCH"
 printf '  subject %s\n\n' "$(git log -1 --format=%s)"
+[ -n "$BUILDER" ] && printf '  worker  the basemap BUILDER (basemap.wrangler.toml): no route, its R2 binding STORE\n\n'
 
 cd "$ROOT/proxy" || exit 1
+
+# ---- the builder: deploy, and say plainly how little that output proves -----
+# The proxy-only steps below do not apply: the builder holds no DEVICE_KEY_SECRET, and it has no route, so there is no
+# /healthz of its own to confirm against. What this output shows -- the stamp above and the STORE binding wrangler
+# lists -- is D2's ONLY confirmation, and it is the weak form. The proof is D3's binding test on staging: the proxy's
+# /healthz `basemap.commit`, read after one /basemap build, must equal the stamp above (docs/basemap-deploy.md, Q3).
+if [ -n "$BUILDER" ]; then
+  npx wrangler deploy --config basemap.wrangler.toml --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
+  printf '\nbuilder deployed to %s, stamped %s.\n' "$ENVIRONMENT" "$SHA"
+  printf 'NOT YET CONFIRMED: this output is the only evidence until a bound proxy reports this commit (D3).\n'
+  exit 0
+fi
 
 # ---- 3b. DEVICE_KEY_SECRET must exist in the target environment -------------
 # Since the shared BLIP_KEYS list was removed (2026-08-13), per-device keys are

@@ -6,6 +6,7 @@ import { handleEnrich } from "./enrich";
 import { recordFleetFirmware } from "./fleet";
 import { handleEnroll } from "./enroll";
 import { handleProvision } from "./provision";
+import { handleActivationAdmin } from "./activation";
 import { enrollHtml } from "./enrollpage";
 import { locateResponse } from "./locatepage";
 import {
@@ -26,6 +27,7 @@ import { feedHealth } from "./upstreams/chain";
 import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 import { handleWx, wxHealth } from "./wx/handler";
+import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS } from "./wx/products";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
@@ -45,7 +47,7 @@ import { PRODUCTS } from "./wx/products";
 // migration untestable: while both paths work, every check passes whichever one
 // the caller happens to be exercising, which is why the cutover was verified by
 // showing a SHARED response before an enrolled one rather than the reverse.
-async function authenticate(env: Env, request: Request): Promise<{ bucket: string } | { fakeId: true } | null> {
+async function authenticate(env: Env, request: Request): Promise<{ bucket: string; deviceId: string } | { fakeId: true } | null> {
   const provided = request.headers.get("X-Blip-Key") ?? "";
   if (!provided) return null;
 
@@ -64,7 +66,7 @@ async function authenticate(env: Env, request: Request): Promise<{ bucket: strin
   // never take the fleet down to enforce a list that is almost always empty.
   if (await isRevoked(env, deviceId)) return null;
 
-  if (await verifyDeviceKey(env, deviceId, provided)) return { bucket: `dev:${deviceId}` };
+  if (await verifyDeviceKey(env, deviceId, provided)) return { bucket: `dev:${deviceId}`, deviceId };
   return null;
 }
 
@@ -83,7 +85,11 @@ async function handleHealth(env: Env): Promise<Response> {
   //
   // `wx`: each weather product's newest-frame age, null when there is no frame (never a made-up age), or
   // "not_configured" while the WX bucket is unbound (docs/wx-server.md).
-  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS) });
+  //
+  // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
+  // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
+  // is bound.
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS), basemap: basemapHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
@@ -177,7 +183,10 @@ async function route(
   // Provisioning POSTs too, for the same reason: the board has no key yet. It is
   // authenticated by its OWN token, not a device key (src/provision.ts).
   const isProvisionSubmit = url.pathname === `${PAGE_PREFIX}/provision` && request.method === "POST";
-  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit && !isProvisionSubmit) {
+  // The activation list's edits, on the same bench credential (src/activation.ts).
+  const isActivationSubmit = url.pathname === `${PAGE_PREFIX}/activation` && request.method === "POST";
+  if (request.method !== "GET" && !isLeaderboardSubmit && !isEnrollSubmit && !isProvisionSubmit
+      && !isActivationSubmit) {
     return errorResponse(405, "method_not_allowed");
   }
 
@@ -271,6 +280,10 @@ async function route(
   // is a 405, never a page, because nothing about this route is for a browser.
   if (url.pathname === `${PAGE_PREFIX}/provision`) {
     return request.method === "POST" ? handleProvision(request, env) : errorResponse(405, "method_not_allowed");
+  }
+  // The activation allowlist's edits (docs/device-activation.md). POST only, like the mint.
+  if (url.pathname === `${PAGE_PREFIX}/activation`) {
+    return request.method === "POST" ? handleActivationAdmin(request, env) : errorResponse(405, "method_not_allowed");
   }
 
   // Public leaderboard: HTML board, its JSON, and per-device profiles. No key,
@@ -375,7 +388,7 @@ async function route(
   // handler, same auth, same status codes, byte-identical bodies -- which is the
   // alias contract, and is asserted path-family-by-path-family in the tests.
   if (api.suffix === "blips") return handleBlips(request, env, ctx, meta);
-  if (api.suffix === "config") return handleConfig(request, env);
+  if (api.suffix === "config") return handleConfig(request, env, auth.deviceId);   // the verified id, never the header
   if (api.suffix === "airports") return handleAirports(request, env);
   // Single airport by code (Follow's arc/globe endpoints, and C5's elevation).
   // Matched before the generic 404 and after the tiled overlay, so the two
@@ -390,6 +403,8 @@ async function route(
   // Weather under the planes: one WXC1 crop of the newest frame of <product> (docs/wx-server.md).
   const wxMatch = api.suffix.match(/^wx\/([^/]+)$/);
   if (wxMatch) return handleWx(request, env, wxMatch[1] as string);
+  // The map under the planes: one BMPK v1 package for a location and radius (docs/basemap-route.md).
+  if (api.suffix === "basemap") return handleBasemap(request, env, ctx, meta);
   return errorResponse(404, "not_found");
 }
 

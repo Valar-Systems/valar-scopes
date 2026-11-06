@@ -8,6 +8,9 @@ file's hash is compared before and after. The unmodified header runs first, as t
 """
 import hashlib, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxScenarios.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_scenarios.cpp")
@@ -38,6 +41,7 @@ def sha(p):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -53,11 +57,11 @@ def run(td, name, text):
                         "-I" + os.path.join(ROOT, "include"), TEST, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, LOOP], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {m.group(1) for m in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
 
@@ -65,21 +69,51 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails = run(td, "control", src)
+        try:
+            rc, fails = run(td, "control", src)
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real header): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (edits, expect) in SABOTAGES.items():
-            rc, fails = run(td, name, plant(name, edits, src))
+            res = rigs.run(name, run, td, name, plant(name, edits, src))
+            if res is None:
+                ok = False
+                continue
+            rc, fails = res
             good = rc == 1 and fails == expect
             print(f"{name}: failing {sorted(fails)}, predicted {sorted(expect)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
             ok &= good
     after = sha(HEADER)
     print(f"the real src/weatherscope/WxScenarios.h unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    return out
+
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+SCENARIOS_CHECKS = 12   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_scenarios": ("checks", SCENARIOS_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(td, "control", open(HEADER, encoding="utf-8").read().replace("\r\n", "\n"))
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

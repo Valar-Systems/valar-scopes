@@ -801,7 +801,7 @@ void AircraftManager::Initialise()
         // Said out loud, because "the screen is asking me to set a location" is a
         // support conversation and this is the line that answers it in one look.
         Serial.println("[config] no location set -- landing on Connect, which carries the QR");
-        if (!bootLandingDone) {
+        if (!bootLandingDone && InCarousel(Screen::Connect)) {
             screen = Screen::Connect;
             tookScreenForSetup = true;
         }
@@ -4353,14 +4353,14 @@ void AircraftManager::DrawScreenIndicator(BandCanvas& backbuffer) const
     // screen no swipe can select is a promise the device does not keep, which
     // is the same reason AdvanceScreen skips it rather than counting to four.
     //
-    // An unconditional -1 now, not a state test. While a session follow was
+    // From the one rule (InCarousel), never a state test. While a session follow was
     // running the old test said "visible" and drew a FOURTH dot -- on a face
     // the customer had reached by tapping a card -- advertising a swipe target
     // that AdvanceScreen refuses to walk to.
-    const int shown = SCREEN_COUNT - 1;
+    const int shown = CarouselCount();
     int slot = 0;
     for (int i = 0; i < SCREEN_COUNT; ++i) {
-        if ((Screen)i == Screen::Follow)
+        if (!InCarousel((Screen)i))
             continue;
         const bool active = (i == (int)screen);
         backbuffer.fillCircle(cx - (shown - 1) * 6 + slot * 12, y, active ? 3 : 2,
@@ -9462,7 +9462,7 @@ void AircraftManager::AdvanceScreen(int dir)
     int next = (int)screen;
     for (int i = 0; i < SCREEN_COUNT; ++i) {
         next = (next + dir + SCREEN_COUNT) % SCREEN_COUNT;
-        if ((Screen)next == Screen::Follow)
+        if (!InCarousel((Screen)next))
             continue;
         EnterScreen((Screen)next);
         // One line per swipe-driven screen change, so a long press can be shown never to change screen

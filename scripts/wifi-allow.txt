@@ -1,0 +1,19 @@
+# Documented examples the Wi-Fi guard allows (scripts/check_wifi.py; docs/wifi-scrub.md).
+# path<TAB>SHA-256 of the exact line, without its line ending<TAB>why. The hash pins the line without repeating
+# its value. An entry that matches no line (stale) or whose line has no finding (idle) is refused.
+README.md	cb9d5ff01cd7c1b536f1f2c22ce99dbe5d9ade38334387951907d6b81958649f	lan: the documented example address
+include/QrRender.h	625fdc00cef36b9bb494b3e28fe39abf0ae7120febbcc6922ff003f158269326	lan: an illustrated URL length
+proxy/test/locatepage.test.ts	c4bf8b4bf410a17bd7577d261664853757a8f5b3c48be23a8f53857e758d92b4	lan: a fixture of private hosts the page must refuse
+src/AircraftManager.cpp	81e1eaa9d3f65db511ec3e29cd06aaa16f18f84f6f6dae17a4eeaffa520d93ca	lan: the documented example address, in a comment
+src/ConfigurationWebServer.cpp	2257def1cc98a17ed816fe922d0a1988f0cbf44ae4f7dd7647e7077c13057505	lan: a config-form placeholder= hint
+src/ConfigurationWebServer.cpp	e180c6d598f3745471f3e2a04b6aac3530bbff4a63beb70c1eccdbbafec2d2b5	lan: a config-form placeholder= hint
+src/ConfigurationWebServer.cpp	13202ac0fcfe24fd43b27c51cbc21252cc0513a0165026c25d73f6c6100c61bb	lan: a config-form placeholder= hint
+src/ConfigurationWebServer.cpp	8b86c60395f8d7efe28a3bdc34f97cda51ff8224650fb941d937604ee2fbbd05	lan: a config-form placeholder= hint
+src/speed/SpeedFeedClient.h	f70c34ccab2a511d6c880c15eaa7fa85f446c18f9751786044a486a13c88cf0c	lan: the documented example address, in a comment
+tools/claudescope-sidecar/README.md	4ccb6d9e2ae691460437b99aff1683624544cb2e01108dc851438a8103064f9b	lan: the documented example address
+scripts/redact-vectors.txt	1db96a30fa904b0801fd5c552e9a0129d2819c847576842f4551e3435fbb5bb4	name: a redaction-test input, deliberately unredacted (the scan list)
+scripts/redact-vectors.txt	c77580c6f697c62a3b84adb931e65ba4c23131d2b0abef60de077432bbcbe1fc	name: a redaction-test input, deliberately unredacted (the DUP form)
+scripts/redact-vectors.txt	42189bbeb721f337335c32d1443671f1d7e4119f48049673cd47b598b2ac16bf	name: a redaction-test input, deliberately unredacted (the scan entry's HTML)
+scripts/wifi-join-capture.ps1	6d501725d765cdc12bff6fc4679f42bd5220cb4862fc6dd92e300e00d474a02c	name: a usage example
+include/WiFiManagerHelpers.h	1fb35d0f4c8cb8d54b53a9be715250a7e563b93a49bf80a84e9bbd41e07ee446	name: a comment showing the scan entry's HTML
+src/AircraftManager.cpp	67deab6f1ed39c9d7af1cbd885d1947f389b5cb66b185ce8a7533a65fcce52c4	name: UI copy for an absent SSID, not a network

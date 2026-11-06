@@ -28,12 +28,12 @@
 10:28:50 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
 10:28:53 *wm:23 networks found
 10:29:09 *wm:Connect Wifi, ATTEMPT # 1 of 5
-10:29:10 *wm:Connecting to NEW AP: Tony
-10:29:10 [WiFi] Associated with "Tony", waiting for IP...
-10:29:14 [WiFi] CONNECTED  IP=192.168.86.62  RSSI=-34 dBm
+10:29:10 *wm:Connecting to NEW AP: <ssid redacted>
+10:29:10 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+10:29:14 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-34 dBm
 10:29:15 *wm:Connect to new AP [SUCCESS] 
 10:29:15 *wm:Got IP Address: 
-10:29:15 *wm:192.168.86.62 
+10:29:15 *wm:<lan-ip redacted> 
 10:29:15 [WiFi] Portal saved credentials, attempting to connect...
 10:29:15 *wm:config portal exiting 
 10:29:16 [WiFi] autoConnect() returned true (connected)
@@ -62,12 +62,12 @@
 10:29:21 [  3415][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
 10:29:21 *wm:AutoConnect 
 10:29:21 *wm:Connect Wifi, ATTEMPT # 1 of 5
-10:29:21 *wm:Connecting to SAVED AP: Tony
+10:29:21 *wm:Connecting to SAVED AP: <ssid redacted>
 10:29:21 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
-10:29:21 [WiFi] Associated with "Tony", waiting for IP...
-10:29:22 [WiFi] CONNECTED  IP=192.168.86.62  RSSI=-41 dBm
+10:29:21 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+10:29:22 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-41 dBm
 10:29:23 *wm:AutoConnect: SUCCESS 
-10:29:24 *wm:STA IP Address: 192.168.86.62
+10:29:24 *wm:STA IP Address: <lan-ip redacted>
 10:29:24 [WiFi] autoConnect() returned true (connected)
 10:29:24 [WiFi] pinned AP ch=1 RSSI=-41 dBm for the next boot
 10:29:28 [ota] channel=s3-128 current=8 latest=8

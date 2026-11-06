@@ -255,9 +255,9 @@
 09:41:45 [WiFi] credentials saved: portal will time out after 180 s and retry them
 09:41:45 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 09:41:45 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
-09:41:48 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
-09:41:48 [WiFi] Associated with "Tony", waiting for IP...
-09:41:48 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-54 dBm
+09:41:48 [WiFi] fast join: ch=1 bssid=<bssid redacted>
+09:41:48 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+09:41:48 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-54 dBm
 09:41:50 [WiFi] fast join OK in 1650 ms
 09:41:50 [WiFi] pinned AP ch=1 RSSI=-54 dBm for the next boot
 09:41:58 [ota] channel=s3-128 current=8 latest=8
@@ -376,9 +376,9 @@
 09:50:22 [WiFi] credentials saved: portal will time out after 180 s and retry them
 09:50:22 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 09:50:22 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
-09:50:25 [WiFi] fast join: ch=1 bssid=60:B7:6E:8D:38:2A
-09:50:25 [WiFi] Associated with "Tony", waiting for IP...
-09:50:25 [WiFi] CONNECTED  IP=192.168.86.32  RSSI=-51 dBm
+09:50:25 [WiFi] fast join: ch=1 bssid=<bssid redacted>
+09:50:25 [WiFi] Associated with "<ssid redacted>", waiting for IP...
+09:50:25 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-51 dBm
 09:50:27 [WiFi] fast join OK in 1700 ms
 09:50:27 [WiFi] pinned AP ch=1 RSSI=-51 dBm for the next boot
 09:50:35 [ota] channel=s3-128 current=8 latest=8

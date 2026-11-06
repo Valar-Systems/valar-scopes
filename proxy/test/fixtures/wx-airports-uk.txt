@@ -1,0 +1,11 @@
+# Public airports for the opuk tests (docs/wx-opuk.md K5, K12): IATA code (PHNL by ICAO), lat, lon at 2 dp, from OurAirports (public domain)
+LHR 51.47 -0.46
+MAN 53.35 -2.28
+EDI 55.95 -3.37
+GLA 55.87 -4.43
+BFS 54.66 -6.22
+ABZ 57.20 -2.20
+CWL 51.40 -3.34
+NQY 50.44 -5.00
+CDG 49.01 2.55
+PHNL 21.32 -157.93

@@ -24,6 +24,7 @@
 #endif
 #ifdef FEATURE_WEATHERSCOPE
 #include "FrameBuffer.h"           // the radar's /diag/fb, served by Weatherscope too (A8.7)
+#include "DiagText.h"              // /diag/wx: the bench records over Wi-Fi (A9.42)
 #include <esp_heap_caps.h>
 #include <memory>
 #endif
@@ -2508,6 +2509,15 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <input name="brightness" type="range" min="10" max="255" value='%BRIGHTNESS%'>
                         <span id="brival" class="hint"></span>
                     </label>
+                    <label class="field mt">
+                        <span>Theme:</span>
+                        <select name="wx-theme" class="grow">
+                            <option value="auto" %THEME_AUTO%>Auto</option>
+                            <option value="light" %THEME_LIGHT%>Light</option>
+                            <option value="dark" %THEME_DARK%>Dark</option>
+                        </select>
+                    </label>
+                    <span class="hint">Auto follows the sun at your location: light by day, dark at night.</span>
                 </fieldset>
 
                 <div class="savebar">
@@ -3139,6 +3149,7 @@ void ConfigurationWebServer::Initialise() {
         const String longitude = HtmlEscape(prefs.getString("longitude", ""));
         const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
+        const String theme = prefs.getString("wx-theme", "");   // compared, never emitted (3.5t t5, A12.66)
 #endif
         prefs.end();
 
@@ -3512,12 +3523,16 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness]
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness, theme]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
                 if (var == "AUTODIM")        return autoDimEnabled == "true" ? "checked" : "";
                 if (var == "BRIGHTNESS")     return brightness;
+                // the stored theme selected; absent or unknown selects Auto, as the device reads it (A12.66)
+                if (var == "THEME_LIGHT")    return theme == "light" ? "selected" : "";
+                if (var == "THEME_DARK")     return theme == "dark" ? "selected" : "";
+                if (var == "THEME_AUTO")     return theme != "light" && theme != "dark" ? "selected" : "";
                 if (var == "FW_VERSION")     return String(FW_VERSION);
                 // Free function, so no capture list changes -- every edition's
                 // processor answers this identically. See BuildIdentity.h.
@@ -3601,6 +3616,9 @@ void ConfigurationWebServer::Initialise() {
         // was there beats overwriting a working location with a typo -- and the
         // field name is collected so the response can name it.
         String badCoord;
+#ifdef FEATURE_WEATHERSCOPE
+        bool badTheme = false;   // 3.5t t5 (A12.66): a wx-theme outside the set, refused
+#endif
         auto TrySaveCoord = [request, &prefs, &badCoord](const char* paramName, bool isLat) {
             const auto* param = request->getParam(paramName, true);
             if (param == nullptr)
@@ -3988,6 +4006,18 @@ void ConfigurationWebServer::Initialise() {
 
         // checkboxes: absent in the body when unchecked, so hasParam() is the on/off signal
         SaveToggle("autodim");
+
+        // 3.5t t5 (A12.66): the theme is only ever one of the three. A value outside the set is REFUSED -- nothing is
+        // written, and the reply says so -- never coerced into a member; an absent field (a partial POST) is left alone.
+        if (const auto* p = request->getParam("wx-theme", true)) {
+            const String v = p->value();
+            if (v == "auto" || v == "light" || v == "dark") {
+                prefs.putString("wx-theme", v);
+            } else {
+                badTheme = true;
+                Serial.println("[POST] rejected wx-theme: not auto, light or dark");
+            }
+        }
 #endif
         // Read the STORED location back before closing, so the warning below
         // reflects what the device will actually run with -- not merely what this
@@ -4007,6 +4037,13 @@ void ConfigurationWebServer::Initialise() {
         // means a JS-less client, so the reply has to carry the whole message
         // including an example of a good value. The word MISSING keeps the
         // existing red-and-bold styling in the status bar.
+#ifdef FEATURE_WEATHERSCOPE
+        if (badTheme) {
+            request->send(200, "text/html",
+                          "Saved the other settings, but the theme was NOT SAVED: it must be auto, light or dark.");
+            return;
+        }
+#endif
         if (!badCoord.isEmpty()) {
             const bool isLat = badCoord.endsWith("lat") || badCoord == "latitude";
             request->send(200, "text/html",
@@ -4324,6 +4361,52 @@ void ConfigurationWebServer::Initialise() {
     // ---- /diag/fb.html : the same thing, for a person --------------------
     server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send_P(200, "text/html", FB_VIEWER_HTML);
+    });
+#endif
+
+#ifdef FEATURE_WEATHERSCOPE
+    // ---- /diag/wx : Weatherscope's bench records, over Wi-Fi (docs/weatherscope-stage3.md A9.42) ----
+    // DIAG ONLY. The same text as the stored-mode 'R', for the conditions serial cannot carry: a port nothing has
+    // opened, and a charger with no host. The loop renders it on its next frame (DiagText.h); this waits at most
+    // 500 ms for it, copies it into its own PSRAM buffer, checks the copy was not superseded, and streams the copy.
+    // Read-only: unlike 'R', it clears nothing.
+    server.on("/diag/wx", HTTP_GET, [](AsyncWebServerRequest* request) {
+        const uint32_t n = diagtext::Request();
+        const uint32_t t0 = millis();
+        size_t len = 0;
+        const char* text = nullptr;
+        while (!(text = diagtext::Answer(n, &len)) && millis() - t0 < 500) vTaskDelay(1);
+        if (!text) {
+            request->send(503, "text/plain", "the loop did not answer within 500 ms\n");
+            return;
+        }
+        char* copy = (char*)heap_caps_malloc(len ? len : 1, MALLOC_CAP_SPIRAM);
+        if (!copy) {
+            request->send(503, "text/plain", "out of PSRAM for the copy\n");
+            return;
+        }
+        memcpy(copy, text, len);
+        size_t len2 = 0;
+        if (diagtext::Answer(n, &len2) != text || len2 != len) {   // a newer request replaced it during the copy
+            heap_caps_free(copy);
+            request->send(503, "text/plain", "superseded by a newer request\n");
+            return;
+        }
+        std::shared_ptr<char> buf(copy, [](char* p) { heap_caps_free(p); });
+        auto sent = std::make_shared<size_t>(0);
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "text/plain", [buf, len, sent](uint8_t* out, size_t maxLen, size_t) -> size_t {
+                const size_t left = len - *sent;
+                const size_t k = left < maxLen ? left : maxLen;
+                if (k > 0) {
+                    memcpy(out, buf.get() + *sent, k);
+                    *sent += k;
+                }
+                return k;
+            });
+        r->addHeader("Cache-Control", "no-store");
+        r->addHeader("X-Weatherscope-Wait-Ms", String(millis() - t0));
+        request->send(r);
     });
 #endif
 

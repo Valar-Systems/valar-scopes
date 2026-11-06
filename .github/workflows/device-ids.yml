@@ -19,13 +19,21 @@ concurrency:
 
 jobs:
   no-real-device-ids:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      # No committed file carries a BSSID beyond the 13 named logs (docs/bssid-guard.md), and the
-      # recorders' two redaction implementations agree. pwsh is on the ubuntu image.
-      - run: python3 scripts/check_bssid.py
-      - run: python3 scripts/check_bssid.py --selftest
+      # No committed file names the bench network: a network name in an association or ssid context, a
+      # BSSID, a private LAN address (docs/wifi-scrub.md; it absorbed check_bssid.py). And the recorders'
+      # two redaction implementations agree. pwsh is on the ubuntu image.
+      - run: python3 scripts/check_wifi.py
+      - run: python3 scripts/check_wifi.py --selftest
+      # What check_wifi.py EXCUSES, read (docs/weatherscope-stage3.md A12.113): every binary it cannot decode has its
+      # strings scanned under check_wifi.py's own patterns plus a user-directory path, and its photos' EXIF and XMP
+      # checked for location. Fonts are third-party and allowed by hash. The selftest plants into real copies first.
+      - run: python3 scripts/check_binary_strings.py --selftest
+      # Each sabotage, planted into a copy of the script, must turn exactly its frozen rows red (A12.116).
+      - run: python3 scripts/check_binary_strings.py --sabotage
+      - run: python3 scripts/check_binary_strings.py
       - run: python3 scripts/check_redaction_vectors.py
       - run: python3 scripts/check_redaction_vectors.py --selftest
       # Full history is NOT needed and is not wanted: this scans the tree at

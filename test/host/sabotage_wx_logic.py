@@ -13,6 +13,9 @@ Method, fixed before any run:
 """
 import hashlib, os, re, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "weatherscope", "WxLogic.h")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_logic.cpp")
@@ -47,9 +50,10 @@ SABOTAGES = {
               "inline int KtToMph(double kt) { return (int)(kt * kMphPerKt); }  // SABOTAGE")], {"U1", "U3", "U4"}),
     # S-L, re-registered for Q13 (A9.10): every "city", in any case, stripped -- so "Oklahoma City city" loses both
     "S-L": ([("    if (n >= 5 && strcmp(out + n - 5, \" city\") == 0) out[n - 5] = '\\0';",
-              "    for (char* q = out; *q; ++q) if ((q[0] | 32) == 'c' && (q[1] | 32) == 'i' && (q[2] | 32) == 't' && (q[3] | 32) == 'y')"
-              " { memmove(q, q + 4, strlen(q + 4) + 1); --q; }"
-              " for (size_t k = strlen(out); k > 0 && out[k - 1] == ' ';) out[--k] = '\\0'; (void)n;  // SABOTAGE")],
+              # braces on both bodies: g++ 13.3's -Wmisleading-indentation refused the unbraced ones (A12.73)
+              "    for (char* q = out; *q; ++q) { if ((q[0] | 32) == 'c' && (q[1] | 32) == 'i' && (q[2] | 32) == 't' && (q[3] | 32) == 'y')"
+              " { memmove(q, q + 4, strlen(q + 4) + 1); --q; } }"
+              " for (size_t k = strlen(out); k > 0 && out[k - 1] == ' ';) { out[--k] = '\\0'; } (void)n;  // SABOTAGE")],
             {"L4"}),
     "S-H1": ([("    for (size_t e = 0; e < n; ++e) {", "    for (size_t e = 0; e < (n ? 1u : 0u); ++e) {  // SABOTAGE")],
              {"H8", "H20"}),
@@ -58,7 +62,10 @@ SABOTAGES = {
               ('|| Is2(p, "GS") || Is2(p, "UP"); }', '|| Is2(p, "GS") || Is2(p, "UP") || Is2(p, "SN"); }  // SABOTAGE')],
              {"H4", "H7", "H9", "H20"}),
     "S-H3": ([("        if (SnowCode(g + i)) *snow = true;",
-               "        if (*snow || *rain) return; if (SnowCode(g + i)) *snow = true;  // SABOTAGE: the first token decides")],
+               # Q70 (a): two lines, not one -- `if (...) return; if (...)` on one line is -Werror=misleading-indentation
+               # under g++ 13.3, so the plant never compiled there (A12.82)
+               "        if (*snow || *rain) return;\n"
+               "        if (SnowCode(g + i)) *snow = true;  // SABOTAGE: the first token decides")],
              {"H9", "H20"}),
     "S-H4": ([("    if (nowUtc - obsUtc > kObsMaxAgeS) return Precip::None;",
                "    if (nowUtc - obsUtc >= kObsMaxAgeS) return Precip::None;  // SABOTAGE")], {"H22"}),
@@ -88,6 +95,7 @@ def sha(path):
 def plant(name, edits, src):
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -103,11 +111,11 @@ def run(td, name, header_text):
                        capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     r = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the suite did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     fails = {m.group(1) for m in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
     return r.returncode, fails
 
@@ -116,13 +124,21 @@ def main():
     before = sha(HEADER)
     src = open(HEADER, encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        rc, fails = run(td, "control", src)
+        try:
+            rc, fails = run(td, "control", src)
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (the real header): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (edits, expect) in SABOTAGES.items():
-            rc, fails = run(td, name, plant(name, edits, src))
+            res = rigs.run(name, run, td, name, plant(name, edits, src))
+            if res is None:
+                ok = False
+                continue
+            rc, fails = res
             graded = fails if "RK" in expect else fails - {"RK"}
             good = rc == 1 and graded == expect
             rk_note = "" if "RK" in expect else f"  (RK, not graded here: {'FAIL' if 'RK' in fails else 'ok'})"
@@ -132,8 +148,30 @@ def main():
     after = sha(HEADER)
     print(f"the real src/weatherscope/WxLogic.h unchanged: {before == after} ({after[:12]})")
     print(f"{len(SABOTAGES)} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor in the header it plants, for --anchors (no plant runs)."""
+    src = sc.read(HEADER)
+    out = [(name, os.path.relpath(HEADER, ROOT), src, a) for name, entry in SABOTAGES.items() for a, _ in entry[0]]
+    return out
+
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+LOGIC_CHECKS = 121   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_logic": ("checks", LOGIC_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        run(td, "control", open(HEADER, encoding="utf-8").read().replace("\r\n", "\n"))
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

@@ -86,7 +86,7 @@
  * produced. RULE_REV is folded into the shard hash so a change to that rule
  * re-diffs every shard instead of silently writing nothing.
  */
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -95,6 +95,7 @@ import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
 import { q, sh } from "./shquote";
+import { TokenFileError, resolveTestIdentity } from "./token-file";
 
 /** One request for the whole corpus, from the CC0 source of record. */
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
@@ -510,22 +511,29 @@ async function main() {
   const base = args.env === "production"
     ? "https://scopes.valarsystems.com"
     : "https://scopes-staging.valarsystems.com";
-  const key = process.env["BLIP_KEY"] ?? "";
-  const device = process.env["BLIP_DEVICE"] ?? "";
+  // The TEST identity (docs/test-identity.md, Q-T3), never a board's pair: resolveTestIdentity refuses BLIP_KEY/
+  // BLIP_DEVICE and records-device. Never printed, and never on a command line (the read-back below sends it on stdin).
+  let key = "", device = "", why = "";
+  try {
+    ({ key, device } = resolveTestIdentity(args.env === "production" ? "production" : "staging"));
+  } catch (e) {
+    if (!(e instanceof TokenFileError)) throw e;
+    why = e.message;
+  }
   if (!key || !device) {
-    console.error("REFUSING: BLIP_KEY/BLIP_DEVICE are unset, so nothing can be read back through");
+    console.error("REFUSING: no test identity, so nothing can be read back through");
+    if (why) console.error("  (the token file: " + why + ")");
     console.error("the live path. An unverified build must not publish a fresh row count.");
     process.exit(1);
   }
+  // curl reads both headers from STDIN (-K -): the key is never a process argument (docs/test-identity.md, item 7)
+  const authConfig = `header = "X-Blip-Key: ${key}"\nheader = "X-Blip-Device: ${device}"\n`;
 
   /** GET /v1/enrich for one callsign. Returns null when the request itself failed. */
   const enrich = (cs: string): { o?: string; d?: string } | null => {
     const url = `${base}/v1/enrich/000000?cs=${cs}`;
     try {
-      const body = execSync(
-        `curl -s --max-time 25 -H ${q(`X-Blip-Key: ${key}`)} -H ${q(`X-Blip-Device: ${device}`)} ${q(url)}`,
-        { encoding: "utf8" },
-      );
+      const body = execFileSync("curl", ["-s", "--max-time", "25", "-K", "-", url], { encoding: "utf8", input: authConfig });
       return JSON.parse(body) as { o?: string; d?: string };
     } catch (e) {
       // DO NOT PRINT THE ERROR MESSAGE. execSync puts the whole failed command in

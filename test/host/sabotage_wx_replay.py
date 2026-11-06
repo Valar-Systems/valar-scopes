@@ -1,18 +1,24 @@
 """Runs test_wx_replay.cpp and test_wx_k35.cpp against SABOTAGED copies of src/weatherscope/WxScreens.h. Each must fail
-EXACTLY the sets registered in docs/weatherscope-stage3.md A9.23, and nothing else.
+EXACTLY the sets registered in docs/weatherscope-stage3.md A9.23, and nothing else; 3.5t t4's rows (RP light, RP-T,
+K-light) each plant reaches were registered in A12.64 (Q60) before it ran.
 
     python -I test/host/sabotage_wx_replay.py
 
   S-RP1  a layer kept across a zoom change: SameLayer ignores the radius.
-         test_wx_replay fails exactly the 60 rows at 30 and 15 mi, in both warning states; test_wx_k35 fails nothing.
+         test_wx_replay fails exactly the 60 rows at 30 and 15 mi, in both warning states, and the same 60 in Light
+         (120); test_wx_k35 fails nothing.
   S-RP2  one label missing from the layer: the build erases its first placed label's box from the layer's image.
-         test_wx_replay fails all 90 rows; test_wx_k35 fails exactly the 15 K:loop rows.
+         test_wx_replay fails all 90 rows, all 90 in Light and RP-T's 15 (195); test_wx_k35 fails exactly the 15 K:loop
+         rows and the 15 KL:loop rows (30).
 
 The plants go into a MIRROR of src/weatherscope (and the font WxRaster.h includes by a relative path), never the real
 files; each asserts its anchor occurs once and that the copy differs; the real files are hashed before and after.
-The unmodified mirror runs first, as the control: 90/0 and 28/0.
+The unmodified mirror runs first, as the control: 195/0 and 79/0.
 """
 import hashlib, os, re, shutil, subprocess, sys, tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "src", "weatherscope")
@@ -25,8 +31,12 @@ CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolch
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"] + (
     ["-static-libgcc", "-static-libstdc++"] if "mingw" in CXX.lower() else [])
 
-ROWS = {w: [f"RP:{w}-{R}-{i:02d}" for R in (60, 30, 15) for i in range(15)] for w in ("off", "warn")}
-KLOOP = {f"K:loop-{i:02d}" for i in range(15)}
+REPLAY_CHECKS, K35_CHECKS = 195, 79   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+
+ROWS = {w: [f"{p}:{w}-{R}-{i:02d}" for p in ("RP", "RPL") for R in (60, 30, 15) for i in range(15)]   # RPL: A12.64
+        for w in ("off", "warn")}
+RPT = {f"RPT:dallas-{i:02d}" for i in range(15)}   # A12.64
+KLOOP = {f"{p}:loop-{i:02d}" for p in ("K", "KL") for i in range(15)}   # KL: A12.64
 
 SABOTAGES = {
     "S-RP1": ([("inline bool SameLayer(const LayerKey& a, const LayerKey& b) { return memcmp(&a, &b, sizeof a) == 0; }",
@@ -42,7 +52,7 @@ SABOTAGES = {
                 "            for (int x = e.x0; x <= e.x1; ++x)\n"
                 "                if (x >= 0 && x < 240 && y >= 0 && y < 240) q[y * 240 + x] = 0;\n"
                 "    }\n")],
-              {"replay": set(ROWS["off"]) | set(ROWS["warn"]), "k35": KLOOP}),
+              {"replay": set(ROWS["off"]) | set(ROWS["warn"]) | RPT, "k35": KLOOP}),
 }
 
 
@@ -66,6 +76,7 @@ def plant(path, edits, name):
     src = open(path, encoding="utf-8").read().replace("\r\n", "\n")
     out = src
     for anchor, repl in edits:
+        sc.prove_colour(name, anchor, repl)   # Q50: refuses a colour the panel cannot see
         assert out.count(anchor) == 1, f"{name}: anchor found {out.count(anchor)} times, need exactly 1:\n{anchor}"
         out = out.replace(anchor, repl)
     assert out != src, f"{name}: the copy is identical -- the sabotage did not apply"
@@ -78,32 +89,44 @@ def run(base, name, which):
                         TESTS[which], "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}/{which}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     args = [exe, LOOP] if which == "replay" else [exe, LOOP, REF]
     r = subprocess.run(args, capture_output=True, text=True)
-    want = 90 if which == "replay" else 28
+    want = REPLAY_CHECKS if which == "replay" else K35_CHECKS
     m = re.search(r"^(\d+) checks, (\d+) failures$", r.stdout, re.M)
     if r.returncode not in (0, 1) or not m or int(m.group(1)) != want:
         print(f"{name}/{which}: exit {r.returncode}, {m.group(1) if m else '?'} checks (want {want}): the RIG")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {x.group(1) for x in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}
 
 
 def main():
     before = tree_sha()
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
         base = mirror(td, "control")
         for which in ("replay", "k35"):
-            rc, fails = run(base, "control", which)
+            try:
+                rc, fails = run(base, "control", which)
+            except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+                return 2
             good = rc == 0 and not fails
             print(f"control/{which}: exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
             ok &= good
         for name, (edits, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             base = mirror(td, name)
             plant(os.path.join(base, "src", "weatherscope", "WxScreens.h"), edits, name)
             for which in ("replay", "k35"):
-                rc, fails = run(base, name, which)
+                try:
+                    rc, fails = run(base, name, which)
+                except sc.Rig:
+                    rigs.add(name)
+                    ok = False
+                    break
                 want = expect[which]
                 good = fails == want and rc == (1 if want else 0)
                 print(f"{name}/{which}: failing {len(fails)} {sorted(fails)[:3]}{' ...' if len(fails) > 3 else ''}, "
@@ -114,8 +137,29 @@ def main():
     after = tree_sha()
     print(f"the real src/weatherscope, font and reference unchanged: {before == after} ({after[:12]})")
     print("2 sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: every plant's anchor in WxScreens.h, for --anchors (no plant runs)."""
+    p = os.path.join(SRC, "WxScreens.h")
+    return [(name, os.path.relpath(p, ROOT), sc.read(p), a) for name, (edits, _) in SABOTAGES.items() for a, _ in edits]
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+CONTROL_TABLE = {"test_wx_replay": ("checks", REPLAY_CHECKS), "test_wx_k35": ("checks", K35_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        base = mirror(td, "control")
+        for which in ("replay", "k35"):
+            run(base, "control", which)
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main())

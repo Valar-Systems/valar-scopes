@@ -1,0 +1,40 @@
+  ok   boot psram_used: 227168 (want 227144 +/- 2000)
+  ok   boot psram_base: {'image': '58356', 'state': '9972', 'scratch': '4596', 'ok': '1'}
+  ok   boot theme: the init line reads theme=auto read=known (want theme=auto read=known)
+  ok   the four references regenerate identically (164 rows)
+  ok   B1-dark approaching-60: frame and lines exact
+  ok   B1-dark herenow-60: frame and lines exact
+  ok   B1-dark warning-60: frame and lines exact
+  ok   B1-dark stale-60: frame and lines exact
+  ok   B1-dark clear-60: frame and lines exact
+  ok   B1-dark bdry-60-B: frame and lines exact
+  ok   B1-dark brain-60-B: frame and lines exact
+  ok   B1-dark dry-60: frame and lines exact
+  ok   B1-dark bdry-60-C: frame and lines exact
+  ok   B1-dark brain-60-C: frame and lines exact
+  ok   B1-light herenow-60: frame and lines exact
+  ok   B1-light warning-60: frame and lines exact
+  ok   B1-light stale-60: frame and lines exact
+  ok   B1-light clear-60: frame and lines exact
+  ok   B1-light bdry-60-B: frame and lines exact
+  ok   B1-light brain-60-B: frame and lines exact
+  ok   B1-light dry-60: frame and lines exact
+  ok   B1-light approaching-60: frame and lines exact
+  ok   B1-light bdry-60-C: frame and lines exact
+  ok   B1-light brain-60-C: frame and lines exact
+  B1: 20 captures graded
+  ok   B3-dark: legend_check --theme dark exit 0
+  ok   B3-light: legend_check --theme light exit 0
+  ok   BSW offsets: 96 offset lines, +15 ... +1425 then 0
+  ok   BSW location: the last init line before BSW: location=set
+  ok   BSW phase changes: 2 phase changes across the 96 presses
+  ok   BSW switches: 2 [wx] theme= lines: ['dark->light', 'light->dark']
+  ok   BSW dims: 2 [wx] dim= lines (autodim=1: want 2)
+  ok   BSW recompose: 2 of 2 switches followed by their recompose
+  ok   SW base row: the base line at each switch on Bend: ['no', 'no'] (want ['no', 'no'])
+  FAIL BSW build reasons: 3 builds with why=theme in the R dump
+  ok   BSW-L the press inside the loop: 1 offset line(s) between the loop's start and its records
+  ok   BSW-L layer: layer_rebuilds=0
+  ok   BSW-L deferred: the switch printed after the loop's records
+  ok   watcher: 0 unexplained
+NOT ALL AS PREDICTED

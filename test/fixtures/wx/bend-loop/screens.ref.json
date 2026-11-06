@@ -1,0 +1,87 @@
+{
+ "what": "3.5b B2-Bend: render_ref.py's render() per Bend loop frame at 60 mi (A12.55); sha256 of the 240x240 code buffer",
+ "renderRef": "test/fixtures/wx/render_ref.py",
+ "spikeCommit": "a5db67830230196d701126a87aae43e9ba2e7862",
+ "a3CheckSha256": "6528919ba96b58149e813ff71bafbc2b05081cc0be466db2a3523566870392f9",
+ "anchor": {
+  "crop": "kdfw-60mi.wxc",
+  "screenSha256": "344383b4cfae04eec5a7a844cfb5f1b9aaa4ce8fa15f30d1b956d4e86ac05225"
+ },
+ "frames": [
+  {
+   "name": "shsr-20240602-191000.wxc",
+   "frameEpoch": 1717355400,
+   "screenSha256": "268d41f2bc8dd9fed787fc6570f495ab142b3221ed22f9b98299dac3d97cf0e1"
+  },
+  {
+   "name": "shsr-20240602-191400.wxc",
+   "frameEpoch": 1717355640,
+   "screenSha256": "7e5bdea26cd6482033b55963d39da6c839d86b43d5ca27277a8b08a40fd52619"
+  },
+  {
+   "name": "shsr-20240602-191800.wxc",
+   "frameEpoch": 1717355880,
+   "screenSha256": "0caee00dd9a6eb07d929ea6f42c133b32560bf070bbd364a65ad4315cf015df0"
+  },
+  {
+   "name": "shsr-20240602-192200.wxc",
+   "frameEpoch": 1717356120,
+   "screenSha256": "67b5ba626398cf698a675b78175fde78c4c37d3ff8dafbef41fe461d9721563b"
+  },
+  {
+   "name": "shsr-20240602-192600.wxc",
+   "frameEpoch": 1717356360,
+   "screenSha256": "bc1a907c570dfe896d57fbec485bf3ae06bf0581325fc53a66feeda87ec0ed58"
+  },
+  {
+   "name": "shsr-20240602-193000.wxc",
+   "frameEpoch": 1717356600,
+   "screenSha256": "2dfdf348029c637dd10831f214d57561d0005b5acda7fe27e3ec27532b4df251"
+  },
+  {
+   "name": "shsr-20240602-193400.wxc",
+   "frameEpoch": 1717356840,
+   "screenSha256": "8adafdad99221c7d45cb806f5af4dcd4d71267c65067b07fc672a5f7ed066bef"
+  },
+  {
+   "name": "shsr-20240602-193800.wxc",
+   "frameEpoch": 1717357080,
+   "screenSha256": "9bafc104520384ceb556995ec3ef456b99e1c9fea6e70242f83f7f64079350dd"
+  },
+  {
+   "name": "shsr-20240602-194200.wxc",
+   "frameEpoch": 1717357320,
+   "screenSha256": "4ff7f25a7954136663cb2e20798ed02a35bcac726b7a4d4b4ae1bd4165cbc867"
+  },
+  {
+   "name": "shsr-20240602-194600.wxc",
+   "frameEpoch": 1717357560,
+   "screenSha256": "b467739593fe3352865645da8dc4a455a32d698748f3c85441e5086181fe673d"
+  },
+  {
+   "name": "shsr-20240602-195000.wxc",
+   "frameEpoch": 1717357800,
+   "screenSha256": "3480ec12bf5c952a5681caa164066c43a111ae38bd8f6afd166fcb41d68bf5cb"
+  },
+  {
+   "name": "shsr-20240602-195400.wxc",
+   "frameEpoch": 1717358040,
+   "screenSha256": "7eff874ac3f98ef19523805421d8409f73a6bdd50fd17b62008031170bf1785b"
+  },
+  {
+   "name": "shsr-20240602-195800.wxc",
+   "frameEpoch": 1717358280,
+   "screenSha256": "16bf6f95cd4950d13eab4150e1609ad1eda0514e8a1d9eb92de57697434630b2"
+  },
+  {
+   "name": "shsr-20240602-200200.wxc",
+   "frameEpoch": 1717358520,
+   "screenSha256": "a9b462aa579c6d02e80cb6904b8ee49ce4f61ca258c71929c2c8b80dc8949204"
+  },
+  {
+   "name": "shsr-20240602-200600.wxc",
+   "frameEpoch": 1717358760,
+   "screenSha256": "b5507220dd27561c43c622e616076c2bcf7c6d93e775289175063ec67f2d7f9c"
+  }
+ ]
+}

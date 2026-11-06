@@ -22,6 +22,14 @@ struct CropBytes {
     bool Empty() const { return data == nullptr || size == 0; }
 };
 
+// A basemap package's bytes (BMPK; include/BasemapPackage.h validates them). Not a crop: 3.5b's stored Bend package
+// (A10.4, A12.53) is reached through the factory as these.
+struct PackageBytes {
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    bool Empty() const { return data == nullptr || size == 0; }
+};
+
 class WxFeed {
 public:
     virtual ~WxFeed() = default;

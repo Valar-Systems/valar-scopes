@@ -33,6 +33,7 @@ enum class Kind : uint8_t { Dry, Approaching, HereNow, Warning, Stale, Clear };
 constexpr int64_t kObsLeadS = 300;          // the observation, this long before the frame's clock
 constexpr int64_t kExpiresAfterS = 45 * 60; // the warning expires this long after it
 constexpr int kOffsetMin = -5 * 60;         // CDT on 2024-05-21: the clock NWS would write the expiry on
+constexpr int kBendOffsetMin = -7 * 60;     // PDT on 2024-06-02: 3.5b's Bend scenarios' clock (A10.4)
 constexpr double kHalfDeg = 0.25;           // the warning's square, around the centre
 constexpr int kFromDeg = 240;               // storm motion: from this direction ...
 constexpr int kSpeedKt = 30;                // ... at this speed

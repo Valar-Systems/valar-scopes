@@ -131,6 +131,25 @@ private:
     enum class Screen { Radar, List, Stats, Connect, Follow };
     static constexpr int SCREEN_COUNT = 5;
 
+    // THE CAROUSEL, ONE RULE (docs/web-renderer-carousel.md): the screens a swipe can reach, read by AdvanceScreen,
+    // the dots and the boot landing -- so a dot is never drawn for a screen no swipe selects. Follow never: it is a
+    // modal. The web renderer (BLIPSCOPE_WEB_RENDERER, set only by tools/web-renderer/build.sh, never by a
+    // PlatformIO env) also leaves out Stats (device health) and Connect (the device's Wi-Fi/setup face).
+    static constexpr bool InCarousel(Screen s)
+    {
+#ifdef BLIPSCOPE_WEB_RENDERER
+        return s == Screen::Radar || s == Screen::List;
+#else
+        return s != Screen::Follow;
+#endif
+    }
+    static constexpr int CarouselCount()
+    {
+        int n = 0;
+        for (int i = 0; i < SCREEN_COUNT; ++i) n += InCarousel((Screen)i) ? 1 : 0;
+        return n;
+    }
+
     /// Switch screens, and count it.
     ///
     /// ONE PLACE, and that is the point rather than tidiness: `screen` is

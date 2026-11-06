@@ -76,12 +76,12 @@ entry 0x403c88b8
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
 *wm:14 networks found
 *wm:Connect Wifi, ATTEMPT # 1 of 5
-*wm:Connecting to NEW AP: Tony
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-52 dBm
+*wm:Connecting to NEW AP: <ssid redacted>
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-52 dBm
 *wm:Connect to new AP [SUCCESS] 
 *wm:Got IP Address: 
-*wm:192.168.86.55 
+*wm:<lan-ip redacted> 
 [WiFi] Portal saved credentials, attempting to connect...
 *wm:config portal exiting 
 [WiFi] autoConnect() returned true (connected)
@@ -108,12 +108,12 @@ entry 0x403c88b8
 [  3327][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 *wm:AutoConnect 
 *wm:Connect Wifi, ATTEMPT # 1 of 5
-*wm:Connecting to SAVED AP: Tony
+*wm:Connecting to SAVED AP: <ssid redacted>
 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-[WiFi] Associated with "Tony", waiting for IP...
-[WiFi] CONNECTED  IP=192.168.86.55  RSSI=-50 dBm
+[WiFi] Associated with "<ssid redacted>", waiting for IP...
+[WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 *wm:AutoConnect: SUCCESS 
-*wm:STA IP Address: 192.168.86.55
+*wm:STA IP Address: <lan-ip redacted>
 [WiFi] autoConnect() returned true (connected)
 [WiFi] pinned AP ch=1 RSSI=-50 dBm for the next boot
 [ota] channel=s3-128 current=5 latest=4

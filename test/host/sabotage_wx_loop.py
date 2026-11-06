@@ -13,6 +13,9 @@ Prints no coordinate.
 """
 import hashlib, json, os, re, shutil, subprocess, sys, tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sabotage_common as sc   # the --anchors pass and the colour proof (docs/weatherscope-stage3.md A12.50)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LOOP = os.path.join(ROOT, "test", "fixtures", "wx", "loop")
 TEST = os.path.join(ROOT, "test", "host", "test_wx_loop.cpp")
@@ -88,7 +91,7 @@ def build(td, name, src):
     b = subprocess.run([CXX, *FLAGS, "-I" + os.path.join(ROOT, "include"), p, "-o", exe], capture_output=True, text=True)
     if b.returncode != 0:
         print(f"{name}: did not compile (the RIG, not a result)\n{b.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return exe
 
 
@@ -96,7 +99,7 @@ def run(exe, d, name):
     r = subprocess.run([exe, d], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         print(f"{name}: the test did not run (exit {r.returncode}): the RIG\n{r.stdout}{r.stderr}")
-        sys.exit(2)
+        raise sc.Rig(name)
     return r.returncode, {m.group(1) for m in re.finditer(r"^\s*FAIL (\S+)", r.stdout, re.M)}, r.stdout
 
 
@@ -114,13 +117,20 @@ def main(argv):
     before = tree_hash(LOOP)
     src = open(TEST, encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
+    rigs = sc.Rigs()
     with tempfile.TemporaryDirectory() as td:
-        exe = build(td, "real", src)
-        rc, fails, _ = run(exe, copy_loop(td, "control"), "control")
+        try:
+            exe = build(td, "real", src)
+            rc, fails, _ = run(exe, copy_loop(td, "control"), "control")
+        except sc.Rig:   # the control is not a plant: nothing after it can be graded (A12.88)
+            return 2
         good = rc == 0 and not fails
         print(f"control (an unmodified copy): exit {rc}, failing {sorted(fails)} -> {'AS PREDICTED' if good else 'OFF-PREDICTION'}")
         ok &= good
         for name, (plant, edit, expect) in SABOTAGES.items():
+            if rigs.forced(name):
+                ok = False
+                continue
             d = copy_loop(td, name)
             e = exe
             if plant:
@@ -131,8 +141,18 @@ def main(argv):
                 assert src.count(edit[0]) == 1, f"{name}: anchor found {src.count(edit[0])} times, need exactly 1"
                 s2 = src.replace(*edit)
                 assert s2 != src, f"{name}: the test copy is unchanged"
-                e = build(td, name, s2)
-            rc, fails, out = run(e, d, name)
+                try:
+                    e = build(td, name, s2)
+                except sc.Rig:
+                    rigs.add(name)
+                    ok = False
+                    continue
+            try:
+                rc, fails, out = run(e, d, name)
+            except sc.Rig:
+                rigs.add(name)
+                ok = False
+                continue
             good = rc == 1 and fails == expect
             short = sorted(x.replace(P, "") for x in fails)
             print(f"{name}: failing {short}, predicted {sorted(x.replace(P, '') for x in expect)} -> "
@@ -161,8 +181,57 @@ def main(argv):
     print(f"the committed test/fixtures/wx/loop/ unchanged: {before == after} ({after[:12]})")
     n = len(SABOTAGES) + (1 if d1 else 0)
     print(f"{n} sabotages: " + ("ALL AS PREDICTED" if ok and before == after else "OFF-PREDICTION: STOP"))
-    return 0 if ok and before == after else 1
+    return rigs.close(0 if ok and before == after else 1)
+
+
+def anchor_entries():
+    """Q51: what each plant targets, for --anchors (no plant runs): the frames it edits exist and reach the bytes it
+    edits, the manifest names the frames it moves, and the test-source edit's anchor occurs once."""
+    def frame(name, need):
+        p = os.path.join(LOOP, name)
+        try:
+            data = open(p, "rb").read()
+        except OSError:
+            return (name, os.path.relpath(p, ROOT), None, None)
+        def check(b, need=need):
+            assert len(b) > need, f"{len(b)} bytes, the plant edits byte {need}"
+        return (name, os.path.relpath(p, ROOT), data, check)
+    mp = os.path.join(LOOP, "MANIFEST.json")
+    def names(*want):
+        def check(t):
+            got = [x["name"] for x in json.loads(t)["frames"]]
+            for w in want:
+                assert got.count(w) == 1, f"{w} named {got.count(w)} times in MANIFEST.json"
+        return check
+    def adjacent(t):
+        got = [x["name"] for x in json.loads(t)["frames"]]
+        i = got.index(f("214800"))
+        assert got[i + 1] == f("215200"), "214800 is not followed by 215200"
+    mt = sc.read(mp)
+    out = []
+    for n, (plant_name, need) in {"S-D2a": ("212400", 32), "S-D3": ("214000", 15), "S-D4a": ("213200", 11)}.items():
+        e = frame(f(plant_name), need)
+        out.append((n,) + e[1:])
+    out.append(("S-D2b", os.path.relpath(mp, ROOT), mt, names(f("211200"), f("211600"))))
+    out.append(("S-D4b", os.path.relpath(mp, ROOT), mt, adjacent))
+    out.append(("S-D2c", os.path.relpath(TEST, ROOT), sc.read(TEST), SABOTAGES["S-D2c"][1][0]))
+    return out
+
+# --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, each suite against its own
+# count, nothing planted. run.sh runs it for every driver.
+LOOP_CHECKS = 44   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+CONTROL_TABLE = {"test_wx_loop": ("checks", LOOP_CHECKS)}
+
+
+def control():
+    with tempfile.TemporaryDirectory() as td:
+        exe = build(td, "test_wx_loop", open(TEST, encoding="utf-8").read().replace("\r\n", "\n"))
+        run(exe, copy_loop(td, "control"), "control")
 
 
 if __name__ == "__main__":
+    if sc.wants_control():
+        sys.exit(sc.control_mode(os.path.basename(__file__), control, CONTROL_TABLE))
+    if sc.wants_anchors():
+        sys.exit(sc.anchors_mode(os.path.basename(__file__), anchor_entries()))
     sys.exit(main(sys.argv))
