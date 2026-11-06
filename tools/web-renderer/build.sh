@@ -30,6 +30,10 @@ DIST=${2:-$HERE/dist}
 OUT=$DIST/$SKU
 LIBDEPS=${LIBDEPS:-$ROOT/.pio/libdeps/blipscope-s3-128}
 OBJ=${OBJ:-$HERE/.obj/$SKU-$(basename "$SRC_ROOT")}
+# The per-pixel weather layer stays off on the website (docs/wx-device.md, (A)): the check, and its selftest so a
+# check that cannot fail is caught here too. Before anything is compiled.
+node "$HERE/check_wx_off.mjs" "$HERE"
+node "$HERE/check_wx_off.mjs" --selftest
 FW=$(sed -n 's/^constexpr int FW_VERSION = \([0-9][0-9]*\);.*/\1/p' "$SRC_ROOT/src/OtaUpdater.h")
 [ -n "$FW" ] || { echo "no FW_VERSION in $SRC_ROOT/src/OtaUpdater.h"; exit 3; }
 if ! command -v em++ >/dev/null 2>&1; then
