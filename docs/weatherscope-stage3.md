@@ -14526,3 +14526,32 @@ G16 stays green under both.
 **M9 is not re-read.** The ruling names M10, and the move touches nothing the web build reads.
 
 **The CI prediction is unchanged:** PR 34: 30/4/0; main on the squash 34: 31/3/0. The job set did not move.
+
+### A12.147 The MAC guard, built locally: S-G5 OFF-PREDICTION (Q108); the bench tools on the registry. Nothing pushed
+
+**Where it is:** local commit `f82e9cfaef15` on `weatherscope/mac-scrub`, based on main at `4bbfdb8ffd55`, in `wt-mac`. No PR, as ruled. The rewrite of the repo's files has not run, and it waits for #571 and #583.
+
+| row | predicted | measured |
+|---|---|---|
+| G1-G18, `check_macs.py --selftest` | all pass | **as predicted:** `18 checks, 0 failures`. T1 and T2 each with a planted twin of its form |
+| the guard on main's tree | every class as surveyed | **as predicted:** 334 findings: 263 `name` (197 + 66), 58 `serial`, 11 `colon`, 2 `t2`. 4 documentation-range MACs seen, 9 product names read from the header, 376 OUIs |
+| S-G1, S-G2, S-G3, S-G4 | {G1}, {G2}, {G6}, {G7} | **as predicted** |
+| S-G6, S-G7, S-G8 | {G13}, {G15}, {G15} | **as predicted** |
+| **S-G5** the serial rule off | {G8} | **OFF-PREDICTION: {G8, G11, G14}** |
+| `board-port.py --selftest` | passes with no registry | **as predicted:** the reservation rows, plus 10 new rows |
+| the missing-file control | exit 4 and the message, no USB | **as predicted,** with `BLIPSCOPE_BOARDS_FILE` pointed at a missing path; `pyserial` is imported only after the refusal |
+| the real registry | resolves | `--label` reads `6E:64`; `--host` exit 0, not printed; `--list` prints labels. `--upload` was not run, and no port was opened beyond `--list`'s enumeration |
+
+**The miss, by name.** G11 (the allowlist) and G14 (a token in a file's name) both use a serial as their planted finding. With the serial rule off they have nothing to find, so they go red too. I wrote {G8} by thinking about the row that names the rule, and did not read which other rows lean on it.
+
+**Q108. S-G5's set.**
+- **(a) [recommended]** The set becomes {G8, G11, G14}, with no code change. The reading is true: those two rows do depend on that rule.
+- **(b)** G11 and G14 plant a colon-form MAC instead, and the set stays {G8}. S-G1's set then grows to {G1, G11, G14}, so the dependence only moves.
+
+**What else changed from the frozen text, disclosed:**
+- **`check_macs.py`'s selftest prints no git warning:** `git add` in its scratch trees named a planted path on stderr, so its output is now captured. The plant is made up, and no row moved.
+- **`.valar-bench` reservations** now store `label`, not `serial`, in their JSON. Old claims still read, since nothing reads that field back.
+
+**The workflow:** three steps added to the `device-ids` job, on the local branch only.
+
+**Waiting:** Q105-Q107 (step 5), Q108, #571's CI at `f9f778be55d3`, then #571's and #583's merges.
