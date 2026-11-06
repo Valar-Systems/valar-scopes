@@ -215,5 +215,19 @@ describe("MI, the ingest", () => {
       expect(writes[writes.length - 1]).toBe("bm/v1/current");
       expect(writes.filter((k) => k === "bm/v1/current").length).toBe(1);
     });
+    // MI9 (docs/basemap-a1.md, O1; MI8 is taken by basemap-regions.test.ts): bm:store names the store only once it is sealed -- after `current` -- and never for
+    // a store left unsealed.
+    it("MI9: bm:store is written after the seal, and never for an unsealed store", async () => {
+      const sealedCur = new TextEncoder().encode('{"storeId":"0123456789ab"}');
+      const sealed = bucket(), kvPuts: Array<[string, string]> = [];
+      const r1 = await publishStore(sealed.b, objs, "bm/v1/current", sealedCur, 2, { async put(k, v) { kvPuts.push([k, v]); sealed.writes.push(`kv:${k}`); } });
+      expect(r1.sealed).toBe(true);
+      expect(kvPuts).toEqual([["bm:store", "0123456789ab"]]);
+      expect(sealed.writes.indexOf("kv:bm:store")).toBeGreaterThan(sealed.writes.indexOf("bm/v1/current"));
+      const unsealed = bucket({ corrupt: "bm/v1/x/a" }), none: string[] = [];
+      const r2 = await publishStore(unsealed.b, objs, "bm/v1/current", sealedCur, 2, { async put(k) { none.push(k); } });
+      expect(r2.sealed).toBe(false);
+      expect(none).toEqual([]);
+    });
   });
 });

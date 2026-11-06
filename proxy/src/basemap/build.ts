@@ -3,8 +3,9 @@
 // directory or memory in Node (--check, the golden row, MD2).
 //
 // Reads, in order and only as needed (MW counts them): current; the manifest, whose sha256 must begin with current's
-// store id (MW17); coverage; then, for vector layers, the index and the cells whose reach meets the square, one at a
-// time; then, when a tile is needed, terrain-sources.bin and the tiles.
+// store id (MW17); coverage; then, for vector layers, the index and the cells whose reach meets the square; then, when a
+// tile is needed, the tiles and terrain-sources.bin. The cells, and the tiles with terrain-sources.bin, are read up to
+// READ_AHEAD at once and taken in order (C1, MX1), so the package is the same bytes as reading one at a time.
 import { type Section, TYPE, encode } from "./format";
 import { type Frame, type Pt, makeFrame } from "./frame";
 import { type LayerKind, LayerSet, type Place, type Rivers, type Road, rankPeaks } from "./layers";
@@ -24,6 +25,24 @@ export type BuildResult =
 
 const K = 111.0;
 const unavailable = (why: string): BuildResult => ({ ok: false, status: 503, code: "basemap_unavailable", why });
+
+/** C1 (docs/basemap-a1.md, MX1): the most reads in flight at once, for the cells and for the tiles. */
+export const READ_AHEAD = 6;
+/** The keys' reads, up to READ_AHEAD at once, yielded IN THE KEYS' ORDER: what is built from them, and the first
+ *  missing object named, are the same as reading one at a time. A read-ahead left unread when the caller stops early
+ *  settles in the background; its rejection is caught here so it never surfaces unhandled. */
+async function* readInOrder(store: StoreReader, keys: string[]): AsyncGenerator<Uint8Array | null> {
+  const pending: Array<Promise<Uint8Array | null>> = [];
+  let next = 0;
+  for (let i = 0; i < keys.length; i++) {
+    while (next < keys.length && next < i + READ_AHEAD) {
+      const p = store.get(keys[next++]!);
+      p.catch(() => undefined);
+      pending.push(p);
+    }
+    yield await pending[i]!;
+  }
+}
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const json = <T>(b: Uint8Array) => JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(b)) as T;
 
@@ -72,8 +91,10 @@ export async function build(store: StoreReader, q: BuildQuery, opts: { commit: s
       const idxBytes = await store.get(keys.index);
       if (!idxBytes) return unavailable("no index");
       const index = json<StoreIndex>(idxBytes);
-      for (const c of index.cells.filter((c) => boxMeets(c.reach, box)).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))) {
-        const b = await store.get(keys.cell(c.key));
+      const cells = index.cells.filter((c) => boxMeets(c.reach, box)).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+      let ci = 0;
+      for await (const b of readInOrder(store, cells.map((c) => keys.cell(c.key)))) {
+        const c = cells[ci++]!;
         if (!b) return unavailable(`no cell ${c.key}`);
         for (const ft of decodeCell(b)) {
           if (!kinds.includes(ft.kind as LayerKind)) continue;
@@ -91,25 +112,35 @@ export async function build(store: StoreReader, q: BuildQuery, opts: { commit: s
     }
   } catch (e) { if (e instanceof StoreGap) return unavailable(e.message); throw e; }
 
-  // tiles: the summits' and the largest level's mosaic (plus its margin), each read once
-  const tiles = new Map<string, Uint8Array>();
-  const loadTile = async (x: number, y: number) => {
-    const key = `${x}/${y}`;
-    if (tiles.has(key)) return;
-    const b = await store.get(keys.tile(x, y));
-    if (!b) throw new StoreGap(`no tile ${key}`);
-    tiles.set(key, await decodeTerrariumPng(b));
-  };
+  // tiles: the summits' and the largest level's mosaic (plus its margin), each read once. Their keys are worked out first,
+  // in the order they were always loaded (the summits', then the mosaic's), and read ahead with terrain-sources.bin after
+  // them (C1); each is decoded and kept in that order, so `tiles` iterates exactly as before.
   const cands = want(MASK.peaks) ? L1.summits() : [];
+  const tileOrder: string[] = [];
+  const addTile = (x: number, y: number) => { const k = `${x}/${y}`; if (!tileOrder.includes(k)) tileOrder.push(k); };
+  for (const s of cands) { const [X, Y] = z9Pixel(s.lat, s.lon); addTile(X >> 8, Y >> 8); }
+  const levelBox = levels.length && want(MASK.terrain) ? levelTiles(f1, levels[levels.length - 1]!.radiusMm) : null;
+  if (levelBox) for (let x = levelBox[0]; x <= levelBox[2]; x++) for (let y = levelBox[1]; y <= levelBox[3]; y++) addTile(x, y);
+  const tiles = new Map<string, Uint8Array>();
+  let bitsBin: Uint8Array | null = null;
+  if (tileOrder.length) {
+    const tileKeys = tileOrder.map((k) => { const [x, y] = k.split("/").map(Number) as [number, number]; return keys.tile(x, y); });
+    let ti = 0;
+    for await (const b of readInOrder(store, [...tileKeys, keys.terrainSources])) {
+      if (ti < tileOrder.length) {
+        const k = tileOrder[ti++]!;
+        if (!b) return unavailable(`no tile ${k}`);
+        tiles.set(k, await decodeTerrariumPng(b));
+      } else bitsBin = b;
+    }
+  }
   let peaks: Array<{ q: Pt; elevM: number; name: string }> = [];
   const terrainSections: Section[] = [];
   try {
-    for (const s of cands) { const [X, Y] = z9Pixel(s.lat, s.lon); await loadTile(X >> 8, Y >> 8); }
     const px = { rgb: (X: number, Y: number) => { const t = tiles.get(`${X >> 8}/${Y >> 8}`)!, o = ((Y & 255) * 256 + (X & 255)) * 3; return [t[o]!, t[o + 1]!, t[o + 2]!] as [number, number, number]; } };
     peaks = rankPeaks(f1, cands.map((s) => ({ ...s, elevM: summitElevation(px, s.lat, s.lon) })));
-    if (levels.length && want(MASK.terrain)) {
-      const [tx0, ty0, tx1, ty1] = levelTiles(f1, levels[levels.length - 1]!.radiusMm);
-      for (let x = tx0; x <= tx1; x++) for (let y = ty0; y <= ty1; y++) await loadTile(x, y);
+    if (levelBox) {
+      const [tx0, ty0, tx1, ty1] = levelBox;
       const mosaic = mosaicOf(tiles, tx0, ty0, tx1, ty1);
       for (const lv of levels) terrainSections.push({ type: 6, levelRadiusMm: lv.radiusMm, n: lv.n, values: terrainLevel(f1, mosaic, lv.radiusMm, lv.n) });
     }
@@ -118,7 +149,6 @@ export async function build(store: StoreReader, q: BuildQuery, opts: { commit: s
   // the tiles read: their files (by RD17's /9/<x>/<y>.png tail) and their source bits (the credits)
   let tileInfo: ProvenanceInput["tiles"] = null;
   if (tiles.size) {
-    const bitsBin = await store.get(keys.terrainSources);
     if (!bitsBin) return unavailable("no terrain-sources.bin");
     const bits = tileBitsOf(bitsBin);
     const byTile = new Map<string, FileRef>();

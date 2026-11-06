@@ -120,6 +120,9 @@ export const storeKeys = (id: string) => ({
   tile: (x: number, y: number) => `bm/v1/${id}/terrain/9/${x}/${y}.png`,
 });
 export const CURRENT_KEY = "bm/v1/current";
+/** O1 (docs/basemap-a1.md): the sealed store's id in the proxy's KV, written by the ingest after the seal, never by a
+ *  build. The proxy reads it so a fresh isolate can answer a revalidation, and name a stored package, with no build. */
+export const STORE_KV_KEY = "bm:store";
 
 export interface CellIndexEntry { key: string; bytes: number; count: number; reach: Box }
 /** RD-P6: a county's or state's box, and the files that are READ when it meets the square's latitude/longitude box. */
