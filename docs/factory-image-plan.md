@@ -548,3 +548,20 @@ reading the source.
   the factory's answer on which tool it uses.
 - The import tool must accept a MAC list with or without colons, with a test (on #548).
 - COM16 stays reserved until the sheet merges, then is released.
+
+## Sheet edits of 2026-11-06 (Daniel's; ruled ~18:22Z): predictions, frozen before the edits
+
+The factory reads the sheet from main, so this is a docs-only PR that goes up today. Before the edits:
+
+| | check | predicted |
+|---|---|---|
+| **E1** | the diff | exactly two files, `docs/factory-sheet-s3-128.md` and this one |
+| **E2** | the sheet's file table | byte-identical: the same file name, version (v18), size (2,059,264 bytes), SHA-256 (`1e1670abc917...`), address (`0x0`) and source link |
+| **E3** | section 2, in English and in Chinese alike | the full erase only for the **3 pre-production samples** (Flash Download Tool ERASE, then START; esptool with `--erase-all`). **Production boards (new chips, which arrive blank): no erase**, write the one file at `0x0` (START only; esptool without `--erase-all`). One line: a board that had anything written to it before (a test program, for example) gets the full erase first, like the samples |
+| **E4** | the Flash Download Tool steps, in both languages | BAUD **1152000**; SPI SPEED **80MHz**, SPI MODE **QIO**, FLASH SIZE **16MB**; **DoNotChgBin** ticked; **"Do not burn any eFuses."** |
+| **E5** | nothing else in the sheet | the pass signs, the serial warning and the MAC list unchanged |
+| **E6** | this doc | decision 3 records Daniel's change of 2026-11-06. With DoNotChgBin ticked, the tool writes the file unchanged, so the board boots with the file's own header (DIO, 80 MHz, 16 MB), as on our bench |
+| **E7** | before the push | `check_device_ids.py`, `check_wifi.py` and `skus.py --check-readers` pass (no workflow file is named) |
+| **E8** | CI on the PR, read only with nothing queued, twice | **31: 28 success, 3 skipped** (`promote`, `version`, `ship-alert`), 0 failed. Baseline: #568's PR run, a docs-only PR that started after main's last job-set change, `84409651` (#552); main's last workflow change is `259e8688`, a step |
+
+**Outside the set:** stop and report.
