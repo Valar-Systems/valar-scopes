@@ -585,3 +585,29 @@ The factory reads the sheet from main, so this is a docs-only PR that goes up to
   - the tool with BAUD 1152000 and these SPI settings.
   The line is unchanged here, by E5. It is reported for a ruling: a bench run of the no-erase write, or a wording
   change.
+
+## The ruling of ~18:34Z: no erase for production, proven first on a dirty board (replaces ~18:22Z and ~18:29Z)
+
+**The factory's answer (EC Buying, 2026-11-06):** Espressif's Flash Download Tool (version not stated); the one merged
+file at `0x0`; no erase, since new chips arrive blank and the erase is slow; 1152000 baud.
+
+**The bench proof, frozen before it runs.** On COM16, the `missileer-photo` board (`...E794`), used for the 11-05
+proof, which this ruling names "if it is free". Its registry reads unreserved, and the registry is not touched. Never
+the Bend feeder, E2:08, Weatherscope's board or the Remote's. esptool from PlatformIO's own penv, as in P1.
+
+**Made dirty first:**
+- **D1, another image in app1:** v17's app (its factory file from `0x20000`) written at `0x660000`. Otadata is not
+  touched, so the board still boots app0.
+- **D2, a made-up Wi-Fi network in NVS:** an NVS image built by ESP-IDF's `nvs_partition_gen.py`, namespace
+  `nvs.net80211`, `sta.ssid` = `MadeUpNet-01` and a made-up password, written at `0x9000`. Never Daniel's real network.
+
+| | check | predicted |
+|---|---|---|
+| **B0, the control** | read back before the write | app1's first 4 KiB equal v17's app's first 4 KiB, **and** the NVS read-back holds `MadeUpNet-01`. Either missing: **stop**, since the proof would mean nothing |
+| **B1, the write** | `esptool ... write-flash --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin`, with **no `--erase-all`** | exit 0; `Hash of data verified.` **exactly once**; the time recorded, predicted 10-40 s (P1's 60.1 s less its 39.1 s erase is about 21 s) |
+| **B2, what boots** | serial, after a `read_mac` reboot | `[ota-slot] ... running=app0 @0x020000 ... fw=18` |
+| **B3, NVS blank** | NVS read back after that boot | **no** `MadeUpNet-01` bytes: the made-up network is gone, so the board shows SETUP. By the screen too, if Daniel is there |
+| **B4, app1 left alone** | app1's first 4 KiB, read only | **still v17's**: the file ends at `0x1F6C00`, below app1 at `0x660000` |
+
+The Flash Download Tool's START without ERASE is the same write, so it is not repeated by hand. **Outside the set:**
+stop and report. Only after B0-B4 do the sheet and this doc change.
