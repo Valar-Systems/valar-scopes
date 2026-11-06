@@ -113,3 +113,99 @@ instrument is wrong: stop and report.
 
 **CI for this docs-only PR, predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
 failed.** The baseline is #564's finished docs-only run, which postdates `84409651`, the last change to the set of jobs.
+
+## Step 0: the ladder instrument (predictions first)
+
+### The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~15:07Z)
+
+> 5. #567, approved to merge at 2af8f0a6c8d9:
+>    - Q-DN1: yes, step 0 first, as its own PR.
+>    - Q-DN2: D1's ε rung, then D2, both server-side; the exact rung waits for step 0's numbers. "No map" isn't an
+>      acceptable end state for a major city.
+>    - Q-DN3: the set, yes.
+> 6. Q-Q1, the order: D4's prerequisites first, each with predictions first:
+>    1. the SYNC_WAIT_MS code, then its ten on staging;
+>    2. step 0;
+
+### The change
+
+**`budget.ts`:** `fitBudget` fills an optional `Ladder` as it measures. **It measures nothing new:** every value is the
+`nonTerrainBytes` of an assembly the ladder already does.
+- **`rung`:** the step that fitted. 0 as built; 1 after ε × 2; 2 while dropping water; 3 while dropping secondary
+  roads; **−1 when nothing fits** (the 422).
+- **`nt`, on a 422 only:** four values, the non-terrain bytes at each rung's full step.
+  - `nt[0]`: at the requested ε;
+  - `nt[1]`: at ε × 2;
+  - `nt[2]`: with every water ring dropped;
+  - `nt[3]`: with every secondary road dropped as well.
+  - **A rung with nothing to drop repeats the value before it,** since dropping nothing changes nothing.
+- **`sections`:** the bytes each non-terrain section adds, by layer (`water`, `rivers`, `roads`, `peaks`, `places`,
+  `provenance`).
+  - On a 200 they come from the package as built; on a 422, from the last rung tried.
+  - A layer not in the package adds 0, which is its true contribution to the cap.
+
+**`build.ts`:** a 200 and a 422 both carry the `Ladder`.
+
+**`worker.ts`:** the `bm_build` line gains integer fields, and nothing else.
+- **A 200 line:**
+  - `rung` and `cap`;
+  - `secWater`, `secRivers`, `secRoads`, `secPeaks`, `secPlaces`, `secProv`.
+- **A 422 line:** the same, plus `nt0` to `nt3`.
+- **A 404 line is unchanged,** at seven fields: it has no build.
+- **The line is assembled by an exported `buildLine()`,** so a 422's line can be tested without a store too large to
+  fit.
+
+### Rows, predicted
+
+**Fixture A**, from `basemap-synth.ts` (the MB rows), has no terrain. So its non-terrain bytes are its package's bytes,
+read from rows already on main:
+- A fits as built at 812 (MB1). So **`nt[0]` = 812**.
+- At 811 it doubles ε and drops ring 1 (MB2). So ε × 2 alone does not fit under 811.
+  - Its 2-vertex roads and small rings do not simplify further, and the header's ε field has a fixed width. So **`nt[1]`
+    = 812**.
+- At 667 it drops every ring and one secondary road (MB3). So **`nt[2]` is over 667**.
+- With every ring and every secondary dropped it is 624 (MB5). So **`nt[3]` = 624**, and at a cap of 623 nothing fits
+  (MB4).
+
+| row | input | predicted |
+|---|---|---|
+| **ML1** | A at a cap of 623 | 422. **`rung` −1. `nt` = [812, 812, x, 624], with 667 < x < 812**: non-increasing, ending over the cap |
+| **ML2** | A at 812 | 200, `rung` 0 |
+| **ML3** | A at 811 | 200, `rung` 2 (ε, then ring 1) |
+| **ML4** | A at 624 | 200, `rung` 3 |
+| **ML5** | B at 841 | 200, `rung` 1 (MB6: it fits at 2ε) |
+| **ML6** | each of ML1-ML5 | 32 + 16 × the non-terrain section count + the sum of `sections` **equals** the final non-terrain bytes: the package's for a 200; `nt[3]` for the 422 |
+| **BB3** (re-registered) | every build line in the endpoint suite | **a 200 line has exactly 15 keys:** the 7 of today, then `rung`, `cap` and the six `sec*`. A 404 line keeps its 7. Integers only, and nothing of the query, as now |
+| **BB4** | the endpoint suite's 200 (BB1's fixture) | its line's `rung` and `sec*` equal what `build()` returns for the same fixture |
+| **BL1** | `buildLine()` given a planted 422 with `nt` = [9, 8, 7, 6] | exactly the 422 key list, with `nt0` to `nt3` = 9, 8, 7, 6 in that order |
+
+**New plants,** each with its exact red set:
+
+| plant | the defect | red |
+|---|---|---|
+| **S-LADDER** | `nt[3]` records the ladder's **first** value in place of its last (the check #567 named) | **{ML1, ML6}**: ML1 reads 812, not 624; and the 422's sections still sum to 624, so ML6's identity against `nt[3]` breaks too |
+| **S-RUNG** | rung 2 recorded as 1 | {ML3} |
+| **S-SECSUM** | `provenance`'s bytes recorded as 0 (the key kept, so BB3's key list still holds) | {ML6} |
+
+**Before any run, the existing plants are re-checked against the new rows** (the A2.16 rule).
+- Six plants already target `budget.ts`: S-BTWICE, S-DROPORDER, S-NOCOUNT, S-ROADORDER, S-PRIMARYDROP and S-TERRCAP.
+- Five target `worker.ts`: S-PWRITE, S-WSTAMP, S-BB1, S-BB2 and S-BB3.
+- **Some of their sets will grow.** For example, S-PRIMARYDROP makes A fit at 623, which reddens ML1.
+- **Each grown set is registered in this doc, with its reason, before the driver runs.** That registration comes with
+  the code, since an exact set needs the code's exact lines.
+
+**Counts:**
+- **The suite** grows by 8 (ML1-ML6, BB4, BL1), from main's 976 to **984** (983 passed, 1 skipped).
+- **The driver's `baseline[all]`** grows from 159 to **167**.
+
+### The staging reading (#567's registered set, in a slot after merge and deploy)
+
+KJFK, KLGA, KEWR and Midtown, with KBOS and KORD as controls, all at ε 100,585 mm (fresh digests), as registered.
+Predicted:
+- **KJFK:** 422, with a non-increasing ladder ending over 32,768.
+- **The controls:** 200, with their rung reported.
+- **The others:** read as they come.
+
+**Outside the set:** stop and report.
+
+**The order stands** (~15:07Z): this lands after the `SYNC_WAIT_MS` code and its ten.
