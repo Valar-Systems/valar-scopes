@@ -1180,3 +1180,207 @@ the enrolment was at 16:30Z; the model is `s3-128`, not Weatherscope's.
 Under enforce, that second enrolment would have been refused with 409 `already_activated`, and the unit would have
 needed a support reset. Whatever makes a working unit enrol again (a Wi-Fi reset, a settings reset, or something
 else) is not known from these rows. That question bears on the enforce decision, and is left open here.
+
+### WX2's board is a customer's unit (Daniel, ~19:20Z)
+
+Daniel confirms that the re-enrolled s3-128 (first enrolment 23:30Z on 11-05, again 16:30Z on 11-06) is not his: it
+is a customer's unit. No name and no id are recorded here or anywhere in this repo.
+
+### What makes a board enrol again, from the v18 source (~19:20Z; read-only, no board)
+
+A board enrols again only when its device page offers enrolment, and the page offers it only when the board holds no
+key (`enrolled` is `cloud-key-fac` being non-empty, `ConfigurationWebServer.cpp:2648`) or its key has been refused
+(page JS `:321-322`, `stNeedKey`). The enrolment page itself is on our server, so it can also be opened from outside
+the board (a printed card, a bookmark, browser history) whatever state the board is in.
+
+| action | clears the stored key? | where (v18) |
+|---|---|---|
+| factory reset (config page, or the Stats-screen hold set to "factory") | **no**: `config` is cleared and `cloud-key-fac` is restored in the same handle | `FactoryReset.cpp:30` (`PRESERVE_KEY`), `:40-64`, `:97-101`; called from `ConfigurationWebServer.cpp:4071`, `AircraftManager.cpp:9584-9585` |
+| Wi-Fi reset or a new network (`/reset-wifi`, the boot touch-hold, the Stats-screen hold set to "Wi-Fi") | **no**: only the Wi-Fi credentials and the fast AP are forgotten | `FactoryReset.cpp:86-93`; called from `ConfigurationWebServer.cpp:4042`, `main.cpp:470`, `AircraftManager.cpp:9585` |
+| firmware update (OTA) | **no**: an app-partition write; the one `p.clear()` is the OTA record's own namespace | `OtaUpdater.cpp:450`, `:536` |
+| a reflash with an erase (a full chip erase, or the factory image at 0x0, whose NVS range is all 0xFF) | **yes**: NVS is gone, the page offers enrolment | `ConfigurationWebServer.cpp:2648`, `:321-322` |
+| a key that never landed (the browser's post to the board's `/enroll-key` fails) | **yes, in effect**: `/enroll-key` is the only writer of the key, so the board stays unenrolled while the server has counted an enrolment | `ConfigurationWebServer.cpp:3966-3969`, `:3990`, `:4020` |
+| the server rejects the stored key | **no**, but the page then says the board needs re-verifying and offers enrolment, which overwrites the key | latch `AircraftManager.cpp:3100`, surfaced via `main.cpp:817`; overwrite `ConfigurationWebServer.cpp:4020` |
+
+The key landing does not restart the board (`ConfigurationWebServer.cpp:4029-4031`: "No reboot -- AircraftManager
+re-reads the key when it re-initialises").
+
+### Between its two enrolments: predicted before the read (ruled ~19:29Z)
+
+The ruling asked for authenticated requests from this board between 23:30Z on 11-05 and 16:30Z on 11-06, predicting
+0 if the key never landed. **The source excluded 0 before the read:** `fw:` rows are written only past the auth gate
+(`proxy/src/index.ts`, `setDeviceAttribution` then `recordFleetFirmware`), and the 03:30Z read already showed this
+board's `fw:` row. `lastSeen` moves only when the previous value is at least an hour old (`fleet.ts`, `REFRESH_MS`).
+
+Frozen at 19:32:27Z, before the tool was written (19:32:47Z) or run (19:32:54Z). Analytics Engine points whose `blob5`
+(the verified device id) is this board's, counted in four spans; the id was used only inside the query and never
+printed.
+
+| | span | predicted |
+|---|---|---|
+| **C1** | ledger rows with a first enrolment in 23:30Z on 11-05 | exactly 1 |
+| **C2** | the id matches the attribution pattern (`metrics.ts`, `setDeviceAttribution`) | true |
+| **C3** | fleet points with a `blob5` over the same span | > 0 |
+| **B1** | first enrolment to 00:31Z | >= 1 (the request that created the `fw:` row) |
+| **B2** | 00:31Z to 03:28Z | 0 (any authenticated request would have moved `lastSeen` by the 03:30Z read) |
+| **B3** | 03:28Z to the second enrolment | no prediction |
+| **B4** | the second enrolment to the read | no prediction |
+
+Outside the set, also frozen: B1 = 0 beside an existing `fw:` row would mean the two instruments disagree, so no
+conclusion; B2 > 0 would mean authenticated requests without a firmware header.
+
+### Between its two enrolments, read (19:32Z)
+
+| | read | verdict |
+|---|---|---|
+| **C1** | 1 row: first 23:30Z on 11-05, last 16:30Z on 11-06, 2 enrolments | **as predicted** |
+| **C2** | true | **as predicted** |
+| **C3** | 23,728 | **as predicted** |
+| **B1** | **24** (1 boot, and blips, config, airports, enrich) | **as predicted** |
+| **B2** | **0** | **as predicted** |
+| **B3** | **52** (3 boots) | no prediction |
+| **B4** | **706** | no prediction |
+
+The `fw:` row at the read: model `s3-128`, first seen 23:30Z on 11-05, last seen 19:05Z on 11-06, no firmware change.
+
+**What it shows:** the first key landed at 23:30Z and kept working, through three boots, until the second enrolment.
+This board is **not** a key-never-landed case. The ruling's premise read the 03:30Z last-seen as "never used"; the
+reviewer accepted the correction (~19:43Z).
+
+**My miss:** B4's meaning table was incomplete. The device key is HMAC(`DEVICE_KEY_SECRET`, id)
+(`proxy/src/deviceauth.ts`), so a second enrolment mints the same key, and B4 = 706 is produced equally by "the
+second key landed" and "the board still held its first". B4 says only that the board authenticates now.
+
+### What caused the second enrolment: G1, frozen before the read (approved ~19:43Z)
+
+Two causes remain: an erase before 16:30Z, or the enrolment page opened again while the board still held its key. A
+refusal of the key is unlikely (production is on watch and the derived key changes only with the secret) and was not
+read. Because the key landing does not reboot the board, the first authenticated request after an enrolment is a
+non-boot request under both causes, so whether it is a boot (G2) cannot separate them: G2 is read and reported, not
+graded. Graded on G1 alone, in minutes, never as a clock time (the board's cadence on that day: 15 s when idle):
+
+| G1: minutes from the board's last authenticated request before 16:30Z to the enrolment | meaning |
+|---|---|
+| **<= 3** | the board was authenticating with its key at the enrolment: an erase is **excluded** (it leaves no authenticated request between the erase and the key landing, and a reflash, Wi-Fi setup and enrolment take longer), and so is the refusal latch (it needs a run of rejected requests, which carry no id). Remaining cause: the page opened again on a working board |
+| **> 3** | does **not** discriminate: an erase, a board that was simply off (B3 holds 52 requests over about 13 h, so off is likely), or the refusal latch. G1 is reported and no cause is stated |
+
+Stated before the read: given B3's sparsity, "> 3, no cause" is the more likely outcome.
+
+### G1, read (19:51Z): an erase is excluded; G2 is off my premise
+
+Controls: the same single ledger row, its last enrolment still 16:30Z with 2 enrolments, and the board's points
+between its two enrolments reproduce the 19:32Z read exactly (76 = 24 + 0 + 52).
+
+| | read | verdict |
+|---|---|---|
+| **G1** | **2.4 min** | **"<= 3"**: an erase is excluded, and so is the refusal latch. The remaining cause is the enrolment page opened again on a working board |
+| **G2** | **1.6 min**, and that request **is a boot** | reported, not graded, and **off my stated premise** |
+
+**My miss:** I wrote that the first authenticated request after an enrolment would be a non-boot request under both
+causes. The board runs firmware 18 (its `fw:` row), whose key landing does not reboot, so the key landing did not cause
+this boot: something else restarted the board 1.6 min after it enrolled. That does not touch G1's grading, which
+rests on the requests before the enrolment. The boot's reset reason (one token from a known set, no id) would say
+whether it was a power cycle, a software restart or a crash. Its meanings were frozen at 19:52Z; it read `SW`, a
+software restart (R1, below).
+
+So the customer's working, grandfathered board enrolled a second time **while it held a working key**, most likely by
+opening the enrolment page again. Under enforce that is a 409, as the next section states.
+
+### Restarts around setup: boot reasons, predicted before the read (rulings ~19:55Z, ~19:58Z, ~19:59Z)
+
+Daniel reported that the Bend feeder restarted by itself several times during its setup on 11-04, and recalls that it
+was right after activation; with the customer board's boot 1.6 min after its second enrolment, that is two boards
+restarting around setup. Read-only, counts and reset-reason tokens only; the feeder was not touched, and its id came
+only from the operator's token file and was never printed.
+
+**What a boot record can see, from v18's source.** The Worker writes a boot point only past the auth gate
+(`recordBoot`, `proxy/src/metrics.ts`), from the `X-Blip-Boot` header, which the board sends once per boot on its first
+check-in and keeps pending until a check-in is acknowledged (`include/BootReportPolicy.h`). The token is that boot's
+reset reason (`OtaUpdater.cpp:277-291`): `SW` is the firmware's own `ESP.restart()`; `PANIC`, `INT_WDT`, `TASK_WDT`,
+`WDT` and `CPU_LOCKUP` are crashes. So a board with no key reports no boot at all, recorded boots are a lower bound,
+and a crash loop shows as at most one recorded boot.
+
+Frozen at 19:59:58Z, before the tool existed; read at 20:00Z, every control held:
+
+| | predicted | read | verdict |
+|---|---|---|---|
+| **R1** the customer board, boots in the 10 min after its second enrolment | >= 1, the first at +1.6 min, a crash token | **1**, at **+1.6 min**, **`SW`** (fw 18) | **OFF**: a software restart, not a crash |
+| **R2** the feeder, boots from 30 min before its first enrolment (11-04) to 2 h after | 0 before (invisible); >= 1 after, at least one a crash token | **2**: **+0.0 min `SW`**, **+3.4 min `SW`** (fw 18) | **OFF**: no crash token |
+| **R3** the fleet, 14 days, boots by reason | `SW` most common; >= 1 device with a crash token | 335 boots, none without a reason: `SW` 142, `POWERON` 118, `USB` 71, `PANIC` 2, `TASK_WDT` 2, all s3-128 fw 18; **3 devices** with a crash token, neither the feeder nor the customer board | **as predicted** |
+
+**My misses:** I predicted crashes for both boards, following the report, and both read `SW`. And my table missed a
+property of the instrument: a boot point is stamped when the board **delivers** its reason, not when it booted. The
+feeder's "+0.0 `SW`" is a restart from before its key, delivered at its first authenticated check-in; that fits the
+restart v18 makes after its setup portal succeeds (`main.cpp:557`). Restarts before a board's key remain invisible to
+this instrument, so a crash loop during the feeder's Wi-Fi setup is neither shown nor excluded.
+
+**What it shows:** after activation, each board restarted itself by software once within minutes (the customer board
+at +1.6 min, the feeder at +3.4 min), and neither restart was a crash. v18's software restarts each print their own
+serial line just before `ESP.restart()` (the portal-success restart, `main.cpp:557`; the deferred update reboot,
+`OtaUpdater.cpp:261-270`; a reset tier, `main.cpp:689`; Wi-Fi down for 10 min, `main.cpp:730`; the portal failing,
+`main.cpp:540`; the touch watchdog, `AircraftManager.cpp:1471`/`1503`), so a serial capture names which one fired. The
+fleet's 4 crash boots on 3 devices are a separate firmware finding, reported on their own.
+
+Restarts before a board has its key stay invisible to this instrument (reviewer, ~20:13Z): the record above shows
+none and excludes none.
+
+### The fleet's crash boots (ruling ~20:13Z): predicted before the read
+
+Read-only; devices appear as ordinals, never as ids, and no clock time is printed. Frozen at 20:18:07Z, before the
+tool existed; read at 20:18:36Z. Two independent lower bounds on how long a device ran before its crash: **U-alive**,
+from its previous boot point to its last request before the crash boot, and **U-usage**, the uptime of its last
+hourly usage report. **G** is the outage (the crash, the reboot and the rejoin).
+
+| crash | device | token | U-alive (previous boot) | G | U-usage | since last fw change / enrolment |
+|---|---|---|---|---|---|---|
+| 1 | #1 (1 crash) | `TASK_WDT` | 1,038.9 min (`SW`) | 0.9 min | 17 h | none in record / 7,370.8 min |
+| 2 | #2 (2 crashes) | `PANIC` | **10.2 min (`POWERON`)** | 1.6 min | 0 h | none in record / 1,866.3 min |
+| 3 | #3 (1 crash) | `TASK_WDT` | 480.3 min (`SW`) | 0.5 min | 7 h | 9,451.7 / 60,347.7 min |
+| 4 | #2 | `PANIC` | **5.1 min (`POWERON`)** | 1.2 min | 0 h | none in record / 1,969.1 min |
+
+| | predicted | verdict |
+|---|---|---|
+| control | 4 crash boots on 3 devices, as at 20:00Z | **held** |
+| **C-count** | crashes per device {2, 1, 1} | **as predicted** |
+| **C-setup** | none within 60 min of an enrolment or a firmware change | **as predicted** (closest: 1,866 min) |
+| **C-alive** | every crash after more than 60 min running | **OFF**: device #2, after 10.2 and 5.1 min |
+
+**My miss:** C-alive. **The lead:** device #2 panicked twice, about 103 min apart, each within about 10 min of a
+power-on: a candidate repeatable early-runtime fault. #1 and #3 are task-watchdog trips after hours of running.
+
+**Is device #2 a bench board? No** (read 20:29Z; predicted no). The device id is the first 8 bytes of
+SHA-256(MAC || salt) (`include/DeviceIdentity.h`); computed in-process for E2:08, COM16, Weatherscope's board and the
+Missileer board from their USB serials, and compared with the token file's test, records and feeder lines, it matches
+none of them. The control held: the test MAC derives exactly the test identity. The Remote's board could not be
+checked: its MAC is not held.
+
+### A crash address in the boot report: proposal, approved for a bench proof (~20:25Z), not for v19
+
+v18 already writes a crash dump to flash on every panic and nothing reads it. The framework it links has
+`CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y` (ELF, CRC32), `CONFIG_ESP_COREDUMP_CHECK_BOOT=y` and
+`CONFIG_ESP_TASK_WDT_PANIC=y`; the s3-128's table has `coredump` at `0xFF0000`, 64 KB; and v18's source has no
+`esp_core_dump` use. So a later firmware can read `esp_core_dump_get_summary()` on a `PANIC` or watchdog boot (the
+crash PC, the crashed task, the build's ELF hash) and report it in a new header under the same deliver-until-
+acknowledged policy, erasing the dump only after the acknowledgement. A `TASK_WDT` dump names the watchdog's context,
+not the starved task, so that name is stashed in an `RTC_NOINIT` word by the task-watchdog hook. The Worker validates
+the report by shape and rejects anything else, never truncating.
+
+**Design condition (reviewer, ~20:25Z):** the reporter checks the dump's build hash and **erases, without reporting,
+any dump from an image it does not know**: a factory board can carry a leftover from a factory test program.
+
+**The bench proof comes first** (K1-K5, predictions as frozen), on E2:08 or COM16, never the feeder: a planted panic
+leaves a dump; the dump fits in 64 KB (the risk: if not, the partition must grow, which is a factory-image and OTA
+question); its PC resolves on the bench build; a planted starvation reads `TASK_WDT` with the dump naming another
+context; and the dump survives an OTA. v19 does not wait for it.
+
+### The design property, stated as a property
+
+**The gate writes `activated` before the key reaches the board.** `claimActivation` runs at the top of the
+enrolment (`proxy/src/enroll.ts`, the `gate` line), before the key is derived and returned to the browser, and the
+browser then has to post it to the board's `/enroll-key`. So, under enforce:
+
+- if a key never reaches the board, the board's next enrolment is refused with 409 `already_activated` and the unit
+  needs a support reset, through no fault of the customer, at first setup;
+- **a re-opened enrolment page on a working board also meets 409**, and so does a board erased and set up again.
+
+Recorded, not designed: no change is proposed here. Daniel decides after the data.

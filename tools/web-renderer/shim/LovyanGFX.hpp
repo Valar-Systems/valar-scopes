@@ -17,6 +17,8 @@
 // GC9A01 + CST816 block (below): the web build has no panel, and the per-panel blocks only set pins.
 
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
 #include <string>
@@ -313,6 +315,16 @@ class LGFX_Sprite : public LGFXBase
     void deleteSprite() { created_ = false; w_ = h_ = 0; dl_.clear(); }
     void* getBuffer() const { return created_ ? (void*)this : nullptr; }
     bool isCreated() const { return created_; }
+    // The per-pixel weather layer wraps its own buffer here (AircraftManager::AllocateWeatherBuffers, only with
+    // wx-layer on). This stand-in has no pixels -- getBuffer() above is a token -- and the firmware reads that layer
+    // and writes the canvas through raw pointers, so reaching this means a per-pixel path was reached: stop, never
+    // corrupt memory. The website does not draw weather (docs/wx-device.md, (A); check_wx_off.mjs keeps wx-layer off).
+    [[noreturn]] void setBuffer(void*, int32_t, int32_t, uint8_t = 0)
+    {
+        std::fprintf(stderr, "web renderer: LGFX_Sprite::setBuffer reached -- the per-pixel weather layer (wx-layer) "
+                             "cannot run on a stand-in with no pixels; stopping\n");
+        std::abort();
+    }
     // To the parent device: this frame is done (web/web_gfx.cpp hands the list to the page).
     void pushSprite(int32_t x, int32_t y);
     // Onto another sprite: its commands composited at (x, y), as LovyanGFX blits the pixels.

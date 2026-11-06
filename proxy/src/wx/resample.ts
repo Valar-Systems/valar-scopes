@@ -65,11 +65,49 @@ export function buildMap(geo: OperaGeo, win: [number, number, number, number], g
   return { cellOf, fill, rows, cols };
 }
 
+/** The isolate cache's key for one source geometry, window and grid -- also what names the map in R2 (stage 1c). */
+export const mapKey = (geo: OperaGeo, win: [number, number, number, number], g: GridGeom) =>
+  JSON.stringify([geo.proj, geo.ulx, geo.uly, geo.xs, geo.ys, win, g]);
+
 export function mapFor(geo: OperaGeo, win: [number, number, number, number], g: GridGeom): ResampleMap {
-  const key = JSON.stringify([geo.proj, geo.ulx, geo.uly, geo.xs, geo.ys, win, g]);
+  const key = mapKey(geo, win, g);
   let m = cache.get(key);
   if (!m) { m = buildMap(geo, win, g); cache.set(key, m); }
   return m;
+}
+
+/** Stage 1c: the isolate cache, reached by key, so a map read from R2 lands in it too. */
+export const cachedMap = (key: string) => cache.get(key);
+export const cacheMap = (key: string, m: ResampleMap) => { cache.set(key, m); };
+/** Test-only: a cold isolate, for MP1. */
+export const clearMapCache = () => { cache.clear(); };
+
+/** WXM1 (docs/wx-opera-map-r2.md): a 16-byte header -- "WXM1", u32 rows, u32 cols, u32 cells, little-endian --
+ *  then cellOf (rows x cols Int32) and fill (cells Int32), in the platform's order (little-endian on Workers). */
+export function encodeMap(m: ResampleMap): Uint8Array {
+  const rc = m.rows * m.cols, n = m.fill.length;
+  const out = new Uint8Array(16 + 4 * (rc + n));
+  out.set([0x57, 0x58, 0x4d, 0x31], 0);
+  const h = new DataView(out.buffer);
+  h.setUint32(4, m.rows, true); h.setUint32(8, m.cols, true); h.setUint32(12, n, true);
+  new Int32Array(out.buffer, 16, rc).set(m.cellOf);
+  new Int32Array(out.buffer, 16 + 4 * rc, n).set(m.fill);
+  return out;
+}
+
+/** A stored map, as views over its buffer (no copy), or null unless the magic, the three counts against the window
+ *  and grid in hand, and the byte length all match. `noCheck` is MP3's sabotage: it believes the header, though
+ *  never past the buffer. */
+export function decodeMap(buf: ArrayBuffer, rows: number, cols: number, cells: number,
+                          noCheck = false): ResampleMap | null {
+  if (buf.byteLength < 16) return null;
+  const b = new Uint8Array(buf, 0, 4), h = new DataView(buf);
+  const r = h.getUint32(4, true), c = h.getUint32(8, true), n = h.getUint32(12, true);
+  const len = 16 + 4 * (r * c + n);
+  if (!noCheck && (b[0] !== 0x57 || b[1] !== 0x58 || b[2] !== 0x4d || b[3] !== 0x31 || r !== rows || c !== cols ||
+                   n !== cells || buf.byteLength !== len)) return null;
+  if (buf.byteLength < len) return null;
+  return { cellOf: new Int32Array(buf, 16, r * c), fill: new Int32Array(buf, 16 + 4 * r * c, n), rows: r, cols: c };
 }
 
 export interface ResampleOpts { mask?: MaskOpts; centreOnly?: boolean; coveredFixed?: number }   // the last two: sabotages

@@ -96,6 +96,7 @@ String BlipsUrl(const String& base)  { return base + BLIPSCOPE_API "/blips"; }
 String EnrichUrl(const String& base, const String& icao24) { return base + BLIPSCOPE_API "/enrich/" + icao24; }
 String ConfigUrl(const String& base) { return base + BLIPSCOPE_API "/config"; }
 String AirportsUrl(const String& base) { return base + BLIPSCOPE_API "/airports"; }
+String WeatherUrl(const String& base, const char* product) { return base + BLIPSCOPE_API "/wx/" + product; }
 String LeaderboardUrl(const String& base) { return base + BLIPSCOPE_API "/leaderboard"; }
 
 bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch)

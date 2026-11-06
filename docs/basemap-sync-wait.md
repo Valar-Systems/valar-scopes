@@ -354,3 +354,54 @@ completes.
 - **TypeScript's parser,** in memory: the unplanted `handler.ts`, S-MS2's plant and S-S2SEQ's plant all parse.
 
 **4. `tsc --noEmit` is clean** for the code and MS10. **No test has run.** S2 runs after step 0's checks, as ruled.
+
+### Merged with main, the guard's scope ruled, and frozen before the run (2026-11-06)
+
+**The ruling, verbatim** (reviewer chat, pasted by Daniel, ~23:28Z):
+
+> Q-DUP: (a). The guard's scope becomes the files the driver runs, basemap-*.test.ts, registered before it runs:
+> - --selftest-dups still refuses a planted basemap-zz-dupcopy, and a new control shows that a duplicate outside basemap-* is
+>   not refused.
+> - The wx session's MP3 stays as it is.
+>
+> A gap your reasoning leaves open: the smoke driver runs the whole suite and grades failures by bare id prefix, with the
+> file name dropped (FAIL_LINE). A namesake of SQ1:, SQ2: or SQ-C: in any other file would be counted as the real row, and
+> could read "as registered" when the real row didn't fail.
+> - Before S2's smoke run: read and record that SQ1:, SQ2: and SQ-C: each title exactly one row across all of test/. That's
+>   a read, not code.
+> - Later, in its own small PR: the smoke driver refuses to start unless each red prefix titles exactly one row across
+>   test/, with a selftest plant in a non-basemap file. Add it to the follow-up list.
+>
+> Then freeze S2's count at 999 (998 passed, 1 skipped) and run, as you plan.
+
+**The merge.** Main at `4bbfdb8ffd55` (#585) went into S2 as `1e779fd27c53`, with no conflicts. On the merged tree: `tsc` is
+clean on both configs, all 75 anchors are found once each, and 74 planted files parse. C-LOADFAIL does not parse, by design.
+
+**The guard's scope, read before the change and predicted after it.** `--selftest-dups` on the old scope printed control 1
+duplicate (`MP3`), the planted copy 7, and exit 1. That reading proves the check can fail.
+
+| `--selftest-dups` on the new scope | predicted |
+|---|---|
+| control | **0 duplicates** |
+| the copy outside `basemap-*` | **0 duplicates: not refused** |
+| the planted `basemap-zz-dupcopy` | **6 duplicates, all naming the copy** (the file's 6 distinct ids, by the guard's own regex) |
+| both copies removed, exit | **true, exit 0** |
+
+**The read before the smoke run.** On this tree, across all of `test/`, `SQ1:`, `SQ2:` and `SQ-C:` each title exactly one
+row, all in `smoke-basemap-query.test.ts` (lines 47, 55 and 79). `SQ` appears nowhere else in a text file except the word
+`SQUARE` in a comment, so no title built at run time can reach them.
+
+**The counts, frozen.** Read from CI on `4bbfdb8ffd55`: the `workers` run 42309616163 reads 997 passed, 1 skipped (998).
+
+| check | predicted |
+|---|---|
+| **`sabotage-basemap.mjs`, whole** | baselines **11 / 31 / 168** (17 files); **78 runs** (75 sabotages and 3 baselines), 0 runtime failures, **every one AS PREDICTED** with C-LOADFAIL BLIND among them, every set as registered; exit 0 |
+| **`sabotage-smoke-basemap.mjs`, whole** | CONTROL **998 passed, 1 skipped, of 999**, 0 failed. S-SQ **{SQ1, SQ2}**. S-SQP **{SQ-C}**. Each run counts 999. No raw output kept. TIME_WAIT margin reported against the 15,000 ceiling |
+
+**Anything else, including another count or a set that differs: stop, no fix, report.**
+
+**How the run is gated:** the second driver starts only on the first's exit 0, after the usual clear check. If either has to
+be stopped, its child pids are recorded first and the whole tree goes with `taskkill /T`.
+
+**Added to the follow-up list, as ruled:** a small PR in which the smoke driver refuses to start unless each red prefix
+titles exactly one row across `test/`, with a selftest plant in a non-basemap file.
