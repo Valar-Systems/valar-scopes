@@ -2153,3 +2153,14 @@ objects after 1 days", for all prefixes, enabled**.
 - **The prune itself works:** later checks prune 1 frame each, and R3′-5b′ passed both listings.
 - **Beside it:** the same 1-day expiry applies to `wx/*/latest`. A product whose ingest stops for over a day loses
   its `latest` pointer too.
+
+| row | got | verdict |
+|---|---|---|
+| **R3′-6, `opuk` Worker** (Logs invocation records, 04:25:53-06:25:53Z, read 06:30:04Z, ABR 1). **Read across the stop at 05:48:35Z;** invocations after it build nothing and count among "the rest" | 112 records, **all `ok`, 0 `exceededCpu`**. Single-build: n 14, **median 1,612.5 ms, max 2,545 ms**. The rest: n 96, median 7 ms, max 19. Beside: two backfill invocations (backfilled + stored), 2,460 and 1,876 ms. p99 of all: 2,497 ms. GraphQL: `success` 113, 0 errors, `sampleInterval` 1 | as predicted (median in [1,280, 3,460]; max <= 5,000; rest <= 100) |
+| **R3′-6, `cref` Worker** (04:44:03-06:44:03Z, read 06:49:00Z, ABR 1) | 120 records, **all `ok`, 0 `exceededCpu`**. Single-build: n 60, **median 1,051.5 ms, max 2,606 ms**. The rest: n 60, median 18 ms, max 40. No backfill. p99 2,329 ms. GraphQL: `success` 119 (one fewer than the Logs' 120 at the window's edge), 0 errors, `sampleInterval` 1 | as predicted (median in [740, 2,125]; max <= 5,800; rest <= 100) |
+| **R3′-7** (`opuk`'s `wx_ingest_error` lines, 04:25:53-06:25:53Z) | **0 error lines.** Statuses: already-stored 134, stored 16, backfilled 2 | printed, not graded |
+
+- **The state at 06:49Z:**
+  - the `cref` Worker is `257f49eb`, live and `cref`-only;
+  - the `opuk` Worker is on its stop, `a1c8c3b9` (`WX_INGEST` off, cron kept).
+  - It waits for the ruling on R3′-5a.
