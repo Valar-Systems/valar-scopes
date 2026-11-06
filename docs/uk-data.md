@@ -2164,3 +2164,7 @@ Radars come from each frame's own node list (156-162 nodes a frame), by OPERA pr
 - Main's CI on `ac5f8509` is predicted at 31 (29 success, 2 skipped), as on `12569fa0`, and is read when finished.
 - **Queued for the next docs change** (the ~02:40Z ruling): §A1.1d's "LPS's answer named all four datasets" becomes
   "LPS's answer covers the four datasets Daniel's question named".
+
+**Main's CI on #557's merge `ac5f85090394`, finished 03:27:59Z: as predicted.**
+- **31 check-runs: 29 success, 2 skipped (`promote`, `version`), 0 failed.**
+- The workflows were device-ids, firmware and no-traffic-captures, all `success`.
