@@ -13243,3 +13243,59 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **Rows B0–B6** as frozen in A12.119, A12.121 and A12.122, with B0's and B6's read-back now as above.
 - **If the window must stop early,** the clean image and its boot read come first. **It ends only when the boot line reads `theme=auto`.**
 - **During it:** no build and no whole-suite run from this session.
+
+### A12.127 W-CR ran 18:08Z-18:26Z: every graded row AS PREDICTED; B4 and B4c unread (the RIG, my empty address); the board restored and verified. #571's CI rerun AS PREDICTED
+
+**The window:** `907069326E64` (COM6, resolved by serial), 18:08:01Z to 18:26:12Z, inside the announced 18:08Z-18:40Z and clear of blipscope-5c's 18:45Z window. Runner: `tools/weatherscope/board/touch_cap_bench.py`, through the Bash tool's background mode, with `python -u`, into new empty directories.
+
+| row | predicted | measured |
+|---|---|---|
+| B0-1 `verify-flash` vs the clean file (`39e258b5be07`, re-hashed first) | OK, exit 0 | **"Verification successful (digest matched)", exit 0.** So A12.124's `read-flash` failure at `0xA0000` is recorded as the transfer's (the instrument) |
+| B0-2 CONTROL vs the bench file (`10942a49ae98`) | mismatch, nonzero | **"digest mismatch", exit 2** |
+| the bench image | through `app-only-write.py` | table matched, boots ota_0; 1,882,000 B written, **verified** |
+| B0 stored run | S = 0 | **S = 0**; boot 1 reads `run=0 (stored 0, reset not power-on)`; the chip DEAD from boot |
+| B1 the idle rule | "recommending reboot" before `L`; no reboot while held; reboot 1 at L + 20.0-21.0 s | recommend at T0 + 109.5 s (before `L` at T0 + 140); **no reboot while held; reboot 1 at L + 20.10 s** |
+| B2 reboots 2 and 3 | within 1.0 s of their boot's recommend; each `run k-1 -> k` and `restarting` | **+0.00 s each; all three writes and stamps seen** |
+| B3 the cap holds (A12.121's row) | boot 4 unavailable; no cap line and no restart in 360 s | **boot 4 `run=3 (stored 3, ...) -- touch unavailable`; recommend seen; 0 cap lines; 0 restarts in 360 s** |
+| B4c CONTROL / B4 the strip | 0 of 3 in boot 1 / ≥ 2 of 3 in boot 4 | **UNREAD, the RIG: all 6 fetches failed** (below) |
+| B5 boot 5 (after `read-mac`) | run 3, stored 3, not power-on | **as predicted** |
+| B5 `w` | within 30 s | device t = 19.3 s |
+| B5 strip after `w` | ≥ 2 of 3 | **3 of 3**, its theme read from the pixels as light |
+| B5 the reset | `run 3 -> 0` and the leaving line, at device 180 s | both lines seen; the reset line at device **179.9 s** by each of two anchors (the `r` replies at 19,261 ms and 184,368 ms give 179,905 and 179,910 ms) |
+| B5 strip cleared | 0 of 3 | **0 of 3** |
+| B5 `r` | run=0 stored=0 unavailable=0 | **`run=0 stored=0 unavailable=0 wedgeSeen=0 chip=alive`** |
+| B6 the clean image, then B6-1 / B6-2 | verified / OK exit 0 / mismatch nonzero | **verified; matched, exit 0; mismatch, exit 2** |
+| B6 boot read | `env=weatherscope-s3-128`, `theme=auto read=known` | **both**; TCP :80 open after the close |
+
+**B5's 179.9 s, stated plainly.** The trace's host timestamps are quantized by the reader's 0.2 s read timeout, and both anchors carry that quantization. So the reading cannot separate 179.9 s from 180.0 s. The device's own condition is `uptime >= 180,000 ms` (`HealthyResetDue`, host-tested in CR16). The runner's threshold was 179.0 s, a tolerance I wrote into the code rather than the row's text. Recorded, not argued.
+
+**B4 and B4c, unread: my launch's empty address.**
+- **The cause:** the chain's launch command resolved the board's name seconds after `app-only-write.py` had reset it, got nothing, and fell back to a file that did not exist. The running process's command line confirms its address argument was not an IP. Every `/diag/fb` fetch then failed with `URLError`.
+- **A second defect:** the runner counted a failed fetch as a frame that showed the strip, so it printed `B4c CONTROL: OFF-PREDICTION -- 3 of 3`. That is not a reading.
+- **The fix, made before `clear` ran:**
+  - `tally()`: a failed fetch is the RIG, never a frame;
+  - the entry point refuses an address that is not IPv4 before any port is opened (shown: exit 2);
+  - `clear`'s address was resolved, and checked, immediately before its launch.
+- **What still shows the strip on glass:** B5's six frames (3 of 3 with it, then 0 of 3 after the reset), against the same frozen pixel rule. Neither B4 row was re-taken off-schedule.
+
+**The record:** `tools/weatherscope/board/run-2026-11-06-wcr/` (11 files: the runner outputs, the redacted traces, the four verify logs, the two `app-only-write` logs).
+- **What the redaction does:** timestamps are relative to each trace's first line; LAN IPs and BSSIDs are masked; network names are written as `<ssid>`; 12 theme/phase lines are removed, with their count kept and never their times.
+- **What caught my misses:** `check_wifi.py` caught 5 network names (`Associated with "..."`) that my first redaction missed. My own leak check then caught my second pass writing `bssid=<ssid>`.
+- **Both were amended before any push,** so neither ever reached the remote. Final: `check_wifi.py` OK (name 0, bssid 0, lan 0), `check_device_ids.py` OK, `check_binary_strings.py` OK.
+
+**#571's CI rerun at `9e33982cf6fa`:** started 17:57:58Z and read twice after it finished. **33 checks: 29 success, 4 skipped, 0 failed. AS PREDICTED** (A12.126; the web job derived, not built here).
+
+**#571's next head, `d6d36fd057f1`** (the record and the runner fix; no file any check builds changes): **33 checks: 29 success, 4 skipped (version, promote, ship-alert, publish), 0 failed.** The web job is derived again, from `9e33982cf6fa`'s green run.
+
+**For the records (the reviewer, ~18:26Z): #445's eighth OTA identity.**
+- **The new row:** `blipscope-s3-128-wxlook`, s3-128 with the radar's scope.
+- **Derived by applying each check's rule, not run:**
+  - R1 = 8 × 3 = **24**;
+  - M1: **38** accepted, **26** refused, 0 off the rule;
+  - M2: **78 of 78** refused;
+  - M3: **16** accepted, **48** refused (**22** cross-scope), 0 off the rule.
+- **The sabotage sets keep their logic:**
+  - **S-ID1b (the board only)** still fails exactly {M3, O4-ii, O4-iii}. M1 and M2 never test a pair that a board-only Accept gets wrong; the new row adds same-board, other-scope pairs to M3's.
+  - **S-ID2b (the scope only)** still fails exactly {M1, M2, M3, O4-v-a, O4-v-b}. The new row's empty scope adds more cross-board, same-scope pairs.
+  - No failing check becomes vacuous.
+- **When #571 merges main after #445,** that merge is predicted from 8 identities, on its own.
