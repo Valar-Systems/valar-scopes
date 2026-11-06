@@ -818,7 +818,7 @@ https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
 
 **Daniel's decision, 2026-11-06: rely on LPS's written answer of 2026-11-04.** No further confirmation will be asked
 of LPS.
-- **LPS's answer named all four datasets for this use,** NISRA's boundaries included.
+- **LPS's answer covers the four datasets Daniel's question named, for this use,** NISRA's boundaries included.
 - **Both discrepancies point back to LPS:**
   - the mirrors' "LPS Open Government Data Licence" is LPS's own licence;
   - NISRA's exemption of OSNI-derived mapping from the OGL leaves that mapping to LPS, and this is LPS's written
