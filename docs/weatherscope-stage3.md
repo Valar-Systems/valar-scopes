@@ -13568,3 +13568,79 @@ The truth tables and sabotage sets are frozen in their own addendum before any c
 - **Q95, snow.**
   - **(a) [recommended]** `NEXT SNOW` when the period's short forecast names snow and not rain; otherwise `NEXT RAIN`.
   - **(b)** Always `NEXT RAIN`, as the ruling's example reads.
+
+### A12.131 A12.130 approved (Q88-Q95 all (a)); step 2, the capture, frozen before any fetch. Boards named by label; the full-MAC count
+
+**The ruling (~19:57Z):**
+- **A12.130 is approved.** Steps 2 and 3 may start; the device code waits for #571's merge.
+- **Q88-Q95 are all (a).** Q93: both versions are drawn for Daniel.
+- **Q92:** at night the first daytime period is tomorrow's, so a night-time Conditions screen joins the host PNGs.
+- **The capture's User-Agent** names the project and `support@valarsystems.com`, the public support address. **This supersedes A12.130's line,** which named Daniel's own.
+- **From now on,** a board is named in docs by a short label, never its full MAC: a MAC plus the public salt gives its device id. **This board is `6E:64`,** as E2:08 is E2:08.
+
+**The full-MAC count, numbers only:**
+- **The method:** every file in the tree, colon form plus the bench boards' Espressif-prefixed serial form. The serial form is matched only on the `907069` prefix, so 12-character commit hashes are not counted.
+- **Main** (`38e5bb482961`): **115 mentions** (57 colon form, 58 serial form) in **24 files.** Whether to scrub them is Daniel's call.
+- **#571 adds 9** (8 colon form, 1 serial form) in **9 files:**
+  - the eight `verify-flash` logs' `MAC:` lines;
+  - one serial in `touch_cap_bench.py`'s docstring.
+
+**Q96. #571's nine, before its merge.**
+- **(a) [recommended]** Relabel them as `6E:64` in a commit before the merge, with its CI predicted before the push. #571 is not on main yet, so its mentions would be new ones there.
+- **(b)** Leave them for the scrub decision on main.
+
+**From now on,** `publish_wcr.py`-style records replace the MAC with the label.
+
+#### Step 2, the capture: frozen before any fetch
+
+**The tools,** neither of which prints a coordinate, a URL, an office, a grid point or a station id:
+- **`tools/weatherscope/nws/capture_nws.py`:**
+  - reads the Dallas fixture place from `test/fixtures/wx/kdfw-60mi.wxc`'s header (the crop's centre, from the north-west cell and the grid), rounded to the 4 decimals api.weather.gov takes;
+  - fetches the six documents below with `User-Agent: Valar-Systems Weatherscope 3.5c capture (support@valarsystems.com)`;
+  - writes them raw into a directory **outside the repo**, and prints counts only.
+- **`tools/weatherscope/nws/trim_nws.py`:**
+  - writes `test/fixtures/wx/nws/<case>.json` with only the kept keys;
+  - **refuses** any key outside them, any string containing `http`, `.gov` or `@`, and any number with three or more decimals;
+  - with `--selftest`, plants each of those and must refuse each.
+
+**The documents and their predictions:**
+
+| # | document | predicted |
+|---|---|---|
+| 1 | `/points/{lat},{lon}` | 200; `forecast`, `forecastHourly` and `observationStations` present |
+| 2 | the gridpoint `forecast` | 200; **14 periods**; every temperature in °F and non-null |
+| 3 | `forecast/hourly` | 200; **at least 48 periods** (NWS serves 156); every temperature in °F |
+| 4 | `observationStations` | 200; at least one station |
+| 5 | the first station's `observations/latest` | 200 |
+| 6 | `/alerts/active?point=` | 200; a feature list, possibly empty |
+
+**What the weather holds is reported, not predicted:**
+- the nulls among chance of precipitation, the observation's temperature, wind, gust and humidity;
+- the number of alerts, and how many are not the warning screen's.
+
+**The trimmed record:**
+- **The capture:** `capturedUtc` (the hourly document's `generatedAt`), the screens' "now" in stored mode.
+- **The hourly entries:** the first **48**, each start (UTC), °F, and chance (%) with its has-flag.
+  - 48 rather than 24 so that a later case can start its strip at a later hour.
+  - The device's stored record keeps 24.
+- **The periods:** all of them, each with:
+  - its name and `isDaytime`;
+  - °F;
+  - its chance with a has-flag;
+  - its short forecast, cut to 24 characters (free text, so a prefix is a true prefix).
+- **The observation:** time, °F, wind direction (°), wind and gust (mph) and humidity (%), each with its has-flag.
+  - NWS sends these in SI units. They are converted with the rounding pinned as `floor(x + 0.5)`.
+- **The alerts:** event, start (`onset`, else `effective`) and end (`ends`, else `expires`), in UTC. Nothing else: no headline (it names offices and areas), no area and no polygon.
+- **When no alert is a watch or an advisory,** a **synthetic** list is stored beside it, `synthetic: true`, for the populated alerts screen. The empty case is the captured one.
+- **Predicted size:** under 8 KB. No string contains `http`, `.gov` or `@`, and no number has three decimals.
+
+**The night case (Q92):**
+- **Predicted for this capture:** Dallas, about 14:05 local, so its first period is a daytime one (`isDaytime: true`).
+- **The night case is a second capture after Dallas sunset,** at 00:30Z or later, by the same tools and the same predictions, except that its first period is a night one.
+- **Why not derive it from the first capture:** moving "now" to tonight's start would leave the observation four hours old against the new "now". The night layout would then show the stale treatment, and Daniel would be judging two things at once.
+- **If this session cannot capture after sunset,** the derived case is used, labelled derived, with that caveat stated beside its PNG.
+
+**Stops:**
+- A document that is not 200, or a structural prediction that fails: stop and report, with nothing trimmed.
+- A refusal by the trim tool: stop and report.
+- The raw documents are never committed and never printed.
