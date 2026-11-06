@@ -1087,3 +1087,29 @@ requires. Otherwise the read is "cannot see".
 
 **Outside the set:** any count is reported as read. **A `not_listed` count is said plainly: it is a real board that
 would have been refused.**
+
+### The watch counts, read (2026-11-06, 18:46Z): one row off
+
+The anchor held: `cfg:fleet` read back, and a known-absent key read null.
+
+| | read | verdict |
+|---|---|---|
+| **WC1** `not_listed` | **absent** | **as predicted**: no unlisted board has enrolled since the deploy |
+| **WC2** `already_activated` | **1** (on 2026-11-06) | **OFF** (predicted absent) |
+| **WC3** `enr:refused:` | **none** | **as predicted** |
+
+**What WC2's 1 is:** one enrolment since 03:28Z came from an id whose `act:` row was already activated. Watch mode
+let it through, gave it its key, and counted it. **Under enforce it would have been refused with 409
+`already_activated`, and needed a reset to recover.**
+
+**Whose it is, the counts cannot say, and the candidates are named rather than chosen:**
+- **(i)** a customer's unit that lost its key (a factory reset, or a Wi-Fi reset that re-enrols) and enrolled again:
+  the case enforce turns into a support reset;
+- **(ii)** the board that enrolled at 23:30Z on 11-05, grandfathered as activated at 04:32Z, enrolling again
+  afterwards;
+- **(iii)** a bench or test board. Not the COM16 board: today's proof left it at SETUP, with no Wi-Fi.
+
+**Proposed (not run), for a ruling, since the ruling asked for counts only:** a read-only characterisation in the
+shape of `extra-id.mts`. For the ledger rows whose last enrolment is after 03:28Z: the count, each one's first and
+last enrolment to the minute, its `act:` state, and its `fw:` model. Never an id. That separates (i) from (ii), and
+says whether (iii) is a known bench board.
