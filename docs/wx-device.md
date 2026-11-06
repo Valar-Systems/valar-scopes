@@ -4755,3 +4755,99 @@ reviewer's to decide first, because each one changes what the predictions say.
   that is said.
 
 **Outside the set:** none yet. The predictions are frozen after the ruling.
+
+### The ruling (~15:07Z), and the avionics look's predictions: frozen before the code
+
+**As ruled:**
+- **Q1:** look B gets the edge while the layer is on.
+- **Q2:** code 1 keeps ×55/40. At rest, dim green is (0, 50, 0) in A and (0, 31, 0) in B.
+- **Q3:** five band rows, named in words: Very light, Light, Moderate, Heavy, Intense.
+- **Q4:** with the layer on, cyan and white replace both the altitude colours and the plain green. This is tied to
+  the layer being on, not to a frame being present.
+- **Q5:** as proposed, with the edge's timer reported apart from B1's on−off reading.
+
+**One point of the ruling is held, for a fact the code contradicts: the "Snow" row.**
+- The ruling adds "Snow" (blue) "because snow still draws". On the Blipscope it does not:
+  - the server sends WXC1 **v1** crops (`proxy/src/wx/crop.ts`), which carry no precipitation type;
+  - the device's decoder (`WxCrop.h`), layer and colour code (`WxS2.h`) have no snow path;
+  - `WxLegendHtml.h`'s header says so ("the layer cannot draw snow until WXC1 v2 brings the type").
+- **Two running guards already refuse a snow row:** `check-wx-legend.py` ("a snow row: the layer cannot draw snow")
+  and the legend test's `[L1]`.
+- **The alternative, and why it is excluded:** snow arrives as reflectivity and draws in the band colours. That is
+  true, but then a blue swatch in the legend would name a colour the scope never draws.
+- **So the legend below has no Snow row**, and that one point waits for a ruling. Everything else proceeds.
+
+**What changes in the code:**
+
+| | change |
+|---|---|
+| **C1** | `include/WxAvionics.h`, new. It holds the five ruled colours and `Echo(code)`: 1 dim green; 2-3 green; 4-5 yellow; 6-7 red; 8-13 magenta; anything else `kDry`. It also holds `Plane(altM)`: cyan (0, 255, 255) below 3,000 m; white at 3,000 m and above, and for NaN. It uses `WxPalette.h` only for the `Rgb` type and `kDry`. |
+| **C2** | `WxS2.h`: `EchoAt` becomes `wxpalette::Dim(wxavionics::Echo(code), pct)`. The "ONE table" comment is amended, citing this ruling. `Outline(Look)` is retired, since its only caller is C3. |
+| **C3** | `AircraftManager::WxOutlineNow()` returns **`wxLayerEnabled`** (the `wx-layer` switch), in both looks and whatever frame is showing. Today it is `wxShowing == Crop && Outline(look)`. |
+| **C4** | The marker's base colour: no-data grey as today; otherwise **`wxLayerEnabled ? Plane(alt) : today's`**. Emergencies (`DrawEmergencyAlert`), every reticle, ring and badge, and the fade are unchanged. |
+| **C5** | `WxLegendHtml.h`'s rows: Very light (1), Light (2-3), Moderate (4-5), Heavy (6-7), Intense (8-13), No radar coverage (14), No data (15). The header comment follows. |
+| **C6** | `WxLookSelectHtml.h`: look B's label "Fainter rain, no outlines" is false after Q1. It becomes **"Fainter rain"**, and A's becomes **"Brighter rain"**. Both looks now outline the planes. |
+| **C7** | `check-wx-legend.py` and `wx-fb-check.py` read the band colours from `WxAvionics.h` in place of `WxPalette.h`'s rain table, with the new source lines asserted. `wx-fb-check.py` adds cyan and white to the planes it can see. |
+| **C8** | `WxPalette.h` and every Weatherscope file: **untouched**. The diff from `31eed11f` touches none of `src/weatherscope/`. |
+
+**The new tests, in `test/host/test_wx_avionics.cpp`:**
+
+| | check | predicted |
+|---|---|---|
+| **AV1** | every band edge at 100 %, against the ruling's values typed in the test: codes 1, 2, 3, 4, 5, 6, 7, 8 and 13; and 0, 14, 15 and 16 give `kDry` | ok |
+| **AV2** | flat inside a band: 2 = 3, 4 = 5, 6 = 7 and 8 = 9 = ... = 13 at every percent 0-100 | ok |
+| **AV3** | Weatherscope's table: FNV-1a 64 over 71 bytes, in this order: `kRainTable`, `kRain75`, `kRain1`, `kSnowTable`, `kSnowTopCode`, `kDry`, `kNoCoverage`, `kMissingHatch`, `kHatchPeriod`. Each `Rgb` counts as r, g, b; each int as one byte | **17800467619102092433**, read from the source at freeze time. It is written in decimal because a 16-hex literal trips the device-id hook |
+| **AV4** | `Plane()`: 0 m, -100 m and 2,999.9 m cyan; 3,000.0 m and 12,000 m white; NaN white | ok |
+| **AV5** | across faded planes and the layer's colours, compared in RGB565: cyan and white faded from 0.30 to 1.0 (10⁻⁵ steps, the device's truncation), against every layer colour in each look (codes 1-13 from the look's own percent to 100, plus 14's and 15's colours) | **0 equal** |
+| **AV6** | the at-rest anchors, typed in the test: A: 1 → (0, 50, 0), 2 → (0, 80, 0), 5 → (96, 88, 0), 7 → (92, 0, 0), 13 → (102, 0, 102). B: 1 → (0, 31, 0), 2 → (0, 50, 0), 5 → (60, 55, 0), 7 → (58, 0, 0), 13 → (64, 0, 64) | ok |
+
+**What moves in existing tests:**
+- `test_wx_s2.cpp`:
+  - WD4b's expected colours come from the ruled table typed in the test, not from `WxPalette.h`;
+  - its anchors are AV6's;
+  - WD4e (light rain below code 2 in L*) holds: (0, 50, 0) < (0, 80, 0) in A, and (0, 31, 0) < (0, 50, 0) in B;
+  - WD4d holds: no band colour equals an unfaded plane colour;
+  - the "plane outline" info line goes, with `Outline()`;
+  - WD4f stays information only.
+- `test_wx_legend_html.cpp`: `[L1]` reads the seven labels above and still no snow. `[L2]`'s anchor becomes A code 1 =
+  `rgb(0,50,0)`. `[L3]` and `[L4]` are unchanged, with 15 swatches.
+- `test_wx_look_select.cpp`: the two labels of C6.
+- `test_wx_sweep.cpp` and `test_wx_outline.cpp`: **unchanged and passing**. The sweep grades `Lit565` against
+  `EchoAt` relatively, and the outline test reads the call site, which stays.
+
+**The sabotages:**
+- **The two ruled ones, in a new `sabotage_wx_avionics.py`:**
+  - **S-AV-read:** `EchoAt` reads `wxpalette::Rain` → exactly **{AV1, AV2, AV5, AV6}** red.
+    - AV2: Rain's codes 2 and 3 differ ((0, 255, 0) and (0, 200, 0)), and so do 8 to 12.
+    - AV5: Rain's code 13 is white, and the lit sweep raises it to (255, 255, 255), an unfaded white plane.
+  - **S-AV-edit:** `kRainTable[0]`'s red byte plus one → exactly **{AV3}** red. `test_wx_palette.cpp`'s own checks
+    would go red too, but this driver runs only `test_wx_avionics`.
+- **Plus the guards this change needs:**
+  - **S-AV-alt:** `Plane()`'s `<` becomes `<=` → exactly {AV4}, since 3,000.0 m turns cyan.
+  - **S-AV-plane:** `Plane()` returns the live green → exactly {AV4, AV5}. A faded green (0, 80, 0) is look A's code 2.
+- **`sabotage_wx_s2.py`:** its three plants on `EchoAt`'s line are re-anchored to the new line, keeping their meaning.
+  - **"code 13 as the table's black"** and **"S-t2 code 1 from the old blue"** keep `kRainTable[0]`, which still
+    compiles: their sets are unchanged, {WD4b A, WD4b B}. Under S-t2 the old blue stays below code 2 in L*.
+  - **"the dim dropped": its set moves**, from {WD4b A, WD4b B, WD4d A, WD4d B} to **{WD4b A, WD4b B}**. Weatherscope's
+    undimmed green and yellow were plane colours; no undimmed avionics colour equals an unfaded plane colour in
+    RGB565. Its comment is changed to say so.
+  - The other three plants, and the unplanted run's `OK_COUNT` (10), are unchanged.
+- **`sabotage_wx_legend_html.py` and `sabotage_wx_look_select.py`:** their sets as before, with the labels moved.
+- **All drivers are run before any push,** and so is the driver-count lint.
+
+**Where they run:** `run.sh` under `wsl -d Ubuntu-24.04` (g++ 13.3), with free space checked first. The only failed
+blocks are the rig's two (xtensa, Pillow). Then `blipscope-s3-128` and `blipscope-s3-128-wxlook` build.
+
+**The cost, and Q5's reading, for the bench window (frozen before that window, with its protocol):**
+- **The edge's own timer** (`outlineFrameUs`), in look B: **0.16-0.19 ms per contact per frame.** Outside that band
+  reads "instrument": stop.
+- **B1 reports the layer itself:** (on − off) **minus the edge's timer**, beside the raw on − off. With look B's edge,
+  the raw figure includes about 6 ms of plane drawing at 34 contacts.
+- **0 `[health] BUDGET BROKEN`** at the window's contact count. The 60-contact case stays K6's question.
+- **Daniel's three, his call and not graded:** dim green at 15-20 dBZ, or nothing below 20; the lit sweep on these
+  colours; the plane edge.
+
+**CI:** predicted at the push, from finished runs that postdate main's last job-set change and from main at the push.
+#445 also needs main merged in first, with its own predictions, because its last run predates both #549 and #552.
+
+**Outside the set:** stop and report.
