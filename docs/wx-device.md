@@ -4944,6 +4944,16 @@ Blipscope's drawing decides through `Drawn()`.
 
 **`wx-fb-check.py`'s selftest:** one look-B case of rule (2) is added, as amended.
 
+**Amended before any run: S-t2's set is {WD4b A, WD4b B}, not {WD4b A, WD4b B, WD4g A, WD4g B}.** I mis-evaluated it.
+`Pixel888` gates on `Drawn()` itself, so a code-1 colour planted in `EchoAt` never reaches a pixel: WD4g, which reads
+`Pixel888`, stays green, and only WD4b, which reads `Echo()`, goes red. Its set therefore equals its old one.
+
+**Also made in the code step, changing no set:**
+- `sabotage_wx_legend_html.py`'s S-leg keeps its meaning, one level off: code 5 is now typed as `rgb(98,90,0)`, the
+  avionics yellow at 41 %, where the layer draws `rgb(96,88,0)`. It was `rgb(105,105,0)`, Weatherscope's yellow at
+  41 %. The plant would have turned [L2] red either way; the change keeps its comment true.
+- `sabotage_wx_look_select.py`'s S-label is re-anchored on the new label, as "Brighter rai".
+
 **Outside the set:** stop and report.
 
 **Outside the set:** stop and report.
