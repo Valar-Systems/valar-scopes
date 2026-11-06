@@ -2131,3 +2131,7 @@ Radars come from each frame's own node list (156-162 nodes a frame), by OPERA pr
   - `12569fa0` is itself main's last workflow change (2026-11-05 13:37).
   - `ship-alert` skips on a PR.
   - It is read only from a finished run.
+
+**#557's CI at `d155686cba5d`, finished 01:16:26Z on 2026-11-06:** **31 check-runs: 28 success, 3 skipped (`promote`,
+`ship-alert`, `version`), 0 failed.** The workflows were device-ids, firmware and no-traffic-captures, all
+`success`. **As predicted** (baseline: main's run at `12569fa0`, its last workflow change). Waiting for the review.
