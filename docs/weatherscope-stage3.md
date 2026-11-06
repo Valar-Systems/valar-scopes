@@ -14276,3 +14276,253 @@ Found by adding each list up against its own total after the push. Neither chang
 **The CI prediction for `1f46c725e2a7`, as ruled:** PR 34 checks: 30 success, 4 skipped (promote, version, ship-alert, publish), 0 failed. Main on the squash: 34: 31/3/0. The baselines are A12.136's.
 
 **#571 merges only** on a pasted approval at the exact SHA, after main's CI on its current head has finished.
+
+### A12.144 3.5c step 5: the truth tables and sabotage sets, frozen before any device code. Three questions
+
+**Where this sits:** Daniel has looked, and step 4 is accepted (~22:49Z). The device code is step 6, which waits for #571's merge. Nothing here is code.
+
+**What the tables grade:**
+- **`src/weatherscope/WxSwipe.h`, new and pure, host-compiled:** the page model, the headline, the strip's scaling, the week rows, the conditions rows, the alert selection, and the three screens composed onto a `wxraster::Sink`. Every text on these screens goes through one function that also records the box of the pixels it lit, so the layout check reads what was drawn.
+- **`WxFeeds.h`:** `Forecast` and `ForecastFeed` are new. `Observation` gains wind, gust and humidity with has-flags. `Alert` gains its start.
+- **`StoredFeeds`:** reads a generated `WxForecastData.h`, emitted from `dallas-day.json` with a `--check` mode, keeping 24 hourly entries and every period.
+- **No new theme role.** A12.133's renders use existing roles, so the table stays at 87 and the contrast table there stands.
+- **`WeatherscopeManager`:** one new mode holding the page. It is not host-compiled, so the board rows see its wiring.
+
+**The suite:** `test/host/test_wx_swipe.cpp`, a new `run.sh` block, predicted **`133 checks, 0 failures`** under MinGW and WSL g++ 13.3, with `sabotage_wx_swipe.py` as its driver, so the driver passes read 32. The night case adds L11, L12, K11 and K12 when its record lands, by its own addendum.
+
+#### N, navigation: 35 rows, `N-<page>-<event>`
+
+| page | left swipe | right swipe | tap | up / down | long press | 10 min idle | scenario cycle |
+|---|---|---|---|---|---|---|---|
+| map | forecast | stays | opens the loop | zoom | 60/15 | stays | runs |
+| fc (forecast) | conditions | map | map | nothing | nothing | map | paused |
+| cond (conditions) | alerts | forecast | map | nothing | nothing | map | paused |
+| alerts | legend | conditions | map | nothing | nothing | map | paused |
+| legend | stays | alerts | map | nothing | nothing | map | paused |
+
+- **The idle rule** uses `kZoomIdleMs` (600,000 ms) and the same `lastTouchMs` as the zoom's idle return. On the map, that return is unchanged.
+- **The idle rows test both sides:** 599,999 ms stays and 600,000 ms goes.
+- **The loop is not a page.** Its gestures are unchanged.
+- **A live warning taking over a swipe screen** belongs to the live path. Stored mode has none, so it is not in 3.5c.
+
+#### H, the headline: 17 rows
+
+| # | case | reads |
+|---|---|---|
+| H1 | an hour at 40 %, 4 PM local | `NEXT RAIN` / `4 PM` |
+| H2 | 29 % everywhere, hours and periods | `NO RAIN` / `IN 7 DAYS` |
+| H3 | an hour at exactly 30 % | a hit |
+| H4 | an hour with `hasPop` false and 99 stored | skipped |
+| H5 | two hours over the line | the first named |
+| H6 | an hour and a period both over | the hour |
+| H7 | a day-3 daytime period only | `NEXT RAIN TUE`, one line |
+| H8 | a day-3 night period only | `NEXT RAIN` / `TUE NIGHT` |
+| H9 | day 0, daytime | `NEXT RAIN` / `TODAY` |
+| H10 | day 0, night | `NEXT RAIN` / `TONIGHT` |
+| H11 | a night-first record | day 0 is `TONIGHT`; the next daytime reads tomorrow's weekday |
+| H12 | a period named `Veterans Day` | its weekday, by position |
+| H13 | a period's short forecast names snow, not rain | `NEXT SNOW TUE` |
+| H14 | it names both | `NEXT RAIN TUE` |
+| H15 | it names neither (`Wintry Mix`) | `NEXT RAIN TUE` |
+| H16 | an hour's hit inside a snow period (Q105) | `NEXT SNOW` / `4 PM` |
+| H17 | `SNOW` in any case | matched |
+
+**The rule for one line or two:** one line at row 34 when its width fits the chord (159 px), or else two, at rows 34 and 52. By that rule `NEXT RAIN TUE` (154 px) is one line and `NEXT RAIN 4 PM` (166 px) is two.
+
+#### The strip: B, Y and X, 17 rows
+
+| # | case | result |
+|---|---|---|
+| B1 | chance 0 | 0 px |
+| B2 | chance 1 | 0 px |
+| B3 | chance 2 | 1 px |
+| B4 | chance 25 | 10 px |
+| B5 | chance 100 | 40 px |
+| B6 | `hasPop` false | no bar |
+| Y1 | t = min | row 127 |
+| Y2 | t = max | row 80 |
+| Y3 | max = min | row 127 |
+| Y4 | span 2, one above min | row 103 |
+| Y5 | one hour with no temperature | 23 points, the line joins across it |
+| X1 | local hour 0 | `12A` |
+| X2 | local hour 6 | `6A` |
+| X3 | local hour 12 | `12P` |
+| X4 | local hour 18 | `6P` |
+| X5 | any other hour | no label |
+| X6 | a UTC time before local midnight | the right label, with the offset's negative arithmetic pinned |
+
+**Rounding is pinned in integers,** so the device and Python cannot disagree: bars `(p * 40 + 50) / 100`; the line's rise `(2 * d * 47 + s) / (2 * s)`, with `s` the span and at least 1; the wind's sector `((2 * deg + 45) / 90) % 8`.
+
+#### W, the week: 6 rows
+
+| # | case | reads |
+|---|---|---|
+| W1 | a full day | `SAT  67/52   8%` |
+| W2 | a night-only first day | `TON  --/53 ...` |
+| W3 | day 8 %, night 40 % | ` 40%`, the larger |
+| W4 | no chance reported | ` 0%` |
+| W5 | 14 periods | 7 rows, no more |
+| W6 | chance 100 | `100%`, and the row still fits its chord |
+
+#### C, conditions: 25 rows
+
+| # | case | reads |
+|---|---|---|
+| C1 | `70` | digits at size 4 from x 91; degree at size 2 from x 139, same row |
+| C2 | `100` | digits from x 79, degree from x 151 |
+| C3 | `-5` | digits from x 91, degree from x 139 |
+| C4 | no temperature | `--` at size 4, no degree |
+| C5 | 315°, 12 mph | `WIND NW 12` |
+| C6 | gust 20 | `WIND NW 12 G20` |
+| C7 | gust 12, equal to the wind | no `G` |
+| C8 | 0 mph | `WIND CALM` |
+| C9 | no wind | `WIND --` |
+| C10 | wind, no direction | `WIND 12` |
+| C11-C15 | 22°, 23°, 337°, 338°, 360° | `N`, `NE`, `NW`, `N`, `N` |
+| C16 | humidity 53 | `HUMIDITY 53%` |
+| C17 | none | `HUMIDITY --` |
+| C18 | first daytime 68, first night 53 | `HI 68  LO 53` |
+| C19 | a night-first record | `HI` is tomorrow's daytime high |
+| C20 | no periods | `HI --  LO --` |
+| C21 | age 5,400 s | `uiDim`, fresh |
+| C22 | age 5,401 s | `orangeText` |
+| C23 | age negative (the capture's own case) | `uiDim`, fresh |
+| C24 | 13:40 local | `OBSERVED 1:40 PM` |
+| C25 | 00:05 local | `OBSERVED 12:05 AM` |
+
+#### A, alerts: 10 rows
+
+| # | case | result |
+|---|---|---|
+| A1 | each of the warning screen's four events | excluded |
+| A2 | stored out of order | ordered by start |
+| A3 | equal starts | stored order kept |
+| A4 | five watches | 4 entries, `+1 MORE` |
+| A5 | none | `NO WATCHES OR ADVISORIES`, row 116 |
+| A6 | only warnings | the same sentence |
+| A7 | a span, with noon and midnight | `FRI 3 PM - SAT 12 AM` form |
+| A8 | the list's top, n = 1 to 4, then 4 with `+N MORE` | rows 110, 97, 84, 71, 63 |
+| A9 | an event | upper-cased |
+| A10 | the widest NWS event, `TROPICAL CYCLONE LOCAL STATEMENT` (191 px) | fits the chord at every list top (narrowest 203 px) |
+
+#### D, L and K: 23 rows
+
+| # | what | predicted |
+|---|---|---|
+| D1-D3 | the dots on forecast, conditions, alerts | one 5 × 5 `uiFg` at the page, four 3 × 3 `uiDim`, 61 px |
+| L1-L10 | every screen, both themes: no chord refusal and no two text items within 2 px | smallest gaps as D7 (A12.138): 3, 3, 4, 3, 100 |
+| K1-K10 | the same 10 screens through the device's path against `ref35c.py` | 57,600 of 57,600 pixels, by equal sha256 of the big-endian RGB565 frame, from a new `k35c.ref.txt` |
+
+**`ref35c.py` gains** the snow word and `--k`, which writes that file. No record names snow, so the 10 renders' RGB hashes in A12.139 are predicted unchanged.
+
+**Unchanged and predicted so:** the map's and legend's K rows (79 checks, `test_wx_k35`), and every other block in `run.sh`.
+
+**Stored data:** the `--check` mode exits 0 on the generated header. A plant in the header exits 1. The image's D2 scan stays clean: no NWS hostname, and `check_binary_strings.py` exits 0.
+
+#### The sabotage sets
+
+Each is planted in a copy, one at a time, and must fail exactly its set. Set names use the rows above; K and L rows are named by screen.
+
+| plant | change | fails exactly |
+|---|---|---|
+| **S-SW1** | a left swipe on the legend wraps to the map | {N-legend-left} |
+| **S-SW2** | a right swipe on the map wraps to the legend | {N-map-right} |
+| **S-SW3** | a tap keeps the page | {N-fc-tap, N-cond-tap, N-alerts-tap, N-legend-tap} |
+| **S-SW4** | no idle return | {N-fc-idle, N-cond-idle, N-alerts-idle, N-legend-idle} |
+| **S-SW5** | the cycle not paused | {N-fc-cycle, N-cond-cycle, N-alerts-cycle, N-legend-cycle} |
+| **S-SW6** | the threshold is `> 30` | {H3} |
+| **S-SW7** | `hasPop` ignored in the hourly scan | {H4} |
+| **S-SW8** | the snow word ignores rain | {H14} |
+| **S-SW9** | bars truncate instead of rounding | {B3} |
+| **S-SW10** | the line's scale is 52 | {Y2, Y4, K forecast × 4} |
+| **S-SW11** | the warning filter dropped | {A1, A6} |
+| **S-SW12** | the sort dropped | {A2} |
+| **S-SW13** | stale at `>=` 5,400 s | {C21} |
+| **S-SW14** | the gust shown when equal | {C7} |
+| **S-SW15** | the list's top fixed at row 36 | {A8, A10, K alerts SYNTHETIC × 2} |
+| **S-L** | the forecast's constants as they stood before A12.138 | {Y1-Y4, L forecast × 4, K forecast × 4}; those L rows read 0 px |
+| **S-D** | the current dot 3 px | {D1-D3, K1-K10} |
+| **S-G** | the degree sign at size 4 | {C1-C3, K conditions × 2} |
+
+Sets B3 and A2 rest on measured facts: every chance in both forecast cases is a multiple of 5 or 0, and the stored synthetic alerts are already in start order. So neither plant reaches a K row.
+
+#### The board, step 7
+
+As A12.130, plus the ruled HTTP read (Q103): `MaybeUpdateFirmware`'s version check through `GetSecure`, one of the three functions the merge recompiled, answers on the merged image. Its rows are frozen in that step's announcement.
+
+#### Questions
+
+**Q105. The snow word for an hour's hit (H16).** Q95 reads the word from "the period's short forecast", but the stored periods carry no time, so an hour cannot find its period.
+- **(a) [recommended]** Add `startUtc` to each period, in the record and the device's struct. `trim_nws.py` re-runs from the raw capture outside the repo. `dallas-day.json` gains one integer per period, and the 10 renders are predicted unchanged.
+- **(b)** An hour's hit always reads `RAIN`, which would be false in snow. H16 is dropped.
+
+**Q106. Which screens carry the dots?** A12.130 says the map is unchanged and the legend is unchanged, and the ruling says the dots are in.
+- **(a) [recommended]** The three new screens only. D1-D3 as above.
+- **(b)** The legend as well. Its K rows and frozen image would change.
+
+**Q107. The bench's `S`.** Today `S` is a left swipe that opens the legend, and four closed runners rely on that (`run_b.py`, `run_b35.py`, `run_b35b.py`, `run_b35t.py`). A left swipe now opens the forecast. A closed step's instrument is not re-anchored, so the new code bends.
+- **(a) [recommended]** `S` keeps its meaning, opening the legend directly from the map. New bytes drive the real swipes: `N` left, `V` right. A touch swipe takes the new path.
+- **(b)** `S` becomes the new left swipe, and the four closed runners stop working as written.
+
+### A12.145 The MAC scrub, extended (Q102 (a), Q104 (a)): the added predictions, and four more boards' names found
+
+**Applied from A12.140:** T1 and T2 are both in, each with a planted twin of its form (G6, G7). Everything else in A12.140 stands; this adds what Q104 brings. No repo file changes yet.
+
+**Reading the proposed generic rule against main found more than the 5 boards.** Simulated on `6d7823e11c24`, every `<product>-<6 hex>` in tracked text, with nothing printed but counts and the two made-up values:
+
+| class | mentions | what happens |
+|---|---|---|
+| the 5 boards' names | 197 | become `<product>-<last 2 bytes>`, as ruled |
+| the 5 boards' suffixes, bare | 8 | become the label |
+| **4 other values with no pattern: other boards' names** | **66** (61 in `bench-logs/`, 5 in 4 docs) | **the same rewrite, except the two print cards below** |
+| made-up: `a1b2c3` ×18, `00e000` ×2 | 20 | stay, allowed by value |
+| tracked file NAMES with the shape | 0 | - |
+
+**The 4 others are not in the set A12.140 named,** because no full MAC of theirs is in the tree. Their names carry the same three bytes, so a tree with only the 5 boards fixed still gives their MACs in 376 guesses. Since the rule is generic, it refuses them, and the rewrite needs no list: keep the last two bytes.
+
+**The print cards are different.** `docs/blipscope-quickstart-card.html` and its `-PRINT-TEST` copy each show one such name to a customer as an example. Four hex digits would be the wrong shape for what a device displays, so those two become the made-up `A1B2C3`. Both are read by `scripts/check-print-cards.mjs`, which must still exit 0.
+
+**The device-name guard joins `check_macs.py`:**
+
+| row | case | result |
+|---|---|---|
+| **G15** | a product name, then 6 hex, any case | refused |
+| **G16** | CONTROL: `a1b2c3` and `00e000`, the two allowed examples, and `xxxxxx` | allowed |
+| **G17** | CONTROL: the rewritten form, a product name then 4 hex | allowed |
+| **G18** | the product list | read from `DEVICE_PRODUCT_NAME` in `include/DeviceIdentity.h`, not a second list here. Under 9 names parsed is exit 2 |
+
+G18 means a new edition is covered the day its name is added, with nothing to remember. It takes its input from the other side, and it needs no registry, so CI can run it.
+
+| plant | change | fails exactly |
+|---|---|---|
+| **S-G7** | the name rule off | {G15} |
+| **S-G8** | any 6 hex allowed as an example | {G15} |
+
+G16 stays green under both.
+
+**The tools.** `tools/weatherscope/trace-close/run.ps1`, `tools/weatherscope/board/run_b.py` and `scripts/fresh-boot-acceptance.sh` carry a board's name.
+- **`board-port.py <board> --host`** composes the mDNS name from the registry. It is a value on a pipe, so these tools hold it in a variable and log the label.
+- **A closed step's runner is not re-anchored** (Q85 (b)): for `run.ps1` and `run_b.py` only the literal changes, and their verdict tables do not move.
+
+**The rewrite tool stays outside the repo,** reads the registry in memory, and prints counts only, per class and per file, before and after. Its predicted counts after, on the PR's tree:
+- every class above **0**, except the made-up 20;
+- G15 fires 0 times;
+- the record files' meanings do not change; a run record's own sha, if a doc cites one, no longer reproduces, and that is a fact about the old bytes.
+
+**Files touched** rises to about 80, most of them records; the exact count is printed at PR time. `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py` read the same as before.
+
+**The order is unchanged:** after #571 and #583 merge, the surveys are re-run on main and these counts restated if they moved. The PR says it merges only with no bench window running, with CI predicted before its push.
+
+### A12.146 M0 restated on `4bbfdb8ffd55`: the merge commit is `f9f778be55d3`
+
+**The move:** main went from `ace08e6b06df` to `4bbfdb8ffd55` (#585) as A12.143 was pushed, and the push of `1f46c725e2a7` was refused, so that commit never reached the remote.
+
+**What it touches:** `docs/basemap-dense.md` and six files under `proxy/`. Nothing in the ruling's paths. I read `src/` in the ruling as the top-level firmware tree, so `proxy/src/` is outside it: that is the Worker, and no firmware, no `.github` and no `skus.yml` moved.
+
+**The trial:** 0 conflicted files, tree `8dcc2799283b`. **The merge commit is `f9f778be55d3`, that tree.**
+
+**M10, read on it:** all exit 0, the same list as A12.143, with `check-setup-banner.mjs` at 13 and 8.
+
+**M9 is not re-read.** The ruling names M10, and the move touches nothing the web build reads.
+
+**The CI prediction is unchanged:** PR 34: 30/4/0; main on the squash 34: 31/3/0. The job set did not move.
