@@ -13969,3 +13969,68 @@ The bars (graphic): dark 11.1404, light 4.5143.
 **Every other row stands.** R2's baseline stays run 42297875773: the firmware inputs are the same, because #581 touches none. The CI prediction stands, since the job set is unchanged: PR 34: 30/4/0; main 34: 31/3/0.
 
 **If main moves again by docs only** (none of the paths above), the merge commit's tree is the trial's, and it is recorded with the results rather than restated here. Any other move restates A12.136 before the commit.
+
+### A12.138 3.5c step 4, Daniel's pick (~21:44Z): the layout changes and their predictions, before the renderer changes
+
+**The ruling:**
+1. Q93: the dots are in. The current dot is 5 px as well as brighter; the others stay 3 px.
+2. Both themes as drawn.
+3. Forecast: the hour labels belong to the graph, 1-2 blank rows under its axis. The week starts at least 6 blank rows below them, and a shorter strip is preferred to moving the week down.
+4. Conditions: the degree sign is the size-2 glyph, raised to the top of the digits. The block is centred between the title and the dots, which closes the empty band above `OBSERVED`.
+5. Alerts: the list is centred between the title and the dots. The empty state stays as drawn.
+6. A new layout check: no two separate text items within 2 px, on every screen in both themes. Today's forecast is its sabotage, reading 0 px.
+7. Re-render only the changed screens, both themes with dots, and send them to Daniel before step 5 freezes the truth tables.
+
+**The band.** The title's last row is 15, and the current dot's top row is 222. So "between the title and the dots" is rows 16-221, 206 rows. An odd remainder puts the extra blank row below.
+
+**The geometry, frozen here (all px, y as rows on the 240 × 240 screen):**
+
+| item | today | new |
+|---|---|---|
+| the current dot | 3 × 3, rows 223-225, `uiFg` | **5 × 5**, rows 222-226, `uiFg` |
+| the other four dots | 3 × 3, rows 223-225, `uiDim` | unchanged |
+| forecast axis | row 137 | **row 132** |
+| forecast temperature curve | rows 80-132, scale 52 | **rows 80-127, scale 47** |
+| forecast rain bars | up from row 136, 40 px at 100 % | **up from row 131**, same scale |
+| forecast low-temperature label | row 128 | **row 123** |
+| forecast high-temperature label | row 76 | unchanged |
+| forecast hour labels | rows 141-147 | **rows 135-141** |
+| forecast week rows | from row 148, 10 apart | unchanged, ends at row 214 |
+| conditions temperature | `70°` centred, all size 4, row 40 | **digits size 4 at row 55; the degree sign size 2 at the same row**, at the natural advance after the digits; the two centred as one |
+| conditions wind | row 88 | **row 103** |
+| conditions humidity | row 112 | **row 127** |
+| conditions HI / LO | row 136 | **row 151** |
+| conditions `OBSERVED` | row 198 | **row 175** |
+| alerts list | first entry at row 36 | **first entry at row 16 + (206 - H) / 2**, rounded down |
+| alerts empty state | row 116 | unchanged |
+
+**How those follow:**
+- **Forecast:** rows 133-134 are the 2 blank rows under the axis, and 142-147 are the 6 above the week. The week does not move. The strip is 5 rows shorter, and the headline above it does not move.
+- **Conditions:** the block is 127 rows tall: 28 for the temperature, a 20 gap, then the three size-2 rows and `OBSERVED`, with the 10 gap between them that the rows have today. That leaves 39 blank rows above and 40 below.
+- **The degree glyph's** lit rows are 0-3 and the digits' are 0-6, so the same `y` puts their tops level. At size 2 it is 10 px wide and 8 px tall.
+- **Alerts:** H is `26n - 9` rows for n entries, and `26n + 7` with `+N MORE`, which keeps today's 26 pitch. The synthetic case (4 entries and `+1 MORE`) is H = 111, so its entries start at rows 63, 89, 115 and 141 and `+1 MORE` is at row 167. That leaves 47 blank rows above and 48 below.
+
+**The layout check, in `ref35c.py` now so the renders Daniel sees already pass it:**
+- **Each `text()` call is one item,** its box the lit pixels it drew. The digits and the degree sign count as two.
+- **The gap between two items** is the larger of their horizontal and vertical gaps, in blank pixels. It is negative when they overlap, and it is not clamped.
+- **A gap of 2 or less is REFUSED,** like a chord refusal: no PNG is written, and the items are named.
+- **Each render prints its smallest gap.**
+
+**The no-dots renders end,** since Q93 is ruled. That makes 5 screens × 2 themes = **10 renders, 20 files** (1× and 3×), into a new directory outside the repo. The night Conditions, after 00:30Z, becomes 2 renders.
+
+**Predicted:**
+
+| row | what | predicted |
+|---|---|---|
+| **D1** | the count | 10 written, 0 chord refusals, 0 gap refusals |
+| **D2** | the dots, read from the pixels of all 10 | 61 dot pixels each: one 5 × 5 `uiFg` at the screen's page, four 3 × 3 `uiDim` |
+| **D3** | forecast, read from the pixels (capture and SYNTHETIC-RAIN, both themes) | axis on row 132; rows 133-134 blank; hour labels' lit rows exactly 135-141; rows 142-147 blank; first week row lit from row 148; last at row 214 |
+| **D4** | conditions, read from the pixels | digits and degree sign both start at row 55; degree lit rows 55-62; blank rows 16-54 and 182-221; `OBSERVED` lit rows 175-181 |
+| **D5** | alerts SYNTHETIC, read from the pixels | blank rows 16-62 and 174-221; the last lit row is 173 |
+| **D6** | alerts capture against A12.134's render | exactly **16 px** differ per theme, all inside the current dot's 5 × 5 box |
+| **D7** | smallest gap per render, both themes | forecast capture **3**, forecast SYNTHETIC-RAIN **3** (week rows), conditions **4** (digits to degree sign), alerts SYNTHETIC **3** (event to span), alerts capture **100** (title to the sentence) |
+| **S-L** | the sabotage: today's forecast constants restored in `--selftest` | reads **0 px** and is refused, in both themes. CONTROL: the new constants read 3 and are not refused |
+
+**Unchanged:** the record, the guards' exit codes on the commit, and the headlines (`NO RAIN` / `IN 7 DAYS`; `NEXT RAIN` / `TUE NIGHT`).
+
+**The stop:** any row off stops the step. Nothing goes to Daniel until D1-D7 and S-L read as predicted. Step 5 waits for him.
