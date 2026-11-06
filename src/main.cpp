@@ -697,6 +697,13 @@ void setup()
   // customer would be looking at while wondering why the OTA changed nothing.
   configmigration::Apply();
 
+#if defined(WX_LOOK_AB)
+  // Step C (docs/wx-device.md, ruled 2026-10-29), bench image only: once at boot, the copy floor. Measured here, and
+  // reprinted with every 30 s [health] report, because serial writes never block (#485): a boot line printed before
+  // the trace opens can be dropped.
+  appManager.MeasureCopyFloor();
+#endif
+
   // A private ntfy topic, generated once on a factory-fresh device (14.1).
   // AFTER Wi-Fi, because esp_random() wants the RF subsystem up for full
   // entropy, and BEFORE the app reads settings, so the first session already
@@ -920,12 +927,49 @@ void loop()
     const bool firstPass = (bandY == 0);
 
     framebuf::SetPhase(framebuf::kPhaseClearing);  // /diag/fb copies only between Drawn and this (A9.26)
+#if defined(FEATURE_CLOUD_FEED) && !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+    // Weather under the planes (docs/wx-device.md, WD5): on the radar scope, with a crop WxPolicy allows, the cached
+    // layer replaces the clear, then the sweep and the planes draw over it. Everywhere else: cleared as before.
+#if defined(WX_LOOK_AB)
+    // Step C (docs/wx-device.md, ruled 2026-10-29): the clear-or-push call, timed, on the bench image only. The #else
+    // branch is the shipping code, unchanged.
+    {
+      const uint32_t clearT0 = micros();
+      const bool pushed = appManager.DrawWeatherUnder(canvas);
+      if (!pushed) canvas.fillScreen(lgfx::color888(0, 0, 0));
+      appManager.RecordClearUs(micros() - clearT0, pushed);
+    }
+#else
+    if (!appManager.DrawWeatherUnder(canvas))
     canvas.fillScreen(lgfx::color888(0, 0, 0));
+#endif
+#else
+    canvas.fillScreen(lgfx::color888(0, 0, 0));
+#endif
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
-    if (drawScan)
-      DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+    if (drawScan) {
+#if defined(WX_LOOK_AB)
+#if !defined(FEATURE_CLOUD_FEED)
+#error "WX_LOOK_AB is a cloud-feed bench flag"
+#endif
+      // W4' (docs/wx-device.md, WD6'): the sweep call alone, timed whichever path runs. Bench image only -- the
+      // #else branch is the shipping code, unchanged, so the shipping image builds byte-identical.
+      const uint32_t sweepT0 = micros();
+      const bool sweepBlended =
+          appManager.DrawSweepOverWeather(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+      if (!sweepBlended)
+        DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+      appManager.RecordSweepUs(micros() - sweepT0, sweepBlended);
+#else
+#if defined(FEATURE_CLOUD_FEED)
+      // Over a shown weather layer the wedge blends (WD6, looks 3/4); otherwise today's opaque wedge, unchanged.
+      if (!appManager.DrawSweepOverWeather(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep))
+#endif
+        DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+#endif
+    }
 #endif
 
     appManager.Draw(canvas, firstPass);

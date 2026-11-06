@@ -9,11 +9,12 @@ import { describe, expect, it } from "vitest";
 import { VIEW, cropCellBox, quantise, viewDegrees } from "../src/wx/crop";
 import { FrameBuilder, type FrameMeta, type GridGeom, frameMeta, objectBytes, readHeader, tileBytes, tileOffset, tiledCellAt } from "../src/wx/grid";
 import { type LatestRecord, handleWx, readLatest } from "../src/wx/handler";
-import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, ingestOnce } from "../src/wx/ingest";
+import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, PRUNE_BACK_S, RETAIN_S, ingestOnce, pruneByKey, pruneOld } from "../src/wx/ingest";
 import { WGS84, laea } from "../src/wx/laea";
 import { HEAD_BYTES, NODATA, type OperaGeo, OperaRefused, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
-import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, latestKey, servedProduct } from "../src/wx/products";
-import { type MaskOpts, OPUK_QI_MASK, mapFor, operaCode, prepareCentreOnly, resample } from "../src/wx/resample";
+import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, framesPrefix, latestKey, servedProduct } from "../src/wx/products";
+import { type MaskOpts, OPUK_QI_MASK, buildMap, cachedMap, clearMapCache, encodeMap, mapFor, mapKey, operaCode, prepareCentreOnly,
+         resample } from "../src/wx/resample";
 import dryBin from "./fixtures/wx/opera/20261029T0130.ranges.bin";
 import dryExp from "./fixtures/wx/opera/20261029T0130.expected.json";
 import dryRanges from "./fixtures/wx/opera/20261029T0130.ranges.json";
@@ -92,16 +93,17 @@ async function bandSha(v: Float32Array) {
 }
 
 /** env.WX with every list() counted (K10). */
-function countingLists() {
-  let lists = 0;
+function countingOps() {
+  let lists = 0, deletes = 0;
   const WX = new Proxy(env.WX!, {
     get(t, prop) {
       const v = Reflect.get(t, prop);
       if (prop === "list") return (...a: unknown[]) => { lists++; return (v as (...x: unknown[]) => unknown).apply(t, a); };
+      if (prop === "delete") return (...a: unknown[]) => { deletes++; return (v as (...x: unknown[]) => unknown).apply(t, a); };
       return typeof v === "function" ? v.bind(t) : v;
     },
   }) as R2Bucket;
-  return { WX, lists: () => lists };
+  return { WX, lists: () => lists, deletes: () => deletes };
 }
 
 // ---- LAEA against pyproj -------------------------------------------------------------------------------------------
@@ -638,24 +640,211 @@ describe("K9: the covered share", () => {
   }, SLOW);
 });
 
-describe("K10: opuk prunes only on the check that stores a frame", () => {
+// K10 as re-registered by stage 1a (docs/wx-opera-europe.md section 11, PK1): opuk still prunes only on the check that
+// stores a frame, and that prune is now BY KEY -- one delete, no list.
+describe("K10 re-registered (PK1): opuk prunes only on a storing check, by key", () => {
   const run = async (x: IngestX) => {
     const t = (epochOf(DRY) + 300) * 1000;
-    const a = countingLists();
+    const a = countingOps();
     const stored = await ingestOnce(a.WX, opuk, t, operaFetch(DRY), undefined, x);
-    const b = countingLists();
+    const b = countingOps();
     const again = await ingestOnce(b.WX, opuk, t + 30_000, operaFetch(DRY), undefined, x);
-    return { stored: stored.status, storeLists: a.lists(), again: again.status, againLists: b.lists() };
+    return { stored: stored.status, storeLists: a.lists(), storeDeletes: a.deletes(), pruneKeys: stored.pruneKeys,
+             pruned: stored.pruned, again: again.status, againLists: b.lists(), againDeletes: b.deletes() };
   };
-  it("a storing check prunes; a check that stores nothing makes 0 R2 lists", async () => {
+  it("storing: 0 lists, 1 delete; storing nothing: 0 lists, 0 deletes", async () => {
     const r = await run({});
-    console.log(`K10: ${r.stored} with ${r.storeLists} list(s), then ${r.again} with ${r.againLists}`);
+    console.log(`PK1: ${r.stored} with ${r.storeLists} list(s), ${r.storeDeletes} delete(s), pruneKeys ${r.pruneKeys}; ` +
+                `then ${r.again} with ${r.againLists} list(s), ${r.againDeletes} delete(s)`);
     expect([r.stored, r.again]).toEqual(["stored", "already-stored"]);
-    expect(r.storeLists).toBeGreaterThan(0);
-    expect(r.againLists).toBe(0);
+    expect([r.storeLists, r.storeDeletes, r.againLists, r.againDeletes]).toEqual([0, 1, 0, 0]);
+    expect(r.pruneKeys).toBe(900);
+    expect(r.pruned).toBeUndefined();
   }, SLOW);
-  it("SABOTAGE: prune on every check -- the second check lists", async () => {
-    expect((await run({ pruneAlways: true })).againLists).toBeGreaterThan(0);
+  it("SABOTAGE PK1s-a: prune by listing -- the storing check lists", async () => {
+    expect((await run({ pruneBy: "list" })).storeLists).toBeGreaterThan(0);
+  }, SLOW);
+  it("SABOTAGE PK1s-b: prune on every check (K10's own) -- the second check deletes", async () => {
+    expect((await run({ pruneAlways: true })).againDeletes).toBe(1);
+  }, SLOW);
+});
+
+// PK2, PK3, PK5: what a prune by key leaves, against a seeded bucket. T0 is the cut, a whole 5-minute mark; frames sit
+// every 300 s from 18 h before `now` to `now`, plus one at a whole minute OFF the 5-minute grid inside the window, and
+// `latest` names a frame inside the window (it never does in production, where a storing check moves it first).
+describe("PK2, PK3, PK5: a prune by key, on a seeded bucket", () => {
+  const T0 = 1_793_970_000;                                  // the cut: 300 * 5,979,900
+  const NOW = (T0 + RETAIN_S) * 1000;
+  const OFF_GRID = T0 - 420, LATEST = T0 - 1200;
+  const seeded = [...Array.from({ length: 217 }, (_, k) => T0 - 61_200 + 300 * k), OFF_GRID].sort((a, b) => a - b);
+  const keys = (es: number[]) => es.map((e) => frameKey(opuk, e)).sort();
+  const seed = async (latestAt: number) => {
+    const have = await env.WX!.list({ prefix: framesPrefix(opuk) });
+    if (have.objects.length) await env.WX!.delete(have.objects.map((o) => o.key));
+    for (const e of seeded) await env.WX!.put(frameKey(opuk, e), "x");
+    await env.WX!.put(latestKey(opuk), JSON.stringify({ product: opuk.id, epoch: latestAt, key: frameKey(opuk, latestAt) }));
+  };
+  const left = async () => (await env.WX!.list({ prefix: framesPrefix(opuk) })).objects.map((o) => o.key).sort();
+  // the rule, written out: at or after the cut; latest's; older than the window (left to expire-1d)
+  const expected = keys(seeded.filter((e) => e >= T0 || e === LATEST || e < T0 - PRUNE_BACK_S));
+
+  it("PK2: left = at/after the cut + latest's + older than the window, as whole lists; PK5: 899 sent", async () => {
+    await seed(LATEST);
+    const sent = await pruneByKey(env.WX!, opuk, NOW);
+    const got = await left();
+    console.log(`PK2: seeded ${seeded.length}, left ${got.length} (expected ${expected.length}); PK5: sent ${sent}`);
+    expect(got).toEqual(expected);
+    expect(got.length).toBe(38);                             // 13 at/after the cut + latest's + 24 strays
+    expect(sent).toBe(899);
+  });
+  it("PK5: with latest outside the window, 900 keys are sent", async () => {
+    await seed(T0 + RETAIN_S);
+    expect(await pruneByKey(env.WX!, opuk, NOW)).toBe(900);
+  });
+  it("SABOTAGE PK2s-a: the bound inclusive at the cut -- the frame AT the cut goes", async () => {
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW, { inclusiveCut: true });
+    const got = await left();
+    expect(got).not.toEqual(expected);
+    expect(got).not.toContain(frameKey(opuk, T0));
+  });
+  it("SABOTAGE PK2s-b: latest's key not excluded -- latest's frame goes", async () => {
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW, { ignoreLatest: true });
+    const got = await left();
+    expect(got).not.toEqual(expected);
+    expect(got).not.toContain(frameKey(opuk, LATEST));
+  });
+  it("SABOTAGE PK2s-c: a 300 s step -- the off-grid frame stays", async () => {
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW, { stepS: 300 });
+    const got = await left();
+    expect(got).not.toEqual(expected);
+    expect(got).toContain(frameKey(opuk, OFF_GRID));
+  });
+  it("PK3: against today's prune (pruneOld) -- the same, except the strays only pruneOld reaches", async () => {
+    await seed(LATEST);
+    await pruneOld(env.WX!, opuk, NOW);
+    const byList = await left();
+    await seed(LATEST);
+    await pruneByKey(env.WX!, opuk, NOW);
+    const byKey = await left();
+    const strays = keys(seeded.filter((e) => e < T0 - PRUNE_BACK_S));
+    console.log(`PK3: by list ${byList.length}, by key ${byKey.length}, strays ${strays.length}`);
+    expect(byKey.filter((k) => !strays.includes(k))).toEqual(byList);
+    expect(byKey.filter((k) => strays.includes(k))).toEqual(strays);
+  });
+});
+
+// ---- Stage 1c (docs/wx-opera-map-r2.md): the resample map from R2, MP1-MP4 ------------------------------------------
+
+describe("Stage 1c: the resample map from R2", () => {
+  const T = (epochOf(DRY) + 300) * 1000;
+  const mapsPrefix = `wx/${opuk.id}/map/`;
+  const wipe = async (prefix: string) => {
+    const l = await env.WX!.list({ prefix });
+    if (l.objects.length) await env.WX!.delete(l.objects.map((o) => o.key));
+  };
+  // one storing check of the DRY frame, from no frames and no latest, so every call builds
+  const store = async (x: IngestX = {}) => {
+    await wipe(framesPrefix(opuk));
+    await env.WX!.delete(latestKey(opuk));
+    const r = await ingestOnce(env.WX!, opuk, T, operaFetch(DRY), undefined, x);
+    const o = await env.WX!.get(frameKey(opuk, r.epoch!));
+    return { r, bytes: new Uint8Array(await o!.arrayBuffer()) };
+  };
+  const maps = async () => (await env.WX!.list({ prefix: mapsPrefix })).objects;
+  const same = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
+  // replace the one stored map's bytes, keeping its metadata (the key), so only what the bytes say can refuse it
+  const restore = async (bytes: Uint8Array) => {
+    const [obj] = await maps();
+    const cur = await env.WX!.get(obj!.key);
+    await env.WX!.put(obj!.key, bytes, { customMetadata: cur!.customMetadata });
+  };
+
+  it("MP1: built, then r2, then cache; MP2: the three frames identical; MP4: the object's size", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    const objs = await maps();
+    clearMapCache();
+    const b = await store();
+    const c = await store();
+    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const px = (w.window[1] - w.window[0] + 1) * (w.window[3] - w.window[2] + 1), cells = OPUK_GRID.ni * OPUK_GRID.nj;
+    console.log(`MP1: ${a.r.map}, ${b.r.map}, ${c.r.map}; MP4: ${objs.length} object(s), ${objs[0]?.size} B = ` +
+                `16 + 4 x (${px} window px + ${cells} cells) = ${16 + 4 * (px + cells)}; ` +
+                `MP2: identical ${same(a.bytes, b.bytes) && same(b.bytes, c.bytes)}`);
+    expect([a.r.status, a.r.map, b.r.map, c.r.map]).toEqual(["stored", "built", "r2", "cache"]);
+    expect(objs.length).toBe(1);
+    expect(objs[0]!.size).toBe(16 + 4 * (px + cells));
+    expect(same(a.bytes, b.bytes) && same(b.bytes, c.bytes)).toBe(true);
+    expect(a.r.mapRefused).toBeUndefined();
+  }, SLOW);
+
+  it("SABOTAGE MP1s: the R2 level off -- the second cold build reads built, and nothing is stored", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    await store({ mapR2: "off" });
+    clearMapCache();
+    const b = await store({ mapR2: "off" });
+    expect(b.r.map).toBe("built");
+    expect((await maps()).length).toBe(0);
+  }, SLOW);
+
+  it("SABOTAGE MP2s: one Int32 of the stored cellOf altered -- the frame through r2 differs", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const m = cachedMap(mapKey(w.geo, w.window, OPUK_GRID))!;
+    const codes = resample(w.value, w.quality, m, OPUK_GRID).codes;
+    // a no-coverage pixel moved into a covered, echo-free cell that has pixel centres: that cell must turn 14
+    const i = m.cellOf.findIndex((cell, k) => cell >= 0 && w.value[k] === NODATA);
+    const cB = codes.findIndex((code, k) => code === 0 && m.fill[k] === -2);
+    const bytes = encodeMap(m);
+    new DataView(bytes.buffer).setInt32(16 + 4 * i, cB, true);
+    await restore(bytes);
+    clearMapCache();
+    const b = await store();
+    console.log(`MP2s: pixel ${i} -> cell ${cB}; through ${b.r.map}, identical ${same(a.bytes, b.bytes)}`);
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(cB).toBeGreaterThanOrEqual(0);
+    expect(b.r.map).toBe("r2");
+    expect(same(a.bytes, b.bytes)).toBe(false);
+  }, SLOW);
+
+  // a map built for a window one column narrower: right key and metadata, wrong counts and length
+  const narrower = async () => {
+    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const [r0, r1, c0, c1] = w.window;
+    return encodeMap(buildMap(w.geo, [r0, r1, c0, c1 - 1], OPUK_GRID));
+  };
+  it("MP3: an object written for another window is refused and rebuilt; the frame is the right one", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    await restore(await narrower());
+    clearMapCache();
+    const b = await store();
+    clearMapCache();
+    const c = await store();
+    console.log(`MP3: ${b.r.map} (refused ${b.r.mapRefused}), identical ${same(a.bytes, b.bytes)}; then ${c.r.map}`);
+    expect([b.r.map, b.r.mapRefused]).toEqual(["built", true]);
+    expect(same(a.bytes, b.bytes)).toBe(true);
+    expect(c.r.map).toBe("r2");                              // the refused object was replaced
+  }, SLOW);
+
+  it("SABOTAGE MP3s: validation skipped -- the wrong map is used, and the frame differs or the build throws", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const a = await store();
+    await restore(await narrower());
+    clearMapCache();
+    let red: string;
+    try {
+      const b = await store({ mapNoCheck: true });
+      red = same(a.bytes, b.bytes) ? "" : `frame differs (through ${b.r.map})`;
+    } catch (err) {
+      red = `threw: ${String(err).slice(0, 80)}`;
+    }
+    console.log(`MP3s: ${red || "NOT RED"}`);
+    expect(red).not.toBe("");
   }, SLOW);
 });
 

@@ -14,6 +14,10 @@ const AT: Record<string, [string, string]> = {
   KSEA: ["47.45", "-122.31"], KSFO: ["37.62", "-122.38"], KLAX: ["33.94", "-118.41"], KORD: ["41.98", "-87.90"],
   KJFK: ["40.64", "-73.78"], KATL: ["33.64", "-84.43"], KDFW: ["32.90", "-97.04"], KMIA: ["25.79", "-80.29"],
   KBOS: ["42.36", "-71.01"], KMSP: ["44.88", "-93.22"],
+  // SYNC_WAIT's fresh ten (Q-SW2)
+  KPHX: ["33.43", "-112.01"], KLAS: ["36.08", "-115.15"], KSLC: ["40.79", "-111.98"], KPDX: ["45.59", "-122.60"],
+  KSAN: ["32.73", "-117.19"], KIAH: ["29.98", "-95.34"], KMCO: ["28.43", "-81.31"], KCLT: ["35.21", "-80.94"],
+  KDTW: ["42.21", "-83.35"], KSTL: ["38.75", "-90.37"],
 };
 const [store, ...aps] = process.argv.slice(2);
 if (!/^[0-9a-f]{12}$/.test(store ?? "") || aps.length === 0 || aps.some((a) => !AT[a])) { console.log("usage: <store12> <airport>..."); process.exit(2); }
