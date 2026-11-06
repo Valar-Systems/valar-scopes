@@ -10,16 +10,20 @@
 
 #include <stdlib.h>   // before WxLogic.h, which calls strtod without including it (A8.15)
 
+#include <esp_system.h>   // esp_reset_reason(): a power-on resets the touch-wedge run
+
 #include "DeviceIdentity.h"
-#ifdef WX_OTA_BENCH
-#include "OtaUpdater.h"   // OtaBenchRun: O9's bench source (A12.104)
-#endif
+#include "OtaUpdater.h"   // OtaBenchRun (O9's bench source, A12.104); ResetReasonName for the touch bench
 #include "FrameBuffer.h"
 #include "DiagText.h"      // /diag/wx (A9.42)
 #include "Layout.h"
 #include "SolarDim.h"
 #include "TouchPoll.h"
 #include "TouchWatchdog.h"   // the CST816 supervisor; inert unless variant::TOUCH_WATCHDOG (A12.84)
+#include "TouchWedgeDevice.h" // the touch-wedge cap's NVS, stamp, restart and serial (A12.119)
+#ifdef TOUCH_WEDGE_BENCH
+#include "TouchBench.h"       // bench only: the simulated dead chip and its keys
+#endif
 #include "WxCrop.h"
 #include "WxLegend.h"
 #include "WxLogic.h"
@@ -30,6 +34,7 @@
 #include "WxScenes.h"
 #include "WxScreens.h"
 #include "WxTheme.h"
+#include "WxTouchStrip.h"   // the touch-unavailable strip in the theme's roles (A12.119)
 #include "WxTowns.h"
 
 namespace {
@@ -195,6 +200,16 @@ void WeatherscopeManager::Initialise()
     Serial.printf("[wx] init; location=%s autodim=%d brightness=%u stored=%d theme=%s read=%s%s\n",
                   hasLatLon ? "set" : "unset", (int)autoDim, (unsigned)configuredBrightness, (int)feeds.stored,
                   SettingName(themeSetting), ReadName(themeRead), named);
+
+    // The touch-wedge cap (A12.119): its idle clock is stamped here on every call, as the radar's
+    // Initialise stamps its own -- a boot, and every config save -- and the run is read once per boot.
+    lastTouchActivityMs = millis();
+    if constexpr (variant::TOUCH_WATCHDOG) {
+        if (!touchCapBooted) {
+            touchCapBooted = true;
+            touchCap.Boot(touchwedge::Device(), esp_reset_reason() == ESP_RST_POWERON);
+        }
+    }
 }
 
 // A PSRAM object, constructed in place: nullptr when the allocation fails.
@@ -708,6 +723,9 @@ void WeatherscopeManager::Update()
     HandleTouch();
     LogTouchWatchdog();
     HandleSerialGestures();
+    // The touch-wedge cap, the radar's (A12.119): after this loop's touch and gestures have stamped its clock.
+    if constexpr (variant::TOUCH_WATCHDOG)
+        touchCap.Tick(touchwedge::Device(), millis(), TouchWatchdog::RebootRecommended(), lastTouchActivityMs);
     MaybeSwitchTheme();   // after 'O'
     ServiceDiagText();   // A9.42: /diag/wx, answered on this task
 
@@ -917,11 +935,18 @@ void WeatherscopeManager::HandleTouch()
 {
     int32_t tx = 0, ty = 0;
     TouchPoll poll = ReadTouch(tft, http, tx, ty);
+#ifdef TOUCH_WEDGE_BENCH
+    if (touchbench::Dead() && poll == TouchPoll::Touched) poll = TouchPoll::Idle;   // the simulated dead chip
+#endif
     // A12.84: the CST816 supervisor -- wedge detection and its recovery ladder -- fed the REAL read: before 'P''s
     // synthetic press below, which is no proof the chip answered, and only when a read happened. mayProbe is true:
     // touch has its own I2C bus on the S3, and nothing serializes it against the network (CLAUDE.md).
-    if constexpr (variant::TOUCH_WATCHDOG)
+    if constexpr (variant::TOUCH_WATCHDOG) {
         if (poll != TouchPoll::Skipped) TouchWatchdog::OnPoll(tft, poll == TouchPoll::Touched, true);
+        // Reset 1 of the touch-wedge cap (A12.119): the CHIP answered, so the chain is broken. The same real read,
+        // before 'P' -- a synthetic press is no proof the controller is alive.
+        if (poll == TouchPoll::Touched) touchCap.OnRealTouch(touchwedge::Device());
+    }
     if (benchPress) {   // 'P' (stored mode only, A9.34): a synthetic finger at the centre, through this same path
         poll = TouchPoll::Touched;
         tx = SCREEN_SIZE_DIV_2;
@@ -933,6 +958,7 @@ void WeatherscopeManager::HandleTouch()
     if (touched) {
         curFrame.flags |= kHeld;
         lastTouchMs = now;
+        lastTouchActivityMs = now;   // the cap's idle clock: someone is touching (the radar's rule, A12.119)
         if (!wasTouched) {
             const longpress::PressOutcome p = longpress::OnPress(longPress, now, tx, ty, mode == Mode::Scenario);
             if (p.prev.ended) EndHoldGrace(p.prev);
@@ -960,10 +986,17 @@ void WeatherscopeManager::HandleTouch()
 // unit before any Weatherscope ships.
 void WeatherscopeManager::HandleSerialGestures()
 {
+#ifdef TOUCH_WEDGE_BENCH
+    touchbench::Announce("");   // the touch-wedge bench (A12.119): its keys, and the 30 s boot summary
+    touchbench::Summary(touchCap, ResetReasonName());
+#endif
     while (Serial.available()) {
         const int ch = Serial.read();
 #ifdef WX_OTA_BENCH
         if (ch == 'B') { OtaBenchRun(tft); continue; }   // O9 (A12.104): the OTA bench source, this env only
+#endif
+#ifdef TOUCH_WEDGE_BENCH
+        if (touchbench::OnKey(ch, touchCap)) continue;   // 'w' the chip dead/alive, 'r' the cap's state
 #endif
         if (!feeds.stored) continue;
         const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'P' || ch == 'L' ||
@@ -976,6 +1009,7 @@ void WeatherscopeManager::HandleSerialGestures()
         if (ch == 'G') { OnTerrainByte(); continue; }     // A12.53: a setting, not a touch (no idle-return reset)
         if (ch == 'O') { OnAutoOffsetByte(); continue; }  // t5 (A12.66): the clock Auto reads, +15 min; not a touch
         lastTouchMs = millis();
+        lastTouchActivityMs = lastTouchMs;   // the cap's idle clock, as the radar's bench keys stamp its own
         if (ch == 'T') OnTap();
         else if (ch == 'S') OnSwipeLeft();
         else if (ch == 'U') OnSwipeVertical(-1);
@@ -1064,6 +1098,10 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
     case Mode::Loop: DrawLoopFrame(backbuffer); break;
     case Mode::Legend: DrawLegend(backbuffer); break;
     }
+    // Touch unavailable (A12.119): the radar's strip, over every screen, last, into the backbuffer only -- the cached
+    // scenario stays clean, so the first frame after it clears has none. In the theme's roles (WxTouchStrip.h).
+    if constexpr (variant::TOUCH_WATCHDOG)
+        touchCap.Draw(backbuffer, DeviceIdentity::LeaderboardId().c_str(), wxtheme::StripInkFor(Th()), SCREEN_SIZE);
     // DIAG ONLY (A9.22): what the backbuffer now holds, MSRRCCCC -- mode, scene, radius, draw count.
     uint32_t m = 5, sc = 0, rr = 0;
     if (mode == Mode::Scenario) { m = 1; sc = (uint32_t)cycle->index; rr = (uint32_t)ZoomMiles(); }

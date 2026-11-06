@@ -383,6 +383,29 @@ fi
 )
 note_block $? "touch-wedge reboot cap: constants, chain, resets, rung order (TouchWedgePolicy.h)"
 
+# The cap's DRIVER, shared by the radar and Weatherscope (docs/weatherscope-stage3.md A12.119-A12.121): the chain
+# across boots, the idle rule, the save/flash hold, the resets, the strip and Weatherscope's ink, the save gate and its
+# refusal. Its plants: python -I test/host/sabotage_touch_wedge_cap.py
+echo
+echo "== touch-wedge cap driver: chain, idle, hold, resets, strip (TouchWedgeCap.h) =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_touch_wedge_cap.cpp" -o "$OUT/test_touch_wedge_cap.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the touch-wedge cap driver test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_touch_wedge_cap.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "touch-wedge cap driver: chain, idle, hold, resets, strip (TouchWedgeCap.h)"
+
 echo
 echo "== radar swipe-to-zoom: the ladder, one step, the idle test (RadarZoom.h) =="
 (

@@ -96,7 +96,7 @@ inline bool StripShown(const State& s) { return s.unavailable; }
 // Stamp first, then reboot (like DeferRebootWithCause): power lost between the two
 // leaves one reboot uncounted, which is harmless; the other order can count a reboot
 // that never happened -- or, written after ESP.restart(), never count any at all.
-// AircraftManager executes exactly this list, so the order the test grades IS the
+// touchwedge::Cap (TouchWedgeCap.h) executes exactly this list, so the order the test grades IS the
 // order the device runs.
 enum class Step : uint8_t { WriteRun, StampCause, Restart };
 struct Plan { Step step[3]; int n; };
