@@ -2081,3 +2081,11 @@ as the merge.
   with one run pending. **The guard refused, and nothing was merged.**
 - A background loop retries the same guard every 30 s for up to 40 min. It merges only when the head it read is
   still main's head and that head's CI has finished clean.
+
+**Ruling, pasted 2026-11-06 ~03:25Z (verbatim):**
+
+> 1. #557 merged: recorded, and the NI gate is lifted. Report main's CI on ac5f8509 when it finishes.
+> 2. The board hold is in place in both sessions. Weatherscope confirmed it at ~03:15Z, and it is restated in blipscope-5c's block of this time. R3′ starts when Daniel pastes blipscope-5c's "#548 production verified" line, in the registered order: R3′-pre, R3′-0, R3′-1a.
+> 3. R4 and node_modules stay held.
+
+- **The board hold is in place.** R3′ waits only for the "#548 production verified" line.
