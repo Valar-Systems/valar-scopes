@@ -742,3 +742,21 @@ from a timer.
 
 Either way it was before 06:00Z, so the precondition holds, and the reading goes ahead as
 registered (the reviewer confirmed this in the same block).
+
+#### The night reading, read: as predicted on every graded check
+
+The timer ran `n540_read.py` once, at **08:05:58Z** on 2026-11-06. Its sha256 still read
+`1a66b80f70bb`, the registered one. It printed counts only and no id.
+
+| hour | N0: the feeder's mean per 10-minute bin (30-50) | N1: `written` (225-242, `write_error` 0) | N2: `refused_older` | touched (E2:08 at 80+) |
+|---|---|---|---|---|
+| 06:00-07:00Z | **38.7** (total 232): as predicted | **240**, `refused_30s` 105, `write_error` 0: as predicted | 0 | no: E2:08's maximum 10 |
+| 07:00-08:00Z | **40.0** (total 240): as predicted | **240**, `refused_30s` 120, `write_error` 0: as predicted | 0 | no: E2:08's maximum 10 |
+
+- **The cadence took.** N0 sits on the 40 a 15 s poll predicts, against about 10 for the old 60 s
+  night cadence. So the `cfg:fleet` device entry reached the feeder.
+- **N1 matches it.** 240 writes an hour is one every 15 s, the feeder's new pace. `refused_30s`
+  counts sends refused because the stored row was written less than 10 s before (the name is the
+  old 30 s rule's; `proxy/src/sitefeed/bend.ts`). There was no write error.
+- **N2, the first night reading of the new counter:** `refused_older` 0 in both hours. No older
+  snapshot arrived after a newer one.
