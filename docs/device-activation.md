@@ -1139,3 +1139,22 @@ says whether (iii) is a known bench board.
   here.
 - `normalizeMac`'s comment uses `00:00:5E:00:53:01` (RFC 7042's documentation range) in place of an
   Espressif-prefixed example that read like a real unit's.
+
+### WC2's characterisation (approved ~18:54Z): predicted before the read
+
+**What is read (read-only, `kv-read`):** the ledger rows (`enr:dev:`) whose last enrolment is after 03:28Z on 11-06.
+For each: its first and last enrolment to the minute, its `act:` state and whether it carries a `gen`, and its `fw:`
+model and last-seen time. **Never an id.** It runs behind the same anchor control.
+
+**Today's board activity, to set beside it:**
+- **W-CR** on Weatherscope's board, 18:08-18:26Z;
+- the **COM16** proof, 18:40-18:42Z, which left that board at SETUP with no Wi-Fi;
+- **E2:08:** not flashed today (the bench window did not run).
+
+| | check | predicted |
+|---|---|---|
+| **WX1** | ledger rows enrolled after 03:28Z | **exactly 1** |
+| **WX2** | that row | `act:` **activated, stamped**; its last enrolment **inside W-CR's window (18:08-18:26Z)**; its model Weatherscope's |
+| **WX3** | the COM16 board and E2:08 | **no** row last enrolled in the COM16 proof's minutes, and none for E2:08 today |
+
+**Outside the set:** report what is read, and say which activity it matches, if any.
