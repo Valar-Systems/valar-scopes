@@ -28,6 +28,24 @@ asked for on stage 1c (`docs/wx-opera-map-r2.md`):
 | **MF2** (control) | the same check on a bucket whose `put` works | `stored`, `map` `built`, **no `mapPutErrors`**, one map object | | |
 | **MF3** | a lost race: a cold check whose map GET misses, simulated by a bucket whose `get` returns nothing for map keys while an object sits under the key, so the create-only put returns `null` | `stored`, `map` **`built`**, **no `mapPutErrors`**; the object already there is left as it was | | |
 
+**The readings before the push (2026-11-06):**
+- **`tsc --noEmit`:** clean.
+- **vitest, `test/wx-opera.test.ts`,** run in the slot granted ~19:43Z (to 20:30Z), the file stage 1c's tests live in.
+  The start rules held for both runs.
+  - **The first run** (started 20:07:33Z; TIME_WAIT 292, no other vitest): **57 of 58, exit 1.** The one failure was
+    **K4′'s sabotage** ("tilesY for tilesX"), which this change does not touch, at 7.5 s, with **`Error: Network
+    connection lost`** from workerd. That is the runtime dropping, not an assertion. MF1-MF3 passed in that run.
+  - **One re-run, as the standing rule allows for an instrument failure** (started 20:08:57Z; TIME_WAIT 476, no
+    other vitest): **58 of 58, exit 0.** K4′'s sabotage passed (1,001,498 of 1,515,000 cells differ, as in its
+    record). It had also passed in #573's and #577's runs.
+
+| row | got | verdict |
+|---|---|---|
+| **MF1** | `stored`, `map` `built`, **`mapPutErrors` 1**, `mapPutErr` "Error: R2 put refused (MF1's plant)" (under 80 characters), the frame **identical** to MF2's, **0** map objects | as predicted |
+| **MF1s** (catch removed) | the check **threw** the plant's error; **0 frames** stored | red, as predicted |
+| **MF2** (control) | `stored`, `built`, no `mapPutErrors`, **1** map object | as predicted |
+| **MF3** (lost race) | `stored`, `built`, no `mapPutErrors`; the object's **etag unchanged** | as predicted |
+
 **CI predicted: 34 = 31 success, 3 skipped, 0 failed.**
 - Baseline: #577's finished PR run on `3f6b81056aa7`, which touches `proxy/`.
 - Last job-set change: `84409651` (#552). Last workflow change: `259e8688` (a step). Re-read at the push.
