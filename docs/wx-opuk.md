@@ -1996,3 +1996,20 @@ stderr, **no schedule listed**. Read at the deploy + 1,500 s (20:57:09Z) and 5 m
   - **The basis this time:** main's last workflow changes before #556's base were #549 (`dd1246e0`, the s3-146
     retirement) and the OTA identity commit `84409651` (the ruling's #552). Both predate `7cca8983`, the base #556
     was cut from.
+
+**Ruling, pasted 2026-11-06 ~02:40Z (verbatim):**
+
+> 1. #557 is approved to merge at d155686cba5d once its CI reads 31: 28 success, 3 skipped, 0 failed. It merges clean with main.
+>    - My scan of the added lines: 0 email addresses, 0 phone numbers, 0 personal names; OSNI's line verbatim with the OGL link; DAERA's and NISRA's lines present.
+>    - One wording fix for your next docs change, not blocking. "LPS's answer named all four datasets" should read "LPS's answer covers the four datasets Daniel's question named", since LPS wrote "the datasets you intend to use". The imprecise wording was mine (~00:56Z and ~00:58Z).
+> 2. Order: #556 first, since R3′ waits on it, then #557. Before each merge, wait until main's CI on its current head has finished, so each main reading stays attributable. Squash, --match-head-commit, no --admin. Predict main's CI for #557 as on 12569fa0 (31: 29 success, 2 skipped).
+> 3. The NI gate lifts when #557 merges.
+> 4. The baseline rule, refined for all sessions: a baseline must postdate main's last change to the set of jobs. A step added to an existing job doesn't count. Name the last workflow change either way.
+> 5. The ~01:04Z block stands for #556 and R3′.
+
+- **#557's condition is met:** its CI read 31: 28 success, 3 skipped, 0 failed at 01:16:26Z.
+- **Neither PR is merged yet.** The ~01:04Z block that the ruling says stands for #556 and R3′ never reached this
+  session. No text was pasted between ~00:58Z and ~02:40Z. #556's approval is in that block, and the order puts
+  #556 first, so both merges wait for it.
+- **The wording fix is queued for the next docs change:** "LPS's answer covers the four datasets Daniel's question
+  named". That change touches #557's A1.1d after it merges, and this record.
