@@ -13695,3 +13695,115 @@ The truth tables and sabotage sets are frozen in their own addendum before any c
   - under 8 KB.
 
 **Waiting on Q97:** the trim, and so step 3 (the host references for Daniel). The night capture (after 00:30Z) is independent and follows A12.131 as frozen.
+
+### A12.133 Q97 applied (the trim AS PREDICTED, one unit disclosed); Q96 relabelled locally, #571's CI predicted before the push; the MAC scrub queued; step 3's renders frozen
+
+**The rulings (~20:18Z and ~20:19Z):**
+- **Q97 (a):** the source becomes "the NWS API", and the refusal list stays as frozen.
+- **Q96:** #571's nine full-MAC mentions become `6E:64` before its merge, its new head's CI predicted before the push.
+- **Daniel's decision:** scrub every bench board's full MAC from the repo's files.
+  - Files only; history stays.
+  - It comes after 3.5c's trim and renders, predictions first.
+  - Its PR opens after #445 and #571 have merged.
+- **The raw capture stays outside every repo and worktree.** It is in `scratchpad/nws-raw/`, which is neither.
+
+**Q97, measured:**
+- **The trim's `--selftest`:** 6 checks, 0 failures.
+- **The record:** `test/fixtures/wx/nws/dallas-day.json`, 0 refusals, 48 hourly entries, 14 periods (the first daytime), 0 alerts, 5 synthetic, no `http`, `.gov` or `@`. **AS PREDICTED.**
+- **The size, disclosed:** 8,164 B. That is under 8 KiB (8,192 B) but over 8,000 B. "Under 8 KB" did not name its unit; it holds only in KiB. Recorded, not argued.
+- **One measured fact:** the hourly document's `generatedAt`, the stored "now", is 7 minutes **before** the observation's time. NWS serves its forecast from cache. So the observation's age against "now" is negative: fresh, never stale.
+
+**Q96, applied locally (`6e55431d3e5c` on `weatherscope/touch-cap`, not yet pushed):**
+- **Nine files,** one mention each: the eight `verify-flash` logs' `MAC:` lines and the runner's docstring.
+- **One over-reach, caught before the commit:** my relabel ran over whole files the PR touches, and changed `platformio.ini`'s mention too. That one was already on main, one of the 115 that are Daniel's call. It was restored from HEAD before staging; the tree was clean beforehand, so nothing else moved.
+- **The recount** (`origin/main...HEAD`, added lines): **0.** CONTROL: the pushed head reads 9.
+- **The runner:** `--selftest` 6 / 0; S-TB1 and S-TB2 exactly as before. Its hash is now `2a775295e5e3`; the docstring line is the only change. W-CR2 ran `7659be50aefc`.
+- **The guards on the commit:** `check_wifi.py` and `check_device_ids.py` both exit 0.
+- **#571 at `6e55431d3e5c`, predicted here, before its push: 33 checks, 29 success, 4 skipped (version, promote, ship-alert, publish), 0 failed.** The web job is derived, not built here. The change is nine files under `tools/weatherscope/board/`, which no check builds.
+
+**The MAC scrub is queued, as ruled.**
+- **When:** after 3.5c's trim and renders.
+- **How:** its own addendum, predictions first. The board list is built outside the repo and never printed, committed or put on a command line.
+- **The guard:**
+  - colon and dash forms are refused outside the documentation range;
+  - the serial form is refused for 12-hex tokens that begin with an Espressif OUI, with an allowlist by path and line;
+  - one sabotage for each.
+- **Its PR:** after #445 and #571 merge, based on main, CI predicted before the push.
+
+#### Step 3, the host renders: frozen before the renderer is written
+
+**The tool:** `tools/weatherscope/screens/ref35c.py`. No device code exists yet, so it re-implements A12.130's rules from the records alone.
+- **The font:** `ref35.py`'s pinned font (FT1, `glcdfont.c`).
+- **The chord rule:** written here, not imported. A text row (top `y`, height `h`) fits when its width is at most `2·sqrt(120² − dy²) − 8`, where `dy` is the larger of `|y − 120|` and `|y + h − 120|`.
+- **On a misfit** the renderer **refuses**: it writes no PNG and names the row.
+- **Its output:** PNGs at 1× and 3×, written outside the repo and sent to Daniel as local files, with their sha256 recorded, as `look35.py`'s were.
+
+**The times:** the case's local offset is a constant, **−360 min.** That is CST, read from the capture's first hourly entry, fixed per stored case as `wxscen::kOffsetMin` is per scenario. The radar scenarios' −300 (CDT, May 2024) is not this capture's.
+
+**The colours** (roles that exist; no new value):
+
+| use | role |
+|---|---|
+| ground | `bg` |
+| text | `uiFg` |
+| dim text, axis, dots | `uiDim` |
+| alert events | `uiWarn` |
+| a stale observation time | `orangeText` |
+| chance bars | `uiAccent` |
+| temperature line | `orangeText` |
+
+**Text contrast, ≥ 4.5 in RGB888 / RGB565, computed before rendering:**
+
+| theme | `uiFg` | `uiDim` | `uiWarn` | `orangeText` |
+|---|---|---|---|---|
+| dark | 17.6664 / 17.9908 | 6.8193 / 6.8870 | 11.4928 / 11.6522 | 9.0032 / 9.1212 |
+| light | 12.2235 / 12.7167 | 5.3736 / 5.3309 | 4.5090 / 4.6607 | 4.5035 / 4.6204 |
+
+The bars (graphic): dark 11.1404, light 4.5143.
+
+**On every screen:**
+- the title, size 1, `uiDim`, centred, top y = 9;
+- the "dots" variant: five 3 × 3 squares at y 223-225, centres 100, 110, 120, 130, 140 (map, forecast, conditions, alerts, legend), the current one `uiFg`, the rest `uiDim`.
+
+**Forecast:**
+- **The headline,** size 2, `uiFg`:
+  - the first of the next 24 hourly entries with chance ≥ 30 % gives `NEXT RAIN 4 PM`;
+  - else the first period with chance ≥ 30 % gives `NEXT RAIN <label>`;
+  - else `NO RAIN IN 7 DAYS`.
+  - It is one line at top y = 34 if it fits; otherwise `NEXT RAIN` / `NO RAIN` at y = 34 and the rest at y = 52.
+- **The period labels:** day 0 is `TODAY` (or `TONIGHT`). Later days use the 3-letter weekday by position from the capture's local date, plus ` NIGHT`, so a holiday name (`Veterans Day`) still reads `WED`.
+- **The strip:**
+  - 24 columns, 7 px each, x 36-203;
+  - baseline y = 137 in `uiDim`;
+  - bars 5 px wide, rising from y = 136 with height `floor(chance × 40 / 100 + 0.5)`;
+  - the temperature line through the column centres, at `y = 132 − floor((t − min) × 52 / max(1, max − min) + 0.5)`;
+  - the high and low labelled right-aligned to x = 32, at y = 76 and 128;
+  - hour labels at y = 141 under each column whose local hour is a multiple of 6 (`12A`, `6A`, `12P`, `6P`), in `uiDim`.
+- **The week:** up to 7 rows, size 1, from y = 148, 10 px apart, formatted `SAT  67/52   8%` (day, high/low, the day and night's larger chance). A night-only first day reads `TON  --/53   0%`.
+
+**Conditions:**
+- the temperature at size 4, top y = 40, centred;
+- size-2 rows at y = 88, 112 and 136:
+  - `WIND NW 12`, with ` G20` when there is a gust, or `WIND CALM` at 0;
+  - `HUMIDITY 45%`;
+  - `HI 68  LO 53` (Q92 (a));
+- `OBSERVED 2:09 PM`, size 1, `uiDim`, in the band at y = 198. It turns `orangeText` when the observation is over 90 minutes older than "now".
+
+**Alerts:**
+- up to 4 entries ordered by start, from y = 36, 26 px apart: the event upper-case in `uiWarn`, then `FRI 4 PM - SAT 4 AM` in `uiDim` 10 px below;
+- with more: `+1 MORE`, `uiDim`, at y = 140;
+- with none: `NO WATCHES OR ADVISORIES`, `uiDim`, centred at top y = 116.
+
+**The renders and their predictions:**
+
+| screen | case | predicted |
+|---|---|---|
+| forecast | the capture | headline `NO RAIN` / `IN 7 DAYS` (no chance reaches 30 %, the largest is 15 %); no bar taller than 6 px; 7 week rows |
+| forecast | **SYNTHETIC-RAIN**, a labelled copy: the next 24 hours' chances set to 0 ×12, 5, 10, 15, 20, 25, 20, 15, 10, 5, 0, 0, 0, and `Tuesday Night` to 60 % | headline `NEXT RAIN` / `TUE NIGHT`, the ruled example; bars up to 10 px |
+| conditions | day (the capture) | `HI 68  LO 53`; no gust (the capture's gust is null); the observed time `uiDim` (fresh) |
+| alerts | SYNTHETIC (the five) | 4 entries and `+1 MORE` |
+| alerts | the capture (none) | `NO WATCHES OR ADVISORIES` |
+
+- **The count:** 5 screens × 2 themes × 2 (dots, none) = **20 PNGs** (40 files with the 3× copies), **0 chord refusals.**
+- **The night Conditions** (Q92): after the night capture (00:30Z or later, A12.131), 4 more PNGs, predicted to read `HI <tomorrow's daytime high>`.
+- **Anything off these rows:** stop and report.
