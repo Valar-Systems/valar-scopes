@@ -812,3 +812,44 @@ from a commit.
   restored by bytes, sha checked.
 - **H4:** the reconcile harness passes H1-H4. **S-H2** (the watch block removed) fails H4 alone.
 - Every planted file was restored by bytes.
+
+## #548 merged, and its deploy: results held for the review, then predictions frozen before the deploy
+
+**Held back so the head would not move under the review** (all read at `f98e9b18`):
+- **CI, finished:** 34 check-runs, 31 success, 3 skipped (`promote`, `version`, `ship-alert`),
+  0 failed. Tested merged into `7cca898`.
+- **Workers:** 960 passed, 1 skipped (961). **Dashboard:** 104.
+- **The miss on the count:** I predicted 33. The cause is `ota-identity`, a job #552 (`8440965`)
+  added to main after #540's run, the one I predicted from. #548 touches no workflow file. The
+  miss is kept and re-registered at 34 (reviewer, the block labelled ~00:56Z).
+  - **The rule from it, for all sessions:** a CI baseline run must postdate main's last workflow
+    change, and the prediction names that commit.
+- **Local:** `vitest list` read 949. The full suite read 948 passed, 1 skipped, and Q-C1 (CRLF)
+  as the only failure, on a re-run from TIME_WAIT 11.
+  - **The first full run was void:** `ConnectEx` #1225 on all 71 files, from port exhaustion,
+    while the map server's smoke driver was running too. The rule from it, for all sessions: one
+    whole-suite run at a time, and before any whole-suite vitest or sabotage driver, no other
+    session's `vitest` or `sabotage-` process may be running, and TIME_WAIT must be under 2,000.
+
+**The merge.** Approved at `f98e9b18`, and squash-merged as **`5c300417`** at 00:58:26Z (by the
+clock).
+- **Main's CI on it, predicted before reading:** 34 check-runs, 32 success, 2 skipped (`promote`,
+  `version`), 0 failed.
+  - **The baseline is #548's own run.** Main's last workflow change, `12569fa0` (#555),
+    postdates that run, but it adds two steps to the existing `device-ids` job and no job. On
+    main, `ship-alert` runs.
+
+**The deploy, predicted before any of it runs:**
+
+| step | predicted | outside the set |
+|---|---|---|
+| **What it carries** beyond production's `3e0a444` | only #548 touches `proxy/`. Changed and **in the bundle** (esbuild metafile inputs): exactly `src/activation.ts`, `src/enroll.ts`, `src/enrollpage.ts`, `src/index.ts`, `src/provision.ts`, `src/support.ts`. **Not in it:** `src/types.ts` (type-only imports, also absent from #540's inputs) and every `proxy/scripts/*` file. `wrangler.toml`'s two vars are config, checked by W4 | any other changed file in the inputs: **stop and ask** |
+| **W4** on `5c300417` | `check-activation-gate.sh`: production `("watch")`, staging `("enforce")`, exit 0 | **stop** |
+| **Rollback targets**, re-read just before | staging `968d9f23`, production `5e7f481c` (#540's deploys) | a different version serving: **stop** |
+| **Staging** (`deploy.sh staging`, from `5c300417`) | `/healthz` reads `5c30041` on two reads; smoke 38 PASS, 0 FAIL as the test identity. Its enrol POSTs are refused before the gate | **stop**, and production waits |
+| **Production** (outside 06:00-08:00Z, #540's night window) | `/healthz` reads `5c30041` on two reads; smoke 38 PASS, 0 FAIL; the test identity's `/config` unchanged (`pollNightMs` 60000) | **stop**; the rollback target is `5e7f481c` |
+| **The sweep**, through the Worker | `sweep --ledger`: swept 22, activated 22, **stamped 22**, unstamped 0. `sweep --token-ids test-device,records-device`: swept 2, activated 2, **stamped 2**. **24 stamped** in all | any unstamped: **stop and report** |
+| **C1 again**, after the sweep | exit 0, missing 0 | **stop** |
+
+Production stays on `"watch"` until Daniel says otherwise. The watch counts reach him before that
+decision.
