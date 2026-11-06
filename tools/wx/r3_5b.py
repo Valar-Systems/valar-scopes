@@ -14,7 +14,8 @@ counts, epochs and times only (never a key's value beyond its epoch).
 
 Pruning checks: opuk = status stored/backfilled (the ruling's "storing check"; since stage 1a its line carries
 `pruneKeys`, the keys a prune by key sent, instead of `pruned`); cref = any check logging `pruned`
-(cref prunes on every successful check). Usage: python -I r3_5b.py <opuk|cref> [wait_s] [service, default blipscope-wx-ingest]
+(cref prunes on every successful check).
+Usage: python -I r3_5b.py <opuk|cref> [wait_s] [service, default blipscope-wx-ingest] [lookback_s, default 1200]
 """
 import datetime
 import hashlib
@@ -100,6 +101,9 @@ product = sys.argv[1]
 wait_s = int(sys.argv[2]) if len(sys.argv) > 2 else 150
 # R3' (docs/wx-opuk-split.md): opuk has its own Worker, so its pruning lines are in its own service
 SERVICE = sys.argv[3] if len(sys.argv) > 3 else "blipscope-wx-ingest"
+# the Logs window reaches back this far before the listing; a sampled read may be re-read ONCE with a narrower one
+# (ruled 2026-11-06 ~18:22Z); a second sampled read is BLIND
+LOOKBACK_S = int(sys.argv[4]) if len(sys.argv) > 4 else 1200
 assert product in ("opuk", "cref"), product
 t = tf()
 akid, secret = t["r2-wx-read-id"], t["r2-wx-read-secret"]
@@ -129,7 +133,7 @@ else:
 
 # 2. wait, then the logs around the listing
 time.sleep(wait_s)
-evs, abr = logs(t["observability-read"], int((t_list - 1200) * 1000), int(time.time() * 1000))
+evs, abr = logs(t["observability-read"], int((t_list - LOOKBACK_S) * 1000), int(time.time() * 1000))
 if os.environ.get("R3P_FORCE_ABR"):           # the sabotage seam (docs/wx-opera-europe.md section 11): a read
     abr = [int(os.environ["R3P_FORCE_ABR"])]   # reported as sampled must come out BLIND
 t_list_ms = int(t_list * 1000)
