@@ -1024,3 +1024,33 @@ decision.
 | C1 (`activation-coverage.ts`) | exit 0, missing 0 | **stop** |
 
   25 stamped in all. Under (B): the token-id sweep as above, then C1 exit 1, missing 1.
+
+**The ruling (~04:22Z): (A).** The "#548 production verified" line is released by the ruling:
+**#548 production verified at 03:28Z.**
+
+- **The dry run.** `activation.ts seed` has no dry-run flag. Its write guard is `planSeed`: it
+  writes only ids with a ledger row and no `act:` row, and never rewrites a row. So the dry run is
+  the read-only guard frozen in (A), which computes the same set, with counts only.
+- **The guard, 04:23:55Z: as frozen.** 23 ledger ids, exactly one not activated and stamped. That
+  one has no `act:` row and a first enrolment of 2026-11-05T23:30Z.
+- **The seed: outside the set, stopped (04:24:12Z).**
+  - **The reading:** `seed --ledger --state activated` exited 1 after 4 s, with nothing on stdout.
+    Stderr: "wrangler kv key list failed (exit 1)", then `Authentication error [code: 10000]`
+    from the KV keys API. Wrangler then reported the OAuth login, with `workers_kv (write)` among
+    its scopes.
+  - **Nothing was written.** The listing that failed is the seed's first step, and its refusal
+    comes before `planSeed` and before any put. Read back at 04:24:56Z: still 23 ledger ids and
+    one with no `act:` row.
+  - **The cause: a transient authentication failure at the KV API.** At 04:25:16Z the same
+    `wrangler kv key list --prefix=enr:dev: --remote` (a read; counts printed) exited 0 with 23
+    keys and no code 10000.
+  - **The alternatives, and why they are excluded:**
+    - *A `CLOUDFLARE_API_TOKEN` shadowing the login:* absent in the shell and at user level, and
+      the command ran with it unset.
+    - *A login without KV permission, or an expired login:* the same login listed the keys 64 s
+      later, and its scopes include `workers_kv (write)`.
+  - **Likely the same as G-1's first failure,** which also stopped at the ledger listing, before
+    `failureText` could show why. That run re-ran once and came out as predicted.
+- **Proposed (not run):** re-run unchanged, once: the guard, then the seed, with the frozen
+  predictions of (A). If the seed fails the same way again, stop: a second failure is not a
+  transient.
