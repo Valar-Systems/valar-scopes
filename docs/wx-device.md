@@ -12,7 +12,7 @@ The server half is [docs/wx-server.md](wx-server.md) (#443). The device talks to
 
 The colour scheme, the switch's name and its default are **provisional until Daniel picks from bench
 screens**. Until then the scheme is **S2**: standard colours at 40 %, planes keep their colours with a
-black outline. The switch is **off by default**.
+black outline. The switch was **off by default**; from v19 it is **on** (see "The layer on by default", the last section).
 
 This document freezes the design and the predictions **before any device code exists**.
 
@@ -5315,3 +5315,52 @@ checks and left out the host tests that read `identities.txt`). (b) and (c) are 
 - **The four checks:** `skus.py --check-readers` OK; `check_ota_identity.py` `--selftest`, `--fleet-sabotage`,
   `--fleet` and `--check-table` all pass; device ids OK; Wi-Fi OK.
 - **CI on the push, predicted:** 34 checks: 30 success, 4 skipped, 0 failed.
+
+## The layer on by default (Daniel's decision, ruled 2026-11-06 ~20:25Z): predictions, frozen before the code
+
+**The ruling:** from v19 an unset `wx-layer` reads as on, in AircraftManager and on the config page; an owner's saved
+`false` stays off; a host test for unset, `true` and `false`; a sabotage that restores today's default and turns exactly
+the unset case red; CI predicted before the push.
+
+**Why no ConfigMigration entry.** CLAUDE.md says a change to a default needs one. It does not here: `wx-layer` has **0
+occurrences** at tag `v18`, so no shipped board has the key saved, and v18's form cannot write it. Every board that
+updates reads it as unset. Only a board that ran a #445 bench image can hold a saved value, and that value stands.
+
+**A path the ruling did not list, found reading what relied on the old default.** The website's renderer has no pixels
+(`getBuffer()` is a token), and smoke's R7 proves `wx-layer` on aborts it. Its config map (`web_config.cpp`) has **no**
+`wx-layer` entry, and `check_wx_off.mjs` passes "absent" as off. Flip the default alone and every page load of the website
+aborts, with that check green: absent stops meaning off. The ruled position (the website does not draw weather, (A))
+needs the entry written down and the check changed to refuse absence. Included here for that reason.
+
+**The rule, and where it lives.** A new `include/WxSwitch.h`, `wxswitch::On(const char* stored)`: on for unset or
+`"true"`, off for anything else, the sweep's own idiom (`displaySweep`). AircraftManager reads through it; the page's
+default becomes `"true"`. A new header rather than a line in `WxPolicy.h`, so no existing suite or driver moves.
+
+| | predicted |
+|---|---|
+| **WS1** | `On("")` (unset) is **on** |
+| **WS2** | `On("true")` is **on** |
+| **WS3** | `On("false")` is **off**: an owner's saved choice stands |
+| **WS4** | any other value (`"TRUE"`, `"1"`, `"on"`) is **off**, as the sweep's rule does |
+| **S-WS-today** | restoring today's rule (`== "true"`) turns **exactly WS1** red |
+| **S-WS-always** | `return true` turns **exactly WS3, WS4** red |
+| **S-WS-notfalse** | `!= "false"` turns **exactly WS4** red |
+| **WD5b** (re-registered) | `check_wx_wiring.py`: AircraftManager's one read is `wxswitch::On(configServer.GetStoredString("wx-layer").c_str())`; the page's defaults are all `"true"`. Its two plants become today's read and today's default, each turning exactly its own check red. The other checks and plants do not move |
+| **WO1** | `web_config.cpp`'s map carries `{"wx-layer", "false"}`; `check_wx_off.mjs` reads `"false"` and exits 0 |
+| **WO2** | `check_wx_off.mjs` refuses an **absent** entry (exit 1), with a new selftest plant that removes it; its existing control and plants hold |
+| **WO3** | smoke R1-R7 and R7's sabotage pass in CI: the website still draws, without weather |
+| **B1** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` build |
+| **run.sh** (WSL, g++ 13.3) | exits 2 from the two environment blocks ("the same TU, for the board", "Weatherscope R0 and R0b"), with `sabotage_wx_towns.py` SKIP, and nothing else red; the new "WX switch" block passes |
+| **CI** | **34 = 30 success, 4 skipped, 0 failed**, from #445's finished run on `6ab863383dc4`: the same four workflows (device-ids, firmware, no-traffic-captures, web-renderer), and that run already carried the workflow change #445 merged, main's last |
+
+**Stated so they are not found later:**
+- **Who gets it.** `skus.yml` has one shipping radar SKU, `blipscope-s3-128`, the board this layer was benched on. The
+  build-only radar SKUs inherit the default and have never run the layer on glass.
+- **Outside coverage.** A board whose crop is all no-coverage shows the small grey note "No weather coverage" (WD3 f), no
+  overlay. From v19 that note is on by default for those owners.
+- **Requests.** An enabled board polls `/wx` every 60 s (WD3 e), so each v19 board adds up to 1,440 requests a day.
+- **Non-cloud boards.** `AllocateWeatherBuffers()` runs on the switch, not on `WxEnabled()`, so an OpenSky or local board
+  now spends its PSRAM buffers and never fetches. PSRAM only; no internal heap.
+- **The label** stays "Weather radar (beta)". Whether "(beta)" stays on a default-on feature is Daniel's call.
+
+**Outside the set:** a reader of the default that this section does not name, or any row above reading otherwise: stop.
