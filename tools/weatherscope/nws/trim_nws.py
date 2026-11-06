@@ -48,7 +48,7 @@ def val(obj):
 def trim(raw, case):
     hourly = raw["hourly"]["properties"]
     rec = {"case": case,
-           "source": "api.weather.gov, fetched once by the session (A12.131) and trimmed by trim_nws.py",
+           "source": "the NWS API, fetched once by the session (A12.131), trimmed by trim_nws.py",
            "capturedUtc": utc(hourly["generatedAt"])}
     rec["hourly"] = []
     for p in hourly["periods"][:48]:
