@@ -218,3 +218,25 @@ under 2,000 and no other session's `vitest` or `sabotage-` process, polled every
 - **I recommend its own small PR after this one,** with its own plant: a run with one file's cases dropped must read
   as an instrument failure.
 
+### Read (2026-11-06, `09b55a40`, Windows; every reading as predicted)
+
+| step | read | verdict |
+|---|---|---|
+| **1. `--selftest`** (01:40Z) | 12 of 12 as registered, exit 0. W1's 15,000 at the second sample read `ports: TIME_WAIT peaked at 15000`. W2 read a RIG, and its command never ran. W5-C read 22 off the real `netstat`. The temp files were removed, and the tree was clean | as predicted |
+| **2. `--selftest-plants`** (01:40-01:41Z) | 8 of 8 as predicted, exit 0: C-PLANTS {} 0; P-RAW {R1, W1, W3} 1; P-INRUN {W1, W1-C, W3} 1; P-START {W2-R, W2} 1; P-CEIL {W1} 1; P-TABLE {W4} 1; P-BUF {W5} 1; P-RIGEXIT {W2-R, W2, W2-C, W3, W4, W4-C, W5, W5-C} 2 | as predicted |
+| **3. the driver, whole** (wait clear 01:42:12Z: TIME_WAIT 13, no other `vitest` or `sabotage-` process; exit 0 at 01:47:57Z) | CONTROL **960 passed, 1 skipped, of 961; 0 failed** (start 13, peak 13,355). **S-SQ {SQ1, SQ2}**, failed 2 (start 311, peak 13,357; held 103 s). **S-SQP {SQ-C}**, failed 1 (start 299, peak 13,350; held 103 s). Both files restored byte-identical. ALL AS REGISTERED. No `raw output kept` line | as predicted |
+| **4. the credits driver** (wait clear 01:49:36Z: TIME_WAIT 932; exit 0 at 01:49:53Z) | CONTROL 35 of 35. S-CV-BLANKET {CV1, CV2, SA1, QC1, F16, P68}; S-SA {SA1, QC1}; S-RD {RD1, QC1, P89}; S-QC1 {QC1}. Counts as registered. ALL AS REGISTERED. The tree was clean after | as predicted |
+
+**What P-RIGEXIT left behind.** Its copy died inside W2-R's plant, as predicted, so that copy's temp dir was not
+cleaned up. Its plant target still read **`PLANTED`**: the old behaviour leaves a sabotage in the file, which is what
+W2-R guards. The dir was synthetic and has been removed.
+
+**The four peaks agree to within 7:** 13,357 after the read-first run, then 13,355, 13,357 and 13,350, from starts of
+22, 13, 311 and 299.
+- **The reading:** each run makes a fixed number of loopback connections, about 13,350, and the TIME_WAIT left from the
+  previous run expires during the next.
+- **The alternative,** a limit near 13,357 that caps the count, is excluded. The same counter on the same machine read
+  15,721 and 16,715 after the two failing runs.
+- **So the margin is about 1,650 under the 15,000 ceiling,** and about 3,000 under the ports. A suite that grows by a
+  tenth reaches the ceiling, and the ceiling is then what says so.
+
