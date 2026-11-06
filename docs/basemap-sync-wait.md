@@ -144,3 +144,29 @@ Nothing else changes.
 which I'll ask for.
 
 **Outside the set:** stop and report.
+
+### Read (2026-11-06, `a4edc83b`, Windows)
+
+**The first attempt (15:53Z) was an instrument failure, not a reading,** recorded as ruled (~16:31Z, Q-CRLF).
+- **What happened:** the basemap driver read `baseline[ingest]`, then crashed before any plant: `S-ISIZE: anchor found 0
+  times`.
+- **The cause:** this worktree's files had been re-written with CRLF by plain `git switch`es, since the system Git
+  config sets `core.autocrlf=true`. The driver's anchors end in `\n`.
+- **The fix:**
+  - the 114 affected files (LF in the index, CRLF in the worktree) were re-written with
+    `git -c core.autocrlf=false -c core.eol=lf`, with no shared config changed;
+  - **the bytes, read in Python:** 0 CR in all 114;
+  - **the anchors:** 71 of 71 plant cleanly, checked with the driver's own table and `plant()`.
+
+**Then the frozen checks, every reading as predicted:**
+
+| check | read | verdict |
+|---|---|---|
+| `tsc --noEmit`, both configs | clean | as predicted |
+| **`sabotage-basemap.mjs`, whole** (wait clear 16:34:43Z: TIME_WAIT 42, no other `vitest` or `sabotage-` process; exit 0 at 17:24:41Z) | baselines **11 / 31 / 159** (17 files); **74 runs, 0 runtime failures; all 71 sabotages AS PREDICTED**, C-LOADFAIL BLIND among them; highest TIME_WAIT at a run's start 7,770 | as predicted |
+| **`sabotage-smoke-basemap.mjs`, whole** (wait clear 17:26:38Z: TIME_WAIT 655; exit 0 at 17:32:27Z) | CONTROL **975 passed, 1 skipped, of 976** (start 85, peak 13,557). S-SQ {SQ1, SQ2} (start 388, peak 13,547). S-SQP {SQ-C} (start 427, peak 13,557). Each counted 976. No raw output kept. ALL AS REGISTERED | as predicted |
+
+**The TIME_WAIT margin** (ruled ~15:07Z: reported with each driver run, and raised under 1,000): the peak was 13,557, so
+**1,443 under the 15,000 ceiling**.
+
+**The tree was clean after each run.**
