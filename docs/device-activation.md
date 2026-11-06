@@ -853,3 +853,59 @@ clock).
 
 Production stays on `"watch"` until Daniel says otherwise. The watch counts reach him before that
 decision.
+
+**The deploy, as run.**
+
+- **What it carries: outside the set, stopped (01:14:48Z, by the clock).**
+  - **The reading.** The dry run (`--env production`, from `5c300417`, clean tree) exited 0. Its
+    metafile (`53f98177f73d`, 28,089 B) lists 51 inputs. The changed list is
+    `git diff --name-only 3e0a444 5c300417 -- proxy`: 17 files, 7 under `src/` and 4 under
+    `scripts/`. The two lists' intersection came back **empty**, and `src/types.ts` read as absent.
+  - **Why it stopped.** The row's only outside-the-set branch was "any other changed file in the
+    inputs". An empty intersection was not registered, so the deploy stopped there.
+  - **The cause is the instrument, not the bundle.** Python on Windows wrote the inputs list in
+    text mode: 50 CR bytes in 51 lines. The changed list, written by `git`, has 0 CR bytes. `comm`
+    compares bytes, so `src/activation.ts\r` can never equal `src/activation.ts`. The `^src/types.ts$`
+    grep is blind for the same reason, so "types.ts absent" is unread too. Both files were read as
+    bytes at 01:16:32Z.
+  - **The alternative, and why it is excluded:** a bundle that really carries none of the changed
+    files, for example a dry run built from another tree. Excluded because the same inputs file's
+    first line is `src/activation.ts`, which is a changed file. That one line is all of the result
+    seen so far. The rest of the intersection, and whether `src/types.ts` is absent, are unread.
+  - **W4 ran in the same command,** before the bundle result was read: production `("watch")`,
+    staging `("enforce")`, exit 0. **As predicted.**
+  - **Nothing has been deployed.** The rollback targets are re-read just before staging, as the
+    table says.
+- **The proposed instrument fix (written, compiled, not run):** `b548_bundle.py` in the session
+  scratchpad, sha256 `e048618fd17a`. One Python process makes the whole comparison in memory, with
+  no file written between the two sides:
+  - it reads the metafile's inputs, and the `git diff` output captured to a file and read as bytes;
+  - it splits both on `\n` **only**, and strips the `proxy/` prefix. `splitlines()` would quietly
+    fold a CRLF away, which would leave A-CR unable to fire and S-B1 unable to fail;
+  - it grades membership with one test. Before any absence is believed, three anchors must pass, in
+    this order, stopping at the first that fails:
+    - **A-SAME:** 51 inputs and 17 changed; the metafile's sha256 still reads `53f98177f73d`.
+      It is the same artifact, not rebuilt.
+    - **A-CR:** no element of either list contains a `\r`.
+    - **A-ENTRY:** `src/index.ts`, the entry module, is found in the inputs by the same membership
+      test that grades the result.
+  - Any anchor that fails means "cannot see": exit 2, stop.
+- **Two sabotages of the fixed instrument (proposed, not run).** They run after the graded run, and
+  the graded run is believed only if both read as predicted:
+  - **S-B1, the CRLF plant** (`--inputs-from` the old CRLF list). Predicted: A-SAME passes, then
+    `CANNOT SEE: A-CR (50 inputs and 0 changed lines carry a CR)`, exit 2.
+  - **S-B2, the drop plant** (`--drop src/enroll.ts`, applied after the anchors so it tests the
+    grading itself). Predicted: anchors pass; the intersection is the other five;
+    `OUTSIDE THE SET: predicted and absent: src/enroll.ts`; exit 1.
+- **New frozen predictions for the re-run** (the same metafile):
+
+| | predicted | outside the set |
+|---|---|---|
+| anchors | A-CR, A-ENTRY and A-SAME pass | any fails: **cannot see, stop** |
+| changed and in the bundle | exactly `src/activation.ts`, `src/enroll.ts`, `src/enrollpage.ts`, `src/index.ts`, `src/provision.ts`, `src/support.ts` | another changed file in the inputs: **stop and ask**. One of the six absent: **stop and ask** |
+| not in the bundle | `src/types.ts`, and all 4 `scripts/*` files | any of them present: **stop and ask** |
+| verdict | `VERDICT: as predicted`, exit 0 | exit 1 or 2: **stop** |
+
+  Then the rest of the table above, unchanged. If the ruling lands after 06:00Z, production waits
+  for 08:00Z, the end of #540's night window. Staging can go as soon as the re-run reads as
+  predicted.
