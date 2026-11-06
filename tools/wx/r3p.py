@@ -55,9 +55,12 @@ def abr1(abr):
 
 
 def events(service, a_ms, b_ms):
+    # R3P_CHUNK_S: the width of each Logs query (default 1 h). A long read is cut into narrower pieces, and abr1()
+    # refuses the read if ANY piece came back sampled; the one ruled re-read halves the width (2026-11-06 ~18:22Z).
+    step = int(os.environ.get("R3P_CHUNK_S", "3600")) * 1000
     evs, abr, t0 = [], set(), a_ms
     while t0 < b_ms:
-        t1 = min(t0 + 3600_000, b_ms)
+        t1 = min(t0 + step, b_ms)
         off = None
         while True:
             body = {"queryId": "r3p", "timeframe": {"from": t0, "to": t1}, "view": "events", "limit": 2000,
