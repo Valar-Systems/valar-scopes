@@ -5123,4 +5123,18 @@ existed in this worktree):
 last job-set change (`84409651`); main's last workflow change, `259e8688`, adds a step. The derivation is AB5's 41
 (37 success + 4 skipped), minus the 8 s3-146 legs, plus `ota-identity`: 34. **Outside the set:** stop and report.
 
+**The ruling (~17:15Z):** the towns skip is accepted and named in every WSL prediction from now on. The merge is
+approved as predicted, and MG5 is accepted as a derived prediction.
+
+**Results (2026-11-06, 17:15-17:25Z):**
+
+| | read | verdict |
+|---|---|---|
+| **MG1** | merged origin/main at `c2caa9d43609` as `3dad828b`. Exactly one conflict, `check-no-bench-hooks.sh`, resolved as `... "[bench-force-starve]" "[ota-bench]" "[wx-bench]" )`; `bash -n` clean. Main's commits since the 17:13Z read are docs only, with no workflow or `skus.yml` change | **as predicted** |
+| **MG2** | `run.sh` under WSL exit 2. Failed: exactly "the same TU, for the board" and "Weatherscope R0 and R0b". `sabotage_wx_towns.py` SKIP in both driver passes ("30 driver(s): 29 run, 1 skipped"; main brought 2 drivers). The avionics block and its driver green; the count lint 0 of 30 flagged | **as predicted** |
+| **MG3** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` SUCCESS, about 60 s each. 31.5 GB free at each start: 1,258 MB of this session's own `node_modules` in 6 finished scratch worktrees was deleted first, by path, after listing their sizes | **as predicted** |
+| **MG4** | `check_device_ids.py`: no real device id (1,683 files). `check_wifi.py`: names 0, BSSIDs 0, LAN 0, OK | **as predicted** |
+
+MG5 is read after the push.
+
 **Outside the set:** stop and report.
