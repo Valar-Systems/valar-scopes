@@ -1067,3 +1067,23 @@ decision.
 
 25 rows are stamped. Production stays on `"watch"` until Daniel says otherwise, and the watch
 counts reach him before that decision.
+
+## Follow-ups (ruled 2026-11-06 ~18:12Z): Daniel's decisions, and the watch counts
+
+### The watch counts since the deploy: predicted before they are read
+
+**What is read:** production's `enr:watch:<day>:<reason>` counters since #548 went live (03:28Z, 2026-11-06), and the
+`enr:refused:` counters. Read with the `kv-read` token, through `scripts/kv-rest.ts`. The keys name a day and a reason
+and nothing else; their values are counts. No id is read or printed.
+
+**The anchor control:** `cfg:fleet` must read back and a known-absent key must read null, as the coverage check
+requires. Otherwise the read is "cannot see".
+
+| | counter | predicted |
+|---|---|---|
+| **WC1** | `enr:watch:2026-11-06:not_listed` | **absent (0)**. The one board that enrolled since the ledger seed did so at 23:30Z on 11-05, before the gate existed, and has not been seen since |
+| **WC2** | `enr:watch:2026-11-06:already_activated` | **absent (0)** |
+| **WC3** | any `enr:refused:` key | **none**: production is in watch, which counts and never refuses |
+
+**Outside the set:** any count is reported as read. **A `not_listed` count is said plainly: it is a real board that
+would have been refused.**
