@@ -91,3 +91,48 @@
 - the measurement M1-M6 as frozen, run on the dev Worker.
 
 **Stage 1b** is built only if M6 still reads over $2 a month, as ruled.
+
+## 6. The deploy to production `opuk` (registered before it runs)
+
+**The ruling, 2026-11-06 ~20:01Z, verbatim:**
+
+> For: UK data session, from the reviewer chat, 2026-11-06 ~20:01Z
+>
+> #577 (stage 1c) -> approved to merge at 3f6b81056aa7; CI 34 = 31/3/0 as predicted. Merge by the rule (Q-M1).
+> - My read: mapVia takes the isolate cache, then R2 only if decodeMap validates the magic, the three counts and the byte length and the metadata holds the exact key; otherwise it builds. The put is create-only, and overwrites only after a refusal. Predictions frozen first (a2d9e8a); 77 of 77 in the granted slot; MP1-MP5 and the three sabotages as predicted.
+> - Follow-up, not blocking, in its own small PR: a failed map put should not fail the storing check. Catch it, count it on the line, and keep the frame.
+> - The deploy: after the PKD set (through PKD-5, ~20:48Z) has read and been reported, with its rows registered first and the rollback target recorded. State in the rows whether the bucket's expire-1d rule reaches wx/<product>/map/; if it does, each map is rebuilt once a day. M6 then measures the cost; 1b only if M6 still reads over $2/month.
+
+**#577 merged** at 20:02:15Z as `51757039ed01`, by the rule.
+- Main's head H was `38e5bb482961` (#576), with its CI finished: 34 = 32 success, 2 skipped.
+- The merge command re-read `origin/main`, found it still H, and merged with `--match-head-commit 3f6b81056aa7`.
+- The squash tree equals `merge-tree(H, 3f6b81056aa7)` (`59e8b89497dc`).
+- **Main CI on `51757039`, predicted 34 = 32 success, 2 skipped, 0 failed.** The baseline is `36d0b657`'s main run
+  (#573's merge, a `proxy/` main push, finished at 34 = 32/2).
+
+**When:** after the PKD set (stage 1a, through PKD-5, about 20:48Z) has read and been reported, and after this
+merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `cref` Worker and the proxy untouched.
+
+**Does `expire-1d` reach `wx/<product>/map/`? Yes.**
+- `wrangler r2 bucket lifecycle list blipscope-wx` (read 2026-11-06 ~20:03Z) shows two rules. `expire-1d`:
+  enabled, **prefix "(all prefixes)"**, "Expire objects after 1 days". The default multipart abort rule (7 days).
+- So **each map object expires about a day after it is written,** and the next cold isolate rebuilds it and writes
+  it again. That is about one `built` and one PutObject a day for each product, plus any cold isolates that race
+  before the first put lands.
+
+| row | what | predicted |
+|---|---|---|
+| **MD-0** | before the deploy: the rollback target, and the map prefix | `wrangler deployments status`: **`b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%** (stage 1a). `r3_list.py wx/opuk/map/`: **0 objects** (0 at 20:04:22Z, re-read just before). The deploy runs from a clean detached checkout of `51757039`, top level |
+| **MD-1** | the version record | bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 |
+| **MD-2** | at the first firing + 10 min | `r3_list.py wx/opuk/map/`: **exactly 1 object of 17,716,016 B**. That is MP4's size: OPERA's geometry is fixed (K1; identical across all 24 survey frames), and `OPUK_GRID` is unchanged. At the same read, /healthz and LHR as PKD-3: `frameAgeS` <= 1,800, `coveredShare` in [0.70, 0.80]; ETag `opuk`, `X-Wx-Max-Age` 720, frame = `latest` |
+| **MD-3** | every storing check in the first 70 min (Logs, 900 s pieces, ABR 1) | **`pruneKeys` 900**; a **`map` field** of `built`, `r2` or `cache`; **no `mapRefused`**; **0 error lines**. **The first storing check after the deploy reads `built`**: a new version starts in new isolates, and the bucket holds no map. At least one `built` in all; the counts by `map` are printed |
+| **MD-4** | R3′-5b′'s rule at +70 min, twice, 10 min apart | <= 13 frames; none below the last storing start - 3,600 s except `latest`'s; the +300 s sabotage fails on the oldest |
+| **MD-5** | CPU over 2 h (900 s pieces, ABR 1) | single-build median in **[1,008, 2,580] ms**; max <= 5,000 ms; **0 `exceededCpu`**. **The split by `map` is printed, not graded:** n, median and max for `built`, `r2` and `cache`. That is M5's reading for `opuk` in production |
+| **MD-6** | the daily rebuild | printed at the 7-day cost re-read (about 2026-11-13): `built` lines a day from Logs |
+| escape | anything outside these rows | **roll `opuk` back to `b7626571` at once**, stop and report |
+
+- **The ~18:22Z amendment applies:** a sampled Logs read is re-read once over a narrower window; a second sampled
+  read is BLIND, which fails the row and triggers the rollback.
+- **Tools** on docs/wx-opuk-r3: `r3p.py` counts storing checks by `map` (`map_on`) and splits single-build CPU by
+  `map` (`de32c2ff`). `r3_list.py` prints non-frame objects' sizes (`b984a087`); its control lists `wx/opuk/` as 12
+  frames plus `latest` at 212 B.
