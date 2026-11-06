@@ -12632,3 +12632,294 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - settles fonts and the PDF by hash;
 - flags a Wi-Fi store outside an app image;
 - is proven by a 25-row selftest and four sabotages, on every device-ids run.
+
+### A12.119 The capped idle reboot for Weatherscope, shared with the radar: the plan and its predictions, before any code
+
+**The request (~15:14Z, Nov 6), six parts:**
+1. the radar's NVS run counter and reboot cap, shared, not copied, with the radar unchanged and shown by its existing tests;
+2. when it may reboot: the radar's idle rule, and never mid-OTA, during a flash or NVS write, or while the user is touching;
+3. the "touch unavailable" screen, in the radar's wording, and how it clears;
+4. host tests and three sabotages;
+5. board rows on `907069326E64` with a planted wedge;
+6. CI from a qualifying baseline, and merges by the rule.
+
+No code is written until this is ruled.
+
+**What main holds** (read on `10a5a8cef316`; `ac99369b8248` since, docs only, with nothing under `.github`, `skus.yml`, `src`, `include`, `test/host` or `platformio.ini`):
+- **Already shared:** the policy, `include/TouchWedgePolicy.h`:
+  - the constants (10 min, 3, 60 min) and NVS `touch-wd`/`run`;
+  - `AtBoot`, `OnRung`, `OnRealTouch`, `HealthyResetDue`/`OnHealthyReset`, `RebootPlan`;
+  - the strip's text and placement: `StripFor`, `StripTopY`, `ConnectRowsFor`.
+
+  `test/host/test_touch_wedge.cpp` grades it.
+- **Not shared: the radar's glue** in `src/AircraftManager.cpp`:
+  - `BootTouchWedge` (the NVS read, `AtBoot`, the power-on write);
+  - `StoreTouchRun` (write only on change);
+  - the loop's rung block (the idle rule, the plan's three steps, the hour reset);
+  - the real-touch clear in `ProcessTouchSample`;
+  - `DrawTouchUnavailable`;
+  - the `TOUCH_WD_*` bench overrides and their `#error`;
+  - `PollTouchBench`.
+- **Weatherscope:** it runs `TouchWatchdog::OnPoll` and the `[health] touch-wd` line (A12.84). `RebootRecommended()` is not acted on.
+
+#### 1. One implementation, with the radar unchanged
+
+**New `include/TouchWedgeCap.h`** (C++11, host-compiled), taking over everything the radar's glue does that is not a device call:
+- **The in-force timers:** the `TOUCH_WD_*` overrides and their `#error`, moved verbatim, so neither edition can take a shortened value without `TOUCH_WEDGE_BENCH`.
+- **`RebootDue(wedged, state, now, lastActivityMs, idleMs)`:** the radar's expression, `wedged && !s.unavailable && now - lastActivityMs >= idleMs`.
+- **`class Cap`:**
+  - `Boot(io, powerOn)`: `BootTouchWedge`;
+  - `Tick(io, now, wedged, lastActivityMs)`: the rung block and the hour reset;
+  - `OnRealTouch(io)`;
+  - `Draw(canvas, id, ink, S)`;
+  - `StripShown()`, `Run()`, `Stored()`.
+- **`DrawStrip(canvas, strip, ink, S)`:** `DrawTouchUnavailable`'s body, with its four colours as a parameter (ground, border, headline, body).
+- **`struct Io`** (virtual), the device's side effects:
+  - `ReadRun`, `WriteRun`, `StampCause`, `Restart`, `Line`;
+  - `FlashWriteActive`, `TryHoldSave` (part 2).
+
+**New `include/TouchWedgeDevice.h`** (device only): the one `Io` both editions use:
+- `Preferences` on `touch-wd`/`run`, with `StoreTouchRun`'s write-on-change and its "NOT stored" line;
+- `StampRebootCause(REBOOT_CAUSE_TOUCH_WEDGE)`, `Serial`, `ESP.restart()`.
+
+The radar's bodies move verbatim, and every `[touch-wd]` string keeps its bytes.
+
+**What stays per edition:**
+- where its activity clock is stamped (part 2);
+- its ink (part 3);
+- the radar's Connect rows;
+- the radar's `n` bench key.
+
+`touchbench::OnKey` (`w` and `r`) moves into `TouchBench.h`, and both editions dispatch it.
+
+**The radar unchanged, shown by:**
+
+| row | predicted |
+|---|---|
+| R1 its existing test | `test_touch_wedge.cpp` is byte-identical, and its output is too. Today, under WSL g++ 13.3, read twice: exit 0, **44 `ok`**, last line `ok`, output sha256 `2d401f4b9543`. |
+| R2 its image's strings | The set of strings containing `[touch-wd]` in `blipscope-s3-128`'s `firmware.bin` from the PR = main's set **plus exactly one**: the hold line (part 2).<br>CONTROL: main's set is non-empty and contains `touch reboot %u of %u`. |
+| R3 its strip's pixels | The radar passes its own ink (ground black, border and headline (255, 176, 0), body white). CR22 holds those to today's values. |
+| R4 its bench env | `blipscope-s3-128-touchbench` builds, and `check-no-bench-hooks.sh --expect "[touch-bench]"` passes on it. The product image is clean. |
+| R5 the rest of `run.sh` | Every block on main reads as on main. |
+
+#### 2. When it may reboot, and Weatherscope's equivalents
+
+**The radar's rule today:** a wedge has outlived 90 s (`RebootRecommended()`), touch is not yet unavailable, and at least 10 min have passed since `lastTouchActivityMs`. That clock is stamped:
+- by every touched sample;
+- by `Initialise()` (boot, and again after every config save);
+- by the bench keys.
+
+**Never while the user is touching.**
+- **What the rule can and can't know:** the clock enforces it. No rule can see a finger that the wedged chip does not report. What the device can know is "no touch reported for 10 min".
+- **Weatherscope's equivalent:** a new `lastTouchActivityMs`, stamped where the radar stamps its own:
+  - every touched sample in `HandleTouch` (the bench `P` press included);
+  - `Initialise()` (boot, and every save);
+  - the bench gestures.
+- **Not `lastTouchMs`:** it drives the zoom's idle return and is set at the splash hand-off. Changing what stamps it would move the zoom.
+- **`OnRealTouch` only from the chip's own read** (`poll == TouchPoll::Touched` before the `P` override). A synthetic press is not proof that the controller answered.
+
+**Never mid-OTA, never during a flash write.**
+- **Why it holds today:** the only flash writer in either image is `OtaUpdater.cpp`'s `UpdateFlash` (one `Update.begin`). It runs:
+  - inside `MaybeUpdateFirmware` in `setup()`, before `loop()` first runs;
+  - or, in the `WX_OTA_BENCH` env only, inside `OtaBenchRun`, called from Weatherscope's `Update()` on the loop task.
+
+  `Tick` runs on the loop task, so today they cannot overlap.
+- **Made an assertion:** that is a claim about code this step does not own, so it becomes one. `UpdateFlash` sets `ota::FlashWriteActive()` from `begin` until its destructor (every exit). `Tick` refuses to reboot while it is set.
+- **Reachable effect:** none. It is never set while `Tick` runs.
+
+**Never during an NVS write.** The `Preferences` writers linked into a Weatherscope image, by task:
+- **`setup()`:** the Wi-Fi join helpers, `ConfigMigration`, `NtfyTopic`, `ConfigurationWebServer::Initialise`, and the OTA attempt notes.
+- **The loop task:** `FactoryReset`, the deferred-reboot cause stamp, and the cap's own write.
+- **The async web task:** `/save` and `/location`. The radar adds `/enroll-key`.
+
+**Only the last group can overlap `Tick`, and nothing guards it on the radar today.**
+- **The danger:** a reboot landing mid-`/save` can leave a partial form, such as one coordinate saved and the other not.
+- **What the radar's re-stamp covers:** the radar re-stamps its clock in `Initialise()` after a save, which covers the 10 min *after* a save, not the save itself.
+- **And the case is not far-fetched:** a customer whose touch has died is exactly the customer who turns to the config page.
+
+**Proposed: a save lock,** `include/SaveLock.h`, one FreeRTOS mutex:
+- the handlers hold it across their writes;
+- the reboot path, after the flash check and before its first write, *tries* to take it and never gives it back, because the restart ends the boot.
+- **A reboot that falls due during a save** waits for the next loop.
+- **A save that arrives in the ~100 ms before the restart** waits and is never begun. The page reports a failed save; nothing is torn.
+- **The hold line,** printed once per held episode: `[touch-wd] reboot due, held: a settings save or a flash write is in progress`.
+
+**Q83.**
+- **(a) [recommended]** The lock in both editions, through the shared driver. The radar changes only in a state where today it can tear a save.
+- **(b)** Weatherscope only. The radar stays unchanged even there. The cost is a second path around one guard, which is the CLAUDE.md table's shape.
+
+The hold line is linked into the radar either way, so R2 is the same under both.
+
+**Not in scope, and unchanged:** Weatherscope's quiet-hour reboot, the Wi-Fi watchdog, factory reset, and the deferred update check.
+
+#### 3. The screen and how it clears
+
+**The wording** is the radar's, ruled on #376 (ruling 2), through the same `StripFor`:
+
+```
+Touch unavailable
+support@valarsystems.com
+Device ID: <id>
+```
+
+**Where and how it is drawn:**
+- **Drawn by the same `DrawStrip`** over every Weatherscope screen: splash, status, scenario, loop and legend. It goes after the screen's own draw.
+- **Into the backbuffer only.** The cached scenario stays clean, so the first frame after it clears has no strip.
+- **No setFont anywhere in either edition,** so both draw it in the default 6 × 8 font at size 1. Box: 174 × 36 px, x 32–205, **y 42–77**. The top comes from `StripTopY(174, 36, 240)`, which today's test prints as 42.
+- **On Status:** it covers the title (y 48). It leaves `Wi-Fi connected` (y 81) and the URL row (y 182) clear.
+- **No touch affordance.**
+
+**The ink is the theme's roles, so the colour-literal scan stays clean:**
+- ground `bg`;
+- border and headline `uiWarn`;
+- body `uiFg`.
+
+**Contrast, all ≥ 4.5 (RGB888 / RGB565):**
+
+| theme | `uiWarn` on `bg` | `uiFg` on `bg` |
+|---|---|---|
+| dark | 11.4928 / 11.6522 | 17.6664 / 17.9908 |
+| light | 4.5090 / 4.6607 (C4g's frozen warn/paper) | 12.2235 / 12.7167 |
+
+**How it clears,** the radar's three resets, unchanged:
+1. **Touch coming back:** the first touch the chip reports.
+2. **A power cycle (unplug and replug):** a `POWERON` boot starts the run at 0. If the chip is still dead, the cap allows three more idle reboots, then the strip returns.
+3. **An hour in one boot with the wedge never holding** (the chip answering again, no finger needed). A boot in which the wedge held never qualifies.
+
+**Q84, a finding.**
+- **The premise:** the radar's spec says the id "is the same string the config page shows under Device ID:".
+- **Why it fails on Weatherscope:** that row sits inside the page's cloud-feed block, so Weatherscope's page has no Device ID row. And Weatherscope reports no telemetry, so support could match the id only against a sale record.
+- **(a) [recommended]** This PR adds the read-only Device ID row to Weatherscope's form.
+- **(b)** Leave it.
+
+#### 4. Host tests and sabotages
+
+**The suite:** `test/host/test_touch_wedge_cap.cpp`, in a new `run.sh` block, `touch-wedge cap driver: chain, idle, hold, resets, strip (TouchWedgeCap.h)`.
+
+**Its fakes:**
+- **A fake `Io`:** the stored run survives simulated boots; it logs every write `W k`, stamp `S` and restart `R`, and the lines; the save lock and the flash flag are settable.
+- **A recording canvas,** with the s3-128's 6 × 8 metrics.
+
+**Literal 3 where the shipped chain is graded** (CR1, CR2, CR4, CR28); `CAP` where a state is only being built.
+
+**CR18–CR21 draw through `Cap::Draw`; CR22 calls `DrawStrip` directly.** Without that split, S-CR3's set would be different.
+
+**Rows, 28 checks:**
+
+| # | row |
+|---|---|
+| CR1 | **the loop test:** across 6 simulated soft boots, exactly 3 restarts; stored run 3 |
+| CR2 | the 4th boot is unavailable; its due rung restarts nothing |
+| CR3 | CONTROL: a boot at stored run 2 still restarts when due |
+| CR4 | the ops are exactly `W1 S R`, `W2 S R`, `W3 S R`, and nothing else |
+| CR5 | wedged, last touch 0 ms ago: no restart |
+| CR6 | wedged, last touch idle − 1 ms ago: no restart |
+| CR7 | CONTROL: exactly idle ms ago: restart |
+| CR8 | CONTROL: not wedged, idle for an hour: no restart |
+| CR9 | a save holds the lock: no write, no stamp, no restart |
+| CR10 | across the held tick and the next (released) one: exactly 1 restart and 1 write |
+| CR11 | a flash write is active: no restart, and the save lock is not taken |
+| CR12 | a real touch at run 2: run 0 written, the strip off |
+| CR13 | a real touch at run 0: no write |
+| CR14 | a power-on boot at stored `CAP`: run 0, one write of 0 |
+| CR15 | CONTROL: a soft boot at stored `CAP`: unavailable, no write |
+| CR16 | an hour wedge-free at stored `CAP`: shown before, cleared after, 0 written once |
+| CR17 | CONTROL: the wedge was seen this boot: still shown at 2 hours |
+| CR18 | an unavailable cap draws one box and the three `StripFor` lines, in order |
+| CR19 | the headline is in ink.headline, the other lines in ink.body, the border in ink.border, the ground in ink.ground |
+| CR20 | the box is 174 × 36 at y 42, its top corners on the glass (an independent disc test) |
+| CR21 | CONTROL: an available cap draws nothing |
+| CR22 | the radar's ink gives the radar's colours: (0, 0, 0), (255, 176, 0) twice, (255, 255, 255) |
+| CR23–CR26 | Weatherscope's ink, ≥ 4.5 in RGB888 and RGB565, at the values in part 3 (±0.0005): dark warn, dark fg, light warn, light fg |
+| CR27 | the ink is `{bg, uiWarn, uiWarn, uiFg}` of `kDark` and of `kLight` |
+| CR28 | the chain's lines are byte-equal to the radar's formats: boot, NVS write, `touch reboot k of 3`, restarting, and the cap-holds line |
+
+**Predicted clean:** 28 `ok`, exit 0, under MinGW and WSL g++ 13.3.
+
+**The sabotage driver:** `test/host/sabotage_touch_wedge_cap.py`.
+- **Method:** it plants a copy of `TouchWedgeCap.h`, never the real header. Each plant asserts that its anchor occurs once and that the copy differs.
+- **Sets, each exactly:**
+
+| plant | change | fails |
+|---|---|---|
+| (control) | none | nothing |
+| **S-CR1** cap removed | the rung ignores `OnRung`'s refusal, and `RebootDue` drops `!s.unavailable`. Two sites, because either one alone still stops a 4th reboot | {CR1, CR2, CR4, CR28} |
+| **S-CR2** idle rule removed | `RebootDue`'s idle term becomes `true` | {CR5, CR6}: a reboot mid-touch |
+| **S-CR3** screen not drawn | `Cap::Draw` no longer calls `DrawStrip` | {CR18, CR19, CR20} |
+| **S-CR4** the hold ignored | the hold check returns `true` | {CR9, CR10, CR11} |
+
+- **Its other modes:** it carries `--anchors` and `--control`.
+- **The driver count:** `run.sh`'s three driver blocks count **23 drivers** (22 today).
+- **What it does not touch:** `test_touch_wedge.cpp` includes none of the planted file, so no plant reaches it.
+
+**What these cannot see:** a removed `Tick`, `OnRealTouch` or `Draw` call inside `WeatherscopeManager`. The manager is not host-compiled. The board rows see those.
+
+#### 5. Board rows: window W-CR, on `907069326E64` only
+
+**The image:** `weatherscope-touchbench-s3-128`, a new env.
+- **What it is:** the product image plus `-DTOUCH_WEDGE_BENCH` and the radar bench's two overrides: idle 20 s, healthy reset 180 s. `HandleTouch` applies `Dead()` to the chip's read the way the radar applies it after `getTouch`, before the `P` override.
+- **No `skus.yml` row,** like `blipscope-s3-128-touchbench` and `weatherscope-otabench-s3-128`. The alternative, a build-only row, adds a firmware leg to every run for a bench image; excluded on that precedent.
+- **The `[touch-bench]` scan:** CI runs `check-no-bench-hooks.sh` on slug-ful legs only, so here it runs locally on both Weatherscope images: product clean; bench `--expect "[touch-bench]"`.
+- **That gap is named, not changed:** no build-only image is published, and the scan reaches Weatherscope's leg the day it gets a slug.
+
+**The plant, and why it is safe:**
+- **The wedge is software.** `touchbench::Dead()` makes the probe fail and the poll report nothing. It is compiled only under `TOUCH_WEDGE_BENCH` (`#error` otherwise). Nothing reaches the chip beyond what `TouchWatchdog`'s ladder already sends a dead one: driver re-inits and a reset-pin hold. Both are harmless to a healthy chip, and the radar's bench ran exactly this on 2026-10-07.
+- **The reboots are three `ESP.restart()`s.** The trace is one pyserial open with DTR and RTS false, held across them (USB-Serial-JTAG keeps the port over a soft reset) and never reopened.
+  - Not `bench-trace.ps1`, whose close puts an s3-128 into download mode.
+  - No reopen inside a boot window.
+- **Flashing:** app0 only, through `flash_plan`. Never the factory image, which erases NVS.
+- **NVS writes:** `touch-wd`/`run` (0, 1, 2, 3, then 0) and the cause stamp. Nothing is posted to config.
+
+**Rows (time is from each boot):**
+
+| row | predicted |
+|---|---|
+| B0 the start | The port is resolved from the serial, then `read-mac`.<br>**app0 is read back by esptool** (no write): its first 1,881,808 B hash to `39e258b5be07`. The boot output can't show this: nothing on it hashes the running image.<br>**If it differs:** stop. The board is not in its recorded state; record it and ask.<br>Then the bench image goes on.<br>Its first line: `[touch-wd] boot: run=S (stored S, reset not power-on)`, **S = 0**.<br>**Alternative:** the board soaked radar images with the v16 cap before 2026-10-20, and a run left then would read 1–3.<br>**If S ≠ 0:** `w`, the 180 s reset writes 0, `w` again, and the chain starts at the next wedge. S is recorded; it is not restored, since a run on a healthy chip means nothing. |
+| B1 the idle rule on glass, boot 1 | `P` (a held press) is sent at 60 s and `L` at 140 s.<br>The watchdog's `recommending reboot` line comes before `L`, and **no reboot comes while the press is held.**<br>The `touch reboot 1 of 3` line follows `L` + 20 s within 1 s. |
+| B2 the chain, boots 2 and 3 | Each prints `touch reboot k of 3`, `run k-1 -> k (NVS write: touch reboot)` and `restarting (cause SW_TOUCHWD stamped)`. The reboot line comes within 1 s of `recommending reboot` (the 20 s idle has already passed). The next boot reads stored k. **3 reboots in all.** |
+| B3 the cap holds, boot 4 | `boot: run=3 (stored 3, reset not power-on) -- touch unavailable, no touch reboots this boot`.<br>At `recommending reboot`: `wedged again at run=3: the cap holds -- touch unavailable, no reboot`.<br>**No restart in 6 min.** |
+| B4 the strip on glass, boot 4 | `/diag/fb`, read three times (partial frames). The box's four edges at x 32–205, y 42–77 are the shown theme's `uiWarn` in RGB565 (the theme is read from the `[wx]` lines).<br>CONTROL: a boot-1 read of the same rectangle does not carry that colour on all four edges. |
+| B5 how it clears, boot 5 | The trace closes. `read-mac` resets the chip (not power-on), chained with a new open (buffered boot output arrives in a burst).<br>Boot 5 reads stored 3, and the strip shows.<br>**`w` is sent as soon as the open is up, within 30 s.** The ladder's next probe after `w` then answers well inside 90 s, so the wedge is never recommended in this boot.<br>`/diag/fb` after `w`: the strip, still. Nothing clears it before the reset.<br>At 180 s: `run 3 -> 0 (NVS write: an hour without the wedge)` and `an hour without the wedge: leaving touch unavailable`.<br>`/diag/fb` after: no strip.<br>**Alternative:** if `read-mac`'s reset reads `POWERON`, boot 5 starts at run 0 with no strip, and B5 is recorded as not run.<br>Not exercised on glass: a finger (reset 1) and an unplug (reset 2). They are host-tested in CR12 and CR14 only. |
+| B6 the restore | `r` reads `run=0 stored=0 unavailable=0`.<br>Then the clean image `39e258b5be07` (1,881,808 B, the one written back at A12.108's end, still in its build directory) goes onto app0.<br>**app0 is read back as in B0:** `39e258b5be07`.<br>Its boot read: `[build] env=weatherscope-s3-128`, and the `[wx] init` line with **`theme=auto read=known`**: the stored theme, read back. No POST is made in the window, so nothing should have moved it. TCP :80 is up after the close. |
+
+**Window rules:**
+- **It ends only after B6's boot read** (the planted-image rule). If it is interrupted, B6 comes first.
+- **Announced in chat** with its start, before the first flash. Expected about 50 minutes.
+- **It opens only** after the PR's code is pushed and its host tests pass locally.
+- **It avoids** 09:00Z (the board's quiet-hour reboot) and any other session's announced hold.
+- **The device's address is resolved by name** and never committed.
+- **The committed record** redacts BSSID, LAN IP and network names. For `[wx] theme=` and phase lines it keeps counts, never times (a dusk and a dawn time give the place).
+
+#### 6. CI, and merging
+
+**Which workflows run:**
+- **The job set is unchanged:** no job, and no matrix leg (no `skus.yml` row).
+- **Named:**
+  - the last workflow change is `259e8688` (#558, a step);
+  - the last job-set change is `84409651daff` (#552, `ota-identity`), which landed at 20:10:52Z on Nov 5.
+- **The PR's paths** are `src/`, `include/`, `test/host/` and `platformio.ini`. They trigger the firmware workflow, `device-ids`, `no-traffic-captures` and `web-renderer` (its filter takes `src/**`, `include/**` and `platformio.ini`), but not `workers`.
+
+**Baselines,** both started after that landing:
+- **#558's PR run:** 31, with 28 success and 3 skipped (version, promote, ship-alert). No web-renderer ran there; its paths did not trigger it.
+- **`84409651`'s main run,** started 20:11:37Z: 33, with 30 success and 3 skipped (promote, publish, version). Its two web-renderer jobs are `build` (success) and `publish` (skipped: it needs a tag).
+
+**Predicted:**
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | 33 | 29 | 4 (version, promote, ship-alert, publish) | 0 |
+| main on the merge | 33 | 30 | 3 (promote, publish, version), as on `84409651` | 0 |
+
+Neither Q83 nor Q84 moves a count.
+
+**Before the push:**
+- **Local guards:** `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py`.
+- **WSL `run.sh`:** exit 2, from exactly the two blocks that need xtensa and Pillow; every other block ok. That includes the new one and the three driver blocks at 23.
+- **Disk:** C: has 33 GB free (one env build is about 150 MB). `df` runs before each build, and under 30 GB none starts.
+
+**Merging:**
+- **When:** on a pasted approval at the exact SHA, after main's CI on its current head has finished.
+- **How:** squash, with `--match-head-commit`, and no `--admin`.
+- **After:** main's CI on the merge is recorded.
+
+**Asked:** Q83 and Q84, plus a ruling on the plan as a whole.
