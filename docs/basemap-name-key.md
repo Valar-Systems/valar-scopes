@@ -153,9 +153,11 @@ Not part of this PR. D4's plan carries these rows:
   is where it is read.
 - **No device holds a basemap ETag,** so no device re-downloads.
 
-## Open, for the reviewer
+- **`scripts/smoke-prod.sh` prints `keyed`,** as its own line in D4's plan (Q-K1b).
 
-- **Q-K1a:** 64 lowercase hex as the secret's form?
-- **Q-K1b:** `keyed` in `/healthz`, with D4's verification as its reader? `scripts/smoke-prod.sh` could also print it, and
-  grade it after D4. I recommend that as its own line in the D4 plan, not in this PR.
-- **Q-K1c:** the no-key path keeps today's unkeyed ETag, as above?
+## Ruled (reviewer chat, pasted by Daniel, 2026-11-06 ~22:49Z), verbatim
+
+> Q-K1a: yes. 64 lowercase hex; anything else is no key and fails closed. If the generator's trailing newline reaches the
+> secret, it reads as no key, and SK1 reading false catches it.
+> Q-K1b: yes, with smoke-prod.sh printing keyed as its own line in D4's plan.
+> Q-K1c: yes.
