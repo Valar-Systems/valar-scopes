@@ -56,8 +56,8 @@ Row ids are `NK1`-`NK6`, used nowhere in the tree. The driver's id pattern needs
 | **NK2** | **A vector computed outside the Worker.** For MS's base query, `queryKey` is `0.37\|0.59\|97\|100584\|5\|`. Under the test key, `queryDigest` equals `231bf7f1f10901272af15985`, computed with Python's `hmac` | with no key, it equals `1fbe09817ec2d79d6ccefcc5`, Python's `hashlib` |
 | **NK3** | Two keys, one query: the digests differ and the ETags differ. One key twice: both are identical. The second key's digest equals `36e48f8a2d92521fbddac3ef` | as NK2's |
 | **NK4** | **A bucket with no key.** `BASEMAP_NAME_KEY` unset, a recording bucket bound, the store id in KV: 200, one builder call, and **0 bucket calls of any kind** | the same request with the key makes at least 1 bucket call |
-| **NK5** | **A malformed key:** 63 hex, 65 hex, uppercase, non-hex, and the empty string, each from a fresh isolate. Each reads as NK4 | the loop ran all five |
-| **NK6** | Through `/healthz`: `keyed` is `true` with the test key, and `false` with none and with each of NK5's five. The body never holds the key's text | `basemap` is an object in every case |
+| **NK5** | **A malformed key:** 63 hex, 65 hex, uppercase, non-hex, the empty string, and a valid key with a trailing newline, each from a fresh isolate. Each reads as NK4 | the loop ran all six |
+| **NK6** | Through `/healthz`: `keyed` is `true` with the test key, and `false` with none and with each of NK5's six. The body never holds the key's text | `basemap` is an object in every case |
 
 **MH2 and MH3 are re-registered,** only to add `keyed: true` to their exact shapes.
 
@@ -161,3 +161,12 @@ Not part of this PR. D4's plan carries these rows:
 > secret, it reads as no key, and SK1 reading false catches it.
 > Q-K1b: yes, with smoke-prod.sh printing keyed as its own line in D4's plan.
 > Q-K1c: yes.
+
+## Corrections found while writing the code, before any run (2026-11-06)
+
+- **NK5 and NK6 gain a sixth malformed key:** a valid key with a trailing newline. That is the case Q-K1a names, so it is
+  tested on the host as well as read at SK1. No set moves.
+- **The guard's title pattern needs `NK` too,** not only `caseOf`, or the guard would not see the new rows. Both changed.
+- **On this tree:** `tsc` is clean on both configs, all 80 anchors are found once each, and 79 planted files parse.
+  C-LOADFAIL does not parse, by design. `--selftest-dups` reads control 0, outside copy 0, planted copy 6, exit 0.
+- **No K1 test has run.** The counts above are re-read from CI, and frozen, once S2 has merged.

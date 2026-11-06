@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
 import { BASEMAP_REV, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
-import { etagOf, parseQuery } from "../src/basemap/query";
+import { etagOf, parseQuery, queryKey } from "../src/basemap/query";
 import builder, { buildLine, makeBuilder } from "../src/basemap/worker";
 import { type SynthDef, COMMIT, lonLatOf, mbStore, writeSynthStore } from "./basemap-synth";
 import { apiRequest, call } from "./helpers";
@@ -431,6 +431,7 @@ describe("BB, the builder's read line", () => {
 // MS (docs/basemap-a1.md): A1, "202, retry" with stored packages, and O1, the store id from KV. Each row uses its own
 // radius, so its keys are its own; the bucket and KV are the test environment's (in memory). MX1: C1's parallel reads.
 const pkgBucket = () => (cf as unknown as { BASEMAP_PKG: R2Bucket }).BASEMAP_PKG;
+const NAME_KEY = "ab".repeat(32); // vitest.config.mts's synthetic value (K1)
 const storeKv = () => (cf as unknown as { ENRICH_KV: KVNamespace }).ENRICH_KV;
 const qOf = (qs: string) => { const p = parseQuery(new URL(`https://x/?${qs}`)); if (!p.ok) throw new Error(p.code); return p.q; };
 const buildQ = (qs: string) => { const q = qOf(qs); return { lat0Micro: q.lat0Micro, lon0Micro: q.lon0Micro, rKm: q.rKm, epsMm: q.epsMm, mask: q.mask, levels: q.levels }; };
@@ -448,7 +449,7 @@ describe("MS, A1's stored packages and O1's store id", () => {
     resetBasemapIsolate();
     const s = await mwStore(), b = builderOver(s.store.objects);
     await storeKv().put("bm:store", s.storeId);
-    const etag = await etagOf(qOf(at(101)), BASEMAP_REV, s.storeId);
+    const etag = await etagOf(qOf(at(101)), BASEMAP_REV, s.storeId, NAME_KEY);
     const { res, line } = await mkCall(() => call(get(basemapPath(at(101)), { "If-None-Match": etag }), { BASEMAP: b.BASEMAP }));
     expect([res.status, line.bm, b.n.calls]).toEqual([304, "304-kv", 0]);
   });
@@ -458,7 +459,7 @@ describe("MS, A1's stored packages and O1's store id", () => {
     const s = await mwStore(), b = builderOver(s.store.objects);
     const built = await build(s.store, buildQ(at(102)), { commit: COMMIT });
     if (!built.ok) throw new Error("MS2's fixture did not build (BLIND)");
-    await pkgBucket().put(pkgKey(s.storeId, await basemapDigest(qOf(at(102)))), built.bytes);
+    await pkgBucket().put(pkgKey(s.storeId, await basemapDigest(qOf(at(102)), NAME_KEY)), built.bytes);
     await storeKv().put("bm:store", s.storeId);
     const first = await mkCall(() => call(get(basemapPath(at(102))), { BASEMAP: b.BASEMAP }));
     expect([first.res.status, first.line.bm, b.n.calls]).toEqual([200, "stored", 0]);
@@ -470,7 +471,7 @@ describe("MS, A1's stored packages and O1's store id", () => {
   it("MS3: a build slower than the wait answers 202 (Retry-After 15, known-miss); then its package is kept and the lock gone", async () => {
     resetBasemapIsolate();
     const s = await mwStore(), b = slowOver(s.store.objects, 300);
-    const digest = await basemapDigest(qOf(at(103)));
+    const digest = await basemapDigest(qOf(at(103)), NAME_KEY);
     await storeKv().put("bm:store", s.storeId);
     basemapTiming.syncWaitMs = 50;
     try {
@@ -485,7 +486,7 @@ describe("MS, A1's stored packages and O1's store id", () => {
   it("MS4: while a fresh lock is held, a second request is 202 in-flight and starts no build", async () => {
     resetBasemapIsolate();
     const s = await mwStore(), b = builderOver(s.store.objects);
-    const digest = await basemapDigest(qOf(at(104)));
+    const digest = await basemapDigest(qOf(at(104)), NAME_KEY);
     await storeKv().put("bm:store", s.storeId);
     await pkgBucket().put(lockKey(s.storeId, digest), "", { customMetadata: { at: String(Date.now()) } });
     const { res, line } = await mkCall(() => call(get(basemapPath(at(104))), { BASEMAP: b.BASEMAP }));
@@ -495,7 +496,7 @@ describe("MS, A1's stored packages and O1's store id", () => {
   it("MS5: a lock older than 45 s is taken over: the builder is called once", async () => {
     resetBasemapIsolate();
     const s = await mwStore(), b = builderOver(s.store.objects);
-    const digest = await basemapDigest(qOf(at(105)));
+    const digest = await basemapDigest(qOf(at(105)), NAME_KEY);
     await storeKv().put("bm:store", s.storeId);
     await pkgBucket().put(lockKey(s.storeId, digest), "", { customMetadata: { at: String(Date.now() - 60_000) } });
     const { res } = await mkCall(() => call(get(basemapPath(at(105))), { BASEMAP: b.BASEMAP }));
@@ -518,7 +519,7 @@ describe("MS, A1's stored packages and O1's store id", () => {
   it("MS7: a no_coverage build that ends after the 202 is kept as an error; the retry is 404 stored-error with no builder call", async () => {
     resetBasemapIsolate();
     const s = await mwStore(), b = slowOver(s.store.objects, 300);
-    const digest = await basemapDigest(qOf(at(107, "10.00")));
+    const digest = await basemapDigest(qOf(at(107, "10.00")), NAME_KEY);
     await storeKv().put("bm:store", s.storeId);
     basemapTiming.syncWaitMs = 50;
     try {
@@ -605,5 +606,90 @@ describe("MP, privacy (over every MW row above)", () => {
     expect(etags.length).toBeGreaterThan(3); // CONTROL: the rows above produced ETags to look at
     expect(etags.filter((e) => /0\.37|0\.59/.test(e))).toEqual([]);
     for (const e of etags) expect(`https://basemap-cache.internal/${e.replace(/"/g, "")}`).not.toMatch(/0\.37|0\.59/);
+  });
+});
+
+// NK (docs/basemap-name-key.md): K1's keyed names. The vectors are computed outside the Worker, with Python's hmac and
+// hashlib, so these rows do not check the code against itself.
+describe("NK, K1's keyed names", () => {
+  const plainDigest = async (qs: string) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(queryKey(qOf(qs)))))]
+    .map((x) => x.toString(16).padStart(2, "0")).join("").slice(0, 24);
+  /** BASEMAP_PKG, with every write's key kept and every call of any kind counted. */
+  function recording() {
+    const real = pkgBucket(), keys: string[] = [], calls = { n: 0 };
+    const rec = {
+      put: (k: string, v: unknown, o?: R2PutOptions) => { calls.n++; keys.push(k); return real.put(k, v as never, o); },
+      get: (k: string) => { calls.n++; return real.get(k); },
+      head: (k: string) => { calls.n++; return real.head(k); },
+      delete: (k: string) => { calls.n++; return real.delete(k); },
+    } as unknown as R2Bucket;
+    return { rec, keys, calls };
+  }
+
+  it("NK1: every stored name, the ETag and the cache key use the keyed digest, and none holds the plain one", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const { rec, keys } = recording();
+    const [good, bad] = [at(111), at(111, "10.00")];
+    const ok = await mkCall(() => call(get(basemapPath(good)), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }));
+    const no = await mkCall(() => call(get(basemapPath(bad)), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }));
+    expect([ok.res.status, no.res.status]).toEqual([200, 404]);
+    const [dg, db] = [await basemapDigest(qOf(good), NAME_KEY), await basemapDigest(qOf(bad), NAME_KEY)];
+    const [pg, pb] = [await plainDigest(good), await plainDigest(bad)];
+    expect(dg).not.toBe(pg); // CONTROL: the two digests can be told apart
+    expect(keys.length).toBeGreaterThanOrEqual(3); // CONTROL: a lock and a package, then a lock and an error
+    for (const k of keys) {
+      expect(k).toMatch(new RegExp(`^bm/v1/(pkg|pkg-lock)/${s.storeId}/(${dg}|${db})(\\.err)?$`));
+      for (const plain of [pg, pb]) expect(k).not.toContain(plain);
+    }
+    const etag = ok.res.headers.get("etag")!;
+    expect(etag).toBe(`"bm1-${BASEMAP_REV}-${s.storeId}-${dg}"`);
+    expect(cacheKey(etag)).toContain(dg);
+    expect(cacheKey(etag)).not.toContain(pg);
+  });
+
+  it("NK2: the digest is an HMAC under the key, by a vector computed outside the Worker", async () => {
+    const q = qOf(QW);
+    expect(queryKey(q)).toBe("0.37|0.59|97|100584|5|");
+    expect(await basemapDigest(q, NAME_KEY)).toBe("231bf7f1f10901272af15985"); // Python's hmac
+    expect(await basemapDigest(q)).toBe("1fbe09817ec2d79d6ccefcc5"); // CONTROL: no key is the plain sha256, Python's hashlib
+  });
+
+  it("NK3: two keys give two names for one query, and one key gives one", async () => {
+    const q = qOf(QW), other = "cd".repeat(32), id = "abcdef012345";
+    const [a, again, b] = [await basemapDigest(q, NAME_KEY), await basemapDigest(q, NAME_KEY), await basemapDigest(q, other)];
+    expect(again).toBe(a);
+    expect(b).not.toBe(a);
+    expect(b).toBe("36e48f8a2d92521fbddac3ef"); // Python's hmac
+    expect(await etagOf(q, BASEMAP_REV, id, other)).not.toBe(await etagOf(q, BASEMAP_REV, id, NAME_KEY));
+  });
+
+  it("NK4: a bucket with no key is treated as no bucket: 200, one builder call, and no bucket call of any kind", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const none = recording();
+    const { res } = await mkCall(() => call(get(basemapPath(at(112))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: none.rec, BASEMAP_NAME_KEY: undefined }));
+    expect([res.status, b.n.calls, none.calls.n]).toEqual([200, 1, 0]);
+    resetBasemapIsolate();
+    const keyed = recording();
+    await mkCall(() => call(get(basemapPath(at(113))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: keyed.rec }));
+    expect(keyed.calls.n).toBeGreaterThan(0); // CONTROL: with the key, the same request does use the bucket
+  });
+
+  it("NK5: a malformed key reads as no key, each of the six", async () => {
+    const s = await mwStore();
+    await storeKv().put("bm:store", s.storeId);
+    const bad = ["a".repeat(63), "a".repeat(65), "AB".repeat(32), "zz".repeat(32), "", `${NAME_KEY}\n`];
+    let ran = 0;
+    for (const [i, key] of bad.entries()) {
+      resetBasemapIsolate();
+      const b = builderOver(s.store.objects), r = recording();
+      const { res } = await mkCall(() => call(get(basemapPath(at(114 + i))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: r.rec, BASEMAP_NAME_KEY: key }));
+      expect([res.status, b.n.calls, r.calls.n], `key ${i}`).toEqual([200, 1, 0]);
+      ran++;
+    }
+    expect(ran).toBe(6); // CONTROL: the loop ran all six
   });
 });

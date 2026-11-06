@@ -270,7 +270,7 @@ const SABOTAGES = {
   "S-QDIGEST": {
     file: QUERY, set: "all",
     edits: [["export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, q.epsMm, q.mask,", "export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, /* SABOTAGE S-QDIGEST: no epsMm */ q.mask,"]],
-    expect: ["MQ10"],
+    expect: ["MQ10", "NK2"],
   },
   "S-QSORT": {
     file: QUERY, set: "all",
@@ -312,8 +312,8 @@ const SABOTAGES = {
   },
   "S-PETAG": {
     file: QUERY, set: "all",
-    edits: [["  return `\"bm1-${rev}-${storeId}-${await queryDigest(q)}\"`;\n", "  return `\"bm1-${rev}-${storeId}-${await queryDigest(q)}-${q.lat2}\"`; // SABOTAGE S-PETAG\n"]],
-    expect: ["MP3", "MQ10", "MW9"],
+    edits: [["  return `\"bm1-${rev}-${storeId}-${await queryDigest(q, nameKey)}\"`;\n", "  return `\"bm1-${rev}-${storeId}-${await queryDigest(q, nameKey)}-${q.lat2}\"`; // SABOTAGE S-PETAG\n"]],
+    expect: ["MP3", "MQ10", "MW9", "NK1"],
   },
   "S-ANOTICE": {
     file: ATTRIBUTION, set: "all",
@@ -345,7 +345,7 @@ const SABOTAGES = {
   },
   "S-HMADEUP": {
     file: HANDLER, set: "all",
-    edits: [["commit: lastBuild ? lastBuild.commit : null };", "commit: lastBuild ? lastBuild.commit : \"0\".repeat(40) }; // SABOTAGE S-HMADEUP"]],
+    edits: [["commit: lastBuild ? lastBuild.commit : null, keyed:", "commit: lastBuild ? lastBuild.commit : \"0\".repeat(40), /* SABOTAGE S-HMADEUP */ keyed:"]],
     expect: ["MH2"],
   },
   // The D3 PR's (docs/basemap-deploy.md): the ETOPO1 credit dropped from the credits page.
@@ -357,8 +357,8 @@ const SABOTAGES = {
   },
   "S-HNOCACHE": {
     file: HANDLER, set: "all",
-    edits: [["  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null };\n",
-             "  return { rev: BASEMAP_REV, store: null, commit: null }; // SABOTAGE S-HNOCACHE\n"]],
+    edits: [["  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null, keyed: nameKeyOf(env.BASEMAP_NAME_KEY) !== undefined };\n",
+             "  return { rev: BASEMAP_REV, store: null, commit: null, keyed: nameKeyOf(env.BASEMAP_NAME_KEY) !== undefined }; // SABOTAGE S-HNOCACHE\n"]],
     expect: ["MH3"],
   },
   // The MK rows' (docs/basemap-branch-log.md): each branch's label swapped for ANOTHER valid label, so MK6's set check
@@ -485,12 +485,38 @@ const SABOTAGES = {
   "S-MS8": {
     file: HANDLER, set: "all",
     edits: [["      if (!(r instanceof Response)) await pkg.put(pkgKey(r.storeId, digest), r.bytes);\n", "      if (!(r instanceof Response)) await pkg.put(`${pkgKey(r.storeId, digest)}-${q.lat0Micro}`, r.bytes); // SABOTAGE S-MS8\n"]],
-    expect: ["MS3", "MS6", "MS8"],
+    expect: ["MS3", "MS6", "MS8", "NK1"],
   },
   "S-MS9": {
     file: HANDLER, set: "all",
-    edits: [["  const pkg = env.BASEMAP_PKG; // A1 only where bound (MS9)\n", "  const pkg = env.BASEMAP_PKG ?? ({} as R2Bucket); // SABOTAGE S-MS9: absence not checked\n"]],
+    edits: [["  const pkg = nameKey ? env.BASEMAP_PKG : undefined; // A1 only with a bucket AND a name key (MS9, NK4)\n", "  const pkg = nameKey ? (env.BASEMAP_PKG ?? ({} as R2Bucket)) : undefined; // SABOTAGE S-MS9: absence not checked\n"]],
     expect: ["MS9"],
+  },
+  // K1's (docs/basemap-name-key.md).
+  "S-NKPLAIN": {
+    file: QUERY, set: "all",
+    edits: [["  if (!nameKey) return hex(await crypto.subtle.digest(\"SHA-256\", text)).slice(0, 24);\n", "  if (nameKey !== null) return hex(await crypto.subtle.digest(\"SHA-256\", text)).slice(0, 24); // SABOTAGE S-NKPLAIN\n"]],
+    expect: ["NK1", "NK2", "NK3"],
+  },
+  "S-NKETAG": {
+    file: QUERY, set: "all",
+    edits: [["  return `\"bm1-${rev}-${storeId}-${await queryDigest(q, nameKey)}\"`;\n", "  return `\"bm1-${rev}-${storeId}-${await queryDigest(q)}\"`; // SABOTAGE S-NKETAG\n"]],
+    expect: ["NK1", "NK3"],
+  },
+  "S-NKOPEN": {
+    file: HANDLER, set: "all",
+    edits: [["  const pkg = nameKey ? env.BASEMAP_PKG : undefined; // A1 only with a bucket AND a name key (MS9, NK4)\n", "  const pkg = env.BASEMAP_PKG; // SABOTAGE S-NKOPEN: a bucket with no key still stores\n"]],
+    expect: ["NK4", "NK5"],
+  },
+  "S-NKFORMAT": {
+    file: QUERY, set: "all",
+    edits: [["(raw !== undefined && /^[0-9a-f]{64}$/.test(raw) ? raw : undefined);", "(raw ? raw : undefined); // SABOTAGE S-NKFORMAT"]],
+    expect: ["NK5", "NK6"],
+  },
+  "S-NKHEALTH": {
+    file: HANDLER, set: "all",
+    edits: [["keyed: nameKeyOf(env.BASEMAP_NAME_KEY) !== undefined };\n", "keyed: true }; // SABOTAGE S-NKHEALTH\n"]],
+    expect: ["NK6"],
   },
   "S-MX1": {
     file: BUILD, set: "all",
@@ -519,7 +545,7 @@ const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 // A PK id may hold hyphens (A12.15's neg-terrain-count) and must end at the title's colon, so it is either whole or
 // UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
 // BB<n> (docs/basemap-build-reads.md): the builder's read-line rows, named in #539's plan before this pattern knew them.
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // THE DUPLICATE-ID GUARD (ruled 2026-11-05 ~20:05Z, docs/basemap-a1.md). Grading is by case id, so two rows sharing an id
 // grade as one -- A1's first run, where a new MI8 met basemap-regions.test.ts's MI8 and baseline[all] read 158 for 159.
@@ -530,7 +556,7 @@ const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-
 // the driver never runs cannot grade as one of its rows, and #577's MP3 in wx-opera.test.ts stopped every run until then.
 function duplicateCaseIds(testDir = join(PROXY, "test")) {
   const byId = new Map();
-  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-9-]+)[^"'`]*)\1/g;
+  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+)[^"'`]*)\1/g;
   for (const f of readdirSync(testDir).filter((n) => n.startsWith("basemap-") && n.endsWith(".test.ts")).sort()) {
     for (const m of readFileSync(join(testDir, f), "utf8").matchAll(TITLE)) {
       const title = m[2], id = caseOf(title);
