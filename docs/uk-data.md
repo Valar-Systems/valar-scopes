@@ -390,6 +390,8 @@ October 2026 releases. No account or key was used.
   terms of the OGL".
 - **So the NI map layers are blocked on a written answer from LPS** (copyright@finance-ni.gov.uk). This is not a
   reading I can settle, and a package is derived data by definition.
+- **Answered (2026-11-04), and relied on by Daniel's decision of 2026-11-06: see A1.1d.** The NI gate lifts with
+  that record.
 - **An unverified lead:** nidirect lists EuroGeographics' EuroRegionalMap as OSNI open data. Its licence page did not
   render.
 
@@ -782,6 +784,67 @@ as #443's did.
 
 - **Q13's state: sent 2026-10-28, awaiting LPS's reply.**
 - Northern Ireland stays built but not served for maps until the reply is pasted and recorded here.
+
+### A1.1d Q13 answered: LPS's written OK (2026-11-04), and Daniel's decision to rely on it (2026-11-06)
+
+**The question** (Q13, sent by Daniel on 2026-10-28 at 15:53Z): may map files derived from these datasets be
+redistributed to customer devices under OGL v3.0?
+- OSNI Open Data 50K Transport;
+- OSNI Open Data Gazetteer;
+- DAERA's Lakes of Northern Ireland (if derived from OSNI mapping);
+- NISRA settlement populations joined to NISRA settlement boundaries (to rank towns).
+
+**The answer.** Land & Property Services (LPS), through its IPR/Copyright team for Ordnance Survey of Northern
+Ireland (OSNI), answered in writing on 2026-11-04 at 14:03Z.
+- **In my words:** yes. All four are open data and may be used to create small map files sent to customers'
+  devices, provided the OGL acknowledgement is included.
+- The email thread is Daniel's and stays out of the repo.
+
+**The required line, verbatim:**
+
+> Contains Ordnance Survey of Northern Ireland information licensed under the Open Government Licence v3.0.
+
+Where a link is possible, "Open Government Licence v3.0" links to
+https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
+
+**Each dataset's own publisher page** (read 2026-11-05, 21:28-21:36Z):
+
+| dataset | what its page says |
+|---|---|
+| **DAERA, Lakes of Northern Ireland** | DAERA's own hub (`https://opendata-daerani.hub.arcgis.com/datasets/DAERANI::lakes-of-northern-ireland`, read through its catalogue `https://opendata-daerani.hub.arcgis.com/api/feed/dcat-us/1.1.json`): **OGL v3.0**, with its own line, "DAERA NIEA dataset contains Ordnance Survey of Northern Ireland information licensed under the Open Government Licence v3.0." **Consistent with LPS's answer** |
+| **OSNI 50K Transport** | OSNI's own pages couldn't be read: OpenDataNI answered 403, and OSNI's ArcGIS hub item answered "does not exist or is inaccessible". Its data.gov.uk mirror, harvested from OSNI's hub (`https://www.data.gov.uk/dataset/828a8d26-b199-4620-9e02-b61557792500/osni-open-data-50k-transport-transport-lines`), gives the licence field "UK Open Government Licence (OGL)" and the text **"By download or use of this dataset you agree to abide by the LPS Open Government Data License."** |
+| **OSNI Gazetteer** | the same blocks. Its mirror (`https://www.data.gov.uk/dataset/4ad70f94-c874-452c-94ee-2b2c39f57006/osni-open-data-gazetteer-place-names`) has the same field and **the same LPS licence sentence** |
+| **NISRA populations and settlement boundaries** | NISRA's dataset pages state no licence. The site's Crown copyright page (`https://www.nisra.gov.uk/crown-copyright`, last updated 30 December 2025) gives OGL, and: **"Ordnance Survey of Northern Ireland (OSNI) branded Land & Property Services (LPS) mapping (or any mapping based on, or derived from OSNI branded mapping) is exempt from the terms of the OGL."** Its attribution example: "Source: NISRA : Website: www.nisra.gov.uk" |
+
+**Daniel's decision, 2026-11-06: rely on LPS's written answer of 2026-11-04.** No further confirmation will be asked
+of LPS.
+- **LPS's answer named all four datasets for this use,** NISRA's boundaries included.
+- **Both discrepancies point back to LPS:**
+  - the mirrors' "LPS Open Government Data Licence" is LPS's own licence;
+  - NISRA's exemption of OSNI-derived mapping from the OGL leaves that mapping to LPS, and this is LPS's written
+    answer.
+- The mirrors' wording and NISRA's exemption stay recorded above, unchanged.
+
+**Credits, wherever NI-derived data shows** (`docs/basemap-attribution.md`, `/credits`, and the provenance list of
+each package holding NI-derived features):
+1. **OSNI's line**, verbatim as above, with the OGL link;
+2. **DAERA's line**, "DAERA NIEA dataset contains Ordnance Survey of Northern Ireland information licensed under
+   the Open Government Licence v3.0.";
+3. **NISRA's line**, "Source: NISRA : Website: www.nisra.gov.uk".
+
+- **Not used:** a second acknowledgement form seen in search results ("Contains LPS Intellectual Property © Crown
+  copyright and database right ..."). It couldn't be traced to a readable LPS page.
+- **When the lines ship:** in the same change that first serves NI-derived data, never after, with that change's
+  predictions frozen first.
+- **The checks, as ruled 2026-11-05:**
+  - **(a)** live `/credits` holds OSNI's line exactly, as one string, with the OGL link;
+  - **(b)** an NI fixture package carries the NI provenance entry.
+- **The sabotages:** one word changed turns (a) red; the entry dropped from the NI fixture turns (b) red.
+
+**The NI gate lifts when this record merges.**
+- NI still ships only with GB under the UK map plan, so its timing doesn't change.
+- **NI's layers:** roads (50K Transport), water (DAERA's lakes), and places (the Gazetteer, ranked by NISRA's
+  populations through the settlement boundaries).
 
 ### A1.2 What the rulings change
 
