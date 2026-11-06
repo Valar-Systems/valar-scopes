@@ -5077,4 +5077,21 @@ and its docstring. Predicted on the re-run: all 11 plant rows as stated, and the
 
 The two builds run one at a time, after a free-space check (30 GB floor). **Outside the set:** stop and report.
 
+**R1, read (17:01-17:07Z): as predicted, with one item outside the stated set.**
+- `run.sh` exit 2, with exactly the two environment blocks failed: "the same TU, for the board" and "Weatherscope R0
+  and R0b". These are the only `FAIL` lines.
+- **As named:**
+  - "WX avionics": 7 ok, and its driver AS PREDICTED;
+  - anchors: avionics 5 plants and 5 anchors, fb-check 11 and 11, all present exactly once;
+  - controls: the avionics driver and the fb-check driver, each "all as the table";
+  - the driver-count lint: 28 drivers, 0 flagged, 3 pinned lines.
+- **Outside the set: `sabotage_wx_towns.py` reads SKIP** in both the controls pass and the drivers pass ("28
+  driver(s): 27 run, 1 skipped").
+  - Its reason: it needs the Census archives (`WX_TOWNS_GAZ`, `WX_TOWNS_SUBEST`), which "no CI runner holds". It is
+    counted apart and never passed, by design, and it has nothing to do with this change.
+  - My R1 said "everything else is green" and did not name it. It is the same shape as the WSL two-block note: an
+    environment fact the prediction must name. It is reported, not explained away.
+  - **Proposed:** WSL predictions name it from now on, as a third environment item beside the two blocks.
+- The merge and the push wait for the ruling on this item. The builds (R2, R3) do not depend on it and go ahead.
+
 **Outside the set:** stop and report.
