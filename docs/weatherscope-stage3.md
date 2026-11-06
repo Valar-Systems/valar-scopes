@@ -13035,3 +13035,77 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 **The cap-holds string stays in both images.** R2's string set is unchanged by this correction.
 
 **One reading of the frozen B3 is now known to be impossible, and was caught before the window.** Had it been measured, boot 4's silence would have read as off-prediction. It is recorded here so the window's B3 is graded against the corrected row.
+
+### A12.122 The capped reboot built (`debcdc6782bd`): OFF-PREDICTION, one `run.sh` block. A closed step's board plant lost its anchor. No fix until ruled (Q85); W-CR waits
+
+**The branch:** `weatherscope/touch-cap`, from main at `000112ae8d41` (since then main has gained only #567, docs). One commit, 19 files.
+
+**Host, under WSL g++ 13.3 and MinGW:**
+
+| row | predicted | measured |
+|---|---|---|
+| R1 the radar's own test | `test_touch_wedge.cpp` byte-identical; 44 `ok`; output sha256 `2d401f4b9543` | byte-identical to main; **44 `ok`, exit 0, output `2d401f4b9543`** |
+| `test_touch_wedge_cap` | 32 checks, 0 failures, exit 0 | **32 checks, 0 failures** under both compilers; the strip box at x 32, y 42, 174 × 36; contrast exactly the frozen values |
+| S-CR1 to S-CR5 | {CR1, CR2, CR4, CR28}, {CR5, CR6}, {CR18, CR19, CR20}, {CR9, CR10, CR11}, {CR30, CR31} | **exactly those,** under both compilers; the control 32/0; the real headers unchanged; `--anchors` 5 plants, 7 anchors; `--control` as its table; the count lint clean |
+| `check-setup-banner.mjs` | 13 checks; `--selftest` 8 plants; JS1 / JS1 + JS2 / JS4 red under the three new plants | **13 ok; 8 plants as wanted; red exactly {JS1}, {JS1, JS2}, {JS4}** |
+| `check-config-form.py` | 9 pages hold; Weatherscope 3,946 B plus the row's bytes; the others unchanged | **9 hold; Weatherscope 4,160 B (+214, the inserted row: 38 + 44 + 106 + 25 + 1); the total +214,** so no other page moved; selftest passes |
+| the colour-literal scan | clean | 17 files, 0 literals (`WxTouchStrip.h` included) |
+| WSL `run.sh` (g++ 13.3) | exit 2 from exactly the two env blocks (xtensa, Pillow); every other block ok; the new block ok; 23 drivers | **OFF-PREDICTION.** Exit 2, with **three** failed blocks, not two: the two env blocks (R0/R0b, the rig; "the same TU, for the board") **and `sabotage anchors`**. Everything else held: the new block 32/0, 23 drivers (22 run, 1 skipped), the controls and the full drivers ok |
+
+**The off-prediction: `tools/weatherscope/board/plant_s_tw.py`, S-TW's board plant from the closed TouchWatchdog step (#544, A12.84).**
+- **Its anchor** is the two lines of `HandleTouch` that call the supervisor:
+  ```
+  if constexpr (variant::TOUCH_WATCHDOG)
+      if (poll != TouchPoll::Skipped) TouchWatchdog::OnPoll(tft, poll == TouchPoll::Touched, true);
+  ```
+- **What broke it:** this branch braced that `if constexpr` to add the real-touch clear inside it, so the anchor is found 0 times. `run.sh`'s anchors block runs the plant's `--anchors` and caught it.
+- **Why it was missed:** I checked only the drivers whose suites this branch touches.
+- **The others are fine.** S-SWB's plant passes `--anchors`. S-WAIT's (`ConfigurationWebServer.cpp`, which has no `--anchors` mode) finds each of its two anchors exactly once in this tree.
+- **Nothing is fixed.** The code is committed locally at `debcdc6782bd` and **not pushed**. W-CR does not open: it waits for host tests that pass.
+
+**Q85. Which side moves?**
+- **(a)** Re-anchor `plant_s_tw.py` on the single `OnPoll` line. Removing that line alone still leaves the braced block compiling, with the real-touch clear in it.
+  - **Predicted:** its `--anchors` reads `1 plant(s), 1 anchor(s), all present exactly once`; no image changes.
+- **(b) [recommended]** Leave the closed step's instrument alone and restore the two lines byte-for-byte. The real-touch clear becomes its own `if constexpr` statement right after them.
+  - **Why (b):** the closed step's plant and its record stay reproducible as they are, and the product code bends instead of the instrument.
+  - **Predicted:** `plant_s_tw.py --anchors` all present exactly once. Only the two Weatherscope images are rebuilt; their shas are not predicted, and they are re-checked for markers and strings as above. Nothing host-compiled changes.
+- **Either way:** WSL `run.sh` exits 2 from exactly the two env blocks, with every other block ok.
+
+**One instrument fix, before any graded result was taken from it.** S-CR1's first run read the RIG: my plant text left the parameter `s` unused, and `-Werror` refused it, so the plant never compiled. The plant now begins `(void)s;`. The predicted set is unchanged, and the rerun gave exactly that set. This is the case of the S-L braces of A12.73: the plant, not the code under test.
+
+**Images** (local PlatformIO builds of `debcdc6782bd`):
+
+| image | bytes | sha256 | row |
+|---|---|---|---|
+| `weatherscope-s3-128` | 1,881,424 | `e8e62ff68cde` | no bench marker; carries the cap's `[touch-wd] boot` format, the strip's words, the refusal sentence, `bpSaveResult` and the Device ID row |
+| `weatherscope-touchbench-s3-128` | 1,882,000 | `ecfd9f4d640e` | `--expect "[touch-bench]"`, no other marker |
+| `blipscope-s3-128` | 1,926,576 | `1f79810cd738` | no bench marker |
+| `blipscope-s3-128-touchbench` | 1,927,392 | `b37b0544600e` | **R4:** `--expect "[touch-bench]"`, no other marker |
+
+**R2, the radar image's `[touch-wd]` strings.**
+- **The baseline:** main's CI-built `firmware-s3-128.bin` from run 42246974904 (`000112ae8d41`; 1,924,352 B, `539b27597ffe`).
+- **Main's image carries 14 strings and the PR's 15. The one added is exactly the hold line, and none is removed. AS PREDICTED.** CONTROL: main's set holds `touch reboot %u of %u`.
+- **The anchor first read BLIND, which it should have.** I had written it as the literal `[build] env=blipscope-s3-128`, which no image carries: the banner is the format `[build] env=%s`, with the env name as its own string. It now requires both. Pointed at the Weatherscope image, it reads BLIND, so it can refuse.
+
+**Guards on the commit:** `check_wifi.py` (1,642 tracked, OK) and its selftest, `check_device_ids.py`, `check_binary_strings.py`, `check_workflow_concurrency.py`, `check_runners.py`, and `skus.py --check-readers`. All OK.
+
+**W-CR's grading, frozen here before the window** (`tools/weatherscope/board/touch_cap_bench.py`, three phases, each ONE serial open with DTR and RTS false):
+- **The strip on `/diag/fb`:** a frame SHOWS it when all **416** edge pixels of the box (x 32–205, y 42–77) are one theme's `uiWarn` in RGB565, and the box's inside corner (33, 43) is that same theme's `bg`. So the frame names its theme from its own pixels, with no serial line and no time.
+- **Each read is three frames, 0.3 s apart:**
+  - B4c CONTROL (boot 1, T0 + 40 s): the strip in **0 of 3**;
+  - B4 (boot 4, + 40 s): in **≥ 2 of 3**;
+  - B5 before the reset (after `w`): **≥ 2 of 3**;
+  - B5 after the reset: **0 of 3**.
+- **Where the times come from:**
+  - boot 1's start: the first `r` reply's device time;
+  - `P` at T0 + 60 s, `L` at T0 + 140 s;
+  - B1's reboot at **L + 20.0 to 21.0 s**;
+  - B2's reboots within **1.0 s** of their boot's `recommending reboot`;
+  - B3: no cap line (`touch reboot`, `wedged again`, `run N -> M`, `restarting`, `held`, `an hour without`, `touch is back`) and no new boot for **360 s**. No line the watchdog itself prints matches those patterns (checked against `TouchWatchdog.cpp`'s eight strings).
+- **The order:**
+  - **B0:** the port from the serial; `read-mac`; app0 read back (`39e258b5be07`); the bench image through `app-only-write.py`; `chain`;
+  - **`clear`;**
+  - **B6:** the clean image through `app-only-write.py`; app0 read back; `bootread`; TCP :80.
+- **The committed record** redacts BSSID, LAN IP and network names, and keeps counts, never times, for theme and phase lines.
+
+**W-CR waits** for Q85's ruling and the host run after it. It is announced in chat before its first flash. No board window has been opened; the board is untouched since A12.108.
