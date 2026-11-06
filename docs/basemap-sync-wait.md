@@ -328,3 +328,29 @@ KBOI, KGEG and KOMA. **The same shape and instruments as the last ten.**
 
 **CI for the code PR:** a `proxy/` PR, **34 check runs: 31 success, 3 skipped, 0 failed**. The baseline is named when
 the PR opens, from the latest finished `proxy/` PR run that postdates `84409651`.
+
+### Corrections found while writing the code, before any run (2026-11-06)
+
+**These are registered before any run, each with its cause. The section above is kept as written.**
+
+**1. S-MS2's set grows {MS2, MS6} → {MS2, MS6, MS10}.**
+- **What I wrote above:** that it "keeps its set". That was wrong.
+- **Why:** with the stored package never read, only the `.err` read happens, and MS10's control (both reads seen)
+  fails.
+
+**2. Three more existing plants' sets grow by MS10,** from evaluating every handler and query plant against it:
+
+| plant | its set grows to | why MS10 goes red |
+|---|---|---|
+| **S-MKKMISS** | {MK4, MK6, MS3, **MS10**} | MS10's first request is labelled `known-miss` |
+| **S-MS1** | {MS1, MS2, MS3, MS4, MS6, MS7, **MS10**} | a fresh isolate without KV's store id takes the unknown-store path, which builds synchronously: 200, not 202 |
+| **S-MS3** | {MS3, MS7, **MS10**} | never raced, the first request waits for its build: 200, not 202 |
+
+**Every other plant leaves MS10 green.** MS10 grades only the first request, which is answered before the build
+completes.
+
+**3. The guard, done by hand until its PR lands.**
+- **The anchor check:** 72 of 72 sabotages plant cleanly against S2's code.
+- **TypeScript's parser,** in memory: the unplanted `handler.ts`, S-MS2's plant and S-S2SEQ's plant all parse.
+
+**4. `tsc --noEmit` is clean** for the code and MS10. **No test has run.** S2 runs after step 0's checks, as ruled.

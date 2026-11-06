@@ -377,7 +377,8 @@ const SABOTAGES = {
     file: HANDLER, set: "all",
     edits: [['    log.bm = "known-miss";\n', '    log.bm = "unknown-store"; // SABOTAGE S-MKKMISS\n']],
     // Re-registered before any run (docs/basemap-a1.md): MS3's 202 is labelled known-miss. {MK4, MK6} stays on record.
-    expect: ["MK4", "MK6", "MS3"],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: MS10's first request is labelled known-miss too.
+    expect: ["MK4", "MK6", "MS3", "MS10"],
   },
   "S-MKUNK": {
     file: HANDLER, set: "all",
@@ -418,17 +419,29 @@ const SABOTAGES = {
     edits: [["  const id = mem ?? (pkg ? await storeFromKv(env) : null);\n", "  const id = mem; void storeFromKv; // SABOTAGE S-MS1: the KV read skipped\n"]],
     // Re-registered by ruling (~20:45Z), the miss kept: {MS1, MS2, MS3, MS4, MS6, MS7, MS8}. MS8's covered first request
     // teaches the isolate the store id, so its second request takes the known path without KV, and it stays green.
-    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7"],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: a fresh isolate without KV's id takes the unknown path, which builds synchronously (200, not 202).
+    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7", "MS10"],
   },
   "S-MS2": {
     file: HANDLER, set: "all",
-    edits: [["      const kept = await pkg.get(pkgKey(id, digest));\n", "      const kept = null as R2ObjectBody | null; // SABOTAGE S-MS2: the stored package never read\n"]],
-    expect: ["MS2", "MS6"],
+    // Re-anchored for S2 (docs/basemap-sync-wait.md): the package read is now half of one Promise.all; the same defect
+    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);\n",
+             "      const [kept, err] = [null as R2ObjectBody | null, await pkg.get(errKey(id, digest))]; // SABOTAGE S-MS2: the stored package never read\n"]],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: the package never read, MS10's control (both reads seen) fails.
+    expect: ["MS2", "MS6", "MS10"],
+  },
+  // S2's own (docs/basemap-sync-wait.md): the two reads made sequential again, the .err read only after the package's
+  "S-S2SEQ": {
+    file: HANDLER, set: "all",
+    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);\n",
+             "      const [kept, err] = [await pkg.get(pkgKey(id, digest)), await pkg.get(errKey(id, digest))]; // SABOTAGE S-S2SEQ\n"]],
+    expect: ["MS10"],
   },
   "S-MS3": {
     file: HANDLER, set: "all",
     edits: [["      const quick = await Promise.race([work, sleep(basemapTiming.syncWaitMs).then(() => null)]);\n", "      const quick = await work; void sleep; // SABOTAGE S-MS3: always awaited, never raced\n"]],
-    expect: ["MS3", "MS7"],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: never raced, MS10's first request waits for its build (200, not 202).
+    expect: ["MS3", "MS7", "MS10"],
   },
   "S-MS4": {
     file: HANDLER, set: "all",
