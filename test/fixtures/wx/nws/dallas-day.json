@@ -343,6 +343,7 @@
  "periods": [
   {
    "name": "This Afternoon",
+   "startUtc": 1793988000,
    "isDaytime": true,
    "tempF": 68,
    "hasTemp": true,
@@ -352,6 +353,7 @@
   },
   {
    "name": "Tonight",
+   "startUtc": 1794009600,
    "isDaytime": false,
    "tempF": 53,
    "hasTemp": true,
@@ -361,6 +363,7 @@
   },
   {
    "name": "Saturday",
+   "startUtc": 1794052800,
    "isDaytime": true,
    "tempF": 67,
    "hasTemp": true,
@@ -370,6 +373,7 @@
   },
   {
    "name": "Saturday Night",
+   "startUtc": 1794096000,
    "isDaytime": false,
    "tempF": 52,
    "hasTemp": true,
@@ -379,6 +383,7 @@
   },
   {
    "name": "Sunday",
+   "startUtc": 1794139200,
    "isDaytime": true,
    "tempF": 69,
    "hasTemp": true,
@@ -388,6 +393,7 @@
   },
   {
    "name": "Sunday Night",
+   "startUtc": 1794182400,
    "isDaytime": false,
    "tempF": 53,
    "hasTemp": true,
@@ -397,6 +403,7 @@
   },
   {
    "name": "Monday",
+   "startUtc": 1794225600,
    "isDaytime": true,
    "tempF": 72,
    "hasTemp": true,
@@ -406,6 +413,7 @@
   },
   {
    "name": "Monday Night",
+   "startUtc": 1794268800,
    "isDaytime": false,
    "tempF": 56,
    "hasTemp": true,
@@ -415,6 +423,7 @@
   },
   {
    "name": "Tuesday",
+   "startUtc": 1794312000,
    "isDaytime": true,
    "tempF": 73,
    "hasTemp": true,
@@ -424,6 +433,7 @@
   },
   {
    "name": "Tuesday Night",
+   "startUtc": 1794355200,
    "isDaytime": false,
    "tempF": 57,
    "hasTemp": true,
@@ -433,6 +443,7 @@
   },
   {
    "name": "Veterans Day",
+   "startUtc": 1794398400,
    "isDaytime": true,
    "tempF": 76,
    "hasTemp": true,
@@ -442,6 +453,7 @@
   },
   {
    "name": "Wednesday Night",
+   "startUtc": 1794441600,
    "isDaytime": false,
    "tempF": 53,
    "hasTemp": true,
@@ -451,6 +463,7 @@
   },
   {
    "name": "Thursday",
+   "startUtc": 1794484800,
    "isDaytime": true,
    "tempF": 74,
    "hasTemp": true,
@@ -460,6 +473,7 @@
   },
   {
    "name": "Thursday Night",
+   "startUtc": 1794528000,
    "isDaytime": false,
    "tempF": 50,
    "hasTemp": true,

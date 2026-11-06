@@ -5,7 +5,7 @@ what the forecast, conditions and alerts screens read, written as test/fixtures/
     python -I tools/weatherscope/nws/trim_nws.py --selftest
 
 Kept, and nothing else: the capture's time (the hourly document's generatedAt, "now" in stored mode); the first 48 hourly
-entries (start, F, chance); every day-part period (name, daytime, F, chance, short forecast cut to 24 characters --
+entries (start, F, chance); every day-part period (name, start, daytime, F, chance, short forecast cut to 24 characters --
 free text, so a prefix is a true prefix); the observation (time, F, wind direction, wind and gust in mph, humidity),
 converted from SI with the rounding pinned as floor(x + 0.5); the alerts (event, start, end). Every value that NWS may
 send as null carries a has-flag. No headline (it names offices and areas), no area, no polygon, no id, no URL.
@@ -21,7 +21,7 @@ WARNING_SCREEN = {"Tornado Warning", "Snow Squall Warning", "Severe Thunderstorm
 SCHEMA = {
     "case": str, "source": str, "capturedUtc": int,
     "hourly": [{"startUtc": int, "tempF": int, "hasTemp": bool, "pop": int, "hasPop": bool}],
-    "periods": [{"name": str, "isDaytime": bool, "tempF": int, "hasTemp": bool, "pop": int, "hasPop": bool, "short": str}],
+    "periods": [{"name": str, "startUtc": int, "isDaytime": bool, "tempF": int, "hasTemp": bool, "pop": int, "hasPop": bool, "short": str}],
     "observation": {"timeUtc": int, "tempF": int, "hasTemp": bool, "windDirDeg": int, "hasWindDir": bool,
                     "windMph": int, "hasWind": bool, "gustMph": int, "hasGust": bool, "humidityPct": int,
                     "hasHumidity": bool},
@@ -59,7 +59,7 @@ def trim(raw, case):
     rec["periods"] = []
     for p in raw["forecast"]["properties"]["periods"]:
         pop = val(p.get("probabilityOfPrecipitation"))
-        rec["periods"].append({"name": p["name"], "isDaytime": bool(p["isDaytime"]),
+        rec["periods"].append({"name": p["name"], "startUtc": utc(p["startTime"]), "isDaytime": bool(p["isDaytime"]),
                                "tempF": int(p["temperature"]) if p.get("temperature") is not None else 0,
                                "hasTemp": p.get("temperature") is not None,
                                "pop": r(pop) if pop is not None else 0, "hasPop": pop is not None,
