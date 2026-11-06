@@ -1,7 +1,8 @@
 # Blipscope 1.28" board: factory flashing sheet / 工厂烧录说明
 
-**Final**, apart from the factory's answer on which tool it uses. Every step below was run on our
-bench on 2026-11-05 ([factory-image-plan.md](factory-image-plan.md), section 4).
+**Final.** The factory uses Espressif's Flash Download Tool (its answer, 2026-11-06). Every step below was run on
+our bench ([factory-image-plan.md](factory-image-plan.md)): the erase and write on 2026-11-05, and the write
+without the erase on 2026-11-06.
 
 | | |
 |---|---|
@@ -21,25 +22,23 @@ bench on 2026-11-05 ([factory-image-plan.md](factory-image-plan.md), section 4).
 On Windows, run `certutil -hashfile firmware-s3-128.factory.bin SHA256`. The result must match the
 SHA-256 above exactly. If it does not, stop and ask for the file again.
 
-### 2. Flash each board: write the one file at 0x0 (erase first only where stated)
+### 2. Flash each board: write the one file at 0x0 (only the 3 samples are erased first)
 
 Use **one** of the two tools.
 
 **Which boards are erased first:**
 - **The 3 pre-production samples:** a full chip erase first, then the write.
-- **Production boards (new chips, which arrive blank):** no erase. Write the one file at `0x0`.
-- A board that has had anything written to it before (a test program, for example) gets the full erase first, like
-  the samples.
+- **Production (every other board, test program or not):** no erase. Write the one file at `0x0`.
 
 **A. esptool** (one command per board):
 
-The 3 samples, and any board written to before (the whole chip is erased first, then written):
+The 3 samples (the whole chip is erased first, then written):
 
 ```
 esptool --chip esp32s3 --port <PORT> --before default-reset --after hard-reset write-flash --erase-all --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin
 ```
 
-Production boards (no erase):
+Production, every other board (no erase):
 
 ```
 esptool --chip esp32s3 --port <PORT> --before default-reset --after hard-reset write-flash --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin
@@ -52,22 +51,23 @@ https://dl.espressif.com/public/flash_download_tool.zip):
    type is wrong for this board.
 2. In the first row, select `firmware-s3-128.factory.bin`, enter the address `0x0`, and tick the
    row. Leave every other row empty and unticked.
-3. Set **BAUD** to `1152000`. Set **SPI SPEED** to `80MHz`, **SPI MODE** to `QIO`, and **FLASH SIZE** to
-   `16MB`.
-4. Make sure **DoNotChgBin** is ticked. In this version it is already ticked and locked: leave it as it
-   is, so the file is written exactly as it is.
+3. Set **BAUD** to `1152000` (over the board's USB it does not matter). Set **SPI SPEED** to `80MHz`, **SPI MODE**
+   to `QIO`, and **FLASH SIZE** to `16MB`.
+4. **DoNotChgBin** must be ticked. In this version it is already ticked and locked: leave it as it is, so the
+   file is written exactly as it is. In any tool version that lets it be unticked, it must stay ticked:
+   unticked, the tool rewrites the image header's flash settings, which can stop boards from booting.
 5. **Do not burn any eFuses.**
 6. Select the board's COM port.
 7. For each board:
-   - **production boards:** click **START** only, and wait for **FINISH**;
-   - **the 3 samples, and any board written to before:** click **ERASE** and wait for **FINISH**. Then
-     click **START** and wait for **FINISH**.
+   - **production (every other board):** click **START** only, and wait for **FINISH**;
+   - **the 3 samples:** click **ERASE** and wait for **FINISH**. Then click **START** and wait for **FINISH**.
 
 The tool is **not code-signed**, so Windows may warn when it is opened, and the factory's IT may
 need to allow it. Its user guide for the ESP32-S3:
 https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32s3/production_stage/tools/flash_download_tool.html
 
-**Time per board:** about 1 minute with esptool, of which about 40 seconds is the erase (measured on our bench, 2026-11-05).
+**Time per board** (esptool, measured on our bench): production, without the erase, **about 21 seconds**
+(2026-11-06); the samples, with the erase, about 1 minute, of which about 40 seconds is the erase (2026-11-05).
 
 **If the computer does not see the board:** press and hold the board's left-side button for 2
 seconds to power it on. On our bench the board came on by itself from USB (2026-11-05), so this is only a
@@ -120,24 +120,23 @@ the list cannot be activated by its customer.**
 在 Windows 上运行 `certutil -hashfile firmware-s3-128.factory.bin SHA256`。结果必须与上表中的 SHA-256
 完全一致。如果不一致，请停止，并重新索取文件。
 
-### 2. 每块板：把这一个文件写入地址 0x0（仅在注明时先擦除）
+### 2. 每块板：把这一个文件写入地址 0x0（只有 3 块样品先擦除）
 
 以下两种工具**任选其一**。
 
 **哪些板子需要先擦除：**
 - **3 块预生产样品：**先全片擦除，再写入。
-- **量产板（新芯片，出厂为空白）：**不需要擦除，直接把文件写到 0x0。
-- 如果板子之前写入过任何程序（例如测试程序），请先全片擦除，与样品相同。
+- **量产板（其他所有板子，无论是否写入过测试程序）：**不需要擦除，直接把文件写到 0x0。
 
 **A. esptool**（每块板一条命令）：
 
-3 块样品，以及之前写入过程序的板子（先擦除整片，再写入）：
+3 块样品（先擦除整片，再写入）：
 
 ```
 esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset write-flash --erase-all --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin
 ```
 
-量产板（不擦除）：
+量产板，即其他所有板子（不擦除）：
 
 ```
 esptool --chip esp32s3 --port <端口> --before default-reset --after hard-reset write-flash --flash-mode keep --flash-freq keep --flash-size keep 0x0 firmware-s3-128.factory.bin
@@ -148,19 +147,22 @@ https://dl.espressif.com/public/flash_download_tool.zip）：
 1. 打开工具，在第一个窗口中选择芯片类型 **ESP32-S3**：**ChipType** 选 `ESP32-S3`，**WorkMode** 选
    `Develop`，**LoadMode** 选 `USB`，点击 **OK**。选择其他芯片类型对这块板都是错误的。
 2. 在第一行选择 `firmware-s3-128.factory.bin`，地址填 `0x0`，并勾选该行。其他行全部留空、不勾选。
-3. **BAUD** 选 `1152000`；**SPI SPEED** 选 `80MHz`、**SPI MODE** 选 `QIO`、**FLASH SIZE** 选 `16MB`。
-4. 确认已勾选 **DoNotChgBin**。此版本中它已默认勾选并锁定，保持不变即可，文件会按原样写入。
+3. **BAUD** 选 `1152000`（通过板子自带的 USB 烧录时，该值不影响结果）；**SPI SPEED** 选 `80MHz`、**SPI MODE** 选
+   `QIO`、**FLASH SIZE** 选 `16MB`。
+4. **必须勾选 DoNotChgBin。**此版本中它已默认勾选并锁定，保持不变即可，文件会按原样写入。如果所用版本允许取消勾选，
+   也必须保持勾选：取消勾选后，工具会改写镜像头中的 Flash 设置，可能导致板子无法启动。
 5. **不要烧写任何 eFuse。**
 6. 选择该板子的 COM 端口。
 7. 每块板：
-   - **量产板：**只点 **START**，等待显示 **FINISH**，把文件写到 0x0；
-   - **3 块预生产样品，以及之前写入过程序的板子：**先点 **ERASE**（全片擦除），等待显示 **FINISH**；
+   - **量产板（其他所有板子）：**只点 **START**，等待显示 **FINISH**，把文件写到 0x0；
+   - **3 块预生产样品：**先点 **ERASE**（全片擦除），等待显示 **FINISH**；
      完成后再点 **START**，等待显示 **FINISH**。
 
 该工具**没有代码签名**，打开时 Windows 可能会弹出警告，工厂 IT 可能需要放行。ESP32-S3 版用户指南：
 https://docs.espressif.com/projects/esp-test-tools/zh_CN/latest/esp32s3/production_stage/tools/flash_download_tool.html
 
-**每块板用时：**使用 esptool 约 1 分钟，其中擦除约 40 秒（2026-11-05 在我们测试台上实测）。
+**每块板用时**（esptool，在我们测试台上实测）：量产板不擦除，**约 21 秒**（2026-11-06）；3 块样品含擦除约 1 分钟，
+其中擦除约 40 秒（2026-11-05）。
 
 **如果电脑识别不到板子：**长按板子左侧按键 2 秒开机。在我们的测试台上，板子接上 USB 后会自行开机（2026-11-05），因此这只是备用方法。
 

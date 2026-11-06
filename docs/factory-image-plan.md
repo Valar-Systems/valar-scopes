@@ -7,11 +7,24 @@
 2. **Bootloader:** the stock ESP-IDF 5.5.4 one, as in every published factory set (L1).
 3. **eFuses:** none burned. **Erase:** ~~the factory erases the whole chip before writing~~ **changed by Daniel on
    2026-11-06:**
-   - the full chip erase is only for the 3 pre-production samples, and for any board that had anything written to
-     it before (a test program, for example);
-   - production boards (new chips, which arrive blank) are not erased: the one file is written at `0x0` (the Flash
-     Download Tool's START only; esptool without `--erase-all`).
-   - See "Sheet edits of 2026-11-06" below.
+   - **no erase for production, the samples excepted** (ruled ~18:34Z, which replaces the ~18:22Z and ~18:29Z
+     versions);
+   - the 3 pre-production samples get the full erase (ERASE, then START; esptool `--erase-all`), Daniel's call;
+   - every other board, test program or not, gets the one file written at `0x0` (START only; esptool without
+     `--erase-all`).
+   - **Why it is safe, read from the released v18 file and the v18 source** (`672eab75eb6c`):
+     - the file covers `0x0`-`0x1F6C00` and rewrites everything v18 reads: the bootloader, the partition table,
+       NVS as 0xFF (`0x9000`-`0x1E000`, all 0xFF in the file), otadata selecting app0 (`0x1E000`-`0x20000`,
+       initialised), and the app;
+     - leftovers can sit only past the image in app0; in app1, which the first OTA rewrites before it is ever
+       booted; and in spiffs (`0xCA0000`) and coredump (`0xFF0000`), which v18 never uses. A grep of v18's `src/`
+       and `include/` finds no SPIFFS, LittleFS, FFat or core-dump use, and the same grep finds v18's 73 NVS lines,
+       so it can see.
+     - v18's OTA path is Arduino's HTTPUpdate (`OtaUpdater.cpp:450`), whose update library erases what it writes.
+       That part is the reviewer's reading, from the library, not read here.
+   - **The rule for later images:** one that starts using the spiffs or coredump partitions treats their contents
+     as unknown on first use (format or verify), because production boards are not erased past the file's end.
+   - **Proven on a dirty board on 2026-11-06:** see "The bench proof, run" below.
 4. **Device keys:** customers activate at setup against a server-side allowlist
    (`docs/device-activation.md`, a separate PR). The factory image is the same either way.
 5. **The rollback test is skipped for now.** No prerelease is created. Deferring the "valid" mark
@@ -557,6 +570,8 @@ reading the source.
 
 ## Sheet edits of 2026-11-06 (Daniel's; ruled ~18:22Z): predictions, frozen before the edits
 
+**Superseded by the ruling of ~18:34Z (below), with this section kept as it was frozen.** E3's line about boards written to before was dropped (~18:29Z, then ~18:34Z): production is START only for every board. The bench item E6 named, the write without the erase, is proven by B1 below.
+
 The factory reads the sheet from main, so this is a docs-only PR that goes up today. Before the edits:
 
 | | check | predicted |
@@ -611,3 +626,26 @@ the Bend feeder, E2:08, Weatherscope's board or the Remote's. esptool from Platf
 
 The Flash Download Tool's START without ERASE is the same write, so it is not repeated by hand. **Outside the set:**
 stop and report. Only after B0-B4 do the sheet and this doc change.
+
+### The bench proof, run (2026-11-06, 18:40-18:42Z, COM16): all as predicted
+
+| | read | verdict |
+|---|---|---|
+| **D1, D2** | v17's app written at `0x660000` (exit 0, 20.2 s); the made-up network's NVS written at `0x9000` (exit 0) | done |
+| **B0** | app1's first 4 KiB are v17's: **True**; NVS holds `MadeUpNet-01`: **True** | **as predicted**: the board was dirty |
+| **B1** | no `--erase-all`: exit 0; `Hash of data verified.` **exactly once**; **20.8 s**. esptool printed "Flash will be erased from 0x00000000 to 0x001f6fff": it erases only the range it writes, never the whole chip | **as predicted** |
+| **B2** | `[build] env=blipscope-s3-128 fw=v18`; `[ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18`; and `[WiFi] no saved credentials: portal stays up indefinitely for first setup` | **as predicted**. Serial shows the SETUP state outright |
+| **B3** | NVS after that boot holds `MadeUpNet-01`: **False**. The 3,058 bytes that are not 0xFF are the first boot's own writes | **as predicted**: the made-up network is gone |
+| **B4** | app1's first 4 KiB are still v17's: **True** | **as predicted**: the file ends below app1 |
+
+The Flash Download Tool's START without ERASE is the same write, so it was not repeated by hand. The board was left
+booted into its app (`read_mac`).
+
+
+**The sheet, as edited after B0-B4 (the ~18:34Z list):**
+- samples: ERASE, then START (esptool `--erase-all`); production, every other board: START only (esptool without);
+- the tool's settings: BAUD 1152000 (no matter over USB); SPI SPEED 80MHz, SPI MODE QIO, FLASH SIZE 16MB;
+  DoNotChgBin must stay ticked (unticked, the tool rewrites the header's flash settings); no eFuses;
+- the time per board: production about 21 s (B1's 20.8 s), the samples about 1 min;
+- the opening line now names the factory's tool and both bench days;
+- the file, size, SHA-256 and version: unchanged.
