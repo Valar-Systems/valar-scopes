@@ -1113,3 +1113,14 @@ let it through, gave it its key, and counted it. **Under enforce it would have b
 shape of `extra-id.mts`. For the ledger rows whose last enrolment is after 03:28Z: the count, each one's first and
 last enrolment to the minute, its `act:` state, and its `fw:` model. Never an id. That separates (i) from (ii), and
 says whether (iii) is a known bench board.
+
+### Item 4 (ruled ~18:12Z): the stale line, the example MAC, and Daniel's decisions. Predicted before the edits
+
+| | check | predicted |
+|---|---|---|
+| **A4-1** | the diff against the merge base | exactly `docs/device-enrollment.md` (one sentence near line 109), `proxy/src/provision.ts` (`normalizeMac`'s comment, one line) and this file |
+| **A4-2** | `provision.ts` | its only changed line is the comment. No Espressif-prefixed (`90:70:69`) example is left, and the new one is from the RFC 7042 documentation range, `00:00:5E:00:53:xx` |
+| **A4-3** | before the push | `check_device_ids.py`, `check_wifi.py` and `skus.py --check-readers` pass |
+| **A4-4** | CI on the PR, read with nothing queued, twice | **34: 31 success, 3 skipped** (`promote`, `version`, `ship-alert`), 0 failed. Baseline: #556's PR run (34: 31 success, 3 skipped), which also touched `proxy/` and postdates main's last job-set change, `84409651`; main's last workflow change is `259e8688`, a step |
+
+**Outside the set:** stop and report.
