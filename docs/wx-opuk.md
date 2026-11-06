@@ -2199,3 +2199,19 @@ objects after 1 days", for all prefixes, enabled**.
 - **First firing:** scheduledTime **15:12:14Z**, 44.9 s after the deploy's end (a version change, so no cron
   propagation).
 - `cref` stays `257f49eb`, untouched.
+
+**Asked ~15:15Z: where the "exactly 12" comes from (answered before the 15:36Z read; no Logs line read yet):**
+- **The source is the listing just before the redeploy,** as re-registered:
+  - `r3_list.py wx/opuk/frames/` at **15:11:00Z** counted 12 frames, all older than an hour.
+  - It was committed in `bc80a4b9` at 15:11:24Z and pushed at 15:11:26Z (GitHub's branch activity). The deploy
+    started at 15:11:27.109Z.
+  - It is not R3's figure carried over.
+- **Why it matches R3's 12:**
+  - Both are one full hour of 5-minute frames, the set the last running check kept.
+  - Here that is R3′'s last hour before its stop at 05:48:35Z: 04:45:00Z through 05:40:00Z, 12 frames.
+  - The 1-day lifecycle cannot remove them before about 04:45Z on 11-07.
+- **One step checked in the code (`ingest.ts` at 9db83163, lines 253-263):**
+  - `pruneOld` spares the frame `latest` points to, and in the listing that is the 05:40:00Z frame.
+  - But a storing check writes its frame, moves `latest` to it, and only then prunes. So all 12 are older than
+    the cut and none is `latest`'s.
+  - The prediction stays **exactly 12**. Any other count is off.
