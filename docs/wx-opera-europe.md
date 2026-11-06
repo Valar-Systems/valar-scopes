@@ -525,3 +525,9 @@ predicted, in two reads (18:36:56Z and 18:37:04Z).
 | **PKD-1** (`versions view --json`) | `b7626571`: bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 | as predicted |
 | **PKD-3** (first firing + 10 min, 18:48:18Z) | `wx.opuk` `frameAgeS` **499**, `coveredShare` **0.7508**. LHR, on `/wx/cref` and `/wx/opuk`: ETag **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` 1793990400 (18:40:00Z), which is the frame `/healthz` names at 18:48:23Z (503 s). Controls: Bend and KMCI `cref`, no max-age | as predicted |
 | early look at PKD-2 (T to 18:47:14Z, read 18:48:23Z, 900 s pieces, ABR [1]) | 19 `opuk` lines; storing checks 18:39:53Z and 18:44:27Z, each **`pruneKeys` 900** with no `pruned`; already-stored 17; **0 error lines** | as PKD-2 predicts; PKD-2 itself is read at T+72 min |
+| **PKD-4 read 1** (listed 19:47:31Z, lookback 1,200 s, ABR [1]) | **12 frames**, 18:45:00Z to 19:40:00Z; `latest` 19:40:00Z. Last pruner 19:44:16.132Z, `stored`, `pruneKeys` 900. Cut 18:44:16Z: **0 frames below**. +300 s sabotage (cut 18:49:16Z): **fails on the oldest**, 18:45:00Z. Margin 43.9 s (printed). Blind: none | **PASS** |
+| **PKD-4 read 2** (listed 19:57:32Z, ABR [1]) | **12 frames**, 18:55:00Z to 19:50:00Z; `latest` 19:50:00Z. Last pruner 19:54:15.593Z, `stored`, `pruneKeys` 900. Cut 18:54:15Z: **0 below**. +300 s sabotage (cut 18:59:15Z): **fails on the oldest**, 18:55:00Z. Margin 44.4 s. Blind: none | **PASS** |
+| **PKD-2** (T to T+70 min, 18:37:31Z to 19:47:31Z, read 20:00:04Z, 900 s pieces, **ABR [1]**) | 140 `opuk` lines. **14 storing checks**, 18:39:53Z to 19:44:28Z, each `stored` with **`pruneKeys` 900** and no `pruned`; already-stored 126. **0 error lines** | as predicted |
+
+- No read so far needed the amendment's re-read: every Logs read came back at ABR [1].
+- The two PKD-4 reads were exactly 10 min 1 s apart, as planned. R3′'s pair had been 9 min 41 s apart.
