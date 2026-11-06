@@ -12600,3 +12600,35 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **One defect caught before running,** in review of my own code. The selftest built row 23's NVS plant from `WIFI_STORE[0]`. Under S-Q82d, which empties that tuple, the selftest would have crashed rather than turned rows 23 and 25 red. The plant is now built on its own.
 
 **#558 merges only after review.**
+
+### A12.118 #558 merged after main's CI had finished; main's CI on the merge AS PREDICTED. Q82 is closed
+
+**The ruling (~02:40Z):**
+- **#558 is approved at `a2b81760f321`.** The reviewer ran it on the merge with main `7b70745`: the selftest 25 of 25, `--sabotage` exactly as frozen, the scan line exactly, and `check_wifi.py` 1,619 / 1,156 / 463 OK.
+- **The corrections are accepted:** 25 rows (c3's row), and A12.116a's three changes.
+- **Merge only after main's CI on its current head has finished.**
+- **The baseline rule, refined for all sessions:**
+  - a baseline must postdate main's last change to the **set of jobs**;
+  - a step added to an existing job does not count;
+  - the last workflow change is named either way.
+- **A board hold, ~01:04Z, from the UK session's R3′:** no board window from its R3′-1a until Daniel pastes its R3′-8 line. Q82's script work was not affected, and no board window was opened.
+
+**Before the merge:**
+- **Main's head was `7b70745a80c2`.** Its CI was read twice, 30 s apart, at 02:59:36Z and after: 31 check runs, all completed, 29 success, 2 skipped, 0 failed. **Finished.**
+- **#558 was `MERGEABLE` and `CLEAN`.**
+
+**#558, merged:**
+- **The merge:** `259e8688303f` at 2026-11-06T03:00:29Z (squash, `--match-head-commit a2b81760f321`, no `--admin`).
+- **Its parent is `7b70745a80c2`,** its diff equals the PR's (the patch-ids match), and the branch is deleted.
+
+**Main's CI on the merge:**
+- **Predicted as on `12569fa0`:** 31: 29 success, 2 skipped (promote, version), 0 failed; 30 + 1.
+- **Named:** the last workflow change is this merge itself, `259e8688` (a step); the last change to the set of jobs is `84409651daff` (#552, the `ota-identity` job); the baseline is `12569fa0`'s main run, which postdates it.
+- **Measured** (finished 03:13:08Z, read twice): **31: 29 success, 2 skipped (promote, version), 0 failed.** Firmware 29 (28 + 1), plus `device-ids` and `no-traffic-captures`, 30 + 1, with no web-renderer run. **AS PREDICTED.**
+
+**So Q82 is closed.** `scripts/check_binary_strings.py` on main:
+- reads every binary `check_wifi.py` excuses, through one shared `excused()`;
+- inflates containers under a 64 MiB cap, and fails nested or unopenable ones;
+- settles fonts and the PDF by hash;
+- flags a Wi-Fi store outside an app image;
+- is proven by a 25-row selftest and four sabotages, on every device-ids run.
