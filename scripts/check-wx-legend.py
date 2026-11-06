@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """WD8c (docs/wx-device.md): the config page's weather legend, read off the SERVED page, against the colours the
-layer draws, computed here from the source -- WxPalette.h's colours, WxS2.h's percents and dithers -- never typed.
+layer draws, computed here from the source -- WxAvionics.h's colours and drawn codes (the avionics look, 2026-11-06;
+drizzle hidden), WxPalette.h's rounding and dither colours, WxS2.h's percents and dithers -- never typed.
 
     python scripts/check-wx-legend.py --url http://<device>     grade a live device's page
     python scripts/check-wx-legend.py --selftest                 prove the check catches each defect (S-leg included)
@@ -16,7 +17,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROWS = [("Light rain", 1, 4), ("Moderate", 5, 7), ("Heavy", 8, 10), ("Hail possible", 11, 13),
+ROWS = [("Light", 2, 3), ("Moderate", 4, 5), ("Heavy", 6, 7), ("Intense", 8, 13),
         ("No radar coverage", 14, 14), ("No data", 15, 15)]
 BLACK = (0, 0, 0)
 
@@ -31,19 +32,27 @@ def triples(text: str) -> list[tuple[int, int, int]]:
 
 def expected() -> dict:
     """{look: {code: colour (1-13) or {(x, y): colour} (14, 15)}}, from the source, its rules' shapes asserted."""
-    pal, s2 = read("src/weatherscope/WxPalette.h"), read("include/WxS2.h")
-    one = lambda name: triples(re.search(name + r"\s*=\s*(\{[^}]*\})", pal).group(1))[0]
-    table = triples(re.search(r"kRainTable\[12\]\s*=\s*\{(.*?)\};", pal, re.S).group(1))
-    rain1, rain75, nocov, hatch = one("kRain1"), one("kRain75"), one("kNoCoverage"), one("kMissingHatch")
-    assert len(table) == 12, "kRainTable is not 12 entries"
+    pal, s2, av = read("src/weatherscope/WxPalette.h"), read("include/WxS2.h"), read("include/WxAvionics.h")
+    one = lambda src, name: triples(re.search(name + r"\s*=\s*(\{[^}]*\})", src).group(1))[0]
+    nocov, hatch = one(pal, "kNoCoverage"), one(pal, "kMissingHatch")
     assert "constexpr uint8_t Dim(uint8_t v, int pct) { return (uint8_t)((v * pct + 50) / 100); }" in pal, "Dim changed"
-    assert "return wxpalette::Dim(wxpalette::Rain(code), pct);" in s2, "EchoAt no longer dims Rain(code)"
+    assert "if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);" in s2, \
+        "EchoAt no longer dims wxavionics::Echo(code) for drawn codes"
+    assert "if (wxavionics::Drawn(code)) return Pack(Echo(code, l));" in s2, "Pixel888 no longer gates on Drawn()"
     assert "return code == 1 ? (pct * kCode1Num + kCode1Den / 2) / kCode1Den : pct;" in s2, "CodePercent changed"
     assert "inline bool NoCoverageLit(int x, int y) { return ((x + y) & 1) == 0; }" in s2, "14's dither changed"
     assert "inline bool NoDataLit(int x, int y) { return (x & 1) == 0 && (y & 1) == 0; }" in s2, "15's dither changed"
+    # The avionics table: the drawn codes and the band each falls in, its shape asserted so a change here re-derives.
+    for s in ("inline bool Drawn(uint8_t code) { return code >= kFirstDrawn && code <= 13; }",
+              "if (code == 1) return kDimGreen;", "if (code <= 3) return kGreen;", "if (code <= 5) return kYellow;",
+              "if (code <= 7) return kRed;", "return kMagenta;"):
+        assert s in av, f"wxavionics::Echo/Drawn changed ({s}): re-derive"
+    first = int(re.search(r"constexpr uint8_t kFirstDrawn = (\d+);", av).group(1))
+    band = lambda c: one(av, "kDimGreen") if c == 1 else one(av, "kGreen") if c <= 3 else one(av, "kYellow") if c <= 5 \
+        else one(av, "kRed") if c <= 7 else one(av, "kMagenta")
     num = int(re.search(r"kCode1Num = (\d+);", s2).group(1))
     den = int(re.search(r"kCode1Den = (\d+);", s2).group(1))
-    base = {1: rain1, **{c: table[c - 1] for c in range(2, 13)}, 13: rain75}
+    base = {c: band(c) for c in range(first, 14)}
     dim = lambda c, p: tuple((v * p + 50) // 100 for v in c)
     out = {}
     for look in "AB":
@@ -114,7 +123,7 @@ def synth(exp: dict, look: str, plant: str | None = None) -> str:
     if plant == "look":
         out = '<select name="wx-look"><option value="B" selected>x</option></select>'
     out += f'<fieldset><div class="wxlegend" data-look="{shown}">'
-    rows = ROWS + ([("Snow light>heavy", 1, 1)] if plant == "snow" else [])
+    rows = ROWS + ([("Snow light>heavy", 2, 2)] if plant == "snow" else [])
     for label, first, last in rows:
         out += f'<div class="wxrow" style="x"><span style="y">{label}</span>'
         for c in range(first, last + 1):
@@ -123,7 +132,7 @@ def synth(exp: dict, look: str, plant: str | None = None) -> str:
             if c <= 13:
                 col = e[c]
                 if plant == "S-leg" and c == 5:   # typed in by hand, one level off: its colour at 41 %, not 40 %
-                    col = tuple((v * 41 + 50) // 100 for v in (255, 255, 0))
+                    col = tuple((v * 41 + 50) // 100 for v in (240, 220, 0))
                 out += f'<rect width="12" height="12" fill="{rgb(col)}"/>'
             else:
                 out += f'<defs><pattern id="wxd{c}" width="2" height="2" patternUnits="userSpaceOnUse">'
@@ -140,7 +149,7 @@ def synth(exp: dict, look: str, plant: str | None = None) -> str:
 
 def selftest() -> int:
     exp = expected()
-    assert exp["A"][5] == (102, 102, 0), "the selftest's S-leg assumes code 5 is (255, 255, 0) at 40 %"
+    assert exp["A"][5] == (96, 88, 0), "the selftest's S-leg assumes code 5 is the avionics yellow (240, 220, 0) at 40 %"
     cases = [("the legend as drawn, look A", synth(exp, "A"), True),
              ("the legend as drawn, look B", synth(exp, "B"), True),
              ("S-leg: code 5 typed in by hand at 41 %", synth(exp, "A", "S-leg"), False),

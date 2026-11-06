@@ -1,5 +1,5 @@
 """K1/K2's sabotages (docs/wx-device.md, "The look as a shipping setting"), each planted in a COPY of the headers:
-  S-label    a label one character off ("outlined plane")       -> exactly [K1] red
+  S-label    a label one character off ("Brighter rai")         -> exactly [K1] red
   S-default  absence read as look B (the rule inverted)          -> exactly [K1] and [K2] red (K1's "A selected for an
              empty value" reads through the same rule; stated before the first run)
 The copies keep the repo's layout (include/ beside src/weatherscope/), because WxS2.h reaches its palette by a relative
@@ -19,14 +19,15 @@ import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEST = os.path.join(ROOT, "test", "host", "test_wx_look_select.cpp")
-FILES = {"include/WxS2.h": None, "include/WxLookSelectHtml.h": None, "src/weatherscope/WxPalette.h": None}
+FILES = {"include/WxS2.h": None, "include/WxAvionics.h": None, "include/WxLookSelectHtml.h": None,
+         "src/weatherscope/WxPalette.h": None}
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
 SABOTAGES = {
     "S-label    a label one character off": (["K1"], "include/WxLookSelectHtml.h",
-        'constexpr const char* kLabelA = "Brighter rain, outlined planes";',
-        'constexpr const char* kLabelA = "Brighter rain, outlined plane";   // SABOTAGE S-label'),
+        'constexpr const char* kLabelA = "Brighter rain";',
+        'constexpr const char* kLabelA = "Brighter rai";   // SABOTAGE S-label'),
     "S-default  absence read as look B": (["K1", "K2"], "include/WxS2.h",
         "(s != nullptr && s[0] == 'B' && s[1] == '\\0') ? Look::B : Look::A",
         "(s != nullptr && s[0] == 'A' && s[1] == '\\0') ? Look::A : Look::B"),

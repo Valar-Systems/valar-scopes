@@ -1373,7 +1373,7 @@ public:
     // screen shows a big seven-segment clock instead of a dead scope. main.cpp also
     // consults this to suppress the sweep beam under the clock face.
     bool NightClockActive() const;
-    bool WxOutlineNow() const;                  // this frame shows the layer in a look that outlines the planes
+    bool WxOutlineNow() const;                  // the layer is on: planes cyan/white with a 1 px edge, both looks
     void DrawWeatherNote(BandCanvas& backbuffer) const;   // WD3 (f): "outside coverage", never an empty overlay
     // Current sweep beam angle in radians; main.cpp draws the beam from this so it
     // matches the paint-and-fade crossing test exactly (single source of truth).

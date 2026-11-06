@@ -11,8 +11,9 @@ frame, or the wrong geometry), 3 BLIND (no frame put the thing being checked whe
 --drop-untrustworthy (for captures taken before #480's finished-frame /diag/fb): an UNTRUSTWORTHY frame is dropped,
 counted and reported, and the rest are graded together; with none left the verdict is UNTRUSTWORTHY.
 
-Every colour and the ring geometry are READ FROM THE SOURCE, never transcribed: the rain table, its rounding and
-the dither colours from src/weatherscope/WxPalette.h, the looks' percentages from include/WxS2.h, the planes'
+Every colour and the ring geometry are READ FROM THE SOURCE, never transcribed: the band colours and the drawn codes
+from include/WxAvionics.h (the avionics look, 2026-11-06; drizzle hidden), the rounding and the dither colours from
+src/weatherscope/WxPalette.h, the looks' percentages from include/WxS2.h, the planes'
 colours, the labels' colour and the rings from src/AircraftManager.cpp. The rings are rasterised with LovyanGFX's
 own drawCircle (LGFXBase.cpp:230-262 in this env's libdeps), ported line for line.
 
@@ -26,7 +27,8 @@ THE CHECKS, as ruled (R3-R5, 2026-10-26; addendum 5 records the definitions):
       is left out and named. On a gradable ring, a pixel is an EXCEPTION when its colour is a weather colour of the
       look, not the ring's, and some 3 x 3 block containing it is entirely that colour. EXERCISED: a gradable ring
       pixel with a weather colour within 2 px (its 5 x 5 block). BLIND when none is exercised.
-  (2) outlines, look A (R4). A marker FAILS when any of its 8-neighbours has a weather colour of the look.
+  (2) outlines, both looks (R4; look B too since the avionics ruling of 2026-11-06, Q1). A marker FAILS when any of
+      its 8-neighbours has a weather colour of the look.
       EXERCISED: a marker with a weather pixel 2-3 px out. BLIND when none is.
   (3) the layer off (R5). A marker is EXERCISED when a ring pixel is among its 8-neighbours, and FAILS when any such
       ring pixel is black (0x0000): an outline drawn while no layer is shown. BLIND when none is exercised.
@@ -91,13 +93,20 @@ def faded(c):
 
 def load_source():
     pal = read("src/weatherscope/WxPalette.h")
-    m = re.search(r"kRainTable\[12\]\s*=\s*\{(.*?)\};", pal, re.S)
-    table = triples(m.group(1))
-    one = lambda name: triples(re.search(name + r"\s*=\s*(\{[^}]*\})", pal).group(1))[0]
-    rain75, nocov, hatch = one("kRain75"), one("kNoCoverage"), one("kMissingHatch")
-    teal = one("kRain1")   # code 1, the ruled teal (A10.16), read like every other colour
+    one = lambda src, name: triples(re.search(name + r"\s*=\s*(\{[^}]*\})", src).group(1))[0]
+    nocov, hatch = one(pal, "kNoCoverage"), one(pal, "kMissingHatch")
     assert re.search(r"Dim\(uint8_t v, int pct\) \{ return \(uint8_t\)\(\(v \* pct \+ 50\) / 100\); \}", pal), \
         "wxpalette::Dim is not (v * pct + 50) / 100 any more: this script's rounding must follow it"
+    # The avionics look's table (2026-11-06): the drawn codes (kFirstDrawn-13; drizzle hidden) and each one's band,
+    # the shape asserted so a change to WxAvionics.h cannot leave this script grading against old colours.
+    av = read("include/WxAvionics.h")
+    for s in ("inline bool Drawn(uint8_t code) { return code >= kFirstDrawn && code <= 13; }",
+              "if (code == 1) return kDimGreen;", "if (code <= 3) return kGreen;", "if (code <= 5) return kYellow;",
+              "if (code <= 7) return kRed;", "return kMagenta;"):
+        assert s in av, f"wxavionics::Echo/Drawn changed ({s}): re-derive"
+    first = int(re.search(r"constexpr uint8_t kFirstDrawn = (\d+);", av).group(1))
+    band = lambda c: one(av, "kDimGreen") if c == 1 else one(av, "kGreen") if c <= 3 else one(av, "kYellow") if c <= 5 \
+        else one(av, "kRed") if c <= 7 else one(av, "kMagenta")
     s2 = read("include/WxS2.h")
     pct = {k: int(re.search(rf"kPercent{k} = (\d+);", s2).group(1)) for k in "AB"}
     # Light rain's own percent (WD7): the look's x kCode1Num / kCode1Den, half up. Read, and the rule's shape asserted,
@@ -106,14 +115,15 @@ def load_source():
     den = int(re.search(r"kCode1Den = (\d+);", s2).group(1))
     assert "return code == 1 ? (pct * kCode1Num + kCode1Den / 2) / kCode1Den : pct;" in s2, \
         "wxs2::CodePercent is not (pct * num + den / 2) / den any more: this script's rule must follow it"
-    assert "return wxpalette::Dim(wxpalette::Rain(code), pct);" in s2, "wxs2::EchoAt no longer dims Rain(code): re-derive"
+    assert "if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);" in s2, \
+        "wxs2::EchoAt no longer dims wxavionics::Echo(code) for drawn codes: re-derive"
     c1pct = {k: (pct[k] * num + den // 2) // den for k in "AB"}
     am = read("src/AircraftManager.cpp")
     a = am.index("uint32_t altitudeColor(float altMeters)")
     planes = triples(am[a:am.index("\n}", a)].replace("color888(", "{").replace(");", "};"))
     b = am.index("noData ? lgfx::color888(")
     planes += triples(am[b:am.index(";", b)].replace("color888(", "{").replace(")", "}"))
-    assert len(table) == 12 and len(planes) == 7, (len(table), len(planes))
+    assert len(planes) == 7, len(planes)
     d = am.index("void AircraftManager::DrawAircraftInfo(")
     lab = re.search(r"setTextColor\(scaleColor\(lgfx::color888\((\d+), (\d+), (\d+)\), brightness\)\)",
                     am[d:am.index("\n}", d)])
@@ -130,8 +140,9 @@ def load_source():
         rings.append((eval(e), s565(int(r), int(g), int(bl))))
     assert len(rings) == 3, rings
     dim = lambda c, p: tuple((v * p + 50) // 100 for v in c)
-    weather = {L: {s565(*dim(teal, c1pct[L]))} | {s565(*dim(c, pct[L])) for c in table[1:] + [rain75]} |
-                  {s565(*nocov), s565(*hatch)} for L in "AB"}
+    base = {c: band(c) for c in range(first, 14)}   # the drawn codes only: code 1 is not drawn while drizzle is hidden
+    code_pct = lambda c, L: c1pct[L] if c == 1 else pct[L]
+    weather = {L: {s565(*dim(b, code_pct(c, L))) for c, b in base.items()} | {s565(*nocov), s565(*hatch)} for L in "AB"}
     marker = set()
     for p in planes:
         marker |= faded(p)
@@ -149,14 +160,13 @@ def load_source():
     hd = re.search(r"fillCircle\(xLead, yLead, 2, lgfx::color888\((\d+), (\d+), (\d+)\)\)", dh)
     assert bm and hd, "DrawRadarSweepBeam's beam or head colour changed: re-derive"
     beam_c, head_c = s565(*map(int, bm.groups())), s565(*map(int, hd.groups()))
-    base = {1: teal, **{c: table[c - 1] for c in range(2, 13)}, 13: rain75}
     greens = {(lvl & 0xFC) << 3 for lvl in range(1, peak + 1)}
     ring_cols = {col for _, col in rings}
     wedge_only = {}
     for L in "AB":
         lit = set()
         for c, b in base.items():
-            p0 = c1pct[L] if c == 1 else pct[L]
+            p0 = code_pct(c, L)
             for lvl in range(1, peak + 1):
                 lit.add(s565(*dim(b, p0 + ((100 - p0) * lvl + peak // 2) // peak)))
         wedge_only[L] = (lit | greens) - weather[L] - marker - labels - ring_cols - {beam_c, head_c, 0}
@@ -494,7 +504,8 @@ def grade(frames, look, src, drop=False):
     if tot["graded"] == 0:
         out.append("no trustworthy frame"); return "UNTRUSTWORTHY", out
     r1 = "FAIL" if tot["exc"] else ("BLIND" if tot["ex_r"] == 0 else "PASS")
-    r2 = "n/a" if look != "A" else ("FAIL" if tot["fail"] else ("BLIND" if tot["ex_m"] == 0 else "PASS"))
+    # (2) in both looks: look B outlines its planes too since the avionics ruling (2026-11-06, Q1).
+    r2 = "FAIL" if tot["fail"] else ("BLIND" if tot["ex_m"] == 0 else "PASS")
     out.append(f"WD5e(1) {r1}   WD5e(2) {r2}")
     if "FAIL" in (r1, r2): return "FAIL", out
     if "BLIND" in (r1, r2): return "BLIND", out
@@ -591,7 +602,7 @@ def synth(src, look, weather_over_rings=False, outline="offsets", rings=True, we
     trail and label, outline, marker. The beam points west by default, away from every case's subject (east)."""
     f = [0] * (W * H)
     pct = 40 if look == "A" else 25
-    rain = s565(*(((255 * pct + 50) // 100), 0, 0))           # code 8, red: far from every green
+    rain = s565(*(((230 * pct + 50) // 100), 0, 0))           # codes 6-7, the avionics red: far from every green
     assert rain in src["weather"][look]
     cx = src["centre"]
     blob = set(); fill_circle(blob, cx + src["rings"][blob_ring][0] + blob_dx, cx, blob_r)
@@ -737,9 +748,13 @@ def selftest(src):
         ("a 1 px trail in the marker colour",         lambda: on(dict(trail=True), "A"),                 "PASS"),
         ("no rings (a mid-draw frame)",               lambda: on(dict(rings=False), "A"),                "UNTRUSTWORTHY"),
         ("no weather on the screen",                  lambda: on(dict(weather=False), "A"),              "BLIND"),
-        ("look B, no outline (weather on the middle ring, ungradable in B)",
-                                                      lambda: on(dict(outline="none"), "B"),             "BLIND"),
-        ("look B, weather across the outer ring",     lambda: on(dict(outline="none", blob_ring=0), "B"), "PASS"),
+        # Look B outlines its planes since the avionics ruling (2026-11-06, Q1), so (2) grades it as it grades A.
+        ("look B, the edge drawn (weather on the middle ring, ungradable in B)",
+                                                      lambda: on({}, "B"),                               "BLIND"),
+        ("look B, the edge drawn, weather across the outer ring",
+                                                      lambda: on(dict(blob_ring=0), "B"),                "PASS"),
+        ("look B, no edge, weather across the outer ring",
+                                                      lambda: on(dict(outline="none", blob_ring=0), "B"), "FAIL"),
         ("look A, weather on one side of a ring only", lambda: on(dict(blob_r=12, blob_dx=13), "A"),     "PASS"),
         ("look A, a label 'p' in a colour also a plane colour, over weather",
                                                       lambda: on(dict(glyph="p"), "A"),                  "PASS"),

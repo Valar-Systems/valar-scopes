@@ -35,11 +35,12 @@ inline uint16_t Green565(uint8_t lvl) { return (uint16_t)((lvl & 0xFC) << 3); }
 /** Look 4's percent: the look's own at the tail (lvl 0), 100 at the beam (lvl kPeak). */
 inline int LitPercent(int pct, uint8_t lvl) { return pct + ((100 - pct) * lvl + kPeak / 2) / kPeak; }
 
-/** Look 4: an echo code (1-13) at its colour raised toward 100 %; anything else the wedge's green, as today. */
+/** Look 4: a drawn code (wxavionics::Drawn) at its colour raised toward 100 %; anything else the wedge's green, as
+ *  today. Code 1 is not drawn (drizzle hidden, 2026-11-06), so it shows the wedge's green exactly as code 0 does. */
 inline uint16_t Lit565(uint8_t code, int pct, uint8_t lvl)
 {
     // From the code's OWN percent (WD7: light rain's x 55/40), so the tail is exactly the layer's colour.
-    if (code >= 1 && code <= 13) return wxs2::To565(wxs2::Pack(wxs2::EchoAt(code, LitPercent(wxs2::CodePercent(code, pct), lvl))));
+    if (wxavionics::Drawn(code)) return wxs2::To565(wxs2::Pack(wxs2::EchoAt(code, LitPercent(wxs2::CodePercent(code, pct), lvl))));
     return Green565(lvl);
 }
 

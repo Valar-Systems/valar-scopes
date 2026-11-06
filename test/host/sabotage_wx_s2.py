@@ -31,22 +31,23 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 PLANTS = [
     ("B at A's factor", "constexpr int kPercentB = 25;", "constexpr int kPercentB = 40;",
      {"WD4b B"}),
-    ("code 13 as the table's black", "    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
-     "    if (code == 13) return wxpalette::kDry;\n    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+    ("code 13 as the table's black", "    if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);",
+     "    if (code == 13) return wxpalette::kDry;\n    if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);",
      {"WD4b A", "WD4b B"}),
     ("14 drawn as 0", "if (code == 14) return NoCoverageLit(x, y) ? Pack(wxpalette::kNoCoverage) : 0;",
      "if (code == 14) return 0;", {"WD4c A", "WD4c B"}),
-    # The undimmed table's green and yellow ARE plane colours, so the value check and WD4d both go red.
-    ("the dim dropped", "if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
-     "if (code >= 1 && code <= 13) { (void)pct; return wxpalette::Rain(code); }",
-     {"WD4b A", "WD4b B", "WD4d A", "WD4d B"}),
-    # WD7. S-t1: light rain at the look's plain percent (no x 55/40). S-t2: light rain from the table's old blue.
-    # Both are dimmer than code 2, so WD4e stays green and only the value check goes red.
-    ("S-t1 code 1 at the plain percent", "return code == 1 ? (pct * kCode1Num + kCode1Den / 2) / kCode1Den : pct;",
-     "(void)code; return pct;", {"WD4b A", "WD4b B"}),
-    ("S-t2 code 1 from the old blue", "    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+    # Undimmed, the avionics colours are still no plane's colour in RGB565 (Weatherscope's green and yellow were), so
+    # only the value check goes red; WD4d stays green (docs/wx-device.md, the avionics predictions).
+    ("the dim dropped", "if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);",
+     "if (wxavionics::Drawn(code)) { (void)pct; return wxavionics::Echo(code); }",
+     {"WD4b A", "WD4b B"}),
+    # S-t2: code 1 from Weatherscope's old blue, planted ahead of Drawn(), so Echo(1) is no longer dry. Pixel888 gates
+    # on Drawn() itself, so the blue never reaches a pixel: WD4b (through Echo) goes red and WD4g stays green.
+    # (S-t1, light rain at the plain percent, is retired: CodePercent's code-1 branch reaches no pixel while drizzle is
+    # hidden, so it could not turn anything red.)
+    ("S-t2 code 1 from the old blue", "    if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);",
      "    if (code == 1) return wxpalette::Dim(wxpalette::kRainTable[0], pct);\n"
-     "    if (code >= 1 && code <= 13) return wxpalette::Dim(wxpalette::Rain(code), pct);",
+     "    if (wxavionics::Drawn(code)) return wxpalette::Dim(wxavionics::Echo(code), pct);",
      {"WD4b A", "WD4b B"}),
 ]
 
@@ -57,7 +58,7 @@ def red(output):
         m = re.match(r"== look ([AB]) ", line)
         if m:
             look = m.group(1)
-        m = re.match(r"\s*FAIL\s+(WD4[a-f])", line)
+        m = re.match(r"\s*FAIL\s+(WD4[a-g])", line)
         if m:
             out.add(f"{m.group(1)} {look}")
     return out
@@ -83,6 +84,8 @@ def main():
             os.makedirs(os.path.join(tmp, "include"))
             os.makedirs(os.path.join(tmp, "src", "weatherscope"))
             shutil.copyfile(pal, os.path.join(tmp, "src", "weatherscope", "WxPalette.h"))
+            # WxS2.h includes the Blipscope's own table beside it (the avionics look, 2026-11-06).
+            shutil.copyfile(os.path.join(ROOT, "include", "WxAvionics.h"), os.path.join(tmp, "include", "WxAvionics.h"))
             planted = src.replace(old, new)
             open(os.path.join(tmp, "include", "WxS2.h"), "w", encoding="utf-8").write(planted)
             assert open(os.path.join(tmp, "include", "WxS2.h"), encoding="utf-8").read() != src, "the plant did not apply"

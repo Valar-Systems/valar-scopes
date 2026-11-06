@@ -4077,14 +4077,20 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             // would imply data we do not have). Deliberately greyed, NOT cleared:
             // the trails and enrichment survive, so recovery is instant and the
             // scope visibly snaps back to colour the moment a merge lands.
+            // While the weather layer is on (WxOutlineNow: the switch, its buffers and the cloud source -- never
+            // whether a frame is present, so a plane does not change colour as data goes stale or comes back), the
+            // avionics look draws planes cyan below 3,000 m and white above (include/WxAvionics.h), replacing both
+            // the altitude colours and the plain green. NoData grey and the emergency styling are unchanged.
             const uint32_t baseColor =
                 noData ? lgfx::color888(90, 90, 90)
+                       : (WxOutlineNow() ? wxs2::Pack(wxavionics::Plane(tracked.state.baroAltitude))
                        : (displayAltColor ? altitudeColor(tracked.state.baroAltitude)
-                                          : lgfx::color888(0, 255, 0));
+                                          : lgfx::color888(0, 255, 0)));
             const uint32_t markerColor = scaleColor(baseColor, blip);
 
-            // Over weather, look A outlines each plane in black, 1 px out (WD5; WD4 addendum 2), so a faded plane
-            // is never the same colour as the cell under it (WD4f). With no layer shown, nothing here changes.
+            // While the layer is on, every plane gets a 1 px black edge in both looks (WD5; WD4 addendum 2; look B
+            // too since the avionics ruling of 2026-11-06), so a faded plane is never the same colour as the cell
+            // under it (WD4f). With the layer off, nothing here changes.
             // The outline is 8 black copies of the marker, one per 1 px offset, for BOTH kinds: a disc 1 px larger
             // misses 8 of the dot's 32 neighbours under LovyanGFX's raster (WD5 addendum 3; test_wx_outline.cpp).
             const bool outline = WxOutlineNow();
@@ -5229,7 +5235,8 @@ std::pair<int, int> AircraftManager::ProjectAt(float predLat, float predLon, dou
 bool AircraftManager::WxOutlineNow() const
 {
 #ifdef FEATURE_CLOUD_FEED
-    return wxShowing == wxpolicy::Show::Crop && wxs2::Outline(wxLook);
+    // The layer is ON (the avionics ruling, 2026-11-06, Q1 and Q4): in both looks, and whatever frame is showing.
+    return WxEnabled();
 #else
     return false;
 #endif

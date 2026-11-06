@@ -1773,6 +1773,31 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+# The avionics look (include/WxAvionics.h; docs/wx-device.md, the ruling of 2026-11-06 and its re-registration): the
+# Blipscope's own table, drizzle hidden, the planes' cyan/white, and Weatherscope's table held unchanged by its hash.
+# Its sabotages: test/host/sabotage_wx_avionics.py, run below.
+echo
+echo "== WX avionics =="
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_avionics.cpp" -o "$OUT/test_wx_avionics.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the avionics test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_avionics.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the avionics test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the avionics sabotages cannot run."
+  fail=1
+else
+  CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_wx_avionics.py"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # WD5o, the dot marker's black outline (docs/wx-device.md, WD5 addendum 3): the construction is read from
 # src/AircraftManager.cpp and rasterised with LovyanGFX's fillCircle, ported. The bench cannot grade it, since
 # markers are triangles by default. Its sabotages: test/host/sabotage_wx_outline.py, run below.

@@ -23,8 +23,9 @@ static int count(const std::string& h, const std::string& needle)
 int main()
 {
     std::printf("WxLookSelectHtml.h and wxs2::LookFromStored: the look as a shipping setting\n");
-    const std::string kA = ">Brighter rain, outlined planes</option>";   // Daniel's wording, 2026-10-29
-    const std::string kB = ">Fainter rain, no outlines</option>";
+    // Daniel's wording of 2026-10-29, without the outline clause: both looks outline the planes since 2026-11-06 (Q1).
+    const std::string kA = ">Brighter rain</option>";
+    const std::string kB = ">Fainter rain</option>";
     struct Case { const char* stored; char want; };
     const Case cases[] = {{"", 'A'}, {"A", 'A'}, {"B", 'B'}, {"x", 'A'}};
     bool k1 = true;

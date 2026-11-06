@@ -4972,4 +4972,62 @@ with no edge:
 
 **Outside the set:** stop and report.
 
+### Results, first local run (2026-11-06, 15:31Z; WSL Ubuntu-24.04, g++ 13.3.0): three readings off, stopped
+
+**As predicted:**
+- **`test_wx_avionics`:** AV1-AV7 ok. AV3 read 17800467619102092433, the pinned value.
+- **`sabotage_wx_avionics`:** S-AV-drizzle {AV1, AV7}; S-AV-read {AV1, AV2, AV5, AV6}; S-AV-edit {AV3}; S-AV-alt {AV4};
+  S-AV-plane {AV4, AV5}. The real headers were unchanged.
+- **`test_wx_s2`:** 10 ok. WD4f, information only, reads "2 3" in A and "none" in B.
+- **`sabotage_wx_s2`:** all 5 plants as predicted, S-t2 included, as amended.
+- **The legend:** `test_wx_legend_html` reads 6 rows and 14 swatches in each look; `sabotage_wx_legend_html` S-leg →
+  {L2}.
+- **The look select:** `test_wx_look_select` K1 and K2 ok; `sabotage_wx_look_select` S-label {K1}, S-default {K1,
+  K2}.
+- **The outline:** `test_wx_outline` 3 ok, and `sabotage_wx_outline`'s 2 plants as before.
+- **`check-wx-legend.py --selftest`:** 7 of 7.
+
+**Off, three readings. All three are my predictions and test scaffolding, not the firmware:**
+1. **`test_wx_sweep` [W2]: FAIL, 236 mismatches** (predicted unchanged and passing). `sabotage_wx_sweep`'s control
+   then failed, which is a rig reading.
+   - **The cause:** W2 lists the lit codes as 1-13, with code 1 at ×55/40. Since the drizzle ruling, code 1 shows the
+     wedge's green. Per look, that is 117 mismatched levels (`Green565` is 0 only at levels 0-3) and 1 at the beam,
+     so 2 × 118 = **236**, exactly.
+   - **The alternative, and why it is excluded:** a fault in `Lit565` for a drawn code, 2-13. Any such fault would add
+     mismatches beyond 236, and AV7, which grades code 1 against code 0 directly, passed.
+   - **My miss:** the re-registration said "the sweep grades `Lit565` against `EchoAt` relatively". W2 also states
+     which codes are lit, in its own words, and I did not read that far.
+2. **`wx-fb-check` selftest, "look B, the edge drawn (weather on the middle ring, ungradable in B)": PASS** (predicted
+   BLIND).
+   - **The cause:** read from the checker's own `load_source`, **no ring colour is a weather colour of either look**.
+     The middle ring, `0x0200` (0, 64, 0), was Weatherscope's code 2 at B's 25 %, which is what made it ungradable.
+     So the ring is gradable now, and (1) is exercised and passes.
+   - **The consequence, and it is the larger finding:** the checker's ungradable-ring branch cannot be reached with
+     the real palette in either look. It is dormant, and that case was its only exercise.
+3. **`wx-fb-check` selftest: crashed at "L1 a label-and-weather stroke"** with "the stroke means nothing".
+   `sabotage_wx_fb_check` crashed with it.
+   - **The cause:** that case hard-codes the stroke as `0x0320`, Weatherscope's A code 2 at (0, 102, 0). The only
+     colour that is both a label colour and a weather colour of A is now **`0x0280`**, the avionics green at 40 %.
+   - Its assertion is the guard working: it refused a case that no longer means anything.
+   - **Not read:** the cases after L1 (L2, J1, J2) and the driver's plants.
+
+**Proposed fixes (not applied):**
+- **F1, W2:** the lit codes become 2-13, typed in the test (drizzle hidden), and code 1 joins "others, the wedge
+  green". The code-1 percent leaves W2.
+- **F2:** the middle-ring case becomes "look B, the edge drawn, weather on the middle ring" → **PASS**. Plus a new
+  **branch case**: the same frame graded with the middle ring's colour added to look B's weather set → **BLIND**. That
+  keeps the dormant branch under a test, since the real palette no longer reaches it.
+- **F3:** the stroke's colour is drawn from the sets, `min(label ∩ weather[look])`, which is `0x0280` today. Its
+  assertion stays, so a palette with no such colour still refuses the case.
+
+**New frozen predictions, for the re-run after a ruling:**
+- `test_wx_sweep`: W2 ok, 0 mismatches; every other row as before.
+- `sabotage_wx_sweep`: its control passes, and every plant as its driver states.
+- `wx-fb-check --selftest`: **35** cases (34 + the branch case), every one as its row states, with L1 PASS, L2 FAIL,
+  J1 PASS and J2 UNTRUSTWORTHY.
+- `sabotage_wx_fb_check`: `OK_COUNT` 35 in its one place, and every plant as its driver states.
+- **Then:** every changed test and driver again, `run.sh` in full under WSL, and both builds.
+
+**Outside the set:** stop and report.
+
 **Outside the set:** stop and report.

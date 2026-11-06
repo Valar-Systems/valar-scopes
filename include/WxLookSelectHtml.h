@@ -10,8 +10,9 @@
 
 namespace wxlookselect {
 
-constexpr const char* kLabelA = "Brighter rain, outlined planes";   // look A: 40 percent, the 1 px outline
-constexpr const char* kLabelB = "Fainter rain, no outlines";        // look B: 25 percent
+// Both looks outline the planes since the avionics ruling (2026-11-06, Q1), so the labels name only the rain.
+constexpr const char* kLabelA = "Brighter rain";   // look A: 40 percent
+constexpr const char* kLabelB = "Fainter rain";    // look B: 25 percent
 
 /** The labelled select for the stored value `stored` ("" when the key is absent), with the look it means selected. */
 inline std::string Html(const char* stored)

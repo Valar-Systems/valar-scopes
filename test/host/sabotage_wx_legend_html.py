@@ -1,5 +1,6 @@
 """WD8b's host half (docs/wx-device.md): plant S-leg -- one swatch typed in by hand, one level off (code 5 as
-rgb(105,105,0), its colour at 41 %, where the layer draws it at 40 %) -- into a COPY of include/WxLegendHtml.h and
+rgb(98,90,0), the avionics yellow at 41 %, where the layer draws it at 40 %, rgb(96,88,0)) -- into a COPY of
+include/WxLegendHtml.h and
 require exactly test_wx_legend_html.cpp's [L2] row to go red. The real header is never written; its sha256 is
 compared before and after.
 
@@ -21,7 +22,7 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_legend_html.cpp")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 OLD = 'fill=\\"" + Rgb(wxs2::Pixel888(code, 0, 0, look)) + "\\"/>";'
-NEW = 'fill=\\"" + (code == 5 ? std::string("rgb(105,105,0)") : Rgb(wxs2::Pixel888(code, 0, 0, look))) + "\\"/>";   // SABOTAGE S-leg'
+NEW = 'fill=\\"" + (code == 5 ? std::string("rgb(98,90,0)") : Rgb(wxs2::Pixel888(code, 0, 0, look))) + "\\"/>";   // SABOTAGE S-leg'
 
 
 def sha(p):

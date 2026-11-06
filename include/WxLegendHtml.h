@@ -5,8 +5,9 @@
 //
 // The colours are NEVER typed here: every swatch is drawn from wxs2::Pixel888, the layer's own function, at serve time
 // -- an echo code's fill is its colour in the look; 14 and 15 are their dithers, the 2 x 2 cell of Pixel888 itself.
-// The rows are Weatherscope's legend labels (src/weatherscope/WxLegend.h), without its snow row (the layer cannot draw
-// snow until WXC1 v2 brings the type). Code 13, the 75+ white, is the last swatch of "Hail possible", as there.
+// The rows are the avionics look's drawn bands (include/WxAvionics.h; ruled 2026-11-06, Q3), named in words because
+// customers don't read dBZ, then no coverage and no data. Code 1 (drizzle) has no row: it is not drawn (~15:18Z).
+// There is no snow row: the layer cannot draw snow until WXC1 v2 brings the type.
 //
 // The HTML holds no literal '%': the page's %PLACEHOLDER% processing would eat it (check-config-form.py refuses one).
 #include <stdint.h>
@@ -17,8 +18,8 @@
 namespace wxlegendhtml {
 
 struct Row { const char* label; uint8_t first, last; };
-constexpr Row kRows[6] = {{"Light rain", 1, 4},    {"Moderate", 5, 7},          {"Heavy", 8, 10},
-                          {"Hail possible", 11, 13}, {"No radar coverage", 14, 14}, {"No data", 15, 15}};
+constexpr Row kRows[6] = {{"Light", 2, 3},    {"Moderate", 4, 5},          {"Heavy", 6, 7},
+                          {"Intense", 8, 13}, {"No radar coverage", 14, 14}, {"No data", 15, 15}};
 constexpr int kSwatch = 12;   // px, as Weatherscope's legend draws them
 
 inline std::string Rgb(uint32_t c)
