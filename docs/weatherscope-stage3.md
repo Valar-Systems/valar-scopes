@@ -14225,3 +14225,14 @@ The selftest's values are built at run time from made-up parts, so the script ho
 5. **The PR says it merges only with no bench window running,** because every session's bench tools change with it.
 
 **Not touched:** git history, as ruled.
+
+### A12.141 A12.140's two file counts corrected
+
+Found by adding each list up against its own total after the push. Neither changes a prediction or a question.
+
+| where | A12.140 said | correct |
+|---|---|---|
+| counts table, colon or dash universally administered | 11 in 6 files | **11 in 5 files:** `CLAUDE.md`, the 08-06 animtest doc, the two Weatherscope docs, `scripts/board-port.py` |
+| Q104, "Where" | 38 files under `tools/weatherscope/` | **35 run records there.** The other two are tools, already among the "3 scripts or tools": `run_b.py` and `trace-close/run.ps1`, with `scripts/fresh-boot-acceptance.sh` |
+
+**Q104's total is 61 distinct files:** 16 in `bench-logs/`, 35 run records, 6 docs, `CLAUDE.md` and 3 scripts or tools. The table's 59 and 4 overlap in 2 files.
