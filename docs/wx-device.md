@@ -5173,6 +5173,51 @@ and `ota-identity`. As ruled, the bench window does not start, and it moves.
 - **The window:** at 18:45Z still, if the ruling lands by about 18:05Z (the fixes, the local checks, the push, and
   about 15 min of CI). Otherwise, a time Daniel picks.
 
+**P1 and P2 ruled (~17:57Z) and pushed as `c8234d7639a3` (18:01Z).** The local checks read as predicted:
+- `skus.py --check-readers`: OK, 16 reviewed mentions;
+- `check_ota_identity.py`: `--selftest`, `--fleet-sabotage`, `--fleet` and `--check-table` all pass;
+- the device-id and Wi-Fi checks: OK.
+
+**CI, read (18:19Z): OFF.** 34 check-runs: 27 success, 4 skipped, **3 failed**: `host-tests` and its two legs
+(ubuntu-24.04 and 26.04). As ruled, the window does not start, and Daniel picks a new time.
+- **The cause: P2's row moved #552's frozen counts.** `test_ota_identity` and `test_ota_install` read
+  `identities.txt`. With 8 identities (was 7), the unplanted runs read:
+
+  | row | read | frozen |
+  |---|---|---|
+  | R1 | 24/24 (8 × 3) | 21/21 (7 × 3) |
+  | M1 | 38 accepted, 26 refused | 27, 22 |
+  | M2 | 78 of 78 | 66 of 66 |
+  | M3 | 16 accepted, 48 refused (22 cross-scope) | 11, 38 (16) |
+  | O10 | 16 no-record | 14 |
+
+  Every matrix reads **"0 off the rule"**: the accept rule holds on every pair, and only counts frozen on 7
+  identities moved. The `sabotage_ota_*` drivers' controls failed on those same unplanted rows. The O4-ii and O4-iii
+  FAIL lines in the log are inside the drivers' PLANTED runs, where S-ID1b turns them red by design.
+- **This is by design.** `test_ota_identity.cpp`'s header: "A new env changes them, and that is deliberate: a new
+  identity is the moment to re-read the rule, so the frozen numbers fail rather than follow."
+- **The alternative, and why it is excluded:** a fault in the OTA rule from #445's code. Excluded: #445 changes no OTA
+  file; every matrix reads 0 off the rule; and `503dd96563fa`, the same firmware without the row, passed `host-tests`.
+- **My miss:** a table row has readers beyond its own check. I ran the checks the ruling named, but not `run.sh`
+  after P2, and the table's other readers are host tests. It is the "new rows move older drivers' sets" shape again,
+  one level up: a new fleet row moves frozen test counts.
+
+**Re-reading the rule for the new identity, as the test asks.** `blipscope-s3-128-wxlook` derives (scope none, board
+s3-128), the same identity as `blipscope-s3-128` and `blipscope-s3-128-joindiag`. So an s3-128 radar would accept
+that image, and the bench image would accept a radar image. **Its consequence is nil today:** the env is slug-less, so
+no binary is published and no OTA path offers it. That is the reading for a ruling.
+
+**Proposed, for a ruling (none applied):**
+- **(a), recommended:** the frozen counts take the 8-identity values the runs read: R1 24/24; M1 38, 26, 0; M2 78 of
+  78; M3 16, 48 (22), 0; O10 16, 0, 0, 0. The sabotage drivers' sets are re-checked against the new row, as the
+  standing rule asks. This is #552's file, so it is the OTA identity owner's ruling.
+- **(b):** keep the bench env out of the OTA identity set: it does not compile `OtaUpdater.cpp`. That is a build change
+  to a bench image, and a reason the table cannot see.
+- **(c), not proposed:** dropping the env from `skus.yml`, which would take a built env out of CI (the 1.75" lesson).
+
+**Predicted after (a):** `run.sh` under WSL, everything green but the two environment blocks and the towns skip; the
+OTA drivers as their sets state; CI **34: 30 success, 4 skipped, 0 failed**.
+
 ### Daniel's bench window (ruled ~17:15Z: 18:45Z, about 45 min, once Daniel confirms): frozen before it opens
 
 **The protocol is the replay session's** (RC1, RP2, RP6's three arms, RS1-RS6, the restore remedy, the scan: "The
