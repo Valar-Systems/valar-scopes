@@ -899,7 +899,7 @@ void AircraftManager::Initialise()
     // so every board that updates reads it as unset, and a saved "false" stands. See include/WxLayerSwitch.h.
     // test/host/check_wx_wiring.py reads this line and the config page's default.
     wxLayerEnabled = wxlayerswitch::On(configServer.GetStoredString("wx-layer").c_str());
-    if (wxLayerEnabled) AllocateWeatherBuffers();
+    if (wxlayerswitch::kShips && wxLayerEnabled) AllocateWeatherBuffers();   // compiled out with the switch, like the fetch
     // The look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through the one rule the page uses,
     // so absence means look A, the default Daniel chose.
     wxLook = wxs2::LookFromStored(configServer.GetStoredString("wx-look").c_str());
