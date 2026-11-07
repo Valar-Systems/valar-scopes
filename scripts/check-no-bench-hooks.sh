@@ -37,7 +37,7 @@
 set -u
 
 # Every bench hook's marker. Add a hook -> add its marker here, in the same PR.
-MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" )
+MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[crash-bench]" "[wx-key]" )
 ANCHOR="[build] env="
 
 anchored() {
