@@ -405,3 +405,21 @@ be stopped, its child pids are recorded first and the whole tree goes with `task
 
 **Added to the follow-up list, as ruled:** a small PR in which the smoke driver refuses to start unless each red prefix
 titles exactly one row across `test/`, with a selftest plant in a non-basemap file.
+
+### Read (2026-11-06/07, `a5fabe27ef88`): as frozen
+
+| check | read | verdict |
+|---|---|---|
+| **`--selftest-dups`** | control 0; outside copy 0; planted copy 6, all naming the copy; copies removed; exit 0 | as predicted |
+| **`sabotage-basemap.mjs`, whole** (wait clear 23:31:46Z: TIME_WAIT 37, no other `vitest` or `sabotage-` process; exit 0 at 00:22:53Z) | baselines **11 / 31 / 168** (17 files). **78 runs, 75 sabotages all AS PREDICTED,** with C-LOADFAIL BLIND among them. S-S2SEQ {MS10}; S-MS2 {MS10, MS2, MS6}; S-MS3 {MS10, MS3, MS7}; S-MS1 and S-MKKMISS with MS10, as registered. 0 runtime failures. Highest TIME_WAIT at a run's start 7,923 (gate 8,000); held for ports 1,537 s | as predicted |
+| **`sabotage-smoke-basemap.mjs`, whole** (wait clear 00:25:06Z: TIME_WAIT 10; exit 0 at 00:31:16Z) | CONTROL **998 passed, 1 skipped, of 999**, 0 failed (start 10, peak 13,554). S-SQ **{SQ1, SQ2}** (start 373, peak 13,553). S-SQP **{SQ-C}** (start 1,968, peak 13,556). Both restored byte-identical. **ALL AS REGISTERED**, so each run counted 999 | as predicted |
+
+- **The tree afterwards:** porcelain 0.
+- **The TIME_WAIT margin:** the highest peak, 13,556, is 1,444 under the driver's 15,000 ceiling. Not under 1,000.
+
+**CI for the code PR, predicted: 35 check runs: 32 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The
+baseline is #585's finished run (35 = 32/3), a `proxy/` PR that postdates `caf63cc9`, the last change to the set of jobs.
+
+**The suite on CI, predicted: 1,012** (1,011 passed, 1 skipped). CI runs the merge ref, so that is main's 1,011 (`workers`
+on `387b93bbe5d3`, with no proxy source or test change since) plus MS10. This branch has not merged main again, so the 999
+read above stands for this tree. The merge is clean, and none of main's newer commits touch the basemap's files.
