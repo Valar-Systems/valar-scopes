@@ -15292,3 +15292,28 @@ The last job-set change is `caf63cc9d9cc`. Reading every workflow's `on:` block,
 | main on the squash | 32 | 30 | 2 (promote, version) | 0 |
 
 The branch starts from main at its head when the code begins, stated in the PR.
+
+### A12.168 The night case: all 8 rows and all 21 plants AS PREDICTED. Its PR
+
+| row | predicted | read |
+|---|---|---|
+| **P1** | no file under `src/`, `include/` or `platformio.ini` | **as predicted:** 0 files |
+| **P2** | both headers match their records, `WxForecastData.h` byte-identical | **as predicted:** blob `23c0ba721f65` on disk and on main |
+| **P3** | 12 rows, the 10 day `ROW` lines byte-identical | **as predicted:** `cmp` exit 0, so step 7's K-glass stands |
+| **P4** L11, L12 | smallest gap 4 px, chords fit | **as predicted** |
+| **P5** K11, K12 | `d29ca4823260`, `4b9d39ecb25b` | **as predicted:** 57,600 of 57,600 pixels |
+| **P6** the suite | 140 checks, 0 failures, MinGW and WSL g++ 13.3 | **as predicted,** both |
+| **P7** the driver | the control 0 failures; 21 plants | **ALL AS PREDICTED,** both compilers |
+| **P8** run.sh under WSL | exit 2; the two named blocks; towns SKIP in both passes | **as predicted,** and the WxSwipe block reads 140 |
+
+**The plants that moved:** S-D 15 rows, S-G 7, each gaining the two night K rows. The new ones: S-N1 4 rows and no day screen, S-N2 8. The other 17 sets are unchanged. The real `WxSwipe.h` is unchanged, `3b24a8e03ac1`.
+
+**The order held:** every driver and board plant `--anchors` first, 33 drivers, 2 plants, `plant_s_wait` `[1, 1]`, 0 failed.
+
+**Two small things of mine, neither a reading.** `emit_nws.py` wrote LF over a CRLF checkout of `WxForecastData.h`, so `git status` listed a file `git diff` did not. The blob hash settled it, and that one path was restored. My first gate script watched `vitest` alone where the standing gate also watches `sabotage-`; that was fixed before it ran.
+
+**S-N1 is the row worth reading.** It leaves every day screen green and turns only the night K rows and two table rows red. Before this addendum, no screen-level row could see `HighLowText` take the wrong period on a night-first record.
+
+**The PR** is at the head named in its body, based on main at `6a5e1735548c`. A12.167's CI prediction stands: 32: 29/3/0 on the PR, 32: 30/2/0 on main.
+
+**#598, first read:** 32: 29/3/0, skipped promote, ship-alert and version, as predicted. The second read follows.
