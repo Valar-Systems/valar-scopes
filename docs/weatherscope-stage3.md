@@ -14973,3 +14973,33 @@ The branch is deleted; no PR was based on it. Main's CI on the squash is running
 **The control that the merge ref holds #591:** `refs/pull/594/merge` must have `9b6b28fe9912` as an ancestor. If it does not, the reading is not the one that counts, whatever it says.
 
 **Then #594 merges under Q-M1 at `ccbf3fbabfdf`,** and its squash tree is compared with `merge-tree(H, ccbf3fbabfdf)`. Main on the squash stays predicted at 35: 32/3/0.
+
+### A12.161 #591 on main as predicted; the reopen's reading does NOT count: it ran on a merge ref without #591. Nothing merged. Re-taken, with a stronger control
+
+**#591 on main:** `9b6b28fe9912`, read finished twice: 34 checks, 31 success, 3 skipped, 0 failed. **AS PREDICTED.**
+
+**The last local row of A12.159:** `run.sh` under WSL on tree `e745a3b719ae`: exit 2, exactly the two environment blocks, "32 driver(s): 31 run, 1 skipped" in both passes, lint 0 of 32, `136 checks, 0 failures`, stderr empty. **AS PREDICTED.** The gate held it from 03:36Z to 04:02Z for another session's run, as the rule says. On main's next docs head the guards also read clean, tree `24bfd0d5354f`.
+
+**The reopen's reading.** It read as the table: 5 workflows, 35 jobs, 31 success, 4 skipped. **It does not count.** The control stopped the script, which is what it is for, though its message was only that `refs/pull/594/merge` could not be fetched. The run's own log says why:
+
+| read from the `device-ids` run | |
+|---|---|
+| `HEAD is now at` | `Merge ccbf3fba... into 154e1ecf7bf5`: main **before** #591 |
+| `mac check:` | **1,721 tracked,** the same as the first run; the merged tree holds 1,732 |
+
+**The cause.** GitHub rebuilds a PR's test merge lazily. Nothing had asked it to after #591 landed, so the reopen ran on the old one. `mergeable` read null and the merge ref was absent when I looked.
+
+**My miss.** A12.160 said a reopen runs "on a merge ref rebuilt from current main". I wrote that as fact and did not check it. The control I registered beside it is what saved the reading from being believed.
+
+**The re-take, at the same approved head, no code changed:**
+1. Poll `GET pulls/594` until `merge_commit_sha`'s first parent is main's current head. That is the proof GitHub has rebuilt it.
+2. Close and reopen.
+3. **Read the run's log, not the ref:** `Merge ccbf3fba... into <a commit holding #591>`, and `mac check:` tracked **at least 1,732** with 0 findings.
+
+| reading | what it means |
+|---|---|
+| **5 workflows, 35 jobs: 31 success, 4 skipped, and step 3's two reads** | **predicted;** #594 merges under Q-M1 |
+| the same counts, but step 3's reads fail | still not the reading: stop. The only other way to reach it moves the head, which needs a new approval |
+| anything else | a stop |
+
+**Step 7 stays closed** until this resolves.
