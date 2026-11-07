@@ -14882,3 +14882,20 @@ The scrub's PR follows its own full host run, since it touches files `run.sh` ma
 **The rebase:** main is at `154e1ecf7bf5`, one docs file past `fa660869a026`, with no job-set change. A12.152's CI prediction stands: PR 36: 32/4/0; main 35: 32/3/0.
 
 **The plan branch's two Weatherscope docs** get their relabel next, in their own commit.
+
+### A12.158 Both PRs' CI: AS PREDICTED. Each waits for its approval
+
+| PR | head | predicted | measured, finished, read twice |
+|---|---|---|---|
+| **#591** the swipe screens | `d9048ebe1eab` | 34: 30/4/0 | **as predicted:** 34 checks, 30 success, 4 skipped (promote, publish, ship-alert, version), 0 failed |
+| **#594** the MAC scrub | `ccbf3fbabfdf` | 36: 32/4/0 | **as predicted:** 36 checks, 32 success, 4 skipped, 0 failed |
+
+**`print-cards` on #594 ran twice, as predicted:** once for the `push` and once for the `pull_request`, both success. The three new `device-ids` steps ran on the CI runner, so `check_macs.py`, its selftest and its sabotages also pass off this machine.
+
+**The merge order is open.** Each PR's files read clean against the other (A12.157), and neither needs the other first. #594 waits for no bench window. #591's board run (step 7) is a bench window, so #594 should merge before that window opens, or after it closes.
+
+**On the squash, predicted:** #591, main 34: 31/3/0; #594, main 35: 32/3/0. Either merges under Q-M1, with main's CI on its current head finished.
+
+**After the merges:** step 7's board run, announced first, with navigation on `N` and `V` only and Q103's read through `GetSecure`; then L11, L12, K11 and K12 by their own addendum.
+
+**Open for a ruling:** `check_wifi_sabotage.py`'s stale S-W5J anchor (A12.156).
