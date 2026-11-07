@@ -112,6 +112,41 @@ improvised on the spot.
 **Outside the set:** any other reading, including a sum that does not match. I stop and report. Whether it is the instrument or the
 fleet is decided after reading, not on the spot.
 
+## R2's first run, off, and the fixes (2026-11-07, 23:35-23:38Z)
+
+**R2 stopped at its first off reading.** Analytics Engine answered **422**, so no results were read:
+- **R2a as predicted:** the presence control passed with 24 live `fw:` rows, 23 after the test identity is left out, and
+  `version.txt` read 18.
+- **The behind count agreed:** 4, equal to the 4 computed separately from the `--json` file's `fw:` rows alone.
+- **R2b, R2c and R2d could not be graded,** and R2e is off: the block raised an instrument warning.
+
+The id-bearing files were deleted as the scope said.
+
+**Two defects, both mine:**
+- **The cause.** The query selected `timestamp AS t` and sorted by `timestamp`. The error text, read once with the same query,
+  was `unable to find type of column: "timestamp"`. Two explanations fit. One read-only query each separated them:
+  sorting by the alias (`ORDER BY t`) answered 200, and selecting the raw column with no alias also answered 200. So the
+  refused part was sorting by a name the SELECT had aliased away, not selecting the column. Both returned 37 `ota` points in
+  90 days, far under the row cap.
+- **The instrument hid its own reason.** On an HTTP error the reader kept the status and threw the body away. It could say the
+  result was untrustworthy and not why, which is the case CLAUDE.md's anchor-and-stderr pairing exists for.
+
+**Why R1 could not see the first one:** R1 runs the breakdown on a fixture and never sends the SQL. The query's contract with
+Analytics Engine is checked only live, which is what R2 is for, and it fired.
+
+**The fixes, held for a ruling:**
+- **F1:** `ORDER BY t DESC`, the shape that answered 200.
+- **F2:** the error's text is kept in the reason, up to 300 characters. Error text names no device.
+
+**New rows, frozen before the re-run:**
+
+| row | predicted |
+|---|---|
+| **R1h** | `read_ota_points` given a 422 with a body returns no points, and its reason holds both the status and the body |
+| **S-R1body** | the body thrown away again: exactly R1h red |
+
+**The re-run's predictions are unchanged:** R2a to R2e as frozen above, with the same scope.
+
 ## CI prediction for the PR
 
 **35 = 32 success / 3 skipped / 0 failed.** This is the docs-only base of 32 = 29/3/0 from #614's finished run, plus the three
