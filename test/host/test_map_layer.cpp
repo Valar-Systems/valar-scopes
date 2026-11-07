@@ -1,11 +1,12 @@
 // The Blipscope's map layer, step M's host rows (docs/blipscope-map-client-steps.md): include/MapLayer.h held to
-// CM1-CM8 and CM10, frozen before the code (2026-11-07, accepted ~19:08Z; CM2/CM3's cases, CM10 and the count
-// registered ~21:40Z, before any code). CM9 is check_map_layer.py's. Its sabotages: python -I
+// CM1-CM8, CM10 and CM11, frozen before the code (2026-11-07, accepted ~19:08Z; CM2/CM3's cases, CM10, the count
+// and CM7's view registered at 21:26Z and 21:33Z, before any code; CM7's water-only build and CM11 after the ~23:23Z
+// ruling). CM9 is check_map_layer.py's. Its sabotages: python -I
 // test/host/sabotage_map_layer.py, each failing exactly its set.
 //
 //     test_map_layer <test/fixtures/wx>
 //
-// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 140). Prints no coordinate:
+// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 160). Prints no coordinate:
 // the packages' origins are read from their headers and used, never printed.
 
 #include <algorithm>
@@ -27,7 +28,7 @@
 
 namespace {
 
-constexpr int kCases = 140;
+constexpr int kCases = 160;
 constexpr int kS = maplayer::kSize;
 constexpr double kDegToRad = 0.017453292519943295769236907684886;   // Arduino's DEG_TO_RAD, as radians() uses it
 
@@ -370,7 +371,10 @@ void Cm7(std::vector<uint8_t> b)
     const wxlayer::View v = RadarView(pk.lat0Micro / 1e6, pk.lon0Micro / 1e6, asked / 1e6 / 16, 0);
     Buffers bu(pk);
     maplayer::BuildInfo bi;
-    const bool ok = maplayer::Build(pk, v, asked, maplayer::kLayersAll, Dark(), bu.sc, bu.out.data(), &bi);
+    // Terrain and water only (Q-MC9, ruled ~23:23Z): S3 draws the river and the road over the ring, and they are not
+    // what CM7 grades.
+    const bool ok = maplayer::Build(pk, v, asked, maplayer::kLayerTerrain | maplayer::kLayerWater, Dark(), bu.sc,
+                                    bu.out.data(), &bi);
     // The reference ring, from the header's radius, filled by the same centre rule: its pixels must be the layer's water.
     std::vector<double> rx, ry, cross;
     bmpk::ForEachRing(pk, bu.sc.qx, bu.sc.qy, bu.sc.cap, [&](int n) {
@@ -477,6 +481,49 @@ void Cm10(const bmpk::Package& pk)
     }
 }
 
+// ----------------------------------------------------------------------------------------------------------- CM11
+// The layer's line against wxraster::Line, pixel for pixel, where both draw: rows 24-193, on pixels inside both disc
+// tests (the layer's pixel-centre OffDisc, the Weatherscope's InMap). Ruled ~23:23Z, so the copy cannot drift.
+class Lit : public wxraster::Sink {
+public:
+    std::vector<uint8_t> img;
+    Lit() : img((size_t)kS * kS, 0) {}
+    void Put(int x, int y, wxraster::Rgb) override { img[(size_t)y * kS + x] = 1; }
+};
+
+void Cm11(const bmpk::Package& pk)
+{
+    for (int mi : kViewsMi)
+        for (int rot : kRots) {
+            const wxlayer::View v = RadarView(pk.lat0Micro / 1e6, pk.lon0Micro / 1e6, mi * kMi, rot);
+            const maplayer::AffineF f = maplayer::Fast(maplayer::AffineFor(pk, pk.radiusMm, v));
+            Buffers b(pk);
+            std::vector<uint8_t> mine((size_t)kS * kS, 0);
+            Lit theirs;
+            const auto segs = [&](int n) {
+                float x0, y0, x1, y1;
+                maplayer::ToScreen(f, b.qx[0], b.qy[0], &x0, &y0);
+                for (int k = 1; k < n; ++k, x0 = x1, y0 = y1) {
+                    maplayer::ToScreen(f, b.qx[k], b.qy[k], &x1, &y1);
+                    maplayer::LineIdx(mine.data(), x0, y0, x1, y1, 1);
+                    wxraster::Line(theirs, x0, y0, x1, y1, wxraster::Rgb{0, 0, 0});
+                }
+            };
+            bmpk::ForEachRiver(pk, b.sc.qx, b.sc.qy, b.sc.cap, [&](int, int n) { segs(n); });
+            bmpk::ForEachRoad(pk, b.sc.qx, b.sc.qy, b.sc.cap, [&](int, int n) { segs(n); });
+            int lit = 0, differ = 0;
+            for (int y = wxraster::kTopBand; y < wxraster::kBotBand; ++y)
+                for (int x = 0; x < kS; ++x) {
+                    if (wxlayer::OffDisc(x, y, kS) || !wxraster::InMap(x, y)) continue;
+                    const size_t p = (size_t)y * kS + x;
+                    lit += theirs.img[p];
+                    differ += (mine[p] != 0) != (theirs.img[p] != 0);
+                }
+            check(fmt("CM11-%dmi-r%d", mi, rot), lit > 0 && differ == 0,
+                  fmt("%d pixels lit by wxraster::Line in the shared area, %d differ", lit, differ));
+        }
+}
+
 }  // namespace
 
 int main(int argc, char** argv)
@@ -514,6 +561,8 @@ int main(int argc, char** argv)
     Cm8(pBend);
     std::printf("CM10 terrain sampling and the level\n");
     Cm10(pBend);
+    std::printf("CM11 the line against wxraster::Line\n");
+    Cm11(pBend);
     if (rig) return 2;
     std::printf("%d checks, %d failures\n", cases, failures);
     if (cases != kCases) {

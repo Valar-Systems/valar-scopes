@@ -2,7 +2,7 @@
 // The Blipscope's map layer (docs/blipscope-basemap-client.md; step M in docs/blipscope-map-client-steps.md): a
 // VALIDATED BMPK package (include/BasemapPackage.h) drawn under the radar as one 240 x 240 RGB565 layer. It is rebuilt
 // only when the view or the package changes, so a steady frame costs one memcpy and draws no vectors. Pure C++11, no
-// Arduino: test/host/test_map_layer.cpp holds it to CM1-CM8 and CM10, test/host/check_map_layer.py to CM9.
+// Arduino: test/host/test_map_layer.cpp holds it to CM1-CM8, CM10 and CM11, test/host/check_map_layer.py to CM9.
 //
 // THE PROJECTION IS THE RADAR'S, DERIVED IN DOUBLE ONCE PER BUILD. Format section 9 followed by radarproj::Project's
 // window-up rotation is affine in the package's (qx, qy), so Build works out six coefficients in double and maps each
@@ -14,6 +14,7 @@
 // as an index image first (land, water, river, road; the last write wins, in S3's order) and coloured in one final
 // pass, which samples terrain only where land shows. wxraster::Line is NOT reused: it clips to the Weatherscope's map
 // area (rows 24-193), and the radar draws its whole disc (the steps doc, "registered before step M's code", item 1).
+// The layer's line repeats its arithmetic exactly, and CM11 holds the two equal pixel for pixel inside that area.
 //
 // No coordinate is printed or stored here. The caller owns every buffer; Build allocates nothing.
 #include <math.h>
@@ -157,22 +158,25 @@ inline bool SegmentInView(const Affine& a, double half, int32_t qx0, int32_t qy0
 
 // ----------------------------------------------------------------------------------------------------- the line
 
-// The layer's line: the Weatherscope's DDA (n = int(max(|dx|, |dy|)) + 1, each point floor(v + 0.5)) in float, after a
-// Liang-Barsky clip to the screen widened by a pixel, so a segment far off a zoomed-in screen costs nothing. An end the
-// clip did not move is the vertex itself. Writes on-disc pixels only.
-inline void LineIdx(uint8_t* idx, float x0, float y0, float x1, float y1, uint8_t value)
+// The layer's line: wxraster::Line's DDA exactly -- n = int(max(|dx|, |dy|)) + 1, and point k at
+// floor(x0 + dx * k / n + 0.5), in double -- so CM11 can hold the two pixel for pixel inside the Weatherscope's map area.
+// Where it writes is the difference: the whole disc (wxlayer::OffDisc), not rows 24-193. A Liang-Barsky clip to the screen
+// widened by two pixels picks the range of k worth visiting; it skips points that would land off the screen and never
+// moves one, so a segment far off a zoomed-in screen costs nothing.
+inline void LineIdx(uint8_t* idx, double x0, double y0, double x1, double y1, uint8_t value)
 {
-    const float dx = x1 - x0, dy = y1 - y0;
-    const float p[4] = {-dx, dx, -dy, dy};
-    const float q[4] = {x0 + 1.0f, (float)kSize - x0, y0 + 1.0f, (float)kSize - y0};
-    float t0 = 0.0f, t1 = 1.0f;
+    const double dx = x1 - x0, dy = y1 - y0;
+    const int n = (int)(fabs(dx) > fabs(dy) ? fabs(dx) : fabs(dy)) + 1;
+    const double p[4] = {-dx, dx, -dy, dy};
+    const double q[4] = {x0 + 2.0, (kSize + 1.0) - x0, y0 + 2.0, (kSize + 1.0) - y0};
+    double t0 = 0.0, t1 = 1.0;
     for (int k = 0; k < 4; ++k) {
-        if (p[k] == 0.0f) {
-            if (q[k] < 0.0f) return;
+        if (p[k] == 0.0) {
+            if (q[k] < 0.0) return;
             continue;
         }
-        const float r = q[k] / p[k];
-        if (p[k] < 0.0f) {
+        const double r = q[k] / p[k];
+        if (p[k] < 0.0) {
             if (r > t1) return;
             if (r > t0) t0 = r;
         } else {
@@ -180,12 +184,11 @@ inline void LineIdx(uint8_t* idx, float x0, float y0, float x1, float y1, uint8_
             if (r < t1) t1 = r;
         }
     }
-    const float ax = t0 > 0.0f ? x0 + t0 * dx : x0, ay = t0 > 0.0f ? y0 + t0 * dy : y0;
-    const float bx = t1 < 1.0f ? x0 + t1 * dx : x1, by = t1 < 1.0f ? y0 + t1 * dy : y1;
-    const float ex = bx - ax, ey = by - ay;
-    const int n = (int)(fabsf(ex) > fabsf(ey) ? fabsf(ex) : fabsf(ey)) + 1;
-    for (int k = 0; k <= n; ++k) {
-        const int x = Rnd(ax + ex * k / n), y = Rnd(ay + ey * k / n);
+    int kLo = (int)floor(t0 * n) - 1, kHi = (int)ceil(t1 * n) + 1;
+    if (kLo < 0) kLo = 0;
+    if (kHi > n) kHi = n;
+    for (int k = kLo; k <= kHi; ++k) {
+        const int x = (int)floor(x0 + dx * k / n + 0.5), y = (int)floor(y0 + dy * k / n + 0.5);
         if (x >= 0 && x < kSize && y >= 0 && y < kSize && !wxlayer::OffDisc(x, y, kSize)) idx[y * kSize + x] = value;
     }
 }
