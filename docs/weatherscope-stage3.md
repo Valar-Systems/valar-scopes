@@ -15331,3 +15331,27 @@ Each skipped promote, ship-alert and version. #600's run names its merge in `HEA
 Main is at `6a5e1735548c`. All three read mergeable, and no two touch the same file. None is merged: each waits for a pasted approval at its SHA, under Q-M1.
 
 **Left for Daniel:** the 6 frames, and a real right swipe on the glass, the one path no bench byte reaches.
+
+### A12.170 Daniel's hand test closes step 7. The reservations moved. The three merges are held for the merge claim
+
+**Daniel's hand test on `6E:64`, ~15:55Z:** from the map, a right-to-left swipe opens FORECAST, and a left-to-right swipe returns to the map. A left-to-right swipe on the map does nothing, as N2 says. So `ClassifyStroke`'s right swipe has run under a real finger, and step 7 has no open line.
+
+**#597, #598 and #600 were approved at ~15:47Z, each at its head. None is merged yet.**
+
+| attempt | what happened | merged |
+|---|---|---|
+| 1 | main moved during the double read (`3835c043880c` to `ce1c1092a6ca`), so the driver ran it again | no |
+| 2 | main and the PR read clean, 32: 30/2/0 and 32: 29/3/0. #601 landed between the re-read and the merge call, and GitHub refused: `Base branch was modified` | no |
+| 3 | restarted with that refusal treated as a retry, then stopped by me for the ~16:33Z ruling while it waited on main's CI | no |
+
+Attempt 2 stopped because my driver read that refusal as an unknown exit. It was the same "main moved", and the driver now retries only once the PR is shown still OPEN. Main's three commits since the PRs' CI touch none of their files, and all three still merge cleanly onto main.
+
+**The ~16:33Z ruling: the merge claim.** My running driver had no claim step, so I stopped it before it reached a merge. `TaskStop` left two processes alive, as it has before. I confirmed each by command line and killed them by pid: 0 survivors, and all three PRs read OPEN.
+
+**What the merges wait on.** No claim convention is published yet: no lock file under `.valar-bench`, nothing on main, and no open PR carrying it. So there is nothing to claim against, and the first merge after it lands will adopt it. The approvals stand at their heads.
+
+**The two stale reservations are moved, as ruled.** `blipscope-bench.json` and `weatherscope.json`, each confirmed still dated 2026-10-20, are in `%USERPROFILE%/.valar-bench/reservations/_to_delete/`, bytes unchanged by sha256. `board-port.py` reads claims by board name, so the subfolder changes nothing, and `--list` exits 0 with all four boards unreserved. Deleting them is Daniel's call.
+
+**The survey script prints counts only,** as ruled: lines per tag and per sensitive shape, never a line, even masked.
+
+**Disk (~16:31Z ruling):** my outputs are listed through Daniel, with sizes and how each regenerates. I have deleted nothing since that ruling. Two leftovers of mine went at ~06:33Z under the earlier rule, before it: `wt-oc` 779 MB and a shallow clone 159 MB.
