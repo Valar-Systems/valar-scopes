@@ -5,8 +5,8 @@ test_wx_layer_switch.cpp, with the flag defined:
   S-WS-always    always on, an owner's "false" ignored               -> exactly WS3, WS4
   S-WS-notfalse  != "false", any stray value reads on                -> exactly WS4
 test_wx_layer_off.cpp, v19's build, with the flag undefined:
-  S-WF-on        kShips true where the flag is undefined             -> exactly WF1
-  S-WF-rule      On() no longer tests kShips: a stored key turns it on -> exactly WF1
+  S-WF-on        kShips true where the flag is undefined             -> exactly WF1, WF2, WF3
+  S-WF-rule      On() no longer tests kShips: a stored key turns it on -> exactly WF2, WF3
 The real header is never written; its sha256 is compared before and after.
     python -I test/host/sabotage_wx_layer_switch.py      exit 0 = as predicted, 1 = not, 2 = rig"""
 import hashlib
@@ -32,8 +32,8 @@ SABOTAGES = {
     "S-WS-today     today's rule restored": (["WS1"], RULE, "return kShips && strcmp(stored, \"true\") == 0;   /* SABOTAGE S-WS-today */", TEST),
     "S-WS-always    always on": (["WS3", "WS4"], RULE, "(void)stored; return kShips;   /* SABOTAGE S-WS-always */", TEST),
     "S-WS-notfalse  != \"false\"": (["WS4"], RULE, "return kShips && strcmp(stored, \"false\") != 0;   /* SABOTAGE S-WS-notfalse */", TEST),
-    "S-WF-on        kShips true with the flag undefined": (["WF1"], "constexpr bool kShips = false;", "constexpr bool kShips = true;   /* SABOTAGE S-WF-on */", TEST_OFF),
-    "S-WF-rule      On() ignores kShips": (["WF1"], RULE, "return stored[0] == '\\0' || strcmp(stored, \"true\") == 0;   /* SABOTAGE S-WF-rule */", TEST_OFF),
+    "S-WF-on        kShips true with the flag undefined": (["WF1", "WF2", "WF3"], "constexpr bool kShips = false;", "constexpr bool kShips = true;   /* SABOTAGE S-WF-on */", TEST_OFF),
+    "S-WF-rule      On() ignores kShips": (["WF2", "WF3"], RULE, "return stored[0] == '\\0' || strcmp(stored, \"true\") == 0;   /* SABOTAGE S-WF-rule */", TEST_OFF),
 }
 
 
@@ -92,7 +92,7 @@ def main():
 # --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
 # its own count, nothing planted. OK_COUNT is the one place the count lives: main()'s unplanted run reads it too.
 OK_COUNT = 4
-OK_COUNT_OFF = 1
+OK_COUNT_OFF = 3
 CONTROL_TABLE = {"test_wx_layer_switch": ("ok", OK_COUNT), "test_wx_layer_off": ("ok", OK_COUNT_OFF)}
 
 
