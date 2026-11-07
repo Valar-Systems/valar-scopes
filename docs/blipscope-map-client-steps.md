@@ -4,8 +4,9 @@
 [blipscope-basemap-client.md](blipscope-basemap-client.md). This file holds each step's frozen predictions and what
 was read against them. A step's rows are written here before its code, and a miss stays on record.
 
-**Status, 2026-11-07:** step M's predictions are accepted as frozen. **No client code exists yet.** The first firmware
-push waits for #609's merge (Q-MC4).
+**Status, 2026-11-07 ~21:45Z:** step M's first host run read **CM7 OFF**: the check was wrong, not the layer. It is
+**stopped for a ruling** (below, "The first host run"). The code is a local commit only: the first firmware push waits
+for #609's merge (Q-MC4).
 
 ## The ruling on the first report, verbatim (reviewer chat, pasted by Daniel, 2026-11-07 ~19:08Z)
 
@@ -97,7 +98,10 @@ FAIL.
 | **CM8** | The round screen | 45,244 pixels on the disc; the 12,356 off it stay 0 | **S-CMDISC**, the disc test skipped: {CM8} |
 | **CM9** | The theme table | No colour literal outside it; the Dark row equals the plan's §4 | **S-CMLIT**, a planted literal: {CM9} |
 
-### Registered before step M's code (2026-11-07 ~21:40Z), for review
+### Registered before step M's code (2026-11-07, commit `7f30264c` at 21:25:57Z), for review
+
+(First written here as "~21:40Z", an estimate made before the commit existed. The commits' own times are the record:
+items 1-4 at 21:25:57Z, item 5 at 21:32:38Z, and the code was written after both.)
 
 Written after the ruling and before any code. **None of these changes a frozen value.** Each one pins a case list the
 frozen text left open, or adds coverage. All four are put to the reviewer with the next report.
@@ -152,6 +156,58 @@ where land shows.
 - **At about 6 km:** it fills about 3,500 pixels at the header's radius, and about four times that under S-CMR.
 - **The comparison:** the layer's water must match a reference fill from the header's radius, through the same
   centre rule, within 2 %.
+
+### The first host run (2026-11-07, 21:33-21:35Z), as run: CM7 OFF, stopped for a ruling
+
+- **The code as run:** `include/MapLayer.h` and `test/host/test_map_layer.cpp`, local commit `8ff8f917`. It is not
+  pushed: the first firmware push waits for #609.
+- **Both compilers read the same:** MinGW 5.1 and WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`. 140 cases, 139
+  pass, **CM7 red**.
+- **Not run, per the stop:** the in-tree re-run, CM9's check and the sabotage driver.
+
+| row | read | verdict |
+|---|---|---|
+| **CM1** | 27 refused, each with its reason, 0 pixels written; `bend` and `syn-min` built | as predicted |
+| **CM2** | 60 cases; the worst error 0.000127 px (≤ 0.01) | as predicted |
+| **CM3** | 36 cases of 10,000 points; the worst \|d\| is 1 px in every case | as predicted |
+| **CM4** | 0/67, 0/74, 4/173, 4/308, 4/324; secondary drawn at 5 and 10 mi only | as predicted |
+| **CM5** | 21 and 9 colours; the four samples exact | as predicted |
+| **CM6** | 0 pixels off S3's order. Overlaps: road/river 1, road/water 40, river/water 40 | as predicted |
+| **CM7** | header 48,500,000 mm, asked 97,000,000 mm; the layer's water 3,249 px against the reference's 3,364 (3,249 shared): −3.4 %, outside 2 % | **OFF** |
+| **CM8** | 45,244 on the disc, 12,356 off it, 0 off-disc pixels lit | as predicted |
+| **CM10** | every one of the 72 cases chose the predicted level; 0 mismatches. Printed: the band 0 / 35,430 / 1 / 1 / 1 / 0, off-level 279,638 at 100 mi (0 elsewhere) | as predicted |
+
+**CM7's cause is the check, not the layer.**
+- **The 115 px are one 58 px row and one 57 px column:** syn-min's river runs across the ring and its road down it.
+  S3's order draws both over the water, and the check counted only water.
+- **The alternative, named and excluded:** float against double moving the ring's edges. Every water pixel the layer
+  drew lies inside the reference (3,249 of 3,249 shared), and the gap is two whole lines through the middle, not edge
+  pixels around the ring.
+- **The other alternative:** a scale fault (what S-CMR plants). That would give about four times the area, or a
+  quarter of it, not 96.6 %.
+- **A diagnostic, disclosed:** a copy of the test outside the tree, with CM7 drawing water only, read 3,364 px
+  against 3,364, all shared, and 140 of 140. Nothing in the tree changed, and nothing was re-run in it.
+
+**The proposed fix, for the ruling.**
+- CM7 builds with terrain and water only: the river and the road are not what CM7 grades.
+- **The new predictions:**
+  - CM7: water 3,364 px against the reference's 3,364. This number is known from the diagnostic, so it is not a
+    blind prediction.
+  - Then 140 of 140 on both compilers, CM9 passing, and every plant turning exactly its registered set.
+
+**Observations from the same run, not graded.**
+- **S1 at Bend.**
+  - At 25, 50 and 60 mi, Bend's 4 primaries count as in view, but each crosses only 5-11 px of the disc. They are
+    two pairs of near-identical carriageways.
+  - So S1 hides the secondaries, about 2,300-3,400 px of road (measured independently in Python).
+  - Bend therefore shows 14, 6 and 7 road pixels at those views.
+  - That is the approved rule working as written; whether a town like Bend should look like that is Daniel's call on
+    glass.
+- **Exact ties at 10 mi.**
+  - With Bend's levels, the 10 mi view's pixel is exactly 2/3 of a level pixel (134.112 m against 201.168 m), so many
+    pixel centres land exactly on level boundaries.
+  - 35,430 of the 542,928 pixels checked fell in CM10's 1e-6 band and were not graded.
+  - At a tie, the fixed-point floor and the double one can pick either side: a one-level-pixel shift.
 
 ### Bench rows
 
