@@ -146,6 +146,13 @@ where land shows.
 - CM9 is the Python check's one row.
 - Any other count is the rig, exit 2.
 
+**5. CM7's view, registered before its first compile or run: the asked radius / 16 (about 6 km).**
+- **Why not the asked 97 km:** there, syn-min's ring (±1,000 units) fills about 13 pixels, too few for a 2 %
+  comparison.
+- **At about 6 km:** it fills about 3,500 pixels at the header's radius, and about four times that under S-CMR.
+- **The comparison:** the layer's water must match a reference fill from the header's radius, through the same
+  centre rule, within 2 %.
+
 ### Bench rows
 
 Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms, opaque sweep 2.04 ms, blended sweep
