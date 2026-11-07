@@ -11,6 +11,7 @@
 #include "RadarZoom.h"
 #include "WxFeedFactory.h"
 #include "DayNight.h"
+#include "WxSwipe.h"
 #include "WxTheme.h"
 #include "TouchWedgeCap.h"
 
@@ -81,7 +82,7 @@ public:
     };
 
 private:
-    enum class Mode : uint8_t { Splash, Status, Scenario, Loop, Legend };
+    enum class Mode : uint8_t { Splash, Status, Scenario, Loop, Legend, Swipe };
 
     ConfigurationWebServer& configServer;
     HttpRequestManager& http;
@@ -89,6 +90,7 @@ private:
     wx::Feeds feeds;
 
     Mode mode = Mode::Splash;
+    wxswipe::Page swipePage = wxswipe::Page::Forecast;   // which swipe screen, while mode is Swipe (3.5c)
     bool splashStarted = false;     // latched at the first Initialise (boot), never re-armed
     unsigned long splashStartMs = 0;
 
@@ -265,8 +267,9 @@ private:
     void HandleSerialGestures();
     void ClassifyStroke(int dx, int dy);
     void EndHoldGrace(const longpress::GraceEnd& e);
-    void OnTap();
-    void OnSwipeLeft();
+    wxswipe::Page CurrentPage() const;
+    void GoToPage(wxswipe::Page p);
+    void OnGesture(wxswipe::Gesture g);
     void OnSwipeVertical(int dir);
     void OnHoldFired();
 
@@ -275,6 +278,7 @@ private:
     void DrawScenario(BandCanvas& c);
     void DrawLoopFrame(BandCanvas& c);
     void DrawLegend(BandCanvas& c);
+    void DrawSwipe(BandCanvas& c);
     void DrawHoldRing(BandCanvas& c);
     void PrintPushRun(const PushRun& r) const;
     void PrintCopyStats();
