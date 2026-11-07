@@ -15317,3 +15317,17 @@ The branch starts from main at its head when the code begins, stated in the PR.
 **The PR** is at the head named in its body, based on main at `6a5e1735548c`. A12.167's CI prediction stands: 32: 29/3/0 on the PR, 32: 30/2/0 on main.
 
 **#598, first read:** 32: 29/3/0, skipped promote, ship-alert and version, as predicted. The second read follows.
+
+### A12.169 #598 and #600's CI as predicted. Three PRs wait for approvals
+
+| PR | head | CI, read finished twice | ran on |
+|---|---|---|---|
+| **#597** S-W5J | `30f01dfbe05c` | 32: 29/3/0, **as predicted** | a merge into `0c0aa0157bae` |
+| **#598** step 7's record | `a6416ad9361d` | 32: 29/3/0, **as predicted** | a merge into `ec655619e729` |
+| **#600** the night case | `170b88cf175f` | 32: 29/3/0, **as predicted** | a merge into `6a5e1735548c` |
+
+Each skipped promote, ship-alert and version. #600's run names its merge in `HEAD is now at`, and `== WxSwipe ==` reads `140 checks, 0 failures` on both host runners, with `wx_nws_night.h` as the record says and `k35c.ref.txt` at 12 rows.
+
+Main is at `6a5e1735548c`. All three read mergeable, and no two touch the same file. None is merged: each waits for a pasted approval at its SHA, under Q-M1.
+
+**Left for Daniel:** the 6 frames, and a real right swipe on the glass, the one path no bench byte reaches.
