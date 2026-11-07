@@ -10,9 +10,12 @@
 // also comes from KV (`bm:store`, O1), a package once built is kept in BASEMAP_PKG under its store id and the query's
 // digest, and a build that cannot finish within SYNC_WAIT_MS is answered 202 and finished under waitUntil. One build per
 // query at a time: an R2 create-once lock, taken over only when stale (LOCK_STALE_MS). No key holds a coordinate (MS8).
+//
+// K1 (docs/basemap-name-key.md): every stored name, the ETag and the Cache API key use a digest keyed by BASEMAP_NAME_KEY.
+// A bucket with no valid key is treated as no bucket (NK4, NK5), and /healthz says so, since nothing else would.
 import { errorResponse } from "../util";
 import { validate } from "./format";
-import { type Query, etagOf, parseQuery, queryDigest } from "./query";
+import { type Query, etagOf, nameKeyOf, parseQuery, queryDigest } from "./query";
 import { STORE_KV_KEY } from "./store";
 
 /** The builder's output version: bumped whenever the same inputs build different bytes (MD4 guards it). */
@@ -23,7 +26,7 @@ export const BASEMAP_REV = 1;
  *  query. A 503 not_configured or a 400 returns before any branch and carries none. */
 export type BasemapBranch = "304-known" | "304-kv" | "hit" | "stored" | "stored-error" | "known-miss" | "in-flight" | "unknown-store";
 
-export interface BasemapEnv { BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; ENRICH_KV?: KVNamespace }
+export interface BasemapEnv { BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; BASEMAP_NAME_KEY?: string; ENRICH_KV?: KVNamespace }
 
 /** A1's constants, as ruled (Q-A1c). SYNC_WAIT_MS is set from the 2.5 s target (Q-SW1, docs/basemap-sync-wait.md): the
  *  target minus the pre-race work's nearest-rank p95 over the slot's ten (570 ms) minus a 330 ms margin. Mutable for
@@ -50,9 +53,9 @@ export const resetBasemapIsolate = () => { known = null; lastBuild = null; };
 // The store id and builder commit of this isolate's LAST builder 200, with no TTL: what the bound builder said, null
 // until it has said anything. Never a made-up value.
 let lastBuild: { storeId: string; commit: string } | null = null;
-export function basemapHealth(env: BasemapEnv): "not_configured" | { rev: number; store: string | null; commit: string | null } {
+export function basemapHealth(env: BasemapEnv): "not_configured" | { rev: number; store: string | null; commit: string | null; keyed: boolean } {
   if (!env.BASEMAP) return "not_configured";
-  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null };
+  return { rev: BASEMAP_REV, store: lastBuild ? lastBuild.storeId : null, commit: lastBuild ? lastBuild.commit : null, keyed: nameKeyOf(env.BASEMAP_NAME_KEY) !== undefined };
 }
 // -------------------------------------------------------------------------------------------------------------------
 
@@ -130,8 +133,8 @@ async function takeLock(pkg: R2Bucket, key: string): Promise<boolean> {
 }
 
 /** A validated package as the answer: 304 when the client already holds it, else the bytes; a copy for the Cache API. */
-async function answerBuilt(b: Built, q: Query, inm: string | null, cache: Cache, ctx: ExecutionContext): Promise<Response> {
-  const etag = await etagOf(q, BASEMAP_REV, b.storeId);
+async function answerBuilt(b: Built, q: Query, inm: string | null, cache: Cache, ctx: ExecutionContext, nameKey?: string): Promise<Response> {
+  const etag = await etagOf(q, BASEMAP_REV, b.storeId, nameKey);
   ctx.waitUntil(cache.put(cacheKey(etag), new Response(b.bytes, { headers: storedHeaders(etag) })));
   if (inm === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } });
   return new Response(b.bytes, { status: 200, headers: packageHeaders(etag) });
@@ -144,24 +147,26 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
   const q: Query = p.q;
   const inm = request.headers.get("if-none-match");
   const cache = (caches as unknown as { default: Cache }).default;
-  const pkg = env.BASEMAP_PKG; // A1 only where bound (MS9)
+  const nameKey = nameKeyOf(env.BASEMAP_NAME_KEY);
+  const pkg = nameKey ? env.BASEMAP_PKG : undefined; // A1 only with a bucket AND a name key (MS9, NK4)
 
   // A revalidation or a cache hit, with no builder call, when this isolate knows the current store -- or, under A1, when
   // KV names it (O1)
   const mem = knownStore(Date.now());
   const id = mem ?? (pkg ? await storeFromKv(env) : null);
   if (id) {
-    const etag = await etagOf(q, BASEMAP_REV, id);
+    const etag = await etagOf(q, BASEMAP_REV, id, nameKey);
     if (inm === etag && !mem) { log.bm = "304-kv"; return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } }); }
     if (inm === etag) { log.bm = "304-known"; return new Response(null, { status: 304, headers: { etag, "cache-control": "no-cache" } }); }
     const hit = await cache.match(cacheKey(etag));
     if (hit) { log.bm = "hit"; return new Response(hit.body, { status: 200, headers: packageHeaders(etag) }); }
     log.bm = "known-miss";
     if (pkg) {
-      const digest = await queryDigest(q);
+      const digest = await queryDigest(q, nameKey);
       // S2 (docs/basemap-sync-wait.md): the package and its .err in ONE round of reads, so a cold first request waits for
-      // one R2 read before the lock, not two. A stored request reads both; the .err is then simply not used.
-      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);
+      // one R2 read before the lock, not two. A stored request reads both; the .err is then simply not used. So a failed
+      // .err read must not fail a request the package can answer: a missing .err only means a rebuild (MS11).
+      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest)).catch(() => null)]);
       if (kept) {
         const bytes = new Uint8Array(await kept.arrayBuffer());
         if (validate(bytes).status === "kOk") {
@@ -183,13 +188,13 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
       ctx.waitUntil(work.then(() => undefined, () => undefined));
       const quick = await Promise.race([work, sleep(basemapTiming.syncWaitMs).then(() => null)]);
       if (quick === null) return accepted();
-      return quick instanceof Response ? quick : answerBuilt(quick, q, inm, cache, ctx);
+      return quick instanceof Response ? quick : answerBuilt(quick, q, inm, cache, ctx, nameKey);
     }
   } else log.bm = "unknown-store";
 
   // Otherwise the builder, synchronously, as before A1 -- and, where BASEMAP_PKG is bound, its package kept
-  const r = pkg ? await buildAndKeep(env, q, pkg, await queryDigest(q)) : await callBuilder(env, q);
-  return r instanceof Response ? r : answerBuilt(r, q, inm, cache, ctx);
+  const r = pkg ? await buildAndKeep(env, q, pkg, await queryDigest(q, nameKey)) : await callBuilder(env, q);
+  return r instanceof Response ? r : answerBuilt(r, q, inm, cache, ctx, nameKey);
 }
 
 /** The query's digest alone (MP3 reads it to show no coordinate reaches a key). */

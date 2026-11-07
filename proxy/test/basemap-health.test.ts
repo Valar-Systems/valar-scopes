@@ -31,7 +31,7 @@ describe("MH, /healthz's basemap field", () => {
   it("MH2: bound, before any /basemap request in the isolate, is {rev, store: null, commit: null}", async () => {
     resetBasemapIsolate();
     const b = stub();
-    expect(await health({ BASEMAP: b.BASEMAP })).toEqual({ rev: BASEMAP_REV, store: null, commit: null });
+    expect(await health({ BASEMAP: b.BASEMAP })).toEqual({ rev: BASEMAP_REV, store: null, commit: null, keyed: true });
     expect(b.n.calls).toBe(0); // /healthz never calls the builder
   });
 
@@ -42,6 +42,24 @@ describe("MH, /healthz's basemap field", () => {
     const res = await call(apiRequest("/api/v1/blipscope/basemap?lat=0.37&lon=0.59&r=97&eps=100584&layers=water,roads"), { BASEMAP: b.BASEMAP });
     expect(res.status).toBe(200);
     expect(b.n.calls).toBe(1);
-    expect(await health({ BASEMAP: b.BASEMAP })).toEqual({ rev: BASEMAP_REV, store: STORE_ID, commit: BUILDER_COMMIT });
+    expect(await health({ BASEMAP: b.BASEMAP })).toEqual({ rev: BASEMAP_REV, store: STORE_ID, commit: BUILDER_COMMIT, keyed: true });
+  });
+});
+
+// NK6 (docs/basemap-name-key.md): a bucket with no key turns A1 off with no error, so /healthz is what shows it.
+describe("NK, /healthz says whether names are keyed", () => {
+  it("NK6: keyed is true with a valid key and false otherwise, and the body never holds the key", async () => {
+    const b = stub(), good = "ab".repeat(32);
+    const read = async (key: string | undefined) => {
+      const res = await call(new Request("https://proxy.test/healthz"), { BASEMAP: b.BASEMAP, BASEMAP_NAME_KEY: key });
+      const text = await res.text();
+      if (key) expect(text).not.toContain(key.trim());
+      const basemap = (JSON.parse(text) as { basemap: { keyed?: unknown } }).basemap;
+      expect(typeof basemap).toBe("object"); // CONTROL: the field is there to read
+      return basemap.keyed;
+    };
+    expect(await read(good)).toBe(true);
+    expect(await read(undefined)).toBe(false);
+    for (const bad of ["a".repeat(63), "a".repeat(65), "AB".repeat(32), "zz".repeat(32), "", `${good}\n`]) expect(await read(bad)).toBe(false);
   });
 });
