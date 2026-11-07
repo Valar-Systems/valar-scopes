@@ -27,6 +27,10 @@ jobs:
       # two redaction implementations agree. pwsh is on the ubuntu image.
       - run: python3 scripts/check_wifi.py
       - run: python3 scripts/check_wifi.py --selftest
+      # Each code sabotage, an in-memory edit of check_wifi.py, must turn exactly its registered rows red, and a stale anchor
+      # fails here: #558 left S-W5J's stale, and nothing ran this to say so. S-W3, S-W7 and W8 read real values from
+      # BASE and CI logs are public, so they stay local (docs/weatherscope-stage3.md A12.164).
+      - run: python3 scripts/check_wifi_sabotage.py --code-only
       # What check_wifi.py EXCUSES, read (docs/weatherscope-stage3.md A12.113): every binary it cannot decode has its
       # strings scanned under check_wifi.py's own patterns plus a user-directory path, and its photos' EXIF and XMP
       # checked for location. Fonts are third-party and allowed by hash. The selftest plants into real copies first.

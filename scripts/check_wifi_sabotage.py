@@ -1,6 +1,7 @@
 """The Wi-Fi guard's sabotages, each with the red set registered in docs/wifi-scrub.md BEFORE it ran.
 
-    python3 scripts/check_wifi_sabotage.py      exit 0 every sabotage as registered; 1 any off or instrument failure; 2 rig
+    python3 scripts/check_wifi_sabotage.py               exit 0 every sabotage as registered; 1 any off or instrument failure; 2 rig
+    python3 scripts/check_wifi_sabotage.py --code-only   the control and the code sabotages alone: what CI runs
 
 Code sabotages (S-W4N, S-W4B, S-W4L, S-W4P, S-W4D, S-W5G, S-W5J, S-W5K, S-W2PORTAL) are in-memory edits of
 scripts/check_wifi.py's source, each asserted to apply exactly once and exec'd as its own module; the file on disk is
@@ -10,6 +11,10 @@ rows (the selftest without its precheck). A crash is an INSTRUMENT FAILURE, neve
 S-W3 restores one scrubbed log from BASE in place, and puts it back from a byte copy with its sha256 checked. S-W7 runs
 the scrub with --everywhere over BASE in memory. W8 compares the selftest's planted values with the real ones at BASE,
 in memory. Needs BASE (892fe2b, main before the scrub) in the clone. Prints verdicts and labels, never a value.
+
+--code-only needs no BASE, so it runs in CI's shallow checkout. S-W3, S-W7 and W8 read real values from BASE and CI logs are
+public, so they stay local (docs/weatherscope-stage3.md A12.164). A stale anchor exits 2, so a change to check_wifi.py
+cannot leave a plant behind unread again, as #558 left S-W5J's.
 """
 import contextlib
 import hashlib
@@ -37,8 +42,8 @@ EDITS = {
     "S-W4D": [("(?:[0-9a-f]{6}|[0-9a-f]{4})", "[0-9a-f]{6}")],
     "S-W5G": [("            key = (rel, line_hash(line))\n",
                "            key = next((k for k in entries if k[1] == line_hash(line)), (rel, line_hash(line)))\n")],
-    "S-W5J": [("            else:\n                unreadable.append(rel)\n            continue\n        except OSError:",
-               "            else:\n                binary += 1\n            continue\n        except OSError:")],
+    "S-W5J": [("        except UnicodeDecodeError:\n            unreadable.append(rel)\n            continue\n",
+               "        except UnicodeDecodeError:\n            binary += 1\n            continue\n")],
     "S-W5K": [('"blind": scanned == 0 or seen == 0}', '"blind": False}')],
     "S-W2PORTAL": [('if m.group(1) != PORTAL]', 'if not m.group(1).startswith(PORTAL.rsplit(".", 1)[0] + ".")]')],
     "S-WPATH": [("findings += [(rel, 0, c) for c in line_findings(rel)[0]]", "pass  # SABOTAGE S-WPATH")],
@@ -89,8 +94,9 @@ def read3(ns):
     return w3, w3out.strip().splitlines()[-1] if w3out.strip() else "", full, rc, rows
 
 
-def main():
-    if subprocess.run(["git", "-C", ROOT, "cat-file", "-e", f"{BASE}^{{commit}}"]).returncode != 0:
+def main(argv=()):
+    code_only = "--code-only" in argv
+    if not code_only and subprocess.run(["git", "-C", ROOT, "cat-file", "-e", f"{BASE}^{{commit}}"]).returncode != 0:
         print(f"RIG: {BASE} is not in this clone (S-W3, S-W7 and W8 need it)"); return 2
     source = open(SRC, encoding="utf-8").read()
     before = hashlib.sha256(open(SRC, "rb").read()).hexdigest()
@@ -117,6 +123,13 @@ def main():
         verdict = "INSTRUMENT FAILURE" if crashed else ("as registered" if ok else "NOT AS REGISTERED")
         print(f"{name}: {verdict}\n   W3 exit {w3} (want {want[0]}): {summary[summary.find('findings'):]}\n"
               f"   full exit {full} (want {want[1]})\n   rows exit {rc}; red {sorted(red_rows(rows))} (want {sorted(want[2])})")
+
+    if code_only:
+        after = hashlib.sha256(open(SRC, "rb").read()).hexdigest()
+        print(f"the guard on disk byte-identical: {before == after}")
+        bad += before != after
+        print("ALL AS REGISTERED" if not bad else f"{bad} NOT AS REGISTERED")
+        return 1 if bad else 0
 
     # S-W3: one scrubbed log restored from BASE, in place; put back from a byte copy, sha256 checked.
     path = os.path.join(ROOT, S_W3_FILE)
@@ -191,4 +204,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

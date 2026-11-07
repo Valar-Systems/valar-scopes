@@ -14,6 +14,9 @@ export interface Env {
   // A1's stored packages (docs/basemap-a1.md): bound in the proxy only, never in the builder. Unbound, /basemap behaves
   // exactly as before A1 (MS9).
   BASEMAP_PKG?: R2Bucket;
+  // K1 (docs/basemap-name-key.md): the secret keying every stored name, 64 lowercase hex. A bucket without a valid one is
+  // treated as no bucket (NK4), so A1 needs both; /healthz's `basemap.keyed` reports it.
+  BASEMAP_NAME_KEY?: string;
 
   // Optional: absent in `wrangler dev`/tests (miniflare can't emulate the beta
   // binding), enforced in staging/production.

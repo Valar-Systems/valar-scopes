@@ -91,3 +91,256 @@
 - the measurement M1-M6 as frozen, run on the dev Worker.
 
 **Stage 1b** is built only if M6 still reads over $2 a month, as ruled.
+
+## 6. The deploy to production `opuk` (registered before it runs)
+
+**The ruling, 2026-11-06 ~20:01Z, verbatim:**
+
+> For: UK data session, from the reviewer chat, 2026-11-06 ~20:01Z
+>
+> #577 (stage 1c) -> approved to merge at 3f6b81056aa7; CI 34 = 31/3/0 as predicted. Merge by the rule (Q-M1).
+> - My read: mapVia takes the isolate cache, then R2 only if decodeMap validates the magic, the three counts and the byte length and the metadata holds the exact key; otherwise it builds. The put is create-only, and overwrites only after a refusal. Predictions frozen first (a2d9e8a); 77 of 77 in the granted slot; MP1-MP5 and the three sabotages as predicted.
+> - Follow-up, not blocking, in its own small PR: a failed map put should not fail the storing check. Catch it, count it on the line, and keep the frame.
+> - The deploy: after the PKD set (through PKD-5, ~20:48Z) has read and been reported, with its rows registered first and the rollback target recorded. State in the rows whether the bucket's expire-1d rule reaches wx/<product>/map/; if it does, each map is rebuilt once a day. M6 then measures the cost; 1b only if M6 still reads over $2/month.
+
+**#577 merged** at 20:02:15Z as `51757039ed01`, by the rule.
+- Main's head H was `38e5bb482961` (#576), with its CI finished: 34 = 32 success, 2 skipped.
+- The merge command re-read `origin/main`, found it still H, and merged with `--match-head-commit 3f6b81056aa7`.
+- The squash tree equals `merge-tree(H, 3f6b81056aa7)` (`59e8b89497dc`).
+- **Main CI on `51757039`, predicted 34 = 32 success, 2 skipped, 0 failed.** The baseline is `36d0b657`'s main run
+  (#573's merge, a `proxy/` main push, finished at 34 = 32/2).
+
+**When:** after the PKD set (stage 1a, through PKD-5, about 20:48Z) has read and been reported, and after this
+merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `cref` Worker and the proxy untouched.
+
+**Does `expire-1d` reach `wx/<product>/map/`? Yes.**
+- `wrangler r2 bucket lifecycle list blipscope-wx` (read 2026-11-06 ~20:03Z) shows two rules. `expire-1d`:
+  enabled, **prefix "(all prefixes)"**, "Expire objects after 1 days". The default multipart abort rule (7 days).
+- So **each map object expires about a day after it is written,** and the next cold isolate rebuilds it and writes
+  it again. That is about one `built` and one PutObject a day for each product, plus any cold isolates that race
+  before the first put lands.
+
+| row | what | predicted |
+|---|---|---|
+| **MD-0** | before the deploy: the rollback target, and the map prefix | `wrangler deployments status`: **`b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%** (stage 1a). `r3_list.py wx/opuk/map/`: **0 objects** (0 at 20:04:22Z, re-read just before). The deploy runs from a clean detached checkout of `51757039`, top level |
+| **MD-1** | the version record | bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 |
+| **MD-2** | at the first firing + 10 min | `r3_list.py wx/opuk/map/`: **exactly 1 object of 17,716,016 B**. That is MP4's size: OPERA's geometry is fixed (K1; identical across all 24 survey frames), and `OPUK_GRID` is unchanged. At the same read, /healthz and LHR as PKD-3: `frameAgeS` <= 1,800, `coveredShare` in [0.70, 0.80]; ETag `opuk`, `X-Wx-Max-Age` 720, frame = `latest` |
+| **MD-3** | every storing check in the first 70 min (Logs, 900 s pieces, ABR 1) | **`pruneKeys` 900**; a **`map` field** of `built`, `r2` or `cache`; **no `mapRefused`**; **0 error lines**. **The first storing check after the deploy reads `built`**: a new version starts in new isolates, and the bucket holds no map. At least one `built` in all; the counts by `map` are printed |
+| **MD-4** | R3′-5b′'s rule at +70 min, twice, 10 min apart | <= 13 frames; none below the last storing start - 3,600 s except `latest`'s; the +300 s sabotage fails on the oldest |
+| **MD-5** | CPU over 2 h (900 s pieces, ABR 1) | single-build median in **[1,008, 2,580] ms**; max <= 5,000 ms; **0 `exceededCpu`**. **The split by `map` is printed, not graded:** n, median and max for `built`, `r2` and `cache`. That is M5's reading for `opuk` in production |
+| **MD-6** | the daily rebuild | printed at the 7-day cost re-read (about 2026-11-13): `built` lines a day from Logs |
+| escape | anything outside these rows | **roll `opuk` back to `b7626571` at once**, stop and report |
+
+- **The ~18:22Z amendment applies:** a sampled Logs read is re-read once over a narrower window; a second sampled
+  read is BLIND, which fails the row and triggers the rollback.
+- **Tools** on docs/wx-opuk-r3: `r3p.py` counts storing checks by `map` (`map_on`) and splits single-build CPU by
+  `map` (`de32c2ff`). `r3_list.py` prints non-frame objects' sizes (`b984a087`); its control lists `wx/opuk/` as 12
+  frames plus `latest` at 212 B.
+
+**The record.** Main CI on `51757039` read **34 = 32 success, 2 skipped, 0 failed**, as predicted (20:15:56Z and
+20:16:02Z). The PKD set was reported at about 20:48Z. Started at about 21:25Z, on Daniel's "resume".
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml --env=""` from `wt-1cd`, detached at
+  `51757039`, clean. Start 21:24:59.173Z, **end 21:25:06.701Z (T), exit 0**, stderr empty.
+  - Main had moved on to `b5c9c6e9f976` by then. The registered commit was deployed, not main's head.
+  - **Version `a55d1557-f8df-48d5-9df4-c00112276eac`.**
+
+| row | got | verdict |
+|---|---|---|
+| **MD-0** (21:24:36-21:24:40Z) | `b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%; `wx/opuk/map/` **0 objects** | as predicted |
+| **MD-1** (`versions view --json`) | `a55d1557`: bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 | as predicted |
+| **first firing** | scheduledTime **21:25:14Z**, 8.9 s after T | printed |
+| **MD-2** (first firing + 10 min, 21:35:19Z) | `wx/opuk/map/`: **1 object, 17,716,016 B**. `wx.opuk` `frameAgeS` **320**, `coveredShare` **0.7508**. LHR, on `/wx/cref` and `/wx/opuk`: ETag **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` 1794000600 (21:30:00Z), the frame `/healthz` names at 21:35:26Z (326 s). Controls: Bend and KMCI `cref`, no max-age | as predicted |
+| early look at MD-3 (T to 21:34:14Z, read 21:35:26Z, 900 s pieces, ABR [1]) | 18 `opuk` lines. The **first storing check, 21:29:32Z: `stored`, `map` `built`, `pruneKeys` 900**, no `pruned`, no `mapRefused`; already-stored 17; **0 error lines** | as MD-3 predicts; MD-3 itself is read at T+72 min |
+| **MD-4 read 1** (listed 22:35:10Z, ABR [1]) | **12 frames**, 21:35:00Z to 22:30:00Z; `latest` 22:30:00Z. Last pruner 22:34:15.726Z, `stored`, `pruneKeys` 900. Cut 21:34:15Z: **0 below**. +300 s sabotage (cut 21:39:15Z): **fails on the oldest**, 21:35:00Z. Margin 44.3 s. Blind: none | **PASS** |
+| **MD-4 read 2** (listed 22:45:06Z, ABR [1]) | **12 frames**, 21:45:00Z to 22:40:00Z; `latest` 22:40:00Z. Last pruner 22:44:15.399Z, `stored`, `pruneKeys` 900. Cut 21:44:15Z: **0 below**. +300 s sabotage (cut 21:49:15Z): **fails on the oldest**, 21:45:00Z. Margin 44.6 s. Blind: none | **PASS** |
+| **MD-3** (T to T+70 min, 21:25:06Z to 22:35:06Z, read 22:47:38Z, 900 s pieces, **ABR [1]**) | 140 `opuk` lines. **14 storing checks**, each `stored` with **`pruneKeys` 900**, no `pruned`, **no `mapRefused`**. First: 21:29:32Z, `built`. **By `map`: `built` 1, `r2` 13, `cache` 0.** Already-stored 126. **0 error lines** | as predicted |
+
+**What MD-3's split says: `cache` 0.**
+- Not one of the 14 builds found its map in the isolate. They all ran cold, so before stage 1c every build was
+  rebuilding the map. K11's split (map 0.55-0.59 s, frame 0.25-0.41 s in Node) was the whole cost on every build.
+- **The alternative,** that isolates do persist and something else clears the cache, is not excluded by this read.
+  The only thing that clears it is `clearMapCache`, which is test-only, so a new isolate is the reading it fits.
+  Either way the count is the count: 0 of 14 reused a map.
+
+**Raised before MD-5 is read, about 22:50Z: MD-5's band can fail in the good direction.**
+- MD-5's median band is [1,008, 2,580] ms, taken from PKD-6's row. §3 of this doc says CPU "could fall by about
+  half" if builds are cold, and half of PKD-6's 1,676 ms is about 840 ms, under the band's floor.
+- As registered, that is off, and off rolls `opuk` back to `b7626571`: the row would undo a working saving. The band
+  was copied from a change that did not touch CPU, and it should not have been carried to one meant to.
+- **MD-5 has not been read,** and the row is not changed here. It needs a ruling before about 23:30Z. Without one,
+  it stands as registered.
+
+**The ruling, 2026-11-06 ~22:54Z, verbatim:**
+
+> For: the UK data session, from the reviewer chat, 2026-11-06 ~22:54Z
+>
+> MD-5: re-registered as you propose, before the read.
+> - Rollback band: median [300, 2,580] ms, with max <= 5,000 ms and 0 exceededCpu unchanged. Outside the band is off, and off rolls opuk back to b7626571 at once, as registered.
+> - The prediction, graded on its own: a median of 490-810 ms, from your own basis (K11's 0.25-0.41 s x 1.97). A median inside the band but outside that range is off-prediction: report it; opuk stays up, with no rollback.
+> - [1,008, 2,580] stays in the record as your miss: a band copied from a change that wasn't meant to touch CPU onto one that was.
+> - This holds only if MD-5's CPU is still unread when it arrives. If anything was read first, the row stands as registered.
+
+**The condition holds: MD-5's CPU was unread when the ruling arrived.**
+- No CPU read has run since the 1c deploy. The last was the 18:40-19:40Z control, on stage 1a's version.
+- The driver reaches MD-5 at about 23:30:06Z, and at the check below it had not: `md5.json` did not exist and the
+  log held no MD-5 line.
+
+**MD-5, as re-registered:**
+| | |
+|---|---|
+| **rollback band** | median in **[300, 2,580] ms**; max <= 5,000 ms; 0 `exceededCpu`. Outside it is off, and rolls `opuk` back to `b7626571` at once |
+| **prediction, graded on its own** | median **490-810 ms**. Inside the band but outside this range is off-prediction: reported, with no rollback |
+| **the miss, kept** | [1,008, 2,580]: a band copied from a change not meant to touch CPU onto one that was |
+
+**MD-5, read 23:30:07Z (21:25:06Z to 23:25:06Z, 900 s pieces, ABR [1]): OFF, under the band's floor.**
+
+| | got | against |
+|---|---|---|
+| records | 120, **all `ok`, 0 `exceededCpu`** | as predicted |
+| **single-build median** | **264.5 ms** (n 24) | **under the band's 300 ms: OFF.** Under the prediction's 490-810 ms too |
+| single-build max | 1,873 ms (the one `built`) | <= 5,000 ms: as predicted |
+| split by `map` (printed) | **`built`:** n 1, 1,873 ms. **`r2`:** n 23, median **261 ms**, max 473 ms. **`cache`:** none | M5's reading for `opuk` |
+| the rest | n 96, median 10 ms, max 22 | |
+| p99 of all | 473 ms | |
+
+**Rolled back as ruled, at once:** `wrangler rollback b7626571-... -c wx-ingest-opuk.wrangler.toml --env="" -m ... -y`,
+23:30:37.756Z to 23:30:41.721Z, exit 0, stderr empty. `deployments status` read back: **`b7626571` at 100%.**
+`/healthz` at 23:31:10Z: `opuk` `frameAgeS` 371, `coveredShare` 0.7508; 12 frames listed.
+
+**The floor was there to catch a build that had stopped doing its work. That is not what it caught:**
+- **Stored frames are unchanged.** Over 19:00-20:00Z (old map path) and 22:00-23:00Z (`r2`), both at ABR [1] with 12
+  stored frames each: **`bytes` 1,179,712 on all 24**, and `coveredShare` from 0.750769 to 0.750773 against 0.75077
+  to 0.750773. `coveredShare` is computed through the map, so a wrong map would move it.
+- **MP2** showed the frame through `r2` byte-identical to `built` on the real fixture.
+- **MD-2 and MD-4** showed frames landing and being served.
+- **Wall time per check fell with it:** a median of about 12.1 s to 8.5 s.
+
+**Why the prediction missed: my basis was wrong, in the same direction as the band.**
+- 490-810 ms was K11's Node frame cost (0.25-0.41 s) x 1.97, the factor from PKD-6's 1,676 ms against K11's 0.85 s.
+  That applied one factor to both the frame and the map.
+- The Worker reads otherwise: **`built` 1,873 ms, `r2` 261 ms.** The frame costs about what K11 measured in Node, and
+  nearly all of the excess was the map, about 1.6 s.
+- So the map was **about 86% of a build,** and 1c removes it. The floor of 300 ms, which I proposed, sat above the
+  real cost.
+
+**State:** `opuk` runs `b7626571` (stage 1a). The map object stays in `wx/opuk/map/`; nothing reads it now, and
+`expire-1d` removes it. Stage 1c's code remains in main, unused in production until a ruling.
+
+**After the rollback** (23:30:42Z to 23:41:30Z, read 23:42:07Z, 900 s pieces, ABR [1]): storing checks at 23:34:29Z and
+23:39:23Z, each `stored` with `pruneKeys` 900 and **no `map` field**, so stage 1a's code is what runs. Already-stored 20,
+**0 error lines**. `/healthz`: `frameAgeS` 428, `coveredShare` 0.7508.
+
+## 7. The redeploy of stage 1c (rows frozen before it)
+
+**The ruling, 2026-11-07 ~01:06Z, verbatim:**
+
+> For: the UK data session, from the reviewer chat, 2026-11-07 ~01:06Z
+>
+> MD-5: the rollback was right by the row, and the row was wrong. The 300 ms floor I approved came from the same basis as your prediction (one factor for both frame and map), so the miss is mine as well as yours. 264.5 ms with identical frames is 1c working.
+>
+> The 1c redeploy: yes, on rows frozen before it:
+> - The rollback target recorded first (b7626571 at 100%). The deploy comes from a clean checkout of main, naming the Worker-input diff since 51757039 (#579's caught put, #586's windowFor with no overrun), each predicted to change nothing a read can see.
+> - CPU from the Worker's own reading (r2: median 261 ms, n 23, max 473; built 1,873): an upper bound only, with no floor. Max <= 5,000 ms and 0 exceededCpu, as before.
+> - The floor's job moves to the frames: each stored frame's bytes equal stage 1a's, and its coveredShare stays within a tolerance of 1a's recorded range that you state with its reason. MD-2 and MD-4 as before. Off rolls back at once.
+>
+> The M slot: yes. One deployer at a time across sessions, with start and end announced. Keep each dev env's run bounded, as ruled for #586.
+
+**The checkout:** a clean detached checkout of main at `0867145c4861` (`wt-rd`), whose CI finished at 34 = 31 success,
+3 skipped, 0 failed.
+
+**The Worker-input diff since `51757039`.** The opuk Worker's bundle has 9 inputs, read from wrangler's own metafile:
+`grid`, `ingest-opuk-worker`, `ingest-worker`, `ingest`, `laea`, `mrms`, `opera`, `products` and `resample` under
+`proxy/src/wx/`, with no npm package. Since `51757039` only three of them changed, and only two commits touched them:
+
+| commit | what reached the Worker | predicted to show |
+|---|---|---|
+| `b49b20a6` (#579) | `ingest.ts`: a `try` around the map put | **nothing:** it acts only when a put throws, and with the map object in place no put is made |
+| `a19a0b6b` (#586) | `opera.ts`: `windowFor` with a stated overrun. `ingest.ts`: passes `p.overrunPx`. `products.ts`: an optional field | **nothing:** `opuk` states none, so `windowFor` refuses and returns exactly what it did |
+
+**The floor's job moves to the frames.** A frame's byte length is fixed by its tile layout, so a hollow frame has the
+right length. The check that can fail compares content: `frames_get.py` copies each stored frame, and `frame_same.mts`
+rebuilds it from the same OPERA source through `buildMap`, with no R2, and compares every byte.
+- **Proved before it grades:** on stage 1a's 12 frames in the bucket at 02:38Z (01:35Z to 02:30Z), **12 of 12
+  byte-identical.** With `--flip` (one nibble of each local build), **12 of 12 differ,** at byte 1064.
+
+**`coveredShare`'s tolerance: stage 1a's recorded range, +/- 0.01, so [0.7407645, 0.7607740].**
+- **The range:** 70 stored frames over both of 1a's spells (18:37:31Z to 21:25Z, 23:30:42Z to 02:30Z, ABR [1]):
+  0.7507645 to 0.7507740, a spread of 0.0000095. All 70 at 1,179,712 B.
+- **Why 0.01:** it is about 1,000 times that spread, so ordinary flicker cannot trip it, and a hollow frame (0 or 1)
+  or a map that loses a large part of the window plainly would. It is the guard on every frame; the byte compare is
+  what sees a small error.
+- **What it will wrongly catch:** a real change in the radar network that moves the share by a percentage point reads
+  off here and rolls back. That is cheap, and it is stated.
+
+| row | what | predicted |
+|---|---|---|
+| **RD-0** | before the deploy | `wrangler deployments status`: **`b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%**, the rollback target. `wx/opuk/map/`: **1 object of 17,716,016 B**, written about 21:29Z on 11-06, so `expire-1d` leaves it through this read |
+| **RD-1** | the version record | bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 |
+| **RD-2** (MD-2) | at the first firing + 10 min | still **exactly 1 object of 17,716,016 B**. /healthz and LHR as PKD-3: `frameAgeS` <= 1,800, `coveredShare` in the tolerance; ETag `opuk`, `X-Wx-Max-Age` 720, frame = `latest` |
+| **RD-3** | every storing check in the first 70 min (Logs, 900 s pieces, ABR 1) | `pruneKeys` 900; **`map` `r2` or `cache`; `built` 0,** because the geometry key is unchanged and the object is in place; no `mapRefused`; no `mapPutErrors`; 0 error lines |
+| **RD-4** (MD-4) | R3′-5b′'s rule at +70 min, twice, 10 min apart | <= 13 frames; none below the last storing start - 3,600 s except `latest`'s; the +300 s sabotage fails on the oldest |
+| **RD-5** | CPU over 2 h (900 s pieces, ABR 1) | **an upper bound only, with no floor:** single-build median **<= 420 ms** (the Worker's `r2` median, 261 ms, x 1.6, rounded up); **max <= 5,000 ms; 0 `exceededCpu`** |
+| **RD-6a** | every frame in the bucket at T+70 min (12, all stored after T) | **12 of 12 byte-identical** to a fresh local build (`frame_same.mts`); 0 unread |
+| **RD-6b** | every storing line over the 2 h | `bytes` **1,179,712**; `coveredShare` in **[0.7407645, 0.7607740]** |
+| escape | anything outside these rows | **roll `opuk` back to `b7626571` at once** (`md_rollback.sh`), stop and report |
+
+- **The ~18:22Z amendment applies:** a sampled Logs read is re-read once narrower; a second sampled read is BLIND, which
+  fails the row and triggers the rollback.
+- **Tools** at `2decfc07` on docs/wx-opuk-r3.
+
+**The record.** RD-0 read as predicted at 02:39:59-02:40:02Z: `b7626571` at 100%, created 23:30:40Z; 1 map object of
+17,716,016 B. Main had moved to `fa660869a026`, and no commit since the checkout touches the Worker's inputs.
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml --env=""` from `wt-rd`, detached at `0867145c4861`,
+  clean. Start 02:40:54.866Z, **end 02:40:59.356Z (T), exit 0**, stderr empty.
+  **Version `4da941e4-145c-4120-a097-8b56852b29a9`.**
+- **RD-1** (`versions view --json`): bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000. **As predicted.**
+- **First firing:** scheduledTime 02:41:14Z, 15.9 s after T.
+
+**A correction to how this redeploy ran.** It went ahead on the ~01:06Z ruling without the deployer lock being confirmed.
+S2's staging slot ran until 03:03Z, so this deploy (02:40:57Z) and two dev deploys (about 02:42Z and 02:53:38Z) landed
+inside it. The reviewer's go came at ~03:23Z, after them. The miss is mine, and whether it touched S2's reading is for
+S2's session to say. No second deploy was made.
+
+| row | got | verdict |
+|---|---|---|
+| **RD-2** (first firing + 10 min, 02:51:17Z) | `wx/opuk/map/`: **1 object, 17,716,016 B**. `wx.opuk` `frameAgeS` **679**, `coveredShare` **0.75077**. LHR: ETag **`opuk`**, `X-Wx-Max-Age` **720**, frame 1794019200, which is `latest`. Controls: Bend and KMCI `cref`, no max-age | as predicted |
+| **RD-3** (T to T+70 min, read 04:03:32Z, 900 s pieces, **ABR [1]**) | 140 `opuk` lines. **14 storing checks**, each `stored`, `pruneKeys` 900, no `pruned`. **By `map`: `r2` 14, `built` 0, `cache` 0. `mapPutErrors` 0**, no `mapRefused`, **0 error lines** | as predicted |
+| **RD-4 read 1** (listed 03:50:59Z, ABR [1]) | **12 frames**, 02:50:00Z to 03:45:00Z. Last pruner 03:49:44.872Z, `pruneKeys` 900. Cut 02:49:44Z: **0 below**. +300 s sabotage: **fails on the oldest**, 02:50:00Z. Margin 15.1 s | **PASS** |
+| **RD-4 read 2** (listed 04:01:01Z, ABR [1]) | **12 frames**, 03:00:00Z to 03:55:00Z. Last pruner 03:59:15.984Z, `pruneKeys` 900. Cut 02:59:15Z: **0 below**. +300 s sabotage: **fails on the oldest**, 03:00:00Z. Margin 44.0 s | **PASS** |
+| **RD-6a** (03:53:30Z) | every frame in the bucket, **12, 02:50:00Z to 03:45:00Z, all stored after T: 12 of 12 byte-identical** to a fresh local build; 0 unread | as predicted |
+
+- **RD-2's `frameAgeS` of 679 was high against the usual 280-500 s,** though inside its 1,800 s bound. It was timing: the
+  frame then in hand was 02:40:00Z, the next storing checks landed, and it was 331 s by 02:55:30Z. It is also within the
+  device's 720 s limit, narrowly.
+- **`cache` 0 of 14 again:** every production build runs cold, now in two separate reads. That is why the map was the
+  bulk of a build.
+
+| row | got | verdict |
+|---|---|---|
+| **RD-5** (T to T+2 h, 02:40:59Z to 04:40:59Z, read 04:45:59Z, 900 s pieces, **ABR [1]**) | 120 records, **all `ok`, 0 `exceededCpu`**. Single builds: n 24, **median 240.5 ms, max 537 ms**, all `r2`. The rest: n 96, median 9 ms, max 20. p99 533 ms | as predicted (median <= 420 ms; max <= 5,000 ms) |
+| **RD-6b** (the same 2 h, read 04:46:05Z, ABR [1]) | 24 stored lines: **`bytes` 1,179,712 on all**; `coveredShare` **0.7507641 to 0.7507727** | as predicted (in [0.7407645, 0.7607740]) |
+
+**Stage 1c's redeploy is complete: every row read as predicted.** Ended 04:46:10Z.
+- `opuk` runs **`4da941e4`**: prune by key and the map from R2.
+- **CPU per build, stage 1a to 1c:** a median of 1,676 ms to **240.5 ms**, and a max of 4,496 ms to 537 ms.
+- MD-6 stays open: the 7-day cost re-read, about 2026-11-13, prints `built` lines a day.
+- No Logs read was sampled, so the amendment's re-read was never used. No rollback was needed.
+
+## The record goes to main (2026-11-07)
+
+**The ruling, ~15:55Z, verbatim:**
+
+> For: the UK data session, from the reviewer chat, 2026-11-07 ~15:55Z
+>
+> The 1c redeploy, read from your record at 7f4c332: complete, every row as predicted. CPU per build went from a median of 1,676 ms to 240.5 ms, the frames are byte-identical, and opuk runs 4da941e4. MD-6's 7-day re-read stays open, due about 2026-11-13.
+> The deployer lock: your miss, on record. Your deploys at 02:40:57Z (opuk) and about 02:42Z and 02:53:38Z (dev) landed inside S2's staging slot. From now on, a deploy starts only after the lock is confirmed free in chat, even with a ruling in hand.
+> Records: docs/wx-opera-map-r2-deploy and docs/wx-opuk-r3 go to main as their own PRs, each with CI predicted before its push.
+> Your four items never reached the reviewer chat. Send them again, through Daniel.
+
+**This PR's CI, predicted before its push: 32 = 29 success, 3 skipped, 0 failed.** It touches `docs/wx-opera-map-r2.md` alone.
+- **Baseline:** #593's finished PR run on `49d794d96226` (docs-only), started 2026-11-07T03:05:54Z: 32 = 29/3.
+- **Last job-set change:** `caf63cc9` (#445, the `blipscope-s3-128-wxlook` leg); the baseline postdates it.
+- **Last workflow change:** `c46af84f` (#594, three `run` steps in `device-ids.yml`). It adds steps, not jobs, and it
+  landed after the baseline, so the count holds.
+- **Those steps' guard was run on this branch merged onto main at `3835c043880c`:** `check_macs.py`,
+  `check_device_ids.py`, `check_wifi.py` and `check_binary_strings.py` all pass.

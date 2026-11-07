@@ -1,8 +1,9 @@
 // Weatherscope 3.5c's swipe screens (src/weatherscope/WxSwipe.h) against the truth tables frozen in
 // docs/weatherscope-stage3.md A12.144: N the page model, H the headline, B, Y and X the strip, W the week, C the
-// conditions, A the alerts, D the dots, L the layout check, and K the 10 screens through the device's own path against
+// conditions, A the alerts, D the dots, L the layout check, and K the 12 screens through the device's own path against
 // tools/weatherscope/screens/ref35c.py (test/fixtures/wx/nws/k35c.ref.txt) at 57,600 of 57,600 pixels. A12.155 adds H18,
-// C26 and W7, a period already over (Q110). 136 checks.
+// C26 and W7, a period already over (Q110). A12.167 adds the night case, L and K over dallas-night.json: wx_nws_night.h
+// is generated, and only this suite reads it. 140 checks.
 //
 //     test_wx_swipe <k35c.ref.txt>
 //
@@ -21,6 +22,7 @@
 
 #include "WxForecastData.h"
 #include "WxSwipe.h"
+#include "wx_nws_night.h"
 
 namespace {
 
@@ -647,6 +649,11 @@ void Build(const std::string& kind, const wxtheme::Theme& th, Frame& fr, Canvas&
         ComposeForecast(c, f);
     } else if (kind == "conditions-day") {
         ComposeConditions(c, wxnws::DayObservation(), f);
+    } else if (kind == "conditions-night") {
+        f.issuedUtc = wxnight::kCapturedUtc;
+        f.periods = wxnight::kPeriods;
+        f.nPeriods = sizeof wxnight::kPeriods / sizeof wxnight::kPeriods[0];
+        ComposeConditions(c, wxnight::NightObservation(), f);
     } else if (kind == "alerts-SYNTHETIC") {
         wx::AlertList l;
         l.items = wxnws::SyntheticAlerts(&l.count);
@@ -701,19 +708,19 @@ bool DotsAre(const Frame& fr, const wxtheme::Theme& th, int page)
 
 void Screens(const std::map<std::string, std::string>& ref)
 {
-    static const char* const kKinds[5] = {"forecast-capture", "forecast-SYNTHETIC-RAIN", "conditions-day", "alerts-SYNTHETIC",
-                                          "alerts-capture"};
-    const int gaps[5] = {3, 3, 4, 3, 100};
-    const int dotPage[5] = {1, 1, 2, 3, 3};
+    static const char* const kKinds[6] = {"forecast-capture", "forecast-SYNTHETIC-RAIN", "conditions-day", "alerts-SYNTHETIC",
+                                          "alerts-capture", "conditions-night"};
+    const int gaps[6] = {3, 3, 4, 3, 100, 4};
+    const int dotPage[6] = {1, 1, 2, 3, 3, 2};
     for (int t = 0; t < 2; ++t) {
         const wxtheme::Theme& th = t ? wxtheme::kLight : wxtheme::kDark;
         const std::string theme = t ? "light" : "dark";
-        for (int k = 0; k < 5; ++k) {
+        for (int k = 0; k < 6; ++k) {
             const std::string name = std::string(kKinds[k]) + "-" + theme;
             Frame fr(th.bg);
             Canvas c(fr, th);
             Build(kKinds[k], th, fr, c);
-            if (t == 0 && k != 1 && k != 4) {
+            if (t == 0 && k != 1 && k != 4 && k != 5) {
                 const char* id = k == 0 ? "D1" : k == 2 ? "D2" : "D3";
                 check(id, DotsAre(fr, th, dotPage[k]), name + ": 61 dot pixels");
             }
@@ -749,8 +756,8 @@ int main(int argc, char** argv)
         row >> tag >> name >> hash;
         if (tag == "ROW") ref[name] = hash;
     }
-    if (ref.size() != 10) {
-        std::printf("k35c.ref.txt holds %d rows, want 10 (the RIG)\n", (int)ref.size());
+    if (ref.size() != 12) {
+        std::printf("k35c.ref.txt holds %d rows, want 12 (the RIG)\n", (int)ref.size());
         return 2;
     }
     TableN();

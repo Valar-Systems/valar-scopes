@@ -2259,7 +2259,7 @@ fi
 note_block $? "WxK35"
 
 # Weatherscope 3.5c's swipe screens (src/weatherscope/WxSwipe.h) against the truth tables frozen in
-# docs/weatherscope-stage3.md A12.144, and the 10 screens through the device's path against ref35c.py (the K rows). The
+# docs/weatherscope-stage3.md A12.144, and the 12 screens through the device's path against ref35c.py (the K rows). The
 # stored header is held to its record, and the reference to its file and to S-L, here, so neither goes stale quietly.
 # Its sabotages: python -I test/host/sabotage_wx_swipe.py
 echo

@@ -67,12 +67,24 @@ export function parseQuery(url: URL): Parsed {
 export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, q.epsMm, q.mask, q.levels.map((l) => `${l.radiusMm}:${l.n}`).join(";")].join("|");
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-/** 24 hex digits of the normalised query's sha256 (never 16: the repo's device-id hook). No coordinate appears in it. */
-export const queryDigest = async (q: Query) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(queryKey(q)))).slice(0, 24);
+/** K1 (docs/basemap-name-key.md): the secret as given when it is 32 bytes as 64 lowercase hex. Anything else is no key and
+ *  fails closed (NK5), so a truncated paste or a trailing newline cannot key a name. */
+export const nameKeyOf = (raw: string | undefined) => (raw !== undefined && /^[0-9a-f]{64}$/.test(raw) ? raw : undefined);
+
+/** 24 hex digits of the normalised query's digest (never 16: the repo's device-id hook). No coordinate appears in it. With
+ *  a name key it is an HMAC, because the input is small enough to enumerate and a stored name must give nothing to someone
+ *  who can list the bucket (K1). With none it is the plain sha256, on the path that stores nothing (NK4). */
+export async function queryDigest(q: Query, nameKey?: string): Promise<string> {
+  const text = new TextEncoder().encode(queryKey(q));
+  if (!nameKey) return hex(await crypto.subtle.digest("SHA-256", text)).slice(0, 24);
+  const raw = Uint8Array.from(nameKey.match(/../g)!, (b) => parseInt(b, 16));
+  const key = await crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return hex(await crypto.subtle.sign("HMAC", key, text)).slice(0, 24);
+}
 
 /** §3: the ETag from the INPUTS, so a revalidation needs no build: "bm1-<rev>-<storeId>-<digest>". */
-export async function etagOf(q: Query, rev: number, storeId: string): Promise<string> {
+export async function etagOf(q: Query, rev: number, storeId: string, nameKey?: string): Promise<string> {
   if (!Number.isInteger(rev) || rev < 0) throw new Error("rev is not a whole number");
   if (!/^[0-9a-f]{12}$/.test(storeId)) throw new Error("store id is not 12 hex");
-  return `"bm1-${rev}-${storeId}-${await queryDigest(q)}"`;
+  return `"bm1-${rev}-${storeId}-${await queryDigest(q, nameKey)}"`;
 }
