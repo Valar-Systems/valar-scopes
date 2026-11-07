@@ -1,0 +1,2 @@
+checks ok: table matches (6 entries), board boots ota_0, image 1882000 B fits ota_0 @ 0x20000 (6553600 B). Writing ota_0 only.
+write attempt 1: rc 0, verified; Wrote 1882000 bytes (1169337 compressed) at 0x00020000 in 16.4 seconds (918.1 kbit/s).

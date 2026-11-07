@@ -1,0 +1,21 @@
+#HOST send b'r'
+B0 stored run: AS PREDICTED -- S=0 (predicted 0); run=0, device t=29039 ms
+#HOST fb boot1-control 0: 115200 B, strip absent
+#HOST fb boot1-control 1: 115200 B, strip absent
+#HOST fb boot1-control 2: 115200 B, strip absent
+B4c CONTROL: AS PREDICTED -- the strip in 0 of 3 boot-1 frames (predicted 0)
+#HOST send b'P'
+#HOST send b'L'
+B1 idle rule: AS PREDICTED -- recommend at T0+109.6 s (before L: True); reboot while held: False; reboot 1 at L+20.07 s (predicted 20.0-21.0)
+B2 write+stamp 1: AS PREDICTED -- run 0 -> 1 seen, restarting seen
+B2 reboot 2: AS PREDICTED -- boot line seen; reboot 2 at recommend+0.00 s (predicted <= 1.0)
+B2 write+stamp 2: AS PREDICTED -- run 1 -> 2 seen, restarting seen
+B2 reboot 3: AS PREDICTED -- boot line seen; reboot 3 at recommend+0.00 s (predicted <= 1.0)
+B2 write+stamp 3: AS PREDICTED -- run 2 -> 3 seen, restarting seen
+#HOST fb boot4 0: 115200 B, strip light
+#HOST fb boot4 1: 115200 B, strip light
+#HOST fb boot4 2: 115200 B, strip light
+B4 the strip on glass: AS PREDICTED -- the strip in 3 of 3 boot-4 frames (light, light, light; predicted >= 2)
+B3 the cap holds: AS PREDICTED -- recommend seen; cap lines after the boot line 0 (predicted 0); restarts 0 (predicted 0) in 360 s
+chain exit=0
+19:28:06Z

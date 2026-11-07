@@ -3,7 +3,7 @@
 # from its dry-run output and fails on any other binding (PB2).
 #
 # One env per phase; every env names the SAME Worker, so a phase is a redeploy, never a second Worker:
-#   npx wrangler deploy -c wx-ingest-dev.wrangler.toml -e <off|idle|plantcal|plant|cref|opuk>
+#   npx wrangler deploy -c wx-ingest-dev.wrangler.toml -e <off|idle|plantcal|plant|cref|opuk|opwe|opsn|opux|opmt>
 # The top level is `off` too, so a deploy without -e is inert. Bindings and vars do not inherit, so each env
 # repeats them; triggers and limits are repeated too, so no phase depends on inheritance rules.
 # Deleting this Worker, and the bucket, is Daniel's call.
@@ -127,5 +127,73 @@ head_sampling_rate = 1
 [env.opuk.vars]
 MODE = "opuk"
 [[env.opuk.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# M: the plan's west product (docs/wx-opera-dev-measure.md).
+[env.opwe]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.opwe.triggers]
+crons = ["* * * * *"]
+[env.opwe.limits]
+cpu_ms = 30000
+[env.opwe.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opwe.vars]
+MODE = "opwe"
+[[env.opwe.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# M: scandin.
+[env.opsn]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.opsn.triggers]
+crons = ["* * * * *"]
+[env.opsn.limits]
+cpu_ms = 30000
+[env.opsn.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opsn.vars]
+MODE = "opsn"
+[[env.opsn.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# M: the isles, `opuk` grown.
+[env.opux]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.opux.triggers]
+crons = ["* * * * *"]
+[env.opux.limits]
+cpu_ms = 30000
+[env.opux.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opux.vars]
+MODE = "opux"
+[[env.opux.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx-dev"
+
+# M: malta.
+[env.opmt]
+name = "blipscope-wx-ingest-dev"
+workers_dev = false
+[env.opmt.triggers]
+crons = ["* * * * *"]
+[env.opmt.limits]
+cpu_ms = 30000
+[env.opmt.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opmt.vars]
+MODE = "opmt"
+[[env.opmt.r2_buckets]]
 binding = "WX"
 bucket_name = "blipscope-wx-dev"

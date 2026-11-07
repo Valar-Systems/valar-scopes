@@ -7,12 +7,15 @@
 //   plant       a synthetic busy loop of PLANT_ITER rounds -- the positive control for the CPU-limit instrument (S1, S2).
 //               It touches no bucket and no upstream.
 //   cref, opuk  production's checkAll for that one product (S3, S4).
+//   opwe, opsn, opux, opmt  the same for one row of DEV_PRODUCTS (M1-M6, docs/wx-opera-dev-measure.md).
 //   off         one line, nothing else (S0, S5; the toml also gives it no cron).
 //   anything else  one error line, nothing else -- never a silent fall-back to a real check.
 
 import { type Fetch, type IngestOpts, DEFAULT_OPTS } from "./ingest";
 import { type IngestEnv, checkAll } from "./ingest-worker";
-import { PRODUCTS } from "./products";
+import type { GridGeom } from "./grid";
+import type { OverrunPx } from "./opera";
+import { PRODUCTS, type Product } from "./products";
 
 export interface DevEnv extends IngestEnv { MODE?: string }
 
@@ -38,6 +41,18 @@ export function plant(iter: number): number {
   return x;
 }
 
+/** The M stage's products (docs/wx-opera-dev-measure.md): `opuk`'s row but for its id and grid, here so production
+ *  can never reach them. `opux` is `opuk` grown to the isles, under its own id so it cannot shadow production's row. */
+const { landBox: _landBox, ...opuk } = PRODUCTS.find((q) => q.id === "opuk")!;
+const devRow = (id: string, g: Omit<GridGeom, "di" | "dj">, overrunPx?: OverrunPx): Product =>
+  ({ ...opuk, id, grid: { ...g, di: 0.01, dj: 0.01 }, ...(overrunPx ? { overrunPx } : {}) });
+export const DEV_PRODUCTS: readonly Product[] = [
+  devRow("opwe", { la1: 55.72, lo1: -7.15, ni: 1968, nj: 1638 }),
+  devRow("opsn", { la1: 73.19, lo1: 5.16, ni: 2832, nj: 1222 }, { n: 54 }),
+  devRow("opux", { la1: 62.92, lo1: -15.71, ni: 1954, nj: 1585 }),
+  devRow("opmt", { la1: 38.1, lo1: 12.16, ni: 444, nj: 433 }, { s: 43 }),
+];
+
 /** One check of the dev copy, by MODE. doFetch, log, opts and iter are injectable for the tests. */
 export async function devCheck(env: DevEnv, label: string, doFetch?: Fetch,
                                log: (line: string) => void = (l) => console.log(l),
@@ -47,7 +62,7 @@ export async function devCheck(env: DevEnv, label: string, doFetch?: Fetch,
     log(JSON.stringify({ evt: PLANT_MARKER, check: label, iter, result: plant(iter) }));
     return;
   }
-  const p = PRODUCTS.find((q) => q.id === mode);
+  const p = PRODUCTS.find((q) => q.id === mode) ?? DEV_PRODUCTS.find((q) => q.id === mode);
   if (p) {
     await checkAll(env, label, doFetch, log, opts, [p]);
     return;
