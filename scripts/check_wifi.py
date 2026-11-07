@@ -53,7 +53,7 @@ BINARY_EXT = {"jpg", "jpeg", "png", "gif", "webp", "ico", "bmp", "pdf", "3mf", "
 def passes(value):
     v = value.strip()
     return bool(v == "" or re.fullmatch(r"<[^<>]*>", v) or re.fullmatch(r"%[-+ #0-9.*]*s", v)
-                or re.fullmatch(r"\$\{?\w+\}?|\{\w+\}", v) or re.fullmatch(r"[a-z]+scope-[0-9a-f]{6}", v, _I))
+                or re.fullmatch(r"\$\{?\w+\}?|\{\w+\}", v) or re.fullmatch(r"[a-z]+scope-(?:[0-9a-f]{6}|[0-9a-f]{4})", v, _I))
 
 
 def _value(m):
@@ -321,6 +321,11 @@ def selftest(precheck=True):
                     f"{ssid_eq}<ssid redacted>\n[WiFi] fast join: ch=1 bssid=<bssid redacted>\n"
                     f"CONNECTED IP=<lan-ip redacted> portal http://{PORTAL}/\n")
     expect("the placeholders pass", {"bench-logs/placeholders.log": placeholders.encode()}, [], 0, [])
+    # A device's own setup-AP name in its label form (scripts/check_macs.py refuses the six-digit form in a tracked file).
+    # (o) is (n)'s control: the same four digits after a name that is no product still fail, so the pass is not "any tail".
+    expect("(n) a four-digit label in an SSID context", {"bench-logs/plant-n.log": ("SS" + "ID: blipscope-e794\n").encode()}, [], 0, [])
+    expect("(o) an unknown name with a four-digit tail", {"bench-logs/plant-o.log": ("SS" + f"ID: {name}-e794\n").encode()},
+           [], 1, [("bench-logs/plant-o.log", "name")])
 
     # The allowlist, from a real entry: its path and its exact line, read here and never printed.
     rel, h, why = allow[0]

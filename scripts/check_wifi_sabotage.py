@@ -2,7 +2,7 @@
 
     python3 scripts/check_wifi_sabotage.py      exit 0 every sabotage as registered; 1 any off or instrument failure; 2 rig
 
-Code sabotages (S-W4N, S-W4B, S-W4L, S-W4P, S-W5G, S-W5J, S-W5K, S-W2PORTAL) are in-memory edits of
+Code sabotages (S-W4N, S-W4B, S-W4L, S-W4P, S-W4D, S-W5G, S-W5J, S-W5K, S-W2PORTAL) are in-memory edits of
 scripts/check_wifi.py's source, each asserted to apply exactly once and exec'd as its own module; the file on disk is
 hashed before and after. Each is read three ways: W3 (main on the real tree), full (the selftest as CI runs it) and
 rows (the selftest without its precheck). A crash is an INSTRUMENT FAILURE, never a red.
@@ -27,13 +27,14 @@ import wifi_scrub as S  # noqa: E402
 ROOT, SRC, BASE = C.ROOT, os.path.join(HERE, "check_wifi.py"), "892fe2b"
 S_W3_FILE = "bench-logs/bindctl-2026-08-07-2023.log"
 LABELS = ["(a)", "(b)", "(c)", "(d)", "(e)", "(f) one", "(f) counts", "the placeholders pass", "the real allowed line",
-          "(g)", "(h)", "(i)", "(j)", "(l)", "(m)", "(k)"]
+          "(g)", "(h)", "(i)", "(j)", "(l)", "(m)", "(k)", "(n)", "(o)"]
 EDITS = {
     "S-W4N": [("# check_bssid.py's pattern, unchanged",
                "NAME.pop(\"assoc\"); NAME.pop(\"ssid_eq\")\n# check_bssid.py's pattern, unchanged")],
     "S-W4B": [('BSSID = re.compile(r"\\b(bssid|bss)', 'BSSID = re.compile(r"(?!)\\b(bssid|bss)')],
     "S-W4L": [('PRIVATE = re.compile(r"(?<![\\d.])(10\\.', 'PRIVATE = re.compile(r"(?!)(?<![\\d.])(10\\.')],
     "S-W4P": [('return bool(v == "" or re.fullmatch(r"<[^<>]*>", v) or ', 'return bool(v == "" or ')],
+    "S-W4D": [("(?:[0-9a-f]{6}|[0-9a-f]{4})", "[0-9a-f]{6}")],
     "S-W5G": [("            key = (rel, line_hash(line))\n",
                "            key = next((k for k in entries if k[1] == line_hash(line)), (rel, line_hash(line)))\n")],
     "S-W5J": [("            else:\n                unreadable.append(rel)\n            continue\n        except OSError:",
@@ -49,6 +50,7 @@ PRED = {
     "S-W4L": (1, 2, {"(f) one", "(f) counts", "the real allowed line", "(g)", "(h)", "(l)", "(m)"}),
     "S-WPATH": (0, 1, {"(m)"}),
     "S-W4P": (1, 2, {"the placeholders pass"}),
+    "S-W4D": (1, 2, {"(n)"}),
     "S-W5G": (0, 1, {"(g)"}),
     "S-W5J": (0, 1, {"(j)"}),
     "S-W5K": (0, 1, {"(k)"}),
