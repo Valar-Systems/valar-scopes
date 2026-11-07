@@ -9,6 +9,9 @@ import {
   type RequestMetric,
 } from "../src/metrics";
 import type { Env } from "../src/types";
+import { PRODUCTS } from "../src/wx/products";
+import cloudFeed from "../../src/CloudFeed.cpp?raw";
+import aircraftManager from "../../src/AircraftManager.cpp?raw";
 
 function envWithSpy() {
   const writeDataPoint = vi.fn();
@@ -249,6 +252,23 @@ describe("routeTemplate", () => {
     ]) {
       expect(routeTemplate(p)).toBe(p);
     }
+  });
+
+  it("KR1 labels the /wx path the firmware actually asks for, read from the firmware", () => {
+    const api = cloudFeed.match(/#define BLIPSCOPE_API "([^"]+)"/)?.[1];
+    const products = [...aircraftManager.matchAll(/WeatherUrl\([^,]+,\s*"([^"]+)"\)/g)].map((m) => m[1]);
+    expect(api).toBeTruthy();
+    expect(products.length).toBeGreaterThan(0);
+    for (const p of products) expect(routeTemplate(`${api}/wx/${p}`)).toBe(`${api}/wx/${p}`);
+  });
+
+  it("KR2 labels every weather product, so a new one fails here instead of landing in /other", () => {
+    expect(PRODUCTS.length).toBeGreaterThan(0);
+    for (const p of PRODUCTS) expect(routeTemplate(`/api/v1/blipscope/wx/${p.id}`)).toBe(`/api/v1/blipscope/wx/${p.id}`);
+  });
+
+  it("KR3 keeps an unknown product in /other: a probe cannot mint a label", () => {
+    for (const id of ["zzzz", "x".repeat(40)]) expect(routeTemplate(`/api/v1/blipscope/wx/${id}`)).toBe("/other");
   });
 
   it("buckets anything unrecognised, so a 404 sweep cannot mint index values", () => {
