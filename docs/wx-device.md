@@ -5449,3 +5449,16 @@ and `run.sh` but neither `skus.yml` nor any workflow, and `web_ota.cpp` but not 
 | **CI** | **34 = 30 success, 4 skipped, 0 failed**: the same four workflows as this PR's run on `bcf976fa`, which read exactly that, and nothing since has changed the job set |
 
 **Outside the set:** any row reading otherwise: stop.
+
+### #582's re-read after #571, results (2026-11-07, 02:35-02:48Z, local)
+
+| | read | verdict |
+|---|---|---|
+| **the merge** | no conflict; the tree differs from the predicted `012aa0476659` only by the 19 lines of this section's predictions, which I committed first and did not allow for | as predicted, bar my own commit |
+| **WS1-WS4, S-WS-today/always/notfalse** | exactly `WS1`; exactly `WS3`, `WS4`; exactly `WS4` | as predicted |
+| **WD5b** | 1 read through `wxlayerswitch::On`; 1 page default `"true"`; each plant turns exactly its own check red | as predicted |
+| **WO1, WO2** | exit 0, `wx-layer "false"`, 8 entries; the entry removed, exit 1 | as predicted |
+| **B1** | both images built after the merge | as predicted |
+| **run.sh** (g++ 13.3.0) | exit 2 from exactly "the same TU, for the board" and "Weatherscope R0 and R0b", `sabotage_wx_towns.py` SKIP, nothing else red, #571's blocks included | as predicted |
+
+**WO3 and CI** are read on the push.
