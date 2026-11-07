@@ -14757,3 +14757,72 @@ The guard agrees on the same tree: 286 `name` (284 + 2), 47 `serial`, 10 `colon`
 **Local commit** on `weatherscope/swipe-screens`. `dallas-night.json` is left untracked until Q109 is ruled. `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py` exit 0.
 
 **Waiting:** Q109 and Q110 for 3.5c, Q111 for the scrub. Step 6's PR follows Q110, with its CI predicted before its push.
+
+### A12.155 Q109-Q111 ruled (~01:06Z); the night capture AS PREDICTED; Q110's and Q111's rows, and step 6's CI, frozen before the code
+
+**The ruling:**
+- **Q109 (a):** one more fetch after 01:30Z, trimmed only if its first period is a night one. The script gates the trim, not a reading by eye. Both misses stay on record.
+- **Q110 (a):** on the device, a period whose successor has started counts as over: 3 rows, 1 plant, the suite at 136, the 10 renders predicted unchanged. NWS served my capture a stale forecast and the live path can get one too, so the device should not rely on the feed for this.
+- **Q111 (a):** `check_wifi.py`'s device-name pass also accepts four hex digits, with a plant that a four-digit label passes and the control that an unknown network name still fails.
+- **Then** step 6's PR, with Q110 in its header, and the scrub as predicted.
+
+#### The night capture, gated
+
+**The gate** (`night_gate.py`) was proved before the fetch, with no fetch: it refused the stale capture and the day capture, exit 1 on both.
+
+| row | predicted | measured at 02:36:41Z (20:36 local) |
+|---|---|---|
+| the six documents | 200, every structural row | **as predicted** |
+| its first period | a night one | **as predicted:** `Tonight`, running; gate exit 0 |
+| the trim | 0 refusals | **as predicted:** `dallas-night.json`, 8,530 bytes, first period night |
+| conditions | `HI <tomorrow's daytime high>` | **as predicted:** `HI 67  LO 53`, where the day capture read 68 |
+| the renders | 2, 0 refused | **as predicted:** `conditions-night-dark` `55dfd8435f40`, `-light` `524a3b8e9fe8`, smallest gap 4 px |
+
+**One more measured fact:** this `forecast` was `generatedAt` 00:24:43Z, so it was 2 h 12 min old at capture. NWS's cache runs longer than the "about an hour" I wrote in A12.151. The device's rule does not depend on how long.
+
+The stale record is moved out of the tree, beside the raw captures. The new record is untracked until this PR. The 2 renders go to Daniel as local files.
+
+**L11, L12, K11 and K12 do not join this PR.** A12.144 says they come with the record, by their own addendum, and the ruling sets this suite at 136. They need a second stored case in the test, so they follow as their own small change.
+
+#### Q110, frozen before the code
+
+**The rule:** `FirstCurrent(f)` is the first period whose successor has not started by "now". `Days` and `HighLowText` begin there, and so does the headline's period scan, which reads `Days`. The last period has no successor, so it is never over.
+
+**The new rows,** all on one record with "now" a minute into `Tonight`:
+
+| # | case | reads |
+|---|---|---|
+| H18 | the ended first period at 80 %, nothing else | `NO RAIN` / `IN 7 DAYS`; with `Tonight` at 40 %, `NEXT RAIN` / `TONIGHT` |
+| C26 | the high and low | `HI` is tomorrow's, `LO` tonight's |
+| W7 | the week's first row | `TON  --/<low> ...`, the ended day gone |
+
+**S-SW16,** `FirstCurrent` never advancing: fails exactly {H18, C26, W7}.
+
+**The test changes that keep that set at three, disclosed.** H7, H8, H13-H15 and H17 moved "now" to Saturday (A12.150). Under Q110 that ends Friday's periods, so those rows would lean on the new rule and the plant's set could not be three. They now use the Friday record's Tuesday periods (8 and 9), day 4, with the same frozen readings. H11 stays on Friday, so its "tomorrow's weekday" reads `SAT`, where A12.150's version read `SUN`.
+
+**Predicted:** `136 checks, 0 failures` under both compilers; 19 plants as their sets; `k35c.ref.txt` unchanged, so `--k --check` passes without a rewrite; all 10 RGB hashes equal A12.139's.
+
+**Step 6's PR, its CI written before the push.**
+- **The last job-set change is still `caf63cc9d9cc`,** and main has not moved past `0867145c4861`.
+- **Baselines:** #571's PR run, 34: 30/4/0; main's run on `0867145c4861`, 34: 31/3/0.
+- **Paths:** `src/`, `test/`, `tools/`, so the same four workflows run: firmware, `device-ids`, `no-traffic-captures`, `web-renderer`.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | 34 | 30 | 4 (promote, version, ship-alert, publish) | 0 |
+| main on the squash | 34 | 31 | 3 (promote, publish, version) | 0 |
+
+#### Q111, frozen before the code
+
+**The rule:** `passes` takes `[a-z]+scope-` then 6 or 4 hex digits. The six-digit form stays passing here and stays refused by `check_macs.py`, so each guard keeps one job.
+
+| row | case | predicted |
+|---|---|---|
+| **(n)** | a four-digit label in an SSID context | exit 0 |
+| **(o)** CONTROL | an unknown name with a four-hex tail, not a `scope` word | exit 1, `name` |
+
+**S-W4D,** registered in `check_wifi_sabotage.py`: the pass loses the four-digit form. W3 exit 1 (the rewritten tree goes red), full selftest exit 2, rows red exactly {(n)}.
+
+**`docs/wifi-scrub.md`'s** line about the device name changes in the same PR. The selftest and the sabotage rig run on the rewritten tree. `check_wifi.py` is predicted to exit 0 with 0 name findings, closing A12.153's 28.
+
+**The scrub's CI stands as A12.152:** PR 36: 32/4/0; main 35: 32/3/0.
