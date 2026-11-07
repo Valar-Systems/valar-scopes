@@ -29,8 +29,8 @@ pd = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pd)
 
 SECRET = "test-device-secret"   # the proxy suite's TEST_DEVICE_SECRET
-# Fake, locally-administered unicast MACs (first octet 0x02/0x06): never a factory board.
-MACS = ["02:00:00:00:00:01", "02:12:34:56:78:9a", "06:ff:ee:dd:cc:bb", "02:90:70:69:31:e2"]
+# RFC 7042 documentation-range unicast MACs (00-00-5E-00-53-00 to -FF): never a factory board.
+MACS = ["00:00:5e:00:53:01", "00:00:5e:00:53:02", "00:00:5e:00:53:03", "00:00:5e:00:53:04"]
 
 
 def build() -> str:
