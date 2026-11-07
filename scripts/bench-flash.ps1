@@ -38,10 +38,10 @@
 #                `python scripts\board-port.py --release <board> --by <who>`.
 #
 #   -Board       which bench board, by NAME (scripts\board-port.py BOARDS):
-#                  missileer        90706931E9D8  Missileer bench   flash freely
-#                  missileer-photo  90706931E794  Missileer photo   Missileer envs only
-#                  weatherscope     907069326E64  Weatherscope bench (the Blipscope soak board until 2026-10-20)
-#                  blipscope-bench  90706931E208  Blipscope bench
+#                  missileer        E9:D8  Missileer bench   flash freely
+#                  missileer-photo  E7:94  Missileer photo   Missileer envs only
+#                  weatherscope     6E:64  Weatherscope bench (the Blipscope soak board until 2026-10-20)
+#                  blipscope-bench  E2:08  Blipscope bench
 #                The port is resolved from the board's USB serial number (its MAC)
 #                by scripts\board-port.py -- never from a COM number, which changes
 #                whenever the firmware's USB layout does (the Missileer board was
@@ -129,17 +129,17 @@ if (-not $heldBefore) {
     }
 }
 
-$Serial = "$((& python $resolver $Board --serial) 2>$null)".Trim()
+$Label = "$((& python $resolver $Board --label) 2>$null)".Trim()
 $Port = (& python $resolver $Board) 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $Port) {
-    Say "REFUSING: the $Board board ($Serial) is not connected (no port carries its serial)."
+    Say "REFUSING: the $Board board ($Label) is not connected (no port carries its serial)."
     exit 5
 }
 $Port = "$Port".Trim()
 # THE ID, IMMEDIATELY BEFORE THE FLASH (standing rule, 2026-10-12). The port below
 # was found by this serial, and the line says so, so a flash log names the board by
 # what it is rather than by where Windows put it today.
-Say "$Board board, USB serial $Serial, is on $Port (resolved from that serial)"
+Say "$Board board ($Label) is on $Port (resolved from its USB serial)"
 
 # ---- 1. stop OUR recorders that name THIS port ------------------------------
 # TWO CONDITIONS, both required, and the second is the safety one.
@@ -250,7 +250,7 @@ if ($Port -ne $appPort) { Say "download port: $Port (the app was on $appPort)" }
 # (same layout, NVS untouched, nothing erased -- but not the app only).
 Push-Location $repo
 if ($AppOnly) {
-    Say "APP ONLY: building env=$PioEnv, then writing ota_0 alone -> $Port, board $Board serial $Serial  (log: $uploadLog)"
+    Say "APP ONLY: building env=$PioEnv, then writing ota_0 alone -> $Port, board $Board ($Label)  (log: $uploadLog)"
     & pio run -e $PioEnv 2>&1 | Tee-Object -FilePath $uploadLog
     $rc = $LASTEXITCODE
     if ($rc -eq 0) {
@@ -261,7 +261,7 @@ if ($AppOnly) {
         $rc = $LASTEXITCODE
     }
 } else {
-    Say "uploading env=$PioEnv -> $Port, board $Board serial $Serial  (log: $uploadLog)"
+    Say "uploading env=$PioEnv -> $Port, board $Board ($Label)  (log: $uploadLog)"
     & pio run -e $PioEnv -t upload --upload-port $Port 2>&1 | Tee-Object -FilePath $uploadLog
     $rc = $LASTEXITCODE
 }

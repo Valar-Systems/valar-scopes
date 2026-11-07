@@ -1,7 +1,7 @@
 # trace-chain.txt, redacted (publish_wcr.py): timestamps relative to the first line; LAN IP and BSSID masked; 8 theme/phase line(s) removed (counts only, never times).
 t+   0.000 #HOST send b'r'
 t+   2.947 [ota] channel=weatherscope-s3-128 current=18 latest=18
-t+   2.947 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+   2.947 [web] config server listening on :80 (httWeatherscope-6E64.local)
 t+   2.947 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 t+   2.947 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
 t+   2.947 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
@@ -154,7 +154,7 @@ t+ 148.971 [bright] first-light/default -> 255
 t+ 148.971 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
 t+ 148.971 *wm:v2.0.17  D:2
 t+ 148.971 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
-t+ 148.971 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+ 148.971 [WiFi] STA started; hostname=Weatherscope-6E64, TX 19.5dBm
 t+ 152.105 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 t+ 152.105 [WiFi] fast join: ch=1 bssid=<redacted>
 t+ 152.934 [WiFi] Associated with "<ssid>", waiting for IP...
@@ -162,7 +162,7 @@ t+ 154.434 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-46 dBm
 t+ 154.434 [WiFi] fast join OK in 2400 ms
 t+ 154.434 [WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
 t+ 162.222 [ota] channel=weatherscope-s3-128 current=18 latest=18
-t+ 162.222 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+ 162.222 [web] config server listening on :80 (httWeatherscope-6E64.local)
 t+ 162.222 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 t+ 162.222 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
 t+ 162.222 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
@@ -279,7 +279,7 @@ t+ 257.641 [bright] first-light/default -> 255
 t+ 257.641 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
 t+ 257.641 *wm:v2.0.17  D:2
 t+ 257.842 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
-t+ 257.842 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+ 257.842 [WiFi] STA started; hostname=Weatherscope-6E64, TX 19.5dBm
 t+ 260.745 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 t+ 260.745 [WiFi] fast join: ch=1 bssid=<redacted>
 t+ 261.589 [WiFi] Associated with "<ssid>", waiting for IP...
@@ -287,7 +287,7 @@ t+ 263.261 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-46 dBm
 t+ 263.261 [WiFi] fast join OK in 2350 ms
 t+ 263.261 [WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
 t+ 272.666 [ota] channel=weatherscope-s3-128 current=18 latest=18
-t+ 272.666 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+ 272.666 [web] config server listening on :80 (httWeatherscope-6E64.local)
 t+ 272.666 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 t+ 272.666 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
 t+ 272.879 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
@@ -404,7 +404,7 @@ t+ 368.325 [bright] first-light/default -> 255
 t+ 368.325 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292504
 t+ 368.325 *wm:v2.0.17  D:2
 t+ 368.325 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
-t+ 368.325 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+ 368.325 [WiFi] STA started; hostname=Weatherscope-6E64, TX 19.5dBm
 t+ 371.298 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 t+ 371.298 [WiFi] fast join: ch=1 bssid=<redacted>
 t+ 372.151 [WiFi] Associated with "<ssid>", waiting for IP...
@@ -412,7 +412,7 @@ t+ 373.647 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-46 dBm
 t+ 373.648 [WiFi] fast join OK in 2350 ms
 t+ 373.648 [WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
 t+ 382.105 [ota] channel=weatherscope-s3-128 current=18 latest=18
-t+ 382.105 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+ 382.105 [web] config server listening on :80 (httWeatherscope-6E64.local)
 t+ 382.105 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 t+ 382.105 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
 t+ 382.105 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141

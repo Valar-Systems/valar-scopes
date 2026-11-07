@@ -21,7 +21,7 @@
 *wm:[4] serverLoc 192.168.4.1 
 *wm:[3] <- HTTP Wifi 
 *wm:[3] WiFi Scan SYNC started 
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[3] WiFi Scan completed in 3818 ms
 *wm:[2] 13 networks found
 *wm:[3] DUP AP: <ssid redacted>
@@ -505,7 +505,7 @@
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -636,7 +636,7 @@
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 12258 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -2765,7 +2765,7 @@
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -2793,7 +2793,7 @@
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2357 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [fetch] task: req kind=0 @640067
 [fetch] task: done ok=1 http=200 reuse=1 in 88ms
@@ -2838,7 +2838,7 @@
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -3054,7 +3054,7 @@
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 18670 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -18798,7 +18798,7 @@ UserSideException: could not open port 'COM118': PermissionError(13, 'Access is 
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -18930,7 +18930,7 @@ UserSideException: could not open port 'COM118': PermissionError(13, 'Access is 
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 12358 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -73359,7 +73359,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
 *wm:[2] AutoConnect 
-*wm:[3] Setting Hostnames:  Blipscope-326E20
+*wm:[3] Setting Hostnames:  Blipscope-6E20
 *wm:[3] Setting WiFi hostname 
 *wm:[3] ESP32 event handler enabled 
 *wm:[3] Connecting as wifi client... 
@@ -73369,7 +73369,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -73501,7 +73501,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 12370 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -73540,7 +73540,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
 *wm:[2] AutoConnect 
-*wm:[3] Setting Hostnames:  Blipscope-326E20
+*wm:[3] Setting Hostnames:  Blipscope-6E20
 *wm:[3] Setting WiFi hostname 
 *wm:[3] ESP32 event handler enabled 
 *wm:[3] Connecting as wifi client... 
@@ -73550,7 +73550,7 @@ Reconnecting to COM118 ......	 Connected!
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -73798,7 +73798,7 @@ E (19020) wifi:sta is connecting, cannot set config
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 23222 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -77379,7 +77379,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
 *wm:[2] AutoConnect 
-*wm:[3] Setting Hostnames:  Blipscope-326E20
+*wm:[3] Setting Hostnames:  Blipscope-6E20
 *wm:[3] Setting WiFi hostname 
 *wm:[3] ESP32 event handler enabled 
 *wm:[3] Connecting as wifi client... 
@@ -77389,7 +77389,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -77417,7 +77417,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2347 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=5 latest=4
 [health] frame avg=37.0ms p95=37.8ms  heap free=124232 largest=75764  interval=217632ms
@@ -77477,7 +77477,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: <redacted 2026-08-07>
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -77505,7 +77505,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2326 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -137348,7 +137348,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -137376,7 +137376,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2261 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 === [capture] attach attempt 2026-07-17 11:07:15 port=COM118 pid=50644 failStreak=0 ===
 *wm:[3] ESP32 event handler enabled 
@@ -137387,7 +137387,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -137414,7 +137414,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2246 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -137914,7 +137914,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -137942,7 +137942,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[3] Connected in 2340 ms
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-61 dBm
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -138373,7 +138373,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -138401,7 +138401,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2275 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -145577,7 +145577,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -145605,7 +145605,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2340 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)
@@ -151943,7 +151943,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -151971,7 +151971,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2258 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
@@ -153269,7 +153269,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -153307,7 +153307,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 3340 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
@@ -153375,7 +153375,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -153403,7 +153403,7 @@ Disconnected (ClearCommError failed (PermissionError(13, 'The device does not re
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2346 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
@@ -158947,7 +158947,7 @@ E (121222) wifi:sta is connecting, cannot set config
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 29202 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
@@ -159973,7 +159973,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
 *wm:[2] AutoConnect 
-*wm:[3] Setting Hostnames:  Blipscope-326E20
+*wm:[3] Setting Hostnames:  Blipscope-6E20
 *wm:[3] Setting WiFi hostname 
 *wm:[3] ESP32 event handler enabled 
 *wm:[3] Connecting as wifi client... 
@@ -159983,7 +159983,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] Connecting to SAVED AP: <ssid redacted>
 *wm:[4] Using Password: spockntony
 *wm:[4] WiFi_enableSTA enable
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 *wm:[4] Mode after delay:  STA
 *wm:[4] 15000 ms connectTimeout set
 *wm:[3] 15000 ms timeout, waiting for connect...
@@ -160011,7 +160011,7 @@ Reconnecting to COM118 .....	 Connected!
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2348 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
@@ -160386,7 +160386,7 @@ Reconnecting to COM118 .........................................................
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 10829 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-326E20
+*wm:[4] hostname: STA:  Blipscope-6E20
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=s3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
@@ -161228,7 +161228,7 @@ Reconnecting to COM118 ....	 Connected!
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
 [WiFi] fast join: ch=6 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-64 dBm
 [WiFi] fast join OK in 1651 ms
@@ -161479,7 +161479,7 @@ Reconnecting to COM118 ....	 Connected!
 [health] touch-wd wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 probes=269/0 maxOutage=0ms rebootRec=0
 === [capture] attach attempt 2026-07-21 12:22:33 port=COM118 pid=92088 failStreak=0 ===
 [WiFi] fast join: ch=6 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] DISCONNECTED  reason=201 (NO_AP_FOUND)
        SSID not found: check spelling/range. The ESP32-C3 is 2.4GHz-only and cannot see 5GHz networks.
 [WiFi] DISCONNECTED  reason=36 (STA_LEAVING)
@@ -161724,7 +161724,7 @@ Reconnecting to COM118 ....	 Connected!
 *wm:[2] [SYS] Chip Rev: 2
 *wm:[2] v2.0.17  D:4
 [WiFi] fast join: ch=6 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-65 dBm
 [WiFi] fast join OK in 1651 ms

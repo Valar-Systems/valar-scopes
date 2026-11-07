@@ -68,7 +68,7 @@ EAMs, launches or stats. A marketing photo must show what the device actually sh
 
 Only through `scripts/bench-flash.ps1`. It finds the port from the board's USB serial
 and prints that serial before it writes anything (CLAUDE.md, Bench boards). The photo
-unit is `-Board missileer-photo` (USB serial `90706931E794`). NVS is not erased, so
+unit is `-Board missileer-photo` (USB serial `E7:94`). NVS is not erased, so
 Wi-Fi and settings carry over in both directions.
 
 Photo mode:

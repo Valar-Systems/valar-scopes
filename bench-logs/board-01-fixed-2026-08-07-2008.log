@@ -21,9 +21,9 @@ load:0x3fceESP-ROM:esp32s3-20210327
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:AutoConnect: FAILED for  125 ms
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] device quiet for 60s -- still attached, NOT reopening 2026-08-07 20:09:26 pid=186704 ===
@@ -31,7 +31,7 @@ load:0x3fceESP-ROM:esp32s3-20210327
 *wm:config portal has timed out 
 *wm:config portal exiting 
 [WiFi] autoConnect() returned false (portal timed out / not connected)
-[WiFi] no network and nobody at the portal -- restarting to retry saved credentials[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] no network and nobody at the portal -- restarting to retry saved credentials[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 
 ESP-ROM:esp32s3-20210327
 Build:Mar 27 2021
@@ -63,9 +63,9 @@ entry 0x403c88b8
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:AutoConnect: FAILED for  73 ms
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] device quiet for 60s -- still attached, NOT reopening 2026-08-07 20:12:32 pid=186704 ===
@@ -73,7 +73,7 @@ entry 0x403c88b8
 *wm:config portal has timed out 
 *wm:config portal exiting 
 [WiFi] autoConnect() returned false (portal timed out / not connected)
-[WiFi] no network and nobody at the portal -- restarting to retry saved credentials[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] no network and nobody at the portal -- restarting to retry saved credentials[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 
 ESP-ROM:esp32s3-20210327
 Build:Mar 27 2021
@@ -105,9 +105,9 @@ entry 0x403c88b8
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:AutoConnect: FAILED for  64 ms
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] device quiet for 60s -- still attached, NOT reopening 2026-08-07 20:15:39 pid=186704 ===
@@ -115,7 +115,7 @@ entry 0x403c88b8
 *wm:config portal has timed out 
 *wm:config portal exiting 
 [WiFi] autoConnect() returned false (portal timed out / not connected)
-[WiFi] no network and nobody at the portal -- restarting to retry saved credentials[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] no network and nobody at the portal -- restarting to retry saved credentials[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 
 ESP-ROM:esp32s3-20210327
 Build:Mar 27 2021
@@ -147,14 +147,14 @@ entry 0x403c88b8
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:AutoConnect: FAILED for  78 ms
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] device quiet for 60s -- still attached, NOT reopening 2026-08-07 20:18:45 pid=186704 ===
 === [capture] device quiet for 60s -- still attached, NOT reopening 2026-08-07 20:19:45 pid=186704 ===
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:18 networks found
 *wm:Connect Wifi, ATTEMPT # 1 of 5
 *wm:Connecting to NEW AP: <ssid redacted>
@@ -190,7 +190,7 @@ entry 0x403c88b8
 *wm:AutoConnect 
 *wm:Connect Wifi, ATTEMPT # 1 of 5
 *wm:Connecting to SAVED AP: <ssid redacted>
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-53 dBm
 *wm:AutoConnect: SUCCESS 
@@ -345,7 +345,7 @@ entry 0x403c88b8
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 [WiFi] fast join OK in 1700 ms
@@ -389,7 +389,7 @@ entry 0x403c88b8
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 ESP-ROM:esp32s3-20210327
 Build:Mar 27 2021
@@ -410,7 +410,7 @@ entry 0x403c88b8
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-55 dBm
 [WiFi] fast join OK in 1699 ms

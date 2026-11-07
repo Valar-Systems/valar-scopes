@@ -384,7 +384,7 @@ def selftest():
                            capture_output=True, text=True)
     check("ST5", r.returncode == 2 and "REFUSED" in r.stdout,
           f"an empty address is refused before any port is opened (exit {r.returncode})")
-    bad = ["", "weatherscope-326e64.local", "256.1.1.1", "1.2.3", "1.2.3.4.5"]
+    bad = ["", "weatherscope-6e64.local", "256.1.1.1", "1.2.3", "1.2.3.4.5"]
     check("ST6", not any(valid_address(a) for a in bad) and valid_address("192.0.2.1"),
           "a name, a part over 255, three or five parts are refused; CONTROL: 192.0.2.1 is accepted")
     failures = results.count(False)

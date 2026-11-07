@@ -3,7 +3,7 @@
 First hardware run of `[env:animtest-s3-128]`. Template: [animtest-results-template.md](animtest-results-template.md).
 Look target: [reference/missileer-launch-animation-preview.html](reference/missileer-launch-animation-preview.html).
 
-Board: **COM119** (S3 1.28" Kit, `SER=90:70:69:31:D9:18`) · `tft.init=1 240x240` ·
+Board: **COM119** (S3 1.28" Kit, `SER=D9:18`) · `tft.init=1 240x240` ·
 backbuffer ok, `psram_free=8267884` · touch ready after 26 ms.
 
 Three COMPRESSED runs, because the first one failed and the fix needed measuring

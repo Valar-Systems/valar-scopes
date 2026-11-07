@@ -41,10 +41,10 @@
 <h2>Before you leave</h2>
 <table>
   <tr><th style="width:34mm">Board (on screen)</th><th style="width:26mm">What it is</th><th>Why it's coming</th></tr>
-  <tr><td class="mono">Blipscope-326E64</td><td><strong>THE SUSPECT</strong></td><td>The board that actually failed here. Everything hinges on this one.</td></tr>
-  <tr><td class="mono">Blipscope-31E794</td><td><strong>KNOWN GOOD</strong></td><td>Has joined reliably for weeks. If this one fails too, the network is at fault.</td></tr>
-  <tr><td class="mono">Blipscope-31DF20</td><td>New, same batch</td><td>Tests whether the whole production batch is affected.</td></tr>
-  <tr><td class="mono">Blipscope-31C2C8</td><td>New, same batch</td><td>Second sample of the batch.</td></tr>
+  <tr><td class="mono">Blipscope-6E64</td><td><strong>THE SUSPECT</strong></td><td>The board that actually failed here. Everything hinges on this one.</td></tr>
+  <tr><td class="mono">Blipscope-E794</td><td><strong>KNOWN GOOD</strong></td><td>Has joined reliably for weeks. If this one fails too, the network is at fault.</td></tr>
+  <tr><td class="mono">Blipscope-DF20</td><td>New, same batch</td><td>Tests whether the whole production batch is affected.</td></tr>
+  <tr><td class="mono">Blipscope-C2C8</td><td>New, same batch</td><td>Second sample of the batch.</td></tr>
 </table>
 
 <ul>
@@ -75,7 +75,7 @@
 <ol>
   <li><strong>Power the board.</strong> Wait for the yellow <span class="mono">** WIFI DIAG **</span> banner.</li>
   <li><strong>On your phone,</strong> open Wi-Fi settings and connect to the hotspot matching the
-      name on that board's screen (e.g. <span class="mono">Blipscope-326E64</span>).</li>
+      name on that board's screen (e.g. <span class="mono">Blipscope-6E64</span>).</li>
   <li>A setup page opens automatically. If not, browse to <span class="mono">192.168.4.1</span></li>
   <li><strong>Enter their network name and password.</strong> Save.</li>
   <li><strong>Now wait 12 minutes.</strong> Leave it alone. See the timing box below.</li>
@@ -94,7 +94,7 @@
 <h3>Reading the screen</h3>
 <table>
   <tr><th style="width:46mm">On screen</th><th>Means</th></tr>
-  <tr><td class="mono">Blipscope-326E64</td><td>Which board this is. Always check this before writing anything down.</td></tr>
+  <tr><td class="mono">Blipscope-6E64</td><td>Which board this is. Always check this before writing anything down.</td></tr>
   <tr><td class="mono">cyc 3 up 2m10s try 7</td><td>3 rounds done, 2m10s this round, 7 join attempts.</td></tr>
   <tr><td class="mono">SSID TheirNetwork</td><td>The network it is trying. Check it's the right one &mdash; a typo looks like a fault.</td></tr>
   <tr><td class="mono">assoc Y &nbsp; ip Y</td><td><strong>It worked.</strong> Joined and got an address.</td></tr>
@@ -136,12 +136,12 @@
 <p class="small">Circle JOINED or FAILED. If failed, write the <span class="mono">r=</span> number and name.</p>
 <table>
   <tr><th style="width:34mm">Board</th><th style="width:20mm">Run</th><th style="width:28mm">Result</th><th style="width:16mm">cyc</th><th>Reason code / notes</th></tr>
-  <tr><td class="mono">326E64 (suspect)</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
-  <tr><td class="mono">31E794 (known good)</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">6E:64 (suspect)</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">E7:94 (known good)</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
   <tr><td class="mono">31DF20</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
   <tr><td class="mono">31C2C8</td><td>A</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
-  <tr><td class="mono">326E64 (suspect)</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
-  <tr><td class="mono">31E794 (known good)</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">6E:64 (suspect)</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
+  <tr><td class="mono">E7:94 (known good)</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
   <tr><td class="mono">31DF20</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
   <tr><td class="mono">31C2C8</td><td>B</td><td>JOINED / FAILED</td><td class="rec"></td><td class="rec"></td></tr>
 </table>

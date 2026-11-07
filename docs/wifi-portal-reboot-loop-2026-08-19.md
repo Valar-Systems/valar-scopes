@@ -15,7 +15,7 @@ starts its setup hotspot, drops it after 180 s, reboots, and repeats. Forever.
 11:01:49  [ota-slot] boot ...                                       <- reboot
 11:01:49  [WiFi] credentials saved: portal will time out after 180 s   <- there are none
 11:01:52  *wm:No wifi saved, skipping   x5
-11:01:52  *wm:StartAP with SSID:  Blipscope-31D918
+11:01:52  *wm:StartAP with SSID:  Blipscope-D918
 ```
 
 The firmware's own line says *credentials saved*; WiFiManager says *No wifi

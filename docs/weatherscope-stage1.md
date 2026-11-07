@@ -37,7 +37,7 @@ The screens and their rulings are in `docs/weatherscope-screens.md` (PR #425). T
 
 The host reference that implements exactly this is `test/fixtures/wx/render_ref.py`.
 
-**Board.** The Weatherscope board is USB serial `907069326E64`, which `board-port.py` still registers as `blipscope`. It is not flashed until Daniel confirms the v18 grade doesn't need it, and `blipscope-5c` reads its uptime first (for the #245 follow-up). Its port is resolved from that serial, never from a COM number.
+**Board.** The Weatherscope board is USB serial `6E:64`, which `board-port.py` still registers as `blipscope`. It is not flashed until Daniel confirms the v18 grade doesn't need it, and `blipscope-5c` reads its uptime first (for the #245 follow-up). Its port is resolved from that serial, never from a COM number.
 
 ## The fixtures (inputs; generated, cross-checked, in this commit)
 
@@ -191,7 +191,7 @@ Profiling waits until the past-hour loop exists and is measurably too slow. The 
 
 **How the loop is projected:** the view doesn't change during a loop, so the indices are worked out once and each loop frame costs decode + render + push (50,667 µs at the reference points). Counting the indices on every frame too, the stricter figure would be about 18.4 fps; it is reported alongside.
 
-**How it's re-measured:** a fresh boot of the rebased image (`6538f73`; the harness code is unchanged from `ed40af2`), flashed to `907069326E64` by serial and graded with `capture_stage1.py --budget`. B3, B4, B8 and B9 are graded against their original predictions as before.
+**How it's re-measured:** a fresh boot of the rebased image (`6538f73`; the harness code is unchanged from `ed40af2`), flashed to `6E:64` by serial and graded with `capture_stage1.py --budget`. B3, B4, B8 and B9 are graded against their original predictions as before.
 
 **The north/south-flip sabotage, S-B1, on the board.** Frozen in the original Predictions B:
 - the dump's sha256 must be `91bbb69d6ef6152d421660ec1bebb79555cd7dcdc795663d1e5161b306f6b368`;
@@ -288,7 +288,7 @@ These are reported, not re-graded.
 - A miss with every candidate ruled out: **cause unknown**; stop and report.
 - Any result not named here: stop and decide.
 
-**Board session, once Daniel gives the OK to flash `907069326E64`,** in this order:
+**Board session, once Daniel gives the OK to flash `6E:64`,** in this order:
 1. Stage 1 with the tagged dump: the control (`D`), then B9.
 2. S-B1, the flipped image.
 3. The diag image.
@@ -297,7 +297,7 @@ These are reported, not re-graded.
 ## Predictions B, addendum 5: Daniel's rulings and today's board session (2026-10-20, frozen before building or flashing)
 
 **Daniel's rulings, recorded as received:**
-1. **Standing OK** to flash `907069326E64` whenever the work needs it, with the port always found from the serial. That board only; any other board still needs his OK.
+1. **Standing OK** to flash `6E:64` whenever the work needs it, with the port always found from the serial. That board only; any other board still needs his OK.
 2. **B5-B7 are MISSES against their original frozen bands, unchanged.** The budget bars (≤ 100 ms per frame, ≥ 8 fps loop) are reported **separately**, as a later-frozen check that passes. The two are not merged in the results. This settles the open conflict recorded under the reviewer ruling.
 3. **Step 3 is dropped.** The env `weatherscope-s3-128-diag` and the `WX_STAGE1_DIAG` code move off #434 to their own draft branch, `bench/weatherscope-stage1-diag` (`8da2ab9`). Stage 1 keeps one env. Profiling waits until the loop is measurably too slow.
 4. **One reviewer voice:** rulings for this repo come only from Daniel's reviewer chat. If rulings conflict: stop and ask Daniel.
@@ -458,7 +458,7 @@ Two extra checks, not in the frozen table, also passed:
 
 ### B: the env (2026-10-20, branch `feat/weatherscope-stage1`)
 
-**Built, not flashed.** The board, `907069326E64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`. So B3-B9 have not run.
+**Built, not flashed.** The board, `6E:64`, waits until `blipscope-5c` has recorded its last Blipscope state and updated `board-port.py`. So B3-B9 have not run.
 
 **Two deviations from the design text above,** neither a measured quantity:
 - **Where the main file lives:** `src/weatherscope/stage1_main.cpp` (`src/weather/` until the 2026-10-20 rename), with `build_src_filter = -<*> +<weatherscope/>`, not `src/weatherscope_main.cpp`. With the main inside the folder, one line in `[filters] editions_off` (`-<weatherscope/>`) keeps the harness out of every other env.
@@ -495,10 +495,10 @@ Nothing was changed to bring RAM down. B2 waits for a ruling.
 - **The shipping build** `blipscope-s3-128` still builds, with no `src/weatherscope/` object in it.
 - **The host suite** passes (A3 12/12; renderer 57,600/57,600), and `skus.yml` validates.
 
-### B, on the board (2026-10-20, image `ed40af2` on `907069326E64`)
+### B, on the board (2026-10-20, image `ed40af2` on `6E:64`)
 
 **How it ran:**
-- **Flash:** `scripts/bench-flash.ps1 -Board weatherscope -DanielApproved -NoCapture`. The port was resolved from the serial (COM6), and esptool reported MAC `90:70:69:32:6e:64`; all four images verified.
+- **Flash:** `scripts/bench-flash.ps1 -Board weatherscope -DanielApproved -NoCapture`. The port was resolved from the serial (COM6), and esptool reported MAC `6E:64`; all four images verified.
 - **Read:** one open of the port, with DTR and RTS held low, then a single byte to ask for the report (`test/fixtures/wx/capture_stage1.py`).
 - **What the timings measure:** the report re-prints the values measured once at boot.
 
@@ -525,9 +525,9 @@ Nothing was changed to bring RAM down. B2 waits for a ruling.
 
 **Not run:** S-B1, the north/south flip on the board. The stage stopped first. The board is left running the correct `ed40af2` image.
 
-### B, budget re-measured (2026-10-20, a fresh boot of `1183010`'s image on `907069326E64`)
+### B, budget re-measured (2026-10-20, a fresh boot of `1183010`'s image on `6E:64`)
 
-**How it ran:** flashed by serial (esptool reported MAC `90:70:69:32:6e:64`, all four images verified), then graded once with `capture_stage1.py --budget`.
+**How it ran:** flashed by serial (esptool reported MAC `6E:64`, all four images verified), then graded once with `capture_stage1.py --budget`.
 
 | check | bar or prediction | result | |
 |---|---|---|---|
@@ -555,7 +555,7 @@ Nothing was changed to bring RAM down. B2 waits for a ruling.
 
 The board is left running the correct image.
 
-### Reviewer ruling on the Stage 1 board results (image `ed40af2` on `907069326E64`), 2026-10-20
+### Reviewer ruling on the Stage 1 board results (image `ed40af2` on `6E:64`), 2026-10-20
 
 Recorded as received:
 
@@ -571,11 +571,11 @@ Recorded as received:
 5. **Keep diagnostic code out of the Stage 1 harness's measured path and out of every shipping env. Optimize nothing.** A faster variant is a finding for Stage 2's design, not a change to Stage 1.
 6. **Report** each prediction with its result, then which cause explains each miss. If the results match, Stage 1 is closed and the measured costs become the basis for Stage 2's timing bands; if not, stop and report.
 
-Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait for v18 to be promoted.
+Flashing `6E:64` again needs Daniel's OK. #434's shared files still wait for v18 to be promoted.
 
 **Open conflict, put to Daniel.** An earlier ruling the same day ("Ruling on B5-B7: option 2, re-register") had budget bars frozen in "Predictions B, addendum 2", and they were met on the board (54.2 ms per frame, 19.7 fps). That addendum did not edit the original B5-B7 lines, which still read as misses. This ruling says not to re-register over the bands. Until Daniel says which stands, addendum 2 and its results stay in the record as written, and B5-B7 remain misses either way.
 
-### B, addendum 5 on the board (2026-10-20, image `27600e8` on `907069326E64`): the control is off-prediction, STOP
+### B, addendum 5 on the board (2026-10-20, image `27600e8` on `6E:64`): the control is off-prediction, STOP
 
 **Build, before flashing:**
 
@@ -586,7 +586,7 @@ Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait 
 
 **A slip in my comparison script, corrected before flashing.** It first called the last 33 bytes "unexplained": the checksum byte and the SHA sit next to each other, its run-merging joined them, and the merged run matched neither rule. The bytes were not relabelled by hand. They were proven: in both images the byte at n−33 equals 0xEF XOR every segment byte, and the last 32 bytes equal the SHA-256 of everything before them.
 
-**Flash:** `bench-flash.ps1` resolved the port from the serial (COM6), and esptool read MAC `90:70:69:32:6e:64`; all four images verified. The flashed `firmware.bin` (`d7ed5182dc7e…`) is the image compared above.
+**Flash:** `bench-flash.ps1` resolved the port from the serial (COM6), and esptool read MAC `6E:64`; all four images verified. The flashed `firmware.bin` (`d7ed5182dc7e…`) is the image compared above.
 
 | check | predicted (addendum 3, repeated in 5) | result | |
 |---|---|---|---|
@@ -612,7 +612,7 @@ Flashing `907069326E64` again needs Daniel's OK. #434's shared files still wait 
 
 **Not run:** B9, S-B1 and the final reflash. No second control was tried; that would be retrying until it passes. **The board is left on the correct Stage 1 image (`27600e8`)**, so it already ends where step 4 would leave it. The board's own `fb_sha256` in the control capture is the reference value, which says the screen is right, but that is not B9.
 
-### B, addendum 6 on the board (2026-10-20, image `d7ed5182dc7e…` on `907069326E64`): all as predicted
+### B, addendum 6 on the board (2026-10-20, image `d7ed5182dc7e…` on `6E:64`): all as predicted
 
 **Order, as ruled:**
 1. The rule frozen (`f266a2d`).
@@ -634,7 +634,7 @@ The firmware source did not change after `27600e8`, so the board kept the image 
 | Restore | `WxRender.h` back to `88f002864daa…`; rebuilt image differs from `d7ed5182dc7e…` only in stamps | sha256 checked OK, and `git diff` is empty. The rebuild is **byte-identical** to `d7ed5182dc7e…`: 0 bytes differ, and it differs from the S-B1 image, so the rebuild really happened | ✓ |
 | Final: the correct image reflashed | B9 identical | **identical**: 240/240, `344383b4…`, 0 differ; timings as in the B9 row | ✓ |
 
-**Each flash:** `bench-flash.ps1` resolved COM6 from the serial, and esptool read MAC `90:70:69:32:6e:64`, verified all four images and exited 0. The flashed `firmware.bin` was the image checked above each time.
+**Each flash:** `bench-flash.ps1` resolved COM6 from the serial, and esptool read MAC `6E:64`, verified all four images and exited 0. The flashed `firmware.bin` was the image checked above each time.
 
 **Captures** (`bench-logs/`, not committed):
 

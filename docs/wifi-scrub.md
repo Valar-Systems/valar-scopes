@@ -41,7 +41,8 @@ A **network name** is the value in one of these contexts (any case):
 | `connected_with` | ESP-IDF's `connected with <ssid>, aid` | the IDF log; none in the tree today |
 
 A value **passes** when it is empty, a placeholder (`<...>`), a printf format (`%s`), a template variable (`${x}`,
-`{x}`), or a device's own setup-AP name (`<edition>scope-` and six hex digits, made from its MAC: out of scope).
+`{x}`), or a device's own setup-AP name (`<edition>scope-` and six hex digits, made from its MAC: out of scope), or the same
+name in its label form, four hex digits (A12.155; `scripts/check_macs.py` refuses the six-digit form in a tracked file).
 Anything else is a finding.
 
 A **BSSID** is a MAC-shaped value after `bssid` or `bss` (`check_bssid.py`'s pattern, unchanged). A **private LAN

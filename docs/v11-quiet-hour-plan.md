@@ -496,7 +496,7 @@ The row is therefore NOT relabelled and the gate is NOT closed:
 The real B2a is registered below as **B2a-REAL**, and it reaches the fallback
 through the customer's own first-run path rather than in isolation.
 
-Daniel power-cycled COM119 (`Blipscope-31D918`, <lan-ip redacted>) and set the clock
+Daniel power-cycled COM119 (`Blipscope-D918`, <lan-ip redacted>) and set the clock
 offset to -7. The capture caught **both** boots, which is more than was asked for
 and is the reason two separate things got closed at once:
 
@@ -748,7 +748,7 @@ Read off the two boards' own config pages before choosing:
 
 | board | `tz-offset` field | longitude | stored "0"? |
 |---|---|---|---|
-| COM16 (`31E794`, .62) | `value='0'` | -121.2858 | **yes** |
+| COM16 (`E7:94`, .62) | `value='0'` | -121.2858 | **yes** |
 | COM4 (.63) | `value='0'` | -121.2858 | **yes** |
 
 Both qualify, because on the OLD firmware an ABSENT key renders the
@@ -1023,9 +1023,9 @@ only, with the confirm/falsify asymmetry already stated.
 
 | label | port | board |
 |---|---|---|
-| `b3-overnight` | COM119 | `Blipscope-31D918` |
-| `f1-com4` | COM4 | `Blipscope-31E9D8` |
-| `f1-com16` | COM16 | `Blipscope-31E794` |
+| `b3-overnight` | COM119 | `Blipscope-D918` |
+| `f1-com4` | COM4 | `Blipscope-E9D8` |
+| `f1-com16` | COM16 | `Blipscope-E794` |
 
 Each mapping was read from a boot banner on that exact port on 2026-09-09 after
 a flash to it. **They are detached processes: they survive this session but NOT a

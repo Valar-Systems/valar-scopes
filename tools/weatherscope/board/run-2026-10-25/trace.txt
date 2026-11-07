@@ -1,4 +1,4 @@
-2026-10-25T19:35:11.272Z #HOST opened COM6; board weatherscope-326e64.local; acting only on screen lines from t_open + 1 s
+2026-10-25T19:35:11.272Z #HOST opened COM6; board weatherscope-6e64.local; acting only on screen lines from t_open + 1 s
 2026-10-25T19:35:11.479Z 
 2026-10-25T19:35:11.479Z [build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope
 2026-10-25T19:35:11.479Z [build] confirm this matches the image you intended BEFORE diagnosing any symptom
@@ -13,7 +13,7 @@
 2026-10-25T19:35:11.480Z [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=294360
 2026-10-25T19:35:11.480Z *wm:v2.0.17  D:2
 2026-10-25T19:35:11.480Z [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
-2026-10-25T19:35:11.480Z [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+2026-10-25T19:35:11.480Z [WiFi] STA started; hostname=Weatherscope-6E64, TX 19.5dBm
 2026-10-25T19:35:11.480Z [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 2026-10-25T19:35:11.480Z [WiFi] fast join: ch=1 bssid=..:..:..:..:38:2A
 2026-10-25T19:35:11.480Z [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -21,7 +21,7 @@
 2026-10-25T19:35:11.480Z [WiFi] fast join OK in 3749 ms
 2026-10-25T19:35:11.480Z [WiFi] pinned AP ch=1 RSSI=-32 dBm for the next boot
 2026-10-25T19:35:11.480Z [ota] channel=weatherscope-s3-128 current=18 latest=18
-2026-10-25T19:35:11.480Z [web] config server listening on :80 (http://Weatherscope-326E64.local)
+2026-10-25T19:35:11.480Z [web] config server listening on :80 (http://Weatherscope-6E64.local)
 2026-10-25T19:35:11.480Z [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 2026-10-25T19:35:11.480Z [wx] psram_used=159824 sprite=1 grid=38520 in=432 out=688 history=15 clear=36 ready=1
 2026-10-25T19:35:11.480Z [wx] pick approaching=212400 dry=220000 psram_used=159824

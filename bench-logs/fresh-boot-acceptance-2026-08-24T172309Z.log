@@ -7,7 +7,7 @@
 10:23:09 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=294900
 10:23:09 *wm:v2.0.17  D:2
 10:23:09 [WiFi] no saved credentials: portal stays up indefinitely for first setup
-10:23:09 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
+10:23:09 [WiFi] STA started; hostname=Blipscope-E794, TX 19.5dBm
 10:23:09 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 10:23:09 *wm:AutoConnect 
 10:23:09 *wm:Connect Wifi, ATTEMPT # 1 of 5
@@ -21,11 +21,11 @@
 10:23:09 *wm:Connect Wifi, ATTEMPT # 5 of 5
 10:23:09 *wm:No wifi saved, skipping 
 10:23:09 *wm:AutoConnect: FAILED for  11 ms
-10:23:09 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
-10:23:09 *wm:StartAP with SSID:  Blipscope-31E794
+10:23:09 [WiFi] STA started; hostname=Blipscope-E794, TX 19.5dBm
+10:23:09 *wm:StartAP with SSID:  Blipscope-E794
 10:23:09 *wm:AP IP address: 192.168.4.1
 10:23:09 *wm:Starting Web Portal 
-10:28:50 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
+10:28:50 [WiFi] STA started; hostname=Blipscope-E794, TX 19.5dBm
 10:28:53 *wm:23 networks found
 10:29:09 *wm:Connect Wifi, ATTEMPT # 1 of 5
 10:29:10 *wm:Connecting to NEW AP: <ssid redacted>
@@ -57,13 +57,13 @@
 10:29:18 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=294456
 10:29:18 *wm:v2.0.17  D:2
 10:29:18 [WiFi] credentials saved: portal will time out after 180 s and retry them
-10:29:18 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
+10:29:18 [WiFi] STA started; hostname=Blipscope-E794, TX 19.5dBm
 10:29:18 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 10:29:21 [  3415][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
 10:29:21 *wm:AutoConnect 
 10:29:21 *wm:Connect Wifi, ATTEMPT # 1 of 5
 10:29:21 *wm:Connecting to SAVED AP: <ssid redacted>
-10:29:21 [WiFi] STA started; hostname=Blipscope-31E794, TX 19.5dBm
+10:29:21 [WiFi] STA started; hostname=Blipscope-E794, TX 19.5dBm
 10:29:21 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 10:29:22 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-41 dBm
 10:29:23 *wm:AutoConnect: SUCCESS 
@@ -71,7 +71,7 @@
 10:29:24 [WiFi] autoConnect() returned true (connected)
 10:29:24 [WiFi] pinned AP ch=1 RSSI=-41 dBm for the next boot
 10:29:28 [ota] channel=s3-128 current=8 latest=8
-10:29:31 [web] config server listening on :80 (http://Blipscope-31E794.local)
+10:29:31 [web] config server listening on :80 (http://Blipscope-E794.local)
 10:29:31 [cfg-migrate] rev 0 -> 3: cleared info-type=0 info-operator=0 (defaults now apply)
 10:29:31 [cfg-migrate] rev 0 -> 3: cleared logbook=0 (was off); the spotting logbook now defaults ON
 10:29:31 [config] no location set -- the radar screen will prompt for it

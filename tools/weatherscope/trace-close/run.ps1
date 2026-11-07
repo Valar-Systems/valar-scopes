@@ -6,13 +6,13 @@
 # Run from PowerShell:  .\tools\weatherscope\trace-close\run.ps1 -OutDir <dir>
 param(
     [Parameter(Mandatory=$true)][string]$OutDir,
-    [string]$Serial = '907069326E64',
-    [string]$Name = 'weatherscope-326e64.local',
+    [string]$Name = '',   # default: board-port.py weatherscope --host (the name is not stored in the repo)
     # Classify an existing run's watch.csv + events.csv in OutDir without touching the board (and the selftest's input).
     [switch]$AnalyseOnly
 )
 $ErrorActionPreference = 'Stop'
 $root   = Resolve-Path (Join-Path $PSScriptRoot '..\..\..')
+if (-not $Name) { $Name = (& python -I (Join-Path $root 'scripts\board-port.py') weatherscope --host).Trim() }
 $py     = "$env:USERPROFILE\.platformio\penv\Scripts\python.exe"
 $esptool = "$env:USERPROFILE\.platformio\packages\tool-esptoolpy\esptool.py"
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -28,7 +28,7 @@ function Now { (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 function Event($e, $d = '') { "$(Now),$e,$($d -replace ',',';')" | Add-Content $events; Write-Host "$(Now) $e $d" }
 function Port {
     $p = (& python -I (Join-Path $root 'scripts\board-port.py') weatherscope --upload | Select-Object -First 1).Trim()
-    if ($p -notmatch '^COM\d+$') { throw "serial $Serial did not resolve to a port: '$p'" }
+    if ($p -notmatch '^COM\d+$') { throw "the weatherscope board did not resolve to a port: '$p'" }
     $p
 }
 function Esptool([string[]]$a) {
@@ -42,7 +42,7 @@ function Tcp($ip) {
 
 # ---- the address, pinned for the run ------------------------------------------------------------------------------
 $ip = (Resolve-DnsName -Name $Name -Type A -ErrorAction Stop | Select-Object -First 1).IPAddress
-Event 'address' "$Name -> $ip"
+Event 'address' "the board -> $ip"
 
 # ---- the watcher: TCP :80 every 2 s, never USB --------------------------------------------------------------------
 "utc,ok" | Set-Content $watchCsv

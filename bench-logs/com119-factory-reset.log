@@ -97,7 +97,7 @@
 12:44:07 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293760
 12:44:07 *wm:v2.0.17  D:2
 12:44:07 [WiFi] no saved credentials: portal stays up indefinitely for first setup
-12:44:07 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:44:07 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:44:09 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 12:44:10 [  3397][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 12:44:10 *wm:AutoConnect 
@@ -111,12 +111,12 @@
 12:44:10 *wm:No wifi saved, skipping 
 12:44:10 *wm:Connect Wifi, ATTEMPT # 5 of 5
 12:44:10 *wm:No wifi saved, skipping 
-12:44:10 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:44:10 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:44:10 *wm:AutoConnect: FAILED for  20 ms
-12:44:10 *wm:StartAP with SSID:  Blipscope-31D918
+12:44:10 *wm:StartAP with SSID:  Blipscope-D918
 12:44:10 *wm:AP IP address: 192.168.4.1
 12:44:11 *wm:Starting Web Portal 
-12:45:01 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:45:01 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:45:03 *wm:13 networks found
 12:45:19 *wm:Connect Wifi, ATTEMPT # 1 of 5
 12:45:19 *wm:Connecting to NEW AP: <ssid redacted>
@@ -147,13 +147,13 @@
 12:45:23 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293908
 12:45:24 *wm:v2.0.17  D:2
 12:45:24 [WiFi] credentials saved: portal will time out after 180 s and retry them
-12:45:24 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:45:24 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:45:26 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 12:45:27 [  3395][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 12:45:27 *wm:AutoConnect 
 12:45:27 *wm:Connect Wifi, ATTEMPT # 1 of 5
 12:45:27 *wm:Connecting to SAVED AP: <ssid redacted>
-12:45:27 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:45:27 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:45:27 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 12:45:27 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-79 dBm
 12:45:29 *wm:AutoConnect: SUCCESS 
@@ -161,7 +161,7 @@
 12:45:29 [WiFi] autoConnect() returned true (connected)
 12:45:29 [WiFi] not pinning AP: RSSI -79 dBm is below -70
 12:45:35 [ota] channel=s3-128 current=7 latest=7
-12:45:37 [web] config server listening on :80 (http://Blipscope-31D918.local)
+12:45:37 [web] config server listening on :80 (http://Blipscope-D918.local)
 12:45:37 [cloud] no key override; using the factory-provisioned key
 12:45:37 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
 12:45:37 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0

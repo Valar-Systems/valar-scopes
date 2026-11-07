@@ -5,12 +5,12 @@
 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=293308
 *wm:v2.0.17  D:2
 [WiFi] credentials saved: portal will time out after 180 s and retry them
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 *wm:AutoConnect 
 *wm:Connect Wifi, ATTEMPT # 1 of 5
 *wm:Connecting to SAVED AP: <ssid redacted>
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 *wm:AutoConnect: SUCCESS 
 *wm:STA IP Address: <lan-ip redacted>
@@ -18,7 +18,7 @@
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-46 dBm
 [WiFi] pinned AP ch=1 RSSI=-46 dBm for the next boot
 [ota] channel=s3-128 current=7 latest=7
-[web] config server listening on :80 (http://Blipscope-31D918.local)
+[web] config server listening on :80 (http://Blipscope-D918.local)
 [cloud] no key override; using the factory-provisioned key
 [source] Blipscope Cloud: https://scopes.valarsystems.com (active 5000 ms; cfg pending)
 [cloud] config rev=2: poll 5000/15000/60000 ms idleAfter=600s stale=x8 enrich=2 minFw=0

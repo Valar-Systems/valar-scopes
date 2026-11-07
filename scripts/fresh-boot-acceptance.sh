@@ -800,7 +800,7 @@ grep -aq "\[claim\] .* claimed" "$LOG"; check "step 3: a claim landed" $? \
 #
 # Any persist before the first claim -- a periodic write while contacts
 # accumulate, or a logbook toggled off and on during setup -- fails that forever,
-# however well the device behaves. On 326E64 the first persist was at line 297 and
+# however well the device behaves. On 6E:64 the first persist was at line 297 and
 # the first claim at line 318, so the gate went red while the log plainly showed a
 # persist 18 s after the claim carrying the claimed type.
 #

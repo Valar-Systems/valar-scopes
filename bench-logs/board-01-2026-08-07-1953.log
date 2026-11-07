@@ -18,7 +18,7 @@ ESP-ROM:esp32s3-20210327
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
 *wm:[2] AutoConnect 
-*wm:[3] Setting Hostnames:  Blipscope-31D918
+*wm:[3] Setting Hostnames:  Blipscope-D918
 *wm:[3] Setting WiFi hostname 
 *wm:[3] ESP32 event handler enabled 
 *wm:[3] Connecting as wifi client... 
@@ -36,7 +36,7 @@ ESP-ROM:esp32s3-20210327
 *wm:[2] Connect Wifi, ATTEMPT # 4 of 5
 *wm:[2] No wifi saved, skipping 
 *wm:[3] Connection result: WL_NO_SSID_AVAIL
-*wm:[2] Connect Wifi, ATTEMPT #[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:[2] Connect Wifi, ATTEMPT #[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
  5 of 5
 *wm:[2] No wifi saved, skipping 
 *wm:[3] Connection result: WL_NO_SSID_AVAIL
@@ -47,11 +47,11 @@ ESP-ROM:esp32s3-20210327
 *wm:[4] WiFi_enableSTA enable
 *wm:[3] Disabling STA 
 *wm:[3] Enabling AP 
-*wm:[2] StartAP with SSID:  Blipscope-31D918
+*wm:[2] StartAP with SSID:  Blipscope-D918
 *wm:[3] AP has anonymous access! 
 *wm:[2] SoftAP Configuration 
 *wm:[2] -------------------- 
-*wm:[2] ssid:             Blipscope-31D918
+*wm:[2] ssid:             Blipscope-D918
 *wm:[2] password:         
 *wm:[2] ssid_len:         16
 *wm:[2] channel:          1
@@ -62,8 +62,8 @@ ESP-ROM:esp32s3-20210327
 *wm:[2] beacon_interval:  100(ms)
 *wm:[2] -------------------- 
 *wm:[2] AP IP address: 192.168.4.1
-*wm:[3] setting softAP Hostname: Blipscope-31D918
-*wm:[4] hostname: AP:  Blipscope-31D918
+*wm:[3] setting softAP Hostname: Blipscope-D918
+*wm:[4] hostname: AP:  Blipscope-D918
 *wm:[3] [CB] _apcallback calling 
 *wm:[4] setupConfigPortal 
 *wm:[2] Starting Web Portal 

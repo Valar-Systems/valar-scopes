@@ -11,7 +11,7 @@ someone's memory of a Thursday.
 
 ## What happened
 
-All times 2026-08-27, PDT, board on **COM4** (`Blipscope-31E9D8`,
+All times 2026-08-27, PDT, board on **COM4** (`Blipscope-E9D8`,
 `<lan-ip redacted>`).
 
 | time | event | evidence |

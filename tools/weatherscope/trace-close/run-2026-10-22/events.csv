@@ -1,5 +1,5 @@
 utc,event,detail
-2026-10-22T22:49:13.685Z,address,weatherscope-326e64.local -> <lan address redacted>
+2026-10-22T22:49:13.685Z,address,weatherscope-6e64.local -> <lan address redacted>
 2026-10-22T22:49:13.891Z,watcher,started job 1
 2026-10-22T22:49:14.052Z,precondition,GET / #1 = 200
 2026-10-22T22:49:44.160Z,precondition,GET / #2 = 200
