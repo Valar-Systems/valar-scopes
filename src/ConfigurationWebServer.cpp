@@ -2771,8 +2771,8 @@ void ConfigurationWebServer::Initialise() {
         const String fadeEnabled = HtmlEscape(prefs.getString("fade", "true"));
         const String infoTextEnabled = HtmlEscape(prefs.getString("infotext", "true"));
         const String triangleEnabled = HtmlEscape(prefs.getString("triangle", "true"));
-        // Weather under the planes (WD5): absent means OFF, the same default AircraftManager reads.
-        const String wxLayerEnabled = HtmlEscape(prefs.getString("wx-layer", "false"));
+        // Weather under the planes: absent means ON, the same default AircraftManager reads (WxLayerSwitch.h).
+        const String wxLayerEnabled = HtmlEscape(prefs.getString("wx-layer", "true"));
         // The weather look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through
         // wxs2::LookFromStored, so absence means look A, the default Daniel chose.
         const String wxLookStored = prefs.getString("wx-look", "");

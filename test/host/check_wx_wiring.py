@@ -1,8 +1,8 @@
 """WD5b and WD5t4 (docs/wx-device.md), read from the source, not remembered.
 
-  WD5b  the "wx-layer" switch is OFF by default in BOTH of its readers:
-        - src/AircraftManager.cpp reads it as  GetStoredString("wx-layer") == "true"  (absent -> "" -> off);
-        - src/ConfigurationWebServer.cpp renders it from  prefs.getString("wx-layer", "false").
+  WD5b  the "wx-layer" switch is ON by default in BOTH of its readers (docs/wx-device.md, "The layer on by default"):
+        - src/AircraftManager.cpp reads it through  wxlayerswitch::On(...)  (absent -> "" -> on);
+        - src/ConfigurationWebServer.cpp renders it from  prefs.getString("wx-layer", "true").
   WD5t4 HttpRequestManager::GetBytes holds the body in no String: no getString( and no String assigned from
         the stream.
   WA1   the age limit's header reaches the policy (ruled 2026-11-04 ~18:25Z): GetBytes collects X-Wx-Max-Age with
@@ -26,16 +26,19 @@ def wd5b_am(am):
     reads = re.findall(r'GetStoredString\("wx-layer"\)[^;\n]*', am)
     if not reads:
         return False, "no read of \"wx-layer\" in AircraftManager.cpp"
-    bad = [r for r in reads if not re.fullmatch(r'GetStoredString\("wx-layer"\)\s*==\s*"true"', r.strip())]
-    return (not bad), (f"{len(reads)} read(s), all == \"true\" (absent = off)" if not bad else f"not off-by-default: {bad}")
+    bad = [r for r in reads if not re.fullmatch(r'GetStoredString\("wx-layer"\)\.c_str\(\)\)', r.strip())]
+    through = len(re.findall(r'wxlayerswitch::On\(configServer\.GetStoredString\("wx-layer"\)\.c_str\(\)\)', am))
+    if through != len(reads):
+        bad = bad or reads
+    return (not bad), (f"{len(reads)} read(s), all through wxlayerswitch::On (absent = on)" if not bad else f"not on-by-default: {bad}")
 
 
 def wd5b_page(page):
     defaults = re.findall(r'getString\("wx-layer",\s*"([^"]*)"\)', page)
     if not defaults:
         return False, "no getString(\"wx-layer\", ...) in ConfigurationWebServer.cpp"
-    bad = [d for d in defaults if d != "false"]
-    return (not bad), (f"{len(defaults)} default(s), all \"false\"" if not bad else f"defaults {defaults}")
+    bad = [d for d in defaults if d != "true"]
+    return (not bad), (f"{len(defaults)} default(s), all \"true\"" if not bad else f"defaults {defaults}")
 
 
 def get_bytes_body(hrm):
@@ -171,10 +174,11 @@ def main():
     if "--selftest" in sys.argv:
         body = get_bytes_body(src["hrm"])
         sabotages = [
-            ("absent read as ON", "WD5b (AircraftManager)", "am",
-             lambda s: s.replace('GetStoredString("wx-layer") == "true"', 'GetStoredString("wx-layer") != "false"')),
-            ("page default true", "WD5b (config page)", "page",
-             lambda s: s.replace('getString("wx-layer", "false")', 'getString("wx-layer", "true")')),
+            ("absent read as OFF, today's rule restored", "WD5b (AircraftManager)", "am",
+             lambda s: s.replace('wxlayerswitch::On(configServer.GetStoredString("wx-layer").c_str())',
+                                 'configServer.GetStoredString("wx-layer") == "true"')),
+            ("page default false, today's restored", "WD5b (config page)", "page",
+             lambda s: s.replace('getString("wx-layer", "true")', 'getString("wx-layer", "false")')),
             ("a String body", "WD5t4", "hrm",
              lambda s: s.replace(body, body.replace("    xSemaphoreGive(mutex);\n",
                                                     "    const String dump = http.getString();\n    xSemaphoreGive(mutex);\n", 1)) if body else s),

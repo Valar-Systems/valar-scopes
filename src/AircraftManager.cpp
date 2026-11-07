@@ -26,6 +26,7 @@
 #include "WireLocation.h"   // precise on device, coarse on the wire: every location sent is 2 dp
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
+#include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
 // Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
@@ -893,10 +894,11 @@ void AircraftManager::Initialise()
     displaySweep = renderSweep.isEmpty() || renderSweep == "true";
 
 #ifdef FEATURE_CLOUD_FEED
-    // Weather under the planes (docs/wx-device.md, WD5): ABSENT MEANS OFF. A new key with an off default needs
-    // no ConfigMigration entry; making the default ON later would (CLAUDE.md, "a default only reaches keys
-    // that were never saved"). test/host/check_wx_wiring.py reads this line and the config page's default.
-    wxLayerEnabled = configServer.GetStoredString("wx-layer") == "true";
+    // Weather under the planes (docs/wx-device.md, "The layer on by default"): ABSENT MEANS ON, from v19. No
+    // ConfigMigration entry (CLAUDE.md, "a default only reaches keys that were never saved"): v18 has no such key,
+    // so every board that updates reads it as unset, and a saved "false" stands. See include/WxLayerSwitch.h.
+    // test/host/check_wx_wiring.py reads this line and the config page's default.
+    wxLayerEnabled = wxlayerswitch::On(configServer.GetStoredString("wx-layer").c_str());
     if (wxLayerEnabled) AllocateWeatherBuffers();
     // The look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through the one rule the page uses,
     // so absence means look A, the default Daniel chose.

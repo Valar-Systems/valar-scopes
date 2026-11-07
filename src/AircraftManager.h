@@ -647,7 +647,8 @@ private:
     // every loop pass.
     unsigned long cloudAirportsRetryMs = 0;
 
-    // Weather under the planes (docs/wx-device.md, WD5). OFF unless "wx-layer" is "true". The five buffers are
+    // Weather under the planes (docs/wx-device.md, WD5). ON unless "wx-layer" says otherwise (wxlayerswitch::On): the
+    // default until an owner saves a choice. The five buffers are
     // PSRAM, allocated once at the first enable and never freed (WD5 addendum 2); a failed allocation leaves the
     // layer off. wxLanding is written by the FETCH task while a weather request is in flight (one at most, behind
     // fetchInFlight); everything else here is the loop task's.

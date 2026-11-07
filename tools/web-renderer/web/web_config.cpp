@@ -27,6 +27,8 @@ std::map<std::string, std::string>& settings()
         {"lb-enabled", "false"},
         {"mqtt", "false"},
         {"ntfy-topic", ""},
+        {"wx-layer", "false"},       // in writing: the firmware reads ABSENT as ON, and this renderer has no pixels
+                                     // for the layer (docs/wx-device.md, (A)). check_wx_off.mjs refuses its removal.
     };
     return m;
 }
