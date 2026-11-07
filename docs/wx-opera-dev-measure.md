@@ -166,3 +166,17 @@ the product's ratio x 1.6.
   until `off` in the first free window if M is pushed past today.
 - **The lock:** M's first deploys ran without it confirmed (the ~15:55Z ruling records that). The rest runs in the window
   above, holds the lock for its whole run, and ends on `off`.
+
+**`opwe`'s reading** (read 16:07Z, 900 s pieces, **ABR [1]**, after M1 was re-registered and pushed at 16:07:18Z).
+
+| row | got | verdict |
+|---|---|---|
+| **M1 `opwe`** (the 12 counted builds, 03:00:46Z to 03:54:25Z, all after the last backfill at 02:56:12Z) | **median 314.5 ms**, max 622 ms, all `r2`. Between builds: n 43, median 8 ms | **as predicted** (<= 616 ms; expected about 385) |
+| **M3** (the whole run, 62 records) | **max 2,391 ms**: the first invocation, `built` and a backfill together | as predicted (<= 6,000 ms) |
+| **M4** (the whole run) | all 62 `ok`: **0 `exceededCpu`, 0 `exceededMemory`** | as predicted |
+| **M5** (printed) | `built` 1, `r2` 13, `cache` 2 (the two backfills in the isolate that had just built or read the map). 0 `mapPutErrors`, 0 error lines | printed |
+
+- **The memory watch at section 5 reads clean for `opwe`:** the `built` path holds `encodeMap`'s copy on top of the
+  build, an estimated 106 MB against 128 MB, and that invocation ended `ok`.
+- **`opwe`'s median against the expectation:** 314.5 ms is 0.82 of the 385 ms expected, the first sign of how the model
+  scales. M6 refits it on all four.
