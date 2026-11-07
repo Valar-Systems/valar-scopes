@@ -1,7 +1,10 @@
 # The Blipscope basemap client: the plan (requirements, and Daniel's style decision)
 
-The map server owns this client. **No firmware code exists yet.** The client code starts the day #445 merges (reviewer,
-2026-11-06 ~15:19Z). Any change to the shared `Get()` goes to blipscope-5c through the reviewer.
+**The map client session owns this client** (ruled 2026-11-07 ~19:08Z); the map server owns the route. **No firmware
+code exists yet.** Its steps, their frozen predictions and their records are in
+[blipscope-map-client-steps.md](blipscope-map-client-steps.md). Any change to the shared `Get()` goes to blipscope-5c
+through the reviewer. `GetBytes`'s `Retry-After` is the client's own, in its step A, since the client is its only
+consumer (ruled ~19:08Z).
 
 **This document holds every requirement ruled so far, each with its source.** A requirement is added here when it is
 ruled, never only remembered.
@@ -15,7 +18,9 @@ ruled, never only remembered.
 | **F3** | **Before drawing anything,** the client runs every check in the format's §8. Any failure means the no-package screen, logged with why. There is no partial draw | `docs/basemap-package-format.md` §8 |
 | **F4** | **The client draws the disc the header names** (`radiusMm`), not the one it asked for. A dense-area package may cover a smaller disc (D2) | §8 permits it; Q-DN2 (2026-11-06 ~15:07Z) |
 | **F5** | **A 404 `no_coverage` or 422 `too_large` is the no-package screen.** For a major city the server must not leave it there: the dense-area fix lands before D4 | Q-DN2: "'No map' isn't an acceptable end state for a major city" |
-| **F6** | **The first fetch after an update is spread: a per-device delay,** so the fleet does not ask at 03:00 in each time zone (§5). The window, and whether a device's nightly fetch is spread too, are registered with the client code | reviewer, 2026-11-06 ~22:49Z: "prefer spreading the first fetch (a per-device delay after the update) over measuring a 03:00 burst" |
+| **F6** | **The first fetch after an update is spread: a per-device delay,** so the fleet does not ask at 03:00 in each time zone (§5). **The delay is a device-id hash mod 2 h, on the boot after an OTA and after the nightly reboot. A power-on, a first-run restart or a config save fetches at once.** The mechanism is registered in step A. Neither the id nor the hash is ever printed | reviewer, 2026-11-06 ~22:49Z: "prefer spreading the first fetch (a per-device delay after the update) over measuring a 03:00 burst"; the window, Q-MC6 (2026-11-07 ~19:08Z) |
+| **F7** | **The request's `r` is the configured radius,** rounded up to cover the view plus the 2-dp offset, **capped at 222 km.** The radar's default view is 100 mi (161 km), and an `r=97` package covers 46 % of that face. The request asks for **no `peaks`**: S3 draws none | Q-MC1 and Q-MC7 (b) (2026-11-07 ~19:08Z). The map server re-reads at `r=161` before anything freezes |
+| **F8** | **The package lives in RAM only:** fetched once per boot, per location and radius, never written to flash | Q-MC6 (2026-11-07 ~19:08Z) |
 
 ## 2. The style: Daniel's decision (2026-11-06)
 
@@ -63,11 +68,13 @@ Weatherscope's style does not change.
 |---|---|
 | **S1: roads** | **Primary (class 1) roads always draw. Secondary (class 2) roads draw only when no primary road is in the current view.** |
 | **S1's "in view", exactly** | The current view is the device's projection at its current centre and zoom (§9 of the format, and the firmware's `ProjectAt`). A road is **in view** when **any of its segments** (consecutive vertices, mapped to screen pixels in double) lies within **120 px** of the screen centre (120, 120): the segment's closest point to the centre is at most 120 px away. The decision is re-made whenever the view changes (centre or zoom), never per package |
-| **S2: terrain** | Subdued: land plus (shade − 128) × 0.075, per channel, on the theme's land colour, sampled per §9 from the level nearest the view's radius. The theme may switch it off |
+| **S2: terrain** | Subdued: land plus (shade − 128) × 0.075, per channel, on the theme's land colour, sampled per §9 from the level nearest the view's radius. The theme may switch it off. **"Nearest" reads as the smallest level that covers the view plus the 2-dp offset** (Q-MC7 (a), 2026-11-07 ~19:08Z); at 5 mi the offset reaches 12 px. **In RGB565 the ramp has 9 colours** (21 in 8-bit), and Daniel looks at it on glass during step M's window; dither only if he asks (Q-MC3) |
 | **S3: draw order** | land and terrain; then water; rivers; roads; place names; the weather; then **airports and their codes above the weather** (ruled 2026-10-26); then planes |
 | **S4: planes, with weather on** | **cyan below 3,000 m, white from 3,000 m up** (as ruled for #445) |
 | **S5: airports** | grey as today: the 5 × 5 outline square in mark grey, and the code 5 px right in label grey |
 | **S6: labels** | collisions keep today's behaviour (decision 5) |
+| **S6′: place names** | **On by default, with a setting to turn them off** (Daniel, Q-MC7 (c), 2026-11-07 ~21:13Z). The Weatherscope's rule: the largest towns first, at most 8, the centre kept clear. **A name never covers an airport code.** Daniel judges it on glass. The setting's rules are in §6 |
+| **S7: the sweep over the map** | **The wedge's green is added to the map pixel** below it, so the map stays visible under the beam. Over black this is bit-identical to today's opaque wedge. Daniel judges it on glass (Q-MC2, 2026-11-07 ~19:08Z) |
 
 **S1's check, with values measured on the approved packages** (view half-width 49.5 km, centred on each package's
 origin). These are registered here, before any client code:
@@ -198,7 +205,7 @@ only while the key is new and the page shows it ticked.
 
 | | requirement |
 |---|---|
-| **DO1: the default is a named constant** | `MAP_DEFAULT_ON = true` sits beside `LOGBOOK_DEFAULT_ON` in `include/ConfigMigration.h`. **The device and the config page** both resolve the stored value through `configmigration::ResolveToggle()`. Neither holds a literal of its own (the logbook's page once did). **DO1 covers every writer of the key, not only those two.** When the client is written, it names each one (provisioning, the Remote edition, any settings import). Each resolves through `ResolveToggle` or leaves the key alone |
+| **DO1: the default is a named constant** | `MAP_DEFAULT_ON = true` sits beside `LOGBOOK_DEFAULT_ON` in `include/ConfigMigration.h`. **The device and the config page** both resolve the stored value through `configmigration::ResolveToggle()`. Neither holds a literal of its own (the logbook's page once did). **DO1 covers every writer of the key, not only those two.** When the client is written, it names each one (provisioning, the Remote edition, any settings import). Each resolves through `ResolveToggle` or leaves the key alone. **The web renderer is one of them:** it has no pixels, so its config map writes `map-layer` "false" in writing, as it does `wx-layer`, and `check_wx_off.mjs` is extended to refuse a map without it (ruled 2026-11-07 ~19:08Z) |
 | **DO2: the key is new** | **No published firmware has ever written the key** (NVS key ≤ 15 characters). So on every device in the field it reads unset, and the default reaches it with no migration. Checked when the client is written: the name has no match in main's `src/` and `include/`, in any release tag's tree, or in **any image ever published: each OTA channel's binaries and the factory image**. The image search has its own control: a key each image is known to hold must be found, or that image was not read. **If any image ever wrote it**, or an earlier name for the same layer, with another default, DO2 fails. The client then needs a `ConfigMigration` revision that **clears** the key (as rev 3 did for the logbook) |
 | **DO3: an unset key renders ticked** | So the first save after the update writes `"true"`. From then on, a stored `"false"` can only be a deliberate untick, and no later migration may clear it (the logbook's "going forward" rule). A page that leaves the box out sends no `cfg-toggles` entry for it, so the save leaves the key alone (`include/ConfigVocabulary.h`) |
 | **DO4: no release shows it unticked first** | **No release may render the box unticked, even behind a flag:** not a beta, not an OTA channel, not a staged rollout. Every device that saved its form on such a build would hold an explicit `"false"`, and DO1 would reach none of them. If one does ship, DO2's clearing migration becomes a requirement before the layer ships |
@@ -213,6 +220,18 @@ only while the key is new and the page shows it ticked.
 
 DOC3 runs on the board population the requirement is about. A factory-fresh board passes DOC1 and DOC2 by construction.
 The devices in the field are the ones that have already saved a form.
+
+**The switch (Q-MC4, 2026-11-07 ~19:08Z).** The map compiles under #609's `WX_LAYER_SHIPS`, so v19 carries none of it,
+and one line turns weather and the map on together. Its strings join `scripts/check-no-weather.sh`, and the wxlook
+control must find them. The client's first firmware push waits for #609's merge.
+
+**The place-name setting follows the same rules** (Daniel, Q-MC7 (c), 2026-11-07 ~21:13Z):
+- a new key of at most 15 characters that no published image has ever written (DO2's search, with its controls);
+- on when unset, and rendered ticked (DO1, DO3);
+- hidden in v19 under the same switch (DO4);
+- the web renderer writes it "false" in writing.
+
+It gets its own rows and plants beside DO1-DO4 and DOC1-DOC3, written with step D's predictions.
 
 **CI for this PR (docs-only), predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
 failed.** The baseline is #578's finished docs-only run (31 = 28/3). It postdates `84409651`, the last change to the set
@@ -230,3 +249,7 @@ skipped (`promote`, `ship-alert`, `version`), 0 failed.** #445 (`caf63cc9`) adde
 **CI for the PR adding "ship together" (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`,
 `version`), 0 failed.** The baseline is #592's finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to
 the set of jobs.
+
+**CI for the PR recording the client's owner, F6's window, F7, F8, S6′, S7 and the switch (docs-only), predicted: 32 check runs: 29
+success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The baseline is #608's finished docs-only PR run (32 =
+29/3/0), which started at 18:21Z, after `2e36055a` (#597), the last change to `.github/workflows/`.
