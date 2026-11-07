@@ -14620,3 +14620,57 @@ The branch is deleted; no PR was based on it. Main's CI on the squash is running
 - **`test_wx_swipe.cpp`: `133 checks, 0 failures`** under WSL g++ 13.3, on its first complete run, as predicted. All 10 K rows pass, so the device's path equals `ref35c.py` at 57,600 of 57,600 pixels.
 - **Rows that needed reading:** H7 and H8 read "day 3" as `TUE`. In a Friday record day 3 is `MON`, so those rows move "now" to Saturday, keeping the frozen text and readings.
 - Still to come: the driver and its 18 plants, the `run.sh` block, the manager, MinGW, and the images. Nothing is pushed.
+
+### A12.151 The night capture: OFF-PREDICTION, NWS's cached forecast opens on a period already over (Q109, Q110). #571's main CI as predicted; step 6's plants all as predicted
+
+#### #571 on main
+
+**Main's CI on `0867145c4861`, read finished twice: 34 checks, 31 success, 3 skipped (promote, publish, version), 0 failed. AS PREDICTED.**
+
+**A12.150's count, corrected:** it says main moved "twice" and lists three moves. It moved three times, and with my script's miss that is **four stops**, not three.
+
+#### The night capture
+
+**Measured at 00:30:02Z (18:30 local), one fetch, by the frozen tools.** All six documents read 200, and every structural row was as predicted.
+
+| row (A12.131) | predicted | measured |
+|---|---|---|
+| its first period | a night one | **OFF-PREDICTION: daytime,** `This Afternoon`, 17:00-18:00 local |
+| conditions | `HI <tomorrow's daytime high>` | **`HI 68  LO 53`,** today's, because the first daytime period is that same one |
+
+**The cause.** NWS served a cached `forecast` document, `generatedAt` 23:30:33Z, an hour old. Its first period had ended at 18:00 local, 30 minutes before the capture. The `hourly` document, generated 00:11:24Z, does start at 18:00.
+
+**The alternative, named:** the clock or the capture is wrong. The data excludes it: that document's own second period, `Tonight`, starts at 18:00 local, and the hourly document opens on the same hour, so the first period's end is stated inside the capture itself.
+
+**My two misses:**
+- **The prediction:** I reasoned from the local time and never from the document's age, though A12.133 had already measured that NWS serves its forecast from cache.
+- **The gate:** A12.131 says to stop with nothing trimmed. My script stopped on the fetch rows but did not test this one, so the trim and the 2 renders ran. Both outputs are local and uncommitted: `dallas-night.json` is untracked, and the renders are in `ref35c-png-night`, not sent to Daniel.
+
+**What it means beyond this capture.** A9.1's "the day's high" (Q92) reads the first daytime period, and Q92 rested on "at night that is tomorrow's". For up to an hour after a period ends, that premise is false. It is harmless in stored mode, where "now" and the record agree, but a live feed would reach the same state on its own.
+
+**Q109. The night case.**
+- **(a) [recommended]** One more fetch after 01:30Z, when the cached document has rolled. The script gates the trim on `isDaytime` false, so a repeat stops with nothing trimmed. If it still opens on a daytime period, the derived case stands in, labelled, as A12.131 provides.
+- **(b)** The derived case now, labelled, with its caveat. No second fetch.
+
+**Q110. A period that is already over.**
+- **(a) [recommended]** A period whose successor has started is over. `Days`, `HighLowText` and the headline's period scan begin at the first period not over, by `startUtc` against "now" (Q105 makes that possible). A12.144 gains H18, C26 and W7, a plant S-SW16 failing exactly those three, and the suite reads 136. Neither K case holds an ended period, so the 10 renders are predicted unchanged.
+- **(b)** Leave the device as it is, and make "drop ended periods" a duty of the proxy's feed when the live path comes. The device then shows whatever it is sent.
+
+#### Step 6, local (`weatherscope/swipe-screens`), nothing pushed
+
+| row | predicted | measured |
+|---|---|---|
+| `test_wx_swipe`, WSL g++ 13.3 and MinGW | 133 checks, 0 failures | **as predicted,** both |
+| the 18 plants, S-L as corrected | each exactly its set | **as predicted:** all 18, driver exit 0, real header unchanged |
+| anchors, after the manager change | every driver and plant | **34 of 34;** `plant_s_wait.py` [1, 1] |
+| the D2 scan of the image | no NWS hostname | **0 hits** for `weather.gov` |
+| `weatherscope-s3-128` | no bench marker | **1,888,816 B, `9faf89a1b10e`,** no marker |
+| `weatherscope-touchbench-s3-128` | `[touch-bench]` only | **1,889,440 B, `2dba5dd04e7f`,** as predicted |
+
+**Two rig stops on the first driver run, not results:**
+- S-SW13's trailing comment swallowed a closing brace. The plant now uses a block comment.
+- S-SW15 exposed a real tight buffer under different inlining: `char line[16]` for `+N MORE` could truncate. It is now 20, and no row moved.
+
+**The first scan of the suite's output:** H7's and H8's "now" moves to Saturday, as A12.150 records. The full `run.sh` is running. Step 6's PR waits for Q110, because (a) changes the header it would carry, and its CI is predicted before that push.
+
+**Independent of those:** #583 has merged, so the scrub starts now.
