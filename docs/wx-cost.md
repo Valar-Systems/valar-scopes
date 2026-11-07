@@ -1,5 +1,9 @@
 # What weather costs per board
 
+**Superseded in part (Daniel, 2026-11-07 ~16:03Z): weather and maps ship together, in the same Blipscope version, both on by
+default, and v19 ships when it is ready, without weather.** Read "v19" below as that joint release. The figures, the fixes and
+the 50-board trigger all stand and move with weather: read the board count at the joint release's cut and weekly after.
+
 **Read this first.** With weather on every cloud board, today's fleet costs about **$0.79 a month, under Daniel's $2**. The
 $2 runs out somewhere between **50 and 84 boards**, depending on the weather and how busy the Worker is. At 600 boards it
 is about **$29-46 a month**. Daniel's decision (2026-11-07 ~02:36Z): v19 ships with weather on by default, and `/wx` is
@@ -92,7 +96,7 @@ $0.05-0.08 a board a month, and whether that needs a new allowance is a separate
 
 ## Instruments
 
-- `/wx` has no line in Analytics Engine: it buckets into the mixed `/other` until the `KNOWN_ROUTES` PR is merged and
-  deployed. Until then, read it from Workers Logs.
+- `/wx` has its own lines in Analytics Engine since #590's deploy (2026-11-07 16:50Z, [wx-route-label-deploy.md](wx-route-label-deploy.md)).
+  Before that it sat in the mixed `/other`, so a query spanning that time sees both.
 - The account's own 30-day reads came in lower than the base used here (CPU 20.2 M against 52.2 M, Class B 3.11 M against
   4.80 M), because the ingest has changed within the window. The higher base is used so the verdict errs high.
