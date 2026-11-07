@@ -115,6 +115,9 @@ hues; that will be its own decision when Light is designed.
   6. the deploy-inputs code.
 - **The map layer is on by default** (§6). DO1 to DO4 hold in the shipping build, and DOC1 to DOC3 have run as registered.
 - **The first-fetch wave stays under Daniel's allowance,** or Daniel has ruled on it (below).
+- **Weather and maps ship together,** in the same Blipscope version, both on by default (Daniel, 2026-11-07 ~16:03Z). Weather
+  waits for the map client, so the client and D4's prerequisites are on the release path. One OTA therefore brings the map's
+  first fetch and weather's polling at once, which is what the view at ship below has to count.
 
 ### The first-fetch wave, against Daniel's $2 allowance
 
@@ -223,3 +226,7 @@ skipped (`promote`, `ship-alert`, `version`), 0 failed.** #445 (`caf63cc9`) adde
 **CI for the PR adding F6 and v19's weather polling (docs-only), predicted: 32 check runs: 29 success, 3 skipped
 (`promote`, `ship-alert`, `version`), 0 failed.** The baseline is #587's finished docs-only run (32 = 29/3), which postdates
 `caf63cc9`, the last change to the set of jobs.
+
+**CI for the PR adding "ship together" (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`,
+`version`), 0 failed.** The baseline is #592's finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to
+the set of jobs.
