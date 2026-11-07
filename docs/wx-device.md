@@ -5462,3 +5462,70 @@ and `run.sh` but neither `skus.yml` nor any workflow, and `web_ota.cpp` but not 
 | **run.sh** (g++ 13.3.0) | exit 2 from exactly "the same TU, for the board" and "Weatherscope R0 and R0b", `sabotage_wx_towns.py` SKIP, nothing else red, #571's blocks included | as predicted |
 
 **WO3 and CI** are read on the push.
+
+## v19 ships without weather (Daniel's decision, ruled 2026-11-07 ~16:03Z): predictions, frozen 16:25:01Z before the code
+
+**The ruling.** Weather and maps ship together, in the same Blipscope version, both on by default. v19 ships when it is
+ready, without weather. This replaces "v19 ships with weather on". #582's default and its bench row stand for the joint
+release, and the `/wx` cost work moves with weather.
+
+**The shape.**
+- **One switch:** `[weather] layer` in `platformio.ini`, empty today, read by `[cloud] prod` and `staging`. The joint release
+  sets it to `-DWX_LAYER_SHIPS` on one line.
+- **`wxlayerswitch::kShips`** is a compile-time constant. `On()` is false for every stored value when it is false, and the fetch
+  task's weather branch tests it, so the compiler removes that branch and the `/wx/` path with it. Never reached is not the
+  same as not there.
+- **The page:** `WXSECTION` returns nothing unless the switch is on: no box, no look select, no legend.
+- **Hidden, never unticked, needs no special case.** `SaveToggle` writes `"false"` only for a name the form declared in
+  `cfg-toggles` (`include/ConfigVocabulary.h`), and `wx-look` is saved only if sent. A page that renders neither sends neither,
+  so both keys stay absent, and the joint release's default still reaches every board. DO4's hazard does not arise.
+- **The bench env `blipscope-s3-128-wxlook` keeps it on,** and so does the web build: R7 proves the layer aborts the website's
+  renderer, and that needs the layer compiled in. Its config map still says `"false"`.
+
+| | predicted |
+|---|---|
+| **WF1** | with the flag undefined, `kShips` is false and `On()` is off for unset, `"true"` and `"false"`: a stored key cannot turn it on |
+| **WS1-WS4** | unchanged, with the flag defined |
+| **S-WF-on** | `kShips` true in the off build turns exactly WF1 red |
+| **WP1** | `check_wx_wiring.py`: the markup holding `name="wx-layer"` is compiled only under `WX_LAYER_SHIPS`, and the empty branch exists. Its plant shows the section unconditionally and turns exactly WP1 red. Every other check and plant is unmoved |
+| **WI1** | a new `scripts/check-no-weather.sh`, run on the shipping image in CI: none of `/wx/`, `name=\"wx-layer\"`, `Brighter rain`, `[wx] buffers` in it, anchored on `[build] env=` (no anchor is BLIND, never a pass) |
+| **WI2, the control** | `--expect` on the `wxlook` image: every one of those strings **present**. A list that found nothing would otherwise pass |
+| **WI3** | its `--selftest`: a planted string fails, an anchor-less file is BLIND |
+| **WO1-WO3** | `check_wx_off.mjs` unchanged; web smoke R1-R7 and R7's sabotage pass |
+| **B1** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` build; the shipping image is smaller than today's |
+| **run.sh** (WSL, g++ 13.3) | exit 2 from exactly the two environment blocks, `sabotage_wx_towns.py` SKIP, nothing else red |
+| **CI** | **34 = 30 success, 4 skipped, 0 failed**: the same four workflows as #582's run on `3a868b966fcf`. A new step in an existing job does not change the count |
+
+**The bench row, after the code, on E2:08 with the key absent** (the one-time image, as before; predictions restated before its window):
+no `[wx]` buffers and no fetch in 4 minutes; no weather control on the page; after a save, the key still reads absent.
+
+**Outside the set:** any row reading otherwise, or the `/wx/` string surviving in the shipping image: stop.
+
+### v19 ships without weather, results (2026-11-07, 16:25-16:59Z, local)
+
+| | read | verdict |
+|---|---|---|
+| **WF1-WF3** | `kShips` false; unset off; a stored `"true"` off | as predicted, **restated** (below) |
+| **S-WF-on** | red rows `WF1`, `WF2`, `WF3` | as restated |
+| **S-WF-rule** (added) | `On()` ignoring `kShips`: red rows `WF2`, `WF3` | as restated |
+| **WS1-WS4 and their three plants** | unchanged | as predicted |
+| **WP1** | the markup is under `WX_LAYER_SHIPS`, the other branch empty; its plant turns exactly WP1 red | as predicted |
+| **WI1** | **OFF on the first two builds.** Clean on the third: none of the four strings | see below |
+| **WI2, the control** | all four strings in the `wxlook` image | as predicted |
+| **WI3** | `--selftest`: each planted string fails, an anchor-less file is BLIND | as predicted |
+| **WO1, WO2** | `check_wx_off.mjs` unchanged | as predicted |
+| **B1** | both images built; shipping is 17.5 KB smaller than `wxlook` | as predicted |
+| **run.sh** (g++ 13.3.0) | **a third failed block on the first run** (below); on the re-run, exit 2 from exactly the two environment blocks, `sabotage_wx_towns.py` SKIP, nothing else red | as predicted on the re-run |
+
+**WI1, my miss.** The first build still held `[wx] buffers`: `AllocateWeatherBuffers()`'s call site tested the runtime member, not
+`kShips`, so the function stayed linked. Gating the call removed the symbol, and the second build **still** held the string: the
+linker drops unused functions but not literals merged into a shared section. An orphan, then, not live code, and 0 weather
+symbols remained in the ELF, which excludes live code. The allocator's body is now compiled under the switch. **The lesson for
+this check:** a string in an image does not prove live code, but its absence does prove the code is gone, and absence is the
+direction the check relies on.
+
+**Ruled ~18:12Z:** both fixes accepted (`22e3af9c`, `b381fec6`). The prediction "none of these strings" stays on record as my miss: a
+string check also reads literals the linker keeps after it has dropped their code. `scripts/check-no-weather.sh` says so in its header.
+
+**run.sh, my miss.** `OK_COUNT_OFF = 1` made the count lint flag every ordinary `1` in the driver as a repeat of the table count. WF1
+is split into three rows, so the count is 3, and a plant now shows which guarantee broke.

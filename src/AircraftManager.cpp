@@ -899,7 +899,7 @@ void AircraftManager::Initialise()
     // so every board that updates reads it as unset, and a saved "false" stands. See include/WxLayerSwitch.h.
     // test/host/check_wx_wiring.py reads this line and the config page's default.
     wxLayerEnabled = wxlayerswitch::On(configServer.GetStoredString("wx-layer").c_str());
-    if (wxLayerEnabled) AllocateWeatherBuffers();
+    if (wxlayerswitch::kShips && wxLayerEnabled) AllocateWeatherBuffers();   // compiled out with the switch, like the fetch
     // The look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through the one rule the page uses,
     // so absence means look A, the default Daniel chose.
     wxLook = wxs2::LookFromStored(configServer.GetStoredString("wx-look").c_str());
@@ -2844,7 +2844,8 @@ void AircraftManager::RunFetchTask()
 
         // Weather crop (docs/wx-device.md, WD5): a binary GET into the loop's landing buffer, on this same
         // task and keep-alive connection. One in flight at most, so the loop never reads the buffer mid-write.
-        if (req->kind == FetchKind::Weather) {
+        // kShips, not a stored key: with it false this branch is compiled out, and the image holds no /wx path at all.
+        if (wxlayerswitch::kShips && req->kind == FetchKind::Weather) {
             std::vector<std::pair<String, String>> hdrs = CloudFeed::Headers(req->cloudKey);
             if (!req->wxIfNoneMatch.isEmpty()) hdrs.push_back({ "If-None-Match", req->wxIfNoneMatch });
             size_t len = 0;
@@ -3204,7 +3205,7 @@ bool AircraftManager::RequestCloudAirports()
 
 bool AircraftManager::WxEnabled() const
 {
-    return wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty();
+    return wxlayerswitch::kShips && wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty();
 }
 
 // The query exactly as the request carries it: lat/lon through the wire's own rounding (wireloc::Center ==
@@ -3221,6 +3222,9 @@ wxpolicy::Query AircraftManager::WxQuery() const
 
 bool AircraftManager::AllocateWeatherBuffers()
 {
+#ifndef WX_LAYER_SHIPS
+    return false;   // compiled out with the switch: its log strings would otherwise stay in the image
+#else
     if (wxBuffersOk) return true;
     if (wxAllocTried) return false;   // a failed allocation leaves the layer off; not retried on every save
     wxAllocTried = true;
@@ -3250,6 +3254,7 @@ bool AircraftManager::AllocateWeatherBuffers()
     Serial.printf("[wx] buffers: total %u B; psram_free %u -> %u\n", (unsigned)total, (unsigned)before,
                   (unsigned)ESP.getFreePsram());
     return true;
+#endif
 }
 
 bool AircraftManager::RequestWeather(unsigned long now)

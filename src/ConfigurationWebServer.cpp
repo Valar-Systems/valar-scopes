@@ -3235,8 +3235,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
                 if (var == "TRIANGLE")       return triangleEnabled == "true" ? "checked" : "";
-#ifdef FEATURE_CLOUD_FEED
-                // Only a cloud build can fetch weather, so only a cloud build shows the box.
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)
+                // Only a build that can fetch weather shows the box. Hidden, never unticked: a form that renders no box
+                // declares no box, so SaveToggle leaves wx-layer absent, and the joint release's default still reaches it.
                 // The Display tab's Weather section (docs/wx-device.md WD8): every weather setting, with its heading,
                 // and under the switch the legend of what the layer draws in the look in use (WxLegendHtml.h, its
                 // colours from wxs2 at serve time). Layout only: the fields' names, values and defaults are unchanged.
@@ -3251,7 +3252,7 @@ void ConfigurationWebServer::Initialise() {
                          + wxlegendhtml::Html(wxs2::LookFromStored(wxLookStored.c_str())).c_str()
                          + "</fieldset>";
 #else
-                if (var == "WXSECTION")      return "";   // a build without the feed has no weather, so no section
+                if (var == "WXSECTION")      return "";   // no weather in this build, so no section (WxLayerSwitch.h)
 #endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";

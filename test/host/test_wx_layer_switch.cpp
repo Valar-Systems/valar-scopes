@@ -4,6 +4,7 @@
 //   test_wx_layer_switch.exe      exit 0 all pass, 1 a check failed
 #include <cstdio>
 
+#define WX_LAYER_SHIPS   // the rule itself, as the joint release and the bench builds compile it. test_wx_layer_off.cpp is the v19 build
 #include "WxLayerSwitch.h"
 
 static int failures = 0;

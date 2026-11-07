@@ -14,6 +14,17 @@
 
 namespace wxlayerswitch {
 
-inline bool On(const char* stored) { return stored[0] == '\0' || strcmp(stored, "true") == 0; }
+// THE ONE SWITCH (Daniel, 2026-11-07 ~16:03Z): weather and maps ship together, so v19 ships without weather. WX_LAYER_SHIPS
+// comes from [weather] layer in platformio.ini and is off in every shipping env today. kShips is a compile-time constant on
+// purpose: with it false the fetch task's weather branch is compiled out, so the image cannot ask for /wx at all, whatever a
+// stored key says, and scripts/check-no-weather.sh reads the built image for that. The page shows no weather control either,
+// so wx-layer and wx-look stay absent, and the default above still reaches every board at the joint release.
+#ifdef WX_LAYER_SHIPS
+constexpr bool kShips = true;
+#else
+constexpr bool kShips = false;
+#endif
+
+inline bool On(const char* stored) { return kShips && (stored[0] == '\0' || strcmp(stored, "true") == 0); }
 
 }  // namespace wxlayerswitch
