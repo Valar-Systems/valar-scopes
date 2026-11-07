@@ -258,3 +258,168 @@ this is not a controlled comparison.
 **CI for this records PR (docs only), predicted: 31 check runs: 28 success, 3 skipped (`promote`, `ship-alert`,
 `version`), 0 failed.** The baseline is #569's finished docs-only run (31 = 28/3), which postdates `84409651`, the last
 change to the set of jobs.
+
+## S2: the package and its `.err` read in parallel (predictions first)
+
+### The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~18:26Z)
+
+> Q-SW3 -> yes, 182 ms is thin. The pre-race spread alone was about 400 ms, and its maximum rose from 570 to 718 ms
+> between two sets of ten. S2 is wanted before D4: read the package and its .err in parallel, predictions first, then a
+> fresh ten on staging in its own slot.
+> - Order: step 0's code first (on D4's critical path, predictions registered), then S2. Both before D4.
+
+### The change
+
+**In `handler.ts`, a known store id's miss reads its package and its `.err` with one `Promise.all`.** It no longer reads
+the `.err` only after the package read misses. Everything after the reads is unchanged:
+- a valid package answers `stored`;
+- a remembered 404 or 422 answers `stored-error`;
+- otherwise the create-once lock, then the race.
+
+**What it saves:** one sequential R2 read on every cold first request. The pre-race work's spread (314 to 718 ms across the
+fresh ten) is what made the margin thin.
+
+**What it costs, stated because a registered property changes.**
+- `docs/basemap-cold-build.md` says each retry is served *"from one R2 read"*. Under S2 a stored request makes **two**
+  reads (the package and its `.err`), in parallel.
+- Its latency is the slower of the two.
+- One more R2 Class B read per stored request: $0.36 per million beyond the free 10 million a month.
+- **That line becomes "from one round of R2 reads".**
+
+**The alternative, not proposed now:**
+- **What it is:** keep a 404 or 422 under the package's own key, as a small JSON record in place of a package.
+- **What it would give:** one read answers all three outcomes, and the stored path stays at one read.
+- **Why not now:** it changes A1's key layout (`.err` goes) and MS7 and MS8's rows, which is more than the ruling asked.
+  It is named here so that it is a choice, not a default.
+
+### Rows
+
+| row | what | predicted |
+|---|---|---|
+| **MS1 to MS9** | A1's rows, unchanged | green: every outcome is the same |
+| **MS10** (new) | a known miss over a bucket whose `get` is delayed 100 ms and records when each read starts and ends | **the `.err` read starts before the package read resolves**: the two overlap. The answer is unchanged (202 `known-miss` under a shortened wait) |
+
+**The plant:**
+- **S-S2SEQ:** the reads made sequential again, so the `.err` read starts only after the package read resolves. Red set
+  **{MS10}**.
+- **Re-anchored, like step 0's four:** **S-MS2** ("the stored package never read") anchors the package-read line S2
+  rewrites. It moves onto the new line with the same defect, and keeps its set {MS2, MS6}. Every other plant is checked
+  with the anchor check, and a compile check of the planted file (the guard approved ~19:43Z, done by hand until its PR
+  lands), before any run.
+
+**Counts:**
+- **The suite:** main's count at the branch base, plus 1 (MS10).
+- **`baseline[all]`:** +1.
+- **The driver:** one run more (S-S2SEQ), with every set as registered.
+- **The smoke driver's CONTROL** follows the suite.
+
+### The staging reading (in its own slot, after merge and deploy)
+
+**A fresh registered ten, never built before,** at the slot's parameters: KPIT, KBWI, KMEM, KOKC, KABQ, KTUS, KRNO,
+KBOI, KGEG and KOMA. **The same shape and instruments as the last ten.**
+
+| row | predicted |
+|---|---|
+| **the first request: 202 `known-miss`** (server `ms`, nearest-rank p95 over the ten = the maximum) | **at most 2,318 ms**, the last ten's p95: S2 can only remove work. **Under the 2.5 s target** |
+| the pre-race work (`ms` − 1,600, per request) | **reported, never graded:** its spread is the thing being measured, and two sets of ten have already moved its maximum |
+| the second, the retry, +50 s, the builds, cancellations, packages and locks | as the last ten |
+
+**Outside the set:** stop and report.
+
+**CI for the code PR:** a `proxy/` PR, **34 check runs: 31 success, 3 skipped, 0 failed**. The baseline is named when
+the PR opens, from the latest finished `proxy/` PR run that postdates `84409651`.
+
+### Corrections found while writing the code, before any run (2026-11-06)
+
+**These are registered before any run, each with its cause. The section above is kept as written.**
+
+**1. S-MS2's set grows {MS2, MS6} → {MS2, MS6, MS10}.**
+- **What I wrote above:** that it "keeps its set". That was wrong.
+- **Why:** with the stored package never read, only the `.err` read happens, and MS10's control (both reads seen)
+  fails.
+
+**2. Three more existing plants' sets grow by MS10,** from evaluating every handler and query plant against it:
+
+| plant | its set grows to | why MS10 goes red |
+|---|---|---|
+| **S-MKKMISS** | {MK4, MK6, MS3, **MS10**} | MS10's first request is labelled `known-miss` |
+| **S-MS1** | {MS1, MS2, MS3, MS4, MS6, MS7, **MS10**} | a fresh isolate without KV's store id takes the unknown-store path, which builds synchronously: 200, not 202 |
+| **S-MS3** | {MS3, MS7, **MS10**} | never raced, the first request waits for its build: 200, not 202 |
+
+**Every other plant leaves MS10 green.** MS10 grades only the first request, which is answered before the build
+completes.
+
+**3. The guard, done by hand until its PR lands.**
+- **The anchor check:** 72 of 72 sabotages plant cleanly against S2's code.
+- **TypeScript's parser,** in memory: the unplanted `handler.ts`, S-MS2's plant and S-S2SEQ's plant all parse.
+
+**4. `tsc --noEmit` is clean** for the code and MS10. **No test has run.** S2 runs after step 0's checks, as ruled.
+
+### Merged with main, the guard's scope ruled, and frozen before the run (2026-11-06)
+
+**The ruling, verbatim** (reviewer chat, pasted by Daniel, ~23:28Z):
+
+> Q-DUP: (a). The guard's scope becomes the files the driver runs, basemap-*.test.ts, registered before it runs:
+> - --selftest-dups still refuses a planted basemap-zz-dupcopy, and a new control shows that a duplicate outside basemap-* is
+>   not refused.
+> - The wx session's MP3 stays as it is.
+>
+> A gap your reasoning leaves open: the smoke driver runs the whole suite and grades failures by bare id prefix, with the
+> file name dropped (FAIL_LINE). A namesake of SQ1:, SQ2: or SQ-C: in any other file would be counted as the real row, and
+> could read "as registered" when the real row didn't fail.
+> - Before S2's smoke run: read and record that SQ1:, SQ2: and SQ-C: each title exactly one row across all of test/. That's
+>   a read, not code.
+> - Later, in its own small PR: the smoke driver refuses to start unless each red prefix titles exactly one row across
+>   test/, with a selftest plant in a non-basemap file. Add it to the follow-up list.
+>
+> Then freeze S2's count at 999 (998 passed, 1 skipped) and run, as you plan.
+
+**The merge.** Main at `4bbfdb8ffd55` (#585) went into S2 as `1e779fd27c53`, with no conflicts. On the merged tree: `tsc` is
+clean on both configs, all 75 anchors are found once each, and 74 planted files parse. C-LOADFAIL does not parse, by design.
+
+**The guard's scope, read before the change and predicted after it.** `--selftest-dups` on the old scope printed control 1
+duplicate (`MP3`), the planted copy 7, and exit 1. That reading proves the check can fail.
+
+| `--selftest-dups` on the new scope | predicted |
+|---|---|
+| control | **0 duplicates** |
+| the copy outside `basemap-*` | **0 duplicates: not refused** |
+| the planted `basemap-zz-dupcopy` | **6 duplicates, all naming the copy** (the file's 6 distinct ids, by the guard's own regex) |
+| both copies removed, exit | **true, exit 0** |
+
+**The read before the smoke run.** On this tree, across all of `test/`, `SQ1:`, `SQ2:` and `SQ-C:` each title exactly one
+row, all in `smoke-basemap-query.test.ts` (lines 47, 55 and 79). `SQ` appears nowhere else in a text file except the word
+`SQUARE` in a comment, so no title built at run time can reach them.
+
+**The counts, frozen.** Read from CI on `4bbfdb8ffd55`: the `workers` run 42309616163 reads 997 passed, 1 skipped (998).
+
+| check | predicted |
+|---|---|
+| **`sabotage-basemap.mjs`, whole** | baselines **11 / 31 / 168** (17 files); **78 runs** (75 sabotages and 3 baselines), 0 runtime failures, **every one AS PREDICTED** with C-LOADFAIL BLIND among them, every set as registered; exit 0 |
+| **`sabotage-smoke-basemap.mjs`, whole** | CONTROL **998 passed, 1 skipped, of 999**, 0 failed. S-SQ **{SQ1, SQ2}**. S-SQP **{SQ-C}**. Each run counts 999. No raw output kept. TIME_WAIT margin reported against the 15,000 ceiling |
+
+**Anything else, including another count or a set that differs: stop, no fix, report.**
+
+**How the run is gated:** the second driver starts only on the first's exit 0, after the usual clear check. If either has to
+be stopped, its child pids are recorded first and the whole tree goes with `taskkill /T`.
+
+**Added to the follow-up list, as ruled:** a small PR in which the smoke driver refuses to start unless each red prefix
+titles exactly one row across `test/`, with a selftest plant in a non-basemap file.
+
+### Read (2026-11-06/07, `a5fabe27ef88`): as frozen
+
+| check | read | verdict |
+|---|---|---|
+| **`--selftest-dups`** | control 0; outside copy 0; planted copy 6, all naming the copy; copies removed; exit 0 | as predicted |
+| **`sabotage-basemap.mjs`, whole** (wait clear 23:31:46Z: TIME_WAIT 37, no other `vitest` or `sabotage-` process; exit 0 at 00:22:53Z) | baselines **11 / 31 / 168** (17 files). **78 runs, 75 sabotages all AS PREDICTED,** with C-LOADFAIL BLIND among them. S-S2SEQ {MS10}; S-MS2 {MS10, MS2, MS6}; S-MS3 {MS10, MS3, MS7}; S-MS1 and S-MKKMISS with MS10, as registered. 0 runtime failures. Highest TIME_WAIT at a run's start 7,923 (gate 8,000); held for ports 1,537 s | as predicted |
+| **`sabotage-smoke-basemap.mjs`, whole** (wait clear 00:25:06Z: TIME_WAIT 10; exit 0 at 00:31:16Z) | CONTROL **998 passed, 1 skipped, of 999**, 0 failed (start 10, peak 13,554). S-SQ **{SQ1, SQ2}** (start 373, peak 13,553). S-SQP **{SQ-C}** (start 1,968, peak 13,556). Both restored byte-identical. **ALL AS REGISTERED**, so each run counted 999 | as predicted |
+
+- **The tree afterwards:** porcelain 0.
+- **The TIME_WAIT margin:** the highest peak, 13,556, is 1,444 under the driver's 15,000 ceiling. Not under 1,000.
+
+**CI for the code PR, predicted: 35 check runs: 32 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The
+baseline is #585's finished run (35 = 32/3), a `proxy/` PR that postdates `caf63cc9`, the last change to the set of jobs.
+
+**The suite on CI, predicted: 1,012** (1,011 passed, 1 skipped). CI runs the merge ref, so that is main's 1,011 (`workers`
+on `387b93bbe5d3`, with no proxy source or test change since) plus MS10. This branch has not merged main again, so the 999
+read above stands for this tree. The merge is clean, and none of main's newer commits touch the basemap's files.

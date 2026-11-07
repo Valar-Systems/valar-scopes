@@ -559,6 +559,25 @@ describe("MS, A1's stored packages and O1's store id", () => {
     expect([res.status, b.n.calls, b.n.reads]).toEqual([200, 1, 5]);
   });
 
+  it("MS10: a known miss reads its package and its .err in one round: the .err read starts before the package read ends", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = slowOver(s.store.objects, 300);
+    await storeKv().put("bm:store", s.storeId);
+    const real = pkgBucket(), spans: Array<{ key: string; start: number; end: number }> = [];
+    const rec = {
+      get: async (k: string) => { const start = Date.now(); await new Promise((r) => setTimeout(r, 100)); const o = await real.get(k); spans.push({ key: k, start, end: Date.now() }); return o; },
+      put: (k: string, v: unknown, o?: R2PutOptions) => real.put(k, v as never, o), head: (k: string) => real.head(k), delete: (k: string) => real.delete(k),
+    } as unknown as R2Bucket;
+    basemapTiming.syncWaitMs = 50;
+    try {
+      const first = await mkCall(() => call(get(basemapPath(at(110))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }));
+      expect([first.res.status, first.line.bm]).toEqual([202, "known-miss"]);
+    } finally { basemapTiming.syncWaitMs = SYNC_WAIT_MS; }
+    const pkgRead = spans.find((x) => /\/pkg\/[0-9a-f]{12}\/[0-9a-f]{24}$/.test(x.key)), errRead = spans.find((x) => x.key.endsWith(".err"));
+    expect(Boolean(pkgRead && errRead), "CONTROL: both reads were seen").toBe(true);
+    expect(errRead!.start).toBeLessThan(pkgRead!.end); // the .err read began before the package read resolved
+  });
+
   it("MX1: C1 reads up to 6 at a time and builds the same result whatever order the reads arrive in", async () => {
     const { store, query } = await mbStore("A8");
     let inflight = 0, max = 0, calls = 0;

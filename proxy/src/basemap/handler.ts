@@ -159,7 +159,9 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
     log.bm = "known-miss";
     if (pkg) {
       const digest = await queryDigest(q);
-      const kept = await pkg.get(pkgKey(id, digest));
+      // S2 (docs/basemap-sync-wait.md): the package and its .err in ONE round of reads, so a cold first request waits for
+      // one R2 read before the lock, not two. A stored request reads both; the .err is then simply not used.
+      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);
       if (kept) {
         const bytes = new Uint8Array(await kept.arrayBuffer());
         if (validate(bytes).status === "kOk") {
@@ -168,7 +170,6 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
           return new Response(bytes, { status: 200, headers: packageHeaders(etag) });
         }
       }
-      const err = await pkg.get(errKey(id, digest));
       if (err) {
         const e = await err.json<{ status?: unknown; code?: unknown }>().catch(() => ({ status: null, code: null }));
         if ((e.status === 404 && e.code === "no_coverage") || (e.status === 422 && e.code === "too_large")) {

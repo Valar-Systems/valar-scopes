@@ -379,7 +379,8 @@ const SABOTAGES = {
     file: HANDLER, set: "all",
     edits: [['    log.bm = "known-miss";\n', '    log.bm = "unknown-store"; // SABOTAGE S-MKKMISS\n']],
     // Re-registered before any run (docs/basemap-a1.md): MS3's 202 is labelled known-miss. {MK4, MK6} stays on record.
-    expect: ["MK4", "MK6", "MS3"],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: MS10's first request is labelled known-miss too.
+    expect: ["MK4", "MK6", "MS3", "MS10"],
   },
   "S-MKUNK": {
     file: HANDLER, set: "all",
@@ -442,17 +443,29 @@ const SABOTAGES = {
     edits: [["  const id = mem ?? (pkg ? await storeFromKv(env) : null);\n", "  const id = mem; void storeFromKv; // SABOTAGE S-MS1: the KV read skipped\n"]],
     // Re-registered by ruling (~20:45Z), the miss kept: {MS1, MS2, MS3, MS4, MS6, MS7, MS8}. MS8's covered first request
     // teaches the isolate the store id, so its second request takes the known path without KV, and it stays green.
-    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7"],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: a fresh isolate without KV's id takes the unknown path, which builds synchronously (200, not 202).
+    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7", "MS10"],
   },
   "S-MS2": {
     file: HANDLER, set: "all",
-    edits: [["      const kept = await pkg.get(pkgKey(id, digest));\n", "      const kept = null as R2ObjectBody | null; // SABOTAGE S-MS2: the stored package never read\n"]],
-    expect: ["MS2", "MS6"],
+    // Re-anchored for S2 (docs/basemap-sync-wait.md): the package read is now half of one Promise.all; the same defect
+    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);\n",
+             "      const [kept, err] = [null as R2ObjectBody | null, await pkg.get(errKey(id, digest))]; // SABOTAGE S-MS2: the stored package never read\n"]],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: the package never read, MS10's control (both reads seen) fails.
+    expect: ["MS2", "MS6", "MS10"],
+  },
+  // S2's own (docs/basemap-sync-wait.md): the two reads made sequential again, the .err read only after the package's
+  "S-S2SEQ": {
+    file: HANDLER, set: "all",
+    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);\n",
+             "      const [kept, err] = [await pkg.get(pkgKey(id, digest)), await pkg.get(errKey(id, digest))]; // SABOTAGE S-S2SEQ\n"]],
+    expect: ["MS10"],
   },
   "S-MS3": {
     file: HANDLER, set: "all",
     edits: [["      const quick = await Promise.race([work, sleep(basemapTiming.syncWaitMs).then(() => null)]);\n", "      const quick = await work; void sleep; // SABOTAGE S-MS3: always awaited, never raced\n"]],
-    expect: ["MS3", "MS7"],
+    // S2 (docs/basemap-sync-wait.md), registered before any run: never raced, MS10's first request waits for its build (200, not 202).
+    expect: ["MS3", "MS7", "MS10"],
   },
   "S-MS4": {
     file: HANDLER, set: "all",
@@ -510,14 +523,15 @@ const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-
 
 // THE DUPLICATE-ID GUARD (ruled 2026-11-05 ~20:05Z, docs/basemap-a1.md). Grading is by case id, so two rows sharing an id
 // grade as one -- A1's first run, where a new MI8 met basemap-regions.test.ts's MI8 and baseline[all] read 158 for 159.
-// Before anything runs, every LITERAL test title under test/ is read; an id that names rows in two files, or two
-// different "<ID>:" rows in one file, is refused (exit 2) with each duplicate printed. Sub-cases written "<ID> (a): ..."
-// are one row. Titles built at run time (it.each, template expressions) are not seen: the baselines' case counts are what
-// catch those, as they caught MI8.
+// Before anything runs, every LITERAL test title in the files this driver runs (basemap-*.test.ts, SETS) is read; an id
+// that names rows in two files, or two different "<ID>:" rows in one file, is refused (exit 2) with each duplicate printed.
+// Sub-cases written "<ID> (a): ..." are one row. Titles built at run time (it.each, template expressions) are not seen: the
+// baselines' case counts are what catch those, as they caught MI8. The scope is the driver's own, as ruled (Q-DUP): a row
+// the driver never runs cannot grade as one of its rows, and #577's MP3 in wx-opera.test.ts stopped every run until then.
 function duplicateCaseIds(testDir = join(PROXY, "test")) {
   const byId = new Map();
   const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|MV\/PK-[A-Za-z0-9-]+)[^"'`]*)\1/g;
-  for (const f of readdirSync(testDir).filter((n) => n.endsWith(".test.ts")).sort()) {
+  for (const f of readdirSync(testDir).filter((n) => n.startsWith("basemap-") && n.endsWith(".test.ts")).sort()) {
     for (const m of readFileSync(join(testDir, f), "utf8").matchAll(TITLE)) {
       const title = m[2], id = caseOf(title);
       if (id.startsWith("UNNAMED(")) continue;
@@ -538,15 +552,19 @@ function duplicateCaseIds(testDir = join(PROXY, "test")) {
 }
 if (process.argv[2] === "--selftest-dups") {
   // The guard's sabotage (as ruled): a copy of a test file planted beside it must be refused, every duplicate naming the
-  // copy; the copy is then removed and its absence checked. CONTROL first: the tree as it is holds no duplicate.
+  // copy; the copy is then removed and its absence checked. CONTROL first: the tree as it is holds no duplicate. The same
+  // copy outside basemap-* must NOT be refused (Q-DUP): it is outside the driver's runs, so it cannot grade as a row.
   const control = duplicateCaseIds();
-  const copy = join(PROXY, "test", "basemap-zz-dupcopy.test.ts");
-  writeFileSync(copy, readFileSync(join(PROXY, "test", "basemap-ingest.test.ts")));
-  let planted;
-  try { planted = duplicateCaseIds(); } finally { rmSync(copy, { force: true }); }
-  const gone = !existsSync(copy);
-  console.log(`dup selftest: control ${control.length} duplicate(s)${control.length ? `: ${control.join("; ")}` : ""}; planted copy -> ${planted.length} duplicate(s), all naming the copy: ${planted.length > 0 && planted.every((d) => d.includes("basemap-zz-dupcopy.test.ts"))}; copy removed: ${gone}`);
-  process.exit(control.length === 0 && planted.length > 0 && planted.every((d) => d.includes("basemap-zz-dupcopy.test.ts")) && gone ? 0 : 1);
+  const source = readFileSync(join(PROXY, "test", "basemap-ingest.test.ts"));
+  const plantCopy = (name) => {
+    const path = join(PROXY, "test", name);
+    writeFileSync(path, source);
+    try { return { dups: duplicateCaseIds(), path }; } finally { rmSync(path, { force: true }); }
+  };
+  const outside = plantCopy("zz-outside-dupcopy.test.ts"), inside = plantCopy("basemap-zz-dupcopy.test.ts");
+  const planted = inside.dups, gone = !existsSync(outside.path) && !existsSync(inside.path);
+  console.log(`dup selftest: control ${control.length} duplicate(s)${control.length ? `: ${control.join("; ")}` : ""}; outside copy -> ${outside.dups.length} duplicate(s); planted copy -> ${planted.length} duplicate(s), all naming the copy: ${planted.length > 0 && planted.every((d) => d.includes("basemap-zz-dupcopy.test.ts"))}; copies removed: ${gone}`);
+  process.exit(control.length === 0 && outside.dups.length === 0 && planted.length > 0 && planted.every((d) => d.includes("basemap-zz-dupcopy.test.ts")) && gone ? 0 : 1);
 }
 {
   const dups = duplicateCaseIds();
