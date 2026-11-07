@@ -14899,3 +14899,44 @@ The scrub's PR follows its own full host run, since it touches files `run.sh` ma
 **After the merges:** step 7's board run, announced first, with navigation on `N` and `V` only and Q103's read through `GetSecure`; then L11, L12, K11 and K12 by their own addendum.
 
 **Open for a ruling:** `check_wifi_sabotage.py`'s stale S-W5J anchor (A12.156).
+
+### A12.159 #591 merged under Q-M1; #594 takes main, predicted before the merge commit
+
+**The ruling (~03:23Z):** #591 approved at `d9048ebe1eab`. #594's reading that counts is its CI on a merge ref that includes #591, because its guard then also reads #591's new files.
+
+**#591 merged:** squash `9b6b28fe9912` at 03:30:36Z, onto main's head `154e1ecf7bf5`.
+
+| Q-M1 step | read |
+|---|---|
+| H's CI finished, read twice | 32 checks: 30 success, 2 skipped, both reads (a docs head) |
+| the PR's CI, read twice | 34: 30/4/0, both reads |
+| main re-read in the merge command | still H |
+| squash tree against `merge-tree(H, d9048ebe1eab)` | `f041c971e310` on both: **equal** |
+
+The branch is deleted; no PR was based on it. Main's CI on the squash is running, predicted 34: 31/3/0.
+
+**#594 takes main,** by a merge commit on its branch, never the reverse. The trial shows 0 conflicted files, tree `e745a3b719ae`, and no file changed on both sides.
+
+**Predicted, in order. The first off reading stops everything, with nothing pushed:**
+
+| row | predicted |
+|---|---|
+| the merge commit | tree `e745a3b719ae`, no hand resolution |
+| `check_macs.py` on that tree | exit 0, 0 findings, now reading #591's files |
+| `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py` | exit 0 |
+| anchors | 34 of 34; `plant_s_wait.py` [1, 1] |
+| `run.sh` under WSL | exit 2, exactly the two environment blocks; "32 driver(s): 31 run, 1 skipped" in both passes; lint 0 of 32; 136 checks |
+
+**The CI prediction for the new head, written before the push.** It differs from A12.152's, and here is why.
+- A `push`'s path filter reads what that push changed. This push brings main's files, and no card moved on main, so **`print-cards`' `push` trigger should not fire**.
+- The `pull_request` trigger reads the PR's diff against main, which still holds the two cards, so it fires once.
+
+| reading on the new head | what it means |
+|---|---|
+| **35: 31 success, 4 skipped, 0 failed** | **predicted:** `print-cards` once |
+| 36: 32/4/0 | my reading of the `push` filter was wrong. Harmless, and reported |
+| anything else, or any failure | a stop |
+
+**Main on the squash stays 35: 32/3/0:** there the `push` does change the cards.
+
+**#594 still merges only with no bench window running.** Step 7's window has not opened and stays closed until #594 is in or the reviewer says otherwise.
