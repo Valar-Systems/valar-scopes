@@ -273,6 +273,40 @@ then CM9, then every plant exactly its set.
 - **Step M is not finished:** its bench rows (CF1-CF6) wait for E2:08 after blipscope-5c's v19 window, and the KSFO
   reading waits for the map server's fixtures.
 
+### The full WSL `run.sh` before the push (2026-11-07, 23:43-23:49Z): OFF, stopped for a ruling
+
+- **Frozen at 23:42:41Z, before the run,** on the tree rebased onto `35a4909b`: exit 2; failed blocks exactly "the same
+  TU, for the board" and "Weatherscope R0 and R0b"; `sabotage_wx_towns.py` skipped (34 drivers: 33 run, 1 skipped);
+  MapLayer 160 of 160 and CM9; the new driver ok in `--control` with 13 AS PREDICTED lines in the full pass; every
+  other block ok.
+- **Read:** exit 2 with **seven** failed blocks: the two predicted and five more. The driver count is as predicted, and
+  MapLayer reads 160 of 160 with CM9. The new driver is ok in both passes, **with 14 AS PREDICTED lines, not 13.**
+
+**The five extra blocks: one cause, this worktree's missing libraries.**
+- The worktree is new and `pio` has never run in it, so it has no `.pio/libdeps` (`ls` confirms).
+- Every extra block went BLIND for that reason and says so in its own words:
+  - the Wi-Fi QR test, inside the usage-report block: "fonts MISSING (no LovyanGFX under .pio/libdeps)";
+  - GameConfig: "no ArduinoJson under .pio/libdeps";
+  - seven-segment: "no GLCD font table … run `pio run` once";
+  - both driver passes, through `sabotage_wx_fb_check.py`: "no LovyanGFX glcdfont.h under .pio/libdeps".
+- **The alternative, named and excluded:** a defect in main (#609 landed in this rebase) or in this change.
+  - The blocks read nothing; BLIND is a refusal to read, and it names the path it lacks.
+  - None of them reads `MapLayer.h` or the new files.
+  - The MapLayer block and the new driver passed in the same run.
+
+**The 14: my miss.** The harness's `grep -c 'AS PREDICTED'` also counts the driver's summary line, "MAP LAYER SABOTAGES AS
+PREDICTED". The 13 plant lines are 13 of 13.
+
+**Proposed, for the ruling.**
+- Install this worktree's libraries with `pio pkg install -e blipscope-s3-128`, from PowerShell, never Git Bash (the
+  MSYS esptool trap). It installs libraries only, with no build.
+- Then the same WSL `run.sh` once more. **Predicted:**
+  - exit 2, with failed blocks exactly the two known;
+  - 34 drivers: 33 run, 1 skipped;
+  - MapLayer 160 of 160 and CM9;
+  - the new driver with **14** AS PREDICTED lines (13 plants and the summary);
+  - every other block ok.
+
 ### The /basemap query for the default view (sent to the map server, 2026-11-07)
 
 The radar's default is 100 mi, so its zoom ladder is {5, 10, 25, 50, 100} mi. The request:
