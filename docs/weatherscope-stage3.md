@@ -14741,3 +14741,19 @@ The guard agrees on the same tree: 286 `name` (284 + 2), 47 `serial`, 10 `colon`
 - **(b)** `check_wifi.py` does not change. Those 28 become `<device>`, which already passes as a placeholder. No guard moves, but a record then needs two rules: `<device>` in an SSID context, the label everywhere else.
 
 **Held, not fixed:** the branch stays local until Q111 is ruled. The CI prediction in A12.152 stands under (a) and (b): neither adds a job.
+
+### A12.154 Step 6's host run: as predicted. Committed locally, held for Q110
+
+**`run.sh` under WSL g++ 13.3,** on the local step-6 tree, behind the port gate (TIME_WAIT 1,239 at the start, no other run):
+
+| row | predicted | measured |
+|---|---|---|
+| exit and failed blocks | exit 2, exactly the two environment blocks | **as predicted:** "the same TU, for the board" and "Weatherscope R0 and R0b" |
+| the driver passes | 32 drivers, the towns skip | **as predicted:** "32 driver(s): 31 run, 1 skipped" in both |
+| the count lint | 0 flagged | **as predicted:** 32 drivers, 0 flagged |
+| the new `WxSwipe` block | ok | **as predicted:** the header and `k35c.ref.txt` current, S-L 0 px in both themes, 133 checks |
+| stderr | empty | **empty** |
+
+**Local commit** on `weatherscope/swipe-screens`. `dallas-night.json` is left untracked until Q109 is ruled. `check_wifi.py`, `check_device_ids.py` and `check_binary_strings.py` exit 0.
+
+**Waiting:** Q109 and Q110 for 3.5c, Q111 for the scrub. Step 6's PR follows Q110, with its CI predicted before its push.
