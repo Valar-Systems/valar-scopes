@@ -197,3 +197,30 @@ Not part of this PR. D4's plan carries these rows:
 
 **Why no other set moves:** MS11 asserts what MS2's first request asserts, so a plant reaching it must be in MS2's set. The
 only other one, S-MKHIT, changes MS2's second request, which MS11 does not make.
+
+## Read (2026-11-07, `2a4753a2fd4b`): two plants off, both my misses
+
+| check | read | verdict |
+|---|---|---|
+| `--selftest-dups` | control 0; outside copy 0; planted copy 6; exit 0 | as predicted |
+| **`sabotage-basemap.mjs`, whole** (wait clear 03:03:07Z: TIME_WAIT 43; exit 1 at 04:00:10Z) | baselines **11 / 31 / 175** (17 files); **84 runs,** 0 runtime failures; **79 of 81 sabotages as predicted,** with C-LOADFAIL BLIND among them. Highest TIME_WAIT at a run's start 7,812 (gate 8,000); held for ports 1,613 s | **two off** |
+| **S-QDIGEST** | failing **{MQ10, NK2, NK3}** against {MQ10, NK2} | **off, my miss.** Re-registered, ruled ~03:33Z. The prediction stays on record |
+| **S-S2NOCATCH** | **BLIND:** 12 baseline cases not run (MS9, MS11, MS10, MX1, MP1, MP2, ...), against {MS11} | **off, my miss: not yet ruled** |
+| the smoke driver | **not run:** the chain stops at the driver's exit | |
+
+**All five new plants, and every moved set, read as predicted** except those two: S-NKPLAIN {NK1, NK2, NK3}, S-NKETAG {NK1, NK3},
+S-NKOPEN {NK4, NK5}, S-NKFORMAT {NK5, NK6}, S-NKHEALTH {NK6}; S-PETAG, S-MS8, S-MS1 and S-MS2 with their new rows; S-S2SEQ,
+S-MS9, S-HMADEUP and S-HNOCACHE unchanged. **MS11 and NK1-NK6 pass unplanted** (`baseline[all]` 175, 0 failing).
+
+**S-QDIGEST, the ruling (~03:33Z):** re-registered as {MQ10, NK2, NK3}, with no code change. NK3 pins a digest over `queryKey`,
+so the plant reaches it by the same path as NK2. I applied that reasoning to NK2 and not to NK3.
+
+**S-S2NOCATCH: the cause is not yet proved.** A BLIND means cases went missing, so the file stopped early rather than MS11
+going red.
+- **The leading explanation:** with the `.catch` removed, `Promise.all` rejects while the package's real R2 body is still
+  open and unread. The test then ends with storage unfinished, and vitest-pool-workers' isolated storage (on by default here)
+  cannot pop its frame, which ends the file. Its pool carries that failure text.
+- **The alternative, not yet excluded:** something else in the plant's failure path ends the file. MS9 is among the missing
+  cases although it runs before MS11, and the explanation above accounts for that only if the file's results are reported
+  in batches.
+- **The driver printed no reason,** only the missing cases. Its output for that run was not kept.
