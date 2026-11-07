@@ -245,6 +245,12 @@ is known from the disclosed diagnostic, so it is not blind.** S-CMR still turns 
     counts and decisions.
   - The cost goes to CF5's reading.
 
+**2b. A second plant for CM9, S-CMPLAN** (registered before the driver existed, after the second run's 160 of 160).
+- **Why:** S-CMLIT proves CM9's literal scan can fail. Nothing proved its other half could: the Dark row against the
+  plan's §4.
+- **The plant:** the table's place colour becomes (86, 86, 94); its RGB565 differs from (86, 86, 86).
+- **Expected:** exactly {CM9}. The layer does not draw place names yet, so no C++ row sees it.
+
 **3. The count becomes 160:** CM1 29, CM2 60, CM3 36, CM4 5, CM5 1, CM6 1, CM7 1, CM8 1, CM10 6, CM11 20. Any other
 count is the rig. **So the blind part reads 160 of 160 on both compilers** (the ruling's "140 of 140" plus CM11's 20),
 then CM9, then every plant exactly its set.
