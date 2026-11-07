@@ -3,6 +3,8 @@
   WD5b  the "wx-layer" switch is ON by default in BOTH of its readers (docs/wx-device.md, "The layer on by default"):
         - src/AircraftManager.cpp reads it through  wxlayerswitch::On(...)  (absent -> "" -> on);
         - src/ConfigurationWebServer.cpp renders it from  prefs.getString("wx-layer", "true").
+  WP1   the config page's weather section is compiled only under WX_LAYER_SHIPS (docs/wx-device.md, "v19 ships without
+        weather"): hidden, never unticked, so wx-layer and wx-look stay absent.
   WD5t4 HttpRequestManager::GetBytes holds the body in no String: no getString( and no String assigned from
         the stream.
   WA1   the age limit's header reaches the policy (ruled 2026-11-04 ~18:25Z): GetBytes collects X-Wx-Max-Age with
@@ -39,6 +41,18 @@ def wd5b_page(page):
         return False, "no getString(\"wx-layer\", ...) in ConfigurationWebServer.cpp"
     bad = [d for d in defaults if d != "true"]
     return (not bad), (f"{len(defaults)} default(s), all \"true\"" if not bad else f"defaults {defaults}")
+
+
+def wp1(page):
+    """The weather section's markup is compiled only under WX_LAYER_SHIPS, and the other branch is an empty section. The
+    page cannot be rendered on a host, so this reads the #if that decides it; check-no-weather.sh reads the built image."""
+    gate = '#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)'
+    i, m, e = page.find(gate), page.find('name=\\"wx-layer\\"'), page.find('if (var == "WXSECTION")      return "";')
+    if i < 0 or m < 0 or e < 0:
+        return False, f"gate {i >= 0}, markup {m >= 0}, empty branch {e >= 0}"
+    between = page[i + len(gate):m]
+    ok = i < m < e and "#else" not in between and "#endif" not in between and "#else" in page[m:e]
+    return ok, ("the markup is under WX_LAYER_SHIPS, the other branch is empty" if ok else "the markup is not under the switch")
 
 
 def get_bytes_body(hrm):
@@ -148,7 +162,7 @@ def car(amh):
     return ok, f"device carousel {members} (CarouselCount() = {len(members)}, want 4), counted from InCarousel {counted}"
 
 
-CHECKS = [("WD5b (AircraftManager)", "am", wd5b_am), ("WD5b (config page)", "page", wd5b_page), ("WD5t4", "hrm", wd5t4),
+CHECKS = [("WD5b (AircraftManager)", "am", wd5b_am), ("WD5b (config page)", "page", wd5b_page), ("WP1", "page", wp1), ("WD5t4", "hrm", wd5t4),
           ("K3 (the rule)", "wxs2", k3_rule), ("K3 (AircraftManager)", "am", k3_am), ("K3 (config page)", "page", k3_page),
           ("WA1 (GetBytes)", "hrm", wa1_hrm), ("WA1 (AircraftManager)", "am", wa1_am), ("CAR", "amh", car)]
 
@@ -179,6 +193,8 @@ def main():
                                  'configServer.GetStoredString("wx-layer") == "true"')),
             ("page default false, today's restored", "WD5b (config page)", "page",
              lambda s: s.replace('getString("wx-layer", "true")', 'getString("wx-layer", "false")')),
+            ("the weather section shown with the switch off", "WP1", "page",
+             lambda s: s.replace('#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)', '#if defined(FEATURE_CLOUD_FEED)')),
             ("a String body", "WD5t4", "hrm",
              lambda s: s.replace(body, body.replace("    xSemaphoreGive(mutex);\n",
                                                     "    const String dump = http.getString();\n    xSemaphoreGive(mutex);\n", 1)) if body else s),

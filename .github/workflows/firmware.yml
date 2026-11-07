@@ -432,6 +432,11 @@ jobs:
       - name: Weather-look bench marker in its own image
         if: matrix.env == 'blipscope-s3-128-wxlook'
         run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+      # WEATHER IS NOT IN A SHIPPING IMAGE, THE POSITIVE CONTROL: this image has it, so every string the scan below looks for
+      # must be here. Until the joint release turns [weather] layer on.
+      - name: Weather strings in the bench image
+        if: matrix.env == 'blipscope-s3-128-wxlook'
+        run: bash scripts/check-no-weather.sh --expect ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE FACTORY IMAGE IS PUBLISHED FROM CI, AND THAT IS A SAFETY CONTROL, NOT A
       # CONVENIENCE. The local build path (provision-batch.py, a bench `pio run`) can
       # bake a -DCLOUD_FEED_KEY="..." flag into the image -- platformio.ini invites
@@ -478,6 +483,13 @@ jobs:
           # and the factory image the flasher writes -- every image that can reach a
           # customer is one of these two, and both are only built on slug-ful legs
           bash scripts/check-no-bench-hooks.sh "publish/firmware-${{ matrix.slug }}.factory.bin"
+      # Weather and maps ship together, so v19 ships without it (docs/wx-device.md, "v19 ships without weather"). Every Blipscope
+      # image that can reach a customer is scanned; the joint release's PR removes this step and turns [weather] layer on.
+      - name: No weather in a shipping Blipscope image
+        if: matrix.slug && startsWith(matrix.env, 'blipscope-')
+        run: |
+          bash scripts/check-no-weather.sh --selftest
+          bash scripts/check-no-weather.sh ".pio/build/${{ matrix.env }}/firmware.bin"
       - name: No secret in the factory image
         if: matrix.slug
         run: |

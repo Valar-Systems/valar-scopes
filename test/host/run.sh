@@ -1846,6 +1846,24 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+# v19's build: the flag undefined, so no stored value can turn the layer on.
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_layer_off.cpp" -o "$OUT/test_wx_layer_off.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the weather off test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_layer_off.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the weather off test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+bash "$ROOT/scripts/check-no-weather.sh" --selftest >/dev/null
+if [ "$?" -ne 0 ]; then
+  echo "FAIL: check-no-weather.sh --selftest"
+  fail=1
+fi
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; the weather switch sabotages cannot run."
   fail=1

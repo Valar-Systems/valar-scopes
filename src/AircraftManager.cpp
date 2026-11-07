@@ -2844,7 +2844,8 @@ void AircraftManager::RunFetchTask()
 
         // Weather crop (docs/wx-device.md, WD5): a binary GET into the loop's landing buffer, on this same
         // task and keep-alive connection. One in flight at most, so the loop never reads the buffer mid-write.
-        if (req->kind == FetchKind::Weather) {
+        // kShips, not a stored key: with it false this branch is compiled out, and the image holds no /wx path at all.
+        if (wxlayerswitch::kShips && req->kind == FetchKind::Weather) {
             std::vector<std::pair<String, String>> hdrs = CloudFeed::Headers(req->cloudKey);
             if (!req->wxIfNoneMatch.isEmpty()) hdrs.push_back({ "If-None-Match", req->wxIfNoneMatch });
             size_t len = 0;
@@ -3204,7 +3205,7 @@ bool AircraftManager::RequestCloudAirports()
 
 bool AircraftManager::WxEnabled() const
 {
-    return wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty();
+    return wxlayerswitch::kShips && wxLayerEnabled && wxBuffersOk && useCloudSource && !cloudUrl.isEmpty();
 }
 
 // The query exactly as the request carries it: lat/lon through the wire's own rounding (wireloc::Center ==
