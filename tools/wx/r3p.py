@@ -85,7 +85,7 @@ if mode == "lines":
     evs, abr = events(service, ms(a), ms(b))
     abr = abr1(abr)
     by_product, minutes, statuses, pruned_on, errors, storing = {}, {}, {}, {}, [], []
-    prunekeys_on, map_on = {}, {}
+    prunekeys_on, map_on, map_put_errors = {}, {}, 0
     for e in evs:
         s = e.get("source") or {}
         p = s.get("product")
@@ -103,6 +103,8 @@ if mode == "lines":
         if "map" in s or "mapRefused" in s:   # stage 1c: where a build's resample map came from
             mk = f"{p}:{st}:{s.get('map')}" + (":refused" if s.get("mapRefused") else "")
             map_on[mk] = map_on.get(mk, 0) + 1
+        if "mapPutErrors" in s:               # #579: a map put that threw; the frame was kept
+            map_put_errors += s["mapPutErrors"]
         if st in ("stored", "backfilled"):
             storing.append((e["timestamp"], p, st, s.get("pruned"), s.get("pruneKeys")))
         if s.get("evt") == "wx_ingest_error":
@@ -118,7 +120,7 @@ if mode == "lines":
     print(json.dumps({"service": service, "window": [a, b], "abr_levels": abr, "events": len(evs), "lines_by_product": by_product,
                       "minutes": len(span), "cref_minutes_both": cref_both, "cref_minutes_missing_one": cref_one,
                       "cref_minutes_missing_both": cref_none, "cref_minutes_with_error": cref_err,
-                      "statuses": statuses, "pruned_on": pruned_on, "pruneKeys_on": prunekeys_on, "map_on": map_on,
+                      "statuses": statuses, "pruned_on": pruned_on, "pruneKeys_on": prunekeys_on, "map_on": map_on, "mapPutErrors": map_put_errors,
                       "first_storing_check": first_store, "storing_checks": [row(*s) for s in storing],
                       "errors": errors}, indent=1))
 
