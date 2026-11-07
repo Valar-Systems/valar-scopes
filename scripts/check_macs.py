@@ -89,7 +89,8 @@ def read_allow(path):
 
 
 def name_pattern(products):
-    return re.compile(r"(?i)(?<![0-9a-z])(?:" + "|".join(products) + r")-([0-9a-f]{6})(?![0-9a-z])")
+    # No left boundary: a log can glue the name to what precedes it, and a name in a run record is still a name.
+    return re.compile(r"(?i)(?:" + "|".join(products) + r")-([0-9a-f]{6})(?![0-9a-z])")
 
 
 def mac_class(octets, sep, ouis):
@@ -324,7 +325,8 @@ def selftest():
 
     expect("G14", "a token in a tracked file's NAME", {"docs/log-" + v["serial"] + ".txt": "nothing\n"}, 1, ["serial"])
     expect("G15", "a product name, then 6 hex, any case",
-           line("Blipscope-" + v["suffix"].upper() + " weatherscope-" + v["suffix"]), 1, ["name", "name"])
+           line("Blipscope-" + v["suffix"].upper() + " weatherscope-" + v["suffix"] + " httpWeatherscope-" + v["suffix"]), 1,
+           ["name", "name", "name"])
     expect("G16", "CONTROL: the two examples, and xxxxxx",
            line("Blipscope-" + EXAMPLES[0].upper() + " blipscope-" + EXAMPLES[1] + " blipscope-xxxxxx"), 0, [])
     expect("G17", "CONTROL: the rewritten form, 4 hex", line("weatherscope-" + v["suffix"][:4]), 0, [])
