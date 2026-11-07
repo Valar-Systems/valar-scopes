@@ -14589,3 +14589,34 @@ The first hourly entry falls inside the first period, as H16 needs.
 **What Q107's condition changes in A12.144.** The N table is host-graded by event, not by byte, so it is unchanged. At step 7, every navigation row is driven by `N` and `V`, and `S` appears only where a closed runner uses it.
 
 **Next, in order:** #571 merges under Q-M1; step 6's device code starts from main after it, with its CI predicted before its push; the scrub's rewrite follows #583.
+
+### A12.150 #571 merged under Q-M1; S-L's frozen set corrected before any plant ran; step 6 under way
+
+**#571 merged:** squash `0867145c4861` at 00:14:55Z, onto main's head `387b93bbe5d3`.
+
+| Q-M1 step | read |
+|---|---|
+| H's CI finished, read twice | 35 checks: 33 success, 2 skipped, both reads |
+| the PR's CI, read twice | 34: 30/4/0, both reads |
+| main re-read in the merge command | still H |
+| squash tree against `merge-tree(H, f9f778be55d3)` | `8386e2d02c49` on both: **equal** |
+
+The branch is deleted; no PR was based on it. Main's CI on the squash is running and is reported when finished. Predicted: 34: 31/3/0.
+
+**Three stops before that, nothing merged in any of them:**
+- **Main moved during the double read, twice** (to `a19a0b6be95c`, then `084a7a571f7c`, and again to `387b93bbe5d3`). Each move was `proxy/` or docs, with no firmware path, and the trial stayed clean. Q-M1 did its job.
+- **My script's miss.** On a brand-new head GitHub had registered no checks, so "0 pending" read as "finished". The second read caught it (`queued 18`, then `in_progress 13`) and the script stopped. It now also requires at least 28 checks and 3 workflows, and keeps Q-M1's two reads.
+
+**S-L's set, corrected before any plant ran.** Found while writing the driver, by working the plant through by hand.
+
+| | A12.144 froze | correct |
+|---|---|---|
+| S-L's strip rows | {Y1-Y4, ...} | **{Y1, Y3, Y4, L forecast × 4, K forecast × 4}** |
+
+**Why Y2 cannot fail:** the top of the line is `plot_bottom - scale`. Before A12.138 that is 132 - 52 = 80, and after it 127 - 47 = 80. The ruled change kept the strip's top row, so restoring the old constants leaves that row where it is. S-SW10 does move it (127 - 52 = 75), so Y2 keeps a plant that can turn it red.
+
+**Step 6 so far, local on `weatherscope/swipe-screens`, rebased on `0867145c4861`:**
+- `WxSwipe.h`, `WxFeeds.h`'s forecast and observation fields, the stored feeds, and `emit_nws.py` with its generated `WxForecastData.h`.
+- **`test_wx_swipe.cpp`: `133 checks, 0 failures`** under WSL g++ 13.3, on its first complete run, as predicted. All 10 K rows pass, so the device's path equals `ref35c.py` at 57,600 of 57,600 pixels.
+- **Rows that needed reading:** H7 and H8 read "day 3" as `TUE`. In a Friday record day 3 is `MON`, so those rows move "now" to Saturday, keeping the frozen text and readings.
+- Still to come: the driver and its 18 plants, the `run.sh` block, the manager, MinGW, and the images. Nothing is pushed.
