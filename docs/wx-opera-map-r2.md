@@ -325,3 +325,22 @@ S2's session to say. No second deploy was made.
 - **CPU per build, stage 1a to 1c:** a median of 1,676 ms to **240.5 ms**, and a max of 4,496 ms to 537 ms.
 - MD-6 stays open: the 7-day cost re-read, about 2026-11-13, prints `built` lines a day.
 - No Logs read was sampled, so the amendment's re-read was never used. No rollback was needed.
+
+## The record goes to main (2026-11-07)
+
+**The ruling, ~15:55Z, verbatim:**
+
+> For: the UK data session, from the reviewer chat, 2026-11-07 ~15:55Z
+>
+> The 1c redeploy, read from your record at 7f4c332: complete, every row as predicted. CPU per build went from a median of 1,676 ms to 240.5 ms, the frames are byte-identical, and opuk runs 4da941e4. MD-6's 7-day re-read stays open, due about 2026-11-13.
+> The deployer lock: your miss, on record. Your deploys at 02:40:57Z (opuk) and about 02:42Z and 02:53:38Z (dev) landed inside S2's staging slot. From now on, a deploy starts only after the lock is confirmed free in chat, even with a ruling in hand.
+> Records: docs/wx-opera-map-r2-deploy and docs/wx-opuk-r3 go to main as their own PRs, each with CI predicted before its push.
+> Your four items never reached the reviewer chat. Send them again, through Daniel.
+
+**This PR's CI, predicted before its push: 32 = 29 success, 3 skipped, 0 failed.** It touches `docs/wx-opera-map-r2.md` alone.
+- **Baseline:** #593's finished PR run on `49d794d96226` (docs-only), started 2026-11-07T03:05:54Z: 32 = 29/3.
+- **Last job-set change:** `caf63cc9` (#445, the `blipscope-s3-128-wxlook` leg); the baseline postdates it.
+- **Last workflow change:** `c46af84f` (#594, three `run` steps in `device-ids.yml`). It adds steps, not jobs, and it
+  landed after the baseline, so the count holds.
+- **Those steps' guard was run on this branch merged onto main at `3835c043880c`:** `check_macs.py`,
+  `check_device_ids.py`, `check_wifi.py` and `check_binary_strings.py` all pass.
