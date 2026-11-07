@@ -15003,3 +15003,37 @@ The branch is deleted; no PR was based on it. Main's CI on the squash is running
 | anything else | a stop |
 
 **Step 7 stays closed** until this resolves.
+
+### A12.162 The re-take cannot reach the reading: GitHub keeps the old test merge. #594's head moves to `5ec1f50c3f4a`, and it needs a new approval there
+
+**Measured, polled for 10 minutes:** `merge_commit_sha` stays `d886586127d6`, with `154e1ecf7bf5` as its first parent; `mergeable` reads true and `mergeable_state` clean; `refs/pull/594/merge` is absent. GitHub does not rebuild it, so a reopen would run the same stale merge. I stopped the poll by its own process ids before pushing, because the push would rebuild the test merge and the poll would then have closed and reopened the PR for nothing. **The PR was not closed a second time.**
+
+**What that leaves, as A12.161 said:** the reading that counts can only come from moving the head, so **the approval at `ccbf3fbabfdf` lapses and #594 is not merged at it.** That is the ruling's own order: its ~03:23Z line says which reading counts, and the ~03:30Z approval could not have known the reopen would fail.
+
+**The new head is `5ec1f50c3f4a`,** the merge commit A12.159 predicted. Every local row was read on it:
+
+| row | measured on `5ec1f50c3f4a` |
+|---|---|
+| the tree | `e745a3b719ae`, as predicted |
+| `check_macs.py` | exit 0, 1,732 tracked, 0 findings |
+| `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py` | exit 0 |
+| anchors | 34 of 34; `plant_s_wait.py` [1, 1] |
+| `run.sh` under WSL | exit 2, the two environment blocks, 32 drivers, 136 checks |
+
+**What differs from the head the reviewer read:** main's files only. `git diff ccbf3fbabfdf 5ec1f50c3f4a` is #591 and the docs commits main took. No file differs that both sides changed.
+
+**The CI prediction, written before the push,** as A12.159's table:
+
+| reading on the new head | what it means |
+|---|---|
+| **35: 31 success, 4 skipped, 0 failed,** with `print-cards` once | **predicted:** a `push` that only brings main's files changes no card |
+| 36: 32/4/0 | my reading of the `push` filter was wrong. Harmless, and reported |
+| anything else, or any failure | a stop |
+
+**And the control that decided this:** the `device-ids` log must read `Merge 5ec1f50c... into <a commit holding #591>` and `mac check:` at least 1,732 tracked, 0 findings.
+
+**Then #594 waits for an approval at `5ec1f50c3f4a`,** and merges under Q-M1. Main on the squash stays predicted at 35: 32/3/0.
+
+**Step 7's window stays closed until then,** unless the reviewer rules otherwise. If it has to open first, #594 waits for it to close, as ruled.
+
+**Recorded so it is not repeated:** a reopened PR's CI does not prove what it ran on. Read the run's own `HEAD is now at` line.
