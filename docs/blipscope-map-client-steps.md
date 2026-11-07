@@ -97,6 +97,55 @@ FAIL.
 | **CM8** | The round screen | 45,244 pixels on the disc; the 12,356 off it stay 0 | **S-CMDISC**, the disc test skipped: {CM8} |
 | **CM9** | The theme table | No colour literal outside it; the Dark row equals the plan's §4 | **S-CMLIT**, a planted literal: {CM9} |
 
+### Registered before step M's code (2026-11-07 ~21:40Z), for review
+
+Written after the ruling and before any code. **None of these changes a frozen value.** Each one pins a case list the
+frozen text left open, or adds coverage. All four are put to the reviewer with the next report.
+
+**1. A correction to the design: `wxraster::Line` cannot be reused.** It writes only inside the Weatherscope's map
+area (`InMap`, rows 24-193 inside the disc), and the radar draws its whole disc. The layer has its own line, with
+the same DDA (`n = int(max(|dx|, |dy|)) + 1`, each point `floor(v + 0.5)`) clipped to the screen and the disc.
+`wxbase::FillRing` and `wxraster::Text` are still reused by include. FillRing writes an 8-bit image, so the layer is
+built as an index image first (land, water, river, road) and coloured in one final pass. Terrain is sampled only
+where land shows.
+
+**2. CM2's and CM3's cases, so each plant's set is exact.**
+- **CM2:** views {5, 10, 25, 50, 100 mi} × rotations {0°, 30°, 90°, 211°} × home offsets {none, (+0.0049°,
+  −0.0049°), (−0.0049°, +0.0031°)} from the package origin: 60 cases.
+- **CM3:** the 20 zero-offset cases (every view and rotation) as the control. Then **16 offset cases**: the two offsets
+  at 5 and 10 mi, every rotation.
+  - **Why only 5 and 10 mi:** there the offset is over 2.5 px in at least one screen axis at every rotation. So
+    S-CMCEN's error exceeds 1 px at every point, and the plant is certain to turn each case red.
+  - **At 25 mi and wider** the offset is under 2.5 px, so whether a 1 px threshold sees it depends on where the points
+    fall. Those views' offset cases sit in CM2, at its 0.01 px threshold.
+- Each case is 10,000 points inside the disc. A point outside the package square is skipped.
+- **The plant sets, read exactly:**
+  - **S-CMROT:** CM2's 45 rotated cases and CM3's 27 rotated cases: 72 in all. CM3 is graded by the same vertex path,
+    so a rotation fault there must show too.
+  - **S-CMCEN:** CM2's 40 offset cases and CM3's 16: 56 in all.
+  - Terrain sampling has its own path (CM10), so neither plant reaches it.
+
+**3. A new row, CM10: terrain sampling and S2's level.** No frozen row graded either.
+- **What it checks**, on Bend at views {5, 10, 25, 50, 60, 100 mi}, each over CM2's 4 rotations and 3 offsets:
+  - **(a) The level chosen:**
+    - the smallest whose half-width covers the view plus the home-to-origin distance (Q-MC7 (a));
+    - when none covers, the largest. Its outside takes land.
+  - **(b) Each on-disc pixel's level pixel,** against an independent double transcription of §9 with the radar's
+    rotation undone.
+- **Predicted:**
+  - **(a):** 24,743,664 mm at 5 and 10 mi; 49,487,328 at 25 mi; 98,974,656 at 50, 60 and 100 mi. At 100 mi none
+    covers, so it falls back to the largest.
+  - **(b):** 0 mismatches, outside a band of 1e-6 level pixels about each boundary. The band's count and 100 mi's
+    off-level count are printed, not graded.
+- **Plants:**
+  - **S-CMLVL,** always the largest level: {CM10 5, 10 and 25 mi}.
+  - **S-CMSAMP,** sampling the pixel's corner, not its centre: all six CM10 rows.
+
+**4. The case count is a rig check.**
+- The test prints 140 cases: CM1 29, CM2 60, CM3 36, CM4 5, CM5 1, CM6 1, CM7 1, CM8 1, CM10 6.
+- CM9 is the Python check's one row.
+- Any other count is the rig, exit 2.
+
 ### Bench rows
 
 Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms, opaque sweep 2.04 ms, blended sweep
