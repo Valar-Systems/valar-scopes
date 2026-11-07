@@ -224,3 +224,37 @@ going red.
   cases although it runs before MS11, and the explanation above accounts for that only if the file's results are reported
   in batches.
 - **The driver printed no reason,** only the missing cases. Its output for that run was not kept.
+
+### Q-K1d: the diagnostic, and the fix (ruled ~05:35Z)
+
+> Q-K1d: yes, the diagnostic run as you propose: S-S2NOCATCH's plant on basemap-endpoint.test.ts alone, raw output kept, the
+> file restored from a byte copy with its sha checked. Then follow your table:
+> - If the first row holds: MS11's stub reads the package's bytes up front and returns a plain body. That's a test change
+>   only, and MS11 still asks the same question. Freeze S-S2NOCATCH at {MS11}; run S-S2NOCATCH, S-MS1, S-MS2 and S-QDIGEST
+>   against their sets; then the smoke driver whole; then K1's PR.
+> - Any other row: stop and report.
+> The BLIND stays on record as your miss.
+
+**The diagnostic (05:37Z), on `8d42b553b632`: the first row holds.** The raw output names the row and the cause:
+`Failed to pop isolated storage stack frame in test/basemap-endpoint.test.ts's test "MS11: ..."`, then `we were unable to pop
+R2 storage`, then `EBUSY: resource busy or locked, unlink ...miniflare-R2BucketObject...`. It read `Tests 34 passed (46)`: the
+same 12 cases, so MS9's absence is the file's results being lost, as the batching reading said. The file was restored, with
+its sha matching.
+
+**So the alternative is excluded:** the file ended at MS11's teardown, in the pool's own words, on the R2 object MS11 left open.
+
+**The fix, a test change only.** MS11's stub reads the package's bytes up front and returns a plain body, and it refuses the
+`.err` only after that read ends. The second half is mine, beyond the ruling's wording: without it, a plant that fails fast
+could end the test with the read still in flight, which is the same failure. MS11 still asks the same question.
+
+**Frozen before the run:**
+
+| plant | predicted |
+|---|---|
+| **S-S2NOCATCH** | **{MS11}** |
+| **S-MS1** | {MS1, MS10, MS11, MS2, MS3, MS4, MS6, MS7} |
+| **S-MS2** | {MS10, MS11, MS2, MS6} |
+| **S-QDIGEST** | {MQ10, NK2, NK3} |
+
+Each run also takes `baseline[all]`, predicted **175** cases in 17 files. Then the smoke driver as frozen: CONTROL 1,018 / 1 /
+1,019. **Anything else: stop and report.**

@@ -569,10 +569,17 @@ describe("MS, A1's stored packages and O1's store id", () => {
     await pkgBucket().put(pkgKey(s.storeId, digest), built.bytes);
     await storeKv().put("bm:store", s.storeId);
     const real = pkgBucket();
-    let refused = 0;
+    // The package's bytes are read up front and handed back as a plain body, and the .err is refused only after that read
+    // ends: a plant that fails the request must leave no R2 body open, or isolated storage ends the file and the row can
+    // never go red (it read BLIND; docs/basemap-name-key.md).
+    let refused = 0, read: Promise<unknown> = Promise.resolve();
     const rec = {
       put: (k: string, v: unknown, o?: R2PutOptions) => real.put(k, v as never, o), head: (k: string) => real.head(k), delete: (k: string) => real.delete(k),
-      get: (k: string) => { if (k !== errKey(s.storeId, digest)) return real.get(k); refused++; return Promise.reject(new Error("R2 read failed")); },
+      get: (k: string) => {
+        if (k === errKey(s.storeId, digest)) { refused++; return read.then(() => { throw new Error("R2 read failed"); }); }
+        read = real.get(k).then(async (o) => { if (!o) return null; const bytes = await o.arrayBuffer(); return { arrayBuffer: async () => bytes }; });
+        return read;
+      },
     } as unknown as R2Bucket;
     const { res, line } = await mkCall(() => call(get(basemapPath(at(120))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }));
     expect([res.status, line.bm, b.n.calls]).toEqual([200, "stored", 0]);
