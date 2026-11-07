@@ -255,6 +255,24 @@ is known from the disclosed diagnostic, so it is not blind.** S-CMR still turns 
 count is the rig. **So the blind part reads 160 of 160 on both compilers** (the ruling's "140 of 140" plus CM11's 20),
 then CM9, then every plant exactly its set.
 
+### The second host run (2026-11-07, ~23:31-23:38Z), as registered: as predicted
+
+- **The suite:** 160 of 160 on MinGW 5.1 and on WSL g++ 13.3.0.
+  - The first WSL attempt read nothing, because its output directory under WSL's `/tmp` was gone. That is the rig,
+    not a reading. The directory was made, and the same command was run once more.
+- **CM7:** 3,364 px against the reference's 3,364, all shared. Known from the diagnostic, as disclosed.
+- **CM11:** 0 differing pixels in all 20 cases. 739-1,783 pixels lit in the compared area, so the row could fail.
+- **CM9:** passes. No colour literal outside the table, and the Dark row equals the plan.
+- **The sabotage driver (`test/host/sabotage_map_layer.py`):** 13 of 13 plants turned exactly their registered sets, on
+  both compilers: S-CMCRC 1, S-CMROT 72, S-CMCEN 56, S-CMS1 2, S-CMGAIN 1, S-CMORD 1, S-CMR 1, S-CMDISC 1, S-CMLIT 1,
+  S-CMPLAN 1, S-CMLVL 3, S-CMSAMP 6, S-CMLINE 20. The real header was unchanged.
+- **The harness's own passes:** `--anchors` 13 of 13 present exactly once; `--control` 2 suites as its table;
+  `lint_driver_counts.py` 0 flagged.
+- **Not yet run:** the whole of `test/host/run.sh` (every block and every driver). It runs before the first firmware
+  push, which waits for #609.
+- **Step M is not finished:** its bench rows (CF1-CF6) wait for E2:08 after blipscope-5c's v19 window, and the KSFO
+  reading waits for the map server's fixtures.
+
 ### The /basemap query for the default view (sent to the map server, 2026-11-07)
 
 The radar's default is 100 mi, so its zoom ladder is {5, 10, 25, 50, 100} mi. The request:
