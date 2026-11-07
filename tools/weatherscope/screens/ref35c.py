@@ -18,6 +18,7 @@ import datetime, hashlib, importlib.util, json, math, os, struct, sys, tempfile,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DAY = os.path.join(ROOT, "test", "fixtures", "wx", "nws", "dallas-day.json")
+NIGHT = os.path.join(ROOT, "test", "fixtures", "wx", "nws", "dallas-night.json")
 K_REF = os.path.join(ROOT, "test", "fixtures", "wx", "nws", "k35c.ref.txt")
 OFFSET_MIN = -360   # CST, read from the capture's first hourly entry; fixed per stored case (A12.133)
 SIZE, C = 240, 120
@@ -340,13 +341,17 @@ def job_list(rec, night):
 
 
 def k_text():
-    """The K reference: one ROW per screen, named as the PNGs are, plus the record's own hash (LF-normalised)."""
+    """The K reference: one ROW per screen, named as the PNGs are, plus each record's own hash (LF-normalised). The night
+    record's two rows follow the day's 10 (A12.167)."""
     rec = json.load(open(DAY, encoding="utf-8"))
+    night = json.load(open(NIGHT, encoding="utf-8"))
     day = hashlib.sha256(open(DAY, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
+    late = hashlib.sha256(open(NIGHT, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
     lines = ["# Weatherscope 3.5c K rows (docs/weatherscope-stage3.md A12.144): written by tools/weatherscope/screens/ref35c.py",
              "# --k --write, checked by its --k --check; read by test/host/test_wx_swipe.cpp.",
-             f"# dallas-day.json {day} (LF-normalised)"]
-    for name, job in job_list(rec, None):
+             f"# dallas-day.json {day} (LF-normalised)",
+             f"# dallas-night.json {late} (LF-normalised)"]
+    for name, job in job_list(rec, None) + job_list(rec, night):
         scr = job()[0]
         lines.append(f"ROW {name} {hashlib.sha256(scr.rgb565()).hexdigest()}")
     return "\n".join(lines) + "\n"

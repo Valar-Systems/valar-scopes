@@ -1,5 +1,6 @@
 """Runs test_wx_swipe.cpp against SABOTAGED copies of src/weatherscope/WxSwipe.h. Each must fail EXACTLY the set of named
-rows frozen in docs/weatherscope-stage3.md A12.144 (S-L's corrected by A12.150, S-SW16 added by A12.155), and nothing else.
+rows frozen in docs/weatherscope-stage3.md A12.144 (S-L's corrected by A12.150, S-SW16 added by A12.155, the night case's
+rows and S-N1, S-N2 by A12.167), and nothing else.
 
     python -I test/host/sabotage_wx_swipe.py
 
@@ -20,7 +21,8 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 
 THEMES = ("dark", "light")
 FORECAST = ("forecast-capture", "forecast-SYNTHETIC-RAIN")
-SCREENS = FORECAST + ("conditions-day", "alerts-SYNTHETIC", "alerts-capture")
+CONDITIONS = ("conditions-day", "conditions-night")
+SCREENS = FORECAST + CONDITIONS + ("alerts-SYNTHETIC", "alerts-capture")
 
 
 def rows(prefix, kinds):
@@ -71,7 +73,14 @@ SABOTAGES = {
               "if (i == (int)page) wxraster::Fill(c.sink, kDotX[i] - 1, 223, kDotX[i] + 1, 225, c.th.uiFg);  // SABOTAGE")],
             {"D1", "D2", "D3"} | rows("K", SCREENS)),
     "S-G": ([('c.Text(x + n * 24, top, "\\xF8", 2, c.th.uiFg);', 'c.Text(x + n * 24, top, "\\xF8", 4, c.th.uiFg);  // SABOTAGE')],
-            {"C1", "C2", "C3"} | rows("K", ("conditions-day",))),
+            {"C1", "C2", "C3"} | rows("K", CONDITIONS)),
+    # A12.167: the night case's rows, each shown able to fail. The day record opens on a daytime period, so S-N1 reaches no
+    # day screen: only K11 and K12 see this path.
+    "S-N1": ([("if (p.isDaytime && !hi) hi = &p;", "if (!hi) hi = &p;  // SABOTAGE")],
+             {"C19", "C26"} | rows("K", ("conditions-night",))),
+    "S-N2": ([("c.Centred(row, top + 120, 1, ObsStale(f.issuedUtc, o.timeUtc) ? c.th.orangeText : c.th.uiDim);",
+               "c.Centred(row, top + 112, 1, ObsStale(f.issuedUtc, o.timeUtc) ? c.th.orangeText : c.th.uiDim);  // SABOTAGE")],
+             rows("L", CONDITIONS) | rows("K", CONDITIONS)),
 }
 
 
@@ -143,7 +152,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, against its own count, nothing
 # planted. run.sh runs it for every driver.
-SWIPE_CHECKS = 136   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+SWIPE_CHECKS = 140   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
 CONTROL_TABLE = {"test_wx_swipe": ("checks", SWIPE_CHECKS)}
 
 
