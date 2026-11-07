@@ -485,3 +485,62 @@ earlier top). It does not change a row, and reads carry no egress charge. The cl
 **CI for this PR (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
 failed.** The baseline is #588's finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to the set of
 jobs.
+
+### Other Workers' deploys around the slot (added 2026-11-07, as the reviewer asked ~15:55Z)
+
+**Nothing S2 read can depend on these deploys through a binding, code or stored data.** The one way left open is an account or
+colo effect with no binding, which the ten cannot rule out (below).
+
+**The deploys, from each Worker's own `wrangler deployments list`.** The slot ran 02:52-03:03Z, so two of the three came before
+it opened.
+
+| Worker | deployed | against the slot | what it shares with S2's path |
+|---|---|---|---|
+| `blipscope-wx-ingest-opuk` (production) | 02:40:57.668Z | 11 minutes before it | `blipscope-wx`, which `/basemap` never reads |
+| `blipscope-wx-ingest-dev` | 02:42:13.681Z | 10 minutes before it | nothing |
+| `blipscope-wx-ingest-dev` | 02:53:38.923Z | **inside it,** 56 s after S2's own (02:52:42.929Z) | nothing |
+
+- **The other Workers:** `blipscope-proxy`, `blipscope-basemap`, `blipscope-wx-ingest` and `blipscope-dashboard` had no deploy
+  between 02:35Z and 03:10Z.
+- **The two Workers that served S2:** proxy staging's only deploy in that span was S2's own. Builder staging's last was
+  2026-11-06 03:32:33Z.
+- **At 02:53:38.923Z the ten had nothing in flight.** KPIT's retry had ended at 02:53:15Z, and its +50 s request came at
+  02:53:48Z.
+
+**What each reading rests on, from the four Workers' config files.** Those files have not changed since the slot.
+
+| S2's reading | rests on | reachable by opuk or the dev Worker? |
+|---|---|---|
+| request `ms` and `bm` labels | proxy staging's code; `handler.ts` reads only `BASEMAP`, `BASEMAP_PKG` and `ENRICH_KV` | no |
+| the store id | staging's `ENRICH_KV`; all 20 ETags in the output name one store | no: neither binds that namespace |
+| builds | builder staging's code and `blipscope-basemap` | no: neither binds the bucket, and neither is a service either Worker calls |
+| packages and locks | `blipscope-basemap-pkg-staging` | no: of the four Workers, only the proxy binds it |
+| cancellations | proxy staging's own events | no |
+
+- **The one shared resource is `blipscope-wx`,** bound by opuk and by proxy staging. In the code the slot ran, only `/wx` and
+  `/healthz` read it. S2's 40 requests were all `/basemap`, and S2 used `/healthz` only for its commit.
+- **The dev Worker** binds only `blipscope-wx-dev` and has no cron.
+
+**What this does not exclude: an account or colo effect with no binding.** No mechanism for one is known, and the ten cannot
+separate it:
+- The nine first requests after 02:53:38Z read 1,792-1,937 ms, and KPIT's before it read 2,078 ms. KPIT was also the first request
+  after S2's own deploy, so that split says nothing about the dev Worker.
+- Such an effect would add time, so it could not have produced the pass: the row is a ceiling, at most 2,318 ms.
+- **"Fell from 2,318 ms to 2,078 ms" above compares two different sets of airports and colos.** It describes the two sets and does
+  not measure S2 alone. The graded row does not rely on it.
+
+**Two corrections to "Before the reading" above, both my misses:**
+- **"One deployer" reads wider than it was.** It was one read at 02:52:16Z, of this machine's processes and proxy staging's own
+  list. It saw no other Worker's list and could not see a later deploy. No two deploys ran at once (S2's ran 02:52:37-02:52:45Z),
+  but the slot's window did not hold one deployer.
+- **The announcement did not reach the other session.** "Announced at 02:52Z" was a line in this session's chat. It reached the
+  reviewer only with the report after the slot had ended, so the UK session could not have seen the start.
+
+**For the combined slot:**
+- **It starts on a go through the reviewer,** after blipscope-5c posts "#590 read back".
+- **Its close reads every Worker's deployments in the window into the record,** eight Workers, with an unreadable list reported as
+  unreadable, never as "none".
+
+**CI for this addition (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
+failed.** The baseline is #592's finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to the set of
+jobs. `c46af84f` touched a workflow since, adding steps only.
