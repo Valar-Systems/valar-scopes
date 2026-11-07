@@ -5500,3 +5500,29 @@ release, and the `/wx` cost work moves with weather.
 no `[wx]` buffers and no fetch in 4 minutes; no weather control on the page; after a save, the key still reads absent.
 
 **Outside the set:** any row reading otherwise, or the `/wx/` string surviving in the shipping image: stop.
+
+### v19 ships without weather, results (2026-11-07, 16:25-16:59Z, local)
+
+| | read | verdict |
+|---|---|---|
+| **WF1-WF3** | `kShips` false; unset off; a stored `"true"` off | as predicted, **restated** (below) |
+| **S-WF-on** | red rows `WF1`, `WF2`, `WF3` | as restated |
+| **S-WF-rule** (added) | `On()` ignoring `kShips`: red rows `WF2`, `WF3` | as restated |
+| **WS1-WS4 and their three plants** | unchanged | as predicted |
+| **WP1** | the markup is under `WX_LAYER_SHIPS`, the other branch empty; its plant turns exactly WP1 red | as predicted |
+| **WI1** | **OFF on the first two builds.** Clean on the third: none of the four strings | see below |
+| **WI2, the control** | all four strings in the `wxlook` image | as predicted |
+| **WI3** | `--selftest`: each planted string fails, an anchor-less file is BLIND | as predicted |
+| **WO1, WO2** | `check_wx_off.mjs` unchanged | as predicted |
+| **B1** | both images built; shipping is 17.5 KB smaller than `wxlook` | as predicted |
+| **run.sh** (g++ 13.3.0) | **a third failed block on the first run** (below); on the re-run, exit 2 from exactly the two environment blocks, `sabotage_wx_towns.py` SKIP, nothing else red | as predicted on the re-run |
+
+**WI1, my miss.** The first build still held `[wx] buffers`: `AllocateWeatherBuffers()`'s call site tested the runtime member, not
+`kShips`, so the function stayed linked. Gating the call removed the symbol, and the second build **still** held the string: the
+linker drops unused functions but not literals merged into a shared section. An orphan, then, not live code, and 0 weather
+symbols remained in the ELF, which excludes live code. The allocator's body is now compiled under the switch. **The lesson for
+this check:** a string in an image does not prove live code, but its absence does prove the code is gone, and absence is the
+direction the check relies on.
+
+**run.sh, my miss.** `OK_COUNT_OFF = 1` made the count lint flag every ordinary `1` in the driver as a repeat of the table count. WF1
+is split into three rows, so the count is 3, and a plant now shows which guarantee broke.
