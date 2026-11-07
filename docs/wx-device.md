@@ -5390,3 +5390,22 @@ every prediction is unchanged.
 **My misses, both before any reading:** the name collision corrected above; and the driver's first plants ended in a
 `//` comment, which swallowed the closing brace of a one-line function, so they did not compile. That was the rig
 (exit 2), not a reading: the plants now use `/* */`.
+
+### Main merged into #582 after #571 (ruling 2026-11-07 ~01:06Z): predictions, frozen 02:35:41Z before the merge
+
+Read first, read-only: `git merge-tree` against `0867145c` is clean, with no conflict in any file, `wx-device.md`
+included, because the window record went in mid-file. #571 changed `AircraftManager.cpp`, `ConfigurationWebServer.cpp`
+and `run.sh` but neither `skus.yml` nor any workflow, and `web_ota.cpp` but not `web_config.cpp`.
+
+| | predicted |
+|---|---|
+| **the merge** | no conflict; the result's tree is `012aa0476659` |
+| **WS1-WS4 and the sabotages** | as before: S-WS-today exactly WS1; S-WS-always exactly WS3, WS4; S-WS-notfalse exactly WS4 |
+| **WD5b** | 1 read through `wxlayerswitch::On`; 1 page default `"true"`; every plant turns exactly its own check red |
+| **WO1, WO2** | `wx-layer "false"`, 8 entries, exit 0; the entry removed, exit 1 |
+| **WO3** | read in CI: smoke R1-R7 and R7's sabotage pass |
+| **B1** | `blipscope-s3-128` and `blipscope-s3-128-wxlook` build |
+| **run.sh** (WSL, g++ 13.3) | exit 2 from exactly "the same TU, for the board" and "Weatherscope R0 and R0b", `sabotage_wx_towns.py` SKIP, nothing else red, #571's new blocks included |
+| **CI** | **34 = 30 success, 4 skipped, 0 failed**: the same four workflows as this PR's run on `bcf976fa`, which read exactly that, and nothing since has changed the job set |
+
+**Outside the set:** any row reading otherwise: stop.
