@@ -454,3 +454,105 @@ seconds, so it keeps listing.
   set. Under Q-WORKERS, ten Workers each finish their own product at their own time, so no one Worker holds a whole
   set. Stage 1b's predictions will name how the shared record is written, and what one product's failure does to
   the others.
+
+### 11.1 The stage 1a deploy to production `opuk` (the record)
+
+**The ruling, 2026-11-06 ~18:22Z, verbatim:**
+
+> For: UK data session, from the reviewer chat, 2026-11-06 ~18:22Z
+>
+> #570's merge recorded: by the rule, tree checked.
+>
+> #573 (stage 1a, prune by key) -> approved to merge at 3594321d3bcc. Predictions frozen first; PK1-PK5 and all five sabotages as predicted; CI 34 = 31/3/0 from a baseline after the last job-set change. My read of pruneByKey: exactly 900 whole-minute keys strictly before the cut, never latest's frame, under the 1,000-key delete limit. Merge by the rule (Q-M1).
+>
+> Deploy slot granted after the merge and its main CI: PKD-0 to PKD-6 as registered in section 11, rollback target opuk a4e6c685 recorded first, only the opuk Worker. No board hold: the 18:45Z bench window replays rain over Bend, which never reads opuk. Announce start and end.
+> - One amendment before it runs: a Logs read that comes back sampled (ABR above 1) may be re-read once over a narrower window. A second sampled read is BLIND, BLIND fails the row, and the frozen rollback applies.
+>
+> Stage 1b -> (b) is the design (each product's latest in KV, no shared record, products stay independent), but not now. Next as you planned: 1c's predictions on its own branch, then measure with M6. Build 1b only if M6 still reads over $2/month.
+>
+> The -c user.email slip: recorded; the rule stands.
+
+**#573 merged** at 18:24:54Z as `36d0b657ece7`, by the rule.
+- Main's head H was `551fd0303675` (#572), with its CI finished: 34 = 32 success, 2 skipped.
+- The merge command re-read `origin/main`, found it still H, and merged with `--match-head-commit 3594321d3bcc`.
+- The squash tree equals `merge-tree(H, 3594321d3bcc)` (`b2df01358385`).
+- **Main CI on `36d0b657`, predicted 34 = 32 success, 2 skipped, 0 failed.** The baseline is #572's finished main
+  run on `551fd030`, a `proxy/` main push after the last job-set change (`84409651`).
+
+**PKD-0, recorded before the deploy:**
+- **What `opuk` runs now:** `wrangler deployments status` gives **`a4e6c685-295b-4f7b-a839-e1ad12c633a5` at 100%**,
+  created 15:11:29Z.
+- **The rollback:** `wrangler rollback a4e6c685-295b-4f7b-a839-e1ad12c633a5 -c wx-ingest-opuk.wrangler.toml`,
+  straight back to that version. The fallback is a redeploy from the clean checkout of `9db83163` (scratchpad
+  `wt-plan-s`).
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml`, at the top level, from a clean detached
+  checkout of `36d0b657` (`wt-pkd`, with `npm ci` from its own lockfile). **Only the `opuk` Worker.** The `cref`
+  Worker (`257f49eb`) and the proxy are not touched.
+
+**The read plan, frozen before the start, with the ~18:22Z amendment applied.** T is the deploy's end.
+- **Every Logs read is cut into 900 s pieces** (`R3P_CHUNK_S=900`, tools at `55e81d76` on docs/wx-opuk-r3):
+  PKD-2's 70 minutes and PKD-6's 2 hours. Every piece must read at ABR 1, and the tool refuses otherwise.
+  - A refused read is re-read **once** in 450 s pieces.
+  - A second sampled read is **BLIND, BLIND fails the row, and the rollback applies.**
+- **PKD-4** uses `r3_5b.py`'s default 1,200 s lookback; a sampled read is re-read once at 600 s (`8e2776d5`). A
+  second sampled read is BLIND.
+- **When each row is read:**
+  - PKD-2: T to T+70 min, read at T+72 min.
+  - PKD-3: the first firing + 10 min.
+  - PKD-4: T+70 and T+80 min.
+  - PKD-6: T to T+2 h, read at T+2 h+5 min.
+  - PKD-5: [T-2 h, T) against [T, T+2 h), read at T+2 h+10 min (`r2_ops.py`, `3a737da6`), printed only.
+- **The "before" figures, not graded:**
+  - **CPU** (`r3p.py cpu`, 16:25-18:25Z in 900 s pieces): ABR [1], 120 records all `ok`; single builds n 24,
+    median 1,971.5 ms, **max 4,227 ms**; the rest median 10 ms. That max is well above R3′-6's 2,545 ms, on the old
+    code, so the spread is wider than R3′-6 showed. PKD-6's max bound of 5,000 ms stands as registered.
+  - **R2, 16:00-18:00Z:** ListObjects 142 and 139 an hour (a list carries no object name, so `cref` and `opuk` are
+    not split); DeleteObjects 46 and 56; PutObject `wx/cref` 56 and 55, `wx/opuk` 25 and 25.
+- **No board hold,** as ruled. Start and end are announced through the reviewer chat.
+
+**Started 18:37:27Z, as announced.** Main CI on `36d0b657` read **34 = 32 success, 2 skipped, 0 failed**, as
+predicted, in two reads (18:36:56Z and 18:37:04Z).
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml` from `wt-pkd`, detached at `36d0b657`, clean.
+  Start 18:37:27.146Z, **end 18:37:31.507Z (T), exit 0.**
+  - Stderr held only wrangler's warning that several environments are defined and none was named. The top level was
+    the target, as registered.
+  - Bindings printed: `env.WX` (blipscope-wx), `env.WX_INGEST` ("on"); schedule `* * * * *`.
+  - **Version `b7626571-e7dd-4f62-9afa-80f4e0e73d5b`.**
+- **First firing:** scheduledTime **18:38:14Z**, 43.9 s after T.
+
+| row | got | verdict |
+|---|---|---|
+| **PKD-1** (`versions view --json`) | `b7626571`: bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 | as predicted |
+| **PKD-3** (first firing + 10 min, 18:48:18Z) | `wx.opuk` `frameAgeS` **499**, `coveredShare` **0.7508**. LHR, on `/wx/cref` and `/wx/opuk`: ETag **`opuk`**, `X-Wx-Max-Age` **720**, `X-Wx-Frame` 1793990400 (18:40:00Z), which is the frame `/healthz` names at 18:48:23Z (503 s). Controls: Bend and KMCI `cref`, no max-age | as predicted |
+| early look at PKD-2 (T to 18:47:14Z, read 18:48:23Z, 900 s pieces, ABR [1]) | 19 `opuk` lines; storing checks 18:39:53Z and 18:44:27Z, each **`pruneKeys` 900** with no `pruned`; already-stored 17; **0 error lines** | as PKD-2 predicts; PKD-2 itself is read at T+72 min |
+| **PKD-4 read 1** (listed 19:47:31Z, lookback 1,200 s, ABR [1]) | **12 frames**, 18:45:00Z to 19:40:00Z; `latest` 19:40:00Z. Last pruner 19:44:16.132Z, `stored`, `pruneKeys` 900. Cut 18:44:16Z: **0 frames below**. +300 s sabotage (cut 18:49:16Z): **fails on the oldest**, 18:45:00Z. Margin 43.9 s (printed). Blind: none | **PASS** |
+| **PKD-4 read 2** (listed 19:57:32Z, ABR [1]) | **12 frames**, 18:55:00Z to 19:50:00Z; `latest` 19:50:00Z. Last pruner 19:54:15.593Z, `stored`, `pruneKeys` 900. Cut 18:54:15Z: **0 below**. +300 s sabotage (cut 18:59:15Z): **fails on the oldest**, 18:55:00Z. Margin 44.4 s. Blind: none | **PASS** |
+| **PKD-2** (T to T+70 min, 18:37:31Z to 19:47:31Z, read 20:00:04Z, 900 s pieces, **ABR [1]**) | 140 `opuk` lines. **14 storing checks**, 18:39:53Z to 19:44:28Z, each `stored` with **`pruneKeys` 900** and no `pruned`; already-stored 126. **0 error lines** | as predicted |
+
+- No read so far needed the amendment's re-read: every Logs read came back at ABR [1].
+- The two PKD-4 reads were exactly 10 min 1 s apart, as planned. R3′'s pair had been 9 min 41 s apart.
+
+| row | got | verdict |
+|---|---|---|
+| **PKD-6** (T to T+2 h, 18:37:31Z to 20:37:31Z, read 20:42:33Z, 900 s pieces, **ABR [1]**) | 120 records, **all `ok`, 0 `exceededCpu`**. Single builds: n 24, **median 1,676 ms, max 4,496 ms**. The rest: n 96, median 9.5 ms, max 23. No backfill. p99 2,887 ms. GraphQL: `success` 115, 0 errors, `sampleInterval` 1 | as predicted (median in [1,008, 2,580]; max <= 5,000) |
+| **PKD-5** (R2 operations on blipscope-wx, read 20:47:34Z) | full hours: **before** 17:00Z ListObjects **139**, DeleteObjects 56, PutObject `wx/cref` 55, `wx/opuk` 25. **After** 19:00Z: ListObjects **145**, DeleteObjects 23, PutObject `wx/cref` 60, `wx/opuk` 27. The edge hours are partial | printed, not graded: **no visible fall** |
+
+- **PKD-6's max of 4,496 ms is close to its 5,000 ms bound.** The same read before the deploy, on the old code, gave
+  4,227 ms. So the spread is the build's own, and there is about 10% headroom on the bound.
+- **PKD-5 could not see the change, and why.**
+  - ListObjects was expected to fall by about 12 an hour; it read 139 before and 145 after.
+  - In the same two hours, DeleteObjects went from 56 to 23, and delete behaviour did not change at all. A sampled
+    dataset that moves by 33 on an unchanged action cannot show a 12 an hour step in about 140.
+  - **The alternative, that `opuk` still lists, is excluded by the running code.** Every production storing check
+    carries `pruneKeys` (PKD-2), which only the stage 1a code writes, and PK1 shows that code makes 0 lists on a
+    storing check. The saving will show, if anywhere, in the 7-day cost re-read's 30-day Class A totals.
+
+**Stage 1a's deploy is complete: every graded row read as predicted.** Ended 20:47:35Z.
+- `opuk` runs `b7626571` (prune by key).
+- No rollback was needed. No Logs read was sampled, so the amendment's re-read was never used.
+
+**This record goes to main as its own PR, as ruled ~16:05Z ("docs/wx-opuk-pkd: yes, its own PR the same way").**
+
+**Its CI, predicted before its push: 32 = 29 success, 3 skipped, 0 failed.** It touches `docs/wx-opera-europe.md` alone.
+- **Baseline:** #593's finished PR run on `49d794d96226` (docs-only), started 2026-11-07T03:05:54Z: 32 = 29/3.
+- **Last job-set change:** `caf63cc9` (#445). **Last workflow change:** `c46af84f` (#594, steps only).
