@@ -15158,3 +15158,62 @@ That is 17 rows in the run (B0, Q103, 6 K-glass, 2 N1, 2 N2, N3, N4, N5, Q107, N
 **What this run cannot see:** `N` and `V` enter at the page model, so `ClassifyStroke`'s new right-swipe branch runs only under a finger. That one line is for Daniel's hands on the glass, which has the last word on the look as well.
 
 **The record** goes in as a run directory, redacted, with every board name in its label form. The 6 frames go to Daniel as PNGs.
+
+### A12.166 Step 7 on the board: all 17 rows and the close AS PREDICTED. #597's CI as predicted. The record's PR, its CI predicted first
+
+**The window:** 06:04:00Z to 06:19:35Z, board `6E:64` only, the port by serial. The announced 25 minutes was high: it took 15 m 35 s. No row went off, so no stop fired.
+
+| row | predicted | read |
+|---|---|---|
+| **B0** | `env=weatherscope-s3-128` | **as predicted** |
+| **Q103** the merged HTTP code | ends `current=18 latest=18`, through `GetSecure`, no `version check failed` | **as predicted** |
+| **K-glass forecast,** dark, light | `forecast-capture-*` | `d126535a5436`, `175f0f9601d5`: **equal** |
+| **K-glass conditions,** dark, light | `conditions-day-*` | `26158ec69c9d`, `fce72fefcbb0`: **equal** |
+| **K-glass alerts,** dark, light | `alerts-SYNTHETIC-*` | `eb93e5426a5e`, `da06f7e831e5`: **equal** |
+| **N1,** dark, light | forward and back on `N` and `V` | **as predicted,** both |
+| **N2,** dark, light | the ends stop | **as predicted,** both |
+| **N3** | `T` from each of the 4 pages goes home | **as predicted** |
+| **N4** | no zoom or screen line on a page | **0 lines** |
+| **N5** | no screen line in 45 s; a scenario line follows the return | **0 lines; resumed** |
+| **Q107** | `S` reaches the legend from the map, the run's only `S` | **as predicted** |
+| **N6** | 600 to 605 s | **600.1 s** |
+| **the close** | `read-mac`, the boot read, `read-mac`, TCP :80 | `env=weatherscope-s3-128`, `theme=auto read=known`; exit 0; TCP :80 answered |
+
+Each K-glass row is two agreeing untorn fetches, 57,600 of 57,600 pixels equal to the host's K row. Every fetch answered, none torn.
+
+**Q103 is closed:** the merged `MaybeUpdateFirmware` answered through `GetSecure` on the board.
+
+**What identifies the image.** `[build] env=` names an env, not a build, so it can't tell this image from the one it replaced. The frames can: `39e258b5be07` has no forecast page, so a forecast frame hashing to its row can only come from the new code. The alternative is a stale image answering; `[wx] screen=forecast` and the six frames exclude it.
+
+**The board now:** `b3ff0f06bd2e`, main's product image at `0c0aa0157bae`, stored theme `auto`, TCP :80 answering. `app-only-write.py` reported rc 0, verified, on its first attempt.
+
+**What this run did not see.** `N` and `V` enter at the page model, so `ClassifyStroke`'s right-swipe branch has not run under a finger. The host's rows cover its classification. Whether a thumb gets there on the glass is Daniel's to try, and so is the last word on the look.
+
+**One slip of mine, nothing committed.** The survey I wrote to shape the publisher masked digits and hex but not quoted text, so it printed the Wi-Fi network name into this session's local transcript. The publisher now reads that name from the raw trace and refuses if it survives anywhere in the record.
+
+#### The record
+
+`tools/weatherscope/board/run-2026-11-07-35c7/`, with `run_b35c.py` (`8f36ce802af3`). Timestamps are relative to each trace's first line. The LAN IP, BSSID and network name are masked, the device name is in its label form, and 4 lines are removed: the 2 `[quiet]` lines state the local hour and the UTC offset, and the 2 `[wx] theme=` lines carry the sun phase. The `[wx] init` lines stay, because the close is graded from them and they hold no time.
+
+The proof takes the raw network name and device name from the raw trace and refuses if either survives, along with each shape above. Its control runs the same proof over the raw trace and must fire on all 6 shapes: it did. Over the 4 published files it read 0 findings. No frame is committed: the hashes are in the trace and in `k35c.ref.txt`.
+
+`read-mac` logs and the raw frames stay outside every repo. The 6 frames, each held to its row before it was written, are PNGs for Daniel at 2×.
+
+#### #597, S-W5J
+
+**AS PREDICTED,** read finished twice at `30f01dfbe05c`: 32 checks, 29 success, 3 skipped (promote, ship-alert, version), 0 failed. The run's `HEAD is now at` line reads a merge of `30f01dfbe05c` into `0c0aa0157bae`, and `check_wifi.py` read 1,735 tracked there. The new step took 3 m 43 s and printed `the guard on disk byte-identical: True` and `ALL AS REGISTERED`, S-W5J among them. It waits for an approval at that SHA.
+
+Main has since moved to `ec655619e729` (#590, `proxy/` only). It touches none of #597's files.
+
+#### The CI prediction for the record's PR, written before the push
+
+The last job-set change is `caf63cc9d9cc`. Reading every workflow's `on:` block at `ec655619e729`, the paths are all under `tools/weatherscope/board/`, so `firmware`, `device-ids` and `no-traffic-captures` run, and neither `web-renderer` (no `tools/web-renderer/`), `workers`, `print-cards` nor `provisioner`. That is #597's set, so its finished run is the baseline.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the record's PR | 32 | 29 | 3 (promote, version, ship-alert) | 0 |
+| main on the squash | 32 | 30 | 2 (promote, version) | 0 |
+
+If `check_wifi.py` or `check_macs.py` reads a finding in the record on CI that it did not read locally, that is a stop and not a re-run.
+
+**Next:** L11, L12, K11 and K12, by their own addendum, predictions first. `dallas-night.json` is on main; the night renders stand at `55dfd8435f40` and `524a3b8e9fe8`.
