@@ -229,3 +229,61 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 **After the rollback** (23:30:42Z to 23:41:30Z, read 23:42:07Z, 900 s pieces, ABR [1]): storing checks at 23:34:29Z and
 23:39:23Z, each `stored` with `pruneKeys` 900 and **no `map` field**, so stage 1a's code is what runs. Already-stored 20,
 **0 error lines**. `/healthz`: `frameAgeS` 428, `coveredShare` 0.7508.
+
+## 7. The redeploy of stage 1c (rows frozen before it)
+
+**The ruling, 2026-11-07 ~01:06Z, verbatim:**
+
+> For: the UK data session, from the reviewer chat, 2026-11-07 ~01:06Z
+>
+> MD-5: the rollback was right by the row, and the row was wrong. The 300 ms floor I approved came from the same basis as your prediction (one factor for both frame and map), so the miss is mine as well as yours. 264.5 ms with identical frames is 1c working.
+>
+> The 1c redeploy: yes, on rows frozen before it:
+> - The rollback target recorded first (b7626571 at 100%). The deploy comes from a clean checkout of main, naming the Worker-input diff since 51757039 (#579's caught put, #586's windowFor with no overrun), each predicted to change nothing a read can see.
+> - CPU from the Worker's own reading (r2: median 261 ms, n 23, max 473; built 1,873): an upper bound only, with no floor. Max <= 5,000 ms and 0 exceededCpu, as before.
+> - The floor's job moves to the frames: each stored frame's bytes equal stage 1a's, and its coveredShare stays within a tolerance of 1a's recorded range that you state with its reason. MD-2 and MD-4 as before. Off rolls back at once.
+>
+> The M slot: yes. One deployer at a time across sessions, with start and end announced. Keep each dev env's run bounded, as ruled for #586.
+
+**The checkout:** a clean detached checkout of main at `0867145c4861` (`wt-rd`), whose CI finished at 34 = 31 success,
+3 skipped, 0 failed.
+
+**The Worker-input diff since `51757039`.** The opuk Worker's bundle has 9 inputs, read from wrangler's own metafile:
+`grid`, `ingest-opuk-worker`, `ingest-worker`, `ingest`, `laea`, `mrms`, `opera`, `products` and `resample` under
+`proxy/src/wx/`, with no npm package. Since `51757039` only three of them changed, and only two commits touched them:
+
+| commit | what reached the Worker | predicted to show |
+|---|---|---|
+| `b49b20a6` (#579) | `ingest.ts`: a `try` around the map put | **nothing:** it acts only when a put throws, and with the map object in place no put is made |
+| `a19a0b6b` (#586) | `opera.ts`: `windowFor` with a stated overrun. `ingest.ts`: passes `p.overrunPx`. `products.ts`: an optional field | **nothing:** `opuk` states none, so `windowFor` refuses and returns exactly what it did |
+
+**The floor's job moves to the frames.** A frame's byte length is fixed by its tile layout, so a hollow frame has the
+right length. The check that can fail compares content: `frames_get.py` copies each stored frame, and `frame_same.mts`
+rebuilds it from the same OPERA source through `buildMap`, with no R2, and compares every byte.
+- **Proved before it grades:** on stage 1a's 12 frames in the bucket at 02:38Z (01:35Z to 02:30Z), **12 of 12
+  byte-identical.** With `--flip` (one nibble of each local build), **12 of 12 differ,** at byte 1064.
+
+**`coveredShare`'s tolerance: stage 1a's recorded range, +/- 0.01, so [0.7407645, 0.7607740].**
+- **The range:** 70 stored frames over both of 1a's spells (18:37:31Z to 21:25Z, 23:30:42Z to 02:30Z, ABR [1]):
+  0.7507645 to 0.7507740, a spread of 0.0000095. All 70 at 1,179,712 B.
+- **Why 0.01:** it is about 1,000 times that spread, so ordinary flicker cannot trip it, and a hollow frame (0 or 1)
+  or a map that loses a large part of the window plainly would. It is the guard on every frame; the byte compare is
+  what sees a small error.
+- **What it will wrongly catch:** a real change in the radar network that moves the share by a percentage point reads
+  off here and rolls back. That is cheap, and it is stated.
+
+| row | what | predicted |
+|---|---|---|
+| **RD-0** | before the deploy | `wrangler deployments status`: **`b7626571-e7dd-4f62-9afa-80f4e0e73d5b` at 100%**, the rollback target. `wx/opuk/map/`: **1 object of 17,716,016 B**, written about 21:29Z on 11-06, so `expire-1d` leaves it through this read |
+| **RD-1** | the version record | bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000 |
+| **RD-2** (MD-2) | at the first firing + 10 min | still **exactly 1 object of 17,716,016 B**. /healthz and LHR as PKD-3: `frameAgeS` <= 1,800, `coveredShare` in the tolerance; ETag `opuk`, `X-Wx-Max-Age` 720, frame = `latest` |
+| **RD-3** | every storing check in the first 70 min (Logs, 900 s pieces, ABR 1) | `pruneKeys` 900; **`map` `r2` or `cache`; `built` 0,** because the geometry key is unchanged and the object is in place; no `mapRefused`; no `mapPutErrors`; 0 error lines |
+| **RD-4** (MD-4) | R3′-5b′'s rule at +70 min, twice, 10 min apart | <= 13 frames; none below the last storing start - 3,600 s except `latest`'s; the +300 s sabotage fails on the oldest |
+| **RD-5** | CPU over 2 h (900 s pieces, ABR 1) | **an upper bound only, with no floor:** single-build median **<= 420 ms** (the Worker's `r2` median, 261 ms, x 1.6, rounded up); **max <= 5,000 ms; 0 `exceededCpu`** |
+| **RD-6a** | every frame in the bucket at T+70 min (12, all stored after T) | **12 of 12 byte-identical** to a fresh local build (`frame_same.mts`); 0 unread |
+| **RD-6b** | every storing line over the 2 h | `bytes` **1,179,712**; `coveredShare` in **[0.7407645, 0.7607740]** |
+| escape | anything outside these rows | **roll `opuk` back to `b7626571` at once** (`md_rollback.sh`), stop and report |
+
+- **The ~18:22Z amendment applies:** a sampled Logs read is re-read once narrower; a second sampled read is BLIND, which
+  fails the row and triggers the rollback.
+- **Tools** at `2decfc07` on docs/wx-opuk-r3.
