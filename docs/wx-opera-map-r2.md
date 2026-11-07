@@ -314,3 +314,14 @@ S2's session to say. No second deploy was made.
   device's 720 s limit, narrowly.
 - **`cache` 0 of 14 again:** every production build runs cold, now in two separate reads. That is why the map was the
   bulk of a build.
+
+| row | got | verdict |
+|---|---|---|
+| **RD-5** (T to T+2 h, 02:40:59Z to 04:40:59Z, read 04:45:59Z, 900 s pieces, **ABR [1]**) | 120 records, **all `ok`, 0 `exceededCpu`**. Single builds: n 24, **median 240.5 ms, max 537 ms**, all `r2`. The rest: n 96, median 9 ms, max 20. p99 533 ms | as predicted (median <= 420 ms; max <= 5,000 ms) |
+| **RD-6b** (the same 2 h, read 04:46:05Z, ABR [1]) | 24 stored lines: **`bytes` 1,179,712 on all**; `coveredShare` **0.7507641 to 0.7507727** | as predicted (in [0.7407645, 0.7607740]) |
+
+**Stage 1c's redeploy is complete: every row read as predicted.** Ended 04:46:10Z.
+- `opuk` runs **`4da941e4`**: prune by key and the map from R2.
+- **CPU per build, stage 1a to 1c:** a median of 1,676 ms to **240.5 ms**, and a max of 4,496 ms to 537 ms.
+- MD-6 stays open: the 7-day cost re-read, about 2026-11-13, prints `built` lines a day.
+- No Logs read was sampled, so the amendment's re-read was never used. No rollback was needed.
