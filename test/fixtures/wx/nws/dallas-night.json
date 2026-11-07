@@ -1,0 +1,530 @@
+{
+ "case": "dallas-night",
+ "source": "the NWS API, fetched once by the session (A12.131), trimmed by trim_nws.py",
+ "capturedUtc": 1794017019,
+ "hourly": [
+  {
+   "startUtc": 1794016800,
+   "tempF": 60,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794020400,
+   "tempF": 59,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794024000,
+   "tempF": 57,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794027600,
+   "tempF": 57,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794031200,
+   "tempF": 56,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794034800,
+   "tempF": 55,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794038400,
+   "tempF": 54,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794042000,
+   "tempF": 54,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794045600,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794049200,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794052800,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794056400,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794060000,
+   "tempF": 54,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794063600,
+   "tempF": 59,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794067200,
+   "tempF": 61,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794070800,
+   "tempF": 63,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794074400,
+   "tempF": 65,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794078000,
+   "tempF": 66,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794081600,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794085200,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794088800,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794092400,
+   "tempF": 66,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794096000,
+   "tempF": 64,
+   "hasTemp": true,
+   "pop": 7,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794099600,
+   "tempF": 62,
+   "hasTemp": true,
+   "pop": 7,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794103200,
+   "tempF": 60,
+   "hasTemp": true,
+   "pop": 7,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794106800,
+   "tempF": 59,
+   "hasTemp": true,
+   "pop": 4,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794110400,
+   "tempF": 57,
+   "hasTemp": true,
+   "pop": 4,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794114000,
+   "tempF": 56,
+   "hasTemp": true,
+   "pop": 4,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794117600,
+   "tempF": 56,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794121200,
+   "tempF": 55,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794124800,
+   "tempF": 55,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794128400,
+   "tempF": 54,
+   "hasTemp": true,
+   "pop": 8,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794132000,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 8,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794135600,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 8,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794139200,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794142800,
+   "tempF": 52,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794146400,
+   "tempF": 56,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794150000,
+   "tempF": 59,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794153600,
+   "tempF": 61,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794157200,
+   "tempF": 64,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794160800,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794164400,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794168000,
+   "tempF": 68,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794171600,
+   "tempF": 69,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794175200,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794178800,
+   "tempF": 65,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794182400,
+   "tempF": 64,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794186000,
+   "tempF": 62,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  }
+ ],
+ "periods": [
+  {
+   "name": "Tonight",
+   "startUtc": 1794009600,
+   "isDaytime": false,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true,
+   "short": "Mostly Cloudy"
+  },
+  {
+   "name": "Saturday",
+   "startUtc": 1794052800,
+   "isDaytime": true,
+   "tempF": 67,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true,
+   "short": "Partly Sunny"
+  },
+  {
+   "name": "Saturday Night",
+   "startUtc": 1794096000,
+   "isDaytime": false,
+   "tempF": 52,
+   "hasTemp": true,
+   "pop": 8,
+   "hasPop": true,
+   "short": "Mostly Cloudy"
+  },
+  {
+   "name": "Sunday",
+   "startUtc": 1794139200,
+   "isDaytime": true,
+   "tempF": 69,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true,
+   "short": "Mostly Sunny"
+  },
+  {
+   "name": "Sunday Night",
+   "startUtc": 1794182400,
+   "isDaytime": false,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true,
+   "short": "Partly Cloudy"
+  },
+  {
+   "name": "Monday",
+   "startUtc": 1794225600,
+   "isDaytime": true,
+   "tempF": 72,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true,
+   "short": "Mostly Sunny"
+  },
+  {
+   "name": "Monday Night",
+   "startUtc": 1794268800,
+   "isDaytime": false,
+   "tempF": 56,
+   "hasTemp": true,
+   "pop": 15,
+   "hasPop": true,
+   "short": "Slight Chance Rain Showe"
+  },
+  {
+   "name": "Tuesday",
+   "startUtc": 1794312000,
+   "isDaytime": true,
+   "tempF": 73,
+   "hasTemp": true,
+   "pop": 5,
+   "hasPop": true,
+   "short": "Mostly Sunny"
+  },
+  {
+   "name": "Tuesday Night",
+   "startUtc": 1794355200,
+   "isDaytime": false,
+   "tempF": 57,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true,
+   "short": "Partly Cloudy"
+  },
+  {
+   "name": "Veterans Day",
+   "startUtc": 1794398400,
+   "isDaytime": true,
+   "tempF": 76,
+   "hasTemp": true,
+   "pop": 5,
+   "hasPop": true,
+   "short": "Mostly Sunny"
+  },
+  {
+   "name": "Wednesday Night",
+   "startUtc": 1794441600,
+   "isDaytime": false,
+   "tempF": 53,
+   "hasTemp": true,
+   "pop": 4,
+   "hasPop": true,
+   "short": "Partly Cloudy"
+  },
+  {
+   "name": "Thursday",
+   "startUtc": 1794484800,
+   "isDaytime": true,
+   "tempF": 74,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true,
+   "short": "Sunny"
+  },
+  {
+   "name": "Thursday Night",
+   "startUtc": 1794528000,
+   "isDaytime": false,
+   "tempF": 50,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true,
+   "short": "Clear"
+  },
+  {
+   "name": "Friday",
+   "startUtc": 1794571200,
+   "isDaytime": true,
+   "tempF": 73,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true,
+   "short": "Sunny"
+  }
+ ],
+ "observation": {
+  "timeUtc": 1794016380,
+  "tempF": 62,
+  "hasTemp": true,
+  "windDirDeg": 20,
+  "hasWindDir": true,
+  "windMph": 14,
+  "hasWind": true,
+  "gustMph": 0,
+  "hasGust": false,
+  "humidityPct": 70,
+  "hasHumidity": true
+ },
+ "alerts": [],
+ "syntheticAlerts": {
+  "synthetic": true,
+  "note": "SYNTHETIC: the capture held no watch or advisory; this list exists only for the populated layout",
+  "items": [
+   {
+    "event": "Wind Advisory",
+    "startUtc": 1794024219,
+    "endUtc": 1794067419
+   },
+   {
+    "event": "Dense Fog Advisory",
+    "startUtc": 1794053019,
+    "endUtc": 1794081819
+   },
+   {
+    "event": "Fire Weather Watch",
+    "startUtc": 1794089019,
+    "endUtc": 1794132219
+   },
+   {
+    "event": "Frost Advisory",
+    "startUtc": 1794139419,
+    "endUtc": 1794168219
+   },
+   {
+    "event": "Winter Storm Watch",
+    "startUtc": 1794189819,
+    "endUtc": 1794276219
+   }
+  ]
+ }
+}

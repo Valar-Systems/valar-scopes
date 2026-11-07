@@ -1,5 +1,5 @@
 """Runs test_wx_swipe.cpp against SABOTAGED copies of src/weatherscope/WxSwipe.h. Each must fail EXACTLY the set of named
-rows frozen in docs/weatherscope-stage3.md A12.144 (S-L's corrected by A12.150), and nothing else.
+rows frozen in docs/weatherscope-stage3.md A12.144 (S-L's corrected by A12.150, S-SW16 added by A12.155), and nothing else.
 
     python -I test/host/sabotage_wx_swipe.py
 
@@ -61,6 +61,9 @@ SABOTAGES = {
     "S-SW15": ([("inline int ListTop(int shown, int more) { return BlockTop(more ? kAlertStep * shown + 7 : kAlertStep * shown - 9); }",
                  "inline int ListTop(int shown, int more) { (void)shown; (void)more; return 36; }  // SABOTAGE")],
                {"A8", "A10"} | rows("K", ("alerts-SYNTHETIC",))),
+    "S-SW16": ([("while (i + 1 < f.nPeriods && f.periods[i + 1].startUtc <= f.issuedUtc) ++i;",
+                 "while (false && i + 1 < f.nPeriods && f.periods[i + 1].startUtc <= f.issuedUtc) ++i;  // SABOTAGE")],
+               {"H18", "C26", "W7"}),
     "S-L": ([("constexpr int kAxis = 132, kPlotBottom = 127, kPlotScale = 47, kLowLabel = 123, kHourLabel = 135;",
               "constexpr int kAxis = 137, kPlotBottom = 132, kPlotScale = 52, kLowLabel = 128, kHourLabel = 141;  // SABOTAGE")],
             {"Y1", "Y3", "Y4"} | rows("L", FORECAST) | rows("K", FORECAST)),
@@ -140,7 +143,7 @@ def anchor_entries():
 
 # --control (Q57, docs/weatherscope-stage3.md A12.61): this driver's unplanted run alone, against its own count, nothing
 # planted. run.sh runs it for every driver.
-SWIPE_CHECKS = 133   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
+SWIPE_CHECKS = 136   # the suite's count: the one place, read by the run path and by CONTROL_TABLE (A12.70)
 CONTROL_TABLE = {"test_wx_swipe": ("checks", SWIPE_CHECKS)}
 
 

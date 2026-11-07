@@ -116,11 +116,20 @@ struct Day {
     const wx::Period* night;
 };
 
+// Q110: a period whose successor has started is over. NWS serves its forecast from a cache hours old, so a document can
+// open on a period that has ended, and the device reads the times rather than trusting the feed to have dropped it.
+inline size_t FirstCurrent(const wx::Forecast& f)
+{
+    size_t i = 0;
+    while (i + 1 < f.nPeriods && f.periods[i + 1].startUtc <= f.issuedUtc) ++i;
+    return i;
+}
+
 // By position: a daytime period opens a day, a night joins the current one, and a night-only first period is day 0.
 inline int Days(const wx::Forecast& f, Day* out)
 {
     int n = 0;
-    for (size_t i = 0; i < f.nPeriods; ++i) {
+    for (size_t i = FirstCurrent(f); i < f.nPeriods; ++i) {
         const wx::Period& p = f.periods[i];
         if (p.isDaytime || n == 0) {
             if (n == kMaxDays) break;
@@ -424,7 +433,7 @@ inline void HighLowText(const wx::Forecast& f, char* out, size_t cap)
 {
     const wx::Period* hi = nullptr;
     const wx::Period* lo = nullptr;
-    for (size_t i = 0; i < f.nPeriods; ++i) {
+    for (size_t i = FirstCurrent(f); i < f.nPeriods; ++i) {
         const wx::Period& p = f.periods[i];
         if (p.isDaytime && !hi) hi = &p;
         if (!p.isDaytime && !lo) lo = &p;

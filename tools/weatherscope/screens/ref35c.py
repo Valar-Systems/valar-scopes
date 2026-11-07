@@ -138,11 +138,20 @@ def clock(utc):
     return f"{12 if t.hour % 12 == 0 else t.hour % 12}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
 
 
+def current(rec):
+    """Q110: a period whose successor has started is over, so the screens begin at the first that is not."""
+    ps = rec["periods"]
+    i = 0
+    while i + 1 < len(ps) and ps[i + 1]["startUtc"] <= rec["capturedUtc"]:
+        i += 1
+    return ps[i:]
+
+
 def days(rec):
     """The periods grouped into days by position: a daytime period opens a day; a night joins the current one; a
     night-only first period is day 0 alone. Each: {k, day: period|None, night: period|None}."""
     out = []
-    for p in rec["periods"]:
+    for p in current(rec):
         if p["isDaytime"] or not out:
             out.append({"k": len(out), "day": p if p["isDaytime"] else None, "night": None if p["isDaytime"] else p})
         else:
@@ -260,8 +269,8 @@ def conditions(rec, theme):
             wind += f" G{o['gustMph']}"
     s.centred(wind, top + 48, 2, "uiFg")
     s.centred(f"HUMIDITY {o['humidityPct']}%" if o["hasHumidity"] else "HUMIDITY --", top + 72, 2, "uiFg")
-    hi = next((p["tempF"] for p in rec["periods"] if p["isDaytime"]), None)
-    lo = next((p["tempF"] for p in rec["periods"] if not p["isDaytime"]), None)
+    hi = next((p["tempF"] for p in current(rec) if p["isDaytime"]), None)
+    lo = next((p["tempF"] for p in current(rec) if not p["isDaytime"]), None)
     s.centred(f"HI {hi if hi is not None else '--'}  LO {lo if lo is not None else '--'}", top + 96, 2, "uiFg")
     stale = rec["capturedUtc"] - o["timeUtc"] > 90 * 60
     s.centred(f"OBSERVED {clock(o['timeUtc'])}", top + 120, 1, "orangeText" if stale else "uiDim")

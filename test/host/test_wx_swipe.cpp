@@ -1,7 +1,8 @@
 // Weatherscope 3.5c's swipe screens (src/weatherscope/WxSwipe.h) against the truth tables frozen in
 // docs/weatherscope-stage3.md A12.144: N the page model, H the headline, B, Y and X the strip, W the week, C the
 // conditions, A the alerts, D the dots, L the layout check, and K the 10 screens through the device's own path against
-// tools/weatherscope/screens/ref35c.py (test/fixtures/wx/nws/k35c.ref.txt) at 57,600 of 57,600 pixels. 133 checks.
+// tools/weatherscope/screens/ref35c.py (test/fixtures/wx/nws/k35c.ref.txt) at 57,600 of 57,600 pixels. A12.155 adds H18,
+// C26 and W7, a period already over (Q110). 136 checks.
 //
 //     test_wx_swipe <k35c.ref.txt>
 //
@@ -139,7 +140,7 @@ struct Fx {
             if (LocalAt(h[i].startUtc, f.offsetMin).hour == local) return i;
         return -1;
     }
-    void Saturday() { f.issuedUtc += 86400; }   // so day 3 is TUE, as A12.144's rows read
+    void TonightStarted() { f.issuedUtc = p[1].startUtc + 60; }   // Q110: the first period is over
 };
 
 std::string Read(const Headline& h) { return h.oneLine ? std::string(h.a) + " " + h.b : std::string(h.a) + " / " + h.b; }
@@ -219,14 +220,12 @@ void TableH()
     }
     {
         Fx x;
-        x.Saturday();
-        x.p[6].pop = 30;
+        x.p[8].pop = 30;
         Row("H7", MakeHeadline(x.f), "NEXT RAIN TUE");
     }
     {
         Fx x;
-        x.Saturday();
-        x.p[7].pop = 40;
+        x.p[9].pop = 40;
         Row("H8", MakeHeadline(x.f), "NEXT RAIN / TUE NIGHT");
     }
     {
@@ -241,13 +240,12 @@ void TableH()
     }
     {
         Fx x(1);   // the record opens on "Tonight"
-        x.Saturday();
         x.p[1].pop = 40;
         const std::string a = Read(MakeHeadline(x.f));
         x.p[1].pop = 0;
         x.p[2].pop = 40;
         const std::string b = Read(MakeHeadline(x.f));
-        check("H11", a == "NEXT RAIN / TONIGHT" && b == "NEXT RAIN SUN", "reads '" + a + "', then '" + b + "'");
+        check("H11", a == "NEXT RAIN / TONIGHT" && b == "NEXT RAIN SAT", "reads '" + a + "', then '" + b + "'");
     }
     {
         Fx x;
@@ -258,9 +256,8 @@ void TableH()
     const char* const kWant[3] = {"NEXT SNOW TUE", "NEXT RAIN TUE", "NEXT RAIN TUE"};
     for (int i = 0; i < 3; ++i) {
         Fx x;
-        x.Saturday();
-        x.p[6].pop = 40;
-        x.p[6].shortForecast = kShort[i];
+        x.p[8].pop = 40;
+        x.p[8].shortForecast = kShort[i];
         Row(i == 0 ? "H13" : i == 1 ? "H14" : "H15", MakeHeadline(x.f), kWant[i]);
     }
     {
@@ -273,13 +270,21 @@ void TableH()
     }
     {
         Fx x;
-        x.Saturday();
-        x.p[6].pop = 40;
-        x.p[6].shortForecast = "SNOW SHOWERS";
+        x.p[8].pop = 40;
+        x.p[8].shortForecast = "SNOW SHOWERS";
         const std::string a = Read(MakeHeadline(x.f));
-        x.p[6].shortForecast = "light snow";
+        x.p[8].shortForecast = "light snow";
         const std::string b = Read(MakeHeadline(x.f));
         check("H17", a == "NEXT SNOW TUE" && b == a, "reads '" + a + "', then '" + b + "'");
+    }
+    {
+        Fx x;
+        x.TonightStarted();
+        x.p[0].pop = 80;   // over, so it names nothing
+        const std::string a = Read(MakeHeadline(x.f));
+        x.p[1].pop = 40;
+        const std::string b = Read(MakeHeadline(x.f));
+        check("H18", a == "NO RAIN / IN 7 DAYS" && b == "NEXT RAIN / TONIGHT", "reads '" + a + "', then '" + b + "'");
     }
 }
 
@@ -383,6 +388,16 @@ void TableW()
         for (int i = 0; i < c.nItems; ++i) rows += c.items[i].y >= kWeekTop;
         check("W5", rows == 7, "14 periods give 7 rows");
     }
+    {
+        Fx o;
+        o.TonightStarted();
+        Day days[kMaxDays];
+        const int n = Days(o.f, days);
+        WeekRow(o.f, days[0], row, sizeof row);
+        char want[32];
+        std::snprintf(want, sizeof want, "TON  --/%d   0%%", o.p[1].tempF);
+        check("W7", n > 0 && days[0].day == nullptr && days[0].night == &o.p[1] && std::string(row) == want, std::string("reads '") + row + "'");
+    }
     day.pop = 100;
     WeekRow(x.f, d, row, sizeof row);
     const int w = wxraster::TextW(row, 1);
@@ -478,6 +493,14 @@ void TableC()
     check("C24", std::string(row) == "OBSERVED 1:40 PM", row);
     ObservedText(mid + 5 * 60, -360, row, sizeof row);
     check("C25", std::string(row) == "OBSERVED 12:05 AM", row);
+    {
+        Fx o;
+        o.TonightStarted();
+        HighLowText(o.f, row, sizeof row);
+        char want[24];
+        std::snprintf(want, sizeof want, "HI %d  LO %d", o.p[2].tempF, o.p[1].tempF);
+        check("C26", std::string(row) == want, row);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------- A
