@@ -1,5 +1,7 @@
 #include "StoredFeeds.h"
 
+#include "WxForecastData.h"
+
 // Stage 3's stored data (docs/weatherscope-stage3.md section 2, A6.1 and A6.3).
 //
 // The observation and the alert were fetched ONCE, by the Stage 3 session at implementation time,
@@ -173,6 +175,27 @@ AlertList StoredAlertFeed::Active() const
     AlertList l;
     l.items = kAlerts;
     l.count = sizeof(kAlerts) / sizeof(kAlerts[0]);
+    return l;
+}
+
+Forecast StoredForecastFeed::Latest() const
+{
+    Forecast f;
+    f.issuedUtc = wxnws::kCapturedUtc;
+    f.offsetMin = wxnws::kOffsetMin;
+    f.hours = wxnws::kHours;
+    f.nHours = sizeof(wxnws::kHours) / sizeof(wxnws::kHours[0]);
+    f.periods = wxnws::kPeriods;
+    f.nPeriods = sizeof(wxnws::kPeriods) / sizeof(wxnws::kPeriods[0]);
+    return f;
+}
+
+Observation StoredDayObsFeed::Latest() const { return wxnws::DayObservation(); }
+
+AlertList StoredDayAlertFeed::Active() const
+{
+    AlertList l;
+    l.items = wxnws::SyntheticAlerts(&l.count);
     return l;
 }
 

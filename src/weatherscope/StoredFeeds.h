@@ -30,6 +30,22 @@ public:
     AlertList Active() const override;
 };
 
+// 3.5c's stored Dallas day (A12.131): one capture, trimmed to test/fixtures/wx/nws/dallas-day.json and generated into
+// WxForecastData.h. The swipe screens read these and the map does not: the map's scenarios keep their own observation and
+// warning above. The alert list is SYNTHETIC, labelled so in the record, because the capture held no watch or advisory.
+class StoredForecastFeed : public ForecastFeed {
+public:
+    Forecast Latest() const override;
+};
+class StoredDayObsFeed : public ObsFeed {
+public:
+    Observation Latest() const override;
+};
+class StoredDayAlertFeed : public AlertFeed {
+public:
+    AlertList Active() const override;
+};
+
 // 3.5a's SYNTHETIC all-dry crop for the stored Clear scenario (Q15): not a feed and not weather, so it is reached
 // only through Feeds::clear, which only the stored factory fills.
 CropBytes StoredSyntheticClear();
