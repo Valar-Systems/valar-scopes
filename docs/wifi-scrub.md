@@ -369,7 +369,10 @@ This PR's scan was right on both counts.
      anchor): S-W4N, S-W4B, S-W4P, S-W5G, S-W5J and S-W5K touch none of them. Their sets are unchanged.
 5. **A crash is an instrument failure, never a red.** The harness prints `INSTRUMENT FAILURE` for any crash, and that
    sabotage is not as registered.
-6. **The sabotage harness is committed:** `scripts/check_wifi_sabotage.py`. It runs these, and exits 0 only if every
+6. **The sabotage harness is committed:** `scripts/check_wifi_sabotage.py`. Since 2026-11-07 CI runs its code sabotages
+   (`--code-only`): #558 moved the decode into `excused()`, S-W5J's anchor went stale, and nothing said so, because
+   nothing ran the harness. S-W3, S-W7 and W8 read real values from BASE, and CI logs are public, so they stay
+   local (docs/weatherscope-stage3.md A12.164). It runs these, and exits 0 only if every
    one is as registered:
    - the unsabotaged control;
    - S-W4N, S-W4B, S-W4L, S-W4P, S-W5G, S-W5J, S-W5K and S-W2PORTAL, as in-memory edits of the guard's source, each
