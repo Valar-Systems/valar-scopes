@@ -2218,6 +2218,43 @@ fi
 )
 note_block $? "WxK35"
 
+# Weatherscope 3.5c's swipe screens (src/weatherscope/WxSwipe.h) against the truth tables frozen in
+# docs/weatherscope-stage3.md A12.144, and the 10 screens through the device's path against ref35c.py (the K rows). The
+# stored header is held to its record, and the reference to its file and to S-L, here, so neither goes stale quietly.
+# Its sabotages: python -I test/host/sabotage_wx_swipe.py
+echo
+echo "== WxSwipe =="
+(
+  fail=0
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; WxForecastData.h and ref35c.py cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/tools/weatherscope/nws/emit_nws.py" --check
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/tools/weatherscope/screens/ref35c.py" --k --check
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/tools/weatherscope/screens/ref35c.py" --selftest > "$OUT/ref35c.log" 2>&1
+  rc=$?
+  grep "^S-L" "$OUT/ref35c.log"
+  [ "$rc" -ne 0 ] && fail=1
+fi
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_swipe.cpp" -o "$OUT/test_wx_swipe.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Weatherscope swipe test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_swipe.exe" "$ROOT/test/fixtures/wx/nws/k35c.ref.txt"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the swipe test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxSwipe"
+
 # Weatherscope 3.5a's layer replay: every loop frame through ComposeLayered equal to the full Compose at 57,600 px,
 # at 60, 30 and 15 mi, without and with the warning overlay, docs/weatherscope-stage3.md A9.23: 90 rows; 3.5t t4
 # (A12.60) adds the same 90 in Light and RP-T's Dallas 15: 195 rows. Its sabotages: python -I

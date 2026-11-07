@@ -46,7 +46,8 @@ public:
 };
 
 // The nearest station's latest observation, reduced to what the screens read (screens doc 1c): its present weather,
-// its time, and its temperature for "54° · NO RAIN" (3.5a, A9.3). Nothing else is kept.
+// its time, and its temperature for "54° · NO RAIN" (3.5a, A9.3), and for the conditions screen (3.5c, A12.130) its wind,
+// gust and humidity. Each has a flag, because NWS sends nulls. Nothing else is kept.
 struct Observation {
     static constexpr size_t kMaxPresent = 4;
     bool valid = false;
@@ -55,6 +56,14 @@ struct Observation {
     const char* present[kMaxPresent] = {};  // each entry's raw METAR string, e.g. "-RA"
     bool hasTempF = false;                  // NWS reports a null temperature at times: then no figure is shown
     double tempF = 0;
+    bool hasWind = false;
+    int16_t windMph = 0;
+    bool hasWindDir = false;
+    int16_t windDirDeg = 0;
+    bool hasGust = false;
+    int16_t gustMph = 0;
+    bool hasHumidity = false;
+    int16_t humidityPct = 0;
 };
 
 class ObsFeed {
@@ -70,6 +79,7 @@ struct Alert {
     const char* event = nullptr;            // "Tornado Warning", ...
     const char* headline = nullptr;
     int64_t expiresUtc = 0;                 // Unix seconds
+    int64_t startUtc = 0;                   // onset, else effective (3.5c: the alerts screen orders and shows it)
 };
 
 struct AlertList {
@@ -81,6 +91,42 @@ class AlertFeed {
 public:
     virtual ~AlertFeed() = default;
     virtual AlertList Active() const = 0;
+};
+
+// The forecast (3.5c, A12.130): the next 24 hours and the day-part periods, reduced to what the screens read. Each value
+// NWS may send as null has a flag. Everything is integers, as the record is.
+struct Hour {
+    int64_t startUtc;
+    int16_t tempF;
+    uint8_t pop;                            // chance of precipitation, %
+    bool hasTemp;
+    bool hasPop;
+};
+
+struct Period {
+    const char* name;                       // "Tuesday Night"; a holiday's name never reaches the screen
+    int64_t startUtc;
+    bool isDaytime;
+    int16_t tempF;
+    bool hasTemp;
+    uint8_t pop;
+    bool hasPop;
+    const char* shortForecast;              // cut to 24 characters: free text, so a prefix is a true prefix
+};
+
+struct Forecast {
+    int64_t issuedUtc = 0;                  // the screens' "now" in stored mode, as the map takes its frame's time
+    int offsetMin = 0;                      // the place's local offset, fixed per stored case
+    const Hour* hours = nullptr;
+    size_t nHours = 0;
+    const Period* periods = nullptr;
+    size_t nPeriods = 0;
+};
+
+class ForecastFeed {
+public:
+    virtual ~ForecastFeed() = default;
+    virtual Forecast Latest() const = 0;
 };
 
 }  // namespace wx

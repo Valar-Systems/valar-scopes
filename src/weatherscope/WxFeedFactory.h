@@ -24,6 +24,10 @@ struct Feeds {
     const WxFeed* bendRadar;
     CropBytes bendClear;
     PackageBytes bendPackage;
+    // 3.5c (A12.131): the stored Dallas day the swipe screens read. Null unless `stored`, like the members above.
+    const ForecastFeed* forecast;
+    const ObsFeed* dayObs;
+    const AlertFeed* dayAlerts;
 };
 
 Feeds MakeFeeds();

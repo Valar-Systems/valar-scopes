@@ -744,6 +744,8 @@ void WeatherscopeManager::Update()
         const int idx = wxscreens::IdleReturn(zoomLadder, zoomIdx, millis(), lastTouchMs);
         if (idx != zoomIdx) ApplyZoom(idx, "idle");
     }
+    // ...and on the same clock, any page but the map goes home (N6): a desk device should not sit on a list.
+    if (wxswipe::IdleHome(CurrentPage(), millis(), lastTouchMs)) GoToPage(wxswipe::Page::Map);
     if (mode == Mode::Loop) WaitForLoopFrame();
 }
 
@@ -865,15 +867,31 @@ void WeatherscopeManager::CloseLegend()
     Serial.printf("[wx] screen=scenario %s R=%d\n", kScenarioName[cycle->index], ZoomMiles());
 }
 
-void WeatherscopeManager::OnTap()
+wxswipe::Page WeatherscopeManager::CurrentPage() const
 {
-    if (mode == Mode::Scenario) StartLoop();
-    else if (mode == Mode::Legend) CloseLegend();
+    if (mode == Mode::Swipe) return swipePage;
+    return mode == Mode::Legend ? wxswipe::Page::Legend : wxswipe::Page::Map;
 }
 
-void WeatherscopeManager::OnSwipeLeft()
+// To a page (3.5c, N1-N6). The legend keeps its own open and close, and the scenario cycle runs on the map alone (N5).
+void WeatherscopeManager::GoToPage(wxswipe::Page p)
 {
-    if (mode == Mode::Scenario) OpenLegend();
+    if (p == wxswipe::Page::Map) { CloseLegend(); return; }
+    if (p == wxswipe::Page::Legend) { OpenLegend(); return; }
+    wxscreens::Pause(*cycle, !wxswipe::CycleRuns(p));
+    swipePage = p;
+    mode = Mode::Swipe;
+    Serial.printf("[wx] screen=%s\n", p == wxswipe::Page::Forecast ? "forecast" : p == wxswipe::Page::Conditions ? "conditions"
+                                                                                                                   : "alerts");
+}
+
+// A tap or a sideways swipe, through the page model. The loop, the splash and the status screen are not pages.
+void WeatherscopeManager::OnGesture(wxswipe::Gesture g)
+{
+    if (mode != Mode::Scenario && mode != Mode::Legend && mode != Mode::Swipe) return;
+    const wxswipe::Move m = wxswipe::Step(CurrentPage(), g);
+    if (m.act == wxswipe::Act::OpenLoop) StartLoop();
+    else if (m.act == wxswipe::Act::Go) GoToPage(m.next);
 }
 
 // Up (dir -1) zooms in, down (+1) zooms out, as on Blipscope (A9.3), through radarzoom::Step unchanged.
@@ -901,8 +919,8 @@ void WeatherscopeManager::ClassifyStroke(int dx, int dy)
 {
     constexpr int kSwipeMin = 40;
     const int adx = abs(dx), ady = abs(dy);
-    if (adx < kSwipeMin && ady < kSwipeMin) OnTap();
-    else if (adx >= ady) { if (dx < 0) OnSwipeLeft(); }
+    if (adx < kSwipeMin && ady < kSwipeMin) OnGesture(wxswipe::Gesture::Tap);
+    else if (adx >= ady) OnGesture(dx < 0 ? wxswipe::Gesture::Left : wxswipe::Gesture::Right);
     else OnSwipeVertical(dy > 0 ? +1 : -1);
 }
 
@@ -1001,7 +1019,7 @@ void WeatherscopeManager::HandleSerialGestures()
 #endif
         if (!feeds.stored) continue;
         const bool known = ch == 'T' || ch == 'S' || ch == 'U' || ch == 'D' || ch == 'H' || ch == 'P' || ch == 'L' ||
-                           ch == 'R' || ch == 'G' || ch == 'O';
+                           ch == 'R' || ch == 'G' || ch == 'O' || ch == 'N' || ch == 'V';
         Serial.printf("[wx] gesture %c\n", known ? (char)ch : '?');
         if (!known) continue;
         if (ch == 'P') { benchPress = true; continue; }   // A9.34: the press is HandleTouch's to classify
@@ -1011,8 +1029,10 @@ void WeatherscopeManager::HandleSerialGestures()
         if (ch == 'O') { OnAutoOffsetByte(); continue; }  // t5 (A12.66): the clock Auto reads, +15 min; not a touch
         lastTouchMs = millis();
         lastTouchActivityMs = lastTouchMs;   // the cap's idle clock, as the radar's bench keys stamp its own
-        if (ch == 'T') OnTap();
-        else if (ch == 'S') OnSwipeLeft();
+        if (ch == 'T') OnGesture(wxswipe::Gesture::Tap);
+        else if (ch == 'S') { if (mode == Mode::Scenario) OpenLegend(); }   // a bench shortcut to the legend (Q107): not a swipe
+        else if (ch == 'N') OnGesture(wxswipe::Gesture::Left);    // the real swipes, as a touch takes them (Q107)
+        else if (ch == 'V') OnGesture(wxswipe::Gesture::Right);
         else if (ch == 'U') OnSwipeVertical(-1);
         else if (ch == 'D') OnSwipeVertical(+1);
         else OnHoldFired();
@@ -1098,6 +1118,7 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
     case Mode::Scenario: DrawScenario(backbuffer); break;
     case Mode::Loop: DrawLoopFrame(backbuffer); break;
     case Mode::Legend: DrawLegend(backbuffer); break;
+    case Mode::Swipe: DrawSwipe(backbuffer); break;
     }
     // Touch unavailable (A12.119): the radar's strip, over every screen, last, into the backbuffer only -- the cached
     // scenario stays clean, so the first frame after it clears has none. In the theme's roles (WxTouchStrip.h).
@@ -1109,6 +1130,7 @@ void WeatherscopeManager::Draw(BandCanvas& backbuffer, bool /*firstPass*/)
     else if (mode == Mode::Loop) { m = 2; sc = (uint32_t)(loopIndex - 1) & 15; rr = (uint32_t)ZoomMiles(); }
     else if (mode == Mode::Legend) m = 3;
     else if (mode == Mode::Status) m = 4;
+    else if (mode == Mode::Swipe) { m = 6; sc = (uint32_t)swipePage; }
     framebuf::SetTag((m << 28) | ((sc & 15) << 24) | ((rr & 255) << 16) | (++drawCount & 0xFFFF));
 }
 
@@ -1298,6 +1320,21 @@ void WeatherscopeManager::DrawLegend(BandCanvas& c)
         }
         s.fillRect(sw.x, sw.y, sw.w, sw.h, s.color565(col.r, col.g, col.b));
     }
+}
+
+// 3.5c's screens, from the stored Dallas day (WxSwipe.h), composed each frame as the legend is, so a theme change just
+// shows. Only the three new screens carry the dots (Q106): the map and the legend stay as they are.
+void WeatherscopeManager::DrawSwipe(BandCanvas& c)
+{
+    LGFX_Sprite& s = c.sprite();
+    const wxtheme::Theme& th = Th();
+    s.fillSprite(C888(th.bg));
+    SpriteSink sink(s);
+    wxswipe::Canvas cv(sink, th);
+    const wx::Forecast f = feeds.forecast->Latest();
+    if (swipePage == wxswipe::Page::Forecast) wxswipe::ComposeForecast(cv, f);
+    else if (swipePage == wxswipe::Page::Conditions) wxswipe::ComposeConditions(cv, feeds.dayObs->Latest(), f);
+    else wxswipe::ComposeAlerts(cv, feeds.dayAlerts->Active(), f.offsetMin);
 }
 
 void WeatherscopeManager::DrawSplash(BandCanvas& c)
