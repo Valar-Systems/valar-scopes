@@ -14717,3 +14717,27 @@ The guard agrees on the same tree: 286 `name` (284 + 2), 47 `serial`, 10 `colon`
 | main on the squash | 35 | 32 | 3 (promote, publish, version) | 0 |
 
 **The PR states that it merges only with no bench window running,** because every session's bench tools change with it, and that each session needs `~/.config/blipscope/boards` (already on this machine).
+
+### A12.153 The scrub applied locally: `check_macs.py` reads 0; `check_wifi.py` OFF-PREDICTION, 28 findings (Q111). Nothing pushed
+
+**Applied at `4123dd50eda1`, local on `weatherscope/mac-scrub`:** 86 files, 350 insertions and 345 deletions, the rewrite plus CLAUDE.md's hand edit.
+
+| row (A12.152) | predicted | measured |
+|---|---|---|
+| the rewrite | 284 names, 2 cards, 47 serial, 10 colon, 8 bare | **as predicted** |
+| `check_macs.py` | exit 0, 0 findings, 0 stale | **as predicted** |
+| `check_device_ids.py`, `check_binary_strings.py` | exit 0 | **as predicted** |
+| the run records' diff | changes only inside the tokens | **as predicted:** 263 lines; 262 equal once a name's tail is masked, and the 263rd is `watch-notes.txt`'s one serial |
+| **`check_wifi.py`** | exit 0 | **OFF-PREDICTION: exit 1, 28 `name` findings,** 27 in `bench-logs/`, 1 in `docs/wifi-portal-reboot-loop-2026-08-19.md` |
+
+**The cause.** `check_wifi.py` lets a device's own setup-AP name pass by shape: `[a-z]+scope-[0-9a-f]{6}` (`docs/wifi-scrub.md`: "made from its MAC: out of scope"). The rewrite turns `Blipscope-<6 hex>` into `Blipscope-<4 hex>`, which no longer has that shape, so in an SSID context it reads as an unknown network's name. No allowlist entry went stale.
+
+**The alternative, named:** the rewrite touched a real network name. The data excludes it: all 28 findings are lines the rewrite changed, and each carries `<product>-<4 hex>`, a shape the rewrite wrote. `check_wifi.py` read clean on the same files before it.
+
+**My miss.** A12.152 anticipated stale `wifi-allow.txt` entries and not this: the Wi-Fi guard's pass rule names the very shape the scrub removes. The two guards were written about the same token from opposite sides, and I read only the allowlist's coupling, not the rule's.
+
+**Q111. The two guards must agree on what a device name looks like.**
+- **(a) [recommended]** `check_wifi.py`'s device-name pass also takes 4 hex: `[a-z]+scope-[0-9a-f]{4}`, the label form. It gains a selftest row and a plant, and `docs/wifi-scrub.md`'s line changes in the same PR. The six-hex form stays passing in `check_wifi.py` and stays refused by `check_macs.py`, so each guard keeps one job, and a future record relabelled by the one rule passes both.
+- **(b)** `check_wifi.py` does not change. Those 28 become `<device>`, which already passes as a placeholder. No guard moves, but a record then needs two rules: `<device>` in an SSID context, the label everywhere else.
+
+**Held, not fixed:** the branch stays local until Q111 is ruled. The CI prediction in A12.152 stands under (a) and (b): neither adds a job.
