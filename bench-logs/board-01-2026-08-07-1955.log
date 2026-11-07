@@ -20,8 +20,8 @@
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  76 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 19:56:08 pid=124664 ===
@@ -68,12 +68,12 @@ entry 0x403c88b8
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:AutoConnect: FAILED for  124 ms
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:14 networks found
 *wm:Connect Wifi, ATTEMPT # 1 of 5
 *wm:Connecting to NEW AP: <ssid redacted>
@@ -109,7 +109,7 @@ entry 0x403c88b8
 *wm:AutoConnect 
 *wm:Connect Wifi, ATTEMPT # 1 of 5
 *wm:Connecting to SAVED AP: <ssid redacted>
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-50 dBm
 *wm:AutoConnect: SUCCESS 
@@ -665,7 +665,7 @@ entry 0x403c88b8
 [wifi-reset] boot touch detected; hold to confirm
 [wifi-reset] hold completed -- clearing credentials (misses=0 longestGap=56ms)
 *wm:resetSettings 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:SETTINGS ERASED 
 ESP-ROM:esp32s3-20210327
 Build:Mar 27 2021
@@ -697,9 +697,9 @@ entry 0x403c88b8
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 *wm:AutoConnect: FAILED for  63 ms
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 72s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:00:13 pid=124664 ===
@@ -725,8 +725,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  64 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:01:18 pid=124664 ===
@@ -752,8 +752,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  128 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:02:23 pid=124664 ===
@@ -779,8 +779,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  65 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:03:28 pid=124664 ===
@@ -806,8 +806,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  75 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:04:33 pid=124664 ===
@@ -833,8 +833,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  119 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:05:38 pid=124664 ===
@@ -860,8 +860,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  75 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:06:43 pid=124664 ===
@@ -887,8 +887,8 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  128 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 === [capture] detached after 60s: MethodInvocationException -- Exception calling "ReadLine" with "0" argument(s): "The operation has timed out." 2026-08-07 20:07:48 pid=124664 ===
@@ -914,7 +914,7 @@ ESP-ROM:esp32s3-20210327
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
 *wm:AutoConnect: FAILED for  74 ms
-[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
-*wm:StartAP with SSID:  Blipscope-31D918
+[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 

@@ -276,14 +276,14 @@ needed, because after a success nobody takes them.
 
 ### What this DOES settle
 
-The strong form of the hardware hypothesis — *"326E64 cannot join this network"* —
+The strong form of the hardware hypothesis — *"6E:64 cannot join this network"* —
 **is dead.** It just did, four times over, alongside three siblings. Any surviving
 hardware explanation has to be intermittent, and an intermittent fault is a much
 weaker claim than the one we set out to test.
 
 ### What it does NOT settle, restated so it cannot drift
 
-**326E64 is not cleared.** Outcome (f) was pre-registered for exactly this.
+**6E:64 is not cleared.** Outcome (f) was pre-registered for exactly this.
 
 ### The product defect that is real regardless of which explanation wins
 

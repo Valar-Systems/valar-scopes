@@ -1,9 +1,9 @@
-#HOST opened COM6; board weatherscope-326e64.local; acting only on screen lines from t_open + 1 s
+#HOST opened COM6; board weatherscope-6e64.local; acting only on screen lines from t_open + 1 s
 [WiFi] CONNECTED  IP=<board-ip>  RSSI=-41 dBm
 [WiFi] fast join OK in 3699 ms
 [WiFi] pinned AP ch=1 RSSI=-41 dBm for the next boot
 [ota] channel=weatherscope-s3-128 current=18 latest=18
-[web] config server listening on :80 (http://Weatherscope-326E64.local)
+[web] config server listening on :80 (http://Weatherscope-6E64.local)
 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 [wx] psram_used=220980 sprite=1 grid=38520 in=432 out=688 layer=59488 history=15 clear=36 ready=1
 [wx] pick approaching=212400 dry=220000 psram_used=220980

@@ -8,13 +8,13 @@
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-57 dBm
 [WiFi] fast join OK in 1650 ms
 [WiFi] pinned AP ch=1 RSSI=-57 dBm for the next boot
 [ota] channel=s3-128 current=7 latest=7
-[web] config server listening on :80 (http://Blipscope-326E20.local)
+[web] config server listening on :80 (http://Blipscope-6E20.local)
 [logbook] loaded 290 types (145 claimed), 220 airlines (30), 41 countries (5), 31727 contacts
 [logbook] NVS 833/2646 entries used (1813 free); logbook budget ~2204, ceilings need 1375
 [cloud] no key override; using the factory-provisioned key

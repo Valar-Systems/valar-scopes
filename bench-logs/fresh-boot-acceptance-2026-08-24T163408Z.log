@@ -253,7 +253,7 @@
 09:41:45 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291936
 09:41:45 *wm:v2.0.17  D:2
 09:41:45 [WiFi] credentials saved: portal will time out after 180 s and retry them
-09:41:45 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+09:41:45 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 09:41:45 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 09:41:48 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 09:41:48 [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -261,7 +261,7 @@
 09:41:50 [WiFi] fast join OK in 1650 ms
 09:41:50 [WiFi] pinned AP ch=1 RSSI=-54 dBm for the next boot
 09:41:58 [ota] channel=s3-128 current=8 latest=8
-09:42:00 [web] config server listening on :80 (http://Blipscope-31D918.local)
+09:42:00 [web] config server listening on :80 (http://Blipscope-D918.local)
 09:42:00 [logbook] loaded 188 types (17 claimed), 220 airlines (6), 17 countries (1), 3407 contacts
 09:42:00 [logbook] NVS 700/2646 entries used (1946 free); logbook budget ~2204, ceilings need 1375
 09:42:00 [cloud] no key override; using the factory-provisioned key
@@ -374,7 +374,7 @@
 09:50:22 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291936
 09:50:22 *wm:v2.0.17  D:2
 09:50:22 [WiFi] credentials saved: portal will time out after 180 s and retry them
-09:50:22 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+09:50:22 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 09:50:22 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 09:50:25 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 09:50:25 [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -382,7 +382,7 @@
 09:50:27 [WiFi] fast join OK in 1700 ms
 09:50:27 [WiFi] pinned AP ch=1 RSSI=-51 dBm for the next boot
 09:50:35 [ota] channel=s3-128 current=8 latest=8
-09:50:38 [web] config server listening on :80 (http://Blipscope-31D918.local)
+09:50:38 [web] config server listening on :80 (http://Blipscope-D918.local)
 09:50:38 [logbook] loaded 188 types (17 claimed), 220 airlines (6), 17 countries (1), 3407 contacts
 09:50:38 [logbook] NVS 700/2646 entries used (1946 free); logbook budget ~2204, ceilings need 1375
 09:50:38 [cloud] no key override; using the factory-provisioned key

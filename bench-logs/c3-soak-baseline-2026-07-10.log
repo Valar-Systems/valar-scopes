@@ -3012,7 +3012,7 @@
 [fetch] task: req kind=0 @4653376
 [fetch] LOW HEAP after Blipscope Cloud: free=21612 largest=7668 aircraft=25
 [fetch] task: done ok=1 http=200 in 75ms
-[WiFi] STA started; hostname=Blipscope-51C12C, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-C12C, TX 19.5dBm
 *wm:[3] ESP32 event handler enabled 
 *wm:[3] Connecting as wifi client... 
 *wm:[4] STA static IP:
@@ -3048,7 +3048,7 @@
 *wm:[2] AutoConnect: SUCCESS 
 *wm:[3] Connected in 2251 ms
 *wm:[2] STA IP Address: <lan-ip redacted>
-*wm:[4] hostname: STA:  Blipscope-51C12C
+*wm:[4] hostname: STA:  Blipscope-C12C
 [WiFi] autoConnect() returned true (connected)
 [ota] channel=c3-128 current=4 latest=4
 [source] Blipscope Cloud: https://scopes-staging.valarsystems.com (active 5000 ms; cfg pending)

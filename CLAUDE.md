@@ -40,29 +40,34 @@ by COM number alone** (standing, 2026-10-12). There are two units of each produc
 bench, so "the Missileer" is not an identity either: on 2026-10-12 COM16 was taken for the
 bench Missileer, and it was the photo unit.
 
-| `-Board` | Product, role | USB serial (its MAC) | Rule |
+| `-Board` | Product, role | Label (the MAC's last two bytes) | Rule |
 |---|---|---|---|
-| `missileer` | **Missileer**, bench | `90706931E9D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
-| `missileer-photo` | **Missileer**, photo unit | `90706931E794` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-31E794.local`. |
-| `weatherscope` | **Weatherscope**, bench | `907069326E64` (VID:PID `303A:1001`) | The Weatherscope session's board since 2026-10-20 (Daniel). Until then it was the Blipscope soak board; its last Blipscope state is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). **Never flash it for Blipscope or Missileer work**; ask Daniel before touching it. |
-| `blipscope-bench` | **Blipscope**, bench | `90706931E208` (USB-Serial-JTAG spells it `90:70:69:31:E2:08`) | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
+| `missileer` | **Missileer**, bench | `E9:D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
+| `missileer-photo` | **Missileer**, photo unit | `E7:94` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-E794.local`. |
+| `weatherscope` | **Weatherscope**, bench | `6E:64` (VID:PID `303A:1001`) | The Weatherscope session's board since 2026-10-20 (Daniel). Until then it was the Blipscope soak board; its last Blipscope state is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). **Never flash it for Blipscope or Missileer work**; ask Daniel before touching it. |
+| `blipscope-bench` | **Blipscope**, bench | `E2:08` | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
 
 The Blipscope and Weatherscope boards are separate units, and so are the two Missileers (Daniel, 2026-10-12; the Weatherscope row since 2026-10-20).
+
+**The full serials are not in the repo** (Daniel, 2026-11-06): a MAC plus the public salt gives a device id, and a device
+name carries the MAC's last three bytes. A board is named here by its label. The serials live in one local file outside
+every repo, `~/.config/blipscope/boards` or the path in `BLIPSCOPE_BOARDS_FILE`, and `scripts/board-port.py` refuses with
+exit 4 without it. `scripts/check_macs.py` refuses a full MAC or a device-name suffix in a tracked file.
 `scripts/board-port.py` (`BOARDS`) and `scripts/bench-flash.ps1` (`-Board`) carry the
 same four rows; change all three together.
 
 **A COM number is not an identity.** Windows numbers a port per USB interface layout, so
 the same board moves whenever its firmware's USB shape changes: the Missileer board was
 COM15 (TinyUSB CDC+HID), COM4 (ROM download mode) and COM17 (HID compiled out) in one
-day. The serial is the MAC in every mode, spelled `90:70:69:31:E9:D8` by the chip's
+day. The serial is the MAC in every mode, spelled with colons by the chip's
 USB-Serial-JTAG (ROM download mode, and `ARDUINO_USB_MODE=1` builds such as the
-Blipscope soak build) and `90706931E9D8` by TinyUSB (the Missileer builds); compare with
+Blipscope soak build) and without them by TinyUSB (the Missileer builds); compare with
 the colons removed.
 
 - `python scripts/board-port.py --list` shows where each board is right now.
 - `scripts/bench-flash.ps1 -PioEnv <env> -Board missileer -Label <l>` resolves the port
   from the serial (and 1200-baud-touches a TinyUSB board into download mode itself), and
-  prints the serial beside the port before it writes anything. It refuses every board
+  prints the board's label beside the port before it writes anything. It refuses every board
   but `missileer` without `-DanielApproved`, refuses a `missileer-*` env on a
   non-Missileer board, and refuses a non-Missileer env on the photo unit.
 - A bare `pio run -t upload --upload-port COMx` is how the wrong board gets flashed:

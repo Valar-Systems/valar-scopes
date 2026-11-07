@@ -13,7 +13,7 @@
 2026-10-26T19:56:53.012Z [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=291352
 2026-10-26T19:56:53.012Z *wm:v2.0.17  D:2
 2026-10-26T19:56:53.012Z [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
-2026-10-26T19:56:53.012Z [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+2026-10-26T19:56:53.012Z [WiFi] STA started; hostname=Weatherscope-6E64, TX 19.5dBm
 2026-10-26T19:56:53.012Z [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 2026-10-26T19:56:53.012Z [WiFi] fast join: ch=1 bssid=<redacted>
 2026-10-26T19:56:53.012Z [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -21,7 +21,7 @@
 2026-10-26T19:56:53.012Z [WiFi] fast join OK in 3699 ms
 2026-10-26T19:56:53.012Z [WiFi] pinned AP ch=1 RSSI=-27 dBm for the next boot
 2026-10-26T19:56:53.012Z [ota] channel=weatherscope-s3-128 current=18 latest=18
-2026-10-26T19:56:53.012Z [web] config server listening on :80 (http://Weatherscope-326E64.local)
+2026-10-26T19:56:53.012Z [web] config server listening on :80 (http://Weatherscope-6E64.local)
 2026-10-26T19:56:53.012Z [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 2026-10-26T19:56:53.012Z [wx] psram_used=220980 sprite=1 grid=38520 in=432 out=688 layer=59488 history=15 clear=36 ready=1
 2026-10-26T19:56:53.012Z [wx] pick approaching=212400 dry=220000 psram_used=220980

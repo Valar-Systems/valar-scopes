@@ -5,7 +5,7 @@
 12:28:15 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291836
 12:28:15 *wm:v2.0.17  D:2
 12:28:15 [WiFi] no saved credentials: portal stays up indefinitely for first setup
-12:28:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:15 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:28:15 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 12:28:15 *wm:AutoConnect 
 12:28:15 *wm:Connect Wifi, ATTEMPT # 1 of 5
@@ -18,9 +18,9 @@
 12:28:15 *wm:No wifi saved, skipping 
 12:28:15 *wm:Connect Wifi, ATTEMPT # 5 of 5
 12:28:15 *wm:No wifi saved, skipping 
-12:28:15 *wm:AutoConnect: FAILED for [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:15 *wm:AutoConnect: FAILED for [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:28:15  20 ms
-12:28:15 *wm:StartAP with SSID:  Blipscope-31D918
+12:28:15 *wm:StartAP with SSID:  Blipscope-D918
 12:28:15 *wm:AP IP address: 192.168.4.1
 12:28:15 *wm:Starting Web Portal 
 12:28:15 ESP-ROM:esp32s3-20210327
@@ -40,7 +40,7 @@
 12:28:16 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291836
 12:28:16 *wm:v2.0.17  D:2
 12:28:16 [WiFi] no saved credentials: portal stays up indefinitely for first setup
-12:28:16 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:16 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:28:18 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 12:28:19 [  3419][E][Preferences.cpp:539] getBytesLength(): nvs_get_blob len fail: bssid NOT_FOUND
 12:28:19 *wm:AutoConnect 
@@ -54,8 +54,8 @@
 12:28:19 *wm:No wifi saved, skipping 
 12:28:19 *wm:Connect Wifi, ATTEMPT # 5 of 5
 12:28:19 *wm:No wifi saved, skipping 
-12:28:19 *wm:AutoConnect: FAILED for  [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+12:28:19 *wm:AutoConnect: FAILED for  [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 12:28:19 20 ms
-12:28:19 *wm:StartAP with SSID:  Blipscope-31D918
+12:28:19 *wm:StartAP with SSID:  Blipscope-D918
 12:28:19 *wm:AP IP address: 192.168.4.1
 12:28:20 *wm:Starting Web Portal 

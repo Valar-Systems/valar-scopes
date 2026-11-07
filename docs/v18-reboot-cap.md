@@ -60,7 +60,7 @@ These are **rules for how the rollout is graded**, set at review before v18 is c
 
 ## Bench board 6E:64 leaves the Blipscope fleet (2026-10-20)
 
-Daniel released USB serial `907069326E64` (COM6 that day) to become the Weatherscope board. No v18 check needs it: Board #1's first-run leg, the #387 runs and the prerelease acceptance all run on E2:08. Its **last Blipscope state**, read before it was reflashed:
+Daniel released USB serial `6E:64` (COM6 that day) to become the Weatherscope board. No v18 check needs it: Board #1's first-run leg, the #387 runs and the prerelease acceptance all run on E2:08. Its **last Blipscope state**, read before it was reflashed:
 
 | | value | read from |
 |---|---|---|

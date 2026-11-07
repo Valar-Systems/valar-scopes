@@ -996,7 +996,7 @@ M20260925T000043Z, M20260926T135341Z.
 
 ### Measured on the bench — touch report interval and the 10 s hold (2026-09-24)
 
-**Board:** the Missileer board, a Kit S3 1.28" with a CST816T, USB serial `90706931E9D8`.
+**Board:** the Missileer board, a Kit S3 1.28" with a CST816T, USB serial `E9:D8`.
 **Firmware:** valar-scopes `feat/game-client` @ `325cb69`, built with `-DKEYTOUCH_BENCH -UFEATURE_USB_OPEN`.
 **Estimator:** INT-driven only, with no timer reads. The ISR stamps each falling edge of the
 chip's INT line with `esp_timer`, and the interval is edge to edge while the finger is down

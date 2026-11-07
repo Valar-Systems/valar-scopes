@@ -6,7 +6,7 @@ the same three hypotheses we did, and on one board the answer was none of them.
 
 ## `.32` stopped learning operators — NOT A DEFECT
 
-**Symptom.** Bench board `.32` (`Blipscope-326E20`, s3-128) held 120 operators
+**Symptom.** Bench board `.32` (`Blipscope-6E20`, s3-128) held 120 operators
 against a cap of 220 — a hundred free slots — and had not added one in eleven
 days. Over the same window it added 107 new *types* (08-02 → 08-04). A store
 that stops growing with room to spare looks exactly like a bug.

@@ -159,11 +159,11 @@ The **case is decided by that pre-claim body**: a claimed type absent from it ma
   - **B**'s remaining cell (existing type) is **dropped as redundant with S**. B and S both lack the immediate save, and B's fresh-logbook cell was already observed. This is a reviewer decision, not a result.
   - **F**'s cells (both tokens, boots from the Worker's rows) are graded on the **v18 prerelease image**, in place of this branch's build.
 - **v18 is promoted only if every F cell matches and S stays red.**
-- Board: E2:08 (`90706931E208`), per Daniel. Its backup was verified before any run: NVS parses, 186 entries, 0 CRC failures, `cloud-key-fac` present, 12 logbook entries, sha256 `0e5a0cb1c3bc…`. The Collection before the run: 1 claimed type of 28 seen. The backup is written back only to E2:08, and the count is confirmed afterwards.
+- Board: E2:08 (`E2:08`), per Daniel. Its backup was verified before any run: NVS parses, 186 entries, 0 CRC failures, `cloud-key-fac` present, 12 logbook entries, sha256 `0e5a0cb1c3bc…`. The Collection before the run: 1 claimed type of 28 seen. The backup is written back only to E2:08, and the count is confirmed afterwards.
 
 ## v18 bench results (E2:08, 2026-10-20)
 
-**Board:** E2:08 (`90706931E208`). **Images:**
+**Board:** E2:08 (`E2:08`). **Images:**
 - S: `r387-S-724dad6.bin`, sha256 `424ce11b1df6…`;
 - the v18 prerelease: `firmware-s3-128.bin`, sha256 `5a5f662bd51b…`, equal to the release asset's digest.
 

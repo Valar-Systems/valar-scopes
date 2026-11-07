@@ -12,7 +12,7 @@
 - predictions are frozen before each step's code, as a dated addendum here;
 - stop on anything off-prediction, and don't re-grade;
 - every check is proven able to fail by a sabotage;
-- the only board flashed is `907069326E64` (standing OK);
+- the only board flashed is `6E:64` (standing OK);
 - no deploys, and no customer-facing release.
 
 Facts below cite `origin/main` at `788ad44` unless a commit is named.
@@ -136,10 +136,10 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
   - `weatherscope-s3-128`: **build-only, no slug, publishes nothing**;
   - `weatherscope-bench-s3-128`: build-only.
 - **No customer-facing release, no store listing,** and no change to `version.txt`'s meaning.
-- **No board is flashed except `907069326E64`.**
+- **No board is flashed except `6E:64`.**
 - **No deploys.** No Worker change happens in Stage 3.
 - **Added 2026-10-21 (Addendum 2, A2.2):** once Weatherscope has a slug, a failing Weatherscope leg withholds `version.txt` for **every** SKU. The slug decision is made knowing that.
-- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2): one exception to "no board is flashed except `907069326E64`", for O11 only.** O11 runs on E2:08, operated by blipscope-5c. Every other Stage 3 step keeps the rule.
+- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2): one exception to "no board is flashed except `6E:64`", for O11 only.** O11 runs on E2:08, operated by blipscope-5c. Every other Stage 3 step keeps the rule.
 
 ## 5. Screens and screen logic (2.2 and 2.3 fold in here)
 
@@ -196,10 +196,10 @@ Every behaviour follows `docs/weatherscope-screens.md`'s rulings.
 
 1. **3.0** This plan, then review.
 2. **3.1** Move the bench harness (`weatherscope-bench-s3-128`, `src/weatherscope/bench/`; narrow the adsbdb gate case). Predicted: S1 holds for every other env, and the bench checks re-run unchanged (C1, C2, the legend's L1-L6).
-3. **3.2** The edition scaffolding (the product env, `main.cpp`, the config page, the identity headers, the stored feeds, the D2 hostname gate). Predicted: S1, D1, D2, and the budgets in section 6; it boots on `907069326E64`, joins Wi-Fi and serves its config page.
+3. **3.2** The edition scaffolding (the product env, `main.cpp`, the config page, the identity headers, the stored feeds, the D2 hostname gate). Predicted: S1, D1, D2, and the budgets in section 6; it boots on `6E:64`, joins Wi-Fi and serves its config page.
 4. **3.3** The screens and the logic (section 5).
 5. **3.4** OTA identity (section 3): host O1, O2 and O4; CI O3 and O5. Its release is Daniel's call, and it must come before any Weatherscope slug.
-   - Added 2026-10-21 (Addendum 1): host O7, O8 and O10, and bench O9 on `907069326E64`.
+   - Added 2026-10-21 (Addendum 1): host O7, O8 and O10, and bench O9 on `6E:64`.
    - Added 2026-10-21 (Addendum 2): O6's screen predictions (A2.1), and O11, the real download path end to end, on the release candidate **before the release that adds the check is published** (A2.4). S2 belongs to 3.2 (A2.3).
 
 **Outside every step's predictions: stop and decide.**
@@ -270,7 +270,7 @@ Read in the installed framework (arduino-esp32 3.3.9, `libraries/Update/src/Upda
 |---|---|
 | **O7** (host): a refused image never touches flash | **The fake:** `ota::Install` runs against a fake flash that records every call in order and keeps a **history** of the boot partition. Its `end()` switches the boot to the target slot, as `Update.end()` does.<br>**Five refused inputs, each with its predicted reason:**<br>• the real Weatherscope image head offered to `s3-128` (`foreign`; this is O4 (ii) through the new path)<br>• a pre-check image head, from the `s3-128` build of the base commit (`no-record`)<br>• a record with a wrong magic (`no-record`)<br>• a record with an unknown version (`bad-record`)<br>• a stream that ends before `kHeadBytes` (`truncated`)<br>**For each:** the call log is **empty**, the boot history holds **only its initial value**, and the target slot's bytes are unchanged.<br>**CONTROL:** the board's own identity is accepted. The log is `begin, write…, end`, the boot history switches exactly once, and the target equals the image. Without this control, a fake that ignores every call would pass. |
 | **O8** (host): the sabotage, the check moved after `Update.end()` | **The sabotage:** `sabotage_ota_install.py` moves step 3 after step 4. That is the withdrawn design, flip-back on a mismatch included.<br>**Predicted:** O7 turns red on all five refused inputs, naming `begin` as the first forbidden call and showing the switch in the boot history.<br>**The assertion is on the history, not the final state.** The withdrawn design reverts the boot partition, so a final-state assertion passes it. The sabotage run prints both, final state PASS and history FAIL, which is why the history is the assertion.<br>**A second sabotage** moves the check after the first `write`. O7 turns red on the target bytes while the boot history stays clean, which proves the target assertion works on its own. |
-| **O9** (bench, `907069326E64`): the real adapter | **Why it is needed:** the host fake models our interface, not the Updater. A real adapter that wrote before the decision would pass O7 (the named alternative), and only the board can exclude it.<br>**The source:** a bench-only source (`WX_OTA_BENCH`, in the bench env only) feeds `ota::Install` an image head over USB serial.<br>**Refused** (a Blipscope `s3-128` head): the `esp_ota_get_boot_partition()` label and the sha256 of the inactive slot's first 64 KB are identical before and after.<br>**CONTROL, so the instrument is shown to see a write:** the board's own head, with the stream cut at 8 KB, is accepted, writes, then fails. The inactive slot's sha256 changes and the boot label does not.<br>**Where the bench code is:** `WX_OTA_BENCH`'s marker string is in the bench ELF and in no shipping env's ELF (grep). |
+| **O9** (bench, `6E:64`): the real adapter | **Why it is needed:** the host fake models our interface, not the Updater. A real adapter that wrote before the decision would pass O7 (the named alternative), and only the board can exclude it.<br>**The source:** a bench-only source (`WX_OTA_BENCH`, in the bench env only) feeds `ota::Install` an image head over USB serial.<br>**Refused** (a Blipscope `s3-128` head): the `esp_ota_get_boot_partition()` label and the sha256 of the inactive slot's first 64 KB are identical before and after.<br>**CONTROL, so the instrument is shown to see a write:** the board's own head, with the stream cut at 8 KB, is accepted, writes, then fails. The inactive slot's sha256 changes and the boot label does not.<br>**Where the bench code is:** `WX_OTA_BENCH`'s marker string is in the bench ELF and in no shipping env's ELF (grep). |
 | **O10** (host): the downgrade consequence, asserted, not just stated | **Every** identity in the O1 matrix refuses the pre-check `s3-128` head from O7 as `no-record`. No pre-check image in that matrix has the record's magic at 0x120. |
 
 - **3.4 runs O7-O10 alongside O1-O5.** O8's two sabotages must turn O7 red before O7's green counts.
@@ -395,8 +395,8 @@ The refusal and accepted cases are observed in O11; the failure case in O6, at t
 
 **Open, for Daniel's ruling:**
 - **The board.**
-  - Option 1: `907069326E64`, the board I have a standing OK to flash, running A with a Blipscope `s3-128` identity.
-  - Option 2: E2:08, run by blipscope-5c. It proposed this because it is the Blipscope fleet's path at stake. Section 4 says no board but `907069326E64` is flashed in Stage 3, so option 2 is also a ruling on that line.
+  - Option 1: `6E:64`, the board I have a standing OK to flash, running A with a Blipscope `s3-128` identity.
+  - Option 2: E2:08, run by blipscope-5c. It proposed this because it is the Blipscope fleet's path at stake. Section 4 says no board but `6E:64` is flashed in Stage 3, so option 2 is also a ruling on that line.
 - **Where B is hosted.**
   - A GitHub prerelease asset is invisible to `releases/latest`, but it is release machinery.
   - Or another host Daniel names.
@@ -473,7 +473,7 @@ The plan was approved at `35903dd` and merged as `69e81c1`. These rulings came w
 
 ### A4.2 O11: the board, image B, and what is frozen before it runs (A2.4)
 
-- **The board: E2:08, operated by blipscope-5c.** This is a **one-test exception** to section 4's "no board is flashed except `907069326E64`" rule, for O11 only.
+- **The board: E2:08, operated by blipscope-5c.** This is a **one-test exception** to section 4's "no board is flashed except `6E:64`" rule, for O11 only.
 - **Image B:** a **GitHub prerelease asset, clearly named as a bench test,** deleted after O11.
 - **Timing:** the release candidate's timing is coordinated between this session and blipscope-5c.
 - **Frozen in O11's own addendum, before it runs:**
@@ -592,7 +592,7 @@ O11's own predictions are frozen in its addendum before the run, and it waits it
 | **S1** | **What:** the 14 other envs in `skus.yml`, each built clean at the base and at 3.1's head.<br>**Where:** in **one directory**, so no path compiled into an image differs.<br>**How:** each pair compared with `stampdiff.py`. | **Stamps only, in 14/14.** That means `app_elf_sha256`, the checksum and trailing SHA-256, and WiFiManager's two time strings where WiFiManager is linked. **Any size change or UNEXPLAINED byte: stop.** |
 | **S1's sabotage** | **The edit:** at the head, `if (millis() == 0xFFFFFFFFul) Serial.println("S1 SABOTAGE");` at the top of `ConfigurationWebServer::Initialise()`, outside every edition guard. It is runtime-dependent, so the linker keeps it.<br>**The check:** the edit is asserted applied, then reverted after. | **Two-sided, keyed to the build itself:**<br>• a non-stamp difference in **every env whose build compiled `ConfigurationWebServer.cpp`** (its object file exists). Predicted: 13 of the 14, every one except `animtest-s3-128`;<br>• **stamps only in every env that didn't.** Predicted: `animtest-s3-128` alone. |
 | **the bench image** | `weatherscope-bench-s3-128` at the head against `weatherscope-s3-128` at the base, in the same directory | **Stamps only, with no time strings**, since the bench links no WiFiManager: `app_elf_sha256`, the checksum and the trailing SHA-256. |
-| **C1, on the board** | Flash the head's bench image on `907069326E64` (standing OK; the port found by serial). Then run `capture_stage1.py`. | **Exit 0, as in Stage 2:**<br>• 240/240 rows;<br>• B9 `344383b4…`, equal to the board's `fb_sha256`;<br>• its standing timing checks repeating. |
+| **C1, on the board** | Flash the head's bench image on `6E:64` (standing OK; the port found by serial). Then run `capture_stage1.py`. | **Exit 0, as in Stage 2:**<br>• 240/240 rows;<br>• B9 `344383b4…`, equal to the board's `fb_sha256`;<br>• its standing timing checks repeating. |
 | **C2, on the board** | the same capture's `WX,sprite_sha256` | **`a88c3a99fa5c1bb4d6d2bb77d081b22b8da6e752200ae79cf67acec90c335ed3`**: `palette_ref.py`'s sprite for the final 55 % palette, 115,200 bytes, run before this addendum |
 | **L1-L6, on the board** | `legend_check.py` | **Exit 0:** L1, L2, L4, L5 and L6 all hold. The script defines no L3. |
 | **CI** | the matrix, from `skus.yml` | **The bench leg** builds under its new name. Its adsbdb gate reads PASS, with the control seen in `src/weatherscope/bench/stage1_main.cpp`.<br>**The discriminator:** if the narrowed case failed to match the renamed env, the gate would plant at the default site, which the bench doesn't compile, and read `UNTRUSTWORTHY (control blind)`.<br>**Every other leg:** as on main. |
@@ -769,8 +769,8 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 | **S1's sabotage** | outside R1/R2 in the 13 envs that compile `ConfigurationWebServer.cpp`; `animtest-s3-128` at 0 bytes | **13/13 changed** (size differs), and **`animtest-s3-128` is at 0 bytes.** The non-compiling set is exactly `['animtest-s3-128']`. |
 | **the bench, under its old name** | identical outside R1/R2 | **0 bytes outside R1/R2.** R1 and R2 differ (65 bytes in all), as listed: moving the file changes the ELF's debug data. |
 
-**On the board**, `907069326E64`:
-- **The flash:** the head's bench image, with the port resolved from the serial (COM6). esptool read the MAC as `90:70:69:32:6e:64`, and the board's banner reads `env=weatherscope-bench-s3-128`.
+**On the board**, `6E:64`:
+- **The flash:** the head's bench image, with the port resolved from the serial (COM6). esptool read the MAC as `6E:64`, and the board's banner reads `env=weatherscope-bench-s3-128`.
 - **An instrument slip before this:** a first capture attempt passed the serial number as the port name. The open failed, and no byte reached the board.
 
 | check | predicted | measured |
@@ -861,7 +861,7 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 | **D2** | grep the product image, **case-sensitive, lowercase**, as hostnames are written, for `weather.gov`, `noaa`, `ncep`, `mrms`, `amazonaws` | **0 hits.**<br>**The control:** a control build with one planted, reachable hostname string must be found.<br>*Recorded now so it isn't discovered later:* the bench image carries one uppercase `MRMS`, a text string, and no host fragment. |
 | **CI** | the matrix on the PR head | **The product leg builds.**<br>**Its adsbdb gate:** `CONTROL found` at the **default site, `ConfigMigration.cpp`** (3.1 narrowed the bench case), and PASS.<br>**The OTA URL check (#455):** **PASS** (the edition has an OTA client on the default base).<br>**Every other leg:** as on main. |
 | **Budgets** (graded now) | the product build's `pio` size summary | **flash 1.60-1.85 MB; static RAM 55-70 KB** (section 6) |
-| **The board** | flash `weatherscope-s3-128` on `907069326E64` (standing OK; port from the serial) | **The banner:** `[build] env=weatherscope-s3-128`.<br>**The mDNS name:** `Weatherscope-XXXXXX`.<br>**Wi-Fi:**<br>• it joins with the stored credentials;<br>• *if none survive the flash,* the portal appears, and that is a stop to ask Daniel, not a build fault.<br>**`GET http://<name>.local/`:** **200**, with the Weatherscope form, and **none** of S2's strings in the body. |
+| **The board** | flash `weatherscope-s3-128` on `6E:64` (standing OK; port from the serial) | **The banner:** `[build] env=weatherscope-s3-128`.<br>**The mDNS name:** `Weatherscope-XXXXXX`.<br>**Wi-Fi:**<br>• it joins with the stored credentials;<br>• *if none survive the flash,* the portal appears, and that is a stop to ask Daniel, not a build fault.<br>**`GET http://<name>.local/`:** **200**, with the Weatherscope form, and **none** of S2's strings in the body. |
 
 **Order:**
 1. This addendum.
@@ -891,7 +891,7 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 
 **Choices the frozen text left open, written down so they aren't discovered later:**
 - **The env's flags:** `${s3128_hw.build_flags}`, the URL-free board section every s3-128 bench env composes from. That is A6.1's list (`${common.build_flags}`, the s3-128 variant, PSRAM, `ARDUINO_USB_MODE=1`) **plus `ARDUINO_USB_CDC_ON_BOOT=1`**. Claudescope's env and every s3-128 env carry that flag, and without it the banner goes to UART0 instead of the USB port. Then `-DFEATURE_WEATHERSCOPE` and `-DFW_OTA_PREFIX=\"weatherscope-\"`.
-- **The partition table:** `partitions-s3-16mb-bignvs.csv`, the s3-128 SKU's table and the one `907069326E64` carries now. So its NVS, and any stored Wi-Fi credentials, stay where they are. `-DBLIPSCOPE_EXPECT_BIG_NVS` is **not** set: its only reader is `Logbook.cpp`, which the product doesn't compile.
+- **The partition table:** `partitions-s3-16mb-bignvs.csv`, the s3-128 SKU's table and the one `6E:64` carries now. So its NVS, and any stored Wi-Fi credentials, stay where they are. `-DBLIPSCOPE_EXPECT_BIG_NVS` is **not** set: its only reader is `Logbook.cpp`, which the product doesn't compile.
 - **The crop:** `board_build.embed_files = test/fixtures/wx/kdfw-60mi.wxc`, as section 2 says, read through the same `_binary_…` symbols the bench uses.
 - **The stored observation and alert** are compiled constants, generated from the fetched JSON by this session. The device parses no JSON in 3.2; the live parsers come with the proxy path.
 - **The observation:** `KDFW`'s `/observations/latest` at fetch time, keeping `presentWeather` (its raw strings) and `timestamp`. Station coordinates and every other field are dropped.
@@ -984,13 +984,13 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 - **The most likely cause:** I counted lines containing each string rather than occurrences. This is not re-established.
 - **What stands:** the graded criterion is presence, and it holds.
 
-**The board, `907069326E64`.** Its port was resolved from the serial (COM6). It ran the head's product image.
+**The board, `6E:64`.** Its port was resolved from the serial (COM6). It ran the head's product image.
 
 | check | predicted | measured |
 |---|---|---|
-| the flash | (a precondition) | `pio run -t upload` exit 0. esptool read MAC `90:70:69:32:6e:64`. `boot_app0` was written to 0x1E000, the big-NVS table's otadata (A6.3) |
+| the flash | (a precondition) | `pio run -t upload` exit 0. esptool read MAC `6E:64`. `boot_app0` was written to 0x1E000, the big-NVS table's otadata (A6.3) |
 | the banner | `[build] env=weatherscope-s3-128` | **`[build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope`** |
-| the mDNS name | `Weatherscope-XXXXXX` | **`hostname=Weatherscope-326E64`**; the config server announces `http://Weatherscope-326E64.local` |
+| the mDNS name | `Weatherscope-XXXXXX` | **`hostname=Weatherscope-6E64`**; the config server announces `http://Weatherscope-6E64.local` |
 | Wi-Fi | joins with the stored credentials; the portal would be a stop | **joined with the stored credentials** (fast join, 5.8 s); no portal |
 | `GET http://<name>.local/` | 200, the Weatherscope form, none of S2's strings | **200 by the mDNS name**, measured after the reset described below. <br>• The title is "Configure Weatherscope".<br>• The named controls are exactly `latitude`, `longitude`, `autodim`, `brightness`, plus the `cfg-form` marker.<br>• S2's four strings appear **0** times.<br>• No placeholder is left unsubstituted.<br>• The build id reads `weatherscope-s3-128 · v18 · no-cloud+weatherscope` |
 
@@ -1017,7 +1017,7 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 
 ### A7.1 The method
 
-**The board and the image:** `907069326E64`, running step 3.2's product image (`eb90e9a`). Its port is resolved from the serial before every USB step. The script is `tools/weatherscope/trace-close/run.ps1`, committed with this addendum.
+**The board and the image:** `6E:64`, running step 3.2's product image (`eb90e9a`). Its port is resolved from the serial before every USB step. The script is `tools/weatherscope/trace-close/run.ps1`, committed with this addendum.
 
 **The watcher:** one TCP connect to the board's port 80 every 2 s, with a 1.5 s timeout, timestamped. It runs for the whole test.
 - The address comes from mDNS once, at the start, and is pinned for the run.
@@ -1905,7 +1905,7 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 - the only shared-file edit 3.3d makes is the ruled one (A8.7): the `/diag/fb` guard widened to include Weatherscope;
 - the flash band (A8.12) and the static-RAM band;
 - the capture rules (A8.4: one trace held across each step; reachability proved after the close; recovery with `read_mac` only);
-- the board is `907069326E64`, found by its serial.
+- the board is `6E:64`, found by its serial.
 
 **CI on #467:** every head pushed today, from `c4c3448` to `cbb0f51`, showed **all 15 checks queued and none started** when last read. The whole-suite evidence is therefore still pending. The Wx section's evidence is the local run through `run.sh`'s own text (A8.16, A8.17).
 
@@ -2107,7 +2107,7 @@ This applies A8.19's rulings. **The numbers that only the layout code can give**
 2. A8.21: the rectangle tables and compared counts from the host build, frozen.
 3. The firmware.
 4. The build, with the sizes and the ELF check.
-5. The flash, onto `907069326E64`, the port found by its serial.
+5. The flash, onto `6E:64`, the port found by its serial.
 6. B1-B3 in one held trace.
 7. Grading, and the recorded-data sabotages.
 8. The results addendum.
@@ -2252,8 +2252,8 @@ So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor 
 - **The toolchain was installed fresh** by this build: `toolchain-xtensa-esp-elf` 14.2.0+20260121, since the global package store was empty. This is recorded because a size miss would have had to name it as an alternative. None occurred.
 
 **The flash** (step 5):
-- The port was resolved from the serial: `907069326E64` → COM6.
-- The board's MAC read `90:70:69:32:6e:64`.
+- The port was resolved from the serial: `6E:64` → COM6.
+- The board's MAC read `6E:64`.
 - The 1,602,448 B image was written and its hash verified, exit 0.
 - **Before the run**, the board resolved by name and answered TCP :80.
 
@@ -2574,7 +2574,7 @@ Each family gets a truth table of named cases with a count, and sabotages with e
 4. The K rows.
 5. The firmware.
 6. The build and the sizes.
-7. The flash, onto `907069326E64`.
+7. The flash, onto `6E:64`.
 8. The board run, then the grading and the recorded-data sabotages.
 9. The results addendum.
 
@@ -3240,7 +3240,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
   - **PNGs:** it writes one of every graded snapshot, including the six B1 images for Daniel.
 
 **The flash (step 7).**
-- **How:** onto `907069326E64` only, its port resolved by serial (`scripts/board-port.py weatherscope --upload`), with `pio run -e weatherscope-s3-128 -t upload --upload-port <it>`. The upload's exit status is read, not its output.
+- **How:** onto `6E:64` only, its port resolved by serial (`scripts/board-port.py weatherscope --upload`), with `pio run -e weatherscope-s3-128 -t upload --upload-port <it>`. The upload's exit status is read, not its output.
 - **Predicted:** exit 0, and the board then prints `[build] env=weatherscope-s3-128`.
 - **Proof the new image is running, not an old one:** the `[wx] feeds` line names `clear 36 B`, and the screen lines carry `R=`. Neither exists in 3.3d's image.
 
@@ -3271,7 +3271,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 ### A9.20 Steps 7-8's results: B1 6/6 exact, BZ 6/7, B3 exact; three rows off A9.19's predictions -- stopped for a ruling (2026-10-25; local)
 
 **The flash and the run.**
-- **The flash:** `907069326E64`, port resolved by serial (COM6). Upload exit 0, "Hash of data verified".
+- **The flash:** `6E:64`, port resolved by serial (COM6). Upload exit 0, "Hash of data verified".
 - **The board runs the new image:**
   - `[build] env=weatherscope-s3-128`;
   - `[wx] feeds … clear 36 B`;
@@ -3610,7 +3610,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **The build and the run.**
 - **The build:** `e8838f0` on the backup branch, with 13.3 in its notes. #480 stays at `49846de`.
-- **The flash:** `907069326E64`, port resolved by serial, upload exit 0, "Hash of data verified".
+- **The flash:** `6E:64`, port resolved by serial, upload exit 0, "Hash of data verified".
 - **The run:** `run_b35.py` held one open from 2026-10-26T02:47:20Z to 02:55:22Z. There were 17 captures, and TCP :80 was up 0.5 s after the close.
 - **The record:** `tools/weatherscope/board/run-2026-10-26/`, LAN IP redacted (three places, `lines.json` included), raw snapshots kept outside the repo.
 - **The grade:** `grade_b35.py` reports **93 checks, 1 failing; the recorded-data sabotages 5/5 red**.
@@ -3736,7 +3736,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - **#480's description says so.**
 
 **The sabotage pass, S-WAIT, on a separate flash.** The sabotaged image is never committed, and it carries no bench switch.
-- **The plant:** in a scratch worktree of G's commit, the wait and the retry are removed, leaving one immediate copy, with the verification and the headers kept. It is built there and flashed onto `907069326E64`. G is reflashed afterwards.
+- **The plant:** in a scratch worktree of G's commit, the wait and the retry are removed, leaving one immediate copy, with the verification and the headers kept. It is built there and flashed onto `6E:64`. G is reflashed afterwards.
 - **The pass (`tools/weatherscope/board/sab_wait.py`):** one open with the 1 s rule. 60 fetches, about 1 s apart, of whatever scenario screens the cycle shows at 60 mi, with no gestures.
   - **Each fetch is graded:** its tag → its K row; the pixels; the phases; `Finished`.
 - **Predictions:**
@@ -3768,7 +3768,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **The commit graded: `3a1af19`.**
 - **#480 moved to it:** from `49846de`, a fast-forward of 9 commits, pushed at 03:51:02Z, with its title and description updated as A9.25 item 2 asked.
-- **The flash:** G's image, `firmware.bin` sha256 `de3730c80072…`, 1,624,592 B, written and verified on `907069326E64`.
+- **The flash:** G's image, `firmware.bin` sha256 `de3730c80072…`, 1,624,592 B, written and verified on `6E:64`.
 - **The results stay off #480:** they go to the backup branch, so #480's head stays the commit that CI and the board graded.
 
 **One deviation from A9.26's text, stricter only, recorded in the commit itself.**

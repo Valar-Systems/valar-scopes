@@ -1,4 +1,4 @@
-#HOST opened COM6; board weatherscope-326e64.local; acting only on screen lines from t_open + 1 s
+#HOST opened COM6; board weatherscope-6e64.local; acting only on screen lines from t_open + 1 s
 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid>
 [WiFi] Associated with "<ssid>", waiting for IP...
@@ -6,7 +6,7 @@
 [WiFi] fast join OK in 3750 ms
 [WiFi] pinned AP ch=1 RSSI=-41 dBm for the next boot
 [ota] channel=weatherscope-s3-128 current=18 latest=18
-[web] config server listening on :80 (http://Weatherscope-326E64.local)
+[web] config server listening on :80 (http://Weatherscope-6E64.local)
 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141

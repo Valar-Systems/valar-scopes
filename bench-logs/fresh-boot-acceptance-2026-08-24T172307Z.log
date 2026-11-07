@@ -7,7 +7,7 @@
 10:23:08 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=292060
 10:23:08 *wm:v2.0.17  D:2
 10:23:08 [WiFi] credentials saved: portal will time out after 180 s and retry them
-10:23:08 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+10:23:08 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 10:23:08 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 10:23:08 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 10:23:08 [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -15,7 +15,7 @@
 10:23:08 [WiFi] fast join OK in 1650 ms
 10:23:08 [WiFi] pinned AP ch=1 RSSI=-53 dBm for the next boot
 10:23:08 [ota] channel=s3-128 current=8 latest=8
-10:23:11 [web] config server listening on :80 (http://Blipscope-31D918.local)
+10:23:11 [web] config server listening on :80 (http://Blipscope-D918.local)
 10:23:11 [logbook] loaded 192 types (20 claimed), 220 airlines (7), 17 countries (2), 3567 contacts
 10:23:11 [logbook] NVS 703/2646 entries used (1943 free); logbook budget ~2204, ceilings need 1375
 10:23:11 [cloud] no key override; using the factory-provisioned key
@@ -21036,7 +21036,7 @@
 08:36:55 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291912
 08:36:55 *wm:v2.0.17  D:2
 08:36:55 [WiFi] credentials saved: portal will time out after 180 s and retry them
-08:36:55 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+08:36:55 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 08:36:55 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 08:36:58 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 08:36:58 [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -21044,7 +21044,7 @@
 08:37:00 [WiFi] fast join OK in 1650 ms
 08:37:00 [WiFi] pinned AP ch=1 RSSI=-57 dBm for the next boot
 08:37:04 [ota] channel=s3-128 current=8 latest=8
-08:37:08 [web] config server listening on :80 (http://Blipscope-31D918.local)
+08:37:08 [web] config server listening on :80 (http://Blipscope-D918.local)
 08:37:08 [logbook] loaded 240 types (29 claimed), 220 airlines (9), 20 countries (2), 8703 contacts
 08:37:08 [logbook] NVS 744/2646 entries used (1902 free); logbook budget ~2204, ceilings need 1375
 08:37:08 [cloud] no key override; using the factory-provisioned key
@@ -23402,7 +23402,7 @@
 13:54:33 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291912
 13:54:33 *wm:v2.0.17  D:2
 13:54:33 [WiFi] credentials saved: portal will time out after 180 s and retry them
-13:54:33 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+13:54:33 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 13:54:33 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 13:54:36 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 13:54:36 [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -23410,7 +23410,7 @@
 13:54:38 [WiFi] fast join OK in 1650 ms
 13:54:38 [WiFi] pinned AP ch=1 RSSI=-51 dBm for the next boot
 13:54:42 [ota] channel=s3-128 current=8 latest=8
-13:54:46 [web] config server listening on :80 (http://Blipscope-31D918.local)
+13:54:46 [web] config server listening on :80 (http://Blipscope-D918.local)
 13:54:46 [logbook] loaded 249 types (33 claimed), 220 airlines (11), 23 countries (2), 9799 contacts
 13:54:46 [logbook] NVS 756/2646 entries used (1890 free); logbook budget ~2204, ceilings need 1375
 13:54:46 [cloud] no key override; using the factory-provisioned key

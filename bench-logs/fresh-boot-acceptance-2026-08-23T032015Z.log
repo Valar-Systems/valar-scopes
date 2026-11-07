@@ -4,7 +4,7 @@
 20:20:15 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267884 heap_free=291936
 20:20:15 *wm:v2.0.17  D:2
 20:20:15 [WiFi] credentials saved: portal will time out after 180 s and retry them
-20:20:15 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+20:20:15 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 20:20:15 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
 20:20:15 [WiFi] fast join: ch=1 bssid=<bssid redacted>
 20:20:15 [WiFi] Associated with "<ssid redacted>", waiting for IP...
@@ -12,7 +12,7 @@
 20:20:15 [WiFi] fast join OK in 1650 ms
 20:20:15 [WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
 20:20:15 [ota] channel=s3-128 current=7 latest=7
-20:20:15 [web] config server listening on :80 (http://Blipscope-31D918.local)
+20:20:15 [web] config server listening on :80 (http://Blipscope-D918.local)
 20:20:15 [cfg-migrate] rev 0 -> 2: cleared info-type=1 info-operator=1 (defaults now apply)
 20:20:15 [logbook] loaded 202 types (24 claimed), 220 airlines (16), 18 countries (1), 4085 contacts
 20:20:15 [logbook] NVS 720/2646 entries used (1926 free); logbook budget ~2204, ceilings need 1375

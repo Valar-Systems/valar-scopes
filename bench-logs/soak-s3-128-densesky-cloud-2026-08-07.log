@@ -16,7 +16,7 @@
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=60 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-52 dBm
 [WiFi] fast join OK in 1650 ms
@@ -652,7 +652,7 @@ entry 0x403c88b8
 [WiFi] credentials saved: portal will time out after 180 s and retry them
 [wifi-reset] boot touch window: driver=1 polls=60 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-51 dBm
 [WiFi] fast join OK in 1650 ms

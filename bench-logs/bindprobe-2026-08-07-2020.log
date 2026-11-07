@@ -9,13 +9,13 @@
 [WiFi] no saved credentials: portal stays up indefinitely for first setup
 [wifi-reset] boot touch window: driver=1 polls=147 touched=0
 [WiFi] fast join: ch=1 bssid=<bssid redacted>
-[WiFi] STA started; hostname=Blipscope-326E20, TX 19.5dBm
+[WiFi] STA started; hostname=Blipscope-6E20, TX 19.5dBm
 [WiFi] Associated with "<ssid redacted>", waiting for IP...
 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-57 dBm
 [WiFi] fast join OK in 1649 ms
 [WiFi] pinned AP ch=1 RSSI=-57 dBm for the next boot
 [ota] channel=s3-128 current=5 latest=4
-[web] config server listening on :80 (http://Blipscope-326E20.local)
+[web] config server listening on :80 (http://Blipscope-6E20.local)
 [logbook] loaded 220 types (75 claimed), 120 airlines (9), 38 countries (3), 17561 contacts
 [adsbdb] a9fd11 -> type=R44 operator=Leading Edge Flight Academy reg=N7425T
 [adsbdb] a7de30 -> type=C152 operator=Hillsboro Aero Academy LLC reg=N606GS

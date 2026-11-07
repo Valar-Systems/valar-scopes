@@ -17,16 +17,16 @@
 *wm:No wifi saved, skipping 
 *wm:Connect Wifi, ATTEMPT # 5 of 5
 *wm:No wifi saved, skipping 
-*wm:AutoConnect: FAILED for  65 ms[WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+*wm:AutoConnect: FAILED for  65 ms[WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 
-*wm:StartAP with SSID:  Blipscope-31D918
+*wm:StartAP with SSID:  Blipscope-D918
 *wm:AP IP address: 192.168.4.1
 *wm:Starting Web Portal 
 11:01:45 *wm:config portal has timed out 
 11:01:46 *wm:config portal exiting 
 11:01:47 [WiFi] autoConnect() returned false (portal timed out / not connected)
 11:01:47 [WiFi] no network and nobody at the portal -- restarting to retry saved credentials
-11:01:47 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+11:01:47 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 11:01:47 ESP-ROM:esp32s3-20210327
 11:01:49 Build:Mar 27 2021
 11:01:49 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
@@ -57,8 +57,8 @@
 11:01:52 *wm:No wifi saved, skipping 
 11:01:52 *wm:Connect Wifi, ATTEMPT # 5 of 5
 11:01:52 *wm:No wifi saved, skipping 
-11:01:52 [WiFi] STA started; hostname=Blipscope-31D918, TX 19.5dBm
+11:01:52 [WiFi] STA started; hostname=Blipscope-D918, TX 19.5dBm
 11:01:52 *wm:AutoConnect: FAILED for  65 ms
-11:01:52 *wm:StartAP with SSID:  Blipscope-31D918
+11:01:52 *wm:StartAP with SSID:  Blipscope-D918
 11:01:52 *wm:AP IP address: 192.168.4.1
 11:01:53 *wm:Starting Web Portal 

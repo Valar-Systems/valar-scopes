@@ -3,7 +3,7 @@
     <penv python> -I tools/weatherscope/board/run_b.py <COMx> <board-ip> <empty out dir>
 
 Resolve the port from the board's USB serial first (scripts/board-port.py weatherscope --upload), never by number,
-and the address from its name (weatherscope-326e64.local). Run with PlatformIO's penv python (it has pyserial).
+and the address from its name (weatherscope-6e64.local). Run with PlatformIO's penv python (it has pyserial).
 
 THE SEQUENCE, fixed here:
   open the port (DTR and RTS false BEFORE the open); log every line, host-timestamped, to trace.txt (and the bare
