@@ -15217,3 +15217,78 @@ The last job-set change is `caf63cc9d9cc`. Reading every workflow's `on:` block 
 If `check_wifi.py` or `check_macs.py` reads a finding in the record on CI that it did not read locally, that is a stop and not a re-run.
 
 **Next:** L11, L12, K11 and K12, by their own addendum, predictions first. `dallas-night.json` is on main; the night renders stand at `55dfd8435f40` and `524a3b8e9fe8`.
+
+### A12.167 L11, L12, K11 and K12: the night case, predictions first. Nothing is built yet
+
+**What it adds.** A second stored case in `test_wx_swipe.cpp`: `dallas-night.json` through the device's `ComposeConditions`, both themes, held to the layout check and to the reference. In the suite's naming, L11 and L12 are `L-conditions-night-dark` and `-light`, and K11 and K12 are `K-conditions-night-dark` and `-light`.
+
+**A correction to my own line in A12.166.** That addendum named `55dfd8435f40` and `524a3b8e9fe8` as the night renders, which invites reading them as K11 and K12's values. They can't be. `emit()` hashes `scr.rgb()`, RGB888, and the K rows hash `scr.rgb565()`. Frozen as they stood, both K rows would have read off by construction.
+
+So K11 and K12's values were computed before any code, from main's `ref35c.py` unchanged, with the old hashes as the anchor. Both anchors hold, so this is the render Daniel saw:
+
+| case | RGB888, the anchor | RGB565, K's value | gap | refusals | high, low |
+|---|---|---|---|---|---|
+| `conditions-night-dark` | `55dfd8435f40` | **`d29ca4823260`** | 4 px | 0 | 67, 53 |
+| `conditions-night-light` | `524a3b8e9fe8` | **`4b9d39ecb25b`** | 4 px | 0 | 67, 53 |
+
+**Host rows only.** The image serves the day case and nothing else, so no board row follows. `src/` is not touched.
+
+#### The change, 7 files
+
+| file | change |
+|---|---|
+| `tools/weatherscope/nws/emit_nws.py` | a second output, `test/host/wx_nws_night.h`, in the same `--check`; its periods, its capture time and its observation only |
+| `test/host/wx_nws_night.h` | new, generated. It sits under `test/host/` so no firmware build can reach it |
+| `tools/weatherscope/screens/ref35c.py` | `k_text()` adds the night record's hash and its two rows |
+| `test/fixtures/wx/nws/k35c.ref.txt` | written by `--k --write` |
+| `test/host/test_wx_swipe.cpp` | the sixth screen kind; 12 rows, not 10 |
+| `test/host/sabotage_wx_swipe.py` | `SWIPE_CHECKS`, two sets, two new plants |
+| `test/host/run.sh` | its comment's count, nothing else |
+
+#### Predictions
+
+| row | predicted |
+|---|---|
+| **P1** `src/`, `include/`, `platformio.ini` | no file changes, so no image moves and none is built |
+| **P2** `emit_nws.py --check` | both headers match their records, and `WxForecastData.h` is byte-identical to main's |
+| **P3** `ref35c.py --k --check` | 12 rows. The 10 day `ROW` lines are byte-identical to main's, so step 7's K-glass stands |
+| **P4** L11, L12 | smallest gap 4 px, chords fit |
+| **P5** K11, K12 | `d29ca4823260`, `4b9d39ecb25b`, 57,600 of 57,600 pixels |
+| **P6** `test_wx_swipe` | **140 checks, 0 failures,** under MinGW and WSL g++ 13.3: 136 + L11, L12, K11, K12 |
+| **P7** the driver | the control 0 failures; **21 plants** as below |
+| **P8** run.sh under WSL | exit 2, the failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b", `sabotage_wx_towns.py` SKIP in both driver passes. The only count that moves is `test_wx_swipe`'s, 136 to 140 |
+
+**P7, by applying each rule to the night record** (observation age 639 s, no gust, `Tonight` still running, 62°, wind 14 at 20°):
+
+| plant | why | its set |
+|---|---|---|
+| **S-D** dots | every screen draws them | **gains** `K-conditions-night-*` |
+| **S-G** the degree sign's size | night draws it. Its L rows stay green, as the day's do | **gains** `K-conditions-night-*` |
+| **S-SW13** stale at exactly 5,400 s | 639 s is nowhere near | unchanged |
+| **S-SW14** gust equal to the wind | `hasGust` is false | unchanged |
+| **S-SW16** `FirstCurrent` off | `Tonight` is running, so index 0 either way | unchanged |
+| the other 14 | no path to the conditions screen | unchanged |
+
+Two plants are new, because no existing plant shows these four rows can fail on their own terms:
+
+| plant | the edit | its set |
+|---|---|---|
+| **S-N1** | `HighLowText`'s high takes the first period, day or night | `C19`, `C26`, `K-conditions-night-*`: 4 rows, **no day screen.** The day record opens on a daytime period, so only night reaches this path |
+| **S-N2** | the OBSERVED line moves from `top + 120` to `top + 112`, leaving 2 blank rows under the high and low | `L-` and `K-conditions-day-*`, `L-` and `K-conditions-night-*`: 8 rows |
+
+Under S-N1 the night screen reads `HI 53  LO 53`, the same lit width as `HI 67  LO 53`, so the L rows stay green.
+
+**The order:** every driver and board plant `--anchors` first, as ruled. Then MinGW, the driver, and run.sh under WSL behind the usual gate.
+
+**Outside this set:** any row that reads otherwise stops the work and is reported, with no fix until it is ruled. A failed compile is the rig, not a reading. If P3 finds a day `ROW` line changed, that is a stop whatever else passes, since step 7's K-glass rests on those lines.
+
+#### The CI prediction, written before any push
+
+The last job-set change is `caf63cc9d9cc`. Reading every workflow's `on:` block, these paths run `firmware`, `device-ids` and `no-traffic-captures`. `workers` lists `tools/weatherscope/basemap/**` and `test/fixtures/wx/{server,opuk,basemap}/**`, not these; `web-renderer` takes `src/**` and `tools/web-renderer/**`, not these; and `print-cards` and `provisioner` have no match. That is #597's set, so its finished run is the baseline.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | 32 | 29 | 3 (promote, version, ship-alert) | 0 |
+| main on the squash | 32 | 30 | 2 (promote, version) | 0 |
+
+The branch starts from main at its head when the code begins, stated in the PR.
