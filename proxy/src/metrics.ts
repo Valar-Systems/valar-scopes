@@ -93,6 +93,10 @@ export const KNOWN_ROUTES = new Set([
   "/api/v1/blipscope/blips",
   "/api/v1/blipscope/config",
   "/api/v1/blipscope/airports",
+  // Weather under the planes, exact paths, never a wildcard: from v19 a board asks every 60 s, which makes this the
+  // busiest route, and unlisted it would sit inside "/other". test/metrics.test.ts takes the path from the firmware.
+  "/api/v1/blipscope/wx/cref",
+  "/api/v1/blipscope/wx/opuk",
   "/api/v1/blipscope/leaderboard",
   "/blipscope/leaderboard",
   "/blipscope/leaderboard.json",
