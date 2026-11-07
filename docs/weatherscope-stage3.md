@@ -15052,3 +15052,65 @@ This is the reading the ~03:23Z ruling asked for: #594's guard, on CI, reading #
 **The PR reads mergeable and clean.** Main is at `a9fb02a92fd7`, with no job-set change, and the CI prediction on the squash stays 35: 32/3/0.
 
 **#594 waits for an approval at `5ec1f50c3f4a`.** It then merges under Q-M1 with the squash tree compared. The S-W5J PR and step 7 follow.
+
+### A12.164 #594 merged under Q-M1; S-W5J's PR, predictions first
+
+**#594 merged:** squash `c46af84f388c` at 05:38:51Z, onto main's head `a9fb02a92fd7`.
+
+| Q-M1 step | read |
+|---|---|
+| H's CI finished, read twice | 32 checks: 30 success, 2 skipped, both reads (a docs head) |
+| the PR's CI, read twice | 35: 31/4/0, both reads |
+| main re-read in the merge command | still H |
+| squash tree against `merge-tree(H, 5ec1f50c3f4a)` | `24bfd0d5354f` on both: **equal**, and it is the tree the guards read clean in A12.161 |
+| no bench window | 0 capture or flash processes. Two reservation files remain, dated 2026-10-20, stale claims and not windows |
+
+The branch is deleted; no PR was based on it. Main's CI on the squash is running, predicted 35: 32/3/0.
+
+#### S-W5J, frozen before the change
+
+**The change that left the anchor stale: #558, `259e8688303f`, mine.** It moved the decode into `excused()`, shared with `check_binary_strings.py`, so `judge()`'s branch became `except UnicodeDecodeError:`. The anchor has matched 0 times since, confirmed across the file's three commits. It went unnoticed because no CI ran the rig: a guard I changed, with its proof left broken.
+
+**The new anchor,** `check_wifi.py`'s current unreadable branch:
+
+```
+        except UnicodeDecodeError:
+            unreadable.append(rel)
+            continue
+```
+The plant counts the file as binary. Its set stays as registered: W3 exit 0, full exit 1, rows red {(j)}.
+
+**The whole rig, read locally, every check counted.** S-W5J to W8 have been unread since #558, so I can't assume they still hold.
+
+| # | check | predicted |
+|---|---|---|
+| 1 | CONTROL | W3 0, full 0, rows 0, none red |
+| 2-11 | the 10 code sabotages: S-W4N, S-W4B, S-W4L, S-W4P, S-W4D, S-W5G, S-W5J, S-W5K, S-W2PORTAL, S-WPATH | each as registered |
+| 12 | S-W3, one log restored from BASE, in place | as registered, restored byte-identical |
+| 13 | W2', the scrub at BASE | 107 names, 32 files, 4 left |
+| 14 | S-W7, `--everywhere` | 111 names, 34 files, 0 left |
+| 15 | W8, the plants against real values | no planted value equals a real one |
+| - | the guard on disk | byte-identical after the run |
+
+**S-W3's file is one the MAC scrub rewrote,** so its restore-and-compare runs on bytes that changed last night. It is predicted to hold, since its three findings come from BASE's copy.
+
+| outcome | what it means |
+|---|---|
+| **all 15 as registered** | predicted; the PR goes up |
+| one or more off | **a stop.** That check drifted while nothing read it. It gets reported, not re-anchored in passing: the ruling covers S-W5J only |
+| a crash | an instrument failure, never a red |
+
+**CI runs the code sabotages only, as ruled.** A new `--code-only` runs checks 1-11 and needs no BASE, so it works in CI's shallow checkout. S-W3, S-W7 and W8 read real values from BASE and CI logs are public, so they stay local. The step goes in the `device-ids` job, which adds no job. Its output is verdicts and labels only.
+
+**The step can fail, shown before it is trusted.** S-RIG: in a copy of the rig, S-W5J's old anchor restored. `--code-only` must exit 2 and name S-W5J. That is the exact fault that went unread, and it now turns CI red.
+
+**`docs/wifi-scrub.md`** records the anchor's history and the CI step, in the same PR.
+
+**The CI prediction, written before the push.** The last job-set change is `caf63cc9d9cc`. The paths are `scripts/`, `.github/` and `docs/`, so `firmware`, `device-ids` and `no-traffic-captures` run, and neither `web-renderer` nor `print-cards`. Derived from #594's run less those two workflows' jobs, and from main's docs heads:
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | 32 | 29 | 3 (promote, version, ship-alert) | 0 |
+| main on the squash | 32 | 30 | 2 (promote, version) | 0 |
+
+**Step 7 follows,** announced first.
