@@ -295,3 +295,22 @@ rebuilds it from the same OPERA source through `buildMap`, with no R2, and compa
   **Version `4da941e4-145c-4120-a097-8b56852b29a9`.**
 - **RD-1** (`versions view --json`): bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000. **As predicted.**
 - **First firing:** scheduledTime 02:41:14Z, 15.9 s after T.
+
+**A correction to how this redeploy ran.** It went ahead on the ~01:06Z ruling without the deployer lock being confirmed.
+S2's staging slot ran until 03:03Z, so this deploy (02:40:57Z) and two dev deploys (about 02:42Z and 02:53:38Z) landed
+inside it. The reviewer's go came at ~03:23Z, after them. The miss is mine, and whether it touched S2's reading is for
+S2's session to say. No second deploy was made.
+
+| row | got | verdict |
+|---|---|---|
+| **RD-2** (first firing + 10 min, 02:51:17Z) | `wx/opuk/map/`: **1 object, 17,716,016 B**. `wx.opuk` `frameAgeS` **679**, `coveredShare` **0.75077**. LHR: ETag **`opuk`**, `X-Wx-Max-Age` **720**, frame 1794019200, which is `latest`. Controls: Bend and KMCI `cref`, no max-age | as predicted |
+| **RD-3** (T to T+70 min, read 04:03:32Z, 900 s pieces, **ABR [1]**) | 140 `opuk` lines. **14 storing checks**, each `stored`, `pruneKeys` 900, no `pruned`. **By `map`: `r2` 14, `built` 0, `cache` 0. `mapPutErrors` 0**, no `mapRefused`, **0 error lines** | as predicted |
+| **RD-4 read 1** (listed 03:50:59Z, ABR [1]) | **12 frames**, 02:50:00Z to 03:45:00Z. Last pruner 03:49:44.872Z, `pruneKeys` 900. Cut 02:49:44Z: **0 below**. +300 s sabotage: **fails on the oldest**, 02:50:00Z. Margin 15.1 s | **PASS** |
+| **RD-4 read 2** (listed 04:01:01Z, ABR [1]) | **12 frames**, 03:00:00Z to 03:55:00Z. Last pruner 03:59:15.984Z, `pruneKeys` 900. Cut 02:59:15Z: **0 below**. +300 s sabotage: **fails on the oldest**, 03:00:00Z. Margin 44.0 s | **PASS** |
+| **RD-6a** (03:53:30Z) | every frame in the bucket, **12, 02:50:00Z to 03:45:00Z, all stored after T: 12 of 12 byte-identical** to a fresh local build; 0 unread | as predicted |
+
+- **RD-2's `frameAgeS` of 679 was high against the usual 280-500 s,** though inside its 1,800 s bound. It was timing: the
+  frame then in hand was 02:40:00Z, the next storing checks landed, and it was 331 s by 02:55:30Z. It is also within the
+  device's 720 s limit, narrowly.
+- **`cache` 0 of 14 again:** every production build runs cold, now in two separate reads. That is why the map was the
+  bulk of a build.
