@@ -212,3 +212,36 @@ last backfill, up to 12, all in 900 s pieces at **ABR [1]**.
   timeouts. The one exception was 08:04:22Z, `Error: put: We encountered an internal error. Please try again. (10001)`,
   R2's own internal error, on the frame or `latest` put (the map object was already in place). That hour still stored
   12.
+
+**M6, the projection, refitted to M1 and M2 as frozen.**
+- **The fit:** `median = a + b x cells`, least squares over the four products, gives a = 76.9 ms and b = 87.4 ms per
+  million cells. It predicts 269.5 ms for `opuk`, against 240.5 ms in production (RD-5) and 261 ms (MD-5's `r2`).
+- **Over §3's 10 products:** 10a + b x 24.03 M cells = **2,869 ms a 5-minute set.**
+- **The baseline,** re-read with `cost_read.py` over the 30 days to 21:31:33Z: CPU run rate 39.24 M ms a month, Class A
+  933,219, Class B 4,812,664. It already holds today's `opuk`, which the 10-product sum counts again; that is left in,
+  on the cautious side.
+
+| line, a month | amount | overage |
+|---|---|---|
+| CPU, the run rate | 39.24 M ms | |
+| CPU, builds: 8,640 sets x 2,869 ms | 24.79 M ms | |
+| CPU, checks that build nothing: 10 x 86,400 x 10 ms (M's measured medians, 8 to 11 ms) | 8.64 M ms | |
+| CPU, the daily map rebuild (`expire-1d`): 10 x 30 x about 3.1 s | 0.93 M ms | |
+| CPU, lost races: about 1 an hour per product (`opsn` and `opux` 1 each, `opuk` 0-2) x 300 ms | 2.16 M ms | |
+| **CPU in total** | **75.8 M ms** | **45.8 M over 30 M: $0.92** |
+| **R2 Class A:** the run rate + 10 x 17,280 (frame and `latest` puts, prune by key) + the daily map puts and lost-race puts | 1.114 M | **$0.51** |
+| R2 Class B: the run rate + 10 x 430,000 | 9.11 M | $0 (under 10 M) |
+| storage: 12 frames a product and 10 maps | about 0.4 GB | $0 |
+| **total** | | **about $1.43 a month** |
+
+- **With the build CPU raised 1.6x,** the spread identical work showed in Plan S: about **$1.73**. That is under $2 at
+  both ends.
+- **M6 is UNDER $2,** so no stop for Daniel. **Stage 1b is not built,** as ruled ~22:54Z ("Build 1b only if M6 still
+  reads over $2/month").
+- **The prediction "over $2" is off, and the miss is the same as M1's and MD-5's:** it was frozen before stage 1c existed,
+  on a per-cell cost that rebuilt the map in every cold isolate.
+- **Class B's headroom is 0.89 M a month,** the line nearest a limit. The European fleet's crop reads, up to 4 tile
+  reads per 200, come out of it.
+
+**The dev Worker:** `off` at 21:30:44Z. Its cron stopped within the window Plan S measured: 7 invocations right after the
+deploy, then **0 from 21:46Z** (read 21:56:01Z). **M ended at 21:30:44Z,** and the deploy slot is released.
