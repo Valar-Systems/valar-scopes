@@ -5524,5 +5524,8 @@ symbols remained in the ELF, which excludes live code. The allocator's body is n
 this check:** a string in an image does not prove live code, but its absence does prove the code is gone, and absence is the
 direction the check relies on.
 
+**Ruled ~18:12Z:** both fixes accepted (`22e3af9c`, `b381fec6`). The prediction "none of these strings" stays on record as my miss: a
+string check also reads literals the linker keeps after it has dropped their code. `scripts/check-no-weather.sh` says so in its header.
+
 **run.sh, my miss.** `OK_COUNT_OFF = 1` made the count lint flag every ordinary `1` in the driver as a repeat of the table count. WF1
 is split into three rows, so the count is 3, and a plant now shows which guarantee broke.

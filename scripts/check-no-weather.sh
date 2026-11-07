@@ -11,6 +11,12 @@
 # every string to be present, so their absence from a shipping image means something. A typo here would otherwise pass for
 # ever.
 #
+# WHAT A HIT MEANS. A string check also reads literals the linker keeps after it has dropped their code, so a string found
+# here does not prove live code. Its absence does prove the code is gone, and that is the direction this check relies on.
+# Learned by being wrong: WI1's prediction, "none of these strings", was off on two builds, the second on exactly such a
+# literal, `[wx] buffers`, orphaned in a merged string section with no weather symbol left in the ELF. That prediction stays
+# on record as a miss (docs/wx-device.md, "WI1, my miss"). Read a hit against the ELF's symbols before calling it code.
+#
 # Usage:  scripts/check-no-weather.sh <image.bin>            exit 0 none present; 1 one is present; 2 blind
 #         scripts/check-no-weather.sh --expect <image.bin>   exit 0 all present; 1 one is missing; 2 blind
 #         scripts/check-no-weather.sh --selftest
