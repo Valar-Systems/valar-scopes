@@ -14862,3 +14862,23 @@ The stale record is moved out of the tree, beside the raw captures. The new reco
 - **Why it is not fixed here:** a closed step's instrument is not re-anchored in passing. It is for a ruling.
 
 The scrub's PR follows its own full host run, since it touches files `run.sh` may read. Main is at `fa660869a026`, one `proxy/` commit past the baseline, with no job-set change, so both CI predictions stand.
+
+### A12.157 The scrub's host run as predicted, on the second try; its PR goes up
+
+**The first run was the rig, not a result.** `wt-mac` had never installed its libraries, so five blocks read BLIND or RIG, each naming `no LovyanGFX under .pio/libdeps: run pio run once`, and `sabotage_wx_fb_check.py` stopped for the same reason. I started it without checking that `.pio/libdeps` existed. The worktrees that had built hid this.
+
+**The second run,** after `pio pkg install -e blipscope-s3-128`, behind the port gate:
+
+| row | predicted | measured |
+|---|---|---|
+| exit and failed blocks | exit 2, exactly the two environment blocks | **as predicted:** "the same TU, for the board" and "Weatherscope R0 and R0b" |
+| the driver passes | 31 drivers, the towns skip | **as predicted:** "31 driver(s): 30 run, 1 skipped" in both |
+| the count lint | 0 flagged | **as predicted:** 31 drivers, 0 flagged |
+| anchors | every driver and plant | **33 of 33;** `plant_s_wait.py` [1, 1] |
+| stderr | empty | **empty** |
+
+**#591's files against the new guard:** 0 tokens it would refuse, so the two PRs do not trip each other in either order. The scrub's driver count stays 31 until #591 lands.
+
+**The rebase:** main is at `154e1ecf7bf5`, one docs file past `fa660869a026`, with no job-set change. A12.152's CI prediction stands: PR 36: 32/4/0; main 35: 32/3/0.
+
+**The plan branch's two Weatherscope docs** get their relabel next, in their own commit.
