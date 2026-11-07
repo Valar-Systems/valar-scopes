@@ -100,14 +100,22 @@ until the guard PR lands.
 **Stated against the tree they are read on.** The rule from ~21:39Z applies: every count here is read again from CI on the
 exact commit after any merge of main, before it is restated.
 
-| | today's value (not frozen) | how it is built |
-|---|---|---|
-| **main's suite** | **990** (989 passed, 1 skipped), CI's `workers` run on `51757039ed01`. No proxy source or test has changed since | read |
-| **the suite with K1** | **1,005** (1,004 passed, 1 skipped) | main + step 0's 8 + S2's 1 + K1's 6 |
-| **`baseline[all]`** | **174** cases | step 0's 167 + MS10 + K1's 6 |
-| **the driver** | **83 runs:** 80 sabotages and 3 baselines | step 0's 74 + S-S2SEQ + K1's 5 |
+**Frozen at the merge of main, `fa660869a026` (#589), as `80b2c27d6920`.** Main's count below is CI's, on that commit.
 
-**The smoke driver's CONTROL** follows the suite: 1,004 / 1 / 1,005 on today's values.
+| | frozen | how it is built |
+|---|---|---|
+| **main's suite** | **1,012** (1,011 passed, 1 skipped), CI's `workers` run on `fa660869a026` | read |
+| **the suite with K1** | **1,019** (1,018 passed, 1 skipped) | main + NK1-NK6 + MS11 |
+| **`baseline[all]`** | **175** cases in 17 files; the other baselines stay 11 and 31 | S2's 168 + 7 |
+| **the driver** | **84 runs:** 81 sabotages and 3 baselines, 0 runtime failures, **every one AS PREDICTED** with C-LOADFAIL BLIND among them; exit 0 | S2's 75 + K1's 5 + S-S2NOCATCH |
+| **the smoke driver** | CONTROL **1,018 passed, 1 skipped, of 1,019**, 0 failed. S-SQ **{SQ1, SQ2}**. S-SQP **{SQ-C}**. Each run counts 1,019. No raw output kept. TIME_WAIT margin reported | follows the suite |
+
+**Before the smoke run,** as ruled ~23:28Z: read that `SQ1:`, `SQ2:` and `SQ-C:` each title exactly one row across `test/`.
+
+**Anything else, including another count or a set that differs: stop, no fix, report.**
+
+**The earlier figures,** kept as written: 990 main, 1,005 with K1, 174 cases, 83 runs. They predate step 0's and S2's merges,
+and MS11.
 
 **CI for the code PR** is predicted when it goes up, from a finished run that postdates main's last job-set change.
 
