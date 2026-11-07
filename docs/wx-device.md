@@ -5529,3 +5529,36 @@ string check also reads literals the linker keeps after it has dropped their cod
 
 **run.sh, my miss.** `OK_COUNT_OFF = 1` made the count lint flag every ordinary `1` in the driver as a repeat of the table count. WF1
 is split into three rows, so the count is 3, and a plant now shows which guarantee broke.
+
+### v19's bench row on E2:08: as predicted on every row (2026-11-07, 21:30-21:47Z)
+
+**The candidate** is `blipscope-s3-128` at #609's head `972d5347fafd`, image sha `3f4bedd6e177`, built after fix 2 and never rebuilt during
+the window. **The key images** are at bench commit `fbc954856b23`: `wxkey` `d7ac1d9557c9` and `wxclear` `a7e23a9dffdf`. Each was scanned
+before the window: no crash-bench marker, no `PlantedPanic`, and its own marker present. The crash-bench image was the control, with
+its markers and symbol found. The preflight pinned all three shas and found no input newer than any image.
+
+| row | read | verdict |
+|---|---|---|
+| **VB0** | `wx-layer` "true", 82 keys: the read can see a key | as predicted |
+| **VB1** | `wx-layer` absent; 82 to 81 keys; the only name lost is `wx-layer`, none gained; Wi-Fi rejoined. **This cleared E2:08's saved "true"**, written in #445's windows and saved again by #582's row at BW5 | as predicted |
+| **VB2** | the candidate, no save, 4 minutes: shipping banner, 0 `[wx` lines, 0 bench lines. Control: 14 `[health]`, 3 `[cloud]` | as predicted |
+| **VB3** | the page: 0 weather controls, no legend words, no placeholder left. Control: the form and the Cloud URL field are there | as predicted |
+| **VB4** | `trail` flipped and restored, each save read back as the only field changed (80 fields, 43 boxes, `wx-layer` not among them); then `wx-layer` absent, 81 keys, the names identical to VB1's | as predicted |
+| **VB5** | E2:08 ends on the candidate: banner, 0 bench lines, 0 `[wx` lines (8 `[health]`, 3 `[cloud]`), the page clean | as predicted |
+
+**E2:08 ends in the state every v19 board will be in:** the candidate, with `wx-layer` absent. When the joint release turns
+`[weather] layer` on, an absent key reads as on (WS1), so this board will show weather with no save.
+
+**The first window stopped at 18:56Z, and that is my miss.** `bench-flash -AppOnly` runs `pio run` before it writes. `wxkey` had been built
+at 03:03Z, and the bench branch took four crash-bench commits at 05:40Z, so the build recompiled 2 translation units and relinked it.
+I had proved by hand that the candidate had no input newer than its image, and never ran the same check on the key images. The
+frozen guard, an image whose bytes or time change, stopped the window before any row was graded, and E2:08 was restored to the
+candidate. Ruled ~19:08Z: the stop stays on record as my miss, and the window's preflight now checks every image against its own
+inputs, fails a stale one, and pins each image's sha. Both checks were seen failing before the second window: the inputs check on
+`wxclear` before its rebuild, naming the two changed files, and the pin with a planted wrong sha.
+
+**Seen and not graded:** the first window's restore ran the candidate with the key presumably still "true", and showed 0 `[wx`
+lines in 2 minutes. That is WF3's guarantee on glass, but no row predicted it and the key was not read.
+
+**#609 merged** at 21:54:13Z as `848330eb2863`, at the approved head `972d5347fafd`, under Q-M1. Its first attempt refused
+because main's head had one red leg, a package download reset before any compile; that leg was re-run and passed first.
