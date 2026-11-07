@@ -159,8 +159,9 @@ where land shows.
 
 ### The first host run (2026-11-07, 21:33-21:35Z), as run: CM7 OFF, stopped for a ruling
 
-- **The code as run:** `include/MapLayer.h` and `test/host/test_map_layer.cpp`, local commit `8ff8f917`. It is not
-  pushed: the first firmware push waits for #609.
+- **The code as run:** `include/MapLayer.h` and `test/host/test_map_layer.cpp`, blobs `c4b4a7f939bb` and `4dcae8df50a6`
+  (a local commit's hash moves on every rebase; the blobs do not). It is not pushed: the first firmware push waits for
+  #609.
 - **Both compilers read the same:** MinGW 5.1 and WSL `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`. 140 cases, 139
   pass, **CM7 red**.
 - **Not run, per the stop:** the in-tree re-run, CM9's check and the sabotage driver.
