@@ -12,7 +12,7 @@
 - predictions are frozen before each step's code, as a dated addendum here;
 - stop on anything off-prediction, and don't re-grade;
 - every check is proven able to fail by a sabotage;
-- the only board flashed is `907069326E64` (standing OK);
+- the only board flashed is `6E:64` (standing OK);
 - no deploys, and no customer-facing release.
 
 Facts below cite `origin/main` at `788ad44` unless a commit is named.
@@ -136,10 +136,10 @@ The OTA identity change (section 3) deliberately changes **every** edition's ima
   - `weatherscope-s3-128`: **build-only, no slug, publishes nothing**;
   - `weatherscope-bench-s3-128`: build-only.
 - **No customer-facing release, no store listing,** and no change to `version.txt`'s meaning.
-- **No board is flashed except `907069326E64`.**
+- **No board is flashed except `6E:64`.**
 - **No deploys.** No Worker change happens in Stage 3.
 - **Added 2026-10-21 (Addendum 2, A2.2):** once Weatherscope has a slug, a failing Weatherscope leg withholds `version.txt` for **every** SKU. The slug decision is made knowing that.
-- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2): one exception to "no board is flashed except `907069326E64`", for O11 only.** O11 runs on E2:08, operated by blipscope-5c. Every other Stage 3 step keeps the rule.
+- **Ruled 2026-10-21 (Daniel; Addendum 4, A4.2): one exception to "no board is flashed except `6E:64`", for O11 only.** O11 runs on E2:08, operated by blipscope-5c. Every other Stage 3 step keeps the rule.
 
 ## 5. Screens and screen logic (2.2 and 2.3 fold in here)
 
@@ -196,10 +196,10 @@ Every behaviour follows `docs/weatherscope-screens.md`'s rulings.
 
 1. **3.0** This plan, then review.
 2. **3.1** Move the bench harness (`weatherscope-bench-s3-128`, `src/weatherscope/bench/`; narrow the adsbdb gate case). Predicted: S1 holds for every other env, and the bench checks re-run unchanged (C1, C2, the legend's L1-L6).
-3. **3.2** The edition scaffolding (the product env, `main.cpp`, the config page, the identity headers, the stored feeds, the D2 hostname gate). Predicted: S1, D1, D2, and the budgets in section 6; it boots on `907069326E64`, joins Wi-Fi and serves its config page.
+3. **3.2** The edition scaffolding (the product env, `main.cpp`, the config page, the identity headers, the stored feeds, the D2 hostname gate). Predicted: S1, D1, D2, and the budgets in section 6; it boots on `6E:64`, joins Wi-Fi and serves its config page.
 4. **3.3** The screens and the logic (section 5).
 5. **3.4** OTA identity (section 3): host O1, O2 and O4; CI O3 and O5. Its release is Daniel's call, and it must come before any Weatherscope slug.
-   - Added 2026-10-21 (Addendum 1): host O7, O8 and O10, and bench O9 on `907069326E64`.
+   - Added 2026-10-21 (Addendum 1): host O7, O8 and O10, and bench O9 on `6E:64`.
    - Added 2026-10-21 (Addendum 2): O6's screen predictions (A2.1), and O11, the real download path end to end, on the release candidate **before the release that adds the check is published** (A2.4). S2 belongs to 3.2 (A2.3).
 
 **Outside every step's predictions: stop and decide.**
@@ -270,7 +270,7 @@ Read in the installed framework (arduino-esp32 3.3.9, `libraries/Update/src/Upda
 |---|---|
 | **O7** (host): a refused image never touches flash | **The fake:** `ota::Install` runs against a fake flash that records every call in order and keeps a **history** of the boot partition. Its `end()` switches the boot to the target slot, as `Update.end()` does.<br>**Five refused inputs, each with its predicted reason:**<br>• the real Weatherscope image head offered to `s3-128` (`foreign`; this is O4 (ii) through the new path)<br>• a pre-check image head, from the `s3-128` build of the base commit (`no-record`)<br>• a record with a wrong magic (`no-record`)<br>• a record with an unknown version (`bad-record`)<br>• a stream that ends before `kHeadBytes` (`truncated`)<br>**For each:** the call log is **empty**, the boot history holds **only its initial value**, and the target slot's bytes are unchanged.<br>**CONTROL:** the board's own identity is accepted. The log is `begin, write…, end`, the boot history switches exactly once, and the target equals the image. Without this control, a fake that ignores every call would pass. |
 | **O8** (host): the sabotage, the check moved after `Update.end()` | **The sabotage:** `sabotage_ota_install.py` moves step 3 after step 4. That is the withdrawn design, flip-back on a mismatch included.<br>**Predicted:** O7 turns red on all five refused inputs, naming `begin` as the first forbidden call and showing the switch in the boot history.<br>**The assertion is on the history, not the final state.** The withdrawn design reverts the boot partition, so a final-state assertion passes it. The sabotage run prints both, final state PASS and history FAIL, which is why the history is the assertion.<br>**A second sabotage** moves the check after the first `write`. O7 turns red on the target bytes while the boot history stays clean, which proves the target assertion works on its own. |
-| **O9** (bench, `907069326E64`): the real adapter | **Why it is needed:** the host fake models our interface, not the Updater. A real adapter that wrote before the decision would pass O7 (the named alternative), and only the board can exclude it.<br>**The source:** a bench-only source (`WX_OTA_BENCH`, in the bench env only) feeds `ota::Install` an image head over USB serial.<br>**Refused** (a Blipscope `s3-128` head): the `esp_ota_get_boot_partition()` label and the sha256 of the inactive slot's first 64 KB are identical before and after.<br>**CONTROL, so the instrument is shown to see a write:** the board's own head, with the stream cut at 8 KB, is accepted, writes, then fails. The inactive slot's sha256 changes and the boot label does not.<br>**Where the bench code is:** `WX_OTA_BENCH`'s marker string is in the bench ELF and in no shipping env's ELF (grep). |
+| **O9** (bench, `6E:64`): the real adapter | **Why it is needed:** the host fake models our interface, not the Updater. A real adapter that wrote before the decision would pass O7 (the named alternative), and only the board can exclude it.<br>**The source:** a bench-only source (`WX_OTA_BENCH`, in the bench env only) feeds `ota::Install` an image head over USB serial.<br>**Refused** (a Blipscope `s3-128` head): the `esp_ota_get_boot_partition()` label and the sha256 of the inactive slot's first 64 KB are identical before and after.<br>**CONTROL, so the instrument is shown to see a write:** the board's own head, with the stream cut at 8 KB, is accepted, writes, then fails. The inactive slot's sha256 changes and the boot label does not.<br>**Where the bench code is:** `WX_OTA_BENCH`'s marker string is in the bench ELF and in no shipping env's ELF (grep). |
 | **O10** (host): the downgrade consequence, asserted, not just stated | **Every** identity in the O1 matrix refuses the pre-check `s3-128` head from O7 as `no-record`. No pre-check image in that matrix has the record's magic at 0x120. |
 
 - **3.4 runs O7-O10 alongside O1-O5.** O8's two sabotages must turn O7 red before O7's green counts.
@@ -395,8 +395,8 @@ The refusal and accepted cases are observed in O11; the failure case in O6, at t
 
 **Open, for Daniel's ruling:**
 - **The board.**
-  - Option 1: `907069326E64`, the board I have a standing OK to flash, running A with a Blipscope `s3-128` identity.
-  - Option 2: E2:08, run by blipscope-5c. It proposed this because it is the Blipscope fleet's path at stake. Section 4 says no board but `907069326E64` is flashed in Stage 3, so option 2 is also a ruling on that line.
+  - Option 1: `6E:64`, the board I have a standing OK to flash, running A with a Blipscope `s3-128` identity.
+  - Option 2: E2:08, run by blipscope-5c. It proposed this because it is the Blipscope fleet's path at stake. Section 4 says no board but `6E:64` is flashed in Stage 3, so option 2 is also a ruling on that line.
 - **Where B is hosted.**
   - A GitHub prerelease asset is invisible to `releases/latest`, but it is release machinery.
   - Or another host Daniel names.
@@ -473,7 +473,7 @@ The plan was approved at `35903dd` and merged as `69e81c1`. These rulings came w
 
 ### A4.2 O11: the board, image B, and what is frozen before it runs (A2.4)
 
-- **The board: E2:08, operated by blipscope-5c.** This is a **one-test exception** to section 4's "no board is flashed except `907069326E64`" rule, for O11 only.
+- **The board: E2:08, operated by blipscope-5c.** This is a **one-test exception** to section 4's "no board is flashed except `6E:64`" rule, for O11 only.
 - **Image B:** a **GitHub prerelease asset, clearly named as a bench test,** deleted after O11.
 - **Timing:** the release candidate's timing is coordinated between this session and blipscope-5c.
 - **Frozen in O11's own addendum, before it runs:**
@@ -592,7 +592,7 @@ O11's own predictions are frozen in its addendum before the run, and it waits it
 | **S1** | **What:** the 14 other envs in `skus.yml`, each built clean at the base and at 3.1's head.<br>**Where:** in **one directory**, so no path compiled into an image differs.<br>**How:** each pair compared with `stampdiff.py`. | **Stamps only, in 14/14.** That means `app_elf_sha256`, the checksum and trailing SHA-256, and WiFiManager's two time strings where WiFiManager is linked. **Any size change or UNEXPLAINED byte: stop.** |
 | **S1's sabotage** | **The edit:** at the head, `if (millis() == 0xFFFFFFFFul) Serial.println("S1 SABOTAGE");` at the top of `ConfigurationWebServer::Initialise()`, outside every edition guard. It is runtime-dependent, so the linker keeps it.<br>**The check:** the edit is asserted applied, then reverted after. | **Two-sided, keyed to the build itself:**<br>• a non-stamp difference in **every env whose build compiled `ConfigurationWebServer.cpp`** (its object file exists). Predicted: 13 of the 14, every one except `animtest-s3-128`;<br>• **stamps only in every env that didn't.** Predicted: `animtest-s3-128` alone. |
 | **the bench image** | `weatherscope-bench-s3-128` at the head against `weatherscope-s3-128` at the base, in the same directory | **Stamps only, with no time strings**, since the bench links no WiFiManager: `app_elf_sha256`, the checksum and the trailing SHA-256. |
-| **C1, on the board** | Flash the head's bench image on `907069326E64` (standing OK; the port found by serial). Then run `capture_stage1.py`. | **Exit 0, as in Stage 2:**<br>• 240/240 rows;<br>• B9 `344383b4…`, equal to the board's `fb_sha256`;<br>• its standing timing checks repeating. |
+| **C1, on the board** | Flash the head's bench image on `6E:64` (standing OK; the port found by serial). Then run `capture_stage1.py`. | **Exit 0, as in Stage 2:**<br>• 240/240 rows;<br>• B9 `344383b4…`, equal to the board's `fb_sha256`;<br>• its standing timing checks repeating. |
 | **C2, on the board** | the same capture's `WX,sprite_sha256` | **`a88c3a99fa5c1bb4d6d2bb77d081b22b8da6e752200ae79cf67acec90c335ed3`**: `palette_ref.py`'s sprite for the final 55 % palette, 115,200 bytes, run before this addendum |
 | **L1-L6, on the board** | `legend_check.py` | **Exit 0:** L1, L2, L4, L5 and L6 all hold. The script defines no L3. |
 | **CI** | the matrix, from `skus.yml` | **The bench leg** builds under its new name. Its adsbdb gate reads PASS, with the control seen in `src/weatherscope/bench/stage1_main.cpp`.<br>**The discriminator:** if the narrowed case failed to match the renamed env, the gate would plant at the default site, which the bench doesn't compile, and read `UNTRUSTWORTHY (control blind)`.<br>**Every other leg:** as on main. |
@@ -769,8 +769,8 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 | **S1's sabotage** | outside R1/R2 in the 13 envs that compile `ConfigurationWebServer.cpp`; `animtest-s3-128` at 0 bytes | **13/13 changed** (size differs), and **`animtest-s3-128` is at 0 bytes.** The non-compiling set is exactly `['animtest-s3-128']`. |
 | **the bench, under its old name** | identical outside R1/R2 | **0 bytes outside R1/R2.** R1 and R2 differ (65 bytes in all), as listed: moving the file changes the ELF's debug data. |
 
-**On the board**, `907069326E64`:
-- **The flash:** the head's bench image, with the port resolved from the serial (COM6). esptool read the MAC as `90:70:69:32:6e:64`, and the board's banner reads `env=weatherscope-bench-s3-128`.
+**On the board**, `6E:64`:
+- **The flash:** the head's bench image, with the port resolved from the serial (COM6). esptool read the MAC as `6E:64`, and the board's banner reads `env=weatherscope-bench-s3-128`.
 - **An instrument slip before this:** a first capture attempt passed the serial number as the port name. The open failed, and no byte reached the board.
 
 | check | predicted | measured |
@@ -861,7 +861,7 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 | **D2** | grep the product image, **case-sensitive, lowercase**, as hostnames are written, for `weather.gov`, `noaa`, `ncep`, `mrms`, `amazonaws` | **0 hits.**<br>**The control:** a control build with one planted, reachable hostname string must be found.<br>*Recorded now so it isn't discovered later:* the bench image carries one uppercase `MRMS`, a text string, and no host fragment. |
 | **CI** | the matrix on the PR head | **The product leg builds.**<br>**Its adsbdb gate:** `CONTROL found` at the **default site, `ConfigMigration.cpp`** (3.1 narrowed the bench case), and PASS.<br>**The OTA URL check (#455):** **PASS** (the edition has an OTA client on the default base).<br>**Every other leg:** as on main. |
 | **Budgets** (graded now) | the product build's `pio` size summary | **flash 1.60-1.85 MB; static RAM 55-70 KB** (section 6) |
-| **The board** | flash `weatherscope-s3-128` on `907069326E64` (standing OK; port from the serial) | **The banner:** `[build] env=weatherscope-s3-128`.<br>**The mDNS name:** `Weatherscope-XXXXXX`.<br>**Wi-Fi:**<br>• it joins with the stored credentials;<br>• *if none survive the flash,* the portal appears, and that is a stop to ask Daniel, not a build fault.<br>**`GET http://<name>.local/`:** **200**, with the Weatherscope form, and **none** of S2's strings in the body. |
+| **The board** | flash `weatherscope-s3-128` on `6E:64` (standing OK; port from the serial) | **The banner:** `[build] env=weatherscope-s3-128`.<br>**The mDNS name:** `Weatherscope-XXXXXX`.<br>**Wi-Fi:**<br>• it joins with the stored credentials;<br>• *if none survive the flash,* the portal appears, and that is a stop to ask Daniel, not a build fault.<br>**`GET http://<name>.local/`:** **200**, with the Weatherscope form, and **none** of S2's strings in the body. |
 
 **Order:**
 1. This addendum.
@@ -891,7 +891,7 @@ The sabotage row (14/14) shows the instrument sees a real change. **3.1's own ch
 
 **Choices the frozen text left open, written down so they aren't discovered later:**
 - **The env's flags:** `${s3128_hw.build_flags}`, the URL-free board section every s3-128 bench env composes from. That is A6.1's list (`${common.build_flags}`, the s3-128 variant, PSRAM, `ARDUINO_USB_MODE=1`) **plus `ARDUINO_USB_CDC_ON_BOOT=1`**. Claudescope's env and every s3-128 env carry that flag, and without it the banner goes to UART0 instead of the USB port. Then `-DFEATURE_WEATHERSCOPE` and `-DFW_OTA_PREFIX=\"weatherscope-\"`.
-- **The partition table:** `partitions-s3-16mb-bignvs.csv`, the s3-128 SKU's table and the one `907069326E64` carries now. So its NVS, and any stored Wi-Fi credentials, stay where they are. `-DBLIPSCOPE_EXPECT_BIG_NVS` is **not** set: its only reader is `Logbook.cpp`, which the product doesn't compile.
+- **The partition table:** `partitions-s3-16mb-bignvs.csv`, the s3-128 SKU's table and the one `6E:64` carries now. So its NVS, and any stored Wi-Fi credentials, stay where they are. `-DBLIPSCOPE_EXPECT_BIG_NVS` is **not** set: its only reader is `Logbook.cpp`, which the product doesn't compile.
 - **The crop:** `board_build.embed_files = test/fixtures/wx/kdfw-60mi.wxc`, as section 2 says, read through the same `_binary_…` symbols the bench uses.
 - **The stored observation and alert** are compiled constants, generated from the fetched JSON by this session. The device parses no JSON in 3.2; the live parsers come with the proxy path.
 - **The observation:** `KDFW`'s `/observations/latest` at fetch time, keeping `presentWeather` (its raw strings) and `timestamp`. Station coordinates and every other field are dropped.
@@ -984,13 +984,13 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 - **The most likely cause:** I counted lines containing each string rather than occurrences. This is not re-established.
 - **What stands:** the graded criterion is presence, and it holds.
 
-**The board, `907069326E64`.** Its port was resolved from the serial (COM6). It ran the head's product image.
+**The board, `6E:64`.** Its port was resolved from the serial (COM6). It ran the head's product image.
 
 | check | predicted | measured |
 |---|---|---|
-| the flash | (a precondition) | `pio run -t upload` exit 0. esptool read MAC `90:70:69:32:6e:64`. `boot_app0` was written to 0x1E000, the big-NVS table's otadata (A6.3) |
+| the flash | (a precondition) | `pio run -t upload` exit 0. esptool read MAC `6E:64`. `boot_app0` was written to 0x1E000, the big-NVS table's otadata (A6.3) |
 | the banner | `[build] env=weatherscope-s3-128` | **`[build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope`** |
-| the mDNS name | `Weatherscope-XXXXXX` | **`hostname=Weatherscope-326E64`**; the config server announces `http://Weatherscope-326E64.local` |
+| the mDNS name | `Weatherscope-XXXXXX` | **`hostname=Weatherscope-6E64`**; the config server announces `http://Weatherscope-6E64.local` |
 | Wi-Fi | joins with the stored credentials; the portal would be a stop | **joined with the stored credentials** (fast join, 5.8 s); no portal |
 | `GET http://<name>.local/` | 200, the Weatherscope form, none of S2's strings | **200 by the mDNS name**, measured after the reset described below. <br>• The title is "Configure Weatherscope".<br>• The named controls are exactly `latitude`, `longitude`, `autodim`, `brightness`, plus the `cfg-form` marker.<br>• S2's four strings appear **0** times.<br>• No placeholder is left unsubstituted.<br>• The build id reads `weatherscope-s3-128 · v18 · no-cloud+weatherscope` |
 
@@ -1017,7 +1017,7 @@ These are the reviewer's rulings, relayed by blipscope-5c "verbatim as pasted to
 
 ### A7.1 The method
 
-**The board and the image:** `907069326E64`, running step 3.2's product image (`eb90e9a`). Its port is resolved from the serial before every USB step. The script is `tools/weatherscope/trace-close/run.ps1`, committed with this addendum.
+**The board and the image:** `6E:64`, running step 3.2's product image (`eb90e9a`). Its port is resolved from the serial before every USB step. The script is `tools/weatherscope/trace-close/run.ps1`, committed with this addendum.
 
 **The watcher:** one TCP connect to the board's port 80 every 2 s, with a 1.5 s timeout, timestamped. It runs for the whole test.
 - The address comes from mDNS once, at the start, and is pinned for the run.
@@ -1905,7 +1905,7 @@ There are **24 sabotages**, each with the exact failing set named above or in A8
 - the only shared-file edit 3.3d makes is the ruled one (A8.7): the `/diag/fb` guard widened to include Weatherscope;
 - the flash band (A8.12) and the static-RAM band;
 - the capture rules (A8.4: one trace held across each step; reachability proved after the close; recovery with `read_mac` only);
-- the board is `907069326E64`, found by its serial.
+- the board is `6E:64`, found by its serial.
 
 **CI on #467:** every head pushed today, from `c4c3448` to `cbb0f51`, showed **all 15 checks queued and none started** when last read. The whole-suite evidence is therefore still pending. The Wx section's evidence is the local run through `run.sh`'s own text (A8.16, A8.17).
 
@@ -2107,7 +2107,7 @@ This applies A8.19's rulings. **The numbers that only the layout code can give**
 2. A8.21: the rectangle tables and compared counts from the host build, frozen.
 3. The firmware.
 4. The build, with the sizes and the ELF check.
-5. The flash, onto `907069326E64`, the port found by its serial.
+5. The flash, onto `6E:64`, the port found by its serial.
 6. B1-B3 in one held trace.
 7. Grading, and the recorded-data sabotages.
 8. The results addendum.
@@ -2252,8 +2252,8 @@ So Q6(a)'s nearest-first rule is the cause, and neither the filter, the cap nor 
 - **The toolchain was installed fresh** by this build: `toolchain-xtensa-esp-elf` 14.2.0+20260121, since the global package store was empty. This is recorded because a size miss would have had to name it as an alternative. None occurred.
 
 **The flash** (step 5):
-- The port was resolved from the serial: `907069326E64` → COM6.
-- The board's MAC read `90:70:69:32:6e:64`.
+- The port was resolved from the serial: `6E:64` → COM6.
+- The board's MAC read `6E:64`.
 - The 1,602,448 B image was written and its hash verified, exit 0.
 - **Before the run**, the board resolved by name and answered TCP :80.
 
@@ -2574,7 +2574,7 @@ Each family gets a truth table of named cases with a count, and sabotages with e
 4. The K rows.
 5. The firmware.
 6. The build and the sizes.
-7. The flash, onto `907069326E64`.
+7. The flash, onto `6E:64`.
 8. The board run, then the grading and the recorded-data sabotages.
 9. The results addendum.
 
@@ -3240,7 +3240,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
   - **PNGs:** it writes one of every graded snapshot, including the six B1 images for Daniel.
 
 **The flash (step 7).**
-- **How:** onto `907069326E64` only, its port resolved by serial (`scripts/board-port.py weatherscope --upload`), with `pio run -e weatherscope-s3-128 -t upload --upload-port <it>`. The upload's exit status is read, not its output.
+- **How:** onto `6E:64` only, its port resolved by serial (`scripts/board-port.py weatherscope --upload`), with `pio run -e weatherscope-s3-128 -t upload --upload-port <it>`. The upload's exit status is read, not its output.
 - **Predicted:** exit 0, and the board then prints `[build] env=weatherscope-s3-128`.
 - **Proof the new image is running, not an old one:** the `[wx] feeds` line names `clear 36 B`, and the screen lines carry `R=`. Neither exists in 3.3d's image.
 
@@ -3271,7 +3271,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 ### A9.20 Steps 7-8's results: B1 6/6 exact, BZ 6/7, B3 exact; three rows off A9.19's predictions -- stopped for a ruling (2026-10-25; local)
 
 **The flash and the run.**
-- **The flash:** `907069326E64`, port resolved by serial (COM6). Upload exit 0, "Hash of data verified".
+- **The flash:** `6E:64`, port resolved by serial (COM6). Upload exit 0, "Hash of data verified".
 - **The board runs the new image:**
   - `[build] env=weatherscope-s3-128`;
   - `[wx] feeds … clear 36 B`;
@@ -3610,7 +3610,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **The build and the run.**
 - **The build:** `e8838f0` on the backup branch, with 13.3 in its notes. #480 stays at `49846de`.
-- **The flash:** `907069326E64`, port resolved by serial, upload exit 0, "Hash of data verified".
+- **The flash:** `6E:64`, port resolved by serial, upload exit 0, "Hash of data verified".
 - **The run:** `run_b35.py` held one open from 2026-10-26T02:47:20Z to 02:55:22Z. There were 17 captures, and TCP :80 was up 0.5 s after the close.
 - **The record:** `tools/weatherscope/board/run-2026-10-26/`, LAN IP redacted (three places, `lines.json` included), raw snapshots kept outside the repo.
 - **The grade:** `grade_b35.py` reports **93 checks, 1 failing; the recorded-data sabotages 5/5 red**.
@@ -3736,7 +3736,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 - **#480's description says so.**
 
 **The sabotage pass, S-WAIT, on a separate flash.** The sabotaged image is never committed, and it carries no bench switch.
-- **The plant:** in a scratch worktree of G's commit, the wait and the retry are removed, leaving one immediate copy, with the verification and the headers kept. It is built there and flashed onto `907069326E64`. G is reflashed afterwards.
+- **The plant:** in a scratch worktree of G's commit, the wait and the retry are removed, leaving one immediate copy, with the verification and the headers kept. It is built there and flashed onto `6E:64`. G is reflashed afterwards.
 - **The pass (`tools/weatherscope/board/sab_wait.py`):** one open with the 1 s rule. 60 fetches, about 1 s apart, of whatever scenario screens the cycle shows at 60 mi, with no gestures.
   - **Each fetch is graded:** its tag → its K row; the pixels; the phases; `Finished`.
 - **Predictions:**
@@ -3768,7 +3768,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
 
 **The commit graded: `3a1af19`.**
 - **#480 moved to it:** from `49846de`, a fast-forward of 9 commits, pushed at 03:51:02Z, with its title and description updated as A9.25 item 2 asked.
-- **The flash:** G's image, `firmware.bin` sha256 `de3730c80072…`, 1,624,592 B, written and verified on `907069326E64`.
+- **The flash:** G's image, `firmware.bin` sha256 `de3730c80072…`, 1,624,592 B, written and verified on `6E:64`.
 - **The results stay off #480:** they go to the backup branch, so #480's head stays the commit that CI and the board graded.
 
 **One deviation from A9.26's text, stricter only, recorded in the commit itself.**
@@ -3953,7 +3953,7 @@ Written after the code compiled under MinGW 5.1.0 and `wsl -d Ubuntu-24.04`'s g+
   - **byte `R`** prints the records (`[wx] fire …`), then clears them.
 
   All of them sit under the stored-mode release gate with T/S/U/D/H.
-- **The run, on `907069326E64`:**
+- **The run, on `6E:64`:**
   - **M2:** flash, then **open nothing** until boot + 135 s. Then open, and send `R`.
   - **M1:** `H` three times, 5 s apart, then `R`.
   - **M3:** `A`; read 5 s; **stop reading for 75 s** with the port open; read again; send `R`.
@@ -4103,7 +4103,7 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
   - **Kept in every mode:** the `[wx] scn=` and `[wx] screen=` lines, which the runners read.
 - **The bench press:** byte `P` holds a synthetic touch at (120, 120) through `HandleTouch`'s own path (the poll is overridden to `Touched`), and byte `L` lifts it. Both are stored-mode only, under the T/S/U/D/H release gate.
 
-**The run, build N** (the PR's head), on `907069326E64`:
+**The run, build N** (the PR's head), on `6E:64`:
 - **Three presses under M1** (the port read throughout) and **three under M3** (the reader paused from before the press until after it).
 - **Each press:**
   1. starts 1-5 s after a cycle step's `[wx] screen=` line, so no 30 s cycle step can fall inside it;
@@ -4860,7 +4860,7 @@ M3's open-but-unread port showed **no** backpressure in 75 s. That fits the oper
 5. The device code, the host tests and their sabotages.
 6. The K rows and the replay rows.
 7. The firmware, the build and the sizes.
-8. The flash onto `907069326E64`, the board run, the grading and the recorded-data sabotages.
+8. The flash onto `6E:64`, the board run, the grading and the recorded-data sabotages.
 9. The results addendum.
 
 ### A10.9 Questions for review, each with a recommendation
@@ -6549,7 +6549,7 @@ The removal list went to Daniel, and **nothing is removed before his yes.**
 2. build Q;
 3. C4's rows for both Q39 candidates, frozen;
 4. `ref35 --theme light`, the host PNGs to Daniel: Bend at 60 mi, dry, and the Bend loop over shaded slopes, for (a) and (b);
-5. the bench select on `907069326E64`, predictions first;
+5. the bench select on `6E:64`, predictions first;
 6. Daniel's pick;
 7. the rest of 3.5t;
 8. 3.4;
@@ -6730,7 +6730,7 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - **The labels, the dots, the peaks and the rings read on both.**
 - **The Bend loop holds codes 0 to 4 only, as A12.22 said,** so the candidates' yellows show only in Dallas. Code 7 there is (215, 120, 0) in (a) against (255, 144, 0) in (b).
 
-**Next:** build Q; then the bench select of both candidates on `907069326E64`, predictions first; then Daniel's pick.
+**Next:** build Q; then the bench select of both candidates on `6E:64`, predictions first; then Daniel's pick.
 
 ### A12.24 Ruled 2026-10-29 (source: reviewer chat, pasted by Daniel): standing rule, keep moving
 
@@ -6904,7 +6904,7 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 | LF3 | each loop frame through each look's palette equals that frame rendered directly in the look's colours, 45 of 45 |
 | LF4 | 51 expected sprite hashes, computed the way `palette_ref.py` derives the bench sprite: RGB565, high byte first |
 
-**Predicted, board** (flashed onto `907069326E64` only, its port resolved by its serial):
+**Predicted, board** (flashed onto `6E:64` only, its port resolved by its serial):
 
 | row | expected |
 |---|---|
@@ -7086,7 +7086,7 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 1. **The ruled method failed before touching the board.** `pio run -t nobuild -t upload` fails on this platform: esptool was handed no address/file pairs, and exited at argument parsing.
 2. **What I used instead:** I wrote `firmware.factory.bin` at 0x0 with PlatformIO's esptool.
    - I had checked that its app at 0x20000 equals the built `firmware.bin` (`56d75a7538af`), and that its bootloader and partitions equal the build's.
-   - esptool confirmed the board (MAC `90:70:69:32:6e:64`) and verified the hash.
+   - esptool confirmed the board (MAC `6E:64`) and verified the hash.
 3. **What I failed to check is what else that image covers.** It spans 0x0-0x1FFFF, which includes **NVS (0x9000-0x1DFFF)** and otadata (0x1E000).
    - **The board's NVS was overwritten. Its Wi-Fi credentials and stored config are gone.**
    - It booted with "no saved credentials" and opened its setup portal.
@@ -7099,7 +7099,7 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 - The edition's other NVS keys fall back to their defaults: brightness 255, autodim off, no location. Stored mode is a build constant. **None of A12.25's rows depends on them.**
 
 **Waiting on Daniel:** the board's Wi-Fi.
-- Join it to the bench network through its setup portal: the QR on its screen, or the access point `Weatherscope-326E64`.
+- Join it to the bench network through its setup portal: the QR on its screen, or the access point `Weatherscope-6E64`.
 - Then Q's run starts again, from the top, in one open.
 
 **The rule I take from it:** "flash the binary as built" writes **the app alone at its app slot**, or the bootloader, partitions and app at their own offsets. **Never the factory image**, whose padding covers NVS. Then read the `[ota-slot]` boot line to confirm the slot that booted.
@@ -7367,7 +7367,7 @@ Without the controls, a pass could have meant an over-broad comparison rather th
 
 **The flash, by A12.33's check and A12.34 item 3, at 04:37Z:**
 1. **First, `flash_plan.py`,** with the partition table printed: the write `0x0020000-0x01A85BF` touches **app0 only**.
-2. **Then the write:** `esptool write-flash 0x20000 firmware.bin`, the app alone, to the port resolved from `907069326E64`. esptool confirmed MAC `90:70:69:32:6e:64`, wrote 1,607,104 B at 0x00020000, and verified the hash.
+2. **Then the write:** `esptool write-flash 0x20000 firmware.bin`, the app alone, to the port resolved from `6E:64`. esptool confirmed MAC `6E:64`, wrote 1,607,104 B at 0x00020000, and verified the hash.
 3. **Then the boot,** caught by the run's trace: `[build] env=weatherscope-look-s3-128`, then **`[ota-slot] boot running=app0 @0x020000`**.
 
 **The run** (`run-2026-10-29-look`, one open, 04:38:21Z; the viewer has no Wi-Fi, so the trace has no address to redact):
@@ -8818,7 +8818,7 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 
 ### A12.55 3.5b step 8: the anchor run and the board run -- the runner, the grader, the watcher and the predictions, frozen before any write to the board
 
-**The order** (A10.8 step 8; A12.37's anchor rule). Each write is A12.33's method: `flash_plan.py`'s ranges beside the partition table first, `firmware.bin` alone at `0x20000` to the port resolved from `907069326E64`, then the boot's `[build] env=` and `[ota-slot]` lines.
+**The order** (A10.8 step 8; A12.37's anchor rule). Each write is A12.33's method: `flash_plan.py`'s ranges beside the partition table first, `firmware.bin` alone at `0x20000` to the port resolved from `6E:64`, then the boot's `[build] env=` and `[ota-slot]` lines.
 1. **The anchor:** main's own image on the board, run by 3.5a's tools as they are, plus the watcher (below).
    - The image is `58509562c620`, built clean: `firmware.bin` 1,631,248 B, sha256 `cc5917f531ff`. A rebuild's sha differs only by WiFiManager's build stamps; flash and RAM reproduce exactly.
    - **Its numbers are step 7's baseline:** each Dallas loop's `draw_us`, and `psram_used`.
@@ -8929,7 +8929,7 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 **The write** (A12.33's method):
 - **The image:** main `58509562c620`, `firmware.bin` 1,631,248 B, sha256 `cc5917f531ff`.
 - **`flash_plan.py`:** the write `0x0020000-0x01AE40F` touches app0 only.
-- **The port:** COM6, resolved from `907069326E64`. esptool read MAC `90:70:69:32:6e:64`, wrote 1,631,248 B at `0x00020000`, verified the hash, exit 0.
+- **The port:** COM6, resolved from `6E:64`. esptool read MAC `6E:64`, wrote 1,631,248 B at `0x00020000`, verified the hash, exit 0.
 - **The boot, read twice:**
   - **The first read missed it:** it opened about 8 s after the write's reset, and caught only `[wx] init`. As `boot_read.py` says, the slot was not inferred.
   - **The board was then reset with `read-mac`** (no write), and `boot_read.py` opened at once. It read `[build] env=weatherscope-s3-128 fw=v18` and `[ota-slot] boot running=app0 @0x020000` at 0.21 s.
@@ -9037,7 +9037,7 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 **Step 7's write** (A12.33's method):
 - **The image:** `firmware.bin` 1,876,672 B, sha256 `823fcca81598`, the approved head's build.
 - **`flash_plan.py`:** the write `0x0020000-0x01EA2BF` touches app0 only.
-- **The port:** COM6, resolved from `907069326E64`. esptool read MAC `90:70:69:32:6e:64`, wrote 1,876,672 B at `0x00020000`, verified the hash, exit 0.
+- **The port:** COM6, resolved from `6E:64`. esptool read MAC `6E:64`, wrote 1,876,672 B at `0x00020000`, verified the hash, exit 0.
 - **The boot,** with `read-mac` and `boot_lines.py` chained in one command (A12.56's lesson): every line kept.
 
 **The boot's rows** (A12.55, as Q55 amends them):
@@ -9334,7 +9334,7 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 >
 > 4. t4 as A12.60 froze it, otherwise unchanged: the light reference completed in look35's light theme; ref35's eight colours through the theme, with dark unchanged; the 82 K-light rows, RP, RP-T, LY and TH2′; flash and RAM equal to main's.
 >
-> 5. Tonight's passive touch watch of 907069326E64 stands: from 06:00Z to 13:00Z (11 PM to 6 AM PDT), no write to the board, its serial trace read through screen_watch.py. Announce it to Daniel as a hands-off window, and report every screen change no gesture byte caused and every raw touch line, with time and kind, no coordinates.
+> 5. Tonight's passive touch watch of 6E:64 stands: from 06:00Z to 13:00Z (11 PM to 6 AM PDT), no write to the board, its serial trace read through screen_watch.py. Announce it to Daniel as a hands-off window, and report every screen change no gesture byte caused and every raw touch line, with time and kind, no coordinates.
 
 **The gap, on record:**
 - **From #507's merge until this harness PR,** `sabotage_wx_themed_draw.py` could not run: S-KD and S-NL went unguarded.
@@ -9404,7 +9404,7 @@ Until Q52 is ruled, the palette and theme drivers print NOT ALL AS PREDICTED. Th
 - **The board holds #507's image** (`823fcca81598`). Nothing is written to it before, during or after the window.
 
 **The method** (`tools/weatherscope/board/touch_watch.py`; the dry run below comes before the window):
-- **One pyserial open at 06:00Z,** to the port resolved from `907069326E64`, with DTR and RTS false before the open. It is **never reopened**, and **nothing is written**.
+- **One pyserial open at 06:00Z,** to the port resolved from `6E:64`, with DTR and RTS false before the open. It is **never reopened**, and **nothing is written**.
 - **Every line is kept** with its host time.
 - **A read error stops the trace and is reported** (`bench-trace.ps1`'s rule). It is never reattached.
 - **The port is closed at 13:00Z.**
@@ -9655,7 +9655,7 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 | suites | the host suites | **every count as A12.65's.** No host test compiles the manager |
 | drivers | every driver, in full and `--control` (A12.59's lesson) | **as A12.65's**; `run.sh` green under both compilers, only the rig's two |
 
-#### 4. The board (907069326E64, after the watch window and the ruling)
+#### 4. The board (6E:64, after the watch window and the ruling)
 
 **The setup:**
 - one serial open, never reopened (`bench-trace` rules), with the live watcher;
@@ -9757,7 +9757,7 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 
 **5. Q63: (a).** S-SWB runs on the board in an announced window, under A12.33's write rule: the planted image, the third BSW, then t5's image again.
 
-**6. The watch:** as armed. 06:00Z-13:00Z, no write to 907069326E64.
+**6. The watch:** as armed. 06:00Z-13:00Z, no write to 6E:64.
 
 **t5's code has started** (`weatherscope/3-5t-t5`, stacked on t4, local). Its results come in their own addendum.
 
@@ -9817,7 +9817,7 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
   - **the planted image builds:** flash 1,879,507, 4 B over t5's, so the plant reaches the image.
 
 **Q64: Auto needs a location, and the bench board has none. Found before any board run.**
-- **The fact:** step 7's boot record on main reads `[wx] init; location=unset` for 907069326E64.
+- **The fact:** step 7's boot record on main reads `[wx] init; location=unset` for 6E:64.
   - `Evaluate` keeps `Unknown` without a location, by design (TD), so Auto stays Dark.
   - **BSW on this board, as it stands, would read 0 switches.** A12.66 checked the init line's `autodim` and missed its `location`.
 - **(a), recommended:** before BSW, the runner POSTs a public fixture's place as the board's latitude and longitude: the Dallas loop fixture's crop centre, read from the fixture's own header and never printed (`run_b35t.py --location fixture`).
@@ -9903,7 +9903,7 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 - **Daniel can enter another place on its page at any time.**
 - **No time from BSW or BSW-L is committed** (Q62).
 
-**4. Tonight's watch** runs as planned, 06:00-13:00Z, with no write to 907069326E64. E2:08's own watch the same night belongs to its own session; this session does not touch that board.
+**4. Tonight's watch** runs as planned, 06:00-13:00Z, with no write to 6E:64. E2:08's own watch the same night belongs to its own session; this session does not touch that board.
 
 **5. #510 and #511:** the counts went to Daniel with the approval request, once every run had finished and a second read showed the counts were no longer moving:
 - **#510** at `76607fcb9dc8`: 35 check runs, 32 success, 3 skipped (promote, version, ship-alert), 0 failed;
@@ -9968,7 +9968,7 @@ Five of their nine plants reach a K-light, RP light or RP-T row, so "as before" 
 - **Before the force-push and the retarget,** the host suites run again on `8be4690` under both compilers.
 
 **Q64: accepted. On record:**
-- **Any future watch on 907069326E64 names its 09:00Z quiet-hour reboot in its plan,** and reads that reboot as expected, not as a fault.
+- **Any future watch on 6E:64 names its 09:00Z quiet-hour reboot in its plan,** and reads that reboot as expected, not as a fault.
   - This applies once t5's run has set the place. Tonight's watch is unaffected: no place yet, so its quiet hour is 03:00Z.
 - **The local mock of the config page stays out of git.** It lives in this session's scratch only. It is built from the template at run time with every placeholder blank, so it holds no network names.
 
@@ -10256,7 +10256,7 @@ The lint's control file was not changed after the result.
 ### A12.75 The passive touch watch (A12.61 item 5): 844 screen changes, every one explained, 0 touch lines, 0 boots; main's CI on #511's merge; t5's board window announced
 
 **The watch, as A12.61 froze it.**
-- **The port:** COM6, resolved from `907069326E64`, opened once at **2026-10-31T06:00:00.242Z** with DTR and RTS false, and closed at **13:00:00.148Z**.
+- **The port:** COM6, resolved from `6E:64`, opened once at **2026-10-31T06:00:00.242Z** with DTR and RTS false, and closed at **13:00:00.148Z**.
 - **Nothing was written, and it was never reopened.**
 - **The board held #507's image** (`823fcca81598`).
 - **The trace's first line is 06:00:00.245Z and its last 12:59:39.825Z.** The largest gap between two lines is **30.4 s**, the cycle's own interval, so the trace never stopped early.
@@ -10298,7 +10298,7 @@ The lint's control file was not changed after the result.
 **The window (announced in A12.75), 2026-11-02:**
 - **The write:** t5's image, rebuilt at `583980b`: flash **1,879,503** and RAM **59,192** (A12.68's, exactly), `firmware.bin` sha256 `085ae795ff0a`.
   - `flash_plan`: app0 only.
-  - Written at 0x20000 to the board whose MAC is `90:70:69:32:6e:64`, hash verified.
+  - Written at 0x20000 to the board whose MAC is `6E:64`, hash verified.
 - **The boot read** (`read-mac`, chained):
   - `[ota-slot] boot running=app0 @0x020000`;
   - `psram_used=227168` (A12.57's 227,144 ± 2,000);
@@ -10898,7 +10898,7 @@ string:
 | the image | `TouchWatchdog::OnPoll` present in the ELF (0 `TouchWatchdog` symbols today); `[touch-wd] no-autosleep applied` absent; the `[health] touch-wd` format present once |
 | its size | `firmware.bin` grows by 1,700-2,600 B: `TouchWatchdog.cpp.o`'s linked sections are 1,774 B today (built and dropped), plus the call and the heartbeat |
 | host suites, every driver, `--anchors` | unchanged: no host test compiles `WeatherscopeManager.cpp`, and no anchor sits in `HandleTouch()` or `Update()` |
-| the board, a 1-hour passive watch on the clean image (907069326E64) | 6 `[health] touch-wd` lines, one every 10 min ± one loop pass. Each shows `wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 rebootRec=0 maxOutage=0ms`, failed probes 0, and the ok-probe count, which is cumulative, rising by 55-61 from one line to the next (the first line counts from boot). The ceiling is 61: one probe every 10 s, plus one at the window's start. Each probe is scheduled 10 s after the poll that ran it, so loop latency can only lower the count, and 55 allows a mean pass up to ~0.9 s. There are no release-edge probes, since nothing touches the screen. No other `[touch-wd]` line |
+| the board, a 1-hour passive watch on the clean image (6E:64) | 6 `[health] touch-wd` lines, one every 10 min ± one loop pass. Each shows `wedges=0 recovered=0/0 (soft=0 hard=0) wakes=0 rebootRec=0 maxOutage=0ms`, failed probes 0, and the ok-probe count, which is cumulative, rising by 55-61 from one line to the next (the first line counts from boot). The ceiling is 61: one probe every 10 s, plus one at the window's start. Each probe is scheduled 10 s after the poll that ran it, so loop latency can only lower the count, and 55 allows a mean pass up to ~0.9 s. There are no release-edge probes, since nothing touches the screen. No other `[touch-wd]` line |
 | **the control: S-TW, a planted image without the `OnPoll` call** | the heartbeat prints, with `probes=0/0` on every line. That proves the line separates "runs" from "never runs". The planted image is restored, and its boot read is taken, inside the same window (the window rule) |
 | touch behaviour | unchanged: the B1/B3 run (`run_b35t.py`) grades ALL AS PREDICTED on the clean image |
 
@@ -10984,7 +10984,7 @@ or the bus, not something to tune away.
 
 #### The TouchWatchdog board window (A12.84 approved as frozen)
 
-**The board:** 907069326E64, its port resolved by serial. The window is **2026-11-04 17:15Z to 19:45Z**.
+**The board:** 6E:64, its port resolved by serial. The window is **2026-11-04 17:15Z to 19:45Z**.
 
 **The images, both built on `weatherscope/touchwd` at `122dd5c18663`** (A12.84's change, rebased onto `05864ca`):
 
@@ -11073,7 +11073,7 @@ step at that row, and is reported before anything changes.
 
 **Main's CI on `05864ca28d64`** (#516's merge): **38 check runs, 36 success, 2 skipped (promote, version), 0 failed; 37 jobs on `ubuntu-24.04`, 1 on `ubuntu-26.04`. AS PREDICTED** (A12.87), read twice. Main's own 26.04 leg is green.
 
-**The window, on 907069326E64** (both images and every write as announced in A12.87; each write was hash-verified, app0 only):
+**The window, on 6E:64** (both images and every write as announced in A12.87; each write was hash-verified, app0 only):
 
 | row | predicted | measured |
 |---|---|---|
@@ -11251,7 +11251,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 
 **The hold** that began at 21:30Z is over, as ruled (~00:36Z): the UK data session's R3 has reported and nothing of it is still running.
 
-**W4's window: 907069326E64, 2026-11-05 00:50Z to 02:00Z.**
+**W4's window: 6E:64, 2026-11-05 00:50Z to 02:00Z.**
 - **The image:** the clean TouchWatchdog image already on the board since W2 (`39e258b5be07`). There is **no write and no rebuild,** as ruled.
 - **The tools:** main's, at `20a0323592e1`, so `screen_watch.py` is as #530 merged. Main's newer commits touch no board tool and no Weatherscope file.
 - **C:** 60 GB free at 00:35Z. W4 builds nothing.
@@ -11319,7 +11319,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 
 **The ruling (~02:45Z):** Q72 (a). W4 re-runs in full in a new announced window, and only the launch changes. The 00:50Z partial run is not graded. If this run is cut again: stop and report, retry nothing.
 
-**The window: 907069326E64, 2026-11-05 03:10Z to 04:30Z.**
+**The window: 6E:64, 2026-11-05 03:10Z to 04:30Z.**
 - **The image:** the clean image on the board since W2 (`39e258b5be07`). No write, no rebuild.
 - **The tools:** main's, at `30d7e55b47f1`. Main has moved since A12.94, but only in `include/variants/s3_128.h`, which the image on the board does not include, and in no board tool.
 - **C:** 72 GB free at 02:59Z.
@@ -11396,7 +11396,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 - **read back: `auto`.**
 - Booleans and the theme value only were printed, no location field. It is a config write, nothing more.
 
-**W4's window: 907069326E64, 2026-11-05 03:45Z to 05:00Z.**
+**W4's window: 6E:64, 2026-11-05 03:45Z to 05:00Z.**
 - **The image:** the clean image on the board since W2. No write, no rebuild.
 - **The tools:** main's at `30d7e55b47f1`, with no board tool changed since A12.96.
 - **The launch:** A12.96's. The bash wrapper goes through the Bash tool's background mode, every Python step under `python -u`, and each step's start and exit are timed.
@@ -11579,7 +11579,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 **So the TouchWatchdog step is closed:**
 - On the s3-128, Weatherscope runs the CST816 supervisor, which provides wedge detection, the recovery ladder and counters.
 - Its 10-minute `[health] touch-wd` line is the reader, with S-TW as its control and the board rows on record.
-- The bench board (907069326E64) runs the measured clean image, with stored theme `auto`.
+- The bench board (6E:64) runs the measured clean image, with stored theme `auto`.
 - **Still open, as ruled:** the radar's capped idle reboot for Weatherscope is its own later step. `RebootRecommended()` stays unacted on.
 
 ### A12.103 OTA identity tied to the board, not the scope: Stage 3's identity rows revised, frozen before any 3.4 code
@@ -11628,7 +11628,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 | **O4′**: the mislabel | refused on both sides | • **(i) the offering side, unchanged:** Weatherscope's image as `firmware-s3-128.bin`, with its manifest slug `s3-128`, is refused, both identities named, and nothing is uploaded.<br>• **(ii) now accepted:** `Accept`, from an `s3-128` device, of the real Weatherscope image's record is **true**.<br>• **(iii) now accepted:** the same the other way round.<br>• **(iv) new, the device side's remaining job:** the real `blipscope-s3-146` image offered to an `s3-128` device is **false**, and the `s3-128` image offered to an `s3-146` device is **false**. |
 | **O7′** (host): a refused image never touches flash | 5 refused inputs, the first a Weatherscope head offered to `s3-128` | • **The first refused input becomes the real `blipscope-s3-146` head offered to `s3-128` (`foreign`).** The other four are unchanged, so there are still 5.<br>• **A second CONTROL:** the real Weatherscope head offered to `s3-128` is **accepted**. The log is `begin, write…, end`, the boot history switches once, and the target equals the image. |
 | **O8′**: the two "check moved" sabotages | O7 red on all 5 | Unchanged: **red on all 5 refused inputs.**<br>**Both controls stay green** under both sabotages, because an accepted image makes the same calls whether the check runs before or after. |
-| **O9′** (bench, `907069326E64`) | refused: a Blipscope `s3-128` head | Under (a) that head would be accepted on an `s3-128` board. So **the refused input becomes the `blipscope-s3-146` head (`foreign`).** The control is unchanged. |
+| **O9′** (bench, `6E:64`) | refused: a Blipscope `s3-128` head | Under (a) that head would be accepted on an `s3-128` board. So **the refused input becomes the `blipscope-s3-146` head (`foreign`).** The control is unchanged. |
 | **O10′** (host): the downgrade consequence | every identity refuses the pre-check `s3-128` head as `no-record` | **Every one of the 15 refuses the pre-check heads of all three `s3-128` scopes:** `blipscope-s3-128`, `missileer-s3-128` and `weatherscope-s3-128`, each built at 3.4's base.<br>That is **45 refusals, all `no-record`, 0 `foreign`.** The record is parsed before the board is compared, so a pre-check head cannot even be refused as `foreign`.<br>No pre-check image has the record's magic at 0x120. |
 | **S-ID3,** O10′'s sabotage (new) | — | **A "transitional" leniency that accepts a missing record.**<br>• O10′ is red on **45 of 45**;<br>• O7′'s pre-check and wrong-magic inputs are red.<br>It is the change a later release is likeliest to want, which is why it gets a control. |
 | **O11:** A3.4's refused case | another edition's image for the same board, under B's name: `refused-foreign` | Under (a) that image is **accepted.** So the refused case becomes **another board's image** (`blipscope-s3-146`), built from R's candidate and served under B's name:<br>• `refused-foreign`;<br>• 0 screen lines;<br>• A is still running after a power cycle. |
@@ -11866,7 +11866,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
   - **the `blipscope-s3-146` head:** `refused-foreign`, both unchanged;
   - **CONTROL, its own head with the stream cut at 8 KB:** `fail-6` (the Updater's `writeStream` aborts with `UPDATE_ERROR_STREAM` after 300 empty reads), the slot hash **changed**, the boot label unchanged.
 - **The ELF grep:** the marker is in the bench ELF, and in none of the four product ELFs built here.
-- **Its window is announced before it starts,** on `907069326E64` only. It ends with the measured clean image (`39e258b5be07`) written back and its boot read, per the window rule.
+- **Its window is announced before it starts,** on `6E:64` only. It ends with the measured clean image (`39e258b5be07`) written back and its boot read, per the window rule.
 
 **Also in the PR:**
 - `RELEASING.md`'s planned-check note, rewritten to A12.103's consequences with (b);
@@ -12082,7 +12082,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
   - **the `blipscope-pro-s3-21` head (352 bytes):** `refused-foreign`, both unchanged, 0 screen lines;
   - **CONTROL, its own head with the stream cut at 8 KB (128 chunks):** `fail-6` about 30 s after the last chunk (writeRest's 300 empty reads), the slot hash **changed**, the boot label unchanged, a `progress 0` screen line. This is what proves on the bench that the control writes.
   - Host-side, every chunk sent was asked for, and the device asked for exactly as many as were sent, plus none after the budget.
-- **The window:** announced before it starts, on `907069326E64` only.
+- **The window:** announced before it starts, on `6E:64` only.
   - It writes the bench image built at the PR head (app0), reads its boot, and runs the three cases.
   - It ends with `39e258b5be07` written back and its boot read.
   - **If the CONTROL reads the RIG again: stop and report, and retry nothing.**
@@ -12117,7 +12117,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 | run.sh under WSL (g++ 13.3) | exit 2, the failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b". Both OTA blocks and both drivers green. **AS PREDICTED.** |
 | run.sh under MinGW (g++ 5.1) | **exit 0**, ALL HOST TESTS PASSED; the xtensa and Pillow blocks green here |
 
-**O9, the acknowledged send.** The window on `907069326E64`, 18:49 to 18:52:58Z:
+**O9, the acknowledged send.** The window on `6E:64`, 18:49 to 18:52:58Z:
 - **The bench image `bef9820e144d`,** built at `5d32f08532df`, was written to app0 and booted: `[ota-id] board=s3-128 scope=weatherscope- (record v1)`.
 - **The three cases:**
 
@@ -12640,7 +12640,7 @@ The selftest itself ran first, as frozen: 10 checks, 0 failures.
 2. when it may reboot: the radar's idle rule, and never mid-OTA, during a flash or NVS write, or while the user is touching;
 3. the "touch unavailable" screen, in the radar's wording, and how it clears;
 4. host tests and three sabotages;
-5. board rows on `907069326E64` with a planted wedge;
+5. board rows on `6E:64` with a planted wedge;
 6. CI from a qualifying baseline, and merges by the rule.
 
 No code is written until this is ruled.
@@ -12854,7 +12854,7 @@ Device ID: <id>
 
 **What these cannot see:** a removed `Tick`, `OnRealTouch` or `Draw` call inside `WeatherscopeManager`. The manager is not host-compiled. The board rows see those.
 
-#### 5. Board rows: window W-CR, on `907069326E64` only
+#### 5. Board rows: window W-CR, on `6E:64` only
 
 **The image:** `weatherscope-touchbench-s3-128`, a new env.
 - **What it is:** the product image plus `-DTOUCH_WEDGE_BENCH` and the radar bench's two overrides: idle 20 s, healthy reset 180 s. `HandleTouch` applies `Dead()` to the chip's read the way the radar applies it after `getTouch`, before the `P` override.
@@ -13136,14 +13136,14 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 
 **W-CR is announced:**
 - **When:** from **17:22Z**, to about **18:15Z**.
-- **Where:** `907069326E64` only, its port resolved by serial.
+- **Where:** `6E:64` only, its port resolved by serial.
 - **The images:** `weatherscope-touchbench-s3-128` (`10942a49ae98`) through `app-only-write.py`, then the clean `39e258b5be07` written back.
 - **The rows:** B0–B6 as frozen in A12.119, A12.121 and A12.122.
 - **When it ends:** only after the clean image's boot line reads `theme=auto`.
 
 ### A12.124 W-CR stopped at B0: the app0 read-back instrument failed three times. Nothing was written, and the window closed on the clean image. Q86
 
-**The window opened at 17:22:04Z, as announced, on `907069326E64` (COM6, resolved by serial; MAC `90:70:69:32:6e:64`). B0's first step is the read-back of app0's first 1,881,808 B, predicted `39e258b5be07`. It never produced a reading. esptool 5.3.0, over USB-Serial-JTAG:**
+**The window opened at 17:22:04Z, as announced, on `6E:64` (COM6, resolved by serial; MAC `6E:64`). B0's first step is the read-back of app0's first 1,881,808 B, predicted `39e258b5be07`. It never produced a reading. esptool 5.3.0, over USB-Serial-JTAG:**
 
 | try | method | result |
 |---|---|---|
@@ -13232,7 +13232,7 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 
 **W-CR is announced:**
 - **When:** 18:08Z to 18:40Z, ending before blipscope-5c's 18:45Z window. No overlap is planned.
-- **Where:** `907069326E64` only, its port resolved by serial.
+- **Where:** `6E:64` only, its port resolved by serial.
 - **The steps:**
   1. B0 (verify-flash ×2);
   2. the bench image (`10942a49ae98`) through `app-only-write.py`;
@@ -13246,7 +13246,7 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 
 ### A12.127 W-CR ran 18:08Z-18:26Z: every graded row AS PREDICTED; B4 and B4c unread (the RIG, my empty address); the board restored and verified. #571's CI rerun AS PREDICTED
 
-**The window:** `907069326E64` (COM6, resolved by serial), 18:08:01Z to 18:26:12Z, inside the announced 18:08Z-18:40Z and clear of blipscope-5c's 18:45Z window. Runner: `tools/weatherscope/board/touch_cap_bench.py`, through the Bash tool's background mode, with `python -u`, into new empty directories.
+**The window:** `6E:64` (COM6, resolved by serial), 18:08:01Z to 18:26:12Z, inside the announced 18:08Z-18:40Z and clear of blipscope-5c's 18:45Z window. Runner: `tools/weatherscope/board/touch_cap_bench.py`, through the Bash tool's background mode, with `python -u`, into new empty directories.
 
 | row | predicted | measured |
 |---|---|---|
@@ -13347,7 +13347,7 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **At `138c68d7ba3f`** (the runner proof; two files under `tools/weatherscope/board/`, which no check builds): **33 checks, 29 success, 4 skipped, 0 failed,** with the web job derived, not built here.
 - **Disclosed:** this prediction was written about two minutes after the push, but before any check could finish.
 
-**W-CR2 is announced: 19:15Z to 19:45Z, on `907069326E64` only.** Its purpose is to re-take B4c and B4.
+**W-CR2 is announced: 19:15Z to 19:45Z, on `6E:64` only.** Its purpose is to re-take B4c and B4.
 
 **The steps:**
 1. B0: `verify-flash` pass and control.
@@ -13368,16 +13368,16 @@ wedged && !touchWedge.unavailable && now - lastTouchActivityMs >= idle
 - **If B0's `verify-flash` pass case fails:** stop and report, and write nothing.
 
 **The overlap with blipscope-5c's rescheduled E2:08 window, recorded:**
-- W-CR2 touches only `907069326E64`, through the port resolved from its serial.
+- W-CR2 touches only `6E:64`, through the port resolved from its serial.
 - E2:08 is another board on another port, and no process or port is shared.
 - If the two windows overlap, this is the record of it.
 
 ### A12.129 W-CR2 (19:15Z-19:32:40Z): B4c and B4 re-taken and AS PREDICTED, every fetch read; every re-measured row as before. W-CR is complete
 
-**The window:** `907069326E64` (COM6, resolved by serial), 19:15:00Z to 19:32:40Z, inside the announced 19:15Z-19:45Z.
+**The window:** `6E:64` (COM6, resolved by serial), 19:15:00Z to 19:32:40Z, inside the announced 19:15Z-19:45Z.
 - **The runner:** `touch_cap_bench.py` `7659be50aefc`, re-hashed at the start, writing into a new empty directory.
 - **The address:** resolved only after TCP :80 answered following the bench flash (19:15:48Z), and checked as IPv4 before `chain` and again before `clear`.
-- **No overlap with E2:08 was observed from this side:** this window touched only `907069326E64`.
+- **No overlap with E2:08 was observed from this side:** this window touched only `6E:64`.
 
 | row | predicted | measured |
 |---|---|---|
@@ -13526,7 +13526,7 @@ The truth tables and sabotage sets are frozen in their own addendum before any c
   - the chord fits.
 - **The independent reference:** each screen's rules re-implemented in Python, in both themes, from the trimmed records, never from the device. The K rows grade the device's path pixel for pixel.
 - **The colour-literal scan** covers the new code. The D2 gate keeps NWS hostnames out of the image.
-- **On the board** (`907069326E64`):
+- **On the board** (`6E:64`):
   - every screen reached by serial gestures, both themes;
   - `/diag/fb` read three times per screen, by A12.122's rule (a failed fetch is the instrument);
   - the four images kept for Daniel.
