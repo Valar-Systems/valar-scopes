@@ -164,8 +164,9 @@ account (`docs/basemap-route.md`), and two things can move this answer: weather'
 **What can move the answer:**
 - **Weather's Europe line.** `docs/wx-opera-europe.md` projected $4.02 a month on today's build code, and Q-COST (b) is
   working that down. If weather lands near $2, this wave is what crosses it, so the two figures are read together.
-- **The fleet.** The allowance runs out at about **11,200 devices** on today's account. Today's fleet is not recorded
-  here; it is read from `scripts/reconcile-fleet.py` at ship.
+- **The fleet.** On the map alone, the allowance would run out at about 11,200 devices. **That is not the real limit:** with
+  weather on every board, `/wx` runs out the $2 at 50-84 boards (`docs/wx-cost.md`). 17 boards were active in the last 7 days
+  of that record; the count is read again from `scripts/reconcile-fleet.py` at ship.
 - **The builds.** The CPU range predates step 0 and the dense-area code. Three times that CPU would make the map $0.18 at
   600 devices, still under.
 
