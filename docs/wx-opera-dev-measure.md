@@ -161,6 +161,10 @@ the product's ratio x 1.6.
 | env | deployed | parked | ran | ended by |
 |---|---|---|---|---|
 | `opwe` | 02:53:40Z | 03:55:40Z | **62 min** (cap 100) | its 12th counted `stored`, 03:54:17Z |
+| `opsn` | 18:31:40Z | 19:30:42Z | **59 min** (cap 100) | its 12th counted `stored`, 19:29:17Z |
+| `opux` | 19:30:51Z | 20:30:40Z | **60 min** (cap 100) | its 12th counted `stored`, 20:29:17Z |
+| `opmt` | 20:30:49Z | 21:30:40Z | **60 min** (cap 100) | its 12th counted `stored`, 21:29:17Z |
+| `off` | 21:30:44Z | | | the cron removed; its stop is read at the deploy + 25 min |
 
 - **`idle`, the cron with nothing to do,** has run since about 02:42Z, and between products. It stays on until M's run, or
   until `off` in the first free window if M is pushed past today.
@@ -180,3 +184,31 @@ the product's ratio x 1.6.
   build, an estimated 106 MB against 128 MB, and that invocation ended `ok`.
 - **`opwe`'s median against the expectation:** 314.5 ms is 0.82 of the 385 ms expected, the first sign of how the model
   scales. M6 refits it on all four.
+
+**The rest of M** ran on the ~18:19Z go, which held the deploy slot until the end post. Start was announced at about 18:32Z.
+Each product was read once its run ended, with `tools/wx/m_read.py`: the counted builds are the `stored` builds after the
+last backfill, up to 12, all in 900 s pieces at **ABR [1]**.
+
+| row | got | verdict |
+|---|---|---|
+| **M1 `opsn`** | **median 405 ms** over its 12 counted builds (19:29:26Z the last), max 585 ms, all `r2` | **as predicted** (<= 531 ms; expected about 332) |
+| **M1 `opux`** | **median 364.5 ms**, max 610 ms, all `r2` | **as predicted** (<= 591 ms; expected about 370) |
+| **M2 `opmt`** | **median 95 ms**, max 137 ms, all `r2` | **as predicted** (<= 600 ms) |
+| **M3** (each whole run) | max **3,098 ms** (`opsn`), **3,187 ms** (`opux`), 389 ms (`opmt`): each the first invocation, `built` with a backfill | as predicted (<= 6,000 ms) |
+| **M4** (each whole run) | `opsn` 59, `opux` 59 and `opmt` 60 invocations, **all `ok`: 0 `exceededCpu`, 0 `exceededMemory`** | as predicted |
+| **M5** (printed) | each: `built` 1 (the first), then `r2`, and `cache` only on a backfill that followed a build in the same isolate | printed |
+
+- **`opsn`'s window cut one build:** the counted-window read gave n 11 at 409 ms, because one build's scheduled time
+  fell just before the window opened. The whole run's single builds are exactly the 12 counted ones (405 ms), and that
+  is the figure graded.
+- **`opsn` and `opux` each had one `lost-race`:** a build that lost the create-only put, at 361 and 219 ms. It is
+  harmless, and it is real CPU.
+- **`opsn` and `opmt` run past the raster's edge** (north 54 px and south 43 px): every build ended `ok`, so the stated
+  overrun works on live frames.
+- **`opux` logged 2 `wx_ingest_error` lines,** both an OPERA listing timing out after 3 attempts (19:40:45Z and
+  19:58:45Z). **Production shows the same:** 5 in that hour, and 6 in 12:00-13:00Z, when the dev Worker was parked doing
+  nothing. So the cause is OPERA's cache, not M. Across 03Z to 20Z, production `opuk` stored 12 frames in every full
+  hour. Its errors cluster: 0 in most hours, and 1-8 an hour from 11Z to 17Z and at 20Z, nearly all OPERA listing
+  timeouts. The one exception was 08:04:22Z, `Error: put: We encountered an internal error. Please try again. (10001)`,
+  R2's own internal error, on the frame or `latest` put (the map object was already in place). That hour still stored
+  12.
