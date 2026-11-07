@@ -118,3 +118,51 @@ at the push found main had moved under it:
   35 = 32/3.
 
 Merge by the rule.
+
+## 7. The measurement's record
+
+**The rulings on it, verbatim.**
+
+> For: the UK data session, from the reviewer chat, 2026-11-06 ~22:54Z
+>
+> #579: approved at c63a9290677f, to merge under Q-M1. A failed map put now costs the next cold isolate a rebuild rather than the frame; MF1-MF3 and MF1s read as predicted. Its main run will carry #445's new leg, so predict that run from 1ce7a73a's main run before you merge.
+>
+> #586: approved at a1a476ec424b, to merge under Q-M1. With no overrunPx, windowFor refuses and returns exactly what it did before, so production's opuk is unchanged. The dev rows live only in the dev entry, and allowAny belongs to the sabotage alone. The dev envs bill like production against Daniel's $2, so keep each one's run bounded and state how long it ran in the M stage's record.
+
+> For: the UK data session, from the reviewer chat, 2026-11-07 ~16:05Z
+>
+> #601 at e5e71f2f7f07 and #602 at bdbd49ff946a: approved once each one's CI double-reads 32 = 29/3/0. Merge under Q-M1.
+> docs/wx-opuk-pkd: yes, its own PR the same way.
+>
+> 1. M's window: after the map server's combined staging slot closes, which itself follows blipscope-5c's "#590 read back". Daniel passes on that close. M then holds the lock for its whole run, about 3 hours, ending on `off`, with start and end announced through Daniel. The dev Worker stays on idle until then; if M is pushed past today, park it on `off` in the first free window.
+> 2. M1: re-registered as you propose, before any M CPU is read. Upper bounds only, with no floor: opwe <= 616 ms, opsn <= 531 ms, opux <= 591 ms. M2-M6 stand. M1's old bands stay on record as the same miss as MD-5's.
+> 3. S2: answered in the map server's #603. Only your 02:53:38Z dev deploy landed inside the slot, and nothing S2 read can depend on it through a binding, code or data.
+
+**M1, as re-registered, before any M CPU was read.** Upper bounds only, with no floor: the Worker's `r2` median (261 ms) x
+the product's ratio x 1.6.
+
+| row | bound | expected |
+|---|---|---|
+| **M1 `opwe`** | median **<= 616 ms** | about 385 ms |
+| **M1 `opsn`** | median **<= 531 ms** | about 332 ms |
+| **M1 `opux`** | median **<= 591 ms** | about 370 ms |
+| **M2 `opmt`** | median **<= 600 ms** | as frozen |
+| **M3** | max, any build, **<= 6,000 ms** | as frozen |
+| **M4** | **0 `exceededCpu`, 0 `exceededMemory`** | as frozen |
+| **M5** | counts and medians by `map` | printed, as frozen |
+| **M6** | the projection, with the stop at $2 | as frozen |
+
+- **M1's old bands stay on record as the same miss as MD-5's:** `opwe` [1,487, 3,805], `opsn` [1,281, 3,280], `opux`
+  [1,427, 3,654]. They were scaled from `opuk`'s 1,612.5 ms, which included rebuilding the map.
+- **Reads are at ABR 1, by the ~18:22Z amendment.**
+
+**How long each dev env ran, as ruled ~22:54Z:**
+
+| env | deployed | parked | ran | ended by |
+|---|---|---|---|---|
+| `opwe` | 02:53:40Z | 03:55:40Z | **62 min** (cap 100) | its 12th counted `stored`, 03:54:17Z |
+
+- **`idle`, the cron with nothing to do,** has run since about 02:42Z, and between products. It stays on until M's run, or
+  until `off` in the first free window if M is pushed past today.
+- **The lock:** M's first deploys ran without it confirmed (the ~15:55Z ruling records that). The rest runs in the window
+  above, holds the lock for its whole run, and ends on `off`.
