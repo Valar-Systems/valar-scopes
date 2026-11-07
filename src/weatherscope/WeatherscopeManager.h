@@ -12,6 +12,7 @@
 #include "WxFeedFactory.h"
 #include "DayNight.h"
 #include "WxTheme.h"
+#include "TouchWedgeCap.h"
 
 // The screen layer's types, used here only through pointers: their headers (and the town table) are included by
 // WeatherscopeManager.cpp alone.
@@ -143,6 +144,13 @@ private:
     int zoomIdx = 0;
     uint32_t lastTouchMs = 0;
     longpress::State longPress;
+
+    // The touch-wedge reboot cap, the radar's (TouchWedgeCap.h, A12.119). Its idle clock is its
+    // own, stamped where the radar stamps lastTouchActivityMs: every touched sample, Initialise
+    // (boot and every save) and the bench gestures. Not lastTouchMs, which drives the zoom.
+    touchwedge::Cap touchCap;
+    bool touchCapBooted = false;
+    uint32_t lastTouchActivityMs = 0;
 
     // the loop
     int loopIndex = 0;

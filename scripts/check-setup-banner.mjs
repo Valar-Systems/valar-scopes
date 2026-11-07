@@ -12,7 +12,10 @@
 //   BEHAVIOUR bpSetupDone(), run against a small fake DOM, collapses step 1 (or removes the banner)
 //             AND clears the red outlines once a location is set -- and changes nothing while it
 //             is empty (the control).
-// No dependencies: the fake DOM is just enough for this function.
+//   REFUSED   a save the device refused (503, "the scope is restarting" -- SaveLock.h, A12.120) is
+//             SHOWN, never silent, and never ticks the checklist: bpSaveResult() and the location
+//             path's failure branch, run with the device's answer (JS1-JS5).
+// No dependencies: the fake DOM is just enough for these functions.
 //
 // RUN:  node scripts/check-setup-banner.mjs [--selftest]
 // EXIT: 0 ok   1 a check failed   2 blind (the script could not be found in the source)
@@ -52,7 +55,36 @@ export function extract(js) {
   const autoSave = js.slice(s0, s1);
   // The form-save path: the existing caller.
   const formSave = /if\(!w&&window\.bpSetupDone\)window\.bpSetupDone\(\);/.test(js);
-  return { def, autoSave, formSave };
+  // The device's answer to a save (A12.120): the named function the form-save path calls, and the
+  // location path's failure branch, from its status test to its return.
+  const r0 = js.indexOf("window.bpSaveResult=function(ok,t){");
+  if (r0 < 0) throw new Blind("window.bpSaveResult definition");
+  const saveResult = balanced(js, r0);
+  if (!saveResult) throw new Blind("the end of bpSaveResult");
+  const l0 = js.indexOf("var j=x[1];if(x[0]!==200");
+  const l1 = l0 < 0 ? -1 : js.indexOf("return}", l0);
+  if (l0 < 0 || l1 < 0) throw new Blind("the location path's failure branch");
+  const locFail = js.slice(l0, l1 + "return}".length);
+  return { def, autoSave, formSave, saveResult, locFail };
+}
+
+// The refusal as the device sends it (SaveLock.h's REFUSED_TEXT), here as data.
+const REFUSED = "NOT SAVED - the scope is restarting. Try again in a minute.";
+function runSaveResult(saveResult, ok, text) {
+  const st = { textContent: "", style: {} };
+  let ticks = 0;
+  const window = { bpSetupDone: () => { ticks++; } };
+  const document = { getElementById: (id) => (id === "result" ? st : null) };
+  // eslint-disable-next-line no-new-func
+  new Function("window", "document", saveResult + ";")(window, document);
+  window.bpSaveResult(ok, text);
+  return { st, ticks };
+}
+function runLocFail(locFail, status, body) {
+  const said = [];
+  // eslint-disable-next-line no-new-func
+  new Function("x", "bpLocFail", locFail)([status, body], (m) => said.push(m));
+  return said;
 }
 
 // ---- a fake DOM, only as much as bpSetupDone touches ---------------------------------------
@@ -91,7 +123,7 @@ function runDef(def, w) {
 
 export function check(cpp) {
   const js = pageScript(cpp);
-  const { def, autoSave, formSave } = extract(js);
+  const { def, autoSave, formSave, saveResult, locFail } = extract(js);
   const res = [];
   // The behaviour below evaluates ONE function. A slip anywhere else in a <script> block kills
   // the whole setup page, so every block must at least parse.
@@ -114,6 +146,19 @@ export function check(cpp) {
     const w = world({ lat: "44.1", lon: "-121.3", enrolled: "0" }); runDef(def, w);
     res.push(["location set + unverified: step 1 reads DONE", /^DONE - Set your location\./.test(w.step1.textContent)]);
     res.push(["location set + unverified: the boxes are no longer red", !red(w.la) && !red(w.lo)]);
+  }
+  { // a save refused because the scope is restarting (A12.120): shown, in red, and the checklist untouched
+    const refused = runSaveResult(saveResult, false, REFUSED);
+    res.push(["JS1: a refused /save shows exactly the device's sentence, in the failure colour",
+      refused.st.textContent === REFUSED && refused.st.style.color === "#ff4d4d"]);
+    res.push(["JS2: a refused /save does not tick the checklist", refused.ticks === 0]);
+    const clean = runSaveResult(saveResult, true, "Saved.");
+    res.push(["JS3: CONTROL: a clean save ticks it once, not in the failure colour", clean.ticks === 1 && clean.st.style.color === ""]);
+    const loc = runLocFail(locFail, 503, { ok: false, error: REFUSED });
+    res.push(["JS4: a refused /location shows exactly the device's sentence", loc.length === 1 && loc[0] === REFUSED]);
+    const old = runLocFail(locFail, 400, { ok: false });
+    res.push(["JS5: CONTROL: a /location failure without a reason keeps the old sentence",
+      old.length === 1 && old[0] === "The device did not save that location, so nothing changed."]);
   }
   return res;
 }
@@ -139,6 +184,9 @@ if (process.argv.includes("--selftest")) {
     ["the outline clearing removed from bpSetupDone", cpp.replace(/\[la,lo\]\.forEach\(function\(i\)\{i\.style\.outline='';i\.style\.background=''\}\);/, ""), 1],
     ["a syntax error in the auto-save path", cpp.replace(/window\.bpSetupDone\(\);bpFb/, "window.bpSetupDone(;bpFb"), 1],
     ["BLIND: bpSetupDone renamed away", cpp.replace(/window\.bpSetupDone=function/, "window.bpSetupDoneX=function"), 2],
+    ["the refused save's text dropped", cpp.replace("st.textContent=t;var w=!ok", "st.textContent='';var w=!ok"), 1],
+    ["a refused save ticks the checklist", cpp.replace("var w=!ok||/MISSING/", "var w=/MISSING/"), 1],
+    ["the location's error text dropped", cpp.replace("bpLocFail(j&&j.error?String(j.error):'The device", "bpLocFail('The device"), 1],
   ];
   let rc = 0;
   for (const [name, src, want] of plants) {

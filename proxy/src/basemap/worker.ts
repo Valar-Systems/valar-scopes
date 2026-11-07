@@ -3,7 +3,8 @@
 // binding, and answers the package or a JSON error. It does no auth, no rate limiting and no caching (the proxy's), and
 // it logs nothing about the request: the query holds the origin. Its one line per build (BB1-BB3,
 // docs/basemap-build-reads.md) is about the build's store reads, in counts and milliseconds only.
-import { type BuildQuery, type StoreReader, build } from "./build";
+import { type BuildQuery, type BuildResult, type StoreReader, build } from "./build";
+import { CAP_BYTES } from "./budget";
 
 // The commit this bundle was built from, stamped at deploy by `deploy.sh --builder` with --define, exactly as the proxy
 // is stamped (docs/basemap-deploy.md, Q2 as ruled). It travels inside the bundle it describes, so no dashboard var can
@@ -45,6 +46,23 @@ function asQuery(v: unknown): BuildQuery | null {
   return { lat0Micro: q.lat0Micro!, lon0Micro: q.lon0Micro!, rKm: q.rKm!, epsMm: q.epsMm!, mask: q.mask!, levels: q.levels!.map((l) => ({ radiusMm: l.radiusMm, n: l.n })) };
 }
 
+/**
+ * The builder's one line per build, whatever its outcome (BB1-BB4, BL1): integers only, nothing from the query. A built
+ * package or a too_large also says what the budget ladder measured (step 0, docs/basemap-dense.md): the rung that
+ * fitted, the cap, on a 422 the non-terrain bytes at each rung's full step, and the bytes each layer adds.
+ */
+export function buildLine(r: BuildResult, stat: ReadStat, wallMs: number): Record<string, string | number> {
+  const line: Record<string, string | number> = { evt: "bm_build", status: r.ok ? 200 : r.status, ...stat, wallMs };
+  const ladder = r.ok ? r.ladder : r.status === 422 ? r.ladder : null;
+  if (!ladder) return line;
+  line.rung = ladder.rung;
+  line.cap = CAP_BYTES;
+  if (ladder.nt.length === 4) [line.nt0, line.nt1, line.nt2, line.nt3] = ladder.nt as [number, number, number, number];
+  const b = ladder.sections;
+  Object.assign(line, { secWater: b.water, secRivers: b.rivers, secRoads: b.roads, secPeaks: b.peaks, secPlaces: b.places, secProv: b.provenance });
+  return line;
+}
+
 /** The builder's fetch handler for one stamped commit. The default export is the deployed bundle's own (MW18). */
 export function makeBuilder(commit: string) {
   return {
@@ -56,8 +74,7 @@ export function makeBuilder(commit: string) {
       if (!q) return json(400, { error: "bad_query" });
       const t0 = Date.now(), stat: ReadStat = { reads: 0, bytes: 0, readMs: 0, maxReadMs: 0 };
       const r = await build(r2Reader(env.STORE, stat), q, { commit });
-      // One line per build, whatever its outcome: integers only, nothing from the query (BB1-BB3)
-      console.log(JSON.stringify({ evt: "bm_build", status: r.ok ? 200 : r.status, ...stat, wallMs: Date.now() - t0 }));
+      console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0)));
       if (!r.ok) return json(r.status, { error: r.code });
       // x-basemap-commit: the proxy's /healthz reports it (Q4), so D3 can prove which builder is bound
       return new Response(r.bytes, { status: 200, headers: { "content-type": "application/octet-stream", "x-basemap-store": r.storeId, "x-basemap-commit": commit } });

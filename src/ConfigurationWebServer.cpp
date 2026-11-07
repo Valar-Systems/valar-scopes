@@ -14,6 +14,7 @@
 #include <memory>             // shared_ptr: keeps the chunked logbook stream alive across fills
 #include "DeviceIdentity.h"
 #include "OtaUpdater.h"
+#include "SaveLock.h"         // a save and a touch-wedge reboot never overlap; a refused save says so
 #include "BuildIdentity.h"
 #include "CoordParse.h"       // forgiving lat/lon parsing for /save (see the header)
 #ifdef FEATURE_CLOUD_FEED
@@ -163,6 +164,16 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
 // the rest of the script.
 #define CONFIG_SHELL_JS \
     R"(<script>)" \
+    /* The device's answer to a save, shown as it said it. A failure is anything the \
+       device did not accept: a status that is not OK -- a save refused because the \
+       scope is restarting (503, SaveLock.h; A12.120) -- or a reply naming MISSING. \
+       Only a CLEAN save ticks the checklist: ticking off a step the device did not \
+       accept would be the checklist lying in the other direction. Null-guarded \
+       because this script is shared by every edition and only the radar page \
+       defines bpSetupDone. Named, so scripts/check-setup-banner.mjs runs it. */ \
+    R"(window.bpSaveResult=function(ok,t){var st=document.getElementById('result');)" \
+    R"(st.textContent=t;var w=!ok||/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
+    R"(if(!w&&window.bpSetupDone)window.bpSetupDone();};)" \
     R"(document.getElementById('cfg').addEventListener('submit',function(e){e.preventDefault();var st=document.getElementById('result');)" \
     R"(var la=document.querySelector('input[name=latitude]'),lo=document.querySelector('input[name=longitude]'),miss=[],junk=[];)" \
     R"([la,lo].forEach(function(i){if(!i)return;var raw=String(i.value).trim(),empty=!raw,bad=!!raw&&!isFinite(bpOne(raw,i===la));)" \
@@ -181,13 +192,8 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
    DOM, so it cannot drift from the form. See include/ConfigVocabulary.h. */ \
     R"(var fd=new FormData(this);)" \
     R"(fd.append('cfg-toggles',Array.prototype.map.call(this.querySelectorAll('input[type=checkbox]'),function(c){return c.name}).join(','));)" \
-    R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){return r.text()}).then(function(t){)" \
-    R"(st.textContent=t;var w=/MISSING/.test(t);st.style.color=w?'#ff4d4d':'';st.style.fontWeight=w?'bold':'';)" \
-    /* Only on a CLEAN save. A response containing MISSING means the device \
-       rejected something, and ticking off a step the device did not accept would \
-       be the checklist lying in the other direction. Null-guarded because this \
-       script is shared by every edition and only the radar page defines it. */ \
-    R"(if(!w&&window.bpSetupDone)window.bpSetupDone();)" \
+    R"(fetch(this.action,{method:'POST',headers:{'X-Blipscope':'1'},body:fd}).then(function(r){return r.text().then(function(t){return [r.ok,t]})}).then(function(x){)" \
+    R"(window.bpSaveResult(x[0],x[1]);)" \
     R"(if(miss.length){miss[0].scrollIntoView({block:'center'});miss[0].focus()}}).catch(function(){st.textContent='save failed - device unreachable'})});)" \
     R"(document.getElementById('resetwifi').addEventListener('click',function(){if(!confirm('Forget WiFi credentials and restart into setup mode? You will need to reconnect the device to a network.'))return;fetch('/reset-wifi',{method:'POST',headers:{'X-Blipscope':'1'}}).then(function(r){return r.text()}).then(function(t){document.getElementById('result').textContent=t})});)" \
     /* Factory reset. EVERY LOOKUP IS NULL-GUARDED: this script is shared by every \
@@ -300,7 +306,9 @@ static const size_t SPACE_SCREEN_DEF_COUNT = sizeof(SPACE_SCREEN_DEFS) / sizeof(
     R"(bpSay('Saving your location...',true);)" \
     R"(fetch('/location',{method:'POST',headers:{'X-Blipscope':'1','Content-Type':'application/x-www-form-urlencoded'},)" \
     R"(body:'lat='+encodeURIComponent(bpF(la))+'&lon='+encodeURIComponent(bpF(lo))}).then(function(r){return r.json().then(function(j){return [r.status,j]})}).then(function(x){)" \
-    R"(var j=x[1];if(x[0]!==200||!j||!j.ok){bpLocFail('The device did not save that location, so nothing changed.');return})" \
+    /* The device's own reason when it gives one -- a save refused because the scope \
+       is restarting (503, SaveLock.h; A12.120) -- and the old sentence otherwise. */ \
+    R"(var j=x[1];if(x[0]!==200||!j||!j.ok){bpLocFail(j&&j.error?String(j.error):'The device did not save that location, so nothing changed.');return})" \
     /* The SAME re-check the Save button runs (#383). Without it this path saved \
        the location and left the checklist saying "1. Set your location" until \
        the owner pressed Save too. Only after the device answered ok, the same \
@@ -2504,6 +2512,11 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                 </div>
                 <span class="hint">Required. The radar is centred on this point, and the night auto-dim uses it too. Tip: paste into either box and both fill in &mdash; &ldquo;44.058, -121.315&rdquo;, &ldquo;44.058&deg;N 121.315&deg;W&rdquo; and &ldquo;44&deg; 3&rsquo; 29&Prime; N&rdquo; all work. West and south can be a minus sign <em>or</em> a letter &mdash; &ldquo;-121.315&rdquo; and &ldquo;121.315 W&rdquo; are the same place.</span>
 
+                <label class="field">
+                    <span>Device ID:</span>
+                    <input type="text" readonly value='%DEVICE_ID%' class="grow" onclick='this.select()'>
+                </label>
+
                 <fieldset>
                     <legend>Display</legend>
                     <div class="field">
@@ -3561,6 +3574,9 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "THEME_LIGHT")    return theme == "light" ? "selected" : "";
                 if (var == "THEME_DARK")     return theme == "dark" ? "selected" : "";
                 if (var == "THEME_AUTO")     return theme != "light" && theme != "dark" ? "selected" : "";
+                // The id the touch-unavailable strip names (A12.119, Q84): the same string, so a customer
+                // can match the two. A free function, like BUILD_ID below -- no capture list change.
+                if (var == "DEVICE_ID")      return DeviceIdentity::LeaderboardId();
                 if (var == "FW_VERSION")     return String(FW_VERSION);
                 // Free function, so no capture list changes -- every edition's
                 // processor answers this identically. See BuildIdentity.h.
@@ -3592,6 +3608,10 @@ void ConfigurationWebServer::Initialise() {
     // echoes what was STORED, so the page shows exactly that.
     server.on("/location", HTTP_POST, [&](AsyncWebServerRequest* request) {
         if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
+        // Held across the writes, so a touch-wedge reboot never lands between the two coordinates;
+        // once a reboot holds it, refused out loud (503, SaveLock.h; A12.119, A12.120).
+        savelock::SaveScope<AsyncWebServerRequest> save(request, savelock::Shape::Json);
+        if (!save.Admitted()) return;
         const auto* pLat = request->getParam("lat", true);
         const auto* pLon = request->getParam("lon", true);
         double la = 0.0, lo = 0.0;
@@ -3619,6 +3639,10 @@ void ConfigurationWebServer::Initialise() {
 
     server.on("/save", HTTP_POST, [&](AsyncWebServerRequest* request) {
         if (RejectCrossOrigin(request)) return; // CSRF guard (see RejectCrossOrigin)
+        // Held across every write below, so a touch-wedge reboot never tears the form; once a
+        // reboot holds it, refused out loud (503 and a sentence the page shows; SaveLock.h, A12.120).
+        savelock::SaveScope<AsyncWebServerRequest> save(request, savelock::Shape::Text);
+        if (!save.Admitted()) return;
         Serial.println("[POST] Handling form submission to config web server...");
 
         Preferences prefs;
@@ -4167,6 +4191,9 @@ void ConfigurationWebServer::Initialise() {
      * -------------------------------------------------------------------- */
     server.on("/enroll-key", HTTP_POST, [&](AsyncWebServerRequest* request) {
         if (RejectCrossOrigin(request)) return;
+        // The same save gate as /save and /location (SaveLock.h, A12.119): never torn by a touch reboot.
+        savelock::SaveScope<AsyncWebServerRequest> save(request, savelock::Shape::Text);
+        if (!save.Admitted()) return;
 
         const auto* keyParam = request->getParam("key", true);
         const auto* idParam  = request->getParam("id", true);

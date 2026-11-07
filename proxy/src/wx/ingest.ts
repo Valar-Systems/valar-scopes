@@ -24,7 +24,8 @@ export type Fetch = (input: string, init?: { signal?: AbortSignal; headers?: Rec
 
 /** Test-only switches: K10's (as re-registered for PK1) and K14's sabotages. Production passes none. */
 export interface IngestX { pruneAlways?: boolean; pruneBy?: "list"; uaOff?: "list" | "head" | "tiles";
-                           mapR2?: "off"; mapNoCheck?: boolean }   // the last two: MP1s and MP3s
+                           mapR2?: "off"; mapNoCheck?: boolean;    // MP1s and MP3s
+                           mapPutNoCatch?: boolean }               // MF1s (docs/wx-opera-map-put.md)
 
 /** One NOAA request's attempt policy (docs/wx-ingest-noaa-blips.md). NOAA's S3 is reached through Cloudflare, and
  *  on 2026-10-23 it answered 520/522/525 or hung for 24-288 s on about a quarter of the runs. */
@@ -167,7 +168,7 @@ export type MapSource = "cache" | "r2" | "built";
  *  and grid in hand AND its metadata holds this exact key; a refused one is rebuilt and overwritten. */
 export async function mapVia(bucket: R2Bucket | undefined, p: Product, geo: Parameters<typeof mapKey>[0],
                              win: [number, number, number, number], g: GridGeom, x: IngestX = {}):
-                             Promise<{ m: ResampleMap; src: MapSource; refused: boolean }> {
+                             Promise<{ m: ResampleMap; src: MapSource; refused: boolean; putErr?: string }> {
   const key = mapKey(geo, win, g);
   const hit = cachedMap(key);
   if (hit) return { m: hit, src: "cache", refused: false };
@@ -191,12 +192,21 @@ export async function mapVia(bucket: R2Bucket | undefined, p: Product, geo: Para
   if (useR2) {
     // create-only, unless a refused object sits under the key: then it is replaced
     const onlyIf = refused ? {} : { onlyIf: new Headers({ "If-None-Match": "*" }) };
-    await bucket.put(objKey, encodeMap(m), { customMetadata: { key }, ...onlyIf });
+    // a failed put costs the next cold isolate a rebuild, never this frame (docs/wx-opera-map-put.md); a put that
+    // returns null lost a create-only race and is not an error
+    try {
+      await bucket.put(objKey, encodeMap(m), { customMetadata: { key }, ...onlyIf });
+    } catch (err) {
+      if (x.mapPutNoCatch) throw err;
+      return { m, src: "built", refused, putErr: String(err) };
+    }
   }
   return { m, src: "built", refused };
 }
 
-export interface OperaBuild { fb: FrameBuilder; covered: number; map: MapSource; mapRefused: boolean }
+export interface OperaBuild {
+  fb: FrameBuilder; covered: number; map: MapSource; mapRefused: boolean; mapPutErr?: string;
+}
 
 export async function buildOperaFrame(p: Product, key: string, epoch: number, doFetch: Fetch, opts: IngestOpts,
                                       attempts: { get: number }, x: IngestX = {}, bucket?: R2Bucket): Promise<OperaBuild> {
@@ -212,12 +222,13 @@ export async function buildOperaFrame(p: Product, key: string, epoch: number, do
     return got.value;
   };
   const g = p.grid!;
-  const w = await readWindow(fetchRange, g);
+  const w = await readWindow(fetchRange, g, 0, { overrunPx: p.overrunPx });
   const mv = await mapVia(bucket, p, w.geo, w.window, g, x);
   const { codes, covered } = resample(w.value, w.quality, mv.m, g);
   const fb = new FrameBuilder(frameMeta(p.id, epoch, g));
   for (let r = 0; r < g.nj; r++) fb.setRow(r, codes.subarray(r * g.ni, (r + 1) * g.ni));
-  return { fb, covered, map: mv.src, mapRefused: mv.refused };
+  return { fb, covered, map: mv.src, mapRefused: mv.refused,
+           ...(mv.putErr !== undefined ? { mapPutErr: mv.putErr } : {}) };
 }
 
 export type LatestOutcome = "advanced" | "created" | "kept-newer" | "conflict";
@@ -245,6 +256,7 @@ export interface IngestResult {
   key?: string; epoch?: number; latest?: LatestOutcome; pruned?: number; bytes?: number; coveredShare?: number;
   pruneKeys?: number;            // OPERA: the keys a prune by key SENT (R2's delete does not say which existed)
   map?: MapSource; mapRefused?: boolean;   // OPERA, stage 1c: where the resample map came from
+  mapPutErrors?: number; mapPutErr?: string;   // a map put that threw; the frame is kept (free text, cut at 80)
   attempts?: { list: number; get: number };
 }
 
@@ -279,6 +291,7 @@ export async function ingestOnce(bucket: R2Bucket, p: Product, nowMs: number, do
       const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket);
       out.map = b.map;
       if (b.mapRefused) out.mapRefused = true;
+      if (b.mapPutErr !== undefined) { out.mapPutErrors = 1; out.mapPutErr = b.mapPutErr.slice(0, 80); }
       bytes = b.fb.bytes;
       customMetadata = { coveredShare: String(b.covered) };   // K9: carried into `latest` by whichever check moves it
       out.coveredShare = b.covered;

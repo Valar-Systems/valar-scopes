@@ -8,7 +8,7 @@
 //        The opuk Worker's bundle (wx-ingest-opuk.wrangler.toml) holds it 0 times too, with the same anchor.
 //   FB2  the opuk Worker's 2 deploy targets (top level, inert) bind exactly one R2 bucket, WX -> blipscope-wx, with
 //        WX_INGEST "on" and "off" (docs/wx-opuk-split.md).
-//   PB2  each of the dev config's 7 deploy targets (top level + 6 envs) binds exactly one R2 bucket, WX ->
+//   PB2  each of the dev config's 11 deploy targets (top level + 10 envs) binds exactly one R2 bucket, WX ->
 //        blipscope-wx-dev, with MODE as the toml's table says. Control: production's dry-run reads WX -> blipscope-wx
 //        (else the parse is BLIND).
 //
@@ -30,7 +30,8 @@ const OPUK_TOML = "wx-ingest-opuk.wrangler.toml";
 const OPUK_TARGETS = [[null, "on"], ["inert", "off"]];
 const DEV_ENTRY = "src/wx/ingest-dev-worker.ts";
 const ANCHOR = "wx_ingest_error";
-const DEV_TARGETS = [[null, "off"], ["off", "off"], ["idle", "off"], ["plantcal", "plant"], ["plant", "plant"], ["cref", "cref"], ["opuk", "opuk"]];
+const DEV_TARGETS = [[null, "off"], ["off", "off"], ["idle", "off"], ["plantcal", "plant"], ["plant", "plant"], ["cref", "cref"], ["opuk", "opuk"],
+                     ["opwe", "opwe"], ["opsn", "opsn"], ["opux", "opux"], ["opmt", "opmt"]];
 
 // The marker is read from the dev entry itself (the other side of the contract), never retyped here.
 const markerMatch = /export const PLANT_MARKER = "([^"]+)";/.exec(readFileSync(join(PROXY, DEV_ENTRY), "utf8"));

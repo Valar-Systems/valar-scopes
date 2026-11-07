@@ -5289,6 +5289,46 @@ reported, at n = 6.
 
 **Outside the set:** stop and report.
 
+### Daniel's bench window, results (2026-11-06; E2:08; recorded after the ruling of ~21:25Z)
+
+**Window 1 (19:45Z): stopped at RC1, before any look was shown.** The crop tool refused correctly: `wt-mainenc` was at
+`048ed7be9466`, and main had taken #556 and #573 in `proxy/src/wx/` (ingest files only; the guard reads the whole
+directory). A dirty checkout is excluded: `git status` there was clean. **My miss:** the pre-window checks never re-ran
+the crop tool against current main. E2:08 had been flashed before the refusal and was restored to the shipping build,
+verified, by 19:49:58Z. Its settings never moved, since RC1 ran before the Cloud URL was set. RS3 did not apply, as no
+proxy started; a substitute scan with a planted control found no address in the session's 6 files.
+
+**The fix (ruled ~19:55Z).** `wt-mainenc` onto `origin/main`; the crop tool run alone first (exit 0, crop `58903e952374`,
+byte-identical to the earlier runs, encoder `36d0b65`); RC1 moved ahead of the flash; and the restore gated on a bench
+flash having been attempted, so a refused check costs the board no flash at all. Rehearsed after window 2, when main
+moved again and RC1 refused naturally: exit 1, "SHIP skipped", no flash, no contact with the board. **Before any later
+window, `wt-mainenc` goes back onto main; RC1 refuses until it is.**
+
+**Window 2 (19:58Z, 45 min; session `T1958Z`).** The re-stated predictions all read as predicted: RC1 before V1; the crop
+and encoder above; driver `07c283e1463c`. Look A ran 20:02:31-20:12:37Z.
+
+| | predicted | read | verdict |
+|---|---|---|---|
+| **V1-V3** | the flash and labels; the start state; crop, parser, first `[wx]` replaced, one rebuild | so | as predicted |
+| **V4** | the edge drawn | A 6.12 ms/frame | as predicted |
+| **V4b** | 0.16-0.19 ms a plane | **A 0.149 ms** at median n 41 | **OFF** |
+| **V5** | reported | (A - off) p95 +13.6 ms raw, +7.5 ms net of the edge | reported |
+| **V6** | no budget broken | A **0 of 20** | as predicted |
+| **V7-V9** | end state, quiet after the clear; the scan; the shipping restore | 301 s quiet, proxy counts unchanged; 63 files, key seen, nothing found; banner shipping, `[wx-bench]` absent | as predicted |
+
+**V4b stays on record as a miss** (ruling ~21:25Z): the band assumed a constant per-plane cost, and the cost has a fixed
+term (0.195 at n = 6 on 10-31). The timer is sound, the edge is drawn, Daniel judged it on the glass, and the fit holds
+where it matters: 0 frames over budget. **The edge ships.**
+
+**B and layer-off are not graded, by Daniel's call.** He asked to see look A again, and it was set by hand at 20:15:04Z,
+mid arm B, so B's later frames and the off arm ran with look A set. The switch is recorded in the session.
+
+**Daniel's calls, on look A:** the lit sweep on the new colours looks right; keep the edge on the planes; he prefers look
+A to look B. Drizzle hidden was already ruled.
+
+**E2:08 afterwards:** shipping build, its normal cloud feed, verified at 20:40:42Z. Production's record shows its requests
+in the 5 minutes after the clear: blips 71 (weighted), enrich 3, config 1, airports 1.
+
 ### The ruling (~18:26Z): (a). Results (2026-11-06, 18:28-18:35Z, local; then pushed)
 
 **The misses stay on record:** mine (`run.sh` not re-run after P2) and the reviewer's (the ~18:00Z block named four

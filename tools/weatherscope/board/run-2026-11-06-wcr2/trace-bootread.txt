@@ -1,0 +1,31 @@
+# trace-bootread.txt, redacted (publish_wcr.py): timestamps relative to the first line; LAN IP and BSSID masked; 2 theme/phase line(s) removed (counts only, never times).
+t+   0.000 
+t+   0.000 [build] env=weatherscope-s3-128 fw=v18 features=no-cloud+weatherscope
+t+   0.001 [build] confirm this matches the image you intended BEFORE diagnosing any symptom
+t+   0.001 [ota-slot] boot running=app0 @0x020000 state=UNDEFINED next=app1 fw=18
+t+   0.001 [boot] reset reason=USB
+t+   0.001 [netwd] armed: trigger >=10 consecutive transport failures AND >=300s; ladder:
+t+   0.001 [netwd]   1 reconnect     2 radio-reset   3 reboot        then backoff every 1800s
+t+   0.001 [netwd]   stage grace 90s; the reboot rung shares the OTA 24 h cap and BACKS OFF when refused
+t+   0.001 [quiet] armed: reboot at local 03:00, tz-offset=unset (-21600 s) -- local hour now 13
+t+   0.001 [tls-alloc] PSRAM routing INSTALLED rc=0 threshold=4096 B (psram_free=8386096 internal_largest=241652)
+t+   0.214 [   304][E][Preferences.cpp:47] begin(): nvs_open failed: NOT_FOUND
+t+   0.214 [bright] first-light/default -> 255
+t+   0.214 [disp] tft.init=1 240x240  backbuffer ok; psram_free=8267852 heap_free=292552
+t+   0.214 *wm:v2.0.17  D:2
+t+   0.214 [WiFi] credentials saved: portal times out after 180 s and retries them (0 consecutive failures)
+t+   0.214 [WiFi] STA started; hostname=Weatherscope-326E64, TX 19.5dBm
+t+   3.319 [wifi-reset] boot touch window: driver=1 polls=146 touched=0
+t+   3.319 [WiFi] fast join: ch=1 bssid=<redacted>
+t+   6.256 [WiFi] Associated with "<ssid>", waiting for IP...
+t+   7.314 [WiFi] CONNECTED  IP=<lan-ip redacted>  RSSI=-45 dBm
+t+   7.314 [WiFi] fast join OK in 3950 ms
+t+   7.314 [WiFi] pinned AP ch=1 RSSI=-45 dBm for the next boot
+t+  15.468 [ota] channel=weatherscope-s3-128 current=18 latest=18
+t+  15.468 [web] config server listening on :80 (httWeatherscope-326E64.local)
+t+  15.468 [wx] feeds: crop 4033 B Ok 174x208 frame=1716328842 | history 15 frames 44744 B | clear 36 B | obs valid=1 t=1792619700 present=0 | alerts=1 first=Tornado Warning
+t+  15.468 [wx] psram_used=227168 sprite=1 grid=44640 in=472 out=688 layer=59504 history=15 clear=36 ready=1
+t+  15.468 [wx] bend history=15 frames=30885 clear=36 package=205093 ok=1 status=0 crc=bb18d99a sections=9 max_vertices=141
+t+  15.468 [wx] psram_base=72972 image=58356 state=9972 scratch=4596 ok=1
+t+  15.683 [wx] pick approaching=212400 dry=220000 psram_used=227168
+t+  15.684 [heap] handshake ballast reserved (16717 B); free8=196132

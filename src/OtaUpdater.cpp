@@ -198,12 +198,20 @@ struct StreamSource {
 // an image and false once the 352-byte head has been read. The loop keeps
 // writeStream's patience exactly -- 300 empty reads 100 ms apart, then
 // UPDATE_ERROR_STREAM -- so a stalled download still records fail-6.
+//
+// While one exists past begin(), ota::FlashWriteActive() says so, and the touch-wedge reboot
+// waits (TouchWedgeCap.h; A12.119). Today the two cannot overlap -- this runs on the loop task,
+// in setup() or the bench's OtaBenchRun -- so the flag asserts that rather than assuming it.
+volatile bool flashWriting = false;
+
 class UpdateFlash {
 public:
     UpdateFlash(LGFX& tft, LGFX_Sprite& fb, const String& md5) : tft_(tft), fb_(fb), md5_(md5) {}
+    ~UpdateFlash() { flashWriting = false; }   // every exit: done, refused, failed
 
     bool begin(size_t total)
     {
+        flashWriting = true;
         if (!Update.begin(total, U_FLASH)) {
             err_ = Update.getError();
             return false;
@@ -329,6 +337,8 @@ Download OpenAndInstall(WiFiClientSecure& client, const String& url, const ota::
 }
 
 } // namespace
+
+bool ota::FlashWriteActive() { return flashWriting; }
 
 #ifdef WX_OTA_BENCH
 // O9's bench source (docs/weatherscope-stage3.md A1.3, A12.104): ota::Install with the

@@ -848,6 +848,77 @@ describe("Stage 1c: the resample map from R2", () => {
   }, SLOW);
 });
 
+// ---- docs/wx-opera-map-put.md: a failed map put keeps the frame, MF1-MF3 --------------------------------------------
+
+describe("A failed map put keeps the frame", () => {
+  const T = (epochOf(DRY) + 300) * 1000;
+  const mapsPrefix = `wx/${opuk.id}/map/`;
+  const wipe = async (prefix: string) => {
+    const l = await env.WX!.list({ prefix });
+    if (l.objects.length) await env.WX!.delete(l.objects.map((o) => o.key));
+  };
+  // a bucket that differs from env.WX only for the map keys
+  const bent = (op: "put" | "get", f: () => Promise<unknown>) => new Proxy(env.WX!, {
+    get(t, prop) {
+      const v = Reflect.get(t, prop);
+      if (prop === op) {
+        return (k: string, ...a: unknown[]) => k.startsWith(mapsPrefix) ? f() : (v as (...x: unknown[]) => unknown).apply(t, [k, ...a]);
+      }
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  }) as R2Bucket;
+  const throwingPut = () => bent("put", () => Promise.reject(new Error("R2 put refused (MF1's plant)")));
+  const missingGet = () => bent("get", () => Promise.resolve(null));
+  const store = async (bucket: R2Bucket, x: IngestX = {}) => {
+    await wipe(framesPrefix(opuk));
+    await env.WX!.delete(latestKey(opuk));
+    const r = await ingestOnce(bucket, opuk, T, operaFetch(DRY), undefined, x);
+    const o = r.epoch === undefined ? null : await env.WX!.get(frameKey(opuk, r.epoch));
+    return { r, bytes: o ? new Uint8Array(await o.arrayBuffer()) : null };
+  };
+  const maps = async () => (await env.WX!.list({ prefix: mapsPrefix })).objects;
+  const same = (a: Uint8Array | null, b: Uint8Array | null) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+
+  it("MF1: the map put throws -- stored, the same frame, mapPutErrors 1, no map object; MF2: the control", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    const ok = await store(env.WX!);                         // MF2: the put works
+    const okMaps = (await maps()).length;
+    clearMapCache(); await wipe(mapsPrefix);
+    const bad = await store(throwingPut());
+    console.log(`MF2: ${ok.r.status} ${ok.r.map}, mapPutErrors ${ok.r.mapPutErrors}, maps ${okMaps}; ` +
+                `MF1: ${bad.r.status} ${bad.r.map}, mapPutErrors ${bad.r.mapPutErrors}, err "${bad.r.mapPutErr}", ` +
+                `same frame ${same(ok.bytes, bad.bytes)}, maps ${(await maps()).length}`);
+    expect([ok.r.status, ok.r.map, ok.r.mapPutErrors, okMaps]).toEqual(["stored", "built", undefined, 1]);
+    expect([bad.r.status, bad.r.map, bad.r.mapPutErrors]).toEqual(["stored", "built", 1]);
+    expect((bad.r.mapPutErr ?? "").length).toBeGreaterThan(0);
+    expect((bad.r.mapPutErr ?? "").length).toBeLessThanOrEqual(80);
+    expect(same(ok.bytes, bad.bytes)).toBe(true);
+    expect((await maps()).length).toBe(0);
+  }, SLOW);
+
+  it("SABOTAGE MF1s: the catch removed -- the check throws, and no frame is stored", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    let threw = "";
+    try { await store(throwingPut(), { mapPutNoCatch: true }); } catch (err) { threw = String(err).slice(0, 60); }
+    const frames = (await env.WX!.list({ prefix: framesPrefix(opuk) })).objects.length;
+    console.log(`MF1s: threw "${threw}", frames ${frames}`);
+    expect(threw).not.toBe("");
+    expect(frames).toBe(0);
+  }, SLOW);
+
+  it("MF3: a lost create-only race -- the put returns null, built, no mapPutErrors, the object left as it was", async () => {
+    clearMapCache(); await wipe(mapsPrefix);
+    await store(env.WX!);                                     // an object now sits under the key
+    const [before] = await maps();
+    clearMapCache();
+    const r = await store(missingGet());                     // the GET misses, the put finds the object
+    const [after] = await maps();
+    console.log(`MF3: ${r.r.status} ${r.r.map}, mapPutErrors ${r.r.mapPutErrors}; object etag kept ${before?.etag === after?.etag}`);
+    expect([r.r.status, r.r.map, r.r.mapPutErrors]).toEqual(["stored", "built", undefined]);
+    expect(after?.etag).toBe(before?.etag);
+  }, SLOW);
+});
+
 /** The request kinds that went out without K14's User-Agent. */
 function k14(seen: Seen[]) {
   const kinds = new Map<string, number>();

@@ -17,9 +17,15 @@
        NVS as 0xFF (`0x9000`-`0x1E000`, all 0xFF in the file), otadata selecting app0 (`0x1E000`-`0x20000`,
        initialised), and the app;
      - leftovers can sit only past the image in app0; in app1, which the first OTA rewrites before it is ever
-       booted; and in spiffs (`0xCA0000`) and coredump (`0xFF0000`), which v18 never uses. A grep of v18's `src/`
-       and `include/` finds no SPIFFS, LittleFS, FFat or core-dump use, and the same grep finds v18's 73 NVS lines,
-       so it can see.
+       booted; in spiffs (`0xCA0000`), which v18 never uses; and in coredump (`0xFF0000`), which v18's code never
+       reads. A grep of v18's `src/` and `include/` finds no SPIFFS, LittleFS, FFat or core-dump use, and the same
+       grep finds v18's 73 NVS lines, so it can see.
+     - **Corrected 2026-11-06 (reviewer, ~20:25Z):** this line first said v18 "never uses" coredump. That was wrong.
+       The framework v18 links does use it: its sdkconfig has `CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y` and
+       `CONFIG_ESP_COREDUMP_CHECK_BOOT=y`, so a crash writes a dump there and the next boot checks it. The no-erase
+       conclusion stands: nothing in v18 reads the dump, and the crash path erases the region before it writes
+       (the reviewer's reading of the framework, not read here). A leftover there is overwritten by the board's
+       first crash and is otherwise never read.
      - v18's OTA path is Arduino's HTTPUpdate (`OtaUpdater.cpp:450`), whose update library erases what it writes.
        That part is the reviewer's reading, from the library, not read here.
    - **The rule for later images:** one that starts using the spiffs or coredump partitions treats their contents
