@@ -3222,6 +3222,9 @@ wxpolicy::Query AircraftManager::WxQuery() const
 
 bool AircraftManager::AllocateWeatherBuffers()
 {
+#ifndef WX_LAYER_SHIPS
+    return false;   // compiled out with the switch: its log strings would otherwise stay in the image
+#else
     if (wxBuffersOk) return true;
     if (wxAllocTried) return false;   // a failed allocation leaves the layer off; not retried on every save
     wxAllocTried = true;
@@ -3251,6 +3254,7 @@ bool AircraftManager::AllocateWeatherBuffers()
     Serial.printf("[wx] buffers: total %u B; psram_free %u -> %u\n", (unsigned)total, (unsigned)before,
                   (unsigned)ESP.getFreePsram());
     return true;
+#endif
 }
 
 bool AircraftManager::RequestWeather(unsigned long now)
