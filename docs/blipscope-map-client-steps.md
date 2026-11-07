@@ -210,6 +210,80 @@ where land shows.
   - 35,430 of the 542,928 pixels checked fell in CM10's 1e-6 band and were not graded.
   - At a tie, the fixed-point floor and the double one can pick either side: a one-level-pixel shift.
 
+### The ruling on the first run, verbatim (reviewer chat, pasted by Daniel, 2026-11-07 ~23:23Z)
+
+> For: the map client, from the reviewer chat, 2026-11-07 ~23:23Z
+>
+> Q-MC9: yes. CM7 builds terrain and water only, as a check of F4 against the independent reference, with S-CMR still
+> turning it red. The 3,364 is disclosed as known from the diagnostic; the blind part is everything else (140 of 140 on
+> both compilers, CM9, every plant exact). Registered items 1-5: accepted. For item 1, add a row that the layer's line
+> equals wxraster::Line pixel for pixel inside rows 24-193, with its plant, so the copy can't drift.
+> Q-MC10: hold S1 at Bend for Daniel's look in step M's window. No minimum length now.
+> #613: approved at fb4ca258 once its CI double-reads 32 = 29/3/0. Merge under Q-M1.
+> The map server needs your full /basemap query before it can freeze the r=161 re-read or build the fixtures. Send it
+> now, as the firmware will send it for the default view: r, ε, the layer mask (no peaks), and the terrain levels
+> (radius:N per level), with how the levels cover the zoom ladder at r=161.
+
+### Registered for the second run, before its code (2026-11-07, after the ~23:23Z ruling)
+
+**1. CM7, as ruled:** it builds terrain and water only. Predicted: 3,364 px against the reference's 3,364. **This number
+is known from the disclosed diagnostic, so it is not blind.** S-CMR still turns exactly {CM7}.
+
+**2. A new row, CM11: the layer's line equals `wxraster::Line`, pixel for pixel.**
+- **Where they are compared:** rows 24-193, on pixels both disc tests count as inside (the layer's pixel-centre test,
+  `wxlayer::OffDisc`, and the Weatherscope's `InMap`).
+- **The cases:** every river and road segment of Bend, through the layer's own vertex path, at CM2's 5 views × 4
+  rotations with no offset: 20 cases.
+- **Predicted:** 0 differing pixels in every case. The control is a lit-pixel count above 0 in the compared area, or
+  the row could not fail.
+- **The plant, S-CMLINE:** the layer's line rounds with `floor(v)` instead of `floor(v + 0.5)`. It turns exactly
+  {CM11's 20}.
+- **What the row requires of the code, so it is said here:**
+  - the layer's line moves from float to the same double DDA as `wxraster::Line`;
+  - the clip to the screen stays, as a range of the same steps `k`, so it skips points and never moves one.
+  - No other row's prediction depends on the line's arithmetic: CM6 compares the layer with itself, and CM4 grades
+    counts and decisions.
+  - The cost goes to CF5's reading.
+
+**3. The count becomes 160:** CM1 29, CM2 60, CM3 36, CM4 5, CM5 1, CM6 1, CM7 1, CM8 1, CM10 6, CM11 20. Any other
+count is the rig. **So the blind part reads 160 of 160 on both compilers** (the ruling's "140 of 140" plus CM11's 20),
+then CM9, then every plant exactly its set.
+
+### The /basemap query for the default view (sent to the map server, 2026-11-07)
+
+The radar's default is 100 mi, so its zoom ladder is {5, 10, 25, 50, 100} mi. The request:
+
+```
+GET /api/v1/blipscope/basemap?lat=<2 dp>&lon=<2 dp>&r=162&eps=201168&layers=water,rivers,roads,places,terrain&levels=41239440:246,81808320:244,162275520:242
+```
+
+| parameter | value | how it is made |
+|---|---|---|
+| `lat`, `lon` | 2 dp | `wireloc::Center`, as `/wx` sends them |
+| `r` | **162** | `ceil(view radius + 0.8 km)`, capped at 222: 160.934 + 0.8 = 161.73. **162, not 161:** 161 would leave the home's offset from the 2-dp origin (up to 0.555 km on an axis) outside the package's square |
+| `eps` | **201168** (mm) | the view radius / 800: half a pixel at 30 % of the configured radius (here 30 mi, 402.336 m a pixel). It keeps a package's density per pixel the same at any configured radius |
+| `layers` | `water,rivers,roads,places,terrain` | no `peaks` (Q-MC7 (b)); places stay in, since place names are on by default |
+| `levels` | `41239440:246,81808320:244,162275520:242` | one per top three ladder steps (25, 50 and 100 mi), each 1:1 with the screen (pixel = step / 120), and wider by `ceil(0.8 km / pixel)` pixels a side, so the worst offset (0.785 km) is always inside |
+
+**How the levels cover the ladder.** The level used is the smallest whose half-width covers the view plus the
+offset (Q-MC7 (a)).
+
+| view | radius + 0.785 km | level used | level pixel | screen pixel | screen px per level px |
+|---|---|---|---|---|---|
+| 5 mi | 8.83 km | 41.24 km (the 25 mi level) | 335.28 m | 67.06 m | 5 |
+| 10 mi | 16.88 km | 41.24 km (the 25 mi level) | 335.28 m | 134.11 m | 2.5 |
+| 25 mi | 41.02 km | 41.24 km | 335.28 m | 335.28 m | 1 |
+| 50 mi | 81.25 km | 81.81 km | 670.56 m | 670.56 m | 1 |
+| 100 mi | 161.72 km | 162.28 km | 1,341.12 m | 1,341.12 m | 1 |
+
+- **The bytes:** terrain 178,640 (8 + N² per level). So a package is at most 32,768 + 178,640 = **211,408 B**, and that
+  is the client's `GetBytes` cap for this view.
+- **Why 5 and 10 mi get no level of their own:** they are brief zooms that return to 100 mi after 10 minutes idle,
+  and z9's 4 × 4 mean already smooths the terrain over about 0.9 km. A fourth level (10 mi: N = 252, 63,512 B) is
+  possible within the route's limit of 4, and is not asked for.
+- **Other configured radii** follow the same three rules over their own ladder. The exact rounding is registered with
+  step A.
+
 ### Bench rows
 
 Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms, opaque sweep 2.04 ms, blended sweep
