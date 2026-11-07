@@ -14826,3 +14826,39 @@ The stale record is moved out of the tree, beside the raw captures. The new reco
 **`docs/wifi-scrub.md`'s** line about the device name changes in the same PR. The selftest and the sabotage rig run on the rewritten tree. `check_wifi.py` is predicted to exit 0 with 0 name findings, closing A12.153's 28.
 
 **The scrub's CI stands as A12.152:** PR 36: 32/4/0; main 35: 32/3/0.
+
+### A12.156 Q110 and Q111 as predicted: step 6's PR goes up, and the scrub follows after its own host run
+
+#### Step 6, with Q110
+
+| row (A12.155) | predicted | measured |
+|---|---|---|
+| `test_wx_swipe` | 136 checks, 0 failures, both compilers | **as predicted** |
+| the 19 plants | each its set; S-SW16 {H18, C26, W7} | **as predicted:** `sabotage_wx_swipe.py` 21 AS PREDICTED lines, driver ok |
+| `k35c.ref.txt` | unchanged | **as predicted:** `--k --check` passes with no rewrite |
+| the 10 renders | unchanged | **as predicted:** all 10 RGB hashes equal A12.139's |
+| anchors | every driver and plant | **34 of 34;** `plant_s_wait.py` [1, 1] |
+| `run.sh` under WSL g++ 13.3 | exit 2, the two environment blocks, the towns skip, lint 0 of 32 | **as predicted;** stderr empty; gate at start: no other run, TIME_WAIT 89 |
+
+**Images:** `weatherscope-s3-128` 1,888,864 B `b3ff0f06bd2e`, no marker; `weatherscope-touchbench-s3-128` 1,889,424 B `f28a08e0256e`, `[touch-bench]` only.
+
+**`dallas-night.json` joins the PR** as the record the night rows will read. L11, L12, K11 and K12 stay for their own addendum.
+
+#### The scrub, with Q111
+
+| row (A12.155) | predicted | measured |
+|---|---|---|
+| `check_wifi.py` | exit 0, 0 name findings | **as predicted:** A12.153's 28 closed |
+| (n), (o) | exit 0; exit 1 `name` | **as predicted** |
+| S-W4D | W3 exit 1, full exit 2, red {(n)} | **as predicted:** as registered |
+| `check-print-cards.mjs` | exit 0 | **as predicted:** `All print cards fit` |
+
+**One change to my own rows before they counted.** (n) and (o) first planted in the `assoc` context, which S-W4N removes, so S-W4N read off its registered set. They now plant in the `ssid:` context. S-W4N's register did not change and reads as registered.
+
+**A finding, left alone.** `check_wifi_sabotage.py` exits 2 at S-W5J: its anchor occurs 0 times in main's `check_wifi.py`, so it went stale before this work, and the rig stops there.
+- **Read as registered before that stop:** the control, S-W4N, S-W4B, S-W4L, S-W4P, S-W4D, S-W5G.
+- **Unread:** S-W5J, S-W5K, S-W2PORTAL, S-WPATH, S-W3, S-W7, W8.
+- **Why it went unnoticed:** CI does not run this rig, so nothing reads it.
+- **Why it is not fixed here:** a closed step's instrument is not re-anchored in passing. It is for a ruling.
+
+The scrub's PR follows its own full host run, since it touches files `run.sh` may read. Main is at `fa660869a026`, one `proxy/` commit past the baseline, with no job-set change, so both CI predictions stand.
