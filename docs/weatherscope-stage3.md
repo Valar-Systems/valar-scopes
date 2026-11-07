@@ -14940,3 +14940,36 @@ The branch is deleted; no PR was based on it. Main's CI on the squash is running
 **Main on the squash stays 35: 32/3/0:** there the `push` does change the cards.
 
 **#594 still merges only with no bench window running.** Step 7's window has not opened and stays closed until #594 is in or the reviewer says otherwise.
+
+### A12.160 #594 approved at `ccbf3fbabfdf`: the merge commit stays local, and CI reads a merge ref with #591 by reopening the PR. S-W5J ruled
+
+**The ruling (~03:30Z):**
+- **#594:** approved at `ccbf3fbabfdf`. Merge both under Q-M1, comparing each squash tree, in either order, before step 7's window opens. If the window has to open first, #594 waits until it closes.
+- **S-W5J:** fix it, and CI runs the rig, in its own small PR after #594: S-W5J re-anchored on `check_wifi.py`'s current unreadable branch with its set as registered, {(j)}, predictions first; the whole rig read locally with every check counted; the change that left the anchor stale named in the record; CI runs the code sabotages only, because S-W3, S-W7 and W8 read real values from BASE and CI logs are public.
+- **Step 7:** as planned, announced first, navigation on `N` and `V` only.
+
+**The two messages crossed with A12.159.** That addendum planned a merge commit on #594's branch. The approval is at `ccbf3fbabfdf`, and pushing the merge commit would move the head off it. So:
+- **The merge commit `5ec1f50c3f4a` stays local,** as the tree the local rows read. It is not pushed.
+- **Its tree is the squash's tree.** `merge-tree(9b6b28fe9912, ccbf3fbabfdf)` is `e745a3b719ae`, so every local row reads the tree that will land.
+- **The reading that counts (~03:23Z)** is CI on a merge ref that includes #591. Closing and reopening the PR fires `pull_request` with the head unchanged, on a merge ref rebuilt from current main.
+
+**A12.159's rows so far, on that tree:**
+
+| row | predicted | measured |
+|---|---|---|
+| the tree | `e745a3b719ae`, no hand resolution | **as predicted** |
+| `check_macs.py` | exit 0, 0 findings, reading #591's files | **as predicted:** 1,732 tracked, 0 findings |
+| `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py` | exit 0 | **as predicted** |
+| anchors | 34 of 34; `plant_s_wait.py` [1, 1] | **as predicted** |
+| `run.sh` under WSL | exit 2, the two environment blocks, 32 drivers | running |
+
+**The CI prediction, replacing A12.159's table, written before the reopen.** It counts only the runs the reopen starts, because the head's earlier runs stay listed on it.
+
+| reading of the reopen's runs | what it means |
+|---|---|
+| **5 workflows, all success: firmware, `device-ids`, `no-traffic-captures`, `web-renderer`, `print-cards`. 35 jobs: 31 success, 4 skipped, 0 failed** | **predicted;** `print-cards` once, for the `pull_request` |
+| anything else, or any failure | a stop |
+
+**The control that the merge ref holds #591:** `refs/pull/594/merge` must have `9b6b28fe9912` as an ancestor. If it does not, the reading is not the one that counts, whatever it says.
+
+**Then #594 merges under Q-M1 at `ccbf3fbabfdf`,** and its squash tree is compared with `merge-tree(H, ccbf3fbabfdf)`. Main on the squash stays predicted at 35: 32/3/0.
