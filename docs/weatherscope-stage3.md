@@ -15476,3 +15476,30 @@ Under either, B stays on E2:08 until then, so the restore belongs inside the win
 #### A prerequisite missing from main
 
 **A3.1's reader isn't there.** A12.104's list says it "must be in place before R ships", and it's blipscope-5c's. At `dce333dbf667`, `scripts/reconcile-fleet.py` holds no OTA-result buckets, no `refused-` token and no "behind `version.txt`" count, and no branch's history adds one. With nothing drawn on screen, that reader is the only fleet-level sign of a broken accept path at v20. O11 doesn't need it to run, but R does. I can't exclude that it lives somewhere I didn't look: the search was that one script's history across all branches, and `proxy/src` and `scripts/` on main.
+
+### A12.173 Stage 4's plan is up for review, docs only. The disk, on Daniel's second yes
+
+**The plan** is `docs/weatherscope-stage4.md`, as its own PR from main, for review before any code. Q113-Q120 are in it. It carries what the ~18:31Z and ~18:33Z blocks asked for: the live path, the edition header, the three Worker feeds with the device never talking to NWS (D2), staleness, a cost section in `docs/wx-cost.md`'s form, the first-boot legend, and the road to a sale with estimates and what each step waits on.
+
+**What it found that wasn't on anyone's list:**
+- **`/wx` doesn't serve the product the screens were built on.** It serves `cref` and `opuk`, and every Weatherscope screen is SeamlessHSR. Adding it crosses R2's free Class A tier, a crossing `docs/wx-server.md` says goes to Daniel first (Q113).
+- **`/wx` has no history,** and the tap's loop needs an hour of frames (Q115).
+- **A Weatherscope with no key shows nothing live.** A Blipscope can fall back on its owner's receiver, and this edition can't, so setup needs four states.
+- **The chooser isn't built,** and the factory's boards carry v18, so how a sold board gets Weatherscope is an open decision (Q118).
+
+**The cost, reproduced first:** the table's base gives `docs/wx-cost.md`'s $0.79 before anything is added. A Weatherscope board is $0.063-$0.093 a month billed, and the $2 runs out at 34-62 of them on top of today's 17.
+
+**Two corrections before this went up.** My first draft's totals disagreed with its own tables (19-29 days against 18-29, and a release span of 5-10 against 4-7), and two comparators read better than the facts. The doc's arithmetic is now derived from its tables by a script that asserts the result, which moved the date range to November 29 - December 20.
+
+**The disk, on Daniel's yes (~18:31Z).** `wxdata`, `wxdata2` and `mrms-20240521-shsr` are deleted. `git worktree remove` on `wt-35c` and `wt-mac` failed partway with `Filename too long`, after git had already dropped both entries, so a plain delete finished each one. `git worktree prune --dry-run` prints nothing, so no stale entry is left. `s1-out`, `s32-out` and `s32-out2` are kept, as ruled. Free space went from 30,223 to 31,454 MiB, about 30.7 GiB.
+
+**A consequence for the guards:** `wt-mac` held the only copy of `check_macs.py` in my trees, because the plan branch predates it. Plan pushes now run it from a copy of main's `scripts/`, re-proved on the plan tree: 0 findings in this doc, 292 lines elsewhere, so it is reading the right tree.
+
+#### The CI prediction for the PR, written before the push
+
+The last job-set change is `caf63cc9d9cc`. The one path is under `docs/`, so `firmware`, `device-ids` and `no-traffic-captures` run, and neither `web-renderer`, `workers`, `print-cards` nor `provisioner`. The baseline is #604's docs-only prediction and #600's finished run, both 32: 29/3/0.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | 32 | 29 | 3 (promote, version, ship-alert) | 0 |
+| main on the squash | 32 | 30 | 2 (promote, version) | 0 |
