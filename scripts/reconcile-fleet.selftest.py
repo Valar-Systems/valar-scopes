@@ -110,6 +110,17 @@ def r1(mod) -> dict:
     every = text + "\n" + te
     res["R1f"] = not any(d in every for d in ROWS) and "behind 6" in text   # CONTROL: the block is there
     res["R1g"] = "refused-bad-record" not in b["buckets"] and "refused-bad-record" not in text
+    import urllib.error as _ue
+
+    def refuse(*a, **k):
+        raise _ue.HTTPError("https://example.invalid", 422, "EXAMPLE", {}, io.BytesIO(b"EXAMPLE: unable to find type"))
+    real = mod.urllib.request.urlopen
+    mod.urllib.request.urlopen = refuse
+    try:
+        pts, why = mod.read_ota_points("production", "EXAMPLE-not-a-token")
+    finally:
+        mod.urllib.request.urlopen = real
+    res["R1h"] = pts is None and "422" in why and "EXAMPLE: unable to find type" in why
     return res
 
 
@@ -121,6 +132,9 @@ R1_PLANTS = [
     ("S-R1zero  an unreadable version.txt reads as 0", ["R1d"],
      '    return int(s) if re.fullmatch(r"[1-9]\\d{0,5}", s) else None\n',
      '    return int(s) if re.fullmatch(r"[1-9]\\d{0,5}", s) else 0  # SABOTAGE\n', None),
+    ("S-R1body  an error's body is thrown away", ["R1h"],
+     '        return None, "Analytics Engine answered %d: %s" % (e.code, e.read().decode("utf-8", "replace").strip()[:300])\n',
+     '        return None, "Analytics Engine answered %d" % e.code  # SABOTAGE S-R1body\n', None),
     ("S-R1id    the block prints the behind devices' ids", ["R1f"],
      '    out.append("    covers radar devices on the cloud feed only (A3.2)',
      '    out.append("    " + " ".join(sorted(rows)))  # SABOTAGE S-R1id\n    out.append("    covers radar devices on the cloud feed only (A3.2)', None),

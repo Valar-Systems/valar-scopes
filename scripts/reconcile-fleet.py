@@ -292,7 +292,7 @@ def read_published() -> int | None:
 def read_ota_points(env: str, token: str) -> tuple:
     """(points, "") or (None, reason). Newest first, so a row cap cuts the oldest; hitting the cap is said, not hidden."""
     sql = ("SELECT blob4 AS dev, blob2 AS result, timestamp AS t FROM %s WHERE index1 = 'ota' "
-           "AND timestamp > NOW() - INTERVAL '%d' DAY ORDER BY timestamp DESC LIMIT %d"
+           "AND timestamp > NOW() - INTERVAL '%d' DAY ORDER BY t DESC LIMIT %d"
            % (DATASET.get(env, DATASET["production"]), OTA_WINDOW_DAYS, OTA_ROW_LIMIT))
     req = urllib.request.Request("https://api.cloudflare.com/client/v4/accounts/%s/analytics_engine/sql" % ACCOUNT,
                                  data=sql.encode("utf-8"), method="POST", headers={"Authorization": "Bearer " + token})
@@ -300,7 +300,9 @@ def read_ota_points(env: str, token: str) -> tuple:
         with urllib.request.urlopen(req, timeout=30) as r:
             body = json.loads(r.read().decode("utf-8", "replace"))
     except urllib.error.HTTPError as e:
-        return None, "Analytics Engine answered %d" % e.code
+        # The body is the reason. R2's first run kept only the status, and a 422 said "untrustworthy" without saying
+        # why: Analytics Engine had refused ORDER BY on a column the SELECT had aliased away. Error text names no device.
+        return None, "Analytics Engine answered %d: %s" % (e.code, e.read().decode("utf-8", "replace").strip()[:300])
     except (urllib.error.URLError, OSError, ValueError) as e:
         return None, "Analytics Engine unreachable (%s)" % type(e).__name__
     rows = body.get("data")
