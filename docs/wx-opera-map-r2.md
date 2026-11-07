@@ -287,3 +287,11 @@ rebuilds it from the same OPERA source through `buildMap`, with no R2, and compa
 - **The ~18:22Z amendment applies:** a sampled Logs read is re-read once narrower; a second sampled read is BLIND, which
   fails the row and triggers the rollback.
 - **Tools** at `2decfc07` on docs/wx-opuk-r3.
+
+**The record.** RD-0 read as predicted at 02:39:59-02:40:02Z: `b7626571` at 100%, created 23:30:40Z; 1 map object of
+17,716,016 B. Main had moved to `fa660869a026`, and no commit since the checkout touches the Worker's inputs.
+- **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml --env=""` from `wt-rd`, detached at `0867145c4861`,
+  clean. Start 02:40:54.866Z, **end 02:40:59.356Z (T), exit 0**, stderr empty.
+  **Version `4da941e4-145c-4120-a097-8b56852b29a9`.**
+- **RD-1** (`versions view --json`): bindings exactly `WX` -> blipscope-wx and `WX_INGEST` = "on"; `cpu_ms` 12000. **As predicted.**
+- **First firing:** scheduledTime 02:41:14Z, 15.9 s after T.
