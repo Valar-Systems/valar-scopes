@@ -270,7 +270,8 @@ const SABOTAGES = {
   "S-QDIGEST": {
     file: QUERY, set: "all",
     edits: [["export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, q.epsMm, q.mask,", "export const queryKey = (q: Query) => [q.lat2, q.lon2, q.rKm, /* SABOTAGE S-QDIGEST: no epsMm */ q.mask,"]],
-    expect: ["MQ10", "NK2"],
+    // Re-registered ~03:33Z (docs/basemap-name-key.md): NK3 pins a digest over queryKey too, so the plant reaches it as it does NK2.
+    expect: ["MQ10", "NK2", "NK3"],
   },
   "S-QSORT": {
     file: QUERY, set: "all",
