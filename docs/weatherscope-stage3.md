@@ -15114,3 +15114,47 @@ The plant counts the file as binary. Its set stays as registered: W3 exit 0, ful
 | main on the squash | 32 | 30 | 2 (promote, version) | 0 |
 
 **Step 7 follows,** announced first.
+
+### A12.165 #594 on main as predicted; S-W5J's whole rig as predicted; step 7's window announced, its rows frozen
+
+**#594 on main:** `c46af84f388c`, read finished twice: 35 checks, 32 success, 3 skipped, 0 failed. **AS PREDICTED.** The guard now runs on main.
+
+**S-W5J, read locally (A12.164): all 15 checks as registered.** The control, the 10 code sabotages, S-W3 (on the log the scrub rewrote; restored byte-identical), W2' (107 names, 32 files, 4 left), S-W7 (111, 34, 0) and W8 (no planted value equals a real one). The guard on disk stayed byte-identical. S-RIG, the old anchor restored: `--code-only` exits 2 and names S-W5J; the control exits 0.
+
+**The shallow read, as A12.164 predicted:** a `--depth 1` clone under Linux Python 3.12.3, with BASE absent as on CI. `--code-only` exits 0, the control and all 10 code sabotages as registered, the guard byte-identical. The full rig exits 2 and says `892fe2b is not in this clone (S-W3, S-W7 and W8 need it)`. So the code half can run where the history is shallow, and the half that reads real values refuses there instead of passing.
+
+**One error of mine, caught before it was pushed.** My first draft of the workflow comment and the doc said the anchor sat stale "for two weeks". `git log` dates #558 to 2026-11-05. Both now state no duration.
+
+#### Step 7: the window, announced
+
+- **When:** from when this addendum lands, for about 25 minutes.
+- **Where:** board `6E:64` only, its port resolved by serial through `board-port.py`.
+- **The image:** `weatherscope-s3-128` from main at `0c0aa0157bae`, 1,888,864 B, `b3ff0f06bd2e`, no bench marker, through `app-only-write.py` (app0 only, NVS untouched).
+- **The window ends** after the image's boot read with `theme=auto`, a `read-mac` to bring the board out of download mode, and TCP :80 answering. This is main's product image, so it stays on the board, replacing the clean `39e258b5be07` that A12.129 left there.
+- **The other boards:** not touched. The `weatherscope` reservation dated 2026-10-20 is stale, as noted in A12.164.
+
+**Rows, in one serial open, DTR and RTS false, never reopened** (`tools/weatherscope/board/run_b35c.py`, sha256 `8f36ce802af3`, frozen here; it reaches the repo with the record):
+
+| row | predicted |
+|---|---|
+| **B0** | `[build] env=weatherscope-s3-128` |
+| **Q103** the merged HTTP code | the line ends exactly `current=18 latest=18`, through `GetSecure`, and no `version check failed`. `FW_VERSION` is 18 at the image's tree and v18 is the latest release |
+| **K-glass,** 3 screens × 2 themes | each frame's sha256 equals its `k35c.ref.txt` row: forecast capture, conditions day, alerts SYNTHETIC, at 57,600 of 57,600 pixels on the glass |
+| **N1,** each theme | `N` to forecast, conditions, alerts, legend; `V` back to the map |
+| **N2,** each theme | `N` on the legend and `V` on the map bring no screen line |
+| **N3** | `T` from each of the 4 pages goes to the map |
+| **N4** | `U` and `D` on a page bring no zoom or screen line |
+| **N5** | 45 s on a page brings no screen line, past the 30 s hold; a scenario line follows the return |
+| **Q107** | `S` from the map reaches the legend. It is the only `S` in the run, and in no navigation row |
+| **N6** | the map returns 600 to 605 s after the last byte |
+| **the close** | `read-mac`, the boot read (`env=weatherscope-s3-128`, `theme=auto read=known`), `read-mac`, TCP :80 |
+
+That is 17 rows in the run (B0, Q103, 6 K-glass, 2 N1, 2 N2, N3, N4, N5, Q107, N6), plus the close.
+
+**The stops:** the first row off ends the run and is reported, and every path still posts theme `auto` and runs the close. A failed fetch is the instrument, not a frame. If `latest` reads above 18 the board would update itself, so that is a stop.
+
+**Three corrections of mine before this was frozen.** The tool's first draft took any `latest=\d+`, and ran on past a row off, while this addendum said otherwise; both now hold what is written here. Its selftest reads 9 of 9: three K-glass rows, a row off stopping the walk, five Q103 rows. Three in-memory plants each turned their row red, and the control stayed green. My first prediction for one plant named a third row that could not go red, because the plant leaves `line is not None` in place; the tool was right and my prediction was wrong. And this addendum's first draft said 16 rows beside a list of 17.
+
+**What this run cannot see:** `N` and `V` enter at the page model, so `ClassifyStroke`'s new right-swipe branch runs only under a finger. That one line is for Daniel's hands on the glass, which has the last word on the look as well.
+
+**The record** goes in as a run directory, redacted, with every board name in its label form. The 6 frames go to Daniel as PNGs.
