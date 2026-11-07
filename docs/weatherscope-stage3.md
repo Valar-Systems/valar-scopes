@@ -15355,3 +15355,23 @@ Attempt 2 stopped because my driver read that refusal as an unknown exit. It was
 **The survey script prints counts only,** as ruled: lines per tag and per sensitive shape, never a line, even masked.
 
 **Disk (~16:31Z ruling):** my outputs are listed through Daniel, with sizes and how each regenerates. I have deleted nothing since that ruling. Two leftovers of mine went at ~06:33Z under the earlier rule, before it: `wt-oc` 779 MB and a shallow clone 159 MB.
+
+### A12.171 #597, #598 and #600 merged under Q-M1 alone. Step 7 and the night case are closed
+
+Merged at their approved heads under Q-M1, with no claim, as corrected at ~16:46Z. Squash, `--match-head-commit`, no `--admin`.
+
+| PR | H | squash | tree, equal to `merge-tree(H, head)` | main's CI on the squash |
+|---|---|---|---|---|
+| **#597** | `55e850c80eff` | `2e36055a07a0` | `e836ed79cabb` | 32: 30/2/0, **as predicted** |
+| **#598** | `c7312f61f437` | `fdf62ada9f79` | `0a9df1fb4077` | 32: 30/2/0, **as predicted** |
+| **#600** | `fdf62ada9f79` | `e947a9dd73c3` | `6d1fd4d4f0ad` | 32: 30/2/0, **as predicted** |
+
+Each CI was read finished twice, and skipped promote and version. #597 took a third attempt and #598 a second: main moved each time, and nothing merged on those attempts. All three branches are deleted on the remote.
+
+**Read on main, not from the badges:** `device-ids.yml` carries the `--code-only` step, and it ran green on `e947a9dd73c3`. `SWIPE_CHECKS` is 140. The record's `rows.txt` holds 17 `ok` rows. #600 touches nothing under `src/`, `include/` or `platformio.ini`.
+
+**The disk, on Daniel's yes (~16:49Z).** Removed: `wt-pin/.pio`, `s7/ota/head1`, `head2` and `base`, `rv-wt3c` and `spike-wt-a5db678` by `git worktree remove`, and `rv460`. `rv460` was a standalone clone, a main working tree that `git worktree remove` refuses, so it went by plain delete once its two linked worktrees were gone, which left no entry anywhere. Free space went from 29,939 to 31,742 MiB, and all 16 keep-list paths I checked are still there.
+
+**A correction to the list I gave.** It said the `vs` checkout comes back with `git worktree add`. `vs` is the main checkout that holds the git database for every `wt-*` worktree. Nobody picked it and nothing was harmed.
+
+**Free space at 18:20Z: 30,290 MiB, about 29.6 GiB,** back under the line. This session ran no build after 16:50Z, only fetches and reads, so the 1,452 MiB went elsewhere. I can't tell from here where it went.
