@@ -171,7 +171,7 @@ account (`docs/basemap-route.md`), and two things can move this answer: weather'
 
 **Load at the burst: not measured.** Concurrency has only been read as a pair (SR1). If 600 devices sat in one time zone
 and fetched over five minutes, that would be about 2 builds a second, about 8 running at once, each reading up to
-38.4 MB from the store. That is an arithmetic bound on a case nobody has run, not a limit anyone has hit. **As ruled
+50.1 MB from the store (S2's ten, KBWI). That is an arithmetic bound on a case nobody has run, not a limit anyone has hit. **As ruled
 ~22:49Z, the client spreads the first fetch (F6) rather than measuring a 03:00 burst.**
 
 **At ship:** re-read the account's figures and the fleet count, and state the month's projected overage with the wave and

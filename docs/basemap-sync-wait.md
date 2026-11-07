@@ -423,3 +423,65 @@ baseline is #585's finished run (35 = 32/3), a `proxy/` PR that postdates `caf63
 **The suite on CI, predicted: 1,012** (1,011 passed, 1 skipped). CI runs the merge ref, so that is main's 1,011 (`workers`
 on `387b93bbe5d3`, with no proxy source or test change since) plus MS10. This branch has not merged main again, so the 999
 read above stands for this tree. The merge is clean, and none of main's newer commits touch the basemap's files.
+
+## S2's fresh ten on staging (2026-11-07, 02:52-03:03Z): as predicted
+
+**The first request's p95 fell from 2,318 ms to 2,078 ms,** under the 2.5 s target and under the registered "at most
+2,318 ms". Every other row read as the last ten.
+
+### Before the reading
+
+- **The slot,** granted ~01:06Z, announced at 02:52Z and ended at 03:03Z, staging only. It started after #589 merged
+  (`fa660869a026`) and main's CI on it read 35 check runs: 33 success, 2 skipped, 0 failed; suite 1,012.
+- **One deployer:** no `wrangler` or `deploy.sh` process on this machine, and staging's last deployment was this session's.
+- **The rollback target, recorded first:** proxy staging `d4b73151-0a02-4869-b881-0152debb92c9`. **It was not used.**
+- **The Worker-input diff from staging's running commit `551fd030`,** read from each Worker's own bundle list (a dry run with
+  a metafile) at `fa660869a026`. **The proxy's 51 inputs: 5 files, 5 commits.**
+
+| file | commit | what it does in the proxy's bundle |
+|---|---|---|
+| `src/basemap/handler.ts` | #589 | **S2: the only behaviour change** |
+| `src/basemap/budget.ts`, `build.ts` | #585 | nothing: the proxy takes only `MASK`, and the bundle holds no `fitBudget` or `newLadder` |
+| `src/wx/products.ts` | #577, `a19a0b6b` | nothing: a type and an unused constant; the bundle holds no `mapObjectKey` |
+| `src/provision.ts` | `38e5bb48` | nothing: a comment |
+
+- **The builder's 9 inputs:** #585 changed 3 of them. **It was not redeployed** and stays on `cf2142c3`. Step 0's own reading
+  needs the builder, in its own slot.
+- **Deployed:** proxy staging **`aaf26850-90e7-4f57-b53b-b60bc6d6bca7`**, from `fa660869a026` by name. `confirm-deploy` and two
+  reads of `/healthz` gave `fa660869`.
+
+### The ten, read
+
+Server `ms` and colo come from each request's own log line. Every request went through the test identity, with headers on
+stdin.
+
+| airport | first: `known-miss`, ms (colo) | second: `in-flight`, ms | retry, ms | +50 s, ms | the one build: reads, MB, wall ms | package / lock |
+|---|---|---|---|---|---|---|
+| KPIT | **2,078** (SEA; the first request after the deploy) | 262 | `stored` 195 | `hit` 24 | 50, 29.8, 3,378 | present / absent |
+| KBWI | 1,893 (SEA) | 243 | `stored` 190 | `hit` 23 | 54, 50.1, 4,619 | present / absent |
+| KMEM | 1,869 (SEA) | 257 | `stored` 187 | `stored` 240 | 52, 24.2, 3,939 | present / absent |
+| KOKC | 1,826 (SJC) | 263 | `stored` 545 | `stored` 131 | 53, 17.0, 3,032 | present / absent |
+| KABQ | 1,794 (SJC) | 237 | `stored` 233 | `hit` 32 | 50, 10.4, 3,017 | present / absent |
+| KTUS | 1,820 (SJC) | 295 | `stored` 292 | `hit` 10 | 49, 8.6, 2,021 | present / absent |
+| KRNO | 1,792 (SJC) | 318 | `stored` 361 | `hit` 69 | 53, 16.2, 2,743 | present / absent |
+| KBOI | 1,838 (SEA) | 308 | `stored` 321 | `stored` 145 | 60, 15.4, 3,723 | present / absent |
+| KGEG | 1,794 (SEA) | 195 | `stored` 639 | `hit` 16 | 64, 16.1, 3,657 | present / absent |
+| KOMA | 1,937 (SEA) | 288 | `stored` 382 | `stored` 132 | 66, 16.3, 4,158 | present / absent |
+
+| row | read | verdict |
+|---|---|---|
+| **the first request: 202 `known-miss`** (nearest-rank p95 over the ten = the maximum) | 10 of 10; **2,078 ms**; the other nine 1,792-1,937 | **as predicted:** at most 2,318 ms, and under the 2.5 s target |
+| the pre-race work (`ms` − 1,600) | 192-478 ms; the maximum was the first request after the deploy | **reported, not graded,** as registered. The last ten's maximum was 718 ms |
+| the second request | 10 of 10 `in-flight`, 195-318 ms, with **exactly one build per query** | as predicted |
+| the retry | 10 of 10 200 `stored` | as predicted |
+| +50 s | 10 of 10 200: 4 `stored`, 6 `hit`, never `in-flight` | as predicted |
+| builds | **10 `bm_build` lines,** all 200: 49-66 reads, 8.6-50.1 MB, wall 2,021-4,619 ms | as predicted |
+| packages and locks | **10 packages present, 0 locks** | as predicted |
+| cancellations | **0,** with 40 request lines in the window (anchor ok) | as predicted |
+
+**One figure beyond the earlier reads:** KBWI's build read 50.1 MB, the most any build has read so far (KJFK's 38.4 MB was the
+earlier top). It does not change a row, and reads carry no egress charge. The client plan's load paragraph is updated.
+
+**CI for this PR (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0
+failed.** The baseline is #588's finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to the set of
+jobs.
