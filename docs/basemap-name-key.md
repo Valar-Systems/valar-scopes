@@ -314,3 +314,52 @@ Daniel: the UK session's M window follows it." The ~15:47Z block's conditions, p
    200 over the cap, means the instrument is wrong: stop.
 7. **The close:** all eight Workers' deployments in the window, then the close posted through Daniel, since the UK session's M window
    follows it.
+
+## The combined slot, read (2026-11-07, about 18:13-18:17Z): SK1-SK6 as predicted
+
+**Staging only, closed through Daniel at 18:17Z.** The go was blipscope-5c's "#590 read back", passed on ~18:04Z. **The rollback targets
+were not used.** Step 0's half is in `docs/basemap-dense.md`.
+
+### Before the reading
+
+- **Rollback targets, recorded first:** proxy staging `aaf26850-90e7-4f57-b53b-b60bc6d6bca7`; builder staging
+  `cf2142c3-bb2c-4ff4-80fa-32df633e58fc`.
+- **The deploy tree:** `fdf62ada9f79`, main's newest commit with finished CI (32, 0 failed), with no later commit touching `proxy/`.
+  K1's squash `60cdc5e2d293` read 35 check runs, 0 failed.
+- **The Worker-input diffs,** from a dry run with a metafile on each Worker:
+
+| Worker | inputs | changed since it was deployed | what ships |
+|---|---|---|---|
+| proxy, from `fa660869a026` | 51 | `handler.ts`, `query.ts` (#596); `metrics.ts` (#590) | K1, and the route label production already runs |
+| builder, from `9b511dc2` | 9 | `budget.ts`, `build.ts`, `worker.ts` (#585) | step 0's ladder |
+
+  The bundles agree: the proxy's holds `nameKeyOf` and no `newLadder`; the builder's holds `newLadder` and no `nameKeyOf`.
+
+### The deploys, in the ruled order
+
+| step | at | result |
+|---|---|---|
+| **the secret** | 18:12:58Z | generator exit 0, wrangler exit 0; listed by name. 32 random bytes piped on stdin: never printed, in no file, with no human copy |
+| **the proxy** | 18:13:02Z | `deploy.sh` exit 0, version **`eb36fe73-ed1e-433a-aafa-1e3f3188f210`**; `/healthz` confirmed `fdf62ada` |
+| **the builder** | 18:13:10Z | `deploy.sh --builder` exit 0, version **`9512e266-951b-46fa-abed-d77a4c9b3d1c`**, stamped `fdf62ada` |
+
+### SK1-SK6
+
+| row | read | verdict |
+|---|---|---|
+| **SK1** | `keyed` **absent** before, read twice; **`true`** after, read twice | as corrected |
+| **SK2** | KIND's first request **202 `known-miss`**, 2,107 ms; the retry **200 `stored`**, 467 ms | as predicted |
+| **SK3** | the ETag's digest differs from the plain one | as predicted |
+| **SK4** | the name from the ETag reads **present** | as predicted |
+| **SK5** | the plain name reads **absent**, with SK4 as its anchor | as predicted |
+| **SK6** | the lock reads **absent** | as predicted |
+
+**`/healthz` showed `basemap.commit` null.** The isolate that answered had built nothing, as accepted ~18:19Z. The `rung` fields in the build
+lines show the new builder running.
+
+### The close: every Worker, 18:10-18:20Z
+
+Only this slot's deploys landed: proxy staging twice (18:13:00Z, the secret's version, and 18:13:08Z), and builder staging once
+(18:13:13Z). `blipscope-proxy`, `blipscope-basemap`, `blipscope-wx-ingest`, the opuk and dev Workers and the dashboard had none.
+
+**Lost merge slots, as ruled (Q-CL2):** #596 lost 2 and #603 lost 5.
