@@ -164,8 +164,9 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
     if (pkg) {
       const digest = await queryDigest(q, nameKey);
       // S2 (docs/basemap-sync-wait.md): the package and its .err in ONE round of reads, so a cold first request waits for
-      // one R2 read before the lock, not two. A stored request reads both; the .err is then simply not used.
-      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);
+      // one R2 read before the lock, not two. A stored request reads both; the .err is then simply not used. So a failed
+      // .err read must not fail a request the package can answer: a missing .err only means a rebuild (MS11).
+      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest)).catch(() => null)]);
       if (kept) {
         const bytes = new Uint8Array(await kept.arrayBuffer());
         if (validate(bytes).status === "kOk") {

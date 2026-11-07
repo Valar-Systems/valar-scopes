@@ -170,3 +170,22 @@ Not part of this PR. D4's plan carries these rows:
 - **On this tree:** `tsc` is clean on both configs, all 80 anchors are found once each, and 79 planted files parse.
   C-LOADFAIL does not parse, by design. `--selftest-dups` reads control 0, outside copy 0, planted copy 6, exit 0.
 - **No K1 test has run.** The counts above are re-read from CI, and frozen, once S2 has merged.
+
+## S2's follow-up, carried here (ruled 2026-11-07 ~01:06Z, verbatim)
+
+> One follow-up, with its own row and plant, in the next basemap code PR: a failed .err read must not fail a request the
+> stored package can answer. With Promise.all, an R2 error on the .err read now fails a request that used to be served. A
+> .catch to null on that read restores this; a missing .err only means a rebuild.
+
+**The change:** `pkg.get(errKey(id, digest)).catch(() => null)`, on S2's one line.
+
+| | predicted |
+|---|---|
+| **MS11** | a stored package, with the `.err` read refused: **200 `stored`, 0 builder calls**, the package's bytes. Control: the `.err` read was made once and failed |
+| **S-S2NOCATCH** (new) | the `.catch` removed: **{MS11}** |
+| **S-MS1** | unchanged plant; its set **gains MS11**: no store id, so no stored answer |
+| **S-MS2** | re-anchored; its set **gains MS11**: the package is never read |
+| **S-S2SEQ** | re-anchored; **{MS10}, unchanged**: sequential reads still reach the package first |
+
+**Why no other set moves:** MS11 asserts what MS2's first request asserts, so a plant reaching it must be in MS2's set. The
+only other one, S-MKHIT, changes MS2's second request, which MS11 does not make.

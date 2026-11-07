@@ -560,6 +560,26 @@ describe("MS, A1's stored packages and O1's store id", () => {
     expect([res.status, b.n.calls, b.n.reads]).toEqual([200, 1, 5]);
   });
 
+  it("MS11: a failed .err read does not fail a request the stored package can answer", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const built = await build(s.store, buildQ(at(120)), { commit: COMMIT });
+    if (!built.ok) throw new Error("MS11's fixture did not build (BLIND)");
+    const digest = await basemapDigest(qOf(at(120)), NAME_KEY);
+    await pkgBucket().put(pkgKey(s.storeId, digest), built.bytes);
+    await storeKv().put("bm:store", s.storeId);
+    const real = pkgBucket();
+    let refused = 0;
+    const rec = {
+      put: (k: string, v: unknown, o?: R2PutOptions) => real.put(k, v as never, o), head: (k: string) => real.head(k), delete: (k: string) => real.delete(k),
+      get: (k: string) => { if (k !== errKey(s.storeId, digest)) return real.get(k); refused++; return Promise.reject(new Error("R2 read failed")); },
+    } as unknown as R2Bucket;
+    const { res, line } = await mkCall(() => call(get(basemapPath(at(120))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }));
+    expect([res.status, line.bm, b.n.calls]).toEqual([200, "stored", 0]);
+    expect(refused).toBe(1); // CONTROL: the .err read was made, and it failed
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(built.bytes);
+  });
+
   it("MS10: a known miss reads its package and its .err in one round: the .err read starts before the package read ends", async () => {
     resetBasemapIsolate();
     const s = await mwStore(), b = slowOver(s.store.objects, 300);

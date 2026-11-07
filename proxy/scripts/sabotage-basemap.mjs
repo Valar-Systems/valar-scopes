@@ -444,22 +444,28 @@ const SABOTAGES = {
     // Re-registered by ruling (~20:45Z), the miss kept: {MS1, MS2, MS3, MS4, MS6, MS7, MS8}. MS8's covered first request
     // teaches the isolate the store id, so its second request takes the known path without KV, and it stays green.
     // S2 (docs/basemap-sync-wait.md), registered before any run: a fresh isolate without KV's id takes the unknown path, which builds synchronously (200, not 202).
-    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7", "MS10"],
+    expect: ["MS1", "MS2", "MS3", "MS4", "MS6", "MS7", "MS10", "MS11"],
   },
   "S-MS2": {
     file: HANDLER, set: "all",
     // Re-anchored for S2 (docs/basemap-sync-wait.md): the package read is now half of one Promise.all; the same defect
-    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);\n",
-             "      const [kept, err] = [null as R2ObjectBody | null, await pkg.get(errKey(id, digest))]; // SABOTAGE S-MS2: the stored package never read\n"]],
+    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest)).catch(() => null)]);\n",
+             "      const [kept, err] = [null as R2ObjectBody | null, await pkg.get(errKey(id, digest)).catch(() => null)]; // SABOTAGE S-MS2: the stored package never read\n"]],
     // S2 (docs/basemap-sync-wait.md), registered before any run: the package never read, MS10's control (both reads seen) fails.
-    expect: ["MS2", "MS6", "MS10"],
+    expect: ["MS2", "MS6", "MS10", "MS11"],
   },
   // S2's own (docs/basemap-sync-wait.md): the two reads made sequential again, the .err read only after the package's
   "S-S2SEQ": {
     file: HANDLER, set: "all",
-    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest))]);\n",
-             "      const [kept, err] = [await pkg.get(pkgKey(id, digest)), await pkg.get(errKey(id, digest))]; // SABOTAGE S-S2SEQ\n"]],
+    edits: [["      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest)).catch(() => null)]);\n",
+             "      const [kept, err] = [await pkg.get(pkgKey(id, digest)), await pkg.get(errKey(id, digest)).catch(() => null)]; // SABOTAGE S-S2SEQ\n"]],
     expect: ["MS10"],
+  },
+  // The follow-up ruled ~01:06Z (docs/basemap-name-key.md): a failed .err read fails the request again.
+  "S-S2NOCATCH": {
+    file: HANDLER, set: "all",
+    edits: [["pkg.get(errKey(id, digest)).catch(() => null)]);\n", "pkg.get(errKey(id, digest))]); // SABOTAGE S-S2NOCATCH\n"]],
+    expect: ["MS11"],
   },
   "S-MS3": {
     file: HANDLER, set: "all",
