@@ -14674,3 +14674,46 @@ The branch is deleted; no PR was based on it. Main's CI on the squash is running
 **The first scan of the suite's output:** H7's and H8's "now" moves to Saturday, as A12.150 records. The full `run.sh` is running. Step 6's PR waits for Q110, because (a) changes the header it would carry, and its CI is predicted before that push.
 
 **Independent of those:** #583 has merged, so the scrub starts now.
+
+### A12.152 The scrub, restated on main at `0867145c4861` after #571 and #583: a gap in the guard closed, and its CI predicted before the push
+
+**The counts moved, as A12.145 expected.** The rewrite's dry run on the rebased branch, after the bench tools' commit, counts only:
+
+| class | A12.145's dry run | now | why it moved |
+|---|---|---|---|
+| names, by rule | 260 | **284** | #571's run records: 12 as written and 12 glued (below) |
+| the two print cards | 2 | 2 | |
+| serial form | 47 | 47 | |
+| colon form | 10 | 10 | |
+| dash form | 0 | 0 | |
+| bare suffixes | 8 | 8 | |
+| examples kept | 21 | 21 | |
+| files touched | 79 | **86** | |
+
+The guard agrees on the same tree: 286 `name` (284 + 2), 47 `serial`, 10 `colon`. #583 took the twins to 0 and the documentation-range count to 13.
+
+**A gap in the guard, found by reading the rise in bare hits.** The first re-count showed 12 new bare hits, all one line in #571's records: `httWeatherscope-<6 hex>.local`, a board's name glued to the text before it. The name rule had a left boundary, so G15 did not see it. It would have stayed in the tree under a rule meant to refuse it, or become a bare hit rewritten into the wrong shape.
+- **The fix:** the name rule has no left boundary. A log can glue a name to what precedes it, and it is still a name.
+- **G15** now plants that form too: `18 checks, 0 failures`. `--sabotage` passes, with S-G7 and S-G8 still {G15}.
+
+**Predicted after the rewrite, on the PR's tree:**
+- `check_macs.py`: exit 0, 0 findings, 0 stale.
+- `check_wifi.py`, `check_device_ids.py`, `check_binary_strings.py`, `check-print-cards.mjs`: exit 0. If a `wifi-allow.txt` line-hash entry goes stale because its line held a name, that is an off reading, not a thing to fix quietly.
+- Every `run-*` record's change is a name or a suffix only: the diff's changed bytes are all inside those tokens.
+
+**CLAUDE.md is edited by hand as well:** the bench-board table and the `spelled ...` sentence, since a mechanical swap would read `spelled E9:D8 ... and E9:D8`.
+
+**The plan branch** gets the same relabel in its own commit, on its two Weatherscope docs, after the PR is up.
+
+**The CI prediction, written before the push.**
+- **The last job-set change is still `caf63cc9d9cc`.** The PR adds three steps to `device-ids`, which is no job.
+- **Baselines:** #571's PR run at `f9f778be55d3`, 34: 30/4/0; main's run on `0867145c4861`, 34: 31/3/0.
+- **Paths:** `firmware`, `device-ids` and `no-traffic-captures` always run. `web-renderer` runs for `platformio.ini`'s comment. `workers` and `provisioner` do not: no file under `proxy/`, `dashboard/` or `scripts/provision*` changes.
+- **`print-cards` runs, as the ruling asked to count:** its `push` trigger has no branch filter, and `pull_request` also matches, so the PR's head gets **two** `print-cards` checks, one per event. Main's push gets one.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | 36 | 32 | 4 (promote, version, ship-alert, publish) | 0 |
+| main on the squash | 35 | 32 | 3 (promote, publish, version) | 0 |
+
+**The PR states that it merges only with no bench window running,** because every session's bench tools change with it, and that each session needs `~/.config/blipscope/boards` (already on this machine).
