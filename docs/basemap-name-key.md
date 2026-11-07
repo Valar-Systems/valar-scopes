@@ -281,3 +281,36 @@ baseline is #589's finished run (35 = 32/3), a `proxy/` PR that postdates `caf63
 
 **The suite on CI, predicted: 1,019** (1,018 passed, 1 skipped): main's 1,012 (`workers` on `fa660869a026`, with no proxy source
 or test change since) plus K1's 7, the same as this tree.
+
+## The combined slot: K1 and step 0, registered before it runs (2026-11-07)
+
+**The rulings** (reviewer chat, pasted by Daniel). From ~16:05Z, verbatim: "K1's and step 0's staging readings in one slot: yes, as in
+the same block. Your go is blipscope-5c's "#590 read back", passed on by Daniel; no other go is needed. Post the slot's close through
+Daniel: the UK session's M window follows it." The ~15:47Z block's conditions, pasted ~16:31Z, verbatim:
+
+> - the secret first (32 random bytes piped on stdin, never printed, no human copy, never in a file in any git tree), then the proxy,
+>   then the builder;
+> - rollback targets for both Workers recorded first, and both Worker-input diffs named;
+> - SK1-SK6 and step 0's registered set read and graded separately; any off reading stops the slot.
+
+**Two corrections to the staging rows above, found before any run.** The rows are kept as written; these replace them for the slot.
+
+| row | as written | corrected | cause |
+|---|---|---|---|
+| **SK1** | `keyed` false before the deploy | **absent before the deploy, `true` after, read twice** (accepted ~16:46Z). `false` after the deploy means the secret did not take: stop | the secret goes on first, and the running code has no such field |
+| **SK2-SK6's airport** | KSLC | **KIND** (39.72, −86.29), at the same parameters | KSLC was in SYNC_WAIT's ten, so its plain name exists from 11-06 and SK5 could not read absent |
+
+**The second one is proved, not assumed.** The probe read KSLC's plain name **present**, which is also its control, and KIND's **absent**.
+
+**The order:**
+1. **Before anything changes:** the go; no other deploy on this machine; both rollback targets; both Worker-input diffs; and every
+   Worker's deployments read, so the close can show what landed.
+2. **SK1, before:** `/healthz`, twice.
+3. **The secret,** on the proxy, by the pipe above. Its exit status is read, with stderr in its own file.
+4. **The proxy,** then **the builder,** each by `deploy.sh`, each confirmed by its exit status; the proxy by `/healthz`.
+5. **SK1, after,** twice. Then **SK2-SK6, graded on their own.** Any off reading stops the slot here.
+6. **Step 0's set, graded on its own,** as registered in `docs/basemap-dense.md`: KJFK 422 with a non-increasing ladder ending over
+   32,768; KLGA, KEWR and Midtown read as they come; KBOS and KORD 200, with their sections at most 32,768. A ladder that increases, or a
+   200 over the cap, means the instrument is wrong: stop.
+7. **The close:** all eight Workers' deployments in the window, then the close posted through Daniel, since the UK session's M window
+   follows it.
