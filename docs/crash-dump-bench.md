@@ -97,3 +97,53 @@ it `"false"`.
 
 **Outside the set:** no dump after a planted panic with K2 satisfied means the linked config is not what the sdkconfig
 reads: stop and read the ELF for the core-dump symbols. Any row reading otherwise: stop, restore, report.
+
+## Results (E2:08, 2026-11-07)
+
+### #582's bench row: every row as predicted (03:12-03:38Z, on `3a868b966fcf`)
+
+| row | read |
+|---|---|
+| **BW0** | `wx-layer` equals `"true"`, 82 keys |
+| **BW1** | the one-time image: `wx-layer` absent, keys 82 to 81, the only name lost is `wx-layer`, none gained, Wi-Fi rejoined |
+| **BW2** | the candidate with **no save**: box ticked, buffers allocated, 4 `[wx]` lines with status 200 and 304, the layer rebuilt 3 times |
+| **BW3** | untick, save, reboot: no buffers, no fetch in 4 minutes, box unticked |
+| **BW4** | `wx-layer` equals `"false"`, 82 keys |
+| **BW5** | shipping banner, no bench line, layer on, look A, Cloud URL blank |
+
+BW2 and BW3 together cover the use of the key, which WD5b cannot see. No value was printed, and the PC never held the NVS bytes.
+
+### K: the first window stopped at K1 on my plant
+
+K0 read as predicted (check 260, size 0). `do=panic` answered 200 and **the board never crashed**: every line read `reset=11`,
+and production's boot record shows no boot after it. **The cause, read from the ELF: the compiler deleted the plant.**
+`volatile int* p = nullptr; *p = 1` is a constant null store, which is undefined, so the ELF had no `PlantedPanic` and `Loop()`
+returned after the flush. The route, the flag and the loop all worked. **My miss:** I flashed an image without reading it.
+
+### K: the second window (05:52-05:58Z, bench commit `fbc95485`)
+
+**Changed before it ran:** the pointer is volatile too, so the store is real. The driver reads the ELF first and refuses to
+flash if the plant or its call is missing. The route prints the parameter it received and answers with the board's dump
+line, so state is read over the LAN: a `read_mac` to recover a lost trace would overwrite the reset reason. The boot timer I
+had proposed was dropped: with the cause found it tested nothing, and it risked a reboot loop. K3 was restated to the
+symbol range, because `addr2line` returned `??:?`.
+
+| row | read | verdict |
+|---|---|---|
+| **K0** | check 260, size 0 | as predicted |
+| **K-R** | route lines `ping`, `panic`, and `state` after the reboot; the planted line seen | as predicted |
+| **K1** | reset `PANIC`, check `ESP_OK` | as predicted |
+| **K2** | **the dump fits: 29,412 B of 65,536**; `esp-coredump` parsed it | as predicted |
+| **K3** | pc inside `PlantedPanic`, task `loopTask`; **the two readers' PCs differ by 3 bytes** | **OFF** |
+| **K4, K5, end** | not run | unread |
+
+**The 3 bytes, and what they mean.** `esp-coredump` reads the faulting store itself, at offset 20. The board's summary reads
+offset 17: `exc_pc` comes back 3 bytes lower. I predicted they would agree; that is my miss. **For the reporter: the address in
+the summary needs that adjustment, or a decoder lands one instruction early.**
+
+`esp-coredump` did what the frozen K3 asked, through a tool I had written off: it named `include/BenchWindow.h:31`, the planted
+line, with the backtrace `loop`, `Loop`, `PlantedPanic`, `exccause 0x1d`, `excvaddr 0x0`. Only `addr2line` could not.
+
+**The dump window 2 planted is still in E2:08's flash.** K-end's erase did not run. Nothing reads it, and the next crash
+overwrites it. E2:08 ended on the shipping build, verified at 05:58:44Z. The session's files hold no address and no key
+shape, with a planted control found. No dump file remains on the PC.
