@@ -15375,3 +15375,104 @@ Each CI was read finished twice, and skipped promote and version. #597 took a th
 **A correction to the list I gave.** It said the `vs` checkout comes back with `git worktree add`. `vs` is the main checkout that holds the git database for every `wt-*` worktree. Nobody picked it and nothing was harmed.
 
 **Free space at 18:20Z: 30,290 MiB, about 29.6 GiB,** back under the line. This session ran no build after 16:50Z, only fetches and reads, so the 1,452 MiB went elsewhere. I can't tell from here where it went.
+
+### A12.172 O11's predictions, frozen for v19's candidate. One question (Q112), and one prerequisite missing from main
+
+**Where this sits.** Ruled ~18:31Z: O11 runs on v19's release candidate, before v19 is published, and the window is announced through Daniel first. Nothing runs until blipscope-5c cuts the candidate. These rows were read from main at `dce333dbf667`. A move of `src/OtaUpdater.cpp`, `include/OtaInstall.h` or `include/OtaIdentity.h` before the cut re-opens them.
+
+**Who and where, unchanged (A4.2 and its amendment):** E2:08, operated by blipscope-5c. B is an asset on the existing prerelease `ota-preflight-v6`, uploaded directly, never through a tag or the release workflow. A `promote` connected to O11 stops it.
+
+#### What changed since A2.4, and why the old wording would have read off
+
+| frozen then | now | why |
+|---|---|---|
+| the refused image is `blipscope-s3-146` (A12.103) | **`blipscope-pro-s3-21`, slug `s3-21`** | #549 retired `s3-146` |
+| the sabotage is a head **read** off by one byte, predicted `no-record` (A2.4, A3.3) | **the plant shifts the parse, not the read** | `Decide` tests the first byte before it parses, so a read that loses a byte reads `fail--106`, not `no-record` |
+| `bench` screen rows "progress 0 and 100" | **exactly 2 `[ota] screen:` lines** | `ScreenProgress` runs at `begin` and `end` only; the bar between them prints nothing |
+
+**The sabotage was rehearsed, not reasoned.** Main's real `ota::Decide` on the real heads in `test/fixtures/ota/heads/`, under WSL g++ 13.3, requested `s3-128`:
+
+| input | clean | `Parse` +1 | `Parse` -1 |
+|---|---|---|---|
+| own head | `accepted` | `refused-no-record`, image `-` | `refused-no-record`, image `-` |
+| `s3-21` head | `refused-foreign`, image `s3-21` | `refused-no-record` | `refused-no-record` |
+| `weatherscope-s3-128` head | `refused-foreign` | `refused-no-record` | `refused-no-record` |
+| pre-check head | `refused-no-record` | `refused-no-record` | `refused-no-record` |
+| own head, the stream short one byte | **`fail--106`** | `fail--106` | `fail--106` |
+
+My first run of this planted nothing: `OtaInstall.h` includes `OtaIdentity.h` with quotes, so the file beside it beat `-I`, and the planted rows read as clean. The harness now copies both headers and exits 2 if a planted run equals the clean one.
+
+#### The images, all from the candidate's commit
+
+| image | env | differs from the candidate by | `FW_VERSION` | goes |
+|---|---|---|---|---|
+| **R** | `blipscope-s3-128` | nothing | 19 | the comparison only |
+| **A** | `blipscope-s3-128-otatest` | `OTA_RELEASE_BASE`, and the env name in the banner | 19 | USB to E2:08 |
+| **B** | as A | `FW_VERSION` only, a local edit of `src/OtaUpdater.h:19`, never committed | 20 | `firmware-s3-128.bin` on the prerelease |
+| **F** | `blipscope-pro-s3-21` | another board's image | 19 | `firmware-s3-128.bin`, for the refused case |
+| **S** | as A | `include/OtaIdentity.h:99`, `head + kRecordOffset + 1`, never committed | 19 | USB to E2:08 |
+
+**How A's difference is bounded (A2.4's open item):**
+
+| row | predicted |
+|---|---|
+| **X1** | `check_ota_identity.py --extract-head`: A, B and S read `record: ok`, board `s3-128`, no scope; F reads board `s3-21` |
+| **X2** | R and A: the set of `(name, size)` for every function symbol is identical. Two strings moved, no code |
+| **X3** | `ota-preflight-v6` occurs 2 times in A and 0 in R; `releases/latest/download` 0 in A and 2 in R |
+| **X4** | `check_ota_url.py --require-ota`: R exit 0, **A exit 1.** The shipping gate sees A's pin, so it could not ship by accident |
+
+#### The cases, in this order, each on a fresh boot in one serial open
+
+**C0, nothing uploaded yet.** A on the board.
+- `[build] env=blipscope-s3-128-otatest fw=v19`, `[ota-id] board=s3-128 scope=- (record v1)`.
+- `[ota-slot] boot running=app0 @0x020000`.
+- `[ota] channel=s3-128 current=19 latest=<the snapshot's version>`, with no update. The prerelease's `version.txt` reads 6 today. That value cannot come from `latest`, so it proves the pin took.
+
+**C1, refused.** F as `firmware-s3-128.bin`, `version.txt` 20.
+- `latest=20`, then `[ota] newer firmware available -- updating`, then `[ota] downloading ` and the prerelease's URL.
+- **`[ota] refused foreign: requested=s3-128 image=s3-21`.**
+- **0** `[ota] screen:` lines, no `update installed`, and `[web] config server listening` follows, so the boot finished.
+- After a power cycle, the same refused line again, `running=app0 @0x020000`, `fw=19`. A refusal repeats on every check.
+
+**C2, the sabotage.** S on the board, B as `firmware-s3-128.bin`, `version.txt` 20.
+- **`[ota] refused no-record: requested=s3-128 image=-`,** 0 screen lines, `fw=19`.
+- S's own `[ota-id]` line still reads `board=s3-128`, because it reads the record directly, not through `Parse`.
+- This is the defect the accepted case rules out, shown visible.
+
+**C3, accepted, last, because it moves the boot slot.** A on the board, B as `firmware-s3-128.bin`, `version.txt` 20.
+- `latest=20`, `newer firmware`, `downloading`, through the redirect and the pinned roots.
+- **Exactly** `[ota] screen: progress 0` and `[ota] screen: progress 100`, in that order.
+- `[ota] update installed; restarting`.
+- Next boot: `[build] env=blipscope-s3-128-otatest fw=v20`, `[ota-slot] boot running=app1 @0x660000`, `[ota-id] board=s3-128 scope=- (record v1)`, `[ota] channel=s3-128 current=20 latest=20`.
+- The next check-in carries result `ok`, the pre-armed `incomplete` finalised because `to` equals the running version.
+
+| reading | means |
+|---|---|
+| all as above | the path works end to end, and the release may go on to Daniel's R gate |
+| C3 reads `refused-no-record` | **the defect O11 exists for.** R does not ship |
+| C3 reads `fail-*` or `update failed` | a transport or flash fault. R does not ship until it is understood |
+| C2 reads `bad-record` | the shift landed on another valid magic: its own stop (A3.3) |
+| C2 reads `fail--106` | the plant is in the read, not the parse: **the instrument,** rebuild S |
+| C1 is accepted | the board check has failed. R does not ship |
+| anything else | **outside this set: the instrument is unreliable, stop, restore, report.** No reading is improvised |
+
+#### Around the run (the reviewer's conditions, 2026-10-21)
+
+- **Before the upload, as actual reads:** `isPrerelease` true; `releases/latest` tag v18; `latest/download/version.txt` read twice a few minutes apart, unchanged. If v19 is already `latest`, O11 has lost its point: stop.
+- **Snapshot first:** `version.txt` and `firmware-s3-128.bin` from the prerelease, with sha256 and download counts. Today's listing reads 1 B, 6 downloads, and 1,691,984 B, 5 downloads.
+- **After:** read B's `download_count`, delete B, re-upload both originals, verify by hash, and repeat the three reads. Any difference is a stop. B's count is predicted at 2, C2 and C3. A clobbered asset restarts its count, and this counter has misled us before (the `+6`), so another value is recorded and is not a stop.
+- **blipscope-5c's:** no unit but E2:08 runs `-otatest`; `valar-flasher` cannot offer anything from this tag; E2:08's window and rows marked bench-only.
+- **A bench image ends no window.** E2:08 finishes on the image it came in on, with its boot read.
+
+#### Q112. How E2:08 comes back from C3
+
+C3 leaves the board booting `app1`, and `app-only-write.py` refuses a board that doesn't select `ota_0`. That refusal is correct, because the bootloader would ignore what it wrote. So the usual way back doesn't work, and "app image only; never erase" (Daniel, 2026-10-12) needs an answer before the window, not during it.
+
+- **(a) `bench-flash.ps1` without `-AppOnly` (recommended).** It rewrites the bootloader, the table and otadata with the same layout, and leaves NVS. It's the path this repo has used most.
+- **(b) Write only `boot_app0.bin` to `0x1E000`, then `app-only-write.py`.** It touches fewer regions, but it has never been run here, so it would be rehearsed for the first time on this board.
+
+Under either, B stays on E2:08 until then, so the restore belongs inside the window.
+
+#### A prerequisite missing from main
+
+**A3.1's reader isn't there.** A12.104's list says it "must be in place before R ships", and it's blipscope-5c's. At `dce333dbf667`, `scripts/reconcile-fleet.py` holds no OTA-result buckets, no `refused-` token and no "behind `version.txt`" count, and no branch's history adds one. With nothing drawn on screen, that reader is the only fleet-level sign of a broken accept path at v20. O11 doesn't need it to run, but R does. I can't exclude that it lives somewhere I didn't look: the search was that one script's history across all branches, and `proxy/src` and `scripts/` on main.
