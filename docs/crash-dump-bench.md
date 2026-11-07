@@ -147,3 +147,31 @@ line, with the backtrace `loop`, `Loop`, `PlantedPanic`, `exccause 0x1d`, `excva
 **The dump window 2 planted is still in E2:08's flash.** K-end's erase did not run. Nothing reads it, and the next crash
 overwrites it. E2:08 ended on the shipping build, verified at 05:58:44Z. The session's files hold no address and no key
 shape, with a planted control found. No dump file remains on the PC.
+
+### K: the third window (16:02-16:10Z, the same image): every row as predicted
+
+The window started from window 2's dump, which K-end had not reached. **K3 was restated before it ran, with its reason:** the
+summary's `exc_pc` sits one 3-byte instruction, the `memw`, before the faulting store that `esp-coredump` reads, so both are
+inside `PlantedPanic`, 3 bytes apart. The first K3 stays on record as my miss.
+
+| row | read | verdict |
+|---|---|---|
+| **K-pre** | window 2's dump survived about ten hours' running and two app-only flashes: check `ESP_OK`, 29,412 B, pc inside `PlantedPanic` | as predicted |
+| **K1b** | a fresh panic: reset `PANIC`, check `ESP_OK`, 29,412 B | as predicted |
+| **K3** (restated) | summary at offset 17, `esp-coredump` at offset 20, **exactly 3 bytes apart,** both inside `PlantedPanic`, task `loopTask` | as predicted |
+| **K4** | reset `TASK_WDT`, check `ESP_OK`, the summary's task `loopTask`, **not `starved`** | as predicted |
+| **K5** | after two app-only flashes: check `ESP_OK`, the same pc, the same size | as predicted |
+| **end** | after the erase, check 260: **no dump left on E2:08,** window 2's included | as predicted |
+
+E2:08 ended on the shipping build, verified at 16:10:29Z, with its settings as they were. The session's files hold no address
+and no key shape, with a planted control found, and no dump file remains on the PC. The note above that window 2's dump was
+still in E2:08's flash no longer applies.
+
+**What K established, for the reporter:**
+- The dump is written on a panic and on a task-watchdog trip, is 29,412 B of the partition's 65,536, and survives app-only
+  flashes. An OTA writes only an app slot, so it should leave a dump alone; no OTA was run.
+- **The address needs its adjustment:** `exc_pc` in the summary reads 3 bytes below the faulting instruction here.
+- **A watchdog dump cannot name the starved task:** it named `loopTask`, the context that was running. The `RTC_NOINIT` word stays
+  in the design.
+- `esp-coredump` named the planted line and the backtrace, given the image's own ELF. **A rebuilt ELF was not tested.** A rebuild of
+  a tag has a different `app_elf_sha256`, so the reporter's design has to say which ELF is kept for each release.
