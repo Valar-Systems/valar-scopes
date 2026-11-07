@@ -15,6 +15,7 @@ ruled, never only remembered.
 | **F3** | **Before drawing anything,** the client runs every check in the format's §8. Any failure means the no-package screen, logged with why. There is no partial draw | `docs/basemap-package-format.md` §8 |
 | **F4** | **The client draws the disc the header names** (`radiusMm`), not the one it asked for. A dense-area package may cover a smaller disc (D2) | §8 permits it; Q-DN2 (2026-11-06 ~15:07Z) |
 | **F5** | **A 404 `no_coverage` or 422 `too_large` is the no-package screen.** For a major city the server must not leave it there: the dense-area fix lands before D4 | Q-DN2: "'No map' isn't an acceptable end state for a major city" |
+| **F6** | **The first fetch after an update is spread: a per-device delay,** so the fleet does not ask at 03:00 in each time zone (§5). The window, and whether a device's nightly fetch is spread too, are registered with the client code | reviewer, 2026-11-06 ~22:49Z: "prefer spreading the first fetch (a per-device delay after the update) over measuring a 03:00 burst" |
 
 ## 2. The style: Daniel's decision (2026-11-06)
 
@@ -170,10 +171,11 @@ account (`docs/basemap-route.md`), and two things can move this answer: weather'
 
 **Load at the burst: not measured.** Concurrency has only been read as a pair (SR1). If 600 devices sat in one time zone
 and fetched over five minutes, that would be about 2 builds a second, about 8 running at once, each reading up to
-38.4 MB from the store. That is an arithmetic bound on a case nobody has run, not a limit anyone has hit. **The client's
-registered rows either read it or spread the first fetch.**
+38.4 MB from the store. That is an arithmetic bound on a case nobody has run, not a limit anyone has hit. **As ruled
+~22:49Z, the client spreads the first fetch (F6) rather than measuring a 03:00 burst.**
 
-**At ship:** re-read the account's figures and the fleet count, and state the month's projected overage with the wave.
+**At ship:** re-read the account's figures and the fleet count, and state the month's projected overage with the wave and
+**v19's weather polling** (`/wx` with every cloud board on), which blipscope-5c restates before the v19 cut.
 **Over $2 is Daniel's call before ship.**
 
 **CI for #569 (this document's first PR, docs-only), predicted: 31 check runs: 28 success, 3 skipped (`promote`,
@@ -217,3 +219,7 @@ of jobs; the two workflow commits since (`12569fa0`, `259e8688`) only add steps 
 skipped (`promote`, `ship-alert`, `version`), 0 failed.** #445 (`caf63cc9`) added one firmware matrix leg
 (`blipscope-s3-128-wxlook`), so this is the last docs-only PR's 31 + 1. Main's docs pushes read 31 on `b5c9c6e9` and 32 on
 `1ce7a73a`.
+
+**CI for the PR adding F6 and v19's weather polling (docs-only), predicted: 32 check runs: 29 success, 3 skipped
+(`promote`, `ship-alert`, `version`), 0 failed.** The baseline is #587's finished docs-only run (32 = 29/3), which postdates
+`caf63cc9`, the last change to the set of jobs.
