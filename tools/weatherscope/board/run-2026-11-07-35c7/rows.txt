@@ -1,0 +1,82 @@
+ok  B0 the image  env=weatherscope-s3-128
+ok  Q103 the HTTP read through GetSecure  channel=weatherscope-s3-128 current=18 latest=18
+#HOST post wx-theme=dark
+#HOST post wx-theme=dark: HTTP 200; only the asked fields changed: True; stored as asked: True
+#HOST send b'N'
+#HOST fetch dark-forecast 0: 115200 B torn=false seq=952 phase=2,2 tag=610003b9,610003b9 finished=true wait=5173 sha d126535a5436
+#HOST fetch dark-forecast 1: 115200 B torn=false seq=973 phase=2,2 tag=610003ce,610003ce finished=true wait=4991 sha d126535a5436
+ok  K-glass forecast dark  graded; frame d126535a5436, want d126535a5436
+#HOST send b'N'
+#HOST fetch dark-conditions 0: 115200 B torn=false seq=1001 phase=2,2 tag=620003ea,620003ea finished=true wait=5142 sha 26158ec69c9d
+#HOST fetch dark-conditions 1: 115200 B torn=false seq=1018 phase=2,2 tag=620003fb,620003fb finished=true wait=5037 sha 26158ec69c9d
+ok  K-glass conditions dark  graded; frame 26158ec69c9d, want 26158ec69c9d
+#HOST send b'N'
+#HOST fetch dark-alerts 0: 115200 B torn=false seq=1045 phase=2,2 tag=63000416,63000416 finished=true wait=12182 sha eb93e5426a5e
+#HOST fetch dark-alerts 1: 115200 B torn=false seq=1061 phase=2,2 tag=63000426,63000426 finished=true wait=5235 sha eb93e5426a5e
+ok  K-glass alerts dark  graded; frame eb93e5426a5e, want eb93e5426a5e
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'V'
+#HOST send b'V'
+#HOST send b'V'
+#HOST send b'V'
+#HOST send b'V'
+ok  N1 forward and back, dark  map, forecast, conditions, alerts, legend, and back, on N and V
+ok  N2 the ends stop, dark  N on the legend quiet: True; V on the map quiet: True
+#HOST post wx-theme=light
+#HOST post wx-theme=light: HTTP 200; only the asked fields changed: True; stored as asked: True
+#HOST send b'N'
+#HOST fetch light-forecast 0: 115200 B torn=false seq=2010 phase=2,2 tag=610007db,610007db finished=true wait=4846 sha 175f0f9601d5
+#HOST fetch light-forecast 1: 115200 B torn=false seq=2028 phase=2,2 tag=610007ed,610007ed finished=true wait=5000 sha 175f0f9601d5
+ok  K-glass forecast light  graded; frame 175f0f9601d5, want 175f0f9601d5
+#HOST send b'N'
+#HOST fetch light-conditions 0: 115200 B torn=false seq=2058 phase=3,3 tag=6200080a,6200080a finished=true wait=5004 sha fce72fefcbb0
+#HOST fetch light-conditions 1: 115200 B torn=false seq=2076 phase=2,2 tag=6200081d,6200081d finished=true wait=5146 sha fce72fefcbb0
+ok  K-glass conditions light  graded; frame fce72fefcbb0, want fce72fefcbb0
+#HOST send b'N'
+#HOST fetch light-alerts 0: 115200 B torn=false seq=2102 phase=2,2 tag=63000837,63000837 finished=true wait=5006 sha da06f7e831e5
+#HOST fetch light-alerts 1: 115200 B torn=false seq=2120 phase=2,2 tag=63000849,63000849 finished=true wait=7478 sha da06f7e831e5
+ok  K-glass alerts light  graded; frame da06f7e831e5, want da06f7e831e5
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'V'
+#HOST send b'V'
+#HOST send b'V'
+#HOST send b'V'
+#HOST send b'V'
+ok  N1 forward and back, light  map, forecast, conditions, alerts, legend, and back, on N and V
+ok  N2 the ends stop, light  N on the legend quiet: True; V on the map quiet: True
+#HOST post wx-theme=dark
+#HOST post wx-theme=dark: HTTP 200; only the asked fields changed: True; stored as asked: True
+#HOST send b'N'
+#HOST send b'T'
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'T'
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'T'
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'N'
+#HOST send b'T'
+ok  N3 a tap goes home  from each of the 4 pages
+#HOST send b'N'
+#HOST send b'U'
+#HOST send b'D'
+#HOST send b'V'
+ok  N4 no zoom on a page  0 zoom or screen line(s) after U and D
+#HOST send b'N'
+#HOST send b'V'
+ok  N5 the cycle pauses and resumes  0 screen line(s) in 45 s on a page; resumed: True
+#HOST send b'S'
+#HOST send b'T'
+ok  Q107 S reaches the legend from the map  not part of any navigation row
+#HOST send b'N'
+ok  N6 the idle return  600.1 s after the last byte (predicted 600 to 605)
+#HOST post wx-theme=auto
+#HOST post wx-theme=auto: HTTP 200; only the asked fields changed: True; stored as asked: True
+B6 the clean image: AS PREDICTED -- build line env=weatherscope-s3-128
+B6 the stored theme: AS PREDICTED -- theme=auto read=known
