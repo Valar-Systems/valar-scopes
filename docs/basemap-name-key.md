@@ -258,3 +258,26 @@ could end the test with the read still in flight, which is the same failure. MS1
 
 Each run also takes `baseline[all]`, predicted **175** cases in 17 files. Then the smoke driver as frozen: CONTROL 1,018 / 1 /
 1,019. **Anything else: stop and report.**
+
+### Read (2026-11-07, `496a2fdbd39e`): as frozen
+
+| check | read | verdict |
+|---|---|---|
+| **S-S2NOCATCH** | **{MS11}**; `baseline[all]` 175 in 17 files; 0 runtime failures | as predicted |
+| **S-MS1** | {MS1, MS10, MS11, MS2, MS3, MS4, MS6, MS7}; 175 | as predicted |
+| **S-MS2** | {MS10, MS11, MS2, MS6}; 175 | as predicted |
+| **S-QDIGEST** | {MQ10, NK2, NK3}; 175 | as re-registered |
+| the read before the smoke run | `SQ1:`, `SQ2:` and `SQ-C:` each title one row across `test/` | as ruled |
+| **`sabotage-smoke-basemap.mjs`, whole** (wait clear 05:51:21Z: TIME_WAIT 36; exit 0 at 05:57:24Z) | CONTROL **1,018 passed, 1 skipped, of 1,019**, 0 failed (peak 13,749). S-SQ **{SQ1, SQ2}** (peak 13,736). S-SQP **{SQ-C}** (peak 13,743). Both restored byte-identical. **ALL AS REGISTERED**, so each run counted 1,019 | as predicted |
+
+- **The whole driver's other 77 sabotages** were read at `2a4753a2fd4b`. Between that tree and this one only MS11's stub and
+  S-QDIGEST's set changed, and MS11 appears only in S-S2NOCATCH, S-MS1 and S-MS2, all read again above.
+- **The tree afterwards:** porcelain 0.
+- **The TIME_WAIT margin:** the highest peak, 13,749, is 1,251 under the driver's 15,000 ceiling. Not under 1,000.
+
+**CI for the code PR, predicted: 35 check runs: 32 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The
+baseline is #589's finished run (35 = 32/3), a `proxy/` PR that postdates `caf63cc9`, the last change to the set of jobs.
+`c46af84f` (#594) touched `device-ids.yml` since, adding steps only.
+
+**The suite on CI, predicted: 1,019** (1,018 passed, 1 skipped): main's 1,012 (`workers` on `fa660869a026`, with no proxy source
+or test change since) plus K1's 7, the same as this tree.
