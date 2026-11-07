@@ -550,3 +550,9 @@ predicted, in two reads (18:36:56Z and 18:37:04Z).
 **Stage 1a's deploy is complete: every graded row read as predicted.** Ended 20:47:35Z.
 - `opuk` runs `b7626571` (prune by key).
 - No rollback was needed. No Logs read was sampled, so the amendment's re-read was never used.
+
+**This record goes to main as its own PR, as ruled ~16:05Z ("docs/wx-opuk-pkd: yes, its own PR the same way").**
+
+**Its CI, predicted before its push: 32 = 29 success, 3 skipped, 0 failed.** It touches `docs/wx-opera-europe.md` alone.
+- **Baseline:** #593's finished PR run on `49d794d96226` (docs-only), started 2026-11-07T03:05:54Z: 32 = 29/3.
+- **Last job-set change:** `caf63cc9` (#445). **Last workflow change:** `c46af84f` (#594, steps only).
