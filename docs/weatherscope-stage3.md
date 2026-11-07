@@ -15037,3 +15037,18 @@ The branch is deleted; no PR was based on it. Main's CI on the squash is running
 **Step 7's window stays closed until then,** unless the reviewer rules otherwise. If it has to open first, #594 waits for it to close, as ruled.
 
 **Recorded so it is not repeated:** a reopened PR's CI does not prove what it ran on. Read the run's own `HEAD is now at` line.
+
+### A12.163 #594's CI at `5ec1f50c3f4a`, on a merge ref that includes #591: AS PREDICTED. It waits for an approval at that SHA
+
+| row (A12.162) | predicted | measured, finished, read twice |
+|---|---|---|
+| the checks | 35: 31 success, 4 skipped, 0 failed | **as predicted:** 35 checks, 31 success, 4 skipped (promote, publish, ship-alert, version), 0 failed |
+| `print-cards` | once, for the `pull_request` | **as predicted:** the `push` did not fire it, so the reading of its path filter holds |
+| the control: what the guard ran on | `Merge 5ec1f50c... into` a commit holding #591 | **as predicted:** `HEAD is now at 96a436e Merge 5ec1f50c3f4a... into a9fb02a92fd7`, and `9b6b28fe9912` is its ancestor |
+| the control: what the guard read | `mac check:` at least 1,732 tracked, 0 findings | **as predicted:** 1,732 tracked, 1,269 scanned, 0 findings, 13 documentation-range MACs seen |
+
+This is the reading the ~03:23Z ruling asked for: #594's guard, on CI, reading #591's new files.
+
+**The PR reads mergeable and clean.** Main is at `a9fb02a92fd7`, with no job-set change, and the CI prediction on the squash stays 35: 32/3/0.
+
+**#594 waits for an approval at `5ec1f50c3f4a`.** It then merges under Q-M1 with the squash tree compared. The S-W5J PR and step 7 follow.
