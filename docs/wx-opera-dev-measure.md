@@ -245,3 +245,9 @@ last backfill, up to 12, all in 900 s pieces at **ABR [1]**.
 
 **The dev Worker:** `off` at 21:30:44Z. Its cron stopped within the window Plan S measured: 7 invocations right after the
 deploy, then **0 from 21:46Z** (read 21:56:01Z). **M ended at 21:30:44Z,** and the deploy slot is released.
+
+**This record's PR, its CI predicted before the push: 32 = 29 success, 3 skipped, 0 failed.** It touches this doc and
+`tools/wx/m_read.py`, which no workflow's path filter matches.
+- **Baseline:** #608's finished docs-only PR run on `1c88ff6d776a`, started 2026-11-07T18:21:03Z: 32 = 29/3.
+- **Last job-set change:** `caf63cc9` (#445). **Last workflow changes:** `2e36055a` and `848330eb`, steps only.
+- **All 14 steps `device-ids.yml` runs** pass on this branch merged onto main at `848330eb2863`.
