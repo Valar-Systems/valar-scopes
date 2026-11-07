@@ -1,0 +1,4 @@
+esptool v5.3.0
+MAC:                6E:64
+Verifying 0x1cb6d0 (1881808) bytes at 0x00020000 in flash against 'firmware.bin'...
+Verification successful (digest matched).

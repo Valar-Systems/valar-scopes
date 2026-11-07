@@ -166,6 +166,10 @@ uint8_t ConsumeDeferredRebootCause();
  */
 bool ConsumeDeferredCheckFlag();
 
+// True while an OTA image is being written to flash (begin() through the adapter's end).
+// The touch-wedge reboot waits on it (TouchWedgeCap.h, TouchWedgeDevice.h; A12.119).
+namespace ota { bool FlashWriteActive(); }
+
 // Which OTA slot is this image running from, and is it marked valid yet?
 //
 // Printed unprompted every boot, for the same reason BuildIdentity prints the env: after

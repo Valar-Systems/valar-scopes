@@ -1,0 +1,17 @@
+B5 boot 5: AS PREDICTED -- boot: run=3 (stored 3, reset not power-on) -- touch unavailable, no touch reboots this boot
+#HOST send b'w'
+#HOST send b'r'
+B5 'w' in time: AS PREDICTED -- 'w' at device t=19.3 s (predicted <= 30)
+#HOST fb boot5-before 0: 115200 B, strip light
+#HOST fb boot5-before 1: 115200 B, strip light
+#HOST fb boot5-before 2: 115200 B, strip light
+B5 strip after 'w': AS PREDICTED -- the strip in 3 of 3 frames (predicted >= 2)
+B5 the reset: AS PREDICTED -- run 3 -> 0 at device t=179.9 s (predicted >= 180); leaving line seen
+#HOST fb boot5-after 0: 115200 B, strip absent
+#HOST fb boot5-after 1: 115200 B, strip absent
+#HOST fb boot5-after 2: 115200 B, strip absent
+B5 strip cleared: AS PREDICTED -- the strip in 0 of 3 frames (predicted 0)
+#HOST send b'r'
+B5 'r': AS PREDICTED -- t=184368 run=0 stored=0 unavailable=0 wedgeSeen=0 chip=alive
+clear exit=0
+18:24:40Z
