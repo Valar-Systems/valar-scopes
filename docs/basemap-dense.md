@@ -787,3 +787,49 @@ then warm, with every phase sampled settled. C1-C3 run in every process before i
 
 **Then, if it stands: `READ_AHEAD`'s effect, as its own registration.** KLGA at `READ_AHEAD` 6, 3 and 1, each cold three times, read with the same
 instrument. That is registered after this read, not now.
+
+### Q-MEM1b, read (2026-11-08, 20:40:29-20:40:33Z): stopped at MB0. The control may be at fault, not the instrument
+
+**The driver stopped after its first process,** the control process. The other 15 never ran. The tree stayed clean.
+
+| control | before the builds | mid-build, at the 10th cell read (C4) |
+|---|---|---|
+| C1, live hold | +32.00 MiB, ok | +32.00, ok |
+| **C2, released hold** | **+32.00 MiB: off** | **+32.00: off** |
+| C3, dead buffer | 0.00, ok | 0.00, ok |
+
+**Every sample settled:** none unsettled, and at most 3 collections in one. So C2's +32 was a stable reading, not one still moving.
+
+**Two explanations fit, and this read doesn't separate them:**
+1. **A lag the collector never clears.** The released buffer is dead but still counted after collections that agree with each other. Then the
+   instrument is retired, as registered for MB0.
+2. **C2's buffer was never dead.** C2 releases its hold by nulling a local in a function whose frame is still running. V8 can keep that
+   value reachable from the frame until the function returns, so the buffer was live and counting it was correct. Then the instrument may
+   be sound, and **the control was the defect.**
+
+**What favours 2:**
+- **C3's buffer** is dropped inside a function that has already returned. It read 0.00 in 16 of the 17 processes across both runs.
+- **Settled sampling,** which makes each collection finish the previous sweep, didn't move C2 at all.
+- **Q-MEM1's warm builds** read the same as their cold ones, within 0.73 MiB. Under 1, each warm baseline would carry the cold build's
+  uncollected garbage, and so read lower.
+
+**What 2 leaves unexplained:**
+- **Q-MEM1's one C3 that read 32.00** (Midtown, third run);
+- **DR0's KJFK at 76.9 MiB** against CTRL-a's 97.3, which needs some other difference between those two processes.
+
+**This outcome wasn't in the predicted set:** MB0's registered meaning assumed C2's buffer was dead. So per the outside-the-set line, **stop and
+decide.**
+
+**The control that would separate 1 from 2,** offered for a ruling:
+- **C2′:** allocate the hold in one function and return it into a module-level slot, clear the slot from a second function, then sample from
+  a third. No running frame then holds the buffer.
+- Under 1, C2′ reads +32; under 2, it reads within 1 MiB.
+
+### Corrections to earlier statements in this file, found by this read (the originals are kept above)
+
+- **Q-MEM1's "explanation 2 holds"** (its read, "What it means"): **not established.** It rested on the released hold still being counted, and
+  I didn't name the alternative that the hold was still reachable. That is the finding-without-a-named-alternative this repo's practice
+  forbids.
+- **Q-MEM2's MG-A meaning,** as registered ("the local ceilings over-counted") and as read ("the local figures over-counted"): **an overreach,
+  in both places.** Every local ceiling (93.6-107.7 MB) is under 128 MB, so a build that fits can't show that any of them over-counted. MG-A
+  establishes one thing: **KLGA at r=162 built under 128 MB in workerd.**
