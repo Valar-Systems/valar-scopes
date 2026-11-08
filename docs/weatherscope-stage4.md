@@ -407,3 +407,32 @@ Either way it's announced through Daniel first, because it uses the account.
 - **What it touches:** an ephemeral preview on the account. Nothing is deployed, and no Worker, route or KV changes.
 - **The close:** the local process tree is stopped and checked gone by command line, and the preview ends with it.
 - **The record:** statuses, times, sizes and max-ages only. No body, URL or coordinate.
+
+### S4.3, 2026-11-08: W3 stopped at W3-0, the rig. No W3 reading exists. One question (Q122)
+
+**The window:** 20:00:17Z to 20:11:23Z, on Daniel's go (~19:07Z).
+
+**W3-0 read as the rig:** `wrangler dev --remote` stopped at `Starting remote preview...` with `[ERROR] Could not create remote preview
+session on your account.`
+- **No preview ran, so no call reached NWS from Cloudflare,** and W3-1 to W3-5 have no reading.
+- As S4.2 registered, this is the instrument. **(b) needs its own ruling,** and I haven't run it.
+- The process tree was stopped by parent id and checked gone, and port 8799 is free. Nothing else was touched.
+
+**What it can't tell apart, all named:**
+
+| cause | what would show it | can it be read from here? |
+|---|---|---|
+| **The account has no `workers.dev` subdomain,** which a remote preview needs. The proxy runs with `workers_dev = false` | the account's subdomain setting | **No.** It needs an API token with Workers scope, and none is on this machine, by rule |
+| **The login lacks a scope** the preview session needs | the login's scopes | Only by printing account details, which I won't |
+| **A transient Cloudflare failure** | a second attempt that starts | **Yes,** by one retry |
+
+**Ruled out: wrangler's suggested replacement,** `wrangler dev --x-remote-bindings`. It runs the Worker locally, so its calls would leave
+from this PC, which isn't what W3 measures.
+
+#### Q122. How W3 is read now
+
+- **(a) One retry of `dev --remote`, as frozen,** announced the same way. If it starts, the transient cause is excluded and W3 reads as S4.2 says. If it fails the same way, it rules out nothing else, and (b) follows.
+- **(b) Q121's (b): the probe as a route on the staging proxy** (recommended). It's a deploy, so it takes the claim (#618) and has a rollback target, and blipscope-5c reads it for conflicts (Q116). It measures a deployed Worker's egress, which is what W5 will be. S4.2's rows stand, read on that route.
+
+**Recommended: (b),** because it reads the real path and answers the question either way. (a) is cheaper, but only excludes the least
+likely cause.
