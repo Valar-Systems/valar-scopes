@@ -46,6 +46,20 @@ tree (`blipscope-s3-128-wxkey`, `-wxclear` and `-crashbench`) hold 0 of each, wi
 | **S-KI-order** | night outranks a recent touch | KI1, KI2 |
 | **S-KW1** (in `check_web_wiring.py`) | `CurrentPollIntervalMs` keeps its own copy of the rule | KW1 |
 
+**Added before any test ran, 2026-11-08 ~20:50Z: KI5, and what it changes.** Today's code calls `isNightNow()`, a solar
+calculation, only when the conditions before it hold: for the weekly reboot that means almost never, since uptime is under 7 days.
+A helper that took `nightNow` as a plain `bool` would compute it on every device frame. So both helpers take the night test as a
+function, called last.
+
+| row | where | predicted |
+|---|---|---|
+| **KI5** | host, device build | the night function is called only where today's code calls it. In `IntervalMs`: never after a recent touch, never with an invalid clock, and once otherwise. In `PreventiveRebootDue`: never unless every earlier condition holds, and then once |
+
+| plant | the edit | red, exactly |
+|---|---|---|
+| **S-KI-eager** | `PreventiveRebootDue` evaluates the night test first | KI5 |
+| **S-KI-order**, amended | night outranks a recent touch, so the night test now runs before the touch is read | KI1, KI2 and **KI5** (the frozen set was KI1 and KI2, written before KI5 existed) |
+
 ## The venue's airfield
 
 **Today:** the firmware asks for `/api/v1/blipscope/airports?lat&lon&r`, and a reply replaces the baked table of 329 airports.
