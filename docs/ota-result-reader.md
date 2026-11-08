@@ -147,6 +147,23 @@ Analytics Engine is checked only live, which is what R2 is for, and it fired.
 
 **The re-run's predictions are unchanged:** R2a to R2e as frozen above, with the same scope.
 
+## R2's re-run: as predicted on every row (2026-11-08, 20:01-20:02Z, at `7d4f8e03cbb2`)
+
+**Ruled ~19:07Z:** F1 and F2 accepted. R1h and S-R1body stand, with R1h's timing as disclosed above. The 422 and the dropped error
+body stay on record as my misses. The re-run kept the same scope, and its id files were deleted after the read.
+
+| row | read | verdict |
+|---|---|---|
+| **R2a** | 24 live `fw:` rows (23 without the test identity); `version.txt` 18 | as predicted |
+| **R2b** | `ok 4`, `sum 4 = behind 4`; computed separately from the `--json` file's `fw:` rows: 4 behind of 23, 0 fw unknown | as predicted |
+| **R2c** | no `refused-*` bucket | as predicted |
+| **R2d** | no `unrecognised` bucket | as predicted |
+| **R2e** | exit 1, from the empty CSV's 23 `kv-only` rows alone; no instrument warning | as predicted |
+
+**A reading, not a row:** all four devices behind 18 report `ok` as their last result in 90 days. Each completed an update in that
+window and has not taken v18. This block cannot say why: it does not see whether a device has stopped checking, or has moved to a
+feed that sends no record (A3.2). That is a question for the fleet, not for the reader.
+
 ## CI prediction for the PR
 
 **35 = 32 success / 3 skipped / 0 failed.** This is the docs-only base of 32 = 29/3/0 from #614's finished run, plus the three
