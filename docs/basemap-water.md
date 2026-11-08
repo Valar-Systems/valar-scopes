@@ -221,3 +221,67 @@ ladder figures under today's order are reported for the dense-area proposal.
 - **A+B keeping less water than today's order at any airport,** which contradicts the mechanism;
 - the planted ring off by more than 1%;
 - anything else not in this table.
+
+### Read (2026-11-08, store `4c0875738f38`, main `af1427953e38`): the first row, so A+B replaces Q26 as ruled
+
+**No stop.** The planted ring read 0.00% off. No Wtiger exceeded Wtrue by 10 points (the most was KMSP's 1.7). Every rung-3 airport read 0.0%,
+KIND and KJAC were under 5%, no object was missing, and A+B kept at least as much water as today's order everywhere.
+
+**The coverage split, as at r=97:**
+
+| airport | Wtrue | Wtiger | Missed | Wpkg | rung |
+|---|---|---|---|---|---|
+| **KBOS** | 45.2% | 12.5% | **75.9%** | 0.0% | 3 |
+| **KJFK** | 39.6% | 9.6% | **79.0%** | none: a 422 | - |
+| **KLGA** | 33.8% | 9.4% | **76.0%** | none | - |
+| **KEWR** | 29.7% | 8.4% | **75.9%** | none | - |
+| **Midtown** | 32.0% | 8.9% | **75.9%** | none | - |
+| **KMIA** | 66.8% | 14.1% | **80.5%** | 13.5% | 2 |
+| **KSFO** | 45.4% | 5.7% | **89.1%** | 0.0% | 3 |
+| **KSEA** | 11.6% | 11.7% | **23.7%** | 0.0% | 3 |
+| **KORD** | 23.9% | 24.7% | **0.2%** | 0.0% | 3 |
+| **KDTW** | 17.7% | 9.4% | **50.5%** | 0.0% | 3 |
+| KMSP | 0.5% | 2.2% | 3.0% | 0.0% | 3 |
+| KIND | 0.0% | 0.5% | 0.0% | 0.0% | 3 |
+| KJAC | 0.7% | 1.2% | 37.3% | 1.2% | 1 |
+
+**The options at 32 KB.** Each cell is water in the disc, then the secondary roads kept. "Of Wtiger" is A+B's water as a share of TIGER's.
+
+| airport | today | A | A+B | of Wtiger |
+|---|---|---|---|---|
+| **KBOS** | 0.0%, 173 | 11.1%, 0 | **11.5%, 28** | **92%** |
+| **KMIA** | 13.5%, 1,571 | 14.0%, 1,066 | **13.6%, 1,571** | **96%** |
+| **KSFO** | 0.0%, 1,105 | 5.7%, 220 | **5.6%, 826** | **98%** |
+| **KSEA** | 0.0%, 1,356 | 11.7%, 0 | **11.8%, 700** | **101%** |
+| **KORD** | 0.0%, 611 | 24.7%, 56 | **24.5%, 440** | **99%** |
+| **KDTW** | 0.0%, 526 | 9.4%, 134 | **9.1%, 428** | **97%** |
+| KMSP | 0.0%, 271 | 1.5%, 0 | 1.5%, 116 | 68% (not graded) |
+| KIND | 0.0%, 665 | 0.5%, 170 | 0.6%, 513 | - |
+| KJAC | 1.2%, 578 | same | same | - |
+| **KJFK, KLGA, KEWR, Midtown** | 422 | 422 | **422** | - |
+
+**Against the table:** A+B fits at 32 KB everywhere except New York, and keeps 92-101% of TIGER's water at all six graded airports. **So A+B
+replaces Q26, as ruled.**
+
+**My expectation was wrong again:** I expected KBOS and KORD to join New York as 422s, and both fit. KMSP keeps 68% of its small water share. It
+isn't one of the six graded airports, so the reading stands, and it stays on record.
+
+**B on its own still does nothing** where the water doesn't fit even simplified (KBOS, KSFO, KSEA, KORD, KDTW, KMSP, KIND), as at r=97.
+
+**New York, for the dense-area proposal: over by 23-27%,** not r=97's 5-11%. Under today's order, after every rung:
+
+| query | ladder: start / ε×2 / no water / no secondary | over the cap | roads, rivers, places, provenance |
+|---|---|---|---|
+| **KJFK** | 238,588 / 196,364 / 176,124 / 40,366 | **7,598** | 27,970, 8,488, 1,776, 1,972 |
+| **KLGA** | 249,684 / 205,868 / 186,014 / 41,061 | **8,293** | 28,934, 8,398, 1,597, 1,972 |
+| **KEWR** | 256,169 / 210,479 / 189,029 / 41,370 | **8,602** | 29,159, 8,051, 2,028, 1,972 |
+| **Midtown** | 253,966 / 208,947 / 188,359 / 41,610 | **8,842** | 29,550, 8,185, 1,743, 1,972 |
+
+**What these figures say about New York:**
+- **Primary roads alone take 28-29.5 KB of the 32.** Dropping secondary roads doesn't close it, and neither does water: the dense-area rung must
+  simplify primaries or rivers.
+- **A+B at 40 KB:** KJFK fits (5.7% water, no secondary roads), and the other three are 422s.
+- **A+B at 48 KB:** all four fit, with 7.9-8.9% water and 29-63 secondary roads.
+- **The cap is the map client's to measure** (step M), as ruled. These figures are for that reading, not a recommendation.
+
+**For the map client:** the client's query works as asked everywhere outside New York, and A+B is what packages hold once the store change ships.
