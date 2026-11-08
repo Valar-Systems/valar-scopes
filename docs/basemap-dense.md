@@ -402,3 +402,30 @@ predates #445.
   990 (`workers` on `51757039ed01`) plus step 0's 8.
 - **This branch was not merged with main,** so the 992 read above stands for this tree. The merge is clean, and none of
   main's newer commits touch the basemap's files.
+
+## Step 0's reading on staging (2026-11-07, 18:14-18:16Z): as predicted
+
+**Read in the combined slot, graded on its own, on builder `9512e266` at ε 100,585 mm.** The slot's record is in
+`docs/basemap-name-key.md`. Every query was a 202 `known-miss`, then a retry as the table shows. Exactly one build each.
+
+| query | answer | ladder: start, ε×2, no water, no secondary | over the 32,768 cap | reported sections | reads, MB, wall ms |
+|---|---|---|---|---|---|
+| **KJFK** | 422 `stored-error` | 137,003 / 108,911 / 93,331 / 34,306 | **1,538** | 34,130 | 57, 38.4, 4,211 |
+| **KLGA** | 422 `stored-error` | 149,881 / 119,228 / 102,940 / 35,700 | **2,932** | 35,524 | 57, 38.4, 4,038 |
+| **KEWR** | 422 `stored-error` | 163,115 / 130,021 / 112,563 / 36,509 | **3,741** | 36,333 | 62, 34.6, 3,115 |
+| **Midtown** | 422 `stored-error` | 155,007 / 123,096 / 106,020 / 35,810 | **3,042** | 35,634 | 57, 38.4, 3,591 |
+| **KBOS** (control) | 200 `stored`, rung 3 | none: it fits | fits | 32,583 | 57, 36.9, 4,640 |
+| **KORD** (control) | 200 `stored`, rung 3 | none: it fits | fits | 32,585 | 52, 23.4, 3,468 |
+
+**Against the registered rows:**
+- **KJFK:** 422, with a non-increasing ladder ending over 32,768. **As predicted.**
+- **KLGA, KEWR, Midtown:** not predicted, by design. All three are 422, and each ladder ends over the cap.
+- **The controls:** 200, each reported section's bytes summing to at most 32,768. **As predicted.**
+- **No ladder increases, and no 200 is over the cap,** so the instrument stands.
+- **Each ladder's last figure is its sections plus 176 bytes,** so the identity holds on real builds as it does in MN6.
+
+**Two findings:**
+1. **New York is close.** After every rung, the four queries end 1,538-3,741 bytes over, about 5-11%. That goes to the dense-area proposal.
+2. **Water is missing.** All seven builds in the slot, KIND's included, read **0 bytes of water.** Rung 3 means the whole water layer went
+   first. So Boston Harbor and Lake Michigan would not draw. This goes first in the ocean proposal (ruled ~18:19Z), after a read of how
+   much of it is TIGER's coverage rather than the ladder.

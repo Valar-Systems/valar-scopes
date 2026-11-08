@@ -118,3 +118,136 @@ at the push found main had moved under it:
   35 = 32/3.
 
 Merge by the rule.
+
+## 7. The measurement's record
+
+**The rulings on it, verbatim.**
+
+> For: the UK data session, from the reviewer chat, 2026-11-06 ~22:54Z
+>
+> #579: approved at c63a9290677f, to merge under Q-M1. A failed map put now costs the next cold isolate a rebuild rather than the frame; MF1-MF3 and MF1s read as predicted. Its main run will carry #445's new leg, so predict that run from 1ce7a73a's main run before you merge.
+>
+> #586: approved at a1a476ec424b, to merge under Q-M1. With no overrunPx, windowFor refuses and returns exactly what it did before, so production's opuk is unchanged. The dev rows live only in the dev entry, and allowAny belongs to the sabotage alone. The dev envs bill like production against Daniel's $2, so keep each one's run bounded and state how long it ran in the M stage's record.
+
+> For: the UK data session, from the reviewer chat, 2026-11-07 ~16:05Z
+>
+> #601 at e5e71f2f7f07 and #602 at bdbd49ff946a: approved once each one's CI double-reads 32 = 29/3/0. Merge under Q-M1.
+> docs/wx-opuk-pkd: yes, its own PR the same way.
+>
+> 1. M's window: after the map server's combined staging slot closes, which itself follows blipscope-5c's "#590 read back". Daniel passes on that close. M then holds the lock for its whole run, about 3 hours, ending on `off`, with start and end announced through Daniel. The dev Worker stays on idle until then; if M is pushed past today, park it on `off` in the first free window.
+> 2. M1: re-registered as you propose, before any M CPU is read. Upper bounds only, with no floor: opwe <= 616 ms, opsn <= 531 ms, opux <= 591 ms. M2-M6 stand. M1's old bands stay on record as the same miss as MD-5's.
+> 3. S2: answered in the map server's #603. Only your 02:53:38Z dev deploy landed inside the slot, and nothing S2 read can depend on it through a binding, code or data.
+
+**M1, as re-registered, before any M CPU was read.** Upper bounds only, with no floor: the Worker's `r2` median (261 ms) x
+the product's ratio x 1.6.
+
+| row | bound | expected |
+|---|---|---|
+| **M1 `opwe`** | median **<= 616 ms** | about 385 ms |
+| **M1 `opsn`** | median **<= 531 ms** | about 332 ms |
+| **M1 `opux`** | median **<= 591 ms** | about 370 ms |
+| **M2 `opmt`** | median **<= 600 ms** | as frozen |
+| **M3** | max, any build, **<= 6,000 ms** | as frozen |
+| **M4** | **0 `exceededCpu`, 0 `exceededMemory`** | as frozen |
+| **M5** | counts and medians by `map` | printed, as frozen |
+| **M6** | the projection, with the stop at $2 | as frozen |
+
+- **M1's old bands stay on record as the same miss as MD-5's:** `opwe` [1,487, 3,805], `opsn` [1,281, 3,280], `opux`
+  [1,427, 3,654]. They were scaled from `opuk`'s 1,612.5 ms, which included rebuilding the map.
+- **Reads are at ABR 1, by the ~18:22Z amendment.**
+
+**How long each dev env ran, as ruled ~22:54Z:**
+
+| env | deployed | parked | ran | ended by |
+|---|---|---|---|---|
+| `opwe` | 02:53:40Z | 03:55:40Z | **62 min** (cap 100) | its 12th counted `stored`, 03:54:17Z |
+| `opsn` | 18:31:40Z | 19:30:42Z | **59 min** (cap 100) | its 12th counted `stored`, 19:29:17Z |
+| `opux` | 19:30:51Z | 20:30:40Z | **60 min** (cap 100) | its 12th counted `stored`, 20:29:17Z |
+| `opmt` | 20:30:49Z | 21:30:40Z | **60 min** (cap 100) | its 12th counted `stored`, 21:29:17Z |
+| `off` | 21:30:44Z | | | the cron removed; its stop is read at the deploy + 25 min |
+
+- **`idle`, the cron with nothing to do,** has run since about 02:42Z, and between products. It stays on until M's run, or
+  until `off` in the first free window if M is pushed past today.
+- **The lock:** M's first deploys ran without it confirmed (the ~15:55Z ruling records that). The rest runs in the window
+  above, holds the lock for its whole run, and ends on `off`.
+
+**`opwe`'s reading** (read 16:07Z, 900 s pieces, **ABR [1]**, after M1 was re-registered and pushed at 16:07:18Z).
+
+| row | got | verdict |
+|---|---|---|
+| **M1 `opwe`** (the 12 counted builds, 03:00:46Z to 03:54:25Z, all after the last backfill at 02:56:12Z) | **median 314.5 ms**, max 622 ms, all `r2`. Between builds: n 43, median 8 ms | **as predicted** (<= 616 ms; expected about 385) |
+| **M3** (the whole run, 62 records) | **max 2,391 ms**: the first invocation, `built` and a backfill together | as predicted (<= 6,000 ms) |
+| **M4** (the whole run) | all 62 `ok`: **0 `exceededCpu`, 0 `exceededMemory`** | as predicted |
+| **M5** (printed) | `built` 1, `r2` 13, `cache` 2 (the two backfills in the isolate that had just built or read the map). 0 `mapPutErrors`, 0 error lines | printed |
+
+- **The memory watch at section 5 reads clean for `opwe`:** the `built` path holds `encodeMap`'s copy on top of the
+  build, an estimated 106 MB against 128 MB, and that invocation ended `ok`.
+- **`opwe`'s median against the expectation:** 314.5 ms is 0.82 of the 385 ms expected, the first sign of how the model
+  scales. M6 refits it on all four.
+
+**The rest of M** ran on the ~18:19Z go, which held the deploy slot until the end post. Start was announced at about 18:32Z.
+Each product was read once its run ended, with `tools/wx/m_read.py`: the counted builds are the `stored` builds after the
+last backfill, up to 12, all in 900 s pieces at **ABR [1]**.
+
+| row | got | verdict |
+|---|---|---|
+| **M1 `opsn`** | **median 405 ms** over its 12 counted builds (19:29:26Z the last), max 585 ms, all `r2` | **as predicted** (<= 531 ms; expected about 332) |
+| **M1 `opux`** | **median 364.5 ms**, max 610 ms, all `r2` | **as predicted** (<= 591 ms; expected about 370) |
+| **M2 `opmt`** | **median 95 ms**, max 137 ms, all `r2` | **as predicted** (<= 600 ms) |
+| **M3** (each whole run) | max **3,098 ms** (`opsn`), **3,187 ms** (`opux`), 389 ms (`opmt`): each the first invocation, `built` with a backfill | as predicted (<= 6,000 ms) |
+| **M4** (each whole run) | `opsn` 59, `opux` 59 and `opmt` 60 invocations, **all `ok`: 0 `exceededCpu`, 0 `exceededMemory`** | as predicted |
+| **M5** (printed) | each: `built` 1 (the first), then `r2`, and `cache` only on a backfill that followed a build in the same isolate | printed |
+
+- **`opsn`'s window cut one build:** the counted-window read gave n 11 at 409 ms, because one build's scheduled time
+  fell just before the window opened. The whole run's single builds are exactly the 12 counted ones (405 ms), and that
+  is the figure graded.
+- **`opsn` and `opux` each had one `lost-race`:** a build that lost the create-only put, at 361 and 219 ms. It is
+  harmless, and it is real CPU.
+- **`opsn` and `opmt` run past the raster's edge** (north 54 px and south 43 px): every build ended `ok`, so the stated
+  overrun works on live frames.
+- **`opux` logged 2 `wx_ingest_error` lines,** both an OPERA listing timing out after 3 attempts (19:40:45Z and
+  19:58:45Z). **Production shows the same:** 5 in that hour, and 6 in 12:00-13:00Z, when the dev Worker was parked doing
+  nothing. So the cause is OPERA's cache, not M. Across 03Z to 20Z, production `opuk` stored 12 frames in every full
+  hour. Its errors cluster: 0 in most hours, and 1-8 an hour from 11Z to 17Z and at 20Z, nearly all OPERA listing
+  timeouts. The one exception was 08:04:22Z, `Error: put: We encountered an internal error. Please try again. (10001)`,
+  R2's own internal error, on the frame or `latest` put (the map object was already in place). That hour still stored
+  12.
+
+**M6, the projection, refitted to M1 and M2 as frozen.**
+- **The fit:** `median = a + b x cells`, least squares over the four products, gives a = 76.9 ms and b = 87.4 ms per
+  million cells. It predicts 269.5 ms for `opuk`, against 240.5 ms in production (RD-5) and 261 ms (MD-5's `r2`).
+- **Over §3's 10 products:** 10a + b x 24.03 M cells = **2,869 ms a 5-minute set.**
+- **The baseline,** re-read with `cost_read.py` over the 30 days to 21:31:33Z: CPU run rate 39.24 M ms a month, Class A
+  933,219, Class B 4,812,664. It already holds today's `opuk`, which the 10-product sum counts again; that is left in,
+  on the cautious side.
+
+| line, a month | amount | overage |
+|---|---|---|
+| CPU, the run rate | 39.24 M ms | |
+| CPU, builds: 8,640 sets x 2,869 ms | 24.79 M ms | |
+| CPU, checks that build nothing: 10 x 86,400 x 10 ms (M's measured medians, 8 to 11 ms) | 8.64 M ms | |
+| CPU, the daily map rebuild (`expire-1d`): 10 x 30 x about 3.1 s | 0.93 M ms | |
+| CPU, lost races: about 1 an hour per product (`opsn` and `opux` 1 each, `opuk` 0-2) x 300 ms | 2.16 M ms | |
+| **CPU in total** | **75.8 M ms** | **45.8 M over 30 M: $0.92** |
+| **R2 Class A:** the run rate + 10 x 17,280 (frame and `latest` puts, prune by key) + the daily map puts and lost-race puts | 1.114 M | **$0.51** |
+| R2 Class B: the run rate + 10 x 430,000 | 9.11 M | $0 (under 10 M) |
+| storage: 12 frames a product and 10 maps | about 0.4 GB | $0 |
+| **total** | | **about $1.43 a month** |
+
+- **With the build CPU raised 1.6x,** the spread identical work showed in Plan S: about **$1.73**. That is under $2 at
+  both ends.
+- **M6 is UNDER $2,** so no stop for Daniel. **Stage 1b is not built,** as ruled ~22:54Z ("Build 1b only if M6 still
+  reads over $2/month").
+- **The prediction "over $2" is off, and the miss is the same as M1's and MD-5's:** it was frozen before stage 1c existed,
+  on a per-cell cost that rebuilt the map in every cold isolate.
+- **Class B's headroom is 0.89 M a month,** the line nearest a limit. The European fleet's crop reads, up to 4 tile
+  reads per 200, come out of it.
+
+**The dev Worker:** `off` at 21:30:44Z. Its cron stopped within the window Plan S measured: 7 invocations right after the
+deploy, then **0 from 21:46Z** (read 21:56:01Z). **M ended at 21:30:44Z,** and the deploy slot is released.
+
+**This record's PR, its CI predicted before the push: 32 = 29 success, 3 skipped, 0 failed.** It touches this doc and
+`tools/wx/m_read.py`, which no workflow's path filter matches.
+- **Baseline:** #608's finished docs-only PR run on `1c88ff6d776a`, started 2026-11-07T18:21:03Z: 32 = 29/3.
+- **Last job-set change:** `caf63cc9` (#445). **Last workflow changes:** `2e36055a` and `848330eb`, steps only.
+- **All 14 steps `device-ids.yml` runs** pass on this branch merged onto main at `848330eb2863`.
