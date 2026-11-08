@@ -113,3 +113,39 @@ and CI runs Linux, where file locking differs, so the selftest also runs on this
 
 **CI for this PR (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The
 baseline is #606's finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to the set of jobs.
+
+## Built (2026-11-08): what changed from the design, before the PR
+
+**Q-CL1, Q-CL2 and Q-CL3 were ruled ~16:58Z.** Q-CL1 approved a committed project hook, reviewed like code, which refuses
+`wrangler deploy` and `secret put` without the caller's deploy claim and never refuses a rollback. Q-CL2 keeps the merge claim as
+ruled and counts lost slots. Q-CL3 builds this after the combined slot and the ocean proposal.
+
+**What landed:**
+- **`scripts/session-claim.py`:** the tool, with `--selftest` (CL1-CL12) and `--sabotage` (seven plants).
+- **`proxy/scripts/deploy.sh`:** checks the deploy claim for `proxy:<env>` or `builder:<env>` before any other work.
+- **`scripts/merge-by-rule.sh` and `scripts/ci-wait.sh`:** the merge driver, now with one copy. It takes the merge claim after main's CI has
+  finished and before the final re-read, and releases it on every exit path.
+- **`scripts/claim-hook.py` and `.claude/settings.json`:** the hook (Q-CL1).
+- **`device-ids.yml`:** two steps in an existing job, so the job set doesn't change.
+
+**Changes from the design, found by its own checks before any PR, each kept with its cause:**
+
+| change | cause |
+|---|---|
+| **A claim is written to a temporary file, then published by a hard link** that fails when the name exists, not by exclusive create and then a write | CL3, rerun under a plant that does not touch it, read 19 refusals as unreadable: between the create and the write another session read an empty file. The link leaves no such moment. Five runs since: 1 winner and 19 refusals each time |
+| **The scripts use the first Python that runs**, and refuse when there's none | CL10's control failed: on this machine `python3` is the Store's stub, so every check failed, and the four refusals passed for the wrong reason |
+| **Each refusal must show the tool's own reason**, not only a non-zero exit | the same: a refusal for the wrong reason must not read as a pass |
+| **CL10's control stops right after the check** (`DEPLOY_CLAIM_CHECK_ONLY`), and **CL11's takes and releases the claim with no `gh` call** (`MERGE_CLAIM_CHECK_ONLY`) | a test switch that could reach a real deploy or merge would be a hole in the guard it tests |
+| **CL11 has three refusals, not four.** With no claim held, the driver takes it, which is the control | the design's row was wrong for that case |
+| **CL12 is new:** the hook. Unnamed, no claim, `secret put`, another session's claim and an expired one are refused; a dry run, `ls` and the holder pass; a rollback held by another session passes and is logged | Q-CL1 was ruled after the design |
+| **S-CL-NOEXCL is also predicted to fail CL11, and so is S-CL-EXPIRY** | the merge driver goes through `take`, so a `take` that overwrites, or that calls an expired claim "already yours", lets it through. Applying each plant's rule to the new row gives both |
+| **The hook checks that the caller holds an unexpired claim,** not what it covers | `deploy.sh` checks covers precisely. The hook sees a bare `wrangler` command, where the Worker isn't always named |
+
+**Read on this machine before the PR:** the selftest passed 12 of 12 on two runs, and all seven plants read as registered. No real claim file
+was touched; every test uses a temporary folder.
+
+**For the other sessions, once merged:**
+- **Name yourself** with `BLIPSCOPE_SESSION=<name>` before a deploy or a merge.
+- **`deploy.sh`** refuses without the deploy claim, and **the hook** refuses a bare `wrangler deploy` or `secret put` without it.
+- **Merge** with `scripts/merge-by-rule.sh`.
+- **A rollback is never refused.** It is logged in `rollbacks.log` beside the claims, and announced through Daniel.

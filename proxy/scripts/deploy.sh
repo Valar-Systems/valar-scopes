@@ -41,6 +41,25 @@ case "$ENVIRONMENT" in
   *) echo "usage: $0 [--builder] <production|staging>" >&2; exit 2 ;;
 esac
 
+# ---- 0. the deploy claim (docs/session-claims.md) -----------------------------
+# Before any other work: one deployer at a time, across every session on this
+# machine. The caller holds the deploy claim for this Worker and env, or nothing
+# here runs. The claim lives outside every git tree, so no checkout can be behind
+# on it; scripts/session-claim.py is deploy machinery all the same (Q-DB1).
+CLAIM_TARGET="proxy:$ENVIRONMENT"; [ -n "$BUILDER" ] && CLAIM_TARGET="builder:$ENVIRONMENT"
+# The first Python that actually runs: on Windows, `python3` can be the Store's stub, which fails every call (found by CL10).
+claim_python() { local c; for c in python3 python; do command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys' >/dev/null 2>&1 && { echo "$c"; return 0; }; done; return 1; }
+CLAIM_PY="$(claim_python)" || { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- no working Python to read the deploy claim with.\n' >&2; exit 1; }
+CLAIM_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/session-claim.py"
+if ! "$CLAIM_PY" "$CLAIM_TOOL" check deploy --covers "$CLAIM_TARGET"; then
+  printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- this session does not hold the deploy claim for %s.\n' "$CLAIM_TARGET" >&2
+  "$CLAIM_PY" "$CLAIM_TOOL" show >&2
+  echo "Take it first:  BLIPSCOPE_SESSION=<name> python scripts/session-claim.py take deploy --covers $CLAIM_TARGET --until +45m" >&2
+  exit 1
+fi
+# CL10's control only: stop once the claim has been read as held, before anything else runs.
+if [ -n "${DEPLOY_CLAIM_CHECK_ONLY:-}" ]; then echo "deploy claim: held for $CLAIM_TARGET; DEPLOY_CLAIM_CHECK_ONLY, stopping here"; exit 0; fi
+
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 if [ -z "$ROOT" ]; then
   echo "FATAL: not inside a git checkout, so nothing here can be verified." >&2
