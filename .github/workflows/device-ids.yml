@@ -57,3 +57,7 @@ jobs:
       # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
       - run: python3 scripts/check_workflow_concurrency.py
       - run: python3 scripts/check_workflow_concurrency.py --selftest
+      # F1 (docs/wx-opera-code-stage.md): the firmware asks /wx for "cref" only and WxEnabled() reads no location, so
+      # which OPERA product answers is the server's choice alone. The sabotage plants a second product and a latitude test.
+      - run: python3 scripts/check_wx_device_cref.py
+      - run: python3 scripts/check_wx_device_cref.py --sabotage

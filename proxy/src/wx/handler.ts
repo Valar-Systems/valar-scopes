@@ -8,7 +8,8 @@ import type { Env } from "../types";
 import { errorResponse } from "../util";
 import { CAP_BYTES, boxMissesGrid, cropCellBox, encodeBox, quantise } from "./crop";
 import { type FrameMeta, NO_COVERAGE, frameMeta, tileBytes, tileOffset, tiledCellAt, tilesFor } from "./grid";
-import { type Product, cropEtag, frameKey, latestKey, productById, servedProduct } from "./products";
+import { type Product, cropEtag, frameKey, latestKey, productById } from "./products";
+import { type DispatchOpts, servedProduct } from "./region";
 
 /** What `latest` holds. Written only by the ingest (ingest.ts), forward-only. */
 export interface LatestRecord {
@@ -41,8 +42,9 @@ export async function wxHealth(env: Env, products: readonly Product[]): Promise<
   return out;
 }
 
-/** `byWindow` exists for K5's sabotage only, and `ageFromRequested` for the age limit's (docs/wx-age-limit.md A6). */
-export async function handleWx(request: Request, env: Env, productId: string, byWindow = false,
+/** `dispatch` is for the region rows and their sabotages only (region.ts), and `ageFromRequested` for the age limit's
+ *  (docs/wx-age-limit.md A6). */
+export async function handleWx(request: Request, env: Env, productId: string, dispatch: DispatchOpts = {},
                                ageFromRequested = false): Promise<Response> {
   if (!env.WX) return errorResponse(503, "not_configured");
   const requested = productById(productId);
@@ -57,10 +59,10 @@ export async function handleWx(request: Request, env: Env, productId: string, by
   if (!Number.isFinite(lon) || Math.abs(lon) > 180) return errorResponse(400, "bad_lon");
   if (!Number.isFinite(r) || r <= 0) return errorResponse(400, "bad_r");
   const q = quantise(lat, lon, r);
-  // Q2, ruled: /wx/cref inside the UK land box is answered from opuk, by the QUANTISED point, so the one query a
-  // device makes always lands on one product. Everything below -- the age limit, the ETag, the tiles -- is the
-  // served product's.
-  const p = servedProduct(requested, q.lat, q.lon, byWindow);
+  // Q2, ruled: /wx/cref inside the served region is answered from its OPERA product, by the QUANTISED point, so the
+  // one query a device makes always lands on one product (region.ts). Everything below -- the age limit, the ETag,
+  // the tiles -- is the served product's.
+  const p = servedProduct(requested, q.lat, q.lon, dispatch);
 
   const rec = await readLatest(env.WX, p);
   if (!rec || Date.now() / 1000 - rec.epoch > p.maxAgeS) return errorResponse(503, "wx_stale");

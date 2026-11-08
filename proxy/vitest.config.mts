@@ -30,9 +30,9 @@ const committedCredits = {
   },
 };
 
-// The two production ingest tomls as their exact text, `import t from "virtual:wx-ingest-tomls"` (docs/wx-opuk-split.md,
+// The production ingest tomls (cref's, and the OPERA products' since the code stage) as their exact text, `import t from "virtual:wx-ingest-tomls"` (docs/wx-opuk-split.md,
 // FX: no two deploy targets check the same product -- read from what deploys, not restated). Tests only.
-const INGEST_TOMLS = ["wx-ingest.wrangler.toml", "wx-ingest-opuk.wrangler.toml"];
+const INGEST_TOMLS = ["wx-ingest.wrangler.toml", "wx-ingest-opera.wrangler.toml"];
 const wxIngestTomls = {
   name: "wx-ingest-tomls",
   resolveId(source: string) {
