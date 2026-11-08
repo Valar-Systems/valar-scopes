@@ -580,3 +580,44 @@ text is M1's. So `M1b-fit` now checks acceptance only, and the frozen sets hold 
 | **run.sh under WSL** | exit 2, with exactly the two named blocks and towns SKIP in both passes, plus the new block at 16 |
 | **M2** | as S4.5, by `s1.py compare2` |
 | **S-M2** | a radar env built with `FW_OTA_PREFIX="x-"` fails to compile, and the message names the `static_assert` |
+
+### S4.7, 2026-11-08: W2's rows read, all as predicted. One more error of mine, in an instrument, caught before it cost anything
+
+**W2 is at `6a068d085846`** on `weatherscope/w2-model`, from main `abd7c67b3ebb`.
+
+| row | predicted (S4.6) | read |
+|---|---|---|
+| **the suite** | 16 checks, 0 failures, MinGW and WSL g++ 13.3 | **as predicted,** both: `8 rows; 16 checks, 0 failures` |
+| **S-M1** | exactly the 3 scoped M1 rows red | **as predicted,** both compilers |
+| **S-M1b** | exactly `M1b-short` red | **as predicted,** both compilers |
+| **the driver** | the control 0 failures; 2 of 2 | **ALL AS PREDICTED,** both compilers; the real header unchanged |
+| **the anchors** | every driver and both board plants pass first | **35 drivers, 2 plants, 0 failed;** `sabotage_ota_model.py` 2 anchors once each |
+| **run.sh under WSL** | exit 2; the two named blocks; towns SKIP in both passes; the new block at 16 | **as predicted:** exit 2, the failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b", towns SKIP in both passes; `== OTA model ==` reads `8 rows; 16 checks, 0 failures`, and `sabotage_ota_model.py` passes its anchors, control and driver |
+| **the calibration** | `blipscope-s3-128` at the base, twice: 0 bytes | **0 bytes** |
+| **M2** | every env with the cloud feed byte-identical outside R1 and R2 | **5 of 5.** Four differ only in R1 and R2 (65 bytes, the ELF's hash and the checksum); `animtest-s3-128` doesn't differ at all |
+| **S-M2** | a radar env built with `FW_OTA_PREFIX="x-"` fails, naming the `static_assert` | **exit 1, the message named twice** |
+
+**The error: M2's env set came from the wrong property.** S4.5 said the set is derived "from each env's filter". My first derivation did
+exactly that, and reported all 8 built envs as compiling `CloudFeed.cpp`, Missileer's and Weatherscope's included. That's true, and it's not
+what matters. The whole file sits inside `#ifdef FEATURE_CLOUD_FEED`, so in an env without that flag it compiles to nothing. If the
+filter-based reading were the real one, the `static_assert` would have broken Missileer's and Weatherscope's builds. The host tests can't
+see a build, so CI would have been the first to find out.
+- **The property that matters is `FEATURE_CLOUD_FEED`.** I read it from PlatformIO's own resolved config (`pio project config
+  --json-output`), not by expanding `${…}` and `extends` by hand, which is how the first reading went wrong.
+- **The set is `blipscope-s3-128`, `-wxlook`, `blipscope-pro-s3-21`, `animtest-s3-128` and `blipscope-s3-128-joindiag`.** It's 5, as S4.5
+  expected, with `animtest` in and the AMOLED out. I had assumed the AMOLED.
+- **Across all 46 envs in `platformio.ini`,** 22 define the cloud feed and **0 of those has a scope.** So the `static_assert` breaks nothing that exists, and S-M2 shows it fires on the one thing it exists for.
+
+**M3,** staging read-only, waits for the W3 window to close, so staging is read on the version it normally runs.
+
+#### W2's PR, its CI predicted before the push
+
+The last job-set change is still `caf63cc9d9cc`. W2's paths are `include/`, `src/` and `test/host/`, the same workflows as #609's. That
+adds `web-renderer`'s `build` (success) and its `publish` (skipped).
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | **34** | 30 | 4 (promote, ship-alert, version, publish) | 0 |
+| main on the squash | **34** | 31 | 3 (version, promote, publish) | 0 |
+
+blipscope-5c reads the mechanism as the radar's owner (Q123), before any merge.
