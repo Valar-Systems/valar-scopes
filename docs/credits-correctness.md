@@ -431,3 +431,23 @@ success, 3 skipped, 0 failed.**
 - The baseline is #586's finished `proxy/` run.
 - The last job-set change is `caf63cc9`; #618's workflow change is steps only.
 - The driver itself is not in CI.
+
+### Read (2026-11-08; every row as predicted)
+
+These were read in a CRLF checkout of main `e934e93b`.
+- **The start rules held:** no vitest or `sabotage-` process was running, and TIME_WAIT read 47.
+- One `workerd.exe`, started at 20:00:19Z, was running. It was not this session's and not a vitest.
+
+| row | read | |
+|---|---|---|
+| **CR-0** | 20:05:00-20:05:08Z: **RIG, exit 2**, `S-CV-BLANKET: an edit's anchor is not in src/photolicense.ts exactly once`, after CONTROL 35 of 35. Nothing was written | as predicted |
+| **CR-1** | 20:05:31-20:05:49Z: **ALL AS REGISTERED, exit 0.** CONTROL 35 of 35; S-CV-BLANKET, S-SA, S-RD and S-QC1 each with its registered red set and counts; every file restored byte-identical | as predicted |
+| **CR-2** | with `src/photolicense.ts` as LF: output byte-identical to CR-1's; the file restored by sha | as predicted |
+| **CR-1s** | **RIG, exit 2**, the same line as CR-0; the driver restored by sha | as predicted |
+
+**An attempt that is not a reading.** The first CR-1s attempt did not plant:
+- A shell heredoc ate the anchor's backslashes, and the plant's own assertion refused.
+- The command then ran the driver unplanted, a repeat of CR-1 (ALL AS REGISTERED).
+- That run is not counted as a CR-1s reading.
+- The plant was rebuilt with `chr(92)` for each backslash, it was checked to have changed the file, and only then was
+  the driver run.
