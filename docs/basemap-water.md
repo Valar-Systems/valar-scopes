@@ -184,3 +184,40 @@ and no format change. S1's road rule still holds. Weatherscope reads the same ro
 
 **CI for this PR (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The baseline is #606's
 finished docs-only run (32 = 29/3), which postdates `caf63cc9`, the last change to the set of jobs.
+
+## The re-read at the map client's query (registered 2026-11-08, before it runs)
+
+**The ruling** (reviewer chat, pasted by Daniel, ~19:08Z): Q-W1's A+B "replaces Q26 once its table is re-read at r=161", predictions first.
+**The query** (~02:33Z), and every build below uses exactly it:
+
+`r=162 & eps=201168 & layers=water,rivers,roads,places,terrain & levels=41239440:246,81808320:244,162275520:242`
+
+That means no peaks, an ε twice the earlier reads', and a disc 2.79 times the area of r=97.
+
+**The airports:** the earlier ten, plus KLGA, KEWR and Midtown, so New York is read at this query too. All thirteen are read the same way as
+before: the coverage split (Wtrue, Wtiger, Missed, Wpkg), then the options through the real builder at today's 32 KB cap. That is today's ladder,
+A, B, and A+B, with B's water at 8 × the query's ε. Caps of 40 and 48 KB are reported, not graded, for the map client's step M. New York's
+ladder figures under today's order are reported for the dense-area proposal.
+
+**What each result will mean:**
+
+| reading | meaning | what follows |
+|---|---|---|
+| **A+B fits at 32 KB everywhere except New York,** and keeps at least 80% of Wtiger's water where TIGER has it (KBOS, KORD, KSEA, KSFO, KMIA, KDTW) | the r=97 result holds at the client's query | A+B replaces Q26, as ruled |
+| **A+B is a 422 at an airport outside New York** | the dense-area work reaches beyond New York at this radius | that airport, and how far over, go into the dense-area proposal with New York's |
+| **A+B fits but keeps under 80% of Wtiger's water** somewhere | ε×8 isn't enough water simplification at this radius | ε×16 is compared before anything freezes |
+| **The coverage split** | Missed is read again: at least 50% at the four sea airports, and under 10% at KORD | the sea mask stays the fix for the sea |
+
+**My expectation, before reading:**
+- **New York** stays a 422 under both orders, over the cap by more than at r=97 (1.5-3.7 KB then).
+- **KBOS and KORD** are the most likely to join it, because 2.79 times the area brings in many more primary roads.
+- **The rest fit** under A+B.
+- **The coverage split** looks like r=97's.
+
+**Outside the set, each a stop and a report:**
+- an uncapped build that fails, or isn't rung 0;
+- objects missing from the local copy;
+- Wtiger above Wtrue by more than 10 points;
+- **A+B keeping less water than today's order at any airport,** which contradicts the mechanism;
+- the planted ring off by more than 1%;
+- anything else not in this table.
