@@ -501,3 +501,48 @@ no key appears on a command line or in output.
 **One thing staging loses for the window.** Staging runs main plus the probe for about 35 minutes, in place of whatever it runs now, then
 goes back to exactly that version. A session reading staging in that window would read main plus the probe. That's why the start and the
 end are announced.
+
+### S4.5, 2026-11-08: two errors of mine in W2's frozen rows, caught before any code. One question (Q123)
+
+**W2 is cleared to go (~20:13Z),** with blipscope-5c's contract agreed, on its condition for W7. Before writing any code I re-read
+S4.1.2 against main and found two of its rows wrong.
+
+**1. M1 counted a population that no longer exists.** It said "over O1′'s 15 identities (A12.103)". `test/fixtures/ota/identities.txt` on
+main lists **8**, because #549 retired the `s3-146` envs. I quoted the number from memory instead of reading the table.
+
+| identities on main | count |
+|---|---|
+| with a scope (`eam-` ×2, `weatherscope-`) | **3** |
+| without (the radar's 5) | **5** |
+
+**The fix is structural, not a new number:** M1 reads `identities.txt` itself, the same table `check_ota_identity.py --check-table` holds to
+the fleet. So the count can't go stale this way again.
+
+**2. M2 predicted something the change it described can't do.** S4.1.2's change made `CloudFeed.cpp` call a function instead of sending
+`variant::SLUG`. That changes the code that builds the header in every radar image, so "byte-identical outside the stamps" is false by
+construction. An unreferenced helper in `OtaUpdater.cpp` would also leave its `.eh_frame` record in every other edition's image (M8,
+A12.139). The row would have read off, and it would have been my design, not the code, that was wrong.
+
+#### Q123. How the radar keeps its header
+
+| | (a) a compile-time check (recommended) | (b) the call, as S4.1.2 described |
+|---|---|---|
+| **radar** | `CloudFeed.cpp` keeps `variant::SLUG`, and gains `static_assert(sizeof(FW_OTA_PREFIX) == 1, …)`. Every env that compiles it is radar, with an empty prefix, so the slug **is** its OTA identity. A scoped build that ever compiled it would fail to compile | the header comes from a function built on `ota::Request` |
+| **Weatherscope** | its W7 client calls a header-only `ota::ModelString(ota::Request(variant::SLUG, FW_OTA_PREFIX), …)` | the same |
+| **radar images** | **byte-identical outside A5.6's R1 and R2:** a `static_assert` emits nothing, and an inline function no one calls emits nothing | every radar image changes, so M2 can only check the header's value on the wire |
+| **the contract** | unchanged: the model is the OTA identity, and the radar's is the slug | unchanged |
+
+**Recommended (a):** the contract holds, the radar's images don't move, and the one way it could break is refused by the compiler.
+blipscope-5c agreed the contract's terms, not this mechanism, so it reads (a) for conflicts too.
+
+**The rows, under (a):**
+
+| row | predicted | its sabotage |
+|---|---|---|
+| **M1** (host) | for every row of `identities.txt` (8 today), `ModelString` is scope followed by board, and for the 5 without a scope it equals the board | **S-M1,** the board alone: exactly the 3 scoped rows go red, and none of the 5 |
+| **M1b** (host) | `ModelString` refuses a buffer too small for the result and writes nothing, rather than cutting it short | **S-M1b,** truncation instead of refusal turns it red. The same reason as `leaderboard.ts`'s condition: a cut model is a different model |
+| **M2** (image) | every `skus.yml` env that compiles `CloudFeed.cpp` (5 expected, derived from each env's filter at the run) is byte-identical outside R1 and R2, by S1 v2's method | **S-M2:** a build with `FW_OTA_PREFIX="x-"` on one radar env must fail to compile. That proves the `static_assert` can fire |
+| **M3** (staging, read-only) | as S4.1.2 | |
+
+**M2 needs builds:** 5 envs at base and head. C: is at about 32 GiB, so they fit, and each env's build is deleted as soon as its pair is
+compared.
