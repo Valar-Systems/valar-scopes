@@ -307,6 +307,15 @@ PREDICTED". The 13 plant lines are 13 of 13.
   - the new driver with **14** AS PREDICTED lines (13 plants and the summary);
   - every other block ok.
 
+**The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-08 ~02:33Z):**
+
+> Q-MC11: yes. Install the worktree's libraries with pio pkg install -e blipscope-s3-128, from PowerShell, libraries
+> only and no build. Then re-run the WSL run.sh once against your predictions (exit 2 from exactly the two known
+> blocks; 34 drivers, 33 run and 1 skipped; MapLayer 160 of 160 with CM9; 14 AS PREDICTED lines, 13 plants plus the
+> summary). The five BLIND blocks and the 14 stay on record as your misses. If it reads as predicted, step M's host PR
+> goes up with CI predicted at 34 = 30/4/0.
+> Your query has been passed to the map server.
+
 ### The /basemap query for the default view (sent to the map server, 2026-11-07)
 
 The radar's default is 100 mi, so its zoom ladder is {5, 10, 25, 50, 100} mi. The request:
