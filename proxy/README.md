@@ -451,6 +451,10 @@ entrypoint = "BendFeed"
 ```
 **The call:** `await env.BLIPSCOPE_BEND.snapshot()`.
 
+**Consumers, each with that same binding:** `valarscopes-site` (valarscopes.com), and since 2026-11-08 `valarscopes-app` (app.valarscopes.com), which reads at most every 10 s in production and every 30 s in previews.
+- **The entrypoint keeps no list of consumers and limits none.** Each call reads the 10 s colo cache, and on a miss the snapshot's Durable Object, so a second consumer adds at most about one Durable Object read per 10 s per colo. It adds no upstream and no device load.
+- **Whether adsb.fi's operator's permission for valarscopes.com covers app.valarscopes.com is not recorded here.** It is Daniel's to confirm.
+
 - **It isn't a route.** No public request can reach it, and it takes no device credentials.
 - **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.058, -121.315).
 - **The snapshot carries nothing of the device:** no tile, no radius bucket, no limit.
@@ -480,11 +484,11 @@ entrypoint = "BendFeed"
 **Removing it** (one small PR, once the website moves to the worldwide feed):
 1. Set `SITE_FEED_BEND` to anything but `"on"`. That stops every read and write without a code deploy.
 2. Delete `src/sitefeed/bend.ts` and `test/sitefeed-bend.test.ts`.
-3. Delete the hook in `src/blips.ts` (the `import`, the `siteFeed` line, the `onFetched` parameter and its one call).
+3. Delete the hook in `src/blips.ts`: the `import` (`bendWriter`, `OnFetched`); the `onFetched` parameter of `buildFresh` and its one call, and of `revalidate`, which passes it on to `buildFresh`; and `siteFeed`, made once in the handler and passed in three places (two `buildFresh` calls and one `revalidate`).
 4. Delete the `export { BendFeed, BendSnapshotDO }` line in `src/index.ts`, and the two `Env` fields in `src/types.ts`.
 5. Delete the three `BEND_SNAPSHOT` bindings and the `SITE_FEED_BEND` vars in `wrangler.toml`.
 6. **Keep** the `v1-bend-snapshot` migration, because migrations are append-only, and **add** one after it: `tag = "v2-bend-snapshot-removed"`, `deleted_classes = ["BendSnapshotDO"]`. A Durable Object class is removed by a migration, never by deleting lines.
-7. Delete this section, and remove the site's `[[services]]` binding.
+7. Delete this section, and remove every consumer's `[[services]]` binding: `valarscopes-site`'s and `valarscopes-app`'s.
 
 ## Schema evolution rule
 
