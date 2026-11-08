@@ -546,3 +546,37 @@ blipscope-5c agreed the contract's terms, not this mechanism, so it reads (a) fo
 
 **M2 needs builds:** 5 envs at base and head. C: is at about 32 GiB, so they fit, and each env's build is deleted as soon as its pair is
 compared.
+
+### S4.6, 2026-11-08: W2's code, and its counts frozen before the suite first runs
+
+**Ruled ~20:41Z:**
+- **Q123 (a).** The radar keeps `variant::SLUG`, with the compile-time `static_assert`, so radar images stay byte-identical and M2 holds as first written.
+- Weatherscope's client uses the header-only `ota::ModelString`, and blipscope-5c reads the mechanism as the radar's owner.
+- S4.5's two corrections are accepted, and on record as my misses.
+
+**The code:** branch `weatherscope/w2-model`, from main `abd7c67b3ebb`.
+
+| file | change |
+|---|---|
+| `include/OtaIdentity.h` | `inline bool ModelString(const Identity&, char*, size_t)`: scope followed by board, or false with nothing written |
+| `src/CloudFeed.cpp` | `#if defined(FW_OTA_PREFIX)` then `static_assert(sizeof(FW_OTA_PREFIX) == 1, …)`. No other line changes |
+| `test/host/test_ota_model.cpp` | new: M1 and M1b, reading `identities.txt` |
+| `test/host/sabotage_ota_model.py` | new: S-M1 and S-M1b, with `--anchors` and `--control` |
+| `test/host/run.sh` | one block, after the OTA identity block. The driver is found by `run.sh`'s own glob |
+
+**A design choice, caught by applying S4.5's rule before running.** As first written, `M1b-fit` checked the model's text as well as its
+acceptance, so S-M1 would have turned it red too: 4 rows, against S4.5's frozen 3. M1b grades refusal against acceptance only, and the
+text is M1's. So `M1b-fit` now checks acceptance only, and the frozen sets hold as written.
+
+**Predicted, from the table, before any run:**
+
+| row | predicted |
+|---|---|
+| **the suite** | **16 checks, 0 failures:** 8 rows, plus 5 without a scope, plus 3 for M1b. MinGW and WSL g++ 13.3 |
+| **S-M1** | exactly `M1-missileer-s3-128`, `M1-missileer-photo`, `M1-weatherscope-s3-128` red |
+| **S-M1b** | exactly `M1b-short` red |
+| **the driver** | the control 0 failures, then 2 of 2 as predicted, both compilers |
+| **the anchors** | every driver and both board plants `--anchors` pass first, now one driver more |
+| **run.sh under WSL** | exit 2, with exactly the two named blocks and towns SKIP in both passes, plus the new block at 16 |
+| **M2** | as S4.5, by `s1.py compare2` |
+| **S-M2** | a radar env built with `FW_OTA_PREFIX="x-"` fails to compile, and the message names the `static_assert` |
