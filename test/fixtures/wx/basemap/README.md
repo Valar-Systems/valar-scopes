@@ -46,3 +46,28 @@ Regenerate, or check that every committed byte matches:
 - **the licence check** (with its control: the notice deleted from a copy must turn it red):
 
       python -I tools/weatherscope/basemap/check_licence.py test/fixtures/wx/basemap/bend.LICENSE.txt --selftest
+
+**`kjac.bmpk` and `ksfo.bmpk`** are the map client's fixtures (docs/blipscope-basemap-client.md): Jackson Hole and
+San Francisco, each exactly as staging's `/basemap` route served it at the client's default query:
+
+    lat=43.61&lon=-110.74   (KJAC)    lat=37.62&lon=-122.38   (KSFO)
+    &r=162&eps=201168&layers=water,rivers,roads,places,terrain&levels=41239440:246,81808320:244,162275520:242
+
+- **built by** the map server's builder at `fdf62ada9f79`, from store `4c0875738f38`. No peaks: the query asks for none.
+- **beside each:** `<name>.manifest.json` (every file the build read, sorted by URL, with the builder's commit and
+  the store's `predicates`) and `<name>.LICENSE.txt` (the sources' terms, the terrain credits the package's
+  PROVENANCE names, and SRTM's §3.15 notice).
+- **Unlike Bend's, a package's `store:` line is not the hash of the manifest beside it.** It names the store's own
+  manifest (3,867,380 B), as format §7 says for a package from the route. The file beside it is the part of that
+  store this build read, so each layer's `files.<layer>` and `sha256.<layer>` recompute from it.
+- **how they were checked:**
+  - a local build of the same query, at the same builder commit, over a copy of the store, gave the route's bytes
+    exactly;
+  - each layer's digest over the manifest's files equals the package's own `sha256.<layer>` line.
+- **water, under the ladder they were built with:**
+  - KJAC holds 1.2%, with nothing dropped;
+  - KSFO holds none: its ladder went to rung 3, dropping 138 water rings (one more collapsed) and 580 secondary
+    roads.
+
+  The next store (the A+B ladder and the sea mask, docs/basemap-water.md) changes both, and these fixtures are re-cut
+  from it.
