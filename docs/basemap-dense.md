@@ -663,3 +663,37 @@ and **the instrument changes before anything is graded.**
   explain a 20 MiB gap, and nothing in this read says what it is.
 
 **Still open, and not answerable from Node:** whether workerd's 128 MB limit counts dropped buffers the same way.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-08 ~20:28Z), verbatim
+
+> Q-MEM1's stop: right, at the registered stop. MQ1 reading 0.00 for the wrong reason stays on record as your miss.
+> Q-MEM2: yes, now, and at KLGA, the largest ceiling. One request through staging's route: not a deploy, so no slot; say in the record when it
+> ran. It's the reading that decides: workerd's own answer, a 200, a 422 or exceeded memory, holds whatever the local instrument says.
+> Q-MEM1b: yes, predictions first, but it doesn't block Q-MEM2. If repeated gc() can't clear the lag, retire the local instrument, as you propose.
+> READ_AHEAD = 6: noted as D4's lever. The dense-area proposal states its effect on the peak.
+
+### Q-MEM2, workerd's own answer at KLGA: registered before it runs
+
+**The request.** One query for KLGA at the map client's query (`lat=40.78&lon=-73.87`, r=162, ε 201,168, no peaks, the three levels),
+through staging's route as the test identity, with `fx-request.sh`.
+- A 202 is retried after its `Retry-After`, at most three times. That is still one query and one build: the 202 is the route's protocol.
+- **The builder's own log is read alongside:** `wrangler tail blipscope-basemap-staging --format pretty`, started before the request and stopped
+  after it. That prints the outcome and the one `bm_build` line, which holds integers only.
+- No deploy, no secret, no claim needed. The request's time goes in the record.
+
+**How workerd would show each answer (from `handler.ts` and `worker.ts`):**
+- **A build that finishes** stores a 422 `.err`, so the route answers **422 `too_large`**, directly or after a 202.
+- **A builder that dies** reaches the route as **503 `basemap_unavailable`**, or as 202s while the lock holds, and nothing is stored.
+- **Only the builder's tail can name why it died.**
+
+| outcome | what is seen | meaning |
+|---|---|---|
+| **MG-A** (predicted) | 422 `too_large`. The tail shows one build, outcome Ok, with a `bm_build` line whose ladder is **249,684 / 205,868 / 186,014 / 41,061**, DR0's KLGA, the control that staging ran the same build | **workerd built the largest ceiling inside 128 MB.** The local ceilings over-counted, and KLGA's real peak is under the limit. Not proven: a cold isolate, since one request can't say whether this isolate was cold |
+| **MG-B** | the tail says **Exceeded Memory**; the route answers 503 or 202s | **the peak is real in workerd: New York at r=162 can't be built today.** D4 waits on the dense-area work cutting the peak (`READ_AHEAD` first) |
+| **MG-C** | the tail says **Exceeded CPU** (staging's `cpu_ms` is 14,530) | a different limit; memory is unanswered. **Stop and report** |
+| **MG-D** | a 200 | today's ladder can't fit KLGA (DR0). **Stop** |
+| **MG-E** | a 422 `stored-error` with **no build in the tail** | an earlier request already stored KLGA's answer, so this measures nothing. **Stop and report** |
+| **MG-F** | MG-A, but the ladder differs from DR0's | staging didn't run the build the local reading did. **Stop** |
+
+**Outside the set:** anything else, including a tail that can't attach or shows nothing at all, stops it. A tail that shows nothing is not a
+reading.
