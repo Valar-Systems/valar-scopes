@@ -15503,3 +15503,64 @@ The last job-set change is `caf63cc9d9cc`. The one path is under `docs/`, so `fi
 |---|---|---|---|---|
 | the PR | 32 | 29 | 3 (promote, version, ship-alert) | 0 |
 | main on the squash | 32 | 30 | 2 (promote, version) | 0 |
+
+### A12.174 Stage 4's plan approved, and every question ruled. O11 gains its way back. #609 moves the plan's v19 row
+
+**#611, approved as the plan at `df248db8837d` (~23:23Z), merged under Q-M1 alone:** squash `776129bf6c6e` at 00:10:26Z, on the third attempt, because main moved twice during the double read. The squash tree, `406b3ee6cedc`, equals `merge-tree(3d2ac05334c4, df248db8837d)`, and the branch is deleted. #607, the claims design, is still open, so no claim was taken. Main's CI on the squash, predicted 32: 30/2/0, is read to the finish and reported with the next addendum.
+
+**The rulings:**
+
+| Q | ruled | by |
+|---|---|---|
+| **Q112** | After O11's accepted case, E2:08 goes back with `bench-flash.ps1` without `-AppOnly`. The write ranges are printed against the partition table first, and NVS is not written, so the board keeps its settings | Daniel |
+| **Q113** | SeamlessHSR is added to `/wx`, at about $0.50 a month flat, crossing R2's free Class A tier. blipscope-5c reads its server work for conflicts, as Q116 rules | Daniel |
+| **Q114** | The US only, at first | Daniel |
+| **Q115** | The loop is a ring on the device | the reviewer |
+| **Q116** | The routes go under `/api/v1/weatherscope/`, in the proxy Worker. I write them, they're ruled here, and blipscope-5c reads each push for conflicts with its routes first | the reviewer |
+| **Q117** | The legend shows once at first boot, never over a warning | Daniel |
+| **Q118** | The first units are flashed by hand. The chooser gets its own plan later | Daniel |
+| **Q119** | The map fetch is written once and shared. The map client owns it, and W9 reuses it | the reviewer |
+| **Q120** | Rain-only radar is sellable before WXC1 v2, and the shop page says so | Daniel |
+
+#### O11's way back (Q112), added to A12.172 before it runs
+
+**Read now, writing nothing,** from `pio project metadata` at main `848330eb2863`, `blipscope-s3-128`:
+
+| image | offset | against the table |
+|---|---|---|
+| `bootloader.bin` | `0x0` | below the table at `0x8000` |
+| `partitions.bin` | `0x8000` | the table itself |
+| `boot_app0.bin` | **`0x1E000`** | **otadata,** not inside NVS |
+| the app | not in the metadata | by the table, `app0` at `0x20000` |
+
+**Why this needed reading, not assuming.** Arduino's upload has historically put `boot_app0.bin` at `0xe000`. On this board's table that's inside NVS, which runs `0x9000`-`0x1DFFF`, and it would have reset the board's settings. PlatformIO takes the offset from the table, so it doesn't.
+
+**The rows, at the window:**
+
+| row | predicted | stop |
+|---|---|---|
+| **C4-0** | the extra images at exactly the three offsets above, re-read at the candidate's commit | any other offset |
+| **C4-1** | the upload's own write list, printed with `--upload-port` pointing at a port that doesn't exist, so nothing can be written: four regions, `0x0`, `0x8000`, `0x1E000`, `0x20000` | **any address in `0x9000`-`0x1DFFF`,** before the real upload runs |
+| **C4-2** | after the real upload: `[ota-slot] boot running=app0 @0x020000`, Wi-Fi joins from its saved credentials with no portal, and the next check-in authenticates with the key in NVS | a portal, or a key refused: NVS was touched |
+
+C4-1 is a refusal tested with its side effect stubbed, as ruled on 2026-11-06. The port that doesn't exist is the stub.
+
+#### #609 moves Stage 4's v19 row, a correction to the plan just merged
+
+My plan's R1 said v19 waits on the map client and the ocean fix, citing #606. #609 records Daniel's ~16:03Z decision: **v19 ships when it's ready, without weather,** and weather and the map ship together later. So R1 no longer waits on the map.
+- **What that does to the date:** the sale then rests mostly on Stage 4's own work. If v19 is cut before that work ends (November 25 - December 6), the sale is about **November 29 - December 13**, not November 29 - December 20.
+- **What I can't state:** v19's own date. Nothing I read gives one.
+- **The plan's text on main is now stale on this row.** It's corrected in Stage 4's first addendum, the one that freezes W2 and W3, rather than in a PR of its own.
+
+#### What the rulings change in the plan's steps
+
+- **W4 is go,** with blipscope-5c reading for conflicts. The Class A crossing is Daniel's, and accepted.
+- **W5's routes are mine,** each push read by blipscope-5c first.
+- **W9 waits on #606's client step A** for the fetch, and reuses it.
+- **W10's legend is as section 2 proposed.** Its "never over a warning" row is the one to read first.
+- **R5 is a hand flash** for the first units.
+- **The shop page (R7)** says the radar draws rain only.
+
+**Next:** Stage 4's first addendum, frozen before any code. It covers W2, the model header, whose contract table goes to blipscope-5c, and W3, a Worker's reach to NWS, with its staging reading announced through Daniel.
+
+**Disk:** C: read 29.9 GiB at about 23:30Z, under the line again. I've run no build since 18:55Z; my one addition is the 101 MB `wt-s4` worktree. Nothing large starts until it's back over.
