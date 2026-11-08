@@ -4,9 +4,8 @@
 [blipscope-basemap-client.md](blipscope-basemap-client.md). This file holds each step's frozen predictions and what
 was read against them. A step's rows are written here before its code, and a miss stays on record.
 
-**Status, 2026-11-07 ~21:45Z:** step M's first host run read **CM7 OFF**: the check was wrong, not the layer. It is
-**stopped for a ruling** (below, "The first host run"). The code is a local commit only: the first firmware push waits
-for #609's merge (Q-MC4).
+**Status, 2026-11-08 ~20:30Z:** step M's host side is merged (#619, `e934e93b`); its bench rows (CF1-CF6) wait for E2:08.
+**Step A's predictions are below, for review.** No step A code exists.
 
 ## The ruling on the first report, verbatim (reviewer chat, pasted by Daniel, 2026-11-07 ~19:08Z)
 
@@ -391,6 +390,106 @@ Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms
 - **Parts more than 10 % off the total, or map-off ticks drifting over 1 ms:** "instrument", stop.
 - **Anything else:** the instrument is unreliable at this scale; stop and decide.
 
+## Step A: fetching the package (predictions, for review; 2026-11-08)
+
+**Status: predictions only. No code until they are ruled.** Step M's host side merged as #619 (`e934e93b`). The
+fixtures (KJAC, KSFO) came in the map server's #621, and #620 read r = 162 under the cap everywhere but New York.
+Neither changes a row here.
+
+### What step A builds
+
+| part | where | what |
+|---|---|---|
+| **the request** | `include/MapQuery.h`, pure | the query for the configured radius, built from the **stored config** (distance x the unit's factor, in double), never from the view's derived radii. `units::FromKm` is float, so the radius the radar shows can read 99.99999 mi; the request must be exact to the mm |
+| **the policy** | `include/MapPolicy.h`, pure | when to ask, what each answer means, and when to ask again (F1, F2, F5-F8) |
+| **the transport** | `HttpRequestManager::GetBytes` | collects `Retry-After` beside `ETag` and `X-Wx-Max-Age`, into a new `HttpResult::retryAfter`. Nothing else in `GetBytes` changes, and the weather path is untouched |
+| **the wiring** | `AircraftManager`, under `WX_LAYER_SHIPS` | a `FetchKind::Basemap` on the fetch task, like the weather crop. One fetch in flight; `maplayer::Load` (the CRC and §8) runs on the fetch task; a sequence number drops any answer to an older config. The landing buffer lives in PSRAM and is allocated at the first fetch |
+
+### The request (CA1-CA3)
+
+- `lat`, `lon`: `wireloc::Center`, 2 dp, as `/wx` sends them.
+- `r = min(222, ceil(Rv + 0.8 km))`.
+- `eps = max(1000, floor(Rv_mm / 800 + 0.5))` mm.
+- `layers = water,rivers,roads,places,terrain`, with no peaks.
+- **One level per top-three ladder step**, each 1:1 with the screen:
+  - `px = step / 120`, `m = ceil(0.8 km / px)`, `N = 240 + 2m`, `Rl = floor(N px / 2 + 0.5)`;
+  - a step whose `N` would exceed 1,024, or whose `Rl` falls outside the route's 1-250 km, gets no level.
+- **The cap:** `GetBytes` takes 32,768 + Σ(8 + N²).
+- No `If-None-Match` is ever sent: the package is held in RAM only, so there is no ETag to revalidate.
+
+| row | input | predicted (computed by an independent scratch reading, before any C++) |
+|---|---|---|
+| **CA1** | 100 mi, the default | `r=162&eps=201168&layers=water,rivers,roads,places,terrain&levels=41239440:246,81808320:244,162275520:242`, cap 211,408. The string already sent to the map server |
+| **CA1b** | 40 km | `r=41&eps=50000&…&levels=10833333:260,25833333:248,41000000:246`, cap 222,412 |
+| **CA1c** | 25 mi | `r=42&eps=50292&…&levels=8851392:264,16898112:252,41239440:246`, cap 226,508 |
+| **CA1d** | 5 mi (a one-step ladder) | `r=9&eps=10058&…&levels=8851392:264`, cap 102,472 |
+| **CA1e** | 222 km, the cap | `r=222&eps=277500&…&levels=25833333:248,50833333:244,223850000:242`, cap 212,396. Here `ceil(Rv + 0.8)` is 223, so the cap leaves up to 0.555 km of the view's edge outside the square: under 1 px at 1.85 km a pixel |
+| **CA1f** | 0.1 mi, the form's minimum | `r=1&eps=1000&layers=water,rivers,roads,places`: **no levels** (every step's N exceeds 1,024), so `terrain` leaves `layers` and no `levels` is sent. The route refuses `terrain` without `levels` (`bad_levels`). Cap 32,768 |
+| **CA2** | every configured radius 0.1-222 by 0.1, in km, mi and nmi | every request lies within the route's bounds, **read from `proxy/src/basemap/query.ts`** (`MAX_R_KM`, `EPS_MIN_MM`/`EPS_MAX_MM`, `LEVEL_R_MIN_MM`/`LEVEL_R_MAX_MM`, `LEVEL_N_MAX`, `LEVELS_MAX`, `TERRAIN_BYTES_MAX`); levels unique; `r` covers the view plus 0.555 km on each axis, except where 222 caps it; and for every ladder step the smallest covering level covers the step plus 0.785 km, or the step has none (counted and printed) |
+| **CA3** | the cap | 32,768 is `CAP_BYTES`, read from `proxy/src/basemap/budget.ts` |
+
+**Plants, each set computed by the same scratch reading under the plant:**
+- **S-CA-MARGIN** (`r` without the 0.8 km): {CA1, CA1b, CA1c, CA2}. 5 mi, 222 km and 0.1 mi round to the same `r` either way.
+- **S-CA-EPSFLOOR** (no 1,000 mm floor): {CA1f, CA2}.
+- **S-CA-FLOAT** (each radius through a float before its mm): {CA1, CA1c}. 40 km, 5 mi and 222 km survive a float exactly.
+
+### The policy (CA4-CA11)
+
+| row | the answer | predicted behaviour | plant (turns exactly) |
+|---|---|---|---|
+| **CA4** | 202 with `Retry-After: 15` | the next request at exactly +15 s: not at once, not on a fixed timer (F2) | S-CA-RA, a fixed 30 s: {CA4} |
+| **CA5** | 202 with `Retry-After` absent, not a whole number, or outside 1-3,600 | **refused as a value**, never clamped: the next request at +60 s, and the log says the header was refused | S-CA-RAZERO, garbage read as 0: {CA5} |
+| **CA6** | 404, or 422 | the no-package screen (F5), with the reason logged. **No request again until the location or radius changes,** then one new attempt | S-CA-404RETRY, 404 read as an error: {CA6} |
+| **CA7** | 500, 503, 429 without `Retry-After`, a transport error, a timeout | backoff 60, 120, 240 … s, capped at 3,600, reset by a 200. A 429 with `Retry-After` follows it as CA4 | S-CA-FLAT, no growth: {CA7} |
+| **CA7b** | 401, 403 | 3,600 s: a credential, not a build, so retrying sooner proves nothing | in CA7's plant set |
+| **CA8** | 200 that the gate refuses | counted as an error (CA7's backoff), **at most 3 per config, then no package**, with the gate's reason logged. A truncated transfer recovers; a format the device cannot read stops asking | S-CA-GATE, refusals without limit: {CA8} |
+| **CA9** | F6, the boot | a spread boot waits **D = hash(device id) mod 7,200 s** before its first request; any other boot asks at once. Over 10,000 synthetic ids: D in [0, 7,200), the mean 3,600 ± 72, each of 12 ten-minute bins within ±15 % of 833 | S-CA-NOSPREAD {CA9 OTA, CA9 nightly}; S-CA-SPREADALL {CA9 power-on, CA9 first-run, CA9 config} |
+| **CA10** | a change of location or radius | a new request **at once**, with no spread; the old package is dropped at once, since it belongs to another view. A zoom changes nothing | S-CA-ZOOMFETCH: {CA10} |
+| **CA11** | an answer whose sequence number is older than the config | dropped | S-CA-NOSEQ: {CA11} |
+
+**Which boots spread (F6), and how they are known.** The firmware already records both:
+- **After the nightly reboot:** `ConsumeDeferredRebootCause()` (idempotent within a boot) reads `REBOOT_CAUSE_OTA_CHECK`.
+- **After an update:** `OtaUpdater`'s attempt record reads `res == "incomplete" && to == FW_VERSION` on the new image's first
+  boot. **But the check-in report finalises that record and clears it** (fire-once), so the map has to read it before then.
+  - **Proposed:** one accessor in `OtaUpdater`, computed once early in `setup()`.
+  - **That is blipscope-5c's file** (Q-MA1).
+- **A power-on, a first-run restart and a config save carry neither,** so they ask at once.
+- **The hash:** FNV-1a over a domain-separated string (`"map-spread|"` + `DeviceIdentity::LeaderboardId()`). It is never the
+  MAC, and nothing prints the id, the hash or D.
+
+### Checks that read the source (CA12-CA14)
+
+| row | check | plant |
+|---|---|---|
+| **CA12** | F8: no `Preferences`, `put*`, SPIFFS or LittleFS call in the map's files | S-CA-NVS, a planted `putString`: {CA12} |
+| **CA13** | privacy: the map's `printf` formats print no coordinate, no id, no hash and no delay; the URL takes lat/lon through `wireloc::Center` only | S-CA-PRINTD, printing D: {CA13} |
+| **CA14** | `GetBytes` collects `Retry-After`, and the weather path's collected headers are unchanged | S-CA-NORA, the header dropped from the list: {CA14} |
+
+### Bench, later (with step M's window or after D4)
+
+Production has no `/basemap` until D4. The bench reads staging's route from a staging-built image:
+- a cold first fetch: 202, then 200 after the `Retry-After`;
+- size within the cap, and the gate passes;
+- a power-on boot asks at once.
+
+These rows are registered with the bench image, not here.
+
+### Questions for the ruling
+
+- **Q-MA1:** may `OtaUpdater` gain the one accessor (read once early in boot, before the check-in clears the record)?
+  It is blipscope-5c's file.
+- **Q-MA2:** should a boot after the network watchdog's reboot (`REBOOT_CAUSE_NET_WEDGE`) spread too?
+  - **I recommend yes:** a server outage fires every board's watchdog together, and they all come back together.
+  - A touch-watchdog reboot stays immediate: it is a local recovery.
+- **Q-MA3:** a consequence of RAM only plus F6. **Any update, whenever it lands, leaves the map off for up to 2 h**
+  afterwards.
+  - Overnight that is unseen. A daytime update is visible.
+  - **I recommend accepting it,** rather than narrowing the spread by the hour.
+- **Q-MA4:** the numbers in CA5, CA7, CA7b and CA8 (60 s fallback, 60-3,600 s backoff, 3,600 s for credentials, 3 gate
+  refusals). Proposed as stated; none is ruled yet.
+- **Q-MA5:** until D4, production answers `503 not_configured`. Under CA7 a shipped device backs off to an hourly ask. That
+  is only reachable if the joint release ships before D4, which the release plan does not allow.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
@@ -405,3 +504,7 @@ Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms
 **32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The baseline is #608's
 finished docs-only PR run (head `1c88ff6d776a`: 32 = 29/3/0). It started at 18:21Z, after `2e36055a` (#597, merged
 17:19Z), the last change to `.github/workflows/`.
+
+**CI for step A's predictions PR (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`,
+`version`), 0 failed.** The baseline is #613's finished docs-only PR run (32 = 29/3/0). The workflow changes since,
+#609 and #618, added steps, not jobs.
