@@ -290,3 +290,79 @@ Each step gets its own addendum, with rows and sabotages, as Stage 3's did. Noth
 | **W7, W8** | D1: nothing outside the factory knows a feed is live; D2: 0 NOAA or NWS hosts in the image | a stale alerts feed that draws the all-clear |
 | **W9** | a package survives a reboot; a torn write falls back to no map, not a bad one | a package with a wrong key accepted |
 | **W11** | the screens agree with NWS's own page at the same minute, by eye, for a real alert | none: it's the glass, and Daniel's to judge |
+
+---
+
+## Addendum S4.1, 2026-11-08: the rulings, one correction, and W2 and W3 frozen before any code
+
+**The rulings (2026-11-07 ~23:23Z and ~23:25Z), all as recommended:** Q112 to Q120. The record is `docs/weatherscope-stage3.md` A12.174.
+Two carry conditions:
+- **Q113:** blipscope-5c reads the SeamlessHSR server work for conflicts.
+- **Q116:** blipscope-5c reads each push of the routes for conflicts with its own, before the push.
+
+### S4.1.1 A correction to section 4's R1, and to the short version
+
+**R1 said v19 waits on the map client and the ocean fix,** citing #606. #609 records Daniel's ~16:03Z decision: v19 ships when it's ready,
+without weather, and weather and the map ship together later. So **R1 no longer waits on the map.**
+- If v19 is cut before Stage 4's own work ends (November 25 - December 6), **the sale is about November 29 - December 13.**
+- **v19's own date isn't stated anywhere I read,** so the upper end still rests on it.
+
+### S4.1.2 W2: the model header
+
+**The change:**
+- One pure function, beside `ota::Request`, returns the model string: the scope followed by the board, which is what the device asks OTA for.
+- `CloudFeed.cpp`'s header calls it instead of `variant::SLUG`.
+- Weatherscope's own client calls it in W7.
+
+**The contract, for blipscope-5c to agree before any code (section 1.1):**
+
+| item | proposed |
+|---|---|
+| the value | the OTA identity, so `weatherscope-s3-128` here, and the radar's unchanged |
+| `MODEL_DEFAULTS` | no entry: Weatherscope reads no `/blips` |
+| `reconcile-fleet.py` | counts a board once, whatever its model reads, since a scope switch changes the model and not the board |
+| who writes the device change | me. It touches `CloudFeed.cpp`, so blipscope-5c reads it first |
+
+**Predicted, once agreed:**
+
+| row | predicted | its sabotage |
+|---|---|---|
+| **M1** (host) | over O1′'s 15 identities (A12.103), the model is exactly scope followed by board, and every radar identity's model equals its `variant::SLUG` | **S-M1:** the board alone. Every identity with a scope goes red, and no radar row does |
+| **M2** (image) | every radar env's image is byte-identical outside A5.6's R1 and R2 stamps, by S1 v2's method | **S1's covering sabotage,** a planted byte in `CloudFeed.cpp`, changes exactly the envs that compile it |
+| **M3** (staging, read-only) | a request carrying `X-Blip-Model: weatherscope-s3-128` gets `/config`'s `BASE`, and its metric carries the string unchanged | none: it reads blipscope-5c's code, and changes nothing there |
+
+**M2 needs builds of every radar env, at base and head,** and C: is under 30 GB tonight. M2 waits for the disk, and nothing else in W2 does.
+
+### S4.1.3 W3: can a Worker reach NWS?
+
+**Why first:** if NWS refuses or throttles Cloudflare's egress, W5's design changes, so this should be found out before W5's code, not during
+it. The aircraft feeds needed relays for exactly this reason.
+
+**The probe:** about 40 lines, outside the proxy, with no binding and no route. From each of 5 public airports (KBOS, KDEN, KDFW, KMIA, KSEA), it
+fetches the 6 calls W5 will make:
+- `/points`;
+- the forecast;
+- the hourly forecast;
+- the stations list;
+- the latest observation;
+- `/alerts/active?point=`.
+
+It does that in 3 rounds 10 minutes apart, which is 90 calls in all. It returns only each call's status, time, size and `Cache-Control`.
+**No body leaves it,** since they name offices, grids and coordinates. The User-Agent is `Weatherscope (support@valarsystems.com)`.
+
+**Q121, how it runs (the reviewer's, with Daniel):**
+- **(a) `wrangler dev --remote` (recommended):** the probe runs on Cloudflare's edge as an ephemeral preview. It's no deploy and touches no Worker, KV or route.
+- **(b) A route on the staging proxy:** this is a deploy, so it needs the lock and a rollback target.
+
+Either way it's announced through Daniel first, because it uses the account.
+
+| row | predicted | if not |
+|---|---|---|
+| **W3-1** | 90 of 90 calls answer 200 | a 403 or 429 means NWS refuses Cloudflare's egress, and W5 goes through the relays: **stop and report** |
+| **W3-2, the control** | the same call **without a User-Agent** answers **403** | a 200 means the control is blind (NWS no longer checks), **recorded and not a stop,** with W3-1 read on its own |
+| **W3-3** | a median under 1,000 ms per call, and none over 5,000 ms | slower sets W5's hold times longer, and doesn't stop |
+| **W3-4** | each kind's `Cache-Control` max-age, recorded | it sets W5's hold times: no prediction |
+| **W3-5** | each kind's raw size, recorded. The trimmed body must fit 32 KB, so a raw forecast over 200 KB gets a note | |
+| **anything else** | | **outside this set: the probe is unreliable at this scale, stop and decide.** Nothing is read into it on the spot |
+
+**Not in W3:** the feeds' CPU. That needs W5's trim code, so it's read in W5's staging reading.
