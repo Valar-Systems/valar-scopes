@@ -397,3 +397,57 @@ These checks run only on Windows: CI cannot show L1-L3, because its checkout nev
 **The control for L3 is the same test in the CRLF checkout.** The #548 worktree, without the rule, failed Q-C1 on
 both of its full runs (`47d67e6`), so the check can fail, and the rule is the only difference between the two
 results.
+
+## The driver on a CRLF checkout (2026-11-08; predictions frozen before the fix)
+
+**Ruled ~19:07Z (reviewer chat, pasted by Daniel), verbatim:**
+
+> The credits driver's CRLF anchors: yes, a small separate fix, predictions first.
+
+**The defect, found on 2026-11-08** while running the drivers for #623 (`docs/wx-opera-code-stage.md` §8.1):
+- `sabotage-credits.mjs` writes its two-line anchors with `\n`.
+- A Windows checkout (`core.autocrlf` on) gives `src/photolicense.ts` CRLF endings, so those anchors never match. The
+  driver stops at its rig check (exit 2) before any sabotage runs.
+- On an LF copy it read all four as registered. So the defect is in the instrument, and no credits row was ever red
+  because of it.
+
+**The fix:** every anchor and its replacement take the file's own line ending (`\r\n` when the file has one, else `\n`)
+before the match. That is the rule `sabotage-wx-split.py` already follows. Nothing else in the driver changes: not
+its anchors, not its red sets, not its counts.
+
+**Where it runs:** on this machine, from `proxy/`, in a CRLF checkout of main `e934e93b`, under the start rules (no
+other vitest or `sabotage-` process, and TIME_WAIT under 2,000).
+
+| row | what | predicted |
+|---|---|---|
+| **CR-0** (the defect, re-read before the fix) | the driver as on main, on this CRLF checkout | **RIG, exit 2**, `S-CV-BLANKET: an edit's anchor is not in src/photolicense.ts exactly once`, after the control run and before any write |
+| **CR-1** | the fixed driver, on the same checkout | **ALL AS REGISTERED, exit 0**: CONTROL **35 of 35** green (#623's CR1 and CR1s, which make it 37, are not on main); S-CV-BLANKET, S-SA, S-RD and S-QC1 each with its registered red set and counts; every file restored byte-identical |
+| **CR-2** | the fixed driver, with `src/photolicense.ts` converted to LF first (the form CI and Linux check out), then restored by bytes | **the same as CR-1** |
+| **CR-1s** (the fix's sabotage) | the fixed driver with the line-ending step removed, on the CRLF checkout | **RIG, exit 2**, the same line as CR-0 |
+| escape | anything else | stop and report |
+
+**CI for the PR,** which changes `proxy/scripts/sabotage-credits.mjs` and this doc: **predicted 35 check runs, 32
+success, 3 skipped, 0 failed.**
+- The baseline is #586's finished `proxy/` run.
+- The last job-set change is `caf63cc9`; #618's workflow change is steps only.
+- The driver itself is not in CI.
+
+### Read (2026-11-08; every row as predicted)
+
+These were read in a CRLF checkout of main `e934e93b`.
+- **The start rules held:** no vitest or `sabotage-` process was running, and TIME_WAIT read 47.
+- One `workerd.exe`, started at 20:00:19Z, was running. It was not this session's and not a vitest.
+
+| row | read | |
+|---|---|---|
+| **CR-0** | 20:05:00-20:05:08Z: **RIG, exit 2**, `S-CV-BLANKET: an edit's anchor is not in src/photolicense.ts exactly once`, after CONTROL 35 of 35. Nothing was written | as predicted |
+| **CR-1** | 20:05:31-20:05:49Z: **ALL AS REGISTERED, exit 0.** CONTROL 35 of 35; S-CV-BLANKET, S-SA, S-RD and S-QC1 each with its registered red set and counts; every file restored byte-identical | as predicted |
+| **CR-2** | with `src/photolicense.ts` as LF: output byte-identical to CR-1's; the file restored by sha | as predicted |
+| **CR-1s** | **RIG, exit 2**, the same line as CR-0; the driver restored by sha | as predicted |
+
+**An attempt that is not a reading.** The first CR-1s attempt did not plant:
+- A shell heredoc ate the anchor's backslashes, and the plant's own assertion refused.
+- The command then ran the driver unplanted, a repeat of CR-1 (ALL AS REGISTERED).
+- That run is not counted as a CR-1s reading.
+- The plant was rebuilt with `chr(92)` for each backslash, it was checked to have changed the file, and only then was
+  the driver run.

@@ -71,7 +71,11 @@ console.log(`CONTROL (unsabotaged): ${base.total[2]} passed of ${base.total[3]},
 for (const s of SABOTAGES) {
   const orig = readFileSync(s.file), before = sha(orig);
   let text = orig.toString("utf8");
-  for (const [a, b] of s.edits) {
+  // Each anchor and its replacement take the file's own line ending (docs/credits-correctness.md, "The driver on a CRLF
+  // checkout"): a Windows checkout gives src/photolicense.ts CRLF, and an anchor written with \n never matches it.
+  const nl = text.includes("\r\n") ? "\r\n" : "\n";
+  for (const [a0, b0] of s.edits) {
+    const a = a0.replaceAll("\n", nl), b = b0.replaceAll("\n", nl);
     if (text.split(a).length !== 2) { console.log(`RIG: ${s.name}: an edit's anchor is not in ${s.file} exactly once`); process.exit(2); }
     text = text.replace(a, b);
   }
