@@ -210,6 +210,157 @@ where land shows.
   - 35,430 of the 542,928 pixels checked fell in CM10's 1e-6 band and were not graded.
   - At a tie, the fixed-point floor and the double one can pick either side: a one-level-pixel shift.
 
+### The ruling on the first run, verbatim (reviewer chat, pasted by Daniel, 2026-11-07 ~23:23Z)
+
+> For: the map client, from the reviewer chat, 2026-11-07 ~23:23Z
+>
+> Q-MC9: yes. CM7 builds terrain and water only, as a check of F4 against the independent reference, with S-CMR still
+> turning it red. The 3,364 is disclosed as known from the diagnostic; the blind part is everything else (140 of 140 on
+> both compilers, CM9, every plant exact). Registered items 1-5: accepted. For item 1, add a row that the layer's line
+> equals wxraster::Line pixel for pixel inside rows 24-193, with its plant, so the copy can't drift.
+> Q-MC10: hold S1 at Bend for Daniel's look in step M's window. No minimum length now.
+> #613: approved at fb4ca258 once its CI double-reads 32 = 29/3/0. Merge under Q-M1.
+> The map server needs your full /basemap query before it can freeze the r=161 re-read or build the fixtures. Send it
+> now, as the firmware will send it for the default view: r, ε, the layer mask (no peaks), and the terrain levels
+> (radius:N per level), with how the levels cover the zoom ladder at r=161.
+
+### Registered for the second run, before its code (2026-11-07, after the ~23:23Z ruling)
+
+**1. CM7, as ruled:** it builds terrain and water only. Predicted: 3,364 px against the reference's 3,364. **This number
+is known from the disclosed diagnostic, so it is not blind.** S-CMR still turns exactly {CM7}.
+
+**2. A new row, CM11: the layer's line equals `wxraster::Line`, pixel for pixel.**
+- **Where they are compared:** rows 24-193, on pixels both disc tests count as inside (the layer's pixel-centre test,
+  `wxlayer::OffDisc`, and the Weatherscope's `InMap`).
+- **The cases:** every river and road segment of Bend, through the layer's own vertex path, at CM2's 5 views × 4
+  rotations with no offset: 20 cases.
+- **Predicted:** 0 differing pixels in every case. The control is a lit-pixel count above 0 in the compared area, or
+  the row could not fail.
+- **The plant, S-CMLINE:** the layer's line rounds with `floor(v)` instead of `floor(v + 0.5)`. It turns exactly
+  {CM11's 20}.
+- **What the row requires of the code, so it is said here:**
+  - the layer's line moves from float to the same double DDA as `wxraster::Line`;
+  - the clip to the screen stays, as a range of the same steps `k`, so it skips points and never moves one.
+  - No other row's prediction depends on the line's arithmetic: CM6 compares the layer with itself, and CM4 grades
+    counts and decisions.
+  - The cost goes to CF5's reading.
+
+**2b. A second plant for CM9, S-CMPLAN** (registered before the driver existed, after the second run's 160 of 160).
+- **Why:** S-CMLIT proves CM9's literal scan can fail. Nothing proved its other half could: the Dark row against the
+  plan's §4.
+- **The plant:** the table's place colour becomes (86, 86, 94); its RGB565 differs from (86, 86, 86).
+- **Expected:** exactly {CM9}. The layer does not draw place names yet, so no C++ row sees it.
+
+**3. The count becomes 160:** CM1 29, CM2 60, CM3 36, CM4 5, CM5 1, CM6 1, CM7 1, CM8 1, CM10 6, CM11 20. Any other
+count is the rig. **So the blind part reads 160 of 160 on both compilers** (the ruling's "140 of 140" plus CM11's 20),
+then CM9, then every plant exactly its set.
+
+### The second host run (2026-11-07, ~23:31-23:38Z), as registered: as predicted
+
+- **The suite:** 160 of 160 on MinGW 5.1 and on WSL g++ 13.3.0.
+  - The first WSL attempt read nothing, because its output directory under WSL's `/tmp` was gone. That is the rig,
+    not a reading. The directory was made, and the same command was run once more.
+- **CM7:** 3,364 px against the reference's 3,364, all shared. Known from the diagnostic, as disclosed.
+- **CM11:** 0 differing pixels in all 20 cases. 739-1,783 pixels lit in the compared area, so the row could fail.
+- **CM9:** passes. No colour literal outside the table, and the Dark row equals the plan.
+- **The sabotage driver (`test/host/sabotage_map_layer.py`):** 13 of 13 plants turned exactly their registered sets, on
+  both compilers: S-CMCRC 1, S-CMROT 72, S-CMCEN 56, S-CMS1 2, S-CMGAIN 1, S-CMORD 1, S-CMR 1, S-CMDISC 1, S-CMLIT 1,
+  S-CMPLAN 1, S-CMLVL 3, S-CMSAMP 6, S-CMLINE 20. The real header was unchanged.
+- **The harness's own passes:** `--anchors` 13 of 13 present exactly once; `--control` 2 suites as its table;
+  `lint_driver_counts.py` 0 flagged.
+- **Not yet run:** the whole of `test/host/run.sh` (every block and every driver). It runs before the first firmware
+  push, which waits for #609.
+- **Step M is not finished:** its bench rows (CF1-CF6) wait for E2:08 after blipscope-5c's v19 window, and the KSFO
+  reading waits for the map server's fixtures.
+
+### The full WSL `run.sh` before the push (2026-11-07, 23:43-23:49Z): OFF, stopped for a ruling
+
+- **Frozen at 23:42:41Z, before the run,** on the tree rebased onto `35a4909b`: exit 2; failed blocks exactly "the same
+  TU, for the board" and "Weatherscope R0 and R0b"; `sabotage_wx_towns.py` skipped (34 drivers: 33 run, 1 skipped);
+  MapLayer 160 of 160 and CM9; the new driver ok in `--control` with 13 AS PREDICTED lines in the full pass; every
+  other block ok.
+- **Read:** exit 2 with **seven** failed blocks: the two predicted and five more. The driver count is as predicted, and
+  MapLayer reads 160 of 160 with CM9. The new driver is ok in both passes, **with 14 AS PREDICTED lines, not 13.**
+
+**The five extra blocks: one cause, this worktree's missing libraries.**
+- The worktree is new and `pio` has never run in it, so it has no `.pio/libdeps` (`ls` confirms).
+- Every extra block went BLIND for that reason and says so in its own words:
+  - the Wi-Fi QR test, inside the usage-report block: "fonts MISSING (no LovyanGFX under .pio/libdeps)";
+  - GameConfig: "no ArduinoJson under .pio/libdeps";
+  - seven-segment: "no GLCD font table … run `pio run` once";
+  - both driver passes, through `sabotage_wx_fb_check.py`: "no LovyanGFX glcdfont.h under .pio/libdeps".
+- **The alternative, named and excluded:** a defect in main (#609 landed in this rebase) or in this change.
+  - The blocks read nothing; BLIND is a refusal to read, and it names the path it lacks.
+  - None of them reads `MapLayer.h` or the new files.
+  - The MapLayer block and the new driver passed in the same run.
+
+**The 14: my miss.** The harness's `grep -c 'AS PREDICTED'` also counts the driver's summary line, "MAP LAYER SABOTAGES AS
+PREDICTED". The 13 plant lines are 13 of 13.
+
+**Proposed, for the ruling.**
+- Install this worktree's libraries with `pio pkg install -e blipscope-s3-128`, from PowerShell, never Git Bash (the
+  MSYS esptool trap). It installs libraries only, with no build.
+- Then the same WSL `run.sh` once more. **Predicted:**
+  - exit 2, with failed blocks exactly the two known;
+  - 34 drivers: 33 run, 1 skipped;
+  - MapLayer 160 of 160 and CM9;
+  - the new driver with **14** AS PREDICTED lines (13 plants and the summary);
+  - every other block ok.
+
+**The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-08 ~02:33Z):**
+
+> Q-MC11: yes. Install the worktree's libraries with pio pkg install -e blipscope-s3-128, from PowerShell, libraries
+> only and no build. Then re-run the WSL run.sh once against your predictions (exit 2 from exactly the two known
+> blocks; 34 drivers, 33 run and 1 skipped; MapLayer 160 of 160 with CM9; 14 AS PREDICTED lines, 13 plants plus the
+> summary). The five BLIND blocks and the 14 stay on record as your misses. If it reads as predicted, step M's host PR
+> goes up with CI predicted at 34 = 30/4/0.
+> Your query has been passed to the map server.
+
+**The re-run (2026-11-08, frozen 02:39:24Z, run 02:39-02:46Z), after `pio pkg install -e blipscope-s3-128` (libraries
+only, 136 MB, no tracked file changed): as predicted on every line.**
+- exit 2, with failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b";
+- 34 drivers: 33 run, 1 skipped, in both driver passes;
+- MapLayer: 160 of 160, and CM9;
+- `sabotage_map_layer.py`: anchors 13 of 13, the control as its table, and 14 AS PREDICTED lines;
+- every other block ok. The log's three "BLIND" lines are `ok` lines whose wanted verdict is BLIND.
+
+The first run's five BLIND blocks and the 14 stay on record above as my misses (ruled ~02:33Z).
+
+### The /basemap query for the default view (sent to the map server, 2026-11-07)
+
+The radar's default is 100 mi, so its zoom ladder is {5, 10, 25, 50, 100} mi. The request:
+
+```
+GET /api/v1/blipscope/basemap?lat=<2 dp>&lon=<2 dp>&r=162&eps=201168&layers=water,rivers,roads,places,terrain&levels=41239440:246,81808320:244,162275520:242
+```
+
+| parameter | value | how it is made |
+|---|---|---|
+| `lat`, `lon` | 2 dp | `wireloc::Center`, as `/wx` sends them |
+| `r` | **162** | `ceil(view radius + 0.8 km)`, capped at 222: 160.934 + 0.8 = 161.73. **162, not 161:** 161 would leave the home's offset from the 2-dp origin (up to 0.555 km on an axis) outside the package's square |
+| `eps` | **201168** (mm) | the view radius / 800: half a pixel at 30 % of the configured radius (here 30 mi, 402.336 m a pixel). It keeps a package's density per pixel the same at any configured radius |
+| `layers` | `water,rivers,roads,places,terrain` | no `peaks` (Q-MC7 (b)); places stay in, since place names are on by default |
+| `levels` | `41239440:246,81808320:244,162275520:242` | one per top three ladder steps (25, 50 and 100 mi), each 1:1 with the screen (pixel = step / 120), and wider by `ceil(0.8 km / pixel)` pixels a side, so the worst offset (0.785 km) is always inside |
+
+**How the levels cover the ladder.** The level used is the smallest whose half-width covers the view plus the
+offset (Q-MC7 (a)).
+
+| view | radius + 0.785 km | level used | level pixel | screen pixel | screen px per level px |
+|---|---|---|---|---|---|
+| 5 mi | 8.83 km | 41.24 km (the 25 mi level) | 335.28 m | 67.06 m | 5 |
+| 10 mi | 16.88 km | 41.24 km (the 25 mi level) | 335.28 m | 134.11 m | 2.5 |
+| 25 mi | 41.02 km | 41.24 km | 335.28 m | 335.28 m | 1 |
+| 50 mi | 81.25 km | 81.81 km | 670.56 m | 670.56 m | 1 |
+| 100 mi | 161.72 km | 162.28 km | 1,341.12 m | 1,341.12 m | 1 |
+
+- **The bytes:** terrain 178,640 (8 + N² per level). So a package is at most 32,768 + 178,640 = **211,408 B**, and that
+  is the client's `GetBytes` cap for this view.
+- **Why 5 and 10 mi get no level of their own:** they are brief zooms that return to 100 mi after 10 minutes idle,
+  and z9's 4 × 4 mean already smooths the terrain over about 0.9 km. A fourth level (10 mi: N = 252, 63,512 B) is
+  possible within the route's limit of 4, and is not asked for.
+- **Other configured radii** follow the same three rules over their own ladder. The exact rounding is registered with
+  step A.
+
 ### Bench rows
 
 Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms, opaque sweep 2.04 ms, blended sweep
