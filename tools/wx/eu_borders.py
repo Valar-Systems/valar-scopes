@@ -94,7 +94,11 @@ def load(graded_p, ne_p, rules_p):
                 parts.append(pt)
     land = unary_union(parts)
     shapely.prepare(land)
-    return {"served": served, "left": left, "feat": feat, "land": land, "rules": rules, "grids": grids, "ne": ne}
+    def in_raster(lon, lat):
+        x, y = fwd.transform(lon, lat)
+        return 0 <= x <= ras["width"] * ras["xs"] and -ras["height"] * ras["ys"] <= y <= 0
+    return {"served": served, "left": left, "feat": feat, "land": land, "rules": rules, "grids": grids, "ne": ne,
+            "in_raster": in_raster}
 
 
 def in_region(env, rh, ch):
@@ -246,19 +250,27 @@ def coast(env, ts_p, places_p):
     _, at = read_table(ts_p)
     a3 = {env["feat"][n]["properties"]["ADM0_A3"]: n for n in env["served"]}
     places = json.load(open(places_p, encoding="utf-8"))["features"]
-    total, outside, by = 0, 0, {}
+    # Two kinds of "outside", kept apart: a place in a part outside the raster (an overseas part, not served by design,
+    # docs/wx-opera-europe.md §1) and a place inside the raster whose quantised point the table does not serve -- the
+    # coast question Q-COAST asks about.
+    total, in_raster, kinds = 0, 0, {"outside_the_raster": {}, "inside_the_raster": {}}
     for f in places:
         n = a3.get(f["properties"].get("ADM0_A3"))
         if n is None:
             continue
         lon, lat = f["geometry"]["coordinates"][:2]
         total += 1
+        inside = env["in_raster"](lon, lat)
+        in_raster += inside
         if at(js_round2_h(lat), js_round2_h(lon)) is None:
-            outside += 1
-            by[n] = by.get(n, 0) + 1
-    print(json.dumps({"places_in_the_40": total, "quantised_outside_the_region": outside,
-                      "share_pct": round(100 * outside / total, 2) if total else None,
-                      "by_country": dict(sorted(by.items(), key=lambda kv: -kv[1])),
+            k = kinds["inside_the_raster" if inside else "outside_the_raster"]
+            k[n] = k.get(n, 0) + 1
+    coastal = sum(kinds["inside_the_raster"].values())
+    print(json.dumps({"places_in_the_40": total, "inside_the_raster": in_raster,
+                      "not_served_outside_the_raster": dict(sorted(kinds["outside_the_raster"].items(), key=lambda kv: -kv[1])),
+                      "not_served_inside_the_raster": coastal,
+                      "share_of_in_raster_pct": round(100 * coastal / in_raster, 2) if in_raster else None,
+                      "inside_the_raster_by_country": dict(sorted(kinds["inside_the_raster"].items(), key=lambda kv: -kv[1])),
                       "places_sha256": sha(places_p)}))
 
 

@@ -258,3 +258,67 @@ grid is 1.970 deg short in the south. G1 refuses a sabotaged header in any case.
 **Offline, `tools/wx/eu_borders.py`:** D4 against the committed table, 0 disagreements and the count printed. D4s
 against the table with Italy added: its disagreements equal the points of the set inside Italy, both printed. Q-COAST
 is printed.
+
+## 8. The readings (2026-11-08, 02:57Z onward; nothing deployed)
+
+### 8.1 As predicted
+
+- **The ten test files this stage touches:** 205 of 205 passed (02:57:18-02:57:50Z).
+  - **G1:** 3,603 rows, 22,822 runs and 6,921,706 points, with 0 bad runs.
+  - **D1:** 40 of 40, with Lithuania on `opce`.
+  - **D2:** 15 of 15 get cref's all-14. D2s left exactly the 8 named.
+  - **D3:** all 15 crossings as predicted. D3s-b moved 15.
+  - **D5:** the box's 1,167,661 points are all `opuk`.
+  - **A1:** all 10 rows.
+  - **F2:** 40 of 40.
+  - **R1:** the 5 isles label points get `opuk` with 720, and the other 35 get cref's all-14 with no header. R1s gave
+    35 at 503.
+  - **R2:** 48,721, out of `opuk`'s 1,216,382.
+  - **W1:** all 10 windows inside the raster, and every stated side exactly on the raster's edge.
+  - **K6:** 329,371 cases, with 0 views outside the isles grid.
+- **D4:** 58,789 lattice points lie within 3 cells of a served-excluded border, with **0 disagreements**.
+  - **D4s** (Italy added): **5,075 disagreements, which equals the 5,075 set points inside Italy.**
+  - The set's points inside each excluded neighbour: Russia 9,259; Ukraine 6,651; Italy 5,075; Belarus 3,392;
+    Bulgaria 2,970; Kosovo 1,031; Albania 485; North Macedonia 260; Morocco 84.
+- **The region driver:**
+  - **D3s-a** failed G1, D2 and D3: D2 `["Italy"]`, and D3 the 5 Italian excluded sides.
+  - **D5s** failed G1 and D5, with `notOpuk` 764,142.
+  - **A1s** failed A1 and F2: A1 `["opis: row"]` and F2 `["Iceland"]`.
+  - Every file was restored by bytes and its sha checked.
+- **The split driver:** FT1s, FT2s, FXs, FXs-b and FT2cs, all as predicted.
+- **The Plan S driver:** PS1s, PS2s, PS3s and PS45s, all as predicted with the 11 products.
+- **The credits driver:** all four as registered, 37 tests.
+  - It ran on an LF copy of `src/photolicense.ts`. On this CRLF checkout its two-line anchors never match, and it stops
+    at RIG (exit 2).
+  - That defect predates this branch. It is recorded here and not fixed in this PR. The file was restored by bytes.
+- **The generator** `--check` is byte-identical, and the fixture regenerates byte-identical.
+- **The inputs:** the populated places file, `ne_10m_populated_places.geojson` sha256
+  `9b8e3de09048ef00dfc70357dbb9fa324493f214b5e0ae4daf1aa79a8d10116b`, came from Natural Earth's v5.1.2 tag. **The same
+  tag's admin-0 file hashes to the pinned `239eec57…f8255`**, so both inputs are one release.
+
+### 8.2 Off: D1s + F2s also turned R1s red (for a ruling)
+
+- **What it read:** the failed set was G1, D1, F2 and **R1s**, where G1, D1 and F2 were predicted. D1 and F2 read
+  `["Malta"]` as predicted.
+- **Why:** R1s counts the label points that route to a product with no frame. Without Malta in the table, Malta's
+  point goes to cref, which has a frame, so R1s counts 34 of 35.
+- **My miss:** applying R1s to the plant, row by row, gives exactly that.
+- **Nothing in the code changes.**
+- **Proposed:** D1s + F2s is re-registered as G1, D1, F2 and R1s, with R1s reading 34.
+
+### 8.3 Q-COAST, printed for the coast ruling
+
+- **Natural Earth's 1:10m populated places in the 40:** 609.
+- **20 lie outside the raster,** in the parts §1 leaves out by design: France 13, Portugal 4, Spain 3.
+- **Of the 589 inside the raster, 5 (0.85 %) quantise to a point the table does not serve:** Norway 2, Sweden 1,
+  Ireland 1, France 1. Those 5 are the coast question.
+- **No place is named** here, and no point is printed.
+
+### 8.4 The whole suite
+
+- **Run once,** on Daniel's PC, 03:03:26-03:04:22Z.
+- **The start rules held:** no other vitest or `sabotage-` process was running. TIME_WAIT read 564; the run waited
+  for it to fall under 2,000.
+- **74 files passed and 1 was skipped; 1,035 tests passed and 1 was skipped; 0 failed.** The skip is
+  `basemap-md2.test.ts`'s MD2, which is not this branch's.
+- stderr is the pool's temporary-folder `EBUSY` lines and the tests' own expected logs.
