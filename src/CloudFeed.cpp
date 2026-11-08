@@ -8,6 +8,15 @@
 #include "variants/Variant.h" // variant::SLUG for the X-Blip-Model header
 #include "DeviceIdentity.h"  // LeaderboardId() for the X-Blip-Device header
 
+// X-Blip-Model is the OTA identity, scope followed by board (docs/weatherscope-stage4.md S4.5, Q123 (a)). Every env
+// that compiles this file is the radar, which has no scope, so variant::SLUG below IS that identity, and the radar's
+// image does not change for it. A scoped build that ever compiled this file would send the bare slug as its model,
+// passing as the radar in the Worker's config, metrics and fw: rows: refused here, at compile time. A scoped edition
+// builds its own header with ota::ModelString (include/OtaIdentity.h).
+#if defined(FW_OTA_PREFIX)
+static_assert(sizeof(FW_OTA_PREFIX) == 1, "a scoped build must not compile CloudFeed.cpp: X-Blip-Model would be the bare slug");
+#endif
+
 namespace CloudFeed {
 
 namespace {

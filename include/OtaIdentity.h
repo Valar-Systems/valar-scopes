@@ -118,6 +118,20 @@ inline bool Accept(const Identity& requested, const Identity& candidate)
     return strcmp(requested.board, candidate.board) == 0 && strcmp(requested.scope, candidate.scope) == 0;
 }
 
+// THE MODEL, as a device names itself to the proxy in X-Blip-Model (docs/weatherscope-stage4.md S4.1.2, S4.5): the
+// scope followed by the board, exactly what it asks OTA for. True, with the model in `out`; or false, with NOTHING
+// written, when it does not fit or the identity has no board. A cut model is a different model, so a short buffer is
+// refused, never truncated (M1b). Header-only and inline: an image that never calls it carries none of it (Q123 (a)).
+inline bool ModelString(const Identity& id, char* out, size_t cap)
+{
+    const size_t s = strlen(id.scope), b = strlen(id.board);
+    if (b == 0 || s + b + 1 > cap) return false;
+    memcpy(out, id.scope, s);
+    memcpy(out + s, id.board, b);
+    out[s + b] = '\0';
+    return true;
+}
+
 // The device's own record, defined in src/OtaIdentity.cpp in .rodata_custom_desc.
 // Declared here so the boot line can read it back; the host never links it.
 extern const Record kOwnRecord;
