@@ -51,6 +51,9 @@ jobs:
       - run: python3 scripts/check_macs.py
       - run: python3 scripts/check_macs.py --selftest
       - run: python3 scripts/check_macs.py --sabotage
+      # Session claims (docs/session-claims.md): CL1-CL12, then each plant must turn exactly its rows red.
+      - run: python3 scripts/session-claim.py --selftest
+      - run: python3 scripts/session-claim.py --sabotage
       # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
       - run: python3 scripts/check_workflow_concurrency.py
       - run: python3 scripts/check_workflow_concurrency.py --selftest
