@@ -45,6 +45,17 @@ A crash or an unparseable run is an instrument failure, never a red.
 **Outside the set:** any other row red, a plant that turns no row red, or an anchor that does not match once. I stop and report,
 with nothing improvised on the spot.
 
+## Results (2026-11-08, 20:09-20:10Z, local, `npx vitest run test/leaderboard.test.ts` from `proxy/`)
+
+| | predicted | read |
+|---|---|---|
+| **LM1-LM4** | green, with every existing leaderboard test | 51 passed of 51 |
+| **S-LM-slice** | exactly LM1 and LM3 red | as registered |
+| **S-LM-lax** | exactly LM3 red | as registered |
+
+The source was restored byte-identical after each plant. Each run's stderr also carried miniflare's `EBUSY` warnings about its own
+temporary folder on Windows. They are cleanup noise, not a test result.
+
 ## CI prediction for the PR
 
 **35 = 32 success / 3 skipped / 0 failed.** The docs-only base is 32 = 29/3/0, plus `workers.yml`'s three jobs, which run because
