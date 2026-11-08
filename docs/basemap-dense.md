@@ -555,3 +555,64 @@ cannot answer it: **it proves a live buffer is counted, not that a dead one isn'
 here.
 
 **So nothing is graded past this point,** and the questions go to the reviewer before anything resumes.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-08 ~19:07Z), verbatim
+
+> #622's stop: right, at the registered band. Grading only at the end stays on record as your miss: from now on every band is graded per
+> build.
+> Q-MEM1: yes, the local diagnostic, predictions first: the dead-buffer control, peaks per phase, and each New York build as the first build
+> in its own fresh process, three times each.
+> Q-MEM2: yes, after Q-MEM1, and only if Q-MEM1 leaves the cold-isolate question open. One staging request isn't a deploy and needs no slot;
+> say in the record when it ran.
+> Q-DR3: yes, once memory is settled, stopping at the first build over 96 MB, graded per build.
+> A cold build near 102 MB is the bigger risk for D4: the dense-area proposal states each build's peak against the isolate's 128 MB, as ruled.
+
+### Q-MEM1, the memory diagnostic: registered before it runs
+
+**What runs.**
+- **Processes:** 16 separate Node processes (`--expose-gc`), one after another, on the same patched copy at v0. That copy is byte-identical
+  to the repo's builder (DR0), over the local store, at the client's query. Nothing runs on staging.
+- **Each process builds one query twice:** the first build is the cold one; the second, in the same process, is the warm one.
+- **The 16:**
+  - KJFK, KLGA, KEWR and Midtown, three processes each;
+  - KJAC three times, as a light control;
+  - one more KJFK process for the in-build controls, which would disturb a measured peak, so that process measures none.
+
+**The instrument, as before:**
+- `heapUsed + arrayBuffers` after `gc()`, minus that build's own baseline;
+- sampled after every cell, and after the tiles, the terrain, the layer sets and the ladder, plus once at the end;
+- the largest sample per phase is kept, so each build reports **its peak and the phase that holds it**.
+
+**Also printed:** what the process keeps between builds, which is the baseline before build 2 minus the baseline before build 1. **Every
+build's band is printed the moment it is measured** (at most 64 MB / 64-96 / over 96), as ruled.
+
+**A build over 96 MB is what this diagnostic exists to measure, so here it is recorded, not a stop.** The stops are the controls and the
+outside-the-set line below. DR3's resumed reading stops at the first build over 96 MB, as ruled.
+
+| row | what | predicted |
+|---|---|---|
+| **MQ0** | in every process, before its builds: 32 MiB allocated and **held** | **+32 ± 1 MiB** |
+| **MQ1** | in every process, before its builds: 32 MiB allocated and **dropped**, then sampled at once | **within 1 MiB** of the sample before it |
+| **MQ2** | the control process, at the layer-set sample of its first build: the same live and dead pair, mid-build, against the sample just before | **+32 ± 1** and **within 1 MiB** |
+| **MQ3** | each New York point's three cold builds | **agree within 2 MiB of each other**, and **KJFK's read 97.3 ± 2 MiB** (CTRL-a, reproduced) |
+| **MQ4** | each warm build | **at least 15 MiB under its cold build**, and **within 2 MiB of its DR0 figure** (KJFK 76.9, KLGA 83.5, KEWR 77.0, Midtown 73.7, KJAC 33.9) |
+| **MQ5** | what each process keeps between builds | **at least 15 MiB, and the same within 2 MiB at all five points**, KJAC included |
+| **MQ6** | KJAC's cold-minus-warm gap | **within 3 MiB of KJFK's** |
+| **MQ7** | the phase holding each cold build's peak | not predicted; reported |
+
+**What the readings will mean, fixed now:**
+
+| outcome | meaning | next |
+|---|---|---|
+| MQ0-MQ6 as predicted | **explanation 1:** a fixed cost of the first build in a fresh process, independent of the query. The figures are real, and the cold one is what a cold isolate would pay in Node | Q-MEM2, because Node can't say what workerd pays |
+| **MQ1 or MQ2's dead half fails** | **explanation 2:** the instrument counts dead buffers, so every figure here and in DR0 is a ceiling, not a floor | **stop:** the instrument changes before anything is graded |
+| MQ3's three runs scatter by more than 2 MiB | the instrument is unreliable at this scale | **stop** |
+| KJFK's cold builds don't reproduce 97.3 | CTRL-a's figure came from something else in that process | **stop and report** |
+| MQ5 scales with the query: KJAC keeps much less than KJFK | **explanation 3:** data is kept between builds | a read of what keeps it, not a fix |
+
+**What this cannot see:**
+- **Workerd is not Node.** Node's own one-time costs, such as zlib's for the PNG tiles, may not exist in workerd, and workerd may have
+  others.
+- **Garbage made between two samples** can raise a real peak above the sampled one.
+
+**Outside the set:** anything not named above stops it.
