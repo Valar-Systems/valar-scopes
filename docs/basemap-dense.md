@@ -616,3 +616,50 @@ outside-the-set line below. DR3's resumed reading stops at the first build over 
 - **Garbage made between two samples** can raise a real peak above the sampled one.
 
 **Outside the set:** anything not named above stops it.
+
+### Q-MEM1, read (2026-11-08, 20:16:41-20:17:23Z): stopped. The instrument counts dead buffers
+
+**The driver stopped itself after the 16th process,** whose dead-buffer row (MQ1) read **32.00 MiB**. KJAC's three processes never ran. The tree
+stayed clean, and nothing ran on staging.
+
+**The evidence is in all 16 processes, not only that one.** One extra field was printed for diagnosis: the 32 MiB hold, after release and
+`gc()`. It read **+31.98-32.01 MiB in every process**, so a buffer with no reference, already collected, was still counted.
+
+**My miss, with its cause:** MQ1's dead buffer was sampled right after that released hold. When one cycle's sweep of the released hold landed
+in the same sample as the new dead buffer's count, the two cancelled. That read 0.00 in 15 of 16 processes for the wrong reason, so MQ1 as
+designed could not see its own failure, and the extra field is what showed it.
+
+| row | read | |
+|---|---|---|
+| MQ0, live hold | +31.98-32.01 MiB in all 16 | as predicted |
+| **MQ1, dead buffer** | 0.00 in 15 (cancelled, above), **32.00 in 1**; the released hold still counted in **all 16** | **off: explanation 2** |
+| MQ2, mid-build | live +32.01; dead 0.00, but the released hold left 32.01 | off, the same way |
+| MQ3, three cold runs per point | within 0.39 MiB of each other; **KJFK 97.18-97.32** | as predicted |
+| **MQ4, warm builds** | **0.03-0.73 MiB under cold**, not at least 15. **15.6-20.2 MiB above** their DR0 figures | **off** |
+| **MQ5, kept between builds** | **7.42-8.02 MiB**, not at least 15 | **off** |
+| MQ6, KJAC | not reached | - |
+| MQ7, the peak's phase | **the cell reads**, in every build | reported |
+
+**Bands, printed per build, as ceilings, not as peaks:**
+
+| point | cold, 3 runs | warm, 3 runs |
+|---|---|---|
+| KJFK | 101.9-102.0 MB (over 96) | 101.6-101.9 MB |
+| **KLGA** | **107.3-107.7 MB** (over 96) | 106.9-107.2 MB |
+| KEWR | 99.4-99.5 MB (over 96) | 99.1 MB |
+| Midtown | 93.9-94.2 MB (64-96) | 93.6-94.1 MB |
+
+**What it means, by the registered table:** MQ1's dead half failed, so **explanation 2 holds.** Every figure here and in DR0 is a ceiling,
+and **the instrument changes before anything is graded.**
+
+**And what it rules out:**
+- **Explanation 1, a first-build cost, is contradicted at these four points.** Cold and warm agree within 0.73 MiB in all 12 pairs, so
+  CTRL-a's 97.3 against DR0's 76.9 was not that.
+- **What fits instead:** the peak sits in the cell reads, where each cell is a buffer read and then dropped. How many dropped buffers are still
+  counted at a sample depends on the collector's state, and DR0's process had a different history (Natural Earth loaded, the unpatched
+  builder's modules, and 5 builds before KJFK's).
+- **Not separated:** how far the true live peak sits below these ceilings.
+- **Explanation 3, a cache:** each process keeps 7.42-8.02 MiB between builds, nearly the same at all four points. That is too small to
+  explain a 20 MiB gap, and nothing in this read says what it is.
+
+**Still open, and not answerable from Node:** whether workerd's 128 MB limit counts dropped buffers the same way.
