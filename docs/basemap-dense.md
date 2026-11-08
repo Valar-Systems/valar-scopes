@@ -697,3 +697,47 @@ through staging's route as the test identity, with `fx-request.sh`.
 
 **Outside the set:** anything else, including a tail that can't attach or shows nothing at all, stops it. A tail that shows nothing is not a
 reading.
+
+### Q-MEM2, read (2026-11-08): MG-A, as predicted. Workerd built KLGA inside 128 MB
+
+**When it ran:**
+- the registration was frozen at 20:32:17Z (`804e35a2713d`);
+- the tail attached at about 20:32:25Z;
+- the request was sent at **20:33:07Z**: a 202 at once, then **422 `too_large`** at 20:33:27Z;
+- the builder logged its build at **20:33:09Z**.
+
+**Two refusals came first, and no request was sent in either.** `test-identity.sh` refused because this shell had inherited a stale
+`BLIP_KEY`, then because `BLIPSCOPE_TOKEN_FILE` was not set. Both were the guard working. The request that ran used the test identity, with
+`BLIP_KEY` removed from its environment only.
+
+**The builder's tail: exactly one build, outcome Ok:**
+
+    POST https://basemap.internal/build - Ok
+    {"evt":"bm_build","status":422,"reads":98,"bytes":74385925,"readMs":37647,"maxReadMs":3771,"wallMs":8216,"rung":-1,"cap":32768,
+     "nt0":249684,"nt1":205868,"nt2":186014,"nt3":41061,"secWater":0,"secRivers":8398,"secRoads":28934,"secPeaks":0,"secPlaces":1597,"secProv":1972}
+
+**Against the table:**
+- **MG-A.** The ladder is DR0's KLGA to the byte, so staging ran the same build.
+- Its last rung's sections equal #620's KLGA row (roads 28,934, rivers 8,398, places 1,597, provenance 1,972).
+- No Exceeded Memory, and no Exceeded CPU.
+
+**What it establishes:**
+- **Workerd built the largest local ceiling (107.7 MB) without exceeding 128 MB.** The local figures over-counted, which agrees with Q-MEM1's
+  finding that dead buffers are counted.
+
+**What it does not establish:**
+- **The margin.** Workerd reports no peak, so "under 128 MB" is all this says.
+- **Whether this isolate was cold.** One request can't tell.
+- **Production's isolate:** it runs the same code, but nothing here measured it.
+
+**For the dense-area proposal:** every build's peak is still to be stated against 128 MB, as ruled. The source of that figure is Q-MEM1b, if
+repeated `gc()` clears the lag; otherwise no local figure stands, and the proposal says so.
+
+**My miss, recorded with its cause:** I stopped the tail by matching its command line, not by a pid recorded at launch. Two process trees
+matched:
+- one under this session's own `claude.exe`;
+- one whose parent had already exited.
+
+I stopped both. The likeliest reading is that both were mine: Git Bash children are routinely left with an exited Windows parent, and
+`taskkill /T` from the launcher can't reach such a tree. **But the data doesn't exclude another session's tail of the same Worker.** From
+now on: record a background process's pid at launch, and stop only the tree that reaches this session.
