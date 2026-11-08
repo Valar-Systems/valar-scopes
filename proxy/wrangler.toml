@@ -121,6 +121,9 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 SITE_FEED_BEND = "on"                     # Bend site feed switch (docs/bend-site-feed.md); anything else = off
 # The activation gate (docs/device-activation.md, "Watch mode"): staging ENFORCES. A missing or unknown value enforces.
 ACTIVATION_GATE = "enforce"
+# W3 (docs/weatherscope-stage4.md S4.4): the NWS probe route answers only where this is "on". STAGING ONLY, and
+# temporary: this branch is never merged, and staging is rolled back to its previous version after the reading.
+W3_PROBE = "on"
 # Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
 #
 # A VAR, NOT A SECRET, and the distinction is not cosmetic: the sitekey is

@@ -29,6 +29,7 @@ import { errorResponse, jsonResponse } from "./util";
 import { handleWx, wxHealth } from "./wx/handler";
 import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS } from "./wx/products";
+import { handleW3Probe } from "./weatherscope/w3probe";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
 // HMAC-derived key that is only valid when presented with the X-Blip-Device id
@@ -405,6 +406,8 @@ async function route(
   if (wxMatch) return handleWx(request, env, wxMatch[1] as string);
   // The map under the planes: one BMPK v1 package for a location and radius (docs/basemap-route.md).
   if (api.suffix === "basemap") return handleBasemap(request, env, ctx, meta);
+  // W3 (docs/weatherscope-stage4.md S4.4): STAGING ONLY and temporary -- 404 unless W3_PROBE is "on". Never merged.
+  if (api.suffix === "w3-nws-probe") return handleW3Probe(request, env);
   return errorResponse(404, "not_found");
 }
 
