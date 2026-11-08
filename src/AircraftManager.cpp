@@ -27,6 +27,7 @@
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
+#include "PollCadence.h"    // the poll cadence and the weekly reboot; the web build's kiosk (docs/web-kiosk-airfield.md)
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
 // Swipe-to-zoom returns to the configured radius after radarzoom::IDLE_RETURN_MS
@@ -1394,6 +1395,11 @@ void AircraftManager::Initialise()
 
     // night clock: opt-in clock face for an empty night sky
     nightClockEnabled = configServer.GetStoredString("night-clock") == "true";
+#ifdef BLIPSCOPE_WEB_RENDERER
+    // The web build's kiosk (docs/web-kiosk-airfield.md): an always-on screen polls at the active rate, day and night,
+    // with no touch. Read only here, so the key exists in no device image.
+    kioskOn = pollcadence::KioskOn(configServer.GetStoredString("kiosk").c_str());
+#endif
 
     // window-up rotation: the compass bearing at the top of the screen
     // (0 / unset = classic north-up). Normalised into [0, 360).
@@ -1485,8 +1491,8 @@ void AircraftManager::Update()
     {
         constexpr unsigned long PREVENTIVE_REBOOT_MS = PREVENTIVE_REBOOT_DAYS * 24UL * 3600UL * 1000UL;
         const time_t utcNow = time(nullptr);
-        if (now >= PREVENTIVE_REBOOT_MS && !inDetail && utcNow > 1600000000 &&
-            now - lastTouchActivityMs >= 10UL * 60UL * 1000UL && isNightNow(lat, lon, utcNow)) {
+        if (pollcadence::PreventiveRebootDue(now, PREVENTIVE_REBOOT_MS, inDetail, utcNow > 1600000000,
+                                             now - lastTouchActivityMs, [&] { return isNightNow(lat, lon, utcNow); })) {
             Serial.printf("[health] preventive reboot: uptime %lu d, solar night + idle\n", now / 86400000UL);
             Serial.flush();
             delay(100);
@@ -1758,16 +1764,13 @@ unsigned long AircraftManager::CurrentPollIntervalMs() const
 {
 #ifdef FEATURE_CLOUD_FEED
     if (useCloudSource) {
-        // Active: the user touched the screen within the idle window -- they're
-        // present, poll fast (this outranks night: someone watching at 2 AM gets
-        // the good cadence). Otherwise night (solar clock) outranks idle: night
-        // is 8-12 h of every fleet-day and cadence is the main cost lever.
-        if (millis() - lastTouchActivityMs <= cloudCfg.idleAfterMs)
-            return cloudCfg.pollActiveMs;
+        // Active: the user touched the screen within the idle window -- they're present, poll fast (this outranks
+        // night). Otherwise night (solar clock) outranks idle: night is 8-12 h of every fleet-day and cadence is the
+        // main cost lever. The rule is include/PollCadence.h's, where the web build's kiosk is the one addition.
         const time_t utc = time(nullptr);
-        if (utc > 1600000000 && isNightNow(lat, lon, utc))
-            return cloudCfg.pollNightMs;
-        return cloudCfg.pollIdleMs;
+        return pollcadence::IntervalMs(cloudCfg.pollActiveMs, cloudCfg.pollIdleMs, cloudCfg.pollNightMs,
+                                       cloudCfg.idleAfterMs, millis() - lastTouchActivityMs, utc > 1600000000, kioskOn,
+                                       [&] { return isNightNow(lat, lon, utc); });
     }
 #endif
     return fetchInterval;

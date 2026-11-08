@@ -92,6 +92,26 @@ The web shim answers it with a local 404, because only `/blips` and `/enrich/` a
 **Outside the set:** any other row red, a plant that turns no row red, an anchor that doesn't match once, or a BLIND scan. I stop and
 report, with nothing improvised on the spot.
 
+## Results (2026-11-08, 20:51-21:13Z, local): as predicted on every row
+
+| row or plant | where it ran | read |
+|---|---|---|
+| **KI1, KI2, KI3, KI5, AF1, AF2** | WSL g++ 13.3, `run.sh`'s C++11 flags | all green |
+| **the seven plants** | `sabotage_web_kiosk.py` | each red in exactly its rows: S-KI-device KI1; S-KI-ignored KI2; S-KI-reboot KI3; S-KI-order KI1, KI2, KI5 (as amended); S-KI-eager KI5; S-AF-always AF1; S-AF-never AF2. The real headers unchanged |
+| **KW1** | `check_web_wiring.py --selftest` | ok, and every plant refused, S-KW1 among them |
+| **AF3** | a local s3-128 wasm (Emscripten 6.0.13, CI's version) | key on: `/airports` reached the hook once, and `XFLD` was drawn. CONTROL, key unset: 0 requests, `XFLD` never drawn |
+| **KI4, device** | a local `blipscope-s3-128` build (1,932,064 B) | no web-only key, anchor present |
+| **KI4, control** | the same wasm | both keys present, anchored on `/api/v1/blipscope/blips` |
+| **the existing web checks** | the same wasm | `smoke.mjs` and `carousel.mjs` as predicted |
+| **the full host suite** | WSL `run.sh` | exit 2 from exactly its two environment blocks ("the same TU, for the board" and "Weatherscope R0 and R0b"), `sabotage_wx_towns.py` SKIP, everything else green, this block included |
+
+**One instrument fix, not a code fix.** The driver's first run stopped as the RIG (exit 2), on no row: S-KI-ignored's plant removed the only
+use of `kiosk`, and `-Werror=unused-parameter` refused to compile it. The plant now keeps the parameter referenced with `(void)kiosk`,
+as the S-AF plants already did. What it sabotages is unchanged.
+
+**The build's warnings are older than this change.** Of the wasm build's six warnings, two are at `AircraftManager.cpp:4114`, which
+is main's line 4108 moved by the six lines added above it, and the other four are in the variant header and the shim.
+
 ## CI prediction for the PR
 
 **34 = 30 success / 4 skipped / 0 failed.** The PR touches `src/`, `include/`, `tools/web-renderer/**`, `test/host/`, `scripts/` and

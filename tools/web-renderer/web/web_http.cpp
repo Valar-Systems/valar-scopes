@@ -3,13 +3,16 @@
 //
 // The firmware builds every URL itself (CloudFeed::BlipsUrl / EnrichUrl and its query); this file only decides
 // where a request may go:
-//   - under the configured cloud base, the paths in ALLOWED are re-rooted onto the page's apiBase (default "":
-//     the same origin) and fetched with NO headers -- the firmware's X-Blip-* set never leaves the page;
-//   - everything else (/config, /airports, photos, any other host) is answered here with 404 and no request;
+//   - under the configured cloud base, the paths web_route.h forwards (/blips, /enrich/, and /airports only when the
+//     page sets "airports-remote") are re-rooted onto the page's apiBase (default "": the same origin) and fetched
+//     with NO headers -- the firmware's X-Blip-* set never leaves the page;
+//   - everything else (/config, /airports when not asked for, photos, any other host) is answered here with 404 and
+//     no request;
 //   - every Post() is answered here with 404 and no request (the leaderboard, ntfy, reports).
 // A fetch runs in the browser while the calling task's fiber yields frame by frame (web_rtos.cpp); 15 s without
 // an answer reads as status 0, the way a dead socket reads on the device.
 #include "HttpRequestManager.h"
+#include "web_route.h"     // which requests are forwarded (docs/web-kiosk-airfield.md)
 #include <freertos/task.h>
 #include <emscripten.h>
 #include <emscripten/stack.h>
@@ -49,12 +52,12 @@ EM_JS(void, js_fetch_drop, (int id), { if (Module._webFetches) Module._webFetche
 
 namespace web {
 String g_cloudBase;                 // web_config.cpp: the firmware's "cloud-url", which only this file reads
+bool g_airportsRemote = false;      // web_config.cpp: the page's "airports-remote", off unless exactly "true"
 std::string g_apiBase;              // the page's apiBase ("" = the page's own origin)
 struct NetStats { uint32_t blips = 0, enrich = 0, local404 = 0, posts = 0, timeouts = 0, fromLoop = 0; } g_net;
 }
 
 namespace {
-const char* const ALLOWED[] = {"/api/v1/blipscope/blips", "/api/v1/blipscope/enrich/"};
 constexpr unsigned long FETCH_TIMEOUT_MS = 15000;
 
 // HttpRequestManager::BuildQueryString (src/HttpRequestManager.cpp:170), TRANSCRIBED: the real file needs the
@@ -78,13 +81,9 @@ std::string Route(const String& url, const std::vector<std::pair<String, String>
     isBlips = false;
     if (web::g_cloudBase.isEmpty() || !url.startsWith(web::g_cloudBase)) return "";
     const String path = url.substring(web::g_cloudBase.length());
-    for (const char* a : ALLOWED) {
-        if (path.startsWith(a)) {
-            isBlips = path.startsWith(ALLOWED[0]);
-            return web::g_apiBase + (path + Query(params)).str();
-        }
-    }
-    return "";
+    if (!webroute::Forwarded(path.str(), web::g_airportsRemote)) return "";
+    isBlips = webroute::IsBlips(path.str());
+    return web::g_apiBase + (path + Query(params)).str();
 }
 
 HttpResult Answer(int status, std::string body)
