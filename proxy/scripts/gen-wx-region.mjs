@@ -20,6 +20,10 @@
  * be (src/wx/crop.ts quantise()). Today's UK land box is added whole (Q-UKBOX), and each served point takes the
  * first product rule that holds it (products.ts, in order). Every bound is compared in integer hundredths.
  *
+ * EVERY RULE'S EDGES ARE CLOSED (Q-EDGE, ruled 2026-11-08 ~02:33Z): a point on an edge two rules share goes to the
+ * first of them in products.ts's order. Lithuania's quantised label point sits on 55.10 N, central's north edge, and is
+ * opce's. Open edges are not an option on a lattice: every point on a shared edge (63.00 N, for one) would have no rule.
+ *
  * Sabotage switches, for the D1s, D3s-a, D4s, D5s and F2s rows only. The header records them, and G1 refuses a
  * table whose header names any:
  *   --drop <ADMIN>     leave one of the 40 out             --add <ADMIN>    put another country in
@@ -180,7 +184,7 @@ for (let i = 0; i < nRows; i++) {
   for (const [a, b] of merged) {
     let c = a;
     while (c <= b) {
-      const hit = active.find((q) => q.w <= c && c <= q.e);
+      const hit = active.find((q) => q.w <= c && c <= q.e);   // closed on every side, the first rule wins (Q-EDGE)
       if (!hit) {
         const next = Math.min(b + 1, ...active.filter((q) => q.w > c).map((q) => q.w));
         leftover += next - c;
@@ -214,12 +218,15 @@ for (let i = 0; i < nRows; i++) {
 }
 // Every product's grid holds every point it serves with the margin (2.02 deg; the lattice sits inside the polygons'
 // bounds, so 2.01 is the floor). A smaller margin is a crop that runs off the frame.
+// Under a sabotage switch these two guards report instead of refusing: a table without Malta has a rule that serves
+// nothing, and one with Italy has points past a grid's margin. That is the sabotage, and G1 refuses its header anyway.
+const guard = (why) => { if (sabotage.length) console.log(`gen-wx-region: SABOTAGE: would refuse -- ${why}`); else die(why); };
 const margins = rules.map((q, k) => {
   const g = ruled[k].grid, st = per[k];
-  if (!st.points) die(`${q.id}'s rule serves no point`);
+  if (!st.points) { guard(`${q.id}'s rule serves no point`); return { n: NaN, s: NaN, w: NaN, e: NaN }; }
   const m = { n: g.la1 - st.n / 100, s: st.s / 100 - (g.la1 - (g.nj - 1) * g.dj),
               w: st.w / 100 - g.lo1, e: g.lo1 + (g.ni - 1) * g.di - st.e / 100 };
-  for (const [side, v] of Object.entries(m)) if (v < 2.01 - 1e-9) die(`${q.id}'s grid leaves only ${v.toFixed(3)} deg ${side} of its land`);
+  for (const [side, v] of Object.entries(m)) if (v < 2.01 - 1e-9) guard(`${q.id}'s grid leaves only ${v.toFixed(3)} deg ${side} of its land`);
   return m;
 });
 

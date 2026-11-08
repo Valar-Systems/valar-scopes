@@ -183,3 +183,78 @@ The frozen "about 144 KB" counted 2 B a row, and the index is a `Uint32`, 4 B a 
 | **FT2c** | the entry with `WX_INGEST` "on" and a `PRODUCT` that is no OPERA id (`nope`, `cref`) | one `wx_ingest_error` a check; the bucket and fetch untouched | **FT2cs:** the check falls back to `opuk` | red |
 | **FXs-b** | the opera toml with one env's `PRODUCT` set to another product's id | | | **red:** FX, one product checked twice and one not at all |
 | generator guards | the per-country drops (§1's table), no straddling part, no left-over point, every grid's margin at least 2.01 deg | each refuses the table | | |
+
+### 7.5 The ruling (2026-11-08 ~02:33Z), verbatim
+
+> For: the UK data session, from the reviewer chat, 2026-11-08 ~02:33Z
+>
+> Q-EDGE: yes. Edges stay closed, a point on a shared edge goes to the first rule in the table's order, and the generator says so in a comment. D1 and F2 expect the fixture's products, so Lithuania expects opce. The open-edge prediction stays on record as your miss.
+> Q-ROUTED: (a), on three conditions:
+> - The PR's record states, in one line the next proxy deployer can cite, that 48,721 points (western Ireland, the Channel Islands, France's coast between 49.1 and 49.8°N) switch to opuk, all of them inside today's opuk frame.
+> - After that deploy, you read R1 and R2 on production.
+> - Each stage-3 product joins ROUTED in its own deploy.
+> The rollback: the same PR updates md_rollback.sh and every recorded rollback command to -c wx-ingest-opera.wrangler.toml -e opuk, with a dry check that it names blipscope-wx-ingest-opuk.
+> The session claims, once #618 merges: your hand-run and scripted ingest deploys take the deploy claim first, as in the ~02:33Z announcement.
+
+**For the next proxy deployer, the line to cite (Q-ROUTED's first condition):** at that deploy, **48,721 lattice points
+switch from cref's all-14 to `opuk`** -- western Ireland, the Channel Islands, and France's coast between 49.1 and
+49.8 N -- **all of them inside today's `opuk` frame**, and no point loses `opuk` (D5). Every other answer is unchanged:
+`ROUTED` holds `cref` and `opuk` only. **After that deploy, the UK data session reads R1 and R2 on production.**
+
+**The rollback, moved as ruled:** `tools/wx/md_rollback.sh` (in the repo now; it was scratch-only) runs
+`npx wrangler rollback <target> -c wx-ingest-opera.wrangler.toml -e opuk -m ... -y`, and logs itself in `rollbacks.log`,
+since the claim hook cannot see a rollback inside a script. The recorded commands in `docs/wx-opera-europe.md` (PKD-0),
+`docs/wx-opuk-split.md` (opuk's stop, now `-e opuk-inert`) and `docs/wx-opera-map-r2.md` (the RD escape, and beside the
+rollback that ran) name the new form, with the old one kept as "was". The records of what ran in `docs/wx-opuk.md` are
+left as they ran.
+- **Its dry check, read 2026-11-08 ~02:41Z** (`md_rollback.sh --dry`, read-only): `[env.opuk]` names
+  `blipscope-wx-ingest-opuk` (tomllib on the file wrangler reads); the Worker `-e opuk` resolves to holds the target
+  `b7626571` (`versions view`, exit 0) and runs `4da941e4` at 100%; the control, the top level, reaches no Worker (exit 1,
+  10007). **DRY PASS.**
+- **Its plant:** `[env.opuk]` renamed `blipscope-wx-ingest-opux` read **DRY FAIL** (`env-name`, `target-not-found`,
+  `status-unreadable`); the file was restored by bytes, its sha checked.
+
+### 7.6 How the rows run, and each plant's whole failing set (registered before the first run)
+
+**The vitest rows,** in `test/wx-region.test.ts` unless named: G1's header, D1, D2, D3, D5, A1, F2, R1 and R2, with
+the in-test sabotages D2s, D3s-b and R1s. Also W1 and W1s (`wx-dev-products.test.ts`), FT2c and FX
+(`wx-ingest-split.test.ts`), and CR1 and CR1s-a/b/c (`photolicense.test.ts`). An in-test sabotage passes when it reads
+exactly as predicted:
+- D2s: the 8 named;
+- D3s-b: 15;
+- R1s: 35 at 503 `wx_stale`;
+- W1s: each of the 5 refused;
+- CR1s: `names UK`, `no CC BY 4.0`, `names France`.
+
+**The plants that need a regenerated table or an edited row** run from `proxy/scripts/sabotage-wx-region.py` (local:
+the generator needs the 13 MB file). Each compares the whole failed list and the rows' `RESULT` lines:
+
+| plant | what | failed, predicted | rows, predicted |
+|---|---|---|---|
+| **D1s + F2s** | generated `--drop Malta` | **G1, D1, F2** | D1 `["Malta"]`, F2 `["Malta"]` |
+| **D3s-a** | generated `--add Italy --allow-leftover` | **G1, D2, D3** | D2 `["Italy"]`, D3 the 5 Italian excluded sides |
+| **D5s** | generated `--no-ukbox` | **G1, D5** | D5 `notOpuk` above 0, printed |
+| **A1s** | `opis`'s row with `deviceMaxAgeS` undefined | **A1, F2** | A1 `["opis: row"]`, F2 `["Iceland"]` |
+
+The unsabotaged file reads 12 of 12. Under a sabotage switch, the generator's two guards on a rule that serves nothing
+and on a grid's margin report instead of refusing: without Malta, `opmt`'s rule serves nothing, and with Italy, `opse`'s
+grid is 1.970 deg short in the south. G1 refuses a sabotaged header in any case.
+
+**The split plants** (`sabotage-wx-split.py`, 5 tests unsabotaged):
+- FT1s: FT1, FX.
+- FT2s: FT2b, FX.
+- FXs: FX.
+- FXs-b: FX.
+- FT2cs: FT2c.
+
+**FB2s** (`check-wx-plant.mjs --selftest`) fails on `opuk-inert` alone. **F1s-a and F1s-b**
+(`check_wx_device_cref.py --sabotage`) each read FAIL.
+
+**Already read before this subsection, against §3's frozen rows, as predicted:**
+- F1 PASS: 1 call site, `"cref"`, and no lat/lon identifier in `WxEnabled()`'s 8.
+- F1s-a and F1s-b each read FAIL.
+- The plant selftest passed, FB2 over all 21 targets, and FB2s failed on `opuk-inert` alone.
+
+**Offline, `tools/wx/eu_borders.py`:** D4 against the committed table, 0 disagreements and the count printed. D4s
+against the table with Italy added: its disagreements equal the points of the set inside Italy, both printed. Q-COAST
+is printed.

@@ -482,8 +482,9 @@ seconds, so it keeps listing.
 **PKD-0, recorded before the deploy:**
 - **What `opuk` runs now:** `wrangler deployments status` gives **`a4e6c685-295b-4f7b-a839-e1ad12c633a5` at 100%**,
   created 15:11:29Z.
-- **The rollback:** `wrangler rollback a4e6c685-295b-4f7b-a839-e1ad12c633a5 -c wx-ingest-opuk.wrangler.toml`,
-  straight back to that version. The fallback is a redeploy from the clean checkout of `9db83163` (scratchpad
+- **The rollback:** `wrangler rollback a4e6c685-295b-4f7b-a839-e1ad12c633a5 -c wx-ingest-opera.wrangler.toml -e opuk`,
+  straight back to that version. (It was `-c wx-ingest-opuk.wrangler.toml`, the file the code stage replaced:
+  docs/wx-opera-code-stage.md §7.2.) The fallback is a redeploy from the clean checkout of `9db83163` (scratchpad
   `wt-plan-s`).
 - **The deploy:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml`, at the top level, from a clean detached
   checkout of `36d0b657` (`wt-pkd`, with `npm ci` from its own lockfile). **Only the `opuk` Worker.** The `cref`

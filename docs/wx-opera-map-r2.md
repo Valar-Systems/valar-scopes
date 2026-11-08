@@ -203,7 +203,8 @@ merge's main CI reads as predicted. One deployer; only the `opuk` Worker; the `c
 | the rest | n 96, median 10 ms, max 22 | |
 | p99 of all | 473 ms | |
 
-**Rolled back as ruled, at once:** `wrangler rollback b7626571-... -c wx-ingest-opuk.wrangler.toml --env="" -m ... -y`,
+**Rolled back as ruled, at once:** `wrangler rollback b7626571-... -c wx-ingest-opuk.wrangler.toml --env="" -m ... -y`
+(as it ran; since the code stage the same rollback is `tools/wx/md_rollback.sh`, `-c wx-ingest-opera.wrangler.toml -e opuk`),
 23:30:37.756Z to 23:30:41.721Z, exit 0, stderr empty. `deployments status` read back: **`b7626571` at 100%.**
 `/healthz` at 23:31:10Z: `opuk` `frameAgeS` 371, `coveredShare` 0.7508; 12 frames listed.
 
@@ -282,7 +283,7 @@ rebuilds it from the same OPERA source through `buildMap`, with no R2, and compa
 | **RD-5** | CPU over 2 h (900 s pieces, ABR 1) | **an upper bound only, with no floor:** single-build median **<= 420 ms** (the Worker's `r2` median, 261 ms, x 1.6, rounded up); **max <= 5,000 ms; 0 `exceededCpu`** |
 | **RD-6a** | every frame in the bucket at T+70 min (12, all stored after T) | **12 of 12 byte-identical** to a fresh local build (`frame_same.mts`); 0 unread |
 | **RD-6b** | every storing line over the 2 h | `bytes` **1,179,712**; `coveredShare` in **[0.7407645, 0.7607740]** |
-| escape | anything outside these rows | **roll `opuk` back to `b7626571` at once** (`md_rollback.sh`), stop and report |
+| escape | anything outside these rows | **roll `opuk` back to `b7626571` at once** (`md_rollback.sh`; since the code stage `tools/wx/md_rollback.sh`, `-c wx-ingest-opera.wrangler.toml -e opuk`), stop and report |
 
 - **The ~18:22Z amendment applies:** a sampled Logs read is re-read once narrower; a second sampled read is BLIND, which
   fails the row and triggers the rollback.

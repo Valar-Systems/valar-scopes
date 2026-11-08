@@ -122,8 +122,9 @@ target is read and recorded before each one.
 **Rollbacks:**
 - **`cref`:** `npx wrangler rollback <the recorded target> -c wx-ingest.wrangler.toml`. The target is expected to be
   `582612da`. This is a version change.
-- **`opuk`:** `npx wrangler deploy -c wx-ingest-opuk.wrangler.toml -e inert`. This is a version change: the next
-  firing logs `wx_ingest_off`.
+- **`opuk`:** `npx wrangler deploy -c wx-ingest-opera.wrangler.toml -e opuk-inert`. This is a version change: the next
+  firing logs `wx_ingest_off`. (It was `-c wx-ingest-opuk.wrangler.toml -e inert`; the code stage replaced that file:
+  docs/wx-opera-code-stage.md §7.2.)
 - **The stored `opuk` frames stay.** Deleting data is Daniel's.
 
 **The escape:** anything else means stop. In production, roll back first the Worker that the off row is about.

@@ -5,7 +5,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { FrameBuilder, type GridGeom, frameMeta } from "../src/wx/grid";
 import { type LatestRecord, handleWx } from "../src/wx/handler";
-import { OPUK_GRID, PRODUCTS, type Product, frameKey, latestKey } from "../src/wx/products";
+import { OPUK_FIXTURE_GRID, PRODUCTS, type Product, frameKey, latestKey } from "../src/wx/products";
 import airportsUk from "./fixtures/wx-airports-uk.txt";
 import { apiRequest, call } from "./helpers";
 
@@ -35,7 +35,7 @@ async function storeFrame(p: Product, g: GridGeom, epoch: number) {
 }
 async function both(epoch = now() - 120) {
   await storeFrame(cref, SMALL, epoch);
-  await storeFrame(opuk, OPUK_GRID, epoch);
+  await storeFrame(opuk, OPUK_FIXTURE_GRID, epoch);
 }
 const age = (r: Response) => r.headers.get("X-Wx-Max-Age");
 
@@ -77,7 +77,7 @@ describe("the per-product age limit: X-Wx-Max-Age", () => {
   }, SLOW);
 
   it("A5: errors carry none -- 503 wx_stale, 400 bad_lat, 404 not_found", async () => {
-    await storeFrame(opuk, OPUK_GRID, now() - 1801);
+    await storeFrame(opuk, OPUK_FIXTURE_GRID, now() - 1801);
     const stale = await wxAt("cref", "LHR");
     expect([stale.status, age(stale)]).toEqual([503, null]);
     const bad = await call(apiRequest("/api/v1/blipscope/wx/cref?lat=91&lon=0&r=10"));
@@ -88,7 +88,7 @@ describe("the per-product age limit: X-Wx-Max-Age", () => {
 
   it("A6 SABOTAGE: the header taken from the REQUESTED product -- LHR's 200 carries none", async () => {
     await both();
-    const r = await handleWx(new Request(`https://proxy.test/api/v1/blipscope/wx/cref?${q("LHR")}`), env, "cref", false, true);
+    const r = await handleWx(new Request(`https://proxy.test/api/v1/blipscope/wx/cref?${q("LHR")}`), env, "cref", {}, true);
     expect(r.status).toBe(200);
     expect(r.headers.get("ETag"), "CONTROL: it was served from opuk").toContain("-opuk-");
     expect(age(r)).toBeNull();

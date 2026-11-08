@@ -12,7 +12,8 @@ import { type LatestRecord, handleWx, readLatest } from "../src/wx/handler";
 import { type Fetch, type IngestX, OPERA_BUCKET, OPERA_UA, PRUNE_BACK_S, RETAIN_S, ingestOnce, pruneByKey, pruneOld } from "../src/wx/ingest";
 import { WGS84, laea } from "../src/wx/laea";
 import { HEAD_BYTES, NODATA, type OperaGeo, OperaRefused, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
-import { OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, framesPrefix, latestKey, servedProduct } from "../src/wx/products";
+import { OPUK_FIXTURE_GRID, OPUK_GRID, OPUK_LAND, OPUK_MARGIN, PRODUCTS, type Product, cropEtag, frameKey, framesPrefix, latestKey } from "../src/wx/products";
+import { servedProduct } from "../src/wx/region";
 import { type MaskOpts, OPUK_QI_MASK, buildMap, cachedMap, clearMapCache, encodeMap, mapFor, mapKey, operaCode, prepareCentreOnly,
          resample } from "../src/wx/resample";
 import dryBin from "./fixtures/wx/opera/20261029T0130.ranges.bin";
@@ -28,6 +29,8 @@ import { CONUS } from "./wx-synth";
 
 const cref = PRODUCTS.find((p) => p.id === "cref")!;
 const opuk = PRODUCTS.find((p) => p.id === "opuk")!;
+/** opuk on the grid the stored fixtures hold (docs/wx-opera-code-stage.md §2): its id and keys, the fixtures' window. */
+const opukFx: Product = { ...opuk, grid: OPUK_FIXTURE_GRID };
 const SLOW = 180_000;
 
 const AP = new Map(airportsUk.split(/\r?\n/).filter((l) => l.trim() && !l.startsWith("#")).map((l) => {
@@ -154,7 +157,7 @@ describe("LAEA: laea.ts against pyproj's PROJ", () => {
 
 async function k1(fx: Fx, band = 0) {
   const asked: string[] = [];
-  const w = await readWindow(fixtureRanges(fx, asked), OPUK_GRID, band);
+  const w = await readWindow(fixtureRanges(fx, asked), OPUK_FIXTURE_GRID, band);
   const sha = await bandSha(w.value);
   const p = w.geo.proj, e = fx.exp.projection;
   const projOk = [[p.lat0, e.lat_0], [p.lon0, e.lon_0], [p.x0, e.x_0], [p.y0, e.y_0]].every(([a, b]) => Math.abs(a! - b!) <= 1e-9);
@@ -241,7 +244,7 @@ function k1b(parse: (h: Uint8Array) => OperaGeo) {
     try { parse(h); return false; } catch (e) { if (e instanceof OperaRefused) return true; throw e; }
   };
   return {
-    originWindow: windowFor(parse(plantTiepoint(head, 0, 0)), OPUK_GRID),
+    originWindow: windowFor(parse(plantTiepoint(head, 0, 0)), OPUK_FIXTURE_GRID),
     originCorner: parse(plantTiepoint(head, 0, 0)).corner,
     refusedOffSlip: refused(plantTiepoint(head, -501, 500)),
     refusedOffOrigin: refused(plantTiepoint(head, 1, 0)),
@@ -254,7 +257,7 @@ describe("K1b: the reader's corner rule", () => {
     for (const fx of [WET, DRY]) {
       const geo = parseHead(new Uint8Array(fx.bin.slice(0, HEAD_BYTES)));
       expect([geo.corner, geo.ulx, geo.uly], fx.name).toEqual(["cirrus-slip", 0, 0]);
-      expect(windowFor(geo, OPUK_GRID), fx.name).toEqual(fx.exp.window);
+      expect(windowFor(geo, OPUK_FIXTURE_GRID), fx.name).toEqual(fx.exp.window);
     }
   });
   it("on the origin: used as is; 1 m off the slip or the origin: refused; PixelIsPoint: refused", () => {
@@ -274,7 +277,7 @@ async function realGeo(): Promise<OperaGeo> { return parseHead(new Uint8Array(DR
 
 /** K2's line: undetect everywhere, one 40 dBZ pixel per window row from the north-west corner to the south-east. */
 function k2(geo: OperaGeo, centreOnly: boolean) {
-  const g = OPUK_GRID;
+  const g = OPUK_FIXTURE_GRID;
   const win = windowFor(geo, g);
   const rows = win[1] - win[0] + 1, cols = win[3] - win[2] + 1;
   const value = new Float32Array(rows * cols).fill(NaN), quality = new Float32Array(rows * cols).fill(0.9);
@@ -315,7 +318,7 @@ describe("K2 as frozen: a one-pixel diagonal line (the record; K2 reads FAIL, it
  *  An echo pixel is KEPT when some echo cell lies within +-2 grid rows and +-3 grid columns of the cell holding its
  *  centre (about 2.2 x 1.9 km; the next echo is about 7 km away). Counted over pixels whose centre lies in the grid. */
 function k2prime(geo: OperaGeo, centreOnly: boolean) {
-  const g = OPUK_GRID;
+  const g = OPUK_FIXTURE_GRID;
   const win = windowFor(geo, g);
   const rows = win[1] - win[0] + 1, cols = win[3] - win[2] + 1;
   const value = new Float32Array(rows * cols).fill(NaN), quality = new Float32Array(rows * cols).fill(0.9);
@@ -407,16 +410,16 @@ function roundTripDiffs(g: GridGeom, bytes: Uint8Array, meta: FrameMeta) {
 
 describe("K4: opuk as WXG1", () => {
   it("1,515 x 1,455 cells, 9 tiles, 1,179,712 B; a round trip identical cell for cell", () => {
-    const { m, bytes } = buildPattern(OPUK_GRID);
+    const { m, bytes } = buildPattern(OPUK_FIXTURE_GRID);
     const h = readHeader(bytes);
     expect([h.nj, h.ni, h.tilesX * h.tilesY]).toEqual([1515, 1455, 9]);
     expect([bytes.length, objectBytes(m)]).toEqual([1179712, 1179712]);
-    expect(roundTripDiffs(OPUK_GRID, bytes, h)).toBe(0);
+    expect(roundTripDiffs(OPUK_FIXTURE_GRID, bytes, h)).toBe(0);
   });
   it("SABOTAGE AS FROZEN (tilesY for tilesX) is BLIND on this grid: 3 = 3 (the record, docs/wx-opuk.md; K4' below)", () => {
-    const { m, bytes } = buildPattern(OPUK_GRID);
+    const { m, bytes } = buildPattern(OPUK_FIXTURE_GRID);
     const swapped: FrameMeta = { ...m, tilesX: m.tilesY, tilesY: m.tilesX };
-    const d = roundTripDiffs(OPUK_GRID, bytes, swapped);
+    const d = roundTripDiffs(OPUK_FIXTURE_GRID, bytes, swapped);
     console.log(`K4 sabotage as frozen: tilesX ${m.tilesX}, tilesY ${m.tilesY}, cells differing ${d} -- BLIND`);
     // Pinned: if this ever differs, the grid changed and the record in docs/wx-opuk.md is stale.
     expect(d).toBe(0);
@@ -425,7 +428,7 @@ describe("K4: opuk as WXG1", () => {
 
 // K4' (ruled 2026-10-29): the same sabotage on a grid whose tile counts differ, 1,515 x 1,000 (3 x 2 tiles).
 describe("K4': the tile-count swap on 3 x 2 tiles", () => {
-  const G: GridGeom = { ...OPUK_GRID, ni: 1000 };
+  const G: GridGeom = { ...OPUK_FIXTURE_GRID, ni: 1000 };
   it("CONTROL: without the swap the round trip is identical", () => {
     const { m, bytes } = buildPattern(G);
     expect([m.tilesX, m.tilesY]).toEqual([2, 3]);
@@ -463,7 +466,7 @@ const now = () => Math.floor(Date.now() / 1000);
 const allNoCoverage = (b: Uint8Array) => b[32] === 0xe0;
 
 describe("K5: /wx/cref is served from opuk inside the UK land box, and only there", () => {
-  const served = (id: string, byWindow = false) => { const a = at(id); const qq = quantise(a.lat, a.lon, 161); return servedProduct(cref, qq.lat, qq.lon, byWindow).id; };
+  const served = (id: string, byWindow = false) => { const a = at(id); const qq = quantise(a.lat, a.lon, 161); return servedProduct(cref, qq.lat, qq.lon, { byWindow }).id; };
 
   it("LHR opuk; CDG, KMCI, PHNL cref; the land box and CONUS do not overlap", () => {
     expect([served("LHR"), served("CDG"), served("KMCI"), served("PHNL")]).toEqual(["opuk", "cref", "cref", "cref"]);
@@ -472,14 +475,14 @@ describe("K5: /wx/cref is served from opuk inside the UK land box, and only ther
     const overlap = !(OPUK_LAND.lonW > conusE || OPUK_LAND.lonE < CONUS.lo1 || OPUK_LAND.latS > CONUS.la1 || OPUK_LAND.latN < conusS);
     expect(overlap).toBe(false);
     // CONTROL: CDG is inside opuk's grid window -- the case the land box exists for
-    const a = at("CDG"), g = OPUK_GRID;
+    const a = at("CDG"), g = OPUK_FIXTURE_GRID;
     expect(a.lat <= g.la1 && a.lat >= g.la1 - (g.nj - 1) * g.dj && a.lon >= g.lo1 && a.lon <= g.lo1 + (g.ni - 1) * g.di).toBe(true);
   });
 
   it("through the endpoint: LHR's crop names opuk; CDG's is cref's all-14 crop; PHNL's too", async () => {
     const e = now() - 120;
     await storeFrame(cref, SMALL, e);
-    await storeFrame(opuk, OPUK_GRID, e, 0.5);
+    await storeFrame(opuk, OPUK_FIXTURE_GRID, e, 0.5);
     const lhr = await wxAt("cref", "LHR");
     expect(lhr.status).toBe(200);
     expect(lhr.headers.get("ETag")).toContain("-opuk-");
@@ -498,8 +501,8 @@ describe("K5: /wx/cref is served from opuk inside the UK land box, and only ther
     expect(served("CDG", true)).toBe("opuk");
     const e = now() - 120;
     await storeFrame(cref, SMALL, e);
-    await storeFrame(opuk, OPUK_GRID, e, 0.5);
-    const res = await handleWx(new Request(`https://proxy.test/api/v1/blipscope/wx/cref?${q("CDG")}`), env, "cref", true);
+    await storeFrame(opuk, OPUK_FIXTURE_GRID, e, 0.5);
+    const res = await handleWx(new Request(`https://proxy.test/api/v1/blipscope/wx/cref?${q("CDG")}`), env, "cref", { byWindow: true });
     expect(res.headers.get("ETag")).toContain("-opuk-");
   }, SLOW);
 });
@@ -514,7 +517,7 @@ describe("K7: the ETag names the served product", () => {
   it("a device moved from LHR to KMCI never gets a 304", async () => {
     const e = now() - 120;
     await storeFrame(cref, SMALL, e);
-    await storeFrame(opuk, OPUK_GRID, e, 0.5);
+    await storeFrame(opuk, OPUK_FIXTURE_GRID, e, 0.5);
     const first = await wxAt("cref", "LHR");
     const tag = first.headers.get("ETag")!;
     const moved = await wxAt("cref", "KMCI", { "If-None-Match": tag });
@@ -536,13 +539,13 @@ function k8(limitOf: (p: Product) => number) {
 describe("K8: opuk's 1,800 s limit", () => {
   it("opuk at 900 s 200; cref at 900 s 503; opuk at 1,801 s 503 wx_stale", async () => {
     expect(k8((p) => p.maxAgeS)).toEqual({ opuk900: true, cref900: false, opuk1801: false });
-    await storeFrame(opuk, OPUK_GRID, now() - 900, 0.5);
+    await storeFrame(opuk, OPUK_FIXTURE_GRID, now() - 900, 0.5);
     await storeFrame(cref, SMALL, now() - 900);
     expect((await wxAt("cref", "LHR")).status).toBe(200);
     const c = await wxAt("cref", "KMCI");
     expect(c.status).toBe(503);
     expect(await c.json()).toMatchObject({ error: "wx_stale" });
-    await storeFrame(opuk, OPUK_GRID, now() - 1801, 0.5);
+    await storeFrame(opuk, OPUK_FIXTURE_GRID, now() - 1801, 0.5);
     const o = await wxAt("cref", "LHR");
     expect(o.status).toBe(503);
     expect(await o.json()).toMatchObject({ error: "wx_stale" });
@@ -590,10 +593,10 @@ function k6(g: GridGeom) {
 }
 
 describe("K6: every view served from opuk lies inside its grid", () => {
-  it("CONTROL: opuk's grid is the land box plus 2.02 deg at 0.01 deg", () => {
+  it("CONTROL: the fixture grid (opuk's until the code stage) is the land box plus 2.02 deg at 0.01 deg", () => {
     const g = gridFor(OPUK_MARGIN);
-    expect([g.ni, g.nj]).toEqual([OPUK_GRID.ni, OPUK_GRID.nj]);
-    expect(Math.abs(g.la1 - OPUK_GRID.la1) < 1e-9 && Math.abs(g.lo1 - OPUK_GRID.lo1) < 1e-9).toBe(true);
+    expect([g.ni, g.nj]).toEqual([OPUK_FIXTURE_GRID.ni, OPUK_FIXTURE_GRID.nj]);
+    expect(Math.abs(g.la1 - OPUK_FIXTURE_GRID.la1) < 1e-9 && Math.abs(g.lo1 - OPUK_FIXTURE_GRID.lo1) < 1e-9).toBe(true);
   });
   it("0 views outside the grid; crops whose padding reaches outside printed", () => {
     const r = k6(OPUK_GRID);
@@ -615,7 +618,7 @@ describe("K6: every view served from opuk lies inside its grid", () => {
 describe("K9: the covered share", () => {
   it("the stored frame's record carries the window's share; /healthz prints it", async () => {
     const t = (epochOf(DRY) + 300) * 1000;
-    const r = await ingestOnce(env.WX!, opuk, t, operaFetch(DRY));
+    const r = await ingestOnce(env.WX!, opukFx, t, operaFetch(DRY));
     expect(r.status).toBe("stored");
     const rec = await readLatest(env.WX!, opuk);
     console.log(`K9 ${DRY.name}: covered share ${r.coveredShare?.toFixed(4)}, record ${rec?.coveredShare?.toFixed(4)}`);
@@ -630,9 +633,9 @@ describe("K9: the covered share", () => {
 
   const allNodata = async (o: { coveredFixed?: number } = {}) => {
     const geo = await realGeo();
-    const win = windowFor(geo, OPUK_GRID);
+    const win = windowFor(geo, OPUK_FIXTURE_GRID);
     const n = (win[1] - win[0] + 1) * (win[3] - win[2] + 1);
-    return resample(new Float32Array(n).fill(NODATA), new Float32Array(n), mapFor(geo, win, OPUK_GRID), OPUK_GRID, o).covered;
+    return resample(new Float32Array(n).fill(NODATA), new Float32Array(n), mapFor(geo, win, OPUK_FIXTURE_GRID), OPUK_FIXTURE_GRID, o).covered;
   };
   it("an all-nodata frame reads 0", async () => { expect(await allNodata()).toBe(0); }, SLOW);
   it("SABOTAGE: the share fixed at 1 -- the all-nodata frame reads 1", async () => {
@@ -646,9 +649,9 @@ describe("K10 re-registered (PK1): opuk prunes only on a storing check, by key",
   const run = async (x: IngestX) => {
     const t = (epochOf(DRY) + 300) * 1000;
     const a = countingOps();
-    const stored = await ingestOnce(a.WX, opuk, t, operaFetch(DRY), undefined, x);
+    const stored = await ingestOnce(a.WX, opukFx, t, operaFetch(DRY), undefined, x);
     const b = countingOps();
-    const again = await ingestOnce(b.WX, opuk, t + 30_000, operaFetch(DRY), undefined, x);
+    const again = await ingestOnce(b.WX, opukFx, t + 30_000, operaFetch(DRY), undefined, x);
     return { stored: stored.status, storeLists: a.lists(), storeDeletes: a.deletes(), pruneKeys: stored.pruneKeys,
              pruned: stored.pruned, again: again.status, againLists: b.lists(), againDeletes: b.deletes() };
   };
@@ -749,7 +752,7 @@ describe("Stage 1c: the resample map from R2", () => {
   const store = async (x: IngestX = {}) => {
     await wipe(framesPrefix(opuk));
     await env.WX!.delete(latestKey(opuk));
-    const r = await ingestOnce(env.WX!, opuk, T, operaFetch(DRY), undefined, x);
+    const r = await ingestOnce(env.WX!, opukFx, T, operaFetch(DRY), undefined, x);
     const o = await env.WX!.get(frameKey(opuk, r.epoch!));
     return { r, bytes: new Uint8Array(await o!.arrayBuffer()) };
   };
@@ -769,8 +772,8 @@ describe("Stage 1c: the resample map from R2", () => {
     clearMapCache();
     const b = await store();
     const c = await store();
-    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
-    const px = (w.window[1] - w.window[0] + 1) * (w.window[3] - w.window[2] + 1), cells = OPUK_GRID.ni * OPUK_GRID.nj;
+    const w = await readWindow(fixtureRanges(DRY), OPUK_FIXTURE_GRID);
+    const px = (w.window[1] - w.window[0] + 1) * (w.window[3] - w.window[2] + 1), cells = OPUK_FIXTURE_GRID.ni * OPUK_FIXTURE_GRID.nj;
     console.log(`MP1: ${a.r.map}, ${b.r.map}, ${c.r.map}; MP4: ${objs.length} object(s), ${objs[0]?.size} B = ` +
                 `16 + 4 x (${px} window px + ${cells} cells) = ${16 + 4 * (px + cells)}; ` +
                 `MP2: identical ${same(a.bytes, b.bytes) && same(b.bytes, c.bytes)}`);
@@ -793,9 +796,9 @@ describe("Stage 1c: the resample map from R2", () => {
   it("SABOTAGE MP2s: one Int32 of the stored cellOf altered -- the frame through r2 differs", async () => {
     clearMapCache(); await wipe(mapsPrefix);
     const a = await store();
-    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
-    const m = cachedMap(mapKey(w.geo, w.window, OPUK_GRID))!;
-    const codes = resample(w.value, w.quality, m, OPUK_GRID).codes;
+    const w = await readWindow(fixtureRanges(DRY), OPUK_FIXTURE_GRID);
+    const m = cachedMap(mapKey(w.geo, w.window, OPUK_FIXTURE_GRID))!;
+    const codes = resample(w.value, w.quality, m, OPUK_FIXTURE_GRID).codes;
     // a no-coverage pixel moved into a covered, echo-free cell that has pixel centres: that cell must turn 14
     const i = m.cellOf.findIndex((cell, k) => cell >= 0 && w.value[k] === NODATA);
     const cB = codes.findIndex((code, k) => code === 0 && m.fill[k] === -2);
@@ -813,9 +816,9 @@ describe("Stage 1c: the resample map from R2", () => {
 
   // a map built for a window one column narrower: right key and metadata, wrong counts and length
   const narrower = async () => {
-    const w = await readWindow(fixtureRanges(DRY), OPUK_GRID);
+    const w = await readWindow(fixtureRanges(DRY), OPUK_FIXTURE_GRID);
     const [r0, r1, c0, c1] = w.window;
-    return encodeMap(buildMap(w.geo, [r0, r1, c0, c1 - 1], OPUK_GRID));
+    return encodeMap(buildMap(w.geo, [r0, r1, c0, c1 - 1], OPUK_FIXTURE_GRID));
   };
   it("MP3: an object written for another window is refused and rebuilt; the frame is the right one", async () => {
     clearMapCache(); await wipe(mapsPrefix);
@@ -872,7 +875,7 @@ describe("A failed map put keeps the frame", () => {
   const store = async (bucket: R2Bucket, x: IngestX = {}) => {
     await wipe(framesPrefix(opuk));
     await env.WX!.delete(latestKey(opuk));
-    const r = await ingestOnce(bucket, opuk, T, operaFetch(DRY), undefined, x);
+    const r = await ingestOnce(bucket, opukFx, T, operaFetch(DRY), undefined, x);
     const o = r.epoch === undefined ? null : await env.WX!.get(frameKey(opuk, r.epoch));
     return { r, bytes: o ? new Uint8Array(await o.arrayBuffer()) : null };
   };
@@ -935,7 +938,7 @@ function k14(seen: Seen[]) {
 describe("K14: every CloudFerro request names us", () => {
   const run = async (x: IngestX) => {
     const seen: Seen[] = [];
-    const r = await ingestOnce(env.WX!, opuk, (epochOf(DRY) + 300) * 1000, operaFetch(DRY, seen), undefined, x);
+    const r = await ingestOnce(env.WX!, opukFx, (epochOf(DRY) + 300) * 1000, operaFetch(DRY, seen), undefined, x);
     expect(r.status).toBe("stored");
     return k14(seen);
   };

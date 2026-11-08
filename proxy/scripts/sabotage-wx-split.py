@@ -1,4 +1,5 @@
-"""The opuk split's test sabotages (docs/wx-opuk-split.md: FT1s, FT2s, FXs). Each one: plant an exact one-place edit
+"""The split's test sabotages (docs/wx-opuk-split.md: FT1s, FT2s, FXs; since the code stage, docs/wx-opera-code-stage.md
+§3 and §7.4: FXs as re-registered, FXs-b and FT2cs). Each one: plant an exact one-place edit
 (refused unless the anchor matches exactly once), run test/wx-ingest-split.test.ts alone (vitest JSON reporter),
 compare the WHOLE list of failed tests with the predicted one, then restore the file from its bytes and check its
 sha256. A sabotage whose failed list is empty did not apply, and fails the run. On Windows each vitest run waits for
@@ -21,15 +22,27 @@ SABOTAGES = [
      'PRODUCTS.filter((p) => p.id === "cref");',
      'PRODUCTS.filter((p) => p.id === "cref" || p.id === "opuk");',
      ["FT1", "FX"]),
-    ("FT2s", "src/wx/ingest-opuk-worker.ts",
+    ("FT2s", "src/wx/ingest-opera-worker.ts",
      "value: env.WX_INGEST ?? null }));\n    return;\n  }",
      "value: env.WX_INGEST ?? null }));\n  }",
      ["FT2b", "FX"]),
-    ("FXs", "src/wx/ingest-opuk-worker.ts",
-     'PRODUCTS.filter((p) => p.id === "opuk");',
-     'PRODUCTS.filter((p) => p.id === "opuk" || p.id === "cref");',
-     ["FT2a", "FX"]),
+    # One env bound to the dev bucket (the code stage's FXs).
+    ("FXs", "wx-ingest-opera.wrangler.toml",
+     '[[env.opsn.r2_buckets]]\nbinding = "WX"\nbucket_name = "blipscope-wx"\n',
+     '[[env.opsn.r2_buckets]]\nbinding = "WX"\nbucket_name = "blipscope-wx-dev"\n',
+     ["FX"]),
+    # One env's PRODUCT set to another product's id: opuk checked twice, opis by none.
+    ("FXs-b", "wx-ingest-opera.wrangler.toml",
+     '[env.opis.vars]\nPRODUCT = "opis"\n',
+     '[env.opis.vars]\nPRODUCT = "opuk"\n',
+     ["FX"]),
+    # A PRODUCT that names no OPERA product falls back to opuk.
+    ("FT2cs", "src/wx/ingest-opera-worker.ts",
+     'const p = operaProduct(env.PRODUCT);',
+     'const p = operaProduct(env.PRODUCT) ?? operaProduct("opuk");',
+     ["FT2c"]),
 ]
+TESTS = 5   # FT1, FT2a, FT2b, FT2c, FX
 
 
 def drain():
@@ -57,8 +70,8 @@ def run_tests():
 ok = True
 base = run_tests()
 print("unsabotaged:", base)
-if base != ([], 4):
-    print("FAIL: the unsabotaged file does not read 4 passed")
+if base != ([], TESTS):
+    print(f"FAIL: the unsabotaged file does not read {TESTS} passed")
     ok = False
 for name, rel, old, new, expect in SABOTAGES:
     path = os.path.join(PROXY, rel)
@@ -81,7 +94,7 @@ for name, rel, old, new, expect in SABOTAGES:
     finally:
         open(path, "wb").write(orig)
     restored = hashlib.sha256(open(path, "rb").read()).hexdigest() == sha
-    verdict = got is not None and got[0] == expect and got[1] == 4 and restored
+    verdict = got is not None and got[0] == expect and got[1] == TESTS and restored
     print(f"{name}: failed {got[0] if got else None} of {got[1] if got else None}, predicted {expect}; restored by sha: {restored} -> {'AS PREDICTED' if verdict else 'OFF'}")
     ok = ok and verdict
 print("ALL AS PREDICTED" if ok else "OFF")

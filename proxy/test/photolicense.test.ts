@@ -11,6 +11,7 @@ import {
 } from "../src/photolicense";
 import manifestText from "../photos/manifest.json?raw";
 import committedCredits from "virtual:committed-credits";
+import regionPoints from "./fixtures/wx/region-points.json";
 
 function entry(overrides: Partial<ManifestEntry> = {}): ManifestEntry {
   return {
@@ -163,6 +164,38 @@ describe("renderCreditsHtml", () => {
       "Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; " +
       "grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.";
     expect(html.split(line).length - 1).toBe(1);
+  });
+
+  // CR1 (docs/wx-opera-europe.md §5, re-registered in docs/wx-opera-code-stage.md §3): the OPERA line reads right for
+  // the whole served region. It names no country or region, except "France" inside the producer's name, "Meteo France".
+  // The 40 are the served countries' Natural Earth names, from the region fixture (tools/wx/eu_borders.py).
+  const CR1_NAMES = ["UK", "United Kingdom", "Britain", "England", "Scotland", "Wales", "Ireland", "Europe",
+                     ...regionPoints.d1.map((e) => e.name)];
+  function cr1(html: string): string | null {
+    const lines = [...html.matchAll(/<li>([^<]*OPERA[^<]*)<\/li>/g)].map((m) => m[1]!);
+    if (lines.length !== 1) return `${lines.length} OPERA lines`;
+    const line = lines[0]!;
+    if (!line.includes("CC BY 4.0")) return "no CC BY 4.0";
+    if (!line.includes("https://creativecommons.org/licenses/by/4.0/")) return "no licence link";
+    const masked = line.split("Meteo France").join("Meteo ######");
+    const named = CR1_NAMES.filter((n) => new RegExp(`\\b${n}\\b`).test(masked));
+    return named.length ? `names ${named.join(", ")}` : null;
+  }
+  it("CR1 the OPERA line: exactly one, CC BY 4.0 and its link, no place named but France inside Meteo France", () => {
+    expect(CR1_NAMES).toHaveLength(48);
+    expect(cr1(renderCreditsHtml([]))).toBeNull();
+  });
+  it("CR1s SABOTAGE: 'in the UK', no CC BY 4.0, and France alone each read red", () => {
+    const html = renderCreditsHtml([]);
+    const line = /<li>([^<]*OPERA[^<]*)<\/li>/.exec(html)![1]!;   // each plant edits the OPERA line, never another line
+    const plants: Record<string, [string, string]> = {
+      "CR1s-a": ["outside the US", "in the UK"], "CR1s-b": ["CC BY 4.0", "a licence"], "CR1s-c": ["Meteo France", "France"],
+    };
+    const got = Object.fromEntries(Object.entries(plants).map(([k, [a, b]]) => {
+      const planted = html.replace(line, line.replace(a, b));
+      return [k, planted === html ? "DID NOT APPLY" : cr1(planted)];
+    }));
+    expect(got).toEqual({ "CR1s-a": "names UK", "CR1s-b": "no CC BY 4.0", "CR1s-c": "names France" });
   });
 });
 
