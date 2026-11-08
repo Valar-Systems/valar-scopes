@@ -429,3 +429,82 @@ predates #445.
 2. **Water is missing.** All seven builds in the slot, KIND's included, read **0 bytes of water.** Rung 3 means the whole water layer went
    first. So Boston Harbor and Lake Michigan would not draw. This goes first in the ocean proposal (ruled ~18:19Z), after a read of how
    much of it is TIGER's coverage rather than the ladder.
+
+## The exact rung at the map client's query: a reading registered before it runs (2026-11-08)
+
+**Why now.** Q-DN2 ruled D1's ε rung, then D2, and left the exact rung to step 0's numbers. Since then, three things have moved:
+- **The query moved to the map client's** (ruled ~02:33Z): r=162, ε 201,168 mm, no peaks, three levels of 246, 244 and 242.
+- **The ladder is now A+B** (Q-W1, ~19:08Z), and the dense-area work lands with it and the sea mask in one PR (Q-W4).
+- **At r=162, New York is further over** (#620, open): 7,598-8,842 B (23-27%) after every rung, against r=97's 1,538-3,741 B. Primary
+  roads alone take 27,970-29,550 B of the 32,768.
+
+So D1's rung is read at this query and on top of A+B, before it is proposed.
+
+**How.**
+- **The real builder runs on a patched copy of `src`** (never the repo's tree), over the local copy of store `4c0875738f38`, at the client's
+  query. **Nothing runs on staging,** and no object is written anywhere.
+- **The same 13 points as #620:** KBOS, KJFK, KLGA, KEWR, Midtown, KMIA, KSFO, KSEA, KORD, KDTW, KMSP, KIND, KJAC.
+- **What it prints:** counts and bytes only, with water as a share of the disc (#620's raster), secondary roads kept, the rung, and the radius
+  built.
+
+**The variants.** None changes a package that fits under A+B, except P2, by design.
+
+| variant | after ε×2 and A+B's rung 2 (water at ε×8) fail |
+|---|---|
+| **v0** | today's ladder (Q26): the anchor |
+| **ab** | A+B as #620 read it: secondary roads shortest first, then water smallest first |
+| **P1** | A+B; **only if A+B still fails,** rivers and roads at **ε×4** (water stays at ε×8), then A+B's two drops again |
+| **P2** | rivers and roads at **ε×4 before any drop**, then A+B's two drops. Sharpness goes before features, everywhere |
+| **D2** | for a point still 422 under ab or P1, the same variant rebuilt at r × 0.8, × 0.64, … down to a **40 km floor** (162, 129.6, 103.7, 82.9, 66.4, 53.1, 42.5 km) |
+| **+sea** | P1, P2 and D2 again, with Natural Earth's land outline in the square added to the water section at the water's ε. **Bytes only:** it is the coastline a sea ring would carry, without the bridges' 2 vertices per island, and its area is not the sea's |
+
+**ε×4 is 805 m.** That is 2.3 px at the finest view (41 km over 120 px) and 0.6 px at the full one (162 km). That cost is why P1 and P2
+are both read.
+
+### Rows, predicted
+
+| row | what | predicted |
+|---|---|---|
+| **DR0** (anchor) | v0 on the copy against the unpatched builder | **byte-identical** for the 9 points that fit; **the same ladder**, to the byte, for the 4 New York points (#620: KJFK 238,588 / 196,364 / 176,124 / 40,366, and so on) |
+| **DR1** (anchor) | ab against #620's A+B table | the same water share (to 0.1 point) and the same secondary count at the 9; **422** at all 4 New York points |
+| **DR2** | P1 at the 9 that fit under ab | **byte-identical** to ab, 9 of 9: P1 only acts where A+B fails |
+| **DR3** | P1 at the 4 New York points | **not predicted:** this is what the reading is for. The meanings are fixed now. **All 4 fit:** D2 is a safety net only, at this query. **1-3 fit:** D2 carries the rest. **None fits:** D2 does the work, and its floor is the decision |
+| **DR4** | P2 at all 13 | every package `kOk` and at most 32,768 non-terrain bytes. **Byte-identical to ab** wherever ab fitted at rung ≤ 2. Changed wherever ab dropped anything |
+| **DR5** | D2 | for each point still 422, the first radius that fits. **A 422 at the 40 km floor is a stop:** "no map" is not an acceptable end for a major city (Q-DN2) |
+| **DR6** | +sea | not predicted; the same invariants as DR4. Read as the sea mask's cost against each candidate's margin |
+
+### Peak memory, against the isolate's 128 MB (ruled ~03:23Z)
+
+**The instrument:**
+- Node with `--expose-gc`, sampling `heapUsed + arrayBuffers` after a forced collection, so it measures what is live.
+- Samples are taken after each cell read, after the tiles, after the terrain levels, after the layer sets, and after the ladder.
+- Each sample has the build's own baseline subtracted, taken the same way just before it.
+- **No object is cached between builds,** so each build's figure is its own.
+
+**Its control (a check that can fail):** KJFK under v0 is built twice. The second time, an extra 32 MiB buffer is held from baseline to end.
+The second peak must read **32 MiB ± 1 MiB above the first,** or the instrument is not believed and nothing below is graded.
+
+**What it cannot see:** workerd is not Node. The Worker's own bundle and globals sit outside the baseline, and garbage made between two
+samples can raise a real peak above the sampled one. So the figure is a floor on the build's live memory, and is stated as that.
+
+| band, the largest build under any variant | meaning |
+|---|---|
+| **at most 64 MB** (predicted) | fits with room |
+| **64-96 MB** | a risk: recorded and carried into the plan, but not a stop |
+| **over 96 MB** | **stop:** the design changes before any code |
+
+### Outside the set
+
+**Stop and report** on any of these:
+- an anchor that does not reproduce;
+- a package over the cap, or one that fails `validate`;
+- a ladder that increases;
+- an object missing from the local store copy;
+- the memory control off by more than 1 MiB;
+- anything else not named above.
+
+**Order:**
+1. This registration, pushed before any of it runs.
+2. The reading, appended here.
+3. **The exact rung, proposed for a ruling,** with each build's memory.
+4. Then the one code PR (Q-W4): the rung, A+B and the sea mask, with the store change's Class A figures stated first.
