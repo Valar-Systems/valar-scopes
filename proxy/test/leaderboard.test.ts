@@ -700,3 +700,36 @@ describe("profile links", () => {
     expect(await profile.text()).toContain("Alpha");
   });
 });
+
+// docs/leaderboard-model-shape.md: the model is refused when off-shape, never cut. Rows LM1-LM4, by tag, for
+// scripts/sabotage-lbmodel.mjs.
+describe("the stored model (docs/leaderboard-model-shape.md)", () => {
+  const body = (id: string) => ({ id, name: "Model " + id, radiusKm: 48, claimed: { airlines: 1, countries: 1, airports: 1 }, claimedTypes: ["A320"] });
+  const stored = async (id: string) => ((await env.ENRICH_KV.get(`lb:dev:${id}`, "json")) as { model: string } | null)?.model;
+
+  it("LM1: a 19-character identity is stored whole", async () => {
+    const res = await call(submit(body(ID_A), { "X-Blip-Model": "weatherscope-s3-128" }));
+    expect(res.status).toBe(200);
+    expect(await stored(ID_A)).toBe("weatherscope-s3-128");
+  });
+
+  it("LM2: the radar's model is unchanged", async () => {
+    await call(submit(body(ID_A), { "X-Blip-Model": "s3-128" }));
+    expect(await stored(ID_A)).toBe("s3-128");
+  });
+
+  it("LM3: an off-shape model is stored as nothing, never a prefix, and the submission still counts", async () => {
+    const off = ["a".repeat(40), "S3-128", "s3 128", "s3-128<b>", "-s3-128"];
+    for (const [i, v] of off.entries()) {
+      const id = `cccc000${i}`;
+      const res = await call(submit(body(id), { "X-Blip-Model": v }));
+      expect(res.status, v).toBe(200);
+      expect(await stored(id), v).toBe("");
+    }
+  });
+
+  it("LM4: no header stores nothing, as before", async () => {
+    await call(submit(body(ID_B)));
+    expect(await stored(ID_B)).toBe("");
+  });
+});
