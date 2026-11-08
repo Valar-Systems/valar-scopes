@@ -60,6 +60,8 @@ entrypoint = "BendFeed"
 ```
 The site calls `await env.BLIPSCOPE_BEND.snapshot()`.
 
+**A second consumer (2026-11-08):** `valarscopes-app` (app.valarscopes.com) binds the same entrypoint in the same way, and reads at most every 10 s in production and every 30 s in previews. Nothing here changes for it. The feed is still Bend only, and showing any other place still needs adsb.fi's operator's OK first.
+
 **The response, v1:**
 ```json
 { "available": true, "v": 1,
@@ -118,7 +120,8 @@ Each has a sabotage that must turn it red. Unless stated, they are vitest checks
 
 The whole footprint, removed in one PR:
 - `src/sitefeed/bend.ts` and its test;
-- the hook's two lines in `blips.ts`;
+- the hook in `blips.ts`: the `import` (`bendWriter`, `OnFetched`); the `onFetched` parameter of `buildFresh` and its one call, and of `revalidate`, which passes it on to `buildFresh`; and `siteFeed`, made once in the handler and passed in three places (two `buildFresh` calls and one `revalidate`);
+- each consumer's `[[services]]` binding: `valarscopes-site`'s and `valarscopes-app`'s;
 - the export line in `index.ts`;
 - the `SITE_FEED_BEND` var;
 - the README section.
