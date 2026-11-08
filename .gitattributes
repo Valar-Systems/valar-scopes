@@ -41,3 +41,7 @@ proxy/fonts/*.woff2 binary
 # docs/credits-correctness.md), and the render is LF. A CRLF checkout failed Q-C1 locally on every Windows run while
 # CI's LF checkout passed, so the file keeps LF everywhere.
 proxy/photos/credits.html text eol=lf
+
+# The region table is generated, and its --check compares bytes (proxy/scripts/gen-wx-region.mjs): a CRLF checkout
+# would read as a stale table on Windows. LF everywhere, like the shell scripts.
+proxy/src/wx/region.generated.ts text eol=lf

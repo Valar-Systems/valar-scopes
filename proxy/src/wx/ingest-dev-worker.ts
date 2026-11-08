@@ -6,15 +6,14 @@
 // invocation, so the per-invocation CPU it measures is the shape production runs. What each check does is MODE:
 //   plant       a synthetic busy loop of PLANT_ITER rounds -- the positive control for the CPU-limit instrument (S1, S2).
 //               It touches no bucket and no upstream.
-//   cref, opuk  production's checkAll for that one product (S3, S4).
-//   opwe, opsn, opux, opmt  the same for one row of DEV_PRODUCTS (M1-M6, docs/wx-opera-dev-measure.md).
+//   cref, opuk  production's checkAll for that one product (S3, S4). Any other PRODUCTS id is the same for that row:
+//               the M stage's opwe, opsn and opmt are production rows since the code stage (docs/wx-opera-code-stage.md),
+//               and its opux was opuk grown, which opuk now is, so MODE opux is a mode error.
 //   off         one line, nothing else (S0, S5; the toml also gives it no cron).
 //   anything else  one error line, nothing else -- never a silent fall-back to a real check.
 
 import { type Fetch, type IngestOpts, DEFAULT_OPTS } from "./ingest";
 import { type IngestEnv, checkAll } from "./ingest-worker";
-import type { GridGeom } from "./grid";
-import type { OverrunPx } from "./opera";
 import { PRODUCTS, type Product } from "./products";
 
 export interface DevEnv extends IngestEnv { MODE?: string }
@@ -41,17 +40,8 @@ export function plant(iter: number): number {
   return x;
 }
 
-/** The M stage's products (docs/wx-opera-dev-measure.md): `opuk`'s row but for its id and grid, here so production
- *  can never reach them. `opux` is `opuk` grown to the isles, under its own id so it cannot shadow production's row. */
-const { landBox: _landBox, ...opuk } = PRODUCTS.find((q) => q.id === "opuk")!;
-const devRow = (id: string, g: Omit<GridGeom, "di" | "dj">, overrunPx?: OverrunPx): Product =>
-  ({ ...opuk, id, grid: { ...g, di: 0.01, dj: 0.01 }, ...(overrunPx ? { overrunPx } : {}) });
-export const DEV_PRODUCTS: readonly Product[] = [
-  devRow("opwe", { la1: 55.72, lo1: -7.15, ni: 1968, nj: 1638 }),
-  devRow("opsn", { la1: 73.19, lo1: 5.16, ni: 2832, nj: 1222 }, { n: 54 }),
-  devRow("opux", { la1: 62.92, lo1: -15.71, ni: 1954, nj: 1585 }),
-  devRow("opmt", { la1: 38.1, lo1: 12.16, ni: 444, nj: 433 }, { s: 43 }),
-];
+/** Rows only the dev copy can reach. Empty since the code stage: the M stage's were promoted to PRODUCTS (DP2). */
+export const DEV_PRODUCTS: readonly Product[] = [];
 
 /** One check of the dev copy, by MODE. doFetch, log, opts and iter are injectable for the tests. */
 export async function devCheck(env: DevEnv, label: string, doFetch?: Fetch,

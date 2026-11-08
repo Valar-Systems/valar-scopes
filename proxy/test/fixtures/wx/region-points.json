@@ -1,0 +1,554 @@
+{
+ "about": "test/wx-region.test.ts's points, chosen by tools/wx/eu_borders.py (shapely) from Natural Earth 1:10m admin-0 v5.1.2. Public geography: country label points and border crossings.",
+ "inputs": {
+  "graded": "0b0d43ac4363093b840655aaa763a57b78946b856f13bc1c60156b6374c1a6bd",
+  "ne": "239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255",
+  "rules": "f4727ddef3744c36c0952e6d7bd4dfe526ef5dafa91de89bb2c8742fb8217680"
+ },
+ "d1": [
+  {
+   "name": "Aland",
+   "lat": 60.156467,
+   "lon": 19.869671,
+   "product": "opba"
+  },
+  {
+   "name": "Andorra",
+   "lat": 42.547643,
+   "lon": 1.539409,
+   "product": "opib"
+  },
+  {
+   "name": "Austria",
+   "lat": 47.518859,
+   "lon": 14.130515,
+   "product": "opce"
+  },
+  {
+   "name": "Belgium",
+   "lat": 50.785392,
+   "lon": 4.800448,
+   "product": "opwe"
+  },
+  {
+   "name": "Bosnia and Herzegovina",
+   "lat": 44.091051,
+   "lon": 18.06841,
+   "product": "opse"
+  },
+  {
+   "name": "Croatia",
+   "lat": 45.805799,
+   "lon": 16.37241,
+   "product": "opse"
+  },
+  {
+   "name": "Czechia",
+   "lat": 49.882364,
+   "lon": 15.377555,
+   "product": "opce"
+  },
+  {
+   "name": "Denmark",
+   "lat": 55.966965,
+   "lon": 9.018163,
+   "product": "opsw"
+  },
+  {
+   "name": "Estonia",
+   "lat": 58.724865,
+   "lon": 25.867126,
+   "product": "opba"
+  },
+  {
+   "name": "Finland",
+   "lat": 63.252361,
+   "lon": 27.276449,
+   "product": "opsn"
+  },
+  {
+   "name": "France",
+   "lat": 46.696113,
+   "lon": 2.552275,
+   "product": "opwe"
+  },
+  {
+   "name": "Germany",
+   "lat": 50.961733,
+   "lon": 9.678348,
+   "product": "opwe"
+  },
+  {
+   "name": "Gibraltar",
+   "lat": 36.129426,
+   "lon": -5.3467,
+   "product": "opib"
+  },
+  {
+   "name": "Guernsey",
+   "lat": 49.463533,
+   "lon": -2.561736,
+   "product": "opuk"
+  },
+  {
+   "name": "Hungary",
+   "lat": 47.086841,
+   "lon": 19.447867,
+   "product": "opce"
+  },
+  {
+   "name": "Iceland",
+   "lat": 64.779286,
+   "lon": -18.673711,
+   "product": "opis"
+  },
+  {
+   "name": "Ireland",
+   "lat": 53.078726,
+   "lon": -7.798588,
+   "product": "opuk"
+  },
+  {
+   "name": "Isle of Man",
+   "lat": 54.220833,
+   "lon": -4.530069,
+   "product": "opuk"
+  },
+  {
+   "name": "Jersey",
+   "lat": 49.220808,
+   "lon": -2.090146,
+   "product": "opuk"
+  },
+  {
+   "name": "Latvia",
+   "lat": 57.066872,
+   "lon": 25.458723,
+   "product": "opba"
+  },
+  {
+   "name": "Liechtenstein",
+   "lat": 47.111405,
+   "lon": 9.559439,
+   "product": "opwe"
+  },
+  {
+   "name": "Lithuania",
+   "lat": 55.103703,
+   "lon": 24.089932,
+   "product": "opce"
+  },
+  {
+   "name": "Luxembourg",
+   "lat": 49.733732,
+   "lon": 6.07762,
+   "product": "opwe"
+  },
+  {
+   "name": "Malta",
+   "lat": 35.892886,
+   "lon": 14.433005,
+   "product": "opmt"
+  },
+  {
+   "name": "Moldova",
+   "lat": 47.434999,
+   "lon": 28.487904,
+   "product": "opse"
+  },
+  {
+   "name": "Monaco",
+   "lat": 43.739652,
+   "lon": 7.398291,
+   "product": "opwe"
+  },
+  {
+   "name": "Montenegro",
+   "lat": 42.803101,
+   "lon": 19.143727,
+   "product": "opse"
+  },
+  {
+   "name": "Netherlands",
+   "lat": 52.422211,
+   "lon": 5.61144,
+   "product": "opwe"
+  },
+  {
+   "name": "Norway",
+   "lat": 61.357092,
+   "lon": 9.679975,
+   "product": "opsw"
+  },
+  {
+   "name": "Poland",
+   "lat": 51.990316,
+   "lon": 19.490468,
+   "product": "opce"
+  },
+  {
+   "name": "Portugal",
+   "lat": 39.606675,
+   "lon": -8.271754,
+   "product": "opib"
+  },
+  {
+   "name": "Republic of Serbia",
+   "lat": 44.189919,
+   "lon": 20.787989,
+   "product": "opse"
+  },
+  {
+   "name": "Romania",
+   "lat": 45.733237,
+   "lon": 24.972624,
+   "product": "opse"
+  },
+  {
+   "name": "San Marino",
+   "lat": 43.933916,
+   "lon": 12.441206,
+   "product": "opse"
+  },
+  {
+   "name": "Slovakia",
+   "lat": 48.734044,
+   "lon": 19.049868,
+   "product": "opce"
+  },
+  {
+   "name": "Slovenia",
+   "lat": 46.06076,
+   "lon": 14.915312,
+   "product": "opse"
+  },
+  {
+   "name": "Spain",
+   "lat": 40.090953,
+   "lon": -3.464718,
+   "product": "opib"
+  },
+  {
+   "name": "Sweden",
+   "lat": 65.85918,
+   "lon": 19.01705,
+   "product": "opsn"
+  },
+  {
+   "name": "Switzerland",
+   "lat": 46.719114,
+   "lon": 7.463965,
+   "product": "opwe"
+  },
+  {
+   "name": "United Kingdom",
+   "lat": 54.402739,
+   "lon": -2.116346,
+   "product": "opuk"
+  }
+ ],
+ "d2": [
+  {
+   "name": "Italy",
+   "lat": 44.732482,
+   "lon": 11.076907
+  },
+  {
+   "name": "Bulgaria",
+   "lat": 42.508785,
+   "lon": 25.15709
+  },
+  {
+   "name": "Belarus",
+   "lat": 53.821888,
+   "lon": 28.417701
+  },
+  {
+   "name": "Albania",
+   "lat": 40.654855,
+   "lon": 20.11384
+  },
+  {
+   "name": "Ukraine",
+   "lat": 49.724739,
+   "lon": 32.140865
+  },
+  {
+   "name": "Kosovo",
+   "lat": 42.593587,
+   "lon": 20.860719
+  },
+  {
+   "name": "Faroe Islands",
+   "lat": 62.185604,
+   "lon": -7.058429
+  },
+  {
+   "name": "Greece",
+   "lat": 39.492763,
+   "lon": 21.72568
+  },
+  {
+   "name": "North Macedonia",
+   "lat": 41.558223,
+   "lon": 21.555839
+  },
+  {
+   "name": "Morocco",
+   "lat": 31.650723,
+   "lon": -7.187296
+  },
+  {
+   "name": "Russia",
+   "lat": 58.249357,
+   "lon": 44.686469
+  },
+  {
+   "name": "Turkey",
+   "lat": 39.345388,
+   "lon": 34.508268
+  },
+  {
+   "name": "Tunisia",
+   "lat": 33.687263,
+   "lon": 9.007881
+  },
+  {
+   "name": "Algeria",
+   "lat": 27.397406,
+   "lon": 2.808241
+  },
+  {
+   "name": "Greenland",
+   "lat": 74.319387,
+   "lon": -39.335251
+  }
+ ],
+ "d3": [
+  {
+   "crossing": "Nova Gorica/Gorizia",
+   "served": {
+    "country": "Slovenia",
+    "lat": 45.97,
+    "lon": 13.62,
+    "product": "opse"
+   },
+   "excluded": {
+    "country": "Italy",
+    "lat": 45.96,
+    "lon": 13.62,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Menton/Ventimiglia",
+   "served": {
+    "country": "France",
+    "lat": 43.79,
+    "lon": 7.49,
+    "product": "opwe"
+   },
+   "excluded": {
+    "country": "Italy",
+    "lat": 43.8,
+    "lon": 7.5,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Chiasso/Como",
+   "served": {
+    "country": "Switzerland",
+    "lat": 45.84,
+    "lon": 9.02,
+    "product": "opwe"
+   },
+   "excluded": {
+    "country": "Italy",
+    "lat": 45.84,
+    "lon": 9.03,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Brenner",
+   "served": {
+    "country": "Austria",
+    "lat": 47.0,
+    "lon": 11.5,
+    "product": "opce"
+   },
+   "excluded": {
+    "country": "Italy",
+    "lat": 46.99,
+    "lon": 11.5,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "San Marino/Italy",
+   "served": {
+    "country": "San Marino",
+    "lat": 43.97,
+    "lon": 12.43,
+    "product": "opse"
+   },
+   "excluded": {
+    "country": "Italy",
+    "lat": 43.97,
+    "lon": 12.42,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Narva/Ivangorod",
+   "served": {
+    "country": "Estonia",
+    "lat": 59.37,
+    "lon": 28.18,
+    "product": "opba"
+   },
+   "excluded": {
+    "country": "Russia",
+    "lat": 59.37,
+    "lon": 28.19,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Storskog",
+   "served": {
+    "country": "Norway",
+    "lat": 69.64,
+    "lon": 30.13,
+    "product": "opsn"
+   },
+   "excluded": {
+    "country": "Russia",
+    "lat": 69.63,
+    "lon": 30.13,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Vaalimaa",
+   "served": {
+    "country": "Finland",
+    "lat": 60.57,
+    "lon": 27.83,
+    "product": "opba"
+   },
+   "excluded": {
+    "country": "Russia",
+    "lat": 60.57,
+    "lon": 27.84,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Terespol/Brest",
+   "served": {
+    "country": "Poland",
+    "lat": 52.07,
+    "lon": 23.64,
+    "product": "opce"
+   },
+   "excluded": {
+    "country": "Belarus",
+    "lat": 52.08,
+    "lon": 23.64,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Kybartai/Chernyshevskoye",
+   "served": {
+    "country": "Lithuania",
+    "lat": 54.64,
+    "lon": 22.71,
+    "product": "opce"
+   },
+   "excluded": {
+    "country": "Russia",
+    "lat": 54.64,
+    "lon": 22.7,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Giurgiu/Ruse",
+   "served": {
+    "country": "Romania",
+    "lat": 43.89,
+    "lon": 25.96,
+    "product": "opse"
+   },
+   "excluded": {
+    "country": "Bulgaria",
+    "lat": 43.88,
+    "lon": 25.96,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Uzhhorod",
+   "served": {
+    "country": "Slovakia",
+    "lat": 48.64,
+    "lon": 22.23,
+    "product": "opce"
+   },
+   "excluded": {
+    "country": "Ukraine",
+    "lat": 48.64,
+    "lon": 22.24,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Ceuta",
+   "served": {
+    "country": "Spain",
+    "lat": 35.86,
+    "lon": -5.35,
+    "product": "opib"
+   },
+   "excluded": {
+    "country": "Morocco",
+    "lat": 35.85,
+    "lon": -5.35,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Sukobin",
+   "served": {
+    "country": "Montenegro",
+    "lat": 41.99,
+    "lon": 19.36,
+    "product": "opse"
+   },
+   "excluded": {
+    "country": "Albania",
+    "lat": 41.99,
+    "lon": 19.37,
+    "insideAGrid": true
+   }
+  },
+  {
+   "crossing": "Merdare",
+   "served": {
+    "country": "Republic of Serbia",
+    "lat": 42.97,
+    "lon": 21.23,
+    "product": "opse"
+   },
+   "excluded": {
+    "country": "Kosovo",
+    "lat": 42.97,
+    "lon": 21.22,
+    "insideAGrid": true
+   }
+  }
+ ]
+}

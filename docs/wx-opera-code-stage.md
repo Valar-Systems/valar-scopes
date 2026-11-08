@@ -109,3 +109,77 @@ that.
   many files.
 
 Merge by the rule.
+
+## 7. Before any check ran (2026-11-08 ~00:20Z): one row off, one gap, and the rows §2 missed
+
+Written before any D, A, W, F, FX or vitest row ran. Two items wait for a ruling; nothing is pushed until it comes.
+
+**Already read, as predicted:** the generator's first run gave **3,603 rows, 22,822 runs, 0 points left over**, every
+product's grid at least 2.02 deg beyond its served points, and G1 byte-identical; G1s (one base64 character of a run
+changed) was refused at line 317. The table is 136,932 B of runs plus a 14,416 B row index, 215,634 B as the module.
+The frozen "about 144 KB" counted 2 B a row, and the index is a `Uint32`, 4 B a row. Decoding it takes 0.53 ms (Node).
+
+### 7.1 Off: D1 reads 39 of 40 on its inputs alone (for a ruling)
+
+- **Lithuania's label point, quantised, lies exactly on 55.10 N,** the north edge of the central rule (`opce`).
+  - **The generator closes every rule's edges** (first match, every bound inclusive, as the UK box), so it gives `opce`.
+  - **D1 froze "`eu_country_products.py`'s products".** That script, and `eu_d1q.py`, tested points with shapely's
+    `contains`, which leaves a rectangle's edges out, so they give `opba`.
+- **One other fixture point sits on an edge:** D3's Brenner served side, on 47.00 N (central's south edge): `opce`
+  closed, `opse` open. D3's row names no product, so its form is unaffected.
+- **Why the edges are closed:** on a lattice, open rectangles leave every point on a shared edge with no rule (63.00 N
+  between `opsn` and the two below it, for one), and the generator refuses a left-over point. `eu_table_size.py` closed
+  them, and its 22,822 runs are the generator's exactly.
+- **My miss:** `eu_d1q.py` checked "the same product as unquantised" with an area predicate, on points that can lie on
+  an edge.
+- **Proposed:** the edges stay closed. D1 and F2 expect the fixture's products (`tools/wx/eu_borders.py`, closed
+  edges), so Lithuania expects `opce`, and the miss is recorded.
+
+### 7.2 A gap: as frozen, the next proxy deploy from main would route Europe to products with no frame (for a ruling)
+
+- **§1c sends `/wx/cref` to the region's product,** but nothing here deploys an ingest.
+  - The proxy is deployed from main by another session. So once this merges, its next routine deploy would answer the
+    35 non-isles label points (and every point like them) with **503 `wx_stale`**, where today they get cref's 200
+    all-14.
+  - That is the rollout order §3 forbids. The same deploy would make `/healthz` read 11 `latest` records a call
+    instead of 2.
+- **Built as proposed, pending the ruling:**
+  - **`ROUTED`** (`products.ts`) holds the products `/wx/cref` may be answered from: `cref` and `opuk`.
+  - `servedProduct` returns `cref` for a region product outside it, and `/healthz` reports `ROUTED` only.
+  - **Stage 3 adds each product to `ROUTED`** after its ingest runs and its `latest` is read, each one a proxy deploy
+    of its own.
+  - The D rows grade the table with every product routed (`DispatchOpts.routed`).
+- **What would change at that next proxy deploy under the proposal:** the isles rule's served points outside today's
+  box get `opuk`, **48,721 lattice points** (`opuk`'s 1,216,382 less the box's 1,167,661).
+  - That is Ireland west of 8.7 W, the Channel Islands, and France's coast between 49.1 and 49.8 N west of 1.8 E.
+  - Today those points get cref's all-14. Every one is inside today's `opuk` frame, and no point loses `opuk` (D5).
+- **The alternative,** a merge that changes no answer at all: `ROUTED` = `cref` alone, plus today's land box kept for
+  `opuk` until stage 3. That is a second dispatch path, so it is not recommended.
+
+### 7.3 Rows §2 missed, re-registered now (same expectations unless stated)
+
+| test | change |
+|---|---|
+| K4 (1,515 x 1,455, 9 tiles; the swap BLIND 3 = 3), K4′ | on `OPUK_FIXTURE_GRID`: both are records of that grid |
+| K6 CONTROL (`OPUK_GRID` is the land box plus 2.02) | on `OPUK_FIXTURE_GRID`. K6's own sweep stays on `OPUK_GRID`, the isles grid: 0 views outside |
+| K7, K8, `wx-age.test.ts` | their synthetic frames on `OPUK_FIXTURE_GRID` (any grid serves; the smaller one keeps them fast) |
+| K5 | **kept, not replaced by D5:** under `ROUTED` it is R1's endpoint form (LHR `opuk`; CDG, KMCI and PHNL `cref`'s all-14) |
+| PS1 (`wx-ingest-dev.test.ts`) | `checkAll` with no list checks the 11, not "cref and opuk" |
+| `metrics.test.ts` (every product's route is listed) | `KNOWN_ROUTES` gains the nine `/wx/<id>` paths |
+| K5's sabotage, A6 | `handleWx`'s fourth parameter is `DispatchOpts` (`{ byWindow: true }`), not a boolean |
+| the healthz test (`wx-endpoint.test.ts`) | unchanged under the proposal: `cref` and `opuk` only |
+| the dev toml's `opux` env | MODE `opux` is now a `wx_dev_mode_error`: it was `opuk` grown, which `opuk` now is |
+
+**One more thing this PR changes outside the tests:** `opuk`'s recorded rollback command names
+`wx-ingest-opuk.wrangler.toml`, which this PR removes. From main after the merge it is
+`npx wrangler rollback <id> -c wx-ingest-opera.wrangler.toml -e opuk -m "<message>"`.
+
+### 7.4 New rows, registered now
+
+| check | what | predicted | sabotage | predicted under it |
+|---|---|---|---|---|
+| **R1** | `servedProduct` and `/wx/cref` at the 40 label points under the committed `ROUTED` | the 5 the fixture gives `opuk` (the United Kingdom, Ireland, the Isle of Man, Jersey, Guernsey) are `opuk`; the other 35 are cref's 200 all-14 with no `X-Wx-Max-Age` | **R1s:** `ROUTED` with all 11 | **red on 35:** 503 `wx_stale`, no frame stored for them |
+| **R2** (printed) | the lattice points whose answer changes at the next proxy deploy | **48,721** | | |
+| **FT2c** | the entry with `WX_INGEST` "on" and a `PRODUCT` that is no OPERA id (`nope`, `cref`) | one `wx_ingest_error` a check; the bucket and fetch untouched | **FT2cs:** the check falls back to `opuk` | red |
+| **FXs-b** | the opera toml with one env's `PRODUCT` set to another product's id | | | **red:** FX, one product checked twice and one not at all |
+| generator guards | the per-country drops (§1's table), no straddling part, no left-over point, every grid's margin at least 2.01 deg | each refuses the table | | |
