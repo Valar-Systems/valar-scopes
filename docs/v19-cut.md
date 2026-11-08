@@ -36,6 +36,11 @@ owner meets. Run on C, it grades the image that will ship. Run before the bump, 
 - **CI: 34 = 30 success / 4 skipped / 0 failed.** That is #629's finished shape: a `src/` change runs `web-renderer`'s `build` and its
   skipped `publish`. The last job-set change on main is `84409651`.
 
+**Step 2's first CI run, at `51fa0932`, was refused by `customer-entry`, and that is the gate working:** it refuses a
+`FW_VERSION` with no `## v<N>` section in `docs/CHANGES-customer.md`, and `build` waits on it. A fourth step my plan did not
+name. The proposed v19 entry is in this PR for Daniel to approve, as the file says: Code proposes, and Daniel approves in the
+bump PR. The gate passes locally on full history.
+
 **Step 3, the pre-tag reads on C:**
 
 | read | predicted |

@@ -23,6 +23,18 @@ change at promote.
 -->
 url: https://scopes.valarsystems.com/blipscope/changes
 
+## v19
+notify: no
+summary:
+- Safer updates  (refs: #552)
+
+### Updates check what they install
+Before it installs an update, Blipscope now checks that the update was made for it. An update meant for any other
+model is turned away before anything is written, and Blipscope carries on exactly as it was.
+
+### Smaller fixes
+- When Blipscope is plugged into a computer, writing its log can no longer slow the radar down.
+
 ## v18
 notify: no
 summary:
