@@ -335,3 +335,31 @@ is printed.
 **So D1s + F2s stands re-registered as G1, D1, F2 and R1s, with R1s reading 34, which is what it read.** The
 {G1, D1, F2} prediction stays on record as my miss. The credits driver's CRLF fix follows as its own PR, predictions
 first.
+
+### 8.6 Off: #623's CI, `test (proxy)` red at K12's fixture check (for a ruling)
+
+- **What CI read** (on `6d71f585`, run 42518019285): the step "The weather server crop fixtures match the server path"
+  (`npx tsx scripts/wx-fixtures.ts --check`) failed with `opuk frame: range 1915684-2118518 is not in the fixture`.
+  - Every later step of that job was skipped, `npm test` included.
+  - The prediction was 0 failed.
+- **Why:**
+  - K12's crop set builds an opuk frame from the stored OPERA fixture through `OPUK_GRID`, which is now the isles grid.
+    Its window needs ranges the fixture never held.
+  - It needs the same re-registration that §2 and §7.3 made for the vitest fixture tests. It was missed because K12 is
+    a `workers.yml` step, not a vitest test, and nothing I ran locally runs those steps.
+  - `scripts/wx-opuk-measure.ts` (K11, not in CI) reads the same fixtures through `OPUK_GRID`, and would fail the same
+    way.
+- **My miss:** I listed `OPUK_GRID`'s users in `test/` and `src/`, and not in `scripts/`.
+- **The fix, committed locally and not pushed:** both scripts read the fixtures through `OPUK_FIXTURE_GRID`. Nothing
+  else changes, and the committed crops stay as they are.
+- **Read locally with the fix:**
+  - **Unfixed,** `--check` reproduces CI's line, exit 2.
+  - **Fixed,** with the two `MANIFEST.json` files as LF (as CI's checkout has them): **exit 0.** The 8 server crops,
+    the 8 opuk crops and both manifests are byte-identical.
+  - On this CRLF checkout the manifests read STALE by line ending alone, while the crops matched. That is the same
+    family as the credits driver's anchors. The manifests were restored by bytes.
+  - **Every step CI skipped after it** also exits 0 here: `embed-fonts`, `embed-fake-ids` and `embed-device-salt`
+    `--check`, `mint-fixture.py --check`, `typecheck`, the drift workflow's check and its selftest, and
+    `typecheck:scripts`. `npm test` is §8.4's whole-suite run, which passed.
+- **Proposed:** K12, and K11's script, are re-registered onto `OPUK_FIXTURE_GRID` with the committed crops unchanged.
+  CI is re-predicted at 35 = 32/3/0 on the new head.
