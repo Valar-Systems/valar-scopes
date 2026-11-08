@@ -366,3 +366,44 @@ Either way it's announced through Daniel first, because it uses the account.
 | **anything else** | | **outside this set: the probe is unreliable at this scale, stop and decide.** Nothing is read into it on the spot |
 
 **Not in W3:** the feeds' CPU. That needs W5's trim code, so it's read in W5's staging reading.
+
+### S4.2, 2026-11-08: W3 ruled, restated before it runs, and announced
+
+**Ruled ~02:33Z (Q121):**
+- **(a): `wrangler dev --remote`,** announced through Daniel. It isn't a deploy, so it takes no claim.
+- **If (a) reads refused across the board,** (b) re-reads on a staging route before anything is concluded, since a preview's egress may not be a deployed Worker's.
+
+**W2:** blipscope-5c reads S4.1.2's contract table and agrees or objects through Daniel, before any code.
+
+**What changed since S4.1.3, before any W3 reading:**
+- **7 kinds of call, not 6.** The probe looks up each airport's position in NWS's own station record (`/stations/<ICAO>`), so no coordinate appears in its source or its output. That makes **105 calls** (7 × 5 airports × 3 rounds), plus 3 controls.
+- **The control** is `/stations/KDFW` with no User-Agent, once a round.
+
+**The probe's code was rehearsed, not reasoned:** one round under local `wrangler dev`, so its traffic left from this PC and not Cloudflare. **That run tests the probe, and is not a W3 reading:**
+
+| | read |
+|---|---|
+| the calls | 35 of 35 answered 200 |
+| the control | **403**, so the probe can see a refusal |
+| sizes | hourly forecast **162-163 KB**; stations list up to 106 KB; forecast about 14 KB; alerts 0.2-6 KB |
+| NWS's max-age | alerts 5 s; observation 8-71 s; forecast up to about 47 min |
+
+**For W5:** the raw hourly forecast is five times the device's 32 KB, so the Worker's trim is required, not an optimisation. NWS holds alerts only about 5 s, so W5's 60 s hold is the Worker's own choice and must be stated as one.
+
+**The rows, restated:**
+
+| row | predicted | if not |
+|---|---|---|
+| **W3-0, the rig** | `wrangler dev --remote` starts and answers on its local port | **the instrument,** reported. (b) needs its own ruling |
+| **W3-1** | **105 of 105** answer 200 | **refused across the board:** (b) re-reads on staging before anything is concluded. **Partly refused:** stop and report |
+| **W3-2, the control** | **3 of 3 answer 403** | a 200 means the control is blind, **recorded and not a stop** |
+| **W3-3** | each kind's median under 1,000 ms, and none over 5,000 ms | recorded; it sets W5's holds, and doesn't stop |
+| **W3-4** | each kind's max-age, recorded | |
+| **W3-5** | the hourly forecast 150-175 KB, every kind under 200 KB | recorded; W5's trim budget is re-read |
+| **anything else** | | **outside this set: stop and decide.** Nothing is read into it on the spot |
+
+**The window, announced through Daniel before it opens:**
+- **What runs:** about 25 minutes. `wrangler dev --remote` from a folder outside the repo, with no binding, route, KV or secret, then three rounds 10 minutes apart. About 36 calls to `api.weather.gov` a round, with `support@valarsystems.com` in the User-Agent.
+- **What it touches:** an ephemeral preview on the account. Nothing is deployed, and no Worker, route or KV changes.
+- **The close:** the local process tree is stopped and checked gone by command line, and the preview ends with it.
+- **The record:** statuses, times, sizes and max-ages only. No body, URL or coordinate.
