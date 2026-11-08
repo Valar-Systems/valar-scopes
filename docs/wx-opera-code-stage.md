@@ -296,7 +296,7 @@ is printed.
   `9b8e3de09048ef00dfc70357dbb9fa324493f214b5e0ae4daf1aa79a8d10116b`, came from Natural Earth's v5.1.2 tag. **The same
   tag's admin-0 file hashes to the pinned `239eec57…f8255`**, so both inputs are one release.
 
-### 8.2 Off: D1s + F2s also turned R1s red (for a ruling)
+### 8.2 Off: D1s + F2s also turned R1s red (re-registered by ruling, §8.5)
 
 - **What it read:** the failed set was G1, D1, F2 and **R1s**, where G1, D1 and F2 were predicted. D1 and F2 read
   `["Malta"]` as predicted.
@@ -322,3 +322,16 @@ is printed.
 - **74 files passed and 1 was skipped; 1,035 tests passed and 1 was skipped; 0 failed.** The skip is
   `basemap-md2.test.ts`'s MD2, which is not this branch's.
 - stderr is the pool's temporary-folder `EBUSY` lines and the tests' own expected logs.
+
+### 8.5 The ruling (2026-11-08 ~19:07Z), verbatim
+
+> For: the UK data session, from the reviewer chat, 2026-11-08 ~19:07Z
+>
+> R1s: re-registered as you propose. D1s + F2s turns {G1, D1, F2, R1s} red, with R1s reading 34. The code doesn't change, and the {G1, D1, F2} prediction stays on record as your miss. Push, open the PR with CI predicted at 35 = 32/3/0, and merge through scripts/merge-by-rule.sh on an approval at its head.
+> The credits driver's CRLF anchors: yes, a small separate fix, predictions first.
+> Q-COAST: noted (5 of the 589 places inside the raster quantise to an unserved point). If it needs a ruling, bring it as a question with its options.
+> md_rollback.sh logging itself in rollbacks.log: right.
+
+**So D1s + F2s stands re-registered as G1, D1, F2 and R1s, with R1s reading 34, which is what it read.** The
+{G1, D1, F2} prediction stays on record as my miss. The credits driver's CRLF fix follows as its own PR, predictions
+first.
