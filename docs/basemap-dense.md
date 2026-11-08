@@ -741,3 +741,49 @@ matched:
 I stopped both. The likeliest reading is that both were mine: Git Bash children are routinely left with an exited Windows parent, and
 `taskkill /T` from the launcher can't reach such a tree. **But the data doesn't exclude another session's tail of the same Worker.** From
 now on: record a background process's pid at launch, and stop only the tree that reaches this session.
+
+### Q-MEM1b, the instrument changed: registered before it runs
+
+**Why it is still needed after MG-A.** Workerd said KLGA fits under 128 MB, not by how much. The dense-area proposal must state each build's
+peak against 128 MB (ruled), and `READ_AHEAD`'s effect on it. Only a local figure can give a number, so the local instrument either earns
+its place here or is retired (ruled ~20:28Z).
+
+**The change: a settled sample.**
+- `gc()`, read `heapUsed + arrayBuffers`, and repeat until two readings in a row agree within 0.1 MiB, at most 4 collections.
+- A sample that hasn't settled after 4 is marked **unsettled** and isn't believed.
+- Q-MEM1's released hold read +32 MiB after one collection and was swept by the next, so two or three collections should settle.
+
+**The controls, each against its own settled sample, none chained:**
+
+| control | what | must read |
+|---|---|---|
+| **C1**, live hold | sample; allocate 32 MiB and keep it; sample | **+32 ± 1 MiB** |
+| **C2**, released hold | release C1's hold; sample, against C1's first sample | **within 1 MiB** |
+| **C3**, dead buffer | a fresh settled sample; allocate 32 MiB and drop it; sample | **within 1 MiB** |
+| **C4**, mid-build | C1-C3 again, in the control process, **at a cell-read sample:** the phase that held every Q-MEM1 peak | the same three bounds |
+
+**The same 16 processes as Q-MEM1** (New York's four, three times each; KJAC three times; one control process), each building its query cold,
+then warm, with every phase sampled settled. C1-C3 run in every process before its builds. Every build's band is printed as it is measured.
+
+| row | predicted |
+|---|---|
+| **MB0** | C1, C2 and C3 hold in all 16 processes, and C4 in the control process |
+| **MB1** | no unsettled sample anywhere |
+| **MB2** | each point's three cold builds agree within 2 MiB, and cold and warm agree within 2 MiB |
+| **MB3** | **every settled peak is under its Q-MEM1 ceiling**, and **at most 64 MB** |
+| **MB4** | the phase holding each peak: not predicted; reported |
+
+**What the readings will mean, fixed now:**
+
+| outcome | meaning |
+|---|---|
+| MB0-MB3 as predicted | the settled figures are the peaks the proposal states, as floors on live memory, as before |
+| **MB0 or MB1 fails** | **repeated `gc()` can't clear the lag: the local instrument is retired** (ruled), and the proposal says no local figure stands |
+| MB2 fails | unreliable at this scale: **stop** |
+| MB3's first half fails (a settled peak at or above its ceiling) | the settled sampler measures more than the unsettled one: **stop**, since that is impossible if both are right |
+| MB3's second half fails (over 64 MB) | recorded, with its band. Not a stop here, since workerd already answered KLGA (MG-A) |
+
+**Outside the set:** anything else stops it.
+
+**Then, if it stands: `READ_AHEAD`'s effect, as its own registration.** KLGA at `READ_AHEAD` 6, 3 and 1, each cold three times, read with the same
+instrument. That is registered after this read, not now.
