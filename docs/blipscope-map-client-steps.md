@@ -316,6 +316,16 @@ PREDICTED". The 13 plant lines are 13 of 13.
 > goes up with CI predicted at 34 = 30/4/0.
 > Your query has been passed to the map server.
 
+**The re-run (2026-11-08, frozen 02:39:24Z, run 02:39-02:46Z), after `pio pkg install -e blipscope-s3-128` (libraries
+only, 136 MB, no tracked file changed): as predicted on every line.**
+- exit 2, with failed blocks exactly "the same TU, for the board" and "Weatherscope R0 and R0b";
+- 34 drivers: 33 run, 1 skipped, in both driver passes;
+- MapLayer: 160 of 160, and CM9;
+- `sabotage_map_layer.py`: anchors 13 of 13, the control as its table, and 14 AS PREDICTED lines;
+- every other block ok. The log's three "BLIND" lines are `ok` lines whose wanted verdict is BLIND.
+
+The first run's five BLIND blocks and the 14 stay on record above as my misses (ruled ~02:33Z).
+
 ### The /basemap query for the default view (sent to the map server, 2026-11-07)
 
 The radar's default is 100 mi, so its zoom ladder is {5, 10, 25, 50, 100} mi. The request:
