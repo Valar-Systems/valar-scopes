@@ -508,3 +508,50 @@ samples can raise a real peak above the sampled one. So the figure is a floor on
 2. The reading, appended here.
 3. **The exact rung, proposed for a ruling,** with each build's memory.
 4. Then the one code PR (Q-W4): the rung, A+B and the sea mask, with the store change's Class A figures stated first.
+
+### Read (2026-11-08, 03:18:36-03:19:39Z, stopped): memory is off, and its two readings disagree
+
+**Stopped by me at 03:19:39Z,** on the first off reading. I ended the run's own process tree; nothing else was touched. The tree stayed
+clean, and nothing ran on staging.
+
+**My miss, recorded with its cause:** the script graded the memory band only at the end. The registered band is a stop, so it should have
+stopped at the first build over 96 MB, the run's very first line. The rows below it ran in the 63 s before I stopped it, and are reported as
+observed.
+
+**Everything graded before the stop read as predicted:**
+
+| row | read |
+|---|---|
+| memory control | the 32 MiB hold read **31.86 MiB** above (± 1 MiB) |
+| **DR0** | **13 of 13.** Byte-identical at the 9 that fit. At the 4 New York points, the copy's ladder equals the repo builder's and #620's to the byte |
+| **DR1** | **13 of 13.** #620's A+B table reproduced: the same water share to 0.1 point and the same secondary count at the 9; 422 at New York's 4 |
+| **DR2** | **3 of 3 so far** (KBOS, KMIA, KSFO): P1 byte-identical to ab |
+
+**DR3 was observed: P1 fits 0 of the 4 New York points.** Its registered meaning: **D2 does the work, and its floor is the decision.** At
+r=162, primaries and rivers at ε×4 still don't fit, even with every secondary road and every water ring dropped.
+
+**Memory: the registered stop band, from an instrument whose readings contradict each other.**
+
+| build | MiB above baseline | MB |
+|---|---|---|
+| KJFK v0, **the process's first build** (CTRL-a) | **97.3** | **102.0: over 96, the stop band** |
+| KJFK v0 again, holding 32 MiB (CTRL-b) | 129.1 | (the control: +31.86 MiB) |
+| **KJFK v0, the same build, later** (DR0) | **76.9** | 80.6 |
+| KLGA, KEWR, Midtown v0 (DR0) | 83.5, 77.0, 73.7 | 87.6, 80.7, 77.3 |
+| KBOS, KSEA v0 (DR0) | 65.2, 56.8 | 68.4, 59.6 |
+| KMIA, KSFO, KORD, KDTW, KMSP, KIND, KJAC v0 (DR0) | 24.3-39.6 | 25.5-41.5 |
+
+**Two readings of one build differ by 20 MiB,** and the build is deterministic, so the question is what moved between them. The control
+cannot answer it: **it proves a live buffer is counted, not that a dead one isn't.** Three explanations fit, and this read separates none:
+
+1. **Real, and first-build only:** a fresh isolate pays one-time allocations, such as lazily compiled code, that a reused isolate does not.
+   Then 102 MB is what a cold Worker would need.
+2. **The instrument over-counts:** `arrayBuffers` can still hold buffers that are dead but not yet swept after `gc()`. Then every figure
+   above is high by an unknown amount.
+3. **Something cached across builds:** a grep found no module-level `Map`, `Set`, array or object in `src/basemap`. That makes it unlikely,
+   but a grep doesn't prove it absent.
+
+**What is not known: workerd.** No build on staging has run New York at r=162. The fixtures' builds (KJAC, KSFO) read 33.9 and 26.6 MiB
+here.
+
+**So nothing is graded past this point,** and the questions go to the reviewer before anything resumes.
