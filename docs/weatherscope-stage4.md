@@ -436,3 +436,68 @@ from this PC, which isn't what W3 measures.
 
 **Recommended: (b),** because it reads the real path and answers the question either way. (a) is cheaper, but only excludes the least
 likely cause.
+
+### S4.4, 2026-11-08: W3 on a staging route (Q122 (b)), frozen before the window
+
+**Ruled ~20:13Z:**
+- W3-0 is recorded as the pre-registered rig outcome, with no retry of `dev --remote`.
+- **Q122 (b):** the probe runs as a route on the staging proxy, behind staging's existing device auth, and makes no call unless asked.
+- blipscope-5c reads its diff for conflicts before the deploy. The Worker-input diff is main plus the probe alone.
+- **Under the deploy claim, as `weatherscope`:** staging's rollback target is recorded first. After the reading, staging rolls back to it and is read back, and only then is the claim released.
+- The start and the end are announced through Daniel.
+
+**The probe, as code:** branch `weatherscope/w3-probe`, one commit on main `abd7c67b3ebb`, **never merged.** A draft PR carries it for
+blipscope-5c's read and for CI.
+
+| file | what |
+|---|---|
+| `proxy/src/weatherscope/w3probe.ts` | new: the probe. One request runs one round; it returns status, time, size and max-age only |
+| `proxy/src/index.ts` | one import, and one dispatch line after `basemap`, behind the same auth and per-key limit as every API route |
+| `proxy/src/types.ts` | `W3_PROBE?: string` |
+| `proxy/wrangler.toml` | `W3_PROBE = "on"` in `[env.staging.vars]` only. The edit asserted it's absent from production's section and the top level |
+| `proxy/test/w3probe.test.ts` | W3T1-W3T6 |
+
+**The path is `/api/v1/blipscope/w3-nws-probe`,** not under Q116's `/api/v1/weatherscope/`. The router knows one edition prefix today,
+and adding a second is W5's work. A temporary probe that rolls back shouldn't carry it.
+
+**Read locally before the push:** `tsc --noEmit` exit 0. **W3T1-W3T6 6 of 6** (one file, behind the vitest gate):
+
+| test | holds |
+|---|---|
+| W3T1 | no auth gives 401, even with the switch on |
+| W3T2 | with the switch off, as production is, an authenticated call gets 404 and no NWS call is made |
+| W3T3 | a round outside 1-9 is refused before any call |
+| W3T4 | one round is 35 calls with a User-Agent and 1 without, in W5's order |
+| W3T5 | no URL, body or coordinate in the response, with a control that it still says something |
+| W3T6 | a refused station marks its airport's other 6 calls skipped, not failed |
+
+**The tests can fail:** two plants turned exactly their rows red. Dropping the switch turned W3T2 red, and leaking a URL into a row turned W3T5 red. The file was restored from a byte copy and checked by sha256.
+
+**CI, predicted before the push:** the last job-set change is still `caf63cc9d9cc`. The four workflow commits since added steps only, and
+no job line. A `proxy/` change runs `workers` as well, so the baseline is #596's and #618's finished runs:
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the draft PR | **35** | 32 | 3 (promote, version, ship-alert) | 0 |
+
+#### The window's rows
+
+| row | predicted | stop |
+|---|---|---|
+| **D-claim** | `session-claim.py take deploy --covers proxy:staging` as `weatherscope` succeeds | held by another session: wait, never take it |
+| **R0, the target** | before anything, `wrangler deployments list --env staging` names the live version, and `/healthz` gives its commit. Both are recorded | can't be read: no deploy |
+| **D0** | `deploy.sh staging` exit 0: a clean tree, on a remote branch, not behind main in `proxy/`, `DEVICE_KEY_SECRET` present | any refusal: stop, and nothing was deployed |
+| **D1** | staging's `/healthz` reports the probe's commit, read twice a minute apart | another commit: roll back, stop |
+| **A0, the auth control, live** | the route with no credentials answers **401** | a 200: **roll back at once,** stop |
+| **W3-1 to W3-5** | as S4.2, on the deployed Worker: **105 of 105** answer 200, **3 of 3** controls answer 403, medians under 1,000 ms and none over 5,000 ms, max-age recorded, the hourly forecast 150-175 KB and every kind under 200 KB | as S4.2: refused across the board means NWS refuses Cloudflare's egress, and W5 goes through the relays; partly refused, or anything outside the set, stops |
+| **RB, the rollback** | `wrangler rollback` to R0's version, then `/healthz` reports R0's commit, read twice. The probe route answers 404 | not R0's commit: **report at once,** and keep the claim until it is |
+| **D-release** | the claim released; `session-claim.py show` lists no deploy claim of mine | |
+
+**The rollback runs whatever the reading says,** off-prediction included. A rollback is never refused, and it's announced.
+
+**Calls go as the test identity** (`docs/test-identity.md`): the token file's `test-device` with `test-key-staging`, through `curl -K -`, so
+no key appears on a command line or in output.
+
+**One thing staging loses for the window.** Staging runs main plus the probe for about 35 minutes, in place of whatever it runs now, then
+goes back to exactly that version. A session reading staging in that window would read main plus the probe. That's why the start and the
+end are announced.
