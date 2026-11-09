@@ -6,11 +6,13 @@
 #include "ConfigurationWebServer.h"
 #include "CloudFeed.h"
 #include <emscripten.h>
+#include "web_route.h"
 #include <map>
 #include <string>
 
 namespace web {
 extern String g_cloudBase;
+extern bool g_airportsRemote;
 extern std::string g_apiBase;
 }
 
@@ -50,6 +52,8 @@ void ConfigurationWebServer::RequestReset(factoryreset::Tier) {}
 void web_config_commit()
 {
     web::g_cloudBase = CloudFeed::NormalizeBaseUrl(String(settings()["cloud-url"]));
+    // The venue's own field (docs/web-kiosk-airfield.md): /airports goes to the page's apiBase only when asked.
+    web::g_airportsRemote = webroute::AirportsRemoteOn(settings()["airports-remote"]);
 }
 
 extern "C" {

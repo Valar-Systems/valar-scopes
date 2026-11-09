@@ -490,6 +490,13 @@ jobs:
         run: |
           bash scripts/check-no-weather.sh --selftest
           bash scripts/check-no-weather.sh ".pio/build/${{ matrix.env }}/firmware.bin"
+      # The web build's own keys, kiosk and airports-remote, are in no shipping device image (docs/web-kiosk-airfield.md,
+      # KI4). Their positive control is in the web workflow, on the wasm that must carry both.
+      - name: No web-only key in a shipping image
+        if: matrix.slug
+        run: |
+          bash scripts/check-web-only.sh --selftest
+          bash scripts/check-web-only.sh ".pio/build/${{ matrix.env }}/firmware.bin"
       - name: No secret in the factory image
         if: matrix.slug
         run: |
