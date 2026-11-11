@@ -1187,6 +1187,61 @@ The ruling's own stamp, ~19:25Z, was estimated, not read. The orchestrator corre
 - **CI at the fix's head, re-predicted: 32 = 29/3/0,** on #640's docs-only baseline. **This was #644's first off
   reading; another goes to the owner.**
 
+### Registered before step B's code (2026-11-11): the refusal's commit
+
+**Status: #644 merged (`0e384618`). Step B's code goes on `feat/map-client-step-b`, and this registration is its first
+commit.** The commit after it carries CB10's refusal and CD4, and no drawing code. So `main` can never hold a
+map-drawing path without its refusal. That is the ruling's second clause: the refusal lands no later than the first line
+that draws the map.
+
+**What the refusal's commit holds:**
+- **`src/AircraftManager.h`** gains one `// THE MAP DRAW BEGIN` / `END` region, directly after the `THE MAP FETCH`
+  region (where `BLIPSCOPE_MAP_FETCH` is defined), holding CB10's block exactly as frozen. Step A's `THE MAP FETCH`
+  pins (`h:3`, `cpp:9`) do not move.
+- **`test/host/check_map_draw.py`** holds CD4 alone until the draw files exist, so it prints **`1 checks, 0 failures`**.
+  CD1-CD3 join it in the commit that adds the files they read.
+  - CD4 reads the `THE MAP DRAW` regions of `src/AircraftManager.h` and `.cpp`, pinned at `h:1`, `cpp:0` for now.
+    A pin off in either direction, or an unbalanced marker, is the rig (exit 2).
+  - If any region exists, the comment-stripped header must hold CB10's `#if` line and its `#error` line, compared with
+    whitespace normalised.
+  - A definition of `BLIPSCOPE_MAP_STEP_C` (`#define BLIPSCOPE_MAP_STEP_C`, `-DBLIPSCOPE_MAP_STEP_C`) is searched for in
+    `include/`, `src/`, `platformio.ini` and `tools/`. The allowed definer list is empty until step C names its header.
+- **`test/host/sabotage_map_draw.py`**, with two plants, each in a copy of the tree:
+  - **S-CD-NOREFUSAL** deletes the `#error` block and keeps the region: {CD4}.
+  - **S-CD-STEPC** adds `#define BLIPSCOPE_MAP_STEP_C 1` to `src/AircraftManager.cpp`: {CD4}.
+  - Its count constant is `SOURCE_CHECKS = 1`, so `lint_driver_counts.py` reads a named count.
+- **`test/host/run.sh`** gains a `== MapDraw ==` block after `MapFetch`'s.
+
+**Predicted, before any of it is written:**
+
+| run | predicted |
+|---|---|
+| **L1** `check_map_draw.py` | `1 checks, 0 failures`, exit 0 |
+| **L2** `sabotage_map_draw.py` | control clean; S-CD-NOREFUSAL {CD4}; S-CD-STEPC {CD4}; `MAP DRAW SABOTAGES (2) AS PREDICTED`; the real files unchanged |
+| **L3** `--anchors` over every driver (42 with the new one), and `--control` for the new one | every anchor present exactly once; the control matches its table |
+| **L4** `check_map_fetch.py` | unchanged: `3 checks, 0 failures` |
+| **L5** the four builds: pio from PowerShell, in this order, each in its own process with `PLATFORMIO_BUILD_FLAGS` set only for it | see below |
+
+**L5, and what each reading means:**
+
+| build | predicted | any other reading |
+|---|---|---|
+| **R-FLIP:** `blipscope-s3-128` with `-DWX_LAYER_SHIPS` | **fails**, and the log holds CB10's `#error` text | a pass, or a failure for any other reason, stops the step |
+| **R-FLIPC:** `blipscope-s3-128-wxlook` as it stands | builds | stops the step |
+| **R-BENCH:** `blipscope-s3-128` with `-DWX_LOOK_AB`, then `check-no-bench-hooks.sh` on its `firmware.bin` | builds; the scan exits **1** with `FAIL: bench hook marker '[wx-bench]'` | a failed build, or scan exit 2, is BLIND and stops the step |
+| **R-BENCHC:** `blipscope-s3-128` unchanged, then the same scan | builds; the scan exits **0** | stops the step |
+
+- **Each flag is proven by its artifact, never by the command:**
+  - R-FLIP by the `#error` text in its log;
+  - R-BENCH by `[wx-bench]` in its image;
+  - R-BENCHC by the marker's absence behind the scan's anchor.
+- R-BENCH and R-BENCHC share a build directory, so R-BENCHC must rebuild without the flag, and its scan reads the image
+  it produced.
+- C: is read before the builds. None runs under 30 GB.
+
+**After L1-L5:** the whole host suite under WSL is registered before it runs, as W8 was, and so is the code PR's CI.
+Nothing is pushed before the orchestrator's go.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
