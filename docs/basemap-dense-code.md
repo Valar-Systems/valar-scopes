@@ -1127,6 +1127,49 @@ Every other use was already in the home's frame and stays there: the truth masks
   plant_junction's build and render. Grading is untouched.
 - **The control:** a planted child raising `ValueError("planted traceback")` printed its traceback, then `STOP`, with exit 1.
 
+### The design read, re-run (2026-11-11, 23:55:14–23:55:24Z): stopped at plant_junction's assertion, the SECOND instrument failure
+
+**The run.**
+- It ran on the 23:53:19Z ruling, after `ec078b3ae264` was pushed and every artifact read as recorded.
+- The driver exited 1, and its error file is empty. The log is scratch (`87183f506982`).
+- The fetch re-verified all 192 objects and fetched nothing. The 12 builds repeated byte-for-byte in their reported figures, all rung 3.
+- The renders ran, and the pictures exist (`lake-out/BUFFALO-{a,b,c}.png` and the plants'), as ruled.
+
+**The stop.** At Buffalo, plant_junction's assertion read **FAILS**: of its 25 planted pixels, **0 were NE-only water on US land**.
+- The site rule chose a US-land pixel inside the NE lake, on the border (0.00 km).
+- **Per the frozen rule, no design is read.** The design lines the renders printed before the controls are in the log and are not
+  read.
+
+**The other two plants show the same, from figures the run printed:**
+- **plant_spill** drew 49 rings and 14,969 water pixels, **exactly (b)'s**. Its 600 m square never became a ring.
+- **plant_seam** read SEAM 3,040 against (b)'s 3,045, **no more**. Its 300 m band added no seam.
+
+**The cause: the plants are smaller than the water the package draws.**
+- Every build is rung 3, which draws water from the **ε × 8 set, simplified at about 1.6 km**.
+- At that tolerance, Douglas–Peucker reduces a 600 m or 300 m square to under 3 vertices. The water path then counts it collapsed and
+  never draws it.
+- A 300 m band cut along the border is smoothed away in the same simplification.
+- **I sized the plants against the 67 m pixel, not against the simplification the package actually draws.** The assertion (the
+  orchestrator's addition) is what caught it, before any design was read.
+- **The alternative,** that the plants never reached the builder, is not excluded by direct observation. The injection counts show
+  each plant was written into a cell the build reads (plant_spill: 2 cells, against (b)'s 1). But the build output does not print
+  `collapsed.water`, so "collapsed" is consistent with the data, not observed.
+
+**What a fix would need (proposed, not applied; this goes to the orchestrator and on to the owner, as ruled for a second failure):**
+- **Plants above the drawn tolerance:**
+  - the spill square at least about 3.2 km (twice 1.6 km), so it survives as a ring;
+  - the seam band at least about 3.2 km;
+  - the junction square the same.
+- **The plant_junction assertion restricted to its planted NE-only US pixels within 1.5 km of the border.** A square that large
+  reaches past the band, so it would also hold SPILL_SHORE pixels.
+- **A landing check on every plant build,** read before its control:
+  - plant_spill draws more water than (b);
+  - plant_seam draws less;
+  - and `collapsed.water` printed beside each build.
+- **A question this raises for the owner, beyond the instrument.** At rung 3 the package's water is simplified at about 1.6 km, roughly
+  24 pixels at the closest zoom. Every water edge is then this coarse, TIGER's included, which bears on what "a clean lake at the
+  closest zoom" can mean for this package.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
