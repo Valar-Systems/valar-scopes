@@ -392,7 +392,7 @@ Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms
 
 ## Step A: fetching the package (predictions, for review; 2026-11-08)
 
-**Status: predictions only. No code until they are ruled.** Step M's host side merged as #619 (`e934e93b`). The
+**Status: ruled 2026-11-08 ~20:28Z (verbatim below); merged as #624. The code is on `feat/map-client-step-a`, after the registration below.** Step M's host side merged as #619 (`e934e93b`). The
 fixtures (KJAC, KSFO) came in the map server's #621, and #620 read r = 162 under the cap everywhere but New York.
 Neither changes a row here.
 
@@ -489,6 +489,188 @@ These rows are registered with the bench image, not here.
   refusals). Proposed as stated; none is ruled yet.
 - **Q-MA5:** until D4, production answers `503 not_configured`. Under CA7 a shipped device backs off to an hourly ask. That
   is only reachable if the joint release ships before D4, which the release plan does not allow.
+
+### The ruling on step A's predictions, verbatim (reviewer chat, pasted by Daniel, 2026-11-08 ~20:28Z)
+
+> #624: approved at 70e1bbd397fa once its CI double-reads 32 = 29/3/0. Merge through scripts/merge-by-rule.sh. Step A's code may start once it has merged.
+> Q-MA1: yes, one read-only accessor in OtaUpdater.cpp. blipscope-5c reads that diff before your push, as the file's owner.
+> Q-MA2: yes. A boot after the network watchdog's reboot also takes the delay, since an outage restarts the fleet together.
+> Q-MA3: accepted: after an update the map can be off for up to 2 h. If Daniel sees it in daytime and dislikes it, persistence comes as its own proposal.
+> Q-MA4: yes, as proposed: a 60 s fallback when Retry-After is missing, backoff from 60 to 3,600 s, 1 h after a 401 or 403, and at most 3 gate refusals per config.
+> Q-MA5: accepted. The release waits for D4, as #606 orders, so a 503 not_configured only ever reaches bench and staging, and it backs off like any 503.
+
+#624 merged on its fourth attempt (2026-11-11 01:33:12Z, squash `947e1d3825fc`). The three attempts before it each
+stopped on "main moved", with nothing merged. The ruling on those, verbatim (reviewer chat, pasted by Daniel, 2026-11-11 ~01:12Z):
+
+> Q-MC12:
+> (a) Yes, make a fourth attempt once #631's merge is on main; you're second in the order. #624 is still 70e1bbd397fa, docs only, and merges cleanly onto main 81cfbd0.
+> (b) Good proposal. It goes to blipscope-5c, as the owner of the claims design, after v19's cut, with predictions and a plant where the holder dies mid-wait. The declared order covers it until then.
+>
+> All three stops were correct: nothing merged, and the claim was released each time. Step A's code still waits for #624, and the disk rule stands.
+
+### Registered before step A's code (2026-11-11), for review
+
+Everything here was computed or decided before any of step A's C++ existed. The request's numbers come from a scratch
+reference in Python, with float32 emulated through `struct`. It reproduces all six frozen CA1 strings and caps exactly.
+
+**1. The ladder comes from the radar; the values come from the stored config.**
+- **The disagreement.** A ladder re-derived in double disagrees with the radar's own at exactly one of CA2's 6,660
+  configs. The radar's ladder is `radarzoom::BuildLadder` of the float display radius. At 25.5 nmi that float lands
+  just above 25.5, so the radar shows a 25 nmi step that a double ladder omits.
+- **What `mapquery::Build` does instead.** It takes the radar's `radarzoom::Ladder` and uses only its step count. The
+  steps are `CANDIDATES[0 .. n-2]` and the configured radius. Each is turned into mm in double, from the stored
+  distance and the unit's exact factor, never from the ladder's floats.
+- **The result.** With the radar's ladder, every radar step among the top three has a level of its own at all 6,660
+  configs. With the double ladder, one does not. CA1's strings are the same either way.
+
+**2. CA2, as three rows.** Each runs over the sweep: 0.1 to 222 by 0.1, in km, mi and nmi, which is 6,660 configs.
+The route's bounds are read from `proxy/src/basemap/query.ts` and the cap from `budget.ts`. Numeric separators are
+allowed; anything the parser cannot read is the rig (exit 2).
+- **CA2-bounds:**
+  - `1 <= r <= MAX_R_KM`;
+  - `EPS_MIN_MM <= eps <= EPS_MAX_MM`;
+  - at most `LEVELS_MAX` levels, unique, each with `LEVEL_R_MIN_MM <= R <= LEVEL_R_MAX_MM` and `1 <= N <= LEVEL_N_MAX`;
+  - `Σ(8 + N²) <= TERRAIN_BYTES_MAX`;
+  - `terrain` is in `layers` exactly when there are levels.
+- **CA2-rcover:** `r >= Rv + 0.555 km`, unless `r = 222`.
+- **CA2-levels:** each of the radar's top three steps (its float step, in km in double) has a level of its own, whose
+  pixel is within 1 % of step/120, and that level has `R >= step + 0.785 km`. The exception is a step whose own `N`
+  would exceed 1,024, or whose `R` would fall outside 1-250 km. Printed, and predicted exactly:
+  - 6,660 configs;
+  - 19,496 steps with a level of their own;
+  - 4 steps with none;
+  - 11,041 steps below the top three.
+
+**3. The policy's rules where the frozen rows left a choice** (`include/MapPolicy.h`):
+- **Clocks.**
+  - Every wait runs from the moment that set it. A `Retry-After` or a backoff runs from the reply's arrival (the
+    `nowMs` given to `OnResponse`). The spread runs from the boot's first `AircraftManager::Initialise()`.
+  - Every comparison is the wrap-safe signed difference `WxPolicy` uses (WD5 addendum 7), so a time later than the
+    pass's `now` is not due.
+- **`Retry-After` (CA4, CA5).** Accepted as 1-4 ASCII digits whose value is 1-3,600, so `"0015"` is 15. Everything else
+  is refused: absent, empty, `0`, `3601`, a sign, a space, a decimal point, five digits, an HTTP date.
+- **Statuses the table does not name.**
+  - 400 is the no-package state, like 404 and 422: the same query would be refused again.
+  - A 429 with a refused `Retry-After` is treated as a 429 without one (CA7's backoff).
+  - Any other status is an error (CA7): a 3xx, any other 4xx, and a 304, which no request invites.
+  - A 202 neither grows nor resets the backoff.
+  - 401 and 403 wait 3,600 s and leave the backoff's level where it was.
+- **The backoff's level.**
+  - It persists across config changes, and only a 200 whose package passes the gate resets it (CA7's "reset by a 200").
+  - That reset can only be observed across a config change, because F8 asks for nothing more once a package is held.
+- **The gate (CA8).**
+  - Every 200 that does not yield a package `maplayer::Load` accepts counts as a refusal. That covers a CRC or §8
+    refusal, and also a body over the cap, a short body and a stalled one.
+  - Each refusal counts once toward the 3. The third is the no-package state, with no backoff wait.
+- **A reply that never comes** ends after 60 s (`kReplyTimeoutMs`) as a failed attempt (CA7), and its late reply is
+  ignored. That is longer than `WxPolicy`'s 30 s, because the package can approach 1 MB at the smallest radii.
+- **Config changes.**
+  - The boot's first query is not a change, so the spread, if any, still holds.
+  - The key is lat and lon at 2 dp, plus the whole parameter string. Every later change of the key drops the package,
+    clears the stop and the gate count, and cancels any wait, so the next request goes at once (CA10).
+- **The spread (CA9).** Three kinds of boot spread:
+  - deferred cause `OTA_CHECK`, the nightly reboot;
+  - deferred cause `NET_WEDGE` (Q-MA2);
+  - the new image's first boot after an update.
+
+  `TOUCH_WEDGE` asks at once, and so does a boot with no cause and no update record. A power-on, a first-run restart
+  and a config-save boot are the same input to the device, so their three rows share one input.
+  `D = FNV-1a("map-spread|" + LeaderboardId) mod 7,200` s.
+
+**4. The cases.** `test/host/test_map_fetch.cpp` has 42 cases; `test/host/check_map_fetch.py` holds CA12-CA14.
+
+| row | cases |
+|---|---|
+| request | CA1, CA1b, CA1c, CA1d, CA1e, CA1f, CA2-bounds, CA2-rcover, CA2-levels, CA3 |
+| CA4 | CA4-202 and CA4-429 (`"15"`: not due at +14,999 ms, due at +15,000); CA4-edges (`"1"`, `"3600"`, `"0015"`) |
+| CA5 | CA5-absent; CA5-values (the ten refused values above, each waiting 60 s and flagged as refused) |
+| CA6 | CA6-404, CA6-422, CA6-400: nothing asked at +1 min, +1 h or +24 h; a radius change asks once, at once; the same answer stops it again |
+| CA7 | CA7-500, CA7-503, CA7-429, CA7-transport: two in a row, waiting 60 s then 120 s |
+| | CA7-timeout: two timeouts, 60 s then 120 s, with the late reply ignored |
+| | CA7-cap: eight 500s, waiting 60, 120, 240, 480, 960, 1,920, 3,600 and 3,600 s |
+| | CA7-reset: three 500s, an accepted 200, a radius change, then 500s that wait 60 s and then 120 s |
+| CA7b | CA7b-401 and CA7b-403: exactly 3,600 s, twice |
+| CA8 | CA8-first: one refusal waits 60 s and holds no package |
+| | CA8-recover: two refusals, then a pass, and the package is held |
+| | CA8-stop: the third refusal stops; a radius change starts the count again |
+| | All three advance their clock an hour per step, so they read no backoff length past the first |
+| CA9 | CA9-ota, CA9-nightly, CA9-netwedge: not due at D s − 1 ms, due at D s |
+| | CA9-poweron, CA9-firstrun, CA9-config, CA9-touchwedge: due at once |
+| | CA9-dist: 10,000 synthetic ids give D in [0, 7,200), a mean of 3,600 ± 72, and each of 12 ten-minute bins within ±15 % of 833.3 |
+| CA10 | CA10-change: a held package is dropped and the request goes at once, also from inside a spread wait and from inside a backoff wait |
+| | CA10-location: the same, for a latitude change |
+| | CA10-zoom: every view step gives a byte-identical request and key, and nothing is asked |
+| CA11 | CA11: a 200 that passes, but answers the config from before a change, is dropped; the new config asks at once |
+
+The synthetic ids are made at run time with splitmix64, in the id's own shape (16 hex digits). They are never written
+as literals and never printed. Neither the test nor the check prints a D, a hash or an id.
+
+**5. The plants: 23, each set computed before the code.** The request plants' sets come from the scratch reference run
+under each plant. The policy and source plants' sets come from applying the rules above, row by row.
+
+| plant | the break | turns exactly |
+|---|---|---|
+| S-CA-MARGIN | `r` without the 0.8 km | CA1, CA1b, CA1c, CA2-rcover (as frozen) |
+| S-CA-EPSFLOOR | no 1,000 mm floor | CA1f, CA2-bounds (as frozen) |
+| S-CA-FLOAT | each radius through a float before its mm | CA1, CA1c (as frozen) |
+| **S-CA-LEVELM** (new) | each level's margin 0.7 km, not 0.8 | CA1b, CA1c, CA1d, CA2-levels |
+| **S-CA-CAP** (new) | the cap's base is 32,000 | CA1, CA1b, CA1c, CA1d, CA1e, CA1f, CA3 |
+| S-CA-RA | a valid `Retry-After` replaced by a fixed 30 s | CA4-202, CA4-429, CA4-edges |
+| S-CA-RAZERO | a refused `Retry-After` read as 0 | CA5-absent, CA5-values, **CA7-429** (a 429's absent header is the same refused value) |
+| S-CA-404RETRY | the no-package branch gone, so 404, 422 and 400 read as errors | CA6-404, CA6-422, CA6-400 |
+| S-CA-FLAT | every error waits 60 s: no growth, and no hour for 401 and 403 | CA7-500, CA7-503, CA7-429, CA7-transport, CA7-timeout, CA7-cap, CA7-reset, CA7b-401, CA7b-403 |
+| **S-CA-NORESET** (new) | an accepted 200 does not reset the backoff | CA7-reset |
+| **S-CA-NOTIMEOUT** (new) | a request never times out | CA7-timeout |
+| S-CA-GATE | refusals without limit | CA8-stop |
+| **S-CA-GATE1** (new) | the first refusal stops | CA8-first, CA8-recover, CA8-stop |
+| S-CA-NOSPREAD | no boot spreads | CA9-ota, CA9-nightly, CA9-netwedge |
+| S-CA-SPREADALL | every boot spreads | CA9-poweron, CA9-firstrun, CA9-config, CA9-touchwedge |
+| **S-CA-DMOD** (new) | D mod 3,600 | CA9-dist |
+| S-CA-ZOOMFETCH | levels for the three steps up to the view's step, not the ladder's top three | CA10-zoom |
+| **S-CA-CHANGEWAIT** (new) | a change keeps the pending wait | CA10-change, CA10-location |
+| **S-CA-KEEPPKG** (new) | a change keeps the held package | CA10-change, CA10-location, CA7-reset |
+| S-CA-NOSEQ | no config sequence check | CA11 |
+| S-CA-NVS | a `putString` in the map's region of `AircraftManager.cpp` | CA12 |
+| S-CA-PRINTD | a log line there printing the spread | CA13 |
+| S-CA-NORA | `Retry-After` dropped from `GetBytes`'s list | CA14 |
+
+S-CA-NVS and S-CA-PRINTD go into `AircraftManager.cpp`, which the C++ test does not compile, so neither can turn a
+compile failure into extra red rows.
+
+**6. The source checks.**
+- **The map's files** are:
+  - `include/MapQuery.h`, `include/MapPolicy.h` and `include/MapLayer.h`;
+  - the regions of `src/AircraftManager.h` and `src/AircraftManager.cpp` between `// THE MAP FETCH BEGIN` and
+    `// THE MAP FETCH END`.
+
+  The check pins the number of regions in each file. A count off in either direction, or a BEGIN without its END, is
+  the rig (exit 2). Comments are stripped before reading.
+- **CA12** refuses these in the map's files: `Preferences`, a `put…(` call, `nvs_set`, `nvs_commit`, `SPIFFS` and
+  `LittleFS`.
+- **CA13** reads every `printf`, `print` and `println` there.
+  - It refuses any argument whose identifier contains one of these words: lat, lon, latitude, longitude, id,
+    leaderboard, hash, fnv, spread, key, mac. Identifiers are split into words at camelCase and underscores.
+  - It refuses a `"lat"` or `"lon"` parameter that is not built by `wireloc::Center(`.
+  - It prints how many print calls it read. Reading none is the rig.
+- **CA14** reads `GetBytes`'s `kCollectHeaders`.
+  - The list must be exactly Transfer-Encoding, ETag, X-Cache, X-Upstream, X-Wx-Max-Age, Retry-After, in that order.
+  - The `Retry-After` header must be read into `HttpResult::retryAfter`.
+
+**7. Outside the host suite.**
+- **The wiring.** `FetchKind::Basemap`, `RequestBasemap`, `ConsumeBasemap` and the PSRAM landing buffer sit under
+  `WX_LAYER_SHIPS`, inside the marked regions.
+  - The buffer is allocated at the cap of the request about to go out, and reallocated only when a later request
+    needs more.
+  - A failed allocation leaves the map off until the next config change.
+- **Compiling, and reading the images.** The code must compile in `blipscope-s3-128` (the switch off) and in
+  `blipscope-s3-128-wxlook` (the switch on). Before the push, both images are read for `/basemap`:
+  - the shipping image must hold none;
+  - the wxlook image must hold it. That is the control: it shows the read can see the string.
+- **The OtaUpdater accessor (Q-MA1)** is `bool BootFollowsUpdate()`.
+  - It is read-only: `Preferences` opened read-only on `ota-mem`.
+  - Its answer is cached for the boot. Its first call is in `AircraftManager::Initialise()`, before the first check-in
+    can clear the record.
+  - That diff goes to blipscope-5c before the push.
 
 ## Carried to later steps by the ruling
 
