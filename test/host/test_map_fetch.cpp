@@ -118,6 +118,10 @@ struct Route {
 // ---- the radar's own ladder, as AircraftManager::Initialise makes it ------------------------------------------------
 // distanceKm = units::ToKm (double); radLat clamped to [0.001, 2.0] degrees; rangeRadiusDisplay = units::FromKm, whose
 // km argument and division are float (DisplayUnits.h); then radarzoom::BuildLadder((float)rangeRadiusDisplay).
+// EVERY VALUE THE DEVICE HOLDS AS A FLOAT GOES THROUGH A volatile float (Q-MC13, 2026-11-11). An i686 host (MinGW 5.1)
+// does float arithmetic on the x87 at 80 bits and may keep the excess bits across an assignment or a cast; then 50.5
+// mi read a hair above 50.5 and the ladder gained a 50 mi step the device never has. A store to a volatile float rounds
+// to float, and for + - x / that one rounding of the x87's result is exactly the device's float result.
 
 struct Unit {
     const char* name;
@@ -131,10 +135,11 @@ radarzoom::Ladder RadarLadder(double distance, const Unit& u)
     double radLat = distanceKm / 111.0;
     if (radLat < 0.001) radLat = 0.001;
     if (radLat > 2.0) radLat = 2.0;
-    const float km = (float)(radLat * 111.0);
-    const float shown = u.factor == 1.0 ? km : km / (float)u.factor;
+    volatile float km = (float)(radLat * 111.0);
+    volatile float shown = u.factor == 1.0 ? km : km / (float)u.factor;
     const double rangeRadiusDisplay = shown;
-    return radarzoom::BuildLadder((float)rangeRadiusDisplay);
+    volatile float configured = (float)rangeRadiusDisplay;
+    return radarzoom::BuildLadder(configured);
 }
 
 mapquery::Request Req(double distance, const Unit& u, int viewStep = -1)

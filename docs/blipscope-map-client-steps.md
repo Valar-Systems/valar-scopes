@@ -769,6 +769,24 @@ They run in that order, R1, R2, R3, and the first off reading stops the rest.
   whole cause, and the fix may be hiding something. I stop.
 - Anything outside these: the comparison itself is suspect at this scale. I stop and decide.
 
+### Q-MC13's runs (2026-11-11, 03:41-03:42Z): R1, R2 and R3 as predicted
+
+The fix as registered (249ce535, 03:41:11Z): `km`, `shown` and a new `configured` in the test's `RadarLadder` are
+`volatile float`, and the comment above it says why. The diff is 8 lines added and 3 removed in
+`test/host/test_map_fetch.cpp`, and `include/` matches 555068c7.
+
+| run | at | build | exit | log | read |
+|---|---|---|---|---|---|
+| **R1** MinGW 5.1, with the fix | 03:41:40Z | clean | 0 | `0223cabd5390` once its carriage returns are removed | **as predicted**: 42/42, CA2-levels 6,660 / 19,496 / 4 / 11,041 |
+| **R2** g++ 13.3, with the fix | 03:41:49Z | clean | 0 | `0223cabd5390` | **as predicted**: unchanged, 42/42 |
+| **R3** MinGW 5.1, the unchanged test, `-msse2 -mfpmath=sse` | 03:42:00Z | clean | 0 | `0223cabd5390` once its carriage returns are removed | **as predicted**: 42/42 with g++'s counts |
+| plant: MinGW 5.1, the unchanged test, x87 | 01:55:23Z | clean | -- | -- | the 01:55Z reading, which stands: CA2-levels alone red |
+
+R3's copy was 555068c7's blob, `36ec7344f708`, checked before the build. The plant and R3 are the same source built
+the same way except for `-msse2 -mfpmath=sse`, and that difference alone turns CA2-levels from red to green. So the
+cause was x87 excess precision on the host, not a MinGW miscompile, and the fix makes the test's copy compute what the
+device computes. Next, as registered: CA12-CA14, the sabotages and the firmware build.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
