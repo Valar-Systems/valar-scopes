@@ -1108,6 +1108,25 @@ Every other use was already in the home's frame and stays there: the truth masks
 - The builds are deterministic and repeat.
 - This is the read's first re-run. A second instrument failure goes to the orchestrator and on to the owner.
 
+**The ruling (the orchestrator, 23:53:19Z):**
+- Yes: push and re-run the whole driver in the frozen order.
+- Name the file and line the mapping was transcribed from.
+- Stop the driver swallowing a child's traceback.
+
+**Where the mapping comes from**, at the pinned `525cf7d1725d`, so it can be re-checked:
+- **`src/weatherscope/WxBasemap.h:48`:** `c0_ = fmax(cos(lat0_ * (kPi / 180)), 0.01)`, the PACKAGE's cosine.
+- **`:53-56`, in `Mapper::ToScreen`:**
+  - `e = qx / 32767.0 * rmm_ / 1e6`, `s = qy / 32767.0 * rmm_ / 1e6`;
+  - `lat = lat0_ - s / kKmPerDeg`, `lon = lon0_ + e / (kKmPerDeg * c0_)`;
+  - `x = kC + (lon - homeLon) / rLon * kC`, `y = kC - (lat - homeLat) / rLat * kC`.
+- **`src/weatherscope/WxRender.h:6`:** `rLat = R / 111.0`, `rLon = R / (111.0 * max(cos(home lat), 0.01))`.
+
+**The driver no longer swallows a child's traceback.** `lake-read.py` → `2917187758b5`; the copy that ran is `eb2663a4807c`.
+- On any child's failure, `stop` prints that child's last 15 stderr lines (a traceback, or wrangler's error) before it stops.
+- Every failing branch passes it: the fetch, the builds, the renders, `--site` (a new check of its exit), `lake-junction` and
+  plant_junction's build and render. Grading is untouched.
+- **The control:** a planted child raising `ValueError("planted traceback")` printed its traceback, then `STOP`, with exit 1.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
