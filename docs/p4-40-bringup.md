@@ -477,3 +477,38 @@ This control removes the clock rather than accounting for it.
   the ELF and image hashes.
 - **For blipscope-5c (via the reviewer):** a rebuild diff made with `SOURCE_DATE_EPOCH` and one tree path needs no time-string
   accounting at all.
+
+### CI2's off reading at `c7afef855520`, and its fix: predictions frozen before the fix (ruling 2026-11-11, about 20:20Z)
+
+**The reading:**
+- `host-tests (ubuntu-24.04)` failed. Every other finished leg passed.
+- The cause, read with CI's compiler (WSL Ubuntu-24.04, g++ 13.3): `test/host/test_ota_identity.cpp` pins the fleet's counts
+  from `identities.txt`. "A new env changes them, and that is deliberate", says its own header.
+- At the 10-row table it reads R1 30/30, M1 42/58, M2 174/174 and M3 20/80 (22), against pinned 24, 38/26, 78 and 16/48 (22).
+- **Every matrix reads "0 off the rule".** The same binary passes all four on `8f1a878f`'s 8-row table.
+- **The miss:** CI1 checked `check_ota_identity.py`'s rules on the table and did not look for the table's other readers.
+
+**Every reader of `identities.txt`, found by grep** (`git grep identities.txt`), by name:
+
+| reader | how it uses the table | what the two P4 rows do to it |
+|---|---|---|
+| `scripts/check_ota_identity.py` | derives the fleet; `--check-table` holds the file equal to it | nothing: CI1, passing |
+| `test/host/test_ota_identity.cpp` | **pins** R1/M1/M2/M3 | fails: the reading above |
+| `test/host/test_ota_install.cpp` | **pins** O10: `rows == 8 && noRecord == 16` | fails: 10 rows, 20 no-record |
+| `test/host/test_ota_model.cpp` | derives its checks from the rows; its **header comment** states "8 rows ... 16 checks" | passes; the comment goes stale (10 rows, 7 without a scope: 20 checks) |
+| `test/host/sabotage_ota_model.py` | derives its plants from the rows | nothing |
+
+The same sequence happened once before, on 2026-11-06, when Weatherscope's row moved the same two pinned tests
+(`docs/wx-device.md`).
+
+**The fix:** the pinned counts and their prose move to the 10-row fleet, each comment saying why: "two P4 rows (p4-40), added
+by #648".
+- `test_ota_identity.cpp`: R1 `n == 30`; M1 42/58; M2 `n == 174`; M3 20/80 (22).
+- `test_ota_install.cpp`: O10 `rows == 10 && noRecord == 20`.
+- `test_ota_model.cpp`: its comment, 10 + 7 + 3 = 20.
+
+| row | prediction | outside the set |
+|---|---|---|
+| **F1** | in WSL Ubuntu-24.04 (g++ 13.3), on the committed 10-row table: `test_ota_identity` passes all checks, `test_ota_install` passes all checks, and `test_ota_model` passes, reporting 20 checks | anything else: stop |
+| **F2** | a planted 11th row (`plant-p4 - plant-board`) in a COPY of `test/fixtures/ota` (11 rows asserted, and the real table's blob asserted unchanged) makes `test_ota_identity` fail R1/M1/M2/M3, and `test_ota_install` fail O10 | either passes on the plant: its count is not pinned after all; stop |
+| **F3** | the PR's next head: **36 check runs**, the same names as at `c7afef855520`, every one passing or skipped, **both `host-tests` legs and the `host-tests` aggregate included**. Re-checked at push time: main has made no job-set change since `8f1a878f` | a different count or name, or any failure: read the run first; a second off reading on #648 goes to the reviewer |
