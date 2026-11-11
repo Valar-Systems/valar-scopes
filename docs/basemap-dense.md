@@ -1484,3 +1484,37 @@ The plant's later samples are reported, not graded.
 
 **Order:** three variant processes, then three planted ones. Each is graded per build, stopping at the first off reading, against this
 file. The meaning table is as registered at `27054fc20d7c`.
+
+### The release variant, phase 2, read (2026-11-11, 05:12:02-05:12:06Z): stopped at RV1, in the first variant process, at one cell
+
+The trace was frozen at 05:11:54Z (`8469f8d575c3`). The runner confirmed `pred7.json`'s sha256 before running. One variant process ran; the
+driver stopped itself (exit 15). The error file is empty, the tree stayed clean, and nothing ran on staging. The plant didn't run.
+
+| | read | frozen | difference |
+|---|---|---|---|
+| RV3 | controls ok; settled (at most 3); objects local; 422, DR0's ladder; KJAC `b3f428e5860e` | - | as predicted |
+| cells 1-10 and 12-21 | 27.37, 30.07, 33.72, ... 53.64 at cell 16, ... 38.63 | 27.32, 30.03, 33.67, ... 53.60, ... 38.59 | **+0.04 to +0.05 at every one** |
+| **cell 11** | **57.34** | **52.47** | **+4.87: off (bound 0.785)** |
+| the tile loop's largest | 56.73 at its end | 56.60 | +0.13 |
+| after the loops | tiles 56.66, terrain 56.83, layers 59.98, **ladder 60.01**, end 8.88 | 56.47, 56.72, 59.86, **59.90**, 8.77 | +0.11 to +0.19 |
+| **the build's largest** | **60.01 MiB (62.9 MB, at most 64), in the ladder phase** | 59.90, in the ladder phase | +0.11 |
+
+**By the registered table:** RV1 off, with PL1 not yet read. **The variant still holds something the formula doesn't count. Stop and report.**
+
+**What cell 11's excess is, as far as this read goes:**
+- The other cells sit about 0.05 above their frozen values, so the excess is **about 4.82 MiB, at cell 11 only.** By cell 12 the trace is
+  back on the formula (51.71 against 51.67).
+- **It can't be anything v0 holds too,** such as a second copy of a decoded cell. The formula subtracts v0's trace, so that would cancel.
+  It has to be something v0 holds and the variant should not: **a consumed read still reachable.**
+- **Which read:**
+  - **cell 10's,** 4.82 MiB, the one consumed just before. A stale slot in a running frame, C2's effect, would fit.
+  - **cell 4's,** 4.86 MiB. Its size is within noise of the excess, though I know of no mechanism that would hold it.
+
+  The sizes alone can't separate the two.
+- **Whether it repeats, or appears at other cells in other processes:** not known. One process ran.
+
+**What it does and does not change:**
+- **The build's largest is unchanged.** It is in the ladder phase, and cell 11's 57.34 sits under it.
+- Even if every cell held its previous read as well, the largest such cell would be cell 11's 57.29 (52.47 + 4.82), which is still under
+  the ladder phase's 59.90.
+- **Not shown:** whether workerd keeps a consumed read reachable in the same way, or more often.
