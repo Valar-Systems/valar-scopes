@@ -410,3 +410,35 @@ same copy, at the same point, read:
 each, and prints the bands and the verdict.
 
 **When:** after p4's ten-env rebuild has ended.
+
+## Q-RV5, read (2026-11-11, 19:07:56-19:08:04Z): (1) holds; the code shape is not the cause
+
+The registration was pushed at 19:07:27Z (`0dc556a2`). **p4 reported its rebuild ended at 19:04:24Z,** with nothing of its own building on
+Windows or WSL. The wrapper's sha256 and every artifact check read as registered. Each child's controls held, every sample settled,
+every object was local, and both answered KJFK's 422. The error files are empty, and nothing ran on staging. The log is scratch (sha256
+`49e043655741`).
+
+| phase (MiB) | (1) the copy, Q-DR3's child | (2) the plant |
+|---|---|---|
+| cell | **61.19** | 55.03 |
+| tile, tiles, terrain | 54.76, 54.65, 54.90 | 54.94, 54.79, 55.04 |
+| layers, ladder | 57.99, 58.02 | 58.10, **58.14** |
+| **band** | **COPY** (61.58 ± 0.785, the cell phase) | **PR** (58.52 ± 0.785, the ladder phase) |
+
+- **(1) holds:** the copy still reads its own figure today, so the environment has not moved.
+- **(2) reads the PR's figure,** although its release line is the copy's `if (RELEASE)` form, word for word. **The code shape is not the
+  cause.**
+- **By the ruled table: report as read. No re-registration until a cause is named.**
+
+**What is left between (1) and (2).** The release line is now the same, and after the cell loop the two agree to 0.2 MiB. Two
+differences remain:
+1. **The builder tree.** The copy's `build.ts` constructs two more frames and two more layer sets (ε×4 and ε×8, empty under v0) and reads a
+   sea hook, and its `budget.ts` carries the variants.
+2. **The child.** `dr-child2.mts` also imports the repo's unpatched builder (`wt-main`'s module graph) and the shapefile reader. `dr-child5`
+   imports only the hooked tree.
+
+**Proposed (Q-RV6), read-only and registered first:** cross the two at KJFK, one process each:
+- **(a)** the copy's builder under `dr-child5`'s imports;
+- **(b)** the plant under `dr-child2`'s imports.
+
+Whichever pair reads COPY names the cause: the tree, or the child's second module graph. Neither, or both, is reported as read.
