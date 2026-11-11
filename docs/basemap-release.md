@@ -357,3 +357,56 @@ same copy, at the same point, read:
 2. **A plant:** the PR's hooked builder with its release line rewritten in the copy's `if` form and nothing else. Does it read the copy's
    61.6? This tests the code shape.
 3. **Then, by what those show,** re-register RL1 with the PR's own figures, or report the cause if neither explains it.
+
+## The ruling (from the orchestrator, 2026-11-11 ~19:05Z), verbatim (its Q-RV5 part)
+
+> Q-RV5: yes, registered and committed before it runs. Two reads, then a re-registration, with what each result means decided now:
+> - (1) The copy at KJFK, in Q-DR3's own driver, now.
+>   - Predicted: about 61.58 +/- 0.785 in the cell phase.
+>   - If it reads about 58.5 instead, the environment has moved (Node, the machine, the driver). Stop: every figure measured before today
+>     is suspect until re-based, and that goes to the owner.
+> - (2) The plant: the PR's hooked builder with only its release line rewritten in the copy's "if (RELEASE) {...} else" form, edit
+>   asserted to have applied.
+>   - Predicted: about 61.58 in the cell phase, the copy's figure.
+>   - If (1) holds AND (2) reads about 61.6: the code shape is the cause. The PR's builder genuinely holds about 6 MiB less in the cell
+>     loop at KJFK. Go to (3).
+>   - If (1) holds but (2) still reads about 58.5: the shape isn't the cause. Report as read; no re-registration until a cause is named.
+>   - Anything else: stop and report.
+> - (3) Only after (1) and (2) read as the code-shape case:
+>   - A MEASUREMENT run of the PR's builder at all 13 points, labelled as measurement, not graded.
+>   - Then RL1 re-registered against those figures, +/- 0.785, committed.
+>   - Then a FRESH run in new processes, graded. Never grade RL1 on the run its figures came from.
+>
+> Order: [...] run (1) and (2) after [p4's ten-env rebuild] ends, to take that alternative off the table cleanly.
+
+## Q-RV5's two reads: registered before they run
+
+**(1) The copy, in Q-DR3's own child,** `dr-child2.mts` (sha256 `694d8c715454`, unchanged since 2026-11-10 21:49:24 PT, before Q-DR3 ran):
+- KJFK, v0, with `DENSE_RELEASE=1`, one process, exactly as Q-DR3's DR0-copy row ran it.
+- The copy's `build.ts` is `c9328545b7ed`. It gained the sets knob after Q-DR3, and with `DENSE_SETS` unset that path is unchanged (AU0
+  showed it).
+
+**(2) The plant,** `rv-hk/hk-plant` (its `build.ts` is `095d8a3e0700`):
+- the PR's hooked builder with its release line rewritten in the copy's form,
+  `if (RELEASE) { const v = await pending[i]!; pending[i] = undefined; yield v; } else yield await pending[i]!;`;
+- plus the copy's own `RELEASE` line (`process.env.DENSE_RELEASE === "1"`), since the `if` form needs it;
+- it runs with `DENSE_RELEASE=1`, in `dr-child5.mts` (`78e0bf60d5db`), which is `dr-child4.mts` with one line changed to accept "plant";
+- **the edit is asserted to have applied:** `diff` against the PR's hooked `build.ts` shows those lines and nothing else, and every other
+  file is byte-identical.
+
+**The bands, fixed now:**
+- **COPY:** within 0.785 of 61.58 MiB, in the cell phase;
+- **PR:** within 0.785 of 58.52 MiB, in the ladder phase.
+- Each child must also show its controls held, every sample settled, every object local, and KJFK's 422.
+
+| (1) | (2) | meaning | next |
+|---|---|---|---|
+| **COPY** (predicted) | **COPY** (predicted) | **the code shape is the cause:** the PR's builder holds about 6 MiB less in the cell loop at KJFK | (3): a measurement run at all 13, not graded; RL1 re-registered against it, ± 0.785, committed; then a fresh graded run |
+| COPY | PR | the shape isn't the cause | report as read; no re-registration until a cause is named |
+| **PR** | any | **the environment has moved** | **stop.** Every figure measured before today is suspect until re-based, and this goes to the owner |
+| anything else | | the instrument is suspect | **stop and report** |
+
+**The wrapper** is `rv-q5.sh` (sha256 `ca4c1aa80d38`). It checks every artifact's sha256 and the plant's diff, runs (1) and (2) once
+each, and prints the bands and the verdict.
+
+**When:** after p4's ten-env rebuild has ended.
