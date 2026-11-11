@@ -155,3 +155,53 @@ C's job set is main's, except #633's added steps in one existing job. So:
 - **The code commit** (`include/`, `src/`, `test/host/`): 34 = 30 / 4 / 0, the shape of a `src/` change, as #631 read at C
   itself.
 - **Out of the set, at any step:** stop and report.
+
+## 9. Amendment 1, made before any code was committed and before any C..candidate diff was read (2026-11-11 ~23:00Z)
+
+**Ruled (a) by the reviewer at 22:57Z,** on blipscope-5c's report of ~22:55Z, which said in full:
+- "THE GAP: the six HP rows go into test/host/test_ota_install.cpp, which moves that suite's check count from 36 to 42.
+  TWO drivers pin that count for their --control pass:
+  - test/host/sabotage_ota_install.py (`INSTALL_CHECKS = 36`): in scope.
+  - test/host/sabotage_ota_identity.py:114 (`INSTALL_CHECKS = 36  # test_ota_install's count, frozen in A12.104`): NOT in
+    the scope frozen in #651 section 6."
+- "WHY IT'S MY MISS: I froze the file list without searching for other readers of the suite's count. That's the same
+  'find every reader' step I did for /healthz's commit, which I skipped here."
+
+**The state when this was written:** some of the in-scope code existed locally (`include/OtaInstall.h`), uncommitted. No
+code was committed, and no diff from C to a candidate had been read.
+
+**The scope, amended.** Added to section 6's table, and nothing else: **`test/host/sabotage_ota_identity.py` —
+`INSTALL_CHECKS` and its comment only.** It is a host-only test driver: it ships in no image, and touches none of setup,
+Wi-Fi, the logbook, claims or touch.
+
+**The reader sweep the ruling asked for.** It covers every symbol, constant, count, file and source type the fix touches,
+run as `git grep -nIE '<pattern>' 1c1f57547463 -- . ':!docs'`:
+
+| pattern | hits | readers found |
+|---|---|---|
+| `ReadHead\|ReadSome\|kEmptyReads\|kEmptyWaitMs\|waitEmpty` | 2 | `ReadHead`'s definition and its one caller, `Install` (`include/OtaInstall.h:69`, `:125`) |
+| `OtaInstall\.h` | 15 | included by `src/OtaUpdater.cpp` and `test/host/test_ota_install.cpp`; copied by the two sabotage drivers; named in comments in `run.sh` and `scripts/reconcile-fleet.py` (its result tokens, which this fix doesn't change) |
+| `ota::Install\(\|Install\(src\|FinishImage\|writeRest` | 22 | `Install` from `OpenAndInstall` (`src/OtaUpdater.cpp:331`) and the bench (`:419`); `writeRest` on the device (`:236`) and in the host's `FakeFlash` (`test/host/test_ota_install.cpp:108`) |
+| `INSTALL_CHECKS\|test_ota_install` | 14 | the count is pinned in `sabotage_ota_install.py:134` and `sabotage_ota_identity.py:114`; the suite is built by `run.sh:2015` and both drivers |
+| `OTA_BENCH_HEAD_STALL\|\[ota-bench\]` | 13 | the marker is in `check-no-bench-hooks.sh`'s list; `tools/weatherscope/board/ota_bench.py` parses only the `more` and `result=` lines, so a `head stall` line can't be misread |
+| `StreamSource\|SerialBudget\|struct [A-Za-z]*Source` | 5 | exactly three source types reach `Install`: `StreamSource`, `SerialBudget` (bench) and `FakeSource` (host). All three gain `waitEmpty()` |
+
+**What the sweep changed, beyond the count.** Both are made here, before code, so neither can surface quietly later:
+1. **HP1, HP3 and HP4 use the device's OWN head and expect `Installed`.** As registered, HP1 and HP3 expected `Foreign`
+   from the `s3-21` head. But `sabotage_ota_identity.py`'s S-ID2b (`Accept` compares the scope only) makes that head
+   acceptable, so S-ID2b would turn HP1 and HP3 red and its registered red set would have to grow, outside even the
+   amended scope. The rows test the patience, not the board check, so they use the own head:
+   - HP1: 5 empty reads, then the own image; `Installed`, the flash log `begin,write,writeRest,end` (at C: `Truncated`);
+   - HP3: the own head one byte per read with an empty read between each, then the rest; `Installed`, after exactly 351
+     waits;
+   - HP4: 299 empty, 1 byte, and so on to 352 bytes, then the rest; `Installed`.
+   - HP2, HP5 and HP6 are unchanged.
+   - Under S-ID1b and S-ID2b the own head is accepted, so both identity plants keep their registered sets.
+2. **S-O8a's registered red set gains {HP2, HP5}.** S-O8a writes first and decides after, so a truncated head shows up in
+   the flash, not the decision: HP2 reads `flash-failed`, and HP5 reads well past 300 reads. It is the same reason I6 is
+   already in that set. **S-O8b, S-ID3, S-ID1b and S-ID2b keep their registered sets exactly.**
+   - P-NORETRY's red set stays {HP1-HP6}, and P-BYPASS's stays {HP1-HP5, W-RS1}.
+   - `INSTALL_CHECKS` becomes 42 in both drivers.
+
+Section 6's check otherwise runs exactly as registered. Anything else out of scope, or an instrument that can't decide,
+means step 4 runs with the owner.
