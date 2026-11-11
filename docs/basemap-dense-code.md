@@ -257,3 +257,72 @@ QW4-1's memory differences.
   first sample (`MEM?.("tile")`) then forces its own `gc()`, so a dropped plant is collected before any later phase is read.
 - **So QW4-P's "0 ± 0.785 in tile, tiles, terrain, layers and ladder" stands as registered.** A reading of +8 there would mean the plant
   was still reachable, not that the GC hadn't run yet. That still stops the run as blind, by the table.
+
+## The re-run, read (2026-11-11, 22:19:24-22:21:20Z): every stop row held. QW4-D2 is reported off
+
+The re-registration was frozen at `a04463364094` and amended at `c7282536bc02`. The go was the orchestrator's at 22:19Z. Every artifact's
+sha256 read as registered first, and C: had 76 GB free. The driver exited 0, the error file is empty, and nothing ran on staging. The run
+read the pinned `525cf7d1`, not main's head. The log is scratch (sha256 `4e8165f37e6d`).
+
+**QW4-0, the byte half: as predicted at all 13** (Nov 8's DR0 packages at the 9, #620's ladders at New York). **The memory is
+recorded as the baseline:**
+
+| | KBOS | KJFK | KLGA | KEWR | Midtown | KMIA | KSFO | KSEA | KORD | KDTW | KMSP | KIND | KJAC |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| largest, MiB | 56.02 | **61.61, cell** | 60.01 | 60.81 | 58.09 | 39.39 | 39.21 | 49.18 | **39.87** | 47.13 | 47.26 | **43.98** | 38.88 |
+
+**The open bound reaches further than it was written.** With every knob off, the prototype reads like Q-DR3's scratch copy at KORD (39.87,
+against the shipped builder's 45.79) and KIND (43.98, against 50.85), as well as at KJFK. That is recorded, not investigated (ruled).
+
+**QW4-P, the difference instrument's control: as predicted.** The builder made 8,388,608 bytes and read them back as 14. Against
+QW4-0's KJFK, the difference was **+8.00 MiB in the cell phase** and **0.00 in tile, tiles, terrain, layers and ladder**, with the same
+answer. **The instrument can see a difference, so the memory rows below are read.**
+
+**QW4-1, B with tp and the backstop, no sea: as predicted at all 13.**
+
+| point | the fit | crossings | secondary | B minus knobs-off at the ladder phase, MiB | largest, MB |
+|---|---|---|---|---|---|
+| KBOS | 162 km, rung 3 | 0 | 8 | +12.75 | 72.1 |
+| KJFK | **129.6 km**, rung 7 | 0 | 0 | +13.24 | 75.3 |
+| KLGA | **129.6 km**, rung 7 | 0 | 0 | +13.98 | **77.6** |
+| KEWR | **129.6 km**, rung 7 | 0 | 0 | +13.23 | **77.6** |
+| Midtown | **129.6 km**, rung 7 | 0 | 0 | +13.00 | 74.6 |
+| KMIA | 162 km, rung 2 | 0 | 1,571 | +1.62 | 43.0 |
+| KSFO | 162 km, rung 3 | 0 | 719 | +2.16 | 43.4 |
+| KSEA | 162 km, rung 3 | 0 | 342 | +3.94 | 55.7 |
+| KORD | 162 km, rung 3 | 0 | 276 | +6.81 | 48.9 |
+| KDTW | 162 km, rung 3 | 0 | 386 | +5.64 | 55.3 |
+| KMSP | 162 km, rung 3 | 0 | 18 | +5.09 | 54.9 |
+| KIND | 162 km, rung 3 | 0 | 335 | +7.62 | 54.1 |
+| KJAC | 162 km, rung 1 | 0 | 578 | +1.78 | 42.6 |
+
+- **0 proper crossings in all 13 packages, and every package `kOk` and at most 32,768 non-terrain bytes.** The 9 fit at 162 km and New York
+  at 129.6 km, so **no visible cost.** Every phase's difference is recorded in the log.
+- **The backstop's first catch, as named:** at KMSP it refused exactly 2 rings, counted across the sets it builds.
+  - KMSP's package still draws 176 water rings with 0 crossings, as the cost read's did, so the ε × 8 set it draws lost nothing.
+  - Yet the package changed (`0b4b403134bb`, against the cost read's `4c143b450ad4`). At rung 3 its `PROVENANCE` takes
+    `collapsed.water` from the ε × 2 set, so **at least one refusal was in the ε × 2 set**. Where the other was is not read.
+  - **A question for the code PR:** under rungs 2 to 4, `collapsed.water` describes a set the package doesn't draw.
+- **The other 12 packages equal the cost read's tp packages** (KBOS `fee6825e1fd0`, KJFK `04797ddc40a9`, and so on). This prototype is
+  built on the shipped builder, and the cost read used the copy, so the two agree on what is built.
+
+**QW4-M: no build over 96 MB.** **KLGA's and KEWR's B builds read 77.6 MB, 0.4 MB above the 77.2 the owner took with B.** Every other
+build is under it.
+
+**QW4-D2: reported off, as the table says (into D4's plan).**
+
+| point | step 0 (162 km), in the call against alone | step 1 (129.6 km), in the call against alone |
+|---|---|---|
+| KJFK | 71.78 / 71.75 (+0.02) | **63.15 / 57.57 (+5.59)** |
+| KLGA | 73.99 / 73.96 (+0.04) | **64.55 / 58.99 (+5.56)** |
+| KEWR | 74.04 / 74.06 (−0.02) | **69.54 / 63.39 (+6.16)** |
+| Midtown | 71.10 / 71.10 (0.00) | **64.73 / 59.17 (+5.56)** |
+
+- **The step after a 422 carries about 5.6 to 6.2 MiB into the next build.** The call's largest is still its first step (the 162 km
+  try), so New York's largest is not raised by it.
+- **For D4's plan:** a D2 call with a third step, or a first step smaller than its second, would carry it into a peak. The object isn't
+  named, and the ruling says not to investigate it here.
+
+**For the frozen predictions (the next step):** the code PR's memory will be graded as its builder against main's, at the same point and
+phase. The open bound means a tree difference alone can move KJFK, KORD and KIND by 6 to 7 MiB. **So the frozen differences at those
+three points need the bound beside them, not only ± 0.785.** That goes into the re-registration of the figures, for a ruling.
