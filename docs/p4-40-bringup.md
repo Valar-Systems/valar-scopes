@@ -326,7 +326,8 @@ Graded against the predictions as committed: sections 1-7 in `cfbe3458`, section
   1,874,682 B (`-r3`); the image files are 1,990,224 B and 1,991,376 B. Against the s3-128's 1,931,983 B on the same measure,
   that is 0.97x, inside 0.75-1.3x. The frozen text said "near the low middle"; it is the middle.
 - **C3, partitions fit: holds.** Both images use 28.6 % of the app slot; RAM is 18.6 % (61,000 B and 61,064 B).
-- **C4, the artifact: holds in substance; one literal clause is false.**
+- **C4, the artifact: OFF, on record (ruled 19:23Z by the orchestrator's stamp, 19:11Z by this session's clock).** Its revision
+  clause was false as written, and one false clause fails the row. C4's first off reading; another, on C4', goes to the reviewer.
   - **The anchor was the shipping s3-128 baseline ELF**, not the netfault image the row named (that env was not built here). It
     serves the same purpose: it proves the grep can see the host.
   - **Present in both P4 images:** `blipscope-p4-40`, `p4-40`, `192.0.2.1`, and the symbols `Panel_JD9365` (10), `Touch_GT911`
@@ -339,13 +340,12 @@ Graded against the predictions as committed: sections 1-7 in `cfbe3458`, section
     scopes.valarsystems.com". With the config page's links in every radar image, that check is stale as written.
   - **Bench note:** those enroll links carry the device id. With section 2a's code, a P4's id comes from its base MAC (empty
     only when refused). Nobody enrolls a P4 until B-ID has shown that id is the board's own.
-  - **The `esptool image_info` revision clause is false as written, and its property holds by another artifact.**
-    - Both app images, and both bootloaders, read "Minimal chip revision v0.0, Maximal v655.35". The headers carry no
-      revision gate. The row named the wrong artifact.
-    - The property it was for, each env built for its own silicon, holds by the library paths compiled into assert strings:
-      `blipscope-p4-40` names `esp32p4_es` 143 times and `libs/esp32p4/` none, and `-r3` is the exact reverse. Those library
-      sets carry `CONFIG_ESP32P4_REV_MIN_FULL` 1 and 301.
-    - Whether a board of the other revision refuses an image stays a bench fact: B0 picks the env before any flash.
+  - **The `esptool image_info` revision clause is false as written.** Both app images, and both bootloaders, read "Minimal chip
+    revision v0.0, Maximal v655.35": the headers carry no revision gate, so the row graded the wrong artifact.
+  - **Printed, not graded** (found after the row failed): `blipscope-p4-40` names `esp32p4_es` 143 times and `libs/esp32p4/` none,
+    and `-r3` is the exact reverse. Those library sets carry `CONFIG_ESP32P4_REV_MIN_FULL` 1 and 301. C4' below grades that
+    evidence, as a new row with a plant.
+  - Whether a board of the other revision refuses an image stays a bench fact: B0 picks the env before any flash.
 - **C5, no existing image changes: nine pass; two off readings, both the build clock's.**
   - **The method:** the ten CI envs at `8f1a878f`, then at `735b5c09` (proven to be the tree C5 built). They were graded by a
     grader that adds one ruled kind to the five regions, and was first shown to read STOP on a planted payload byte and on that
@@ -405,6 +405,23 @@ Q-TEXT went to the reviewer with the recommendation to decide it on the glass at
 - **ID1: holds.** Both P4 ELFs contain `[p4] identity: base=` and `base=%s known=`, and none of the ten S3 images contains
   `base=%s known=` (`label=` alone occurs in eight S3 images, from other code, which is why the row named the longer string).
 - **ID2** is C5 above.
+
+### C4', registered after C4 failed (ruling 19:23Z): each env is built for its own silicon
+
+The property C4 was for, graded on the evidence that can see it.
+
+- **The check:** in the app ELF, count `esp32p4_es` and `libs/esp32p4/` (`grep -caF`).
+  - `blipscope-p4-40` passes when the first count is at least 1 and the second is 0.
+  - `blipscope-p4-40-r3` passes on the reverse.
+- **The plant, which must turn it red:** `blipscope-p4-40` built against the other silicon's libraries, with
+  `pio run -e blipscope-p4-40 -O "board=esp32-p4_r3"` into a separate build directory (`PLATFORMIO_BUILD_DIR`), so the real
+  images are untouched.
+  - The plant counts as applied only if its `Processing` line names `board: esp32-p4_r3` and its ELF hash differs from the real
+    image's.
+  - Graded as `blipscope-p4-40`, it must FAIL.
+- **When:** the plant is a heavy build, so it runs with CI3's plant builds, after the owner's answer, not before.
+- **Outside the set:** the plant reads PASS, which means the check cannot see the property; stop. A real image reads FAIL: that
+  env did not build for its silicon; stop. Either goes to the reviewer (C4's second off reading).
 
 ### The clock control (registered 2026-11-11, before it runs; runs only on the owner's yes)
 
