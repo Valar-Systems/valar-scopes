@@ -570,3 +570,32 @@ New York. The log is scratch (sha256 `fc43b98c419e`), and its figures are in `rv
 **The ruled next steps are unaffected,** because they grade the PR's builder against its own figures: RL1 re-registered against this
 measurement, then a fresh graded run. **What is now open (Q-RV7)** is why the shipped builder holds 6 to 7 MiB more than the copy from
 the tile loop on, at KORD and KIND only. That bears on B's memory figures for the Q-W4 code PR, which builds on this builder.
+
+## The ruling (from the orchestrator, read at 19:29Z), verbatim (its steps 2 and 3)
+
+> Steps 2 and 3: go. They grade the PR's builder against its own measurement, so this doesn't touch them.
+> - RL1 re-registered against this measurement, +/- 0.785 in each point's own phase, committed.
+> - Then RL0-RL2 fresh, in new processes.
+
+## RL1 re-registered against the measurement; the fresh run registered before it runs
+
+**RL1's memory prediction is now the PR builder's own measured figure, ± 0.785 MiB, in the ladder phase at all 13** (the measurement
+put every peak there, KJFK included):
+
+| KBOS | KJFK | KLGA | KEWR | Midtown | KMIA | KSFO | KSEA | KORD | KDTW | KMSP | KIND | KJAC |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 56.70 | 58.54 | 60.01 | 60.81 | 58.11 | 39.39 | 39.21 | 49.18 | 45.79 | 47.13 | 47.27 | 50.85 | 38.88 |
+
+**Unchanged:**
+- RL1's answers: Nov 8's packages at the 9, and #620's ladders at New York;
+- RL0: main's builder at KLGA, 99.51 ± 0.785 MiB at cell 16, with DR0's ladder, under the owner's (a);
+- RL2;
+- the every-process checks; IC1 first.
+
+**The artifacts:**
+- `dr-rv3.mts` (`a093ebd92e4f`) is `dr-rv2.mts` with three lines changed: the reference figures, the phase (the ladder at all 13),
+  and the grade's label;
+- the wrapper `rv-rerun3.sh` (`12494d319e88`) is `rv-rerun2.sh` pointed at `dr-rv3`, refusing unless the three-line diff holds.
+
+**The run is fresh:** new processes, never the measurement's. It is graded per build, stopping at the first off reading, by the same
+table as the re-run under (a). **A stop on RL0 still goes to the owner.**
