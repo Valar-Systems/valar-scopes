@@ -5,11 +5,15 @@ CD4 alone until the draw files exist; CD1-CD3 join in the commit that adds the f
   CD4  CB10's refusal runs, not only its rule. If src/AircraftManager.h or .cpp holds any region between a line
        `// THE MAP DRAW BEGIN` and a line `// THE MAP DRAW END`, the comment-stripped header holds CB10's `#if` line and
        its `#error` line, exactly (whitespace normalised). And BLIPSCOPE_MAP_STEP_C, step C's macro, is defined nowhere
-       but in ALLOWED_STEP_C_DEFINERS (empty until step C names its header): `#define BLIPSCOPE_MAP_STEP_C` in include/
-       and src/, and `-DBLIPSCOPE_MAP_STEP_C` in platformio.ini and tools/, are searched with comments stripped.
+       but in ALLOWED_STEP_C_DEFINERS (empty until step C names its header).
+       THE DEFINER SCAN IS LINE-BASED, never through the C++ stripper (L1's first run: include/OtaCerts.h's raw string
+       crashed it): a directive line `#define BLIPSCOPE_MAP_STEP_C` in include/ and src/, and `-DBLIPSCOPE_MAP_STEP_C`
+       in platformio.ini and tools/ after ';' and '#' comments are removed. Its known direction: a matching line inside a
+       raw string or a block comment is flagged, which fails safe and visibly (a red naming the file).
 
 The region counts are pinned. A count off in either direction, or an unbalanced marker, is the rig (exit 2): a region the
-check cannot see is code it cannot vouch for.
+check cannot see is code it cannot vouch for. ANY exception is the rig too (exit 2, "RIG: <type>: <message>"), never a
+red: a crash is an instrument failure (the 11-04 rule). R-CD-RAWOK, R-CD-CRASH and R-CD-DECODE hold both directions.
 
     python -I test/host/check_map_draw.py <repo root>    exit 0 all pass; 1 a check failed; 2 the rig (cannot read)
 Its plants are S-CD-NOREFUSAL and S-CD-STEPC in test/host/sabotage_map_draw.py.
@@ -100,7 +104,7 @@ def cd4(root):
             why.append("a draw region exists, and CB10's #error line is missing from src/AircraftManager.h")
     definers = []
     for rel in files_under(root, "include", (".h", ".hpp")) + files_under(root, "src", (".h", ".hpp", ".cpp", ".c")):
-        if CPP_DEFINE.search(strip(read(root, rel))):
+        if CPP_DEFINE.search(read(root, rel)):   # line-based: a directive begins its line, so a // comment cannot match
             definers.append(rel)
     for rel in (["platformio.ini"] if os.path.isfile(os.path.join(root, "platformio.ini")) else []) + \
             files_under(root, "tools", (".sh", ".ini", ".py", ".mjs", ".js", ".json")):
@@ -116,8 +120,8 @@ def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
         rows = [("CD4",) + cd4(root)]
-    except Rig as e:
-        print(f"RIG: {e}")
+    except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
+        print(f"RIG: {type(e).__name__}: {e}")
         return 2
     fails = 0
     for name, why, regions_seen in rows:
