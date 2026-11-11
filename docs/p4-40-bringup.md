@@ -288,6 +288,13 @@ and decide". Every row reads the board's own output: serial at 115200 through th
 
 **Run only after Q-ID is ruled and the base points at staging:** a fetch to the Worker (`/v1/blips` answered), and the enrich path.
 
+**Added after the freeze, by ruling (orchestrator, 2026-11-11 18:32Z): Q-TEXT is the owner's call, on the glass.** Nothing is
+built toward any option before he chooses.
+
+| row | how | what he is shown | then |
+|---|---|---|---|
+| **B2-T** text on glass | after the staging switch, so the radar has contacts (the TEST-NET feed shows an empty sky). The 4C and a Kit S3 on the same feed sit side by side at **50 cm**, a seated person's distance to a desk device | the **Radar** face, the **List** face and a **detail card**, on both boards at once. With them: section 5's same-physical-pixel argument and the three options (a) leave, (b) Font0 x2 behind a variant flag, which costs `AircraftManager.cpp` and re-flowing List and the card, (c) a smooth font | his choice is recorded here by name of option. No option is started before it |
+
 ## 7. Questions for rulings
 
 - **Q-ID** (section 2): the P4's identity source. **Ruled ~18:25Z: option (a), with three conditions (section 2a).**
@@ -298,8 +305,120 @@ and decide". Every row reads the board's own output: serial at 115200 through th
   blipscope-5c's release process, or something else.
 - **Q-C6:** whether the C6's ESP-Hosted firmware may be updated if W5 reads "slave older". `hostedHasUpdate()` would fetch
   `espressif.github.io/arduino-esp32/hosted/esp32c6-v2.12.8.bin`.
-- **Q-TEXT** (section 5): whether a 720 px face scales its text.
+- **Q-TEXT** (section 5): whether a 720 px face scales its text. **Ruled 18:32Z: no change now; the owner decides on glass (row B2-T).**
 
 ## 8. Results
 
-Filled in as each row is graded, against the predictions above as committed.
+Graded against the predictions as committed: sections 1-7 in `cfbe3458`, section 2a in `35da4738`. Board rows are not run.
+
+### Compile rows
+
+- **C1, builds: holds.** Both envs end `[SUCCESS]`, but two first attempts failed. Each fix stays inside the P4's own env or
+  variant; neither edits an existing `src/` or `include/` file:
+  - **WiFiManager 2.0.17 does not compile on a P4.** `wm_consts_en.h` builds its country table from
+    `CONFIG_ESP32_PHY_MAX_WIFI_TX_POWER`, and the P4's sdkconfig has no PHY key. The env defines it as 20, the value in the S3
+    libraries' sdkconfig, and it reaches only `WM_COUNTRY_*`.
+  - **`main.cpp` reads `BLIPSCOPE_DISP_INVERT`,** which every variant defines and the P4's first draft did not. It is `false`:
+    the JD9365 table sends no INVON.
+  - **Edits to existing `src/`/`include/` files needed for the bring-up itself: 0.** The three P4-guarded edits in section 2a
+    (`DeviceIdentity.h`, `CloudFeed.cpp`, `AircraftManager.cpp`) are the ruling's, not C1's.
+- **C2, image size: holds,** with one qualifier wrong. At `735b5c09` PlatformIO reports 1,873,826 B used (`blipscope-p4-40`) and
+  1,874,682 B (`-r3`); the image files are 1,990,224 B and 1,991,376 B. Against the s3-128's 1,931,983 B on the same measure,
+  that is 0.97x, inside 0.75-1.3x. The frozen text said "near the low middle"; it is the middle.
+- **C3, partitions fit: holds.** Both images use 28.6 % of the app slot; RAM is 18.6 % (61,000 B and 61,064 B).
+- **C4, the artifact: holds in substance; one literal clause is false.**
+  - **The anchor was the shipping s3-128 baseline ELF**, not the netfault image the row named (that env was not built here). It
+    serves the same purpose: it proves the grep can see the host.
+  - **Present in both P4 images:** `blipscope-p4-40`, `p4-40`, `192.0.2.1`, and the symbols `Panel_JD9365` (10), `Touch_GT911`
+    (12) and `Bus_DSI` (15).
+  - **The false clause is "does not contain `scopes.valarsystems.com`".** It appears 4 times, all in the config page's
+    browser-side JavaScript: the locate link and the enroll links. The shipping image has those same 4, plus a 5th, its feed base
+    (`cloud-url ... https://scopes.valarsystems.com`). The P4 lacks that 5th; its feed base is `192.0.2.1`. So the feed base is
+    held, which is what the row was for.
+  - **Side finding, for blipscope-5c:** `[env:blipscope-s3-128-netfault]`'s comment says its ELF "must NOT contain
+    scopes.valarsystems.com". With the config page's links in every radar image, that check is stale as written.
+  - **Bench note:** those enroll links carry the device id. With section 2a's code, a P4's id comes from its base MAC (empty
+    only when refused). Nobody enrolls a P4 until B-ID has shown that id is the board's own.
+  - **The `esptool image_info` revision clause is false as written, and its property holds by another artifact.**
+    - Both app images, and both bootloaders, read "Minimal chip revision v0.0, Maximal v655.35". The headers carry no
+      revision gate. The row named the wrong artifact.
+    - The property it was for, each env built for its own silicon, holds by the library paths compiled into assert strings:
+      `blipscope-p4-40` names `esp32p4_es` 143 times and `libs/esp32p4/` none, and `-r3` is the exact reverse. Those library
+      sets carry `CONFIG_ESP32P4_REV_MIN_FULL` 1 and 301.
+    - Whether a board of the other revision refuses an image stays a bench fact: B0 picks the env before any flash.
+- **C5, no existing image changes: nine pass; two off readings, both the build clock's.**
+  - **The method:** the ten CI envs at `8f1a878f`, then at `735b5c09` (proven to be the tree C5 built). They were graded by a
+    grader that adds one ruled kind to the five regions, and was first shown to read STOP on a planted payload byte and on that
+    kind without its condition.
+  - **Five regions only:** `-wxlook` 76 B, `pro-s3-21` 76, `missileer-s3-128` 76, `missileer-photo` 76, `weatherscope-s3-128`
+    73, `animtest-s3-128` 69, `weatherscope-bench-s3-128` 69, `-joindiag` 77.
+  - **First off reading, `blipscope-s3-128`:** 79 B, the five regions plus 3 B at 0x185d04.
+    - That is one literal-pool word in `cnx_node_leave` (Espressif's prebuilt Wi-Fi library), changed 0x3c166660 -> 0x3c150080.
+    - Both addresses hold `"20\0"`. In the after image the target is the tail of WiFiManager's compile-time `"10:32:20"`;
+      the baseline was built at `09:45:00`.
+    - So string-tail merging moved the pointer to an identical string, because the build's seconds were 20.
+    - The orchestrator (18:40Z) ruled it accountable only under that predicate, and C5 passes for s3-128 on it.
+  - **Second off reading, `blipscope-pro-s3-175-amoled`:** +16 B (1,885,504 -> 1,885,520).
+    - `.flash.rodata` grows by 0x10, and no sized symbol changes.
+    - The one insertion is a standalone `"01\0"` plus a pad byte in the Wi-Fi library's string block (va 0x3c165acb),
+      grown to 16 by later section alignment.
+    - In the baseline, built at `10:01:07`/`10:02:01`, that `"01"` was tail-merged into a time string. The after build's
+      times end in 42 and 52.
+    - It is the same mechanism in the opposite direction, but it shifts every later rodata pointer.
+    - **The alternative:** this change's code reaching the image. Excluded by the insertion's content and place, but not
+      fully: a second change could hide under the shift. A second off reading on the row goes to the owner (18:40Z rule),
+      so the control below waits for his answer.
+
+**Deviations from section 3's file list:**
+- `tools/web-renderer/shim/LovyanGFX.hpp` gained 6 lines, not 2: the two `#undef`s, plus `#ifndef` defaults for
+  `BLIPSCOPE_DISP_PIN_MOSI` and `_SCLK`. The P4 has no SPI display pins, and the shim's GC9A01 block reads them. The first web
+  build failed on exactly that.
+- `skus.yml`, `test/fixtures/ota/identities.txt` and three `src`/`include` files changed by ruling (section 2a).
+
+### Layout rows (web renderer, 720 px, synthetic scene, beside the s3-128 at 240)
+
+The repo's own web checks pass on the p4-40 model as they do on s3-128:
+- `smoke.mjs` R3-R7 (24 labelled contacts, every request under `/api/v1/blipscope/`, no header);
+- `carousel.mjs` WC2/WC3.
+
+| row | reading |
+|---|---|
+| **L1** | **holds.** `_web_screen_size()` returns 720 |
+| **L2** | **holds, and stronger than predicted.** Text stays at Font0 6 x 8. The **List face** keeps its 240 px rows *and* columns, so at 720 it is a strip about a quarter of the disc wide, with all 20 rows in the top half and the bottom half empty. The **detail card** shows all eight info rows (route, type, model, operator, distance, altitude, speed, heading), which the 240 card drops for room, in its top third. **Nothing is clipped that is not clipped at 240:** a magenta NEAR/HIGH tag at the far left edge is cut by the disc, identically at both sizes |
+| **L3** | **holds.** Rings, sweep, range-ring labels and the follow control scale with the disc. Not scaled, and not claimed to be: the card's photo slot and silhouette, and the page dots (`carousel.mjs` finds them at the same absolute offsets at both sizes) |
+| **L4** | **holds.** Swipe (40 px) and tap radius (28 px) are physically the same as on the 1.28 in board. The only on-screen control seen, the card's follow globe, is about 30 px across |
+| **L5** | **the premise was wrong.** This build's swipe alternates Radar and List only; Stats and Connect are not on the carousel, which is exactly what `carousel.mjs` WC2 asserts. What is on it draws at 720 and switches on swipe, and a tap opens the card. No face drew at 240 in a corner |
+
+Q-TEXT went to the reviewer with the recommendation to decide it on the glass at B2. Ruled at 18:32Z: the owner's call, at B2-T.
+
+### CI rows (section 2a)
+
+- **CI1: holds.**
+  - `skus.py --validate`: 20 legs, 11 build-only.
+  - `check_release_envs.mjs` passes.
+  - `--check-table` failed with exactly `fleet only: blipscope-p4-40 - p4-40` and `fleet only: blipscope-p4-40-r3 - p4-40`. After
+    `--emit-table`, the diff is exactly those two added lines, and `--check-table` passes (10 rows).
+  - `--fleet` passes: 12 built envs, boards p4-40 x2.
+  - Image mode passes on both P4 images: record `p4-40` (scope '', board 'p4-40') at 0x120.
+- **CI2: PENDING (the PR).**
+- **CI3: PENDING.**
+- **ID1: holds.** Both P4 ELFs contain `[p4] identity: base=` and `base=%s known=`, and none of the ten S3 images contains
+  `base=%s known=` (`label=` alone occurs in eight S3 images, from other code, which is why the row named the longer string).
+- **ID2** is C5 above.
+
+### The clock control (registered 2026-11-11, before it runs; runs only on the owner's yes)
+
+C5's two off readings are both explained by WiFiManager's `__DATE__`/`__TIME__` strings taking part in string-tail merging.
+This control removes the clock rather than accounting for it.
+
+- **Builds:** `blipscope-pro-s3-175-amoled` and `blipscope-s3-128`, each from the baseline source (`8f1a878f`, in a scratch
+  worktree) and from `735b5c09`, all four with **one** `SOURCE_DATE_EPOCH`, which GCC uses for `__DATE__` and `__TIME__`.
+- **First, the instrument:** the compile-time time strings read out of all four images must be identical, and equal to the
+  epoch that was set. If not, the toolchain ignored it, the control says nothing, and it stops there.
+- **Predicted, for each env:**
+  - equal sizes;
+  - equal time strings;
+  - the only differing bytes are `app_elf_sha256` (32 B; the ELF's debug line tables differ, because header lines moved) and
+    the checksum with the trailing SHA-256 (33 B);
+  - no time-string byte, no pointer, no shift.
+- **Anything else:** the clock is not the whole story; stop.
