@@ -1332,6 +1332,12 @@ void AircraftManager::Initialise()
     cloudUrl = CloudFeed::NormalizeBaseUrl(configServer.GetStoredString("cloud-url"));
     if (cloudUrl.isEmpty())
         cloudUrl = CloudFeed::NormalizeBaseUrl(CLOUD_FEED_BASE);
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+    // Ruling Q-ID, condition 1 (DeviceIdentity.h): a P4 with no identity is held on TEST-NET-1
+    // (RFC 5737, unroutable) WHATEVER the stored cloud-url says, so it can reach no backend at all.
+    if (!DeviceIdentity::Known())
+        cloudUrl = CloudFeed::NormalizeBaseUrl("https://192.0.2.1");
+#endif
     // Access key, in priority order: the user-editable override, then the key
     // burned in at assembly, then the compile-time default.
     //

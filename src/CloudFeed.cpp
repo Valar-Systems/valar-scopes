@@ -72,6 +72,15 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
         // the raw MAC -- that never leaves the device.
         { "X-Blip-Device", DeviceIdentity::LeaderboardId() },
     };
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+    // Ruling Q-ID, condition 1 (DeviceIdentity.h): a P4 that refused an identity sends NO
+    // X-Blip-Device -- not an empty one, and never one derived from a MAC it could not read.
+    if (!DeviceIdentity::Known()) {
+        for (size_t i = 0; i < h.size(); i++) {
+            if (h[i].first == "X-Blip-Device") { h.erase(h.begin() + i); break; }
+        }
+    }
+#endif
     // One-shot OTA memory report, present only on the first check-in after an
     // update attempt (see OtaUpdater.h / README "Telemetry"). It rides a request
     // the device was making anyway: no extra traffic, no endpoint of its own.

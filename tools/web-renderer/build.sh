@@ -24,7 +24,8 @@ SKU=${1:-s3-128}
 case "$SKU" in
   s3-128) VARIANT=BLIPSCOPE_VARIANT_S3_128 ;;
   s3-21)  VARIANT=BLIPSCOPE_VARIANT_S3_21 ;;
-  *) echo "unknown SKU '$SKU' (s3-128 or s3-21)"; exit 2 ;;
+  p4-40)  VARIANT=BLIPSCOPE_VARIANT_P4_40 ;;   # bench layout only (docs/p4-40-bringup.md section 5); never released
+  *) echo "unknown SKU '$SKU' (s3-128, s3-21 or p4-40)"; exit 2 ;;
 esac
 DIST=${2:-$HERE/dist}
 OUT=$DIST/$SKU
