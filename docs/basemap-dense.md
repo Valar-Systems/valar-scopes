@@ -974,3 +974,133 @@ open until this reads them.
   - that no local figure stands;
   - each chosen build's workerd outcome;
   - that `READ_AHEAD`'s effect can't be given as a number.
+
+### Q-MEM1c, read (2026-11-11, 03:44:45-03:44:50Z): frame retention. C2 was the defect
+
+The registration was frozen at 03:44:37Z (`439d698ce278`). One process ran, with nothing on staging and the tree clean.
+
+| row | before the builds | mid-build, at KLGA's 10th cell read | |
+|---|---|---|---|
+| MC0: C1 / C2 / C3 | +32.00 / 32.00 / 0.00 | +32.00 / 32.00 / 0.00 | as predicted: Nov 8's readings reproduced |
+| MC1: C2′ live | +32.00 | +32.00 | as predicted |
+| MC2 | every sample settled (at most 3 collections); every object local; KLGA's cold build 422 | | as predicted |
+| **MC3: C2′ released** | **0.00** | **0.00** | **within 1 MiB in both places** |
+
+**By the frozen table: frame retention.** A buffer that no running frame holds is not counted after a settled sample, in either place.
+C2's +32 was a buffer still reachable from its own running function, so counting it was correct. The driver's verdict line read `FRAME
+RETENTION`, exit 0.
+
+### Q-MEM1b, re-run with C2′ in place of C2, read (2026-11-11, 03:45:14-03:46:10Z): as predicted, except MB3's second half
+
+All 16 processes ran, in the registered order, and each exited 0. The error file is empty, the tree stayed clean, and nothing ran on
+staging.
+
+| row | read | |
+|---|---|---|
+| **MB0** | C1 +32.00, C2′ +32.00 then 0.00, C3 0.00, in all 16 processes; C4 the same in the control process. C2, reported only: 32.00 in all 17 places | as predicted |
+| **MB1** | no unsettled sample. At most 3 collections in one sample at New York, 4 at KJAC | as predicted |
+| **MB2** | each point's three colds agree within **0.01 MiB**. Cold against warm: 0.34-0.36 MiB at New York, 1.58-1.61 at KJAC | as predicted |
+| **MB3, first half** | every settled peak is under its Q-MEM1 ceiling, by 2.3-3.3 MB | as predicted |
+| **MB3, second half** | **over 64 MB at all four New York points**: KJFK, KLGA and KEWR over 96, Midtown 64-96. KJAC at most 64 | **off: recorded, not a stop, as registered** |
+| MB4 | the peak is in the cell reads at all four New York points, and in the ladder at KJAC | reported |
+| kept between builds | 7.43-8.02 MiB at New York, 7.02 at KJAC | reported |
+
+**The figures, stated as ruled:** the highest settled reading across processes for each build. No spread between processes for the same
+build is over 1 MiB; the largest is 0.03 MiB.
+
+| point | cold | warm | band (cold) |
+|---|---|---|---|
+| KJFK | **95.03 MiB, 99.6 MB** | 94.68 MiB, 99.3 MB | over 96 |
+| **KLGA** | **99.54 MiB, 104.4 MB** | 99.18 MiB, 104.0 MB | over 96 |
+| KEWR | **92.36 MiB, 96.8 MB** | 92.01 MiB, 96.5 MB | over 96 |
+| Midtown | 87.11 MiB, 91.3 MB | 86.75 MiB, 91.0 MB | 64-96 |
+| KJAC | 37.31 MiB, 39.1 MB | 35.73 MiB, 37.5 MB | at most 64 |
+
+**What it means, by the registered table:**
+- MB0-MB2 and MB3's first half hold. MB3's second half is registered as recorded, not a stop.
+- So **the settled figures are the peaks the proposal states,** as floors on live memory in Node.
+- KLGA's 104.4 MB is the build workerd ran inside 128 MB (MG-A).
+- **Not shown:** whether workerd counts the same way.
+
+**KJFK's 97.3 against 76.9, read again (ruled to stay open until now):**
+- The re-run's three cold KJFK builds read **95.03 MiB each**. That is 2.3 MiB under CTRL-a's 97.3, which was one collection per sample in
+  a process's first build. The gap is the same as between one collection and a settled sample at every other point.
+- It is **18.1 MiB above DR0's 76.9.**
+- DR0's process read lower than the settled figures at every point it shares with this run:
+
+  | point | DR0's figure is lower by |
+  |---|---|
+  | KJFK | 18.1 MiB |
+  | KLGA | 16.0 MiB |
+  | KEWR | 15.4 MiB |
+  | Midtown | 13.4 MiB |
+  | KJAC | 3.4 MiB |
+
+- **So DR0's process is the outlier, not CTRL-a.**
+- **What made it read low is not established.** That process had a different history:
+  - CTRL-b's 32 MiB hold;
+  - Natural Earth loaded;
+  - the unpatched builder's modules;
+  - five builds before KJFK's.
+
+  This read separates none of those.
+- Under the ruled rule, the proposal states this run's figures, and DR0's memory figures are not used. Whether that closes the question is
+  for the reviewer.
+
+### Corrections to earlier statements in this file, found by these two reads (the originals are kept above)
+
+- **Q-MEM1b's MB3 prediction, "at most 64 MB,"** was wrong by 27-40 MB at New York.
+  - **Cause:** I predicted it from Q-MEM1's "the instrument counts dead buffers" reading. C2′ shows that reading came from the control's
+    defect.
+  - So the one-collection figures were within 2.3-3.3 MB of the settled peaks, not far above them.
+- **Q-MEM1's read, "every figure here and in DR0 is a ceiling, not a floor":** superseded.
+  - Q-MEM1's figures sit 2.3-3.3 MB above the settled peaks. That is about 2-3 MiB of garbage that one collection had not yet cleared.
+  - DR0's sit 3.4-18.1 MiB below them, for a reason not established (above).
+- **Q-MEM1's read, "each cell is a buffer read and then dropped":** wrong, by the code.
+  - `readInOrder` pushes every read's promise into `pending` and never removes it.
+  - A resolved promise keeps its bytes, so every cell read stays reachable until the cell loop ends.
+  - The `READ_AHEAD` registration below tests this.
+
+### `READ_AHEAD` 6, 3 and 1 at KLGA: registered before it runs
+
+**What runs:**
+- **Nine local Node processes** at KLGA, at the map client's query, at v0, in the order 6, 6, 6, 3, 3, 3, 1, 1, 1. Nothing runs on
+  staging.
+- **The driver is `mem-diag4.mts`.** In each process: C1, C2′ and C3 (mem-diag3's code), then **one cold build** with every phase
+  sampled settled.
+- **The patched copy gains one line:** `READ_AHEAD` is read from `DENSE_READ_AHEAD`, default 6 (the repo's value). The runner sets it per
+  process, before the builder is imported.
+- **The driver refuses unless the `READ_AHEAD` in effect,** imported from the builder itself, equals the value asked for.
+
+**Why I predict no effect, from the code:**
+- `readInOrder` issues up to `READ_AHEAD` reads ahead.
+- It also keeps every read's promise in `pending` until the loop ends, so every cell read so far stays reachable.
+- At the last cell's sample, every cell has been read, whatever `READ_AHEAD` is.
+- **KLGA's 21 cells total 60.91 MiB.** That was read from the local store before this registration, with no memory sampled. The largest
+  window of 6 cells is 23.86 MiB, of 3 is 13.39 MiB, and of 1 is 4.86 MiB.
+- So the peak sits at the end of the loop and holds all 60.91 MiB, at any `READ_AHEAD`.
+- **If only the reads in flight were held instead,** the peak would fall with `READ_AHEAD`, by up to about 19 MiB from 6 to 1, and would
+  sit before the loop's end.
+
+| row | predicted |
+|---|---|
+| **RA0** | `READ_AHEAD` 6, three processes: the knob takes, and each cold peak is **99.54 ± 0.10 MiB at "cell"**, 422. That is the re-run's KLGA, reproduced through the knob |
+| **RA1** | `READ_AHEAD` 3 and 1, three processes each: each cold peak is **within 1 MiB of `READ_AHEAD` 6's highest** |
+| **RA2** | in every process, **the last cell's sample is within 0.10 MiB of the cell phase's largest:** the peak is at the end of the loop |
+| **RA3** | C1 +32 ± 1; C2′ +32 ± 1, then within 1; C3 within 1; every sample settled; every object local; every build 422 |
+| RA4 | the later phases' figures: reported, not predicted |
+
+**Graded per build, in the driver, stopping at the first off reading.**
+
+**What the readings will mean, fixed now:**
+
+| outcome | meaning |
+|---|---|
+| RA0-RA3 as predicted | **`READ_AHEAD` is not the lever on the peak.** The peak holds every cell KLGA reads (60.91 MiB of its 99.54), because `readInOrder` keeps each read after it is consumed. The lever is to release a read once it is consumed. That is a code change, proposed for a ruling with its own registration, and not made here |
+| RA1 off: 3 or 1 more than 1 MiB under 6 | `READ_AHEAD` does move the peak, so my reading of the code is wrong somewhere: **stop and report**, with the figures |
+| RA2 off | the peak isn't at the end of the loop: the same, **stop and report** |
+| RA0 or RA3 off | the knob or the instrument is not what was measured before: **stop** |
+
+**Outside the set:** anything else stops it.
+
+**What this cannot show:** workerd. The proposal states Node's figures, beside Q-MEM2's KLGA pass.
