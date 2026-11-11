@@ -1104,3 +1104,44 @@ build is over 1 MiB; the largest is 0.03 MiB.
 **Outside the set:** anything else stops it.
 
 **What this cannot show:** workerd. The proposal states Node's figures, beside Q-MEM2's KLGA pass.
+
+### `READ_AHEAD`, read (2026-11-11, 03:53:08-03:53:10Z): stopped at RA0, in the first process
+
+The registration was frozen at 03:52:59Z (`bc0314987e2f`). One process ran, then the driver stopped itself (exit 8). The error file is
+empty, the tree stayed clean, and nothing ran on staging.
+
+| row | read | |
+|---|---|---|
+| the knob | `READ_AHEAD` 6 in effect, read back from the builder | took |
+| RA3 | C1 +32.00; C2′ +32.00, then 0.00; C3 0.00; every sample settled (at most 3 collections); every object local; 422 | as predicted |
+| **RA0** | **99.42 MiB** at "cell", against **99.54 ± 0.10** | **off by 0.02 MiB beyond the bound: stop** |
+| RA2, printed, not graded (the stop came first) | the cell phase's largest is at **cell 16 of 21**; the last cell reads **97.65, 1.77 MiB below it** | would have been off |
+| RA4 | tiles 54.97, terrain 55.22, layers 58.36, ladder 58.39, end 7.25 MiB | reported |
+
+**What RA0's 0.12 MiB can and can't be:**
+- **The build changed:** excluded.
+  - The patched copy differs from the re-run's by one line, which the diff shows.
+  - The driver read back `READ_AHEAD` = 6 from the builder.
+  - So the reads were issued exactly as in the re-run.
+- **The driver changed what a baseline-relative sample sees:** not excluded. `mem-diag4` differs from `mem-diag3` in three ways:
+  - no C2 sample;
+  - one build;
+  - more module code.
+
+  A shift of about 0.1 MiB from that is unsurprising.
+- **My miss, with its cause:** I set RA0's ± 0.10 from `mem-diag3`'s spread between processes (0.01 MiB). That spread measures how
+  repeatable one driver is, not whether two drivers agree. The bound was tighter than a change of driver can be expected to hold.
+
+**What the printed RA2 reading says, and it matters more than RA0:**
+- **Cell 16 is where, at `READ_AHEAD` 6, the last of KLGA's 21 reads is issued.** From then on no cell buffer arrives, so under my
+  reading (every read is kept until the loop ends) the samples should stay flat or rise as the layer sets grow.
+- **They fall by 1.77 MiB instead.** Two explanations fit, and this read separates neither:
+  1. **The build releases something during its last cells** that my reading of the code missed.
+  2. **Something outside the build shrinks during it.** The settled sampler runs about 70 full collections per build, and V8 can, for
+     example, flush compiled code that hasn't run recently. Then a baseline-relative sample falls with nothing in the build released.
+- **For most cells being held until the loop ends:** the fall from the last cell (97.65) to the tiles phase (54.97) is 42.7 MiB, as the
+  read generator finishes. Holding only the reads in flight would release a few MiB there, not 42.7.
+- **Against a clean separation:** the cell list and the store index also go out of scope at that point.
+
+**By the registered table: RA0 off, so stop.** Nothing is graded past it. The proposal that follows goes to the reviewer before anything
+resumes.
