@@ -148,3 +148,72 @@ copy, and nothing ran on staging. The log is scratch (sha256 `c3453576defb`).
    tolerance (or drop it). This is simpler, but it leaves the simplifier as it is.
 3. **Accept:** the device's even-odd fill draws a crossing ring as wedges. That is what the 25 mi view shows today, at New York and at
    KJAC.
+
+## The ruling (from the orchestrator, sent between 19:04:40Z and 19:12:12Z on 2026-11-11), verbatim (its pricing part)
+
+> This is a quality question for every map package, so it goes to the owner. Before it does, price the two fixes, so he chooses on
+> numbers.
+>
+> The cost read: local, read-only, predictions committed first, no change to the shipped builder (scratch copies only).
+> - At all 13 points, three variants: (1) a topology-preserving simplifier for water rings; (2) a validity pass after quantising (rebuild
+>   a crossing ring at finer tolerance, or drop it); (3) today's.
+> - For each, report:
+>   - the crossings left (predicted 0 for (1) and (2));
+>   - the package bytes against the 32,768 cap;
+>   - kOk or 422;
+>   - the D2 first-fit radius at the 4 New York points, under B (the owner's pick);
+>   - each build's peak memory against 77.2 MB.
+> - What each result means, decided now:
+>   - a variant that leaves crossings is not a fix;
+>   - a variant that pushes any point to a 422, or a New York point to a smaller disc than B's 129.6 km, has a visible cost, and the owner
+>     sees that cost named;
+>   - anything else: report.
+> - After that, the options go to him with your three, and my recommendation.
+
+## The cost read: registered before it runs
+
+**Under B** (the owner's pick, ~18:55Z): P1 at r=162 at all 13 points, then D2's steps at the 4 New York points until one fits. No sea
+mask: that is the code PR's.
+
+**The builder is a scratch copy, `dnw`:** Q-DR3's copy with one knob, `DENSE_WATER`, in the water branch. Nothing else differs.
+- **unset (today's):** `dedupe(simplifyRing(clipped, ε).map(quantise), true)`, as now. `layers.ts` changes in three places only (the
+  knob, its import, and the water line), and every other module is byte-identical to the copy Q-DR3 read.
+- **"tp", a topology-preserving simplifier:** Douglas–Peucker as today. Then, while the quantised ring crosses itself, each crossing edge
+  gets back the original vertex farthest from its chord (Douglas–Peucker's own next choice), until no edge crosses or none can be added.
+- **"vp", a validity pass after quantising:** today's ring if it doesn't cross. Otherwise it is rebuilt at ε/2, ε/4, ε/8, ε/16 and ε/32,
+  then unsimplified, and the first that doesn't cross is kept. If none does, the ring is dropped.
+- **The artifacts:**
+  - `frame.ts` `e1ab75e3cae9` (today's file with the two functions appended) and `layers.ts` `d683830b2e25`;
+  - the child `dr-child6.mts` `e6f8e30e446e`: Q-DR3's sets-follow-up child, pointed at `dnw`, reporting each package's water crossings
+    and the knob as the module read it;
+  - the parent `dr-wc.mts` `de34071cf8ce`.
+- **Each build runs in its own process,** with Q-DR3's controls and settled samples, on the local store copy. Nothing runs on staging.
+- **The child's imports were checked before this was frozen:** given an unknown point under each of the three knob settings, it loaded
+  every module and refused the point (exit 2). No build ran.
+
+| row | what | predicted |
+|---|---|---|
+| **T** (the anchors) | today's, at all 13 | **Q-DR3's P1 packages:** at the 9, Nov 8's ab hashes (KBOS `cd74b62d4cd3` … KJAC `b3f428e5860e`); at New York, D2's first fit at 129.6 km (KJFK `66c2da06e716`, KLGA `9ca71d65c11d`, KEWR `34dc63f7e668`, Midtown `ccc58c1c9884`). **Each build's memory within 0.785 of Q-DR3's P1 figure** at that point and radius. Its crossings are reported |
+| **TP** | "tp", at all 13 | **0 crossings in every package;** it fits where B fits (the 9 at 162 km, New York at 129.6 km); every build's memory within 0.785 of today's same build. Rung, bytes, water share and secondary roads are reported |
+| **VP** | "vp", at all 13 | **the same three predictions as TP.** Rings rebuilt and rings dropped are reported |
+| **every build** | | its controls; every sample settled; every object local; the knob as asked, read from the module; kOk and at most 32,768 non-terrain bytes; no build over 96 MB |
+
+**Why "fits where B fits" is predicted:** water is droppable on the ladder, and neither fix touches anything else. The fixes can cost
+water kept, or move a point to a later rung, but they can't stop a point fitting at the radius B fits at. A later rung is reported, not
+graded.
+
+**What each result means** (the ruling's table, with the instrument's own stops):
+
+| outcome | meaning |
+|---|---|
+| **a T row off** | the instrument or the copy is not what Q-DR3 read: **stop** |
+| a control, an unsettled sample, a missing object, the knob not taking, or a build over 96 MB | **stop** |
+| **TP or VP leaves crossings** | **that variant is not a fix** |
+| TP or VP pushes a point to a 422, or a New York point below 129.6 km | **a visible cost, named to the owner** |
+| anything else, including a memory row off | **reported** |
+
+**Since every TP and VP outcome has a ruled meaning, their off readings don't stop the run.** The owner gets the whole price list. Today's
+rows stop it, because without them the other two can't be read.
+
+**What this cannot see:** workerd; the sea mask's own rings, which the code PR brings and which both fixes would also simplify; and the
+time each fix adds in workerd. Node's wall per build is reported.
