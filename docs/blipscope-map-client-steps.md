@@ -1092,7 +1092,10 @@ then.
   form breaks a CI build. Once it is, the refusal goes in as code, with CB10's plant run as registered, and its CI is
   predicted then.
 
-### Q-MB8's ruling, verbatim (the orchestrator, 2026-11-11 ~19:08Z)
+### Q-MB8's ruling, verbatim (the orchestrator, 2026-11-11, sent between 19:04:40Z and 19:12:12Z)
+
+Its own stamp, ~19:08Z, was estimated, not read. The orchestrator corrected it to that window (read 19:12:12Z). The
+text below is as sent, stamp included.
 
 > Ruling from the orchestrator, 2026-11-11 ~19:08Z, for map-client: Q-MB8. Your condition is accepted, and it lands in
 > step B's code PR.
@@ -1164,7 +1167,9 @@ workflows (device-ids, firmware, no-traffic-captures).
   subject, and it is recorded as superseded.
 - **Any other reading at the new head means a stop and a report,** with no re-run.
 
-### #644's first CI reading: OFF on `sku-readers` (2026-11-11), and the fix as ruled (~19:25Z)
+### #644's first CI reading: OFF on `sku-readers` (2026-11-11), and the fix as ruled (sent 19:04:40-19:12:12Z)
+
+The ruling's own stamp, ~19:25Z, was estimated, not read. The orchestrator corrected it to that window.
 
 - **The reading,** on the first head `7bb2556b`: `sku-readers` failed at 19:04:35Z. This doc named the firmware
   workflow's file and is not on that guard's reviewed list.
