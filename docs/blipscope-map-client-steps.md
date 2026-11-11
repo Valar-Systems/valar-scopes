@@ -1187,6 +1187,226 @@ The ruling's own stamp, ~19:25Z, was estimated, not read. The orchestrator corre
 - **CI at the fix's head, re-predicted: 32 = 29/3/0,** on #640's docs-only baseline. **This was #644's first off
   reading; another goes to the owner.**
 
+### Registered before step B's code (2026-11-11): the refusal's commit
+
+**Status: #644 merged (`0e384618`). Step B's code goes on `feat/map-client-step-b`, and this registration is its first
+commit.** The commit after it carries CB10's refusal and CD4, and no drawing code. So `main` can never hold a
+map-drawing path without its refusal. That is the ruling's second clause: the refusal lands no later than the first line
+that draws the map.
+
+**What the refusal's commit holds:**
+- **`src/AircraftManager.h`** gains one `// THE MAP DRAW BEGIN` / `END` region, directly after the `THE MAP FETCH`
+  region (where `BLIPSCOPE_MAP_FETCH` is defined), holding CB10's block exactly as frozen. Step A's `THE MAP FETCH`
+  pins (`h:3`, `cpp:9`) do not move.
+- **`test/host/check_map_draw.py`** holds CD4 alone until the draw files exist, so it prints **`1 checks, 0 failures`**.
+  CD1-CD3 join it in the commit that adds the files they read.
+  - CD4 reads the `THE MAP DRAW` regions of `src/AircraftManager.h` and `.cpp`, pinned at `h:1`, `cpp:0` for now.
+    A pin off in either direction, or an unbalanced marker, is the rig (exit 2).
+  - If any region exists, the comment-stripped header must hold CB10's `#if` line and its `#error` line, compared with
+    whitespace normalised.
+  - A definition of `BLIPSCOPE_MAP_STEP_C` (`#define BLIPSCOPE_MAP_STEP_C`, `-DBLIPSCOPE_MAP_STEP_C`) is searched for in
+    `include/`, `src/`, `platformio.ini` and `tools/`. The allowed definer list is empty until step C names its header.
+- **`test/host/sabotage_map_draw.py`**, with two plants, each in a copy of the tree:
+  - **S-CD-NOREFUSAL** deletes the `#error` block and keeps the region: {CD4}.
+  - **S-CD-STEPC** adds `#define BLIPSCOPE_MAP_STEP_C 1` to `src/AircraftManager.cpp`: {CD4}.
+  - Its count constant is `SOURCE_CHECKS = 1`, so `lint_driver_counts.py` reads a named count.
+- **`test/host/run.sh`** gains a `== MapDraw ==` block after `MapFetch`'s.
+
+**Predicted, before any of it is written:**
+
+| run | predicted |
+|---|---|
+| **L1** `check_map_draw.py` | `1 checks, 0 failures`, exit 0 |
+| **L2** `sabotage_map_draw.py` | control clean; S-CD-NOREFUSAL {CD4}; S-CD-STEPC {CD4}; `MAP DRAW SABOTAGES (2) AS PREDICTED`; the real files unchanged |
+| **L3** `--anchors` over every driver (42 with the new one), and `--control` for the new one | every anchor present exactly once; the control matches its table |
+| **L4** `check_map_fetch.py` | unchanged: `3 checks, 0 failures` |
+| **L5** the four builds: pio from PowerShell, in this order, each in its own process with `PLATFORMIO_BUILD_FLAGS` set only for it | see below |
+
+**L5, and what each reading means:**
+
+| build | predicted | any other reading |
+|---|---|---|
+| **R-FLIP:** `blipscope-s3-128` with `-DWX_LAYER_SHIPS` | **fails**, and the log holds CB10's `#error` text | a pass, or a failure for any other reason, stops the step |
+| **R-FLIPC:** `blipscope-s3-128-wxlook` as it stands | builds | stops the step |
+| **R-BENCH:** `blipscope-s3-128` with `-DWX_LOOK_AB`, then `check-no-bench-hooks.sh` on its `firmware.bin` | builds; the scan exits **1** with `FAIL: bench hook marker '[wx-bench]'` | a failed build, or scan exit 2, is BLIND and stops the step |
+| **R-BENCHC:** `blipscope-s3-128` unchanged, then the same scan | builds; the scan exits **0** | stops the step |
+
+- **Each flag is proven by its artifact, never by the command:**
+  - R-FLIP by the `#error` text in its log;
+  - R-BENCH by `[wx-bench]` in its image;
+  - R-BENCHC by the marker's absence behind the scan's anchor.
+- R-BENCH and R-BENCHC share a build directory, so R-BENCHC must rebuild without the flag, and its scan reads the image
+  it produced.
+- C: is read before the builds. None runs under 30 GB.
+
+**After L1-L5:** the whole host suite under WSL is registered before it runs, as W8 was, and so is the code PR's CI.
+Nothing is pushed before the orchestrator's go.
+
+### L1's first run: OFF, and the fix as ruled, registered before the code change (2026-11-11)
+
+**The reading (`dce71406`, committed as it ran):**
+- **L1 OFF.** Predicted `1 checks, 0 failures`, exit 0. Read: a Python traceback, exit 1.
+  - CD4's definer scan ran `check_map_fetch.strip` over every file under `include/` and `src/`.
+  - `include/OtaCerts.h` holds a C++ raw string literal (`R"CERTS(`), which the stripper cannot parse. It raised its own
+    `Rig`, which the check did not catch.
+  - **Two defects:** the scan could not read a valid C++ file, and **a crash read as a failure** (exit 1, a red)
+    instead of as the rig (exit 2). The second is the 11-04 rule: a crash is an instrument failure, never a red.
+- **L4 as predicted** (`3 checks, 0 failures`).
+- **L2 read the rig** (exit 2), because its control could not run. The harness was right, but that is no reading of the
+  plants.
+- **L3 and L5:** not run.
+- **My miss:** I predicted L1 without checking that the stripper I reused could read every file the new scan touches.
+  Step A's check only ever fed it the map's own files.
+
+**The fix, as ruled** (the orchestrator; its stamp is in its ledger):
+1. **The definer scan is line-based, and no longer goes through the C++ stripper.**
+   - In `include/` and `src/`: a directive line matching `^\s*#\s*define\s+BLIPSCOPE_MAP_STEP_C\b`.
+   - In `platformio.ini` and `tools/`: `-D\s*BLIPSCOPE_MAP_STEP_C\b`, after removing `;` and `#` comments.
+   - A directive must begin its line, so a `//` comment cannot match.
+   - **The scan's known direction:** a matching line inside a raw string or a block comment is flagged as a definer.
+     That false positive fails safe and visibly, as a red with the file named.
+   - The header's refusal lines are still read through `strip()`, since `src/AircraftManager.h` parses.
+2. **`main()` catches every exception and exits 2 with `RIG: <type>: <message>`.** No crash can read as a check failing.
+3. **Three controls, none of them a {CD4}-set plant.** Each runs in its own copy, is asserted to have applied before it
+   is read, and the real files' sha256 are compared before and after:
+
+| control | the input, in the copy | predicted |
+|---|---|---|
+| **R-CD-RAWOK** | a new file `include/zz_rawok.h` holding a multi-line raw string literal, L1's input | exit 0, `1 checks, 0 failures`: the input that crashed the scan now reads clean |
+| **R-CD-CRASH** | a multi-line raw string literal added to `src/AircraftManager.h`, the one file `strip()` still parses | exit 2, its output beginning `RIG: `, never exit 1 |
+| **R-CD-DECODE** | a new file `include/zz_badbyte.h` holding the bytes `0xFF 0xFE`, so the line scan's read raises | exit 2, its output beginning `RIG: `, never exit 1 |
+
+**Read before registering, without running the check:** all 411 files the scan reads (`include/`, `src/`, `tools/` by
+extension, and `platformio.ini`) decode as UTF-8. So L1 cannot meet R-CD-DECODE's path by accident.
+
+**The re-run, predicted (L1's first re-run; another stop on L1 goes to the owner):**
+
+| run | predicted |
+|---|---|
+| **L1** `check_map_draw.py` | `1 checks, 0 failures`, exit 0 |
+| **L2** `sabotage_map_draw.py` | control clean; S-CD-NOREFUSAL {CD4}; S-CD-STEPC {CD4}; `MAP DRAW SABOTAGES (2) AS PREDICTED`; then R-CD-RAWOK, R-CD-CRASH and R-CD-DECODE as the table above, `MAP DRAW CONTROLS (3) AS PREDICTED`; the real files unchanged |
+| **L3** `--anchors` over every driver (42), and `--control` for the new one | every anchor present exactly once; the control matches its table |
+| **L4** `check_map_fetch.py` | `3 checks, 0 failures` |
+| **L5** | as registered above, after blipscope-p4-4a's heavy run ends: one heavy run at a time on the machine |
+
+### The refusal's commit as run (2026-11-11): L1-L5 as registered, with a harness stop in L5
+
+**The re-run of L1-L4** (the fix at `0372fdc2`; L1's first re-run), each as predicted:
+- **L1:** `1 checks, 0 failures`, exit 0.
+- **L4:** `check_map_fetch.py` `3 checks, 0 failures`.
+- **L2:**
+  - the control is clean;
+  - S-CD-NOREFUSAL {CD4} and S-CD-STEPC {CD4}, `MAP DRAW SABOTAGES (2) AS PREDICTED`;
+  - R-CD-RAWOK exit 0, `1 checks, 0 failures`;
+  - R-CD-CRASH exit 2, `RIG: Rig: an unterminated literal …`;
+  - R-CD-DECODE exit 2, `RIG: UnicodeDecodeError: …`;
+  - `MAP DRAW CONTROLS (3) AS PREDICTED`, and the real files unchanged.
+- **L3:** no anchor stranded, and the new driver's `--control` matches its table.
+  - **The registration's label was wrong:** its "every driver (42)" counted **42 files: 41 drivers and
+    `test/host/sabotage_common.py` (a library)**. The library prints nothing and exits 0.
+  - Of the 41 drivers, 38 print "all present exactly once". The other three are the harness's own meta-controls
+    (`anchors_control`, `controls_control`, `rig_control`), and each passes in its own form.
+  - This is on record as a miscount in the registration's wording, not an off reading (the orchestrator's ruling).
+
+**L5, the four builds.**
+- **R-FLIP** (20:04:06-20:06:53Z): exit 1, and the log holds `src/AircraftManager.h:52:2: error: #error "step B draws the
+  map without step C: …"` twice, once per translation unit that includes the header. **The refused build left no
+  image:** there is no `firmware.bin` (and no `firmware.elf`) for `blipscope-s3-128`. As registered.
+- **R-FLIPC:** `blipscope-s3-128-wxlook SUCCESS`, with its `firmware.bin` (1,958,752 B) written at 20:09:56Z, inside
+  the run. As registered.
+- **The harness stop, and my miss.**
+  - The script's `Build` function wrote its start and end lines into PowerShell's pipeline, so its return value was
+    [line, line, exit code].
+  - R-FLIP passed its gate by luck (`-eq 0` filtered to nothing). R-FLIPC's success read as "did not build", and the
+    script stopped (exit 4) before R-BENCH.
+  - It is the same family as L1's crash: a gate trusted without being tested.
+  - **Ruled:** R-FLIP and R-FLIPC stand on their artifacts, and R-BENCH and R-BENCHC run after the fix. This was L5's
+    first stop.
+- **The fix:**
+  - `Build` writes its lines to the host and returns only `[int]$LASTEXITCODE`.
+  - A gate self-test runs before any build: a stub that prints lines and returns 0 gated as success (True), and one
+    that returns 1 gated as failure (False).
+- **R-BENCH** (`blipscope-s3-128` with `-DWX_LOOK_AB`, 20:11:36-20:14:40Z): built (`Int32` 0). `check-no-bench-hooks.sh`
+  on the saved image exits **1** with `FAIL: bench hook marker '[wx-bench]'`. As registered.
+- **R-BENCHC** (unchanged, 20:14:40-20:17:40Z): built. The scan on the saved image exits **0**, `ok: no bench hook (8
+  marker(s) checked, anchor present)`. As registered.
+- **Read off the images, independently:**
+  - `[wx-bench]` appears once in R-BENCH's image and not at all in R-BENCHC's;
+  - the anchor `[build] env=` appears once in each;
+  - the two images differ (1,934,592 B against 1,932,448 B), so R-BENCHC really rebuilt without the flag.
+- Every build ran after blipscope-p4-4a confirmed the machine was clear, one heavy run at a time.
+
+**So CB10's refusal runs, and its exemption cannot reach a customer.** A release flip without step C is refused at
+compile time, the bench image still builds, and a slug-ful image carrying the bench macro is refused by the scan every
+slug-ful image already goes through.
+
+### The refusal's PR (ruled (a)): W9 and its CI, registered before the suite runs (2026-11-11)
+
+**Ruled:** these five commits go up now as a small code PR (the refusal, CD4 and its driver, and the `run.sh` block; no
+drawing code), so the guard is on `main` before any drawing path exists. Step B's drawing work then continues on a
+branch from the new `main`.
+
+**W9, the whole host suite under WSL.** `bash test/host/run.sh` runs in `wsl -d Ubuntu-24.04` (g++ 13.3) on this
+branch's head, with no git call inside WSL (W8's lesson). The commit and a clean tree are read from Windows first.
+Predicted:
+- **exit 2, and the failed blocks are exactly W8's two:** "the same TU, for the board" (no xtensa toolchain in WSL) and
+  "Weatherscope R0 and R0b", the rig (no python with Pillow).
+- **38 drivers** in every driver pass.
+  - The glob's 42 files, minus the four `run.sh` skips by name: the `sabotage_common.py` library and the three
+    meta-controls.
+  - That is W8's 36, plus #630's `sabotage_ota_model.py`, plus this branch's `sabotage_map_draw.py`.
+  - **Anchors:** `38 driver(s) checked`, plus both board plants.
+  - **Controls and the full pass:** `38 driver(s): 37 run, 1 skipped`, the skip being `sabotage_wx_towns.py`.
+  - **Lint:** `38 driver(s), 0 flagged; 3 pinned line(s)`.
+- **`sabotage_map_draw.py` passes in all four passes.** Anchors: 3 plants, 3 anchors. Control: 1 suite. Lint: not
+  flagged. The full pass: exit 0, with **7** `AS PREDICTED` lines (the 2 plants, their summary, the 3 controls and
+  their summary).
+- **The new `MapDraw` block passes** (`1 checks, 0 failures`). So does `MapFetch` (`42 checks, 0 failures`, then
+  `3 checks, 0 failures`), and so does every block not named above.
+- **Anything else stops the reading for a ruling.** A block or driver off in the full pass is first run against
+  `main`'s own tree (`c2cf7cfc`), to tell what this branch broke from what was already broken.
+
+**The PR's CI, predicted: 34 check runs, 30 success, 4 skipped (`promote`, `publish`, `ship-alert`, `version`), 0
+failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-renderer). The PR touches `src/` and
+`test/host/`, so the web renderer builds.
+- **The baseline is #634's finished code PR run** (head `3de4367a3c51`: 34 = 30/4/0, the same four skips).
+- **It postdates the last change to the job set.** The only workflow change since #634's base (`68dc169a`) is #633's
+  device-ids change, which added steps, not jobs, and the SKU matrix has not changed.
+- **The host-tests leg on ubuntu** reads `38 driver(s): 37 run, 1 skipped` in its driver passes (#634's read 37/36/1),
+  and `MapDraw` `1 checks, 0 failures`.
+- **The web renderer builds:** `BLIPSCOPE_MAP_FETCH` excludes it, so CB10's condition is false there. No CI env defines
+  `WX_LAYER_SHIPS` without `WX_LOOK_AB`, since the release flip has not happened, so no firmware leg meets the
+  `#error`.
+- **Any other count, skip set or failure means a stop and a report,** with no re-run.
+
+### W9 as run (2026-11-11): the first run OFF on the lint, then the re-run as predicted
+
+- **W9's first run** (`1272d2c3`, 20:20:49-20:28:32Z): **OFF.**
+  - There was a third failed block, "sabotage controls: every test/host/sabotage_*.py --control".
+  - It runs `lint_driver_counts.py`, which read `38 driver(s), 1 flagged`. Its L2 flagged eight literal 1s in
+    `sabotage_map_draw.py` against the driver's table count, `SOURCE_CHECKS = 1`.
+  - None of the eight is a count: an anchor's uniqueness (twice), an exit-code tuple, two regex groups, a tuple index, a
+    last-line index and an exit code.
+  - Everything else read as predicted.
+  - **My miss:** I predicted "0 flagged" without running the lint locally. It now runs locally after any driver change.
+  - CI's host-tests leg runs the same block, so this would have been a CI failure.
+- **The fix, ruled (A):** the control's table entry is `("line", f"{SOURCE_CHECKS} checks, 0 failures")`, derived
+  from the one constant, so the count still lives in one place (`bf100133`). The lint locally read `38 driver(s), 0
+  flagged; 3 pinned line(s)`, as predicted, and the driver's `--control` read the line, exit 0.
+- **A known limit of L2, for the harness's owner** (the orchestrator raises it): L2 flags any integer literal equal to
+  one of a driver's table counts. **With a count of 1 it cannot tell the count from a file's idiomatic 1s**, so any
+  future driver with a count of 1 will meet this. Nothing in the lint was changed here.
+- **W9's re-run** (`bf100133`, 20:30:16-20:37:45Z), **as predicted:**
+  - exit 2, and `FAILED BLOCKS` lists exactly "the rig: Weatherscope R0 and R0b" and "failed: the same TU, for the
+    board", with no other `FAIL` line;
+  - anchors `38 driver(s) checked`; controls and the full pass `38 driver(s): 37 run, 1 skipped`; lint `38 driver(s),
+    0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_draw.py` ok in all four passes: anchors 3 and 3, control 1 suite, lint ok, and the full pass with
+    **7** `AS PREDICTED` lines;
+  - `MapDraw` `1 checks, 0 failures`, and `MapFetch` `42 checks, 0 failures`, then `3 checks, 0 failures`.
+- **The PR's CI prediction stands as registered above** (34 = 30/4/0 from #634's run). The fix touches only the
+  driver, which CI's host-tests leg reads.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
