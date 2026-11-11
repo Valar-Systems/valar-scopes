@@ -1092,6 +1092,78 @@ then.
   form breaks a CI build. Once it is, the refusal goes in as code, with CB10's plant run as registered, and its CI is
   predicted then.
 
+### Q-MB8's ruling, verbatim (the orchestrator, 2026-11-11 ~19:08Z)
+
+> Ruling from the orchestrator, 2026-11-11 ~19:08Z, for map-client: Q-MB8. Your condition is accepted, and it lands in
+> step B's code PR.
+>
+> You were right to ask rather than improvise: the literal form would have failed CI's wxlook build.
+>
+> The condition: refuse when defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(<step C's macro>).
+> - I checked the claim the exemption rests on. WX_LOOK_AB compiles in "[wx-bench] the weather bench image"
+>   (AircraftManager.cpp:943). scripts/check-no-bench-hooks.sh lists "[wx-bench]" in MARKERS (:40) and refuses it in every
+>   slug-ful image. So the exemption can't reach a customer.
+> - That claim becomes a registered row, not just my reading. P-CB-BENCH: a slug-ful env built with -DWX_LOOK_AB must be
+>   refused by check-no-bench-hooks.sh. The control: the same env without it passes.
+> - P-CB-FLIP and its control (wxlook still builds) stay as registered.
+>
+> Where it goes:
+> - #644 stays docs only (predictions).
+> - The #error lands in step B's code PR, in the FIRST commit, or in the same commit as the first line of code that draws
+>   the map. main must never hold a map-drawing path without its refusal.
+> - Add Q-MB8's condition and P-CB-BENCH to #644 as a docs commit now, so they're frozen before the code. That moves
+>   #644's head; re-predict CI and send me the read.
+>
+> CB9 and CBF4 are as you added them. Good, including CBF4's internal-heap delta of 0 read in one loop pass.
+>
+> Next: the docs commit with Q-MB8 and P-CB-BENCH, then #644's CI read. I read twice by the full sha before approving.
+
+### CB10's condition, P-CB-BENCH and CD4, frozen before any code
+
+**CB10, as ruled.** In the map's draw code:
+
+```cpp
+#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)
+#error "step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships."
+#endif
+```
+
+- **`BLIPSCOPE_MAP_STEP_C`** is step C's macro, named now so that it is frozen. Step C's header defines it in the same
+  commit that makes the wedge's green add to the map pixel, and that is what removes the refusal. Nothing else may define
+  it: CD4 below refuses a definition anywhere else.
+- **Where it lands:** step B's code PR, in its first commit, or in the same commit as the first line that draws the map.
+  `main` never holds a map-drawing path without its refusal.
+
+**The plants, with what each reading means, decided now:**
+
+| plant | how it runs | predicted | any other reading |
+|---|---|---|---|
+| **P-CB-FLIP** | `blipscope-s3-128` built with `-DWX_LAYER_SHIPS` added (the release flip), through `PLATFORMIO_BUILD_FLAGS`, from PowerShell | the build **fails**, and its log holds the `#error` text | a build that passes, or that fails for any other reason, stops the step and is reported |
+| control | `blipscope-s3-128-wxlook` as it stands | builds | stop and report |
+| **P-CB-BENCH** | `blipscope-s3-128` (slug-ful) built with `-DWX_LOOK_AB` added, then `bash scripts/check-no-bench-hooks.sh <its firmware.bin>` | **exit 1**, with `FAIL: bench hook marker '[wx-bench]'` | exit 2 is BLIND (no anchor), and a build that fails is BLIND too: neither is a pass, and either stops the step |
+| control | the same script on the unchanged `blipscope-s3-128` image | **exit 0**, `ok: no bench hook` | stop and report |
+
+**P-CB-BENCH is a premise check, so its reading has to be read off the image** ("read the artifact, not the config"):
+the scan reads `firmware.bin` itself, and its anchor (`[build] env=`) has to be found before any absence counts.
+
+**CD4, so the placement rule runs rather than being remembered.** `check_map_draw.py` holds, at every head CI sees:
+- if any `THE MAP DRAW` region exists, the refusal exists, with exactly CB10's condition;
+- `BLIPSCOPE_MAP_STEP_C` is defined nowhere except step C's header.
+
+| row | plant (turns exactly) |
+|---|---|
+| **CD4** | S-CD-NOREFUSAL, the `#error` block deleted while a draw region stays: {CD4}. S-CD-STEPC, `BLIPSCOPE_MAP_STEP_C` defined in `AircraftManager.cpp`: {CD4} |
+
+### CI for this PR, re-predicted at its new head
+
+**Unchanged: 32 check runs, 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed,** in three
+workflows (device-ids, firmware, no-traffic-captures).
+- This commit is docs only, like the two before it.
+- The baseline is still #640's finished docs-only PR run (`289a1e25609f`), and no workflow has changed since #633.
+- The run on the previous head (`7bb2556b`) is superseded by this push. Whatever it read is not this prediction's
+  subject, and it is recorded as superseded.
+- **Any other reading at the new head means a stop and a report,** with no re-run.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
