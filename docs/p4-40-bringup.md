@@ -401,7 +401,13 @@ Q-TEXT went to the reviewer with the recommendation to decide it on the glass at
     `--emit-table`, the diff is exactly those two added lines, and `--check-table` passes (10 rows).
   - `--fleet` passes: 12 built envs, boards p4-40 x2.
   - Image mode passes on both P4 images: record `p4-40` (scope '', board 'p4-40') at 0x120.
-- **CI2: PENDING (the PR).**
+- **CI2, read at `c7afef855520cc688a6ab5697d2f002b540c9a30` (2026-11-11 21:04:42Z): OFF.**
+  - 36 check runs, the predicted count and names.
+  - 29 success, 4 skipped, 2 failure (`host-tests (ubuntu-24.04)` and `(ubuntu-26.04)`). The `host-tests` aggregate still read
+    "queued" after the run completed (failure, 21:00:07Z).
+  - CI's log names four failed blocks: "OTA identity", "OTA install", "sabotage controls" and "sabotage drivers, in full".
+  - All four have one cause: counts pinned to `identities.txt`, which the two P4 rows moved.
+  - The fix and its reads are at the end of this page. The next head is graded as F3.
 - **CI3: holds** (run 19:53-19:56:37Z). `scripts/check-adsbdb-out.sh p4-40` reports both envs `CONTROL found, ENDPOINT 0, BARE 1,
   PASS` and `GATE PASSED`. That `BARE 1` is the script's own expected ConfigMigration literal. The default plant site serves
   the P4, so no `plant_target()` case was added. Afterwards the tree was clean, `src/ConfigMigration.cpp`'s blob equalled
@@ -512,3 +518,22 @@ by #648".
 | **F1** | in WSL Ubuntu-24.04 (g++ 13.3), on the committed 10-row table: `test_ota_identity` passes all checks, `test_ota_install` passes all checks, and `test_ota_model` passes, reporting 20 checks | anything else: stop |
 | **F2** | a planted 11th row (`plant-p4 - plant-board`) in a COPY of `test/fixtures/ota` (11 rows asserted, and the real table's blob asserted unchanged) makes `test_ota_identity` fail R1/M1/M2/M3, and `test_ota_install` fail O10 | either passes on the plant: its count is not pinned after all; stop |
 | **F3** | the PR's next head: **36 check runs**, the same names as at `c7afef855520`, every one passing or skipped, **both `host-tests` legs and the `host-tests` aggregate included**. Re-checked at push time: main has made no job-set change since `8f1a878f` | a different count or name, or any failure: read the run first; a second off reading on #648 goes to the reviewer |
+
+**Results of the fix (read 2026-11-11, 20:22-21:04Z; ruled ~21:05Z that the second item folds into the approved fix):**
+- **F1: holds.** In WSL Ubuntu-24.04 (g++ 13.3, `run.sh`'s flags), on the 10-row table: `test_ota_identity` 22/22,
+  `test_ota_install` 36/36, `test_ota_model` 20/20.
+  - The first F1 run exposed a defect in the fix itself: two `want` strings still printed the old 38/26 and 78 while their checks
+    used the new numbers. Corrected before commit.
+- **F2: holds.** An 11th row planted in a copy of `test/fixtures/ota` (11 rows asserted; the real table's blob unchanged) fails
+  `test_ota_identity` on R1, M1, M2 and M3, and `test_ota_install` on O10.
+- **The miss, on record.** The first diagnosis read the first failing block and stopped. The full log named four blocks. And the
+  reader table above mislabelled `test/host/sabotage_ota_model.py`:
+  - its `--control` pins `MODEL_CHECKS = 16`, which is `test_ota_model`'s one-check-per-row count;
+  - the two P4 rows move it to 10 + 7 + 3 = 20, now set, still a named constant;
+  - a grep for `identities.txt` could not have found it, because it never names the file.
+  - **The lesson: a count derived from a table is a reader of that table, whatever it greps for.**
+- **Verified on the fixed tree (`7d2cde20`):**
+  - all three OTA sabotage drivers pass `--control` ("all as the table") and in full (6, 3 and 4 AS PREDICTED, 0 OFF);
+  - `lint_driver_counts.py`: 37 drivers, 0 flagged;
+  - the tree is clean.
+- **F3** is graded on the next pushed head.
