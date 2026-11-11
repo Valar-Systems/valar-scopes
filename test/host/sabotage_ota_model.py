@@ -3,7 +3,7 @@ EXACTLY the checks frozen in docs/weatherscope-stage4.md S4.5, and nothing else.
 
     python -I test/host/sabotage_ota_model.py
 
-  S-M1   the model is the board alone          -> M1 for every row with a scope (3 today), none of the 5 without
+  S-M1   the model is the board alone          -> M1 for every row with a scope (3 today), none of the 7 without (5 until #648's two P4 rows)
   S-M1b  a short buffer is cut, not refused    -> M1b-short only
 The real header is never edited: it is copied into a scratch include directory, the plant asserts its anchor occurs once
 and the copy differs. The scoped rows are read from test/fixtures/ota/identities.txt, so the prediction follows the table.
