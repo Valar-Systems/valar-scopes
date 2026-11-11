@@ -1886,3 +1886,40 @@ own process, and the parent exited 0. The error file is empty, the tree stayed c
 **The one sentence (ruled):** A+B's water rung needs the water simplified at ε×8, and the builder makes it in its single pass over the
 cells, so a coarser water set is held beside the ε and ε×2 sets from the cell loop to the end of the build. The scratch copy also holds
 an ε×4 rivers-and-roads set for every variant, which A+B never reads, so the ab figures above are upper bounds.
+
+### ab with only the sets it uses (pre-ruled ~05:53Z): registered before it runs
+
+**What changes, in the scratch copy only:**
+- **A knob, `DENSE_SETS=used`.** With it set, the ε×4 rivers-and-roads set (L4) is built only for P1 and P2. ab then builds L8, the ε×8
+  water its rung uses, and nothing it doesn't read.
+- **Unset, the code behaves exactly as before:** every variant but v0 builds both coarse sets.
+- **The builder exports `SETS_USED`,** so each child reports, from the builder module itself, whether the knob took.
+- **Both edits are byte-checked** against a kept copy (`dn-build.ts.before-sets`). They are three lines.
+
+**What runs:**
+- **Fourteen local processes, in the drivers `dr-used.mts` and `dr-child3.mts`,** each build in its own process, with the release on and
+  `READ_AHEAD` 6:
+  1. **AU0,** ab at KLGA without the knob;
+  2. then **ab with the knob** at all 13 points, at 162 km.
+- **The references** are Q-DR3's read above, frozen in the driver.
+- **Nothing runs on staging.**
+
+| row | predicted |
+|---|---|
+| **AU0** (the control that can fail) | without the knob, the edited copy reproduces Q-DR3's ab at KLGA: **73.64 ± 0.785 MiB, in the ladder phase, 422.** If the edit had changed the default path, this would move |
+| **AU1** | with the knob: **ab's packages unchanged.** Nov 8's ab hashes at the 9, and 422 with no ladder at the 4. `budget.ts` reads the ε×4 content only in `at4()`, which runs for P1 and P2 alone |
+| **AU2** | each point's figure **between v0's and ab-with-every-set's** from Q-DR3, ± 0.785 |
+| **AU3** (graded both ways, not a stop) | at the 4 New York points, **the copy's ε×4 set is the larger part of ab's extra.** The ε×4 set holds every river and road, most of New York's features, while A+B's ε×8 set holds water only |
+| **every process** | the knob as asked (read from the builder); C1, C2′ and C3; settled; objects local; **no build over 96 MB**, graded per build; every 200 `kOk` and at most 32,768 |
+
+**Where the bounds come from:** 0.785 is the bound measured for this configuration: twice the largest spread between processes at one
+sample (0.392).
+
+**What the readings will mean:**
+- **As predicted:** ab's figures with the knob are A+B's own memory. They replace the upper bounds in the proposal, and **the split of ab's
+  extra into the copy's ε×4 set and A+B's own ε×8 water** is stated per point.
+- **Anything else:** stop and report.
+
+**What this cannot see:**
+- **Workerd.**
+- **P1 and P2 are unchanged by the knob.** Their figures stand as read, since they do use the ε×4 set.
