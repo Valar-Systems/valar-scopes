@@ -1564,3 +1564,52 @@ differs from `mem-diag7` in three places, and in nothing else:
 | **the exception's count** | **not predicted; reported:** how many cells, in which processes, and which reads they match |
 
 **What the proposal stands on (ruled):** the build's largest, and PL1.
+
+### The release variant, phase 2, re-registered, read (2026-11-11, 05:21:20-05:21:35Z): the variant as predicted; stopped at PL1, in the first planted process
+
+The registration was frozen at 05:21:13Z (`5c983f8bbcd3`). The runner confirmed `pred7.json`'s sha256. Four processes ran: three variant
+processes, each exiting 0, then one planted process, which stopped itself (exit 16). The error file is empty, the tree stayed clean, and
+nothing ran on staging.
+
+**The variant, three processes:**
+
+| | process 1 | process 2 | process 3 |
+|---|---|---|---|
+| RV3 | ok; KJAC `b3f428e5860e`; DR0's ladder | the same | the same |
+| RV1, the exception aside | within 0.09 MiB | within 0.15 | within 0.14 |
+| **the build's largest, 59.90 ± 0.785** | **59.99 at "ladder"** | **60.02 at "ladder"** | **60.02 at "ladder"** |
+| **the exception** | **cell 11, +4.83** | **cell 11, +4.87** | **cell 11, +4.87** |
+
+**The variant's largest, stated as ruled:** **60.02 MiB (62.9 MB, at most 64), in the ladder phase.** That is the highest across three
+processes; they spread 0.03. **v0's is 99.55 MiB (104.4 MB) at cell 16.**
+
+**The exception: one cell, cell 11, in all three processes,** and in the stopped run's process too.
+- In every case it matches the reads of cells 4 (4.86), 7 (4.45) and 10 (4.82). Cell 10's is the read consumed just before.
+- No other cell showed any excess.
+- **For workerd:** the largest cell sample including it is 57.35. That is under the ladder phase, but it is real memory in Node, and
+  workerd may pay it too.
+
+**The plant: PL1 off, at cell 15** (95.84 against v0's 91.14). **By the registered table: stop.**
+
+**What the planted process shows:**
+- **Plant minus v0's mean, per cell:** **+0.05 at cells 1-11**, then **+4.70 at cells 12-21.**
+- The +0.05 is the same per-process offset the variant shows.
+- **The +4.65 step is the size of the three reads the builder makes before the cell loop:** the manifest (3.688 MiB), the index (0.846) and
+  the coverage (0.116), which total **4.650**. `current` is empty.
+- **So v0 keeps those three reads until cell 11, and lets them go at cell 12.** The plant keeps every buffer the store hands out, so it
+  keeps them to the end.
+- **The plant restores v0's cell reads:** cells 1-11 to 0.05, and from cell 12 the only difference is those three reads.
+- The planted process's later samples, reported:
+  - tile loop's largest 127.55, tiles 127.50, ladder 130.93 MiB;
+  - that is 71.0 MiB above v0's after the loops, which is all 60.91 MiB of cells, plus 4.65, plus 5.38 MiB of the tile list.
+- **The alternative:** some other 4.65 MiB, held from cell 12 by the plant only. **Why it is unlikely:**
+  - the nearest cell reads are 4.45 and 4.86, each about 0.2 away;
+  - the three pre-loop reads match to the hundredth.
+
+  The read doesn't exclude it outright.
+- **Not established:** why v0 lets the three reads go at cell 12. The variant's one exception sits at the same transition, cell 11. One
+  explanation could cover both, and this read doesn't name it.
+
+**My miss, with its cause:** I registered the plant as "keeps every buffer the store hands out", and predicted that it equals v0. I never
+checked that v0 holds every such buffer. It holds the reads `readInOrder` hands out, and holds the three earlier reads only until cell 11.
+The control was built wider than the claim it tests.
