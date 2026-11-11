@@ -1,10 +1,10 @@
 // Blipscope web renderer (docs/web-renderer.md): mounts the radar firmware, compiled to WebAssembly, on a canvas.
 //
-//   import { mount } from "./blipscope-web-render-v18.js";
+//   import { mount } from "./blipscope-web-render-v19.js";
 //   const radar = await mount(canvas, {
-//     loaderUrl: "./blipscope-web-s3-128-v18.js",     // the Emscripten loader for one model
-//     wasmUrl:   "./blipscope-web-s3-128-v18.wasm",
-//     fontUrl:   "./blipscope-web-mono-v18.woff2",     // optional: enables textMode "smooth"
+//     loaderUrl: "./blipscope-web-s3-128-v19.js",     // the Emscripten loader for one model
+//     wasmUrl:   "./blipscope-web-s3-128-v19.wasm",
+//     fontUrl:   "./blipscope-web-mono-v19.woff2",     // optional: enables textMode "smooth"
 //     config:    { latitude: "44.0582", longitude: "-121.3153", radius: "40", "radius-unit": "km" },
 //     apiBase:   "",                                   // where /api/v1/blipscope/... is served; "" = this origin
 //   });
