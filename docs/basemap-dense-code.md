@@ -93,7 +93,7 @@ are added as knobs. **With every knob off, it must be `525cf7d1`'s builder, byte
 | **QW4-0** (the control that can fail) | the prototype with every knob off, at all 13 points | **byte-identical to `525cf7d1`'s builder:** Nov 8's DR0 packages at the 9, #620's ladders at New York. **Memory within 0.785 of #639's measurement** at each point, in the ladder phase |
 | **QW4-1** | B with tp and the backstop, no sea | **0 proper crossings in every package.** The 9 fit at 162 km; **New York's first fit is 129.6 km** at all 4. Every package `kOk`, at most 32,768 non-terrain bytes. The backstop's refusals are reported per point |
 | **QW4-2** | B with tp, the backstop and the sea | **0 proper crossings,** and every package `kOk`. **New York's first fit is 129.6 km at all 4**, as DR6 read B with the copy's sea approximation. **KB2: no bridge crosses any other edge.** **KB3: sea bytes at most 3 KB** at KBOS, KJFK, KLGA, KSEA, KSFO and KMIA |
-| **QW4-3** (the backstop's plant) | a fixture store whose one water ring is a 4-vertex bowtie, a ring that crosses itself and that tp cannot fix (it has no vertex to add) | **the control:** with the backstop off, the package carries the bowtie with 1 proper crossing, so the plant is shown to land. **With it on:** the ring is dropped and counted once in `PROVENANCE`, and the package carries 0 crossings |
+| **QW4-3** (the backstop's plant) | a fixture store whose one water ring is a 4-vertex bowtie, a ring that crosses itself and that tp cannot fix (it has no vertex to add) | **the control:** with the backstop off, the package carries the bowtie with 1 proper crossing, so the plant is shown to land. **With it on:** the ring is dropped and counted once in `PROVENANCE`, and the package carries 0 crossings. **Re-frozen in the 22:38Z amendment at the end: counted on `bm_build`, not in `PROVENANCE`** |
 | **QW4-4** | the sea mask's own checks, KB1, KB4 and KB5, with the plants S-KB-NOBRIDGE, S-KB-CROSS and S-KB-ORDER | **as #616 registered them** |
 | **QW4-D2** | New York under B, all of D2's steps in one call and one process | the call's largest sample is **at most its largest single step's, + 0.785 MiB**: no step carries memory into the next |
 | **QW4-M** (memory) | every build | **no build over 96 MB** (a stop). Each B build is reported against the 77.2 MB the owner took with B, with New York's 162 km tries and KORD and KIND named. Those two points were estimated about 6 to 7 MiB above the copy's B figures, and are now measured |
@@ -329,6 +329,10 @@ three points need the bound beside them, not only ± 0.785.** That goes into the
 
 ## The code PR's frozen predictions (on the orchestrator's 22:25Z and 22:28Z rulings)
 
+**Amended at 22:38Z, before anything was built:** the amendment at the end of this file re-freezes T-PROV-a, R-KMSP, the
+PROVENANCE bullet in the package rows, KBOS's row and QW4-3's count, and adds T-SEA0 and the readers of `bm_build`'s new fields.
+Where it and this section differ, the amendment holds.
+
 **Frozen before any of the code exists.** It covers the code PR's memory, its packages, PROVENANCE's water counts and D2's steps.
 **Points A to D at the end are mine, not ruled,** and are marked for the orchestrator's reading before anything is built.
 
@@ -506,3 +510,87 @@ report, not a stop.** CM-M reports the code PR's own figure beside it.
   - **I recommend the PROVENANCE line, once Weatherscope's session agrees through the orchestrator.**
 - **D. KBOS's margin.** In O2's world KBOS reads +12.07: 0.68 below its one value, leaving 0.10 for noise. As ruled in 1(c), it stays one
   value, so a reading of +11.9 there would stop.
+
+### Amendment (the orchestrator's 22:38Z rulings on points A to D): re-frozen before anything is built
+
+The ruling, verbatim:
+
+> c0be464cf124 is read (docs only, +508). CM-0, CM-P, the MIX outcome, the "neither O1 nor O2" stop and the generator-recomputed figures
+> are all good additions. Rulings on A-D; push them as one amendment before anything is built:
+> A. THE SEA: agreed.
+> - The sea's memory gets its own rows in QW4-2's addendum, measured reading a stored sea the way the code PR will.
+> - The property "a store with no sea layer builds no sea" is registered, with its control: the same store with a sea layer added does
+>   build one.
+> B. CI vs REAL POINTS: agreed. The split is T-PROV-a/b and T-D2 in CI, R-KMSP and R-D2 in the run.
+> - One addition: bm_build's new steps field needs a NAMED READER, or it's an instrument firing into a void.
+> - Name it in the registration: the post-deploy staging rows assert steps ≤ 2 at New York's 4, plus any routine check that already
+>   reads bm_build.
+> C. REFUSALS: split, so the code PR doesn't wait on another session's contract.
+> - The code PR fixes collapsed.water's VALUE (the drawn set only), with no format change; MG0b holds.
+> - Refusals are counted on bm_build. The package then makes no false claim, only an omission.
+> - The refused.water line is a SEPARATE contract change: weatherscope's builder and MG0b change in the same PR, with weatherscope's
+>   agreement. I'll put it to weatherscope once its CI queue clears.
+> - Re-freeze before running: T-PROV-a's "refused.water: 1" becomes the bm_build refusal count, and QW4-3's "counted once in
+>   PROVENANCE" becomes "counted once on bm_build". QW4-3 hasn't run, so that's a re-freeze, not a re-grade.
+> D. KBOS: give it both values, O1 +12.75 and O2 +12.07, each ±0.785. State that they overlap, so KBOS can't tell the worlds apart.
+> - KBOS must read inside the band of the world that KJFK, KORD and KIND read. A reading only in the other world's band stops.
+> - If the three read a MIX, KBOS passes within the union of the two bands.
+> Send the amendment's sha. The addendum for QW4-2 to QW4-4 can carry A and C's QW4-3 change, or come separately, your choice.
+
+**What it changes, row by row.** Where this and the section above differ, this holds. QW4-3's change is made here; the addendum for QW4-2
+to QW4-4 brings only their tooling and the sea's rows.
+
+**A. The sea.**
+
+| row | where | predicted |
+|---|---|---|
+| **T-SEA0** | CI, on a synthetic store with no sea layer, and the same store with one added | **with no sea layer: no sea ring is drawn, and PROVENANCE reads no sea layer.** The control: **with the layer added** (every other object the same), the package draws the sea's rings and PROVENANCE reads the layer. The fixture puts its sea where no other water is, so a ring there can only be the sea's |
+
+- **On real data, the no-sea half is already graded:** at all 13 points, on the store with no sea layer, every section but PROVENANCE must
+  equal QW4-1's package, which has no sea.
+- **The sea's memory, and the sea on real points, are rows in QW4-2's addendum.** They are measured reading a stored sea the way the code
+  PR will, not the prototype's sea computed from land.
+
+**B. The readers of `bm_build`'s new fields.**
+- **`bm_build` gains three integer fields:**
+  - `steps`, D2's step count;
+  - `refused`, the rings the backstop refused in the set the package draws (what the package omits);
+  - `refusedBuilt`, its refusals across every water set built.
+- **The named reader is the code PR's post-deploy staging rows, registered with its deploy:**
+  - **`steps ≤ 2` at New York's 4**;
+  - at KMSP, `refused` and `refusedBuilt` equal to R-KMSP's figures from the local run.
+- **No routine check reads `bm_build` today.** On main, its readers are one-off: the registered staging rows, and
+  `docs/basemap-a1/instruments/bb-lines.mts`, run by hand for #541.
+  - After the staging rows, these fields are read only when someone tails the builder. That is the void shape the 22:38Z ruling names.
+  - It is stated here, not solved. A routine reader would be its own item.
+
+**C. Refusals: no format change.**
+- **The code PR fixes `collapsed.water`'s value** to count the drawn set only. A refused ring is never inside it. That is the defect at
+  `frame.ts:242` in the prototype, where a refused ring is stored as null and counted as collapsed.
+- **No `refused.water` line. PROVENANCE's line count is unchanged, so MG0b holds.** The line is a separate contract change: Weatherscope's
+  builder and MG0b change together, in one PR, with Weatherscope's agreement. The orchestrator is putting it to Weatherscope.
+- **The package rows:** PROVENANCE differs from QW4-1's **only in `collapsed.water`'s value**, and only at rungs 2 to 7.
+
+| row | where | re-frozen as |
+|---|---|---|
+| **T-PROV-a** | CI, on QW4-3's bowtie store | with the backstop on: **`refused: 1` on the build's result, which `bm_build` carries** (the test also asserts that `buildLine` passes it through), **and `collapsed.water` equal to the same store's with the bowtie removed.** The control: with the backstop off, the bowtie is drawn with 1 proper crossing |
+| **T-PROV-b** | CI, KMSP's shape | **unchanged:** `collapsed.water` equals the drawn set's count. Its control still shows that the ε × 2 set's count, and the drawn set's count with the refusal inside, both differ from it |
+| **R-KMSP** | the code PR's run, on real data | **KMSP's `collapsed.water` and `refused` equal those of KMSP built at ε × 8 with no cap** (rung 0, where no rung swaps a set). The control: **`refusedBuilt` at least 1** |
+| **QW4-3** | the prototype's bowtie store (its fixture is pinned in the addendum) | **the control is unchanged:** with the backstop off, the package carries the bowtie with 1 proper crossing. **With it on:** the ring is dropped and **counted once on `bm_build`**: `refused: 1`. **`collapsed.water` doesn't count it,** and the package carries 0 crossings. `refusedBuilt` counts each water set the bowtie survives into. The fixture is sized to survive at ε × 8, so that is all four: ε, × 2, × 4 and × 8 |
+
+QW4-3 has not run, so this is a re-freeze, not a re-grade. The prototype keeps its `frame.ts:242` count until the addendum's tooling
+changes it. The addendum pins that change by sha256 before QW4-3 runs.
+
+**D. KBOS: two values that overlap.**
+
+| point | graded | O1 (absent) | O2 (present) |
+|---|---|---|---|
+| **KBOS** | the peak, the code PR minus main | **+12.75 ± 0.785** (11.965 to 13.535) | **+12.07 ± 0.785** (11.285 to 12.855) |
+
+- **They overlap,** being 0.68 apart, less than twice 0.785, **so KBOS cannot tell the worlds apart.** It is graded by the world that
+  KJFK, KORD and KIND read:
+  - **if the three read O1,** KBOS must read inside O1's band. **A reading only in O2's band (11.285 to under 11.965) stops**;
+  - **if the three read O2,** KBOS must read inside O2's band. **A reading only in O1's band (above 12.855 to 13.535) stops**;
+  - **if the three read a mix,** KBOS passes anywhere in the union, 11.285 to 13.535;
+  - **outside both bands, it stops,** as any one-value point would.
+- KBOS's cell phase stays recorded, not graded.
