@@ -533,3 +533,40 @@ its `budget.ts` variants hold about 6 MiB more inside the cell loop at KJFK. The
 2. **RL1 re-registered** against those figures, ± 0.785, each in its own phase, and committed;
 3. a **fresh run** in new processes, graded: RL0 to RL2 from the start, with RL1's new figures. RL1 is never graded on the run its
    figures came from.
+
+## The measurement run (2026-11-11, 19:25:48-19:26:18Z): not graded. And a correction to the Q-RV6 read above
+
+**TIME_WAIT was 47 at 19:25:41Z.** The PR's hooked builder ran at all 13 points, one process each (`dr-child5.mts`, "pr"). Every
+control held, every sample settled, and every object was local. Every answer is right: Nov 8's packages at the 9, and #620's ladders at
+New York. The log is scratch (sha256 `fc43b98c419e`), and its figures are in `rv-meas.json` (`96dd8967d1bf`).
+
+| point | the PR's builder, MiB, the ladder phase at all 13 | | point | |
+|---|---|---|---|---|
+| KBOS | 56.70 | | KSEA | 49.18 |
+| KJFK | 58.54 | | KORD | **45.79** |
+| KLGA | 60.01 | | KDTW | 47.13 |
+| KEWR | 60.81 | | KMSP | 47.27 |
+| Midtown | 58.11 | | KIND | **50.85** |
+| KMIA | 39.39 | | KJAC | 38.88 |
+| KSFO | 39.21 | | | |
+
+**The correction.** Compared phase by phase with Q-DR3's copy builds (the PR minus the copy, MiB):
+
+| | cell | tile, tiles, terrain, layers, ladder |
+|---|---|---|
+| KBOS, KJFK, KLGA, KEWR, Midtown | **−3.63, −6.32, −2.13, −1.28, −7.41** | within 0.10 |
+| **KORD** | 0.02 | **+5.94 to +5.97** |
+| **KIND** | −0.73 | **+6.89 to +6.91** |
+| the other 6 | within 0.03 | within 0.16 |
+
+- **The Q-RV6 read above says the copy and the PR "agree to 0.3 MiB" after the cell loop "in every read so far".** That was true of
+  the reads compared, at KJFK and KBOS. **It is not true at all 13:** at KORD and KIND the shipped builder reads 6 to 7 MiB more than
+  the copy, from the tile loop to the end.
+- **So "ladder-phase figures are unaffected, including the 77.2 MB the owner took with B" is not established.** At some points the
+  shipped builder reads higher than the copy in the ladder phase, and why is not known. B's figures came from the copy.
+- **My miss, with its cause:** I generalised from two points to all 13 in a sentence the orchestrator then recorded. The comparison at all
+  13 was one script away.
+
+**The ruled next steps are unaffected,** because they grade the PR's builder against its own figures: RL1 re-registered against this
+measurement, then a fresh graded run. **What is now open (Q-RV7)** is why the shipped builder holds 6 to 7 MiB more than the copy from
+the tile loop on, at KORD and KIND only. That bears on B's memory figures for the Q-W4 code PR, which builds on this builder.
