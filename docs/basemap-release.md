@@ -599,3 +599,30 @@ put every peak there, KJFK included):
 
 **The run is fresh:** new processes, never the measurement's. It is graded per build, stopping at the first off reading, by the same
 table as the re-run under (a). **A stop on RL0 still goes to the owner.**
+
+## The fresh run, read (2026-11-11, 19:30:30-19:31:10Z): every graded row as predicted
+
+The re-registration was pushed at 19:30:20Z (`2f632faf`). TIME_WAIT was 56 at 19:30:24Z. The wrapper and every artifact check read as
+registered. **16 builds ran,** each in a new process, and the parent exited 0. The error file is empty, and nothing ran on staging. The
+log is scratch (sha256 `08439f34a00a`).
+
+| row | read | |
+|---|---|---|
+| IC1, the PR's and main's | exit 2, `unknown point XXXX`, for both | as predicted |
+| **RL0**, main's builder at KLGA | 422 with DR0's ladder; **99.54 MiB in the cell phase, at cell 16** | **as predicted** |
+| **RL1**, the PR's builder at all 13 | **every answer** (Nov 8's packages, #620's ladders) and **every memory figure**, each within 0.03 MiB of the measurement, in the ladder phase | **as predicted, 26 of 26 rows** |
+| **RL2** at ε 201,169 mm | KLGA 422, **249,684 / 205,868 / 186,014 / 41,061**; KJFK 422, **238,584 / 196,364 / 176,124 / 40,366**; both non-increasing and over 32,768 | as predicted |
+| every process | the controls held, every sample settled, every object was local, no build over 96 MB | as predicted |
+
+**So the PR's builder is the release variant, with its own figures:** a cut of 39.53 MiB at KLGA's peak (99.54 → 60.01), every package
+and ladder unchanged.
+
+**RL2's ladders are now frozen as the staging rows' prediction** (SG-A and SG-F): the `bm_build` ladder at ε 201,169 mm is the one above,
+per query. At KLGA it equals the client's-ε ladder. At KJFK the first rung is 4 bytes smaller (238,584 against 238,588), and the rest are
+equal.
+
+**Still open, and not part of this PR's grading:** Q-RV7, why the shipped builder holds 6 to 7 MiB more than the copy at KORD and KIND
+from the tile loop on. It bears on Q-W4's memory predictions under B.
+
+**Next:** CI at this head, then the orchestrator's review at an exact sha. The staging deploy waits on the merge, on blipscope-5c's
+`/healthz` fix being merged, and on its slot.
