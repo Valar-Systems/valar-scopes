@@ -205,3 +205,37 @@ run as `git grep -nIE '<pattern>' 1c1f57547463 -- . ':!docs'`:
 
 Section 6's check otherwise runs exactly as registered. Anything else out of scope, or an instrument that can't decide,
 means step 4 runs with the owner.
+
+## 10. Amendment 2: S-O8b's plant compiles again (ruled (b) at 23:04Z; made before the code commit)
+
+**The reading that stopped the local run** (WSL, g++ 13.3, uncommitted code). S-O8b "did not compile (rig)", with
+`OtaInstall.h:150:20: error: 'head' may be used uninitialized [-Werror=maybe-uninitialized]` at the planted line
+`if (!StartImage(flash, total, head, got)) ...  // SABOTAGE S-O8b`. A plant that doesn't compile never ran, so it gives no
+verdict. Everything else read as predicted: the suite 42/0; S-O8a 22/22; S-ID3 9/9; P-NORETRY 6/6; P-BYPASS 6/6; the wiring
+controls; `--control` 42; `--anchors` 5 of 5.
+
+**The cause, checked against C.** The original driver, run on C's exact committed files (`git cat-file` blobs, the same
+compiler), read S-O8a 20/20, **S-O8b 14/14** and S-ID3 9/9, all as predicted. So the change introduced the warning.
+- **The mechanism:** S-O8b's plant hands `head` to `StartImage` before deciding, even when the head read returned 0 bytes.
+  Once `ReadHead` loops over `ReadSome`, GCC can no longer prove `head` is written on that path.
+- **It is a false positive on the plant's path alone.** The unplanted suite builds clean with `-Werror` under the same
+  compiler, the real `Install` uses `head` only after `Decide` has accepted 352 bytes, and with `got` = 0, `StartImage`
+  writes 0 bytes.
+
+**The change, in S-O8b's replacement text only** (`test/host/sabotage_ota_install.py`), around exactly the planted lines:
+```
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+    <the four planted lines, unchanged>
+#pragma GCC diagnostic pop
+```
+It is not a change to `Install`, which isn't in section 6's scope, and not a driver-wide flag, which would hide the same
+warning for every plant.
+
+**Proved to take before the driver runs S-O8b:** a compile-only check of the planted source under g++ 13.3 (staged with the
+driver's own functions) **compiles with `-Werror`, with 0 warnings without it.**
+
+**Predicted:**
+- **S-O8b's registered red set is unchanged:** I1-I6 each `-log` and `-target`, O10 and MAP2.
+- **HP2 and HP5 still read `Truncated`,** decided before `FinishImage`.
+- **HP1, HP3 and HP4 still install.**
