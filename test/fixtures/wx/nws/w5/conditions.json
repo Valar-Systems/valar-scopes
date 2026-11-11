@@ -1,0 +1,20 @@
+{
+ "v": 1,
+ "status": "ok",
+ "fetchedUtc": 1794353400,
+ "timeUtc": 1794351180,
+ "present": [
+  "-RA",
+  "BR"
+ ],
+ "tempF": 37,
+ "hasTemp": true,
+ "windDirDeg": 0,
+ "hasWindDir": true,
+ "windMph": 10,
+ "hasWind": true,
+ "gustMph": 0,
+ "hasGust": false,
+ "humidityPct": 56,
+ "hasHumidity": true
+}

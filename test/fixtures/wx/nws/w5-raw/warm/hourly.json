@@ -1,0 +1,39 @@
+{
+ "properties": {
+  "generatedAt": "2026-11-10T23:30:00+00:00",
+  "periods": [
+   {
+    "startTime": "2026-11-10T18:00:00-06:00",
+    "temperature": 71.6,
+    "probabilityOfPrecipitation": {
+     "unitCode": "wmoUnit:percent",
+     "value": 12.5
+    }
+   },
+   {
+    "startTime": "2026-11-10T19:00:00-06:00",
+    "temperature": 70,
+    "probabilityOfPrecipitation": {
+     "unitCode": "wmoUnit:percent",
+     "value": null
+    }
+   },
+   {
+    "startTime": "2026-11-10T20:00:00-06:00",
+    "temperature": null,
+    "probabilityOfPrecipitation": {
+     "unitCode": "wmoUnit:percent",
+     "value": 20
+    }
+   },
+   {
+    "startTime": "2026-11-10T21:00:00-06:00",
+    "temperature": 68,
+    "probabilityOfPrecipitation": {
+     "unitCode": "wmoUnit:percent",
+     "value": 0.5
+    }
+   }
+  ]
+ }
+}

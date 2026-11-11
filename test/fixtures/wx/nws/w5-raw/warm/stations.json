@@ -1,0 +1,14 @@
+{
+ "features": [
+  {
+   "properties": {
+    "stationIdentifier": "KMCI"
+   }
+  },
+  {
+   "properties": {
+    "stationIdentifier": "KMKC"
+   }
+  }
+ ]
+}
