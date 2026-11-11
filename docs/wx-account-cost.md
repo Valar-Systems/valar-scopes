@@ -220,3 +220,28 @@ assumes 1,714 bytes an event and 7 days stored.
   0.1 M. That stays under 1 M with `missileer-live` as it is, so Read A's $4.50 never applies.
 - **cref's ingest, 70 % of today's CPU:** the map-from-R2 change that took opuk from 1,676 ms to 240 ms has not been
   made for cref.
+
+## 7. Ruled (reviewer chat, pasted by Daniel, 2026-11-11 ~05:25Z), verbatim
+
+> The cost record:
+> 1. The KV fix: accepted. The code now matches §4, and both results stay recorded.
+> 2. S1 and S4: on record as misses, with no re-registration. The readings stand; the bands were wrong.
+> 3. Push it as a docs PR, CI predicted first. It joins the order after blipscope-5c's v19-cut docs PR.
+>
+> Daniel's decisions:
+> - The ten: change first, then deploy. Make #570's "one latest record" change, predictions first, including a read of
+>   the whole account's R2 Class A afterwards that stays under the free 1M. Then deploy the ten through
+>   ingest_deploy.sh, each under its claim. That PR joins the order after your cost-record PR.
+> - The proxy's bill (Logs sampling, KV): blipscope-5c, after v19 is promoted. I've sent it the brief.
+
+## 8. CI for this record's PR (predicted before the push)
+
+It changes `docs/wx-account-cost.md` and `tools/wx/account_cost_read.py`. Neither is in `workers.yml`'s or
+`web-renderer.yml`'s path filter, so the three workflows that run on every PR run: `device-ids`, `firmware` and
+`no-traffic-captures`.
+- **Predicted: 32 check runs: 29 success, 3 skipped, 0 failed.**
+- **The baseline** is #633's finished head run (`82ec36ae5ba1`): 32 = 29/3/0, the same three workflows.
+- **No job-set change since.** #633 added two steps to `device-ids`, not a job.
+- **Run locally first, all exit 0:** `check_device_ids.py`, `check_wifi.py`, `check_macs.py`,
+  `check_binary_strings.py`, `check_no_traffic_captures.py` and `skus.py --check-readers`, over the tracked tree with
+  these two files in it.
