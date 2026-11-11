@@ -1,0 +1,157 @@
+# v19's head read waits out an empty read (predictions first, 2026-11-11)
+
+**For:** the reviewer (the orchestrator). **Status:** the registration, frozen before any code. Nothing is coded yet.
+**Ruled by the owner (2026-11-11):** approve the fix; v19 may be tagged from a release branch, C plus this fix only;
+and the fresh-boot test is skipped for a fix-only candidate whose diff stays inside a scope frozen here (section 6).
+
+## 1. The defect, measured
+
+- **`ReadHead` stops at the first empty read** (`include/OtaInstall.h:69-78`). On the TLS download, an empty read is also
+  "nothing has arrived yet": `NetworkClientSecure::read` returns -1 with nothing buffered, and `NetworkClient::readBytes`
+  then returns 0 at once (framework-arduinoespressif32 3.3.9). So a body that is merely late is refused as truncated.
+  The chain is quoted with file:line in `docs/v19-cut.md`, step 1.
+- **On E2:08, through bench image A (C's code):** 13 of the 19 boots that reported refused a correct update as truncated.
+  That is window 3, `docs/v19-cut.md`.
+- **`writeRest` already waits** (`src/OtaUpdater.cpp:236-256`): 300 empty reads, 100 ms apart. The head read, the first read
+  of the same stream, doesn't. It is a second path that skips what the first establishes.
+
+## 2. The change
+
+- **One helper, in `include/OtaInstall.h`:** `ota::ReadSome(src, buf, n)`.
+  - It reads. A read that returns 0 calls `src.waitEmpty()` and tries again.
+  - It returns the count of the first read that brings bytes, or 0 after `kEmptyReads` empty reads in a row.
+  - `kEmptyReads = 300` and `kEmptyWaitMs = 100` are defined there, once.
+- **`ReadHead`** loops over `ReadSome` until it has `want` bytes, or until `ReadSome` returns 0. Then `Decide` refuses with
+  `Truncated`, as today. The empty count restarts whenever bytes arrive, so the bound is 300 empty reads IN A ROW, about 30 s
+  on the device.
+- **`writeRest`** reads each chunk through `ReadSome`. At 0 it records `UPDATE_ERROR_STREAM` and aborts, as today. Its
+  behaviour doesn't change: the same bound, the same wait, the same order, and the same restart on data. Its literals
+  `300` and `100` go.
+- **The sources gain `waitEmpty()`:**
+  - `StreamSource` and the bench `SerialBudget` wait `delay(kEmptyWaitMs)`;
+  - the host `FakeSource` counts the waits instead of sleeping.
+- **A bench-only stall** for B-STALL: under `#ifdef OTA_BENCH_HEAD_STALL`, `StreamSource::read` returns 0 while the head is
+  being read, and prints an `[ota-bench]` line. `check-no-bench-hooks.sh` already scans every shipping image for that
+  marker. No env sets the flag; the bench image is built with it on the command line.
+- **Nothing else changes:** not `Decide`, not the parse, not `OtaIdentity.h`, and nothing the device draws.
+- **The watchdog:** `src/main.cpp:322-328` subscribes only CPU0's idle task, and `delay()` yields, so a 30 s wait can't
+  trigger a reboot. `writeRest` waits the same way today. B-STALL checks this on the board instead of trusting this line.
+
+## 3. The host rows (in `test/host/test_ota_install.cpp`, built and run by `test/host/run.sh`)
+
+| row | the source | predicted |
+|---|---|---|
+| **HP1** | 5 empty reads, then the `s3-21` head | `Foreign` (today: `Truncated`). With the own head: installed, the flash log `begin,write,writeRest,end` |
+| **HP2** | empty for ever | `Truncated`, after exactly 300 empty reads and 299 waits: in `writeRest`'s order today, the 300th empty read ends the read without a wait |
+| **HP3** | the head one byte per read, an empty read between each | `Foreign`, after exactly 351 waits |
+| **HP4** | 299 empty, 1 byte, 299 empty, 1 byte, and so on to 352 | the head completes: never 300 empty in a row |
+| **HP5** | 300 empty, then the head | `Truncated`, and exactly 300 reads made (the head is never read) |
+| **HP6** | `ReadSome` alone: 2 empty, then 5 bytes | returns 5, after 2 waits |
+| O1-O10, MAP1-MAP3 | unchanged | all pass unchanged |
+
+**Wiring rows,** in `test/host/sabotage_ota_install.py`, read from the source:
+- **W-RS1:** `ReadHead` calls `ReadSome` and calls `src.read` nowhere else.
+- **W-RS2:** `writeRest` calls `ota::ReadSome` and keeps no empty counter, no `300` and no `delay(100)`.
+
+## 4. The plants (in `test/host/sabotage_ota_install.py`, each edit asserted, the whole red list compared)
+
+| plant | the edit | red set |
+|---|---|---|
+| **P-NORETRY** | `ReadSome` returns 0 on the first empty read | {HP1, HP2, HP3, HP4, HP5, HP6} |
+| **P-BYPASS** | `ReadHead` calls `src.read` directly, as at C | {HP1, HP2, HP3, HP4, HP5, W-RS1}. HP6 stays green, because `ReadSome` itself is intact, which is what tells the two plants apart |
+
+The existing plants (S-O8a, S-O8b, S-ID3) keep their registered red sets.
+
+## 5. The bench rows (after the merge, on bench image A′: the fix's merge commit with the prerelease pin)
+
+- **B-AFTER:** the same window as step 2 (`docs/v19-cut.md`): F and "20" on the bench prerelease, 20 YKUSH cycles of port 3,
+  no serial port opened.
+  - **Predicted:** 20 `POWERON` boot rows, each with one `ota` row at the same second, **all `refused-foreign`: 0 of 20
+    truncated.**
+  - **The stops are step 2's:** a boot with no `ota` row; another result; a boot count other than 20; no ping within 180 s;
+    a missing anchor. Anything else means the instrument is unreliable.
+  - **What it can say:** 0 of 20 against 13 of 19 before. If the rate were unchanged (about 68%), 0 of 20 would come up
+    about once in 10^10.
+  - A missing `ota` row is still a stop, even though it may be the separate one-shot-report gap and not this fix. The
+    truncated count among the reporting rows is printed either way.
+- **B-STALL:** one power cycle of the stall image (A′ built with `OTA_BENCH_HEAD_STALL`).
+  - **Predicted:** exactly one boot row, and one `ota` row, `refused-truncated`.
+  - **The boot row lands about 30 s later than normal:** 52-65 s after power-on, against 22-31 s in window 3, because the
+    refusal now waits out its bound before the first check-in.
+  - The board answers ping throughout. No second boot row, so no watchdog reboot.
+  - Graded at the Worker only.
+
+## 6. The fresh-boot skip: the scope, frozen before the diff is read
+
+**The candidate** is the squash of this fix into `release/v19`. The check compares C (`3a322758eadc`) with that commit.
+
+**Allowed to change. Anything else is out of scope.**
+
+| file | within it, only |
+|---|---|
+| `include/OtaInstall.h` | `kEmptyReads`, `kEmptyWaitMs`, `ReadSome` (new), `ReadHead` |
+| `src/OtaUpdater.cpp` | `StreamSource` (with `waitEmpty()` and the `#ifdef OTA_BENCH_HEAD_STALL` block), `UpdateFlash::writeRest`, the bench `SerialBudget` (`waitEmpty()`) |
+| `test/host/test_ota_install.cpp` | the host rows and `FakeSource` |
+| `test/host/sabotage_ota_install.py` | the plants and wiring rows |
+| `docs/ota-head-patience.md`, `RELEASING.md` | docs |
+
+**The source check.** `git diff --stat C <candidate>` must list only the files above. A function-level diff of the two code
+files must change only the names above.
+
+**The artifact check.** It runs on both shipping images, `blipscope-s3-128` and `blipscope-pro-s3-21`, C's ELF against the
+candidate's, in two layers:
+- **(name, size) per function.** Window 1 showed that this layer alone is BLIND to a same-size change: A and S had identical
+  sets but differed in one immediate.
+- **Normalized per-function disassembly.** Each function's instructions are compared with addresses replaced by the symbol
+  they point at, so a change in layout doesn't count as a change in code.
+
+Only the OTA path may differ: `MaybeUpdateFirmware` (into which `OpenAndInstall`, `Install`, `ReadHead` and `ReadSome`
+inline), any out-of-line `ota::ReadSome`, `StreamSource` or `writeRest` instance, and functions whose only difference is
+an address the normalization can't name. **Every differing function is named in the result.** A difference outside that set
+is out of scope.
+
+**The controls, shown failing before the check is believed:**
+- **K1, source:** a planted change in `src/main.cpp`'s `setup()` (the task-watchdog timeout, 10000 -> 10001, in a scratch
+  copy) must read OUT OF SCOPE.
+- **K2, artifact:** the same plant built into a scratch image must name `setup()` as differing, and with it the (name, size)
+  layer, which can't see a same-size immediate.
+- **K3, artifact, from data already in hand:** window 1's A and S ELFs must differ in exactly `MaybeUpdateFirmware`, which
+  proves the disassembly layer sees a one-immediate change.
+
+**The verdict:**
+- **Everything in scope, in source and in both images, with K1-K3 failing as they must:** step 4 is skipped, and O11's
+  record says why.
+- **Anything out of scope, or a control that doesn't fail, or a layer that can't decide:** step 4 runs, with the owner,
+  scheduled through the reviewer.
+
+## 7. Where it goes
+
+- **`release/v19`** was created at C, `3a322758eadc` (2026-11-11). This PR targets it.
+  - The registration commit comes first, then the code.
+  - CI is read twice by the full sha, at least 60 s apart.
+  - It is approved at its sha, and merged by `scripts/merge-by-rule.sh` once that script accepts a base other than `main`.
+    **Today it doesn't:** it reads `main` as H (`:43`, `:48`) and checks the squash's parent against it (`:54-56`). On
+    this PR it would merge into `release/v19` and only then report "the squash is not the approved merge". The base
+    parameter is its own PR, ruled first, and nothing merges here before it.
+  - The tag, at step 7, is made from that merge commit.
+- **`main` gets the same patch for v20:** `git cherry-pick` of the release branch's squash, with no hand edit, as its own
+  PR. Its predictions RUN the proof:
+  - (a) `git patch-id --stable` of the two squashes. They match if the context matches; if not, (b) and (c) carry the proof,
+    and (a)'s difference is reported.
+  - (b) The helper's and the tests' files are byte-identical on both. The bodies of `ReadHead`, `ReadSome`, `writeRest` and
+    `StreamSource` are text-identical, compared by a function-level extract.
+  - (c) The same host-test results on both trees, the plants included.
+  - **A conflict that needs a hand edit is a STOP.**
+- **Then v19's steps 2, 3 and 5 repeat on the new candidate,** and step 4 too unless section 6 skips it. B-AFTER and
+  B-STALL run in O11's window on the new candidate. Then steps 6-8. `release/v19` takes no other commit, and after the tag
+  it is frozen.
+- **p4's #648** merges into `main` only after the candidate is cut, as ruled.
+
+## 8. CI, predicted before each push (base `release/v19` = C)
+
+C's job set is main's, except #633's added steps in one existing job. So:
+- **The registration commit (docs and `RELEASING.md`):** 32 = 29 success / 3 skipped / 0 failed, the docs-only shape (#638,
+  bdcc6bac2d2b).
+- **The code commit** (`include/`, `src/`, `test/host/`): 34 = 30 / 4 / 0, the shape of a `src/` change, as #631 read at C
+  itself.
+- **Out of the set, at any step:** stop and report.
