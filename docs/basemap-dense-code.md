@@ -799,3 +799,43 @@ exactly once.
 
 **Part 1 is complete:** QW4-C0, QW4-C1 and QW4-3 all read as predicted, QW4-3 on its re-run. **Next is part 2, the sea,** with its own
 sha before anything runs.
+
+## The code PR's package row, narrowed point by point (the cloud reviewer, 23:03Z, relayed by the orchestrator at 23:21Z)
+
+The ruling, verbatim:
+
+> 2. THE NARROWING IS NOW REQUIRED (the reviewer): whether collapsed.water's digit count changes is known from QW4-1's data, so predict
+>    the cap edge point by point, and a cap edge anywhere else stops. Part 1 has already run (all "equal"), so it stands as registered.
+>    Put the per-point narrowing into the CODE PR's rows.
+
+**The data is better than QW4-1's.**
+- QW4-1 recorded only the old counts. QW4-C1 has since measured the new ones on pq4c, the code PR's rule on the same prototype, and
+  read "equal" at all 13: no cap edge anywhere.
+- So the code PR's package row, on the store with no sea layer, is narrowed to one outcome at every point.
+
+| point | `collapsed.water` (QW4-1's → the code PR's, from QW4-C1) | digits | PROVENANCE, bytes | non-terrain bytes after, of 32,768 | the outcome |
+|---|---|---|---|---|---|
+| KBOS | 4 → **140** | 1 → 3 | +2 | 32,719 | **equal** |
+| KJFK | 0 → **96** | 1 → 2 | +1 | **32,768** (0 to spare) | **equal** |
+| KLGA | 3 → **98** | 1 → 2 | +1 | 32,767 | **equal** |
+| KEWR | 1 → **89** | 1 → 2 | +1 | 32,747 | **equal** |
+| Midtown | 0 → **91** | 1 → 2 | +1 | 32,757 | **equal** |
+| KMIA | 1 → **80** | 1 → 2 | +1 | 29,183 | **equal** |
+| KSFO | 1 → **35** | 1 → 2 | +1 | 32,767 | **equal** |
+| KSEA | 1 → **87** | 1 → 2 | +1 | 32,767 | **equal** |
+| KORD | 3 → **80** | 1 → 2 | +1 | 32,760 | **equal** |
+| KDTW | 3 → **66** | 1 → 2 | +1 | 32,760 | **equal** |
+| KMSP | 3 → **273** | 1 → 3 | +2 | 32,745 | **equal** |
+| KIND | 0 → **24** | 1 → 2 | +1 | 32,761 | **equal** |
+| KJAC | 0 → 0 | 1 → 1 | 0 | 30,124 | **equal, PROVENANCE unchanged** |
+
+- **"Equal" means:**
+  - every section but PROVENANCE is byte-identical to QW4-1's package;
+  - PROVENANCE differs only in `collapsed.water`, which equals the value above;
+  - the rung, radius and tolerance are QW4-1's.
+- **The cap edge is predicted at NO point.** **A cap edge anywhere stops,** as does a `collapsed.water` other than the value above.
+  This supersedes the two outcomes given the code PR's package row in part 1's correction.
+- **Why this can hold at KJFK, with 0 bytes to spare:** QW4-C1 built exactly this content and it fit at 32,768. The code PR adds nothing
+  to the package beyond it, since ruling C makes no format change.
+  - So a single extra byte there, from any source, is off-prediction. That is the point of narrowing: it would otherwise pass as "the
+    cap edge".
