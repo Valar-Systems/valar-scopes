@@ -1652,3 +1652,38 @@ manifest, index, coverage and `current` reads are no longer kept. Nothing else d
 - **PL1 off:** stop and report.
 
 **Outside the set:** anything else stops it.
+
+### The plant, re-registered, read (2026-11-11, 05:30:51-05:31:02Z): as predicted
+
+The registration was frozen at 05:30:41Z (`e98fabf180d8`). The runner confirmed `pred7.json`'s sha256. Three planted processes ran, each
+exiting 0. The error file is empty, the tree stayed clean, and nothing ran on staging.
+
+| | process 1 | process 2 | process 3 |
+|---|---|---|---|
+| **PL1: every cell within 0.785 of v0's mean** | **within 0.01** | **within 0.05** | **within 0.06** |
+| the cell phase's largest | 99.50 at cell 16 | 99.54 at cell 16 | 99.55 at cell 16 |
+| RV3 | ok; KJAC `b3f428e5860e`; DR0's ladder | the same | the same |
+| later samples (reported) | tiles 122.81, ladder 126.24 | 122.85, 126.28 | 122.86, 126.28 |
+
+- **The later samples sit 66.34-66.39 MiB above v0's:** the cells (60.91), plus the tile list (5.38), plus the 0.05 offset. The three
+  pre-loop reads aren't in them, as expected.
+- **By the registered table: PL1 holds.** Keeping exactly the reads the variant lets go restores v0, so **the variant's cut is those reads.**
+
+### The release variant: what the proposal stands on (ruled ~05:26Z)
+
+- **KLGA at r=162,** in Node, settled:
+  - **v0: 99.55 MiB (104.4 MB) at cell 16.**
+  - **The variant: 60.02 MiB (62.9 MB, at most 64), in the ladder phase.** Three processes, spread 0.03, within the frozen 59.90 ± 0.785.
+- **The variant's cut is the consumed reads,** shown by the plant (PL1, three processes).
+- **The variant can't go lower than the ladder phase,** because letting reads go doesn't reduce what the layer sets and the ladder hold.
+- **The output is unchanged:** KJAC's package hash and KLGA's ladder are the same in v0, the variant and the plant.
+- **`READ_AHEAD`:** 6 to 3 saved 1.77 MiB in one process, and no setting can save more than about 1.8 MiB. It is not D4's lever.
+- **DF holds:** each cell's sample includes that cell's decoded features, up to 6.62 MiB at cell 16.
+- **One consumed read stays reachable at cell 11,** in 4 of 4 variant processes and at no other cell, matching the read consumed just
+  before. It is real memory, under the ladder phase.
+- **Open, and not needed for any figure (ruled):** why v0 lets the three pre-loop reads go at cell 12, at the same transition as that
+  exception.
+- **Not shown:** workerd. Q-MEM2's KLGA pass is the only workerd reading.
+- **Next, as ruled:**
+  1. Q-DR3 on the variant, predictions first;
+  2. the variant as the real builder is its own PR and review.
