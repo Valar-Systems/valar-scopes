@@ -1992,7 +1992,7 @@ its own process, and the parent exited 0. The error file is empty, the tree stay
 **D2 does the work in either.** DR3 read P1 fitting none of the 4 New York points at 162 km, and its registered meaning is that D2 does
 the work and its floor is the decision. What is left to choose is what runs before D2:
 - **ab, then D2:** A+B's ladder (ε×2; water at ε×8; secondary roads shortest first; water smallest first), then the same ladder on a
-  disc of r × 0.8, × 0.64, … until one fits.
+  package of radius r × 0.8, × 0.64, … until one fits. A package's lines and rings fill the square [−R, R]² (format §2).
 - **P1, then D2:** the same, with one more rung before D2: rivers and roads at ε×4 (805 m), then A+B's two drops again. **This is
   Q-DN2's direction as ruled** ("D1's ε rung, then D2").
 
@@ -2002,23 +2002,28 @@ the work and its floor is the decision. What is left to choose is what runs befo
 
 | | **ab, then D2** | **P1, then D2** |
 |---|---|---|
-| water, rivers, roads and places, out to | **103.7 km** | **129.6 km** |
-| of the widest view (162 km) | 64% of the radius, 41% of the area | 80% of the radius, 64% of the area |
-| the 41 km and 82 km views | covered whole | covered whole |
-| rivers and roads | ε×2, 402 m: **1.2 px** at the finest view, 0.6 px at the middle | ε×4, 805 m: **2.3 px** at the finest view, 1.2 px at the middle |
-| water, at ε×8 (1.6 km), as a share of the disc | 9.6-13.0% | 8.3-10.8% |
+| water, rivers and roads: a square of half-side | **103.68 km**, corners at 146.63 km | **129.6 km**, corners at 183.28 km, past the view |
+| places (kept within R of the origin, format §5.5) | to 103.68 km | to 129.6 km |
+| of the widest view (100 mi, 160.93 km) | **52.8%** of its area | **80.0%** of its area |
+| the 25 mi and 50 mi views (40.23 and 80.47 km) | covered whole | covered whole |
+| rivers and roads | ε×2, 402 m: **1.2 px** at the closest view, 0.6 px at the middle | ε×4, 805 m: **2.4 px** at the closest view, 1.2 px at the middle |
+| water, at ε×8 (1.6 km), as a share of the disc of radius R (#620's raster) | 9.6-13.0% | 8.3-10.8% |
 | secondary roads kept | KJFK 17, KLGA 1, KEWR 0, Midtown 0 | 0 |
 | primary roads, rivers, places, `PROVENANCE` | whole | whole |
-| terrain | the three requested levels, out to 162 km | the same |
+| terrain | the three requested levels, squares of half-side 41.24, 81.81 and 162.28 km: the widest view whole | the same |
 | with the sea mask | **not read** (below) | 129.6 km; water 69.4-79.3% |
 | builds for the first request | 3: 162 and 129.6 km (each a 422), then 103.7 km | 2: 162 km (a 422), then 129.6 km |
 | those builds' wall in Node, summed (local reads, not R2) | 7.3-8.4 s | 5.8-6.7 s |
 
-- **The pixel figures:** the finest view is 41 km over 120 px (0.34 km a pixel), the middle 82 km (0.68), the widest 162 km (1.35).
-- **Terrain keeps its levels.** In the builds read here, D2 shrinks only the vector disc; the terrain levels keep the radii the query asked
-  for, and terrain is outside the cap. So beyond the disc, the package still carries terrain, and no water, roads or places.
-- **The device needs nothing new.** It draws the disc the package's header names (F4, `include/MapLayer.h`), and once a package is held it
-  asks nothing more for that config (`include/MapPolicy.h`, F8).
+- **The views and the pixel figures.** A scope set to 100 mi has the steps 25, 50 and 100 mi (`include/MapQuery.h`): 40.2336 km over
+  120 px (0.335 km a pixel), 80.4672 km (0.671) and 160.9344 km (1.341). ε is the widest view over 800, so ε×2 is exactly 1.2 px at the
+  closest view and ε×4 exactly 2.4.
+- **The coverage figures** take the view centred on the package's origin. The device's own position is up to 0.785 km away (the
+  2-dp origin), which the query's +0.8 km margin covers.
+- **Terrain keeps its levels.** In the builds read here, D2 shrinks only the vector square; the terrain levels keep the radii the query
+  asked for, and terrain is outside the cap. So beyond the square, the package still carries terrain, and no water, roads or places.
+- **The device needs nothing new.** It places the package by the radius its header names (F4, `include/MapLayer.h`), and once a package is
+  held it asks nothing more for that config (`include/MapPolicy.h`, F8).
 - **The extra builds are paid once per query.** A1 stores the answer, so a repeat builds nothing.
 
 ### Each build's peak against the isolate's 128 MB (ruled ~19:07Z, Nov 8)
@@ -2074,9 +2079,10 @@ margin unknown. **The variant's own PR brings one KLGA request on staging** (rul
 ### My recommendation: ab, then D2
 
 1. **The two differ only on the widest view, and P1 pays everywhere.**
-   - Both cover the 41 km and 82 km views whole.
-   - P1 buys the ring from 103.7 to 129.6 km on the 162 km view.
-   - It pays with rivers and roads at 805 m across the whole disc, including the two views both options cover: 2.3 px at the finest
+   - Both cover the 25 mi and 50 mi views whole.
+   - P1 buys the band between the 103.68 km square and the 129.6 km square on the 100 mi view: 80.0% of that view covered, against
+     52.8%.
+   - It pays with rivers and roads at 805 m across the whole square, including the two views both options cover: 2.4 px at the closest
      view, against ab's 1.2.
 2. **Memory is the ruled risk for D4** (~19:07Z, Nov 8).
    - The builder makes every layer set in its one pass over the cells, before it knows whether A+B will fail, so every P1 build holds the
@@ -2086,7 +2092,7 @@ margin unknown. **The variant's own PR brings one KLGA request on staging** (rul
      is 66.2.
 3. **ab's cost is one more build, for New York only, once per query:** 3 against 2, 1.2-1.7 s more in Node.
 
-**It departs from Q-DN2 as ruled.** That ruling came before any reading at r=162. The ε rung was meant to fit New York before the disc
+**It departs from Q-DN2 as ruled.** That ruling came before any reading at r=162. The ε rung was meant to fit New York before the package
 shrinks. At the client's query it fits none of the 4 (DR3), so D2 runs either way, and the rung only moves where D2 stops.
 
 **What would change it:**
@@ -2097,10 +2103,10 @@ shrinks. At the client's query it fits none of the 4 (DR3), so D2 runs either wa
 
 - **The readings never came near it:** the first fit was 103.7 or 129.6 km at all 4 New York points.
 - **D2's steps from 162 km** are 129.6, 103.7, 82.9, 66.4, 53.1 and 42.5 km. The next, 34.0 km, is under the registered 40 km floor.
-- **42.5 km still covers the finest view (41.2 km).** A smaller disc couldn't fill even the closest view.
+- **A 42.47 km square still covers the closest view (25 mi, 40.23 km).** A smaller one couldn't fill even that view.
 - **Past the last step, §6's 422 stays,** and the client falls back to no package. It asks nothing more until the location or radius
   changes (`include/MapPolicy.h`, CA6).
-- The last step is about 7% of the requested disc's area. No point read comes near it.
+- The last step is 6.9% of the requested square's area. No point read comes near it.
 
 ### The order
 
@@ -2120,3 +2126,60 @@ shrinks. At the client's query it fits none of the 4 (DR3), so D2 runs either wa
 **CI for this push (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The
 baseline is this PR's own run at `31bb7973883d` (32 = 29/3/0). No workflow change has landed on main since: the last is `e2c34daf` (#633),
 merged before that run.
+
+### Corrections: the packages are squares, not discs (2026-11-11, from the orchestrator ~18:35Z)
+
+**What was wrong.**
+- **The proposal described each package as a disc of radius R.** The format clips lines and rings to the square [−R, R]²
+  (`docs/basemap-package-format.md` §2: "Geometry is clipped to the square before quantising"; its order of operations, step 2). Only
+  points keep the disc: places (§5.5) and peaks (§5.4), and the rivers' length selection (§5.2).
+- **It used views of 41, 82 and 162 km.** The views are the scope's 25, 50 and 100 mi steps (`include/MapQuery.h`): 40.2336, 80.4672 and
+  160.9344 km. 41.24, 81.81 and 162.28 km are the terrain levels' radii, and 162 km is the build radius r.
+
+**What changed above, in the proposal section only.** Each original is kept here:
+
+| was | now |
+|---|---|
+| "the same ladder on a disc of r × 0.8, × 0.64, …" | "on a package of radius r × 0.8, × 0.64, …", with the square noted |
+| "water, rivers, roads and places, out to **103.7 km** / **129.6 km**" | water, rivers and roads to a square of half-side 103.68 km (corners 146.63 km) / 129.6 km (corners 183.28 km, past the view); places to R |
+| "of the widest view (162 km): 64% of the radius, 41% of the area / 80% of the radius, 64% of the area" | of the 100 mi view: **52.8%** / **80.0%** of its area |
+| "the 41 km and 82 km views" | the 25 mi and 50 mi views (40.23 and 80.47 km), covered whole by both |
+| "ε×4, 805 m: **2.3 px** at the finest view" | 2.4 px at the closest view |
+| "the finest view is 41 km over 120 px (0.34 km a pixel), the middle 82 km (0.68), the widest 162 km (1.35)" | 40.2336 km (0.335), 80.4672 km (0.671), 160.9344 km (1.341) |
+| "terrain: the three requested levels, out to 162 km" | squares of half-side 41.24, 81.81 and 162.28 km: the widest view whole |
+| "D2 shrinks only the vector disc"; "beyond the disc" | the vector square; beyond the square |
+| "It draws the disc the package's header names" | it places the package by the radius its header names |
+| "P1 buys the ring from 103.7 to 129.6 km on the 162 km view" | the band between the two squares: 80.0% of the 100 mi view against 52.8% |
+| "across the whole disc … 2.3 px at the finest view" | across the whole square … 2.4 px at the closest view |
+| "before the disc shrinks" | before the package shrinks |
+| "42.5 km still covers the finest view (41.2 km). A smaller disc couldn't fill even the closest view." | a 42.47 km square still covers the closest view (25 mi, 40.23 km); a smaller one couldn't fill even that view |
+| "about 7% of the requested disc's area" | 6.9% of the requested square's area |
+
+The water-share row now names its measure: #620's raster counts the disc of radius R inside the package's square.
+
+**Derived from the format, not from the renders:**
+- **A's square lies inside the view:** its corner, 103.68 × √2 = 146.63 km, is under 160.93. Its share is (2 × 103.68)² / (π × 160.9344²)
+  = **52.84%**.
+- **B's corners lie past the view** (183.28 km). Its share is the view's disc less the four circular segments beyond the square's edges:
+  1 − (4/π)(acos t − t√(1 − t²)), with t = 129.6 / 160.9344, = **79.99%**.
+- **ε is the widest view over 800** (`include/MapQuery.h`), so ε×2 is 1.2, 0.6 and 0.3 px at the 25, 50 and 100 mi views, and ε×4 is
+  2.4, 1.2 and 0.6 px.
+- The view is taken as centred on the package's origin. The device's own position is up to 0.785 km away.
+
+**What agrees.** These are map-client's, in its scratch folder, and nothing is copied here. They are two different things:
+- **The geometry, `reach.log`** (sha256 `02979c1bb4df…`): computed in Python from the two packages' header radii and the device's 100 mi
+  view. It reads 52.8% and 80.0%. A disc reading at this view would give 41.5% and 64.9%.
+- **The observation, `square_check.log`** (sha256 `f36c449e3c66…`): renders from the device's own `maplayer::Build` at main
+  `e0941a90c4e4`, at its own views, centred on the package's origin.
+  - In all four renders, no vector pixel lies outside |dx|, |dy| ≤ r_px + 1.
+  - A's farthest pixel at the 100 mi view is 108.90 px out, at (+77.5, −76.5): its square's corner. The format puts that corner at 109.33 px,
+    at ±77.31 px on each axis.
+
+**Kept as written, not corrected:**
+- the earlier record's figures that used 41 and 162 km, such as the Nov 8 registration's "2.3 px at the finest view (41 km over 120 px)";
+- #622's description;
+- **Q-DP3 as asked and ruled** ("the last at 42.5 km (the finest view)"). Its meaning is unchanged, since a 42.47 km square still covers the
+  25 mi view.
+
+**Unchanged:** every reading and memory figure, and the recommendation's other reasons. Q-DP2 is now the owner's call, made from the
+renders (ruled ~18:20Z).
