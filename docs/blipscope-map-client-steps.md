@@ -1079,7 +1079,7 @@ then.
 **Q-MB8, the refusal's condition (a question about the ruling's literal form, not a change to it).** Read literally,
 "`WX_LAYER_SHIPS` defined and step C's composition not present" also refuses `blipscope-s3-128-wxlook`.
 - That env sets `-DWX_LAYER_SHIPS` itself (`platformio.ini:401-408`), so the bench keeps weather on, and CI builds it
-  (`.github/workflows/firmware.yml:433`).
+  (the firmware workflow's wxlook step, which runs `check-no-bench-hooks.sh --expect "[wx-bench]"`).
 - So the literal form would fail CI's wxlook build from the moment the refusal exists, and step B could not be benched
   before step C.
 - **Proposed condition:** `defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(<step C's macro>)`.
@@ -1163,6 +1163,21 @@ workflows (device-ids, firmware, no-traffic-captures).
 - The run on the previous head (`7bb2556b`) is superseded by this push. Whatever it read is not this prediction's
   subject, and it is recorded as superseded.
 - **Any other reading at the new head means a stop and a report,** with no re-run.
+
+### #644's first CI reading: OFF on `sku-readers` (2026-11-11), and the fix as ruled (~19:25Z)
+
+- **The reading,** on the first head `7bb2556b`: `sku-readers` failed at 19:04:35Z. This doc named the firmware
+  workflow's file and is not on that guard's reviewed list.
+  - The other non-successes were the cancellations of my second push (from 19:06:46Z), and `host-tests`' "Both legs
+    must pass", which read its cancelled leg.
+- **The cause, and my miss:** the Q-MB8 row cited the firmware workflow by its path and line, against standing rule C1
+  (2026-10-26: write "the firmware workflow" instead). The 32 = 29/3/0 prediction was made without running the guard that
+  reads docs for that name. It is in the firmware workflow, not in device-ids.
+- **The fix, as ruled:** that one line reworded, not an `ALLOWED_MENTIONS` entry. From now on,
+  `python3 scripts/skus.py --check-readers` runs locally before every push, chained with `&&` beside the device-ids
+  guards.
+- **CI at the fix's head, re-predicted: 32 = 29/3/0,** on #640's docs-only baseline. **This was #644's first off
+  reading; another goes to the owner.**
 
 ## Carried to later steps by the ruling
 
