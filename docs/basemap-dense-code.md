@@ -1,0 +1,141 @@
+# Q-W4: the dense-area code, registered before any measurement (predictions first)
+
+**A registration. No code exists, and nothing has been measured for it.** The code PR (Q-W4) will bring, in one store change: A+B's
+ladder, the owner's B (P1, then D2), the sea mask, and the topology-preserving water simplifier ("tp") with its backstop. This file
+registers what will be measured, on what, and what each result means, before any of it runs. The code comes only after #639's staging
+rows have read.
+
+## The rulings it carries out
+
+- **Q-W1** (~19:08Z): A+B replaces Q26, once re-read at the client's radius. It was re-read in #620 and #622.
+- **Q-W2:** the sea mask from Natural Earth as ordinary water rings, with islands joined by keyhole bridges. The design and its checks
+  are `docs/basemap-sea-mask.md` (#616).
+- **Q-W4:** the dense-area rung, A+B and the sea mask land in one PR.
+- **Q-DP2, the owner (2026-11-11):** **B, P1 then D2.**
+- **Q-DP3:** D2's steps from 162 km by × 0.8, the last at 42.5 km, then §6's 422 as now.
+- **Q-DP4:** the release variant's PR first (#639, merged as `c2cf7cfcdd99`), then this. **The code waits until #639's staging rows
+  have read.**
+- **The owner, on the water** (relayed by the orchestrator, 19:39:40Z): "Water fix: TP, as you recommend." The backstop, its plant, and
+  TP's costs named here were ruled with it.
+- **This registration (the orchestrator, 22:03Z), verbatim:**
+
+  > 1. Pin the commit: measure at 525cf7d1725da76f7647b8d64949d9dbaf0897ec, by sha, not "main". [...]
+  > 2. Commit and push the predictions before any measurement runs. Include TP, the backstop and its plant (with the control that proves
+  >    the plant lands), the sea mask, and B.
+  > 3. Pre-register the dependency as its own outcome: "if #639's staging rows read off-prediction, the rows that rest on the release
+  >    variant are VOID, not re-graded, and get re-registered". Name which rows those are.
+  > 4. Machine rules: one whole-suite vitest run at a time (check that no other is live, and TIME_WAIT under 2,000), and read free disk
+  >    before any large build (under 30 GB, no large build).
+  > 5. Nothing deploys, and no wrangler deploy is typed, dry-run included.
+
+## What the code PR changes
+
+1. **The ladder** (the format's §6, which says Q26 today). Past the 32 KB cap, in order:
+
+   | rung | step |
+   |---|---|
+   | 0 | ε, as requested |
+   | 1 | ε × 2 for everything |
+   | 2 | water at ε × 8 |
+   | 3 | secondary roads dropped, shortest first |
+   | 4 | water rings dropped, smallest area first |
+   | 5 | rivers and roads at ε × 4 (water stays at ε × 8) |
+   | 6, 7 | rungs 3 and 4 again, on rung 5's content |
+   | **D2** | the whole ladder again on a package of radius r × 0.8, × 0.64, …: 129.6, 103.68, 82.94, 66.36, 53.08 and 42.47 km from 162 |
+   | past D2 | **§6's 422,** and the client falls back to no package |
+
+   - Every drop stays counted in `PROVENANCE`.
+   - **The header's `radiusMm` is the radius built.** The device already places a package by it (F4, `include/MapLayer.h`).
+   - The builder makes the ε × 4 and ε × 8 sets in its one pass over the cells, as Q-DR3 read it. That is the memory B costs.
+2. **Water rings: tp, then the backstop,** for every water ring (TIGER's, and the sea's):
+   - **tp:** Douglas–Peucker as today. Then, while the quantised ring crosses itself, each crossing edge gets back the original vertex
+     farthest from its chord, until no edge crosses or none can be added. This is the cost read's tp (#645).
+   - **The backstop:** a ring that still crosses itself after tp is dropped, counted in `PROVENANCE`, and never drawn. "Crosses" means a
+     proper crossing in `ring_stats()`'s sense, so a keyhole bridge's two coincident edges (a contact) are not refused.
+   - **tp's costs, as the cost read found them** (#645, under B, without the sea):
+     - fewer secondary roads at 7 of the 9 airports outside New York: KBOS 28 → 8, KMSP 116 → 18, KSEA 700 → 342, KIND 513 → 335,
+       KORD 440 → 276, KSFO 826 → 719, KDTW 428 → 386;
+     - fewer water rings in New York, at about the same water share;
+     - +0.13 to +0.72 MiB per build;
+     - 2 rings at KMSP that tp could not fix. **These are the backstop's first catch.**
+3. **The sea mask** (#616's design):
+   - Natural Earth 10 m ocean, plus its lakes above a size threshold;
+   - clipped to the square, with islands under 1.5 km² dropped;
+   - simplified (tp), then quantised, then bridged. Each hole joins through its nearest visible vertex, and each bridge adds 2 vertices;
+   - **the rings join the water section** and follow the ladder like other water.
+4. **The store gains a sea layer,** read per cell. That gives a new store id, and every package rebuilds. **The store's Class A figures
+   are stated before any ingest uploads anything:** how many objects the new store writes, counted from the ingest's own listing.
+
+## Where the predictions come from: a measurement, on the pinned commit
+
+**The builder measured is a scratch prototype of `525cf7d1`'s builder** (the shipped one, with #639's release). The code PR's changes
+are added as knobs. **With every knob off, it must be `525cf7d1`'s builder, byte for byte in what it builds.**
+- **The sea, in the prototype:** computed at build time from Natural Earth 10 m **land** and **lakes**, which are on this machine. The
+  sea is the build square less the land, bridged as #616 says.
+  - The code PR stores the sea per cell, from the ocean file. So the prototype's sea rings can differ from the code PR's at the vertex
+    level.
+  - **Rows that depend on the sea are graded by property, never by package hash.**
+- **D2, in the prototype:** the builder itself retries at each smaller radius within one call, as the code PR will. That puts every
+  step's build in one process, which Q-DR3 never measured.
+- **The instrument** is Q-DR3's: each call in its own Node process, the controls C1, C2′ and C3, and settled samples at the build's
+  hooks. Crossings are counted with `ring_stats()`'s definition.
+- **Two steps:**
+  1. this registration, then **the measurement run** at all 13 points;
+  2. **its figures, re-registered as the code PR's frozen predictions,** committed before the code PR's own run:
+     - per point: rung, radius, bytes, water share, secondary roads, crossings, rings the backstop refused, islands, and sea bytes;
+     - memory ± 0.785 MiB;
+     - the code PR's package hashes are not predicted from the prototype's.
+
+## The rows, predicted now
+
+| row | what | predicted |
+|---|---|---|
+| **QW4-0** (the control that can fail) | the prototype with every knob off, at all 13 points | **byte-identical to `525cf7d1`'s builder:** Nov 8's DR0 packages at the 9, #620's ladders at New York. **Memory within 0.785 of #639's measurement** at each point, in the ladder phase |
+| **QW4-1** | B with tp and the backstop, no sea | **0 proper crossings in every package.** The 9 fit at 162 km; **New York's first fit is 129.6 km** at all 4. Every package `kOk`, at most 32,768 non-terrain bytes. The backstop's refusals are reported per point |
+| **QW4-2** | B with tp, the backstop and the sea | **0 proper crossings,** and every package `kOk`. **New York's first fit is 129.6 km at all 4**, as DR6 read B with the copy's sea approximation. **KB2: no bridge crosses any other edge.** **KB3: sea bytes at most 3 KB** at KBOS, KJFK, KLGA, KSEA, KSFO and KMIA |
+| **QW4-3** (the backstop's plant) | a fixture store whose one water ring is a 4-vertex bowtie, a ring that crosses itself and that tp cannot fix (it has no vertex to add) | **the control:** with the backstop off, the package carries the bowtie with 1 proper crossing, so the plant is shown to land. **With it on:** the ring is dropped and counted once in `PROVENANCE`, and the package carries 0 crossings |
+| **QW4-4** | the sea mask's own checks, KB1, KB4 and KB5, with the plants S-KB-NOBRIDGE, S-KB-CROSS and S-KB-ORDER | **as #616 registered them** |
+| **QW4-D2** | New York under B, all of D2's steps in one call and one process | the call's largest sample is **at most its largest single step's, + 0.785 MiB**: no step carries memory into the next |
+| **QW4-M** (memory) | every build | **no build over 96 MB** (a stop). Each B build is reported against the 77.2 MB the owner took with B, with New York's 162 km tries and KORD and KIND named. Those two points were estimated about 6 to 7 MiB above the copy's B figures, and are now measured |
+
+**What each result means:**
+
+| outcome | meaning | next |
+|---|---|---|
+| **QW4-0 off** | the prototype is not the pinned builder | **stop:** nothing below it is read |
+| **QW4-1 or QW4-2 leaves a crossing** | the backstop doesn't hold | **stop and report** |
+| QW4-1 or QW4-2: a New York point below 129.6 km, or a 422 anywhere | **a visible cost of tp or the sea mask** | named to the owner before the code |
+| **QW4-3's control shows no crossing** | the plant didn't land, so its pass would mean nothing | **stop** |
+| QW4-3 with the backstop on still carries the bowtie | the backstop doesn't hold | **stop** |
+| a KB row or a sea plant off | as #616 registered | **stop and report** |
+| QW4-D2 off | D2's steps carry memory, so a New York request costs more than its largest build | **report;** it goes into D4's plan |
+| **QW4-M: a build over 96 MB** | the registered stop band | **stop** |
+| **anything else** | | **stop and report** |
+
+## The dependency on #639's staging rows (pre-registered as its own outcome)
+
+**If #639's staging rows read off-prediction** (any of SG-B to SG-F at KLGA or KJFK), **the rows that rest on the release variant are
+VOID, not re-graded, and get re-registered.**
+- **Those rows are the memory rows:** QW4-0's memory half, QW4-D2, QW4-M, and every memory figure the re-registration freezes.
+- They rest on the release variant because every one of them is a figure of the shipped builder's memory, and that is what #639
+  changed.
+- **The package rows don't rest on it,** because the release changes no byte. RL1 read that at all 13 points. They are QW4-0's byte half,
+  QW4-1, QW4-2, QW4-3 and QW4-4.
+- **SG-B in particular,** Exceeded Memory in workerd, means the release doesn't hold where it ships. D4 waits on it, whatever this
+  file reads.
+
+## Machine rules, and what does not happen
+
+- **One whole-suite vitest run at a time.** Before each one, no other vitest is live and TIME_WAIT is under 2,000, both read and stated.
+- **Free disk is read before any large build.** Under 30 GB, no large build runs.
+- **Nothing deploys.** No `wrangler deploy` is typed, `--dry-run` included. The new store is built locally. Its ingest to staging, and
+  its Class A figures, wait for the code PR's own ruling.
+
+## Order
+
+1. **This registration,** pushed before any measurement.
+2. **The measurement run** on the prototype at `525cf7d1`, read into this file.
+3. **The figures, re-registered as the code PR's frozen predictions,** committed.
+4. **#639's staging rows read.** They wait on #646 and the orchestrator's slot. If they read off, the dependency above applies.
+5. **The code PR,** graded against step 3's predictions, the plants and the KB rows. Then the store's Class A figures, before any ingest
+   uploads anything.
