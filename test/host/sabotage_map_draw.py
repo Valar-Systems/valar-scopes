@@ -164,9 +164,12 @@ def main():
     return rigs.close(0 if ok and same else 1)
 
 
-# --control: the unplanted run alone, against this table. SOURCE_CHECKS is the one place the count lives.
+# --control: the unplanted run alone, against this table. SOURCE_CHECKS is the one place the count lives. The entry is a
+# ("line", text) DERIVED from it, not a ("checks", n) count: with a count of 1, lint_driver_counts.py's L2 cannot tell
+# the count from this file's idiomatic 1s (an anchor's uniqueness, an exit code, a regex group), so it flags them all
+# (W9's first run, ruled fix (A)). The exact line still carries the count and "0 failures", with exit 0.
 SOURCE_CHECKS = 1   # CD4 until the draw files exist; CD1-CD3 join with them
-CONTROL_TABLE = {"check_map_draw.py": ("checks", SOURCE_CHECKS)}
+CONTROL_TABLE = {"check_map_draw.py": ("line", f"{SOURCE_CHECKS} checks, 0 failures")}
 
 
 def control():
