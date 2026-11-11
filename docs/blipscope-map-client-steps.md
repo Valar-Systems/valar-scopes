@@ -1379,6 +1379,34 @@ failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-rend
   `#error`.
 - **Any other count, skip set or failure means a stop and a report,** with no re-run.
 
+### W9 as run (2026-11-11): the first run OFF on the lint, then the re-run as predicted
+
+- **W9's first run** (`1272d2c3`, 20:20:49-20:28:32Z): **OFF.**
+  - There was a third failed block, "sabotage controls: every test/host/sabotage_*.py --control".
+  - It runs `lint_driver_counts.py`, which read `38 driver(s), 1 flagged`. Its L2 flagged eight literal 1s in
+    `sabotage_map_draw.py` against the driver's table count, `SOURCE_CHECKS = 1`.
+  - None of the eight is a count: an anchor's uniqueness (twice), an exit-code tuple, two regex groups, a tuple index, a
+    last-line index and an exit code.
+  - Everything else read as predicted.
+  - **My miss:** I predicted "0 flagged" without running the lint locally. It now runs locally after any driver change.
+  - CI's host-tests leg runs the same block, so this would have been a CI failure.
+- **The fix, ruled (A):** the control's table entry is `("line", f"{SOURCE_CHECKS} checks, 0 failures")`, derived
+  from the one constant, so the count still lives in one place (`bf100133`). The lint locally read `38 driver(s), 0
+  flagged; 3 pinned line(s)`, as predicted, and the driver's `--control` read the line, exit 0.
+- **A known limit of L2, for the harness's owner** (the orchestrator raises it): L2 flags any integer literal equal to
+  one of a driver's table counts. **With a count of 1 it cannot tell the count from a file's idiomatic 1s**, so any
+  future driver with a count of 1 will meet this. Nothing in the lint was changed here.
+- **W9's re-run** (`bf100133`, 20:30:16-20:37:45Z), **as predicted:**
+  - exit 2, and `FAILED BLOCKS` lists exactly "the rig: Weatherscope R0 and R0b" and "failed: the same TU, for the
+    board", with no other `FAIL` line;
+  - anchors `38 driver(s) checked`; controls and the full pass `38 driver(s): 37 run, 1 skipped`; lint `38 driver(s),
+    0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_draw.py` ok in all four passes: anchors 3 and 3, control 1 suite, lint ok, and the full pass with
+    **7** `AS PREDICTED` lines;
+  - `MapDraw` `1 checks, 0 failures`, and `MapFetch` `42 checks, 0 failures`, then `3 checks, 0 failures`.
+- **The PR's CI prediction stands as registered above** (34 = 30/4/0 from #634's run). The fix touches only the
+  driver, which CI's host-tests leg reads.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
