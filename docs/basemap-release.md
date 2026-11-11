@@ -246,3 +246,34 @@ staging path for it (`--builder`). No typed wrangler command.
 - **Q-RV4:** the SG rows read the builder's outcome from its tail, `wrangler tail blipscope-basemap-staging` (read-only), as Q-MEM2 did.
   That is a typed wrangler command. May it run? Without it, SG-B (Exceeded Memory) and SG-C (Exceeded CPU) can't be told apart: both reach
   the route as a 503 or as 202s.
+
+## RL0 to RL2, re-registered, read (2026-11-11, 18:27:50-18:27:55Z): stopped at RL0 again, by my registration's own contradiction
+
+The re-registration was pushed at 18:27:44Z (`c698304da9c8`). **The wrapper stopped itself (exit 1) after one build.** The error file is
+empty, the tree stayed clean, and nothing ran on staging. The drivers' sha256 read as registered first.
+
+| step | read | |
+|---|---|---|
+| hooked copies | 22 files; the hooked `build.ts` files as mk-hooks made them; no `src/wx` | as registered |
+| **IC0**, the PR's and main's | exit 1, no RESULT line, stderr names `../wx/crop`, for both | **as predicted** |
+| `crop.ts` | added to both copies, 6,493 B, sha256 `efb15a0e3de8`, the same in the PR and on main; nothing else moved | as registered |
+| **IC1**, the PR's and main's | exit 2, one RESULT line, `unknown point XXXX`, for both | **as predicted** |
+| **RL0**, main's builder at KLGA | 422 with DR0's ladder (249,684 / 205,868 / 186,014 / 41,061); largest **99.18 MiB (104.0 MB) in the cell phase, at cell 16 of 21** | **stopped before it was graded** |
+
+**What stopped it.**
+- The parent checks every build against "no build over 96 MB" before it grades the build's row, and RL0's build read 104.0 MB.
+- **RL0's own registered prediction is over that line:** 99.51 MiB is 104.3 MB. The registration contradicts itself. Its "every process: no
+  build over 96 MB" row can't hold for RL0, whose job is to read main's builder holding every read.
+- Read against RL0's row, every part falls inside it: |99.18 − 99.51| = 0.33 ≤ 0.785, at cell 16, in the cell phase, with DR0's ladder.
+  **This is reported, not graded:** the run never graded it.
+- RL0's phases (MiB): cell 99.18, tile 61.13, tiles 55.76, terrain 56.00, layers 59.11, ladder 59.16, end 8.04.
+
+**My miss, with its cause:** I carried Q-DR3's 96 MB stop into "every process" without reading it against RL0's own prediction. In Q-DR3
+every build was a candidate builder, so the stop fitted every build. Here RL0 is a control built to read high. Checking each row's
+prediction against every other row before freezing them would have caught it.
+
+**This is RL0's second stop, so it goes to the owner** (the retry cap, ruled ~18:20Z). Nothing runs until the owner decides.
+
+**Proposed, for the owner:** the 96 MB stop applies to the PR's builder only (RL1 and RL2), not to RL0's control. RL0 is graded exactly as
+registered, then RL0 to RL2 run again from the start. Nothing else changes; `crop.ts` stays in the copies, and IC0 has already shown the
+import check can fail.
