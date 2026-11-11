@@ -317,3 +317,43 @@ again, because `crop.ts` is in the copies now; it already showed the check can f
 | **RL0 off** | the control, as registered | **stop; it goes to the owner** |
 | RL1 or RL2 off, or a PR build over 96 MB | as registered | **stop** |
 | **anything else** | the instrument is suspect | **stop and report** |
+
+## RL0 to RL2 under (a), read (2026-11-11, 18:59:55-19:00:07Z): RL0 as predicted; stopped at RL1, KJFK's memory, lower than predicted
+
+The re-registration was pushed at 18:59:49Z (`bbd13fa1`). The wrapper's sha256 and every check read as registered. **Three builds ran,
+and the parent stopped itself (exit 1).** The error file is empty, and nothing ran on staging.
+
+| row | read | |
+|---|---|---|
+| IC1, the PR's and main's | exit 2, `unknown point XXXX`, for both | as predicted |
+| **RL0**, main's builder at KLGA | 422 with DR0's ladder; **99.54 MiB in the cell phase, at cell 16 of 21** | **as predicted** (99.51 ± 0.785, cell 16) |
+| RL1 KBOS | `ce5b1ea7589e`, Nov 8's DR0; 56.67 MiB in the ladder phase | as predicted (56.63 ± 0.785) |
+| **RL1 KJFK** | 422 with #620's ladder, as predicted. **Memory: 58.52 MiB in the ladder phase** | **off: predicted 61.58 ± 0.785, in the cell phase** |
+
+**What differs is the cell loop, and only the cell loop.** Q-DR3's figures came from the scratch copy with its release knob on. The
+same copy, at the same point, read:
+
+| phase (MiB) | KJFK, the copy (Q-DR3) | KJFK, the PR | KBOS, the copy | KBOS, the PR |
+|---|---|---|---|---|
+| cell | **61.58** | **55.27** | **50.87** | **47.23** |
+| tile, tiles, terrain | 55.25, 55.14, 55.39 | 55.28, 55.18, 55.42 | 53.35, 53.23, 53.48 | 53.42, 53.30, 53.55 |
+| layers, ladder | 58.47, 58.51 | 58.49, 58.52 | 56.53, 56.63 | 56.59, 56.67 |
+
+- **After the cell loop, the PR and the copy agree to 0.07 MiB at both points.** Inside it, the PR holds 6.31 MiB less at KJFK and 3.64 MiB
+  less at KBOS.
+- **At KBOS the peak is in the ladder phase either way,** so its row held. At KJFK the copy's peak was in the cell loop, so the PR's lower
+  cell loop moved its peak to the ladder phase, and the row went off.
+- **The candidate, not established:** the copy wrote the release line inside `if (RELEASE) { … } else …`, and the PR writes it as three
+  plain statements. #622's record already found the copy keeping one consumed read reachable during the cell loop (the cell-11 exception).
+  A different code shape could let that read go. **The alternatives, and why the data leans against them:**
+  - the load on this machine (another session's long PlatformIO rebuild): every sample is taken after a forced, settled `gc()`, and the
+    phases after the loop agree to 0.07 MiB, so load doesn't explain a 6 MiB difference confined to the cell loop;
+  - the copy's empty ε×4 and ε×8 sets: they exist in every phase, so they can't account for a difference in one phase.
+  Neither is excluded by a measurement.
+
+**This stop is RL1's, not RL0's,** so it goes to the orchestrator. **Proposed (Q-RV5), read-only and registered first:**
+1. **The copy at KJFK again,** in Q-DR3's own driver, now: does it still read about 61.6 MiB in the cell phase? This tests the
+   environment.
+2. **A plant:** the PR's hooked builder with its release line rewritten in the copy's `if` form and nothing else. Does it read the copy's
+   61.6? This tests the code shape.
+3. **Then, by what those show,** re-register RL1 with the PR's own figures, or report the cause if neither explains it.
