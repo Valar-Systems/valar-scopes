@@ -848,6 +848,49 @@ push, and the gate above is what keeps the map out of it.
 - **Anything else stops the run's reading for a ruling.** A driver off in the full pass is first run against main's
   own tree (947e1d38), to tell what this branch broke from what was already broken.
 
+### W8 as run (2026-11-11, 04:09:04-04:15:49Z): as predicted
+
+The first launch at 04:08:32Z never ran `run.sh`. My wrapper called `git log` inside WSL first, and git there cannot
+follow this worktree's `.git` file, which names a Windows path. It exited 128, and the `&&` stopped the run before it
+began. Nothing was measured, so this is the rig, not a reading. The relaunch dropped the git call (the commit,
+a1c0657c, and a clean tree were read from Windows first) and ran the suite once:
+- exit 2, and `FAILED BLOCKS` lists exactly "the rig: Weatherscope R0 and R0b" and "failed: the same TU, for the
+  board". The log holds no other `FAIL` line.
+- Anchors: `36 driver(s) checked`, plus both board plants. Controls: `36 driver(s): 35 run, 1 skipped`. Lint:
+  `36 driver(s), 0 flagged; 3 pinned line(s)`. The full pass: `36 driver(s): 35 run, 1 skipped`. The skip is
+  `sabotage_wx_towns.py` in both passes.
+- `sabotage_map_fetch.py` passes in all four: anchors (23), control (2 suites), lint, and the full pass (24 `AS
+  PREDICTED` lines: the 23 plants and the summary).
+- MapFetch: `42 checks, 0 failures`, then CA12-CA14 exactly as in W1, then `3 checks, 0 failures`.
+
+### CI for this branch's PR, predicted (registered before the push, which waits for blipscope-5c's read of the OtaUpdater diff)
+
+**Baseline:** #631's pull-request checks at its head `2b90f7bbf252`. #631 is the first PR to touch `src/` after main's last
+job-set change (#629, `81cfbd09`).
+- It ran four workflows: device-ids, firmware, no-traffic-captures and web-renderer.
+- **34 checks: 30 success, 4 skipped, 0 failed.** The skips are firmware's `promote`, `ship-alert` and `version`, and
+  web-renderer's `publish`.
+
+This PR touches `docs/`, `include/`, `src/` and `test/host/`. The workflows' `pull_request` filters fire the same four:
+- device-ids, firmware and no-traffic-captures have no path filter;
+- web-renderer fires on `src/**` and `include/**`;
+- workers.yml does not fire, because nothing under `proxy/` or `test/fixtures/wx/` changes;
+- print-cards and provisioner do not fire either.
+
+No job in those four is conditional on which files changed. **Predicted: 34 = 30/4/0, with the same names as #631's.**
+- firmware: 30 = 27/3, with the ten builds, adsbdb-gate and the three host-tests legs among the 27.
+- device-ids: 1/0.
+- no-traffic-captures: 1/0.
+- web-renderer: 2 = 1/1 (build passes, publish skipped).
+
+**What it means if it reads otherwise:**
+- A web-renderer `build` failure means the map gate did not keep the map out of the website build, and is a miss.
+- A host-tests failure outside the two WSL-only blocks is a miss.
+- Any other count is outside the set. I stop and report, and there is no re-run in between.
+
+The local guards were run at a1c0657c, and each exits 0: `check_wifi.py`, `check_device_ids.py`, `check_macs.py`,
+`check_binary_strings.py` and `check_redaction_vectors.py`.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
