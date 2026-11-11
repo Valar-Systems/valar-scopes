@@ -30,6 +30,18 @@
 #include "WxPolicy.h" // weather under the planes: when to fetch, what to keep (pure; WD3)
 #include "WxS2.h"     // weather under the planes: its colours, looks A and B (pure; WD4)
 #include "WxSweep.h"  // the sweep over the weather, looks 3 and 4 (pure; WD6)
+// THE MAP FETCH BEGIN
+// The map package under the radar (docs/blipscope-map-client-steps.md, step A). BUILT ONLY UNDER THE ONE SWITCH, like
+// the weather (WxLayerSwitch.h: weather and maps ship together), and NEVER INTO THE WEB RENDERER: the website draws no
+// raw-buffer layer and its GetBytes is a dead socket (tools/web-renderer/web/web_http.cpp), so asking there would only
+// hold a visitor's memory for a package that cannot arrive. Every map site tests this one macro, never the flags.
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+#define BLIPSCOPE_MAP_FETCH 1
+#include "BasemapPackage.h" // bmpk::Package: the gate's accepted package, pointing into the landing buffer
+#include "MapPolicy.h"      // when to ask, and what each answer means (pure; CA4-CA11)
+#include "MapQuery.h"       // the request for the stored config (pure; CA1-CA3)
+#endif
+// THE MAP FETCH END
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
@@ -675,6 +687,23 @@ private:
     bool RebuildWeatherLayer();       // decode the held crop, wxlayer::Build, S2 into the sprite
     static constexpr size_t kWxCellsMax = 406u * 406u;   // #451 P1: the largest box, with its rounding cell
 
+    // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    // The map package (docs/blipscope-map-client-steps.md, step A). HELD IN RAM ONLY (F8): asked for once per config
+    // per boot, dropped when the config changes, never written anywhere. mapLanding is written by the FETCH task while
+    // a map request is in flight (one at most, behind fetchInFlight); everything else here is the loop task's. While a
+    // package is held nothing is asked (MapPolicy), so the fetch task never writes under a held package.
+    mappolicy::State mapState;
+    mapquery::Request mapReq;          // the request for the stored config, rebuilt at every Initialise
+    bool mapBegun = false;             // F6: whether this boot waits was decided at the first Initialise
+    uint8_t* mapLanding = nullptr;     // PSRAM, at the cap of the largest request sent this boot; never freed
+    size_t mapLandingCap = 0;
+    bool mapAllocFailed = false;       // the map stays off until the next config change
+    size_t mapHeldLen = 0;             // the held package's length; 0 when none is held
+    bmpk::Package mapPkg;              // the gate's accepted package, pointing into mapLanding
+#endif
+    // THE MAP FETCH END
+
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.
     bool lbEnabled = false;
@@ -1201,6 +1230,15 @@ private:
     bool AllocateWeatherBuffers();              // the five PSRAM buffers, once (WD5 addendum 2)
     bool WxEnabled() const;                     // switch on, buffers allocated, cloud source configured
     wxpolicy::Query WxQuery() const;            // the query the request carries, from the wire's own rounding
+    // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    bool MapEnabled() const;                    // cloud source configured, a location, and no refused allocation
+    void MapConfigure(double distance, double kmPerUnit);   // at every Initialise: the request, its key, F6 once
+    bool RequestBasemap(unsigned long now);     // loop: queue a /api/v1/blipscope/basemap fetch, behind the feed
+    void ConsumeBasemap(int status, size_t len, size_t claimed, const String& retryAfter, mappolicy::Gate gate,
+                        uint8_t why, const bmpk::Package& pk, uint32_t seq);
+#endif
+    // THE MAP FETCH END
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
     // loop: queue a /api/v1/blipscope/enrich lookup.

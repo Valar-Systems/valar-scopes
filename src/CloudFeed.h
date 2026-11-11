@@ -117,6 +117,10 @@ String ConfigUrl(const String& base);
 String AirportsUrl(const String& base);
 // The weather crop for one product (docs/wx-server.md): GET <base>/api/v1/blipscope/wx/<product>?lat=&lon=&r=
 String WeatherUrl(const String& base, const char* product);
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+// The map package (docs/basemap-route.md): GET <base>/api/v1/blipscope/basemap?lat=&lon=&r=&eps=&layers=[&levels=]
+String BasemapUrl(const String& base);
+#endif
 // The hourly leaderboard submit target. Previously built inline at the POST site,
 // which is how it stayed on the old path while the other four were namespaced --
 // an endpoint that lives outside the list of endpoints is the one that gets

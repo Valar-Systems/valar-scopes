@@ -151,6 +151,18 @@ bool DeferRebootWithCause(uint8_t cause, uint32_t largestBlock, bool scheduled);
 uint8_t ConsumeDeferredRebootCause();
 
 /**
+ * Is this boot the new image's first after an update? True when the OTA memory
+ * record is the pre-armed "incomplete" one naming FW_VERSION -- the test
+ * TakeOtaMemReport finalises with. READ-ONLY (the namespace opens read-only and
+ * nothing is written) and CACHED for the boot, so it must first be called before
+ * the first check-in clears the record: the map's first Initialise does that
+ * (F6 in docs/blipscope-map-client-steps.md, step A; Q-MA1).
+ *
+ * LOOP TASK ONLY (NVS).
+ */
+bool BootFollowsUpdate();
+
+/**
  * Was this boot armed by DeferUpdateCheckToReboot?
  *
  * CLEARS THE FLAG BEFORE RETURNING, and the ordering is the loop guard: the

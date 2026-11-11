@@ -207,7 +207,7 @@ def main():
             ("the page's look default B", "K3 (config page)", "page",
              lambda s: s.replace('prefs.getString("wx-look", "")', 'prefs.getString("wx-look", "B")')),
             ("the age header dropped from the collect list", "WA1 (GetBytes)", "hrm",
-             lambda s: s.replace('"X-Upstream", "X-Wx-Max-Age" };', '"X-Upstream" };')),
+             lambda s: s.replace('"X-Upstream", "X-Wx-Max-Age",', '"X-Upstream",')),   # the list ends "Retry-After" since step A
             ("ConsumeWeather hands OnResponse nullptr for the age", "WA1 (AircraftManager)", "am",
              lambda s: s.replace("maxAge.isEmpty() ? nullptr : maxAge.c_str(),   // (h)", "nullptr,   // SABOTAGE: the age dropped")),
             ("the device carousel also leaves out Stats", "CAR", "amh",

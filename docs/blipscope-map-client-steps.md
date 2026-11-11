@@ -392,7 +392,7 @@ Derived from #445's F run in `docs/wx-device.md`: fill 3.01 ms, `memcpy` 5.08 ms
 
 ## Step A: fetching the package (predictions, for review; 2026-11-08)
 
-**Status: predictions only. No code until they are ruled.** Step M's host side merged as #619 (`e934e93b`). The
+**Status: ruled 2026-11-08 ~20:28Z (verbatim below); merged as #624. The code is on `feat/map-client-step-a`, after the registration below.** Step M's host side merged as #619 (`e934e93b`). The
 fixtures (KJAC, KSFO) came in the map server's #621, and #620 read r = 162 under the cap everywhere but New York.
 Neither changes a row here.
 
@@ -489,6 +489,417 @@ These rows are registered with the bench image, not here.
   refusals). Proposed as stated; none is ruled yet.
 - **Q-MA5:** until D4, production answers `503 not_configured`. Under CA7 a shipped device backs off to an hourly ask. That
   is only reachable if the joint release ships before D4, which the release plan does not allow.
+
+### The ruling on step A's predictions, verbatim (reviewer chat, pasted by Daniel, 2026-11-08 ~20:28Z)
+
+> #624: approved at 70e1bbd397fa once its CI double-reads 32 = 29/3/0. Merge through scripts/merge-by-rule.sh. Step A's code may start once it has merged.
+> Q-MA1: yes, one read-only accessor in OtaUpdater.cpp. blipscope-5c reads that diff before your push, as the file's owner.
+> Q-MA2: yes. A boot after the network watchdog's reboot also takes the delay, since an outage restarts the fleet together.
+> Q-MA3: accepted: after an update the map can be off for up to 2 h. If Daniel sees it in daytime and dislikes it, persistence comes as its own proposal.
+> Q-MA4: yes, as proposed: a 60 s fallback when Retry-After is missing, backoff from 60 to 3,600 s, 1 h after a 401 or 403, and at most 3 gate refusals per config.
+> Q-MA5: accepted. The release waits for D4, as #606 orders, so a 503 not_configured only ever reaches bench and staging, and it backs off like any 503.
+
+#624 merged on its fourth attempt (2026-11-11 01:33:12Z, squash `947e1d3825fc`). The three attempts before it each
+stopped on "main moved", with nothing merged. The ruling on those, verbatim (reviewer chat, pasted by Daniel, 2026-11-11 ~01:12Z):
+
+> Q-MC12:
+> (a) Yes, make a fourth attempt once #631's merge is on main; you're second in the order. #624 is still 70e1bbd397fa, docs only, and merges cleanly onto main 81cfbd0.
+> (b) Good proposal. It goes to blipscope-5c, as the owner of the claims design, after v19's cut, with predictions and a plant where the holder dies mid-wait. The declared order covers it until then.
+>
+> All three stops were correct: nothing merged, and the claim was released each time. Step A's code still waits for #624, and the disk rule stands.
+
+### Registered before step A's code (2026-11-11), for review
+
+Everything here was computed or decided before any of step A's C++ existed. The request's numbers come from a scratch
+reference in Python, with float32 emulated through `struct`. It reproduces all six frozen CA1 strings and caps exactly.
+
+**1. The ladder comes from the radar; the values come from the stored config.**
+- **The disagreement.** A ladder re-derived in double disagrees with the radar's own at exactly one of CA2's 6,660
+  configs. The radar's ladder is `radarzoom::BuildLadder` of the float display radius. At 25.5 nmi that float lands
+  just above 25.5, so the radar shows a 25 nmi step that a double ladder omits.
+- **What `mapquery::Build` does instead.** It takes the radar's `radarzoom::Ladder` and uses only its step count. The
+  steps are `CANDIDATES[0 .. n-2]` and the configured radius. Each is turned into mm in double, from the stored
+  distance and the unit's exact factor, never from the ladder's floats.
+- **The result.** With the radar's ladder, every radar step among the top three has a level of its own at all 6,660
+  configs. With the double ladder, one does not. CA1's strings are the same either way.
+
+**2. CA2, as three rows.** Each runs over the sweep: 0.1 to 222 by 0.1, in km, mi and nmi, which is 6,660 configs.
+The route's bounds are read from `proxy/src/basemap/query.ts` and the cap from `budget.ts`. Numeric separators are
+allowed; anything the parser cannot read is the rig (exit 2).
+- **CA2-bounds:**
+  - `1 <= r <= MAX_R_KM`;
+  - `EPS_MIN_MM <= eps <= EPS_MAX_MM`;
+  - at most `LEVELS_MAX` levels, unique, each with `LEVEL_R_MIN_MM <= R <= LEVEL_R_MAX_MM` and `1 <= N <= LEVEL_N_MAX`;
+  - `Σ(8 + N²) <= TERRAIN_BYTES_MAX`;
+  - `terrain` is in `layers` exactly when there are levels.
+- **CA2-rcover:** `r >= Rv + 0.555 km`, unless `r = 222`.
+- **CA2-levels:** each of the radar's top three steps (its float step, in km in double) has a level of its own, whose
+  pixel is within 1 % of step/120, and that level has `R >= step + 0.785 km`. The exception is a step whose own `N`
+  would exceed 1,024, or whose `R` would fall outside 1-250 km. Printed, and predicted exactly:
+  - 6,660 configs;
+  - 19,496 steps with a level of their own;
+  - 4 steps with none;
+  - 11,041 steps below the top three.
+
+**3. The policy's rules where the frozen rows left a choice** (`include/MapPolicy.h`):
+- **Clocks.**
+  - Every wait runs from the moment that set it. A `Retry-After` or a backoff runs from the reply's arrival (the
+    `nowMs` given to `OnResponse`). The spread runs from the boot's first `AircraftManager::Initialise()`.
+  - Every comparison is the wrap-safe signed difference `WxPolicy` uses (WD5 addendum 7), so a time later than the
+    pass's `now` is not due.
+- **`Retry-After` (CA4, CA5).** Accepted as 1-4 ASCII digits whose value is 1-3,600, so `"0015"` is 15. Everything else
+  is refused: absent, empty, `0`, `3601`, a sign, a space, a decimal point, five digits, an HTTP date.
+- **Statuses the table does not name.**
+  - 400 is the no-package state, like 404 and 422: the same query would be refused again.
+  - A 429 with a refused `Retry-After` is treated as a 429 without one (CA7's backoff).
+  - Any other status is an error (CA7): a 3xx, any other 4xx, and a 304, which no request invites.
+  - A 202 neither grows nor resets the backoff.
+  - 401 and 403 wait 3,600 s and leave the backoff's level where it was.
+- **The backoff's level.**
+  - It persists across config changes, and only a 200 whose package passes the gate resets it (CA7's "reset by a 200").
+  - That reset can only be observed across a config change, because F8 asks for nothing more once a package is held.
+- **The gate (CA8).**
+  - Every 200 that does not yield a package `maplayer::Load` accepts counts as a refusal. That covers a CRC or §8
+    refusal, and also a body over the cap, a short body and a stalled one.
+  - Each refusal counts once toward the 3. The third is the no-package state, with no backoff wait.
+- **A reply that never comes** ends after 60 s (`kReplyTimeoutMs`) as a failed attempt (CA7), and its late reply is
+  ignored. That is longer than `WxPolicy`'s 30 s, because the package can approach 1 MB at the smallest radii.
+- **Config changes.**
+  - The boot's first query is not a change, so the spread, if any, still holds.
+  - The key is lat and lon at 2 dp, plus the whole parameter string. Every later change of the key drops the package,
+    clears the stop and the gate count, and cancels any wait, so the next request goes at once (CA10).
+- **The spread (CA9).** Three kinds of boot spread:
+  - deferred cause `OTA_CHECK`, the nightly reboot;
+  - deferred cause `NET_WEDGE` (Q-MA2);
+  - the new image's first boot after an update.
+
+  `TOUCH_WEDGE` asks at once, and so does a boot with no cause and no update record. A power-on, a first-run restart
+  and a config-save boot are the same input to the device, so their three rows share one input.
+  `D = FNV-1a("map-spread|" + LeaderboardId) mod 7,200` s.
+
+**4. The cases.** `test/host/test_map_fetch.cpp` has 42 cases; `test/host/check_map_fetch.py` holds CA12-CA14.
+
+| row | cases |
+|---|---|
+| request | CA1, CA1b, CA1c, CA1d, CA1e, CA1f, CA2-bounds, CA2-rcover, CA2-levels, CA3 |
+| CA4 | CA4-202 and CA4-429 (`"15"`: not due at +14,999 ms, due at +15,000); CA4-edges (`"1"`, `"3600"`, `"0015"`) |
+| CA5 | CA5-absent; CA5-values (the ten refused values above, each waiting 60 s and flagged as refused) |
+| CA6 | CA6-404, CA6-422, CA6-400: nothing asked at +1 min, +1 h or +24 h; a radius change asks once, at once; the same answer stops it again |
+| CA7 | CA7-500, CA7-503, CA7-429, CA7-transport: two in a row, waiting 60 s then 120 s |
+| | CA7-timeout: two timeouts, 60 s then 120 s, with the late reply ignored |
+| | CA7-cap: eight 500s, waiting 60, 120, 240, 480, 960, 1,920, 3,600 and 3,600 s |
+| | CA7-reset: three 500s, an accepted 200, a radius change, then 500s that wait 60 s and then 120 s |
+| CA7b | CA7b-401 and CA7b-403: exactly 3,600 s, twice |
+| CA8 | CA8-first: one refusal waits 60 s and holds no package |
+| | CA8-recover: two refusals, then a pass, and the package is held |
+| | CA8-stop: the third refusal stops; a radius change starts the count again |
+| | All three advance their clock an hour per step, so they read no backoff length past the first |
+| CA9 | CA9-ota, CA9-nightly, CA9-netwedge: not due at D s − 1 ms, due at D s |
+| | CA9-poweron, CA9-firstrun, CA9-config, CA9-touchwedge: due at once |
+| | CA9-dist: 10,000 synthetic ids give D in [0, 7,200), a mean of 3,600 ± 72, and each of 12 ten-minute bins within ±15 % of 833.3 |
+| CA10 | CA10-change: a held package is dropped and the request goes at once, also from inside a spread wait and from inside a backoff wait |
+| | CA10-location: the same, for a latitude change |
+| | CA10-zoom: every view step gives a byte-identical request and key, and nothing is asked |
+| CA11 | CA11: a 200 that passes, but answers the config from before a change, is dropped; the new config asks at once |
+
+The synthetic ids are made at run time with splitmix64, in the id's own shape (16 hex digits). They are never written
+as literals and never printed. Neither the test nor the check prints a D, a hash or an id.
+
+**5. The plants: 23, each set computed before the code.** The request plants' sets come from the scratch reference run
+under each plant. The policy and source plants' sets come from applying the rules above, row by row.
+
+| plant | the break | turns exactly |
+|---|---|---|
+| S-CA-MARGIN | `r` without the 0.8 km | CA1, CA1b, CA1c, CA2-rcover (as frozen) |
+| S-CA-EPSFLOOR | no 1,000 mm floor | CA1f, CA2-bounds (as frozen) |
+| S-CA-FLOAT | each radius through a float before its mm | CA1, CA1c (as frozen) |
+| **S-CA-LEVELM** (new) | each level's margin 0.7 km, not 0.8 | CA1b, CA1c, CA1d, CA2-levels |
+| **S-CA-CAP** (new) | the cap's base is 32,000 | CA1, CA1b, CA1c, CA1d, CA1e, CA1f, CA3 |
+| S-CA-RA | a valid `Retry-After` replaced by a fixed 30 s | CA4-202, CA4-429, CA4-edges |
+| S-CA-RAZERO | a refused `Retry-After` read as 0 | CA5-absent, CA5-values, **CA7-429** (a 429's absent header is the same refused value) |
+| S-CA-404RETRY | the no-package branch gone, so 404, 422 and 400 read as errors | CA6-404, CA6-422, CA6-400 |
+| S-CA-FLAT | every error waits 60 s: no growth, and no hour for 401 and 403 | CA7-500, CA7-503, CA7-429, CA7-transport, CA7-timeout, CA7-cap, CA7-reset, CA7b-401, CA7b-403 |
+| **S-CA-NORESET** (new) | an accepted 200 does not reset the backoff | CA7-reset |
+| **S-CA-NOTIMEOUT** (new) | a request never times out | CA7-timeout |
+| S-CA-GATE | refusals without limit | CA8-stop |
+| **S-CA-GATE1** (new) | the first refusal stops | CA8-first, CA8-recover, CA8-stop |
+| S-CA-NOSPREAD | no boot spreads | CA9-ota, CA9-nightly, CA9-netwedge |
+| S-CA-SPREADALL | every boot spreads | CA9-poweron, CA9-firstrun, CA9-config, CA9-touchwedge |
+| **S-CA-DMOD** (new) | D mod 3,600 | CA9-dist |
+| S-CA-ZOOMFETCH | levels for the three steps up to the view's step, not the ladder's top three | CA10-zoom |
+| **S-CA-CHANGEWAIT** (new) | a change keeps the pending wait | CA10-change, CA10-location |
+| **S-CA-KEEPPKG** (new) | a change keeps the held package | CA10-change, CA10-location, CA7-reset |
+| S-CA-NOSEQ | no config sequence check | CA11 |
+| S-CA-NVS | a `putString` in the map's region of `AircraftManager.cpp` | CA12 |
+| S-CA-PRINTD | a log line there printing the spread | CA13 |
+| S-CA-NORA | `Retry-After` dropped from `GetBytes`'s list | CA14 |
+
+S-CA-NVS and S-CA-PRINTD go into `AircraftManager.cpp`, which the C++ test does not compile, so neither can turn a
+compile failure into extra red rows.
+
+**6. The source checks.**
+- **The map's files** are:
+  - `include/MapQuery.h`, `include/MapPolicy.h` and `include/MapLayer.h`;
+  - the regions of `src/AircraftManager.h` and `src/AircraftManager.cpp` between `// THE MAP FETCH BEGIN` and
+    `// THE MAP FETCH END`.
+
+  The check pins the number of regions in each file. A count off in either direction, or a BEGIN without its END, is
+  the rig (exit 2). Comments are stripped before reading.
+- **CA12** refuses these in the map's files: `Preferences`, a `put…(` call, `nvs_set`, `nvs_commit`, `SPIFFS` and
+  `LittleFS`.
+- **CA13** reads every `printf`, `print` and `println` there.
+  - It refuses any argument whose identifier contains one of these words: lat, lon, latitude, longitude, id,
+    leaderboard, hash, fnv, spread, key, mac. Identifiers are split into words at camelCase and underscores.
+  - It refuses a `"lat"` or `"lon"` parameter that is not built by `wireloc::Center(`.
+  - It prints how many print calls it read. Reading none is the rig.
+- **CA14** reads `GetBytes`'s `kCollectHeaders`.
+  - The list must be exactly Transfer-Encoding, ETag, X-Cache, X-Upstream, X-Wx-Max-Age, Retry-After, in that order.
+  - The `Retry-After` header must be read into `HttpResult::retryAfter`.
+
+**7. Outside the host suite.**
+- **The wiring.** `FetchKind::Basemap`, `RequestBasemap`, `ConsumeBasemap` and the PSRAM landing buffer sit under
+  `WX_LAYER_SHIPS`, inside the marked regions.
+  - The buffer is allocated at the cap of the request about to go out, and reallocated only when a later request
+    needs more.
+  - A failed allocation leaves the map off until the next config change.
+- **Compiling, and reading the images.** The code must compile in `blipscope-s3-128` (the switch off) and in
+  `blipscope-s3-128-wxlook` (the switch on). Before the push, both images are read for `/basemap`:
+  - the shipping image must hold none;
+  - the wxlook image must hold it. That is the control: it shows the read can see the string.
+- **The OtaUpdater accessor (Q-MA1)** is `bool BootFollowsUpdate()`.
+  - It is read-only: `Preferences` opened read-only on `ota-mem`.
+  - Its answer is cached for the boot. Its first call is in `AircraftManager::Initialise()`, before the first check-in
+    can clear the record.
+  - That diff goes to blipscope-5c before the push.
+
+### The first host run (2026-11-11, 01:55Z): g++ 13.3 as predicted, MinGW 5.1 OFF on CA2-levels. Stopped for a ruling
+
+`test/host/test_map_fetch.cpp` (42 cases), against `include/MapQuery.h` and `include/MapPolicy.h` as first written.
+Both compilers built clean with `-std=c++11 -Wall -Wextra -Werror -O1`.
+
+- **g++ 13.3** (WSL, x86-64; CI's compiler), 01:55:17Z: **42 checks, 0 failures, as predicted on every line.**
+  - The route read: `MAX_R_KM` 222, `EPS_MIN_MM`/`EPS_MAX_MM` 1,000/10,000,000,
+    `LEVEL_R_MIN_MM`/`LEVEL_R_MAX_MM` 1,000,000/250,000,000, `LEVEL_N_MAX` 1,024, `LEVELS_MAX` 4,
+    `TERRAIN_BYTES_MAX` 2,097,152, and `CAP_BYTES` 32,768.
+  - CA2-levels printed exactly the registered counts: 6,660 configs, 19,496 steps with a level of their own, 4 with
+    none, and 11,041 below the top three.
+  - CA9-dist: mean 3,598.1 (the bound is 3,600 ± 72), ten-minute bins 791-883 (the bounds are 708-958).
+- **MinGW 5.1** (i686), 01:55:23Z: **42 checks, 1 failure. OFF:**
+
+      FAIL CA2-levels 6660 configs; 19494 steps with their own level; 4 with none; 11044 below the top three; 2 short, first 50.5 mi: step 4
+
+  The other 41 cases read as predicted. Stopped here: no fix, no re-run, no other check, no sabotage.
+
+**What I read as the cause, from the code and not from any run:**
+- MinGW 5.1 here targets i686, where float arithmetic runs on the x87 unit at 80 bits. GCC 5's C++ front end keeps
+  those excess bits; it has no standard excess-precision mode.
+- The test copies the radar's float chain. `km / (float)u.factor` is assigned to a float, and then
+  `radarzoom::BuildLadder` (inline) compares `c < configured - SAME_STEP_EPS`. On i686 both can stay at 80 bits.
+- At 50.5 mi the display radius then reads a hair above 50.5, so the ladder gains a 50 mi step. True float leaves
+  that step out, and true float is what SSE does (g++ 13.3 on x86-64) and what the device's single-precision FPU does.
+  The extra step is the 3 more steps counted below the top three.
+- 50 and 50.5 are 1.0 % apart, inside the test's 1 % own-level window. So for the 50.5 mi step the test picks the
+  50 mi level, whose R (81,808,320 mm) falls short of 50.5 mi + 0.785 km (82,056,872 mm). That accounts for the 2 short.
+
+**The alternative, and how far the data excludes it.** The alternative is a defect in `mapquery::Build` or
+`BuildLadder` that shows only on this compiler.
+- The data excludes it in part. g++ 13.3 reads every registered number exactly, and the failing config sits on the
+  one kind of boundary (x.5) where rounding to float decides whether a step is on the ladder.
+- It does not exclude a MinGW-specific miscompile.
+
+**Proposed (Q-MC13), for the ruling.**
+- **The fix.** The test's copy of the float chain forces each value the device holds as a float through a `volatile
+  float`. That makes it model float on any host. The header code is untouched.
+- **Prediction after the fix:** MinGW reads 42/42, with the g++ 13.3 counts exactly (6,660 / 19,496 / 4 / 11,041),
+  and g++ 13.3 is unchanged.
+- **If MinGW still reads off,** the cause is not excess precision, and I stop again.
+
+This miss stays on record: a prediction made for a host whose float semantics I had not checked.
+
+### Q-MC13's ruling (2026-11-11 ~03:37Z), verbatim, and what is registered before its runs
+
+> Q-MC13: yes, with one confirming run. The fault is in the host's arithmetic, not the device's, so the fix belongs
+> in the test's copy, and the header stays untouched.
+> - The fix: force each device-float value in the test's copy through a volatile float. For +, −, ×, ÷ and sqrt,
+>   rounding the x87's 80-bit result to float gives exactly the device's float result, so this is faithful, not a
+>   fudge.
+> - Register before running:
+>   - R1: MinGW 5.1 with the fix: 42/42, with g++'s CA2-levels counts exactly (6,660 / 19,496 / 4 / 11,041).
+>   - R2: g++ 13.3 with the fix: unchanged, 42/42.
+>   - R3, the confirming run: MinGW 5.1 with the unchanged test, built with -msse2 -mfpmath=sse: 42/42 with g++'s
+>     counts. That pins the cause on x87 excess precision rather than a MinGW miscompile.
+>   - Plant: your 01:55Z reading is the unfixed state, so it stands as the plant, with nothing to re-run.
+> - Anything off: stop and report, as you said.
+> - Then CA12–CA14, the sabotages and the firmware build, as registered.
+>
+> Writing the wiring while you wait is fine, and nothing runs before this ruling. The OtaUpdater diff goes to
+> blipscope-5c before any push, as you said. C is already cut, so it doesn't touch v19.
+
+**The fix, exactly.** In `RadarLadder` in `test/host/test_map_fetch.cpp`, the three values the device holds as a
+float become `volatile float`: `km`, `shown`, and the argument handed to `radarzoom::BuildLadder` (a new local,
+`configured`). The comment above the function says why. Nothing else in the test changes, and no header changes:
+`include/MapQuery.h`, `include/MapPolicy.h` and `include/RadarZoom.h` keep their blobs at 555068c7.
+
+**The reference.** The 01:55Z g++ 13.3 log, `0223cabd5390` (sha-256, first 12 hex), whose last line is
+`42 checks, 0 failures` and whose CA2-levels line reads 6,660 / 19,496 / 4 / 11,041. MinGW writes CRLF to a redirected
+stdout, so a MinGW log is compared after its carriage returns are removed. That comparison was checked against the
+01:55Z pair before this was written: stripped, the MinGW log differs from the g++ log on exactly two lines (CA2-levels
+and the summary).
+
+**The builds.** Every run uses `run.sh`'s flags (`-std=c++11 -Wall -Wextra -Werror -O1 -static-libgcc
+-static-libstdc++`) with `-I include`, and runs with the worktree as the repo root, as at 01:55Z. MinGW is
+PlatformIO's `toolchain-gccmingw32` (5.1.0, i686); g++ is 13.3.0 in `wsl -d Ubuntu-24.04`.
+
+| run | compiler | test | extra flags | predicted |
+|---|---|---|---|---|
+| **R1** | MinGW 5.1 | with the fix | none | builds clean, exits 0, and its log, carriage returns removed, is byte-identical to `0223cabd5390` |
+| **R2** | g++ 13.3 | with the fix | none | builds clean, exits 0, and its log is byte-identical to `0223cabd5390` |
+| **R3** | MinGW 5.1 | unchanged: a byte copy of 555068c7's blob, its sha checked against the blob before the build | `-msse2 -mfpmath=sse` | builds clean, exits 0, and its log, carriage returns removed, is byte-identical to `0223cabd5390` |
+| plant | MinGW 5.1 | unchanged | none | the 01:55Z reading, which stands: CA2-levels alone red (19,494 / 4 / 11,044, 2 short at 50.5 mi) |
+
+They run in that order, R1, R2, R3, and the first off reading stops the rest.
+
+**What each outcome means, decided now:**
+- All three as predicted: x87 excess precision in the test's copy was the cause, and the fix models the device's
+  float. Step A goes on to CA12–CA14, the sabotages and the firmware build.
+- R1 off: the fix does not reach every value the x87 widens. One candidate is the test's double chain (`radLat` is
+  held at 80 bits as well), but that is a guess, so I stop and report.
+- R2 off: the fix changed what g++ computes, which it should not. I stop.
+- R3 off with R1 and R2 as predicted: an SSE build of the unchanged test still fails, so excess precision is not the
+  whole cause, and the fix may be hiding something. I stop.
+- Anything outside these: the comparison itself is suspect at this scale. I stop and decide.
+
+### Q-MC13's runs (2026-11-11, 03:41-03:42Z): R1, R2 and R3 as predicted
+
+The fix as registered (249ce535, 03:41:11Z): `km`, `shown` and a new `configured` in the test's `RadarLadder` are
+`volatile float`, and the comment above it says why. The diff is 8 lines added and 3 removed in
+`test/host/test_map_fetch.cpp`, and `include/` matches 555068c7.
+
+| run | at | build | exit | log | read |
+|---|---|---|---|---|---|
+| **R1** MinGW 5.1, with the fix | 03:41:40Z | clean | 0 | `0223cabd5390` once its carriage returns are removed | **as predicted**: 42/42, CA2-levels 6,660 / 19,496 / 4 / 11,041 |
+| **R2** g++ 13.3, with the fix | 03:41:49Z | clean | 0 | `0223cabd5390` | **as predicted**: unchanged, 42/42 |
+| **R3** MinGW 5.1, the unchanged test, `-msse2 -mfpmath=sse` | 03:42:00Z | clean | 0 | `0223cabd5390` once its carriage returns are removed | **as predicted**: 42/42 with g++'s counts |
+| plant: MinGW 5.1, the unchanged test, x87 | 01:55:23Z | clean | -- | -- | the 01:55Z reading, which stands: CA2-levels alone red |
+
+R3's copy was 555068c7's blob, `36ec7344f708`, checked before the build. The plant and R3 are the same source built
+the same way except for `-msse2 -mfpmath=sse`, and that difference alone turns CA2-levels from red to green. So the
+cause was x87 excess precision on the host, not a MinGW miscompile, and the fix makes the test's copy compute what the
+device computes. Next, as registered: CA12-CA14, the sabotages and the firmware build.
+
+### The wiring, written; what its checks will read, registered before they run (2026-11-11)
+
+**Where the registration left a choice, and what I chose.** None changes a registered row's set.
+- **One gate macro, `BLIPSCOPE_MAP_FETCH`,** defined once in `AircraftManager.h`'s first map region as
+  `FEATURE_CLOUD_FEED && WX_LAYER_SHIPS && !BLIPSCOPE_WEB_RENDERER`. Every map site tests it.
+  - Why the web renderer is left out: `tools/web-renderer/build.sh` also defines `WX_LAYER_SHIPS`. The website draws
+    no raw-buffer layer, its `GetBytes` is a dead socket (`web_http.cpp`), and its OtaUpdater is a shim without
+    `BootFollowsUpdate`.
+  - Gated on the weather switch alone, the website would hold about 200 KB of each visitor's memory for a package that
+    cannot arrive, and the build would not link.
+- **`CloudFeed::BasemapUrl`,** beside `WeatherUrl`, under the same three flags. CloudFeed's own comment on
+  `LeaderboardUrl` is the reason: an endpoint built outside that list is the one that stays on an old path.
+  `CloudFeed.{h,cpp}` are outside the registered list of files, so blipscope-5c reads them with the OtaUpdater diff.
+- **A 200 the gate never read** (over the cap, short or stalled) is logged as `why=unread` (`kMapWhyUnread`, 0xFF), not
+  as a `bmpk::Status` it was not given.
+- **CA13 also requires at least one `"lat"` and one `"lon"` parameter** in the map's files, so moving the request out
+  of the regions cannot pass it vacuously. That is stricter than registered, never looser.
+- **`check_wx_wiring.py`'s WA1 selftest plant** replaced `"X-Upstream", "X-Wx-Max-Age" };`. That text is gone, because the
+  list now ends with `"Retry-After"`, so the plant would not apply and the WxWiring block would go red. It now replaces
+  `"X-Upstream", "X-Wx-Max-Age",`, which occurs once and still drops `X-Wx-Max-Age` from the list. Its owner reads it.
+
+**What each run will read** (all on the worktree, nothing pushed). They run in this order, and the first off reading stops the rest:
+
+| # | run | predicted |
+|---|---|---|
+| W1 | `python -I test/host/check_map_fetch.py .` | exit 0. Exactly: `ok CA12 nothing that writes to flash`; `ok CA13 3 print calls read; 2 lat/lon parameters, all through wireloc::Center`; `ok CA14 kCollectHeaders ['Transfer-Encoding', 'ETag', 'X-Cache', 'X-Upstream', 'X-Wx-Max-Age', 'Retry-After']; Retry-After read into HttpResult::retryAfter: True`; `3 checks, 0 failures`. The 3 is the alloc line, the dropped-request line and the per-answer line. The one `Preferences` in the map's files sits in a comment, so a stripper that left comments in would turn CA12 red |
+| W2 | `--anchors` for every `test/host/sabotage_*.py`, and the two board plants `run.sh` runs | every one exits 0, with every anchor present exactly once |
+| W3 | `check_wx_wiring.py .`, then `--selftest` | exit 0, all 10 rows ok; then each of its 10 plants red on exactly its own row, `SELFTEST PASSED`, exit 0 |
+| W4 | `sabotage_map_fetch.py --control` | both suites as its table (`42 checks, 0 failures`; `3 checks, 0 failures`), exit 0 |
+| W5 | `sabotage_map_fetch.py` (MinGW 5.1, the driver's default) | the control clean, then each of the 23 plants `AS PREDICTED` with item 5's set; `real files unchanged: True`; exit 0 |
+| W6 | `pio run -e blipscope-s3-128`, then `-e blipscope-s3-128-wxlook`, only while C: has 30 GB free | both build, exit 0 |
+| W7 | each W6 image's `firmware.bin`, read for the bytes `/basemap` | the shipping image holds **0**; the wxlook image holds **1 or more**, the control that the read can see the string |
+
+Not run here, and not mistaken for run: the web renderer's build (no emsdk on this machine). Its CI job builds it on the
+push, and the gate above is what keeps the map out of it.
+
+### W1-W7 as run (2026-11-11, 03:58-04:06Z): every one as predicted
+
+| # | at | read |
+|---|---|---|
+| W1 | 03:58:10Z | exit 0; the four lines exactly as registered (3 print calls, 2 lat/lon parameters, the six headers in order) |
+| W2 | 03:58:27Z | 36 drivers checked, every one exit 0 with its `ANCHORS` line; `plant_s_swb.py` and `plant_s_tw.py` all present exactly once |
+| W3 | 03:58:39Z | `check_wx_wiring.py`: 10 rows ok, exit 0; `--selftest`: each of the 10 plants red on exactly its own row (the re-anchored WA1 plant among them), `SELFTEST PASSED`, exit 0 |
+| W4 | 03:58:46Z | `test_map_fetch: 42 checks, 0 failures`; `check_map_fetch.py: 3 checks, 0 failures`; exit 0 |
+| W5 | 03:58:56-03:59:12Z | the control clean; all 23 plants `AS PREDICTED`, each with item 5's set exactly; `real files unchanged: True`; exit 0 |
+| W6 | 03:59:34-04:05:58Z | `blipscope-s3-128` SUCCESS (2:59), `blipscope-s3-128-wxlook` SUCCESS (3:15), C: at 96 GB free. Each log's 9 warnings that name a touched file are pre-existing (two unused variables, a `%02d` truncation, six `[ota-mem]` `%u` formats), none in the map's code |
+| W7 | 04:06:07Z | shipping `firmware.bin` (1,932,448 B, written 04:02:33Z): `/basemap` x0. wxlook `firmware.bin` (1,958,752 B, written 04:05:57Z): `/basemap` x1, the control |
+
+### W8, the whole host suite under WSL, registered before it runs
+
+`bash test/host/run.sh` in `wsl -d Ubuntu-24.04` (g++ 13.3), on this commit. Predicted:
+- **exit 2, and the failed blocks are exactly these two:** "the same TU, for the board" (no xtensa toolchain in WSL),
+  and "Weatherscope R0 and R0b", the rig (no python with Pillow). Both fail on every WSL run.
+- **36 drivers** in each driver pass. Anchors: `36 driver(s) checked`, plus both board plants. Controls and the full
+  pass: `36 driver(s): 35 run, 1 skipped`, the skip being `sabotage_wx_towns.py` (no machine holds its Census
+  archives). Lint: `36 driver(s), 0 flagged; 3 pinned line(s)`.
+- **The new "MapFetch" block passes** (`42 checks, 0 failures`, then `3 checks, 0 failures`), and so does every block
+  not named above, the weather wiring's selftest included.
+- **Anything else stops the run's reading for a ruling.** A driver off in the full pass is first run against main's
+  own tree (947e1d38), to tell what this branch broke from what was already broken.
+
+### W8 as run (2026-11-11, 04:09:04-04:15:49Z): as predicted
+
+The first launch at 04:08:32Z never ran `run.sh`. My wrapper called `git log` inside WSL first, and git there cannot
+follow this worktree's `.git` file, which names a Windows path. It exited 128, and the `&&` stopped the run before it
+began. Nothing was measured, so this is the rig, not a reading. The relaunch dropped the git call (the commit,
+a1c0657c, and a clean tree were read from Windows first) and ran the suite once:
+- exit 2, and `FAILED BLOCKS` lists exactly "the rig: Weatherscope R0 and R0b" and "failed: the same TU, for the
+  board". The log holds no other `FAIL` line.
+- Anchors: `36 driver(s) checked`, plus both board plants. Controls: `36 driver(s): 35 run, 1 skipped`. Lint:
+  `36 driver(s), 0 flagged; 3 pinned line(s)`. The full pass: `36 driver(s): 35 run, 1 skipped`. The skip is
+  `sabotage_wx_towns.py` in both passes.
+- `sabotage_map_fetch.py` passes in all four: anchors (23), control (2 suites), lint, and the full pass (24 `AS
+  PREDICTED` lines: the 23 plants and the summary).
+- MapFetch: `42 checks, 0 failures`, then CA12-CA14 exactly as in W1, then `3 checks, 0 failures`.
+
+### CI for this branch's PR, predicted (registered before the push, which waits for blipscope-5c's read of the OtaUpdater diff)
+
+**Baseline:** #631's pull-request checks at its head `2b90f7bbf252`. #631 is the first PR to touch `src/` after main's last
+job-set change (#629, `81cfbd09`).
+- It ran four workflows: device-ids, firmware, no-traffic-captures and web-renderer.
+- **34 checks: 30 success, 4 skipped, 0 failed.** The skips are firmware's `promote`, `ship-alert` and `version`, and
+  web-renderer's `publish`.
+
+This PR touches `docs/`, `include/`, `src/` and `test/host/`. The workflows' `pull_request` filters fire the same four:
+- device-ids, firmware and no-traffic-captures have no path filter;
+- web-renderer fires on `src/**` and `include/**`;
+- workers.yml does not fire, because nothing under `proxy/` or `test/fixtures/wx/` changes;
+- print-cards and provisioner do not fire either.
+
+No job in those four is conditional on which files changed. **Predicted: 34 = 30/4/0, with the same names as #631's.**
+- firmware: 30 = 27/3, with the ten builds, adsbdb-gate and the three host-tests legs among the 27.
+- device-ids: 1/0.
+- no-traffic-captures: 1/0.
+- web-renderer: 2 = 1/1 (build passes, publish skipped).
+
+**What it means if it reads otherwise:**
+- A web-renderer `build` failure means the map gate did not keep the map out of the website build, and is a miss.
+- A host-tests failure outside the two WSL-only blocks is a miss.
+- Any other count is outside the set. I stop and report, and there is no re-run in between.
+
+The local guards were run at a1c0657c, and each exits 0: `check_wifi.py`, `check_device_ids.py`, `check_macs.py`,
+`check_binary_strings.py` and `check_redaction_vectors.py`.
+
+**Main moved between the go and the push (2026-11-11 ~04:56Z).** The push's chain first required main to be 947e1d38. It was `68dc169a` (#630), so nothing was pushed. Read before pushing again:
+- #630 changes no workflow, so the job set, and with it the baseline above, is unchanged.
+- It merges cleanly with this branch (`git merge-tree` exit 0).
+- It overlaps two of this PR's files, independently:
+  - `src/CloudFeed.cpp`: its `static_assert` is at line 10, and `BasemapUrl` at line 100.
+  - `test/host/run.sh`: separate blocks.
+- Its new driver, `sabotage_ota_model.py`, plants only in `include/OtaIdentity.h`.
+
+**The prediction stands: 34 = 30/4/0**, now on the merge with `68dc169a`.
 
 ## Carried to later steps by the ruling
 
