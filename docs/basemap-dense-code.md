@@ -839,3 +839,139 @@ The ruling, verbatim:
   to the package beyond it, since ruling C makes no format change.
   - So a single extra byte there, from any source, is off-prediction. That is the point of narrowing: it would otherwise pass as "the
     cap edge".
+
+## The lake-join design read (frozen before it runs)
+
+**The owner's condition** (relayed by the orchestrator, 23:21Z, stamped 23:03Z), verbatim:
+
+> where a lake crosses the border (Lake Erie off Buffalo, say), the two sources must join into one clean lake at the closest zoom. No
+> land-coloured line along the border, and no water spilling past the US shore.
+
+**The ruling (the orchestrator, 23:28Z), verbatim:**
+
+> YES to the DESIGN READ, read-only, local and scratch, frozen and sent to me before it runs:
+> 1. Measure (a), (b) AND (c), stating (c)'s margin. A scratch polygon difference is fine for the read; it isn't store code.
+> 2. Two lakes, Buffalo (Erie) and Champlain, at the closest zoom with FillRing's rule, against TIGER's water. For each, print SEAM pixels
+>    (land between the two waters) and SPILL pixels (NE water on US land beyond TIGER's shore). Print where they sit too: at the border,
+>    or along the shore.
+> 3. Each count needs its control: a planted seam and a planted spill, each read non-zero first.
+> 4. Freeze the CHOICE RULE before the run, in the owner's terms. His condition is "no land-coloured line along the border, and no water
+>    spilling past the US shore", so the pass test is SEAM = 0 and SPILL = 0 at both lakes. Of the designs that pass, the simplest
+>    wins, in the order (a), (c), (b).
+> 5. The escape branch: if NONE passes at both lakes, nothing is chosen. It comes to me, and on to the owner with the numbers and one
+>    rendered picture per design at Buffalo. Whether a few pixels of tolerance are acceptable is his call, not ours.
+> KB7 is then frozen on the chosen design, and its SEAM and SPILL plants stay as registered.
+
+### The designs
+
+The NE lake L (Natural Earth 10 m lakes), and U, the US polygon (Natural Earth admin_0, ADM0_A3 = USA):
+
+| design | the NE water drawn | how it can fail |
+|---|---|---|
+| **(a)** | L whole, over TIGER's US part | spill wherever NE's shoreline runs past TIGER's |
+| **(b)** | L minus U | a seam wherever NE's border and TIGER's lake boundary don't meet |
+| **(c)** | L minus U eroded by **M = 1.0 km**, so NE runs 1 km into the US side of the lake | spill near where the border meets the shore |
+
+- **Every design is cut into hole-free pieces** (vertical cuts through each hole), each wound as an outer part. They go through the
+  store's water path as the code's lake rings would: clipped, tp, the backstop, quantised, and on the same ladder as TIGER's water.
+- **The two plants:**
+  - `plant_seam`: (b) minus a 300 m band along the US border;
+  - `plant_spill`: (b) plus a 600 m square on US land: Buffalo (42.900, −78.840), Rouses Point (44.990, −73.400).
+
+### The two homes, the view, and what is counted
+
+- **The homes:** Buffalo (42.886, −78.879), on Lake Erie where the border enters it; Rouses Point (44.994, −73.365), at Lake
+  Champlain's north end, where the border crosses it.
+- **The package:** the client's query (r 162 km, ε 201,168 mm, water, rivers, roads, places and terrain, its three levels), built by
+  pq4c with the code PR's knobs (`Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`, `Q4_PROV=1`), terrain included, so the rung and the water set's
+  tolerance are the real package's.
+- **The view: the device's closest zoom.**
+  - The map client requests one package for the configured radius, and a zoom changes nothing (`include/MapQuery.h`, CA10). So the
+    closest zoom draws this same package.
+  - radarzoom's smallest step is 5 units. For the 100 mi setting the query is built from, that is **8.04672 km**, centre to edge.
+  - North-up, 240 × 240, centred on the home, mapped as `WxBasemap.h`'s Mapper maps package units, about **67 m per pixel**.
+- **Water by FillRing's rule** (A10.2): a pixel is filled when its centre is inside a ring by even-odd. Each ring is filled on its own,
+  and the water mask is their union.
+
+**The masks:**
+- **W_d** is the design build's water. **W_n** is the build with no NE piece: TIGER's water as the package draws it, the truth for
+  "TIGER's shore".
+- **L** and **U** are filled from Natural Earth by even-odd, holes included.
+- **B, the lake's border band:** pixels in L whose centre is within **1.5 km** of the US border.
+- **C, the closing of W_d** by a disc of **15 px** (1 km): what W_d would be with every gap narrower than 2 km filled.
+
+| count | definition | where it sits |
+|---|---|---|
+| **SEAM** | L and B and not W_d and C: a land-coloured line between two waters | at the border, by definition |
+| **SPILL** | W_d and not W_n and U and not (L and B): NE water on US territory where TIGER draws none, outside the lake's border band | **at the border** (centre within 1.5 km of it) or **along the shore** (beyond) |
+
+The border band inside the lake is left out of SPILL. There, the strip between NE's border line and TIGER's lake boundary is lake to both
+sources, and drawing it is what closes a seam.
+
+### The tooling
+
+- **The geometry:** `lake-designs.py` (sha256 `eef5e88c585e`), run in a scratch venv with shapely 2.1.2 (GEOS 3.13.1; binary wheel
+  only). Its outputs are `lake-BUFFALO.json` (`aafcf98c629f`) and `lake-ROUSES.json` (`aee8e37d6704`).
+  - Buffalo: (a) 749.38 km² in a 30 km box, (b) 296.06, (c) 354.51. The border runs 63.69 km through the lake.
+  - Rouses Point: (a) 508.57, (b) 77.97, (c) 87.30. The border runs 10.08 km through it.
+- **The inputs:**
+  - **`ne_10m_admin_0_countries.zip`**, fetched from its pinned URL: **sha256 MATCH `ce1ac7036499`** (the store manifest's pin).
+  - **`ne_10m_lakes.zip`**, the local copy `0803a06f9c3c`, not pinned anywhere yet. The code PR adds it to `sources.ts`.
+- **`lake-fetch.mts`** (`e56c9e06aca0`) gathers the objects each home's package reads, using the builder's own `squareBox`, `boxMeets`
+  and `levelTiles`.
+  - It copies them from the local store, or fetches them **read-only** from the store's bucket (`blipscope-basemap`, store
+    `4c0875738f38`, `wrangler r2 object get --remote`), into a scratch `lake-obj`.
+  - Each cell is verified by its byte count against the index, and each tile by its sha256 against the manifest.
+  - About 30 cells and the levels' tiles, so R2 Class B reads only, and nothing written. **The fetch is the read's first step,** and
+    nothing has been fetched yet.
+- **`lake-build.mts`** (`35b57970ab0b`) makes one build per process.
+  - It injects a design's pieces in memory as water features of one scratch file, `https://www2.census.gov/zz-scratch/ne_10m_lakes.zip`,
+    which sorts last, so no existing feature's file number shifts.
+  - The pieces carry AWATER 1e12, so the size filter keeps every piece of the lake.
+  - The touched cells are re-encoded, and each is checked to re-encode to its own bytes first. A new manifest and `current` go with
+    them.
+- **`lake-render.py`** (`f5d023f78518`) renders and counts. **`lake-read.py`** (`fe1dbdf5f00b`) is the driver.
+- **Import checks:**
+  - `lake-fetch.mts --imports-only` resolved;
+  - `lake-build.mts` refused an unknown home with exit 2 after its imports;
+  - both Python scripts compile;
+  - nothing was fetched or built.
+
+### Order, the controls, the choice rule, the escape
+
+1. **Fetch,** verified. Any failure stops.
+2. **Builds** at each home: none, (b), `plant_seam`, `plant_spill`, (a), (c). Every build must be ok, with 0 objects missing, and the
+   knobs as read by the modules; else stop.
+3. **Renders.**
+4. **CONTROLS FIRST,** at each home: SEAM(`plant_seam`) > SEAM(b), and SPILL(`plant_spill`) > SPILL(b). **Either not so: the
+   instrument is blind; stop, and no design is read.**
+5. **THE CHOICE RULE, in the owner's terms:** a design passes when **SEAM = 0 and SPILL = 0 at both lakes.** Of those that pass, the
+   simplest wins, in the order **(a), (c), (b).**
+6. **THE ESCAPE:** if none passes at both lakes, **nothing is chosen.** The numbers and the pictures at Buffalo
+   (`lake-out/BUFFALO-{a,b,c}.png`) go to the orchestrator, and on to the owner. Whether a few pixels are acceptable is his call.
+
+**My expectation, stated before the run, and it grades nothing.** I expect none to pass.
+- At 67 m per pixel, the water set at the rungs these packages reach (ε × 8 at rungs 2 to 7, 1.6 km) is simplified independently for
+  NE and TIGER, by about 24 pixels.
+- So their shores, and their meeting at the border, are unlikely to coincide to the pixel.
+
+If that holds, the escape branch is the likely result, and the owner sees the pictures.
+
+| outcome | meaning | next |
+|---|---|---|
+| a fetch, build or render failure | the inputs or the tooling | **stop** |
+| **a control reads blind** | SEAM or SPILL can't see its own plant | **stop; no design is read** |
+| one or more designs pass at both lakes | the frozen rule chooses | **the simplest of them,** in the order (a), (c), (b). KB7 is then frozen on it |
+| **none passes** | the owner's condition isn't met by any design at the closest zoom | **the escape:** the numbers and the pictures to the orchestrator and the owner |
+| **anything else** | | **stop and report** |
+
+**Machine rules:**
+- Nothing is written to R2 and nothing deploys; the fetch reads only.
+- No vitest runs. Free disk was 75 GB at 23:36Z.
+- The run reads the pinned `525cf7d1`'s builder through pq4c.
+
+**Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
+`3334b52116ec`).
+- coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
+- The control: all 1,397 of the store's cells fall inside it.
+- Up to 1,187 more cells could be sea-only. How many hold sea comes from part 2's dry run.
