@@ -837,3 +837,196 @@ entries, so no entry exists to move them.
 **Next:**
 - O11 runs when blipscope-5c cuts v19's candidate.
 - Nothing of mine is in the merge order.
+
+### S4.11, 2026-11-11: W5's addendum, frozen before any code. The wire, the rows, the sabotages, and one question (Q124)
+
+**Ruled ~18:25Z by the orchestrator session, now the reviewer:** W5's addendum is next, docs only, on this branch. W4's addendum
+follows, after a read of whether the weather server already serves Q113's product. No code starts before either one. W5's inputs, W2
+and W3, are both done. Q116's condition holds: blipscope-5c reads each push of the routes for conflicts with its own, before the push.
+
+**What W5 is:** the three routes of section 1.3, with:
+- their NWS fetches and the trim;
+- the holds and the last-good copies;
+- the breakers, `/healthz` and the metric labels;
+- the tests and a sabotage driver.
+
+It is merged, not deployed; W6 deploys it. **What W5 is not:** the radar's alias (W7), the device's parsers (W8), the CPU reading (W6's
+staging reading), and any deploy.
+
+#### S4.11.1 What main says, read at `e0941a90c4e4` before this was written
+
+Each of these shapes something below.
+
+1. **`apiEndpoint()` knows two prefixes,** `/api/v1/blipscope/` and the legacy `/v1/`. The auth gate keys on its answer, and
+   `missileer.ts` says it must never be widened to `/api/v1/<any>/`. So Weatherscope gets one explicit third prefix, never a pattern.
+2. **`wx::Observation` has `present[]`,** the raw METAR strings. `test_wx_feeds.cpp` reads it, and the band's `RAIN NOW` / `SNOW NOW`
+   depends on it. `trim_nws.py` keeps no `presentWeather`, so the conditions body must carry what the stored fixture never did.
+3. **`wx::Alert`'s `headline` has no reader,** and `trim_nws.py` drops it on purpose, because it names offices and areas. The wire carries
+   none.
+4. **`wxlogic::Warn` reads more than `wx::Alert` holds.** It reads:
+   - `messageType` and `expiresIso`;
+   - the polygon;
+   - the motion and four hazard fields.
+
+   `Counts()` needs `Covers(polygon, here)`. Only the four ranked warnings use any of these. All four are storm-based and always carry
+   a polygon (screens doc, section 3). So those fields travel for those four events only.
+5. **`AlertList` has no state for "unavailable".** The wire must carry one, and W8 gives the device one (section 1.4's alerts row).
+6. **The radar route keys a point with `quantise()` in `wx/crop.ts`:** `Math.round(x * 100) / 100`, written with `toFixed(2)`, from
+   the device's 2 dp. W5 keys a point with the same function.
+7. **The breakers in `upstreams/types.ts`** are per isolate: 3 failures, a 30 s cooldown, and transitions logged as `evt:"breaker"`.
+   W5 uses them and writes none of its own.
+
+#### S4.11.2 The wire
+
+**Every body starts** `{"v":1,"status":...,"fetchedUtc":...}`:
+
+| status | means | data fields |
+|---|---|---|
+| `ok` | NWS answered 200 and it parsed. `fetchedUtc` is when | present |
+| `stale` | NWS failed, or its breaker is open. This is the last good copy, with its own `fetchedUtc`. The device decides from its age (1.4) | the last good copy's |
+| `unavailable` | NWS failed and there is no last good copy. Carries `reason`: `upstream_failed`, `breaker_open` or `too_large` | **none, not an empty list** |
+| `out_of_coverage` | `/points` answered 404, so the point is outside NWS (Q114). It is an answer, not a failure: no breaker moves | none |
+
+**Why `fetchedUtc` and not an age:** an age changes on every serve, which would change the ETag and defeat the 304. The device already
+keeps NTP time, which `Ended()` needs anyway.
+
+**Alerts** (`items`, in NWS's order):
+
+| field | for | source |
+|---|---|---|
+| `event`, `startUtc`, `endUtc` | every alert | `startUtc` is `onset`, else `effective`. `endUtc` is `ends`, else `expires` (`trim_nws.py`'s rule) |
+| `messageType`, `expiresUtc`, `expiresIso` | the four ranked warnings | `expiresIso` exactly as NWS writes it, with its own offset (Q7) |
+| `polygon` | the four ranked warnings | the ring as `[lat, lon]` pairs, **whole** |
+| `motion`, `maxHailSize`, `maxWindGust`, `tornadoDetection`, `tornadoDamageThreat`, `flashFloodDetection` | the four ranked warnings, each only when NWS sends it | `parameters`, first value, as NWS writes it |
+
+No headline, area, zone, id, URL or sender, as `StoredFeeds.cpp` already rules for stored data. **A ring is never cut.** If an alerts body
+would pass 32 KB, the answer is `unavailable` with `too_large`, never a shorter ring or a shorter list.
+
+**Conditions:** `timeUtc`, then `present`: up to 4 entries, each NWS's `rawString`, in NWS's order. Then `tempF`, `windDirDeg`,
+`windMph`, `gustMph` and `humidityPct`, each with its `has` flag.
+- The numbers follow `trim_nws.py`: °C and km/h are converted with the rounding pinned as `floor(x + 0.5)`, and the wind direction
+  is taken mod 360.
+- **A `present` entry that isn't METAR-shaped is dropped, never cut.** It is drawn from a known set, so a cut entry would be a different
+  entry (CLAUDE.md, "a truncated row is a lie").
+- **The station:** the first in NWS's `observationStations` list for the point's grid, as the captures used. A stale observation goes
+  out with its own time, and the device shows it in orange (A9.1 B). Q124 asks whether to try the next station instead.
+
+**Forecast:** `issuedUtc` (NWS's `updateTime`), then `offsetMin`, taken from the first period's ISO offset. Then:
+- `hourly`: up to 48 hours of `startUtc`, `tempF`, `hasTemp`, `pop` and `hasPop`;
+- `periods`: up to 14, each with `name`, `startUtc`, `isDaytime`, `tempF`, `hasTemp`, `pop`, `hasPop`, and `short` cut to 24
+  characters. `short` is free text, so a prefix is a true prefix.
+
+These are `dallas-day.json`'s own `hourly` and `periods`. **The body is atomic:** both NWS documents fresh, else the last good copy,
+else `unavailable`.
+
+**Every body** stays under 32 KB, the device's `GetBytes` cap. It has an ETag on its bytes, answers 304 to a matching `If-None-Match`,
+and is sent with `Cache-Control: no-cache`, as `/wx` is.
+
+#### S4.11.3 Fetching, keys and holds
+
+| kind | NWS call (W3's own) | keyed by | the Worker holds it | NWS's max-age, W3 |
+|---|---|---|---|---|
+| points | `/points/{lat2},{lon2}` | the quantised point | 30 days; a 404, 1 day | 6-21 h |
+| alerts | `/alerts/active?point={lat2},{lon2}` | the quantised point | **60 s, the Worker's own choice** | 5 s |
+| stations | the point's `observationStations` | the grid | 1 day | 9-24 h |
+| observation | `/stations/{id}/observations/latest` | the station | 5 min | 1-5 min |
+| forecast | the point's `forecast` and `forecastHourly` | the grid | 30 min | up to about 1 h |
+
+- **Holds use the Cache API, per colo.** Each key also keeps a last good copy for 24 h, which serves `stale`.
+- **Concurrent requests for one key in one isolate share one fetch.** The Cache API alone doesn't coalesce, so two boards asking in the
+  same moment would otherwise make two calls.
+- **Every call carries W3's User-Agent,** `Weatherscope (support@valarsystems.com)`. NWS refuses a call without one.
+- **Nothing about the device reaches NWS.** The only request-derived value in any NWS URL is the quantised point: no id, no key, no
+  model.
+
+#### S4.11.4 Routes, auth, health and logs
+
+- **The routes:** `GET /api/v1/weatherscope/{alerts,conditions,forecast}?lat=&lon=`.
+  - They go through the same IP limit, auth and key limit as every API path.
+  - The prefix is added to `apiEndpoint()` by name, and the edition is carried, so a Weatherscope suffix can only reach a Weatherscope
+    handler.
+  - `/v1/` stays Blipscope-only alias space.
+- **Validation:** `lat` and `lon` are checked exactly as the radar route checks them (`400 bad_lat`, `400 bad_lon`), before any fetch.
+- **Breakers:** `nws_points`, `nws_alerts`, `nws_stations`, `nws_obs` and `nws_forecast`.
+  - A skip logs `evt:"upstream_skip"` with `reason:"breaker_open"`.
+  - `/healthz` gains `weatherscope`, listing each breaker and its state, so a dead NWS turns this edition red rather than leaving it
+    vouched for by the green beside it.
+- **Metrics:** the three paths go into `KNOWN_ROUTES`, or they vanish into `/other`.
+- **Logs** carry the kind, status and ms only. A grid or a station is a location to within a few km, so neither is logged, and no
+  coordinate is either.
+
+#### S4.11.5 The rows
+
+All are host rows in `proxy/test/weatherscope.test.ts` under vitest, with NWS mocked and every fetch counted, except WS13's Python half.
+Each row is checked against the whole value, never a substring.
+
+| row | predicted |
+|---|---|
+| **WS1** | each route: no key gives 401; a valid key gives 200 against the mock |
+| **WS2** | `/api/v1/weatherscope/blips` gives a JSON 404; `/api/v1/blipscope/alerts` gives 404; `/v1/alerts` gives 404; a POST to any of the three gives 405 |
+| **WS3** | a bad `lat` or `lon` gives 400 and **0** fetches |
+| **WS4** | `routeTemplate()` labels each of the three paths as itself |
+| **WS5** | NWS answers 200 with `features: []`: `ok`, `items: []`. The all-clear is only ever an `ok` |
+| **WS6** | for each route, NWS fails with no last good copy: `unavailable`, and **no data key at all**. NWS fails after a good fetch: `stale`, with the good copy's data and its `fetchedUtc` |
+| **WS7** | a breaker open: **0** fetches, one `upstream_skip` per skip, the body as WS6 |
+| **WS8** | `/points` answers 404 three times: `out_of_coverage` each time, `nws_points` still closed, and a 4th request inside the hold makes **0** fetches |
+| **WS9** | two points in one grid make **1** forecast fetch, both one after the other and concurrently in one isolate |
+| **WS10** | inside the hold a repeat makes 0 fetches; past it (clock advanced), 1 |
+| **WS11** | every NWS request carries the User-Agent, and its URL holds no request-derived value but the quantised point |
+| **WS12** | the alerts key's point equals `quantise()`'s `lat2` and `lon2` for the same query |
+| **WS13** | **across languages:** the TS trim of the synthetic raw documents equals the committed golden JSON, and `trim_nws.py --check-golden` rebuilds the golden from the same documents and exits 0. The golden holds the halves that separate the languages: 2.5 °C gives **37** °F (Python's built-in `round` gives 36), -22.5 °C gives **-8** °F, and a direction that rounds to 360 gives **0** |
+| **WS14** | `present`: METAR-shaped entries are kept in order, up to 4; a malformed one is dropped, and none is cut |
+| **WS15** | the four ranked warnings carry their fields and their ring, whole; any other alert carries exactly `event`, `startUtc` and `endUtc`. No body anywhere has a key outside the S4.11.2 sets (key-set equality) |
+| **WS16** | each route's largest synthetic case is under 32,768 B. An alerts case built to pass it answers `unavailable` with `too_large` |
+| **WS17** | the same body gives the same ETag and a 304 with no body; the ETag doesn't move between two serves of one copy |
+| **WS18** | `/healthz` lists the five breakers, all closed. After 3 alerts failures `nws_alerts` is open, and `evt:"breaker"` `open` is logged **once** across 4 requests |
+| **WS19** | across the whole file, no captured log line holds the test's `lat` or `lon` string, its station or its grid. **CONTROL:** the mock does see the `lat` string in the NWS URL it received |
+| **WS20** | `test/fixtures/wx/nws/w5/{alerts,conditions,forecast}.json` equal the TS trim's output for the synthetic case. W8's device parser test reads these same files, so its input comes from this side |
+
+**The fixtures are synthetic.** No raw NWS document enters the repo, because raw captures carry coordinates.
+
+#### S4.11.6 The sabotages, registered before code
+
+The driver will be `proxy/scripts/sabotage-weatherscope.mjs`, on `sabotage-lbmodel.mjs`'s pattern:
+- each edit is asserted to apply exactly once;
+- the red set must equal the registered set;
+- the file is restored from a byte copy and its sha256 checked;
+- a crash is an instrument failure, never a red.
+
+**Each sabotage must turn red at least the row named here.** The exact sets are frozen with the code's counts, before the driver first
+runs, as S4.6 did for W2.
+
+| sabotage | the plant | must turn red |
+|---|---|---|
+| **S-WS-EMPTY** | a failed fetch answered `ok` with `items: []` | WS6 |
+| **S-WS-UA** | the alerts call without the User-Agent | WS11 |
+| **S-WS-KEY** | the forecast keyed by the point, not the grid | WS9 |
+| **S-WS-ROUND** | `Math.trunc` in the °F conversion | WS13 |
+| **S-WS-PREFIX** | `apiEndpoint()` widened to `/api/v1/<any>/` | WS2 |
+| **S-WS-404** | a `/points` 404 counted as a failure | WS8 |
+| **S-WS-LOG** | the `lat` added to a log line | WS19 |
+| **S-WS-CUT** | a malformed `present` entry cut to 4 characters, not dropped | WS14 |
+| **S-WS-RING** | the polygon cut to 8 vertices | WS15 |
+| **S-WS-AGE** | an age in the body in place of `fetchedUtc` | WS17 |
+| **S-WS-PY** | `trim_nws.py`'s `r()` replaced by Python's `round` | WS13 (`--check-golden` exits 1) |
+
+**Outside the set:** a row off, or a sabotage whose red set isn't its registered set, stops the step, and it is reported. Nothing is read
+into it on the spot.
+
+#### Q124. Which station the conditions route reads
+
+| | option |
+|---|---|
+| **(a)** | the first in NWS's list for the grid, always. A quiet station shows its own old time in orange, as built (A9.1 B) |
+| **(b)** | the first whose latest observation is under 90 minutes old, trying at most 3; otherwise the first, with its old time |
+
+**Recommended: (a).** The captures and the screens were built on it. It is one fetch, and its failure is already drawn honestly. (b) is
+up to three times the calls on the 10-minute route, for a case nobody has measured yet. W6's day of real calls can count how often the
+first station is stale, and (b) can follow on that number.
+
+#### Next, in order
+
+1. This addendum, read by the reviewer, and by blipscope-5c for conflicts with its routes (Q116).
+2. W4's pre-read: does the weather server already serve Q113's product?
+3. W5's code on its own branch. Its counts and the exact sabotage sets are frozen before the suite first runs, and its CI is predicted
+   before the push. blipscope-5c reads each push.
