@@ -1289,6 +1289,57 @@ extension, and `platformio.ini`) decode as UTF-8. So L1 cannot meet R-CD-DECODE'
 | **L4** `check_map_fetch.py` | `3 checks, 0 failures` |
 | **L5** | as registered above, after blipscope-p4-4a's heavy run ends: one heavy run at a time on the machine |
 
+### The refusal's commit as run (2026-11-11): L1-L5 as registered, with a harness stop in L5
+
+**The re-run of L1-L4** (the fix at `0372fdc2`; L1's first re-run), each as predicted:
+- **L1:** `1 checks, 0 failures`, exit 0.
+- **L4:** `check_map_fetch.py` `3 checks, 0 failures`.
+- **L2:**
+  - the control is clean;
+  - S-CD-NOREFUSAL {CD4} and S-CD-STEPC {CD4}, `MAP DRAW SABOTAGES (2) AS PREDICTED`;
+  - R-CD-RAWOK exit 0, `1 checks, 0 failures`;
+  - R-CD-CRASH exit 2, `RIG: Rig: an unterminated literal …`;
+  - R-CD-DECODE exit 2, `RIG: UnicodeDecodeError: …`;
+  - `MAP DRAW CONTROLS (3) AS PREDICTED`, and the real files unchanged.
+- **L3:** no anchor stranded, and the new driver's `--control` matches its table.
+  - **The registration's label was wrong:** its "every driver (42)" counted **42 files: 41 drivers and
+    `test/host/sabotage_common.py` (a library)**. The library prints nothing and exits 0.
+  - Of the 41 drivers, 38 print "all present exactly once". The other three are the harness's own meta-controls
+    (`anchors_control`, `controls_control`, `rig_control`), and each passes in its own form.
+  - This is on record as a miscount in the registration's wording, not an off reading (the orchestrator's ruling).
+
+**L5, the four builds.**
+- **R-FLIP** (20:04:06-20:06:53Z): exit 1, and the log holds `src/AircraftManager.h:52:2: error: #error "step B draws the
+  map without step C: …"` twice, once per translation unit that includes the header. **The refused build left no
+  image:** there is no `firmware.bin` (and no `firmware.elf`) for `blipscope-s3-128`. As registered.
+- **R-FLIPC:** `blipscope-s3-128-wxlook SUCCESS`, with its `firmware.bin` (1,958,752 B) written at 20:09:56Z, inside
+  the run. As registered.
+- **The harness stop, and my miss.**
+  - The script's `Build` function wrote its start and end lines into PowerShell's pipeline, so its return value was
+    [line, line, exit code].
+  - R-FLIP passed its gate by luck (`-eq 0` filtered to nothing). R-FLIPC's success read as "did not build", and the
+    script stopped (exit 4) before R-BENCH.
+  - It is the same family as L1's crash: a gate trusted without being tested.
+  - **Ruled:** R-FLIP and R-FLIPC stand on their artifacts, and R-BENCH and R-BENCHC run after the fix. This was L5's
+    first stop.
+- **The fix:**
+  - `Build` writes its lines to the host and returns only `[int]$LASTEXITCODE`.
+  - A gate self-test runs before any build: a stub that prints lines and returns 0 gated as success (True), and one
+    that returns 1 gated as failure (False).
+- **R-BENCH** (`blipscope-s3-128` with `-DWX_LOOK_AB`, 20:11:36-20:14:40Z): built (`Int32` 0). `check-no-bench-hooks.sh`
+  on the saved image exits **1** with `FAIL: bench hook marker '[wx-bench]'`. As registered.
+- **R-BENCHC** (unchanged, 20:14:40-20:17:40Z): built. The scan on the saved image exits **0**, `ok: no bench hook (8
+  marker(s) checked, anchor present)`. As registered.
+- **Read off the images, independently:**
+  - `[wx-bench]` appears once in R-BENCH's image and not at all in R-BENCHC's;
+  - the anchor `[build] env=` appears once in each;
+  - the two images differ (1,934,592 B against 1,932,448 B), so R-BENCHC really rebuilt without the flag.
+- Every build ran after blipscope-p4-4a confirmed the machine was clear, one heavy run at a time.
+
+**So CB10's refusal runs, and its exemption cannot reach a customer.** A release flip without step C is refused at
+compile time, the bench image still builds, and a slug-ful image carrying the bench macro is refused by the scan every
+slug-ful image already goes through.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
