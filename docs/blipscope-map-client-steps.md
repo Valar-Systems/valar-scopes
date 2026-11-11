@@ -716,6 +716,59 @@ Both compilers built clean with `-std=c++11 -Wall -Wextra -Werror -O1`.
 
 This miss stays on record: a prediction made for a host whose float semantics I had not checked.
 
+### Q-MC13's ruling (2026-11-11 ~03:37Z), verbatim, and what is registered before its runs
+
+> Q-MC13: yes, with one confirming run. The fault is in the host's arithmetic, not the device's, so the fix belongs
+> in the test's copy, and the header stays untouched.
+> - The fix: force each device-float value in the test's copy through a volatile float. For +, −, ×, ÷ and sqrt,
+>   rounding the x87's 80-bit result to float gives exactly the device's float result, so this is faithful, not a
+>   fudge.
+> - Register before running:
+>   - R1: MinGW 5.1 with the fix: 42/42, with g++'s CA2-levels counts exactly (6,660 / 19,496 / 4 / 11,041).
+>   - R2: g++ 13.3 with the fix: unchanged, 42/42.
+>   - R3, the confirming run: MinGW 5.1 with the unchanged test, built with -msse2 -mfpmath=sse: 42/42 with g++'s
+>     counts. That pins the cause on x87 excess precision rather than a MinGW miscompile.
+>   - Plant: your 01:55Z reading is the unfixed state, so it stands as the plant, with nothing to re-run.
+> - Anything off: stop and report, as you said.
+> - Then CA12–CA14, the sabotages and the firmware build, as registered.
+>
+> Writing the wiring while you wait is fine, and nothing runs before this ruling. The OtaUpdater diff goes to
+> blipscope-5c before any push, as you said. C is already cut, so it doesn't touch v19.
+
+**The fix, exactly.** In `RadarLadder` in `test/host/test_map_fetch.cpp`, the three values the device holds as a
+float become `volatile float`: `km`, `shown`, and the argument handed to `radarzoom::BuildLadder` (a new local,
+`configured`). The comment above the function says why. Nothing else in the test changes, and no header changes:
+`include/MapQuery.h`, `include/MapPolicy.h` and `include/RadarZoom.h` keep their blobs at 555068c7.
+
+**The reference.** The 01:55Z g++ 13.3 log, `0223cabd5390` (sha-256, first 12 hex), whose last line is
+`42 checks, 0 failures` and whose CA2-levels line reads 6,660 / 19,496 / 4 / 11,041. MinGW writes CRLF to a redirected
+stdout, so a MinGW log is compared after its carriage returns are removed. That comparison was checked against the
+01:55Z pair before this was written: stripped, the MinGW log differs from the g++ log on exactly two lines (CA2-levels
+and the summary).
+
+**The builds.** Every run uses `run.sh`'s flags (`-std=c++11 -Wall -Wextra -Werror -O1 -static-libgcc
+-static-libstdc++`) with `-I include`, and runs with the worktree as the repo root, as at 01:55Z. MinGW is
+PlatformIO's `toolchain-gccmingw32` (5.1.0, i686); g++ is 13.3.0 in `wsl -d Ubuntu-24.04`.
+
+| run | compiler | test | extra flags | predicted |
+|---|---|---|---|---|
+| **R1** | MinGW 5.1 | with the fix | none | builds clean, exits 0, and its log, carriage returns removed, is byte-identical to `0223cabd5390` |
+| **R2** | g++ 13.3 | with the fix | none | builds clean, exits 0, and its log is byte-identical to `0223cabd5390` |
+| **R3** | MinGW 5.1 | unchanged: a byte copy of 555068c7's blob, its sha checked against the blob before the build | `-msse2 -mfpmath=sse` | builds clean, exits 0, and its log, carriage returns removed, is byte-identical to `0223cabd5390` |
+| plant | MinGW 5.1 | unchanged | none | the 01:55Z reading, which stands: CA2-levels alone red (19,494 / 4 / 11,044, 2 short at 50.5 mi) |
+
+They run in that order, R1, R2, R3, and the first off reading stops the rest.
+
+**What each outcome means, decided now:**
+- All three as predicted: x87 excess precision in the test's copy was the cause, and the fix models the device's
+  float. Step A goes on to CA12–CA14, the sabotages and the firmware build.
+- R1 off: the fix does not reach every value the x87 widens. One candidate is the test's double chain (`radLat` is
+  held at 80 bits as well), but that is a guess, so I stop and report.
+- R2 off: the fix changed what g++ computes, which it should not. I stop.
+- R3 off with R1 and R2 as predicted: an SSE build of the unchanged test still fails, so excess precision is not the
+  whole cause, and the fix may be hiding something. I stop.
+- Anything outside these: the comparison itself is suspect at this scale. I stop and decide.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
