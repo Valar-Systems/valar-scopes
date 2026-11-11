@@ -216,6 +216,9 @@ first").** A new measurement, not a re-run of C2.
   - **Cycle 12's missing row:** a failed version check, so no attempt; or the one-shot report lost on a failed first check-in;
     or a report the Worker dropped as off-shape; or an Analytics Engine write lost. None of these can be excluded from the
     Worker's rows. A late row and a pairing error are excluded.
+  - **Named for later, not widened here:** if the one-shot report can be lost (it is cleared when read and never retried,
+    while the boot reason is retried until acknowledged), that is a second gap in what the Worker can see. It is separate from
+    `ReadHead`, and it would make the fleet's count of OTA results an undercount.
 - **The restore:** the originals back at 20:20:34Z, matching the reviewer's baseline; `releases/latest` v18; E2:08 back on C,
   byte-identical to `5048a7223d63`, and graded over the network (ping, env `blipscope-s3-128`, a boot row with no `ota` row).
   The reservation was released at 20:25:03Z.
