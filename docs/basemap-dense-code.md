@@ -709,3 +709,67 @@ exactly once.
 - Free disk is read before the run, and it is not a large build.
 - Nothing runs on staging, and nothing deploys.
 - The run reads the pinned `525cf7d1` through the prototypes, not main's head.
+
+## Part 1, read (2026-11-11, 22:57:18–22:58:34Z): stopped at QW4-3 "on", on my prediction
+
+**The run.**
+- Part 1 was accepted at `fe02f365e524`, and the go was the orchestrator's at 22:57Z.
+- Before it ran: every artifact's sha256 read as registered, and C: had 76 GB free.
+- The driver (`fb841b7a8604`) stopped with exit 1 at the first off row, as registered. The error file is empty. The log is scratch
+  (`98cf5223931a`).
+- **The optional narrowing (22:57Z) was not added.** It needs each point's new `collapsed.water` before the run, and only the old values
+  were recorded. The registered cap-edge condition (PROVENANCE's byte length changed) is the same test, applied when it is read.
+
+**QW4-C0: as predicted at all 13.** pq4b reproduced QW4-1's 13 shas, and pq4c with `Q4_PROV` unset was byte-identical to it.
+
+**QW4-C1: as predicted at all 13. Every point read "equal", and none reached the cap edge.**
+- Every section but PROVENANCE was equal, with the same rung, radius and tolerance.
+- PROVENANCE differed only in `collapsed.water`, and at KJAC not at all.
+- `refusedBuilt` read as QW4-1 counted it (KMSP 2, else 0), `steps` 2 at New York's 4 and 1 at the 9, and KMSP's `refused` 0.
+
+| point | `collapsed.water`, the ε × 2 set's (old) → the drawn set's | PROVENANCE, B | non-terrain bytes, of 32,768 | slack |
+|---|---|---|---|---|
+| KBOS | 4 → **140** | 1,971 → 1,973 | 32,717 → 32,719 | 49 |
+| KJFK | 0 → **96** | 1,970 → 1,971 | 32,767 → **32,768** | **0** |
+| KLGA | 3 → **98** | 1,970 → 1,971 | 32,766 → 32,767 | 1 |
+| KEWR | 1 → **89** | 1,971 → 1,972 | 32,746 → 32,747 | 21 |
+| Midtown | 0 → **91** | 1,970 → 1,971 | 32,756 → 32,757 | 11 |
+| KMIA | 1 → **80** | 1,965 → 1,966 | 29,182 → 29,183 | 3,585 |
+| KSFO | 1 → **35** | 1,967 → 1,968 | 32,766 → 32,767 | 1 |
+| KSEA | 1 → **87** | 2,117 → 2,118 | 32,766 → 32,767 | 1 |
+| KORD | 3 → **80** | 1,832 → 1,833 | 32,759 → 32,760 | 8 |
+| KDTW | 3 → **66** | 1,981 → 1,982 | 32,759 → 32,760 | 8 |
+| KMSP | 3 → **273** | 1,832 → 1,834 | 32,743 → 32,745 | 23 |
+| KIND | 0 → **24** | 1,834 → 1,835 | 32,760 → 32,761 | 7 |
+| KJAC | 0 → 0 | 1,828 → 1,828 | 30,124 → 30,124 | 2,644 |
+
+- **Ruling 2's "truncated row", now measured.** Under rungs 2 to 7, `collapsed.water` reported the ε × 2 set's count, 0 to 4. The set
+  the package draws had 24 to 273 collapsed rings. The package understated what it lost by up to 270.
+- **KJFK now sits exactly at the cap,** with no slack, and KLGA, KSFO and KSEA have 1 byte each. In the code PR, any byte PROVENANCE
+  gains at those points moves their ladder. With the cap-edge outcome that is recorded, and a rung change stops.
+
+**QW4-3: the control read as predicted** (2 rings, 1 proper crossing, `refused` 0, `refusedBuilt` 0).
+
+**QW4-3 "on": OFF-PREDICTION, on one value.**
+- **`refusedBuilt: 3`, predicted 4.**
+- Everything else read as predicted: `kOk`, rung 0, `steps` 1, 1 ring, 0 crossings, `refused: 1`, `collapsed.water: 0`.
+- The reference and the old rule did not run.
+
+**The cause is my prediction, not the code.**
+- The prototype builds **three water sets: ε, ε × 2 and ε × 8.** Its ε × 4 set takes rivers and roads only (`build.ts:114`:
+  `if (L4 && (ft.kind === "rivers" || ft.kind === "roads"))`).
+- That is the design's own rung 5, in this file's ladder table: "rivers and roads at ε × 4 (water stays at ε × 8)".
+- So the bowtie was refused once in each water set: 3.
+- **The alternative, and why the code excludes it:** four water sets, with the bowtie surviving simplification in only three. The
+  ε × 4 set is never given a water feature, so it has nothing to refuse.
+- **The error's reach:**
+  - I wrote "all four: ε, × 2, × 4 and × 8" in the 22:38Z amendment (`b0d52f1b8c75`) and again in part 1, without reading that line;
+  - the code PR's `bm_build` definition of `refusedBuilt` ("across every water set built") is unchanged. It counts three sets.
+
+**Proposed re-freeze (committed here; pushed only after a ruling):**
+- **QW4-3 "on": `refusedBuilt: 3`** (ε, × 2, × 8). **The old rule: `refusedBuilt: 3`.** Every other QW4-3 value is unchanged.
+- **The 22:38Z amendment's QW4-3 row** takes the same correction: "each water set the bowtie survives into: ε, × 2 and × 8, so 3".
+- **The re-run is QW4-3 alone,** all four of its rows, the control first. QW4-C0 and QW4-C1 stand as read.
+  - The driver is `dr-q4-c.mts` `645a611550cf`, with `--qw43-only`. Its diff against the copy that ran (`fb841b7a8604`) is the two
+    numbers 4 → 3, the flag, and a comment.
+- **Anything else stops.**
