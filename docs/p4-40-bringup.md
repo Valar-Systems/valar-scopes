@@ -346,7 +346,8 @@ Graded against the predictions as committed: sections 1-7 in `cfbe3458`, section
     and `-r3` is the exact reverse. Those library sets carry `CONFIG_ESP32P4_REV_MIN_FULL` 1 and 301. C4' below grades that
     evidence, as a new row with a plant.
   - Whether a board of the other revision refuses an image stays a bench fact: B0 picks the env before any flash.
-- **C5, no existing image changes: nine pass; two off readings, both the build clock's.**
+- **C5, no existing image changes: holds.** Nine envs passed outright. The two off readings were both closed as the build
+  clock's by the control below (accepted by the reviewer).
   - **The method:** the ten CI envs at `8f1a878f`, then at `735b5c09` (proven to be the tree C5 built). They were graded by a
     grader that adds one ruled kind to the five regions, and was first shown to read STOP on a planted payload byte and on that
     kind without its condition.
@@ -366,8 +367,8 @@ Graded against the predictions as committed: sections 1-7 in `cfbe3458`, section
       times end in 42 and 52.
     - It is the same mechanism in the opposite direction, but it shifts every later rodata pointer.
     - **The alternative:** this change's code reaching the image. Excluded by the insertion's content and place, but not
-      fully: a second change could hide under the shift. A second off reading on the row goes to the owner (18:40Z rule),
-      so the control below waits for his answer.
+      fully: a second change could hide under the shift. A second off reading on the row goes to the owner (18:40Z rule).
+      He said yes to the control below, and it closed this reading.
 
 **Deviations from section 3's file list:**
 - `tools/web-renderer/shim/LovyanGFX.hpp` gained 6 lines, not 2: the two `#undef`s, plus `#ifndef` defaults for
@@ -439,3 +440,26 @@ This control removes the clock rather than accounting for it.
     the checksum with the trailing SHA-256 (33 B);
   - no time-string byte, no pointer, no shift.
 - **Anything else:** the clock is not the whole story; stop.
+
+**Result (2026-11-11; the owner's yes relayed at 19:39:40Z; run 19:41:37-19:52:00Z; graded 19:52:04Z): as predicted.**
+- **The method changed from the registration, disclosed here and accepted.**
+  - Both builds ran in ONE worktree, `C:\Github\p4-ctl`: built at `8f1a878f`, then checked out in place at `735b5c09`. The two
+    envs' build output was removed before each build.
+  - The registration had said "a scratch worktree for the baseline". But library sources live under the project's
+    `.pio/libdeps`, and their paths are compiled into assert strings. A second tree path would have changed the image by itself.
+  - The script refused to build unless HEAD was the expected sha and no tracked file was modified.
+  - `SOURCE_DATE_EPOCH=1762862445` ("Nov 11 2025 12:00:45") for all four builds.
+- **The instrument held.** In all four images the only compile-time stamp reads `Nov 11 2025 12:00:45` (the two WiFiManager
+  strings, now equal, merge into one). The prebuilt framework's fixed stamps, `Jun  2 2026 11:17:54` and `Aug 25 2025 19:04:10`,
+  are unchanged.
+- **`blipscope-pro-s3-175-amoled`: PASS.** Sizes equal at 1,885,504 B, the baseline's size again. 65 differing bytes:
+  `app_elf_sha256` 32, checksum with trailing SHA 33, other 0.
+- **`blipscope-s3-128`: PASS.** Sizes equal at 1,932,432 B. 64 differing bytes: `app_elf_sha256` 31 (one byte happened to be
+  equal), checksum with trailing SHA 33, other 0.
+- **The grader was proven both ways first:** its instrument exits 2 on C5's clock-stamped images, and its comparison exits 1 on a
+  planted payload byte.
+- **Reading:** the AMOLED's +16 B and the s3-128's 3-byte pointer were WiFiManager's `__DATE__`/`__TIME__` taking part in string-
+  tail merging, and nothing else. With the clock fixed and the tree path equal, the change leaves both images identical outside
+  the ELF and image hashes.
+- **For blipscope-5c (via the reviewer):** a rebuild diff made with `SOURCE_DATE_EPOCH` and one tree path needs no time-string
+  accounting at all.
