@@ -402,7 +402,10 @@ Q-TEXT went to the reviewer with the recommendation to decide it on the glass at
   - `--fleet` passes: 12 built envs, boards p4-40 x2.
   - Image mode passes on both P4 images: record `p4-40` (scope '', board 'p4-40') at 0x120.
 - **CI2: PENDING (the PR).**
-- **CI3: PENDING.**
+- **CI3: holds** (run 19:53-19:56:37Z). `scripts/check-adsbdb-out.sh p4-40` reports both envs `CONTROL found, ENDPOINT 0, BARE 1,
+  PASS` and `GATE PASSED`. That `BARE 1` is the script's own expected ConfigMigration literal. The default plant site serves
+  the P4, so no `plant_target()` case was added. Afterwards the tree was clean, `src/ConfigMigration.cpp`'s blob equalled
+  HEAD's, and no `.gatebak` was left.
 - **ID1: holds.** Both P4 ELFs contain `[p4] identity: base=` and `base=%s known=`, and none of the ten S3 images contains
   `base=%s known=` (`label=` alone occurs in eight S3 images, from other code, which is why the row named the longer string).
 - **ID2** is C5 above.
@@ -423,6 +426,17 @@ The property C4 was for, graded on the evidence that can see it.
 - **When:** the plant is a heavy build, so it runs with CI3's plant builds, after the owner's answer, not before.
 - **Outside the set:** the plant reads PASS, which means the check cannot see the property; stop. A real image reads FAIL: that
   env did not build for its silicon; stop. Either goes to the reviewer (C4's second off reading).
+
+**C4' result: holds** (graded 19:59:54Z).
+- **The real images, at `735b5c09`:** `blipscope-p4-40` reads `esp32p4_es` 143 and `libs/esp32p4/` 0, so PASS. `-r3` reads 0 and
+  143, so PASS.
+- **The plant is shown to fail.**
+  - The first attempt never applied: `pio run` has no `-O` option, so it exited 2 in seconds and built nothing.
+  - The plant that ran is a scratch copy of `platformio.ini` differing from the real one in exactly one line (1042,
+    `board = esp32-p4` -> `esp32-p4_r3`), built with `-c` from the same project directory into a scratch build directory.
+  - It applied: its `Processing` line names `board: esp32-p4_r3`, and its ELF hash (`854028424af9`) differs from the real
+    image's (`98a228c776a3`).
+  - Graded as `blipscope-p4-40`, it reads `esp32p4_es` 0 and `libs/esp32p4/` 143: **FAIL**, as required.
 
 ### The clock control (registered 2026-11-11, before it runs; runs only on the owner's yes)
 
