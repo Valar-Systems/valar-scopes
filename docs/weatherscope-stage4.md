@@ -667,3 +667,73 @@ bytes. The staged blob then had 0 markers and 0 CRLF, the same as both parents' 
 - **R0:** staging's live version and commit are read and recorded before anything is deployed, whatever they are, and RB returns to exactly
   that version. If main moves before the window, `deploy.sh` refuses a tree behind main in `proxy/`. Then main is merged in again and CI is
   predicted and read again before any deploy.
+
+### S4.9, 2026-11-11: W3's window. A Worker reaches NWS, and the User-Agent is required
+
+**Ruled ~03:37Z:** #628 was cleared for W3. Read from git, its `proxy/` differed from main (`947e1d3825fc`, #624, docs only) by the probe's 5
+files alone, and S4.8's CI (35 = 32/3/0) stood. The start was posted the same minute.
+
+**The window, about 22 minutes on the probe's version:**
+
+| step | time (Z) | read |
+|---|---|---|
+| claim | 03:38:51 | `proxy:staging`, until 04:23:51 |
+| **R0** | 03:38:59 | version `eb36fe73-ed1e-433a-aafa-1e3f3188f210` at 100%, deployed 2026-11-07 18:13; `/healthz` `fdf62ada` |
+| `deploy.sh` | 03:39:27 | exit 0; version `1b216cf7-7f32-421c-a33d-8e5d1a6d59ca`; its own confirm read `/healthz` `1db0659e`; 2 commits behind main, neither in `proxy/` |
+| **D1** | 03:39:51, 03:40:51 | `1db0659e` twice; the route check answered 400, so the probe was live |
+| **A0** | 03:40:52 | no credentials: 401 |
+| rounds 1-3 | 03:40:54, 03:50:57, 04:01:05 | 200 each |
+| **RB** | 04:01:42 | `wrangler rollback` to R0's version, exit 0 |
+| read-back | 04:01:58 to 04:03:01 | `/healthz` `fdf62ada` twice, a minute apart; wrangler shows R0's version at 100%; the probe route 404 |
+| claim released | 04:04:22 | both claims free |
+
+**The readings, against S4.4's rows, all as predicted:**
+
+| row | predicted | read |
+|---|---|---|
+| **W3-1** | 105 of 105 answer 200 | **105 of 105** |
+| **W3-2, the control** | 3 of 3 answer 403 | **3 of 3** |
+| **W3-3** | each kind's median under 1,000 ms, none over 5,000 ms | medians 18-159 ms; the slowest single call 3,567 ms (alerts) |
+| **W3-4** | each kind's max-age, recorded | below |
+| **W3-5** | the hourly forecast 150-175 KB, every kind under 200 KB | hourly 162,485-163,559 B, in range whether a KB is 1,000 or 1,024 B; the next largest kind, stations, 105,569 B |
+
+Per kind, 15 calls each (5 airports, 3 rounds):
+
+| kind | ms median | ms max | bytes | max-age seen (s) |
+|---|---|---|---|---|
+| station | 46 | 124 | 2,135-2,153 | 20,313-40,998 |
+| points | 21 | 54 | 3,915-3,936 | 22,835-75,149 |
+| forecast | 24 | 94 | 13,047-13,929 | 96-3,524 |
+| hourly | 32 | 139 | 162,485-163,559 | 248-3,237 |
+| stations | 66 | 1,041 | 29,356-105,569 | 32,181-86,400 |
+| observation | 18 | 135 | 4,308-4,516 | 65-272 |
+| alerts | 159 | 3,567 | 232-234 | 5 |
+
+**What it settles for W5:**
+- **A Worker can call NWS directly.** 105 calls from Cloudflare's egress over 20 minutes, none refused or throttled, so W5 needs no relay at
+  this rate.
+- **The alternative is that the 200s came from a cache in front of NWS.** The control excludes a cache keyed on the URL: the same call
+  without a User-Agent got NWS's 403 in every round.
+- **The User-Agent is required.** NWS refuses a call without one, so W5 sends one on every call.
+- **Hold times (W3-4):** alerts carry a max-age of 5 s, observations 1 to 5 minutes, the forecasts up to about an hour, and points, stations
+  and the station up to a day.
+- **Size (W3-5):** the hourly forecast is about 163 KB raw, under the 200 KB note. W5's 32 KB trimmed body is unchanged.
+
+**The rollback, and the gap it exposed:**
+- RB was typed as its own command, and the claim hook did not log it. This session's project folder, `C:\Github\Blipscope`, is on main at
+  `6d7823e11c24` (#580), from before #618: it has no `.claude/settings.json` and no `scripts/claim-hook.py`, so the hook never loaded. A
+  hook pointing at a missing script would have refused every Bash call, and none was refused.
+- `deploy.sh`'s own claim check ran ("deploy: yours"), so the deploy was claim-checked.
+- On the reviewer's ruling (~04:10Z), the `rollbacks.log` line was entered by hand, labelled as such, and the rollback was announced. Until
+  blipscope-5c's fix, every session without the hook deploys only through `deploy.sh`, and after any rollback adds a labelled line by hand
+  and announces it.
+
+**One change to the read-back, made before it ran.** The script first read `/healthz` once, straight after the rollback. Isolates drain
+after a version change (`deploy.sh`'s confirm polls for that reason), so one early read could have shown the probe's commit after a good
+rollback. Before running it, I made the first read a poll: every 15 s, up to 5 minutes, with anything later counted as off. It read
+`fdf62ada` on the first poll.
+
+**After the window:**
+- #628 is closed unmerged, naming this record. Its branch stays at `1db0659e9a50` as the record of what ran on staging.
+- M3, staging's `/config` read-only, is next.
+- #630 is first in the merge order once blipscope-5c's read is back, then #632.
