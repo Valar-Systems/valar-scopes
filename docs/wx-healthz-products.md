@@ -134,7 +134,7 @@ by bytes and sha256. Each plant's failed set:
 | plant | the edit | failed set |
 |---|---|---|
 | H1s | `index.ts` passes the old filtered list again | {H1, H2, H3} |
-| H2s | `routed` read as `true` for every product | {H1, H2} |
+| H2s | `routed` read as `true` for every product | {H1, H2, H3}. **Corrected ~19:20Z, before any code ran:** registered as {H1, H2}. The Q-HZ1 amendment then made H3 compare the fixture's `routed` as well as its `stale`, so this plant fails H3 too. I caught it while writing the tests, not from a run |
 | H3s | `stale` never `true` | {H3}. H3 fails on both the flags and the fixture projection, so the state that would produce WARN for `opse` and `cref` is never reached. H6 (b) shows the smoke side of the same plant: that body prints no `WARN` |
 
 **The suite:** 1,039 passed and 1 skipped (1,040) in 75 files, from CI's workers run at `d46c25c4`, main's last
