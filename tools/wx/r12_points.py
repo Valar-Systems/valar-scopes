@@ -15,7 +15,10 @@ import sys
 
 src, fixture, out = sys.argv[1], sys.argv[2], sys.argv[3]
 text = open(src, encoding="utf-8").read()
-header = json.loads(re.search(r"export const REGION_HEADER = (\{.*?\n\});", text, re.S).group(1))
+m = re.search(r"export const REGION_HEADER = (\{.*?\n\}) as const;", text, re.S)
+if not m:
+    raise SystemExit("RIG: REGION_HEADER not found in " + src)
+header = json.loads(m.group(1))
 
 
 def b64_of(name):
