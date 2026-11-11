@@ -1236,3 +1236,25 @@ It reads the new files under `proxy/src/weatherscope/` too.
 
 **Next: W5's code.** Its condition, blipscope-5c's read, is back. Before the suite first runs, the counts and the exact sabotage sets
 are frozen in an addendum of their own, as S4.6 did. Its CI is predicted before the first push.
+
+### S4.14, 2026-11-11: WS18b re-scoped before any code
+
+**Ruled 19:13Z by the orchestrator, on S4.13 at `c5ee18f84202`.** WS21, WS22 and the activation answer stand. **WS18b is re-scoped,** and
+this commit freezes the rewrite before W5's code.
+
+**Why.** S4.13's WS18b said `/healthz`'s whole body holds exactly one `"commit"` match. blipscope-5c is changing `confirm-deploy.sh` and
+`smoke-prod.sh` to read only the top-level `commit` key, because basemap's block carries its own `commit` once the builder answers. After
+that change, a second `"commit"` in the body is legitimate. An exactly-one row would then:
+- go red on basemap, for a reason that isn't W5's;
+- or freeze the old grep's assumption into a test, the very hazard being removed.
+
+**WS18b, as it now stands** (it replaces S4.13's):
+
+| row | predicted |
+|---|---|
+| **WS18b** | the `weatherscope` field, and anything else W5 adds to `/healthz`, holds **no key named `commit` at any depth.** It is checked by a recursive walk of that subtree's keys, not by a pattern over the body |
+
+**Its sabotage is unchanged:** S-WS-COMMIT plants a `commit` key inside the `weatherscope` field, and must turn WS18b red.
+
+**Next: W5's code,** on its own branch from main `78c2bec21dfa`. Its counts and the exact sabotage sets are frozen before the suite first
+runs, and its CI is predicted before the first push. Nothing deploys: W5's deploys get their own slot later.
