@@ -631,9 +631,11 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
 
     // The same single retry on a stale keep-alive socket as Get() and GetJson() (see Get() for why).
     // Transfer-Encoding tells a chunked reply from a close-delimited one; ETag is what WxPolicy revalidates with;
-    // X-Wx-Max-Age is the served product's age limit (WxPolicy (h)). The count passed below is the array's own size,
-    // so a header added here cannot be listed and silently never collected.
-    static const char* kCollectHeaders[] = { "Transfer-Encoding", "ETag", "X-Cache", "X-Upstream", "X-Wx-Max-Age" };
+    // X-Wx-Max-Age is the served product's age limit (WxPolicy (h)); Retry-After is when the map's route asks to be
+    // asked again (MapPolicy, CA4/CA5; test/host/check_map_fetch.py's CA14 reads this list). The count passed below is
+    // the array's own size, so a header added here cannot be listed and silently never collected.
+    static const char* kCollectHeaders[] = { "Transfer-Encoding", "ETag", "X-Cache", "X-Upstream", "X-Wx-Max-Age",
+                                             "Retry-After" };
     const unsigned long reqStartMs = millis();
     int responseCode = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -664,6 +666,7 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
         result.upstream = http.header("X-Upstream");
         etag = http.header("ETag");
         maxAge = http.header("X-Wx-Max-Age");
+        result.retryAfter = http.header("Retry-After");   // on a 202 and a 429 alike; "" when absent
         const int bodyLen = http.getSize(); // Content-Length, or -1 when chunked/unknown
         if (responseCode == 304) {
             result.success = true;           // no body, by definition

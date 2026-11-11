@@ -787,6 +787,42 @@ the same way except for `-msse2 -mfpmath=sse`, and that difference alone turns C
 cause was x87 excess precision on the host, not a MinGW miscompile, and the fix makes the test's copy compute what the
 device computes. Next, as registered: CA12-CA14, the sabotages and the firmware build.
 
+### The wiring, written; what its checks will read, registered before they run (2026-11-11)
+
+**Where the registration left a choice, and what I chose.** None changes a registered row's set.
+- **One gate macro, `BLIPSCOPE_MAP_FETCH`,** defined once in `AircraftManager.h`'s first map region as
+  `FEATURE_CLOUD_FEED && WX_LAYER_SHIPS && !BLIPSCOPE_WEB_RENDERER`. Every map site tests it.
+  - Why the web renderer is left out: `tools/web-renderer/build.sh` also defines `WX_LAYER_SHIPS`. The website draws
+    no raw-buffer layer, its `GetBytes` is a dead socket (`web_http.cpp`), and its OtaUpdater is a shim without
+    `BootFollowsUpdate`.
+  - Gated on the weather switch alone, the website would hold about 200 KB of each visitor's memory for a package that
+    cannot arrive, and the build would not link.
+- **`CloudFeed::BasemapUrl`,** beside `WeatherUrl`, under the same three flags. CloudFeed's own comment on
+  `LeaderboardUrl` is the reason: an endpoint built outside that list is the one that stays on an old path.
+  `CloudFeed.{h,cpp}` are outside the registered list of files, so blipscope-5c reads them with the OtaUpdater diff.
+- **A 200 the gate never read** (over the cap, short or stalled) is logged as `why=unread` (`kMapWhyUnread`, 0xFF), not
+  as a `bmpk::Status` it was not given.
+- **CA13 also requires at least one `"lat"` and one `"lon"` parameter** in the map's files, so moving the request out
+  of the regions cannot pass it vacuously. That is stricter than registered, never looser.
+- **`check_wx_wiring.py`'s WA1 selftest plant** replaced `"X-Upstream", "X-Wx-Max-Age" };`. That text is gone, because the
+  list now ends with `"Retry-After"`, so the plant would not apply and the WxWiring block would go red. It now replaces
+  `"X-Upstream", "X-Wx-Max-Age",`, which occurs once and still drops `X-Wx-Max-Age` from the list. Its owner reads it.
+
+**What each run will read** (all on the worktree, nothing pushed). They run in this order, and the first off reading stops the rest:
+
+| # | run | predicted |
+|---|---|---|
+| W1 | `python -I test/host/check_map_fetch.py .` | exit 0. Exactly: `ok CA12 nothing that writes to flash`; `ok CA13 3 print calls read; 2 lat/lon parameters, all through wireloc::Center`; `ok CA14 kCollectHeaders ['Transfer-Encoding', 'ETag', 'X-Cache', 'X-Upstream', 'X-Wx-Max-Age', 'Retry-After']; Retry-After read into HttpResult::retryAfter: True`; `3 checks, 0 failures`. The 3 is the alloc line, the dropped-request line and the per-answer line. The one `Preferences` in the map's files sits in a comment, so a stripper that left comments in would turn CA12 red |
+| W2 | `--anchors` for every `test/host/sabotage_*.py`, and the two board plants `run.sh` runs | every one exits 0, with every anchor present exactly once |
+| W3 | `check_wx_wiring.py .`, then `--selftest` | exit 0, all 10 rows ok; then each of its 10 plants red on exactly its own row, `SELFTEST PASSED`, exit 0 |
+| W4 | `sabotage_map_fetch.py --control` | both suites as its table (`42 checks, 0 failures`; `3 checks, 0 failures`), exit 0 |
+| W5 | `sabotage_map_fetch.py` (MinGW 5.1, the driver's default) | the control clean, then each of the 23 plants `AS PREDICTED` with item 5's set; `real files unchanged: True`; exit 0 |
+| W6 | `pio run -e blipscope-s3-128`, then `-e blipscope-s3-128-wxlook`, only while C: has 30 GB free | both build, exit 0 |
+| W7 | each W6 image's `firmware.bin`, read for the bytes `/basemap` | the shipping image holds **0**; the wxlook image holds **1 or more**, the control that the read can see the string |
+
+Not run here, and not mistaken for run: the web renderer's build (no emsdk on this machine). Its CI job builds it on the
+push, and the gate above is what keeps the map out of it.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |

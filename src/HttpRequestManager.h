@@ -22,6 +22,8 @@ struct HttpResult {
     String cacheState;             // X-Cache: HIT | STALE | MISS ("" if absent)
     String upstream;               // X-Upstream: which source actually served it
     String cacheControl;           // Cache-Control ("" if absent); GetJson only
+    String retryAfter;             // Retry-After, verbatim ("" if absent); GetBytes only. MapPolicy decides whether it
+                                   // is a usable value: nothing here parses, clamps or defaults it
     size_t bodyBytes = 0;          // response body size (Content-Length, or bytes read)
     unsigned long parseMs = 0;     // JSON deserialize time only, excluding transfer
     unsigned long requestMs = 0;   // whole call: connect + transfer + parse

@@ -97,6 +97,11 @@ String EnrichUrl(const String& base, const String& icao24) { return base + BLIPS
 String ConfigUrl(const String& base) { return base + BLIPSCOPE_API "/config"; }
 String AirportsUrl(const String& base) { return base + BLIPSCOPE_API "/airports"; }
 String WeatherUrl(const String& base, const char* product) { return base + BLIPSCOPE_API "/wx/" + product; }
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+// The map package (docs/blipscope-map-client-steps.md, step A). Under the switch, the same condition as
+// BLIPSCOPE_MAP_FETCH in AircraftManager.h, so a shipping image holds no /basemap path at all.
+String BasemapUrl(const String& base) { return base + BLIPSCOPE_API "/basemap"; }
+#endif
 String LeaderboardUrl(const String& base) { return base + BLIPSCOPE_API "/leaderboard"; }
 
 bool ParseBlips(JsonDocument& doc, std::vector<Aircraft>& out, long& dataEpoch)

@@ -27,6 +27,13 @@
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
+// THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
+// A 200 the gate never read (over the cap, short or stalled): logged as "unread", never as a bmpk::Status it was not.
+constexpr uint8_t kMapWhyUnread = 0xFF;
+#endif
+// THE MAP FETCH END
 #include "PollCadence.h"    // the poll cadence and the weekly reboot; the web build's kiosk (docs/web-kiosk-airfield.md)
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
@@ -363,7 +370,13 @@ static constexpr size_t MAX_AIRCRAFT = 60;
 // tasks by pointer through a queue, transferring ownership: the receiver frees it.
 // The same task also serves the cloud feed and its /api/v1/blipscope/config fetch (kind), so all
 // blocking cloud I/O shares the one TLS client + keep-alive connection.
-enum class FetchKind : uint8_t { Feed, CloudConfig, Airports, Weather };
+enum class FetchKind : uint8_t { Feed, CloudConfig, Airports, Weather,
+// THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    Basemap,   // the map package (step A)
+#endif
+// THE MAP FETCH END
+};
 
 struct FetchRequest {
     FetchKind kind = FetchKind::Feed;
@@ -392,6 +405,14 @@ struct FetchRequest {
     wxpolicy::Query wxAsked;         // Weather: the query this request carries
     uint32_t wxSeq = 0;              // Weather: this request's number from wxpolicy::OnSend (WD5 addendum 6)
 #endif
+    // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    uint8_t* mapBuf = nullptr;       // Basemap: the loop's landing buffer (PSRAM), written only while this is in flight
+    size_t mapCap = 0;               // Basemap: GetBytes' cap, 32,768 + sum(8 + N^2) for this request (CA3)
+    std::vector<std::pair<String, String>> mapParams;   // Basemap: r, eps, layers[, levels], exactly mapquery's string
+    uint32_t mapSeq = 0;             // Basemap: this request's number from mappolicy::OnSend (CA11)
+#endif
+    // THE MAP FETCH END
 };
 struct FetchResult {
     FetchKind kind = FetchKind::Feed;
@@ -411,6 +432,18 @@ struct FetchResult {
     wxpolicy::Query wxAsked;         // Weather: the query this answers
     uint32_t wxSeq = 0;              // Weather: the request number this answers
 #endif
+    // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    int mapStatus = 0;               // Basemap: HTTP status (<= 0 = network failure)
+    size_t mapLen = 0;               // Basemap: bytes landed (0 unless a whole body fit)
+    size_t mapClaimed = 0;           // Basemap: the length the server claimed (> cap = refused for size)
+    String mapRetryAfter;            // Basemap: Retry-After verbatim, "" when absent; MapPolicy judges it
+    mappolicy::Gate mapGate = mappolicy::Gate::NotRun;   // Basemap: what maplayer::Load said of a 200's body
+    uint8_t mapWhy = 0;              // Basemap: the gate's bmpk::Status, for the log
+    bmpk::Package mapPkg;            // Basemap: the accepted package, pointing into the landing buffer
+    uint32_t mapSeq = 0;             // Basemap: the request number this answers
+#endif
+    // THE MAP FETCH END
     // Measurement carried back to the loop task, which owns the counters (this
     // struct crosses a queue; the fetch task must not touch loop state).
     // receivedCount is taken BEFORE the MAX_AIRCRAFT cut -- the gap between it and
@@ -910,6 +943,13 @@ void AircraftManager::Initialise()
     Serial.println("[wx-bench] the weather bench image (WX_LOOK_AB)");
 #endif
     wxSpriteReady = false;   // a save can change the look, the home or the range: rebuild on the next shown frame
+    // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    // The map's request, from the STORED distance and the unit's exact factor (units::ToKm of 1 is the factor itself,
+    // exactly), never from the view's float radii; the ladder just rebuilt above says which steps exist (step A, 1).
+    MapConfigure(distance, units::ToKm(1.0, cfgUnit));
+#endif
+    // THE MAP FETCH END
 #endif
 
     // paint-and-fade blips: unset (or "true") = on. Only takes effect with the sweep on.
@@ -1756,6 +1796,15 @@ void AircraftManager::Update()
         else if (wxpolicy::ShouldFetch(wxState, WxEnabled(), (uint32_t)now)) {
             RequestWeather(now);   // the pass's own clock: the attempt is the send (WD5 addendum 6)
         }
+        // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        // The map package, behind the feed and the weather: once per config per boot (F8), so it never competes
+        // with either for long. MapPolicy decides; the pass's own clock is the send's, as for the weather.
+        else if (mappolicy::ShouldFetch(mapState, MapEnabled(), (uint32_t)now)) {
+            RequestBasemap(now);
+        }
+#endif
+        // THE MAP FETCH END
 #endif
     }
 }
@@ -2875,6 +2924,51 @@ void AircraftManager::RunFetchTask()
             continue;
         }
 
+        // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        // The map package (step A): a binary GET into the loop's landing buffer, on this task and connection, like the
+        // weather crop. lat/lon go through the wire's own 2-dp rounding and nothing else (CA13); the rest is
+        // mapquery's string, sent as built. No If-None-Match: the package is held in RAM only, so there is no ETag to
+        // revalidate. THE GATE RUNS HERE (maplayer::Load: the CRC and format section 8), so the loop never spends a
+        // CRC over a package on a frame; any 200 that is not a whole body the gate accepts is Refused (CA8).
+        if (req->kind == FetchKind::Basemap) {
+            std::vector<std::pair<String, String>> params = { { "lat", wireloc::Center(req->lat) },
+                                                              { "lon", wireloc::Center(req->lon) } };
+            params.insert(params.end(), req->mapParams.begin(), req->mapParams.end());
+            size_t len = 0;
+            String etag, maxAge;   // GetBytes fills them; the map reads neither
+            const HttpResult r = http.GetBytes(CloudFeed::BasemapUrl(req->cloudBase), params,
+                                               CloudFeed::Headers(req->cloudKey), req->mapBuf, req->mapCap, len, etag,
+                                               maxAge);
+            res->ok = r.success;
+            res->mapStatus = r.statusCode;
+            res->mapLen = len;
+            res->mapClaimed = r.bodyBytes;
+            res->mapRetryAfter = r.retryAfter;
+            res->mapSeq = req->mapSeq;
+            if (r.statusCode == 200) {
+                // Only a WHOLE body reaches the gate. One over the cap, short or stalled is refused unread, and its log
+                // line says that (kMapWhyUnread) rather than a format reason the gate never gave.
+                const bool whole = r.success && len > 0 && len == r.bodyBytes;
+                if (whole) {
+                    const maplayer::Verdict v = maplayer::Load(req->mapBuf, len, &res->mapPkg);
+                    res->mapGate = v.accepted ? mappolicy::Gate::Passed : mappolicy::Gate::Refused;
+                    res->mapWhy = (uint8_t)v.why;
+                } else {
+                    res->mapGate = mappolicy::Gate::Refused;
+                    res->mapWhy = kMapWhyUnread;
+                }
+            }
+            if (!r.success && r.statusCode <= 0)
+                fetchHardFailures++;
+            delete req;
+            if (xQueueSend(fetchResultQueue, &res, 0) != pdTRUE)
+                delete res;
+            continue;
+        }
+#endif
+        // THE MAP FETCH END
+
         // Airport-overlay fetch (/api/v1/blipscope/airports): same one-off GET pattern as the
         // config fetch above. The reply is server-capped (<= 60 rows, ~2 KB),
         // so the streaming decode stays trivial on the C3-class heap.
@@ -3328,6 +3422,130 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
                   (unsigned long)(wxState.intervalMs / 1000));
 }
 
+// THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+// ---- The map package (docs/blipscope-map-client-steps.md, step A) ---------------------------------------------------
+// Held in RAM only (F8), so nothing here opens Preferences or writes anywhere (CA12), and no log line here prints a
+// coordinate, an id, a hash or the boot's wait (CA13; test/host/check_map_fetch.py reads every print in these regions).
+
+bool AircraftManager::MapEnabled() const
+{
+    return useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
+}
+
+// At every Initialise: the request for the stored config and its key. A key that differs from the last drops the held
+// package and asks at once (CA10); the boot's first key is not a change. F6 is decided once, at the first call: a boot
+// after the nightly reboot, the network watchdog's, or an update waits its spread before its first request (CA9).
+void AircraftManager::MapConfigure(double distance, double kmPerUnit)
+{
+    mapquery::Build(distance, kmPerUnit, zoomLadder, zoomIdx, &mapReq);
+    mappolicy::Key k;
+    k.lat100 = (int32_t)lround(wireloc::Round2(lat) * 100.0);   // the wire's own rounding, as the request sends it
+    k.lon100 = (int32_t)lround(wireloc::Round2(lon) * 100.0);
+    static_assert(sizeof k.params == sizeof mapReq.params, "the key holds the whole parameter string");
+    memcpy(k.params, mapReq.params, sizeof k.params);
+    if (mappolicy::OnQuery(mapState, k)) {
+        mapHeldLen = 0;               // the package belongs to the old view: dropped, not drawn (CA10)
+        mapPkg = bmpk::Package();
+        mapAllocFailed = false;       // a new config earns a new allocation attempt
+    }
+    if (!mapBegun) {
+        mapBegun = true;
+        // Both readers are cached for the boot; BootFollowsUpdate must run before the first check-in clears the
+        // record it reads, and the first Initialise is before any request is built.
+        const bool waits = mappolicy::Spreads(ConsumeDeferredRebootCause(), BootFollowsUpdate());
+        mappolicy::Begin(mapState, waits, mappolicy::SpreadS(DeviceIdentity::LeaderboardId().c_str()),
+                         (uint32_t)millis());
+    }
+}
+
+// r=, eps=, layers=[, levels=] as name/value pairs, split from mapquery's string so the wire carries it byte for byte.
+static std::vector<std::pair<String, String>> MapParamPairs(const char* params)
+{
+    std::vector<std::pair<String, String>> out;
+    const String s(params);
+    int at = 0;
+    while (at < (int)s.length()) {
+        int amp = s.indexOf('&', at);
+        if (amp < 0) amp = (int)s.length();
+        const int eq = s.indexOf('=', at);
+        if (eq > at && eq < amp) out.push_back({ s.substring(at, eq), s.substring(eq + 1, amp) });
+        at = amp + 1;
+    }
+    return out;
+}
+
+bool AircraftManager::RequestBasemap(unsigned long now)
+{
+    if (!MapEnabled()) return false;
+    // The landing buffer: PSRAM only, never the internal heap a TLS handshake needs (CLAUDE.md). Allocated at the cap
+    // of the request about to go out, and again only when a later request needs more. Nothing is held and nothing is in
+    // flight here (MapPolicy asks for nothing while a package is held; fetchInFlight gates this call), so the old
+    // buffer has no reader. A failed allocation leaves the map off until the next config change.
+    if (mapLandingCap < mapReq.capBytes) {
+        if (mapLanding != nullptr) heap_caps_free(mapLanding);
+        mapLandingCap = 0;
+        mapLanding = (uint8_t*)heap_caps_malloc(mapReq.capBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        Serial.printf("[map] alloc %u B: %s\n", (unsigned)mapReq.capBytes, mapLanding != nullptr ? "ok" : "FAILED");
+        if (mapLanding == nullptr) {
+            mapAllocFailed = true;
+            return false;
+        }
+        mapLandingCap = mapReq.capBytes;
+    }
+    FetchRequest* req = new FetchRequest();
+    req->kind = FetchKind::Basemap;
+    req->cloudBase = cloudUrl;
+    req->cloudKey = cloudKey;
+    req->lat = lat;
+    req->lon = lon;
+    req->mapBuf = mapLanding;
+    req->mapCap = mapReq.capBytes;
+    req->mapParams = MapParamPairs(mapReq.params);
+    // The attempt is recorded at the send, with the pass's own `now` (as WD5 addendum 6 records the weather's).
+    const uint32_t seq = mappolicy::OnSend(mapState, (uint32_t)now);
+    req->mapSeq = seq;
+    if (xQueueSend(fetchRequestQueue, &req, 0) == pdTRUE) {
+        fetchInFlight = true;
+        return true;
+    }
+    Serial.println("[map] request DROPPED: fetch queue full");
+    delete req;
+    // Never sent: answered at once as a network failure, so it backs off rather than retrying every pass (CA7).
+    mappolicy::OnResponse(mapState, seq, -1, nullptr, mappolicy::Gate::NotRun, (uint32_t)millis());
+    return false;
+}
+
+void AircraftManager::ConsumeBasemap(int status, size_t len, size_t claimed, const String& retryAfter,
+                                     mappolicy::Gate gate, uint8_t why, const bmpk::Package& pk, uint32_t seq)
+{
+    const mappolicy::Outcome o = mappolicy::OnResponse(mapState, seq, status,
+                                                       retryAfter.isEmpty() ? nullptr : retryAfter.c_str(), gate,
+                                                       (uint32_t)millis());
+    if (o == mappolicy::Outcome::Accepted) {
+        mapPkg = pk;
+        mapHeldLen = len;
+    }
+    // One line per answer: the status, the size, what the gate said and why, what the policy made of it, and the wait it
+    // set. A wait is printed only for the outcomes that set one; the boot's spread is never one of them (CA13).
+    static const char* kOutcome[] = { "ignored", "dropped", "accepted", "wait", "retry-after-refused", "no-package",
+                                      "refused", "credential", "error" };
+    static const char* kGate[] = { "-", "passed", "refused" };
+    const bool waits = o == mappolicy::Outcome::Wait || o == mappolicy::Outcome::RetryAfterRefused ||
+                       o == mappolicy::Outcome::Refused || o == mappolicy::Outcome::Credential ||
+                       o == mappolicy::Outcome::Error;
+    char whyText[8] = "-";
+    if (gate == mappolicy::Gate::Refused) {
+        if (why == kMapWhyUnread) snprintf(whyText, sizeof whyText, "%s", "unread");
+        else snprintf(whyText, sizeof whyText, "%u", (unsigned)why);
+    }
+    Serial.printf("[map] status=%d len=%u claimed=%u gate=%s why=%s outcome=%s next=%lus\n", status, (unsigned)len,
+                  (unsigned)claimed, kGate[(int)gate], whyText, kOutcome[(int)o],
+                  waits ? (unsigned long)mapState.lastWaitS : 0UL);
+}
+#endif
+// THE MAP FETCH END
+
 // Rebuilt only when its inputs change -- a new crop, the home, the zoom's view radii, the rotation, the look (WD2's
 // inputs) -- so a steady frame is one sprite copy instead of a fill (Part B, B1).
 bool AircraftManager::RebuildWeatherLayer()
@@ -3471,6 +3689,16 @@ void AircraftManager::ConsumeFetchResult()
         delete res;
         return;
     }
+    // THE MAP FETCH BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    if (res->kind == FetchKind::Basemap) {
+        ConsumeBasemap(res->mapStatus, res->mapLen, res->mapClaimed, res->mapRetryAfter, res->mapGate, res->mapWhy,
+                       res->mapPkg, res->mapSeq);
+        delete res;
+        return;
+    }
+#endif
+    // THE MAP FETCH END
     if (res->kind == FetchKind::CloudConfig) {
         if (res->ok) {
             cloudCfg = res->config;

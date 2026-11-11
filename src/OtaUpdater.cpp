@@ -479,6 +479,25 @@ uint8_t ConsumeDeferredRebootCause()
     return cached;
 }
 
+// The map's F6 (docs/blipscope-map-client-steps.md, step A; Q-MA1): is this the new image's first boot after an update?
+// The same test TakeOtaMemReport finalises with -- the pre-armed "incomplete" record naming the version now running --
+// read BEFORE the first check-in clears that record (fire-once), which is why the map reads it at its first Initialise.
+// READ-ONLY: the namespace is opened read-only, so this can never create, finalise or clear the record the check-in
+// reports; and CACHED for the boot, so a later call (after the check-in has cleared it) still says what was true at boot.
+bool BootFollowsUpdate()
+{
+    static bool cached = false;
+    static bool read   = false;
+    if (read) return cached;
+    read = true;
+    Preferences p;
+    if (!p.begin(OTA_MEM_NS, true))
+        return false;   // no record at all: not an update's first boot
+    cached = p.getString("res", "") == "incomplete" && p.getInt("to", 0) == FW_VERSION;
+    p.end();
+    return cached;
+}
+
 void StampRebootCause(uint8_t cause)
 {
     Preferences p;
