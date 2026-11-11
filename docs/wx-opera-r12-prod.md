@@ -26,3 +26,31 @@ the device's `round2` (half away from zero), as the vitest's `deviceQuery` does,
 | **Controls** | | **R2-P count must equal the vitest's 48,721** before any sample is believed. **R1-P's 35** are the control that the endpoint doesn't answer `opuk` everywhere |
 | **If a product is stale** | P0 shows `cref` or `opuk` past its limit | not a reading: re-read once 10 minutes later. Stale a second time means **BLIND**, which fails the row |
 | escape | anything else | stop and report |
+
+## Read 2026-11-11, 05:57:37-05:58:00Z (predictions at 277edec4): every row as predicted
+
+**Two stops before the read, neither a reading:**
+- **`r12_points.py`'s header regex expected `};`.** The generated file ends its header `} as const;`, so the tool
+  stopped before it wrote any point. It was fixed in its own commit (0db95884), and the predictions didn't change.
+- **The test identity's helper refused (exit 2, no request sent):** `BLIPSCOPE_TOKEN_FILE` wasn't set in that shell.
+  It's set per shell, as `docs/test-identity.md` says, and the next run read.
+
+| row | read | |
+|---|---|---|
+| **P0** | commit **68dc169a**; `cref` frame age 57 s, `opuk` 459 s (`coveredShare` 0.751) | as predicted |
+| **R2-P count** | **48,721**: western Ireland 30,488, the Channel Islands 234, France's coast 17,999, and no point in "other". The table's points are 6,921,706, equal to its header's | as predicted (the anchor holds) |
+| **R1-P** | the 5 isles points: **5 of 5** at 200, `opuk`, 720. The other 35: **35 of 35** at 200, `cref`, byte 32 `0xE0`, no `X-Wx-Max-Age` | as predicted |
+| **R2-P sample** | **9 of 9** at 200, `opuk`, 720 | as predicted |
+
+- **Printed, not graded:** byte 32 of the R2 sample crops. Western Ireland's three were `0xE0` (`opuk`'s all-14 at that
+  moment); the other six were `0x00`, `0x0E` and `0x12`. The isles label points' were `0x00`.
+- **The point file held coordinates.** It lived in the scratch folder, outside every repo, and was deleted after the
+  read. Nothing printed here or in the tools' output holds a coordinate.
+
+## CI for this record's PR (predicted before the push)
+
+It changes `docs/wx-opera-r12-prod.md`, `tools/wx/r12_points.py` and `tools/wx/r12_prod.sh`. None of them is in
+`workers.yml`'s or `web-renderer.yml`'s path filter.
+- **Predicted: 32 check runs: 29 success, 3 skipped, 0 failed.**
+- **The baseline** is #635's finished head run (`4ffd1f2e`, 32 = 29/3/0), the same three workflows.
+- **No job-set change since then.**
