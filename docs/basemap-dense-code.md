@@ -594,3 +594,118 @@ changes it. The addendum pins that change by sha256 before QW4-3 runs.
   - **if the three read a mix,** KBOS passes anywhere in the union, 11.285 to 13.535;
   - **outside both bands, it stops,** as any one-value point would.
 - KBOS's cell phase stays recorded, not graded.
+
+## The addendum, part 1: QW4-3 and the prototype's counting controls (frozen before they run)
+
+**The addendum comes in two parts.**
+- **Part 1, here:** QW4-3, the backstop's plant, as the 22:38Z amendment re-froze it, and two controls on the prototype it runs on.
+- **Part 2, later, with its own sha before it runs:**
+  - the sea: QW4-2, QW4-4, T-SEA0 on the prototype, the KB rows and the plants, S-KB-SEAM included;
+  - the extent's counts, and the R2 figures.
+
+  It carries the orchestrator's 22:46Z and 22:47Z rulings: the sea cut to the 1° level-0 grid at ingest, within 250 km of a covered
+  point; the lakes; islandsDropped on `bm_build`; the account's total R2 storage against the 10 GB free tier.
+
+### The record
+
+- **`ne_10m_ocean.zip`,** fetched from its pinned URL (`proxy/scripts/basemap/sources.ts:30`) into its own empty directory:
+  **sha256 MATCH `db626fcd5d50`**, the store manifest's pin. **`ne_10m_land.zip`** (local): **MATCH `e547d749445e`**.
+- **`ne_10m_lakes.zip`** (local): `0803a06f9c3c`. **Not pinned anywhere yet.** The code PR adds it to `sources.ts`, and it is re-verified at
+  its URL before use. The threshold and the US cut are with the owner (22:46Z ruling 2).
+
+### The prototype: pq4c
+
+**`mk-pq4c.mjs`** (sha256 `351a3fa2c4f5`) is `mk-pq4b.mjs` (`4161a87b369d`) plus anchored edits, each refused unless its anchor occurs
+exactly once.
+- **Its arguments were proved first:** pq4b, regenerated from `mk-pq4b.mjs` with the same arguments, came back with its whole `src`
+  identical, `build.ts` `88f2316b2aaf` as registered.
+- **`Q4_PROV=1`,** for ruling 2 and the 22:38Z ruling C:
+  - a ring the backstop refuses is counted apart from `collapsed`;
+  - rungs 2 and 5 take `collapsed.water`, and the refusals, from the ε × 8 set they draw.
+- **It fixes the prototype's own two defects, named where they are:**
+  - `budget.ts`'s rung 2, `c2 = { ...content, water: water8 }`, and rung 5's `c4` both keep the ε × 2 set's `collapsed.water`;
+  - `frame.ts:242` stores a refused ring as null, so `collapsed.water` counts it.
+- **The build reports the counts `bm_build` would carry:**
+  - `refused`, the drawn set's refusals;
+  - `refusedBuilt`, across every water set built (the prototype's existing counter);
+  - `steps`, D2's step count.
+- **With `Q4_PROV` unset, every added path is inert.** QW4-C0 grades that.
+- **The files changed against pq4b:**
+  - `build.ts` (`f6fe699c2760`, 5 lines), `budget.ts` (`7d98b3971671`, 3), `frame.ts` (`be6c086e95c5`, 3), `layers.ts` (`0608b62c465c`,
+    3). Every other `src` file is identical.
+  - It also copies `test/basemap-synth.ts` (`b023a4ed5424`) and its four `scripts/basemap` modules from the pinned commit. All five
+    were checked blob-identical, so the fixture stores use the pinned encoders.
+- **The children and the driver:**
+  - `dr-q4c3.mts` (`b02b5a66d240`): one build per process, of pq4b or pq4c, at a point, with no memory instrument. It reports the
+    package's sha, a digest per section, the non-terrain bytes, PROVENANCE's byte length and its lines;
+  - `dr-q4-bowtie.mts` (`4f408a4a2cf2`): QW4-3's store, made in memory;
+  - `dr-q4-c.mts` (`fb841b7a8604`): the driver, with the predictions below copied in.
+- **Import checks:**
+  - each child, with both prototypes, refused a bad point or argument with exit 2 after its imports and exports had resolved, and
+    no build ran;
+  - esbuild parses all three.
+
+### The rows
+
+| row | what | predicted |
+|---|---|---|
+| **QW4-C0** (the anchor, and the edits inert when off) | at all 13, QW4-1's knobs (`Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`) | **pq4b's package is QW4-1's recorded sha** at every point (the references have not moved). **pq4c with `Q4_PROV` unset is byte-identical to it** |
+| **QW4-C1** (the counting fix, on real points) | the same, plus `Q4_PROV=1` | **every section but PROVENANCE equal to pq4b's,** with the same rung, radius and tolerance. **PROVENANCE has the same lines but for `collapsed.water`'s value,** and at KJAC (rung 1, no refusal) not even that. **Or, at a point, the cap edge** (named below), recorded and not a stop. **`refusedBuilt` as QW4-1 counted it:** KMSP 2, every other point 0. **`steps`: 2 at New York's 4, 1 at the 9.** **KMSP's `refused`: 0** (below). Each point's old and new `collapsed.water` is recorded |
+| **QW4-3** (the backstop's plant) | `dr-q4-bowtie.mts`'s store, B's knobs with `Q4_PROV=1`, in the order below | as the four rows below |
+
+**QW4-3's store.**
+- Origin (0, 0), one water file, the client's query (r 162 km, ε 201,168 mm), water only.
+- **"bowtie":** (E, S) km A(10,10), D(10,30), C(50,10), B(50,50).
+  - Edges D–C and B–A cross once, near (23.3, 23.3). It has 4 vertices, so tp has nothing to add.
+  - Its lobes are unequal, so it is an outer part (signed lon/lat area −800, in (E, −S) km).
+  - Its vertices are at least 20 km apart, so it survives at ε × 8 (1.609 km), and is in all four water sets.
+- **"square":** a 10 km outer square at (−40..−30, −40..−30), which nothing touches.
+
+| QW4-3 | knobs, store | predicted |
+|---|---|---|
+| **the control** (first) | the backstop off, both rings | **the package carries the bowtie: 2 rings, 1 proper crossing;** `refused` 0, `refusedBuilt` 0 |
+| **on** | both rings | `kOk`, rung 0, `steps` 1. **1 ring, 0 crossings; `refused: 1`; `refusedBuilt: 4`** (ε, × 2, × 4, × 8); **`collapsed.water: 0`** |
+| **the reference** | the square alone | 1 ring, `collapsed.water: 0`, `refused` 0, `refusedBuilt` 0. **The package byte-identical to "on"'s:** the bowtie leaves no trace in the package. The store id is the same, since the manifest is |
+| **the old rule** (`Q4_PROV` unset) | both rings | **`collapsed.water: 1`, which differs from the right rule's 0,** so the check can fail; `refusedBuilt` 4, 1 ring |
+
+**THE CAP EDGE, named before the run, and a correction to the code PR's package row.**
+- **The mechanism.** The ladder counts PROVENANCE's bytes against the 32,768 cap. QW4-1's packages sit close to it: KJFK at 32,767,
+  and KLGA, KSFO and KSEA at 32,766. When `collapsed.water`'s new value has a different number of digits, PROVENANCE changes length.
+  A package within those bytes of the cap can then fit at a different drop count, and its roads or water section legitimately changes.
+- **So QW4-C1 at a point is one of two named outcomes:**
+  - **equal:** every section but PROVENANCE equal, and PROVENANCE differs only in `collapsed.water` (and not at KJAC);
+  - **the cap edge,** recorded and not a stop. It requires, together:
+    - PROVENANCE's byte length changed;
+    - the same rung, `kOk`, and at most 32,768;
+    - the sections that differ are water or roads only;
+    - PROVENANCE differs only in `collapsed.water`, `dropped.water` and `dropped.roads`;
+    - the point is not KJAC.
+
+  It is printed with the byte arithmetic, PROVENANCE's length against the slack under the cap. **A rung change** is the cap edge
+  reaching a rung boundary, and **stops and is reported.**
+- **The same applies to the code PR's package row,** frozen at `c0be464cf124`: "every section but PROVENANCE is byte-identical to
+  QW4-1's package". The code PR fixes the same count, so the same edge can move a drop count there. **That row takes the same two
+  outcomes, on the same conditions.** I wrote it without the mechanism, and it would have stopped a correct build.
+
+**Why KMSP's `refused` is predicted 0, and not just recorded.**
+- KMSP's package draws the ε × 8 set at rung 3. It held 176 water rings and 0 crossings both in the cost read (tp, no backstop) and in
+  QW4-1 (tp and the backstop), so tp alone left that set with nothing to refuse.
+- Its 2 refusals are in sets it doesn't draw: at least one in ε × 2, read from QW4-1's package change.
+- **A reading other than 0 means that reasoning is wrong.** It stops, like any off reading.
+
+| outcome | meaning | next |
+|---|---|---|
+| **QW4-C0's anchor off** | QW4-1's references have moved (the store, the prototype or the tree) | **stop** |
+| **QW4-C0 not inert** | pq4c's edits change packages with the knob off | **stop** |
+| QW4-C1 at a point: **the cap edge,** on all of its conditions above | PROVENANCE's new length moved a drop count | **recorded, with the byte arithmetic; not a stop** |
+| **QW4-C1: any other difference** (a section other than water or roads, another PROVENANCE line, PROVENANCE's length unchanged, or a rung change) | the fix reaches more than the count, or the edge crossed a rung | **stop** |
+| QW4-C1: `refusedBuilt`, `steps`, or KMSP's `refused` off | the counters or the reasoning above are wrong | **stop** |
+| **QW4-3's control shows no crossing** | the plant didn't land, so its pass would mean nothing | **stop** |
+| QW4-3 on, the reference or the old rule off | the backstop or the counting doesn't hold | **stop** |
+| **anything else** | | **stop and report** |
+
+**Machine rules:**
+- No vitest runs.
+- Free disk is read before the run, and it is not a large build.
+- Nothing runs on staging, and nothing deploys.
+- The run reads the pinned `525cf7d1` through the prototypes, not main's head.
