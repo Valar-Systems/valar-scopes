@@ -1361,3 +1361,45 @@ the most it can save is about 1.8 MiB. It is not D4's lever.
 - **Other points.** New York's other three points and the dense rungs come with Q-DR3, on whichever builder this supports (ruled (a)).
 
 **Outside the set:** anything else stops it.
+
+### The release variant, phase 1, read (2026-11-11, 04:57:45-04:57:53Z): stopped at RV0, in the second v0 process
+
+The registration was frozen at 04:57:36Z (`27054fc20d7c`). Two v0 processes ran; the driver stopped itself in the second (exit 8). The error
+file is empty, the tree stayed clean, and nothing ran on staging. No prediction file was made, and phase 2 didn't run.
+
+| row | v0, process 1 | v0, process 2 | |
+|---|---|---|---|
+| RV3 | controls ok; settled (at most 3); objects local; 422, DR0's ladder; KJAC 200, `b3f428e5860e` | the same; KJAC `b3f428e5860e` | as predicted |
+| RV0, against 99.51 ± 0.50 | 99.33 at cell 16 (−0.18) | 99.55 at cell 16 (+0.04) | as predicted |
+| **RV0, the three within 0.10** | - | **spread 0.22** | **off: stop** |
+| **DF** | sample minus decoded size, cells 16-21: 92.71 / 94.01 / 94.91 / 95.12 / 95.33 / 95.49 | 92.93 / 94.23 / 95.13 / 95.34 / 95.54 / 95.71 | **the candidate holds in both:** never falls, rising at least 0.17 MiB a step |
+
+**The spread is an offset per process, not a different build.**
+- Process 2 reads 0.22-0.23 MiB above process 1 at every cell, from cell 1, and 0.35-0.36 MiB above it in the tile loop and after.
+- The two traces have the same shape, read the same objects, and give the same ladder and KJAC bytes.
+- **What the offset is:** not established. A difference in each process's own state at its baseline fits, and this read can't separate
+  that from anything else.
+
+**My miss, with its cause:** I set the 0.10 among the three v0 processes from `mem-diag5`'s repeatability (0.04). This driver's repeatability
+had never been measured. It is the RA0 miss in a new form: the bound for a quantity has to come from a spread measured for that quantity,
+in the configuration that will be graded.
+
+**DF, read both ways, as registered:**
+- **The candidate holds:** each cell's sample includes that cell's decoded features. Cell 16 decodes to **6.62 MiB** (its read is 4.72) and
+  cell 21 to 2.06.
+- So the fall from cell 16 to 21 (1.78 MiB) is cell 16's decoded features (6.62) giving way to cell 21's (2.06), less the layer sets'
+  growth (2.78).
+- It is real memory: the decoded cell is live while its features are added.
+
+**Also printed, reported:**
+- **The tile loop holds 73 tiles.** Its largest sample is 61.60 / 61.95 MiB at its end; v0's tile reads are 0.04-0.13 MiB each.
+- **After the loops:** tiles 56.23 / 56.59, terrain 56.48 / 56.84, layers 59.61 / 59.97, ladder 59.67 / 60.02, end 8.53 / 8.88.
+- **Decoded size per cell:** 0.27-6.62 MiB, the same in both processes to 0.03.
+
+**A preview from these two processes, by the registered formula. Not frozen, not graded:**
+- The variant's cell phase would read about 53.6 MiB at cell 16. That is v0's 99.44, less 45.88 MiB of cells 1-15.
+- Its build's largest would move to the ladder phase, about 59.8 MiB (62.7 MB).
+- **Why the ladder phase is a floor:** the formula keeps v0's figures after the loops. Letting reads go can't reduce what the layer sets
+  and the ladder hold.
+
+**By the registered table: RV0 off, so stop.** Nothing is graded past it.
