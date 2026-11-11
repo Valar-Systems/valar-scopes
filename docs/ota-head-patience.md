@@ -239,3 +239,107 @@ driver's own functions) **compiles with `-Werror`, with 0 warnings without it.**
 - **S-O8b's registered red set is unchanged:** I1-I6 each `-log` and `-target`, O10 and MAP2.
 - **HP2 and HP5 still read `Truncated`,** decided before `FinishImage`.
 - **HP1, HP3 and HP4 still install.**
+
+## 11. Amendment 3, AFTER CODE: the owner's three asks of 23:03Z (2026-11-11 ~23:35Z)
+
+**Labelled after code.** The owner's asks were meant to come before any code was committed. They reached the reviewer at
+~23:20Z. The code commit (`ed0d660b9d53`) was made at 23:07:04Z and pushed at 23:20:45Z under the reviewer's go, so every
+answer below is against the pushed code.
+
+### (a) Did anything run before amendment 1? No.
+
+Read from the session's transcript and its tool results, not from memory:
+- **The local code before amendment 1 (committed 22:58:53Z)** was one edit to `include/OtaInstall.h`, at 22:55:08Z, in a
+  second worktree. Four edits to `src/OtaUpdater.cpp` at 22:55:17-27Z were refused by the editor (the file had not been
+  read) and never applied. That worktree's `git status` at 22:59:16Z lists `include/OtaInstall.h` alone, so amendment 1's
+  "state" line was accurate.
+- **No HP row, driver change or plant existed locally yet.** The first edits to `test/host/test_ota_install.cpp` and the
+  two drivers are at 23:00:23Z and later.
+- **Nothing compiled or ran.** Every tool call from the registration to 22:58:53Z: 63 Bash, 6 PowerShell, 17 Edit,
+  1 Write, 2 Read, 21 SendMessage and 2 TaskStop, with no subagent. The shell commands after the first code edit were all
+  reads: a function body, the workflows' triggers, the sweep (`git grep` at the registration commit), the identity
+  driver's source, and `git status`. The first compile or run is at 23:02:29Z: the suite, under WSL g++ 13.3.
+- **So amendment 1 stands.** HP1, HP3 and HP4 moving to the own head, and S-O8a's set gaining {HP2, HP5}, came from
+  reading S-ID2b and S-O8a's plant, not from a result. They are not re-grades.
+
+### (b) The sweep, with the file pattern it lacked
+
+Amendment 1 said its sweep "covers every symbol, constant, count, file and source type the fix touches". It did not: it
+had no pattern for `src/OtaUpdater.cpp`, the second file the fix edits. The missing row, at C (`3a322758eadc`), run as
+`git grep -nIE 'OtaUpdater' 3a322758eadc -- . ':!docs'`:
+
+| pattern | hits | readers found |
+|---|---|---|
+| `OtaUpdater` | 63 lines in 34 files | the four groups below; **one reader exists to read what the fix changes, and can't** |
+
+- **They read `src/OtaUpdater.h` only,** which is byte-identical at C and the candidate:
+  - the firmware workflow, `verify-release.sh`, `check-customer-entry.py` and `tools/web-renderer/build.sh`, all for
+    `FW_VERSION`;
+  - the `#include` lines in `src/` and `include/`;
+  - `tools/web-renderer/web/web_ota.cpp`, which stubs `OtaUpdater.cpp`'s entry points. `OtaUpdater.h` doesn't include
+    `OtaInstall.h`, so the web build compiles none of the fix;
+  - `test/host/test_quiet_cap.cpp`, a constant transcribed from the header.
+- **They read a part of `src/OtaUpdater.cpp` the fix doesn't touch:**
+  - `check_ota_url.py` reads the one `#define OTA_RELEASE_BASE`: one at C, one at the candidate;
+  - `check_ota_identity.py` and `test/fixtures/ota/identities.txt` read whether an env's source filter compiles the file:
+    its name, not its content;
+  - `reconcile-fleet.py` reads the result tokens. Its `TOKEN_RE` is unchanged, and the code that writes the tokens is
+    outside section 6's regions, which the source check proves byte-identical.
+- **Prose and comments:** CLAUDE.md, RELEASING.md and `proxy/README.md`, and comments in the dashboard, the proxy, five
+  headers, `CloudFeed`, `ota-latest-probe.sh` and `OtaUpdater.cpp` itself.
+- **`scripts/ota-download-path-diff.sh` exists to read what the fix changes, and can't.**
+  - It says whether two refs share the same download path. It compares eight named column-0 functions in
+    `OtaUpdater.cpp`, plus `OtaCerts.h`, `HttpRequestManager.{h,cpp}` and the platform pin.
+  - Since #552 the head read and the write loop live in `include/OtaInstall.h` and in `UpdateFlash` and `StreamSource`,
+    which it never reads.
+  - Predicted, then run, C to the candidate: all 12 items SAME, exit 0, *"the download path is the same source"*. That is
+    false, because `ReadHead` and `writeRest` changed.
+  - Its own control (`v15 v16`) still exits 1, so the script works as written; its item list predates #552.
+  - No v19 step runs it. Its one caller is factory-image-plan.md's v17-to-v18 P4'. It is outside section 6's scope and is
+    not changed here.
+
+One semantic note, which is not a reader defect. After the fix, `refused-truncated` means the head stayed short through
+300 empty reads (about 30 s), or the stream really ended. At C it also meant the first empty read. Readers count the token
+without interpreting it, so nothing breaks, but a `refused-truncated` rate at C and one at v19 count different events.
+
+### (c) Section 6's source check is not blind to members
+
+**The region extractor, named:** `span()` in the check's script (sha256 `9ba4d868f367` as run).
+- A region **starts** at the first occurrence (`str.find`) of a literal start marker. For `StreamSource`, any `//` lines
+  directly above it are included.
+- It **ends** at the first match, at or after the region's signature, of a closing line at the region's own indentation.
+- Both versions are cut, and everything left is compared byte for byte.
+
+| region | start marker | end |
+|---|---|---|
+| `ReadHead`, at C | `template <class Source>` + `size_t ReadHead(` | `^}` |
+| the constants + `ReadSome` + `ReadHead` | `// THE PATIENCE` | `^}` after `size_t ReadHead(` |
+| `StreamSource` (namespace scope, column 0) | `struct StreamSource {`, with its comment | `^};` |
+| `UpdateFlash::writeRest` (a member, indented 4) | `    template <class Source>` + `    size_t writeRest(` | `^    }` |
+| `SerialBudget` (namespace scope, column 0) | `struct SerialBudget {` | `^};` |
+
+It is not a column-0 extractor. `writeRest` is found by its indented signature, and every other member of `UpdateFlash`
+stays in the comparison.
+
+**Its extents** (`--regions`): every start and signature marker occurs exactly once in both versions, and every cut ends
+on its own closing line, with a blank line after it.
+
+**The controls.** Each is planted alone, in memory, on the candidate's committed content, with its anchor asserted present
+exactly once and the plant asserted applied:
+- **K1c, the reviewer's control:** `UpdateFlash::begin`'s `ScreenProgress(tft_, fb_, 0)` changed to `1`. It reads **OUT
+  OF SCOPE** (`src/OtaUpdater.cpp`, different outside the allowed regions).
+- **A1-A8: extra, unregistered, labelled as such.** Each sits in the line or member directly beside a region, so a region
+  that ran past its end, or began early, would swallow it and read IN.
+  - The eight sites: `write()` above `writeRest` and `end()` below it; the line above `StreamSource`'s comment and the
+    first line after `StreamSource`; `SerialBudget`'s own comment and the first line after `SerialBudget`; the lines
+    directly above and below `OtaInstall.h`'s region.
+  - **All eight read OUT OF SCOPE.**
+- **The base check still reads IN SCOPE** after `span()` was split out of `cut()` with its behaviour unchanged, and K1 and
+  K1b still read OUT.
+
+**So the source half's IN SCOPE stands.** The artifact half could not decide: a 48-byte growth in `MaybeUpdateFirmware`
+and the new `ReadSome` shift the layout, and its normalisation keeps symbol+offset literals. The registered verdict is
+unchanged: **step 4 runs with the owner** (ruled (A) by the reviewer).
+
+**Predicted CI at this amendment's head:** 34 = 30 success / 4 skipped / 0 failed. A pull request's path filters read the
+whole PR, so the web-renderer workflow still runs. Anything else: stop and report.
