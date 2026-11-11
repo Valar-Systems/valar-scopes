@@ -901,6 +901,129 @@ The local guards were run at a1c0657c, and each exits 0: `check_wifi.py`, `check
 
 **The prediction stands: 34 = 30/4/0**, now on the merge with `68dc169a`.
 
+## Step B: drawing the package under the radar (predictions, for review; 2026-11-11)
+
+**Status: for review. Nothing here is code yet.** Step A merged as #634 (`1d7049f72ac1`): a validated package is held
+in `mapPkg` (`src/AircraftManager.cpp`, `ConsumeBasemap`), and nothing draws it. Step B draws it. Step C (the wedge's
+green added to the map) and step D (the settings) stay separate, as ruled.
+
+**Read first, from the code at `78c2bec2`, and not from any run:**
+- **How the radar face's frame is built today.** `src/main.cpp:943-944` clears it:
+  `if (!DrawWeatherUnder(canvas)) fillScreen(black)`. `main.cpp:968-970` draws the sweep before `Draw`:
+  `DrawSweepOverWeather`, else the opaque `DrawRadarSweep` (`include/DrawHelpers.h:29-58`). After that, `DrawRadar`
+  draws the rings, the airports and the planes.
+- **The weather layer copies over the whole frame.** `DrawWeatherUnder` copies all 115,200 B of `wxLayer565` with one
+  `memcpy` (`src/AircraftManager.cpp:3615`). Dry pixels in that layer are black, so **a map drawn before it would be
+  erased.** S3's order (map, then names, then weather) needs the two layers composed into one.
+- **Both wedge paths overwrite whatever is under them.** The opaque wedge does, and so does the weather blend: on a dry
+  pixel, `wxsweep::Lit565` returns the opaque `Green565` (`include/WxSweep.h:40-45`). Until step C, the beam erases the
+  map wherever it passes.
+- **Byte order.** `maplayer::Build` writes logical RGB565 (`include/MapLayer.h:276`). The canvas and `wxLayer565` hold
+  it byte-swapped (`AircraftManager.cpp:3645`).
+- **Airport boxes are recorded nowhere.** `DrawAirports` (`AircraftManager.cpp:5367-5413`) draws each mark as
+  `drawRect(x-2, y-2, 5, 5)` and its code at `(x+5, y-3)` in the 6 × 8 GLCD font. `overlapFrame` only counts. A name
+  that must not cover a code has to get the boxes from the same list and the same rule.
+- **The Weatherscope's place-name code is tied to its own frame:** the y band 26-192 (`BoxFree`,
+  `src/weatherscope/WxScreens.h:142-152`) and a north-up mapper with no rotation (`WxBasemap.h:43-56`). The rule
+  itself carries over: `RankOrder` (largest first, a population of 0 ranking as 1,000, ties in file order; :188-201),
+  `Cap` (8 at 60 mi and over, 6 at 30 and over, 5 below; :204), `Inner` (24.4 px; :126), `ClearsCentre` (:118-123),
+  and the box geometry with 4 px of air (:156-184).
+
+### What step B builds
+
+| part | where | what |
+|---|---|---|
+| **the composer** | `include/MapCompose.h`, pure | composes the base layer: `Build`'s output byte-swapped, the place names drawn onto it, then every non-zero weather pixel over that. Off the disc is 0 |
+| **the place names** | `include/MapPlaces.h`, pure | the Weatherscope's rule, its arithmetic repeated where its code is tied to its frame, as `MapLayer.h` repeats `wxraster::Line` under CM11. Anchors come from the map's own affine (`maplayer::AffineFor`, so rotation is included). Inside the disc (116 px), clear of the centre, **never over an airport mark or code**, 4 px of air |
+| **the stale test** | `include/MapCompose.h`, pure | **the map is rebuilt** (`Build` plus the names) when the view (lat, lon, `viewRadLat`, `viewRadLon`, `rotSin`, `rotCos`), the package (step A's sequence) or the airport boxes change. **The composite is redone** (`memcpy` plus the weather overlay, no `Build`) when only the weather layer changes. Never per frame |
+| **the wiring** | `AircraftManager`, under `BLIPSCOPE_MAP_FETCH`, in `// THE MAP DRAW BEGIN/END` regions | the PSRAM buffers are allocated at the first accepted package, all or none. **`DrawWeatherUnder` becomes the base draw:** with a map composite ready, one `memcpy` of the composite; without one, today's two paths byte for byte. Rebuilds run on the loop task at the next shown radar frame, as the weather layer's do |
+
+**Memory (Q-MB1):** the map layer with its names, 115,200 B; the composite, 115,200 B; `Build`'s index image,
+57,600 B; and `Scratch`, 32 B per vertex (two int32 and three double) for maxVertices + 1. That is about 288 KB of PSRAM, none of it internal (CLAUDE.md:
+sprites in PSRAM cost nothing internally). **The steady frame stays one `memcpy`:** CF1 and CF4 already price it.
+
+**The gate.** Everything compiles only under `BLIPSCOPE_MAP_FETCH`, as step A does, so the shipping image draws nothing.
+CB-W, below, reads that off the image.
+
+### The composer and the stale test (CB1-CB5), host: `test/host/test_map_draw.cpp`
+
+| row | input | predicted | plant (turns exactly) |
+|---|---|---|---|
+| **CB1** | synthetic layers: map pixel M, name pixel P, weather pixel W | W where W ≠ 0; else P where a name is drawn; else M; 0 off the disc. **S3's order** | S-CB-ORDER, the weather composed under the map: {CB1} |
+| **CB2** | `Build` over KJAC at 100 mi | each composite pixel with no name and no weather equals `bswap16` of `Build`'s pixel | S-CB-NOSWAP: {CB2} |
+| **CB3** | no package ever accepted, weather on and off | **0** map bytes allocated, **0** `Build` calls, and the base draw's bytes equal today's: `wxLayer565` with weather on, black with it off | S-CB-EAGER, buffers allocated at `Initialise`: {CB3 alloc} |
+| **CB4** | each of the six view inputs, the package sequence and the airport boxes changed, one at a time | exactly **1** map rebuild each; **1,000** frames with nothing changed: **0** | S-CB-NOROT, rotation left out of the key: {CB4 rotSin, CB4 rotCos}; S-CB-PERFRAME, rebuilding every frame: {CB4 steady} |
+| **CB5** | the weather layer rebuilt, nothing else | **1** compose, **0** `Build` calls | S-CB-WXBUILD, a weather change rebuilding the map: {CB5} |
+
+### The place names (CB6-CB8)
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CB6** | **A sweep:** KJAC, KSFO and Bend; every ladder step; rotations 0-315° by 45°; the baked airport table near each. Every frame must hold: placed ≤ the cap; **no placed town ranks below a skipped town that would have fitted** (largest first, ties in file order); no box within `Inner` of the centre; every corner within 116 px; **0 boxes overlapping an airport mark or code box** (with 4 px of air); 0 overlapping each other. **The counts (placed, refused by reason) are computed by an independent scratch reading once Q-MB3 to Q-MB5 are ruled, and registered before code** | S-CB-AIRPORT, airports not obstacles: {CB6 airports}; S-CB-FILEORDER, file order: {CB6 rank}; S-CB-NOCAP: {CB6 cap} |
+| **CB7** | a town's anchor equals the point `Build` maps from the same (qx, qy), ± 0.5 px, and is within 1 px of `radarproj::Project` (as CM3), at every rotation | S-CB-NORTHUP, the Weatherscope's north-up mapper: {CB7 at rotations ≠ 0} |
+| **CB8** | **one helper gives the airport boxes to both `DrawAirports` and the names:** the same list (`cloudAirports`, else the baked `AIRPORTS`), the same cull and `ProjectAt`, the mark 5 × 5 at (x−2, y−2), the code at (x+5, y−3), 6 px a character. A source check that `DrawAirports` calls it | S-CB-SECONDPATH, `DrawAirports` drawing the code at x+6 without the helper: {CB8} |
+
+The repeated arithmetic stays equal to the Weatherscope's by test, as CM11 does for the line: `RankOrder`, `Inner`,
+`ClearsCentre` and the box geometry, over every case they share.
+
+### Checks that read the source (CD1-CD3), and the image (CB-W)
+
+| row | check | plant |
+|---|---|---|
+| **CD1** | F8 for the new files: no `Preferences`, no `put*`, SPIFFS or LittleFS | S-CD-NVS: {CD1} |
+| **CD2** | **privacy:** no `printf` in the map's files prints a place name, an anchor or a coordinate. A town's name near the device says where the device is | S-CD-PRINTNAME: {CD2} |
+| **CD3** | the map's View is filled from the same six fields as the weather layer's (`AircraftManager.cpp:3560-3567`) | S-CD-VIEW, `viewRadLat` swapped for `radLat`: {CD3} |
+| **CB-W** | shipping `firmware.bin` holds no map-draw string, and the wxlook image holds them, read off both images as step A's W7 was | the wxlook image is its control, as it was W7's |
+
+`check_map_fetch.py` pins its region counts (`h:3`, `cpp:9`). The new `THE MAP DRAW` markers are counted apart, by
+`check_map_draw.py`, so step A's pins do not move.
+
+### Bench, with step M's window on E2:08 (after v19's, on the owner's word)
+
+CF1 to CF6 already price the layer, and step B is what makes them measurable on the device. Step B adds:
+- **CBF1:** a zoom step's rebuild (`Build`, the names and the compose) ≤ **100 ms**, the ruled bar, printed per pass.
+- **CBF2:** on glass, the names read, and none covers an airport code. The owner's eye has the last word.
+- **CBF3, until step C:** the beam erases the map where it passes, through both wedge paths. **Registered here so that
+  nobody reads it as a step B defect** (Q-MB2).
+
+### Questions for the ruling
+
+- **Q-MB1, memory.** Two PSRAM layers (the map with its names, and the composite), about 288 KB with the index and
+  scratch, allocated at the first accepted package, all or none; a failure leaves the map off and logged.
+  - The alternative is one layer, rebuilding the map on every weather change: 30-70 ms (CF5), about every 5 min.
+  - **I recommend the two layers.**
+- **Q-MB2, the wedge until step C.** Both wedge paths erase the map under the beam.
+  - (a) B merges as it stands, and C follows with its own predictions. Only images built with `WX_LAYER_SHIPS` draw a
+    map, which today is the wxlook image alone, so no customer sees it.
+    - **The release flip changes that.** `platformio.ini:148` turns `WX_LAYER_SHIPS` on for every `${cloud.prod}` env.
+      **So step C must merge before that flip.** That is a dependency for the release, not a row here.
+  - (b) Fold C into B.
+  - **I recommend (a).**
+- **Q-MB3, the cap.** The ruling says "at most 8". The Weatherscope's rule caps at 8 from 60 mi, 6 from 30 and 5 below.
+  - **I recommend the Weatherscope's `Cap`** at the radar's current view, since "the Weatherscope's rule" includes it.
+  - No peaks share the cap (no peaks in the request, Q-MC7 (b)).
+- **Q-MB4, what else a name must avoid.** Proposed fixed boxes, besides airport marks and codes:
+  - the three ring labels (`DrawRadarCircles`, x = CENTRE + 4);
+  - the cardinal letters (r = 112);
+  - the screen-indicator row (y ≈ 221-227).
+  - The stale banner, the weather note, the zoom pill and toasts are transient and draw on top. They are not obstacles.
+- **Q-MB5, the label's look.** The Weatherscope's (a 3 × 3 dot and the text) in the theme's place grey (86, 86, 86),
+  with a 1 px halo in the theme's land colour so the text reads over roads and water. The owner judges it on glass.
+- **Q-MB6, the place list.** Read with `bmpk::ForEachPlace` into `MapPlaces.h`'s own list, at most 256, where more
+  refuses the package's towns as the Weatherscope does.
+  - This avoids including `WxScenes.h` and `WxScreens.h` into the radar image: they pull in the Weatherscope's
+    scenario, theme and town tables, and an unreferenced function still costs image bytes (`.eh_frame`).
+- **Q-MB7, names under the weather.** S3 puts the names below the weather, so heavy rain hides them. Confirm.
+
+### CI for this PR (docs-only), predicted
+
+**32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed,** in three workflows
+(device-ids, firmware, no-traffic-captures).
+- **The baseline is #640's finished docs-only PR run** (head `289a1e25609f`: 32 = 29/3/0, the same three skips).
+- No workflow has changed since #633 (`e2c34daf82a1`), whose change to `device-ids.yml` added steps, not jobs. #640's
+  run postdates it.
+- **Any other count, skip set or failure means a stop and a report,** with no re-run.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
