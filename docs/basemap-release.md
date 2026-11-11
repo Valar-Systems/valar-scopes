@@ -442,3 +442,62 @@ differences remain:
 - **(b)** the plant under `dr-child2`'s imports.
 
 Whichever pair reads COPY names the cause: the tree, or the child's second module graph. Neither, or both, is reported as read.
+
+## Two corrections and one condition (the orchestrator, read at 19:12:12Z and 19:12:42Z)
+
+- **The ruling headed "~19:05Z" above was sent between 19:04:40Z and 19:12:12Z.** The orchestrator's stamp was estimated, not read.
+  Nothing in the ruling changes.
+- **This record's own message stamps were estimated too** (one said 19:24Z when the orchestrator's clock read 19:21:43Z). From here on,
+  the times in this record are read with `date -u`.
+- **The staging deploy waits on one more condition.** `confirm-deploy.sh` and `smoke-prod.sh` find the build stamp by grepping "commit"
+  across the whole `/healthz` body. The `basemap` block carries a commit of its own, null until the builder answers once.
+  - This staging deploy is what first makes it answer on staging. Every later staging proxy deploy's confirmation would then read two
+    commits and report a wrong one.
+  - **So the staging deploy waits until blipscope-5c's fix, which reads only the top-level key, is merged.** The orchestrator says when.
+  - The rollback target is read as `basemap.commit`, by key, not by grep.
+
+## The ruling (from the orchestrator, read at 19:14:48Z), verbatim (its Q-RV6 part)
+
+> Q-RV6: yes, registered and committed before it runs. The two-by-two cross at KJFK, one process each:
+> - (a) the copy's builder under dr-child5's imports;
+> - (b) the plant under dr-child2's imports.
+> Meanings, decided now:
+> - Only (a) reads COPY: the copy's builder tree is the cause (its ε×4/ε×8 frames and sets, or its sea hook).
+> - Only (b) reads COPY: the child is the cause (dr-child2's extra module graph: the unpatched builder and the shapefile reader resident
+>   in the process).
+> - Both read COPY, or neither does: reported as read, no cause named. Say what's left.
+> - Any read outside both bands, or a failed control: stop.
+> Two things to keep in sight:
+> - If the cause is the child's extra imports, then the copy's figures were measuring the harness, not the builder. That reaches back to
+>   Q-DR3's memory figures, including the 77.2 MB the owner took with B. Say so plainly in the report.
+> - RL1 is re-registered only after a cause is named. Then a measurement run, and a fresh graded run, as ruled at Q-RV5 (3).
+
+## Q-RV6: registered before it runs
+
+**(a) The copy's builder under `dr-child5`'s imports:**
+- the builder is `rv-hk/hk-copy`: the copy's whole `src/basemap/`, byte-identical to `dn`'s (its `build.ts` is `c9328545b7ed`);
+- the child is `dr-child7.mts` (`90cebca0e12d`): `dr-child5.mts` with one line changed, to accept "copy". Its static imports are
+  `dr-child5`'s, from the PR's hooked tree, and it imports the builder dynamically.
+
+**(b) The plant under `dr-child2`'s imports:**
+- the child is `dr-child2b.mts` (`8b5e7423b32f`): `dr-child2.mts` with only its builder import changed, from the copy's `build.ts` to
+  the plant's;
+- every other import of `dr-child2` stays resident: the copy's format, frame, budget and query, the repo's unpatched builder from
+  `wt-main`, and the shapefile reader.
+
+**Both run at KJFK, one process each,** with `DENSE_RELEASE=1`, the same query, Q-DR3's controls and settled samples.
+- **The bands are Q-RV5's:** COPY is 61.58 ± 0.785 MiB in the cell phase; PR is 58.52 ± 0.785 MiB in the ladder phase.
+- **Both children's imports were checked first:** given an unknown point, each loaded every module and refused the point (exit 2). No
+  build ran.
+
+| (a) | (b) | meaning |
+|---|---|---|
+| **COPY** | PR | **the copy's builder tree is the cause** (its ε×4 and ε×8 frames and sets, or its sea hook) |
+| PR | **COPY** | **the child is the cause:** `dr-child2`'s extra module graph. **The copy's figures measured the harness, not the builder**, and that reaches back to Q-DR3's memory figures, including the 77.2 MB the owner took with B |
+| COPY | COPY, or PR, PR | reported as read, no cause named, with what's left |
+| **anything outside both bands, or a failed control** | | **stop** |
+
+**The wrapper** is `rv-q6.sh` (sha256 `b2c9e3309277`). It checks every artifact (the copy byte for byte, each child's one-line diff),
+runs (a) then (b), and prints the bands and the verdict.
+
+**After a cause is named:** RL1 is re-registered, then a measurement run at all 13, then a fresh graded run, as ruled at Q-RV5 (3).
