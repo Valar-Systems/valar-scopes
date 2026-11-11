@@ -136,3 +136,28 @@ runs on staging.**
 
 - **Q-RV1:** KJFK joins KLGA in the staging request (recommended)?
 - **Q-RV2:** the staging deploy after the merge: who runs it, through `deploy.sh` under the claim, and in which slot?
+
+## The local rows, read (2026-11-11, 17:49:03Z): stopped at RL0, an instrument failure, before any build
+
+The run used the PR's code at `7a9b4168df46`, registered at `4b3933f6c1c1`. **One child ran, and the parent stopped itself (exit 1).
+Nothing was graded.** The tree stayed clean, and nothing ran on staging.
+
+- **The hooked copies passed every check first:**
+  - each `build.ts` is its blob plus the seven hook lines;
+  - every other file is byte-identical to its blob, and the same in the PR and on main;
+  - the two hooked builders differ only in `readInOrder`, by exactly the PR's change.
+- **The cause is the driver's own query parser.**
+  - The child imports `parseQuery` from the hooked copy's `query.ts`, which imports `../wx/crop`.
+  - The hooked copy holds only `proxy/src/basemap/`, so the child died on that import, before any control or build ran.
+  - I reproduced it without a build, with a child given an unknown point: the same `Cannot find module '../wx/crop'`.
+- **The builder is not involved.** `build.ts` and the seven files it imports stay inside `proxy/src/basemap/`.
+- **My miss, with its cause:** the driver's imports were never run before the registered run. A child given an unknown point would have
+  shown this in a second.
+
+**Proposed (Q-RV3):**
+1. The hooked copies also take `proxy/src/wx/crop.ts` from the same commit, byte-identical to it.
+2. Before any build, the parent runs one import-only child per builder, with an unknown point. Each must refuse the point with its own
+   error line, not die.
+3. Then RL0 to RL2 run again from the start, with every row, prediction and bound as registered above.
+
+- **Q-RV3:** re-run RL0 to RL2 from the start, with these two changes and nothing else?
