@@ -823,6 +823,31 @@ device computes. Next, as registered: CA12-CA14, the sabotages and the firmware 
 Not run here, and not mistaken for run: the web renderer's build (no emsdk on this machine). Its CI job builds it on the
 push, and the gate above is what keeps the map out of it.
 
+### W1-W7 as run (2026-11-11, 03:58-04:06Z): every one as predicted
+
+| # | at | read |
+|---|---|---|
+| W1 | 03:58:10Z | exit 0; the four lines exactly as registered (3 print calls, 2 lat/lon parameters, the six headers in order) |
+| W2 | 03:58:27Z | 36 drivers checked, every one exit 0 with its `ANCHORS` line; `plant_s_swb.py` and `plant_s_tw.py` all present exactly once |
+| W3 | 03:58:39Z | `check_wx_wiring.py`: 10 rows ok, exit 0; `--selftest`: each of the 10 plants red on exactly its own row (the re-anchored WA1 plant among them), `SELFTEST PASSED`, exit 0 |
+| W4 | 03:58:46Z | `test_map_fetch: 42 checks, 0 failures`; `check_map_fetch.py: 3 checks, 0 failures`; exit 0 |
+| W5 | 03:58:56-03:59:12Z | the control clean; all 23 plants `AS PREDICTED`, each with item 5's set exactly; `real files unchanged: True`; exit 0 |
+| W6 | 03:59:34-04:05:58Z | `blipscope-s3-128` SUCCESS (2:59), `blipscope-s3-128-wxlook` SUCCESS (3:15), C: at 96 GB free. Each log's 9 warnings that name a touched file are pre-existing (two unused variables, a `%02d` truncation, six `[ota-mem]` `%u` formats), none in the map's code |
+| W7 | 04:06:07Z | shipping `firmware.bin` (1,932,448 B, written 04:02:33Z): `/basemap` x0. wxlook `firmware.bin` (1,958,752 B, written 04:05:57Z): `/basemap` x1, the control |
+
+### W8, the whole host suite under WSL, registered before it runs
+
+`bash test/host/run.sh` in `wsl -d Ubuntu-24.04` (g++ 13.3), on this commit. Predicted:
+- **exit 2, and the failed blocks are exactly these two:** "the same TU, for the board" (no xtensa toolchain in WSL),
+  and "Weatherscope R0 and R0b", the rig (no python with Pillow). Both fail on every WSL run.
+- **36 drivers** in each driver pass. Anchors: `36 driver(s) checked`, plus both board plants. Controls and the full
+  pass: `36 driver(s): 35 run, 1 skipped`, the skip being `sabotage_wx_towns.py` (no machine holds its Census
+  archives). Lint: `36 driver(s), 0 flagged; 3 pinned line(s)`.
+- **The new "MapFetch" block passes** (`42 checks, 0 failures`, then `3 checks, 0 failures`), and so does every block
+  not named above, the weather wiring's selftest included.
+- **Anything else stops the run's reading for a ruling.** A driver off in the full pass is first run against main's
+  own tree (947e1d38), to tell what this branch broke from what was already broken.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
