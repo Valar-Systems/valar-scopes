@@ -1030,3 +1030,151 @@ first station is stale, and (b) can follow on that number.
 2. W4's pre-read: does the weather server already serve Q113's product?
 3. W5's code on its own branch. Its counts and the exact sabotage sets are frozen before the suite first runs, and its CI is predicted
    before the push. blipscope-5c reads each push.
+
+### S4.12, 2026-11-11: S4.11 ruled, Q124 (a); W4's addendum, and a price the owner ruled on without its largest line
+
+**Ruled ~18:38Z by the orchestrator (the reviewer), on S4.11 at `aa9f997cd430`:**
+- **S4.11 stands as written.**
+- **Q124 is (a):** the conditions route always reads the first station in NWS's list.
+- **One printed row is added to W6,** named here before W6 runs. It is printed, not graded:
+
+  | row | printed |
+  |---|---|
+  | **W6-STN** | over every point W6's staging read covers: how many conditions answers came from a first station whose latest observation is older than 90 minutes, out of how many answers |
+
+  If that is common, Q124 reopens with the number.
+- **Q116's conflict read:** blipscope-5c reads S4.11's routes after its O11 window 2 closes. That read is a condition on W5's code.
+- **W4 is next,** docs only. The products.ts change is coordinated with uk-data before it is registered, and Q113's condition stands:
+  blipscope-5c reads the SeamlessHSR server work.
+
+**Ruled ~18:46Z, after uk-data's answers:**
+- **The overlap:** W4's health change and uk-data's `ROUTED` additions touch the same lines (`products.ts` 96-100, `index.ts` 92,
+  `wx-region.test.ts` 172-175).
+  - Whichever is approved first merges first.
+  - The second rebases, and re-reads its own predictions against the new main before asking for approval.
+  - Each PR updates the pinned `ROUTED` test itself.
+  - The order is agreed with uk-data.
+- **No second literal list:** the health set is derived from `PRODUCTS` and `ROUTED`. uk-data's health change is ruled the same way.
+- **`shsr`'s cost is the owner's gate.** It is priced below with `tools/wx/account_cost_read.py`'s model, and goes to the owner before any
+  `shsr` deploy. Nothing registered here assumes his yes.
+
+#### S4.12.1 W4's pre-read: the weather server does not serve `shsr`
+
+Read from main at `e0941a90c4e4`:
+- **`PRODUCTS`** is `cref` plus the ten OPERA products. **`ROUTED`** is `{cref, opuk}`.
+- **No `shsr` anywhere:** nothing under `proxy/` names it, and no branch is named for it. The two open PRs that mention it, #451 and
+  #437, are docs.
+- **#635 to #637 merged** as docs. None touches `products.ts` or the region table.
+
+**Four facts that shape W4, the last three confirmed by uk-data's own read:**
+1. **`products.ts`'s header** says a second product, "Weatherscope's, say", is "a row here plus its code mapping and nothing else".
+2. **The look the owner accepted can be served as encoded.** The stored loop (`test/fixtures/wx/loop/`, 15 SeamlessHSR frames) was encoded
+   by the proxy's own `mrms.ts` and `crop.ts` at `2484bda4b108`.
+   - Neither file has changed since.
+   - The loop tools call `codeOf(v)` with no missing value, which is the same function as `codeOfComposite(v)`.
+3. **No running ingest changes when the row lands.** Every `checkAll` caller passes an explicit list: cref's Worker `CREF_WORKER`, and
+   each OPERA Worker its own product. `operaProduct()` rejects a non-OPERA product, so an OPERA Worker can't host `shsr`.
+4. **The region generator reads only `source === "opera"` rows,** and indexes them among themselves. An MRMS row leaves the region table
+   byte-identical wherever it sits, so a sabotage that moves it could never go red, and none is registered. It is appended after the
+   OPERA rows anyway.
+
+#### S4.12.2 The price, and my error in Q113's
+
+**My error.** Q113 put `shsr` at **$0.47-$0.57 a month**. That figure is R2 Class A alone: 929,006 operations going to about 1.06 M,
+past the free million. **It left out the ingest's CPU,** the largest line. cref's ingest is **27.9 M of the account's 39.9 M CPU ms a
+month, 70 %** (`docs/wx-account-cost.md`, A2), and `shsr` is a second CONUS MRMS ingest of the same grid and cadence. The owner ruled
+Q113 (a) on the smaller number.
+
+**The price, with the model's own `line_cost()` and `PRICE`,** on the recorded read (A1-A8) and the model's `TEN`:
+- **The estimate:** one cron a minute (43,200 requests), and CPU 0.8 to 1.2 times cref's measured 27.9 M ms.
+- **Class A:** from uk-data's 43 k (a frame and `latest` per frame) up to 0.140 M. That upper bound is `blipscope-wx`'s whole bucket,
+  cref's frames included.
+- **Logs:** 3.00 events an invocation (A8).
+
+| the account | Read P (proportional) | Read A (R2 billed in whole millions) |
+|---|---|---|
+| **with the ten OPERA ingests, as today** | **+$0.64 to +$1.30 a month**: CPU $0.45-$0.67, Class A $0.19-$0.63 | **+$0.45 to +$0.67**: the ten already took Class A past 1 M, and `shsr` stays inside the second million |
+| without the ten, for comparison | +$0.45 to +$0.68 | +$0.45 to +$0.68, or **+$5.17** if Class A reaches the upper bound and crosses 1 M |
+
+**Against the account's bill.** At today's 17 boards with the ten, with no Weatherscope board yet:
+- **Read P:** $6.26-$6.74, which goes to about **$6.90-$8.04**.
+- **Read A:** $10.88-$11.14, which goes to about **$11.33-$11.81**.
+
+Requests, Logs and storage add nothing either way: each stays inside its included amount.
+
+**This is an estimate, not a reading.** CPU is the largest line, and nothing has measured an SeamlessHSR ingest. X10 below reads it after
+a deploy, if the owner allows one. uk-data's S3-7 re-reads the account tomorrow, and this price is re-done on that read before it goes to
+the owner.
+
+#### S4.12.3 The change, written to wait for the owner
+
+**W4's code and its deploy both wait on the owner's answer to the price.** Nothing below is built before it.
+
+| piece | what |
+|---|---|
+| **the row** | `shsr`: `source: "mrms"`, `noaaPrefix: "CONUS/SeamlessHSR_00.00"`, `noaaStem: "MRMS_SeamlessHSR_00.00"`, `cadenceS: 120`, `maxAgeS: 600`, `codeOf: codeOfComposite`, no `deviceMaxAgeS`. Appended after the ten OPERA rows |
+| **serving** | `/wx/shsr` is served by `shsr` itself, since `servedProduct()` dispatches only `cref`. **Not in `ROUTED`** |
+| **health** | **No health code in W4.** uk-data's ruled change, which goes first (S4.12.6), makes `/healthz` cover every `PRODUCTS` row, marked routed true or false, with its frame's age and a stale flag, derived from `PRODUCTS` and `ROUTED`. The `shsr` row appears there with no further code |
+| **metrics** | `/api/v1/blipscope/wx/shsr` goes into `KNOWN_ROUTES`. Weatherscope's own alias is W7's |
+| **the ingest** | an `[env.shsr]` in `wx-ingest.wrangler.toml`, so `ingest_deploy.sh` needs no change. Its Worker is `blipscope-wx-ingest-shsr`, its claim `wx-ingest-shsr:production`. `main` points at a new MRMS entry that takes its product from a `PRODUCT` var and refuses anything but an MRMS row, with `WX_INGEST = "off"` until switched. An `[env.shsr-inert]` (same name, ingest off) is its first stop, because a new Worker has nothing to roll back to. **cref's top-level Worker is untouched.** A deploy that forgets `--env` aims at `wx-ingest:production`, which the claim doesn't cover, so it is refused |
+| **the read-back** | `r3p.py` keys its minute statistics on `cref`, and #641's S3 tools are OPERA-shaped. W4 parametrises the first and reuses none of the second |
+
+**Why `cref`'s timing values:** SeamlessHSR publishes every 2 minutes, like the composite. The device judges a radar frame stale at 30
+minutes on its own (1.4).
+
+#### S4.12.4 The rows
+
+Host rows run under vitest, in `proxy/test/wx-shsr.test.ts` and the existing `wx` tests.
+
+| row | predicted |
+|---|---|
+| **X1** | `productById("shsr")` returns the row. `cref` and the ten OPERA rows keep their positions and values |
+| **X2** | `gen-wx-region.mjs --check` exits 0, with the region table byte-identical; G1 holds |
+| **X3** | `codeOfComposite(v)` equals `mrms.ts`'s `codeOf(v)` over a sweep: -999, -99, -0.5, 0, 14.999, 15, 19.999, 20, 79.999, 80, 200 |
+| **X4** | `servedProduct(shsr, p)` is `shsr` at every test point, and every existing region and dispatch test passes unchanged |
+| **X5** | `/healthz` lists `shsr` as routed false, in uk-data's shape. With no frame its age reads null, never a made-up age. `ROUTED` is exactly what main has when W4 rebases |
+| **X6** | `routeTemplate("/api/v1/blipscope/wx/shsr")` is itself |
+| **X7** | the MRMS entry with `PRODUCT=shsr` checks exactly `[shsr]`, and refuses an OPERA id. `CREF_WORKER` is still exactly `[cref]` (FT1). With `WX_INGEST` not `"on"`, it logs `wx_ingest_off` and makes **0** fetches |
+| **X8** | the NOAA URL `ingestOnce` builds for `shsr` comes from the row alone, and no SeamlessHSR literal exists in `proxy/src` outside `products.ts` |
+| **X11** | the tests that pin `PRODUCTS` move with it, and each still goes red under its own sabotage: DP2's id list gains `shsr`, and DP2s is still red; PS1 reads 12; FX finds every id checked by exactly one Worker, `shsr` by the `[env.shsr]` entry, with FX's own CONTROL still passing |
+
+**One reading before the PR, not in CI: X9, the look.** On W4's code, the 15 stored loop frames are re-encoded through the `shsr` row from
+their NOAA archive keys, each key checked against the manifest's `gribSha256` first. All 15 must give the manifest's crop `sha256`
+exactly. A key whose archive copy no longer matches is the instrument, not a reading.
+
+**After a deploy, printed, not graded: X10, the cost.** Over the first full day:
+- the `shsr` Worker's CPU ms per invocation, against cref's 645;
+- its Class A operations, against the 43 k-140 k a month assumed above.
+
+If either lands outside S4.12.2's range, the price is re-done and goes back to the owner.
+
+#### S4.12.5 The sabotages
+
+Registered before code, on `sabotage-lbmodel.mjs`'s pattern. Each must turn red at least the row named. The exact sets are frozen with the
+code's counts, before the driver first runs.
+
+| sabotage | the plant | must turn red |
+|---|---|---|
+| **S-X-CODE** | the row's `codeOf` sends -99 to 15, as `codeOf(v, -99)` would | X3 |
+| **S-X-HEALTH** | the health set built from `ROUTED` alone, planted in the code uk-data's change writes | X5 |
+| **S-X-CREF** | `CREF_WORKER` widened to `cref` and `shsr` | X7 (and FT1) |
+| **S-X-SWITCH** | the MRMS entry ignores `WX_INGEST` | X7 |
+| **S-X-LITERAL** | the SeamlessHSR stem written into `ingest.ts` | X8 |
+
+**Outside the set:** a row off, or a sabotage whose red set isn't its registered set, stops the step, and it is reported.
+
+#### S4.12.6 The order with uk-data, agreed ~18:55Z
+
+1. **uk-data's `/healthz` change merges first.** It touches `products.ts`'s comment at 96-100, `index.ts` 92, `handler.ts`'s `wxHealth`
+   and the tests pinning `/healthz`'s `wx` shape. It does not change `ROUTED`.
+2. **W4 second.** It rebases on main after that merges, and re-reads these predictions against the new main before asking for approval.
+   It updates the tests that pin `PRODUCTS` to eleven (DP2, PS1, FX) itself.
+3. **If W4 were approved first,** it would go first, as ruled, and uk-data would rebase. That is unlikely, because W4's code waits on the
+   owner's answer to the price.
+
+#### Next
+
+1. **The order with uk-data** is agreed (S4.12.6), and goes to the reviewer.
+2. **The price, re-done on S3-7's read tomorrow, goes to the owner** through the reviewer. W4's code and deploy wait for his answer.
+3. **After blipscope-5c's O11 window 2 closes,** it gets S4.11's conflict read (a condition on W5's code) and this addendum's (Q113).
+4. **W5's code** once blipscope-5c's read is back. W5 doesn't depend on W4.
