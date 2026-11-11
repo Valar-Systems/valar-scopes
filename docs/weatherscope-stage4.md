@@ -737,3 +737,103 @@ rollback. Before running it, I made the first read a poll: every 15 s, up to 5 m
 - #628 is closed unmerged, naming this record. Its branch stays at `1db0659e9a50` as the record of what ran on staging.
 - M3, staging's `/config` read-only, is next.
 - #630 is first in the merge order once blipscope-5c's read is back, then #632.
+
+### S4.10, 2026-11-11: W2 merged; M3 off as recorded; staging's fleet defaults moved the three fields
+
+**#630 (W2) merged at 04:51:51Z**, first in the order. This followed the reviewer's ~04:39Z go on the approval at `6a068d085846`, after
+blipscope-5c's read came back with no objection. It went through `merge-by-rule.sh`:
+
+- squash `68dc169a39ee`; parent `947e1d3825fc` (H);
+- tree `6521a5476452`, equal to the merge-tree of H and `6a068d085846`;
+- the branch was deleted.
+
+**Main's push CI at the squash**, frozen at 04:50:45Z, before the merge (push-event runs only):
+
+| | predicted | read at 06:59:43Z and 07:00:49Z; both reads agree |
+|---|---|---|
+| workflows | device-ids 1, firmware 30, no-traffic-captures 1, web-renderer 2 | the same: 1, 30, 1, 2 |
+| jobs | 34 = 31 success / 3 skipped / 0 failed | **34 = 31 / 3 / 0** |
+| skipped | firmware: version, promote; web-renderer: publish | firmware/version, firmware/promote, web-renderer/publish |
+
+**An instrument error of mine delayed that reading by two hours. It produced no false reading.**
+
+- **What happened.** The wait script ran from outside any checkout, so every `gh` call failed. The script never checked them: it polled for
+  two hours, then printed an empty tally and "the two reads agree". I took that as no reading.
+- **A second defect.** `gh run list --commit` matches only the full 40-character sha. A 12-character sha returns no runs, with exit 0.
+- **The fix.** The script now:
+  - names the repo;
+  - stops on a `gh` error or an empty tally;
+  - resolves the full sha itself.
+- **The check.** Run on the 12-character sha it had failed on, the fixed script gave the same tally (07:02:17Z and 07:03:24Z).
+
+**M3 is off as recorded (ruled ~04:46Z: "A frozen prediction isn't restated after the read").** The three requests ran as the test identity
+at 04:36:55Z, and all answered 200:
+
+| | pollActiveMs | pollIdleMs | pollNightMs | idleAfterMs | staleFactor | minStaleMs | enrich |
+|---|---|---|---|---|---|---|---|
+| BASE, predicted for W | 5000 | 15000 | 60000 | 600000 | 3 | 45000 | full |
+| **W** `weatherscope-s3-128` | **15000** | **30000** | 60000 | 600000 | **4** | 45000 | full |
+| **E**, no model header | 15000 | 30000 | 60000 | 600000 | 4 | 45000 | full |
+| **P** `s3-21`, the control | 15000 | 30000 | **45000** | **900000** | 4 | 45000 | full |
+
+| row | predicted | read |
+|---|---|---|
+| **M3a** | W equals BASE | **off**: pollActiveMs, pollIdleMs and staleFactor moved |
+| **C1, the control** | P has pollActiveMs 2000, so it differs from W | **off on its value**, since P has 15000. P still differs from W in pollNightMs and idleAfterMs (the baked `s3-21` values, `proxy/src/config.ts`), so the endpoint does answer by model |
+| **C2** | E equals W on all seven | **holds** |
+| **M3b** | in Analytics Engine, exactly 1 `/config` row for `weatherscope-s3-128`, no other row containing `weatherscope`, and exactly 1 for `s3-21` | **holds**: 1, 1 and 1, with no rows on other routes for these models. The first poll was empty, and the second found both |
+
+**The cause, as ruled:** the prediction assumed staging's fleet layer was empty, and staging's `cfg:fleet` is at rev 2. C2, C1 and M3b hold
+M3's purpose:
+
+- the model string reaches staging unchanged and is recorded once;
+- it selects nothing for `weatherscope-s3-128`, which gets exactly what a request with no model gets.
+
+**My three errors, on record:**
+
+1. **M3a and C1 assumed staging's fleet layer was empty.** The code's resolution order shows that layer, and I didn't check what was in it.
+2. **The grader's verdict sentence was false.** It said "the control is blind (P == W)" whenever C1's value missed, even though P differed
+   from W in two fields. Its exit code (off) was right.
+   - Fixed separately, on the ruling. Each row that is off now prints its own sentence, and that sentence says only what its row shows.
+   - C1's sentence names the fields where P differs. "Blind" prints only when P equals W on all seven.
+   - The exit codes are unchanged across the seven rehearsals and on M3's data. On M3's data it now prints "OFF on the letter -- W == E but
+     not BASE" and "C1's predicted pollActiveMs 2000 is off (P has 15000), but P differs from W in ['idleAfterMs', 'pollNightMs']".
+3. **My first metric script failed before it sent any query.** tsx compiled it as CommonJS, where top-level await fails. I renamed it to
+   `.mts` and the same query ran.
+
+**The `cfg:fleet` read (approved ~04:46Z; read-only).** The table below was frozen before the read. The anchor came first: the read's `rev`
+must be 2, the rev `/config` served. Any other rev, or a failed or non-JSON read, would be the instrument, not a reading.
+
+| row | reading | meaning |
+|---|---|---|
+| 1 | `defaults` holds pollActiveMs 15000, pollIdleMs 30000 and staleFactor 4, and the test device is **no** | the fleet **defaults** moved the three fields |
+| 2 | the test device is **yes**, and `defaults` does not hold all three | the test device's own **devices** entry moved them |
+| 3 | neither, including both at once | **stop** and report |
+
+**How the read ran:** at ~04:53Z, through `--binding ENRICH_KV --env staging --remote`. It printed only the five approved items. The test
+device's id was compared inside the process, and it appears in no output, command line or record.
+
+| printed | read |
+|---|---|
+| rev | **2** (the anchor holds) |
+| defaults | pollActiveMs 15000, pollIdleMs 30000, staleFactor 4 |
+| models key names | none |
+| devices entries | 0 |
+| the test device has an entry | no |
+
+**Row 1: the fleet defaults moved the three fields.** The alternative is a devices entry, and the data rules it out: there are 0 devices
+entries, so no entry exists to move them.
+
+**For every session's staging `/config` predictions:**
+- Predict from BASE, then the model's baked `MODEL_DEFAULTS`, then `cfg:fleet`'s defaults. At rev 2, those defaults are pollActiveMs 15000,
+  pollIdleMs 30000 and staleFactor 4.
+- So on staging every model gets those three, including `s3-21`, whose baked 2000/10000 are overridden. Only pollNightMs, idleAfterMs,
+  minStaleMs and enrich still vary by baked model.
+- `cfg:fleet` can change with no deploy. `/config`'s `rev` shows whether it has moved.
+
+**The hook gap, still open for this session:** my project folder, `C:\Github\Blipscope`, is still at `6d7823e11c24`, with no
+`.claude/settings.json` and no `scripts/claim-hook.py`. Until blipscope-5c's fix, I deploy only through `deploy.sh`, under the interim rule.
+
+**Next:**
+- O11 runs when blipscope-5c cuts v19's candidate.
+- Nothing of mine is in the merge order.
