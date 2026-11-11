@@ -1488,3 +1488,64 @@ unchanged. The reviewer can ask for the re-run.
 parent is predicted to be main as it stands at the push. If it isn't, that is reported.
 
 **Outside the set:** any count off, a set off, or a tested merge on any other main stops the step, and it is reported.
+
+### S4.18, 2026-11-11: main merged in again (#650), both plant drivers re-predicted, and the rule for reading what CI tested
+
+**The cloud reviewer, via the owner (23:32Z), relayed by the orchestrator at 23:45Z:**
+- The resolution of `/healthz`'s line is main's `wx` argument with #649's key added: the one S4.17 made.
+- **`wx: await wxHealth(env, PRODUCTS, ROUTED), basemap` stays together on one line,** because #643's H1s anchors on exactly that text, and CI
+  never runs that driver.
+- Both plant drivers go into the re-prediction and run on the merged tree.
+- **A rule for every session, from my correction in S4.17:** the commit a run tested is read from its checkout log (the sha and its
+  parents), never from `refs/pull/N/merge`, which GitHub recomputes afterwards.
+
+**S4.17's predictions, read on the intermediate merge `db55a49f195c`, after S4.17 was pushed at 23:32:34Z:**
+- `test/weatherscope.test.ts`: **23 passed (23)**.
+- The golden and the bodies: 0 differ each.
+- WS21 against `03632992`: one `A` line.
+- `sabotage-wx-healthz.py`: unsabotaged `([], 17)`; H1s, H2s and H3s each read their predicted set. **ALL AS PREDICTED**, exit 0.
+- **The whole suite never ran on that tree.** Its gate stayed shut from 23:33:02Z, because another session's vitest was running. It was
+  stopped at 23:43Z once main had moved, and its orphaned wait process was ended by pid. That tree is not pushed.
+
+#### The merge at the head
+
+**`978856bc61f9`:** main `337732beee0e` (#650) merged into `db55a49f195c`, with no conflict. #650's files (a doc, `src/AircraftManager.h` and
+three under `test/host`) share none with W5.
+
+**The check the reviewer asked for, `git diff 337732be..978856bc` against #649's original diff (`78c2bec21dfa..1e7502e9096c`):**
+- the same 25 files;
+- and the added and removed lines are identical in every file **except one hunk**: the `/healthz` line in `proxy/src/index.ts`.
+  - **Removed:** the line now carries main's `wxHealth(env, PRODUCTS, ROUTED)` where it carried `PRODUCTS.filter(...)`.
+  - **Added:** W5's continuation, `weatherscope: weatherscopeHealth() });`, is byte-identical in both.
+
+**`workers.yml`** keeps:
+- #643's `wx-products-lines.selftest.sh` step;
+- W5's two path-filter entries;
+- W5's golden step.
+
+#### Predicted at `978856bc61f9`, before any run on it
+
+| read | predicted |
+|---|---|
+| `vitest run test/weatherscope.test.ts` | **23 passed (23)** |
+| `sabotage-weatherscope.mjs` (W5's, plants into `src/index.ts` among others; not in CI) | CONTROL **23/23** with the golden exit 0; **all 13 as registered**, with S4.16's sets; the tree clean after |
+| `sabotage-wx-healthz.py` (#643's, plants into `src/index.ts`; not in CI) | unsabotaged `([], 17)`; **H1s, H2s and H3s each as registered**; exit 0 |
+| `trim_nws.py --check-golden`; `gen-w5-bodies.mts --check` | 0 differ; 0 differ |
+| **WS21** against `337732be` | one line under `proxy/test`, `A proxy/test/weatherscope.test.ts` |
+| the whole proxy suite, behind the gate | **Test Files 75 passed, 1 skipped (76); Tests 1064 passed, 1 skipped (1065).** #650 touched no `proxy/` file, so main's proxy suite at `337732be` is the 74/1 and 1041/1 read at `03632992`, plus W5's one file of 23 |
+
+**CI at `978856bc61f9`:**
+- **How it's derived:** the PR's diff against `337732be` is the same 25 files. They trigger `device-ids`, `firmware` and
+  `no-traffic-captures`, which run on every PR, and `workers` through `proxy/**`. `web-renderer` doesn't run: there is no `src/` or `include/`
+  file in the diff.
+- **No job-set change on main since `78c2bec21dfa`:** #650 touched no workflow.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| **the PR** | **35** | 32 | 3: firmware's `version`, `promote`, `ship-alert` | 0 |
+| **main on the squash** (push) | **35** | 33 | 2: firmware's `version`, `promote` | 0 |
+
+**The tested merge is named from a job's checkout log** (`HEAD is now at …`), with its parents read through the API. Its first parent is
+predicted to be main as it stands at the push. If it isn't, that is reported, not explained away.
+
+**Outside the set:** any count or set off stops the step, and it is reported.
