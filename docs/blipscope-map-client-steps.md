@@ -672,6 +672,50 @@ compile failure into extra red rows.
     can clear the record.
   - That diff goes to blipscope-5c before the push.
 
+### The first host run (2026-11-11, 01:55Z): g++ 13.3 as predicted, MinGW 5.1 OFF on CA2-levels. Stopped for a ruling
+
+`test/host/test_map_fetch.cpp` (42 cases), against `include/MapQuery.h` and `include/MapPolicy.h` as first written.
+Both compilers built clean with `-std=c++11 -Wall -Wextra -Werror -O1`.
+
+- **g++ 13.3** (WSL, x86-64; CI's compiler), 01:55:17Z: **42 checks, 0 failures, as predicted on every line.**
+  - The route read: `MAX_R_KM` 222, `EPS_MIN_MM`/`EPS_MAX_MM` 1,000/10,000,000,
+    `LEVEL_R_MIN_MM`/`LEVEL_R_MAX_MM` 1,000,000/250,000,000, `LEVEL_N_MAX` 1,024, `LEVELS_MAX` 4,
+    `TERRAIN_BYTES_MAX` 2,097,152, and `CAP_BYTES` 32,768.
+  - CA2-levels printed exactly the registered counts: 6,660 configs, 19,496 steps with a level of their own, 4 with
+    none, and 11,041 below the top three.
+  - CA9-dist: mean 3,598.1 (the bound is 3,600 ± 72), ten-minute bins 791-883 (the bounds are 708-958).
+- **MinGW 5.1** (i686), 01:55:23Z: **42 checks, 1 failure. OFF:**
+
+      FAIL CA2-levels 6660 configs; 19494 steps with their own level; 4 with none; 11044 below the top three; 2 short, first 50.5 mi: step 4
+
+  The other 41 cases read as predicted. Stopped here: no fix, no re-run, no other check, no sabotage.
+
+**What I read as the cause, from the code and not from any run:**
+- MinGW 5.1 here targets i686, where float arithmetic runs on the x87 unit at 80 bits. GCC 5's C++ front end keeps
+  those excess bits; it has no standard excess-precision mode.
+- The test copies the radar's float chain. `km / (float)u.factor` is assigned to a float, and then
+  `radarzoom::BuildLadder` (inline) compares `c < configured - SAME_STEP_EPS`. On i686 both can stay at 80 bits.
+- At 50.5 mi the display radius then reads a hair above 50.5, so the ladder gains a 50 mi step. True float leaves
+  that step out, and true float is what SSE does (g++ 13.3 on x86-64) and what the device's single-precision FPU does.
+  The extra step is the 3 more steps counted below the top three.
+- 50 and 50.5 are 1.0 % apart, inside the test's 1 % own-level window. So for the 50.5 mi step the test picks the
+  50 mi level, whose R (81,808,320 mm) falls short of 50.5 mi + 0.785 km (82,056,872 mm). That accounts for the 2 short.
+
+**The alternative, and how far the data excludes it.** The alternative is a defect in `mapquery::Build` or
+`BuildLadder` that shows only on this compiler.
+- The data excludes it in part. g++ 13.3 reads every registered number exactly, and the failing config sits on the
+  one kind of boundary (x.5) where rounding to float decides whether a step is on the ladder.
+- It does not exclude a MinGW-specific miscompile.
+
+**Proposed (Q-MC13), for the ruling.**
+- **The fix.** The test's copy of the float chain forces each value the device holds as a float through a `volatile
+  float`. That makes it model float on any host. The header code is untouched.
+- **Prediction after the fix:** MinGW reads 42/42, with the g++ 13.3 counts exactly (6,660 / 19,496 / 4 / 11,041),
+  and g++ 13.3 is unchanged.
+- **If MinGW still reads off,** the cause is not excess precision, and I stop again.
+
+This miss stays on record: a prediction made for a host whose float semantics I had not checked.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
