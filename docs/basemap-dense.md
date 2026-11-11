@@ -3,7 +3,7 @@
 **The proposal this record arrives at is its last section, [The proposal: what a New York scope gets](#the-proposal-what-a-new-york-scope-gets).**
 Everything between is the readings it stands on, kept as written.
 
-## The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~04:32Z)
+## The ruling, verbatim (reviewer chat, pasted by the owner, 2026-11-06 ~04:32Z)
 
 > 3. KJFK is also a product finding, and D4 waits on it: at these parameters, a New York Blipscope would get no map at
 >    all. Before D4's production plan, propose with predictions first what a scope in a dense area gets. Examples: the
@@ -119,7 +119,7 @@ failed.** The baseline is #564's finished docs-only run, which postdates `844096
 
 ## Step 0: the ladder instrument (predictions first)
 
-### The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~15:07Z)
+### The ruling, verbatim (reviewer chat, pasted by the owner, 2026-11-06 ~15:07Z)
 
 > 5. #567, approved to merge at 2af8f0a6c8d9:
 >    - Q-DN1: yes, step 0 first, as its own PR.
@@ -341,7 +341,7 @@ The baseline is #572's finished run, a `proxy/` PR that postdates `84409651`.
 - **The PR's suite line becomes 992** (991 passed, 1 skipped).
 - **The PR's CI prediction does not change:** 34 = 31/3/0.
 
-### Q-ST0b, ruled (reviewer chat, pasted by Daniel, ~21:39Z), verbatim
+### Q-ST0b, ruled (reviewer chat, pasted by the owner, ~21:39Z), verbatim
 
 > Q-ST0b: (a), re-register as you propose.
 > - The smoke driver: CONTROL 991 / 1 / 992; S-SQ {SQ1, SQ2} and S-SQP {SQ-C}, each run 992. The sets stay as frozen; only
@@ -559,7 +559,7 @@ here.
 
 **So nothing is graded past this point,** and the questions go to the reviewer before anything resumes.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-08 ~19:07Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-08 ~19:07Z), verbatim
 
 > #622's stop: right, at the registered band. Grading only at the end stays on record as your miss: from now on every band is graded per
 > build.
@@ -667,7 +667,7 @@ and **the instrument changes before anything is graded.**
 
 **Still open, and not answerable from Node:** whether workerd's 128 MB limit counts dropped buffers the same way.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-08 ~20:28Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-08 ~20:28Z), verbatim
 
 > Q-MEM1's stop: right, at the registered stop. MQ1 reading 0.00 for the wrong reason stays on record as your miss.
 > Q-MEM2: yes, now, and at KLGA, the largest ceiling. One request through staging's route: not a deploy, so no slot; say in the record when it
@@ -837,7 +837,7 @@ decide.**
   in both places.** Every local ceiling (93.6-107.7 MB) is under 128 MB, so a build that fits can't show that any of them over-counted. MG-A
   establishes one thing: **KLGA at r=162 built under 128 MB in workerd.**
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~03:37Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~03:37Z), verbatim
 
 > Q-MEM1c: A, as you recommend. Run C2′ as frozen in #622, then continue on its answer.
 > - C2′ is a fair control. put() and drop() each return nothing, so no running frame holds the buffer, and it separates the two
@@ -1149,7 +1149,7 @@ empty, the tree stayed clean, and nothing ran on staging.
 **By the registered table: RA0 off, so stop.** Nothing is graded past it. The proposal that follows goes to the reviewer before anything
 resumes.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~04:10Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~04:10Z), verbatim
 
 > C2′ settled it: frame retention. The control was faulty, the settled sampler is sound, and the re-run's figures stand as Node's figures.
 > The three corrections are accepted, with the originals kept.
@@ -1274,7 +1274,7 @@ which is the explanation-1 row.
 - **The alternative:** some other per-cell state. This run can't separate them, because it prints only each phase's largest sample, not
   every cell's.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~04:39Z), verbatim (its Q-RA2 part)
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~04:39Z), verbatim (its Q-RA2 part)
 
 > Q-RA2: A. Stop measuring READ_AHEAD. The proposal states it as measured: 6 to 3 saved 1.77 MiB at KLGA in one process, and no setting
 > can read below the loop's end, so the most it can save is about 1.8 MiB. It is not D4's lever. Register the release variant now: derive
@@ -1407,7 +1407,7 @@ in the configuration that will be graded.
 
 **By the registered table: RV0 off, so stop.** Nothing is graded past it.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:06Z), verbatim (its Q-RV1 and DF parts)
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~05:06Z), verbatim (its Q-RV1 and DF parts)
 
 > Q-RV1: A. Three fresh v0 processes, graded on RV3 and the between-driver anchor (±0.50 of 99.51 at cell 16), with their spread measured
 > and reported, not bounded. pred6 then sets phase 2's per-sample bound at twice the largest spread at any one sample, never under 0.50,
@@ -1522,7 +1522,7 @@ driver stopped itself (exit 15). The error file is empty, the tree stayed clean,
   the ladder phase's 59.90.
 - **Not shown:** whether workerd keeps a consumed read reachable in the same way, or more often.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:18Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~05:18Z), verbatim
 
 > Phase 1: accepted, as predicted, with the spread measured (0.392 at most) and the bound derived from it (0.785).
 >
@@ -1617,7 +1617,7 @@ processes; they spread 0.03. **v0's is 99.55 MiB (104.4 MB) at cell 16.**
 checked that v0 holds every such buffer. It holds the reads `readInOrder` hands out, and holds the three earlier reads only until cell 11.
 The control was built wider than the claim it tests.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:26Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~05:26Z), verbatim
 
 > The variant: accepted. Three processes, the build's largest 59.99–60.02 MiB in the ladder phase, within 59.90 ± 0.785. Stated as ruled:
 > 60.02 MiB (62.9 MB), spread 0.03. The cell-11 exception fell inside the ruled allowance in 4 of 4 processes, matching cell 10's read, the
@@ -1781,7 +1781,7 @@ its own process, and the parent stopped itself (exit 1). The error file is empty
 
 **Nothing is graded past the stop.** The proposal that follows goes to the reviewer before anything resumes.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:47Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~05:47Z), verbatim
 
 > Q-DR3b: A. Re-register the ladder check so it applies only where a ladder is reported: v0's 422s, non-increasing and ending over
 > 32,768. A variant's 422 is predicted to report none, so one that does is off. Everything else stays as frozen. Rerun every row from the
@@ -1818,7 +1818,7 @@ The run is fresh and starts from DR0, one run graded once (ruled).
 - **The per-phase figures will show where the extra sits.** Separating L8's share from L4's would need a variant this registration doesn't
   have.
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:53Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~05:53Z), verbatim
 
 > Pre-ruled, so the result doesn't need a round trip. If the per-phase figures put ab's extra in the cell loop's coarse sets, the ε×4 rivers
 > and roads that only P1 and P2 use, the proposal states ab's figure as an upper bound, with the copy's share named. A follow-up
@@ -1970,7 +1970,7 @@ its own process, and the parent exited 0. The error file is empty, the tree stay
 
 ## The proposal: what a New York scope gets
 
-### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~16:52Z), verbatim
+### The ruling (reviewer chat, pasted by the owner, 2026-11-11 ~16:52Z), verbatim
 
 > Q-DP1: yes. Write the dense-area proposal into #622, stating the figures as ruled, including ab as an upper bound if the copy's coarse
 > sets carry its extra. Then ask for #622 to join the merge list. I'll review the proposal from git before approving the merge.
