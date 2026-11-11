@@ -1,0 +1,392 @@
+# The OPERA ingests, one Worker per product (docs/wx-opera-code-stage.md §1d; Q-WORKERS, ruled 2026-11-06 ~17:08Z). This
+# file replaced wx-ingest-opuk.wrangler.toml, and opuk keeps that Worker, blipscope-wx-ingest-opuk. Each Worker is built
+# from this package beside the proxy and the cref ingest (wx-ingest.wrangler.toml); none has a route or a public surface.
+# Its only entry is its cron, and it writes its own product's frames to the bucket the proxy reads.
+#
+#   npx wrangler deploy -c wx-ingest-opera.wrangler.toml -e <id>          # ingesting: PRODUCT <id>, WX_INGEST "on"
+#   npx wrangler deploy -c wx-ingest-opera.wrangler.toml -e <id>-inert    # the stop: the cron KEPT, WX_INGEST "off"
+#
+# THE TOP LEVEL IS INERT and names no product's Worker. A deploy without -e would create blipscope-wx-ingest-opera, with
+# no cron and WX_INGEST "off": it builds nothing and replaces no product's ingest. (Before this file, a deploy without
+# -e WAS opuk's ingest; that command now finds no file.)
+#
+# The stop is a version change, which takes effect at once; removing a cron would take up to 15 minutes to propagate
+# (Cloudflare's docs; measured 323-336 s on the dev copy). Bindings and vars do not inherit, so every env repeats them;
+# scripts/check-wx-plant.mjs reads all 21 targets' bindings from their dry-runs (FB2), and FX
+# (test/wx-ingest-split.test.ts) reads this text.
+#
+# cpu_ms: opuk's single-build max 3,123 ms (Plan S, S4) x2 for a backfill invocation, x1.6 for the runtime's spread on
+# identical work = 9,994 -> 12,000, under the documented 30,000 cap for a sub-hourly Cron Trigger. Stage 1c's builds
+# and the M stage's run far under it (docs/wx-opera-map-r2.md, docs/wx-opera-dev-measure.md).
+name = "blipscope-wx-ingest-opera"
+main = "src/wx/ingest-opera-worker.ts"
+compatibility_date = "2025-12-01"   # the cref ingest's date
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+workers_dev = false
+
+[triggers]
+crons = []
+
+[limits]
+cpu_ms = 12000
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[vars]
+WX_INGEST = "off"
+
+[[r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opuk: isles.
+[env.opuk]
+name = "blipscope-wx-ingest-opuk"
+workers_dev = false
+[env.opuk.triggers]
+crons = ["* * * * *"]
+[env.opuk.limits]
+cpu_ms = 12000
+[env.opuk.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opuk.vars]
+PRODUCT = "opuk"
+WX_INGEST = "on"
+[[env.opuk.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opuk-inert]
+name = "blipscope-wx-ingest-opuk"
+workers_dev = false
+[env.opuk-inert.triggers]
+crons = ["* * * * *"]
+[env.opuk-inert.limits]
+cpu_ms = 12000
+[env.opuk-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opuk-inert.vars]
+PRODUCT = "opuk"
+WX_INGEST = "off"
+[[env.opuk-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opis: iceland.
+[env.opis]
+name = "blipscope-wx-ingest-opis"
+workers_dev = false
+[env.opis.triggers]
+crons = ["* * * * *"]
+[env.opis.limits]
+cpu_ms = 12000
+[env.opis.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opis.vars]
+PRODUCT = "opis"
+WX_INGEST = "on"
+[[env.opis.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opis-inert]
+name = "blipscope-wx-ingest-opis"
+workers_dev = false
+[env.opis-inert.triggers]
+crons = ["* * * * *"]
+[env.opis-inert.limits]
+cpu_ms = 12000
+[env.opis-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opis-inert.vars]
+PRODUCT = "opis"
+WX_INGEST = "off"
+[[env.opis-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opib: iberia.
+[env.opib]
+name = "blipscope-wx-ingest-opib"
+workers_dev = false
+[env.opib.triggers]
+crons = ["* * * * *"]
+[env.opib.limits]
+cpu_ms = 12000
+[env.opib.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opib.vars]
+PRODUCT = "opib"
+WX_INGEST = "on"
+[[env.opib.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opib-inert]
+name = "blipscope-wx-ingest-opib"
+workers_dev = false
+[env.opib-inert.triggers]
+crons = ["* * * * *"]
+[env.opib-inert.limits]
+cpu_ms = 12000
+[env.opib-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opib-inert.vars]
+PRODUCT = "opib"
+WX_INGEST = "off"
+[[env.opib-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opmt: malta.
+[env.opmt]
+name = "blipscope-wx-ingest-opmt"
+workers_dev = false
+[env.opmt.triggers]
+crons = ["* * * * *"]
+[env.opmt.limits]
+cpu_ms = 12000
+[env.opmt.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opmt.vars]
+PRODUCT = "opmt"
+WX_INGEST = "on"
+[[env.opmt.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opmt-inert]
+name = "blipscope-wx-ingest-opmt"
+workers_dev = false
+[env.opmt-inert.triggers]
+crons = ["* * * * *"]
+[env.opmt-inert.limits]
+cpu_ms = 12000
+[env.opmt-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opmt-inert.vars]
+PRODUCT = "opmt"
+WX_INGEST = "off"
+[[env.opmt-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opwe: west.
+[env.opwe]
+name = "blipscope-wx-ingest-opwe"
+workers_dev = false
+[env.opwe.triggers]
+crons = ["* * * * *"]
+[env.opwe.limits]
+cpu_ms = 12000
+[env.opwe.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opwe.vars]
+PRODUCT = "opwe"
+WX_INGEST = "on"
+[[env.opwe.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opwe-inert]
+name = "blipscope-wx-ingest-opwe"
+workers_dev = false
+[env.opwe-inert.triggers]
+crons = ["* * * * *"]
+[env.opwe-inert.limits]
+cpu_ms = 12000
+[env.opwe-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opwe-inert.vars]
+PRODUCT = "opwe"
+WX_INGEST = "off"
+[[env.opwe-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opce: central.
+[env.opce]
+name = "blipscope-wx-ingest-opce"
+workers_dev = false
+[env.opce.triggers]
+crons = ["* * * * *"]
+[env.opce.limits]
+cpu_ms = 12000
+[env.opce.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opce.vars]
+PRODUCT = "opce"
+WX_INGEST = "on"
+[[env.opce.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opce-inert]
+name = "blipscope-wx-ingest-opce"
+workers_dev = false
+[env.opce-inert.triggers]
+crons = ["* * * * *"]
+[env.opce-inert.limits]
+cpu_ms = 12000
+[env.opce-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opce-inert.vars]
+PRODUCT = "opce"
+WX_INGEST = "off"
+[[env.opce-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opse: southeast.
+[env.opse]
+name = "blipscope-wx-ingest-opse"
+workers_dev = false
+[env.opse.triggers]
+crons = ["* * * * *"]
+[env.opse.limits]
+cpu_ms = 12000
+[env.opse.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opse.vars]
+PRODUCT = "opse"
+WX_INGEST = "on"
+[[env.opse.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opse-inert]
+name = "blipscope-wx-ingest-opse"
+workers_dev = false
+[env.opse-inert.triggers]
+crons = ["* * * * *"]
+[env.opse-inert.limits]
+cpu_ms = 12000
+[env.opse-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opse-inert.vars]
+PRODUCT = "opse"
+WX_INGEST = "off"
+[[env.opse-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opba: baltic.
+[env.opba]
+name = "blipscope-wx-ingest-opba"
+workers_dev = false
+[env.opba.triggers]
+crons = ["* * * * *"]
+[env.opba.limits]
+cpu_ms = 12000
+[env.opba.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opba.vars]
+PRODUCT = "opba"
+WX_INGEST = "on"
+[[env.opba.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opba-inert]
+name = "blipscope-wx-ingest-opba"
+workers_dev = false
+[env.opba-inert.triggers]
+crons = ["* * * * *"]
+[env.opba-inert.limits]
+cpu_ms = 12000
+[env.opba-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opba-inert.vars]
+PRODUCT = "opba"
+WX_INGEST = "off"
+[[env.opba-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opsw: scandisw.
+[env.opsw]
+name = "blipscope-wx-ingest-opsw"
+workers_dev = false
+[env.opsw.triggers]
+crons = ["* * * * *"]
+[env.opsw.limits]
+cpu_ms = 12000
+[env.opsw.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opsw.vars]
+PRODUCT = "opsw"
+WX_INGEST = "on"
+[[env.opsw.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opsw-inert]
+name = "blipscope-wx-ingest-opsw"
+workers_dev = false
+[env.opsw-inert.triggers]
+crons = ["* * * * *"]
+[env.opsw-inert.limits]
+cpu_ms = 12000
+[env.opsw-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opsw-inert.vars]
+PRODUCT = "opsw"
+WX_INGEST = "off"
+[[env.opsw-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+# opsn: scandin.
+[env.opsn]
+name = "blipscope-wx-ingest-opsn"
+workers_dev = false
+[env.opsn.triggers]
+crons = ["* * * * *"]
+[env.opsn.limits]
+cpu_ms = 12000
+[env.opsn.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opsn.vars]
+PRODUCT = "opsn"
+WX_INGEST = "on"
+[[env.opsn.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.opsn-inert]
+name = "blipscope-wx-ingest-opsn"
+workers_dev = false
+[env.opsn-inert.triggers]
+crons = ["* * * * *"]
+[env.opsn-inert.limits]
+cpu_ms = 12000
+[env.opsn-inert.observability]
+enabled = true
+head_sampling_rate = 1
+[env.opsn-inert.vars]
+PRODUCT = "opsn"
+WX_INGEST = "off"
+[[env.opsn-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"

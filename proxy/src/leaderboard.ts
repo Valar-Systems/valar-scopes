@@ -116,6 +116,18 @@ const TYPE_RE = /^[A-Z0-9]{2,4}$/;
 const MAX_TYPE_GROWTH_PER_DAY = 40;
 const MAX_COUNTRY_GROWTH_PER_DAY = 10;
 
+// The model is the device's OTA identity, scope then board (docs/leaderboard-model-shape.md): a value from a known set.
+// So an off-shape value is REFUSED, never cut. A prefix has the shape of a real model that no device sent:
+// `weatherscope-s3-128` cut to 16 would be stored as `weatherscope-s3-`. Refused means stored as "", exactly as a device
+// that sends no header; the submission itself is still accepted and scored.
+const MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const MODEL_MAX = 32; // the longest identity the tree can produce today is 26 (weatherscope-s3-175-amoled)
+
+export function modelOf(raw: string | null): string {
+  const m = (raw ?? "").trim();
+  return m.length <= MODEL_MAX && MODEL_RE.test(m) ? m : "";
+}
+
 function monthOf(nowMs: number): string {
   return new Date(nowMs).toISOString().slice(0, 7); // "YYYY-MM"
 }
@@ -199,7 +211,7 @@ export async function handleLeaderboardSubmit(request: Request, env: Env): Promi
   const now = Date.now();
   const nowMonth = monthOf(now);
   const nowDay = dayOf(now);
-  const model = (request.headers.get("X-Blip-Model") ?? "").trim().slice(0, 16);
+  const model = modelOf(request.headers.get("X-Blip-Model"));
 
   const prev = await env.ENRICH_KV.get<DeviceRow>(`lb:dev:${sub.id}`, "json");
   const name = await claimName(env, sub.id, sub.name);

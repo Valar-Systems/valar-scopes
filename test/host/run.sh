@@ -1872,6 +1872,41 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+# The web build's kiosk and the venue's airfield (docs/web-kiosk-airfield.md): KI1-KI3 and KI5 on include/PollCadence.h,
+# built as a device and as the web build; AF1-AF2 on tools/web-renderer/web/web_route.h; KW1, the call sites; KI4's
+# scan selftest; and the plants, test/host/sabotage_web_kiosk.py. AF3 and KI4's wasm control run in the web workflow.
+echo
+echo "== Web kiosk and airfield =="
+for t in test_poll_cadence:include test_poll_cadence_web:include test_web_route:tools/web-renderer/web; do
+  name="${t%%:*}"; inc="${t#*:}"
+  if ! "$CXX" $FLAGS -I"$ROOT/$inc" "$ROOT/test/host/$name.cpp" -o "$OUT/$name.exe" 2>"$OUT/build.log"; then
+    echo "FAIL: $name did not compile"
+    cat "$OUT/build.log"
+    exit 2
+  fi
+  "$OUT/$name.exe"
+  rc=$?
+  if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+    echo "FAIL: $name did not run (exit $rc). This is the RIG, not the code."
+    exit 2
+  fi
+  [ "$rc" -ne 0 ] && fail=1
+done
+bash "$ROOT/scripts/check-web-only.sh" --selftest >/dev/null
+if [ "$?" -ne 0 ]; then
+  echo "FAIL: check-web-only.sh --selftest"
+  fail=1
+fi
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; KW1 and the kiosk sabotages cannot run."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/check_web_wiring.py" "$ROOT" --selftest
+  [ "$?" -ne 0 ] && fail=1
+  CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_web_kiosk.py"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # WD5o, the dot marker's black outline (docs/wx-device.md, WD5 addendum 3): the construction is read from
 # src/AircraftManager.cpp and rasterised with LovyanGFX's fillCircle, ported. The bench cannot grade it, since
 # markers are triangles by default. Its sabotages: test/host/sabotage_wx_outline.py, run below.

@@ -22,7 +22,7 @@ import { cropCellBox, encodeBox, quantise } from "../src/wx/crop";
 import { FrameBuilder, type GridGeom, frameMeta } from "../src/wx/grid";
 import { handleWx, type LatestRecord } from "../src/wx/handler";
 import { type RangeFetch, readWindow } from "../src/wx/opera";
-import { OPUK_GRID, PRODUCTS, frameKey, latestKey, productById } from "../src/wx/products";
+import { OPUK_FIXTURE_GRID, PRODUCTS, frameKey, latestKey, productById } from "../src/wx/products";
 import { mapFor, resample } from "../src/wx/resample";
 import type { Env } from "../src/types";
 import { CONUS, flatCellAt, synthCodes } from "../test/wx-synth";
@@ -160,7 +160,7 @@ async function opukSetPinned() {
     if (s === undefined) throw new Error(`opuk frame: range ${a}-${z} is not in the fixture`);
     return bin.slice(s, s + z - a + 1);
   };
-  const g = OPUK_GRID;
+  const g = OPUK_FIXTURE_GRID;   // the grid the stored OPERA fixtures hold (docs/wx-opera-code-stage.md §8.6)
   const w = await readWindow(rf, g);
   const { codes, covered } = resample(w.value, w.quality, mapFor(w.geo, w.window, g), g);
   const r2 = new MemR2();

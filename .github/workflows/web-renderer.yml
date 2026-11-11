@@ -110,6 +110,15 @@ jobs:
       - name: The carousel, every model
         run: |
           for sku in $BUILT; do node tools/web-renderer/carousel.mjs "web-dist/$sku"; done
+      - name: AF3, the venue's own field, every model (docs/web-kiosk-airfield.md)
+        run: |
+          for sku in $BUILT; do node tools/web-renderer/airports_remote.mjs "web-dist/$sku"; done
+      # KI4's positive control: the wasm must carry both web-only keys, so their absence from a device image means
+      # something. The wasm has no device banner, so its anchor is a path it is known to forward.
+      - name: KI4's control, the web-only keys in every model's wasm
+        run: |
+          bash scripts/check-web-only.sh --selftest
+          for sku in $BUILT; do bash scripts/check-web-only.sh --expect --anchor "/api/v1/blipscope/blips" web-dist/$sku/blipscope-web-$sku-v*.wasm; done
 
       # Smoke's R7 proves wx-layer on stops at the shim's setBuffer abort. Its sabotage proves R7 can fail: the abort is
       # removed in a COPY of tools/web-renderer, s3-128 is built from it into a temporary dist (never web-dist, never

@@ -1,0 +1,10 @@
+kjac.bmpk -- sources and terms (docs/basemap-package-format.md §7). Built through staging's route at the map client's query, store 4c0875738f38, builder fdf62ada9f79.
+
+Public domain (works of the United States government): TIGER/Line 2024 (AREAWATER, LINEARWATER, PRISECROADS), the 2025 Census Gazetteer and SUB-EST2024 (Census Bureau population estimates).
+
+Terrain: AWS Terrain Tiles (Terrarium, zoom 9). This package's tiles credit, per its PROVENANCE:
+SRTM data courtesy of the U.S. Geological Survey
+© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.
+2000 is the SRTM release joerd's attribution.md names; joerd records several updates, including in 2014.
+
+What was done to the elevations: Terrarium z9 elevations; hillshade from 315 deg at 45 deg with 2x vertical exaggeration; 4x4 mean of z9 pixels; each level pixel takes the z9 pixel containing its centre; shade quantised to 8 bits

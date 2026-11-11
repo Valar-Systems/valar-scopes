@@ -28,7 +28,7 @@ import { isRevoked } from "./revocation";
 import { errorResponse, jsonResponse } from "./util";
 import { handleWx, wxHealth } from "./wx/handler";
 import { basemapHealth, handleBasemap } from "./basemap/handler";
-import { PRODUCTS } from "./wx/products";
+import { PRODUCTS, ROUTED } from "./wx/products";
 import { handleW3Probe } from "./weatherscope/w3probe";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
@@ -90,7 +90,7 @@ async function handleHealth(env: Env): Promise<Response> {
   // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
   // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
   // is bound.
-  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS), basemap: basemapHealth(env) });
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS.filter((p) => ROUTED.has(p.id))), basemap: basemapHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------

@@ -46,10 +46,13 @@ report absence.
 import argparse
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -158,6 +161,169 @@ def kv_get_raw(key: str, env: str, errfile: Path) -> str | None:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
                            text=True, timeout=120)
     return r.stdout.strip() if r.returncode == 0 else None
+
+
+# --- A3.1's reader: the devices behind version.txt, by last OTA result -----------------------------------------------
+# docs/ota-result-reader.md. With nothing drawn on screen for a refused update, the OTA record's token is the only
+# fleet-level sign that an accept path broke, so it is read here, where every fleet question already looks. Counts
+# only: no id is printed by this block.
+
+# The URL every device fetches (OTA_RELEASE_BASE in src/OtaUpdater.cpp), not a copy of the number.
+VERSION_URL = "https://github.com/Valar-Systems/valar-scopes/releases/latest/download/version.txt"
+ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"  # the same as proxy/wrangler.toml's account_id
+DATASET = {"production": "blipscope_proxy", "staging": "blipscope_proxy_staging"}
+OTA_WINDOW_DAYS = 90   # Analytics Engine keeps about three months
+OTA_ROW_LIMIT = 10000
+# The shapes the firmware writes (include/OtaInstall.h, src/OtaUpdater.cpp). Anything else is counted as unrecognised,
+# never dropped and never coerced into a known name.
+TOKEN_RE = re.compile(r"^(ok|incomplete|fail--?\d+|refused-(truncated|no-record|bad-record|foreign))$")
+UNRECOGNISED = "unrecognised"
+NO_POINT = "no ota point"
+
+
+def parse_version(text) -> int | None:
+    """version.txt is a positive integer or it is unreadable. Never 0: a 0 would put every device ahead."""
+    s = (text or "").strip()
+    return int(s) if re.fullmatch(r"[1-9]\d{0,5}", s) else None
+
+
+def fw_int(rec: dict) -> int | None:
+    fw = rec.get("fw")
+    if isinstance(fw, bool):
+        return None
+    if isinstance(fw, int):
+        return fw
+    if isinstance(fw, str) and re.fullmatch(r"\d{1,6}", fw.strip()):
+        return int(fw.strip())
+    return None
+
+
+def ota_breakdown(published: int, rows: dict, points: list) -> dict:
+    """rows: device -> fw: row. points: (device, token, timestamp) from the ota index. Each behind device lands in
+    exactly one bucket: its newest token, unrecognised, or no ota point."""
+    newest: dict = {}
+    for dev, tok, t in points:
+        if dev not in newest or t > newest[dev][1]:
+            newest[dev] = (tok, t)
+    behind, unknown = [], 0
+    for dev, rec in rows.items():
+        fw = fw_int(rec)
+        if fw is None:
+            unknown += 1
+        elif fw < published:
+            behind.append(dev)
+    buckets: dict = {}
+    for dev in behind:
+        if dev in newest:
+            tok = newest[dev][0]
+            if not TOKEN_RE.match(tok):
+                tok = UNRECOGNISED
+        else:
+            tok = NO_POINT
+        buckets[tok] = buckets.get(tok, 0) + 1
+    return {"behind": len(behind), "total": len(rows), "unknown": unknown, "buckets": buckets}
+
+
+def ota_lines(published, rows: dict, points, why_unread: str = "") -> tuple:
+    """The block, as lines, and its warnings. points None = the results could not be read."""
+    out = ["  Behind version.txt -- devices below the published version, by last OTA result (A3.1)"]
+    warn: list = []
+    if published is None:
+        out.append("    version.txt unreadable or not a positive integer: no behind count (never defaulted)")
+        warn.append("version.txt could not be read, so how many devices are behind is unknown")
+        return out, warn
+    if not rows:
+        out.append("    no fw: rows fetched (--no-detail); not assessed this run")
+        return out, warn
+    b = ota_breakdown(published, rows, points or [])
+    out.append("    published %d: behind %d of %d device(s)%s"
+               % (published, b["behind"], b["total"], "; fw unknown %d" % b["unknown"] if b["unknown"] else ""))
+    if points is None:
+        out.append("    results unread: %s" % why_unread)
+        warn.append("the OTA results could not be read: %s" % why_unread)
+    else:
+        parts = ", ".join("%s %d" % (k, v) for k, v in sorted(b["buckets"].items()))
+        total = sum(b["buckets"].values())
+        out.append("    by last OTA result (%d d): %s" % (OTA_WINDOW_DAYS, parts or "(none behind)"))
+        if total == b["behind"]:
+            out.append("    sum %d = behind %d" % (total, b["behind"]))
+        else:
+            out.append("    SUM MISMATCH: the buckets total %d, behind is %d" % (total, b["behind"]))
+            warn.append("the OTA buckets do not sum to the behind count")
+    out.append("    covers radar devices on the cloud feed only (A3.2): local-feed, OpenSky and other editions send no record")
+    return out, warn
+
+
+def analytics_token() -> tuple:
+    """The analytics-read line of the file BLIPSCOPE_TOKEN_FILE names, refused in the cases token-file.ts refuses.
+    Returns (token, "") or (None, reason). The value is never printed."""
+    path = os.environ.get("BLIPSCOPE_TOKEN_FILE", "").strip()
+    if not path:
+        return None, "BLIPSCOPE_TOKEN_FILE is not set"
+    p = Path(path)
+    if not p.is_file():
+        return None, "the token file does not exist"
+    g = subprocess.run(["git", "-C", str(p.parent), "rev-parse", "--is-inside-work-tree"],
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    if g.returncode == 0 and g.stdout.strip() == "true":
+        return None, "the token file is inside a git working tree"
+    found = []
+    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+        key, eq, value = line.strip().partition("=")
+        if eq and key.strip() == "analytics-read":
+            found.append(value.strip())
+    if len(found) > 1:
+        return None, "analytics-read appears more than once in the token file"
+    if not found:
+        return None, "no analytics-read line in the token file"
+    if not found[0]:
+        return None, "analytics-read is empty in the token file"
+    return found[0], ""
+
+
+def read_published() -> int | None:
+    try:
+        with urllib.request.urlopen(VERSION_URL, timeout=20) as r:
+            return parse_version(r.read(64).decode("utf-8", "replace"))
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def read_ota_points(env: str, token: str) -> tuple:
+    """(points, "") or (None, reason). Newest first, so a row cap cuts the oldest; hitting the cap is said, not hidden."""
+    sql = ("SELECT blob4 AS dev, blob2 AS result, timestamp AS t FROM %s WHERE index1 = 'ota' "
+           "AND timestamp > NOW() - INTERVAL '%d' DAY ORDER BY t DESC LIMIT %d"
+           % (DATASET.get(env, DATASET["production"]), OTA_WINDOW_DAYS, OTA_ROW_LIMIT))
+    req = urllib.request.Request("https://api.cloudflare.com/client/v4/accounts/%s/analytics_engine/sql" % ACCOUNT,
+                                 data=sql.encode("utf-8"), method="POST", headers={"Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        # The body is the reason. R2's first run kept only the status, and a 422 said "untrustworthy" without saying
+        # why: Analytics Engine had refused ORDER BY on a column the SELECT had aliased away. Error text names no device.
+        return None, "Analytics Engine answered %d: %s" % (e.code, e.read().decode("utf-8", "replace").strip()[:300])
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return None, "Analytics Engine unreachable (%s)" % type(e).__name__
+    rows = body.get("data")
+    if not isinstance(rows, list):
+        return None, "Analytics Engine's answer has no data list"
+    if len(rows) >= OTA_ROW_LIMIT:
+        return None, "the %d-row cap was reached, so a device's newest point may be cut" % OTA_ROW_LIMIT
+    return [(str(x.get("dev", "")), str(x.get("result", "")), str(x.get("t", ""))) for x in rows if x.get("dev")], ""
+
+
+def report_ota_reader(env: str, detail: dict) -> list:
+    published = read_published()
+    token, why = analytics_token()
+    points = None
+    if token and published is not None and detail:
+        points, why = read_ota_points(env, token)
+    lines, warn = ota_lines(published, detail, points, why)
+    for line in lines:
+        print(line)
+    print()
+    return warn
 
 
 def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: int) -> list[str]:
@@ -315,6 +481,7 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
         print("    change entries recorded: %d  <-- Run 1 baseline: look for a NEW entry," % changes)
         print("                                    not for a non-empty array")
     print()
+    warn += report_ota_reader(env, detail)
     return warn
 
 

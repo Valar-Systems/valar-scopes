@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { FrameBuilder, frameMeta } from "../src/wx/grid";
 import { OPERA_BUCKET, OPERA_UA } from "../src/wx/ingest";
 import { HEAD_BYTES, type RangeFetch, parseHead, readWindow, windowFor } from "../src/wx/opera";
-import { OPUK_GRID } from "../src/wx/products";
+import { OPUK_FIXTURE_GRID } from "../src/wx/products";
 import { mapFor, resample } from "../src/wx/resample";
 
 const MB = (b: number) => +(b / 1048576).toFixed(2);
@@ -49,7 +49,7 @@ async function main() {
       ranges.push([a, z]); parts.push(b);
       return b;
     };
-    const w = await readWindow(get, OPUK_GRID);
+    const w = await readWindow(get, OPUK_FIXTURE_GRID);
     const bin = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let o = 0; for (const p of parts) { bin.set(p, o); o += p.length; }
     writeFileSync(join(dir, `${stamp}.ranges.bin`), bin);
@@ -60,7 +60,7 @@ async function main() {
 
   const index = process.argv[3]!;
   const fetchRange = memoryFetch(index);
-  const g = OPUK_GRID;
+  const g = OPUK_FIXTURE_GRID;
   if (mode === "cpu") {
     // the static map, once per isolate: from the head's geometry alone
     const geo = parseHead(await fetchRange(0, HEAD_BYTES - 1));

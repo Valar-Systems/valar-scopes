@@ -934,6 +934,7 @@ private:
     uint8_t currentBrightness = 255;    // currently applied level (avoids redundant writes)
     bool autoDim = true;                // dim at night based on solar elevation
     bool nightClockEnabled = false;     // config "night-clock": show a big 7-seg clock when it's night and the sky is empty
+    bool kioskOn = false;               // the web build's kiosk (PollCadence.h); a device build never sets it
     bool nightNow = false;              // solar night, cached by UpdateBrightness (20 s cadence)
     long utcOffsetSec = 0;              // local time = UTC + this, for the clock
     unsigned long lastBrightnessCheck = 0;

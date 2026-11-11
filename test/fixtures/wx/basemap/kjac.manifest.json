@@ -1,0 +1,915 @@
+{
+ "builder": "fdf62ada9f795505daed3a38b69c596da43a2809",
+ "files": [
+  {
+   "bytes": 73715,
+   "layer": "terrain",
+   "sha256": "a82868378e5e1f2909db501a4cdd056d22dc4bc066d8e45c7490096a2a7850cf",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 81186,
+   "layer": "terrain",
+   "sha256": "8e0482fa348c75333a7e7892cc6944d38839d4448ddcdaafeb07e924189f39b1",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 83181,
+   "layer": "terrain",
+   "sha256": "e3ea50eb3648f2a7afb538146e6a899e86150c395c6802e1c2f5e453ec01c11d",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 89190,
+   "layer": "terrain",
+   "sha256": "e3021c8e6753a8d0be7acc3dcbc2b7e6f985a7cc1a3cdcebf50529ba3e7dfac6",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 80251,
+   "layer": "terrain",
+   "sha256": "ddfe87bed489f1329d4e4acd759fe752e341466aef78fc10a53f9fb1efd937ab",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 80302,
+   "layer": "terrain",
+   "sha256": "6454dc32ea6de63363f31510bf111b1d1e10604d82bfa5f5482d2a5f6da9f8b2",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 52881,
+   "layer": "terrain",
+   "sha256": "0fcf22a2428c008ddf79de4a31105fbb7f1fc1c5c5b04c983813d6e6d0c218cd",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 59184,
+   "layer": "terrain",
+   "sha256": "7146869f7002e7e6c427231ac4ac4de937c962762b47873f1db71e2c43f4cd13",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/100/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 71132,
+   "layer": "terrain",
+   "sha256": "852d75a6b9424c9210c54f011e16367020fcb0a9893555bd80e1eb2dc3d13f9e",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 58463,
+   "layer": "terrain",
+   "sha256": "7adfa9bfacdf28efe8e08fa9d11aab32352eb6bcb669836db3934b38bd196556",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 61272,
+   "layer": "terrain",
+   "sha256": "a8569ff53b10811594a12b04bed655d8319d720b09d07c6220e222eb0d79d0db",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 72335,
+   "layer": "terrain",
+   "sha256": "d600ce1f5c60d5a209f6a847d48e2a2f9063ce846fe34ba8e68d65a51b2750af",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 59587,
+   "layer": "terrain",
+   "sha256": "859e25946409d40ac45a12a98a9e30adcd776d17bc5411b0522876dc7db965c1",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 67111,
+   "layer": "terrain",
+   "sha256": "496cacb59ffdb864b6ee8c64557defa4bf7ee1d6f124e519f6442adf750d2cb1",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 57408,
+   "layer": "terrain",
+   "sha256": "c03bc3e7e85adf371a5232f02c69b3dfa175d58c406c1ffc846bf73aabed5770",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 55344,
+   "layer": "terrain",
+   "sha256": "8695525d2b94b04b029c33291abe4e47f18946b80d735aed902a5993efa73d1e",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/101/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 69127,
+   "layer": "terrain",
+   "sha256": "77475ce116cd29df8b91062155a3bd855f0fea291503ffb13ffb8a19891137cb",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 79919,
+   "layer": "terrain",
+   "sha256": "677f0751eb7e8c52b5cc3bdaa154a3a0188b0539dce1345ae6301c93202c5d1a",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 62203,
+   "layer": "terrain",
+   "sha256": "f17c1ccc13592c46d8f384fc5aebbad312078df072cef75cb06c71af048316c2",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 61983,
+   "layer": "terrain",
+   "sha256": "635fda157ada2bc48dc635ed1a9bedbc4b9d1067f6cde47112c930fff7d36cbc",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 61531,
+   "layer": "terrain",
+   "sha256": "57c9cfa423870fba28613f90aafcf390c37c87069032456a8243df73e3d85ba0",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 55888,
+   "layer": "terrain",
+   "sha256": "93577a3cbf226dc64de80329f0543591b7c21935f2c3d6622f55ae1df7979c87",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 54572,
+   "layer": "terrain",
+   "sha256": "214ab111a275ae6cd5a946304017f7b36a1ffeaa5ef22b0177e718df549e8b8b",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 47212,
+   "layer": "terrain",
+   "sha256": "7b7c87fb895e9c9daf106735dcc777ad2b035f54a8f15144af7ab213db9874a1",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/102/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 78024,
+   "layer": "terrain",
+   "sha256": "8338d2c06b1422c807c815a07be2b8b6849c29eba81a3c0700da6763794d17f3",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 82683,
+   "layer": "terrain",
+   "sha256": "677c62c9c3daea2be27fbe161e3d4832283325400d1ff2ef5d52f4f138ad410e",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 80617,
+   "layer": "terrain",
+   "sha256": "de9f1d5e894e5d12412653d1fbb22ab308774135dee80700dc0ef56ab32a078b",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 82727,
+   "layer": "terrain",
+   "sha256": "86b9e28c27085853357c0e3a42a883f6de0414636817319314f155d6a0100fea",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 54051,
+   "layer": "terrain",
+   "sha256": "fc9aac9dd26c708a486c16d72c6137ae4e1e548fb60b41176f31bdee9a5302a4",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 40929,
+   "layer": "terrain",
+   "sha256": "2effc150606111f96667d0d95ccda05065f871a2642309de530779fb1f071b07",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 60345,
+   "layer": "terrain",
+   "sha256": "5a061be8a0afa7d114b7164ab2c091ab27049234b5a6e484d1af91546c455eab",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 67590,
+   "layer": "terrain",
+   "sha256": "78196e2e29d372ced1d157822d143d909c6fb1d73e2ee08002a76b367791725c",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/94/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 73409,
+   "layer": "terrain",
+   "sha256": "2b730c965bfd99beb4baa0e30ea052b7fe2699ae9402753351f4b1d49a943be0",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 78445,
+   "layer": "terrain",
+   "sha256": "d0622c0f383a2ffea99ee2fb88b50411168250e8ebf88235398fdfecc054791c",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 81775,
+   "layer": "terrain",
+   "sha256": "e44482842aa3367ba3b97a01e818d895022fbd3a0ca852892c02302980d56c48",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 56128,
+   "layer": "terrain",
+   "sha256": "b12974f3f739d64e1123b6e2f33943a5c8668fcf14871e2c5a452fb234e9d5da",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 43688,
+   "layer": "terrain",
+   "sha256": "f77c741a9af4d005a9dbc0ce300cb76ead9ac752a7d2c9aa9400ad442611dceb",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 54861,
+   "layer": "terrain",
+   "sha256": "ed6d3f6f4369a93902a64058dd4a56532d6aa284a534e1f1d81fdec86463c871",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 74120,
+   "layer": "terrain",
+   "sha256": "a6d6b06897fd7c707a129fb25014111bee87b3af508011802404b553195cce14",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 48567,
+   "layer": "terrain",
+   "sha256": "70d553a7452aef4d76f0b0fde0fdf8daa29c66b5509950d02c14872d07ef926e",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/95/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 76671,
+   "layer": "terrain",
+   "sha256": "ee03197db25975d858a470d9e2a677ad5aa575c5b164f8f7c64bcf89357c693a",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 74025,
+   "layer": "terrain",
+   "sha256": "5830cde01898441448c67dd9b88d4aebc6643a0be5bb5a20cf962863ff943140",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 62146,
+   "layer": "terrain",
+   "sha256": "701d06b458466c4e5745a7a8d06963642c8a2817d407048c5babdcfb78b75d49",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 41532,
+   "layer": "terrain",
+   "sha256": "96a187689cba8d61f5919832e0c04bf476010c56515322cee1f7bd0ba5ed8d6e",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 57133,
+   "layer": "terrain",
+   "sha256": "2dc963c4a33509e246a86c65017bd76c923b0cf26266aa80b873aa00aaf5376b",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 74902,
+   "layer": "terrain",
+   "sha256": "57be8d8dc2e5aa7260c9482ec811b3344c2c22796ce5b36dccc0d98e0710b064",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 75013,
+   "layer": "terrain",
+   "sha256": "7d69cc3e8f110bedbdad6c7ddabfd539a0b0d6015742113fdd2ca1cde5b8e743",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 63734,
+   "layer": "terrain",
+   "sha256": "d12baa1040c66fa0b7e4422eb03c344a5d8452ec6e429f92b0ab807ad43a2aef",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/96/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 81619,
+   "layer": "terrain",
+   "sha256": "b55d540034629869a542b4e8cd4aad13d90b3b41952ac498a0bb7ac951867e92",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 79906,
+   "layer": "terrain",
+   "sha256": "8d4d6943345d11aa9fdda0223fa8d765bff3a477ea047d68ac130d83acd83dc7",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 63447,
+   "layer": "terrain",
+   "sha256": "d07be211c1a7aba45cdc398887672839c4d1542f9b627c9f99cc2a9f641019da",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 61223,
+   "layer": "terrain",
+   "sha256": "19f728a15b2d3c7f053dbad3078a2d30c68b37f853632ae74ae6701d8e2ef26e",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 80908,
+   "layer": "terrain",
+   "sha256": "01668227b5163da9692965384c9bbcd3634c0dc112046a7b9d5b20f5959fc38a",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 75488,
+   "layer": "terrain",
+   "sha256": "cf2b7571bb955c4674dbf2c4ca476a95c9b9ae5dc6a753ccd071ac01e40f83e5",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 76077,
+   "layer": "terrain",
+   "sha256": "025c07ff0cf2ad0cf90f10413269b5b519a3dd22d8aab36bfda98ff132982517",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 77802,
+   "layer": "terrain",
+   "sha256": "9ac95e81595f86488c2c3b47ca928ef6ebaf0e972523ec27ac418163ffc45573",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/97/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 88568,
+   "layer": "terrain",
+   "sha256": "b0d177dce4c5992059959474010c147238135647a30a3ebbf31badebb9e15591",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 76859,
+   "layer": "terrain",
+   "sha256": "0a9af66368e3949b5073b2091f697700ca25e4bf5599b543bdb4e44a81a093dc",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 66608,
+   "layer": "terrain",
+   "sha256": "59e78bc43219e021f0c7c76d517c91d92984e16e1c3490715d2b1ce8de261dd6",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 79167,
+   "layer": "terrain",
+   "sha256": "741f801ab5a42a78d42e674836a6d153af0c700aec99a89836168361af8e104c",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 88293,
+   "layer": "terrain",
+   "sha256": "6e4c91d58890a989cb566b59f609d0212a331ff0adaa2da7e9785f968b91b8ce",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 84126,
+   "layer": "terrain",
+   "sha256": "66cfdbb3f20af97d06f590ffe203c0f014de1802dbaded06a8aa382ed4e3eb2f",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 80356,
+   "layer": "terrain",
+   "sha256": "1d6a2cd33fc7ed904d3f80fe234c530b8b5a8d78d5f7c6c1d903e8cfc04ca92d",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 67907,
+   "layer": "terrain",
+   "sha256": "595d887d922e62f68a88fa96a06fb3113775b7d9bd056fe490135c37698c341d",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/98/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 89997,
+   "layer": "terrain",
+   "sha256": "490d319798546e79a1639cd05eeb8e34d323a40d163216f4e4386852f0b192ae",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/183.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 86644,
+   "layer": "terrain",
+   "sha256": "02da32480d85285e93c4efdf4b4ef8421bf99b23595250aedde20b5acd68bb86",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/184.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 83251,
+   "layer": "terrain",
+   "sha256": "b633864f563d9dee975cf1e48a95303581cfb3c5d5ad6e9cefc923a87f0f8587",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/185.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 85023,
+   "layer": "terrain",
+   "sha256": "4946eb16f949af760daa7dfb103e77ffa78e38d35d4a40ecde6ac32cfc7833ea",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/186.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 81281,
+   "layer": "terrain",
+   "sha256": "76ba093bc3e79b9706bb28ed8d0520765d5ce63c26a53a1eff25f1ad57426cf8",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/187.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 58764,
+   "layer": "terrain",
+   "sha256": "6da46e5c3b67b2ac3fc26147dc709791a3a886eb20652f988ea0361cc338d705",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/188.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 59033,
+   "layer": "terrain",
+   "sha256": "b4bcf88b1876e1cbaf5736368a51b3481b4ed2f08e46d920acdc2d4d466bec38",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/189.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 48694,
+   "layer": "terrain",
+   "sha256": "8a1a31906fd1c5081d4b0e007756f31e585a47357daa472849d47e26797ce26d",
+   "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/9/99/190.png",
+   "vintage": "2017"
+  },
+  {
+   "bytes": 1214053,
+   "layer": "places",
+   "sha256": "49644173a453469d9bd77fb7a493b027f87567e209edaf2078aac7543ac2ee29",
+   "url": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_place_national.zip",
+   "vintage": "2025"
+  },
+  {
+   "bytes": 321464,
+   "layer": "water",
+   "sha256": "d7eca12a7ce3bc89dedac66f68401ded5a5413e93f055354fff7a0dad8ef3c49",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16005_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 468982,
+   "layer": "water",
+   "sha256": "88d5b721083dda579a025ff374ee1467197e2ff8840f907abf2641ab19638121",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16007_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 190838,
+   "layer": "water",
+   "sha256": "342efc239d9cd8898cdbfee24482620f568b74094cb2337dd12e8b05154d9768",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16011_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 740259,
+   "layer": "water",
+   "sha256": "f1f9960c7ad1a66d1b6e9dea6a3516121ccf714c6d4d703dedf9b1b78e9a4788",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16019_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 300520,
+   "layer": "water",
+   "sha256": "27de935365f20f055f46abcbf3f18e43b37825bf6e45e8ef16370855e0c8f672",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16023_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 661422,
+   "layer": "water",
+   "sha256": "18141a3f88bfff71192d1ae64feb456204c17366701d392e749a654aa9f9c12a",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16029_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 129809,
+   "layer": "water",
+   "sha256": "d030a55a68d013dda5f5aa493f7521912e20ba08d3f88681dda30815bbe0210d",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16033_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 177366,
+   "layer": "water",
+   "sha256": "c4d8e0903c74d78ae50eac695d48e88901d1038f756367550e8eb2a7cb956ebe",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16041_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 822221,
+   "layer": "water",
+   "sha256": "31d5f152bfb4530821591f8fa1423286bb0149b4585e2e21fdd332b63597663d",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16043_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 514124,
+   "layer": "water",
+   "sha256": "91daa474ed831f12ba382ddbc0372eb00b3fa8cc2b7dca16aa6c2a12710759a2",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16051_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 526999,
+   "layer": "water",
+   "sha256": "798102216b8f8d6bb46cc9d66d6789fc43bca2d2f9f2f61fe7259c67a00b107a",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16065_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 72139,
+   "layer": "water",
+   "sha256": "c1e0b12515edcd99e4ebb94919866edd706aeb8220ef802818955411651ff511",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16071_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 232940,
+   "layer": "water",
+   "sha256": "1a6fb506b0bd88bbf45bf16048520982b1ac9c961c62f0a8d45d34c9f1e0b357",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16077_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 132506,
+   "layer": "water",
+   "sha256": "299f22c8bda548ed15ef48069cb9165eff19bf964c59711b0364f917c85a37dc",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_16081_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 381638,
+   "layer": "water",
+   "sha256": "4c6095a64933b0eb5cab4352a783af25cdc02ef6c7e38e06b048cbef89e8c6cc",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_30001_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 324443,
+   "layer": "water",
+   "sha256": "a6469d05abb146afc43d9a89ca8999bcb80c3172114c7b12821394e7d7d271f7",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_30009_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 679387,
+   "layer": "water",
+   "sha256": "2ca4c2a9ec770ce02581a2376dfa1c448c35e3892988ce1c31c971ed4091451c",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_30031_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 215802,
+   "layer": "water",
+   "sha256": "d4ad5576358b9bd1067c040e963abe2f80cbcbedaa3c41629607f3762f3ebeb0",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_30057_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 300157,
+   "layer": "water",
+   "sha256": "b22b0c5263ecf9aca8048f8ab5d9520a44bbd2c642115564658757a589d8f19d",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_30067_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1091231,
+   "layer": "water",
+   "sha256": "1643d71e2cb598e997ca3f427b6aa37c57ccc081c35677d7bbaf0feef67203ba",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56013_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 56801,
+   "layer": "water",
+   "sha256": "14aceef652ecc4279c5330fec9df595e27bfc4ea927b01d6a2c757ce2827c32d",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56017_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 160399,
+   "layer": "water",
+   "sha256": "6bdedbf0e9e2cd3dd5ea61fe09e626375d15a9723bdc286aab71d95c72d62792",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56023_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 382297,
+   "layer": "water",
+   "sha256": "2839d41c40c0dce1a015b79e70b3a91d7d1ac9ca326f0c803250197987dd8728",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56029_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 981322,
+   "layer": "water",
+   "sha256": "99aff0583dee77bea0399332df87e53f53fc2e4acfbe722d7f3da07cf6be0a2c",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56035_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 489131,
+   "layer": "water",
+   "sha256": "4845d5330dfdb5ae5f0dead4e968b189c1f1c8a836ad2baa476062f17f22266b",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56037_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1304737,
+   "layer": "water",
+   "sha256": "13eac4d9ac7d351250066aa3f73eb686c182c4df879a77c5f4a963ed9d05ea66",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56039_areawater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1920287,
+   "layer": "rivers",
+   "sha256": "50aab5c83c1db2079ce5f80a830881b72fd876b0e6bab8a40b70d8f8b83657d7",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16005_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1413631,
+   "layer": "rivers",
+   "sha256": "52f44201282cfce7156a3b0f6821dd6a08bf4b36c079904c1e5d719705fca4e2",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16007_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1971112,
+   "layer": "rivers",
+   "sha256": "0e2290025ddc6af8d2f912641f95da1ccb7f118bc9860741c89adfa7b7d613b9",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16011_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2795187,
+   "layer": "rivers",
+   "sha256": "3e72e3462d2b6384557d2771621e460e337719d1667c7f65d68d89161d1fc6ba",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16019_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2793910,
+   "layer": "rivers",
+   "sha256": "3e1038adb7681767a8c50e3e9dc89f607e1fd5b19e8e24284261bfb5cf9b7fa6",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16023_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2607010,
+   "layer": "rivers",
+   "sha256": "9b139f9b72edb6c7e2e4488f27dd1e6d62a35028eb54105907b6e7b9a980f3b4",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16029_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2375554,
+   "layer": "rivers",
+   "sha256": "fd9ee8c11b8d692290e7909f8100152f661135f4952b61d3d353ded6f97cc486",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16033_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 859144,
+   "layer": "rivers",
+   "sha256": "f89a9c4d6f26f8f3c74cf1f5518b8588aff13029a1a9db8e31d27c752d036ce7",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16041_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2032944,
+   "layer": "rivers",
+   "sha256": "fa8aef3ab49f79b96bef8b47fd0bafa50f9ffa725ab2b786eebb9f67296083e3",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16043_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 575406,
+   "layer": "rivers",
+   "sha256": "b16deceb22761f67e56d79fda809b184ad7681d0308f7ba7115b499bca9d12ea",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16051_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 795237,
+   "layer": "rivers",
+   "sha256": "0c2874c916c089825d98efc923d377574c7ff1e52e01dfc04d88f055197ed4d1",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16065_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 945354,
+   "layer": "rivers",
+   "sha256": "b650642406141b952ecb67e4d8613d09fb769ad60f9bb739ad0b00f0cf49e019",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16071_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2132592,
+   "layer": "rivers",
+   "sha256": "cd364007703b411ee6acd2af8d0be5260e3dd09cd03405e74c8600afe1683ea4",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16077_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 781737,
+   "layer": "rivers",
+   "sha256": "1f12304490dd91117a1ba08ea6efe5b9376d04b98345979eef8aa6b88b501d5c",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_16081_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 6474546,
+   "layer": "rivers",
+   "sha256": "cdcce2bb661d18ce89f3c754345900b1bf6c64dd621c2061f07c302e450366b8",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_30001_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2787089,
+   "layer": "rivers",
+   "sha256": "63f2d1792057a407069e2430f1a2af3334886ec7544ac1c3d908f65a74be035c",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_30009_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 4430500,
+   "layer": "rivers",
+   "sha256": "2fba3a8e0317070d9bcb2dcfec3d75831af8c395cb6f92aa4d234d9347e1d20b",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_30031_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 3836300,
+   "layer": "rivers",
+   "sha256": "6c3964ffb52739f6b3393487ff539351f7801e7374b70f999a4f157bc06c744d",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_30057_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2231816,
+   "layer": "rivers",
+   "sha256": "cc464f6e2c5abfbccd1100b25e05d7d4bd62eed055533fcf035310fd6725c282",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_30067_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 6075992,
+   "layer": "rivers",
+   "sha256": "246d28ba93348d97b8b8c4066f10e92eadd29437881361f1d4659e776dfa955f",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56013_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 1665817,
+   "layer": "rivers",
+   "sha256": "bce2bcf1d96e058293192ea5001c4ce01ebe4a35547d79807ae8663ea398a373",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56017_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 4270990,
+   "layer": "rivers",
+   "sha256": "a1bb86609adb3c5c544d5a0cf2be4edc1c31cda6ec66aa33c484043bda590825",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56023_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 6891894,
+   "layer": "rivers",
+   "sha256": "8192df04d601df639258366eecfa1980155f6995e52b260be2471ef9950825c9",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56029_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 6263546,
+   "layer": "rivers",
+   "sha256": "b3894ec941fbac491dfe5bd5338151ccd90221578809089ac60f5eb90e5ada81",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56035_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 5665516,
+   "layer": "rivers",
+   "sha256": "7c193647b235553c3117f38be2fff0b73bcc9ef2364fd89c67991e1cdd978649",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56037_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 7208115,
+   "layer": "rivers",
+   "sha256": "ec38980bb12efa12812a7155c5bab0299a1574fdd680b08f1b00301ce691590f",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_56039_linearwater.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2094611,
+   "layer": "roads",
+   "sha256": "817bf545bc56adc13b41da003b15a52ca57ae052f1eb6b719e4567bc4fe285c3",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/PRISECROADS/tl_2024_16_prisecroads.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2614769,
+   "layer": "roads",
+   "sha256": "89f5570abfe4d7f8a02fb754fa8c740163e2dd3f664627b2b6b9e811634e85ed",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/PRISECROADS/tl_2024_30_prisecroads.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 2607782,
+   "layer": "roads",
+   "sha256": "0adbfd65febb92ebdf2deb40357b1489d861ea6a508fb3080b500d67eee0bf2a",
+   "url": "https://www2.census.gov/geo/tiger/TIGER2024/PRISECROADS/tl_2024_56_prisecroads.zip",
+   "vintage": "2024"
+  },
+  {
+   "bytes": 7087080,
+   "layer": "population",
+   "sha256": "af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9",
+   "url": "https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv",
+   "vintage": "2024"
+  }
+ ],
+ "predicates": [
+  "water: AWATER >= 1500000",
+  "rivers: FULLNAME ends with \" Riv\"",
+  "roads: MTFCC in {S1100, S1200} (business routes kept; the builder drops them)",
+  "peaks: feature_class = Summit",
+  "places: LSAD = 25"
+ ]
+}
