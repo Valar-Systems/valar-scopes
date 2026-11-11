@@ -217,3 +217,59 @@ rows stop it, because without them the other two can't be read.
 
 **What this cannot see:** workerd; the sea mask's own rings, which the code PR brings and which both fixes would also simplify; and the
 time each fix adds in workerd. Node's wall per build is reported.
+
+## The cost read (2026-11-11, 19:15:40-19:18:21Z): "tp" is a fix at small cost; "vp" removes the crossings at a large one
+
+The registration was pushed at 19:15:32Z (`994fbc26`). Every artifact's sha256 read as registered. **51 builds ran,** each in its own
+process, and the parent exited 0. The error file is empty, and nothing ran on staging. The log is scratch (sha256 `215c504573aa`).
+
+**Today's anchors (T) held at all 13:** Q-DR3's P1 package at every point (New York's at 129.6 km), and every build's memory within
+0.785 of Q-DR3's. **Today's packages all carry crossing rings,** from 9 crossings (KEWR) to 240 (KJAC).
+
+| point (B's radius) | today: crossings / secondary kept / water rings | **tp**: crossings / secondary / water rings | **vp**: crossings / rung / secondary / water rings, share |
+|---|---|---|---|
+| KBOS (162) | 79 in 39 / 28 / 222 | **0** / 8 / 222 | 0 / rung 4 / 0 / **2 rings, 1.9%** (today 11.5%) |
+| KJFK (129.6) | 70 in 34 / 0 / 163 | **0** / 0 / 119 | 0 / 7 / 0 / 26, 9.1% (10.8%) |
+| KLGA (129.6) | 52 in 21 / 0 / 116 | **0** / 0 / 83 | 0 / 7 / 0 / 25, 8.9% (10.4%) |
+| KEWR (129.6) | 9 in 5 / 0 / 54 | **0** / 0 / 35 | 0 / 7 / 0 / 47, 8.2% (8.3%) |
+| Midtown (129.6) | 37 in 19 / 0 / 104 | **0** / 0 / 75 | 0 / 7 / 0 / 63, 9.3% (9.9%) |
+| KMIA (162) | 31 in 11 / 1,571 / 117 | **0** / 1,571 / 117 | 0 / **rung 4** / **0** / 5, 7.8% (13.6%) |
+| KSFO | 79 in 28 / 826 / 104 | **0** / 719 / 104 | 0 / 4 / 0 / 34, 5.0% (5.6%) |
+| KSEA | 104 in 32 / 700 / 224 | **0** / 342 / 224 | 0 / 4 / 0 / 82, 11.1% (11.8%) |
+| KORD | 111 in 35 / 440 / 112 | **0** / 276 / 112 | 0 / 4 / 0 / 30, 24.1% (24.5%) |
+| KDTW | 30 in 13 / 428 / 58 | **0** / 386 / 58 | 0 / 4 / 0 / 38, 9.1% (9.1%) |
+| KMSP | 109 in 40 / 116 / 176 | **0** / 18 / 176 | 0 / 4 / 0 / 15, 0.7% (1.5%) |
+| KIND | 157 in 41 / 513 / 80 | **0** / 335 / 80 | 0 / 4 / 0 / 13, 0.2% (0.6%) |
+| KJAC | 240 in 35 / 578 / 89 | **0** / 578 / 89 | 0 / **rung 4** (today 1) / 0 / 23, 1.1% (1.2%) |
+
+**Memory, the largest build per point** (MB; the owner's B took 77.2):
+
+| | today | tp | vp |
+|---|---|---|---|
+| New York at 162 km (the 422 tries) | 74.2-77.3 | 74.5-77.6 | **84.9-88.1** |
+| New York at 129.6 km (the packages) | 60.2-66.2 | 60.3-66.4 | 67.6-72.2 |
+| KBOS | 71.3 | 72.0 | **78.5** |
+| the other 8 | 42.4-55.1 | 42.6-55.6 | 46.5-69.1 |
+
+**Graded:**
+- **tp: as predicted at all 13.** 0 crossings in every package. It fits where B fits (the 9 at 162 km, New York at 129.6 km). Every
+  build's memory is within 0.785 of today's, +0.13 to +0.72 MiB.
+- **vp: 0 crossings and fits where B fits, at all 13, but its memory row is off at all 13:** +2.1 to +13.3 MiB per point.
+- **Not graded, reported:** tp's counter shows 2 rings at KMSP that it could not fix, in a water set that package didn't use. A KMSP
+  package that fitted at rung 0 or 1 would carry them, so tp is not proven to leave zero crossings everywhere.
+
+**What each costs, by the ruled meanings:**
+- **tp is a fix.** No point goes to a 422, and New York stays at 129.6 km. **Its costs:**
+  - **fewer secondary roads** at 7 of the 9 airports, since the extra water vertices push the ladder further: KBOS 28 → 8, KMSP 116 → 18,
+    KSEA 700 → 342, KIND 513 → 335, KORD 440 → 276, KSFO 826 → 719, KDTW 428 → 386;
+  - **fewer water rings in New York** (KJFK 163 → 119), at about the same water share;
+  - **+0.13 to +0.72 MiB** per build. At New York's 162 km tries that is 77.5 and 77.6 MB, above the 77.2 the owner took, but today's run
+    already reads 77.2-77.3 there.
+- **vp removes the crossings, but at a visible cost.** Rebuilding a crossing ring finer makes it large, so the ladder drops more water to
+  fit:
+  - every one of the 9 airports goes to rung 4: all its secondary roads go, and most of its water (KBOS keeps 2 of 222 rings, 1.9% of the
+    disc against 11.5%);
+  - **+2 to +13 MiB,** up to 88.1 MB at KEWR's 162 km try, well above the 77.2 the owner took.
+
+**For the owner:** tp removes the crossings almost for free. vp removes them by deleting most of the map's water. Accepting keeps
+today's wedges.
