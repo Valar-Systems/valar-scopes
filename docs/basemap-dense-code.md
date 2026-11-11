@@ -970,6 +970,59 @@ If that holds, the escape branch is the likely result, and the owner sees the pi
 - No vitest runs. Free disk was 75 GB at 23:36Z.
 - The run reads the pinned `525cf7d1`'s builder through pq4c.
 
+### Amendment (the orchestrator's 23:40Z ruling): SPILL restated, so the band excuses only open water
+
+**The ruling, verbatim:**
+
+> ONE DEFINITION MUST CHANGE BEFORE IT RUNS, because it biases the choice: SPILL excludes the whole 1.5 km border band. But that band is
+> exactly where (c) puts NE water onto the US side by design (the 1 km erosion), and Buffalo is a shore junction: the border meets the
+> US shore at the Niagara. So as written, (c)'s spill onto Buffalo's waterfront would be invisible, and (c) passes SPILL nearly by
+> construction. A count that can't see the failure of the design it grades is the blind-instrument shape. Restate it so the band
+> excuses ONLY open-water strip pixels:
+> - excused: pixels between NE's border line and TIGER water's border-side edge, and at least a stated distance from any TIGER
+>   shoreline (land/water edge that isn't the border);
+> - counted as SPILL, wherever they sit: NE-only pixels within that distance of TIGER's shoreline on the US side, band included. Print
+>   them as SPILL_JUNCTION beside SPILL_SHORE;
+> - add a third control, plant_junction: a small square of NE water on US land at the Niagara junction, inside the old band. It must
+>   read SPILL_JUNCTION > 0, or the count is blind and nothing is read.
+> Also, whatever the outcome, render BUFFALO-{a,b,c}.png for the record. They're not graded.
+
+**SPILL, restated** (it supersedes the SPILL row above):
+- **The strip:** pixels in L within 1.5 km of the border.
+- **TIGER's shoreline:** the edge pixels of TIGER's water (W_n) whose non-water 4-neighbour is NOT in the strip. An edge facing the strip
+  is TIGER's border-side edge, not a shoreline. **Near the shoreline** means within **0.5 km** of a shoreline pixel (the stated
+  distance).
+- **N1** = W_d and not W_n and U: NE-only water on US territory.
+
+| count | definition |
+|---|---|
+| **SPILL_SHORE** | N1 beyond 1.5 km of the border |
+| **SPILL_JUNCTION** | N1 within 1.5 km of the border, AND near TIGER's shoreline or outside L |
+| **EXCUSED** (printed, not counted) | N1 within 1.5 km of the border, inside L, and not near TIGER's shoreline: **the open-water strip, the only pixels excused** |
+| **SPILL** | SPILL_SHORE + SPILL_JUNCTION. The choice rule's SPILL = 0 is on this total |
+
+**The third control, plant_junction.**
+- It is (b) plus a **300 m square of NE water** at a site chosen at run time, from the "none" build, by a rule frozen here. The site is
+  the US-land pixel (U, not W_n) within 1.5 km of the border that is **nearest the border**:
+  - taken first from those **inside L** (the old band);
+  - only if there are none, from those outside L;
+  - ties by row, then column.
+- At Buffalo that is the Niagara junction the ruling names. The site, and which set it came from, are printed. No site at a home stops.
+- **It must read SPILL_JUNCTION greater than (b)'s, at each home.** That is "> 0" as ruled, made strict where (b) has some of its own.
+  Else the count is blind, and no design is read.
+- **The controls are now three, all first:** the seam, the spill, the junction.
+- **The pictures** (`BUFFALO-{a,b,c}.png`, and every other design's) are written before the controls are read, so they exist whatever
+  the outcome. They are not graded.
+
+**The tooling now:**
+- `lake-render.py` `8333cbb92406` (with `--site`);
+- `lake-junction.py` `bc1789ecaf54` (new, in the shapely venv);
+- `lake-build.mts` `42a7c11f5637` (it accepts `plant_junction`);
+- `lake-read.py` `50c5748ac3b2`;
+- `lake-fetch.mts` `e56c9e06aca0`, unchanged.
+
+Every script compiles, and the build again refused an unknown home with exit 2 after its imports. Nothing has been fetched or built.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
