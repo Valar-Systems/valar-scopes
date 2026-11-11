@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 const ROWS = ["WS1:", "WS2:", "WS3:", "WS4:", "WS5:", "WS6:", "WS7:", "WS8:", "WS9:", "WS10:", "WS11:", "WS12:", "WS13:", "WS14:",
-              "WS15:", "WS16:", "WS17:", "WS18:", "WS18b:", "WS19:", "WS20:", "WS22:"];
+              "WS15:", "WS16:", "WS17:", "WS18:", "WS18b:", "WS19:", "WS20:", "WS22:", "WS23:"];
 const H = "src/weatherscope/handler.ts", F = "src/weatherscope/fetch.ts", T = "src/weatherscope/trim.ts", I = "src/index.ts";
 const PY = "../tools/weatherscope/nws/trim_nws.py";
 const ALL_ROUTE_ROWS = ROWS.filter((r) => !["WS4:", "WS13:", "WS18b:"].includes(r));
@@ -59,6 +59,10 @@ const SABOTAGES = [
     edits: [["  return { breakers: BREAKERS.map((id) => ({ id, state: breakerState(id) })) };",
              '  return { commit: "x", breakers: BREAKERS.map((id) => ({ id, state: breakerState(id) })) }; /* SABOTAGE S-WS-COMMIT */']],
     red: ["WS18b:"] },
+  { name: "S-WS-NOSTATION", file: H,
+    edits: [['    if (typeof id !== "string" || !/^[A-Z0-9]{3,5}$/.test(id)) throw new NwsRefused("no_station");',
+             '    if (typeof id !== "string" || !/^[A-Z0-9]{3,5}$/.test(id)) return { data: "KZZZ", countsForBreaker: true }; /* SABOTAGE S-WS-NOSTATION */']],
+    red: ["WS23:"] },
   { name: "S-WS-PY", file: PY, python: true,
     edits: [["    return int(math.floor(x + 0.5))", "    return int(round(x))  # SABOTAGE S-WS-PY"]],
     red: ["golden: 2 cases, 2 differ"] },

@@ -415,6 +415,13 @@ describe("W5: Weatherscope's NWS routes", () => {
     expect(boots[0]!.blobs![2]).toBe(MODEL);
   });
 
+  it("WS23: an empty station list is unavailable / upstream_failed exactly, and no observation is asked for", async () => {
+    const p = P(25);
+    mockPoints(p.lat2, p.lon2, p.x); mockStations(p.x, { features: [] });
+    expect(await bodyOf("conditions", p.q)).toStrictEqual({ v: 1, status: "unavailable", fetchedUtc: T0, reason: "upstream_failed" });
+    expect(callsTo("/observations/")).toBe(0);
+  });
+
   // LAST, on purpose: it reads every log line the file wrote.
   it("WS19: no log line in the file holds a test point, a station or a grid", async () => {
     const p = P(24);
