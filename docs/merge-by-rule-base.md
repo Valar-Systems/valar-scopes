@@ -53,6 +53,26 @@ Both commits, this registration and then the code, touch only `docs/` and `scrip
 workflow takes them. So each predicts the docs-only shape: **32 = 29 success / 3 skipped / 0 failed**. `device-ids` runs MB5's
 selftest and sabotage on every PR.
 
+## 5a. The results, before the push (2026-11-11; every run `MERGE_DRY=1`, nothing merged, the merge claim free after)
+
+| row | read |
+|---|---|
+| MB2 | `DRY: would take the merge claim and squash #651 into release/v19 at H 3a322758eadc` (20:56Z) |
+| MB3 | `STOP: #651's base is 'release/v19', not the stated 'main'; nothing merged, no claim taken` |
+| MB4 | `STOP: no branch release/no-such-branch on origin; nothing merged, no claim taken` |
+| MB1 | `DRY: ... squash #646 into main at H 525cf7d1725d`; `main` held at that sha throughout (22:18-22:21Z) |
+| P-NOCHECK | MB3's input reaches `DRY: ... #651 into main at H 525cf7d1725d`: **MB3 red**, as registered |
+| P-HMAIN | MB2's input prints `DRY: ... #651 into release/v19 at H 525cf7d1725d`, main's head: **MB2 red**, as registered |
+| MB5 | on the committed LF bytes plus this script: every selftest row passes, and all seven plants are as predicted (S-CL-MERGE {CL11}) |
+
+**Two earlier attempts at MB1 and the plants were stopped and are not readings.** In one, `main`'s CI was not green. In the
+other, `main` moved under the runs (21:46:02Z).
+
+**A Windows trap, noted for the record and not new.** In a Windows checkout with `core.autocrlf=true`, `session-claim.py`
+and `claim-hook.py` are CRLF on disk. Five of the sabotage driver's anchors are LF, so they match nothing there, and the
+driver reads OFF. That is a property of the checkout, not of this change. `git archive` applies the same conversion, so the
+LF copy has to come from `git cat-file`.
+
 ## 6. After it merges
 
 - It merges into `main` by the current script, unchanged, since its base is `main`, after the reviewer's approval at its sha.
