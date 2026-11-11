@@ -1233,3 +1233,40 @@ The joint reading is graded once the ninth process finishes.
 **Then:**
 1. the release variant, as its own registration (ruled);
 2. then Q-DR3, on the lever that reading supports (ruled (a)).
+
+### `READ_AHEAD`, re-registered, read (2026-11-11, 04:33:16-04:33:24Z): stopped at RA1, in the fourth process. `READ_AHEAD` 3 is 1.77 MiB under 6
+
+The registration was frozen at 04:33:08Z (`cd00ec265629`). Four processes ran; the driver stopped itself in the fourth (exit 7). The
+error file is empty, the tree stayed clean, and nothing ran on staging.
+
+| process | peak | where | the last cell | C5 (78 collections after the build; the build ran 77) | |
+|---|---|---|---|---|---|
+| `READ_AHEAD` 6 | 99.49 MiB | cell 16 of 21 | 97.72 | holds: +0.00 / 0.00 | RA0 ok |
+| `READ_AHEAD` 6 | 99.52 | cell 16 | 97.75 | holds | RA0 ok |
+| `READ_AHEAD` 6 | 99.53 | cell 16 | 97.75 | holds | RA0 ok; the three spread 0.04 |
+| **`READ_AHEAD` 3** | **97.76** | **cell 21 of 21** | 97.76 | holds | **RA1 off: 1.77 MiB under 6's 99.53** |
+
+**RA3 held in all four:** controls, settling (at most 3 collections), objects and 422. **RA2 at 6 was off in all three,** as predicted.
+
+**The joint table was not graded,** since the stop came before the ninth process. Its printed pattern so far is RA2 off at 6 with C5 holding,
+which is the explanation-1 row.
+
+**By the registered table: RA1 off. `READ_AHEAD` moves the peak, so stop and report.**
+
+**What the four processes show, and how my reading of the code fares:**
+- **Held:** every read is held until the loop ends, whatever `READ_AHEAD` is. The last cell reads 97.72-97.76 MiB at both 6 and 3.
+- **Wrong:** that the peak sits at the loop's end.
+  - At 6 it sits at cell 16, where every read is first held, and it is **1.77 MiB above the loop's end.**
+  - At 3, every read is first held only at cell 19, after whatever made cell 16 high has gone. So the peak falls to the loop's end.
+- **`READ_AHEAD` 1 can't go lower than 97.75.** At the loop's end every read is held at any setting. So **the most `READ_AHEAD` can save at
+  KLGA is about 1.8 MiB of 99.5.** That is a bound from these readings and from the code, not a measurement at 1.
+
+**What makes cell 16 1.78 MiB higher than the loop's end is not established.**
+- **Not the layer sets:** `LayerSet.add` only appends.
+- **Not something outside the build,** as far as C5 can see: 0.00 MiB of drift after every build.
+- **The candidate:** `decodeCell` returns a cell's features as one array, which the loop iterates. At the sample that follows, the array may
+  still be reachable from `build`'s running frame, which is C2's effect again. Each cell's sample would then include that cell's decoded
+  features, and those differ from cell to cell.
+- **Either way it is real memory:** the array is live while its cell is processed, so workerd pays it too.
+- **The alternative:** some other per-cell state. This run can't separate them, because it prints only each phase's largest sample, not
+  every cell's.
