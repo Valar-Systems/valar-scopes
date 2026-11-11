@@ -1436,3 +1436,51 @@ in the configuration that will be graded.
 
 **For orientation only, not a prediction:** the stopped run's two processes differed by up to 0.36 MiB at one sample, which would give a
 bound of about 0.72. The bound is whatever the fresh three give.
+
+### The release variant, re-registered, phase 1, read (2026-11-11, 05:10:16-05:10:30Z): as predicted
+
+The registration was frozen at 05:10:08Z (`96854fe67da4`). Three v0 processes ran, each exiting 0. The error file is empty, the tree stayed
+clean, and nothing ran on staging.
+
+| row | v0, process 1 | process 2 | process 3 |
+|---|---|---|---|
+| RV0: the cell phase's largest, ± 0.50 of 99.51, at cell 16 | 99.39 (−0.12) | 99.55 (+0.04) | 99.54 (+0.03) |
+| RV3 | controls ok; settled (at most 3); objects local; 422, DR0's ladder; KJAC `b3f428e5860e` | the same | the same |
+| DF (both ways) | holds (never falls; the smallest step +0.17) | holds | holds |
+
+**The spread, measured, not bounded (ruled):**
+- **0.16 MiB** at the cell peak;
+- **0.392 MiB** at the largest single sample, which is in the tile loop;
+- 0.164 across the cells, and 0.360 after the loops.
+
+### The release variant, phase 2: the predicted trace, frozen before it runs
+
+**Made by `pred7.mts`** from phase 1's three traces, by the registered formula. The prediction file `pred7.json` has sha256
+`5d96afdbb2e24a3ed6b2d41c866eeca546ac005c6d8105a2b21f7241d3f84481`. Phase 1's results file is `b0150c6ca7f7`.
+
+**The bound for every sample in RV1 and PL1:** twice 0.392, and never under 0.50, so **0.785 MiB.**
+
+**The variant (RV1), predicted, in MiB above its baseline:**
+
+| cells 1-7 | 27.32, 30.03, 33.67, 33.16, 33.40, 38.92, 46.32 |
+|---|---|
+| cells 8-14 | 45.96, 45.49, 44.89, **52.47**, 51.67, 47.53, 48.66 |
+| cells 15-21 | 46.51, **53.60**, 47.54, 44.82, 40.17, 39.86, 38.59 |
+| tile loop | 73 samples, 37.48 at tile 1 to **56.60 at tile 72** (largest) |
+| after the loops | tiles 56.47, terrain 56.72, layers 59.86, **ladder 59.90**, end 8.77 |
+
+- **The variant's largest is predicted at 59.90 MiB (62.8 MB, at most 64), in the ladder phase.**
+- v0's is 99.49 MiB (104.3 MB) at cell 16.
+- The cell phase's largest falls from 99.49 to 53.60.
+
+**The plant (PL1), predicted:** each cell equals v0's mean.
+
+| cells 1-7 | 27.32, 33.44, 39.24, 42.52, 47.61, 53.33, 62.71 |
+|---|---|
+| cells 8-14 | 66.80, 69.70, 71.75, 84.16, 87.29, 87.78, 90.77 |
+| cells 15-21 | 91.14, **99.49**, 98.16, 98.52, 96.62, 97.38, 97.72 |
+
+The plant's later samples are reported, not graded.
+
+**Order:** three variant processes, then three planted ones. Each is graded per build, stopping at the first off reading, against this
+file. The meaning table is as registered at `27054fc20d7c`.
