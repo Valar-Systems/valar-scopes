@@ -60,3 +60,42 @@ copy, which differs from the shipped builder by −7.41 to +6.91 MiB depending o
 
 **What this cannot see:** workerd; and KIND, which this read leaves out (the ruling names KORD). If KORD's cause is found, KIND is
 checked against it in the report.
+
+## The read (2026-11-11, 19:35:34-19:35:40Z): the difference is the builder's, and it is made before the tile loop
+
+The registration was pushed at 19:35:29Z. The wrapper and every artifact check read as registered. The error files are empty, and
+nothing ran on staging. The log is scratch (sha256 `d9109448aaaf`).
+
+| row | read | |
+|---|---|---|
+| **R7-0** | both: controls held, every sample settled, every object local, 200 with `b54fa953fef7` | as predicted |
+| **R7-1** | the copy 39.84 MiB, the PR 45.81, both in the ladder phase: **PR minus copy +5.97** | **as predicted: BUILDER** |
+| **R7-2** | 65 tile samples each (64 tiles, then `terrain-sources.bin`). **PR minus copy is +5.98 at the first sample and stays at 5.98-6.03 through all 65** | **one step, at the first sample** |
+
+**Where the step is, and why the tile doesn't explain it:**
+- **The read consumed at the first sample is `terrain/9/127/186.png`, 59,858 B,** about 0.19 MiB once decoded. A 5.98 MiB step can't be
+  that tile's own bytes.
+- **The step is therefore made before the first tile sample.** It sits somewhere between the copy and the PR agreeing in the cell loop
+  (29.51 against 29.56 at its largest) and the first tile.
+- In that window both builders run the same code, apart from the hooks: the regions' file references, the places, the tile list, and
+  the tile loop's first six reads issued.
+- **The cell phase is reported only as its largest sample.** So the step could also have formed late in the cell loop, after the
+  largest. This read cannot place it more finely.
+- **By the registered table:** one step, at one sample, but not made by that sample's read. This is closest to "anything else",
+  **reported as read: the tile is not the cause.**
+
+**What it means for Q-W4 under B: each point's figure on the shipped builder (#639's measurement, v0, MiB):**
+
+| KBOS | KJFK | KLGA | KEWR | Midtown | KMIA | KSFO | KSEA | KORD | KDTW | KMSP | KIND | KJAC |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 56.70 | 58.54 | 60.01 | 60.81 | 58.11 | 39.39 | 39.21 | 49.18 | **45.79** | 47.13 | 47.27 | **50.85** | 38.88 |
+
+- **B's figures came from the copy.** At New York and KBOS, the shipped builder's ladder phase matches the copy's to within 0.10 MiB, so
+  **B's largest, New York's 162 km tries at 74.2-77.3 MB, are not moved by what this read found.**
+- **At KORD and KIND, the copy's B figures are probably 6 to 7 MiB low:** 48.5 and 53.6 MB from the copy, so about 54.7 and 60.8 MB on
+  the shipped builder. **That is an estimate,** made by adding this offset to the copy's figure, not a measurement. Both stay well under
+  New York's.
+- **So Q-W4's memory predictions should be measured on the shipped builder,** which Q-W4 builds on, not carried from the copy.
+
+**Proposed next (Q-RV8), read-only and registered first:** the same two processes at KORD, with every cell's sample traced, plus samples
+after the regions' file references, after the places, and after the tile list. That places the 6 MiB step to one statement.
