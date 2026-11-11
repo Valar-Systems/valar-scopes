@@ -1145,3 +1145,91 @@ empty, the tree stayed clean, and nothing ran on staging.
 
 **By the registered table: RA0 off, so stop.** Nothing is graded past it. The proposal that follows goes to the reviewer before anything
 resumes.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~04:10Z), verbatim
+
+> C2′ settled it: frame retention. The control was faulty, the settled sampler is sound, and the re-run's figures stand as Node's figures.
+> The three corrections are accepted, with the originals kept.
+>
+> KJFK: closed. Three cold builds agree at 95.03 MiB on the validated sampler, and DR0 ran in a different process state with the faulty
+> control. Record it as "DR0: outlier, cause not established, not used". The proposal uses this run's figures.
+>
+> Q-RA1: A, as you recommend. Re-register RA0 anchored to this driver, add C5 (drift), and grade RA2 with C5. Then the release variant gets
+> its own registration. Your miss on RA0's ± 0.10 stays on record: a bound between two drivers comes from a measured spread between
+> drivers, never from one driver's repeatability.
+>
+> Q-DR3a: (a). Q-DR3 waits for the release reading, then runs with whichever lever that reading supports. The release reading is local and
+> quick, and Q-DR3 then grades sizes and memory together, once, on the builder that will ship.
+>
+> Staging is free again, though your local work needs no slot. #622 joins the merge list when you say so.
+
+**KJFK, as ruled: DR0: outlier, cause not established, not used.**
+
+### `READ_AHEAD` 6, 3 and 1 at KLGA, re-registered (Q-RA1, A): registered before it runs
+
+**What runs:**
+- **Nine local processes** at KLGA, in the order 6, 6, 6, 3, 3, 3, 1, 1, 1. Nothing runs on staging.
+- **The same patched copy and knob** as the stopped run.
+- **The driver, `mem-diag5.mts`,** is `mem-diag4` with three changes:
+  1. RA0 is anchored to this driver;
+  2. **C5** runs after the build;
+  3. RA2 is graded together with C5, not as a stop by itself.
+
+**C5, drift.**
+- **What it does:** after the build, in the same process, it takes settled samples with nothing built between them. It stops once it has
+  run **as many full collections as that process's build ran**, which is about 70.
+- **It must read** within 0.50 MiB of its first sample (**holds**), or end at least 1.00 MiB below it without ever rising 0.50 above
+  (**falls**). Anything else stops the run.
+- **Why after the build:** run before, it could age out compiled code and move the very peak RA0 anchors on.
+- **Where its bounds come from:**
+  - 0.50 is well above the largest spread between processes measured for one build (0.03 MiB).
+  - 1.00 is well below the fall it has to explain: 1.77 MiB over the last five cells.
+
+**The bounds, and where each comes from** (as ruled, a bound between drivers comes from a spread measured between drivers):
+- **Against the re-run's 99.54: ± 0.50 MiB.** The spread measured between driver configurations at KLGA's cold build is **0.14 MiB**:
+  - 99.42, `mem-diag4`;
+  - 99.53-99.54, `mem-diag3`, plain;
+  - 99.56, `mem-diag3`'s C2′ process, cell phase.
+
+  The bound is about 3× that.
+- **Among this driver's three `READ_AHEAD` 6 reads: at most 0.10 MiB.** That is one driver's repeatability, and the measured figure for one
+  driver is 0.01 MiB (`mem-diag3`, three processes).
+
+| row | predicted |
+|---|---|
+| **RA0** | `READ_AHEAD` 6: the knob takes. Each cold peak is **within 0.50 MiB of 99.54, at "cell"**, and the three agree **within 0.10 MiB** |
+| **RA1** | `READ_AHEAD` 3 and 1: each cold peak **within 1 MiB of `READ_AHEAD` 6's highest** (unchanged) |
+| **RA3** | C1 +32 ± 1; C2′ +32 ± 1, then within 1; C3 within 1; every sample settled, C5's included; every object local; every build 422 (unchanged) |
+| **C5** | **the same reading, holds or falls, in all nine processes.** Which one is not predicted: it is what decides |
+| **RA2** | at `READ_AHEAD` 6, in all three: the last cell's sample **more than 0.10 MiB below** the cell phase's largest. That is the stopped run's printed reading, now predicted. At 3 and 1: reported, not graded |
+| RA4 | the later phases' figures: reported |
+
+**Graded per build, in the driver, stopping at the first off reading.** The stops are:
+- RA0, RA1 and RA3;
+- a C5 that neither holds nor falls;
+- a C5 that differs from an earlier process's.
+
+The joint reading is graded once the ninth process finishes.
+
+**What the readings will mean, fixed now:**
+
+| RA2 at `READ_AHEAD` 6 (all three) | C5 (all nine) | meaning | next |
+|---|---|---|---|
+| off | **holds** | **explanation 1:** the build itself releases something in its last cells | the release variant's predictions are re-derived from the code, naming what is released, before its registration |
+| off | **falls** | **explanation 2:** something outside the build shrinks, so RA2's fall is not the build's | the release variant is read against C5's drift |
+| anything else | anything else | **stop and report** | - |
+
+**And RA1, whichever row:**
+- If RA1 holds, `READ_AHEAD` is not the lever on the peak.
+- If it fails, `READ_AHEAD` moves the peak: **stop and report**, as before.
+
+**What C5 cannot see:**
+- It runs after the build, so it covers whatever shrinks with nothing being built. Something that shrinks only while a build runs would read
+  "holds" and be taken for explanation 1.
+- If that matters, the release variant's own registration is where it gets separated.
+
+**Outside the set:** anything else stops it.
+
+**Then:**
+1. the release variant, as its own registration (ruled);
+2. then Q-DR3, on the lever that reading supports (ruled (a)).
