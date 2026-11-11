@@ -1024,6 +1024,74 @@ CF1 to CF6 already price the layer, and step B is what makes them measurable on 
   run postdates it.
 - **Any other count, skip set or failure means a stop and a report,** with no re-run.
 
+### The ruling on step B's predictions, verbatim (the orchestrator, 2026-11-11 ~18:58Z)
+
+> Ruling from the orchestrator, 2026-11-11 ~18:58Z, for map-client: step B's predictions. Go to push and open the PR.
+>
+> Read from git: 254834b8, parent 78c2bec21dfa (main), docs/blipscope-map-client-steps.md only, +123, no deletions, no
+> coordinates past 2 dp, no name. Every row is present: CB1-CB8, CB-W, CD1-CD3, CBF1-CBF3. Your five readings of the code
+> are the right things to have found before designing.
+>
+> Q-MB1: yes. Two PSRAM layers (~288 KB), allocated at the first package, all or none.
+> - Add a bench row: psram_free falls by the predicted amount, and the internal heap is untouched (CLAUDE.md's measured
+>   rule: PSRAM sprites cost nothing internally).
+> - An allocation failure refuses the map (no package drawn). It never draws a half composite.
+>
+> Q-MB2: (a), with one condition. You found the hazard yourself: platformio.ini:148's release flip turns WX_LAYER_SHIPS on
+> fleet-wide, so step C must land before it.
+> - That rule must RUN, not be remembered. In this PR, add a compile-time refusal: with WX_LAYER_SHIPS defined and step
+>   C's composition not present, the build stops with #error, naming step C.
+> - Register a plant: define WX_LAYER_SHIPS without step C, and the build must fail.
+> - Step C later removes the condition by providing what it names.
+>
+> Q-MB3: yes, the Weatherscope's Cap (8/6/5 by radius), with the arithmetic held equal by a test, as CM11 does.
+>
+> Q-MB4: yes. Ring labels, cardinal letters and the screen-indicator row are fixed obstacles; transient overlays are not.
+>
+> Q-MB5: register it as proposed (a 3×3 dot, grey text, a 1 px halo in the land colour). It's what customers see, so the
+> owner judges it on glass at CBF2. Nothing more is built toward an alternative before then.
+>
+> Q-MB6: yes. Your own list from ForEachPlace, up to 256. More than 256 refuses the towns rather than cutting the list: a
+> truncated list is a list that lies.
+>
+> Q-MB7: confirmed per S3 (the map, then the names, then non-zero weather pixels). Names under rain hide where it rains;
+> that's the owner's to see on glass too. List it at CBF2 beside Q-MB5.
+>
+> CD2 (no printing of place names) is the right privacy row: a nearby town names the device's location.
+>
+> CI as you predicted: 32 = 29/3/0, any other reading stops. Then send me the PR number and head. I read twice by the full
+> sha before approving.
+>
+> Next: push, open the PR, and add Q-MB1's and Q-MB2's rows before any code.
+
+### Q-MB1's and Q-MB2's rows, registered before any code
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CB9** | host: an allocation failure injected at each of the map's buffers in turn (the layer, the composite, the index, the scratch). Each time **every** map buffer is freed, the map is refused (`mapAllocFailed`, logged), `Build` is never called, and the base draw's bytes equal CB3's no-package frame. **No half composite** | S-CB-HALF, keeping the buffers that succeeded and drawing with them: {CB9} |
+| **CB10** | **the build refuses step B without step C.** In a shipping build, the map's draw code with `WX_LAYER_SHIPS` defined and step C's composition absent stops with `#error`, naming step C. The condition is **proposed** below, for confirmation (Q-MB8) | P-CB-FLIP: `blipscope-s3-128` built with `-DWX_LAYER_SHIPS` added (the release flip), and **the build must fail** with that text. The control: `blipscope-s3-128-wxlook` still builds |
+| **CBF4** | bench, Q-MB1: at the first accepted package, `psram_free` falls by the predicted amount and the internal heap does not move: `heap_caps_get_free_size(MALLOC_CAP_INTERNAL)` read just before and just after the allocations, in the same loop pass, differs by **0**. The PSRAM figure is the sum of the four buffers' TLSF prices, computed before the run from the package's `maxVertices`, which the map's log line prints as a count | an internal allocation planted in place of one PSRAM buffer: the internal reading moves, and CBF4 goes red |
+
+**CBF2 also carries Q-MB5 and Q-MB7.** The label's look (a 3 × 3 dot, the theme's place grey, a 1 px halo in the land
+colour) and the names hidden under rain are the owner's to judge on glass. Nothing is built toward an alternative before
+then.
+
+**Q-MB8, the refusal's condition (a question about the ruling's literal form, not a change to it).** Read literally,
+"`WX_LAYER_SHIPS` defined and step C's composition not present" also refuses `blipscope-s3-128-wxlook`.
+- That env sets `-DWX_LAYER_SHIPS` itself (`platformio.ini:401-408`), so the bench keeps weather on, and CI builds it
+  (`.github/workflows/firmware.yml:433`).
+- So the literal form would fail CI's wxlook build from the moment the refusal exists, and step B could not be benched
+  before step C.
+- **Proposed condition:** `defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(<step C's macro>)`.
+  - `BLIPSCOPE_MAP_FETCH` already excludes the web renderer, which defines `WX_LAYER_SHIPS` too.
+  - `WX_LOOK_AB` is set by the wxlook env alone. Its image carries the `[wx-bench]` marker, which
+    `check-no-bench-hooks.sh` refuses in every slug-ful image, so the exemption cannot reach a customer.
+  - The release flip (`${weather.layer}`, `platformio.ini:148`) defines `WX_LAYER_SHIPS` without `WX_LOOK_AB`, and is
+    refused.
+- **Where it lives:** the ruling says "in this PR". This PR stays docs-only until Q-MB8 is answered, because the literal
+  form breaks a CI build. Once it is, the refusal goes in as code, with CB10's plant run as registered, and its CI is
+  predicted then.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
