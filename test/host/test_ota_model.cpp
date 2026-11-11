@@ -1,7 +1,8 @@
 // The model a device names itself by (include/OtaIdentity.h, ota::ModelString), against the rows frozen in
 // docs/weatherscope-stage4.md S4.5: M1 over every row of test/fixtures/ota/identities.txt, the same table CI's
 // ota-identity job holds equal to the fleet (so the count follows the fleet and can't go stale), and M1b, a short
-// buffer refused rather than cut. Today: 8 rows, 5 without a scope, so 8 + 5 + 3 = 16 checks.
+// buffer refused rather than cut. Today: 10 rows, 7 without a scope, so 10 + 7 + 3 = 20 checks (two P4 rows
+// (p4-40), added by #648, 2026-11-11).
 //
 //     test_ota_model <test/fixtures/ota>
 //
