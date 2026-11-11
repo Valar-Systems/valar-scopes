@@ -184,3 +184,63 @@ did not run. The log is scratch (sha256 `bd2ba530d3ad`), and nothing ran on stag
 - **Then decide with the orchestrator:**
   - either the prototype is written so the effect doesn't occur, and QW4-0 runs again from the start;
   - or memory predictions for Q-W4 are stated with that effect as a named bound, since the code PR's own builder may carry it too.
+
+## The ruling (from the orchestrator, 22:13Z), verbatim
+
+> Q-W4a is NOT approved. This would be the third investigation of the same unexplained effect (Q-RV6, Q-RV8, now this), and the retry
+> cap sends a third ask to the owner. The code PR doesn't need the object named, so I'm ruling a design that doesn't ask the question
+> again:
+> RE-REGISTER, as a new frozen prediction committed and pushed before any re-run:
+> 1. QW4-0's BYTE half is unchanged: knob-off = 525cf7d1's builder byte for byte at all 13 points.
+> 2. QW4-0's MEMORY half is no longer graded against #639. The knob-off prototype's peak at each point, in each phase, is RECORDED as the
+>    baseline.
+> 3. Memory rows (QW4-1 to QW4-M) are graded as DIFFERENCES: knob-on minus knob-off, at the same point and phase, in the same prototype,
+>    ±0.785 MiB. The 96 MB absolute ceiling stays as written.
+> 4. A control the difference instrument can fail: a planted allocation of a known size (state it; 8 MiB is fine), held to the end of the
+>    cell loop behind its own knob, at KJFK. Predict a difference of exactly that size ±0.785, with the plant proven to land. If it reads
+>    anything else, the instrument is blind, and nothing memory-wise is read.
+> 5. Name the effect as an open bound, not a prediction: "knob-off edits in the cell loop moved KJFK's cell-phase peak to 61.61 MiB,
+>    against the pinned builder's 58.54 in the ladder phase; object unnamed". The code PR measures the real builder anyway, and that's
+>    where it gets read.
+> 6. Keep the "anything else -> stop" row.
+> Then QW4-0 re-runs from the start, once. If it goes off again, it comes to me and on to the owner. Send me the re-registration's sha,
+> and nothing runs until I accept it.
+
+## The measurement, re-registered (frozen before any re-run)
+
+**The open bound, not a prediction:** knob-off edits in the cell loop moved KJFK's cell-phase peak to 61.61 MiB, against the pinned
+builder's 58.54 in the ladder phase. The object is unnamed. The code PR measures the real builder, and that is where it gets read.
+
+**The prototype is now `pq4b`.** `mk-pq4b.mjs` (sha256 `4161a87b369d`) is `mk-pq4.mjs` with the plant added:
+- the knob `Q4_PLANT_MIB`;
+- an allocation of that many MiB, filled with 7, made just before the cell loop and let go just after it;
+- the builder reports what it made (`q4Plant`).
+- Its `build.ts` (`88f2316b2aaf`) differs from `pq4`'s in those four lines and the knob constant, and every other file is identical.
+- The child is `dr-q4c2.mts` (`01157460d5e0`): `dr-q4c.mts` on `pq4b`, also reporting the plant. Its imports were checked first: given
+  an unknown point with no knob, with the plant, and with every B knob, it refused the point each time (exit 2).
+- The driver is `dr-q4-run.mts` (`9d0343744293`). Each call runs in its own process, and the knobs are checked as the modules read them.
+
+| row | what | predicted |
+|---|---|---|
+| **QW4-0** | every knob off, at all 13 | **the byte half, unchanged:** Nov 8's DR0 packages at the 9, #620's ladders at New York. **The memory is RECORDED,** per point and phase, as the baseline, and not graded |
+| **QW4-P** (the difference instrument's control) | KJFK with an **8 MiB** plant (`Q4_PLANT_MIB=8`), against QW4-0's KJFK | **+8 ± 0.785 MiB in the cell phase, and 0 ± 0.785 in tile, tiles, terrain, layers and ladder.** The plant is shown to land: the builder made 8,388,608 bytes and read them back as 7 + 7. The same answer as QW4-0's KJFK |
+| **QW4-1** | B with tp and the backstop, no sea, at all 13 | **0 proper crossings** in every package; `kOk` and at most 32,768 non-terrain bytes; the 9 at 162 km and New York at 129.6 km. **Memory is RECORDED as the difference from QW4-0,** per point and phase. These differences become the code PR's frozen predictions, ± 0.785. The backstop's refusals are reported |
+| **QW4-D2** | each New York point's D2 call, step by step, against the same radius built alone in the same prototype | **each in-call step's largest within 0.785 MiB of its standalone build's** |
+| **QW4-M** | every build | **none over 96 MB.** Each B build's largest is reported against 77.2 MB |
+
+| outcome | meaning | next |
+|---|---|---|
+| **QW4-0's bytes off** | the prototype is not the pinned builder | **stop.** It comes to the orchestrator and on to the owner |
+| **QW4-P off**, or the plant not landing | **the difference instrument is blind** | **stop; no memory row is read** |
+| QW4-1: a crossing, a package not `kOk`, over 32,768 bytes, or no fit at all | the backstop or the ladder doesn't hold | **stop and report** |
+| QW4-1: a point at another radius | **a visible cost,** named to the owner before the code | reported; the run goes on |
+| QW4-D2 off | a step carries memory into the next | reported, into D4's plan |
+| **a build over 96 MB** | the registered stop band | **stop** |
+| **anything else** | | **stop and report** |
+
+**Not in this run:** QW4-2 (the sea), QW4-3 (the backstop's bowtie plant, which needs a fixture store) and QW4-4 (#616's KB rows and sea
+plants). Their tooling is not built yet. They run as registered above, after an addendum here that pins their artifacts' sha256s and is
+pushed before they run. **The dependency on #639's staging rows is unchanged:** the void set is the memory rows, now including QW4-P and
+QW4-1's memory differences.
+
+**This run is QW4-0's one re-run.** If it goes off again, it comes to the orchestrator and on to the owner.
