@@ -1739,3 +1739,41 @@ the extra layer sets at ε×4 and ε×8. Which band those builds land in is what
 **What this cannot see:**
 - **Workerd:** one staging request on the variant belongs to its own PR (ruled ~05:35Z).
 - **Memory between two samples.**
+
+### Q-DR3 on the release variant, read (2026-11-11, 05:42:00-05:43:04Z): stopped at DR1, KJFK under ab, by my own check
+
+The registration was frozen at 05:41:45Z (`bfc7e30027ae`). The parent's process is recorded in `dr-q3.pid`. Twenty-eight builds ran, each in
+its own process, and the parent stopped itself (exit 1). The error file is empty, the tree stayed clean, and nothing ran on staging.
+
+**Everything graded before the stop read as predicted:**
+- **DR0, 13 of 13.**
+  - At the 9 points that fit, the variant's package is byte-identical to the repo builder's and to Nov 8's.
+  - At the 4 New York points, the ladders equal the repo builder's and #620's.
+- **The memory anchor:** KLGA under the variant reads **59.96 MiB in the ladder phase**, against 59.90 ± 0.785.
+- **DR1, KBOS:** #620's water share and secondary count, and Nov 8's package.
+- Every child's controls held, every sample settled, and every object was local.
+
+**The stop:**
+- **What tripped:** the parent checks that every 422's ladder is non-increasing and ends over 32,768. **ab's 422 at KJFK reports no ladder**
+  (an empty list), and an empty list fails the "ends over the cap" half.
+- **This is not a reading:** only v0's 422 reports a ladder here. Nov 8's log shows the same, with "DR1-ab KJFK 422 r 162.0 km" and no
+  ladder.
+- **My miss, with its cause:** I registered "every 422's ladder non-increasing and ending over 32,768" for every variant. The Nov 8 log,
+  which I read while writing these predictions, showed that the variants' 422s report none. The check was written for a population it
+  didn't describe.
+
+**Memory, every build graded as measured (none over 96 MB):**
+
+| build | MiB | MB | band |
+|---|---|---|---|
+| DR0-copy (the variant at v0), the 9 that fit | 38.85-56.65 | 40.7-59.4 | at most 64 |
+| DR0-copy KLGA / KEWR / Midtown | 59.96 / 60.76 / 58.08, in the ladder phase | 62.9 / 63.7 / 60.9 | at most 64 |
+| **DR0-copy KJFK** | **61.58, in the cell phase** | **64.6** | **64-96: recorded** |
+| **DR1-ab KBOS** | **68.51, ladder** | **71.8** | **64-96: recorded** |
+| **DR1-ab KJFK** | **71.46, ladder** | **74.9** | **64-96: recorded** |
+
+- **ab builds read higher than v0's** at the same point: KBOS 56.65 → 68.51, KJFK 61.58 → 71.46.
+- **KJFK under v0 peaks in the cell phase,** not the ladder phase, unlike the other three New York points.
+- **Neither was predicted,** and both are recorded as read.
+
+**Nothing is graded past the stop.** The proposal that follows goes to the reviewer before anything resumes.
