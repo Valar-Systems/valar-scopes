@@ -118,3 +118,33 @@ proper crossings at each stage of `LayerSet.add`'s water branch:
 - **If the crossings first appear at a stage other than (c),** that is reported as read, and QF1 is not re-graded.
 - **Since KJAC carries them too, this is a quality question for every package.** The outcome goes to the owner with options (such as a
   topology-preserving simplifier, or a validity pass after the clip). No fix is registered before he hears it.
+
+## The stage read (2026-11-11, 19:03:33-19:03:34Z): Douglas–Peucker makes the crossings
+
+The registration was pushed at 18:54:38Z (`a92435627f83`). The script's sha256 read as registered. Nothing was missing from the local
+copy, and nothing ran on staging. The log is scratch (sha256 `c3453576defb`).
+
+| | Midtown, base ε, 103.68 km | KJAC, ε×2, 162 km |
+|---|---|---|
+| rings (and `LayerSet`'s own list) | 199, identical | 89, identical |
+| stored-ring vertices, the largest and in all | 9,871; 222,749 | 8,186; 184,861 |
+| **(a)** the stored ring | **0** | **0** |
+| **(b)** after the clip | **0** | **0** |
+| **(c)** after Douglas–Peucker | **186 in 47 rings** | **238 in 34 rings** |
+| **(d)** after quantising: the ring carried | 185 in 47 rings | 240 in 35 rings |
+| the rings crossing at (d), by the first stage that crosses | c 47 | c 34, **d 1** |
+
+- **QF0, the anchor: as predicted.** At both points (d)'s ring list is identical to `LayerSet`'s own, and its counts reproduce QW2 and QW3.
+- **QF1: as predicted at Midtown, all but one ring at KJAC.** The stored rings and the clip are clean everywhere. **81 of the 82 crossing
+  rings first cross at Douglas–Peucker.** One KJAC ring crosses only after quantising. As ruled, that is reported as read, and QF1 is not
+  re-graded.
+- **So the crossings come from the simplifier, at any tolerance, in every package.** Quantising adds or removes a few at the margin
+  (Midtown 186 → 185; KJAC 238 → 240). The dense-area ladder's ε×8 rung removes most of them and makes the rest coarser.
+
+**For the owner, with options (no fix is registered before he hears it):**
+1. **A topology-preserving simplifier** for water rings: one that refuses a simplification that would make the ring cross itself, keeping
+   vertices instead. The packages stay valid at the same tolerance, at some cost in bytes. The cost would be read before any choice.
+2. **A validity pass after simplifying and quantising:** detect a ring that crosses itself and rebuild only that ring at a finer
+   tolerance (or drop it). This is simpler, but it leaves the simplifier as it is.
+3. **Accept:** the device's even-odd fill draws a crossing ring as wedges. That is what the 25 mi view shows today, at New York and at
+   KJAC.
