@@ -5,8 +5,8 @@ version (Waveshare also sells it as the "4C"), before the board is on the bench.
 2026-11-11 at about 17:29Z: do everything that does not need the board, then stop.
 
 - **Board:** 720 x 720 round IPS panel on MIPI-DSI (JD9365), GT911 touch, and Wi-Fi through an ESP32-C6 over ESP-Hosted.
-- **Status:** bench-only. Nothing here ships, nothing is published, and nothing is called working until its bench row (section 7)
-  passes. Bench time is Daniel's.
+- **Status:** bench-only. Nothing here ships, nothing is published, and nothing is called working until its bench row (section 6)
+  passes. Bench time is the owner's.
 - **Order:** the design and every prediction were frozen in one commit, before any code existed. Each later result is graded against
   that commit, and a reading outside a row's set stops that row.
 - **Out of scope:** the 3.4-inch 800 x 800 version of the same board, any customer SKU or slug, any CI release row, and audio.
@@ -95,6 +95,70 @@ Option (a) can be written under `#if CONFIG_IDF_TARGET_ESP32P4` so that no S3 im
 is TEST-NET-1, the same unroutable address `[cloud] netfault` uses. The cloud feed is still compiled in, so the code that ships is
 the code that is built. The OTA version check goes to GitHub and sends no device header, so it can still serve as the TLS row (W3).
 Pointing the envs at staging is a one-line change, made after Q-ID.
+
+## 2a. Ruling Q-ID, and the CI rows: frozen before the code that implements them
+
+**Ruled by the orchestrator (the reviewer), 2026-11-11 ~18:25Z: option (a), with three conditions.**
+- On the P4 only, under `#if CONFIG_IDF_TARGET_ESP32P4`, identity comes from `ESP_MAC_BASE`, the P4's own efuse MAC. This
+  keeps `Name()`'s "works before Wi-Fi" property.
+- **Condition 1, no silent zero.** If the read fails, or returns all zero, the board **refuses** an identity:
+  - `Name()` is the product name with no suffix;
+  - `LeaderboardId()` is empty;
+  - no request carries `X-Blip-Device`;
+  - the feed is held on TEST-NET-1 whatever the config says;
+  - the `[p4]` line names the failure, never the bytes.
+
+  An all-zero id is a plausible value made from an impossible one.
+- **Condition 2, the S3 does not move.** C5 covers every existing image with these changes included.
+- **Condition 3, a bench row** (B-ID below): the suffix is non-zero, and its last two bytes are the board's short label.
+- The identity becomes permanent at the first P4 release carrying the v19 identity check. That release is the owner's gate.
+- Not part of this ruling: the S3 path also ignores the return code. Hardening it touches every shipping image, so it is
+  blipscope-5c's follow-up after v19.
+
+**A correction to section 2, which said that until the ruling "no P4 can reach a Worker, by construction". That was wrong.**
+- `CLOUD_FEED_BASE` is only the default: `AircraftManager` reads the stored `cloud-url` first, and the config page has a field
+  for it. So a person could point a P4 at any backend by hand.
+- Condition 1's hold below makes the claim true where it matters, for a board with no identity.
+- For a board with an identity, the bench leaves `cloud-url` empty until the staging switch.
+- The env's comment is corrected in the same change.
+
+**How it is implemented.** Each item below is inside `#if CONFIG_IDF_TARGET_ESP32P4`, so an S3 build compiles none of it.
+- `include/DeviceIdentity.h`:
+  - `ReadMac(mac)` reads `ESP_MAC_BASE` and answers false on a failed read or an all-zero result;
+  - `Known()` caches that answer;
+  - `Name()` and `LeaderboardId()` take the refusal branch when it is false.
+  - The S3 branch keeps today's lines, unchanged and unmoved relative to each other.
+- `src/CloudFeed.cpp`: when `!Known()`, the `X-Blip-Device` pair is removed from the header list after it is built. The S3's
+  list is built exactly as today.
+- `src/AircraftManager.cpp`: right after the one place `cloudUrl` is resolved, when `!Known()` it becomes `https://192.0.2.1`.
+- `src/board/board_p4_40.cpp`: the `[p4] identity:` line becomes
+  `base=<esp_err name> known=<0|1> label=<XX:XX | none>`. The label is the base MAC's last two bytes, which is the form the repo
+  allows; never more.
+- **A bench-only plant for the refusal path:** with `-DBLIPSCOPE_P4_ID_PLANT_REFUSE` (a local build flag, never committed in any
+  env), `ReadMac` answers false. A refusal path nobody has seen refuse is a guard that has never fired.
+
+**Why the P4 envs stay on TEST-NET in this change.** They move to `${cloud.staging}` in a separate one-line change, after B-ID
+passes on the board. The first evidence that the identity is right should come from the glass, not from the Worker.
+
+**CI rows (the ruling's plan point 1).**
+- `skus.yml` gains `blipscope-p4-40` and `blipscope-p4-40-r3`, both `build-only` with no slug.
+- The adsbdb launch gate's default plant site (`src/ConfigMigration.cpp`) is compiled by the radar build. So **no new
+  `plant_target()` case is predicted to be needed**; CI3 checks that rather than assuming it.
+
+| row | prediction | outside the set |
+|---|---|---|
+| **ID1** the refusal is in the image | both P4 ELFs contain `[p4] identity: base=` and `label=`. None of the ten S3 images contains `base=%s known=` | absent from a P4 image: the `#if` did not take; stop |
+| **ID2** = C5, widened | C5's ten images, rebuilt **with** the `DeviceIdentity.h`, `CloudFeed.cpp` and `AircraftManager.cpp` changes, differ from the `8f1a878f` baseline only in the five rebuild regions | any other byte: stop before pushing |
+| **CI1** the SKU file | `scripts/skus.py --validate` and `node scripts/check_release_envs.mjs` pass. `check_ota_identity.py --check-table` **fails** with the two rows added, and after `--emit-table` the table differs from the committed one by exactly two added lines: `blipscope-p4-40 - p4-40` and `blipscope-p4-40-r3 - p4-40`. `--fleet` passes. Image mode passes on both P4 images (board `p4-40`, no scope) | any other line changes in the table, or `--fleet` refuses: stop and read the rule |
+| **CI2** the PR's checks | 36 check runs. That is #634's 34 (the firmware and device-id workflows' 32, plus the web renderer's `build` and `publish`, which this PR also triggers) plus exactly two new names: `build (blipscope-p4-40)` and `build (blipscope-p4-40-r3)`. Every leg that ran passes | a different count, or a name other than those two: read the run before anything else |
+| **CI3** the launch gate | `scripts/check-adsbdb-out.sh p4-40`, run locally, reports both P4 envs clean, with the control found at the default site | UNTRUSTWORTHY: the default site is not in the P4 image, so add a `plant_target()` case and re-run |
+
+**Bench rows from the ruling** (frozen now, run with the board):
+
+| row | how | prediction | then |
+|---|---|---|---|
+| **B-ID** identity | the `[p4] identity:` line, the AP SSID (W2), and `esptool read-mac` (writes nothing) | `base=ESP_OK known=1`, and `label` is non-zero. The SSID's suffix is not six zeros, and its last four hex digits are the label without its colon. The label equals the last two bytes `read-mac` prints. **Why read-mac rather than the USB serial:** on this board the Type-C port is a USB-UART bridge, so its USB serial is the bridge's, not the P4's | any mismatch, or `known=0` on an unplanted image: stop; nothing moves to staging |
+| **B-IDr** refusal, planted | a local build with `-DBLIPSCOPE_P4_ID_PLANT_REFUSE`, flashed, with `cloud-url` set to the staging base on the config page | `known=0 label=none`; the AP SSID and mDNS name are the bare product name; the config page's device id is empty. The feed's requests still fail toward 192.0.2.1 despite the stored staging URL, as read from the serial log's fetch lines. Then the unplanted image is flashed back and B-ID is re-read | any request reaching staging, or any suffix shown: condition 1 does not hold; stop. Fetch lines that do not name their host: an instrument gap; the row stops for a ruling |
 
 ## 3. The design
 
@@ -226,9 +290,10 @@ and decide". Every row reads the board's own output: serial at 115200 through th
 
 ## 7. Questions for rulings
 
-- **Q-ID** (section 2): the P4's identity source. It blocks every cloud row.
+- **Q-ID** (section 2): the P4's identity source. **Ruled ~18:25Z: option (a), with three conditions (section 2a).**
 - **Q-CI:** whether `blipscope-p4-40` gets a `build-only` row in `skus.yml`, so the tree cannot rot (the 1.75 in lesson), or stays
   local until the board passes. A row also needs a `plant_target()` case in the adsbdb launch gate, or that gate reads UNTRUSTWORTHY.
+  **Ruled ~18:25Z: slug-less rows for both P4 envs, in this PR (section 2a, rows CI1-CI3).**
 - **Q-OTA:** how to give a P4 an image to install for W4. Either a pinned pre-release like `ota-preflight-v6`, which belongs to
   blipscope-5c's release process, or something else.
 - **Q-C6:** whether the C6's ESP-Hosted firmware may be updated if W5 reads "slave older". `hostedHasUpdate()` would fetch
