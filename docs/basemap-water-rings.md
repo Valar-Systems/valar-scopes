@@ -65,3 +65,56 @@ decides.
 | **2:** (ii) also crosses | the defect is upstream of the ladder: the source rings, or the clip | find which, read-only, registered first |
 | **3:** QW0 doesn't match | the instrument or the package differs | **stop and report** |
 | **4:** anything else, including QW1 not being a subsequence, KJAC's hash differing, or an object missing | | **stop and report** |
+
+## The read (2026-11-11, 18:46:30-18:46:31Z): outcome 2. The crossings are upstream of the ladder
+
+The registration was pushed at 18:46:16Z (`f5803ee4882e`). The script's sha256 read as registered. Nothing was missing from the local
+copy, and nothing ran on staging. The log is scratch (sha256 `c72e032507c8`).
+
+| row | read | |
+|---|---|---|
+| **QW0** | 88 rings, 481 vertices; the same per-ring counts; winding + 87, − 1; **28 proper crossings in the same 17 rings, ring for ring**; 0 contacts, 0 spikes | **as predicted: map-client's, exactly** |
+| **QW1** | the ε×8 set: 125 rings, 649 vertices, **45 proper crossings in 26 rings**. A's 88 rings are an exact subsequence of it, and the 37 dropped equal A's `PROVENANCE` (`dropped.water: 37`) | **as predicted** |
+| **QW2** | the base-ε set: 199 rings, **4,946 vertices** (max 213), **185 proper crossings in 47 rings** | **off my prediction:** more vertices, as predicted, but it crosses |
+| QW2′ | the ε×2 set: 199 rings, 2,673 vertices (max 86), 162 proper crossings in 49 rings | reported |
+| **QW3** | KJAC: package `b3f428e5860e`, as predicted. Its water, at ε×2 (rung 1): 89 rings, 1,797 vertices, **240 proper crossings in 35 rings** | reported |
+
+**By the ruling's table, this is outcome 2: (ii) also crosses, so the defect is upstream of the ladder.**
+- **The crossings are in ordinary packages too.** KJAC never reaches the water rung, and its water crosses in 240 places.
+- **The ε×8 rung doesn't cause the crossings; it removes most of them** (185 at ε, 162 at ε×2, 45 at ε×8, 28 after A's drops). What the
+  rung does cause is the coarseness: 4,946 vertices at ε against 649 at ε×8.
+- **My prediction for QW2 was off.** I wrote that my confidence was not high, and the read shows why.
+
+## Outcome 2's "find which": the stage, registered before it runs
+
+**The ruling's next step for outcome 2 is to find which stage, read-only.** For each water ring the builder makes, this read counts the
+proper crossings at each stage of `LayerSet.add`'s water branch:
+- **(a)** the stored ring, projected to the frame: what the ingest wrote;
+- **(b)** after the clip to the square;
+- **(c)** after Douglas–Peucker;
+- **(d)** after quantising and dropping duplicates: the ring the package carries.
+
+**How:**
+- (a) to (c) are in km, so their orientation is the sign of a double. (d) is exact in integers.
+- The counted pairs are `ring_stats()`'s. A sweep on x prunes the pairs, which changes only how fast it runs.
+- The script is `qwater-f.mts` (scratch, sha256 `348b5f20e3b1`). It reads Midtown at 103.68 km and base ε, and KJAC at 162 km and ε×2.
+
+| row | predicted |
+|---|---|
+| **QF0** (the anchor) | at both points, (d)'s ring list is identical to `LayerSet`'s own, and its counts reproduce QW2 (Midtown: 199 rings, 185 crossings in 47) and QW3 (KJAC: 89 rings, 240 in 35) |
+| **QF1** | **the simplifier:** (a) 0 and (b) 0 at both points, with every ring that crosses at (d) crossing first at (c) |
+
+| outcome | meaning | next |
+|---|---|---|
+| **(a) > 0** | the stored rings already cross: the source or the ingest | report the rings; which of the two is a further read |
+| (a) = 0, **(b) > 0** | the clip creates them | report |
+| (a) = (b) = 0, **(c) > 0** (predicted) | **Douglas–Peucker creates them at any tolerance.** The fix would be a topology-preserving simplifier, and it would touch every package, not only the dense-area ladder | to the orchestrator, with the options |
+| (c) = 0, **(d) > 0** | quantising creates them | report |
+| **mixed** | each ring's first crossing stage is reported, and the largest share names the main cause | report |
+| **QF0 off, or anything else** | the instrument is suspect | **stop and report** |
+
+**Outside the set (the orchestrator, ~18:50Z):**
+- **If (d) doesn't reproduce QW2 and QW3,** the instrument is suspect: stop.
+- **If the crossings first appear at a stage other than (c),** that is reported as read, and QF1 is not re-graded.
+- **Since KJAC carries them too, this is a quality question for every package.** The outcome goes to the owner with options (such as a
+  topology-preserving simplifier, or a validity pass after the clip). No fix is registered before he hears it.
