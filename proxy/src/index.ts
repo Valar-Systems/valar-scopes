@@ -84,13 +84,15 @@ async function handleHealth(env: Env): Promise<Response> {
   // not a secret: the repo it names is public, and being able to ask a running
   // Worker what it is beats inferring it after something has already gone wrong.
   //
-  // `wx`: each weather product's newest-frame age, null when there is no frame (never a made-up age), or
-  // "not_configured" while the WX bucket is unbound (docs/wx-server.md).
+  // `wx`: EVERY weather product in PRODUCTS (docs/wx-healthz-products.md), routed or not, so an ingest that is
+  // deployed but not yet routed is never invisible here: its newest-frame age (null when there is no frame, never a
+  // made-up age), `routed` (ROUTED), and `stale` (the endpoint's own rule); or "not_configured" while the WX bucket is
+  // unbound (docs/wx-server.md). No key in it may be named `commit`: confirm-deploy.sh reads every one (H1).
   //
   // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
   // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
   // is bound.
-  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS.filter((p) => ROUTED.has(p.id))), basemap: basemapHealth(env),
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env),
                         weatherscope: weatherscopeHealth() });
 }
 

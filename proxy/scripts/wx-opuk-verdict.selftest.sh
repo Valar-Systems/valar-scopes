@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Selftest for wx-opuk-verdict.sh (docs/wx-opuk.md, K9's smoke half). Nine canned /healthz bodies; the WHOLE verdict
+# Selftest for wx-opuk-verdict.sh (docs/wx-opuk.md, K9's smoke half). Ten canned /healthz bodies; the WHOLE verdict
 # list must equal the expected one (no fragment matching). Then the sabotage -- the zero test dropped -- must change
 # exactly case 5 (share 0) to PASS, and the selftest must see it: if the sabotage changes nothing, it did not apply,
 # and that is a failure too.
@@ -16,9 +16,11 @@ CASES=(
   '{"ok":true,"wx":{"cref":{"frameAgeS":30},"opuk":{"frameAgeS":120}}}'
   '{"ok":true,"wx":{"cref":{"frameAgeS":30},"opuk":{"frameAgeS":120,"coveredShare":1.5}}}'
   '{"ok":true,"wx":{"cref":{"frameAgeS":30},"opuk":{"frameAgeS":120,"coveredShare":1e-7}}}'
+  # H5 (docs/wx-healthz-products.md): /healthz's shape since every product is reported, with routed and stale
+  '{"ok":true,"wx":{"cref":{"frameAgeS":30,"routed":true,"stale":false},"opuk":{"frameAgeS":120,"coveredShare":0.7513,"routed":true,"stale":false},"opis":{"frameAgeS":200,"coveredShare":0.5,"routed":false,"stale":false}}}'
 )
-EXPECT="PASS FAIL PASS PASS FAIL FAIL FAIL FAIL PASS"
-SABOTAGED="PASS FAIL PASS PASS PASS FAIL FAIL FAIL PASS"
+EXPECT="PASS FAIL PASS PASS FAIL FAIL FAIL FAIL PASS PASS"
+SABOTAGED="PASS FAIL PASS PASS PASS FAIL FAIL FAIL PASS PASS"
 
 verdicts() {   # $1: the verdict file to source
   ( . "$1"; for b in "${CASES[@]}"; do wx_opuk_verdict "$b" | cut -d' ' -f1; done ) | tr '\n' ' ' | sed 's/ $//'
