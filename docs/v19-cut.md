@@ -81,6 +81,42 @@ bump PR. The gate passes locally on full history.
 never through a tag or the workflow, with the snapshot and restore reads around it. E2:08 is restored by Q112 (a) inside the window.
 A bench image ends no window.
 
+**Step 5 so far (2026-11-11).** X1-X4, C0 and C1's first-boot refusal (`refused foreign: requested=s3-128 image=s3-21`) read as
+frozen. C1's power-cycle row stopped twice: each time the trace's open reset the chip (`rst:0x15`), so the boot it read was the
+trace's, not the power-on's. The ruling (~16:52Z) was to grade the power-on boot at the Worker, with nothing open on the port.
+- **The re-read before freezing it stopped (~17:05Z) at two differences, both my misses.** The bench prerelease held its originals,
+  which I had restored at 06:02:56Z under O11's "stop, restore, report" without reporting it. E2:08 was up on bench image A rather
+  than in download mode: a USB boot reached the Worker at 06:00:05Z, before the report that said otherwise was written.
+- **Observations, not graded:** six Worker `ota` rows from the C1 boots, all `refused-foreign` 19->20, one with `reset=POWERON`
+  (05:57:34Z, the power cycle's own boot, which checked in before the trace's open reset it). Two later `POWERON` boots, at 17:35:26Z
+  (a power cycle outside any frozen row) and 18:10:43Z (the board moved onto a switchable USB hub), each with no `ota` row, because
+  the prerelease said 6.
+- **Where the OTA result lands, from code at C:** the update check runs in `setup()` before the cloud source starts, so the refusal
+  is already recorded when the first check-in is built. That check-in is the config fetch, which carries both `X-Blip-OTA-Mem` and
+  `X-Blip-Boot`, and the Worker writes a `boot` point and an `ota` point for it. The boot reason is retried until a check-in is
+  acknowledged; the OTA report is cleared on read and never retried.
+
+**Step 5's power-cycle row, C1-PC (ruled ~18:20Z; frozen here, before the cut).**
+- **Before the cut,** inside the announced O11 window: `ota-preflight-v6` holds F as `firmware-s3-128.bin` (`42c8124fb01e`) and
+  `version.txt` = "20" (`f5ca38f748a1`), each read back by sha256; `releases/latest` is v18; the reservation stands; E2:08 answers
+  on image A. **E2:08 has no boot or `ota` row after its 18:10:43Z `POWERON` boot.** The ruling named 17:35:26Z; the 18:10:43Z boot
+  (the move onto the hub) came after it, so the later row is the anchor.
+- **The cut:** E2:08's hub port off, then on, with both UTC times logged; or, if the hub is not used, the owner's hands, with the
+  owner's stated time. The window starts at the off time, or at the first of three missed pings. Nothing opens the port until the
+  rows are read.
+- **Predicted:**
+  - the board answers ping within about 60 s of power-on;
+  - E2:08's Worker `boot` rows since the cut: exactly one, `POWERON`;
+  - its `ota` rows since the cut: exactly one, `refused-foreign` 19->20, `reset=POWERON`, at the same second as that boot row.
+- **The read:** 60 s after the board answers, then again until two reads 30 s apart agree.
+- **Anchors:** the same queries still return the earlier rows (boots: `SW` 11:00:17Z, `POWERON` 17:35:26Z and 18:10:43Z; `ota`:
+  the six from 05:51:03Z to 06:00:05Z), or the reading is UNTRUSTWORTHY.
+- **Outside the set, stop and report:** a `POWERON` boot row with no `ota` row (the one-shot report was lost, or the instrument);
+  any other result or version; more than one boot, or another reason; no boot row within 10 minutes; a failed query or a missing
+  anchor; anything else. Nothing is improvised.
+- **Then C2, as frozen.** The window ends after C2, or at any stop: the originals go back on `ota-preflight-v6` by sha256
+  (`firmware-s3-128.bin` `b12e184d4570`, `version.txt` `e7f6c011776e`), read back, and `releases/latest` is never touched.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
