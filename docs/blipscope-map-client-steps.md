@@ -1242,6 +1242,53 @@ that draws the map.
 **After L1-L5:** the whole host suite under WSL is registered before it runs, as W8 was, and so is the code PR's CI.
 Nothing is pushed before the orchestrator's go.
 
+### L1's first run: OFF, and the fix as ruled, registered before the code change (2026-11-11)
+
+**The reading (`dce71406`, committed as it ran):**
+- **L1 OFF.** Predicted `1 checks, 0 failures`, exit 0. Read: a Python traceback, exit 1.
+  - CD4's definer scan ran `check_map_fetch.strip` over every file under `include/` and `src/`.
+  - `include/OtaCerts.h` holds a C++ raw string literal (`R"CERTS(`), which the stripper cannot parse. It raised its own
+    `Rig`, which the check did not catch.
+  - **Two defects:** the scan could not read a valid C++ file, and **a crash read as a failure** (exit 1, a red)
+    instead of as the rig (exit 2). The second is the 11-04 rule: a crash is an instrument failure, never a red.
+- **L4 as predicted** (`3 checks, 0 failures`).
+- **L2 read the rig** (exit 2), because its control could not run. The harness was right, but that is no reading of the
+  plants.
+- **L3 and L5:** not run.
+- **My miss:** I predicted L1 without checking that the stripper I reused could read every file the new scan touches.
+  Step A's check only ever fed it the map's own files.
+
+**The fix, as ruled** (the orchestrator; its stamp is in its ledger):
+1. **The definer scan is line-based, and no longer goes through the C++ stripper.**
+   - In `include/` and `src/`: a directive line matching `^\s*#\s*define\s+BLIPSCOPE_MAP_STEP_C\b`.
+   - In `platformio.ini` and `tools/`: `-D\s*BLIPSCOPE_MAP_STEP_C\b`, after removing `;` and `#` comments.
+   - A directive must begin its line, so a `//` comment cannot match.
+   - **The scan's known direction:** a matching line inside a raw string or a block comment is flagged as a definer.
+     That false positive fails safe and visibly, as a red with the file named.
+   - The header's refusal lines are still read through `strip()`, since `src/AircraftManager.h` parses.
+2. **`main()` catches every exception and exits 2 with `RIG: <type>: <message>`.** No crash can read as a check failing.
+3. **Three controls, none of them a {CD4}-set plant.** Each runs in its own copy, is asserted to have applied before it
+   is read, and the real files' sha256 are compared before and after:
+
+| control | the input, in the copy | predicted |
+|---|---|---|
+| **R-CD-RAWOK** | a new file `include/zz_rawok.h` holding a multi-line raw string literal, L1's input | exit 0, `1 checks, 0 failures`: the input that crashed the scan now reads clean |
+| **R-CD-CRASH** | a multi-line raw string literal added to `src/AircraftManager.h`, the one file `strip()` still parses | exit 2, its output beginning `RIG: `, never exit 1 |
+| **R-CD-DECODE** | a new file `include/zz_badbyte.h` holding the bytes `0xFF 0xFE`, so the line scan's read raises | exit 2, its output beginning `RIG: `, never exit 1 |
+
+**Read before registering, without running the check:** all 411 files the scan reads (`include/`, `src/`, `tools/` by
+extension, and `platformio.ini`) decode as UTF-8. So L1 cannot meet R-CD-DECODE's path by accident.
+
+**The re-run, predicted (L1's first re-run; another stop on L1 goes to the owner):**
+
+| run | predicted |
+|---|---|
+| **L1** `check_map_draw.py` | `1 checks, 0 failures`, exit 0 |
+| **L2** `sabotage_map_draw.py` | control clean; S-CD-NOREFUSAL {CD4}; S-CD-STEPC {CD4}; `MAP DRAW SABOTAGES (2) AS PREDICTED`; then R-CD-RAWOK, R-CD-CRASH and R-CD-DECODE as the table above, `MAP DRAW CONTROLS (3) AS PREDICTED`; the real files unchanged |
+| **L3** `--anchors` over every driver (42), and `--control` for the new one | every anchor present exactly once; the control matches its table |
+| **L4** `check_map_fetch.py` | `3 checks, 0 failures` |
+| **L5** | as registered above, after blipscope-p4-4a's heavy run ends: one heavy run at a time on the machine |
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
