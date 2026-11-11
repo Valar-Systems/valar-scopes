@@ -116,6 +116,19 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/basemap-verdict.selftest.sh
 
+      # /healthz's build stamp, the TOP-LEVEL "commit" only (docs/healthz-commit-read.md), as confirm-deploy.sh,
+      # smoke-prod.sh and tools/wx/r12_prod.sh read it through one helper: rows HC1-HC5, CD1-CD2, SM1-SM5, R12 and
+      # W1-W3, and two plants (P-OLD, P-FIRST) whose whole red sets must equal the registered ones.
+      - name: /healthz build-stamp read (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/healthz-commit.selftest.sh
+
+      # confirm-deploy.sh's classification and its distinct exit codes. Written for that script, and run by no
+      # workflow until the build-stamp fix found it (docs/healthz-commit-read.md, section 2).
+      - name: confirm-deploy classification (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/test-confirm-deploy.sh
+
       # Plan S (docs/wx-plan-s.md): read from `wrangler deploy --dry-run`, i.e. what would ship. PB1: the ingest's dev
       # copy's plant is in no byte of production's bundle (anchored on production's own log string, controlled by the
       # dev bundle carrying the marker exactly once). PB2: every dev deploy target binds only blipscope-wx-dev. The

@@ -256,23 +256,26 @@ auth_path_check
 # guards -- so the running code may correspond to no commit at all. That is the
 # one thing about a deployment that cannot be reconstructed after the fact, which
 # is why it is checked here rather than trusted.
-COMMIT="$(printf '%s' "${LAST_BODY:-}" | grep -oE '"commit":"[^"]*"' | cut -d'"' -f4)"
+#
+# The TOP-LEVEL "commit" only, and the decision, both from healthz-commit.sh (docs/healthz-commit-read.md): a grep
+# for "commit" also matched basemap.commit, and on a two-line value this check passed a "dev", "-dirty" or missing
+# stamp. The printed lines are unchanged.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/healthz-commit.sh"
+COMMIT="$(printf '%s' "${LAST_BODY:-}" | healthz_commit)"
 printf '\n===== /healthz build stamp =====\n'
 printf 'commit reported: %s\n' "${COMMIT:-<absent>}"
-if [ -n "$COMMIT" ] && [ "$COMMIT" != "dev" ]; then
-  case "$COMMIT" in
-    *-dirty)
-      printf 'RESULT: FAIL -- deployed from a DIRTY tree (ALLOW_DIRTY=1). This bundle\n'
-      printf '        contains changes that are in no commit and no PR.\n'
-      fail=$((fail+1)) ;;
-    *)
-      printf 'RESULT: PASS\n'; pass=$((pass+1)) ;;
-  esac
-else
-  printf 'RESULT: FAIL -- expected a commit SHA from scripts/deploy.sh.\n'
-  printf '        "dev" or absent means a hand-run `wrangler deploy` bypassed the guards.\n'
-  fail=$((fail+1))
-fi
+case "$(stamp_verdict "$COMMIT")" in
+  PASS)
+    printf 'RESULT: PASS\n'; pass=$((pass+1)) ;;
+  FAIL-dirty)
+    printf 'RESULT: FAIL -- deployed from a DIRTY tree (ALLOW_DIRTY=1). This bundle\n'
+    printf '        contains changes that are in no commit and no PR.\n'
+    fail=$((fail+1)) ;;
+  *)
+    printf 'RESULT: FAIL -- expected a commit SHA from scripts/deploy.sh.\n'
+    printf '        "dev" or absent means a hand-run `wrangler deploy` bypassed the guards.\n'
+    fail=$((fail+1)) ;;
+esac
 
 # WHICH UPSTREAMS PRODUCTION ACTUALLY HAS ON, read off the live Worker.
 #
