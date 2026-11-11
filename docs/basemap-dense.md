@@ -1613,3 +1613,42 @@ processes; they spread 0.03. **v0's is 99.55 MiB (104.4 MB) at cell 16.**
 **My miss, with its cause:** I registered the plant as "keeps every buffer the store hands out", and predicted that it equals v0. I never
 checked that v0 holds every such buffer. It holds the reads `readInOrder` hands out, and holds the three earlier reads only until cell 11.
 The control was built wider than the claim it tests.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:26Z), verbatim
+
+> The variant: accepted. Three processes, the build's largest 59.99–60.02 MiB in the ladder phase, within 59.90 ± 0.785. Stated as ruled:
+> 60.02 MiB (62.9 MB), spread 0.03. The cell-11 exception fell inside the ruled allowance in 4 of 4 processes, matching cell 10's read, the
+> one consumed just before, with cells 4 and 7 also matching as recorded. No other cell showed it.
+>
+> Q-PL1: A. Re-register the plant only, so the store keeps exactly the reads readInOrder hands out, which is what the variant lets go.
+> pred7.json's plant trace and the 0.785 bound stay unchanged. Freeze the prediction, every cell within 0.785 of v0's mean, then run three
+> fresh planted processes. The variant's three processes stand.
+>
+> Your miss stays on record: the plant kept more than the claim it tests. Why v0 lets the three pre-loop reads go at cell 12, at the same
+> transition as the variant's exception, stays open in the proposal. It isn't needed for any figure.
+>
+> After A: the proposal stands on the list you gave. Q-DR3 then runs on the variant, as ruled, and making the variant the real builder is its
+> own PR.
+
+### The plant, re-registered (Q-PL1, A): registered before it runs
+
+**The one change,** in the driver `mem-diag9.mts`: the planted store keeps **only the reads `readInOrder` hands out.** Those are the cells
+(`/cells/`) and the tile list (`/terrain/9/` and `terrain-sources.bin`): what v0's `pending` holds, and what the variant lets go. The
+manifest, index, coverage and `current` reads are no longer kept. Nothing else differs from `mem-diag8`.
+
+**What runs:**
+- **Three fresh planted processes** (`DENSE_RELEASE=1`, the scratch copy `6281e0f2b00e`), against a fresh results file.
+- The runner checks `pred7.json`'s sha256 first.
+
+| row | predicted |
+|---|---|
+| **PL1** | **every cell within 0.785 MiB of v0's mean** (`pred7.json`'s plant trace, unchanged), in all three processes |
+| RV3 | as registered; KJAC `b3f428e5860e`; DR0's ladder |
+| the later samples | reported, not graded. **Expected**, not predicted: above v0's by the cells (60.91 MiB) and the tile list read so far, not by the three pre-loop reads |
+
+**What the readings will mean:**
+- **PL1 holds:** keeping exactly the reads the variant lets go restores v0. **The variant's cut is those reads,** and the proposal stands on
+  the list ruled at ~05:26Z.
+- **PL1 off:** stop and report.
+
+**Outside the set:** anything else stops it.
