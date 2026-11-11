@@ -97,11 +97,18 @@ jobs:
         if: matrix.worker == 'proxy'
         run: node scripts/check-locate-page.mjs
 
-      # smoke-prod.sh's opuk covered-share verdict (docs/wx-opuk.md, K9): nine canned /healthz bodies, the whole
+      # smoke-prod.sh's opuk covered-share verdict (docs/wx-opuk.md, K9): ten canned /healthz bodies, the whole
       # verdict list compared, and a sabotage (the zero test dropped) that must turn exactly the share-0 case.
       - name: smoke's opuk covered-share verdict (selftest)
         if: matrix.worker == 'proxy'
         run: bash scripts/wx-opuk-verdict.selftest.sh
+
+      # smoke-prod.sh's per-product weather lines (docs/wx-healthz-products.md, H6): whole outputs on the committed
+      # H3 fixture (WARN for exactly opse and cref), its stale-cleared twin (no WARN), the old shape, not_configured
+      # and an unreadable body; return 0 everywhere and one bare call in smoke; and a plant that must change case (a).
+      - name: smoke's per-product weather lines (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/wx-products-lines.selftest.sh
 
       # smoke-prod.sh's /basemap verdict (docs/basemap-deploy.md, Q5): seven canned answers, the whole verdict list
       # compared, and a sabotage (the validate() call skipped) that must turn exactly the kCrc case.

@@ -93,7 +93,8 @@ export function productById(id: string): Product | null {
   return PRODUCTS.find((p) => p.id === id) ?? null;
 }
 
-/** The products /wx/cref may be answered from, and the ones /healthz reports. An OPERA product joins only after its
+/** The products /wx/cref may be answered from. (/healthz reports EVERY product, each marked routed or not from this
+ *  set: docs/wx-healthz-products.md.) An OPERA product joins only after its
  *  ingest runs and its `latest` has been read (docs/wx-opera-europe.md §3, the rollout order): routed before that, a
  *  point that gets cref's 200 today would get a 503 wx_stale from a product with no frame. Each addition is a proxy
  *  deploy of its own. */

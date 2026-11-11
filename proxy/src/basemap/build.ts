@@ -30,9 +30,11 @@ const unavailable = (why: string): BuildResult => ({ ok: false, status: 503, cod
 export const READ_AHEAD = 6;
 /** The keys' reads, up to READ_AHEAD at once, yielded IN THE KEYS' ORDER: what is built from them, and the first
  *  missing object named, are the same as reading one at a time. A read-ahead left unread when the caller stops early
- *  settles in the background; its rejection is caught here so it never surfaces unhandled. */
+ *  settles in the background; its rejection is caught here so it never surfaces unhandled.
+ *  Each read's slot is cleared as the read is handed over, so a consumed read is the caller's alone to keep or drop
+ *  (docs/basemap-release.md). Holding every read to the loop's end put all of KLGA's cells, 61 MiB, in the build's peak. */
 async function* readInOrder(store: StoreReader, keys: string[]): AsyncGenerator<Uint8Array | null> {
-  const pending: Array<Promise<Uint8Array | null>> = [];
+  const pending: Array<Promise<Uint8Array | null> | undefined> = [];
   let next = 0;
   for (let i = 0; i < keys.length; i++) {
     while (next < keys.length && next < i + READ_AHEAD) {
@@ -40,7 +42,9 @@ async function* readInOrder(store: StoreReader, keys: string[]): AsyncGenerator<
       p.catch(() => undefined);
       pending.push(p);
     }
-    yield await pending[i]!;
+    const v = await pending[i]!;
+    pending[i] = undefined;
+    yield v;
   }
 }
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");

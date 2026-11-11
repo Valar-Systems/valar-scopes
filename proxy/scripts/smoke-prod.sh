@@ -324,6 +324,13 @@ OPUK_VERDICT="$(wx_opuk_verdict "$HEALTH_BODY")"
 printf 'RESULT: %s\n' "$OPUK_VERDICT"
 case "$OPUK_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
 
+# Every weather product, routed or not (docs/wx-healthz-products.md, Q-HZ1): one line each from the /healthz body
+# fetched above (no new request), a stale one marked WARN. Information only: it touches neither pass nor fail, so a
+# WARN never changes this script's exit code. The lines and that promise are graded by wx-products-lines.selftest.sh.
+printf '\n===== /healthz wx, every product =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-products-lines.sh"
+wx_products_section "$HEALTH_BODY"
+
 # Weather (docs/wx-server.md). Until Daniel binds a WX bucket the route is deliberately inert, and the ONLY
 # passing answers are: 503 not_configured (not wired yet), or 200 with a WXC1 crop and an ETag (wired). A
 # 404 means the deployed Worker has no /wx route; a 503 wx_stale means it is wired and the ingest is not
