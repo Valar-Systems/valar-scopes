@@ -621,3 +621,49 @@ adds `web-renderer`'s `build` (success) and its `publish` (skipped).
 | main on the squash | **34** | 31 | 3 (version, promote, publish) | 0 |
 
 blipscope-5c reads the mechanism as the radar's owner (Q123), before any merge.
+
+### S4.8, 2026-11-11: #628 brought up to main before the window, its CI predicted before the push
+
+**Ruled ~01:12Z:**
+- **#628 conflicts with main** in `proxy/src/index.ts`, where #623 (merged 21:38Z Nov 8) changed the import beside the probe's. Main is
+  merged in with both sides kept, so `index.ts` differs from main only by the probe's import and route lines.
+- **CI is predicted on the new head,** then read twice.
+- **Staging's current version is recorded before the deploy** and rolled back to after the read-back. The window deploys main plus the
+  probe, never older proxy code. Then the reviewer gives Daniel the start announcement.
+- **#630 is approved at `6a068d085846`.** The approval takes effect when blipscope-5c's read of the mechanism comes back with no objection.
+  It merges third, after #631 and #624, and only through `scripts/merge-by-rule.sh`.
+
+**The merge is `1db0659e9a50`.** Its parents are `c2992b238c5b` (the probe) and main `81cfbd092ec2`. The one conflict was the import:
+#623 made it `{ PRODUCTS, ROUTED }`, and the probe's import sits on the next line. Both are kept. Against main, the merge differs in the
+probe's 5 files only, 187 insertions and 0 deletions. In `index.ts` that's 3 lines:
+
+```
++import { handleW3Probe } from "./weatherscope/w3probe";
++  // W3 (docs/weatherscope-stage4.md S4.4): STAGING ONLY and temporary -- 404 unless W3_PROBE is "on". Never merged.
++  if (api.suffix === "w3-nws-probe") return handleW3Probe(request, env);
+```
+
+**One error of mine, caught before the commit.** The resolver asserted the working-tree file had no CRLF. This worktree checks out with
+`core.autocrlf=true`, so the assertion fired and the resolver wrote nothing. That was correct, but the `git add` on the next line wasn't
+chained to it, so it staged the file with its conflict markers. Nothing was committed. The resolution was redone in the file's own CRLF
+bytes. The staged blob then had 0 markers and 0 CRLF, the same as both parents' blobs.
+
+**Read locally on the merge:** `tsc --noEmit` exit 0. **W3T1-W3T6 6 of 6**, behind the vitest gate (no other vitest, TIME_WAIT 106).
+
+**CI, predicted before the push:**
+- **The last job-set change is still `caf63cc9d9cc`.** Since the probe's base `abd7c67b3ebb`, three main commits (#617, #623, #629) touched
+  four workflow files. Each only added steps, and every file's job count is unchanged.
+- **`workers.yml`'s `paths` gained two entries,** `.github/workflows/photo-drift.yml` and `scripts/reconcile-fleet*.py`. This PR touches
+  neither.
+- **The PR's diff against its new base is the same 5 `proxy/` files,** so the same workflows run.
+- **Main at `81cfbd092ec2` has finished:** 39 = 36/3/0.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| #628 at `1db0659e9a50` | **35** | 32 | 3 (promote, version, ship-alert) | 0 |
+
+**For the window, S4.4's rows stand with two readings made exact:**
+- **D1:** `/healthz` reports `1db0659e9a50`, or whatever #628's head is at the deploy.
+- **R0:** staging's live version and commit are read and recorded before anything is deployed, whatever they are, and RB returns to exactly
+  that version. If main moves before the window, `deploy.sh` refuses a tree behind main in `proxy/`. Then main is merged in again and CI is
+  predicted and read again before any deploy.
