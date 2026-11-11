@@ -833,3 +833,144 @@ decide.**
 - **Q-MEM2's MG-A meaning,** as registered ("the local ceilings over-counted") and as read ("the local figures over-counted"): **an overreach,
   in both places.** Every local ceiling (93.6-107.7 MB) is under 128 MB, so a build that fits can't show that any of them over-counted. MG-A
   establishes one thing: **KLGA at r=162 built under 128 MB in workerd.**
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~03:37Z), verbatim
+
+> Q-MEM1c: A, as you recommend. Run C2′ as frozen in #622, then continue on its answer.
+> - C2′ is a fair control. put() and drop() each return nothing, so no running frame holds the buffer, and it separates the two
+>   explanations: the lag predicts +32 after drop(), frame retention predicts within 1 MiB.
+> - Frame retention: re-run Q-MEM1b's 16 processes with C2′ graded in place of C2, MB0–MB4 otherwise unchanged, registered first, stopping
+>   at the first off reading. Then READ_AHEAD 6/3/1 at KLGA as its own registration, then Q-DR3. Each figure you state is the highest
+>   settled reading across processes for that build, with any spread over 1 MiB between processes for the same build stated beside it.
+>   KJFK's 97.3 against 76.9 stays open until the re-run reads it again.
+> - The lag: the instrument is retired, as ruled. Your fallback for Q-DR3 is approved now, so you don't wait for me: rung outcomes graded
+>   on sizes alone, and memory evidence only from workerd, one staging request per chosen build as in Q-MEM2, with predictions first and
+>   only after W3's read-back.
+> - Anything else: stop and report, as frozen.
+> - Either way, the proposal says what you wrote: C2′ can't show that workerd counts memory the way Node does, and Q-MEM2's KLGA pass is
+>   the only workerd reading.
+>
+> The one C3 reading of 32.00 (Midtown, third run) came from Q-MEM1's one-gc() sample, which the settled sampler replaced, so it isn't
+> evidence against frame retention under the settled sampler. It still counts as "anything else" if C1–C3 don't reproduce.
+>
+> The tail: closed. It was your own; Weatherscope and the UK session say no. The second tree, two bash.exe processes naming the tail with no
+> node under them, was most likely your stop command's own shells: a stop that matches command lines also matches the shell that runs it.
+> Your miss stands as narrowed. From now on, stop a stream by the process tree you recorded when you launched it, never by matching command
+> lines.
+
+**The tail, for this record:** the miss recorded under Q-MEM2's read stands, narrowed as above. My one tail ran from 20:32:21.7Z to the stop
+at 20:33:44.7Z, and it was the only running tail of that Worker on this machine.
+
+### Q-MEM1c, the C2′ control: registered before it runs
+
+**What runs:**
+- **One local Node process** (`--expose-gc`), the driver `mem-diag3.mts` in its `c2p` mode, at **KLGA** at the map client's query.
+- It uses the same patched copy at v0, over the same local store, as Q-MEM1b.
+- **Nothing runs on staging.** W3's window holds staging in any case.
+
+**The controls, each against its own settled sample (Q-MEM1b's sampler, unchanged):**
+- **C1, C2 and C3 as in Q-MEM1b.** Their allocation and sampling lines are `mem-diag2.mts`'s, compared byte for byte, so C2 can reproduce.
+- **C2′ runs after `controls()` has returned,** in its own function:
+  1. a settled sample;
+  2. `put()` allocates 32 MiB into a module-level slot and returns nothing; a settled sample (**C2′ live**);
+  3. `drop()` sets the slot to null and returns nothing; a settled sample (**C2′ released**).
+- **No running frame ever holds C2′'s buffer.**
+- **Where:**
+  - before the builds;
+  - mid-build, at the 10th cell read of KLGA's cold build. That is Q-MEM1b's C4 point, at KLGA as proposed. Nov 8's C4 was at KJFK.
+- **The warm build** then runs as before. This process measures no peak.
+
+| row | predicted |
+|---|---|
+| **MC0** | C1 **+32 ± 1**, C2 **+32 ± 1** (Nov 8's off reading, reproduced), C3 **within 1 MiB**, in both places |
+| **MC1** | C2′ live **+32 ± 1 MiB**, in both places |
+| **MC2** | every sample settled; every object local; KLGA's cold build ends **422 `too_large`**, as DR0's KLGA (the same build) |
+| **MC3** | C2′ released: **not predicted.** It is the reading that decides |
+
+**What the readings will mean, fixed now (the table sent as Q-MEM1c, ruled ~03:37Z):**
+
+| MC0-MC2 | C2′ released | meaning | next, as ruled |
+|---|---|---|---|
+| as predicted | **within 1 MiB, in both places** | **frame retention:** C2 was the defect, and the settled sampler may be sound | the re-run below, then `READ_AHEAD`, then Q-DR3 |
+| as predicted | **+32 ± 1, in both places** | **the lag:** the instrument is retired, as ruled. No local figure stands | Q-DR3 on the approved fallback (below) |
+| anything else | anything else | **stop and report** | - |
+
+"Anything else" includes:
+- C2′'s released reading lying between the two bounds;
+- the two places disagreeing;
+- any MC0-MC2 row off. C1-C3 must reproduce Nov 8's **+32 / +32 / 0**, or the controls have changed under us.
+
+**The driver carries this table,** prints every condition whichever way it goes, and ends on one `VERDICT` line: exit 0 for frame
+retention, 10 for the lag, 1 for a stop.
+
+**What this cannot show, either way:** whether workerd counts memory the way Node does. Q-MEM2's KLGA pass stays the only workerd reading.
+
+### Q-MEM1b, re-run with C2′ in place of C2: registered now, runs only on frame retention
+
+**What runs:**
+- **The same 16 processes, in Q-MEM1b's order:**
+  - first, KJFK's control process;
+  - then KJFK, KLGA, KEWR, Midtown and KJAC, three plain processes each.
+- **Each builds its query cold, then warm,** with every phase sampled settled, using the same driver in its `plain` and `ctl` modes.
+- **C1-C3 and C2′ run in every process before its builds,** and again mid-build in the control process (C4).
+- **C2 still runs and is printed,** reported only, not graded.
+
+| row | predicted (MB1-MB4 as Q-MEM1b's) |
+|---|---|
+| **MB0** | C1, **C2′** (live +32 ± 1 **and** released within 1 MiB) and C3 hold in all 16 processes, and C4 (the same, mid-build) in the control process |
+| **MB1** | no unsettled sample anywhere |
+| **MB2** | each point's three cold builds agree within 2 MiB, and cold and warm agree within 2 MiB |
+| **MB3** | **every settled peak is under its Q-MEM1 ceiling**, and **at most 64 MB** |
+| **MB4** | the phase holding each peak: not predicted; reported |
+
+**Its ceilings, stated now** (MB3 named them without listing them). Each is the highest of Q-MEM1's three readings for that point and
+build, compared at 0.1 MB:
+
+| point | cold | warm |
+|---|---|---|
+| KJFK | 102.0 MB | 101.9 MB |
+| KLGA | 107.7 MB | 107.2 MB |
+| KEWR | 99.5 MB | 99.1 MB |
+| Midtown | 94.2 MB | 94.1 MB |
+
+**KJAC has no Q-MEM1 ceiling,** since Q-MEM1 never reached it. So KJAC's MB3 first half isn't graded; its second half is.
+
+**Graded per build, in the driver, stopping at the first off reading** (the runner stops on any non-zero exit):
+- **MB0 and MB1:** in every process, as its controls and samples finish.
+- **MB2:** cold against warm in every process. The three colds at a point are graded at its second and third process, from a results
+  file the driver appends to.
+- **MB3's first half:** at every build, against the table above.
+- **MB3's second half:** printed as each build's band; recorded, not a stop.
+
+**What the readings will mean (Q-MEM1b's table, with C2′ in MB0):**
+
+| outcome | meaning |
+|---|---|
+| MB0-MB3 as predicted | the settled figures are the peaks the proposal states, as floors on live memory |
+| **MB0 or MB1 fails** | **repeated `gc()` can't clear the lag: the local instrument is retired** (ruled), and the proposal says no local figure stands |
+| MB2 fails | unreliable at this scale: **stop** |
+| MB3's first half fails (a settled peak at or above its ceiling) | the settled sampler measures more than the unsettled one: **stop**, since that is impossible if both are right |
+| MB3's second half fails (over 64 MB) | recorded, with its band. Not a stop here, since workerd already answered KLGA (MG-A) |
+
+**How its figures are stated (ruled):** each is the highest settled reading across the processes for that build. Any spread over 1 MiB
+between processes for the same build is stated beside it.
+
+**KJFK's 97.3 against 76.9:** the re-run's three cold KJFK figures are reported beside both. They aren't predicted, and the question stays
+open until this reads them.
+
+**Outside the set:** anything else stops it.
+
+**Then, if it stands:**
+1. `READ_AHEAD` 6, 3 and 1 at KLGA, each cold three times, as its own registration after this read;
+2. then Q-DR3, stopping at the first build over 96 MB, graded per build.
+
+### If C2′ shows the lag: Q-DR3 on the approved fallback
+
+- **The instrument is retired.**
+- **Q-DR3's rung outcomes are graded on sizes alone.**
+- **Memory evidence comes only from workerd:** one staging request per chosen build, as in Q-MEM2. Its predictions come first, and nothing
+  is sent until W3's read-back is posted.
+- **The dense-area proposal then states:**
+  - that no local figure stands;
+  - each chosen build's workerd outcome;
+  - that `READ_AHEAD`'s effect can't be given as a number.
