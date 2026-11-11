@@ -1814,3 +1814,75 @@ The run is fresh and starts from DR0, one run graded once (ruled).
 - So part of ab's extra may belong to the copy, not to A+B.
 - **The per-phase figures will show where the extra sits.** Separating L8's share from L4's would need a variant this registration doesn't
   have.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:53Z), verbatim
+
+> Pre-ruled, so the result doesn't need a round trip. If the per-phase figures put ab's extra in the cell loop's coarse sets, the ε×4 rivers
+> and roads that only P1 and P2 use, the proposal states ab's figure as an upper bound, with the copy's share named. A follow-up
+> registration then measures ab with the copy building only the sets ab uses, predictions first, local. If the extra sits elsewhere, report
+> it as read.
+
+### Q-DR3, re-registered, read (2026-11-11, 05:51:36-05:56:22Z): every graded row as predicted; no build over 96 MB
+
+The registration was frozen at 05:51:29Z (`d5bc0061e734`). The parent's process is recorded in `dr-q3b.pid`. **111 builds** ran, each in its
+own process, and the parent exited 0. The error file is empty, the tree stayed clean, and nothing ran on staging.
+
+| row | read |
+|---|---|
+| DR0 | **13 of 13.** The variant's packages are byte-identical to the repo builder's and to Nov 8's at the 9; #620's ladders at the 4. **Memory anchor: KLGA 59.98 MiB in the ladder phase** |
+| DR1 | **13 of 13.** #620's water share and secondary count, and Nov 8's package, at the 9; 422 at the 4 |
+| DR2 | **9 of 9:** P1 byte-identical to ab |
+| **DR3** | **P1 fits 0 of 4 New York points, as predicted. By its registered meaning: D2 does the work, and its floor is the decision** |
+| DR4 | P2 identical to ab at KMIA and KJAC, changed at the 7, 422 at the 4 |
+| **DR5** | **D2's first fit, at all 4 New York points: 103.7 km under ab, 129.6 km under P1.** No 422 at the floor |
+| DR6 | +sea: P1 and P2 fit at 162 km at the 9 and 422 at the 4. **D2's first fit: 129.6 km at all 4, under both.** Every package `kOk`, at most 32,768 |
+| ladders | every v0 422 non-increasing and over the cap; **no variant's 422 reported a ladder** (the code sets `ladder.nt = []` for them) |
+| controls | every child: C1, C2′ and C3 held, every sample settled, every object local |
+
+**D2's fitted builds, the ones a New York scope would get:**
+
+| | KJFK | KLGA | KEWR | Midtown |
+|---|---|---|---|---|
+| ab at 103.7 km | 54.0 MB, water 13.0%, 17 secondary | 55.1 MB, water 12.7%, 1 secondary | 58.8 MB, water 9.6%, 0 secondary | 55.9 MB, water 11.3%, 0 secondary |
+| P1 at 129.6 km | 60.1 MB, water 10.8%, 0 secondary | 61.6 MB, water 10.4%, 0 secondary | **66.2 MB** (64-96), water 8.3%, 0 secondary | 61.8 MB, water 9.9%, 0 secondary |
+
+**Memory: no build over 96 MB.** The largest per variant:
+
+| variant | largest | where |
+|---|---|---|
+| v0 | 61.58 MiB, 64.6 MB | KJFK, in the cell phase |
+| ab | 73.67 MiB, 77.3 MB | KEWR |
+| P1 / P2 | 73.66 / 73.69 MiB | KEWR |
+| P1+sea / P2+sea | 73.84 / 73.85 MiB, 77.4 MB | KEWR |
+
+**30 builds fell in 64-96 MB,** recorded and not a stop:
+- 20: every New York build at 162 km under ab, P1 and P2, with or without +sea;
+- 5: KBOS under the same five;
+- 4: KEWR at 129.6 km under ab (its 422 try), P1, P1+sea and P2+sea;
+- 1: KJFK under v0.
+
+**Where ab's extra sits (ab minus v0, per phase, MiB):**
+
+| point | cell | tile loop, tiles, terrain | layers | ladder | end |
+|---|---|---|---|---|---|
+| KJFK | 9.71 | 12.31 | 12.92 | 12.95 | −0.01 |
+| KLGA | 8.15 | 13.00-13.02 | 13.63 | 13.65 | −0.01 |
+| KEWR | 8.23 | 12.22 | 12.88 | 12.87 | 0.00 |
+| Midtown | 9.67 | 12.06 | 12.71 | 12.71 | 0.01 |
+| KBOS | 8.96 | 11.28 | 11.90 | 11.85 | −0.02 |
+| the other 8 | 0.98-6.42 | 1.47-6.76 | 1.56-7.18 | 1.62-7.14 | −0.03 to 0.02 |
+
+- **It sits in the layer sets the cell loop builds.**
+  - It grows during the cell loop and holds flat through the tile loop, the tiles and the terrain, where no layer set is touched.
+  - It grows about 0.6 MiB at the layer-set step, where their contents are made.
+  - It is gone at the end.
+- **ab, P1 and P2 read the same at each point, to 0.05 MiB,** though only P1 and P2 use the ε×4 set. The copy builds both coarse sets, L4 and
+  L8, for every variant but v0, so this read can't say how the extra splits between them.
+- **By the pre-ruled branch (~05:53Z): ab's figure is an upper bound,** and the copy's share is named: L4, rivers and roads at ε×4, which ab
+  never reads.
+  - `budget.ts` calls `make(tol4)` only inside `at4()`, which runs for P1 and P2 alone.
+  - The follow-up below measures ab with the copy building only the sets ab uses.
+
+**The one sentence (ruled):** A+B's water rung needs the water simplified at ε×8, and the builder makes it in its single pass over the
+cells, so a coarser water set is held beside the ε and ε×2 sets from the cell loop to the end of the build. The scratch copy also holds
+an ε×4 rivers-and-roads set for every variant, which A+B never reads, so the ab figures above are upper bounds.
