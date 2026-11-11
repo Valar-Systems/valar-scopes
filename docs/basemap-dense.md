@@ -1687,3 +1687,55 @@ exiting 0. The error file is empty, the tree stayed clean, and nothing ran on st
 - **Next, as ruled:**
   1. Q-DR3 on the variant, predictions first;
   2. the variant as the real builder is its own PR and review.
+
+### Q-DR3 on the release variant: registered before it runs
+
+**The rulings it carries out:**
+- ~19:07Z Nov 8: "Q-DR3: yes, once memory is settled, stopping at the first build over 96 MB, graded per build."
+- ~04:10Z Nov 11, Q-DR3a (a): it runs on the lever the release reading supports, and "grades sizes and memory together, once, on the
+  builder that will ship."
+- ~05:35Z: "Q-DR3 on the variant, predictions first." Workerd evidence belongs to the variant's own PR, not here.
+
+**What runs:**
+- **The rung reading registered on Nov 8:** the same 13 points, the same variants (v0, ab, P1, P2, D2, +sea), the same rows DR0-DR6 in the
+  same order, at the map client's query.
+- **The builder:** the scratch copy **with the release variant on** (`DENSE_RELEASE=1`, copy `6281e0f2b00e`), at `READ_AHEAD` 6.
+- **One change of method:** each build runs **in its own fresh process.**
+  - That is the configuration the memory figures were validated in.
+  - The Nov 8 driver ran every build in one process, and that process's history made DR0's figures the outlier.
+- **The drivers:** `dr-parent.mts` grades; `dr-child.mts` runs one build.
+- **In each child:**
+  - **A copy build** runs C1, C2′ and C3 first, then samples settled at every hook (each cell, each tile, then tiles, terrain, layers and
+    ladder) and once at the end.
+  - **The repo's unpatched builder** runs for DR0's bytes only, with no memory measured.
+- **Nothing runs on staging.**
+
+**Predicted:**
+
+| row | predicted |
+|---|---|
+| **DR0** | at the 9 points that fit, **the variant's package is byte-identical to the repo builder's and to Nov 8's** (KBOS `ce5b1ea7589e`, KMIA `000dde33cc42`, KSFO `399cb059f84a`, KSEA `69ff5b17e2ee`, KORD `b54fa953fef7`, KDTW `8976db34bf1a`, KMSP `863f7f2955a7`, KIND `f740fbc3f99e`, KJAC `b3f428e5860e`); at the 4 New York points, **the same ladder** as the repo builder and #620 |
+| **DR0, memory anchor** | KLGA under the variant: **59.90 ± 0.785 MiB, in the ladder phase** (the frozen figure) |
+| **DR1** | ab at the 9: #620's water share and secondary count, **and Nov 8's package** (KBOS `cd74b62d4cd3`, KMIA `7745a0d61ec6`, KSFO `5803f1a67c63`, KSEA `19c859a5d731`, KORD `15fd35c61882`, KDTW `3ff4efbc56b1`, KMSP `f3f3557eb233`, KIND `deb9172d580e`, KJAC `b3f428e5860e`); **422** at the 4 New York points |
+| **DR2** | P1 at the 9: **byte-identical to ab, 9 of 9.** Nov 8 read 3 of 3 before it stopped |
+| **DR3** | **P1 fits 0 of 4 New York points,** as Nov 8 read. By its registered meaning: **D2 does the work, and its floor is the decision** |
+| **DR4** | P2 at all 13: invariants. **Identical to ab at KMIA and KJAC** (ab's rung ≤ 2); **changed at the 7 where ab dropped secondary roads** (rung 3). New York: not predicted |
+| **DR5** | D2, under ab and P1, at the 4 New York points: **the first radius that fits, not predicted.** A 422 at the 40 km floor is a stop (as registered) |
+| **DR6** | +sea: P1 and P2 at all 13, then D2 for any still 422. Invariants only |
+| **memory, every copy build** | **graded as each build is measured** (ruled). **Over 96 MB: stop.** 64-96 MB: recorded, not a stop. Not predicted per build, apart from the anchor |
+| **every process** | C1 +32 ± 1; C2′ +32 ± 1, then within 1; C3 within 1; every sample settled; every object local. Every 422's ladder non-increasing and ending over 32,768; every 200 `kOk` and at most 32,768 non-terrain bytes |
+
+**Expected, not predicted:** the 9 points under v0 well under 64 MB. New York's P1 and P2 builds above v0's, because those variants carry
+the extra layer sets at ε×4 and ε×8. Which band those builds land in is what this reads.
+
+**Graded per build, stopping at the first off reading.** A child that crashes or prints no result is an instrument failure, and stops it.
+
+**What the readings will mean:**
+- DR3's and DR5's meanings are as registered on Nov 8.
+- **A build over 96 MB stops it** (ruled); the proposal then says which build and variant.
+- **All rows as predicted:** the rung outcomes and every build's memory band on the variant are what the dense-area proposal states.
+- **Anything else stops it.**
+
+**What this cannot see:**
+- **Workerd:** one staging request on the variant belongs to its own PR (ruled ~05:35Z).
+- **Memory between two samples.**
