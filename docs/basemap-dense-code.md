@@ -773,3 +773,29 @@ exactly once.
   - The driver is `dr-q4-c.mts` `645a611550cf`, with `--qw43-only`. Its diff against the copy that ran (`fb841b7a8604`) is the two
     numbers 4 → 3, the flag, and a comment.
 - **Anything else stops.**
+
+**The ruling (the orchestrator, 23:01Z):**
+- Yes, as proposed: QW4-3 alone, all four rows with the control first. QW4-C0 and QW4-C1 stand as read.
+- **The miss is on record as both of ours:** the orchestrator accepted "refusedBuilt = 4" at 22:42Z without reading `build.ts:114`
+  either. The off reading stays on record.
+- **Refusals per water set: offered, and skipped as the ruling allows,** because printing them would need an edit. The prototype keeps
+  each set's count inside `build`'s closure (`at[tol]`), and the child sees only the drawn set's count and the total. The `build.ts:114`
+  citation stands as the elimination.
+- This is QW4-3's first re-run. A second off reading goes to the orchestrator and on to the owner.
+
+## QW4-3, re-run (2026-11-11, 23:01:39Z): every row as predicted
+
+**The run.**
+- `beef9a09d14e` was pushed first.
+- Every artifact's sha256 read as registered, and C: had 76 GB free.
+- The driver (`645a611550cf`, `--qw43-only`) exited 0 with an empty error file. The log is scratch (`3f33656ef447`).
+
+| QW4-3 | read |
+|---|---|
+| **the control** (the backstop off) | **2 rings, 1 proper crossing;** `refused` 0, `refusedBuilt` 0. The plant landed |
+| **on** | `kOk`, rung 0, `steps` 1; **1 ring, 0 crossings; `refused: 1`; `refusedBuilt: 3`; `collapsed.water: 0`** |
+| **the reference** (the square alone) | 1 ring, `collapsed.water: 0`. **The package is byte-identical to "on"'s** (`5127d056ca90`): the bowtie leaves no trace in the package |
+| **the old rule** (`Q4_PROV` unset) | **`collapsed.water: 1`, against the right rule's 0,** so the check can fail; `refusedBuilt` 3 |
+
+**Part 1 is complete:** QW4-C0, QW4-C1 and QW4-3 all read as predicted, QW4-3 on its re-run. **Next is part 2, the sea,** with its own
+sha before anything runs.
