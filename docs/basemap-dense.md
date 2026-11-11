@@ -1518,3 +1518,49 @@ driver stopped itself (exit 15). The error file is empty, the tree stayed clean,
 - Even if every cell held its previous read as well, the largest such cell would be cell 11's 57.29 (52.47 + 4.82), which is still under
   the ladder phase's 59.90.
 - **Not shown:** whether workerd keeps a consumed read reachable in the same way, or more often.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:18Z), verbatim
+
+> Phase 1: accepted, as predicted, with the spread measured (0.392 at most) and the bound derived from it (0.785).
+>
+> Phase 2's first process: the result that matters held. The variant's largest was 60.01 MiB in the ladder phase, within 0.785 of the
+> frozen 59.90, with KJAC and DR0's ladder unchanged. Cell 11's +4.87 MiB is a real off reading, and it stays on record.
+>
+> Q-RV2: A, tightened. Re-register phase 2, with pred7.json and 0.785 unchanged, and run all six processes fresh: three variant, three
+> planted.
+> - RV1's one exception: a cell may read above its frozen value by the size of the read consumed just before that cell, ± 0.785. That is
+>   the stale-slot mechanism's own prediction. Record the cell, the excess, and every read it matches. Any other excess, including one that
+>   matches only an older read, is off: stop.
+> - The build's largest stays graded against 59.90 ± 0.785, and the planted processes must reproduce v0. Those two are what the proposal
+>   stands on.
+> - Report how many cells, in which processes, showed the exception. A consumed read still reachable is memory workerd may pay too.
+
+### The release variant, phase 2, re-registered (Q-RV2, A tightened): registered before it runs
+
+**Unchanged:**
+- `pred7.json`, sha256 `5d96afdbb2e2…`, which the runner checks before running;
+- the bound, 0.785 MiB;
+- the scratch copy, `6281e0f2b00e`;
+- RV3, and PL1;
+- the meaning table.
+
+**Six fresh processes:** three variant, then three planted, against a fresh results file. They run in the driver `mem-diag8.mts`, which
+differs from `mem-diag7` in three places, and in nothing else:
+
+1. **RV1's one exception,** for the variant's cells only:
+   - **Allowed:** a cell may read above its frozen value by the size of **the read consumed just before it** (cell k−1's), ± 0.785. That
+     cell is recorded with its excess and **every read it matches**, and it is not a stop.
+   - **Off, and a stop:** any other excess, including one that matches only an older read.
+   - **No exception anywhere else:** tiles, the samples after the loops, and the plant's cells.
+2. **The build's largest is graded on its own:** against **59.90 ± 0.785**, in every variant process.
+3. **KJAC's package is graded against v0's frozen hash** `b3f428e5860e`, as well as against the earlier processes.
+
+| row | predicted |
+|---|---|
+| RV3 | as registered |
+| **RV1** | every sample within 0.785 of `pred7.json`'s variant trace, **except the named exception** |
+| **the build's largest** | within **59.90 ± 0.785**, in all three variant processes |
+| **PL1** | every planted cell within 0.785 of v0's mean, in all three planted processes |
+| **the exception's count** | **not predicted; reported:** how many cells, in which processes, and which reads they match |
+
+**What the proposal stands on (ruled):** the build's largest, and PL1.
