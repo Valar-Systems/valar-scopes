@@ -54,6 +54,10 @@ jobs:
       # Session claims (docs/session-claims.md): CL1-CL12, then each plant must turn exactly its rows red.
       - run: python3 scripts/session-claim.py --selftest
       - run: python3 scripts/session-claim.py --sabotage
+      # The ingest deploy path (docs/wx-ingest-deploy.md): ID1-ID13 against a fake npx in a mirror tree, then each plant
+      # must turn exactly its rows red. IDs-a is the ruled one: without the claim check, the deploy runs without the claim.
+      - run: bash tools/wx/check_ingest_deploy.sh
+      - run: bash tools/wx/check_ingest_deploy.sh --sabotage
       # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
       - run: python3 scripts/check_workflow_concurrency.py
       - run: python3 scripts/check_workflow_concurrency.py --selftest
