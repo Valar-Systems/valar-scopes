@@ -54,7 +54,9 @@ const SABOTAGES = [
   { name: "S-WS-AGE", file: H,
     edits: [["const head = (status: string, fetchedUtc: number): Body => ({ v: 1, status, fetchedUtc });",
              "const head = (status: string, fetchedUtc: number): Body => ({ v: 1, status, ageS: nowS() - fetchedUtc }); /* SABOTAGE S-WS-AGE */"]],
-    red: ["WS5:", "WS6:", "WS7:", "WS8:", "WS15:", "WS17:", "WS20:"] },
+    // S4.16's set (WS23 added: unavailable() builds its head with fetchedUtc). S4.15's set was left here unchanged once,
+    // and the driver read the frozen result as NOT AS REGISTERED (ruled: the transcription went off, not the code).
+    red: ["WS5:", "WS6:", "WS7:", "WS8:", "WS15:", "WS17:", "WS20:", "WS23:"] },
   { name: "S-WS-COMMIT", file: H,
     edits: [["  return { breakers: BREAKERS.map((id) => ({ id, state: breakerState(id) })) };",
              '  return { commit: "x", breakers: BREAKERS.map((id) => ({ id, state: breakerState(id) })) }; /* SABOTAGE S-WS-COMMIT */']],
