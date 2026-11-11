@@ -23,6 +23,9 @@
 //        (the s3-146 rows are retired, A12.107; no CI-built Missileer image exists, A12.110)
 // MAP1-3 the fail mapping (A12.104): the refusal tokens; a short non-image is fail--106 with
 //        no flash call (not truncated); a begin failure is fail-<its error>
+// HP1-6  the head read waits out an empty read (docs/ota-head-patience.md, sections 3 and 9): a late head,
+//        a head that never comes, a dribbling head, 299 empties between bytes, exactly 300 empties, and
+//        ReadSome alone. The empty-read count and the waits are counted by the source; nothing sleeps.
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -78,6 +81,30 @@ struct FakeSource {
         pos += k;
         return k;
     }
+    size_t waits = 0;
+    void waitEmpty() { ++waits; }   // ota::ReadSome's wait: counted, never slept
+};
+
+// HP1-HP6 (docs/ota-head-patience.md): a source driven by a script of reads. Each step is one read: 0 is an empty read,
+// k > 0 is up to k bytes of the image. After the script every read is empty (tailEmpty), or the rest of the image comes
+// in kChunk reads. Reads and waits are counted, and waitEmpty() never sleeps.
+struct ScriptSource {
+    const std::vector<uint8_t>& data;
+    std::vector<size_t> steps;
+    bool tailEmpty;
+    size_t pos = 0, step = 0, reads = 0, waits = 0;
+    ScriptSource(const std::vector<uint8_t>& d, const std::vector<size_t>& s, bool te) : data(d), steps(s), tailEmpty(te) {}
+    size_t read(uint8_t* buf, size_t n)
+    {
+        ++reads;
+        size_t k = step < steps.size() ? steps[step++] : (tailEmpty ? 0 : kChunk);
+        if (k > n) k = n;
+        if (k > data.size() - pos) k = data.size() - pos;
+        std::memcpy(buf, data.data() + pos, k);
+        pos += k;
+        return k;
+    }
+    void waitEmpty() { ++waits; }
 };
 
 struct FakeFlash {
@@ -299,6 +326,65 @@ int main(int argc, char** argv)
         ota::Token(r, t, sizeof t);
         check(std::strcmp(t, "fail-4") == 0 && Join(flash.log) == "begin", "MAP3",
               std::string("begin fails with 4: ") + t + ", flash calls " + Join(flash.log) + " (want fail-4, begin)");
+    }
+
+    // ---- HP1-HP6: the head read waits out an empty read (docs/ota-head-patience.md, sections 3 and 9). The own image,
+    // so each row tests the patience and not the board check: an identity plant leaves them alone.
+    {
+        const std::vector<uint8_t> img = Image(radar);
+        const size_t H = ota::kHeadBytes, E = ota::kEmptyReads;
+        char buf[200];
+        // One install through a script; prints and returns nothing, the caller checks.
+        struct Run { ota::Outcome o; std::string log; size_t reads, waits; };
+        auto run = [&](const std::vector<size_t>& steps, bool tailEmpty) {
+            FakeFlash flash;
+            ScriptSource src(img, steps, tailEmpty);
+            const ota::Result r = ota::Install(src, flash, img.size(), own);
+            return Run{r.outcome, Join(flash.log), src.reads, src.waits};
+        };
+
+        // HP1: 5 empty reads, then the image -- at C this was refused as truncated
+        Run a = run(std::vector<size_t>(5, 0), false);
+        std::snprintf(buf, sizeof buf, "5 empty reads, then the own image: %s, log %s, %u waits (want installed, "
+                      "begin,write,writeRest,end, 5)", OutcomeName(a.o), a.log.c_str(), (unsigned)a.waits);
+        check(a.o == ota::Outcome::Installed && a.log == "begin,write,writeRest,end" && a.waits == 5, "HP1", buf);
+
+        // HP2: empty for ever -- truncated at the bound: 300 empty reads, the last one without a wait
+        Run b = run(std::vector<size_t>(), true);
+        std::snprintf(buf, sizeof buf, "empty for ever: %s after %u reads and %u waits (want truncated, %u, %u)",
+                      OutcomeName(b.o), (unsigned)b.reads, (unsigned)b.waits, (unsigned)E, (unsigned)(E - 1));
+        check(b.o == ota::Outcome::Truncated && b.reads == E && b.waits == E - 1, "HP2", buf);
+
+        // HP3: the head one byte per read, an empty read between each
+        std::vector<size_t> dribble;
+        for (size_t i = 0; i < H; ++i) { if (i) dribble.push_back(0); dribble.push_back(1); }
+        Run c = run(dribble, false);
+        std::snprintf(buf, sizeof buf, "the head a byte at a time, an empty read between each: %s after %u waits "
+                      "(want installed, %u)", OutcomeName(c.o), (unsigned)c.waits, (unsigned)(H - 1));
+        check(c.o == ota::Outcome::Installed && c.waits == H - 1, "HP3", buf);
+
+        // HP4: 299 empty reads, then 1 byte, to the end of the head: never 300 in a row
+        std::vector<size_t> slow;
+        for (size_t i = 0; i < H; ++i) { slow.insert(slow.end(), E - 1, 0); slow.push_back(1); }
+        Run d = run(slow, false);
+        std::snprintf(buf, sizeof buf, "%u empty reads before every byte of the head: %s after %u waits (want installed, %u)",
+                      (unsigned)(E - 1), OutcomeName(d.o), (unsigned)d.waits, (unsigned)(H * (E - 1)));
+        check(d.o == ota::Outcome::Installed && d.waits == H * (E - 1), "HP4", buf);
+
+        // HP5: exactly 300 empty reads, then the image -- truncated, and the image is never read
+        Run e = run(std::vector<size_t>(E, 0), false);
+        std::snprintf(buf, sizeof buf, "%u empty reads, then the image: %s after %u reads (want truncated, %u)",
+                      (unsigned)E, OutcomeName(e.o), (unsigned)e.reads, (unsigned)E);
+        check(e.o == ota::Outcome::Truncated && e.reads == E, "HP5", buf);
+
+        // HP6: ReadSome alone -- 2 empty reads, then 5 bytes
+        const size_t two[] = {0, 0, 5};
+        ScriptSource s(img, std::vector<size_t>(two, two + 3), true);
+        uint8_t out[64];
+        const size_t got = ota::ReadSome(s, out, sizeof out);
+        std::snprintf(buf, sizeof buf, "ReadSome over 2 empty reads, then 5 bytes: %u bytes after %u waits (want 5, 2)",
+                      (unsigned)got, (unsigned)s.waits);
+        check(got == 5 && s.waits == 2, "HP6", buf);
     }
 
     std::printf("%d checks, %d failures\n", checks, failures);
