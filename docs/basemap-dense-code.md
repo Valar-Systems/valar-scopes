@@ -326,3 +326,183 @@ build is under it.
 **For the frozen predictions (the next step):** the code PR's memory will be graded as its builder against main's, at the same point and
 phase. The open bound means a tree difference alone can move KJFK, KORD and KIND by 6 to 7 MiB. **So the frozen differences at those
 three points need the bound beside them, not only ± 0.785.** That goes into the re-registration of the figures, for a ruling.
+
+## The code PR's frozen predictions (on the orchestrator's 22:25Z and 22:28Z rulings)
+
+**Frozen before any of the code exists.** It covers the code PR's memory, its packages, PROVENANCE's water counts and D2's steps.
+**Points A to D at the end are mine, not ruled,** and are marked for the orchestrator's reading before anything is built.
+
+### The rulings, verbatim
+
+22:25Z, after accepting the re-run as read at `9196b0c7be32`:
+
+> 1. THE OPEN BOUND: no widened band. A ±7 tolerance at exactly the points that move would blind the check where it matters. Instead:
+>    (a) From data already measured, no new run: compare QW4-0's recorded knob-off baseline with #639's shipped figure at all 13
+>    points. Name every point where the gap exceeds 0.785; you've seen KJFK, KORD and KIND, and the table decides the rest.
+>    (b) At those points only, the code PR's memory (its builder minus main's, same point, peak to peak) gets TWO discrete named
+>    outcomes, each ±0.785. O1 = QW4-1's difference ("the tree effect is absent in the real builder"). O2 = QW4-1's difference plus that
+>    point's measured tree offset ("present"). Anything between or outside them stops.
+>    (c) Every other point is QW4-1's difference ±0.785, one value.
+> 2. PROVENANCE: collapsed.water must count the rings the package DRAWS. Backstop refusals are counted separately, never inside it.
+>    The code PR carries a host test asserting provenance count == drawn rings at KMSP, with a control that a refusal is present. A count
+>    that describes a set the package doesn't draw is the truncated-row shape, and it doesn't ship.
+> 3. D2: into D4's plan as registered. The code PR also asserts the step order D2 relies on: the first step is the largest, and there are
+>    at most 2 steps. A third step, or a smaller first, then fails a test instead of silently raising New York's peak.
+> 4. QW4-M: I'm telling the owner that KLGA and KEWR read 77.6 MB, 0.4 above his 77.2, on the prototype with the open bound. That's a
+>    report, not a stop.
+
+22:28Z, on my report that 1(b) can't discriminate at KJFK:
+
+> Register it WITH your fix. [...]
+> 1. State the assumption the two outcomes rest on: the tree offset is additive with B's knobs, i.e. the same with the knobs on as off.
+>    If it isn't, a reading lands between or outside O1 and O2, which stops as registered. Name that as its own outcome: "neither O1 nor
+>    O2 -> the offset interacts with B, stop".
+> 2. At KBOS, KLGA, KEWR and Midtown, record the cell-phase differences beside the graded peak, but don't grade them. They are the same
+>    effect's evidence at points where it never reaches the peak.
+
+### 1(a), from data already measured
+
+Knob-off (QW4-0, `q4-run.log`, sha256 `4e8165f37e6d`) minus #639's measured builder (`rv-meas.log`, `fc43b98c419e`), peak to peak, MiB.
+**Three points are over 0.785:**
+- **KJFK +3.07:** 61.61 in the cell phase, against 58.54 in the ladder phase. The gap lives in the **cell phase alone** (+6.35), and every
+  later phase is within 0.01.
+- **KORD −5.92:** 39.87 against 45.79, both in the ladder phase. The gap runs from the tile loop to the end; the cell phase is 0.00.
+- **KIND −6.87:** 43.98 against 50.85, both in the ladder phase. The gap runs from the tile loop on; the cell phase is +0.73.
+
+The other ten are within it: KBOS −0.68, Midtown −0.02, KMSP −0.01, and 0.00 at the other seven. Four of them differ in the cell phase
+only, and never at the peak: KBOS +3.65, KLGA +2.13, KEWR +6.07 and Midtown +7.43.
+
+**Why KJFK is graded on its cell phase (my 22:27Z report, accepted at 22:28Z).** As first ruled, KJFK's O1 was +10.17 and O2 +13.24, peak
+to peak. B's peak there is in the ladder phase, where the offset is 0, so the code PR reads +13.24 in both worlds: O1 is unreachable, and
+O2 doesn't mean "present". The two outcomes are graded on the cell phase instead, where the offset lives. The peak is one value.
+
+### What is measured, and on which store
+
+- **The code PR's builder against main's.** Each is taken from its git commit and hooked by a generator like `mk-hooks.mjs`: the seven
+  sampling lines in both, and D2's step line in the code PR's alone, since main has no D2 loop. The generator refuses anything else.
+- **The instrument is QW4's:** one process per call with `--expose-gc`, the controls C1, C2′ and C3, settled samples, and the 13 points at
+  the client's query. Each call's peak and every phase are recorded.
+- **On the store the prototype read: the current one, with no sea layer.**
+  - QW4-1's figures are B with tp and the backstop and **no sea**, so they predict the code PR only where it builds no sea.
+  - **So the code PR's builder, given a store with no sea layer, builds no sea.** That is registered here as a property of the code. It
+    is also what lets the code deploy before the new store is ingested.
+  - The sea's own memory is not predicted here (point A).
+- **The dependency on #639's staging rows stands.** If they read off, every memory row below is VOID and re-registered.
+
+### The memory rows
+
+**The assumption the two outcomes rest on: the tree offset is additive with B's knobs,** the same with the knobs on as off. If it isn't,
+a reading lands between or outside O1 and O2, and that is its own outcome, below.
+
+**The three points with two outcomes.** The code PR minus main, ± 0.785 MiB each:
+
+| point | graded | O1: the effect absent in the real builder | O2: present |
+|---|---|---|---|
+| **KJFK** | **the cell phase** | **+9.94** (71.55 − 61.61) | **+16.29** (71.55 − 55.26) |
+| **KORD** | the peak | **+6.81** | **+0.89** |
+| **KIND** | the peak | **+7.62** | **+0.75** |
+
+- O1 and O2 are 6.35, 5.92 and 6.87 apart, more than twice 0.785, so no reading can match both.
+- **KJFK's peak is one value, +13.24** (71.78 − 58.54), in both worlds. Its phase tag isn't graded. In O2's world the cell phase (71.55 in
+  the prototype) sits 0.23 below the ladder phase, so the tag may read either.
+
+**The other ten points: one value each,** the code PR's peak minus main's, ± 0.785 MiB. These are QW4-1's differences peak to peak, from
+the log. The re-run's table above gave them at the ladder phase, 0.01 apart at Midtown (+13.00) and KDTW (+5.64).
+
+| point | graded | recorded beside it, not graded: the cell phase, if the effect is absent / present |
+|---|---|---|
+| KBOS | **+12.75** | +9.15 / +12.80 (and point D) |
+| KLGA | **+13.98** | +8.38 / +10.51 |
+| KEWR | **+13.23** | +10.13 / +16.20 |
+| Midtown | **+13.01** | +9.88 / +17.31 |
+| KMIA | **+1.62** | |
+| KSFO | **+2.16** | |
+| KSEA | **+3.94** | |
+| KDTW | **+5.63** | |
+| KMSP | **+5.09** | |
+| KJAC | **+1.78** | |
+
+| row | what | predicted |
+|---|---|---|
+| **CM-0** (main's anchor) | main's hooked builder at all 13 | **its peak and its cell phase within 0.785 of #639's measurement** at every point. Every O value above was computed from those |
+| **CM-P** (the instrument's control) | KJFK on the code PR's builder. The child holds an **8 MiB** plant from before the build until the first sample past the cell loop, and drops it before that sample is read. Compared against the same build without it | **+8 ± 0.785 in the cell phase, and 0 ± 0.785 in every later phase.** The plant is shown made and read back. The code PR's builder carries no plant knob, which is why the child holds it |
+| **CM-M** | every build | **none over 96 MB** (a stop). Each code PR build's largest is reported against the 77.2 MB the owner took with B |
+
+### The package rows (the same store)
+
+- **Every section but PROVENANCE is byte-identical to QW4-1's package** at the same point. The references are QW4-1's packages, rebuilt
+  by `pq4b` at the same knobs and checked against these shas first:
+  - KBOS `fee6825e1fd0`, KJFK `04797ddc40a9`, KLGA `d858d75eda6f`, KEWR `7c9d29b0e136`, Midtown `9a9f002197a4`;
+  - KMIA `a39dcd96532d`, KSFO `fc6c3e960acc`, KSEA `e51bac59de43`, KORD `fe18e4224137`, KDTW `dff7ad0acedb`;
+  - KMSP `0b4b403134bb`, KIND `a6943f185ad3`, KJAC `a6a475745804`.
+- **So the same 0 proper crossings, `kOk`, at most 32,768 non-terrain bytes,** the same rungs, the 9 at 162 km and New York at 129.6 km.
+- **PROVENANCE differs from QW4-1's in at most two places:**
+  - `collapsed.water`'s value, which now counts the drawn set (ruling 2). It may move only at rungs 2 to 7, where the water drawn isn't
+    the ε × 2 set;
+  - the new `refused.water` line (point C).
+
+### Ruling 2: PROVENANCE's water counts
+
+| row | where | predicted |
+|---|---|---|
+| **T-PROV-a** | CI, on QW4-3's bowtie store | with the backstop on: **`refused.water: 1`, and `collapsed.water` equal to the same store's with the bowtie removed.** The control: with the backstop off, the bowtie is drawn with 1 proper crossing |
+| **T-PROV-b** | CI, on a synthetic store forced past rung 1 in KMSP's shape: a refusal in the ε × 2 set and none in the drawn ε × 8 set | **`collapsed.water` equals the drawn set's count.** The control: before that, the test asserts that the ε × 2 set's count, and the drawn set's count with the refusal inside, both differ from it, so either wrong rule fails |
+| **R-KMSP** | the code PR's run, on real data | **KMSP's `collapsed.water` and `refused.water` equal those of KMSP built at ε × 8 with no cap** (rung 0, where no rung swaps a set). The control: the build's own refusals, on its result, number at least 1 |
+
+**The build-wide refusals** (every set built, drawn or not) go on the `bm_build` log line as `refused`. That way the refusals at KMSP,
+which sit in sets the package doesn't draw, still reach a line someone reads.
+
+### Ruling 3: D2's steps
+
+| row | where | predicted |
+|---|---|---|
+| **T-D2** | CI, on synthetic stores | **the result, and `bm_build` as `steps`, lists D2's radii in order, strictly decreasing from the request.** A store where 162 km doesn't fit and 129.6 km does gives [162, 129.6]. The control: a store where 129.6 km doesn't fit either gives 3 steps, and the test shows the at-most-2 check failing on it |
+| **R-D2** | the code PR's run, at New York's 4 | **at most 2 steps, and the call's largest sample in its first step.** A third step, or a first step smaller than its second, stops: QW4-D2 read the step after a 422 carrying 5.6 to 6.2 MiB |
+
+### Ruling 4
+
+The orchestrator is telling the owner that KLGA and KEWR read 77.6 MB, 0.4 above his 77.2, on the prototype with the open bound. **A
+report, not a stop.** CM-M reports the code PR's own figure beside it.
+
+### What each result means
+
+| outcome | meaning | next |
+|---|---|---|
+| **CM-0 off** | main has moved under the figures | **stop** |
+| **CM-P off**, or the plant not shown made | the instrument is blind | **stop; no memory row is read** |
+| KJFK's cell phase, KORD's peak or KIND's peak reads its **O1** | the tree effect is absent in the real builder | as predicted |
+| ... reads its **O2** | the tree effect is present in the real builder | as predicted |
+| the three read a **mix** of O1 and O2 | the effect is not one thing in the real builder | as predicted at each point; reported as a mix |
+| **neither O1 nor O2** at any of the three | **the offset interacts with B** | **stop** |
+| a one-value point outside ± 0.785 | | **stop** |
+| a section other than PROVENANCE differs from QW4-1's, or PROVENANCE differs outside its two places | the code is not the prototype | **stop** |
+| a T-PROV or T-D2 control that can't fail | the test can't see what it asserts | **stop** |
+| **R-KMSP or R-D2 off** | | **stop** |
+| **a build over 96 MB** | the registered stop band | **stop** |
+| **anything else** | | **stop and report** |
+
+### Points A to D: mine, not ruled, for the orchestrator's reading
+
+- **A. The sea.**
+  - QW4-1 measured no sea, and the code PR carries one. So its memory can be graded against QW4-1 only on a store without the sea layer,
+    as registered above.
+  - The prototype's sea (QW4-2) is computed at build time from Natural Earth's land, while the code PR reads a stored sea per cell.
+    QW4-2's memory therefore isn't the code PR's either.
+  - **Proposed:** the sea's memory gets its own rows in QW4-2's addendum, from a measurement that reads a stored sea the way the code PR
+    will.
+- **B. No CI test can read KMSP's or New York's data.** The repo's basemap tests use synthetic stores and one stored package (Bend).
+  - So ruling 2's KMSP test and ruling 3's two assertions are split:
+    - a CI test on a synthetic store of the same shape, with its control (T-PROV-a, T-PROV-b, T-D2);
+    - a stop row at the real points in the code PR's run (R-KMSP, R-D2).
+  - The memory half of "the first step is the largest" can't be a CI test: vitest has no memory instrument.
+  - After a deploy, `bm_build`'s `steps` is where a third step would show.
+- **C. Where the refusals are counted.**
+  - A `refused.water` line in PROVENANCE matches ruling 2, and QW4-3's registered "counted once in PROVENANCE". It counts the drawn
+    set's refusals. It is emitted whenever water is read, as `dropped` and `collapsed` are, so 0 is written and absent never means 0.
+  - **But it breaks MG0b.** MG0b requires provenance.ts's output to have the same lines as Weatherscope's stored Bend package, and the
+    new line changes that count. So the line needs Weatherscope's builder to emit it too, or MG0b to change. That is another session's
+    contract.
+  - The alternative keeps the format: refusals only on `bm_build`. Then the package would not say it lacks a ring.
+  - **I recommend the PROVENANCE line, once Weatherscope's session agrees through the orchestrator.**
+- **D. KBOS's margin.** In O2's world KBOS reads +12.07: 0.68 below its one value, leaving 0.10 for noise. As ruled in 1(c), it stays one
+  value, so a reading of +11.9 there would stop.
