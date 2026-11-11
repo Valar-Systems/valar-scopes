@@ -152,3 +152,50 @@ every module under each builder name and refused the point (exit 2). Nothing run
 | an answer differing, a failed control, or a PR build over 96 MB | the instrument is suspect | **stop and report** |
 | part 1: one step over 3 MiB at one sample | the statement window named | report it |
 | part 1: anything else | | reported as read |
+
+## Q-RV8, read (2026-11-11, 19:41:05-19:42:19Z): part 0 as predicted at all 13. #639 is no regression against main
+
+The registration was pushed at 19:40:45Z (`54d91e64`). The driver and both children read as registered. The error file is empty, and
+nothing ran on staging. The log is scratch (sha256 `37aed0d68bca`). **p4 had started a four-env PlatformIO run at 19:40:33Z.** Every
+sample follows a settled `gc()`, and main and the PR ran back to back at each point, so the load fell on both sides of each comparison.
+
+**Part 0: main's builder against the PR's, at all 13 (MiB):**
+
+| point | the answer, the same for both | main's largest | the PR's largest | PR minus main: cell / tile / tiles … ladder |
+|---|---|---|---|---|
+| KBOS | `ce5b1ea7589e` | 78.45, cell (82.3 MB) | 56.67, ladder (59.4 MB) | −31.21 / −5.59 / ≤ 0.01 |
+| KJFK | #620's ladder | 95.04, cell (99.7 MB) | 58.54, ladder (61.4 MB) | −39.77 / −5.21 / ≤ 0.00 |
+| KLGA | #620's ladder | 99.54, cell (104.4 MB) | 60.03, ladder (62.9 MB) | −44.33 / −5.21 / ≤ 0.03 |
+| KEWR | #620's ladder | 92.93, cell (97.4 MB) | 60.81, ladder (63.8 MB) | −40.44 / −5.83 / ≤ −0.02 |
+| Midtown | #620's ladder | 87.93, cell (92.2 MB) | 58.11, ladder (60.9 MB) | −37.34 / −5.23 / ≤ 0.02 |
+| KMIA | `000dde33cc42` | 42.23, tile (44.3 MB) | 39.40, ladder (41.3 MB) | −8.45 / −5.09 / ≤ 0.01 |
+| KSFO | `399cb059f84a` | 42.57, tile (44.6 MB) | 39.23, ladder (41.1 MB) | −9.81 / −5.66 / ≤ 0.01 |
+| KSEA | `69ff5b17e2ee` | 54.06, tile (56.7 MB) | 49.20, ladder (51.6 MB) | −14.90 / −7.14 / ≤ 0.01 |
+| **KORD** | `b54fa953fef7` | 54.98, cell (57.6 MB) | 45.86, ladder (48.1 MB) | −25.42 / −2.44 / ≤ 0.01 |
+| KDTW | `8976db34bf1a` | 47.59, tile (49.9 MB) | 47.19, ladder (49.5 MB) | −17.86 / −3.10 / ≤ 0.06 |
+| KMSP | `863f7f2955a7` | 52.93, cell (55.5 MB) | 47.28, ladder (49.6 MB) | −23.36 / −3.61 / ≤ 0.01 |
+| **KIND** | `f740fbc3f99e` | 66.56, cell (69.8 MB) | 50.86, ladder (53.3 MB) | −32.86 / −3.25 / ≤ 0.00 |
+| KJAC | `b3f428e5860e` | 41.38, tile (43.4 MB) | 38.89, ladder (40.8 MB) | −10.94 / −4.73 / ≤ 0.01 |
+
+- **As predicted at all 13:** from the tiles on, the PR is within 0.06 MiB of main at every point and every phase. In the cell loop it is
+  8.45 to 44.33 MiB lower, and at the first tile 2.44 to 7.14 lower.
+- **The PR's largest build is lower than main's at all 13 points,** by 0.40 MiB (KDTW) to 39.51 MiB (KLGA).
+- **So KORD's and KIND's 6 to 7 MiB is not the PR's.** Main reads it too. It is where Q-DR3's scratch copy reads lower than both.
+
+**Part 1: where the copy and the PR part, sample by sample (PR minus copy, MiB):**
+
+| KORD | KIND |
+|---|---|
+| cells 1-23 within 0.06; **cell 24, the last: −3.43**; then **postcell +5.90**, refs +5.90, tilelist +5.90, tile 1 +5.97 | cells 1-20 within 0.04; **cell 21: −4.31; cell 22, the last: +2.08**; then postcell +6.86, refs +6.87, tilelist +6.86, tile 1 +6.87 |
+
+- **The step is made at the end of the cell loop:** across the last one or two cells and the read generator finishing, before any of
+  the code after the loop runs.
+- At that moment the PR first drops below the copy, then rises above it by 6 to 7 MiB, and stays there. Whatever the copy lets go of
+  at the loop's end, or doesn't make, the PR and main both keep.
+- **By the registered table:** one step over 3 MiB at one sample at each point (KORD postcell, KIND cell 22), so the window is named. It
+  is the end of the cell loop. This read does not name the object.
+
+**What it means for Q-W4 under B:** the shipped builder's figures are part 0's PR column. They are lower than main's everywhere and
+within 0.06 MiB of main's from the tiles on. B's largest (New York's 162 km tries) came from the copy, which matches the shipped builder
+in the ladder phase at New York. At KORD and KIND the copy's B figures are about 6 to 7 MiB low, still an estimate. Q-W4 measures on the
+shipped builder.
