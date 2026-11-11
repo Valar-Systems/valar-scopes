@@ -891,6 +891,16 @@ No job in those four is conditional on which files changed. **Predicted: 34 = 30
 The local guards were run at a1c0657c, and each exits 0: `check_wifi.py`, `check_device_ids.py`, `check_macs.py`,
 `check_binary_strings.py` and `check_redaction_vectors.py`.
 
+**Main moved between the go and the push (2026-11-11 ~04:56Z).** The push's chain first required main to be 947e1d38. It was `68dc169a` (#630), so nothing was pushed. Read before pushing again:
+- #630 changes no workflow, so the job set, and with it the baseline above, is unchanged.
+- It merges cleanly with this branch (`git merge-tree` exit 0).
+- It overlaps two of this PR's files, independently:
+  - `src/CloudFeed.cpp`: its `static_assert` is at line 10, and `BasemapUrl` at line 100.
+  - `test/host/run.sh`: separate blocks.
+- Its new driver, `sabotage_ota_model.py`, plants only in `include/OtaIdentity.h`.
+
+**The prediction stands: 34 = 30/4/0**, now on the merge with `68dc169a`.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
