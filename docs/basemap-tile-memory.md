@@ -99,3 +99,56 @@ nothing ran on staging. The log is scratch (sha256 `d9109448aaaf`).
 
 **Proposed next (Q-RV8), read-only and registered first:** the same two processes at KORD, with every cell's sample traced, plus samples
 after the regions' file references, after the places, and after the tile list. That places the 6 MiB step to one statement.
+
+## The ruling (from the orchestrator, after Q-RV7; its stamp is in its ledger), verbatim
+
+> The question this raises, and it comes first: every comparison so far has been the PR against the COPY. Is #639 a regression against
+> MAIN's builder at KORD and KIND? If main reads about 39.8 at KORD and the PR 45.8, then #639 adds 6 MiB there while it saves 39.5 at
+> KLGA. That has to be known before I approve a merge.
+>
+> Q-RV8, with a part 0 added. Read-only, registered and committed first:
+> - Part 0, the decisive row: main's builder (78c2bec2's, i.e. the repo's, unhooked except the instrument) against the PR's builder, at
+>   all 13, one process each, the same child, the same day.
+>   - Predicted for a builder that only releases earlier: PR <= main + 0.785 at every point, in every phase from the tiles on.
+>   - If PR > main + 0.785 anywhere: #639 is a regression at those points. Stop, report each, and #639 isn't approved until it's
+>     explained and the owner has seen it.
+>   - Anything else: report.
+> - Parts 1+: your per-cell trace and the samples after the region refs, the places and the tile list, to place the step to one
+>   statement.
+>
+> #639: approval HELD until part 0 has read, whatever its CI says.
+
+## Q-RV8: registered before it runs
+
+**Part 0, the decisive row:**
+- **main's builder:** `rv-hk/hk-main` (main's `build.ts` at `8f1a878f518f`, whose `proxy/src/basemap/` is unchanged at `78c2bec2` and at
+  main's head `192faed8b095`), with only the instrument's seven hooks (`bc22989950b4`);
+- **the PR's builder:** `rv-hk/hk-pr` (`f60ae55f45d9`);
+- at all 13 points, one process each, main then the PR at each point, in `dr-child8.mts` (`e23759cae36c`), the same day.
+- **Predicted: PR ≤ main + 0.785 at every point, in every phase from the tiles on** (tile, tiles, terrain, layers and ladder). In the
+  cell loop the PR is predicted lower, wherever main holds its reads.
+- **Every point is read.** If the PR is above main + 0.785 anywhere, the run then stops and lists each such point. **#639 is not approved
+  until that is explained and the owner has seen it.**
+- **The answers must agree** at every point (the same package, or the same ladder), or the run stops.
+- **The 96 MB band stops only the PR's builds.** Main's builds at the dense points are predicted to read over 96 MB in the cell loop
+  (KLGA 99.54 MiB): that is the control, as under the owner's (a).
+
+**Part 1, only if part 0 passes:**
+- the copy and the PR at KORD, then at KIND, one process each, in `dr-child9.mts` (`281fb4b65f2d`): `dr-child8` with every cell's
+  sample recorded, and accepting the two trees below;
+- each tree gains three more samples, and nothing else changes: after the cell loop ("postcell"), after the regions' file references
+  ("refs"), and just before the tile map ("tilelist"). The trees are `rv-hk/hk-copy3` (`41adba1fa9c1`) and `rv-hk/hk-pr3`
+  (`f806da58b408`), each `build.ts` three lines longer than `hk-copy`'s and `hk-pr`'s, every other file identical;
+- **reported, not predicted:** the first sample (cell by cell, then postcell, refs, tilelist and the first tile) where PR minus copy
+  steps up by more than 3 MiB. That names the statement window.
+
+**The driver** is `dr-q8.mts` (sha256 `a42e34f63b86`). **Every child's imports were checked first:** given an unknown point, each loaded
+every module under each builder name and refused the point (exit 2). Nothing runs on staging.
+
+| outcome | meaning | next |
+|---|---|---|
+| **part 0: PR ≤ main + 0.785 everywhere from the tiles on** (predicted) | #639 is no regression against main at any point | part 1; #639's approval is the orchestrator's |
+| **part 0: PR above main + 0.785 anywhere** | **#639 regresses at those points** | **stop; each point reported; #639 held until explained and seen by the owner** |
+| an answer differing, a failed control, or a PR build over 96 MB | the instrument is suspect | **stop and report** |
+| part 1: one step over 3 MiB at one sample | the statement window named | report it |
+| part 1: anything else | | reported as read |
