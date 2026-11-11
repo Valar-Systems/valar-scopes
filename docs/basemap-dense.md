@@ -1777,3 +1777,40 @@ its own process, and the parent stopped itself (exit 1). The error file is empty
 - **Neither was predicted,** and both are recorded as read.
 
 **Nothing is graded past the stop.** The proposal that follows goes to the reviewer before anything resumes.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:47Z), verbatim
+
+> Q-DR3b: A. Re-register the ladder check so it applies only where a ladder is reported: v0's 422s, non-increasing and ending over
+> 32,768. A variant's 422 is predicted to report none, so one that does is off. Everything else stays as frozen. Rerun every row from the
+> start, one run graded once, as ruled. Your miss stays on record.
+>
+> The memory readings stand as read, with nothing over 96 MB. ab reading 10–12 MiB above v0 at KBOS and KJFK wasn't predicted. The rerun
+> will read it again. In the proposal, state which phase ab's extra sits in, and give one sentence on why the A+B water ladder costs memory
+> there.
+
+### Q-DR3, re-registered (Q-DR3b, A): registered before it runs
+
+**What changes from the registration at `bfc7e30027ae`.** The drivers are now `dr-parent2.mts` and `dr-child2.mts`, and nothing else
+differs:
+1. **The ladder check applies only where a ladder is reported:**
+   - **v0's 422** must report a ladder that is non-increasing and ends over 32,768;
+   - **a variant's 422** (ab, P1, P2, at any radius, with or without +sea) is **predicted to report none.** One that does is off, and
+     stops the run.
+2. **Each copy build also prints its largest sample per phase** (cell, tile, tiles, terrain, layers, ladder, end). At the end, **ab minus v0
+   per phase** is printed for each point. Both are **reported, not graded,** for the proposal's statement of where ab's extra sits.
+
+**Unchanged:** every row, prediction, bound, stop and order of the registration at `bfc7e30027ae`, including:
+- the memory anchor;
+- the 96 MB stop;
+- the fresh process per build.
+
+The run is fresh and starts from DR0, one run graded once (ruled).
+
+**What the code already says about ab's extra, for the proposal's sentence:**
+- **For every variant other than v0, ab included, the scratch copy builds two extra layer sets in the cell loop, and both sets'
+  contents at the layer-set step:**
+  - **L8:** water at ε×8, which A+B's water rung uses;
+  - **L4:** rivers and roads at ε×4, which only P1 and P2 use.
+- So part of ab's extra may belong to the copy, not to A+B.
+- **The per-phase figures will show where the extra sits.** Separating L8's share from L4's would need a variant this registration doesn't
+  have.
