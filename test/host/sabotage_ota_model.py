@@ -110,8 +110,9 @@ def anchor_entries():
     return [(name, "include/" + HEADER, src, anchor) for name, (anchor, _, _) in SABOTAGES.items()]
 
 
-# --control: the suite unplanted, against its own count (8 + 5 + 3 today, S4.5). The one place this number lives.
-MODEL_CHECKS = 16
+# --control: the suite unplanted, against its own count (10 + 7 + 3 today, S4.5; 8 + 5 + 3 until two P4 rows (p4-40),
+# added by #648, joined identities.txt). The one place this number lives.
+MODEL_CHECKS = 20
 CONTROL_TABLE = {"test_ota_model": ("checks", MODEL_CHECKS)}
 
 
