@@ -117,7 +117,10 @@ the list above had missed them.
 - (c) **Today's production shape:** `cref` and `opuk` with `frameAgeS` only. Two lines, `routed=- stale=-`, and no
   `WARN`. smoke runs against the old shape until the deploy.
 - (d) **`"wx":"not_configured"`:** one line, `wx not_configured`.
-- (e) **The exit code.** Every case above returns status 0, stale or not. `smoke-prod.sh` calls the function exactly
+- (f) **An empty or unreadable body** (smoke's `curl` failed, or the `wx` object can't be cut): one line, `WARN wx
+  unreadable`. A WARN, never a FAIL: the earlier `/healthz` checks already count the request's own failure. Added
+  before the code (~19:15Z), because any output for this input would otherwise be unregistered.
+- (e) **The exit code.** Every case, (a) to (f), returns status 0, stale or not. `smoke-prod.sh` calls the function exactly
   once, on a line of its own (`wx_products_section "$HEALTH_BODY"`, checked by `grep -cx` = 1), and that line touches
   neither `pass` nor `fail`. So **a WARN never changes smoke's PASS or FAIL count, and never changes its exit code.**
 - (H6s) **The selftest's own plant,** as `wx-opuk-verdict.selftest.sh` does it: in a temporary copy, the WARN condition
