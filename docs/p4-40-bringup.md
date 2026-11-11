@@ -536,4 +536,11 @@ by #648".
   - all three OTA sabotage drivers pass `--control` ("all as the table") and in full (6, 3 and 4 AS PREDICTED, 0 OFF);
   - `lint_driver_counts.py`: 37 drivers, 0 flagged;
   - the tree is clean.
-- **F3** is graded on the next pushed head.
+- **F3, read at `c151a25a3ba79eba012acaa96e7c7161941ca2b1` (2026-11-11 21:23:42Z): holds.**
+  - 36 check runs, the same 36 names as at `c7afef855520`: 32 success, 4 skipped (`promote`, `publish`, `ship-alert`,
+    `version`), 0 failed, 0 pending.
+  - `host-tests (ubuntu-24.04)`, `host-tests (ubuntu-26.04)` and the `host-tests` aggregate: success.
+  - `build (blipscope-p4-40)` and `build (blipscope-p4-40-r3)`: success.
+  - The four workflows (`firmware`, `web-renderer`, `device-ids`, `no-traffic-captures`) completed with success.
+  - My first name comparison reported 6 differences. That was the comparison's own sort order; compared as sorted name sets,
+    the two are identical.
