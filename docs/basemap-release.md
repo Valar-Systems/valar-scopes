@@ -161,3 +161,88 @@ Nothing was graded.** The tree stayed clean, and nothing ran on staging.
 3. Then RL0 to RL2 run again from the start, with every row, prediction and bound as registered above.
 
 - **Q-RV3:** re-run RL0 to RL2 from the start, with these two changes and nothing else?
+
+## The ruling (from the orchestrator, 2026-11-11 ~18:20Z), verbatim (its #639 part)
+
+> - RL0's stop at cea27d8bce2d is on record: an instrument failure, your miss.
+> - Q-RV3: yes. Re-run RL0 to RL2 from the start with your two changes and nothing else.
+>   - The hooked copies also take proxy/src/wx/crop.ts, byte-identical to its commit.
+>   - The import-only check must be shown able to fail before it's trusted. Run it first on the OLD hooked copy, without crop.ts:
+>     predicted to die on ../wx/crop. Then run it on the new copies: predicted to refuse the unknown point, per builder.
+>   - Commit this re-registration before anything runs.
+>   - This is RL0's first re-run. Another stop on RL0 goes to the owner (the retry cap).
+> - Q-RV1: yes, KJFK joins KLGA in the staging request, for the reasons you gave. Register both in SG-A to SG-F before merge.
+> - Q-RV2: you run the staging deploy yourself, after #639 merges, through proxy/scripts/deploy.sh under the claim. Never a typed
+>   wrangler command, not even --dry-run. Before it starts:
+>   - Read staging's /healthz commit and record it as the rollback target.
+>   - SG-A to SG-F frozen and committed.
+>   - Ask blipscope-5c (blipscope-93) whether it has anything in flight on staging or holds a proxy claim. Ask weatherscope
+>     (blipscope-61) whether it depends on staging's current build (cfg:fleet rev 2 lives there).
+>   - Announce the start to me, to blipscope-5c and to weatherscope.
+>   - The slot: any time none of them objects. If deploy.sh has no staging path, stop and ask me.
+> - #639's merge: #639 merges ONLY after my approval at its exact sha, and only through scripts/merge-by-rule.sh. A green CI, a
+>   finished read, or the PR being next in order is not an approval. [...] When RL0 to RL2 read as predicted, send me the head and your
+>   CI read; I review from git and approve at a sha, or I don't. If your head moves after an approval, the approval lapses.
+
+## RL0 to RL2, re-registered (Q-RV3): registered before it runs
+
+**This is RL0's first re-run.** Another stop on RL0 goes to the owner (the retry cap).
+
+**What changes: two things, and nothing else.**
+1. **`crop.ts`.** `proxy/src/wx/crop.ts` goes into each hooked copy's `src/wx/`, taken from that copy's own commit (`7a9b4168df46` for
+   the PR's, `8f1a878f518f` for main's) and byte-identical to its blob.
+   - Its only import is `import type { GridGeom } from "./grid"`. A type-only import is erased at runtime, so nothing more is needed.
+   - A check refuses the step if anything else in the copies moves: the sha256 of every other file, before and after.
+2. **The import check, before any build:**
+   - **IC0, shown able to fail first:** on the hooked copies as they stand (no `crop.ts`), one import-only child per builder, given the
+     unknown point `XXXX`. **Predicted: each dies on `../wx/crop`:** exit 1, no RESULT line, and its stderr names `../wx/crop`.
+   - **Then `crop.ts` is added** (step 1).
+   - **IC1:** the same child per builder on the new copies. **Predicted: each refuses the point:** exit 2, with one RESULT line whose
+     error is `unknown point XXXX`.
+
+**Unchanged, byte for byte:**
+- the drivers `dr-child4.mts` (sha256 `a3dde2bd9473`) and `dr-rv.mts` (`cd071294893a`), last written at 17:48:19Z and 17:48:54Z,
+  before the stopped run;
+- the hooked builders mk-hooks.mjs made (`build.ts` `f60ae55f45d9` for the PR's, `bc22989950b4` for main's), checked again first;
+- **every row, prediction and bound registered at `4b3933f6c1c1`:** RL0, RL1, RL2 and the every-process controls.
+
+**The wrapper** `rv-rerun.sh` (sha256 `d91ec648e1d6`) runs IC0, the `crop.ts` step, IC1, then `dr-rv.mts`, stopping at the first off
+reading.
+
+| outcome | meaning | next |
+|---|---|---|
+| IC0: a child doesn't die on `../wx/crop` | the import check can't be shown to fail, so IC1 would prove nothing | **stop** |
+| IC1: a child dies, or refuses something other than the point | the copies still miss something | **stop** |
+| RL0 off | as registered, and the retry cap applies | **stop; it goes to the owner** |
+| RL1 or RL2 off | as registered | **stop** |
+| **every row as predicted** | the PR's builder is the variant #622 measured | the head and the CI read go to the orchestrator for its review |
+| **anything else** | the instrument is suspect | **stop and report** |
+
+## The staging rows, updated (Q-RV1, Q-RV2): registered before the merge
+
+**KJFK joins KLGA (Q-RV1).** SG-A to SG-F apply to each of the two queries. RL2's ladders for both become SG-A's and SG-F's prediction,
+frozen here once RL2 reads.
+
+**The deploy (Q-RV2):** map-server runs it after #639 merges, with `proxy/scripts/deploy.sh --builder staging` under the deploy claim
+`builder:staging`. The variant runs in the builder Worker (`basemap.wrangler.toml`, `src/basemap/worker.ts`), and `deploy.sh` has a
+staging path for it (`--builder`). No typed wrangler command.
+
+**Before it starts:**
+1. **Staging's `/healthz` is read** (one GET). Its `commit` is the proxy's, and its `basemap.commit` is the builder's, as of the last
+   build in that isolate. **`basemap.commit` is the builder's rollback target.** It is null until a build has run in that isolate; if it
+   is null, the builder's current commit can't be read without a build, so **stop and ask**.
+2. **RL2's ladders,** frozen and committed here.
+3. **blipscope-5c (blipscope-93):** anything in flight on staging, or a proxy claim? **weatherscope (blipscope-61):** does it depend on
+   staging's current build?
+4. **The start is announced** to the orchestrator, blipscope-5c and weatherscope.
+5. **The slot:** any time none of them objects.
+
+**After the deploy:**
+- `deploy.sh`'s output is the weak confirmation, since the builder has no `/healthz` of its own.
+- **The proof is D3's binding test:** after the SG requests, staging's `/healthz` `basemap.commit` must equal the deployed stamp, and its
+  `basemap.store` must be `4c0875738f38`. If either differs, SG-F's meaning applies: staging didn't run the build measured here. **Stop.**
+- **Rollback is not automatic.** An off reading stops and goes to the orchestrator; the recorded rollback target is for when it's ruled.
+
+- **Q-RV4:** the SG rows read the builder's outcome from its tail, `wrangler tail blipscope-basemap-staging` (read-only), as Q-MEM2 did.
+  That is a typed wrangler command. May it run? Without it, SG-B (Exceeded Memory) and SG-C (Exceeded CPU) can't be told apart: both reach
+  the route as a 503 or as 202s.
