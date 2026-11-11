@@ -1270,3 +1270,94 @@ which is the explanation-1 row.
 - **Either way it is real memory:** the array is live while its cell is processed, so workerd pays it too.
 - **The alternative:** some other per-cell state. This run can't separate them, because it prints only each phase's largest sample, not
   every cell's.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~04:39Z), verbatim (its Q-RA2 part)
+
+> Q-RA2: A. Stop measuring READ_AHEAD. The proposal states it as measured: 6 to 3 saved 1.77 MiB at KLGA in one process, and no setting
+> can read below the loop's end, so the most it can save is about 1.8 MiB. It is not D4's lever. Register the release variant now: derive
+> its exact prediction before anything runs, print every cell's sample so the same run tests the decoded-features candidate, and include a
+> control that can fail. If the variant becomes the real builder, that's its own PR and review.
+
+**`READ_AHEAD`, for the proposal, as ruled:** 6 to 3 saved 1.77 MiB at KLGA, in one process. No setting can read below the loop's end, so
+the most it can save is about 1.8 MiB. It is not D4's lever.
+
+### The release variant at KLGA: registered before it runs
+
+**What changes, in the scratch copy only:**
+- **`readInOrder` gains a knob,** `DENSE_RELEASE=1`. With it set, each read's slot in `pending` is cleared once the read is handed over,
+  so a consumed read is let go. The change is one line:
+  - set: `const v = await pending[i]!; pending[i] = undefined; yield v;`
+  - unset: the original `yield await pending[i]!`, unchanged.
+- **The tile loop gains a sample** after each tile, `MEM?.("tile")`. The tile loop reads through the same `readInOrder`. Once the cells
+  are let go, it could hold the build's true peak, and nothing sampled inside it before.
+- **Both edits are byte-checked against a kept copy** (`dn-build.ts.before-rv`).
+- **What stays the same:** `decodeFeature` copies every number and string into new arrays, so no view into a read survives it. Letting a
+  read go therefore frees all of it.
+
+**What runs (local, at KLGA at the map client's query, `READ_AHEAD` 6, in the driver `mem-diag6.mts`):**
+- **In every process:**
+  1. C1, C2′ and C3;
+  2. one cold KLGA build, with **every cell's and every tile's sample printed**, and each read's size;
+  3. one unsampled KJAC build, whose package bytes are hashed.
+- **v0 processes also measure each cell's decoded size directly** after the build. The cell's buffer is decoded into a module slot that no
+  running frame holds, and settled samples are taken before and after.
+- **Phase 1:** three v0 processes, without the knob.
+- **Between the phases:** `pred6.mts` computes the variant's exact predicted trace from phase 1 by the formula below. The numbers and the
+  prediction file's sha256 are **frozen in this record and pushed before phase 2 runs.**
+- **Phase 2:** three release-variant processes, then three **planted** ones. A planted process has the knob set, plus a store that keeps
+  every buffer it hands out, which restores v0's holding.
+
+**The prediction, derived now:**
+- **What the variant holds:** at each sample, the same as v0 minus the reads consumed before that sample. Nothing else differs: the same
+  reads are issued at the same moments, and the decoding and layer sets are the same.
+- **So, for sample k:**
+  - **cell k:** v0's sample at cell k, minus the sizes of cells 1 to k−1;
+  - **tile k:** v0's sample at tile k, minus the sizes of tile-list reads 1 to k−1;
+  - **after the loops** (tiles, terrain, layers, ladder, end): v0's samples, since v0 lets its reads go when each loop ends.
+- **The plant holds every read,** so each cell sample equals v0's.
+- **The direction is known now:**
+  - v0's cell phase reads 97.72-99.53 MiB, and holds all 60.91 MiB of KLGA's cells by cell 16.
+  - The variant's last cell must therefore read at least **36.8 MiB**, which is everything else.
+  - Its cell phase is predicted to read tens of MiB lower.
+  - The build's largest may move into the tile loop.
+- **The exact figures** are the frozen trace.
+
+| row | predicted |
+|---|---|
+| **RV0** (phase 1) | v0, three processes: the cell phase's largest within **0.50 of 99.51** (`mem-diag5`'s three) at **cell 16**, the three within **0.10**; the build's largest in the cell phase |
+| **RV3** (every process) | C1 +32 ± 1; C2′ +32 ± 1, then within 1; C3 within 1; every sample settled; every object local; KLGA 422 with **DR0's ladder** (249,684 / 205,868 / 186,014 / 41,061); **KJAC 200, its package hash the same in all nine** |
+| **RV1** (phase 2) | the variant, three processes: **every sample within 0.50 MiB of the frozen trace**: cells, tiles, and after the loops |
+| **PL1** (phase 2, **the control that can fail**) | the plant, three processes: **every cell sample within 0.50 MiB of v0's.** Its later samples are reported |
+| **DF** (phase 1) | **not predicted; graded both ways.** It decides the decoded-features candidate (below) |
+
+**DF:**
+- **What it compares:** from cell 16, where the last read is issued, every read is held and the layer sets only grow. Each cell's sample
+  minus that cell's own decoded size is compared from one cell to the next.
+- **The candidate holds** if that value never falls by more than 0.10 MiB between cells. Then each cell's sample includes that cell's
+  decoded features, which account for the fall from cell 16 to 21.
+- **It fails** if any step falls further. Then "some other per-cell state" stands.
+
+**Where the bounds come from:**
+- **0.50:** comparisons between configurations (two drivers, or two code paths). It is about 3× the spread measured between driver
+  configurations at this build (0.14 MiB).
+- **0.10:** within one driver: the three v0 processes, and DF's steps within one process. The measured spread for one driver is 0.04 MiB
+  (`mem-diag5`'s three).
+
+**What the readings will mean, fixed now:**
+
+| outcome | meaning | next |
+|---|---|---|
+| RV0 and RV3 hold; RV1 and PL1 hold | **the variant cuts KLGA's peak to the frozen figure, and the cut is the reads it lets go.** The plant restores v0 | the proposal states the figure; Q-DR3 runs on the variant (ruled (a)); the variant as the real builder is its own PR and review (ruled) |
+| RV1 off, PL1 holds | the variant still holds something the formula doesn't count, such as a consumed read reachable from a running frame | **stop and report** |
+| PL1 off | holding every read does not restore v0, so the variant's difference is not only the reads | **stop** |
+| KJAC's hash differs, or KLGA's ladder | the variant changes what is built | **stop** |
+| RV0 or RV3 off (phase 1) | the anchor or the instrument is not what was measured before | **stop**; nothing is predicted from it |
+
+**DF, either way, is reported beside the table and is not a stop.**
+
+**What this cannot see:**
+- **Workerd.**
+- **Memory between two samples,** such as inside one cell's decode or one tile's PNG decode. Samples come only at the hooks.
+- **Other points.** New York's other three points and the dense rungs come with Q-DR3, on whichever builder this supports (ruled (a)).
+
+**Outside the set:** anything else stops it.
