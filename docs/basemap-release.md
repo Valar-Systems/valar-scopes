@@ -277,3 +277,43 @@ prediction against every other row before freezing them would have caught it.
 **Proposed, for the owner:** the 96 MB stop applies to the PR's builder only (RL1 and RL2), not to RL0's control. RL0 is graded exactly as
 registered, then RL0 to RL2 run again from the start. Nothing else changes; `crop.ts` stays in the copies, and IC0 has already shown the
 import check can fail.
+
+## The owner's decision (relayed by the orchestrator, 2026-11-11 ~18:55Z)
+
+> #639: (a).
+
+The orchestrator's ruling with it, verbatim:
+
+> 2. #639: (a). The 96 MB every-build stop applies to the PR's builder only (RL1, RL2), not to RL0's control. RL0 is graded exactly as
+>    registered. Re-run from the start, nothing else changed.
+>    - Commit that re-registration before anything runs.
+>    - Retry cap: this re-run is by the owner's ruling. Any further stop on RL0 goes back to him.
+>    - #639 merges only after my approval at its exact sha, through merge-by-rule.sh.
+
+## RL0 to RL2, re-registered under (a): registered before it runs
+
+**One change, and nothing else:**
+- **The parent is `dr-rv2.mts`** (sha256 `128d53f16713`). It is `dr-rv.mts` with one line changed: the 96 MB stop reads
+  `if (which === "pr" && mb > 96)`. It applies to the PR's builder's builds (RL1, RL2), not to RL0's control.
+- A check refuses the run unless `diff` between the two drivers shows that one line and nothing else.
+
+**Unchanged:**
+- the child `dr-child4.mts` (`a3dde2bd9473`);
+- the hooked builders (`build.ts` `f60ae55f45d9` and `bc22989950b4`), with `crop.ts` as its blob in both, all checked first;
+- **every row, prediction and bound registered at `4b3933f6c1c1`.** RL0 is graded exactly as registered: the build's largest in the cell
+  phase, at cell 16, within 0.785 of 99.51 MiB, with DR0's ladder.
+
+**Before any build, IC1 runs again** on the copies as they stand. Each builder's child must refuse the unknown point. IC0 can't run
+again, because `crop.ts` is in the copies now; it already showed the check can fail.
+
+**The wrapper** is `rv-rerun2.sh` (sha256 `480de0f033db`): the checks, IC1, then `dr-rv2.mts`, stopping at the first off reading.
+
+**This re-run is by the owner's ruling. Any further stop on RL0 goes back to him.**
+
+| outcome | meaning | next |
+|---|---|---|
+| **every row as predicted** | the PR's builder is the variant #622 measured | the head and the CI read go to the orchestrator for its review |
+| IC1 off | the copies changed | **stop** |
+| **RL0 off** | the control, as registered | **stop; it goes to the owner** |
+| RL1 or RL2 off, or a PR build over 96 MB | as registered | **stop** |
+| **anything else** | the instrument is suspect | **stop and report** |
