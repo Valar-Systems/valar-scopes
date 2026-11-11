@@ -70,8 +70,16 @@ registered product. That leaves three states:
   and K9 is unchanged.
 - `tools/wx/r12_prod.sh` prints the block (P0), ungraded.
 
-Nothing else in `proxy/`, `scripts/`, `tools/` or a workflow reads it (`git grep` for `frameAgeS`, `coveredShare`,
-`wxHealth` and `"wx":`, docs excluded).
+Nothing else in `proxy/`, `scripts/`, `tools/` or a workflow reads the `wx` block itself (`git grep` for `frameAgeS`,
+`coveredShare`, `wxHealth` and `"wx":`, docs excluded).
+
+**Two scripts read the WHOLE `/healthz` body by key name.** blipscope-5c found them in its conflict read (~19:10Z);
+the list above had missed them.
+- `proxy/scripts/confirm-deploy.sh:74` and `smoke-prod.sh:264` take every `"commit":"..."` anywhere in the body. A
+  second key named `commit` would turn the deploy confirmation's `LIVE` into two lines, which reads as a wrong sha.
+- `smoke-prod.sh:300` cuts `"upstreams":\[.*\]` greedily, up to the body's last `]`.
+- This change adds no key named `commit` and no array, so neither moves. **H1 asserts it**, so a later field can't
+  quietly break the deploy confirmation from inside the `wx` block.
 
 ## 3. Cost: what each `/healthz` call reads, and how often it is called
 
@@ -93,7 +101,7 @@ Nothing else in `proxy/`, `scripts/`, `tools/` or a workflow reads it (`git grep
 
 | row | what | predicted |
 |---|---|---|
-| **H1** (replaces `wx-endpoint.test.ts:158`) | `/healthz` with no frames | `wx` has exactly `PRODUCTS`' 11 ids, in `PRODUCTS`' order. Every entry has `frameAgeS: null, stale: null`. `routed` is `true` for exactly `cref` and `opuk`, written in the test as literals, and `false` for the other nine. The OPERA entries carry `coveredShare: null`, and `cref`'s carries no `coveredShare` |
+| **H1** (replaces `wx-endpoint.test.ts:158`) | `/healthz` with no frames | `wx` has exactly `PRODUCTS`' 11 ids, in `PRODUCTS`' order. Every entry has `frameAgeS: null, stale: null`. `routed` is `true` for exactly `cref` and `opuk`, written in the test as literals, and `false` for the other nine. The OPERA entries carry `coveredShare: null`, and `cref`'s carries no `coveredShare`. No key inside `wx` is named `commit`, and no value inside it is an array: the two whole-body readers in §2 |
 | **H2** (the ruling's first control) | a frame stored for `opmt` (deployed, unrouted), 90 s old | `opmt`: `routed: false`, `frameAgeS` 90-119, `stale: false` |
 | **H3** (the ruling's second control) | planted `latest` records: `opse` at 1,800 + 60 s old, `opba` at 1,800 - 60 s, `cref` at 600 + 60 s | `opse` `stale: true`, `opba` `stale: false`, `cref` `stale: true`, on both sides of the boundary for both kinds of product. The body's `{id: {routed, stale}}` projection also equals the one in the committed fixture `test/fixtures/wx/healthz-h3.json`. H6 feeds that same fixture to smoke's function, so the WARN lines below come from the state the real plant produced, not from a hand-written body |
 | **H4** (kept) | "the newest frame's age when there is one" | unchanged: `cref.frameAgeS` 90-119 |
