@@ -139,3 +139,48 @@ VOID, not re-graded, and get re-registered.**
 4. **#639's staging rows read.** They wait on #646 and the orchestrator's slot. If they read off, the dependency above applies.
 5. **The code PR,** graded against step 3's predictions, the plants and the KB rows. Then the store's Class A figures, before any ingest
    uploads anything.
+
+## QW4-0, read (2026-11-11, 22:10:35Z): stopped at KJFK's memory. The prototype is not the pinned builder in memory
+
+The registration was frozen at `882005aa9da0`. The go was the orchestrator's at 22:07Z.
+
+**The prototype:**
+- `pq4`, made by `mk-pq4.mjs` (sha256 `e428959d0bad`) from the pinned `525cf7d1725d`'s files, read from git;
+- the instrument's seven hooks and the knobs added, each edit on an anchor that had to match exactly once;
+- `format`, `provenance`, `query`, `store`, `terrain`, `handler` and `worker` byte-identical to the pinned commit;
+- `build.ts` +26 −1, `budget.ts` +37, `frame.ts` +60, `layers.ts` +2 −2;
+- the child is `dr-q4c.mts` (`5fd0b771d73d`) and the driver `dr-q4-0.mts` (`c591f0e3ae8f`);
+- the child's imports were checked first: given an unknown point with the knobs off and with them on, it refused the point (exit 2).
+
+**The read, one process each, with every knob off and reported off by the modules:**
+
+| point | answer | memory | |
+|---|---|---|---|
+| KBOS | `ce5b1ea7589e`, Nov 8's DR0 | 56.02 MiB, the ladder phase, against #639's 56.70 ± 0.785 | as predicted |
+| **KJFK** | 422 with #620's ladder | **61.61 MiB, the cell phase,** against #639's **58.54, the ladder phase** | **memory off: the run stopped** |
+
+**By the registered table, QW4-0 off means the prototype is not the pinned builder, so nothing below it is read.** QW4-1 to QW4-M
+did not run. The log is scratch (sha256 `bd2ba530d3ad`), and nothing ran on staging.
+
+**What it looks like, not established:**
+- **The answers are the pinned builder's** at both points read, so the byte half holds.
+- **KJFK's 61.61 in the cell phase is the scratch copy's figure** (61.58 in Q-DR3, 61.19 in Q-RV5 (1), 61.32 in Q-RV6 (a)). The
+  shipped builder reads 55.27 there and peaks in the ladder phase.
+- So **the prototype's code, with every knob off, shifts KJFK's cell loop the way the copy's tree did.** Q-RV6 found that effect in the
+  copy's tree, and Q-RV8 placed it at the end of the cell loop at KORD and KIND, but no read has named its object. The prototype's
+  executed differences from the pinned builder, with every knob off, are few:
+  - the knob constant;
+  - two sets declared as null;
+  - two conditional statements inside the cell loop;
+  - one conditional after `at`;
+  - the build wrapped as `buildOnce` inside a D2 caller.
+- **The miss this exposes:** I registered QW4-0's memory half as if knob-off code could not move memory. Q-RV6 had already shown that the
+  builder's tree, not its output, moves the cell loop at KJFK. That alternative was available, and I didn't name it.
+
+**Proposed (Q-W4a), read-only and registered first:**
+- **A bisection at KJFK:** the pinned builder with one prototype edit at a time (the cell-loop conditionals, the `at` line, the D2
+  wrapper, and the knob constant with the null sets), one process each, against the pinned builder's own 58.54 in the ladder phase.
+- **The edit that moves KJFK's cell loop to about 61.6 names the effect,** after four reads across Q-RV5 to Q-RV8 that left it unnamed.
+- **Then decide with the orchestrator:**
+  - either the prototype is written so the effect doesn't occur, and QW4-0 runs again from the start;
+  - or memory predictions for Q-W4 are stated with that effect as a named bound, since the code PR's own builder may carry it too.
