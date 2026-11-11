@@ -1923,3 +1923,44 @@ sample (0.392).
 **What this cannot see:**
 - **Workerd.**
 - **P1 and P2 are unchanged by the knob.** Their figures stand as read, since they do use the ε×4 set.
+
+### ab with only the sets it uses, read (2026-11-11, 06:01:57-06:02:33Z): every graded row as predicted
+
+The registration was frozen at 06:01:50Z (`3708d62428c0`). The parent's process is recorded in `dr-used.pid`. Fourteen builds ran, each in
+its own process, and the parent exited 0. The error file is empty, the tree stayed clean, and nothing ran on staging.
+
+- **AU0, the control:** without the knob, ab at KLGA read **73.56 MiB in the ladder phase, 422,** against Q-DR3's 73.64. The default path
+  is the one measured.
+- **AU1:** with the knob, **ab's packages are unchanged.** Nov 8's ab hashes at the 9; 422 with no ladder at the 4.
+- **AU2:** every point is between v0's figure and ab-with-every-set's.
+- **Every process:** the builder reported the knob as asked; the controls held; every sample settled; every object was local; no build was
+  over 96 MB.
+
+**ab's figures, A+B's own memory, replacing the upper bounds (MiB, MB):**
+
+| point | v0 | **ab, only its sets** | ab, every set (Q-DR3) |
+|---|---|---|---|
+| KJFK | 61.58 (64.6) | **61.72 (64.7), in the cell phase** | 71.46 (74.9) |
+| KLGA | 59.98 (62.9) | **60.12 (63.0)** | 73.64 (77.2) |
+| KEWR | 60.80 (63.8) | **60.93 (63.9)** | 73.67 (77.3) |
+| Midtown | 58.06 (60.9) | **58.22 (61.0)** | 70.76 (74.2) |
+| KBOS | 56.63 (59.4) | **56.79 (59.5)** | 68.48 (71.8) |
+| the other 8 | 38.72-49.12 | **38.74-49.28** | 40.36-52.55 |
+
+**The split of ab's extra at the ladder phase** (AU3, graded both ways: the copy's set is the larger part at all 4, as expected):
+
+| point | ab's extra | the copy's ε×4 set | **A+B's own (ε×8 water)** |
+|---|---|---|---|
+| KJFK | 12.95 | 12.84 | **0.11** |
+| KLGA | 13.66 | 13.52 | **0.14** |
+| KEWR | 12.87 | 12.74 | **0.13** |
+| Midtown | 12.70 | 12.54 | **0.16** |
+| KBOS | 11.85 | 11.69 | **0.16** |
+| the other 8 | 1.62-7.14 | 1.61-7.09 | **0.01-0.10** |
+
+**For the proposal:**
+- **A+B costs 0.01-0.16 MiB over v0 at these 13 points.** The 10-14 MiB that Q-DR3 read under ab was the scratch copy's ε×4 set.
+- **P1 and P2 do use that set,** so their figures stand as read: up to 73.69 MiB (77.3 MB) at 162 km, and 60.1-66.2 MB at D2's 129.6 km.
+- **D2's ab builds at 103.7 km (54.0-58.8 MB) were read with every set,** so they are upper bounds too. With only its sets, ab's figures
+  are within about 0.2 MiB of v0's.
+- **KJFK's 64.7 MB sits in the cell phase under both v0 and ab.** It is not A+B's.
