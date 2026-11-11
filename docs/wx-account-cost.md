@@ -234,6 +234,26 @@ assumes 1,714 bytes an event and 7 days stored.
 >   ingest_deploy.sh, each under its claim. That PR joins the order after your cost-record PR.
 > - The proxy's bill (Logs sampling, KV): blipscope-5c, after v19 is promoted. I've sent it the brief.
 
+**Superseded ~05:49Z by Daniel's decision on Q-LR,** verbatim (reviewer chat, pasted by Daniel). It replaces the
+~05:25Z "change first" above:
+
+> Q-LR is closed by Daniel's decision, made on your table. (a) doesn't get under 1M with per-product Workers, and (b)
+> needs a proxy deploy after v19 for only ~6% headroom, which Missileer's growth will use up. Neither change is made. No
+> KV move, and cref stays as it is.
+> - The ten deploy as they stand, through ingest_deploy.sh, each under its own claim. Predictions first, announced
+>   before.
+> - After the deploy, read the whole account's R2 Class A and report the monthly run rate.
+> - Daniel checks his first invoice. If Cloudflare bills the Class A overage as a whole million ($4.50 a month), it
+>   comes back. If it bills proportionally (about $0.20), it stays.
+> - In §7, this decision supersedes the ~05:25Z "change first".
+
+Q-LR's table, the two designs Daniel decided between:
+- **(a)** one shared R2 `latest` for all OPERA products, as #570 worded it. Each product has its own Worker since the
+  code stage, so each still writes its entry, and Class A after the ten stays about 1.02-1.04 M.
+- **(b)** each product's `latest` in KV, as ruled for stage 1b on 2026-11-06. Class A falls to about 0.94 M. That
+  needs a KV binding on the ingests, a rebuilt forward-only rule (KV has no conditional put), and a proxy that reads KV
+  first, deployed before the ingests switch.
+
 ## 8. CI for this record's PR (predicted before the push)
 
 It changes `docs/wx-account-cost.md` and `tools/wx/account_cost_read.py`. Neither is in `workers.yml`'s or
