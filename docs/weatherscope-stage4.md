@@ -1341,3 +1341,81 @@ failure, never a red. Nothing is pushed until every row above reads as predicted
 1. The single-file run and the driver, now.
 2. The whole suite and S-MKAE when uk-data says done.
 3. The CI prediction, then the push to a PR, with the shared-file diff sent to blipscope-5c first (Q116).
+
+### S4.16, 2026-11-11: two decisions ruled, WS23 added, and W5's CI predicted before the push
+
+**What has run so far,** on W5's local commit `4490d9fb`, after S4.15 was pushed at 19:33:46Z. All read as S4.15 predicted:
+- `vitest run test/weatherscope.test.ts`: **22 passed (22)**.
+- The golden: 0 differ. The selftest: 6 checks, 0 failures. The bodies check: 0 differ.
+- **WS21:** exactly one line under `proxy/test`, `A proxy/test/weatherscope.test.ts`.
+
+**Still held for uk-data's "done":**
+- the sabotage driver;
+- the whole suite;
+- `S-MKAE`.
+
+**Ruled by the orchestrator, on S4.15's two flagged decisions:**
+1. **An empty NWS station list answered `unavailable` / `upstream_failed`, with no new reason, is accepted,** provided a row pins that exact
+   body. No row did, so **WS23** is added below, before it runs.
+2. **The `workers.yml` change is accepted:** the golden step, and `tools/weatherscope/nws/**` and `test/fixtures/wx/nws/**` in both path
+   filters.
+   - It goes to blipscope-5c by name, in the shared-file diff.
+   - The CI prediction counts the workflow's own change, derived from the filters as they stand at W5's head.
+   - It adds a step, not a job. But the filters change which PRs run `workers.yml` at all, so once it merges, the orchestrator tells every
+     session that baselines for PRs touching those paths move.
+
+**WS23, and why it asserts two things.** Any NWS failure on the conditions route ends as `unavailable` / `upstream_failed`. So the body
+alone can't tell an honest empty list from one papered over with a made-up station: that station's observation would fail too, and give
+the same body. **What only the honest version has is that no observation is asked for.**
+
+| row | predicted |
+|---|---|
+| **WS23** | `/points` and a station list with `features: []`: the body is exactly `{v: 1, status: "unavailable", fetchedUtc: T0, reason: "upstream_failed"}`, and **0** calls reach `/observations/` |
+
+| sabotage | the plant | red, exactly |
+|---|---|---|
+| **S-WS-NOSTATION** | an empty station list answered with a made-up station, `KZZZ` | WS23 |
+
+**Two of S4.15's frozen sets grow by WS23,** each because of what WS23 is, re-derived before any run:
+- **S-WS-PREFIX:** WS23 makes a route request. Its set is now every route-request row: WS1, WS2, WS3, WS5-WS12, WS14-WS20, WS22, WS23.
+- **S-WS-AGE:** `unavailable()` builds its head with `fetchedUtc`, and WS23 compares the whole body. Its set is now WS5, WS6, WS7, WS8,
+  WS15, WS17, WS20, WS23.
+- **The others are unchanged:**
+  - S-WS-EMPTY plants in `bodyOf()`, which the station path doesn't use.
+  - S-WS-LOG is read only by WS19, which still runs last.
+  - The rest touch no code WS23 reaches.
+
+**The counts, superseding S4.15's:**
+
+| read | predicted |
+|---|---|
+| `vitest run test/weatherscope.test.ts` | **23 passed (23)** |
+| the whole proxy suite | **Test Files 75 passed, 1 skipped (76); Tests 1062 passed, 1 skipped (1063)** |
+| the driver | CONTROL 23 of 23 and the golden exit 0; then 13 plants, each with its set as above |
+
+#### W5's CI, predicted before the push
+
+**How it's derived:**
+
+1. **The three workflows that run on every PR** (`device-ids`, `firmware`, `no-traffic-captures`). Read from #643's checks at head
+   `f34b082d90f4`:
+   - #643 is docs-only, on the same base as W5 (`78c2bec21dfa`). That base is after main's last workflow change, `e2c34daf`, which
+     added steps to `device-ids.yml` and no job.
+   - The read: **32 = 29 success / 3 skipped** (firmware's `version`, `promote` and `ship-alert`) **/ 0 failed**. That is device-ids 1,
+     firmware 30, no-traffic-captures 1.
+2. **`workers.yml`, from its filters as they stand at W5's head:**
+   - Its `pull_request` paths include `proxy/**`, its own file, and now `tools/weatherscope/nws/**` and `test/fixtures/wx/nws/**`. W5
+     touches all four, so **the filter change doesn't decide whether it runs on this PR.** `proxy/**` alone would trigger it.
+   - It has 3 jobs, `manifest-drift` and `test` over `[proxy, dashboard]`, none with a job-level condition, so all 3 run.
+3. **`web-renderer`, `print-cards` and `provisioner` don't run:** W5 touches none of their paths. `photos`, `photo-drift` and
+   `refresh-data` have no `pull_request` trigger.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| **the PR** | **35** | 32 | 3: firmware's `version`, `promote`, `ship-alert` | 0 |
+| **main on the squash** (push) | **35** | 33 | 2: firmware's `version`, `promote` | 0 |
+
+The main row takes firmware's push shape from #630's main run (30 = 28 success / 2 skipped; `ship-alert` runs on a push), drops
+web-renderer (no `src/` path), and adds `workers.yml`'s 3. Push events only; scheduled runs are not counted.
+
+**Outside the set:** any count or set off stops the step, and it is reported. Nothing is improvised.
