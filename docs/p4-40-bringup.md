@@ -326,7 +326,7 @@ Graded against the predictions as committed: sections 1-7 in `cfbe3458`, section
   1,874,682 B (`-r3`); the image files are 1,990,224 B and 1,991,376 B. Against the s3-128's 1,931,983 B on the same measure,
   that is 0.97x, inside 0.75-1.3x. The frozen text said "near the low middle"; it is the middle.
 - **C3, partitions fit: holds.** Both images use 28.6 % of the app slot; RAM is 18.6 % (61,000 B and 61,064 B).
-- **C4, the artifact: OFF, on record (ruled 19:23Z by the orchestrator's stamp, 19:11Z by this session's clock).** Its revision
+- **C4, the artifact: OFF, on record (ruled by the orchestrator between 19:04:40Z and 19:12:12Z; its message's "~19:23Z" was an estimate).** Its revision
   clause was false as written, and one false clause fails the row. C4's first off reading; another, on C4', goes to the reviewer.
   - **The anchor was the shipping s3-128 baseline ELF**, not the netfault image the row named (that env was not built here). It
     serves the same purpose: it proves the grep can see the host.
@@ -406,7 +406,7 @@ Q-TEXT went to the reviewer with the recommendation to decide it on the glass at
   `base=%s known=` (`label=` alone occurs in eight S3 images, from other code, which is why the row named the longer string).
 - **ID2** is C5 above.
 
-### C4', registered after C4 failed (ruling 19:23Z): each env is built for its own silicon
+### C4', registered after C4 failed (ruling between 19:04:40Z and 19:12:12Z): each env is built for its own silicon
 
 The property C4 was for, graded on the evidence that can see it.
 
