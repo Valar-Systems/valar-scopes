@@ -17,9 +17,9 @@ The order is for the reviewer to confirm.
 | # | step | from | waits on |
 |---|---|---|---|
 | 1 | A3.1's reader merged | ruled ~19:07Z | **done:** #617, `c85fe77a7cda`, 2026-11-08 21:21:46Z |
-| 2 | **the candidate:** `FW_VERSION` 18 -> 19, merged by the rule. Its squash, called **C** below, is the commit that gets tagged | ruled; `RELEASING.md` 1-2 | the PR's approval |
-| 3 | **the pre-tag reads on C:** `check-tag-workflow.sh`, and "is this cut R?" | `RELEASING.md` 3 and its R gate | step 2 |
-| 4 | **the fresh-boot acceptance on E2:08, on C's image** | `RELEASING.md` 0 | step 2, and **Daniel at the board** |
+| 2 | **the candidate:** `FW_VERSION` 18 -> 19, merged by the rule. Its squash, called **C** below, is the commit that gets tagged | ruled; `RELEASING.md` 1-2 | **done:** #631, C = `3a322758eadc`, 2026-11-11 01:15:48Z |
+| 3 | **the pre-tag reads on C:** `check-tag-workflow.sh`, and "is this cut R?" | `RELEASING.md` 3 and its R gate | **done** ~01:17Z, as predicted: the cut is R |
+| 4 | **the fresh-boot acceptance on E2:08, on C's image** | `RELEASING.md` 0 | **passed**, accepted ~05:04Z, on image `5048a7223d63` (see "Step 4's result") |
 | 5 | **O11 on C**, on E2:08 | ruled; A12.172 | step 2, an announced window |
 | 6 | **Daniel's OK, in plain words,** on the four consequences, asked in the reviewer chat | ruled; `RELEASING.md`'s R gate | steps 3-5 |
 | 7 | **tag C, create the release as a prerelease, bench-flash from it, then approve `promote`** | ruled; `RELEASING.md` 4-5 | step 6 |
@@ -58,6 +58,25 @@ bump PR. The gate passes locally on full history.
   concluded.
 - **E2:08 ends on C's image,** set up again by Daniel.
 
+**Step 4's result (2026-11-11).** Two readings were off before the acceptance ran. Each stopped the chain and was ruled.
+- **P2, the image preflight (04:33Z):** a rebuild of `blipscope-s3-128` at C (`6335f52408f2`) was predicted identical to the
+  image built at C at 01:23Z, or different only in the three hash regions `cmpimg.py` knows. It differed in 12 more bytes, all in
+  WiFiManager's two `__DATE__ " " __TIME__` strings, the about page's date and `Software Info:`. My prediction used
+  `cmpimg.py`'s three regions, not CLAUDE.md's five. Ruled ~04:39Z: the cause is accepted, and step 4 runs.
+- **P4, the flash (04:48Z):** `bench-flash.ps1`, run under Windows PowerShell 5.1, rebuilt before writing, so E2:08 received
+  `5048a7223d63`, not `6335f52408f2`. The two differ only in those two strings (8 bytes). Ruled ~04:48Z: run the acceptance on
+  `5048a7223d63`, and record which image ran. **The image that ran is `5048a7223d63`.** By the rule ruled the same morning, an
+  image that differs from another only in the five rebuild regions is the same build.
+- **The acceptance:** every one of the script's 10 checks passed. Accepted ~05:04Z. Its `--grade-boots` step first read
+  UNTRUSTWORTHY: my shell had no `BLIPSCOPE_TOKEN_FILE`, so it could not read the Worker. Re-run in the same fixed window with it
+  set, it passed. That was accepted as a rig failure.
+- **The key question above, and a correction to how it was to be answered.** The `[reset]` line is **not** evidence.
+  `cloud-key-fac` lives inside the `config` namespace, and `ClearNamespace` writes it back within the same handle, so the line
+  prints `preserved=cloud-key-fac` whenever `config` is cleared, whether or not a key exists. The evidence is the Worker: a
+  keyless boot never reaches it. A POWERON boot row for E2:08 after the 04:50:07Z reset is what showed the key survived. It did,
+  and no re-enrolment was needed.
+- **E2:08 ended on `5048a7223d63`,** C's image, set up again by Daniel.
+
 **Step 5, O11:** A12.172's rows C0-C3 exactly as frozen there. Image B is uploaded directly as an asset on `ota-preflight-v6`,
 never through a tag or the workflow, with the snapshot and restore reads around it. E2:08 is restored by Q112 (a) inside the window.
 A bench image ends no window.
@@ -69,6 +88,9 @@ A bench image ends no window.
   (`render.js`, `s3-128` js and wasm, the font, the licence, `.sha256`).
 - **At the `promote` pause:** E2:08 is flashed from the prerelease's own `firmware-s3-128.bin`. Its About tab shows 19, and its
   serial shows `[ota] ... current=19 latest=18 (already up to date)`.
+- **How that flash is done (ruled ~04:48Z, after step 4's P4):** the downloaded asset is written exactly, with **no build step**,
+  because `bench-flash.ps1` rebuilds before it writes. The asset's sha256 is checked against the release before the write, the
+  app partition is read back and compared after it, and those predictions are frozen before the flash. It is a flash, not an OTA.
 - **The square-photo gate:** `scripts/verify-release.sh <tag>` passes, its square probe included.
 - **After `promote` is approved:** `releases/latest/download/version.txt` reads 19, read twice a few minutes apart.
 
