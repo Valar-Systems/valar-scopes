@@ -1,5 +1,8 @@
 # What a scope in a dense area gets (a proposal, predictions first)
 
+**The proposal this record arrives at is its last section, [The proposal: what a New York scope gets](#the-proposal-what-a-new-york-scope-gets).**
+Everything between is the readings it stands on, kept as written.
+
 ## The ruling, verbatim (reviewer chat, pasted by Daniel, 2026-11-06 ~04:32Z)
 
 > 3. KJFK is also a product finding, and D4 waits on it: at these parameters, a New York Blipscope would get no map at
@@ -1964,3 +1967,156 @@ its own process, and the parent exited 0. The error file is empty, the tree stay
 - **D2's ab builds at 103.7 km (54.0-58.8 MB) were read with every set,** so they are upper bounds too. With only its sets, ab's figures
   are within about 0.2 MiB of v0's.
 - **KJFK's 64.7 MB sits in the cell phase under both v0 and ab.** It is not A+B's.
+
+## The proposal: what a New York scope gets
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~16:52Z), verbatim
+
+> Q-DP1: yes. Write the dense-area proposal into #622, stating the figures as ruled, including ab as an upper bound if the copy's coarse
+> sets carry its extra. Then ask for #622 to join the merge list. I'll review the proposal from git before approving the merge.
+
+### What it stands on
+
+- **The query is the map client's:** r=162, ε 201,168 mm, no peaks, terrain levels at 41.2, 81.8 and 162.3 km.
+- **The release variant, as ruled (~05:26Z):** KLGA at r=162 reads **60.02 MiB (62.9 MB), spread 0.03,** in the ladder phase, against
+  v0's 99.55 MiB (104.4 MB). **Every figure below is on the variant.** The rest of [its list](#the-release-variant-what-the-proposal-stands-on-ruled-0526z)
+  stands as ruled.
+- **`READ_AHEAD`, as ruled (~04:39Z):** 6 to 3 saved 1.77 MiB at KLGA, in one process. No setting can read below the loop's end, so the
+  most it can save is about 1.8 MiB. It is not D4's lever.
+- **Q-DR3, re-registered, read** (05:51:36-05:56:22Z, 111 builds): the rungs, and each build's memory.
+- **ab with only the sets it uses, read** (06:01:57-06:02:33Z, 14 builds): A+B's own memory.
+- **All of it ran locally, in Node.** Nothing here ran on staging.
+
+### The two options
+
+**D2 does the work in either.** DR3 read P1 fitting none of the 4 New York points at 162 km, and its registered meaning is that D2 does
+the work and its floor is the decision. What is left to choose is what runs before D2:
+- **ab, then D2:** A+B's ladder (ε×2; water at ε×8; secondary roads shortest first; water smallest first), then the same ladder on a
+  disc of r × 0.8, × 0.64, … until one fits.
+- **P1, then D2:** the same, with one more rung before D2: rivers and roads at ε×4 (805 m), then A+B's two drops again. **This is
+  Q-DN2's direction as ruled** ("D1's ε rung, then D2").
+
+**Outside New York the two give the same packages** (DR2: P1 byte-identical to ab, 9 of 9). There they differ only in memory.
+
+**What a New York scope gets** (KJFK, KLGA, KEWR and Midtown, all four alike unless named):
+
+| | **ab, then D2** | **P1, then D2** |
+|---|---|---|
+| water, rivers, roads and places, out to | **103.7 km** | **129.6 km** |
+| of the widest view (162 km) | 64% of the radius, 41% of the area | 80% of the radius, 64% of the area |
+| the 41 km and 82 km views | covered whole | covered whole |
+| rivers and roads | ε×2, 402 m: **1.2 px** at the finest view, 0.6 px at the middle | ε×4, 805 m: **2.3 px** at the finest view, 1.2 px at the middle |
+| water, at ε×8 (1.6 km), as a share of the disc | 9.6-13.0% | 8.3-10.8% |
+| secondary roads kept | KJFK 17, KLGA 1, KEWR 0, Midtown 0 | 0 |
+| primary roads, rivers, places, `PROVENANCE` | whole | whole |
+| terrain | the three requested levels, out to 162 km | the same |
+| with the sea mask | **not read** (below) | 129.6 km; water 69.4-79.3% |
+| builds for the first request | 3: 162 and 129.6 km (each a 422), then 103.7 km | 2: 162 km (a 422), then 129.6 km |
+| those builds' wall in Node, summed (local reads, not R2) | 7.3-8.4 s | 5.8-6.7 s |
+
+- **The pixel figures:** the finest view is 41 km over 120 px (0.34 km a pixel), the middle 82 km (0.68), the widest 162 km (1.35).
+- **Terrain keeps its levels.** In the builds read here, D2 shrinks only the vector disc; the terrain levels keep the radii the query asked
+  for, and terrain is outside the cap. So beyond the disc, the package still carries terrain, and no water, roads or places.
+- **The device needs nothing new.** It draws the disc the package's header names (F4, `include/MapLayer.h`), and once a package is held it
+  asks nothing more for that config (`include/MapPolicy.h`, F8).
+- **The extra builds are paid once per query.** A1 stores the answer, so a repeat builds nothing.
+
+### Each build's peak against the isolate's 128 MB (ruled ~19:07Z, Nov 8)
+
+**The instrument:** Node, `heapUsed + arrayBuffers` after `gc()`, settled, each build in its own process, on the release variant. **MB is
+10^6 bytes, and 128 MB is read in the same unit.** A figure marked ≤ is an upper bound ([next section](#abs-figures-as-ruled)).
+
+| point | ab, then D2 | P1, then D2 | P1 with the sea mask, then D2 |
+|---|---|---|---|
+| KJFK | 162 km: 64.7 · 129.6 km: ≤ 60.1 · 103.7 km: ≤ 54.0 | 162 km: 74.9 · 129.6 km: 60.1 | 75.1 · 60.3 |
+| KLGA | 63.0 · ≤ 61.6 · ≤ 55.1 | 77.2 · 61.6 | 77.4 · 61.7 |
+| KEWR | 63.9 · ≤ 66.2 · ≤ 58.8 | 77.2 · 66.2 | 77.4 · 66.3 |
+| Midtown | 61.0 · ≤ 61.7 · ≤ 55.9 | 74.2 · 61.8 | 74.4 · 61.9 |
+| KBOS | 59.5 | 71.8 | 72.0 |
+| the other 8 | 40.6-51.7 | 42.3-55.1 | 42.5-55.4 |
+| **the largest** | **64.7 measured (51% of 128); ≤ 66.2 with the bound (52%)** | **77.2 (60%)** | **77.4 (60%)** |
+| builds in 64-96 MB | 1 of 21 measured (KJFK at 162 km), and KEWR's 129.6 km try, whose bound is 66.2 | 6 of 17: KBOS, the 4 at 162 km, KEWR at 129.6 km | the same 6 of 17 |
+| over 96 MB | none | none | none |
+
+**What it is a figure of:** a floor on the build's live memory, not workerd's. Garbage made between two samples, and the Worker's own
+bundle, are not counted. The only workerd reading is Q-MEM2's: KLGA at 162 km under v0, before the variant, built under 128 MB, with the
+margin unknown. **The variant's own PR brings one KLGA request on staging** (ruled ~05:35Z).
+
+### ab's figures, as ruled
+
+- **Q-DR3 read ab with every coarse set the scratch copy builds,** including the ε×4 rivers-and-roads set that only P1 and P2 read:
+  68.48-73.67 MiB (71.8-77.3 MB) at New York and KBOS, at 162 km. **Those figures are upper bounds on ab.**
+- **The copy's share, named:** that ε×4 set carried **11.69-13.52 MiB of ab's 11.85-13.66 MiB extra** over v0 at those five points, and
+  1.61-7.09 of 1.62-7.14 MiB at the other 8.
+- **ab's own, measured with only its sets:** A+B costs **0.01-0.16 MiB over v0** at all 13 points, with its packages unchanged. Those are
+  the 162 km figures in the table above.
+- **D2's ab builds at 129.6 and 103.7 km were read with every set only,** so they stay upper bounds (≤ above).
+- **Where the extra sits (ruled ~05:47Z):** in the layer sets the cell loop builds. It grows through the cell loop, holds flat through the
+  tiles and the terrain, grows about 0.6 MiB at the layer-set step, and is gone at the end.
+- **The one sentence:** A+B's water rung needs the water simplified at ε×8, which the builder makes in its single pass over the cells and
+  holds beside the ε and ε×2 sets until the build ends; that set is water only, so it costs 0.01-0.16 MiB.
+
+### What these readings cannot see
+
+- **Workerd** (above).
+- **ab with the sea mask, at New York.** DR6 read P1 and P2 with it, not ab.
+  - **Outside New York it is read through P1.** P1 reaches its ε×4 rung only when A+B fails (`budget.ts`), and P1 with the sea fitted at
+    rung 1-3 at all 9. So its packages there are A+B's with the sea.
+  - **At New York I expect it to fit first at 103.7 km, as ab does.** Once every secondary road and water ring is dropped, the two hold the
+    same layers, except that `PROVENANCE`'s drop counts are text and can differ by a few bytes. That margin is not read, and neither is how
+    much water it keeps.
+  - **The code PR reads it, predictions first.** If it doesn't fit at 103.7 km, the comparison above changes.
+- **Places denser than New York.** The 13 points are the registered set. D2's floor (Q-DP3) is what covers the rest.
+- **Two things stay open, and neither is needed for any figure:**
+  - why v0 lets the three pre-loop reads go at cell 12 (ruled open);
+  - why KJFK alone peaks in the cell phase, under v0 (64.6 MB) and ab (64.7 MB) alike. It is v0's, not A+B's.
+
+### My recommendation: ab, then D2
+
+1. **The two differ only on the widest view, and P1 pays everywhere.**
+   - Both cover the 41 km and 82 km views whole.
+   - P1 buys the ring from 103.7 to 129.6 km on the 162 km view.
+   - It pays with rivers and roads at 805 m across the whole disc, including the two views both options cover: 2.3 px at the finest
+     view, against ab's 1.2.
+2. **Memory is the ruled risk for D4** (~19:07Z, Nov 8).
+   - The builder makes every layer set in its one pass over the cells, before it knows whether A+B will fail, so every P1 build holds the
+     ε×4 set. Making it only after a failure would take a second pass over the reads.
+   - That costs 1.6-13.5 MiB at all 13 points, including the 9 where P1's package is ab's.
+   - P1's largest build is 77.2 MB, with 6 of its 17 in 64-96 MB. ab's largest measured is 64.7 MB, KJFK's own v0 peak, and its one bound
+     is 66.2.
+3. **ab's cost is one more build, for New York only, once per query:** 3 against 2, 1.2-1.7 s more in Node.
+
+**It departs from Q-DN2 as ruled.** That ruling came before any reading at r=162. The ε rung was meant to fit New York before the disc
+shrinks. At the client's query it fits none of the 4 (DR3), so D2 runs either way, and the rung only moves where D2 stops.
+
+**What would change it:**
+- if the widest view's coverage is worth more than sharpness at the two closer views: then P1, then D2, with the memory above;
+- if the code PR reads ab with the sea mask not fitting at 103.7 km at New York.
+
+### D2's floor
+
+- **The readings never came near it:** the first fit was 103.7 or 129.6 km at all 4 New York points.
+- **D2's steps from 162 km** are 129.6, 103.7, 82.9, 66.4, 53.1 and 42.5 km. The next, 34.0 km, is under the registered 40 km floor.
+- **42.5 km still covers the finest view (41.2 km).** A smaller disc couldn't fill even the closest view.
+- **Past the last step, §6's 422 stays,** and the client falls back to no package. It asks nothing more until the location or radius
+  changes (`include/MapPolicy.h`, CA6).
+- The last step is about 7% of the requested disc's area. No point read comes near it.
+
+### The order
+
+1. **This proposal,** for Q-DP2 to Q-DP4.
+2. **The release variant as the real builder:** its own PR and review, with its one KLGA request on staging (ruled ~05:26Z and ~05:35Z).
+   Every figure here stands on it.
+3. **The code PR (Q-W4):** A+B, the chosen rung, D2 and the sea mask, in one store change, with the format's §6 changed. Predictions first,
+   including the chosen option with the sea mask at New York, and each build's memory.
+4. **Then D4's production plan.**
+
+### Questions
+
+- **Q-DP2:** ab, then D2 (recommended), in place of Q-DN2's ε rung; or P1, then D2, as Q-DN2 ruled?
+- **Q-DP3:** D2's steps from 162 km by × 0.8, the last at 42.5 km (the finest view), then §6's 422 as now?
+- **Q-DP4:** the order above: the release variant's PR, then the Q-W4 code PR, then D4's plan?
+
+**CI for this push (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.** The
+baseline is this PR's own run at `31bb7973883d` (32 = 29/3/0). No workflow change has landed on main since: the last is `e2c34daf` (#633),
+merged before that run.
