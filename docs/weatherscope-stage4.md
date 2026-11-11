@@ -1258,3 +1258,86 @@ that change, a second `"commit"` in the body is legitimate. An exactly-one row w
 
 **Next: W5's code,** on its own branch from main `78c2bec21dfa`. Its counts and the exact sabotage sets are frozen before the suite first
 runs, and its CI is predicted before the first push. Nothing deploys: W5's deploys get their own slot later.
+
+### S4.15, 2026-11-11: W5's code written; its counts and red sets frozen before the suite first runs
+
+**Ruled 19:13Z: W5's code goes ahead,** on `weatherscope/w5-feeds` from main `78c2bec21dfa`. Nothing deploys. **The suite has not run yet.**
+The test file was type-checked only (`npm run typecheck` and `tsconfig.scripts.json`, both exit 0), and the driver's `--anchors` mode
+found each of its 12 plants exactly once. **A whole-suite run waits for uk-data's controls** (orchestrator, ~19:17Z: one at a time,
+TIME_WAIT under 2,000). Single-file runs may go ahead.
+
+#### S4.15.1 What was written
+
+| file | what |
+|---|---|
+| `proxy/src/weatherscope/trim.ts` | the pure trim: forecast, conditions and alerts. Every number shared with `trim_nws.py` is computed as that script computes it |
+| `proxy/src/weatherscope/fetch.ts` | one NWS call shape (W3's User-Agent, an 8 s timeout, NWS's own origin only), the hold-and-last-good store, coalescing per isolate, the five breakers |
+| `proxy/src/weatherscope/handler.ts` | the three routes, the status rules, the 32 KB cap, the ETag and 304, and `/healthz`'s `weatherscope` field |
+| `proxy/src/index.ts` | `apiEndpoint()` gains the named prefix and an `edition`; the leaderboard POST check requires the Blipscope edition; one dispatch line ahead of Blipscope's unchanged table; one `/healthz` field |
+| `proxy/src/metrics.ts` | the three paths in `KNOWN_ROUTES` |
+| `proxy/test/weatherscope.test.ts` | the rows. **New. No existing test file is touched (WS21)** |
+| `proxy/scripts/sabotage-weatherscope.mjs` | the driver, with `--anchors` and a TIME_WAIT gate under 8,000 before each single-file run |
+| `proxy/scripts/gen-w5-bodies.mts` | writes WS20's three body fixtures, with `--check` |
+| `tools/weatherscope/nws/trim_nws.py` | gains `--check-golden` and `--write-golden` |
+| `test/fixtures/wx/nws/w5-raw/{warm,cold}/` | the SYNTHETIC NWS documents, written by hand. Every location is at 2 dp near KMCI, as the `/wx` tests use |
+| `test/fixtures/wx/nws/w5-golden/`, `test/fixtures/wx/nws/w5/` | the golden from `trim_nws.py`, and the route's three bodies |
+| `.github/workflows/workers.yml` | a `trim_nws.py --check-golden` step for the proxy worker; `tools/weatherscope/nws/**` and `test/fixtures/wx/nws/**` added to both path filters. Without them, a change to `trim_nws.py` alone would never run the golden |
+
+#### S4.15.2 Decisions made in code that S4.11 didn't state, recorded before any run
+
+1. **`unavailable`'s `fetchedUtc` is the time of the attempt.** It has no data, so it has no fetch time of its own.
+2. **An empty station list is an upstream failure,** counted against `nws_stations` and answered `unavailable`, `upstream_failed`. S4.11's
+   reasons have no `no_station`, and I didn't add one.
+3. **A ranked warning whose geometry isn't a `Polygon` goes out without `polygon`.** No ring is invented. It stays in the list, and
+   `Covers()` can't call it "here".
+4. **A URL taken from `/points` must be on `api.weather.gov`,** or the answer is refused as malformed before any socket opens.
+5. **One log line per NWS call:** `{"evt":"nws","kind","status","ms"}`, nothing more.
+6. **WS2 asserts one case more than S4.11 froze:** a POST to `/api/v1/weatherscope/leaderboard` is a 405. It holds the leaderboard's
+   edition check.
+7. **The warm fixture's ring has 10 vertices.** Predicting S-WS-RING's set showed a 5-vertex ring could not be cut to 8, so that plant
+   could never go red. The golden is unaffected, because `trim_nws.py` keeps no polygon.
+8. **Each test checks only the mocks it registered itself,** so a sabotaged test that leaves mocks behind is red alone. Without that,
+   the leftovers would turn every later test red.
+9. **Halves in the golden that Python's built-in `round` would get wrong:**
+   - 12.5 % → **13**, and 0.5 % → **1**;
+   - 2.5 % → **3**;
+   - 36.5 °F → **37**;
+   - 180.5° → **181**;
+   - and -0.6 °F truncated to **0**, never -0.
+
+#### S4.15.3 Predicted
+
+| read | predicted |
+|---|---|
+| `npx vitest run test/weatherscope.test.ts` | **22 passed (22)**, 0 failed |
+| `python -I tools/weatherscope/nws/trim_nws.py --check-golden` | exit 0, `golden: 2 cases, 0 differ` |
+| `trim_nws.py --selftest` | `6 checks, 0 failures` |
+| `npx tsx scripts/gen-w5-bodies.mts --check` | exit 0, `w5 bodies: 3 files, 0 differ` |
+| **WS21:** `git diff --name-status 78c2bec21dfa -- proxy/test` | exactly one line, `A	proxy/test/weatherscope.test.ts` |
+| **the whole proxy suite**, when the slot frees | **Test Files 75 passed, 1 skipped (76); Tests 1061 passed, 1 skipped (1062).** That is main's 74/1 (75) and 1039/1 (1040), read from main's last `workers.yml` run (`d46c25c43244`, with no `proxy/` commit since), plus this one file of 22 |
+| **`sabotage-basemap.mjs S-MKAE`**, the one existing plant in a file W5 changed (`metrics.ts`), with the whole suite | as registered, red `{MK7}`. Its anchor is found once in W5's `metrics.ts` |
+
+**The sabotage driver, `node scripts/sabotage-weatherscope.mjs`:** CONTROL 22 of 22 and the golden exit 0, then each set exactly:
+
+| plant | red, exactly |
+|---|---|
+| S-WS-EMPTY | WS6, WS7 |
+| S-WS-UA | WS11 |
+| S-WS-KEY | WS9 |
+| S-WS-ROUND | WS13, WS20 |
+| S-WS-PREFIX | every row with a route request: WS1, WS2, WS3, WS5-WS12, WS14-WS20, WS22. Not WS4, WS13 or WS18b |
+| S-WS-404 | WS8 |
+| S-WS-LOG | WS19 |
+| S-WS-CUT | WS14 |
+| S-WS-RING | WS15, WS16, WS20 |
+| S-WS-AGE | WS5, WS6, WS7, WS8, WS15, WS17, WS20 |
+| S-WS-COMMIT | WS18b |
+| S-WS-PY | `--check-golden` exit 1, `golden: 2 cases, 2 differ` |
+
+**Outside the set:** a count off, a red set off, or an instrument failure stops the step, and it is reported. A crash is an instrument
+failure, never a red. Nothing is pushed until every row above reads as predicted, or is ruled.
+
+**Next:**
+1. The single-file run and the driver, now.
+2. The whole suite and S-MKAE when uk-data says done.
+3. The CI prediction, then the push to a PR, with the shared-file diff sent to blipscope-5c first (Q116).
