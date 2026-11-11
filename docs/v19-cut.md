@@ -20,7 +20,7 @@ The order is for the reviewer to confirm.
 | 2 | **the candidate:** `FW_VERSION` 18 -> 19, merged by the rule. Its squash, called **C** below, is the commit that gets tagged | ruled; `RELEASING.md` 1-2 | **done:** #631, C = `3a322758eadc`, 2026-11-11 01:15:48Z |
 | 3 | **the pre-tag reads on C:** `check-tag-workflow.sh`, and "is this cut R?" | `RELEASING.md` 3 and its R gate | **done** ~01:17Z, as predicted: the cut is R |
 | 4 | **the fresh-boot acceptance on E2:08, on C's image** | `RELEASING.md` 0 | **passed**, accepted ~05:04Z, on image `5048a7223d63` (see "Step 4's result") |
-| 5 | **O11 on C**, on E2:08 | ruled; A12.172 | step 2, an announced window |
+| 5 | **O11 on C**, on E2:08 | ruled; A12.172 | **held:** C2 stopped in window 2, and the defect it exposed in C's head read is with the owner (see "Step 5 so far") |
 | 6 | **Daniel's OK, in plain words,** on the four consequences, asked in the reviewer chat | ruled; `RELEASING.md`'s R gate | steps 3-5 |
 | 7 | **tag C, create the release as a prerelease, bench-flash from it, then approve `promote`** | ruled; `RELEASING.md` 4-5 | step 6 |
 | 8 | **the week after:** A3.1's reader daily; the four boards behind 18 read again | ruled ~20:34Z | step 7 |
@@ -116,6 +116,50 @@ trace's, not the power-on's. The ruling (~16:52Z) was to grade the power-on boot
   anchor; anything else. Nothing is improvised.
 - **Then C2, as frozen.** The window ends after C2, or at any stop: the originals go back on `ota-preflight-v6` by sha256
   (`firmware-s3-128.bin` `b12e184d4570`, `version.txt` `e7f6c011776e`), read back, and `releases/latest` is never touched.
+
+**Window 2 (2026-11-11, 18:38:00Z to 19:03Z), opened on the owner's own words.** The cycle went through a YKUSH switchable
+USB hub. Its tool is Yepkit's `ykushcmd` v1.4.0: installer `ykushcmd-installer-64bit.exe` from
+`github.com/Yepkit/ykush/releases/download/v1.4.0/`, sha256 `e40cf7a66ae838fd228622a5bea8077484be50c8ac7da48c9db4837d3b4e3d3c`,
+signed by YEPKIT LDA; the installed `ykushcmd.exe` is sha256 `d32ff453df1e9356d961ed885e35ec70110a10f85502208f50c599e07bc64d56`.
+The hub's ports were mapped from Windows' USB location paths without switching any, and confirmed against the printed port numbers.
+- **Before the cut, as frozen:** F and "20" uploaded at 18:38:02Z and read back by API digest and by download; `releases/latest`
+  v18; the reservation held; E2:08 answering on image A, still on the hub's port 3, with no boot or `ota` row after 18:10:43Z.
+- **C1-PC, as predicted.** The switch: port 3 (E2:08) OFF 18:39:12Z, ON 18:39:17Z, each confirmed by the tool's own state read.
+  The board answered ping 14 s after power-on. Two Worker reads 33 s apart agreed: exactly one boot, `POWERON`, and exactly one
+  `ota` row, `refused-foreign` 19->20 `reset=POWERON`, both at 18:39:44Z. The anchors were all returned, and no port was opened.
+- **C2 stopped off its prediction.** The sabotage image S (the parse shifted by one byte) was flashed, accounted against the
+  checked S (five regions only), and B was uploaded and read back. The graded boot, read in one trace open, refused B as
+  **`refused truncated: requested=s3-128 image=-`**, not the predicted `refused no-record`. S's first boot after its flash,
+  against F, read `refused-truncated` too (Worker, 18:48:12Z). "Truncated" was not in C2's frozen set, so the window stopped
+  and was restored. C3 did not run.
+- **The restore, as frozen.** The prerelease's originals went back at 18:52:57Z, read back by digest and by download, and matched
+  the reviewer's own baseline. B's download count read 0, a lagging counter, recorded and not a stop. `releases/latest` read v18
+  at 18:53:03Z and 19:00:24Z. E2:08 went back to C by Q112 (a): C4-0 and C4-1 as predicted (four regions, `0x0`, `0x8000`,
+  `0x1E000`, `0x20000`, none in NVS), and the written image was byte-identical to `5048a7223d63`. C4-2: `running=app0
+  @0x020000`, Wi-Fi from saved credentials with no portal, and an authenticated config check-in. The reservation was released
+  at 19:02:41Z.
+
+**What C2's stop found (read-only, from images saved in the window).**
+- **S differs from A by one byte outside the hash regions:** the immediate of `ParseRecord`'s first argument in
+  `MaybeUpdateFirmware`, `head + 0x120` -> `head + 0x121`. It is the only differing instruction there, and every function's name
+  and size is identical. In `Decide` the truncated test comes before the parse, so the plant never ran: on both of S's boots
+  the head read returned fewer than 352 bytes, possibly none.
+- **Excluded by that measurement:** the plant changing the decision or the read; a wrong image or asset; the outcome token.
+  **Not excluded at the time:** an intermittent short read that fell on both of S's boots, or something else about those boots.
+
+**Step 1's read of the mechanism (read-only, at C `3a322758eadc`, framework-arduinoespressif32 3.3.9):**
+- `ReadHead` (`include/OtaInstall.h:69-78`) stops on the first read that returns 0.
+- That read is `StreamSource::read`, which is `Stream::readBytes` (`src/OtaUpdater.cpp:189-192`). Through the virtual call it
+  becomes `NetworkClient::readBytes`, which stops at once when the client's `read()` returns a negative.
+- `NetworkClientSecure::read` returns -1 whenever nothing is buffered yet, and the TLS socket is non-blocking. So "nothing has
+  arrived yet" and "the stream ended" reach `ReadHead` as the same 0, immediately, and a body that is merely late is refused as
+  truncated.
+- `writeRest`, which reads the rest of an accepted image from the same source, already waits: 300 empty reads, 100 ms apart. The
+  head read does not. The path is new in #552 (`84409651`); v18 updated through `httpUpdate`.
+- **What it means for v19:** an update from v19 to anything later can be refused as `refused-truncated`. Nothing is drawn, and
+  the board retries at its next check, so it delays an update and cannot brick a board. Updates from v18 to v19 use v18's old
+  path and are unaffected. How often it fires on real networks is unmeasured.
+- **Held for the owner's decision, as a release question:** C3, C2's re-run, steps 6 and 7, and any fix.
 
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
