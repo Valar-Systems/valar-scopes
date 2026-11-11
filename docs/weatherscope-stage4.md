@@ -1178,3 +1178,61 @@ code's counts, before the driver first runs.
 2. **The price, re-done on S3-7's read tomorrow, goes to the owner** through the reviewer. W4's code and deploy wait for his answer.
 3. **After blipscope-5c's O11 window 2 closes,** it gets S4.11's conflict read (a condition on W5's code) and this addendum's (Q113).
 4. **W5's code** once blipscope-5c's read is back. W5 doesn't depend on W4.
+
+### S4.13, 2026-11-11: blipscope-5c's conflict reads, and three rows added to W5 before its code
+
+**blipscope-5c read S4.11 (W5) and S4.12 (W4) after O11 window 2 closed** (~19:05Z), against main and its own work. Main had moved to
+`78c2bec21dfa` by one docs commit (#640), with nothing under `proxy/`, so both addenda's reads stand.
+
+**Its finding: no conflict blocks either step.** It has no work in flight in `proxy/src`, `index.ts`, `metrics.ts`, the `wx` code or the
+ingest toml. Its next proxy work, a bill proposal, comes after v19 and rebases on whatever has merged.
+
+**For W4:**
+- **No conflict.** The agreed order, uk-data's `/healthz` change (#643) first, matches its own read of #643.
+- **No firmware change, and no released image asks for `/wx/shsr`,** so W4 doesn't touch v19.
+- **The Logs line in S4.12.2's price assumes no sampling.** If blipscope-5c's sampling proposal is ever ruled, that line shrinks, so the
+  estimate stays the conservative one.
+
+**For W5, three constraints, each made a row here before any code:**
+
+| row | predicted | why |
+|---|---|---|
+| **WS18b** | `/healthz`'s body holds exactly **one** match of `"commit":"[^"]*"`, the same pattern `confirm-deploy.sh` (line 74) and `smoke-prod.sh` (line 259) use, and the `weatherscope` field has no key named `commit` | both scripts read the deploy stamp from the whole body. A second match makes `LIVE` two lines, and every deploy then reads "wrong sha" |
+| **WS21** | W5's diff **adds** files under `proxy/test/` and modifies none: `git diff --name-status` against W5's base lists only `A` there. The existing tests, the alias-contract tests across ten files among them, all pass unchanged | `index.ts` promises one call site per handler and byte-identical bodies on both prefixes. If an existing test has to change, that change is the conflict, and it is named and shown to blipscope-5c before the push |
+| **WS22** | a request to a Weatherscope route carrying `X-Blip-Boot`, with `X-Blip-Model: weatherscope-s3-128`, writes one boot row carrying that model, just as a radar request does | see below |
+
+**The shared block, stated as blipscope-5c asked.** `recordFleetFirmware`, `recordOtaMem`, `recordUsage` and `recordBoot` run on every
+authenticated request, before dispatch, so Weatherscope's routes pass through them too.
+- **What changes:** a Weatherscope board's calls write firmware, boot, OTA and usage rows, carrying the model `weatherscope-s3-128`.
+- **Why that's wanted:** it closes A3.2's blind spot for this edition (section 1.6). A refused update on a Weatherscope would otherwise
+  show only on serial.
+- **What readers will see:** the fleet readers (`reconcile-fleet.py`, the OTA-result reader) see `weatherscope-s3-128` rows beside the
+  radar's. W2's contract (S4.1.2) says `reconcile-fleet.py` counts a board once whatever its model reads. Whether that is implemented
+  is not checked here, and W5's doc says so, so nobody reads it as established.
+
+**One sabotage is added:**
+
+| sabotage | the plant | must turn red |
+|---|---|---|
+| **S-WS-COMMIT** | a `commit` key inside `/healthz`'s `weatherscope` field | WS18b |
+
+**blipscope-5c's question, answered from main.** Does a Weatherscope board's model pass the activation gate's model list? **There is no
+model list.**
+- Activation is keyed by device id alone (`act:<id>`, `activation.ts`). It is consulted at enrolment through `claimActivation`, in
+  `enroll.ts`.
+- No gate on the authenticated path refuses on `X-Blip-Model`. `config.ts` reads it only to choose `/config`'s defaults.
+- So a Weatherscope board passes or fails activation by its id on the batch list, like any unit (section 1.5). WS1's "a valid key gives
+  200" is a key the test mints, and activation is not on that path.
+
+**Its sampling note, recorded as its own to resolve:** Logs head sampling at 0.1 would drop transition-only lines like `evt:"breaker"`
+and `evt:"upstream_skip"` 9 times in 10. WS18 and its own route breakers rely on those lines. Its proposal has to keep them before it
+can be ruled, and nothing changes in W5.
+
+**How W5's pushes are read (Q116):** at every push, blipscope-5c gets the diff of the shared files:
+- `index.ts`: `apiEndpoint`, the dispatch, `handleHealth`;
+- `metrics.ts`: `KNOWN_ROUTES`.
+
+It reads the new files under `proxy/src/weatherscope/` too.
+
+**Next: W5's code.** Its condition, blipscope-5c's read, is back. Before the suite first runs, the counts and the exact sabotage sets
+are frozen in an addendum of their own, as S4.6 did. Its CI is predicted before the first push.
