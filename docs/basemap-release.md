@@ -501,3 +501,35 @@ Whichever pair reads COPY names the cause: the tree, or the child's second modul
 runs (a) then (b), and prints the bands and the verdict.
 
 **After a cause is named:** RL1 is re-registered, then a measurement run at all 13, then a fresh graded run, as ruled at Q-RV5 (3).
+
+## Q-RV6, read (2026-11-11, 19:23:39-19:23:46Z): only (a) reads COPY. The copy's builder tree is the cause
+
+The registration was pushed at 19:23:35Z (`33c64064`). The wrapper and every artifact check read as registered. Each child's controls
+held, every sample settled, every object was local, and both answered KJFK's 422. The error files are empty, and nothing ran on staging.
+The log is scratch (sha256 `9fe718ed199f`).
+
+| phase (MiB) | (a) the copy's builder, `dr-child5`'s imports | (b) the plant, `dr-child2`'s imports |
+|---|---|---|
+| cell | **61.32** | 55.19 |
+| tile, tiles, terrain | 54.91, 54.78, 55.03 | 55.20, 55.09, 55.34 |
+| layers, ladder | 58.11, 58.16 | 58.39, **58.44** |
+| band | **COPY** | **PR** |
+
+**By the ruled table: only (a) reads COPY, so the copy's builder tree is the cause.** Its ε×4 and ε×8 frames and sets, its sea hook, or
+its `budget.ts` variants hold about 6 MiB more inside the cell loop at KJFK. The child is not the cause.
+
+**What this means for the earlier figures:**
+- **The copy's figures measured the copy's builder, not the harness.** The harness concern the ruling named does not arise.
+- **The difference lives inside the cell loop only.** After it, the copy and the PR agree to 0.3 MiB in every read so far. So a figure
+  whose peak is in the ladder phase is unaffected. That includes all of P1's figures, and the 77.2 MB the owner took with B.
+- **A figure whose peak is in the cell phase is an upper bound for the shipped builder.** Of Q-DR3's figures that is KJFK's 64.6 MB under
+  v0 and 64.7 MB under ab.
+
+**One correction to the line above:** the ruled order is measurement run, then RL1's re-registration, then a fresh graded run (Q-RV5
+(3)), not re-registration first.
+
+**Next, in the ruled order:**
+1. a **measurement run** of the PR's builder at all 13, one process each, labelled measurement and not graded;
+2. **RL1 re-registered** against those figures, ± 0.785, each in its own phase, and committed;
+3. a **fresh run** in new processes, graded: RL0 to RL2 from the start, with RL1's new figures. RL1 is never graded on the run its
+   figures came from.
