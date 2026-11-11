@@ -126,3 +126,97 @@ Each total names its largest line.
 
 Whether to deploy the ten, and under which allowance, is **Daniel's call**. This record gives him the bill for each
 case, and the levers that move it: `docs/wx-cost.md`'s F1-F3, Logs sampling, and the order of the ten.
+
+## 6. Read 2026-11-11 (predictions at fcd968d2)
+
+**The read was taken twice,** 05:14:46Z and 05:17:15Z, each over the 30 days before it. The two agree to within the
+window's slide:
+- requests 2,162,241 against 2,162,293;
+- CPU 39,886,338 against 39,878,319 ms;
+- R2 storage, KV storage, events per invocation and bytes per event identical.
+
+The Logs hour (04:00-05:00Z) read **ABR 1**, unsampled. The anchor controls hold: KV reads and DO requests are both
+non-zero, as the proxy's use of them requires.
+
+| row | read (a month, run rate) | |
+|---|---|---|
+| **A1** | **2.16 M** requests: the proxy 1.96 M, `valarscopes-app` 78 k, cref's ingest 43 k, opuk's 31 k, the rest under 23 k each | as predicted |
+| **A2** | **39.9 M ms.** cref's ingest (`blipscope-wx-ingest`) is **27.9 M of it, 70 %**, about 645 ms an invocation. The proxy is 7.3 M, opuk's ingest 3.0 M | as predicted |
+| **A3** | **0.862 M** Class A. **`missileer-live` is 0.702 M of it**; `blipscope-wx` is 0.140 M | as predicted |
+| **A4** | **4.52 M** Class B: `missileer-live` 2.94 M, `blipscope-wx` 1.40 M | as predicted |
+| **A5** | **3.1 GB**, the largest bucket `blipscope-basemap` at 1.76 GB | as predicted |
+| **A6** | KV reads **6.83 M**, writes **0.607 M**, lists 5 k, no deletes; storage **0.27 GB** | as predicted |
+| **A7** | DO requests **0.376 M**; duration **1,215 GB-s** (the `duration` field and active time x 128 MB agree); storage 0.26 MB | as predicted |
+| **A8** | **3.11 events an invocation** (proxy 3.12, both ingests 3.00); **1,714 bytes an event**; **6.7 M events a month** | as predicted |
+| **A9** | **1.63 M** points, 0.83 x the proxy's requests | as predicted |
+| **A10** | **$0.20** over the subscription (CPU only) | as predicted |
+
+**A finding the read made, and a fix to the model's code (made after the read, so it is recorded here):**
+- **KV writes split almost evenly between production and staging:** 325 k a month on production's namespace
+  (`733bf900...`) and 282 k on **staging's** (`8b6e92ed...`). Staging's writes don't grow with the fleet.
+- §4 says a board's other usage is "the proxy's run rate divided by 17". **The code scaled every namespace's operations
+  instead, so it over-counted.** It now scales production's namespace and holds the others flat.
+- The first read has no namespace split, so it reproduces the as-run figures: **$442-$462 at 600 boards, against
+  $394-$413 after the fix.** Below 50 boards the two agree to the cent. Everything below is after the fix.
+
+**The bill a month, the $5 subscription included,** under Read P with November's Logs prices (each cell low-high):
+
+| Blipscope boards with weather | no Weatherscope | with the ten | + 50 Weatherscopes | + 200 Weatherscopes |
+|---|---|---|---|---|
+| **17** (today) | **$5.29-$5.55** | **$6.26-$6.74** | $6.37-$8.46 | $34.13-$40.71 |
+| **50** | $15.07-$16.15 | $17.76-$19.32 | $24.17-$27.33 | $53.26-$60.92 |
+| **200** | $117.54-$123.99 | $120.83-$127.28 | $127.71-$135.75 | $156.80-$169.34 |
+| **600** | $393.65-$413.11 | $396.94-$416.40 | $403.82-$424.88 | $432.91-$458.46 |
+
+**Read A** (R2 and DO billed in whole units) adds **$4.50 to every cell with the ten.** The ten take Class A from
+0.862 M to 1.043 M, past the free 1 M, because `missileer-live` already uses 0.70 M. With the ten at today's fleet that
+is **$10.88-$11.14.**
+
+**December's Logs prices** lower every cell from 50 boards up: $12.03-$13.11 at 50, $353.04-$372.50 at 600. That
+assumes 1,714 bytes an event and 7 days stored.
+
+**What the money is, line by line, with no Weatherscope and without the ten (Read P, November, low-high):**
+
+| boards | Logs | KV reads | KV writes | requests | R2 Class B | CPU |
+|---|---|---|---|---|---|---|
+| 17 | $0 | $0 | $0 | $0 | $0 | $0.29-$0.55 |
+| 50 | $3.05 | $5.04 | $1.19 | $0 | $0-$0.27 | $0.78-$1.59 |
+| 200 | $47.61 | $35.13 | $15.55 | $6.56 | $4.19-$7.27 | $3.00-$6.36 |
+| 600 | $166.45 | $115.38 | $53.83 | $25.61 | $16.63-$25.93 | $8.91-$19.08 |
+
+**What this changes:**
+- At fleet scale the bill is **the radar's own traffic**, not weather.
+  - Today's boards average, each, about 116,000 requests a month, 401,000 KV reads, 19,000 KV writes and 3.1 log events a request.
+  - **Workers Logs at a sampling rate of 1, and KV reads, are the two largest lines from about 50 boards up.**
+  - Weather's own share at 600 is the 43,200 requests a board, its CPU and its Class B. Its Logs events are about
+    80 M of 297 M.
+- **`docs/wx-cost.md`'s $29-$46 at 600 counted requests, CPU and R2 only.** It held the rest of the proxy's traffic
+  flat, as it said. The account at 600 is about ten times that.
+- **The per-board figures err high:**
+  - they divide the whole production proxy by today's 17 boards, which includes bench boards on soaks and traffic that
+    is not a board's;
+  - the 17 is 2026-11-06's count.
+- **The ten's own share:**
+  - at today's fleet: **$0.97-$1.19** under Read P, **$5.59** under Read A;
+  - in every larger cell: **$2.69-$3.29** under Read P, because the fleet has by then used the free tiers the ten would
+    otherwise sit inside.
+
+**Grades against §3 and §4:**
+- **A1-A10: all as predicted.**
+- **S1: OFF at its low end.** $5.29-$5.55, against $5.50-$6.50. The band was built from `wx-cost.md`'s high-end $0.79,
+  and the low end of the per-board range wasn't applied to it: my miss. The reading stands.
+- **S2: as predicted:** +$0.97-$1.19 under Read P, inside +$0.70-$1.50; +$5.59 under Read A, inside +$5.20-$6.00.
+- **S3: as predicted:** over $40, and Logs is the largest line.
+- **S4: as predicted at today's fleet; frozen without a fleet size.** In every larger cell the ten's Read P share is
+  over $2, as above. A prediction that names no fleet size should not have been frozen. Also my miss.
+
+**The levers, by size at 600 boards** (none is applied here; each is its own change, predictions first):
+- **Workers Logs' sampling rate on the proxy.** At 0.1 the Logs line falls from $166 to about $6 (November). Nothing
+  changes on a board. The cost is observability: every tail and Logs read here assumes rate 1.
+- **KV reads,** 3.5 a proxy request: a cache in front of the hottest keys.
+- **KV writes on production,** about 19,000 a board a month: what they are hasn't been read.
+- **`docs/wx-cost.md`'s F1-F3** for weather's own lines.
+- **Class A, for the ten:** #570's "one `latest` record for all OPERA products" would keep the ten's Class A to about
+  0.1 M. That stays under 1 M with `missileer-live` as it is, so Read A's $4.50 never applies.
+- **cref's ingest, 70 % of today's CPU:** the map-from-R2 change that took opuk from 1,676 ms to 240 ms has not been
+  made for cref.
