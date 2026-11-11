@@ -1340,6 +1340,45 @@ extension, and `platformio.ini`) decode as UTF-8. So L1 cannot meet R-CD-DECODE'
 compile time, the bench image still builds, and a slug-ful image carrying the bench macro is refused by the scan every
 slug-ful image already goes through.
 
+### The refusal's PR (ruled (a)): W9 and its CI, registered before the suite runs (2026-11-11)
+
+**Ruled:** these five commits go up now as a small code PR (the refusal, CD4 and its driver, and the `run.sh` block; no
+drawing code), so the guard is on `main` before any drawing path exists. Step B's drawing work then continues on a
+branch from the new `main`.
+
+**W9, the whole host suite under WSL.** `bash test/host/run.sh` runs in `wsl -d Ubuntu-24.04` (g++ 13.3) on this
+branch's head, with no git call inside WSL (W8's lesson). The commit and a clean tree are read from Windows first.
+Predicted:
+- **exit 2, and the failed blocks are exactly W8's two:** "the same TU, for the board" (no xtensa toolchain in WSL) and
+  "Weatherscope R0 and R0b", the rig (no python with Pillow).
+- **38 drivers** in every driver pass.
+  - The glob's 42 files, minus the four `run.sh` skips by name: the `sabotage_common.py` library and the three
+    meta-controls.
+  - That is W8's 36, plus #630's `sabotage_ota_model.py`, plus this branch's `sabotage_map_draw.py`.
+  - **Anchors:** `38 driver(s) checked`, plus both board plants.
+  - **Controls and the full pass:** `38 driver(s): 37 run, 1 skipped`, the skip being `sabotage_wx_towns.py`.
+  - **Lint:** `38 driver(s), 0 flagged; 3 pinned line(s)`.
+- **`sabotage_map_draw.py` passes in all four passes.** Anchors: 3 plants, 3 anchors. Control: 1 suite. Lint: not
+  flagged. The full pass: exit 0, with **7** `AS PREDICTED` lines (the 2 plants, their summary, the 3 controls and
+  their summary).
+- **The new `MapDraw` block passes** (`1 checks, 0 failures`). So does `MapFetch` (`42 checks, 0 failures`, then
+  `3 checks, 0 failures`), and so does every block not named above.
+- **Anything else stops the reading for a ruling.** A block or driver off in the full pass is first run against
+  `main`'s own tree (`c2cf7cfc`), to tell what this branch broke from what was already broken.
+
+**The PR's CI, predicted: 34 check runs, 30 success, 4 skipped (`promote`, `publish`, `ship-alert`, `version`), 0
+failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-renderer). The PR touches `src/` and
+`test/host/`, so the web renderer builds.
+- **The baseline is #634's finished code PR run** (head `3de4367a3c51`: 34 = 30/4/0, the same four skips).
+- **It postdates the last change to the job set.** The only workflow change since #634's base (`68dc169a`) is #633's
+  device-ids change, which added steps, not jobs, and the SKU matrix has not changed.
+- **The host-tests leg on ubuntu** reads `38 driver(s): 37 run, 1 skipped` in its driver passes (#634's read 37/36/1),
+  and `MapDraw` `1 checks, 0 failures`.
+- **The web renderer builds:** `BLIPSCOPE_MAP_FETCH` excludes it, so CB10's condition is false there. No CI env defines
+  `WX_LAYER_SHIPS` without `WX_LOOK_AB`, since the release flip has not happened, so no firmware leg meets the
+  `#error`.
+- **Any other count, skip set or failure means a stop and a report,** with no re-run.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
