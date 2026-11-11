@@ -1062,6 +1062,52 @@ Every script compiles, and the build again refused an unknown home with exit 2 a
 
 Both edited scripts compile. Nothing has been fetched or built.
 
+### The design read, run (2026-11-11, 23:47:19–23:50:57Z): stopped at its first render, an instrument failure
+
+**The run.**
+- The go was the orchestrator's at 23:46:51Z.
+- Before it ran: every artifact's sha256 read as registered, C: had 75 GB free, and no `CLOUDFLARE_API_TOKEN` was set, user-level or
+  in the shell (checked as a yes/no).
+- The driver exited 1, and its error file is empty. The log is scratch (`24f7508fd174`).
+
+**What completed, before the stop:**
+- **The fetch:** 15 cells and 81 tiles per home, 192 objects in all. 69 were copied from the local store and 123 fetched read-only from
+  `blipscope-basemap`, **every one verified** (cells by byte count against the index, tiles by sha256 against the manifest). Nothing
+  was written to R2.
+- **All 12 builds:** ok, with 0 objects missing and the knobs as read. **Every build is rung 3 at 162 km,** so the water drawn is the
+  ε × 8 set.
+
+  | Buffalo | none | (b) | plant_seam | plant_spill | (a) | (c) |
+  |---|---|---|---|---|---|---|
+  | non-terrain bytes | 32,763 | 32,755 | 32,759 | 32,755 | 32,766 | 32,759 |
+  | water rings | 48 | 49 | 49 | 49 | 51 | 49 |
+
+**The stop: `lake-render.py BUFFALO b` exited 1, on its own assertion,** before any count was computed. No SEAM or SPILL was read.
+
+**The cause: my renderer.**
+- The route rounds a query's lat and lon to two decimals (`query.ts:62-63`). So the package is centred on **(42.89, −78.88)**, not on
+  the home **(42.886, −78.879)**.
+- The device draws a package about its OWN home: WxBasemap's `Mapper::ToScreen` places package units through the package's centre and
+  cosine, then into a view centred on `homeLat`/`homeLon`. The client's r includes the 0.8 km margin for exactly this offset.
+- My renderer mapped package units as if the package's centre were the view's. Its assertion that the two coincide caught it.
+- **Alternatives, and why the values exclude them:**
+  - the two builds disagree on the centre: excluded, both read 42,890,000 / −78,880,000;
+  - the design geometry was built about another origin: excluded, it is the home.
+- **The builds are unaffected:** they don't use the view. Only the renderer is wrong.
+
+**Proposed fix (committed here; it runs only after a ruling).** `lake-render.py` → `6035c590519f`; the copy that ran is
+`dc4bd32eef9f`. The diff is one block and one function:
+- **the view is centred on the home;**
+- **package rings go through the package's centre and its own cosine, then the home's view,** exactly as `Mapper::ToScreen` does;
+- **the assertion becomes the true relation:** the two builds share the package centre, AND it is the home's 2-dp rounding.
+
+Every other use was already in the home's frame and stays there: the truth masks, `--site` and the planted square.
+
+**Proposed re-run:** the whole driver, in the frozen order, with no other change.
+- The fetch's objects already exist, so step 0 re-verifies each one and fetches nothing.
+- The builds are deterministic and repeat.
+- This is the read's first re-run. A second instrument failure goes to the orchestrator and on to the owner.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
