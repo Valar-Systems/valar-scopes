@@ -1181,6 +1181,9 @@ The ruling's own stamp, ~19:25Z, was estimated, not read. The orchestrator corre
 - **The fix, as ruled:** that one line reworded, not an `ALLOWED_MENTIONS` entry. From now on,
   `python3 scripts/skus.py --check-readers` runs locally before every push, chained with `&&` beside the device-ids
   guards.
+- **The second head's run, recorded and not acted on:** `d7c71008` read 32 = 28 success / 3 skipped (`promote`,
+  `ship-alert`, `version`) / 1 failed, the one failure `sku-readers` (finished, read twice, 19:22-19:23Z). That
+  is as predicted once the cause was known, since the same line was still in the doc.
 - **CI at the fix's head, re-predicted: 32 = 29/3/0,** on #640's docs-only baseline. **This was #644's first off
   reading; another goes to the owner.**
 
