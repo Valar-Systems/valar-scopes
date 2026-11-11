@@ -1023,6 +1023,45 @@ If that holds, the escape branch is the likely result, and the owner sees the pi
 
 Every script compiles, and the build again refused an unknown home with exit 2 after its imports. Nothing has been fetched or built.
 
+### Amendment (the orchestrator's 23:43:55Z ruling): TIGER's shoreline made geometric
+
+**Why the 23:40Z restatement re-opened the hole.**
+- It defined the shoreline as TIGER water edges whose non-water neighbour is not in the strip, and defined the strip with the NE lake.
+- Where NE's generalized lake overlaps US land, the very spill being hunted, that land is in the strip. So TIGER's shore edges facing
+  it were classed border-side, and the spill pixels were EXCUSED.
+- The frozen plant_junction site (US land inside the NE lake, nearest the border) sits in exactly that class. It would likely have read
+  blind.
+
+**The ruling's fix, as applied:**
+- **EDGE:** the pixels of TIGER's water (W_n) with a non-water 4-neighbour.
+- **Border-side:** an EDGE pixel within **D_b = 0.3 km** of NE's border line.
+- **Shoreline:** every other EDGE pixel, independent of NE's lake. "Near the shoreline" stays within 0.5 km of it.
+- **The residual ambiguity, stated:** the disc of radius D_b about each point where NE's border line meets TIGER's shore, i.e. where
+  W_n changes value along the line, sampled every 10 m.
+  - **JUNCTION_DISC** = N1 inside a disc: its own count, **counted in SPILL, never excused.** I read "reported and not excused" as
+    counted, and say so in case it was meant otherwise.
+
+| count | definition |
+|---|---|
+| SPILL_SHORE | N1 beyond 1.5 km of the border, outside every disc |
+| SPILL_JUNCTION | N1 within 1.5 km of the border, (near the shoreline, or outside L), outside every disc |
+| **JUNCTION_DISC** | N1 inside a disc |
+| EXCUSED (printed, not counted) | N1 within 1.5 km, inside L, not near the shoreline, outside every disc: the open-water strip only |
+| **SPILL** | SPILL_SHORE + SPILL_JUNCTION + JUNCTION_DISC |
+
+**plant_junction keeps its frozen site rule,** with an assertion read first.
+- **The assertion:** the planted pixels (centres inside the 300 m square) include NE-only US pixels, and every one of them is classed
+  JUNCTION or JUNCTION_DISC, with none EXCUSED. If it fails, the plant doesn't test the count it is meant to; stop, and no design is
+  read.
+- **The control** is then: SPILL_JUNCTION + JUNCTION_DISC must be greater with the plant than in (b), at each home.
+
+**The tooling now:**
+- `lake-render.py` `dc4bd32eef9f`;
+- `lake-read.py` `eb2663a4807c`;
+- `lake-build.mts` `42a7c11f5637`, `lake-junction.py` `bc1789ecaf54` and `lake-fetch.mts` `e56c9e06aca0`, unchanged.
+
+Both edited scripts compile. Nothing has been fetched or built.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
