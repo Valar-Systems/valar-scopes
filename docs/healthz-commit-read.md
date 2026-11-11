@@ -111,6 +111,27 @@ A plant whose red set isn't its registered set stops the step, and nothing is re
 - **Locally before the push:** both selftests, the workers vitest suite under the suite rule (one whole-suite run at a time,
   TIME_WAIT under 2,000), and `device-ids`' checks.
 
+## 7a. The code (approved at `61500cadbdf8`, 19:18:26Z): what was added beyond the registration, and the results
+
+**Added beyond the registration:**
+- **Wiring rows W1-W3:** each reader calls the helper as wired, and none keeps a `"commit":"` grep of its own.
+  - W1: confirm-deploy's `LIVE` line;
+  - W2: smoke's `COMMIT` line and its `stamp_verdict` call;
+  - W3: `r12_prod.sh`'s print line.
+  - A plant edits only the helper, so W1-W3 stay green under both plants and the registered red sets are unchanged.
+  - Each was proved able to fail. Reverting each reader's line by itself turned exactly its own row red, and the file was
+    restored by bytes with its sha256 checked.
+- **`r12_prod.sh` also gains one source line** for the helper, beside its `test-identity.sh` one. uk-data agreed to the
+  change to its tool.
+- **The overlap with #643** (uk-data's per-product lines in `smoke-prod.sh`): no fixed order; whichever is approved first
+  merges first. This hunk is confined to the build-stamp block and its own source line. If #643 lands second, its H6 (e)
+  re-checks its three counts against this `smoke-prod.sh`; if this lands second, I re-check them.
+
+**Results, before the push:**
+- **`healthz-commit.selftest.sh`:** all 16 rows pass on the helper as written. P-OLD's red set is {HC1, HC5, CD1, SM1, SM2,
+  SM3, SM4, R12} and P-FIRST's is {HC5, SM4}, both as registered.
+- **`test-confirm-deploy.sh`:** 9 passed, 0 failed, as registered.
+
 ## 7. After the merge
 
 - **No deploy is needed.** These are operator scripts, not Worker code. The next proxy deploy's own `confirm-deploy` is the

@@ -57,6 +57,10 @@ report() { # report <token> <live> <sha> <host> <scheme> <minutes>
   esac
 }
 
+# healthz_commit: /healthz's TOP-LEVEL "commit" only. A grep for "commit" also matched basemap.commit, the bound
+# builder's sha, and read two lines on a good deploy (docs/healthz-commit-read.md).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/healthz-commit.sh"
+
 # Sourced by the selftest: define the functions and stop.
 [ "${BASH_SOURCE[0]}" != "$0" ] && return 0
 
@@ -71,7 +75,7 @@ for i in $(seq 1 "$ATTEMPTS"); do
   CODE="$(curl -s -o "$HZ" -w '%{http_code}' --max-time 10 "$SCHEME://$HOST/healthz")"
   if [ "$CODE" = "200" ]; then
     REACHED=1
-    LIVE="$(grep -oE '"commit":"[^"]*"' "$HZ" | cut -d'"' -f4)"
+    LIVE="$(healthz_commit < "$HZ")"
     [ "$LIVE" = "$SHA" ] && break
   fi
   printf '  %2d/%d  http=%s commit=%s\n' "$i" "$ATTEMPTS" "$CODE" "${LIVE:-<none>}"

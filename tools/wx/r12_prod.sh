@@ -7,6 +7,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_DIR="$(cd "$HERE/../../proxy/scripts" && pwd)"
 . "$SCRIPT_DIR/test-identity.sh"
+. "$SCRIPT_DIR/healthz-commit.sh"   # healthz_commit: the top-level stamp only (docs/healthz-commit-read.md)
 test_identity_or_reexec "$HERE/$(basename "${BASH_SOURCE[0]}")" "$@"
 blip_auth_curl
 BASE="${BASE:-https://scopes.valarsystems.com}"
@@ -14,7 +15,7 @@ PTS="${1:?usage: r12_prod.sh <points.tsv>}"
 T="$(mktemp -d)"
 
 hz="$(curl -s --max-time 20 "$BASE/healthz")"
-printf 'healthz commit [%s]\n' "$(printf '%s' "$hz" | grep -oE '"commit":"[0-9a-f]+' | head -1 | cut -d'"' -f4)"
+printf 'healthz commit [%s]\n' "$(printf '%s' "$hz" | healthz_commit)"
 printf 'healthz wx: %s\n' "$(printf '%s' "$hz" | grep -oE '"wx":\{[^}]*\}[^}]*\}[^}]*\}' | head -1)"
 
 ok_isles=0; ok_others=0; ok_r2=0; n_isles=0; n_others=0; n_r2=0
