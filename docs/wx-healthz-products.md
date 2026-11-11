@@ -203,3 +203,62 @@ single stale reading is not a reading: re-read once 10 minutes later.
   - #633: device-ids' two `check_ingest_deploy.sh` steps.
 - Every CI step the code can reach is run locally before its push: the workers job's vitest suite and its scripts'
   selftests, plus `device-ids.yml`.
+
+## 9. Read locally, 2026-11-11 (the code at a46391f7, on e0941a90)
+
+**As predicted:**
+- **Both typechecks:** `npm run typecheck` and `npm run typecheck:scripts`, exit 0.
+- **H5:** the verdict selftest reads 10 verdicts, and the new-shape body is PASS. The existing plant still turns only
+  case 5.
+- **H6 (the selftest):**
+  - (a) 11 lines, with WARN on exactly `opse` and `cref`;
+  - (b) 11 lines, no WARN;
+  - (c) 2 lines;
+  - (d) 1 line;
+  - (f) and (f2) each print one `WARN wx unreadable`;
+  - (e) one bare call line;
+  - H6s: the plant applied and was detected (case (a) printed 0 WARN, not 2).
+- **The sabotage driver** (`sabotage-wx-healthz.py`): the unplanted file read 0 failed of 17, and each plant was
+  restored by sha.
+
+  | plant | failed |
+  |---|---|
+  | H1s | {H1, H2, H3} |
+  | H2s | {H1, H2, H3} (as corrected before any run) |
+  | H3s | {H3} |
+
+**The whole suite: only C2 graded it.** Three whole-suite runs were made on this machine. The ruling (the
+orchestrator, ~20:30Z) records them as follows.
+- **The first run** (19:14:15-19:15:05Z, TIME_WAIT 844 before, 14,395 after) read OUTSIDE the prediction. 4 files
+  failed to load: `wx-age`, `wx-crop`, `wx-dev-products` and `wx-opera`, each with `No such module
+  ".../test/fixtures/wx/opera/20261029T0130.ranges.bin?mf_vitest_force=Data"`. 956 passed and 1 skipped, so 85 tests
+  never ran.
+  - None of those files is changed here. The fixture is tracked and on disk, and each file passes alone.
+  - **The failure was not reproduced** in the two gated runs below. The hypothesis is pool-workers port exhaustion on
+    Windows; it is named, and it is unproven.
+- **C1, a control: the unchanged checkout** (`wt-deploy`, `proxy/` identical to main) started at TIME_WAIT 80. One
+  file failed: `photolicense.test.ts` Q-C1, "the committed credits.html equals the render of the committed manifest".
+  1,038 passed and 1 skipped, with 0 "No such module".
+  - **The cause, measured:** that worktree's `proxy/photos/credits.html` carries 291 CR bytes. It was checked out
+    before `eol=lf` existed, and its blob has not changed since, so git never rewrote it. This worktree's copy carries
+    0, and both hash to the same blob, `5b1267f6b9`.
+  - A real content difference is excluded by the identical blob, and by this worktree passing.
+  - C1 answered its question: the four load failures did not recur on an unchanged tree.
+- **C2, the code** (`a46391f7`), started at TIME_WAIT 241: **74 passed and 1 skipped (75 files); 1,041 passed and 1
+  skipped (1,042); 0 "No such module". Exactly as predicted.**
+- **For whoever runs into it next:** other long-lived worktrees may carry the same pre-`eol=lf` CRLF copies. The cure
+  is to renormalise the file in place: bytes only, and git sees no change.
+
+## 10. After main moved: the re-prediction, registered before the push
+
+- **The merge:** main moved to `c2cf7cfcdd99` (#639, `proxy/src/basemap/build.ts` +7 -3: no test added, no workflow
+  touched, none of this PR's files). It is merged into this branch as `7f0fd0ab`.
+  - It is a merge, not a rebase, so every sha registered above stays an ancestor: `93977647`, `f34b082d` (approved),
+    `76b5aef9`, `cdd34273`, `e8e0ea77` and `a46391f7`.
+  - The branch differs from main by exactly this PR's files.
+- **The suite at the merged head:** **1,041 passed, 1 skipped (1,042), in 75 files**, the same as C2. #639 added no
+  test and changed nothing this PR's tests read. CI's Linux run grades it.
+- **CI at the pushed head:** **35 check runs: 32 success, 3 skipped, 0 failed.**
+  - The baseline is #627's head run, a `proxy/` change: 35 = 32/3/0.
+  - No job-set change since, because #639 touched no workflow. This PR adds one `workers.yml` step, a step and not a
+    job.
