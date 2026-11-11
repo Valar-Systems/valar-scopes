@@ -244,3 +244,16 @@ pushed before they run. **The dependency on #639's staging rows is unchanged:** 
 QW4-1's memory differences.
 
 **This run is QW4-0's one re-run.** If it goes off again, it comes to the orchestrator and on to the owner.
+
+### Amendment (the orchestrator's 22:17Z gap): every sample forces a GC first, so QW4-P's later-phase half can be read
+
+**Option (a), and it is what the instrument already does.**
+- **Each child runs with `--expose-gc`** (`dr-q4-run.mts` passes it to every call).
+- **Every sample calls `gc()` before it reads:** `raw()` in `dr-q4c2.mts` is `gc()` followed by `process.memoryUsage()`.
+- **The measure is `heapUsed + arrayBuffers`.** It is not RSS, and not `external` beyond the array buffers. The plant is a `Uint8Array`,
+  so its 8 MiB backing store is counted in `arrayBuffers`.
+- **A sample is settled:** `raw()` is repeated, at most four calls, until two readings agree within 0.1 MiB.
+- **The plant is let go before the tile loop begins:** `PLANT = null` right after the cell loop, in `pq4b`'s `build.ts`. The tile loop's
+  first sample (`MEM?.("tile")`) then forces its own `gc()`, so a dropped plant is collected before any later phase is read.
+- **So QW4-P's "0 ± 0.785 in tile, tiles, terrain, layers and ladder" stands as registered.** A reading of +8 there would mean the plant
+  was still reachable, not that the GC hadn't run yet. That still stops the run as blind, by the table.
