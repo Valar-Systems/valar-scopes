@@ -161,6 +161,42 @@ The hub's ports were mapped from Windows' USB location paths without switching a
   path and are unaffected. How often it fires on real networks is unmeasured.
 - **Held for the owner's decision, as a release question:** C3, C2's re-run, steps 6 and 7, and any fix.
 
+**Step 2 of that decision: C's head-read rate, registered before the window (the owner, 19:39:40Z: "measure C's rate
+first").** A new measurement, not a re-run of C2.
+- **Why through image A.** C checks `releases/latest` for updates (`OTA_RELEASE_BASE`'s default, `src/OtaUpdater.cpp:105-106`),
+  which says 18, so C makes no update attempt and writes no `ota` row. Only a bench build pins the bench prerelease.
+  - **The premise that makes A's rate C's:** window 1's X2 found A and C with identical function (name, size) sets, 8,770 each:
+    two strings moved and no code. X3 and X4 showed the pin is the only difference the scanners see. A's `ReadHead`, its
+    `StreamSource` and the TLS client under them are C's code.
+- **The window, in order:**
+  1. Reserve E2:08.
+  2. Flash A with bench-flash `-AppOnly` (app0 is already selected). Five-region accounting against the checked A
+     (`f57ab3556b37`): 0 bytes outside.
+  3. F (`42c8124fb01e`) and `version.txt` "20" (`f5ca38f748a1`) on `ota-preflight-v6`, read back by API digest and by download.
+  4. The re-reads:
+     - E2:08 is on Hub_#0009 port 3, and the port reads ON;
+     - its config page reads env `blipscope-s3-128-otatest`;
+     - the anchors, read twice at least 60 s apart: boot rows at 18:58:08Z and 19:00:50Z (USB), no `ota` row after 18:50Z,
+       plus A's own boot after the flash, read and named before the first cut.
+  5. 20 cycles of port 3 only, each logged with its off and on times in UTC, about 80 s apart so each boot's check-in lands
+     before the next cut. No serial port is opened at any point.
+  6. The grade (below).
+  7. The restore: the originals back by sha256, read back against the reviewer's 18:36:15Z baseline (`b12e184d4570`,
+     `e7f6c011776e`); `releases/latest` untouched; E2:08 back to C by bench-flash `-AppOnly`, accounted against
+     `5048a7223d63` and graded over the network only (ping, the config page's env `blipscope-s3-128`, a boot row with no
+     `ota` row), so no trace and no download mode; the reservation released.
+- **Predicted, and what each result means:**
+
+  | reading over the 20 cycles | means |
+  |---|---|
+  | exactly 20 `POWERON` boot rows, each with one `ota` row at the same second, every one `refused-foreign` | **0 of 20 truncated:** C's head read is reliable at this rate |
+  | the same 20 pairs, **1 or more** `refused-truncated` (and the rest `refused-foreign`) | C ships the defect. The count goes to the owner |
+  | a boot row with no `ota` row; an `ota` result other than those two; a boot count other than 20 or a reason other than `POWERON`; no ping within 180 s of power-on; a missing anchor or a failed query | **stop,** restore, report |
+  | anything else | the instrument is unreliable at this scale: stop, restore, decide |
+
+- **What the count can say.** 0 of 20 bounds the per-check refusal rate below about 14% at 95% (3/20, the rule of three). It
+  is not proof of absence. It is the BEFORE half of the fix's own test.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
