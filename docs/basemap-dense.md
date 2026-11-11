@@ -1403,3 +1403,36 @@ in the configuration that will be graded.
   and the ladder hold.
 
 **By the registered table: RV0 off, so stop.** Nothing is graded past it.
+
+### The ruling (reviewer chat, pasted by Daniel, 2026-11-11 ~05:06Z), verbatim (its Q-RV1 and DF parts)
+
+> Q-RV1: A. Three fresh v0 processes, graded on RV3 and the between-driver anchor (±0.50 of 99.51 at cell 16), with their spread measured
+> and reported, not bounded. pred6 then sets phase 2's per-sample bound at twice the largest spread at any one sample, never under 0.50,
+> frozen with the trace before phase 2. Your miss stays on record, and it's the same lesson as RA0: measure a driver's repeatability with
+> that driver before bounding anything on it.
+>
+> DF holding is a real finding, and the preview, the ladder phase near 62.7 MB, is promising. It stays a preview until phase 2 grades it.
+
+### The release variant, re-registered (Q-RV1, A): registered before it runs
+
+**What changes from the registration at `27054fc20d7c`, and nothing else does:**
+- **Phase 1** is three fresh v0 processes. The stopped run's two are not reused.
+  - Each is graded on **RV3** and on **RV0's anchor:** the cell phase's largest within ± 0.50 of 99.51, at cell 16, and the build's largest
+    in the cell phase.
+  - **Their spread is measured and reported, not bounded.**
+- **Between the phases,** the formula script, now `pred7.mts`, also sets **phase 2's per-sample bound:** twice the largest spread among v0's
+  three at any one sample (cells, tiles, and after the loops), and never under 0.50.
+  - The bound is frozen with the trace before phase 2: its value and the prediction file's sha256, in this record, pushed.
+- **RV1 and PL1** are graded at that frozen bound. The driver, now `mem-diag7.mts`, reads the bound from the frozen file and refuses one that
+  isn't a number of at least 0.50.
+
+**Unchanged:**
+- the variant and the tile-loop sample in the scratch copy;
+- the formula;
+- RV3, and the KJAC hash and KLGA ladder checks;
+- DF, graded both ways and not a stop;
+- the meaning table;
+- "outside the set".
+
+**For orientation only, not a prediction:** the stopped run's two processes differed by up to 0.36 MiB at one sample, which would give a
+bound of about 0.72. The bound is whatever the fresh three give.
