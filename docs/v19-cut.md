@@ -197,6 +197,31 @@ first").** A new measurement, not a re-run of C2.
 - **What the count can say.** 0 of 20 bounds the per-check refusal rate below about 14% at 95% (3/20, the rule of three). It
   is not proof of absence. It is the BEFORE half of the fix's own test.
 
+**Window 3, step 2's run (2026-11-11), opened on the owner's own words ~19:45Z.**
+- **The true start was 19:45:36Z,** the flash of A, 54 s before the announced 19:46:30Z. The wait that should have held it
+  read a `...Z` string as local time; every later wait read `date -u`. The owner's words and the reservation (19:45:23Z) both
+  came first.
+- **Before the cuts, as registered:**
+  - A flashed (`afd83c332fae`, five regions only against `f57ab3556b37`);
+  - F and "20" read back by digest and by download;
+  - E2:08 on Hub_#0009 port 3, ON, env `-otatest`;
+  - the anchors identical on two reads 63 s apart, including A's own boot at 19:47:42Z (USB, no `ota` row).
+- **The 20 cycles:** 19:50:24Z to 20:17:37Z, port 3 only, every switch confirmed by the tool's state read. The board answered
+  ping 12-20 s after each power-on. No serial port was opened.
+- **The grade stopped, as registered.** Exactly 20 `POWERON` boot rows, one in each cycle's slot, but **19 `ota` rows: cycle
+  12's boot (20:06:42Z) has none.** A boot without an `ota` row is a registered stop, so the table's verdict is not claimed.
+  - **As read:** of the 19 rows, **13 `refused-truncated`** (cycles 3-8, 10, 13-15, 17, 19, 20) and **6 `refused-foreign`**
+    (1, 2, 9, 11, 16, 18), all 19->20 with `reset=POWERON`, each at its boot's second. The delays from power-on to the boot
+    row overlap between the two kinds; no pattern is claimed.
+  - **Cycle 12's missing row:** a failed version check, so no attempt; or the one-shot report lost on a failed first check-in;
+    or a report the Worker dropped as off-shape; or an Analytics Engine write lost. None of these can be excluded from the
+    Worker's rows. A late row and a pairing error are excluded.
+- **The restore:** the originals back at 20:20:34Z, matching the reviewer's baseline; `releases/latest` v18; E2:08 back on C,
+  byte-identical to `5048a7223d63`, and graded over the network (ping, env `blipscope-s3-128`, a boot row with no `ota` row).
+  The reservation was released at 20:25:03Z.
+- **What it says for v19:** on this bench network, C's head read refused a correct update as truncated on 13 of the 19 checks
+  that reported. The fix's description goes to the owner next; nothing is registered for it yet.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
