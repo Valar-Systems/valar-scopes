@@ -1419,3 +1419,72 @@ The main row takes firmware's push shape from #630's main run (30 = 28 success /
 web-renderer (no `src/` path), and adds `workers.yml`'s 3. Push events only; scheduled runs are not counted.
 
 **Outside the set:** any count or set off stops the step, and it is reported. Nothing is improvised.
+
+### S4.17, 2026-11-11: #649 brought up to main after #643, both changes kept on index.ts:92; predictions before the push
+
+**What #649's first CI read, and why it no longer decides anything.** At head `1e7502e9096c`, read twice at 23:24:29Z and 23:25:35Z:
+**35 = 32 / 3 / 0**, as S4.16 predicted.
+- **It tested an older main.** The tested merge, read from every job's log, was `6a862257c4bf`: `c2cf7cfcdd99` plus the head, built at the
+  original push, 20:32:34Z.
+  - The reopened runs reused it, although `refs/pull/649/merge` had since been rebuilt on `bb6f7994e5c5`.
+  - I first reported the ref as what was tested, and corrected that from the logs.
+- **#643 then merged** at 23:21:56Z (main `03632992a132`), and #649 conflicted with it on `proxy/src/index.ts`. That is the overlap
+  recorded at 20:3xZ: whichever was approved first merged first, and this PR keeps both.
+
+**The CI stall that came before it,** on record:
+- #649's first four runs (43096672215, 43096672172, 43096672157, 43096672156) sat queued with 0 jobs from 20:32:37Z.
+- Under the owner's stalled-run OK, the cancel, the force-cancel and (a) a re-run were each refused.
+- (b), closing and reopening the PR at 22:53:45Z and 22:53:52Z, gave runs with jobs.
+- The four are set aside by id as zero-job GitHub leftovers.
+
+#### The merge
+
+**`db55a49f195c`**, a merge of main into the branch. Parents: `1e7502e9096c` (the PR's head) and `03632992a132`
+(main, #643). Tree: `7588ee11a3c2`.
+
+**The resolution, the one conflicting hunk.** It keeps #643's argument change and W5's key:
+
+```
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env),
+                        weatherscope: weatherscopeHealth() });
+```
+
+- Against main, `index.ts` now differs by W5's own changes alone.
+- #643's comment above the line auto-merged unchanged. It forbids a `commit` key inside `wx`, and W5's own field holds none (WS18b).
+- **`workers.yml` auto-merged.** It carries W5's two path-filter entries and its golden step, and #643's new step
+  (`wx-products-lines.selftest.sh`).
+- **#643 changed no path filter and added no job,** so the `workers` job set doesn't move: 3 jobs.
+
+**Read before this was written** (reads, not predictions):
+- W5's driver, `--anchors`: 13 plants, each found exactly once on the merged tree.
+- #643's `sabotage-wx-healthz.py`, its three anchors: each found exactly once. Its H1s anchor sits on the very line resolved above, and
+  survives as a prefix.
+
+#### Predicted, before any run on the merge
+
+| read | predicted |
+|---|---|
+| `vitest run test/weatherscope.test.ts` | **23 passed (23)** |
+| the whole proxy suite, behind the gate | **Test Files 75 passed, 1 skipped (76); Tests 1064 passed, 1 skipped (1065).** That is main's 74/1 (75) and 1041/1 (1042), read from main's own push run at `03632992` (43119262759, 23:29:09Z), plus W5's one file of 23 |
+| `python scripts/sabotage-wx-healthz.py`, #643's driver, which plants in `index.ts` | exit 0, every sabotage as it registered |
+| `trim_nws.py --check-golden`; `gen-w5-bodies.mts --check` | 0 differ; 0 differ |
+| **WS21**, against main `03632992` | still exactly one line under `proxy/test`, `A proxy/test/weatherscope.test.ts` |
+
+**W5's own driver is not re-run.** The only code it plants in that the merge changed is `index.ts`, and S-WS-PREFIX's anchor line there is
+unchanged. The reviewer can ask for the re-run.
+
+**CI at the new head:**
+- **How it's derived:** the PR's diff against main `03632992` covers the same areas as before (`.github/workflows`, `proxy/`,
+  `test/fixtures`, `tools/weatherscope`). So the same four workflows run: `device-ids`, `firmware` and `no-traffic-captures` on every PR,
+  and `workers` through `proxy/**`.
+- **No job-set change on main since `78c2bec21dfa`:** #643 added a step to `workers.yml`, and `e2c34daf` added steps to `device-ids.yml`.
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| **the PR, at `db55a49f195c`** | **35** | 32 | 3: firmware's `version`, `promote`, `ship-alert` | 0 |
+| **main on the squash** (push) | **35** | 33 | 2: firmware's `version`, `promote` | 0 |
+
+**The tested merge will be named from a job's log, not from the ref:** `HEAD is now at …`, its parents read through the API. Its first
+parent is predicted to be main as it stands at the push. If it isn't, that is reported.
+
+**Outside the set:** any count off, a set off, or a tested merge on any other main stops the step, and it is reported.
