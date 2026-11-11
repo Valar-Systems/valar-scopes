@@ -2120,6 +2120,7 @@ shrinks. At the client's query it fits none of the 4 (DR3), so D2 runs either wa
 ### Questions
 
 - **Q-DP2:** ab, then D2 (recommended), in place of Q-DN2's ε rung; or P1, then D2, as Q-DN2 ruled?
+  - **The owner decided B, 2026-11-11: P1, then D2** (relayed by the orchestrator, ~18:55Z).
 - **Q-DP3:** D2's steps from 162 km by × 0.8, the last at 42.5 km (the finest view), then §6's 422 as now?
 - **Q-DP4:** the order above: the release variant's PR, then the Q-W4 code PR, then D4's plan?
 
