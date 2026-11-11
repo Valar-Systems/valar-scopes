@@ -2003,6 +2003,29 @@ fi
 )
 note_block $? "OTA identity: the record and the accept rule (OtaIdentity.h)"
 
+# The model a device names itself by, X-Blip-Model (include/OtaIdentity.h, ota::ModelString; docs/weatherscope-stage4.md
+# S4.5): M1 over every row of test/fixtures/ota/identities.txt, so the count follows the fleet, and M1b, a short buffer
+# refused rather than cut. Its sabotages: python -I test/host/sabotage_ota_model.py
+echo
+echo "== OTA model: X-Blip-Model is the OTA identity (OtaIdentity.h) =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_ota_model.cpp" -o "$OUT/test_ota_model.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the OTA model test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_ota_model.exe" "$ROOT/test/fixtures/ota"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the OTA model test did not run or could not read its table (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "OTA model: X-Blip-Model is the OTA identity (OtaIdentity.h)"
+
 # The install decision (include/OtaInstall.h; A1.3's O7 and O10, A12.104): a refused image makes no flash call --
 # asserted on a boot HISTORY, since the withdrawn design switches back and a final state would pass it.
 # The binary is NOT named after the source: Windows' installer detection makes a 32-bit .exe whose name contains
