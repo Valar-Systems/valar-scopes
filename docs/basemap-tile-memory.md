@@ -1,0 +1,62 @@
+# Q-RV7: why the shipped builder holds 6 to 7 MiB more than the copy at KORD and KIND (a read before anything moves)
+
+**A local, read-only read, registered before it runs.** #639's measurement run found the shipped builder (the release variant) reading
+6 to 7 MiB above Q-DR3's scratch copy from the tile loop to the end, at two points of 13. This finds out whether that is the builder's,
+and where it is made. Nothing changes in any builder, and nothing runs on staging.
+
+## The ruling (from the orchestrator, read at 19:29Z), verbatim (its Q-RV7 part)
+
+> Q-RV7: yes, read-only, registered and committed first.
+> - (1) The first cross: the copy and the PR at KORD, one process each, in the same child family (dr-child5), the same day.
+>   - Predicted, if the difference is the builder's: PR - copy is about +5.95 at the tile and ladder phases again.
+>   - If it's about 0 in the same child: the old Q-DR3 copy figure at KORD is what moved (the date or the environment). Say so, and
+>     re-base the copy figures.
+> - (2) Then the per-tile samples, to find where the extra is made. Name the tile, and what it holds.
+> - Either way, report what it means for Q-W4's memory predictions under B, with each point's figure on the SHIPPED builder.
+> - Anything outside: stop and report.
+
+## What is known (#639's record, `docs/basemap-release.md` on its branch)
+
+The shipped builder minus Q-DR3's copy, per phase, MiB:
+
+| | cell | tile, tiles, terrain, layers, ladder |
+|---|---|---|
+| KBOS and the four New York points | −1.28 to −7.41 | within 0.10 |
+| **KORD** | 0.02 | **+5.94 to +5.97** |
+| **KIND** | −0.73 | **+6.89 to +6.91** |
+| the other 6 | within 0.03 | within 0.16 |
+
+## The read, registered before it runs
+
+**One process each, at KORD, at the client's query,** in `dr-child8.mts` (sha256 `e23759cae36c`). That is `dr-child7.mts` (the
+`dr-child5` family, which takes "copy" and "pr") plus two outputs:
+- **the per-tile trace:** every tile sample, in order;
+- **the non-cell reads in request order,** with their sizes. Each tile sample matches the tile read consumed there.
+
+**The builders:**
+- the copy is `rv-hk/hk-copy`, byte-identical to Q-DR3's `dn/src/basemap`;
+- the PR is `rv-hk/hk-pr`, the PR's hooked builder (`f60ae55f45d9`).
+
+**The wrapper** is `rv-q7.sh` (sha256 `5459c9b9adbc`). It checks the artifacts, runs the copy then the PR, and prints both
+traces, their difference per sample, every step over 1 MiB, and the read consumed at each step. **The child's imports were checked first:**
+given an unknown point as "copy" and as "pr", it loaded every module and refused the point (exit 2).
+
+| row | what | predicted |
+|---|---|---|
+| **R7-0** | both processes | the controls held, every sample settled, every object local, and KORD's 200 with Nov 8's package `b54fa953fef7` |
+| **R7-1** (1) | the PR minus the copy at the ladder phase | **BUILDER: within 0.785 of +5.95** (the difference is the builder's) |
+| **R7-2** (2) | the two tile traces | the same length. **Where the extra is made is not predicted:** the step's tile index, size and read are what this reads |
+
+| outcome | meaning | next |
+|---|---|---|
+| **R7-1 BUILDER** (predicted) | the difference is the builder's | (2) names the tile and what it holds |
+| R7-1 ZERO: within 0.785 of 0 | **the old Q-DR3 copy figure at KORD moved** (the date or the environment) | say so, and re-base the copy figures |
+| R7-1 outside both bands, R7-0 off, or the traces differing in length | the instrument is suspect | **stop and report** |
+| **R7-2: one step, in one read, present in the PR's trace and absent from the copy's** | that read is where the extra is made | name it, and what it holds |
+| R7-2: anything else (several steps, or none) | | **reported as read** |
+
+**For Q-W4, either way:** the report gives each point's figure on the shipped builder (#639's measurement). B's figures came from the
+copy, which differs from the shipped builder by −7.41 to +6.91 MiB depending on the point and the phase.
+
+**What this cannot see:** workerd; and KIND, which this read leaves out (the ruling names KORD). If KORD's cause is found, KIND is
+checked against it in the report.
