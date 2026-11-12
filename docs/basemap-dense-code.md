@@ -2709,3 +2709,14 @@ latin-1 → UTF-8 before PA-2's source match.** All four lakes above are fixed b
 - **PASS:** PB-0 to PB-2 and PA-1 to PA-5 all hold, and every control except C-BORDER fails as stated.
 - **C-BORDER passing** is a registered outcome: a guard the data cannot exercise, said plainly.
 - **Anything else stops.**
+
+**ACCEPTED (16:59:17Z), with C-BORDER-S added before the freeze.** C-BORDER on the real data is predicted to pass, which would leave the
+edge test a guard nobody has seen reject anything. So a SYNTHETIC case must fail without it.
+- **The test "US":** the square (0, 0)..(10, 10) with a V-notch cut down from its top edge, clockwise: (0, 0) (0, 10) (4, 10) (5, 5) (6, 10)
+  (10, 10) (10, 0).
+- **The lake:** 3..7 × 6.5..7. **All four of its vertices are inside the test US**, but its top edge (y 7) crosses the notch between x 4.6
+  and 5.4, and its bottom edge (y 6.5) between 4.7 and 5.3. **With the edge test it reads NOT inside,** so it is selected. **With
+  vertices only it reads inside,** so it is dropped.
+- **Predicted:** full mode **not inside**; vertices-only **inside**, which is **RED**, the control failing as it must. Both are run and
+  shown. The containment code moves into one module, `parity/uscontain.ts`, used by both the ingest and this selftest, so the code under
+  test is the code that ships.
