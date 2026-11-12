@@ -344,3 +344,66 @@ is measured rather than assumed.
 - **The run becomes 23 scenes.** The window grows to about **112 min**: the release trace (10), the recovery, the
   framebench write, about 83 min of the bench's run plus LIVE-OWN's extra 180 s of measure, the restore and the boot
   read.
+
+## The code, the reader and the traffic, frozen; the anchor rule for v20; the window (2026-11-12)
+
+**THE CODE** is on branch `bench/frame-bench-v19` at `a37e99b09fb4`: the v19 tag plus the patch, never merged.
+- `include/FrameBench.h` (`0ac551f888a7…`): the scene table (23 scenes, LIVE-OWN included), the RAM overrides, the
+  per-frame recorder, the present timestamp, the planted delay, the self-timed cost, and the paced dump.
+- The hook regions, applied by `apply_framebench.py` (`4a4237c282c6…`, counted anchors, each file's own line endings):
+  7 regions in `main.cpp`, `AircraftManager.cpp` and `ConfigurationWebServer.cpp`; the env
+  `blipscope-s3-128-framebench`; and `[frame-bench]` in MARKERS. The same script applies the same regions to a v20
+  candidate's tree.
+- `scripts/framebench_host.py`: `FRAME_BENCH_HOST` comes from the untracked env var. A refusal names the variable,
+  never its value.
+- **I-2,** `test/host/check_frame_bench.py`: FB1-FB5 pass on 7 regions. Its selftest plants each row and reads
+  exactly that row red.
+- **A correction:** a record is **8 bytes**, not the 6 written in section 3 (two uint16, four uint8, for alignment).
+  4,096 records are 32 KB of PSRAM per buffer, two buffers.
+
+**THE IMAGES,** each built with the path mapping and `SOURCE_DATE_EPOCH=1794441386`:
+- **I-3′, final,** on the final patch: `blipscope-s3-128`, 1,931,824 B (`0d175f0a8d82…`). Against (D′) by
+  `bindiff_elfhash.py`: "length 1931824 in both; differing bytes: app_elf_sha256 32, image SHA-256 31, checksum 1, elsewhere 0": PASSED. It has the same sha256 as the first I-3′, because the LIVE-OWN header change cannot reach the shipping image.
+- **The framebench image:** `blipscope-s3-128-framebench`, 1,934,560 B, `52b8b9e9a4b6f3c284b031ef7098ddb62a2b8625616cb0ca0ac0bfc9ac90f9e3`. It is never published.
+
+**THE HOST TOOLS, frozen by sha:**
+
+| tool | sha256 | selftest |
+|---|---|---|
+| `frame_bench_read.py`, the reader | `15681a402e5c48cfab703e91101324f603a43c73384adf439e2b4b4d5f02f028` | 19 checks: the clean run; 3 graded plants (CTRL → {I-6}, BAND → {FIX-b S7}, XGAP → {XCHK}); 14 refusal plants, each confirmed by its own refusal message (BOOT, NOCOST, COST, MISSING, DUMPGAP, DUMPCOUNT, NODONE, DRAWN, ZOOM, OVERFLOW, FEWFRAMES, DRIFT, FEWREL, NOIQR); and the report lines |
+| `fixed_traffic.py`, the traffic | `b530faf4df97a9e586f32f3671b79213b84540ded83b3f694a8c0083d11023a5` | deterministic, all moving, within 8 mi, 23 scenes, refusals |
+| `bindiff_elfhash.py` | `4d86b01dc854809d433d9a283f72bcc2c88056905fa901976dfc2a41a863071d` | 5 cases |
+| `rigcheck.py` | `31c13c3b254df62bfe46d1eec0a163087626353d26b263ee62e521a217b4112a` | 5 cases |
+| `tokcount.py` | `97c4cdd2e3d79bd0c237d484fc6e753f7837e6dc747440d394bd8e6b623d7f99` | pass, fail and refuse |
+
+- **The NOIQR plant is the 20:31Z ruling.** The overlap refusal first fired by accident inside BAND's synthetic data.
+  It now has its own data and its own expected refusal, and BAND tests only the band.
+- **For 5c (#674's rows):** `fixed_traffic.py --serve --port <p>` answers `/aircraft.json?home=bend|ksfo&n=<0..60>`
+  for any row, beside the frame bench's `?s=<scene>`.
+
+**THE ANCHOR RULE FOR v20's CANDIDATE SIBLINGS** (p4's M3, `docs/m3-push-task.md` `34efeafae897`, relayed 20:30Z):
+- **p2p is anchored on the completion of the frame's push to the panel, wherever that runs.** A candidate that moves
+  the push (M3 moves `framebuf::FrameDone()` to the push task's completion) must move the anchor with it. Otherwise
+  p2p times the loop, not the glass.
+- **`fr` loses the push under M3** (about 25.8 ms), whether or not the glass got faster. So `fr` is never compared
+  across that change, and p2p is the only number gated.
+- **A new row for candidates, P2P-FLOOR:** under M3, p2p cannot be faster than the push's own measured floor (about
+  25.8 ms, by p4's measurement). A p2p below it means the anchor is misplaced: INSTRUMENT. The reader gains that row in
+  its candidate version, frozen before that candidate is read.
+- **Nothing changes for the v19 baseline.** Its push runs in the loop, before `FrameDone()`.
+
+**THE WINDOW, about 112 min on E2:08:**
+- **W0, before the window:** the shas above; `fixed_traffic.py --serve --port 8088` running on the bench PC; E2:08
+  reserved by serial.
+- **W1:** the release half of (iv). E2:08 runs `f6d73e39` as it stands. A 10 min `bench-trace` is read only for
+  `[health] frame` lines. Its end leaves the board in download mode.
+- **W2:** `esptool read-mac` on E2:08 (on the pinned list), logged. Then the framebench image goes to ota_0 by
+  `app-only-write.py` from a staging folder holding the frozen image and the release's table, re-hashed just before.
+- **W3:** one `bench-trace` for the whole run: 90 s to start, 22 scenes × 220 s, and LIVE-OWN's 400 s, about 89 min.
+  Nothing reads the live log. The console copy is for nothing but the rig check.
+- **W4:** `rigcheck.py` (log against console), then `frame_bench_read.py`. Grading follows, after the window.
+- **W5:** the v19 restore (`f6d73e39`, app-only), the counts-only boot read (settings kept, no portal), `read-mac`,
+  HTTP 200, release, and the END.
+- **A named risk:** the board must reach the PC's port 8088. A firewall rule allows this `python.exe` inbound on the
+  Private profile (a read-only check). If the board cannot reach it, the FIXED scenes show 0 drawn, the reader refuses
+  on FIX-n, and the window ends with the restore.
