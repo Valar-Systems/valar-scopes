@@ -1673,6 +1673,59 @@ magnitudes only:
 
 This is CB7's first re-run. A second off reading goes to the orchestrator and on to the owner.
 
+### The (P1) CI, the re-run, and a driver's instrument failure (2026-11-12)
+
+**(P1), ruled:** `5041d152` and `5a46ad05` were pushed together, so the re-registration was public before the re-run.
+The CI on that head was predicted RED, exactly:
+- **The tally, as frozen:** 34 = 27 success / 4 skipped / 3 failed. The failures were exactly `host-tests`,
+  `host-tests (ubuntu-24.04)` and `host-tests (ubuntu-26.04)`.
+- **In each leg's log, as frozen:**
+  - MapPlaces `32 checks, 4 failures`, with FAIL CB7 r45, r135, r225 and r315;
+  - FAILED BLOCKS exactly MapPlaces, the sabotage controls and the drivers in full;
+  - MapDraw 3 / 0, lint 39 / 0, 39 drivers, and `sabotage_map_draw.py`'s 10 AS PREDICTED lines.
+- **The tested merge** (from the checkout log): `f3340e7`, `5a46ad05` into `af871ecb`.
+- **A correction, my miss:** `sabotage_map_places.py`'s two lines (the control off, the full pass the rig) matched
+  in OUTCOME but not in CAUSE.
+  - I had predicted both from the old CB7.
+  - The logs say "FAIL test_map_places: did not compile". Its copy lacked `test/fixtures/wx/glcdfont.c`.
+  - I called it a match without reading those lines' detail.
+
+**The re-run from the start** (`ef99949f`: CB7 under (A), S-CB-ANCHOR2):
+- **Steps 1-4, as predicted:**
+  - the suite under g++ 13.3: 32 / 0;
+  - MinGW 5.1: 32 / 0 (the x87 risk did not occur);
+  - `check_map_draw.py`: 3 / 0;
+  - `sabotage_map_draw.py`: 5 plants and 3 controls, exactly.
+- **Step 5, an INSTRUMENT failure** (ruled so; not a reading, and not CB7's second): the driver's control could not
+  compile, because the same `glcdfont.c` was missing from its copy.
+  - The driver, a second path, missed what its sibling `sabotage_map_layer.py:121` establishes.
+  - **The full comparison, ruled:**
+    - The sibling's `make_tree` copies `include/*.h`, `src/weatherscope/*.h` and `test/fixtures/wx/glcdfont.c`.
+    - Mine copied the two directories whole, a superset, and not the font.
+    - Of the four parent-relative includes the suite can reach, three point into `src/weatherscope/` and the fourth
+      is the font.
+  - **The fix,** `0eed7772`, committed before the run: the font is copied exactly as the sibling does.
+    `git diff --stat ef99949f 0eed7772` touches only the driver (+6), so steps 1-4 carry.
+- **Steps 5-7 from step 5, as predicted:**
+  - `sabotage_map_places.py`: the control clean (32 cases), and AIRPORT 5, FILEORDER 3, NOCAP 7, NORTHUP 16 and ANCHOR2
+    13, each exactly its set. The sets were computed by the independent reading before any code;
+  - the lint: `39 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `--anchors` 6 / 6 for each driver, and both `--control`s as their tables.
+
+**The CI at this head, predicted** (code paths, so the code-PR set):
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed.** The baseline is
+  #650's finished code PR run.
+- **Each host-tests leg** reads:
+  - MapPlaces `32 checks, 0 failures`;
+  - MapDraw `3 checks, 0 failures`;
+  - anchors `39 driver(s) checked`, and both driver passes `39 driver(s): 38 run, 1 skipped`;
+  - lint `39 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_places.py` ok with **6** AS PREDICTED lines (5 plants and the summary), and `sabotage_map_draw.py`
+    ok with **10**;
+  - `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log.
+- **Any other reading stops,** and the detail of every failing line is read before anything is called a match.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
