@@ -3015,6 +3015,46 @@ because CI tests the merge and main's install suite differs.
     9`) and `--check-table` exit 1 (`fleet only: …mapbench`), on the old table.
   - **What I did:** I stopped here. The test merge's runs have not started, and nothing was re-run.
 
+**The ruling on the BLIND (the orchestrator, 06:38:29Z, verbatim):**
+
+> From the orchestrator, 06:38:29Z, for map-client: every reader read as predicted. The pins moved as listed, the
+> --emit-table write event is disclosed and handled, and the BLIND is the script's own defined "cannot read the config;
+> never a pass". That's an environment block your prediction didn't name; your miss is recorded as stated. Not a
+> finding about the table.
+> RULED (a)-(c), with one change to (a): run the four check_ota_identity modes from POWERSHELL on Windows, not Git
+> Bash. The machine's standing note is that pio under Git Bash/MSYS can damage its esptool package ("purge
+> tool-esptoolpy* and rebuild from PowerShell"). `pio project config` probably doesn't touch it, but the safe shell
+> costs nothing. The predictions stand as you wrote them: --selftest PASSED; --fleet-sabotage PASSED; --fleet PASS with
+> "11 built … boards s3-128 9, s3-175-amoled 1, s3-21 1"; --check-table exit 0. Anything else is OFF.
+> Then (b), the test-merge runs on f3fee349 + your head, as predicted in 62ddbe6a (install 42 with O10 9/18; the
+> drivers' --control at 42). Then (c), the push under the standing rule, with the extended guard chain and the CI
+> prediction as you listed it. Your #648 note ("re-run --emit-table on the merged tree and re-derive every pin, not add
+> the diffs") is exactly right; I'll pass it to p4.
+
+**(a) `check_ota_identity.py` from PowerShell on `af42fdbe`, as read (06:39Z).** All four modes read as predicted:
+- `--selftest`: `selftest PASSED`, exit 0.
+- `--fleet-sabotage`: `fleet-sabotage PASSED`, exit 0.
+- `--fleet`: `fleet: 11 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 9, s3-175-amoled 1, s3-21
+  1` and `fleet PASS`, exit 0.
+- `--check-table`: `ok: … identities.txt equals the fleet (9 rows)`, exit 0.
+
+**(b) The test merge, as read.** The merge is `c782dc3e`, with parents `f3fee349` (main) and `af42fdbe`. It merged
+with no conflict. The suites and drivers ran in WSL with g++ 13.3.0:
+- **`test_ota_identity`:** `22 checks, 0 failures`; R1 27/27, M1 51/30/0, M2 90 of 90, M3 23, 58 (28), 0.
+- **`test_ota_install`:** `42 checks, 0 failures`; O10 `9 identities x 2 pre-check heads: 18 no-record, 0 foreign, 0
+  other, 0 flash calls`.
+- **`test_ota_model`:** `9 rows; 18 checks, 0 failures`.
+- **`sabotage_ota_model.py`:** S-M1 (the 3 scoped rows) and S-M1b AS PREDICTED; `--control` 18; `--anchors` 2 of 2.
+- **`sabotage_ota_identity.py`:** S-ID1b (7) and S-ID2b (9) AS PREDICTED; `--control` 22 and **42**; `--anchors` 2 of 2.
+- **`sabotage_ota_install.py`:** main's version, with 5 plants. S-O8a (22), S-O8b (14), S-ID3 (9), P-NORETRY (6) and
+  P-BYPASS (6) all read AS PREDICTED, and its wiring rows read green with the detectors red. `--control` **42**;
+  `--anchors` 5 of 5.
+- **`lint_driver_counts.py`:** `40 driver(s), 0 flagged; 3 pinned line(s)`.
+- **The wrapper itself (not a reading).** It exited 2 with `syntax error: unexpected end of file`, after every step
+  above had run. I had cut the wrapper's last block (the checker modes, run in (a) instead) with a `sed` that removed
+  that loop's body and `done` but left its `for … do` line. The error is my wrapper's, not any check's. Its outputs are in the scratch
+  directory, one file per step.
+
 **The push, predicted** (after the local runs read as predicted; `9ae188d9`'s run has finished):
 - **The guard chain** gains `skus.py --validate`, `check-no-bench-hooks.sh --selftest` and `check_ota_identity.py
   --check-table`.
