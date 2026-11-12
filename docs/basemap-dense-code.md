@@ -1908,3 +1908,31 @@ f88dded3e379; none is a graded row):
    - A builder-side fix is not available: the pixel grid depends on the device's zoom, rotation and home, which the builder never knows.
 2. **S-KB-ORDER.** A new synthetic input on which simplification moves vertices, for example squares carrying sub-ε wiggles, so that
    bridging first gives the slit width. Its predicted difference would be registered before any re-run, with a lower-endpoint fill.
+
+**RULED (05:18:31Z):**
+1. **KB1: (a).** (b) is rejected: it would be a tolerance chosen after the result. The fix is a device change in another session's code.
+   Weatherscope owns `WxBasemap.h`, and makes it as **its own PR, registered first**. Its consumers and tests are `WxScenes.h`,
+   `WxScreens.h`, map-client's `MapLayer.h`, `test_wx_basemap`, `test_wx_k35b`, `test_map_layer` and `sabotage_wx_basemap`.
+   - **Part 2 HOLDS at KB1 until that PR's commit exists.** Then `kb5.cpp` extracts `FillRing` verbatim from that commit (the new
+     extract is pinned), `p2-render.py` mirrors the same rule, and part 2 re-runs from the start. That is KB1's first re-run; a second
+     off reading on it goes to the owner.
+2. **S-KB-ORDER: accepted as blind on KB1's input. It is a control that passed for the wrong reason:** its "differs, 26" was the very
+   artefact KB1 then failed on. A new synthetic input, on which simplification moves vertices, is registered with its predicted
+   difference under the lower-endpoint fill before any re-run (below, when written).
+
+**KB1's case, handed to weatherscope by bytes** (05:2xZ), in `C:\Github\_handoffs\map-server\kb1-case\`, outside every repo:
+- **59 files:**
+  - the 24 views' drawn rings (`view-<r>-<rot>.rings`, screen doubles) and their references (`.ref.bin`);
+  - `missing.json`, the pixels each view's current fill leaves undrawn, as [x, y] in the 240 × 240 frame;
+  - a hand-made 10-vertex minimal case;
+  - `tools/`: the verbatim extract `kb5.cpp` (c7ff38514327), its one-line lower-endpoint copy, the source json, the mapper and the
+    generators;
+  - a README and `SHA256SUMS` (dbed2d338432).
+- **Verified on the device's own C++ over all 25 cases:**
+  - the current FillRing: 31 missing (26 + the minimal case's 5) and 0 extra;
+  - the lower-endpoint crossing: 0 missing and 0 extra.
+  The Python lists equal the C++ result pixel for pixel.
+- **The handoff's own guard caught one defect, in my tool, not in the case.** `mk-case.py`'s helper fill lacked `p2-render.py`'s
+  `if hi > lo` guard. A span wholly off-screen left gave a negative slice end, which numpy wraps, so the generator's "no drawn pixel
+  outside the reference" check refused view (162 km, 225°). The guard was added. The two earlier case files and their references are
+  byte-identical before and after, and the full set was regenerated into an emptied folder.
