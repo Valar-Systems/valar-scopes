@@ -1279,6 +1279,33 @@ before any design is graded:
 The second run's copies are kept as `*.ran2.*`. Every script compiles, and the build refused an unknown home after its imports. Nothing
 has run.
 
+### Amendment (the orchestrator's 03:46:31Z ruling): like with like
+
+**The ruling, verbatim:**
+
+> ONE CHANGE before it runs: compare LIKE WITH LIKE. As written, SPILL_EXTENT and SEAM_WIDTH are MAXIMA, and E is a P95. The package's
+> own normal shoreline has a max larger than its P95, so a join no worse than an ordinary shore would fail. That's stricter than the
+> owner's "no bigger than the package's normal shoreline error". Make it two conditions, both printed:
+> - SPILL_EXTENT_P95 ≤ E_P95 and SEAM_WIDTH_P95 ≤ E_P95 (the typical join no worse than the typical shore);
+> - SPILL_EXTENT_MAX ≤ E_MAX and SEAM_WIDTH_MAX ≤ E_MAX (the worst of the join no worse than the worst ordinary shore).
+> CROSS = 0 stays absolute.
+
+**As applied (it supersedes the extents in the pass rule above):**
+- **SPILL_EXTENT** is the distribution over SPILL pixels of the distance to TIGER's drawn water. **SEAM_WIDTH** is the distribution over
+  SEAM pixels of twice the distance to the drawn water. Each is printed as its **P95 and max** (0 when empty).
+- **E** keeps its pooled shoreline offsets, now used as **E_P95 and E_MAX** (both already printed by `--e`).
+- **The pass rule, per lake:**
+  - CROSS = 0 (absolute);
+  - SPILL_EXTENT_P95 ≤ E_P95 and SEAM_WIDTH_P95 ≤ E_P95;
+  - SPILL_EXTENT_MAX ≤ E_MAX and SEAM_WIDTH_MAX ≤ E_MAX.
+
+  Both lakes, as before.
+- **The plant controls follow the rule.** At each home, plant_seam must FAIL the seam condition (SEAM_WIDTH_P95 > E_P95, or
+  SEAM_WIDTH_MAX > E_MAX), and plant_spill must FAIL the spill condition the same way. That shows each condition can fail. Every other
+  control is unchanged.
+- **The tooling:** `lake-render.py` `5d4de32615ac` and `lake-read.py` `3c4313a9ee5d`. The copies before this amendment are kept as
+  `*.pre0347.*` (`2609269edafc` and `05dc55cadd47`). Both compile, and no reference to the old single extent remains. Nothing has run.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
