@@ -273,7 +273,10 @@ hears the bad case then, not at pre-flight.
 ## 2c. (a) re-sized on the MEASURED v19 baseline (2026-11-12, 22:53Z): this supersedes the estimates in 2a and 2b
 
 **THE OWNER'S CHOICE (relayed by the orchestrator, 23:08:44Z): the bar is read on LIVE-like traffic.**
-- **The basis:** a recorded real traffic picture at busy airports where the board holds about 40, replayed identically.
+- **The basis:** a recorded real traffic picture, replayed identically.
+- **The six scenes (the owner, 23:31Z):** the two homes, **Bend and KSFO, each at 25, 50 and 100 mi**. 100 mi is the
+  board's default view and where real traffic fills the screen. **10 mi is reported only**, if it fits in the run.
+- **v19's re-read on the recordings uses the same six**, so v19 and v20 are compared on identical ground.
 - **The pass:** the **worst of six scenes** must be ≤ 50 ms p95. The median is not used.
 - **The stress rows:** the packed FIXED scenes and 60 aircraft. They are measured and reported, but they do not decide (a).
 - **The date stays "promoted by Dec 1".** That is R1 (Nov 25-30) if M3 delivers, with R2 as the fallback.
@@ -285,15 +288,26 @@ hears the bad case then, not at pre-flight.
   best. If the recordings spread that way, the worst of six is a few ms above any one scene. So the gap at the bar
   is about 0.1 + M at best and about 4-5 + M if KSFO turns out typical. That is a range, not a reading.
 
-**The re-size is mechanical once the run lands, and it is fixed now.** Let X be the measured v19 worst-of-six p95 at 40
-on the recordings. Then v20 with M3 is X + 13.2 (weather) − 25.8 (M3) + M = **X − 12.6 + M**, and the bar holds on M3
-alone if **X ≤ 62.6 − M**. Whatever lies above that line is the gap the later steps must close:
+**The re-size is mechanical once the run lands, and it is fixed now.** Let X be the measured v19 worst-of-six p95 on
+the six scenes above (about 40 drawn in the scene that sets it). Then v20 with M3 is X + 13.2 (weather) − 25.8 (M3)
++ M = **X − 12.6 + M**, and the bar holds on M3 alone if **X ≤ 62.6 − M**. Whatever lies above that line is the gap the later steps must close:
 - **up to the map cache (P4) plus part of W (P5):** R1 holds.
 - **within W's and L1's ceilings:** R2.
 - **beyond them:** R3, and it goes back to the owner.
 - **outside the set:** stop, and report before re-sizing. That covers three cases: X above the packed worst at 40
   (81.83 + 1.54), which would mean real traffic costs more than the stress row; X below LIVE Bend at 16 drawn
   (47.68 - 1.54), which would mean 40 aircraft cost less than 16; or a scene whose drawn count is not about 40.
+
+**Proposed by p4 at 23:32Z for the six scenes, and awaiting the orchestrator's acceptance; the rule above stands
+until then.** The last stop case was written for six scenes at about 40 each. With 25, 50 and 100 mi, the quiet scenes
+draw fewer: LIVE Bend drew a median of 16. So the frozen wording would stop on every run. The proposal:
+- Every scene reports its drawn count beside its p95.
+- **The stop applies to the scene that sets X:** stop if it draws outside 35-45. In that case X is not the
+  40-aircraft figure the bar was set on, and the bar is not re-sized from it.
+- **The weather term follows that scene's own count:** 6.7 + 0.1625 × n, which is 13.2 at n = 40. So v20 with
+  M3 = X + 6.7 + 0.1625 × n − 25.8 + M.
+- **The rule predicts and nothing more.** The pass is v20's own worst of six, measured. v20's worst may be a
+  different scene from v19's, because weather costs more per contact.
 
 map-client's v19 baseline is measured: `baseline_b.out`, sha `29d24028cec9`, read by p4 from the file itself.
 - **Every p95 carries ± 1.54 ms.** That is I-6's measured noise: the bench's own control read +11.54 against +10.0 ±
