@@ -748,3 +748,54 @@ first: clean, STOP and REPORTED, each for the right reason), the allow file (`50
 
 **The outcome is STOP: map-client's escape hatch, "the instrument, or the model, is unreliable at this scale". Nothing
 is explained away, and the next step is the reviewer's and map-client's to decide.**
+
+## 20. Amendments 1g and 1h′, and the regression under them (the reviewer's rulings, 18:59:34Z, 19:00:57Z, 19:02:32Z)
+
+Both come from P-REDO's reading, and each was built with **independent fixtures, red first** against the committed
+comparator (HEAD before them).
+
+**1g: a static initializer's exception table is part of it.**
+- 1e paired `.gcc_except_table.<s>` only with `.text.<s>`. A static initializer lives in `.text.startup.<s>`, so P-REDO
+  read main.o's `_GLOBAL__sub_I_tft` table as a separate data unit.
+- Now the table pairs with `.text.<s>` or `.text.startup.<s>`, and only when exactly one of them exists.
+- **The probe came first:** a static initializer with an inlined try region compiles to
+  `.text.startup._GLOBAL__sub_I_g_val` (39 B → 51 B) beside its table, whose bytes differ (`…0606 14…` → `…0812 0620…`).
+- **`inittry`:** the old code read the initializer and its table, two lines; under 1g, the initializer alone.
+
+**1h′: a target in an unsplit section is named by content.** It replaces the reviewer's 1h, which named by covering
+symbol.
+- **The reason:** real unsplit `.rodata` carries no symbols. AircraftManager.o's holds 500 B over 14 referenced
+  offsets, main.o's 140 B over 7, and none has a symbol inside. The reviewer recorded its wording as its own miss.
+- **The rule:**
+  - (a) a covering symbol where one exists;
+  - (b) otherwise the **content span**, from the target to the next distinct offset referenced anywhere in the object
+    (or the section's end), with the relocations inside named;
+  - **a span whose content repeats elsewhere in its section reads UNDECIDED**: content can't tell twins apart.
+
+**1h′'s fixtures, in assembly (GCC merges identical initializers and orders constants itself):**
+
+| case | what | old code | 1h′ |
+|---|---|---|---|
+| `rodshift` | f0's constant inserted ahead of f1's | f1 CHANGED (offset) | f1 absent: moved, not changed. f0 NEW. `sec:.rodata` named by f0, f1 |
+| `rodown` | f1's own constant changed | f1 not reported | f1 CHANGED |
+| `rodswap` | two byte-identical constants swap owners | f1, f2 CHANGED | **UNDECIDED (2)**, exit 3, exactly as filed |
+
+- **`rodshift`'s first reading was off by one line:** `UNDECIDED entry: … a long-call site that is neither relaxed
+  nor kept`, under both codes. That was my fixture's root, which **called** an undefined weak `f0`, a call the linker
+  rewrites. The root now only takes the weak symbols' addresses, and the re-read is as predicted.
+- **Declared before the run:** 1h′ moves the 1d `rodata` fixture, whose f1 now reads CHANGED (its constant carries its
+  bytes). New expectations were filed for all three of its cases, and they read as filed.
+
+**The plants:**
+- 21 plants × 36 cases, ALL AS DECLARED. The driver refused by itself when the four cases were added.
+- **New:** P19 (pair with `.text.` only) → `inittry`. P20 (unsplit spans named by offset again) → the three `rodata`
+  cases, `rodshift`, `rodown`, `rodswap`. P21 (the twin refusal off) → `rodswap`.
+- **Re-derived before their run:** P12 (+`rodshift`, `rodown`), P13 (+`inittry`), and P15 (+`rodown`, plus the three
+  `rodata` cases moved from unaffected to red: their f1 now differs only in a relocation name, which P15 stops
+  comparing).
+
+**The regression, each prediction filed before its re-read (19:07:16Z), instrument `5756d185e02d`:**
+- **K0, K3 and K4: unchanged, as predicted.**
+- **K2 changed, as declared before the run:** `setup()` now reads CHANGED beside `sec:.rodata` (named by the same
+  four). Its constant's bytes changed, so the function that reads it changed. That recovers K2's original row ("setup()
+  …") for the right reason. It reads exactly the filed text.
