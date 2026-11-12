@@ -43,3 +43,24 @@ ship-alert running report-only since #675), workers 3, device-ids 1, no-traffic-
 then. If the row isn't there yet, the count reads 0 and says so; that is not a failure.
 
 **Outside the set:** any other reading means stop and decide.
+
+## Results, local (2026-11-12 ~19:25Z), the registration pushed alone first (32ebafb6)
+
+**Rehearsed red, the new rows against main's unchanged script:** BX1 OFF (`kv-only=1`, the bench id counted as a
+unit) and S-BX BLIND (`the bench exclusion line was found 0 times`), as registered. BX2, BX3 and BX4 also read OFF
+(exit 1, exit 1, no `none configured` line). The registration didn't name them, but it follows: the feature didn't
+exist yet.
+
+**After the change**, Windows `python -I` (no `-X utf8`) and WSL `python3` (as CI runs it), identical:
+
+| row | read | verdict |
+|---|---|---|
+| **BX1** | exit 0; `kv-only=0 -> consistent`; the bench line present; the bench id printed: False | as predicted |
+| **S-BX** | exit 1; `kv-only=1 -> DISCREPANCIES` | as predicted |
+| **BX2** | a bench file inside a git tree: exit 2 | as predicted |
+| **BX3** | a malformed bench line: exit 2 | as predicted |
+| **BX4** | no bench file, TX2's KV: exit 0; `kv-only=0`; `bench boards: none configured` | as predicted |
+| the existing rows | TX2, S-TXRECON, R1 (8 rows, red none), U1, U1-ctl: as before; `SELFTEST PASSED` | as predicted |
+
+**The local file** (`~/.config/blipscope/bench-devices`, outside every repo): written with one id, the 2.1's, taken
+from its config page and never printed. The new reader reads it back as `1 id(s)` from the default path.

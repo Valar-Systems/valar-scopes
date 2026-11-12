@@ -201,5 +201,83 @@ else:
     off += not ok
     print("U1-ctl: %s -- one call planted without encoding=, the reader sees %d" % ("as predicted" if ok else "OFF-PREDICTION", len(u1c)))
 
+# BX1-BX4 and S-BX (docs/fleet-bench-boards.md): a bench board is not a fleet unit. The bench file is written to a temp
+# dir and named by BLIPSCOPE_BENCH_DEVICES; EXAMPLE ids only. The token-file fixture from TX2 still holds the test id.
+BCH = "d4" * 8   # EXAMPLE bench id
+BENCH_EXCLUSION = "    kv_ids = [d for d in kv_ids if d not in bench_ids]  # bench boards are not fleet units\n"
+
+
+def run_bench(source: str, bench_text, git_dir: bool = False, kv=None):
+    """(stdout, stderr, exit) with KV = the two units + the test id + BCH (or `kv`). bench_text None = no file."""
+    kv = kv if kv is not None else [A, B, T, BCH]
+    with tempfile.TemporaryDirectory() as bd:
+        root = Path(bd)
+        if git_dir:
+            (root / ".git").mkdir()
+        bench = root / "bench-devices"
+        if bench_text is not None:
+            bench.write_text(bench_text, encoding="utf-8")
+        os.environ["BLIPSCOPE_BENCH_DEVICES"] = str(bench)
+        mod = types.ModuleType("reconcile_fleet_bench")
+        mod.__file__ = str(HERE / "reconcile-fleet.py")
+        exec(compile(source, mod.__file__, "exec"), mod.__dict__)
+        mod.kv_list = lambda prefix, env, errfile: list(kv)
+        mod.read_csv = lambda path: {A: {}, B: {}}
+        mod.report_instruments = lambda *a, **k: []
+        out, err, code = io.StringIO(), io.StringIO(), None
+        argv = sys.argv
+        sys.argv = ["reconcile-fleet.py", "--no-detail", "--log", "fixture.csv"]
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                mod.main()
+        except SystemExit as e:
+            code = e.code
+        finally:
+            sys.argv = argv
+            del os.environ["BLIPSCOPE_BENCH_DEVICES"]
+        return out.getvalue(), err.getvalue(), code
+
+
+def summary(text):
+    return next((l.strip() for l in text.splitlines() if l.startswith("SUMMARY")), "(no summary)")
+
+
+with tempfile.TemporaryDirectory() as d:
+    (Path(d) / "tokens").write_text("# EXAMPLE token file\nkv-read=EXAMPLE-not-a-token\ntest-device=%s\n" % T,
+                                    encoding="utf-8")
+    os.environ["BLIPSCOPE_TOKEN_FILE"] = str(Path(d) / "tokens")
+
+    o, e, c = run_bench(SRC, "# EXAMPLE bench file\n%s\n" % BCH)
+    ok = c in (0, None) and "kv-only=0" in o and "1 row(s) left out as bench" in o and BCH not in o + e
+    off += not ok
+    print("BX1: %s -- exit %s; %s; bench line present: %s; the bench id printed: %s"
+          % ("as predicted" if ok else "OFF-PREDICTION", c, summary(o), "left out as bench" in o, BCH in o + e))
+
+    if SRC.count(BENCH_EXCLUSION) != 1:
+        off += 1
+        print("S-BX: BLIND -- the bench exclusion line was found %d times" % SRC.count(BENCH_EXCLUSION))
+    else:
+        o, e, c = run_bench(SRC.replace(BENCH_EXCLUSION, "    pass  # SABOTAGE S-BX: the bench exclusion removed\n"),
+                            "%s\n" % BCH)
+        ok = c == 1 and "kv-only=1" in o
+        off += not ok
+        print("S-BX: %s -- exit %s; %s" % ("as predicted" if ok else "OFF-PREDICTION", c, summary(o)))
+
+    o, e, c = run_bench(SRC, "%s\n" % BCH, git_dir=True)
+    ok = c == 2 and "SUMMARY" not in o
+    off += not ok
+    print("BX2: %s -- a bench file inside a git tree: exit %s" % ("as predicted" if ok else "OFF-PREDICTION", c))
+
+    o, e, c = run_bench(SRC, "%s\nnot-an-id\n" % BCH)
+    ok = c == 2 and "SUMMARY" not in o
+    off += not ok
+    print("BX3: %s -- a malformed bench line: exit %s" % ("as predicted" if ok else "OFF-PREDICTION", c))
+
+    o, e, c = run_bench(SRC, None, kv=[A, B, T])
+    ok = c in (0, None) and "kv-only=0" in o and "bench boards: none configured" in o
+    off += not ok
+    print("BX4: %s -- no bench file, TX2's KV: exit %s; %s; 'none configured': %s"
+          % ("as predicted" if ok else "OFF-PREDICTION", c, summary(o), "bench boards: none configured" in o))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)
