@@ -17,11 +17,11 @@ const products = (lines: string[]) => lines.map((l) => JSON.parse(l).product as 
 const byId = (id: string) => PRODUCTS.find((p) => p.id === id)!;
 
 describe("Plan S: production's checkAll, and the staging copy's entry", () => {
-  it("PS1 production's checkAll, called with no product list, checks every product: the 11", async () => {
+  it("PS1 production's checkAll, called with no product list, checks every product: the 12", async () => {
     const lines: string[] = [];
     await checkAll({ WX: env.WX! }, ":00", fetch404, (l) => lines.push(l), FAST);
     expect(products(lines).sort()).toEqual(PRODUCTS.map((p) => p.id).sort());
-    expect(PRODUCTS).toHaveLength(11);
+    expect(PRODUCTS).toHaveLength(12);   // W4: shsr
   });
 
   it("PS2 checkAll with one product checks only that one", async () => {

@@ -106,6 +106,7 @@ export const KNOWN_ROUTES = new Set([
   "/api/v1/blipscope/wx/opba",
   "/api/v1/blipscope/wx/opsw",
   "/api/v1/blipscope/wx/opsn",
+  "/api/v1/blipscope/wx/shsr",   // W4 (docs/weatherscope-stage4.md S4.12.3); Weatherscope's own alias is W7's
   // Weatherscope's feeds (docs/weatherscope-stage4.md S4.11.4): their own labels, or they vanish into /other.
   "/api/v1/weatherscope/alerts",
   "/api/v1/weatherscope/conditions",

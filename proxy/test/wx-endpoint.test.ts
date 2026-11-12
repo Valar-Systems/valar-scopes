@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { cropCellBox, quantise } from "../src/wx/crop";
 import { FrameBuilder, frameMeta, tilesFor } from "../src/wx/grid";
 import type { LatestRecord } from "../src/wx/handler";
-import { type Product, PRODUCTS, cropEtag, frameKey, latestKey } from "../src/wx/products";
+import { type Product, PRODUCTS, ROUTED, cropEtag, frameKey, latestKey } from "../src/wx/products";
 import H3_FIXTURE from "./fixtures/wx/healthz-h3.json";
 import { apiRequest, call } from "./helpers";
 
@@ -167,7 +167,7 @@ describe("/healthz's wx field", () => {
   it("H1 every product in PRODUCTS' order, routed from ROUTED; no frame -> null age and null stale; no commit key, no array", async () => {
     const w = await healthWx();
     expect(Object.keys(w)).toEqual(PRODUCTS.map((p) => p.id));
-    expect(Object.keys(w)).toHaveLength(11);
+    expect(Object.keys(w)).toHaveLength(12);   // W4: shsr
     // Literals, production's ROUTED today: a product joining ROUTED updates this line in its own PR.
     expect(Object.entries(w).filter(([, e]) => e.routed === true).map(([id]) => id)).toEqual(["cref", "opuk"]);
     for (const p of PRODUCTS) {
@@ -182,6 +182,16 @@ describe("/healthz's wx field", () => {
     const text = JSON.stringify(w);
     expect(text).not.toMatch(/"commit"/);
     expect(text).not.toContain("[");
+  });
+  // W4 (docs/weatherscope-stage4.md S4.12.4, X5): shsr appears with no health code of its own, in the MRMS shape, unrouted.
+  it("X5 shsr in /healthz: routed false, cref's own key set; no frame -> null age, null stale; ROUTED is exactly cref and opuk", async () => {
+    const w = await healthWx();
+    expect(w.shsr).toBeDefined();
+    expect(w.shsr!.routed).toBe(false);
+    expect(w.shsr!.frameAgeS).toBeNull();      // no frame: never a made-up age
+    expect(w.shsr!.stale).toBeNull();
+    expect(Object.keys(w.shsr!).sort()).toEqual(Object.keys(w.cref!).sort());   // the MRMS shape: no coveredShare
+    expect([...ROUTED].sort()).toEqual(["cref", "opuk"]);
   });
   it("H2 a deployed but unrouted product (opmt) with a frame: routed false, a real age, not stale", async () => {
     await storeLatest(byId("opmt"), Math.floor(Date.now() / 1000) - 90);

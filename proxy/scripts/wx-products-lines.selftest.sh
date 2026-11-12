@@ -28,7 +28,8 @@ EXPECT_A='WARN wx.cref routed=true age=660 stale=true
 WARN wx.opse routed=false age=1860 stale=true
      wx.opba routed=false age=1740 stale=false
      wx.opsw routed=false age=null stale=null
-     wx.opsn routed=false age=null stale=null'
+     wx.opsn routed=false age=null stale=null
+     wx.shsr routed=false age=null stale=null'
 EXPECT_B='     wx.cref routed=true age=660 stale=false
      wx.opuk routed=true age=null stale=null
      wx.opis routed=false age=null stale=null
@@ -39,7 +40,8 @@ EXPECT_B='     wx.cref routed=true age=660 stale=false
      wx.opse routed=false age=1860 stale=false
      wx.opba routed=false age=1740 stale=false
      wx.opsw routed=false age=null stale=null
-     wx.opsn routed=false age=null stale=null'
+     wx.opsn routed=false age=null stale=null
+     wx.shsr routed=false age=null stale=null'
 EXPECT_C='     wx.cref routed=- age=30 stale=-
      wx.opuk routed=- age=120 stale=-'
 EXPECT_D='     wx not_configured'
