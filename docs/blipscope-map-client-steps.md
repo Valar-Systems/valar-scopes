@@ -2452,6 +2452,130 @@ a new instrument. Template arguments are elided.
   grows.
 - **`symdiff.py` is retired and is not to be reused.** The accounting moves to #656's comparator, under the gate below.
 
+### The bench rows: the procedure, registered before any window (2026-11-12)
+
+The ask, verbatim (the orchestrator, 04:03:08Z):
+
+> YES: register the bench rows' procedure now, docs only, before any window. One requirement that decides who opens the
+> window: SPLIT the rows by whether they need the owner.
+> - NO-HANDS rows (serial and log readings only, e.g. CBF1's rebuild time, CBF3's wedge behaviour, CBF4's
+>   PSRAM/internal-heap reading, and whichever of step M's CF1-CF6 qualify) can run in a gate-5 window that I open, with
+>   you holding E2:08 (it's on the hub), after v19's step 5' and anything else on E2:08.
+> - ROWS NEEDING HIS EYES (CBF2's look on glass, names under rain) go to him as his window, in his words, scheduled
+>   through me with confirm-and-stamp. You don't ask him yourself, as you said.
+> For each row: the image (built and identified by the five-region comparator; bench-flash rebuilds, tonight's W1
+> lesson), the predictions, the plants, the exact log lines read, and which class it's in.
+
+#### Found while writing this: CF2 and CF3 were priced for step C, not step B
+
+Step M priced the sweep with the map on at 7.7-8.9 ms (CF2) and frame p95 at +6.2 to +10.5 ms (CF3). Both assume the
+wedge **blends** over the map. In step B the wedge blends only over a shown weather layer: `DrawSweepOverWeather`
+returns false unless `wxShowing == Crop`. With the weather off, the opaque wedge draws, erasing the map (CBF3). Blending
+over the map is step C's work.
+- **CF2 and CF3 move to step C as registered,** and step B reads its own versions, re-derived below from #445's F run:
+  **CF2-B** and **CF3-B**.
+- CF1, CF4, CF5 and CF6 are unchanged by this.
+
+#### The two classes
+
+| class | rows | who opens the window |
+|---|---|---|
+| **NO-HANDS** (serial, and `/diag/fb` over the LAN; nobody at the board) | CBF1, CBF3, CBF4, CF1, CF2-B, CF3-B, CF4, CF5 (Bend and KSFO), CF6 | the orchestrator, as a gate-5 window, with map-client holding E2:08 (`board-port.py --reserve blipscope-bench --by map-client`), after v19's step 5' and anything else on E2:08 |
+| **THE OWNER'S EYES** | CBF2: the label's look (Q-MB5) and names under rain (Q-MB7) | the owner, in his words, scheduled through the orchestrator with confirm-and-stamp. map-client does not ask him |
+
+**Q-MB10, before any flash.** `scripts/bench-flash.ps1` refuses `-Board blipscope-bench` (E2:08) without
+`-DanielApproved`, which carries CLAUDE.md's rule for that board (ask the owner before touching it) into code.
+- So even a no-hands window needs the owner's approval for that flag.
+- **The question:** does the orchestrator's gate-5 window carry the owner's word for `-DanielApproved` on E2:08, or does
+  each flash need his word? Nothing is flashed until this is answered.
+
+#### The image: one bench env, as step M ruled it
+
+`blipscope-s3-128-mapbench` is a bench-only env extending `-wxlook`, under `-DMAP_BENCH`. Its code is written after this
+registration is ruled, in `// THE MAP BENCH` regions.
+- **The packages:** `bend.bmpk` and `ksfo.bmpk` from `test/fixtures/wx/basemap/` are embedded. There is no fetch: each is
+  handed to the wiring as an accepted package, through `mapPkg` and `++mapPkgSeq`.
+- **The home:** the bench sets the device's home to the embedded package's centre, so the radar, the weather and the map
+  agree. Nothing prints a coordinate or a name (CD2).
+- **Its phases, run by the bench itself on the 30 s health tick,** so nothing on the PC drives the board:
+
+| phase | package | weather | the map | what it serves |
+|---|---|---|---|---|
+| P0 | Bend | as configured | first package: the allocation | CBF4 |
+| P1 | Bend | forced off | **alternates on/off every tick**, 20 pairs | CF1, CF2-B, CF3-B, CBF3 (`/diag/fb` during "on" ticks) |
+| P2 | Bend | shown, look A | alternates on/off every tick, 20 pairs | CF4 |
+| P3 | Bend | as P2 | the zoom ladder stepped one step per tick, 5 laps | CBF1, CF5 (Bend) |
+| P4 | KSFO | as P2 | the zoom ladder stepped one step per tick, 5 laps | CBF1, CF5 (KSFO) |
+
+- CF6 is read over all phases.
+- **About 50 minutes** in all: P1 and P2 are 20 pairs of 30 s ticks each, so about 40 min, and P3 and P4 are 25 ticks
+  each.
+- **Bench-only lines,** all counts, no coordinate and no name:
+  - `[map-bench] phase P<n> map=<on|off> wx=<on|off> zoom=<step>mi`, at every tick;
+  - `[map-bench] alloc vertices=<n> price=<B> psram_free <before> -> <after> internal <before> -> <after>`, once, at
+    P0's allocation, read in the same loop pass as `mapcompose::Frame`;
+  - `[map-bench] passes s1=<us> water=<us> rivers=<us> roads=<us> colour=<us> total=<us>`, at every rebuild, from
+    `BuildInfo`, with `micros` given as Build's clock in the bench only.
+- **The bench marker:** `[map-bench]` is printed at boot. It joins `MARKERS` in `scripts/check-no-bench-hooks.sh`, which
+  refuses it in every slug-ful image. The firmware workflow's `--expect` runs on this env, as wxlook's does (step M's
+  ruling).
+- **CI:** a slug-less build-only row in `skus.yml`, with its launch-gate `plant_target()` case (memory: a new env without
+  one reads UNTRUSTWORTHY). Q-MB11 asks whether the row stays after the window or goes with the env.
+
+**How the image is identified (tonight's W1 lesson: `bench-flash.ps1 -AppOnly` runs `pio run` itself):**
+1. **The tree:** #659's head merged locally into the then-current main, as CI tests it. Its tree hash is printed and must
+   equal `git merge-tree`'s.
+2. **Build X, clean,** with `b1/build_one.ps1`. Record `firmware.bin` and its `app_elf_sha256` (0xB0).
+3. `bench-flash.ps1 -PioEnv blipscope-s3-128-mapbench -Board blipscope-bench -AppOnly -By map-client`, with the
+   approval flag Q-MB10 decides. Its own `pio run` produces Y in the same build directory.
+4. **Before trusting the flash,** Y is compared to X with `imgcmp.py` (`dc828e47…`). It must read 0 bytes outside the
+   five regions. If nothing was rebuilt, Y is X byte for byte.
+5. **On the board:** the boot log's `[build] env=blipscope-s3-128-mapbench` and the `[map-bench]` marker are read. If
+   the boot log prints the ELF SHA-256, its prefix must equal Y's `app_elf_sha256`.
+6. **Capture:** `bench-trace.ps1`, a single open that is never reattached. Ending a trace puts an S3 board in download
+   mode, so the window ends with the hub's power cycle (gate 5: only E2:08's port, logged) or `esptool read-mac`.
+
+#### The rows
+
+Each is read by a scratch reader, `map_bench_read.py`, frozen (sha) before the window. Its verdict table is in its
+header, and every row is shown red on a **planted log** (a copy of a synthetic capture with that row's line altered)
+before the real capture is read. The image plant for CBF4 is built and flashed in the same window.
+
+| row | class | line(s) read | predicted | plant |
+|---|---|---|---|---|
+| **CBF4** | no-hands | `[map-bench] alloc …`, once | `internal` before and after differ by **0**. `psram_free` falls by the four buffers' price within **1,024 B** (WD5d's precedent). The price is 2 × 115,200 + 57,600 + 32 × (vertices + 1) + 4,224 + 13,320, computed from the line's own `vertices` | **P-CBF4**, registered with the row: an image whose `MapAlloc` drops `MALLOC_CAP_SPIRAM` (S-CD-NOSPIRAM's edit), flashed after the real one: `internal` falls by at least 115,200, and the reader says red |
+| **CBF1** | no-hands | `[map] draw: rebuilt in <ms> ms, <n> label(s)` in P3 and P4 | every rebuild **≤ 100 ms**. The verdict as step M ruled it: ≤ 40 done; 40-100 stays, as one hitch per zoom step; over 100 stop | a planted log line `rebuilt in 150 ms`: red |
+| **CF5** | no-hands | `[map-bench] passes …` in P3 (Bend) and P4 (KSFO) | Bend **30-70 ms** total, as registered. KSFO is **read and reported, not graded**: "the KSFO reading comes before the layer design counts as settled" (ruled), and no band was registered for it | a planted `total=` of 120,000 us: red for Bend |
+| **CF1** | no-hands | `[health] clear=<us>/<us>us n=<n> push=<n>` over P1's ticks, by `[map-bench] map=` | map off **3.01 ± 0.3 ms**; map on **5.08 ± 0.3 ms** (one `memcpy` of the composite) | a planted map-on `clear=` of 7,000 us: red |
+| **CF2-B** | no-hands | `[health] sweep=<us>/…us n= blend=` over P1 | the opaque wedge, map on and off alike: **2.04 ± 0.3 ms**, `blend=0` | a planted map-on `blend=1`: red |
+| **CF3-B** | no-hands | `[health] frame … p95=<ms>` over P1's pairs | p95, on − off, equals the clear's difference: **+2.07 ms, within ± 1.0** | a planted pair at +5 ms: red |
+| **CF4** | no-hands | the frame p95 and `clear=` over P2's pairs | **−1.0 to +2.2 ms** on − off, and the clear unchanged (one `memcpy` either way), as registered | a planted pair at +4 ms: red |
+| **CF6** | no-hands | every `[health] BUDGET BROKEN` line, all phases | **0** | a planted `BUDGET BROKEN` line: red |
+| **CBF3** | no-hands | `/diag/fb` frames in P1's "on" ticks, fetched 3 times each (the partial-frames rule) | inside the wedge's sector, the share of the theme's map colours is **under 2 %** (aircraft, rings and labels excluded by their own colours). Outside it, on the disc, **over 80 %** are map colours. It is reported as **step C's input, not a defect** (Q-MB2) | a planted frame with the map copied over the wedge: red (the inside share over 2 %) |
+| **CBF2** | **the owner's eyes** | none: the owner on glass, after an optional `/diag/fb` keepsake | the owner judges the label's look (Q-MB5) and names under rain (Q-MB7). Nothing is built toward an alternative before then | none (a judgement, not a reading) |
+
+**The verdicts, applying to every no-hands row:**
+- a row outside its band: stop and report;
+- a planted log the reader does not call red: the reader is the instrument, so stop;
+- an image that is not identified (step 4 or 5 above): nothing is read from it;
+- **anything else: the instrument is unreliable at this scale. Stop and decide.**
+
+**After the window:**
+- the readings and the capture's counts go into the record;
+- the board is released with `board-port.py --release`;
+- the mapbench env stays or goes as Q-MB11 rules.
+
+#### Questions for the ruling
+
+- **Q-MB10, the approval flag for E2:08.** Does a gate-5 window opened by the orchestrator carry the owner's
+  `-DanielApproved`, or does each flash need his word? (Above.)
+- **Q-MB11, the bench env's life.**
+  - (a) A slug-less CI row that stays, so it keeps compiling.
+  - (b) The env and its row are removed after the window.
+  - **I recommend (a):** CLAUDE.md's AMOLED lesson, and step C needs the same bench.
+- **Q-MB12, CF2 and CF3.** They are re-derived for step B as CF2-B and CF3-B. The registered CF2 and CF3 move to step
+  C's bench, where the blended wedge exists. Confirm.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
