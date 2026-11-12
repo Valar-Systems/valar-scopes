@@ -272,6 +272,29 @@ hears the bad case then, not at pre-flight.
 
 ## 2c. (a) re-sized on the MEASURED v19 baseline (2026-11-12, 22:53Z): this supersedes the estimates in 2a and 2b
 
+**THE OWNER'S CHOICE (relayed by the orchestrator, 23:08:44Z): the bar is read on LIVE-like traffic.**
+- **The basis:** a recorded real traffic picture at busy airports where the board holds about 40, replayed identically.
+- **The pass:** the **worst of six scenes** must be ≤ 50 ms p95. The median is not used.
+- **The stress rows:** the packed FIXED scenes and 60 aircraft. They are measured and reported, but they do not decide (a).
+- **The date stays "promoted by Dec 1".** That is R1 (Nov 25-30) if M3 delivers, with R2 as the fallback.
+- **M3 and C1 are unchanged.**
+
+**The LIVE-like figure below is still an ESTIMATE**, scaled from one KSFO LIVE scene (61.51 at 38 drawn).
+- It is replaced, and (a) is re-sized again, when map-client's v19 run on the recordings measures the worst of six.
+- **One scene is not the worst of six.** On FIXED at 40 the worst scene sits 3.98 ms over the median and 5.28 over the
+  best. If the recordings spread that way, the worst of six is a few ms above any one scene. So the gap at the bar
+  is about 0.1 + M at best and about 4-5 + M if KSFO turns out typical. That is a range, not a reading.
+
+**The re-size is mechanical once the run lands, and it is fixed now.** Let X be the measured v19 worst-of-six p95 at 40
+on the recordings. Then v20 with M3 is X + 13.2 (weather) − 25.8 (M3) + M = **X − 12.6 + M**, and the bar holds on M3
+alone if **X ≤ 62.6 − M**. Whatever lies above that line is the gap the later steps must close:
+- **up to the map cache (P4) plus part of W (P5):** R1 holds.
+- **within W's and L1's ceilings:** R2.
+- **beyond them:** R3, and it goes back to the owner.
+- **outside the set:** stop, and report before re-sizing. That covers three cases: X above the packed worst at 40
+  (81.83 + 1.54), which would mean real traffic costs more than the stress row; X below LIVE Bend at 16 drawn
+  (47.68 - 1.54), which would mean 40 aircraft cost less than 16; or a scene whose drawn count is not about 40.
+
 map-client's v19 baseline is measured: `baseline_b.out`, sha `29d24028cec9`, read by p4 from the file itself.
 - **Every p95 carries ± 1.54 ms.** That is I-6's measured noise: the bench's own control read +11.54 against +10.0 ±
   1.5, was recorded RED, and was ruled noise.
@@ -295,9 +318,9 @@ This replaces the single 74.5 ms reading and the 2026-08-29 fit, which under-pre
 
 | bar read on | v20 at 40 | with M3's overlap complete (−25.8) | still to find for 20 fps (≤ 50 ms) | for 24 fps (≤ 41.7) | without M3, after L2 (−12.9) |
 |---|---|---|---|---|---|
-| **FIXED, worst scene** (S5, 81.83) | 95.0 + M (10.5 fps) | 69.2 + M | **19.2 + M** | 27.5 + M | 32.1 + M short |
-| **FIXED, median** (77.85) | 91.0 + M (11.0 fps) | 65.2 + M | **15.2 + M** | 23.6 + M | 28.1 + M short |
-| **LIVE-like** (62.8 at 40) | 75.9 + M (13.2 fps) | 50.1 + M | **0.1 + M** | 8.5 + M | 13.0 + M short |
+| FIXED, worst scene (S5, 81.83): **stress row** | 95.0 + M (10.5 fps) | 69.2 + M | **19.2 + M** | 27.5 + M | 32.1 + M short |
+| FIXED, median (77.85): **stress row** | 91.0 + M (11.0 fps) | 65.2 + M | **15.2 + M** | 23.6 + M | 28.1 + M short |
+| **LIVE-like (62.8 at 40, ESTIMATE): the bar's basis** | 75.9 + M (13.2 fps) | 50.1 + M | **0.1 + M** | 8.5 + M | 13.0 + M short |
 
 All carry ± 1.54 ms (I-6) and weather's ± 2.5 ms. M, the map's steady cost, is still unmeasured: A0b reads it.
 
@@ -314,14 +337,14 @@ All carry ± 1.54 ms (I-6) and weather's ± 2.5 ms. M, the map's steady cost, is
 
 **C1's meanings are unchanged** (the owner fixed them). What the larger gap does to the dates:
 
-| | bar on LIVE-like traffic | bar on FIXED traffic |
+| | **bar on LIVE-like traffic (the owner's choice, 23:08Z)** | if the bar were on FIXED (stress row only) |
 |---|---|---|
 | **R1** (C1 on track; the rest found at the first try) | **holds: v20 promoted Nov 25-30.** After M3, only ~0.1 + M is left, covered by P4 and part of P5 | **NOT reachable.** Even with M3 complete, 15-19 + M ms remain, more than one round of P4-P6 can be relied on to find |
 | **R2** (C1 on track; a second round for W and L1, +3-4 d) | holds as the fallback: Nov 27 - Dec 1 | **the best case:** W must deliver most of its ceiling and L1 the rest; **Nov 27 - Dec 1, only if both do** |
 | **R3** (C1 partial or failed; L2, then L3/L4 rulings) | about Dec 3-10, if M3 fails | **the realistic case:** L3/L4 likely needed even with M3 on track. **About Dec 3-10 or later**, not sizable until the owner rules on L3/L4 |
 
-**The owner's decision that most moves v20's date is which traffic the bar is read on.** On LIVE-like traffic the plan
-as sized holds (R1). On the packed FIXED scenes, planning on R3 is the honest reading. map-client's caveat stands: the
+**The owner has chosen LIVE-like traffic (23:08Z), so the plan as sized holds: R1, with R2 as the fallback.** The FIXED
+column is kept to show what the stress rows cost. It is not the bar. map-client's caveat stands: the
 FIXED scenes pack every aircraft inside 8 mi, which is harsher than a real board.
 
 ## 3. The methods, and what each is expected to gain
