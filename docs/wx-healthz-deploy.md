@@ -44,16 +44,18 @@ in the table is reported before the deploy.
 
 | step | what | predicted |
 |---|---|---|
-| **S0** | staging's rollback target: `npx wrangler deployments status --env staging`, read-only | one version at 100 %, recorded in full |
-| **S-dep** | claim `proxy:staging`, then `proxy/scripts/deploy.sh staging` from a clean checkout of main. `deploy.sh`'s own confirmation reads staging's `/healthz` commit through `healthz-commit.sh` | the confirmation reads main's sha. Release the claim after the S rows |
+| **S0** | staging's rollback target: `npx wrangler deployments status --env staging` (read-only), **and** staging's `/healthz` commit through `healthz-commit.sh` | one version at 100 %, recorded **in full, by version id**, with `/healthz` reading `fdf62ada`. Staging takes ten commits at once, so its rollback target is a version, never a guess |
+| **S-slot** (in the SAME step as the claim) | take `proxy:staging`; then, before `deploy.sh` runs, re-read and paste into this record: `python scripts/session-claim.py show` (the deployer lock); main's sha; staging's carried list `git log <S0's commit>..origin/main -- proxy/`; production's carried list `git log 68dc169a..origin/main -- proxy/` | the lock shows this session holding `proxy:staging`. The lists match §1's, or every difference is named before the deploy. Anything unexplained: stop |
+| **S-dep** | `proxy/scripts/deploy.sh staging` from a clean checkout of main. `deploy.sh`'s own confirmation reads staging's `/healthz` commit through `healthz-commit.sh` | the confirmation reads main's sha. Release the claim after the S rows |
 | **S1** (P1 on staging) | `https://scopes-staging.valarsystems.com/healthz` | `wx` lists the 11 in `PRODUCTS`' order. `cref` and `opuk` read `routed: true`, the nine `routed: false` |
 | **S2** (P2 on staging) | the same body | every product has a non-null `frameAgeS` under its `maxAgeS`, and `stale: false`. Staging's `WX` is bound to `blipscope-wx`, production's bucket (`wrangler.toml`), so it reads production's frames |
 | **S3** (P3 on staging) | `BASE=https://scopes-staging.valarsystems.com proxy/scripts/smoke-prod.sh` (`test-key-staging`, present) | passes. The per-product section prints 11 lines, no `WARN`, and `FAIL: 0` |
 | **S4** (P4 on staging) | `BASE=… tools/wx/r12_prod.sh` at the 40 label points and the 9 R2 points | as R1-P and R2-P read on production: 5 isles points and 9 at `opuk` with 720; 35 at `cref`, byte 32 `0xE0`. This is staging's first run of the region dispatch (#623) |
 | **W5 on staging** | weatherscope's rows, frozen at **`022ede928170`** (`weatherscope/stage4-plan`, `docs/weatherscope-stage4.md` §S4.19). **C1-C5** (C1: `/healthz`'s `weatherscope` breakers; C2: 401s with no key; C3: 404 on a Blipscope suffix; C4: 405 on the W5 leaderboard POST; C5: the Blipscope smoke rows unchanged), then **W5-S1 to W5-S3**, staging only (that doc calls them S1-S3): empty-body leaderboard POSTs refused before any write, 400, 400 and 405 | exactly as §S4.19 predicts them |
 | **gate** | every S row and W5 row read as predicted | otherwise **stop before production**. Roll staging back to S0 if the off row is a defect, and report |
-| **P0** | production's rollback target: `npx wrangler deployments status --env production`, read-only | one version at 100 %, stamped `68dc169a`, recorded in full |
-| **P-dep** | claim `proxy:production`, then `deploy.sh production` | the confirmation reads main's sha. Release the claim after the P rows |
+| **P0** | production's rollback target: `npx wrangler deployments status --env production` (read-only), **and** production's `/healthz` commit | one version at 100 %, recorded **in full, by version id**, with `/healthz` reading `68dc169a` |
+| **P-slot** (in the SAME step as the claim) | take `proxy:production`; re-read and paste: `session-claim.py show`, main's sha, and production's carried list `git log 68dc169a..origin/main -- proxy/` | the lock shows this session holding `proxy:production`; main is the sha staging was deployed from; the list is S-slot's production list |
+| **P-dep** | `deploy.sh production` | the confirmation reads main's sha. Release the claim after the P rows |
 | **P1-P4** | as registered in `docs/wx-healthz-products.md` §5 | P1: the 11, routed as above. P2: all fresh, `stale: false`. P3: smoke passes, 11 lines, no `WARN`. P4: `r12_prod.sh`, as R1-P and R2-P |
 | **W5 on production** | §S4.19's **C1-C5** at `022ede928170` (W5-S1 to W5-S3 are staging only) | exactly as §S4.19 predicts them |
 
