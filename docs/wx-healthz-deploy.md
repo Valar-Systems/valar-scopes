@@ -117,3 +117,40 @@ the re-registration changed. By H6's committed rule (a stale product's line star
 smoke passes with `FAIL: 0`; the per-product section prints 11 lines; **`WARN` on exactly the products S2/P2 grades
 `stale: true`** at that read (the ten OPERA products, unless the recovery branch moved any of them); the `wx-opuk`
 verdict PASS (it does not grade age). This is derived mechanically from S2/P2's branch, not from any reading.
+
+## 5. Staging's S3 read off, rolled back; the /basemap diagnostic (frozen before its graded reads, 2026-11-12 ~04:21Z)
+
+**What happened.**
+- **The deploy:** `deploy.sh staging` (04:12:37-56Z) put up version `a9898a7d-7dc2-4f22-aa19-d07f7df25448`, confirmed
+  at `/healthz` `e3c2508e`.
+- **The rows:** S1, S2 (silent branch), C1, C2-C4, W5-S1 to W5-S3 and S4 all read as predicted. **S3 read OFF:** smoke
+  exited 1 with `PASS: 37 FAIL: 1`, and the one FAIL was `/basemap`: `HTTP 202 : neither the inert answer nor a
+  package`. The per-product section read exactly as registered.
+- **The gate:** staging rolled back to S0's `eb36fe73-ed1e-433a-aafa-1e3f3188f210` (`rollbacks.log` line first; exit 0
+  at 04:15:40Z; `/healthz` `fdf62ada` x3). Production was never touched.
+- **One note on the record:** S3/P3's WARN count (§4) was registered after staging's deploy and before smoke was read.
+
+**The owner's rule for the diagnostic (04:18Z, relayed by the orchestrator), and the orchestrator's frozen form
+(04:18:47Z, 04:19:22Z):** on a 202, re-ask until the map is served, within a fixed limit frozen in advance. A 202 that
+never resolves still fails, and a 202 is never a pass.
+
+**THE LIMIT: on any 202, re-ask every 15 s for at most 10 min.**
+
+**The graded reads:** staging AS IT IS (`fdf62ada`, the old version), read-only. Three reads of smoke's exact
+`/basemap` request shape, about 2 min apart, at ONE FRESH point: **KBNO (Burns, OR, a public airport), 43.59,-118.96**.
+Each re-asks on a 202 within the limit. Each records the HTTP code, the body class (inert / package / 202 / other) and
+`basemap_verdict`.
+
+**Before the freeze, recorded and NOT graded:** one read of smoke's own point, at 04:18:51Z, gave HTTP 200, a BMPK
+package, validate kOk. It is not discriminating: the deploy's 202 at 04:14Z most likely warmed that point. An earlier
+attempt at 04:18:04Z is VOID, an instrument fault: it used the production key against staging and got a 401.
+
+| outcome | the KBNO reads (read 1 is the cold one) | meaning, and what follows |
+|---|---|---|
+| **O1** | read 1 gives 202, then a validated package within the limit | staging's cold builder: environmental, and #643/#649 are not involved. S3's staging `/basemap` row becomes "on 202, re-ask every 15 s until served within 10 min; a 202 past 10 min fails". The deploy re-runs from S-slot, staging first, **after the orchestrator announces that v19's step 5' has closed** |
+| **O2** | read 1 never gives 202: inert, or a package at once | the new code changed `/basemap`'s behaviour, a real finding. Stop, and find which carried staging commit does it (#623, #626, #627, `e0983b3b`, #618 are staging's extras). Nothing re-deploys |
+| **O3** (the owner's) | read 1 gives 202 and never serves within the limit | staging's builder is broken: a separate stop. Nothing re-deploys |
+| **O4** | anything else | stop and report |
+
+**No deploy of any kind, staging or production, until v19's step 5' ends and E2:08 is restored.** `proxy:staging` is
+released when the diagnostic is done; no deploy follows under it.
