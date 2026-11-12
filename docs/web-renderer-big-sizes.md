@@ -116,3 +116,35 @@ size gave these results:
 - an unknown model name: `INSTRUMENT`, exit 2.
 
 So R0 can go red on both failures it exists to catch.
+
+## Amendment 1: web-720 (re-predicted before the follow-up commit is built or run)
+
+**The reviewer, 2026-11-12 17:35Z:** the big-screen golden set is 240, 480, 720, 960, 1080 and 1280, all from
+`build.sh`'s models, so `web-720` joins the check models. The code commit `0c5221461b68` was already pushed with its
+CI running, so this is a follow-up commit, not a rewrite. The 720 model is the Pro 2.1's model at 720 px, like the
+others. It is not the P4 4"'s own variant.
+
+**The change:** `s3_21.h`'s set becomes {720, 960, 1080, 1280}. `build.sh` gains `web-720`, and the `big-sizes` matrix
+gains 720. The edit to `s3_21.h` stays inside the branch no device build takes. It is one line longer, because the `static_assert` wraps.
+
+**Re-predicted rows,** for the follow-up commit. The tables above stand for the first code commit, whose CI run the
+follow-up push is expected to cancel (PR concurrency). A cancelled run is not read as a result.
+
+| row | predicted |
+|---|---|
+| **G2'** | 720 is now in the set, so G2 uses 800: refused, by the `static_assert` |
+| **G3'** | 720, 960, 1080, 1280, and neither macro: all compile |
+| **D1'** | `blipscope-pro-s3-21` rebuilt with the follow-up, compared with **main's** image (`55a70464cb7c...`): **PLACED**. Compared with the first change's image, any difference is in the hash regions only; that comparison is not the row |
+| **B1, R0, S1-S4** | as above, for four legs. R0 for `web-720` reads 720 |
+| **T1'** | each leg 4-7 min; the workflow's wall clock 10-13 min, set by `build` |
+| **J1'** | web-renderer **6** (build and four legs success; publish skipped): **38 = 34 / 4 / 0** |
+
+**After this merges,** a PR touching `src/`, `include/`, `platformio.ini` or `tools/web-renderer/` predicts 38 = 34/4/0.
+
+**Amendment 1's local rows, read before its push:**
+
+| row | read | verdict |
+|---|---|---|
+| **G2'** | rc 1, `error: static assertion failed: the big-size check models are 720, 960, 1080 and 1280 px ...` (800) | as predicted |
+| **G3'** | 720, 960, 1080, 1280, and neither macro: rc 0 each. G1 again: rc 1 by the `#error` | as predicted |
+| **D1'** | rebuilt 17:36:29-17:37:17Z (19 units). Against main's image: 65 bytes in 2 runs, app_elf_sha256 32 + checksum 1 + image_sha256 32, "PLACED", exit 0 | **as predicted** |

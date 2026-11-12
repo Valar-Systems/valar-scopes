@@ -3,7 +3,7 @@
 # docs/web-renderer.md).
 #
 #   tools/web-renderer/build.sh [s3-128|s3-21] [distdir]      default: s3-128 into tools/web-renderer/dist
-#   tools/web-renderer/build.sh web-960|web-1080|web-1280 [distdir]   the big-size check models, never published
+#   tools/web-renderer/build.sh web-720|web-960|web-1080|web-1280 [distdir]   the big-size check models, never published
 #
 #   SRC_ROOT=<tree>   build the firmware units from another checkout (a release tag's), with this tree's
 #                     tools/web-renderer; default: this tree
@@ -28,8 +28,8 @@ SIZE_DEF=""
 case "$SKU" in
   s3-128) VARIANT=BLIPSCOPE_VARIANT_S3_128 ;;
   s3-21)  VARIANT=BLIPSCOPE_VARIANT_S3_21 ;;
-  web-960|web-1080|web-1280) VARIANT=BLIPSCOPE_VARIANT_S3_21; SIZE_DEF=-DBLIPSCOPE_WEB_SCREEN_SIZE=${SKU#web-} ;;
-  *) echo "unknown SKU '$SKU' (s3-128, s3-21, web-960, web-1080 or web-1280)"; exit 2 ;;
+  web-720|web-960|web-1080|web-1280) VARIANT=BLIPSCOPE_VARIANT_S3_21; SIZE_DEF=-DBLIPSCOPE_WEB_SCREEN_SIZE=${SKU#web-} ;;
+  *) echo "unknown SKU '$SKU' (s3-128, s3-21, web-720, web-960, web-1080 or web-1280)"; exit 2 ;;
 esac
 DIST=${2:-$HERE/dist}
 OUT=$DIST/$SKU

@@ -145,7 +145,7 @@ jobs:
           name: blipscope-web-v${{ steps.ver.outputs.fw }}
           path: web-dist/
 
-  # The big-size check models (docs/web-renderer-big-sizes.md): the Pro 2.1's web model at 960, 1080 and 1280 px, one
+  # The big-size check models (docs/web-renderer-big-sizes.md): the Pro 2.1's web model at 720, 960, 1080 and 1280 px, one
   # leg each, BESIDE `build`, never after it, so the workflow's wall clock stays `build`'s. Pushes and PRs only. Checks,
   # never published: publish needs `build` alone, a release run skips this job, and nothing here is uploaded. The
   # interim, until the screen size is a run-time value.
@@ -155,7 +155,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        size: [ 960, 1080, 1280 ]
+        size: [ 720, 960, 1080, 1280 ]
     env:
       SKU: web-${{ matrix.size }}
     steps:
