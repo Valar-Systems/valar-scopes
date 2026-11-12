@@ -2310,3 +2310,33 @@ tell a land pixel at a coast-meets-edge corner from a seam. **The sea path did n
 
 Everything else in the run is as at 3b3608f7ac3c. This is KB8's third reading, under (a): **an off reading on it goes to the
 orchestrator and on to the owner.**
+
+**The CAUGHT side TIGHTENED (the 15:35:08Z ruling), before any control runs.** "(a) ≥ 1" against 149 would pass a rule that dropped 148
+of the 149 planted pixels. The expected count is derived here from the plant's geometry, **without rendering the reference**.
+- **The store's edge intervals** (`kb8a-geom.py`, 34c32a544633, from the unplanted `sea-pieces.json`). Along each in-view cell edge, an
+  interval is the stretch where a side's piece runs ON the edge, two consecutive vertices on the line.
+  - **KBOS, lon -71 (x 132.232):** rows 87.34-110.56 and 123.53-205.93, the same on both sides.
+  - **MIDTOWN, lon -74 (x 107.46):** rows 56.44-102.91 and 194.68-214.68, the same on both sides.
+- **The abutment argument.** A flagged pixel on side s lies 0.04-1 px from the edge. **Inside** s's interval, and at least a row from both
+  ends, s's piece runs along the edge, so the pixel is sea in the reference (**I**). More than a row **outside** every interval, no piece of
+  s touches the edge, so it is land (**O**). **Within a row of an endpoint,** where a coast meets the edge, the argument decides nothing
+  (**B**).
+- **The old rule's pixels, classed** (`kb8a-classify.py`, 14b5669faa5b). It re-runs the OLD rule on the kept inputs; no reference is
+  rendered.
+  - **CAUGHT,** run 4's seam builds: KBOS 84 (I 80, B 4), MIDTOWN 65 (I 58, O 4, B 3), a total of **149**: I 138, O 4, B 7. One B pixel is
+    Boston's (131, 123), already **on record as reference land** (run 4's diagnosis), which leaves 6 undecided.
+  - **EDGEUNLOCK,** run 3's KBOS package: 10 pixels, I 9 and B 1, the B being Boston's (131, 123).
+
+| row | predicted (a) | stop if |
+|---|---|---|
+| **CAUGHT** (the control before part 2, and part 2's own) | **138 ≤ (a) ≤ 144**, with the old rule at 149 | under 138: a sea piece narrower than a pixel inside an interval, which the argument's one exception covers and the model does not; over 144: an O pixel or Boston's counted as sea. Either way, stop and report |
+| **EDGEUNLOCK** (part 2) | **(a) = 9 exactly**, with the old rule at 10 | anything else |
+
+**The new sha256s:**
+
+| artifact | sha256 |
+|---|---|
+| `kb8a-controls.py` | `0bb3304fc3e2c21ac101995abf059da2196c06b64f271df304ae437086feebea` |
+| `p2-read.py` | `426e93dd868f2899bdaee1759783a24ea1c03247e7c8ead8dba144b9f72f3407` |
+
+They replace ff3e8a2c25ab and 51c42cbb2a17 above. NOT CAUGHT and UNCHANGED are as accepted.
