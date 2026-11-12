@@ -1,8 +1,8 @@
 // Step B's composer and stale test (docs/blipscope-map-client-steps.md, "MapCompose.h (CB1-CB5, CB9, CB11)" and its
-// Q-MC14 re-freeze): include/MapCompose.h held to its 26 registered rows over the KJAC fixture.
+// Q-MC14 re-freeze): include/MapCompose.h held to its 28 registered rows over the KJAC fixture (step C: CB9 slice and spans).
 //     test_map_draw <test/fixtures/wx>
 // Exit 0 all pass, 1 any fail, 2 the rig (the fixture missing or refused, a free of a block this test never gave out, or
-// a case count other than 26). Prints no coordinate and no name (CD2): counts only.
+// a case count other than 28). Prints no coordinate and no name (CD2): counts only.
 //
 // Everything the composer is graded on is counted from OUTSIDE it: the allocator here gives out and takes back every
 // block (and fails the one it is told to), and every Build call goes through a counting wrapper. Each row builds its own
@@ -496,8 +496,8 @@ int main(int argc, char** argv)
         std::printf("the RIG: see above\n");
         return 2;
     }
-    if (g_checks != 26) {
-        std::printf("the RIG: %d cases, not 26\n", g_checks);
+    if (g_checks != 28) {
+        std::printf("the RIG: %d cases, not 28\n", g_checks);
         return 2;
     }
     return g_fails ? 1 : 0;
