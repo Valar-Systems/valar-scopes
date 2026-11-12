@@ -2006,3 +2006,56 @@ S-BRIDGE plant.
   before the `if x1 > x0` guard was added in place. The file since then, in the scratch folder and in the handoff's `tools/`, is
   71ac48ce5837, which `SHA256SUMS` lists. No pre-guard copy was kept. The case files it writes were byte-identical before and after the
   guard, so nothing weatherscope used is affected.
+
+### Part 2, the pinning addendum for KB1's first re-run (the 06:24:25Z go; #662 on main)
+
+**The source:** `f3fee349061afc346900a5f85a0eee2034791ce4`, #662's squash, read on main. It has one parent, e3c2508eb8db, and its
+`WxBasemap.h` computes each crossing from the lower-y endpoint. `FillRing` is lines 80-121 there.
+
+| artifact | sha256 | was | what changed |
+|---|---|---|---|
+| `kb5-gen.py` | `39e77fbb90e69791cd0e5d69904ca95eb5abf320e7bbfc022efabe9083d1ac0f` | 6155b6399ef8 | takes the commit as an argument, and extracts from the signature line (which must occur once) through the first line that is exactly `}` |
+| `kb5.cpp` | `6a839559bdcfc37d5d512b4e955a324f7053650a84eb4035afc22ec7fa50bdd3` | c7ff38514327 | generated at f3fee349061a. The extract is a738ac1f9d22, 42 lines, `WxBasemap.h:80-121` |
+| `kb5` (binary) | `a841b11b5f479420191e6f20bc7f492d854565794e33584e78d532dc68f85d7a` | 9e9fc5447bc1 | `g++ -O2 -Wall -o kb5 kb5.cpp`, g++ 13.3.0 in WSL Ubuntu 24.04, warning-clean |
+| `p2-render.py` | `cca7d5c16db2b136f5bc89408eb8cb04675d6888c0d035c7569d937cf9271841` | b9afa21eb58d | `fill_ring` mirrors the commit's ternary, the same operations in order. `kb1` mode also counts each view's off-bridge pixels and prints `total_offbridge` and `bridges` |
+| `dr-p2-synth.mts` | `73c00f842daa0ce54b7078e4e11f8c7d7febcf9e448d86c2b0ab59a85df2f71b` | d8aff7366286 | the case `kb1c`, exactly as the 80164e6096c3 table registered it |
+| `p2-read.py` | `4e1fc2ad5b2dd05ea762feb411050d97c16a970c9caa6468090afed0900f081a` | 7e9828547270 | the `kb1c` rows, and the old S-KB-ORDER row on the squares changed (below) |
+
+**Unchanged and re-verified:**
+
+| artifact | sha256 |
+|---|---|
+| `mk-pq4d.mjs` | fd0b80a28a3f |
+| `pq4d/.../build.ts` | 4d7ee5e0a868 |
+| `sea.ts` | 4b46e0ece2fe |
+| `mk-sea-store.mts` | 9f7a16c639b2 |
+| `dr-p2c.mts` | cd2d15be34e7 |
+| `dr-p2m.mts` | 7814abed9746 |
+| `kb7.py` | e24035aa2fab |
+| `sea-dryrun.py` | e1b68a840847 |
+| `zap-fetch.mts` | 2163cdbb669b |
+| `sea-obj` tree | 28fddac31920 |
+| `sea-obj-seam` tree | a3389679daa7 |
+
+**Controls run on the tooling before the run, none of them a graded row:**
+- **The extractor.** At 525cf7d1725d the new `kb5-gen.py` reproduces the old `kb5.cpp` byte for byte (extract 413104be01bf, 41 lines,
+  as pinned). At f3fee349061a the diff from the old file is the header comment and the crossing line only.
+- **The binary.** Over the handoff's 25 cases it leaves 0 pixels missing and draws 0 extra.
+- **The off-bridge counter.** In a copy of the new renderer with the OLD fill planted (`ctl/p2-render-oldfill.py`), run 2's
+  `synth-kb1.json` reads total 26, off-bridge **0**, with 6 bridge edges (3 bridges, each walked both ways) in the same four views. So the
+  counter puts the artefact on the bridge. The no-bridge plant reads off-bridge = total = 20,818.
+
+**One driver change, flagged.** Run 2's S-KB-ORDER row on the squares ("differs, ≥ 1") was ruled blind at 05:18:31Z. Under the new fill
+it is predicted to read **0**: `kb1-diag3.py` gave 0 under a lower-endpoint fill. Left as a graded "differs" row, it would stop the run
+on its own blindness. It becomes **a check that reads 0**, and anything else stops, because that would contradict the diagnosis that the
+plant changes no pixel on squares. The `kb1c` rows follow it in the registered order: S-KB-NOBRIDGE, then S-KB-ORDER (its off-bridge
+clause and its scope, as the 80164e6096c3 table says), then KB1 on `kb1c`.
+
+**Predicted for the re-run, from the start:**
+- step 0 and every row before KB1 as in run 2;
+- S-KB-ORDER on the squares 0, and KB1 0 in all 24 views;
+- the `kb1c` rows as the table says;
+- then the frozen order as registered: P2-0 and T-SEA0-real, P2-1, KB3, KB8, KB4, KB5 (the C++ `FillRing` equals the Python renderer), KB7-a/b,
+  KB7-c-real, P2-M, and the pictures.
+
+**This is KB1's FIRST re-run.** A second off reading on it goes to the orchestrator and on to the owner.
