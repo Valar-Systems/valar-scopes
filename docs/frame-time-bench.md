@@ -600,3 +600,57 @@ windows, and a cadence the scene line does not predict. A second off reading on 
 - **Q-A6: the owner's,** since it decides whether v20 ships. The default (the worst of the six) is put to him; the
   alternative is the median of the six. **Until he answers, the candidate reader prints both.**
 - **Q-A7:** the orchestrator folds "O11 re-runs the (a) procedure" into the next v20-plan amendment.
+
+## The baseline window as run (2026-11-12), and I-6's first off reading
+
+**The capture is clean.**
+- W1: the release trace, 10 min, exit 0.
+- W2: the framebench image `52b8b9e9` written to ota_0 alone, as predicted.
+- W3: one trace, 21:05:56Z to 22:37:57Z, exit 0.
+- `rigcheck.py` (`31c13c3b`) PASSES on both logs: the framebench log has 2,244 stamped lines identical to its console
+  copy, the release log 101, and both have 0 IOException records.
+- The logs' sha256:
+  - framebench `4d6cedc842822ead10a546f8d3169eb9019e0bf8289d9cd828534eadedb2d3f4`;
+  - release `1893baa9b7d3652b95480d34941aeb08b64e39bb5f6cb4c31c4caf826bc10156`.
+
+**The read** (`frame_bench_read.py` `15681a40`, exit 1; output `4dca0d455ee9…`):
+
+| row | read |
+|---|---|
+| BOOT | ok |
+| I-5 | ok: record cost 337 ns/frame, override cost 981 ns/call |
+| RUN | ok: 23 scenes, each complete, run done |
+| **I-6** | **RED:** CTRL dp95 `p2p` +11.54 ms, `fr` +11.53 ms, against +10.0 ± 1.5 |
+
+By section 5, nothing after I-6 is graded. **The orchestrator ACCEPTED the reading** as I-6's FIRST off reading. A
+second goes to the owner.
+
+### I-6's discriminator, registered before it runs (the outcomes ruled in advance by the orchestrator)
+
+- **The input:** the frozen framebench log above, read only through `frame_bench_read.py`'s OWN `parse()` and
+  `rank()` (imported, sha asserted). S0 is CTRL plain and S1 is CTRL+10ms.
+- **The quantities:**
+  - for `p2p` and `fr`, each scene's p50 (nearest rank), mean and p95, and their deltas S1 − S0;
+  - S0's (and S1's, reported) stationarity halves by the reader's own FIX-s method: the first and last 30 s of the span
+    by cumulative `p2p`, with Δp50 and Δp95.
+- **READ from the source:** the dumps hold no independent measure of the plant's cost. `SelfTime()`
+  (`FrameBench.h:184-208`) times `Record` and `Override` only. The plant is `delayMicroseconds(10000)` with no timer
+  of its own.
+- **The order of evaluation, on `p2p`** (the gate's metric), because (3) is a special case of (2)'s "varies by
+  quantile":
+  1. **S0 not stationary** (|Δp50| > 2.0 or |Δp95| > 4.0, A1's thresholds): **(2), SCENE DIFFERENCE.**
+  2. **(3), NOISE:** the p50 and mean deltas both in [9.5, 10.5], with only p95 above +11.5.
+  3. **(1), THE PLANT IS BIGGER:** all three deltas above +10.5, and alike (max − min ≤ 1.0 ms).
+  4. **(2), SCENE DIFFERENCE:** the deltas' spread (max − min) over 1.0 ms, and not (3).
+  5. **Anything else:** STOP, to the owner.
+- `fr`'s classification is computed the same way and printed beside it. If it differs from `p2p`'s, that is outside
+  the set: STOP, to the owner.
+- **What each outcome means, ruled now:**
+  - **(3):** the instrument sees a known change at its own size. I-6 stays recorded OFF, and **the baseline is
+    GRADED**, its p95 rows carrying that noise as a stated uncertainty.
+  - **(1):** the dumps hold no plant self-timing (above), so (1) cannot be told from a biased instrument. **It goes to
+    the owner as the instrument's question.** The baseline is not graded.
+  - **(2):** the CTRL is confounded. A new CTRL, interleaved plant-on and plant-off in one scene, is registered for the
+    next window. **The baseline is not graded until it passes.**
+  - **Anything else:** STOP, to the owner.
+- **It runs after W5 and END,** per the ruling: the board's restore comes first.
