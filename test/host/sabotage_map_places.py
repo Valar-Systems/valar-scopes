@@ -73,6 +73,12 @@ def make_tree(td, tag, edits=()):
     tree = os.path.join(td, tag)
     shutil.copytree(os.path.join(ROOT, "include"), os.path.join(tree, "include"))
     shutil.copytree(os.path.join(ROOT, "src", "weatherscope"), os.path.join(tree, "src", "weatherscope"))
+    # src/weatherscope/WxRaster.h includes "../../test/fixtures/wx/glcdfont.c": the one file the suite reaches outside
+    # the two copied directories (every parent-relative include, listed). Copied exactly as sabotage_map_layer.py does;
+    # its absence made the first run's control a compile failure, the rig, not a reading.
+    font = os.path.join("test", "fixtures", "wx", "glcdfont.c")
+    os.makedirs(os.path.dirname(os.path.join(tree, font)), exist_ok=True)
+    shutil.copyfile(os.path.join(ROOT, font), os.path.join(tree, font))
     if edits:
         p = os.path.join(tree, PLACES)
         src = open(p, "rb").read().decode("utf-8").replace("\r\n", "\n")
