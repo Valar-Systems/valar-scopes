@@ -1423,3 +1423,53 @@ grid at ingest, the extent of 2,584 cells), its rows, and the ingest's dry run w
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
 - The control: all 1,397 of the store's cells fall inside it.
 - Up to 1,187 more cells could be sea-only. How many hold sea comes from part 2's dry run.
+
+## Part 2: the sea's storage, PROPOSED (for acceptance before the prototype is built)
+
+The code PR inherits the cell format, the feature kind and how islands are stored. So they are proposed here first, and the prototype is
+built only on acceptance.
+
+**1. The sea layer's source.**
+- Natural Earth 10 m **ocean**, pinned and verified (sha256 `db626fcd5d50`, the manifest's pin).
+- The **lakes of design (a)** (ruled 03:56Z): Natural Earth 10 m lakes over 1.5 km² not wholly inside the US, decided by the containment
+  test, each WHOLE.
+
+**2. Cut at ingest to the 1° level-0 grid** (the 22:46Z ruling), over the **extent's 2,584 cells**.
+- Each source polygon's outer ring and each of its holes is clipped to each cell's box with Sutherland–Hodgman, as the water layer clips.
+- A hole crossing the box's edge becomes a ring along the edge, which even-odd still reads as land.
+- A cell's piece is empty when nothing of its outer remains. A cell wholly inside a hole (land) stores nothing.
+
+**3. Stored as a NEW feature kind, `sea`, kind code 6, in the existing cell format.**
+- **One record per piece. Part 0 is the piece's outer ring; parts 1..n are its holes (islands),** following the store's existing
+  (record, part) convention.
+- **Only islands of at least 1.5 km² are stored.** Clipping can only shrink an island, so a smaller one could never pass the builder's
+  threshold.
+- **Attributes:** the source (ocean, or the lake's NE name) and the piece's area. No AWATER filter applies: the lake's threshold was
+  applied at selection.
+- **Its file is the pinned zip** (ocean or lakes), under the manifest's new **sea** layer, which gives the new store id.
+
+**4. The builder's sea path** (#616's order, unchanged):
+1. collect each record's parts;
+2. clip the outer and the holes to the square;
+3. drop the holes now under 1.5 km²;
+4. **tp, then quantise, then bridge**: each hole through its nearest visible vertex, largest first, crossing-tested, adding 2 vertices
+   each.
+
+The result is one ring per piece, joining the water section and following the ladder like other water. An island that can't be bridged
+is dropped and counted on `bm_build` as `islandsDropped` (the 22:46Z ruling). KB7-c's `seaLost` counts the pieces not drawn.
+
+**5. What the dry run reports, stated in the addendum before anything uploads:**
+- the cells holding sea, the sea-only cells (new to the index), the pieces, the islands kept, and the encoded bytes;
+- the store's put count (every object under the new store id) and its bytes;
+- **the R2 cost:** Class A puts on top of this month's OPERA writes, past the free million (the 23:21Z ruling), at $4.50 per million,
+  against the owner's overage allowance;
+- **the account's total R2 storage after the upload,** with the old store kept for rollback, against the 10 GB free tier, and the
+  monthly cost if over. It is read from the account's analytics with the read-only token file, `analytics-read`, as a count only.
+
+**Three choices in this proposal are mine, for the orchestrator's reading:**
+- (i) **the new kind code 6 in the cell format.** `decodeFeature` throws on an unknown code (`proxy/src/basemap/store.ts:58-59` at
+  `525cf7d1`), so a builder older than the code PR fails on the new store rather than misreading it. That is safe, but it fixes the
+  order: **the builder deploys before `current` names the new store;**
+- (ii) **islands of 1.5 km² and up stored at ingest,** and checked again after the builder's square clip;
+- (iii) **one bridged ring per piece**, rather than one ring per source polygon across cells. A union is rejected (22:46Z), so pieces stay
+  per cell, and S-KB-SEAM checks their shared edges.
