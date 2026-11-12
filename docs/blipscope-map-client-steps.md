@@ -5006,6 +5006,33 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
 - **Then the grade:** CBF3-C with C-OUT, and with "added" as (A-a) leaves it. That read is the SECOND as a grade, so
   if it is off it goes to the owner.
 
+**The ruling (the orchestrator): GO. (A-a)'s exclusion stands only with BOTH shows.**
+
+**AS RUN (23:16:10Z): (A-a).**
+- `adddiag.py` `191e036e3e71c91053ed3fbe48f3dfc182645784a1519ec82f2886400170f68c`; output
+  `9e8f8641ca2005fb55d6afe32e900593a73e709fdc22098b5f2b7f6a854f6a32`. The control passed.
+- **The not-added pixels are all the radar's own overlay:** 54 of 54 on `p1-t16-0` (EDGE 16.7 %) and 47 of 47 on
+  `p1-t36-0` (EDGE 23.4 %).
+- **MAP-ONLY, a missing add, is 0 on all 30 on-frames** (the other 28 are reported).
+- **EDGE** is "within 0.005 rad of an angular edge of the add region", the registration's "contiguous arc at the
+  edge" made concrete and printed in the output.
+
+**THE TWO SHOWS (23:17:09Z): BOTH HOLD, so the exclusion stands.**
+- `addshow.py` `d5bf0fa00ed57fb7ca6531694f64cc60622d053107783d3086ec78468990d69a`.
+- **Show 1, the host:** 288 regions (the 8 rasters × 36 beams, with step C's add applied as the reader's own synthetic
+  does): **min added 1.000, min added' 1.000.** The host minimum is unchanged.
+- **Show 2, `p1-t00-0`:**
+  - unplanted: added 87.3 % of 244, added' 87.6 % of 233;
+  - **with the add removed: added 1.6 %, added' 0.0 % of 239, so RED as predicted.**
+
+**THE GRADE, defined as registered.** For each read, trustworthy frame (`grade_frame_c`; its minimums are unchanged):
+- **an on-frame** passes when visible > 0.80, added' > 0.80, V ≥ T_V (0.4972) and G < T_G (0.3090);
+- **an off-frame** (the control) passes when visible < 0.02 and V < 0.02;
+- under 10 trustworthy of a label: BLIND.
+- `cgrade.py` carries cout's and addshow's functions, copied. **Its control:** its per-frame V and G equal `crep.out`'s,
+  and its added' on `p1-t00-0` equals Show 2's 87.6 %. Unequal makes it the INSTRUMENT.
+- Read once. This is the SECOND reading as a grade: off goes to the owner.
+
 **THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
 (visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
 - every row as predicted: CBF3-C graded;
