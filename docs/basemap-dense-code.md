@@ -1936,3 +1936,39 @@ f88dded3e379; none is a graded row):
   `if hi > lo` guard. A span wholly off-screen left gave a negative slice end, which numpy wraps, so the generator's "no drawn pixel
   outside the reference" check refused view (162 km, 225°). The guard was added. The two earlier case files and their references are
   byte-identical before and after, and the full set was regenerated into an emptied folder.
+
+**S-KB-ORDER's new input, REGISTERED before any code (05:3xZ), for the orchestrator's acceptance.**
+- **Why the old input could not see the plant.** `dpKeep` anchors a closed ring at its first vertex (`frame.ts:107-133`, RD6).
+  - The tested order simplifies each ring on its own (outer, then each island), quantises, and then bridges.
+  - The plant bridges first, then simplifies the whole bridged ring once.
+  - KB1's islands are 4-vertex squares that no simplification touches, so both orders keep the same vertices, and the plant changed no
+    pixel.
+- **The new case, `kb1c`.** It has KB1's outer, (E, S) -100..200 × -100..100 km, past the square's east edge, with three CIRCULAR islands
+  of 256 vertices each:
+  - A: centre (-32.5, -32.5), r 7.5 km;
+  - B: centre (14, 9), r 4 km;
+  - C: centre (162.5, 10), r 10 km. C crosses the square's edge at E = 162, so the clip leaves it touching the edge, as in KB1.
+
+  At ε = 201.168 m, DP keeps a vertex only where a chord's sagitta passes ε, so each circle thins to roughly 2π / 0.4 ≈ 16 vertices
+  at r 10 km. **Where the anchor differs, the kept subset differs.** The island alone is anchored at its own first vertex. Inside the
+  bridged ring it is anchored at the bridge's endpoint, after splits made over the whole ring. The two polygons then differ by up to about
+  ε, along every circle.
+- **Predicted, under the fill rule of weatherscope's commit** (a lower-endpoint crossing):
+
+| row | input | predicted |
+|---|---|---|
+| KB1 (unchanged) | `kb1`, the squares | **0** differing pixels in all 24 views |
+| KB1 on the new input | `kb1c`, the tested order | **0** differing pixels in all 24 views |
+| S-KB-NOBRIDGE on `kb1c` | islands sent as their own rings | each view differs by at least its island pixels, as registered |
+| **S-KB-ORDER on `kb1c`** | the plant's ring against `kb1c`'s tested reference | **≥ 1** differing pixel over the 24 views, **AND at least one of them with its centre more than 1 px from every bridge segment** |
+| anything else | | **stop** |
+
+  **The second clause of S-KB-ORDER's row is the lesson of its blind pass.** A difference made only on a bridge is the slit artefact,
+  not the plant. The control has to show a difference the artefact cannot make, or it has not shown that KB1 sees the order.
+- **The code** (after the orchestrator's acceptance, and only after weatherscope's commit exists):
+  - `dr-p2-synth.mts` gains the case `kb1c`;
+  - `p2-read.py` gains KB1 on `kb1c` and S-KB-NOBRIDGE / S-KB-ORDER on `kb1c` beside the existing rows, in the same place in the order;
+  - `p2-render.py`'s fill mirrors the commit's rule;
+  - `kb5.cpp` is re-extracted verbatim from that commit.
+
+  Every new sha256 is recorded before the re-run.
