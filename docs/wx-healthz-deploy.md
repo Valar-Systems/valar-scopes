@@ -110,3 +110,10 @@ orchestrator (~04:08Z: option (a), plus the recovery branch):
 - `opera_latest.py` supplies the branch's epochs.
 - `s4_grade.py` grades `r12_prod.sh`'s lines under the re-registration. Controlled both ways: the silent-state set
   passed; one planted 200 under silence read OFF.
+
+**S3/P3, registered after staging's deploy (04:12:56Z) and BEFORE smoke was read on staging.** My re-registration above
+missed this row. S3/P3's frozen text says "no `WARN`, since every product is fresh (P2)", and that premise is the one
+the re-registration changed. By H6's committed rule (a stale product's line starts with `WARN`), S3/P3 now read:
+smoke passes with `FAIL: 0`; the per-product section prints 11 lines; **`WARN` on exactly the products S2/P2 grades
+`stale: true`** at that read (the ten OPERA products, unless the recovery branch moved any of them); the `wx-opuk`
+verdict PASS (it does not grade age). This is derived mechanically from S2/P2's branch, not from any reading.
