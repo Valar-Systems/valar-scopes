@@ -162,3 +162,22 @@ asked now (Q-P5). Either way, the provisioning tool and its records are his; thi
 | **P2''** | steps 2-4: the same label; `write-flash` exit 0; `Verification successful (digest matched).`; the hard reset boots the image | any error, or a label change |
 | **P3''** | no serial read. The boot shows on the glass: the splash, then the setup screen with its QR code (no Wi-Fi saved), seen by the owner. If the glass stays dark after the hard reset (the S3's download-mode trap), he unplugs and replugs it once, and it boots | dark after one replug: stop |
 | **P3b** | **the boot reason**, from the server's boot report, read the way #666's driver reads it (`scripts/fba-boot-rows.mjs`). It is readable only after the board has a key. With a key, predicted: `POWERON` if he replugged, else `USB` (the hard reset over USB-Serial-JTAG). With no key: **no row, stated as "keyless, so unread"**, never as a missing boot | a row with any other reason |
+
+## Amendment 3: an incident in the preparation, and P0'' re-frozen (2026-11-12 ~18:40Z)
+
+**What happened.** The first native-USB version of the flash script chose the port by elimination: of the Espressif
+(0x303A) ports, set aside the four registered boards' labels, and exactly one must remain. Its control run, with no
+2.1" attached, was meant to read a refusal. But this PC had four 0x303A ports and only three registered boards
+(the bench Missileer isn't connected). The fourth, COM89, an **unregistered ESP32-C6** with serial label 1E:D0,
+passed the elimination. The script ran `read-mac --before default_reset --after no_reset` on it, which reset it into
+ROM download mode and left it there. It was reported to the reviewer at once. Its recovery (one hard reset, or its
+owner replugging it) waits for its owner's yes, and nothing here has touched it since.
+
+**The shape:** "a board that answers nothing on serial is not a free board" (CLAUDE.md), and a guard whose first step
+is a reset is a mutation, even in a control. Elimination by the registered labels established which ports were NOT the
+four bench boards. It never established which port IS the 2.1".
+
+**P0'' re-frozen:** the port is the ONE 0x303A port that **appeared** since a snapshot taken before the owner plugs the
+board in (`--snapshot`, which opens no port). Any port present in the snapshot is never opened, whoever owns it. Zero
+or several new ports: refused, with no port opened. The control now reads that refusal without opening anything:
+read 18:4xZ, "new since: 0 ... REFUSED ... no port opened", exit 1.
