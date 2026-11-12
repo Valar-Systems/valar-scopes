@@ -2098,6 +2098,206 @@ prediction names its environment blocks, and both texts left them out. That was 
 - No firmware image changes: nothing in `src/` includes `MapCompose.h` until the wiring.
 - The tested merge is read from a checkout log. Any other reading stops.
 
+### The wiring: registered before its code (2026-11-12)
+
+The GO, verbatim (the orchestrator, 02:26:09Z):
+
+> GO for the wiring's registration as listed (CD1-CD3, CB-W, the SPIRAM-cap source row + plant, the airportsGen-bump
+> source row + plant). One requirement, because the wiring is the first step that edits a SHIPPING file
+> (AircraftManager.cpp):
+> - State which envs set BLIPSCOPE_MAP_FETCH, read from platformio.ini and the CI matrix, not from memory.
+> - For every SHIPPING env WITHOUT the flag, predict its image is unchanged from main's, and prove it from the ARTIFACT:
+>   build it on both trees and account for the difference by the five regions (or the comparator 5c used for C', with
+>   its controls). Nothing outside those regions.
+> - For envs WITH the flag, predict the size delta and name the functions that change.
+> A wiring that leaks outside its #if is the second-path shape again, and only the built image can show it.
+
+#### Which envs carry the map (read from the files at `cb9d6ac2`)
+
+- **No env sets `BLIPSCOPE_MAP_FETCH`.** `src/AircraftManager.h:38` derives it:
+  `defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)`.
+- **`WX_LAYER_SHIPS`:** the weather switch is empty (`platformio.ini:150-151`, `layer =`), so `${cloud.prod}` and
+  `${cloud.staging}` carry nothing. Two places set the flag:
+  - `blipscope-s3-128-wxlook`, at `:408`;
+  - the web renderer's build script, which `BLIPSCOPE_WEB_RENDERER` excludes.
+- **The CI matrix** (`scripts/skus.py --shipping-envs` and `--build-envs`):
+  - **one shipping env, `blipscope-s3-128`** (slug `s3-128`);
+  - ten build envs. **Only `blipscope-s3-128-wxlook` carries the flag.** It is slug-less, and its `[wx-bench]` marker is
+    refused in every slug-ful image.
+
+#### What the wiring adds, and where
+
+Everything goes in `// THE MAP DRAW` regions under `#ifdef BLIPSCOPE_MAP_FETCH`.
+
+**`src/AircraftManager.h`,** draw regions 1 → **4**:
+- CB10's refusal, as it stands;
+- `#include "MapCompose.h"`;
+- the members:
+  - `mapcompose::Map mapDraw`;
+  - `uint32_t mapPkgSeq`, `mapAirportsGen` and `mapWxGen`;
+- the declarations of `DrawMapBase`, `MapAirportBoxes`, `MapAlloc` and `MapFree`.
+
+**`src/AircraftManager.cpp`,** draw regions 0 → **12**:
+- **`DrawWeatherUnder`, 4 regions.**
+  - At each of its three `return false;` points, a map build first returns `DrawMapBase(canvas, nullptr)`, the map
+    without weather. Each `return false;` gains braces, and its text is otherwise unchanged.
+  - Before the weather's `memcpy`, a map build returns `DrawMapBase(canvas, wxLayer565)` when that draws.
+  - Today's lines stay as they are, so without a ready map the two paths run byte for byte.
+- **The new functions, 1 region:**
+  - `DrawMapBase`:
+    - **scope:** `MapEnabled()`, the radar view, a location, no night clock, and a held package;
+    - **the flat-canvas guard:** `DrawWeatherUnder`'s own;
+    - **the key:**
+      - CD3's six fields;
+      - `radiusMi`: the view radius (`viewRadLat` × 111 km) converted to statute miles and rounded (`lround`), as CB6
+        graded it;
+      - `mapPkgSeq` and `mapAirportsGen`;
+      - `RingLabels(viewRadiusDisplay, rangeUnit)`, `Cardinals(radarUpDeg)` and `IndicatorRow()`;
+    - **then:** `mapcompose::Frame`, and one `memcpy`.
+    - **A refusal:** sets step A's `mapAllocFailed` and prints one line, `[map] draw: buffers refused`. A rebuild prints
+      `[map] draw: rebuilt in <ms> ms, <n> label(s)`. Both print counts only (CD2).
+  - `MapAirportBoxes`: DrawAirports' list, filters and cull, then `ProjectCoordinateToScreen` and
+    `mapplaces::AirportObstacles`. It returns 0 airports when `displayAirports` is off.
+  - `MapAlloc` is `heap_caps_aligned_alloc(8, n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)`; `MapFree` is `heap_caps_free`.
+- **`RebuildWeatherLayer`, 1 region:** `++mapWxGen` after a rebuild.
+- **`MapConfigure`, 1 region, inside step A's fetch region:**
+  - beside `mapAllocFailed = false;` (`:3451`): `mapcompose::Forget(mapDraw)` and `++mapPkgSeq`;
+  - `mapcompose::Init(mapDraw, MapAlloc, MapFree)` once.
+- **`ConsumeBasemap`, 1 region, inside step A's fetch region:** `++mapPkgSeq` on an accepted package.
+- **The airport generation, 4 regions:** `++mapAirportsGen` after each of the five writes:
+  - `displayAirports` (`:911`) and `airportsMin` (`:915`), with one bump after both;
+  - `cloudAirports.clear()` (`:1367`);
+  - `cloudAirports = std::move(...)` (`:3725`);
+  - the bench harness's `displayAirports = true` (`:2452`).
+
+`main.cpp` is not touched, and step A's fetch-region pins (`check_map_fetch.py`: h 3, cpp 9) do not move.
+
+#### The rows (`check_map_draw.py`: 3 → 9 source checks)
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CD1** | in `MapCompose.h`, `MapPlaces.h`, `AirportBoxes.h` and every draw region: no `Preferences`, no `.put*(`, no `SPIFFS`, no `LittleFS` | **S-CD-NVS**, a `Preferences` write planted in DrawMapBase's region: {CD1} |
+| **CD2** | the three headers contain no `Serial`, `printf(` (other than `snprintf(`), `puts(`, `ESP_LOG` or `log_`. In the draw regions, no print's arguments name `label`, `places`, `placed`, `Town`, `lat`, `lon`, `homeLat`, `homeLon`, `ix`, `iy`, `tx`, `ty`, `qx`, `qy` or `anchor` (whole tokens) | **S-CD-PRINTNAME**, a town label printed in DrawMapBase's region: {CD2} |
+| **CD3** | the six `view` fields `DrawMapBase` fills have the same right-hand sides as `RebuildWeatherLayer`'s `v.` fields | **S-CD-VIEW**, `viewRadLat` → `radLat` in the map's fill: {CD3} |
+| **CD5** | the allocator `mapcompose::Init` is given calls `heap_caps_aligned_alloc` with `MALLOC_CAP_SPIRAM` in the same call | **S-CD-NOSPIRAM**, the cap dropped: {CD5} |
+| **CD6** | every write of `cloudAirports`, `airportsMin` or `displayAirports` in `AircraftManager.cpp` is followed within 10 lines by `++mapAirportsGen;`. The control: it finds **5** write sites, and prints the count | **S-CD-NOGEN**, the bump after `:3725` removed: {CD6} |
+| **CD7** | `MapAirportBoxes` holds DrawAirports' list, filter and cull lines, normalized, in the same order. The control: it extracts at least 6 lines | **S-CD-CULL**, `0.55f` → `0.5f` in `MapAirportBoxes`: {CD7} |
+| **CB-W** | the shipping `firmware.bin` holds no `[map] draw` string; the wxlook image holds both, read off the two images as W7 was | the wxlook image is its control, as it was W7's |
+
+- **CD4's pins move** to h 4 and cpp 12. Its line reads `16 draw region(s); the refusal present; ...`.
+- **One control's anchor changes:** `R-CD-CRASH` anchors on CB10's `#endif` and its region end, which stays unique once
+  there are four ends in the header. The control's outcome is unchanged.
+- **No existing set moves.** S-CB-SECONDPATH edits DrawAirports' `drawString` line, which is not among CD7's cull lines.
+  No other existing plant touches a new row's input.
+- **`sabotage_map_draw.py` totals:** 11 plants and 3 controls, so **16 AS PREDICTED lines**. `SOURCE_CHECKS` = 9, so its
+  table reads `9 checks, 0 failures`.
+- **Lint stays at `40 driver(s), 0 flagged; 3 pinned line(s)`:** no new driver.
+
+#### The artifact proofs, frozen
+
+**The trees.** Main is pinned at `e3c2508e`.
+- **The branch is behind main:** main is not an ancestor of `cb9d6ac2`, and main changed `OtaInstall.h` and
+  `OtaUpdater.cpp`. So "the branch's tree" means **main with the branch merged into it, as CI tests it**, built from a
+  local, detached test merge that is never pushed.
+- **Five builds, plus one anchor control:**
+
+| label | tree | env | what for |
+|---|---|---|---|
+| A1, A2 | main, built twice | `blipscope-s3-128` | the anchor control |
+| B | main + `cb9d6ac2` | `blipscope-s3-128` | step B so far: the shipping image |
+| Bw | main + `cb9d6ac2` | `blipscope-s3-128-wxlook` | the flagged image, before the wiring |
+| C | main + the wiring head | `blipscope-s3-128` | the wiring: the shipping image |
+| Cw | main + the wiring head | `blipscope-s3-128-wxlook` | the flagged image, after the wiring |
+
+- **How they are built:**
+  - every build is clean: my own `.pio/build/<env>` is deleted first, so WiFiManager recompiles every time;
+  - `pio` runs from PowerShell, one build at a time, in p4's slot;
+  - **under 30 GB free on C:, nothing builds.** C: had 73 GB free at registration.
+
+**The comparator** (scratch, `imgcmp.py`). It reports every differing byte of two `firmware.bin` files outside these
+five regions:
+1. `app_elf_sha256`, 32 B at 0xB0;
+2. the trailing image SHA-256, the last 32 B;
+3. the checksum byte, just before it;
+4. and 5. WiFiManager's two `__DATE__ " " __TIME__` strings, located by content (the pattern
+   `Mmm dd yyyy hh:mm:ss`), not by fixed offsets.
+
+Its controls, all run before any real comparison:
+- **presence:** each image holds exactly 2 matches of that pattern, at the same offsets in both images;
+- **anchor:** A1 against A2 differs in all five regions, and in **0** bytes outside them;
+- **sensitivity:** a copy of A1 with one byte flipped outside the regions reports exactly **1** byte outside.
+- **Any control failing stops the run before any comparison:** the instrument is unreliable.
+
+**The predictions:**
+
+| comparison | predicted |
+|---|---|
+| A1 against B | **the same length; 0 bytes outside the five regions.** DrawAirports, the one shipping function step B so far changed, inlines `radarbox::Airport` to the same calls and constants |
+| B against C | **the same length; 0 bytes outside the five regions.** Every line of the wiring is under `#ifdef BLIPSCOPE_MAP_FETCH`; the three braces add no code |
+| Bw against Cw | `firmware.bin` grows by **8,000 to 20,000 B**. `.bss` grows by **under 1,040 B**: the `Map` struct, under 1 KB by its `static_assert`, and three counters |
+| CB-W | B and C hold no `[map] draw`; Cw holds both strings |
+
+**Bw against Cw, by symbol** (`xtensa-esp32s3-elf-nm --size-sort -C`, by name):
+- **Existing symbols whose size changes, exactly these:**
+  - `AircraftManager::DrawWeatherUnder`, `::MapConfigure`, `::ConsumeBasemap`, `::RebuildWeatherLayer`, `::Initialise`
+    and `::ConsumeFetchResult`;
+  - the `AircraftManager` constructor and the TU's static initializer.
+  - `RecordFrameUs` changes only if the bench harness's `#if` is on in wxlook. It is read from the build flags at the
+    run and stated then.
+- **New symbols:**
+  - `AircraftManager::DrawMapBase`, `::MapAirportBoxes`, `::MapAlloc` and `::MapFree`;
+  - anything in the namespaces `mapcompose`, `mapplaces`, `maplayer` (for example `Build` and its helpers), `wxraster`
+    (including the font) and `radarbox`, with their lambdas.
+- **Any other symbol that is new or changes size is off.**
+
+#### The run, in order, after the code is committed
+
+1. `check_map_draw.py`: **`9 checks, 0 failures`**, with CD4 `16 draw region(s)` and CD6 `5 write site(s)`.
+2. `sabotage_map_draw.py`:
+   - the control is clean;
+   - the 11 plants turn exactly their sets, and the 3 controls read as their table;
+   - **16 AS PREDICTED lines**.
+3. `--anchors` over the 40 drivers, then `--control` for the draw driver: `("line", "9 checks, 0 failures")`.
+4. Lint: `40 driver(s), 0 flagged; 3 pinned line(s)`.
+5. `check_map_fetch.py`: unchanged.
+6. `run.sh` under WSL:
+   - exit 2, and FAILED BLOCKS exactly `the same TU, for the board` and `Weatherscope R0 and R0b (the reference's
+     controls, A12.18)`; then `HOST TESTS FAILED`;
+   - MapDraw `9 checks, 0 failures`, MapCompose `26 checks, 0 failures` and MapPlaces `32 checks, 0 failures`;
+   - `40 driver(s): 39 run, 1 skipped`;
+   - `sabotage_map_draw.py: 16 AS PREDICTED line(s)`.
+7. The artifact proofs: the comparator's controls, then A1/B, B/C, Bw/Cw and CB-W, each as frozen above.
+
+**Anything else is a stop:** a count, a set, a control, a byte outside the regions, a size outside the band, or a symbol
+outside the lists. I stop at the first such reading, with no fix and no re-run, and report it with its detail read. A
+crash or a build that fails is an instrument failure, reported as one.
+
+#### Questions for the ruling
+
+- **Q-MW1, the braces.**
+  - Each of `DrawWeatherUnder`'s three `return false;` becomes `{ <map hook under #ifdef> return false; }`. The shipping
+    tokens gain braces and nothing else, and B against C decides whether the code is identical.
+  - The alternative keeps the tokens identical with a macro defined in a draw region, and reads worse.
+  - **I recommend the braces,** with the artifact as the proof.
+- **Q-MW2, the cull's second path.**
+  - `MapAirportBoxes` repeats DrawAirports' list, filters and cull, held equal by CD7.
+  - The alternative refactors DrawAirports into a shared iterator. That edits a shipping function, which the artifact
+    proof would then have to clear.
+  - **I recommend CD7.**
+- **Q-MW3, one refusal flag.** A refused draw buffer sets step A's `mapAllocFailed`, so the fetch stops too, and both
+  clear at the next config change, through the same line. Confirm.
+- **Q-MW4, the cap's radius in miles for km and nm devices.** `Cap` and `Inner` take the view radius in statute miles,
+  whatever unit the rings print (Q-MB3 ruled "by radius in miles"). Confirm.
+
+#### The CI for this push (docs only), predicted
+
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with `cb9d6ac2`'s job
+  names.
+- Each host-tests leg reads as it did there: MapPlaces 32 / 0, MapDraw 3 / 0, MapCompose 26 / 0, 40 drivers (39 run, 1
+  skipped), lint 40 / 0 / 3, AS PREDICTED 15 / 10 / 6, `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log. `cb9d6ac2`'s run has finished, so nothing is cancelled. Any other reading
+  stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
