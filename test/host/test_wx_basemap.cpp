@@ -33,7 +33,7 @@ namespace {
 using wxraster::Rgb;
 using wxscreens::Box;
 
-constexpr int kCases = 92;
+constexpr int kCases = 96;
 constexpr int kS = wxraster::kSize;
 
 int checks = 0, failures = 0;
@@ -250,8 +250,72 @@ void TR()
               RgbS(p1).c_str(), RgbS(p37).c_str()));
 }
 
-// ------------------------------------------------------------------------------------------------ FL (7)
+// ------------------------------------------------------------------------------------------------ FL (11)
 typedef std::set<std::pair<int, int>> Px;
+typedef std::vector<std::pair<double, double>> Ring;
+
+// FL7c and FL8c's CONTROL (docs/weatherscope-stage4.md S4.21): FillRing as it was before the bridge fix, VERBATIM but for
+// its name, with every crossing computed from the edge's FIRST endpoint. A zero-width bridge is crossed once each way, the
+// two doubles can straddle a pixel centre, and the pixel is lost. Kept here so each bridge case is shown able to fail.
+int FillRingFirstEndpoint(const double* xs, const double* ys, int n, double* cross, uint8_t* img, uint8_t value)
+{
+    if (n < 3) return 0;
+    double lo = ys[0], hi = ys[0];
+    for (int k = 1; k < n; ++k) {
+        lo = fmin(lo, ys[k]);
+        hi = fmax(hi, ys[k]);
+    }
+    int y0 = (int)floor(lo) - 1, y1 = (int)ceil(hi) + 2;
+    if (y0 < 0) y0 = 0;
+    if (y1 > kS) y1 = kS;
+    int written = 0;
+    for (int y = y0; y < y1; ++y) {
+        const double py = y + 0.5;
+        int m = 0;
+        for (int k = 0; k < n; ++k) {
+            const int k2 = (k + 1) % n;
+            const double xa = xs[k], ya = ys[k], xb = xs[k2], yb = ys[k2];
+            if ((ya > py) != (yb > py)) cross[m++] = xa + (py - ya) * (xb - xa) / (yb - ya);
+        }
+        for (int a = 1; a < m; ++a) {
+            const double t = cross[a];
+            int b = a - 1;
+            while (b >= 0 && cross[b] > t) {
+                cross[b + 1] = cross[b];
+                --b;
+            }
+            cross[b + 1] = t;
+        }
+        for (int a = 0; a + 1 < m; a += 2) {
+            int x0 = (int)ceil(cross[a] - 0.5), x1 = (int)ceil(cross[a + 1] - 0.5);
+            if (x0 < 0) x0 = 0;
+            if (x1 > kS) x1 = kS;
+            for (int x = x0; x < x1; ++x) {
+                img[y * kS + x] = value;
+                ++written;
+            }
+        }
+    }
+    return written;
+}
+
+// An independent reference for FL7: a pixel is in when its CENTRE is inside the ring by even-odd, tested pixel by pixel,
+// with none of FillRing's scanline code, so a plant in FillRing can't make the two agree.
+Px CentreFill(const Ring& r)
+{
+    Px s;
+    for (int y = 0; y < kS; ++y)
+        for (int x = 0; x < kS; ++x) {
+            const double px = x + 0.5, py = y + 0.5;
+            bool in = false;
+            for (size_t i = 0, j = r.size() - 1; i < r.size(); j = i++) {
+                const double xi = r[i].first, yi = r[i].second, xj = r[j].first, yj = r[j].second;
+                if ((yi > py) != (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) in = !in;
+            }
+            if (in) s.insert(std::make_pair(x, y));
+        }
+    return s;
+}
 
 Px Filled(const std::vector<uint8_t>& img, uint8_t v)
 {
@@ -287,6 +351,22 @@ Px Fill(std::initializer_list<std::vector<std::pair<double, double>>> rings)
     return s;
 }
 
+// One ring through a given fill function: FL7c and FL8c's control path, with Fill's guard bytes.
+Px FillWith(int (*fill)(const double*, const double*, int, double*, uint8_t*, uint8_t), const Ring& r)
+{
+    std::vector<uint8_t> img(kS * kS + 64, 0);
+    std::vector<double> xs, ys, cross(r.size() + 4);
+    for (const auto& p : r) {
+        xs.push_back(p.first);
+        ys.push_back(p.second);
+    }
+    fill(xs.data(), ys.data(), (int)r.size(), cross.data(), img.data(), 1);
+    Px s = Filled(img, 1);
+    for (int k = 0; k < 64; ++k)
+        if (img[kS * kS + k]) s.insert(std::make_pair(-1, -1));
+    return s;
+}
+
 void FL()
 {
     const std::vector<std::pair<double, double>> sq1 = {{10.5, 10.5}, {14.5, 10.5}, {14.5, 14.5}, {10.5, 14.5}};
@@ -315,6 +395,51 @@ void FL()
     const Px r2 = Rect(12, 15, 12, 15);
     u.insert(r2.begin(), r2.end());
     check("FL6", a == u, fmt("%zu px (want 28: the union)", a.size()));
+
+    // FL7-FL8 (S4.21): a zero-width bridge through a pixel centre, map-server's cases by bytes (its kb1-case set,
+    // SHA256SUMS dbed2d33...89f2cd). Synthetic screen px; no real place. The fix computes every crossing from the edge's
+    // lower-y endpoint, so the bridge's two passes give one double and the pixel is kept.
+    const Ring minRing = {{10.1, 10.1}, {229.9, 10.1}, {229.9, 229.9}, {10.1, 229.9}, {10.1, 10.1},
+                          {150.3, 150.3}, {150.3, 170.7}, {170.7, 170.7}, {170.7, 150.3}, {150.3, 150.3}};
+    Px ref = CentreFill({{10.1, 10.1}, {229.9, 10.1}, {229.9, 229.9}, {10.1, 229.9}});
+    for (const auto& p : CentreFill({{150.3, 150.3}, {150.3, 170.7}, {170.7, 170.7}, {170.7, 150.3}})) ref.erase(p);
+    a = Fill({minRing});
+    check("FL7", a == ref, fmt("%zu px (want the outer square minus the island, %zu px, the bridge's pixels kept)", a.size(),
+                               ref.size()));
+    const Px lost = {{26, 26}, {31, 31}, {128, 128}, {133, 133}, {134, 134}};
+    Px o = FillWith(FillRingFirstEndpoint, minRing), missing, extra;
+    for (const auto& p : ref) if (!o.count(p)) missing.insert(p);
+    for (const auto& p : o) if (!ref.count(p)) extra.insert(p);
+    check("FL7c", missing == lost && extra.empty(),
+          fmt("CONTROL: the first-endpoint crossing misses %zu px, adds %zu (want exactly the 5 bridge pixels, none added)",
+              missing.size(), extra.size()));
+
+    // view-162-90: the 22-vertex bridged sea ring from map-server's synthetic KB1 build, the same doubles as its round-trip
+    // reprs. Three tiny values are spelled with the point moved one place (45.35...e-16 for 4.535...e-15, 90.70...e-17 for
+    // 9.070...e-16): the same decimal, so the same double, but no 16-hex-character run for the device-id guard to read.
+    const Ring v90 = {{45.92425305948058, 194.07574694051942}, {90.36896877956481, 149.6310312204352},
+                      {90.36896877956481, 138.51985229041412}, {101.48014770958586, 138.51985229041412},
+                      {123.70250556962797, 112.59132663960692}, {123.70250556962797, 106.6658528397473},
+                      {129.6279793694876, 106.6658528397473}, {129.6279793694876, 112.59132663960692},
+                      {123.70250556962797, 112.59132663960692}, {101.48014770958586, 138.51985229041412},
+                      {101.48014770958586, 149.6310312204352}, {90.36896877956481, 149.6310312204352},
+                      {45.92425305948058, 194.07574694051942}, {45.92425305948059, -45.35831319257823e-16},
+                      {194.07574694051942, 45.35831319257823e-16}, {134.81368449964904, 90.70765653036976e-17},
+                      {134.81368449964904, 8.888210699789427}, {120.0, 8.888210699789425},
+                      {120.00000000000001, 0.0}, {134.81368449964904, 90.70765653036976e-17},
+                      {194.07574694051942, 45.35831319257823e-16}, {194.07574694051942, 194.07574694051942}};
+    const Px lost90 = {{81, 158}, {79, 160}, {74, 165}, {72, 167}, {70, 169}, {69, 170}, {63, 176},
+                       {62, 177}, {60, 179}, {58, 181}, {57, 182}, {55, 184}, {53, 186}, {51, 188}};
+    a = Fill({v90});
+    size_t kept = 0;
+    for (const auto& p : lost90) kept += a.count(p);
+    check("FL8", a.size() == 28420 && kept == lost90.size(),
+          fmt("%zu px, %zu of the 14 bridge pixels (want 28420, map-server's reference count, and all 14)", a.size(), kept));
+    o = FillWith(FillRingFirstEndpoint, v90);
+    size_t held = 0;
+    for (const auto& p : lost90) held += o.count(p);
+    check("FL8c", o.size() == 28406 && held == 0,
+          fmt("CONTROL: the first-endpoint crossing fills %zu px, %zu of the 14 (want 28406, none of them)", o.size(), held));
 }
 
 // ------------------------------------------------------------------------------------------------ LN (9)
