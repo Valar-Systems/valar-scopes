@@ -5033,6 +5033,24 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
   and its added' on `p1-t00-0` equals Show 2's 87.6 %. Unequal makes it the INSTRUMENT.
 - Read once. This is the SECOND reading as a grade: off goes to the owner.
 
+**CBF3-C AS GRADED (23:18:09Z): AS PREDICTED, exit 0.**
+- `cgrade.py` `842c1d156abbd36a07b15b91345137575d3fd0b454d15266f52135c400c00d68`; output
+  `317d78bfd3d14e2f3e7133b15ac9d4ac4e1ada129288e228e2893c739737cae4`. The control passed (V and G equal `crep.out`;
+  added' on `p1-t00-0` = 87.6).
+- Trustworthy on 30, off 29 (`p1-t21-0` UNTRUSTWORTHY by the locator, as before). **59 ok, 0 out.**
+- **The 30 on-frames:**
+
+  | criterion | read |
+  |---|---|
+  | visible | 80.8-97.8 % |
+  | added' | **82.1-100.0 %** (`p1-t16-0` 95.7, `p1-t36-0` 82.1) |
+  | V | 95.56-96.54 % |
+  | G | 0.00-0.05 % |
+
+- **The 29 off-frames:** visible 0.0-0.1 %, V 0.0 %.
+- **So step C's frame claim holds on glass:** the map stays visible under the beam, the add happens, the map is
+  visible outside it, and there is no green on the map.
+
 **THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
 (visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
 - every row as predicted: CBF3-C graded;
