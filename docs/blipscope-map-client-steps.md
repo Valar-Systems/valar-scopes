@@ -2298,6 +2298,59 @@ crash or a build that fails is an instrument failure, reported as one.
 - The tested merge is read from a checkout log. `cb9d6ac2`'s run has finished, so nothing is cancelled. Any other reading
   stops.
 
+### The wiring's ruling, and four corrections found while writing its code (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 02:35:39Z):**
+
+> a35e19021959 is ACCEPTED as the wiring's registration (on origin, docs +200).
+> - My requirement is met from the files: BLIPSCOPE_MAP_FETCH is derived (AircraftManager.h:38), and only wxlook gets it.
+> - Testing main + branch as CI does, because main isn't an ancestor of the branch, is right.
+> - The comparator's three controls come before any comparison.
+> - The A1-vs-B row now also proves that the MapPlaces step's DrawAirports edit (via AirportBoxes.h) left the shipping
+>   image unchanged. That's a check this step adds to the last one, and it matters.
+> RULINGS, the first option in each:
+> - Q-MW1: braces with #ifdef'd hooks, proven by B against C at 0 bytes outside.
+> - Q-MW2: CD7, the cull repeated and held line for line, not a refactor of shipping DrawAirports. It's the same reasoning
+>   as Q-MB9: a check that runs.
+> - Q-MW3: one flag, mapAllocFailed, and one reset at a config change.
+> - Q-MW4: Cap and Inner take the PHYSICAL radius in statute miles for km and nm devices too, so the label density is the
+>   same on the ground whatever the unit. State the conversion constant in the record.
+> GO: code, then the 7 steps in p4's build slot. Stop at the first off reading. Anything outside the five regions for
+> A1-B or B-C is a stop, never an explanation after the fact.
+
+**Q-MW4's constant.** `radiusMi` = `lround(viewRadLat × 111 / 1.609344)`:
+- 111 km a degree of latitude, the radar's own `KM_PER_DEGREE`;
+- **1.609344 km a statute mile**, exact by the international definition.
+- It is written once, in `DrawMapBase`.
+
+**Four corrections, found while writing the code, before anything was built or run:**
+
+1. **Where `mapcompose::Init` runs.**
+   - The registration put it in `MapConfigure`'s region. That region sits inside step A's `OnQuery` block, which does not
+     run for the boot's first key, so the Map would never be initialised.
+   - It runs instead at the map's first use, in `DrawMapBase`'s region: `if (mapDraw.alloc == nullptr) mapcompose::Init(...)`.
+   - The region counts do not change, and CD5 finds the call in the draw regions as before.
+2. **Bw against Cw, the symbol lists.**
+   - **The constructor.** `AircraftManager`'s constructor is inline in the header (`AircraftManager.h:1386`), and its one
+     use is the global at `main.cpp:173`.
+     - So **main.cpp's static initializer** is the one expected to change, with the new members' initialisers inlined
+       there.
+     - **No out-of-line constructor symbol** is expected in either image. If one appears in Bw, it must change in Cw.
+     - "The TU's static initializer" therefore means main.cpp's.
+   - **New symbols may also appear in `bmpk`, `wxbase`, `wxlayer` and `wxs2`:** template instantiations and inline
+     functions that `Build`, `Compose` and the labels newly call. **No existing symbol in those namespaces may change
+     size.**
+   - **New C runtime, libm and libgcc symbols the new code calls may appear,** for example `llround`, `fmin`, `fmax`,
+     `floor` and soft-double helpers. None that exists may change.
+   - **Nested symbols:** a listed or new function's nested symbols (its lambdas and its local statics) are counted with
+     that function.
+   - **`RecordFrameUs`:** its block is under `FOLLOW_BENCH`, which no env sets, so it is **unchanged** in wxlook.
+3. **The rebuild's log line** carries `, Build refused the package` when `Build` returns false, so a failed build is not
+   silent.
+4. **CB-W's two strings, exactly:** `[map] draw: buffers refused` and `[map] draw: rebuilt in`.
+
+All other predictions stand as registered.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
