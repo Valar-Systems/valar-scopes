@@ -888,3 +888,71 @@ registration's [−3.0, +5.0] is **superseded and never applied.** Tonight's pac
   - **Default:** the six stay the owner's "two homes × three zooms" at 10/25/50.
   - A **100 mi** scene per airport is added as a reported row, labelled "the default view", not in the worst-of-six.
   - Whether 100 mi belongs in the six is the owner's call.
+
+**The ruling (the orchestrator, unstamped):**
+- Q-RC5 and the amendments are ACCEPTED.
+- Q-RC7 is with the owner, with the orchestrator's recommendation of 25/50/100.
+- **The rung set is ONE frozen constant; changing it adds no other edit.** Until the owner answers, 10/25/50 plus a
+  reported 100 stands.
+- GO on the recorder and replay code.
+
+### The recorder, survey and replay code: its design, registered before the code (2026-11-12)
+
+**Where:** a new branch `bench/frame-bench-v19-rec` from `bench/frame-bench-v19` (`a37e99b09fb4`). The baseline
+image's code is not changed in behaviour. Its 23-scene table stays the default when no run flag is set.
+
+**THE AIRPORTS, read from the source** (`include/Airports.h` at v19, 2 dp, never printed):
+- index 0 is SFO, then 1-8 are ATL, ORD, DFW, DEN, LAX, JFK, LAS, CLT, Q-RC3's list.
+- They are copied into `FrameBench.h` as strings. `check_frame_bench.py` gains a row: every copy equals `Airports.h`'s
+  value at 2 dp, with a plant (one digit changed).
+
+**THE ONE CONSTANT:** `kRungs[]` = {10, 25, 50} plus `kDefaultViewMi` = 100 (reported, outside the six). Every
+replay scene, and the reader's worst-of-six, derive from them. A host check plants a changed `kRungs[]` and shows the
+scene table and the reader follow with no other edit.
+
+**THREE RUNS from one header, selected by a build flag** (each its own slug-less env, `FRAME_BENCH` on):
+1. **`FRAME_BENCH_RUN_SURVEY`,** 9 scenes, one per airport. The airport home in RAM; the shipping query (`radius`
+   "100", `radius-unit` "mi", cloud). 20 s settle, then 180 s in which each poll prints
+   `[frame-bench] survey A<i> poll <k> rows <n> in10 <a> in25 <b> home-ok <0|1>`. Counts only; in10/in25 are the rows
+   within 10/25 statute mi of the airport, computed on the device.
+2. **`FRAME_BENCH_RUN_REC`,** KSFO and the survey's choice (`FRAME_BENCH_REC_B=<index>`, a build flag). Per airport,
+   20 s settle and then **300 s** recorded. For each poll:
+   - **if the request's 2-dp lat/lon equal the airport's,** `serializeJson` of the parsed body is printed in paced hex
+     parts: `[frame-bench] rec A<i> <seq> <ms-since-settle> <epoch> <part>/<parts> <hex>`;
+   - **otherwise** `[frame-bench] rec A<i> skip home-ok 0`, with no body;
+   - **so no body from any other home is ever printed.** The reader refuses a recording holding a body without the
+     match, or with fewer than 280 s of polls.
+3. **`FRAME_BENCH_RUN_REPLAY`,** the v19 run (RP5). Its scene table derives from `kRungs[]`.
+   - **The hook:** in the cloud branch, a replay scene's poll is answered by `deserializeJson` of the recorded body at
+     the same elapsed time, with `t` shifted to keep the data age. It prints `served A<i> <seq> crc <crc32>`.
+   - **The recordings:** a FRAME_BENCH-only pre-build step generates a header under `.pio/build/` from
+     `FRAME_BENCH_REC_<AIRPORT>` (untracked paths).
+   - **The scenes:** CTRL interleaved (plant on and off in alternating 10 s blocks in one scene), the six, the two
+     default-view rows, the packed stress rows, LIVE at both airports, and LIVE-OWN.
+
+**THE ROWS** (`check_frame_bench.py`, each with a plant that must read red):
+
+| row | what it holds |
+|---|---|
+| FB-R1 | the survey, recorder and hook regions each exist exactly once, inside `#ifdef FRAME_BENCH`, inside the cloud branch |
+| FB-R2 | the recorder prints a body only inside the home-match branch |
+| FB-R3 | no recording and no generated header is tracked by git |
+| FB-R4 | no region prints a latitude or longitude value |
+| FB-R5 | the airport strings equal `Airports.h` at 2 dp |
+| FB-R6 | the rung set is the single `kRungs[]` constant |
+
+The existing FB1-FB5 rows stay as they are.
+
+**THE READERS:**
+- `survey_read.py` takes each airport's first 10 home-ok polls (fewer: that airport is the INSTRUMENT). It prints the
+  share at 40 rows and the median in25, and applies RP2's rule. Counts only.
+- `rec_read.py` reassembles each recording, refuses on the rules above, and prints its sha256, poll count and span.
+- The replay's reader is registered with RP5's predictions, before its window.
+
+**THE IMAGES:** each with the path mapping and the pinned build time, and **I-3 shown with `FRAME_BENCH` off for each
+run's tree** (0 bytes elsewhere).
+
+**THE WINDOWS (Q-RC6):** the survey needs the US evening banks. **00:00-01:30Z** overlaps every candidate's local
+evening (ET 19:00-20:30, CT 18:00-19:30, MT 17:00-18:30, PT 16:00-17:30). Tonight's is too close to make with code,
+checks and images, and p4 holds the build slot until about 00:25Z. **So the survey window is requested for 00:00Z on
+2026-11-14,** and KSFO's capture can share it if the code is ready.
