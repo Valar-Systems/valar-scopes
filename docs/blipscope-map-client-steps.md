@@ -4618,6 +4618,84 @@ The ruling also ACCEPTED the registration as registered red first.
   - **Anything else:** stop, and the class table is reported as read.
 - Each capture (B, C, RP6-A) gets its own reading. B and C disagreeing is itself reported, never averaged.
 
+**AS RUN (21:43Z): neither (a) nor (b) on any ring of any capture, so STOP.** `ringclass.py`
+`1041386bf3e0e1777d8383137607eabd71b11e293462cfd1e641033db894ea67`.
+- **Excluded, (b):** the ring colour shows on its circle only at k = 0 (B 63.3 % / 75.0 %, C 59.5 % / 81.7 %, RP6
+  81.1 % / 94.1 % for r=39 / r=78), at 0.0-0.6 % for every k = ±1..3. Colours in no source class are negligible
+  (2-5 px). The rings are at the source's radii, in the source's colour, wherever they show.
+- **(a) as registered is not met:** LABEL + PLANE + AIRPORT hold 6-27 % of the shortfall.
+- **AMBIG holds the most:** colours in two or more classes, 68-91 % of the shortfall. Its composition was not
+  pre-registered, and it was not split after the table was seen.
+- **The ruling (~21:45Z):** the STOP is accepted. It does NOT count toward the third failure. The AMBIG split is not run,
+  because no decision waits on it: an element drawn early and covered later cannot prove a frame finished. Whether the
+  rings were meant to stay visible is a look question, not an instrument one.
+
+### The trust test from the draw order: the instrument's third attempt, registered before any code (2026-11-12)
+
+**What the test is FOR:** proving a grab is a FINISHED frame. So it must be built from what is drawn LAST.
+
+**The draw order, read from the source** (C's tree, `27bfc9ca`, read-only):
+1. **The loop, per frame** (`main.cpp` 925-983):
+   - `SetPhase(Clearing)`;
+   - the clear: `DrawWeatherUnder` copies the whole 115,200 B layer, or `fillScreen` black, so either way every pixel
+     is replaced;
+   - `SetPhase(Cleared)`, then the sweep;
+   - `appManager.Draw`, then `SetPhase(Drawn)`, `pushSprite`, `SetPhase(Pushed)`.
+2. **`Draw`** (`AircraftManager.cpp` 4342-4422):
+   - the face: on the radar, `DrawRadar`, then `DrawZoomOverlay` and `DrawHoldRing`;
+   - then, on every screen, **`DrawScreenIndicator`**, `DrawClock`, `DrawVisualAlert` and the toasts (the last ones
+     conditional).
+3. **`DrawRadar`** draws `DrawRadarCircles` FIRST among its overlays. Then come the stale banner, the weather note,
+   the airports, the follow track, and per aircraft its trail, label, marker and alerts. **That is why the rings cannot
+   prove anything:** they are the earliest overlay, and the labels and markers drawn over them are in the frame by
+   design.
+4. **`DrawScreenIndicator`** (5398-5419):
+   - one `fillCircle` per carousel screen at y = 224 and x = 120 − (shown − 1)·6 + 12·slot;
+   - the active dot r = 3 in `color888(0, 255, 0)`, the others r = 2 in `color888(0, 80, 0)`;
+   - the same dots `wx-fb-check.py` derives from the source, as `src["dots"]`.
+   - Drawn after it: `DrawClock`, text size 1 at y = 210, so rows 210-217. It never reaches the dots' rows 221-227.
+     Then the conditional alerts and toasts.
+
+**THE TEST, two parts. Each covers the other's blind side:**
+- **T1, the device's own claim:** `X-Blipscope-Frame-Finished: true`. The copy is taken inside the phase window
+  (Drawn or Pushed at both ends, with the tag, `Sequence` and the clear count equal across it). This is already the
+  reader's rule: a frame not Finished is not read.
+- **T2, the glass:** every screen dot in `src["dots"]` has its whole `fill_circle` raster in its colour. These are the
+  same raster and the same "complete dot" test as `wx-fb-check.py`'s `dot_pixels`, imported, never copied.
+  - **Why it proves a finished draw:** the clear replaces every pixel, and the dots are drawn after everything on the
+    face but the clock. So a grab between a clear and that frame's `DrawScreenIndicator` holds no complete dot.
+  - **Otherwise** the frame is UNTRUSTWORTHY: "screen dot k: m/n px in its colour".
+- **T2's named residual:** a copy that starts after a clear and reaches the dots' rows only after
+  `DrawScreenIndicator` has run. It would carry dots while missing whatever was drawn in the copy's first rows' span.
+  T1's phase window is what excludes that, which is why both are required.
+- **The rings leave the trust test entirely.** The locator stays as it is: it defines the regions, and its refusals
+  are counted apart from trust, as before.
+- **Built as `map_bench_read2d.py`** from 2c by a counted builder:
+  - `rings_outside` is replaced by `dots_complete` at the two sites;
+  - the selftest's synthetic frames gain the dots, drawn from `src["dots"]` with `wx-fb-check.py`'s `fill_circle`;
+  - one new selftest plant: the dots left out, which must read UNTRUSTWORTHY.
+
+**THE CONTROLS, predicted:**
+
+| # | the control | predicted |
+|---|---|---|
+| K1 | every B and C frame marked Finished (B 60 of 60, C 60 of 60, none straddled) | T2 passes on **120 of 120**. The locator's refusals are unchanged and counted apart (B 7, C 1, as `ringctl.py` read them). So the frames reaching CBF3's regions are B on 26, B off 27, C on 30, C off 29: at least 10 per label |
+| K2a | `wx-fb-check.py`'s own mid-draw case: its `synth(..., rings=False)` frame, which it builds without dots | UNTRUSTWORTHY |
+| K2b | a real Finished frame (the first on-frame of B, and of C) with every dot's raster set to `0x0000`, the cleared state | UNTRUSTWORTHY |
+| K2c | the same frames torn: rows y ≥ 200 set to `0x0000` (the bottom half after the next clear) | UNTRUSTWORTHY |
+| K2d | only the active dot erased | UNTRUSTWORTHY |
+| K2e | one pixel of one inactive dot changed to `0x0000` (the "whole raster" edge) | UNTRUSTWORTHY |
+| K3 | RP6's frames that the old rule trusted (RP6-A 18, RP6-B 12, RP6-off 12, read-only and sha-checked) | T2 passes on **42 of 42** |
+| K4 | `regress2d.py`: 2d equals 2c in B and C modes, on every log plant and both real logs | identical. The frame selftest is identical except the new plant's line. Shown able to fail once |
+
+**THE OUTCOMES:**
+- **(Q1)** every control as predicted: the trust test is accepted. Then CBF3-B and CBF3-C are graded against their
+  frozen rows, unchanged, and nothing else is.
+- **(Q2)** a Finished bench or RP6 frame failing T2: the third attempt has failed its own control. **It goes to the
+  owner**, with what covers the dots counted by source class.
+- **(Q3)** a plant not UNTRUSTWORTHY: the same, to the owner.
+- **Anything else:** stop, and to the owner.
+
 **The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
 - in B mode and C mode on every log plant and on B's and C's real logs;
 - in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
