@@ -2352,3 +2352,26 @@ They replace ff3e8a2c25ab and 51c42cbb2a17 above. NOT CAUGHT and UNCHANGED are a
 **142 squares with the classes.** The 138 interior pixels all count. At KBOS, Boston's recorded-land (131, 123) drops and its three
 endpoint pixels east of the edge count: 84 - 1 = 83. At MIDTOWN, the 4 outside pixels drop, and 1 of its 3 endpoint pixels counts:
 65 - 6 = 59. **Part 2 waits for the orchestrator's word,** and the push to #652 waits for v19's promote.
+
+**Run 5 (15:41:00-15:43:00Z, `p2-read.py` 426e93dd868f): every row AS PREDICTED through KB8, which passes in full under (a). STOPPED at
+KB4's control at KBOS, which is blind.**
+- **Step 0, the synthetics, P2-0, T-SEA0-real, P2-1, the lock's cost and KB3:** all as in run 4.
+- **KB8 under (a):** CAUGHT (a) **142**, old 149; NOT CAUGHT (a) **0**, old 1; S-KB-EDGEUNLOCK run 3's rings, old 10, **(a) 9**;
+  KBOS's rings equal run 4's; **KB8 KBOS (a) 0** (old 1, printed); **KB8 MIDTOWN (a) 0** (old 4, printed). **All as predicted.**
+- **KB4's control at KBOS: OFF.** The mask moved 2 km inland reads frac 0.9649 and cover 0.9610, so **it passes both bounds**
+  (0.95 and 0.90), where it was predicted to fail at least one. No KB4 row is graded; nothing after it ran.
+
+**The cause, read in the renderer** (`p2-render.py` kb4, l.150 and l.180). KB4's grid is 242 px over the 162 km level, which is
+**1.341 km a pixel**, and the control moves the whole mask **2 km, about 1.5 px**, from the sea's centroid toward the home. Only a
+1.5-px strip along the coast changes. At KBOS the sea fills most of the 324 km square, so that strip is a few percent of the mask:
+**a 2 km move cannot break a 5% margin on frac or a 10% margin on cover.** The control is structurally blind wherever the sea is
+large against its coastline. It says nothing against the sea path. **What it does show:** at this grid, KB4 measures gross agreement
+with the terrain, not 2 km placement.
+
+**For ruling** (KB4's first off reading; nothing applied):
+- **(a) a decisive control:** the mask's COMPLEMENT inside the square, the land drawn as sea. It must fail frac, because the land
+  reads above 0 m. The 2 km figures stay printed as KB4's measured sensitivity, not graded. This is recommended.
+- **(b) a shift per point, set from geometry before the run:** the smallest d for which d × coast length passes the bound's margin
+  of the mask's area. That is more machinery, and it still assumes the newly covered strip is land above 0 m.
+- **(c) record KB4's scope** (gross agreement, not 2 km) and drop the control. That is not recommended: a check with no control is
+  one nobody can trust.
