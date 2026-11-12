@@ -2101,3 +2101,16 @@ control is on kb1c with its off-bridge clause, as registered." **GO for KB1's fi
 - **(b) Join same-source pieces across cell edges in the builder before simplifying.** It is seamless and fewer bytes, but needs a
   polygon union at runtime (a dependency, and CPU and memory).
 - **(c) Accept it as a visible cost.** I do not recommend it: at ε×8 the gap reaches about 1.6 km, roughly 24 px at the closest zoom.
+
+**RULED (06:35:32Z): (a), edge-locked simplification in the sea path.** Every vertex on the piece's own cell boundary is kept: the ring
+is split at those vertices, and DP runs on the chains between them. (b) is rejected for now (a runtime union and a dependency). (c) is
+rejected (up to about 24 px of land across open sea). Before the re-run, a re-registration is pushed first:
+1. a plant, **S-KB-EDGEUNLOCK** (edge-locking removed), must reproduce KBOS's wedge (KB8 ≥ 1 at KBOS), and runs first;
+2. the lock must survive the rest of the path: on a synthetic two-piece edge, a host-level assertion that the two pieces' quantised edge
+   vertices are equal, with a failing control;
+3. the cost is PREDICTED: per point, sea bytes with the lock (KB3 ≤ 3,072 B still), and the effect on P2-1's visible costs;
+4. **KB8's description, corrected:** its count reads a 1-px band beside the edge and understates a wedge's area (order 700 px at KBOS).
+   The instrument fired correctly, but it measures PRESENCE, not size;
+5. then the run from the start. This is KB8's first re-run; a second off reading goes to the orchestrator and on to the owner.
+
+A slip in my report, recorded: it gave this record's commit as "28fff67fxxxx", a placeholder typed instead of a sha that had been read.
