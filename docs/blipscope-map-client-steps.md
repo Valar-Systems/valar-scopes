@@ -3494,6 +3494,23 @@ things before it blends. The map's gate must re-establish each:
   window and E2:08 restored at its end; or two windows. The rows of the two images contradict each other (CF2-B
   against CF2, CBF3 against CBF3-C), so neither image's rows are read from the other.
 
+**The ruling on step C's design (the orchestrator, 07:32:23Z), in short:**
+- **Q-C1:** the add in RGB565 (`g6 += lvl >> 2`, saturating). ACCEPTED.
+- **Q-C2:** a new `include/MapSweep.h`, with `WxSweep.h`, its suite and its driver untouched (WD6's). ACCEPTED.
+- **Q-C3:** the map's own slice and spans, +58,560 B in the all-or-none set (PSRAM). ACCEPTED, because sharing would
+  move WD5d.
+- **Q-C4:** the code goes on a branch from #659's head, and its PR is opened after #659 merges. ACCEPTED. When #659
+  merges, the branch is rebased onto main's squash and its stacked diff read again, so the PR shows only step C.
+- **Q-C5:** ONE window, with the step B image and then the step C image. ACCEPTED, under the owner's 04:29Z terms
+  applied to every flash in it:
+  - all THREE images (step B, step C, and E2:08's restore image) are identified by sha256 before the window;
+  - the write ranges are printed against the partition table before EACH flash: app only, no NVS, no factory image,
+    no full erase;
+  - each image's rows are read only from that image;
+  - E2:08 is restored at the end, with Wi-Fi rejoining from its saved settings and no setup portal;
+  - the window opens only after v19 needs nothing of E2:08, and anything that would need the owner's hands stops it.
+- **CBF2-C**, the owner's look on glass, stays his window.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
