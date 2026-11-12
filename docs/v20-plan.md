@@ -57,10 +57,19 @@ How it runs:
    gate's p95); sample counts; predictions; a control first (a planted per-frame delay of known size must move p95 by
    that size); and the escape hatch (anything outside the set stops).
 2. **The bar** is the owner's, above: p95 at or under 50 ms at 40 aircraft drawn, map and weather on; 20 and 60
-   reported beside it. Under his choice (a), v20 is held to it.
-3. **Every candidate.** O11's pre-flight (blipscope-5c) re-runs the baseline's procedure unchanged, with map and
-   weather on, and reads it against the frozen bar before the cut. A candidate over the bar does not ship: it goes
-   to the owner with its numbers.
+   reported beside it. Under his choice (a), v20 is held to it. **How it is read (the owner, 2026-11-12 23:00Z):**
+   "Traffic: (b). The bar is read on a recorded real traffic picture at a busy airport where the board holds its full
+   ~40 aircraft, replayed identically every time. The recording is chosen and pinned before any v20 candidate is
+   measured. The packed scenes and the 60 row stay on every report as labelled stress figures." "Reading: the worst
+   of the six scenes (two homes x three zooms) must have p95 at or under 50 ms. The median isn't used." The six are
+   two recordings, each at a busy airport, each at 25, 50 and 100 miles (the owner, 23:31Z: "100 is the board's default
+   view and where real traffic fills the screen"; 10 miles may be reported beside it, outside the bar); map-client
+   records them from Blipscope's own feed with the board's shipping query and pins them by sha256 before any
+   candidate. v19's re-read before C1 uses the same six scenes.
+3. **Every candidate.** O11's pre-flight (blipscope-5c) runs map-client's procedure (`docs/frame-time-bench.md`)
+   on the pinned recordings, through the bench's cloud-path hook so that map and weather draw as shipped, and reads
+   the worst of the six against the bar before the cut. A candidate over the bar does not ship: it goes to the owner
+   with its numbers.
 4. **The standing rule (the owner):** "every change to drawing code reports its frame time on the bench, before and
    after. A slowdown beyond the margin frozen in its registration stops it."
 
@@ -113,9 +122,11 @@ How it runs:
   coverage" until their products are routed.
 - **The proxy bill** must land before weather goes fleet-wide (at 600 boards: Logs ~$166, KV reads ~$115, KV
   writes ~$54 a month). Log sampling must not drop the breaker/upstream_skip instruments.
-- **The frame-rate gate** (above): v20 as planned misses the owner's bar. Early readings put v19 alone at 74.5 ms
-  p95 with 41 aircraft. Weather adds about 11-13 ms. Map rebuilds at KSFO took 177-198 ms each. The owner chose
-  (a), so v20 holds until the speed work meets the bar, and the date below is reset from p4's plan.
+- **The frame-rate gate** (above): v20 as planned misses the owner's bar. The measured v19 baseline (2026-11-12,
+  E2:08, map and weather off, each p95 +-1.54 ms) is 76.6-81.8 ms at 40 aircraft on the packed bench traffic; a live
+  San Francisco reading puts a realistic 40 near 63 ms (an estimate until the recordings are measured). Weather adds
+  about 13 ms at 40. The owner chose (a), so v20 holds until the speed work meets the bar; on realistic traffic the
+  push task is the lever that decides whether the date below holds.
 - **The ingest's clipper (PARITY):** RESOLVED 2026-11-12: the hand-written rect clip and the full TS ingest equal
   GEOS and the dry run exactly; no dependency.
 
