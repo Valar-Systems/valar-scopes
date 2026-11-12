@@ -2991,6 +2991,30 @@ because CI tests the merge and main's install suite differs.
   sit at lines 23, 78 and 301 of the base; O10 sits between them.
 - **Anything else** is off, and I stop.
 
+**The local runs on the branch head (`935a2946`), as read** (06:37Z, WSL Ubuntu 24.04, g++ 13.3.0; the code commit
+`935a2946` came before the run):
+- **`test_ota_identity`:** `22 checks, 0 failures`. R1 `27/27 (9 envs x 3 scopes)`, M1 `51 accepted, 30 refused, 0
+  off the rule`, M2 `90 of 90 refused`, M3 `23 accepted, 58 refused (28 cross-scope), 0 off the rule`. As predicted.
+- **`test_ota_install`:** `36 checks, 0 failures`, O10 `9 identities x 2 pre-check heads: 18 no-record, 0 foreign, 0
+  other, 0 flash calls`. As predicted.
+- **`test_ota_model`:** `9 rows; 18 checks, 0 failures`. As predicted.
+- **`sabotage_ota_model.py`:** the control AS PREDICTED; S-M1 failing `M1-missileer-photo`, `M1-missileer-s3-128`,
+  `M1-weatherscope-s3-128`; S-M1b `M1b-short`; `2 sabotages: ALL AS PREDICTED`. `--control` `18 checks … (the table:
+  checks 18)`, `all as the table`. `--anchors` `2 plant(s), 2 anchor(s), all present exactly once`. As predicted.
+- **`sabotage_ota_identity.py`:** S-ID1b (7) and S-ID2b (9) AS PREDICTED, real headers unchanged; `--control` 22 and 36,
+  all as the table; `--anchors` 2 of 2. As predicted.
+- **`sabotage_ota_install.py`:** S-O8a (20), S-O8b (14) and S-ID3 (9) AS PREDICTED; `--control` 36; `--anchors` 3 of 3.
+  As predicted. Its plants' O10 lines read 9 identities and 18 heads.
+- **`lint_driver_counts.py`:** exit 0, `40 driver(s), 0 flagged; 3 pinned line(s)`. As predicted.
+- **`check_ota_identity.py`, OFF.** `--selftest` read `selftest PASSED`, exit 0. `--fleet-sabotage`, `--fleet` and
+  `--check-table` each read `BLIND: cannot run \`pio project config\`: [Errno 2] No such file or directory: 'pio'`,
+  exit 2. The script defines exit 2 as BLIND: it cannot read the config, and it is never a pass.
+  - **The cause:** WSL has no `pio`. My prediction put these runs in WSL without naming that block.
+  - **What it is not:** it is not a reading of the table. Earlier today, from Git Bash on Windows (where `pio` is) and
+    before the code commit, the same three modes read `fleet-sabotage PASSED`, `fleet PASS` (`11 built … boards s3-128
+    9`) and `--check-table` exit 1 (`fleet only: …mapbench`), on the old table.
+  - **What I did:** I stopped here. The test merge's runs have not started, and nothing was re-run.
+
 **The push, predicted** (after the local runs read as predicted; `9ae188d9`'s run has finished):
 - **The guard chain** gains `skus.py --validate`, `check-no-bench-hooks.sh --selftest` and `check_ota_identity.py
   --check-table`.
