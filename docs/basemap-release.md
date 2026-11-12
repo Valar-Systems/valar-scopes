@@ -682,3 +682,24 @@ first request, because `/healthz` carries no basemap block before a build in the
 `basemap.store` == `4c0875738f38` (otherwise **every SG row is VOID**: stop and report, no rollback), and `basemap.commit` == the deployed
 stamp, the full HEAD (otherwise D3's meaning, SG-F's: stop). **No further SG request goes out until both read as predicted.**
 **My miss, on record:** l.98 assumed `/healthz` carries the store before any build in the isolate.
+
+### The slot, run (15:24:28-15:26:14Z): the deploy and SG-A at KLGA AS PREDICTED; STOPPED before KJFK, because D3's read cannot follow a 422
+
+- **15:24:28Z: the claim** builder:staging was taken by map-server, until 16:09:28Z. Deploy and merge were free before it.
+- **15:24:42-47Z: `BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging`,** from a clean detached checkout of main at
+  `f3fee349061afc346900a5f85a0eee2034791ce4`: exit 0, empty stderr. **Current Version ID `fbc7da46-483e-4988-9177-f449eed238ad`,**
+  stamped `f3fee349061afc346900a5f85a0eee2034791ce4`. Its one binding is `env.STORE (blipscope-basemap)`.
+- **15:24:58Z: the tail** (`wrangler tail blipscope-basemap-staging --format json`, read-only). Its process tree was recorded at
+  launch.
+- **15:25:26-15:26:00Z: SG-A at KLGA** (`sg-request.sh` 6e67ae96ee08, the staging test identity): HTTP 202, 202, then
+  **422 `{"error":"too_large"}`**.
+- **The tail: ONE event.** Outcome **ok**, 0 exceptions, cpu 10,007 ms (staging's `cpu_ms` is 14,530), wall 22,048 ms. `bm_build` status
+  422, rung -1, ladder **249,684 / 205,868 / 186,014 / 41,061, which is RL2's KLGA ladder exactly.** **SG-A at KLGA: AS PREDICTED.**
+- **15:26:01-15:26:14Z: D3's read, moved here by the 15:23:09Z ruling,** read seven times: `basemap.commit` null, `basemap.store` null,
+  `rev` 1. **The cause, read in the source** (`proxy/src/basemap/handler.ts:95-104` on main): a builder 422 returns `too_large` BEFORE the
+  proxy reads `x-basemap-store` and `x-basemap-commit`, and `lastBuild`, which `/healthz` reports (`handler.ts:58`), is set only on a
+  builder 200. **Every SG row predicts a 422, so no SG request can fill that block.** By the ruling, no further SG request goes out until
+  both read, so **KJFK is not run.**
+- **My miss, on record:** D3's binding test "after the SG requests", and the 15:23Z re-order, both assumed a 422 build fills `/healthz`'s
+  basemap block. It cannot.
+- **No rollback.** The builder is healthy: no failed smoke and no Worker error. This is a stop, and it goes to the orchestrator.
