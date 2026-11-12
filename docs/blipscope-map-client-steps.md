@@ -3406,6 +3406,17 @@ number 26 found `test/host/test_ota_identity.cpp`'s header still describing the 
   same miss, though the sweep for 26 could not see it, so it is included and named here.
 - **Where it goes:** it rides on #659's next push, and step C rebases onto it.
 
+**The CI for `aff4bede` (docs only), as read** (finished about 08:05Z). Every item read as predicted:
+- 35 = 31 / 4 / 0;
+- every leg's checkout reads `09ff5f4 Merge aff4bede… into f3fee349…`;
+- `ota-identity` green;
+- both host legs: OTA 22 / `9 rows; 18` / 42; MapDraw 11, MapPlaces 32, MapCompose 26; `40 driver(s): 39 run, 1
+  skipped`; lint 40 / 0 / 3; compose 15, draw 18 and places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
+- the mapbench leg: the gate reads PASS, and the markers are as before.
+
+**This push** (`b06f32b9`, the identity comment, and this record) is predicted to read the same: the comment changes no
+reading.
+
 ## Step C: the wedge's green added to the map (design, registered before code; 2026-11-12)
 
 **What is fixed already.**
