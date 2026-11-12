@@ -193,3 +193,15 @@ stderr was token-file.ts's own note that Windows can't check file permissions, a
 **As predicted** (2-12 %). About one enrich lookup in 15 leaves its card without a photo. On a 240 px Kit S3 with a
 location set, each such card shows only its callsign for as long as it's open, and every other card does so for the
 moment its photo loads. That is a lookup share, not a card-open share, as section 2 says.
+
+## The frame-time row (the owner's standing rule, 2026-11-12)
+
+In his words: "every change to drawing code reports its frame time on the bench, before and after. A slowdown beyond
+the margin frozen in its registration stops it." The card fix changes drawing code, so it carries this row.
+
+| row | what | predicted | frozen margin |
+|---|---|---|---|
+| **FT1** | the 240-px Kit S3 (E2:08, in a window), the detail card open on a no-photo contact (the cardbench `n`, `o`), frame time from `/diag/fb`'s sequence counter over 10 s, read before (main + the bench hook) and after (the fix + the bench hook) | **after at most before.** The fix draws less: no silhouette on the compacted card | **after at most before + 2 ms.** Beyond that, the fix stops and goes to the owner with both numbers |
+| **FT2** | the same on a card WITH a photo (`p`, `o`) | **unchanged within 1 ms** (the photo path isn't touched; (c) also requires pixel-identical) | after at most before + 2 ms |
+
+Both rows are read in the same window as the pictures (section 6), so no flash is added.
