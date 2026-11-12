@@ -4120,6 +4120,244 @@ is added against #659's images, because step C prints nothing") is held on step 
 **Carried to the pre-ship gate,** below: the image-level text check, whose tool must pass its own controls there
 first.
 
+### The step B + C window on E2:08: the request, registered before the window (2026-11-12)
+
+The ask, verbatim (the orchestrator, 16:25:03Z):
+
+> Send me your step B + C window request, as listed: steps and predictions committed; three images by sha256 (step B's
+> test image, step C's test image, and E2:08's restore image, the v19 asset f6d73e391631, as 5c flashed it at 15:33Z);
+> the write ranges against the partition table; the restore with a boot read (Wi-Fi rejoin, no portal); about 2 h 20.
+> Name what the board's OTA check will do with your test images, and confirm the restore image is the v19 asset by sha.
+
+**Nothing in this section has touched E2:08.** It runs only inside a window the orchestrator opens, under the owner's
+terms of 04:29Z, and never during a v19 step.
+
+**Four images, not three.** The registered procedure includes CBF4's image plant, P-CBF4 ("an image whose `MapAlloc`
+drops `MALLOC_CAP_SPIRAM`, flashed after the real one"; the procedure was ruled good at 04:08:40Z). It is built and
+identified as the fourth image. **Whether it runs is Q-W1**, at the end of this section: by its own premise, it most
+likely cannot plant on this board.
+
+#### The four images, by sha256
+
+Main moved six commits after both heads were cut. Two of them change the OTA code (`include/OtaInstall.h` and
+`src/OtaUpdater.cpp`, #660). The registered procedure builds each image from **its head merged locally into the
+then-current main**, so the images are built from those merges.
+- Each tree is printed, and equals `git merge-tree`'s.
+- Each image is built clean by `b1/build_one.ps1`, with no `PLATFORMIO_BUILD_FLAGS` set.
+- Each build's `partitions.bin` equals the release's `partitions-s3-128.bin`, byte for byte.
+
+| image | built from | tree | `firmware.bin` | `app_elf_sha256` (0xB0) |
+|---|---|---|---|---|
+| **B** | `blipscope-s3-128-mapbench`: #659's head `5f13cc21` merged into main `c73aee2f` (local merge `f852543a`, never pushed), in `wt-mapclient` | `9b6b9f0187c9` | 2,390,592 B, `d489b5932566bbef028c6694a75a8d976b4c68ee63ccc74b008797830b9aa356` | `325a80fbf634…` |
+| **P-CBF4** | B's tree plus S-CD-NOSPIRAM's one-line edit (`test/host/sabotage_map_draw.py`'s own anchor), in a worktree of its own, `wt-plant` | `9b6b9f0187c9` + that edit, uncommitted (`AircraftManager.cpp` `3edec203aad6` → `c2c78e056c7d`; the `MALLOC_CAP_SPIRAM \| MALLOC_CAP_8BIT);` lines 4 → 3) | 2,390,592 B, `006e5071e191f76b34ff58d40ed61d95fd2f59819f03f3ce51b6f61c1c116e87` | `c100e02d1668…` |
+| **C** | the same env: step C's head `b46cdac8` merged into main `c73aee2f` (local merge `27bfc9ca`, never pushed), in `wt-main-mc` | `cc99b71c9c4f` | 2,391,328 B, `58e80c8f45ce0c3b0550e5d1f0c19ed54a81d99e3a0f2205e67dad9f2ff2985e` | `458ae7836a6c…` |
+| **restore** | the v19 release asset `firmware-s3-128.bin` | n/a | 1,931,840 B, `f6d73e39163177b0dc25516a104bb02021d2048a94f82a66fc42a90f0a2615be` | n/a |
+
+- **The restore image is the v19 asset.** The local file's sha256 equals the digest GitHub publishes for the v19
+  release's `firmware-s3-128.bin` (read between 16:37 and 16:43Z: release `v19`, not a prerelease, and `latest` is v19). Its table,
+  `partitions-s3-128.bin`, is 3,072 B, sha256 `28f336fe57a9991a5f39db735295a978e0a6aee5710f5e7107ac44bdd812d29b`, and
+  also equals the release's digest.
+- **"As 5c flashed it at 15:33Z" is not checked here.** Reading E2:08's app partition before the window would touch the
+  board. The window's first write checks something weaker, which is enough: `app-only-write.py` reads the board's table
+  and otadata before writing, and refuses with nothing written unless the table equals the build's and the board boots
+  ota_0 (below).
+- **C carries all of B's firmware.** Step C's branch lacks #659's last three commits (`aff4bede`, `b06f32b9`,
+  `5f13cc21`), and those touch only `docs/blipscope-map-client-steps.md` and a header comment in
+  `test/host/test_ota_identity.cpp`.
+- **P-CBF4 is built apart** so that B's and C's build folders keep their registered images. `wt-plant` was added at
+  B's merge, with `.pio/libdeps/blipscope-s3-128-mapbench` copied from `wt-mapclient`. Rebuilding B after a plant would
+  change B's sha in WiFiManager's two `__TIME__` regions.
+- **The edit took in the image.** `imgcmp.py` reads P-CBF4 against B at the same length. Inside the regions it finds
+  32 / 32 / 1 / 3 / 3, and **outside them 5 bytes, at 0x11F025-0x11F029**: one changed constant in one instruction,
+  the size of the edit. Whether P-CBF4 runs at all is Q-W1, below.
+- **Superseded, not window images:** the 16:29-16:36Z builds of the two heads *unmerged* (`dad5dd08…`, `23e1266d…`),
+  built before main's movement was read.
+- **A harness failure in the first clean build of the merges, not a build failure.** The wrapper ran `build_one.ps1`
+  under Windows PowerShell 5.1, which turns pio's stderr warning (`#pragma mark` in QRCode) into a terminating error.
+  It was re-run under pwsh, as `build_one.ps1` has always run.
+- **If main gains a firmware change before the window opens,** these images stay the window's unless the reviewer rules
+  a rebuild. Nothing is rebuilt silently.
+
+#### What the board's OTA check does with the test images: nothing
+
+- **When it runs:** once per boot, in `setup()` (`src/main.cpp`, `MaybeUpdateFirmware`), after the clock syncs.
+- **What it does:** it reads the latest release's `version.txt` and prints `[ota] channel=%s%s current=%d latest=%d`
+  (`src/OtaUpdater.cpp`). If `latest <= FW_VERSION` it returns, with no download.
+- **The numbers:**
+  - `FW_VERSION` is **19** in both merged trees (`src/OtaUpdater.h`) and in the v19 asset.
+  - `version.txt` on the latest release is 3 bytes, `19` and a newline (read between 16:37 and 16:43Z).
+  - So every image in the window finds `19 <= 19` and does not update.
+- **The predicted line, at every boot of every image in the window:** `[ota] channel=s3-128 current=19 latest=19`.
+  - The scope is empty: `FW_OTA_PREFIX` is unset in this env, and `src/OtaIdentity.cpp` defaults it to `""`.
+  - The board is `variant::SLUG`, `s3-128`.
+  - No other `[ota]` line follows.
+- **The one way it would act:** a release after v19 published during the window. Then `latest` would be over 19, and
+  the board would fetch `firmware-s3-128.bin` and replace the test image. That would pass the identity check, since
+  board `s3-128` with an empty scope is exactly what the test image asks for. No release is planned, and a release needs
+  the owner's go.
+  - **Pre-registered:** any `[ota] newer firmware available` line, or any `current=`/`latest=` other than 19, stops
+    the window. Nothing more is read from that image, and the restore follows.
+- **No NVS write is added by any test image.**
+  - The bench's home is held in RAM. `AircraftManager::Initialise`'s `MAP_BENCH` region sets the local `lat`/`lon`
+    from the embedded package, and opens no `Preferences`.
+  - The one `Preferences` use added to `src/` and `include/` since the v19 tag (`7b943ae0`) is `BootFollowsUpdate()`,
+    which opens its namespace read-only.
+  - So at runtime the images touch NVS only as v19 itself does: the logbook, the usage counters, the boot-reason
+    stamp.
+
+#### The write ranges, against the partition table
+
+The table is the release's `partitions-s3-128.bin`, which is also every test build's `partitions.bin` (from
+`partitions-s3-16mb-bignvs.csv`):
+
+| partition | range | written in the window? |
+|---|---|---|
+| bootloader | 0x0 .. 0x8000 | **no** |
+| partition table | 0x8000 .. 0x9000 | **no** (read: 0x8000 + 0xC00, by `app-only-write.py`'s check) |
+| `nvs` (settings) | 0x9000 .. 0x1E000 | **no** |
+| `otadata` | 0x1E000 .. 0x20000 | **no** (read: all 0x2000, by the check) |
+| `app0` (ota_0) | 0x20000 .. 0x660000 | **yes, the only partition written** |
+| `app1` | 0x660000 .. 0xCA0000 | no |
+| `spiffs` | 0xCA0000 .. 0xFF0000 | no |
+| `coredump` | 0xFF0000 .. 0x1000000 | no |
+
+Each write is one `esptool write-flash` of one file at 0x20000, run by `scripts/app-only-write.py`. esptool erases the
+4 KB sectors it writes and nothing else:
+
+| write | file | bytes | sectors erased and written |
+|---|---|---|---|
+| W2, image B | B's `firmware.bin` | 2,390,592 | 0x20000 .. 0x268000 |
+| W4, P-CBF4 | the plant's `firmware.bin` | 2,390,592 | 0x20000 .. 0x268000 |
+| W6, image C | C's `firmware.bin` | 2,391,328 | 0x20000 .. 0x268000 |
+| W9, the restore | the v19 asset | 1,931,840 | 0x20000 .. 0x1F8000 |
+
+- All four writes lie inside `app0`.
+- **No factory image, no `erase-flash`, no `--erase-all`.** `app-only-write.py` passes `--flash-mode keep
+  --flash-freq keep --flash-size keep` and the one address.
+- **After the restore,** `app0` from 0x1F8000 to 0x268000 keeps the tail of image C. The bootloader reads only the
+  image's own length (from its header) and checks that image's own hash, so the tail is never read. It is stated here
+  because it is the one byte range the restore does not return to v19's state.
+- **The refusals, pre-registered.** `app-only-write.py` exits 7, having written nothing:
+  - if the board's partition table differs from the build's;
+  - or if otadata selects ota_1. That would mean v19 went on by OTA rather than an app-only write.
+  - Either one: **stop and report.** Writing otadata is outside the owner's terms.
+
+#### The steps
+
+Every command runs from PowerShell.
+- The board is named by its short label and resolved by its USB serial. The COM number is printed beside the label,
+  never a MAC.
+- The board's LAN address reaches `fetch_fb.py` through `MAPBENCH_FB_HOST` only, and is never printed.
+- Every capture stays in the scratch `b1\cap\`, outside the repo. `bench-flash.ps1` writes its own flash log under the
+  scratch worktree it runs from. Nothing from either is committed.
+
+| step | what | predicted |
+|---|---|---|
+| **W0** (done now) | the images above; the reader `map_bench_read.py` `a5f7ba79…` (selftest 49/49), `fetch_fb.py` `7b904453…` and `imgcmp.py` `dc828e47…`, all frozen | already true |
+| **W1** | `python scripts\board-port.py --reserve blipscope-bench --by map-client --for "step B+C bench window"`, then `board-port.py blipscope-bench --upload` | the claim is listed; one port |
+| **W2** | from `wt-mapclient`: `scripts\bench-flash.ps1 -PioEnv blipscope-s3-128-mapbench -Board blipscope-bench -Label mapbench-B -By map-client -AppOnly -DanielApproved -NoCapture` | its `pio run` compiles nothing, and the tree's `firmware.bin` is still `d489b5932566…` (Y == X byte for byte; `imgcmp.py` reads 0 differing bytes). `checks ok: table matches (6 entries), board boots ota_0, image 2390592 B fits ota_0 @ 0x20000 (6553600 B)`, `write attempt 1: rc 0, verified`, `reset: ok`; exit 0 |
+| **W3** | `scripts\bench-trace.ps1 -Port COMx -Label mapbench-B -Minutes 70 -OutDir b1\cap`, opened as soon as W2 returns. `fetch_fb.py --log <that log> --out b1\cap\fb-B` runs beside it | the boot lines arrive in one burst (USJ): `[build] env=blipscope-s3-128-mapbench fw=v19`, the `[map-bench]` boot marker, `[ota] channel=s3-128 current=19 latest=19`. Then P0 to P4, about 66 min. The fetcher ends at P2's first line, exit 0. The trace's end leaves the board in download mode, where W4 starts |
+| **W4** (only under Q-W1 (b)) | P-CBF4, written from its build folder as it stands: `python scripts\app-only-write.py --port COMx --build-dir wt-plant\.pio\build\blipscope-s3-128-mapbench --before default-reset`. No `pio run`, so no rebuild; the file is re-hashed first | `checks ok …`, verified, `reset: ok`; exit 0 |
+| **W5** (only under Q-W1 (b)) | `bench-trace.ps1 -Label mapbench-PCBF4 -Minutes 6`, to P0's `[map-bench] alloc` line | the line arrives once. Its four numbers are reported as Q-W1 (b) says |
+| **W6** | from `wt-main-mc`: the W2 command with `-Label mapbench-C` | as W2, with `58e80c8f45ce…` and 2391328 B |
+| **W7** | as W3, `-Label mapbench-C`, the fetcher into `b1\cap\fb-C` | as W3 |
+| **W8** | the trace ends (download mode) | |
+| **W9** | the restore: a staging folder `b1\restore\` holding `firmware.bin` (the v19 asset) and `partitions.bin` (the release's table), both re-hashed just before. Then `python scripts\app-only-write.py --port COMx --build-dir b1\restore --before default-reset` | `checks ok: table matches (6 entries), board boots ota_0, image 1931840 B fits ota_0 @ 0x20000 (6553600 B)`, verified, `reset: ok`; exit 0 |
+| **W10** | the boot read: `bench-trace.ps1 -Minutes 3 -Label restore-v19`, opened as soon as W9 returns. A counts-only check reads it (below) | every positive token present, no negative token |
+| **W11** | that trace's end leaves the board in download mode: `esptool read-mac` (it writes nothing) resets it. Then one HTTP request to the board's address, printing the status code only | v19 boots again; the board answers 200 |
+| **W12** | `board-port.py --release blipscope-bench --by map-client`; tell the orchestrator | the claim is gone |
+
+**The boot read (W10), from v19's own source, counted, never printed** (every line it reads can carry the LAN address,
+the network's name or the device's name):
+- **Positive, all of:**
+  - `[build] env=blipscope-s3-128 fw=v19` (`include/BuildIdentity.h`);
+  - `[WiFi] credentials saved: portal times out after` (`include/WiFiManagerHelpers.h`). The settings survived: it
+    prints only when saved credentials exist;
+  - `[WiFi] CONNECTED` (`src/main.cpp`);
+  - one of `[WiFi] fast join OK` and `[WiFi] autoConnect() returned true (connected)`;
+  - `[ota] channel=s3-128 current=19 latest=19`.
+- **Negative, none of:**
+  - `StartAP with SSID`, `AP IP address` and `Starting Web Portal` (WiFiManager's own lines, printed when the portal
+    opens, at the NOTIFY level v19 sets);
+  - `Portal saved credentials`;
+  - `autoConnect() returned false`;
+  - `no saved credentials`.
+- **A correction to my earlier draft:** it read "no line matching /portal/i". That would fire on every boot with saved
+  credentials, because the positive line above contains "portal". The tokens above replace it.
+
+**Reading, after the board is restored** (none of it needs the board):
+- B: `map_bench_read.py --image B`, `--fb wt-mapclient b1\cap\fb-B\frames.jsonl`, then `--derive-c-bands`. The bands
+  and B's capture sha go to the orchestrator **before C's capture is read** (Q-CR2 (b)).
+- P-CBF4: as Q-W1 rules.
+- C: `--image C --cf2 LO,HI --cf3 LO,HI` and `--fb-c wt-main-mc b1\cap\fb-C\frames.jsonl`.
+- Each row, its plant and its verdict are as registered above, in "The bench rows" and "Step C's bench rows".
+
+**Duration: about 2 h 35 of board time under Q-W1 (a), about 2 h 45 under (b).**
+- Each full run is P0 to P4: 40 + 40 ticks in P1 and P2, then 25 + 25 in P3 and P4, at 30 s each, so 65 min, plus
+  about a minute to join and allocate. Each trace is given 70 min.
+- Then three writes of about 4 min each (four under (b), plus P-CBF4's 6 min), and the boot read's 3 min.
+- B is read while C runs, so reading adds nothing to the board's time.
+- Step C's record above says "about 2 h 20", and so did my reply. That counted the two runs and not the flashes.
+
+**Stops, pre-registered:**
+- `app-only-write.py` exit 7: nothing was written. Stop and report.
+- Exit 8, the write failed twice: the chip is left in the ROM. Try W9, the restore, once through the same path. If that
+  fails, stop and report: it may need hands.
+- `bench-flash`'s `pio run` compiles anything, or a flashed file is not its registered sha: nothing is read from that
+  image. Go to W9.
+- A boot banner is not the expected env, or a test image's `[map-bench]` marker is missing: nothing is read. Go to W9.
+- Any OTA action (above): stop. Go to W9.
+- A reboot inside a run (a second `[build]` banner, or the trace's read error): that run stops and is reported. Its
+  first re-run needs a window of its own.
+- **B's own P2 reads off** (registered at step C): C is never graded against it, and C's run is skipped. Go to W9.
+- W10 shows a negative token, or misses a positive one: stop and report to the owner through the orchestrator. It may
+  need his hands.
+- `read-mac` does not bring the board back: stop and report.
+- **Anything else: stop and decide.** Nothing that needs the owner's hands is attempted; it is stopped and reported.
+
+#### Q-W1, found while writing this: P-CBF4 as registered most likely cannot plant (for the ruling, before the window)
+
+**The registered row:** "an image whose `MapAlloc` drops `MALLOC_CAP_SPIRAM` …, flashed after the real one: `internal`
+falls by at least 115,200, and the reader says red."
+
+**Applying the rule, node by node:**
+- `MapAlloc` serves exactly four allocations, in `mapcompose::Allocate` (`include/MapCompose.h`):
+  - `layer` and `composite`, 115,200 B each;
+  - `idx`, 57,600 B;
+  - one scratch block of 32 × (vertices + 1) + 4,224 + 13,320 B, which is 192,296 B for Bend's 5,460 vertices.
+  - **Every one is at least 57,600 B.** The 4,224 and 13,320 sit inside the scratch block. They are not
+    allocations of their own.
+- With `MALLOC_CAP_8BIT` alone, ESP-IDF's allocator tries the internal heap first, and takes PSRAM when no internal
+  block is large enough.
+- `src/main.cpp` records the internal heap's largest free block as **31,732 B at boot**, in its comment above the OTA
+  check. That is an older measurement, and the internal heap at P0 has not been measured.
+- **So the most likely reading:**
+  - all four buffers land in PSRAM;
+  - `internal` moves by **0**, and `psram_free` falls by the price;
+  - **CBF4 reads green.**
+  - The plant does not plant, and the reader is never shown red.
+  - `internal` moves only if a free internal block of at least 57,600 B exists at P0. It would then move by 57,600
+    (`idx`) or by 115,200.
+- **Separately, the frozen reader cannot read a short run at all.** It refuses a capture without its phases before any
+  row is graded. Shown on its own CBF4-planted synthetic capture, cut after P0: `INSTRUMENT: P1 has 0 intervals, the
+  bench runs 40`, exit 2. So even a plant that did plant could not be read red from a 6-minute run.
+
+**Options:**
+- **(a), recommended: P-CBF4 leaves this window.**
+  - CBF4 is still shown red by its planted log, in the reader's selftest.
+  - The premise CBF4 rests on, that the buffers are asked for in PSRAM, stays checked at the source by CD5 and its
+    sabotage S-CD-NOSPIRAM in CI.
+  - The window is about 2 h 35.
+- **(b): run P-CBF4 as an observation of the premise, ungraded** (W4-W5, about 10 min).
+  - The alloc line's four numbers are reported as counts.
+  - Predicted: `internal` before − after = **0**; `psram_free` falls by the price within 1,024 B.
+  - The registered "≥ 115,200, and the reader says red" is withdrawn as unreachable.
+  - The window is about 2 h 45.
+- A plant that can plant (for example `MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT`, which the composer's all-or-none refusal
+  would meet) needs its own registration and its own image. It is not proposed for this window.
+
+The P-CBF4 image is built and identified above either way, so (b) costs no build in the window.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
