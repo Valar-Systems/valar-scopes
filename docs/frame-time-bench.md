@@ -654,3 +654,43 @@ second goes to the owner.
     next window. **The baseline is not graded until it passes.**
   - **Anything else:** STOP, to the owner.
 - **It runs after W5 and END,** per the ruling: the board's restore comes first.
+
+**W5 as run:**
+- f6d73e39 was restored to ota_0 alone, verified. The boot read passes (`tokcount`): v19's banner, credentials kept,
+  `[WiFi] CONNECTED`, "fast join OK", and `[ota] … current=19 latest=19` are all present; 0 portal or AP tokens.
+- `read-mac` reset the board, HTTP returned 200, E2:08 was released, and the traffic server was stopped.
+- END went to the orchestrator and to p4 at 22:42Z.
+
+**THE DISCRIMINATOR AS RUN (22:42Z): (3) NOISE, on `p2p` and on `fr` alike.**
+- `i6disc.py` `508bf2f938985cd9996ff7ad04f52e5e90ee7ecd40c301b159d07ad74b21f736`; output `73dc7f1b2ad928abf8898117e821961f594247145454d0ca9ab95dd965ec15e2`.
+- S0 is stationary (Δp50 +0.17, Δp95 +1.12 ms, 452 and 450 frames). S1 reads Δp50 −0.04, Δp95 −2.05 (reported).
+
+  | p2p, S0 → S1 | S0 | S1 | delta |
+  |---|---|---|---|
+  | p50 | 65.13 ms | 75.16 ms | **+10.03** |
+  | mean | 66.42 ms | 76.55 ms | **+10.13** |
+  | p95 | 79.52 ms | 91.06 ms | **+11.54** |
+
+  The spread is 1.51. `fr` reads +10.02 / +10.13 / +11.53.
+- **By the ruling:** the instrument sees a known change at its own size. I-6 stays recorded OFF, and **the baseline is
+  GRADED**, its p95 rows carrying that noise as a stated uncertainty.
+
+### Grading past I-6: the reader's change and the uncertainty, registered before the code
+
+- **The uncertainty, U95 = 1.54 ms:** I-6's own p95 excess over the known plant (+11.54 − 10.0), the larger of `p2p`'s
+  and `fr`'s.
+- **The reader:** `frame_bench_read_b.py`, built from `15681a40` by a counted builder.
+  - **One change only:** with the explicit flag `--i6-noise`, an I-6 off reading is still recorded RED (the exit stays
+    1), but grading continues past it instead of returning.
+  - Every p95 that the report and the FIX-b rows print carries "± 1.54 (I-6)". A FIX-b row within 1.54 ms of its band
+    edge, on either side, is marked "within the I-6 uncertainty". Its verdict is unchanged.
+  - **No band, threshold or margin moves.**
+- **Without the flag, nothing differs:** the selftest output is byte-identical to `15681a40`'s, by a regression
+  control shown able to fail once.
+- **A new selftest case:** the CTRL plant with I-6 off, read with `--i6-noise`, must grade the remaining rows
+  (FIX-b/g/r, XCHK) and still exit 1.
+- **Then the read, once:** `frame_bench_read_b.py --i6-noise` over the two frozen logs.
+  - Every row is reported as read: the FIX rows, the BAR READOUT at 40 drawn, A3 (LIVE minus FIXED), the REPEAT NOISE
+    line, and XCHK.
+  - No row is re-read and no band moved after it. A row off goes the usual way: first off reading reported, second to
+    the owner.
