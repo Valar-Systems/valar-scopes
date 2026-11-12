@@ -63,6 +63,13 @@ static const char* const CARD_BENCH_PREFIX = "zzcard";
 // one release sample. The touch watchdog still sees only the real chip.
 struct CardBenchTap { int x, y, left; };
 static CardBenchTap g_cardBenchTap = { 0, 0, 0 };
+// M7, FT's control (I-6 style): a planted busy-wait inside DrawDetailCard, set by `Z <us>`. The graded frame time must
+// move by it, or the instrument cannot see a slowdown.
+static uint32_t g_cardBenchDelayUs = 0;
+// M7 (2): local details switched to Cloud while a bench PHOTO card is open under fixed traffic, so the card's own
+// lookup can fetch its library photo. Cleared by ExitDetail -- every way a card closes -- BEFORE the same Update can
+// reach the radar enrichment, so a fixed contact is never enriched.
+static bool g_cardBenchCloudDetails = false;
 #endif
 
 // The touch-wedge cap: one driver for the radar and Weatherscope (TouchWedgeCap.h, A12.119),
@@ -6756,7 +6763,7 @@ void AircraftManager::PollCardBench()
         announced = true;
         Serial.println("[card-bench] keys: n=no-photo card l=photo-loading card p=card with a photo "
                        "P <0|1> <path>=that photo card again o=tap it d=tap the card x=remove "
-                       "F <url>=local traffic, RAM only");
+                       "F <url>=local traffic, RAM only Z <us>=planted card delay");
     }
     const unsigned long now = millis();
     auto inject = [&](char kind, const String& photoPath, bool representative) {
@@ -6871,14 +6878,38 @@ void AircraftManager::PollCardBench()
             trackedAircraft.erase(benchIcao);
             Serial.printf("[card-bench] t=%lu removed %s\n", now, benchIcao.c_str());
             benchIcao = "";
+        } else if (ch == 'Z') {
+            // M7, FT's control: a planted busy-wait inside DrawDetailCard, 0 .. 20,000 us; 0 removes it.
+            String arg = Serial.readStringUntil('\n');
+            arg.trim();
+            const long us = arg.toInt();
+            if (arg.isEmpty() || us < 0 || us > 20000 || (us == 0 && arg != "0")) {
+                Serial.printf("[card-bench] t=%lu Z: want 'Z <0..20000>' (microseconds); nothing changed\n", now);
+                continue;
+            }
+            g_cardBenchDelayUs = (uint32_t)us;
+            Serial.printf("[card-bench] t=%lu planted card delay %lu us\n", now, (unsigned long)g_cardBenchDelayUs);
         }
     }
     // M5 (2): name the card that opened, so the window's driver can refuse any card that is not a bench card (CN0's
     // precondition, on the bench). Only a bench key is printed; any other contact is "a live contact".
     static bool wasInDetail = false;
-    if (inDetail && !wasInDetail)
+    if (inDetail && !wasInDetail) {
         Serial.printf("[card-bench] t=%lu card open on %s\n", now,
                       selectedIcao.startsWith(CARD_BENCH_PREFIX) ? selectedIcao.c_str() : "a live contact (not a bench key)");
+        // M7 (2): under fixed traffic (local, details Off) a bench PHOTO card gets Cloud details for its lifetime, so
+        // its own lookup fetches the library photo (URL + device key only). While a card is open Update() returns
+        // before the radar enrichment, and ExitDetail turns this off on every close, before the next enrichment.
+        if (selectedIcao == String(CARD_BENCH_PREFIX) + "p" && useLocalSource && localDetails == LocalDetails::Off) {
+            localDetails = LocalDetails::Cloud;
+            g_cardBenchCloudDetails = true;
+            Serial.printf("[card-bench] t=%lu details: Cloud while the bench photo card is open\n", now);
+        }
+    }
+    if (!inDetail && g_cardBenchCloudDetails) {   // a backstop: ExitDetail already does this on every close
+        localDetails = LocalDetails::Off;
+        g_cardBenchCloudDetails = false;
+    }
     wasInDetail = inDetail;
     auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
     if (it != trackedAircraft.end()) it->second.lastSeen = now;   // never pruned as absent
@@ -9881,6 +9912,14 @@ void AircraftManager::ExitDetail()
 {
     inDetail = false;
     detailPage = 0;
+#ifdef CARD_BENCH
+    // M7 (2): the bench photo card's Cloud details end with the card, here, before this Update can reach
+    // ProcessMetadataLookups: the fixed contacts are never enriched.
+    if (g_cardBenchCloudDetails) {
+        localDetails = LocalDetails::Off;
+        g_cardBenchCloudDetails = false;
+    }
+#endif
     // RETAIN the photo sprite on PSRAM boards; free it only where it is actually
     // contended. The original reasoning -- "holding it allocated is what tips the
     // heap below what an adsbdb/photo TLS handshake needs" -- is a C3 statement:
@@ -11741,6 +11780,11 @@ bool AircraftManager::OpenFollowFromCard()
 
 void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked)
 {
+#ifdef CARD_BENCH
+    // M7, FT's control: a planted delay INSIDE the card's draw path (`Z <us>`; 0 = none). Bench images only.
+    if (g_cardBenchDelayUs > 0)
+        delayMicroseconds(g_cardBenchDelayUs);
+#endif
     const Aircraft& s = tracked.state;
     constexpr int cx = SCREEN_SIZE_DIV_2;
 
