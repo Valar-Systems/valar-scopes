@@ -36,7 +36,7 @@ SUITES = {   # name: (arguments, checks)
     "k35b": ([WX, os.path.join(WX, "k35b.ref.txt")], 368),   # Q57 (A12.61): 149; t4 (A12.60): K-light, RP light, RP-T, LY
     "replay": ([LOOP], 195),   # 3.5t t4 (A12.60): RP light, RP-T
     "layout": ([LOOP], 73),
-    "basemap": ([WX], 92),   # Q59 (A12.62): BW1-BW8, step 7
+    "basemap": ([WX], 96),   # Q59 (A12.62): BW1-BW8, step 7; S4.21 (docs/weatherscope-stage4.md): FL7, FL7c, FL8, FL8c
     "theme": ([WX], 72),
 }
 DALLAS = ["dry-60", "approaching-60", "herenow-60", "warning-60", "stale-60", "clear-60", "approaching-30",
