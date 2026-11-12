@@ -141,6 +141,10 @@ jobs:
         run: python3 scripts/skus.py --check-readers-selftest
       - name: No unreviewed reader of the build matrix
         run: python3 scripts/skus.py --check-readers
+      # ship-alert reads the matrix's shipping rows and each one's latest job (docs/ship-alert-latest.md). Its
+      # decision is proved here, both directions, on fixtures: a step, so no job is added.
+      - name: Prove ship-alert's decision, both directions
+        run: python3 scripts/ship-alert.py --selftest
 
   # The commit a release is TAGGED from supplies the workflow that release runs,
   # so a tag cut from the wrong shape runs that shape: no promote job means a
@@ -527,27 +531,9 @@ jobs:
           name: gatelogs-${{ matrix.env }}
           path: .pio/gatelogs/
           if-no-files-found: ignore
-      # A RED SHIPPING LEG HAS TO REACH A PERSON. A red BUILD-ONLY leg must not.
-      #
-      # `matrix.slug` is the discriminator, and it comes from skus.yml -- so a
-      # build-only leg cannot raise this however badly it fails, and nobody has
-      # to maintain a list of which legs are noisy. That distinction is the
-      # whole lesson of 2026-09-17: orbitscope was red on every push to main for
-      # weeks, GitHub emailed about it every time, and the alerts trained
-      # everyone to read past a failing matrix.
-      - name: Mark that a SHIPPING leg failed
-        if: failure() && matrix.slug
-        run: |
-          mkdir -p shipfail
-          echo "${{ matrix.env }} (${{ matrix.slug }}) failed on ${{ github.sha }}" \
-            > "shipfail/${{ matrix.slug }}"
-      - name: Upload the shipping-failure marker
-        if: failure() && matrix.slug
-        uses: actions/upload-artifact@v4
-        with:
-          name: shipfail-${{ matrix.slug }}
-          path: shipfail/
-          retention-days: 7
+      # A red SHIPPING leg reaches a person through ship-alert below, which reads each shipping leg's own latest
+      # result from the jobs API (docs/ship-alert-latest.md). The marker artifacts that used to be uploaded here
+      # outlived the re-run that turned their leg green, so they are gone.
       # Everything below publishes, so everything below is skipped on a
       # compile-only row.
       - name: Name binary by slug
@@ -606,29 +592,54 @@ jobs:
   # that sits unread for weeks. This is the reader the ledger keeps asking for --
   # an instrument nobody reads is worth less than none, because the green beside
   # it vouches for the thing it cannot see.
+  #
+  # A RED SHIPPING LEG HAS TO REACH A PERSON. A red BUILD-ONLY leg must not. `slug` (from skus.yml, via the skus
+  # job's matrix) is the discriminator, so a build-only leg cannot raise this however badly it fails -- the lesson of
+  # 2026-09-17, when orbitscope was red on every push for weeks and the alerts trained everyone to read past them.
+  #
+  # IT READS EACH SHIPPING LEG'S OWN LATEST RESULT, across re-run attempts, from the jobs API (docs/ship-alert-latest.md).
+  # Marker artifacts belonged to the RUN, so a transient failure's marker outlived the re-run that turned its leg
+  # green and kept main red (2026-11-12). Attempt-scoped markers would go false-green when ship-alert alone is re-run
+  # over a leg that is still red. The decision is scripts/ship-alert.py; its selftest runs in sku-readers.
+  #
+  # On a pull request it runs REPORT-ONLY: the same read and decision, printed, failing only when it cannot see (exit
+  # 2), so the wiring -- the permission, the API, the job names -- is proven on every PR before main depends on it.
   ship-alert:
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    needs: [skus, build]
     runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: shipfail-*
-          merge-multiple: true
-          path: shipfail
-        continue-on-error: true
+      - uses: actions/checkout@v4
+      - name: Is a shipping leg red now (each leg's latest attempt)
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MATRIX: ${{ needs.skus.outputs.matrix }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | {name, run_attempt, conclusion}' > jobs.jsonl
+          set +e
+          python3 scripts/ship-alert.py --matrix "$MATRIX" --jobs jobs.jsonl | tee verdict.txt
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 2 ]; then
+            echo "::error::ship-alert cannot see the shipping legs (above), so it cannot vouch for them." >&2
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "report only (pull_request): exit $rc; a red shipping leg already makes this PR red"
+          fi
       - name: Notify if a shipping SKU is broken on main
+        if: github.event_name == 'push' && steps.decide.outputs.rc == '1'
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          shopt -s nullglob
-          legs=(shipfail/*)
-          if [ ${#legs[@]} -eq 0 ]; then
-            echo "No shipping leg failed. (Build-only legs are deliberately silent.)"
-            exit 0
-          fi
           body="Blipscope: a SHIPPING SKU is broken on main."
-          for f in "${legs[@]}"; do body="$body"$'\n'"$(cat "$f")"; done
+          body="$body"$'\n'"$(grep -E '^(build \(|RED:)' verdict.txt)"
           body="$body"$'\n'"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           echo "$body"
           # A MISSING TOPIC MUST BE LOUD. Silently not alerting is the exact
