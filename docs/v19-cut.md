@@ -535,6 +535,40 @@ uk-data's production deploy reads green and has closed.
 - **Outside the set before promote: stop and report.** The prerelease stays as it is unless a ruling says otherwise, and
   `latest` does not move.
 
+**Step 7's two exactness additions (the reviewer's asks, 15:19Z), made before 7.3 and 7.4 run.**
+- **7.4, exact.** `verify-release.sh v19` runs from the worktree detached at C', printing HEAD ==
+  `7b943ae0b5d1e7b0f6ad8254ecc4bcdeb38c8dff` and its own `tree FW_VERSION = 19` line.
+  - **What check 6 needs, set up:** it runs `npx wrangler` from `proxy/`. That worktree has no `node_modules`, so
+    `proxy/node_modules` is a junction to another of my worktrees whose `proxy/package-lock.json` is byte-identical.
+    Nothing is downloaded, and the link is git-ignored, so the tree stays porcelain 0.
+  - **The inputs, from C':** `FULLBLEED_MIN_FW = 7` and the `s3-128` panel at 240 (`proxy/src/photos.ts`). Before
+    promote, `PREV` is the second full release, v17, which had 2 firmware binaries (v18 also has 2).
+  - **A read-only pre-read** of the four keys check 6 probes, using its own command shape and printing only yes or no:
+    `pptr:t:B738` resolves (the anchor), `pptr:t:B738:s240` resolves, and `pptr:t:B505:s240` and `pptr:t:B505` are both
+    absent.
+  - **Predicted before promote, each line verbatim:**
+    - PASS (8): `tree FW_VERSION = 19 (src/OtaUpdater.h)`; `firmware-s3-128.bin present (the pilot SKU)`; `version.txt
+      attached`; `2 firmware binaries (previous release v17 had 2)`; `downloaded firmware-s3-128.bin (<n> bytes)`; `cloud
+      base URL present IN THE BINARY (scopes.valarsystems.com)`; `control string found -- the binary grep is working`;
+      `B738: square pointer pptr:t:B738:s240 resolves`.
+    - FAIL (1): `published version.txt = 18 but the tree is 19`, with its two recall-condition lines.
+    - WARN (1): `B505: NOT IN THE LIBRARY at all (no square, no rectangle, no alias).`
+    - Closing: `=== 8 passed, 1 failed, 1 warnings ===`, then `DO NOT START A FLASH RUN.`, and exit 1.
+  - **Predicted after promote:** `=== 9 passed, 0 failed, 1 warnings ===`. Check 2 becomes `published version.txt = 19,
+    matches the tree`, check 4 becomes `previous release v18 had 2`, then `Release v19 is safe to flash against.`, exit 0.
+  - **A stop:** any second FAIL, any other WARN, a `PROBE BROKEN`, or a different exit code.
+- **7.3, the literals with their sources:**
+  - `checks ok: table matches ... Writing ota_0 only.` (`scripts/app-only-write.py:112`), and `write attempt 1: rc 0,
+    verified; Wrote ... at 0x00020000` (`:117`). Both appeared on every app-only flash in step 5''s window. The write is
+    `ota_0` only: no factory image, no erase, nothing written to NVS.
+  - **The read-back:** esptool 5.3.0's `verify-flash` prints **`Verification successful (digest matched).`**
+    (`tool-esptoolpy/esptool/cmds.py:2281`). **This corrects the frozen `verify OK (digest matched)` above, which is
+    esptool v4's wording.** This version doesn't print it.
+  - **The boot read** also shows Wi-Fi rejoining from saved credentials (`[WiFi] fast join OK` / `[WiFi] CONNECTED`),
+    with 0 portal lines.
+  - **The flash starts only when `session-claim.py show` lists no deploy claim.** That output is quoted to the reviewer
+    with the start. If a claim is held, the flash waits.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
