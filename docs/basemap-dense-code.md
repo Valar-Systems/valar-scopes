@@ -1809,3 +1809,41 @@ KB5 off against the Python renderer, behind its own moved-vertex control.
 every object already present, so it makes no R2 reads. The dry run is re-run, and both stores are rebuilt. **After the run,**
 `sea-obj` and `sea-obj-seam` must still hash to their step-0 pins (trees 28fddac31920 and a3389679daa7). A mismatch means the run read
 an unpinned store and **voids every row after step 0**: stop and report.
+
+**The run (05:09:22-05:09:27Z): STOPPED at the third synthetic control.**
+- **Step 0, repeated by the driver:** Zapata's fetch made 0 copies and 0 fetches, verifying all 81 objects. The pieces are unchanged
+  (8ad5d92fa7c7), and the extent holds 2,584 cells. Both stores again printed `cells 246 (144 copied, 74 with sea added, 28 sea-only new)`.
+  This time they printed **`tiles 0`, not step 0's 830.** `mk-sea-store` skips a tile already at its destination (line 107), and the
+  step-0 stores were still there. **The registered post-run check:** `sea-obj` and `sea-obj-seam` still hash to their pins (28fddac31920
+  and a3389679daa7, 1,082 files each), so the run read the pinned stores.
+- **KB7-c's control** (the bowtie refused): AS PREDICTED, refused 1. **T-SEA0-ci** (no sea layer, no sea): AS PREDICTED, rings 0 and sea
+  lines 0.
+- **T-SEA0-ci's control** (the layer added draws the sea): **OFF-PREDICTION.** Sea rings 1, but **sea lines 0**, where at least 1 was
+  predicted. The driver stopped; nothing after it ran.
+
+**The cause, read after the stop** (`prov-diag.mts`, 6f45fd83903b, a diagnostic build of the same synthetic store, not a graded row).
+- The package's PROVENANCE keys are `format | builder | store | source.water | vintage.water | files.water | sha256.water | epsilon.m |
+  dropped.water | collapsed.water`. **There is no sea line at all.**
+- `provenanceLines` writes a layer's source, vintage, files, sha256, dropped and collapsed lines only for the layers in the build's `read`
+  map. pq4d's RD-P6 loop fills `read` for `water, rivers, roads, peaks` only (`build.ts:123`). The generator added the sea to
+  `LAYER_ORDER` and carried `collapsed.sea` through the ladder, but never added the sea's files to `read`.
+- **So the sea draws without being credited,** and every pq4d package with sea undercounts PROVENANCE by six lines.
+
+**Two consequences:**
+- **The sentence above is false:** "the prototype writes `collapsed.sea` and leaves `dropped.sea` at 0". It was written from the
+  generator's intent, not from a built package, and is corrected here.
+- **Had P2-1 run, its costs would have read optimistic.** PROVENANCE's bytes count against the 32,768 cap, and KJFK sits exactly on it.
+  The code PR must list the sea's files under RD-P6, so the prototype must too, or P2-1 measures a package the code PR cannot produce.
+
+**Proposed (awaiting a ruling):**
+1. One more anchored edit in `mk-pq4d.mjs`'s sea part. After the RD-P6 loop, under `Q4S.on && want(MASK.water)`, the sea's files met
+   are added as `read.sea`, **only when there is at least one.** A store without sea therefore keeps no sea line, and `provenanceLines`
+   does not throw "read with no files".
+2. pq4d is regenerated into a fresh directory. **The only predicted difference** is that line in `build.ts`. The new shas of
+   `mk-pq4d.mjs` and `build.ts` are recorded before any run.
+3. The driver re-runs from the start, unchanged.
+
+**Predicted for the re-run:**
+- step 0 and the rows before this one read as they did;
+- T-SEA0-ci's control gives sea lines **6**: `source.sea`, `vintage.sea`, `files.sea`, `sha256.sea`, `dropped.sea` and `collapsed.sea`;
+- P2-0 and T-SEA0-real are unchanged, because the edit sits under `Q4S.on` and the original stores hold no sea file.
