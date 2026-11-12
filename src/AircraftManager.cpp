@@ -2116,12 +2116,12 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.phaseStartMs = nowMs;
                     Serial.printf("[frame-bench] scene S0 %s home=%s level=%u rung=%umi settle\n",
                                   framebench::kKindName[framebench::kScenes[0].kind],
-                                  framebench::kHomeName[framebench::kScenes[0].home],
+                                  framebench::HomeName(0),
                                   (unsigned)framebench::kScenes[0].level, (unsigned)framebench::kScenes[0].rung);
                     Initialise();
                 }
             } else if (!fb.measuring) {
-                if (nowMs - fb.phaseStartMs >= framebench::SETTLE_MS && fb.dumpScene < 0) {
+                if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
                     fb.measuring = true;
                     fb.phaseStartMs = nowMs;
                     fb.n = 0;
@@ -2137,7 +2137,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.phaseStartMs = nowMs;
                     Serial.printf("[frame-bench] scene S%d %s home=%s level=%u rung=%umi settle\n", next,
                                   framebench::kKindName[framebench::kScenes[next].kind],
-                                  framebench::kHomeName[framebench::kScenes[next].home],
+                                  framebench::HomeName(next),
                                   (unsigned)framebench::kScenes[next].level, (unsigned)framebench::kScenes[next].rung);
                 } else {
                     fb.done = true;
@@ -3080,6 +3080,15 @@ void AircraftManager::RunFetchTask()
                 res->ok = true;
             else // schema-version mismatch or malformed body: never wipe the picture over it
                 Serial.println("[WARN] Blipscope Cloud: blips schema mismatch; keeping current picture");
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+            // The recording plan's survey and recorder (docs/frame-time-bench.md, RP1, RP2): the request's own 2-dp
+            // lat/lon, exactly as sent, decide whether a body may be printed.
+            if (res->ok)
+                framebench::OnCloudPoll(doc, res->aircraft, wireloc::Center(req->lat).c_str(),
+                                        wireloc::Center(req->lon).c_str());
+#endif
+            // THE FRAME BENCH END
         }
 #endif
         else if (req->local) {
