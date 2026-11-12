@@ -566,3 +566,26 @@ by #648".
 **The push waits for the reviewer's word:** v19's release run must have paused at promote with every build job complete. When it
 comes, the push is `--force-with-lease` against `c151a25a`. The CI prediction is unchanged: 36 = 32 success / 4 skipped / 0 failed
 / 0 pending, the tested commit read from each run's checkout log. Any other reading is #648's second off reading.
+
+**Results (2026-11-12, 15:22-15:32Z). Every row reads as predicted:**
+- **RB2: holds.** `--emit-table` on the rebased tree: 10 rows and no content diff. The working copy differed only in line endings
+  (the normalised blob equals HEAD's `e6b8e0b8...`), so it was restored. `--check-table` and `--fleet` pass.
+- **RB3: holds.**
+  - `test_ota_identity`: 22 checks, 0 failures.
+  - `test_ota_install`: **42 checks, 0 failures**, with O10 at 10 identities and 20 no-record, and HP1-HP6 passing.
+  - `test_ota_model`: "10 rows; 20 checks, 0 failures".
+  - The 11th-row plant fails R1/M1/M2/M3 (identity) and O10 (install).
+  - The drivers pass `--control` ("all as the table") and in full: 6, 5 (main's two new plants) and 4 AS PREDICTED, 0 OFF.
+  - `lint_driver_counts`: 38 drivers, 0 flagged.
+- **RB4: holds** (15:25-15:26Z). At the rebased tree `2ddfe58f`, on main's new OTA code: `blipscope-p4-40` 1,873,878 B used and
+  `-r3` 1,874,734 B; RAM 18.6 %; both `[SUCCESS]`.
+- **C5@f3fee: holds** (15:26-15:31:53Z; one worktree path, `C:\Github\p4-ctl`, removed afterwards).
+  - `blipscope-s3-128` was built at `f3fee349061a` and at `2ddfe58f`, both with `SOURCE_DATE_EPOCH=1762862445`.
+  - The instrument held: both images' only compile-time stamp reads `Nov 11 2025 12:00:45`, and the framework's two prebuilt stamps
+    are unchanged.
+  - Sizes equal at 1,932,528 B. 65 differing bytes: `app_elf_sha256` 32, checksum with trailing SHA 33, **0 other**.
+  - #648 leaves the shipping image unchanged at the base it merges onto.
+- **RB5: holds.**
+  - `check_device_ids`, `check_macs`, `check_wifi` and `skus.py --check-readers`, chained: OK.
+  - `skus.py --validate` (20 legs) and `check_release_envs.mjs`: OK. The licence blob is `cfc7749b...`.
+  - The name check first found 1 hit: RB5's own row quoted the search word. Reworded in `7357eb18`; 0 since.
