@@ -3857,6 +3857,21 @@ its "File offs".
 - **Anything code-shaped in any reading is the instrument again, and stops.** Anything else stops too. This is the
   rows' first re-run, so a second off reading goes to the owner.
 
+**I2-I3's re-run, as read: OFF at the positive control, from the instrument again** (08:59:00Z; `strings_nul.py`
+`c2d0b8cc…`, `pos_mapbench.txt` `26289b45…`, both as frozen).
+- **P, Bw against Bm, whole image:** exit 0, **6 of 6** listed `[map-bench]` literals among the added runs, exactly. Its
+  own criterion is met.
+- **But the reading it printed is not clean:** 28 added and 10 removed, with 4 date-shaped runs set aside.
+  - **Real strings** among them: the six literals; `map-bench`; `blipscope-s3-128-mapbench` (the env name, and the
+    `.pio/libdeps/<env>/…` source paths that the assert macros carry); `' REFUSED'`. Removed: `'[map] alloc %u B: %s\n'`
+    and `'[map] request DROPPED: fetch queue full'` (the bench's dead fetch path, as M1's size row found).
+  - **Address data, not text:** 16 added runs have the shape `xx xx 21 3C` plus two bytes, for example `'4E!<6A'`, which
+    is bytes 34 45 21 3C 36 41: a little-endian flash-data pointer `0x3C21xxxx` in a table, bounded by zero bytes on
+    both sides. Two removed runs, `'<L\rB L\rB'` and `'xK\rB\K\rB<K\rB'`, are `0x420Dxxxx` IROM addresses.
+  - **So the NUL bounds do not separate strings from pointer data.** The ruling of 08:51:39Z says: "Anything code-shaped
+    in a NUL-bounded reading means the instrument again: stop." **STOPPED.** N1, N2 and the reading did not run.
+- **This is the rows' first re-run, and its off reading goes to the owner**, as ruled.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
