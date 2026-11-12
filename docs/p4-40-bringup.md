@@ -544,3 +544,25 @@ by #648".
   - The four workflows (`firmware`, `web-renderer`, `device-ids`, `no-traffic-captures`) completed with success.
   - My first name comparison reported 6 differences. That was the comparison's own sort order; compared as sorted name sets,
     the two are identical.
+
+## 9. The rebase after v19's tag: predictions frozen before the builds (plan accepted by the reviewer 2026-11-12 15:22:39Z)
+
+**The rebase:** `git rebase` onto `origin/main`, re-read in the command: `f3fee349061afc346900a5f85a0eee2034791ce4`.
+- All 14 local commits replayed with no conflict. The plan sent at 15:22Z said 11; that was a miscount.
+- The rebased code commit is `533458ec` (was `735b5c09`).
+- What main changed since `8f1a878f`, in the code the P4 and S3 envs compile:
+  - `include/OtaInstall.h`, `src/OtaUpdater.cpp` and `src/AircraftManager.h` (v19's fix);
+  - in my diff's files, only `test/host/test_ota_install.cpp` (HP1-HP6, a block that reads no table).
+  - Main did not touch any of #648's shared hunks.
+
+| row | prediction | outside the set |
+|---|---|---|
+| **RB2** the table | `check_ota_identity.py --emit-table` on the rebased tree writes no diff (my 10 rows, because #659 is not on main), and `--check-table` and `--fleet` pass. If #659 lands first, the merged table is re-emitted and every pin is re-derived from it, never by adding diffs | any other diff: stop |
+| **RB3** host tests (WSL Ubuntu-24.04, g++ 13.3, `run.sh`'s flags) | `test_ota_identity` 22/22; `test_ota_install` **42/42** (main's 36 + HP1-HP6) with O10 at 10 rows and 20 no-record; `test_ota_model` 20/20. The 11th-row plant (in a copy) fails R1, M1, M2, M3 and O10. All three OTA drivers pass `--control` and in full; `lint_driver_counts` flags 0 | anything else: stop |
+| **RB4** P4 compiles | `blipscope-p4-40` and `-r3` end `[SUCCESS]` at the rebased tree, inside C2's band (1.45-2.51 MB used) | a failure: stop; it is in main's new OTA code, or in how mine meets it |
+| **C5@f3fee** the shipping image at the new base | `blipscope-s3-128` built twice in ONE worktree path with `SOURCE_DATE_EPOCH=1762862445`: at `f3fee349061a` and at the rebased head. **The instrument first:** in both images the only compile-time stamp reads `Nov 11 2025 12:00:45`. Then: equal sizes, and the only differing bytes are `app_elf_sha256` (up to 32) and the checksum with the trailing SHA (33); 0 other | the instrument fails: the control says nothing; stop. Any other byte, or a size change: #648 moves the shipping image at the new base; stop, and it goes to the reviewer |
+| **RB5** guards | `check_device_ids`, `check_macs`, `check_wifi`, `skus.py --check-readers` chained with `&&`: all OK. `skus.py --validate` and `check_release_envs.mjs` pass. No "Daniel" in added lines. The licence blob's sha256 is `cfc7749b...` | any failure: stop |
+
+**The push waits for the reviewer's word:** v19's release run must have paused at promote with every build job complete. When it
+comes, the push is `--force-with-lease` against `c151a25a`. The CI prediction is unchanged: 36 = 32 success / 4 skipped / 0 failed
+/ 0 pending, the tested commit read from each run's checkout log. Any other reading is #648's second off reading.
