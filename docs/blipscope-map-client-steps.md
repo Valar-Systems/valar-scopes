@@ -3747,6 +3747,64 @@ instrument's. Both stop; the label says which verdict is recorded.
   - **By the letter of `31164e23`** ("refused with CB10's `#error`, once per translation unit … anything else stops"),
     this is an OFF reading. **STOPPED here: the comparator has not run**, and I1-I3 and I5 are not graded.
 
+**The comparator's controls, I1, I2 and I3, as read** (08:47:53Z on; `imgcmp.py` `dc828e47…`, `strings_added.py`
+`c5dee9d3…`):
+- **Anchor**, Bs1 against Bs2: AS PREDICTED. Exit 0; the same length; presence in both (aboutdate at 0x312C,
+  Software Info at 0x1007A); 0 bytes outside. Inside: `app_elf_sha256` 32, the image SHA-256 32, aboutdate 2,
+  Software Info 2, and the checksum byte differs (printed).
+- **Sensitivity:** AS PREDICTED. Bs1 against its copy flipped at 0x1000: exit 1, with exactly 1 byte outside, at 0x1000.
+- **I1**, Bs1 against Cs: AS PREDICTED. The same length; presence at the same offsets; **0 bytes outside**. Step C does
+  not reach the shipping image.
+- **I3's markers:** `check-no-bench-hooks.sh --expect '[wx-bench],[map-bench]'` on Cm reads `ok: … carries
+  '[wx-bench],[map-bench]' and no other bench marker (anchor present)`.
+- **I2 and I3's strings: OFF, and the instrument is the cause.** Bw to Cw shows 72 runs "added" and 77 removed (+848
+  B); Bm to Cm shows 76 added and 77 removed (+704 B).
+  - Every "added" run is a burst of machine-code or address bytes that happens to be printable, such as
+    `' %8b"\'3'`, `' Pt!`G'` and `'#<-R!<0'` (0x3C, `<`, is a flash-address byte), moved by the new code.
+  - A printable run of six bytes cannot tell text from code. The method was written after `31164e23` and never shown,
+    on a control, that it could. **My miss:** an instrument without a control.
+  - **STOPPED here.** I5 is not graded.
+- **The question on `clean`.** Its exit was **not checked at all.** The harness logged it (`clean exit 1`) but threw
+  only on the build's exit. No rule allowed it; it was a gap. The evidence that all nine are full builds (259 compiled
+  files each, as Cs's) stands. The I4 re-run checks `clean`'s exit.
+
+**I4's re-run, (b), frozen before its build** (the orchestrator, 08:47:15Z: I4 OFF on the record; (b) is its FIRST
+re-run, and a second off reading goes to the owner).
+- **The readers of `BLIPSCOPE_MAP_STEP_C`** (bare-name grep over `src/`, `include/`, `test/` and `scripts/` at
+  `ef11a5d1`):
+  - the definer, `include/MapSweep.h:16`;
+  - the one compiled reader, CB10's `#if` at `src/AircraftManager.h:55`;
+  - comments at `src/AircraftManager.h:49` and `:53`;
+  - host-check text, not compiled: `check_map_draw.py` (CD4's definer scan and `REFUSAL_IF`), `sabotage_map_draw.py`,
+    and a `run.sh` comment.
+- **The translation units that include `AircraftManager.h`, node by node,** for `blipscope-s3-128` with
+  `-DWX_LAYER_SHIPS` (`BLIPSCOPE_MAP_FETCH` defined, `WX_LOOK_AB` not):
+  - **`AircraftManager.cpp`:** `MapSweep.h` is included, so `mapsweep` is declared and the macro defined. The plant's
+    `#undef` then removes the macro, so CB10's `#if` is true and its `#error` fires **once**. GCC compiles on, with
+    `mapsweep` declared, so there is **no other error**.
+  - **`main.cpp`:** the same: **once**, and no other error.
+  - **`SoakHarness.cpp`:** it includes `AircraftManager.h` only under `#ifdef SOAK_TEST`, which this build does not
+    set. It compiles, but never sees the header: **no `#error`**.
+- **The plant:**
+  - insert `#undef BLIPSCOPE_MAP_STEP_C` after the `#endif` that closes `MapSweep.h`'s include block, before CB10's
+    `#if`. The anchor (the three-line include block followed by CB10's `#if` line) occurs exactly once;
+  - take a byte copy and its sha256 first, and restore by bytes in a `finally` block;
+  - compare the sha afterwards, and read porcelain.
+- **Predicted:**
+  - `clean` exits **0** (this env has built here). It is now checked, and a non-zero exit throws;
+  - the build exits **1**;
+  - CB10's `error: #error "step B draws the map without step C: …"` appears **exactly twice** (`AircraftManager.cpp.o`,
+    `main.cpp.o`), at `src/AircraftManager.h:57` (line 56 plus the plant's one line);
+  - **no other line containing `error:`**;
+  - no `Linking .pio/build/blipscope-s3-128/firmware.elf` line and no `Building …/firmware.bin` line;
+  - **no `firmware.bin`** after the build.
+- **The harness's image check, fixed.** "No image" means: `.pio/build/blipscope-s3-128/firmware.bin` does not exist
+  AND the log has no link line. It is never judged by timestamps.
+  - **Its control, run on I5's output before the re-run (08:49:51Z):** the file exists (1,971,232 B, sha256
+    `19f4acff…`, I5.bin's), and I5's log has 1 link line and 1 `Building …/firmware.bin` line. The check sees an
+    image.
+- **Anything else** stops, and goes to the owner.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
