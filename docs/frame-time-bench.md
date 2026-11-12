@@ -984,6 +984,58 @@ its code.**
      scene is re-read** in a later window. A second miss on the same scene goes to the owner, under the retry cap.
      The rest of the run is graded as it stands.
 
+### p2p under M3, for v20's framebench: registered now, applied when framebench carries main (not before C1)
+
+**The ruling (the orchestrator, 23:50Z, corrected 23:55:42Z):**
+- `bench/frame-bench-v19` stays v19-based and M3-free, as the v19 baseline.
+- When framebench carries main for v20, it carries M3 (draft #687), because v20 ships M3.
+- p2p is stamped at the push's COMPLETION (DMA done), which is the glass, not at the loop's hand-off. The correction:
+  M3 drops no frame (`HandOver` blocks on the one-slot queue), so the two stamps share their LONG-RUN period. The
+  completion stamp is still right, because the glass is where the interval's jitter lives.
+
+**The hook point** (p4, 23:55Z, tree #687 `3bc7ec26fe28`, `src/main.cpp`):
+- `Present()` goes in `pushtask::Task` (the push task, core 0), right after the DMA completes, between
+  `framebuf::FrameDone();` and `xSemaphoreGive(g_free[i]);`.
+- The anchor is unique in that tree, with an 8-space indent:
+  `"        framebuf::FrameDone();\n        xSemaphoreGive(g_free[i]);\n"`.
+
+**M3-1, THE STATIC CHECK, on the applied tree** (it guards the anchor trap):
+- `apply_framebench.py`'s v19 Present anchor, `"  appManager.RecordFrameUs(micros() - frameStartUs);\n"`, STILL matches exactly
+  once under M3. It would apply silently and stamp the loop's hand-off. That is CLAUDE.md's editor-anchor row:
+  unique-match establishes unambiguity, not location.
+- So:
+  - the applier REFUSES the loop anchor wherever the tree defines `BLIPSCOPE_PUSH_TASK`, and requires the push-task
+    anchor instead;
+  - `check_frame_bench.py` gains a row: `framebench::Present(` appears exactly once, inside `pushtask::Task` after
+    `FrameDone()`, and nowhere on the loop task;
+  - its plant (Present at the loop's hand-off) must read red.
+
+**M3-2, THE CROSS-TASK HAND-OFF:**
+- `Present()` now runs on the push task while `Record()` runs on the loop. Loop frames and presents are no longer one
+  event, so a `Record` could read the previous present's p2p, or the same one twice.
+- **Registered:** `Present()` publishes {the latest p2p, a present counter} under a spinlock (`portENTER_CRITICAL`).
+  `Record()` reads both, and marks its frame in `flags`: bit 2 means no present since the last record, bit 3 means two
+  or more.
+- **Predicted:** under M3's lockstep pipeline, those two flags on under 1 % of measured frames. Over 1 % makes the scene
+  the INSTRUMENT.
+- **The alternative, named:** the push task records its own p2p series, independent of loop frames. The default above
+  is p4's suggestion, and the alternative is held for a ruling if the flags read above 1 %.
+
+**M3-3, THE COUPLING CONTROL: a planted push-task delay.**
+- **Site:** after the DMA and before `t2`. The anchor is `"        tft.endWrite();\n        const uint32_t t2 = micros();\n"`.
+  It is NOT M3-9's `Check(p)`, which runs there only every 30th push, in M3_BENCH envs.
+- **The prediction's shape,** in CTRL (Bend/40/25 FIXED, draw-bound under M3 at about 52 ms by p4's estimate):
+  p95(`p2p`) with the plant = max(p95 under M3, the push's p95 + D) ± U95.
+  - **D = 40 ms MUST move p2p** (about 66 against about 52);
+  - **D = 10 ms must NOT move p2p,** because the glass's period is genuinely unchanged while the loop is the
+    bottleneck. That makes it a second, opposite-direction control.
+- **The second instrument:** M3's own `[m3] push_avg_us` (every 750 pushes) must move by about D with BOTH plants,
+  which proves each plant landed.
+- I-6's CTRL+10ms, a LOOP delay, keeps its meaning in a draw-bound scene: +10 ± 1.5.
+- The numbers are frozen with the first v20 candidate's reading; the shape is frozen now.
+- **What the coupling control cannot exclude:** coupling is not location. A hand-off stamp has the same long-run period
+  in a pipeline that drops no frame. So M3-1 (location) and M3-3 (coupling) are both required.
+
 **THE ROWS** (`check_frame_bench.py`, each with a plant that must read red):
 
 | row | what it holds |
