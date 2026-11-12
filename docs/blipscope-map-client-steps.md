@@ -1982,6 +1982,61 @@ up three gaps in the registration above:
   `ALL HOST TESTS PASSED`.
 - The tested merge is read from a checkout log. Any other reading stops.
 
+### S-CB-WXBUILD's set, re-frozen before the run, and the CB2 / CB11 detail (2026-11-12)
+
+**The finding.** Before any code ran, each of the 14 plants was read against the 26 rows as the test is written. One set
+does not hold: **S-CB-WXBUILD** (the weather's generation added to the map's rebuild test) also reaches `CB4 buildfail`.
+- When `Build` fails, nothing composes, so the composed generation stays 0.
+- `CB4 buildfail` runs with the weather shown (generation 1), the device's usual state. Under the plant, the generations
+  differ on every frame, so the failed `Build` is retried 1,000 times.
+- The real code rebuilds only on the key, so the row reads the plant's reach, not a defect.
+- The registered reason for WXBUILD, "no other row changes the weather", missed that a map never composed leaves the
+  generation unequal.
+
+**The detail.** CB2's and CB11's "again with an empty list" was first written as a key change (`airportsGen` + 1), which
+S-CB-ROTONLY would reach. Both now rebuild directly at the same key (`mapcompose::Rebuild`), which matches the registered
+text. CB2 reads the byte order and CB11 the refusal; neither reads the key.
+
+**The ruling, verbatim (the orchestrator, 01:54:47Z):**
+
+> (i), re-freeze S-CB-WXBUILD to {CB4 buildfail, CB5}. Keeping buildfail under shown weather (gen 1, the device's usual
+> state) and letting the plant's reach show is right. (ii) would shape a row to dodge a plant, so it's rejected. Catching
+> this by a node-by-node read before the run is the predict-by-applying-the-rule discipline working, and it isn't a miss:
+> nothing ran.
+> The CB2/CB11 detail is ACCEPTED: rebuilding at the same key matches the registered text, and it keeps S-CB-ROTONLY's
+> reach where it was registered.
+> The counts stay at 26 rows, 14 plants, 15 AS PREDICTED. The other 13 sets are as registered.
+> FREEZE EVIDENCE: this ruling, with the set, is in my ledger at 01:54:47Z. Commit it verbatim into the record locally,
+> before the code commit. Under the new standing rule, don't push while 082a56d8's run is in flight: push the docs + code
+> together after that run has finished and been read, with the next push's prediction stated. Then the 7 local steps as
+> registered.
+
+**The sets, as they now stand** (all 14, for the run):
+
+| plant | red, exactly |
+|---|---|
+| S-CB-ORDER | {CB1 compose} |
+| S-CB-NAMESUNDER | {CB1 names} |
+| S-CB-NOSWAP | {CB2} |
+| S-CB-EAGER | {CB3 alloc} |
+| S-CB-NOROT | {CB4 rotSin, CB4 rotCos} |
+| S-CB-ROTONLY | {CB4 homeLat, CB4 homeLon, CB4 rLat, CB4 rLon, CB4 radiusMi, CB4 package, CB4 airports, CB4 fixed} |
+| S-CB-PERFRAME | {CB4 steady, CB4 buildfail, CB5} |
+| **S-CB-WXBUILD** | **{CB4 buildfail, CB5}** |
+| S-CB-WXSTALE | {CB5} |
+| S-CB-HALF | {CB9 layer, CB9 composite, CB9 index, CB9 scratch} |
+| S-CB-RETRY | {CB4 buildfail} |
+| S-CB-AIRTRUNC | {CB11 airports 129} |
+| S-CB-NOFORGET | {CB9 forget} |
+| S-CB-NOGROW | {CB9 grow} |
+
+**The standing push rule** (the orchestrator, 01:52:24Z, after `d814c31e`'s run was cancelled by the next push):
+- (a) wait for the previous head's run to finish before the next push;
+- (b) when a push must come first, the next prediction registers the old head's cancelled legs and the aggregate's
+  failure as the expected outcome, and only the new head is read in full.
+- `d814c31e` stands as read, superseded: its ubuntu-24.04 leg read every frozen line, and its ubuntu-26.04 leg was
+  cancelled by the firmware workflow's concurrency group. `082a56d8`'s run is the record for those docs.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
