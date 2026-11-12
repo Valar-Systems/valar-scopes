@@ -73,13 +73,19 @@ registered product. That leaves three states:
 Nothing else in `proxy/`, `scripts/`, `tools/` or a workflow reads the `wx` block itself (`git grep` for `frameAgeS`,
 `coveredShare`, `wxHealth` and `"wx":`, docs excluded).
 
-**Two scripts read the WHOLE `/healthz` body by key name.** blipscope-5c found them in its conflict read (~19:10Z);
-the list above had missed them.
-- `proxy/scripts/confirm-deploy.sh:74` and `smoke-prod.sh:264` take every `"commit":"..."` anywhere in the body. A
-  second key named `commit` would turn the deploy confirmation's `LIVE` into two lines, which reads as a wrong sha.
-- `smoke-prod.sh:300` cuts `"upstreams":\[.*\]` greedily, up to the body's last `]`.
-- This change adds no key named `commit` and no array, so neither moves. **H1 asserts it**, so a later field can't
-  quietly break the deploy confirmation from inside the `wx` block.
+**Scripts that read the WHOLE `/healthz` body.** blipscope-5c found them in its conflict read (~19:10Z); the list
+above had missed them.
+- **The build stamp.** Until #646 (merged 2026-11-11, `ed452654`), `proxy/scripts/confirm-deploy.sh` and
+  `smoke-prod.sh` took every `"commit":"..."` anywhere in the body, so a second key named `commit` would have turned
+  the deploy confirmation's `LIVE` into two lines and read as a wrong sha. **Since #646 that premise lives in
+  `proxy/scripts/healthz-commit.sh`:** `healthz_commit` takes the TOP-LEVEL `commit` only, by JSON parse. It is used by
+  `confirm-deploy.sh`, `smoke-prod.sh` and `tools/wx/r12_prod.sh`, and graded by `healthz-commit.selftest.sh`. A
+  nested key can no longer fool any of the three.
+- **The upstreams cut, still true.** `smoke-prod.sh:303` cuts `"upstreams":\[.*\]` greedily, up to the body's last
+  `]`.
+- This change adds no key named `commit` and no array. **H1 asserts it**, and it stays: since #646 it is harmless for
+  the stamp, and it is still a guard on `wx`'s own shape and on the greedy `upstreams` cut. This paragraph was
+  rewritten after #646, ruled by the orchestrator at ~23:42Z.
 
 ## 3. Cost: what each `/healthz` call reads, and how often it is called
 
@@ -262,3 +268,17 @@ orchestrator, ~20:30Z) records them as follows.
   - The baseline is #627's head run, a `proxy/` change: 35 = 32/3/0.
   - No job-set change since, because #639 touched no workflow. This PR adds one `workers.yml` step, a step and not a
     job.
+
+## 11. The follow-up after #646 (comment and docs only; predicted before the push)
+
+**The ruling:** the orchestrator, ~23:42Z and 00:00Z. After #646, two lines of this PR's text named a premise that no
+longer holds: the `proxy/src/index.ts` comment, and §2's build-stamp line. Both now name where the premise lives,
+`proxy/scripts/healthz-commit.sh`. No code changes. H1 stays.
+
+**CI, predicted before the push:**
+- **35 check runs: 32 success, 3 skipped, 0 failed.**
+- **The baseline** is #646's finished head run, a `proxy/` change: 35 = 32/3/0. #646 added `workers.yml` steps only,
+  so the job set is unchanged.
+- **The suite** is unchanged by a comment: **1,041 passed, 1 skipped (1,042), in 75 files.** #646 added no vitest file.
+- **The tested merge is read from a job's checkout log** ("HEAD is now at ..."), never from `refs/pull/N/merge`, under
+  the owner's rule of 23:32Z.

@@ -86,7 +86,9 @@ async function handleHealth(env: Env): Promise<Response> {
   // `wx`: EVERY weather product in PRODUCTS (docs/wx-healthz-products.md), routed or not, so an ingest that is
   // deployed but not yet routed is never invisible here: its newest-frame age (null when there is no frame, never a
   // made-up age), `routed` (ROUTED), and `stale` (the endpoint's own rule); or "not_configured" while the WX bucket is
-  // unbound (docs/wx-server.md). No key in it may be named `commit`: confirm-deploy.sh reads every one (H1).
+  // unbound (docs/wx-server.md). The deploy confirmation and smoke read the build stamp through
+  // scripts/healthz-commit.sh, which takes the TOP-LEVEL "commit" only (#646), so a nested key cannot fool them; H1
+  // still keeps "commit" and arrays out of `wx` (smoke-prod.sh's "upstreams" cut is greedy to the body's last ']').
   //
   // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
   // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
