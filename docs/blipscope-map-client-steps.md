@@ -3093,6 +3093,115 @@ with no conflict. The suites and drivers ran in WSL with g++ 13.3.0:
   - the launch gate reads `blipscope-s3-128-mapbench found 0 1 PASS`;
   - the marker step reads `ok: … carries '[wx-bench],[map-bench]' and no other bench marker (anchor present)`.
 
+### CBF3's reader: its design, registered before its code (2026-11-12)
+
+The window plan's CBF3 row says what is read (`/diag/fb` frames in P1's "on" ticks) and what is predicted. Inside the
+wedge's sector, under 2 % of pixels are the map's colours. Outside it, on the disc, over 80 % are. The row does not say
+how a pixel is called a map colour. This section fixes that, before any reader code.
+
+**What the source draws, read before choosing.**
+- **The wedge in P1** is the opaque one (`DrawRadarSweep`, `include/DrawHelpers.h`), because the weather is off and
+  `DrawSweepOverWeather` returns false.
+  - It is 18 triangles of `(0, lvl, 0)`, with `lvl = (1 - i/18)² x 120`, over `TAIL = 1.0` rad behind the beam.
+  - The beam and its head are `DrawRadarSweepBeam`'s, shared with the weather path.
+  - In RGB565 the last four slices are `0x0000`, and slice 14 is `0x0020`.
+- **The map's colours** come from `include/MapLayer.h`'s Dark row: land (6, 8, 10), water, river, road, and the
+  terrain ramp `land + (shade - 128) x 0.075` per channel. The names add place grey on a halo in the land colour,
+  through `wxraster::Text` and `Fill`, with no blending. `To565` truncates, as `color888` does.
+- **The overlap.** The only RGB565 colours that are both the map's and the wedge's are `0x0000` and `0x0020`, the
+  terrain's darkest slopes. The ramp's blue sits two above its green, so no other pure green is reachable.
+- **Bend's share of them, on the host.** A scratch program built Bend's layer at the package centre with
+  `maplayer::Build` and printed counts only. Neither E2:08's radius nor its `radar-up` setting is known here, so it
+  covered radii of 5, 10, 25, 50, 100 and 150 mi at rotations 0 and 90:
+  - non-black map colours are **99.5-100 %** of the disc at every radius and both rotations;
+  - `0x0000` and `0x0020` together are **0-1.4 %**;
+  - no pixel had a colour outside the theme.
+- **The overlays drawn after the wedge** each have their own colours. All of them are read from the source:
+  - the three range rings, located by position with LovyanGFX's own `drawCircle`, as `scripts/wx-fb-check.py` ports
+    it;
+  - the planes' colours and the labels' colours, at fades 0.30-1.0;
+  - the NEAR/HIGH/FAST highlight and the screen dots;
+  - the beam and the head;
+  - the airports' mark (130, 130, 130), label (100, 100, 100) and code text (140, 140, 140). `wx-fb-check.py` does not
+    read these, because the weather checks never needed them, so this reader adds them.
+
+**The method: colour classes, not a per-pixel reference.**
+- **Each pixel gets one class:**
+  - MAP: a map colour that is not a wedge or overlay colour;
+  - WEDGE: a wedge colour that is not a map or overlay colour;
+  - AMBIGUOUS: a colour in two or more of the three sets;
+  - OVERLAY: an overlay colour, or a ring pixel showing its ring's colour, by position;
+  - UNKNOWN: anything else, counted and listed.
+- **The measure** in a region is MAP / (MAP + WEDGE + AMBIGUOUS). Overlays and unknowns are left out of both terms.
+- **The regions:**
+  - the centre's 12 px are never graded;
+  - **inside** is the angles from θ − 1.0 + 0.06 to θ − 0.06, where θ is the beam;
+  - **outside** is the disc beyond θ − 1.0 − 0.06 to θ + 0.06;
+  - the two 0.06 rad margins are not graded. They are wx-fb-check's own margin.
+- **The rejected alternative** is a per-pixel host reference. It would need E2:08's radius and rotation (its own
+  settings, which this session does not read) and the runtime airport list (names avoid airport boxes). That means new
+  bench prints and a re-identified image, for a row that is reported as step C's input.
+
+**The frames.**
+- **What is fetched:** P1's 40 ticks, 20 with the map on and 20 off, the weather off throughout. `/diag/fb` is fetched
+  three times per tick (the partial-frames rule).
+- **How each frame is labelled:** by the tick's own `[map-bench] phase P1 map=on|off …` line. A fetch is read only if
+  no new phase line arrived between its request and its response, and only with `X-Blipscope-Frame-Finished: true`.
+  Any other frame is counted and not read.
+- **Trust, per frame**, by the rules `wx-fb-check.py` already enforces. The reader imports them rather than copying
+  them:
+  - every ring shows its colour on 80 % of its pixels;
+  - there is exactly one head blob (joined across one ring pixel), 117-123 px out;
+  - the beam's ray agrees on at least 70 of 101 samples;
+  - the tail is `DrawHelpers.h`'s `TAIL`, read and asserted, not `WxSweep.h`'s.
+  - A frame failing any of these is UNTRUSTWORTHY: counted and not graded. The reader also cross-checks every frame's
+    verdict against `wedge_mask`'s; a disagreement stops the reading.
+- **The unknown ceiling:** a region with more than 10 % UNKNOWN pixels makes its frame UNTRUSTWORTHY. The classes
+  would not describe that frame.
+
+**Predicted, per trustworthy frame:**
+- **On ticks:** inside **under 2 %**, and outside **over 80 %**. The host's 99.5 % is for the layer alone; the
+  overlays are out of the measure.
+- **Off ticks, the reader's control on real frames:** outside **under 2 %**. With the map off the disc is black, which
+  is AMBIGUOUS, not MAP. A reader that called an off frame mapped could not tell on from off.
+
+**The verdicts, every one before the capture:**
+- **AS PREDICTED:** every trustworthy on-frame reads inside under 2 % and outside over 80 %, and every trustworthy
+  off-frame reads outside under 2 %, with at least 10 trustworthy frames of each kind. This is reported as step C's
+  input, not as a defect.
+- **OFF:** an on-frame inside at 2 % or more (the map shows through the opaque wedge), or outside at 80 % or less
+  (an "on" tick without the map). Stop and report.
+- **CONTROL FAILED:** an off-frame outside at 2 % or more. The reader is the instrument, so stop.
+- **BLIND:** fewer than 10 trustworthy frames of either kind.
+- **Anything else:** the instrument is unreliable at this scale. Stop and decide.
+
+**Plants, run red before the real frames are read.** These are synthetic frames drawn from the source's own colours
+and geometry, in the reader's `--selftest`:
+- a control on-frame (map, wedge, rings, a head): AS PREDICTED;
+- the sector holding map colours (no wedge): OFF, inside;
+- an on-labelled frame black outside: OFF, outside;
+- an off-labelled frame holding map colours outside: CONTROL FAILED;
+- two head blobs, and then the rings missing: UNTRUSTWORTHY each;
+- a region 15 % unknown colour: UNTRUSTWORTHY;
+- too few frames: BLIND.
+
+**Where it lives:** `--fb` in the scratch reader `map_bench_read.py`. Its sha is frozen again before the window, as
+every row's reader is.
+
+**Privacy.**
+- The frames show a place, so they stay in the scratch directory and are never committed.
+- The record carries counts and shares only.
+- The fetcher never prints the board's host name or address.
+
+**Questions for the ruling:**
+- **Q-CBF3-1, the method:** colour classes, over a per-pixel reference. I recommend the colour classes.
+- **Q-CBF3-2, the control:** the off ticks as the reader's control on real frames, with outside under 2 %, and at
+  least 10 trustworthy frames of each kind.
+- **Q-CBF3-3, the dependency:** the reader imports `wx-fb-check.py`'s ring and beam rules. That is a dependency on a
+  Weatherscope script: a change there moves this reader too, or breaks it closed. The alternative is a copy that can
+  drift. I recommend the import with the per-frame cross-check.
+- **Q-CBF3-4, the unknown ceiling:** 10 % of a region.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
