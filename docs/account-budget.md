@@ -28,7 +28,9 @@ rounding", R2's pricing page).
 | `docs/account-budget.json` | the data: allowances, reads, products, rows, scenarios (section 2) |
 | `scripts/account_budget.py` | the checker (section 3). `--selftest` runs its controls (section 4). `--render` writes section 6's table, and `--render-check` refuses a stale one |
 | `tools/budget/budget_read.py` | the read: one window, every billed line, attributed to products (section 2). Read-only, counts only, token from the token file, never printed |
-| `.github/workflows/account-budget.yml` | CI on any change to the four paths above: `--selftest`, then the checker (it prints the flags into the log), then `--render-check` |
+| `tools/budget/build_budget.py` | assembles the data file from the reads of section 5.1, the ten's derived running rows, `shsr`'s projected rows and the derived Logs rows |
+| `tools/budget/sabotage_account_budget.py` | red first: plants S1-S6 in a copy of the checker, each asserted to apply, and requires each control to fail with exactly its predicted set |
+| `.github/workflows/account-budget.yml` | CI on any change to the paths above: `--selftest`, the sabotage driver, then the checker (it prints the flags into the log), then `--render-check` |
 | this doc | section 6 gains the rendered table and the readings |
 
 ## 2. The data
