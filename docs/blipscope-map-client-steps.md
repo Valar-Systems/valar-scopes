@@ -4965,6 +4965,47 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
   to the map takes those pixels out of the map class.
 - Reported, with the correction proposed. Nothing re-run before the ruling.
 
+**The ruling (the orchestrator, unstamped):**
+- C-OUT is ACCEPTED as calibrated and frozen.
+- The K-a FIX is ACCEPTED: correcting the code to the registered condition aligns the instrument with its
+  registration, and is not a loosening.
+- The read is (B): C-OUT per frame, REPORTED, not graded. Then "added" as a registered diagnostic, then the grade,
+  which is the second as a grade.
+
+**K-a RE-RUN and C-OUT REPORTED (23:12Z):**
+- `cout.py` re-frozen at `f04054d66f517272e6f5439570edf469736d487f0feae43e3b5da20271682719`: line 160 checks V only on
+  the unplanted frame, and a `--report` mode is added.
+- **Controls:** all as predicted, with the K-a values unchanged (V 95.96 / G 0.00, V 18.64 / G 80.90, V 0.00 /
+  G 100.00); only the verdict line differs. Output `6b747f96c79ac7b1acbe4a8f4bd0efaf67cfcf8284e830792a4d7c4c3f388f53`.
+- **C-OUT on C's 30 on-frames (reported, not graded):**
+  - V ≥ T_V on **30 of 30** (95.56-96.54 %);
+  - G < T_G on **30 of 30** (0.00-0.05 %).
+  - Output `bd01b7660c865776c797173d3cc093511190bb052e2034d9cd571d03141b9eee`.
+
+### CBF3-C's "added" diagnostic, registered before it runs (2026-11-12)
+
+- **The two frames:** `p1-t16-0` (added 78.9 % of 256 add-region px) and `p1-t36-0` (76.8 % of 203). The other 28
+  on-frames are read alongside, for comparison and reported.
+- **The pixels:** each frame's add region exactly as `grade_frame_c` draws it (back 0.06..`add_hi` rad, map/wedge
+  classes), with the control that the counts equal its own. The NOT-ADDED ones (6-bit green ≤ `gmax`, 21) are counted:
+  - by C's exact class set (OVERLAY-member split as in R0; MAP only; WEDGE; MAPGREEN only; black);
+  - and by whether the position lies on a ring raster or within 4 px of a plane-coloured marker.
+- **Pre-registered:**
+  - **(A-a) the radar's own overlay:** OVERLAY-member colours, or ring/marker positions, hold more than 50 % of the
+    not-added pixels on BOTH frames.
+    - "added" then takes C-OUT's OVERLAY exclusion, a rule change registered here.
+    - Its host minimum is re-shown unchanged: host frames hold no overlay, so the exclusion is a no-op there, shown on
+      the 8 rasters × 36 beams with the add applied.
+    - Its plant is a real frame with the add removed in the add region, which must still read red after the
+      exclusion.
+  - **(A-b) the add missing:** MAP-only colours (the map unchanged) hold more than 50 % on either frame. A step C
+    defect, or a frame drawn with the blend off: **to the owner.**
+  - **(A-c) the region misplaced:** the not-added pixels form one contiguous arc at the region's edge. A locator
+    question: STOP.
+  - **Anything else:** STOP.
+- **Then the grade:** CBF3-C with C-OUT, and with "added" as (A-a) leaves it. That read is the SECOND as a grade, so
+  if it is off it goes to the owner.
+
 **THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
 (visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
 - every row as predicted: CBF3-C graded;
