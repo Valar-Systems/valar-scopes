@@ -626,3 +626,46 @@ from the tile loop on. It bears on Q-W4's memory predictions under B.
 
 **Next:** CI at this head, then the orchestrator's review at an exact sha. The staging deploy waits on the merge, on blipscope-5c's
 `/healthz` fix being merged, and on its slot.
+
+## The staging-builder slot (2026-11-12): the record, written before `deploy.sh` runs
+
+**Granted** by the orchestrator at 15:17:23Z, under the owner's 15:07Z delegation, which now covers the basemap builder Worker. The
+condition held: uk-data's production deploy read green (`/healthz` e3c2508e, ok:true at 15:17:01Z), and `proxy:production` was released
+at 15:16:33Z. **No v19 bench flash while any deploy claim is held.** The orchestrator told blipscope-5c, and blipscope-5c confirmed it.
+
+**The pre-steps, read 15:18-15:20Z** (all read-only):
+
+| read | value |
+|---|---|
+| main | `f3fee349061afc346900a5f85a0eee2034791ce4`. Since last night only #662 has landed (src/weatherscope and tests), so proxy/ is unchanged since af871ecb67b6, whose push-event workers run finished green |
+| **the rollback target** (`wrangler deployments list --config basemap.wrangler.toml --env staging`, typed read-only, ruled (b)) | **`9512e266-951b-46fa-abed-d77a4c9b3d1c` at 100%**, the latest of 4 staging builder deployments, created 2026-11-07T18:13:13Z, stamped fdf62ada9f79. Exit 0, empty stderr |
+| `session-claim.py show` | deploy: free; merge: free |
+| the shell | no `CLOUDFLARE_API_TOKEN` (presence checked as a boolean) |
+| blipscope-5c | no objection: nothing in flight on staging, and no proxy or deploy claim |
+| weatherscope | no objection: nothing depends on the staging builder's current build |
+
+**The deploy, exactly**, in Git Bash, from a clean detached checkout of main's head (`proxy/` porcelain empty):
+1. `BLIPSCOPE_SESSION=map-server python scripts/session-claim.py take deploy --covers builder:staging --until +45m` (repo root);
+2. `BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging` (from `proxy/`). Inside, it runs
+   `npx wrangler deploy --config basemap.wrangler.toml --env staging --define BUILD_COMMIT:"<40-hex>"`. **No wrangler command that
+   changes anything is typed.**
+3. the SG requests with the builder's tail alongside (`wrangler tail blipscope-basemap-staging`, typed read-only, Q-RV4): `sg-request.sh`
+   (6e67ae96ee08, fx-request.sh with eps 201168 → 201169 and nothing else) at KLGA (40.78, -73.87), then KJFK (40.64, -73.78);
+4. **D3's binding test:** staging `/healthz` `basemap.commit` == the deployed stamp, and `basemap.store` == `4c0875738f38`;
+5. the claim released, and its time recorded.
+
+**What stops, and how:**
+- A prediction miss on a healthy builder (any SG row but SG-A, or D3 off): **stop**, report to the orchestrator, **no rollback**.
+- **A failed smoke or Worker errors: roll back FIRST, then report at once.** The rollback is **(R1)**, the 15:17:57Z ruling: a committed
+  script, never a typed wrangler command. A new version carries 9512e266's code and config, stamped `fdf62ada9f79`, from a clean
+  detached checkout of `fdf62ada9f795505daed3a38b69c596da43a2809` (on main's history; `proxy/basemap.wrangler.toml` has no diff from
+  main). It runs from that checkout's `proxy/`, **only while the builder:staging claim is held**, because that commit's `deploy.sh`
+  predates the claim guard and won't check it.
+  - **That `deploy.sh` touches only the staging builder.** l.37-41 parse `--builder` and `staging`. l.156-161 run one
+    `npx wrangler deploy --config basemap.wrangler.toml --env "$ENVIRONMENT"` and then `exit 0`, so it never reaches the proxy's secret
+    list (l.190), the proxy's own deploy (l.244) or confirm-deploy (l.269).
+  - **Its behind-main guard applies to `--builder` as well** (l.113-125). fdf62ada is **10** proxy/ commits behind main, so the ruled
+    line exits 1 unless it is given the guard's own escape, `ALLOW_BEHIND=1` ("knowing exactly what you are reverting"). **The line
+    with it is proposed and awaits the orchestrator's ruling. deploy.sh does not run until it is ruled.**
+  - After R1, the confirmation read is staging `/healthz` `basemap.commit` == `fdf62ada9f79` with the store binding unchanged; then
+    report at once. **If R1 itself fails, stop with staging as it stands and report. There is no typed fallback.**
