@@ -128,4 +128,17 @@ for c in rodshift rodown rodswap; do
   link "$a" entry "" src/main.c.o src/rs.S.o
   link "$b" entry "" src/main.c.o src/rs.S.o
 done
+
+# amendment 1i: LINK-ONLY's controls. callswap: one call target swapped at the same length (assembly, _call8)
+a=$(store callswap/a); b=$(store callswap/b)
+obj "$a" main_cs.c main.c; obj "$a" cs_t.c cs_t.c; "$CC" $CFLAGS -o "$a/src/cs.S.o" src/cs_a.S
+obj "$b" main_cs.c main.c; obj "$b" cs_t.c cs_t.c; "$CC" $CFLAGS -o "$b/src/cs.S.o" src/cs_b.S
+link "$a" entry "" src/main.c.o src/cs.S.o src/cs_t.c.o
+link "$b" entry "" src/main.c.o src/cs.S.o src/cs_t.c.o
+# rodread: read-only data a function reads, in another object (tbl changes, ktbl does not) and in its own (ltbl)
+a=$(store rodread/a); b=$(store rodread/b)
+obj "$a" main_rr.c main.c; obj "$a" rd.c rd.c; obj "$a" rr_a.c rr.c
+obj "$b" main_rr.c main.c; obj "$b" rd.c rd.c; obj "$b" rr_b.c rr.c
+link "$a" entry "" src/main.c.o src/rd.c.o src/rr.c.o
+link "$b" entry "" src/main.c.o src/rd.c.o src/rr.c.o
 echo "stores regenerated"

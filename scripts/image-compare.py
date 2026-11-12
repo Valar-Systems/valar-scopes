@@ -245,6 +245,21 @@ class Obj:
             return False  # part of its function (amendment 1e)
         return True
 
+    def local_name(self, sym):
+        """Amendment 1i' (the reviewer's ruling, 19:33Z): a local symbol's name names a target only when no other local
+        of this object (not a section or file symbol) shares it. One check, for section 3's local: and 1h''s covering
+        symbol alike."""
+        if getattr(self, "_local_counts", None) is None:
+            counts = {}
+            for s in self.syms:
+                if (s["st_info"]["bind"] == "STB_LOCAL" and s["st_info"]["type"] not in ("STT_SECTION", "STT_FILE")
+                        and s.name):
+                    counts[s.name] = counts.get(s.name, 0) + 1
+            self._local_counts = counts
+        if self._local_counts.get(sym.name, 0) > 1:
+            raise Refusal("a local name that repeats in its object: %s" % sym.name)
+        return sym.name
+
     def binding(self, ident):
         return self.sym_binding[self.units[ident]]
 
@@ -272,7 +287,7 @@ class Obj:
                 return "sym:%s%+d" % (sym.name, addend)
             if shndx in self.sec_ident:
                 refs.add(("U", self.input_id, self.sec_ident[shndx]))
-            return "local:%s%+d" % (sym.name, addend)
+            return "local:%s%+d" % (self.local_name(sym), addend)
         if not isinstance(shndx, int):
             raise Refusal("a section symbol with no section")
         if shndx == from_i:
@@ -322,7 +337,8 @@ class Obj:
         for sym in self.syms:
             if (sym["st_shndx"] == si and sym["st_info"]["type"] not in ("STT_SECTION", "STT_FILE") and sym.name
                     and not sym.name.startswith(".L") and sym["st_value"] <= addend < sym["st_value"] + max(sym["st_size"], 1)):
-                return "sym:%s%+d" % (sym.name, addend - sym["st_value"])
+                nm = self.local_name(sym) if sym["st_info"]["bind"] == "STB_LOCAL" else sym.name
+                return "sym:%s%+d" % (nm, addend - sym["st_value"])
         if depth > 2:
             raise Refusal("an unsplit-section span that names another, too deep")
         spans = self._spans(si, depth)
@@ -923,6 +939,8 @@ def final_insns(store, addr, size):
     for a, sz, flags in ents:
         if a != at:
             raise Refusal("the image's property table leaves %s at +%d" % ("a gap" if a > at else "an overlap", at - addr))
+        if a + sz > addr + size:  # the reviewer's ruling, 20:11Z: a refusal, never an index past the bytes read
+            raise Refusal("the image's property table runs past the function's end")
         if flags & PROP_INSN and not flags & (PROP_LITERAL | PROP_UNREACHABLE):
             j = a - addr
             while j < a - addr + sz:
@@ -939,10 +957,10 @@ def final_insns(store, addr, size):
     return insns, data
 
 
-def fill_image_walk(obj, sec_i, store, addr, size):
+def fill_image_walk(obj, sec_i, store, addr, size, seen=None):
     """Amendment 1f, one side of a FILL function: its final copy against its input, instruction by instruction, both
     from their own property tables. Allowed: fill of any size, a deleted l32r with callx -> call, a same-operation width
-    swap. -> (n, r, sites) or Refusal."""
+    swap. -> (n, r, sites) or Refusal. `seen`: its call sites, as relax_walk's (1i'')."""
     inp = obj.sec_bytes(sec_i)
     ins_i, _fill = fill_walk(obj, sec_i)
     ins_f, fin = final_insns(store, addr, size)
@@ -968,13 +986,19 @@ def fill_image_walk(obj, sec_i, store, addr, size):
             if li != 3 or (inp[pi] & 0x0F) != 1 or nx is None:
                 raise Refusal("a long-call site that is not an l32r/callx pair")
             if lj == 3 and call_n(fin[pj:pj + 3]) == nx:
-                sites.append((len(sites), True, addr + pj, call_target(addr + pj, fin[pj:pj + 3])))
+                target = call_target(addr + pj, fin[pj:pj + 3])
+                sites.append((len(sites), True, addr + pj, target))
+                if seen is not None:
+                    seen.append((pi, addr + pj, target))
                 r += 1
                 i, j = i + 2, j + 1
                 continue
             if j + 1 < len(ins_f) and (fin[pj] & 0x0F) == 1 and callx_n(fin[ins_f[j + 1][0]:ins_f[j + 1][0] + 3]) == nx:
                 lit = l32r_addr(addr + pj, fin[pj:pj + 3])
-                sites.append((len(sites), False, addr + pj, int.from_bytes(store.read(lit, 4), "little")))
+                target = int.from_bytes(store.read(lit, 4), "little")
+                sites.append((len(sites), False, addr + pj, target))
+                if seen is not None:
+                    seen.append((pi, addr + pj, target))
                 i, j = i + 2, j + 2
                 continue
             raise Refusal("a long-call site that is neither relaxed nor kept")
@@ -983,6 +1007,8 @@ def fill_image_walk(obj, sec_i, store, addr, size):
             same = (mask_operand(bi) == mask_operand(bf)) if pi in rel_at else (bi == bf)
             if not same:
                 raise Refusal("a final instruction differs at input +%d" % pi)
+            if seen is not None and pi in rel_at and li == 3 and call_n(bi) is not None:
+                seen.append((pi, addr + pj, call_target(addr + pj, bf)))
         elif canon(bi) is None or canon(bi) != canon(bf):
             raise Refusal("a final instruction changes width and operation at input +%d" % pi)
         i, j = i + 1, j + 1
@@ -1017,9 +1043,11 @@ def l32r_addr(pc, bs):
     return (((pc + 3) & ~3) + ((0xFFFC0000 | (imm << 2)) - (1 << 32))) & 0xFFFFFFFF
 
 
-def relax_walk(obj, sec_i, store, addr, size, need_sites=True):
+def relax_walk(obj, sec_i, store, addr, size, need_sites=True, seen=None):
     """Amendment 1 (a) and 1a, one side: walk the final copy against the input.
-    -> (n, r, sites, narrowed, widened) or Refusal."""
+    -> (n, r, sites, narrowed, widened) or Refusal. `seen` (1i', 1i''): every call site the walk resolves, as it goes
+    -- (input offset, pc, the final copy's target) for a long-call site, relaxed or kept, and for a direct call under a
+    relocation -- so a walk that stops still yields the sites before the stop."""
     inp = obj.sec_bytes(sec_i)
     rel_at, expand_at = set(), set()
     for (off, rtype, _s, _a) in obj.relocs.get(sec_i, []):
@@ -1045,7 +1073,10 @@ def relax_walk(obj, sec_i, store, addr, size, need_sites=True):
             if li != 3 or (inp[i] & 0x0F) != 1 or nx is None:
                 raise Refusal("a long-call site that is not an adjacent l32r/callx pair")
             if j + 3 <= len(fin) and call_n(fin[j:j + 3]) == nx:
-                sites.append((len(sites), True, addr + j, call_target(addr + j, fin[j:j + 3])))
+                target = call_target(addr + j, fin[j:j + 3])
+                sites.append((len(sites), True, addr + j, target))
+                if seen is not None:
+                    seen.append((i, addr + j, target))
                 r += 1
                 i, j = i + 6, j + 3
                 continue
@@ -1053,6 +1084,8 @@ def relax_walk(obj, sec_i, store, addr, size, need_sites=True):
                 lit = l32r_addr(addr + j, fin[j:j + 3])
                 target = int.from_bytes(store.read(lit, 4), "little")
                 sites.append((len(sites), False, addr + j, target))
+                if seen is not None:
+                    seen.append((i, addr + j, target))
                 i, j = i + 6, j + 6
                 continue
             raise Refusal("a long-call site that is neither relaxed nor kept")
@@ -1063,6 +1096,8 @@ def relax_walk(obj, sec_i, store, addr, size, need_sites=True):
             if i in rel_at:
                 if mask_operand(fin[j:j + li]) != mask_operand(inp[i:i + li]):
                     raise Refusal("a relocated instruction changed more than its operand at +%d" % i)
+                if seen is not None and li == 3 and call_n(inp[i:i + 3]) is not None:
+                    seen.append((i, addr + j, call_target(addr + j, fin[j:j + 3])))
             elif fin[j:j + li] != inp[i:i + li]:
                 raise Refusal("an unrelocated instruction differs at input +%d" % i)
         else:  # amendment 1a: the linker narrows or widens an instruction to its own other form
@@ -1089,6 +1124,218 @@ def reach(pc, target):
 def in_call_range(pc, target):
     d = reach(pc, target)
     return CALL_LIMIT_LO <= d <= CALL_LIMIT_HI and d % 4 == 0
+
+
+# ---------------------------------------------------------------- amendments 1i, 1i', 1i'' (sections 21-24)
+#
+# LINK-ONLY: a function the RELAX walk could not model, whose object code is equal with every relocated field named (a),
+# whose read-only data is equal (b), and every call site of whose walks goes where its input names (c). Every walk the
+# image layer FINISHES has its call sites checked the same way (1i''). What stays trusted to the link is printed.
+
+LINK_TRUST = "non-call bytes trusted to the link (store built from M0, inputs hashed)"
+VERDICT_TRUST = ("trusted to the link (store built from M0, inputs hashed): %d walked (call sites checked, other bytes "
+                 "trusted), %d unwalked (all bytes trusted)")
+TARGET_RE = re.compile(r"^(sym|local|unit):(.+?)([+-]\d+)$")
+
+
+class Mismatch(Refusal):
+    """1i'' (the reviewer's ruling, 19:46Z): a finished walk's call site does not go where its input names.
+    UNDECIDED, and never LINK-ONLY: the walk finished, so the mismatch is the finding."""
+
+
+def image_syms(store):
+    """{name: [(value, type, shndx)]} of the image's global and weak symbols, cached."""
+    if getattr(store, "_gsyms", None) is None:
+        out = {}
+        for s in store.elf.get_section_by_name(".symtab").iter_symbols():
+            if s["st_info"]["bind"] in ("STB_GLOBAL", "STB_WEAK") and s.name:
+                out.setdefault(s.name, []).append((s["st_value"], s["st_info"]["type"], s["st_shndx"]))
+        store._gsyms = out
+    return store._gsyms
+
+
+def image_place(store):
+    """{(input, input section): its address} from the map, cached. A pair the map places twice maps to None."""
+    if getattr(store, "_place", None) is None:
+        out = {}
+        for (a, _z, src, name) in store.map["kept"]:
+            out[(src, name)] = None if (src, name) in out else a
+        store._place = out
+    return store._place
+
+
+def in_image(store, addr):
+    return any((s["sh_flags"] & SHF_ALLOC) and s["sh_addr"] <= addr < s["sh_addr"] + s["sh_size"]
+               for s in store.elf.iter_sections())
+
+
+def symbol_address(side, obj, iid, symidx, addend):
+    """(display name, address in this side's image) of what one of obj's relocations names -- or Refusal."""
+    sym = obj.syms[symidx]
+    t, bind, shndx = sym["st_info"]["type"], sym["st_info"]["bind"], sym["st_shndx"]
+    if t == "STT_SECTION" or (bind == "STB_LOCAL" and isinstance(shndx, int)):
+        if not isinstance(shndx, int):
+            raise Refusal("a section symbol with no section")
+        sec = obj.secs[shndx].name
+        a = image_place(side.store).get((src_of(iid), sec))
+        if a is None:
+            raise Refusal("%s is not placed once by the map" % sec)
+        name = sec if t == "STT_SECTION" else obj.local_name(sym)
+        value = a + (0 if t == "STT_SECTION" else sym["st_value"]) + addend
+    else:
+        vals = image_syms(side.store).get(sym.name, [])
+        if len(vals) != 1:
+            raise Refusal("%s is in the image's symbol table %d times" % (sym.name, len(vals)))
+        name, value = sym.name, vals[0][0] + addend
+    return (name if addend == 0 else "%s%+d" % (name, addend)), value
+
+
+def site_mismatches(side, loc, seen, tag):
+    """(c): each call site a walk resolved, against the image address of what its input's relocation there names (the
+    long-call marker's symbol, or a direct call's). -> [message] for every site that does not match or cannot be placed."""
+    iid, obj, sec_i = loc
+    expand, slot = {}, {}
+    for (off, rtype, symidx, add) in obj.relocs.get(sec_i, []):
+        if off == "REL":
+            continue
+        if rtype == R_ASM_EXPAND:
+            expand[off] = (symidx, add)
+        elif rtype == R_SLOT0_OP:
+            slot[off] = (symidx, add)
+    bad = []
+    for k, (off, _pc, target) in enumerate(seen):
+        r = expand.get(off) or slot.get(off)
+        try:
+            if r is None:
+                raise Refusal("no relocation names it")
+            name, want = symbol_address(side, obj, iid, r[0], obj.addend(sec_i, off, R_SLOT0_OP, r[1]))
+        except Refusal as e:
+            bad.append("%s's site %d's target cannot be placed: %s" % (tag, k, e))
+            continue
+        if target != want:
+            bad.append("%s's site %d calls 0x%x; its input names %s, at 0x%x" % (tag, k, target, name, want))
+    return bad
+
+
+def finished_walk_sites(A, la, seen_a, B, lb, seen_b):
+    """1i'' (the reviewer's ruling, 19:46Z): a walk the image layer finished -- RELAX's, FILL's image walk -- has its
+    call sites checked as (c) does, before the class is given. Raises Mismatch."""
+    bad = site_mismatches(A, la, seen_a, "A") + site_mismatches(B, lb, seen_b, "B")
+    if bad:
+        raise Mismatch("; ".join(bad))
+
+
+def collect_sites(side, loc, ent):
+    """(c) for a LINK-ONLY candidate: the walk run again, need_sites off, for the call sites before wherever it stops."""
+    seen = []
+    try:
+        relax_walk(loc[1], loc[2], side.store, ent[0][2], ent[0][0], need_sites=False, seen=seen)
+    except Refusal:
+        pass
+    return seen
+
+
+def resolve_data(side, obj, iid, kind, nm):
+    """One named target, on one side -> ('code' | 'writable', None), ('outside', address), or ('ro', (iid, obj, sec)).
+    Refusal when it cannot be placed."""
+    if kind == "unit":
+        if nm not in obj.units:
+            raise Refusal("no unit %s in %s" % (nm, iid))
+        loc = (iid, obj, obj.units[nm])
+    elif kind == "local":
+        hits = [s for s in obj.syms if s.name == nm and s["st_info"]["bind"] == "STB_LOCAL"
+                and s["st_info"]["type"] not in ("STT_SECTION", "STT_FILE")]
+        if len(hits) != 1 or not isinstance(hits[0]["st_shndx"], int) or hits[0]["st_shndx"] not in obj.sec_ident:
+            raise Refusal("the local %s is not in one unit of %s" % (nm, iid))
+        loc = (iid, obj, hits[0]["st_shndx"])
+    else:
+        vals = image_syms(side.store).get(nm, [])
+        if len(vals) != 1:
+            raise Refusal("%s is in the image's symbol table %d times" % (nm, len(vals)))
+        value, typ, shndx = vals[0]
+        if typ == "STT_FUNC":
+            return ("code", None)
+        if not isinstance(shndx, int) or not in_image(side.store, value):
+            return ("outside", value)
+        import bisect
+        kept = side.store.map["kept"]
+        k = bisect.bisect_right([e[0] for e in kept], value) - 1
+        if k < 0 or not kept[k][0] <= value < kept[k][0] + kept[k][1]:
+            raise Refusal("%s is in no input section the map places" % nm)
+        loc = side.locate(kept[k][2], kept[k][3])
+    flags = loc[1].secs[loc[2]]["sh_flags"]
+    if flags & SHF_EXECINSTR:
+        return ("code", None)
+    if flags & 0x1:  # SHF_WRITE: the ruling names read-only data; a changed initializer is its own CHANGED unit
+        return ("writable", None)
+    return ("ro", loc)
+
+
+def rodata_read(A, B, la, lb, sig, dm):
+    """1i (b): the read-only data a function reads, followed through read-only data, equal on both sides.
+    -> (sections compared and equal, [differing], why it cannot be compared or None)"""
+    todo, done, n, differ = [(la, lb, sig)], set(), 0, []
+    while todo:
+        (ia, oa, _sa), (ib, ob, _sb), s = todo.pop()
+        names = [rec[-1] for rec in s[2]]
+        if any(t.startswith("span:") and "{" in t for t in names):  # a span holding relocations: its section, whole
+            names += ["unit:%s+0" % r[2] for r in sorted(s[3]) if r[0] == "U" and r[2].startswith("sec:")]
+        for t in names:
+            if t.startswith("lit(") and t.endswith(")"):
+                t = t[4:-1]
+            m = TARGET_RE.match(t)
+            if not m:
+                continue  # content names (str:, cst:, lit:0x, span:) are in the signature already; self is the function
+            try:
+                ra = resolve_data(A, oa, ia, m.group(1), m.group(2))
+                rb = resolve_data(B, ob, ib, m.group(1), m.group(2))
+            except Refusal as e:
+                return n, differ, str(e)
+            if ra[0] != rb[0]:
+                return n, differ, "%s resolves differently in A and B" % m.group(2)
+            if ra[0] == "outside" and ra[1] != rb[1]:
+                return n, differ, "%s lies outside the image at different addresses" % m.group(2)
+            if ra[0] != "ro":
+                continue
+            (ja, pa, sa_i), (jb, pb, sb_i) = ra[1], rb[1]
+            key = (ja, pa.sec_ident[sa_i], jb, pb.sec_ident[sb_i])
+            if key in done:
+                continue
+            done.add(key)
+            if len(done) > 256:
+                return n, differ, "more than 256 read-only sections"
+            try:
+                sa2, sb2 = pa.signature(key[1]), pb.signature(key[3])
+            except Refusal as e:
+                return n, differ, "%s [%s]: %s" % (dm(key[1]), ja, e)
+            if sa2[:3] != sb2[:3]:
+                differ.append("%s [%s]" % (dm(key[1]), ja))
+                continue
+            n += 1
+            todo.append(((ja, pa, sa_i), (jb, pb, sb_i), sa2))
+    return n, sorted(differ), None
+
+
+def link_only(A, B, la, lb, ka, kb, ea, eb, dm):
+    """Amendments 1i/1i' (sections 21-22), for a function whose walk refused. -> (True, the LINK-ONLY line's tail) or
+    (False, why not)."""
+    try:
+        sa, sb = la[1].signature(ka[1]), lb[1].signature(kb[1])
+    except Refusal as r:
+        return False, "its object code cannot be read: %s" % r
+    if sa[:3] != sb[:3]:
+        return False, "its object code differs"
+    n, differ, why = rodata_read(A, B, la, lb, sa, dm)
+    if why:
+        return False, "a read-only datum it reads cannot be compared: %s" % why
+    if differ:
+        return False, "it reads read-only data that differs: %s" % ", ".join(differ)
+    sites_a, sites_b = collect_sites(A, la, ea), collect_sites(B, lb, eb)
+    bad = site_mismatches(A, la, sites_a, "A") + site_mismatches(B, lb, sites_b, "B")
+    if bad:
+        return False, "; ".join(bad)
+    return True, "object code equal; read-only data equal: %d section(s); call sites checked A/B: %d/%d; %s" % (
+        n, len(sites_a), len(sites_b), LINK_TRUST)
 
 
 def demangler(path):
@@ -1205,9 +1452,12 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
     for k in sorted(lone_b, key=repr):
         pairs.append((k, [], lone_b[k]))
 
-    relaxed, picks, gcs = [], [], []
+    relaxed, picks, gcs, linkonly = [], [], [], []
+    both = walked = 0  # 1i'': the functions in both images, and the ones a walk ran on (the rest: all bytes trusted)
     for fkey, ea, eb in pairs:
         name = dm(fkey[1] if fkey[0] == "G" else fkey[2])
+        if ea and eb:
+            both += 1
         if len(ea) > 1 or len(eb) > 1:
             if sorted(x[0] for x in ea) != sorted(x[0] for x in eb):
                 undecided.append("%s: its name repeats in one input, and the sizes differ" % name)
@@ -1232,14 +1482,17 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
         if (ka in units and units[ka][0] == "UNDECIDED") or (kb in units and units[kb][0] == "UNDECIDED"):
             continue  # UNDECIDED: the object layer has it
         if ea and eb and ka == kb and ka in units and units[ka][0] == "FILL":
+            walked += 1
             try:  # 1f: each side's final copy walked against its own input; a flipped long call must still cross
-                _na, _ra, sites_a = fill_image_walk(la[1], la[2], A.store, ea[0][2], ea[0][0])
-                _nb, _rb, sites_b = fill_image_walk(lb[1], lb[2], B.store, eb[0][2], eb[0][0])
+                seen_a, seen_b = [], []
+                _na, _ra, sites_a = fill_image_walk(la[1], la[2], A.store, ea[0][2], ea[0][0], seen_a)
+                _nb, _rb, sites_b = fill_image_walk(lb[1], lb[2], B.store, eb[0][2], eb[0][0], seen_b)
                 for (k, rel_a, pc_a, t_a), (_k, rel_b, pc_b, t_b) in zip(sites_a, sites_b):
                     if rel_a != rel_b:
                         long_pc, long_t = (pc_b, t_b) if rel_a else (pc_a, t_a)
                         if in_call_range(long_pc, long_t):
                             raise Refusal("site %d flipped, but its reach did not cross the call limit" % k)
+                finished_walk_sites(A, la, seen_a, B, lb, seen_b)  # 1i''
             except Refusal as e:
                 undecided.append("%s (FILL): size %d -> %d: %s" % (name, ea[0][0], eb[0][0], e))
             continue
@@ -1258,9 +1511,11 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
             picks.append("%s: %s -> %s, the two copies the same" % (name, ka[0], kb[0]))
             if ea[0][0] == eb[0][0]:
                 continue
+        walked += 1
         try:  # the same input unit (or an equal copy) and a different size: RELAX, counted, or UNDECIDED
-            na, ra, sites_a, nar_a, wid_a = relax_walk(la[1], la[2], A.store, ea[0][2], ea[0][0])
-            nb, rb, sites_b, nar_b, wid_b = relax_walk(lb[1], lb[2], B.store, eb[0][2], eb[0][0])
+            seen_a, seen_b = [], []
+            na, ra, sites_a, nar_a, wid_a = relax_walk(la[1], la[2], A.store, ea[0][2], ea[0][0], seen=seen_a)
+            nb, rb, sites_b, nar_b, wid_b = relax_walk(lb[1], lb[2], B.store, eb[0][2], eb[0][0], seen=seen_b)
             if na != nb:
                 raise Refusal("the two inputs carry different long-call counts")
             flips = []
@@ -1275,10 +1530,18 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
                     k, "A" if rel_a else "B", reach(call_pc, call_t), "B" if rel_a else "A", reach(long_pc, long_t)))
             if ra == rb:
                 raise Refusal("a size difference with no relaxed-site difference")
+            finished_walk_sites(A, la, seen_a, B, lb, seen_b)  # 1i''
             relaxed.append("%s: n=%d rA=%d rB=%d narrowed A/B=%d/%d widened A/B=%d/%d dsize=%+d; %s" % (
                 name, na, ra, rb, nar_a, nar_b, wid_a, wid_b, eb[0][0] - ea[0][0], "; ".join(flips)))
-        except Refusal as e:
+        except Mismatch as e:  # 1i'': the walk finished, and a call goes elsewhere -- never LINK-ONLY
             undecided.append("%s: size %d -> %d: %s" % (name, ea[0][0], eb[0][0], e))
+        except Refusal as e:  # 1i: the walk refused; LINK-ONLY, or UNDECIDED saying why not
+            ok, tail = link_only(A, B, la, lb, ka, kb, ea, eb, dm)
+            if ok:
+                linkonly.append("LINK-ONLY %s [%s] -- size %d -> %d; the walk: %s; %s" % (
+                    name, ka[0] if ka[0] == kb[0] else "%s -> %s" % (ka[0], kb[0]), ea[0][0], eb[0][0], e, tail))
+            else:
+                undecided.append("%s: size %d -> %d: %s; not LINK-ONLY: %s" % (name, ea[0][0], eb[0][0], e, tail))
 
     # GC (section 4, amendment 1a (b)): every unit of that image naming it is CHANGED, or is itself a GC unit that
     # passes -- taken to a fixed point, so a chain counts only when it is rooted in a CHANGED unit
@@ -1308,7 +1571,11 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
         out("PICK " + p)
     for r in relaxed:
         out("RELAX " + r)
+    for lo in linkonly:
+        out(lo)
     out("functions whose address moved: %d" % moved)
+    # 1i/1i'': the verdict counts LINK-ONLY and says how much of the image is trusted to the link
+    trust = ("; LINK-ONLY: %d" % len(linkonly) if linkonly else "") + "; " + VERDICT_TRUST % (walked, both - walked)
 
     # 3. the verdict (section 5)
     pats = []
@@ -1361,15 +1628,15 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
     for u in undecided:
         out("UNDECIDED " + u)
     if undecided:
-        out("verdict: UNDECIDED (%d)" % len(undecided))
+        out("verdict: UNDECIDED (%d)" % len(undecided) + trust)
         return 3
     if not changed:
-        out("verdict: NO CHANGE")
+        out("verdict: NO CHANGE" + trust)
         return 0
     if outside:
-        out("verdict: OUT OF SCOPE: " + ", ".join(outside))
+        out("verdict: OUT OF SCOPE: " + ", ".join(outside) + trust)
         return 1
-    out("verdict: IN SCOPE (%d changed units)" % len(changed))
+    out("verdict: IN SCOPE (%d changed units)" % len(changed) + trust)
     return 0
 
 

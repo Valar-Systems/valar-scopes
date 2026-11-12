@@ -1188,6 +1188,13 @@ map parser is shared. W follows from each case's own walk lines, plus the two si
       before the flip refusal.
   - **pro21,** as POS2-pro21 except the verdict line, which gains `; trusted to the link (store built from M0, inputs
     hashed): 2 walked (call sites checked, other bytes trusted), 8709 unwalked (all bytes trusted)`.
+  - **As read (20:06Z), one more walked than filed in both:** s3128 4 / 8802, pro21 3 / 8708.
+    - **Why:** `ota::Token` (87 → 85 B), a FILL unit whose image walk FINISHES on both sides, because the image kept
+      its property entries. It is walked, and its call sites are checked, silently.
+    - **The miss is the prediction's.** My W rule assumed every POS FILL walk refuses on discarded tables.
+    - **The alternative, excluded:** that the count counts something that is not a walk. A read-only log of every walk
+      matched the count one to one.
+    - Accepted as read (the reviewer's ruling, 20:11Z).
 - **Any other K or POS line that moves is a stop.** It is either a real mismatch in a real build or a bug.
 
 ### The plants: 27 × 44
@@ -1224,3 +1231,35 @@ byte-identical to the stored image.
   - As a follow-up after v20, there is no risk: 1i″'s checks stand meanwhile, and every verdict line says how much is
     trusted.
 - **Recommended: (B), after v20.**
+
+## 25. 1i, 1i′ and 1i″ as read (2026-11-12, 19:45Z to 20:18Z)
+
+Each reading below was against a prediction filed before it, and each output is kept by its sha.
+
+| reading | prediction | as read |
+|---|---|---|
+| red first #1: 43 cases, e25f0c7c's comparator (19:45:34Z) | sections 21-23: red exactly R3, R4, R5, L2, R10, R11, R12 | as predicted. R12 read RELAX word for word: the gap, a STOP (`062c19ba4f20`) |
+| red first #2: 44 cases, e25f0c7c's comparator (19:59:53Z) | filed `d152de1c2c75`: 42 red (no count on any verdict), T0's two green | as predicted (`35b37ae12495`) |
+| green: 44 cases, the new comparator (19:59:53Z) | 44 / 0 | as predicted, first run (`dddd8c845f76`) |
+| plants, first run (20:01Z) | 27 × 44, every row as filed | **26 as declared; P15 crashed** at L1 (`40bd85187ac4`). A STOP |
+| K0, K2, K3, K4 (20:01-20:06Z) | filed in reg3/, 20:01:28Z | as predicted, byte for byte |
+| POS s3128, pro21 (20:06Z) | filed in reg3/ | **off by one in W, both rows.** A STOP. Every other line as filed, including `SPIClass::end()`'s LINK-ONLY line |
+
+**The two stops, ruled at 20:11Z:**
+- **P15's crash.** Under P15, L1's `caller` reads FILL. Its image walk on B (size patched +2) took the next
+  function's property entry, which starts inside the patched extent, and `final_insns` indexed past the bytes it read.
+  - **Fixed:** a property region that runs past the function's end now refuses ("the image's property table runs past
+    the function's end"). A refusal reads UNDECIDED, the conservative direction.
+- **POS's W.** `ota::Token`'s FILL walk finishes silently (section 24). The miss is the prediction's, and the reading
+  was accepted as read.
+
+**After the fix (20:10Z to 20:18Z):**
+- **Selftest:** 44 / 0 (`dddd8c845f76`, identical to before the fix).
+- **Plants:** ALL AS DECLARED, 27 × 44, with L1 back in P15's red set (`68e4d3b4bbab`).
+- **K0, K2, K3, K4 and both POS rows:** byte-identical to the 20:06Z read. K0 `bbf0244485d0`, K2 `ad5de46b2117`,
+  K3 `ae7afd468fee`, K4 `180baa2334ac`, POS s3128 `6ebe402021fd`, POS pro21 `0e4bde6a4cbc`.
+
+**What this leaves, stated:**
+- **On K0-K4, 0 functions are walked and 8,806 are trusted to the link.** The comparator's strength is the object
+  layer.
+- **What closes the rest** is the relink check sized in section 24: (B), about 2 days, recommended after v20.

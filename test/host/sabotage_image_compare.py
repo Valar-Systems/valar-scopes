@@ -1,4 +1,4 @@
-"""image-compare's sabotage driver (docs/image-compare.md sections 9-14): plants defects in a copy of
+"""image-compare's sabotage driver (docs/image-compare.md sections 9-24): plants defects in a copy of
 scripts/image-compare.py, and each must turn red EXACTLY the selftest cases it declares.
 
   python test/host/sabotage_image_compare.py              every plant, against its declaration
@@ -177,6 +177,61 @@ for _label, _old, _new, _red, _ok in PLANTS:
     _ok = [c for c in _ok if c not in _move] + [c for c in G1 if c not in _add]
     _merged.append((_label, _old, _new, _red, _ok))
 PLANTS = _merged
+
+# Amendments 1i, 1i', 1i'' (sections 21-24): six plants, and every plant's row for the eight new cases. Each row was
+# filed in the doc before its run (sections 21, 22, 24). R3, R4 and R5 keep their rows: their expectations moved, and
+# the plants that turned them red still do (P2: RELAX; P3: R5 a finished-walk mismatch; P6: LINK-ONLY with `width`).
+L1, L2 = "L1 the call swap, in front of LINK-ONLY", "L2 read-only data, in front of LINK-ONLY"
+R10, R11 = "R10 unreadable object code is never LINK-ONLY", "R11 a local name that repeats refuses"
+R12 = "R12 a call aimed at nothing, in a function accounted RELAX"
+R13 = "R13 a call aimed at nothing, in a function never walked (the limit)"
+I1 = ["callswap", "rodread", L1, L2, R10, R11, R12, R13]
+OLD = C + [R1, R2, R3, R4, R5, R6] + T + F1 + RL + G1  # every case before 1i
+PLANTS += [
+    ("P22 a call's target masked, not named", "            named.append((off, ALLOWED_RELOCS[rtype], tgt))",
+     "            named.append((off, ALLOWED_RELOCS[rtype], \"call\" if rtype == R_SLOT0_OP and data[off] & 0x0F == 5 "
+     "else tgt))", [], list(OLD)),
+    ("P23 (b) skipped", "            if sa2[:3] != sb2[:3]:", "            if False:", [], list(OLD)),
+    ("P24 (a)'s refusal read as equal", "        return False, \"its object code cannot be read: %s\" % r",
+     "        sa = sb = (0, b\"\", (), frozenset())", [], list(OLD)),
+    ("P25 (c) skipped: a mismatch never refuses", "        return False, \"; \".join(bad)", "        pass",
+     [R5], [c for c in OLD if c != R5]),
+    ("P26 a repeated local name not refused", "        if self._local_counts.get(sym.name, 0) > 1:",
+     "        if False:", [], list(OLD)),
+    ("P27 the finished-walk check off", "        raise Mismatch(\"; \".join(bad))", "        pass", [], list(OLD)),
+]
+DECL_1I = {
+    "P1 strings named by offset": [],
+    "P2 any width change accepted": [],
+    "P3 no reach-crossing check": [],
+    "P4 recorded sha believed": [],
+    "P5 an unknown type allowed": [R10],
+    "P6 the rule as first registered (no narrowing)": [R12],
+    "P7 an allowed referrer not counted": [],
+    "P8 the whole instruction masked": [],
+    "P9b MOVI counted as an offset": [R11],
+    "P11 GC strict (no fixed point)": [],
+    "P12 a data unit's referrers not printed": ["rodread", L2],
+    "P13 the exception table not folded": [],
+    "P14 a width swap's operation not compared": [],
+    "P15 the fill walk's relocation names not compared": ["callswap", L1],
+    "P16 a missing property table read as one instruction region": [],
+    "P17 the fill counts not printed": [],
+    "P18 the relocation print omitted": [],
+    "P10 the offsets label never given": [],
+    "P19 the static initializer's table not paired": [],
+    "P20 an unsplit section named by offset again": [],
+    "P21 the identical-bytes refusal off": [],
+    "P22 a call's target masked, not named": ["callswap", L1],
+    "P23 (b) skipped": [L2],
+    "P24 (a)'s refusal read as equal": [R10],
+    "P25 (c) skipped: a mismatch never refuses": [],
+    "P26 a repeated local name not refused": [R11],
+    "P27 the finished-walk check off": [R12],
+}
+assert sorted(DECL_1I) == sorted(p[0] for p in PLANTS), "every plant needs its 1i row"
+PLANTS = [(_l, _o, _n, list(_r) + DECL_1I[_l], list(_k) + [c for c in I1 if c not in DECL_1I[_l]])
+          for _l, _o, _n, _r, _k in PLANTS]
 
 
 def case_labels(repo):

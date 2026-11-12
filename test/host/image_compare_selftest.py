@@ -192,6 +192,55 @@ CASES = [
         "verdict: UNDECIDED (2)"]),
 ]
 
+# Amendment 1i (sections 21-22): LINK-ONLY's controls. callswap: one call target swapped at the same length -- the
+# owner's control, a real change. rodread: read-only data changed at the same size -- CHANGED, and (L2 below) never
+# LINK-ONLY for a function that reads it.
+CALLSWAP_LINES = [
+    "inputs: 3 loaded, 1 differ",
+    "  differs: src/cs.S.o",
+    "functions whose address moved: 0",
+    "CHANGED func global A+B caller [src/cs.S.o] -- OUT",
+    "verdict: OUT OF SCOPE: caller"]
+RODREAD_CHANGED = [
+    "CHANGED data local A+B ltbl [src/rr.c.o] -- OUT (named by: rl)",
+    "CHANGED data global A+B tbl [src/rr.c.o] -- OUT (named by: no kept unit)"]
+CASES += [
+    ("callswap", None, 1, CALLSWAP_LINES),
+    ("rodread", None, 1, [
+        "inputs: 3 loaded, 1 differ",
+        "  differs: src/rr.c.o",
+        "functions whose address moved: 0"] + RODREAD_CHANGED + [
+        "verdict: OUT OF SCOPE: ltbl (named by: rl), tbl (named by: no kept unit)"]),
+]
+# The stated limit every LINK-ONLY line ends with (1i', the reviewer's ruling 19:33Z).
+TRUST = "non-call bytes trusted to the link (store built from M0, inputs hashed)"
+# 1i'' (section 24): every verdict line ends by counting the functions in both images that a walk ran on (W) and the
+# rest (U), whose image bytes are all trusted to the link. The text is written here, not taken from the comparator.
+VERDICT_TRUST = ("; trusted to the link (store built from M0, inputs hashed): %d walked (call sites checked, other "
+                 "bytes trusted), %d unwalked (all bytes trusted)")
+# (W, U) per case, filed in section 24 before the code: N from each pair's two images, counted by a separate script.
+TRUSTED = {}
+for _labels, _wu in [
+        (["null", "R6 a register change under a relocation", "body", "body allow=f", "grow allow=g", "gc", "local",
+          "local allow=f", "local relocs", "gc relocs", "R1 unknown relocation type", "R2 stale input",
+          "R11 a local name that repeats refuses",
+          "R13 a call aimed at nothing, in a function never walked (the limit)"], (0, 7)),
+        (["R3 size without a long-call site", "R10 unreadable object code is never LINK-ONLY", "relax",
+          "R4 a narrowing that changes the operation", "R5 a flip whose reach never crossed",
+          "R12 a call aimed at nothing, in a function accounted RELAX"], (1, 6)),
+        (["pick", "callswap", "rodread", "L1 the call swap, in front of LINK-ONLY"], (0, 4)),
+        (["strpool", "offset", "swapop", "rodshift", "rodown"], (0, 2)),
+        (["rodata", "rodata allow=f1", "rodata allow=f1,f2"], (0, 5)),
+        (["eh", "ehtype"], (0, 8)),
+        (["fill"], (1, 2)),
+        (["fillchg", "R8 a relocation to a different target", "R9 an object with no property table", "rodswap"], (0, 3)),
+        (["swap"], (1, 1)),
+        (["inittry"], (0, 1)),
+        (["L2 read-only data, in front of LINK-ONLY"], (3, 1))]:
+    for _l in _labels:
+        assert _l not in TRUSTED, _l
+        TRUSTED[_l] = _wu
+
 
 def copy_case(tmp, case):
     """A private copy per mutation: no two mutations share a directory."""
@@ -293,7 +342,10 @@ RELOC_CASES = [
 REFUSALS = ["R1 unknown relocation type", "R2 stale input", "R3 size without a long-call site",
             "R4 a narrowing that changes the operation", "R5 a flip whose reach never crossed",
             "R6 a register change under a relocation", "R8 a relocation to a different target",
-            "R9 an object with no property table"]
+            "R9 an object with no property table", "R10 unreadable object code is never LINK-ONLY",
+            "R11 a local name that repeats refuses", "R12 a call aimed at nothing, in a function accounted RELAX",
+            "R13 a call aimed at nothing, in a function never walked (the limit)"]
+LINK_CASES = ["L1 the call swap, in front of LINK-ONLY", "L2 read-only data, in front of LINK-ONLY"]
 T0_CASES = ["T0 t0", "T0 t0bad"]
 
 
@@ -304,7 +356,7 @@ def case_label(case, allow):
 def case_labels():
     """Every case this selftest grades, by label: the list the sabotage driver holds every plant's declaration to."""
     return ([case_label(c, a) for c, a, _, _ in CASES] + [c + " relocs" for c, _, _ in RELOC_CASES] + REFUSALS
-            + T0_CASES)
+            + LINK_CASES + T0_CASES)
 
 
 def run(mod):
@@ -312,10 +364,15 @@ def run(mod):
     total = 0
     known = case_labels()
     assert len(set(known)) == len(known), "a case label repeats"
+    assert sorted(TRUSTED) == sorted(k for k in known if k not in T0_CASES), \
+        "TRUSTED must file (W, U) for exactly the cases with a verdict line"
 
     def grade(label, rc, lines, want_rc, want_lines):
         nonlocal fails, total
         assert label in known, "a graded case missing from case_labels(): %s" % label
+        if label in TRUSTED:  # 1i'': the verdict line's count, as filed
+            assert want_lines[-1].startswith("verdict: "), label
+            want_lines = want_lines[:-1] + [want_lines[-1] + VERDICT_TRUST % TRUSTED[label]]
         total += 1
         if rc == want_rc and lines == want_lines:
             print("PASS %s" % label)
@@ -368,11 +425,15 @@ def run(mod):
         off, size, _ = symbol_entry_offset(mod, elf, "ext")
         patch(elf, off + 8, size.to_bytes(4, "little"), (size + 2).to_bytes(4, "little"))
         rc, lines = run_case(mod, os.path.join(STORES, "null", "a"), st, None, tmp)
-        grade("R3 size without a long-call site", rc, lines, 3, [
+        # 1i: ext's object is identical and it reads no data, so the walk's refusal is LINK-ONLY (made by patching the
+        # image -- the blind spot section 21 states)
+        grade("R3 size without a long-call site", rc, lines, 0, [
             "inputs: 7 loaded, 0 differ",
+            "LINK-ONLY ext [src/ext.c.o] -- size %d -> %d; the walk: its size differs and it has no long-call site; "
+            "object code equal; read-only data equal: 0 section(s); call sites checked A/B: 0/0; " % (size, size + 2)
+            + TRUST,
             "functions whose address moved: 0",
-            "UNDECIDED ext: size %d -> %d: its size differs and it has no long-call site" % (size, size + 2),
-            "verdict: UNDECIDED (1)"])
+            "verdict: NO CHANGE; LINK-ONLY: 1"])
 
         # R4: a narrow form that is NOT the same operation (mov.n a10 -> mov.n a11) -> UNDECIDED
         st = copy_case(tmp, "relax/a")
@@ -380,11 +441,14 @@ def run(mod):
         _, _, lo = symbol_entry_offset(mod, elf, "lo_caller")
         patch(elf, elf_file_offset(mod, elf, lo + 3), bytes([0xAD, 0x02]), bytes([0xBD, 0x02]))
         rc, lines = run_case(mod, st, os.path.join(STORES, "relax", "b"), None, tmp)
-        grade("R4 a narrowing that changes the operation", rc, lines, 3, [
+        # 1i': LINK-ONLY, and the stated limit where it bites: A's walk stops at +3, before its one call site (0/1)
+        grade("R4 a narrowing that changes the operation", rc, lines, 0, [
             "inputs: 7 loaded, 0 differ",
+            "LINK-ONLY lo_caller [src/relax.c.o] -- size 12 -> 16; the walk: an instruction changed width, not to its "
+            "own narrow form, at input +3; object code equal; read-only data equal: 0 section(s); call sites checked "
+            "A/B: 0/1; " + TRUST,
             "functions whose address moved: 7",
-            "UNDECIDED lo_caller: size 12 -> 16: an instruction changed width, not to its own narrow form, at input +3",
-            "verdict: UNDECIDED (1)"])
+            "verdict: NO CHANGE; LINK-ONLY: 1"])
 
         # R5: a flipped site whose long side was in call range all along -> UNDECIDED (the reach must cross)
         st = copy_case(tmp, "relax/b")
@@ -397,10 +461,12 @@ def run(mod):
         lit = mod.l32r_addr(l32r_pc, insn)
         patch(elf, elf_file_offset(mod, elf, lit), (0x40090000).to_bytes(4, "little"), (0x40070000).to_bytes(4, "little"))
         rc, lines = run_case(mod, os.path.join(STORES, "relax", "a"), st, None, tmp)
+        # 1i' (c): B's long call names hi_callee (0x40090000) and calls 0x40070000 -- never LINK-ONLY
         grade("R5 a flip whose reach never crossed", rc, lines, 3, [
             "inputs: 7 loaded, 0 differ",
             "functions whose address moved: 7",
-            "UNDECIDED lo_caller: size 12 -> 16: site 0 flipped, but its reach did not cross the call limit",
+            "UNDECIDED lo_caller: size 12 -> 16: site 0 flipped, but its reach did not cross the call limit; not "
+            "LINK-ONLY: B's site 0 calls 0x40070000; its input names hi_callee, at 0x40090000",
             "verdict: UNDECIDED (1)"])
 
         # R6: only the destination register of a relocated l32r changes -> CHANGED (the mask clears the operand, never
@@ -465,6 +531,154 @@ def run(mod):
             "functions whose address moved: 1",
             "UNDECIDED pick [src/fp.c.o]: the fill walk: no property table covers .text.pick",
             "verdict: UNDECIDED (1)"])
+
+        # ---- amendment 1i / 1i' (sections 21-23) ----
+        def grow(store_dir, names):
+            """B's image: each named function's size +2 (R3's method), so it stands in front of LINK-ONLY."""
+            elf = os.path.join(store_dir, "firmware.elf")
+            sizes = {}
+            for fn in names:
+                off, size, _ = symbol_entry_offset(mod, elf, fn)
+                patch(elf, off + 8, size.to_bytes(4, "little"), (size + 2).to_bytes(4, "little"))
+                sizes[fn] = size
+            return sizes
+
+        # L1 (the owner's control): the call swap, with caller in front of LINK-ONLY -- still CHANGED, never LINK-ONLY
+        st = copy_case(tmp, "callswap/b")
+        grow(st, ["caller"])
+        rc, lines = run_case(mod, os.path.join(STORES, "callswap", "a"), st, None, tmp)
+        grade("L1 the call swap, in front of LINK-ONLY", rc, lines, 1, CALLSWAP_LINES)
+
+        # L2: rd and rl read read-only data that changed -- not LINK-ONLY; rk reads ktbl, unchanged -- LINK-ONLY
+        st = copy_case(tmp, "rodread/b")
+        z = grow(st, ["rd", "rk", "rl"])
+        rc, lines = run_case(mod, os.path.join(STORES, "rodread", "a"), st, None, tmp)
+        grade("L2 read-only data, in front of LINK-ONLY", rc, lines, 3, [
+            "inputs: 3 loaded, 1 differ",
+            "  differs: src/rr.c.o",
+            "LINK-ONLY rk [src/rd.c.o] -- size %d -> %d; the walk: its size differs and it has no long-call site; "
+            "object code equal; read-only data equal: 1 section(s); call sites checked A/B: 0/0; " % (z["rk"], z["rk"] + 2)
+            + TRUST,
+            "functions whose address moved: 0"] + RODREAD_CHANGED + [
+            "UNDECIDED rd: size %d -> %d: its size differs and it has no long-call site; not LINK-ONLY: it reads "
+            "read-only data that differs: tbl [src/rr.c.o]" % (z["rd"], z["rd"] + 2),
+            "UNDECIDED rl: size %d -> %d: its size differs and it has no long-call site; not LINK-ONLY: it reads "
+            "read-only data that differs: ltbl [src/rr.c.o]" % (z["rl"], z["rl"] + 2),
+            "verdict: UNDECIDED (2); LINK-ONLY: 1"])
+
+        # R10: identical objects whose code cannot be read (a type-17 relocation in both) -- never LINK-ONLY
+        st = copy_case(tmp, "null")
+        for side in ("a", "b"):
+            obj = os.path.join(st, side, "src", "relax.c.o")
+            off = reloc_entry_offset(mod, obj, ".rela.text.lo_caller", mod.R_SLOT0_OP)
+            patch(obj, off, bytes([mod.R_SLOT0_OP]), bytes([17]))
+            reseal(os.path.join(st, side), "src/relax.c.o")
+        z = grow(os.path.join(st, "b"), ["lo_caller"])
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("R10 unreadable object code is never LINK-ONLY", rc, lines, 3, [
+            "inputs: 7 loaded, 0 differ",
+            "functions whose address moved: 0",
+            "UNDECIDED lo_caller: size %d -> %d: the walk ends 2 bytes before the function does; not LINK-ONLY: its "
+            "object code cannot be read: relocation type 17 in a compared section" % (z["lo_caller"], z["lo_caller"] + 2),
+            "verdict: UNDECIDED (1)"])
+
+        # R11 (1i', ruled in): a target named by a local name another local shares -- refused. Both stores' f.c.o get
+        # the same three patches: the literal names helper's own symbol (not .text.helper's section symbol), and the
+        # FILE symbol becomes a local function named helper.
+        st = copy_case(tmp, "local")
+        for side in ("a", "b"):
+            obj = os.path.join(st, side, "src", "f.c.o")
+            with open(obj, "rb") as f:
+                elf = mod.ELFFile(f)
+                symtab = elf.get_section_by_name(".symtab")
+                syms = list(symtab.iter_symbols())
+                hk = next(k for k, s in enumerate(syms) if s.name == "helper" and s["st_info"]["type"] == "STT_FUNC")
+                sk = next(k for k, s in enumerate(syms)
+                          if s["st_info"]["type"] == "STT_SECTION" and s["st_shndx"] == syms[hk]["st_shndx"])
+                fk = next(k for k, s in enumerate(syms) if s["st_info"]["type"] == "STT_FILE")
+                rs = elf.get_section_by_name(".rela.literal.f")
+                rk_ = next(k for k, r in enumerate(rs.iter_relocations())
+                           if r["r_info_type"] == mod.R_32 and r["r_info_sym"] == sk)
+                rel_off = rs["sh_offset"] + rk_ * rs["sh_entsize"] + 4
+                file_ent = symtab["sh_offset"] + fk * symtab["sh_entsize"]
+                helper_name, file_name = syms[hk]["st_name"], syms[fk]["st_name"]
+            patch(obj, rel_off, ((sk << 8) | mod.R_32).to_bytes(4, "little"), ((hk << 8) | mod.R_32).to_bytes(4, "little"))
+            patch(obj, file_ent, file_name.to_bytes(4, "little"), helper_name.to_bytes(4, "little"))
+            patch(obj, file_ent + 12, bytes([0x04]), bytes([0x02]))  # st_info: local FILE -> local FUNC
+            reseal(os.path.join(st, side), "src/f.c.o")
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("R11 a local name that repeats refuses", rc, lines, 3, [
+            "inputs: 7 loaded, 1 differ",
+            "  differs: src/f.c.o",
+            "functions whose address moved: 0",
+            "CHANGED func local A+B helper [src/f.c.o] -- OUT",
+            "UNDECIDED f [src/f.c.o]: a local name that repeats in its object: helper",
+            "verdict: UNDECIDED (1)"])
+
+        # R12 (the reviewer's addition, section 23): A's relaxed call re-aimed 0x100 further on, at nothing, at the same
+        # size and window, still in range -- in a function accounted RELAX. Expected as 1i'' proposes (UNDECIDED);
+        # section 23 predicts it reads RELAX until a ruling.
+        st = copy_case(tmp, "relax/a")
+        elf = os.path.join(st, "firmware.elf")
+        _, lsize, lo = symbol_entry_offset(mod, elf, "lo_caller")
+        with open(elf, "rb") as f:
+            f.seek(elf_file_offset(mod, elf, lo))
+            body = f.read(lsize)
+        k, calls = 0, []
+        while k < len(body):
+            n = mod.insn_len(body[k])
+            assert n is not None, "R12: an instruction the walk cannot size in lo_caller"
+            if mod.call_n(body[k:k + 3]) is not None:
+                calls.append(k)
+            k += n
+        assert len(calls) == 1, "R12: lo_caller holds %d calls, not 1" % len(calls)
+        pc, old = lo + calls[0], body[calls[0]:calls[0] + 3]
+        assert mod.call_target(pc, old) == 0x40070000, "R12: the call is not aimed at hi_callee"
+        coff = (old[0] >> 6) | (old[1] << 2) | (old[2] << 10)
+        coff = (coff + 0x40) & 0x3FFFF
+        new = bytes([(old[0] & 0x3F) | ((coff & 3) << 6), (coff >> 2) & 0xFF, (coff >> 10) & 0xFF])
+        assert mod.call_target(pc, new) == 0x40070100 and mod.in_call_range(pc, 0x40070100)
+        with open(elf, "rb") as f:
+            covered = [s.name for s in mod.ELFFile(f).get_section_by_name(".symtab").iter_symbols()
+                       if s["st_info"]["type"] in ("STT_FUNC", "STT_OBJECT")
+                       and s["st_value"] <= 0x40070100 < s["st_value"] + max(s["st_size"], 1)]
+        assert not covered, "R12: 0x40070100 is not nothing: %s" % covered
+        patch(elf, elf_file_offset(mod, elf, pc), old, new)
+        rc, lines = run_case(mod, st, os.path.join(STORES, "relax", "b"), None, tmp)
+        grade("R12 a call aimed at nothing, in a function accounted RELAX", rc, lines, 3, [
+            "inputs: 7 loaded, 0 differ",
+            "functions whose address moved: 7",
+            "UNDECIDED lo_caller: size 12 -> 16: A's site 0 calls 0x40070100; its input names hi_callee, at 0x40070000",
+            "verdict: UNDECIDED (1)"])
+
+        # R13 (filed, section 24): the limit. null's lo_caller is 16 bytes in both images (its long call kept), so it is
+        # never walked: B's literal re-aimed at nothing reads NO CHANGE, all of its bytes trusted to the link.
+        st = copy_case(tmp, "null/b")
+        elf = os.path.join(st, "firmware.elf")
+        _, lsize, lo = symbol_entry_offset(mod, elf, "lo_caller")
+        with open(elf, "rb") as f:
+            f.seek(elf_file_offset(mod, elf, lo))
+            body = f.read(lsize)
+        k, lits = 0, []
+        while k < len(body):
+            n = mod.insn_len(body[k])
+            assert n is not None, "R13: an instruction the walk cannot size in lo_caller"
+            if n == 3 and body[k] & 0x0F == 1 and mod.callx_n(body[k + 3:k + 6]) is not None:
+                lits.append(mod.l32r_addr(lo + k, body[k:k + 3]))
+            k += n
+        assert len(lits) == 1, "R13: lo_caller holds %d long calls, not 1" % len(lits)
+        lit_off = elf_file_offset(mod, elf, lits[0])
+        with open(elf, "rb") as f:
+            covered = [s.name for s in mod.ELFFile(f).get_section_by_name(".symtab").iter_symbols()
+                       if s["st_info"]["type"] in ("STT_FUNC", "STT_OBJECT")
+                       and s["st_value"] <= 0x40100100 < s["st_value"] + max(s["st_size"], 1)]
+        assert not covered, "R13: 0x40100100 is not nothing: %s" % covered
+        patch(elf, lit_off, (0x40100000).to_bytes(4, "little"), (0x40100100).to_bytes(4, "little"))
+        rc, lines = run_case(mod, os.path.join(STORES, "null", "a"), st, None, tmp)
+        grade("R13 a call aimed at nothing, in a function never walked (the limit)", rc, lines, 0, [
+            "inputs: 7 loaded, 0 differ",
+            "functions whose address moved: 0",
+            "verdict: NO CHANGE"])
 
         # T0, both directions
         for case, want_rc, want in [
