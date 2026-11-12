@@ -131,6 +131,19 @@ The one missing piece is opening a chosen card.
 - The board is E2:08, in a window from the reviewer after map-client's ends (~19:30Z). Afterwards it gets the v19
   release asset back (`f6d73e391631`), app-only, read back with `esptool verify-flash`.
 
+### 5a. The cardbench env's consequences, named before any code (the reviewer, 17:55Z)
+
+A new env is not only a new `[env:*]`. Each consequence below lands in the commit that adds the env:
+
+| what | consequence | predicted |
+|---|---|---|
+| `skus.yml` | a row `{ env: blipscope-s3-128-cardbench, status: build-only }`, with no slug. CI compiles it on every run, so the hook cannot rot, and it publishes nothing and cannot withhold `version.txt`. `--validate` refuses it if it ever gets a slug | `skus.py --validate` exit 0 |
+| the adsbdb launch gate | no new `plant_target()` case. The env compiles the radar, `ConfigMigration.cpp` included, so the default site (`scripts/check-adsbdb-out.sh`, the `*)` arm) holds its control, as for `-wxlook` and `-joindiag` | the leg's gate control reads FOUND, never UNTRUSTWORTHY |
+| the OTA identity table | `test/fixtures/ota/identities.txt` gains its row through `check_ota_identity.py --emit-table`, which writes the file; CI's `--check-table` holds it equal | exactly one new row, `blipscope-s3-128-cardbench - s3-128` (the s3-128 identity, like `-joindiag`); `--check-table` exit 0 |
+| the bench-hook scan | `[card-bench]` joins `MARKERS` in `scripts/check-no-bench-hooks.sh`. That scan runs on slug-ful legs only, so it never sees this image. A positive-control step, like `-wxlook`'s, runs `--expect "[card-bench]"` on the cardbench image, so the marker's absence from every slug-ful image means something | the expect step passes on the cardbench leg; every slug-ful image still scans clean |
+| photo mode | `check_photo_mode.mjs --role` answers `none` for it | `none` |
+| **the CI job set** | the firmware matrix gains one leg: **firmware 31** on a PR. With #675 merged: 31 = 29 / 2 / 0. Without it: 31 = 28 / 3 / 0. The PR that adds the env re-predicts its whole tally from these | as stated, re-read at that commit |
+
 ## 6. The pictures for the owner, before the fix merges
 
 Each picture is a `/diag/fb` capture of the cardbench image, before (main + the bench hook) and after (the fix + the
@@ -161,3 +174,22 @@ only after his word on (a) and (b).
 / 3 skipped), workers 3, device-ids 1, no-traffic-captures 1: **35 = 32 / 3 / 0**. workers'
 `npm run typecheck:scripts` (`tsconfig.scripts.json`) covers the new script. Read locally before the push: exit 0, and
 `--listFiles` names `nophoto-share.ts`, so the check opened the file.
+
+## Results
+
+### Q1, the no-photo share (run once, as frozen; the reviewer's OK on the numerator, 17:55Z)
+
+Run 2026-11-12 17:55:40Z from `proxy/`, the script byte-equal to its commit (`fc92dae1`), exit 0. stdout:
+
+```
+no-photo share, blipscope_proxy, the 7 days to 2026-11-12T17:55Z
+  enrich lookups with no photo (root gap type or photo): 10538
+  enrich lookups, all:                                   162103
+  share: 6.5 %
+```
+
+stderr was token-file.ts's own note that Windows can't check file permissions, and nothing else.
+
+**As predicted** (2-12 %). About one enrich lookup in 15 leaves its card without a photo. On a 240 px Kit S3 with a
+location set, each such card shows only its callsign for as long as it's open, and every other card does so for the
+moment its photo loads. That is a lookup share, not a card-open share, as section 2 says.
