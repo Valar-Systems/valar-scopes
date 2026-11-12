@@ -2607,3 +2607,16 @@ reading.**
   go either way.
 
 **The order:** the PD suite with C-SELF first, then the controls (each shown failing), then PA-1 to PA-5 over the 2,584 real cells.
+
+**PARITY, the PD suite's first run (16:47:12Z; `rectclip.ts` ca60fef7b580, `rectclip-run.mts` 5cbc9f0c8713, `verify.py` 6a32d7be1fac):
+STOPPED at PD-9.** 11 of 12 pass PA-2 to PA-5 against GEOS, and in all 12 my registered reading agrees with GEOS's (pieces, rings),
+including PD-10: GEOS keeps a hole touching the shell at ONE vertex as a hole, so 2 rings.
+- **PD-9 FAILS PA-3, PA-4 and PA-5:** a hole flush with the rectangle's edge (0.6..1 × 0.4..0.6). GEOS makes it a NOTCH in the outer,
+  one ring. My clip finds every hole vertex inside the CLOSED rectangle, so it keeps the hole as a hole touching the shell along an edge,
+  which is an invalid polygon.
+- **The fix, before it is applied:** an edge lying ON a side of the rectangle (both ends on the same side line) counts as OUTSIDE when
+  chains are built. The walk may start after such an edge, as well as at a vertex strictly outside. A ring wholly inside except for
+  boundary edges therefore yields chains, and stitching turns a flush hole into a notch.
+- **Traced by hand for the cases it touches:** PD-3, PD-7 and PD-8 keep their shapes (PD-8, every edge on the boundary, falls to the
+  centre test and gives the rectangle). PD-4 still gives nothing. PD-10 has no boundary edge, so it stays a hole.
+- **The re-run:** the whole PD suite, then the controls, then the real cells, as registered.
