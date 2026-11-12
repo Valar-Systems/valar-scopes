@@ -1871,3 +1871,80 @@ The owner also raised the overage allowance to **$10 a month**, which covers Eur
 1. The code, on a branch from main, under S4.12.3-S4.12.5 and this re-read, with CI predicted before the push.
 2. X9, the look, read before the PR.
 3. The deploy only on the reviewer's slot, through `ingest_deploy.sh` under the claim, `[env.shsr-inert]` first.
+
+### S4.26, 2026-11-12: W4's code, its first development run's stop, and everything frozen before the next run (21:07Z)
+
+**The code** is on local branch `weatherscope/w4-shsr`, from main `4b00c97b3dbd`, as S4.12.3 registered it:
+- the `shsr` row, appended after the ten OPERA rows;
+- `src/wx/ingest-mrms-worker.ts`, which checks its `PRODUCT` only if it is an MRMS row, behind `WX_INGEST`;
+- `[env.shsr]` and `[env.shsr-inert]` in `wx-ingest.wrangler.toml`. Each sets `name = "blipscope-wx-ingest-shsr"`
+  (without it wrangler would name the inert one `…-shsr-inert`), its own `main`, triggers, limits, observability,
+  vars and bucket. That is the OPERA toml's explicit shape: nothing relies on inheritance;
+- `/api/v1/blipscope/wx/shsr` in `KNOWN_ROUTES`.
+
+`tools/wx/ingest_deploy.sh` needs no change, read: it already takes an env for `wx-ingest.wrangler.toml` and reads the
+Worker's name from that env, so the claim is `wx-ingest-shsr:production`. The proxy is not deployed by W4.
+
+**The stop (21:03Z, a development run of the five affected files): 48 passed, 1 failed, H3.**
+- H3 (`wx-endpoint.test.ts:218`) requires the live `/healthz` `wx` projection to equal the committed fixture
+  `test/fixtures/wx/healthz-h3.json`, which names the 11 products.
+- The same fixture feeds **H6**, `scripts/wx-products-lines.selftest.sh` (CI: `workers.yml:111`), whose whole-output
+  `EXPECT_A` and `EXPECT_B` list the 11 products line by line.
+- **The miss is my method's:** S4.25's list was found by grepping the bare count, and these pins enumerate ids.
+- **Ruled (the reviewer, after 21:05Z):** fixes 1-4 below, frozen here before the next run. Any reader found after this
+  freeze is a stop, not an edit.
+
+**The method, from now on:** a reader list is found by grepping the count AND an id only the full list contains (here
+`opsn`, the last OPERA id). Every file naming `opsn` was read:
+- the four pins below move;
+- `region-points.json`, `wx-dev-products.test.ts:38` and `:57`, `check-wx-plant.mjs:38` and `tools/wx/*.py` are
+  OPERA-only and unaffected.
+
+### X11, amended (replaces S4.12.4's X11 and S4.25's reader table)
+
+| reader | today | with W4 | predicted |
+|---|---|---|---|
+| DP2, `wx-dev-products.test.ts:81-83` (the id list, "exactly the 12") | 11 | 12, `shsr` last | passes; DP2s still red |
+| PS1, `wx-ingest-dev.test.ts:20`, `:24` | 11 | 12 | passes |
+| H1, `wx-endpoint.test.ts:170` | 11 | 12 | passes |
+| **H3**, `wx-endpoint.test.ts:218`, and its fixture `healthz-h3.json` | 11 entries | `"shsr": {"frameAgeS": null, "routed": false, "stale": null}` last, the MRMS shape (no `coveredShare`, as `cref`) | passes |
+| **H6**, `wx-products-lines.selftest.sh` `EXPECT_A`, `EXPECT_B` | 11 lines | each gains `     wx.shsr routed=false age=null stale=null` last. Case (b) is the fixture with `stale:true` → `false` (`BODY_B`, read), and the function prints in the body's order (read) | (a) as expected, **12 lines, 2 WARN**; (b) **12 lines, 0 WARN**; (c) 2 lines; (d) 1; (f), (f2), (e) unchanged; H6s detected; `SELFTEST PASSED` |
+| FX, `wx-ingest-split.test.ts` | 22 targets | 24: `wx-ingest.wrangler.toml:shsr` and `:shsr-inert` after cref's top level; `shsr` checked by exactly `[env.shsr]` | passes, its CONTROL too |
+| `sabotage-wx-split.py`'s `TESTS = 5` (the split file's test count) | 5 | **5, unchanged.** X7's rows live in `wx-shsr.test.ts` (S4.12.4: "`wx-shsr.test.ts` and the existing wx tests") | its five sabotages as before |
+| `check-wx-plant.mjs` PB2 (the dev config's 11 targets) | 11 | unchanged: W4 adds no dev target | — |
+
+### The run, frozen
+
+- **The five files** (`wx-shsr`, `wx-endpoint`, `wx-ingest-split`, `wx-dev-products`, `wx-ingest-dev`):
+  **49 passed, 0 failed.** That is wx-shsr 11 (X1, X3, X4, X6, X7a-d, X8a-c), wx-endpoint with X5 added, and the split
+  file at 5.
+- **X2:** `node scripts/gen-wx-region.mjs --check` exits 0.
+- **H6:** as in the table.
+- **The whole proxy suite and `tsc`,** as CI runs them: all green.
+
+### The sabotages' exact red sets (`proxy/scripts/sabotage-wx-shsr.mjs`, written before it first runs)
+
+Each anchor was counted exactly once, LF, with no test run.
+
+| sabotage | the plant | red, exactly |
+|---|---|---|
+| **S-X-CODE** | the `shsr` row's `codeOf` sends -99 to 15 | **X1, X3**. X1 because the row's function is no longer `codeOfComposite` |
+| **S-X-HEALTH** | `wxHealth` keeps only the routed products | **H1, H2, H3, X5**. `opmt`, `opse` and `shsr` vanish. "The newest frame's age" (cref, routed) and `not_configured` stay green |
+| **S-X-CREF** | `CREF_WORKER` widened to `cref` and `shsr` | **FT1, FX, X7d**. FT1 logs shsr. FX finds shsr checked by two targets |
+| **S-X-SWITCH** | the MRMS entry ignores `WX_INGEST` | **FX, X7c**. The inert env now checks shsr, so two targets; X7c touches the guarded fetch |
+| **S-X-LITERAL** | the SeamlessHSR stem written into `ingest.ts` | **X8c** |
+
+**Outside the set:** a row off, or a sabotage whose red set isn't its frozen set, stops the step and is reported.
+
+### CI, predicted for the W4 PR
+
+**35 = 33 success / 2 skipped / 0 failed.**
+- Paths: `proxy/src`, `proxy/test`, `proxy/scripts`, `proxy/wx-ingest.wrangler.toml`. Only `workers.yml` filters on
+  `proxy/**`; `web-renderer.yml`'s `src/**` is the firmware's root `src`.
+- So: workers 3, device-ids 1, no-traffic-captures 1, firmware 28 + 2 skipped. Read from #678's PR run
+  (`proxy/scripts` + docs), which shows that job set exactly.
+- Against main at the push; re-read if main moves.
+
+**Then, before the PR:** X9, the look (S4.12.4). **The deploy** only in a slot granted by the reviewer:
+`[env.shsr-inert]` first, through `tools/wx/ingest_deploy.sh` under the claim. Its cost line is stated with the account's
+total, under the owner's budget rule.
