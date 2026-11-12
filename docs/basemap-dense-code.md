@@ -1847,3 +1847,27 @@ an unpinned store and **voids every row after step 0**: stop and report.
 - step 0 and the rows before this one read as they did;
 - T-SEA0-ci's control gives sea lines **6**: `source.sea`, `vintage.sea`, `files.sea`, `sha256.sea`, `dropped.sea` and `collapsed.sea`;
 - P2-0 and T-SEA0-real are unchanged, because the edit sits under `Q4S.on` and the original stores hold no sea file.
+
+**RULED (05:11:57Z): (1)-(3).** This is the row's first re-run. A second off reading on it goes to the orchestrator and on to the owner.
+- **The edit.** It was made in `mk-pq4d.mjs` and, identically, in its `mk-pq4d-sea.part.mjs`, so the generator is still pq4c's plus the
+  part. It is one `before(...)` anchored on the RD-P6 places line, which matches once:
+  `if (Q4S.on && want(MASK.water)) { const s = [...new Set(met)].filter((u) => byUrl.get(u)?.layer === "sea").sort().map(fileRef); if (s.length) read.sea = s; }`
+- **Regenerated** into a fresh directory, with the same arguments as before (`wt-q4`, 525cf7d1725d, `dnw/src/basemap/frame.ts`):
+  exit 0, empty stderr. **`diff -r` of the old tree and the new, printed in full:**
+  ```
+  diff -r pq4d/src/basemap/build.ts pq4d-r2/src/basemap/build.ts
+  125a126
+  >       if (Q4S.on && want(MASK.water)) { const s = [...new Set(met)].filter((u) => byUrl.get(u)?.layer === "sea").sort().map(fileRef); if (s.length) read.sea = s; } // SCRATCH Q-W4 part 2 (05:11:57Z ruling): the sea's files read (RD-P6), only when one is met
+  ```
+  The new tree is now `pq4d`; the old one is kept as `pq4d.pre0512`.
+- **New sha256s, recorded before the run:**
+
+| artifact | sha256 | was |
+|---|---|---|
+| `mk-pq4d.mjs` | `fd0b80a28a3f98cacf85509ada49a92ea27766e9f90fd77d2a82de49531b82b9` | 78f75e2e12f9 |
+| `mk-pq4d-sea.part.mjs` | `83e49540646269b2a91eae935fc11962d88e0b4fe30084fd4e14b11d5329d718` | 0d7bf6e74312 |
+| `pq4d/src/basemap/build.ts` | `4d7ee5e0a8685521299aa4cc4b5f6e2fd5e59d2acde93556a1b8465061d69797` | f50fe805558f |
+| `pq4d/src/basemap/sea.ts` | unchanged, 4b46e0ece2fe | 4b46e0ece2fe |
+
+- **The driver re-runs from the start, unchanged** (`p2-read.py`, 7e9828547270), against the predictions above: every row before
+  T-SEA0-ci's control as it read; that control at **6** sea lines; P2-0 and T-SEA0-real unchanged.
