@@ -403,6 +403,55 @@ instrument defect, the outside-the-set case. It was reported by the log's lines 
 The driver is a session scratch script, sha256 `03a17062e9fd...`. The images, the write ranges and the hook are
 unchanged.
 
+### M7: window B, FT1 and FT2 (written before its code, after the third stop and the split)
+
+**Why FT needs a redesign.** `Update()` returns before the feed merge and the radar enrichment while a card is open
+(`if (inDetail) return;`), so traffic can only change with the card CLOSED. The count with a card open is the count
+at the moment it opened, frozen.
+
+**The measured quantity, read from the source.** Each sample is the average drawn-frame time over 10 s:
+(t1 - t0) / (seq1 - seq0), from `/diag/fb`'s `X-Blipscope-Frame-Seq`.
+- `framebuf::FrameDone()`, which advances that sequence, sits at the end of `loop()`, after the flush, at the same
+  point as `RecordFrameUs(micros() - frameStartUs)`; `frameStartUs` is the top of `loop()`.
+- There is no pacing wait anywhere in the loop path: no `vTaskDelay` or `delay` in `Update()` or the draw. So the
+  ~41 ms seen on an open card in run 3 is the card frame's real work, not a floor that would hide a slowdown.
+
+**The hook additions, under `CARD_BENCH` only:**
+- **`Z <us>`**, the control: a planted busy-wait (`delayMicroseconds`) at the top of `DrawDetailCard`, 0 .. 20,000 us.
+- **Cloud details for a bench photo card.** When a `zzcardp` card opens under fixed traffic (local, details Off),
+  `localDetails` becomes Cloud, so the card's own lookup fetches its library photo: the URL and the device key only.
+- **Off again on every close.** `ExitDetail()` restores Off. That is every way a card closes, and it runs before the
+  same `Update()` can reach `ProcessMetadataLookups`. `PollCardBench` repeats it as a backstop.
+- While a card is open, `Update()` returns before the radar enrichment, so a fixed contact is never enriched.
+
+**The procedure, per bench phase** (before, then after), all on fixed traffic, `F` RAM-only:
+1. Write the image, then wait for `/diag/fb`.
+2. The `P` line: window A's (its library photo path), replayed in both phases. No donor search.
+3. **FT1 at 20:**
+   - `n`, then `F 20`, then settle with the card CLOSED: two `[health]` lines at 21.
+   - `o` (CN0 `zzcardn`), then two samples (FT-AA).
+   - **The control:** `Z 5000`, two samples, `Z 0`.
+   - Close.
+4. **FT1 at 40:** `F 40`, settle at 41, `o`, two samples, close.
+5. **FT2 at 40:** the `P` line (it replaces the bench contact; the count stays 41), `o` (CN0 `zzcardp`, the Cloud
+   details line), the photo drawn (a frame under half black, up to 30 s), two samples, close.
+6. **FT2 at 20:** `F 20`, settle at 21, `o`, the photo drawn, two samples, close.
+7. Then the after phase the same way, then the restore with its boot read, then the release.
+
+**Predictions, frozen:**
+
+| row | predicted | if not |
+|---|---|---|
+| CONTROL | in each phase, the mean with `Z 5000` exceeds the mean without by **5.0 ms +/- 1.0 ms** | the instrument cannot see a slowdown: FT1/FT2 read "instrument", go to the owner, and are not graded |
+| tracked | every sample at exactly n + 1, frozen with the card open | that row is not graded: "instrument" |
+| FT-AA | each (row, n)'s two samples within 2 ms of each other (FT-AA's margin, as registered) | that row reads "instrument" |
+| FT1 | as registered: after <= before. Margin: after at most before + 2 ms, comparing the means of two samples | beyond the margin: the fix stops, and both numbers go to the owner |
+| FT2 | as registered: within 1 ms. Margin: + 2 ms | the same |
+| restore | `[WiFi] CONNECTED`; no line that opens a portal; `/diag/fb` answers | stop, and report |
+| anything else | | stop and decide; restore and release before reporting |
+
+The new images, their sha256s and the shipping image's PLACED check are added below when built.
+
 ## Results
 
 ### Window A, the pictures (E2:08, 2026-11-12 23:16-23:20Z; the reviewer's split after the third stop)
