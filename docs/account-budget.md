@@ -299,6 +299,44 @@ confidence; L0 and L1 are both live.
 `account-budget.yml`'s path filter, and leaves section 6's table alone, so `--render-check` stays current. Main is
 `f3dd6b62`. **Predicted: 33 = 31/2/0.**
 
+### 7.2 Read 2026-11-12 21:54:57Z: the 7 days ending 21:00Z. Outcome L1, against my L2
+
+`python3 -I tools/budget/live_listeners.py 2026-11-12T21:00:00Z 7` (one query per day and per class).
+
+**The control held in all 168 hours:** the six classes, each counted by its own filter, `other` included (an AND of
+`objectName_notlike`), summed to the bucket's unfiltered GetObject count within 1% every hour.
+
+**L1 (registered: `.ts` above 0 in at least 80% of hours): `.ts` reached R2 in 151 of 168 hours (90%).** My
+prediction was L2, so the prediction is OFF. Its stated basis, that the bucket total could not separate the outcomes,
+held; the outcome simply fell on L1.
+
+| reading | value |
+|---|---|
+| listener data-centre-hours | 148.8 in 7 days, 21.3 a day |
+| by UTC day | 11-05 1.6 (the window starts at 21:00Z), 11-06 30.9, 11-07 33.0, 11-08 17.0, 11-09 17.3, 11-10 11.0, 11-11 9.8, 11-12 28.1 |
+| `.ts` an hour | min 0, median 362, max 724 |
+| hours with 0 / 1-179 / 180-359 / 360-379 / 380-719 / 720 or more | 17 / 39 / 18 / 26 / 56 / 12 |
+| mean `.ts` by UTC hour | 207-471, highest around 08-12Z and 19-20Z |
+| eyeball regions with a `.ts` fetch, per hour | **always exactly one region.** No hour shows two |
+
+**What it means, and the alternative it cannot exclude:**
+- **Something fetches the live audio nearly every hour, always from one region.** In 40% of hours there is more than
+  one data centre's worth (over 380 an hour), which means a second cache or player in the same region.
+- **The alternative is an automated fetcher in that region,** such as a monitor, a kiosk, or something on the
+  station's own side that plays or checks the stream. R2's analytics cannot exclude it. The day-to-day spread (9.8 to
+  33 data-centre-hours) argues against one constant fetcher being all of it. A constant fetcher plus some people fits
+  the data as well as people alone.
+- **What would separate them:**
+  - the zone's HTTP analytics for `live.missileer.watch` (clients and user agents, by count), which needs a zone-read
+    token this machine does not hold;
+  - or a site-side "playing" beacon, which is not read-only;
+  - or the owner, who may simply know whether anything of his plays the stream continuously.
+- **For on-demand streaming (M1):**
+  - if these fetches are real listeners, M1 saves at most the listener-free share, about 10% of hours, roughly 0.08 M
+    Class A a month;
+  - if most are an automated fetcher that could be stopped, it saves far more.
+  - The region's name is not printed here, by the location rule.
+
 ## 8. CI for this registration (predicted before the push)
 
 **Predicted: 32 check runs: 29 success, 3 skipped, 0 failed.**
