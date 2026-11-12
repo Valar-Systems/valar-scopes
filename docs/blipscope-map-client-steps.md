@@ -2894,6 +2894,120 @@ and was read):
 - **The named risk** is `board_build.embed_files` on CI's runner. Built locally, it was exact. A failure there is off.
 - The tested merge is read from a checkout log. Any other reading stops.
 
+### The CI read at `9ae188d9`, and the identity-table fix (predictions first)
+
+**The read.** `9ae188d9`'s run finished at **35 = 30 success / 4 skipped / 1 failed**. The failure is `ota-identity`,
+at `--check-table`: `fleet only: blipscope-s3-128-mapbench - s3-128`. That is off the prediction (35 = 31/4/0), so I
+stopped there and did not read the other legs' logs. The next push's run is their reading.
+
+**My miss.** A new env is listed in three files: `platformio.ini`, `skus.yml` and `test/fixtures/ota/identities.txt`.
+I added it to the first two only.
+
+**The ruling (the orchestrator, 06:27:06Z, verbatim):**
+
+> From the orchestrator, 06:27:06Z, for map-client: the stop and the diagnosis are right. The failure names the exact
+> missing row, and the flake alternative is excluded by the fixture's existing bench rows. Your miss is recorded as you
+> stated it.
+> The fix is APPROVED: the one row from `--emit-table`, reviewed as a one-line diff, a local --check-table, and
+> --check-table added to your push guards. BUT the table you're editing has readers of its own. A row added there moves
+> more than ota-identity. My read of main finds:
+> - test/host/test_ota_identity.cpp:22/:110: "The counts are today's skus.yml (identities.txt …)". It PINS fleet
+>   counts. This is exactly what p4 hit on #648 (CI2 OFF: host-tests failed on test_ota_identity.cpp's pinned counts
+>   after adding 2 P4 rows);
+> - test/host/test_ota_install.cpp:261 reads the table;
+> - test/host/test_ota_model.cpp:37 (M1 over every row, so its count follows the table);
+> - test/host/sabotage_ota_model.py:28 (its prediction follows the table's scoped rows);
+> - run.sh :1984/:2007 (comments on those counts).
+> So before the push:
+> 1. List each reader, and predict what one more "- s3-128" row does to each: which pinned count moves, and to what.
+>    Update any pin in the same commit.
+> 2. Run those suites and drivers locally (test_ota_identity, test_ota_install, test_ota_model, sabotage_ota_model)
+>    and record each reading against its prediction.
+> 3. Then the push, with CI's prediction including those suites' counts.
+> FYI for later: p4's #648 also adds rows to this table, so whichever lands second takes both. Name that in your record.
+
+**One event before this record.** `--emit-table` writes `identities.txt` itself. I ran it expecting it to print to
+stdout.
+- It wrote one row, `blipscope-s3-128-mapbench - s3-128`, after `blipscope-s3-128-wxlook`.
+- I copied that file and its one-line diff out as the reviewed diff.
+- I then put the table back to HEAD (`git checkout HEAD --` on that one path); `git status` read clean.
+- Nothing ran against the written table. The code commit after this record runs `--emit-table` again.
+
+**The readers, and what one more `- s3-128` row does to each.** The table goes from 8 rows to 9. The scopes stay 3
+(`-`, `eam-`, `weatherscope-`). The s3-128 rows go from 6 to 7, and those with no scope from 3 to 4.
+
+| reader | what it counts | today | with the row |
+|---|---|---|---|
+| `check_ota_identity.py --check-table` | the table against the fleet | exit 1, `fleet only: …mapbench` | **exit 0** |
+| `--selftest`, `--fleet-sabotage`, `--fleet` | the fleet (`skus.yml`, `platformio.ini`), not the table | PASSED, PASSED, PASS (`boards s3-128 9`) | unchanged |
+| `test_ota_identity.cpp` R1 | envs x scopes | 24 (8 x 3) | **27** (9 x 3) |
+| M1 | same-board pairs accepted, of envs² | 38, 26 | **51, 30** (7² + 1 + 1 = 51 of 81) |
+| M2 | cross-board pairs x scopes | 78 | **90** (30 x 3) |
+| M3 | own-scope matrix: accepted, refused (cross-scope) | 16, 48 (22) | **23, 58 (28)** (4² + 2² + 1 + 1 + 1 = 23; 49 - 21 = 28) |
+| its check count | | 22 | 22 |
+| `test_ota_install.cpp` O10 | rows, and rows x 2 pre-check heads refused as no-record | 8, 16 | **9, 18** |
+| its check count | | 36 on this branch, 42 on main (HP1-HP6, #660) | 36 on this branch, 42 on the test merge |
+| `test_ota_model.cpp` | `M1-<env>` per row, `M1r-<env>` per unscoped row, and M1b's 3 | `8 rows; 16 checks` | `9 rows; 18 checks` (no pin in the suite) |
+| `sabotage_ota_model.py` | `MODEL_CHECKS`, its `--control` count | 16 | **18** |
+| its S-M1 red set | `M1-` for every scoped row | the 3 scoped rows | unchanged: the new row has no scope |
+| `sabotage_ota_identity.py`, `sabotage_ota_install.py` | the two suites; `IDENTITY_CHECKS` 22, `INSTALL_CHECKS` 36 here and 42 on main | | unchanged |
+| `run.sh` :1984 and :2007 | comments, no counts | | unchanged |
+
+**Why the last two drivers stay unchanged.** Every plant's red set is named by check id. The new row adds no
+(board, scope) class the table lacks, since `- s3-128` already has three rows.
+
+**The pins this moves, all in the code commit.**
+- `test_ota_identity.cpp`: R1's `24`, M1's `38`/`26` with `(want 38, 26, 0)`, M2's `78` with `(want 78 of 78)`, and
+  M3's `16`/`48`/`22` with `(want 16, 48 (22), 0)`.
+- `test_ota_install.cpp`: O10's `rows == 8`/`16` with `(want 16, 0, 0, 0)`.
+- `sabotage_ota_model.py`: `MODEL_CHECKS = 18`, its comment `(9 + 6 + 3 today, S4.5)`, and its docstring's `none of
+  the 5 without` → `6`.
+- Not edited: `docs/weatherscope-stage4.md` S4.5. It is a record of the counts at its time, and it is Weatherscope's
+  record.
+
+**#648.** p4's #648 also adds rows to this table (two P4 rows, per the ruling above), and they move the same pins.
+Whichever of #648 and #659 lands second takes both. It runs `--emit-table` on the merged tree, and it derives every pin
+above again from the merged table rather than by adding the two diffs.
+
+**The local runs, predicted.** They run in WSL Ubuntu 24.04 with g++ 13.3, CI's compiler, and the drivers run with
+`CXX=g++`. They run twice: on the branch head, and on the test merge of `origin/main` (`f3fee349`) and that head,
+because CI tests the merge and main's install suite differs.
+- **`check_ota_identity.py`:** `--check-table` exits 0, and the other three modes read as today.
+- **`test_ota_identity`:** `22 checks, 0 failures`, with R1 27/27, M1 51/30/0, M2 90 of 90, and M3 23, 58 (28), 0.
+- **`test_ota_install`:** O10 reads `9 identities x 2 pre-check heads: 18 no-record, 0 foreign, 0 other, 0 flash
+  calls`. The summary is `36 checks, 0 failures` on the branch and `42 checks, 0 failures` on the merge.
+- **`test_ota_model`:** `9 rows; 18 checks, 0 failures`.
+- **`sabotage_ota_model.py`:**
+  - the control is AS PREDICTED;
+  - S-M1 fails exactly `M1-missileer-photo`, `M1-missileer-s3-128` and `M1-weatherscope-s3-128`;
+  - S-M1b fails `M1b-short`;
+  - the summary is `2 sabotages: ALL AS PREDICTED`;
+  - `--control` reads `CONTROL sabotage_ota_model.py: 1 suite(s), all as the table`, with 18;
+  - `--anchors` reads all present exactly once.
+- **`sabotage_ota_identity.py` and `sabotage_ota_install.py`:** every plant AS PREDICTED, `--control` all as the
+  table (22 and 36 on the branch, 22 and 42 on the merge), and `--anchors` all present.
+- **`lint_driver_counts.py`:** exit 0.
+- **The merge itself:** `origin/main` and the head merge with no conflict. Main's #660 hunks in `test_ota_install.cpp`
+  sit at lines 23, 78 and 301 of the base; O10 sits between them.
+- **Anything else** is off, and I stop.
+
+**The push, predicted** (after the local runs read as predicted; `9ae188d9`'s run has finished):
+- **The guard chain** gains `skus.py --validate`, `check-no-bench-hooks.sh --selftest` and `check_ota_identity.py
+  --check-table`.
+- **35 = 31 success / 4 skipped / 0 failed**, with `ota-identity` green.
+- **Each host-tests leg:**
+  - `test_ota_identity` `22 checks, 0 failures`, `test_ota_install` `42 checks, 0 failures`, `test_ota_model`
+    `9 rows; 18 checks, 0 failures`;
+  - MapDraw `11 checks, 0 failures`, MapCompose 26 / 0, MapPlaces 32 / 0. Main's FillRing fix (`f3fee349`, #662) is
+    in the test merge for the first time. #662's own CI was green, and my advance read of it predicts no movement here;
+  - 40 drivers, with both passes `39 run, 1 skipped`;
+  - lint 40 / 0 / 3;
+  - AS PREDICTED: compose 15, draw 18, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The mapbench leg:** the launch gate is PASS, and the marker step reads `ok: … carries '[wx-bench],[map-bench]' and
+  no other bench marker`.
+- **The tested merge** is read from the checkout log. Any other reading stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
