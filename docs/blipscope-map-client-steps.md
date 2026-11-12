@@ -4498,6 +4498,64 @@ amendment 1 says.
 
 **Unchanged:** every other row of the set and of amendment 1, `RecordFrameUs`, the GC chain, and the escape hatch.
 
+### CBF3's ring rule (i): trust from ring pixels outside the wedge, registered red first (2026-11-12)
+
+**Why.** On the step B and C bench frames, CBF3 read BLIND: C's 60 of 60 frames failed `wx-fb-check.py`'s
+`trustworthy()`, "a ring under 80 % of its colour". `ringdiag.py` read the inner rings at 60-78 % with wedge greens on
+ring pixels. The draw order that puts them there is not claimed here: (i-1) measures where the shortfall sits.
+
+**Ruled (i)** (the orchestrator): trust from the ring pixels OUTSIDE the wedge's sector. It is built in my reader's
+trust function, and `scripts/wx-fb-check.py` is not edited.
+
+**THE RULE.**
+1. **Locate first.** My locator and `wedge_mask` must agree, exactly as now (disagree: INSTRUMENT; not located:
+   UNTRUSTWORTHY with the locator's reason).
+2. **Then the rings,** over each ring's pixels with `wedge_mask`'s `in_mask` false: the 12 px core and the tail plus
+   0.06 rad each side are left out.
+   - A ring with under 50 % of its pixels outside the mask is UNTRUSTWORTHY ("the mask covers the ring"). The mask
+     is about 18 % of a turn, so this cannot happen on a located frame, and it is a guard.
+   - Otherwise a ring is short when under 80 % of its outside pixels show its colour: UNTRUSTWORTHY,
+     "ring r=<r>: <k>/<n> outside the wedge". **The 80 % is unchanged**; only the pixels it counts change.
+- Built by a counted-replacement builder from `map_bench_read2b.py` (`9ee8dae3…`) as `map_bench_read2c.py`, at the
+  two sites `grade_frame` and `grade_frame_c`. Every other line is unchanged.
+
+**THE CONTROLS, each predicted before the code exists:**
+
+| # | the control | the frames | predicted |
+|---|---|---|---|
+| (i-1) | the inner rings outside the mask on the bench frames | B's 60 (`fb-B`, 30 on, 30 off) and C's 60 (`fb-C`), each through its own tree's source | every located frame: every ring ≥ 80 % outside the mask; ≥ 10 trustworthy of each label on B and on C |
+| (i-2a) | a torn frame: every ring pixel outside the mask set to `0x0000` (the mid-draw state where the wedge is not) | the first located on-frame of B and of C | UNTRUSTWORTHY, the ring reason |
+| (i-2b) | a torn frame: the same, rows y ≥ 120 only | the same frames | UNTRUSTWORTHY, the ring reason |
+| (i-2c) | `wx-fb-check.py`'s own mid-draw case: every ring pixel erased, inside the mask too | the same frames | UNTRUSTWORTHY, any reason (printed) |
+| (i-3a) | the innermost ring blanked outside the mask | the same frames | UNTRUSTWORTHY, naming that ring |
+| (i-3b) | the threshold: the innermost ring repaired to 100 % outside, then 21 % of those pixels blanked (79 %) | the same frames | UNTRUSTWORTHY |
+| (i-3c) | the threshold's other side: repaired, then 19 % blanked (81 %) | the same frames | trustworthy |
+| (i-4) | the frames the old rule trusted still trusted | see below | every frame `trustworthy()` passes reads trustworthy under (i) |
+
+**(i-4)'s frames, and a question.** These are "the WD5 frames the old rule was calibrated on". WD5e/WD5f's own captures
+are not in the tree, and I have not found them on disk. The nearest are the wx replay session's RP6 frames
+(docs/wx-device.md RP1-RP6; session `20261106T1958Z`: RP6-A, RP6-B and RP6-off), graded by the same `wx-fb-check.py`.
+**Default (Q-R1):** RP6, unless the orchestrator names where WD5e/WD5f's frames are. RP6-off is the layer-off radar, so
+its opaque wedge must be located. A frame there that the old rule trusts and the locator refuses is outside the
+predicted set (see below).
+
+**The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
+- in B mode and C mode on every log plant and on B's and C's real logs;
+- in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
+
+It is shown able to fail once, with one planted difference.
+
+**THE OUTCOMES, pre-registered:**
+- **(P1)** every control as predicted: the rule is accepted. CBF3-B and CBF3-C are then graded against their frozen
+  rows, unchanged, and nothing else is.
+- **(P2)** a located bench frame with a ring under 80 % outside the mask: the shortfall is not the wedge. STOP; report
+  counts per ring (no pixel values beyond counts); no grading.
+- **(P3)** under 10 trustworthy frames of a label for a reason that is not the rings (the locator): BLIND stands for
+  that capture, and the reasons are printed with counts.
+- **(P4)** a plant not red for its own reason, or (i-3c) or (i-4) not trustworthy: the rule or its code is wrong.
+  STOP; nothing is graded.
+- **Anything else:** stop and report. A second off reading on this row goes to the owner.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
