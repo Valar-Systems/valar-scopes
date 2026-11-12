@@ -278,10 +278,9 @@ def run(mod):
 
         # T0, both directions
         for case, want_rc, want in [
-                ("t0", 0, ["T0: 4 stamp fields found in WiFiManager's objects, 0 not the fixed stamp"]),
-                ("t0bad", 1, ["T0: 4 stamp fields found in WiFiManager's objects, 2 not the fixed stamp",
-                              "  date 'Nov 12 2026' in src/WiFiManager.c.o .rodata.about.str1.1",
-                              "  time '16:58:03' in src/WiFiManager.c.o .rodata.about.str1.1"])]:
+                ("t0", 0, ["T0: 2 fixed stamp(s) in 1 input(s) built in the tree, 0 not the fixed stamp"]),
+                ("t0bad", 1, ["T0: 1 fixed stamp(s) in 1 input(s) built in the tree, 1 not the fixed stamp",
+                              "  date 'Nov 12 2026' in src/WiFiManager.c.o"])]:
             lines = []
             rc = mod.t0(os.path.join(STORES, case), "Jan  1 2026", "00:00:00", lines.append)
             grade("T0 " + case, rc, lines, want_rc, want)

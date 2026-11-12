@@ -368,3 +368,37 @@ compared.
 | the real build's own map, against its ELF | 14 of 14 sections tied, exit 0 | **as predicted** |
 | a copy of it with `.flash.text`'s size edited by 4 bytes (`0x139b60` → `0x139b64`), the edit asserted | 13 of 14 tied, `.flash.text` named, exit 1 | **as predicted** |
 | **K2's map against C's ELF**, once K2 is built and before K2 is read | exit 1, naming every section whose size or address the plant moved | to be read |
+
+## 12. Amendment 1c: T0′ (the reviewer's ruling, 17:44:43Z)
+
+**T0 is OFF on the record.** On K0's first build, `t0` found 2 stamp fields in WiFiManager's object, both the fixed stamp,
+and exited 2 ("fewer than the two date+time strings it exists to check"). Its model was wrong, not the build.
+- **What it had assumed:** that WiFiManager carries two `__DATE__ " " __TIME__` strings, from CLAUDE.md's description of
+  the five rebuild regions.
+- **What this build has:** one such string (`WiFiManager.cpp:2312`), and a date-only stamp from the Arduino core,
+  which is built in the tree (`libFrameworkArduino.a`).
+- **What the read showed** (it printed dates only):
+  - every tree-built stamp is the fixed one;
+  - the build day's date is in no input and not in the ELF;
+  - the other dates are in precompiled framework archives, whose hashes are equal in every build.
+
+**T0′, as ruled:**
+- every date-shaped (`Mmm dd yyyy`) string in an input BUILT IN THE TREE (an `inputs.json` entry with a copy) equals the
+  fixed date, and every `HH:MM:SS` beside one equals `00:00:00`;
+- at least one fixed stamp is found: that is its control;
+- precompiled package archives are outside it, because their hashes are equal across builds;
+- K0's byte-identical ELFs stay the decisive check: no unfixed `__TIME__` survives two builds minutes apart.
+
+**Its red control, before it is trusted. Predicted at 17:45:19Z, before the run:**
+
+| store | predicted | read (17:45:36Z) |
+|---|---|---|
+| K0's first C store, as built | 3 fixed stamps in 2 inputs (WiFiManager's object 1, the core archive 2), 0 not, exit 0 | **as predicted** |
+| a copy of it with the build day's date patched into WiFiManager's object (same length, its sha256 re-recorded) | 2 fixed in 1 input, 1 not, WiFiManager's object named, exit 1 | **as predicted** |
+
+The selftest's two T0 cases move to T0′'s output, and still pass both ways. The scratch sabotage run still reads all
+11 plants as predicted.
+
+**A finding for a later docs fix, not in this PR.** CLAUDE.md's rebuild-regions table names WiFiManager's `aboutdate`
+and `Software Info:` strings as two `__DATE__ " " __TIME__` stamps. In this WiFiManager there is one, and the second
+build stamp in the image is the Arduino core's date-only string.

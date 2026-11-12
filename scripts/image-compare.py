@@ -994,32 +994,41 @@ DATE_RE = re.compile(rb"[A-Z][a-z]{2} [ 0-9][0-9] [0-9]{4}")
 TIME_RE = re.compile(rb"[0-9]{2}:[0-9]{2}:[0-9]{2}")
 
 
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+STAMP_RE = re.compile(rb"([A-Z][a-z]{2} [ 0-9][0-9] [0-9]{4})( [0-9]{2}:[0-9]{2}:[0-9]{2})?")
+
+
 def t0(path, date, time_, out):
+    """T0' (amendment 1c): every input BUILT IN THE TREE (an inputs.json entry with a copy) has every __DATE__-shaped
+    string equal to the fixed date, and every time beside one equal to the fixed time; at least one fixed stamp is
+    found (the control). Precompiled package archives are outside it: their hashes are equal across builds."""
     st = Store(path)
-    found, bad = 0, []
-    for p in st.map["loads"]:
-        if "WiFiManager" not in p:
+    found, bad, where = 0, [], set()
+    for p, e in sorted(st.inputs.items()):
+        if not e.get("copy"):
             continue
-        for iid, obj in st.objects(p):
-            for s in obj.secs:
-                if not (s["sh_flags"] & SHF_ALLOC) or s["sh_type"] != "SHT_PROGBITS" or EXCLUDED.match(s.name):
-                    continue
-                data = s.data()
-                for m in DATE_RE.finditer(data):
-                    found += 1
-                    if m.group(0).decode() != date:
-                        bad.append("date %r in %s %s" % (m.group(0).decode(), iid, s.name))
-                for m in TIME_RE.finditer(data):
-                    found += 1
-                    if m.group(0).decode() != time_:
-                        bad.append("time %r in %s %s" % (m.group(0).decode(), iid, s.name))
-    out("T0: %d stamp fields found in WiFiManager's objects, %d not the fixed stamp" % (found, len(bad)))
+        data = st.input_bytes(p)
+        for m in STAMP_RE.finditer(data):
+            d = m.group(1).decode()
+            if d[:3] not in MONTHS:
+                continue
+            t = m.group(2).decode().strip() if m.group(2) else None
+            if d != date:
+                bad.append("date %r in %s" % (d, p))
+            elif t is not None and t != time_:
+                bad.append("time %r in %s" % (t, p))
+            else:
+                found += 1
+                where.add(p)
+    out("T0: %d fixed stamp(s) in %d input(s) built in the tree, %d not the fixed stamp" % (found, len(where), len(bad)))
     for b in bad:
         out("  " + b)
-    if found < 4:
-        out("T0: fewer than the two date+time strings it exists to check: the check cannot see them")
+    if bad:
+        return 1
+    if found == 0:
+        out("T0: no stamp found at all: the check cannot see the strings it exists to check")
         return 2
-    return 1 if bad else 0
+    return 0
 
 
 # ---------------------------------------------------------------- main
