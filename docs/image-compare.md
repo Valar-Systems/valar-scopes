@@ -630,3 +630,64 @@ cause is a usable result.
   only part of the code;
 - in this build, WiFiManager carries one stamped string, and the second build stamp is the Arduino core's date-only one
   (section 12).
+
+## 18. Amendment 3: P-REDO's expected set, as map-client froze it, before it is read (2026-11-12, 18:54Z)
+
+**Copied from map-client's record,** `docs/blipscope-map-client-steps.md` on `feat/map-client-step-c-blend`, three pieces.
+Each was frozen before anything was read:
+- the set, at `0e0c394b68e0`;
+- its amendment 1, at `239afa64`;
+- its amendment 2, at `b2bc9671a129`.
+
+**The pair, as built:**
+- **Bw** = `e3c2508e` + `git merge --no-ff cb9d6ac2`; **Cw** = `e3c2508e` + `git merge --no-ff c4ff317a`. Both are merged
+  locally in the run tree.
+- Each `HEAD^{tree}` was checked against the registered tree **before** it was built: `eb84bef82d41` and `0b1d19f08e26`,
+  both equal.
+- Env `blipscope-s3-128-wxlook`, built from clean in one tree, with M0 and T0′ as for the controls.
+- Read with `--allow` (the patterns below), `--cxxfilt`, and **`--reloc-names`**.
+
+**`--reloc-names` (map-client's amendment 1, its definition confirmed in its amendment 2):**
+- After each plain CHANGED function, it prints `relocations: unchanged` or `relocations: +[…] -[…]`.
+- The names are the multiset of the function's relocation targets, its folded exception table included:
+  - a branch inside the function is dropped;
+  - `lit(sym:foo)` counts as `sym:foo`;
+  - a literal holding a plain constant is dropped;
+  - every other name is kept, strings included.
+- It is off by default, so no accepted reading moves. Two flag-on cases were added:
+  - `local relocs`: a constant change, `relocations: unchanged`;
+  - `gc relocs`: a gained call, `+['sym:h+0', 'sym:h+0']`.
+- The driver refused by itself until every plant declared both cases. P18 (the print omitted) was added. 18 plants ×
+  32 cases read as declared.
+
+**The expected set, by object:**
+- **Every object but `AircraftManager.cpp.o` and `main.cpp.o` is identical,** `SoakHarness.cpp.o` included.
+- **In `AircraftManager.cpp.o`:**
+  - CHANGED by source: `AircraftManager::` `Initialise`, `MapConfigure`, `ConsumeBasemap`, `RebuildWeatherLayer`,
+    `DrawWeatherUnder` and `ConsumeFetchResult`.
+  - NEW: `AircraftManager::` `DrawMapBase`, `MapAirportBoxes` (its lambda included), `MapAlloc` and `MapFree`, and the
+    header-only code they reach: `mapcompose::*` (`LayerSink`'s vtable included), `maplayer::*`, `mapplaces::*`,
+    `bmpk::*`, `wxraster::Text`/`Put`, `glcd::font`, `wxlayer::OffDisc` and `wxs2::To565`.
+  - `RecordFrameUs` is NOT changed: its hunk is under `FOLLOW_BENCH`.
+- **In `main.cpp.o`:** `_GLOBAL__sub_I_tft` CHANGED.
+- **Any other unit in those two objects with no source change** reads one of:
+  - `CHANGED (load/store offsets only: k)`;
+  - plain CHANGED with `relocations: unchanged`;
+  - **FILL** (its amendment 2, 1a).
+
+  A no-source plain CHANGED unit printing `relocations: +[…] -[…]` is **reported by name as the TU-wide inlining
+  alternative**.
+- **At the link:**
+  - GC exactly `fmin`, `fmax` and `__fpclassifyd`. Nothing else enters or leaves; another library member is named,
+    with its caller, and reported.
+  - Every other difference is RELAX.
+- **UNDECIDED (its amendment 2, 1b):** only `UNDECIDED <name> (FILL): size a -> b: the image's property table ends at
+  +0`, for a FILL unit in the two objects. Each one is named, counted, and reported as UNACCOUNTED: a known blind spot
+  of the instrument, never a pass for that unit. **Any other UNDECIDED is "stop and decide".**
+- **A FILL unit in any other object** is a difference in an object predicted identical. It is reported by name, OFF.
+- **The escape hatch, its own:** anything else means the instrument, or the model, is unreliable at this scale. Stop
+  and decide.
+
+**The checker** is filed with its sha256 before the read. It sorts every line of the reading into exactly one of:
+expected, the counted classes (offsets-only, relocations unchanged, FILL, RELAX, UNACCOUNTED), REPORTED by name, or
+STOP. Its outcome is the worst class present.
