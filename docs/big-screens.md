@@ -11,15 +11,16 @@ The radar on round touch screens, the big ones seen at arm's length:
 | screen | panel | diameter | px per mm | mm per px | how it runs | status |
 |---|---|---|---|---|---|---|
 | 1.28" Kit S3 | 240 | 32.5 mm | 7.38 | 0.135 | device | shipping; **its output does not change** |
-| 2.1" Waveshare (`blipscope-pro-s3-21`) | 480 | 53.3 mm | 9.00 | 0.111 | device | to be sold (the owner, 17:26Z); bench bring-up first; shipping in skus.yml is its own decision, aimed at v21 |
+| 2.1" Waveshare (`blipscope-pro-s3-21`) | 480 | **53.48 mm, measured** | 8.98 | 0.111 | device | to be sold (the owner, 17:26Z); bench bring-up first; shipping in skus.yml is its own decision, aimed at v21 |
 | P4 4.0" | 720 | 101.52 mm | 7.09 | 0.141 | device | bench (docs/p4-40-bringup.md) |
 | 7" | 1080 | 172.8 mm | 6.25 | 0.160 | web build | the owner, 17:06Z |
 | 15.7" | 960 | ~399 mm | 2.41 | 0.416 | kiosk app / app.valarscopes.com WebAssembly | venue screen |
 | 23.6" | 1280 | ~599 mm | 2.14 | 0.468 | kiosk app / app.valarscopes.com WebAssembly | venue screen |
 
 Sources:
-- **1.28" and 2.1":** the nominal diagonal (32.5 mm and 53.3 mm). The 2.1" also matches the owner's "about 53 mm" (17:26Z).
-  Waveshare's spec page does not answer automated reads, so the bench bring-up measures the glass.
+- **1.28":** the nominal diagonal, 32.5 mm.
+- **2.1": measured by the owner,** 53.48 mm across the lit screen (2026-11-12, ~19:20Z). It replaces the nominal
+  53.3 mm used until then. Every 2.1" figure below is computed from 53.48.
 - **P4:** Waveshare's display area for the 4-inch module (bench row B1 measures it).
 - **7":** 1080 px at 0.16 mm per pixel (the owner).
 - **15.7" and 23.6":** docs/web-kiosk-card.md. They agree with the owner's pixel sizes (0.42 and 0.47 mm) to within 1%.
@@ -45,10 +46,16 @@ Sources:
    23.6"**: the owner's hands, scheduled through the orchestrator.
 4. **The 1.28" output stays unchanged.** Any change to its look goes to the owner separately. The floor never applies to
    it: its lines are 1 px and its smallest stem 1.2 px today.
-5. **The 2.1" gets the 1.28" design at exactly 2x.** At 53.3 mm every rule above picks today's share, so every size
-   doubles: cap 14.6 px, tap 56 px, swipe 80 px, lines 2 px. That holds while the diameter is under **60 mm**, where
-   7 mm meets 28/240 of the diameter. The text and line rules hold to 120 mm. The 2x equality is a test (section 4),
-   so a glass that measures 60 mm or more is caught by it rather than discovered.
+5. **The 2.1" gets the 1.28" design at exactly 2x.** At the measured 53.48 mm, every rule above picks today's share,
+   so every size doubles:
+   - cap 14.6 px (1.63 mm);
+   - tap radius 56 px (6.24 mm);
+   - swipe 80 px (8.91 mm);
+   - lines 2 px (0.22 mm).
+
+   That holds **up to 60 mm**, where 7 mm meets 28/240 of the diameter; 53.48 mm is 10.8% under that. The text and
+   line rules hold to 120 mm. The 2x equality is a test (section 4), so a glass over 60 mm is caught by it rather
+   than discovered.
 
 ## 3. Steps
 
@@ -91,7 +98,7 @@ before its pass counts. Anything outside the set below is a stop that comes to t
 | **the values**: every rule at 1.28" gives today's pixel literal | a host test over a table taken from today's source (every text size, stroke, tap and swipe constant) | every row equal | one row moved by 1 px fails |
 | **the image**: the shipping 1.28" image is unchanged | **#656's comparator** on `blipscope-s3-128` at the base and at the change, built by the C5 method (`SOURCE_DATE_EPOCH`, one worktree path) | the images differ in no byte outside the five rebuild regions (CLAUDE.md), or, where code moved, #656's comparator decides them equivalent | a planted change to one draw constant is reported |
 | **the rendering**: what the 1.28" draws is unchanged | the **240 golden** (step 9): pixel-identical to the base, and its display list (every draw call, in order) hashed frame by frame | every pixel and every hash equal | a planted 1-px move changes them |
-| **the 2.1" is the 1.28" at exactly 2x** | a host test: every role at (480 px, 53.3 mm) equals twice its value at (240, 32.5) | every row equal | a diameter of 60 mm fails the tap and swipe rows |
+| **the 2.1" is the 1.28" at exactly 2x** | a host test: every role at (480 px, 53.48 mm, measured) equals twice its value at (240, 32.5) | every row equal | a diameter of 61 mm fails the tap and swipe rows (55.1 and 78.7 px). At exactly 60 mm they still give 56 and 80 px, so 60 cannot be the control |
 
 **Where #656 stands, and the stop it implies.** The units layer is `constexpr` on devices, so the 1.28" is expected to
 fold to the same literals and the byte comparison to decide every step. If a step does change 1.28" code (a function
@@ -132,7 +139,8 @@ not something to work around.
   counts and step 10 records them.
 - **Speed on the Android screen is unmeasured.** The stage-1 rig ran 21,600 frames in about 4 s on a desktop, which says
   nothing about the kiosk's WebView.
-- **The 2.1"'s 2x depends on its glass being under 60 mm.** The test in section 4 catches it if not.
+- **The 2.1"'s 2x holds for a glass up to 60 mm.** The measured 53.48 mm is 10.8% under that, and the test in section
+  4 would catch a panel batch over it.
 
 ## 7. Where the stage-1 work lives
 
