@@ -582,3 +582,51 @@ had to be remembered, and it failed the second time.
   That is the conservative direction.
 - The other seven of #651's eight unexplained functions don't appear in one-tree builds. That is consistent with the
   two-worktree cause, which stays a named alternative.
+
+## 17. The regression, POS's re-read, and POS closed (the reviewer's ruling, 18:47:55Z)
+
+**The regression under 1f.** Each row's accepted reading was copied to a file before its re-read. K0 (accepted
+17:46:38Z), K2, K3 and K4 all re-read **identical**, with exits 0, 1, 1 and 1. 1f moved nothing it shouldn't.
+
+**POS re-read under 1f.** The checker was filed at 18:44:35Z (sha `86b6c699cc3a`). It predicted IN on
+`blipscope-pro-s3-21` and, on `blipscope-s3-128`, UNDECIDED from `SPIClass::end` alone.
+- **As predicted, on both envs:** the five out-of-scope functions read FILL, with their counts:
+
+  | function | fill bytes A/B | width swaps |
+  |---|---|---|
+  | `ResetReasonName` | 2/5 | none |
+  | `StampRebootCause` | 2/1 | `addi 2->3 x1` |
+  | `TakeOtaMemReport` | 9/9 | none |
+  | `DeferRebootWithCause` | 7/5 | `mov 2->3 x1, mov 3->2 x2, s32i 3->2 x1` |
+  | `ota::Token` | 7/5 | none |
+
+  `MaybeUpdateFirmware` reads CHANGED and `ota::ReadSome<StreamSource>` NEW, both in scope.
+- **OFF, POS's second off reading:** the two FILL functions whose size changed (`ResetReasonName` 152 → 155,
+  `DeferRebootWithCause` 336 → 332) read UNDECIDED at the image layer on both envs: "the image's property table ends
+  at +0". So `blipscope-s3-128` reads UNDECIDED (3), and `blipscope-pro-s3-21` UNDECIDED (2), where IN was predicted.
+- **The cause, read from the link's own map:** `OtaUpdater.cpp.o`'s `.xt.prop` (0xea0 B) is under "Discarded input
+  sections". So are 3,445 property-table inputs in all. The image keeps 5,613 entries, and none covers these
+  functions: the entries run from 0x420664c7 to 0x42067bac across `ResetReasonName` at 0x42066624.
+- **The walk refused rather than guess. That is condition 2 working.**
+
+**POS CLOSES under its row's second branch:** "IN SCOPE, or the comparator must name exactly which functions keep it
+out, and why".
+- Every out-of-scope function is named: five FILL with counts; two UNDECIDED with a cause read from the map;
+  `SPIClass::end` UNDECIDED, as ruled.
+- Against the filed exact predictions, POS read OFF twice, and both readings are on the record.
+
+**No further amendment (ruled (B)).**
+- Inferring the final copy's fill length by matching the next instruction was offered as (A). It isn't taken: it would
+  be new inference logic, prompted by the same control a third time, and graded on that control again. That is a
+  positive control the instrument keeps being adjusted toward.
+- If fix-only skips should reach IN later, (A) is the named route, as its own registered piece of work.
+
+**The cost, said plainly.** For a #651-like fix, the fresh-boot skip does NOT fire on either shipping env, so step 4
+runs with the owner. #656's v20 job is map-client's accounting (P-REDO, P-FLIP). There, a named UNDECIDED line with its
+cause is a usable result.
+
+**Two findings for the record, neither assumed:**
+- the firmware link discards most objects' Xtensa property tables (3,445 here), so the image's own `.xt.prop` covers
+  only part of the code;
+- in this build, WiFiManager carries one stamped string, and the second build stamp is the Arduino core's date-only one
+  (section 12).
