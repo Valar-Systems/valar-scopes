@@ -101,7 +101,7 @@ How it runs:
 | weatherscope | Nothing on v20's path (what the weather layer uses from Weatherscope, WxPalette.h, WxBasemap.h's FillRing and WxCrop.h, is on main; the layer uses cref, opuk and mrms, not shsr) | 0 | nothing |
 | weatherscope | **#656, the layout-invariant comparator (commissioned 2026-11-12). ON v20's CRITICAL PATH:** the owner ruled (2026-11-12 03:39Z) that the per-function accounting is redone with #656's comparator before maps are switched on in any customer image, and v20 does exactly that | ~1 working day (#669 open; step 3 running) | its CI; two conditions (a guard control, a licence line) |
 | p4 | #648 (build-only P4 envs): HELD until after v20's cut (the owner, 2026-11-12 16:57Z) | 0 for v20 | |
-| p4 | The big-screen build plan (`docs/big-screens.md`): starts after v20's content freeze, F + 19-21 days | 0 for v20 | F |
+| p4 | The big-screen build plan (`docs/big-screens.md`): starts after v20's content freeze; on staffing 2 it lands F + 22, about December 15-18 | 0 for v20 | F |
 
 ## Risks known so far
 
@@ -135,6 +135,12 @@ drawing overlapped with the panel push." "Its plan comes to me with sizes before
 takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weatherscope) and the frame-time instrument
 (map-client). It was planned for after v20's freeze. The owner moved it to now, because both (a) and (b) need it.
 
+**Accepted (the owner, 2026-11-12 20:34Z):** "I accept the speed plan as written: docs/speed-plan.md and
+docs/m3-push-task.md ... with C1's outcomes fixed as they stand. Staffing 2: p4 carries P1-P3 (the profile, the push
+task, the map profile); weatherscope carries P5 (the weather cut) and P6 (the label cache). Go." The cloud reviewer's
+two additions to the push task are part of what he accepted: a flash-write row (an update install and a settings save
+while the push task runs) and a longer soak before the riskier push design is chosen for good.
+
 ## Brought to the owner early (item 5)
 
 - **Weather's pricing**, free or part of a paid plan: about $0.05-0.08 per board per month once past the free
@@ -148,10 +154,17 @@ takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weathersco
 
 ## Critical path, owners, date
 
-**This date is being reset:** the owner chose (a) on 2026-11-12, and the reviewer sets the new date from p4's plan
-(due 2026-11-13). Until then the table below is the map-and-weather path only.
+**Target: v20 promoted by 2026-12-01** (the reviewer, 2026-11-12, set from p4's plan for (a) as the owner asked;
+planning range November 27 - December 1, on staffing 2 with one extra round for the weather and label work). It is
+reset at C1, about November 16, when the push task's gain is known:
+- 20 ms or more: on track, and the date may pull in to November 25-30;
+- 10-20 ms: partial; the 80 MHz display bus (with the incoming-inspection check) goes to the owner then;
+- under 10 ms: failed; the bus, then two levers that change the look (a cheaper sweep blend, less label and trail
+  work per frame), both the owner's rulings; the date is not sizable until he rules (roughly December 3-10 or later).
+The content freeze F moves to about November 23-26, and the speed work (p4, weatherscope, map-client; about 6
+elapsed days) runs beside the map path below.
 
-**Target (before the frame-rate gate): v20 promoted by 2026-11-30.** The likely range is November 25-30. The 11-07 estimate was November
+**The map-and-weather path's own estimate (before the frame-rate gate): November 25-30.** The 11-07 estimate was November
 21-29, so the late end slips by about a day, and the early end by four. Days are elapsed days from 2026-11-12.
 
 **The critical path is the map's server side, then the client's final bench, then the cut:**
@@ -165,8 +178,8 @@ takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weathersco
 | 5 | The staging reading of 3 + 4 | map-server | 1 | Nov 19-21 |
 | 6 | D4, the map on in production (the owner's announcement and OK) | map-server | 1-2 | Nov 20-23 |
 | 7 | The client's final bench pass and soak on a production map (E), then the pre-ship accounting (6a, #656) | map-client | 1-2 after D4 | Nov 21-25 |
-| F | **Content freeze**: the map, weather on by default, the card fix, the proxy bill | everyone | | **Nov 21-25** |
-| 8 | O11 pre-flight on the real v20 candidate, including the frame-rate gate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) | blipscope-5c | 4-5 after F | **Nov 25-30** |
+| F | **Content freeze**: the map, weather on by default, the card fix, the proxy bill, the speed work to the bar | everyone | | **Nov 23-26** (the map path alone: Nov 21-25) |
+| 8 | O11 pre-flight on the real v20 candidate, including the frame-rate gate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) | blipscope-5c | 4-5 after F | **Nov 27 - Dec 1** (the map path alone: Nov 25-30) |
 
 **Off the critical path but due before F** (each fits inside steps 1-7):
 - map-client: the B + C merges, D (the setting), 6b (the image-level text check);
