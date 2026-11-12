@@ -3741,6 +3741,12 @@ bool AircraftManager::RebuildWeatherLayer()
 bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
 {
     wxShowing = wxpolicy::Show::Nothing;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    mapFrameDrawn = false;   // step C: nothing of the map is on this frame until DrawMapBase copies it
+    mapFrameWx = false;
+#endif
+    // THE MAP DRAW END
     // THE MAP BENCH BEGIN
 #ifdef MAP_BENCH
     if (mapBench.wxOff) return DrawMapBase(canvas, nullptr);   // P1: the weather forced off; the map alone, or the clear
@@ -3868,6 +3874,8 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     }
     if (b == nullptr) return false;
     memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+    mapFrameDrawn = true;          // step C's gate: the background is the map's composite, copied this frame
+    mapFrameWx = wx != nullptr;    // and it carries this frame's weather layer only when one was passed
     return true;
 }
 
@@ -3923,11 +3931,64 @@ void* AircraftManager::MapAlloc(size_t bytes)
 }
 
 void AircraftManager::MapFree(void* p) { heap_caps_free(p); }
+
+// Step C (docs/blipscope-map-client-steps.md, "Step C: the wedge's green added to the map"; S7): the sweep over a
+// frame whose background DrawMapBase copied. A SECOND PATH beside DrawSweepOverWeather's, so it re-establishes the
+// four things that gate establishes before it blends: the background is known (mapFrameDrawn, set only after the
+// copy and cleared at every frame's clear); the codes match the pixels (wxPixels only when the composite was built
+// from this frame's weather layer, mapFrameWx; 0 for the map alone, never a stale crop's); the slice is clean
+// (zeroed when mapcompose allocates it, cleared by the blend); and the sprite's format (the same check). False
+// draws today's opaque wedge.
+bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int radius, float angle)
+{
+    if (!mapDraw.allocated || mapDraw.slice == nullptr || mapDraw.spans == nullptr) return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16)
+        return false;
+    uint16_t* const px = (uint16_t*)sp.getBuffer();
+    if (px == nullptr) return false;
+    int y0 = 0, y1 = -1;
+#ifdef WX_LOOK_AB
+    const uint32_t tRaster = micros();   // the bench's three parts, as the weather's sweep times them
+#endif
+    int16_t* const rowLo = mapDraw.spans;
+    int16_t* const rowHi = rowLo + SCREEN_SIZE;
+    wxsweep::Rasterise(cx, cy, radius, angle, mapDraw.slice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1, rowLo, rowHi);
+#ifdef WX_LOOK_AB
+    const uint32_t tBlend = micros();
+#endif
+    const bool withWx = mapFrameWx && wxBuffersOk && wxPixels != nullptr;
+    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out.
+    const uint32_t blended = mapsweep::Blend(
+        wxs2::Percent(wxLook), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+        [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
+        [&](int x, int y) -> uint8_t { return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });
+#ifdef WX_LOOK_AB
+    const uint32_t tBeam = micros();
+#endif
+    DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+#ifdef WX_LOOK_AB
+    RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
+    for (int y = y0; y <= y1; ++y)
+        if (rowHi[y] >= rowLo[y]) sweepScanBytes += (uint32_t)(rowHi[y] - rowLo[y] + 1);
+    sweepScanPx += blended;
+    sweepScanCalls++;
+#else
+    (void)blended;
+#endif
+    return true;
+}
 #endif
 // THE MAP DRAW END
 
 bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
 {
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    if (mapFrameDrawn) return DrawSweepOverMap(canvas, cx, cy, radius, angle);   // step C: the map's frame (S7)
+#endif
+    // THE MAP DRAW END
     // Only over a layer DrawWeatherUnder pushed this frame; with the layer off, today's opaque wedge draws instead.
     if (wxShowing != wxpolicy::Show::Crop || !wxBuffersOk || wxSweepSlice == nullptr || wxSweepSpans == nullptr)
         return false;

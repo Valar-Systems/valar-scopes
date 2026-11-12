@@ -1,6 +1,6 @@
 """Step B's composer sabotages (docs/blipscope-map-client-steps.md, "MapCompose.h (CB1-CB5, CB9, CB11)", Q-MC14's
 re-freeze and the 01:54:47Z ruling on S-CB-WXBUILD): fourteen plants in a COPY of include/MapCompose.h, each of which
-must turn red exactly its registered set of test_map_draw.cpp's 26 cases, no fewer and no more. Every set was read node
+must turn red exactly its registered set of test_map_draw.cpp's 28 cases, no fewer and no more. Every set was read node
 by node against the rows before any code ran.
 
   S-CB-ORDER       the compose writes the layer over the weather
@@ -42,7 +42,8 @@ COMPOSE = os.path.join("include", "MapCompose.h")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
-CASES = 26   # the suite's count: the one place it lives, read by the run path and the --control table
+CASES = 28   # the suite's count: the one place it lives, read by the run path and the --control table (step C: +2,
+             # CB9 slice and CB9 spans)
 
 COMPOSE_AT = "            out[p] = wxlayer::OffDisc(x, y, kSize) ? 0 : (wx[p] != 0 ? wx[p] : layer[p]);\n"
 NAMES_AT = "    DrawNames(m, pk, k, in.airports, in.ctx);\n"
@@ -93,7 +94,7 @@ WANT = {
     "S-CB-PERFRAME": {"CB4 steady", "CB4 buildfail", "CB5"},
     "S-CB-WXBUILD": {"CB4 buildfail", "CB5"},   # re-frozen 01:54:47Z: a never-composed map leaves the generation unequal
     "S-CB-WXSTALE": {"CB5"},
-    "S-CB-HALF": {"CB9 layer", "CB9 composite", "CB9 index", "CB9 scratch"},
+    "S-CB-HALF": {"CB9 layer", "CB9 composite", "CB9 index", "CB9 scratch", "CB9 slice", "CB9 spans"},
     "S-CB-RETRY": {"CB4 buildfail"},
     "S-CB-AIRTRUNC": {"CB11 airports 129"},
     "S-CB-NOFORGET": {"CB9 forget"},

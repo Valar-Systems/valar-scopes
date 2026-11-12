@@ -48,6 +48,10 @@
 // (platformio.ini, the weather switch), so this refuses that build until step C's header defines
 // BLIPSCOPE_MAP_STEP_C. The wxlook bench image (WX_LOOK_AB) is exempt: its "[wx-bench]" marker is refused in every
 // slug-ful image by scripts/check-no-bench-hooks.sh (P-CB-BENCH). check_map_draw.py's CD4 holds this block exactly.
+// Step C's header is included just above the refusal, so removing it brings the refusal back (CB10's plant).
+#ifdef BLIPSCOPE_MAP_FETCH
+#include "MapSweep.h"   // step C: the wedge's green added to the map (S7); defines BLIPSCOPE_MAP_STEP_C
+#endif
 #if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)
 #error "step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships."
 #endif
@@ -726,6 +730,10 @@ private:
     uint32_t mapPkgSeq = 0;        // changed at every accepted package and at every config change
     uint32_t mapAirportsGen = 0;   // changed at every write of the airport list or its filters (CD6)
     uint32_t mapWxGen = 0;         // changed at every weather-layer rebuild (CB5)
+    // Step C's gate: DrawMapBase copied the composite THIS frame (cleared at every frame's clear, set only after the
+    // copy), and whether that composite carried this frame's weather layer (then, and only then, wxPixels is read).
+    bool mapFrameDrawn = false;
+    bool mapFrameWx = false;
 #endif
     // THE MAP DRAW END
     // THE MAP BENCH BEGIN
@@ -1288,6 +1296,7 @@ private:
     static int MapAirportBoxes(void* ctx, mapplaces::Box* out, int maxAirports);   // DrawAirports' list and cull (CD7)
     static void* MapAlloc(size_t bytes);   // PSRAM, aligned for a double (CD5)
     static void MapFree(void* p);
+    bool DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int radius, float angle);   // step C (S7)
 #endif
     // THE MAP DRAW END
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST

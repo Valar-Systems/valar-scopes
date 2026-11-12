@@ -75,6 +75,8 @@ struct Map {
     uint16_t* composite = nullptr;   // the layer with the weather over it
     uint8_t* idx = nullptr;          // Build's index image
     uint8_t* scratch = nullptr;      // Build's vertices, the obstacles and the place list, in one block
+    uint8_t* slice = nullptr;        // step C: the sweep's slice per pixel (wxsweep::Rasterise), zero between frames
+    int16_t* spans = nullptr;        // step C: each row's first and last marked column, 2 x kSize
     maplayer::Scratch sc;
     Box* obstacles = nullptr;
     mapplaces::List* places = nullptr;
@@ -135,8 +137,16 @@ static_assert(3 * sizeof(double) + 2 * sizeof(int32_t) == 32, "Q-MC14: 32 B per 
 static_assert(kObstacles * sizeof(Box) == 4224, "Q-MC14: 264 boxes, 4,224 B");
 static_assert(sizeof(mapplaces::List) == 13320, "Q-MC14: the place list, 13,320 B");
 
-// The four buffers' price, in their allocation order: the layer, the composite, the index, the scratch.
-inline size_t Price(uint32_t maxVertices) { return 2 * kPixels * sizeof(uint16_t) + kPixels + ScratchBytes(maxVertices); }
+// Step C's two (Q-C3, +58,560 B): the sweep's slice, one byte a pixel, and its spans, two int16 a row.
+constexpr size_t kSweepBytes = kPixels + 2 * (size_t)kSize * sizeof(int16_t);
+static_assert(kSweepBytes == 58560, "Q-C3: the sweep's slice and spans, 58,560 B");
+
+// The six buffers' price, in their allocation order: the layer, the composite, the index, the scratch, the slice,
+// the spans.
+inline size_t Price(uint32_t maxVertices)
+{
+    return 2 * kPixels * sizeof(uint16_t) + kPixels + ScratchBytes(maxVertices) + kSweepBytes;
+}
 
 // Every buffer freed and the attempt forgotten. The refusal is left as it is.
 inline void Release(Map& m)
@@ -146,11 +156,15 @@ inline void Release(Map& m)
         if (m.composite) m.freeFn(m.composite);
         if (m.idx) m.freeFn(m.idx);
         if (m.scratch) m.freeFn(m.scratch);
+        if (m.slice) m.freeFn(m.slice);
+        if (m.spans) m.freeFn(m.spans);
     }
     m.layer = nullptr;
     m.composite = nullptr;
     m.idx = nullptr;
     m.scratch = nullptr;
+    m.slice = nullptr;
+    m.spans = nullptr;
     m.sc = maplayer::Scratch();
     m.obstacles = nullptr;
     m.places = nullptr;
@@ -176,12 +190,14 @@ inline void AllocFixed(Map& m)
     if (!m.idx) m.idx = (uint8_t*)m.alloc(kPixels);
 }
 
-// All four or none: every one is attempted before any is checked.
+// All six or none: every one is attempted before any is checked.
 inline bool Allocate(Map& m, uint32_t maxVertices)
 {
     AllocFixed(m);
     if (!m.scratch) m.scratch = (uint8_t*)m.alloc(ScratchBytes(maxVertices));
-    if (!m.layer || !m.composite || !m.idx || !m.scratch) {
+    if (!m.slice) m.slice = (uint8_t*)m.alloc(kPixels);
+    if (!m.spans) m.spans = (int16_t*)m.alloc(2 * (size_t)kSize * sizeof(int16_t));
+    if (!m.layer || !m.composite || !m.idx || !m.scratch || !m.slice || !m.spans) {
         Fail(m);   // CB9: one failure frees every buffer and refuses the map
         return false;
     }
@@ -197,6 +213,8 @@ inline bool Allocate(Map& m, uint32_t maxVertices)
     m.sc.idx = m.idx;
     m.obstacles = (Box*)(q + 2 * cap);
     m.places = new (m.obstacles + kObstacles) mapplaces::List();
+    memset(m.slice, 0, kPixels);   // step C: no pixel is in the wedge until Rasterise marks it (the second path's
+                                   // "the slice is clean", as AllocateWeatherBuffers does for the weather's)
     m.placesLoaded = false;
     m.allocated = true;
     return true;

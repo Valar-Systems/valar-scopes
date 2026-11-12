@@ -1,11 +1,12 @@
 """Step B's source checks (docs/blipscope-map-client-steps.md, step B; registered 2026-11-11, "the refusal's commit").
 
-CD4, CB8 and CB8b; the wiring's CD1-CD3 and CD5-CD7 (registered 2026-11-12, "The wiring: registered before its code").
+CD4, CB8 and CB8b; the wiring's CD1-CD3 and CD5-CD7 (registered 2026-11-12, "The wiring: registered before its code");
+step C's CD8 (registered 2026-11-12, "Step C: the wedge's green added to the map").
 
   CD4  CB10's refusal runs, not only its rule. If src/AircraftManager.h or .cpp holds any region between a line
        `// THE MAP DRAW BEGIN` and a line `// THE MAP DRAW END`, the comment-stripped header holds CB10's `#if` line and
        its `#error` line, exactly (whitespace normalised). And BLIPSCOPE_MAP_STEP_C, step C's macro, is defined nowhere
-       but in ALLOWED_STEP_C_DEFINERS (empty until step C names its header).
+       but in ALLOWED_STEP_C_DEFINERS: step C's header, include/MapSweep.h.
        THE DEFINER SCAN IS LINE-BASED, never through the C++ stripper (L1's first run: include/OtaCerts.h's raw string
        crashed it): a directive line `#define BLIPSCOPE_MAP_STEP_C` in include/ and src/, and `-DBLIPSCOPE_MAP_STEP_C`
        in platformio.ini and tools/ after ';' and '#' comments are removed. Its known direction: a matching line inside a
@@ -19,9 +20,10 @@ CD4, CB8 and CB8b; the wiring's CD1-CD3 and CD5-CD7 (registered 2026-11-12, "The
        (between its PINNED VALUES markers) must equal what those expressions give, derived here from the drawers' own
        text: SCREEN_SIZE from include/variants/s3_128.h, RING_LABEL_OUTER_INSET from AircraftManager.cpp, and the
        carousel's dot count from the Screen enum and InCarousel. A changed formula and a changed constant both fail.
-  CD1  F8 for the map's files: MapCompose.h, MapPlaces.h, AirportBoxes.h and every draw region hold no Preferences, no
+  CD1  F8 for the map's files: MapCompose.h, MapPlaces.h, AirportBoxes.h, MapSweep.h and every draw region hold no
+       Preferences, no
        .put*( call, no SPIFFS and no LittleFS.
-  CD2  Privacy: the three headers print nothing (no Serial, printf( other than snprintf(, puts(, ESP_LOG or log_); in the
+  CD2  Privacy: the map's headers print nothing (no Serial, printf( other than snprintf(, puts(, ESP_LOG or log_); in the
        draw regions no print's arguments, string literals removed, name a place, an anchor or a coordinate (the tokens
        in PRIVATE). A town's name near the device says where the device is.
   CD3  DrawMapBase fills the six View fields with the right-hand sides RebuildWeatherLayer gives the weather layer's.
@@ -37,6 +39,12 @@ CD4, CB8 and CB8b; the wiring's CD1-CD3 and CD5-CD7 (registered 2026-11-12, "The
        sits inside a `// THE MAP BENCH BEGIN` / `END` region, the regions are pinned (BENCH_COUNTS), and each holds
        `#ifdef MAP_BENCH`. Line-based, like CD4's definer scan: a comment naming the macro outside a region is flagged.
   CB-B2 The bench regions hold none of CD1's NVS list, and no print in them names a token in PRIVATE (CD2's rule).
+  CD8  Step C's gate, the second path's guards: (a) mapsweep::Blend( is called in src/ only inside
+       AircraftManager::DrawSweepOverMap (line-based); (b) DrawSweepOverWeather's first statement, in a draw region, is
+       the gate `if (mapFrameDrawn) return DrawSweepOverMap(...)`; (c) DrawMapBase sets mapFrameDrawn and mapFrameWx
+       right after the composite's memcpy and nowhere else in the .cpp is mapFrameDrawn set true; (d) DrawWeatherUnder
+       clears both before its first return; (e) DrawSweepOverMap reads wxPixels once, as the code source behind
+       withWx = mapFrameWx && ...: never a stale crop's codes under the map alone.
   Function bodies are cut out before the comment stripper reads them: only the map's own text ever goes through it.
 
 The region counts are pinned. A count off in either direction, or an unbalanced marker, is the rig (exit 2): a region the
@@ -53,8 +61,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_map_fetch import strip   # one comment stripper for the map's source checks, never a second copy
 
-REGION_COUNTS = {"src/AircraftManager.h": 4, "src/AircraftManager.cpp": 12}
-MAP_FILES = ["include/MapCompose.h", "include/MapPlaces.h", "include/AirportBoxes.h"]
+REGION_COUNTS = {"src/AircraftManager.h": 4, "src/AircraftManager.cpp": 14}
+MAP_FILES = ["include/MapCompose.h", "include/MapPlaces.h", "include/AirportBoxes.h", "include/MapSweep.h"]
 NVS = [(re.compile(r"\bPreferences\b"), "Preferences"), (re.compile(r"\.put[A-Z]\w*\s*\("), "a .put*( call"),
        (re.compile(r"\bSPIFFS\b"), "SPIFFS"), (re.compile(r"\bLittleFS\b"), "LittleFS")]
 HEADER_PRINTS = [re.compile(r"\bSerial\b"), re.compile(r"(?<![sn])printf\s*\("), re.compile(r"\bputs\s*\("),
@@ -75,7 +83,7 @@ BEGIN, END = "// THE MAP DRAW BEGIN", "// THE MAP DRAW END"
 REFUSAL_IF = "#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)"
 REFUSAL_ERROR = ('#error "step B draws the map without step C: the sweep erases it. '
                  'Land step C before WX_LAYER_SHIPS ships."')
-ALLOWED_STEP_C_DEFINERS = set()   # step C adds its header here, in the commit that defines the macro
+ALLOWED_STEP_C_DEFINERS = {"include/MapSweep.h"}   # step C's header, in the commit that defines the macro
 STEP_C = "BLIPSCOPE_MAP_STEP_C"
 CPP_DEFINE = re.compile(r"^\s*#\s*define\s+" + STEP_C + r"\b", re.M)
 FLAG_DEFINE = re.compile(r"-D\s*" + STEP_C + r"\b")
@@ -438,12 +446,65 @@ def cbb2(root):
     return why
 
 
+GATE = "if (mapFrameDrawn) return DrawSweepOverMap(canvas, cx, cy, radius, angle);"
+SET_AFTER_COPY = ("memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2); mapFrameDrawn = true; "
+                  "mapFrameWx = wx != nullptr; return true; }")
+CLEARS = "mapFrameDrawn = false; mapFrameWx = false;"
+WITH_WX = "const bool withWx = mapFrameWx && wxBuffersOk && wxPixels != nullptr;"
+CODE_SRC = "return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0;"
+
+
+def code_lines(text, pattern):
+    """The 1-based numbers of the lines matching `pattern`, a // comment line excepted. Line-based (the .cpp never goes
+    through the stripper)."""
+    rx = re.compile(pattern)
+    return [i + 1 for i, ln in enumerate(text.split("\n")) if rx.search(ln) and not ln.lstrip().startswith("//")]
+
+
+def cd8(root):
+    why = []
+    rel = "src/AircraftManager.cpp"
+    amcpp = read(root, rel)
+    over_map = body_of(amcpp, "bool AircraftManager::DrawSweepOverMap(", rel)
+    start = amcpp[:amcpp.find(over_map)].count("\n") + 1
+    end = start + over_map.count("\n")
+    blends = code_lines(amcpp, r"mapsweep::Blend\s*\(")
+    if not blends:
+        why.append("(a) mapsweep::Blend( is called nowhere")
+    stray = [n for n in blends if not start <= n <= end]
+    if stray:
+        why.append(f"(a) mapsweep::Blend( is called outside DrawSweepOverMap, at line(s) {stray}")
+    for other in files_under(root, "src", (".h", ".hpp", ".cpp", ".c")):
+        if other != rel and code_lines(read(root, other), r"mapsweep::Blend\s*\("):
+            why.append(f"(a) mapsweep::Blend( is called in {other}")
+    weather = flat(body_of(amcpp, "bool AircraftManager::DrawSweepOverWeather(", rel))
+    first = weather.split("{", 1)[1].strip()
+    if not first.startswith("#ifdef BLIPSCOPE_MAP_FETCH " + GATE):
+        why.append("(b) DrawSweepOverWeather does not begin with step C's gate")
+    if not any(GATE in flat(code) for _, code in draw_regions(root)):
+        why.append("(b) step C's gate is not inside a draw region")
+    base = flat(body_of(amcpp, "bool AircraftManager::DrawMapBase(", rel))
+    if SET_AFTER_COPY not in base:
+        why.append("(c) DrawMapBase does not set the two flags right after the composite's memcpy")
+    sets = code_lines(amcpp, r"mapFrameDrawn\s*=\s*true")
+    if len(sets) != 1:
+        why.append(f"(c) mapFrameDrawn is set true at {len(sets)} line(s), not 1")
+    under = flat(body_of(amcpp, "bool AircraftManager::DrawWeatherUnder(", rel))
+    k, r = under.find(CLEARS), under.find("return ")
+    if k < 0 or (0 <= r < k):
+        why.append("(d) DrawWeatherUnder does not clear both flags before its first return")
+    om = flat(over_map)
+    if WITH_WX not in om or CODE_SRC not in om or om.count("wxPixels[") != 1:
+        why.append("(e) DrawSweepOverMap does not read wxPixels once, behind withWx = mapFrameWx && ...")
+    return why
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
         rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None), ("CD1",) + cd1(root),
                 ("CD2", cd2(root), None), ("CD3", cd3(root), None), ("CD5", cd5(root), None), ("CD6",) + cd6(root),
-                ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None)]
+                ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None), ("CD8", cd8(root), None)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -460,7 +521,7 @@ def main():
         elif name == "CB8b":
             print(f"  ok   {name}: the drawers hold their expressions, and MapPlaces.h's pinned values equal them")
         elif name == "CD1":
-            print(f"  ok   {name}: the map's 3 files and {regions_seen} draw region(s) hold no Preferences, .put*(, "
+            print(f"  ok   {name}: the map's {len(MAP_FILES)} files and {regions_seen} draw region(s) hold no Preferences, .put*(, "
                   "SPIFFS or LittleFS")
         elif name == "CD2":
             print(f"  ok   {name}: the map's files print nothing, and no draw region prints a place, an anchor or a "
@@ -476,8 +537,11 @@ def main():
         elif name == "CB-B1":
             print(f"  ok   {name}: {regions_seen[0]} MAP_BENCH line(s), all inside the {regions_seen[1]} bench region(s), "
                   "each under #ifdef MAP_BENCH")
-        else:
+        elif name == "CB-B2":
             print(f"  ok   {name}: the bench regions hold no NVS and print no place, anchor or coordinate")
+        else:
+            print(f"  ok   {name}: step C's gate: the blend only in DrawSweepOverMap, behind DrawMapBase's "
+                  "flags, set after the copy and cleared at every frame; wxPixels only behind mapFrameWx")
     print(f"{len(rows)} checks, {fails} failures")
     return 0 if fails == 0 else 1
 

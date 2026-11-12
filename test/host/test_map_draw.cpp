@@ -429,8 +429,9 @@ int main(int argc, char** argv)
     }
 
     // ------------------------------------------------------------------------------------------------------ CB9
-    const char* const kBuffers[4] = {"layer", "composite", "index", "scratch"};
-    for (int k = 0; k < 4; ++k) {
+    // Step C (Q-C3) adds the sweep's slice and spans, allocated after the scratch: six buffers, all or none.
+    const char* const kBuffers[6] = {"layer", "composite", "index", "scratch", "slice", "spans"};
+    for (int k = 0; k < 6; ++k) {
         mapcompose::Map m;
         const size_t live0 = Start(m, k);
         g_builds = 0;

@@ -16,6 +16,12 @@ The wiring's (registered 2026-11-12, "The wiring: registered before its code"):
 The map bench's (registered 2026-11-12, "The mapbench env"):
   S-CB-BENCHLEAK  a `#ifdef MAP_BENCH` block planted outside every bench region in AircraftManager.cpp: {CB-B1}
   S-CB-BENCHPRINT a print of `lat` planted in RecordFrameUs's bench region (not inside a draw region): {CB-B2}
+Step C's (registered 2026-11-12, "Step C: the wedge's green added to the map"), one per CD8 guard:
+  S-CD8-BLENDOUT  the weather's wxsweep::Blend( call in DrawSweepOverWeather becomes mapsweep::Blend(: {CD8} (a)
+  S-CD8-NOGATE    step C's gate deleted from DrawSweepOverWeather: {CD8} (b)
+  S-CD8-EARLY     mapFrameDrawn set true in DrawMapBase's draw region before the copy, a second set: {CD8} (c)
+  S-CD8-NOCLEAR   DrawWeatherUnder's clear of mapFrameDrawn deleted: {CD8} (d)
+  S-CD8-STALE     the code source reads wxPixels without withWx (a stale crop's codes under the map): {CD8} (e)
   Each is graded AS PREDICTED only when the red set PARSED from the check's output equals its frozen set, so a FAIL
   regex that could not read a "CB-B" row would turn these plants off-prediction, never silently green.
 
@@ -54,7 +60,7 @@ REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'
 
 PLACES = os.path.join("include", "MapPlaces.h")
-SOURCE_CHECKS = 11   # CD4, CB8, CB8b, CD1-CD3, CD5-CD7, CB-B1, CB-B2: the one place the count lives (run, --control)
+SOURCE_CHECKS = 12   # CD4, CB8, CB8b, CD1-CD3, CD5-CD7, CB-B1, CB-B2, CD8: the one place the count lives (run, --control)
 MAPBASE_AT = "    k.airportsGen = mapAirportsGen;\n"   # a line in DrawMapBase's draw region
 BENCH_TICK_AT = "    MapBenchTick();   // after every [health] line of this interval: the next phase starts on a clean tick\n"
 
@@ -86,6 +92,16 @@ SABOTAGES = {
                                 '// THE MAP BENCH END\n#ifdef MAP_BENCH\n#endif\n#include "PollCadence.h"')], {"CB-B1"}),
     "S-CB-BENCHPRINT": (AMCPP, [(BENCH_TICK_AT, BENCH_TICK_AT + '    Serial.printf("[map-bench] %f\\n", lat);\n')],
                         {"CB-B2"}),
+    # Step C's five (CD8 (a)-(e)), one guard each.
+    "S-CD8-BLENDOUT": (AMCPP, [("    const uint32_t blended = wxsweep::Blend(\n",
+                               "    const uint32_t blended = mapsweep::Blend(\n")], {"CD8"}),
+    "S-CD8-NOGATE": (AMCPP, [("    if (mapFrameDrawn) return DrawSweepOverMap(canvas, cx, cy, radius, angle);   "
+                             "// step C: the map's frame (S7)\n", "")], {"CD8"}),
+    "S-CD8-EARLY": (AMCPP, [(MAPBASE_AT, MAPBASE_AT + "    mapFrameDrawn = true;\n")], {"CD8"}),
+    "S-CD8-NOCLEAR": (AMCPP, [("    mapFrameDrawn = false;   // step C: nothing of the map is on this frame until "
+                              "DrawMapBase copies it\n", "")], {"CD8"}),
+    "S-CD8-STALE": (AMCPP, [("{ return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });",
+                            "{ return wxPixels[(size_t)y * SCREEN_SIZE + x]; });")], {"CD8"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is
