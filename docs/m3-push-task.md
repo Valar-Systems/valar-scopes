@@ -121,7 +121,7 @@ row is graded before the next is read.
 
 | row | what | predicted |
 |---|---|---|
-| **M3-0** | every non-1.28" image, including `blipscope-s3-128-framebench` | PLACED (five regions) |
+| **M3-0** | every image the macro does not reach (**corrected, the orchestrator's ruling (c), 23:50Z:** `blipscope-s3-128-framebench` extends `blipscope-s3-128`, so it is REACHED once its branch carries M3's base, and it is not in this set) | PLACED (five regions) |
 | **M3-1** | the picture: the 240 golden (web build, which never takes the macro) and /diag/fb on the bench | **pixel-identical** to the base, frame for frame at the bench's fixed scenes |
 | **M3-1b** | **the frame-trust property** (the orchestrator, 2026-11-12). map-client's frame-trust test reads the screen-indicator dots (`DrawScreenIndicator`, y = SCREEN_SIZE − 16 = 224) as proof that a /diag/fb grab is a finished frame, because the frame-start clear leaves none. **After M3, a planted mid-draw grab must still read UNTRUSTWORTHY.** In the m3bench envs, `/diag/fb-middraw` serves one grab of the DRAW buffer taken right after the clear and before the radar's `Draw`, labelled exactly like a finished frame (`Finished: true`, plus `X-Blipscope-Bench: m3-middraw-plant`). The glass test frame stops 24 rows short, so the dots stay visible in the same image | the plant reads **UNTRUSTWORTHY** under map-client's test, and a real /diag/fb grab from the same image (the control) reads **finished**. Either outcome otherwise: stop |
 | **M3-2** | the design hour on glass (section 4), against the base | **no stale band; tearing no worse than the base; no new shear**, for (i), or (ii) if (i) shows a stale band. The test frame stops 24 rows short of the bottom, so the indicator dots stay visible for M3-1b |
@@ -132,6 +132,23 @@ row is graded before the next is read.
 | **M3-7** | the standing rule: `p2p` p95 at 20 and 60 aircraft too | **no slower** than the base at either, beyond the bench's margin |
 | **M3-8** | **flash writes beside the push** (the cloud reviewer's row, accepted by the owner): an OTA download and install, and a config-page save, each with the push task running, on whichever design the first hour picks | **no crash or watchdog reset** (the boot reason and boot count unchanged until the install's own restart); **no stuck frame** (no `p2p` above 2 s outside the install's own reboot); **no torn frame** on glass (the owner's eyes and the slow-motion video, as in section 4); **the install completes and boots** the new image (its `[build]` banner and version on serial or in its check-in) |
 | **M3-9** | **(i)'s longer soak, before (i) is chosen for good** (the cloud reviewer's row, accepted). (i) is the path LovyanGFX turns off on purpose, and a clean 60 s look is thin evidence for a rare coherency fault | (i) runs **through C1's bench window and one overnight run on E2:08**, with periodic photos and the coherency self-check below; **zero stale stripes and zero self-check mismatches** keeps (i). **One of either sends it to (ii).** When in doubt, (ii): it costs 2-5 ms a frame |
+
+**M3-0, READ 2026-11-12 23:42Z (local, one worktree path, `SOURCE_DATE_EPOCH=1762862445`, base `4b00c97b3dbd`, change
+`3bc7ec26fe28`, draft #687): PASS on the 13 envs it built.**
+- **The instrument held.** Every compile-time stamp in all 14 PLACED images reads the epoch's. Only the framework's
+  prebuilt stamps differ from it, and they are identical on both sides.
+- **The 7 PLACED envs: 7 of 7 PASS.** Sizes are equal, and the only differing bytes are `app_elf_sha256` and the
+  trailing checksum and SHA-256 (64-65 bytes per env, other 0). The envs: blipscope-pro-s3-21, missileer-s3-128,
+  missileer-photo, weatherscope-s3-128, weatherscope-bench-s3-128, blipscope-pro-s3-175-amoled, animtest-s3-128.
+- **The 6 REACHED envs compile (exit 0):** blipscope-s3-128, -wxlook, -joindiag, -m3bench, -m3bench-base,
+  -m3bench-plant.
+- **The marker check, on the m3bench image (sha `2ca8f914a729`):** `--expect "[m3-bench]"` exits 0, a plain scan exits 1,
+  and a PLACED control image (pro-s3-21) exits 0. All three as predicted.
+- **The framebench clause is NOT EXERCISED, and it is not passed.** The env exists only on map-client's
+  `bench/frame-bench-v19` (`a37e99b09fb4`). That branch is v19-based, so M3 cannot reach it and nothing was built for it.
+  By ruling (c), it stays M3-free while it is the v19 baseline. It takes M3 only with main, and only after map-client has
+  registered where `p2p` is stamped under M3, with a control that a planted push delay shows in `p2p`. M3-0 is not
+  re-graded.
 
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
