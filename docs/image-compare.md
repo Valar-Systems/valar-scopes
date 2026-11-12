@@ -294,6 +294,20 @@ in the code commit that follows this amendment: `scripts/image-compare.py`, `tes
     it reads every printable string in them under the same patterns: 88 objects and 12 archives, 0 findings.
   - `check_wifi.py --selftest`, `check_wifi_sabotage.py --code-only`, `check_binary_strings.py --selftest` and
     `--sabotage`, `check_macs.py`, `check_device_ids.py` and `check_no_traffic_captures.py` all pass.
+  - **`check_device_ids.py` skipped every binary**, and `check_binary_strings.py` doesn't read the device-id shape. So
+    once `check_wifi.py` excused objects and archives, an id compiled into one would have reached no guard. It now
+    reads their printable strings under the same pattern and allowlist.
+  - **The control: a reading that relaxes a guard needs one (the reviewer, 17:27:43Z).** A copy of a fixture object
+    and of the fixture archive each had a private-LAN-address string and a device-id-shaped string appended. Both
+    strings were assembled at run time and written into no committed file. The run was in scratch, never pushed:
+
+    | guard | predicted (17:29:40Z) | read |
+    |---|---|---|
+    | `check_wifi.py`, `check_macs.py` | exit 0: excused binaries, nothing MAC-shaped | exit 0, exit 0 |
+    | `check_binary_strings.py` | exit 1: a LAN finding in exactly the two plants | exit 1: `lan` in exactly the two plants |
+    | `check_device_ids.py` | exit 1: the id in exactly the two plants | **first read exit 0, and it was no reading.** The repository's pre-commit hook refused the scratch commit over the id, so the plants never reached the HEAD this guard scans. Re-read in a fresh repository holding only the guard, its two lists and the plants (no hook bypassed): exit 1, the id in exactly the two plants. **main's guard on the same commit: exit 0**, which is the gap this closes |
+
+    On the real fixtures every guard reads clean.
 
 ## 10. Amendment 2: map-client's P-REDO, before it runs (2026-11-12, 17:13Z)
 
