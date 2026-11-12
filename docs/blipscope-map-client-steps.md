@@ -4539,6 +4539,23 @@ are not in the tree, and I have not found them on disk. The nearest are the wx r
 its opaque wedge must be located. A frame there that the old rule trusts and the locator refuses is outside the
 predicted set (see below).
 
+**The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
+- in B mode and C mode on every log plant and on B's and C's real logs;
+- in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
+
+It is shown able to fail once, with one planted difference.
+
+**THE OUTCOMES, pre-registered:**
+- **(P1)** every control as predicted: the rule is accepted. CBF3-B and CBF3-C are then graded against their frozen
+  rows, unchanged, and nothing else is.
+- **(P2)** a located bench frame with a ring under 80 % outside the mask: the shortfall is not the wedge. STOP; report
+  counts per ring (no pixel values beyond counts); no grading.
+- **(P3)** under 10 trustworthy frames of a label for a reason that is not the rings (the locator): BLIND stands for
+  that capture, and the reasons are printed with counts.
+- **(P4)** a plant not red for its own reason, or (i-3c) or (i-4) not trustworthy: the rule or its code is wrong.
+  STOP; nothing is graded.
+- **Anything else:** stop and report. A second off reading on this row goes to the owner.
+
 **Q-R1, ruled (the orchestrator, ~21:36Z): RP6, READ-ONLY.** This is a disclosed substitution: WD5e/WD5f's own
 captures were not found, so (i-4) runs on RP6 instead.
 - Each file's sha256 is recorded before use, in my own scratch. Nothing is written, moved or copied into that
@@ -4810,22 +4827,89 @@ to be written down as READ:
   green-on-map defect outside the wedge that must read red, before CBF3-C is graded again. The two "added" fails come
   after it.
 
-**The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
-- in B mode and C mode on every log plant and on B's and C's real logs;
-- in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
+## Step D: the "Terrain shading" setting, registered before any code (2026-11-12)
 
-It is shown able to fail once, with one planted difference.
+**The owner's ruling, as relayed:** a new setting, "Terrain shading", with four values. Unset or unknown reads as
+Strong. The owner looks at Strong and Extra strong on E2:08 in a window of his own.
 
-**THE OUTCOMES, pre-registered:**
-- **(P1)** every control as predicted: the rule is accepted. CBF3-B and CBF3-C are then graded against their frozen
-  rows, unchanged, and nothing else is.
-- **(P2)** a located bench frame with a ring under 80 % outside the mask: the shortfall is not the wedge. STOP; report
-  counts per ring (no pixel values beyond counts); no grading.
-- **(P3)** under 10 trustworthy frames of a label for a reason that is not the rings (the locator): BLIND stands for
-  that capture, and the reasons are printed with counts.
-- **(P4)** a plant not red for its own reason, or (i-3c) or (i-4) not trustworthy: the rule or its code is wrong.
-  STOP; nothing is graded.
-- **Anything else:** stop and report. A second off reading on this row goes to the owner.
+| value | S2: land + (shade − mid) × gain, per channel |
+|---|---|
+| Off | no terrain: land is the theme's land colour |
+| Subtle | gain 0.075, mid 128: **today's map** |
+| **Strong, the default** | gain 0.45, mid **180** |
+| Extra strong | gain 0.45, mid 128 |
+
+**D1, the key and its values.**
+- **The key:** `map-terrain` (11 characters, inside NVS's 15). The values are exactly `off`, `subtle`, `strong` and
+  `xstrong`.
+- **The resolver:** one pure C++11 function, `mapterrain::Resolve(const char*)` → {drawn, gain, mid}. Exact lowercase
+  match only. **Anything else** (unset, empty, `STRONG`, `subtle ` with a space, `loud`) **reads as Strong.**
+- **Where it is read:** `MapCompose`'s build takes the resolved values in place of the Dark row's fixed 0.075. The
+  theme table keeps its row, and only the S2 inputs are overridden.
+- **The host test:**
+  - each known value maps to its own row, and no two collapse;
+  - each planted bad value reads Strong;
+  - its plant (the unknown branch returning Subtle) must read red.
+
+**D2, the migration of "terrain subdued", read from the source.**
+- "Terrain subdued" is the owner's ruling of 11-06, recorded in `docs/blipscope-basemap-client.md` (S2, gain 0.075).
+  In code it is a **build constant**, the Dark row of `MapLayer.h`'s theme table, at v19's tag (`include/MapLayer.h:57`)
+  and on main.
+- **No saved key holds it.** `git grep` finds no terrain or `map-` key in `ConfigurationWebServer.cpp` at v19 or on
+  main, and v19 ships with the map switch off (`WxLayerSwitch.h`: `kShips` false).
+- So there is nothing to migrate. Every board reaches v20 with `map-terrain` unset and reads Strong, the default the
+  owner chose.
+- **For later, from CLAUDE.md's rule that a default only reaches keys that were never saved:** once a customer saves
+  the form, their choice is frozen. Any later change of this default needs a `ConfigMigration` entry, and this
+  registration names that now.
+
+**D3, pixels: Subtle equals today's map, pixel for pixel.**
+- `Channel(land, v, gain)` gains a midpoint, `floor(land + (v − mid) × gain + 0.5)`. Subtle passes (0.075, 128), the
+  same integer subtraction then the same double multiply, so the arithmetic is unchanged.
+- **The host test:** today's `MapLayer.h` (from main, kept as the test's reference copy) and the new one at Subtle
+  build the pinned Bend package over the host sweep the CBF3-C thresholds used (10, 50 and 150 mi; rotations 0 and 90).
+  **Predicted: byte-equal images**, and an equal count of images compared, printed.
+- **The other values:**
+  - **Off** is predicted byte-equal to today's build with `kLayerTerrain` cleared;
+  - **Strong and Extra strong** are reported (distinct colours, the share of land pixels at 0), never graded. The look
+    is the owner's.
+- **Plants:** Subtle at gain 0.0751 must differ (red); Off with the terrain layer left on must differ (red).
+
+**D4, frame time unchanged, and one counted rebuild per change** (the standing frame-time rule).
+- **Per frame:** the composed map is copied and blended whatever its pixel values, so the per-frame cost is predicted
+  unchanged across all four values.
+- **A change:** the map's build key gains the resolved terrain values, so changing the setting triggers exactly ONE
+  rebuild.
+- **The bench row,** on the frame bench (map and weather on, Bend, 25 mi, 40 aircraft):
+  - the setting is cycled in RAM by the bench's own override (`GetStoredString`, no NVS), Subtle → Off → Strong →
+    Extra strong → Subtle, each held 100 s settle + 120 s measured;
+  - **Predicted:** |Δ p95(`p2p`)| against Subtle ≤ the margin, for each value;
+  - exactly **1** frame with the rebuild flag per change, and **0** inside any measured span;
+  - each rebuild's time reported. Strong and Extra strong are predicted within ±10 % of Subtle's, the same sampling
+    work; Off at or below it.
+- **The margin (Q-T3):** max(1.0 ms, the repeat noise tonight's baseline measures). It is frozen once the baseline is
+  graded, before any D code runs.
+
+**D5, the web build does not follow.**
+- The map is never compiled into the web renderer: `BLIPSCOPE_MAP_FETCH` requires `!defined(BLIPSCOPE_WEB_RENDERER)`
+  (`AircraftManager.h:33-39`). So the setting has nothing to act on there.
+- The config page's control sits inside the same `BLIPSCOPE_MAP_FETCH` gate.
+- **A check that runs:** `check_map_draw.py` gains a row that `map-terrain` and the control's label appear only
+  inside `BLIPSCOPE_MAP_FETCH` regions. Its plant, the string moved outside, must read red.
+
+**The owner's look:** in his own window on E2:08, an image with the setting is flipped between Strong and Extra strong
+on its config page. Nothing in this registration schedules or presumes that window.
+
+**The outcomes:** every prediction above as stated, or stop and report. A second off reading on a row goes to the owner.
+This is a customer-facing change (a new config control and a new default look), so it ships only through the owner's
+gates.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-T1 | the key and value strings | `map-terrain`: `off` / `subtle` / `strong` / `xstrong` |
+| Q-T2 | Off: layer off, or gain 0 | the terrain layer not drawn (`kLayerTerrain` cleared). The pixels match gain 0, with no sampling at rebuild |
+| Q-T3 | D4's margin | max(1.0 ms, the baseline's measured repeat noise) |
+| Q-T4 | the control's labels on the config page | the owner's own words: "Off", "Subtle", "Strong", "Extra strong", in that order |
 
 ## Carried to later steps by the ruling
 
