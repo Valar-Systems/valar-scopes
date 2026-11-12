@@ -1779,3 +1779,30 @@ in the host tests with these pins left at 92.
 | `lint_driver_counts.py`, over every driver, and its `--control` | exit 0, as on main |
 
 **This is the driver's one re-run (ruled).** A second off reading on it goes to the reviewer, and on to the owner.
+
+### S4.23, 2026-11-12: run.sh read more blocks than S4.21 predicted; the control's outcomes, frozen before it lands
+
+**S4.21 predicted** that `run.sh` under WSL hits only its known blocks: exit 2 from the xtensa and Pillow steps, and
+`sabotage_wx_towns` SKIPs.
+
+**On the branch (`383aa9bcd876`, a fresh worktree with no `.pio`) it read exit 2 with more:**
+- the usage report and GameConfig are BLIND, "no ArduinoJson under .pio/libdeps";
+- R0/R0b have no Pillow;
+- seven-segment "1 vs I", and "the same TU, for the board";
+- the Wi-Fi QR test is BLIND;
+- the "sabotage controls" and "sabotage drivers, in full" blocks fail on ONE driver, `sabotage_wx_fb_check.py`: `wx-fb-check.py` reads "12
+  ok, 0 FAIL, exit 4" against its table's "ok 35".
+
+Every other driver read as predicted, these two included. **My miss:** I predicted `run.sh`'s blocks from memory of an older environment,
+not a fresh worktree's.
+
+**The control:** the same full `run.sh`, the same WSL, on main's own tree (`e3c2508eb8db`, clean). **Outcomes, frozen before it lands
+(ruled 05:49Z):**
+
+| outcome | reading | then |
+|---|---|---|
+| **E** | main fails EXACTLY the same blocks with the same lines | they are the environment. Recorded, and the PR goes up with CI's Linux host tests (which install the deps) as the authoritative run, predicted 34 = 30/4/0 as S4.21 |
+| **D** | any block or line differs between main and the branch | the change: stop and report |
+| **X** | anything else (main fails fewer, a different exit) | stop |
+
+Also to be read, not inferred: why `wx-fb-check.py` reads 12 where its table says 35.
