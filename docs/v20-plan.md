@@ -34,13 +34,19 @@ blocked / slip from here on; this file is updated when the date moves.
 **The bar, frozen by the owner (2026-11-12 19:55Z), before the baseline was measured:** "I watched 10, 20, 24, 30
 and 60 fps side by side. 20 fps is my minimum (p95 at or under 50 ms). 24 is the target. Nothing above 24 is
 chased." "The bar is read with 40 aircraft on screen, map and weather on. 20 and 80 are reported beside it." The
-firmware tracks at most 60 aircraft (`MAX_AIRCRAFT`), so 80 cannot be shown, and the high point is reported at 60
-unless the owner rules otherwise.
+firmware tracks at most 60 aircraft (`MAX_AIRCRAFT`), so 80 cannot be shown. The owner (20:10Z): "Keep 60 as the
+high point. Don't raise the tracking limit; that would cost frame time."
 
 **v20 as planned misses the bar.** Early readings put v19 alone at 74.5 ms p95 with 41 aircraft, and weather adds
 about 13 ms. The owner chooses now, not at the pre-flight: "By tomorrow, p4 sizes two things: (a) reaching 20 fps at
 40 aircraft with map and weather on; (b) v20 no slower than v19 at the same traffic. Then I choose: hold v20 for (a),
 or ship (b) on time and make 20 fps v21's bar. The speed plan starts now, since both need it."
+
+**The owner chose (a) (2026-11-12 20:10Z): "v20 doesn't ship until it meets the bar."** p4's plan with sizes goes to
+him on 2026-11-13. From it, the reviewer sets v20's new date and what it does to the big-screen dates. The map and
+weather work carries on in parallel. The baseline comes first, because the sizing needs it; map-client finishes the
+map grading right after it, and any part of that grading that needs neither the bench board nor frame numbers goes
+ahead now.
 
 How it runs:
 1. **The baseline** (map-client, which holds the frame-time instrument; one window on E2:08). It is registered before
@@ -50,9 +56,8 @@ How it runs:
    definition (every frame, nearest-rank p50/p95/p99/max; map-rebuild frames counted separately and included in the
    gate's p95); sample counts; predictions; a control first (a planted per-frame delay of known size must move p95 by
    that size); and the escape hatch (anything outside the set stops).
-2. **The bar** is the owner's, above: p95 at or under 50 ms at 40 aircraft drawn, map and weather on; 20 and the high
-   point reported beside it. If he chooses (b), v20's bar is instead "no slower than v19 at the same traffic", and
-   20 fps becomes v21's bar.
+2. **The bar** is the owner's, above: p95 at or under 50 ms at 40 aircraft drawn, map and weather on; 20 and 60
+   reported beside it. Under his choice (a), v20 is held to it.
 3. **Every candidate.** O11's pre-flight (blipscope-5c) re-runs the baseline's procedure unchanged, with map and
    weather on, and reads it against the frozen bar before the cut. A candidate over the bar does not ship: it goes
    to the owner with its numbers.
@@ -109,8 +114,8 @@ How it runs:
 - **The proxy bill** must land before weather goes fleet-wide (at 600 boards: Logs ~$166, KV reads ~$115, KV
   writes ~$54 a month). Log sampling must not drop the breaker/upstream_skip instruments.
 - **The frame-rate gate** (above): v20 as planned misses the owner's bar. Early readings put v19 alone at 74.5 ms
-  p95 with 41 aircraft. Weather adds about 13 ms. Map rebuilds at KSFO took 177-198 ms each. The owner's choice
-  between (a) and (b) decides whether v20 holds for speed work.
+  p95 with 41 aircraft. Weather adds about 11-13 ms. Map rebuilds at KSFO took 177-198 ms each. The owner chose
+  (a), so v20 holds until the speed work meets the bar, and the date below is reset from p4's plan.
 - **The ingest's clipper (PARITY):** RESOLVED 2026-11-12: the hand-written rect clip and the full TS ingest equal
   GEOS and the dry run exactly; no dependency.
 
@@ -143,7 +148,10 @@ takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weathersco
 
 ## Critical path, owners, date
 
-**Target: v20 promoted by 2026-11-30.** The likely range is November 25-30. The 11-07 estimate was November
+**This date is being reset:** the owner chose (a) on 2026-11-12, and the reviewer sets the new date from p4's plan
+(due 2026-11-13). Until then the table below is the map-and-weather path only.
+
+**Target (before the frame-rate gate): v20 promoted by 2026-11-30.** The likely range is November 25-30. The 11-07 estimate was November
 21-29, so the late end slips by about a day, and the early end by four. Days are elapsed days from 2026-11-12.
 
 **The critical path is the map's server side, then the client's final bench, then the cut:**
@@ -172,8 +180,7 @@ takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weathersco
   half a day; a second one on a row goes to the owner;
 - D4's production window and the owner's availability for its OKs;
 - the client's soak on a production map: it can't start before D4;
-- the frame-rate gate: if the owner chooses (a), v20 holds for the speed work; under (b) a candidate slower than
-  v19 at the same traffic goes to him, and a fix or his ruling comes before the cut.
+- the frame-rate gate: the owner chose (a), so v20 holds for the speed work until a candidate meets the bar.
 Not on the path: continental Europe (the owner, 2026-11-12: it goes live by deploys when OPERA returns); the Pro
 2.1 (aimed at v21); the big-screen build (it starts after F).
 
