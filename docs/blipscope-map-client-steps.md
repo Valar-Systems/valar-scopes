@@ -2576,6 +2576,138 @@ before the real capture is read. The image plant for CBF4 is built and flashed i
 - **Q-MB12, CF2 and CF3.** They are re-derived for step B as CF2-B and CF3-B. The registered CF2 and CF3 move to step
   C's bench, where the blended wedge exists. Confirm.
 
+### The mapbench env: its code and CI row, registered before the code (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 04:08:40Z):**
+
+> 19ab390c98cc is read (on origin, docs +123). The split is clear. The procedure (the mapbench env driving its own
+> phases, every row red on a planted log first, the CBF4 image plant, identification of Y against X at 0 bytes outside
+> before anything is read, and the four verdicts) is good. Catching that CF2/CF3 were priced for step C's blend was a
+> real find before any window.
+> - Q-MB12: CONFIRMED. CF2 and CF3 move to step C as registered; CF2-B (the opaque wedge, 2.04 ± 0.3 ms, blend=0) and
+>   CF3-B (+2.07 ± 1.0 ms) stand for step B. CF1 and CF4-CF6 are unchanged.
+> - Q-MB11: (a). A slug-less CI row that stays, with its plant_target() and "[map-bench]" in check-no-bench-hooks.sh's
+>   MARKERS. The AMOLED lesson, and step C needs it.
+> - Q-MB10: NOT MINE TO ASSUME. Gate 5 lets me open no-hands windows on hub boards, but -DanielApproved is his word in
+>   code, and his gate-5 text doesn't say whether it covers flashing. I'm putting it to him now: does a gate-5 window I
+>   open carry his approval for flashing the held hub board (flash + restore inside the window), or does each flash need
+>   his word?
+> Until he answers, flash nothing. Write the mapbench env's code and its CI row meanwhile, predictions first as usual.
+> The window opens anyway only after v19's step 5' on E2:08.
+
+#### Three corrections to `19ab390c`, found while designing the code
+
+1. **`plant_target()` needs no new case.** `scripts/check-adsbdb-out.sh`'s default site, `src/ConfigMigration.cpp`,
+   serves every radar env, wxlook included. The mapbench env links that file. The case named in `19ab390c` does not
+   exist and is not added.
+2. **The bench marker's `--expect`.** The mapbench image needs WX_LOOK_AB's timers, because the `clear=`, `sweep=` and
+   `sweepparts=` lines read by CF1-CF4 come from them. So the image carries `[wx-bench]` as well as `[map-bench]`.
+   - `check-no-bench-hooks.sh --expect` requires its one marker and **every other marker absent**, so it would refuse
+     this image.
+   - **Q-MB13** offers two ways (below).
+3. **The window is about 65 minutes, not 50:** P1 and P2 are 40 ticks each, and P3 and P4 are 25 each, all 30 s ticks.
+
+#### The code, exactly (written after the ruling)
+
+| file | what |
+|---|---|
+| `platformio.ini` | `[env:blipscope-s3-128-mapbench]`, `extends = env:blipscope-s3-128`, its flags composed as wxlook's are (never inherited, the `-U` trap): `${s3128_hw.build_flags} -DBLIPSCOPE_EXPECT_BIG_NVS ${cloud.prod} -DWX_LOOK_AB -DWX_LAYER_SHIPS -DMAP_BENCH`, and `board_build.embed_files = test/fixtures/wx/basemap/bend.bmpk, test/fixtures/wx/basemap/ksfo.bmpk` (the repo already embeds a `.wxc` this way) |
+| `skus.yml` | `- { env: blipscope-s3-128-mapbench, status: build-only }`, with a comment |
+| `scripts/check-no-bench-hooks.sh` | `"[map-bench]"` joins `MARKERS`; `--expect` as Q-MB13 rules; `--selftest` gains the new form's three cases |
+| the firmware workflow | one step, `if: matrix.env == 'blipscope-s3-128-mapbench'`, running the bench-marker `--expect` on that image (the wxlook step's twin) |
+| `src/AircraftManager.h` | **1** `// THE MAP BENCH` region: a small `MapBench` state (phase, tick, map off, weather off, lap) and two declarations |
+| `src/AircraftManager.cpp` | **6** `// THE MAP BENCH` regions, each under `#ifdef MAP_BENCH`. See the list below |
+| `test/host/check_map_draw.py` | **CB-B1** and **CB-B2** (below): 9 → **11** source checks |
+| `test/host/sabotage_map_draw.py` | 2 plants: 11 → **13** plants, 3 controls, so **18** AS PREDICTED lines |
+
+**The six regions in `src/AircraftManager.cpp`:**
+- **File scope:**
+  - the embedded packages' start and end symbols;
+  - `MapBenchAccept(which)`: copies the package into PSRAM (as step A's landing buffer would hold it), passes it through
+    `maplayer::Load` (the gate), and sets `mapPkg`, `mapHeldLen` and `++mapPkgSeq`;
+  - `MapBenchTick()`: advances the phase on the tick and steps the zoom in P3 and P4. At P4 it switches the package to
+    KSFO, which also exercises CB9's growth on the device.
+- **`Initialise`, after `MapConfigure`:** sets the home to the package's centre, prints the boot marker `[map-bench]`,
+  and calls `MapBenchAccept(0)`.
+- **`RequestBasemap`, first line:** `return false;`. No fetch.
+- **`RecordFrameUs`, after the `[health] frame` line:** `MapBenchTick();`.
+- **`DrawWeatherUnder`, first line:** in P1, the weather is forced off, the map is drawn alone, and today's paths are
+  skipped.
+- **Nested in `DrawMapBase`'s draw region:**
+  - the map-off return;
+  - the `[map-bench] alloc` reading around the first `mapcompose::Frame`;
+  - `micros` as Build's clock;
+  - the `[map-bench] passes` line after each rebuild.
+- **The lines are those registered in `19ab390c`,** all counts. Nothing prints a coordinate or a name (CD2).
+
+#### The rows, registered
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CB-B1** | every `MAP_BENCH` token in `src/` and `include/` sits inside a `// THE MAP BENCH BEGIN` / `END` region. The regions are pinned (h 1, cpp 6), and each holds `#ifdef MAP_BENCH` | **S-CB-BENCHLEAK**, a `#ifdef MAP_BENCH` block planted outside any region in `AircraftManager.cpp`: {CB-B1} |
+| **CB-B2** | the bench regions hold no `Preferences`, `.put*(`, `SPIFFS` or `LittleFS` (CD1's list), and no print in them names a token in CD2's `PRIVATE` set | **S-CB-BENCHPRINT**, a print of `lat` planted in `RecordFrameUs`'s bench region, which is not nested in a draw region: {CB-B2} |
+
+- **No existing set moves:**
+  - the nested bench region in `DrawMapBase` prints only counts, so CD2 stays green;
+  - CD4 counts draw regions, not bench regions;
+  - the two plants sit where no other row reads.
+- **The shipping and wxlook images must not move.** `MAP_BENCH` is defined in the mapbench env alone, so a fresh
+  `blipscope-s3-128` (C2) and `-wxlook` (Cw2) at the new head are compared to C and Cw with `imgcmp.py` (`dc828e47…`),
+  its three controls rerun first on A1 and A2. **0 bytes outside, both.**
+- **The mapbench image (M1):**
+  - **its size:** M1 against Cw2 is +416,496 B of packages plus the bench code, so **+417,496 to +421,496 B**;
+  - **its strings:**
+    - both bench markers present and no other;
+    - CB-W's two `[map] draw` strings;
+    - `[map-bench] phase`, `alloc` and `passes`;
+  - read off the image with the new `--expect` (Q-MB13).
+
+#### The run, after the code is committed
+
+1. `check_map_draw.py`: **`11 checks, 0 failures`**.
+2. `sabotage_map_draw.py`:
+   - the control is clean;
+   - 13 plants exactly their sets, and the 3 controls as their table;
+   - **18 AS PREDICTED lines**.
+3. `--anchors` over the 40 drivers, then the draw driver's `--control`: `("line", "11 checks, 0 failures")`.
+4. Lint: `40 driver(s), 0 flagged; 3 pinned line(s)`.
+5. `bash scripts/check-no-bench-hooks.sh --selftest`: every case passes, the new form's three included; `python
+   scripts/skus.py --validate`: OK.
+6. `run.sh` under WSL:
+   - exit 2, FAILED BLOCKS exactly the two environment blocks;
+   - MapDraw `11 checks, 0 failures`, MapCompose 26 / 0, MapPlaces 32 / 0;
+   - `40 driver(s): 39 run, 1 skipped`;
+   - `sabotage_map_draw.py: 18 AS PREDICTED line(s)`.
+7. The builds, in p4's slot, with no board touched:
+   - C2, Cw2 and M1 (main + the new head; tree = `merge-tree`'s);
+   - `imgcmp.py`'s controls on A1 and A2;
+   - C against C2, and Cw against Cw2: **0 bytes outside**;
+   - M1's size band and strings as above.
+
+**Anything else is a stop,** as before.
+
+**The CI for the code push, predicted:**
+- **35 = 31 success / 4 skipped / 0 failed.** The new leg is `build (blipscope-s3-128-mapbench)`, and the job set
+  otherwise matches `cf58c643`'s.
+- **Each host-tests leg:**
+  - MapDraw `11 checks, 0 failures`, MapCompose and MapPlaces as before;
+  - 40 drivers;
+  - lint 40 / 0 / 3;
+  - AS PREDICTED: compose 15, **draw 18**, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The mapbench leg's new step** reads the `--expect` line for both markers.
+- **The named risk:** `board_build.embed_files` under this env's framework. The repo's precedent is a radar-family env,
+  and a failure there is off.
+
+#### Questions for the ruling
+
+- **Q-MB13, the bench image's two markers.**
+  - **(B), recommended.** `--expect` takes a comma-separated list (`--expect "[wx-bench],[map-bench]"`): every listed
+    marker must be present, and every other absent. `--selftest` proves three cases: both present passes, one missing
+    fails, and a third marker present fails. The fence stays as strict as it is, and gains one shape.
+  - **(A)** The mapbench image's marker is `[wx-bench]`, and `[map-bench]` is not added. That contradicts Q-MB11's
+    ruling, so it is listed only so that the choice is visible.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
