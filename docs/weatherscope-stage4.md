@@ -1999,3 +1999,33 @@ budget file's owner, to replace `build_budget.py`'s "projected from cref" line.
 
 Every scenario is inside the $10 allowance. The table's flags stand as read: `cpu_ms` OVER and `r2_class_a` OVER with
 OPERA running.
+
+#### S4.27a, 2026-11-12 ~22:36Z: I1-I3 as read; I2 OFF; O2 re-anchored before O1 (the reviewer's ruling)
+
+**I1 holds.** `shsr-inert` from `05746deca023`: deploy start 22:25:53.382Z, end 22:25:57.654Z, exit 0; "runs now:
+[('19b85e60', 100)]"; `PRODUCT` shsr, `WX_INGEST` off, schedule `* * * * *`.
+
+**I2 reads OFF, recorded as off, no re-grade.** The first invocation was at **22:31:41Z, 344.1 s after the deploy**,
+against "within 120 s".
+- Reads: 22:28:37Z null; 22:31:00Z null; 22:34:00Z first 22:31:41Z; 22:34:30Z the same.
+- **The anchors, in the same command:** cref's Worker (`blipscope-wx-ingest`) first at 22:26:05Z and opuk's at
+  22:26:14Z, present at every read. So a Logs lag is excluded.
+- **The read is excluded too:** the service appeared under its own name.
+- **What remains:** the brand-new Worker's cron took about 5.7 min to start. My band did not allow for that, so the
+  miss is my prediction's.
+- **Since its first run it fires every 60 s, consecutively:** 22:31:41Z, 22:32:41Z, 22:33:41Z, with gaps 60 and 60,
+  exactly like opuk's control (22:26:14Z, 22:27:14Z, …).
+- **Its lines are `wx_ingest_off` only.** There is no ingest and no error line: the inert behaviour, exactly.
+
+**I3 holds.** Window 22:27:57Z to 22:32:57Z: `lines_by_product` {}, `errors` [], `shsr_minutes_both` 0, 4 events.
+
+**The ruling: O1 may proceed.** O2 is re-registered here, before O1's command:
+- **O2's 10-minute window starts at the FIRST invocation of the NEW version** (its `$workers.scriptVersion.id`, read
+  from Workers Logs by the same reader as I2's list), not at deploy + 1 min. The bands are unchanged: `shsr` 16-20
+  lines, `shsr_minutes_both` at least 8 of 10, `stored` or `backfilled` seen, at most 2 errors and none in two minutes
+  running.
+- **O2 is re-read until stable,** never once.
+- **No invocation of the new version within 6 min of O1's deploy is outside the set:** `shsr-inert` is redeployed and
+  reported. A version change on an existing trigger is not expected to re-propagate.
+- **S4.27's stop rule is unchanged:** errors in 3 minutes running, or no `shsr` line in 3 minutes running, means
+  `shsr-inert` is redeployed at once.
