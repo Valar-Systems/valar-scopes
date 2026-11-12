@@ -57,28 +57,29 @@ Sizes are elapsed days for the step's owner, counted from the day it can start. 
 | # | step | owner | waits on | size |
 |---|---|---|---|---|
 | 1 | **one build route.** Pictures and goldens come only from models built by `build.sh`: `web-960` and `web-1280` (#668), the existing `s3-128` (240) and `s3-21` (480), and `web-720` and `web-1080`, which do not exist yet. The p4 rig's local overrides retire. | blipscope-5c (tools/web-renderer) | #668 merged | 1 |
-| 2 | **the units layer.** Each variant states its glass diameter in mm (`variant::SCREEN_DIAMETER_MM`); one header turns the rules of section 2 into pixels, `constexpr` on every device build. No call site changes yet. Section 4's proof rows are registered and run here first. | p4 | F | 2 |
+| 2 | **the units layer.** Each variant states its glass diameter in mm (`variant::SCREEN_DIAMETER_MM`); one header turns the rules of section 2 into pixels, `constexpr` on every device build. No call site changes yet. Section 4's proof rows are registered and run here first. It also lists every face drawn in fixed 240-px rows (the card; the Connect face's `ConnectLayout.h`, found in the 2.1's bring-up, #676; any other a sweep finds), so steps 6 and 7 cover them all. | p4 | F | 2 |
 | 3 | **screen size at run time in the web build.** `SCREEN_SIZE` and everything `Layout.h` derives from it become run-time values in the web build only; device builds stay `constexpr`. One WebAssembly file for every web screen. | blipscope-5c | step 1 | 4 |
 | 4 | **text by the rule.** Every `setTextSize` call becomes a text role (label, body, title) sized by rule 1; the smooth font in the web build at every size. | p4 | step 2 | 3 |
-| 5 | **lines, icons and touch by the rules.** Stroke width as a primitive (wide lines on the device, `lineWidth` in the web renderer), with the floor; `TAP_RADIUS`, `SWIPE_MIN` and the hold drift from rule 3, provisional until step 10. | p4 (blipscope-5c reads the renderer change) | step 2 | 3 |
+| 5 | **lines, icons and touch by the rules.** Stroke width as a primitive (wide lines on the device, `lineWidth` in the web renderer), with the floor; `TAP_RADIUS`, `SWIPE_MIN` and the hold drift from rule 3, provisional until step 10. **Touch is also measured, not only sized:** the owner found swiping "almost impossible" on the 2.1 (#676). blipscope-5c's hypothesis, not yet measured, is that touch is polled once per frame, so at 9.7 frames/s a quick swipe yields only 1-2 samples. This step counts samples per swipe against swipe speed at each size. If the hypothesis holds, touch sampling moves off the frame, and a fix that changes the 1.28" build follows section 4's stop. | p4 (blipscope-5c reads the renderer change) | step 2 | 4 |
 | 6 | **the List on the whole disc.** Rows sized in mm across the full disc, so more rows on bigger screens, not fixed 240-px rows. | p4 | steps 4 and 5 | 2 |
-| 7 | **the detail card on the whole disc.** The card's fixed 240-px rows (title at y = 136, facts from y = 162) become a flow over the whole disc. | p4 | steps 4 and 5 | 3 |
+| 7 | **the detail card and the Connect face on the whole disc.** The card's fixed 240-px rows (title at y = 136, facts from y = 162) become a flow over the whole disc. The Connect face's QR stops being 4 px per module at row 90 with fixed rows below it (`ConnectLayout.h`): on the 2.1 that QR is 148 px, 31% of the disc, and sits high. It scales as the boot setup QR already does (`SetupQr.h`). | p4 | steps 4 and 5 | 3.5 |
 | 8 | **radar labels that do not pile up on the big screens.** Placement and de-collision in mm, fuller labels where they fit. Graded by a host sweep (placed against refused, over every start), per CLAUDE.md's instrument rule. | p4 | steps 4 and 5 | 3 |
 | 9 | **golden pictures in CI**, every release: the scripted scene (virtual clock, scripted tap and swipe, the stage-1 rig's method) at **240, 480, 720, 1080, 960 and 1280**, from step 1's models. Each golden asserts its pixel minimums from the display list. The 240 golden is section 4's rendering proof and the 480 golden its 2x test. | blipscope-5c (CI, web renderer); p4 writes the scene script | step 1; steps 4 to 8 for the final images | 3 |
-| 10 | **the finger session.** The owner's hands on the real 7" and 23.6", with the step-3 build; tap and swipe frozen from it. | the owner, scheduled through the orchestrator; p4 runs it | steps 3 and 5 | 1 session |
+| 10 | **the finger session.** The owner's hands on the real 7" and 23.6", with the step-3 build; tap and swipe frozen from it. Each swipe's sample count is recorded beside the thresholds (step 5). | the owner, scheduled through the orchestrator; p4 runs it | steps 3 and 5 | 1 session |
 | 11 | **the detailed map** (map-server's read (d), 2026-11-12 18:00Z). One web class serves every big screen: the web build sends `class=web`, and the server applies the web ε (75 m, one line width at 1280) and a 384 KB non-terrain cap. Terrain stays at today's 3 levels, upscaled smoothly on the client, because the source has no finer detail. One stored package per point and radius. The device path is untouched and proven byte-identical. Then the integration: the web shim adds `/basemap`, behind the same auth as `/blips`. | blipscope-cb (map-server) for the package; p4 for the integration | the package: part 2's sea code PR on main, F, **the owner's ruling on (d) section 2** (customer-visible), a production deploy slot. The integration: the package | package: 3; integration: 2. Off the critical path if the package starts by F + 14 |
 | 12 | **speed on the real 23.6".** Frame time in the kiosk app at rest, in a dense sky and with a card open; static layers (rings, map) cached if it misses. | p4, on the owner's hardware | step 3; section 5 | 1 to measure, 2 if caching is needed |
-| 13 | **the 2.1" and the P4 on glass.** The 480 and 720 layouts on the boards, with a smooth font on the device. | p4; the 2.1"'s bring-up owner | each board's bench bring-up first | 2 each |
+| 13 | **the 2.1" and the P4 on glass.** The 480 and 720 layouts on the boards, with a smooth font on the device. Frame cost starts from the 2.1's measured **9.7 frames/s (103 ms a frame) at 480 px** (#676). The P4 at 720 draws 2.25x those pixels on a different CPU, so it is measured, not scaled from that figure. | p4; the 2.1"'s bring-up owner | each board's bench bring-up first | 2 each |
 | 14 | **the owner judges each golden on glass**, every release. | the owner | step 9 | each release |
 
-**Critical path (p4):** units 2 + text 3 + lines and touch 3 + List 2 + card 3 + labels 3 + map integration 2 + speed 1
-to 3 = **19 to 21 elapsed days** from F. Steps 1, 3 and 9 run alongside on blipscope-5c's side, and step 11's package
-on map-server's.
+**Critical path (p4):** units 2 + text 3 + lines and touch 4 + List 2 + card and Connect 3.5 + labels 3 + map
+integration 2 + speed 1 to 3 = **20.5 to 22.5 elapsed days** from F. Steps 1, 3 and 9 run alongside on blipscope-5c's
+side, and step 11's package on map-server's.
 
-**The date: F + 21** for everything except step 13, which follows each board's bench bring-up. v20's plan
-(docs/v20-plan.md, PR #673, not yet merged) puts F at **November 21-25**, so **F + 21 is December 12-16**. The date
-moves one day for each day F moves. **The first review on glass, with the finger session, is at F + 16**: the radar,
-the List and the card by the rules, before the map. That is December 7-11.
+**The date: F + 23** for everything except step 13, which follows each board's bench bring-up. v20's plan
+(docs/v20-plan.md, on main since #673) puts F at **November 21-25**, so **F + 23 is December 14-18**. The date moves one
+day for each day F moves. **The first review on glass, with the finger session, is at F + 18**: the radar, the List,
+the card and the Connect face by the rules, before the map. That is December 9-13. (Moved from F + 21 and F + 16 on
+2026-11-12 19:13Z, by the 2.1's findings: one day for the touch measurement, half a day for the Connect face.)
 
 ## 4. How "the 1.28" output stays unchanged" is proven
 
@@ -126,6 +127,9 @@ not something to work around.
 - **Deeper terrain is not in this plan.** The z9 source is ~234 m/px at 40 N, and a 1280-px disc at 40 km wants
   62 m/px. Scaling today's levels adds bytes (up to ~5 MB) and no detail. Finer terrain would need a new ingest,
   which is its own decision.
+- **A slow frame is also a touch problem.** The 2.1 runs at 9.7 frames/s at 480 px. If touch is sampled once per
+  frame (unmeasured, step 5), every screen that draws slowly also misreads swipes. That is why step 5 measures sample
+  counts and step 10 records them.
 - **Speed on the Android screen is unmeasured.** The stage-1 rig ran 21,600 frames in about 4 s on a desktop, which says
   nothing about the kiosk's WebView.
 - **The 2.1"'s 2x depends on its glass being under 60 mm.** The test in section 4 catches it if not.
