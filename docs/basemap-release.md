@@ -675,3 +675,10 @@ only while builder:staging is held: `ALLOW_BEHIND=1 BLIPSCOPE_SESSION=map-server
 reverted commits it prints are recorded. **The forward deploy from main never sets ALLOW_BEHIND;** if main's deploy.sh refuses for any
 reason, stop and report. `proxy/package.json` and `package-lock.json` are identical between fdf62ada and main, so the installed modules
 serve both.
+
+**RE-ORDERED (15:23:09Z ruling), before the claim:** l.98's store read moves to D3's `/healthz` read, immediately after SG-A's
+first request, because `/healthz` carries no basemap block before a build in the isolate. At 15:22:34Z staging's `/healthz` read HTTP
+200, proxy e3c2508e, ok true, with `basemap.commit` and `basemap.store` both null. **After that first request, both are read:**
+`basemap.store` == `4c0875738f38` (otherwise **every SG row is VOID**: stop and report, no rollback), and `basemap.commit` == the deployed
+stamp, the full HEAD (otherwise D3's meaning, SG-F's: stop). **No further SG request goes out until both read as predicted.**
+**My miss, on record:** l.98 assumed `/healthz` carries the store before any build in the isolate.
