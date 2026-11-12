@@ -35,6 +35,99 @@
 constexpr uint8_t kMapWhyUnread = 0xFF;
 #endif
 // THE MAP FETCH END
+// THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+// The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"). The two packages are built in
+// (board_build.embed_files); nothing is fetched. Every line it prints is counts: no place name, anchor or coordinate.
+extern const uint8_t kMapBenchBend[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_start");
+extern const uint8_t kMapBenchBendEnd[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_end");
+extern const uint8_t kMapBenchKsfo[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_start");
+extern const uint8_t kMapBenchKsfoEnd[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_end");
+
+// One built-in package into PSRAM, as step A's landing buffer would hold a fetched one, through the gate
+// (maplayer::Load), and accepted: the package, its length and a new sequence, as ConsumeBasemap's Accepted does.
+void AircraftManager::MapBenchAccept(int which)
+{
+    const uint8_t* s = which == 1 ? kMapBenchKsfo : kMapBenchBend;
+    const size_t len = (size_t)((which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+    if (mapLanding == nullptr || mapLandingCap < len) {
+        if (mapLanding != nullptr) heap_caps_free(mapLanding);
+        mapLanding = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        mapLandingCap = mapLanding != nullptr ? len : 0;
+    }
+    if (mapLanding == nullptr) {
+        Serial.println("[map-bench] package refused: no PSRAM for it");
+        return;
+    }
+    memcpy(mapLanding, s, len);
+    bmpk::Package pk;
+    const maplayer::Verdict v = maplayer::Load(mapLanding, len, &pk);
+    if (!v.accepted) {
+        Serial.printf("[map-bench] package %d refused by the gate (status %d)\n", which, (int)v.why);
+        return;
+    }
+    mapPkg = pk;
+    mapHeldLen = len;
+    ++mapPkgSeq;
+}
+
+// The phases, one step per 30 s health tick (the registered table): P0 holds until the first allocation; P1 the
+// weather off and the map alternating, 20 pairs; P2 the weather on and the map alternating, 20 pairs; P3 Bend's zoom
+// ladder stepped once a tick, 25 ticks; P4 KSFO's, 25 ticks, after Initialise moves the home (the radar's own
+// config-change path, on this loop task); then done. Each line says the state the NEXT interval runs in.
+void AircraftManager::MapBenchTick()
+{
+    if (mapBench.phase == 0 || mapBench.phase == 3 || mapBench.phase == 4) {
+        const maplayer::BuildInfo& bi = mapDraw.info;   // the last rebuild's passes (CF5): one zoom step per tick
+        Serial.printf("[map-bench] passes s1=%lu water=%lu rivers=%lu roads=%lu colour=%lu total=%lu\n",
+                      (unsigned long)bi.usS1, (unsigned long)bi.usWater, (unsigned long)bi.usRivers,
+                      (unsigned long)bi.usRoads, (unsigned long)bi.usColour, (unsigned long)bi.usTotal);
+    }
+    ++mapBench.ticks;
+    const auto next = [&](int phase) {
+        mapBench.phase = phase;
+        mapBench.ticks = 0;
+    };
+    const auto zoomStep = [&]() {
+        ApplyZoom((zoomIdx + 1) % (zoomLadder.Top() + 1), radarzoom::Edge::None, "map-bench");
+    };
+    switch (mapBench.phase) {
+    case 0:
+        if (mapDraw.allocated) next(1);
+        break;
+    case 1:
+        mapBench.wxOff = true;
+        mapBench.mapOff = !mapBench.mapOff;
+        if (mapBench.ticks >= 40) next(2);
+        break;
+    case 2:
+        mapBench.wxOff = false;
+        mapBench.mapOff = !mapBench.mapOff;
+        if (mapBench.ticks >= 40) {
+            mapBench.mapOff = false;
+            next(3);
+        }
+        break;
+    case 3:
+        zoomStep();
+        if (mapBench.ticks >= 25) {
+            next(4);
+            mapBench.which = 1;   // KSFO: Initialise's bench region moves the home, MapConfigure drops Bend
+            Initialise();
+        }
+        break;
+    case 4:
+        zoomStep();
+        if (mapBench.ticks >= 25) next(5);
+        break;
+    default:
+        break;
+    }
+    Serial.printf("[map-bench] phase P%d map=%s wx=%s zoom=%.0f%s\n", mapBench.phase, mapBench.mapOff ? "off" : "on",
+                  mapBench.wxOff ? "off" : "on", viewRadiusDisplay, rangeUnit.c_str());
+}
+#endif
+// THE MAP BENCH END
 #include "PollCadence.h"    // the poll cadence and the weekly reboot; the web build's kiosk (docs/web-kiosk-airfield.md)
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
@@ -818,6 +911,26 @@ void AircraftManager::Initialise()
     // note on hasLocation in the header. A factory-fresh or factory-reset device
     // lands here with both empty, and the radar has nothing to centre on.
     hasLocation = latStr.length() > 0 && lonStr.length() > 0;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    // The bench's home is the held package's centre, so the radar, the weather and the map agree. Set here, before the
+    // radius is computed from the latitude below; nothing prints it.
+    if (mapBench.which < 0) {
+        mapBench.which = 0;
+        Serial.println("[map-bench] the map's bench image: Bend, then KSFO, built in; nothing fetched");
+    }
+    {
+        const uint8_t* s = mapBench.which == 1 ? kMapBenchKsfo : kMapBenchBend;
+        const size_t len = (size_t)((mapBench.which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+        bmpk::Package pk;
+        if (bmpk::Validate(s, len, &pk) == bmpk::Status::kOk) {
+            lat = pk.lat0Micro / 1e6;
+            lon = pk.lon0Micro / 1e6;
+            hasLocation = true;
+        }
+    }
+#endif
+    // THE MAP BENCH END
     // Follow's home field is resolved once and cached (see ResolveHomeField).
     // Initialise re-runs on every config save, and a save is the only way the
     // location can move -- so this is exactly where the cache must be dropped.
@@ -2832,6 +2945,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed,
                       (unsigned long)wd.maxOutageMs, (unsigned long)wd.rebootsRecommended);
     }
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    MapBenchTick();   // after every [health] line of this interval: the next phase starts on a clean tick
+#endif
+    // THE MAP BENCH END
 }
 
 uint32_t AircraftManager::AllocFailureCount() const { return allocFailures; }
@@ -3497,6 +3615,12 @@ static std::vector<std::pair<String, String>> MapParamPairs(const char* params)
 
 bool AircraftManager::RequestBasemap(unsigned long now)
 {
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    (void)now;
+    return false;   // the bench's packages are built in: nothing is ever fetched
+#endif
+    // THE MAP BENCH END
     if (!MapEnabled()) return false;
     // The landing buffer: PSRAM only, never the internal heap a TLS handshake needs (CLAUDE.md). Allocated at the cap
     // of the request about to go out, and again only when a later request needs more. Nothing is held and nothing is in
@@ -3617,6 +3741,11 @@ bool AircraftManager::RebuildWeatherLayer()
 bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
 {
     wxShowing = wxpolicy::Show::Nothing;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    if (mapBench.wxOff) return DrawMapBase(canvas, nullptr);   // P1: the weather forced off; the map alone, or the clear
+#endif
+    // THE MAP BENCH END
     // Only the radar scope itself: not the List, Stats or Follow faces, not under a card, not the no-location or
     // night-clock faces, which own their whole screen.
     if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) {
@@ -3677,6 +3806,12 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
 // next shown radar frame, as the weather layer's do, and never per frame (CB4).
 bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
 {
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    if (mapBench.mapOff) return false;   // P1 and P2: an "off" tick
+    if (mapHeldLen == 0 && mapBench.which >= 0) MapBenchAccept(mapBench.which);   // built in, never fetched
+#endif
+    // THE MAP BENCH END
     if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0) return false;
     LGFX_Sprite& sp = canvas.sprite();
     uint8_t* const dst = (uint8_t*)sp.getBuffer();
@@ -3704,6 +3839,22 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     in.airports = &AircraftManager::MapAirportBoxes;
     in.ctx = this;
     in.askedMm = mapReq.rvMm;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    in.clock = []() -> uint32_t { return (uint32_t)micros(); };   // CF5: Build times its passes
+    if (mapBench.phase == 0 && !mapDraw.allocated && !mapDraw.refused) {
+        // CBF4: the first allocation, bracketed in this pass by the PSRAM and internal free sizes.
+        const uint32_t ps0 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        const uint32_t in0 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        const bool got = mapcompose::Allocate(mapDraw, mapPkg.maxVertices);
+        const uint32_t ps1 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        const uint32_t in1 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        Serial.printf("[map-bench] alloc vertices=%u price=%u psram_free %u -> %u internal %u -> %u%s\n",
+                      (unsigned)mapPkg.maxVertices, (unsigned)mapcompose::Price(mapPkg.maxVertices), (unsigned)ps0,
+                      (unsigned)ps1, (unsigned)in0, (unsigned)in1, got ? "" : " REFUSED");
+    }
+#endif
+    // THE MAP BENCH END
     const bool rebuild = mapcompose::Stale(mapDraw, k);
     const bool wasRefused = mapDraw.refused;
     const unsigned long t0 = millis();

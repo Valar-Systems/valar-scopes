@@ -728,6 +728,24 @@ private:
     uint32_t mapWxGen = 0;         // changed at every weather-layer rebuild (CB5)
 #endif
     // THE MAP DRAW END
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+#ifndef BLIPSCOPE_MAP_FETCH
+#error "MAP_BENCH is the map's bench: it needs the map (BLIPSCOPE_MAP_FETCH)"
+#endif
+    // The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"): the Bend and KSFO packages built
+    // in, nothing fetched, and its own phases on the 30 s health tick. Bench only: it prints "[map-bench]".
+    struct MapBenchState {
+        int phase = 0;          // P0 the allocation, P1 weather off, P2 weather on, P3 Bend's zoom laps, P4 KSFO's; 5 done
+        uint32_t ticks = 0;     // health ticks in this phase
+        bool mapOff = false;    // P1 and P2: alternates every tick
+        bool wxOff = false;     // P1: the weather forced off
+        int which = -1;         // the package built in and held: 0 Bend, 1 KSFO; -1 before the first Initialise
+    } mapBench;
+    void MapBenchAccept(int which);   // the package into PSRAM, through the gate, accepted as step A would
+    void MapBenchTick();              // the phases, from RecordFrameUs's 30 s tick
+#endif
+    // THE MAP BENCH END
 
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.

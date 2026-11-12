@@ -33,6 +33,10 @@ CD4, CB8 and CB8b; the wiring's CD1-CD3 and CD5-CD7 (registered 2026-11-12, "The
   CD7  MapAirportBoxes holds DrawAirports' list, filter and cull lines (those naming fabsf(, airportsMin, cloudAirports,
        AIRPORT_COUNT, AIRPORTS[ or wide), comment-stripped and whitespace-normalised, in the same order: the second
        path's guard (Q-MW2). Fewer than 6 such lines in DrawAirports is the rig.
+  CB-B1 The map's bench (docs/blipscope-map-client-steps.md, "The mapbench env"): every MAP_BENCH token in src/ and include/
+       sits inside a `// THE MAP BENCH BEGIN` / `END` region, the regions are pinned (BENCH_COUNTS), and each holds
+       `#ifdef MAP_BENCH`. Line-based, like CD4's definer scan: a comment naming the macro outside a region is flagged.
+  CB-B2 The bench regions hold none of CD1's NVS list, and no print in them names a token in PRIVATE (CD2's rule).
   Function bodies are cut out before the comment stripper reads them: only the map's own text ever goes through it.
 
 The region counts are pinned. A count off in either direction, or an unbalanced marker, is the rig (exit 2): a region the
@@ -64,6 +68,9 @@ WRITE = re.compile(r"\b(?:cloudAirports\s*=(?!=)|cloudAirports\.(?:clear|assign|
                    r"|resize)\s*\(|airportsMin\s*=(?!=)|displayAirports\s*=(?!=))")
 BUMP = "++mapAirportsGen;"
 CULL_KEYS = ("fabsf(", "airportsMin", "cloudAirports", "AIRPORT_COUNT", "AIRPORTS[", "wide")
+BENCH_COUNTS = {"src/AircraftManager.h": 1, "src/AircraftManager.cpp": 7}
+BENCH_BEGIN, BENCH_END = "// THE MAP BENCH BEGIN", "// THE MAP BENCH END"
+BENCH_TOKEN = re.compile(r"\bMAP_BENCH\b")
 BEGIN, END = "// THE MAP DRAW BEGIN", "// THE MAP DRAW END"
 REFUSAL_IF = "#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)"
 REFUSAL_ERROR = ('#error "step B draws the map without step C: the sweep erases it. '
@@ -371,12 +378,72 @@ def cd7(root):
     return [], len(want)
 
 
+def bench_regions(rel, text, want):
+    """Each bench region's (first line number, its lines), the markers balanced and counted. Line-based."""
+    found, cur, start = [], None, 0
+    for i, ln in enumerate(text.split("\n")):
+        s = ln.strip()
+        if s == BENCH_BEGIN:
+            if cur is not None:
+                raise Rig(f"{rel}: a bench BEGIN inside an open bench region")
+            cur, start = [], i
+        elif s == BENCH_END:
+            if cur is None:
+                raise Rig(f"{rel}: a bench END without its BEGIN")
+            found.append((start, i, cur))
+            cur = None
+        elif cur is not None:
+            cur.append(ln)
+    if cur is not None:
+        raise Rig(f"{rel}: a bench BEGIN without its END")
+    if len(found) != want:
+        raise Rig(f"{rel}: {len(found)} bench regions, the check pins {want}")
+    return found
+
+
+def cbb1(root):
+    why, tokens = [], 0
+    spans = {}
+    for rel, want in BENCH_COUNTS.items():
+        spans[rel] = bench_regions(rel, read(root, rel), want)
+        for start, _, lines in spans[rel]:
+            if not any(ln.strip() == "#ifdef MAP_BENCH" for ln in lines):
+                why.append(f"{rel}: the bench region at line {start + 1} has no #ifdef MAP_BENCH")
+    for rel in files_under(root, "include", (".h", ".hpp")) + files_under(root, "src", (".h", ".hpp", ".cpp", ".c")):
+        text = read(root, rel)
+        if not BENCH_TOKEN.search(text):
+            continue
+        inside = [(s, e) for s, e, _ in spans.get(rel, [])]
+        for i, ln in enumerate(text.split("\n")):
+            if BENCH_TOKEN.search(ln):
+                tokens += 1
+                if not any(s < i < e for s, e in inside):
+                    why.append(f"{rel}:{i + 1} names MAP_BENCH outside a bench region")
+    return why, (tokens, sum(len(v) for v in spans.values()))
+
+
+def cbb2(root):
+    why = []
+    for rel, want in BENCH_COUNTS.items():
+        for start, _, lines in bench_regions(rel, read(root, rel), want):
+            code = strip("\n".join(lines))
+            where = f"{rel} bench region at line {start + 1}"
+            for pat, what in NVS:
+                if pat.search(code):
+                    why.append(f"{where} holds {what}")
+            for args in print_args(code):
+                named = sorted(PRIVATE & set(re.findall(r"[A-Za-z_]\w*", args)))
+                if named:
+                    why.append(f"{where} prints {', '.join(named)}")
+    return why
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
         rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None), ("CD1",) + cd1(root),
                 ("CD2", cd2(root), None), ("CD3", cd3(root), None), ("CD5", cd5(root), None), ("CD6",) + cd6(root),
-                ("CD7",) + cd7(root)]
+                ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -404,8 +471,13 @@ def main():
             print(f"  ok   {name}: the allocator given to mapcompose::Init asks for MALLOC_CAP_SPIRAM")
         elif name == "CD6":
             print(f"  ok   {name}: {regions_seen} write site(s), each followed by {BUMP}")
-        else:
+        elif name == "CD7":
             print(f"  ok   {name}: MapAirportBoxes holds DrawAirports' {regions_seen} list, filter and cull lines, in order")
+        elif name == "CB-B1":
+            print(f"  ok   {name}: {regions_seen[0]} MAP_BENCH line(s), all inside the {regions_seen[1]} bench region(s), "
+                  "each under #ifdef MAP_BENCH")
+        else:
+            print(f"  ok   {name}: the bench regions hold no NVS and print no place, anchor or coordinate")
     print(f"{len(rows)} checks, {fails} failures")
     return 0 if fails == 0 else 1
 

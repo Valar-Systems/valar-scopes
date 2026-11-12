@@ -37,7 +37,7 @@
 set -u
 
 # Every bench hook's marker. Add a hook -> add its marker here, in the same PR.
-MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[crash-bench]" "[wx-key]" )
+MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[crash-bench]" "[wx-key]" "[map-bench]" )
 ANCHOR="[build] env="
 
 anchored() {
@@ -63,27 +63,43 @@ scan() {
 }
 
 # The positive control: this image IS the hook's build, so its marker must be there,
-# and no other hook's may be.
+# and no other hook's may be. One marker, or a comma-separated list of them for a bench image
+# built on another bench (the map bench extends the weather bench, so it carries both,
+# docs/blipscope-map-client-steps.md Q-MB13): EVERY listed marker must be present, and every
+# marker not listed absent. The one-marker form answers exactly as it always has.
 expect() {
-  local want="$1" f="$2" bad=0 m known=0
-  for m in "${MARKERS[@]}"; do [ "$m" = "$want" ] && known=1; done
-  if [ "$known" -eq 0 ]; then
-    echo "FAIL: '$want' is not in MARKERS -- a shipping image would never be scanned for it"
+  local wants="$1" f="$2" bad=0 m w known listed
+  local -a list=()
+  IFS=',' read -r -a list <<< "$wants"
+  if [ "${#list[@]}" -eq 0 ]; then
+    echo "FAIL: --expect was given no marker"
     return 1
   fi
+  for w in "${list[@]}"; do
+    known=0
+    for m in "${MARKERS[@]}"; do [ "$m" = "$w" ] && known=1; done
+    if [ "$known" -eq 0 ]; then
+      echo "FAIL: '$w' is not in MARKERS -- a shipping image would never be scanned for it"
+      return 1
+    fi
+  done
   anchored "$f" || return 2
-  if ! grep -q -a -F -e "$want" "$f"; then
-    echo "FAIL: '$want' is NOT in $f, which is the build that prints it -- its absence from a shipping image proves nothing"
-    bad=1
-  fi
+  for w in "${list[@]}"; do
+    if ! grep -q -a -F -e "$w" "$f"; then
+      echo "FAIL: '$w' is NOT in $f, which is the build that prints it -- its absence from a shipping image proves nothing"
+      bad=1
+    fi
+  done
   for m in "${MARKERS[@]}"; do
-    [ "$m" = "$want" ] && continue
+    listed=0
+    for w in "${list[@]}"; do [ "$m" = "$w" ] && listed=1; done
+    [ "$listed" -eq 1 ] && continue
     if grep -q -a -F -e "$m" "$f"; then
       echo "FAIL: '$m' is also in $f -- another bench hook rode along"
       bad=1
     fi
   done
-  [ "$bad" -eq 0 ] && echo "ok: $f carries '$want' and no other bench marker (anchor present)"
+  [ "$bad" -eq 0 ] && echo "ok: $f carries '$wants' and no other bench marker (anchor present)"
   return "$bad"
 }
 
@@ -108,12 +124,26 @@ if [ "${1:-}" = "--selftest" ]; then
   expect "[photo-mode]" "$t/photo-hooked.bin" >/dev/null; [ $? -eq 1 ] && echo "selftest ok: --expect fails when another bench marker rides along" || { echo "selftest FAIL: --expect missed a second marker"; rc=1; }
   expect "[photo-mode]" "$t/blind.bin"        >/dev/null; [ $? -eq 2 ] && echo "selftest ok: --expect on an anchor-less file is BLIND"          || { echo "selftest FAIL: --expect not BLIND"; rc=1; }
   expect "[not-a-marker]" "$t/photo.bin"      >/dev/null; [ $? -eq 1 ] && echo "selftest ok: --expect refuses a marker missing from MARKERS"    || { echo "selftest FAIL: --expect accepted an unlisted marker"; rc=1; }
+  # --expect with a list (Q-MB13): the map bench is built on the weather bench and carries both markers.
+  printf 'xx[build] env=blipscope-s3-128-wxlookxx[wx-bench]xx' > "$t/wxlook.bin"
+  printf 'xx[build] env=blipscope-s3-128-mapbenchxx[wx-bench]xx[map-bench]xx' > "$t/mapbench.bin"
+  printf 'xx[build] env=blipscope-s3-128-mapbenchxx[wx-bench]xx[map-bench]xx[alert-bench]xx' > "$t/mapbench-hooked.bin"
+  expect "[wx-bench],[map-bench]" "$t/mapbench.bin"        >/dev/null; [ $? -eq 0 ] && echo "selftest ok: --expect with a list passes the image carrying every listed marker" || { echo "selftest FAIL: --expect list on the mapbench image"; rc=1; }
+  expect "[wx-bench],[map-bench]" "$t/wxlook.bin"          >/dev/null; [ $? -eq 1 ] && echo "selftest ok: --expect with a list fails when a listed marker is missing"        || { echo "selftest FAIL: --expect list passed with a listed marker missing"; rc=1; }
+  expect "[wx-bench],[map-bench]" "$t/mapbench-hooked.bin" >/dev/null; [ $? -eq 1 ] && echo "selftest ok: --expect with a list fails when an unlisted marker rides along"   || { echo "selftest FAIL: --expect list missed an unlisted marker"; rc=1; }
+  # The one-marker form, unchanged (Q-MB13's fourth case): on a wxlook-shaped input it passes with the very line it
+  # always printed, and it still refuses an image carrying a second marker.
+  out="$(expect "[wx-bench]" "$t/wxlook.bin")"; r=$?
+  [ "$r" -eq 0 ] && [ "$out" = "ok: $t/wxlook.bin carries '[wx-bench]' and no other bench marker (anchor present)" ] \
+    && echo "selftest ok: --expect with one marker answers on a wxlook image exactly as before" \
+    || { echo "selftest FAIL: --expect with one marker changed its answer on a wxlook image (exit $r)"; rc=1; }
+  expect "[wx-bench]" "$t/mapbench.bin" >/dev/null; [ $? -eq 1 ] && echo "selftest ok: --expect with one marker still refuses a second marker" || { echo "selftest FAIL: --expect with one marker passed the mapbench image"; rc=1; }
   rm -rf "$t"
   exit "$rc"
 fi
 
 if [ "${1:-}" = "--expect" ]; then
-  [ $# -eq 3 ] || { echo "usage: $0 --expect <marker> <image.bin>"; exit 2; }
+  [ $# -eq 3 ] || { echo "usage: $0 --expect <marker>[,<marker>...] <image.bin>"; exit 2; }
   expect "$2" "$3"
   exit $?
 fi
