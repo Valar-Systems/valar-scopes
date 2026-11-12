@@ -328,6 +328,37 @@ sides. That is equal conditions, and fine for a card-layout change.
 
 **Duration:** about 18 min per bench phase and 3 min for the restore, so about 40 min in all.
 
+### M5: the window's first stop, and its fix (the reviewer's ruling (ii), written before the re-run)
+
+**What stopped it** (22:44:34Z, phase before):
+- The write verified and capture (a) was the bench card, showing #670 on glass: no route, type or operator row.
+- Capture (b) was NOT the bench card. Both scripted `o` taps landed on the identical point, the bench contact's
+  marker, and the hit test cycles to the next stacked candidate when a tap lands within 18 px of the last one
+  (`sameSpot -> tapCycleIndex + 1`). So the second `o` opened candidate 1, a live contact (AAL2660) with a photo.
+- Its `d` then flipped that card to the data page instead of closing it, `p` and `o` were refused, and the driver
+  stopped as designed. Nothing further was written.
+- The alternative, the bench contact being undrawn or untappable, is excluded: (a) at the same point opened it.
+
+**The fix, both under `CARD_BENCH` only** (accepted):
+1. `o` resets `lastTapX`/`lastTapY` to -1000 before its scripted tap, the same reset a tap on empty radar makes. Every
+   scripted tap is then a first tap, and the nearest marker -- the bench contact, at distance 0 -- is the one opened.
+2. The hook prints `[card-bench] card open on <key>` when a card opens, naming only a bench key; any other contact is
+   "a live contact". **This is CN0's precondition on the bench:** the driver refuses a capture unless the card that
+   opened is the expected `zzcard*` key, so a wrong card can never be read as a picture.
+
+**The images change, so both are rebuilt and re-identified** before the re-run. The pushed history is not rewritten
+(the reviewer accepted `bfa63636` by sha):
+- "after" is the PR branch's head: main + the hook (with `F`) + the fix + this fix.
+- "before" is `626ece59` + this fix, a commit pushed on its own branch so it is on the remote: the same content as
+  "the hook fix under the fix".
+- The shipping `blipscope-s3-128` is rebuilt too, and must still read PLACED against D-ref's "before" image, which
+  proves no shipping byte moved.
+
+**The re-run** starts phase before FROM THE START: (a), (b) and (c) are all re-captured on the new before image, then
+phase after, then the restore with its boot read, then the release. The first (a) is kept as a record only. If
+anything else is off, the restore (f6d73e391631) and the release come before the report, so the board is never left
+on a bench image.
+
 ## Results
 
 ### D-ref, the first run (off prediction; stopped, ruled (A) above)
