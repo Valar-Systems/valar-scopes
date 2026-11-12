@@ -175,3 +175,52 @@ a healthy board. Setting the bar is the owner's call.
 | Q-FB4 | the gate's statistic | p95 of `p2p`, rebuild frames included, stated at a traffic level |
 | Q-FB5 | the bench PC's address | a build flag never printed (alternative: the PC's mDNS name, if v19's local fetch resolves it; not yet read) |
 | Q-FB6 | where the code lives | a branch from the tag for v19's image; the same header and hooks on main for v20, slug-less |
+
+## The ruling (the orchestrator, 19:42Z): accepted with five amendments, frozen here before any code
+
+The defaults for Q-FB1 to Q-FB4 and Q-FB6 are accepted.
+
+**A1, settle long enough for trails.**
+- From v19's source (`src/models/TrackedAircraft.h`, the trail note): a trail is an AGE, `TRAIL_MAX_AGE_S` = 90 s,
+  holding at most 45 points in a 60-entry buffer.
+- `Initialise()` (AircraftManager.cpp 776-1438 at the tag) does not clear `trackedAircraft`. So trails SURVIVE a
+  rung change (the same aircraft), and grow from nothing for a level or home change (new aircraft).
+- **The settle becomes 100 s for every scene** (90 s plus a margin). The measured span stays 120 s.
+- **New row, STATIONARITY, for every FIXED scene:** the first 30 s and last 30 s of the measured span must agree within
+  **2.0 ms on p50(`p2p`)** and **4.0 ms on p95(`p2p`)**. Off, the scene is non-stationary and is the INSTRUMENT.
+- **The scene order** keeps aircraft persisting where it can: each home runs level 20, then 40, then 60, each through
+  rungs 10, 25 and 50.
+- **The window, re-stated:** 22 scenes (CTRL 2, FIXED 18, LIVE 2) × (100 s + 120 s) = 80.7 min, plus boot, so about
+  **82 min of trace**. With the image's write, the restore and the boot read, about **95 min**. Frames per measured
+  span are unchanged (under 4,096).
+
+**A2, n defined.**
+- The instrument records, per frame, **TRACKED** (`trackedAircraft.size()`) and **DRAWN** (a bench counter, one
+  increment per aircraft the radar actually draws in that frame, in a `FRAME_BENCH` region of the draw loop).
+- The synthetic tracks lie inside **8 mi** (0.8 × the smallest rung, 10 mi), so at every rung **drawn == tracked == the
+  level**.
+- **The levels are graded on DRAWN.** A frame whose drawn count is not the level makes its scene the INSTRUMENT.
+- **The server follows the board.** The bench sets `localUrl` in RAM at each scene change to the bench host's
+  `/aircraft.json?s=<scene>`. `fixed_traffic.py` serves that scene's level around that scene's home, so the server
+  needs no clock of its own. The code stage shows from the source that v19's local fetch keeps the query string. If it
+  does not, the code stage registers another channel before anything is built.
+
+**A3, the background load, named.**
+- FIXED runs with no TLS cloud feed and no enrichment. A customer's board has both, on the other core and the PSRAM bus.
+- LIVE has them. **Reported, not graded:** each LIVE scene beside the FIXED scene at the same home and rung (25 mi) with
+  the nearest drawn n, the difference in p50, p95 and p99 of `p2p`.
+- That is a KNOWN difference, so the bar's reader sees how much the fixed scenes flatter a real board.
+
+**A4, the bench PC's address.**
+- It comes from an UNTRACKED local source at build time: the environment variable `FRAME_BENCH_HOST`, read by a
+  framebench-only pre-build step. It is never in `platformio.ini` or any tracked file, never printed, never in a log.
+- The framebench ELF and image have no slug and are never published.
+- `check_wifi.py` and the device-id guards run before every push, as they do now.
+
+**A5, v20's gate measures a sibling.**
+- For each v20 candidate, O11 measures the **framebench sibling of that candidate's tree**: the same tree, plus this
+  header and its regions.
+- I-3 is shown on that tree each time: the candidate's shipping image is unchanged by the patch, 0 bytes outside.
+- I-5's cost bound is carried: the record cost is printed and stays ≤ 5,000 ns.
+- **So the measured image is not byte for byte the shipped one.** It is the shipped tree plus a bounded instrument, shown
+  each time.
