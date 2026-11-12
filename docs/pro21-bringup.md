@@ -243,3 +243,26 @@ The id is never printed.
 | **E2** | within a few minutes the radar draws aircraft: `/blips` answers 200 for its key, read from `/diag/fb`, three reads | still no aircraft after 5 minutes |
 | **U3b** | the server's boot report lands at its first acked check-in: `POWERON`, the boot from the boot read's EN reset (`scripts/fba-boot-rows.mjs`, its id from the config page, never printed) | another reason, or no row 10 minutes after E2 |
 | **P6** | with aircraft drawn, his one tap opens a card and his swipe changes the screen | as registered |
+
+## Results (2026-11-12, label CF:20, on COM110 / hub port 1)
+
+| row | read | verdict |
+|---|---|---|
+| **U0** | 18:53:40Z: COM110, VID:PID 1A86:55D3, the only 0x1A86 port | as predicted |
+| **U1** | `read-mac --before default_reset --after no_reset`, exit 0: label **CF:20**, none of the six refused labels; the image and the partition table printed first | as predicted |
+| **U2** | second `read-mac`: CF:20. `write-flash` at 18:54:01Z, exit 0: "Wrote 1992992 bytes ... Hash of data verified." **OFF:** the frozen `verify-flash --before no_reset` exited 2, "No serial data received". write-flash ran at 921600 baud and left its stub there, and a fresh no-reset connection syncs at 115200. Ruled (i) by the reviewer, 18:55:36Z, and run after the explicit lift (18:56:42Z): `verify-flash --before default-reset --after hard-reset` at 18:56:49Z, "Verification successful (digest matched).", then "Hard resetting via RTS pin..." | the write and the read-back match; the frozen procedure's no-reset verify can't reach a stub left at another baud |
+| **U3** | 18:57:06-18:58:06Z: `rst:0x1 (POWERON)`, `[build] env=blipscope-pro-s3-21 fw=v19 features=cloud ...`, `[board] TCA9554 @0x20 ACK (expander alive)`, `[board] QMI8658 WHO_AM_I=0x05 (expect 0x05); ...`, `[disp] tft.init=1 480x480  backbuffer ok`; one rst line in 60 s; then the portal (no saved credentials) | as predicted |
+| **E1** | the config page reads enrolled = 1 and the location is set. The owner did both himself, with the Turnstile his | as predicted |
+| **E2** | the radar has aircraft: `/diag/fb` 460,800 B (480x480 RGB565BE), Torn false and Finished true on three reads; the List face, "40 tracked". The picture stays local, since its contents derive from his location | as predicted |
+| **U3b** | the server's boot report: one row, 19:06:18Z, **SW**. **OFF** (predicted POWERON). From the source (the reviewer's ruling: no serial), the named cause is the portal-provisioned restart, `src/main.cpp:630-633`, which runs on every portal provisioning. `/location` and `/enroll-key` don't restart; the OTA, wedge, weekly and Wi-Fi-down restarts are excluded by the code or by time; a crash would read another reason code. **Not separated:** `main.cpp:616`, the join-failure retry. The owner isn't sure which splash he saw | my miss: first setup restarts, so the first acked boot comes after setup |
+| **P5** | `/diag/fb` frames 460,800 B, three reads each time | as predicted |
+| **P6** | the owner: "almost impossible to swipe"; the Connect face unreachable. Recorded as F3; no fix in this PR | stop condition, recorded |
+| **P7** | the owner's calipers on the lit image: **53.48 mm** | as predicted (about 53.3 mm, under 60 mm): exactly 2x holds |
+| **P8** | #679 (the fleet reads' bench label), open; the local file holds this board's id | to merge before the day-2 read |
+
+**Findings, for the big-screens plan and the 2.1's v21 shipping decision. No fix here:**
+- **F1** (the owner): the Connect face's QR uses `include/ConnectLayout.h`'s fixed 240-px rows (`QR_CY 90`, `QR_PX 4`, and the rows below it), drawn at `src/AircraftManager.cpp:4964`. So on 480 px it is 148 px wide (31%) and sits high. The boot setup QR scales (`SetupQr.h` `ModulePx`: 8 px at 480); this face doesn't.
+- **F2** (the owner's "choppy sweep"): measured **9.7 frames/s, 103 ms per frame** (frame seq 3289 to 3403 in 11.70 s).
+- **F3** (the owner's "almost impossible to swipe"): not a mapping fault in the source. The touch range is `SCREEN_SIZE` (`LGFX.h:217-220`), and the 40 px swipe threshold is about 4.4 mm here against about 5.4 mm on the 1.28". The hypothesis: touch is polled once per frame, so ~10 fps gives a quick swipe one or two samples. To be measured.
+- **F4** (the owner): the new-contact chirp (`AircraftManager.cpp:3896`, "tones" default on). His v21 proposal is chirps off by default on speaker models, with the alert patterns kept. No shipping SKU has a speaker, so it needs no migration.
+- **F5** (the owner's calipers): the outer ring sits about 2 mm (about 18 px) **high** on the glass. **The framebuffer is centred**, read 19:3xZ: along the centre column and row the lit extent is 0..478 on both axes, and the green ring spans y 0..478 and x 0..478. So the drawing is right, and the shift is in the panel's scan-out: the vertical timing (`s3_21.h:57-59`, `VSYNC_PULSE 3 / BACK 8 / FRONT 8`; `LGFX.h:86` `offset_y = 0`) or the ST7701's own porch in its init sequence. To be measured.
