@@ -3,17 +3,17 @@
 **Status: a plan, no code.** Written 2026-11-12 19:37Z by the P4 session, for the owner, through the orchestrator;
 section 2a (the owner's choice, sized) added 20:06Z and corrected 20:16Z (weather's cost, read from the record).
 
-The owner, 2026-11-12 (after 19:31Z), in his words: "After v20's freeze, a speed workstream shared by all boards, with
+The owner, 2026-11-12 (after 19:31Z), verbatim: "After v20's freeze, a speed workstream shared by all boards, with
 targets measured on glass: 30 fps on the 1.28" and the P4; at least 20 (aiming for 30) on the 2.1"; 30 on the Android
 screens. Methods first: static layers drawn once and reused, touch read on its own schedule, and drawing overlapped
 with the panel push. Its plan comes to me with sizes before any code."
 
-**And at 19:55Z, superseding the numbers above,** in his words:
+**And at 19:55Z, superseding the numbers above,** verbatim:
 - "I watched 10, 20, 24, 30 and 60 fps side by side. 20 fps is my minimum (p95 at or under 50 ms). 24 is the target.
   Nothing above 24 is chased. Every "30" in #680 becomes 24, including the 2.1's "ideally 30"." "The number for the
   Android screens waits until I've looked at the 23.6-inch screen itself."
 - "The bar is read with 40 aircraft on screen, map and weather on. 20 and 80 are reported beside it." The firmware
-  tracks at most 60 aircraft (`MAX_AIRCRAFT`), so the high point is **60** unless he rules otherwise.
+  tracks at most 60 aircraft (`MAX_AIRCRAFT`), so the high point is **60** unless the owner rules otherwise.
 - "map-client's early reading puts v19 alone at 74.5 ms p95 with 41 aircraft, and weather adds about 13 ms. So v20 as
   planned misses my bar. I'll choose now, not at pre-flight. BY TOMORROW, p4 SIZES TWO THINGS: (a) reaching 20 fps at
   40 aircraft with map and weather on; (b) v20 no slower than v19 at the same traffic. Then I choose: hold v20 for (a),
@@ -87,7 +87,7 @@ the target (24 fps) is 41.7 ms.
 ### (a) 20 fps at 40 aircraft, map and weather on, in v20
 
 **The owner chose (a). Its working plan, with the checkpoint and the dates, is section 2b.** The tables below are the
-sizing he chose from.
+sizing the owner chose from.
 
 It needs **36.9 + M ms** off the frame (45.2 + M for 24 fps).
 
@@ -218,7 +218,7 @@ its session and map-client's bench schedule. Weatherscope's 6E:64 is barred from
 - **M3 cuts 10-20 ms:** partial (the push task contends, or the overlap is incomplete). L2 becomes the next lever,
   because it shortens the push the task has to hide. It goes to the owner at C1 with an incoming-inspection row.
 - **M3 cuts < 10 ms:** M3 has failed. Without it, the frame is 86.9 + M; L2 takes ~12.9 ms off, and W and L1 would
-  have to find ~24.0 + M ms between them. **The levers beyond L2 change what is drawn,** so each is his ruling:
+  have to find ~24.0 + M ms between them. **The levers beyond L2 change what is drawn,** so each is the owner's ruling:
   - **L3, a cheaper sweep blend** (up to −4.6 ms; the blend's look);
   - **L4, less label and trail work per frame**, for example labels redrawn only when their text changes, or culled
     where they overlap (the labels' look).
@@ -244,7 +244,7 @@ its session and map-client's bench schedule. Weatherscope's 6E:64 is barred from
 |---|---|---|---|---|
 | **R1**: C1 on track; P4-P6 find the rest at the first try | 11-16, confirmed at P7 | 11-19 to 11-22 | **unchanged, Nov 21-25** | **Nov 25-30** |
 | **R2**: C1 on track; W and L1 need a second round (+3-4 d) | P7, about 11-21 | 11-23 to 11-26 | **Nov 23-26** | **Nov 27 - Dec 1** |
-| **R3**: C1 partial or failed; L2 (+1-2 d with the inspection) and his rulings on L3 and L4 | **C1, about 11-16** | about 11-28 to 12-05 | about Nov 28 - Dec 5 | **about Dec 3-10, or later**: it is not sizable until he rules on L3 and L4 |
+| **R3**: C1 partial or failed; L2 (+1-2 d with the inspection) and the owner's rulings on L3 and L4 | **C1, about 11-16** | about 11-28 to 12-05 | about Nov 28 - Dec 5 | **about Dec 3-10, or later**: it is not sizable until the owner rules on L3 and L4 |
 
 **R3's date is a range, not a promise.** C1 (about 2026-11-16) is when it becomes known, and when the owner is asked.
 
@@ -309,7 +309,7 @@ All carry ± 1.54 ms (I-6) and weather's ± 2.5 ms. M, the map's steady cost, is
   (4.6) + the clear (2.1) = 13.2 ms, and no realistic cut removes all of it. So the rest must come from L1, on a
   per-contact cost now measured at 1.14-1.38 ms. **(a) on FIXED is at the edge of what the methods and L1 can do.** The
   levers past them (L3, a cheaper sweep blend; L4, less label and trail work per frame) change the look, so they are
-  his rulings.
+  the owner's rulings.
 - **Without M3, (a) is out of reach on either traffic** (13-32 ms short after L2).
 
 **C1's meanings are unchanged** (the owner fixed them). What the larger gap does to the dates:
@@ -318,7 +318,7 @@ All carry ± 1.54 ms (I-6) and weather's ± 2.5 ms. M, the map's steady cost, is
 |---|---|---|
 | **R1** (C1 on track; the rest found at the first try) | **holds: v20 promoted Nov 25-30.** After M3, only ~0.1 + M is left, covered by P4 and part of P5 | **NOT reachable.** Even with M3 complete, 15-19 + M ms remain, more than one round of P4-P6 can be relied on to find |
 | **R2** (C1 on track; a second round for W and L1, +3-4 d) | holds as the fallback: Nov 27 - Dec 1 | **the best case:** W must deliver most of its ceiling and L1 the rest; **Nov 27 - Dec 1, only if both do** |
-| **R3** (C1 partial or failed; L2, then L3/L4 rulings) | about Dec 3-10, if M3 fails | **the realistic case:** L3/L4 likely needed even with M3 on track. **About Dec 3-10 or later**, not sizable until he rules on L3/L4 |
+| **R3** (C1 partial or failed; L2, then L3/L4 rulings) | about Dec 3-10, if M3 fails | **the realistic case:** L3/L4 likely needed even with M3 on track. **About Dec 3-10 or later**, not sizable until the owner rules on L3/L4 |
 
 **The owner's decision that most moves v20's date is which traffic the bar is read on.** On LIVE-like traffic the plan
 as sized holds (R1). On the packed FIXED scenes, planning on R3 is the honest reading. map-client's caveat stands: the
@@ -395,7 +395,7 @@ FIXED scenes pack every aircraft inside 8 mi, which is harsher than a real board
 - **Web:** the browser already presents asynchronously. The analogue is moving the canvas replay into a worker
   (OffscreenCanvas), so it overlaps the WebAssembly frame. **Only if** the 23.6" measurement misses.
 
-**Two more levers the measurements point to.** These are not the owner's methods, and each needs his ruling.
+**Two more levers the measurements point to.** These are not the owner's methods, and each needs the owner's ruling.
 - **L1. The per-contact cost**, 0.802 ms per aircraft on the 1.28". Most of it is the info labels: +8.5 ms at about 16
   contacts, paired A/B on 2026-08-26, because `AircraftLabelBox` walks the same fields a second time for layout. Caching
   each contact's label layout until its text changes cuts the slope. **Expected: unmeasured**; the profile (S1) sizes

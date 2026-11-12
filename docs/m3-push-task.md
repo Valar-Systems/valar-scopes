@@ -2,7 +2,7 @@
 
 **Written 2026-11-12 20:24Z by the P4 session.** This is P2 of docs/speed-plan.md section 2b, the step checkpoint C1
 reads. **No code before the owner accepts the plan and chooses staffing** (the orchestrator, 20:22Z). This is the
-registration only, so that the code can start the moment he does. Every prediction is frozen here, before any code.
+registration only, so that the code can start the moment the owner does. Every prediction is frozen here, before any code.
 
 ## 1. What changes
 
@@ -89,9 +89,9 @@ may already tear, and the base is the comparison.
   the base's rate by more than half again.
 - **Shear the base does not have:** the moving bar broken or slanted across a band boundary.
 
-**Who judges:** the owner, live on the glass, plus **a slow-motion phone video of each 60 s run** (a 240 fps mode if his
+**Who judges:** the owner, live on the glass, plus **a slow-motion phone video of each 60 s run** (a 240 fps mode if the
 phone has one). The counters can then be read frame by frame afterwards: p4 grades the video, and the owner's eye
-decides anything the video cannot show. **This is a window with his time,** about 15 minutes for the base and (i),
+decides anything the video cannot show. **This is a window with the owner's time,** about 15 minutes for the base and (i),
 plus 10 more if (ii) is needed; the orchestrator schedules it.
 
 Clean → (i). A stale band → (ii), built and run the same way. More tearing or shear than the base → stop, and report
@@ -172,7 +172,7 @@ can miss a stale stripe that lasts one frame.
 |---|---|
 | reading LGFXBase's shared state (the last ASSUMED row that code depends on) | 0.25 d |
 | the code: the macro, the second sprite, the task, the hand-off, FrameDone and SetPhase moved, the `fr` marking, the host check | 1 d |
-| the design hour (section 4), on E2:08, with the owner's eyes and a slow-motion video | 0.25 d (one window with his time, ~15 min; +10 min for (ii)) |
+| the design hour (section 4), on E2:08, with the owner's eyes and a slow-motion video | 0.25 d (one window with the owner's time, ~15 min; +10 min for (ii)) |
 | design (ii), only if (i) shows a stale stripe | +0.5 d |
 | the bench read (M3-0 to M3-7) | 0.5 d (one window) |
 | M3-8: the bench prerelease (blipscope-5c publishes, with the owner's OK), the install and the save, in a window | 0.5 d, plus 5c's time |
