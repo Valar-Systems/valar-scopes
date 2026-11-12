@@ -2994,3 +2994,47 @@ made, even if the piece is later rejected), keep the miss on record, and re-run 
 - **Nothing else changed.** `p2-read.py` 1f58939262fb (was a4a35809e8d7); the change is those four numbers and a comment.
 - **The miss stays on record** (above). Another off reading goes to the owner.
 - Run 8, from the top, follows this commit.
+
+**Run 8 (18:09:35-18:12:00Z; `p2-read.py` 1f58939262fb; output b3103d71e8cb): (B') reads as registered on every row. The run STOPPED at
+KB4 KSEA, a point (B') does not touch.**
+- **As registered:**
+  - xisland and the two STOP plants; the synthetic controls; `seaRepairs` 0 in the 13 other synthetic builds; P2-0 and T-SEA0-real;
+  - P2-1 kOk at all 16;
+  - **(B') at the four New York points, every figure exact** (`bridges` 4/4/3/3 as re-registered);
+  - **the 12 others byte-identical;**
+  - **(C): step-5 refusals 0 at all 16**;
+  - the lock's cost within tolerance at all 16; KB3 (KJFK 909, KLGA 870);
+  - KB8's controls and rows;
+  - **KB4 at KBOS, KJFK and KLGA to 4 decimals**, complement and scope included;
+  - KB4's control at KSEA (complement 0.0107 / 0.0808, failing both bounds).
+- **THE OFF READING: KB4 KSEA, frac 0.8861** (bound 0.95). Cover 0.9192 passes (bound 0.90). Sea px 8,190.
+- **KSEA's package is byte-identical to run 6's** (9bd5b34d6718), so this reading does not come from (B'). Run 6 stopped at KJFK and
+  never reached Seattle, and this registration did not compute KSEA before the run.
+
+**Read after the stop** (`kb4-diag-ksea.py` bdf63d3d269a and `kb4-ref-source.py` f744c8ed61ad, neither a graded row):
+- **The alternative that comes first, that ×8's simplification draws sea over land:** it is real, but it is the smaller part.
+  - The UNSIMPLIFIED store reference on the same grid reads **frac 0.9089**. The sea path's ε rings read 0.9093.
+  - Of the package's 933 px above 0 m, **636 lie where the reference is sea too.** **297 lie where it is land:** that is ×8's
+    shoreline error, 3.6% of the mask, about 2.3 points of frac.
+  - **So the bound is unattainable at KSEA by the source itself.** Natural Earth's 1:10m coastline and the terrain disagree along
+    Puget Sound's narrow channels at 1.341 km/px.
+- **The source's own KB4 figures (frac / cover), and the packages already graded:**
+
+  | airport | source | package | the build's loss |
+  |---|---|---|---|
+  | KBOS | 0.9847 / 0.9909 | 0.9827 / 0.9907 | 0.0020 / 0.0002 |
+  | KJFK | 0.9778 / 0.9850 | 0.9713 / 0.9831 | 0.0065 / 0.0019 |
+  | KLGA | 0.9747 / 0.9813 | 0.9672 / 0.9791 | 0.0075 / 0.0022 |
+  | **KSEA** | **0.9089** / 0.9377 | 0.8861 / 0.9192 | **0.0228** / 0.0185 |
+  | KSFO | 0.9958 / 0.9566 | not graded yet | |
+  | KMIA | 0.9760 / 0.9977 | not graded yet | |
+
+  Only Seattle's source fails a bound; KSFO's and KMIA's sources meet both. The packages' values at KSFO and KMIA were neither printed
+  nor read.
+
+**For the owner (KB4's third off reading), via the orchestrator. Nothing is applied.**
+- **(i) KSEA as a recorded exception:** the source fails the bound there. KB4 stays absolute everywhere else. Run 9 from the top
+  reaches KSFO, KMIA, KB5, KB7 and P2-M.
+- **(ii) KB4 graded relative to the source where the source fails:** the package within a margin of the source's own figures. Any
+  margin I name now would be chosen after seeing KSEA's 0.0228, so the number is his.
+- **(iii) Fix the source at Puget Sound:** a finer coastline there. That is its own scope, and nothing ships from part 2 until it lands.
