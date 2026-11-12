@@ -216,3 +216,21 @@ released when the diagnostic is done; no deploy follows under it.
   started. Production was re-read at 05:57Z at `68dc169a`, and `proxy:production` was released at 05:57:03Z.
 - **What follows** (the orchestrator, 05:57:49Z): the production half waits on the owner's permission. Once that is
   given, P0 and P-slot re-run fresh, and the orchestrator is told before P-dep. Nothing else is deploying meanwhile.
+
+**Production, after the owner's one-time OK (15:07Z): every row as predicted.**
+
+| step | time | reading |
+|---|---|---|
+| P0 | 15:14:34-41Z | one version at 100 %, `c1324f7c-c833-4854-bba2-f2ec5c8b4b59`; `/healthz` `68dc169a` |
+| P-slot | 15:14:41Z | `deploy: held -- uk-data, covering proxy:production`; production's list is exactly the five. **One difference, named before the deploy:** main had moved to `f3fee349`, which touches `src/weatherscope/WxBasemap.h` and `test/host/*` only. The `proxy/` diff from `e3c2508e` is empty, so the deploy ran from `e3c2508e`, the sha staging was graded on. The orchestrator verified the empty diff independently (15:14:57Z) |
+| P-dep | 15:14:57-15:15:14Z | `deploy.sh production` exit 0 (`1 commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)`); version `0f4cf9bb-7420-4f33-975b-eef50c862163`; confirmed `/healthz` `e3c2508e` |
+| P1 | 15:15:20Z | the 11 in `PRODUCTS`' order; `routed: true` on exactly `cref` and `opuk` |
+| P2 | 15:15:20Z | `cref` 161 s, `stale: false`; the ten OPERA products 68,722 s, `stale: true`. The silent branch: every OPERA `latest` read 1794427800 at 15:15:23Z |
+| C1 | 15:15:20Z | the five `nws_*` breakers, `closed`, exact; no `commit` key inside |
+| C2-C4 | 15:15:26-27Z | C2 x3 401 `unauthorized`; C3 404 `not_found`; C4 405 `method_not_allowed` |
+| P3 (and W5's C5) | 15:15:33-53Z | smoke exit 0, `PASS: 38 FAIL: 0`. 11 per-product lines, `WARN` on exactly the ten P2 graded stale; `wx-opuk` PASS; `/basemap` the inert 503. Every Blipscope smoke row passes |
+| P4 | 15:16:01-26Z | `s4_grade.py`: silent branch; `cref` 35/35 as originally frozen; `opuk` 14/14 503 `wx_stale`. The point file was deleted |
+
+`proxy:production` was released at 15:16:33Z; `/healthz` re-read `e3c2508e`. **The deploy is complete on both
+environments.** OPERA was still silent at the last read (about 19 h); `/healthz` now shows that to anyone who reads it,
+which is what #643 was for.
