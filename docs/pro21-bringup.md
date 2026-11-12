@@ -113,3 +113,52 @@ The full first write erases the NVS span on purpose: this board has nothing to k
 
 **The Worker's activation watch** will still count it `not_listed`. That count is Worker-side and changing it needs a
 deploy, so it is said here rather than changed.
+
+## Amendment 2: the native USB-C port (the owner, 2026-11-12 18:31Z), frozen before P0
+
+**His words:** "the 2.1"'s housing only exposes its native USB-C port. Opening it to reach the UART port waits for
+another day, so the bring-up runs over the native USB port." And:
+- "Same guards. Read the MAC with esptool's --after no_reset, and write with --before no_reset, so the chip stays in
+  download mode between the two reads and the port can't drop."
+- "If the chip won't enter download mode through that port, stop. No button presses through the housing; it waits for
+  the UART change."
+- "This build logs only on UART0 (platformio.ini: no CDC on boot), so there's no serial boot read. Take the boot reason
+  from the server's boot report once the board is on Wi-Fi."
+- "Everything else as you set out."
+
+**What changes:**
+- **The port is Espressif's own** (VID 0x303A). On its native USB-Serial-JTAG the USB serial IS the chip's MAC, the same
+  rule as the four registered boards. The CH343 identity design waits for the UART day.
+- **The new port is found by elimination.** Of the VID 0x303A ports, the four registered boards' labels (E9:D8, E7:94,
+  6E:64, E2:08) are set aside, and exactly one must remain. Any other count is refused.
+- **The sequence, each step once:**
+  1. `read-mac --before default_reset --after no_reset`: into ROM download mode through the USB-JTAG reset, and it
+     stays there. Its label must not be one of the four, and must equal the label of the port's own USB serial when
+     that serial is MAC-shaped.
+  2. Immediately before the write: `read-mac --before no_reset --after no_reset`, the same label.
+  3. `write-flash --before no_reset --after no_reset 0x0 firmware.factory.bin`.
+  4. `verify-flash --before no_reset --after hard_reset 0x0 firmware.factory.bin`, which boots the new image.
+- **The image and the write range are unchanged:** sha256 `971a8098c53fbe401ada5e5339c4f11c77e64a7f6fed00d5bd76caf577541313`,
+  0x000000 .. 0x1E691F. Its app reads PLACED against the earlier main build (75 bytes, all in the five regions).
+
+**THE KEY, found while amending and stated before it bites.** The shipping build's default key is empty
+(`CLOUD_FEED_KEY ""`, `src/CloudFeed.h:26-27`). A board's key comes from NVS: `cloud-key` (the config page's
+`/enroll-key`), else `cloud-key-fac` (written once by `scripts/provision-device.py`). The full first write erases NVS,
+so the flashed 2.1 has NO key. Then:
+- **its requests read 401** (`proxy/src/index.ts`, `authenticate` before anything else), so **the radar draws no
+  aircraft**, and P6's tap has no contact to open;
+- **the server never records its boot reason.** `recordBoot` runs only past authentication
+  (`proxy/src/index.ts:398`), which is the "keyless boots are invisible" fact.
+
+So the board needs a key before P6 and before the boot reason can be read. **How it gets one is the owner's call**,
+asked now (Q-P5). Either way, the provisioning tool and its records are his; this session never touches them.
+
+**Re-predicted rows (they replace P0', P1', P2' and P3 for this run):**
+
+| row | predicted | stop if |
+|---|---|---|
+| **P0''** | one new VID 0x303A port; exactly one left after the four registered labels are set aside | not exactly one |
+| **P1''** | step 1 enters download mode and prints a label that is none of the four, equal to the port serial's label | "Failed to connect", or no download mode, or a known label: **stop, no button presses** |
+| **P2''** | steps 2-4: the same label; `write-flash` exit 0; `Verification successful (digest matched).`; the hard reset boots the image | any error, or a label change |
+| **P3''** | no serial read. The boot shows on the glass: the splash, then the setup screen with its QR code (no Wi-Fi saved), seen by the owner. If the glass stays dark after the hard reset (the S3's download-mode trap), he unplugs and replugs it once, and it boots | dark after one replug: stop |
+| **P3b** | **the boot reason**, from the server's boot report, read the way #666's driver reads it (`scripts/fba-boot-rows.mjs`). It is readable only after the board has a key. With a key, predicted: `POWERON` if he replugged, else `USB` (the hard reset over USB-Serial-JTAG). With no key: **no row, stated as "keyless, so unread"**, never as a missing boot | a row with any other reason |
