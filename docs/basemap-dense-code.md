@@ -1627,6 +1627,17 @@ counts and the sea's exact package bytes.
 
 **Pictures:** the closest zoom at Buffalo, Rouses Point and Zapata from P2-1, written for the owner, as ruled at 03:56Z.
 
+**Amendment (the orchestrator, 04:30:57Z): the sea's cost in OTHER content, named per point.**
+- **Why:** QW4-1's packages sit at the cap (KJFK at exactly 32,768, three others 1 byte under), and the sea adds up to 3 KB. So the ladder
+  may drop roads, rivers or water to fit the sea even where the radius doesn't change. "Radii as QW4-1" doesn't see that.
+- **P2-1 also builds each of the 16 WITHOUT the sea,** on the ORIGINAL store: the same objects (`bm-obj`, `lake-obj`, `zap-obj`) with the
+  original manifest, index and `current`. It is not `sea-obj` with the knob off, since `sea-obj`'s regions would still add the sea
+  layer's PROVENANCE lines and shift the cap.
+- **For each point it prints, with the sea and without:** the rung; `dropped.water` and `dropped.roads`; the secondary roads kept; the
+  river lines; and the water rings that are not sea.
+- **Any increase in a drop count, any decrease in kept content, or a rung change is a VISIBLE COST,** named per point to the owner beside
+  the radius check. It is not a stop. That is the trade he would be making: the sea in exchange for some content near the cap.
+
 **For the code PR,** registered now, run with it:
 - **PARITY** (the 04:20:51Z ruling): its TypeScript ingest produces the SAME pieces as the dry run over all 2,584 cells: piece counts,
   ring counts, and areas within 1e-6 relative. **The control:** one piece's area altered must fail it.
