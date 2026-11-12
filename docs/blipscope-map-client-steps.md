@@ -1600,6 +1600,79 @@ list that a device uses once it loads).
   four earlier plants' red sets are unchanged. **So the value pin is the only thing that catches a changed constant,**
   which is the ruling's point.
 
+### CB7's first run OFF, its diagnostic, and ruling (A): re-registered before the re-run (2026-11-12)
+
+**The first run** (the code committed as `5041d152` before it ran; `test_map_places.cpp` under g++ 13.3):
+- **32 checks, 4 failures:** `CB7 r45`, `r135`, `r225` and `r315`.
+- **Everything else passed,** including all 15 count rows. So every one of the 120 frames matched the independent
+  reading.
+
+**The diagnostic** (approved 00:37:40Z). It ran a scratch copy, never the committed test, and printed counts and
+magnitudes only:
+
+| per diagonal rotation | vs `ToScreen` (tol 0.5): over / max \|Δ\| | vs `Project` (tol 1.0): over / max \|Δ\| |
+|---|---|---|
+| on the disc (≤ 120 px) | 0 / 0.000017-0.000018 | 0 / 0.998908-0.999518 |
+| off, 120-1,000 px | 0 / 0.000073-0.000088 | 2 / 1.001297-1.001359 |
+| off, 1,000-5,000 px | 0 / 0.000153-0.000191 | 1 / 1.002482-1.002590 |
+| off, over 5,000 px | none there | none there |
+
+- **By the frozen table this is outcome (iii).**
+  - Every miss is off the disc, but against `Project`, not `ToScreen`, so (i) does not hold.
+  - No miss is on the disc, so (ii) does not hold either.
+- **What the numbers show:**
+  - `Project` returns an int truncation of a FLOAT result. When the double anchor is just past an integer and
+    `Project`'s float lands just short of it, the two differ by 1 plus `Project`'s float error. That error grows outward
+    (1.0013, then 1.0025).
+  - The on-disc maximum, 0.9995, is the same effect inside the bound by 0.0005 px.
+- **My miss:** CB7 compared a DOUBLE anchor against an INT truncation of a float, so "≤ 1" was never an exact bound. It
+  is a design flaw in the check, not a defect in the code. I also registered the tolerance without checking how far off
+  the screen the fixtures' towns land.
+
+**The ruling, verbatim (the orchestrator, 00:39:14Z):**
+
+> RULED (A): CB7's Project half compares what is DRAWN, the label's integer anchor ((int)x, (int)y) against Project's
+> int result, |Δ| ≤ 1 per axis. That bound is the exact property of comparing two truncations of nearly equal values,
+> not a tolerance picked from data. The ToScreen half stays at ±0.5. (B) is rejected (margin, not guarantee), and so is
+> (C) (chosen after the data).
+> Conditions:
+> 1. A re-registration as a docs commit, public before the re-run, quoting this ruling and the diagnostic's numbers.
+> 2. A NEW plant that proves the new half can fail: the drawn anchor offset by 2 px (an int) must turn CB7 red at every
+>    rotation. Freeze its red set from the reading, not assumed.
+> 3. Re-derive S-CB-NORTHUP's CB7 red set under (A) by the reading, as you said.
+> 4. Then re-run from the start: the suite, MinGW, check_map_draw.py and the drivers, as registered. This is CB7's first
+>    re-run; a second off reading goes to me and on to the owner.
+
+**CB7 under (A),** per rotation, over every fixture, step and town:
+- **The `ToScreen` half, unchanged:** `|anchor - maplayer::ToScreen| ≤ 0.5` on each axis.
+- **The `Project` half:** `|(int)x - Project's x| ≤ 1` and `|(int)y - Project's y| ≤ 1`, where (x, y) is the anchor, as
+  the label draws it. It keeps the same 1e5 guard as before.
+
+**Frozen from the reading** (`places_plants.py`, now sha256
+`bff74aae42f10a30e9baba34b7c593e71461e9bae769047e839001f390377794`):
+- It now grades CB7 under (A) per town, with the true double anchor, `Project`'s int result from its float32 replica,
+  and each plant's anchor. The true anchor stands in for `ToScreen`'s float path, which the diagnostic measured within
+  0.0002 px of it.
+- **Its control still reproduces the registered table, and the unplanted CB7 is green at all 8 rotations.**
+- **S-CB-NORTHUP, re-derived:** unchanged. 16 red: {CB6 rank; CB6 kjac 25/50/100mi; ksfo 5/10mi; bend 25/50/100mi;
+  CB7 r45, r90, r135, r180, r225, r270, r315}.
+- **S-CB-ANCHOR2 (new):** `Anchor`'s x gets + 2.0, so the drawn (int) anchor sits 2 px to the right. 13 red: {CB6
+  rank; CB6 kjac 50mi; ksfo 5mi; ksfo 10mi; bend 50mi; CB7 r0, r45, r90, r135, r180, r225, r270, r315}.
+  - **CB7 is red at every rotation,** which is the condition.
+  - The counts move too, because the shifted anchors place differently.
+- S-CB-AIRPORT, S-CB-FILEORDER, S-CB-NOCAP and S-CB-PINVAL: unchanged.
+
+**The re-run, from the start, after the test's CB7 change and the driver's new plant are committed:**
+- the suite under g++ 13.3: **32 checks, 0 failures**;
+- MinGW 5.1: the same, with the named x87 risk. A MinGW-only difference is a stop;
+- `check_map_draw.py`: **3 checks, 0 failures**;
+- `sabotage_map_draw.py`: 5 plants and 3 controls, as its table;
+- `sabotage_map_places.py`: 5 plants, as their sets above;
+- `lint_driver_counts.py`: **39 driver(s), 0 flagged**;
+- `--anchors` and `--control` for both drivers.
+
+This is CB7's first re-run. A second off reading goes to the orchestrator and on to the owner.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
