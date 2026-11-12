@@ -2063,3 +2063,41 @@ clause and its scope, as the 80164e6096c3 table says), then KB1 on `kb1c`.
 **ACCEPTED (06:29:10Z), with the driver change in the orchestrator's words:** "Turning the squares' ORDER row from a 'differs' control
 (known blind) into a check that reads 0 is honest: it now tests the diagnosis, and anything else contradicts it and stops. The real ORDER
 control is on kb1c with its off-bridge clause, as registered." **GO for KB1's first re-run, in the frozen order.**
+
+**Run 3, KB1's first re-run (06:30:15-06:32:10Z): KB1 AS PREDICTED; STOPPED at KB8 KBOS.**
+- **Step 0 and every synthetic row before KB1, as in run 2.** S-KB-ORDER on the squares reads **0**, as predicted. **KB1: 0 in all 24
+  views.**
+- **The `kb1c` rows, all AS PREDICTED:**
+  - S-KB-NOBRIDGE: 15,388.
+  - **S-KB-ORDER: total 128, off-bridge 124**, of which 4 at 162 km, 24 at 81 km and 96 at 40.5 km, over 4 bridge edges. The 162 km
+    pixels are allowed and recorded.
+  - KB1 on `kb1c`: 0.
+- **P2-0 inert and T-SEA0-real at all 13; P2-1 at all 16** (kOk, 0 proper crossings); **KB3 at all six coast airports** (765-1,954 B).
+  All as predicted. **KB8's control** (S-KB-SEAM) reads 25 seam pixels, as predicted.
+- **KB8 KBOS: OFF-PREDICTION.** It found **10 seam pixels on the lon -71 edge**, where 0 were predicted. MIDTOWN's KB8 and everything after
+  it did not run.
+- **P2-1's visible costs were not printed:** the driver prints them at its end, and it stopped first. They are read again on the next run.
+
+**The cause, read after the stop** (diagnostics `kb8-diag.py` and `kb8-diag2.py`, neither a graded row):
+- **The 10 pixels are column x = 131, rows 123 and 127-135.** That is 0.73 px west of the edge (screen x 132.23), at the closest zoom,
+  north-up, around 42.35°N. East of the edge, ring 0 (45 vertices) is drawn right up to it. West of it, ring 2 has **5 vertices and only
+  one on the edge,** at lat 42.35786. From there its boundary cuts south-west to (42.30018, -71.01784), 1,464 m west of the edge. The
+  undrawn wedge between that chord and the meridian is 1 px wide at row 127 and 4 px at row 142. Where the east piece's edge ends
+  (42.308), it is **about 1.2 km wide.**
+- **The alternative, that the stored pieces do not meet, is EXCLUDED.** In `sea-pieces.json`, cell 42/-72's piece 0 (ocean, 17
+  vertices) has edge vertices at **42.30809 and 42.35786**. Cell 42/-71's piece 0 (ocean, 197 vertices) has the same two. The pieces
+  meet exactly; the build parts them.
+- **The mechanism.** Each piece is simplified on its own. The west piece's edge vertex at 42.30809 lies **1,231 m** from the chord that
+  replaced it, so it was dropped at a tolerance of at least 1.23 km. That is the ε×8 set (1,609 m), which KBOS's rung 4 draws water from.
+  The east piece kept its edge, because there its edge vertices are corners of a long straight run.
+- **KB8's count understates the size.** It reads only the 1-px band beside the edge. The wedge is a triangle about 1.2 km across and
+  5.5 km long, of order 700 px at the closest zoom. The instrument fired correctly; its count is not the area.
+
+**For ruling** (nothing applied; this is KB8's first off reading):
+- **(a) Edge-locked simplification, recommended.** In the sea path's simplify step, every vertex lying on the piece's own cell boundary
+  is kept: the ring is split at those vertices, and Douglas-Peucker runs on each chain between them. The shared edge vertices are
+  identical in the store and quantise identically, so both sides keep the same edge. The cost is a few more vertices per piece, which
+  KB3 bounds. This changes #616's simplify step in pq4d and in the code PR.
+- **(b) Join same-source pieces across cell edges in the builder before simplifying.** It is seamless and fewer bytes, but needs a
+  polygon union at runtime (a dependency, and CPU and memory).
+- **(c) Accept it as a visible cost.** I do not recommend it: at ε×8 the gap reaches about 1.6 km, roughly 24 px at the closest zoom.
