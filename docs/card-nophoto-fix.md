@@ -175,7 +175,66 @@ only after his word on (a) and (b).
 `npm run typecheck:scripts` (`tsconfig.scripts.json`) covers the new script. Read locally before the push: exit 0, and
 `--listFiles` names `nophoto-share.ts`, so the check opened the file.
 
+## Amendments to step 2 (the reviewer's ruling (A), 2026-11-12, after the first D-ref; written before the re-run)
+
+The first D-ref read OUTSIDE on both envs (Results, below). The move had sent `line()`'s test through
+`cardlayout::RowFits(y, hardBottomY, backbuffer.fontHeight())`. That changes the evaluation order (`y` is loaded before
+the `fontHeight()` call) and the `[&]` closure's capture order, which follows first mention (`y`, `hardBottomY`,
+`backbuffer` instead of `y`, `backbuffer`, `hardBottomY`). Neither changes behaviour, but D-ref proves the move with
+bytes, and placing the bytes after seeing them would be a re-grade (the reviewer: "Not (B)").
+
+**M1. `line()` keeps its own test until the fix.**
+- At step 2, `line()` keeps `y + backbuffer.fontHeight() > hardBottomY`, byte for byte.
+- `RowFits` stays in `CardLayout.h`, for `RowsThatFit` and T-host. CL4 pins it to `line()`'s rule by numbers
+  (158 + 8 = 166 draws; 159 + 8 = 167 drops).
+- The card calls `RowFits` from step 4, the fix, which changes bytes anyway and is graded end to end by T-web.
+
+**M2. The slot flow starts at `SLOT_FLOW_Y` until the fix.** `SlotFlowStartY(SCREEN_SIZE, followCtl)` needs
+`followCtl` before the slot is drawn, and computing it there reorders code the same way. At step 2 the card uses
+`cardlayout::SLOT_FLOW_Y`, the value `SlotFlowStartY` returns. The fix calls `SlotFlowStartY`, since it needs
+`followCtl` there anyway.
+
+**D-ref, re-run on the amended move.** The same two envs, the same worktree path, compared against the same "before"
+images. **Predicted: PLACED on both, `cmp5` exit 0 on both.** Any byte outside the five regions is a stop again.
+
+**The red-first push** (accepted by the reviewer; that head shows red and is not for merging): **37 = 30 / 3 / 4**.
+- firmware 30 = 25 / 2 / 3: both host-tests legs fail on CL1, and the `host-tests` aggregate with them; `version` and
+  `promote` skip.
+- web-renderer 2 = 0 / 1 / 1: the build fails at the T-web step on s3-128, after s3-21 has also run; publish skips.
+- workers 3 / 0 / 0; device-ids 1; no-traffic-captures 1.
+
 ## Results
+
+### D-ref, the first run (off prediction; stopped, ruled (A) above)
+
+Both envs rebuilt in one worktree path, before (`a7eb4be1342a`) and after the first version of the move. Image sizes
+unchanged (s3-128 1,932,544 B; pro-s3-21 1,927,456 B). 91 bytes differ in each: 75 in the five rebuild regions
+(32 + 1 + 32 + 5 + 5) and **16 outside**, so `cmp5` exits 1 on both. The same 16 bytes appear in both envs. Mapped
+through the image's segment table to the "after" ELF's symbols (s3-128):
+
+| bytes | where | what |
+|---|---|---|
+| 15, at 0x0c5823..0x0c5833 | `DrawDetailCard`'s `line` lambda, `operator()` | the load of `y` moved ahead of the `fontHeight()` call; the `l32r` literal index shifts by one; the bound's compare re-encoded |
+| 2, at 0x0cd9b9 and 0x0cd9c5 | `DrawDetailCard` | two stores into the closure object swap slots 0x74 and 0x78 |
+
+The alternatives, and why the data excludes them:
+- **A stale or different build:** every other byte is identical, and both places are in the function the edit touched.
+- **Rebuild nondeterminism:** CLAUDE.md's v9 accounting places a same-source rebuild entirely in the five regions,
+  and these bytes sit at the edited expression.
+
+### T-host and T-web on today's code (red first, as predicted)
+
+- **T-host**, in WSL Ubuntu-24.04 (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`), with `run.sh`'s flags:
+  - CL0 ok.
+  - CL1 FAIL: "flow from y 162 to 166 holds 0 row(s), needs 3".
+  - CL2 ok (19 rows at 480 px); CL3 ok (5 rows, 240 px with no Follow); CL4 and CL5 ok.
+  - Exit 1. It was read through `wsl --exec`, with a control (a known `exit 1` read back as 1).
+- **T-web**, on web builds of `a7eb4be1342a` (before any move):
+  - The scene clock was +179 s, chosen from the scene's own `/blips`: SKW3307 20.2 km from the centre and 7.7 km
+    from the nearest other aircraft.
+  - **s3-128:** CN0 ok (the card for SKW3307 is open, with its title and "No photo available"); CN1, CN2 and CN3
+    FAIL; exit 1. The frame draws 5 strings.
+  - **s3-21:** all ok; exit 0. The frame draws 13 strings.
 
 ### Q1, the no-photo share (run once, as frozen; the reviewer's OK on the numerator, 17:55Z)
 
