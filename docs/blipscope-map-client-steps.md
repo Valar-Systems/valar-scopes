@@ -5016,6 +5016,11 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
 - **MAP-ONLY, a missing add, is 0 on all 30 on-frames** (the other 28 are reported).
 - **EDGE** is "within 0.005 rad of an angular edge of the add region", the registration's "contiguous arc at the
   edge" made concrete and printed in the output.
+- **The record (the orchestrator's note):**
+  - EDGE was defined AT RUN TIME, because the registration's phrase had no definition, and that was said when it ran.
+  - **It decided nothing:** (A-a) held at 100 % overlay on both frames whatever EDGE read.
+  - The standing practice: a definition the registration lacks is pinned before the run, or flagged as run-time with
+    its effect on the outcome stated. This one is the second.
 
 **THE TWO SHOWS (23:17:09Z): BOTH HOLD, so the exclusion stands.**
 - `addshow.py` `d5bf0fa00ed57fb7ca6531694f64cc60622d053107783d3086ec78468990d69a`.
