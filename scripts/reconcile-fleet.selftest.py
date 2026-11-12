@@ -160,5 +160,46 @@ for name, want, old, new, must in R1_PLANTS:
     print("%s: %s -- red %s (want %s)%s" % (name, "as predicted" if ok else "OFF-PREDICTION", got or "none", sorted(want),
                                             "; %s shown: %s" % (must, must in shown) if must else ""))
 
+# U1: every text-mode subprocess call decodes as UTF-8, strictly. wrangler prints UTF-8. On a Windows machine whose locale
+# is cp1252, a text=True call with no encoding= crashed subprocess's reader thread, and the script read no KV row at all
+# and exited 2 (v19's step 8, 2026-11-12). CI decodes UTF-8 whatever the call says, so a behaviour test could not fail
+# there. This one reads the call sites themselves, and fails on any OS. errors="strict": a byte that isn't UTF-8 is an
+# error to see, never a character to invent.
+import ast  # noqa: E402
+
+
+def utf8_violations(source: str) -> list:
+    bad = []
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+            continue
+        kw = {k.arg: k.value for k in node.keywords if k.arg}
+        text = any(isinstance(kw.get(a), ast.Constant) and kw[a].value is True for a in ("text", "universal_newlines"))
+        if not text:
+            continue
+        enc = kw.get("encoding")
+        err = kw.get("errors")
+        if not (isinstance(enc, ast.Constant) and enc.value == "utf-8" and isinstance(err, ast.Constant)
+                and err.value == "strict"):
+            bad.append(node.lineno)
+    return bad
+
+
+u1 = utf8_violations(SRC)
+off += bool(u1)
+print("U1 (the real source): %s -- text-mode subprocess calls without encoding=\"utf-8\", errors=\"strict\": %s"
+      % ("as predicted" if not u1 else "OFF-PREDICTION", u1 or "none"))
+# U1-ctl: the same reader must see one call lose its encoding, or a green U1 proves nothing.
+U1_ANCHOR = 'text=True, encoding="utf-8", errors="strict", timeout=180)'
+if SRC.count(U1_ANCHOR) != 1:
+    off += 1
+    print("U1-ctl: BLIND -- its anchor was found %d times" % SRC.count(U1_ANCHOR))
+else:
+    u1c = utf8_violations(SRC.replace(U1_ANCHOR, "text=True, timeout=180)"))
+    ok = len(u1c) == 1
+    off += not ok
+    print("U1-ctl: %s -- one call planted without encoding=, the reader sees %d" % ("as predicted" if ok else "OFF-PREDICTION", len(u1c)))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)
