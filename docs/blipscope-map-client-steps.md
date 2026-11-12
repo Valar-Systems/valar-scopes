@@ -4001,6 +4001,51 @@ instead of the beam-located θ. It would change the bench image, which means a n
 the images identified again. **I recommend no.** The beam is not a graded class, and the control above shows that θ
 does not follow the wedge.
 
+**The reader's code, before its freeze: one check answered, and a finding that stops the freeze** (09:11:00Z on).
+- **Q-CR4: NO** (the orchestrator, 09:11:00Z). θ stays the beam's, and the bench image stays as identified.
+- **The check asked for:** the beam's line (80, 255, 80) is RGB565 0x57EA and its head (170, 255, 170) is 0xAFF5.
+  **Neither is among the 166 MAPGREEN values.** MAPGREEN's 6-bit green tops out at 47 (the place grey's 21 plus the
+  largest add, 26), and both beam colours have 63.
+- **Written so far (not frozen):**
+  - `--image C`, `--derive-c-bands`, `--fb-c` and their selftests: 46 lines, all ok. Every C plant reads red for its
+    own reason, and θ lands within 0.005 rad of the drawn angle for all four wedge kinds.
+  - **A development bug,** caught by the registered-count refusal: `fb_source_c` shifted the adds twice, giving
+    MAPGREEN 67/13/7/3. The refusal fired, and the fix restored 166/4/14/18.
+  - **The regression control** (`regress_b.py`): B mode equals `5ad12d0a` on all 15 comparisons. A planted one-character
+    change makes it read 12 differences and exit 1.
+- **THE FINDING: Q-CR1's per-slice bands fail on Bend's real map, for a correct step C.** On the host I applied step
+  C's add to Bend's own layer (radii 10, 50 and 150 mi; rotations 0 and 90; 36 beam angles each), classified by the
+  reader's own classes:
+
+  | Bend layer | green slices, MAPGREEN | zero slices, MAP |
+  |---|---|---|
+  | 10 mi | min 94.9 %, mean 98.8 % | min **0.0 %** |
+  | 50 mi | min **90.0 %**, mean 96.5 % | min **9.1 %** |
+  | 150 mi | min 95.7 %, mean 98.5 % | min **3.1 %** |
+
+  - **The cause:** the terrain ramp's colours sit one green step apart. A map colour plus green is often another map
+    colour, so those pixels are AMBIG. The 4 colours in MAP ∩ MAPGREEN are Bend's dominant terrain colours.
+  - **Why the synthetic missed it:** its palette weights all 13 map colours equally, so it read 96.9 % and 100 %.
+- **The same layers under a simpler measure,** the claim itself ("the map stays visible under the beam"): inside the
+  wedge, the share of map- or wedge-class pixels that are NOT a pure green (red 0 and blue 0). Step B's opaque wedge
+  makes every one a pure green; step C keeps the map's red and blue.
+
+  | Bend layer | step C, map on | step B, opaque | step C, off tick |
+  |---|---|---|---|
+  | 10 mi | 100.0 % | 0.0 % | 0.0 % |
+  | 50 mi | min **93.6 %**, mean 98.6 % | 0.0 % | 0.0 % |
+  | 150 mi | min 97.3 %, mean 99.2 % | 0.0 % | 0.0 % |
+
+  At 50 mi the minimum is Bend's own dark-slope pure greens (0x0000, 0x0020) gathering in one sector.
+- **Proposed, Q-CR5, for the ruling:** CBF3-C becomes the not-pure-green share inside the wedge.
+  - **over 80 %** on the C image's trustworthy map-on frames (the worst real reading is 93.6 %);
+  - **under 2 %** on its off ticks (the control; 0.0 % on every real layer);
+  - outside, MAP over 80 %, as CBF3.
+  - Selftest: a step B opaque frame graded as C must read OFF (0 %), the add-into-red frame stays UNTRUSTWORTHY, and the
+    θ independence control stays.
+  - MAPGREEN stays as a class, so its colours are not UNKNOWN, but its share is reported, not graded.
+- **Nothing is frozen until the ruling.**
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
