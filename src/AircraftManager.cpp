@@ -52,6 +52,19 @@ static constexpr uint32_t ZOOM_IDLE_MS = RADAR_ZOOM_IDLE_MS;
 static constexpr uint32_t ZOOM_IDLE_MS = radarzoom::IDLE_RETURN_MS;
 #endif
 
+#ifdef CARD_BENCH
+#if defined(ALERT_BENCH) || defined(FOLLOW_BENCH) || defined(SOAK_TEST) || defined(TOUCH_WEDGE_BENCH)
+#error "CARD_BENCH reads the serial console and scripts the touch sample: build it alone"
+#endif
+// BENCH ONLY (env:blipscope-s3-128-cardbench; docs/card-nophoto-fix.md, section 5). Every bench contact's key starts
+// with this prefix. A tap on one claims nothing (ClaimTappedAircraft), and its outbound paths are pre-marked as sent.
+static const char* const CARD_BENCH_PREFIX = "zzcard";
+// A scripted tap, substituted in HandleTouch where SOAK_TEST substitutes its own: pressed for `left - 1` polls, then
+// one release sample. The touch watchdog still sees only the real chip.
+struct CardBenchTap { int x, y, left; };
+static CardBenchTap g_cardBenchTap = { 0, 0, 0 };
+#endif
+
 // The touch-wedge cap: one driver for the radar and Weatherscope (TouchWedgeCap.h, A12.119),
 // which also resolves the bench-only timer overrides and refuses one without TOUCH_WEDGE_BENCH.
 // TouchWedgeDevice.h is its NVS, cause stamp, restart and serial.
@@ -1493,6 +1506,9 @@ void AircraftManager::Update()
 #endif
 #ifdef TOUCH_WEDGE_BENCH
     PollTouchBench();
+#endif
+#ifdef CARD_BENCH
+    PollCardBench();
 #endif
 
     // advance the radar sweep + paint the contacts it crossed this frame, before
@@ -6073,6 +6089,10 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
     // Binding it to the tap would silently drop every claim on a cold contact.
     if (!logbookEnabled || tracked.typeCode.isEmpty() || tracked.claimFired)
         return;
+#ifdef CARD_BENCH
+    if (tracked.state.icao24.startsWith(CARD_BENCH_PREFIX))
+        return;   // a bench card claims nothing: its type and operator are EXAMPLE values
+#endif
     if (!logbook.ClaimType(tracked.typeCode))
         return; // already claimed (or never seen): nothing to celebrate
 
@@ -6698,6 +6718,134 @@ void AircraftManager::PollAlertBench()
             // Exactly what a touched sample does to the idle clock (HandleTouch).
             lastTouchActivityMs = millis();
             Serial.printf("[alert-bench] t=%lu touch stamped\n", now);
+        }
+    }
+    auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
+    if (it != trackedAircraft.end()) it->second.lastSeen = now;   // never pruned as absent
+}
+#endif
+
+#ifdef CARD_BENCH
+// BENCH ONLY -- compiled into env:blipscope-s3-128-cardbench and nothing else (docs/card-nophoto-fix.md, section 5).
+// scripts/check-no-bench-hooks.sh fails CI if the "[card-bench]" marker below is ever in a shipping image, and CI's
+// --expect on THIS env proves the marker is real.
+//
+// Shows a chosen detail card on the glass with no hands, for /diag/fb captures:
+//   n  a contact with a route, type and operator, enriched, no photo: the no-photo card
+//   l  the same, its photo never resolving: the photo-loading card
+//   p  the same text, with a live contact's LIBRARY PHOTO, fetched as usual: the card with a photo. It prints the
+//      P line that recreates exactly this card, so a later session (after a flash) shows the same photo
+//   P <0|1> </api/v1/blipscope/photo/...>   that card, from its representative flag and photo path
+//   o  tap the bench contact at its drawn marker, through HandleTouch (the touch poll's own path)
+//   d  tap the open card's centre (on a photo card, to its data page)
+//   x  remove the bench contact
+// The text is EXAMPLE values on every card (XAAA -> XBBB, XTYP, Example Airways), so the before and after pictures
+// differ only by the code between them. One bench contact at a time. Its key is not hexadecimal, so no feed can
+// produce or update it, and its lastSeen is refreshed every loop so the absence prune never evicts it.
+// A FAKE MUST NEVER LEAVE THE BOARD: its alert and MQTT paths are pre-marked as sent; no enrich lookup is ever made
+// for it (its metadata is already Fetched, or held at Fetching for l); and a tap on it claims nothing.
+void AircraftManager::PollCardBench()
+{
+    static bool announced = false;
+    static String benchIcao;          // the injected contact's key ("" = none)
+    if (!announced) {
+        announced = true;
+        Serial.println("[card-bench] keys: n=no-photo card l=photo-loading card p=card with a photo "
+                       "P <0|1> <path>=that photo card again o=tap it d=tap the card x=remove");
+    }
+    const unsigned long now = millis();
+    auto inject = [&](char kind, const String& photoPath, bool representative) {
+        if (inDetail) {
+            Serial.printf("[card-bench] t=%lu a card is open: close it first, then inject\n", now);
+            return;
+        }
+        if (!benchIcao.isEmpty()) trackedAircraft.erase(benchIcao);
+        Aircraft ac{};
+        const float cosLat = std::max(0.01f, cosf(radians((float)lat)));
+        const float offDeg = (float)rangeKmCfg * 0.5f / 111.0f;          // 0.5 x the radius, bearing 045
+        ac.latitude  = (float)lat + offDeg * 0.7071f;
+        ac.longitude = (float)lon + offDeg * 0.7071f / cosLat;
+        ac.baroAltitude = ac.geoAltitude = 10668.0f;                      // 35,000 ft
+        ac.velocity = 231.5f;                                             // 450 kt
+        ac.trueTrack = 270.0f;
+        ac.onGround = false;
+        ac.category = 4;
+        ac.callsign = "EXA123";
+        benchIcao = String(CARD_BENCH_PREFIX) + kind;
+        ac.icao24 = benchIcao;
+        TrackedAircraft t{ ac, now };
+        t.emgNotified = t.watchNotified = t.overheadNotified = true;
+        t.mqttEventFlags = 0xFF;
+        t.claimable = false;
+        t.typeCode = "XTYP";
+        t.typeName = "Example Aircraft 100";
+        t.operatorName = "Example Airways";
+        t.routeOrigin = "XAAA";
+        t.routeDest = "XBBB";
+        t.photoUrl = photoPath.isEmpty() ? String("") : cloudUrl + photoPath;
+        t.photoRepresentative = !photoPath.isEmpty() && representative;
+        t.metadataState = kind == 'l' ? TrackedAircraft::MetadataState::Fetching   // held: the photo step never runs
+                                      : TrackedAircraft::MetadataState::Fetched;
+        trackedAircraft.emplace(benchIcao, t);
+        Serial.printf("[card-bench] t=%lu injected %s (%s)\n", now, benchIcao.c_str(),
+                      kind == 'n' ? "no photo" : kind == 'l' ? "photo loading" : "with a library photo");
+    };
+    auto tap = [&](int x, int y, const char* what) {
+        g_cardBenchTap = { x, y, 4 };   // three pressed polls, then the release: a tap, never a hold
+        Serial.printf("[card-bench] t=%lu tap %s at %d,%d\n", now, what, x, y);
+    };
+    while (Serial.available()) {
+        const int ch = Serial.read();
+        if (ch == 'n' || ch == 'l') {
+            inject((char)ch, "", false);
+        } else if (ch == 'p') {
+            const TrackedAircraft* donor = nullptr;
+            for (const auto& [icao, t] : trackedAircraft)
+                if (!icao.startsWith(CARD_BENCH_PREFIX) && !t.photoUrl.isEmpty() &&
+                    t.photoUrl.startsWith(cloudUrl) && t.metadataState == TrackedAircraft::MetadataState::Fetched) {
+                    donor = &t;
+                    break;
+                }
+            if (donor == nullptr) {
+                Serial.printf("[card-bench] t=%lu p: no live contact has a library photo yet; nothing injected\n", now);
+                continue;
+            }
+            const String path = donor->photoUrl.substring(cloudUrl.length());
+            const bool rep = donor->photoRepresentative;
+            inject('p', path, rep);
+            Serial.printf("[card-bench] repeat with: P %d %s\n", rep ? 1 : 0, path.c_str());
+        } else if (ch == 'P') {
+            String rest = Serial.readStringUntil('\n');
+            rest.trim();
+            const int sp = rest.indexOf(' ');
+            const String flag = sp > 0 ? rest.substring(0, sp) : String("");
+            String path = sp > 0 ? rest.substring(sp + 1) : String("");
+            path.trim();
+            if ((flag != "0" && flag != "1") || !path.startsWith("/api/v1/blipscope/photo/") || path.indexOf(' ') >= 0) {
+                Serial.printf("[card-bench] t=%lu P: want 'P <0|1> /api/v1/blipscope/photo/<key>'; nothing injected\n", now);
+                continue;
+            }
+            inject('p', path, flag == "1");
+        } else if (ch == 'o') {
+            auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
+            if (it == trackedAircraft.end() || inDetail || screen != Screen::Radar) {
+                Serial.printf("[card-bench] t=%lu o: needs a bench contact, the Radar screen and no card open\n", now);
+                continue;
+            }
+            // Where the hit test looks: the drawn (latched) position, projected the same way (HandleTap).
+            auto [la, lo] = RadarBlipPosition(it->second);
+            auto [x, y] = ProjectCoordinateToScreen(la, lo);
+            tap(x, y, "the bench contact's marker");
+        } else if (ch == 'd') {
+            if (!inDetail) {
+                Serial.printf("[card-bench] t=%lu d: no card is open\n", now);
+                continue;
+            }
+            tap(SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2, "the card's centre");
+        } else if (ch == 'x' && !benchIcao.isEmpty()) {
+            trackedAircraft.erase(benchIcao);
+            Serial.printf("[card-bench] t=%lu removed %s\n", now, benchIcao.c_str());
+            benchIcao = "";
         }
     }
     auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
@@ -9529,6 +9677,15 @@ void AircraftManager::HandleTouch()
         ProcessTouchSample(sTouched, sx, sy);
     else
         ProcessTouchSample(touched, tx, ty);
+#elif defined(CARD_BENCH)
+    // The card bench's scripted tap (PollCardBench's o and d): the sample goes through ProcessTouchSample, so the
+    // classifier, the hit test and the card open are the real ones. Pressed for left - 1 polls, then one release.
+    if (g_cardBenchTap.left > 0) {
+        --g_cardBenchTap.left;
+        ProcessTouchSample(g_cardBenchTap.left > 0, g_cardBenchTap.x, g_cardBenchTap.y);
+    } else {
+        ProcessTouchSample(touched, tx, ty);
+    }
 #else
     ProcessTouchSample(touched, tx, ty);
 #endif

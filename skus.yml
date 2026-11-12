@@ -74,6 +74,9 @@ skus:
   - { env: weatherscope-bench-s3-128, status: build-only }
   # the Wi-Fi join diagnostic bench env: the only build of include/JoinDiagScreen.h (docs/joindiag-ci.md)
   - { env: blipscope-s3-128-joindiag, status: build-only }
+  # the card bench env: a chosen detail card opened with no hands, for /diag/fb pictures (docs/card-nophoto-fix.md,
+  # section 5). Built on every run so its hook cannot rot; no slug, so it publishes nothing and withholds nothing.
+  - { env: blipscope-s3-128-cardbench, status: build-only }
 
   # ---- RETIRED -------------------------------------------------------------
   # Not built, not published, no slug. Retired 2026-11-05 on Daniel's decision: the

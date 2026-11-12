@@ -203,6 +203,52 @@ images. **Predicted: PLACED on both, `cmp5` exit 0 on both.** Any byte outside t
 - web-renderer 2 = 0 / 1 / 1: the build fails at the T-web step on s3-128, after s3-21 has also run; publish skips.
 - workers 3 / 0 / 0; device-ids 1; no-traffic-captures 1.
 
+## Amendments to step 3, the cardbench env (written before any capture)
+
+Section 5's keys, as built (`PollCardBench`, `src/AircraftManager.cpp`, under `-DCARD_BENCH` only):
+
+| key | as built |
+|---|---|
+| `n` | the bench contact `zzcardn`: callsign EXA123, `XAAA -> XBBB`, `Type: XTYP`, "Example Aircraft 100", "Example Airways"; 35,000 ft, 450 kt; 0.5 x the radius at bearing 045. Its metadata is Fetched with no photo path, so the card's own photo step settles it as no photo when the card opens |
+| `l` | the same text as `zzcardl`, its metadata held at Fetching: the photo step never runs, and the card stays "Loading photo..." |
+| `p` | **M3.** The same EXAMPLE text, with the LIBRARY PHOTO PATH of a live contact the enrich pipeline already resolved with a photo; refused if there is none. The photo is fetched as usual when the card opens. It prints a `P` line that recreates exactly this card |
+| `P <0\|1> <path>` | **M3.** That photo card again, from the representative flag and the `/api/v1/blipscope/photo/...` path |
+| `o` | a scripted tap at the bench contact's drawn marker (`RadarBlipPosition`, projected as the hit test does), substituted in `HandleTouch` where `SOAK_TEST` substitutes its own: three pressed polls, then the release |
+| `d` | the same tap at the card's centre (on a photo card, to its data page) |
+| `x` | removes the bench contact |
+
+**M3, and why.** Section 5 had `p` as "a synthetic contact of a type the photo library holds". Two things settle it:
+- The photo path holds the library's content key, so the device cannot derive it from a type.
+- Picture (c) and FT2 compare a "before" and an "after" session with a flash between them. A live donor is whatever
+  is flying then, so the photo, its caption and the data page's text would differ between the sessions for reasons
+  that are not the fix.
+
+So `p` takes only the photo path (and its representative flag) from a live contact, every row of text stays the
+EXAMPLE values, and the "after" session replays the "before" session's printed `P` line. The two sessions then show
+the same photo and the same text.
+
+**What never leaves the board:**
+- The contacts' alert and MQTT paths are pre-marked as sent.
+- No enrich lookup is made for them: their metadata is already Fetched, or held at Fetching for `l`.
+- `ClaimTappedAircraft` returns on a `zzcard` key, under `CARD_BENCH` only, so a tap writes nothing to the logbook.
+- `p`'s photo fetch sends only the library URL and the device key (`fetchPhoto`), never the bench key.
+
+**Read before the commit:**
+- `check_photo_mode.mjs --role blipscope-s3-128-cardbench` answers `none`.
+- `skus.py --validate` is OK: 19 legs, 10 build-only.
+- `check_ota_identity.py --emit-table` adds exactly one row, `blipscope-s3-128-cardbench - s3-128`, and
+  `--check-table` exits 0 (9 rows).
+- The adsbdb gate's `plant_target()` sends this env to the default site, `ConfigMigration.cpp`, which it compiles.
+- `check-no-bench-hooks.sh --selftest` exits 0 with `[card-bench]` in `MARKERS`.
+- Built locally (21:36-21:42Z): `blipscope-s3-128-cardbench` exits 0 at 1,936,976 B, and
+  `check-no-bench-hooks.sh --expect "[card-bench]"` on it exits 0 ("no other bench marker").
+- The shipping `blipscope-s3-128`, rebuilt with the hook's code present and compiled out, scans clean (9 markers).
+  Against D-ref's "before" image, `cmp5` reads PLACED, exit 0: the hook adds no byte to a shipping image.
+
+**CI for the push that adds the env**, while T-host and T-web are still red: **38 = 31 / 3 / 4**.
+- firmware 31 = 26 / 2 / 3: the cardbench leg adds one build job, green with its `--expect` step.
+- web-renderer, workers, device-ids and no-traffic-captures: as for the red-first push.
+
 ## Results
 
 ### D-ref, the first run (off prediction; stopped, ruled (A) above)
