@@ -4580,6 +4580,44 @@ The ruling also ACCEPTED the registration as registered red first.
   - (b) the rings' colour or radii on this build differing from the source constants the reader takes.
   - A pixel-class diagnostic is proposed, and nothing more runs before a ruling.
 
+**The ruling (the orchestrator, ~21:42Z):**
+- P2 is ACCEPTED as read. The miss is recorded as the orchestrator's: (i) was ruled on a mechanism named as unproven.
+- **This is the INSTRUMENT's second failure, not CBF3's verdict.** No row has been graded. A THIRD failure goes to the
+  owner.
+- **GO on the diagnostic,** registered before it runs, with RP6-A's three lost frames added.
+- **Then, before any new rule, ask what the trust test is for:** proving a grab is a FINISHED frame. If the rings are
+  drawn early and painted over later, they cannot prove that. The next trust test is to be proposed from the draw order
+  read from the source (which elements are drawn LAST).
+
+### The ring diagnostic, registered before it runs (2026-11-12)
+
+- **The pixels:** on r=39 and r=78, each ring's pixels OUTSIDE `wedge_mask`'s mask that do NOT show the ring's colour
+  (the shortfall).
+- **The frames:** B's located frames (B tree), C's located frames (C tree), and RP6-A's three frames lost under (i)
+  (C's tree, as `ringctl.py` read them).
+- **The classes, each read from the source by `fb_source`/`fb_source_c`:**
+  - BLACK (`0x0000`);
+  - MAP (the map's colours other than black);
+  - MAPGREEN (C only);
+  - WEDGE;
+  - LABEL (`wx["label"]`);
+  - PLANE (`wx["marker"]`);
+  - AIRPORT (`DrawAirports`' two colours);
+  - OTHER-RING (another ring's colour);
+  - CHROME (the beam, the head, the highlight, the dots);
+  - WEATHER (RP6 only, look A's colours);
+  - AMBIG (in two or more classes, counted apart);
+  - OTHER (in none). The OTHER colours with the top three counts are printed as RGB565 values, which are not
+    identifiers.
+- **And per ring, the geometry:** the ring colour's share on the rasterised circle at r+k, for k = −3..+3.
+- **Counts only. Pre-registered meanings:**
+  - **(a)** LABEL + PLANE + AIRPORT hold more than 50 % of the shortfall, summed over a capture's located frames:
+    things drawn over the inner rings.
+  - **(b)** some k ≠ 0 shows the ring's colour on ≥ 80 % of its circle (the ring drawn at another radius), or a
+    single OTHER colour holds more than 50 % of the shortfall (the ring drawn in a colour the source does not give).
+  - **Anything else:** stop, and the class table is reported as read.
+- Each capture (B, C, RP6-A) gets its own reading. B and C disagreeing is itself reported, never averaged.
+
 **The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
 - in B mode and C mode on every log plant and on B's and C's real logs;
 - in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
