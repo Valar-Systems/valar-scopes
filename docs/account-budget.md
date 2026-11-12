@@ -128,9 +128,36 @@ The ten's `running` rows come from 2026-11-11 17:00-20:00Z, the only whole hours
   - a script, bucket or namespace appears that section 2 does not name;
   - any control in section 4 does not behave.
 
+### 5.1 The window, changed before the graded read (ruled 2026-11-12 17:38:35Z)
+
+**What prompted it: an ungraded dry run.** `budget_read.py` was run on the 24 hours ending 17:00Z on 11-12, to test
+its mechanics, not to grade. That window still held OPERA's last running hours. It showed that a 24-hour window
+misreads bursty lines:
+- **KV writes:** 50,250 a month at that day's rate, against 608,177 on the 7-day read. A weekly or occasional job
+  dominates them.
+- **KV reads:** 8.37 M a month (84%) at that day's rate, against 7.16 M (72%) on the 7-day read.
+
+**The ruling, as registered here:**
+- **"today" is the 7-day run rate (x 30/7),** the basis of the monthly bill and of `tools/wx/account_cost_read.py`.
+- **Only the OPERA-dependent rows** (the ten's scripts, and `blipscope-wx`'s Class A and B) come from the silent hours
+  inside it, from 2026-11-11 21:00Z. That is a separate read, anchored on its own.
+- **In each read, the groups the other read supplies are kept as rows in state `excluded`,** which no scenario sums. So
+  each read still anchors against its own independent totals.
+- **The section 5 bands stay frozen exactly as written,** and are graded on this window. Any miss is recorded as mine.
+- **The 24-hour rate is printed beside every allowance,** labelled "24 h rate (observation, not graded)". It comes from
+  a read of the 24 hours ending at the graded read's hour, and is stored as totals only, so no scenario can sum it. The
+  burstiness stays visible instead of being averaged away.
+- **One control is added, P6:** a row in state `excluded`, and an observation read with totals far past every
+  allowance, change no flag and no sum.
+- **The anchor's totals come from separate ungrouped queries** (no script, bucket or namespace dimension). The rows
+  therefore cannot vouch for themselves: a truncated grouped query, or a group the mapping skipped, shows as a gap. The
+  dry run matched them to 0.000% on all seven anchored allowances. Storage and DO have no coarser total and are not
+  anchored.
+
 ## 6. The table (rendered by the checker, from the next commit)
 
-(empty until the build)
+<!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
+<!-- account-budget:end -->
 
 ## 7. Point 4, the listener read (after the budget file)
 
