@@ -1549,3 +1549,50 @@ three under `test/host`) share none with W5.
 predicted to be main as it stands at the push. If it isn't, that is reported, not explained away.
 
 **Outside the set:** any count or set off stops the step, and it is reported.
+
+### S4.19, 2026-11-12: W5 merged; its rows for the production deploy that will first carry it
+
+**#649 merged at 00:41:34Z,** by rule, at the approved head `978856bc61f9`:
+- squash `af871ecb67b6`, parent `aa9eb5e509d9` (H), tree `879976ba135d`, equal to the merge-tree;
+- the tested merge, read from the checkout logs, was `a18a79f1526c` (the head into `ed452654`);
+- the baseline announcement for `workers.yml`'s two new path filters was relayed to every session.
+
+**Ruled 00:43:32Z, option (a):** W5 rides the next production proxy deploy. That is uk-data's, carrying #643 and #649, in the slot after
+v19's step 4' closes. W5's rows below are frozen into that deploy's record before the slot opens.
+
+- **Why it needs rows at all.** The three routes are dormant: no released firmware calls them, they sit behind device auth, and no NWS
+  call happens unless an authenticated request asks. But one change is live from the first request: `apiEndpoint()` now returns an edition,
+  and `isLeaderboardSubmit` requires the Blipscope edition. That code runs on every production request, and no deployed Worker has run it
+  yet.
+- **The conditions:** STAGING FIRST, in the same slot. Every row reads on staging before production. A staging row off stops the slot
+  before production. The rows that exercise the changed path run on staging only.
+
+**W6 becomes** the staging measurement (W6-STN, the feeds' CPU, real NWS) plus the go-live by W7/W8's firmware. It has no production deploy
+of its own.
+
+#### The rows. `$BASE` is the environment being read; requests go as the test identity, as `smoke-prod.sh` sends them, unless "no key"
+
+**On staging, then on production (no row writes anything):**
+
+| row | request | predicted, exactly |
+|---|---|---|
+| **C1** | `GET /healthz` | the body's `weatherscope` is `{"breakers":[{"id":"nws_points","state":"closed"},{"id":"nws_alerts","state":"closed"},{"id":"nws_stations","state":"closed"},{"id":"nws_obs","state":"closed"},{"id":"nws_forecast","state":"closed"}]}`, with no `commit` key at any depth inside it |
+| **C2** | `GET /api/v1/weatherscope/{alerts,conditions,forecast}?lat=39.30&lon=-94.71`, **no key** | each **401**, body `{"v":1,"error":"unauthorized"}` |
+| **C3** | `GET /api/v1/weatherscope/blips?lat=39.30&lon=-94.71` | **404**, body `{"v":1,"error":"not_found"}`. A Weatherscope suffix reaches only Weatherscope's handler, which knows no `blips`, so no NWS call is made |
+| **C4** | `POST /api/v1/weatherscope/leaderboard`, **no key**, body `{}` | **405**, body `{"v":1,"error":"method_not_allowed"}`, refused at the method gate before auth |
+| **C5** | the deploy's own Blipscope smoke rows (`smoke-prod.sh`) | exactly what that record predicts without W5. W5 changes no Blipscope smoke row's expected output |
+
+**On staging only:** they exercise the changed path itself. They are POSTs, though none writes: each is refused before any KV write.
+
+| row | request | predicted, exactly | what it proves |
+|---|---|---|---|
+| **S1** | `POST /api/v1/blipscope/leaderboard`, body `{}` | **400**, `{"v":1,"error":"bad_submission"}`, as before W5 | the Blipscope edition still passes the method gate. A **405** here would mean the edition check broke Blipscope's submit, and stops the slot |
+| **S2** | `POST /v1/leaderboard` (the legacy alias), body `{}` | **400**, `{"v":1,"error":"bad_submission"}`, byte-identical to S1 | the legacy alias still carries the Blipscope edition (the alias contract) |
+| **S3** | `POST /api/v1/weatherscope/leaderboard`, body `{}` | **405**, `{"v":1,"error":"method_not_allowed"}` | a non-Blipscope edition's submit is refused as designed |
+
+**Why S1-S3 send an empty body.** A full submit would write the test identity's leaderboard row and rebuild the board. `{}` reaches the
+handler and stops at `bad_submission`, before any write. That separates the only two outcomes that matter (400 through the gate, 405 at it)
+and writes nothing.
+
+**Outside the set:** any row off on staging stops the slot before production, and is reported. On production, a row off is reported at
+once, and the deploy's own rollback rule applies.
