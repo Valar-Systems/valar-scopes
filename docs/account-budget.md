@@ -192,7 +192,57 @@ below are labelled "API bytes".
 ## 6. The table (rendered by the checker, from the next commit)
 
 <!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
+| allowance | included | today | OPERA running | OPERA running + shsr | 24 h rate (observation, not graded) |
+|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 0.854 M (85%) **FLAG** | 1.027 M (103%) **OVER**, $4.50 | 1.159 M (116%) **OVER**, $4.50 | 0.931 M (93%) |
+| R2 Class B (reads) | 10.000 M | 4.118 M (41%) | 9.488 M (95%) **FLAG** | 9.920 M (99%) **FLAG** | 4.474 M (45%) |
+| R2 storage (GB-month) | 10.00 | 3.46 (35%) | 3.46 (35%) | 3.86 (39%) | not read |
+| KV reads | 10.000 M | 7.226 M (72%) | 7.226 M (72%) | 7.226 M (72%) | 8.295 M (83%) |
+| KV writes | 1.000 M | 0.608 M (61%) | 0.608 M (61%) | 0.608 M (61%) | 0.047 M (5%) |
+| KV lists | 1.000 M | 0.005 M (1%) | 0.005 M (1%) | 0.005 M (1%) | 0.006 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
+| Workers CPU (ms) | 30.000 M | 35.917 M (120%) **OVER**, $0.12 | 68.158 M (227%) **OVER**, $0.76 | 94.564 M (315%) **OVER**, $1.29 | 32.797 M (109%) |
+| Workers requests | 10.000 M | 2.636 M (26%) | 2.633 M (26%) | 2.676 M (27%) | 2.805 M (28%) |
+| Workers Logs events (November prices) | 20.000 M | 8.368 M (42%) | 8.359 M (42%) | 8.496 M (42%) | not read |
+| Durable Object requests | 1.000 M | 0.400 M (40%) | 0.400 M (40%) | 0.400 M (40%) | not read |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
+| **overage a month (Read A)** | | **$0.12** | **$5.26** | **$5.79** | |
 <!-- account-budget:end -->
+
+### 6.1 The graded read (2026-11-12, window ending 21:00:00Z, run 21:05:12-27Z)
+
+**The reads, as section 5.1 registered them:**
+- `r-7d` (2026-11-05 21:00Z to 11-12 21:00Z, take "rest");
+- `r-silent` (2026-11-11 21:00Z to 11-12 21:00Z, take "opera");
+- `r-run` (2026-11-11 17:00-20:00Z; the ten's running rows derived);
+- `r-24h`, the observation (the same 24 hours as `r-silent`).
+
+`build_budget.py` wrote 93 rows from them. No unattributed script, bucket or namespace appeared. **Both anchored reads
+held,** so the checker exited 0.
+
+**Graded against section 5, frozen before any read:**
+
+| allowance | today | OPERA running | OPERA running + shsr |
+|---|---|---|---|
+| Workers CPU | 120% OVER, in 105-135: **as predicted** | 227% OVER, in 210-245: **as predicted** | 315% OVER, in 280-335: **as predicted** |
+| R2 Class A | FLAG as predicted, but **85.4%, under 88-97: OFF** | OVER as predicted, but **102.7%, under 105-115: OFF** | OVER as predicted, but **115.9%, under 118-128: OFF** |
+| R2 Class B | 41%, in 30-50: **as predicted** | 94.9% FLAG, in 85-99: **as predicted** | 99.2% FLAG, in 89-103: **as predicted** |
+| KV reads / KV writes | 72% / 61%, in 60-80 / 50-70: **as predicted** | same | same |
+| requests / Logs | 26% / 42%, in 20-35 / 30-50: **as predicted** | same | same |
+| R2 storage, DO | 35% / 40%, under 50: **as predicted** | same | 39% / 40%: **as predicted** |
+| overage (Read A) | $0.12, in $0.05-$0.40: **as predicted** | $5.26, in $5.15-$5.80: **as predicted** | $5.79, in $5.55-$6.40: **as predicted** |
+
+- **The flags are exactly the predicted set in every scenario,** and the overage is inside its band in every scenario.
+- **The three misses are mine, and they share one cause.** Class A's bands were built from S3-7's 24 hours ending
+  16:24Z, while the ruled window is 7 days. Those 7 days hold Missileer's dip on 11-08 to 11-10 (15,409, 22,878 and
+  22,974 a day, against about 26,000 otherwise). That lowers `missileer-live`'s 7-day rate, and with it every
+  scenario's Class A, by about 2 points.
+  - The 24-hour observation reads Class A at 93%, inside the "today" band, which is consistent with that cause.
+  - The ungraded dry run at 17:00Z had already shown it, and it was reported then. The bands stayed frozen, as ruled.
+- **What the 24-hour observation shows that the graded columns average away:** KV reads at **83%** on the last day,
+  against 72% over the week; KV writes at 5% on the day, against 61% over the week; Class A at 93% against 85%.
+- **For the digest,** the checker's own line:
+  `FLAGS (80% or more): today: cpu_ms OVER, r2_class_a FLAG; OPERA running: cpu_ms OVER, r2_class_a OVER, r2_class_b FLAG; OPERA running + shsr: cpu_ms OVER, r2_class_a OVER, r2_class_b FLAG`
 
 ## 7. Point 4, the listener read (after the budget file)
 

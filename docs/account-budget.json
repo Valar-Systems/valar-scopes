@@ -1,0 +1,1111 @@
+{
+ "version": 1,
+ "built_at": "2026-11-12T21:00:00Z",
+ "tool": "tools/budget/build_budget.py",
+ "allowances": {
+  "r2_class_a": {
+   "label": "R2 Class A (writes)",
+   "included": 1000000.0,
+   "price": 4.5,
+   "unit": 1000000.0,
+   "round_up": true
+  },
+  "r2_class_b": {
+   "label": "R2 Class B (reads)",
+   "included": 10000000.0,
+   "price": 0.36,
+   "unit": 1000000.0,
+   "round_up": true
+  },
+  "r2_storage_gb": {
+   "label": "R2 storage (GB-month)",
+   "included": 10,
+   "price": 0.015,
+   "unit": 1,
+   "round_up": true
+  },
+  "kv_read": {
+   "label": "KV reads",
+   "included": 10000000.0,
+   "price": 0.5,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "kv_write": {
+   "label": "KV writes",
+   "included": 1000000.0,
+   "price": 5.0,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "kv_list": {
+   "label": "KV lists",
+   "included": 1000000.0,
+   "price": 5.0,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "kv_delete": {
+   "label": "KV deletes",
+   "included": 1000000.0,
+   "price": 5.0,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "cpu_ms": {
+   "label": "Workers CPU (ms)",
+   "included": 30000000.0,
+   "price": 0.02,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "requests": {
+   "label": "Workers requests",
+   "included": 10000000.0,
+   "price": 0.3,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "logs_events": {
+   "label": "Workers Logs events (November prices)",
+   "included": 20000000.0,
+   "price": 0.6,
+   "unit": 1000000.0,
+   "round_up": false
+  },
+  "do_requests": {
+   "label": "Durable Object requests",
+   "included": 1000000.0,
+   "price": 0.15,
+   "unit": 1000000.0,
+   "round_up": true
+  },
+  "do_gb_s": {
+   "label": "Durable Object GB-s",
+   "included": 400000.0,
+   "price": 12.5,
+   "unit": 1000000.0,
+   "round_up": true
+  }
+ },
+ "products": {
+  "missileer-live": {
+   "label": "Missileer live stream (R2 bucket missileer-live; an external S3 client)",
+   "states": [
+    "now"
+   ]
+  },
+  "missileer-clips": {
+   "label": "Missileer clips and public export (missileer-clips)",
+   "states": [
+    "now"
+   ]
+  },
+  "proxy": {
+   "label": "Blipscope proxy (blipscope-proxy; production KV; its BendSnapshot DO)",
+   "states": [
+    "now"
+   ]
+  },
+  "proxy-staging": {
+   "label": "proxy staging (blipscope-proxy-staging; staging KV)",
+   "states": [
+    "now"
+   ]
+  },
+  "cref": {
+   "label": "US radar ingest, cref (blipscope-wx-ingest; its Class A of blipscope-wx)",
+   "states": [
+    "now"
+   ]
+  },
+  "blipscope-wx-reads": {
+   "label": "US ingest + proxy /wx serving: blipscope-wx's Class B (not separable by R2)",
+   "states": [
+    "now"
+   ]
+  },
+  "opera-ten": {
+   "label": "Europe radar ingests, the ten (blipscope-wx-ingest-op*)",
+   "states": [
+    "silent",
+    "running"
+   ]
+  },
+  "shsr": {
+   "label": "US radar SeamlessHSR (projected from cref until built)",
+   "states": [
+    "absent",
+    "built"
+   ]
+  },
+  "basemap-staging": {
+   "label": "basemap builder, staging (blipscope-basemap-staging; its pkg bucket)",
+   "states": [
+    "now"
+   ]
+  },
+  "basemap-bucket": {
+   "label": "blipscope-basemap bucket (reader not separable)",
+   "states": [
+    "now"
+   ]
+  },
+  "wx-dev": {
+   "label": "dev ingest, parked (blipscope-wx-ingest-dev; blipscope-wx-dev)",
+   "states": [
+    "now"
+   ]
+  },
+  "kiosk": {
+   "label": "kiosk site and app (valarscopes-app, valarscopes-site)",
+   "states": [
+    "now"
+   ]
+  },
+  "account-level": {
+   "label": "account-level R2 operations (no bucket)",
+   "states": [
+    "now"
+   ]
+  },
+  "unattributed": {
+   "label": "UNATTRIBUTED: a script, bucket or namespace the mapping does not name (stop and report)",
+   "states": [
+    "now"
+   ]
+  },
+  "cref+opera-ten": {
+   "label": "blipscope-wx Class A in a running window (cref and the ten together; derivation input only)",
+   "states": [
+    "now"
+   ]
+  }
+ },
+ "scenarios": {
+  "today": {
+   "opera-ten": "silent",
+   "shsr": "absent"
+  },
+  "OPERA running": {
+   "opera-ten": "running",
+   "shsr": "absent"
+  },
+  "OPERA running + shsr": {
+   "opera-ten": "running",
+   "shsr": "built"
+  }
+ },
+ "reads": {
+  "r-7d": {
+   "tool": "tools/budget/budget_read.py",
+   "window": [
+    "2026-11-05T21:00:00Z",
+    "2026-11-12T21:00:00Z"
+   ],
+   "totals": {
+    "cpu_ms": 39044690,
+    "requests": 2314123,
+    "r2_class_a": 868371,
+    "r2_class_b": 4662090,
+    "kv_list": 5379,
+    "kv_read": 7225684,
+    "kv_write": 608319
+   }
+  },
+  "r-silent": {
+   "tool": "tools/budget/budget_read.py",
+   "window": [
+    "2026-11-11T21:00:00Z",
+    "2026-11-12T21:00:00Z"
+   ],
+   "totals": {
+    "cpu_ms": 32796570,
+    "requests": 2804850,
+    "r2_class_a": 930930,
+    "r2_class_b": 4474200,
+    "kv_list": 5790,
+    "kv_read": 8294700,
+    "kv_write": 47160
+   }
+  },
+  "r-24h": {
+   "tool": "tools/budget/budget_read.py",
+   "window": [
+    "2026-11-11T21:00:00Z",
+    "2026-11-12T21:00:00Z"
+   ],
+   "totals": {
+    "cpu_ms": 32796570,
+    "requests": 2804850,
+    "r2_class_a": 930930,
+    "r2_class_b": 4474200,
+    "kv_list": 5790,
+    "kv_read": 8294700,
+    "kv_write": 47160
+   },
+   "observation": true
+  },
+  "r-run": {
+   "tool": "tools/budget/budget_read.py (take all), derived here",
+   "window": [
+    "2026-11-11T17:00:00Z",
+    "2026-11-11T20:00:00Z"
+   ],
+   "totals": {},
+   "note": "not anchored: only the ten's rows are kept, and their R2 rows are derived"
+  },
+  "proj-shsr": {
+   "tool": "tools/budget/build_budget.py, projected from cref",
+   "window": [
+    "2026-11-05T21:00:00Z",
+    "2026-11-12T21:00:00Z"
+   ],
+   "totals": {}
+  },
+  "derived-logs": {
+   "tool": "requests x 3.175 events per invocation (account_cost_read.py A8)",
+   "window": [],
+   "totals": {}
+  }
+ },
+ "rows": [
+  {
+   "product": "basemap-bucket",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 16877,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 627005,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 587,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 1586,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "requests",
+   "value": 201,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "blipscope-wx-reads",
+   "state": "excluded",
+   "allowance": "r2_class_b",
+   "value": 1565104,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "cref",
+   "state": "excluded",
+   "allowance": "r2_class_a",
+   "value": 146829,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 26406129,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "requests",
+   "value": 43183,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 107838,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "do_requests",
+   "value": 82787,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "requests",
+   "value": 81416,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 16719,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 143323,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "missileer-live",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 703714,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "missileer-live",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 2922133,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "opera-ten",
+   "state": "excluded",
+   "allowance": "cpu_ms",
+   "value": 4331977,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "opera-ten",
+   "state": "excluded",
+   "allowance": "requests",
+   "value": 108681,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 7423033,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "do_gb_s",
+   "value": 1078,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "do_requests",
+   "value": 317567,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_list",
+   "value": 5331,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_read",
+   "value": 7222676,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 326786,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "requests",
+   "value": 2066794,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 32578,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "do_requests",
+   "value": 13,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_list",
+   "value": 47,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_read",
+   "value": 3009,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 281533,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "requests",
+   "value": 9017,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 116129,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 523,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 13067,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "requests",
+   "value": 4830,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+  },
+  {
+   "product": "basemap-bucket",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 1.761,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.008,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.791,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.555,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.341,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "missileer-live",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.001,
+   "read": "r-7d",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "basemap-bucket",
+   "state": "excluded",
+   "allowance": "r2_class_b",
+   "value": 18840,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "excluded",
+   "allowance": "cpu_ms",
+   "value": 751891,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "excluded",
+   "allowance": "r2_class_a",
+   "value": 300,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "excluded",
+   "allowance": "r2_class_b",
+   "value": 930,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "excluded",
+   "allowance": "requests",
+   "value": 150,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "blipscope-wx-reads",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 1021200,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "cref",
+   "state": "excluded",
+   "allowance": "cpu_ms",
+   "value": 22767231,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "cref",
+   "state": "excluded",
+   "allowance": "requests",
+   "value": 43170,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 132450,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "excluded",
+   "allowance": "r2_class_a",
+   "value": 17190,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "excluded",
+   "allowance": "r2_class_b",
+   "value": 164100,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "missileer-live",
+   "state": "excluded",
+   "allowance": "r2_class_a",
+   "value": 780990,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "missileer-live",
+   "state": "excluded",
+   "allowance": "r2_class_b",
+   "value": 3269130,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "cpu_ms",
+   "value": 1203934,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "requests",
+   "value": 430170,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "cpu_ms",
+   "value": 8009226,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "do_gb_s",
+   "value": 784,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "do_requests",
+   "value": 315810,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "kv_list",
+   "value": 5670,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "kv_read",
+   "value": 8285820,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "kv_write",
+   "value": 46920,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "requests",
+   "value": 2317080,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "cpu_ms",
+   "value": 64289,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "do_requests",
+   "value": 60,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "kv_list",
+   "value": 120,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "kv_read",
+   "value": 8880,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "kv_write",
+   "value": 240,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "requests",
+   "value": 14280,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+  },
+  {
+   "product": "basemap-bucket",
+   "state": "excluded",
+   "allowance": "r2_storage_gb",
+   "value": 1.761,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "excluded",
+   "allowance": "r2_storage_gb",
+   "value": 0.008,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "cref",
+   "state": "excluded",
+   "allowance": "r2_storage_gb",
+   "value": 0.79,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "wx-dev",
+   "state": "excluded",
+   "allowance": "r2_storage_gb",
+   "value": 0.555,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "excluded",
+   "allowance": "r2_storage_gb",
+   "value": 0.341,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "missileer-live",
+   "state": "excluded",
+   "allowance": "r2_storage_gb",
+   "value": 0.001,
+   "read": "r-silent",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total)"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "cpu_ms",
+   "value": 33445105,
+   "read": "r-run",
+   "basis": "measured",
+   "how": "the ten's scripts, 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z x 240"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "requests",
+   "value": 427200,
+   "read": "r-run",
+   "basis": "measured",
+   "how": "the ten's scripts, 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z x 240"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "r2_class_a",
+   "value": 172830,
+   "read": "r-run",
+   "basis": "derived",
+   "how": "blipscope-wx in 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z (x 240) minus r-silent's: 172,830"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "r2_class_b",
+   "value": 5369760,
+   "read": "r-run",
+   "basis": "derived",
+   "how": "blipscope-wx in 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z (x 240) minus r-silent's: 5,369,760 (the running hours also differ in time of day, so the proxy's /wx serving moves with them)"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "r2_class_a",
+   "value": 132450,
+   "read": "proj-shsr",
+   "basis": "projected",
+   "how": "cref's Class A (r-silent)"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "cpu_ms",
+   "value": 26406129,
+   "read": "proj-shsr",
+   "basis": "projected",
+   "how": "cref's CPU (r-7d)"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "requests",
+   "value": 43183,
+   "read": "proj-shsr",
+   "basis": "projected",
+   "how": "cref's invocations (r-7d)"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "r2_class_b",
+   "value": 432000,
+   "read": "proj-shsr",
+   "basis": "projected",
+   "how": "docs/wx-server.md's design: 5 reads a check"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "r2_storage_gb",
+   "value": 0.4,
+   "read": "proj-shsr",
+   "basis": "projected",
+   "how": "docs/wx-server.md's design: 31 frames"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 638,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-7d's requests x 3.175"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 137106,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-7d's requests x 3.175"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 258496,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-7d's requests x 3.175"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 6562071,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-7d's requests x 3.175"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 28629,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-7d's requests x 3.175"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 15335,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-7d's requests x 3.175"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "logs_events",
+   "value": 1365790,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-silent's requests x 3.175"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "logs_events",
+   "value": 1356360,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "r-run's requests x 3.175"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "logs_events",
+   "value": 137106,
+   "read": "derived-logs",
+   "basis": "derived",
+   "how": "proj-shsr's requests x 3.175"
+  }
+ ]
+}

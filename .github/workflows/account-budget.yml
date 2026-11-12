@@ -1,0 +1,31 @@
+name: account-budget
+
+# The account budget (docs/account-budget.md; ruled by the owner 2026-11-12: "The whole-account rule stands, made
+# checkable"). Runs on any change to the budget's own files, and ONLY those, so it adds a check run to a PR that touches
+# one of these paths and to no other PR:
+#   docs/account-budget.json, docs/account-budget.md, scripts/account_budget.py, tools/budget/**, this file.
+# The checker prints every allowance at 80% or more (FLAG) into the log: that line is the digest's input, not a failure.
+on:
+  push:
+    branches: [main]
+    paths: ["docs/account-budget.json", "docs/account-budget.md", "scripts/account_budget.py", "tools/budget/**", ".github/workflows/account-budget.yml"]
+  pull_request:
+    paths: ["docs/account-budget.json", "docs/account-budget.md", "scripts/account_budget.py", "tools/budget/**", ".github/workflows/account-budget.yml"]
+
+# A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  account-budget:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # The controls first: a checker that cannot flag a planted row proves nothing (section 4).
+      - run: python3 scripts/account_budget.py --selftest
+      # Red first, every time: each control must fail when the logic it guards is broken.
+      - run: python3 tools/budget/sabotage_account_budget.py
+      # The file itself: exit 2 on a malformed file or a failed anchor. Flags print and do not fail.
+      - run: python3 scripts/account_budget.py
+      - run: python3 scripts/account_budget.py --render-check
