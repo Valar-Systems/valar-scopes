@@ -906,9 +906,20 @@ image's code is not changed in behaviour. Its 23-scene table stays the default w
 - They are copied into `FrameBench.h` as strings. `check_frame_bench.py` gains a row: every copy equals `Airports.h`'s
   value at 2 dp, with a plant (one digit changed).
 
-**THE ONE CONSTANT:** `kRungs[]` = {10, 25, 50} plus `kDefaultViewMi` = 100 (reported, outside the six). Every
-replay scene, and the reader's worst-of-six, derive from them. A host check plants a changed `kRungs[]` and shows the
-scene table and the reader follow with no other edit.
+**THE ONE CONSTANT:** `kRungs[]`, from which every replay scene and the reader's worst-of-six derive. A host check
+plants a changed `kRungs[]` and shows the scene table and the reader follow with no other edit.
+- **THE OWNER (23:31Z, relayed 23:31:39Z), in his words:**
+  > "(b): the bar's six scenes are the two homes at 25, 50 and 100 miles. 100 is the board's default view and where
+  > real traffic fills the screen. 10 miles may be reported beside it if it costs no extra bench window; it isn't part
+  > of the bar."
+  >
+  > "v19's re-read on the pinned recordings (before C1) uses the same six scenes, so v19 and v20 are compared on
+  > identical ground."
+- **So `kRungs[]` = {25, 50, 100}.** `kReportedMi` = 10 is reported beside them, only if it fits inside the same
+  windows, and is never in the worst-of-six.
+- **The recordings are unchanged:** the shipping query (161 km, limit 40) covers every rung.
+- **At 100 mi with real traffic, drawn n should be near the full ~40.** A scene well under it is named, as registered.
+  p4's re-size reads X from these six.
 
 **THREE RUNS from one header, selected by a build flag** (each its own slug-less env, `FRAME_BENCH` on):
 1. **`FRAME_BENCH_RUN_SURVEY`,** 9 scenes, one per airport. The airport home in RAM; the shipping query (`radius`
@@ -927,8 +938,9 @@ scene table and the reader follow with no other edit.
      the same elapsed time, with `t` shifted to keep the data age. It prints `served A<i> <seq> crc <crc32>`.
    - **The recordings:** a FRAME_BENCH-only pre-build step generates a header under `.pio/build/` from
      `FRAME_BENCH_REC_<AIRPORT>` (untracked paths).
-   - **The scenes:** CTRL interleaved (plant on and off in alternating 10 s blocks in one scene), the six, the two
-     default-view rows, the packed stress rows, LIVE at both airports, and LIVE-OWN.
+   - **The scenes:** CTRL interleaved (plant on and off in alternating 10 s blocks in one scene), the six (both
+     airports × `kRungs[]` = 25/50/100), the 10 mi reported rows (if they fit the window), the packed stress rows,
+     LIVE at both airports, and LIVE-OWN.
 
 **THE ROWS** (`check_frame_bench.py`, each with a plant that must read red):
 
