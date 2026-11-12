@@ -3092,3 +3092,21 @@ pictures to show it looking wrong.
 **Every other row of run 9 keeps its registered prediction,** as read in run 8, and the order is unchanged. The KB4 block now reads:
 the guard's control → then per airport, the complement control, KB4 (or KSEA's guard and cover), the scope, the loss line, and the
 registered exact values at KBOS, KJFK and KLGA.
+
+**ACCEPTED (19:11:03Z):** KSEA's cover stays graded, and the guard is read literally at 0.886, one pixel below today's reading.
+
+**Run 9's pins (19:1xZ), before the run:**
+
+| artifact | sha256 | was |
+|---|---|---|
+| `p2-read.py` | e6ba08196d55 | 1f58939262fb |
+| `p2-render.py` (kb4 takes `sea-pieces.json`: the source's mask on the same grid) | 0d9291a37e4b | 952524878562 |
+| `mk-ksea-guardplant.py` | 61098731d958 | |
+| `p2-out/KSEA-sea-guardplant.json` (the guard's control) | 6e9f1124ff32 | |
+
+- **The plant landed as registered:** its ring covers pixel (0, 0), a 484 m land pixel in the square's north-west corner, isolated from
+  the mask. That gives sea px 8,191, with 7,257 at <= 0 m.
+- **The source column's anchor:** run on the four airports already read, it reproduces `kb4-ref-source.py` exactly: KBOS 0.9847 /
+  0.9909 (28,297 px), KJFK 0.9778 / 0.9850 (14,205), KLGA 0.9747 / 0.9813 (11,972), KSEA 0.9089 / 0.9377 (8,164).
+- **KSFO and KMIA were not run,** so their packages stay unread until run 9.
+- pq4d and every other driver are unchanged since run 8.
