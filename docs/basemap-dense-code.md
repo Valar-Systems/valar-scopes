@@ -1797,3 +1797,15 @@ That would mean an overwrite in place, a lost rollback, and stale ETags.
 orchestrator withdrew its control ("same manifest, one cell changed"): it tested a state that (a)-(c) exclude at the source. The
 orchestrator also recorded its own miss: the finding was raised from the prototype's artifact, a copied manifest that was never re-stamped,
 without the production path being read. QW4-ID stays out of part 2's run.
+
+### Part 2, steps 2-11 (the orchestrator's go at 05:06:36Z, B-AFTER graded)
+
+Checked before the run (05:07Z): every pinned artifact matches the addendum, including the new `mk-sea-store` (9f7a16c639b2) and
+`p2-read.py` (7e9828547270). No step uses pio. KB5 runs the prebuilt `kb5` in WSL. The binary itself is not pinned (9e9fc5447bc1,
+recorded now). Its source is pinned (c7ff38514327), and it was built 2 s after that source was written. A wrong binary would show as
+KB5 off against the Python renderer, behind its own moved-vertex control.
+
+**One check added before the run, and it does not change the driver.** The pinned driver repeats step 0 first. Zapata's fetch skips
+every object already present, so it makes no R2 reads. The dry run is re-run, and both stores are rebuilt. **After the run,**
+`sea-obj` and `sea-obj-seam` must still hash to their step-0 pins (trees 28fddac31920 and a3389679daa7). A mismatch means the run read
+an unpinned store and **voids every row after step 0**: stop and report.
