@@ -405,6 +405,28 @@ unchanged.
 
 ## Results
 
+### Window A, the pictures (E2:08, 2026-11-12 23:16-23:20Z; the reviewer's split after the third stop)
+
+The third stop (run 3) came from the window's design. While a card is open, `Update()` returns before the feed merge
+(`if (inDetail) return;`), so switching to fixed traffic with a card up could never take effect. The reviewer split
+the window: **A**, the pictures only, in cloud mode; **B**, FT1/FT2, after M7 (not yet registered).
+
+Window A ran on the M5 images with driver `e7ef33a26a55` (03a17062e9fd plus `--pictures-only`). Every write verified;
+CN0 held for every card; every capture was kept on its first attempt (three finished reads agreeing).
+
+| picture | before (`afbeb406c067`) | after (`42495c1f5cc3`) | as predicted |
+|---|---|---|---|
+| (a) no photo | `55308b626da0`: the silhouette, "No photo available", the callsign; no route, type or operator row (#670 on glass) | `67249c67c16a`: the callsign at the top, the caption under it, then route, type, model, operator, Dist, Alt, Spd; the Follow control and the hints intact | yes |
+| (b) photo loading | `be4df86e8290`: "Loading photo...", the callsign; no rows | `67913f58caed`: (a)'s layout with "Loading photo..." | yes |
+| (c0) photo page | `50cbc2c95094` | `50cbc2c95094` | yes: **byte-identical**, all 115,200 bytes |
+| (c1) data page | `a41b82505f6d` | `a41b82505f6d` | yes: **byte-identical** |
+
+The restore wrote v19 (f6d73e391631) and verified it. Its boot read shows `fw=v19`, `[WiFi] CONNECTED` and no line
+that opens a portal; `/diag/fb` answered, and E2:08 was released at 23:20:13Z.
+
+The pictures stay local (the session's scratchpad) and go to the owner through the reviewer, before #670 merges.
+Runs 1-3's captures are records only. FT1/FT2 follow in window B.
+
 ### D-ref, the first run (off prediction; stopped, ruled (A) above)
 
 Both envs rebuilt in one worktree path, before (`a7eb4be1342a`) and after the first version of the move. Image sizes
