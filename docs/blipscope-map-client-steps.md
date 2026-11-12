@@ -4358,6 +4358,72 @@ falls by at least 115,200, and the reader says red."
 
 The P-CBF4 image is built and identified above either way, so (b) costs no build in the window.
 
+### #656's first customer pair: the expected changes, frozen before anything is read (2026-11-12)
+
+**The ask** (weatherscope, blipscope-61, 16:44Z): for #656's layout-invariant comparator (its registration:
+`docs/image-compare.md` at `a86ddb690fd5` on `weatherscope/issue656-compare`), "what you expect to change, as
+demangled function patterns or objects, frozen before anything is read". The orchestrator ruled at 16:43:30Z that #656
+is weatherscope's and that I tell it directly. Two pairs were offered at 16:46:17Z: **P-REDO** (the literal redo of
+step B's accounting) and **P-FLIP** (the gate's own question, on the v20 candidate). P-FLIP's set is registered later,
+from the candidate's source, since that commit does not exist yet. **This is P-REDO's.**
+
+**The pair:** Bw against Cw, both `blipscope-s3-128-wxlook` (`-DWX_LOOK_AB -DWX_LAYER_SHIPS` in the env, so the map
+is compiled in both). Bw is main + `cb9d6ac2`, tree `eb84bef82d41`. Cw is the wiring's commit, tree `0b1d19f08e26`.
+`platformio.ini` does not differ. The source differs only in `src/AircraftManager.cpp` and `src/AircraftManager.h`.
+The ELFs are kept (32,338,992 B and 32,462,300 B).
+
+**The earlier reading, set beside it as context:** "The wiring's run, as read (2026-11-12)", above.
+- `firmware.bin` +14,528 B; `.bss` (`appManager`) +696 B.
+- The predicted six changed size, and main.cpp's static initializer +220 B.
+- The new symbols by name, with their callers.
+- The symbol row was an instrument failure, no verdict: 260 residue symbols, 118 of 225 moved by ≤ 4 B, with four
+  alternatives named and none excluded.
+
+**What the source says, read before any image** (from the two trees, by `git diff` and the preprocessor guards):
+- **Three translation units include `AircraftManager.h`:** `AircraftManager.cpp`, `main.cpp`, `SoakHarness.cpp`. No
+  header includes it.
+- **`SoakHarness.cpp` is all `#ifdef SOAK_TEST`** (its lines 3-368), which wxlook does not set.
+- **`AircraftManager.cpp` has nine hunks.** Each is placed in its enclosing function by line number in Cw's file:
+  - `Initialise` (two), `MapConfigure`, `ConsumeBasemap`, `RebuildWeatherLayer`, `DrawWeatherUnder` (five, one of
+    which adds the four new functions after it), and `ConsumeFetchResult`;
+  - **`RecordFrameUs`'s hunk** (`++mapAirportsGen`, at Cw's 2463) is inside `#ifdef FOLLOW_BENCH` (2398-2471), which
+    wxlook does not set. **So `RecordFrameUs` is not expected to change.**
+- **The header** adds `#include "MapCompose.h"`, the four new functions' declarations, and **four data members
+  inserted at Cw's `AircraftManager.h:725`** (`mapDraw`, `mapPkgSeq`, `mapAirportsGen`, `mapWxGen`), in the first
+  private section. About 99 data members follow them in the class, and every one moves by the inserted size.
+
+**Expected, by object, before the link:**
+
+| object | expected | as patterns |
+|---|---|---|
+| every object but the two below, `SoakHarness.cpp.o` included | **identical** | none |
+| `AircraftManager.cpp.o` | **changed by its source:** the six | `AircraftManager::(Initialise\|MapConfigure\|ConsumeBasemap\|RebuildWeatherLayer\|DrawWeatherUnder\|ConsumeFetchResult)\(` |
+| | **new:** the four functions, and the header-only code they reach, instantiated in this object | `AircraftManager::(DrawMapBase\|MapAirportBoxes\|MapAlloc\|MapFree)` (the lambda in `MapAirportBoxes` included), `mapcompose::*` (`LayerSink`'s vtable included), `maplayer::*`, `mapplaces::*`, `bmpk::*`, `wxraster::(Text\|Put)`, `glcd::font`, `wxlayer::OffDisc`, `wxs2::To565` |
+| | **changed with no source change: a member-offset shift only.** A function that reads or writes a member declared after `AircraftManager.h:725` carries a moved offset. Where an offset crosses an Xtensa load/store encoding limit, the sequence can grow by a few bytes | any other `AircraftManager::*`, and code inlined into it |
+| | **not changed** | `AircraftManager::RecordFrameUs` (its hunk is compiled out) |
+| `main.cpp.o` | **changed:** the static initializer, which constructs `appManager` with the new members | `_GLOBAL__sub_I_tft` |
+| | **changed with no source change: a member-offset shift only**, as above | any `main.cpp` function inlining an `AircraftManager` member access past line 725 |
+
+**Expected at the link:**
+- **Library members newly retained:** `fmin`, `fmax` (called from `mapplaces::ClearsCentre`) and `__fpclassifyd`
+  (called from newlib's `fmin` and `fmax`). Nothing else enters the link, and nothing leaves it.
+- **Every other unit differs by relaxation and address shifts only** (#656's RELAX), the image having grown by
+  +14,528 B.
+- **UNDECIDED: 0.**
+
+**How each outcome reads:**
+- **As expected:** the earlier residue was offset shifts and relaxation. The wiring's accounting closes with a verdict.
+- **A changed function outside the two objects, or a no-source change in them that is not an offset shift** (if #656 can
+  separate offset-only changes; if it cannot, the count of such units is reported and not graded): the TU-wide
+  inlining alternative, or another not yet named. Report it by name; it is not explained away.
+- **A library member other than the three:** named, with its caller, and reported.
+- **`RecordFrameUs` changed:** the `FOLLOW_BENCH` reading is wrong. Stop.
+- **Anything else, including UNDECIDED above 0: the instrument, or this model, is unreliable at this scale. Stop and
+  decide.**
+
+**When:** P-REDO can be read as soon as #656's controls (K0, K3, K2, K4) read as predicted. It needs no v20
+candidate. P-FLIP is wanted at the pre-ship gate, about 20-26 Nov.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
