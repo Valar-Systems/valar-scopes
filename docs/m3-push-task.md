@@ -125,9 +125,41 @@ row is graded before the next is read.
 | **M3-5** | networking and memory beside it, over the scene: fetch `requestMs` p95, the poll gap, internal free heap and its largest block at boot | requests within **±20%** of the base; **`CanHandshake()` never false**; internal free heap lower by **4.5 ± 1 KB** for (i), or **12.6 ± 1.5 KB** for (ii). Outside: the push task contends with Wi-Fi, or the memory is not what section 3 says, so stop |
 | **M3-6** | the push itself, timed in the task | **25.8 ± 1.0 ms**, unchanged (the wire time) |
 | **M3-7** | the standing rule: `p2p` p95 at 20 and 60 aircraft too | **no slower** than the base at either, beyond the bench's margin |
+| **M3-8** | **flash writes beside the push** (the cloud reviewer's row, accepted by the owner): an OTA download and install, and a config-page save, each with the push task running, on whichever design the first hour picks | **no crash or watchdog reset** (the boot reason and boot count unchanged until the install's own restart); **no stuck frame** (no `p2p` above 2 s outside the install's own reboot); **no torn frame** on glass (the owner's eyes and the slow-motion video, as in section 4); **the install completes and boots** the new image (its `[build]` banner and version on serial or in its check-in) |
+| **M3-9** | **(i)'s longer soak, before (i) is chosen for good** (the cloud reviewer's row, accepted). (i) is the path LovyanGFX turns off on purpose, and a clean 60 s look is thin evidence for a rare coherency fault | (i) runs **through C1's bench window and one overnight run on E2:08**, with periodic photos and the coherency self-check below; **zero stale stripes and zero self-check mismatches** keeps (i). **One of either sends it to (ii).** When in doubt, (ii): it costs 2-5 ms a frame |
 
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
+
+**How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
+(`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
+pointing at a **prerelease**:
+- Prereleases never resolve through `releases/latest`, so no fleet device can see it. The bench board still
+  exercises the full production OTA path: GitHub's CDN, the pinned root CAs (`OtaCerts.h`), `Update.begin`/`write`,
+  and the identity check.
+- The prerelease carries a `version.txt` one above the bench image's `FW_VERSION`, and a `firmware-s3-128.bin` that is
+  the same M3 bench image rebuilt at that version.
+- **Publishing it is blipscope-5c's** (releases are its) **with the owner's OK.** Its tag is set with blipscope-5c,
+  and it is deleted after the row.
+- A local HTTPS server is not used. The updater pins GitHub's root CAs (`setCACert(OTA_ROOT_CAS)`, `:710`), so a local
+  server would need a bench-only CA baked in, a second path the shipping image never takes.
+
+**M3-8's config-page save** posts the page's own current values back unchanged, read from the page first. It never
+posts a partial body: the 2026-08-02 scripted POST that silently switched features off is the lesson
+(`AircraftManager.cpp`'s frame-budget note). Or the owner saves in a browser, during the same window.
+
+**M3-9's coherency self-check** is a bench-only instrument, added to the photos because one photo every few minutes
+can miss a stale stripe that lasts one frame.
+- Every 30th frame, right after the push's DMA, the same PSRAM range is read again by a second DMA
+  (`esp_async_memcpy`, present in this S3 framework at `esp_hw_support/include/esp_async_memcpy.h`) into internal
+  SRAM. Its CRC is compared with the CPU's CRC of the buffer.
+- A mismatch means the DMA saw bytes the CPU had not written back, the exact fault behind a stale band. It is
+  counted and printed as `[m3] coherency mismatch`.
+- **ASSUMED until read:** that `esp_async_memcpy` reads PSRAM on the S3, and its alignment rules.
+- Its cost: about 2 ms on a second DMA channel every 30th frame, under 0.1 ms a frame on average. It runs **only in
+  the bench env**, never in the image graded for M3-3.
+- **Its control, first:** one planted run skips `esp_cache_msync` on purpose for one frame in 30. The self-check must
+  count those frames as mismatches, or it is not believed.
 
 ## 7. Size
 
@@ -138,6 +170,16 @@ Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "f
 | the design hour (section 4), on E2:08, with the owner's eyes and a slow-motion video | 0.25 d (one window with his time, ~15 min; +10 min for (ii)) |
 | design (ii), only if (i) shows a stale stripe | +0.5 d |
 | the bench read (M3-0 to M3-7) | 0.5 d (one window) |
+| M3-8: the bench prerelease (blipscope-5c publishes, with the owner's OK), the install and the save, in a window | 0.5 d, plus 5c's time |
+| M3-9: the coherency self-check, its planted control, and the overnight run on E2:08 | 0.5 d, plus one night of E2:08 |
 | review, CI, merge by rule (blipscope-5c reads the shared `main.cpp` change) | 0.5 d |
 
-**2.5 days**, or **3 days** if design (ii) is needed, which is speed-plan 2b's P2 size plus the half day.
+**3.5 days**, or **4 days** if design (ii) is needed: speed-plan 2b's 2.5 for P2, plus M3-8 and M3-9.
+
+**What the overnight soak does to C1.** C1 (about 2026-11-16) needs M3's code (from 11-13, about 2 days), the
+glass hour, the bench read and one night on E2:08.
+- **C1 holds at 11-16 only if the glass hour is done by the evening of 11-15**, so (i) soaks overnight 11-15 to 11-16.
+- **Each day later the glass hour lands moves C1 by a day.** If design (ii) is chosen at the glass hour, no soak is
+  needed, and C1 holds at 11-16 on (ii)'s numbers.
+- **M3-8 needs blipscope-5c's prerelease and its time.** It can run after C1 without moving it, since C1 reads
+  M3-3, not M3-8. It must pass before M3 merges.

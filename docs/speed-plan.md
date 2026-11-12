@@ -193,12 +193,12 @@ on the v20 candidate, with 20 and 60 reported beside it. 24 fps (≤ 41.7 ms) is
 | step | what | owner | size | earliest |
 |---|---|---|---|---|
 | P1 | **A0a**, the profile on main (docs/frame-profile.md): P-CTRL, P0, P1 | p4 | 1 d, one E2:08 window | when map-client's bench is frozen and its CTRL has passed (about 11-14) |
-| P2 | **M3**: the push on its own task and a second backbuffer. The first bench hour answers DMA from PSRAM, the cache write-back and the core | p4 (5c reads the shared `main.cpp` change) | 2.5 d | **the plan's acceptance**, then 11-14 to 11-16 |
+| P2 | **M3**: the push on its own task and a second backbuffer. The first bench hour answers DMA from PSRAM, the cache write-back and the core | p4 (5c reads the shared `main.cpp` change) | 2.5 d to C1; **3.5 d** with M3-8 (flash writes) and M3-9 (the overnight soak), added at the owner's acceptance (docs/m3-push-task.md) | **accepted 20:34Z**; code from 11-13, C1 11-16 if the glass hour is done by the evening of 11-15 |
 | **C1** | **THE CHECKPOINT, about 2026-11-16:** M3's measured cut, p95 at 40, weather on | | | after P2 |
 | P3 | **A0b**, the profile with the map in the tree: P-CTRL, P2, measuring M | p4 | 0.5 d, one window | when #659 (step B) and step C are on main or in the candidate |
 | P4 | **the map's steady draw into the cached layer**, if A0b reads M > 2 ms (frame-profile.md's fixed meanings) | map-client | 1-2 d | after P3 |
-| P5 | **W**: only a cut A0a shows to be cheap, such as not pushing the whole 115 KB layer every frame | weatherscope, proposed (the orchestrator assigns) | 1-2 d | after P1 |
-| P6 | **L1**: each contact's label layout cached until its text changes | p4 (staffing 1) or the second session (staffing 2) | 2 d | after P1 (labels measured) |
+| P5 | **W**: only a cut A0a shows to be cheap, such as not pushing the whole 115 KB layer every frame | **weatherscope** (the owner's staffing 2, 20:34Z) | 1-2 d | after P1 |
+| P6 | **L1**: each contact's label layout cached until its text changes | **weatherscope** (the owner's staffing 2, 20:34Z) | 2 d | after P1 (labels measured) |
 | P7 | **the (a) reading**: map-client's bench on the combined candidate (20/40/60; the gate at 40) | map-client | 1 d, one ~75 min window | after P2, P4, P5, P6 |
 
 Each step also carries the standing rule's before-and-after bench run (about 0.25 d) and its PR's review, CI and
@@ -226,8 +226,9 @@ its session and map-client's bench schedule. Weatherscope's 6E:64 is barred from
 | p4's chain | P1 1 + P2 2.5 + P6 2 + merges ~1.5 + P7 1 = **~8 d** | P1 1 + P2 2.5 + merges ~1 + P7 1 = **~5.5-6 d** |
 | (a) lands, if C1 is "on track" | **about 11-21 to 11-22** | **about 11-19 to 11-20** |
 
-The proposed second session is **weatherscope** (the orchestrator assigns): W is built on its drawing code, the static
-layers are its method, and nothing of it is on v20's path. The E2:08 constraint above applies.
+**The owner chose staffing 2 (2026-11-12 20:34Z):** p4 carries P1-P3, and **weatherscope carries P5 (W) and P6
+(L1)**. The E2:08 constraint above applies. P1's profile measures the phases P5 and P6 need (`under`, `sweep`, `static`,
+`labels`, `contacts`), so weatherscope reads them from P1 rather than measuring them a second time.
 
 ### v20's date range (docs/v20-plan.md: F, the content freeze, November 21-25; the cut 4-5 days after F)
 
@@ -264,10 +265,21 @@ hears the bad case then, not at pre-flight.
 ## 3. The methods, and what each is expected to gain
 
 **M1. Static layers drawn once and reused** (the owner's first method; the Weatherscope's).
-- **Basis, measured:** on the Weatherscope's loop, caching the layer cut the draw from **48.6-50.6 ms to 32.3-34.5 ms**,
-  about 16 ms or a third, for a one-off **20 ms** build (docs/weatherscope-stage3.md, B2). On the radar, v20's weather
-  layer is already cached that way: steady frames copy it instead of filling black (docs/wx-device.md, B1: on − off ≤ 3
-  ms p95).
+- **Basis, measured:** weatherscope's static-layers note (2026-11-12, read-only at main `e4b41fff9042`), from
+  docs/weatherscope-stage3.md:
+  - a composed screen copied each frame: **41.5-42.9 ms → one 115,200 B memcpy, 5.35-6.73 ms**;
+  - a loop frame: **42.4-50.3 ms → 32.3-34.5 ms**, of which about 3.1 ms was a separate band-row cut;
+  - a one-off **20 ms** layer build; PSRAM only.
+
+  On the radar, the weather layer is already cached that way: steady frames copy it instead of filling black. Its B1
+  prediction (on − off ≤ 3 ms) missed; the measured cost is in section 2a.
+- **The note's cautions for the radar, which this plan adopts:**
+  - **Measure first.** Weatherscope's gain came from its slow software raster. The radar draws rings, text and airports
+    with LovyanGFX's native primitives, which are likely far cheaper, so P1 times them before anything is designed.
+  - **Keep the order.** The rings draw after the sweep, on top of it. Folding them into the weather base would put them
+    under it, a visible change and a ruling. The look-keeping form is a palette-index layer replayed after the sweep.
+  - **Exactness needs opaque writes:** no smooth font, no alpha, nothing that reads what is beneath.
+  - **A key:** location, view radius, rotation, theme or look, `displayAirports`, and the airport list's version.
 - **On the radar:** the candidates are the rings, the cardinal labels, the range text, and v20's map if it is redrawn
   every frame. The airport overlay is not a lever: it was measured at −0.09 ms (the frame-budget note).
 - **Expected gain:** up to the static share of the draw: at most ~10 ms on the 1.28" with an empty sky. **That share
