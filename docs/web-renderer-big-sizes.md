@@ -96,3 +96,23 @@ web-renderer as 5 jobs, not 2.** A src change goes from 34 = 30/4/0 to 37 = 33/4
   runners queued, not that the design is slow. It is reported with both start times.
 - **An exit 2 from any check** means the instrument failed. Stop and decide.
 - **Any other reading not in these tables** means the instrument is unreliable at this size. Stop and decide.
+
+## Results
+
+### Local, read before the push (2026-11-12)
+
+| row | read | verdict |
+|---|---|---|
+| **D1** | `blipscope-pro-s3-21` at main: 17:19:31-17:23:01Z, 1,927,456 bytes, sha256 `55a70464cb7c...`. With the change: 17:26:05-17:26:54Z, 19 units recompiled (the ones that read the header), 1,927,456 bytes. The comparator: 65 differing bytes in 2 runs, app_elf_sha256 32 + checksum 1 + image_sha256 32, "PLACED", exit 0 | **as predicted.** No code byte moved. No `__TIME__` string differs, because the incremental build did not recompile WiFiManager; the five regions allow that |
+| **G1** | g++ 13.3.0 (WSL): rc 1, `error: #error "BLIPSCOPE_WEB_SCREEN_SIZE is the web renderer's alone ..."` | as predicted |
+| **G2** | rc 1, `error: static assertion failed: the big-size check models are 960, 1080 and 1280 px ...` | as predicted |
+| **G3** | 960, 1080, 1280, and neither macro: rc 0 each | as predicted |
+
+**R0's logic, rehearsed on stand-ins (not a registered row; the real reading is CI's).** Fake loaders reporting a fixed
+size gave these results:
+- s3-21 480 and s3-128 240 (both from their headers) and web-960, -1080 and -1280: `ok   R0`, exit 0;
+- s3-21 with `--expect-size=960`: `FAIL R0`, exit 1;
+- a `web-960` whose module reports 480 (a size define that did not take): `FAIL R0`, exit 1;
+- an unknown model name: `INSTRUMENT`, exit 2.
+
+So R0 can go red on both failures it exists to catch.

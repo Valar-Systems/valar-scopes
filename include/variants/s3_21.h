@@ -74,8 +74,20 @@
 #define BLIPSCOPE_TOUCH_FREQ     400000
 
 namespace variant {
-    // Screen geometry (round; square bounding box).
+    // Screen geometry (round; square bounding box). 480 on the board. The web renderer's big-size checks build this same
+    // model at 960, 1080 and 1280 px (docs/web-renderer-big-sizes.md) through BLIPSCOPE_WEB_SCREEN_SIZE. That macro is
+    // refused outside the web build and outside that set, so no device image can take it. The interim, until the
+    // screen size is a run-time value.
+#ifdef BLIPSCOPE_WEB_SCREEN_SIZE
+#ifndef BLIPSCOPE_WEB_RENDERER
+#error "BLIPSCOPE_WEB_SCREEN_SIZE is the web renderer's alone (docs/web-renderer-big-sizes.md)"
+#endif
+    static_assert(BLIPSCOPE_WEB_SCREEN_SIZE == 960 || BLIPSCOPE_WEB_SCREEN_SIZE == 1080 || BLIPSCOPE_WEB_SCREEN_SIZE == 1280,
+                  "the big-size check models are 960, 1080 and 1280 px (docs/web-renderer-big-sizes.md)");
+    constexpr int SCREEN_SIZE = BLIPSCOPE_WEB_SCREEN_SIZE;
+#else
     constexpr int SCREEN_SIZE = 480;
+#endif
 
     // Capabilities.
     constexpr bool BANDED_RENDER = false; // dual-core + PSRAM: render the whole frame at once

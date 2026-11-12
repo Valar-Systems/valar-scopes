@@ -120,6 +120,18 @@ jobs:
           bash scripts/check-web-only.sh --selftest
           for sku in $BUILT; do bash scripts/check-web-only.sh --expect --anchor "/api/v1/blipscope/blips" web-dist/$sku/blipscope-web-$sku-v*.wasm; done
 
+      # R0's control (docs/web-renderer-big-sizes.md): the s3-21 build, expected at 960, must read red, or R0 could not
+      # catch a big-size model whose size define did not take. Pushes and PRs only, beside the big-sizes job.
+      - name: R0's control, the s3-21 build expected at 960
+        if: steps.src.outputs.tag == ''
+        run: |
+          set +e
+          node tools/web-renderer/smoke.mjs web-dist/s3-21 --r0-only --expect-size=960
+          rc=$?
+          set -e
+          [ "$rc" -eq 1 ] || { echo "R0's control: exit $rc, wanted 1 -- R0 cannot be trusted"; exit 1; }
+          echo "R0's control: red as planted (exit 1)"
+
       # Smoke's R7 proves wx-layer on stops at the shim's setBuffer abort. Its sabotage proves R7 can fail: the abort is
       # removed in a COPY of tools/web-renderer, s3-128 is built from it into a temporary dist (never web-dist, never
       # uploaded), and R7 must go red there and stay green on the real build (docs/wx-device.md, AB2).
@@ -132,6 +144,55 @@ jobs:
         with:
           name: blipscope-web-v${{ steps.ver.outputs.fw }}
           path: web-dist/
+
+  # The big-size check models (docs/web-renderer-big-sizes.md): the Pro 2.1's web model at 960, 1080 and 1280 px, one
+  # leg each, BESIDE `build`, never after it, so the workflow's wall clock stays `build`'s. Pushes and PRs only. Checks,
+  # never published: publish needs `build` alone, a release run skips this job, and nothing here is uploaded. The
+  # interim, until the screen size is a run-time value.
+  big-sizes:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [ 960, 1080, 1280 ]
+    env:
+      SKU: web-${{ matrix.size }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-web-${{ hashFiles('platformio.ini') }}
+      - name: The firmware's libraries (from this tree's platformio.ini)
+        run: |
+          pip install -q platformio
+          pio pkg install -e blipscope-s3-128 >/dev/null
+          echo "LIBDEPS=$PWD/.pio/libdeps/blipscope-s3-128" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ env.EMSDK_VERSION }}
+      - name: Emscripten ${{ env.EMSDK_VERSION }}
+        run: |
+          [ -d ~/emsdk ] || git clone -q https://github.com/emscripten-core/emsdk.git ~/emsdk
+          cd ~/emsdk && ./emsdk install "$EMSDK_VERSION" >/dev/null && ./emsdk activate "$EMSDK_VERSION" >/dev/null
+          source ./emsdk_env.sh >/dev/null && emcc --version | head -1
+      - name: Build web-${{ matrix.size }}
+        run: |
+          source ~/emsdk/emsdk_env.sh >/dev/null
+          bash tools/web-renderer/build.sh "$SKU" "$PWD/web-dist"
+      - name: The headless smoke test, R0 and R3-R7
+        run: node tools/web-renderer/smoke.mjs "web-dist/$SKU"
+      - name: The carousel
+        run: node tools/web-renderer/carousel.mjs "web-dist/$SKU"
+      - name: AF3, the venue's own field
+        run: node tools/web-renderer/airports_remote.mjs "web-dist/$SKU"
+      - name: KI4, the web-only keys in the wasm
+        run: bash scripts/check-web-only.sh --expect --anchor "/api/v1/blipscope/blips" web-dist/$SKU/blipscope-web-$SKU-v*.wasm
 
   publish:
     needs: build
