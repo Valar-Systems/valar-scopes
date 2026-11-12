@@ -219,3 +219,27 @@ predicted lines are printed.
 
 P4 onward are as in amendments 1 and 2. **Nothing runs** until the reviewer lifts the hold and the owner has answered
 Q-P5.
+
+### Amendment 4b: the owner's answers (2026-11-12 ~18:55Z), frozen before anything touches COM110
+
+- "Is COM110 the 2.1? ... Yes it is." And "COM89 is a window opener. different device." So COM89 is the owner's, and
+  hands-off for good, as is DD:D8 on COM81.
+- "May hub port 1 be power-cycled for the 2.1? yes". So a 2.1 left in download mode is recovered by a port-1 power
+  cycle, with no hands, logged with both times. Port 1 holds only the 2.1.
+- Q-P5: "(a) customer enrolment from its config page".
+
+**Enrolment, as the firmware does it** (`src/ConfigurationWebServer.cpp`):
+1. On the 2.1's config page (`http://<its name>.local/`), Verify opens
+   `https://scopes.valarsystems.com/blipscope/enroll?id=<its id>` in a popup.
+2. **The owner solves its Turnstile check.** That's his: this session never answers a CAPTCHA.
+3. The popup posts the key back, and the page sends it to `/enroll-key` and reloads.
+4. If that fails, the same page on his phone, and the key pasted into "Access key".
+
+The id is never printed.
+
+| row | predicted | stop if |
+|---|---|---|
+| **E1** | after the reload the page reads enrolled (its `ENROLLED` state, `1`) | a refusal from `/enroll-key`, shown on the page |
+| **E2** | within a few minutes the radar draws aircraft: `/blips` answers 200 for its key, read from `/diag/fb`, three reads | still no aircraft after 5 minutes |
+| **U3b** | the server's boot report lands at its first acked check-in: `POWERON`, the boot from the boot read's EN reset (`scripts/fba-boot-rows.mjs`, its id from the config page, never printed) | another reason, or no row 10 minutes after E2 |
+| **P6** | with aircraft drawn, his one tap opens a card and his swipe changes the screen | as registered |
