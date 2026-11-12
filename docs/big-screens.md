@@ -66,7 +66,7 @@ Sizes are elapsed days for the step's owner, counted from the day it can start. 
 | 8 | **radar labels that do not pile up on the big screens.** Placement and de-collision in mm, fuller labels where they fit. Graded by a host sweep (placed against refused, over every start), per CLAUDE.md's instrument rule. | p4 | steps 4 and 5 | 3 |
 | 9 | **golden pictures in CI**, every release: the scripted scene (virtual clock, scripted tap and swipe, the stage-1 rig's method) at **240, 480, 720, 1080, 960 and 1280**, from step 1's models. Each golden asserts its pixel minimums from the display list. The 240 golden is section 4's rendering proof and the 480 golden its 2x test. | blipscope-5c (CI, web renderer); p4 writes the scene script | step 1; steps 4 to 8 for the final images | 3 |
 | 10 | **the finger session.** The owner's hands on the real 7" and 23.6", with the step-3 build; tap and swipe frozen from it. | the owner, scheduled through the orchestrator; p4 runs it | steps 3 and 5 | 1 session |
-| 11 | **the detailed map.** map-server's web-only map package, then its integration on the radar face. | blipscope-cb (map-server) for the package; p4 for the integration | map-server's read (d), not received yet | package: from (d); integration: 2 |
+| 11 | **the detailed map** (map-server's read (d), 2026-11-12 18:00Z). One web class serves every big screen: the web build sends `class=web`, and the server applies the web ε (75 m, one line width at 1280) and a 384 KB non-terrain cap. Terrain stays at today's 3 levels, upscaled smoothly on the client, because the source has no finer detail. One stored package per point and radius. The device path is untouched and proven byte-identical. Then the integration: the web shim adds `/basemap`, behind the same auth as `/blips`. | blipscope-cb (map-server) for the package; p4 for the integration | the package: part 2's sea code PR on main, F, **the owner's ruling on (d) section 2** (customer-visible), a production deploy slot. The integration: the package | package: 3; integration: 2. Off the critical path if the package starts by F + 14 |
 | 12 | **speed on the real 23.6".** Frame time in the kiosk app at rest, in a dense sky and with a card open; static layers (rings, map) cached if it misses. | p4, on the owner's hardware | step 3; section 5 | 1 to measure, 2 if caching is needed |
 | 13 | **the 2.1" and the P4 on glass.** The 480 and 720 layouts on the boards, with a smooth font on the device. | p4; the 2.1"'s bring-up owner | each board's bench bring-up first | 2 each |
 | 14 | **the owner judges each golden on glass**, every release. | the owner | step 9 | each release |
@@ -75,10 +75,10 @@ Sizes are elapsed days for the step's owner, counted from the day it can start. 
 to 3 = **19 to 21 elapsed days** from F. Steps 1, 3 and 9 run alongside on blipscope-5c's side, and step 11's package
 on map-server's.
 
-**The date: F + 21** for everything except step 13, which follows each board's bench bring-up. F is not fixed yet;
-docs/v20-plan.md (due 2026-11-13 15:38Z) sets it. At the earliest possible F, 2026-11-13, that is **2026-12-04**, and the
-date moves one day for each day F moves. **The first review on glass, with the finger session, is at F + 16**: the
-radar, the List and the card by the rules, before the map. That is 2026-11-29 at the earliest F.
+**The date: F + 21** for everything except step 13, which follows each board's bench bring-up. v20's plan
+(docs/v20-plan.md, PR #673, not yet merged) puts F at **November 21-25**, so **F + 21 is December 12-16**. The date
+moves one day for each day F moves. **The first review on glass, with the finger session, is at F + 16**: the radar,
+the List and the card by the rules, before the map. That is December 7-11.
 
 ## 4. How "the 1.28" output stays unchanged" is proven
 
@@ -102,6 +102,9 @@ not something to work around.
 ## 5. What is needed from the owner
 
 1. **Done 17:26Z:** the go, the text rule, the layout scope, the touch rule, and the 2.1".
+   **Still to rule, through the orchestrator:** map-server's read (d) section 2. It covers one web map class for every
+   big screen, terrain kept at today's three levels, and a 384 KB non-terrain cap. It is customer-visible, and step 11's
+   package waits on it.
 2. **The real 23.6" for the speed test (step 12), and the 7" and 23.6" for the finger session (step 10):**
    - one 2 to 3 hour session with each screen on, after step 3 lands, the kiosk app installed;
    - each screen's make and model, its Android and WebView versions, and the kiosk app's version;
@@ -116,8 +119,13 @@ not something to work around.
 - **Run-time `SCREEN_SIZE` (step 3) is the widest change.** Everything `Layout.h` derives is `constexpr` today. In the
   web build each derived constant becomes a second path, in CLAUDE.md's sense. Its proof is the 240 golden holding in
   the web build too.
-- **The map package's cost on the 23.6"** is unknown until step 12 measures it. Step 12 comes before the owner's last
-  review, so a slow frame is found by measurement, not by the owner.
+- **The map package's size is measured; its drawing cost is not.** Per read (d), the web package is 211-241 KB at a
+  40 km disc and 311-509 KB at 162 km; today's device package is at most ~211 KB. Its cost: under $0.20 a month at
+  600 screens, inside the included allowances. What one frame costs to draw on the 23.6" waits for step 12, which
+  comes before the owner's last review, so a slow frame is found by measurement, not by the owner.
+- **Deeper terrain is not in this plan.** The z9 source is ~234 m/px at 40 N, and a 1280-px disc at 40 km wants
+  62 m/px. Scaling today's levels adds bytes (up to ~5 MB) and no detail. Finer terrain would need a new ingest,
+  which is its own decision.
 - **Speed on the Android screen is unmeasured.** The stage-1 rig ran 21,600 frames in about 4 s on a desktop, which says
   nothing about the kiosk's WebView.
 - **The 2.1"'s 2x depends on its glass being under 60 mm.** The test in section 4 catches it if not.
