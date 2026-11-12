@@ -2860,10 +2860,10 @@ already dropped, and water rings dropped smallest-area first until the package f
 | the other synthetic controls (kb1, kb1c, edge2, kb2cross, tsea0, bowtie) | **as run 6, each with `seaRepairs` = 0.** Their islands touch or sit inside their outers; bowtie is refused at step 3 |
 | P2-0 and T-SEA0-real | as run 6 (no sea layer) |
 | **P2-1, the 12 others** | **byte-identical to today's** (sha256): KBOS f21d705d8b8a, KMIA 1a338238fbc8, KSFO 4d03beecdb4b, KSEA 9bd5b34d6718, KORD cb59bb06a506, KDTW 682208bf2fb2, KMSP b694c01dc502, KIND 89a4195fa4be, KJAC 42c32cd8578e, BUFFALO 52fad5e317f3, ROUSES afe7554245b8, ZAPATA e2ddaa00ecaf; `seaRepairs` 0 |
-| **P2-1, KJFK** | kOk, 0 crossings, rung 7, 129.60 km; sea {drawn 14, refused 0, collapsed 3, outside 5, dropped 2, islandsDropped 0, islandsSmall 0, bridges 5, bytes 909, rings 14}; `seaRepairs` 1, `seaRepairVertices` 4 |
-| **P2-1, KLGA** | the same shape: {14, 0, 3, 5, 2, 0, 0, bridges 5, bytes 870, rings 14}; repairs 1, vertices 4 |
-| **P2-1, KEWR** | {drawn 11, refused 0, collapsed 2, outside 9, dropped 4, 0, 0, bridges 4, bytes 730, rings 11}; repairs 1, vertices 4 |
-| **P2-1, MIDTOWN** | {14, 0, 3, 5, 2, 0, 0, bridges 4, bytes 787, rings 14}; repairs 1, vertices 4 |
+| **P2-1, KJFK** | kOk, 0 crossings, rung 7, 129.60 km; sea {drawn 14, refused 0, collapsed 3, outside 5, dropped 2, islandsDropped 0, islandsSmall 0, bridges ~~5~~ **4** (re-registered: the owner, 18:03Z), bytes 909, rings 14}; `seaRepairs` 1, `seaRepairVertices` 4 |
+| **P2-1, KLGA** | the same shape: {14, 0, 3, 5, 2, 0, 0, bridges ~~5~~ **4** (re-registered), bytes 870, rings 14}; repairs 1, vertices 4 |
+| **P2-1, KEWR** | {drawn 11, refused 0, collapsed 2, outside 9, dropped 4, 0, 0, bridges ~~4~~ **3** (re-registered), bytes 730, rings 11}; repairs 1, vertices 4 |
+| **P2-1, MIDTOWN** | {14, 0, 3, 5, 2, 0, 0, bridges ~~4~~ **3** (re-registered), bytes 787, rings 14}; repairs 1, vertices 4 |
 | **(C)**, new and graded | **step-5 refusals 0 at all 16** |
 | the lock's cost | at the 12 others, as run 6. At New York the row now includes record 18: KJFK 765 → 909 (+144 ≤ 192), KLGA 745 → 870 (+125 ≤ 192), KEWR 632 → 730 (+98 ≤ 156), MIDTOWN 669 → 787 (+118 ≤ 168). There it no longer isolates the lock, and it stays graded on its tolerance |
 | KB3 | KBOS 1,415; **KJFK 909; KLGA 870**; KSEA 2,003; KSFO 694; KMIA 1,146: all ≤ 3,072 |
@@ -2986,3 +2986,11 @@ The run follows as registered: run 7.
 **Proposed, not applied (a ruling first):** register `bridges` as today's count at the four New York points (KJFK 4, KLGA 4, KEWR 3,
 MIDTOWN 3). Change nothing else, and re-run from the top as run 8. This is my miss: a predicted count derived without reading
 where the count is taken.
+
+**The owner's ruling (18:03Z, relayed at 18:05:18Z), verbatim:** "yes. Correct the one expected bridge count (a bridge is counted when
+made, even if the piece is later rejected), keep the miss on record, and re-run from the top."
+- **Re-registered:** `bridges` at the four New York points = today's counts: KJFK 4, KLGA 4, KEWR 3, MIDTOWN 3. Marked in the table
+  above, the registered values struck beside them.
+- **Nothing else changed.** `p2-read.py` 1f58939262fb (was a4a35809e8d7); the change is those four numbers and a comment.
+- **The miss stays on record** (above). Another off reading goes to the owner.
+- Run 8, from the top, follows this commit.
