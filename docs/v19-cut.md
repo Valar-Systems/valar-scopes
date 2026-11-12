@@ -426,6 +426,49 @@ first").** A new measurement, not a re-run of C2.
 - **Outside any frozen set: stop, restore (C4 and the prerelease), report.** Nothing is improvised. The window ends with
   E2:08 on C', its boot read, and the reservation released.
 
+**Step 5' on C', the result: every row AS PREDICTED** (the reviewer's gate-5 window, opened at 04:18:47Z on the owner's
+04:18Z words; run 04:19Z to 05:50Z against production `68dc169a`, with no deploy during it).
+- **Before-reads:** 04:19:22Z and 04:27:44Z. The prerelease held its originals (`b12e184d4570`, `e7f6c011776e`);
+  `releases/latest` v18; `version.txt` "18" both times.
+- **X1-X4 and the stall marker,** host only, before the window: all as predicted.
+- **C0:** A' (identified by five regions) gave `[build] env=blipscope-s3-128-otatest fw=v19`, `running=app0 @0x020000`,
+  `[ota-id] board=s3-128 scope=- (record v1)`, and `current=19 latest=6`, with no update.
+- **C1:** F' and "20" uploaded, each verified by digest and download. The boot logged `latest=20`, then downloading, then
+  `[ota] refused foreign: requested=s3-128 image=s3-21`, with 0 screen lines. At the Worker: `refused-foreign 19->20`.
+- **C1-PC:** port 3 OFF at 04:33:10Z and ON at 04:33:15Z. One POWERON boot row, with one `refused-foreign 19->20
+  reset=POWERON` at the same second.
+- **B-AFTER:** 20 port-3 cycles, 04:36:30Z to 05:03:41Z. The Worker held 20 POWERON boot rows, each paired with one
+  `refused-foreign` row: **0 of 20 truncated**, where C's head read refused 13 of 19.
+- **B-STALL:** A'-stall was identified by five regions, and `[ota-bench]` appears once in it. Port 3 OFF at 05:11:26Z and
+  ON at 05:11:31Z.
+  - One POWERON boot row at +55 s (predicted 52-65), with one `refused-truncated 19->20 reset=POWERON`.
+  - 0 missed pings after the first answer, and no second boot row.
+- **C2:** S' was identified by five regions, and B' uploaded and verified. The boot logged `[ota] refused no-record:
+  requested=s3-128 image=-`, with 0 screen lines, at fw=19.
+- **C3, as re-frozen:**
+  - The guard held. At the Worker, the flash boot left no `ota` row; a traced guard boot read `current=19 latest=6`.
+    Compared against S', the flashed A' build shows exactly one byte outside the five regions: it is A', not S'.
+  - The traced update: `progress 0`, `progress 100`, "update installed; restarting", then `fw=v20`, `running=app1
+    @0x660000`, and `current=20 latest=20`.
+  - At the Worker: `ok 19->20`.
+- **C4:**
+  - C4-0: the extra images are at exactly `0x0`, `0x8000` and `0x1E000`.
+  - C4-1: the stubbed write list is `0x0`, `0x8000`, `0x1E000`, `0x20000`, with none in NVS; COM99 "could not open".
+  - C4-2: four regions written and verified. The boot read `running=app0 @0x020000`; Wi-Fi joined from saved credentials
+    (fast join, 0 portal lines); and the check-in authenticated (the factory key, config fetched).
+  - **One method deviation:** the restored image was identified against `cb9c05d92d3b` (76 bytes, all placed), not
+    against the named `abc34056c95f`. That file had been overwritten in the build directory and not kept, and
+    `abc34056c95f` was itself identified against `cb9c05d92d3b` by the same comparator.
+- **The restore:**
+  - B''s download count read 3 before it was replaced (A12.172 predicts 2, and says this is not a stop). My two
+    read-back downloads also count.
+  - The originals are back, `b12e184d4570` and `e7f6c011776e`, by digest and by download.
+  - After-reads at 05:46:59Z and 05:50:13Z: prerelease true, latest v18, `version.txt` "18".
+- **The close:**
+  - E2:08 ended on C' (`blipscope-s3-128`, app0). The last trace's end left it in ROM download mode; a `read_mac` with
+    no trace recovered it, and it answered ping at 05:47:30Z and checked in at 05:47:37Z.
+  - Port 3 ON, nothing holding COM18, and the reservation released at 05:50:31Z.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
