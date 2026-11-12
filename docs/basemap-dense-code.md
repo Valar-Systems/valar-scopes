@@ -1170,6 +1170,115 @@ Every other use was already in the home's frame and stays there: the truth masks
   24 pixels at the closest zoom. Every water edge is then this coarse, TIGER's included, which bears on what "a clean lake at the
   closest zoom" can mean for this package.
 
+## The design read's THIRD RUN, re-registered (frozen before it runs)
+
+**The owner, with the cloud reviewer's read** (03:04Z, relayed by the orchestrator at 03:37:24Z), verbatim:
+
+> - "Yes to the proposed fix as the third run."
+> - "'One clean lake' is judged at the map's own resolution: no land drawn across open water along the border, and no seam or spill
+>   bigger than the package's normal shoreline error. No extra water detail at the closest zoom just for borders."
+> - The reviewer's read of the current Buffalo pictures: "(a) has no gap in the lake, with water over parts of the US shore within that
+>   error; (b) has a land stripe across Lake Erie along the border, which fails; (c) has smaller amounts of both."
+> - "Final pick after the third run's pictures."
+
+**The reviewer** (03:39Z, relayed at 03:40:26Z), verbatim:
+
+> the stripe check needs a control in both directions. It must flag the current (b) picture. It must also pass the same picture with
+> the stripe painted over as water, so it can't pass by flagging everything.
+
+The orchestrator's terms: both run before any design is graded; either one off means the instrument is blind, and nothing is graded.
+This is the THIRD run, so a failure here goes straight to the orchestrator and the owner.
+
+### The plants, above the drawn tolerance
+
+Every build so far is rung 3, which draws water from the ε × 8 set, simplified at about 1.6 km.
+- **plant_seam:** (b) minus a **3.5 km** band along the border.
+- **plant_spill:** (b) plus a **3.5 km** square on US land. It adds exactly 12.25 km² at each home, so it lies wholly on new ground.
+- **plant_junction:** (b) plus a **3.5 km** square at its frozen site (the 23:40Z rule, unchanged).
+
+**Designs (a), (b) and (c), and the truth layers, are byte-for-byte as in the second run,** checked by comparing the regenerated
+geometry with the second run's. Only the plants changed: at Buffalo plant_seam is 213.31 km² and plant_spill 308.31; at Rouses Point,
+59.72 and 90.22.
+
+**A landing check per plant build, read before its control:**
+- plant_spill and plant_junction draw MORE water than (b), and plant_seam LESS;
+- `collapsed.water` and `dropped.water` are printed beside every build.
+
+**The junction assertion is restricted to the band:** the planted NE-only US pixels within 1.5 km of the border must number at least 1,
+and every one must be JUNCTION or JUNCTION_DISC, with none EXCUSED.
+
+### The owner's pass rule, made measurable
+
+**E, the package's normal shoreline error,** from the SAME package, away from any border, computed per lake from the "none" build
+before any design is graded:
+- **W_src** is TIGER's SOURCE water, decoded from the store's own cells, with the water path's population: AWATER ≥ 1,500,000 m², outer
+  parts only, each part filled on its own, and **unsimplified**.
+- **The offsets,** pooled both ways: each edge pixel of TIGER's drawn water (W_n) to the nearest edge pixel of W_src, and each edge pixel
+  of W_src to the nearest of W_n. Only edge pixels more than **3.0 km** from NE's border line count.
+- **The statistic is the 95th percentile (P95).** P50, the max and the sample count are printed beside it. **Under 50 samples, stop.**
+
+**The three conditions:**
+
+| condition | measured as |
+|---|---|
+| **(a) no land across open water along the border, whatever its size** | **CROSS = 0.** The border line is sampled every 0.1 km. At each sample, a transect runs along the line's normal from **−4.0 to +4.0 km** in one-pixel steps, kept only if both its ends lie in the NE lake (open water). A transect CROSSES when, after a drawn-water pixel, a run of land pixels all inside the NE lake ends at drawn water again |
+| **(b) spill no bigger than the normal shoreline error** | **SPILL_EXTENT ≤ E:** the largest distance from a SPILL pixel to TIGER's drawn water |
+| **(b) seam no bigger than the normal shoreline error** | **SEAM_WIDTH ≤ E:** twice the largest distance from a SEAM pixel to the drawn water |
+
+- **The transect is 4.0 km each way, not the 1.5 km band,** so that a stripe wider than the band (the 3.5 km seam plant's 1.75 km on the
+  Canadian side) still shows water on both sides.
+- **A design passes when all three hold at BOTH lakes.** Passing designs are **ranked simplest first: (a), (c), (b).**
+- **The rule ranks; it does not replace the owner's pick.** The pictures go to him whatever the numbers say.
+
+**The stripe check, controlled in both directions** (the reviewer):
+- **STRIPE** is the connected components (8-connected) of land inside the NE lake within 4.0 km of the border that contain a land pixel
+  of a crossing transect. **CROSS_REPAINTED** is CROSS recomputed with STRIPE repainted as water.
+- **At Buffalo:** CROSS(b) > 0, since it must flag (b) as it stands, AND CROSS_REPAINTED(b) = 0, since it must pass (b) repainted.
+- **At Rouses Point:** if CROSS(b) > 0 there, CROSS_REPAINTED(b) = 0.
+- The seam plant gets the same pair at each home: CROSS > 0 and CROSS_REPAINTED = 0.
+
+### The order, and every control first
+
+1. **The fetch** re-verifies the 192 objects. All exist, so nothing is fetched.
+2. **The builds,** with `collapsed.water` printed: none, (b), plant_seam, plant_spill, (a), (c), then plant_junction.
+3. **E per lake,** printed before anything is graded.
+4. **The renders.** The pictures are written here.
+5. **THE CONTROLS, all before any design is graded:**
+   - the landing checks;
+   - the seam plant: SEAM up, SEAM_WIDTH > E, CROSS > 0, CROSS_REPAINTED = 0;
+   - the spill plant: SPILL up, SPILL_EXTENT > E;
+   - the junction assertion, then JUNCTION + DISC up;
+   - the stripe in both directions.
+
+   **Any one off: blind, and nothing is graded.**
+6. **The pass rule and the ranked table:** per lake and design, SEAM, SPILL_SHORE, SPILL_JUNCTION, JUNCTION_DISC, EXCUSED, CROSS,
+   SPILL_EXTENT, SEAM_WIDTH and E.
+7. **The pictures to the owner, who picks.**
+
+| outcome | next |
+|---|---|
+| a fetch, build or render failure, or E under 50 samples | **instrument failure: to the orchestrator and the owner** (the third run) |
+| **a control blind** | **nothing is graded: to the orchestrator and the owner** |
+| the rule ranks one or more designs | the ranking and the pictures go to the owner, who picks |
+| none passes at both lakes | the numbers and the pictures go to the owner, who picks |
+| **anything else** | **stop and report** |
+
+**My expectation, stated before the run; it grades nothing.**
+- From the reviewer's read, (b) fails CROSS at Buffalo, which the stripe control also requires.
+- For (a) and (c), the outcome rests on E, which I don't predict. At rung 3 the shoreline itself is simplified at about 1.6 km, so E
+  should be of that order.
+
+**The tooling:**
+- `lake-designs.py` `f5d8a23e5867` → `lake-BUFFALO.json` `bd95d4d989a4` and `lake-ROUSES.json` `a3b10c04114e`;
+- `lake-junction.py` `4df647cac294`;
+- `lake-build.mts` `7e887ec58946`, which prints `collapsed.water` and `dropped.water`;
+- `lake-render.py` `2609269edafc`, with E, CROSS, the stripe repaint and the extents;
+- `lake-read.py` `05dc55cadd47`;
+- `lake-fetch.mts` `e56c9e06aca0`, unchanged.
+
+The second run's copies are kept as `*.ran2.*`. Every script compiles, and the build refused an unknown home after its imports. Nothing
+has run.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
