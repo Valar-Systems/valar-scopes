@@ -2510,3 +2510,65 @@ printed. **Its control is shown FAILING FIRST, before (B)'s code:** a synthetic 
   - **This is a design addition, so it is the owner's call.**
 - If the owner takes (B'), its predictions are registered before code: record 18 drawn at all four, Jones Beach Island kept, and KJFK's
   in-square cover about 0.98.
+
+### PARITY: the ingest's hand-written rectangle clip, registered before any code (the orchestrator, 16:31Z and 16:36:44Z)
+
+**The decision:** no new dependency. The Q-W4 code PR's TypeScript ingest cuts the sea with a **hand-written rectangle clip**, held to
+PARITY against the dry run's GEOS `clip_by_rect` (shapely 2.1.2, GEOS 3.13.1) over all 2,584 extent cells. If parity is not reached in
+about a day, the dependency option goes to the orchestrator first, with its name, licence, pinned version and size.
+
+**The reference** is the dry run's own output, pinned: `sea-pieces.json` 8ad5d92fa7c7, from `sea-dryrun.py` e1b68a840847. Its printed
+figures (step 0's log):
+- **the extent:** 2,584 cells;
+- **the sources:** the ocean as 2 outer polygons with 6,820 holes; Natural Earth lakes 1,355, of which 1,168 are selected (149 wholly
+  inside the US, 38 under 1.5 km²);
+- **the cut:** **1,435 cells** hold sea, **1,914 pieces** (1,641 ocean, 273 lake), **497 islands kept** and **135 dropped** under
+  1.5 km², 69,728 vertices, 1,190,173 sea bytes.
+- **Read from it before registering:** no kept or dropped island lies within 0.001 km² of the 1.5 km² threshold, so the island rule cannot
+  flip on arithmetic. The smallest piece is 2.7e-8 deg², which is why the tolerances below carry an absolute floor.
+
+**The algorithm, stated before the code:** a rectangle-specialised boolean intersection (Weiler-Atherton on a rectangle), per source
+polygon and per cell:
+1. each ring is classed as wholly inside the rectangle, wholly outside, or crossing it;
+2. a crossing ring is cut at its boundary crossings (edge-parametric, in double) into inside chains, and each chain's ends are placed by
+   their position along the rectangle's boundary, counter-clockwise from the south-west corner;
+3. the chains are stitched into closed outers by walking the boundary between them, taking the rectangle's corners as passed;
+4. holes wholly inside go to the stitched outer that contains them, tested at one of their vertices;
+5. **if no ring crosses** and the rectangle's centre is inside the outer and outside every hole, the piece is the whole rectangle, with
+   the holes inside it;
+6. **then the island rule, as the dry run:** keep a hole if its area, in deg² × 111² × cos(its own centroid's latitude), is at least
+   1.5 km², using the polygon centroid formula.
+
+There is no 10-degree pre-tiling, unlike the dry run; it changes nothing in exact arithmetic. The lake selection (design (a): at least
+1.5 km², not wholly inside the US) is part of the ingest and is compared too.
+
+**The comparison, graded, written by a verifier in the geo-venv against the reference:**
+
+| row | what is compared | passes when |
+|---|---|---|
+| **PA-1**, totals | cells holding sea, pieces, islands kept and dropped, lakes selected | **exactly** 1,435 / 1,914 / 497 / 135 / 1,168 |
+| **PA-2**, per cell | the number of pieces, each matched 1:1 to a reference piece of the same source by least symmetric-difference area | equal in **every** one of the 2,584 cells; every piece matched |
+| **PA-3**, per pair | rings: the outer plus the islands kept | equal |
+| **PA-4**, per pair | area | \|A_ts - A_geos\| ≤ max(**1e-6** × A_geos, **1e-12 deg²**) |
+| **PA-5**, per pair | **shape**: the area of the symmetric difference (shapely) | ≤ max(**1e-6** × A_geos, **1e-12 deg²**). This catches two different shapes with the same area |
+
+**Recorded, not graded: the vertex sets.** Per pair, the Hausdorff distance between the rings, in degrees, and the difference in vertex
+counts. **Predicted:** Hausdorff ≤ 1e-9°. The counts may differ where GEOS keeps or drops points that are collinear along the rectangle's
+edge, or starts a ring elsewhere; that is an implementation detail and not geometry. The total of sea bytes is printed beside 1,190,173.
+**Why the vertex sets are not graded:** what the store needs is the same SEA, which PA-4 and PA-5 settle. Vertex-for-vertex equality with
+GEOS's RectangleIntersection would grade its internal choices.
+
+**The controls, each shown FAILING before a pass is believed** (plants in a copy, never in the ingest):
+
+| control | the plant | predicted |
+|---|---|---|
+| **C-SELF**, the null | the verifier compares the reference with itself | **0 failures.** The instrument passes what is equal |
+| **C-IDX**, off by one | each cell clipped by its east neighbour's rectangle | **PA-1 and PA-2 fail**, at most of the 1,435 cells |
+| **C-SHIFT**, 1.1 m | the rectangle shifted 1e-5° east | **PA-4 or PA-5 fails for at least half of the 1,914 pieces.** A clipped piece's area moves by about 1e-5 of its edge length in degrees, which is over 1e-6 relative for any piece with a vertical cut. This shows the tolerance sees about a metre |
+| **C-AREA**, one piece | one reference piece scaled by (1 + 1e-5) about its centroid | **PA-4 and PA-5 fail at exactly that piece**, and nowhere else |
+| **C-HOLE**, the island rule | the rule off, so every hole is kept | **PA-1 fails** (497 becomes 632). **PA-3 fails** at exactly the pieces that held the 135 dropped islands |
+
+**The verdict:**
+- **PASS:** every PA row holds, and every control fails as stated.
+- **Anything else stops.** A control that passes is a blind instrument, and goes back to the orchestrator before the code is trusted.
+- **Parity's first run is its own check,** before the code PR. Its sha and output go in this record.
