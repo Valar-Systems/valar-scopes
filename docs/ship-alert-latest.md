@@ -81,3 +81,17 @@ first, and that is stated here rather than implied.
 | **L3** | run 43266574187, `filter=latest` (30 jobs): `build (blipscope-s3-128, s3-128): success (attempt 2)`, `green: 1 shipping leg(s) read, all success`, exit 0. With `filter=all`, both attempts' executions of the leg present (2): the same verdict, attempt 2 deciding | as predicted. The old job read this run red |
 | **L4** | `reader sweep OK: 16 reviewed mention(s), no parser but skus.py.`, exit 0 | as predicted |
 | **L5** | `check_ota_url.py --check-wiring` exit 0; `check_ota_identity.py --check-wiring` exit 0 | as predicted |
+
+## Two notes from the review (the reviewer, 17:55Z)
+
+**What the graded evidence is.** L1-L5 above were committed together with this page, not pre-registered, so they are
+not pre-registered evidence. The graded evidence for this change is this PR's CI (32 = 30/2/0, ship-alert's
+report-only line, sku-readers' `SELFTEST PASSED`) and the first push to main after it merges (ship-alert green on
+its own run, `1 shipping leg(s) read, all success`).
+
+**A new way for a PR to go red for a GitHub-side reason.** On a pull request, ship-alert now reads the jobs API. If
+that read fails (a 5xx, a rate limit, a network reset), the script reads INSTRUMENT and the PR's ship-alert goes red.
+That is by design: it never reads an unseen leg as green. But nothing in the PR's code caused it. The GitHub-side
+re-run rule applies: quote the run, the job, the step and the error to the reviewer first, then `--failed` once per
+job per sha. An INSTRUMENT whose error is about this repo's own wiring (403 on `actions: read`, no job named
+`build (<env>, <slug>)`) is not GitHub-side, and is fixed rather than re-run.
