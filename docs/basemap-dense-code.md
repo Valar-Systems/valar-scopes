@@ -3145,3 +3145,44 @@ Every complement control fails both bounds. The scopes are printed: KSEA's d* is
 - a **landing check**: that vertex is in view, and the moved file differs from the original in it alone;
 - predicted: the moved C++ differs from the Python renderer by **≥ 1 px**.
 - Then run 10 from the top. Nothing else changes.
+
+### KB5's control, re-registered for run 10 (the orchestrator, 19:21Z), before the run
+
+**The ruling** (the orchestrator's, since KB5 is not a KB4 row): re-register as proposed, with three additions.
+- The cause is accepted as a plant-site miss, mine, on record.
+- **The alternative, that the C++ ignores its input, stays OPEN until run 10 separates it.**
+- **The retry cap:** a second off reading on KB5 goes to the owner.
+
+**1. The plant: ring 38, vertex 1, at (25.744337, 114.868434) px,** the first vertex inside the view (2 to 238 px).
+- **Moved 1 px at right angles to the edge it ends** (from vertex 0 at (-21.088577, 152.205001)), along that edge's left-hand normal
+  n = (-(y1 - y0), x1 - x0) / |edge| = (0.623373, 0.781925).
+- So it moves to (26.367710, 115.650358).
+- `kb5-plant.py` makes the move and asserts the registered vertex is the first in view.
+
+**2. The landing check, run BEFORE the run (19:22Z), in two parts:**
+- **(a)** the moved file differs from the original in that vertex's line alone: **1 line**. OK.
+- **(b)** the reference (Python) render of the moved file against the unmoved one: **21 px differ**. OK, so the instrument sees the plant.
+  - It used `p2-render.py kb5r`, a new mode that renders a `.rings` file back with the same `fill_ring`. **Its anchor:** the unmoved
+    rings re-render to run 9's `kb5-kjfk.py.bin` byte for byte (17,043 water px).
+  - Had (b) read 0 px, the rule was STOP, with no second vertex tried.
+- Both checks also run in run 10 itself, as one row ahead of the control.
+
+**3. Predictions for run 10:**
+- **KB5's control:** the moved C++ against the unmoved Python differs by **≥ 1 px**.
+- **KB5's main row:** the unmoved C++ equals the Python renderer, **0 px**, as registered.
+- **KB5's pair:** the moved C++ against the moved Python reads **exactly what the unmoved pair reads** (so 0 px, if the main row holds).
+- **Every KB4 row: run 9's numbers exactly,** checked to 4 decimals at all six airports. That includes the complement, the scope,
+  d* and the source; the KSEA guard's control is RED, and KSEA reads 0.886081.
+- **Every other row as run 9's.** Then the rows run 9 never reached: KB7-a/b, KB7-c-real and P2-M as registered, and the pictures
+  (the lakes'), unopened.
+- **The escape hatch:** any reading outside this set STOPS, with the instrument in doubt. A second KB5 off reading goes to the owner.
+
+**Run 10's pins:**
+
+| artifact | sha256 | was |
+|---|---|---|
+| `p2-read.py` | 9eaf229657ec | e6ba08196d55 |
+| `p2-render.py` (+ `kb5r`) | ce0f176ea317 | 0d9291a37e4b |
+| `kb5-plant.py` | 11b99bf9fb47 | |
+
+pq4d, the stores, the kb5 binary and every other driver are unchanged since run 9.
