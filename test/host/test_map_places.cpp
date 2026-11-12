@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <utility>
@@ -346,8 +347,11 @@ int main(int argc, char** argv)
                     const double lon = lon0 + list.t[i].qx * kmPerQ / (111.0 * c0);
                     const std::pair<int, int> pr = radarproj::Project((float)lat, (float)lon, lat0, lon0, fr.v.rLat,
                                                                       fr.v.rLon, fr.v.rotSin, fr.v.rotCos, 240);
+                    // The Project half, as ruled (A): what is DRAWN, the label's integer anchor, against Project's int
+                    // result, at most 1 apart per axis. Two truncations of nearly equal values differ by at most 1, so
+                    // the bound is exact; the first run compared a double with a float's truncation, which it is not.
                     if (std::fabs(x) < 1e5 && std::fabs(y) < 1e5 &&
-                        (std::fabs(x - pr.first) > 1.0 || std::fabs(y - pr.second) > 1.0))
+                        (std::abs((int)x - pr.first) > 1 || std::abs((int)y - pr.second) > 1))
                         cb7[r] = false;
                 }
             }

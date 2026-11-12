@@ -7,6 +7,7 @@ reading run under each plant (places_plants.py, which executes the registered pl
   S-CB-FILEORDER  Place takes the towns in file order (Rank itself, which CB6 eq holds, is untouched)
   S-CB-NOCAP      Place has no cap (neither Cap nor kMaxLabels)
   S-CB-NORTHUP    AnchorAffine drops the window-up rotation (the Weatherscope's north-up mapper)
+  S-CB-ANCHOR2    Anchor's x gets + 2.0: the drawn (int) anchor 2 px to the right (CB7 red at every rotation; ruling A)
 (CB8 and CB8b are source rows: their plants are in sabotage_map_draw.py.)
 
 Method: include/ and src/weatherscope/ are copied into a temporary tree with the repo's own layout; the plant goes into
@@ -40,6 +41,7 @@ ORDER_AT = ("    Rank(l, order);\n"
 CAP_AT = "    const int cap = Cap(radiusMi);\n"
 LOOP_AT = "    for (int k = 0; k < l.n && n < cap && n < kMaxLabels; ++k) {\n"
 ROT_AT = "    return maplayer::AffineFor(pk, pk.radiusMm, v);\n"
+ANCHOR_AT = "    *x = a.ax + a.bx * qx + a.cx * qy;\n"
 
 SABOTAGES = {
     "S-CB-AIRPORT": [(AIRPORT_AT, AIRPORT_AT.replace("return 2;", "return 0;"))],
@@ -48,6 +50,8 @@ SABOTAGES = {
                    (LOOP_AT, "    for (int k = 0; k < l.n && n < cap; ++k) {\n")],
     "S-CB-NORTHUP": [(ROT_AT, "    wxlayer::View north = v;\n    north.rotSin = 0.0f;\n    north.rotCos = 1.0f;\n"
                               "    return maplayer::AffineFor(pk, pk.radiusMm, north);\n")],
+    # CB7's new half can fail (ruling (A), condition 2): the drawn anchor 2 px to the right.
+    "S-CB-ANCHOR2": [(ANCHOR_AT, "    *x = a.ax + a.bx * qx + a.cx * qy + 2.0;\n")],
 }
 WANT = {
     "S-CB-AIRPORT": {"CB6 airports", "CB6 rank", "CB6 bend 25mi", "CB6 bend 50mi", "CB6 bend 100mi"},
@@ -56,6 +60,8 @@ WANT = {
                    "CB6 ksfo 100mi"},
     "S-CB-NORTHUP": {"CB6 rank", "CB6 kjac 25mi", "CB6 kjac 50mi", "CB6 kjac 100mi", "CB6 ksfo 5mi", "CB6 ksfo 10mi",
                      "CB6 bend 25mi", "CB6 bend 50mi", "CB6 bend 100mi"} | {f"CB7 r{d}" for d in range(45, 360, 45)},
+    "S-CB-ANCHOR2": {"CB6 rank", "CB6 kjac 50mi", "CB6 ksfo 5mi", "CB6 ksfo 10mi", "CB6 bend 50mi"}
+                    | {f"CB7 r{d}" for d in range(0, 360, 45)},
 }
 
 
