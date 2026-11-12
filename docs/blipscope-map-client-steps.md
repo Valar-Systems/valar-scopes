@@ -3371,6 +3371,19 @@ graded figures. That is the measured cost of a fetch, the number (iii) asked for
   synthetic frames, then the reader on what the fetcher wrote. As predicted: 12 frames from ticks 0, 1, 4 and 5, all
   trustworthy (6 on, 6 off), BLIND (exit 4, under 10 of each), with no INSTRUMENT.
 
+**The CI for `18a7a8ff` (docs only), as read** (finished 07:24Z). Every item read as predicted:
+- 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed;
+- the tested merge, from every leg's checkout: `3c425a7 Merge 18a7a8ff… into f3fee349…`;
+- `ota-identity`: `fleet PASS`, and the table equals the fleet (9 rows);
+- both host legs: OTA identity `22 checks, 0 failures` (R1 27/27), OTA model `9 rows; 18 checks, 0 failures`, OTA
+  install `42 checks, 0 failures` (O10 18 no-record); MapDraw 11 / 0, MapPlaces 32 / 0, MapCompose 26 / 0; `40
+  driver(s): 39 run, 1 skipped`; lint 40 / 0 / 3; compose 15, draw 18 and places 6 AS PREDICTED lines; `ALL HOST
+  TESTS PASSED`;
+- the mapbench leg: the gate reads `found 0 1 PASS`, and the markers are `'[wx-bench],[map-bench]'` and no other.
+
+**This push's guards, in their corrected form.** The HEAD check and the previous run's completion are PowerShell
+statements that `throw`, run before the `&&` chain of process checks. They are not links in it.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
