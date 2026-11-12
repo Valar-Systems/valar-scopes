@@ -3594,6 +3594,34 @@ predicted:
 - **I5, CB10 lifted:** the same flip build with step C as committed compiles, exit 0.
 - **Anything else** stops.
 
+**The local runs on `b592e6a7`, as read (about 08:00Z), and STOPPED at one off reading.**
+- **As predicted:**
+  - `check_map_draw.py`: `12 checks, 0 failures`; CD4 18 regions; CD1 the map's 4 files; CD8 ok.
+  - `test_map_sweep`: `9 checks, 0 failures`:
+    - CS1 0 differ;
+    - CS2 1,179,648 pairs, 0 off;
+    - CS3 0 and 0 (2,619,490 blended);
+    - CS4-A and CS4-B 0 of 88,257 drawn-code pixels each;
+    - CS5-once, -outside and -clean 0;
+    - CS6 0 pure greens over a map colour, **1.55 %** excepted (under 3 %).
+  - `sabotage_map_sweep.py`:
+    - the six plants each red on exactly its frozen set, and `6 sabotages: ALL AS PREDICTED`;
+    - 8 AS PREDICTED lines, and the real header unchanged;
+    - `--control` 9, and `--anchors` 6 of 6.
+  - `sabotage_map_draw.py`: 18 plants and 3 controls AS PREDICTED (R-CD-RAWOK `12 checks, 0 failures`), 23 lines;
+    `--control` 12; `--anchors` 19 of 19.
+  - `lint_driver_counts.py`: `41 driver(s), 0 flagged; 3 pinned line(s)`.
+- **OFF:** `test_map_draw` printed `28 checks, 0 failures` and exited **2**: `the RIG: 28 cases, not 26`.
+  - **The cause:** the suite pins its own count, `if (g_checks != 26)` at `test/host/test_map_draw.cpp:499-500`. Its
+    header comment says 26 at lines 2 and 5.
+  - **My miss:** I updated the driver's `CASES` and `run.sh`'s comment but not the suite's own pin. My search for the
+    old count used patterns that could not match `g_checks != 26`. A search for the bare number, `\b26\b`, in every
+    reader would have found it.
+  - **The same pin, read again:** `sabotage_map_compose.py` reads the rig (`CONTROL (the real files): not clean -- the
+    rig`, exit 2), and its `--control` is 1 OFF (exit 2 against checks 28). Its `--anchors` read 14 plants and 16
+    anchors, all present.
+- **Not run:** the full `run.sh`, and the images I1-I5.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
