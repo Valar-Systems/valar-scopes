@@ -252,6 +252,13 @@ first").** A new measurement, not a re-run of C2.
      - `[reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac`;
      - then the banner, `[build] env=blipscope-s3-128 fw=v19 features=...`, which is read and recorded here;
      - then `[logbook] loaded 0 types`.
+     - **Frozen addition (reviewer, 00:18Z, before the window).** The script's check "step 1: a FACTORY reset happened"
+       greps `[reset] tier=factory`, and the UI's own `[reset] tier=factory selected -- confirm or cancel`
+       (`src/AircraftManager.cpp:9971`) matches that too. So step 1 ALSO requires FactoryReset's execution line in the
+       capture: a line beginning `[reset] tier=factory cleared=` whose `cleared=` list includes `config`. It is printed by
+       `src/FactoryReset.cpp:109` only after the reset has run, and `config` is listed only once that namespace was cleared
+       (`:99-100`). The capture starts after the flash, so any such line is post-flash. **A step-1 PASS without that line
+       is OFF: stop.** The script is not changed for this run; its fix is filed after v19.
      - The formats come from source at C': `[reset]` from `src/FactoryReset.cpp:109-111`, the banner from
        `include/BuildIdentity.h:125` (`FW_VERSION` 19), `[logbook] loaded` from `src/Logbook.cpp:166`, and `[claim] %s
        claimed (%u/%u types)` from `src/AircraftManager.cpp:5876`.
