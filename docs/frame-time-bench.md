@@ -694,3 +694,55 @@ second goes to the owner.
     line, and XCHK.
   - No row is re-read and no band moved after it. A row off goes the usual way: first off reading reported, second to
     the owner.
+
+**ACCEPTED (the orchestrator) and RUN ONCE (22:51Z).**
+- **Frozen:**
+  - `frame_bench_read_b.py` `b0dbd4ebc163dd3309ee05e7823ed02bb7bb0ba22d1e50ae8fe079aac9707224`;
+  - its builder `328bdd4ed3d4f7d41f3c03dbf014e8a7cb31ec76e6eb32d21950f11b0242b60f`;
+  - `regress_fbb.py` `3409ff944d667acf687d60ca6a9ba6c57a71b1be68569c76e43e8ab1e88e27d4`.
+- **Its selftest:** 20 ok. The new case reads "exit 1, red ['I-6'], the rows past I-6 graded".
+- **The regression control:** exit 0. report() is byte-identical without the flag on all 18 plants and both real logs,
+  and the selftest is identical except the one new line. Its sabotage reads 5 DIFFERS, exit 1.
+- **Output:** `29d24028cec97d836baa48efee8e5033f92550819c8f2b63f81d00e1eeacc779`: 59 graded rows, 10 off, exit 1.
+
+**THE v19 BASELINE, as read** (every p95 ± 1.54 ms, from I-6):
+- **Clean:**
+  - BOOT, I-5, RUN: ok;
+  - FIX-g: 18 of 18 ok (+0.04 to +0.06 ms);
+  - FIX-r: 18 of 18 ok (0 rebuild-tagged frames);
+  - XCHK: ok, median residual bench −3.08 and release −3.88, gap +0.80 ms; windows 10/23; n IQR (40, 41) and
+    (40, 42).
+- **I-6:** RED, recorded, ruled (3).
+- **FIX-b** (p95(fr) against v19's line, 35.80 + 0.802 n, ± 10): 9 off, each a FIRST off reading.
+
+  | n | line | Bend 10 / 25 / 50 mi | KSFO 10 / 25 / 50 mi |
+  |---|---|---|---|
+  | 20 | 51.8 | 56.30 / 55.58 / 54.29, all ok | 55.89 / 54.03 / 53.32, all ok |
+  | 40 | 67.9 | **81.78** / **78.55**ʷ / 76.61ʷ | **81.20** / 77.05ʷ / 76.50ʷ |
+  | 60 | 83.9 | **110.38** / **106.21** / **103.65** | **110.22** / **104.44** / **102.25** |
+
+  Bold = RED. ʷ = within the I-6 uncertainty.
+  - The line under-predicts this bench at 40 and 60: the traffic is packed inside 8 mi, and 10 mi is the slowest
+    rung.
+
+**THE BAR READOUT, 40 drawn, p95(`p2p`):**
+
+| scene | 10 mi | 25 mi | 50 mi |
+|---|---|---|---|
+| Bend | 81.83 | 78.59 | 76.66 |
+| KSFO | 81.25 | 77.11 | 76.55 |
+
+- That is 12.2-13.1 fps at p95. The worst of six is **81.83 ms**, and the median of six **77.85 ms** (both printed,
+  Q-A6).
+- Against the owner's 50 ms, v19 is 27-32 ms over at 40. At 20 drawn it reads 53.4-56.4 ms.
+
+**REPEAT NOISE** (S0 against S6, the same configuration): p50 +0.06, p95 −0.93 ms.
+
+**A3, LIVE minus FIXED** (reported): **LIVE is FASTER.**
+- Bend: drawn median 16 against FIXED n=20; p95 −7.95 ms.
+- KSFO: median 38 against n=40; p95 −15.60 ms.
+- LIVE's residuals from the line: −1.00 and −4.82.
+- So FIXED does not flatter a real board; it is harsher. Not separated: every aircraft inside 8 mi, the local source's
+  fuller trails, and Bend's lower n.
+- This bears on the (a) registration's XA interval [−3.0, +5.0], whose sign assumed LIVE slower. It is flagged for a
+  ruling before v20's first candidate, and not changed here.
