@@ -669,3 +669,9 @@ at 15:16:33Z. **No v19 bench flash while any deploy claim is held.** The orchest
     with it is proposed and awaits the orchestrator's ruling. deploy.sh does not run until it is ruled.**
   - After R1, the confirmation read is staging `/healthz` `basemap.commit` == `fdf62ada9f79` with the store binding unchanged; then
     report at once. **If R1 itself fails, stop with staging as it stands and report. There is no typed fallback.**
+
+**RULED (15:19:37Z): the R1 line, for the rollback only:** from a clean detached checkout of fdf62ada9f79, run from its `proxy/` and
+only while builder:staging is held: `ALLOW_BEHIND=1 BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging`. The 10
+reverted commits it prints are recorded. **The forward deploy from main never sets ALLOW_BEHIND;** if main's deploy.sh refuses for any
+reason, stop and report. `proxy/package.json` and `package-lock.json` are identical between fdf62ada and main, so the installed modules
+serve both.
