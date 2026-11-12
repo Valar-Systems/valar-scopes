@@ -2273,3 +2273,40 @@ reading, so it goes to the orchestrator and on to the owner.** The output is `p2
 - **(b) Accept KB8 KBOS = 1** as a coast corner. The pixel is land in the truth as well, so nothing extra is shown.
 - **What the lock cannot reach, and needs nothing:** simplification still moves coasts by up to ε×8 everywhere. That is the ladder's
   rung, not a seam.
+
+### KB8 (a): the owner's ruling (2026-11-12 15:07Z), registered before any control runs
+
+**The ruling, in the owner's words:**
+- "A seam pixel counts only where the unsimplified reference is also sea, and the old count stays printed."
+- "Before part 2 runs, the control works both ways: a planted real gap (reference sea) is caught, and a land corner like Boston's isn't."
+- "Boston's pixel is recorded as the instrument's miss."
+
+**Boston's pixel, recorded as the instrument's miss.** In run 4, KB8 counted pixel (131, 123) at KBOS. That pixel is LAND in the
+unsimplified reference, with the whole west side of its row land too. The two pieces share the edge exactly. KB8's old rule could not
+tell a land pixel at a coast-meets-edge corner from a seam. **The sea path did not miss; the instrument did.**
+
+**The rule (a), as built** (`p2-render.py` kb8, d7c9552e7158; the old count is unchanged and still printed as `SEAM_CELL`):
+- The reference is the store's own pieces: `sea-pieces.json` (8ad5d92fa7c7), lon/lat, unsimplified and unplanted.
+- It takes every 1-degree cell meeting the view, fills each piece by the same FillRing rule (its outer XOR its islands), unions them, and
+  draws them on KB8's own north-up screen.
+- `SEAM_CELL_TRUTH` counts the old rule's pixels whose reference pixel is sea.
+
+**The two controls, run BEFORE part 2** on kept run-4 files only, with no build (`kb8a-controls.py`, ff3e8a2c25ab):
+
+| row | input | predicted |
+|---|---|---|
+| **CAUGHT**: a planted real gap where the reference is sea | S-KB-SEAM, run 4's seam-store builds at KBOS and MIDTOWN (`p2-runs/run4-out/`, 6cdfd12f27d4 and 19a16af8ea54) | old rule **149** in total (run 4's own reading); **(a) ≥ 1** |
+| **NOT CAUGHT**: a land corner like Boston's | Boston's own: run 4's kept KBOS package (`p2-runs/run4-KBOS-sea-p21.json`, 7c0fdfbd269e) | old rule **1**; **(a) 0** |
+| UNCHANGED | the same Boston package with no reference given | `SEAM_CELL` 1, and no (a) key: the old rule is untouched |
+| anything else | | **stop** |
+
+**In part 2's run** (`p2-read.py`, 51c42cbb2a17), KB8's block becomes:
+- **CAUGHT,** on the run's own S-KB-SEAM builds: (a) ≥ 1. The old count is printed; it is predicted at 149 again, the builds being
+  deterministic.
+- **NOT CAUGHT,** on run 4's kept KBOS package: old 1, (a) 0.
+- **S-KB-EDGEUNLOCK:** run 3's rings, old rule 10, and (a) ≥ 1, because that wedge is sea in the reference.
+- **The run's KBOS rings equal run 4's kept package,** so the not-caught control read the row's own package.
+- **KB8 at KBOS and MIDTOWN under (a): 0,** with the old count printed and not graded.
+
+Everything else in the run is as at 3b3608f7ac3c. This is KB8's third reading, under (a): **an off reading on it goes to the
+orchestrator and on to the owner.**
