@@ -89,9 +89,40 @@ helper's boundary, and the tool exits non-zero with that text.
 - **Escape:** anything outside E1-E3, G1-G3, T1-T10 or the real-file check stops and is reported. A tool that cannot
   reach a first request under the harness is reported by name, never dropped.
 
-## 5. Readings
+## 5. Readings (2026-11-12, 22:28-22:36Z)
 
-(after the build)
+**Two misses in my own registration, both found by the build, both mine:**
+- **The count: section 2 lists 21 files, while the text above it says 20.** The guard on the unmigrated tree (G3) found
+  21 files and 23 places, which is exactly section 2's list. The "20" came from a search on main BEFORE #684 added
+  `tools/budget/live_listeners.py`. A count and its own list are two claims, and I did not check them against each
+  other. G3 is graded on the list: **as predicted (21 files, 23 places); the count's "20" is OFF.**
+- **The purposes: "the 4 keys the readers use" was wrong.** `tools/wx/pd6_fleet.py` also reads `records-device` and
+  `test-device`, two ids that are on `token-file.ts`'s own list of purposes. The helper's `PURPOSES` carries all six.
+
+| check | result |
+|---|---|
+| helper T1-T10, Windows | 9 PASS; **T4 SKIP**, stated, not passed |
+| helper T1-T10, Linux (WSL Ubuntu 24.04) | **10 of 10 PASS**, T4 included |
+| helper red first (`tools/token_file_sabotage.py`, S1-S10 in a copy) | **every plant failed exactly its control,** on WSL; on Windows all except S4, which is stated "not run" (POSIX only). CI runs it on Linux |
+| G2 (the guard's plant; plus a clean control that mentions the path in a comment) | **caught, and not flagged,** respectively; a tracked plant in a fresh git tree is found by the tree scan |
+| G3 (the guard on the unmigrated tree) | 21 files, 23 direct opens: section 2's list exactly (the count is noted above) |
+| the migration (`../migrate_tokens.py`, one-off, not committed) | 21 files, 23 places, every needle found exactly once, each file's line endings kept |
+| G1 (the guard on the migrated tree) | **0 files, 0 direct opens** |
+| compile | all 21 readers compile under `python -I` |
+| **E1** (a valid planted file) | **21 of 21: the first request is byte-identical** BEFORE (main `eed76e5e`) and AFTER, and it carries the planted token |
+| **E2** (no keys at all) | **21 of 21: both refuse,** with no request sent |
+| **E3** (the deliberate differences) | **21 of 21: AFTER refuses in all four cases** (variable unset, a bare line, a duplicate key, the file inside a git tree). BEFORE read a token in every case except `pd6_fleet.py`'s duplicate, which already exited BEFORE: its last-wins dict gave a device id with a `-DUP` suffix, out of shape |
+| **the harness, red first** | one AFTER tool planted to read the wrong key (`classa_24h.py`, `observability-read`), in a copy: **E1 DIFFERENT for that tool alone, 20 as predicted, 1 off** |
+| the real file (`--check`; booleans and key names only) | `BLIPSCOPE_TOKEN_FILE` set; the file exists, outside every git tree; 0 malformed lines; all six keys present once: **CHECK PASSED.** So with the variable exported, every reader finds its token on this machine |
+
+**One re-run, and why:** the harness first planted `records-device` and `test-device` as two 16-hex ids that were all
+zeros but their last digit. The pre-commit hook refused those as real-looking device ids. They were replaced by the hook's
+allowlisted synthetic ids (`0123456789abcdef`, `beefbeefbeefbeef`), and E1-E3 were run again at 22:36Z, with the same
+result: 21 of 21 as predicted.
+
+**What the merge changes for anyone running these tools:** export `BLIPSCOPE_TOKEN_FILE` in the shell first, as
+CLAUDE.md already says. With it unset, a reader refuses, naming the variable, where today it reads the default path.
+That is E3's first row, and the reason the merge waits for weatherscope's `shsr` readings.
 
 ## 6. CI (predicted before the push)
 

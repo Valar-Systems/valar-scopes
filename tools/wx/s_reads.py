@@ -23,13 +23,11 @@ SCRIPT = "blipscope-wx-ingest-dev"
 PLANT_MARKER = "wx_plant_synthetic_busy_loop"
 
 
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
 def tf():
-    d = {}
-    for line in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"):
-        k, _, v = line.strip().partition("=")
-        if k and v:
-            d[k] = v
-    return d
+    return TOKEN_FILE.tokens("analytics-read", "observability-read")
 
 
 def post(url, body, tok):

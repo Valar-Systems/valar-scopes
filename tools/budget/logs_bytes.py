@@ -15,12 +15,11 @@ from datetime import datetime, timedelta, timezone
 ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"   # proxy/wrangler.toml (public)
 
 
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
 def token(name):
-    for line in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"):
-        k, _, v = line.strip().partition("=")
-        if k == name and v:
-            return v
-    raise SystemExit(f"{name} absent from the token file")
+    return TOKEN_FILE.token(name)
 
 
 def post(url, body, tok):
