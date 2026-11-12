@@ -2954,3 +2954,35 @@ with KEWR's 86 km² sea piece marked.
   the seam store, the unlocked path), with 0 differing. `waterFixStats` moves identically.
 
 The run follows as registered: run 7.
+
+**Run 7 (17:50:00-17:52:09Z; `p2-read.py` a4a35809e8d7): STOPPED at "(B') at KJFK".** Every row before it read as predicted:
+- STEP 0;
+- (C)'s recorded control;
+- **xisland under (B'):** 2 vertices restored over 2 rounds, drawn, step-5 refusals 0;
+- **S-KB-REPAIRLIMIT:** 500 `sea_repair_limit`, 2 restored;
+- **xisland-tall:** 500 `sea_repair_failed` in round 3, 2 restored;
+- all the synthetic controls, and `seaRepairs` 0 in the 13 other synthetic builds;
+- P2-0 and T-SEA0-real at the 13;
+- **P2-1 kOk with 0 crossings at all 16**;
+- **KBOS byte-identical** (f21d705d8b8a).
+
+**The off reading: the sea's `bridges` count.**
+- **What matched at KJFK:** non-terrain bytes 32,752, `dropped.water` 86, 93 water rings, sea bytes 909, 14 sea rings drawn, 2
+  dropped, 0 refused, `refused5` 0, and `sea_repair 16036/18 rings 0,1 restored 4 rounds 1 island 40.617,-73.417`.
+- **What did not:** `bridges` reads 4, and I registered 5.
+- P2-1's own lines show the same at the other three New York points: KLGA 4 (registered 5), KEWR 3 (4), MIDTOWN 3 (4).
+  Their other P2-1 figures (sea bytes 870 / 730 / 787, drawn, dropped, repairs 1, 4 vertices) read as registered.
+
+**The cause, read from the code after the stop: my prediction, not the code.**
+- sea.ts counts a bridge when it is MADE (`n.bridges += b.bridges`), before step 5. Today's count therefore already included record
+  18's bridge: the piece was bridged, then refused.
+- Under (B') it is bridged once and drawn, so the count does not change. I added 1 to a count that already held it.
+- The evidence was already in hand: `xisland-today.out` reads `bridges` 1 beside `refused` 1, and run 6's ×8 counts at KJFK read
+  `bridges` 4 beside `refused` 1.
+- **The alternative, and why the data excludes it:** record 18 drawn WITHOUT its island bridged would also leave the count at 4. But
+  KJFK's sea bytes are exactly 771 + 138, and 138 B is the bridged ring: 36 vertices, 29 + 5 + the bridge's 2. The outer alone is 29
+  vertices and fewer bytes.
+
+**Proposed, not applied (a ruling first):** register `bridges` as today's count at the four New York points (KJFK 4, KLGA 4, KEWR 3,
+MIDTOWN 3). Change nothing else, and re-run from the top as run 8. This is my miss: a predicted count derived without reading
+where the count is taken.
