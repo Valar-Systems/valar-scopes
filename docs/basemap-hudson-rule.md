@@ -174,17 +174,26 @@ KEWR goes from 25 water rings to 130 under (a), MIDTOWN, KJFK and KLGA gain ring
 
 - **Graded:** the p95 of `p2p` (present to present), the option's package minus run 10's, at each point and rung, **<= M**; `fr`
   printed beside it; frames on which the map rebuilt are counted and included, per the bench.
-- **M: FT-SEA's formula,** M = max(2 x the baseline's repeat noise, 2.0 ms), the repeat noise being the |delta p95| between the
-  baseline's CTRL plain scene and its FIXED scene. **Its number is recorded here from the baseline before FT-HR runs.** A speed-up
-  never stops.
+- **M = max(2 x repeat noise, 2 x U95, 2.0 ms) = 3.08 ms** (amended BEFORE any reading, by the orchestrator's ruling (B) on the v19
+  baseline; FT-SEA carries the same amendment, recorded in part 2's code PR's own doc commit). The inputs, from map-client's v19
+  baseline (docs/frame-time-bench.md at 3fb9adab3633; reader frame_bench_read_b.py b0dbd4ebc163, output baseline_b.out 29d24028cec9):
+  - REPEAT NOISE 0.93 ms: |delta p95(`p2p`)| between S0, CTRL plain ("Bend, 40 fixed, 25 mi"), and S6, FIXED Bend/40/25 mi -- the
+    same scene measured twice in one run;
+  - **U95 = 1.54 ms,** the bench's stated uncertainty on every single p95 (I-6's excess, +11.54 against its +10.0 plant). It comes
+    from ONE CTRL pair, so it is an ESTIMATE.
+  - **Why 3.08:** the graded quantity is a difference of two single p95s, each +- 1.54, so this bench cannot resolve less than about
+    3 ms. A margin inside that would turn noise into STOPs, each wrongly going to the owner.
+  - **The cost, named:** a real slowdown under 3.08 ms passes unseen. A pass is recorded as "below this bench's resolution", never as
+    "no slowdown". A speed-up never stops. Resolving under 3 ms would need repeats, registered then.
 - **Named in advance, the reading expected to differ most: KEWR at 50 mi** under (a) or (b) -- the most rings gained (105) with the
   whole package in view. No direction is predicted: E1's lines carry fewer vertices while the water carries more rings.
-- **The control: KORD,** the same bytes twice, must read |delta p95| within the repeat noise at every rung; if not, the instrument is
-  in doubt: STOP.
+- **The control: KORD,** the same bytes twice (an A/A pair), must read **|delta p95| <= 2 x U95 = 3.08 ms** at every rung (amended
+  with M). **Each run prints KORD's A/A difference beside the graded deltas, as that run's live noise reading.** If the A/A ever exceeds
+  3.08 ms, the run is the instrument's: STOP, and nothing in it is graded.
 - **Over M at any point: STOP; the PR does not merge, and the reading goes to the owner.**
 
 **Outside the set: stop and report, no reading.** Any HR-PKG byte; a control otherwise; the twin and the PR disagreeing; a limit
-crossed; a plant passing under its sabotage; any of the 11 other points changing; FT-HR over M, or its control outside the noise.
+crossed; a plant passing under its sabotage; any of the 11 other points changing; FT-HR over M (3.08 ms), or KORD's A/A over 3.08 ms.
 
 **This PR merges only after:** the owner's pick written into OPTION with that option's rows; (b)'s KBOS measured and frozen, if (b);
 and FT-HR's reading inside M. Its base is re-carried by tree at that moment.
@@ -198,6 +207,11 @@ GitHub-side re-run rule applies. Anything else: stop and report.
 - **Read at 1b26029cac0c:** 32 = 30 / 2 / 0 as predicted, tested on "Merge 1b26029cac0c... into 4b00c97b3dbd...".
 - **Re-predicted for the FT-HR commit** (a new head, so a new run): the same, **32 = 30 / 2 / 0**, tested on the merge into main as it
   then stands (5cdc8bd8f35d at this writing: #652's docs merge, which changes no workflow).
+- **Read at 3623990b5331:** 32 = 30 / 2 / 0 as predicted, tested on "Merge 3623990b5331... into 5cdc8bd8f35d...".
+- **Re-predicted for the 3.08 ms amendment's head:** the same, **32 = 30 / 2 / 0**, tested on main as it then stands (eed76e5ec332 at
+  this writing). One workflow landed on main since 5cdc8bd8: #671's `account-budget.yml`, which runs on a pull request ONLY when it
+  touches the budget's own paths (docs/account-budget.*, scripts/account_budget.py, tools/budget/**, the workflow itself). This PR
+  touches none, so it adds no check run here. Any further workflow change before the run starts is read first.
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
