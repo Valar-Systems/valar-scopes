@@ -272,23 +272,6 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
 fi
 [ "$rc" -ne 0 ] && fail=1
 
-# --- the detail card's no-photo layout (#670, 2026-11-12) -------------------
-#
-# With no decoded photo and the Follow control offered, a 240 px card's slot
-# layout started its rows at y 162 against a floor of 166, so every row dropped
-# and the card showed only its callsign (v9 through v19). CL1 is that case;
-# CL2 (480 px) and CL3 (no Follow) are its controls (docs/card-nophoto-fix.md).
-# note_block names it in FAILED BLOCKS, and reads an exit other than 0 or 1
-# (127: the binary did not run) as the rig.
-echo
-if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_card_layout.cpp"       -o "$OUT/test_card_layout.exe" 2>"$OUT/build.log"; then
-  echo "FAIL: the card layout test did not compile"
-  cat "$OUT/build.log"
-  exit 2
-fi
-"$OUT/test_card_layout.exe"
-note_block $? "card layout: the no-photo card's rows (#670)"
-
 "$OUT/test_join_failure.exe"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
@@ -315,6 +298,28 @@ fi
   exit "$fail"
 )
 note_block $? "FollowState + FollowGeometry"
+
+# --- the detail card's no-photo layout (#670, 2026-11-12) -------------------
+#
+# With no decoded photo and the Follow control offered, a 240 px card's slot
+# layout started its rows at y 162 against a floor of 166, so every row dropped
+# and the card showed only its callsign (v9 through v19). CL1 is that case;
+# CL2 (480 px) and CL3 (no Follow) are its controls (docs/card-nophoto-fix.md).
+# Its own block, OUTSIDE the FollowState subshell above: inside it, a red CL1
+# was reported as "FollowState + FollowGeometry" (read in WSL, 2026-11-12).
+# The subshell's exit is the binary's: 1 is a failure, anything but 0 or 1
+# (127: it did not run; 2: it did not compile) is the rig.
+echo
+echo "== card layout: the no-photo card's rows (#670) =="
+(
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_card_layout.cpp"       -o "$OUT/test_card_layout.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the card layout test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_card_layout.exe"
+)
+note_block $? "card layout: the no-photo card's rows (#670)"
 
 # --- what actually collides on the radar (2026-09-17) ----------------------
 #
