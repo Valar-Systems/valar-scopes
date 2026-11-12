@@ -3511,6 +3511,89 @@ things before it blends. The map's gate must re-establish each:
   - the window opens only after v19 needs nothing of E2:08, and anything that would need the owner's hands stops it.
 - **CBF2-C**, the owner's look on glass, stays his window.
 
+### Step C's code (`b592e6a7`) and its runs, predicted before they run
+
+**The code, as committed** on `feat/map-client-step-c-blend`, from #659's head `b9d28fa5`:
+- `include/MapSweep.h`: `Add565`, and the map's `Blend` with a `get`. It defines `BLIPSCOPE_MAP_STEP_C`.
+- `include/MapCompose.h`: `slice` and `spans` join the all-or-none set, allocated after the scratch and zeroed at
+  allocation. `kSweepBytes` is 58,560, asserted, and `Price` grows by it.
+- `src/AircraftManager.h`: `MapSweep.h` is included just above CB10, and `mapFrameDrawn`, `mapFrameWx` and
+  `DrawSweepOverMap` are declared.
+- `src/AircraftManager.cpp`:
+  - the flags are cleared at `DrawWeatherUnder`'s start, beside `wxShowing`'s own reset;
+  - they are set in `DrawMapBase` after the copy;
+  - `DrawSweepOverMap` is added;
+  - the gate is the first statement of `DrawSweepOverWeather`.
+  - The draw regions go from 12 to 14 in the .cpp; the header stays at 4.
+- **`check_map_draw.py`:** CD4's definer is `include/MapSweep.h`, `MAP_FILES` gains it, and CD8 is new. That makes 12
+  checks.
+- **`sabotage_map_draw.py`:** five CD8 plants. `SOURCE_CHECKS` is 12.
+- **The suite and its driver:** `test_map_sweep.cpp` (CS1-CS6, 9 checks), `sabotage_map_sweep.py` (6 plants), and
+  `run.sh`'s MapSweep block.
+- **CB9:** `test_map_draw.cpp`'s CB9 covers six buffers (28 checks), and `sabotage_map_compose.py`'s `CASES` is 28
+  with S-CB-HALF's set at six rows.
+- **A correction to the registration's CS6.** It said "except where the map is black". The map has TWO pure greens,
+  `0x0000` and `0x0020`, the colours it shares with the wedge, and an add over `0x0020` stays a pure green. So CS6
+  excepts both, and prints their share.
+- **Disclosed:** while writing, I ran `check_map_draw.py`, the three map drivers' `--anchors` and the lint, to see
+  that they worked. Those were development runs; the registered runs below repeat each one.
+
+**Predicted, local.** WSL Ubuntu 24.04, g++ 13.3, the drivers with `CXX=g++`, on `b592e6a7`'s tree:
+- **`check_map_draw.py`:** `12 checks, 0 failures`; CD4 `18 draw region(s)`; CD1 `the map's 4 files and 18 draw
+  region(s)`; CD8 ok.
+- **`test_map_sweep`:** `9 checks, 0 failures`:
+  - CS1 `0 differ`;
+  - CS2 `1179648 pixel/level pairs: 0 off the reference, 0 darker or recoloured` (18 levels x 65,536);
+  - CS3 0 pixels and 0 counts differ, with blended over 0;
+  - CS4-A and CS4-B each 0 differ, over drawn pixels above 0;
+  - CS5-once, CS5-outside and CS5-clean each 0;
+  - CS6: 0 pure greens over a map colour, and the excepted share **under 3 %**. Bend's disc holds 1.4 % (0.5 + 0.9) of the two
+    colours at 50 mi, from the earlier estimate.
+- **`test_map_draw`:** `28 checks, 0 failures`, with CB9 slice and CB9 spans ok.
+- **`sabotage_map_sweep.py`:**
+  - the control AS PREDICTED;
+  - S-CS-NOSAT {CS2, CS5-once};
+  - S-CS-RED {CS1, CS2, CS3, CS5-once};
+  - S-CS-OPAQUE {CS5-once, CS6};
+  - S-CS-DOUBLE {CS3, CS5-once};
+  - S-CS-NOCLEAR {CS5-clean, CS5-once}: the marks copied after `Rasterise` include the stale ones, which no blend
+    reaches;
+  - S-CS-NOCODE {CS4-A, CS4-B};
+  - the summary `6 sabotages: ALL AS PREDICTED`, and the real header unchanged;
+  - `--control` 9, and `--anchors` 6 of 6.
+- **`sabotage_map_compose.py`:** 14 plants AS PREDICTED, with S-CB-HALF at the six CB9 rows. `--control` 28, and
+  `--anchors` 14 plants and 16 anchors.
+- **`sabotage_map_draw.py`:**
+  - the control `12 checks, 0 failures`;
+  - 18 plants AS PREDICTED, each new one {CD8};
+  - 3 controls AS PREDICTED (R-CD-RAWOK reads `12 checks, 0 failures`);
+  - 23 AS PREDICTED lines in all;
+  - `--anchors` 19 of 19.
+- **`lint_driver_counts.py`:** `41 driver(s), 0 flagged; 3 pinned line(s)`.
+- **The full `run.sh` (WSL):**
+  - exit 2, and FAILED BLOCKS exactly the environment's two: "the same TU, for the board" and "Weatherscope R0 and R0b
+    (the reference's controls, A12.18)";
+  - `sabotage_wx_towns` skipped;
+  - MapDraw 12 / 0, MapCompose 28 / 0, MapSweep 9 / 0, MapPlaces 32 / 0, MapLayer 160 / 0;
+  - `41 driver(s): 40 run, 1 skipped` in both passes, and lint 41 / 0 / 3;
+  - AS PREDICTED lines: compose 15, draw 23, places 6, sweep 8;
+  - then `HOST TESTS FAILED`, from the two environment blocks only.
+- **Anything else** is off, and I stop.
+
+**Predicted, the images.** These are built in p4's slot, one at a time, from PowerShell, after the local runs read as
+predicted:
+- **I1, the shipping env (`blipscope-s3-128`):** 0 bytes outside the five regions against #659's code at `b9d28fa5`,
+  by the comparator, with its controls. Step C compiles only under `BLIPSCOPE_MAP_FETCH`.
+- **I2, `-wxlook` and I3, `-mapbench`:** both compile.
+  - Their sizes grow; that is reported, not graded.
+  - **No printable string is added** against #659's images, because step C prints nothing.
+  - I3 still carries `'[wx-bench],[map-bench]'` and no other bench marker.
+- **I4, CB10's plant:** the shipping env with `-DWX_LAYER_SHIPS` (the release flip), and `MapSweep.h`'s include removed
+  from a copy of the header. The build is refused with CB10's `#error`, once per translation unit that includes the
+  header, as step B's run read it.
+- **I5, CB10 lifted:** the same flip build with step C as committed compiles, exit 0.
+- **Anything else** stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
