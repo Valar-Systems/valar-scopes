@@ -957,6 +957,33 @@ plants a changed `kRungs[]` and shows the scene table and the reader follow with
   this one's.
 - **A failed live GET** (no parse) means no replay that poll. Such polls are counted from the trace, not hidden.
 
+**The ruling (the orchestrator, 23:53:37Z): GO on the post-parse replay, with three conditions registered here before
+its code.**
+1. **IDENTICAL GROUND** (the orchestrator's ruling, not left as (a)'s open question). The owner's 23:31Z words compare
+   v19 and v20 "on identical ground".
+   - So **v20's replay uses this same mechanism**: the real GET, then the post-parse replacement.
+   - **H1's "absent `/blips` load" is retired** for the bar's reading on both sides.
+   - If v20's (a) hook cannot do it this way, that is a **stop-and-ask before v20 is measured**, not a stated
+     difference.
+2. **THE REPLAY'S OWN COST, MEASURED.**
+   - **Where it runs, read from the source:** the cloud-poll region is in the fetch task, `osky_fetch`, pinned to
+     **core 0** at priority 1 (`AircraftManager.cpp:2799` at v19). The frame loop is on core 1. So the replay's work
+     sits OUTSIDE the frame span and contends only for shared resources (the PSRAM bus, the heap), as the GET itself
+     does.
+   - **What it adds over shipping:** a `deserializeJson` of the recorded body, a second `CloudFeed::ParseBlips`, and a
+     CRC32 computed ON THE DEVICE over the body it actually deserialized (never a precomputed constant).
+   - **Each poll prints its own duration,** timed with `micros()` around all three:
+     `[frame-bench] served A<i> <seq> crc <crc32> us <duration>`.
+   - **The replay reader reports, beside each scene's p95(`p2p`):** the replay duration's max and p95 over that
+     scene's polls, the same on v19 and v20.
+3. **A MISSED REPLAY POLL HAS A REGISTERED RULE.**
+   - **A miss:** any of the shipping fetch path's own failure lines, between a REPLAY scene's settle line and its end
+     line ("request failed", "returned HTTP", "schema mismatch").
+   - That poll's interval is not the recorded picture.
+   - **The rule (the orchestrator's suggestion, taken):** any miss in a scene's run, settle or measure, means **that
+     scene is re-read** in a later window. A second miss on the same scene goes to the owner, under the retry cap.
+     The rest of the run is graded as it stands.
+
 **THE ROWS** (`check_frame_bench.py`, each with a plant that must read red):
 
 | row | what it holds |
