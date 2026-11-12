@@ -1,0 +1,74 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/fp.c.o
+ .data          0x00000000        0x0 src/fp.c.o
+ .bss           0x00000000        0x0 src/fp.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/fp.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x7b
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x4 src/main.c.o
+                                  0x8 (size before relaxing)
+ .literal.pick  0x40000004        0x0 src/fp.c.o
+                                 0x10 (size before relaxing)
+ .text.entry    0x40000004       0x17 src/main.c.o
+                0x40000004                entry
+ *fill*         0x4000001b        0x1 
+ .text.pick     0x4000001c       0x57 src/fp.c.o
+                                 0x5e (size before relaxing)
+                0x4000001c                pick
+ *fill*         0x40000073        0x1 
+ .text.ext      0x40000074        0x7 src/main.c.o
+                0x40000074                ext
+ *fill*         0x4000007b        0x0 
+ *fill*         0x4000007b        0x0 
+
+.rodata
+ *(.rodata .rodata.*)
+
+.data
+ *(.data .data.*)
+
+.bss            0x4000007c        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_out     0x4000007c        0x4 src/main.c.o
+                0x4000007c                g_out
+
+.xt.lit         0x00000000        0x8
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x0 src/fp.c.o
+                                  0x8 (size before relaxing)
+
+.xt.prop        0x00000000      0x108
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x60 src/main.c.o
+ .xt.prop       0x00000060       0xa8 src/fp.c.o
+                                 0xb4 (size before relaxing)
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/fp.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/fp.c.o

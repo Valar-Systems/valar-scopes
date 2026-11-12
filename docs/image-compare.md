@@ -518,3 +518,67 @@ had to be remembered, and it failed the second time.
   and prove nothing new.
 - **The fix, applied to POS:** every name in an exact prediction, and every allow pattern, is demangled from the
   object's own symbol table and checked against a real symbol before it is filed.
+
+## 16. Amendment 1f: the assembler's fill (the reviewer's ruling, 18:29:31Z)
+
+**Prompted by POS's reading, said first:** this amendment exists because of the control it will now be graded on.
+- POS read OFF on both envs. Besides `MaybeUpdateFirmware` and the new `ota::ReadSome<StreamSource>`, five
+  OtaUpdater.cpp functions #651 never touched read CHANGED: `ResetReasonName`, `StampRebootCause`,
+  `TakeOtaMemReport`, `DeferRebootWithCause` and `ota::Token`.
+- objdump's decode, with the registers kept, showed them the same program instruction for instruction. They differ
+  only by a 2-byte alignment fill the assembler inserted or dropped (the branch and literal offsets move with it), and
+  by same-operation width swaps: `addi.n a10, a1, 8` ↔ `addi a10, a1, 8`, and `or a12, a6, a6` ↔ `mov.n a12, a6`.
+- **Why the assembler chose differently** inside an unchanged function is **NOT established**. That stays a named
+  alternative, not a finding.
+- The reviewer's reason for (a): #656's v20 job is map-client's accounting, and that noise would clutter it.
+
+**The rule.**
+- A CHANGED function reads **FILL**, never silently same: it is printed with its fill bytes on each side, its width
+  swaps by kind, and its instruction count, and it is not counted as changed. It reads FILL when its two copies are
+  the same instructions, pair by pair:
+  - bytes equal;
+  - or, under a relocation, equal with only the operand cleared;
+  - or a same-operation width swap, decoded field by field by 1a's `canon()`.
+- Every relocation must name the same target, and a branch inside the function is compared by **instruction index**,
+  not offset.
+- A folded exception table (1e) is compared with its call-site offsets mapped to instruction indices, and must
+  otherwise be equal.
+- **Fill is ONLY what the object's own property tables (`.xt.prop*`) mark unreachable.**
+  - Instruction regions are those with the instruction bit; fill regions those with the unreachable bit.
+  - **Found while building this, not assumed:** code the exception table's offsets are computed from carries data and
+    no-transform bits too (`0x106` code, `0x10c` fill), so the data bit is tolerated in either.
+  - Literal or unknown combinations, a gap, an overlap, or no table at all: **UNDECIDED, never FILL, never guessed.**
+- **In the image layer**, each side's final copy is walked against its own input on the linked image's own property
+  table. The firmware keeps `.xt.prop`; the fixture linker script now keeps it as Xtensa's default script does. A
+  relaxed-site flip must still cross the call limit.
+
+**The fixtures, independent of POS:**
+
+| case | what it is | 1f's reading | the pre-1f code (HEAD), red first |
+|---|---|---|---|
+| `fill` | the same source, B assembled `-Wa,--no-target-align` | FILL, 1/0 fill bytes, 34 instructions, NO CHANGE | **red** (CHANGED) |
+| `fillchg` | that, plus one real change (`y << 4` → `<< 5`) | CHANGED | CHANGED: a guard, red under P15/P17's family of plants |
+| `swap` | `mov.n a12, a6` against the wide `or a12, a6, a6` (assembly) | FILL, `mov 2->3 x1` | **red** (CHANGED) |
+| `swapop` | B's wide instruction is `add a12, a6, a6` | CHANGED | CHANGED: a guard, red under P14 |
+| R8 | B's literal names `pick` where it named `ext` | CHANGED | CHANGED: a guard, red under P15 |
+| R9 | B's `.xt.prop` renamed away | UNDECIDED (`no property table covers .text.pick`) | **red** (CHANGED) |
+
+- 30 of 30 pass.
+- **The driver refused, by itself,** when the six cases were added: "13 plant declaration(s) do not cover the selftest's
+  30 cases". Each plant then declared them.
+- **Four plants added:**
+  - P14: the operation not compared on a width swap → `swapop`;
+  - P15: relocation names not compared in the fill walk → `R8`;
+  - P16: a missing table read as one instruction region → `R9`;
+  - P17: the counts not printed → `fill` and `swap`.
+- **P15's set was re-derived after its first run read OFF.** I had declared `body` too, guessing its 10000 → 10001
+  was a literal. The disassembly shows `movi.n 16` → `17` plus `addmi 0x2700`: immediates. That is my codegen guess
+  failing again, after P9.
+- All 17 plants read as declared.
+
+**(c), as ruled:**
+- `SPIClass::end` stays UNDECIDED. RELAX's reach rule is not loosened, and ld's relaxation research is not sized.
+- **So for a #651-like fix on `blipscope-s3-128`, the skip still would not fire, and step 4 runs with the owner.**
+  That is the conservative direction.
+- The other seven of #651's eight unexplained functions don't appear in one-tree builds. That is consistent with the
+  two-worktree cause, which stays a named alternative.

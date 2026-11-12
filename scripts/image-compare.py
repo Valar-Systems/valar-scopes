@@ -598,7 +598,17 @@ def compare_units(A, B, path):
                 continue
             if sa[:3] == sb[:3]:
                 out[key] = ("SAME", "", a, b)
-            else:
+                continue
+            if a.kind(ident) == "func":  # amendment 1f: the assembler's fill, from the property tables only
+                try:
+                    same, why = fill_equivalent(a, a.units[ident], b, b.units[ident])
+                except Refusal as e:
+                    out[key] = ("UNDECIDED", "the fill walk: %s" % e, a, b)
+                    continue
+                if same:
+                    out[key] = ("FILL", why, a, b)
+                    continue
+            if True:
                 k = offsets_only(sa, sb) if a.kind(ident) == "func" else 0
                 out[key] = ("CHANGED (load/store offsets only: %d)" % k if k else "CHANGED", "", a, b)
     return out
@@ -643,6 +653,282 @@ def offsets_only(sa, sb):
     return n
 
 
+# ---------------------------------------------------------------- amendment 1f: assembler fill
+#
+# A CHANGED function whose two copies are the same instructions, apart from the assembler's alignment fill and an
+# instruction's own narrow or wide form, reads FILL: printed with its counts, never silently SAME, and never CHANGED.
+# Fill is ONLY what the object's own Xtensa property tables (.xt.prop*) mark unreachable. No table, a gap, an overlap or
+# a flag this walk does not know: the function reads UNDECIDED. Never guessed from zero bytes.
+
+PROP_LITERAL, PROP_INSN, PROP_DATA, PROP_UNREACHABLE = 0x1, 0x2, 0x4, 0x8
+
+
+def prop_entries(obj):
+    """{section index: [(offset, size, flags)]} from every .xt.prop* section of one object (cached)."""
+    if getattr(obj, "_props", None) is not None:
+        return obj._props
+    out = {}
+    for pi, ps in enumerate(obj.secs):
+        if not ps.name.startswith(".xt.prop"):
+            continue
+        data = ps.data()
+        rel = {}
+        for (off, rtype, symidx, add) in obj.relocs.get(pi, []):
+            if off == "REL":
+                raise Refusal("a REL property table")
+            if rtype == R_32:
+                rel[off] = (symidx, add)
+        for k in range(0, len(data) - 11, 12):
+            if k not in rel:
+                raise Refusal("a property entry with no address relocation in %s" % ps.name)
+            symidx, add = rel[k]
+            sym = obj.syms[symidx]
+            if not isinstance(sym["st_shndx"], int):
+                raise Refusal("a property entry naming no section")
+            addr = add + int.from_bytes(data[k:k + 4], "little")
+            if sym["st_info"]["type"] != "STT_SECTION":
+                addr += sym["st_value"]
+            out.setdefault(sym["st_shndx"], []).append(
+                (addr, int.from_bytes(data[k + 4:k + 8], "little"), int.from_bytes(data[k + 8:k + 12], "little")))
+    obj._props = out
+    return out
+
+
+def fill_regions(obj, i):
+    """[(offset, size, 'insn' | 'fill')] covering the section exactly, from its property entries; else Refusal."""
+    ents = sorted(e for e in prop_entries(obj).get(i, []) if e[1] > 0)
+    if not ents:
+        raise Refusal("no property table covers %s" % obj.secs[i].name)
+    regions, at = [], 0
+    for off, size, flags in ents:
+        if off != at:
+            raise Refusal("the property table leaves %s %s at +%d" % (obj.secs[i].name, "a gap" if off > at else "an overlap", at))
+        # The data bit rides along with no-transform (0x100) on code the exception table's offsets are computed from
+        # (the eh fixture: 0x106 code, 0x10c fill). objdump decodes any region with the instruction bit as code.
+        if flags & PROP_INSN and not flags & (PROP_LITERAL | PROP_UNREACHABLE):
+            kind = "insn"
+        elif flags & PROP_UNREACHABLE and not flags & (PROP_LITERAL | PROP_INSN):
+            kind = "fill"
+        else:
+            raise Refusal("a property region the walk does not know (flags 0x%x) at +%d" % (flags, off))
+        regions.append((off, size, kind))
+        at = off + size
+    if at != obj.secs[i]["sh_size"]:
+        raise Refusal("the property table ends at +%d, the section at +%d" % (at, obj.secs[i]["sh_size"]))
+    return regions
+
+
+def fill_walk(obj, i):
+    """-> ([(offset, length)] of instructions, fill bytes) for one function section."""
+    data = obj.sec_bytes(i)
+    insns, fill = [], 0
+    for off, size, kind in fill_regions(obj, i):
+        if kind == "fill":
+            fill += size
+            continue
+        j = off
+        while j < off + size:
+            n = insn_len(data[j])
+            if n is None or j + n > off + size:
+                raise Refusal("an instruction the walk cannot size at +%d" % j)
+            insns.append((j, n))
+            j += n
+    return insns, fill
+
+
+def _uleb(data, k):
+    v = shift = 0
+    while True:
+        if k >= len(data):
+            raise Refusal("a ULEB128 past the end of an exception table")
+        b = data[k]
+        k += 1
+        v |= (b & 0x7F) << shift
+        shift += 7
+        if not b & 0x80:
+            return v, k
+
+
+def lsda_mapped(obj, li, at):
+    """A function's exception table with every call-site offset mapped to an instruction index by `at` (offset ->
+    index; the section's end maps to the count). -> a comparable tuple, or Refusal for a shape not read here."""
+    data = obj.sec_bytes(li)
+    if not data or data[0] != 0xFF:
+        raise Refusal("an exception table with a landing-pad base")
+    ttype_enc, k = data[1], 2
+    if ttype_enc != 0xFF:
+        _ttype_off, k = _uleb(data, k)
+    if data[k] != 0x01:
+        raise Refusal("an exception table whose call sites are not ULEB128")
+    length, k = _uleb(data, k + 1)
+    end, sites = k + length, []
+    while k < end:
+        start, k = _uleb(data, k)
+        ln, k = _uleb(data, k)
+        lp, k = _uleb(data, k)
+        action, k = _uleb(data, k)
+        if start not in at or start + ln not in at or (lp and lp not in at):
+            raise Refusal("an exception-table call site off an instruction boundary")
+        sites.append((at[start], at[start + ln], at[lp] if lp else None, action))
+    rest = bytearray(data[end:])
+    named = []
+    for (off, rtype, symidx, add) in sorted(obj.relocs.get(li, [])):
+        if off == "REL" or off < end or rtype not in (R_32, R_NONE):
+            raise Refusal("a relocation in an exception table's header or call sites")
+        if rtype == R_NONE:
+            continue
+        rest[off - end:off - end + 4] = b"\0\0\0\0"
+        named.append((off - end, obj.name_target(li, symidx, obj.addend(li, off, rtype, add), set())))
+    return (ttype_enc, tuple(sites), bytes(rest), tuple(named))
+
+
+def fill_equivalent(oa, ia, ob, ib):
+    """-> (True, counts) when the two copies are the same instructions apart from fill and same-operation width swaps,
+    (False, why) when they differ in anything else, or Refusal when the property tables cannot say."""
+    ins_a, fill_a = fill_walk(oa, ia)
+    ins_b, fill_b = fill_walk(ob, ib)
+    if len(ins_a) != len(ins_b):
+        return False, "%d instructions against %d" % (len(ins_a), len(ins_b))
+
+    def side(obj, i, ins):
+        at = {off: k for k, (off, _n) in enumerate(ins)}
+        at[obj.secs[i]["sh_size"]] = len(ins)
+        rel = {}
+        for (off, rtype, symidx, add) in obj.relocs.get(i, []):
+            if off == "REL":
+                raise Refusal("a REL relocation section")
+            if rtype == R_NONE:
+                continue
+            if rtype not in ALLOWED_RELOCS:
+                raise Refusal("relocation type %d in a compared section" % rtype)
+            if off not in at or off == obj.secs[i]["sh_size"]:
+                raise Refusal("a relocation off an instruction start at +%d" % off)
+            sym = obj.syms[symidx]
+            total = obj.addend(i, off, rtype, add)
+            if sym["st_info"]["type"] == "STT_SECTION" and sym["st_shndx"] == i:
+                if total not in at:
+                    raise Refusal("a branch into the middle of an instruction")
+                name = "self@%d" % at[total]
+            else:
+                name = obj.name_target(i, symidx, total, set())
+            rel.setdefault(off, []).append((ALLOWED_RELOCS[rtype], name))
+        return at, rel
+
+    at_a, rel_a = side(oa, ia, ins_a)
+    at_b, rel_b = side(ob, ib, ins_b)
+    da, db = oa.sec_bytes(ia), ob.sec_bytes(ib)
+    swaps = {}
+    for k, ((pa, la), (pb, lb)) in enumerate(zip(ins_a, ins_b)):
+        if sorted(rel_a.get(pa, [])) != sorted(rel_b.get(pb, [])):
+            return False, "instruction %d's relocation names a different target" % k
+        ba, bb = da[pa:pa + la], db[pb:pb + lb]
+        if la == lb:
+            same = (mask_operand(ba) == mask_operand(bb)) if pa in rel_a else (ba == bb)
+            if not same:
+                return False, "instruction %d differs" % k
+            continue
+        ca, cb = canon(ba), canon(bb)
+        if ca is None or ca != cb:
+            return False, "instruction %d changes width and operation" % k
+        kind = "%s %d->%d" % (ca[0], la, lb)
+        swaps[kind] = swaps.get(kind, 0) + 1
+    la_i, lb_i = oa.lsda_of.get(ia), ob.lsda_of.get(ib)
+    if (la_i is None) != (lb_i is None):
+        return False, "an exception table on one side only"
+    if la_i is not None and lsda_mapped(oa, la_i, at_a) != lsda_mapped(ob, lb_i, at_b):
+        return False, "the exception tables differ beyond their call-site offsets"
+    swap_txt = ", ".join("%s x%d" % kv for kv in sorted(swaps.items())) if swaps else "none"
+    return True, "fill bytes A/B=%d/%d; width swaps: %s; %d instructions" % (fill_a, fill_b, swap_txt, len(ins_a))
+
+
+def final_prop_entries(store):
+    """The linked image's own property table (.xt.prop, absolute addresses): sorted [(addr, size, flags)], cached."""
+    if getattr(store, "_final_props", None) is None:
+        s = store.elf.get_section_by_name(".xt.prop")
+        if s is None:
+            raise Refusal("the image keeps no property table")
+        d = s.data()
+        store._final_props = sorted((int.from_bytes(d[k:k + 4], "little"), int.from_bytes(d[k + 4:k + 8], "little"),
+                                     int.from_bytes(d[k + 8:k + 12], "little")) for k in range(0, len(d) - 11, 12))
+    return store._final_props
+
+
+def final_insns(store, addr, size):
+    """[(offset, length)] of the final copy's instructions, from the image's own property table; else Refusal."""
+    data = store.read(addr, size)
+    ents = [e for e in final_prop_entries(store) if addr <= e[0] < addr + size and e[1] > 0]
+    insns, at = [], addr
+    for a, sz, flags in ents:
+        if a != at:
+            raise Refusal("the image's property table leaves %s at +%d" % ("a gap" if a > at else "an overlap", at - addr))
+        if flags & PROP_INSN and not flags & (PROP_LITERAL | PROP_UNREACHABLE):
+            j = a - addr
+            while j < a - addr + sz:
+                n = insn_len(data[j])
+                if n is None or j + n > a - addr + sz:
+                    raise Refusal("a final instruction the walk cannot size at +%d" % j)
+                insns.append((j, n))
+                j += n
+        elif not (flags & PROP_UNREACHABLE and not flags & (PROP_LITERAL | PROP_INSN)):
+            raise Refusal("a final property region the walk does not know (flags 0x%x)" % flags)
+        at = a + sz
+    if at != addr + size:
+        raise Refusal("the image's property table ends at +%d of %d" % (at - addr, size))
+    return insns, data
+
+
+def fill_image_walk(obj, sec_i, store, addr, size):
+    """Amendment 1f, one side of a FILL function: its final copy against its input, instruction by instruction, both
+    from their own property tables. Allowed: fill of any size, a deleted l32r with callx -> call, a same-operation width
+    swap. -> (n, r, sites) or Refusal."""
+    inp = obj.sec_bytes(sec_i)
+    ins_i, _fill = fill_walk(obj, sec_i)
+    ins_f, fin = final_insns(store, addr, size)
+    expand_at, rel_at = set(), set()
+    for (off, rtype, _s, _a) in obj.relocs.get(sec_i, []):
+        if off == "REL" or rtype == R_ASM_SIMPLIFY:
+            raise Refusal("a relocation the walk does not read")
+        if rtype == R_ASM_EXPAND:
+            expand_at.add(off)
+        elif rtype != R_NONE:
+            rel_at.add(off)
+    i = j = r = 0
+    sites = []
+    while i < len(ins_i):
+        pi, li = ins_i[i]
+        if j >= len(ins_f):
+            raise Refusal("the final copy ends inside the walk")
+        pj, lj = ins_f[j]
+        if pi in expand_at:
+            if i + 1 >= len(ins_i):
+                raise Refusal("a long-call site at the end of the function")
+            nx = callx_n(inp[ins_i[i + 1][0]:ins_i[i + 1][0] + 3])
+            if li != 3 or (inp[pi] & 0x0F) != 1 or nx is None:
+                raise Refusal("a long-call site that is not an l32r/callx pair")
+            if lj == 3 and call_n(fin[pj:pj + 3]) == nx:
+                sites.append((len(sites), True, addr + pj, call_target(addr + pj, fin[pj:pj + 3])))
+                r += 1
+                i, j = i + 2, j + 1
+                continue
+            if j + 1 < len(ins_f) and (fin[pj] & 0x0F) == 1 and callx_n(fin[ins_f[j + 1][0]:ins_f[j + 1][0] + 3]) == nx:
+                lit = l32r_addr(addr + pj, fin[pj:pj + 3])
+                sites.append((len(sites), False, addr + pj, int.from_bytes(store.read(lit, 4), "little")))
+                i, j = i + 2, j + 2
+                continue
+            raise Refusal("a long-call site that is neither relaxed nor kept")
+        bi, bf = inp[pi:pi + li], fin[pj:pj + lj]
+        if li == lj:
+            same = (mask_operand(bi) == mask_operand(bf)) if pi in rel_at else (bi == bf)
+            if not same:
+                raise Refusal("a final instruction differs at input +%d" % pi)
+        elif canon(bi) is None or canon(bi) != canon(bf):
+            raise Refusal("a final instruction changes width and operation at input +%d" % pi)
+        i, j = i + 1, j + 1
+    if j != len(ins_f):
+        raise Refusal("the final copy has %d instructions past the input's" % (len(ins_f) - j))
+    return len(expand_at), r, sites
+
+
 def callx_n(bs):
     """CALLX0/4/8/12 -> n (0..3), else None. op0=0, t=0xC|n, r=0, op1=op2=0."""
     if len(bs) < 3 or (bs[0] & 0x0F) != 0 or (bs[0] >> 4) < 0xC or (bs[1] >> 4) != 0 or bs[2] != 0:
@@ -669,7 +955,7 @@ def l32r_addr(pc, bs):
     return (((pc + 3) & ~3) + ((0xFFFC0000 | (imm << 2)) - (1 << 32))) & 0xFFFFFFFF
 
 
-def relax_walk(obj, sec_i, store, addr, size):
+def relax_walk(obj, sec_i, store, addr, size, need_sites=True):
     """Amendment 1 (a) and 1a, one side: walk the final copy against the input.
     -> (n, r, sites, narrowed, widened) or Refusal."""
     inp = obj.sec_bytes(sec_i)
@@ -683,7 +969,7 @@ def relax_walk(obj, sec_i, store, addr, size):
             expand_at.add(off)
         elif rtype != R_NONE:
             rel_at.add(off)
-    if not expand_at:
+    if not expand_at and need_sites:
         raise Refusal("its size differs and it has no long-call site")
     fin = store.read(addr, size)
     i = j = r = narrowed = widened = 0
@@ -804,9 +1090,12 @@ def compare(path_a, path_b, allow, cxxfilt, out):
             units.update(compare_units(A, B, p))
         except Refusal as e:
             undecided.append("input %s: %s" % (p, e))
-    changed = {}
+    changed, fills = {}, []
     for key, (v, detail, oa, ob) in sorted(units.items()):
         if v == "SAME":
+            continue
+        if v == "FILL":
+            fills.append("FILL func %s %s [%s] -- %s" % (oa.binding(key[1])[4:].lower(), dm(key[1]), key[0], detail))
             continue
         iid, ident = key
         ka, kb = kept_in(A, oa, ident, iid), kept_in(B, ob, ident, iid)
@@ -863,6 +1152,18 @@ def compare(path_a, path_b, allow, cxxfilt, out):
             continue  # CHANGED: the object layer has it
         if (ka in units and units[ka][0] == "UNDECIDED") or (kb in units and units[kb][0] == "UNDECIDED"):
             continue  # UNDECIDED: the object layer has it
+        if ea and eb and ka == kb and ka in units and units[ka][0] == "FILL":
+            try:  # 1f: each side's final copy walked against its own input; a flipped long call must still cross
+                _na, _ra, sites_a = fill_image_walk(la[1], la[2], A.store, ea[0][2], ea[0][0])
+                _nb, _rb, sites_b = fill_image_walk(lb[1], lb[2], B.store, eb[0][2], eb[0][0])
+                for (k, rel_a, pc_a, t_a), (_k, rel_b, pc_b, t_b) in zip(sites_a, sites_b):
+                    if rel_a != rel_b:
+                        long_pc, long_t = (pc_b, t_b) if rel_a else (pc_a, t_a)
+                        if in_call_range(long_pc, long_t):
+                            raise Refusal("site %d flipped, but its reach did not cross the call limit" % k)
+            except Refusal as e:
+                undecided.append("%s (FILL): size %d -> %d: %s" % (name, ea[0][0], eb[0][0], e))
+            continue
         if not (ea and eb):
             gcs.append((name, A if ea else B, ka if ea else kb))
             continue
@@ -922,6 +1223,8 @@ def compare(path_a, path_b, allow, cxxfilt, out):
                 name, key[0], "A" if side is A else "B", names))
         else:
             undecided.append("GC %s [%s]: named by %s%s" % (name, key[0], names, " (a unit could not be read)" if refused else ""))
+    for f in fills:
+        out(f)
     for p in picks:
         out("PICK " + p)
     for r in relaxed:

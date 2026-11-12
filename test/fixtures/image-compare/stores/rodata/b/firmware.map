@@ -4,13 +4,9 @@ Discarded input sections
  .text          0x00000000        0x0 src/main.c.o
  .data          0x00000000        0x0 src/main.c.o
  .bss           0x00000000        0x0 src/main.c.o
- .xt.lit        0x00000000       0x10 src/main.c.o
- .xt.prop       0x00000000       0xa8 src/main.c.o
  .text          0x00000000        0x0 src/rod.c.o
  .data          0x00000000        0x0 src/rod.c.o
  .bss           0x00000000        0x0 src/rod.c.o
- .xt.lit        0x00000000       0x10 src/rod.c.o
- .xt.prop       0x00000000       0x78 src/rod.c.o
 
 Memory Configuration
 
@@ -68,6 +64,19 @@ LOAD src/rod.c.o
  *(.bss .bss.* COMMON)
  .bss.g_p       0x3f000040        0x4 src/main.c.o
                 0x3f000040                g_p
+
+.xt.lit         0x00000000       0x18
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+                                 0x10 (size before relaxing)
+ .xt.lit        0x00000008       0x10 src/rod.c.o
+
+.xt.prop        0x00000000      0x108
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x9c src/main.c.o
+                                 0xa8 (size before relaxing)
+ .xt.prop       0x0000009c       0x6c src/rod.c.o
+                                 0x78 (size before relaxing)
 OUTPUT(firmware.elf elf32-xtensa-le)
 
 .comment        0x00000000       0x2f

@@ -127,6 +127,34 @@ CASES = [
         "NEW data weak B _ZTS2EB [src/eh.cpp.o] -- OUT (named by: _ZTI2EB)",
         "verdict: OUT OF SCOPE: _Z6handlei, _ZTI2EA (named by: _Z6handlei), _ZTI2EB (named by: _Z6handlei), "
         "_ZTS2EA (named by: _ZTI2EA), _ZTS2EB (named by: _ZTI2EB)"]),
+    # amendment 1f: the assembler's fill, read ONLY from the objects' own property tables. fill: the same source, B
+    # assembled with -Wa,--no-target-align -- FILL, printed with its counts, never silently same. fillchg: that, plus one
+    # real change -- CHANGED. swap: one move, narrow in A and wide in B -- FILL with the swap counted. swapop: B's wide
+    # instruction is a different operation -- CHANGED.
+    ("fill", None, 0, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/fp.c.o",
+        "FILL func global pick [src/fp.c.o] -- fill bytes A/B=1/0; width swaps: none; 34 instructions",
+        "functions whose address moved: 1",
+        "verdict: NO CHANGE"]),
+    ("fillchg", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/fp.c.o",
+        "functions whose address moved: 1",
+        "CHANGED func global A+B pick [src/fp.c.o] -- OUT",
+        "verdict: OUT OF SCOPE: pick"]),
+    ("swap", None, 0, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/sw.S.o",
+        "FILL func global sw [src/sw.S.o] -- fill bytes A/B=0/0; width swaps: mov 2->3 x1; 7 instructions",
+        "functions whose address moved: 0",
+        "verdict: NO CHANGE"]),
+    ("swapop", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/sw.S.o",
+        "functions whose address moved: 0",
+        "CHANGED func global A+B sw [src/sw.S.o] -- OUT",
+        "verdict: OUT OF SCOPE: sw"]),
 ]
 
 
@@ -207,7 +235,8 @@ def run_case(mod, a, b, allow, tmp):
 
 REFUSALS = ["R1 unknown relocation type", "R2 stale input", "R3 size without a long-call site",
             "R4 a narrowing that changes the operation", "R5 a flip whose reach never crossed",
-            "R6 a register change under a relocation"]
+            "R6 a register change under a relocation", "R8 a relocation to a different target",
+            "R9 an object with no property table"]
 T0_CASES = ["T0 t0", "T0 t0bad"]
 
 
@@ -333,6 +362,47 @@ def run(mod):
             "functions whose address moved: 0",
             "CHANGED func global A+B g [src/g.c.o] -- OUT",
             "verdict: OUT OF SCOPE: g"])
+
+        # R8 (1f): in a fill-only pair, B's literal now names a different symbol (ext -> pick) -> CHANGED, never FILL
+        st = copy_case(tmp, "fill/b")
+        obj = os.path.join(st, "src", "fp.c.o")
+        with open(obj, "rb") as f:
+            elf = mod.ELFFile(f)
+            syms = list(elf.get_section_by_name(".symtab").iter_symbols())
+            new_idx = next(k for k, s in enumerate(syms) if s.name == "pick")
+            rs = elf.get_section_by_name(".rela.literal.pick")
+            k, rel = next((k, r) for k, r in enumerate(rs.iter_relocations())
+                          if r["r_info_type"] == mod.R_32 and syms[r["r_info_sym"]].name == "ext")
+            off = rs["sh_offset"] + k * rs["sh_entsize"] + 4
+            old = ((rel["r_info_sym"] << 8) | mod.R_32).to_bytes(4, "little")
+        patch(obj, off, old, ((new_idx << 8) | mod.R_32).to_bytes(4, "little"))
+        reseal(st, "src/fp.c.o")
+        rc, lines = run_case(mod, os.path.join(STORES, "fill", "a"), st, None, tmp)
+        grade("R8 a relocation to a different target", rc, lines, 1, [
+            "inputs: 2 loaded, 1 differ",
+            "  differs: src/fp.c.o",
+            "functions whose address moved: 1",
+            "CHANGED func global A+B pick [src/fp.c.o] -- OUT",
+            "verdict: OUT OF SCOPE: pick"])
+
+        # R9 (1f): B's object loses its property table (the section renamed) -> UNDECIDED, never FILL, never guessed
+        st = copy_case(tmp, "fill/b")
+        obj = os.path.join(st, "src", "fp.c.o")
+        with open(obj, "rb") as f:
+            raw = f.read()
+        assert raw.count(b".xt.prop\0") >= 1
+        with open(obj, "wb") as f:
+            f.write(raw.replace(b".xt.prop\0", b".xt.qrop\0"))
+        with open(obj, "rb") as f:
+            assert b".xt.prop\0" not in f.read(), "the plant did not apply"
+        reseal(st, "src/fp.c.o")
+        rc, lines = run_case(mod, os.path.join(STORES, "fill", "a"), st, None, tmp)
+        grade("R9 an object with no property table", rc, lines, 3, [
+            "inputs: 2 loaded, 1 differ",
+            "  differs: src/fp.c.o",
+            "functions whose address moved: 1",
+            "UNDECIDED pick [src/fp.c.o]: the fill walk: no property table covers .text.pick",
+            "verdict: UNDECIDED (1)"])
 
         # T0, both directions
         for case, want_rc, want in [

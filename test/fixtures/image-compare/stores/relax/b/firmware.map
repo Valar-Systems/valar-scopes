@@ -4,31 +4,21 @@ Discarded input sections
  .text          0x00000000        0x0 src/main.c.o
  .data          0x00000000        0x0 src/main.c.o
  .bss           0x00000000        0x0 src/main.c.o
- .xt.lit        0x00000000        0x8 src/main.c.o
- .xt.prop       0x00000000       0x3c src/main.c.o
  .text          0x00000000        0x0 src/f.c.o
  .data          0x00000000        0x0 src/f.c.o
  .bss           0x00000000        0x0 src/f.c.o
- .xt.lit        0x00000000        0x8 src/f.c.o
- .xt.prop       0x00000000       0x30 src/f.c.o
  .text          0x00000000        0x0 src/g.c.o
  .data          0x00000000        0x0 src/g.c.o
  .bss           0x00000000        0x0 src/g.c.o
- .xt.lit        0x00000000        0x8 src/g.c.o
- .xt.prop       0x00000000       0x3c src/g.c.o
  .text          0x00000000        0x0 src/ext.c.o
  .data          0x00000000        0x0 src/ext.c.o
  .bss           0x00000000        0x0 src/ext.c.o
- .xt.prop       0x00000000       0x48 src/ext.c.o
  .text          0x00000000        0x0 src/relax.c.o
  .data          0x00000000        0x0 src/relax.c.o
  .bss           0x00000000        0x0 src/relax.c.o
- .xt.lit        0x00000000        0x8 src/relax.c.o
- .xt.prop       0x00000000       0x30 src/relax.c.o
  .text          0x00000000        0x0 src/hi.c.o
  .data          0x00000000        0x0 src/hi.c.o
  .bss           0x00000000        0x0 src/hi.c.o
- .xt.prop       0x00000000       0x24 src/hi.c.o
 
 Memory Configuration
 
@@ -96,6 +86,24 @@ LOAD src/libh.a
  *(.bss .bss.* COMMON)
  .bss.g_out     0x3f000014        0x4 src/main.c.o
                 0x3f000014                g_out
+
+.xt.lit         0x00000000       0x18
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x0 src/f.c.o
+                                  0x8 (size before relaxing)
+ .xt.lit        0x00000008        0x8 src/g.c.o
+ .xt.lit        0x00000010        0x8 src/relax.c.o
+
+.xt.prop        0x00000000      0x138
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .xt.prop       0x0000003c       0x24 src/f.c.o
+                                 0x30 (size before relaxing)
+ .xt.prop       0x00000060       0x3c src/g.c.o
+ .xt.prop       0x0000009c       0x48 src/ext.c.o
+ .xt.prop       0x000000e4       0x30 src/relax.c.o
+ .xt.prop       0x00000114       0x24 src/hi.c.o
 OUTPUT(firmware.elf elf32-xtensa-le)
 
 .comment        0x00000000       0x2f

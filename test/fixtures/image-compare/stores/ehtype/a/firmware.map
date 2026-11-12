@@ -5,16 +5,12 @@ Discarded input sections
  .data          0x00000000        0x0 src/main.cpp.o
  .bss           0x00000000        0x0 src/main.cpp.o
  .eh_frame      0x00000000       0x28 src/main.cpp.o
- .xt.lit        0x00000000        0x8 src/main.cpp.o
- .xt.prop       0x00000000      0x114 src/main.cpp.o
  .group         0x00000000        0x8 src/eh.cpp.o
  .group         0x00000000       0x14 src/eh.cpp.o
  .text          0x00000000        0x0 src/eh.cpp.o
  .data          0x00000000        0x0 src/eh.cpp.o
  .bss           0x00000000        0x0 src/eh.cpp.o
  .eh_frame      0x00000000       0x38 src/eh.cpp.o
- .xt.lit        0x00000000        0x8 src/eh.cpp.o
- .xt.prop       0x00000000       0xa8 src/eh.cpp.o
 
 Memory Configuration
 
@@ -93,6 +89,22 @@ LOAD src/eh.cpp.o
 
 .bss
  *(.bss .bss.* COMMON)
+
+.xt.lit         0x00000000        0x0
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x0 src/main.cpp.o
+                                  0x8 (size before relaxing)
+ .xt.lit        0x00000000        0x0 src/eh.cpp.o
+                                  0x8 (size before relaxing)
+
+.xt.prop        0x00000000      0x1b0
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000      0x108 src/main.cpp.o
+                                0x114 (size before relaxing)
+ .xt.prop       0x00000108       0x9c src/eh.cpp.o
+                                 0xa8 (size before relaxing)
+ .xt.prop._ZTI2EA
+                0x000001a4        0xc src/eh.cpp.o
 OUTPUT(firmware.elf elf32-xtensa-le)
 
 .comment        0x00000000       0x2f
@@ -103,8 +115,3 @@ OUTPUT(firmware.elf elf32-xtensa-le)
 .xtensa.info    0x00000000       0x38
  .xtensa.info   0x00000000       0x38 src/main.cpp.o
  .xtensa.info   0x00000038        0x0 src/eh.cpp.o
-
-.xt.prop._ZTI2EA
-                0x00000000        0xc
- .xt.prop._ZTI2EA
-                0x00000000        0xc src/eh.cpp.o

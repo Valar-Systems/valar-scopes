@@ -4,14 +4,10 @@ Discarded input sections
  .text          0x00000000        0x0 src/main.c.o
  .data          0x00000000        0x0 src/main.c.o
  .bss           0x00000000        0x0 src/main.c.o
- .xt.lit        0x00000000        0x8 src/main.c.o
- .xt.prop       0x00000000       0x3c src/main.c.o
  .text          0x00000000        0x0 src/tables.c.o
  .data          0x00000000        0x0 src/tables.c.o
  .bss           0x00000000        0x0 src/tables.c.o
  .rodata.t0     0x00000000        0x4 src/tables.c.o
- .xt.lit        0x00000000        0x8 src/tables.c.o
- .xt.prop       0x00000000       0x48 src/tables.c.o
 
 Memory Configuration
 
@@ -54,6 +50,17 @@ LOAD src/tables.c.o
  *(.bss .bss.* COMMON)
  .bss.g_out     0x3f000018        0x4 src/main.c.o
                 0x3f000018                g_out
+
+.xt.lit         0x00000000       0x10
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x8 src/tables.c.o
+
+.xt.prop        0x00000000       0x78
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .xt.prop       0x0000003c       0x3c src/tables.c.o
+                                 0x48 (size before relaxing)
 OUTPUT(firmware.elf elf32-xtensa-le)
 
 .comment        0x00000000       0x2f

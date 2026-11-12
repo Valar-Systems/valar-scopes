@@ -92,4 +92,22 @@ for c in t0 t0bad; do
   s=$(store $c); src=WiFiManager.c; [ $c = t0bad ] && src=WiFiManager_bad.c
   obj "$s" "$src" WiFiManager.c; link "$s" about "" src/WiFiManager.c.o
 done
+
+# amendment 1f: fill. B is assembled with -Wa,--no-target-align, which moves only the assembler's alignment fill
+for c in fill fillchg; do
+  a=$(store $c/a); b=$(store $c/b); bsrc=fp.c; [ $c = fillchg ] && bsrc=fp_chg.c
+  obj "$a" main_fp.c main.c; obj "$a" fp.c fp.c
+  obj "$b" main_fp.c main.c; "$CC" $CFLAGS -Wa,--no-target-align -o "$b/src/fp.c.o" "src/$bsrc"
+  link "$a" entry "" src/main.c.o src/fp.c.o
+  link "$b" entry "" src/main.c.o src/fp.c.o
+done
+
+# 1f: an instruction's width. swap: the same move, narrow (A) then wide (B). swapop: B a different operation
+for c in swap swapop; do
+  a=$(store $c/a); b=$(store $c/b); bsrc=swap_b.S; [ $c = swapop ] && bsrc=swap_op.S
+  obj "$a" main_sw.c main.c; "$CC" $CFLAGS -o "$a/src/sw.S.o" src/swap_a.S
+  obj "$b" main_sw.c main.c; "$CC" $CFLAGS -o "$b/src/sw.S.o" "src/$bsrc"
+  link "$a" entry "" src/main.c.o src/sw.S.o
+  link "$b" entry "" src/main.c.o src/sw.S.o
+done
 echo "stores regenerated"

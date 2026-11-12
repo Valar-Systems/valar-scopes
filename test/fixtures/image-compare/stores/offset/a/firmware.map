@@ -4,12 +4,9 @@ Discarded input sections
  .text          0x00000000        0x0 src/main.c.o
  .data          0x00000000        0x0 src/main.c.o
  .bss           0x00000000        0x0 src/main.c.o
- .xt.lit        0x00000000        0x8 src/main.c.o
- .xt.prop       0x00000000       0x48 src/main.c.o
  .text          0x00000000        0x0 src/off.c.o
  .data          0x00000000        0x0 src/off.c.o
  .bss           0x00000000        0x0 src/off.c.o
- .xt.prop       0x00000000       0x24 src/off.c.o
 
 Memory Configuration
 
@@ -47,6 +44,15 @@ LOAD src/off.c.o
  .bss.buf       0x40000024       0x10 src/main.c.o
  .bss.g_out     0x40000034        0x4 src/main.c.o
                 0x40000034                g_out
+
+.xt.lit         0x00000000        0x8
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+
+.xt.prop        0x00000000       0x6c
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x48 src/main.c.o
+ .xt.prop       0x00000048       0x24 src/off.c.o
 OUTPUT(firmware.elf elf32-xtensa-le)
 
 .comment        0x00000000       0x2f

@@ -4,8 +4,6 @@ Discarded input sections
  .text          0x00000000        0x0 src/WiFiManager.c.o
  .data          0x00000000        0x0 src/WiFiManager.c.o
  .bss           0x00000000        0x0 src/WiFiManager.c.o
- .xt.lit        0x00000000        0x8 src/WiFiManager.c.o
- .xt.prop       0x00000000       0x3c src/WiFiManager.c.o
 
 Memory Configuration
 
@@ -37,6 +35,14 @@ LOAD src/WiFiManager.c.o
 
 .bss
  *(.bss .bss.* COMMON)
+
+.xt.lit         0x00000000        0x8
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/WiFiManager.c.o
+
+.xt.prop        0x00000000       0x3c
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/WiFiManager.c.o
 OUTPUT(firmware.elf elf32-xtensa-le)
 
 .comment        0x00000000       0x2f

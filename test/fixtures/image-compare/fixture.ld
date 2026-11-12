@@ -6,4 +6,7 @@ SECTIONS
   .rodata 0x3f000000 : { *(.rodata .rodata.*) }
   .data 0x3fc00000 : { *(.data .data.*) }
   .bss : { *(.bss .bss.* COMMON) }
+  /* the Xtensa property tables, kept as the default script keeps them (amendment 1f reads the final copy's) */
+  .xt.lit 0 : { KEEP (*(.xt.lit .xt.lit.* .gnu.linkonce.p.*)) }
+  .xt.prop 0 : { KEEP (*(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)) }
 }
