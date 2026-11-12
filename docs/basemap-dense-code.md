@@ -3110,3 +3110,38 @@ registered exact values at KBOS, KJFK and KLGA.
   0.9909 (28,297 px), KJFK 0.9778 / 0.9850 (14,205), KLGA 0.9747 / 0.9813 (11,972), KSEA 0.9089 / 0.9377 (8,164).
 - **KSFO and KMIA were not run,** so their packages stay unread until run 9.
 - pq4d and every other driver are unchanged since run 8.
+
+**Run 9 (19:13:27-19:15:31Z; `p2-read.py` e6ba08196d55): KB4 PASSES at all six airports as registered. The run STOPPED at KB5's
+control, the first run ever to reach KB5.**
+- **Every row through KB8 reads as run 8's.**
+- **The KSEA guard's control: RED as registered** (sea px 8,191, frac 0.885972 against 0.886).
+
+| airport | KB4 (frac / cover) | loss (frac / cover) | |
+|---|---|---|---|
+| KBOS | 0.9827 / 0.9907 | 0.0020 / 0.0002 | exact as registered |
+| KJFK | 0.9713 / 0.9831 | 0.0065 / 0.0019 | exact as registered |
+| KLGA | 0.9672 / 0.9791 | 0.0075 / 0.0022 | exact as registered |
+| **KSEA** (the named exception) | **0.886081** / 0.9192 | 0.0228 / 0.0185 | the guard (≥ 0.886) and cover pass |
+| KSFO | 0.9943 / 0.9549 | 0.0015 / 0.0018 | **passes, as predicted from its source** |
+| KMIA | 0.9741 / 0.9981 | 0.0020 / -0.0004 | **passes, as predicted from its source** |
+
+Every complement control fails both bounds. The scopes are printed: KSEA's d* is 2 km; KSFO's and KMIA's are 10 km.
+
+**THE OFF READING: KB5's control,** "a vertex moved one pixel differs", reads **0 px**.
+
+**The cause, read after the stop: the control's plant site, not the C++.**
+- The control moves `lines[2]` of `kb5-kjfk.rings`, which is ring 0's first vertex, by +1 px. Ring 0 lies at (1517.6, -1754.3) px,
+  about 100 km outside the 240-px view, so the move cannot change a pixel in view.
+- **The moved C++, the unmoved C++ and the Python renderer are byte-identical** (99a9001c790a).
+- The moved file does differ from the original, in exactly that coordinate, so the plant did apply. It landed where the instrument
+  cannot see.
+- **The alternative, that the C++ side ignores its input:** it is not excluded by this read, and the in-view plant below separates the
+  two. If the plant moves a vertex in view and the C++ still reads 0 px, that is the C++ (or its input), not the plant site.
+- The registration says "one ring's vertex moved one pixel must differ". The code chose its vertex without checking that it lies in
+  view. **That miss is mine:** a plant whose landing was never checked against what the instrument sees.
+
+**Proposed, not applied (a ruling first):**
+- the control moves **the first vertex inside the view (2 to 238 px)**: ring 38, vertex 1, at (25.7, 114.9) px;
+- a **landing check**: that vertex is in view, and the moved file differs from the original in it alone;
+- predicted: the moved C++ differs from the Python renderer by **≥ 1 px**.
+- Then run 10 from the top. Nothing else changes.
