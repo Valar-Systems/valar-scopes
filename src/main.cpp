@@ -358,24 +358,52 @@ void ReleaseComplete(LGFX_Sprite* sprite)
 // white bar moves 4 px a frame. A stale band shows as a band whose counter is 2+ frames older than its neighbours;
 // tearing as two counters in one frame; shear as a broken bar. Env -m3bench-base runs the same frame on today's push.
 namespace m3bench {
+// The test frame stops 24 rows short of the bottom, so the radar's own screen-indicator dots (DrawScreenIndicator,
+// y = SCREEN_SIZE - 16) stay visible. map-client's frame-trust test reads those dots as proof of a finished frame, so
+// the M3-1b plant below is graded in this same image (the orchestrator, 2026-11-12).
+constexpr int kTestRows = SCREEN_SIZE - 24;
 uint32_t g_frame = 0;
 void DrawTestFrame(BandCanvas& c)
 {
     ++g_frame;
-    for (int y = 0; y < SCREEN_SIZE; ++y)   // low 5 bits of y in red, high 3 in green: no two rows alike
+    for (int y = 0; y < kTestRows; ++y)   // low 5 bits of y in red, high 3 in green: no two rows alike
         c.fillRect(0, y, SCREEN_SIZE, 1, lgfx::color565((y & 31) << 3, ((y >> 5) << 5) | 0x10, 0x40));
-    c.fillRect((int)((g_frame * 4) % SCREEN_SIZE), 0, 8, SCREEN_SIZE, lgfx::color565(255, 255, 255));
+    c.fillRect((int)((g_frame * 4) % SCREEN_SIZE), 0, 8, kTestRows, lgfx::color565(255, 255, 255));
     char num[12];
     snprintf(num, sizeof(num), "%lu", (unsigned long)g_frame);
     c.setTextSize(2);
     c.setTextColor(lgfx::color565(255, 255, 255));
-    const int band = SCREEN_SIZE / 8;
+    const int band = kTestRows / 8;
     const int tw = (int)c.textWidth(num);
     for (int b = 0; b < 8; ++b) {
         const int y = b * band + (band - 16) / 2;
         c.fillRect((SCREEN_SIZE - tw) / 2 - 3, y - 2, tw + 6, 20, lgfx::color565(0, 0, 0));
         c.drawString(num, (SCREEN_SIZE - tw) / 2, y);
     }
+}
+
+// M3-1b's PLANT: one grab of the DRAW buffer taken right after the frame-start clear, before the sweep and the
+// radar's Draw. So it has no screen-indicator dots. /diag/fb-middraw serves it labelled as a finished frame, and
+// map-client's frame-trust test must still read it UNTRUSTWORTHY from its pixels.
+volatile bool g_grabWanted = false;
+volatile bool g_grabReady = false;
+uint8_t* g_grab = nullptr;
+void MaybeGrabMidDraw(LGFX_Sprite& s)
+{
+    if (!g_grabWanted || g_grabReady) return;
+    const size_t n = (size_t)s.bufferLength();
+    if (!g_grab) g_grab = (uint8_t*)heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
+    if (g_grab) memcpy(g_grab, s.getBuffer(), n);
+    g_grabReady = (g_grab != nullptr);
+}
+const uint8_t* RequestMidDrawGrab(uint32_t timeoutMs)
+{
+    g_grabReady = false;
+    g_grabWanted = true;
+    const uint32_t t0 = millis();
+    while (!g_grabReady && millis() - t0 < timeoutMs) vTaskDelay(1);
+    g_grabWanted = false;
+    return g_grabReady ? g_grab : nullptr;
 }
 }  // namespace m3bench
 #endif
@@ -1235,6 +1263,9 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 #endif
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
+#if defined(M3_BENCH)
+    m3bench::MaybeGrabMidDraw(canvas.sprite());   // M3-1b's plant: the draw buffer, cleared and not yet drawn
+#endif
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     if (drawScan) {

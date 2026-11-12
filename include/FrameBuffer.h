@@ -86,3 +86,15 @@ void ReleaseComplete(LGFX_Sprite* sprite);
 #endif
 
 }  // namespace framebuf
+
+#if defined(M3_BENCH)
+namespace m3bench {
+/// M3-1b's plant (bench only, env blipscope-s3-128-m3bench*): asks the render loop for one copy of the draw buffer
+/// taken right after the frame-start clear, before the radar draws its screen indicator. nullptr on a timeout.
+const uint8_t* RequestMidDrawGrab(uint32_t timeoutMs);
+}  // namespace m3bench
+#endif
+
+namespace framebuf {
+
+}  // namespace framebuf
