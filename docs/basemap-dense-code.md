@@ -2375,3 +2375,34 @@ with the terrain, not 2 km placement.
   of the mask's area. That is more machinery, and it still assumes the newly covered strip is land above 0 m.
 - **(c) record KB4's scope** (gross agreement, not 2 km) and drop the control. That is not recommended: a check with no control is
   one nobody can trust.
+
+### KB4 re-registered (the 15:44:48Z ruling, (a) plus a shift ladder), registered before any code
+
+**KB8 is CLOSED,** accepted in full from run 5: CAUGHT 142 / 149, NOT CAUGHT 0 / 1, S-KB-EDGEUNLOCK (a) 9 exactly, KBOS's rings equal
+run 4's, and KBOS and MIDTOWN (a) 0, with the old counts printed.
+
+**KB4's claim, as corrected:** at the 162 km level's grid (242 px, **1.341 km a pixel**), KB4 checks the sea mask's **GROSS agreement**
+with the store's own terrain, **not 2 km placement**. The shoreline's error is measured elsewhere: the lake pictures' ~1.06 km P95, which
+the owner accepted at 03:56Z. The old 2 km control was blind by geometry, as run 5 showed.
+
+**1. THE DECISIVE CONTROL, graded, first at each coast airport** (KBOS, KJFK, KLGA, KSEA, KSFO and KMIA): the sea mask's COMPLEMENT inside
+the build square. Every pixel the sea rings do not cover counts as sea, TIGER's own water included, since it is not the sea, and is graded
+by KB4's two bounds against the same terrain.
+- **Predicted: it FAILS BOTH bounds at every airport, frac_le0 < 0.95 and cover < 0.90.**
+  - *frac:* the complement is mostly land, and land reads above 0 m.
+  - *cover:* the ≤ 0 m pixels outside TIGER water are mostly the sea itself, which the complement leaves out.
+- **Expected ranges, not graded:** frac 0.02-0.30 and cover 0.00-0.15 at KBOS, KJFK, KLGA, KSEA and KSFO. At **KMIA**, where the low
+  Florida land may read ≤ 0 m, frac 0.02-0.60 and cover 0.00-0.30.
+- **Anything else stops.** If the complement passes either bound at any airport, the bounds cannot tell sea from land there.
+
+**2. KB4's SCOPE AS A NUMBER, reported and not graded:** a shift ladder per airport. The mask moves **2, 5, 10 and 20 km** from the
+sea's centroid toward the home (the renderer's own direction), and frac and cover print at each step. Then **d\*** prints: the first
+step that breaks a bound. The record then reads "KB4 detects a misplacement of d\* km at this airport". **If no step up to 20 km breaks a
+bound, that is said plainly as KB4's scope there.** No outcome of the ladder stops the run.
+
+**3. KB4 itself is unchanged:** at each airport, frac_le0 ≥ 0.95 and cover ≥ 0.90 for the mask as drawn. It runs after its complement
+control.
+
+**The code, after acceptance:** `p2-render.py` kb4 gains the complement's grades and the ladder in its one output line, the old 2 km
+figures kept printed. `p2-read.py`'s KB4 block grades the complement first, then KB4, and prints the ladder. Every new sha256 is
+recorded before the run. **A second off reading on KB4 goes to the owner.**
