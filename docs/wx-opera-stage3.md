@@ -232,8 +232,10 @@ read well inside it (298-747 s). The committed copies were re-controlled from th
   **`cref` alone is about 182 an hour (about 0.131 M a month), and the ten cost about 242 an hour while they ran
   (about 0.174 M a month).** The frozen arithmetic's 10 x 17,280 = 0.173 M is right. The alternative, "the ten cost
   less than predicted", is excluded: they ran at the predicted rate, then stopped.
-- **`missileer-live` stepped up,** from about 982 an hour in the control to a flat 1,079-1,102 an hour across every full
-  hour of this window. It is a step before the window, not a trend within it.
+- **`missileer-live` was back at its usual rate.** It read a flat 1,079-1,102 an hour across every full hour of this
+  window, about 26,000 a day. That is what it ran on 11-01 to 11-07 (25,601-26,163 a day, by UTC day). It dipped on
+  11-08 to 11-10 (15,409, 22,878 and 22,974), and the control's window (ending 14:58Z on 11-11) fell in that dip, at
+  about 982 an hour. So the control was low; Missileer did not grow.
 - **With OPERA running,** the same window gives about **1.10 M**, at the band's top, and over 1 M as the frozen row
   expected. **The ten's full-day Class A is unmeasured** until OPERA publishes again. The 7-day figure, about
   2026-11-18, will contain the outage too.
