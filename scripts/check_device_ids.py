@@ -57,6 +57,11 @@ SKIP_SUFFIX = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".bin", ".elf", ".zip",
                # CAD: STEP coordinates like 0.02189784694318916 are 16 digits after
                # a word boundary and match the id shape. Not ids, not ours to edit.
                ".step", ".stp", ".stl", ".3mf", ".f3d")
+# Relocatable objects and ar archives (docs/image-compare.md section 9) are binary, but they are NOT skipped: their
+# printable runs are read, so an id compiled into a string in one is caught. check_wifi.py excuses them to
+# check_binary_strings.py, which reads LAN, BSSID and network-name patterns and not this one.
+STRINGS_SUFFIX = (".o", ".a")
+PRINTABLE = re.compile(rb"[\x20-\x7e]{6,}")
 # Vendored files skipped ONLY while their HEAD blob hashes to their pin (#439 review: a path-only exemption let an id
 # appended to the pinned table through). The list is a FILE shared with .githooks/pre-commit, like the allowlist.
 # DEVICE_ID_PINFILE overrides it, as a seam for the guard's own probes.
@@ -100,9 +105,12 @@ def main() -> int:
             continue
         if pinned_skip(path, blob.stdout, pins):
             continue  # a pinned vendored file, byte-identical to its pin
-        if b"\0" in blob.stdout[:8000]:
-            continue  # binary
-        hits = {m for m in ID.findall(blob.stdout) if m not in allow}
+        body = blob.stdout
+        if b"\0" in body[:8000]:
+            if not path.endswith(STRINGS_SUFFIX):
+                continue  # binary
+            body = b"\n".join(PRINTABLE.findall(body))  # an object or archive: its printable strings, read
+        hits = {m for m in ID.findall(body) if m not in allow}
         for h in sorted(hits):
             bad.append((path, h.decode()))
 

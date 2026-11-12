@@ -2564,6 +2564,23 @@ if [ "$rc" -eq 2 ]; then echo "FAIL: R0b refused its fixtures (the rig)"; exit 2
 note_block $? "Weatherscope R0 and R0b (the reference's controls, A12.18)"
 
 echo
+echo "== image-compare (#656): the comparator's fixtures and refusals =="
+# docs/image-compare.md. The fixtures are committed stores (test/fixtures/image-compare); this needs pyelftools, and
+# not the cross-compiler. A missing pyelftools or a crash is the rig (exit 2), never a red.
+(
+if [ -z "$PY" ] || ! "$PY" -c "import elftools" >/dev/null 2>&1; then
+  echo "FAIL: no python with pyelftools; the image-compare selftest cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -B "$ROOT/scripts/image-compare.py" selftest
+rc=$?
+[ "$rc" -eq 0 ] && exit 0
+[ "$rc" -eq 1 ] && exit 1
+exit 2
+)
+note_block $? "image-compare selftest (#656)"
+
+echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"
   printf "%s\n" "$RIG_BLOCKS" | tr "|" "\n" | sed "/^$/d; s/^/  the rig: /"

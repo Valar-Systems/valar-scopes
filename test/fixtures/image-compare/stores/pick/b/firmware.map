@@ -1,0 +1,92 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .group         0x00000000       0x10 src/pb.cpp.o
+ .text          0x00000000        0x0 src/pb.cpp.o
+ .data          0x00000000        0x0 src/pb.cpp.o
+ .bss           0x00000000        0x0 src/pb.cpp.o
+ .group         0x00000000       0x10 src/pa.cpp.o
+ .text          0x00000000        0x0 src/pa.cpp.o
+ .data          0x00000000        0x0 src/pa.cpp.o
+ .bss           0x00000000        0x0 src/pa.cpp.o
+ .text._Z3inli  0x00000000        0xd src/pa.cpp.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/pb.cpp.o
+LOAD src/pa.cpp.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x45
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x4 src/main.c.o
+                                  0xc (size before relaxing)
+ .literal.fb    0x40000004        0x0 src/pb.cpp.o
+                                  0x4 (size before relaxing)
+ .literal.fa    0x40000004        0x0 src/pa.cpp.o
+                                  0x4 (size before relaxing)
+ .text.entry    0x40000004       0x1c src/main.c.o
+                                 0x24 (size before relaxing)
+                0x40000004                entry
+ .text.fb       0x40000020        0xc src/pb.cpp.o
+                                 0x10 (size before relaxing)
+                0x40000020                fb
+ .text.fa       0x4000002c        0xc src/pa.cpp.o
+                                 0x10 (size before relaxing)
+                0x4000002c                fa
+ .text._Z3inli  0x40000038        0xd src/pb.cpp.o
+                0x40000038                inl(int)
+ *fill*         0x40000045        0x0 
+
+.rodata
+ *(.rodata .rodata.*)
+
+.data
+ *(.data .data.*)
+
+.bss            0x40000048        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_out     0x40000048        0x4 src/main.c.o
+                0x40000048                g_out
+
+.xt.lit         0x00000000        0x8
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x0 src/pb.cpp.o
+                                  0x8 (size before relaxing)
+ .xt.lit        0x00000008        0x0 src/pa.cpp.o
+                                  0x8 (size before relaxing)
+
+.xt.prop        0x00000000       0xa8
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .xt.prop       0x0000003c       0x24 src/pb.cpp.o
+                                 0x30 (size before relaxing)
+ .xt.prop._Z3inli
+                0x00000060       0x24 src/pb.cpp.o
+ .xt.prop       0x00000084       0x24 src/pa.cpp.o
+                                 0x30 (size before relaxing)
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/pb.cpp.o
+ .comment       0x0000002f       0x30 src/pa.cpp.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/pb.cpp.o
+ .xtensa.info   0x00000038        0x0 src/pa.cpp.o

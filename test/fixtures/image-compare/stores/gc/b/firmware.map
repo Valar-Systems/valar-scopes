@@ -1,0 +1,150 @@
+Archive member included to satisfy reference by file (symbol)
+
+src/libh.a(h.c.o)             src/f.c.o (h)
+src/libh.a(h2.c.o)            src/libh.a(h.c.o) (h2)
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/f.c.o
+ .data          0x00000000        0x0 src/f.c.o
+ .bss           0x00000000        0x0 src/f.c.o
+ .text          0x00000000        0x0 src/g.c.o
+ .data          0x00000000        0x0 src/g.c.o
+ .bss           0x00000000        0x0 src/g.c.o
+ .text          0x00000000        0x0 src/ext.c.o
+ .data          0x00000000        0x0 src/ext.c.o
+ .bss           0x00000000        0x0 src/ext.c.o
+ .text          0x00000000        0x0 src/relax.c.o
+ .data          0x00000000        0x0 src/relax.c.o
+ .bss           0x00000000        0x0 src/relax.c.o
+ .text          0x00000000        0x0 src/hi.c.o
+ .data          0x00000000        0x0 src/hi.c.o
+ .bss           0x00000000        0x0 src/hi.c.o
+ .text          0x00000000        0x0 src/libh.a(h.c.o)
+ .data          0x00000000        0x0 src/libh.a(h.c.o)
+ .bss           0x00000000        0x0 src/libh.a(h.c.o)
+ .text          0x00000000        0x0 src/libh.a(h2.c.o)
+ .data          0x00000000        0x0 src/libh.a(h2.c.o)
+ .bss           0x00000000        0x0 src/libh.a(h2.c.o)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/f.c.o
+LOAD src/g.c.o
+LOAD src/ext.c.o
+LOAD src/relax.c.o
+LOAD src/hi.c.o
+LOAD src/libh.a
+
+.text_hi        0x40100000        0xa
+ *(.literal.hi_* .text.hi_*)
+ .text.hi_callee
+                0x40100000        0xa src/hi.c.o
+                0x40100000                hi_callee
+
+.text_lo        0x40000000       0xa2
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x4 src/main.c.o
+                                 0x10 (size before relaxing)
+ .literal.f     0x40000004        0x0 src/f.c.o
+                                  0x8 (size before relaxing)
+ .literal.g     0x40000004        0x8 src/g.c.o
+                                  0xc (size before relaxing)
+ .literal.lo_caller
+                0x4000000c        0x4 src/relax.c.o
+ .literal.h     0x40000010        0x0 src/libh.a(h.c.o)
+                                  0x4 (size before relaxing)
+ .text.entry    0x40000010       0x24 src/main.c.o
+                                 0x2c (size before relaxing)
+                0x40000010                entry
+ .text.f        0x40000034       0x20 src/f.c.o
+                                 0x24 (size before relaxing)
+                0x40000034                f
+ .text.g        0x40000054       0x14 src/g.c.o
+                                 0x17 (size before relaxing)
+                0x40000054                g
+ *fill*         0x40000068        0x0 
+ .text.lo_caller
+                0x40000068       0x10 src/relax.c.o
+                0x40000068                lo_caller
+ .text.h        0x40000078        0xf src/libh.a(h.c.o)
+                                 0x13 (size before relaxing)
+                0x40000078                h
+ *fill*         0x40000087        0x1 
+ .text.ext      0x40000088        0x7 src/ext.c.o
+                0x40000088                ext
+ *fill*         0x4000008f        0x1 
+ .text.sink     0x40000090        0x5 src/ext.c.o
+                0x40000090                sink
+ *fill*         0x40000095        0x0 
+ *fill*         0x40000095        0x3 
+ .text.h2       0x40000098        0xa src/libh.a(h2.c.o)
+                0x40000098                h2
+
+.rodata         0x3f000000       0x12
+ *(.rodata .rodata.*)
+ .rodata.g.str1.1
+                0x3f000000       0x12 src/g.c.o
+
+.data
+ *(.data .data.*)
+
+.bss            0x3f000014        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_out     0x3f000014        0x4 src/main.c.o
+                0x3f000014                g_out
+
+.xt.lit         0x00000000       0x18
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x0 src/f.c.o
+                                  0x8 (size before relaxing)
+ .xt.lit        0x00000008        0x8 src/g.c.o
+ .xt.lit        0x00000010        0x8 src/relax.c.o
+ .xt.lit        0x00000018        0x0 src/libh.a(h.c.o)
+                                  0x8 (size before relaxing)
+
+.xt.prop        0x00000000      0x180
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .xt.prop       0x0000003c       0x24 src/f.c.o
+                                 0x30 (size before relaxing)
+ .xt.prop       0x00000060       0x3c src/g.c.o
+ .xt.prop       0x0000009c       0x48 src/ext.c.o
+ .xt.prop       0x000000e4       0x30 src/relax.c.o
+ .xt.prop       0x00000114       0x24 src/hi.c.o
+ .xt.prop       0x00000138       0x24 src/libh.a(h.c.o)
+                                 0x30 (size before relaxing)
+ .xt.prop       0x0000015c       0x24 src/libh.a(h2.c.o)
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/f.c.o
+ .comment       0x0000002f       0x30 src/g.c.o
+ .comment       0x0000002f       0x30 src/ext.c.o
+ .comment       0x0000002f       0x30 src/relax.c.o
+ .comment       0x0000002f       0x30 src/hi.c.o
+ .comment       0x0000002f       0x30 src/libh.a(h.c.o)
+ .comment       0x0000002f       0x30 src/libh.a(h2.c.o)
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/f.c.o
+ .xtensa.info   0x00000038        0x0 src/g.c.o
+ .xtensa.info   0x00000038        0x0 src/ext.c.o
+ .xtensa.info   0x00000038        0x0 src/relax.c.o
+ .xtensa.info   0x00000038        0x0 src/hi.c.o
+ .xtensa.info   0x00000038        0x0 src/libh.a(h.c.o)
+ .xtensa.info   0x00000038        0x0 src/libh.a(h2.c.o)

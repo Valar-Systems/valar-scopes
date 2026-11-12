@@ -1,0 +1,9 @@
+{
+ "inputs": [
+  {
+   "path": "src/WiFiManager.c.o",
+   "sha256": "1bd0430c100674e9f0a5792d375fcdf0be618fcc202f8d45a6147dbed37172d7",
+   "copy": "src/WiFiManager.c.o"
+  }
+ ]
+}

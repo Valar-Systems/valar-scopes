@@ -1,0 +1,69 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/rs.S.o
+ .data          0x00000000        0x0 src/rs.S.o
+ .bss           0x00000000        0x0 src/rs.S.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/rs.S.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x3e
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000       0x10 src/main.c.o
+                                 0x14 (size before relaxing)
+ .literal.f1    0x40000010        0x4 src/rs.S.o
+ .text.entry    0x40000014       0x1e src/main.c.o
+                                 0x22 (size before relaxing)
+                0x40000014                entry
+ *fill*         0x40000032        0x2 
+ .text.f1       0x40000034        0xa src/rs.S.o
+                0x40000034                f1
+ *fill*         0x4000003e        0x0 
+
+.rodata         0x3f000000        0x8
+ *(.rodata .rodata.*)
+ .rodata        0x3f000000        0x8 src/rs.S.o
+
+.data
+ *(.data .data.*)
+
+.bss            0x3f000008        0xc
+ *(.bss .bss.* COMMON)
+ .bss.g_keep    0x3f000008        0x8 src/main.c.o
+                0x3f000008                g_keep
+ .bss.g_out     0x3f000010        0x4 src/main.c.o
+                0x3f000010                g_out
+
+.xt.lit         0x00000000       0x10
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x8 src/rs.S.o
+
+.xt.prop        0x00000000       0x84
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x48 src/main.c.o
+ .xt.prop       0x00000048       0x3c src/rs.S.o
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/rs.S.o
