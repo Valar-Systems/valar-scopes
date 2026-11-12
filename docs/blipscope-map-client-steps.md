@@ -1407,6 +1407,84 @@ failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-rend
 - **The PR's CI prediction stands as registered above** (34 = 30/4/0 from #634's run). The fix touches only the
   driver, which CI's host-tests leg reads.
 
+### Step B's drawing work, registered before code (2026-11-11): the place-name counts (CB6)
+
+**Status:** #650 merged (`337732be`), so the refusal and CD4 are on `main`. The drawing work goes on
+`feat/map-client-step-b-draw`, from `main` at `ed452654`. This registration is its first commit. No place-name code
+exists yet.
+
+**The rule, as ruled (Q-MB3 to Q-MB6), stated exactly so the counts below can be checked against it:**
+- **The list:** the package's PLACES, in file order, at most 256. More than 256 refuses the towns rather than cutting
+  the list (Q-MB6). No peaks (Q-MC7 (b)).
+- **The order:** the Weatherscope's `RankOrder`: population descending, a population of 0 ranking as 1,000, ties in
+  file order. The label is `LabelText`'s: the name as written, one trailing " city" dropped, at most 39 bytes.
+- **The cap:** the Weatherscope's `Cap` at the view's radius in miles, as an int: 8 from 60, 6 from 30, 5 below
+  (Q-MB3).
+- **The anchor:** format section 9 with the view's own centre, then `radarproj::Project`'s rotation (x = C + u cos +
+  w sin, y = C - u sin + w cos), in double, then `int()` truncation, as `PlaceTown`.
+- **The centre:** an anchor within `Inner` (24.4 px) of (120, 120) is skipped, and every box's nearest point must be
+  at least 24.4 px out.
+- **The boxes, inclusive:**
+  - right `{ix-1, iy-4, ix+4+w, iy+4}`, left `{ix-5-w, iy-4, ix+2, iy+4}`, with `w` = 6 × the label's bytes - 1;
+  - the side away from the centre is tried first (left when x < 120);
+  - every corner within 116 px of (120, 120);
+  - 4 px of air from every obstacle and every placed label;
+  - **no y band**: the radar has no strips.
+- **The obstacles (Q-MB4):**
+  - each airport in the view box: its mark `{x-2, y-2, x+2, y+2}` and its code `{x+5, y-3, x+5+6n-1, y+4}`. The
+    airports are culled and projected as `DrawAirports` does (`radarproj::Project`, float);
+  - the three ring labels: x 123, y 14 / 44 / 83, with the view's ring values as `DrawRadarCircles` formats them;
+  - the four cardinals: r 112, `lroundf`, rotated by `radarUpDeg`, box `{px-3, py-4, px+2, py+3}`;
+  - the screen-indicator row: `{99, 221, 140, 227}`, the four carousel dots at y 224.
+
+**The independent scratch reading.** `places_ref.py`, in the map client's scratch folder, sha256
+`ab0cf5a713696da8a95d7b4627e4d4de0da6c82a784ef316f5ca48e8a48a12ac`, is written from the format doc and the rule above,
+never from the C++ that will implement it:
+- it decodes PLACES itself (LEB128 varints, zigzag svarints, u8-length text);
+- it rebuilds the device's View per ladder step at the default 100 mi, in float32 where the device's chain is float;
+- it projects the airports with `Project`'s float order of operations;
+- it prints counts only.
+
+Its inputs, by sha256: `kjac.bmpk` `eda8dc42bd12…a75ce`, `ksfo.bmpk` `30aa043a6152…fd6ac`, `bend.bmpk`
+`0e257a0a47a1…ef0fd`, and `include/Airports.h` `16647c22948a…c5d00` (the baked table, which stands in for the cloud
+list that a device uses once it loads).
+
+**The counts, frozen: placed labels per rotation, `radarUpDeg` 0, 45, … 315:**
+
+| fixture (places) | 5 mi | 10 mi | 25 mi | 50 mi | 100 mi |
+|---|---|---|---|---|---|
+| **KJAC** (42) | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 2 2 1 2 2 2 1 1 | 6 4 3 3 6 4 3 3 | 8 8 7 8 8 6 6 8 |
+| **KSFO** (137) | 3 3 4 5 3 3 2 3 | 4 5 5 3 5 5 5 5 | 5 5 5 5 5 5 5 5 | 6 6 6 6 6 6 6 6 | 8 8 8 8 8 8 8 8 |
+| **Bend** (9) | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 1 1 1 0 1 1 1 0 | 3 4 4 3 3 4 4 3 | 3 3 4 4 3 4 4 2 |
+
+- **In all, 380 labels** over the 120 frames.
+- **Why towns were refused,** summed over the 8 rotations (in the centre / off the disc / blocked on the disc):
+
+| step | KJAC | KSFO | Bend |
+|---|---|---|---|
+| 5 mi | 0 / 336 / 0 | 0 / 1047 / 14 | 8 / 64 / 0 |
+| 10 mi | 0 / 336 / 0 | 6 / 859 / 30 | 8 / 64 / 0 |
+| 25 mi | 0 / 320 / 3 | 5 / 293 / 56 | 8 / 48 / 10 |
+| 50 mi | 0 / 264 / 39 | 10 / 89 / 100 | 8 / 8 / 28 |
+| 100 mi | 16 / 24 / 216 | 82 / 16 / 227 | 24 / 0 / 21 |
+
+  Only towns considered before the cap was reached are counted.
+- **Airports in the view box** (the same at every rotation): KJAC 0 at every step; KSFO 1 / 2 / 3 / 3 / 4; Bend 0 /
+  1 / 2 / 2 / 3.
+- **No town anchor lies within 1e-6 px of an integer,** so no frame's count rests on how a truncation rounds.
+
+**What CB6 will hold, registered with the counts:**
+- **Every one of the 120 frames' placed count equals this table.**
+- Every frame holds the properties registered at #644 (≤ the cap, rank order, the centre, the corners, 0 overlaps
+  with an obstacle or another label).
+- The plants are as registered (S-CB-AIRPORT, S-CB-FILEORDER, S-CB-NOCAP, S-CB-NORTHUP). Each plant's red set is
+  computed by this same scratch reading under the plant, before its driver runs.
+- **What a different count means:**
+  - a frame off by any number stops the step for a ruling;
+  - the first thing read is that frame's anchors and obstacle boxes against this reading's, to find where the two
+    disagree;
+  - the code is not changed to make a count match.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
