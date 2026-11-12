@@ -1510,3 +1510,56 @@ also turned up a second "current", which the order has to cover.
 
 **On the orchestrator's go (04:12:32Z):** pq4d, the prototype with the sea path, and the ingest dry run are built next. The dry run is
 read-only on R2, and nothing uploads. Part 2's rows then come as one frozen registration before anything runs.
+
+### Part 2's third home, and the smoke flag (the reviewer, via the owner, 04:06Z; relayed 04:15:42Z)
+
+**The read-only check, first as ruled** (`check-reservoirs.py` `9ae9982e0ff6`, over the pinned `ne_10m_lakes` `0803a06f9c3c`: all
+1,355 records, every text field):
+
+| reservoir | in NE? | area | crosses the US border | centroid (2 dp) |
+|---|---|---|---|---|
+| Amistad | **yes**, "Amistad Reservoir" | 250.1 km² | yes (not wholly inside) | (29.53, −101.13) |
+| Falcon | **yes**, "Falcon Lake" | 465.9 km² | yes | (26.78, −99.26) |
+
+**Both are in NE and both are selected by design (a),** so the ruled stop ("if it isn't in NE") does not apply.
+
+**The third home is FALCON LAKE AT ZAPATA, (26.91, −99.27).**
+- Zapata sits on the reservoir's shore, and the border runs through the lake within the closest zoom's 8 km, so its picture shows the
+  join. Del Rio is about 20 km from Amistad, so its closest zoom wouldn't show the reservoir.
+- Zapata is covered in `coverage.bin` (checked read-only).
+- It joins KB7-b, KB7-c-real and the code PR's pictures.
+
+**The smoke flags `seaLost` everywhere** (added to #655, comment 6814357889).
+- `seaLost` and its reasons go on the response header on every build.
+- `smoke-prod.sh` prints them and FLAGS any non-zero value.
+- **The flag's control:** a planted `seaLost` ≥ 1 must make the smoke flag it. It is registered with the PR that builds the smoke.
+- A cache hit with no header reads "unknown", never zero.
+
+### Part 2's ingest DRY RUN, read (2026-11-12, 04:17:39–04:17:42Z): read-only, nothing uploaded
+
+`sea-dryrun.py` (`107997098348`), log `2155216d5e4e`, pieces `sea-pieces.json` `8ad5d92fa7c7`. Exit 0, and its error file is empty.
+
+| | read |
+|---|---|
+| **the extent, recomputed** (the control) | **2,584 cells, as recorded.** All 1,397 index cells fall inside it |
+| the sources | the ocean: 2 outer polygons, 6,820 holes. NE lakes: 1,355 in all; 149 wholly inside the US (not stored); 38 under 1.5 km². **56 lakes reach the extent, in 273 pieces:** Erie 16, Champlain 5, Falcon 2, Amistad 2, Ontario 14, Superior 32, Huron 36 |
+| **the cut** | **1,435 cells hold sea**, of which **981 are sea-only** and new to the index. **1,914 pieces** (1,641 ocean, 273 lake). Islands: 497 kept, 135 dropped (under 1.5 km²). **Sea bytes 1,190,173,** the largest cell 9,252. **No cell is newly pushed over the 24 MB split** |
+| **the new store** | **2,378 cell objects** (1,397 + 981) + 9,638 terrain tiles + 5 small objects = **12,021 puts.** About **1.762 GB:** cells 1,050,294,267 B, tiles 706,629,891 B (the manifest's sizes), small objects about 4.9 MB |
+| **the order, both ways** | printed as recorded above: FORWARD builder, store, `current`, `bm:store`; ROLLBACK `bm:store`, `current`, then the builder |
+
+**One change from the accepted proposal, flagged for ruling.** The dry run cuts each source with a BOOLEAN rectangle clip (GEOS
+`clip_by_rect`, pre-tiled at 10°), not Sutherland–Hodgman per ring.
+- For a 446,789-vertex ocean over 2,584 cells, that is robust and fast (3 s).
+- The only difference: a hole crossing a cell's edge becomes a notch in the piece's outer ring, not an edge-coincident ring. The pieces
+  are then valid polygons, and bridging never meets a hole lying along the box edge.
+- **The code PR uses whichever is ruled,** and the pieces' counts are re-read on it.
+
+**The R2 figures,** read at 04:18:46Z with main's own read-only `proxy/scripts/r2-class-a.ts` (the token file's `analytics-read`; counts
+only, never the token):
+- **A CORRECTION TO THE 23:21Z PREMISE, measured, not assumed.** This month's Class A operations to date are **331,840 of the free
+  1,000,000**, projected to **890,472** by month's end at this rate. **The free million has NOT been used.** So the sea load's 12,021 puts
+  fit inside it at the current rate (about 902,000). If the month's writes accelerate past the million, they cost at most **$0.054** (at
+  $4.50 per million), inside the owner's overage allowance either way.
+- **Storage:** the account holds **3.452 GB** today. `blipscope-basemap` is 1.761 GB in **11,040 objects, the same 11,040 this file
+  counted from the index and the manifest.** With the old store kept for rollback and the new one added (about 1.762 GB), the total is
+  **about 5.21 GB, under the 10 GB free tier: $0 a month.**
