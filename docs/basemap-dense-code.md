@@ -2659,3 +2659,53 @@ A full clip of the 2,584 cells takes **about 37 s**.
   - **The code PR decodes by the `.cpg`.**
   - **PARITY's name match then maps the reference's names through latin-1 → UTF-8** before comparing. This is registered now, before
     that ingest exists.
+
+### PARITY step 2: the full TypeScript ingest against the same reference, registered before any code (the orchestrator, 16:56:18Z)
+
+**Accepted (16:56:18Z):** step 1, with PD-9's shape kept as practice. C-IDX's magnitude is my miss. The cp1252 read is now standing
+practice for every session: open text as UTF-8.
+
+**What step 2 adds to step 1's clip.** All of it is TypeScript, reusing the repo's own `proxy/scripts/basemap/shapefile.ts`, which reads
+each part bit for bit and decodes DBF text as UTF-8, `fatal`:
+1. **the extent:** the 1-degree cells within 250 km of a covered point, from `coverage.bin` by `sea-extent.py`'s own definition
+   (haversine, R = 6371.0088), ported line for line;
+2. **the sources:** the ocean record polygonized by orientation (outers clockwise, holes counter-clockwise) with holes assigned by
+   containment. The lakes are polygonized the same way, a lake's parts kept together;
+3. **design (a):** a lake is kept if its area is at least 1.5 km² (deg² × 111² × cos of the latitude of its area-weighted centroid,
+   holes included) and it is NOT wholly inside the US (the admin_0 USA parts). "Wholly inside" means every vertex inside or on the US,
+   and no edge crossing a US edge;
+4. **the cut and the island rule:** step 1's clip, unchanged (`rectclip.ts` a39c8762a6ef).
+
+**Read from the reference before registering:**
+- 9 lakes have several parts, and **none of their parts overlap**, so a lake's union is its parts.
+- **Every hole, ocean or lake, is in exactly one outer.**
+- **No lake is within 0.001 km² of 1.5 km².**
+- The US is **344 parts with no holes.**
+- **15 selected lakes touch or cross the US without being inside it.** The containment test must say "not contained" for exactly those.
+
+**Graded:**
+
+| row | what | passes when |
+|---|---|---|
+| **PB-0**, the extent | the TS ingest's cells against `sea-extent-cells.json` | the **same 2,584 cells** |
+| **PB-1**, the sources | ocean outers and holes; lakes read, selected, wholly inside the US, under 1.5 km² | **exactly** 2 / 6,820; 1,355 / 1,168 / 149 / 38 |
+| **PB-2**, the selection | the selected lakes, by their record index in the `.shp` | **the same 1,168 records** as the dry run's |
+| **PA-1 to PA-5** | the full ingest's pieces against `sea-pieces.json`, as in step 1 | as in step 1 (1,435 / 1,914 / 497 / 135, then 0 failures) |
+
+**Names:** the TS ingest reads the DBF as UTF-8, which is correct. The dry run read it as latin-1. So **the reference's names are mapped
+latin-1 → UTF-8 before PA-2's source match.** All four lakes above are fixed by that one mapping.
+
+**The controls, each shown FAILING first** (plants in a copy, never in the ingest):
+
+| control | the plant | predicted |
+|---|---|---|
+| **C-EXTENT** | 250 km becomes 240 km | **PB-0 fails** (fewer cells) |
+| **C-US** | the US test off | **PB-1 and PB-2 fail**: 1,317 lakes selected (1,168 + 149) |
+| **C-BORDER** | "wholly inside" by vertices only, with no edge-crossing test | **PB-2 fails only if** a selected lake has every vertex inside the US and an edge crossing out. **Predicted: it does NOT fail.** Then the edge test is untested by the data, and that is reported, not hidden |
+| **C-SIZE** | 1.5 km² becomes 2.0 km² for lakes | **PB-1 fails** (fewer selected) |
+| **C-NAME** | the latin-1 → UTF-8 mapping removed from the comparison | **PA-2 fails at exactly the 7 cells** of the four lakes |
+
+**The verdict:**
+- **PASS:** PB-0 to PB-2 and PA-1 to PA-5 all hold, and every control except C-BORDER fails as stated.
+- **C-BORDER passing** is a registered outcome: a guard the data cannot exercise, said plainly.
+- **Anything else stops.**
