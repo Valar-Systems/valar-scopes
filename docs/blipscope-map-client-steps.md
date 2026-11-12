@@ -3393,6 +3393,19 @@ statements that `throw`, run before the `&&` chain of process checks. They are n
   places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
 - the mapbench leg: the gate reads `found 0 1 PASS`, and the markers are as before.
 
+**A stale comment from the identity fix, corrected (the orchestrator's yes, 07:52:42Z).** Step C's sweep of the bare
+number 26 found `test/host/test_ota_identity.cpp`'s header still describing the old identity counts.
+- **My miss, from `935a2946`:** that commit moved the pins, but not this comment, which states them beside the pins.
+- **Comment only:** no reading moved, and CI was green throughout.
+- **What changed:**
+  - line 10: M1 `38 accepted, 26 refused` became `51 accepted, 30 refused`;
+  - line 11: M2 `78 of 78` became `90 of 90`;
+  - line 12: M3 `16 accepted, 48 refused, 22 of them cross-scope` became `23 accepted, 58 refused, 28`;
+  - lines 13-14: "the 8 built envs" became "the 9", with the mapbench env's arrival named.
+- **Line 8, found while editing:** R1's `8 envs x 3 scopes` became `9 envs x 3 scopes`. It is the same block and the
+  same miss, though the sweep for 26 could not see it, so it is included and named here.
+- **Where it goes:** it rides on #659's next push, and step C rebases onto it.
+
 ## Step C: the wedge's green added to the map (design, registered before code; 2026-11-12)
 
 **What is fixed already.**
