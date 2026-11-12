@@ -3202,6 +3202,60 @@ every row's reader is.
   drift. I recommend the import with the per-frame cross-check.
 - **Q-CBF3-4, the unknown ceiling:** 10 % of a region.
 
+**The ruling (the orchestrator, 07:09:07Z), in short:** Q-CBF3-1 colour classes, ACCEPTED. Q-CBF3-2 the off ticks as
+the control, at least 10 trustworthy frames of each kind, ACCEPTED. Q-CBF3-3 IMPORT, not copy, with two additions:
+`wx-fb-check.py`'s sha256 is recorded in the reading, and the orchestrator tells Weatherscope that this reader imports
+its ring and beam rules. Q-CBF3-4 the 10 % unknown ceiling, ACCEPTED, with the 15 % plant reading UNTRUSTWORTHY. GO for
+the code and `--selftest`, every plant red, the sha frozen and recorded; no bench-image change.
+
+**CBF3's reader, as written and frozen (07:15Z).**
+- **The reader:** `map_bench_read.py`, the scratch reader every row uses, gains `--fb <tree> <frames.jsonl>`. Its log
+  grading is unchanged. `--selftest` now takes the source tree, because the frame plants are drawn from the source's
+  own colours.
+  - **Frozen sha256:** `65d2edf53b0600f611945019a43038f277ec4bab5a7f85dcbd43bfb93cffecd7`. The copy before it,
+    `6413d64985b3…`, is kept beside it.
+  - **`scripts/wx-fb-check.py`'s sha256, as the reader prints it:**
+    `92d85ce4e711fd05265d85b3bf9edbb7226ca2915233f76224d769f9d3799c10`.
+- **What it reads from the tree:**
+  - the opaque wedge: TAIL 1.0, 18 slices, PEAK 120, and the fade, each asserted. Its levels, computed in float32 as
+    the device computes them, are 107, 94, 83, 72, 62, 53, 44, 37, 30, 23, 18, 13, 9, 5, 3, 1, 0, 0;
+  - the map: the Dark row, the ramp's formula, `To565` and `OffDisc`, each asserted. That is 13 RGB565 colours;
+  - the overlays: 252 colours;
+  - the shared colours, computed: `0000` and `0020`. If the source ever yields another set, the reader refuses
+    (re-derive), because that set is registered.
+- **The selftest: 23 lines, all ok, `selftest PASSED`, exit 0.**
+  - The log reader's 10 are unchanged.
+  - The frame cases, each with its exit and the plant's own status:
+    - the control set (10 on, 10 off): AS PREDICTED;
+    - the sector holding map colours: OFF, inside 100 %;
+    - black outside: OFF, outside 0 %;
+    - an off frame holding map colours: CONTROL FAILED;
+    - two head blobs: UNTRUSTWORTHY, "2 head blobs";
+    - no rings: UNTRUSTWORTHY, "a ring under 80 % of its colour";
+    - 15 % unknown: UNTRUSTWORTHY, "14.4 % UNKNOWN";
+    - 9 on frames: BLIND;
+    - unfinished, and straddled: NOT READ.
+- **Added beyond the registered list:** the cross-check against `wedge_mask` must be able to fire, so the reader's
+  own locator is sabotaged in process, twice, and restored:
+  - shifted by 0.2 rad: INSTRUMENT, exit 2;
+  - refusing a frame `wedge_mask` locates: INSTRUMENT, exit 2;
+  - a check that the locator is restored: ok.
+- **The disk path, end to end:** 20 synthetic frames written as RGB565 big-endian with a manifest read AS PREDICTED,
+  exit 0, and the printed sha equals `sha256sum`'s. A malformed manifest reads INSTRUMENT, exit 2. A missing tree
+  reads INSTRUMENT, exit 2.
+- **What the synthetic control showed about the classes:** inside the wedge, most of its greens are also faded plane
+  colours, so they class as AMBIGUOUS. On the control on-frame that was 4,220 AMBIG and 1,947 WEDGE pixels, with MAP 0.
+  The measure keeps both in its denominator, and a map pixel showing through is still MAP, so the inside test is not
+  weakened.
+- **A correction to the registration.** It listed the airports' greys as three: 130, 100 and 140. `DrawAirports`'
+  body names two, the mark (130) and the label (100). The 140 grey is `DrawWeatherNote`'s text. If that note draws in
+  P1, its pixels count as UNKNOWN, and the 10 % ceiling bounds them.
+
+**Still to come before the window:** the fetcher, which writes the manifest this reader reads (`file`, `label`,
+`finished`, `straddled`). It labels each fetch by the latest `[map-bench] phase P1 map=…` line, marks a fetch
+straddled when a new phase line lands before its response, and prints no host name or address. It will be registered
+the same way, with its own plants, before it runs.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
