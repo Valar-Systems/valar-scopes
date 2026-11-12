@@ -2406,3 +2406,11 @@ control.
 **The code, after acceptance:** `p2-render.py` kb4 gains the complement's grades and the ladder in its one output line, the old 2 km
 figures kept printed. `p2-read.py`'s KB4 block grades the complement first, then KB4, and prints the ladder. Every new sha256 is
 recorded before the run. **A second off reading on KB4 goes to the owner.**
+
+**KB4 (re-registered), the code, pinned before the run (15:5xZ).** `p2-render.py`
+`a042ae1222d51381e65f59e8ad875c2f8ced95aa1321918f3a03d04271d3aa7e` (was d7c9552e7158): kb4 gains the complement inside the build square
+(the package's own radius), graded by the same two bounds; the 2 / 5 / 10 / 20 km ladder; and d*. The old 2 km figures stay printed.
+`p2-read.py` `a297d699b060250f33e102dc19552214a022c60953a2d5555db2a70d525c0cc6` (was 426e93dd868f): KB4's block grades the complement
+first (BOTH bounds must fail), then KB4 unchanged, then prints the ladder and d* ("none by 20 km" when none). **The tooling smoke test**
+ran at KDTW, which is not a graded airport: exit 0, empty stderr, every new key present, four ladder steps, and the 2 km step equal to
+the old 2 km figures. No KB4 value was read. Everything else is as pinned.
