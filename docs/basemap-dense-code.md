@@ -3279,3 +3279,15 @@ wrote neither outcome down first. The result: two fresh runs of `sea-ingest.mts`
 **The read:** `wb-dump.mts` dumps the raw parts of every NE lake record named Whitefish Bay through `shapefile.ts`, and `wb-cmp.py`
 compares them with `sources.json`'s Whitefish Bay polygons ring by ring: exact equality, equality up to rotation, equality up to
 reversal, and the parts' order. Counts and indices only.
+
+**The read (19:4xZ; `wb-dump.mts` ef9e4d444a41, `wb-cmp.py` d06fe43c2b32, `wb-raw.json` 9a4b4e18607b): O1, as registered.**
+- **The shapefile holds ONE Whitefish Bay record (468) with three raw parts, in file order:** a triangle (3 vertices, open), the bay's
+  outer (102) and its island (14).
+- **Step 1's sources hold the same three rings, every vertex the same,** as two polygons:
+  - the outer with the island as its hole;
+  - then the triangle.
+- **Each ring is the raw part ROTATED BY ONE:** the same sequence, starting one vertex later. None is reversed.
+- So the dry run's `unary_union` rebuilt each ring one vertex on, and put the triangle last. That is exactly step 1's differences
+  from step 2: the hole in 46/-85 starting one vertex later, and the two triangles in 47/-85 in the other order.
+- **The TS ingest keeps the shapefile's own order,** and three runs are byte-identical. So nothing in the ingest's order can vary run
+  to run, and the store's id cannot either. **No change to the ingest.**
