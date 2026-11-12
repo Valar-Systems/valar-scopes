@@ -799,3 +799,155 @@ symbol.
 - **K2 changed, as declared before the run:** `setup()` now reads CHANGED beside `sec:.rodata` (named by the same
   four). Its constant's bytes changed, so the function that reads it changed. That recovers K2's original row ("setup()
   …") for the right reason. It reads exactly the filed text.
+
+## 21. Amendment 1i: LINK-ONLY (the owner's ruling, relayed 19:12:19Z), registered before any code (19:28Z)
+
+**The owner's words, as relayed:** "A function whose compiled code is identical, differing only in where the linker
+placed it, counts as accounted for, on two conditions: 'Identical' means identical after every address is replaced by
+the symbol it points to, not just masked. The read-only data it reads is compared too. A control first: a planted
+change that only swaps one call target, at the same size, must read as a real change."
+
+### The class
+
+A function reaches 1i only through the image layer's RELAX branch: a (name, size) difference whose unit the object
+layer read SAME (or whose two PICK copies compare equal), and a walk that refused. It reads **LINK-ONLY** when both hold:
+
+- **(a) object code equal.** Its object-layer signature is computed on BOTH sides and is equal: the size, the bytes
+  with each relocated field masked, and every relocation's named target with its addend. This holds even when the input
+  file's bytes are identical; nothing is taken from the file hash. A signature that refuses fails (a).
+  - **Checked in the code (`_section_sig`): no field is merely masked.** Only R_32 (its 4 bytes) and SLOT0_OP (the
+    operand bits) are masked, and both are then named by section 3's table. ASM_EXPAND and ASM_SIMPLIFY are named and
+    not masked. R_NONE is neither (it modifies nothing). A target the table cannot name refuses the unit. The same holds
+    inside unsplit spans (1h′: R_32 masked and named, any other type refuses) and in folded exception tables (1e).
+  - **One limit, stated:** a local symbol is named by its name, and nothing refuses a local name that repeats in its
+    object. GCC suffixes function-local statics (`counter.0`, `counter.1`), so C does not produce one, but no check
+    stands behind that. A refusal can be added if the reviewer wants it; it is not part of 1i.
+- **(b) the read-only data it reads is equal.** Take the function's named targets, then follow them:
+  - **Content names** (`str:`, `cst:`, `lit:0x…`, `span:`): their bytes are in the signature, so (a) compared them.
+  - **`lit(X)`:** the literal is in the signature; X is followed.
+  - **`unit:`, `local:`, `sym:`:** the input section that holds the target, on each side. `unit:` and `local:` are in
+    the function's own object. `sym:` goes through each image's symbol table and map.
+    - **Read-only data** (allocated, neither writable nor executable): that section's whole signature must be equal on
+      the two sides, and its own targets are followed the same way. A symbol in an unsplit section is compared as the
+      whole section, so a change anywhere in it fails (b). That is conservative.
+    - **Executable:** not followed. Code is accounted by its own units.
+    - **Writable:** not followed. The ruling names read-only data; a changed initializer is reported as its own CHANGED
+      unit, as now.
+    - **Outside every section of the image** (ROM, absolute, an undefined weak at 0): the same address on both sides,
+      not followed.
+    - **Anything else** (no map entry, no unit, a name that repeats): fails (b).
+
+**Printed, by name and counted:**
+- One line per function, after the RELAX lines and before `functions whose address moved`:
+  `LINK-ONLY <name> [<input>] -- size <a> -> <b>; the walk: <its refusal>; object code equal; read-only data equal: <n> section(s)`.
+  The walk's refusal stays visible.
+- The count is on the verdict: `verdict: <as now>; LINK-ONLY: <n>`, only when n > 0. With none, nothing new is printed.
+- LINK-ONLY is accounted. It never adds to UNDECIDED, and it is never SAME.
+
+**When (a) or (b) fails,** the UNDECIDED line is as now plus `; not LINK-ONLY: <why>`, one of:
+- `its object code cannot be read: <refusal>`
+- `it reads read-only data that differs: <section> [<input>], …`
+- `a read-only datum it reads cannot be compared: <why>`
+
+### Scope
+
+- **Only the RELAX branch's refusals.** A FILL unit's image walk (the `(FILL)` UNDECIDED, P-REDO's 22) is **not
+  reached**: its two copies are FILL-equivalent, not equal, so (a) fails by definition, and its lines are unchanged. If
+  the ruling meant those too, it needs its own wording.
+- Not reached either: no input section in the map, a locate failure, a repeated name with different sizes, GC.
+- **What the real walk refusals are** (P-REDO's 33, probed read-only before writing this):
+  - 19 "flipped, but its reach did not cross": ld decides on distances before relaxation.
+  - Probed 3 of the 7 "an unrelocated instruction differs": each stops on zero fill (`00 00 00` in the input where the
+    image has the next instruction). That is the linker re-laying alignment fill.
+  - 5 "neither relaxed nor kept", 1 width, 1 mask format: not probed.
+
+### What 1i trusts: the blind spot, stated
+
+**1i trusts the linker for object-identical functions. It does not check the image's code against its input.**
+Anything that makes an image differ from the link of its recorded inputs reads LINK-ONLY. The selftest's R3, R4 and
+R5 are exactly that: each is made by patching the image.
+- R3 changes a symbol size.
+- R4 changes a register (`mov.n a10` → `a11`).
+- R5 points a call at 0x40070000, where nothing is.
+
+Under 1i all three read LINK-ONLY, verdict NO CHANGE, exit 0. What keeps such an image out is how a store is built
+(one tree from clean, M0's tie, every input's sha256), not this comparator.
+
+**Proposed, not part of 1i unless ruled: (c) the call sites the walk reached.** Each resolved site's target (a `call8`
+target, or a literal's word) must be the image's address of the symbol its input names; otherwise not LINK-ONLY.
+- **It would close R5.** The walk collects every site before the reach check, so the 19 real flips are fully covered.
+- **It would not close R4** (a register), nor any site past an early stop.
+- **Predicted under (c):** R5 reads `UNDECIDED lo_caller: size 12 -> 16: site 0 flipped, but its reach did not cross
+  the call limit; not LINK-ONLY: site 0 calls 0x40070000; its input names hi_callee, at 0x40090000`, verdict
+  UNDECIDED (1), exit 3. Everything else as below.
+
+### The controls, built first
+
+1. **The owner's, `callswap`.** Two assembly variants: `_call8 fa` and `_call8 fb`. The underscore stops the assembler
+   turning it into a long call, so the swap is one instruction of the same length. `fa` and `fb` are both kept (their
+   addresses are taken).
+   - **`callswap`**, as built: CHANGED.
+   - **`L1 the call swap, in front of LINK-ONLY`**: B's image with `caller`'s size +2 (R3's method), so that the
+     function would stand in front of LINK-ONLY if its identity were masked only. Reads CHANGED, never LINK-ONLY.
+   - **Red:** P22 (a call's target masked, not named). `callswap` then reads NO CHANGE, silently. L1 reads
+     `LINK-ONLY caller`, which is exactly the failure the owner named.
+2. **The second, `rodread`.**
+   - **`rr.c`** holds `tbl` (global), `ktbl` (global, never changed), `ltbl` (static) and `rl` (reads `ltbl`).
+     **`rd.c`** holds `rd` (reads `tbl`) and `rk` (reads `ktbl`).
+   - **B** changes `tbl`'s and `ltbl`'s last word. The sizes are the same.
+   - **`rodread`**, as built: `tbl` and `ltbl` read CHANGED.
+   - **`L2 read-only data, in front of LINK-ONLY`**: B's image with `rd`, `rk` and `rl` each +2. `rd` and `rl` read
+     UNDECIDED, not LINK-ONLY (their data differs). `rk` reads LINK-ONLY (its one section is equal). This exercises
+     all three paths: `sym:` across objects, the local `unit:`/`local:`, and a pass.
+   - **Red:** P23 ((b) skipped).
+3. **`R10 unreadable object code is never LINK-ONLY`.** `null`, with `relax.c.o`'s first SLOT0_OP relocation set to
+   type 17 in BOTH stores (so the inputs stay identical), and B's image `lo_caller` +2.
+   - Checked first: in `null`, `lo_caller`'s long call stays long, nothing narrows, and both walks complete.
+   - **Red:** P24 ((a)'s refusal read as equal).
+
+### Every new or moved case, its whole output, filed now
+
+Sizes come from the stores' symbol tables, as R3's already do. ext is 7, lo_caller is 12/16 in `relax` and 16 in
+`null`. callswap's and rodread's sizes are read once their stores are built.
+
+| case | exit | output |
+|---|---|---|
+| `callswap` | 1 | `inputs: 3 loaded, 1 differ` / `  differs: src/cs.S.o` / `functions whose address moved: 0` / `CHANGED func global A+B caller [src/cs.S.o] -- OUT` / `verdict: OUT OF SCOPE: caller` |
+| `L1` | 1 | exactly `callswap`'s |
+| `rodread` | 1 | `inputs: 3 loaded, 1 differ` / `  differs: src/rr.c.o` / `functions whose address moved: 0` / `CHANGED data local A+B ltbl [src/rr.c.o] -- OUT (named by: rl)` / `CHANGED data global A+B tbl [src/rr.c.o] -- OUT (named by: no kept unit)` / `verdict: OUT OF SCOPE: ltbl (named by: rl), tbl (named by: no kept unit)` |
+| `L2` | 3 | `inputs: 3 loaded, 1 differ` / `  differs: src/rr.c.o` / `LINK-ONLY rk [src/rd.c.o] -- size K -> K+2; the walk: its size differs and it has no long-call site; object code equal; read-only data equal: 1 section(s)` / `functions whose address moved: 0` / the two CHANGED lines of `rodread` / `UNDECIDED rd: size D -> D+2: its size differs and it has no long-call site; not LINK-ONLY: it reads read-only data that differs: tbl [src/rr.c.o]` / `UNDECIDED rl: size L -> L+2: its size differs and it has no long-call site; not LINK-ONLY: it reads read-only data that differs: ltbl [src/rr.c.o]` / `verdict: UNDECIDED (2); LINK-ONLY: 1` |
+| `R3` (moved) | 0 | `inputs: 7 loaded, 0 differ` / `LINK-ONLY ext [src/ext.c.o] -- size 7 -> 9; the walk: its size differs and it has no long-call site; object code equal; read-only data equal: 0 section(s)` / `functions whose address moved: 0` / `verdict: NO CHANGE; LINK-ONLY: 1` |
+| `R4` (moved) | 0 | `inputs: 7 loaded, 0 differ` / `LINK-ONLY lo_caller [src/relax.c.o] -- size 12 -> 16; the walk: an instruction changed width, not to its own narrow form, at input +3; object code equal; read-only data equal: 0 section(s)` / `functions whose address moved: 7` / `verdict: NO CHANGE; LINK-ONLY: 1` |
+| `R5` (moved) | 0 | as R4, with the walk's `site 0 flipped, but its reach did not cross the call limit` |
+| `R10` | 3 | `inputs: 7 loaded, 0 differ` / `functions whose address moved: 0` / `UNDECIDED lo_caller: size 16 -> 18: the walk ends 2 bytes before the function does; not LINK-ONLY: its object code cannot be read: relocation type 17 in a compared section` / `verdict: UNDECIDED (1)` |
+
+- The other 33 cases: unchanged, word for word. None has a walk refusal, and with none, 1i prints nothing.
+- **Red first:** the new selftest (41 cases) against the committed comparator is predicted red on exactly R3, R4, R5,
+  L2 and R10, and green on `callswap`, L1, `rodread` and the other 33. `callswap`, L1 and `rodread` are controls: they
+  pass on correct code, and their red is P22's and P23's.
+
+### The plants, each row filed in the driver before its run
+
+| plant | the five new cases it turns red |
+|---|---|
+| P5 (type 17 allowed) | R10 (the signature computes, so (a) holds) |
+| P12 (a data unit's referrers not printed) | `rodread`, L2 |
+| P15 (the fill walk's relocation names not compared) | `callswap`, L1: with those names off, `caller`'s two copies are the same instructions, so it reads FILL |
+| **new P22** (a call's target masked, not named) | `callswap`, L1 |
+| **new P23** ((b) skipped) | L2 |
+| **new P24** ((a)'s refusal read as equal) | R10 |
+| every other plant | none |
+
+- **R3, R4, R5: every plant's declaration is unchanged.** P2 turns R4 to RELAX. P3 turns R5 to RELAX. P6 turns
+  `relax`, R4 and R5 to LINK-ONLY with the walk's reason `width`. Each of those is still red.
+- **24 plants × 41 cases.** Any plant off its row stops for a ruling.
+
+### The regression, filed
+
+- **K0, K2, K3 and K4: unchanged, byte for byte** (the 19:07Z outputs). None carries a walk refusal, so 1i adds
+  nothing to them.
+- POS and P-REDO are not re-read. map-client registers a fresh pair after 1i.
+
+### The escape hatch
+
+Any reading outside this section is a stop. It is reported, and nothing is fixed before the ruling.
