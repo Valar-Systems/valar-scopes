@@ -1766,3 +1766,29 @@ the re-run. The cosmetic `lake-obj:` label stays as it is.
 | `cell-obj` | afdcf87e12c7 | |
 
 `records.json` is the same in both stores (32b072ef7994). Its bboxes are taken from the unpulled outers.
+
+**The store id: the 04:57:54Z finding, read against main (e3c2508eb8db), NARROWED and proposed for ruling.** The finding: `storeIdOf`
+hashes the manifest text only, so a later change to the ingest code with unchanged sources would write different cells under the same id.
+That would mean an overwrite in place, a lost rollback, and stale ETags.
+- **Main excludes that case as stated.** The production ingest stamps the manifest's `builder` with `git rev-parse HEAD`
+  (`ingest-basemap.ts:317`, `:324`), so a committed change to the ingest changes the manifest text, and with it the id. The publish
+  (`d1 --go`) refuses unless the dry run recorded a clean tree, `ingestCommit` equals `manifest.builder`, the dry run's id equals this one,
+  and the commit exists here. That is F1, `ingest-basemap.ts:515`.
+- **The prototype's two equal ids are the prototype's.** `mk-sea-store` copied `bm-obj`'s manifest, `builder` field and all, and changed
+  only the files list. It never re-stamped the commit.
+- **What remains, as the proposed row (QW4-ID):**
+  - **(a) F1 has no test.** `proxy/test` has no case that refuses a dirty tree, a `builder` other than `ingestCommit`, or an unknown
+    commit. A guard nobody has seen refuse is untested. The code PR adds that case. The control: the same inputs from a clean tree at a
+    known commit pass.
+  - **(b) The cell bytes must be a function of the commit and the manifest's files and predicates only.** The sea ingest reads no
+    environment variable and no flag that changes a cell (the prototype's `Q4_*` knobs do not carry over). A new clipper is pinned through
+    the committed lockfile.
+  - **(c) The determinism control:** two dry runs at the same commit, from the same cache, give byte-identical store trees.
+  - **The orchestrator's control** (the same manifest with one cell's bytes changed must give a different id) **cannot pass as main
+    stands.** The id is the manifest's hash by format §7 (MI4, ruled). F1 compares commits and ids, never cell bytes, so it does not catch
+    that state either. Same manifest, different cells can arise only two ways. A dirty tree, which F1 refuses and (a) tests. Or an input
+    outside the manifest, or nondeterminism, which (b) and (c) exclude. **For ruling, two ways:**
+    - **(i) keep §7's id and register (a) to (c).** This is my recommendation: it leaves the format, `basemap-check` and the golden test
+      untouched;
+    - **(ii) change §7, folding the index's hash** (every cell's key and bytes) **into the id.** The orchestrator's control then passes
+      directly, but §7, `basemap-check.ts`, `basemap-golden.ts` and the store-id tests all move, and the code PR becomes a format change.
