@@ -2902,3 +2902,55 @@ Two notes on these numbers:
    as a synthetic geometry (not a plant). Every sha is pinned before the run.
 3. p2-read gains (A) (KB4 inside the square), (C)'s row, the xisland rows and the repair counts. Pinned.
 4. The re-run, in the full order. Part 2 resumes after the orchestrator has read this.
+
+**ACCEPTED (17:36:32Z): part 2 resumes.** The visible costs go to the owner with pictures: before and after at each New York point,
+with KEWR's 86 km² sea piece marked.
+
+**(C)'s control, on TODAY's code, before any (B') code existed (17:38:08Z): RED, as registered.**
+- The run: `dr-p2-synth.mts` (101265dfcab1, with `xisland` added) on pq4d's sea.ts 1c0797cc0627.
+- xisland's piece was bridged, then refused at step 5: `refused` 1, fates `["refused"]`, 0 sea rings.
+- The output is kept as `xisland-today.out` (13c62893795a).
+
+**(B')'s code, pinned before the run (17:46Z).**
+
+| artifact | sha256 | was |
+|---|---|---|
+| `pq4d-frame-lock.part.ts` | b367cb15ca8e | 90b5fcb26a99 |
+| `pq4d-sea.part.ts` = `pq4d/.../sea.ts` | ab03ff2600d2 | 1c0797cc0627 |
+| `mk-pq4d.mjs` | 27d3a9f5b4c0 | 38def76e437c |
+| `mk-pq4d-sea.part.mjs` | 6f9850543279 | 1510af7df098 |
+| `edit-mkpq4d-bp.py` (the generator edit, made identically in both files) | e0d3892936a1 | |
+| `pq4d/.../frame.ts` | 637eeb5b1d62 | c82e3aad5a72 |
+| `pq4d/.../build.ts` | 14e399bec33d | 4d7ee5e0a868 |
+| `pq4d/.../layers.ts` | unchanged, 40484a780c86 | |
+| `dr-p2-synth.mts` | cf3068a6a759 | 25daaeea80df |
+| `dr-p2c.mts` | 55ab458ce281 | cd2d15be34e7 |
+| `p2-render.py` | 952524878562 | a042ae1222d5 |
+| `p2-read.py` | a4a35809e8d7 | a297d699b060 |
+| `smoke-bp.mts` (the tooling smoke) | d72baea71070 | |
+
+**What changed:**
+- **frame.ts (the lock part):**
+  - `simplifyRingTPLocked` is now `simplifyRingTPLockedState(...).q`, and the topology loop's restore is one function, `restoreNext`,
+    shared with step 4a.
+  - `crossRingEdges` and `repairRings` implement step 4a, with `SEA_REPAIR_LIMIT` = 64.
+- **sea.ts:**
+  - step 4a runs only when `crossRingEdges` finds two rings crossing. It first asserts its recomputed state IS step 3's rings
+    (`sea_repair_state`, a builder guard), then repairs or throws `SeaRepairStop`.
+  - The counts gain `refused5`, `repairs`, `repairVertices` and `repairLog`. The plant `limit1` sets the limit to 1.
+- **build.ts:** catches `SeaRepairStop` around the content builds and answers 500 with its code. D2 retries only a 422, so a stop
+  is final.
+- **The drivers:** they print a stopped build's code and `why`, and the new counts.
+- **p2-render's kb4:** grades under (A), and prints the whole-grid cover and the base beside it.
+- **p2-read:**
+  - (C)'s recorded control, xisland, the two STOP plants, and `seaRepairs` 0 in every other synthetic build;
+  - the 12 shas and New York's exact figures;
+  - (C) at the 16;
+  - KB4's registered values at KBOS, KJFK and KLGA.
+
+**The tooling smoke** (reads no graded row): exit 0, empty stderr.
+- The regenerated modules load.
+- **The refactored `simplifyRingTPLocked` equals the pre-(B') one on all 1,371 clipped rings** in the sea dumps (16 points × ε/×2/×8,
+  the seam store, the unlocked path), with 0 differing. `waterFixStats` moves identically.
+
+The run follows as registered: run 7.
