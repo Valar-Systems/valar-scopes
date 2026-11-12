@@ -57,6 +57,18 @@ Sources:
    line rules hold to 120 mm. The 2x equality is a test (section 4), so a glass over 60 mm is caught by it rather
    than discovered.
 
+## 2a. The 2.1's v21 order (the owner, 2026-11-12, ~19:26Z)
+
+**The 2.1 is a v21 SKU; the big screens follow v20's content freeze.** The owner's order for the 2.1:
+
+1. **Speed and swipes first:** touch in its own fast task, then where the frame time goes, then "the Weatherscope's
+   method: static layers drawn once and reused". blipscope-5c, on the 2.1.
+2. "Then the 2x layout from the big-screens work, the Connect QR included." That is step 7 below.
+3. Then F5's vertical timing and the chirp default (blipscope-5c).
+
+This plan takes 5c's item-1 results for the 2.1 rather than measuring it again (steps 5 and 13), and cites them as
+5c's once they exist.
+
 ## 3. Steps
 
 Sizes are elapsed days for the step's owner, counted from the day it can start. **F** is v20's content-freeze day.
@@ -67,15 +79,15 @@ Sizes are elapsed days for the step's owner, counted from the day it can start. 
 | 2 | **the units layer.** Each variant states its glass diameter in mm (`variant::SCREEN_DIAMETER_MM`); one header turns the rules of section 2 into pixels, `constexpr` on every device build. No call site changes yet. Section 4's proof rows are registered and run here first. It also lists every face drawn in fixed 240-px rows (the card; the Connect face's `ConnectLayout.h`, found in the 2.1's bring-up, #676; any other a sweep finds), so steps 6 and 7 cover them all. | p4 | F | 2 |
 | 3 | **screen size at run time in the web build.** `SCREEN_SIZE` and everything `Layout.h` derives from it become run-time values in the web build only; device builds stay `constexpr`. One WebAssembly file for every web screen. | blipscope-5c | step 1 | 4 |
 | 4 | **text by the rule.** Every `setTextSize` call becomes a text role (label, body, title) sized by rule 1; the smooth font in the web build at every size. | p4 | step 2 | 3 |
-| 5 | **lines, icons and touch by the rules.** Stroke width as a primitive (wide lines on the device, `lineWidth` in the web renderer), with the floor; `TAP_RADIUS`, `SWIPE_MIN` and the hold drift from rule 3, provisional until step 10. **Touch is also measured, not only sized:** the owner found swiping "almost impossible" on the 2.1 (#676). blipscope-5c's hypothesis, not yet measured, is that touch is polled once per frame, so at 9.7 frames/s a quick swipe yields only 1-2 samples. This step counts samples per swipe against swipe speed at each size. If the hypothesis holds, touch sampling moves off the frame, and a fix that changes the 1.28" build follows section 4's stop. | p4 (blipscope-5c reads the renderer change) | step 2 | 4 |
+| 5 | **lines, icons and touch by the rules.** Stroke width as a primitive (wide lines on the device, `lineWidth` in the web renderer), with the floor; `TAP_RADIUS`, `SWIPE_MIN` and the hold drift from rule 3, provisional until step 10. **Touch is also measured, not only sized:** the owner found swiping "almost impossible" on the 2.1 (#676). blipscope-5c's hypothesis, not yet measured, is that touch is polled once per frame, so at 9.7 frames/s a quick swipe yields only 1-2 samples. This step counts samples per swipe against swipe speed at each size. **For the 2.1, the counts and the touch-task change are blipscope-5c's** (the owner's v21 order, item 1, section 2a), cited as theirs, so this step measures the other sizes. The web build also reads touch once per animation frame (`render.js`), so the 7" and 23.6" are measured too. Wherever a touch change reaches the 1.28" build, section 4's stop applies. | p4 (blipscope-5c reads the renderer change) | step 2 | 4 |
 | 6 | **the List on the whole disc.** Rows sized in mm across the full disc, so more rows on bigger screens, not fixed 240-px rows. | p4 | steps 4 and 5 | 2 |
 | 7 | **the detail card and the Connect face on the whole disc.** The card's fixed 240-px rows (title at y = 136, facts from y = 162) become a flow over the whole disc. The Connect face's QR stops being 4 px per module at row 90 with fixed rows below it (`ConnectLayout.h`): on the 2.1 that QR is 148 px, 31% of the disc, and sits high. It scales as the boot setup QR already does (`SetupQr.h`). | p4 | steps 4 and 5 | 3.5 |
 | 8 | **radar labels that do not pile up on the big screens.** Placement and de-collision in mm, fuller labels where they fit. Graded by a host sweep (placed against refused, over every start), per CLAUDE.md's instrument rule. | p4 | steps 4 and 5 | 3 |
 | 9 | **golden pictures in CI**, every release: the scripted scene (virtual clock, scripted tap and swipe, the stage-1 rig's method) at **240, 480, 720, 1080, 960 and 1280**, from step 1's models. Each golden asserts its pixel minimums from the display list. The 240 golden is section 4's rendering proof and the 480 golden its 2x test. | blipscope-5c (CI, web renderer); p4 writes the scene script | step 1; steps 4 to 8 for the final images | 3 |
 | 10 | **the finger session.** The owner's hands on the real 7" and 23.6", with the step-3 build; tap and swipe frozen from it. Each swipe's sample count is recorded beside the thresholds (step 5). | the owner, scheduled through the orchestrator; p4 runs it | steps 3 and 5 | 1 session |
 | 11 | **the detailed map** (map-server's read (d), 2026-11-12 18:00Z). One web class serves every big screen: the web build sends `class=web`, and the server applies the web ε (75 m, one line width at 1280) and a 384 KB non-terrain cap. Terrain stays at today's 3 levels, upscaled smoothly on the client, because the source has no finer detail. One stored package per point and radius. The device path is untouched and proven byte-identical. Then the integration: the web shim adds `/basemap`, behind the same auth as `/blips`. | blipscope-cb (map-server) for the package; p4 for the integration | the package: part 2's sea code PR on main, F, **the owner's ruling on (d) section 2** (customer-visible), a production deploy slot. The integration: the package | package: 3; integration: 2. Off the critical path if the package starts by F + 14 |
-| 12 | **speed on the real 23.6".** Frame time in the kiosk app at rest, in a dense sky and with a card open; static layers (rings, map) cached if it misses. | p4, on the owner's hardware | step 3; section 5 | 1 to measure, 2 if caching is needed |
-| 13 | **the 2.1" and the P4 on glass.** The 480 and 720 layouts on the boards, with a smooth font on the device. Frame cost starts from the 2.1's measured **9.7 frames/s (103 ms a frame) at 480 px** (#676). The P4 at 720 draws 2.25x those pixels on a different CPU, so it is measured, not scaled from that figure. **A scan-out reading on each board** (F5 of #676). On the 2.1 the picture is **wrapped vertically**: the frame's top rows (N, "100mi", the ring's top arc) appear at the bottom of the glass, while the framebuffer itself is centred (/diag/fb x3: 0..478 on both axes). Comparing the owner's photo with /diag/fb rules out a mechanical offset. Two causes remain: a fixed porch mismatch (`s3_21.h`'s porches, `LGFX.h`'s `offset_y`, the ST7701's own), or a time-varying RGB DMA/FIFO desync (the drift hazard `s3_21.h` already names: no bounce buffer, pixel clock lowered to 8 MHz). **The reading is the wrap taken at boot AND again under network load or after a time: the same both times means the porch, a different offset means desync.** The P4 takes the same reading: its DSI scans a 720x720 16-bit framebuffer (~1 MB) out of PSRAM, the same class of hazard (porches in `p4_40.h`). Measured and recorded here; any fix is its own step. | p4; the 2.1"'s bring-up owner | each board's bench bring-up first | 2 each |
+| 12 | **speed on the real 23.6".** Frame time in the kiosk app at rest, in a dense sky and with a card open; static layers (rings, map) cached if it misses. This is the Weatherscope's method, which blipscope-5c applies to the 2.1 first (section 2a). If it lands in the shared drawing code, the web build inherits it. | p4, on the owner's hardware | step 3; section 5 | 1 to measure, 2 if caching is needed |
+| 13 | **the 2.1" and the P4 on glass.** The 480 and 720 layouts on the boards, with a smooth font on the device. **For the 2.1, frame cost and where it goes are blipscope-5c's results** (the owner's v21 order, item 1, section 2a), cited as theirs, not measured again. They start from #676's 9.7 frames/s (103 ms a frame) at 480 px. The P4 at 720 draws 2.25x those pixels on a different CPU, so it is measured, not scaled from that figure. **A scan-out reading on each board** (F5 of #676). On the 2.1 the picture is **wrapped vertically**: the frame's top rows (N, "100mi", the ring's top arc) appear at the bottom of the glass. blipscope-5c's comparison of the owner's photo with /diag/fb rules out a mechanical offset. The leading hypotheses:<br>- the bounce-buffer refill out of phase. The driver scans two PSRAM framebuffers through a 20-line bounce buffer (`Panel_ST7701_esplcd.cpp`, `BOUNCE_LINES = 20`), so this wraps by a whole multiple of 20 lines;<br>- the porches (`s3_21.h`'s, `LGFX.h`'s `offset_y`, the ST7701's own): any other count.<br>`s3_21.h`'s pixel-clock comment still says there is no bounce buffer; the driver says otherwise, so that comment is stale. **The reading: a numbered-row test frame photographed on the glass, at boot and again under network load.** The wrap's line count separates the two hypotheses, and whether it moves shows whether it is fixed. **/diag/fb reads the backbuffer, not the buffer being scanned, so a centred /diag/fb proves the drawing only, never the scan-out; the photographed numbered rows are the scan-out reading.** The P4 takes the same numbered-row reading: its DSI scans a 720x720 16-bit framebuffer (~1 MB) from PSRAM (porches in `p4_40.h`). Measured and recorded here; any fix is its own step. | p4; the 2.1"'s bring-up owner | each board's bench bring-up first | 2 each |
 | 14 | **the owner judges each golden on glass**, every release. | the owner | step 9 | each release |
 
 **Critical path (p4):** units 2 + text 3 + lines and touch 4 + List 2 + card and Connect 3.5 + labels 3 + map
@@ -86,7 +98,9 @@ side, and step 11's package on map-server's.
 (docs/v20-plan.md, on main since #673) puts F at **November 21-25**, so **F + 23 is December 14-18**. The date moves one
 day for each day F moves. **The first review on glass, with the finger session, is at F + 18**: the radar, the List,
 the card and the Connect face by the rules, before the map. That is December 9-13. (Moved from F + 21 and F + 16 on
-2026-11-12 19:13Z, by the 2.1's findings: one day for the touch measurement, half a day for the Connect face.)
+2026-11-12 19:13Z, by the 2.1's findings: one day for the touch measurement, half a day for the Connect face.) The
+owner's v21 order for the 2.1 (section 2a) adds no date. The 2.1 on glass (step 13) was already outside it, and step 5
+measures the other sizes without waiting on 5c's results.
 
 ## 4. How "the 1.28" output stays unchanged" is proven
 
@@ -136,13 +150,13 @@ not something to work around.
   which is its own decision.
 - **A wrapped picture is a layout risk while it lasts.** The 2.1's frame wraps vertically by ~2 mm (~18 px) (F5; not
   mechanical). Any face that draws to the disc's edge (the ring, edge labels, the card's flow in step 7) shows its top
-  rows at the bottom. Steps 6 to 8 keep an edge margin until step 13's reading says porch (a fixed correction) or
-  desync (a scan-out fix).
-- **Scan-out from PSRAM grows with the panel.** If F5 is the RGB DMA/FIFO desync, it gets worse as panels grow: a
-  larger RGB panel scans more PSRAM per frame, alongside the CPU's own traffic. That covers the 2.1 now and any larger
-  device panel, and the P4's DSI scan-out is the same class. The web screens draw through the browser and are not
-  exposed. Step 13's boot-and-load reading is the measurement; this sits beside the frame-speed risk below because
-  both are scan-out versus CPU traffic.
+  rows at the bottom. Steps 6 to 8 keep an edge margin until step 13's numbered-row reading names the cause
+  (bounce phase or porches).
+- **Scan-out from PSRAM is a risk to measure, not a known one.** A larger device panel scans more PSRAM per frame,
+  beside the CPU's own traffic: the 2.1 does it through a 20-line bounce buffer, and the P4's DSI scans ~1 MB a frame.
+  Whether that holds up is what step 13's at-boot and under-load readings measure. The web screens draw through the
+  browser and are not exposed. This sits beside the frame-speed risk below because both are scan-out against CPU
+  traffic.
 - **A slow frame is also a touch problem.** The 2.1 runs at 9.7 frames/s at 480 px. If touch is sampled once per
   frame (unmeasured, step 5), every screen that draws slowly also misreads swipes. That is why step 5 measures sample
   counts and step 10 records them.
