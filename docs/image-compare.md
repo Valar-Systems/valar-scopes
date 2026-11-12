@@ -951,3 +951,98 @@ Sizes come from the stores' symbol tables, as R3's already do. ext is 7, lo_call
 ### The escape hatch
 
 Any reading outside this section is a stop. It is reported, and nothing is fixed before the ruling.
+
+## 22. Amendment 1i′: (c) and the local-name refusal (the reviewer's rulings, 19:33Z), registered before any code
+
+1i (section 21) was accepted with three rulings:
+- **Q1: no extension.** The FILL units stay outside LINK-ONLY and stay reported. If they stop P-REDO or P-FLIP, that
+  is a finding for the owner.
+- **Q2: 1i + (c).**
+- **The local-name refusal: ruled in.**
+
+Everything else in section 21 stands, except where this section replaces an output.
+
+### (c): every call site the walk reached is named in the image
+
+- **What is checked.** For a LINK-ONLY candidate that passed (a) and (b), each side's walk is run again to collect
+  its call sites, as far as it gets.
+  - The run uses `need_sites` off, so a function with no long-call site is still walked.
+  - **A call site** is a long-call site (relaxed or kept), or a direct call instruction (`call0`-`call12`) under a
+    relocation.
+  - Each site's target in the image (the `call`'s target, or the kept long call's literal word) must equal the image
+    address of what the input's relocation at that site names. That is the long-call marker's symbol, or the direct
+    call's SLOT0_OP symbol, plus its addend.
+  - The address comes from the image itself: a global's value from its symbol table, or a section or local symbol's
+    input section placed by the map.
+  - The relocations are read from the object directly, not from the signature.
+- **A mismatch:** `; not LINK-ONLY: <A|B>'s site <k> calls 0x<actual>; its input names <name>, at 0x<expected>`.
+  Several mismatches are joined with `; `.
+- **A target that cannot be placed:** `; not LINK-ONLY: <A|B>'s site <k>'s target cannot be placed: <why>`.
+- **Order:** (a), then (b), then (c). The first that fails is printed.
+- **The stated limit, printed on every LINK-ONLY line.** Non-call bytes, and sites past where a walk stopped, are not
+  checked. The line now ends: `; call sites checked A/B: <x>/<y>; non-call bytes trusted to the link (store built from
+  M0, inputs hashed)`. R4 (a register) is that limit, and its own line shows A's walk checked no site.
+- **Not covered, stated:** RELAX's own sites (a walk that succeeds) are not run through (c). That is unchanged from
+  before 1i and not ruled.
+
+### The local-name refusal
+
+- A target named by a local symbol (not a section or file symbol) whose name another local of its object shares
+  refuses: `a local name that repeats in its object: <name>`.
+- It applies wherever a local's name names a target: section 3's `local:` and 1h′'s covering symbol, through one
+  check.
+- **Checked before writing this, read-only:** no fixture object carries a relocation against a named local (the
+  assembler turns them into section symbols). The K rows' differing inputs carry 10 (main.o), none naming a repeated
+  local. No named local repeats in any of those objects or in any fixture object. So no existing reading can move.
+
+### R11, the refusal's synthetic red case
+
+**`R11 a local name that repeats refuses`:** the `local` fixture, with the same three byte patches in BOTH stores'
+`f.c.o`, each asserted before the read:
+- the literal's R_32 is pointed from `.text.helper`'s section symbol to `helper`'s own symbol (the same target, now
+  named by a local name);
+- the FILE symbol becomes a local function symbol (type byte);
+- its name becomes `helper` (st_name).
+
+### Outputs this amendment replaces or adds, whole, filed now
+
+| case | exit | output |
+|---|---|---|
+| `R3` | 0 | as section 21, with the LINK-ONLY line ending `read-only data equal: 0 section(s); call sites checked A/B: 0/0; non-call bytes trusted to the link (store built from M0, inputs hashed)` |
+| `R4` | 0 | as section 21, with the LINK-ONLY line ending `read-only data equal: 0 section(s); call sites checked A/B: 0/1; non-call bytes trusted to the link (store built from M0, inputs hashed)`. A's walk stops at input +3, before the site. |
+| `R5` | 3 | `inputs: 7 loaded, 0 differ` / `functions whose address moved: 7` / `UNDECIDED lo_caller: size 12 -> 16: site 0 flipped, but its reach did not cross the call limit; not LINK-ONLY: B's site 0 calls 0x40070000; its input names hi_callee, at 0x40090000` / `verdict: UNDECIDED (1)` |
+| `L2` | 3 | as section 21, with `rk`'s line ending `read-only data equal: 1 section(s); call sites checked A/B: 0/0; non-call bytes trusted to the link (store built from M0, inputs hashed)` |
+| `R11` | 3 | `inputs: 7 loaded, 1 differ` / `  differs: src/f.c.o` / `functions whose address moved: 0` / `CHANGED func local A+B helper [src/f.c.o] -- OUT` / `UNDECIDED f [src/f.c.o]: a local name that repeats in its object: helper` / `verdict: UNDECIDED (1)` |
+
+- `callswap`, L1, `rodread`, R10 and the other 33: as section 21.
+- **42 cases.**
+- **Red first,** against e25f0c7c's comparator: red on exactly R3, R4, R5, L2, R10 and R11. Green on `callswap`,
+  L1, `rodread` and the other 33.
+- **R5 under 1i without (c)** (the reviewer's red-first): R5 reads LINK-ONLY, NO CHANGE. That is P25's reading
+  below.
+
+### The plants: 26 × 42, rows filed in the driver before its run
+
+| plant | the six new cases it turns red |
+|---|---|
+| P5 (type 17 allowed) | R10 |
+| P9b (MOVI counted as an offset) | R11: `helper` reads offsets-only, as in `local` |
+| P12 (a data unit's referrers not printed) | `rodread`, L2 |
+| P15 (the fill walk's relocation names not compared) | `callswap`, L1 |
+| P22 (a call's target masked, not named) | `callswap`, L1. L1 then reads `LINK-ONLY caller … call sites checked A/B: 1/1`: (c) holds, since each side calls what its own input names |
+| P23 ((b) skipped) | L2 |
+| P24 ((a)'s refusal read as equal) | R10 |
+| **new P25** ((c) skipped: a mismatch never refuses) | R5, which reads LINK-ONLY, NO CHANGE |
+| **new P26** (a repeated local name not refused) | R11: `f` reads SAME, so the UNDECIDED line is gone |
+| every other plant | none |
+
+- **R3, R4 and R5's rows are unchanged:**
+  - P2 turns R4 to RELAX.
+  - P3 turns R5 to RELAX.
+  - P6 turns `relax` and R4 to LINK-ONLY with the walk's reason `width`. It turns R5 to UNDECIDED with reason
+    `width` and (c)'s mismatch.
+- Any plant off its row stops for a ruling.
+
+### The regression
+
+K0, K2, K3 and K4 are unchanged byte for byte. No walk refusal, and no repeated local in their differing inputs.
