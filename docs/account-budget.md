@@ -156,6 +156,39 @@ misreads bursty lines:
   dry run matched them to 0.000% on all seven anchored allowances. Storage and DO have no coarser total and are not
   anchored.
 
+### 5.2 December's Workers Logs: bytes per event (registered 2026-11-12 ~18:15Z, before its read)
+
+**Why.** From 2026-12-01, Workers Logs is billed by the gigabyte: ingest (50 GB a month included, then $0.25 a GB) and
+storage (10 GB included, then $0.10). That replaces November's price per event. So the Logs line needs bytes per event.
+`docs/wx-account-cost.md` measured it from the telemetry API's JSON per event, one hour each: **1,714 B on 11-11 and
+1,650 B on 11-12.**
+
+**What this read adds:**
+- **Three whole hours at different times of day.** Each must come back unsampled (ABR 1), or it is refused, never
+  graded. They are the 21:00Z, 03:00Z and 09:00Z hours after this registration.
+- **Per service:** events per invocation, and bytes per event.
+- **The tool:** `tools/budget/logs_bytes.py`. It is read-only, counts and sizes only, never prints an event, and reads
+  its token from the token file.
+
+**What it cannot see, stated now.** Cloudflare bills "the event body, the default enriched attributes, and custom
+attributes, pre-compression". The API's JSON is the closest available measure: it carries `$metadata` keys and JSON
+punctuation, which may not match the billed bytes. Only December's dashboard or invoice can settle that. The figures
+below are labelled "API bytes".
+
+**Predictions:**
+- **Bytes per event, overall, in each of the three hours:** 1,500-1,850.
+- **The proxy's:** 1,500-1,900.
+- **The ingests':** 800-2,500, since no per-service read exists.
+- **Events per invocation:** the proxy 2.9-3.4; the ingests 2.5-3.5 (11-11 read 3.12 and 3.00).
+- **December's Logs at today's fleet,** with events from the budget's "today" (about 8.3 M a month):
+  - ingest **12-16 GB** a month (24-32% of 50), no flag;
+  - storage, at 7 days' retention (x 7/30), **2.8-3.7 GB** (28-37% of 10), no flag;
+  - **$0** in every scenario.
+- **Outside these bands:** stop and report. A sampled hour is refused and replaced by the next hour of the same
+  time-of-day slot.
+- **The checker is not changed by this.** December's GB allowances join the data file in their own change, registered
+  before 12-01.
+
 ## 6. The table (rendered by the checker, from the next commit)
 
 <!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
