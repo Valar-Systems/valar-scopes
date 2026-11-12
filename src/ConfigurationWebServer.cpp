@@ -4349,6 +4349,24 @@ void ConfigurationWebServer::Initialise() {
         uint32_t tagBefore = 0, tagAfter = 0, seqBefore = 0, seqAfter = 0, clearsBefore = 0, clearsAfter = 0;
         bool finished = false;
         int attempts = 0;
+#if defined(BLIPSCOPE_PUSH_TASK)
+        // M3 (docs/m3-push-task.md, section 5): two backbuffers, so the phase window closes the instant a frame is
+        // handed over. Instead LOCK the last complete buffer for the copy: the loop cannot draw into a buffer it does
+        // not hold, so the copy is a whole, finished frame. Bounded like the window wait; on a timeout, Finished false.
+        {
+            ++attempts;
+            LGFX_Sprite* held = framebuf::AcquireComplete(kWaitBoundUs / 1000);
+            if (held != nullptr) {
+                seqBefore = seqAfter = framebuf::Sequence();
+                tagBefore = tagAfter = framebuf::Tag();
+                phaseBefore = phaseAfter = framebuf::kPhasePushed;
+                clearsBefore = clearsAfter = framebuf::Clears();
+                memcpy(snap, held->getBuffer(), total);
+                framebuf::ReleaseComplete(held);
+                finished = true;
+            }
+        }
+#else
         for (;;) {
             while (!framebuf::PhaseFinished(framebuf::Phase()) && micros() - waitT0 < kWaitBoundUs) vTaskDelay(1);
             ++attempts;
@@ -4365,6 +4383,7 @@ void ConfigurationWebServer::Initialise() {
                        tagBefore == tagAfter && seqBefore == seqAfter && clearsBefore == clearsAfter;
             if (finished || micros() - waitT0 >= kWaitBoundUs) break;
         }
+#endif
         const uint32_t waitUs = micros() - waitT0;
         // Torn now means "not a finished frame": a superset of the old "Sequence moved", so a client that asks again
         // on Torn (the viewer page does, once) keeps working.
@@ -4417,6 +4436,52 @@ void ConfigurationWebServer::Initialise() {
         r->addHeader("Cache-Control", "no-store");
         request->send(r);
     });
+
+#if defined(M3_BENCH)
+    // ---- /diag/fb-middraw : M3-1b's PLANT (bench only; docs/m3-push-task.md) ----------------------------------
+    // One grab of the draw buffer taken right after the frame-start clear, before the radar draws its screen
+    // indicator, served EXACTLY as /diag/fb serves a finished frame (the same format, Finished: true). map-client's
+    // frame-trust test must read it UNTRUSTWORTHY from its pixels: the indicator dots are absent. The extra
+    // X-Blipscope-Bench header names it, so it is never mistaken for a real grab.
+    server.on("/diag/fb-middraw", HTTP_GET, [](AsyncWebServerRequest* request) {
+        LGFX_Sprite* fb = framebuf::Backbuffer();
+        const uint8_t* grab = m3bench::RequestMidDrawGrab(500);
+        if (fb == nullptr || grab == nullptr) {
+            request->send(503, "text/plain", "[m3-bench] no mid-draw grab");
+            return;
+        }
+        const size_t total = (size_t)fb->bufferLength();
+        uint8_t* snap = (uint8_t*)heap_caps_malloc(total, MALLOC_CAP_SPIRAM);
+        if (snap == nullptr) {
+            request->send(503, "text/plain", "out of PSRAM for a frame snapshot");
+            return;
+        }
+        memcpy(snap, grab, total);
+        std::shared_ptr<uint8_t> buf(snap, [](uint8_t* p) { heap_caps_free(p); });
+        auto sent = std::make_shared<size_t>(0);
+        AsyncWebServerResponse* r = request->beginChunkedResponse(
+            "application/octet-stream",
+            [buf, total, sent](uint8_t* out, size_t maxLen, size_t) -> size_t {
+                const size_t left = total - *sent;
+                const size_t n = left < maxLen ? left : maxLen;
+                if (n > 0) {
+                    memcpy(out, buf.get() + *sent, n);
+                    *sent += n;
+                }
+                return n;
+            });
+        r->addHeader("X-Blipscope-Frame-Width", String(fb->width()));
+        r->addHeader("X-Blipscope-Frame-Height", String(fb->height()));
+        r->addHeader("X-Blipscope-Frame-Format", "RGB565BE");
+        r->addHeader("X-Blipscope-Frame-Torn", "false");
+        r->addHeader("X-Blipscope-Frame-Seq", String(framebuf::Sequence()));
+        r->addHeader("X-Blipscope-Frame-Buffer", "backbuffer");
+        r->addHeader("X-Blipscope-Frame-Finished", "true");   // THE PLANT: claimed finished, and it is not
+        r->addHeader("X-Blipscope-Bench", "m3-middraw-plant");
+        r->addHeader("Cache-Control", "no-store");
+        request->send(r);
+    });
+#endif
 
     // ---- /diag/fb.html : the same thing, for a person --------------------
     server.on("/diag/fb.html", HTTP_GET, [](AsyncWebServerRequest* request) {

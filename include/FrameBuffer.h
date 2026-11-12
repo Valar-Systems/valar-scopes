@@ -74,4 +74,27 @@ uint32_t Clears();
 void SetTag(uint32_t tag);
 uint32_t Tag();
 
+#if defined(BLIPSCOPE_PUSH_TASK)
+/// M3 (docs/m3-push-task.md, section 5): two backbuffers, one being drawn and one being pushed, so the phase
+/// window above would close the instant a frame is handed over. Instead a reader LOCKS the last complete
+/// buffer: it takes that buffer's "free" semaphore (waiting out its push, at most one push), copies, and gives
+/// it back. The loop cannot draw into a buffer it does not hold, so the copy is a whole, finished frame. It
+/// waits at most for the copy: a memcpy, never the socket write FrameBuffer.h's header warns about.
+/// Returns nullptr before the first frame, or if the wait times out.
+LGFX_Sprite* AcquireComplete(uint32_t timeoutMs);
+void ReleaseComplete(LGFX_Sprite* sprite);
+#endif
+
+}  // namespace framebuf
+
+#if defined(M3_BENCH)
+namespace m3bench {
+/// M3-1b's plant (bench only, env blipscope-s3-128-m3bench*): asks the render loop for one copy of the draw buffer
+/// taken right after the frame-start clear, before the radar draws its screen indicator. nullptr on a timeout.
+const uint8_t* RequestMidDrawGrab(uint32_t timeoutMs);
+}  // namespace m3bench
+#endif
+
+namespace framebuf {
+
 }  // namespace framebuf
