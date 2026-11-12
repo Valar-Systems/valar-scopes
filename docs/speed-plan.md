@@ -282,6 +282,13 @@ hears the bad case then, not at pre-flight.
     under it, a visible change and a ruling. The look-keeping form is a palette-index layer replayed after the sweep.
   - **Exactness needs opaque writes:** no smooth font, no alpha, nothing that reads what is beneath.
   - **A key:** location, view radius, rotation, theme or look, `displayAirports`, and the airport list's version.
+  - **No cached layer may contain the screen-indicator dots** (`DrawScreenIndicator`, y = 224). Ruled by the
+    orchestrator (~21:48Z), relayed by map-client. map-client's /diag/fb frame-trust test reads those dots as the
+    witness that a grab is a finished frame: they are drawn last except the clock, and the frame-start clear replaces
+    every pixel. A cached layer, background or plate copied in at a frame's start that held them would let a torn frame
+    pass as finished. Any change that needs the indicator in a cached layer tells map-client first, so a new
+    last-drawn witness is registered before it lands (docs/blipscope-map-client-steps.md, "The trust test from the
+    draw order", on feat/map-client-step-c-blend). This covers S5 here, and P5 (W) and P6 (L1).
 - **On the radar:** the candidates are the rings, the cardinal labels, the range text, and v20's map if it is redrawn
   every frame. The airport overlay is not a lever: it was measured at −0.09 ms (the frame-budget note).
 - **Expected gain:** up to the static share of the draw: at most ~10 ms on the 1.28" with an empty sky. **That share
