@@ -154,3 +154,21 @@ attempt at 04:18:04Z is VOID, an instrument fault: it used the production key ag
 
 **No deploy of any kind, staging or production, until v19's step 5' ends and E2:08 is restored.** `proxy:staging` is
 released when the diagnostic is done; no deploy follows under it.
+
+**The diagnostic, read (04:20:37-04:24:59Z, staging AS IT IS, `/healthz` `fdf62ada` before and after): O1.**
+
+| read | time | HTTP | body class | verdict |
+|---|---|---|---|---|
+| KBNO #1, first | 04:20:37Z | 202 | 202 (`{"status":"building"}`, 21 B) | FAIL, a 202 |
+| KBNO #1, re-ask 1 | 04:20:54Z (17 s later) | 200 | package (195,796 B) | PASS: BMPK, ETag `bm1-1-4c0875738f38-2f8cd599f20c7c75df6b4978`, validate kOk |
+| KBNO #2 | 04:22:57Z | 200 | package, the same ETag | PASS |
+| KBNO #3 | 04:24:59Z | 200 | package, the same ETag | PASS |
+
+- **The old version gives 202 on a cold point, then serves a validated package 17 s later,** well inside the 10-min
+  limit. So the 202 at 04:14Z was staging's cold builder: environmental, and #643 and #649 are not involved.
+- **What follows, per O1:** S3's staging `/basemap` row reads "on 202, re-ask every 15 s until served within 10 min; a
+  202 past 10 min fails". The re-ask uses smoke's exact request, and smoke's other rows are unchanged.
+- **Production is unaffected:** its `wrangler.toml` env binds no `BASEMAP_PKG`, so production's `/basemap` stays the
+  inert 503 that P3 already expects.
+- **The deploy re-runs from S-slot, staging first,** after the orchestrator announces that v19's step 5' has closed.
+- **The claim:** `proxy:staging` was released at 04:25:22Z. No deploy followed under it.
