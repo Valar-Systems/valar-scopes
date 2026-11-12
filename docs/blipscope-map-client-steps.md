@@ -4539,6 +4539,47 @@ are not in the tree, and I have not found them on disk. The nearest are the wx r
 its opaque wedge must be located. A frame there that the old rule trusts and the locator refuses is outside the
 predicted set (see below).
 
+**Q-R1, ruled (the orchestrator, ~21:36Z): RP6, READ-ONLY.** This is a disclosed substitution: WD5e/WD5f's own
+captures were not found, so (i-4) runs on RP6 instead.
+- Each file's sha256 is recorded before use, in my own scratch. Nothing is written, moved or copied into that
+  session's scratchpad.
+- If RP6-off's opaque wedge does not locate under (i), that is outside the set: STOP.
+
+The ruling also ACCEPTED the registration as registered red first.
+
+**AS RUN (21:40Z): (P2), STOP. No CBF3 grading.**
+- **Frozen before the run:**
+  - `map_bench_read2c.py` `aed7271f47e3b5295e76d104face247d1b53fed5bb88f11d3a9f0de35c00a194`;
+  - its builder `a7d85b0028201f61afbd143c02237f5b72451895c0c836d1a3d0e8cc21a50b04`;
+  - `regress2c.py` `aaa5f1e6ba1f9d5527ee2f4faadcb1359cc49f60d75c8849a2093521f8c05eb4`;
+  - `ringctl.py` `89ff5ba4f58b6815bba8dad2a26c294372c54c35e751fbd3effbaec93fadffc1`.
+- **What held:**
+  - 2c's selftest is identical to 2b's (64 ok).
+  - regress2c reads 39 identical, exit 0. Its in-process sabotage (`RING_ON_MIN` 1.01) reads 2 DIFFERS, exit 1.
+  - RP6 was checked against its recorded shas (42 files) and read only.
+- **(i-1), OFF:** every located bench frame has a ring under 80 % outside the mask, the map-OFF frames as much as the
+  map-on ones.
+  - Located: B off 27 of 30, B on 26, C off 29, C on 30.
+  - Passing the trust step: 0 in each.
+  - Worst outside shares:
+
+    | ring | B | C |
+    |---|---|---|
+    | r=39 | 44.7 % | 41.2 % |
+    | r=78 | 64.4 % | 74.0 % |
+    | r=119 | 89.7 % | 90.4 % |
+
+- **(i-2), (i-3):** not run, because no frame passed the trust step to carry a plant.
+- **(i-4), OFF:**
+  - RP6-A: 18 trusted by the old rule, 15 under (i). The 3 lost are all on r=39, at 140/179, 140/181 and 146/183.
+  - RP6-B: 12 of 12. RP6-off: 12 of 12, its opaque wedge located.
+- **What it excludes:** the wedge as the cause, since the mask leaves 81 % of r=39 outside and the map-off frames fail
+  alike.
+- **What it does not separate:**
+  - (a) things drawn over the inner rings near the centre;
+  - (b) the rings' colour or radii on this build differing from the source constants the reader takes.
+  - A pixel-class diagnostic is proposed, and nothing more runs before a ruling.
+
 **The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
 - in B mode and C mode on every log plant and on B's and C's real logs;
 - in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
