@@ -759,3 +759,90 @@ second goes to the owner.
   a realistic spread at 40 (e.g. a recorded real traffic picture replayed deterministically), with packed kept as a
   reported stress row. The orchestrator is putting it to him with these numbers. **`fixed_traffic.py` does not change
   until he answers.**
+
+## The bar's traffic: the recording plan, registered before any code or capture (2026-11-12)
+
+**The owner's ruling (23:00Z, relayed 23:08:44Z), in his words:**
+- "Traffic: (b). The bar is read on a recorded real traffic picture at a busy airport where the board holds its full
+  ~40 aircraft, replayed identically every time. The recording is chosen and pinned before any v20 candidate is
+  measured. The packed scenes and the 60 row stay on every report as labelled stress figures."
+- "Reading: the worst of the six scenes (two homes x three zooms) must have p95 at or under 50 ms. The median isn't
+  used."
+
+**And (23:10Z, relayed 23:12:10Z):** "before C1, re-read v19 on the pinned real-traffic recording, all six scenes, so
+C1 and the rest of 2c are judged on the real worst-of-six number." So this plan and its v19 run come before step D's
+code. p4's re-size is frozen against **X = v19's worst-of-six p95(`p2p`) at 40 on the recordings**, reported with the
+drawn n of every scene. Anything outside its set stops.
+
+**RP1, the source: OUR Worker's `/blips`, the same answer a board gets.** Never the anonymous upstream (CLAUDE.md:
+"never measure the sky through the anonymous endpoint").
+- **Recorded on E2:08 itself (Q-RC2 default).** The board runs its own cloud source with the home set to the airport
+  in RAM (the bench's `GetStoredString` override, no NVS), and fetches `/blips` exactly as shipped.
+- **A `FRAME_BENCH` recorder region** in the fetch task's cloud branch prints each response body, paced as the frame
+  dump is: `[frame-bench] rec <seq> <ms-since-start> <part> <hex>`, then a done line with the count.
+- **So no device key or test identity is ever used from the PC,** and nothing is fetched by a path a board does not
+  take.
+- **The recorded radius: 50 mi** (the widest rung; Q-RC5). The Worker returns the 40 nearest within it (`BLIPS_LIMIT`).
+- **Length:** 100 s settle + 120 s measured, plus a 60 s margin, so **280 s** per airport, at its busy hour.
+
+**RP2, the airports.**
+- **KSFO is one.**
+- **The other is chosen by data:** of a candidate list frozen first (Q-RC3), the airport whose `/blips` at 50 mi most
+  consistently returns the full 40.
+- **The survey:** on E2:08, one bench pass per candidate, 10 polls each at the cadence, at each airport's busy hour.
+  It prints counts only: rows per poll, and the rows inside 10 and 25 mi.
+- **The choice rule, frozen now:** the highest share of polls at 40 rows; ties broken by the higher median count inside
+  25 mi.
+- **The survey's numbers and the choice are recorded before the capture.**
+
+**RP3, pinning.**
+- **Each recording's sha256** (the decoded body stream, in order) **is frozen in this doc before any v20 candidate is
+  measured.**
+- **It is never re-recorded** without a new registration.
+- **Where recordings live (Q-RC1, a question):** they hold aircraft positions at the wire's 4 decimal places (`lat×1e4`)
+  and the request's home at 2. CLAUDE.md's standing rule is "no coordinates beyond 2 decimal places in logs, docs or
+  tool output".
+  - **The default:** the recordings live only in the bench capture folder and `_handoffs`, never in the repo, never
+    printed in clear.
+  - **The doc holds only their shas and counts.** The trace log holding the hex bodies is kept with them under the same
+    rule.
+  - The rule is read as about places and people, not aircraft in public ADS-B, but that reading is the reviewer's to
+    confirm.
+
+**RP4, the replay** (the (a) hook's input, replacing its synthetic table for these scenes).
+- **The recording is embedded in the bench image** (flash, about 0.1-0.4 MB; Q-RC4 default) rather than served from
+  the PC, so the replay depends on nothing on the LAN.
+- **Each rung replays from the recording's start:** the hook answers each `/blips` poll with the body recorded at the
+  same elapsed time since the scene's settle began. `t` is shifted so that now − `t` equals the recording's own data
+  age, and each row's `ageS` is kept. **So every replay is identical.**
+- **Rungs 10, 25 and 50 mi** at each airport: 6 scenes, "two homes × three zooms".
+- **Drawn n is recorded per frame,** as the dumps already do. A rung whose median drawn n is under **35** is named
+  "thin" in the report (real traffic thins at the tight zoom). It is still in the six.
+- **A check that the replay is what was recorded:** the hook prints a CRC of each served body. The reader compares the
+  sequence against the recording's, and any mismatch makes the scene the INSTRUMENT.
+
+**RP5, the v19 run on the recordings (a new window).** v19's framebench sibling plus the (a) hook and the recordings,
+with I-3 on v19's shipping image as before.
+- **The scenes:**
+  - CTRL as an INTERLEAVED plant-on/plant-off pair in one scene: I-6 read (3) NOISE, and this is the confound-free form;
+  - the 6 recorded scenes;
+  - the packed stress rows at 40 and 60 (3 rungs, Bend), labelled stress;
+  - LIVE at both airports;
+  - LIVE-OWN.
+- **X** = the worst of the six recorded scenes' p95(`p2p`), each scene's drawn n beside it, with U95 stated.
+- **XA's m:** LIVE's 30 s windows as residuals from the line of the recorded scenes, per home. **XA's interval =
+  m ± (3.0 + U95).** The packed m is on record, not the gate.
+- The run's predictions are frozen before its window, from tonight's numbers.
+
+**RP6, XA's METHOD,** as ruled: the number comes from RP5's run and is frozen before v20's first candidate. The (a)
+registration's [−3.0, +5.0] is **superseded and never applied.** Tonight's packed m is to be recorded, labelled
+"packed: on record, not the gate".
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-RC1 | the recordings' 4-dp aircraft positions against the coordinate rule | they live only in the capture folder and `_handoffs`, never in the repo, never printed; the doc holds shas and counts |
+| Q-RC2 | where the recording is made | on E2:08, by a `FRAME_BENCH` recorder in the cloud branch (no key on the PC) |
+| Q-RC3 | the candidate airports for RP2's survey | the 8 busiest US hubs by movements besides KSFO: KATL, KORD, KDFW, KDEN, KLAX, KJFK, KLAS, KCLT |
+| Q-RC4 | how the replay reaches the board | embedded in the bench image |
+| Q-RC5 | the recorded radius | 50 mi, the widest rung |
+| Q-RC6 | the windows | (1) the survey and (2) the captures, at each airport's busy hour, then (3) the v19 run. Three bookings, or (1)+(2) as one if the busy hours align |
