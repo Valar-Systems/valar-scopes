@@ -3942,6 +3942,65 @@ the map as it is. They are **18.4 %** of the graded inside region by angle.
   and P4 read the rebuild (CBF1, CF5), whose code step C does not touch, so they come from the B image only. The window
   is then about 1 h 50 instead of about 2 h 20. **I recommend yes.**
 
+**The ruling on the reader's design (the orchestrator, 09:07:28Z), and the answers it asked for, before the code.**
+
+**Q-CR1, YES; the ask: where each pixel's slice angle comes from.**
+- **θ comes from the beam's own pixels.** These are `DrawRadarSweepBeam`'s line (80, 255, 80) and head (170, 255, 170),
+  found by wx-fb-check's locator (imported): one head blob 117-123 px out, and the line on at least 70 of 101 samples.
+  It is cross-checked against `wedge_mask` on every frame.
+  - Both colours are OVERLAY in this reader and are **never graded**.
+  - Both wedge paths call `DrawRadarSweepBeam` after the wedge, so a broken or missing add cannot move them.
+  - **No wedge, MAP or MAPGREEN pixel enters θ.**
+- **What it is not:** the device's own report. `/diag/fb`'s headers carry no sweep angle (Width, Height, Format, Torn,
+  Seq, Phase, Tag, Buffer, Finished, Wait-Us, Attempts), and adding one would change the bench image. That is
+  **Q-CR4** below.
+- **A control that shows θ is independent of the graded classes**, in `--selftest`: for each synthetic frame, θ is
+  located within ±0.02 rad of the angle it was drawn at, whatever the wedge drew:
+  - the step C add;
+  - step B's opaque wedge;
+  - the add put into red;
+  - no wedge at all.
+
+**Q-CR2, (b), on its four conditions:**
+1. **B's P2 inputs:** the B image's capture, its 40 P2 intervals (weather on, the map alternating; P2 is never
+   fetched). Each interval's `[health] sweep=<us>/…us n=<n> blend=<b>` line, its first value. **CF2(C)'s centre is
+   the mean of those 40 values**, and each interval must read `blend` equal to its `n`.
+2. **The half-widths' origins:**
+   - **±0.6 ms** is (8.9 − 7.7) / 2, the half-width of CF2's band as registered at step M;
+   - **±1.0 ms** is CF3-B's registered half-width (+2.07 ± 1.0), the same quantity, frame p95 on − off, on this board.
+   - So **CF2(C) = mean ± 0.6 ms**, and **CF3(C) = 2.07 + (mean − 2.04) ± 1.0 ms**.
+3. **Before C's capture is read:** `map_bench_read.py --derive-c-bands <B capture>` prints the two bands and the B
+   capture's sha256. They are sent to the orchestrator before `--image C` reads C's capture, which then takes the bands
+   as arguments.
+4. **If B's own P2 reads off** (any P2 interval with `blend` ≠ `n`, CF4 out of band, or the INSTRUMENT on B's
+   capture), **B stops the window, and C is never graded against it.**
+
+**Q-CR3: shown, and the answer is NO, so the C image runs the full P0-P4.**
+- **What CBF1 measures:** `t0 = millis()` taken just before `mapcompose::Frame(…)` in `DrawMapBase`, printed as
+  `[map] draw: rebuilt in <ms> ms` after a rebuild. Frame's order is: the growth test (`Release` if the package needs
+  more vertices), then `Allocate` if unallocated, then `Rebuild`, then `Compose`.
+- **What CF5 measures:** `maplayer::Build`'s own laps (the `us*` passes from its clock). That is Build only.
+- **Step C's hunks against them:**
+  - **the flags in `DrawWeatherUnder`:** on neither path;
+  - **the flags in `DrawMapBase`:** set after `Frame` returns and after the copy, so outside CBF1's interval;
+  - **`DrawSweepOverMap`:** the sweep, on neither path;
+  - **`MapCompose.h`'s `Allocate`, `Price` and `Release`, with the slice and spans and the 57,600 B memset:** **ON
+    CBF1's path**, on every frame that allocates. P4 switches to KSFO, whose package grows the buffers, so that frame
+    runs `Release` and then `Allocate` inside CBF1's interval. Build does not change, so this is not on CF5's path.
+  - **The all-or-none refusal and PSRAM headroom** (the price rises 58,560 B) can move the growth frame too.
+- **So the C image runs P0-P4, and on C:**
+  - CBF1's bar is unchanged: every rebuild ≤ 100 ms, the same three verdicts;
+  - CF5 is unchanged: Bend 30-70 ms in total, and KSFO reported;
+  - **0 `[map] draw: buffers refused` lines**, the all-or-none refusal not taken at P4's growth;
+  - CBF4-C's price at P0.
+  - **Reported, not graded:** P4's growth frame on C against B's, which carries the memset and the two allocations.
+- **The window is therefore about 2 h 20**: two full P0-P4 runs, plus the flashes and the restore.
+
+**Q-CR4, new:** a device-reported angle, a bench-only header such as `X-Blipscope-Sweep-Angle` under `MAP_BENCH`,
+instead of the beam-located θ. It would change the bench image, which means a new code row, the CB-B regions again, and
+the images identified again. **I recommend no.** The beam is not a graded class, and the control above shows that θ
+does not follow the wedge.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
