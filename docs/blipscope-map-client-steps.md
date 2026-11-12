@@ -3622,6 +3622,33 @@ predicted:
     anchors, all present.
 - **Not run:** the full `run.sh`, and the images I1-I5.
 
+**The fix and its re-run** (the orchestrator, 07:49:28Z and 07:52:42Z).
+- **The sweep:** of the bare number 26 over the whole tree, 5,155 hits, every one classified. The readers of this
+  count were the four expected lines.
+- **The fix:** `03a04ab2`.
+- **The re-run, as predicted:** `test_map_draw` 28 / 0, exit 0, with CB9 slice and CB9 spans ok.
+  `sabotage_map_compose.py` reads "28 cases, all pass", all 14 plants AS PREDICTED (S-CB-HALF 6 red), 15 lines,
+  `--control` 28, and `--anchors` 14 plants and 16 anchors.
+
+**The full `run.sh` on `03a04ab2`, as read** (WSL, 07:52-08:00Z): **OFF**, from an environment block I did not name.
+- **The prediction:** exit 2, with FAILED BLOCKS exactly the two environment blocks.
+- **The reading:** exit 2, with **seven** FAILED BLOCKS. Two are the predicted ones: "the same TU, for the board", and
+  "Weatherscope R0 and R0b" (no Pillow). The five others all have one cause, **this worktree has no `.pio/libdeps`**:
+  - the usage report block: its Wi-Fi QR check reads BLIND, with fonts missing ("no LovyanGFX under .pio/libdeps: run
+    pio run once");
+  - the seven-segment 1 vs I block: BLIND, no GLCD font table;
+  - GameConfig: BLIND, "no ArduinoJson under .pio/libdeps";
+  - the drivers' `--control` and full passes: both fail on `sabotage_wx_fb_check.py`, with "no LovyanGFX glcdfont.h
+    under .pio/libdeps (run pio run once)".
+- **The cause:** `wt-stepc` is a fresh worktree that has never been built. My earlier WSL runs ran in trees that held
+  `.pio/libdeps`. My prediction named the two blocks this machine always has, and not this one.
+- **Every step C row inside the run, as predicted:**
+  - MapDraw 12 / 0, MapCompose 28 / 0, MapSweep 9 / 0, MapPlaces 32 / 0, MapLayer 160 / 0;
+  - `41 driver(s): 40 run, 1 skipped` in both passes (`sabotage_wx_towns` skipped);
+  - lint 41 / 0 / 3;
+  - compose 15, draw 23, places 6 and sweep 8 AS PREDICTED lines.
+- **What I did:** I stopped there. Nothing was fixed or re-run, and no build was started.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
