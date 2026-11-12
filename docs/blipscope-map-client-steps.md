@@ -1726,6 +1726,128 @@ The CI on that head was predicted RED, exactly:
 - The tested merge is read from a checkout log.
 - **Any other reading stops,** and the detail of every failing line is read before anything is called a match.
 
+### MapCompose.h (CB1-CB5, CB9, CB11): the run, registered before its code (2026-11-12)
+
+The GO, verbatim (the orchestrator, 01:25:29Z):
+
+> GO for MapCompose.h's run registration, as you listed it: the steps, each plant's red set, exact row names and counts,
+> and the "anything else" branch. Commit and push it before any code, and send me the sha. No merge of #659 yet: it
+> merges when step B's drawing work is whole, with my own CI reads at its final head.
+
+**What `include/MapCompose.h` holds** (pure, `namespace mapcompose`, compiled only under `BLIPSCOPE_MAP_FETCH` on the
+device, as step A is):
+- **The key**, everything a rebuild reads:
+  - the six `wxlayer::View` fields the weather layer is built from (CD3), compared with `!=` exactly as the weather
+    layer's own stale test compares them (`AircraftManager.cpp:3599-3601`);
+  - `radiusMi`, the ladder step (`Cap` and `Inner` read it);
+  - `pkSeq`, which the caller changes whenever a package is accepted;
+  - `airportsGen`, which the caller changes whenever the airport list or its filter changes;
+  - the eight other fixed boxes **by value** (three ring labels, four cardinals, the indicator row). A ring label's
+    width follows the distance-unit setting, which no view field carries.
+- **No theme or layer mask in the key.** Both are compile-time constants today (`maplayer::kThemes`, one row), and the
+  rebuild takes neither as a parameter. A runtime theme would have to change the signature, which is a visible act.
+- **The buffers, all or none,** at the first accepted package, through a caller-given allocator (the device's is the
+  PSRAM `heap_caps_malloc`). There are four, all attempted before any is checked:
+  - the layer (the map with its names, in the canvas's byte order), 115,200 B;
+  - the composite, 115,200 B;
+  - `Build`'s index image, 57,600 B;
+  - the scratch: 32 B per vertex for `maxVertices + 1`, plus 128 airports' boxes (4,096 B).
+  - **One failure frees every buffer** and refuses the map (`refused`, which the wiring logs as `mapAllocFailed`). The
+    allocation is tried once per boot.
+- **The rebuild,** in S3's order:
+  1. `Build` writes the layer, through a caller-given function pointer with `maplayer::Build`'s signature, so the
+     tests count the calls from outside;
+  2. every pixel is byte-swapped (`bswap16`);
+  3. the names: `mapplaces::Place` with the fixed boxes and the airport boxes, then each label drawn as WxScreens.h:788-789
+     draws one (the 3 x 3 dot, then `wxraster::Text` with a 1 px halo), through a `wxraster::Sink` over the layer.
+     Colours: the place grey and the land halo (Q-MB5).
+  - The caller fills the airport boxes only when a rebuild runs. More than 128 airports **refuses the names** for that
+    rebuild (`namesRefused` counts it). A cut obstacle list would let a name cover an airport nobody listed.
+  - **A `Build` that returns false** records its key like any attempt, so the map stays off until the key changes. It
+    is never retried per frame.
+- **The compose:** the layer copied, then every non-zero weather pixel over it, and 0 off the disc
+  (`wxlayer::OffDisc`). It runs when the layer was rebuilt, the weather's generation changed, or the weather became
+  shown. It never runs per frame.
+- **The frame:** it returns the buffer the base draw copies, or `nullptr` for today's path. The returns:
+  - no package, refused, or no layer built: `nullptr`;
+  - weather shown: the composite;
+  - weather not shown: the layer.
+  - **"Ready" is a built layer, not allocated buffers.** That is why buffers alone change nothing on screen.
+
+**The rows** (`test/host/test_map_draw.cpp`, run against the fixtures as `test_map_places` is). **24 checks.** No row
+prints a place name, an anchor or a coordinate (CD2's rule).
+
+| row | check |
+|---|---|
+| `CB1 compose` | synthetic layer L (map pixels M, name pixels P) and weather W, W non-zero across the disc's edge and over some name pixels. Every on-disc pixel is W where W ≠ 0, else L. Every off-disc pixel is 0 |
+| `CB1 names` | the rebuild with a synthetic `Build` (M on the disc, 0 off it) and one placed town. The layer is the label's pixels where the label draws (drawn alone on a zeroed buffer through the same sink), M elsewhere on the disc, 0 off it. **M is byte-symmetric** (`0x6B6B`), so CB1 reads order alone and CB2 reads the byte order |
+| `CB2` | `Build` over KJAC at 100 mi with the weather shown and all zero, rebuilt with the names and again with an empty list. Every pixel the two composites share equals `bswap16` of `Build`'s own output, called directly |
+| `CB3 alloc` / `CB3 build` / `CB3 today` | no package ever, 100 frames with the weather shown and 100 without: **0** bytes live at the allocator, **0** `Build` calls, and every frame returns `nullptr` with the canvas untouched (a canary of today's bytes: the weather layer when shown, black when not) |
+| `CB4 homeLat`, `CB4 homeLon`, `CB4 rLat`, `CB4 rLon`, `CB4 rotSin`, `CB4 rotCos`, `CB4 radiusMi`, `CB4 package`, `CB4 airports`, `CB4 fixed` | from a built state, that one input changed, then one frame: exactly **1** `Build` call. `fixed`: one ring label one character wider (a unit change) |
+| `CB4 steady` | 1,000 frames with nothing changed: **0** `Build` calls |
+| `CB4 buildfail` | a `Build` that returns false: 1 call, then 1,000 frames: **0** more, each returning `nullptr` |
+| `CB5` | the weather's generation changed, nothing else, one frame: **1** compose and **0** `Build` calls |
+| `CB9 layer` / `CB9 composite` / `CB9 index` / `CB9 scratch` | the allocator fails that buffer, counting from the Map's creation. After a package and frames: **0** bytes live, `refused` set, **0** `Build` calls, and every frame returns `nullptr` with the canary untouched |
+| `CB11 airports 129` | KJAC at 100 mi with 129 airports' boxes, all off the screen: `namesRefused` is 1, and the layer equals the same rebuild with an empty list, byte for byte |
+
+**The plants** (`test/host/sabotage_map_compose.py`, in a copy of `include/MapCompose.h`, as `sabotage_map_places.py`).
+Each set was read node by node against the rows above. Next to each set is why it reaches no other row:
+
+| plant | the change | red, exactly | why no other row |
+|---|---|---|---|
+| **S-CB-ORDER** | the compose writes the layer over the weather | {CB1 compose} | CB2's weather is all zero; CB5 counts calls |
+| **S-CB-NAMESUNDER** | the names drawn before `Build` | {CB1 names} | `Build` writes every pixel, so the two CB2 rebuilds are identical and every pixel is compared and equal; CB11's names are refused anyway |
+| **S-CB-NOSWAP** | the swap removed | {CB2} | CB1's M is byte-symmetric; CB11 compares two rebuilds with each other |
+| **S-CB-EAGER** | the three fixed-size buffers (layer, composite, index) allocated at the Map's start. The scratch, sized by the package's `maxVertices`, stays at the first package | {CB3 alloc} | "ready" is a built layer, so CB3's frames still return `nullptr`. CB9's failures count from the Map's creation, so each still fires and frees all, at the start or at the package |
+| **S-CB-NOROT** | `rotSin` and `rotCos` left out of the key | {CB4 rotSin, CB4 rotCos} | every other row changes a different input, or none |
+| **S-CB-ROTONLY** | the key compares the rotation alone | {CB4 homeLat, CB4 homeLon, CB4 rLat, CB4 rLon, CB4 radiusMi, CB4 package, CB4 airports, CB4 fixed} | the first build and CB5 need no key change; steady changes nothing |
+| **S-CB-PERFRAME** | the stale test always true | {CB4 steady, CB4 buildfail, CB5} | the per-input rows run one frame, which makes one call either way; CB3 and CB9 stop before the stale test |
+| **S-CB-WXBUILD** | the weather's generation added to the map's key | {CB5} | no other row changes the weather |
+| **S-CB-WXSTALE** | the weather's generation left out of the compose's test | {CB5} | CB2's compose follows its rebuild; CB1 calls the compose directly |
+| **S-CB-HALF** | the failure branch keeps the buffers that succeeded | {CB9 layer, CB9 composite, CB9 index, CB9 scratch} | all four are attempted before the check, so three succeed in every case |
+| **S-CB-RETRY** | a failed attempt's key not recorded | {CB4 buildfail} | every other `Build` succeeds |
+| **S-CB-AIRTRUNC** | over 128 airports, the list cut to 128 instead of refusing the names | {CB11 airports 129} | no other row passes more than 128 |
+
+**What changed from #644's table, and why:**
+- **S-CB-PERFRAME's set gains CB5 and the new CB4 buildfail.** CB5 counts `Build` calls over a frame, and a per-frame
+  rebuild makes one. #644's {CB4 steady} was written before the design.
+- **S-CB-HALF keeps the buffers that succeeded; it does not draw with them.** Drawing with a missing buffer dereferences
+  null, which is a crash: an instrument failure by the 11-04 ruling, not a red.
+- **CB9 moves into this step.** The all-or-none allocation lives in MapCompose.h, and its host row needs nothing from the
+  wiring.
+- **The key gains `radiusMi` and the fixed boxes,** which the names read. **S-CB-ROTONLY** gives a plant to those two and
+  to the six rows #644 left without one.
+- **New:** `CB1 names` with S-CB-NAMESUNDER; CB5's compose half with S-CB-WXSTALE; `CB4 buildfail` with S-CB-RETRY; and
+  CB11 with S-CB-AIRTRUNC.
+- **Q-MB1's price gains 4,096 B** (the airport boxes in the scratch). CBF4's figure is computed with it.
+
+**The run, in order. The code is committed before step 1, as the record:**
+1. The suite under g++ 13.3 (`wsl -d Ubuntu-24.04`): **`24 checks, 0 failures`**.
+2. MinGW 5.1: the same. A MinGW-only difference is a stop.
+3. `check_map_draw.py`: **3 checks, 0 failures**, unchanged. MapCompose.h adds no draw region; CD1-CD3 come with the
+   wiring.
+4. `sabotage_map_compose.py`:
+   - the control: 24 cases, all pass;
+   - each of the 12 plants exactly its set above;
+   - `real files unchanged: True`;
+   - **13 AS PREDICTED lines** (12 plants and the summary).
+5. `--anchors` over all **40** drivers, then `--control` for the new one, with its table `("checks", 24)`.
+6. `lint_driver_counts.py`: **`40 driver(s), 0 flagged; 3 pinned line(s)`**.
+7. `run.sh` in full: a new `MapCompose` block, `24 checks, 0 failures`; `40 driver(s) checked`; both driver passes
+   `40 driver(s): 39 run, 1 skipped`; `sabotage_map_compose.py: 13 AS PREDICTED line(s)`; `ALL HOST TESTS PASSED`.
+
+**Anything else is a stop:** a different count, a red outside a frozen set, a set missing a row, a compile failure, or a
+crash. I stop at the first such reading, with no fix and no re-run, and report it with the failing lines' detail read.
+A crash or a plant that does not compile is reported as an instrument failure, not a red. The code's CI is predicted
+when the code is pushed.
+
+**The CI for this docs commit, predicted** (it goes to #659's branch, so the code-PR set runs):
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with the same job names
+  as `6302be1e`'s run, the baseline.
+- Each host-tests leg reads as it did there: MapPlaces `32 checks, 0 failures`, MapDraw `3 checks, 0 failures`, 39
+  drivers, lint `39 driver(s), 0 flagged; 3 pinned line(s)`, 6 and 10 AS PREDICTED lines, `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log. Any other reading stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
