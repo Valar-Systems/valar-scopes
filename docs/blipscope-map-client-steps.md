@@ -4892,6 +4892,34 @@ to be written down as READ:
   verdict must equal its verdict under the old outside rule: on-frames pass, and off-frames are the control under 2 %.
 - **(K-c) The control:** C's 29 off-frames read C-OUT-V under 2 %, the old control's bound, unchanged.
 
+**The ruling (the orchestrator, unstamped): C-OUT ACCEPTED, GO, with a coverage check first.** G1 and G26 run through
+the same exclusions as the read, so their share is printed as **"detection after exclusions"**. A green-tinted map
+pixel whose colour is an overlay colour is the rule's priced-in blind spot.
+
+**THE COVERAGE CHECK, from the capture's own lines (23:02Z):**
+- **The package is Bend's.** C's capture states "the map's bench image: Bend, then KSFO, built in; nothing fetched".
+  The registered phase table puts P1 at Bend (P4 is KSFO). The fetcher fetched P1 alone, so the frame files are all
+  `p1-t*`.
+- **But P1's view is 100 mi:** all 40 P1 phase lines read `zoom=100mi`, and the host rasters above are 10/50/150 mi.
+  So the graded view is bracketed, not covered.
+- **Amended, before any calibration:** the host set gains Bend at **100 mi, rotations 0 and 90.** `bend_dump3.cpp` is
+  `bend_dump2.cpp` with the radii {10, 50, 100, 150}, built the same way (`g++ -std=c++11 -O1 -Iinclude`, C's tree
+  `27bfc9ca`, the tree's own `test/fixtures/wx/basemap/bend.bmpk`).
+- **Its control:** the six rasters above must reproduce byte for byte (their recorded sha256) before the two new ones
+  are used.
+- The new rasters' sha256 are recorded here before T_V and T_G are computed. The calibration then runs over all 8
+  rasters × 36 beams = 288 regions.
+- **As run (23:04Z):**
+  - `bend_dump3.cpp` `27617ecd62dc50c9f9237a005a78311e6f825d62a2f0bc9d6caee1c7c42ee42a`, built in WSL from C's tree
+    `27bfc9ca` (clean), over `bend.bmpk` `0e257a0a47a15f308ada084cf3303afdf32386cca5f2d3c8e8d8e4122f6ef0fd`.
+  - **The control: 6 of 6 reproduce byte for byte.** So the layer render is the same from C's tree.
+  - The new rasters:
+
+    | raster | sha256 |
+    |---|---|
+    | r100 rot0 | `656661aeefa46966f8c4437bbaf1b4615dfcbd2b99a2145a15b834e43a57aa38` |
+    | r100 rot90 | `692cd828829f74fe7bf2dfedca46459618028d2f7b3a28f58aa57f339c2e9413` |
+
 **THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
 (visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
 - every row as predicted: CBF3-C graded;
