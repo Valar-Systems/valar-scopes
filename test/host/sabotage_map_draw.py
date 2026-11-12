@@ -3,6 +3,9 @@ two plants, each in a COPY of the tree, and each must turn red exactly CD4 in ch
 
   S-CD-NOREFUSAL  CB10's #if / #error / #endif deleted from src/AircraftManager.h, the region kept: {CD4}
   S-CD-STEPC      `#define BLIPSCOPE_MAP_STEP_C 1` added to src/AircraftManager.cpp: {CD4}
+  S-CB-SECONDPATH DrawAirports draws its code at x + 6 without radarbox::Airport: {CB8}
+  S-CB-PINS       RING_LABEL_OUTER_INSET becomes 13 in src/AircraftManager.cpp: {CB8b}
+  S-CB-PINVAL     MapPlaces.h's kDotsX0 becomes 100 while the drawers stay: {CB8b}
 
 And three controls of the instrument's own direction (registered with L1's fix; none is a {CD4}-set plant):
   R-CD-RAWOK      a raw-string file added under include/: exit 0, "1 checks, 0 failures" (L1's input now reads clean)
@@ -37,9 +40,20 @@ REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined
            "#endif\n")
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'
 
+PLACES = os.path.join("include", "MapPlaces.h")
+SOURCE_CHECKS = 3   # CD4, CB8, CB8b: the one place the count lives, read by the run path and the --control table
+
 SABOTAGES = {
     "S-CD-NOREFUSAL": (AMH, [(REFUSAL, "")], {"CD4"}),
     "S-CD-STEPC": (AMCPP, [(STEPC_AT, STEPC_AT + "#define BLIPSCOPE_MAP_STEP_C 1\n")], {"CD4"}),
+    # CB8: DrawAirports draws its code at x + 6 without the helper.
+    "S-CB-SECONDPATH": (AMCPP, [("        backbuffer.drawString(code, codeBox.x0, codeBox.y0);\n",
+                                 "        backbuffer.drawString(code, x + 6, y - 3);\n")], {"CB8"}),
+    # CB8b: a drawer's constant moves (the expression's value changes)...
+    "S-CB-PINS": (AMCPP, [("static constexpr int RING_LABEL_OUTER_INSET = 14;",
+                           "static constexpr int RING_LABEL_OUTER_INSET = 13;")], {"CB8b"}),
+    # ...and a value the names use moves while the drawers stay (no C++ row sees it: places_plants.py read 0).
+    "S-CB-PINVAL": (PLACES, [("constexpr int kDotsX0 = 99;", "constexpr int kDotsX0 = 100;")], {"CB8b"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is
@@ -47,7 +61,7 @@ SABOTAGES = {
 RAW = b'static const char* const kRaw = R"RAW(\nline one\nline two\n)RAW";\n'
 DRAW_END = "// THE MAP DRAW END\n"
 CONTROLS = {
-    "R-CD-RAWOK": (("add", os.path.join("include", "zz_rawok.h"), RAW), 0, "1 checks, 0 failures"),
+    "R-CD-RAWOK": (("add", os.path.join("include", "zz_rawok.h"), RAW), 0, f"{SOURCE_CHECKS} checks, 0 failures"),
     "R-CD-CRASH": (("edit", AMH, DRAW_END, DRAW_END + RAW.decode("utf-8")), 2, "RIG: "),
     "R-CD-DECODE": (("add", os.path.join("include", "zz_badbyte.h"), b"// \xff\xfe\n"), 2, "RIG: "),
 }
@@ -92,7 +106,7 @@ def run_check(tree):
     m = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not m or int(m.group(1)) != SOURCE_CHECKS:
         return None, f"the check did not run as {SOURCE_CHECKS} row(s) (exit {c.returncode})\n" + c.stdout + c.stderr
-    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+)\b", c.stdout, re.M)}, None
+    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+|CB\d+b?)\b", c.stdout, re.M)}, None
 
 
 def control_tree(td, tag, spec):
@@ -120,7 +134,7 @@ def run_raw(tree):
 
 
 def real_files():
-    return [os.path.join(ROOT, p) for p in (AMH, AMCPP)]
+    return [os.path.join(ROOT, p) for p in (AMH, AMCPP, PLACES)]
 
 
 def main():
@@ -164,11 +178,9 @@ def main():
     return rigs.close(0 if ok and same else 1)
 
 
-# --control: the unplanted run alone, against this table. SOURCE_CHECKS is the one place the count lives. The entry is a
-# ("line", text) DERIVED from it, not a ("checks", n) count: with a count of 1, lint_driver_counts.py's L2 cannot tell
-# the count from this file's idiomatic 1s (an anchor's uniqueness, an exit code, a regex group), so it flags them all
-# (W9's first run, ruled fix (A)). The exact line still carries the count and "0 failures", with exit 0.
-SOURCE_CHECKS = 1   # CD4 until the draw files exist; CD1-CD3 join with them
+# --control: the unplanted run alone, against this table. SOURCE_CHECKS (defined above) is the one place the count
+# lives. The entry is a ("line", text) DERIVED from it, not a ("checks", n) count (W9's first run, ruled fix (A)): the
+# exact line still carries the count and "0 failures", with exit 0.
 CONTROL_TABLE = {"check_map_draw.py": ("line", f"{SOURCE_CHECKS} checks, 0 failures")}
 
 

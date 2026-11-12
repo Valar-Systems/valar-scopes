@@ -1,6 +1,6 @@
 """Step B's source checks (docs/blipscope-map-client-steps.md, step B; registered 2026-11-11, "the refusal's commit").
 
-CD4 alone until the draw files exist; CD1-CD3 join in the commit that adds the files they read.
+CD4, CB8 and CB8b; CD1-CD3 join in the commit that adds the files they read.
 
   CD4  CB10's refusal runs, not only its rule. If src/AircraftManager.h or .cpp holds any region between a line
        `// THE MAP DRAW BEGIN` and a line `// THE MAP DRAW END`, the comment-stripped header holds CB10's `#if` line and
@@ -10,6 +10,16 @@ CD4 alone until the draw files exist; CD1-CD3 join in the commit that adds the f
        crashed it): a directive line `#define BLIPSCOPE_MAP_STEP_C` in include/ and src/, and `-DBLIPSCOPE_MAP_STEP_C`
        in platformio.ini and tools/ after ';' and '#' comments are removed. Its known direction: a matching line inside a
        raw string or a block comment is flagged, which fails safe and visibly (a red naming the file).
+
+  CB8  ONE RULE for an airport's boxes: AircraftManager::DrawAirports takes its mark and code boxes from
+       radarbox::Airport (include/AirportBoxes.h) and draws at them, and include/MapPlaces.h builds the names' airport
+       obstacles from the same function.
+  CB8b Q-MB9 (b): the three other drawers the names avoid are left as they are, and pinned. DrawRadarCircles and
+       DrawScreenIndicator must still hold the exact expressions the names transcribe, AND every value MapPlaces.h uses
+       (between its PINNED VALUES markers) must equal what those expressions give, derived here from the drawers' own
+       text: SCREEN_SIZE from include/variants/s3_128.h, RING_LABEL_OUTER_INSET from AircraftManager.cpp, and the
+       carousel's dot count from the Screen enum and InCarousel. A changed formula and a changed constant both fail.
+  Function bodies are cut out before the comment stripper reads them: only the map's own text ever goes through it.
 
 The region counts are pinned. A count off in either direction, or an unbalanced marker, is the rig (exit 2): a region the
 check cannot see is code it cannot vouch for. ANY exception is the rig too (exit 2, "RIG: <type>: <message>"), never a
@@ -116,10 +126,103 @@ def cd4(root):
     return why, total
 
 
+def body_of(text, signature, rel):
+    """One function's text, from its signature to the first closing brace at column 0. The rig if it is not there."""
+    i = text.find(signature)
+    if i < 0:
+        raise Rig(f"{rel}: cannot find {signature!r}")
+    j = text.find("\n}\n", i)
+    if j < 0:
+        raise Rig(f"{rel}: {signature!r} has no closing brace at column 0")
+    return text[i:j + 3]
+
+
+def flat(code):
+    return " ".join(strip(code).split())
+
+
+def cb8(root):
+    why = []
+    amcpp = read(root, "src/AircraftManager.cpp")
+    draw = flat(body_of(amcpp, "void AircraftManager::DrawAirports(", "src/AircraftManager.cpp"))
+    for need, what in (("radarbox::Airport(x, y, (int)strlen(code), &mark, &codeBox);", "takes its boxes from radarbox::Airport"),
+                       ("backbuffer.drawRect(mark.x0, mark.y0, mark.x1 - mark.x0 + 1, mark.y1 - mark.y0 + 1, MARK);",
+                        "draws the mark at radarbox::Airport's box"),
+                       ("backbuffer.drawString(code, codeBox.x0, codeBox.y0);", "draws the code at radarbox::Airport's box")):
+        if need not in draw:
+            why.append(f"DrawAirports no longer {what}")
+    if "radarbox::Airport(x, y, (int)strlen(code), &out[0], &out[1]);" not in flat(read(root, "include/MapPlaces.h")):
+        why.append("MapPlaces.h's airport obstacles do not come from radarbox::Airport")
+    return why
+
+
+RINGS = ["constexpr int CENTRE = SCREEN_SIZE_DIV_2 - 1;",
+         "constexpr int OUTER = SCREEN_SIZE_DIV_2 - 1;",
+         "const int ringPx[3] = { OUTER, (OUTER / 3) * 2, OUTER / 3 };",
+         "const int inset[3] = { RING_LABEL_OUTER_INSET, 3, 3 };",
+         "String label = String(value, value < 10.0f ? 1 : 0);",
+         "backbuffer.drawString(label, CENTRE + 4, CENTRE - ringPx[i] + inset[i]);",
+         "const int labelR = CENTRE - 7;",
+         "const int px = CENTRE + (int)lroundf(labelR * cosf(a));",
+         "const int py = CENTRE + (int)lroundf(labelR * sinf(a));",
+         "backbuffer.drawString(p.c, px - (int)backbuffer.textWidth(p.c) / 2, py - 4);"]
+DOTS = ["constexpr int cx = SCREEN_SIZE_DIV_2;",
+        "const int y = SCREEN_SIZE - 16;",
+        "backbuffer.fillCircle(cx - (shown - 1) * 6 + slot * 12, y, active ? 3 : 2,"]
+
+
+def one_int(pattern, text, rel):
+    m = re.findall(pattern, text)
+    if len(m) != 1:
+        raise Rig(f"{rel}: {pattern!r} found {len(m)} times, need exactly 1")
+    return int(m[0])
+
+
+def cb8b(root):
+    why = []
+    amcpp = read(root, "src/AircraftManager.cpp")
+    rings = flat(body_of(amcpp, "void AircraftManager::DrawRadarCircles(", "src/AircraftManager.cpp"))
+    dots = flat(body_of(amcpp, "void AircraftManager::DrawScreenIndicator(", "src/AircraftManager.cpp"))
+    for need in RINGS:
+        if need not in rings:
+            why.append(f"DrawRadarCircles no longer holds `{need}`")
+    for need in DOTS:
+        if need not in dots:
+            why.append(f"DrawScreenIndicator no longer holds `{need}`")
+    size = one_int(r"constexpr int SCREEN_SIZE = (\d+);", read(root, "include/variants/s3_128.h"), "include/variants/s3_128.h")
+    inset = one_int(r"static constexpr int RING_LABEL_OUTER_INSET = (\d+);", amcpp, "src/AircraftManager.cpp")
+    amh = read(root, "src/AircraftManager.h")
+    enum = re.findall(r"enum class Screen \{([^}]*)\};", amh)
+    if len(enum) != 1 or "return s != Screen::Follow;" not in amh:
+        raise Rig("src/AircraftManager.h: cannot read the Screen enum or InCarousel's device rule")
+    shown = len([s for s in enum[0].split(",") if s.strip()]) - 1   # every screen but Follow (a modal)
+    centre = size // 2 - 1
+    outer = size // 2 - 1
+    ring_px = [outer, (outer // 3) * 2, outer // 3]
+    insets = [inset, 3, 3]
+    cx, y = size // 2, size - 16
+    xs = [cx - (shown - 1) * 6 + slot * 12 for slot in range(shown)]
+    derived = {"kRingCentre": centre, "kRingLabelX": centre + 4,
+               "kRingLabelY0": centre - ring_px[0] + insets[0], "kRingLabelY1": centre - ring_px[1] + insets[1],
+               "kRingLabelY2": centre - ring_px[2] + insets[2], "kCardinalR": centre - 7,
+               "kDotsX0": xs[0] - 3, "kDotsY0": y - 3, "kDotsX1": xs[-1] + (2 if shown > 1 else 3), "kDotsY1": y + 3}
+    places = read(root, "include/MapPlaces.h")
+    a, b = places.find("// THE PINNED VALUES BEGIN"), places.find("// THE PINNED VALUES END")
+    if a < 0 or b < a:
+        raise Rig("include/MapPlaces.h: no PINNED VALUES region")
+    pinned = {k: int(v) for k, v in re.findall(r"constexpr int (k\w+) = (-?\d+);", places[a:b])}
+    if set(pinned) != set(derived):
+        raise Rig(f"include/MapPlaces.h: the pinned names {sorted(pinned)} are not {sorted(derived)}")
+    for k, v in derived.items():
+        if pinned[k] != v:
+            why.append(f"MapPlaces.h's {k} is {pinned[k]}, but the drawers give {v}")
+    return why
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
-        rows = [("CD4",) + cd4(root)]
+        rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -129,8 +232,12 @@ def main():
             fails += 1
             for w in why:
                 print(f"  FAIL {name}: {w}")
-        else:
+        elif name == "CD4":
             print(f"  ok   {name}: {regions_seen} draw region(s); the refusal present; {STEP_C} defined nowhere else")
+        elif name == "CB8":
+            print(f"  ok   {name}: DrawAirports and the names' obstacles both read radarbox::Airport")
+        else:
+            print(f"  ok   {name}: the drawers hold their expressions, and MapPlaces.h's pinned values equal them")
     print(f"{len(rows)} checks, {fails} failures")
     return 0 if fails == 0 else 1
 

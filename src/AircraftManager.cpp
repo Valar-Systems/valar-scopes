@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
+#include "AirportBoxes.h"      // an airport's mark and code: the one rule the map's names avoid (CB8)
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
@@ -5380,8 +5381,13 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
             fabsf(apLon - (float)lon) > (float)viewRadLon)
             return;
         auto [x, y] = ProjectCoordinateToScreen(apLat, apLon);
-        backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
-        backbuffer.drawString(code, x + 5, y - 3);
+        // ONE RULE for the two boxes (include/AirportBoxes.h, CB8): the map's place names avoid exactly these,
+        // so a name cannot drift onto a code. The same pixels as before: drawRect(x - 2, y - 2, 5, 5), the code at
+        // (x + 5, y - 3).
+        radarbox::Box mark, codeBox;
+        radarbox::Airport(x, y, (int)strlen(code), &mark, &codeBox);
+        backbuffer.drawRect(mark.x0, mark.y0, mark.x1 - mark.x0 + 1, mark.y1 - mark.y0 + 1, MARK);
+        backbuffer.drawString(code, codeBox.x0, codeBox.y0);
     };
 
 #ifdef FEATURE_CLOUD_FEED
