@@ -31,6 +31,17 @@ blocked / slip from here on; this file is updated when the date moves.
   point: p95 frame time 50 ms or less (20 fps or better)."
 - "Bring me the baseline and the proposed bar before the map code is graded."
 
+**The bar, frozen by the owner (2026-11-12 19:55Z), before the baseline was measured:** "I watched 10, 20, 24, 30
+and 60 fps side by side. 20 fps is my minimum (p95 at or under 50 ms). 24 is the target. Nothing above 24 is
+chased." "The bar is read with 40 aircraft on screen, map and weather on. 20 and 80 are reported beside it." The
+firmware tracks at most 60 aircraft (`MAX_AIRCRAFT`), so 80 cannot be shown, and the high point is reported at 60
+unless the owner rules otherwise.
+
+**v20 as planned misses the bar.** Early readings put v19 alone at 74.5 ms p95 with 41 aircraft, and weather adds
+about 13 ms. The owner chooses now, not at the pre-flight: "By tomorrow, p4 sizes two things: (a) reaching 20 fps at
+40 aircraft with map and weather on; (b) v20 no slower than v19 at the same traffic. Then I choose: hold v20 for (a),
+or ship (b) on time and make 20 fps v21's bar. The speed plan starts now, since both need it."
+
 How it runs:
 1. **The baseline** (map-client, which holds the frame-time instrument; one window on E2:08). It is registered before
    the window: the image and its identity (v19's behaviour plus the instrument, with the instrument's own cost
@@ -39,8 +50,9 @@ How it runs:
    definition (every frame, nearest-rank p50/p95/p99/max; map-rebuild frames counted separately and included in the
    gate's p95); sample counts; predictions; a control first (a planted per-frame delay of known size must move p95 by
    that size); and the escape hatch (anything outside the set stops).
-2. **The bar.** The owner's starting point is p95 at or under 50 ms with map and weather both on. The proposed bar
-   goes to him with the baseline, and he freezes it. **No map-code grading happens until it is frozen.**
+2. **The bar** is the owner's, above: p95 at or under 50 ms at 40 aircraft drawn, map and weather on; 20 and the high
+   point reported beside it. If he chooses (b), v20's bar is instead "no slower than v19 at the same traffic", and
+   20 fps becomes v21's bar.
 3. **Every candidate.** O11's pre-flight (blipscope-5c) re-runs the baseline's procedure unchanged, with map and
    weather on, and reads it against the frozen bar before the cut. A candidate over the bar does not ship: it goes
    to the owner with its numbers.
@@ -96,10 +108,9 @@ How it runs:
   coverage" until their products are routed.
 - **The proxy bill** must land before weather goes fleet-wide (at 600 boards: Logs ~$166, KV reads ~$115, KV
   writes ~$54 a month). Log sampling must not drop the breaker/upstream_skip instruments.
-- **The frame-rate gate** (above) is new, and nothing yet says v20 passes it. Two early bench readings bear on it.
-  Map rebuilds at KSFO took 177-198 ms each. And with the weather shown, step B's bench broke its frame-budget model
-  in every interval, map on or off. Neither is yet a reading against the bar. The baseline and the first candidate
-  are. A miss goes to the owner, and it can move the date.
+- **The frame-rate gate** (above): v20 as planned misses the owner's bar. Early readings put v19 alone at 74.5 ms
+  p95 with 41 aircraft. Weather adds about 13 ms. Map rebuilds at KSFO took 177-198 ms each. The owner's choice
+  between (a) and (b) decides whether v20 holds for speed work.
 - **The ingest's clipper (PARITY):** RESOLVED 2026-11-12: the hand-written rect clip and the full TS ingest equal
   GEOS and the dry run exactly; no dependency.
 
@@ -109,13 +120,15 @@ How it runs:
   map's pre-ship gate (per-function accounting before maps go into a customer image).
 - **The fresh-boot automation plan**: blipscope-5c. So v20's cut doesn't need the owner's hands.
 
-## After v20's freeze: the speed workstream (the owner, 2026-11-12)
+## The speed workstream (the owner, 2026-11-12): it starts now
 
-This is shared by all boards, with targets measured on glass: "30 fps on the 1.28" and the P4; at least 20 (aiming
-for 30) on the 2.1"; 30 on the Android screens." The methods come first: "static layers drawn once and reused, touch
-read on its own schedule, and drawing overlapped with the panel push." "Its plan comes to me with sizes before any
-code." The plan is p4's, and it takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weatherscope)
-and the frame-time instrument (map-client). It is not on v20's path.
+This is shared by all boards, with targets measured on glass. The owner (19:55Z): 20 fps is the minimum, and "24 is
+the target. Nothing above 24 is chased." So the targets are 24 fps on the 1.28" and on the P4, and at least 20
+(ideally 24) on the 2.1". The number for the Android screens waits until the owner has looked at the 23.6-inch
+screen itself. The methods come first: "static layers drawn once and reused, touch read on its own schedule, and
+drawing overlapped with the panel push." "Its plan comes to me with sizes before any code." The plan is p4's, and it
+takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weatherscope) and the frame-time instrument
+(map-client). It was planned for after v20's freeze. The owner moved it to now, because both (a) and (b) need it.
 
 ## Brought to the owner early (item 5)
 
@@ -159,7 +172,8 @@ and the frame-time instrument (map-client). It is not on v20's path.
   half a day; a second one on a row goes to the owner;
 - D4's production window and the owner's availability for its OKs;
 - the client's soak on a production map: it can't start before D4;
-- the frame-rate gate: a candidate over the bar goes to the owner, and a fix or his ruling comes before the cut.
+- the frame-rate gate: if the owner chooses (a), v20 holds for the speed work; under (b) a candidate slower than
+  v19 at the same traffic goes to him, and a fix or his ruling comes before the cut.
 Not on the path: continental Europe (the owner, 2026-11-12: it goes live by deploys when OPERA returns); the Pro
 2.1 (aimed at v21); the big-screen build (it starts after F).
 
