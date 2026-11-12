@@ -341,3 +341,30 @@ read". P-FLIP's set comes later, from the v20 candidate, as amendment 3.
   run.
 - **It runs after K0, K3, K2 and K4 have read as predicted.** It needs two builds of `blipscope-s3-128-wxlook` at Bw
   and Cw, one tree, from clean.
+
+## 11. Amendment 1b: M0 takes the build's own map (the reviewer's ruling, 17:36:57Z)
+
+**The stop that led here.** Step 3 stopped at M0 on its first build: K0's C on `blipscope-s3-128`, at 17:33:19Z. Nothing was
+compared.
+- The relink step's `PLATFORMIO_BUILD_FLAGS=-Wl,-Map=…` recompiled all 259 files and wrote no map at the store's path. The
+  driver refused, as registered: "M0: the relink wrote no map".
+- **The cause, read from the platform:** the framework already maps every link.
+  `framework-arduinoespressif32-libs/esp32s3/pioarduino-build.py:209` passes `-Wl,-Map="${BUILD_DIR}/${PROGNAME}.map"`, and
+  ld honours that later flag.
+
+**M0, as ruled:**
+- the store takes the build's **own** `firmware.map`, written by the same link as the ELF. No relink, no
+  `PLATFORMIO_BUILD_FLAGS`;
+- **the tie, on content:** `image-compare.py m0` must find every allocated, non-empty ELF section among the map's
+  output-section lines, with the same name, address and size;
+- the map's mtime must be no earlier than the build's start;
+- either one false: the driver stops (exit 3), and the comparator refuses the store. The comparator also re-checks the
+  tie on every store it reads.
+
+**The red control, shown before any K row, as the reviewer asked. Predicted at 17:38Z, before the run:**
+
+| map | predicted | read (17:38:36Z) |
+|---|---|---|
+| the real build's own map, against its ELF | 14 of 14 sections tied, exit 0 | **as predicted** |
+| a copy of it with `.flash.text`'s size edited by 4 bytes (`0x139b60` → `0x139b64`), the edit asserted | 13 of 14 tied, `.flash.text` named, exit 1 | **as predicted** |
+| **K2's map against C's ELF**, once K2 is built and before K2 is read | exit 1, naming every section whose size or address the plant moved | to be read |

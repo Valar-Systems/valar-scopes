@@ -346,9 +346,11 @@ class Store:
         rec = os.path.join(path, "record.json")  # written by image-compare-build.ps1; the fixtures have none
         if os.path.isfile(rec):
             with open(rec, encoding="utf-8-sig") as f:
-                m0 = json.load(f).get("m0") or {}
-            if m0.get("objectsChanged") != 0 or m0.get("elfIdentical") is not True:
+                rec_m0 = json.load(f).get("m0") or {}
+            if rec_m0.get("tieExit") != 0 or rec_m0.get("mapAfterStart") is not True:  # amendment 1b's M0
                 raise Refusal("the store's M0 did not hold: %s" % path)
+            if m0(os.path.join(path, "firmware.elf"), os.path.join(path, "firmware.map"), lambda _l: None) != 0:
+                raise Refusal("the store's map no longer ties to its ELF: %s" % path)
         with open(os.path.join(path, "inputs.json"), encoding="utf-8-sig") as f:
             self.inputs = {e["path"]: e for e in json.load(f)["inputs"]}
         self.map = parse_map(os.path.join(path, "firmware.map"))
@@ -417,8 +419,8 @@ MAP_MEMBER = re.compile(r"^(.*)\(([^()]*)\)$")
 
 def parse_map(path):
     """GNU ld map: LOAD lines, the kept input sections with addresses, the discarded ones."""
-    loads, kept, discarded = [], [], set()
-    state, outsec, pending = "head", None, None
+    loads, kept, discarded, outsecs = [], [], set(), {}
+    state, outsec, pending, pending_out = "head", None, None, None
     with open(path, encoding="latin-1") as f:
         for raw in f:
             line = raw.rstrip("\n").rstrip("\r")
@@ -439,9 +441,21 @@ def parse_map(path):
             if state not in ("discard", "script"):
                 continue
             if line and not line.startswith(" "):
-                outsec = line.split()[0]
+                toks = line.split()
+                outsec = toks[0]
                 pending = None
+                pending_out = None
+                if state == "script":
+                    if len(toks) >= 3 and toks[1].startswith("0x") and toks[2].startswith("0x"):
+                        outsecs[outsec] = (int(toks[1], 16), int(toks[2], 16))
+                    elif len(toks) == 1:
+                        pending_out = outsec  # a long name: its address and size wrap to the next line
                 continue
+            if pending_out is not None:
+                toks = line.split()
+                if len(toks) == 2 and toks[0].startswith("0x") and toks[1].startswith("0x"):
+                    outsecs[pending_out] = (int(toks[0], 16), int(toks[1], 16))
+                pending_out = None
             entry = None
             m = MAP_SEC.match(line)
             if m and not m.group(1).startswith("*"):
@@ -464,7 +478,25 @@ def parse_map(path):
             elif size and addr:
                 kept.append((addr, size, src, name))
     kept.sort()
-    return {"loads": loads, "kept": kept, "kept_set": {(s, n) for (_, _, s, n) in kept}, "discarded": discarded}
+    return {"loads": loads, "kept": kept, "kept_set": {(s, n) for (_, _, s, n) in kept}, "discarded": discarded,
+            "outsecs": outsecs}
+
+
+def m0(elf_path, map_path, out):
+    """Amendment 1b's M0: the map is this image's map. Every allocated, non-empty section of the ELF appears among the
+    map's output sections with the same name, address and size. -> 0 tied, 1 not tied, 2 nothing to compare."""
+    with open(elf_path, "rb") as f:
+        elf = ELFFile(io.BytesIO(f.read()))
+    secs = [(s.name, s["sh_addr"], s["sh_size"]) for s in elf.iter_sections()
+            if (s["sh_flags"] & SHF_ALLOC) and s["sh_size"] > 0]
+    outsecs = parse_map(map_path)["outsecs"]
+    bad = [n for (n, a, z) in secs if outsecs.get(n) != (a, z)]
+    out("M0: %d allocated ELF sections, %d tied to the map's output sections, %d not" % (len(secs), len(secs) - len(bad), len(bad)))
+    for n in bad:
+        out("  not tied: %s" % n)
+    if not secs:
+        return 2
+    return 1 if bad else 0
 
 
 def split_src(src):
@@ -1010,6 +1042,8 @@ def main(argv):
         except Refusal as e:
             out("verdict: UNDECIDED (the instrument refused: %s)" % e)
             return 3
+    if len(argv) == 3 and argv[0] == "m0":
+        return m0(argv[1], argv[2], out)
     if len(argv) == 6 and argv[0] == "t0" and argv[2] == "--date" and argv[4] == "--time":
         return t0(argv[1], argv[3], argv[5], out)
     if argv == ["selftest"]:

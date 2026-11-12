@@ -7,11 +7,12 @@ scripts/image-compare.py reads.
 What it does, in order, and where it stops:
   1. records the inputs: the commit, the tree's porcelain (a plant shows here), pio's version, platformio.ini's sha256;
   2. deletes .pio/build/<env> and builds it from clean with SOURCE_DATE_EPOCH fixed (T0 is read on the store);
-  3. hashes every object and archive, then RELINKS the same objects with -Wl,-Map= added (PLATFORMIO_BUILD_FLAGS);
-  4. M0: the objects must hash the same after the relink, and the relinked ELF must be byte-identical to the first.
-     Either one false: it stops (exit 3), and nothing is compared;
-  5. copies the ELF, the map, every input under the tree, and inputs.json (each LOAD line: its sha256, its copy,
-     and its absolute path) into the store.
+  3. M0 (amendment 1b): copies the ELF and the build's OWN map (the framework maps every link), and ties them on
+     content: `image-compare.py m0` must find every allocated ELF section among the map's output sections with the
+     same name, address and size, and the map must be no older than the build's start. Either false: it stops (exit 3),
+     and nothing is compared;
+  4. copies every input under the tree, and writes inputs.json (each LOAD line: its sha256, its copy, and its absolute
+     path) and record.json into the store.
 Run it from PowerShell, never from Git Bash: pio under Git Bash can gut esptool on this machine.
 #>
 param(
@@ -45,38 +46,26 @@ $record = [ordered]@{
 # 2. from clean, with the stamp fixed
 if (Test-Path -LiteralPath $build) { Remove-Item -LiteralPath $build -Recurse -Force }
 $env:SOURCE_DATE_EPOCH = $Epoch
-Remove-Item Env:PLATFORMIO_BUILD_FLAGS -ErrorAction SilentlyContinue
+$startUtc = (Get-Date).ToUniversalTime()
 pio run -d $Tree -e $PioEnv *> (Join-Path $Out 'build.log')
 if ($LASTEXITCODE -ne 0) { Stop 2 "the build failed (exit $LASTEXITCODE); see build.log" }
 $elf = Join-Path $build 'firmware.elf'
-Copy-Item -LiteralPath $elf -Destination (Join-Path $Out 'firmware.first.elf')
+$map = Join-Path $build 'firmware.map'
 
-# 3. the same objects, relinked with a map
-$objs = Get-ChildItem -LiteralPath $build -Recurse -File | Where-Object { $_.Extension -in '.o', '.a' }
-$before = @{}; foreach ($o in $objs) { $before[$o.FullName] = Sha $o.FullName }
-$map = Join-Path $Out 'firmware.map'
-$env:PLATFORMIO_BUILD_FLAGS = "-Wl,-Map=$($map -replace '\\', '/')"
-try {
-    pio run -d $Tree -e $PioEnv *> (Join-Path $Out 'relink.log')
-    $relinkExit = $LASTEXITCODE
-} finally {
-    Remove-Item Env:PLATFORMIO_BUILD_FLAGS -ErrorAction SilentlyContinue
-}
-if ($relinkExit -ne 0) { Stop 2 "the relink failed (exit $relinkExit); see relink.log" }
-if (-not (Test-Path -LiteralPath $map)) { Stop 3 "M0: the relink wrote no map" }
-
-# 4. M0
-$after = Get-ChildItem -LiteralPath $build -Recurse -File | Where-Object { $_.Extension -in '.o', '.a' }
-$moved = @($after | Where-Object { $before[$_.FullName] -ne (Sha $_.FullName) }).Count
-$moved += [Math]::Abs($after.Count - $before.Count)
-$same = (Sha $elf) -eq (Sha (Join-Path $Out 'firmware.first.elf'))
-$record.m0 = [ordered]@{ objectsChanged = $moved; elfIdentical = $same }
-if ($moved -ne 0) { Stop 3 "M0: $moved objects or archives changed across the relink" }
-if (-not $same) { Stop 3 "M0: the relinked ELF is not byte-identical to the first" }
+# 3. M0 (amendment 1b): the build's own map, written by the same link (the framework's pioarduino-build.py passes
+#    -Wl,-Map=${BUILD_DIR}/${PROGNAME}.map on every link), tied to the ELF on content
+if (-not (Test-Path -LiteralPath $map)) { Stop 3 "M0: the build wrote no map at $map" }
+$mapAfterStart = (Get-Item -LiteralPath $map).LastWriteTimeUtc -ge $startUtc
 Copy-Item -LiteralPath $elf -Destination (Join-Path $Out 'firmware.elf')
-Remove-Item -LiteralPath (Join-Path $Out 'firmware.first.elf')
+Copy-Item -LiteralPath $map -Destination (Join-Path $Out 'firmware.map')
+$tie = & python (Join-Path $PSScriptRoot 'image-compare.py') m0 (Join-Path $Out 'firmware.elf') (Join-Path $Out 'firmware.map')
+$tieExit = $LASTEXITCODE
+$tie | Set-Content -LiteralPath (Join-Path $Out 'm0.txt') -Encoding utf8
+$record.m0 = [ordered]@{ tie = ($tie | Select-Object -First 1); tieExit = $tieExit; mapAfterStart = $mapAfterStart }
+if (-not $mapAfterStart) { Stop 3 "M0: the map is older than this build's start" }
+if ($tieExit -ne 0) { Stop 3 "M0: the map's output sections do not tie to the ELF (exit $tieExit); see m0.txt" }
 
-# 5. every input the map loads: hashed, and copied if it lives in the tree
+# 4. every input the map loads: hashed, and copied if it lives in the tree
 $inputs = @()
 foreach ($line in Get-Content -LiteralPath $map) {
     if ($line -notmatch '^LOAD (.+)$') { continue }
@@ -97,6 +86,6 @@ foreach ($line in Get-Content -LiteralPath $map) {
 $record.finished = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 $record.inputs = $inputs.Count
 $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Out 'record.json') -Encoding utf8
-Write-Host ("image-compare-build: {0} {1} -> {2}: M0 held (0 objects changed, ELF identical); {3} inputs" -f `
-        $PioEnv, $record.commit.Substring(0, 12), $Out, $inputs.Count)
+Write-Host ("image-compare-build: {0} {1} -> {2}: M0 held ({3}); {4} inputs" -f `
+        $PioEnv, $record.commit.Substring(0, 12), $Out, $record.m0.tie, $inputs.Count)
 exit 0
