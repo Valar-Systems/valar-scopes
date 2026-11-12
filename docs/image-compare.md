@@ -1094,3 +1094,133 @@ image layer looks only at (name, size) differences. R12's patch applied to such 
 same way in both images) reads nothing at all: NO CHANGE, silently. Closing that means walking every function, which
 is the full relink check the reviewer named as its own amendment. An R13 that files this reading (NO CHANGE, exit 0)
 as the known limit, so it cannot change unseen, is offered.
+
+## 24. Amendment 1i″, R13, the counted limit, and K/POS under them (the reviewer's rulings, 19:46Z), frozen before code
+
+The reviewer ruled:
+- 1i″ yes, with UNDECIDED and no new class.
+- R13 is filed.
+- The limit text is split by whether a function was walked, and counted.
+- K and POS are predicted before the read.
+- The full relink check is sized as an estimate.
+
+### 1i″: (c) on every walk the image layer finishes
+
+- **Which walks:** RELAX's two walks, and FILL's two image walks.
+- **What is checked:** their call sites, as (c) checks them: long-call sites, and direct calls under a relocation.
+- **When:** after every other check of that path has passed, and before the class is given.
+- **A mismatch is UNDECIDED,** and the line says why:
+  `UNDECIDED <name>: size <a> -> <b>: A's site <k> calls 0x…; its input names <name>, at 0x…`. FILL's carries
+  `(FILL)` after the name, as now.
+- **It never goes on to LINK-ONLY.** The walk finished, so the mismatch is the finding.
+- **R12** reads as section 23 proposed: `UNDECIDED lo_caller: size 12 -> 16: A's site 0 calls 0x40070100; its input
+  names hi_callee, at 0x40070000`, exit 3.
+- **P27** turns the finished-walk check off. It turns R12 red.
+
+### The limit, counted, on every verdict line
+
+- **The verdict line becomes:**
+  `verdict: <as now>[; LINK-ONLY: <n>]; trusted to the link (store built from M0, inputs hashed): <W> walked (call sites checked, other bytes trusted), <U> unwalked (all bytes trusted)`.
+- **W:** functions present in both images that the image layer walked, whatever the walk's outcome: RELAX, LINK-ONLY
+  or a walk's refusal, and FILL's image walk.
+- **U:** every other function present in both images. That includes CHANGED and PICK functions, whose image bytes are
+  not compared either.
+- **W + U = N,** the functions present in both images, keyed as the image layer keys them. Functions present in one
+  image only (GC, NEW, GONE) are reported by name and not counted.
+- **The LINK-ONLY line keeps its ending.** It speaks about one walked function, and for that function it is
+  accurate.
+- **Every case's verdict line changes,** as tabled below.
+
+### R13: the limit, filed
+
+- **Construction:** `null`, with B's `lo_caller` literal (a kept long call; `lo_caller` is 16 bytes in both images)
+  re-aimed from `hi_callee` at 0x40100000 to 0x40100100. Nothing is there, and the selftest asserts it.
+- **lo_caller is never walked.** The filed reading:
+  - `inputs: 7 loaded, 0 differ`
+  - `functions whose address moved: 0`
+  - `verdict: NO CHANGE; trusted to the link (store built from M0, inputs hashed): 0 walked (call sites checked, other bytes trusted), 7 unwalked (all bytes trusted)`
+  - exit 0
+- **No plant turns R13 red.** It is a filed limit. If the comparator ever walks unwalked functions, R13 moves, and
+  that move is the point.
+
+### Every case's (W, U), filed
+
+N was counted from each pair's two images, read-only, by a script written apart from the comparator's loop. Only the
+map parser is shared. W follows from each case's own walk lines, plus the two silent FILL walks (`fill`, `swap`).
+
+| cases | N | W | U |
+|---|---|---|---|
+| `null`, R6, R13 | 7 | 0 | 7 |
+| R3, R10 (both `null`) | 7 | 1 | 6 |
+| `body` ×2, R1, R2, `grow`, `gc`, `gc relocs`, `local` ×2, `local relocs`, R11 | 7 | 0 | 7 |
+| `relax`, R4, R5, R12 | 7 | 1 | 6 |
+| `pick` | 4 | 0 | 4 |
+| `strpool`, `offset` | 2 | 0 | 2 |
+| `rodata` ×3 | 5 | 0 | 5 |
+| `eh`, `ehtype` | 8 | 0 | 8 |
+| `fill` | 3 | 1 | 2 |
+| `fillchg`, R8, R9 | 3 | 0 | 3 |
+| `swap` | 2 | 1 | 1 |
+| `swapop`, `rodshift`, `rodown` | 2 | 0 | 2 |
+| `inittry` | 1 | 0 | 1 |
+| `rodswap` | 3 | 0 | 3 |
+| `callswap`, L1 | 4 | 0 | 4 |
+| `rodread` | 4 | 0 | 4 |
+| L2 | 4 | 3 | 1 |
+
+- 44 cases. T0's two have no verdict line.
+- Every other line of every case is as filed in sections 21-23.
+
+### K and POS under 1i″, filed
+
+- **K0, K2, K3 and K4:** byte for byte as their 19:07Z outputs, except the verdict line, which gains
+  `; trusted to the link (store built from M0, inputs hashed): 0 walked (call sites checked, other bytes trusted), 8806 unwalked (all bytes trusted)`.
+  - None has a walk (no RELAX, FILL or walk-refusal line) or a repeated local.
+  - N = 8806 in all four pairs.
+- **POS**, re-read exactly as POS2: s3128 is K0-C2 against POS-Cp, pro21 is POS-C against POS-Cp, both with
+  `pos-allow.txt` and c++filt.
+  - **s3128,** as POS2-s3128 except:
+    - `UNDECIDED SPIClass::end(): size 56 -> 60: site 1 flipped, but its reach did not cross the call limit` leaves;
+    - after the FILL lines comes `LINK-ONLY SPIClass::end() [.pio/build/blipscope-s3-128/lib822/SPI/SPI.cpp.o] -- size 56 -> 60; the walk: site 1 flipped, but its reach did not cross the call limit; object code equal; read-only data equal: 0 section(s); call sites checked A/B: 6/6; non-call bytes trusted to the link (store built from M0, inputs hashed)`;
+    - the verdict is `verdict: UNDECIDED (2); LINK-ONLY: 1; trusted to the link (store built from M0, inputs hashed): 3 walked (call sites checked, other bytes trusted), 8803 unwalked (all bytes trusted)`.
+    - Read from its object before filing: 6 long calls, all to functions (`spiDetach*`, `setHwCs`,
+      `spiGetClockDiv`, `spiStopBus`), and no data. Its object is identical in both builds, and both walks finish
+      before the flip refusal.
+  - **pro21,** as POS2-pro21 except the verdict line, which gains `; trusted to the link (store built from M0, inputs
+    hashed): 2 walked (call sites checked, other bytes trusted), 8709 unwalked (all bytes trusted)`.
+- **Any other K or POS line that moves is a stop.** It is either a real mismatch in a real build or a bug.
+
+### The plants: 27 × 44
+
+| plant | R12 | R13 |
+|---|---|---|
+| P6 (no narrowing) | red: A's walk refuses `width` and never finishes. LINK-ONLY then holds: A's re-walk stops before the site, and B's one site is right | unaffected |
+| **new P27** (the finished-walk check off) | red | unaffected |
+| every other plant | unaffected | unaffected |
+
+### The full relink check, sized: an estimate, not code; the owner's decision
+
+**(A) Extend the walk to every function and check every relocated field.** This needs the linker's fill re-layout
+modelled: the 7 real "an unrelocated instruction differs" refusals are exactly that. On real builds, expect thousands
+of UNDECIDED until it is modelled. 4 to 6 days, with an open-ended tail. Not recommended.
+
+**(B) Relink.** Re-run the link from the store's own recorded inputs, which are already copied or hashed, with its
+linker scripts and its exact link line. Require the result's allocated sections and symbol table to be
+byte-identical to the stored image.
+- **Work:**
+  - record the link line and the linker scripts in the store (`image-compare-build.ps1`): ½ day;
+  - a `relink` subcommand that calls ld directly, not through pio (pio recompiled under M0's first form), and compares
+    the result: ½ to 1 day;
+  - controls, each run red first, and the registration: ½ day. The controls: a clean relink matches; a planted image
+    byte is caught; a planted input byte is caught.
+  - About 2 days. +1 if it must run in CI, whose host-tests job has no xtensa ld today.
+- **What it catches that 1i″ does not:** any image byte that linking the recorded inputs did not produce. That means
+  non-call bytes in walked functions (R4), every byte of an unwalked function (R13), data sections and literal pools.
+  In practice: a stale or mixed build, or a link that is not deterministic.
+- **What it still trusts:** ld itself (a deterministic linker defect relinks identically), and the compiler.
+- **Risk to v20:**
+  - Made a prerequisite of P-FLIP, it adds those 2 to 3 days to #656's critical path. It also adds a new
+    toolchain-in-the-loop dependency: Windows/MSYS path handling, and archive member order.
+  - As a follow-up after v20, there is no risk: 1i″'s checks stand meanwhile, and every verdict line says how much is
+    trusted.
+- **Recommended: (B), after v20.**
