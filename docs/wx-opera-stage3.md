@@ -215,8 +215,35 @@ read well inside it (298-747 s). The committed copies were re-controlled from th
 | `s3_after_at.sh` | waits until a product's after-window time, then `s3_after.py` | (wraps the above) | `opmt`'s window again: S3-3 and S3-4 exactly as graded at 16:13Z |
 | `logver.py` | which script version wrote a Worker's lines | | the old version's 1 invocation, as before |
 | `classa_24h.py` | S3-7's Class A over one 24 h window, x 30 | below | the same window again: 863,790 |
+| `classa_hourly.py` (added with S3-7) | one bucket's Class A by hour over the same window, for attribution | its hours sum exactly to `classa_24h.py`'s `blipscope-wx` (5,314 a day); a bucket that does not exist exits 2 with "NO ROWS", never a zero | written after S3-7's two reads, from the scratch copy that attributed them; controlled from the repo copy at 16:47Z |
 
-## 8. S3-7: to come, added to this PR
+## 8. S3-7: read 2026-11-12, inside the band, but NOT for the predicted reason
+
+**The reading:** `classa_24h.py 2026-11-12T16:24:00Z` read **954,960 a month (0.955 M)** at 16:35:07Z and again at
+16:45:05Z, identical: `missileer-live` 778,680, `blipscope-wx` 159,420, `missileer-clips` 16,560,
+`blipscope-basemap-pkg-staging` 300 (new since the control). It is inside the frozen 0.95-1.10 M band, at its foot.
+**It is not graded as a confirmation,** because the band was reached by two moves in opposite directions:
+- **OPERA stopped publishing during the window.** Its open-radar bucket (`openradar-24h`) holds nothing after about
+  20:05-20:10Z on 11-11: the composite's last key is `OPERA@20261111T2010`. The bucket also holds 21 national feeds,
+  and none has any data for 11-12 (listed read-only at 16:28-16:29Z on 11-12, with the ingests' User-Agent). The ten's
+  checks reported `no-frame` with 0 errors throughout. No public notice was found.
+- **`blipscope-wx` by hour** (`classa_hourly.py`, below; its 25 hours sum exactly to 5,314 a day, x30 = 159,420):
+  408-448 an hour at 17-19Z on 11-11 with OPERA running, then 145-200 an hour from 21Z with OPERA silent. So
+  **`cref` alone is about 182 an hour (about 0.131 M a month), and the ten cost about 242 an hour while they ran
+  (about 0.174 M a month).** The frozen arithmetic's 10 x 17,280 = 0.173 M is right. The alternative, "the ten cost
+  less than predicted", is excluded: they ran at the predicted rate, then stopped.
+- **`missileer-live` stepped up,** from about 982 an hour in the control to a flat 1,079-1,102 an hour across every full
+  hour of this window. It is a step before the window, not a trend within it.
+- **With OPERA running,** the same window gives about **1.10 M**, at the band's top, and over 1 M as the frozen row
+  expected. **The ten's full-day Class A is unmeasured** until OPERA publishes again. The 7-day figure, about
+  2026-11-18, will contain the outage too.
+- **What it changes, for the owner:** the invoice question stands. Under Read A the account crosses 1 M while OPERA
+  runs. While OPERA is silent, it sits under 1 M only for as long as the outage lasts.
+
+**The nine are no longer watched only by my reads.** #643 deployed on 2026-11-12, to staging at 05:53Z and production
+at 15:15Z (`docs/wx-healthz-deploy.md`). `/healthz` now lists all ten with `stale`, and smoke prints one line each.
+
+**The plan, as it was frozen before the read:**
 
 As ruled, S3-7 comes 24 hours after the tenth.
 - **The window:** the read covers the 24 hours ending 2026-11-12T16:24:00Z. It is read twice, 10 minutes apart, and the
@@ -239,4 +266,7 @@ It adds sections 6 to 9 to this doc and eight files in `tools/wx/`. No file it t
 - **The baseline** is #636's finished head run, a docs and `tools/wx/` change: 32 = 29/3/0. #637's, docs only, read the
   same.
 - **No job-set change since:** `git diff 5ab18cd8 e0941a90 -- .github/` is empty.
+- **The S3-7 commit** adds section 8's readings and `tools/wx/classa_hourly.py`, neither in a path filter. **Predicted
+  again: 32 = 29/3/0.** The newest baseline is #661's head run (docs only, tested into `f3fee349`), which read 32 =
+  29/3/0.
 - **Run locally before the push:** `device-ids.yml`'s tree scans and `no-traffic-captures.yml`, over this tree.
