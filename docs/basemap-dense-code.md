@@ -1972,3 +1972,23 @@ f88dded3e379; none is a graded row):
   - `kb5.cpp` is re-extracted verbatim from that commit.
 
   Every new sha256 is recorded before the re-run.
+
+**ACCEPTED (05:25:51Z), with S-KB-ORDER's SCOPE stated before code.** One pixel is r_view / 120 km: 1.35 km at 162, 0.675 at 81 and
+0.3375 at 40.5. The two orders' polygons differ by bands up to about ε (201 m) wide, which is 0.15, 0.30 and 0.60 px in those views.
+- **Where the difference can appear:**
+  - Island C (E 152.5..162) is in view only at 162 km.
+  - B (centre at 16.6 km, r 4) is in view in all 24.
+  - A (centre at 46 km, r 7.5) is in view in all 16 views at 81 and 162 km. At 40.5 km it shows only in the rotations whose square
+    reaches it.
+- **How many pixels it should flip.** A band narrower than a pixel still flips pixels: about one per pixel-area of band, wherever a pixel
+  centre falls inside it. A pixel's area is 1.82, 0.456 and 0.114 km² in the three views. The two orders' symmetric difference is of
+  order a few km² per circle. That is a few pixels per view at 81 km, more at 40.5 km, and around one per circle at 162 km.
+- **The prediction, scoped:**
+
+| reading | means |
+|---|---|
+| **≥ 1 off-bridge pixel in total over the 24 views, with at least one of them in an 81 km or 40.5 km view** | **as predicted: the plant shows where the bands are widest in pixels** |
+| off-bridge pixels in the 162 km views as well | allowed and not predicted (a sub-pixel band still covers some centres); recorded |
+| off-bridge pixels ONLY in 162 km views, none at 81 or 40.5 km | **stop**: the model of where the plant shows is wrong |
+| no off-bridge pixel anywhere | **stop**: the control is blind again |
+| anything else | **stop** |
