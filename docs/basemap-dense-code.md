@@ -2059,3 +2059,7 @@ clause and its scope, as the 80164e6096c3 table says), then KB1 on `kb1c`.
   KB7-c-real, P2-M, and the pictures.
 
 **This is KB1's FIRST re-run.** A second off reading on it goes to the orchestrator and on to the owner.
+
+**ACCEPTED (06:29:10Z), with the driver change in the orchestrator's words:** "Turning the squares' ORDER row from a 'differs' control
+(known blind) into a check that reads 0 is honest: it now tests the diagnosis, and anything else contradicts it and stops. The real ORDER
+control is on kb1c with its off-bridge clause, as registered." **GO for KB1's first re-run, in the frozen order.**
