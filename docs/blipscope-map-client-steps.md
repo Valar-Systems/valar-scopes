@@ -4424,6 +4424,46 @@ The ELFs are kept (32,338,992 B and 32,462,300 B).
 **When:** P-REDO can be read as soon as #656's controls (K0, K3, K2, K4) read as predicted. It needs no v20
 candidate. P-FLIP is wanted at the pre-ship gate, about 20-26 Nov.
 
+#### Amendment 1 to P-REDO's expected set, before P-REDO runs (2026-11-12, after #656's offsets-only label of 17:16Z)
+
+**The pair's commits.** Bw and Cw are local merges, and neither is on origin:
+- Bw is `f37aa334` = main `e3c2508e` + `cb9d6ac2`.
+- Cw is `338845e6` = main `e3c2508e` + `c4ff317a`.
+- Both parents of each are on origin (main, and #659's branch).
+- `git merge-tree --write-tree` of each pair reproduces the registered tree exactly (`eb84bef82d41` and `0b1d19f08e26`).
+- So each build checks out `e3c2508e` detached, runs `git merge --no-ff --no-edit <the second parent>`, and requires
+  `HEAD^{tree}` to equal the registered tree before it builds.
+- **Correction:** the record above calls Cw "the wiring's commit". Cw is main merged with the wiring's commit
+  `c4ff317a`, as the earlier reading says ("C: main + `c4ff317a` (tree `0b1d19f08e26`)").
+
+**The no-source rows, amended.** #656 now labels `CHANGED (load/store offsets only: k)`, and states three cases it reads
+as plain CHANGED. All three are member-offset forms:
+- an `l32i.n` pushed to `l32i` (an offset of 60 or more, so the boundaries move);
+- an offset past 1020, taken through `addmi` or a literal;
+- an `addi`/`addmi` forming `&this->m`.
+
+With four members inserted ahead of about 99, those forms are likely, so the record's "offset-only" would read off for a
+reason that is not a defect. **Amended:** a CHANGED unit in `AircraftManager.cpp.o` or `main.cpp.o` with no source
+change reads EITHER:
+- `CHANGED (load/store offsets only: k)`, OR
+- plain CHANGED with its **named relocations unchanged**: the same named callees and data symbols, as #656 counts "named
+  relocations" in its offsets-only rule. A literal-pool slot is not a named target.
+
+**What it means now:**
+- A no-source CHANGED unit in those two objects whose named relocations CHANGE (a callee or a data symbol added or lost)
+  is not an offset shift. It is reported by name as the TU-wide inlining alternative, or another not yet named. It is
+  not explained away.
+- The number of offsets-only units, their total k, and the number of relocation-unchanged plain CHANGED units are
+  reported and not graded against a count. I cannot predict how many.
+- Asked of #656: print "relocations unchanged" per unit, as weatherscope offered.
+- **Unchanged:**
+  - every other row of the set above;
+  - the GC chain: `fmin` and `fmax` rooted in a CHANGED unit pull in `__fpclassifyd`, which #656's amendment 1a
+    covers;
+  - `RecordFrameUs` unchanged;
+  - UNDECIDED 0;
+  - the escape hatch.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
