@@ -942,7 +942,7 @@ plants a changed `kRungs[]` and shows the scene table and the reader follow with
      airports × `kRungs[]` = 25/50/100), the 10 mi reported rows (if they fit the window), the packed stress rows,
      LIVE at both airports, and LIVE-OWN.
 
-**AMENDMENT to the replay hook, before its code (23:5xZ, unstamped):** where the hook sits.
+**AMENDMENT to the replay hook, before its code (by 23:50:25Z):** where the hook sits.
 - **The problem:** skipping the real `/blips` GET needs an `if … else` that reaches outside a bench region. That
   breaks FB2 (a region opens with `#ifdef FRAME_BENCH` and closes with `#endif`), and risks I-3's byte-identical
   shipping image.
