@@ -84,7 +84,8 @@
 // header, and their frame loops are not M3's (the same edition list main.cpp's radar guards use).
 #if !defined(BLIPSCOPE_WEB_RENDERER) && !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && \
     !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && \
-    !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+    !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE) && \
+    !defined(BLIPSCOPE_NO_PUSH_TASK)   // the M3 bench's base env: the same test frame on today's push (M3-2)
 #define BLIPSCOPE_PUSH_TASK 1
 #endif
 
