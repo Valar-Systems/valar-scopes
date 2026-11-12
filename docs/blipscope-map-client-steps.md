@@ -2740,6 +2740,80 @@ fourth selftest case proves it on a wxlook-shaped input. The new step on the map
 **Added to the code push's CI prediction:** on the `build (blipscope-s3-128-mapbench)` leg, the adsbdb launch gate's
 verdict is **PASS**, from its default plant site (`src/ConfigMigration.cpp`). **UNTRUSTWORTHY there is off.**
 
+### The owner's terms for the window, and the bench code's corrections (2026-11-12)
+
+**The owner, verbatim (04:29Z, relayed by the orchestrator at 04:30:00Z):**
+
+> "1. Yes: a no-hands window you open may include flashing E2:08 over USB, when all of these hold: The write ranges are
+> printed against the partition table before any flash. No factory image, no full erase, and nothing written to the NVS
+> (settings) partition. Both images are identified by sha256 before the window: the test image, and E2:08's restore
+> image. E2:08 is restored at the end, and its boot log shows it rejoining Wi-Fi with its settings, without the setup
+> portal. v19 has priority on E2:08: never during step 5' or any other v19 step. Anything that would need my hands: stop
+> and report.
+> 2. The marker script (the reviewer): besides proving the old single-marker form unchanged, the new list form needs its
+> own failing control. A build carrying a marker that isn't on its list must still be refused."
+
+**These terms join the window's procedure, as conditions on every flash:**
+- the write ranges printed against E2:08's partition table first: the app image to the app slot only; no factory image,
+  no full erase, nothing written to NVS;
+- **two images identified by sha256 before the window opens:**
+  - the mapbench image;
+  - E2:08's restore image, read at that time as whatever v19's step 5' leaves on the board;
+- E2:08 restored at the end, and its boot log read for Wi-Fi rejoining with its saved settings, **not the setup portal**;
+- the window only after every v19 step on E2:08;
+- anything that would need the owner's hands: stop and report.
+
+**The marker script's five new `--selftest` cases** (`scripts/check-no-bench-hooks.sh`):
+1. a list, every listed marker present: passes;
+2. a list, a listed marker missing: refused;
+3. **a list, a marker not on the list present** (`[alert-bench]` under `"[wx-bench],[map-bench]"`): **refused**. This is
+   the reviewer's failing control;
+4. the one-marker form on a wxlook-shaped image: exit 0, with the exact line it always printed;
+5. the one-marker form on the two-marker image: still refused.
+
+**The ruling, verbatim (the orchestrator, 04:34:59Z):**
+
+> the owner's terms recorded verbatim, and the five --selftest cases (the third is the reviewer's control): ACCEPTED.
+> The four placement corrections, all before the code: ACCEPTED.
+> - (1) the home is set in Initialise's region right after the location read, before the radius;
+> - (2) a lazy accept at DrawMapBase's top;
+> - (3) two nested regions in DrawMapBase, keeping CD5's single Init; the pins become h 1 / cpp 7;
+> - (4) the passes line from the tick.
+> The regex: ACCEPTED, and it's a real catch. A FAIL regex that can't match a row's name makes that row's plant unable
+> to ever read red. That's the blind-control shape. Add to the run a check that each new plant's red line is actually
+> MATCHED by the driver (e.g. assert that S-CB-BENCHLEAK's output line is parsed as a red CB-B1). Then it's seen
+> working, not assumed.
+> ONE CHECK for (4): P4's switch calls Initialise() from RecordFrameUs, on the loop task, mid-run. Before relying on it,
+> read Initialise for anything that must not run twice: task creation, a second NVS open, a second web-server start, a
+> static that assumes one call. Name what you found in the record. If anything there isn't re-entrant, use the narrower
+> config-change path instead (MapConfigure plus the radius recompute), not the full Initialise.
+> Then write the C++, commit it with the record, and run. Flash only in the window, after v19's E2:08 steps.
+
+**`Initialise`, read for anything that must not run twice** (`src/AircraftManager.cpp`, about 680 lines). **It is built
+to re-run.** main.cpp's loop calls it on every saved config (`ConsumeConfigChanged`), and every one-time act in it is
+guarded:
+- **tasks:** `StartFetchTask` and `StartEnrichTask` return at once once their handles are set ("already running;
+  survive Initialise() being re-run on a config reload"); `mqtt.Begin` "spawns the publisher task once; reconfigures it
+  thereafter";
+- **NVS:** the follow log loads once, behind `followLogLoaded`; `logbook.Begin()` is idempotent ("only the first call
+  loads from NVS"); everything else is a read through `GetStoredString`;
+- **allocation:** `AllocateWeatherBuffers` returns at once when `wxBuffersOk` is set, and does not retry after
+  `wxAllocTried`;
+- **the web server** is not started in `Initialise` at all;
+- **no function-local `static`** in it.
+
+So the full `Initialise` is used. The bench's call runs where main.cpp's does: on the loop task, after
+`framebuf::FrameDone()`, at the end of `RecordFrameUs`.
+- **Its known effects, as a saved config has them:** the cloud airport list is cleared and fetched for the new home
+  (`++mapAirportsGen`); the weather layer rebuilds; `MapConfigure`'s key change drops Bend and calls `Forget`.
+- **For the reading:** the airport list's arrival can add one rebuild to an early P4 tick. CBF1 grades every
+  `[map] draw: rebuilt in` line. CF5's passes line is the last rebuild of its tick.
+
+**The regex check, as it runs.** `sabotage_map_draw.py` grades a plant AS PREDICTED only when the red set **parsed** from
+the check's output equals its frozen set. So S-CB-BENCHLEAK reads AS PREDICTED only if its `FAIL CB-B1` line is parsed
+as `CB-B1`, and a regex that could not read it would make the plant off-prediction. The run prints each plant's parsed
+set.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
