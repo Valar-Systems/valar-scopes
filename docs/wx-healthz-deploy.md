@@ -78,3 +78,35 @@ is never refused.
 It changes this doc only. **32 check runs: 29 success, 3 skipped, 0 failed.** The baseline is #641's head run, docs
 and `tools/wx/`: 32 = 29/3/0. #649's new `workers.yml` path filters (`tools/weatherscope/nws/**`,
 `test/fixtures/wx/nws/**`) are not touched here.
+
+## 4. RE-REGISTERED before the claim (2026-11-12 ~04:10Z): OPERA is silent
+
+**What was read before the deploy** (~04:06-04:08Z, while S-slot was being prepared), reported, and ruled on by the
+orchestrator (~04:08Z: option (a), plus the recovery branch):
+- **OPERA has published nothing since 2026-11-11T20:10:00Z** (epoch 1794427800). Every OPERA product's R2 `latest`
+  reads exactly that epoch. Production's `/healthz` read `opuk` at 28,609 s against its 1,800 s `maxAgeS`, with `cref`
+  at 136 s.
+- **The ingests are healthy.** `blipscope-wx-ingest-opuk` and `-opmt` each ran 30 checks in 03:52-04:07Z, each
+  `no-frame`, with 0 errors, at ABR 1. It is an upstream silence, not this deploy.
+- **No customer is affected,** per the orchestrator from the artifacts: v18's `platformio.ini` has no
+  `WX_LAYER_SHIPS`, so no released firmware draws `/wx`.
+
+**So, frozen now, before the claim:**
+- **S2/P2:** `cref` fresh (`frameAgeS` < 600, `stale: false`). The ten OPERA products read `stale: true` with
+  `frameAgeS` > 1,800. `routed` as before.
+- **S4/P4:** the 35 `cref` points as originally frozen. The 14 `opuk` points (5 isles, 9 R2) answer **503 wx_stale**.
+- **The recovery branch:** at each S2/P2/S4/P4 read, every OPERA product's R2 `latest` epoch is read at the same time.
+  A product whose `latest` is newer than 1794427800 is graded against its ORIGINAL frozen prediction, which is fresh,
+  and for `opuk`'s points 200 `opuk` 720. Both outcomes are tied to a read made at row time.
+- **Everything else is unchanged.** This is a re-freeze on an environment fact read before the deploy, not on any
+  deploy outcome.
+
+**The graders** (scratch, moved into the record with the readings):
+- `hz_rows.py` runs S1/P1, S2/P2 (with the branch) and W5's C1. It was controlled before the deploy: on staging's
+  pre-deploy shape, S1, S2 and C1 read OFF.
+- `w5_rows.sh` runs C2-C4 and W5-S1 to W5-S3. Controlled the same way: C2 x3 and C3 read OFF on staging before W5;
+  W5-S1 and W5-S2 read 400.
+  - **For weatherscope:** C4 and W5-S3 already read 405 before W5, so neither can tell pre-W5 from post-W5.
+- `opera_latest.py` supplies the branch's epochs.
+- `s4_grade.py` grades `r12_prod.sh`'s lines under the re-registration. Controlled both ways: the silent-state set
+  passed; one planted 200 under silence read OFF.
