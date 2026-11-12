@@ -2708,6 +2708,38 @@ before the real capture is read. The image plant for CBF4 is built and flashed i
   - **(A)** The mapbench image's marker is `[wx-bench]`, and `[map-bench]` is not added. That contradicts Q-MB11's
     ruling, so it is listed only so that the choice is visible.
 
+### The mapbench registration's ruling (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 04:28:30Z):**
+
+> 19ab390c's CI is recorded (34 = 30/4/0; tested merge a0a7e04). The mapbench registration at 14764d1405a5 is ACCEPTED,
+> with its three corrections.
+> - (1) No new plant_target() case. One condition: the CI prediction for the code push must name the adsbdb gate's
+>   verdict on the new mapbench leg as PASS, NOT UNTRUSTWORTHY. If the default site doesn't actually serve it, CI shows it
+>   and that's off.
+> - (2) Two markers: noted.
+> - (3) About 65 min: noted.
+> Q-MB13: (B). --expect takes a comma list: every listed marker present, every other absent. check-no-bench-hooks.sh is
+> SHARED (the wxlook step and others call it), so add a FOURTH --selftest case: the existing single-marker form
+> ("--expect [wx-bench]") behaves exactly as before on a wxlook-shaped input. Also confirm that no existing caller's
+> command line changes. (A) is rejected, as you say.
+> The rows, plants and run are as listed (CB-B1/CB-B2 with their plants; check_map_draw 11/0; draw 18; the builds at 0
+> outside, the comparator's controls first; M1 +417,496..+421,496 B). Then the code, predictions first, pushed under the
+> standing rule. Flash nothing (Q-MB10 is still with the owner).
+
+**The callers, read before the change.** `scripts/check-no-bench-hooks.sh` is called at six places in the firmware
+workflow:
+- the photo role's `--expect "[photo-mode]"` and its parent's plain scan;
+- wxlook's `--expect "[wx-bench]"`;
+- `--selftest`;
+- the slug-ful image's scan, and the factory image's.
+
+**None of their command lines changes.** The single-marker form keeps its exact output line and exit codes, and the
+fourth selftest case proves it on a wxlook-shaped input. The new step on the mapbench leg is the only new caller.
+
+**Added to the code push's CI prediction:** on the `build (blipscope-s3-128-mapbench)` leg, the adsbdb launch gate's
+verdict is **PASS**, from its default plant site (`src/ConfigMigration.cpp`). **UNTRUSTWORTHY there is off.**
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
