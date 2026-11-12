@@ -266,6 +266,68 @@ and then found equal to what the suites printed. `--fleet`, `--fleet-sabotage` a
 ota-identity job runs, passed throughout. #648 and #659 also add rows: whichever lands second re-derives these on the
 merged tree.
 
+## The window on E2:08 (registered before it opens)
+
+One no-hands window, granted by the reviewer under the owner's 04:29Z terms: app only, every image by sha256 first,
+the restore's boot log showing Wi-Fi rejoined without the portal, and anything needing hands is a stop. The board is
+identified by its pinned serial (E2:08), and reserved with `board-port.py --reserve` for the window.
+
+**The images**, each `firmware.bin` + `partitions.bin` (`28f336fe57a9`, the shipping table), built from a clean tree:
+
+| phase | built from | firmware sha256 | bytes |
+|---|---|---|---|
+| before | `626ece59b171` (main + the hook, with `F`) | `c1da5b7cfe573f3aa2e4073c49d47ae0c0dd3e42104bfd22af6f806dc73b9d26` | 1,937,424 |
+| after | `0f652e899d58` (+ the fix) | `ed4f688c39546364c208e147a387b6ef0bb37d9c1ec2d60cf0dab0bae71b0add` | 1,937,520 |
+| restore | the v19 release asset | `f6d73e39163177b0dc25516a104bb02021d2048a94f82a66fc42a90f0a2615be` | 1,931,840 |
+
+Both bench images carry `[card-bench]` and no other bench marker (`--expect`), and the restore image carries none.
+Each write is `scripts/app-only-write.py`: ota_0 (app0, 0x020000 .. 0x65FFFF) only, after it reads the board's
+partition table and otadata back and refuses if the write would land wrong or not be booted. Nothing is erased, and
+NVS, otadata, the bootloader and the partition table are never written.
+
+**The driver** is a session scratch script (`window670.py`, sha256 `611330eba845...`), run one phase at a time. Its
+`--dry` mode, which opens nothing, read all three images as identified, the port by its pinned serial, and the write
+ranges above. The board's address and the PC's LAN address are never printed. The serial port opens once per
+phase, with DTR and RTS set false before the open, and the board is checked over HTTP after every close.
+
+**Each bench phase** (before, then after), in order:
+1. Write the image, then wait for `/diag/fb` to answer.
+2. Cloud mode, the pictures:
+   - **(a)** `n`, `o`, then capture.
+   - **(b)** `l`, `o`, then capture.
+   - **(c0)** `p` (before; its `P` line is kept locally) or that `P` line (after), then `o`, 12 s for the photo, then
+     capture.
+3. Fixed traffic (`F`, map-client's `fixed_traffic.py` at sha256 `b530faf4df97a9e586f32f3671b79213b84540ded83b3f694a8c0083d11023a5`, `?home=bend&n=N`):
+   - FT2 at n = 20, then at n = 40, on the open photo card.
+   - Then `d` to the data page, and capture **(c1)**.
+   - Then FT1 at n = 40, then at n = 20, on an `n` card.
+   - Before each FT row, wait until two consecutive `[health]` lines count n + 1 tracked (the fixed set and the bench
+     contact), up to 150 s.
+4. Every capture is `/diag/fb` read three times, kept only when all three are `Torn:false` and agree byte for byte.
+5. Every FT sample is the average drawn-frame time over 10 s, from `X-Blipscope-Frame-Seq`, with the tracked count
+   from the nearest `[health]` line. Each (row, n) is sampled twice (FT-AA).
+
+**FT1 and FT2 run on the LOCAL path** (the reviewer's note): with fixed traffic, map and weather are off on both
+sides. That is equal conditions, and fine for a card-layout change.
+
+**Restore:** write v19, wait 25 s (never open inside the boot window), then one serial read of the boot.
+
+**Predictions, frozen:**
+
+| row | predicted | if not |
+|---|---|---|
+| (a) | before: no route, type or operator row (the bug). After: caption at y 58, callsign at 36, then route, type, model, operator, Dist, Alt, Spd | the fix is not what T-host/T-web graded: stop |
+| (b) | before: no rows. After: (a)'s layout with "Loading photo..." | the same |
+| (c0), (c1) | before == after, byte for byte over 115,200 bytes (the two sha256s equal) | the differing pixel boxes are reported, and the fix stops there (section 6) |
+| FT-AA | each (row, n)'s two "before" samples within 2 ms of each other | that row reads **"instrument"** and goes to the owner, never re-graded |
+| FT1 | after <= before (the fix draws less: no silhouette). Margin: after at most before + 2 ms (each side's mean of two) | beyond the margin: the fix stops, and both numbers go to the owner |
+| FT2 | after within 1 ms of before. Margin: + 2 ms | the same |
+| tracked | 21 at n = 20 and 41 at n = 40, every sample | an FT row whose counts differ between before and after is not graded: "instrument" |
+| restore | app-only-write exit 0, `[WiFi] CONNECTED`, no `[WiFi] ... portal` line, `/diag/fb` answers | stop and report: anything needing hands is the owner's |
+| anything else | | the instrument is unreliable for that row: stop and decide, no improvised reading |
+
+**Duration:** about 18 min per bench phase and 3 min for the restore, so about 40 min in all.
+
 ## Results
 
 ### D-ref, the first run (off prediction; stopped, ruled (A) above)
