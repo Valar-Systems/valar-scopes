@@ -38,6 +38,8 @@
   #include "variants/s3_146.h"
 #elif defined(BLIPSCOPE_VARIANT_S3_175_AMOLED)
   #include "variants/s3_175_amoled.h"
+#elif defined(BLIPSCOPE_VARIANT_P4_40)
+  #include "variants/p4_40.h"   // ESP32-P4 4" bench bring-up (docs/p4-40-bringup.md)
 #else
   #error "No BLIPSCOPE_VARIANT_* defined. Select a SKU via the PlatformIO env build_flags (see platformio.ini)."
 #endif

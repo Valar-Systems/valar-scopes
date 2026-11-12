@@ -18,6 +18,11 @@
 // Custom SPD2010 touch (the touch half of the same TDDI chip; not in LovyanGFX).
   #include "Touch_SPD2010.hpp"
 #endif
+#if defined(BLIPSCOPE_PANEL_JD9365)
+// JD9365 on MIPI-DSI (ESP32-P4): LovyanGFX's own Bus_DSI + a Panel_DSI subclass carrying Waveshare's
+// init table (Apache-2.0; sources and changes in the header). Bench-only: docs/p4-40-bringup.md.
+  #include "Panel_JD9365.hpp"
+#endif
 
 // Per-variant LovyanGFX device. The display/touch driver classes and the whole bring-up
 // body are selected by the BLIPSCOPE_PANEL_* / BLIPSCOPE_TOUCH_* macros the active variant
@@ -38,6 +43,9 @@ class LGFX : public lgfx::LGFX_Device
 #elif defined(BLIPSCOPE_PANEL_CO5300)
     lgfx::Panel_CO5300 _panel; // built-in AMOLED QSPI driver (1.75" 466x466)
     lgfx::Bus_SPI _bus;        // QSPI mode (selected by setting all four pin_io* below)
+#elif defined(BLIPSCOPE_PANEL_JD9365)
+    Panel_JD9365 _panel;       // Panel_DSI + the JD9365 init table (4" 720x720)
+    lgfx::Bus_DSI _bus;        // MIPI-DSI, ESP32-P4 only
 #else
   #error "No BLIPSCOPE_PANEL_* selected for this variant -- add a panel block to LGFX.h."
 #endif
@@ -49,6 +57,8 @@ class LGFX : public lgfx::LGFX_Device
     lgfx::Touch_SPD2010 _touch;
 #elif defined(BLIPSCOPE_TOUCH_FT5X06)
     lgfx::Touch_FT5x06 _touch; // FT3168 is FT5x06-compatible
+#elif defined(BLIPSCOPE_TOUCH_GT911)
+    lgfx::Touch_GT911 _touch;
 #endif
 
 public:
@@ -195,6 +205,52 @@ public:
             cfg.offset_y = 0;
             _panel.config(cfg);
         }
+#elif defined(BLIPSCOPE_PANEL_JD9365)
+        {
+            // MIPI-DSI link, from Waveshare's BSP: 2 lanes at 1500 Mbit/s, D-PHY powered from LDO channel 3
+            // at 2500 mV. Bus_DSI acquires the LDO, creates the DSI bus and a DBI command channel.
+            auto cfg = _bus.config();
+            cfg.bus_id = 0;
+            cfg.lane_num = BLIPSCOPE_DSI_LANES;
+            cfg.lane_mbps = BLIPSCOPE_DSI_LANE_MBPS;
+            cfg.ldo_chan_id = BLIPSCOPE_DSI_LDO_CHAN;
+            cfg.ldo_voltage_mv = BLIPSCOPE_DSI_LDO_MV;
+            _bus.config(cfg);
+            _panel.setBus(&_bus);
+        }
+        {
+            // JD9365 720x720 round panel. Geometry from the variant (square bounding box). rgb_order = true
+            // makes Panel_DSI write MADCTL 0x00 (RGB), which is what the BSP asks for and what the init
+            // table's lead-in already sent. The framebuffer is memory, so it is readable.
+            auto cfg = _panel.config();
+            cfg.memory_width  = variant::SCREEN_SIZE;
+            cfg.memory_height = variant::SCREEN_SIZE;
+            cfg.panel_width   = variant::SCREEN_SIZE;
+            cfg.panel_height  = variant::SCREEN_SIZE;
+            cfg.offset_x = 0;
+            cfg.offset_y = 0;
+            cfg.offset_rotation = 0;
+            cfg.readable = true;
+            cfg.rgb_order = true;
+            cfg.bus_shared = false;
+            cfg.pin_cs   = -1;
+            cfg.pin_rst  = BLIPSCOPE_DISP_PIN_RST;
+            cfg.pin_busy = -1;
+            _panel.config(cfg);
+        }
+        {
+            // DPI video timing, from the BSP. One framebuffer, in PSRAM; Panel_FrameBufferBase writes the
+            // CPU cache back itself, so board::DisplayFlush stays the inline no-op here.
+            auto det = _panel.config_detail();
+            det.dpi_freq_mhz      = BLIPSCOPE_DPI_FREQ_MHZ;
+            det.hsync_back_porch  = BLIPSCOPE_DPI_HSYNC_BACK;
+            det.hsync_pulse_width = BLIPSCOPE_DPI_HSYNC_PULSE;
+            det.hsync_front_porch = BLIPSCOPE_DPI_HSYNC_FRONT;
+            det.vsync_back_porch  = BLIPSCOPE_DPI_VSYNC_BACK;
+            det.vsync_pulse_width = BLIPSCOPE_DPI_VSYNC_PULSE;
+            det.vsync_front_porch = BLIPSCOPE_DPI_VSYNC_FRONT;
+            _panel.config_detail(det);
+        }
 #endif // panel selection
 
         {
@@ -275,6 +331,29 @@ public:
             _panel.setTouch(&_touch);
         }
 #endif // BLIPSCOPE_TOUCH_FT5X06
+
+#if defined(BLIPSCOPE_TOUCH_GT911)
+        {
+            // GT911 on I2C1, shared with the board's ES8311 codec (which nothing here drives). INT and RST
+            // are not wired, so the chip is polled; Touch_GT911 tries 0x5D and 0x14 in turn.
+            auto cfg = _touch.config();
+            cfg.x_min = 0;
+            cfg.x_max = variant::SCREEN_SIZE - 1;
+            cfg.y_min = 0;
+            cfg.y_max = variant::SCREEN_SIZE - 1;
+            cfg.pin_int = BLIPSCOPE_TOUCH_PIN_INT;
+            cfg.pin_rst = BLIPSCOPE_TOUCH_PIN_RST;
+            cfg.bus_shared = false;
+            cfg.offset_rotation = 0;
+            cfg.i2c_port = BLIPSCOPE_TOUCH_I2C_PORT;
+            cfg.pin_sda = BLIPSCOPE_TOUCH_PIN_SDA;
+            cfg.pin_scl = BLIPSCOPE_TOUCH_PIN_SCL;
+            cfg.i2c_addr = BLIPSCOPE_TOUCH_I2C_ADDR;
+            cfg.freq = BLIPSCOPE_TOUCH_FREQ;
+            _touch.config(cfg);
+            _panel.setTouch(&_touch);
+        }
+#endif // BLIPSCOPE_TOUCH_GT911
 
         setPanel(&_panel);
     }

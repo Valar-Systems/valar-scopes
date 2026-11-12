@@ -17,9 +17,10 @@
 //        weatherscope- on an s3-128): installed, log begin/write/writeRest/end, the
 //        history switches once, the target equals the image. Without them a fake that
 //        ignored every call would pass I1-I6.
-// O10    the 8 identities each asking for their own scope, against the two pre-check heads (v18's
-//        published radar image, and the base Weatherscope build): 16 no-record, 0 foreign, 0 flash calls
-//        (8 since the wxlook bench env joined, 2026-11-06, #445)
+// O10    the 10 identities each asking for their own scope, against the two pre-check heads (v18's
+//        published radar image, and the base Weatherscope build): 20 no-record, 0 foreign, 0 flash calls
+//        (8 since the wxlook bench env joined, 2026-11-06, #445; 10 since two P4 rows (p4-40), added by #648,
+//        2026-11-11, docs/p4-40-bringup.md)
 //        (the s3-146 rows are retired, A12.107; no CI-built Missileer image exists, A12.110)
 // MAP1-3 the fail mapping (A12.104): the refusal tokens; a short non-image is fail--106 with
 //        no flash call (not truncated); a begin failure is fail-<its error>
@@ -282,8 +283,8 @@ int main(int argc, char** argv)
         }
         char buf[160];
         std::snprintf(buf, sizeof buf, "%d identities x %d pre-check heads: %d no-record, %d foreign, %d other, %d flash calls "
-                      "(want 16, 0, 0, 0)", rows, kHeads - kFirstPre, noRecord, foreign, other, calls);
-        check(rows == 8 && noRecord == 16 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
+                      "(want 20, 0, 0, 0)", rows, kHeads - kFirstPre, noRecord, foreign, other, calls);
+        check(rows == 10 && noRecord == 20 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
     }
 
     // ---- MAP1-3: the fail mapping
