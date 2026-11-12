@@ -1,0 +1,129 @@
+# Big screens: the plan
+
+**Status: a plan, no code.** Written 2026-11-12 by the P4 session. The owner ruled **GO** at 17:26Z: "GO for the build,
+after v20's content freeze, as planned." So nothing here starts before **v20's content freeze**, and every step
+registers its predictions in this file before its code, as docs/p4-40-bringup.md did.
+
+## 1. The screens
+
+The radar on round touch screens, the big ones seen at arm's length:
+
+| screen | panel | diameter | px per mm | mm per px | how it runs | status |
+|---|---|---|---|---|---|---|
+| 1.28" Kit S3 | 240 | 32.5 mm | 7.38 | 0.135 | device | shipping; **its output does not change** |
+| 2.1" Waveshare (`blipscope-pro-s3-21`) | 480 | 53.3 mm | 9.00 | 0.111 | device | to be sold (the owner, 17:26Z); bench bring-up first; shipping in skus.yml is its own decision, aimed at v21 |
+| P4 4.0" | 720 | 101.52 mm | 7.09 | 0.141 | device | bench (docs/p4-40-bringup.md) |
+| 7" | 1080 | 172.8 mm | 6.25 | 0.160 | web build | the owner, 17:06Z |
+| 15.7" | 960 | ~399 mm | 2.41 | 0.416 | kiosk app / app.valarscopes.com WebAssembly | venue screen |
+| 23.6" | 1280 | ~599 mm | 2.14 | 0.468 | kiosk app / app.valarscopes.com WebAssembly | venue screen |
+
+Sources:
+- **1.28" and 2.1":** the nominal diagonal (32.5 mm and 53.3 mm). The 2.1" also matches the owner's "about 53 mm" (17:26Z).
+  Waveshare's spec page does not answer automated reads, so the bench bring-up measures the glass.
+- **P4:** Waveshare's display area for the 4-inch module (bench row B1 measures it).
+- **7":** 1080 px at 0.16 mm per pixel (the owner).
+- **15.7" and 23.6":** docs/web-kiosk-card.md. They agree with the owner's pixel sizes (0.42 and 0.47 mm) to within 1%.
+
+## 2. The design rules (the owner, 17:26Z)
+
+1. **Text: the smaller of the mm target and today's share of the screen, with the 2-px floor.** The target is a 3.8 mm
+   cap height (20 arcminutes at 650 mm). Today's share is the 1.28"'s cap height per pixel of diameter: 7.3 px of
+   cap on a 240-px disc. The floor: no text stem under 2 px, anti-aliased, smooth fonts only.
+
+   | screen | 240 | 480 | 720 | 1080 | 960 | 1280 |
+   |---|---|---|---|---|---|---|
+   | smallest cap | 7.3 px, today | 14.6 px (share) | 21.9 px, 3.09 mm (share) | 23.8 px, 3.8 mm (target) | 12.7 px, 5.28 mm (floor) | 12.7 px, 5.94 mm (floor) |
+
+   The font measures a 0.730 em cap and stems of 0.115 to 0.120 em. The floor is computed on the thinnest stem
+   (0.115 em), so it holds for every glyph. The stage-1 pictures sized look (iii) assuming a 7.0-px cap per text
+   unit, so their 720 and 1080 text is 4% over the 3.8 mm target. The rule above uses the measured cap.
+
+2. **Lines** follow the same shape: the smaller of 0.5 mm and today's 1 px per 240 px of diameter, with the 2-px floor.
+   This applies the text rule to lines (p4's reading). The owner's floor already covers them.
+3. **Touch**, p4's proposal as adopted: **tap radius = the smaller of 7 mm and 28/240 of the diameter; swipe = the smaller
+   of 10 mm and 40/240 of the diameter.** **The numbers are frozen only after a finger session on the real 7" and
+   23.6"**: the owner's hands, scheduled through the orchestrator.
+4. **The 1.28" output stays unchanged.** Any change to its look goes to the owner separately. The floor never applies to
+   it: its lines are 1 px and its smallest stem 1.2 px today.
+5. **The 2.1" gets the 1.28" design at exactly 2x.** At 53.3 mm every rule above picks today's share, so every size
+   doubles: cap 14.6 px, tap 56 px, swipe 80 px, lines 2 px. That holds while the diameter is under **60 mm**, where
+   7 mm meets 28/240 of the diameter. The text and line rules hold to 120 mm. The 2x equality is a test (section 4),
+   so a glass that measures 60 mm or more is caught by it rather than discovered.
+
+## 3. Steps
+
+Sizes are elapsed days for the step's owner, counted from the day it can start. **F** is v20's content-freeze day.
+
+| # | step | owner | waits on | size |
+|---|---|---|---|---|
+| 1 | **one build route.** Pictures and goldens come only from models built by `build.sh`: `web-960` and `web-1280` (#668), the existing `s3-128` (240) and `s3-21` (480), and `web-720` and `web-1080`, which do not exist yet. The p4 rig's local overrides retire. | blipscope-5c (tools/web-renderer) | #668 merged | 1 |
+| 2 | **the units layer.** Each variant states its glass diameter in mm (`variant::SCREEN_DIAMETER_MM`); one header turns the rules of section 2 into pixels, `constexpr` on every device build. No call site changes yet. Section 4's proof rows are registered and run here first. | p4 | F | 2 |
+| 3 | **screen size at run time in the web build.** `SCREEN_SIZE` and everything `Layout.h` derives from it become run-time values in the web build only; device builds stay `constexpr`. One WebAssembly file for every web screen. | blipscope-5c | step 1 | 4 |
+| 4 | **text by the rule.** Every `setTextSize` call becomes a text role (label, body, title) sized by rule 1; the smooth font in the web build at every size. | p4 | step 2 | 3 |
+| 5 | **lines, icons and touch by the rules.** Stroke width as a primitive (wide lines on the device, `lineWidth` in the web renderer), with the floor; `TAP_RADIUS`, `SWIPE_MIN` and the hold drift from rule 3, provisional until step 10. | p4 (blipscope-5c reads the renderer change) | step 2 | 3 |
+| 6 | **the List on the whole disc.** Rows sized in mm across the full disc, so more rows on bigger screens, not fixed 240-px rows. | p4 | steps 4 and 5 | 2 |
+| 7 | **the detail card on the whole disc.** The card's fixed 240-px rows (title at y = 136, facts from y = 162) become a flow over the whole disc. | p4 | steps 4 and 5 | 3 |
+| 8 | **radar labels that do not pile up on the big screens.** Placement and de-collision in mm, fuller labels where they fit. Graded by a host sweep (placed against refused, over every start), per CLAUDE.md's instrument rule. | p4 | steps 4 and 5 | 3 |
+| 9 | **golden pictures in CI**, every release: the scripted scene (virtual clock, scripted tap and swipe, the stage-1 rig's method) at **240, 480, 720, 1080, 960 and 1280**, from step 1's models. Each golden asserts its pixel minimums from the display list. The 240 golden is section 4's rendering proof and the 480 golden its 2x test. | blipscope-5c (CI, web renderer); p4 writes the scene script | step 1; steps 4 to 8 for the final images | 3 |
+| 10 | **the finger session.** The owner's hands on the real 7" and 23.6", with the step-3 build; tap and swipe frozen from it. | the owner, scheduled through the orchestrator; p4 runs it | steps 3 and 5 | 1 session |
+| 11 | **the detailed map.** map-server's web-only map package, then its integration on the radar face. | blipscope-cb (map-server) for the package; p4 for the integration | map-server's read (d), not received yet | package: from (d); integration: 2 |
+| 12 | **speed on the real 23.6".** Frame time in the kiosk app at rest, in a dense sky and with a card open; static layers (rings, map) cached if it misses. | p4, on the owner's hardware | step 3; section 5 | 1 to measure, 2 if caching is needed |
+| 13 | **the 2.1" and the P4 on glass.** The 480 and 720 layouts on the boards, with a smooth font on the device. | p4; the 2.1"'s bring-up owner | each board's bench bring-up first | 2 each |
+| 14 | **the owner judges each golden on glass**, every release. | the owner | step 9 | each release |
+
+**Critical path (p4):** units 2 + text 3 + lines and touch 3 + List 2 + card 3 + labels 3 + map integration 2 + speed 1
+to 3 = **19 to 21 elapsed days** from F. Steps 1, 3 and 9 run alongside on blipscope-5c's side, and step 11's package
+on map-server's.
+
+**The date: F + 21** for everything except step 13, which follows each board's bench bring-up. F is not fixed yet;
+docs/v20-plan.md (due 2026-11-13 15:38Z) sets it. At the earliest possible F, 2026-11-13, that is **2026-12-04**, and the
+date moves one day for each day F moves. **The first review on glass, with the finger session, is at F + 16**: the
+radar, the List and the card by the rules, before the map. That is 2026-11-29 at the earliest F.
+
+## 4. How "the 1.28" output stays unchanged" is proven
+
+The claim has three parts, and each has its own instrument. Every row runs with a planted control that must fail
+before its pass counts. Anything outside the set below is a stop that comes to the orchestrator.
+
+| claim | instrument | passes when | control |
+|---|---|---|---|
+| **the values**: every rule at 1.28" gives today's pixel literal | a host test over a table taken from today's source (every text size, stroke, tap and swipe constant) | every row equal | one row moved by 1 px fails |
+| **the image**: the shipping 1.28" image is unchanged | **#656's comparator** on `blipscope-s3-128` at the base and at the change, built by the C5 method (`SOURCE_DATE_EPOCH`, one worktree path) | the images differ in no byte outside the five rebuild regions (CLAUDE.md), or, where code moved, #656's comparator decides them equivalent | a planted change to one draw constant is reported |
+| **the rendering**: what the 1.28" draws is unchanged | the **240 golden** (step 9): pixel-identical to the base, and its display list (every draw call, in order) hashed frame by frame | every pixel and every hash equal | a planted 1-px move changes them |
+| **the 2.1" is the 1.28" at exactly 2x** | a host test: every role at (480 px, 53.3 mm) equals twice its value at (240, 32.5) | every row equal | a diameter of 60 mm fails the tap and swipe rows |
+
+**Where #656 stands, and the stop it implies.** The units layer is `constexpr` on devices, so the 1.28" is expected to
+fold to the same literals and the byte comparison to decide every step. If a step does change 1.28" code (a function
+changes size, say), only a layout-invariant comparator can show equivalence. #656 records that the current one cannot
+decide a change that alters a function's size; its next step is in progress. So **a step that cannot keep the 1.28"
+image byte-identical does not touch the 1.28" build until #656's comparator can decide it.** That is a registered stop,
+not something to work around.
+
+## 5. What is needed from the owner
+
+1. **Done 17:26Z:** the go, the text rule, the layout scope, the touch rule, and the 2.1".
+2. **The real 23.6" for the speed test (step 12), and the 7" and 23.6" for the finger session (step 10):**
+   - one 2 to 3 hour session with each screen on, after step 3 lands, the kiosk app installed;
+   - each screen's make and model, its Android and WebView versions, and the kiosk app's version;
+   - a USB debugging path (adb), so a performance trace can come from the WebView. If that is not allowed, the speed
+     test falls back to an on-screen frame counter, a weaker measurement;
+   - each glass's active diameter measured with a ruler, to confirm 172.8 mm and 599 mm;
+   - the 15.7" too, if it is to hand (not blocking).
+3. **His judgement on glass for each release's goldens** (step 14).
+
+## 6. Risks, named before they happen
+
+- **Run-time `SCREEN_SIZE` (step 3) is the widest change.** Everything `Layout.h` derives is `constexpr` today. In the
+  web build each derived constant becomes a second path, in CLAUDE.md's sense. Its proof is the 240 golden holding in
+  the web build too.
+- **The map package's cost on the 23.6"** is unknown until step 12 measures it. Step 12 comes before the owner's last
+  review, so a slow frame is found by measurement, not by the owner.
+- **Speed on the Android screen is unmeasured.** The stage-1 rig ran 21,600 frames in about 4 s on a desktop, which says
+  nothing about the kiosk's WebView.
+- **The 2.1"'s 2x depends on its glass being under 60 mm.** The test in section 4 catches it if not.
+
+## 7. Where the stage-1 work lives
+
+The picture rig is kept outside every repository: the harness, a renderer copy with a line-width knob, the job list,
+the page generator, both runs' logs and the 36 PNGs. It is not a build route, and step 1 replaces it. The look-(iii)
+overrides (a web-only text scale and screen size) were never committed and never ship.
