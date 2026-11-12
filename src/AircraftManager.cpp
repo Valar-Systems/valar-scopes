@@ -6855,6 +6855,11 @@ void AircraftManager::PollCardBench()
             // Where the hit test looks: the drawn (latched) position, projected the same way (HandleTap).
             auto [la, lo] = RadarBlipPosition(it->second);
             auto [x, y] = ProjectCoordinateToScreen(la, lo);
+            // M5 (1): a scripted tap is always a FIRST tap. The hit test cycles to the next stacked candidate when a
+            // tap lands within 18 px of the last one, and every o lands on the same marker: in the window of
+            // 2026-11-12 the second o opened a live contact instead of the bench card. This is the same reset a tap on
+            // empty radar makes, so the nearest marker -- the bench contact, at distance 0 -- is the one opened.
+            lastTapX = lastTapY = -1000;
             tap(x, y, "the bench contact's marker");
         } else if (ch == 'd') {
             if (!inDetail) {
@@ -6868,6 +6873,13 @@ void AircraftManager::PollCardBench()
             benchIcao = "";
         }
     }
+    // M5 (2): name the card that opened, so the window's driver can refuse any card that is not a bench card (CN0's
+    // precondition, on the bench). Only a bench key is printed; any other contact is "a live contact".
+    static bool wasInDetail = false;
+    if (inDetail && !wasInDetail)
+        Serial.printf("[card-bench] t=%lu card open on %s\n", now,
+                      selectedIcao.startsWith(CARD_BENCH_PREFIX) ? selectedIcao.c_str() : "a live contact (not a bench key)");
+    wasInDetail = inDetail;
     auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
     if (it != trackedAircraft.end()) it->second.lastSeen = now;   // never pruned as absent
 }
