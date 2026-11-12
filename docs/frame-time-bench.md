@@ -586,3 +586,17 @@ windows, and a cadence the scene line does not predict. A second off reading on 
 | Q-A5 | the run's length, ~125 min | the full set for the first candidate; later candidates may drop FIXED-(a) to level 40 at three rungs plus 20 and 60 at 25 mi (10 scenes) |
 | Q-A6 | the gate's number | the worst of the six level-40 FIXED-(a) scenes |
 | Q-A7 | v20-plan.md item 3 | its owner edits it to point here |
+
+**The ruling (the orchestrator, ~21:28Z): the (a) registration at `bbfb2d365394` is ACCEPTED.**
+- **Q-A1:** the default. Serve n and ignore `limit`. The 60 level is a **STRESS row**: on the cloud source a real board
+  tops out near 40-44 (`BLIPS_LIMIT` 40 plus retention, as W1's release trace showed, n 40-44). 60 is reachable in the
+  field only on a local receiver. The orchestrator is telling the owner.
+- **Q-A2:** the default. The scene hexes take the shipping non-ICAO skip, so no synthetic traffic reaches production.
+  **H1's "absent" list gains enrichment's background load** beside the `/blips` request.
+- **Q-A3:** the default, [−3.0, +5.0] ms. The asymmetry fits: FIXED-(a) carries less background load than LIVE.
+- **Q-A4:** the default. The last touch is back-dated, so every scene is in the idle cadence.
+- **Q-A5:** the default, on one condition: the six level-40 FIXED-(a) scenes, the gate's inputs, are ALWAYS in the
+  set.
+- **Q-A6: the owner's,** since it decides whether v20 ships. The default (the worst of the six) is put to him; the
+  alternative is the median of the six. **Until he answers, the candidate reader prints both.**
+- **Q-A7:** the orchestrator folds "O11 re-runs the (a) procedure" into the next v20-plan amendment.
