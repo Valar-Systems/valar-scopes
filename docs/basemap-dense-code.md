@@ -1792,3 +1792,8 @@ That would mean an overwrite in place, a lost rollback, and stale ETags.
       untouched;
     - **(ii) change §7, folding the index's hash** (every cell's key and bytes) **into the id.** The orchestrator's control then passes
       directly, but §7, `basemap-check.ts`, `basemap-golden.ts` and the store-id tests all move, and the code PR becomes a format change.
+
+**RULED (05:00:15Z): way (i).** Format §7's id stays as it is, and **QW4-ID (a)-(c) is registered for the code PR** as written above. The
+orchestrator withdrew its control ("same manifest, one cell changed"): it tested a state that (a)-(c) exclude at the source. The
+orchestrator also recorded its own miss: the finding was raised from the prototype's artifact, a copied manifest that was never re-stamped,
+without the production path being read. QW4-ID stays out of part 2's run.
