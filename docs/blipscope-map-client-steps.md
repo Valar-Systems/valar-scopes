@@ -4912,7 +4912,7 @@ on its config page. Nothing in this registration schedules or presumes that wind
     equal).
   - **If they cannot be read,** that is said here, and his look on E2:08 is the check.
   - The search for the page's source is recorded as run, before D's code.
-- **D3b, the page found and READ (22:08Z):** the "Map Terrain Shading" artifact (`E7oXT7gtbzayL3nUo16z2A`,
+- **D3b, the page found and READ (by 22:07Z):** the "Map Terrain Shading" artifact (`E7oXT7gtbzayL3nUo16z2A`,
   version `1794515286-f24b`), read only.
   - **Its table matches the ruling exactly:** Off g 0; Subtle g 0.075, c 128; Strong g 0.45, c 180; Extra strong
     g 0.45, c 128.
@@ -4928,6 +4928,13 @@ on its config page. Nothing in this registration schedules or presumes that wind
     - **(ii) the inputs:** the page's `kind`/`shade` arrays must equal the host `MapLayer` build of `bend.bmpk` at the
       page's view. If the page's generator, and so its view, cannot be found, (ii) is stated as not established, and
       his look on E2:08 is the check for it.
+  - **The ruling (the orchestrator, unstamped):** D3b is ACCEPTED as registered, with (i) the strong form. The page's
+    generator is not the orchestrator's. Only the page's own source or metadata may name the view; other sessions' or
+    the owner's files are not searched.
+  - **(ii): NOT ESTABLISHED.** The page's own source names the centre ("Bend is at the centre") and the zooms (10, 25
+    and 50 mi). It does not name the rotation, or the rule from a zoom to the map's view and asked radius. So the
+    page's inputs cannot be tied to a host build of ours, and **his look on E2:08 is the check for that half.**
+  - (i), the arithmetic, stands on its own: the same S2 function on the same inputs gives the same pixels.
 
 **The outcomes:** every prediction above as stated, or stop and report. A second off reading on a row goes to the owner.
 This is a customer-facing change (a new config control and a new default look), so it ships only through the owner's
