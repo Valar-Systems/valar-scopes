@@ -1,6 +1,6 @@
 """Step B's source checks (docs/blipscope-map-client-steps.md, step B; registered 2026-11-11, "the refusal's commit").
 
-CD4, CB8 and CB8b; CD1-CD3 join in the commit that adds the files they read.
+CD4, CB8 and CB8b; the wiring's CD1-CD3 and CD5-CD7 (registered 2026-11-12, "The wiring: registered before its code").
 
   CD4  CB10's refusal runs, not only its rule. If src/AircraftManager.h or .cpp holds any region between a line
        `// THE MAP DRAW BEGIN` and a line `// THE MAP DRAW END`, the comment-stripped header holds CB10's `#if` line and
@@ -19,6 +19,20 @@ CD4, CB8 and CB8b; CD1-CD3 join in the commit that adds the files they read.
        (between its PINNED VALUES markers) must equal what those expressions give, derived here from the drawers' own
        text: SCREEN_SIZE from include/variants/s3_128.h, RING_LABEL_OUTER_INSET from AircraftManager.cpp, and the
        carousel's dot count from the Screen enum and InCarousel. A changed formula and a changed constant both fail.
+  CD1  F8 for the map's files: MapCompose.h, MapPlaces.h, AirportBoxes.h and every draw region hold no Preferences, no
+       .put*( call, no SPIFFS and no LittleFS.
+  CD2  Privacy: the three headers print nothing (no Serial, printf( other than snprintf(, puts(, ESP_LOG or log_); in the
+       draw regions no print's arguments, string literals removed, name a place, an anchor or a coordinate (the tokens
+       in PRIVATE). A town's name near the device says where the device is.
+  CD3  DrawMapBase fills the six View fields with the right-hand sides RebuildWeatherLayer gives the weather layer's.
+  CD5  The allocator handed to mapcompose::Init calls heap_caps_aligned_alloc with MALLOC_CAP_SPIRAM in the same call:
+       the price's premise (PSRAM costs nothing internally) made a check that runs.
+  CD6  Every write of cloudAirports, airportsMin or displayAirports in AircraftManager.cpp is followed within 10 lines by
+       `++mapAirportsGen;`. Line-based (the .cpp never goes through the stripper); a reference declaration
+       (`const T& name = ...`) and another object's member are not writes. Finding no write at all is the rig.
+  CD7  MapAirportBoxes holds DrawAirports' list, filter and cull lines (those naming fabsf(, airportsMin, cloudAirports,
+       AIRPORT_COUNT, AIRPORTS[ or wide), comment-stripped and whitespace-normalised, in the same order: the second
+       path's guard (Q-MW2). Fewer than 6 such lines in DrawAirports is the rig.
   Function bodies are cut out before the comment stripper reads them: only the map's own text ever goes through it.
 
 The region counts are pinned. A count off in either direction, or an unbalanced marker, is the rig (exit 2): a region the
@@ -26,7 +40,7 @@ check cannot see is code it cannot vouch for. ANY exception is the rig too (exit
 red: a crash is an instrument failure (the 11-04 rule). R-CD-RAWOK, R-CD-CRASH and R-CD-DECODE hold both directions.
 
     python -I test/host/check_map_draw.py <repo root>    exit 0 all pass; 1 a check failed; 2 the rig (cannot read)
-Its plants are S-CD-NOREFUSAL and S-CD-STEPC in test/host/sabotage_map_draw.py.
+Its plants are in test/host/sabotage_map_draw.py.
 """
 import os
 import re
@@ -35,7 +49,21 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_map_fetch import strip   # one comment stripper for the map's source checks, never a second copy
 
-REGION_COUNTS = {"src/AircraftManager.h": 1, "src/AircraftManager.cpp": 0}
+REGION_COUNTS = {"src/AircraftManager.h": 4, "src/AircraftManager.cpp": 12}
+MAP_FILES = ["include/MapCompose.h", "include/MapPlaces.h", "include/AirportBoxes.h"]
+NVS = [(re.compile(r"\bPreferences\b"), "Preferences"), (re.compile(r"\.put[A-Z]\w*\s*\("), "a .put*( call"),
+       (re.compile(r"\bSPIFFS\b"), "SPIFFS"), (re.compile(r"\bLittleFS\b"), "LittleFS")]
+HEADER_PRINTS = [re.compile(r"\bSerial\b"), re.compile(r"(?<![sn])printf\s*\("), re.compile(r"\bputs\s*\("),
+                 re.compile(r"\bESP_LOG"), re.compile(r"\blog_[a-z]\w*\s*\(")]
+PRINT_CALL = re.compile(r"\b(?:Serial\.(?:printf|println|print)|printf|log_[a-z]\w*|ESP_LOG\w*)\s*\(")
+PRIVATE = {"label", "places", "placed", "Town", "lat", "lon", "homeLat", "homeLon", "ix", "iy", "tx", "ty", "qx", "qy",
+           "anchor"}
+STRING = re.compile(r'"(?:\\.|[^"\\])*"')
+SIX = ("homeLat", "homeLon", "rLat", "rLon", "rotSin", "rotCos")
+WRITE = re.compile(r"\b(?:cloudAirports\s*=(?!=)|cloudAirports\.(?:clear|assign|swap|push_back|emplace_back|erase|insert"
+                   r"|resize)\s*\(|airportsMin\s*=(?!=)|displayAirports\s*=(?!=))")
+BUMP = "++mapAirportsGen;"
+CULL_KEYS = ("fabsf(", "airportsMin", "cloudAirports", "AIRPORT_COUNT", "AIRPORTS[", "wide")
 BEGIN, END = "// THE MAP DRAW BEGIN", "// THE MAP DRAW END"
 REFUSAL_IF = "#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)"
 REFUSAL_ERROR = ('#error "step B draws the map without step C: the sweep erases it. '
@@ -219,10 +247,136 @@ def cb8b(root):
     return why
 
 
+def draw_regions(root):
+    """Every draw region's text, comment-stripped, named by file and position."""
+    out = []
+    for rel, want in REGION_COUNTS.items():
+        for i, r in enumerate(regions(rel, read(root, rel), want)):
+            out.append((f"{rel} draw region {i + 1}", strip(r)))
+    return out
+
+
+def cd1(root):
+    why = []
+    texts = [(rel, strip(read(root, rel))) for rel in MAP_FILES] + draw_regions(root)
+    for where, code in texts:
+        for pat, what in NVS:
+            if pat.search(code):
+                why.append(f"{where} holds {what}")
+    return why, len(texts) - len(MAP_FILES)
+
+
+def print_args(code):
+    """Each print call's argument text, its string literals removed first."""
+    code = STRING.sub('""', code)
+    out = []
+    for m in PRINT_CALL.finditer(code):
+        depth, i = 1, m.end()
+        while i < len(code) and depth:
+            depth += {"(": 1, ")": -1}.get(code[i], 0)
+            i += 1
+        out.append(code[m.end():i - 1])
+    return out
+
+
+def cd2(root):
+    why = []
+    for rel in MAP_FILES:
+        code = strip(read(root, rel))
+        for pat in HEADER_PRINTS:
+            if pat.search(code):
+                why.append(f"{rel} prints ({pat.pattern})")
+    for where, code in draw_regions(root):
+        for args in print_args(code):
+            named = sorted(PRIVATE & set(re.findall(r"[A-Za-z_]\w*", args)))
+            if named:
+                why.append(f"{where} prints {', '.join(named)}")
+    return why
+
+
+def assigned(body, prefix):
+    out = {}
+    for field, rhs in re.findall(r"(?<![\w.])" + prefix + r"\.(\w+)\s*=\s*([^;]+);", body):
+        if field in SIX:
+            out.setdefault(field, []).append(norm(rhs))
+    return out
+
+
+def cd3(root):
+    amcpp = read(root, "src/AircraftManager.cpp")
+    wx = assigned(strip(body_of(amcpp, "bool AircraftManager::RebuildWeatherLayer(", "src/AircraftManager.cpp")), r"v")
+    mp = assigned(strip(body_of(amcpp, "bool AircraftManager::DrawMapBase(", "src/AircraftManager.cpp")), r"k\.view")
+    if sorted(wx) != sorted(SIX) or any(len(v) != 1 for v in wx.values()):
+        raise Rig(f"RebuildWeatherLayer: cannot read its six View fields exactly once each ({sorted(wx)})")
+    why = []
+    for f in SIX:
+        if f not in mp:
+            why.append(f"DrawMapBase does not fill view.{f}")
+        elif mp[f] != wx[f]:
+            why.append(f"DrawMapBase fills view.{f} with {mp[f]}, the weather layer with {wx[f]}")
+    return why
+
+
+def cd5(root):
+    amcpp = read(root, "src/AircraftManager.cpp")
+    calls = []
+    for _, code in draw_regions(root):
+        calls += re.findall(r"mapcompose::Init\(\s*\w+\s*,\s*(\w+)\s*,\s*(\w+)\s*\)", code)
+    if len(calls) != 1:
+        return [f"{len(calls)} mapcompose::Init calls in the draw regions, not exactly 1"]
+    alloc = calls[0][0]
+    body = strip(body_of(amcpp, f"void* AircraftManager::{alloc}(", "src/AircraftManager.cpp"))
+    asks = re.findall(r"heap_caps_aligned_alloc\s*\(([^;]*)\)\s*;", body)
+    if not any("MALLOC_CAP_SPIRAM" in a for a in asks):
+        return [f"{alloc}, the allocator given to mapcompose::Init, does not ask heap_caps_aligned_alloc for MALLOC_CAP_SPIRAM"]
+    return []
+
+
+def cd6(root):
+    lines = read(root, "src/AircraftManager.cpp").split("\n")
+    code = [ln.split("//", 1)[0] for ln in lines]   # line-based: the .cpp never goes through the stripper
+    sites, why = [], []
+    for i, c in enumerate(code):
+        for m in WRITE.finditer(c):
+            before = c[:m.start()]
+            if re.search(r"&\s*$", before) or re.search(r"(\.|->)\s*$", before):
+                continue   # a reference declaration, or another object's member: not a write of ours
+            sites.append(i)
+    if not sites:
+        raise Rig("src/AircraftManager.cpp: no write of cloudAirports, airportsMin or displayAirports found")
+    for i in sites:
+        if not any(BUMP in c for c in code[i + 1:i + 11]):
+            why.append(f"src/AircraftManager.cpp:{i + 1} writes the airport list or its filters without {BUMP} after it")
+    return why, len(sites)
+
+
+def cull_lines(code):
+    return [norm(ln) for ln in strip(code).split("\n") if norm(ln) and any(k in ln for k in CULL_KEYS)]
+
+
+def cd7(root):
+    amcpp = read(root, "src/AircraftManager.cpp")
+    want = cull_lines(body_of(amcpp, "void AircraftManager::DrawAirports(", "src/AircraftManager.cpp"))
+    if len(want) < 6:
+        raise Rig(f"DrawAirports: {len(want)} list, filter and cull lines found, fewer than 6")
+    have = [norm(ln) for ln in strip(body_of(amcpp, "int AircraftManager::MapAirportBoxes(", "src/AircraftManager.cpp"))
+            .split("\n") if norm(ln)]
+    j = 0
+    for w in want:
+        while j < len(have) and have[j] != w:
+            j += 1
+        if j == len(have):
+            return [f"MapAirportBoxes does not hold DrawAirports' `{w}` in its place"], len(want)
+        j += 1
+    return [], len(want)
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
-        rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None)]
+        rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None), ("CD1",) + cd1(root),
+                ("CD2", cd2(root), None), ("CD3", cd3(root), None), ("CD5", cd5(root), None), ("CD6",) + cd6(root),
+                ("CD7",) + cd7(root)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -236,8 +390,22 @@ def main():
             print(f"  ok   {name}: {regions_seen} draw region(s); the refusal present; {STEP_C} defined nowhere else")
         elif name == "CB8":
             print(f"  ok   {name}: DrawAirports and the names' obstacles both read radarbox::Airport")
-        else:
+        elif name == "CB8b":
             print(f"  ok   {name}: the drawers hold their expressions, and MapPlaces.h's pinned values equal them")
+        elif name == "CD1":
+            print(f"  ok   {name}: the map's 3 files and {regions_seen} draw region(s) hold no Preferences, .put*(, "
+                  "SPIFFS or LittleFS")
+        elif name == "CD2":
+            print(f"  ok   {name}: the map's files print nothing, and no draw region prints a place, an anchor or a "
+                  "coordinate")
+        elif name == "CD3":
+            print(f"  ok   {name}: the map's View takes the weather layer's six fields")
+        elif name == "CD5":
+            print(f"  ok   {name}: the allocator given to mapcompose::Init asks for MALLOC_CAP_SPIRAM")
+        elif name == "CD6":
+            print(f"  ok   {name}: {regions_seen} write site(s), each followed by {BUMP}")
+        else:
+            print(f"  ok   {name}: MapAirportBoxes holds DrawAirports' {regions_seen} list, filter and cull lines, in order")
     print(f"{len(rows)} checks, {fails} failures")
     return 0 if fails == 0 else 1
 

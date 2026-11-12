@@ -915,6 +915,11 @@ void AircraftManager::Initialise()
     airportsMin = airportsMinStr == "large" ? AirportsMin::LargeOnly
                 : airportsMinStr == "med"   ? AirportsMin::MedLarge
                                             : AirportsMin::All;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    ++mapAirportsGen;   // displayAirports and airportsMin, just written: the names' obstacles may have changed (CD6)
+#endif
+    // THE MAP DRAW END
     const String renderTrail = configServer.GetStoredString("trail");
     const String renderAltColor = configServer.GetStoredString("altcolor");
     const String renderHighlight = configServer.GetStoredString("highlight");
@@ -1365,6 +1370,11 @@ void AircraftManager::Initialise()
         lastCloudAirportsFetch = 0;
         cloudAirportsRetryMs = 0; // a config save clears any failure backoff too
         cloudAirports.clear();
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        ++mapAirportsGen;   // the long tail dropped: the names' obstacles change (CD6)
+#endif
+        // THE MAP DRAW END
         Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
                       cloudUrl.c_str(), cloudCfg.pollActiveMs);
     } else
@@ -2450,6 +2460,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         benchPhase = (benchPhase + 1) % 2;
         followDrawTrack = true;             // constant: its cost is already known
         displayAirports = true;             // settled: -0.09 ms, leave it on
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        ++mapAirportsGen;   // CD6: every write of the airport switch
+#endif
+        // THE MAP DRAW END
         displayInfoText = (benchPhase == 0);
         Serial.printf("[bench] NEXT     %s\n", PHASE[benchPhase]);
     }
@@ -3449,6 +3464,10 @@ void AircraftManager::MapConfigure(double distance, double kmPerUnit)
         mapHeldLen = 0;               // the package belongs to the old view: dropped, not drawn (CA10)
         mapPkg = bmpk::Package();
         mapAllocFailed = false;       // a new config earns a new allocation attempt
+        // THE MAP DRAW BEGIN
+        mapcompose::Forget(mapDraw);  // ...and so do the draw's buffers: one reset, one flag (Q-MC14, Q-MW3)
+        ++mapPkgSeq;
+        // THE MAP DRAW END
     }
     if (!mapBegun) {
         mapBegun = true;
@@ -3526,6 +3545,9 @@ void AircraftManager::ConsumeBasemap(int status, size_t len, size_t claimed, con
     if (o == mappolicy::Outcome::Accepted) {
         mapPkg = pk;
         mapHeldLen = len;
+        // THE MAP DRAW BEGIN
+        ++mapPkgSeq;   // a new package: the names reload and the map rebuilds (CB4 package)
+        // THE MAP DRAW END
     }
     // One line per answer: the status, the size, what the gate said and why, what the policy made of it, and the wait it
     // set. A wait is printed only for the outcomes that set one; the boot's spread is never one of them (CA13).
@@ -3582,6 +3604,11 @@ bool AircraftManager::RebuildWeatherLayer()
     wxBuiltLook = wxLook;
     wxSpriteReady = true;
     wxNeedsRebuild = false;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    ++mapWxGen;   // the map's composite recomposes over the new layer, without a Build (CB5)
+#endif
+    // THE MAP DRAW END
     // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
     Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
     return true;
@@ -3592,20 +3619,44 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     wxShowing = wxpolicy::Show::Nothing;
     // Only the radar scope itself: not the List, Stats or Follow faces, not under a card, not the no-location or
     // night-clock faces, which own their whole screen.
-    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) return false;
+    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) {
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // no weather this frame: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
+        return false;
+    }
     const time_t now = time(nullptr);
     wxShowing = wxpolicy::WhatToShow(wxState, true, now > 1600000000, (uint32_t)now);
-    if (wxShowing != wxpolicy::Show::Crop) return false;
+    if (wxShowing != wxpolicy::Show::Crop) {
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // the weather shows nothing: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
+        return false;
+    }
     const bool stale = wxNeedsRebuild || !wxSpriteReady || wxBuiltLat != lat || wxBuiltLon != lon ||
                        wxBuiltRadLat != viewRadLat || wxBuiltRadLon != viewRadLon || wxBuiltRotSin != rotSin ||
                        wxBuiltRotCos != rotCos || wxBuiltLook != wxLook;
     if (stale && !RebuildWeatherLayer()) {
         wxShowing = wxpolicy::Show::Nothing;
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // the layer did not rebuild: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
         return false;
     }
     // The B1 fix (docs/wx-device.md): one memcpy of the whole layer when the canvas is one band of the whole frame in
     // the layer's own format -- the guard DrawSweepOverWeather uses. Step C timed the sprite push at 6.82 ms against a
     // 5.15 ms memcpy of the same 115,200 B. Anything else pushes the sprite, as before.
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    if (DrawMapBase(canvas, (const uint16_t*)(const void*)wxLayer565)) return true;   // this weather over the map
+#endif
+    // THE MAP DRAW END
     LGFX_Sprite& sp = canvas.sprite();
     uint8_t* const dst = (uint8_t*)sp.getBuffer();
     const bool flat = canvas.offsetY() == 0 && sp.width() == SCREEN_SIZE && sp.height() == SCREEN_SIZE &&
@@ -3617,6 +3668,112 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     else wxSprite.pushSprite(&sp, 0, -canvas.offsetY());
     return true;
 }
+
+// THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+// The base draw with the map (docs/blipscope-map-client-steps.md, step B, the wiring). On the radar scope with a held
+// package, the composer's buffer -- the map with its names, and `wx` over it when the weather shows -- replaces the
+// clear in one memcpy. False leaves today's path to run, byte for byte. Rebuilds happen here on the loop task, at the
+// next shown radar frame, as the weather layer's do, and never per frame (CB4).
+bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
+{
+    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0) return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    uint8_t* const dst = (uint8_t*)sp.getBuffer();
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16 ||
+        dst == nullptr)
+        return false;   // DrawWeatherUnder's flat-canvas guard: one band of the whole frame, in the layer's format
+    if (mapDraw.alloc == nullptr) mapcompose::Init(mapDraw, MapAlloc, MapFree);
+    mapcompose::Key k;
+    k.view.homeLat = lat;   // CD3: the weather layer's six fields, exactly (RebuildWeatherLayer)
+    k.view.homeLon = lon;
+    k.view.rLat = viewRadLat;
+    k.view.rLon = viewRadLon;
+    k.view.rotSin = rotSin;
+    k.view.rotCos = rotCos;
+    k.view.size = SCREEN_SIZE;
+    // Q-MW4: Cap and Inner read the PHYSICAL radius in statute miles (1.609344 km each), whatever unit the rings print.
+    k.radiusMi = (int)lround(viewRadLat * 111.0 / 1.609344);
+    k.pkSeq = mapPkgSeq;
+    k.airportsGen = mapAirportsGen;
+    k.nFixed = mapplaces::RingLabels(viewRadiusDisplay, rangeUnit.c_str(), k.fixed);
+    k.nFixed += mapplaces::Cardinals(radarUpDeg, k.fixed + k.nFixed);
+    k.fixed[k.nFixed++] = mapplaces::IndicatorRow();
+    mapcompose::Inputs in;
+    in.build = &maplayer::Build;
+    in.airports = &AircraftManager::MapAirportBoxes;
+    in.ctx = this;
+    in.askedMm = mapReq.rvMm;
+    const bool rebuild = mapcompose::Stale(mapDraw, k);
+    const bool wasRefused = mapDraw.refused;
+    const unsigned long t0 = millis();
+    const uint16_t* b = mapcompose::Frame(mapDraw, &mapPkg, k, wx, mapWxGen, in);
+    if (mapDraw.refused && !wasRefused) {
+        mapAllocFailed = true;   // Q-MW3: one flag; the next config change clears it, and Forget the refusal
+        Serial.println("[map] draw: buffers refused");
+    } else if (rebuild && mapDraw.attempted) {
+        Serial.printf("[map] draw: rebuilt in %lu ms, %d label(s)%s\n", millis() - t0, mapDraw.nPlaced,
+                      mapDraw.ready ? "" : ", Build refused the package");
+    }
+    if (b == nullptr) return false;
+    memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+    return true;
+}
+
+// The airports DrawAirports draws at this view, as the names' obstacles: its list, its filters and its cull, held
+// equal to DrawAirports' own lines by CD7 (check_map_draw.py), then the one box rule (mapplaces::AirportObstacles,
+// radarbox::Airport). Every airport is counted, so more than the buffer holds refuses the names (CB11).
+int AircraftManager::MapAirportBoxes(void* ctx, mapplaces::Box* out, int maxAirports)
+{
+    const AircraftManager& self = *static_cast<const AircraftManager*>(ctx);
+    if (!self.displayAirports) return 0;   // no airports drawn: none to avoid
+    const double& lat = self.lat;          // DrawAirports' own names, so its lines can be held here as written
+    const double& lon = self.lon;
+    const double& viewRadLat = self.viewRadLat;
+    const double& viewRadLon = self.viewRadLon;
+    int n = 0;
+    const auto add = [&](float apLat, float apLon, const char* code) {
+        if (fabsf(apLat - (float)lat) > (float)viewRadLat ||   // CD7: DrawAirports' VIEW box
+            fabsf(apLon - (float)lon) > (float)viewRadLon)
+            return;
+        if (n < maxAirports) {
+            auto [x, y] = self.ProjectCoordinateToScreen(apLat, apLon);
+            mapplaces::AirportObstacles(x, y, code, &out[2 * n]);
+        }
+        ++n;
+    };
+#ifdef FEATURE_CLOUD_FEED
+    const AirportsMin& airportsMin = self.airportsMin;
+    const std::vector<CloudFeed::CloudAirport>& cloudAirports = self.cloudAirports;
+    if (!cloudAirports.empty()) {
+        const bool wide = viewRadLat > 0.55f;   // CD7: DrawAirports' strip threshold
+        for (const CloudFeed::CloudAirport& ap : cloudAirports) {
+            if (airportsMin == AirportsMin::LargeOnly && ap.kind != 'L')
+                continue;
+            if (airportsMin == AirportsMin::MedLarge && ap.kind == 'S')
+                continue;
+            if (airportsMin == AirportsMin::All && wide && ap.kind == 'S')
+                continue;
+            add(ap.lat, ap.lon, ap.code);
+        }
+        return n;
+    }
+#endif
+    for (size_t i = 0; i < AIRPORT_COUNT; ++i) {
+        const Airport& ap = AIRPORTS[i];
+        add(ap.lat, ap.lon, ap.code);
+    }
+    return n;
+}
+
+void* AircraftManager::MapAlloc(size_t bytes)
+{
+    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   // CD5: PSRAM, the price's premise
+}
+
+void AircraftManager::MapFree(void* p) { heap_caps_free(p); }
+#endif
+// THE MAP DRAW END
 
 bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
 {
@@ -3723,6 +3880,11 @@ void AircraftManager::ConsumeFetchResult()
     if (res->kind == FetchKind::Airports) {
         if (res->ok) {
             cloudAirports = std::move(res->airports);
+            // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+            ++mapAirportsGen;   // a new long tail: the names' obstacles change (CD6)
+#endif
+            // THE MAP DRAW END
             cloudAirportsRetryMs = 0; // back to the default rule
             Serial.printf("[cloud] airports: %u within %d km\n",
                           (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));

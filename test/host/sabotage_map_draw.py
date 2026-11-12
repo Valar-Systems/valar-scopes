@@ -6,10 +6,18 @@ two plants, each in a COPY of the tree, and each must turn red exactly CD4 in ch
   S-CB-SECONDPATH DrawAirports draws its code at x + 6 without radarbox::Airport: {CB8}
   S-CB-PINS       RING_LABEL_OUTER_INSET becomes 13 in src/AircraftManager.cpp: {CB8b}
   S-CB-PINVAL     MapPlaces.h's kDotsX0 becomes 100 while the drawers stay: {CB8b}
+The wiring's (registered 2026-11-12, "The wiring: registered before its code"):
+  S-CD-NVS        a Preferences write planted in DrawMapBase's draw region: {CD1}
+  S-CD-PRINTNAME  a town's label printed in DrawMapBase's draw region: {CD2}
+  S-CD-VIEW       DrawMapBase's view.rLat filled from radLat, not viewRadLat: {CD3}
+  S-CD-NOSPIRAM   MapAlloc's MALLOC_CAP_SPIRAM dropped: {CD5}
+  S-CD-NOGEN      the ++mapAirportsGen after `cloudAirports = std::move(...)` removed: {CD6}
+  S-CD-CULL       MapAirportBoxes' strip threshold 0.55f becomes 0.5f: {CD7}
 
 And three controls of the instrument's own direction (registered with L1's fix; none is a {CD4}-set plant):
-  R-CD-RAWOK      a raw-string file added under include/: exit 0, "1 checks, 0 failures" (L1's input now reads clean)
-  R-CD-CRASH      a raw string added to src/AircraftManager.h, which strip() still parses: exit 2, "RIG: ...", never 1
+  R-CD-RAWOK      a raw-string file added under include/: exit 0, all SOURCE_CHECKS pass (L1's input now reads clean)
+  R-CD-CRASH      a raw string added to src/AircraftManager.h after CB10's region, which strip() still parses: exit 2,
+                  "RIG: ...", never 1
   R-CD-DECODE     a file of undecodable bytes added under include/: exit 2, "RIG: ...", never 1
 
 Method: include/, src/, platformio.ini and the text files under tools/ are copied into a temporary tree with the repo's
@@ -41,7 +49,8 @@ REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'
 
 PLACES = os.path.join("include", "MapPlaces.h")
-SOURCE_CHECKS = 3   # CD4, CB8, CB8b: the one place the count lives, read by the run path and the --control table
+SOURCE_CHECKS = 9   # CD4, CB8, CB8b, CD1-CD3, CD5-CD7: the one place the count lives (the run path, the --control table)
+MAPBASE_AT = "    k.airportsGen = mapAirportsGen;\n"   # a line in DrawMapBase's draw region
 
 SABOTAGES = {
     "S-CD-NOREFUSAL": (AMH, [(REFUSAL, "")], {"CD4"}),
@@ -54,15 +63,27 @@ SABOTAGES = {
                            "static constexpr int RING_LABEL_OUTER_INSET = 13;")], {"CB8b"}),
     # ...and a value the names use moves while the drawers stay (no C++ row sees it: places_plants.py read 0).
     "S-CB-PINVAL": (PLACES, [("constexpr int kDotsX0 = 99;", "constexpr int kDotsX0 = 100;")], {"CB8b"}),
+    # The wiring's six (CD1-CD3, CD5-CD7), one row each.
+    "S-CD-NVS": (AMCPP, [(MAPBASE_AT, MAPBASE_AT + '    { Preferences mapPrefs; mapPrefs.putUInt("mapgen", mapAirportsGen); }\n')],
+                 {"CD1"}),
+    "S-CD-PRINTNAME": (AMCPP, [(MAPBASE_AT, MAPBASE_AT + '    if (mapDraw.nPlaced > 0) Serial.printf("[map] %s\\n", '
+                                                         'mapDraw.places->t[mapDraw.placed[0].town].label);\n')], {"CD2"}),
+    "S-CD-VIEW": (AMCPP, [("    k.view.rLat = viewRadLat;\n", "    k.view.rLat = radLat;\n")], {"CD3"}),
+    "S-CD-NOSPIRAM": (AMCPP, [("    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+                               "    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_8BIT);")], {"CD5"}),
+    "S-CD-NOGEN": (AMCPP, [("            ++mapAirportsGen;   // a new long tail: the names' obstacles change (CD6)\n", "")],
+                   {"CD6"}),
+    "S-CD-CULL": (AMCPP, [("        const bool wide = viewRadLat > 0.55f;   // CD7: DrawAirports' strip threshold\n",
+                           "        const bool wide = viewRadLat > 0.5f;   // CD7: DrawAirports' strip threshold\n")], {"CD7"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is
 # graded on its exit code and output. ("add", path, bytes) writes a new file; ("edit", path, old, new) edits one.
 RAW = b'static const char* const kRaw = R"RAW(\nline one\nline two\n)RAW";\n'
-DRAW_END = "// THE MAP DRAW END\n"
+CB10_END = REFUSAL + "// THE MAP DRAW END\n"   # CB10's region end: unique, now the header holds four draw regions
 CONTROLS = {
     "R-CD-RAWOK": (("add", os.path.join("include", "zz_rawok.h"), RAW), 0, f"{SOURCE_CHECKS} checks, 0 failures"),
-    "R-CD-CRASH": (("edit", AMH, DRAW_END, DRAW_END + RAW.decode("utf-8")), 2, "RIG: "),
+    "R-CD-CRASH": (("edit", AMH, CB10_END, CB10_END + RAW.decode("utf-8")), 2, "RIG: "),
     "R-CD-DECODE": (("add", os.path.join("include", "zz_badbyte.h"), b"// \xff\xfe\n"), 2, "RIG: "),
 }
 
