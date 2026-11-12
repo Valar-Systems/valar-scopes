@@ -265,4 +265,20 @@ The id is never printed.
 - **F2** (the owner's "choppy sweep"): measured **9.7 frames/s, 103 ms per frame** (frame seq 3289 to 3403 in 11.70 s).
 - **F3** (the owner's "almost impossible to swipe"): not a mapping fault in the source. The touch range is `SCREEN_SIZE` (`LGFX.h:217-220`), and the 40 px swipe threshold is about 4.4 mm here against about 5.4 mm on the 1.28". The hypothesis: touch is polled once per frame, so ~10 fps gives a quick swipe one or two samples. To be measured.
 - **F4** (the owner): the new-contact chirp (`AircraftManager.cpp:3896`, "tones" default on). His v21 proposal is chirps off by default on speaker models, with the alert patterns kept. No shipping SKU has a speaker, so it needs no migration.
-- **F5** (the owner's calipers): the outer ring sits about 2 mm (about 18 px) **high** on the glass. **The framebuffer is centred**, read 19:3xZ: along the centre column and row the lit extent is 0..478 on both axes, and the green ring spans y 0..478 and x 0..478. So the drawing is right, and the shift is in the panel's scan-out: the vertical timing (`s3_21.h:57-59`, `VSYNC_PULSE 3 / BACK 8 / FRONT 8`; `LGFX.h:86` `offset_y = 0`) or the ST7701's own porch in its init sequence. To be measured.
+- **F5** (the owner's calipers): the outer ring sits about 2 mm (about 18 px) **high** on the glass. **The framebuffer is centred**, read 19:3xZ: along the centre column and row the lit extent is 0..478 on both axes, and the green ring spans y 0..478 and x 0..478. So the drawing is right.
+  - **Two causes remained** (the reviewer, 19:23Z): **scan-out** (the panel shows the frame shifted), or **mechanical**
+    (the panel's round active area isn't concentric with the glass). They are separated by the owner's eyes: lines missing
+    at the top means scan-out; the whole ring visible but off-centre means mechanical.
+  - **Separated: SCAN-OUT, a vertical wrap.** The owner's photo of the radar face (~19:2xZ) was compared with a
+    `/diag/fb` read of the same face (seq 10128, Torn false, Finished true):
+    - in the frame, **N and the "100mi" label are in the top rows**, and the outer ring is whole and centred;
+    - on the glass, the same N, "100mi" and **the top arc of the ring appear at the bottom, below the S**, and the top
+      of the glass is a dark band.
+  - A mechanical offset moves the whole picture. It can't move the frame's top rows to the bottom of the glass, so
+    mechanical is **excluded**.
+  - The panel starts showing the frame some lines late, and those lines wrap to the bottom. That is roughly 20 lines,
+    from the owner's ~2 mm and the wrapped band holding N and "100mi".
+  - **Where to look** (to be measured, not fixed here): the host's vertical timing (`s3_21.h:57-59`,
+    `VSYNC_PULSE 3 / BACK 8 / FRONT 8`; `LGFX.h:86` `offset_y = 0`) against the ST7701's own vertical porch in its init
+    sequence.
+  - The photo and the framebuffer picture stay local: their contents derive from the owner's location.
