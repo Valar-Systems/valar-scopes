@@ -703,3 +703,25 @@ stamp, the full HEAD (otherwise D3's meaning, SG-F's: stop). **No further SG req
 - **My miss, on record:** D3's binding test "after the SG requests", and the 15:23Z re-order, both assumed a 422 build fills `/healthz`'s
   basemap block. It cannot.
 - **No rollback.** The builder is healthy: no failed smoke and no Worker error. This is a stop, and it goes to the orchestrator.
+
+### D3 by one 200 (the 15:27:31Z ruling, (i), time-boxed: every step done and the claim released by 15:50:00Z), registered before the request
+
+- **The query:** KJAC, Jackson Hole airport, (43.61, -110.74), with `sg-request.sh` at ε 201,169 mm, the same script and the same
+  layers and levels as the SG rows.
+  - **It FITS:** this builder answered KJAC 200 at the client's ε in RV3 (`docs/basemap-dense.md:1375`, `b3f428e5860e`), and one
+    millimetre more makes no difference to it.
+  - **It is a guaranteed CACHE MISS:** the stored name and the Cache API key are the store id plus the query's keyed digest
+    (`handler.ts:14`, `:36-37`), and ε is part of the query. ε 201,169 has been registered only at KLGA and KJFK, and requested on
+    staging only at KLGA (SG-A, 15:25Z), so KJAC at 201,169 has never been built or stored.
+- **Predicted:**
+  - HTTP: zero to three 202s, then **200** with a BMPK package. A 404, 422 or 5xx is off;
+  - the tail: ONE `bm_build` with **status 200**, outcome ok. **Its rung is recorded, not predicted:** no record gives this builder's
+    KJAC rung at ε, so a number here would be a guess;
+  - then `/healthz`, read **eight times**.
+- **PASS:** at least one read with `basemap.store` == `4c0875738f38` **and** `basemap.commit` ==
+  `f3fee349061afc346900a5f85a0eee2034791ce4`, and **no** read showing any other non-null store or commit. Nulls from other isolates are
+  allowed and counted.
+- **A D3 failure** (another store, another commit, or no 200) is D3's second off reading, and goes to the owner. **No rollback unless
+  the builder errors.** If D3 passes and the time box allows, KJFK's SG request follows, as registered.
+- **Misses, both recorded:** mine, that D3 assumed a 422 fills `/healthz`; the orchestrator's, that the 15:23Z re-order did not check
+  it either.
