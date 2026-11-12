@@ -3336,6 +3336,41 @@ graded figures. That is the measured cost of a fetch, the number (iii) asked for
 
 **Then:** the reader's changes and the fetcher, with all plants red first, and the reader frozen again.
 
+**The reader and the fetcher, as written and frozen (07:24Z).**
+- **The reader, frozen again:** `map_bench_read.py` at
+  `5ad12d0adb0de643248308be272805d63bca6a6b1a7f3501577c39efa8bef9df`. That replaces `65d2edf53b06…`. The change is the
+  (ii) rule:
+  - `fetched_tick` is the one place it lives;
+  - `BUDGET BROKEN` is attributed to its interval;
+  - CF1, CF2-B's sweep, CF3-B and CF6 are graded over the un-fetched pairs, and the fetched pairs' figures are printed
+    beside them;
+  - the manifest's `tick` is checked.
+- **Its selftest: 27 lines, all ok, `selftest PASSED`.** The 23 before, plus four:
+  - **the exclusion:** a fetched interval inflated reads 0 red, and the inflation shows only in the reported figures
+    (sweep 2.04-5.00, p95 +4.10, `BUDGET BROKEN` 1);
+  - **the sensitivity:** the same in an un-fetched interval reads exactly CF2-B, CF3-B and CF6 red. Its p95 plant is
+    +20 ms, because +10 over one pair in ten moves the mean by exactly 1.0 ms, inside the ±1.0 band, so it could not
+    have failed;
+  - **a manifest frame:** tick 0 is read, and tick 2 is refused as the INSTRUMENT.
+  - **The old CF6 plant** sat in t = 1, a fetched interval, so it moved to t = 2 and still reads exactly CF6 red.
+- **The fetcher:** `fetch_fb.py` at `7b904453a45bb014d825c599979e502adb89be8a59653c260ae2b2c167ca5c40`.
+  - It imports `fetched_tick` from the reader rather than restating it.
+  - It reports an error by its class name alone, since an exception's text can carry a URL.
+  - It reads a UTF-16 trace log as well as a UTF-8 one.
+- **Its selftest: 10 lines, all ok, `fetcher selftest PASSED`, against a local stand-in:**
+  - it ran to P2;
+  - exactly 12 requests, in ticks 0, 1, 4 and 5 only;
+  - the labels follow the phase lines;
+  - 9 kept and 3 not kept: a 503, a short body, and a format other than RGB565BE;
+  - Finished false, and the header missing, both read `finished: false`;
+  - the response held across a tick, and only that one, reads `straddled: true`;
+  - every kept body is 115,200 bytes;
+  - the address is in no output and no file, and the control finds a planted address.
+  - With no address set, it is the rig, exit 2, and writes nothing.
+- **The two together:** `interop_fb.py` (`8a9f63b99dd3…`) ran the fetcher against a stand-in serving the reader's own
+  synthetic frames, then the reader on what the fetcher wrote. As predicted: 12 frames from ticks 0, 1, 4 and 5, all
+  trustworthy (6 on, 6 off), BLIND (exit 4, under 10 of each), with no INSTRUMENT.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
