@@ -65,3 +65,10 @@ jobs:
       # which OPERA product answers is the server's choice alone. The sabotage plants a second product and a latitude test.
       - run: python3 scripts/check_wx_device_cref.py
       - run: python3 scripts/check_wx_device_cref.py --sabotage
+      # The token-file readers (docs/token-file-python.md): the helper's T1-T10 (T4, the POSIX permission refusal,
+      # runs here on Linux), each plant turning exactly its control red, then the guard's plant, then the guard: no
+      # tracked .py opens the token file directly, so every reader goes through BLIPSCOPE_TOKEN_FILE and its refusals.
+      - run: python3 tools/token_file.py --selftest
+      - run: python3 tools/token_file_sabotage.py
+      - run: python3 scripts/check_token_file_readers.py --selftest
+      - run: python3 scripts/check_token_file_readers.py

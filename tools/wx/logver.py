@@ -4,7 +4,10 @@ Prints version-id prefixes, statuses and counts only. Tokens from the token file
 import json, os, sys, urllib.request
 from datetime import datetime
 ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"
-tok = {k: v for k, _, v in (l.strip().partition("=") for l in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8")) if k and v}["observability-read"]
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
+tok = TOKEN_FILE.token("observability-read")
 ms = lambda s: int(datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp() * 1000)
 svc, a, b = sys.argv[1], ms(sys.argv[2]), ms(sys.argv[3])
 evs, abr, off = [], set(), None

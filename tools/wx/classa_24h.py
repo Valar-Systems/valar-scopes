@@ -14,8 +14,10 @@ ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"
 CLASS_A = {"ListBuckets", "PutBucket", "ListObjects", "PutObject", "CopyObject", "CompleteMultipartUpload",
            "CreateMultipartUpload", "ListMultipartUploads", "UploadPart", "UploadPartCopy", "ListParts",
            "PutBucketEncryption", "PutBucketCors", "PutBucketLifecycleConfiguration", "LifecycleStorageTierTransition"}
-tok = next(v for k, _, v in (l.strip().partition("=") for l in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"))
-           if k == "analytics-read" and v)
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
+tok = TOKEN_FILE.token("analytics-read")
 b = datetime.fromisoformat(sys.argv[1].replace("Z", "+00:00"))
 a = b - timedelta(days=1)
 iso = lambda t: t.isoformat().replace("+00:00", "Z")
