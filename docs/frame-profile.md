@@ -14,6 +14,16 @@ guesses with one measurement per phase.
 
 **It runs in two parts** (amended 2026-11-12 ~20:20Z, before any code; accepted as registered at 20:17Z with the
 PC-1 row and the sibling env added):
+- **THE WEATHER ARMS NEED THE CLOUD SOURCE (found 2026-11-12 ~21:07Z; ruled (a) by the orchestrator).** In local
+  mode neither the weather layer nor the map is drawn: `WxEnabled()` (`AircraftManager.cpp:3303-3305`) and
+  `MapEnabled()` (`:3431-3434`) both need `useCloudSource && !cloudUrl.isEmpty()`. map-client's v19 FIXED scenes feed
+  their traffic through the local path, so a "weather on" arm there would be weather OFF. **Ruling (a):** the bench
+  answers the CLOUD `/blips` fetch from its deterministic table, through a bench-only hook confined to FRAME_BENCH
+  regions. So `useCloudSource` stays true and weather and map fetch and draw as shipped. map-client owns it and
+  registers it before its code.
+  - **A0a's weather arms (P-CTRL and P1 ×3) run only on that (a) bench, and wait for it.**
+  - **A0a's P0 arms** (weather and map off) can run on either path. The local path matches v19's FIXED scenes.
+  - **A guard row, PG-1,** in section 4.
 - **A0a, on main, as soon as map-client's frame-time bench is frozen** (`docs/frame-time-bench.md`, registered at
   `b0c58758dd8e`) and its CTRL (I-6, a planted +10.0 ms seen as +10.0 ± 1.5) has passed. It runs arms P-CTRL, P0 and
   P1: everything but the map. That gives M3's checkpoint the push, the labels and weather's split without waiting on
@@ -87,6 +97,13 @@ contact: about 420 at 60 aircraft, plus about 30 per-frame phase boundaries. So:
 **The control next (P-CTRL against P1 at 40 in A0a; against P2 in A0b):** `labels` p50 moves **+5.0 ± 0.75 ms**, `fr` p50 moves **+5.0 ± 0.75 ms**,
 and every other phase stays within **± 0.5 ms**. Outside that, the profile cannot place a known cost in its own
 phase, and nothing after it is read.
+
+**PG-1, the weather is really on (every weather arm), before any of its rows is read:**
+- `outline` is non-zero at every contact count, and `sw_blend` is non-zero;
+- the image's own weather lines say a layer was shown during the measured span.
+
+Otherwise the arm measured weather OFF: it reads **INSTRUMENT**, and none of its rows is graded. This is map-client's
+guard row (3) for its own bench, applied to the profile, so "weather off by accident" can never pass as a fast frame.
 
 **Accounting (every arm):** the phases' sum equals the bench's `fr` within **± 1.0 ms** at p50. A larger gap means
 time the profile does not see. Stop.
