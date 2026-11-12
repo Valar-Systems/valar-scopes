@@ -225,6 +225,74 @@ first").** A new measurement, not a re-run of C2.
 - **What it says for v19:** on this bench network, C's head read refused a correct update as truncated on 13 of the 19 checks
   that reported. The fix's description goes to the owner next; nothing is registered for it yet.
 
+**Step 4' on C', the fresh-boot acceptance: steps and predictions, frozen before it runs (2026-11-12).**
+- **Why it runs.** C' is `7b943ae0b5d1` (`release/v19`, #651's squash on C). The owner's standing skip for a fix-only candidate
+  did not apply. The source half of `docs/ota-head-patience.md` section 6's check read in scope, but the artifact half could not
+  decide, and the reviewer ruled (A): step 4 runs with the owner.
+- **The image:** C''s `blipscope-s3-128`, built clean in a worktree at detached C' (tree `9a5223e6c57b`, porcelain 0), sha256
+  `cb9c05d92d3b`, 1,932,192 bytes. Identified as ruled (i): its size; every byte that differs from the `ed0d660b` build of
+  the same code sits in the five rebuild regions (74 bytes, by a comparator whose four controls read first); the identity
+  record `s3-128` at `0x120` passes; and `ota::ReadSome<StreamSource>` is present in C' and absent in C. The banner is read off
+  the board below, not out of the file (it is a runtime `printf`).
+- **Before the window:**
+  - E2:08 is reserved by this session (`board-port.py --reserve blipscope-bench`), with its port resolved from its USB
+    serial and printed beside it;
+  - E2:08 is on C (`5048a7223d63`), and nothing else holds its port;
+  - the acceptance's own `--selftest` has passed (00:12:52Z).
+- **The window opens on the owner's own words; steps 1-3, 5 and 6 are his hands and his phone.** In order:
+  1. **The flash, Q112 (a)'s way.** `bench-flash.ps1 -PioEnv blipscope-s3-128 -Board blipscope-bench -DanielApproved -By
+     claude-1402464d -Label "v19 step 4 C'" -NoCapture`, run from that worktree. `-NoCapture` keeps the acceptance's capture
+     the only open on the port. Predicted:
+     - the serial is printed beside the port before anything is written;
+     - four regions are written (`0x0`, `0x8000`, `0x1E000`, `0x20000`), none in NVS, each "Hash of data verified";
+     - the build directory's `firmware.bin` reads `cb9c05d92d3b` before and after the run, so `pio` rebuilt nothing.
+  2. **The capture:** `fresh-boot-acceptance.sh --capture-only <port>`. It is the script's own single-open pyserial capture,
+     DTR and RTS false, and it is never reopened. Predicted: `[capture] attached`.
+  3. **Step 1, factory reset on the glass.** Predicted in the capture:
+     - `[reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac`;
+     - then the banner, `[build] env=blipscope-s3-128 fw=v19 features=...`, which is read and recorded here;
+     - then `[logbook] loaded 0 types`.
+     - The formats come from source at C': `[reset]` from `src/FactoryReset.cpp:109-111`, the banner from
+       `include/BuildIdentity.h:125` (`FW_VERSION` 19), `[logbook] loaded` from `src/Logbook.cpp:166`, and `[claim] %s
+       claimed (%u/%u types)` from `src/AircraftManager.cpp:5876`.
+     - **Still open from step 4's first freeze: does E2:08's cloud key survive?** Predicted yes. E2:08 was enrolled through
+       the enrolment page, the only writer of `cloud-key-fac`, and that is the one key the factory tier carries across
+       (`src/FactoryReset.cpp:15-30`).
+       - **The `[reset]` line can't settle it.** It prints `preserved=cloud-key-fac` whenever `config` was cleared, whether
+         or not the key was there (`:99-101`).
+       - **The evidence is the post-reset check-in:** aircraft on the radar by step 3, and the step-1 boot row that the
+         boots check needs as its anchor.
+       - **If the key is gone, that is outside the set: stop.** Re-enrolling (the activation gate is in watch mode, and it
+         mints the same key) then waits for a ruling. It is not improvised in the window.
+  4. **Steps 2 and 3:** Wi-Fi through the portal, the location on the config page, then wait for aircraft and claim one.
+     Predicted: `[claim] <TYPE> claimed`.
+  5. **Step 4:** Collection opened within about a minute of the claim. `--probe-claim <log>` runs right after the claim.
+  6. **Step 5:** `--grade-cut <log>` is started BEFORE the cut. The cut is the owner's hands (the cable pulled), or, if he
+     prefers, E2:08's hub port off and on by this session, both UTC times logged, and not during a flash or an OTA write.
+     The capture ends at the cut, by design.
+  7. **Step 6:** the logbook turned off and saved, then Collection looked at. `--grade-off <log>`, then `--grade-boots <log>`.
+  8. `--assert-only <log>`.
+- **Predicted: `10 passed, 0 failed`, exit 0.** These are the script's own ten checks, by name:
+  1. "the build banner was captured";
+  2. "step 1: a FACTORY reset happened";
+  3. "step 1: the reset emptied the logbook";
+  4. "step 3: a claim landed";
+  5. "step 4: the FIRST Collection view after the claim included it";
+  6. "step 4: Collection was opened after the claim";
+  7. "step 5: the claim is on the owner's Collection page after the power cut";
+  8. "step 6: the logbook was turned off (config page)";
+  9. "step 6: the claim is still on the Collection page with the logbook off";
+  10. "boots: exactly ONE boot at the Worker from the cut to the end of step 6, and it is POWERON".
+- **No `--collect`.** It reopens serial, ending a trace puts an S3 into ROM download mode (CLAUDE.md), and the grading needs
+  none of it.
+- **Recorded here afterwards: counts and verdicts only.** No device id, no network name, no LAN address. The capture log
+  stays local.
+- **The window ends with:**
+  - E2:08 on C', set up by the owner (Wi-Fi and location, the logbook as he leaves it after step 6);
+  - the reservation released;
+  - the result sent to the reviewer.
+- **Outside the set, at any step: stop and report.** The window ends there, with E2:08 left on C'.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
