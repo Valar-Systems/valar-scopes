@@ -152,8 +152,42 @@ MB, as QW4's 77.6 did); with the bounds above KEWR could read up to 81.55 MB. A 
 | PL-PREFIX | a three-ring body that must go as one unit to fit | the package never holds part of it | S-HR-RINGBISECT: bisect over rings -> a partial body |
 | PL-RASTER | rings whose cell centres fall exactly on an edge and on a vertex | the half-open rule's counts, as the twin gives them | S-HR-CLOSED: count `>=` in the row test -> a different count |
 
+**FT-HR, the frame-time row (the owner's standing rule, 2026-11-12: "every change to drawing code reports its frame time on the
+bench, before and after. A slowdown beyond the margin frozen in its registration stops it").** The rule changes what the device draws:
+KEWR goes from 25 water rings to 130 under (a), MIDTOWN, KJFK and KLGA gain rings under (b), and E1 changes the lines.
+- **The instrument:** map-client's frame bench (`docs/frame-time-bench.md`, as FT-SEA cites it in docs/basemap-dense-code.md), on the
+  owner's (a) cloud path, the v20-tree framebench sibling swapping the packages in RAM through `Initialise`; board E2:08, in a window
+  the orchestrator grants, after FT-SEA or with it.
+- **The scene:** FIXED's, the home set to the airport, **40 drawn aircraft, map AND weather ON** -- unlike FT-SEA, whose amendment
+  turned weather off to isolate the map; here the reviewer's ruling puts the device's normal load on, the same for both packages.
+  Rungs 10, 25 and 50 mi, each a 100 s settle and 120 s measured; run 10's package first, then the option's.
+- **The packages, pinned and staged** in `C:\Github\_handoffs\map-server\frame-row-packages-hudson\` (copies of the measured builds):
+
+  | point | run 10 | (a) | (b) | (c) |
+  |---|---|---|---|---|
+  | KEWR | dff28487eaf4 | e5333b0c570a | e5333b0c570a | f77f3911ae3a |
+  | MIDTOWN | 20a22bed5510 | 8377065310f7 | af608ebcddb4 | 8377065310f7 |
+  | KJFK | 52ac9dc39de0 | 4737c48e436a | 227ecbddfdf7 | 4737c48e436a |
+  | KLGA | feb6ef3bdf04 | e7f0af9d9fba | e7f0af9d9fba | e7f0af9d9fba |
+  | KBOS (it changes under every option, so it runs too) | f21d705d8b8a | 9af5f9e0ce25 | measured first if (b) | 9af5f9e0ce25 |
+  | KORD (the control: unchanged under every option) | cb59bb06a506 | cb59bb06a506 | cb59bb06a506 | cb59bb06a506 |
+
+- **Graded:** the p95 of `p2p` (present to present), the option's package minus run 10's, at each point and rung, **<= M**; `fr`
+  printed beside it; frames on which the map rebuilt are counted and included, per the bench.
+- **M: FT-SEA's formula,** M = max(2 x the baseline's repeat noise, 2.0 ms), the repeat noise being the |delta p95| between the
+  baseline's CTRL plain scene and its FIXED scene. **Its number is recorded here from the baseline before FT-HR runs.** A speed-up
+  never stops.
+- **Named in advance, the reading expected to differ most: KEWR at 50 mi** under (a) or (b) -- the most rings gained (105) with the
+  whole package in view. No direction is predicted: E1's lines carry fewer vertices while the water carries more rings.
+- **The control: KORD,** the same bytes twice, must read |delta p95| within the repeat noise at every rung; if not, the instrument is
+  in doubt: STOP.
+- **Over M at any point: STOP; the PR does not merge, and the reading goes to the owner.**
+
 **Outside the set: stop and report, no reading.** Any HR-PKG byte; a control otherwise; the twin and the PR disagreeing; a limit
-crossed; a plant passing under its sabotage; any of the 11 other points changing.
+crossed; a plant passing under its sabotage; any of the 11 other points changing; FT-HR over M, or its control outside the noise.
+
+**This PR merges only after:** the owner's pick written into OPTION with that option's rows; (b)'s KBOS measured and frozen, if (b);
+and FT-HR's reading inside M. Its base is re-carried by tree at that moment.
 
 ## 6. This PR's CI, predicted
 
@@ -161,6 +195,9 @@ A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs
 install change inside an existing job, which adds no job and no trigger. **32 check runs: 30 success, 2 skipped (`promote`, `version`),
 0 failed**, as #652's. The tested base is read from the run's own checkout log. A new red from `ship-alert` reads INSTRUMENT, and the
 GitHub-side re-run rule applies. Anything else: stop and report.
+- **Read at 1b26029cac0c:** 32 = 30 / 2 / 0 as predicted, tested on "Merge 1b26029cac0c... into 4b00c97b3dbd...".
+- **Re-predicted for the FT-HR commit** (a new head, so a new run): the same, **32 = 30 / 2 / 0**, tested on the merge into main as it
+  then stands (5cdc8bd8f35d at this writing: #652's docs merge, which changes no workflow).
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
