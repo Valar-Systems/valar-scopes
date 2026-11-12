@@ -2771,3 +2771,134 @@ The ingest takes **about 47 s**. Its stderr was empty on every run, and every co
   seams went unused: the real run and every control passed no option.
 
 **Next:** KB4 (B')'s registration, before any code.
+
+**ACCEPTED (17:14:50Z).** The extra rows the controls tripped are my miss, on record: a control's registration names its FULL red set.
+Before the code PR: read why step 1 and step 2 order the Whitefish Bay rings differently, and confirm the ingest is deterministic run
+to run (QW4-ID's determinism control).
+
+### KB4 (B'): the owner's ruling (2026-11-12 16:57Z), registered before any code
+
+**The ruling, in the owner's words** (relayed at 17:01:56Z): "(B'). Repair, not stop; my island-size stop is withdrawn. The repair has a
+frozen limit, then stops. Repairs are counted on the build record. The added bytes are predicted at each New York point, which sits
+near the 32 KB cap, including any rung change. (C) still fails first on a planted crossing."
+
+**Withdrawn:** 16:24Z's (B): the threshold T, the drop under T, and `sea_island_crossing`. **(A) and (C) stand as registered.**
+
+**(B'), a new step 4a in the sea path, between step 3 (simplify) and step 4 (bridge):**
+1. **When it runs:** a piece's quantised outer and kept islands, after step 3, have a PROPER crossing between two DIFFERENT rings
+   (outer and island, or island and island). That is exactly what makes today's step 5 refuse a piece. A contact (a touch, a shared
+   vertex, a collinear overlap) is not a crossing, as in step 5.
+2. **A round:** every ring keeps its own step-3 keep set and is quantised again. Every edge in a proper crossing, with another ring's
+   edge or with its own, gets back DP's next choice: the unkept original vertex farthest from the edge's chord, the first maximum
+   winning. That is `simplifyRingTPLocked`'s own rule. Locked vertices are already kept.
+3. **Rounds repeat** until no ring crosses another or itself. Then step 4 bridges and step 5 runs as today.
+4. **THE BUILD STOPS** (500), logged, in two cases, and nothing is drawn for that point:
+   - **`sea_repair_failed`:** a round restores nothing and a crossing is left (only a source that itself crosses can do this);
+   - **`sea_repair_limit`:** the piece's restored vertices exceed the frozen limit.
+5. **THE LIMIT, FROZEN: 64 vertices restored per piece.** A repair is local, a few vertices on the crossing edges. 64 caps its cost
+   near 64 × 6 B = 384 B, an eighth of KB3's 3,072 B sea budget. It was fixed before any prediction below ran; they all ran with it.
+6. **On the build record** (`bm_build`; `q4Out.sea` in the prototype):
+   - **`seaRepairs`** (pieces repaired) and **`seaRepairVertices`** (vertices restored);
+   - one `sea_repair` log line per repaired piece: its key (file/record), the rings involved, the vertices restored, the rounds, and
+     the island's point (its centroid, lon/lat to 3 decimals).
+   - None of this is in the package's PROVENANCE, so it costs no package bytes.
+7. **Placement:** before KB1's reference `q` is taken, so KB1 compares the bridged ring with the same repaired rings. The "cross" and
+   "nobridge" plants act after it. The "order" plant's branch (bridge before simplify) has no step 4a.
+8. **(C)'s count:** a new `refused5`, the step-5 refusals, kept apart from step 3's.
+
+**How the predictions were made.** The tools are read-only, and nothing in pq4d changed.
+
+| tool | sha256 | what |
+|---|---|---|
+| `sea-dump.mts` | 21d41711c7ff | the builder's own sea input (the store read as `build.ts` reads it) at the 16 points, at ε, ×2 and ×8, with TODAY's `seaRings` output; also KB8's seam store at KBOS and MIDTOWN, and the edge-unlocked path at KBOS |
+| `est-repair.py` | 7202f48d2b2c | an INDEPENDENT Python port of steps 2-5, then (B') |
+| `est-refit.py` | cb5d9ca5eaa0 | rung 7's refit, from today's measured packages |
+| `kb4-pred.py` | a89fd917192b | the predicted packages; KB4 under (A), through `p2-render.py`'s own kb4 code |
+
+**Their anchors, each passed before any prediction was read:**
+- **The port reproduces today's `seaRings` exactly** (fate and ring): 753 pieces at 48 point-tolerances. On the seam store: 162 pieces
+  at 6. On the unlocked path: 90 pieces at 3.
+- **Today's 16 packages, rebuilt read-only, equal run 6's kept outputs** (water, sea positions, fates) at all 16.
+- **`kb4-pred` re-grades today's KJFK package** to run 6's 0.9706 / 0.4312, and to the diagnostic's in-square 0.745 over 11,222 px.
+- **Every tool at its final sha reproduces its outputs byte for byte.**
+
+**WHERE (B') FIRES, predicted: ONE piece. Record 18 (ocean, cell 40/-74, the New York Bight), at ×8 only, at KJFK, KLGA, KEWR and
+MIDTOWN**, and in KB8's seam store at MIDTOWN. Nowhere else: no other piece, at any point or tolerance, has two rings crossing after
+step 3. That includes the unlocked path at KBOS.
+
+| record 18 at each of the four (the rings differ frame by frame; the counts agree) | |
+|---|---|
+| the rings crossing | its outer and its one island, Jones Beach Island |
+| the repair | **1 round, 4 vertices restored:** the outer 27 → 29, the island 3 → 5 |
+| drawn | **36 vertices, 138 B** after bridging; 0 proper crossings |
+
+**THE ADDED BYTES at the New York points.** The cap measures 32,768 B of non-terrain bytes. All four sit at rung 7: every secondary road
+already dropped, and water rings dropped smallest-area first until the package fits.
+
+| point | today, non-terrain B (headroom) | + record 18 | then over by | rung 7's extra drops (smallest first) | after, non-terrain B | `dropped.water` | water rings | sea bytes | sea rings |
+|---|---|---|---|---|---|---|---|---|---|
+| **KJFK** | 32,732 (36) | +138 | 102 | **5** water rings, 9.8-10.1 km² each | **32,752** | 81 → 86 | 97 → 93 | 771 → **909** | 13 → 14 |
+| **KLGA** | 32,736 (32) | +138 | 106 | **5** water rings, 17.9-18.8 km² | **32,760** | 111 → 116 | 62 → 58 | 732 → **870** | 13 → 14 |
+| **KEWR** | 32,742 (26) | +138 | 112 | **4:** 3 water rings, 62.3-74.0 km², and **1 sea piece, record 27** (ocean, cell 41/-74), 85.7 km² | **32,763** | 137 → 141 | 28 → 25 | 621 → **730** | 11 → 11 |
+| **MIDTOWN** | 32,760 (8) | +138 | 130 | **4** water rings, 18.8-20.0 km² | **32,760** | 116 → 120 | 56 → 53 | 649 → **787** | 13 → 14 |
+
+- **No rung change and no radius change at any of the four:** rung 7 and 129.6 km stand. Rung 7 absorbs the ring by dropping more of
+  its smallest water.
+- The survivors' areas have **no ties**, so the drop order is unambiguous.
+- No provenance count changes digit. `collapsed.sea` counts collapses only, so record 18 moving from refused to drawn changes no
+  provenance line except `dropped.water`.
+
+**Every row's prediction for the re-run** (p2-read with (A), (B') and (C), in the registered order):
+
+| row | predicted |
+|---|---|
+| STEP 0 | as run 6 (store e9ef04165ba2; 246 cells; 170 pieces) |
+| **(C)'s control, FIRST, on today's code** (before (B') is written): `xisland` | **RED: 1 step-5 refusal.** Today's code counts refusals together, and xisland has no step-3 refusal |
+| **xisland under (B')** | **repaired: 1 piece, 2 vertices restored over 2 rounds (the bulge's two corners, one a round); drawn; step-5 refusals 0.** Traced by hand, not by the port: the island survives only at ε (at ×2 and ×8 its 300 m width collapses it), so the repair runs at ε |
+| **S-KB-REPAIRLIMIT** (`Q4_SEAPLANT=limit1`, the limit at 1) on xisland | **STOPS: 500 `sea_repair_limit`, 2 restored** (2 > 1 after round 2) |
+| **xisland-tall** (the island's far edge at 20.25 km, beyond the 20.18 km bulge, so it crosses its ORIGINAL outer) | **STOPS: 500 `sea_repair_failed` in round 3, 2 restored** |
+| the other synthetic controls (kb1, kb1c, edge2, kb2cross, tsea0, bowtie) | **as run 6, each with `seaRepairs` = 0.** Their islands touch or sit inside their outers; bowtie is refused at step 3 |
+| P2-0 and T-SEA0-real | as run 6 (no sea layer) |
+| **P2-1, the 12 others** | **byte-identical to today's** (sha256): KBOS f21d705d8b8a, KMIA 1a338238fbc8, KSFO 4d03beecdb4b, KSEA 9bd5b34d6718, KORD cb59bb06a506, KDTW 682208bf2fb2, KMSP b694c01dc502, KIND 89a4195fa4be, KJAC 42c32cd8578e, BUFFALO 52fad5e317f3, ROUSES afe7554245b8, ZAPATA e2ddaa00ecaf; `seaRepairs` 0 |
+| **P2-1, KJFK** | kOk, 0 crossings, rung 7, 129.60 km; sea {drawn 14, refused 0, collapsed 3, outside 5, dropped 2, islandsDropped 0, islandsSmall 0, bridges 5, bytes 909, rings 14}; `seaRepairs` 1, `seaRepairVertices` 4 |
+| **P2-1, KLGA** | the same shape: {14, 0, 3, 5, 2, 0, 0, bridges 5, bytes 870, rings 14}; repairs 1, vertices 4 |
+| **P2-1, KEWR** | {drawn 11, refused 0, collapsed 2, outside 9, dropped 4, 0, 0, bridges 4, bytes 730, rings 11}; repairs 1, vertices 4 |
+| **P2-1, MIDTOWN** | {14, 0, 3, 5, 2, 0, 0, bridges 4, bytes 787, rings 14}; repairs 1, vertices 4 |
+| **(C)**, new and graded | **step-5 refusals 0 at all 16** |
+| the lock's cost | at the 12 others, as run 6. At New York the row now includes record 18: KJFK 765 → 909 (+144 ≤ 192), KLGA 745 → 870 (+125 ≤ 192), KEWR 632 → 730 (+98 ≤ 156), MIDTOWN 669 → 787 (+118 ≤ 168). There it no longer isolates the lock, and it stays graded on its tolerance |
+| KB3 | KBOS 1,415; **KJFK 909; KLGA 870**; KSEA 2,003; KSFO 694; KMIA 1,146: all ≤ 3,072 |
+| KB8 | CAUGHT: (a) **142**, old 149. MIDTOWN's seam package changes, but its (a) 59 and old 65 do not. NOT CAUGHT: old 1, (a) 0. S-KB-EDGEUNLOCK: run 3's rings, old 10, (a) 9. KBOS's rings are run 4's. KB8 KBOS (a) 0, old 1; **KB8 MIDTOWN (a) 0**, old 4 |
+| **KB4's control, KBOS** | complement frac 0.0136, cover 0.0093: fails both, as in run 6. (A) changes nothing on a 162 km square, whose square is the whole grid |
+| **KB4, KBOS** | 0.9827 / 0.9907; scope as run 6; d* 5 km |
+| **KB4's control, KJFK** | complement **0.0133 / 0.0169: fails both** |
+| **KB4, KJFK** | **frac 0.9713, cover 0.9831: PASS.** Scope: 2 km 0.9399 / 0.9455, 5 km 0.8969 / 0.9120, 10 km 0.8358 / 0.8619, 20 km 0.7230 / 0.7532; **d\* 2 km** |
+| **KB4's control, KLGA** | complement **0.0119 / 0.0209: fails both** |
+| **KB4, KLGA** | **frac 0.9672, cover 0.9791: PASS.** Scope: 2 km 0.9343 / 0.9494, 5 km 0.8852 / 0.9021, 10 km 0.8203 / 0.8485, 20 km 0.6995 / 0.7448; **d\* 2 km** |
+| KB4 and its control at KSEA, KSFO, KMIA | not yet read. (A) changes nothing on their 162 km squares; predicted as registered at 15:44Z: the complement fails both bounds and KB4 passes. Not computed before the run |
+| KB5 | KJFK's new package: 0 differing pixels, its moved-vertex control first, as registered |
+| KB7-a/b; KB7-c-real (BUFFALO, ROUSES, ZAPATA: unchanged packages) | as registered |
+| P2-M | as registered (recorded; the 8 MiB plant control; no build over 96 MB) |
+| pictures | to the owner, unopened |
+| **VISIBLE COSTS** (to the owner, not stops) | the New York Bight's ~6,000 km² of ocean is drawn at all four. To make room, rung 7 drops more small water: KJFK 5 rings of ~10 km², KLGA 5 of ~18 km², **KEWR 3 of 62-74 km² and one 86 km² sea piece (record 27)**, MIDTOWN 4 of ~19-20 km² |
+
+Two notes on these numbers:
+- **The KB4 values at KJFK and KLGA are computed on the PREDICTED package.** The run grades the BUILT package, so a KB4 difference there
+  means the package is not as predicted.
+- **The complement's frac at KJFK and KLGA (0.0133, 0.0119) sits below 15:44Z's ungraded expected floor of 0.02.** The sea now covers
+  nearly all the low ground, so the complement holds almost none of it. The graded condition, both bounds failing, holds.
+
+**The verdict:**
+- **PASS:** every row as stated.
+- **Anything else stops,** in particular:
+  - (B') firing on any piece but record 18 at ×8 at the four New York points (and MIDTOWN's seam store);
+  - any STOP at a real point;
+  - a rung or radius change at New York;
+  - any of the 12 packages not byte-identical;
+  - New York's non-terrain bytes, drops or sea bytes off the table.
+
+**The order of work, after acceptance:**
+1. `xisland` in `dr-p2-synth.mts` (harness only). Run it on today's pq4d: (C) RED. Recorded.
+2. (B') in pq4d through mk-pq4d's sea part. That includes `refused5`, the build-record counts, the `limit1` plant, and `xisland-tall`
+   as a synthetic geometry (not a plant). Every sha is pinned before the run.
+3. p2-read gains (A) (KB4 inside the square), (C)'s row, the xisland rows and the repair counts. Pinned.
+4. The re-run, in the full order. Part 2 resumes after the orchestrator has read this.
