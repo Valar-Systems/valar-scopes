@@ -3348,9 +3348,13 @@ the sea rings, record 18, and the water and roads the ladder drops to fit them.
 - **The control: KORD.** Its two packages differ only in the roads ladder (9 more secondary roads dropped, 2 non-terrain bytes). It must
   read **|delta p95| within the repeat noise** at every rung. If it does not, the instrument is in doubt: STOP.
 - **Outside the set: STOP.** A slowdown over M at KJFK or KBOS stops the code PR and goes to the owner.
+- **Amendment (the orchestrator, 19:51Z), every load variable pinned:** WEATHER is OFF for both packages, so the row isolates the map.
+  THE AIRCRAFT LEVEL is FIXED's default, **40 drawn**, the same for sea and no-sea at every point and rung.
 
 ## #652's CI, predicted (the docs-only shape from main 099f1946, the orchestrator's 19:06:30Z announcement)
 
 **32 check runs: 30 success, 2 skipped (`promote`, `version`), 0 failed.** No workflow has changed on main since 099f1946 (main
 d6cd3a3f24d7 at 19:46Z). The tested base is read from the run's own checkout log. A new red from `ship-alert` reads INSTRUMENT, and the
 GitHub-side re-run rule applies. Anything else: stop and report.
+- **Re-predicted for the amendment's head** (a new commit, so a new run): the same, **32 = 30 / 2 / 0**, provided main's workflows are
+  still those of 099f1946 when the run starts. The run on 101902e5db7b is superseded, and the review reads the new head's finished run.
