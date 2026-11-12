@@ -296,10 +296,11 @@ the six scenes above (about 40 drawn in the scene that sets it). Then v20 with M
 - **beyond them:** R3, and it goes back to the owner.
 - **outside the set:** stop, and report before re-sizing. That covers three cases: X above the packed worst at 40
   (81.83 + 1.54), which would mean real traffic costs more than the stress row; X below LIVE Bend at 16 drawn
-  (47.68 - 1.54), which would mean 40 aircraft cost less than 16; or a scene whose drawn count is not about 40.
+  (47.68 - 1.54), which would mean 40 aircraft cost less than 16; or a scene whose drawn count is not about 40
+  (this third case is replaced by the accepted amendment below).
 
-**Proposed by p4 at 23:32Z for the six scenes, and awaiting the orchestrator's acceptance; the rule above stands
-until then.** The last stop case was written for six scenes at about 40 each. With 25, 50 and 100 mi, the quiet scenes
+**ACCEPTED by the orchestrator (received 23:35Z; its message was unstamped), before any run on the recordings.
+Proposed by p4 at 23:32Z for the six scenes; it replaces the third stop case above. The other two stand.** The last stop case was written for six scenes at about 40 each. With 25, 50 and 100 mi, the quiet scenes
 draw fewer: LIVE Bend drew a median of 16. So the frozen wording would stop on every run. The proposal:
 - Every scene reports its drawn count beside its p95.
 - **The stop applies to the scene that sets X:** stop if it draws outside 35-45. In that case X is not the
