@@ -1902,6 +1902,86 @@ table.
 - The firmware's `ParseAirports` keeps every row it receives (`CloudFeed.cpp:261-286`).
 - So "at most 60" there is a premise about the Worker, and CB11 is the device's own guard on that path.
 
+### Q-MC14: the allocation per config, growth, and two missed prices, re-frozen before code (2026-11-12)
+
+**The question** (sent at about 01:41Z, before any of the allocation's code). Laying out MapCompose.h's allocation turned
+up three gaps in the registration above:
+1. **The retry rule.** The registration said "tried once per boot". Step A already set the rule for the same thing: at a
+   config change, `MapConfigure` drops the held package and clears `mapAllocFailed` ("a new config earns a new
+   allocation attempt", `AircraftManager.cpp:3447-3451`). That is a second path missing what the first establishes.
+2. **A larger later package.** The scratch is sized from the package's own `maxVertices`, which nothing bounds but the
+   package's length. Sizing for the request's byte cap would cost megabytes.
+3. **Two prices missed:**
+   - the place list, `mapplaces::List`: 256 towns × 52 B = 13,320 B;
+   - the obstacle array is 264 boxes (8 fixed and 256 for airports), 4,224 B, not 4,096.
+
+**The ruling, verbatim (the orchestrator, 01:43:54Z):**
+
+> Q-MC14 is RULED 1 + 2 + 3, as you recommend. Stopping on the allocation code to ask was right; all three were caught
+> before code.
+> 1. ONCE PER CONFIG, through mapcompose::Forget(m), called at the same line where step A clears mapAllocFailed. Your
+>    registered "once per boot" was the second path missing what the first establishes. Corrected before code, so it's
+>    a re-freeze, not a miss in the code.
+> 2. GROW, ALL OR NONE: if an accepted package needs more than the scratch holds, release every buffer and reallocate at
+>    the new price, with CB9's rule on failure. "The guard for a missed Forget, not the main path" is the right framing.
+>    The alternative (no map after a location change) is rejected.
+> 3. THE PRICES: scratch = 32 × (maxVertices + 1) + 4,224 + 13,320 B, all PSRAM, and the Map struct internal under 1 KB.
+>    This supersedes the 4,096 I accepted at 01:35:57Z. CBF4 is computed with the new figure.
+> The new rows and plants are as listed: CB9 forget with S-CB-NOFORGET, and CB9 grow with S-CB-NOGROW. That's 26 rows,
+> 14 plants and 15 AS PREDICTED lines, and the driver table ("checks", 26).
+> ORDER: commit this ruling verbatim plus the re-freeze as a docs commit, and PUSH it, together with cc814479 (CB11's
+> record), before any of MapCompose.h's code is committed. Send me the pushed sha. Then the code, then the 7 steps.
+
+**The re-freeze.** This supersedes the registration above wherever the two differ.
+
+- **The memory:**
+  - "the allocation is tried once per boot" becomes **once per config**. `mapcompose::Forget(m)` frees every buffer and
+    clears the refusal. The wiring calls it at the line where step A clears `mapAllocFailed`.
+  - **Growth:** if an accepted package needs more than the scratch holds (`maxVertices + 1` over the scratch's capacity),
+    every buffer is released and allocated again at the new price, all or none, with CB9's rule on failure.
+  - **The price:**
+    - the layer, 115,200 B; the composite, 115,200 B; the index, 57,600 B;
+    - the scratch, **32 × (maxVertices + 1) + 4,224 + 13,320 B**;
+    - all PSRAM. The allocator returns memory aligned for a `double`.
+    - The `Map` struct (the key, eight placed labels, flags) stays internal, under 1 KB.
+  - These figures are held by `static_assert` in the header.
+- **Two rows added:**
+
+| row | check |
+|---|---|
+| `CB9 forget` | a refusal (a failure injected at the first allocation), then `Forget`, then a package: allocated at that package's price, and the frame returns a buffer |
+| `CB9 grow` | a built map, then a package with twice the `maxVertices` and no `Forget`: the live bytes equal the new price, and the frame returns a buffer |
+
+- **Two plants added:**
+
+| plant | the change | red, exactly | why no other row |
+|---|---|---|---|
+| **S-CB-NOFORGET** | `Forget` leaves the refusal | {CB9 forget} | no other row calls `Forget` |
+| **S-CB-NOGROW** | the growth check removed: `Build` refuses the short scratch, so the frame returns `nullptr` | {CB9 grow} | no other row passes a larger package |
+
+- **No existing set moves:**
+  - S-CB-EAGER's start-time refusal is cleared only by `Forget`, so `CB9 forget` stays green under it;
+  - S-CB-HALF's kept buffers are freed by `Forget`'s release, and the live bytes are read after the second package;
+  - S-CB-ROTONLY: a release clears the attempt, so the next frame rebuilds whatever the key compares.
+- **Each row's live bytes are read against that row's own starting figure, and every row ends by releasing its Map.**
+  So a plant that leaks in one row (S-CB-HALF) cannot reach a later one.
+- **The totals:** **26 rows, 14 plants, 15 AS PREDICTED lines**, and the driver's table `("checks", 26)`.
+- **The run's steps change only in their counts:**
+  - the suite `26 checks, 0 failures` under g++ 13.3 and under MinGW;
+  - `check_map_draw.py` 3 / 0;
+  - the driver: control 26 cases, each of the 14 plants exactly its set, 15 AS PREDICTED lines;
+  - `--anchors` over 40 drivers, and the driver's `--control` as `("checks", 26)`;
+  - lint `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `run.sh`: `MapCompose` 26 / 0, `40 driver(s): 39 run, 1 skipped`, `sabotage_map_compose.py: 15 AS PREDICTED line(s)`,
+    `ALL HOST TESTS PASSED`.
+
+**The CI for this push, predicted** (docs only, on #659's branch, so the code-PR set runs):
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with `6302be1e`'s job
+  names;
+- each host-tests leg as there: MapPlaces 32 / 0, MapDraw 3 / 0, 39 drivers, lint 39 / 0 / 3, 6 and 10 AS PREDICTED,
+  `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log. Any other reading stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
