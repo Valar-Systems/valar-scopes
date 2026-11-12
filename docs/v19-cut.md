@@ -341,6 +341,79 @@ first").** A new measurement, not a re-run of C2.
 - **E2:08 ends on C'** (`abc34056c95f`), with the owner's Wi-Fi and location set. The logbook is OFF, as he left it after
   step 6. Nothing held its port afterwards, and the reservation was released at 03:56:59Z.
 
+**Step 5' on C', O11 with B-AFTER and B-STALL: steps and predictions, frozen before it runs (2026-11-12).**
+- **Who opens it:** the reviewer, under gate 5. The owner confirmed it at 03:04Z: no-hands windows on hub boards, port 1
+  never switched. It opens only after the reviewer has sequenced it against uk-data's production deploy.
+  - Every step runs without the owner's hands. Flashes go by USB through `bench-flash.ps1`; power cycles go through
+    E2:08's hub port 3 only.
+  - One holder: this session, with E2:08 reserved for the window.
+  - The board and the bench prerelease are restored at the end. The window is announced to the reviewer.
+- **The rows, not restated:**
+  - A12.172's X1-X4 and C0-C3, with its verdict table, and A12.174's C4-0 to C4-2 (Q112 (a)), as frozen in
+    `docs/weatherscope-stage3.md` at `2295faba`;
+  - window 2's C1-PC (above);
+  - `docs/ota-head-patience.md` section 5's B-AFTER and B-STALL.
+  - C1's power cycle was "Daniel's hands" in A12.172. Here it is port 3, under gate 5.
+- **A12.172's re-open check, read at C'.** Its rows were read at `dce333dbf667`, and a move of `src/OtaUpdater.cpp`,
+  `include/OtaInstall.h` or `include/OtaIdentity.h` re-opens them. C' moves the first two.
+  - In `src/` and `include/`, the only printed line added or removed is the bench-only `[ota-bench] head stall` line, under
+    `OTA_BENCH_HEAD_STALL`.
+  - `include/OtaIdentity.h` is unchanged: S's anchor at `:99`, `return ParseRecord(head + kRecordOffset, out);`, is still
+    there, once.
+  - `[env:blipscope-s3-128-otatest]` exists.
+  - So every line the rows grade is unchanged, and the rows stand.
+- **What the fix changes in the reading:** on C, C2 stopped at `refused-truncated`, the head-read race. On C', A12.172's own
+  C2 prediction applies unchanged: `[ota] refused no-record: requested=s3-128 image=-`. C3, never run on C, runs as frozen.
+- **The images, all from C' (`7b943ae0b5d1`).** Built in a worktree switched to detached C'. Every edit is asserted by
+  `edit.py` and restored by bytes, and none is committed.
+
+  | image | how it differs |
+  |---|---|
+  | R | `blipscope-s3-128`, the step-4' image's ELF |
+  | A' | `blipscope-s3-128-otatest` |
+  | B' | A' with `FW_VERSION` 20 |
+  | S' | A' with the S plant |
+  | F' | `blipscope-pro-s3-21` |
+  | A'-stall | A' built with `OTA_BENCH_HEAD_STALL` defined by `PLATFORMIO_BUILD_FLAGS`; no file is edited |
+
+  - **X1-X4 run on these before the window,** host only. Added for the stall image: `[ota-bench]` occurs in A'-stall and 0
+    times in A', B', S' and R.
+  - **Flashed images** (A', S', A'-stall and the restore) go through `bench-flash.ps1`, which rebuilds. Each is identified
+    against its checked image by the five-region comparator, never by sha.
+  - **Uploaded images** (F', B') are the files themselves, verified by the release API's digest after the upload.
+- **The order:**
+  1. **Before-reads** (A12.172's "around the run"): `isPrerelease` true; `releases/latest` v18; `latest/download/version.txt`
+     "18", read twice a few minutes apart.
+     - The snapshot is already on disk: `firmware-s3-128.bin` `b12e184d4570` (1,691,984 B) and `version.txt` `e7f6c011776e`.
+     - Both equal the prerelease's current digests, read by API on 2026-11-12.
+  2. **C0:** A' flashed. Read by `read-mac` chained with one `bench-trace` open.
+  3. **C1:** F' as `firmware-s3-128.bin`, and "20", uploaded. Read the same way.
+  4. **C1-PC:** port 3 off, then on. Graded at the Worker: one `POWERON` boot row, with one `ota` row `refused-foreign`
+     19->20 at the same second.
+  5. **B-AFTER:** the same setup; 20 port-3 cycles, with no serial port opened. Predicted as section 5 says: 20 `POWERON`
+     rows, each with one `ota` row, all `refused-foreign`, so **0 of 20 truncated**. Step 2's stops apply.
+  6. **B-STALL:** A'-stall flashed, then one port-3 cycle. Predicted as section 5 says:
+     - one boot row and one `ota` row, `refused-truncated`;
+     - the boot row 52-65 s after power-on;
+     - the board answers ping throughout, and no second boot row arrives.
+
+     Graded at the Worker only.
+  7. **C2:** S' flashed; B' as `firmware-s3-128.bin` ("20" stays). Read by trace.
+  8. **C3:** A' flashed; B' stays. Read by trace through the update and the next boot. The next check-in's `ota` result is
+     `ok`.
+  9. **C4 (Q112 (a)):** C4-0, C4-1 and C4-2 as frozen, back to `blipscope-s3-128` at C'. Identified by the five-region
+     comparator against `abc34056c95f`.
+  10. **Restore the prerelease:**
+      - F'/B' replaced by the two originals from the snapshot, verified by digest and by download;
+      - the three before-reads repeated, where any difference is a stop;
+      - B''s download count recorded: A12.172 predicts 2, which here means C2 and C3. Another value is not a stop.
+- **Ending a trace drops the board into ROM download mode.** That is expected, and recovered by the next flash, `read-mac`
+  or port-3 cycle. It is not a reading.
+- **Predicted:** every row as frozen. That is the verdict table's first row: "the path works end to end, and the release
+  may go on to Daniel's R gate".
+- **Outside any frozen set: stop, restore (C4 and the prerelease), report.** Nothing is improvised. The window ends with
+  E2:08 on C', its boot read, and the reservation released.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
