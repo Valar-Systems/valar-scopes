@@ -4756,7 +4756,7 @@ to be written down as READ:
       hold as AMBIG. C's `OUTSIDE_MIN` is B's 0.80 carried over, with no host minimum on C's classes.
   - A discriminator is proposed, and nothing runs before a ruling. This is CBF3-C's first off reading as a grade.
 
-**The ruling (the orchestrator, ~21:56Z):**
+**The ruling (the orchestrator, ~21:55Z):**
 - The trust test and CBF3-B are ACCEPTED (CBF3-B AS PREDICTED).
 - CBF3-C is a FIRST OFF READING as a grade. GO on the discriminator, registered before it runs.
 - **If (2):** that is the INSTRUMENT, not a pass. C's outside rule then needs a new registration, calibrated on C's
@@ -4784,6 +4784,31 @@ to be written down as READ:
   - **(1):** MAPGREEN (only) holds MORE than 20 %. A step C defect, to the owner.
   - **Anything else:** stop, and report the table as read.
 - The twins' black share is reported, not graded. Counts only.
+
+**AS RUN (21:56Z): (2). The INSTRUMENT, not a pass and not a step C defect. CBF3-C stays ungraded.**
+- `cdisc.py` `993972ef1aa970b0ec16a5dc1c73ff6392c3d71a5a3493aefc4a6ecdc0f6beda`. The control passed: its outside
+  counts equal `grade_frame_c`'s on all 30 on-frames.
+- **The outside, summed** (as shares of the rule's own denominator, 1,028,768):
+
+  | class | pixels | share |
+  |---|---|---|
+  | MAP | 147,438 | 14.3 % |
+  | AMBIG, with map | 710,538 | 69.1 % |
+  | AMBIG, without map | 170,674 | 16.6 % |
+  | MAPGREEN | 118 | 0.0 % |
+  | WEDGE | 0 | |
+
+  OVERLAY (74,244) and UNKNOWN (369) sit outside the denominator.
+- **MAP + AMBIG-with-map: 83.4 %** (80.5-86.4 % per frame). **MAPGREEN: 0.0 %** on every frame.
+- **Twins:** 78.6 % of AMBIG and 79.7 % of MAPGREEN pixels are black in the nearest map-OFF frame.
+- **The reading:** C's classes make most plain map colours AMBIG, because MAPGREEN, Add565(map colour, add ≥ 1),
+  overlaps the map's palette. The outside rule counted only pure MAP as map, so B's 0.80 could not be met on C's
+  classes. No sign of the green reaching the map outside the wedge.
+- **Not explained, and stated as such:** AMBIG-without-map at 16.6 % (its class pairs were not registered), and the
+  per-frame minimum, 80.5 %, close to 80 %.
+- **Next, by the ruling:** C's outside rule is re-registered on C's classes, with host minimums and a planted
+  green-on-map defect outside the wedge that must read red, before CBF3-C is graded again. The two "added" fails come
+  after it.
 
 **The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
 - in B mode and C mode on every log plant and on B's and C's real logs;
