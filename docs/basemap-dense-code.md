@@ -3038,3 +3038,57 @@ KB4 KSEA, a point (B') does not touch.**
 - **(ii) KB4 graded relative to the source where the source fails:** the package within a margin of the source's own figures. Any
   margin I name now would be chosen after seeing KSEA's 0.0228, so the number is his.
 - **(iii) Fix the source at Puget Sound:** a finer coastline there. That is its own scope, and nothing ships from part 2 until it lands.
+
+### KB4 at Seattle: the owner's ruling (2026-11-12 18:55Z, relayed at 19:07:57Z), registered before run 9
+
+**The ruling, in the owner's words:** "Seattle is the one named exception to the 95% rule, recorded with its numbers: 88.6% map, 90.9%
+source. Every other airport stays strict. Seattle's reading prints every run and must not fall below 88.6%, a guard for future runs.
+Every airport reports its simplification loss. Seattle goes into the before-and-after pictures, with Puget Sound's narrow channels at
+the closest zoom. A finer Puget Sound coastline goes on the after-v20 list, only if the pictures show it looking wrong."
+
+**1. KB4's rule.** At KBOS, KJFK, KLGA, KSFO and KMIA, unchanged: frac ≥ 0.95 and cover ≥ 0.90.
+- **KSEA is the one named exception to the 95% (frac) rule,** recorded with its numbers: source 0.9089 / 0.9377, package 0.8861 /
+  0.9192.
+- **The exception covers the 95% rule only,** so **KSEA's cover stays graded at ≥ 0.90**: it reads 0.9192. If the orchestrator reads
+  the ruling as excepting both, the cover row is dropped before the run.
+
+**2. THE KSEA GUARD.** KSEA's frac and cover print on every run, and **frac ≥ 0.886**, the owner's 88.6%, read literally. Below it,
+the run STOPS.
+- **Its exact margin, measured on today's package:** 7,257 of 8,190 sea px at ≤ 0 m, frac 0.886081. Cover is 3,129 / 3,404 =
+  0.919213.
+- **So the guard sits ONE PIXEL below today's reading:** one more land pixel under the sea gives 7,257 / 8,191 = 0.885972. A
+  single-pixel regression at Seattle stops a run. That is the owner's number, and its tightness is stated here, not discovered later.
+- **Its red control, run first: "one step worse" is one pixel,** the instrument's smallest step.
+  - **The plant:** `p2-out/KSEA-sea-guardplant.json`, today's KSEA package plus one sea ring: a square 0.4 px wide around the centre
+    of a single land pixel (elevation > 0 m, inside the square, outside the mask, with no mask pixel among its 8 neighbours). It is
+    pinned by sha.
+  - **Its landing check:** sea px 8,191, sea px at ≤ 0 m still 7,257.
+  - **Predicted:** the guard reads **RED** (frac 0.885972).
+
+**3. THE LOSS COLUMN, printed at every airport and ungraded except KSEA's guard:** source frac / cover, package frac / cover, and the
+loss.
+- p2-render's kb4 takes `sea-pieces.json` and renders the source's own mask on the same grid, as `kb4-ref-source.py` did.
+- **Predicted at the four already read:** KBOS 0.9847 / 0.9909 against 0.9827 / 0.9907; KJFK 0.9778 / 0.9850 against 0.9713 /
+  0.9831; KLGA 0.9747 / 0.9813 against 0.9672 / 0.9791; KSEA 0.9089 / 0.9377 against 0.8861 / 0.9192.
+
+**4. KSFO AND KMIA, predicted from their sources** (packages not read):
+- **source** KSFO 0.9958 / 0.9566, KMIA 0.9760 / 0.9977.
+- **Predicted: KB4 PASSES at both.** KSFO fails only on a loss above 0.0458 (frac) or 0.0566 (cover). KMIA's frac fails only on a
+  loss above 0.026, which is more than every loss read so far (0.0020 to 0.0228).
+- Each one's complement control fails both bounds, as registered at 15:44Z.
+- **Any off reading on KB4 goes to the owner.**
+
+**5. THE PICTURES** (to the owner, unopened by me), after run 9:
+- **New York**, before and after at each of the four points: today's package against (B')'s, the dropped rings outlined in red with
+  their km², record 18 in orange, and KEWR's record 27 marked.
+- **Seattle**, whose package (B') does not change, is drawn as **source against package**, the simplification's loss, at the CLOSEST
+  zoom (8.04672 km across 240 px). Two views:
+  - the closest zoom centred on KSEA itself, the home;
+  - the same scale centred on Puget Sound's narrows (the Tacoma Narrows, 47.27, -122.55).
+
+**6. On the record, CONDITIONAL and not work:** a finer Puget Sound coastline goes on the after-v20 list ONLY if the owner judges the
+pictures to show it looking wrong.
+
+**Every other row of run 9 keeps its registered prediction,** as read in run 8, and the order is unchanged. The KB4 block now reads:
+the guard's control → then per airport, the complement control, KB4 (or KSEA's guard and cover), the scope, the loss line, and the
+registered exact values at KBOS, KJFK and KLGA.
