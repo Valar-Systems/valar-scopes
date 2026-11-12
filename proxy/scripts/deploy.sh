@@ -127,13 +127,32 @@ fi
 # So it is a check in the tool, not a line in a runbook: "which branch am I on"
 # is a PRODUCTION question here, not bookkeeping.
 #
-# Only blocks on commits that touch proxy/ -- firmware-only commits on main
-# cannot reach this bundle, and a guard that fires on unrelated work teaches
-# people to bypass it, which costs more than it saves.
+# PER TARGET since docs/deploy-behind-per-target.md (Q-DB1..Q-DB3, ruled 2026-11-06): it blocks only on commits
+# that touch what THIS target ships -- the bundler's own inputs (a dry-run's metafile), its wrangler config,
+# tsconfig and the package files, and the deploy machinery (this script, deploy-inputs.mjs, session-claim.py;
+# for the proxy also confirm-deploy.sh and healthz-commit.sh). deploy-inputs.mjs prints the set, the dry-run's
+# time and every commit behind with its verdict. A guard that fires on unrelated work teaches people to bypass
+# it, which costs more than it saves. If the bundler cannot answer, the script falls back to today's rule (all
+# of proxy/, plus the machinery); if the script itself fails (any exit but 0 or 1), the rule below is applied
+# here, so a broken probe costs a refusal, never a revert.
 git fetch -q origin main 2>/dev/null || true
+DI_TARGET=proxy; [ -n "$BUILDER" ] && DI_TARGET=builder
+node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?
+if [ "$DI_RC" -eq 1 ]; then
+  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
+    fatal "this tree is behind origin/main in what the $DI_TARGET ships (the commits listed above), and wrangler ships the WORKING TREE."
+    echo "" >&2
+    echo "  git merge origin/main    (then re-run)" >&2
+    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
+    exit 1
+  fi
+  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; the commits listed above are being REVERTED."
+  echo ""
+fi
 BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
 BEHIND_PROXY="$(git rev-list --count HEAD..origin/main -- proxy/ 2>/dev/null || echo 0)"
-if [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
+[ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && echo "deploy-inputs.mjs exited $DI_RC: applying today's rule here (all of proxy/)." >&2
+if [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
   if [ "${ALLOW_BEHIND:-}" != "1" ]; then
     fatal "this tree is $BEHIND_PROXY commit(s) behind origin/main in proxy/, and wrangler ships the WORKING TREE."
     echo "" >&2
@@ -147,8 +166,8 @@ if [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
   echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; these are being REVERTED:"
   git --no-pager log --oneline HEAD..origin/main -- proxy/
   echo ""
-elif [ "${BEHIND_ALL:-0}" -gt 0 ]; then
-  # Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
+elif [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_ALL:-0}" -gt 0 ]; then
+  # (today's rule only) Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
   echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
   echo ""
 fi
