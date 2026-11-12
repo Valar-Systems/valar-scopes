@@ -1473,3 +1473,40 @@ is dropped and counted on `bm_build` as `islandsDropped` (the 22:46Z ruling). KB
 - (ii) **islands of 1.5 km² and up stored at ingest,** and checked again after the builder's square clip;
 - (iii) **one bridged ring per piece**, rather than one ring per source polygon across cells. A union is rejected (22:46Z), so pieces stay
   per cell, and S-KB-SEAM checks their shared edges.
+
+### Accepted (the orchestrator, 04:12:32Z), with two conditions: the reader sweep, and the order both ways
+
+(i), (ii) and (iii) are accepted. **Condition 1, every reader of the store's feature format,** read on main at `e3c2508eb8db`. It covers
+everything that decodes cells, or reads cells, the manifest, the store id or packages, outside the docs:
+
+| reader | what it reads | sees code 6? | what it does today | in the code PR |
+|---|---|---|---|---|
+| **the builder** (`build.ts:103` → `decodeCell` → `decodeFeature`, `store.ts:54`, `:143`) | every cell it builds from | **yes** | **throws** (`store.ts:58-59`) | **updated in the same change:** the kind, and the sea path |
+| **the ingest's cell splitter** (`ingest-basemap.ts:298`, `decodeFeature`) | a cell over 24 MB, split into quarters | **yes,** if a sea cell is split | **throws** | **updated in the same change** (it shares `store.ts`'s codec) |
+| `ingest-lib.ts` (re-exports the codec; `filterRecord`, `featuresFrom`) | features as it writes them | the sea is written by its own path | n/a | `FeatureKind` gains `sea` |
+| `verifyStore` (`ingest-lib.ts:245`) and `d1.ts` | objects as bytes and sha256 | no | compares bytes; never decodes | unaffected |
+| `basemap-check.ts` | a PACKAGE (BMPK), `current`, the manifest | no (packages carry sea as water rings) | checks PROVENANCE's files against the manifest | **re-checked** once a sea layer exists: it reads the manifest per layer |
+| `basemap-md3.ts` | writes cells, as a fixture | writer only | n/a | unaffected |
+| the proxy (`handler.ts:81`) | **the store id, from KV `bm:store`**, never cells | no | keys packages by store id | unaffected; it is in the ORDER below |
+| tests: `basemap-ingest.test.ts` (MI-roundtrip), `basemap-synth.ts` | the codec | MI-roundtrip lists its kinds explicitly | passes, with no `sea` case | **add a `sea` case;** `SynthFeature.kind` gains `sea` |
+| **Weatherscope** (`tools/weatherscope/**`), MG0b | its own sources, and the stored Bend PACKAGE | **no**: no cell reader on main (no `BMSC`, `decodeFeature` or `cells/` in `tools/`) | MG0b compares PROVENANCE lines | unaffected. A sea layer adds PROVENANCE lines only where it is read, and Bend's manifest has none |
+| the firmware (C++) | packages (BMPK), never cells | no | the package format is unchanged | unaffected |
+| the package cache (`bm/v1/pkg/<storeId>/…`) and its lifecycle rule | packages, keyed by store id | no | a new store id rebuilds every package | stated already |
+| the dashboard | nothing of the store | no | n/a | unaffected |
+
+**No reader throws on the new store unless it is updated in the same change:** the builder and the cell splitter both are. The sweep
+also turned up a second "current", which the order has to cover.
+
+**Condition 2, the order, both ways.** The builder reads the store id from R2's **`bm/v1/current`**. The proxy reads it from KV's
+**`bm:store`**, which `publishStore` writes after `current` (MI8).
+
+| direction | the steps, in order |
+|---|---|
+| **FORWARD** | 1. the builder that knows code 6 deploys (staging, then production) → 2. the new store uploads (write, verify, repair, verify) → 3. R2 `bm/v1/current` names it → 4. KV `bm:store` names it (`publishStore`, MI8) |
+| **ROLLBACK, REVERSED** | 1. KV `bm:store` back to the old store id → 2. R2 `bm/v1/current` back to the old id → **3. only then may the builder roll back.** An old builder can't read code 6, so rolling it back while `current` names the new store makes it throw on every build |
+
+- The old store's objects stay in R2 for exactly this. The dry run's report states its size.
+- **Both orders are printed in the dry run's report** as ruled, beside the put count and the R2 figures.
+
+**On the orchestrator's go (04:12:32Z):** pq4d, the prototype with the sea path, and the ingest dry run are built next. The dry run is
+read-only on R2, and nothing uploads. Part 2's rows then come as one frozen registration before anything runs.
