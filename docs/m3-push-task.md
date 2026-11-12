@@ -33,7 +33,32 @@ unchanged applies to what is drawn.
 | the S3's GDMA reads PSRAM correctly from LovyanGFX's descriptors once the cache is written back (alignment, external-memory block size) | **ASSUMED**, and design (i)'s first bench hour settles it |
 | which core the push task runs best on, and its effect on Wi-Fi/TLS (core 0) | **ASSUMED**, and measured (M3-5) |
 
-## 3. Two designs; the first bench hour picks one
+## 3. Buffer ownership, and what each design costs in memory
+
+**The rule: the loop never draws into a buffer the push task is reading.** Both designs keep **two PSRAM
+backbuffers**, A and B, so the loop can draw frame N+1 while frame N is sent.
+
+- **The hand-off.** Each buffer has a binary semaphore, "free".
+  1. The loop takes buffer X's "free" before drawing into it.
+  2. When frame N is drawn, the loop puts X's index on a one-slot queue to the push task. It never touches X again
+     until X is free.
+  3. The push task sends X.
+  4. **Only after the send completes**, it gives X's "free" back and calls `framebuf::FrameDone()` (section 5).
+
+  So at any moment one buffer belongs to the loop and the other to the push task, and a frame is handed over exactly
+  once, at its completion.
+- **Memory, design (i):**
+  - PSRAM: the second 240 × 240 × 2 = **115,200 B** backbuffer. CLAUDE.md's 2026-08-09 measurement found that PSRAM
+    sprites leave the internal heap untouched.
+  - Internal RAM: the push task's stack (**4,096 B**) and LovyanGFX's DMA descriptors for 115,200 B (29 `lldesc_t`
+    of 12 B, about **350 B**, DMA-capable).
+- **Memory, design (ii):** the same, plus **two 4,096-byte internal DMA bounce buffers (8,192 B)**. That is
+  **about 12.6 KB of internal heap** in all, against **about 4.5 KB** for (i). It is the cost CLAUDE.md's contiguous-heap
+  rule cares about.
+- **Both are allocated once, at boot, before Wi-Fi starts**, never per frame, so they cannot fragment the heap later.
+  M3-5 checks the TLS handshake beside them.
+
+## 4. Two designs; the first bench hour picks one
 
 - **(i) DMA straight from the PSRAM backbuffer.** `esp_cache_msync(buf, 115200, C2M)` writes the frame back, then
   `pushImageDMA` (or `writeBytes(..., use_dma = true)`) sends the PSRAM buffer itself.
@@ -45,16 +70,35 @@ unchanged applies to what is drawn.
   - Push task CPU: predicted **2-5 ms per frame** for the 115,200-byte copy.
   - The waits are written to yield, never to spin.
 
-**The first bench hour:** design (i) runs a moving test frame (a counter and a scrolling bar, every row distinct) for
-60 s, and the owner's eyes (or a photo series) look for stale or torn stripes. Clean → (i). Any stale stripe → (ii),
-which is then built and run the same way. No other outcome is read as a design choice.
+**The first bench hour, on glass.** A bench-only test frame:
+- **a frame counter printed in 8 horizontal bands**, the same number in every band of one frame;
+- **a vertical bar moving 4 px per frame**;
+- **every row's colour distinct.**
 
-## 4. The second paths this creates
+It runs **60 s on today's image (the base) and 60 s on design (i).** The GC9A01 has no tear-sync line, so today's push
+may already tear, and the base is the comparison.
+
+**What fails it:**
+- **A stale band (decisive):** a band showing a counter **2 or more frames older** than the bands around it, in any
+  frame. Only a cache line not written back before the DMA can do that, and the base cannot show it.
+- **More tearing than the base:** frames with two different counters across their bands, counted per second, above
+  the base's rate by more than half again.
+- **Shear the base does not have:** the moving bar broken or slanted across a band boundary.
+
+**Who judges:** the owner, live on the glass, plus **a slow-motion phone video of each 60 s run** (a 240 fps mode if his
+phone has one). The counters can then be read frame by frame afterwards: p4 grades the video, and the owner's eye
+decides anything the video cannot show. **This is a window with his time,** about 15 minutes for the base and (i),
+plus 10 more if (ii) is needed; the orchestrator schedules it.
+
+Clean → (i). A stale band → (ii), built and run the same way. More tearing or shear than the base → stop, and report
+before either design is chosen. No other outcome is read as a design choice.
+
+## 5. The second paths this creates
 
 CLAUDE.md's rule: enumerate what the first path establishes.
 
 - **`framebuf::FrameDone()`** runs after the push today (`main.cpp:995`). map-client's `p2p` (present to present) is
-  timed from it, and /diag/fb's readers trust it. **Under M3 it moves to the push task's completion**, so `p2p` stays
+  timed from it, and /diag/fb's readers trust it. **Under M3 it moves to the push task's completion** (section 3's hand-off), so `p2p` stays
   present-to-present. Left in the loop, it would measure the loop and not the glass.
 - **`framebuf::SetPhase(kPhasePushed)`** (`:983`) moves with it, for the same reason.
 - **`RecordFrameUs` (`fr`)** spans update + draw + push + flush today (`:998`). Under M3 it no longer contains the push,
@@ -66,7 +110,7 @@ CLAUDE.md's rule: enumerate what the first path establishes.
   `BandCanvas` holds, so it needs no change. A host check confirms both buffers pass its `flat` test.
 - **The frame-budget line and `[health]` frame numbers** are `fr`-based, so they are re-fitted on `p2p`, or marked.
 
-## 5. Predictions, frozen now
+## 6. Predictions, frozen now
 
 Read on map-client's bench (frozen, CTRL passed) with A0a's profile env, Bend, 40 aircraft, weather on, map off. Each
 row is graded before the next is read.
@@ -75,23 +119,23 @@ row is graded before the next is read.
 |---|---|---|
 | **M3-0** | every non-1.28" image, including `blipscope-s3-128-framebench` | PLACED (five regions) |
 | **M3-1** | the picture: the 240 golden (web build, which never takes the macro) and /diag/fb on the bench | **pixel-identical** to the base, frame for frame at the bench's fixed scenes |
-| **M3-2** | the design hour (section 3) | clean for (i), or (ii) clean |
+| **M3-2** | the design hour on glass (section 4), against the base | **no stale band; tearing no worse than the base; no new shear**, for (i), or (ii) if (i) shows a stale band |
 | **M3-3** | `p2p` p95 at 40, weather on, map off: M3's cut | **the C1 row** (speed-plan 2b): ≥ 20 ms on track; 10-20 partial; < 10 failed |
 | **M3-4** | the push task's CPU per frame | (i) < 1 ms; (ii) 2-5 ms |
-| **M3-5** | networking beside it, over the scene: fetch `requestMs` p95 and the poll gap | within **±20%** of the base, and `CanHandshake()` never false. Outside: the push task is contending with Wi-Fi, so stop |
+| **M3-5** | networking and memory beside it, over the scene: fetch `requestMs` p95, the poll gap, internal free heap and its largest block at boot | requests within **±20%** of the base; **`CanHandshake()` never false**; internal free heap lower by **4.5 ± 1 KB** for (i), or **12.6 ± 1.5 KB** for (ii). Outside: the push task contends with Wi-Fi, or the memory is not what section 3 says, so stop |
 | **M3-6** | the push itself, timed in the task | **25.8 ± 1.0 ms**, unchanged (the wire time) |
 | **M3-7** | the standing rule: `p2p` p95 at 20 and 60 aircraft too | **no slower** than the base at either, beyond the bench's margin |
 
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
-## 6. Size
+## 7. Size
 
 | item | size |
 |---|---|
 | reading LGFXBase's shared state (the last ASSUMED row that code depends on) | 0.25 d |
 | the code: the macro, the second sprite, the task, the hand-off, FrameDone and SetPhase moved, the `fr` marking, the host check | 1 d |
-| the design hour (section 3), on E2:08, with the owner's eyes or a photo series | 0.25 d (one window) |
+| the design hour (section 4), on E2:08, with the owner's eyes and a slow-motion video | 0.25 d (one window with his time, ~15 min; +10 min for (ii)) |
 | design (ii), only if (i) shows a stale stripe | +0.5 d |
 | the bench read (M3-0 to M3-7) | 0.5 d (one window) |
 | review, CI, merge by rule (blipscope-5c reads the shared `main.cpp` change) | 0.5 d |
