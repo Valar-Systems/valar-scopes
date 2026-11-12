@@ -222,6 +222,22 @@ The alternatives, and why the data excludes them:
 - **Rebuild nondeterminism:** CLAUDE.md's v9 accounting places a same-source rebuild entirely in the five regions,
   and these bytes sit at the edited expression.
 
+### D-ref, re-run on the amended move (M1, M2): PLACED on both, as predicted
+
+Rebuilt 21:11-21:12Z in the same worktree path, against the same "before" images:
+
+| env | before | after (amended) | differing | `cmp5` |
+|---|---|---|---|---|
+| `blipscope-s3-128` | `5f623ce7ac1a` | `b3f4a66cb9f4` | 75 B: 32 + 1 + 32 + 5 + 5 | PLACED, exit 0 |
+| `blipscope-pro-s3-21` | `ea2c5aab02f7` | `f4de46ce3f36` | 75 B: 32 + 1 + 32 + 5 + 5 | PLACED, exit 0 |
+
+(sha256 prefixes of the app images; the sizes are unchanged.)
+
+**The rebuild landed.** The time strings equal the first "after" build's, because WiFiManager's objects were reused, so
+an identical result could have been a stale image. Against the first "after" image, the amended one differs in exactly
+the 16 bytes, from the same first offsets (0x0c5823; 0x0c4503), plus the hash regions. The move changes no byte of
+either image outside the build stamps.
+
 ### T-host and T-web on today's code (red first, as predicted)
 
 - **T-host**, in WSL Ubuntu-24.04 (`g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`), with `run.sh`'s flags:

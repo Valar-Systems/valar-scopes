@@ -13,6 +13,7 @@
 #include "TlsAllocator.h"
 #include "Registration.h"
 #include "LabelLines.h"
+#include "CardLayout.h"       // the detail card's vertical layout, graded on the host (#670)
 
 #include <algorithm>
 #include <cmath>
@@ -11698,23 +11699,23 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
     if (useSlot) {
         if (photoSettled) {
-            DrawAircraftSilhouette(backbuffer, cx, 76, tracked);
+            DrawAircraftSilhouette(backbuffer, cx, cardlayout::SLOT_SILHOUETTE_Y, tracked);
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(0, 120, 0));
-            centered("No photo available", 120);
+            centered("No photo available", cardlayout::SLOT_NOPHOTO_Y);
         } else {
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(0, 120, 0));
-            centered("Loading photo...", 74);
+            centered("Loading photo...", cardlayout::SLOT_LOADING_Y);
         }
         backbuffer.setTextSize(2);
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-        centered(title, 136);
-        y = 162;
+        centered(title, cardlayout::SLOT_TITLE_Y);
+        y = cardlayout::SLOT_FLOW_Y;   // SlotFlowStartY's value; the fix calls it, with followCtl known here (M2)
     } else {
         backbuffer.setTextSize(2);
-        centered(title, 36);
-        y = 70;
+        centered(title, cardlayout::DATA_TITLE_Y);
+        y = cardlayout::DATA_FLOW_Y;
         if (tracked.photoRepresentative) {
             // Provenance for the stock library: this is a generic shot of the TYPE,
             // not this airframe (a per-hex override is uncaptioned). It moved here
@@ -11723,7 +11724,7 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
             // fact as "Type:" and belongs beside it.
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(0, 130, 0));
-            centered("representative photo", 58);
+            centered("representative photo", cardlayout::DATA_CAPTION_Y);
             backbuffer.setTextColor(lgfx::color888(0, 200, 0));
         }
     }
@@ -11751,8 +11752,7 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         follow::OutcomeForSwipe(!tracked.routeOrigin.isEmpty() &&
                                 !tracked.routeDest.isEmpty(),
                                 hasLocation) != follow::SwipeOutcome::Decline;
-    const int hardBottomY = followCtl ? SCREEN_SIZE - 74   // clear of the control
-                                      : SCREEN_SIZE - 12;  // bezel margin
+    const int hardBottomY = cardlayout::HardBottomY(SCREEN_SIZE, followCtl); // clear of the control, else the bezel
     auto line = [&](const String& str) {
         if (str.isEmpty()) return;
         if (y + backbuffer.fontHeight() > hardBottomY) return; // no room: drop
