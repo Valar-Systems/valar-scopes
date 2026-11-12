@@ -216,6 +216,14 @@ Section 5's keys, as built (`PollCardBench`, `src/AircraftManager.cpp`, under `-
 | `o` | a scripted tap at the bench contact's drawn marker (`RadarBlipPosition`, projected as the hit test does), substituted in `HandleTouch` where `SOAK_TEST` substitutes its own: three pressed polls, then the release |
 | `d` | the same tap at the card's centre (on a photo card, to its data page) |
 | `x` | removes the bench contact |
+| `F <url>` | **M4.** The traffic from a local `aircraft.json` (map-client's frozen `fixed_traffic.py`), RAM ONLY: the local source with its details Off, so the fixed contacts are never enriched. No config is written; the URL, which carries a LAN address, is typed over serial and never printed or committed; any reboot undoes it |
+
+**M4, and why** (the reviewer, accepted 2026-11-12, before any capture). FT1 and FT2 run on fixed traffic now that
+`fixed_traffic.py` is frozen, and the owner's window terms allow nothing written to NVS, so the switch to it lives
+in RAM. Local mode with details Off skips the card's photo step, so the pictures and the photo card's opening happen
+in cloud mode first, and `F` comes after; a photo already decoded stays on the open card. **Both window images carry
+`F`:** the commits are ordered so the "before" image is main + the hook with `F` (the pins commit, then `F`), and the
+"after" image adds only the fix on top.
 
 **M3, and why.** Section 5 had `p` as "a synthetic contact of a type the photo library holds". Two things settle it:
 - The photo path holds the library's content key, so the device cannot derive it from a type.
@@ -248,6 +256,15 @@ the same photo and the same text.
 **CI for the push that adds the env**, while T-host and T-web are still red: **38 = 31 / 3 / 4**.
 - firmware 31 = 26 / 2 / 3: the cardbench leg adds one build job, green with its `--expect` step.
 - web-renderer, workers, device-ids and no-traffic-captures: as for the red-first push.
+
+**Off prediction, stopped and ruled: the OTA fleet pins.** A new OTA-compiling env is a row in
+`test/fixtures/ota/identities.txt` AND the fleet counts its readers pin. Section 5a predicted only the row. With the
+row added, the full host suite (WSL, and CI at `ce6eb4c8`) also failed the OTA identity, OTA install, sabotage
+controls and sabotage drivers blocks. The reviewer accepted the fix as proposed: one commit re-deriving those pins
+from the 9-row table (R1 27; M1 51/30; M2 90; M3 23/58 (28); O10 18; the model suite 18 checks), each derived first
+and then found equal to what the suites printed. `--fleet`, `--fleet-sabotage` and `--check-table`, which CI's
+ota-identity job runs, passed throughout. #648 and #659 also add rows: whichever lands second re-derives these on the
+merged tree.
 
 ## Results
 

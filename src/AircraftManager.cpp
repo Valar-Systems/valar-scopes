@@ -6739,6 +6739,10 @@ void AircraftManager::PollAlertBench()
 //   o  tap the bench contact at its drawn marker, through HandleTouch (the touch poll's own path)
 //   d  tap the open card's centre (on a photo card, to its data page)
 //   x  remove the bench contact
+//   F <url>  M4: the traffic from a local aircraft.json (the frame bench's fixed_traffic.py) for FT1/FT2, RAM ONLY:
+//      the local source with its details Off, so the fixed contacts are never enriched. No config is written, the
+//      URL (it carries a LAN address) is never printed, and any reboot undoes it. Local mode with details Off skips
+//      the card's photo step, so a photo card is opened (and its photo decoded) in cloud mode first.
 // The text is EXAMPLE values on every card (XAAA -> XBBB, XTYP, Example Airways), so the before and after pictures
 // differ only by the code between them. One bench contact at a time. Its key is not hexadecimal, so no feed can
 // produce or update it, and its lastSeen is refreshed every loop so the absence prune never evicts it.
@@ -6751,7 +6755,8 @@ void AircraftManager::PollCardBench()
     if (!announced) {
         announced = true;
         Serial.println("[card-bench] keys: n=no-photo card l=photo-loading card p=card with a photo "
-                       "P <0|1> <path>=that photo card again o=tap it d=tap the card x=remove");
+                       "P <0|1> <path>=that photo card again o=tap it d=tap the card x=remove "
+                       "F <url>=local traffic, RAM only");
     }
     const unsigned long now = millis();
     auto inject = [&](char kind, const String& photoPath, bool representative) {
@@ -6826,6 +6831,21 @@ void AircraftManager::PollCardBench()
                 continue;
             }
             inject('p', path, flag == "1");
+        } else if (ch == 'F') {
+            String url = Serial.readStringUntil('\n');
+            url.trim();
+            if (!url.startsWith("http://") || url.indexOf(' ') >= 0) {
+                Serial.printf("[card-bench] t=%lu F: want 'F http://<host>:<port>/aircraft.json?...'; nothing changed\n", now);
+                continue;
+            }
+            // RAM only, the same three fields Initialise sets from the stored config; nothing is written.
+            useLocalSource = true;
+            localUrl = normalizeLocalUrl(url);
+            localDetails = LocalDetails::Off;   // the fixed contacts are never enriched: nothing about them leaves
+#ifdef FEATURE_CLOUD_FEED
+            useCloudSource = false;
+#endif
+            Serial.printf("[card-bench] t=%lu traffic: the local source, details off, RAM only (no config write)\n", now);
         } else if (ch == 'o') {
             auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
             if (it == trackedAircraft.end() || inDetail || screen != Screen::Radar) {
