@@ -3872,6 +3872,76 @@ its "File offs".
     in a NUL-bounded reading means the instrument again: stop." **STOPPED.** N1, N2 and the reading did not run.
 - **This is the rows' first re-run, and its off reading goes to the owner**, as ruled.
 
+### Step C's bench rows: the reader's extension, registered before its code (2026-11-12)
+
+The orchestrator's GO is 09:03:01Z. Nothing is built or run. The window is ONE window (Q-C5): the step B image, then
+the step C image, each identified before it starts. The frozen reader, `map_bench_read.py` at `5ad12d0adb0d…`, grades
+step B's rows. It gains **`--image B|C`** for the capture and for `--fb`.
+- **B mode must give the same output as `5ad12d0a…`** on the same inputs. That is the regression control: both readers
+  run on the selftest's captures and frames, and their outputs are compared.
+- **The extended reader is frozen anew.** Neither `65d2edf5…` nor `5ad12d0a…` is reused for the C rows.
+- **The fetcher stays as frozen** (`fetch_fb.py` `7b904453…`). The C image's P1 is fetched in the even pairs too, by
+  rule (ii).
+
+**CBF4-C:** the alloc line's price is the step B price plus `kSweepBytes`, 58,560 (`MapCompose.h`'s `static_assert`):
+2 x 115,200 + 57,600 + 32 x (v + 1) + 4,224 + 13,320 + 58,560. The internal heap delta is 0, and `psram_free` falls by
+the price within 1,024 B.
+- **Must flag:** a C-labelled synthetic alloc line at the B price is red. **Must not flag:** a C-labelled line at the C
+  price is green.
+- And the reverse in B mode: the C price is red, and the B price is green.
+
+**CF2, CF3 and CF4 on the C image,** graded over P1's un-fetched pairs (rule (ii)):
+- **CF2:** on map-on intervals the sweep is in its band and `blend` equals the interval's `n`, so every frame went
+  through the map's blend. On map-off intervals the sweep is 2.04 ± 0.3 ms with `blend=0`.
+  - **Must flag:** `blend=0` on a map-on interval; `blend=n` on a map-off one; a map-on sweep at 2.04.
+  - **Must not flag:** the in-band synthetic.
+- **CF3:** the mean of p95, on − off, in its band.
+- **CF4:** P2, weather on, on − off in −1.0 to +2.2 ms, unchanged. With step C, a map-on frame with the weather on
+  blends through the map's path, which has the same memory traffic per pixel (one read, one write).
+- **CF1 and CF6:** as step B's.
+
+**CBF3-C, re-registered per slice** (Q-CR1). The wedge's 18 levels, shifted right by two, are the green each slice
+adds: 26, 23, 20, 18, 15, 13, 11, 9, 7, 5, 4, 3, 2, 1, and then **0, 0, 0, 0**. So slices 15-18 add nothing and leave
+the map as it is. They are **18.4 %** of the graded inside region by angle.
+- **Why efea9576's form fails:** "MAPGREEN over 80 % inside" would read about 80 % by geometry alone, so it could not
+  tell a working add from a broken one.
+- **MAPGREEN is computed from source:** `Add565(m, a)` for each map colour m and each add a ≥ 1. That is 166 colours.
+  - The ones that coincide with another class go to AMBIGUOUS: 4 with MAP, 14 with WEDGE (an add over 0x0000 or 0x0020
+    is a pure green), and 18 with OVERLAY.
+  - The reader refuses if the source yields other counts.
+- **Each graded inside pixel's slice comes from its angle,** behind the located beam:
+  - **the green slices**, 1-14;
+  - **the zero slices**, 15-18;
+  - the pixels within ±0.01 rad of the 14|15 boundary, the one place the expected class changes, are left out;
+  - the 0.06 rad margins at both ends stay as CBF3's.
+- **Predicted, on a C image's trustworthy map-on frame:**
+  - in the green slices, MAPGREEN / (MAP + MAPGREEN + WEDGE + AMBIG) **over 95 %**;
+  - in the zero slices, MAP over the same denominator **over 95 %**;
+  - inside, the share of pure wedge greens (WEDGE) **under 2 %**;
+  - outside, MAP **over 80 %**, as CBF3.
+- **The real-frame control:** on the C image's off ticks, black plus the add is a pure green, so MAPGREEN in the green
+  slices is **under 2 %**. It must not flag.
+- **`--selftest`'s synthetic controls, both ways:**
+  - **flags:** a step C on-frame (the map plus the add, drawn from source) reads AS PREDICTED;
+  - **does not flag:** a step B on-frame (the opaque wedge over the map), graded as C, reads OFF with MAPGREEN about 0;
+  - **the wrong colour:** a frame with the add put into red reads UNTRUSTWORTHY, over 10 % UNKNOWN;
+  - **an off frame graded as C** passes the control.
+- **The B image's frames** keep CBF3's measure, unchanged.
+
+**Questions for the ruling:**
+- **Q-CR1:** CBF3-C per slice, as above, replacing efea9576's "MAPGREEN over 80 % inside", which geometry alone puts at
+  about 80 %. **I recommend yes.**
+- **Q-CR2, CF2's and CF3's bands in one window:**
+  - (a) keep 7.7-8.9 ms and +6.2 to +10.5 ms as frozen at step M;
+  - (b) freeze a formula now: CF2(C) is the B image's P2 blended-sweep mean (the same window, the same board) ± 0.6 ms,
+    and CF3(C) is 2.07 + (CF2(C) − 2.04) ± 1.0 ms. The numbers are computed from B's capture before C's capture is
+    read.
+  - **I recommend (b).** The 7.68 ms predates the B1 span fix, which was the named weak point. (b) takes the band from
+    a reading of the same blend path on the same board, and it is fixed before C is read, so it is not fitted.
+- **Q-CR3:** the C image's run ends after P2 (P0-P2: CBF4-C, CF1, CF2, CF3, CF4, CF6, CBF3-C), about 45 minutes. P3
+  and P4 read the rebuild (CBF1, CF5), whose code step C does not touch, so they come from the B image only. The window
+  is then about 1 h 50 instead of about 2 h 20. **I recommend yes.**
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
