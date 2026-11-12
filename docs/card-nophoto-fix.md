@@ -450,7 +450,19 @@ at the moment it opened, frozen.
 | restore | `[WiFi] CONNECTED`; no line that opens a portal; `/diag/fb` answers | stop, and report |
 | anything else | | stop and decide; restore and release before reporting |
 
-The new images, their sha256s and the shipping image's PLACED check are added below when built.
+**The images for window B**, each built from a clean tree at its commit (partitions `28f336fe57a9`):
+
+| phase | built from | firmware sha256 | bytes | ota_0 write |
+|---|---|---|---|---|
+| before | `73aadb8c4102` = `02f1a49fb6e0` + the M7 hook, on `blipscope-5c/card-nophoto-before-img` | `9b03eaf5a5707d5a8b4704bac609ce3d81a3c8371507307af5cdcd9471449645` | 1,938,288 | 0x020000 .. 0x1F936F |
+| after | `d3bd09d18143`, the PR head | `dbda143abbaff5fad2b897647ec5a7525d3f99cf150e72e391534b2899d18f31` | 1,938,400 | 0x020000 .. 0x1F93DF |
+| restore | the v19 release asset | `f6d73e39163177b0dc25516a104bb02021d2048a94f82a66fc42a90f0a2615be` | 1,931,840 | 0x020000 .. 0x1F7A3F |
+
+- Both bench images carry `[card-bench]` and no other bench marker.
+- **No shipping byte moved:** the shipping `blipscope-s3-128` built at `d3bd09d18143`, against the one built at
+  `c6eae905c51e`, reads `cmp5` PLACED, exit 0.
+- The driver (session scratch, `window670.py`, sha256 `2f652831e2ea...`) runs window B with `--ft`. Its `--dry` read
+  all three images and these ranges.
 
 ## Results
 
