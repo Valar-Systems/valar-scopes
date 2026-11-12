@@ -40,10 +40,12 @@ PC-1 row and the sibling env added):
 | `upd` | `appManager.Update()`, from `frameStartUs` (`src/main.cpp:752`) |
 | `under` | `DrawWeatherUnder` (the layer's memcpy, or its rebuild) or `fillScreen` black (`:938-947`) |
 | `map` | the map's draw, wherever step B/C puts it in the frame (read from the tree at the run) |
-| `sweep` | `DrawSweepOverWeather`, or `DrawRadarSweep` when weather is off (`:961-968`) |
+| `sweep` | `DrawSweepOverWeather`, or `DrawRadarSweep` when weather is off (`:961-968`). **With weather on, split three ways at the points step C already has inside `DrawSweepOverWeather` (`AircraftManager.cpp:3633-3652`, `tRaster`, `tBlend`, `tBeam`): `sw_raster`, `sw_blend`, `sw_beam`** (weatherscope's request for P5) |
 | `static` | `DrawRadar`'s circles, stale banner, weather note, airports, follow track (`AircraftManager.cpp:4142-4167`) |
-| `contacts` | the per-aircraft loop's markers and trails |
-| `labels` | the per-aircraft `DrawAircraftInfo` and its label box, summed over contacts |
+| `contacts` | the per-aircraft loop's markers and trails, **less the outline** |
+| `outline` | the 8-copy outline loop alone, summed over contacts (`AircraftManager.cpp:4292-4298`, the `if (outline)` loop before the marker); 0 with weather off (weatherscope's request: P5's first lever) |
+| `lbl_layout` | `AircraftLabelBox` (the `:4247` call, first pass) plus `DrawAircraftInfo`'s own `LabelLayout` call (`:5669`), summed over contacts: the string formatting and `textWidth` that P6 would cache (weatherscope's request) |
+| `lbl_draw` | `DrawAircraftInfo`'s `drawString` loop (`:5670-5671`), summed over contacts. `labels` = `lbl_layout` + `lbl_draw` |
 | `rest` | everything else inside `appManager.Draw` |
 | `push` | `backbuffer.pushSprite` (`:982`) |
 | `flush` | `board::DisplayFlush` (`:990`; a no-op on SPI SKUs) |
@@ -69,10 +71,18 @@ About 25 minutes of trace for A0a (seven arms), 10 for A0b, plus the bench's wri
 
 ## 4. Predictions, frozen now
 
-**PC-1, the profile's own cost, first.** At boot the image times 10,000 runs of one frame's profile points and
-prints `[frame-profile] cost <ns> ns/frame`. That is 2 `micros()` reads per phase plus 2 per contact for `labels` at 40
-contacts: about 100 reads and their stores. **Predicted: ≤ 100,000 ns (100 µs) per frame**, about 0.2% of a 50 ms
-frame. **Over 500,000 ns (1% of a 50 ms frame), stop:** the profile would be heavy enough to move what it measures.
+**PC-1, the profile's own cost, first.** With weatherscope's splits the per-contact points grow to about 7 per
+contact: about 420 at 60 aircraft, plus about 30 per-frame phase boundaries. So:
+- **The per-contact points read the CPU's cycle counter** (`esp_cpu_get_cycle_count()`, one register read), not
+  `micros()`. The phase boundaries keep `micros()`.
+- The loop task runs on one core, so its cycle count is consistent. The boot line prints `getCpuFrequencyMhz()`, so
+  cycles convert to time at a frequency the image states, not one assumed.
+- At boot the image times 10,000 runs of one 60-contact frame's points and prints
+  `[frame-profile] cost <ns> ns/frame cpu=<MHz>`.
+- **Predicted: ≤ 100,000 ns (100 µs) per frame at 60 contacts**, about 0.2% of a 50 ms frame.
+- **Over 500,000 ns (1% of a 50 ms frame), stop:** the profile would be heavy enough to move what it measures. If it
+  stops, the per-contact splits go first (weatherscope's order: the sweep split, then the label split, then the
+  outline), never the phase boundaries.
 
 **The control next (P-CTRL against P1 at 40 in A0a; against P2 in A0b):** `labels` p50 moves **+5.0 ± 0.75 ms**, `fr` p50 moves **+5.0 ± 0.75 ms**,
 and every other phase stays within **± 0.5 ms**. Outside that, the profile cannot place a known cost in its own
@@ -85,7 +95,7 @@ time the profile does not see. Stop.
 |---|---|---|
 | `push` | **25.8 ± 1.0 ms** | the measured push floor |
 | `flush` | **< 0.1 ms** | a no-op on SPI SKUs (`main.cpp:989`) |
-| `labels` in P0 | **~0.53 ms × n: 10.6 at 20, 21 at 40, 32 at 60, each ± 35%** | ~0.53 ms per contact, the 2026-08-26 labels A/B |
+| `labels` (= `lbl_layout` + `lbl_draw`) in P0 | **~0.53 ms × n: 10.6 at 20, 21 at 40, 32 at 60, each ± 35%**. The split between the two is **not predicted**: reported for P6 to size its lever from | ~0.53 ms per contact, the 2026-08-26 labels A/B |
 | `contacts` in P0 | **~0.27 ms × n: 5.4 at 20, 11 at 40, 16 at 60, each ± 50%** | the rest of the 0.802 ms per-contact slope |
 | `static` in P0 | **1-6 ms** | the airports measured at −0.09 ms; circles and text are few calls |
 | `upd` | **1-6 ms** | no measurement; reported |
@@ -93,7 +103,9 @@ time the profile does not see. Stop.
 | `sweep` in P0 (the opaque wedge) | **2.0 ± 0.3 ms** | wx-device.md, `sweep=` with the layer off: 1.99 ms |
 | **weather, P1 − P0: `under`** | **+2.1 ± 0.3 ms**, at every level | since B1's fix, `DrawWeatherUnder` memcpys the layer (`AircraftManager.cpp:3610-3612`): the fix's board run read the clear at **5.08 ms** (wx-device.md, \"The B1 fix, the board\", F2) against the fill's 3.01 ms. The +3.8 in this row's first version was step C's sprite push, before that fix |
 | **weather, P1 − P0: `sweep`** | **+4.6, −1.5 / +0.6 ms**, at every level. The band is wide below because S5's 6.62 ms was read with one echo cell on the layer ("not graded: rain on the layer"), and a dry layer may read lower (weatherscope's question, 20:45Z) | the same split, after the span-only blend landed: `sweep=` 6.62 against 1.99 (the blend's own cut was −1.17 ms) |
-| **weather, P1 − P0: `contacts`** (the outline) | **+0.1625 ms × n, ± 15%**: **3.3 at 20, 6.5 at 40, 9.8 at 60** | while the layer is on, every contact gets **8 black copies of its marker** (`WxOutlineNow`, `AircraftManager.cpp:4288-4298`, in both looks since 2026-11-06). Its own timer read **157-169 µs per contact per frame, median 162.5**, rising with n (4.71 ms at n = 30, 6.24 at n = 38; wx-device.md, the observations under F7). At n = 16 that is ~2.6 ms: the record's \"2.3 outside both timers\" |
+| `sw_raster` / `sw_blend` / `sw_beam` in P1 | **2.0 ± 0.3 / 4.4 (−1.5 / +0.3) / 0.1 ± 0.05 ms**, and their sum within **0.3 ms** of `sweep` | wx-device.md's S5 reading: 2.03 + 4.45 + 0.11 against `sweep=` 6.62 (with one echo cell on the layer; a dry layer may read the blend lower) |
+| `outline` in P1 | **0.1625 ms × n, ± 15%** (3.3 / 6.5 / 9.8 at 20 / 40 / 60); **0 in P0** | the outline's own timer, 157-169 µs per contact per frame (F7's observations) |
+| **weather, P1 − P0: `outline`** (its own phase now) | **+0.1625 ms × n, ± 15%**: **3.3 at 20, 6.5 at 40, 9.8 at 60** | while the layer is on, every contact gets **8 black copies of its marker** (`WxOutlineNow`, `AircraftManager.cpp:4288-4298`, in both looks since 2026-11-06). Its own timer read **157-169 µs per contact per frame, median 162.5**, rising with n (4.71 ms at n = 30, 6.24 at n = 38; wx-device.md, the observations under F7). At n = 16 that is ~2.6 ms: the record's \"2.3 outside both timers\" |
 | **weather's total, P1 − P0, in `fr`** | **2.1 + 4.6 + 0.1625 n: about 9.9 at 20, 13.2 at 40, 16.4 at 60, each ± 2.5 ms** | the three rows above. The first version's +10.7 was assembled from n = 16 numbers, and the outline scales with n (weatherscope, 20:45Z; checked against wx-device.md by p4) |
 | `map` in P2, steady (M) | **not predicted as a number**. The meaning of each range is fixed now instead | see below |
 
