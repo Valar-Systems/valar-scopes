@@ -942,6 +942,21 @@ plants a changed `kRungs[]` and shows the scene table and the reader follow with
      airports × `kRungs[]` = 25/50/100), the 10 mi reported rows (if they fit the window), the packed stress rows,
      LIVE at both airports, and LIVE-OWN.
 
+**AMENDMENT to the replay hook, before its code (23:5xZ, unstamped):** where the hook sits.
+- **The problem:** skipping the real `/blips` GET needs an `if … else` that reaches outside a bench region. That
+  breaks FB2 (a region opens with `#ifdef FRAME_BENCH` and closes with `#endif`), and risks I-3's byte-identical
+  shipping image.
+- **So the replay sits in the existing cloud-poll region, AFTER the parse.** The board makes its REAL `/blips` request
+  at the airport, exactly as shipped, over its keep-alive TLS connection. Then, for a REPLAY scene, the region replaces
+  the parsed content:
+  - `doc` is re-filled from the recorded body at the same elapsed time, with `t` shifted to keep the data age;
+  - `res->aircraft` and `res->dataEpoch` are rebuilt by the same `CloudFeed::ParseBlips`;
+  - `served A<i> <seq> crc <crc32>` is printed.
+- **Its consequence, stated:** in this run the `/blips` request's load is PRESENT, not absent. H1's "absent `/blips`
+  load" does not apply to the v19 replay run. Whether v20's (a) hook should move the same way is (a)'s question, not
+  this one's.
+- **A failed live GET** (no parse) means no replay that poll. Such polls are counted from the trace, not hidden.
+
 **THE ROWS** (`check_frame_bench.py`, each with a plant that must read red):
 
 | row | what it holds |
