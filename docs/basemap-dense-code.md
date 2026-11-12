@@ -1388,9 +1388,26 @@ exact.
 | **KB7-b** | the code PR's ingest dry run, on real data | **Lake Erie and Lake Champlain** are both selected. Each one's stored pieces, together, equal the NE lake within the extent's cells, area within 1e-9 relative |
 | **the control,** run first, for both | the same check on a (b) ingest: the lake minus the US polygon | **must FAIL,** short by the US part. It is run before KB7 is believed. If it passes, KB7 is blind, and nothing is believed |
 
-- **Why that is the property.** KB7-b holds at the ingest, and the builder draws every stored sea piece like other water (QW4-2's rows).
-  So no land can be drawn across a border lake except by the water path's own simplification, which is the cost the owner accepted.
-- **The package-level reading of that cost is his eye on the pictures, not a check.** That is by his ruling: "No fourth instrument".
+- ~~Why that is the property. KB7-b holds at the ingest, and the builder draws every stored sea piece like other water (QW4-2's rows).~~
+  **Withdrawn (the orchestrator, 04:02:26Z):** that sentence is a justification about code KB7 does not touch, the builder. A stored lake
+  piece the builder drops leaves land across the lake, and the ingest can't see it: refused by the backstop, collapsed by
+  Douglas–Peucker, or dropped by the ladder. QW4-1 showed the backstop refusing real rings. **KB7-c, below, replaces it with a check that
+  runs.**
+
+**KB7-c, at the builder: the last stage that knows which INPUT piece each ring came from.**
+
+| KB7-c | where | asserted |
+|---|---|---|
+| **the count** | every build | **the builder reports the sea and lake input pieces it did NOT draw**, by reason: refused by the backstop, collapsed under 3 vertices, or dropped by the ladder (rung 4's smallest-first drops). It reports them as `seaRefused`, `seaCollapsed`, `seaDropped`, and their sum `seaLost`, on `bm_build` beside `refused` and `refusedBuilt`. The measurement child also reads each piece's fate, by its source key |
+| **KB7-c-real** | the code PR's run, at Buffalo and Rouses Point | **`seaLost` = 0 for every piece of a border lake in view:** within the device's closest zoom, 8.04672 km of the home. Any lost piece stops, and its reason and key are reported |
+| **KB7-c-ci** | CI, on a synthetic sea-layer store | a normal lake piece: `seaLost` 0. **The control, run first:** a planted lake piece the backstop must refuse, a 4-vertex bowtie as in QW4-3, reads **`seaLost` ≥ 1, with `seaRefused` ≥ 1.** If it reads 0, KB7-c is blind, and nothing is believed |
+
+- **End to end:** KB7-a and KB7-b prove each border lake is stored whole. KB7-c proves the builder draws every piece of it in view. So
+  "no land drawn across a border lake" holds by checks that run.
+- **The owner's eye covers only the cost he accepted:** where the drawn shoreline sits, within about the package's normal shoreline
+  error.
+- **`seaLost` is a new `bm_build` field.** Its routine reader is #655's: the staging rows read it, and #655 proposes the response header
+  `smoke-prod.sh` would read. It is added to #655's list.
 
 **3. The owner's condition, as a named outcome.**
 
