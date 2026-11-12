@@ -3649,6 +3649,44 @@ predicted:
   - compose 15, draw 23, places 6 and sweep 8 AS PREDICTED lines.
 - **What I did:** I stopped there. Nothing was fixed or re-run, and no build was started.
 
+**The ruling on the full run (the orchestrator, 08:05:54Z), in short:**
+- The first full run is graded OFF. Its five extra blocks are instrument failures (BLIND), not verdicts on step C.
+  Step C's rows in it are recorded as read, and the full-run row is graded on the re-run only.
+- (a) was approved, with six preconditions, as the row's FIRST re-run. A second off reading on it goes to the owner.
+- **My miss, on record:** the full-run prediction did not name its environment. **The mechanical fix, from now on:**
+  every full `run.sh` prediction names its worktree, and prints `ls .pio/libdeps` as a precondition.
+
+**The re-run, as read** (WSL, 08:06:36-08:14:49Z, in `wt-main-mc`):
+- **The preconditions, each as required:**
+  1. HEAD `c782dc3e960628fca42e5fa69d0604c9275ace83`, porcelain empty;
+  2. `platformio.ini`'s `lib_deps` identical between that HEAD and `3c8e5110` (13 lines each, and no difference in
+     the whole file);
+  3. `.pio/libdeps` holds `blipscope-s3-128`, `blipscope-s3-128-mapbench` and `blipscope-s3-128-wxlook`;
+  4. detached at `3c8e51103de9d5de38cf561aa38cf198ea64ed50`, with HEAD's tree equal to its tree (`ef401555…`), and
+     porcelain empty.
+- **The reading, AS PREDICTED:**
+  - exit 2, with FAILED BLOCKS exactly "Weatherscope R0 and R0b" (no Pillow) and "the same TU, for the board";
+  - `sabotage_wx_towns` skipped, and `41 driver(s): 40 run, 1 skipped` in both passes;
+  - lint 41 / 0 / 3;
+  - MapDraw 12 / 0, MapCompose 28 / 0, MapSweep 9 / 0, MapPlaces 32 / 0, MapLayer 160 / 0;
+  - compose 15, draw 23, places 6 and sweep 8 AS PREDICTED lines.
+  - The blocks the first run lost now pass: the follow flag, the Wi-Fi QR sweep (36 names placed, 0 refused), the
+    seven-segment 1 vs I rows, GameConfig 53 / 0, and `sabotage_wx_fb_check.py` in both passes. The log's only BLINDs
+    are `wx-fb-check`'s own expected-BLIND cases, each ok.
+- **Step 6:** `wt-main-mc` is back on `c782dc3e960628fca42e5fa69d0604c9275ace83`, porcelain empty.
+
+**I1-I5, the order, with nothing new predicted.** All builds are in `wt-stepc` from PowerShell, one at a time, in p4's
+slot, with C: read first. The comparator needs both images of a pair built in the same tree, so the baselines come
+first:
+- **The baselines:** `b9d28fa5` detached, porcelain empty first. `blipscope-s3-128`, `-wxlook` and `-mapbench` are
+  built and copied out, then the branch head is checked out again.
+- **I1-I3** at `3c8e5110` (or its descendant carrying only this record); I1's comparator controls run first.
+- **I4:** the plant goes into `src/AircraftManager.h` (the `MapSweep.h` include removed), with a byte copy and its
+  sha256 taken first. The build is `blipscope-s3-128` with `PLATFORMIO_BUILD_FLAGS=-DWX_LAYER_SHIPS`, and it is read
+  by its log's `#error` text and its exit code. Then the header is restored from the copy, its sha256 compared, and
+  porcelain read empty.
+- **I5:** the same flip build, without the plant.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
