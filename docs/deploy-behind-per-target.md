@@ -294,3 +294,13 @@ login was available to upload with.
 - This PR touches `docs/` and `proxy/scripts/`, which trigger the same workflows.
 
 **Outside the predicted set: stop and report.** Nothing merges while main is red.
+
+**CI, RE-PREDICTED against main 099f1946 (#675, the orchestrator's announcement at 19:06:30Z), before any read of this PR's runs.**
+From 099f1946 on, `ship-alert` runs report-only on every PR, so the job set has changed.
+- **A run whose tested base contains 099f1946: 35 check runs, 33 success, 2 skipped (`promote`, `version`), 0 failed.** That is
+  #658's 35 with `ship-alert` moved from skipped to run.
+- **A run whose tested base predates 099f1946 reads by the earlier prediction: 35 = 32 / 3 / 0.**
+- **Which one applies is read from the run's own checkout log** ("HEAD is now at <sha> Merge <head> into <base>"), never from
+  `refs/pull/N/merge`.
+- **A new red from `ship-alert` reads INSTRUMENT,** and the GitHub-side re-run rule applies. Anything else outside the set: stop and
+  report.
