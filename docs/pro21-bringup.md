@@ -181,3 +181,41 @@ four bench boards. It never established which port IS the 2.1".
 board in (`--snapshot`, which opens no port). Any port present in the snapshot is never opened, whoever owns it. Zero
 or several new ports: refused, with no port opened. The control now reads that refusal without opening anything:
 read 18:4xZ, "new since: 0 ... REFUSED ... no port opened", exit 1.
+
+## Amendment 4: the UART port after all (the owner, 2026-11-12 ~18:47Z), frozen before anything touches COM110
+
+**His words:** "the board is on COM110. something was wrong with the USB connection to the computer, so i removed the
+missileer device and placed this on one on the YKUSH board in the missileer place. Im not developing the missileer
+anyways so that's ok."
+
+**Read-only at 18:48:11Z** (a port listing that opens nothing): COM110 is VID:PID 1A86:55D3, "USB-Enhanced-SERIAL
+CH343", the bridge the env's own comment names. The photo Missileer (E7:94) is not connected. The reviewer's ledger, as
+of 18:49Z, provisional until the owner confirms: hub port 1 = the 2.1 (COM110), port 2 = 6E:64, port 3 = E2:08.
+**Port 1 is never switched until the owner says otherwise.** COM89 (the ESP32-C6) is out of scope and never opened.
+
+**The identity rule for this port.** A CH343P's USB serial is the bridge's, not the chip's MAC, so the port's serial
+proves nothing about the chip (the registration's point). So:
+- **(a) the port:** COM110 by the owner's word, AND its VID:PID is 1A86:55D3, AND it is the only 0x1A86 port on the PC.
+  Anything else is refused, with no port opened.
+- **(b) the chip:** `read-mac --before default_reset --after no_reset`, through the bridge's DTR/RTS auto-reset, into
+  download mode, where it stays. Its label must be none of E9:D8, E7:94, 6E:64, E2:08 or 1E:D0. Then, immediately
+  before the write, `read-mac --before no_reset --after no_reset` must give the same label.
+- **(c) the write**, unchanged: `write-flash --before no_reset --after no_reset 0x0 firmware.factory.bin` (sha256
+  `971a8098...1313`, 0x000000 .. 0x1E691F), then `verify-flash --before no_reset --after hard_reset`.
+
+**The serial boot read is back (P3):** one open of COM110 with DTR low (never download mode) and one RTS pulse on EN,
+for a boot from reset. 60 s are captured; the full log stays local and is never printed or committed, and only the
+predicted lines are printed.
+
+**Rows for this run (they replace P0''-P3'' of amendment 2):**
+
+| row | predicted | stop if |
+|---|---|---|
+| **U0** | (a) passes: COM110, 1A86:55D3, the only 0x1A86 port | anything else |
+| **U1** | (b) enters download mode through the auto-reset; label none of the five, the same on both reads | "Failed to connect" (no button presses), or a known label |
+| **U2** | (c) `write-flash` exit 0; `Verification successful (digest matched).`; the hard reset boots the image | any error |
+| **U3** | the boot read: `rst:0x1 (POWERON)` (an EN reset on the S3), then `[build] env=blipscope-pro-s3-21 fw=v19`, `[board] TCA9554 @0x20 ACK (expander alive)`, `[board] QMI8658 WHO_AM_I=0x05 (expect 0x05); ...`, `[disp] tft.init=1 480x480  backbuffer ok`, and no reboot within the 60 s | any of them differs, or a reboot |
+| **U3b** | the server's boot report, only once the board has a key (Q-P5): `POWERON`. With no key: unread, and said so | another reason |
+
+P4 onward are as in amendments 1 and 2. **Nothing runs** until the reviewer lifts the hold and the owner has answered
+Q-P5.
