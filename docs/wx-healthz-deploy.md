@@ -172,3 +172,19 @@ released when the diagnostic is done; no deploy follows under it.
   inert 503 that P3 already expects.
 - **The deploy re-runs from S-slot, staging first,** after the orchestrator announces that v19's step 5' has closed.
 - **The claim:** `proxy:staging` was released at 04:25:22Z. No deploy followed under it.
+
+**HOW S3's re-ask runs on the re-run (the orchestrator, 04:25:58Z), so a 202 is never read as a pass by accident.**
+`smoke-prod.sh` is UNCHANGED.
+- **The re-ask is a separate logged loop:** scratch `bm_reask.sh`, moved into the record with the readings. It sends
+  smoke's exact `/basemap` request (smoke's own point, `r=97`, `eps=100584`, the six layers and three levels, the test
+  identity). On a 202 it re-asks every 15 s for at most 10 min, and **exits 0 only when its last read serves a validated
+  package** (`basemap_verdict`: `PASS -- wired`). A 202 still standing at 10 min logs "STILL 202 … unresolved" and exits
+  1.
+- **Controlled both ways,** 04:26:46-48Z on staging as it is: smoke's (warm) point read a package and exited 0; a copy
+  planted with lat=999 read 400 `bad_lat` and exited 1.
+- **S3 on staging is graded:** smoke's summary reads either `FAIL: 0`, or `FAIL: 1` where that ONE FAIL is the
+  `/basemap` row with `HTTP 202`. In the second case, the loop, run right after smoke, must exit 0. Any other FAIL, any
+  second FAIL, or the loop exiting 1 makes S3 OFF, and the gate applies. The per-product section and the `wx-opuk`
+  verdict stay as registered in §4.
+- **P3 on production is unchanged:** production binds no `BASEMAP_PKG`, so its `/basemap` is the inert 503, and
+  `FAIL: 0`.
