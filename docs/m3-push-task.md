@@ -72,6 +72,10 @@ backbuffers**, A and B, so the loop can draw frame N+1 while frame N is sent.
 
 **The first bench hour, on glass.** A bench-only test frame:
 - **a frame counter printed in 8 horizontal bands**, the same number in every band of one frame;
+- **it covers rows 0-215 only:** the bottom 24 rows stay the radar's own, so its screen-indicator dots (y = 224)
+  remain visible. That keeps map-client's frame-trust test working on this image, and gives M3-1b's plant its control.
+  A full-screen test frame would have hidden the dots and left the trust test with no control (found while coding
+  M3-1b);
 - **a vertical bar moving 4 px per frame**;
 - **every row's colour distinct.**
 
@@ -120,7 +124,7 @@ row is graded before the next is read.
 | **M3-0** | every non-1.28" image, including `blipscope-s3-128-framebench` | PLACED (five regions) |
 | **M3-1** | the picture: the 240 golden (web build, which never takes the macro) and /diag/fb on the bench | **pixel-identical** to the base, frame for frame at the bench's fixed scenes |
 | **M3-1b** | **the frame-trust property** (the orchestrator, 2026-11-12). map-client's frame-trust test reads the screen-indicator dots (`DrawScreenIndicator`, y = SCREEN_SIZE − 16 = 224) as proof that a /diag/fb grab is a finished frame, because the frame-start clear leaves none. **After M3, a planted mid-draw grab must still read UNTRUSTWORTHY.** In the m3bench envs, `/diag/fb-middraw` serves one grab of the DRAW buffer taken right after the clear and before the radar's `Draw`, labelled exactly like a finished frame (`Finished: true`, plus `X-Blipscope-Bench: m3-middraw-plant`). The glass test frame stops 24 rows short, so the dots stay visible in the same image | the plant reads **UNTRUSTWORTHY** under map-client's test, and a real /diag/fb grab from the same image (the control) reads **finished**. Either outcome otherwise: stop |
-| **M3-2** | the design hour on glass (section 4), against the base | **no stale band; tearing no worse than the base; no new shear**, for (i), or (ii) if (i) shows a stale band |
+| **M3-2** | the design hour on glass (section 4), against the base | **no stale band; tearing no worse than the base; no new shear**, for (i), or (ii) if (i) shows a stale band. The test frame stops 24 rows short of the bottom, so the indicator dots stay visible for M3-1b |
 | **M3-3** | `p2p` p95 at 40, weather on, map off: M3's cut. **Read on the (a) bench only** (the cloud `/blips` hook, ruled 2026-11-12; in local mode weather is never drawn), with the profile's PG-1 guard: the weather must be shown, or the reading is INSTRUMENT | **the C1 row** (speed-plan 2b): ≥ 20 ms on track; 10-20 partial; < 10 failed |
 | **M3-4** | the push task's CPU per frame | (i) < 1 ms; (ii) 2-5 ms |
 | **M3-5** | networking and memory beside it, over the scene: fetch `requestMs` p95, the poll gap, internal free heap and its largest block at boot | requests within **±20%** of the base; **`CanHandshake()` never false**; internal free heap lower by **4.5 ± 1 KB** for (i), or **12.6 ± 1.5 KB** for (ii). Outside: the push task contends with Wi-Fi, or the memory is not what section 3 says, so stop |
