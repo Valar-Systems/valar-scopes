@@ -1747,3 +1747,22 @@ Every artifact was checked against the pinning addendum's sha256 before the run.
 `9f7a16c639b247070fa081f31d6e56fc2c9bb4d121b627918e37d1dc1b197bef` (9f7a16c639b2). Both store builds run again against the predictions
 above. The partial `sea-obj` and `sea-obj-seam` left by the stopped runs are removed first, so every file the re-run produces comes from
 the re-run. The cosmetic `lake-obj:` label stays as it is.
+
+**Step 0's re-run (04:54:57-04:55:11Z): AS PREDICTED.**
+- **The fetch:** exit 0, empty stderr, 1 object of 438,589 bytes (649aa404098a), matching the index.
+- **Both store builds:** exit 0 with empty stderr, each printing
+  `cells 246 (144 copied, 74 with sea added, 28 sea-only new); tiles 830; pieces 170 (islands 95) as records 0..169; regions +2`.
+- **Not predicted, and explained before it was believed:** both builds print the SAME store id, e9ef04165ba2. `storeIdOf` is the sha256
+  of the manifest text alone (`ingest-lib.ts:234`), and the seam plant changes cell geometry but not the manifest, which is identical
+  in the two stores. **To show the plant took,** the two stores have the same 1,082 files. 50 of their 246 cells differ, and all 50 are
+  on the odd checkerboard (0 on the even). That is exactly the number of odd sea cells holding a cell-edge vertex, 50 of 50
+  (`seam-expect.mts`, a read made after the run, not a graded row). Their `index.json` files differ too, in the reach boxes.
+- **Pinned as inputs for steps 2-11:**
+
+| artifact | tree (12) | index.json |
+|---|---|---|
+| `sea-obj` | 28fddac31920 | d6945e124bfa |
+| `sea-obj-seam` | a3389679daa7 | cbdfdfcd324c |
+| `cell-obj` | afdcf87e12c7 | |
+
+`records.json` is the same in both stores (32b072ef7994). Its bboxes are taken from the unpulled outers.
