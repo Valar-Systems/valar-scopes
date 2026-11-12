@@ -282,3 +282,36 @@ The id is never printed.
     `VSYNC_PULSE 3 / BACK 8 / FRONT 8`; `LGFX.h:86` `offset_y = 0`) against the ST7701's own vertical porch in its init
     sequence.
   - The photo and the framebuffer picture stay local: their contents derive from the owner's location.
+
+### F5, still open: two alternatives before "a porch mismatch" can stand (the reviewer, 19:25Z; measure only)
+
+**(i) Fixed, or time-varying?** A fixed porch mismatch, or an RGB scan desync that slipped some lines. The separator is
+the owner's eyes, and the board is never restarted for it:
+- a second photo later today;
+- one after the board next restarts for any reason.
+
+The same wrap both times means fixed. A different wrap, or none after the restart, means a desync.
+
+**(ii) Does `/diag/fb` see what the panel scans? No.** Read from the source at main `1e6f2c13`:
+- `/diag/fb` reads the **backbuffer sprite** (`include/FrameBuffer.h:13-15`: "This is a pointer to that, not a copy of
+  it"; the response header says `Frame-Buffer: backbuffer`).
+- The panel scans something else. `backbuffer.pushSprite(0, bandY)` (`src/main.cpp:982`) copies into one of the
+  driver's two PSRAM framebuffers, and `board::DisplayFlush` presents it.
+- esp_lcd scans that framebuffer **through a bounce buffer filled by a CPU memcpy** (`src/board/Panel_ST7701_esplcd.cpp:5-18`;
+  `cfg.num_fbs = 2`, `cfg.bounce_buffer_size_px`, `:136-137`).
+
+So a row offset anywhere in that copy chain wraps on the glass while `/diag/fb` still shows the frame centred. A
+centred `/diag/fb` excludes only the drawing code. Alternative (ii) is **open**.
+
+**One fact that sharpens both:** the bounce buffer is **20 lines** (`BOUNCE_LINES = 20`, `Panel_ST7701_esplcd.cpp:31`),
+and the wrap on the glass is about 20 lines. A bounce refill one chunk out of phase gives exactly a 20-line wrap.
+- A wrap that is a whole multiple of 20 lines points at the bounce phase.
+- Any other count points at the porches.
+
+The count needs an exact measurement, a test frame with numbered rows. That is bench work for the big-screens step,
+not for this PR.
+
+**A stale comment, found on the way:** `include/variants/s3_21.h:28-32` justifies the 8 MHz pixel clock with "we scan
+the PSRAM framebuffer without a bounce buffer ... Raise toward 16 MHz only if a bounce buffer is reinstated". The driver
+it points to scans through a bounce buffer. The premise is false where it is relied on (CLAUDE.md: "a justification is
+a claim about code you are not editing"). It is filed with the findings, and not changed here.
