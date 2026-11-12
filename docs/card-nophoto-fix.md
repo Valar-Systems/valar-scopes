@@ -359,6 +359,50 @@ phase after, then the restore with its boot read, then the release. The first (a
 anything else is off, the restore (f6d73e391631) and the release come before the report, so the board is never left
 on a bench image.
 
+### M6: the window's second stop, and the restore's boot-read pattern (written before the next window)
+
+**The re-run** (22:58Z, the M5 images):
+- The write verified. CN0 held twice ("card open on zzcardn", then "zzcardl"), so M5's fix works.
+- (a) was kept, byte-identical to run 1's: #670 on glass again. (b) was kept: the real bench photo-loading card.
+- It stopped at `p`, 37 s after boot: "p: no live contact has a library photo yet; nothing injected". The driver
+  asked once, and after a fresh boot no live contact had yet been enriched with a library photo. In run 1 one had, by
+  chance.
+
+As ruled, the restore and the release came first: v19 written and verified, E2:08 released at 23:01:11Z.
+
+**The restore's boot read was misread by the driver.** The boot itself met the owner's terms:
+- `[build] env=blipscope-s3-128 fw=v19`;
+- `[WiFi] CONNECTED`, then "fast join OK";
+- no line that opens a portal.
+
+But the driver's pattern, `^\[WiFi\] .*portal`, matched the informational line `[WiFi] credentials saved: portal times
+out after 180 s and retries them (...)`, which EVERY boot prints, and the driver reported "portal: SEEN". So the
+registered prediction "no `[WiFi] ... portal` line" was mis-stated: that line is on every healthy boot. It is an
+instrument defect, the outside-the-set case. It was reported by the log's lines and not re-graded.
+
+**The driver's fixes** (the images, the write ranges and the hook are unchanged):
+1. `p` asks every 10 s, for up to 180 s, until a donor exists. None in 180 s is a stop.
+2. **The restore's prediction, corrected:** `[WiFi] CONNECTED`, and no line that OPENS a portal. A portal opening is
+   one of the firmware's three outcomes, or WiFiManager's AP start:
+   - "no network and nobody at the portal";
+   - "provisioned via the portal";
+   - "portal provisioning FAILED";
+   - `*wm:StartAP with SSID` or `*wm:AP IP address`.
+3. **The pattern's control** (`--selftest-portal`): this window's real restore log reads 0 portal lines, and each of
+   five planted portal lines reads as a portal. PASSED.
+4. **(c0) is captured only once the photo is drawn,** not after a fixed 12 s. The slot layout ("Loading photo...")
+   is drawn on black, and the full-bleed photo covers the disc. So the driver waits, for up to 30 s, for a frame
+   under half black, and a `[photo]` failure line (fetch failed, rejected, decode FAILED) is a stop. Control on real
+   frames: run 1's photo page reads 0.0% black; run 2's no-photo and photo-loading slot cards read 93.7% and 97.4%.
+5. **(c1) is captured only after the tap logs `hasPhoto=1 page=0 -> flip-to-data`,** so it is the photo card's data
+   page.
+6. **Read before the window, opening nothing on the board:** the fixed traffic's whole 8-mile ring around the `bend`
+   home fits inside the board's scan box, computed locally from its config page with nothing printed but YES. And
+   `MAX_AIRCRAFT` (60) holds n = 40.
+
+The driver is a session scratch script, sha256 `03a17062e9fd...`. The images, the write ranges and the hook are
+unchanged.
+
 ## Results
 
 ### D-ref, the first run (off prediction; stopped, ruled (A) above)
