@@ -256,3 +256,48 @@ The defaults for Q-FB1 to Q-FB4 and Q-FB6 are accepted.
 - **If (D) passes:** alternatives (a), (b) and (c) are eliminated for the build-path question, and I-1 holds as meant.
   Every framebench build, and every v20 candidate's sibling, uses the same mapping, so A5's I-3 stays local against
   local.
+
+## (D) as run, I-3 as run, and (3): the pinned build time (the ruling of 20:13Z), registered before the builds
+
+**(D), as run (19:55-19:58Z): PASSED as predicted.** 1,931,840 B (`1ee6cd9f…`). imgcmp against `f6d73e39` reads 0
+bytes outside the five regions (inside: 32 / 32 / 1 / 5 / 5). The whole 352 B was the framework path root.
+
+**I-3, as run (20:06-20:09Z): OFF by 3 bytes, with the residue named.**
+- The tag tree plus the patch, built as `blipscope-s3-128` with the mapping: 1,931,840 B (`27f8b243…`). imgcmp against
+  (D): 3 bytes outside, at 0x185C30-0x185C32.
+- **They are one literal-pool word** at 0x420F5C30, in `cnx_node_leave`, ESP-IDF's precompiled Wi-Fi library. It
+  points at the string "20" in both builds: at 0x3C1664F6 in (D), and in I-3 at file offset 0x30B2. That is byte 18 of
+  imgcmp's own "aboutdate" region, WiFiManager's `__DATE__ " " __TIME__`, which read "… 12:08:20" in that build
+  ("… 11:57:41" in (D)).
+- The linker's string tail-merging served the library's "20" from the timestamp's seconds. **Not the instrument:** the
+  changed word is in a precompiled library, and both targets hold identical bytes.
+
+**A KNOWN LIMIT OF imgcmp's FIVE-REGION RULE, for every user of it.**
+- The regions cover the timestamp BYTES. They do not cover a POINTER whose target tail-merges into a timestamp
+  string.
+- A short literal elsewhere in the image (here "20") can be served from a timestamp's last characters. It then
+  points into the region in one build and elsewhere in another.
+- **The residue's signature:** a literal whose target lies inside a timestamp region and holds identical bytes.
+- **The cure is to pin the build time,** not to widen the rule.
+
+**(3), registered before the builds: the build time pinned.**
+- **Every build from here** (D′, I-3′, the framebench image, and every v20 candidate's sibling) is made with the path
+  mapping AND `SOURCE_DATE_EPOCH=1794441386`. That is the v19 tag's commit time, Nov 11 2026 23:56:26 UTC, set in the
+  environment only.
+- **(D′)** is the tag's `blipscope-s3-128`, built in a second, clean worktree at the tag. **I-3′** is the tag plus the
+  patch, built as `blipscope-s3-128`.
+- **The control, C-T:** (D′)'s aboutdate reads "Nov 11 2026 23:56:26", and its software-info reads "23:56:26" and
+  "Nov 11 2026". If either shows the wall clock, the toolchain or the build environment ignores SOURCE_DATE_EPOCH:
+  STOP.
+- **I-1′, (D′) against `f6d73e39`:** 0 bytes outside the five regions. A residue must be of the named class, and is
+  then named and STOPPED on, never accepted silently.
+- **I-3′, I-3′ against (D′):**
+  - The two timestamp regions are no longer excused: **0 differing bytes in aboutdate and in software-info**, and **0
+    bytes outside the five regions**.
+  - The three ELF-derived regions (`app_elf_sha256` 32 B, the image SHA-256 32 B, the checksum 1 B) are
+    **PREDICTED TO DIFFER.** `app_elf_sha256` is the SHA-256 of the whole ELF, debug sections included. The patch's
+    inserted lines move the line tables of everything after them, and (D′) is built in another worktree, whose path is
+    in the ELF's debug info. The image hash and the checksum follow from it.
+  - So the ruling's "byte-identical in full, the same sha256" is predicted false BY MECHANISM, before the run, and this
+    prediction replaces it.
+  - Any other differing byte: STOP.
