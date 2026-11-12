@@ -2643,7 +2643,7 @@ A full clip of the 2,584 cells takes **about 37 s**.
 | **C-SHIFT**, 1e-5° | PA-4 or PA-5 fails for **1,736 of 1,914** pieces (91%); Hausdorff 0.00044° | as predicted (at least half) |
 | **C-AREA** | PA-4 and PA-5 fail at **exactly one** piece (16/-155) | as predicted |
 | **C-HOLE** | PA-1 fails (632 kept, 0 dropped); PA-3 fails at **44 pieces, exactly those that held the 135 dropped islands** (counted: 44 pieces, 135 islands) | as predicted |
-| **THE REAL RUN** | **PA-1:** 1,435 / 1,914 / 497 / 135, exact. **PA-2 to PA-5: 0 failures** over all 1,914 pairs. **Recorded:** Hausdorff max **0.0**, and 0 pairs whose vertex counts differ; even the total, 69,728 vertices, is the reference's | **PASS** |
+| **THE REAL RUN** | **PA-1:** 1,435 / 1,914 / 497 / 135, exact. **PA-2 to PA-5: 0 failures** over all 1,914 pairs. **Recorded:** Hausdorff max **1.42e-14°** (first written here as 0.0, which the grading output never said; corrected at step 2's run below), and 0 pairs whose vertex counts differ; even the total, 69,728 vertices, is the reference's | **PASS** |
 
 **Three things on record:**
 - **C-IDX's magnitude was mis-stated.** I registered "at most of the 1,435 cells", and PA-2 failed at 492 (34%). A full open-ocean cell
@@ -2651,7 +2651,8 @@ A full clip of the 2,584 cells takes **about 37 s**.
   matched pair. The control is not blind; my count was wrong.
 - **An instrument defect, in the verifier, not the clip.** The first grading of the real run read PA-2 = 7, all in cells holding four
   lakes with accented names. `verify.py` opened the clip's UTF-8 output with Windows Python's default code page, cp1252, and garbled the
-  names, so the source-matched pairing refused them. The geometry already matched: Hausdorff 0.0. Opening every JSON file as UTF-8
+  names, so the source-matched pairing refused them. The geometry already matched: Hausdorff 1.42e-14° (first written as 0.0; corrected
+  at step 2's run below). Opening every JSON file as UTF-8
   cleared it, and every grade was then re-read.
 - **A finding for the code PR's ingest.** Natural Earth's `ne_10m_lakes.cpg` declares **UTF-8**, and the DBF's bytes are UTF-8. The dry
   run decodes them as latin-1. So the reference, and the prototype store's sea `src` attributes, carry garbled names for **Réservoir
@@ -2720,3 +2721,53 @@ edge test a guard nobody has seen reject anything. So a SYNTHETIC case must fail
 - **Predicted:** full mode **not inside**; vertices-only **inside**, which is **RED**, the control failing as it must. Both are run and
   shown. The containment code moves into one module, `parity/uscontain.ts`, used by both the ingest and this selftest, so the code under
   test is the code that ships.
+
+**PARITY step 2, the run (17:02:12-17:09:56Z): PASS.** The full TypeScript ingest reproduces the dry run's extent, sources, selection
+and pieces exactly. It starts from the pinned zips and `coverage.bin` and uses no Python.
+
+| artifact | sha256 |
+|---|---|
+| `sea-ingest.mts` | 45500edf4529 |
+| `uscontain.ts` | 6f7e14013016 |
+| `rectclip.ts` (step 1's, unchanged) | a39c8762a6ef |
+| `cborder-selftest.mts` | b38183b32106 |
+| `verify2.py` (PB-0 to PB-2, then `verify.py`'s `compare`) | bd3766b3161d |
+| `verify.py` (unchanged) | 0951ccd447d1 |
+| `cname.py` (lists C-NAME's failing cells) | 44abf915d935 |
+| `mk-plants.py` (each plant in a copy; asserts one match and a changed copy) | 7fd456d9ebfe |
+| the planted copies: C-EXTENT, C-US, C-SIZE, C-BORDER | 0690184b5d73, 059fb439526c, 6e4c79189adc, 94eb103f37a2 |
+| the real run's pieces | 09db20fc5a86 |
+
+The ingest takes **about 47 s**. Its stderr was empty on every run, and every control ran from a planted copy with no option passed.
+
+| step | read | |
+|---|---|---|
+| **C-BORDER-S** | full mode: **not inside**; vertices only: **inside** | as predicted: the edge test catches the notch |
+| **THE REAL RUN** | **PB-0:** the same 2,584 cells. **PB-1:** 2 / 6,820; 1,355 / 1,168 / 149 / 38, exact (and 0 holes outside exactly one outer). **PB-2:** the same 1,168 records. **PA-1:** 1,435 / 1,914 / 497 / 135. **PA-2 to PA-5: 0 failures** over 1,914 pairs. **Recorded:** Hausdorff max 1.42e-14°, 0 pairs whose vertex counts differ, 69,728 vertices | **PASS** |
+| **C-EXTENT** | **PB-0 fails:** 2,538 cells, 46 missing. Also PA-1, and PA-2 at 36 cells | as predicted |
+| **C-US** | **PB-1 fails** (**1,317** selected, 0 inside the US). **PB-2 fails** (149 extra records). Also PA-1, and PA-2 at 197 cells | as predicted, 1,317 exact |
+| **C-SIZE** | **PB-1 fails** (1,167 selected, 39 small). **PB-2 fails** (record 528 missing). **PA-1 to PA-5 pass:** the pieces are byte-identical to the real run's | PB-1 as predicted; see below |
+| **C-NAME** | **PA-2 fails at exactly 7 cells**, the cells whose reference names the mapping changes: 46/-76, 46/-77, 47/-76, 49/-69, 49/-70, 49/-71, 49/-72 (four lakes) | as predicted |
+| **C-BORDER** | **passes**; the pieces are byte-identical to the real run's | **the registered outcome:** the real data does not exercise the edge test. Only C-BORDER-S does |
+
+**On record:**
+- **The registration named one row per control, and three controls also failed rows it did not name.** C-EXTENT and C-US also fail
+  PA-1 and PA-2: those follow from fewer cells and from extra lakes. C-SIZE also fails PB-2. No registered row went the other way, so by
+  my reading this is not a stop. It is still a predicted set that was incomplete.
+- **C-SIZE leaves the shipped output unchanged.** Only one lake that design (a) selects lies between 1.5 and 2.0 km², record 528, and it
+  has no piece in the 2,584 cells. So PB-1 and PB-2 see the 1.5 km² threshold, but the pieces do not: with today's data and extent, any
+  threshold in that range ships the same sea.
+- **A correction to step 1's record: its Hausdorff max was 1.42e-14°, not 0.0.**
+  - Step 1's grading output (16:54:05Z) printed 1.4210854715202004e-14. The record said 0.0 in two places, and so did my report. Both
+    places are corrected above.
+  - The same 7 pairs carry it in both steps. 1.42e-14 is 2⁻⁴⁶, the spacing of doubles between 64 and 128, so it is a last-bit
+    difference. Which vertex carries it has not been read.
+  - It is ungraded: PA-4 and PA-5 allow differences 8 orders of magnitude larger. The verdict stands; the number was wrong.
+- **Step 2's pieces equal step 1's coordinate for coordinate, except in order.** One Whitefish Bay hole in 46/-85 starts one vertex
+  later. Two Whitefish Bay triangles in 47/-85 are listed in the other order. Every other piece is identical in place. Nine pieces now
+  carry the four lakes' UTF-8 names. Why the start and the order differ has not been read: the difference is ungraded, and the geometry
+  is equal.
+- **The ingest carries option seams** (`--lim`, `--us`, `--min-lake`), off by default. The registration put plants in copies, so the
+  seams went unused: the real run and every control passed no option.
+
+**Next:** KB4 (B')'s registration, before any code.
