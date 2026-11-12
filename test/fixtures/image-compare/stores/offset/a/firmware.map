@@ -1,0 +1,59 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.prop       0x00000000       0x48 src/main.c.o
+ .text          0x00000000        0x0 src/off.c.o
+ .data          0x00000000        0x0 src/off.c.o
+ .bss           0x00000000        0x0 src/off.c.o
+ .xt.prop       0x00000000       0x24 src/off.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/off.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x23
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x8 src/main.c.o
+                                  0xc (size before relaxing)
+ .text.entry    0x40000008       0x13 src/main.c.o
+                                 0x16 (size before relaxing)
+                0x40000008                entry
+ *fill*         0x4000001b        0x1 
+ .text.get      0x4000001c        0x7 src/off.c.o
+                0x4000001c                get
+
+.rodata
+ *(.rodata .rodata.*)
+
+.data
+ *(.data .data.*)
+
+.bss            0x40000024       0x14
+ *(.bss .bss.* COMMON)
+ .bss.buf       0x40000024       0x10 src/main.c.o
+ .bss.g_out     0x40000034        0x4 src/main.c.o
+                0x40000034                g_out
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/off.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/off.c.o

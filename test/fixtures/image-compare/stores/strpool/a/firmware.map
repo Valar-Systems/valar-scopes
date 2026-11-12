@@ -1,0 +1,66 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .text          0x00000000        0x0 src/tables.c.o
+ .data          0x00000000        0x0 src/tables.c.o
+ .bss           0x00000000        0x0 src/tables.c.o
+ .xt.lit        0x00000000        0x8 src/tables.c.o
+ .xt.prop       0x00000000       0x3c src/tables.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/tables.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x2c
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x4 src/main.c.o
+                                  0x8 (size before relaxing)
+ .literal.use   0x40000004        0x4 src/tables.c.o
+ .text.entry    0x40000008       0x12 src/main.c.o
+                                 0x16 (size before relaxing)
+                0x40000008                entry
+ *fill*         0x4000001a        0x2 
+ .text.use      0x4000001c       0x10 src/tables.c.o
+                0x4000001c                use
+ *fill*         0x4000002c        0x0 
+
+.rodata         0x3f000000       0x14
+ *(.rodata .rodata.*)
+ .rodata.str1.1
+                0x3f000000        0xb src/tables.c.o
+ *fill*         0x3f00000b        0x1 
+ .rodata.t1     0x3f00000c        0x8 src/tables.c.o
+                0x3f00000c                t1
+
+.data
+ *(.data .data.*)
+
+.bss            0x3f000014        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_out     0x3f000014        0x4 src/main.c.o
+                0x3f000014                g_out
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/tables.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/tables.c.o

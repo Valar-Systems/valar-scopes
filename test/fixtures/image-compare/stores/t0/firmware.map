@@ -1,0 +1,47 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/WiFiManager.c.o
+ .data          0x00000000        0x0 src/WiFiManager.c.o
+ .bss           0x00000000        0x0 src/WiFiManager.c.o
+ .xt.lit        0x00000000        0x8 src/WiFiManager.c.o
+ .xt.prop       0x00000000       0x3c src/WiFiManager.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/WiFiManager.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x18
+ *(.literal .literal.* .text .text.*)
+ .literal.about
+                0x40000000        0x8 src/WiFiManager.c.o
+ .text.about    0x40000008       0x10 src/WiFiManager.c.o
+                0x40000008                about
+
+.rodata         0x3f000000       0x1b
+ *(.rodata .rodata.*)
+ .rodata.about.str1.1
+                0x3f000000       0x1b src/WiFiManager.c.o
+                                 0x30 (size before relaxing)
+
+.data
+ *(.data .data.*)
+
+.bss
+ *(.bss .bss.* COMMON)
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/WiFiManager.c.o
+                                 0x30 (size before relaxing)
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/WiFiManager.c.o

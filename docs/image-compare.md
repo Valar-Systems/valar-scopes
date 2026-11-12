@@ -226,3 +226,97 @@ with platform-espressif32 55.03.39:
 - P-FLIP is the v20 candidate with the switch off and on, on `blipscope-s3-128`, wanted about 20-26 Nov.
 - Which of the two runs is the reviewer's ruling. Each one's expected set is frozen in map-client's record first and
   copied here with that record's sha. Both run only after K0, K3, K2 and K4 have read as predicted.
+
+## 9. Amendment 1a, from the code's selftest, before any build is compared (2026-11-12, 17:13Z)
+
+Nothing below has been read on a real build. Every item comes from the instrument's own fixtures, and all of them are
+in the code commit that follows this amendment: `scripts/image-compare.py`, `test/host/image_compare_selftest.py`,
+`test/fixtures/image-compare/`.
+
+**(a) Relaxation also narrows, so the walk accepts an instruction's own other form.**
+- **What the fixture showed:** the `relax` fixture is one long call that crosses `call8`'s limit when its callee
+  moves 128 KiB. ld deleted the `l32r` and turned `callx8` into `call8`. It also narrowed `or a10, a2, a2` (3 bytes)
+  to `mov.n a10, a2` (2 bytes), so the size delta was 4, not 3.
+- **Why the rule changes:** under amendment 1 (a), every relaxation that narrows reads UNDECIDED, so POS could never
+  pass.
+- **The rule now:** the walk also accepts a step where the final copy holds the input instruction's own narrow or
+  wide form, decoded field by field to the same operation and the same operands. The forms are `add`, `addi`,
+  `mov` (`or` with s = t), `movi`, `l32i`, `s32i`, `beqz`, `bnez`, `ret`, `retw` and `nop`.
+- **What is counted:** narrowings and widenings, per side, printed. The size must reconcile exactly:
+  final = input − 3r − narrowed + widened.
+- **What still reads UNDECIDED:** a width change to anything else.
+- **RELAX still needs** a relaxed-site difference with a crossing reach. A narrowing alone never earns it.
+
+**(b) The rest of the rules as the code implements them, registered so the runs are read against them:**
+- **A relocated instruction compares with only its operand cleared, per format:** `l32r`, `call`/`j`, the BRI12
+  branches, BRI8 and `loop`, RRI8, and `beqz.n`/`bnez.n`. The opcode and the registers stay compared. Any other
+  format under a relocation is UNDECIDED. This is stricter than section 3's "the whole instruction".
+- **Every input is re-hashed against `inputs.json`, on both sides,** before its record is believed.
+- **A store is refused if its `record.json` says M0 did not hold.**
+- **M0's mechanism:** the relink runs through `PLATFORMIO_BUILD_FLAGS=-Wl,-Map=…` in the same tree. M0 requires every
+  object and archive to hash the same across the relink, and the ELF to be byte-identical (`scripts/image-compare-build.ps1`).
+  It holds the same property section 2 named, without recovering a link command from a tempfile.
+- **GC is taken to a fixed point.** A function kept in one image only passes when every kept unit naming it is
+  CHANGED, or is itself a GC function that passes. So a chain counts only when it is rooted in a CHANGED unit. This
+  is what "takes their verdict" in section 4 needs: a library function pulled in by a newly kept library function
+  (map-client's `fmin` → `__fpclassifyd`) would otherwise read UNDECIDED.
+- **A label, for reading only: `CHANGED (load/store offsets only: k)`.** It applies when a CHANGED function has the
+  same size, the same named relocations and the same instruction boundaries, and every differing instruction is the
+  same load or store with the same registers, differing only in its offset immediate.
+  - The forms counted: `l8ui`, `l16ui`, `l16si`, `l32i`, `s8i`, `s16i`, `s32i`, `lsi`/`ssi`/`lsiu`/`ssiu`, and
+    `l32i.n`/`s32i.n`.
+  - `addi`, `addmi` and `movi` are left out on purpose: they carry constants as often as offsets.
+  - The verdict is unchanged: a labelled unit is still CHANGED and still scope-checked.
+
+**(c) The selftest, and the proof that it can fail.**
+- **19 cases, each graded on its whole output and its exit code:**
+  - the fixtures `null`, `body` (with and without an allow list), `grow`, `gc` (a chain, through an archive), `local` (with and
+    without), `relax`, `pick`, `strpool` and `offset`;
+  - six refusals: R1 an unknown relocation type, R2 a stale input, R3 a size change with no long-call site, R4 a
+    narrowing to a different operation, R5 a flip whose reach never crossed, R6 a register change under a relocation;
+  - T0 in both directions.
+- **It runs in the host tests** (`test/host/run.sh`, one new block). A missing pyelftools or a crash is the rig,
+  exit 2.
+- **A scratch sabotage run** (sha256 `c39a68943d8dc574d37021a0576b6234800f19adfae781fd04634bf6668f3093`, not
+  committed) plants 11 defects in a copy of the comparator. Each one's red set was predicted before it ran, and all
+  11 read as predicted. Two readings stopped first and are recorded:
+  - **P1** (strings named by offset) first read no red. GCC had emitted the fixture's new string *after* t1's, so
+    nothing had moved. The fixture was fixed so that t1's in-place addends go 0, 6 → 5, 11, checked by dumping the
+    bytes. P1 then read as predicted.
+  - **P9** (`addi` counted as an offset) read no red. `local`'s constant is a `movi`, not an `addi`. It was
+    re-registered as P9b (`movi`) and read as predicted.
+- **Directions no fixture reaches yet:** the `addi` exclusion, and GC's refusing direction (a newly kept function
+  named by an unchanged unit).
+
+## 10. Amendment 2: map-client's P-REDO, before it runs (2026-11-12, 17:13Z)
+
+The reviewer ruled both pairs in (16:51:30Z). P-REDO's expected set is frozen in map-client's record, and
+copied here: `docs/blipscope-map-client-steps.md` at `0e0c394b68e02eee623d8b74190f73b3f225b8b9` on
+`feat/map-client-step-c-blend`, section "#656's first customer pair: the expected changes, frozen before anything is
+read". P-FLIP's set comes later, from the v20 candidate, as amendment 3.
+
+- **The pair:** Bw (tree `eb84bef82d41`) against Cw (tree `0b1d19f08e26`), both `blipscope-s3-128-wxlook`. They
+  name no input lines: `platformio.ini` is identical.
+- **The object layer:**
+  - only `AircraftManager.cpp`'s and `main.cpp`'s objects differ;
+  - CHANGED by source in `AircraftManager`: `Initialise`, `MapConfigure`, `ConsumeBasemap`, `RebuildWeatherLayer`,
+    `DrawWeatherUnder`, `ConsumeFetchResult`;
+  - NEW: `AircraftManager::DrawMapBase`, `MapAirportBoxes`, `MapAlloc`, `MapFree` (the lambda included);
+    `mapcompose::*`, `maplayer::*`, `mapplaces::*`, `bmpk::*`; `wxraster::Text` and `Put`; `glcd::font`;
+    `wxlayer::OffDisc`; `wxs2::To565`;
+  - in `main.cpp`: `_GLOBAL__sub_I_tft`;
+  - **map-client's prediction:** every other CHANGED unit in those two objects reads `load/store offsets only`
+    (four members were inserted at `AircraftManager.h:725`, ahead of about 99). `RecordFrameUs` is not CHANGED.
+- **The image layer:** `fmin`, `fmax` and `__fpclassifyd` are GC, and nothing else enters or leaves. Every other
+  difference is RELAX. UNDECIDED reads 0.
+- **The escape hatch, map-client's:** anything outside this set means the instrument or its model is unreliable at
+  this scale. Stop and decide.
+- **What the label cannot see, said before the run so it can't be argued after:**
+  - a member moving past `l32i.n`'s reach (an offset of 60 or more) changes the instruction's width;
+  - an offset past 1020 needs a literal or an `addmi`;
+  - an `addi` that takes a member's address is a constant to this rule.
+  
+  Each of these reads plain CHANGED, not `offsets only`. Map-client may amend its prediction for them before the
+  run.
+- **It runs after K0, K3, K2 and K4 have read as predicted.** It needs two builds of `blipscope-s3-128-wxlook` at Bw
+  and Cw, one tree, from clean.
