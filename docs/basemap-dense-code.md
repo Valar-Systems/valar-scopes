@@ -2219,3 +2219,7 @@ size; KBOS's wedge was about 700 px, and KB8 counted 10.
 - then KB4, KB5, KB7-a/b, KB7-c-real, P2-M and the pictures, as registered.
 
 **This is KB8's first re-run.** A second off reading on it goes to the orchestrator and on to the owner. **Anything else: stop.**
+
+**ACCEPTED (06:49:25Z):** the re-registration at 3b3608f7ac3c, as written. "Run it first" means S-KB-EDGEUNLOCK first in KB8's block,
+before KB8 reads anything, as placed. The cost model and its tolerance are accepted, and KB3 stays graded. **GO: run 4, from the start,
+KB8's first re-run.**
