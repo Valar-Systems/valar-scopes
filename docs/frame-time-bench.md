@@ -301,3 +301,46 @@ bytes outside the five regions (inside: 32 / 32 / 1 / 5 / 5). The whole 352 B wa
   - So the ruling's "byte-identical in full, the same sha256" is predicted false BY MECHANISM, before the run, and this
     prediction replaces it.
   - Any other differing byte: STOP.
+
+## (3) as run, and the rulings of 20:26Z and 20:27Z
+
+**(D′), as run (20:14-20:20Z):** 1,931,824 B, **16 B shorter than the release.**
+- **C-T:** aboutdate reads "Nov 11 2026 23:56:26", the pinned time, so the epoch is honoured. But the software-info
+  pair is ABSENT.
+- **The mechanism:** with one pinned time, WiFiManager's separate `__TIME__` ("23:56:26") is the tail of the aboutdate
+  string, so the linker tail-merges it away. The release's two timestamps were compiled 42 s apart, so they never
+  merged.
+- **So I-1′ is WITHDRAWN as unreachable.** A pinned-time build can never reproduce the release's layout.
+- **I-1 stands on (D),** the wall-clock build, 0 bytes outside against the release.
+
+**imgcmp's known limits, for its users:**
+- its regions cover the timestamp bytes, not a pointer tail-merged into them;
+- **pinning the time merges the software-info pair into aboutdate, so imgcmp cannot compare a pinned build at all.**
+  Local-against-local builds with the same epoch are compared with `bindiff_elfhash.py` (`4d86b01d…`), a whole-file
+  diff that excuses only `app_elf_sha256`, the trailing image SHA-256 and the checksum byte.
+
+**Every local build from here** carries the path mapping and `SOURCE_DATE_EPOCH=1794441386`: I-3′, the framebench
+image, and every candidate's sibling.
+
+**I-3′, I-3′ against (D′), both pinned:** by `bindiff_elfhash.py`. Predicted: the same length, differing bytes only in
+the three ELF-hash fields, and 0 elsewhere, the timestamps included.
+
+**(iv), THE RELEASE CROSS-CHECK, registered before its code.** (D′) and the framebench image are not byte-tied to the
+release (the merge, the 16 B shift, the instrument's code), and layout can move timing on a flash-cached chip, so this
+is measured rather than assumed.
+- **The release half, first in the window, with no flash:** E2:08 already runs `f6d73e39`. It is traced as it stands
+  for 10 min, and its own `[health] frame avg=… p95=… n=…` lines are read. Ending that trace leaves the board in
+  download mode: `esptool read-mac` on E2:08 (on the pinned list) recovers it, logged, before the framebench write.
+- **The bench half, a 23rd scene, LIVE-OWN:** `Override()` answers nothing, so the board uses its own home, radius and
+  source (the cloud). It runs 100 s of settle, then **300 s measured**. The same v19 `[health]` lines are read: the
+  same statistic, from the same code, on both sides.
+- **The rule:**
+  - per 30 s window, the residual r = p95 − (35.80 + 0.802 × n), the firmware's own line, using that window's n;
+  - windows with n < 5 are dropped;
+  - each side needs **≥ 8 windows**, and the two sides' n interquartile ranges must overlap;
+  - **|median r(bench) − median r(release)| ≤ 3.0 ms.**
+- **Outside, or too few windows:** the bench image is not timing-equivalent to the release. STOP, and it goes to the
+  owner.
+- **The run becomes 23 scenes.** The window grows to about **112 min**: the release trace (10), the recovery, the
+  framebench write, about 83 min of the bench's run plus LIVE-OWN's extra 180 s of measure, the restore and the boot
+  read.
