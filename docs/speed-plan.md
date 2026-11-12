@@ -83,6 +83,9 @@ the target (24 fps) is 41.7 ms.
 
 ### (a) 20 fps at 40 aircraft, map and weather on, in v20
 
+**The owner chose (a). Its working plan, with the checkpoint and the dates, is section 2b.** The tables below are the
+sizing he chose from.
+
 It needs **34.4 + M ms** off the frame (42.7 + M for 24 fps).
 
 | lever | expected cut at 40 | read or assumed | needed for (a)? |
@@ -119,7 +122,9 @@ review, CI and merge by rule (about 0.5-1 d).
 - **Risk: HIGH.** It rests on M3 (two assumptions), on ~8.6 ms more from W or L1 (neither measured), on M
   (unmeasured), and on single readings.
 
-### (b) v20 no slower than v19 at the same traffic
+### (b) v20 no slower than v19 at the same traffic: DROPPED
+
+**The owner chose (a), 2026-11-12 20:10Z.** (b) is kept below only as the record of what was sized.
 
 It needs about **10.7 + M ms** off v20's frame, less the margin, at **every** level, 20 included. At 20 aircraft the labels cost only ~10.6 ms, so L1 cannot carry it there, and W's further gain is unknown. **So (b) realistically needs M3 too.** With M3 complete, v20 is no slower than v19 whenever weather plus the map (10.7 + M) fits under the 25.8 ms push it hides, that is, **while M ≤ ~15 ms**.
 
@@ -154,12 +159,107 @@ It needs about **10.7 + M ms** off v20's frame, less the margin, at **every** le
 - **Reported beside it, not gating under (b):** the owner's 20 fps bar at 40, read on the same v20 run, and the LIVE
   scenes.
 
-### What the owner is asked, inside this choice
+### The owner's answer (2026-11-12 20:10Z)
 
-- **(a) or (b).**
-- **Q-S2:** L1 (probably needed for (a), not for (b)), and L2 (only if M3 cannot overlap).
-- **Q-S3:** staffing 1 or 2. The suggested second session is weatherscope, with the E2:08 constraint in section 5.
-- **The `WxLayer.h` owner for A2/B1:** the orchestrator names it.
+"I chose (a). v20 doesn't ship until it meets the bar. p4's plan with sizes comes to me tomorrow. From it, you set
+v20's new date and tell me what that does to the big-screen dates. The map and weather work carries on in
+parallel." Section 2b is that plan.
+
+## 2b. The plan for (a): steps, owners, checkpoint, dates
+
+**The goal:** p95 of `p2p` **≤ 50 ms at 40 aircraft with map and weather on**, read on map-client's frame-time bench
+on the v20 candidate, with 20 and 60 reported beside it. 24 fps (≤ 41.7 ms) is the target and not chased past.
+
+**The starting point (section 2a):**
+- v20 at 40 aircraft ≈ **84.4 + M ms**;
+- with M3's overlap complete, ≈ **58.6 + M**;
+- the last **~8.6 + M ms** has to come from caching the map (−M), W, and L1.
+
+### What is READ and what is ASSUMED
+
+| item | status |
+|---|---|
+| the push is 25.8 ms and holds the loop for all of it | **READ** (the measured floor; LovyanGFX 1.2.21's `pushSprite` path) |
+| the library's DMA path on the S3 still holds its caller | **READ** (`Bus_SPI.cpp:759-771`) |
+| weather's split: clear +3.8, blend +4.6, 2.3 unplaced | **READ** (docs/wx-device.md, one run, n = 16) |
+| labels ~0.53 ms per contact; per contact 0.802 ms | **READ** (the 2026-08-26 A/B; the 2026-08-29 fit) |
+| v19 at 41: 74.5 ms | **ONE READING**, before the bench's control |
+| a push task gives the overlap; DMA from the PSRAM backbuffer with a cache write-back works on the S3; which core | **ASSUMED**, and settled by M3's first bench hour |
+| M, the map's steady cost | **UNMEASURED**, and settled by A0b |
+| W's further gain; L1's gain | **UNMEASURED**, and sized from A0a's phases |
+
+### Steps
+
+| step | what | owner | size | earliest |
+|---|---|---|---|---|
+| P1 | **A0a**, the profile on main (docs/frame-profile.md): P-CTRL, P0, P1 | p4 | 1 d, one E2:08 window | when map-client's bench is frozen and its CTRL has passed (about 11-14) |
+| P2 | **M3**: the push on its own task and a second backbuffer. The first bench hour answers DMA from PSRAM, the cache write-back and the core | p4 (5c reads the shared `main.cpp` change) | 2.5 d | **the plan's acceptance**, then 11-14 to 11-16 |
+| **C1** | **THE CHECKPOINT, about 2026-11-16:** M3's measured cut, p95 at 40, weather on | | | after P2 |
+| P3 | **A0b**, the profile with the map in the tree: P-CTRL, P2, measuring M | p4 | 0.5 d, one window | when #659 (step B) and step C are on main or in the candidate |
+| P4 | **the map's steady draw into the cached layer**, if A0b reads M > 2 ms (frame-profile.md's fixed meanings) | map-client | 1-2 d | after P3 |
+| P5 | **W**: only a cut A0a shows to be cheap, such as not pushing the whole 115 KB layer every frame | weatherscope, proposed (the orchestrator assigns) | 1-2 d | after P1 |
+| P6 | **L1**: each contact's label layout cached until its text changes | p4 (staffing 1) or the second session (staffing 2) | 2 d | after P1 (labels measured) |
+| P7 | **the (a) reading**: map-client's bench on the combined candidate (20/40/60; the gate at 40) | map-client | 1 d, one ~75 min window | after P2, P4, P5, P6 |
+
+Each step also carries the standing rule's before-and-after bench run (about 0.25 d) and its PR's review, CI and
+merge by rule (about 0.5-1 d). All the 1.28" bench steps run on **E2:08**, the Blipscope bench, in windows booked with
+its session and map-client's bench schedule. Weatherscope's 6E:64 is barred from Blipscope work, so it is not used.
+
+**What C1 reads, and what each result means (fixed now):**
+- **M3 cuts ≥ 20 ms:** on track. P4-P6 proceed as sized.
+- **M3 cuts 10-20 ms:** partial (the push task contends, or the overlap is incomplete). L2 becomes the next lever,
+  because it shortens the push the task has to hide. It goes to the owner at C1 with an incoming-inspection row.
+- **M3 cuts < 10 ms:** M3 has failed. Without it, the frame is 84.4 + M; L2 takes ~12.9 ms off, and W and L1 would
+  have to find ~21.5 + M ms between them. **The levers beyond L2 change what is drawn,** so each is his ruling:
+  - **L3, a cheaper sweep blend** (up to −4.6 ms; the blend's look);
+  - **L4, less label and trail work per frame**, for example labels redrawn only when their text changes, or culled
+    where they overlap (the labels' look).
+
+  The date then waits on those rulings.
+- **Outside the set** (M3 makes the frame SLOWER, or the picture changes on the 240 golden): stop, and report to the
+  orchestrator.
+
+### Staffing, and when (a) lands
+
+| | staffing 1: p4 carries P1, P2, P3, P6 | staffing 2: a second session carries P5 and P6 |
+|---|---|---|
+| p4's chain | P1 1 + P2 2.5 + P6 2 + merges ~1.5 + P7 1 = **~8 d** | P1 1 + P2 2.5 + merges ~1 + P7 1 = **~5.5-6 d** |
+| (a) lands, if C1 is "on track" | **about 11-21 to 11-22** | **about 11-19 to 11-20** |
+
+The proposed second session is **weatherscope** (the orchestrator assigns): W is built on its drawing code, the static
+layers are its method, and nothing of it is on v20's path. The E2:08 constraint above applies.
+
+### v20's date range (docs/v20-plan.md: F, the content freeze, November 21-25; the cut 4-5 days after F)
+
+| case | when it is known | (a) lands | F | v20 promoted |
+|---|---|---|---|---|
+| **R1**: C1 on track; P4-P6 find the rest at the first try | 11-16, confirmed at P7 | 11-19 to 11-22 | **unchanged, Nov 21-25** | **Nov 25-30** |
+| **R2**: C1 on track; W and L1 need a second round (+3-4 d) | P7, about 11-21 | 11-23 to 11-26 | **Nov 23-26** | **Nov 27 - Dec 1** |
+| **R3**: C1 partial or failed; L2 (+1-2 d with the inspection) and his rulings on L3 and L4 | **C1, about 11-16** | about 11-28 to 12-05 | about Nov 28 - Dec 5 | **about Dec 3-10, or later**: it is not sizable until he rules on L3 and L4 |
+
+**R3's date is a range, not a promise.** C1 (about 2026-11-16) is when it becomes known, and when the owner is asked.
+
+### The big-screen dates under each staffing
+
+The big screens start at F, and alone take **F + 22** (docs/big-screens.md).
+- **Under (a)**, the 1.28" speed work happens before F, as v20 work.
+- **After F**, the speed plan's remaining items are S4 (the touch task and the web pointer queue, 2 d) and the rest of
+  S5 (static layers across the boards, ~2 d). S7 (P4) and S8 (Android) follow their hardware.
+- **Staffing 1** (p4 carries those too): F + 26.
+- **Staffing 2:** **F + 22**, with the second session carrying them.
+
+| case | F | big screens, staffing 2 (F + 22) | big screens, staffing 1 (F + 26) | first glass review, staffing 2 (F + 17) |
+|---|---|---|---|---|
+| R1 | Nov 21-25 | **Dec 13-17** | Dec 17-21 | Dec 8-12 |
+| R2 | Nov 23-26 | **Dec 15-18** | Dec 19-22 | Dec 10-13 |
+| R3 | about Nov 28 - Dec 5 | **about Dec 20-27** | about Dec 24-31 | about Dec 15-22 |
+
+### The risk, stated plainly
+
+**High, and front-loaded.** The plan rests on M3: two assumptions, settled in its first bench hour. It also rests on
+~8.6 + M ms more from W, L1 and the cached map, none of them measured yet, and on single readings until map-client's
+baseline runs. Everything that could sink (a) is measured by **C1, about 2026-11-16**. The plan is built so the owner
+hears the bad case then, not at pre-flight.
 
 ## 3. The methods, and what each is expected to gain
 

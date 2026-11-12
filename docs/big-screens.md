@@ -105,8 +105,13 @@ How the date moved on 2026-11-12:
 - **The owner's v21 order (section 2a)** added none.
 - **~19:45Z, back to F + 22 / F + 17:** the touch measurement moved to the speed plan (docs/speed-plan.md).
 
-**Together with the speed plan, the date depends on who carries its 1.28" and web work** (its section 5): F + 22 if a
-second session does (staffing 2), about F + 30 if p4 carries both (staffing 1).
+**Together with the speed plan, the date depends on who carries its remaining work** (docs/speed-plan.md, section
+2b). The owner chose (a) at 20:10Z, so the 1.28" speed work happens before F, as v20 work. After F:
+- **F + 22** if a second session carries the speed plan's remaining items (staffing 2);
+- **F + 26** if p4 carries them too (staffing 1).
+
+**F itself now depends on (a)'s checkpoint** (speed-plan 2b): Nov 21-25 if M3 is on track, later if not. That puts the
+big screens at **Dec 13-17** in the best case, on staffing 2.
 
 ## 4. How "the 1.28" output stays unchanged" is proven
 

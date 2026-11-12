@@ -7,25 +7,31 @@ waits on the two conditions below. **Every prediction here is frozen before any 
 ## 1. What it answers, and what it waits for
 
 The owner's bar is read at 40 aircraft with map and weather on. v20 there is estimated at **86.7 + M ms p95**
-(speed-plan.md 2a), with **M**, the map's steady cost, unmeasured, and with weather's ~13 ms against its own predicted
-≤ 3 ms. Every lever in (a) and (b) is sized from guesses about where that time goes. This profile replaces the
+(speed-plan.md 2a), with **M**, the map's steady cost, unmeasured, and weather at ~10.7 ms (measured and split in
+docs/wx-device.md). The owner chose (a), 2026-11-12 20:10Z. Every lever in it is sized from estimates of where that time
+goes. This profile replaces the
 guesses with one measurement per phase.
 
-**It runs only when both hold:**
-- **map-client's frame-time bench is frozen** (`docs/frame-time-bench.md`, registered at `b0c58758dd8e`), and its CTRL
-  (I-6, a planted +10.0 ms seen as +10.0 ± 1.5) has passed. The profile rides on that instrument and adds phases to
-  it. It never replaces it.
-- **The map draw is in the tree**, on main or as the v20 candidate. On main at `e4b41fff9042` the radar's frame has no
-  map draw yet (map-client's step B and C). A profile without it would leave M unmeasured, the one number it exists
-  to find.
+**It runs in two parts** (amended 2026-11-12 ~20:20Z, before any code; accepted as registered at 20:17Z with the
+PC-1 row and the sibling env added):
+- **A0a, on main, as soon as map-client's frame-time bench is frozen** (`docs/frame-time-bench.md`, registered at
+  `b0c58758dd8e`) and its CTRL (I-6, a planted +10.0 ms seen as +10.0 ± 1.5) has passed. It runs arms P-CTRL, P0 and
+  P1: everything but the map. That gives M3's checkpoint the push, the labels and weather's split without waiting on
+  the map.
+- **A0b, once the map draw is in the tree,** on main or as the v20 candidate. On main at `e4b41fff9042` the radar's
+  frame has no map draw yet (#659, step B, is an open draft; step C has no PR). It runs P-CTRL again (a new image needs
+  its own control) and P2, which measures M.
+- The profile rides on map-client's instrument and adds phases to it. It never replaces it.
 
 ## 2. The instrument
 
-- **The image:** map-client's `blipscope-s3-128-framebench` env, plus one more macro, `FRAME_PROFILE`, defined only
-  there. Gating is by `#if`, not `if constexpr`: an `if constexpr` branch still compiles its functions, and
-  gc-sections keeps their `.eh_frame`, so bytes would move (5c's A4, the gc-sections lesson).
-- **No shipping image moves:** `blipscope-s3-128` and every other slug-ful env, built before and after, read PLACED
-  with the five-region comparator. A byte outside the five regions is a stop, reported first.
+- **The image: its own sibling env, `blipscope-s3-128-frameprofile`**, slug-less, with map-client's `-DFRAME_BENCH`
+  plus `-DFRAME_PROFILE`. map-client's `blipscope-s3-128-framebench` is left alone, so its baseline image and its I-3
+  identity are untouched. Gating is by `#if`, not `if constexpr`: an `if constexpr` branch still compiles its
+  functions, and gc-sections keeps their `.eh_frame`, so bytes would move (5c's A4, the gc-sections lesson).
+- **No other image moves:** `blipscope-s3-128`, every other slug-ful env and **`blipscope-s3-128-framebench`**, each
+  built before and after the profile's code, read PLACED with the five-region comparator. A byte outside the five
+  regions is a stop, reported first.
 - **`[frame-profile]` joins `check-no-bench-hooks.sh`'s MARKERS**, beside `[frame-bench]`.
 - **The phases**, each a `micros()` delta stored per frame (uint16, 10 µs units) beside the bench's own record:
 
@@ -42,9 +48,7 @@ guesses with one measurement per phase.
 | `push` | `backbuffer.pushSprite` (`:982`) |
 | `flush` | `board::DisplayFlush` (`:990`; a no-op on SPI SKUs) |
 
-- **Its own cost, measured:** at boot, 10,000 runs of one frame's worth of profile points (2 per phase, plus 2 per
-  contact for `labels` at 40 contacts, 100 `micros()` reads) are timed and printed. **Predicted: ≤ 100 µs per frame.**
-  Over 500 µs, stop: the instrument would be too heavy to profile with.
+- **Its own cost** is a graded row, PC-1 in section 4, bounded the way map-client's I-5 is.
 
 ## 3. The run
 
@@ -53,16 +57,24 @@ aircraft, 25 mi (map-client's CTRL scene). Each arm runs map-client's settle and
 
 | arm | map | weather | why |
 |---|---|---|---|
-| P-CTRL | on | on | the same scene with a planted **+5.0 ms** inside `labels` |
-| P0 | off | off | v19's shape |
-| P1 | off | on | weather alone |
-| P2 | on | on | the owner's bar condition |
+| part | arm | map | weather | why |
+|---|---|---|---|---|
+| A0a | P-CTRL | off | on | P1's scene with a planted **+5.0 ms** inside `labels` |
+| A0a | P0 | off | off | v19's shape |
+| A0a | P1 | off | on | weather alone |
+| A0b | P-CTRL | on | on | P2's scene with the same plant: a new image, so its own control |
+| A0b | P2 | on | on | the owner's bar condition, which measures M |
 
-About 15 minutes of trace, plus the bench's write and restore.
+About 10 minutes of trace per part, plus the bench's write and restore.
 
 ## 4. Predictions, frozen now
 
-**The control first (P-CTRL against P2):** `labels` p50 moves **+5.0 ± 0.75 ms**, `fr` p50 moves **+5.0 ± 0.75 ms**,
+**PC-1, the profile's own cost, first.** At boot the image times 10,000 runs of one frame's profile points and
+prints `[frame-profile] cost <ns> ns/frame`. That is 2 `micros()` reads per phase plus 2 per contact for `labels` at 40
+contacts: about 100 reads and their stores. **Predicted: ≤ 100,000 ns (100 µs) per frame**, about 0.2% of a 50 ms
+frame. **Over 500,000 ns (1% of a 50 ms frame), stop:** the profile would be heavy enough to move what it measures.
+
+**The control next (P-CTRL against P1 in A0a; against P2 in A0b):** `labels` p50 moves **+5.0 ± 0.75 ms**, `fr` p50 moves **+5.0 ± 0.75 ms**,
 and every other phase stays within **± 0.5 ms**. Outside that, the profile cannot place a known cost in its own
 phase, and nothing after it is read.
 
@@ -106,9 +118,10 @@ and no lever is re-sized on an off reading.
 | item | owner | size |
 |---|---|---|
 | this registration | p4 | done (20:09Z) |
-| the code: the macro, the phase points, the dump lines, the cost check; the shipping envs PLACED | p4 | 0.5 d |
-| the run: one E2:08 window, about 30 minutes with the writes | p4, in map-client's window terms | 0.25 d |
-| the read, against section 4 | p4 | 0.25 d |
+| the code: the sibling env, the macro, the phase points, the dump lines, PC-1; every other image PLACED | p4 | 0.5 d |
+| A0a: one E2:08 window, about 25 minutes with the writes | p4, in map-client's window terms | 0.25 d |
+| A0b: a second window once the map draw is in the tree, about 25 minutes | p4 | 0.25 d |
+| the reads, against section 4 | p4 | 0.25 d each |
 
 It reads only. It changes no default, no shipping image and no board's saved settings. The bench restores v19's
 release app afterwards, as map-client's procedure does.
