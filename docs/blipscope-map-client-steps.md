@@ -3072,6 +3072,27 @@ with no conflict. The suites and drivers ran in WSL with g++ 13.3.0:
   no other bench marker`.
 - **The tested merge** is read from the checkout log. Any other reading stops.
 
+**The CI for `84bd05a2`, as read** (finished 06:58Z). Every item read as predicted:
+- **The tally:** 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed.
+- **The tested merge:** every leg's checkout log reads `HEAD is now at eae4745 Merge 84bd05a2… into f3fee349…`.
+- **`ota-identity`:**
+  - `selftest PASSED`;
+  - `fleet-sabotage PASSED`;
+  - `fleet: 11 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 9, s3-175-amoled 1, s3-21 1`
+    and `fleet PASS`;
+  - `--check-table`: `… identities.txt equals the fleet (9 rows)`.
+- **Each host-tests leg** (ubuntu-24.04 and ubuntu-26.04, identical):
+  - the OTA suites: identity `22 checks, 0 failures` (R1 27/27, M1 51/30/0, M2 90 of 90, M3 23, 58 (28), 0), model
+    `9 rows; 18 checks, 0 failures`, install `42 checks, 0 failures` with O10 at 9 identities and 18 no-record;
+  - MapDraw `11 checks, 0 failures`, MapPlaces 32 / 0, MapCompose 26 / 0;
+  - `40 driver(s): 39 run, 1 skipped` in both passes;
+  - `LINT driver counts: 40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - AS PREDICTED lines: compose 15, draw 18, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The mapbench leg:**
+  - the launch gate reads `blipscope-s3-128-mapbench found 0 1 PASS`;
+  - the marker step reads `ok: … carries '[wx-bench],[map-bench]' and no other bench marker (anchor present)`.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
