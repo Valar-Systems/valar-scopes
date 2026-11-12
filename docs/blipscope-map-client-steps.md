@@ -2351,6 +2351,107 @@ crash or a build that fails is an instrument failure, reported as one.
 
 All other predictions stand as registered.
 
+### The wiring's run, as read, and the owner's ruling on step 7 (2026-11-12)
+
+**The code** is `c4ff317a`, committed before step 1 on `eb4da9cc`, the record of the 02:35:39Z ruling and the four corrections.
+- **Steps 1-6, every one as predicted:**
+  - `check_map_draw.py`: `9 checks, 0 failures`; CD4 `16 draw region(s)`; CD6 `5 write site(s)`; CD7 10 lines held;
+  - `sabotage_map_draw.py`:
+    - all 11 plants exactly their sets;
+    - the 3 controls as their table, `R-CD-CRASH` from its new anchor;
+    - 16 AS PREDICTED lines;
+  - `--anchors`: 40 drivers; the draw driver `12 plant(s), 12 anchor(s)`. Its control: `line 9 checks, 0 failures`;
+  - lint: `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `check_map_fetch.py`: output identical to `cb9d6ac2`'s CI;
+  - `run.sh` under WSL:
+    - exit 2, with FAILED BLOCKS exactly the two environment blocks;
+    - MapDraw 9 / 0, MapCompose 26 / 0, MapPlaces 32 / 0;
+    - `40 driver(s): 39 run, 1 skipped`;
+    - `sabotage_map_draw.py: 16 AS PREDICTED line(s)`.
+
+**Step 7, the artifact proofs:**
+- **The builds:** six clean builds in p4's slot. Main was pinned at `e3c2508e`. B and C are local test merges, never pushed, whose trees equal `git merge-tree`'s output:
+  - A1 and A2: main (tree `fea2d987c7cc`), `blipscope-s3-128`, 1,932,544 B each;
+  - B: main + `cb9d6ac2` (tree `eb84bef82d41`), 1,932,544 B. Bw, the same tree as `blipscope-s3-128-wxlook`: 1,958,816 B;
+  - C: main + `c4ff317a` (tree `0b1d19f08e26`), 1,932,544 B. Cw: 1,973,344 B.
+- **The comparator's first instrument failure, ruled 03:04:06Z.**
+  - Its presence control found one date-time string, not two. WiFiManager's "Software Info:" string stores `__TIME__`
+    and `__DATE__` apart (`hh:mm:ss\0Mmm dd yyyy`), while "aboutdate" joins them.
+  - Region 5 was redefined as that pair after "Software Info:". The comparator (`dc828e47…`) was frozen before it read
+    anything, and the controls were re-run on the same images.
+  - **The controls then read:**
+    - presence: aboutdate at 0x312C and software-info at 0x1007A, in both;
+    - anchor (A1 against A2): 0 bytes outside, inside 32 / 32 / 1 / 5 / 4;
+    - sensitivity: one flipped byte at 0x1000 reads exactly 1 outside.
+  - The app descriptor's prebuilt stamp (0x70 / 0x80) and a library's own stamp (0x89297) are identical in both images,
+    so neither is a sixth region.
+- **The proofs:**
+
+| row | read |
+|---|---|
+| **A1 against B** | the same length, **0 bytes outside** (inside 32 / 31 / 1 / 5 / 5). The MapPlaces step's DrawAirports edit left the shipping image unchanged |
+| **B against C** | the same length, **0 bytes outside** (inside 32 / 32 / 1 / 4 / 3). **The wiring does not reach the shipping image** |
+| **Bw against Cw, size** | `firmware.bin` grows by **+14,528 B**, inside the 8,000-20,000 band |
+| **.bss** | `appManager`, 9,496 → 10,192 B: **+696 B**, under 1,040 |
+| **the predicted changed set** | all six changed size: `ConsumeBasemap` +12, `ConsumeFetchResult` −16, `DrawWeatherUnder` +27, `Initialise` +20, `MapConfigure` +28, `RebuildWeatherLayer` −79; and main.cpp's static initializer (`_GLOBAL__sub_I_tft`, `tft` being main.cpp:85's first global) +220 |
+| **CB-W** | `[map] draw` is absent from B, C and Bw; Cw holds `[map] draw: buffers refused` once and `[map] draw: rebuilt in` once. The control, as W7's: both wxlook images hold `[wx-bench]` and `[map] status=`, and both shipping images hold neither |
+
+**The new symbols in Cw, by name, with the new code that calls each.** Read from the run's own symbol listing, not from
+a new instrument. Template arguments are elided.
+- **`AircraftManager`:**
+  - `DrawMapBase` (910 B), called from the four `DrawWeatherUnder` hooks;
+  - `MapAirportBoxes` (192 B) and its lambda (214 B), called from `mapcompose::DrawNames` through `Inputs.airports`;
+  - `MapAlloc` (20 B) and `MapFree` (14 B), called from `mapcompose::Allocate` and `Release` through `Map.alloc` and
+    `freeFn`. `Init` is in `DrawMapBase`.
+- **`mapcompose`:**
+  - `Frame` (585 B) and `Stale` (242 B), called from `DrawMapBase`;
+  - `DrawNames` (338 B), called from `Rebuild`, which is inlined into `Frame`;
+  - `Release` (88 B), called from `Frame`'s growth check and from `Forget`, in `MapConfigure`;
+  - `LayerSink::Put` (59 B), `~LayerSink` (two, 15 and 5 B) and `vtable for mapcompose::LayerSink` (20 B), called from
+    `DrawLabel`, which is inlined into `DrawNames`.
+- **`maplayer`:**
+  - `Build` (882 B) and its three lambdas, called from `Frame` through `Inputs.build`, the address taken in `DrawMapBase`;
+  - `AffineFor`, `ChooseLevel`, `LineIdx`, `Channel`, `To565`, `ToScreen` and `kThemes`, called from `Build`. `AffineFor` is
+    also called from `mapplaces::AnchorAffine`, in `Place`;
+  - `ForEachLevelPixel<…>` (two), called from `Build`.
+- **`mapplaces`:**
+  - `Place` (1,178 B), `BoxFree` and `Overlaps`, called from `DrawNames`;
+  - `RingLabels`'s `kFrac`, called from `DrawMapBase`'s key.
+- **`wxraster`:** `Text` (277 B), `Put` (51 B) and `glcd::font` (1,280 B), called from `DrawLabel`.
+- **`bmpk`:**
+  - `ForEachRing<…>` (two), `ForEachRiver<…>` (two) and `ForEachRoad<…>` (four), called from `Build`'s passes;
+  - `ForEachPlace<…>`, called from `mapplaces::Load`, in `Rebuild`;
+  - `Package::Find`, called from the `ForEach*` passes and `ChooseLevel`.
+- **`wxlayer::OffDisc`:** called from `mapcompose::Compose` and `Build`'s colour pass. **`wxs2::To565`:** called from
+  `maplayer::To565`.
+- **The runtime:**
+  - `fmin` and `fmax`, called from `mapplaces::ClearsCentre`, in `BoxFree`;
+  - `__fpclassifyd`, called from newlib's `fmin` and `fmax`.
+- **The rest of the "new" entries** are ESP-IDF and libm statics with names defined in several files (`PIo2`, `Zero`,
+  `TAG`, `chip_name`, `two_over_pi`, `npio2_hw`, `s_spinlock`, `lgfx::v1::delay`, and others). Each is paired with a
+  "removed" entry of the same name. They are artifacts of the retired instrument's keying: **no verdict.**
+
+**The ruling, verbatim** (the owner, 03:39Z, with the cloud reviewer's read; relayed by the orchestrator at 03:40:26Z):
+
+> "Map-client's wiring: (i). The shipping image is proven unchanged by controlled instruments. The size band, .bss, the
+> predicted changed set and the new symbols by name stand on their own. The symbol row is recorded as an instrument
+> failure: no verdict, with the residue unexplained. symdiff is retired. Instead of (ii): before maps are switched on in
+> any customer image, redo this per-function accounting with #656's layout-invariant comparator (already on the post-v19
+> list), so the same tool isn't built twice."
+
+**The symbol row: an instrument failure, no verdict.**
+- The scratch `symdiff.py` (`ecc74479…`) put 260 symbols outside its lists. Three defects were seen in its detail:
+  - template instantiations demangle with their return type first, so the namespace test missed them;
+  - statics with duplicate names were keyed by whichever copy came second;
+  - main.cpp's static initializer has no source line in `nm -l`.
+- **The residue stays unexplained:** existing symbols changing by a few bytes, 118 of the 225 by at most 4 B, including
+  `AircraftManager` methods the wiring never touched, inline helpers compiled in main.cpp, and precompiled ESP-IDF code.
+- **The alternatives named, none excluded:** member-offset shifts; TU-wide inlining budgets, now that `AircraftManager.h`
+  includes `MapCompose.h`; Xtensa link-time relaxation; more keying artifacts.
+- **My miss:** the symbol criterion was registered without accounting for how this image's other symbols move when it
+  grows.
+- **`symdiff.py` is retired and is not to be reused.** The accounting moves to #656's comparator, under the gate below.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
@@ -2359,6 +2460,14 @@ All other predictions stand as registered.
 | **B. Draw** | KJAC and KSFO packages from the map server, committed with their provenance and licence files. S2's level is the smallest level covering the view plus the offset. **Place names (~21:13Z):** the Weatherscope's rule (the largest towns first, at most 8, the centre kept clear), and a name never covers an airport code; Daniel judges it on glass |
 | **C. Layering** | The wedge's green is added to the map pixel |
 | **D. Setting** | The map compiles under `WX_LAYER_SHIPS`, and its strings join `scripts/check-no-weather.sh`, with the wxlook control finding them. The web renderer writes `map-layer` "false" in writing, with `check_wx_off.mjs` extended. **The place-name setting (~21:13Z)** follows the same rules with its own key, rows and plants beside DO1-DO4 and DOC1-DOC3 |
+
+**A gate on the switch that turns maps on (the owner, 2026-11-12 ~03:39Z).** This is carried to whichever step flips
+`WX_LAYER_SHIPS` for a customer image.
+- **Before maps are switched on in any customer image, redo step B's per-function accounting** of the map's image with
+  #656's layout-invariant comparator, already on the post-v19 list, so the same tool is not built twice.
+- The wiring's own symbol row was an instrument failure with no verdict. Its retired `symdiff.py` is not to be reused.
+- **The gate is also named at the switch itself,** `platformio.ini`'s `[weather]` block. CB10's `#error` already refuses
+  that flip until step C lands.
 
 ## CI for this PR (docs-only), predicted
 
