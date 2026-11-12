@@ -2814,6 +2814,86 @@ the check's output equals its frozen set. So S-CB-BENCHLEAK reads AS PREDICTED o
 as `CB-B1`, and a regex that could not read it would make the plant off-prediction. The run prints each plant's parsed
 set.
 
+### The mapbench run, as read (2026-11-12)
+
+**The code** is `2887679b`, committed before step 1 on `893e1b1d` (the owner's terms and the 04:34:59Z ruling), which sits
+on `1fe21b5b` (the 04:28:30Z ruling).
+- **Steps 1-6, every one as predicted:**
+  - `check_map_draw.py`: `11 checks, 0 failures`. CB-B1 counts 9 `MAP_BENCH` lines, all inside the 8 bench regions;
+  - `sabotage_map_draw.py`:
+    - 13 plants exactly their sets, and the 3 controls as their table;
+    - 18 AS PREDICTED lines;
+    - **the regex check, seen working:** S-CB-BENCHLEAK's raw `FAIL CB-B1: …` is parsed by the driver as {CB-B1}, and
+      S-CB-BENCHPRINT's as {CB-B2};
+  - `--anchors`: 40 drivers; the draw driver `14 plant(s), 14 anchor(s)`. Its control: `line 11 checks, 0 failures`;
+  - lint: `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `check-no-bench-hooks.sh --selftest`: every case, the five new included, and `[map-bench]` planted and caught;
+    `skus.py --validate`: OK, with 10 build-only legs;
+  - `run.sh` under WSL (04:43:10Z to 04:51:18Z):
+    - exit 2, with FAILED BLOCKS exactly the two environment blocks;
+    - MapDraw 11 / 0, MapCompose 26 / 0, MapPlaces 32 / 0;
+    - `40 driver(s): 39 run, 1 skipped`;
+    - `sabotage_map_draw.py: 18 AS PREDICTED line(s)`.
+
+**Step 7** ran after v19's step 5' closed and E2:08 was restored (the orchestrator's word, 05:52:17Z), in p4's slot,
+with no board touched.
+- **The comparator's controls,** rerun first on A1 and A2 (`imgcmp.py`, `dc828e47…`):
+  - presence: 0x312C and 0x1007A;
+  - anchor: 0 bytes outside;
+  - sensitivity: exactly 1.
+- **The tree:** main `e3c2508e` + `2887679b` = `f66755f7c109`, equal to `git merge-tree`'s. It is a local test merge,
+  never pushed.
+- **The builds,** 05:53:16Z to 06:02:21Z, every `pio` exit 0: C2 1,932,544 B; Cw2 1,973,344 B; M1 2,390,496 B.
+
+| row | read |
+|---|---|
+| C against C2 | the same length, **0 bytes outside** (inside 32 / 32 / 1 / 5 / 6). **The bench does not reach the shipping image** |
+| Cw against Cw2 | the same length, **0 bytes outside** (inside 32 / 32 / 1 / 6 / 5). **The bench does not reach the wxlook image** |
+| **M1's size: OFF, on record** | M1 − Cw2 = **+417,152 B**, against the registered +417,496 to +421,496 B: **344 B below the band**. Ruled to stay off, with its cause (below), and not re-graded |
+| M1's markers | `check-no-bench-hooks.sh --expect "[wx-bench],[map-bench]"`: `ok: … carries '[wx-bench],[map-bench]' and no other bench marker (anchor present)`. The plain scan of C2: `ok: no bench hook … (9 marker(s) checked, anchor present)` |
+| M1's strings | `[map] draw: buffers refused` 1, `[map] draw: rebuilt in` 1, and `[map-bench] phase`, `alloc` and `passes` 1 each. C2 holds none of them. Cw2 holds the two `[map] draw` strings and no `[map-bench]` |
+
+**Why the size row is off, read from the image with two direct `xtensa-esp32s3-elf-nm` lookups** (the retired
+`symdiff.py` is not used):
+- **The packages:** `_binary_test_fixtures_wx_basemap_bend_bmpk_end − _start` = **205,093 B**, and KSFO's = **211,403 B**.
+  So **416,496 B**, exactly the files' sizes, packed contiguously.
+- **The dead fetch path:** `AircraftManager::RequestBasemap` is **820 B in Cw2 and absent from M1**. The bench's
+  `return false;` at its top makes the fetch body dead, and the compiler removes it.
+- **So the bench code nets +656 B** (417,152 − 416,496): about **+1,476 B added, less the 820 B removed**.
+- **My miss:** the band assumed the bench only adds code. It did not subtract what the bench's own hook makes dead.
+
+**The ruling, verbatim (the orchestrator, 06:03:20Z):**
+
+> the stop was right, and so was the read. The packages are exact (205,093 + 211,403 = 416,496 by end-start),
+> RequestBasemap's 820 B is gone because the bench hook makes it dead, and both alternatives are named and handled. Your
+> miss is recorded as you stated it: the band assumed the bench only adds.
+> RULED (i):
+> - M1's SIZE ROW stays OFF on record (+417,152 against +417,496..+421,496), with its cause. Not re-graded.
+> - What the band was FOR is established by stronger direct evidence: the embedded packages present at EXACTLY their file
+>   sizes, and the bench's net code +656 B, explained by +~1,476 added less the 820 B dead fetch path. Record both reads,
+>   with the nm lookups that produced them.
+> - (ii) is rejected: a band re-registered after the reading is a tolerance fitted to the data.
+> - THEN RUN M1's string checks as registered: the --expect list, CB-W and the [map-bench] lines.
+> C2 and Cw2 at 0 outside (shipping and wxlook untouched by the bench) are recorded as predicted, along with the
+> comparator's controls. Nothing is pushed until step 7's remaining checks read.
+
+**The CI for the push, predicted** (`1fe21b5b`, `893e1b1d`, `2887679b` and this record; `14764d14`'s run has finished
+and was read):
+- **35 = 31 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**: `cf58c643`'s job set
+  plus **`build (blipscope-s3-128-mapbench)`**.
+- **The mapbench leg:**
+  - the adsbdb launch gate's verdict is **PASS** from its default site (UNTRUSTWORTHY is off);
+  - the new marker step reads `ok: … carries '[wx-bench],[map-bench]' and no other bench marker`.
+- **Each host-tests leg:**
+  - MapDraw `11 checks, 0 failures`, MapCompose 26 / 0, MapPlaces 32 / 0;
+  - 40 drivers, with both passes `39 run, 1 skipped`;
+  - lint 40 / 0 / 3;
+  - AS PREDICTED: compose 15, **draw 18**, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The selftest step** runs every case, the five new included.
+- **The named risk** is `board_build.embed_files` on CI's runner. Built locally, it was exact. A failure there is off.
+- The tested merge is read from a checkout log. Any other reading stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
