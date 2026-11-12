@@ -407,3 +407,182 @@ is measured rather than assumed.
 - **A named risk:** the board must reach the PC's port 8088. A firewall rule allows this `python.exe` inbound on the
   Private profile (a read-only check). If the board cannot reach it, the FIXED scenes show 0 drawn, the reader refuses
   on FIX-n, and the window ends with the restore.
+
+## v20's FIXED-(a) scenes: the cloud /blips hook (registration, 2026-11-12, before any code)
+
+**Why the v19 source cannot carry v20's bar.** On v20 the local source turns both layers off by construction. At main
+`5cdc8bd8f35d`:
+- `WxEnabled()` (AircraftManager.cpp:3303) requires `useCloudSource && !cloudUrl.isEmpty()`.
+- `MapEnabled()` (:3431) requires the same, plus a location and no refused allocation.
+
+So v19's FIXED source (section 4 (a): local, `fixed_traffic.py`) would measure v20 with no map and no weather, while the
+bar is read with both on. **Ruled (a):** v20's FIXED scenes keep the cloud source and replace only the aircraft feed,
+from the same table.
+
+**H1, the hook point.**
+- **Where:** one `FRAME_BENCH` region in the fetch task's `else if (req->cloud)` branch (:3019, the `/blips` GET, with
+  `BLIPS_LIMIT` at :3038).
+- **What it does:** while a CTRL or FIXED-(a) scene is current, the branch does not call `http.GetJson` for `/blips`.
+  Instead it fills `doc` in the `/blips` wire shape, `{"v":1,"t":<now>,"a":[[hex, cs, lat×1e4, lon×1e4, altFt, gsKt,
+  trackDeg, vrateFpm, category, ageS], …]}`, and marks the result a 200. It then falls through to the SAME
+  `CloudFeed::ParseBlips` (:3110) the shipping path runs. `t` is the device's UTC second, and `ageS` is 0.
+- **LIVE and LIVE-OWN never take the hook.** They fetch from the Worker as shipped.
+- **It keeps:** the cloud source (so both layers' predicates hold); the cloud poll cadence from `/config`; `ParseBlips`
+  and the dead-reckoner's stamps; and the wx, map, config and airports fetches over TLS to the Worker, unchanged.
+- **IT REMOVES, NAMED:** the `/blips` request itself. That is its TLS request on the keep-alive connection, its body (n
+  rows, a few KB) and its wait, on the fetch task on the other core. The connection stays open for the other fetches.
+  This is A3's flattery in (a)'s form, one `/blips` request per poll, and H5 bounds it.
+- **The table:** C++ in `FrameBench.h`, the formulas of `fixed_traffic.py` (`b530faf4`) in double precision, evaluated
+  at the device's UTC second for the scene's home and n.
+- **The category value:** whatever `ParseLocalAircraft` makes from `"A3"`, shown from the source at the code stage, so
+  the icons drawn are v19 FIXED's.
+
+**H2, the table's cross-check (TBL), from both sides.**
+- **TBL-HOST:** a host test compiles the table function (pure C++11) and compares it against `fixed_traffic.py`'s
+  `aircraft()`.
+  - Both homes, n = 60, at t ∈ {0, 1794441386, 1794441386 + 86,400}.
+  - The doubles agree within 1e-9 (degrees, feet, knots).
+  - The wire-quantized rows are equal under ONE pinned rounding: C++ `lround` (half away from zero), mirrored on the
+    Python side by a named helper, never Python's `round`. A test asserts the case where the two built-ins disagree, so
+    the helper cannot be optimised away.
+  - Plant: one phase constant changed in a copy of the table. TBL-HOST reads red at exactly that row.
+- **TBL-DEV** (the device's libm, not the host's): the framebench image prints, once at boot,
+  `[frame-bench] table h=<0|1> sum=<crc32>` over the quantized rows at t = 1794441386, n = 60. The reader recomputes
+  each sum from `fixed_traffic.py`. **Predicted: equal for both homes.** Unequal makes the run the INSTRUMENT, and it
+  stops. A last-unit flip in the device's libm is the named way this can fail on a correct port.
+
+**H3, I-3 on the shipping image, every time** (A5 carried):
+- The candidate's shipping env, built from the patched tree, against the same tree unpatched, with the path mapping and
+  the pinned build time, by `bindiff_elfhash.py`: **elsewhere 0**.
+- `check_frame_bench.py` gains **FB6**: the hook region exists exactly once, inside `#ifdef FRAME_BENCH`, inside the
+  cloud branch. Its plant (the region moved outside the guard) reads FB6 red.
+
+**H4, the guard rows: map and weather present, from the frame buffer and from every frame.**
+- **STATE, every measured frame.** The record's `flags` gains:
+  - bit 1: `wxShowing == Crop` this frame (the layer copied under the planes, the per-frame cost);
+  - bit 2: the map drawn this frame;
+  - bit 3: the night poll or the night clock active.
+
+  In a CTRL or FIXED-(a) scene, a measured frame with bit 1 or bit 2 clear, or bit 3 set, makes the scene the
+  INSTRUMENT.
+- **PIX, the frame buffer** (the bits are the code's claim; this is the glass):
+  - **Frames:** `/diag/fb` (served on every radar image) during each home's level-40, 25 mi FIXED-(a) scene and its
+    FIXED-L twin, in the SETTLE only (a fetch costs frame time, and nothing measured is touched). Three finished
+    frames per scene.
+  - **Timing:** keyed on the scene schedule from the trace's start, never on the live log (the capture-rig row).
+  - **PIX-MAP:** the map's colours EXCEPT black cover **≥ 20 %** of the disc (r ≤ 118 px) in FIXED-(a), and
+    **≤ 2 %** in FIXED-L. The colours are read from the source, as reader2's `--fb` does.
+    - **Why black is excluded, measured first.** The palette holds `0x0000`, the radar's own background. With it
+      counted, B's map-OFF frames read 67.4-77.6 % map colour against 67.8-77.9 % for map-ON, so a ≥ 5 % rule would
+      have passed a frame with no map.
+    - **Without black,** measured by `mapshare.py` (`52b42eae217a623408da2d23e99a497218ffcdc6e0c034fd6e8a772d603dbc6c`)
+      over the step B and C bench frames at Bend (30 per label each):
+      - map-on 61.55-74.57 % (B) and 63.77-68.36 % (C);
+      - map-off 0.00-0.98 % (B) and 0.39-0.90 % (C), the radar's own pixels in colours shared with the map.
+      - The thresholds sit between those ranges.
+    - **KSFO has no measured basis.** It is predicted ≥ 20 % from the land inside 25 mi. A KSFO share between 2 % and
+      20 % is outside the set: STOP, and it is reported.
+  - **PIX-WX:** markers in the avionics plane colours, none in the layer-off plane colours, and every EXERCISED outline
+    pixel black.
+    - An outline pixel is exercised when no other marker or label covers it.
+    - `WxOutlineNow()` (:5427) is `WxEnabled()`, exactly the predicate the local source loses.
+    - Markers are found by `wx-fb-check.py`'s own definition, imported, never copied.
+    - BLIND (no outline pixel exercised) is outside the set: STOP.
+  - **PIX-ECHO:** echo colours of the look inside the disc.
+    - Graded when the held crop has echoes there, reported **DRY** when it has none. DRY is pre-registered: not a pass
+      and not a fail.
+    - Weather presence then rests on PIX-WX plus the printed `[wx] status=200` and `[wx] layer rebuilt in`.
+    - The per-frame cost does not depend on rain: `DrawWeatherUnder` (:3589) copies the whole 115,200 B layer whenever
+      a crop shows.
+- **The inverse guard for the local block (H6):** STATE bits 1 and 2 clear on every frame. PIX shows no map colour
+  and no outline.
+
+**H5, FIXED-(a) against LIVE (XA), with a frozen tolerance.**
+- **The line:** at each home, FIXED-(a)'s 30 s p95(`p2p`) windows at 25 mi, levels 20, 40 and 60, fitted p95 against
+  drawn n.
+- **The comparison:** LIVE's 30 s windows at the same home and rung, each as a residual from that line. n < 5 is
+  dropped, as in (iv), and each side needs ≥ 8 windows.
+- **Tolerance (default, Q-A3):** the median residual in **[−3.0, +5.0] ms.**
+  - The −3.0 is (iv)'s identity gap.
+  - The +2.0 above it is for the two loads FIXED-(a) lacks: the `/blips` request and the real traffic's shape (spread
+    over the rung, labels, trails).
+- **Outside the tolerance:** STOP. It goes to the owner with the numbers. It is a finding about the instrument's
+  realism, not a grade of the candidate.
+
+**H6, the v19-comparable local block (FIXED-L).** Six scenes, both homes × levels 20, 40, 60 at 25 mi, run exactly as
+v19's FIXED: the local source, `fixed_traffic.py`, `LOCAL_FETCH_INTERVAL` 1,000 ms (:1375), and enrichment off. Both
+layers are off by construction and checked (H4's inverse guard). Each is read against v19's own baseline scene of the
+same home, level and rung. That is the drawing-code regression with the layers out of it.
+
+**H7, the changes (a) makes that are not the hook, each named:**
+- **The cadence.** The cloud poll comes from `/config` (CloudFeed.h:41-44 defaults: active 5 s, idle 15 s after 10 min
+  without a touch, night 60 s). Trails are an age (90 s), so the poll sets their point count: about 6 points at 15 s,
+  against up to 45 (the trail's cap) under the local 1 s. That assumes one point per position update, which the code
+  stage shows from the source.
+  - A board left untouched turns idle 10 min after boot. At v19's timing that switch would land inside scene 3.
+  - **Default (Q-A4):** a bench region back-dates the last-touch stamp at the run's start, so every scene is in the idle
+    cadence, the state a desk board spends nearly all its time in.
+  - The scene line prints the cadence values served (counts only). A cadence change inside a scene makes it the
+    INSTRUMENT.
+- **The 60 level against `BLIPS_LIMIT` = 40.**
+  - The Worker returns at most 40 rows. A shipping board exceeds 40 tracked only by retention: W1's release trace showed
+    n 40-44.
+  - **Default (Q-A1):** the hook serves n rows and ignores `limit`. The 60 row is stated as a stress row that the cloud
+    path does not reach.
+- **Enrichment.** The scene hexes, `fb0000`-`fb003b`, are outside the non-ICAO range (SpecialAircraft.cpp:76,
+  `0x230000-0x2FFFFF`). Under the cloud source, each would be looked up at the production Worker.
+  - **Default (Q-A2):** one bench line sends the scene's hexes down the shipping non-ICAO skip. There is then no
+    production traffic, no invented body, and labels like-for-like with v19's FIXED.
+  - The code stage shows from the source that the enrich gate is one call. If it is not, another channel is registered
+    before anything is built.
+- **The time of day.** The night poll and the night clock are bit 3 (H4). No sun time is printed.
+
+**H8, the run and the reader.**
+
+| block | scenes | each | total |
+|---|---|---|---|
+| CTRL | Bend, 40, 25 mi, through the hook: plain, then +10.0 ms planted | 100 s + 120 s | 7.3 min |
+| FIXED-(a) | 2 homes × 3 levels × 3 rungs = 18 | 100 s + 120 s | 66.0 min |
+| FIXED-L | 2 homes × 3 levels, 25 mi | 100 s + 120 s | 22.0 min |
+| LIVE | 2 homes, 25 mi | 100 s + 120 s | 7.3 min |
+| LIVE-OWN | the board's own settings | 100 s + 300 s | 6.7 min |
+
+- **Length:** about 109 min of trace, plus the 90 s start. With the writes and the restore, about **125 min** (Q-A5).
+- **The reader's candidate version** is frozen by sha before each candidate's read. It gains:
+  - P2P-FLOOR (the anchor rule above);
+  - STATE, TBL-DEV and XA, each with its own plant read red;
+  - PIX, by a separate frame reader with plants:
+    - a FIXED-(a) frame with the map's non-black colours set to black (PIX-MAP red);
+    - a FIXED-L frame with a planted map patch (the inverse guard red);
+    - a frame with the outlines removed (PIX-WX red);
+    - an echo-free frame, which must read DRY, never green.
+- **(iv) is carried:** LIVE-OWN against the candidate's shipping image's own `[health]` windows, from the trace taken
+  when O11 flashes it.
+- **The gate's number (default, Q-A6):** the worst p95(`p2p`) of the six level-40 FIXED-(a) scenes (both homes, three
+  rungs), against 50 ms. The 20 and 60 levels are reported beside it.
+- **Frame-time predictions are not in this registration.** They are frozen per candidate, from p4's sizing, before that
+  candidate is read.
+
+**H9, O11's procedure, rewritten.** v20-plan.md item 3 says O11's pre-flight "re-runs the baseline's procedure
+unchanged". Under (a) it cannot. The rewrite:
+1. Build the candidate's framebench sibling: A5's regions plus H1's hook, H4's bits and H7's two bench lines.
+2. Run I-3 (H3), TBL-HOST and FB1-FB6 on that tree.
+3. In O11's window, flash the candidate's shipping image and take its `[health]` trace for (iv). Then write the
+   sibling, run H8's trace, and restore.
+4. Read with the candidate reader. Gate on Q-A6's number. Run XA and PIX as guards.
+
+The one-line change to v20-plan.md item 3 (pointing here) is for its owner to make (Q-A7).
+
+**The escape hatch.** Anything outside the outcomes named above stops the read and is reported, unread. That covers a
+TBL-DEV mismatch, a STATE bit unaccounted for, a PIX frame that is neither graded nor DRY, an XA side short of 8
+windows, and a cadence the scene line does not predict. A second off reading on a row goes to the owner.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-A1 | the 60 level against `BLIPS_LIMIT` 40 | serve n; the 60 row is a stated stress row |
+| Q-A2 | the scene hexes' enrichment | the shipping non-ICAO skip, by one bench line |
+| Q-A3 | XA's tolerance | median residual in [−3.0, +5.0] ms; outside goes to the owner |
+| Q-A4 | the idle switch at 10 min | the last touch back-dated at the run's start: every scene idle |
+| Q-A5 | the run's length, ~125 min | the full set for the first candidate; later candidates may drop FIXED-(a) to level 40 at three rungs plus 20 and 60 at 25 mi (10 scenes) |
+| Q-A6 | the gate's number | the worst of the six level-40 FIXED-(a) scenes |
+| Q-A7 | v20-plan.md item 3 | its owner edits it to point here |
