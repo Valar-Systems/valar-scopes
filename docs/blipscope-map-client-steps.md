@@ -4046,6 +4046,54 @@ does not follow the wedge.
   - MAPGREEN stays as a class, so its colours are not UNKNOWN, but its share is reported, not graded.
 - **Nothing is frozen until the ruling.**
 
+**The ruling of 09:20:17Z, and the extended reader, as written and frozen (09:25Z).**
+- **Q-CR5 is accepted as the "map stays visible" half,** with a graded "the add happened" half required before the
+  freeze. My miss, on record: the synthetic palette weighted the 13 map colours equally and hid the terrain AMBIG. The
+  orchestrator recorded its own miss too: it accepted Q-CR1's > 95 % without asking what map content it was computed
+  on.
+- **CBF3-C, as frozen: two graded halves over the map/wedge-class pixels inside the wedge.**
+  - **VISIBLE:** the share that is not a pure green. Over 80 % on map-on frames.
+  - **ADDED:** in slice 2 (back 0.060-0.101 rad), the share greener than any map colour, 6-bit green above 21. Over
+    80 % on map-on frames.
+    - **Why slice 2 alone:** slice 1 lies wholly inside the 0.06 rad beam-end margin, and slice 3's add (20) over black
+      is not above 21. In slice 2 (add 23), any pixel after a real add is at least 23; with no add, it is at most 21.
+    - Both the map's maximum green (21) and the leading slices ([1, 2]) are derived from source and refused if they
+      change.
+  - **Outside:** MAP over 80 %. **Off ticks:** VISIBLE under 2 %, the control.
+  - **The minimum denominators:** a frame with fewer than **3,000** map/wedge pixels inside, or **130** in the add
+    region, is UNTRUSTWORTHY.
+  - **Reported, not graded:** MAPGREEN's per-slice shares.
+  - **CBF3-C is graded on Bend only.** The fetcher fetches P1 (Bend) and never P4 (KSFO), so no host check on KSFO is
+    needed.
+- **Each threshold beside its host minimum,** from Bend's own layers (10/50/150 mi, rotations 0 and 90, 36 beam angles
+  each), as the reader prints them:
+
+  | threshold | host reading |
+  |---|---|
+  | VISIBLE > 0.80 | min **0.936** (step B's opaque: 0.000) |
+  | ADDED > 0.80 | min **1.000** (a no-op: max 0.000) |
+  | off-tick VISIBLE < 0.02 | **0.000** |
+  | inside pixels ≥ 3,000 | min **6,200** |
+  | add-region pixels ≥ 130 | min **266** |
+
+- **The selftest: 49 lines, all ok.** The frame plants, each red for its own reason:
+  - step B's opaque wedge: VISIBLE 0.0 %, so **OFF**;
+  - **the new one,** an add of zero: VISIBLE 100.0 % but ADDED 0.0 %, so **OFF on the add half**;
+  - the add into red: **UNTRUSTWORTHY**, 79.6 % UNKNOWN;
+  - the wedge past the add region painted over: **UNTRUSTWORTHY**, 305 pixels inside, under 3,000;
+  - the add region painted over: **UNTRUSTWORTHY**, 0 pixels, under 130;
+  - an off frame holding the map: **CONTROL FAILED**;
+  - 9 on frames: **BLIND**.
+  - θ lands within 0.005 rad on all five wedge kinds.
+  - **A miss, caught on its own reading:** my first under-the-minimum plant painted the whole wedge, which met the
+    earlier "nothing to measure" check instead of the minimum. It was split into the two plants above, each shown
+    meeting its own rule.
+- **The regression control** (`regress_b.py`, `9c72caaf…`): B mode equals `5ad12d0a` on all 15 comparisons, re-run on
+  the final code. It was shown able to fail earlier: one planted space gave 12 differences and exit 1.
+- **FROZEN:** `map_bench_read.py` at **`a5f7ba79adaa79ffdb607510255b239e790a33950fab8bb8dc5182fed6899b09`**, kept beside
+  it as `map_bench_read.frozen-c.py`. Neither `65d2edf5…` nor `5ad12d0a…` is reused for C. The fetcher is unchanged,
+  `7b904453…`.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
