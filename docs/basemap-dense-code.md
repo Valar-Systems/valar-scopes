@@ -1712,3 +1712,32 @@ Stop at the first off reading. VISIBLE COSTS are printed, not stops.
 | **a later picture with spill clearly beyond the normal error** | the owner's condition | **to the owner** |
 | **a build over 96 MB** | | **stop** |
 | **anything else** | | **stop and report** |
+
+### Part 2, step 0's run (04:47:02-04:49:16Z, 2026-11-12): STOPPED at the sea store
+
+Every artifact was checked against the pinning addendum's sha256 before the run.
+
+- **Zapata's read-only fetch** (`zap-fetch.mts`): 12 cells and 64 tiles; 81 objects, 5 copied from `bm-obj` and 76 fetched read-only;
+  every one verified; exit 0. Its summary line says `lake-obj:` although it wrote `zap-obj`. That is a label left over from the lake fetch
+  it was copied from; it is cosmetic and was not changed.
+- **The dry run, re-run:** `sea-pieces.json` is unchanged (8ad5d92fa7c7), and the extent file holds 2,584 cells.
+- **The sea store and the seam store** (`mk-sea-store.mts`, with and without `--seam-plant`) both STOPPED with
+  `needed cell 0/44/-77 is in no source` (exit 1, stderr empty). Under the outcome table this is a step-0 failure: the tooling, not the sea.
+  **Nothing is graded and no fix is applied before a ruling.**
+
+**The cause, read afterwards** with a read-only replica of the tool's own `needed` set (`step0-missing2.mts`, c91aff32f97a):
+- **217 cells are needed by reach, and every one is in a source.**
+- **102 cells receive sea and have a box that meets a home's square.** Exactly one of them is in the index, is not needed by reach, and is
+  in no source: `0/44/-77`, 438,589 bytes in the index, whose box meets BUFFALO's square only.
+- Its existing reach meets no square, so no earlier fetch copied it. The Lake Ontario pieces it gains do meet Buffalo's square, so the sea
+  store must re-encode the cell with its existing features, and those bytes are not on disk.
+
+**Proposed (awaiting a ruling):**
+1. A read-only fetch of that one object (`blipscope-basemap`, `bm/v1/4c0875738f38/cells/0/44/-77.bin`) into a new source directory,
+   `cell-obj`. It is checked by exit status and by its byte count against the index's 438,589.
+2. `mk-sea-store.mts` gains that directory as a fourth source, at the end. This one-line change gives a new sha256, which is recorded
+   before the run.
+3. Step 0's two store builds run again.
+
+**Predicted, from the same replica:** the fetch writes 1 object of 438,589 bytes. Both store builds exit 0, each printing
+`cells 246 (144 copied, 74 with sea added, 28 sea-only new)`. Anything else stops.
