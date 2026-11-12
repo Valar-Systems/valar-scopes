@@ -469,6 +469,72 @@ first").** A new measurement, not a re-run of C2.
     no trace recovered it, and it answered ping at 05:47:30Z and checked in at 05:47:37Z.
   - Port 3 ON, nothing holding COM18, and the reservation released at 05:50:31Z.
 
+**Step 6: the owner's OK, recorded (his words, stamped 2026-11-12 15:07Z).** He accepts `RELEASING.md`'s consequences,
+quoted to him in their own words:
+- once a device is on v19, nothing older reaches it over the air, in any scope; a fix is a new build that carries the
+  record, and USB still works;
+- board identities and the record's format are fixed from now on;
+- the v18 factory image has no check, so once on v19 a device can't go back to it over the air, only by cable; future
+  factory images are built at or after v19.
+
+His go for steps 7 and 8: "once uk-data's production deploy reads green (the orchestrator confirms), never alongside it.
+Tag C' = release/v19 7b943ae0b5d1, then the prerelease, the bench flash from it, verify-release.sh, and promote. On any off
+reading before promote: stop and report."
+
+**Step 7 on C': predictions, frozen before anything is tagged.** It starts only on the reviewer's confirmation that
+uk-data's production deploy reads green and has closed.
+- **7.0, before the tag:**
+  - `check-tag-workflow.sh 7b943ae0b5d1` prints `ok: promote needs version, runs in environment release ...`;
+  - no tag `v19` exists and no release `v19`;
+  - `releases/latest` is v18.
+- **7.1, the prerelease:** `gh release create v19 --target 7b943ae0b5d1e7b0f6ad8254ecc4bcdeb38c8dff --prerelease
+  --title v19`.
+  - The notes are `docs/CHANGES-customer.md`'s v19 prose at C', **verbatim**, as the owner approved it in the bump PR
+    (#631). No new customer text is written.
+  - Predicted: `isPrerelease` true, and `releases/latest` stays v18.
+- **7.2, the release run** (the release event runs the workflow from the tag):
+  - every row of `skus.yml` builds;
+  - the **one** shipping SKU at C', `s3-128`, gets its set attached after `scan_image.py` passes: `firmware-s3-128.bin`,
+    `firmware-s3-128.factory.bin`, `flash-manifest-s3-128.json`, the three region files, and `factory-scan-s3-128.json`;
+  - the receipt check finds its receipt;
+  - `version.txt` on the prerelease reads `19`;
+  - the run **pauses at `promote`**, waiting for review in the `release` environment;
+  - the web set is named `-v19`.
+  - The prerelease's `firmware-s3-128.bin`, under `check_ota_identity.py blipscope-s3-128`, reads `PASS`, record
+    `s3-128` at `0x120`.
+- **7.3, the bench flash at the `promote` pause, exactly the asset, with no build step** (the ruling of ~04:48Z):
+  - **Before:** E2:08 reserved, the start time sent to the reviewer, and the asset downloaded. Its sha256 must equal the
+    release API's digest before anything is written.
+  - **The write:** `app-only-write.py --port <resolved by serial> --build-dir <a folder holding the asset as
+    firmware.bin, plus partitions.bin from C''s build>`. E2:08 boots `ota_0`. Predicted: "checks ok", and "verified".
+  - **The read-back:** `esptool verify_flash 0x20000 <the asset>`, predicted "verify OK (digest matched)". This is the
+    chip comparing its own flash against the file. `read_flash` of the app region has died part-way on another board
+    over this USB-Serial-JTAG link (Q86), so this record uses `verify_flash`.
+  - **The boot**, `read_mac` plus one trace, with each line from source at C':
+    - `[build] env=blipscope-s3-128 fw=v19 features=...` (`include/BuildIdentity.h:125`);
+    - `[ota-slot] boot running=app0 @0x020000`;
+    - `[ota] channel=s3-128 current=19 latest=18` (`src/OtaUpdater.cpp:648`), and no "newer firmware" line. "Already up
+      to date" is a code comment at `:650`, not a printed line.
+  - **The About tab,** over HTTP: the config page carries `<span>Firmware</span><b>v19</b>`
+    (`src/ConfigurationWebServer.cpp:1151`).
+  - **After:** the trace's end recovered by a `read_mac` with no trace; then ping and a Worker check-in; the reservation
+    released; the end time sent to the reviewer.
+- **7.4, `verify-release.sh v19`, run from a tree at C', before promote.** Its check 2 compares
+  `releases/latest/download/version.txt` with the tree, so before promote it reads, **by construction**, `FAIL published
+  version.txt = 18 but the tree is 19`, with its recall-condition lines.
+  - **That one FAIL is predicted, not a stop.** Every other check must PASS: 1 (`tree FW_VERSION = 19`), 3 (the pilot's
+    binary on the tag), 5 (the shipped binary carries the backend), and 6 (the square library, with its own anchor
+    control).
+  - **Any other FAIL, or check 6 unable to read, is off: stop and report.** Promote does not go.
+- **7.5, promote:** only if 7.0 to 7.4 all read as above, the pending `release` deployment on the run is approved, on the
+  owner's words. Predicted: `promote` reads `version.txt` from the release's own URL as 19, then moves `latest`.
+- **After promote:**
+  - `releases/latest` is v19, and `releases/latest/download/version.txt` reads `19`, twice a few minutes apart;
+  - `verify-release.sh v19` is run again and now reads **0 failed**, with check 2 `published version.txt = 19, matches
+    the tree`.
+- **Outside the set before promote: stop and report.** The prerelease stays as it is unless a ruling says otherwise, and
+  `latest` does not move.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
