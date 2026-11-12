@@ -4464,6 +4464,40 @@ change reads EITHER:
   - UNDECIDED 0;
   - the escape hatch.
 
+#### Amendment 2 to P-REDO's expected set, before anything is read (2026-11-12, after #656's amendment 1f and its relocation print, 18:50Z)
+
+**FILL** (#656's amendment 1f): a CHANGED function whose copies hold the same instructions apart from the assembler's
+alignment fill and an instruction's own narrow or wide form now reads FILL.
+- **A no-source FILL unit in `AircraftManager.cpp.o` or `main.cpp.o` counts with the no-source rows.** It is
+  narrower than "relocations unchanged", and it is one of the offset forms already named: an `l32i.n` widened to
+  `l32i` when a member's offset passes 60.
+- **A FILL unit in any other object** is a difference in an object predicted identical. It is reported by name, and it
+  is off.
+
+**UNDECIDED.** When a FILL unit's size changes, #656 walks its final copy on the image's property table, and this link
+discards most objects' tables. Such a unit reads `UNDECIDED <name> (FILL): size a -> b: the image's property table
+ends at +0`. Narrow-to-wide forms change size, so these are likely in `AircraftManager.cpp.o`.
+- **Amended:** UNDECIDED is allowed ONLY for a FILL unit in those two objects whose size changed, with exactly that
+  named cause.
+  - Each one is named and counted, and reported as UNACCOUNTED: a known blind spot of the instrument, not a pass for
+    that unit.
+  - P-REDO's reading then states how many units it could not decide.
+- **Any other UNDECIDED** (another cause, or another object) is still "the instrument or the model is unreliable at
+  this scale: stop and decide".
+
+**"Relocations unchanged": #656's definition, confirmed as registered by weatherscope.** A function's relocations are:
+- the multiset of every relocation's target name, its folded exception table included;
+- with branches inside the function dropped;
+- with a literal-pool slot replaced by what the literal names (`lit(sym:foo)` counts as `sym:foo`);
+- with a literal holding a plain constant dropped, which covers the offsets past 1020 taken through literals;
+- with every other name kept, strings included.
+
+Strings stay in: a string gained or lost in a no-source function is the inlining signal this row exists to see. So a
+no-source plain CHANGED unit with `relocations: +[...] -[...]` is not an offset shift. It is reported by name as
+amendment 1 says.
+
+**Unchanged:** every other row of the set and of amendment 1, `RecordFrameUs`, the GC chain, and the escape hatch.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
