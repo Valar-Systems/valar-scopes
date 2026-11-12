@@ -3687,6 +3687,66 @@ first:
   porcelain read empty.
 - **I5:** the same flip build, without the plant.
 
+**The comparator's controls for I1, frozen before the comparator runs.** `31164e23` says only "by the comparator, with
+its controls" and names no reading for them; the orchestrator asked for them at 08:19:35Z. Written while the builds ran,
+fixed by sha256 in the report to the orchestrator, and committed here before `imgcmp.py` first reads any of the images.
+- **Presence:** in each of Bs1, Bs2 and Cs, aboutdate's joined date-time occurs exactly once, and "Software Info:" occurs
+  exactly once with its time-and-date pair after it. Within each compared pair (Bs1/Bs2, and Bs1/Cs) both sit at the
+  same offsets.
+- **Anchor**, Bs1 against Bs2 (the same source, `b9d28fa5`, built twice from clean): `imgcmp.py --anchor Bs1.bin Bs2.bin`
+  exits **0**:
+  - the same length;
+  - **0 bytes outside** the five rebuild regions;
+  - inside, these differ: `app_elf_sha256` (32 B at 0xB0), the trailing image SHA-256, aboutdate's date-time, and the
+    "Software Info:" time-and-date pair;
+  - the checksum byte may differ or not, and is printed either way.
+  - **Any byte outside is the instrument** (exit 2), with every offset reported and never whitelisted on the spot.
+- **Sensitivity:** `imgcmp.py --flip Bs1.bin` writes Bs1 with one byte flipped at 0x1000. Compared against Bs1, it exits
+  **1** with exactly **1** byte outside, at 0x1000.
+- **Then I1:** Bs1 against Cs, as `31164e23` froze it: the same length, and **0 bytes outside**.
+- **Anything else** in the controls stops before I1 is read.
+
+**The relabel (the orchestrator, 08:20:34Z), beside the frozen text above, which stays as committed:** a change of
+offsets between Bs1 and Cs is NOT the instrument. It means the shipping image's layout moved, a finding about step C:
+**I1 OFF, the shipping image changed**. Only a Bs1/Bs2 offset mismatch, or a missing or duplicated string, is the
+instrument's. Both stop; the label says which verdict is recorded.
+
+**The nine builds, as read** (`wt-stepc`, 08:18:04-08:44:39Z, p4's slot; C: 68.4 GB free before, 67.8 GB after):
+
+| build | tree | env | build exit | image |
+|---|---|---|---|---|
+| Bs1 | `b9d28fa5` | `blipscope-s3-128` | 0 | 1,932,448 B, `54f5a0fb6237…` |
+| Bs2 | `b9d28fa5` | `blipscope-s3-128` | 0 | 1,932,448 B, `517076f7d43f…` |
+| Bw | `b9d28fa5` | `-wxlook` | 0 | 1,973,264 B, `1052b01c60c7…` |
+| Bm | `b9d28fa5` | `-mapbench` | 0 | 2,390,416 B, `9e7635c93629…` |
+| Cs (I1) | `89f7e7f5` | `blipscope-s3-128` | 0 | 1,932,448 B, `d9326b729eaa…` |
+| Cw (I2) | `89f7e7f5` | `-wxlook` | 0 | 1,974,112 B, `80fc7487ac41…` |
+| Cm (I3) | `89f7e7f5` | `-mapbench` | 0 | 2,391,120 B, `6faaf7110459…` |
+| I4 | `89f7e7f5` + the plant | `blipscope-s3-128` + `-DWX_LAYER_SHIPS` | **1** | none (no link step) |
+| I5 | `89f7e7f5` | `blipscope-s3-128` + `-DWX_LAYER_SHIPS` | **0** | 1,971,232 B, `19f4acfff8e8…` |
+
+- **The `clean` step exited 1 for Bs1, Bw and Bm**, each env's first build in this worktree. `pio run -t clean` runs
+  the pre-build patch script, which stopped with `[patch_async_buff] FATAL: ESPAsyncWebServer is a dependency of …`,
+  because that env's libraries were not installed yet. The build that followed installed them and compiled from an
+  empty build directory: 259 files, the same count as Cs's real clean rebuild. So each of the nine is a full build.
+- **The harness, on record:**
+  - every build exit was read from `$LASTEXITCODE`;
+  - the I4 plant was applied (header sha256 `7b887e7e…` became `94e82fe9…`) and restored by bytes in a `finally`
+    block (back to `7b887e7e…`, equal);
+  - porcelain read empty at every checkpoint, and HEAD ended at `89f7e7f5`.
+- **The harness's I4 label was wrong.** It logged "firmware.bin rewritten: True" by comparing the file's time before and
+  after. The I4 build ran `clean` first, which removed the previous `firmware.bin`, and the failed build wrote none.
+  The log has no link step, so an absent file read as "changed". The fact is: **I4 produced no image**, as step B's
+  R-FLIP did.
+- **I4's log:**
+  - CB10's `#error "step B draws the map without step C: …"` at `src/AircraftManager.h:53:2`, **twice**, once for
+    `AircraftManager.cpp.o` and once for `main.cpp.o`, as predicted;
+  - **and one line NOT predicted:** `src/AircraftManager.cpp:3962:30: error: 'mapsweep' has not been declared`. The
+    plant removes `MapSweep.h`, which also declares the `mapsweep::Blend` that `DrawSweepOverMap` calls. CB10's `#error`
+    comes first in each translation unit (log lines 563 and 708; the extra error is line 578).
+  - **By the letter of `31164e23`** ("refused with CB10's `#error`, once per translation unit … anything else stops"),
+    this is an OFF reading. **STOPPED here: the comparator has not run**, and I1-I3 and I5 are not graded.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
