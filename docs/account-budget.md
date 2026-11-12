@@ -252,6 +252,53 @@ type only, and the edge caches the playlist for 2 s (`public, max-age=2`), so R2
 centre every 2 s, however many listen. The read will say plainly what it cannot see; a zone's HTTP analytics for
 `live.missileer.watch`, if the token can read them, is the first candidate.
 
+### 7.1 Registered 2026-11-12 ~21:55Z, before any of it is read
+
+**What changed since section 7 was written.** A schema check (an introspection query, which reads no data) shows that
+R2's analytics DO carry `objectName`, as a dimension and as a filter (`objectName_ilike`), and also `eyeballRegion`.
+So per-object counts of what reaches R2 are readable. The zone's HTTP analytics are not needed for a first answer.
+
+**Which object measures what,** from valar-eam-feed's `station/live/README.md` (read-only, at `cff6c038`):
+
+| object | Cache-Control | who fetches it | so R2's count measures |
+|---|---|---|---|
+| `kph/state.json` | `no-cache, max-age=0` | the site, for every visitor (the switch); the streamer, once a segment | visitors' polls plus the streamer's 360 an hour: **not listeners** |
+| `kph/voice.json` | `max-age=2` | the site, for every visitor (the voice indicator) | visitors: **not listeners** |
+| `kph/live.m3u8` | `max-age=2` | every visitor's waterfall (it names the `.wf` files) and every player | visitors: **not listeners** |
+| `kph/<seg>.wf` | immutable, a year | the site's waterfall, "for every visitor" | visitors, once per data centre: **not listeners** |
+| `kph/<seg>.ts` | immutable, a year | **only a playing listener** | **active listener data centres:** each fetches each 10 s segment once, so up to 360 an hour per data centre |
+
+**The measure, then: `.ts` GETs per hour, divided by 360, is the number of data centres with at least one listener
+in that hour.** It is a lower bound on listeners, with three things it cannot see, stated now:
+- several listeners served by one data centre count once;
+- if Cloudflare's tiered cache is on for that zone, an upper tier can serve several data centres with one R2 fetch, so
+  even data centres are undercounted (whether it is on is not readable with this token);
+- a listener who joins mid-hour counts as a fraction of an hour.
+
+`eyeballRegion` per hour adds a count of distinct regions with a listener.
+
+**The tool:** `tools/budget/live_listeners.py`. Read-only, counts only. Per hour for 7 days, the `missileer-live`
+GetObject counts split by object class (`.ts`, `.wf`, `live.m3u8`, `voice.json`, `state.json`, other), plus the
+`.ts` regions. Its control: the classes must sum to the bucket's own GetObject count for each hour, within 1%, read by
+a separate query with no `objectName` dimension. Otherwise it exits 2.
+
+**Outcomes, registered before the read:**
+
+| outcome | what the `.ts` hours show | meaning for on-demand streaming (M1) |
+|---|---|---|
+| **L0** | `.ts` GETs are 0 in at least 80% of hours | nobody listens most of the time: M1 would save most of the 0.778 M |
+| **L1** | `.ts` GETs are above 0 in at least 80% of hours | someone listens nearly always: M1 would save little |
+| **L2** | anything between: sporadic listening | M1 saves about the listener-free share of hours, which is reported |
+| **L3** | the control fails, or `objectName` returns no `.ts` rows while the bucket's GetObject count is non-zero | the instrument cannot see per-object counts here: stop and report |
+
+**My prediction: L2.** The basis: the bucket's non-streamer GETs average about 3,500-3,900 an hour, but the visitor
+objects above can account for all of that, so the bucket total does not separate the outcomes. I hold L2 at low
+confidence; L0 and L1 are both live.
+
+**CI for this registration (predicted before the push):** it changes `docs/account-budget.md`, which is in
+`account-budget.yml`'s path filter, and leaves section 6's table alone, so `--render-check` stays current. Main is
+`f3dd6b62`. **Predicted: 33 = 31/2/0.**
+
 ## 8. CI for this registration (predicted before the push)
 
 **Predicted: 32 check runs: 29 success, 3 skipped, 0 failed.**
