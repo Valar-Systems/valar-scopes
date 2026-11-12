@@ -1741,3 +1741,9 @@ Every artifact was checked against the pinning addendum's sha256 before the run.
 
 **Predicted, from the same replica:** the fetch writes 1 object of 438,589 bytes. Both store builds exit 0, each printing
 `cells 246 (144 copied, 74 with sea added, 28 sea-only new)`. Anything else stops.
+
+**RULED (04:53:12Z): steps (1)-(3) as proposed.** `mk-sea-store.mts` now has `cell-obj` as its fourth source. It changed on two lines (the
+`SRC` list and the header comment that names the sources), and its sha256 went from 66554014b0be to
+`9f7a16c639b247070fa081f31d6e56fc2c9bb4d121b627918e37d1dc1b197bef` (9f7a16c639b2). Both store builds run again against the predictions
+above. The partial `sea-obj` and `sea-obj-seam` left by the stopped runs are removed first, so every file the re-run produces comes from
+the re-run. The cosmetic `lake-obj:` label stays as it is.
