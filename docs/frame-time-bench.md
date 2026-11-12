@@ -846,3 +846,45 @@ registration's [−3.0, +5.0] is **superseded and never applied.** Tonight's pac
 | Q-RC4 | how the replay reaches the board | embedded in the bench image |
 | Q-RC5 | the recorded radius | 50 mi, the widest rung |
 | Q-RC6 | the windows | (1) the survey and (2) the captures, at each airport's busy hour, then (3) the v19 run. Three bookings, or (1)+(2) as one if the busy hours align |
+
+**The ruling (the orchestrator, unstamped): the recording plan is ACCEPTED.**
+- **Q-RC1:** the default, and the reading is right. Aircraft positions are public ADS-B data, not a person's place;
+  the 2-dp rule protects the owner's and customers' locations. The handling is kept anyway: capture folder and
+  `_handoffs` only, never in git, never printed in clear, shas and counts in the doc.
+- **Q-RC2, Q-RC3, Q-RC6:** the defaults. Each window is granted as requested.
+- **Q-RC4:** the default, on the condition that the build reads the recording from an UNTRACKED path, like
+  `FRAME_BENCH_HOST`, and that I-3 still holds with `FRAME_BENCH` off.
+- **The board's REAL home must never enter a recording:** the home is set to the airport in RAM before the first
+  recorded poll.
+- **Q-RC5: CHANGED.** "Where the board holds its full ~40" means recording with the query the board SENDS at its
+  shipping defaults, read from the source.
+
+**Q-RC5, READ from the source (v19 and main `5cdc8bd8f35d` agree):**
+- **The radius:** an unset `radius` reads as **100** (`AircraftManager.cpp:874-875` on main, :841 at v19), and an unset
+  or unknown `radius-unit` normalises to **`mi`** (`DisplayUnits.h`: `DefaultUnit()` is "mi").
+- So `rangeKmCfg` = 100 × 1.609344 = 160.93 km, and the `/blips` `r` is `lround` of it = **161**.
+- **The limit:** **40** (`BLIPS_LIMIT`, main :3038, v19 :2944). `lat`/`lon` go at the wire's 2 dp.
+- **So every recording is made with `r=161&limit=40`, the shipping query.**
+- **Why that covers every rung:** the Worker returns the 40 nearest within 161 km. A smaller radius's answer is that
+  set's members inside it, since the nearest are the nearest. On a real board at the default, zooming keeps this query
+  and changes only what is drawn, which is exactly what the replay at a rung shows: tracked = the recording, drawn =
+  those inside the rung.
+
+**The amendments these rulings make, before any code:**
+- **RP1, the real home:** the recorder prints only inside a recording scene, which starts after the scene driver's
+  `Initialise()` has applied the airport home in RAM.
+  - Each recorded poll also prints one boolean: "the request's lat/lon equal the scene's airport at 2 dp", never the
+    coordinate itself.
+  - A single false makes the recording the INSTRUMENT, and it is discarded unread.
+- **RP4, the build:** the recording reaches the image through a `FRAME_BENCH`-only pre-build step, the way
+  `framebench_host.py` does.
+  - The step reads `FRAME_BENCH_REC_<AIRPORT>` from untracked environment variables naming files outside the tree, and
+    generates a header under `.pio/build/` (untracked).
+  - A refusal names the variable, never the path's contents.
+  - `check_frame_bench.py` gains a row with its plant: no recording file and no generated header is tracked.
+  - **I-3 is shown with `FRAME_BENCH` off,** as before.
+- **A question, not changed here (Q-RC7):** the shipping default VIEW is 100 mi (`Top()` of a 100 mi ladder), the view
+  most boards show, and it is not among the six scenes' rungs (10, 25, 50).
+  - **Default:** the six stay the owner's "two homes × three zooms" at 10/25/50.
+  - A **100 mi** scene per airport is added as a reported row, labelled "the default view", not in the worst-of-six.
+  - Whether 100 mi belongs in the six is the owner's call.
