@@ -202,3 +202,15 @@ queued sample carries its own read time. During the replay `TouchNow()` returns 
 
 T3 and the host test are local, with no board. Port 1's power cycle is for recovering the 2.1 from download mode
 only, logged.
+
+## The frame-time rows (the owner's standing rule, 2026-11-12)
+
+"every change to drawing code reports its frame time on the bench, before and after. A slowdown beyond the margin
+frozen in its registration stops it."
+- **Step 1a, frozen margin: T2.** T1's frame time is at most T0's + 5 ms. Beyond that, 1a stops and goes to the owner
+  with both numbers.
+- **Step 1b (the static layers), frozen margin:** registered with its code. Its aim is the owner's 2.1 target, "at least
+  20 (aiming for 30)" fps on glass; today it is 9.7.
+- **The 1.28" builds:** T3 (PLACED) is their row. No byte moves, so no frame time can change.
+
+After v20's freeze these steps become the 2.1 chapter of p4's speed workstream for all boards.
