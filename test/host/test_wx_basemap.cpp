@@ -1,12 +1,12 @@
 // Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it after the rulings since):
 // the BMPK reader (include/BasemapPackage.h), the basemap rasteriser (src/weatherscope/WxBasemap.h) and the fold, the
-// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 92 named cases in 9 families, and nothing else:
+// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 96 named cases in 9 families, and nothing else:
 //   PK 30 (A10.11's 28 + A12.15's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, BW 8 (A12.53: the key's reason), PE 12.
 // Its sabotages: python -I test/host/sabotage_wx_basemap.py (16, each failing exactly its set).
 //
 //     test_wx_basemap <test/fixtures/wx>
 //
-// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 92). Prints no coordinate.
+// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 96). Prints no coordinate.
 
 #include <cmath>
 #include <cstdarg>

@@ -9,7 +9,7 @@ Method, fixed before any run (A10.11, A12.39):
     plant goes into exactly one copy. (GCC resolves a quoted include from the including file's own directory first, so
     a lone shadowed header would be included twice under two paths.) Each plant asserts its anchor occurs exactly once
     and that the copy differs; the real files' hashes are compared before and after.
-  - The unmodified headers run first, as the control: 92 cases, 0 failures (84, and A12.53's BW 8).
+  - The unmodified headers run first, as the control: 96 cases, 0 failures (84, A12.53's BW 8, and S4.21's FL 4).
   - Each sabotage's failing lines are printed, so what a failing case saw can be read off the run.
 """
 import hashlib, importlib.util, os, re, subprocess, sys, tempfile
@@ -27,7 +27,7 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_basemap.cpp")
 WX = os.path.join(ROOT, "test", "fixtures", "wx")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
-CASES = 92
+CASES = 96   # A10.11's 84, A12.53's BW 8, S4.21's FL7, FL7c, FL8, FL8c
 
 
 def block(src, start, end):
