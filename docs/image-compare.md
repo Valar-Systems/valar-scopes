@@ -158,3 +158,71 @@ worktrees, so they aren't graded.
 
 About one working day in all. The builds need no board, bench window or deploy slot. They use disk (about 3 GB of
 copied build output, my own rebuildables, deleted after the record).
+
+## 8. Amendment 1, before any code (2026-11-12, 16:47Z)
+
+The reviewer accepted the approach at 16:44:50Z with two notes. blipscope-5c described its ELFs at about 16:46Z, and
+map-client named its pairs at 16:46:17Z. This amendment folds all three in. No code exists yet.
+
+**(a) RELAX has to be counted.** This replaces section 4's RELAX row, whose "the size delta is printed, not graded"
+is withdrawn. A function is RELAX only when every one of the following holds; otherwise it is UNDECIDED:
+1. its input unit is the same on both sides, as section 3 compares it;
+2. its input has n ≥ 1 long-call sites (`R_XTENSA_ASM_EXPAND` on a `callx`) and no `R_XTENSA_ASM_SIMPLIFY`;
+3. **in each image, the final copy is walked against the input, instruction by instruction:**
+   - lengths come from the opcode nibble, and a nibble of 14 or 15 makes the unit UNDECIDED;
+   - an instruction with no relocation must match exactly;
+   - one with a relocation must match in length and opcode nibble;
+   - the only other steps allowed are an `l32r` that is deleted, and a long-call `callx` that becomes a `call`;
+   - both walks must end exactly at the last byte;
+   - the walk counts r, the number of relaxed sites. The deleted `l32r`s must number exactly r, with 0 ≤ r ≤ n;
+4. **the size delta is exactly 3 × (r on one side − r on the other).** Each relaxed site drops one 3-byte `l32r`;
+5. **every site relaxed on one side and not the other is located and its reach printed, from that image's own
+   addresses:**
+   - where it became a `call`, the target lies within `call` range (an 18-bit word offset: −2^19 to 2^19 − 4
+     bytes);
+   - where it stayed long, the literal's target lies outside that range.
+
+So a RELAX reading lists n, r on each side, and each flipped site with its two reaches. K4's predicted reading becomes:
+its RELAX functions listed with those counts, and 0 UNDECIDED. The same applies to POS's other differences.
+
+**Alignment fill is not modelled.** If the linker pads to keep an aligned target inside a function (a `loop` body),
+the walk fails and the function reads UNDECIDED. That is the conservative direction. The prediction is still
+0 UNDECIDED in K4 and POS, and a reading off it stops the run for a ruling.
+
+**(b) POS: C′ stands in for #651's candidate.**
+- The candidate #656 names is `ed0d660b9d53`. blipscope-5c confirms it is reachable as `refs/pull/651/head`, and that
+  its `src/` and `include/` equal C′'s, with 0 files differing.
+- `git diff C C′ | git patch-id --stable` reads `114cd48aa115`, the reviewer's value.
+- POS therefore compares C and C′, both rebuilt in one tree, as section 6 says.
+
+**(c) blipscope-5c's three ELFs: context only, never graded.** They are `blipscope-s3-128` ELFs, built on this machine
+with platform-espressif32 55.03.39:
+
+| name | sha256 | built from |
+|---|---|---|
+| C-s3-128.elf | `c63a1c83230c9cc984925f06377fa4443cdd90519aee10654024fa56d6261b66` | C, in worktree `wt-m630`. 5c says the commit is inferred, not proven at build time |
+| CAND-s3-128.elf | `c76b38c984356d5bdfa9758d93436c6d145b3973a9b66f35d3e0ba0ee3ead7b1` | `ed0d660b9d53`, in worktree `wt-fix` |
+| CPRIME-s3-128.elf | `b56c6718b6c6fbeec4ac8740f4c507fce7139c6d369dc8c348d97bf1e258b10f` | C′, in `wt-fix`, from a clean env build |
+
+- **What this explains about #651's reading:** its C and its candidate were built in worktrees whose paths differ in
+  length (`wt-m630`, `wt-fix`). Any string carrying an absolute source path is then one byte longer in one image. That
+  is a layout shift with no code change, and #656's "checked" paragraph (library versions, `platformio.ini`) didn't
+  exclude it. This is named here, not decided. Every pair in this file is built in one tree, so this cause can't
+  arise in it.
+- **The context row, printed after POS:**
+  - for my rebuilt C′ against CPRIME, the count of image-layer (name, size) differences;
+  - whether the two ELFs are byte-identical. The prediction is not identical, because the tree path differs.
+
+**(d) A pair may differ in build inputs only on lines its registration names.** This replaces section 2's step 1
+"out of scope by definition" with a rule that keeps that as its default:
+- the comparison records every input, and every difference must be named, by file, section and key, in the pair's
+  registration before it is read;
+- **the fix-only skip names none**, so any input difference there still makes the pair out of scope, as before;
+- map-client's P-FLIP would name exactly one: `platformio.ini` `[weather] layer`, from empty to
+  `-DWX_LAYER_SHIPS`.
+
+**(e) Map-client's pairs are registered in amendment 2, before they run.**
+- P-REDO is Bw against Cw, both `blipscope-s3-128-wxlook`, with no input difference.
+- P-FLIP is the v20 candidate with the switch off and on, on `blipscope-s3-128`, wanted about 20-26 Nov.
+- Which of the two runs is the reviewer's ruling. Each one's expected set is frozen in map-client's record first and
+  copied here with that record's sha. Both run only after K0, K3, K2 and K4 have read as predicted.
