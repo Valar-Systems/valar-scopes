@@ -2572,3 +2572,38 @@ GEOS's RectangleIntersection would grade its internal choices.
 - **PASS:** every PA row holds, and every control fails as stated.
 - **Anything else stops.** A control that passes is a blind instrument, and goes back to the orchestrator before the code is trusted.
 - **Parity's first run is its own check,** before the code PR. Its sha and output go in this record.
+
+**PARITY: ACCEPTED (16:40:13Z), with a degenerate-case suite added, registered here before anything runs.**
+
+**How much the real data exercises the touching paths:** **24** source vertices lie EXACTLY on a whole-degree cut inside the extent. All
+24 are on a meridian; none is on a parallel or a corner, and all are ocean (`parity/export-sources.py` 4aef18b68282; `sources.json`
+37e44482a988 holds 1,180 source polygons, the 2 ocean polygons and 1,178 lake parts from the 1,168 lakes, with 599,914 vertices). So
+the real cells barely test these cases, which is why the suite is synthetic.
+
+**The suite, PD-1 to PD-12.** The rectangle is [0, 1] × [0, 1], in degrees. **GEOS is the truth:** shapely `clip_by_rect` on the same
+input, at run time, with zero-area parts dropped as the dry run drops them. **Every case is graded by PA-2 to PA-5,** with the same
+tolerances. The island rule is not applied (the synthetic sizes are tiny), and holes are compared as GEOS returns them. The column
+"expected" is my own reading of the geometry, recorded so a disagreement is visible. **The grade is against GEOS, not against my
+reading.**
+
+| case | the input | expected (pieces, rings) |
+|---|---|---|
+| **PD-1**, a vertex on an edge, inside-touching | triangle (0.2, 0.2) (1, 0.5) (0.2, 0.8) | 1 piece (itself), 1 ring |
+| **PD-2**, a vertex on an edge, outside-touching | triangle (1, 0.5) (1.5, 0.2) (1.5, 0.8) | 0 pieces |
+| **PD-3**, an edge along the boundary, inside | square 0.5..1 × 0.3..0.7 | 1 piece (itself), 1 ring |
+| **PD-4**, an edge along the boundary, outside | square 1..1.5 × 0.3..0.7 | 0 pieces |
+| **PD-5**, a partial collinear overlap, crossing | (0.5, 0.3) (1, 0.3) (1, 0.5) (1.5, 0.5) (1.5, 0.7) (0.5, 0.7) | 1 piece, 0.5..1 × 0.3..0.7, 1 ring |
+| **PD-6**, touching only a corner, outside | square 1..1.5 × 1..1.5 | 0 pieces |
+| **PD-7**, touching only a corner, inside | square 0.5..1 × 0.5..1 | 1 piece (itself), 1 ring |
+| **PD-8**, a ring equal to the rectangle | (0, 0) (1, 0) (1, 1) (0, 1) | 1 piece, the rectangle, 1 ring |
+| **PD-9**, a hole touching the boundary along an edge | outer -1..2 × -1..2; hole 0.6..1 × 0.4..0.6 | 1 piece: the rectangle notched (the hole opens onto the edge), 1 ring |
+| **PD-10**, a hole touching the boundary at one vertex | outer -1..2 × -1..2; hole triangle (0.6, 0.4) (1, 0.5) (0.6, 0.6) | 1 piece; **rings 2 (a hole touching the shell at a point) or 1 (a notch): GEOS decides**, and PA-3 follows it |
+| **PD-11**, a ring containing the rectangle, with a hole crossing it | outer -1..2 × -1..2; hole 0.5..1.5 × 0.3..0.7 | 1 piece: the rectangle notched by the hole's part, 1 ring |
+| **PD-12**, the rectangle inside a hole | outer -2..3 × -2..3; hole -1..2 × -1..2 | 0 pieces |
+
+**Graded:** PD-1 to PD-12 each pass PA-2 to PA-5 against GEOS. **Recorded:** my "expected" against GEOS's answer, case by case.
+- **Any PD case failing stops parity before the real run,** and is fixed only once the case is recorded.
+- **A disagreement between my reading and GEOS** is recorded and is not a stop; GEOS is the truth. PD-10 is the case I expect could
+  go either way.
+
+**The order:** the PD suite with C-SELF first, then the controls (each shown failing), then PA-1 to PA-5 over the 2,584 real cells.
