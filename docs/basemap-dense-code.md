@@ -3210,3 +3210,45 @@ broken, which makes this a process failure and not a reading.
 
 **Run 10's pin, corrected: `p2-read.py` 7ad9bcdbb63a** (the aborted 9eaf229657ec is kept as `p2-read.run10-aborted.py`). The
 re-registration above is unchanged. Run 10 goes from the top when the orchestrator says go.
+
+**GO (19:30Z).** The guard's two rows are named rows, not "everything else": the control must read 8,191 px and 0.885972, and the
+guard must pass at 0.886081.
+
+**Run 10 (19:30:23-19:34:40Z; `p2-read.py` 7ad9bcdbb63a, pins re-verified before the start; output fffce461d302): PASS.
+"every stop row held": 159 rows as predicted, 0 off.**
+- **Every row through KB8 reads as run 9's.** That includes the (B') rows at the 16 and (C).
+- **The KSEA guard's control: RED,** 8,191 px and 0.885972. **The guard passes at 0.886081.**
+- **KB4 at all six airports: run 9's numbers exactly,** to 4 decimals, complement, scope, d* and source included. That also covers
+  step 0's index rebuild after the aborted attempt.
+- **KB5, the first time it has run end to end:**
+  - its plant landed: (a) that one line, (b) 21 px in the reference render;
+  - **the control: the moved C++ differs from the unmoved Python by 21 px;**
+  - **the main row: the C++ FillRing equals the Python renderer, 0 px** (17,043 water px);
+  - **the pair: moved C++ against moved Python reads 0 px, the same as the unmoved pair.**
+  - **The open alternative is now EXCLUDED:** the C++ reads its input, because the moved C++ differs by exactly the Python's 21 px.
+- **KB7-a and KB7-b, first run:** their (b) controls fail (rel 0.50 / 0.94 / 0.47 / 0.61). Lake Erie, Lake Champlain, Falcon Lake
+  and Amistad Reservoir are each selected, and their pieces equal the NE lake (rel ≤ 1.9e-15).
+- **KB7-c-real, first run:** every border-lake piece in view is DRAWN, at BUFFALO, ROUSES and ZAPATA.
+- **P2-M, first run:**
+  - the 8 MiB plant control holds: cell +7.95 MiB, later phases about -0.08;
+  - **the sea's memory, recorded:** at most +0.99 MiB at any phase (KSEA's layers), +0.81 at New York;
+  - every peak is 34.5 to 74.8 MiB, under the 96 MB stop.
+- **The pictures** (BUFFALO, ROUSES, ZAPATA), to the owner unopened: `C:\Github\_handoffs\map-server\part2-run10-pictures\`,
+  BUFFALO 7cde06eecf7c, ROUSES fe51d5ee2652, ZAPATA 67960a146809.
+- **VISIBLE COSTS (to the owner, not stops): the sea layer against the no-sea build:**
+  - KBOS: rung 3 → 4; dropped.water 0 → 45; dropped.roads 11,710 → 11,718; secondaries kept 8 → 0; non-sea rings 222 → 180.
+  - KJFK: dropped.water 44 → 86, non-sea rings 119 → 79. KLGA: 75 → 116, rings 83 → 44. KEWR: 116 → 141, rings 35 → 14. MIDTOWN:
+    82 → 120, rings 75 → 39.
+  - Secondary roads kept: KSFO 719 → 640, KSEA 342 → 209, KORD 276 → 267, KDTW 386 → 349, KMSP 18 → 15, KIND 335 → 324, BUFFALO
+    949 → 881, ROUSES 913 → 838.
+
+**Part 2's rows are now all run, and every one reads as registered.** On record from the runs that stopped:
+- run 7: the bridge count (my miss; re-registered by the owner);
+- run 8: Seattle, the named exception, by the owner's ruling;
+- run 9: KB5's plant site (my miss; re-registered);
+- run 10's first attempt: the dropped guard block (my miss; restored and proven).
+
+Still owed before the code PR:
+- why the Whitefish Bay hole's start vertex and the triangles' order differ between steps 1 and 2, and the ingest's determinism run to
+  run (17:14:50Z);
+- the owner's verdict on the pictures, which decides the conditional Puget Sound item.
