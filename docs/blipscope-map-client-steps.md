@@ -3384,6 +3384,15 @@ graded figures. That is the measured cost of a fetch, the number (iii) asked for
 **This push's guards, in their corrected form.** The HEAD check and the previous run's completion are PowerShell
 statements that `throw`, run before the `&&` chain of process checks. They are not links in it.
 
+**The CI for `73351313` (docs only), as read** (finished about 07:50Z). Every item read as predicted:
+- 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed;
+- every leg's checkout reads `2526eb2 Merge 73351313… into f3fee349…`;
+- `ota-identity`: the table equals the fleet;
+- both host legs: OTA identity 22 / 0, OTA model `9 rows; 18 checks, 0 failures`, OTA install 42 / 0; MapDraw 11 / 0,
+  MapPlaces 32 / 0, MapCompose 26 / 0; `40 driver(s): 39 run, 1 skipped`; lint 40 / 0 / 3; compose 15, draw 18 and
+  places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
+- the mapbench leg: the gate reads `found 0 1 PASS`, and the markers are as before.
+
 ## Step C: the wedge's green added to the map (design, registered before code; 2026-11-12)
 
 **What is fixed already.**
