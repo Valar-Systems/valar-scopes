@@ -1563,3 +1563,91 @@ only, never the token):
 - **Storage:** the account holds **3.452 GB** today. `blipscope-basemap` is 1.761 GB in **11,040 objects, the same 11,040 this file
   counted from the index and the manifest.** With the old store kept for rollback and the new one added (about 1.762 GB), the total is
   **about 5.21 GB, under the 10 GB free tier: $0 a month.**
+
+## The addendum, part 2: the sea's rows, registered (frozen before they run; the tooling's sha256s follow in a pinning addendum)
+
+**The prototype is pq4d**, built and self-checked as tooling; nothing graded has run.
+- `mk-pq4d.mjs` (`640d557d426e`) is `mk-pq4c.mjs` plus `mk-pq4d-sea.part.mjs` (`ff7043ec19e2`). Every anchor matched exactly once.
+- `sea.ts` (`026da6c00aa4`, byte for byte the part file) holds the sea path. `store.ts` (`ae746468ba65`) gains kind `sea` = 6, and
+  `provenance.ts` (`21410811e7f9`) gains the `sea` layer after `water`.
+- `layers.ts` (`2c88da1f3b58`) keeps and draws the sea parts. `build.ts` (`06773fa5dcd1`) routes them to the ε, × 2 and × 8 water sets,
+  and `budget.ts` (`e5eb9c2c2cbe`) carries the drawn set's sea figures.
+- The self-check (`pq4d-selfcheck.mts` `5fa0b7b410d7`): the modules import, and a kind-6 feature round-trips through the feature and cell
+  codecs.
+
+**The sea path, per piece** (#616's order):
+1. clip the outer and the holes to the square;
+2. drop holes now under 1.5 km²;
+3. tp, the backstop and quantise, through the water path's own function;
+4. bridge each hole, largest first, through the nearest (hole, ring) vertex pair whose segment properly crosses no edge, 2 vertices per
+   bridge;
+5. the backstop on the bridged ring.
+
+Each piece's FATE (drawn, refused, collapsed, outside, or dropped by the ladder) is reported by its source key, with the drawn set's
+counts and the sea's exact package bytes.
+
+**Plants,** behind `Q4_SEAPLANT`:
+- `nobridge`: the islands sent as their own rings;
+- `cross`: the nearest pair taken without the crossing test, and the bridged ring's backstop skipped, so that KB2 sees the crossing
+  rather than the backstop hiding it;
+- `order`: bridge before simplifying;
+- `seam`: odd-numbered pieces moved by **13 quanta**, about one closest-zoom pixel.
+  - **A change from #616's "one quantum", flagged:** one quantum is about 5 m against the closest zoom's 67 m pixel. Sub-pixel, it would
+    flip almost no pixel, which is the plant-size lesson of 23:55Z.
+
+**Step 0, before any row: the inputs.**
+- **Zapata's** cells and tiles are fetched READ-ONLY from `blipscope-basemap` (store `4c0875738f38`) into scratch `zap-obj`, exactly as
+  `lake-fetch.mts` did: cells by byte count against the index, tiles by sha256 against the manifest. Nothing is written to R2.
+- Then **`mk-sea-store.mts`** (`1eb7e96e1d99`) builds the scratch store `sea-obj` for the 16 homes: the 13 points, Buffalo, Rouses Point
+  and Zapata. It takes:
+  - the dry run's pieces as kind-6 features, under two scratch sea files that sort last;
+  - each touched cell re-encoded to its own bytes first;
+  - the sea-only cells, two sea regions, and a new manifest and `current`.
+
+  Any needed cell or tile that no local source holds stops it.
+
+**The rows.** Knobs, unless stated: `Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`, `Q4_PROV=1`, `Q4_SEA=1`.
+
+| row | what | predicted |
+|---|---|---|
+| **P2-0** (inert) | pq4d with `Q4_SEA` and `Q4_PROV` unset, B's knobs, on `bm-obj` (no sea layer), at the 13 | **byte-identical to QW4-1's 13 shas** |
+| **T-SEA0-real** (no sea layer, no sea) | pq4d with `Q4_SEA=1`, against `Q4_SEA` unset, both with `Q4_PROV=1`, on `bm-obj`, at the 13 | **byte-identical, pair by pair** |
+| **T-SEA0-ci** | a synthetic store with no sea layer, and the same store with one added | without: no sea ring, no sea PROVENANCE lines. **The control: with the layer,** the package draws the sea's rings and reads the sea layer |
+| **P2-1** (QW4-2) | the full knobs on `sea-obj`, at the 16 | every package `kOk`; **0 proper crossings in every ring** (bridges are contacts). The 9 fit at 162 km and New York at 129.6 km, as QW4-1 (else a VISIBLE COST, named to the owner, not a stop). Each home's sea fates, `islandsDropped` and sea bytes are recorded |
+| **KB2** | P2-1's sea rings | **0 proper crossings** (the row above). **Its plant (S-KB-CROSS)** is run on the KB1 store with a hole whose nearest pair crosses another hole: KB2 must read ≥ 1 |
+| **KB3** | P2-1 at KBOS, KJFK, KLGA, KSEA, KSFO and KMIA | **sea bytes ≤ 3,072** in each package (the format's own varint cost of the drawn sea rings) |
+| **KB1** | a synthetic sea square with 3 islands, one touching the square's edge, through pq4d's sea path | the drawn ring rasterised by FillRing's rule against a reference raster of the same quantised outer and holes by even-odd, unbridged, at 240 × 240, at view radii r, r/2 and r/4 with 8 rotations: **0 differing pixels in all 24.** **Controls:** S-KB-NOBRIDGE differs by at least each island's pixel area; S-KB-ORDER differs (a bridge with width) |
+| **KB4** (terrain, an independent truth) | P2-1's sea rings at each coast airport (KBOS, KJFK, KLGA, KSEA, KSFO, KMIA), on the 162 km level's grid (242 px) | **at least 95%** of the mask's pixels read ≤ 0 m from the store's own terrain, AND the mask covers **at least 90%** of the 0 m pixels outside TIGER's water. **The control:** the mask moved 2 km inland must fail at least one |
+| **KB5** (the device's code) | Weatherscope's C++ `FillRing` (`WxBasemap.h`), built on the host (WSL Ubuntu 24.04), drawing KJFK's P2-1 package's water | **0 differing pixels** against the Python FillRing-rule renderer on the same rings. **The control:** one ring's vertex moved one pixel must differ |
+| **KB8** (the seam, new: KB5 compares renderers and can't see a seam) | P2-1 at KJFK and KBOS, at the closest zoom, along every 1° cell edge crossing the source sea | **0 undrawn pixels within 1 px of a cell edge where the pixels on both sides are drawn sea.** **The control:** S-KB-SEAM (13 quanta) must read ≥ 1 |
+| **KB7-a** | a synthetic lake crossing a synthetic border, inside one cell, and one wholly inside the synthetic US, through the dry run's cut | the border lake's pieces together equal it (area within 1e-9 relative); the inside lake has none. **The control:** a (b) cut, the lake minus the US, must fail |
+| **KB7-b** | the dry run's pieces | **Erie, Champlain, Falcon and Amistad** are selected, and each one's pieces together equal the NE lake within the extent's cells (1e-9 relative). **The control:** (b) geometry must fail |
+| **KB7-c-real** | P2-1 at **Buffalo, Rouses Point and Zapata** | **every piece of a border lake intersecting the closest-zoom view (8.04672 km) is DRAWN**: no refused, collapsed or dropped. **The control (CI-style, synthetic):** a 4-vertex bowtie lake piece reads `refused` ≥ 1 |
+| **P2-M** (the sea's memory) | pq4d on `sea-obj` with and without `Q4_SEA`, at the 16, with QW4's memory instrument (one process per call, `--expose-gc`, the controls, settled samples) and its 8 MiB plant control | **RECORDED** as differences per point and phase. They become the code PR's sea-memory predictions, ± 0.785 MiB. **None over 96 MB** (a stop). The plant must read +8 ± 0.785 in the cell phase, or the instrument is blind |
+
+**Pictures:** the closest zoom at Buffalo, Rouses Point and Zapata from P2-1, written for the owner, as ruled at 03:56Z.
+
+**For the code PR,** registered now, run with it:
+- **PARITY** (the 04:20:51Z ruling): its TypeScript ingest produces the SAME pieces as the dry run over all 2,584 cells: piece counts,
+  ring counts, and areas within 1e-6 relative. **The control:** one piece's area altered must fail it.
+- **A NEW DEPENDENCY,** if the ingest needs a polygon clipper, is named with its licence and version pin, for the orchestrator. The
+  alternative is a hand-written rectangle clip that passes PARITY.
+- **The reader sweep gains two entries** (04:2xZ):
+  - `ingest-basemap.ts`'s `tileBitsCmd` finds the ocean zip by its layer, "naturalearth". So the ocean stays one manifest entry, and the
+    tile-bits lookup learns the sea layer;
+  - **a manifest cannot list one url twice,** so the prototype's two scratch sea urls are not the code PR's entries.
+- **PROVENANCE's sea lines:** the prototype writes `collapsed.sea` and leaves `dropped.sea` at 0, counting the ladder's sea drops in
+  `dropped.water`. The code PR separates them, as `seaDropped` on `bm_build` already does.
+
+| outcome | meaning | next |
+|---|---|---|
+| a step-0 failure, a crash, or an instrument control blind | the tooling, not the sea | **stop**; nothing graded |
+| **P2-0 or T-SEA0 off** | pq4d is not inert, or a no-sea store draws sea | **stop** |
+| **a proper crossing in P2-1, KB1 off, or KB8 seam > 0** | the sea path draws badly | **stop and report** |
+| a radius other than QW4-1's | **a visible cost of the sea,** named to the owner before the code | reported; the run goes on |
+| KB3 over 3,072 bytes | the sea costs more than #616 allowed | **stop and report** |
+| **KB4 under its bounds** | the mask disagrees with the terrain | **stop and report** |
+| **KB7-c-real: a border-lake piece not drawn** | land across a border lake | **stop and report**, with the piece's key and fate |
+| **a later picture with spill clearly beyond the normal error** | the owner's condition | **to the owner** |
+| **a build over 96 MB** | | **stop** |
+| **anything else** | | **stop and report** |
