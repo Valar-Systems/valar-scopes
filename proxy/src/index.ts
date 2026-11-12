@@ -29,6 +29,7 @@ import { errorResponse, jsonResponse } from "./util";
 import { handleWx, wxHealth } from "./wx/handler";
 import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS, ROUTED } from "./wx/products";
+import { handleWeatherscope, weatherscopeHealth } from "./weatherscope/handler";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
 // HMAC-derived key that is only valid when presented with the X-Blip-Device id
@@ -93,7 +94,8 @@ async function handleHealth(env: Env): Promise<Response> {
   // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
   // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
   // is bound.
-  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env) });
+  return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env),
+                        weatherscope: weatherscopeHealth() });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
@@ -120,14 +122,22 @@ const API_PREFIX = `/api/v1/${EDITION}/`;
 const API_LEGACY_PREFIX = "/v1/";
 const PAGE_PREFIX = `/${EDITION}`;
 
+// Weatherscope's APIs (docs/weatherscope-stage4.md S4.11.4, Q116): a THIRD prefix, named, never a pattern over
+// /api/v1/<any>/ (missileer.ts's rule). It carries its edition, so a Weatherscope suffix can only reach Weatherscope's
+// handler and a Blipscope suffix only Blipscope's. /v1/ stays Blipscope-only alias space.
+const WEATHERSCOPE_API_PREFIX = "/api/v1/weatherscope/";
+
 // Reduce either API prefix to the bare endpoint ("blips", "enrich/<hex>"), so
 // dispatch below happens ONCE against the suffix. Structural rather than a
 // duplicated route table: an alias cannot drift from its new path, because there
 // is only one of each handler call and both prefixes reach it the same way.
 // Returns null for anything that is not an API request at all.
-function apiEndpoint(pathname: string): { suffix: string; legacy: boolean } | null {
-  if (pathname.startsWith(API_PREFIX)) return { suffix: pathname.slice(API_PREFIX.length), legacy: false };
-  if (pathname.startsWith(API_LEGACY_PREFIX)) return { suffix: pathname.slice(API_LEGACY_PREFIX.length), legacy: true };
+function apiEndpoint(pathname: string): { edition: "blipscope" | "weatherscope"; suffix: string; legacy: boolean } | null {
+  if (pathname.startsWith(API_PREFIX)) return { edition: EDITION, suffix: pathname.slice(API_PREFIX.length), legacy: false };
+  if (pathname.startsWith(WEATHERSCOPE_API_PREFIX)) {
+    return { edition: "weatherscope", suffix: pathname.slice(WEATHERSCOPE_API_PREFIX.length), legacy: false };
+  }
+  if (pathname.startsWith(API_LEGACY_PREFIX)) return { edition: EDITION, suffix: pathname.slice(API_LEGACY_PREFIX.length), legacy: true };
   return null;
 }
 
@@ -178,7 +188,7 @@ async function route(
   // POST is accepted ONLY for the leaderboard submit (authed below); every
   // other route is GET. Keyed off the normalized suffix so the legacy path
   // POSTs exactly as the new one does.
-  const isLeaderboardSubmit = api?.suffix === "leaderboard" && request.method === "POST";
+  const isLeaderboardSubmit = api?.edition === EDITION && api.suffix === "leaderboard" && request.method === "POST";
   // Enrollment POSTs too, and it is NOT an `api` route: it sits above the auth
   // gate on purpose, because a board with no key yet is the caller it exists
   // for. Listed here rather than moved above this line so that every method
@@ -386,6 +396,10 @@ async function route(
   // latest firmware has never been able to report a reboot at all. See
   // recordBoot() for why that stops being tolerable in v11.
   recordBoot(env, request.headers.get("X-Blip-Boot"), meta.model, meta.fw ?? "", meta.dev);
+
+  // Weatherscope's routes, by edition, ahead of Blipscope's table (S4.11.4). Past the shared block above, so its boards'
+  // boot, OTA and usage rows are recorded exactly as a radar board's are (S4.13, WS22).
+  if (api.edition === "weatherscope") return handleWeatherscope(request, api.suffix);
 
   // Dispatch on the normalized suffix: one call site per handler, reached
   // identically from /api/v1/blipscope/<x> and the deprecated /v1/<x>. Same

@@ -1,0 +1,17 @@
+{
+ "properties": {
+  "updateTime": "2026-01-15T10:05:00+00:00",
+  "periods": [
+   {
+    "name": "Today",
+    "startTime": "2026-01-15T06:00:00-06:00",
+    "isDaytime": true,
+    "temperature": -9,
+    "probabilityOfPrecipitation": {
+     "value": 70
+    },
+    "shortForecast": "Snow"
+   }
+  ]
+ }
+}
