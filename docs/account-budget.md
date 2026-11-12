@@ -209,3 +209,8 @@ centre every 2 s, however many listen. The read will say plainly what it cannot 
 - **The baseline** is #667's head run (docs only): 32 = 29/3/0.
 - **The build commit adds `account-budget.yml`,** whose one job runs when its paths change. That commit is predicted at
   **33 = 30/3/0**, registered again before its push.
+- **Re-predicted 2026-11-12 19:07Z, before the build's push, for a job-set change on main:** #675 (main `099f1946`)
+  makes `ship-alert` run report-only on every PR. A docs-only PR is now **32 = 30/2/0** (the reviewer's announcement,
+  19:06:30Z). So:
+  - **the build commit: 33 = 31/2/0;**
+  - every head already pushed (`86a7930b` to `6dca0e6d`) finished under the old set at 32 = 29/3/0, as predicted then.
