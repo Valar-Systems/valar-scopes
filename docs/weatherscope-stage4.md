@@ -1822,3 +1822,52 @@ as GameConfig's and the usage report's "no ArduinoJson under .pio/libdeps". WSL'
 
 **So the authoritative host run is CI's,** whose Linux host-tests job installs these. **The PR goes up (ruled 05:49Z, E),** with its CI
 predicted as S4.21: 34 = 30 / 4 / 0, its tested merge named from a job's checkout log.
+
+### S4.25, 2026-11-12: W4 is approved; its rows re-read against main, and its price re-done on cref's measured CPU
+
+**Ruled, in the owner's words, relayed by the reviewer at 17:13:24Z:** "US radar (SeamlessHSR): yes. Weatherscope's W4 may start."
+The owner also raised the overage allowance to **$10 a month**, which covers Europe plus SeamlessHSR at about $5.70-5.90.
+- **Sequencing (the reviewer):**
+  - #656 comes first, because it is on v20's critical path. W4 runs alongside it, never ahead.
+  - W4's deploy needs a slot from the reviewer, and none runs during map-client's bench window on E2:08 (to about 19:30Z).
+  - Anything that would project the account past $10 a month goes to the reviewer before it ships.
+- **Q113's condition is met:** blipscope-5c's read in S4.13 found no conflict, and no released image asks for `/wx/shsr`.
+
+**The price, re-done.** S4.12.2's CPU line was 0.8 to 1.2 times a design estimate. This one uses cref's MEASURED ingest CPU,
+**21.9-28.2 M ms a month** (uk-data's `cpu_split`, 11-11 and 11-12), and uk-data's S3-7 read of Class A. It uses
+`account_cost_read.py`'s `PRICE`:
+
+| `shsr`'s line | Read P (proportional) | Read A (R2 in whole millions) |
+|---|---|---|
+| CPU: 21.9-28.2 M ms at $0.02 a million. The account is past its included 30 M, so all of it bills | $0.44-$0.56 | $0.44-$0.56 |
+| Class A: about 0.131 M a month (cref's measured 182 an hour) | $0.59 | **$0 while OPERA runs**: the account goes from about 1.10 M to 1.23 M, inside the second million. **$4.50 in a month OPERA is down**: from 0.955 M to 1.09 M, so `shsr` makes the crossing itself |
+| Requests (43,200), Logs (about 130 k events), storage | $0: inside the included amounts | $0 |
+| **`shsr`, a month** | **$1.03-$1.15** | **$0.44-$0.56; $4.94-$5.06 in a month OPERA is down** |
+
+- **What this table is:** `shsr`'s increment only. The account's whole overage against $10 is uk-data's read, which the
+  reviewer holds.
+- **X10, after the deploy:** it reads the Worker's own CPU per invocation and its Class A. A reading outside this table
+  re-prices it before anything else ships.
+
+**Re-read against main at `71156714ba44`.** S4.12's rows were written at `e0941a90c4e4`.
+- **uk-data's `/healthz` change has merged (#643).** `wxHealth(env, PRODUCTS, ROUTED)` lists every `PRODUCTS` row with
+  `routed` and `stale`. X5's shape exists on main, and W4 adds no health code, as registered.
+- **`ROUTED` is still `{cref, opuk}`.** `shsr` stays out of it, as registered.
+- **`PRODUCTS` is 11, and becomes 12 with `shsr`.** Every reader of the count, found by grepping the bare number across
+  `proxy/test` and `proxy/scripts`:
+
+  | reader | today | with W4 |
+  |---|---|---|
+  | DP2, `wx-dev-products.test.ts:83` ("exactly the 11") and its id list | 11 | 12, `shsr` last |
+  | PS1, `wx-ingest-dev.test.ts:20` and `:24` | 11 | 12 |
+  | **`wx-endpoint.test.ts:170`, `/healthz`'s `wx` keys. New since S4.12, from #643** | 11 | 12 |
+  | FX, `wx-ingest-split.test.ts:124`: the tomls' whole lists | cref + ten OPERA envs | gains `[env.shsr]` and `[env.shsr-inert]` |
+  | `check-wx-plant.mjs` PB2: "the dev config's 11 deploy targets" | 11 | **unchanged**: W4 adds no dev target. If the code adds one, PB2 moves, and that is a new prediction |
+  | `wx-region.test.ts:152`, OPERA's 10 | 10 | unchanged: `shsr` is MRMS |
+
+  So X11 gains `wx-endpoint.test.ts:170`. Every other row of S4.12.4 and S4.12.5 stands as written.
+
+**Next for W4,** worked whenever #656 waits on a build or on CI:
+1. The code, on a branch from main, under S4.12.3-S4.12.5 and this re-read, with CI predicted before the push.
+2. X9, the look, read before the PR.
+3. The deploy only on the reviewer's slot, through `ingest_deploy.sh` under the claim, `[env.shsr-inert]` first.
