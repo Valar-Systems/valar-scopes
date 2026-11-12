@@ -314,6 +314,33 @@ first").** A new measurement, not a re-run of C2.
   - the result sent to the reviewer.
 - **Outside the set, at any step: stop and report.** The window ends there, with E2:08 left on C'.
 
+**Step 4' on C', the result: PASSED, 10 of 10, as predicted** (the owner's window, opened on his words stamped 2026-11-12
+03:04Z; run 03:38Z to 03:57Z).
+- **W1, the flash:** as recorded above. The image is a rebuild, `abc34056c95f`, ruled (i). "Rebuilt nothing" is my miss.
+- **W2, the capture:** attached 03:44:50Z, ended at the cut ("port dropped ... NOT reopening") at 03:50:30Z, and never
+  reopened. No `--collect`.
+- **Step 1 (03:45:36Z to 03:45:38Z):** the UI's "selected" and "confirmed on device" lines, then `[reset] tier=factory
+  cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac`. **The frozen addition is met.**
+  - The post-reset banner: `[build] env=blipscope-s3-128 fw=v19 features=cloud cloud=https://scopes.valarsystems.com`, reset
+    reason SW.
+  - `[logbook] loaded 0 types (0 claimed), ...` printed after the Wi-Fi join, because the portal blocks `setup()` before the
+    logbook loads.
+- **The cloud key survived, as predicted.** `[cloud] no key override; using the factory-provisioned key`, then an
+  authenticated config fetch.
+- **Steps 3 and 4:** `[claim] R22 claimed (1/2 types)` at 03:48:54Z. The probe's first `/logbook.json` after the claim read
+  CLAIMED (http 200, first view) at 03:49:07Z, and then the owner opened Collection.
+- **Step 5, the cut, by the owner's choice:**
+  - E2:08's hub port 3 OFF at 03:50:30Z and ON at 03:50:41Z, each confirmed by the tool's state read.
+  - The page after the cut read CLAIMED (4 tries).
+  - **The boot after the cut, at the Worker:** one row, POWERON at 03:51:05Z, read twice 30 s apart. Before the cut: USB at
+    03:42:12Z (the flash) and SW at 03:48:09Z (the portal's restart).
+- **Step 6:** the logbook OFF on the config page, and R22 still on Collection (CLAIMED).
+- **Boots:** n=1 (POWERON), with 2 anchor rows before the cut, so ONE_POWERON.
+- **`--assert-only`: `10 passed, 0 failed`.** The ten checks are the ten named above. The script's info line gives the first
+  save after the claim, the same second as the claim.
+- **E2:08 ends on C'** (`abc34056c95f`), with the owner's Wi-Fi and location set. The logbook is OFF, as he left it after
+  step 6. Nothing held its port afterwards, and the reservation was released at 03:56:59Z.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
