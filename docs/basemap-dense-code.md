@@ -1871,3 +1871,40 @@ an unpinned store and **voids every row after step 0**: stop and report.
 
 - **The driver re-runs from the start, unchanged** (`p2-read.py`, 7e9828547270), against the predictions above: every row before
   T-SEA0-ci's control as it read; that control at **6** sea lines; P2-0 and T-SEA0-real unchanged.
+
+**Run 2 (05:14:28-05:14:34Z): T-SEA0-ci's control AS PREDICTED; STOPPED at KB1.**
+- **Step 0 as in run 1. The three rows before KB1 as before.** T-SEA0-ci's control now reads **rings 1, sea lines 6**, as predicted.
+- **The KB2 and KB1 controls:** KB2's control gave crossings 4, and KB2 itself 0 crossings with 2 bridges. S-KB-NOBRIDGE differs by
+  20,818; S-KB-ORDER by 26. All AS PREDICTED.
+- **KB1: OFF-PREDICTION.** It found **26 differing pixels**, where 0 were predicted, in 4 of the 24 views: (162 km, 90°) 14, (162 km, 270°)
+  6, (81 km, 0°) 5 and (40.5 km, 0°) 1. Nothing after KB1 ran.
+
+**The cause, read after the stop** (diagnostics `kb1-diag.py` a32f673e608e, `kb1-diag2.py` e247ab943de8 and `kb1-diag3.py`
+f88dded3e379; none is a graded row):
+- **All 26 pixels are on one side,** filled by the reference and missed by the drawn ring. **Every one has its centre exactly on a bridge**
+  (distance 0.0 px). The drawn ring is outer 4 + islands 3 × 4 + bridges 3 × 2 = 22 vertices, as the path intends.
+- **The mechanism.** A bridge is crossed twice, once in each direction, and each crossing is computed from the edge's FIRST endpoint:
+  `xa + (py - ya) * (xb - xa) / (yb - ya)`. Where the line passes exactly through a pixel centre, the two passes give the centre and the
+  centre plus 1.4e-14 (2.8e-14 in the second view). Then `ceil(c - 0.5)` ends one span before the pixel and starts the next span after it,
+  and **the pixel is lost.**
+- **The alternative, that the bridge geometry is wrong, is EXCLUDED.** With every crossing computed from the edge's lower-y endpoint, so
+  both passes give the same double, KB1 reads **0 in all 24 views.**
+- **This is the DEVICE's arithmetic, not only the renderer's.** Weatherscope's `FillRing` (`WxBasemap.h:80-120` at 525cf7d1725d, extracted
+  verbatim into `kb5.cpp`) computes the crossing with the same first-endpoint formula, in double. On the glass, then, a zero-width bridge
+  through a pixel's centre leaves that pixel undrawn. In the synthetic case, with its 45° bridges on round coordinates, that is a 14-pixel
+  line in one view. In real data it needs an exact alignment, so it should be rare, but it is not excluded.
+- **S-KB-ORDER's control is BLIND on this input.** With lower-endpoint crossings, the order plant's ring against the tested reference
+  differs by **0**. Its "differs, 26" came entirely from the artefact above. The plant bridges before simplifying, which should give the
+  slit width. KB1's rings are 4-vertex squares that simplification leaves unchanged, so the slit stays at zero width and the plant changes
+  no pixel.
+
+**For ruling** (nothing applied; both are first off readings on their rows):
+1. **KB1.** It cannot read 0 under the device's fill as it stands, so either:
+   - **(a)** `FillRing` computes each crossing from the edge's lower-y endpoint. This is a one-line change to Weatherscope's device code,
+     outside this session's lane: it needs that code's owner and the firmware gate, and it changes pixels customers see, though only
+     pixels whose centre is exactly on an edge. `p2-render.py` and `kb5.cpp` would then mirror it.
+   - **(b)** KB1 is re-registered to accept pixels whose centre lies exactly on a bridge, as a visible cost. This would be registering a
+     tolerance after the result, and I do not recommend it.
+   - A builder-side fix is not available: the pixel grid depends on the device's zoom, rotation and home, which the builder never knows.
+2. **S-KB-ORDER.** A new synthetic input on which simplification moves vertices, for example squares carrying sub-ε wiggles, so that
+   bridging first gives the slit width. Its predicted difference would be registered before any re-run, with a lower-endpoint fill.
