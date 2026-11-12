@@ -78,9 +78,9 @@ describe("W1: every OPERA product's window, with its stated overrun", () => {
 });
 
 describe("DP: the products, and the dev copy's", () => {
-  const IDS = ["cref", "opuk", "opis", "opib", "opmt", "opwe", "opce", "opse", "opba", "opsw", "opsn"];
+  const IDS = ["cref", "opuk", "opis", "opib", "opmt", "opwe", "opce", "opse", "opba", "opsw", "opsn", "shsr"];  // W4: shsr last
   const clean = (list: readonly Product[]) => JSON.stringify(list.map((p) => p.id)) === JSON.stringify(IDS);
-  it("DP2: PRODUCTS is exactly the 11, in rule order, and DEV_PRODUCTS is empty", () => {
+  it("DP2: PRODUCTS is exactly the 12, in rule order, and DEV_PRODUCTS is empty", () => {
     expect(clean(PRODUCTS)).toBe(true);
     expect(DEV_PRODUCTS).toEqual([]);
   });

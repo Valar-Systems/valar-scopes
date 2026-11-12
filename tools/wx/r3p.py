@@ -1,9 +1,11 @@
 """R3' (docs/wx-opuk-split.md §3, + R3'-pre): the per-Worker Logs reads. Read-only; tokens from the token file, never
 printed. Services: blipscope-wx-ingest (cref) and blipscope-wx-ingest-opuk (opuk).
 
-  python -I r3p.py lines <service> <from ISO> <to ISO>
-      product lines by product (R3'-pre, R3'-9); cref's :00/:30 per minute and minutes with an error line (R3'-2's
-      log half); opuk's statuses, errors and `pruned` by status, and the first storing check's `pruned` (R3'-5a, R3'-7)
+  python -I r3p.py lines <service> <from ISO> <to ISO> [--minutes <product>]
+      product lines by product (R3'-pre, R3'-9); <product>'s :00/:30 per minute and minutes with an error line (R3'-2's
+      log half), cref by default; opuk's statuses, errors and `pruned` by status, and the first storing check's `pruned`
+      (R3'-5a, R3'-7). W4 (docs/weatherscope-stage4.md S4.12.3): `--minutes shsr` for blipscope-wx-ingest-shsr. With
+      cref, the output is exactly what it was, keys and all; another product's keys are named `<product>_minutes_*`.
   python -I r3p.py cpu <service> <product> <from ISO> <to ISO>
       R3'-6 from Workers Logs invocation records: outcomes; single-build invocations (exactly one `stored` frame, no
       `backfilled`) median/max; the rest (no frame built) median; backfill/multi-build invocations printed beside;
@@ -82,6 +84,11 @@ def events(service, a_ms, b_ms):
 mode = sys.argv[1]
 if mode == "lines":
     service, a, b = sys.argv[2], sys.argv[3], sys.argv[4]
+    mp = "cref"
+    if len(sys.argv) > 5:
+        if len(sys.argv) != 7 or sys.argv[5] != "--minutes":
+            sys.exit("usage: r3p.py lines <service> <from ISO> <to ISO> [--minutes <product>]")
+        mp = sys.argv[6]
     evs, abr = events(service, ms(a), ms(b))
     abr = abr1(abr)
     by_product, minutes, statuses, pruned_on, errors, storing = {}, {}, {}, {}, [], []
@@ -110,16 +117,16 @@ if mode == "lines":
         if s.get("evt") == "wx_ingest_error":
             errors.append({"product": p, "at": hms(e["timestamp"] / 1000), "err": str(s.get("err"))[:80], "attempts": s.get("attempts")})
     span = range(ms(a) // 60000, ms(b) // 60000)
-    cref_both = sum(1 for m in span if {c for c, _ in minutes.get(("cref", m), set())} >= {":00", ":30"})
-    cref_one = sum(1 for m in span if len({c for c, _ in minutes.get(("cref", m), set())}) == 1)
-    cref_none = sum(1 for m in span if not minutes.get(("cref", m)))
-    cref_err = sum(1 for m in span if any(ev == "wx_ingest_error" for _, ev in minutes.get(("cref", m), set())))
+    cref_both = sum(1 for m in span if {c for c, _ in minutes.get((mp, m), set())} >= {":00", ":30"})
+    cref_one = sum(1 for m in span if len({c for c, _ in minutes.get((mp, m), set())}) == 1)
+    cref_none = sum(1 for m in span if not minutes.get((mp, m)))
+    cref_err = sum(1 for m in span if any(ev == "wx_ingest_error" for _, ev in minutes.get((mp, m), set())))
     storing.sort()
     row = lambda t, p, st, pr, pk: {"at": hms(t / 1000), "product": p, "status": st, "pruned": pr, "pruneKeys": pk}
     first_store = next((row(*s) for s in storing), None)
     print(json.dumps({"service": service, "window": [a, b], "abr_levels": abr, "events": len(evs), "lines_by_product": by_product,
-                      "minutes": len(span), "cref_minutes_both": cref_both, "cref_minutes_missing_one": cref_one,
-                      "cref_minutes_missing_both": cref_none, "cref_minutes_with_error": cref_err,
+                      "minutes": len(span), f"{mp}_minutes_both": cref_both, f"{mp}_minutes_missing_one": cref_one,
+                      f"{mp}_minutes_missing_both": cref_none, f"{mp}_minutes_with_error": cref_err,
                       "statuses": statuses, "pruned_on": pruned_on, "pruneKeys_on": prunekeys_on, "map_on": map_on, "mapPutErrors": map_put_errors,
                       "first_storing_check": first_store, "storing_checks": [row(*s) for s in storing],
                       "errors": errors}, indent=1))
