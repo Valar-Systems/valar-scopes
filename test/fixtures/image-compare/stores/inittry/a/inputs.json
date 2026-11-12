@@ -1,0 +1,14 @@
+{
+ "inputs": [
+  {
+   "path": "src/main.cpp.o",
+   "sha256": "0f7a2022f13ab21705df2cb70f8eba58c34b80054caebe26107b1c2b02dcefdc",
+   "copy": "src/main.cpp.o"
+  },
+  {
+   "path": "src/si.cpp.o",
+   "sha256": "b8a053f5f9f331165f94546f2b1e978a3b36f97ea77c07ac547d3ce82853ea58",
+   "copy": "src/si.cpp.o"
+  }
+ ]
+}

@@ -93,20 +93,23 @@ CASES = [
         "inputs: 2 loaded, 1 differ",
         "  differs: src/rod.c.o",
         "functions whose address moved: 0",
+        "CHANGED func global A+B f1 [src/rod.c.o] -- OUT",
         "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- OUT (named by: f1, f2)",
-        "verdict: OUT OF SCOPE: sec:.rodata (named by: f1, f2)"]),
+        "verdict: OUT OF SCOPE: f1, sec:.rodata (named by: f1, f2)"]),
     ("rodata", ["f1"], 1, [
         "inputs: 2 loaded, 1 differ",
         "  differs: src/rod.c.o",
         "functions whose address moved: 0",
+        "CHANGED func global A+B f1 [src/rod.c.o] -- in scope",
         "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- OUT (named by: f1, f2)",
         "verdict: OUT OF SCOPE: sec:.rodata (named by: f1, f2)"]),
     ("rodata", ["f1", "f2"], 0, [
         "inputs: 2 loaded, 1 differ",
         "  differs: src/rod.c.o",
         "functions whose address moved: 0",
+        "CHANGED func global A+B f1 [src/rod.c.o] -- in scope",
         "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- in scope (named by: f1, f2)",
-        "verdict: IN SCOPE (1 changed units)"]),
+        "verdict: IN SCOPE (2 changed units)"]),
     # amendment 1e: a function's exception table is part of the function. eh: handle grows and its table's call-site
     # offsets move -- handle alone. ehtype: only the catch type changes (EA -> EB) and the code is byte-identical --
     # handle still reads CHANGED, which is why the table is folded in rather than excluded like .eh_frame.
@@ -155,6 +158,38 @@ CASES = [
         "functions whose address moved: 0",
         "CHANGED func global A+B sw [src/sw.S.o] -- OUT",
         "verdict: OUT OF SCOPE: sw"]),
+    # amendment 1g: a static initializer's exception table (.text.startup.<name>) is part of it. The initializer is kept
+    # by no reference at this fixture's link, so it reads at the object layer: one line, not two.
+    ("inittry", None, 0, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/si.cpp.o",
+        "not linked: CHANGED _GLOBAL__sub_I_g_val [src/si.cpp.o]",
+        "functions whose address moved: 0",
+        "verdict: NO CHANGE"]),
+    # amendment 1h': an unsplit section's targets named by content. rodshift: f0's constant lands ahead of f1's -- f1
+    # moved, not changed (no line). rodown: f1's own constant changed -- CHANGED. rodswap: two byte-identical constants
+    # swap places -- content cannot tell them apart, so both read UNDECIDED, never same.
+    ("rodshift", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/rs.S.o",
+        "functions whose address moved: 2",
+        "NEW func global B f0 [src/rs.S.o] -- OUT",
+        "CHANGED data local A+B sec:.rodata [src/rs.S.o] -- OUT (named by: f0, f1)",
+        "verdict: OUT OF SCOPE: f0, sec:.rodata (named by: f0, f1)"]),
+    ("rodown", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/rs.S.o",
+        "functions whose address moved: 0",
+        "CHANGED func global A+B f1 [src/rs.S.o] -- OUT",
+        "CHANGED data local A+B sec:.rodata [src/rs.S.o] -- OUT (named by: f1)",
+        "verdict: OUT OF SCOPE: f1, sec:.rodata (named by: f1)"]),
+    ("rodswap", None, 3, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/rs.S.o",
+        "functions whose address moved: 0",
+        "UNDECIDED f1 [src/rs.S.o]: an unsplit-section constant whose bytes repeat in its section",
+        "UNDECIDED f2 [src/rs.S.o]: an unsplit-section constant whose bytes repeat in its section",
+        "verdict: UNDECIDED (2)"]),
 ]
 
 

@@ -199,8 +199,11 @@ class Obj:
         self.lsda_of, self.paired_lsda = {}, set()
         for i, s in enumerate(self.secs):
             if s.name.startswith(".gcc_except_table."):
-                fn = by_name.get(".text." + s.name[len(".gcc_except_table."):])
-                if fn is not None:
+                suf = s.name[len(".gcc_except_table."):]
+                # 1e: .text.<suffix>; 1g: a static initializer's .text.startup.<suffix>. Exactly one, or no pairing.
+                cands = [by_name[n] for n in (".text." + suf, ".text.startup." + suf) if n in by_name]
+                if len(cands) == 1:
+                    fn = cands[0]
                     self.lsda_of[fn] = i
                     self.paired_lsda.add(i)
         self.units = {}       # ident -> section index
@@ -306,8 +309,67 @@ class Obj:
             if ident in self.ambiguous:
                 raise Refusal("a target unit whose name repeats in its object: %s" % ident)
             refs.add(("U", self.input_id, ident))
+            if ident.startswith("sec:"):  # amendment 1h': an unsplit section, named by symbol or by content
+                return self.span_name(shndx, addend, depth)
             return "unit:%s%+d" % (ident, addend)
         raise Refusal("UNNAMED target: %s%+d" % (s.name, addend))
+
+    def span_name(self, si, addend, depth):
+        """Amendment 1h': a target in an unsplit section. (a) The symbol covering it, where one exists. (b) Otherwise its
+        CONTENT SPAN: the bytes from the target to the next distinct offset referenced anywhere in this object (or the
+        section's end), relocations inside named by the same table. A span whose content repeats at another offset of
+        the section cannot be told from its twin: UNDECIDED, never 'same'."""
+        for sym in self.syms:
+            if (sym["st_shndx"] == si and sym["st_info"]["type"] not in ("STT_SECTION", "STT_FILE") and sym.name
+                    and not sym.name.startswith(".L") and sym["st_value"] <= addend < sym["st_value"] + max(sym["st_size"], 1)):
+                return "sym:%s%+d" % (sym.name, addend - sym["st_value"])
+        if depth > 2:
+            raise Refusal("an unsplit-section span that names another, too deep")
+        spans = self._spans(si, depth)
+        if addend not in spans:
+            raise Refusal("a target in an unsplit section at no referenced offset")
+        name, twin = spans[addend]
+        if twin:
+            raise Refusal("an unsplit-section constant whose bytes repeat in its section")
+        return name
+
+    def _spans(self, si, depth):
+        """{offset: (span name, its content repeats elsewhere)} for one unsplit section, cached."""
+        cache = getattr(self, "_span_cache", None)
+        if cache is None:
+            cache = self._span_cache = {}
+        if si in cache:
+            return cache[si]
+        offs = set()
+        for j, lst in self.relocs.items():
+            for (off, rtype, symidx, add) in lst:
+                if off == "REL" or rtype == R_NONE:
+                    continue
+                sym = self.syms[symidx]
+                if sym["st_info"]["type"] == "STT_SECTION" and sym["st_shndx"] == si:
+                    offs.add(self.addend(j, off, rtype, add))
+        size = self.secs[si]["sh_size"]
+        data = self.sec_bytes(si) or bytes(size)
+        inner = [(off, rtype, symidx, add) for (off, rtype, symidx, add) in self.relocs.get(si, []) if off != "REL"]
+        cache[si] = {}  # guards a span that names its own section
+        out, order = {}, sorted(offs)
+        for k, o in enumerate(order):
+            end = order[k + 1] if k + 1 < len(order) else size
+            chunk = bytearray(data[o:end])
+            named = []
+            for (off, rtype, symidx, add) in inner:
+                if o <= off < end and rtype != R_NONE:
+                    if rtype != R_32:
+                        raise Refusal("relocation type %d inside an unsplit section" % rtype)
+                    chunk[off - o:off - o + 4] = bytes(4)
+                    named.append("%d=%s" % (off - o, self.name_target(si, symidx, self.addend(si, off, rtype, add),
+                                                                          set(), depth + 1)))
+            out[o] = "span:" + bytes(chunk).hex() + ("{" + ";".join(sorted(named)) + "}" if named else "")
+        counts = {}
+        for n in out.values():
+            counts[n] = counts.get(n, 0) + 1
+        cache[si] = {o: (n, counts[n] > 1) for o, n in out.items()}
+        return cache[si]
 
     def signature(self, ident):
         """(size, masked bytes, named relocations, refs) -- or Refusal."""

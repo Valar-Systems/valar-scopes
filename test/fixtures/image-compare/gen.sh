@@ -110,4 +110,22 @@ for c in swap swapop; do
   link "$a" entry "" src/main.c.o src/sw.S.o
   link "$b" entry "" src/main.c.o src/sw.S.o
 done
+
+# amendment 1g: a static initializer's exception table (.text.startup.<name>), C++ with -fexceptions
+a=$(store inittry/a); b=$(store inittry/b)
+objx "$a" main_si.cpp main.cpp; objx "$a" si_a.cpp si.cpp
+objx "$b" main_si.cpp main.cpp; objx "$b" si_b.cpp si.cpp
+link "$a" entry "" src/main.cpp.o src/si.cpp.o
+link "$b" entry "" src/main.cpp.o src/si.cpp.o
+
+# amendment 1h': unsplit .rodata named by content (assembly: GCC would merge or reorder the constants)
+for c in rodshift rodown rodswap; do
+  a=$(store $c/a); b=$(store $c/b)
+  case $c in rodshift) sa=rs_shift_a.S; sb=rs_shift_b.S ;; rodown) sa=rs_shift_a.S; sb=rs_own_b.S ;;
+             rodswap) sa=rs_swap_a.S; sb=rs_swap_b.S ;; esac
+  obj "$a" main_rs.c main.c; "$CC" $CFLAGS -o "$a/src/rs.S.o" "src/$sa"
+  obj "$b" main_rs.c main.c; "$CC" $CFLAGS -o "$b/src/rs.S.o" "src/$sb"
+  link "$a" entry "" src/main.c.o src/rs.S.o
+  link "$b" entry "" src/main.c.o src/rs.S.o
+done
 echo "stores regenerated"

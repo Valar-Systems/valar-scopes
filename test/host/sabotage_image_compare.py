@@ -129,6 +129,56 @@ PLANTS = [
 ]
 
 
+# Amendments 1g and 1h' (19:06Z): three plants, and every plant's declaration of the four new cases, one row per plant.
+# Each row: (plant, the four new cases it turns red, existing cases 1h' moves from its unaffected list to its red list).
+# P15 moves the three rodata cases: under 1h' their f1 differs only in a relocation name, which P15 stops comparing.
+PLANTS += [
+    ("P19 the static initializer's table not paired",
+     "cands = [by_name[n] for n in (\".text.\" + suf, \".text.startup.\" + suf) if n in by_name]",
+     "cands = [by_name[n] for n in (\".text.\" + suf,) if n in by_name]",
+     [], C + [R1, R2, R3, R4, R5, R6] + T + F1 + RL),
+    ("P20 an unsplit section named by offset again", "                return self.span_name(shndx, addend, depth)",
+     "                return \"unit:%s%+d\" % (ident, addend)",
+     ["rodata", "rodata allow=f1", "rodata allow=f1,f2"],
+     ["null", "body", "body allow=f", "grow allow=g", "gc", "local", "local allow=f", "relax", "pick", "strpool",
+      "offset", "eh", "ehtype", R1, R2, R3, R4, R5, R6] + T + F1 + RL),
+    ("P21 the identical-bytes refusal off", "        if twin:\n", "        if False:\n",
+     [], C + [R1, R2, R3, R4, R5, R6] + T + F1 + RL),
+]
+G1 = ["inittry", "rodshift", "rodown", "rodswap"]
+DECL_1GH = {
+    "P1 strings named by offset": ([], []),
+    "P2 any width change accepted": ([], []),
+    "P3 no reach-crossing check": ([], []),
+    "P4 recorded sha believed": ([], []),
+    "P5 an unknown type allowed": ([], []),
+    "P6 the rule as first registered (no narrowing)": ([], []),
+    "P7 an allowed referrer not counted": ([], []),
+    "P8 the whole instruction masked": ([], []),
+    "P9b MOVI counted as an offset": ([], []),
+    "P11 GC strict (no fixed point)": ([], []),
+    "P12 a data unit's referrers not printed": (["rodshift", "rodown"], []),
+    "P13 the exception table not folded": (["inittry"], []),
+    "P14 a width swap's operation not compared": ([], []),
+    "P15 the fill walk's relocation names not compared": (["rodown"], ["rodata", "rodata allow=f1", "rodata allow=f1,f2"]),
+    "P16 a missing property table read as one instruction region": ([], []),
+    "P17 the fill counts not printed": ([], []),
+    "P18 the relocation print omitted": ([], []),
+    "P10 the offsets label never given": ([], []),
+    "P19 the static initializer's table not paired": (["inittry"], []),
+    "P20 an unsplit section named by offset again": (["rodshift", "rodown", "rodswap"], []),
+    "P21 the identical-bytes refusal off": (["rodswap"], []),
+}
+assert sorted(DECL_1GH) == sorted(p[0] for p in PLANTS), "every plant needs its 1g/1h' row"
+_merged = []
+for _label, _old, _new, _red, _ok in PLANTS:
+    _add, _move = DECL_1GH[_label]
+    _red = list(_red) + _add + _move
+    _ok = [c for c in _ok if c not in _move] + [c for c in G1 if c not in _add]
+    _merged.append((_label, _old, _new, _red, _ok))
+PLANTS = _merged
+
+
 def case_labels(repo):
     sys.path.insert(0, os.path.join(repo, "test", "host"))
     try:

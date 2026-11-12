@@ -1,0 +1,14 @@
+{
+ "inputs": [
+  {
+   "path": "src/main.c.o",
+   "sha256": "9ca343046ed0c11f46c3870b8bd89514d5918d2e2ca8dcf19c6465ba0d9f8cd1",
+   "copy": "src/main.c.o"
+  },
+  {
+   "path": "src/rs.S.o",
+   "sha256": "b439a0de647b3ac137898c88ea06c5be8cd4d9bd71dffc46ee3dbaa5ba0d24af",
+   "copy": "src/rs.S.o"
+  }
+ ]
+}
