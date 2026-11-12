@@ -11874,21 +11874,50 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     backbuffer.fillScreen(lgfx::color888(0, 0, 0));
     // frame ring to match the round display
     backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
+
+    // THE FOLLOW CONTROL IS RESERVED, unlike the gesture hints below it.
+    //
+    // The existing rule is that telemetry outranks the footer hints, and that is
+    // right -- a hint is a statement, and a statement can wait. A CONTROL is not
+    // a statement: a tap target that disappears when a card happens to be
+    // data-rich is a target the customer cannot rely on, and worse, its hit box
+    // would still be armed under whatever drew over it. So the flow stops above
+    // it, at the cost of a line or two on the densest cards.
+    //
+    // Decided BEFORE the slot is laid out (#670): the slot's layout depends on how
+    // much room this floor leaves.
+    const bool followCtl =
+        follow::OutcomeForSwipe(!tracked.routeOrigin.isEmpty() &&
+                                !tracked.routeDest.isEmpty(),
+                                hasLocation) != follow::SwipeOutcome::Decline;
+    const int hardBottomY = cardlayout::HardBottomY(SCREEN_SIZE, followCtl); // clear of the control, else the bezel
+    backbuffer.setTextSize(1);
+    const int rowFontH = backbuffer.fontHeight();   // the flowed rows' text size
+    const int lineHeight = rowFontH + 5;
+
     if (useSlot) {
+        // #670: with no photo, a 240 px card offering Follow had no room for a single
+        // row below the slot's silhouette and mid-card title -- it showed only the
+        // callsign. Where the flow cannot hold the identity rows (route, type,
+        // operator), the slot lays out as the data page does instead: no silhouette,
+        // the title at the top, the caption under it, the rows from there.
+        // Everywhere else (480 px; 240 px without Follow) the layout is unchanged.
+        const bool compact = cardlayout::SlotCompact(SCREEN_SIZE, followCtl, rowFontH, lineHeight);
         if (photoSettled) {
-            DrawAircraftSilhouette(backbuffer, cx, cardlayout::SLOT_SILHOUETTE_Y, tracked);
+            if (!compact)
+                DrawAircraftSilhouette(backbuffer, cx, cardlayout::SLOT_SILHOUETTE_Y, tracked);
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(0, 120, 0));
-            centered("No photo available", cardlayout::SLOT_NOPHOTO_Y);
+            centered("No photo available", compact ? cardlayout::DATA_CAPTION_Y : cardlayout::SLOT_NOPHOTO_Y);
         } else {
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(lgfx::color888(0, 120, 0));
-            centered("Loading photo...", cardlayout::SLOT_LOADING_Y);
+            centered("Loading photo...", compact ? cardlayout::DATA_CAPTION_Y : cardlayout::SLOT_LOADING_Y);
         }
         backbuffer.setTextSize(2);
         backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-        centered(title, cardlayout::SLOT_TITLE_Y);
-        y = cardlayout::SLOT_FLOW_Y;   // SlotFlowStartY's value; the fix calls it, with followCtl known here (M2)
+        centered(title, compact ? cardlayout::DATA_TITLE_Y : cardlayout::SLOT_TITLE_Y);
+        y = cardlayout::SlotFlowStartY(SCREEN_SIZE, followCtl, rowFontH, lineHeight);
     } else {
         backbuffer.setTextSize(2);
         centered(title, cardlayout::DATA_TITLE_Y);
@@ -11908,7 +11937,6 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
 
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-    const int lineHeight = backbuffer.fontHeight() + 5;
     // 240 px screens: the flowed stat block can reach the fixed footer hints
     // (drawn at SCREEN_SIZE-46/-34), interleaving text -- seen on the s3-128's
     // photo-less military card, whose flow starts at y=162 and needs 5 lines.
@@ -11917,22 +11945,9 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     // keep them), and the flow itself stops at the bezel margin so no line can
     // ever draw off the round panel.
     const int hintZoneY   = SCREEN_SIZE - 58; // hints need everything below this
-    // THE FOLLOW CONTROL IS RESERVED, unlike the gesture hints below it.
-    //
-    // The existing rule is that telemetry outranks the footer hints, and that is
-    // right -- a hint is a statement, and a statement can wait. A CONTROL is not
-    // a statement: a tap target that disappears when a card happens to be
-    // data-rich is a target the customer cannot rely on, and worse, its hit box
-    // would still be armed under whatever drew over it. So the flow stops above
-    // it, at the cost of a line or two on the densest cards.
-    const bool followCtl =
-        follow::OutcomeForSwipe(!tracked.routeOrigin.isEmpty() &&
-                                !tracked.routeDest.isEmpty(),
-                                hasLocation) != follow::SwipeOutcome::Decline;
-    const int hardBottomY = cardlayout::HardBottomY(SCREEN_SIZE, followCtl); // clear of the control, else the bezel
     auto line = [&](const String& str) {
         if (str.isEmpty()) return;
-        if (y + backbuffer.fontHeight() > hardBottomY) return; // no room: drop
+        if (!cardlayout::RowFits(y, hardBottomY, backbuffer.fontHeight())) return; // no room: drop
         centered(str, y);
         y += lineHeight;
     };

@@ -6,8 +6,9 @@
 // The card shows only its callsign. Shipped in v9 through v19.
 //
 // The numbers live in include/CardLayout.h, and DrawDetailCard calls it, so this grades the card's own
-// arithmetic. CL1 FAILS on today's code. It was written before the fix, so the check is seen able to fail.
-// CL2 and CL3 are the controls: the 480 px panel, and 240 px with no Follow control, hold three rows today.
+// arithmetic. CL1 was written before the fix and read FAIL on the code before it (CI at 716edde93ce5: 0 rows of 3),
+// so the check has been seen able to fail. CL2 and CL3 are the controls: the 480 px panel, and 240 px with no
+// Follow control, held three rows before the fix, and CL6 holds them to the layout they had.
 // The whole drawn card, end to end, is graded by T-web (tools/web-renderer/card_nophoto.mjs).
 #include <cstdio>
 #include "../../include/CardLayout.h"
@@ -42,7 +43,7 @@ int main()
         { "CL3", 240, false, "240 px, no Follow control (control)" },
     };
     for (const Case& c : cases) {
-        const int y0 = cardlayout::SlotFlowStartY(c.screen, c.followCtl);
+        const int y0 = cardlayout::SlotFlowStartY(c.screen, c.followCtl, FONT_H, LINE_H);
         const int bottom = cardlayout::HardBottomY(c.screen, c.followCtl);
         const int n = cardlayout::RowsThatFit(y0, bottom, FONT_H, LINE_H);
         std::snprintf(what, sizeof what, "%s: flow from y %d to %d holds %d row(s), needs %d",
@@ -50,8 +51,16 @@ int main()
         check(n >= NEED, c.id, what);
     }
 
-    // The rule RowsThatFit counts with is line()'s: a row at y draws iff y + fontH <= bottom. Until the fix calls
-    // RowFits, line() carries the same test inline (docs/card-nophoto-fix.md, M1), so this pins the two by numbers.
+    // CL6: only the broken case compacts. The fix may change the slot layout only where three rows did not fit;
+    // the 480 px panel and 240 px without Follow keep the slot's flow at 162, so their cards are what they were.
+    check(cardlayout::SlotCompact(240, true, FONT_H, LINE_H) &&
+          !cardlayout::SlotCompact(480, true, FONT_H, LINE_H) && !cardlayout::SlotCompact(480, false, FONT_H, LINE_H) &&
+          !cardlayout::SlotCompact(240, false, FONT_H, LINE_H) &&
+          cardlayout::SlotFlowStartY(480, true, FONT_H, LINE_H) == cardlayout::SLOT_FLOW_Y &&
+          cardlayout::SlotFlowStartY(240, false, FONT_H, LINE_H) == cardlayout::SLOT_FLOW_Y,
+          "CL6", "only 240 px with Follow compacts; 480 px and 240 px without Follow keep the flow at 162");
+
+    // The rule RowsThatFit counts with is line()'s, which calls RowFits: a row at y draws iff y + fontH <= bottom.
     check(cardlayout::RowFits(158, 166, 8) && !cardlayout::RowFits(159, 166, 8) &&
           cardlayout::RowsThatFit(158, 166, 8, 13) == 1 && cardlayout::RowsThatFit(159, 166, 8, 13) == 0,
           "CL4", "RowFits is line()'s test: 158 + 8 = 166 draws, 159 + 8 = 167 drops; RowsThatFit agrees");

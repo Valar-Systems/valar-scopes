@@ -32,15 +32,7 @@ constexpr int HardBottomY(int screen, bool followCtl)
     return followCtl ? screen - FOLLOW_RESERVE : screen - BEZEL_MARGIN;
 }
 
-// Where the slot layout's flow starts. The same on every panel today. The card uses SLOT_FLOW_Y directly until the
-// fix (step 4), which knows followCtl before the slot is drawn and calls this (docs/card-nophoto-fix.md, M2).
-constexpr int SlotFlowStartY(int /*screen*/, bool /*followCtl*/)
-{
-    return SLOT_FLOW_Y;
-}
-
-// The rule DrawDetailCard's line() applies: a row at y draws iff its glyphs end at or above the floor. line() keeps
-// the same test inline until the fix calls this; test_card_layout.cpp's CL4 pins the two together by numbers (M1).
+// THE rule DrawDetailCard's line() applies, in one place: a row at y draws iff its glyphs end at or above the floor.
 constexpr bool RowFits(int y, int bottom, int fontH)
 {
     return y + fontH <= bottom;
@@ -51,6 +43,27 @@ constexpr bool RowFits(int y, int bottom, int fontH)
 constexpr int RowsThatFit(int y0, int bottom, int fontH, int lineH)
 {
     return lineH <= 0 ? -1 : !RowFits(y0, bottom, fontH) ? 0 : (bottom - fontH - y0) / lineH + 1;
+}
+
+// THE FIX (#670). A card's identity is its route, type and operator: three rows. The slot layout spends the top of
+// the card on a silhouette and a mid-card title, which leaves its flow 162 px down. On a 240 px panel with the Follow
+// control offered, the floor is 166, so not one row fits and the card showed only its callsign. Identity outranks
+// the silhouette (the slot's own promise: "with full telemetry beneath it").
+constexpr int MIN_IDENTITY_ROWS = 3;
+
+// Whether the slot layout must compact: true exactly when its flow cannot hold the identity rows. The compact slot
+// drops the silhouette and lays out as the data page does: the title at DATA_TITLE_Y, the slot's caption ("Loading
+// photo..." / "No photo available") at DATA_CAPTION_Y, the flow from DATA_FLOW_Y. Where the flow already holds three
+// rows -- the 480 px panels, and 240 px without the Follow control -- nothing changes.
+constexpr bool SlotCompact(int screen, bool followCtl, int fontH, int lineH)
+{
+    return RowsThatFit(SLOT_FLOW_Y, HardBottomY(screen, followCtl), fontH, lineH) < MIN_IDENTITY_ROWS;
+}
+
+// Where the slot layout's flow starts.
+constexpr int SlotFlowStartY(int screen, bool followCtl, int fontH, int lineH)
+{
+    return SlotCompact(screen, followCtl, fontH, lineH) ? DATA_FLOW_Y : SLOT_FLOW_Y;
 }
 
 }  // namespace cardlayout
