@@ -1848,6 +1848,60 @@ when the code is pushed.
   drivers, lint `39 driver(s), 0 flagged; 3 pinned line(s)`, 6 and 10 AS PREDICTED lines, `ALL HOST TESTS PASSED`.
 - The tested merge is read from a checkout log. Any other reading stops.
 
+### The ruling on the changes, and CB11's count (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 01:35:57Z):**
+
+> d814c31efbfa is read (on #659, docs +122, before code). The changes from #644's table are re-freezes before any run,
+> each with its reason stated.
+> - 1 (PERFRAME's set grows to {CB4 steady, CB4 buildfail, CB5}): ACCEPTED.
+> - 2 (HALF keeps the good buffers and doesn't draw, so a planted crash isn't an instrument failure): ACCEPTED.
+> - 3 (CB9 moves into this step): ACCEPTED.
+> - 4 (the key gains radiusMi and the eight fixed boxes, by value): ACCEPTED. A ring label's width following the unit
+>   setting is exactly the second-path catch, and S-CB-ROTONLY finally gives #644's six CB4 rows a plant.
+> - 6 (+4,096 B in Q-MB1's price): ACCEPTED, with CBF4 computed with it.
+> - 5: ACCEPTED for CB1 names, CB5's compose half and CB4 buildfail. CB11 needs ONE COUNT before code. ">128 airports
+>   refuses the names" is right as a principle: a truncated obstacle list lies. But if it can happen in a real view,
+>   it's a visible behaviour (no town names over a dense region), and that's the owner's to see. So, read-only from the
+>   baked Airports.h, counts only: the MAXIMUM number of airports inside any view's culled area at the largest step
+>   (100 mi, plus the cull margin), swept over the US (a grid of homes, spacing stated), and the count of grid homes over
+>   128.
+>   - If the max is under 128 with margin: CB11 stands as a guard that should never fire, and the record states the max.
+>   - If any home exceeds it: stop, and send me the count and the regions. The buffer size (+32 B per box), or names
+>     refused there, then goes to the owner.
+> Then code, in the registered order.
+
+**The count.** A scratch survey, read-only, printing counts only. Its verdict table was frozen in its header before the
+run:
+
+| verdict | if | then |
+|---|---|---|
+| V1 | the US max over both boxes ≤ 96 (three quarters of 128) | CB11 stands as a guard that should never fire on the baked table |
+| V2 | 97 to 128 | inside the buffer but without margin: stop |
+| V3 | any home over 128 | stop, with the cells |
+| V4 | the control fails | the instrument is unreliable: stop |
+| V5 | anything else | stop |
+
+- **The cull** is the view box itself (`AircraftManager.cpp:5380-5381`); there is no extra margin. Two boxes were swept:
+  - **A**, the default top of 100 mi, with each radius capped at 2.0° (`:892-893`);
+  - **B**, the largest box the code allows: `MAX_DEGREES` = 2.0° on both axes, reached by any configured radius past the
+    cap.
+- **The grid:** 0.05° on both axes over CONUS, Alaska and Hawaii, 925,683 homes.
+- **The control:**
+  - the parse equals the compiler's own view of `Airports.h`: 329 entries, and both integer checksums equal;
+  - every one of the 101 airports inside the regions counts itself at its own position;
+  - box B is also solved exactly (some best box has an airport on its bottom edge and one on its left). That gives the
+    maximum over any home on Earth.
+- **The result:** the most airports in view is **8** in box A and **10** in box B. The exact solve for B gives **10**.
+  **0** homes are over 128. **V1:** CB11 stands as a guard that should never fire on the baked table.
+
+**The cloud path, recorded as information.** On the cloud feed, which the map needs, `cloudAirports` supersedes the baked
+table.
+- The Worker caps its reply at `MAX_RESULTS` = 60 for the whole configured radius (`proxy/src/airports.ts:23`, sliced at
+  `:87`).
+- The firmware's `ParseAirports` keeps every row it receives (`CloudFeed.cpp:261-286`).
+- So "at most 60" there is a premise about the Worker, and CB11 is the device's own guard on that path.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
