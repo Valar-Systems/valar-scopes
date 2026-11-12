@@ -448,7 +448,18 @@ at the moment it opened, frozen.
 | FT1 | as registered: after <= before. Margin: after at most before + 2 ms, comparing the means of two samples | beyond the margin: the fix stops, and both numbers go to the owner |
 | FT2 | as registered: within 1 ms. Margin: + 2 ms | the same |
 | restore | `[WiFi] CONNECTED`; no line that opens a portal; `/diag/fb` answers | stop, and report |
+| **no lookups** (the reviewer's added row) | in each phase, from the serial log, **zero** metadata lookups after the first `F` (counted as below), and **zero** `[cloud] enrich fb00..` lines anywhere | a non-zero count means synthetic traffic may have reached production: STOP and report (after the restore and release); the run is the instrument |
 | anything else | | stop and decide; restore and release before reporting |
+
+**How "no lookups" is counted** (the reviewer's row, registered before window B):
+- Every metadata lookup that gets an answer goes through `ApplyEnrichment`, which increments one of the `[perf]`
+  line's `enrichOk`, `enrichEmpty`, `enrichNonIcao` or `enrichCached`.
+- Every one that fails prints `[cloud] enrich <hex>: HTTP ...` or `... schema mismatch`.
+- A photo fetch increments only `enrichReqs`, so the photo card's own fetch is not counted.
+- `[perf]` windows reset at each print, and the first `[perf]` line after `F` may span F. The count therefore reads
+  every `[perf]` line from the SECOND after the first `F`, and every `[cloud] enrich` line after the first `F`.
+- That covers the fixed hexes (`fb0000`-`fb003b`) and every other hex. After `F`, with details Off, the radar
+  enrichment returns before any lookup, and while a card is open it is not reached at all.
 
 **The images for window B**, each built from a clean tree at its commit (partitions `28f336fe57a9`):
 
