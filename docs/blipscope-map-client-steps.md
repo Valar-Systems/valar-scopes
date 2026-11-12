@@ -4696,6 +4696,29 @@ The ruling also ACCEPTED the registration as registered red first.
 - **(Q3)** a plant not UNTRUSTWORTHY: the same, to the owner.
 - **Anything else:** stop, and to the owner.
 
+**Amendment, before any code (found reading the selftest, 21:50Z).** reader2's frame selftest holds "the rings
+missing" (a synthetic on-frame without rings), expected UNTRUSTWORTHY. Under T2 the rings leave the trust test.
+- So that frame, which carries the dots, reads **GRADED**. That is by design: a real frame cannot hold complete dots
+  without the rings drawn before them.
+- Its expectation changes to GRADED and its line is renamed "the rings missing, the dots present: trusted (the rings
+  prove nothing)".
+- **K4 now predicts the frame selftest identical except two lines:** this one, and the new "the screen dots missing"
+  plant (UNTRUSTWORTHY).
+- Nothing else changes.
+
+**The ruling (the orchestrator, ~21:51Z): ACCEPTED. GO: build 2d and run the controls before W5.** One assumption is
+to be written down as READ:
+
+**T2'S PREMISE, READ FROM THE SOURCE: THE CLEAR AT A FRAME'S START LEAVES NO SCREEN DOT.**
+- `DrawScreenIndicator` has ONE call site, `Draw` (`AircraftManager.cpp:4410`), drawing into the backbuffer every
+  frame.
+- The clear is `fillScreen` black, or `DrawWeatherUnder`'s copy of the weather layer. That layer is built by
+  `fillScreen(0)` plus weather pixels (:3716-3720) and never holds the indicator.
+- **If any cached base ever included the indicator, T2 would pass on a torn frame.** That holds for a static layer, a
+  pre-composed background or a cached UI plate. M3's static layers and P5's work could introduce exactly that.
+- **So it is a property they must not break:** no cached layer copied in at a frame's start may hold the screen
+  dots. A change that adds one must re-establish a last-drawn witness first. p4 is told.
+
 **The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
 - in B mode and C mode on every log plant and on B's and C's real logs;
 - in the synthetic frame selftest, whose frames have whole rings, except the lines naming the new rule.
