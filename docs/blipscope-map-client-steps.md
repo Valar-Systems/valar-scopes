@@ -1564,6 +1564,42 @@ list that a device uses once it loads).
 - **I recommend (b).** It changes no shipping drawing, and any change to those expressions fails the build until the
   names follow.
 
+### Q-MB9's ruling, verbatim (the orchestrator, 2026-11-12 00:11:25Z), and CB8b as ruled
+
+> dd8418b0e013 is READ. The parts, the 32 cases and the plants' red sets (computed by executing the registered reader,
+> sha-checked, with a control reproducing the table) are good, and so is naming the x87 MinGW risk in advance as a stop.
+> Q-MB9: (b). Leave DrawRadarCircles and DrawScreenIndicator as they are, and pin their exact expressions with CB8b, a
+> source check that fails the build if they change before the names follow.
+> - Moving shipping draw code onto helpers here risks a visible text change (String(float) vs snprintf) for no user
+>   gain. A check that runs is the strong form of "the names follow the drawers".
+> - S-CB-PINS {CB8b} is its failing control, and good.
+> - Make CB8b pin the VALUES the names use too (x 123, y 14/44/83, r 112, the indicator box {99,221,140,227}), not only
+>   the expressions. That way a changed constant fails as surely as a changed formula.
+> Order: push dd8418b0 after #659's CI at f6d214a5 has read (holding to avoid cancelling it is right). Then MapPlaces.h's
+> code. Predictions must be public before the code exists.
+
+**CB8b, as ruled, holds both ends:**
+1. **The drawers' expressions,** exactly as registered:
+   - `CENTRE + 4`, `CENTRE - ringPx[i] + inset[i]`, insets `{RING_LABEL_OUTER_INSET, 3, 3}` with
+     `RING_LABEL_OUTER_INSET = 14`, `value < 10.0f ? 1 : 0`, `labelR = CENTRE - 7`;
+   - `y = SCREEN_SIZE - 16` and `cx - (shown - 1) * 6 + slot * 12`.
+2. **The values `MapPlaces.h` uses,** each equal to what those expressions give, with `CENTRE` = 119, `SCREEN_SIZE` =
+   240, four carousel dots, and radii 3 and 2:
+   - ring-label x 123;
+   - y 14, 44, 83;
+   - cardinal r 112;
+   - the indicator box `{99, 221, 140, 227}`.
+   - `check_map_draw.py` derives each value from the drawer's own text and compares it with the constant in
+     `MapPlaces.h`.
+- **Its plants, both in `sabotage_map_draw.py`:**
+  - **S-CB-PINS:** `RING_LABEL_OUTER_INSET` becomes 13: {CB8b}. The expression changes, so the derived y no longer
+    equals 14.
+  - **S-CB-PINVAL (new):** `MapPlaces.h`'s indicator box starts at x 100, not 99: {CB8b}.
+- **S-CB-PINVAL turns 0 rows of `test_map_places.cpp` red.** `places_plants.py`, re-run with this one plant added
+  (sha256 now `8225a0d3724cde3378fd83ce6f85ecdefa2b60e0baa4c94c3643eed1a2c12eed`), read 0 rows. Its control and the
+  four earlier plants' red sets are unchanged. **So the value pin is the only thing that catches a changed constant,**
+  which is the ruling's point.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
