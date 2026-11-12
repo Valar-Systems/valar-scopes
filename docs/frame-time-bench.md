@@ -746,3 +746,16 @@ second goes to the owner.
   fuller trails, and Bend's lower n.
 - This bears on the (a) registration's XA interval [−3.0, +5.0], whose sign assumed LIVE slower. It is flagged for a
   ruling before v20's first candidate, and not changed here.
+
+**The ruling (the orchestrator, unstamped, received by 22:55Z): the v19 baseline is ACCEPTED AS READ.**
+- FIX-b's 9 off rows are FIRST off readings: the miss is v19's line, not the instrument. Nothing is re-graded and no
+  band moves.
+- **A3 is the important finding, and it traces to the A2 ruling.** Tracks inside 8 mi, chosen so drawn == level at
+  every rung, pack 40 aircraft into a small circle. The labels, trails and markers crowd in a way a real board rarely
+  sees, so **the FIXED scenes are a STRESS case, not a typical one.**
+- **XA is to be re-registered from A3's measured differences,** with its basis stated, BEFORE v20's first candidate.
+  The frozen [−3.0, +5.0] is wrong in sign, and nothing has applied it yet.
+- **Which traffic the owner's bar is read on is now his question:** the packed FIXED scenes (strict, a worst case), or
+  a realistic spread at 40 (e.g. a recorded real traffic picture replayed deterministically), with packed kept as a
+  reported stress row. The orchestrator is putting it to him with these numbers. **`fixed_traffic.py` does not change
+  until he answers.**
