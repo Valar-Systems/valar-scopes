@@ -1996,3 +1996,13 @@ f88dded3e379; none is a graded row):
 **ACCEPTED (05:27:52Z):** the scoped table above, as written. The orchestrator also withdrew its own "can only show at the small steps":
 a sub-pixel band still flips about one pixel per pixel-area of band. **Part 2 now waits for weatherscope's FillRing commit, and nothing
 else.**
+
+**Weatherscope reproduced KB1's case by bytes (05:3xZ).** It verified all 59 files against `SHA256SUMS` and ran main's own FillRing with
+run.sh's flags (WSL, g++ 13.3). The current code misses 31: 14, 6, 5 and 1 in the four views, plus the minimal case's 5. The lower-endpoint
+version misses 0, and neither draws an extra pixel. Every list equals `missing.json` pixel for pixel. It is registered on weatherscope's
+side as S4.21 (`weatherscope/stage4-plan` 46b4cf595add): FL7/FL7c on the minimal ring, FL8/FL8c on the 162 km, 90° ring, and the
+S-BRIDGE plant.
+- **A stale hash in my first message to weatherscope, which it reported.** That message gave `mk-case.py` as 87b9f5675a13, hashed
+  before the `if x1 > x0` guard was added in place. The file since then, in the scratch folder and in the handoff's `tools/`, is
+  71ac48ce5837, which `SHA256SUMS` lists. No pre-guard copy was kept. The case files it writes were byte-identical before and after the
+  guard, so nothing weatherscope used is affected.
