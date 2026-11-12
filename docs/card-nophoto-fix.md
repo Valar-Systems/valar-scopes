@@ -158,5 +158,6 @@ only after his word on (a) and (b).
 | | **total** | **about 2.6 d** (up from the 2 d first sent; the glass method is the difference) |
 
 **CI for this registration** (`docs/` and `proxy/scripts/`; `proxy/**` is in workers' paths): firmware 30 (27 success
-/ 3 skipped), workers 3, device-ids 1, no-traffic-captures 1: **35 = 32 / 3 / 0**. The script is typechecked with the
-Worker if `proxy/tsconfig.json` includes `scripts/`; either way the job set is the same.
+/ 3 skipped), workers 3, device-ids 1, no-traffic-captures 1: **35 = 32 / 3 / 0**. workers'
+`npm run typecheck:scripts` (`tsconfig.scripts.json`) covers the new script. Read locally before the push: exit 0, and
+`--listFiles` names `nophoto-share.ts`, so the check opened the file.
