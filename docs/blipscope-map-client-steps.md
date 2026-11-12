@@ -4696,7 +4696,7 @@ The ruling also ACCEPTED the registration as registered red first.
 - **(Q3)** a plant not UNTRUSTWORTHY: the same, to the owner.
 - **Anything else:** stop, and to the owner.
 
-**Amendment, before any code (found reading the selftest, 21:50Z).** reader2's frame selftest holds "the rings
+**Amendment, before any code (found reading the selftest, ~21:48Z).** reader2's frame selftest holds "the rings
 missing" (a synthetic on-frame without rings), expected UNTRUSTWORTHY. Under T2 the rings leave the trust test.
 - So that frame, which carries the dots, reads **GRADED**. That is by design: a real frame cannot hold complete dots
   without the rings drawn before them.
@@ -4706,7 +4706,7 @@ missing" (a synthetic on-frame without rings), expected UNTRUSTWORTHY. Under T2 
   plant (UNTRUSTWORTHY).
 - Nothing else changes.
 
-**The ruling (the orchestrator, ~21:51Z): ACCEPTED. GO: build 2d and run the controls before W5.** One assumption is
+**The ruling (the orchestrator, ~21:48Z): ACCEPTED. GO: build 2d and run the controls before W5.** One assumption is
 to be written down as READ:
 
 **T2'S PREMISE, READ FROM THE SOURCE: THE CLEAR AT A FRAME'S START LEAVES NO SCREEN DOT.**
@@ -4718,6 +4718,72 @@ to be written down as READ:
   pre-composed background or a cached UI plate. M3's static layers and P5's work could introduce exactly that.
 - **So it is a property they must not break:** no cached layer copied in at a frame's start may hold the screen
   dots. A change that adds one must re-establish a last-drawn witness first. p4 is told.
+
+**AS RUN (21:52-21:54Z): Q1, every control as predicted. The trust test is accepted.**
+- **Frozen:**
+  - `map_bench_read2d.py` `9082be910ca087f96656636e1707dbedc88996efe7992f8a9c84b584925ae1fd`;
+  - its builder `3a3c18975c22c6b631a0bebe73cee30c27f89fedd2df2e4718a2b63d0facd350`;
+  - `regress2d.py` `eac0568b24f0783475a9ad8fcf2e579aabd523775735352c680b5620f43198ce`;
+  - `drawctl.py` `fea261fd3c4619af0a5cdcc9284baceb7364e1752cc1fffbba2bc227a8214a49`.
+- **2d's selftest:** 65 ok, 0 fail. It is 2c's with exactly the two registered lines changed.
+- **K1:** T2 passes on 120 of 120 Finished bench frames. Located as predicted: B on 26, B off 27, C on 30, C off 29.
+- **K2:** UNTRUSTWORTHY by T2, each:
+  - `wx-fb-check.py`'s own mid-draw `synth(rings=False)`: "screen dot 0: 0/37 px";
+  - on B's frame and on C's frame: every dot erased, torn at y ≥ 200, the active dot erased (each "screen dot 0:
+    0/37"), and one pixel of an inactive dot ("screen dot 1: 20/21").
+- **K3:** RP6-A 18 of 18, RP6-B 12 of 12, RP6-off 12 of 12.
+- **K4:** `regress2d.py` exit 0, 39 ok. The frame selftest is identical except the two registered lines (removed 1,
+  added 2). Its sabotage reads 2 DIFFERS, exit 1.
+
+**CBF3, graded with 2d against its frozen rows (21:53Z):**
+- **CBF3-B: AS PREDICTED,** exit 0.
+  - 60 frames: 7 UNTRUSTWORTHY (the locator's), trustworthy on 26, off 27.
+  - On-frames: inside map 0.00-1.96 % (< 2 %), outside map 81.33-88.02 % (> 80 %). Off-frames: outside 0.0 %.
+- **CBF3-C: OFF,** exit 1.
+  - 60 frames: 1 UNTRUSTWORTHY (the locator's), trustworthy on 30, off 29. The off-tick control passes (visible
+    0.0-0.1 %, outside 0.0 %).
+  - The 30 on-frames, against the frozen criteria:
+
+    | criterion | read | fail |
+    |---|---|---|
+    | visible > 80 % | 80.8-97.8 % | 0 |
+    | added > 80 % | 76.8-99.6 % | 2 (76.8 and 78.9) |
+    | outside MAP > 80 % | 11.8-16.2 % | **all 30** |
+
+  - **Not separated:**
+    - (1) the add reaching the map outside the wedge;
+    - (2) C's outside share, MAP / (MAP + WEDGE + AMBIG + MAPGREEN), counting plain map colours that C's sets also
+      hold as AMBIG. C's `OUTSIDE_MIN` is B's 0.80 carried over, with no host minimum on C's classes.
+  - A discriminator is proposed, and nothing runs before a ruling. This is CBF3-C's first off reading as a grade.
+
+**The ruling (the orchestrator, ~21:56Z):**
+- The trust test and CBF3-B are ACCEPTED (CBF3-B AS PREDICTED).
+- CBF3-C is a FIRST OFF READING as a grade. GO on the discriminator, registered before it runs.
+- **If (2):** that is the INSTRUMENT, not a pass. C's outside rule then needs a new registration, calibrated on C's
+  classes, with a planted green-on-map defect that must read red, before CBF3-C is graded again. Nothing is loosened
+  after the fact.
+- **If (1):** it goes to the owner as a step C defect.
+- The 2 "added" fails are a separate question, after this one. A second off reading on CBF3-C as a grade goes to the
+  owner.
+
+### CBF3-C's outside discriminator, registered before it runs (2026-11-12)
+
+- **The pixels:** the OUTSIDE region of C's 30 on-frames, exactly as `grade_frame_c` draws it. That is the disc beyond
+  the grown sector and the 12 px core, with the beam from 2d's locator.
+  - **A control first:** the script's own outside counts by class must EQUAL `grade_frame_c`'s
+    `counts["outside"]`, frame by frame. Unequal means the INSTRUMENT, and it stops.
+- **The classes:** C's own `classify_c` (MAP, WEDGE, AMBIG, MAPGREEN, OVERLAY, UNKNOWN). Each AMBIG pixel is split
+  in two ways:
+  - **AMBIG-with-map:** its colour is in `src["map"]`; otherwise AMBIG-without-map.
+  - **Its twin:** the same position in the nearest map-OFF frame. The nearest is by tick, the fetch index (-0/-1/-2)
+    equal where one exists, and the earlier frame on a tie. The twin is reported as black (`0x0000`) or not.
+- **The share's denominator is the rule's own:** MAP + WEDGE + AMBIG + MAPGREEN, summed over the 30 frames. The
+  per-frame range is printed beside it.
+- **Pre-registered:**
+  - **(2):** MAP + AMBIG-with-map holds MORE than 80 % of the denominator. The instrument; see the ruling.
+  - **(1):** MAPGREEN (only) holds MORE than 20 %. A step C defect, to the owner.
+  - **Anything else:** stop, and report the table as read.
+- The twins' black share is reported, not graded. Counts only.
 
 **The regression control** (`regress2c.py`): `map_bench_read2c.py` equals `map_bench_read2b.py` byte for byte:
 - in B mode and C mode on every log plant and on B's and C's real logs;
