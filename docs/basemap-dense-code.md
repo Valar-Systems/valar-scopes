@@ -1306,6 +1306,47 @@ has run.
 - **The tooling:** `lake-render.py` `5d4de32615ac` and `lake-read.py` `3c4313a9ee5d`. The copies before this amendment are kept as
   `*.pre0347.*` (`2609269edafc` and `05dc55cadd47`). Both compile, and no reference to the old single extent remains. Nothing has run.
 
+### The third run, read (2026-11-12, 03:48:49–03:49:15Z): controls blind at Buffalo; NOTHING IS GRADED
+
+**The run.**
+- It ran on the orchestrator's 03:48:30Z go. Every artifact read as registered, C: had 72 GB free, and no Cloudflare token was set.
+- The driver exited 1, and its error file is empty. The log is scratch (`d92b70d4ebe1`).
+- The fetch re-verified all 192 objects and fetched nothing.
+
+**Read as specified:**
+- **All 14 builds,** every one rung 3, with `collapsed.water` printed: Buffalo 18 in every build, Rouses Point 91.
+- **E, before any grading:**
+  - Buffalo: P95 **1.060 km**, max 1.336, P50 0.335, from 297 samples;
+  - Rouses Point: P95 **1.081 km**, max 1.317, P50 0.201, from 582 samples.
+- **The landing checks see** at Buffalo: each plant now changes the drawn water as it should. **The spill controls see.**
+
+**BLIND at Buffalo, so per the frozen rule nothing is graded:**
+
+| control | read | why it is blind |
+|---|---|---|
+| **the stripe: CROSS(b) > 0** | 0 | **No transect was kept at Buffalo, in any build (0).** There the lake is its narrow eastern tip, and a ±4 km transect across the border always ends on land, so "both ends in the NE lake" removes every one. The check cannot see Buffalo at all. **The alternative,** that (b) has no stripe there, doesn't hold: (b) leaves 3,045 SEAM pixels against the border |
+| **seam: CROSS(plant_seam) > 0** | 0 | the same: 0 transects |
+| **seam: SEAM(plant_seam) > SEAM(b)** | 65 against 3,045 | SEAM counts land inside the closing of the drawn water, and the closing (1 km radius) bridges only gaps under 2 km. The 3.5 km band opens a wider gap, which by that definition is not a seam, so SEAM falls |
+| **seam: plant_seam fails the seam condition** | P95 0.569 < 1.060, max 0.671 < 1.336 | the same: the gap the plant made is not counted as seam |
+| **junction: the assertion** | 1,168 planted pixels in the band: 225 JUNCTION, 0 DISC, **943 EXCUSED** | the site rule puts the square inside the NE lake at the border, and only pixels within 0.5 km of TIGER's shoreline count as junction. Most of a 3.5 km square therefore falls in the open-water strip, which the definition excuses |
+
+**What the three share:** the measure's scales were set for pixel-sized features (a 1 km closing, a 0.5 km near-shore distance, ±4 km
+transects with both ends in the lake). The plants now have to be 3.5 km to survive the package's ~1.6 km simplification, and Buffalo's
+lake is narrow. **The plant sizes and the measure's scales conflict.** No parameter was changed after the run.
+
+**Checked read-only, to name the cause rather than guess it.**
+- The store does hold Lake Erie near Buffalo: one TIGER water part of **447.6 km²** (1,167 vertices, outer, kept by the water path),
+  among 8 water parts within 20 km. **So TIGER's lake exists to join, and the instrument is what fails, not the data.**
+- My first guess, that the store has no lake there, came from E's count of 2 source features in the 8 km view. It was wrong and is
+  dropped.
+
+**The pictures** were written before the controls, as ruled. Copied unopened to `C:\Github\_handoffs\map-server\lake-out-run3\`: 24
+files, the 12 PNGs and their JSON sidecars at both lakes, every one a sha256 MATCH. Buffalo's (a), (b) and (c) are byte-identical to the
+second run's (the designs and the mapping are unchanged). The plants differ.
+
+**This is the third run, so it goes straight to the orchestrator and the owner.** No fix is proposed here. The conflict is between what
+the owner's rule has to see (km-scale joins at rung 3) and the scales the measure was built with, and choosing those scales is his call.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
