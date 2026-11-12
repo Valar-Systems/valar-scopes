@@ -224,3 +224,35 @@ The defaults for Q-FB1 to Q-FB4 and Q-FB6 are accepted.
 - I-5's cost bound is carried: the record cost is printed and stays ≤ 5,000 ns.
 - **So the measured image is not byte for byte the shipped one.** It is the shipped tree plus a bounded instrument, shown
   each time.
+
+## I-1 as run: OFF, and (D), registered before it runs (2026-11-12, the ruling of 19:52Z)
+
+**I-1, as registered, read OFF (19:50Z).**
+- The tag's `blipscope-s3-128` built clean here is 1,932,192 B (`944cd13a6c31…`). The release asset is 1,931,840 B.
+- `imgcmp.py` refused as the INSTRUMENT: the date-time regions sit at different offsets.
+- Both images' app descriptors are identical: the core build `43a8f6d`, IDF v5.5.4, the same core build date.
+- **The premise miss is mine.** `imgcmp.py` was built for local-against-local comparisons, and a local build had never
+  been compared byte for byte with CI's.
+
+**What the difference is, read from the two images' strings (counts only):**
+- The release holds **35** build-path strings, all under `/home/runner/.platformio` (framework header paths compiled
+  into our objects). There is no project path in either image.
+- The local image holds the **same 35**, under the local `.platformio` root, written with forward slashes. Their tails
+  after the root are **byte-identical** to the release's (197 separators, all `/`, in both).
+- The local root is 34 characters; the runner's is 24. 10 × 35 = **350 B** of the 352 B difference.
+- An earlier count of "59 local strings, 24 local-only" was my pattern matching non-path bytes, which is alternative (c).
+
+**(D), the single attempt, registered before it runs.**
+- **The build:** the tag tree, `blipscope-s3-128`, clean, with
+  `PLATFORMIO_BUILD_FLAGS=-fmacro-prefix-map=<the local .platformio root, forward slashes>=/home/runner/.platformio`.
+  No tracked file is changed. The local root is not written here: it carries the account name.
+- **Predicted:** `firmware.bin` is **1,931,840 B**, the release's length. `imgcmp.py` against `f6d73e39…` reads the
+  same length, both date-time patterns at the same offsets, and **0 bytes outside the five regions**. The 2 B left over
+  are predicted to vanish as alignment.
+- **The separator risk is named and judged absent.** The local strings already use `/` after the root, so no
+  backslash survives the mapping.
+- **Outside the set** (any residue, a different length, or imgcmp refusing): STOP. The residue is reported by region and
+  name, and the baseline falls back to (C) with (B) as its cross-check, as ruled.
+- **If (D) passes:** alternatives (a), (b) and (c) are eliminated for the build-path question, and I-1 holds as meant.
+  Every framebench build, and every v20 candidate's sibling, uses the same mapping, so A5's I-3 stays local against
+  local.
