@@ -569,6 +569,39 @@ uk-data's production deploy reads green and has closed.
   - **The flash starts only when `session-claim.py show` lists no deploy claim.** That output is quoted to the reviewer
     with the start. If a claim is held, the flash waits.
 
+**Step 7 on C', the result: v19 RELEASED, every reading as predicted (2026-11-12).** It started at 15:19Z, on the
+reviewer's confirmation that uk-data's production deploy read green and had closed.
+- **7.0, 15:19:47Z:** `check-tag-workflow.sh` printed `ok: promote needs version ...`; there was no v19 tag and no v19
+  release; latest was v18.
+- **7.1, 15:20:18Z:** the prerelease `v19` was created at `7b943ae0b5d1e7b0f6ad8254ecc4bcdeb38c8dff`. Its notes are
+  `docs/CHANGES-customer.md`'s v19 prose, verbatim. Latest stayed v18.
+- **7.2:**
+  - **The run (43246698138):** every build succeeded (11 rows), along with `version` and `publish-receipts`, and the run
+    paused at `promote`. Both `host-tests` legs and their aggregate also succeeded, before promote was approved.
+  - **The assets:** 14 on the release. They are the `s3-128` set, `version.txt` reading "19", and the web set named
+    `-v19`.
+  - **The image:** `firmware-s3-128.bin` is 1,931,840 B, with sha256 `f6d73e391631`, equal to the API digest. Its
+    identity check reads PASS, record `s3-128` at `0x120`.
+- **7.3, 15:33:22Z to 15:37:14Z:**
+  - **Before:** `session-claim.py show` read "deploy: free / merge: free", and E2:08 was reserved.
+  - **The write:** `app-only-write.py` printed `checks ok ... Writing ota_0 only.` and `write attempt 1: rc 0, verified`.
+    The read-back, `verify-flash 0x20000`, printed `Verification successful (digest matched).`.
+  - **The boot:** `[build] env=blipscope-s3-128 fw=v19`, `running=app0 @0x020000`, and `[ota-id] board=s3-128`. Wi-Fi
+    rejoined by fast join, with 0 portal lines. Then `[ota] channel=s3-128 current=19 latest=18`, with 0 "newer firmware"
+    lines.
+  - **The About tab:** `<span>Firmware</span><b>v19</b>`.
+  - **After:** E2:08 was recovered and answered ping, and the reservation was released.
+- **7.4, 15:37:36Z, from the worktree at C':** `=== 8 passed, 1 failed, 1 warnings ===`, `DO NOT START A FLASH RUN.`, exit
+  1. The one FAIL was check 2's, as pre-registered, and the one WARN was B505's.
+- **7.5:**
+  - **The approval:** the `release` deployment was approved at 15:38:25Z, on the owner's words.
+  - **Promote:** it succeeded at 15:38:46Z. Its own read was `releases/download/v19/version.txt=19`.
+- **After promote:** latest is v19 (`isPrerelease` false), and `latest/download/version.txt` read `19` at 15:38:48Z and
+  15:41:50Z. `verify-release.sh v19` then read `=== 9 passed, 0 failed, 1 warnings ===` and `Release v19 is safe to flash
+  against.`, exit 0.
+- **E2:08** runs the v19 release asset `f6d73e391631`.
+- **Step 8, the week after:** A3.1's reader, read daily, and the four boards behind 18 read again.
+
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
 **Step 7:**
