@@ -2114,3 +2114,108 @@ rejected (up to about 24 px of land across open sea). Before the re-run, a re-re
 5. then the run from the start. This is KB8's first re-run; a second off reading goes to the orchestrator and on to the owner.
 
 A slip in my report, recorded: it gave this record's commit as "28fff67fxxxx", a placeholder typed instead of a sha that had been read.
+
+### KB8's re-registration: edge-locked simplification (the 06:35:32Z ruling), registered and pinned before the run
+
+**The change.**
+- **Where pieces are made** (`layers.ts`), a sea part's vertex whose lon or lat is a whole degree (within 1e-9) is LOCKED. That is its
+  own cell's boundary, the ingest's cut.
+- **The square clip moves no surviving vertex.** So `seaRings` carries each lock through the clip by the vertex's exact frame point. The
+  projection is separable, x = (lon - lon0)·K·c0 and y = (lat0 - lat)·K, so every vertex on one meridian gets one double.
+- **Step 3, under Q4_TP=1, is `waterQ4Locked`** (`frame.ts`, from `pq4d-frame-lock.part.ts`, inserted verbatim before `waterQ4`).
+  - The anchors are index 0, Douglas-Peucker's own anchor as `simplifyRingTP` has it, plus every locked vertex. DP runs on each chain
+    between consecutive anchors, and keeps the chain's ends.
+  - Then comes `simplifyRingTP`'s own topology loop, byte for byte the same, followed by the same backstop.
+  - **With no locked vertex, it IS `simplifyRingTP`:** one chain, 0..n, the same `dpKeep` over the same path.
+- **The plant `edgeunlock`** (S-KB-EDGEUNLOCK) takes the unlocked path, which is run 3's.
+
+| artifact | sha256 | was |
+|---|---|---|
+| `pq4d-frame-lock.part.ts` (new) | `90b5fcb26a99b30a32a919453775272886df697972c97bce90a1755bb37fb147` | |
+| `pq4d-sea.part.ts` = `pq4d/.../sea.ts` | `1c0797cc0627236fabe13146359cfab7c1f8f0a9b3f7172c2acf523a8a6f6569` | 4b46e0ece2fe |
+| `mk-pq4d.mjs` | `38def76e437c0b9727036023ade446a45c570ffda3794798ad7ae80d10c3218c` | fd0b80a28a3f |
+| `mk-pq4d-sea.part.mjs` | `1510af7df0988a1087cf219f56b9754e6a864cdde9ba2b2f8cf0dbf20fdc0b7b` | 83e495406462 |
+| `pq4d/.../frame.ts` | `c82e3aad5a72272dd8531d33c7e76a6de008fe60912d37a4117c306c04b4006d` | be6c086e95c5 |
+| `pq4d/.../layers.ts` | `40484a780c86c0024978f9524ca97669d7b32407fba042d8d93653eb14efedd1` | 2c88da1f3b58 |
+| `pq4d/.../build.ts` | unchanged, 4d7ee5e0a868 | |
+| `dr-p2-synth.mts` | `25daaeea80df5eb6ce6cec4339c18916fdba6c26497e33bd4751d12de3373a79` | 73c00f842daa |
+| `p2-read.py` | `ecf44d25e6d777fb935e641358019a8cb400a1c48119000106180314f97de250` | 4e1fc2ad5b2d |
+| `est-lock-cost2.py` | `5460fca831bb12f122fc8fc109d73433da071b7961370882c6f050514de3595d` | |
+| `lock-cost-pred.json` (its output, read by the driver) | `0e13f85a500b3d60c5c8c8d12767520d25658eb7244317ed0ce3a4f7b82ec382` | |
+| run 3's KBOS package, kept (`p2-runs/run3-out/KBOS-sea-p21.json`) | `42f48f5e58144360f33d352f44ef1ec65eef16f94b22e0d3c165e179880fb208` | |
+| run 3's driver output, kept (`p2-runs/p2-read.run3.out`) | `9e52a0bd988bf91f74cf740e8d4752ee025d14d42dec8324b7799a45da8e4814` | |
+
+**Unchanged:**
+
+| artifact | sha256 |
+|---|---|
+| `p2-render.py` | cca7d5c16db2 |
+| `kb5` | a841b11b5f47 |
+| `kb5.cpp` | 6a839559bdcf |
+| `mk-sea-store.mts` | 9f7a16c639b2 |
+| `dr-p2c.mts` | cd2d15be34e7 |
+| `dr-p2m.mts` | 7814abed9746 |
+| `kb7.py` | e24035aa2fab |
+
+The stores are unchanged too.
+
+**Tooling checks run before registering, none of them graded:**
+- **The regenerated pq4d** differs from the old tree in exactly three files. `frame.ts` gained exactly the part file (36 lines, nothing
+  else), `layers.ts` gained the lock line, and `sea.ts` is the part.
+- **Identity** (`lock-identity.mts`, 51d1bb9c8534): with no locked vertex, `simplifyRingTPLocked` equals `simplifyRingTP` on
+  **300 of 300** seeded random rings, at ε, ×2 and ×8.
+- **The identity check's control:** on edge2's west piece, the unlocked path drops (0, 4045) and the locked path keeps it.
+
+**1. S-KB-EDGEUNLOCK at KBOS, the plant.** It sits in KB8's block right after S-KB-SEAM and **before KB8 reads anything**: "run it first",
+read as first of KB8's rows. It is flagged in case it should come earlier. **Predicted:** its KBOS water rings equal run 3's kept
+package's, and **KB8 = 10**, run 3's exact count.
+
+**2. EDGE2, the host-level assertion.** It follows the `kb1c` rows in the synthetic block, with its control first.
+
+| row | predicted |
+|---|---|
+| EDGE2's control, unlocked | the two rings' quantised edge sets DIFFER: {405, 4045} (east) and {405} (west) |
+| EDGE2, locked | both {405, 4045}, **equal** |
+
+**3. The cost** (`est-lock-cost2.py`, run on run 3's P2-1 outputs and the store; none of the new code ran). For each drawn piece, the
+estimate counts its locked vertices inside the square whose quantised point is missing from its own run-3 ring (its ring being the one
+sharing the most of its points). Each costs about 4 B, at most 6.
+
+| point | added ~ | sea bytes, predicted change | bound (6 B a vertex, incl. unmatched pieces) | graded tolerance (2 × bound + 24) |
+|---|---|---|---|---|
+| BUFFALO | 12 | +48 | 78 | 180 |
+| KBOS | 12 | +48 | 96 | 216 |
+| KDTW | 4 | +16 | 24 | 72 |
+| KEWR | 10 | +40 | 66 | 156 |
+| KJFK | 13 | +52 | 84 | 192 |
+| KLGA | 13 | +52 | 84 | 192 |
+| KMIA | 6 | +24 | 48 | 120 |
+| KSEA | 16 | +64 | 96 | 216 |
+| KSFO | 7 | +28 | 54 | 132 |
+| MIDTOWN | 11 | +44 | 72 | 168 |
+| ROUSES | 14 | +56 | 84 | 192 |
+| ZAPATA | 0 (8 locked, all kept) | 0 | 0 | 24 |
+| KIND, KJAC, KMSP, KORD | no sea | **0 exactly** | 0 | 0 |
+
+- **Graded.** At each point, |the change in sea bytes against run 3| ≤ the tolerance. Outside it, **stop**: the cost model is wrong.
+  The tolerance has room because the chain effect is not modelled: anchors split DP's chains, which can move a few interior vertices
+  either way. **KB3 ≤ 3,072 B stays graded,** with the largest predicted at KSEA, 1,954 + 96 = 2,050.
+- **The effect on P2-1's visible costs.** A point's non-terrain bytes grow by at most its bound, so a rung or a radius can move only where
+  the point sat within that many bytes of a rung's limit. The margins are not printed anywhere, so which points those are cannot be
+  predicted. NY's four sit on the cap at 129.6 km, and are the likeliest. **Each point's rung and radius are printed beside run 3's.** Any
+  change is a visible cost, named to the owner, not a stop.
+
+**4. KB8, as corrected:** it measures PRESENCE, ≥ 1 undrawn pixel in a 1-px band beside a cell edge. It does not measure a wedge's
+size; KBOS's wedge was about 700 px, and KB8 counted 10.
+
+**Predicted for the rest of the run, from the start:**
+- step 0 as before;
+- **every synthetic row as in run 3**: NOBRIDGE 20,818; ORDER on the squares 0; KB1 0; `kb1c`'s 15,388, 128 / 124 (4 / 24 / 96) and 0. The
+  only locked vertex in any synthetic case is `kb1`'s island C corner at S = 0, a corner DP keeps anyway;
+- P2-0 and T-SEA0-real unchanged at all 13, since the lock lives only in the sea path;
+- P2-1 kOk with 0 proper crossings at all 16, then the cost rows above, then KB3;
+- KB8's control S-KB-SEAM ≥ 1, since the plant moves its edge vertices off the line and they are no longer locked;
+- **S-KB-EDGEUNLOCK = 10, then KB8 at KBOS and MIDTOWN: 0**;
+- then KB4, KB5, KB7-a/b, KB7-c-real, P2-M and the pictures, as registered.
+
+**This is KB8's first re-run.** A second off reading on it goes to the orchestrator and on to the owner. **Anything else: stop.**
