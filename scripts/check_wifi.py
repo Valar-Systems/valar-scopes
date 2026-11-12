@@ -47,7 +47,8 @@ PRIVATE = re.compile(r"(?<![\d.])(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2
 PORTAL = ".".join(["192", "168", "4", "1"])
 
 BINARY_EXT = {"jpg", "jpeg", "png", "gif", "webp", "ico", "bmp", "pdf", "3mf", "stl", "step", "stp", "woff", "woff2",
-              "ttf", "otf", "bin", "elf", "bmpk", "wxc", "zip", "gz", "tgz", "xz", "7z"}
+              "ttf", "otf", "bin", "elf", "bmpk", "wxc", "zip", "gz", "tgz", "xz", "7z",
+              "o", "a"}  # relocatable objects and ar archives: image-compare's fixtures (docs/image-compare.md section 9)
 
 
 def passes(value):

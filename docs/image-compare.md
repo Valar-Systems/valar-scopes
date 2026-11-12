@@ -287,6 +287,13 @@ in the code commit that follows this amendment: `scripts/image-compare.py`, `tes
     re-registered as P9b (`movi`) and read as predicted.
 - **Directions no fixture reaches yet:** the `addi` exclusion, and GC's refusing direction (a newly kept function
   named by an unchanged unit).
+- **The repository's guards read the fixtures; they don't skip them.**
+  - The fixture objects and archives first failed `check_wifi.py` and `check_macs.py` as "not a known binary type:
+    cannot be checked". That is the guards refusing what they can't read, as they should.
+  - `check_wifi.py`'s `BINARY_EXT` now carries `o` and `a`. `check_binary_strings.py` imports that one definition, so
+    it reads every printable string in them under the same patterns: 88 objects and 12 archives, 0 findings.
+  - `check_wifi.py --selftest`, `check_wifi_sabotage.py --code-only`, `check_binary_strings.py --selftest` and
+    `--sabotage`, `check_macs.py`, `check_device_ids.py` and `check_no_traffic_captures.py` all pass.
 
 ## 10. Amendment 2: map-client's P-REDO, before it runs (2026-11-12, 17:13Z)
 
