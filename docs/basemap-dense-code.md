@@ -2223,3 +2223,53 @@ size; KBOS's wedge was about 700 px, and KB8 counted 10.
 **ACCEPTED (06:49:25Z):** the re-registration at 3b3608f7ac3c, as written. "Run it first" means S-KB-EDGEUNLOCK first in KB8's block,
 before KB8 reads anything, as placed. The cost model and its tolerance are accepted, and KB3 stays graded. **GO: run 4, from the start,
 KB8's first re-run.**
+
+**Run 4, KB8's first re-run (06:49:47-06:51:44Z): every row AS PREDICTED up to KB8 KBOS, which read 1. That is KB8's SECOND off
+reading, so it goes to the orchestrator and on to the owner.** The output is `p2-runs/p2-read.run4.out`, d131de6c6b2b.
+- **Step 0 and every synthetic row as in run 3:** NOBRIDGE 20,818; ORDER on the squares 0; KB1 0; `kb1c` 15,388, 128 / 124 (4 / 24 / 96)
+  and 0. **EDGE2's control:** edge sets [[405, 4045], [405]], which differ. **EDGE2:** [[405, 4045], [405, 4045]], equal.
+- **P2-0 and T-SEA0-real** unchanged at all 13. **P2-1** kOk with 0 proper crossings at all 16.
+- **The lock's cost, within tolerance at every point,** and exactly 0 at the four with no sea:
+
+| point | sea bytes, run 3 → run 4 | change | predicted |
+|---|---|---|---|
+| KBOS | 1,398 → 1,415 | +17 | +48 |
+| KJFK | 765 → 771 | +6 | +52 |
+| KLGA | 745 → 732 | -13 | +52 |
+| KEWR | 632 → 621 | -11 | +40 |
+| MIDTOWN | 669 → 649 | -20 | +44 |
+| KMIA | 1,124 → 1,146 | +22 | +24 |
+| KSFO | 670 → 694 | +24 | +28 |
+| KSEA | 1,954 → 2,003 | +49 | +64 |
+| KDTW | 499 → 520 | +21 | +16 |
+| BUFFALO | 628 → 677 | +49 | +48 |
+| ROUSES | 613 → 645 | +32 | +56 |
+| ZAPATA | 648 → 640 | -8 | 0 |
+
+  **No point's rung or radius moved.** The negative changes are the chain effect the tolerance allowed for: with the lock, pieces that
+  run 3 collapsed are drawn, and the ladder dropped others (KBOS: collapsed 5 → 2, dropped 0 → 3).
+- **KB3:** 694-2,003 B. **KB8's control S-KB-SEAM:** 149. **S-KB-EDGEUNLOCK at KBOS:** run 3's rings exactly, and 10 seam pixels.
+- **KB8 KBOS: 1 seam pixel, OFF** (predicted 0). MIDTOWN's KB8 and everything after it did not run.
+
+**The reading, after the stop** (`kb8-diag3.py` cebfebefd636 and `kb8-diag4.py` 3cc17eca39bd, neither a graded row):
+- **The lock holds at KBOS.** Run 4's west ring and east ring share their locked edge vertices exactly, at lat 42.30811 and 42.35786. In
+  run 3 the west ring had only 42.35786, and the east ring only 42.30811 and 42.37973. **The 1.2 km wedge is gone.**
+- **The one pixel is (131, 123), at the corner where the west piece's coast meets the edge,** lat 42.35786. The row's centre lies 3 m
+  north of that vertex. On that row, the west ring's boundary is the coast running WNW from the corner, crossing at x 131.34. The east
+  ring starts at the edge, x 132.24. Pixel 131's centre, 131.5, lies between them.
+- **In the TRUE geometry that pixel is land.** That is the stored, unsimplified pieces of the four cells around lon -71, filled by the
+  same rule and unioned on KB8's screen. **The whole west side of row 123 is land too,** so KB8's own rule finds **no** seam in the truth.
+  In the package, the ε×8-simplified coast west of the corner runs slightly north of the real one. It draws sea at x 123-130 on row 123,
+  where the truth has land, and it ends at the locked corner, leaving the corner pixel undrawn with sea 2 px either side.
+- **So this pixel is not a gap between pieces.** It is ordinary coastline simplification at ε×8, within ε, at a point where a coast meets a
+  cell edge. **KB8's rule cannot tell that from a seam.** The alternative, a gap between the two pieces, is EXCLUDED: their edge vertices are
+  identical, and the truth has land at that pixel.
+
+**For the owner (via the orchestrator).** Nothing is applied.
+- **(a) KB8 counts only pixels that are sea in the TRUTH** (recommended). A seam pixel would be undrawn in the package, drawn sea in the
+  stored unsimplified pieces rendered by the same rule, and drawn 2 px either side. That is what KB8 is for, since a gap between pieces
+  is sea in the truth. The truth is rendered from the store, independently of the builder. The old rule's count stays printed beside it.
+  Predicted: KBOS 0 and MIDTOWN 0. This changes KB8's definition after a reading, which is why it is the owner's.
+- **(b) Accept KB8 KBOS = 1** as a coast corner. The pixel is land in the truth as well, so nothing extra is shown.
+- **What the lock cannot reach, and needs nothing:** simplification still moves coasts by up to ε×8 everywhere. That is the ladder's
+  rung, not a seam.
