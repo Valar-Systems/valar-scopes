@@ -148,3 +148,25 @@ follow-up push is expected to cancel (PR concurrency). A cancelled run is not re
 | **G2'** | rc 1, `error: static assertion failed: the big-size check models are 720, 960, 1080 and 1280 px ...` (800) | as predicted |
 | **G3'** | 720, 960, 1080, 1280, and neither macro: rc 0 each. G1 again: rc 1 by the `#error` | as predicted |
 | **D1'** | rebuilt 17:36:29-17:37:17Z (19 units). Against main's image: 65 bytes in 2 runs, app_elf_sha256 32 + checksum 1 + image_sha256 32, "PLACED", exit 0 | **as predicted** |
+
+### CI, at the follow-up commit `979d4375f8d6` (read twice: 17:59:32Z and 18:00:44Z, identical)
+
+The tested merge, from every run's checkout log, is "HEAD is now at c37ad31 Merge 979d4375f8d6... into 71156714ba44...".
+The first code commit's run (`0c5221461b68`) was cancelled by the follow-up push, as predicted, and is not read.
+
+| row | read | verdict |
+|---|---|---|
+| **J1'** | web-renderer 6 (5 success, publish skipped), firmware 30 (27 / 3), device-ids 1, no-traffic-captures 1: **38 = 34 / 4 / 0** | as predicted |
+| **B1** | `built web-720 v19 ...`, `built web-960 v19 ...`, `built web-1080 v19 ...`, `built web-1280 v19 ...` (692K wasm each) | as predicted |
+| **R0** | `ok   R0`: s3-128 240, s3-21 480 (in `build`); web-720 720, web-960 960, web-1080 1080, web-1280 1280 (one per leg) | as predicted |
+| **R0-ctl** | `R0: s3-21; draws at 480 px, built for 960 px`, `FAIL R0`, `R0's control: red as planted (exit 1)` | as predicted |
+| **S1** | `WEB RENDERER SMOKE AS PREDICTED` in every leg | as predicted |
+| **S2** | WC2 `left List Radar List Radar List Radar; right List Radar List Radar List Radar; dots 2`, all four `ok`, and WC3 `ok`, in every leg | as predicted |
+| **S3** | `AF3: as predicted` in every leg (key on: XFLD drawn; key unset: 0 requests, not drawn) | as predicted |
+| **S4** | `ok: web-dist/web-<N>/blipscope-web-web-<N>-v19.wasm carries all 2 web-only keys (anchor present)`, all four | as predicted |
+| **S5** | s3-128 and s3-21: every row as on main, R0 added. The one other `FAIL` line in `build` is R7's planted sabotage (`SETBUFFER SABOTAGE AS PREDICTED`), as on main | as predicted |
+| **T1'** | `build` 17:38:54-17:50:12Z (11 min 18 s). Legs: 720 5 min 41 s, 960 5 min 45 s, 1080 5 min 54 s, 1280 5 min 43 s, all starting with `build`. The wall clock: **11 min 19 s** | as predicted (legs 4-7 min; wall clock 10-13 min) |
+
+**No check went red at 720, 960, 1080 or 1280.** Today's firmware passes every headless check at all four sizes. That
+says the checks hold at those sizes. It does not say the layout looks right there: the pictures and goldens (big
+screens, steps 1 and 9) are where the look is judged.
