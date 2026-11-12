@@ -214,3 +214,10 @@ Both rows are read in the same window as the pictures (section 6), so no flash i
 
 For a change that draws less, an average against a +2 ms margin is enough. Later drawing registrations use map-client's
 frame-time procedure once it is accepted.
+
+**The same traffic, and an A/A control first** (the cloud reviewer, relayed 20:01Z; amended before any reading):
+- FT1 and FT2 compare "before" and "after" at the **same aircraft count**, which is recorded per sample. The firmware's
+  fit is about 0.8 ms of p95 per aircraft, so a few planes of live drift can swing a 2 ms margin either way. Once
+  map-client's `fixed_traffic.py` is frozen by sha, both rows run on its 20/40 set, cited by that sha.
+- **FT-AA, first:** "before" is read **twice**. If the two reads differ by more than the row's margin (2 ms), the row
+  reads **"instrument"** and goes to the owner. Nothing is re-graded.
