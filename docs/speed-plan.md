@@ -55,7 +55,7 @@ This plan takes in:
 
 | board | measured today | target | basis of "today" |
 |---|---|---|---|
-| **1.28" Kit S3** (240 px, GC9A01 SPI at 40 MHz) | **v19, map off, weather off: 74.5 ms p95 at 41 aircraft** (one early reading, map-client's map-bench image, 16:59:30Z, before its bench's control has run). Weather adds **about 10.7 ms** today: docs/wx-device.md measured +12.2 ms p95 at 16 contacts (the owner's "about 13"), before the span-only blend took 1.17 ms off. The map's steady cost is **unmeasured**; its rebuilds at KSFO took 177-198 ms each (#680). The 2026-08-29 fit, p95 = **35.8 ms + 0.802 ms per contact** (R² 0.985), gives 68.7 ms at 41, so v19 sits 5.8 ms above it. The cloud feed carries 40 aircraft (`BLIPS_LIMIT`) and the firmware tracks up to 60 (`MAX_AIRCRAFT`) | **24 fps** (minimum 20) | the stock-defaults soak of 2026-08-29: **44.9 h, 5,392 samples**, the frame-budget note's last block in `src/AircraftManager.cpp`. That note itself corrects an earlier "48 h". It predates v19, the map and the weather layer, so it is context only: S0 (map-client's frame-time bench) is the baseline every step is judged on |
+| **1.28" Kit S3** (240 px, GC9A01 SPI at 40 MHz) | **v19, map off, weather off: 74.5 ms p95 at 41 aircraft** (one early reading, map-client's map-bench image, 16:59:30Z, before its bench's control has run). Weather adds **about 13.2 ms at 40 aircraft** (2.1 + 4.6 + 0.1625 per contact; section 2a). docs/wx-device.md measured +12.2 ms p95 at 16 contacts. The map's steady cost is **unmeasured**; its rebuilds at KSFO took 177-198 ms each (#680). The 2026-08-29 fit, p95 = **35.8 ms + 0.802 ms per contact** (R² 0.985), gives 68.7 ms at 41, so v19 sits 5.8 ms above it. The cloud feed carries 40 aircraft (`BLIPS_LIMIT`) and the firmware tracks up to 60 (`MAX_AIRCRAFT`) | **24 fps** (minimum 20) | the stock-defaults soak of 2026-08-29: **44.9 h, 5,392 samples**, the frame-budget note's last block in `src/AircraftManager.cpp`. That note itself corrects an earlier "48 h". It predates v19, the map and the weather layer, so it is context only: S0 (map-client's frame-time bench) is the baseline every step is judged on |
 | **2.1" Waveshare** (480 px, ST7701 RGB, 8 MHz pclk) | **9.7 fps (103 ms)**, contact count not recorded | at least 20, ideally 24 | #676 (114 frames in 11.70 s) |
 | **P4 4.0"** (720 px, JD9365 DSI) | **unmeasured** (no board yet) | 24 fps (minimum 20) | none |
 | **Android screens** (7" 1080, 15.7" 960, 23.6" 1280; the web build in the kiosk app's WebView) | **unmeasured** on the real screens | **pending the owner's look at the 23.6"** | none. The stage-1 rig ran the WebAssembly firmware at about 0.2 ms a frame on a desktop, without drawing; that says nothing about the WebView |
@@ -73,12 +73,12 @@ run yet. When they have, every number below is re-read on it, and a sizing that 
 | number | value | status |
 |---|---|---|
 | v19 at 41 aircraft, map off, weather off | 74.5 ms p95 | one reading (map-client's map-bench image, 16:59:30Z), before the bench's control |
-| weather on | **about +10.7 ms** (the owner's "about 13" is the same record before a later cut) | **measured and split** in docs/wx-device.md (2026-11-06, E2:08, one run, n = 16): frame p95 **+12.2 ms**, of which the clear (the layer's 115 KB push replacing the fill) is +3.82, the sweep's blend +5.86, and 2.3 sits outside both timers. The span-only blend landed afterwards (blend −1.17 ms; sweep 6.62 against 1.99), so it is about 3.8 + 4.6 + 2.3 now. Its B1 prediction (≤ 3 ms) missed, and the record says so |
+| weather on | **about 2.1 + 4.6 + 0.1625 n ms: 9.9 at 20, 13.2 at 40, 16.4 at 60** (corrected 20:45Z) | **read from the record** (docs/wx-device.md; weatherscope's note of 20:45Z, checked by p4): the clear is a memcpy since B1's fix, 5.08 ms against the fill's 3.01 (F2); the sweep's blend is +4.6 (6.62 against 1.99, read with one echo cell on the layer); and **every contact gets 8 black outline copies while the layer is on, 157-169 µs per contact per frame** (F7's observations). The record's "+12.2 at n = 16" fits that formula. The B1 prediction (≤ 3 ms) missed |
 | the map's steady cost, M | unknown | **unmeasured**; its rebuilds at KSFO took 177-198 ms each (#680), counted in the gate's p95 |
 | the push | 25.8 ms | measured floor (two docs, section 2) |
 | per contact | 0.802 ms, of which labels about 0.53 | the 2026-08-29 fit and the 2026-08-26 labels A/B (+8.5 ms at ~16) |
 
-**So v20 at 40 aircraft is about 73.7 + 10.7 + M = 84.4 + M ms p95 (11.8 fps or worse).** The bar (20 fps) is 50 ms;
+**So v20 at 40 aircraft is about 73.7 + 13.2 + M = 86.9 + M ms p95 (11.5 fps or worse).** The bar (20 fps) is 50 ms;
 the target (24 fps) is 41.7 ms.
 
 ### (a) 20 fps at 40 aircraft, map and weather on, in v20
@@ -86,15 +86,15 @@ the target (24 fps) is 41.7 ms.
 **The owner chose (a). Its working plan, with the checkpoint and the dates, is section 2b.** The tables below are the
 sizing he chose from.
 
-It needs **34.4 + M ms** off the frame (42.7 + M for 24 fps).
+It needs **36.9 + M ms** off the frame (45.2 + M for 24 fps).
 
 | lever | expected cut at 40 | read or assumed | needed for (a)? |
 |---|---|---|---|
-| **M3** (the push on its own task, a second backbuffer) | up to **25.8 ms**, if the overlap is complete | READ: the push holds the loop today. ASSUMED: a push task, and DMA from the PSRAM backbuffer with a cache write-back on the S3 (section 3) | **yes**: no path to 50 ms without it. With it, the frame is about 58.6 + M |
-| **W** (weather's ~10.7 ms cut further) | **unknown** | its split is READ (the clear +3.8, the blend +4.6, +2.3 unplaced) and it has been cut once already. A further cut means copying only what changes each frame instead of the whole 115 KB layer, which is **unmeasured** | it is one of two sources for the last ~8.6 ms |
+| **M3** (the push on its own task, a second backbuffer) | up to **25.8 ms**, if the overlap is complete | READ: the push holds the loop today. ASSUMED: a push task, and DMA from the PSRAM backbuffer with a cache write-back on the S3 (section 3) | **yes**: no path to 50 ms without it. With it, the frame is about 61.1 + M |
+| **W** (weather's ~13.2 ms at 40, cut further) | **unknown** | its split is READ: the clear +2.1, the blend +4.6, **the outline 0.1625 ms per contact, 6.5 at 40, its largest part**. weatherscope (P5) registers an exact, byte-identical cheaper outline first, then the blend, then the clear | one of two sources for the last ~11.1 ms |
 | **M1 on the map** (its steady draw into the cached layer, with the weather) | **M** | unmeasured | yes, if M > 0 |
-| **L1** (each contact's label layout cached) | part of ~21 ms of label cost at 40 | unmeasured | **yes, or W**: with M3 and the map cached the frame is ~8.6 ms over 50 (about 40% of the label cost). 24 fps needs ~8.3 ms more |
-| **L2** (SPI at 80 MHz) | ~13 ms of push, only while the push is not hidden | computed | **only if M3 cannot overlap.** Without M3 the frame is 84.4 + M; L2 and the map leave it at ~71.5, and W and L1 would have to find ~21.5 ms between them. So **(a) is out of reach in v20 without M3** |
+| **L1** (each contact's label layout cached) | part of ~21 ms of label cost at 40 | unmeasured | **yes, or W**: with M3 and the map cached the frame is ~11.1 ms over 50 (about half the label cost, if L1 alone carried it). 24 fps needs ~8.3 ms more |
+| **L2** (SPI at 80 MHz) | ~13 ms of push, only while the push is not hidden | computed | **only if M3 cannot overlap.** Without M3 the frame is 86.9 + M; L2 and the map leave it at ~74.0, and W and L1 would have to find ~24.0 ms between them. So **(a) is out of reach in v20 without M3** |
 
 **Steps, owners, sizes** (elapsed days from 2026-11-13):
 
@@ -102,7 +102,7 @@ It needs **34.4 + M ms** off the frame (42.7 + M for 24 fps).
 |---|---|---|
 | A0: a per-phase profile of the v20 radar at 40 aircraft, map and weather on (bench-only env; map-client's bench traffic) | p4 | 1, with one E2:08 window |
 | A1: M3 on the 1.28". Its first bench hour answers the DMA-from-PSRAM question | p4 (5c reads the shared main.cpp change) | 2.5 |
-| A2: W, a further cut to weather's ~10.7 ms, only where A0 shows a cheap one | the session that owns `WxLayer.h` (the orchestrator names it) | 1-2, from A0 |
+| A2: W, a further cut to weather's ~13.2 ms at 40 (the outline first), only where A0 shows a cheap one | the session that owns `WxLayer.h` (the orchestrator names it) | 1-2, from A0 |
 | A3: the map's steady draw into the cached layer | map-client (it owns the map's draw) | 1-2, from A0 |
 | A4: L1 | p4, or a second session (Q-S3) | 2 |
 | A5: L2, plus an incoming-inspection row on the boards to hand | p4 | 0.5 + the inspection; only if A1 fails |
@@ -119,12 +119,13 @@ review, CI and merge by rule (about 0.5-1 d).
   - **If M3 cannot overlap,** (a) is probably out of reach in v20, and that is known by about **2026-11-16** (after A0
     and A1's first bench). That is early enough to fall back to (b).
   - Either way, (a)'s code adds to v20's per-function accounting with #656 (map-client's 6a) and to O11's candidate.
-- **Risk: HIGH.** It rests on M3 (two assumptions), on ~8.6 ms more from W or L1 (neither measured), on M
+- **Risk: HIGH.** It rests on M3 (two assumptions), on ~11.1 ms more from W or L1 (neither measured), on M
   (unmeasured), and on single readings.
 
 ### (b) v20 no slower than v19 at the same traffic: DROPPED
 
-**The owner chose (a), 2026-11-12 20:10Z.** (b) is kept below only as the record of what was sized.
+**The owner chose (a), 2026-11-12 20:10Z.** (b) is kept below only as the record of what was sized. Its numbers
+predate the 20:45Z weather correction.
 
 It needs about **10.7 + M ms** off v20's frame, less the margin, at **every** level, 20 included. At 20 aircraft the labels cost only ~10.6 ms, so L1 cannot carry it there, and W's further gain is unknown. **So (b) realistically needs M3 too.** With M3 complete, v20 is no slower than v19 whenever weather plus the map (10.7 + M) fits under the 25.8 ms push it hides, that is, **while M ≤ ~15 ms**.
 
@@ -171,9 +172,10 @@ parallel." Section 2b is that plan.
 on the v20 candidate, with 20 and 60 reported beside it. 24 fps (≤ 41.7 ms) is the target and not chased past.
 
 **The starting point (section 2a):**
-- v20 at 40 aircraft ≈ **84.4 + M ms**;
-- with M3's overlap complete, ≈ **58.6 + M**;
-- the last **~8.6 + M ms** has to come from caching the map (−M), W, and L1.
+- v20 at 40 aircraft ≈ **86.9 + M ms** (weather corrected to ~13.2 ms at 40, 20:45Z);
+- with M3's overlap complete, ≈ **61.1 + M**;
+- the last **~11.1 + M ms** has to come from caching the map (−M), W (the outline first), and L1. That is 2.5 ms more
+  than this section first said.
 
 ### What is READ and what is ASSUMED
 
@@ -181,7 +183,7 @@ on the v20 candidate, with 20 and 60 reported beside it. 24 fps (≤ 41.7 ms) is
 |---|---|
 | the push is 25.8 ms and holds the loop for all of it | **READ** (the measured floor; LovyanGFX 1.2.21's `pushSprite` path) |
 | the library's DMA path on the S3 still holds its caller | **READ** (`Bus_SPI.cpp:759-771`) |
-| weather's split: clear +3.8, blend +4.6, 2.3 unplaced | **READ** (docs/wx-device.md, one run, n = 16) |
+| weather's split: the clear +2.1, the blend +4.6, the outline 0.1625 ms per contact (6.5 at 40) | **READ** (docs/wx-device.md, one run, n = 16) |
 | labels ~0.53 ms per contact; per contact 0.802 ms | **READ** (the 2026-08-26 A/B; the 2026-08-29 fit) |
 | v19 at 41: 74.5 ms | **ONE READING**, before the bench's control |
 | a push task gives the overlap; DMA from the PSRAM backbuffer with a cache write-back works on the S3; which core | **ASSUMED**, and settled by M3's first bench hour |
@@ -209,8 +211,8 @@ its session and map-client's bench schedule. Weatherscope's 6E:64 is barred from
 - **M3 cuts ≥ 20 ms:** on track. P4-P6 proceed as sized.
 - **M3 cuts 10-20 ms:** partial (the push task contends, or the overlap is incomplete). L2 becomes the next lever,
   because it shortens the push the task has to hide. It goes to the owner at C1 with an incoming-inspection row.
-- **M3 cuts < 10 ms:** M3 has failed. Without it, the frame is 84.4 + M; L2 takes ~12.9 ms off, and W and L1 would
-  have to find ~21.5 + M ms between them. **The levers beyond L2 change what is drawn,** so each is his ruling:
+- **M3 cuts < 10 ms:** M3 has failed. Without it, the frame is 86.9 + M; L2 takes ~12.9 ms off, and W and L1 would
+  have to find ~24.0 + M ms between them. **The levers beyond L2 change what is drawn,** so each is his ruling:
   - **L3, a cheaper sweep blend** (up to −4.6 ms; the blend's look);
   - **L4, less label and trail work per frame**, for example labels redrawn only when their text changes, or culled
     where they overlap (the labels' look).
@@ -258,7 +260,7 @@ The big screens start at F, and alone take **F + 22** (docs/big-screens.md).
 ### The risk, stated plainly
 
 **High, and front-loaded.** The plan rests on M3: two assumptions, settled in its first bench hour. It also rests on
-~8.6 + M ms more from W, L1 and the cached map, none of them measured yet, and on single readings until map-client's
+~11.1 + M ms more from W, L1 and the cached map, none of them measured yet, and on single readings until map-client's
 baseline runs. Everything that could sink (a) is measured by **C1, about 2026-11-16**. The plan is built so the owner
 hears the bad case then, not at pre-flight.
 

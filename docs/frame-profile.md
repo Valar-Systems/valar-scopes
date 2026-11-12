@@ -7,8 +7,8 @@ waits on the two conditions below. **Every prediction here is frozen before any 
 ## 1. What it answers, and what it waits for
 
 The owner's bar is read at 40 aircraft with map and weather on. v20 there is estimated at **86.7 + M ms p95**
-(speed-plan.md 2a), with **M**, the map's steady cost, unmeasured, and weather at ~10.7 ms (measured and split in
-docs/wx-device.md). The owner chose (a), 2026-11-12 20:10Z. Every lever in it is sized from estimates of where that time
+(speed-plan.md 2a), with **M**, the map's steady cost, unmeasured, and weather at ~13.2 ms at 40 aircraft (measured and split
+in docs/wx-device.md; corrected 20:45Z, section 4). The owner chose (a), 2026-11-12 20:10Z. Every lever in it is sized from estimates of where that time
 goes. This profile replaces the
 guesses with one measurement per phase.
 
@@ -60,12 +60,12 @@ aircraft, 25 mi (map-client's CTRL scene). Each arm runs map-client's settle and
 | part | arm | map | weather | why |
 |---|---|---|---|---|
 | A0a | P-CTRL | off | on | P1's scene with a planted **+5.0 ms** inside `labels` |
-| A0a | P0 | off | off | v19's shape |
-| A0a | P1 | off | on | weather alone |
+| A0a | P0 ×3 | off | off | v19's shape, at **20, 40 and 60** aircraft (map-client's levels) |
+| A0a | P1 ×3 | off | on | weather alone, at 20, 40 and 60, so weather's per-contact term is read as a slope |
 | A0b | P-CTRL | on | on | P2's scene with the same plant: a new image, so its own control |
 | A0b | P2 | on | on | the owner's bar condition, which measures M |
 
-About 10 minutes of trace per part, plus the bench's write and restore.
+About 25 minutes of trace for A0a (seven arms), 10 for A0b, plus the bench's writes and restore.
 
 ## 4. Predictions, frozen now
 
@@ -74,7 +74,7 @@ prints `[frame-profile] cost <ns> ns/frame`. That is 2 `micros()` reads per phas
 contacts: about 100 reads and their stores. **Predicted: ≤ 100,000 ns (100 µs) per frame**, about 0.2% of a 50 ms
 frame. **Over 500,000 ns (1% of a 50 ms frame), stop:** the profile would be heavy enough to move what it measures.
 
-**The control next (P-CTRL against P1 in A0a; against P2 in A0b):** `labels` p50 moves **+5.0 ± 0.75 ms**, `fr` p50 moves **+5.0 ± 0.75 ms**,
+**The control next (P-CTRL against P1 at 40 in A0a; against P2 in A0b):** `labels` p50 moves **+5.0 ± 0.75 ms**, `fr` p50 moves **+5.0 ± 0.75 ms**,
 and every other phase stays within **± 0.5 ms**. Outside that, the profile cannot place a known cost in its own
 phase, and nothing after it is read.
 
@@ -85,16 +85,16 @@ time the profile does not see. Stop.
 |---|---|---|
 | `push` | **25.8 ± 1.0 ms** | the measured push floor |
 | `flush` | **< 0.1 ms** | a no-op on SPI SKUs (`main.cpp:989`) |
-| `labels` in P0 | **21 ± 7 ms** | ~0.53 ms per contact, the 2026-08-26 labels A/B |
-| `contacts` in P0 | **11 ± 5 ms** | the rest of the 0.802 ms per-contact slope |
+| `labels` in P0 | **~0.53 ms × n: 10.6 at 20, 21 at 40, 32 at 60, each ± 35%** | ~0.53 ms per contact, the 2026-08-26 labels A/B |
+| `contacts` in P0 | **~0.27 ms × n: 5.4 at 20, 11 at 40, 16 at 60, each ± 50%** | the rest of the 0.802 ms per-contact slope |
 | `static` in P0 | **1-6 ms** | the airports measured at −0.09 ms; circles and text are few calls |
 | `upd` | **1-6 ms** | no measurement; reported |
 | `under` in P0 (the black fill) | **3.0 ± 0.3 ms** | docs/wx-device.md, step C's `clear=` with the layer off: 3.01 ms |
 | `sweep` in P0 (the opaque wedge) | **2.0 ± 0.3 ms** | wx-device.md, `sweep=` with the layer off: 1.99 ms |
-| **weather, P1 − P0: `under`** | **+3.8 ± 0.5 ms** | wx-device.md's one-run split (2026-11-06, E2:08, n = 16): `clear=` 3.01 → 6.82 ms (the layer's push replacing the fill) |
-| **weather, P1 − P0: `sweep`** | **+4.6 ± 0.6 ms** | the same split, after the span-only blend landed: `sweep=` 6.62 against 1.99 (the blend's own cut was −1.17 ms) |
-| **weather, P1 − P0: everything else** | **+2.3 ± 1.5 ms**, and **the profile places it** | the record's "about 2.3 ms sits outside both timers", unattributed until now |
-| **weather's total, P1 − P0, in `fr`** | **+10.7 ± 2.0 ms** | the record's +12.2 ms p95 at n = 16, less the span-only cut. The owner's "about 13" is the record's total before that cut |
+| **weather, P1 − P0: `under`** | **+2.1 ± 0.3 ms**, at every level | since B1's fix, `DrawWeatherUnder` memcpys the layer (`AircraftManager.cpp:3610-3612`): the fix's board run read the clear at **5.08 ms** (wx-device.md, \"The B1 fix, the board\", F2) against the fill's 3.01 ms. The +3.8 in this row's first version was step C's sprite push, before that fix |
+| **weather, P1 − P0: `sweep`** | **+4.6, −1.5 / +0.6 ms**, at every level. The band is wide below because S5's 6.62 ms was read with one echo cell on the layer ("not graded: rain on the layer"), and a dry layer may read lower (weatherscope's question, 20:45Z) | the same split, after the span-only blend landed: `sweep=` 6.62 against 1.99 (the blend's own cut was −1.17 ms) |
+| **weather, P1 − P0: `contacts`** (the outline) | **+0.1625 ms × n, ± 15%**: **3.3 at 20, 6.5 at 40, 9.8 at 60** | while the layer is on, every contact gets **8 black copies of its marker** (`WxOutlineNow`, `AircraftManager.cpp:4288-4298`, in both looks since 2026-11-06). Its own timer read **157-169 µs per contact per frame, median 162.5**, rising with n (4.71 ms at n = 30, 6.24 at n = 38; wx-device.md, the observations under F7). At n = 16 that is ~2.6 ms: the record's \"2.3 outside both timers\" |
+| **weather's total, P1 − P0, in `fr`** | **2.1 + 4.6 + 0.1625 n: about 9.9 at 20, 13.2 at 40, 16.4 at 60, each ± 2.5 ms** | the three rows above. The first version's +10.7 was assembled from n = 16 numbers, and the outline scales with n (weatherscope, 20:45Z; checked against wx-device.md by p4) |
 | `map` in P2, steady (M) | **not predicted as a number**. The meaning of each range is fixed now instead | see below |
 
 **The weather arms are graded only on a dry layer**, by the record's own rule (wx-device.md, S3). The keyless probe
