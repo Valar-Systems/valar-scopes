@@ -1485,6 +1485,85 @@ list that a device uses once it loads).
     disagree;
   - the code is not changed to make a count match.
 
+### `MapPlaces.h` (CB6-CB8), registered before its code (2026-11-12)
+
+**The orchestrator's addition, frozen here as a named outcome:**
+- **"THE SCRATCH READING ITSELF IS WRONG":** a CB6 count differs, and that frame's anchors and obstacles show that the
+  reader, not the code, deviates from the rule.
+- **That is a stop for a ruling too.** It is never a quiet fix to the reader followed by a re-grade.
+
+**What gets built:**
+
+| part | what |
+|---|---|
+| `include/AirportBoxes.h`, pure, every radar build | `radarbox::Airport(x, y, codeLen, &mark, &code)`: mark `{x-2, y-2, x+2, y+2}`, code `{x+5, y-3, x+5+6n-1, y+4}`, inclusive. **`DrawAirports` draws from it** (`drawRect(mark.x0, mark.y0, 5, 5)`, `drawString(code, codeBox.x0, codeBox.y0)`), so the names and the drawer read one rule (CB8) |
+| `include/MapPlaces.h`, pure, under the map gate | `mapplaces::List` (at most 256 `Town`s: qx, qy, pop and a 40-byte label); `Load(pk, &list)`, which refuses the towns past 256 and never truncates; `Rank`; `Cap`; `Place(list, maplayer::Affine, radiusMi, fixed, nFixed, out)`, which returns the placed labels (`town`, `side`, `box`, `tx`, `ty`, `ix`, `iy`); and the three other obstacle sets: ring labels, cardinals and the indicator row, as registered |
+| anchors | `maplayer::AffineFor`'s **double** coefficients: x = ax + bx·qx + cx·qy. The same projection `Build` uses, with the same rotation |
+
+**The tests:**
+- **`test/host/test_map_places.cpp`, 32 cases, against `test/fixtures/wx`.** It prints `32 checks, 0 failures`; exit 0
+  all pass, 1 any fail, 2 the rig.
+  - **15 count rows:** `CB6 <kjac|ksfo|bend> <5|10|25|50|100>mi`. Each row is red if any of its 8 rotations' counts
+    differs from the table.
+  - **7 property rows:**
+    - `CB6 cap`: ≤ Cap.
+    - `CB6 rank`: every town that the true rank considers before the cap, that is not placed and not in the centre,
+      fails both sides against the obstacles and the labels placed for towns ranked above it.
+    - `CB6 centre`.
+    - `CB6 corners`.
+    - `CB6 airports`: 0 boxes within 4 px of a mark or code.
+    - `CB6 fixed`: 0 boxes within 4 px of a ring label, cardinal or the indicator row.
+    - `CB6 labels`: 0 pairs within 4 px.
+  - **`CB6 256`:** a synthetic package with 256 places is accepted, and one with 257 is refused with 0 towns.
+  - **`CB6 eq`:** `Rank`, `Inner`, the centre test and the box geometry equal the Weatherscope's (`WxScreens.h`) over
+    every case they share, as CM11 holds the line.
+  - **8 rows `CB7 r<0..315>`:** at that rotation, over every fixture, step and town, the anchor is within 0.5 px of
+    `maplayer::ToScreen`'s float mapping and within 1 px of `radarproj::Project`.
+- **`check_map_draw.py` gains two source rows,** so `SOURCE_CHECKS` becomes 3: CD4, CB8 and CB8b.
+  - **CB8:** `DrawAirports` calls `radarbox::Airport` and draws at its boxes, and `MapPlaces.h` builds the airport
+    obstacles from the same function.
+  - **CB8b (Q-MB9):** the three other drawers still hold the exact expressions the names transcribe:
+    - `DrawRadarCircles`: `CENTRE + 4`, `CENTRE - ringPx[i] + inset[i]`, the insets `{RING_LABEL_OUTER_INSET, 3, 3}`
+      with `RING_LABEL_OUTER_INSET = 14`, the `value < 10.0f ? 1 : 0` decimals, and `labelR = CENTRE - 7`;
+    - `DrawScreenIndicator`: `y = SCREEN_SIZE - 16` and `cx - (shown - 1) * 6 + slot * 12`.
+- **A new driver, `sabotage_map_places.py`,** with each red set computed by `places_plants.py`. That is the same
+  reading: it execs `places_ref.py`'s registered text, sha256-checked. Its control reproduced the registered table
+  exactly. Its own sha256 is `81ad9442d392571929b8f3ac46a8fa8361666a41fd4076c7a4341b773d263a76`.
+
+| plant | red set |
+|---|---|
+| **S-CB-AIRPORT** (airports not obstacles) | {CB6 airports, CB6 rank, CB6 bend 25mi, CB6 bend 50mi, CB6 bend 100mi} |
+| **S-CB-FILEORDER** (file order) | {CB6 rank, CB6 kjac 50mi, CB6 kjac 100mi} |
+| **S-CB-NOCAP** (no cap) | {CB6 cap, CB6 kjac 50mi, CB6 kjac 100mi, CB6 ksfo 10mi, CB6 ksfo 25mi, CB6 ksfo 50mi, CB6 ksfo 100mi} |
+| **S-CB-NORTHUP** (north-up anchors) | {CB6 rank, CB6 kjac 25/50/100mi, CB6 ksfo 5/10mi, CB6 bend 25/50/100mi, CB7 r45, r90, r135, r180, r225, r270, r315}: 16 |
+
+- **And in `sabotage_map_draw.py`** (it holds the source plants):
+  - **S-CB-SECONDPATH:** `DrawAirports` draws its code at `x + 6` without the helper: {CB8}.
+  - **S-CB-PINS:** `RING_LABEL_OUTER_INSET` becomes 13: {CB8b}.
+  - Its table becomes `("line", f"{SOURCE_CHECKS} checks, 0 failures")` with `SOURCE_CHECKS = 3`.
+- **`run.sh`** gains a `== MapPlaces ==` block.
+- **The driver count becomes 39** (40 runs, 1 skipped).
+
+**Predicted for the first run:**
+- `test_map_places.cpp` reads **32 checks, 0 failures** under g++ 13.3 (WSL, as CI).
+- `check_map_draw.py` reads **3 checks, 0 failures**.
+- Both drivers read as their tables.
+- **MinGW 5.1** (i686 x87, the Windows default for the drivers) is predicted equal.
+  - The anchors are double, and none lies within 1e-6 px of an integer.
+  - **The named risk** is the airports' float `Project`: x87 excess precision could move a truncation.
+  - A MinGW-only difference is the Q-MC13 family: a stop and a report, never a fix by guess.
+- **Anything else stops the step.** The first read is the differing frame's anchors and obstacles, as registered.
+
+**Q-MB9, for the ruling, before CB8b's code:**
+- CB8 as ruled shares a helper for the airport boxes only. The names also avoid the ring labels, the cardinals and the
+  indicator row, so their positions are a second path re-derived from `DrawRadarCircles` and `DrawScreenIndicator`.
+- **(a)** Move those three drawers onto helpers too. That moves shipping draw code, and the ring labels' Arduino
+  `String(float, decimals)` formatting is not `snprintf`'s at every value, so the helper's text could differ from what
+  the drawer prints.
+- **(b)** Leave the drawers as they are, and pin their expressions with CB8b, a source check that runs.
+- **I recommend (b).** It changes no shipping drawing, and any change to those expressions fails the build until the
+  names follow.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
