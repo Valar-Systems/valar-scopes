@@ -1806,3 +1806,19 @@ not a fresh worktree's.
 | **X** | anything else (main fails fewer, a different exit) | stop |
 
 Also to be read, not inferred: why `wx-fb-check.py` reads 12 where its table says 35.
+
+### S4.24, 2026-11-12: the control read E, so run.sh's extra blocks are the environment; the FillRing PR goes up
+
+**The control (S4.23):** the same full `run.sh`, the same WSL, on main's own tree (`e3c2508eb8db`, clean):
+- exit 2;
+- **the same seven failed blocks**, and the summaries are identical;
+- **all 38 failure-type lines identical** to the branch's (FAIL, BLIND, RIG, SKIP, a nonzero exit), compared line by line.
+
+**Outcome E, as frozen:** they are the environment, not the change.
+
+**Why `wx-fb-check.py` reads 12 where its table says 35, read and not inferred:** its `--selftest`, run directly, passes 12 checks and then
+exits 4 with `RIG: no LovyanGFX glcdfont.h under .pio/libdeps (run pio run once)`. A fresh worktree has no `.pio`. That is the same cause
+as GameConfig's and the usage report's "no ArduinoJson under .pio/libdeps". WSL's Python also has neither Pillow nor numpy (R0/R0b).
+
+**So the authoritative host run is CI's,** whose Linux host-tests job installs these. **The PR goes up (ruled 05:49Z, E),** with its CI
+predicted as S4.21: 34 = 30 / 4 / 0, its tested merge named from a job's checkout log.
