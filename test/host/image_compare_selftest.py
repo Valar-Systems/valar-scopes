@@ -205,12 +205,30 @@ def run_case(mod, a, b, allow, tmp):
     return rc, lines
 
 
+REFUSALS = ["R1 unknown relocation type", "R2 stale input", "R3 size without a long-call site",
+            "R4 a narrowing that changes the operation", "R5 a flip whose reach never crossed",
+            "R6 a register change under a relocation"]
+T0_CASES = ["T0 t0", "T0 t0bad"]
+
+
+def case_label(case, allow):
+    return "%s%s" % (case, " allow=" + ",".join(allow) if allow else "")
+
+
+def case_labels():
+    """Every case this selftest grades, by label: the list the sabotage driver holds every plant's declaration to."""
+    return [case_label(c, a) for c, a, _, _ in CASES] + REFUSALS + T0_CASES
+
+
 def run(mod):
     fails = 0
     total = 0
+    known = case_labels()
+    assert len(set(known)) == len(known), "a case label repeats"
 
     def grade(label, rc, lines, want_rc, want_lines):
         nonlocal fails, total
+        assert label in known, "a graded case missing from case_labels(): %s" % label
         total += 1
         if rc == want_rc and lines == want_lines:
             print("PASS %s" % label)
@@ -225,7 +243,7 @@ def run(mod):
     with tempfile.TemporaryDirectory() as tmp:
         for case, allow, want_rc, want in CASES:
             rc, lines = run_case(mod, os.path.join(STORES, case, "a"), os.path.join(STORES, case, "b"), allow, tmp)
-            grade("%s%s" % (case, " allow=" + ",".join(allow) if allow else ""), rc, lines, want_rc, want)
+            grade(case_label(case, allow), rc, lines, want_rc, want)
 
         # R1: a relocation type the rules do not know, in a compared section -> UNDECIDED, never "same" or "changed"
         st = copy_case(tmp, "body")
@@ -325,5 +343,6 @@ def run(mod):
             rc = mod.t0(os.path.join(STORES, case), "Jan  1 2026", "00:00:00", lines.append)
             grade("T0 " + case, rc, lines, want_rc, want)
 
+    assert total == len(known), "graded %d cases, case_labels() lists %d" % (total, len(known))
     print("image-compare selftest: %d cases, %d failed" % (total, fails))
     return 1 if fails else 0

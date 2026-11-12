@@ -484,3 +484,37 @@ leave the code byte-identical and change only the table. Excluding it would hide
 - **The sabotage run:** P13 (the table not folded) turns exactly `eh` and `ehtype` red. P12's set was re-derived:
   its first run with `ehtype` read OFF on that case, which prints referrers. That is the same miss as P7's, a set not
   re-derived when a case was added. All 13 plants now read as predicted.
+
+## 15. Every plant declares every case; K3 (the reviewer's rulings, 18:10:27Z and 18:14:25Z)
+
+**The repeated miss, removed mechanically.** P7's set, then P12's, wasn't re-derived when a case was added. That rule
+had to be remembered, and it failed the second time.
+- The selftest now publishes `case_labels()`, every case it grades. It asserts that it graded exactly those.
+- The driver, committed as `test/host/sabotage_image_compare.py`, makes **every plant declare every case, as red or
+  unaffected**, with both halves written out.
+- It **refuses to run** (exit 2) while any case is missing from any plant, sits in both halves of one, or is not a case
+  the selftest grades. Adding a case fails the driver until every plant has declared it.
+- **The refusal, shown once (18:12:27Z):** in a copy, the selftest gained a case and every plant declared it except
+  P10. The driver printed `P10 the offsets label never given: does not declare ['dummy']` and exited 2, as predicted.
+- **Under run.sh's driver conventions:**
+  - `--anchors`: 13 of 13 present exactly once;
+  - `--control`: the unplanted selftest's line, derived from `case_labels()` rather than typed as a count. No
+    pyelftools reads SKIPPED, never passed;
+  - the full run: 13 plants × 24 cases, ALL AS DECLARED;
+  - `lint_driver_counts.py`: 0 flagged.
+
+**K3: A against S, `blipscope-s3-128-otatest` at C, instrument `033ac5ad`.**
+- S's planted header matched blipscope-5c's LF sha256 exactly (`6418c9541333…` from C's `3c1cb9849c42`).
+- The reading:
+
+      inputs: 362 loaded, 1 differ (src/OtaUpdater.cpp.o)
+      functions whose address moved: 0
+      CHANGED func global A+B MaybeUpdateFirmware(LGFX&, lgfx::v1::LGFX_Sprite&, HttpRequestManager&) -- OUT
+
+- **The registered row holds:** exactly one changed unit, in OtaUpdater.cpp's object, with 0 image-layer differences.
+  That is the answer #651's comparator gave for this pair, now from the objects.
+- **The filed exact text was OFF by one token, recorded as K3's first off reading, by text only.** I wrote
+  `MaybeUpdateFirmware()` without demangling the symbol first. No re-read: the same builds would reproduce the output
+  and prove nothing new.
+- **The fix, applied to POS:** every name in an exact prediction, and every allow pattern, is demangled from the
+  object's own symbol table and checked against a real symbol before it is filed.
