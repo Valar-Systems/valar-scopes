@@ -3252,3 +3252,30 @@ Still owed before the code PR:
 - why the Whitefish Bay hole's start vertex and the triangles' order differ between steps 1 and 2, and the ingest's determinism run to
   run (17:14:50Z);
 - the owner's verdict on the pictures, which decides the conditional Puget Sound item.
+
+**ACCEPTED (19:37Z): part 2 is DONE, apart from the owner's picture verdicts.**
+
+### (a) before the code PR: the ingest's determinism, and the Whitefish Bay ordering (19:3xZ)
+
+**The determinism half, run BEFORE it was registered: my miss, on record.** I ran it at 19:37Z on my own "next, unless ordered
+otherwise", before the orchestrator's go asked for pre-registration. Its outcome space was binary (byte-identical, or not), but I
+wrote neither outcome down first. The result: two fresh runs of `sea-ingest.mts` (45500edf4529) and the 17:02Z run produce
+**byte-identical pieces** (09db20fc5a86, all three) and equal stats (`ms` aside).
+
+**The Whitefish Bay half, REGISTERED before it is read:**
+- **The separating question:** do step 1's source rings for Whitefish Bay (`parity/sources.json`, exported from the dry run's shapely
+  geometries) and step 2's (the shapefile's raw parts, read by `proxy/scripts/basemap/shapefile.ts`) hold the SAME vertex sequences
+  up to a cyclic start or the order of the parts, or different vertices?
+- **Why that separates the causes:** both steps clipped with the same `rectclip.ts` (a39c8762a6ef), so any difference in the output
+  comes from the input. The dry run passes each lake through shapely's `unary_union`, which REBUILDS rings, choosing its own start
+  vertex and part order. The TS ingest keeps the file's own.
+
+| outcome | what it means | next |
+|---|---|---|
+| **O1:** the same vertex sequences, differing only by the cyclic start and/or the order of the parts | the dry run's `unary_union` reordered them; the TS ingest keeps the shapefile's own order, which is deterministic (above) | **no change to the ingest.** The id cannot vary run to run. Recorded |
+| **O2:** the vertices themselves differ | step 1's and step 2's sources differ in content, which contradicts PARITY step 2's exactness | **STOP:** the instrument is in doubt |
+| **outside the set** (identical sequences, or anything else) | the clip itself would be ordering by something that varies | **STOP** and report |
+
+**The read:** `wb-dump.mts` dumps the raw parts of every NE lake record named Whitefish Bay through `shapefile.ts`, and `wb-cmp.py`
+compares them with `sources.json`'s Whitefish Bay polygons ring by ring: exact equality, equality up to rotation, equality up to
+reversal, and the parts' order. Counts and indices only.
