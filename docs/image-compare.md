@@ -1046,3 +1046,51 @@ Everything else in section 21 stands, except where this section replaces an outp
 ### The regression
 
 K0, K2, K3 and K4 are unchanged byte for byte. No walk refusal, and no repeated local in their differing inputs.
+
+## 23. R12: a call aimed at nothing, in a function accounted RELAX (the reviewer's addition, 19:40Z), frozen before code
+
+**Construction.** `relax`, with A's image patched. `lo_caller`'s relaxed `call8` (A's site 0) is re-aimed 0x100
+bytes further on, from `hi_callee` at 0x40070000 to 0x40070100.
+- It is the same instruction, the same size and the same window. Only the 18-bit offset changes.
+- Nothing is there: 0x40070100 lies past `hi_callee` and past `.text_hi`'s end. The selftest asserts that no symbol of
+  A's image covers it before reading.
+- It stays in call range (reach +458912 ≤ 524284), so the flip still crosses.
+
+**The reviewer's requirement:** never RELAX, never NO CHANGE. Either is a gap, not a limit: STOP and report.
+
+**My prediction, from the code, against e25f0c7c AND under 1i′ as registered: RELAX.** The whole output:
+- `inputs: 7 loaded, 0 differ`
+- `RELAX lo_caller: n=1 rA=1 rB=0 narrowed A/B=1/0 widened A/B=0/0 dsize=+4; site 0: call in A, reach +458912; long in B, reach +589724`
+- `functions whose address moved: 7`
+- `verdict: NO CHANGE`
+- exit 0
+
+**Why it reads RELAX.**
+- `relax_walk` accepts a relaxed site on `call_n(...) == nx`, the window size, and never looks at the target.
+- The flip check is a range test. It passes for any target in range.
+- 1i′ runs (c) only for LINK-ONLY candidates.
+- **The alternative, excluded:** that the target is checked somewhere else on this path. It is not. Between the walk
+  and `relaxed.append`, the only uses of a site's target are `reach()` and `in_call_range()`.
+
+**So R12 is predicted to read a gap, and the read will STOP under the reviewer's rule.** This is predicted, not hoped
+otherwise.
+
+**Proposed for ruling, not coded: 1i″, (c) on every walk the image layer finishes.**
+- **RELAX:** each side's sites are already collected by the walk.
+- **FILL's image walk:** the same gap. Its sites are collected the same way, and its flip check is a range test too.
+- **The check:** each site's target must be the image address of what its input names, checked before the class is
+  given. A mismatch makes the function UNDECIDED, never RELAX or FILL, with (c)'s message.
+- **R12 would then read:** `inputs: 7 loaded, 0 differ` / `functions whose address moved: 7` / `UNDECIDED lo_caller:
+  size 12 -> 16: A's site 0 calls 0x40070100; its input names hi_callee, at 0x40070000` / `verdict: UNDECIDED (1)`,
+  exit 3.
+- **On the word:** the reviewer predicted CHANGED. CHANGED says an object unit changed, and here none did. An image
+  that is not the link of its input reads UNDECIDED, as R5 does under (c). If the reviewer wants its own class name
+  instead, it is one line.
+- **Its plant, if ruled:** P27, (c) not run on finished walks, turns R12 red, and nothing else.
+- **Red first, if ruled:** R12 is red against e25f0c7c and under 1i′ (it reads RELAX), and green under 1i″.
+
+**A further limit, stated and not tested.** A function whose size is the same in both images is never walked. The
+image layer looks only at (name, size) differences. R12's patch applied to such a function (a call that relaxed the
+same way in both images) reads nothing at all: NO CHANGE, silently. Closing that means walking every function, which
+is the full relink check the reviewer named as its own amendment. An R13 that files this reading (NO CHANGE, exit 0)
+as the known limit, so it cannot change unseen, is offered.
