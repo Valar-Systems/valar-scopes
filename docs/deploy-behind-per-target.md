@@ -208,3 +208,41 @@ DB1 to DB8, DB10, DB11 and DB12 are **unchanged** from the table above. Then:
 
 **CI for the code PR:** predicted at the code PR, from the then-latest finished proxy-touching PR run (#562's 31 is stale).
 **Outside the predicted set: stop and report.**
+
+### The dry-run's guard (the orchestrator, 2026-11-12 18:01:52Z), and the code's shape, registered before any code
+
+**The terms, as given:** the dry-run runs from the committed script only, inside Q-DB3's "one bundle build per deploy". Because a typed
+one's danger is a dropped flag that turns it into a real deploy, the script:
+- builds the argv in ONE place;
+- asserts, immediately before spawning, that it holds `--dry-run` and `--outdir`. If either is missing, it exits non-zero and spawns
+  nothing;
+- writes `--outdir` under the OS temp dir, checks that the dir is outside every git tree, and deletes it afterwards;
+- prints the exact spawned command line on every run.
+
+The first real run is made from a shell with no `CLOUDFLARE_API_TOKEN` (its presence printed as a boolean only), and its printed
+argv goes in the report.
+
+| row | input | predicted |
+|---|---|---|
+| **DB18**, the guard | the guarded spawner, given (a) an argv WITHOUT `--dry-run` and (b) one without `--outdir`, with a counting fake spawner | **both refused, non-zero, and the fake counts 0 spawns.** (c) The real argv passes the guard |
+
+| plant | the defect | turns red |
+|---|---|---|
+| **P-NOGUARD** | the assertion removed | {DB18} |
+
+**The order:** DB18, and the refusal case shown red, run BEFORE the first real dry-run.
+
+**The code's shape, stated before it is written:**
+- **The decision lives in the script,** not in bash: `deploy-inputs.mjs check <proxy|builder> <env>` computes the set, lists the
+  commits in `HEAD..origin/main` with their files, and prints the blocking ones and the notes.
+  - Exit 0: nothing blocks. Exit 1: blocking commits (`ALLOW_BEHIND=1` applies as today). So the selftest exercises the same code
+    `deploy.sh` runs.
+  - **`deploy.sh` keeps today's rule in bash** for any other exit, such as a crash or a missing node, so a broken script never blocks
+    less than today.
+- **The fallback set** (Q-DB2: the bundler cannot answer) is all of `proxy/` PLUS the machinery list, which matters because
+  `scripts/session-claim.py` lies outside `proxy/`. It never blocks less than today's rule or the machinery rows.
+- **wrangler is spawned as `node proxy/node_modules/wrangler/bin/wrangler.js`,** with no shell, in `proxy/`. Its `deploy` args are
+  `deploy.sh`'s own, plus `--dry-run --outdir <tmp> --metafile <tmp>/meta.json`.
+- **DB11's and DB12's failures are planted by injecting the dry-run's result** (a non-zero exit; a metafile without the config's
+  `main`). So a selftest spawns wrangler only for the two real sets (`--env staging`, as read on 11-06), and plant runs reuse those
+  sets' raw inputs and spawn nothing.
