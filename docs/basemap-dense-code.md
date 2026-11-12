@@ -2620,3 +2620,42 @@ including PD-10: GEOS keeps a hole touching the shell at ONE vertex as a hole, s
 - **Traced by hand for the cases it touches:** PD-3, PD-7 and PD-8 keep their shapes (PD-8, every edge on the boundary, falls to the
   centre test and gives the rectangle). PD-4 still gives nothing. PD-10 has no boundary edge, so it stays a hole.
 - **The re-run:** the whole PD suite, then the controls, then the real cells, as registered.
+
+**PARITY, the run (16:49:48-16:54:05Z): PASS.** The hand-written clip reproduces GEOS's pieces exactly over all 2,584 cells, so no
+dependency is needed.
+
+| artifact | sha256 |
+|---|---|
+| `rectclip.ts` (after the PD-9 fix) | a39c8762a6ef |
+| `rectclip-run.mts` | 5cbc9f0c8713 |
+| `verify.py` (after the encoding fix below) | 0951ccd447d1 |
+| `sources.json` | 37e44482a988 |
+| `export-sources.py` | 4aef18b68282 |
+| the real run's output | 6c1b785301f9 |
+
+A full clip of the 2,584 cells takes **about 37 s**.
+
+| step | read | |
+|---|---|---|
+| **PD-1 to PD-12** (after PD-9's fix, recorded at e5beb78cef9e) | **12 of 12 pass** PA-2 to PA-5 against GEOS; my reading agrees with GEOS in all 12 | as registered |
+| **C-SELF** | 0 failures over 1,914 pairs | as predicted |
+| **C-IDX**, off by one | PA-1 fails (1,415 / 1,904 / 504 / 136). **PA-2 fails at 492 of the 1,435 cells**; PA-5 fails at all 1,448 matched pairs | **fails, as it must.** But see below: "at most of the cells" was not met |
+| **C-SHIFT**, 1e-5° | PA-4 or PA-5 fails for **1,736 of 1,914** pieces (91%); Hausdorff 0.00044° | as predicted (at least half) |
+| **C-AREA** | PA-4 and PA-5 fail at **exactly one** piece (16/-155) | as predicted |
+| **C-HOLE** | PA-1 fails (632 kept, 0 dropped); PA-3 fails at **44 pieces, exactly those that held the 135 dropped islands** (counted: 44 pieces, 135 islands) | as predicted |
+| **THE REAL RUN** | **PA-1:** 1,435 / 1,914 / 497 / 135, exact. **PA-2 to PA-5: 0 failures** over all 1,914 pairs. **Recorded:** Hausdorff max **0.0**, and 0 pairs whose vertex counts differ; even the total, 69,728 vertices, is the reference's | **PASS** |
+
+**Three things on record:**
+- **C-IDX's magnitude was mis-stated.** I registered "at most of the 1,435 cells", and PA-2 failed at 492 (34%). A full open-ocean cell
+  clipped by its neighbour's rectangle keeps its piece count and its area in degrees, so only PA-5 sees the move, and it fails at every
+  matched pair. The control is not blind; my count was wrong.
+- **An instrument defect, in the verifier, not the clip.** The first grading of the real run read PA-2 = 7, all in cells holding four
+  lakes with accented names. `verify.py` opened the clip's UTF-8 output with Windows Python's default code page, cp1252, and garbled the
+  names, so the source-matched pairing refused them. The geometry already matched: Hausdorff 0.0. Opening every JSON file as UTF-8
+  cleared it, and every grade was then re-read.
+- **A finding for the code PR's ingest.** Natural Earth's `ne_10m_lakes.cpg` declares **UTF-8**, and the DBF's bytes are UTF-8. The dry
+  run decodes them as latin-1. So the reference, and the prototype store's sea `src` attributes, carry garbled names for **Réservoir
+  Baskatong, Réservoir Outardes Quatre, Réservoir Pipmuacan and Lake Péribonca** (7 cells).
+  - **The code PR decodes by the `.cpg`.**
+  - **PARITY's name match then maps the reference's names through latin-1 → UTF-8** before comparing. This is registered now, before
+    that ingest exists.
