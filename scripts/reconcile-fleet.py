@@ -113,8 +113,10 @@ def kv_list_names(prefix: str, env: str, errfile: Path) -> list[str]:
     cmd = [npx(), "wrangler", "kv", "key", "list", "--binding", "ENRICH_KV",
            "--env", env, "--prefix", prefix, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
+        # encoding="utf-8": wrangler prints UTF-8, and a cp1252 locale's default decode crashed the reader thread
+        # (v19's step 8, 2026-11-12). errors="strict": a byte that isn't UTF-8 is an error, never an invented char.
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
-                           text=True, timeout=180)
+                           text=True, encoding="utf-8", errors="strict", timeout=180)
     err = errfile.read_text(encoding="utf-8", errors="replace").strip()
     if r.returncode != 0:
         die("wrangler kv key list failed for prefix %s (exit %d).\n--- stderr ---\n%s"
@@ -145,7 +147,7 @@ def kv_get(dev_id: str, env: str, errfile: Path) -> dict | None:
            "--env", env, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
-                           text=True, timeout=120)
+                           text=True, encoding="utf-8", errors="strict", timeout=120)
     if r.returncode != 0:
         return None
     try:
@@ -159,7 +161,7 @@ def kv_get_raw(key: str, env: str, errfile: Path) -> str | None:
            "--env", env, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
-                           text=True, timeout=120)
+                           text=True, encoding="utf-8", errors="strict", timeout=120)
     return r.stdout.strip() if r.returncode == 0 else None
 
 
@@ -264,7 +266,7 @@ def analytics_token() -> tuple:
     if not p.is_file():
         return None, "the token file does not exist"
     g = subprocess.run(["git", "-C", str(p.parent), "rev-parse", "--is-inside-work-tree"],
-                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="strict")
     if g.returncode == 0 and g.stdout.strip() == "true":
         return None, "the token file is inside a git working tree"
     found = []
