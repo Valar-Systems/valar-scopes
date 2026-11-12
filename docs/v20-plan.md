@@ -23,6 +23,47 @@ blocked / slip from here on; this file is updated when the date moves.
 - v20 must install a later image;
 - anything touching board identity or the record format gets its own ruling first (`RELEASING.md`).
 
+## The frame-rate gate (the owner, 2026-11-12)
+
+"Drawing speed is a top priority for me. Make it a measured requirement." In his words:
+- "Measure v19's frame times on E2:08 first, as the baseline."
+- "With map and weather both on, v20's radar is held to a frozen bar, measured on every candidate. My starting
+  point: p95 frame time 50 ms or less (20 fps or better)."
+- "Bring me the baseline and the proposed bar before the map code is graded."
+
+**The bar, frozen by the owner (2026-11-12 19:55Z), before the baseline was measured:** "I watched 10, 20, 24, 30
+and 60 fps side by side. 20 fps is my minimum (p95 at or under 50 ms). 24 is the target. Nothing above 24 is
+chased." "The bar is read with 40 aircraft on screen, map and weather on. 20 and 80 are reported beside it." The
+firmware tracks at most 60 aircraft (`MAX_AIRCRAFT`), so 80 cannot be shown. The owner (20:10Z): "Keep 60 as the
+high point. Don't raise the tracking limit; that would cost frame time."
+
+**v20 as planned misses the bar.** Early readings put v19 alone at 74.5 ms p95 with 41 aircraft, and weather adds
+about 13 ms. The owner chooses now, not at the pre-flight: "By tomorrow, p4 sizes two things: (a) reaching 20 fps at
+40 aircraft with map and weather on; (b) v20 no slower than v19 at the same traffic. Then I choose: hold v20 for (a),
+or ship (b) on time and make 20 fps v21's bar. The speed plan starts now, since both need it."
+
+**The owner chose (a) (2026-11-12 20:10Z): "v20 doesn't ship until it meets the bar."** p4's plan with sizes goes to
+him on 2026-11-13. From it, the reviewer sets v20's new date and what it does to the big-screen dates. The map and
+weather work carries on in parallel. The baseline comes first, because the sizing needs it; map-client finishes the
+map grading right after it, and any part of that grading that needs neither the bench board nor frame numbers goes
+ahead now.
+
+How it runs:
+1. **The baseline** (map-client, which holds the frame-time instrument; one window on E2:08). It is registered before
+   the window: the image and its identity (v19's behaviour plus the instrument, with the instrument's own cost
+   measured); the scenes (the radar face at the bench's home and at a dense airport; a fixed zoom ladder that the
+   radar's 10-minute idle zoom return cannot undo; the aircraft count printed with each sample); the frame
+   definition (every frame, nearest-rank p50/p95/p99/max; map-rebuild frames counted separately and included in the
+   gate's p95); sample counts; predictions; a control first (a planted per-frame delay of known size must move p95 by
+   that size); and the escape hatch (anything outside the set stops).
+2. **The bar** is the owner's, above: p95 at or under 50 ms at 40 aircraft drawn, map and weather on; 20 and 60
+   reported beside it. Under his choice (a), v20 is held to it.
+3. **Every candidate.** O11's pre-flight (blipscope-5c) re-runs the baseline's procedure unchanged, with map and
+   weather on, and reads it against the frozen bar before the cut. A candidate over the bar does not ship: it goes
+   to the owner with its numbers.
+4. **The standing rule (the owner):** "every change to drawing code reports its frame time on the bench, before and
+   after. A slowdown beyond the margin frozen in its registration stops it."
+
 ## Work remaining, by session
 
 *(collected 2026-11-12; sizes are elapsed days, including review; each assumes a first reading as predicted)*
@@ -72,6 +113,9 @@ blocked / slip from here on; this file is updated when the date moves.
   coverage" until their products are routed.
 - **The proxy bill** must land before weather goes fleet-wide (at 600 boards: Logs ~$166, KV reads ~$115, KV
   writes ~$54 a month). Log sampling must not drop the breaker/upstream_skip instruments.
+- **The frame-rate gate** (above): v20 as planned misses the owner's bar. Early readings put v19 alone at 74.5 ms
+  p95 with 41 aircraft. Weather adds about 11-13 ms. Map rebuilds at KSFO took 177-198 ms each. The owner chose
+  (a), so v20 holds until the speed work meets the bar, and the date below is reset from p4's plan.
 - **The ingest's clipper (PARITY):** RESOLVED 2026-11-12: the hand-written rect clip and the full TS ingest equal
   GEOS and the dry run exactly; no dependency.
 
@@ -80,6 +124,16 @@ blocked / slip from here on; this file is updated when the date moves.
 - **#656**, the layout-invariant image comparator: weatherscope. It feeds `RELEASING.md`'s fix-only skip and the
   map's pre-ship gate (per-function accounting before maps go into a customer image).
 - **The fresh-boot automation plan**: blipscope-5c. So v20's cut doesn't need the owner's hands.
+
+## The speed workstream (the owner, 2026-11-12): it starts now
+
+This is shared by all boards, with targets measured on glass. The owner (19:55Z): 20 fps is the minimum, and "24 is
+the target. Nothing above 24 is chased." So the targets are 24 fps on the 1.28" and on the P4, and at least 20
+(ideally 24) on the 2.1". The number for the Android screens waits until the owner has looked at the 23.6-inch
+screen itself. The methods come first: "static layers drawn once and reused, touch read on its own schedule, and
+drawing overlapped with the panel push." "Its plan comes to me with sizes before any code." The plan is p4's, and it
+takes in the 2.1's v21 steps (blipscope-5c), the static-layer method (weatherscope) and the frame-time instrument
+(map-client). It was planned for after v20's freeze. The owner moved it to now, because both (a) and (b) need it.
 
 ## Brought to the owner early (item 5)
 
@@ -94,7 +148,10 @@ blocked / slip from here on; this file is updated when the date moves.
 
 ## Critical path, owners, date
 
-**Target: v20 promoted by 2026-11-30.** The likely range is November 25-30. The 11-07 estimate was November
+**This date is being reset:** the owner chose (a) on 2026-11-12, and the reviewer sets the new date from p4's plan
+(due 2026-11-13). Until then the table below is the map-and-weather path only.
+
+**Target (before the frame-rate gate): v20 promoted by 2026-11-30.** The likely range is November 25-30. The 11-07 estimate was November
 21-29, so the late end slips by about a day, and the early end by four. Days are elapsed days from 2026-11-12.
 
 **The critical path is the map's server side, then the client's final bench, then the cut:**
@@ -109,7 +166,7 @@ blocked / slip from here on; this file is updated when the date moves.
 | 6 | D4, the map on in production (the owner's announcement and OK) | map-server | 1-2 | Nov 20-23 |
 | 7 | The client's final bench pass and soak on a production map (E), then the pre-ship accounting (6a, #656) | map-client | 1-2 after D4 | Nov 21-25 |
 | F | **Content freeze**: the map, weather on by default, the card fix, the proxy bill | everyone | | **Nov 21-25** |
-| 8 | O11 pre-flight on the real v20 candidate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) | blipscope-5c | 4-5 after F | **Nov 25-30** |
+| 8 | O11 pre-flight on the real v20 candidate, including the frame-rate gate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) | blipscope-5c | 4-5 after F | **Nov 25-30** |
 
 **Off the critical path but due before F** (each fits inside steps 1-7):
 - map-client: the B + C merges, D (the setting), 6b (the image-level text check);
@@ -122,7 +179,8 @@ blocked / slip from here on; this file is updated when the date moves.
 - the sea path (KB4 (B') and P2-M's memory at New York against the builder's limit). An off reading costs about
   half a day; a second one on a row goes to the owner;
 - D4's production window and the owner's availability for its OKs;
-- the client's soak on a production map: it can't start before D4.
+- the client's soak on a production map: it can't start before D4;
+- the frame-rate gate: the owner chose (a), so v20 holds for the speed work until a candidate meets the bar.
 Not on the path: continental Europe (the owner, 2026-11-12: it goes live by deploys when OPERA returns); the Pro
 2.1 (aimed at v21); the big-screen build (it starts after F).
 
