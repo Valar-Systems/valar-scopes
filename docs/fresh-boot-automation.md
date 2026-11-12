@@ -8,7 +8,48 @@ in an amendment before it runs.
 **What the acceptance does today.** Six steps by the owner's hands, each graded by the script's own mode, with ten checks.
 v19's run on C' passed 10 of 10 (`docs/v19-cut.md`, "Step 4' on C'").
 
-## The owner's three choices (asked 2026-11-12; this plan works either way)
+## The owner's answers (2026-11-12 16:57Z, relayed by the reviewer at 17:01Z)
+
+"**yes to (a), (b) and (c).** The glass reset and the phone's QR setup get the hands-on test whenever their code changes,
+and at least every third release."
+
+- **(a):** the bench Wi-Fi password is the owner's credential, which he provides. It lives in a local file outside any
+  repo and is never printed. A presence check prints a boolean, never the value.
+- **(b):** the claim is his one prompted tap.
+- **(c):** `POST /factory-reset` stands in for the glass menu on automated runs.
+- **The cadence rule** is the next section, and it is written into `RELEASING.md` step 0 as well.
+
+## The hands-on cadence, and its counter
+
+Answers (a) and (c) mean an automated run never exercises the glass reset menu or the phone's QR and captive-portal
+setup. They get a hands-on run on the owner's cadence, and the cadence is a check the driver runs, not a rule anyone
+has to remember.
+
+- **The counter** is one line in `RELEASING.md` step 0, in a fixed form: `fresh-boot hands-on: last v19 (step 4',
+  2026-11-12)`. The last hands-on run was v19's step 4', which passed 10 of 10 (`docs/v19-cut.md`). The driver parses
+  the line and refuses when it is missing or appears twice.
+- **Due by count:** the candidate's `FW_VERSION` minus the counter's version is 3 or more. After v19, that is v22 at the
+  latest; v20 and v21 may run automated.
+- **Due by code:** since the counter's release tag, any of these changed:
+  - `DrawResetMenu`, `HandleResetMenuTap` or `CloseResetMenu` in `src/AircraftManager.cpp`, read function by function
+    with `git log -L`, because the file is too big for a file-level diff to mean anything;
+  - `src/FactoryReset.cpp`, `include/FactoryReset.h`, `include/SetupQr.h`, `include/QrRender.h`, or
+    `include/WiFiManagerHelpers.h`;
+  - the `tzapu/WiFiManager` line in `platformio.ini`.
+- **When it is due,** the driver refuses the automated run and prints which condition holds. Step 0 then runs as on v19,
+  with his hands, and that release's record commit updates the counter.
+
+The cadence's controls, each shown failing once before the driver is trusted:
+
+| control | the plant | must read |
+|---|---|---|
+| **K-due-count** | the counter set to v16, with a v19 candidate | refused, "due by count (19 - 16 = 3)" |
+| **K-due-code** | a range in which `include/SetupQr.h` changed | refused, "due by code: include/SetupQr.h" |
+| **K-due-func** | a range in which only `HandleResetMenuTap` changed inside `AircraftManager.cpp` | refused, "due by code: HandleResetMenuTap"; the control for the function-level read |
+| **K-not-due** | the real counter (v19) and a range touching none of the triggers | allowed. This is the control that the refusals aren't unconditional |
+| **K-counter** | the counter line removed, then doubled | refused both times, as INSTRUMENT, never allowed |
+
+## The owner's three choices, as asked (kept as the record of the question)
 
 | | the question | if yes | if no |
 |---|---|---|---|
@@ -65,10 +106,12 @@ the run exactly as they did on v19. **The automation changes who acts, never wha
 
 ## Size and order
 
-- **This registration:** 0.5 d. **The driver:** 2 d. **One rehearsal window:** 1 d, with the hub, his one tap, and each
-  control and sabotage once. **About 3.5 d elapsed.**
-- **It waits on** the owner's three choices. Every "no" keeps that step as his hands and costs a minute or three. None of
-  them blocks the rest.
+- **This registration:** 0.5 d.
+- **The driver:** 2 d, plus 0.25 d for the cadence check and its five controls.
+- **One rehearsal window:** 1 d, with the hub, his one tap, and each control and sabotage once.
+- **About 3.75 d elapsed.**
+- **The owner's three choices are answered** (yes to all three, 16:57Z). Nothing waits on him before the rehearsal window
+  except the bench Wi-Fi password, which he provides into the local file.
 - **If it isn't ready by v20's cut,** step 0 runs by his hands as it did on v19 (~30 min). The plan never makes the cut
   wait.
 

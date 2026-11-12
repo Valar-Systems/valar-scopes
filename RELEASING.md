@@ -181,6 +181,29 @@ are versioned and released **together** from a single commit, and each device se
    - **Anything out of scope, or an instrument that can't decide,** means this step runs as written.
    - The first use is v19's head-read fix (`docs/ota-head-patience.md`, section 6).
 
+   **Without his hands, and the hands-on counter (the owner, 2026-11-12 16:57Z).** Step 0 can run without the owner's
+   hands, except his one claim tap, once the driver in `docs/fresh-boot-automation.md` exists. That run doesn't cover
+   the glass reset menu or the phone's QR setup. In the owner's words: "The glass reset and the phone's QR setup get
+   the hands-on test whenever their code changes, and at least every third release."
+
+   **THE COUNTER.** This one line is read and updated at every release. The driver parses it, and refuses when it is
+   missing or appears more than once:
+
+   `fresh-boot hands-on: last v19 (step 4', 2026-11-12)`
+
+   **The hands-on run is DUE when either holds:**
+   - **(a) the count:** the candidate's `FW_VERSION` is 3 or more above the counter's. After v19, v22 at the latest.
+   - **(b) the code:** any of these changed since the counter's release tag:
+     - the functions `DrawResetMenu`, `HandleResetMenuTap` and `CloseResetMenu` in `src/AircraftManager.cpp`
+       (`git log -L :<function>:src/AircraftManager.cpp v<last>..<candidate>`);
+     - `src/FactoryReset.cpp`, `include/FactoryReset.h`, `include/SetupQr.h`, `include/QrRender.h` and
+       `include/WiFiManagerHelpers.h`;
+     - the `tzapu/WiFiManager` line in `platformio.ini`.
+
+   **Enforced by the driver, not remembered.** `scripts/fresh-boot-auto.sh` reads the counter and the triggers. It
+   **refuses the automated run when the hands-on run is due**, and prints which condition holds. A hands-on run
+   updates the counter line in that release's record commit.
+
 1. **Bump the version:** edit `FW_VERSION` in `src/OtaUpdater.h` (one number, all SKUs).
    If this takes the number to 7 or above, the gate directly above applies.
 2. Commit + merge to `main`. **Tag from the merge commit, never before it.**
