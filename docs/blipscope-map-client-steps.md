@@ -4889,6 +4889,9 @@ Strong. The owner looks at Strong and Extra strong on E2:08 in a window of his o
     work; Off at or below it.
 - **The margin (Q-T3):** max(1.0 ms, the repeat noise tonight's baseline measures). It is frozen once the baseline is
   graded, before any D code runs.
+- **Nothing is written to NVS in the bench run.** The setting is cycled only through the bench's RAM override of
+  `GetStoredString`, the same rule as the baseline's `Override()`. No `Preferences` call is added, and the
+  `check_map_draw` / `check_frame_bench` NVS rows apply to the new region.
 
 **D5, the web build does not follow.**
 - The map is never compiled into the web renderer: `BLIPSCOPE_MAP_FETCH` requires `!defined(BLIPSCOPE_WEB_RENDERER)`
@@ -4899,6 +4902,32 @@ Strong. The owner looks at Strong and Extra strong on E2:08 in a window of his o
 
 **The owner's look:** in his own window on E2:08, an image with the setting is flipped between Strong and Extra strong
 on its config page. Nothing in this registration schedules or presumes that window.
+
+**The ruling (the orchestrator, received before 22:06:14Z): ACCEPTED, Q-T1 to Q-T4 at the defaults.** Two notes, docs only, before code:
+- **D4:** nothing is written to NVS in the bench run (added above).
+- **D3b, what ships is what he picked: checked, not assumed.** The owner chose Strong and Extra strong from the
+  reviewer's "Map Terrain Shading" page, which recolours `MapLayer.h`'s own output for `bend.bmpk` at those numbers.
+  - **If that page's pixels or its recolour arithmetic can be read,** the host render at Strong and at Extra strong
+    must reproduce them, by the page's own comparison (byte-equal where it holds raw values, or the arithmetic shown
+    equal).
+  - **If they cannot be read,** that is said here, and his look on E2:08 is the check.
+  - The search for the page's source is recorded as run, before D's code.
+- **D3b, the page found and READ (22:08Z):** the "Map Terrain Shading" artifact (`E7oXT7gtbzayL3nUo16z2A`,
+  version `1794515286-f24b`), read only.
+  - **Its table matches the ruling exactly:** Off g 0; Subtle g 0.075, c 128; Strong g 0.45, c 180; Extra strong
+    g 0.45, c 128.
+  - **Its arithmetic is in its source:** `chan(land, v, gain, mid) = floor(land + (v − mid) × gain + 0.5)`, clamped
+    0-255, then `to565`, applied to `kind == 5` (terrain) pixels of its own embedded per-pixel `kind`/`shade` arrays
+    for 10, 25 and 50 mi. Level ground stores shade 180, which is why Strong (mid 180) keeps flat land at the land
+    colour.
+  - **So D3b is checkable, in two halves:**
+    - **(i) the arithmetic, from the other side:** the page's own `base()` run in node over its own DATA (its code,
+      not a transcription) gives each strength's RGB565 image. The firmware's new S2 function (host-compiled) applied
+      to the same `kind`/`shade` arrays must give **byte-equal** images, for all four strengths at all three zooms
+      (12 images). Plant: the firmware side at mid 181 must differ.
+    - **(ii) the inputs:** the page's `kind`/`shade` arrays must equal the host `MapLayer` build of `bend.bmpk` at the
+      page's view. If the page's generator, and so its view, cannot be found, (ii) is stated as not established, and
+      his look on E2:08 is the check for it.
 
 **The outcomes:** every prediction above as stated, or stop and report. A second off reading on a row goes to the owner.
 This is a customer-facing change (a new config control and a new default look), so it ships only through the owner's
