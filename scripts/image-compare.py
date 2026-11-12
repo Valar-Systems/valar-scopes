@@ -1075,7 +1075,24 @@ def function_table(side):
     return tab
 
 
-def compare(path_a, path_b, allow, cxxfilt, out):
+def reloc_names(obj, ident):
+    """For map-client's P-REDO (its amendment 1): a function's named targets, as a multiset. Every relocation's target,
+    its folded exception table's included; a branch within the function dropped; a literal-pool slot replaced by what
+    the literal names; a literal holding a plain constant dropped (a constant is not a target); every other name kept
+    (symbols, units, strings, merged constants)."""
+    import collections
+    names = collections.Counter()
+    for rec in obj.signature(ident)[2]:
+        tgt = rec[-1]
+        if tgt.startswith("self") or tgt.startswith("lit:0x"):
+            continue
+        if tgt.startswith("lit(") and tgt.endswith(")"):
+            tgt = tgt[4:-1]
+        names[tgt] += 1
+    return names
+
+
+def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
     A, B = Side(Store(path_a)), Side(Store(path_b))
     dm = demangler(cxxfilt)
     differ, undecided = same_inputs(A.store, B.store)
@@ -1268,6 +1285,15 @@ def compare(path_a, path_b, allow, cxxfilt, out):
         refs = named_by(key, oa, ob) if kind == "data" else ""
         out("%s %s %s %s %s [%s] -- %s%s" % (v, kind, bind[4:].lower(), where, dm(key[1]), key[0],
                                             "in scope" if key in in_scope else "OUT", refs))
+        if reloc_print and v == "CHANGED" and kind == "func" and oa is not None and ob is not None:
+            try:
+                na, nb = reloc_names(oa, key[1]), reloc_names(ob, key[1])
+                if na == nb:
+                    out("  relocations: unchanged")
+                else:
+                    out("  relocations: +%s -%s" % (sorted((nb - na).elements()), sorted((na - nb).elements())))
+            except Refusal as e:
+                out("  relocations: cannot be read (%s)" % e)
         if key not in in_scope:
             outside.append(dm(key[1]) + refs)
     for u in undecided:
@@ -1380,17 +1406,20 @@ def main(argv):
     out = print
     if len(argv) >= 3 and argv[0] == "compare":
         allow = cxxfilt = None
+        reloc_print = False
         rest = argv[3:]
         while rest:
             if rest[0] == "--allow" and len(rest) > 1:
                 allow, rest = rest[1], rest[2:]
             elif rest[0] == "--cxxfilt" and len(rest) > 1:
                 cxxfilt, rest = rest[1], rest[2:]
+            elif rest[0] == "--reloc-names":
+                reloc_print, rest = True, rest[1:]
             else:
                 print(__doc__)
                 return 2
         try:
-            return compare(argv[1], argv[2], allow, cxxfilt, out)
+            return compare(argv[1], argv[2], allow, cxxfilt, out, reloc_print)
         except Refusal as e:
             out("verdict: UNDECIDED (the instrument refused: %s)" % e)
             return 3

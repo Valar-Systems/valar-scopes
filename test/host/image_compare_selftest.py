@@ -222,16 +222,38 @@ def reloc_entry_offset(mod, obj_path, relsec, want_type):
     raise AssertionError("no relocation of type %d in %s" % (want_type, relsec))
 
 
-def run_case(mod, a, b, allow, tmp):
+def run_case(mod, a, b, allow, tmp, relocs=False):
     lines = []
     allow_path = None
     if allow is not None:
         allow_path = os.path.join(tmp, "allow.txt")
         with open(allow_path, "w") as f:
             f.write("\n".join(allow) + "\n")
-    rc = mod.compare(a, b, allow_path, None, lines.append)
+    rc = mod.compare(a, b, allow_path, None, lines.append, relocs)
     return rc, lines
 
+
+# --reloc-names (map-client's P-REDO amendment 1): after each plain CHANGED function, its named targets compared.
+# local: helper's change is a constant, so its targets are unchanged. gc: f gains a call to h (its literal and the
+# long-call marker both name h).
+RELOC_CASES = [
+    ("local", 1, [
+        "inputs: 7 loaded, 1 differ",
+        "  differs: src/f.c.o",
+        "functions whose address moved: 0",
+        "CHANGED func local A+B helper [src/f.c.o] -- OUT",
+        "  relocations: unchanged",
+        "verdict: OUT OF SCOPE: helper"]),
+    ("gc", 1, [
+        "inputs: 7 loaded, 1 differ",
+        "  differs: src/f.c.o",
+        "GC h [src/libh.a(h.c.o)#0], kept in B only; named only by CHANGED or GC units: f",
+        "GC h2 [src/libh.a(h2.c.o)#0], kept in B only; named only by CHANGED or GC units: h",
+        "functions whose address moved: 4",
+        "CHANGED func global A+B f [src/f.c.o] -- OUT",
+        "  relocations: +['sym:h+0', 'sym:h+0'] -[]",
+        "verdict: OUT OF SCOPE: f"]),
+]
 
 REFUSALS = ["R1 unknown relocation type", "R2 stale input", "R3 size without a long-call site",
             "R4 a narrowing that changes the operation", "R5 a flip whose reach never crossed",
@@ -246,7 +268,8 @@ def case_label(case, allow):
 
 def case_labels():
     """Every case this selftest grades, by label: the list the sabotage driver holds every plant's declaration to."""
-    return [case_label(c, a) for c, a, _, _ in CASES] + REFUSALS + T0_CASES
+    return ([case_label(c, a) for c, a, _, _ in CASES] + [c + " relocs" for c, _, _ in RELOC_CASES] + REFUSALS
+            + T0_CASES)
 
 
 def run(mod):
@@ -273,6 +296,10 @@ def run(mod):
         for case, allow, want_rc, want in CASES:
             rc, lines = run_case(mod, os.path.join(STORES, case, "a"), os.path.join(STORES, case, "b"), allow, tmp)
             grade(case_label(case, allow), rc, lines, want_rc, want)
+
+        for case, want_rc, want in RELOC_CASES:
+            rc, lines = run_case(mod, os.path.join(STORES, case, "a"), os.path.join(STORES, case, "b"), None, tmp, True)
+            grade(case + " relocs", rc, lines, want_rc, want)
 
         # R1: a relocation type the rules do not know, in a compared section -> UNDECIDED, never "same" or "changed"
         st = copy_case(tmp, "body")
