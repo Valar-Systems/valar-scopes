@@ -4948,6 +4948,23 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
 - **T_V = 0.4972** (half the clean minimum); **T_G = 0.3090** (half G1's minimum; G1 is over 5 %, so no fallback).
 - Every prediction held: clean G 0 everywhere, G1 and G26 red everywhere, B0 red everywhere.
 
+**THE CONTROLS AS RUN (23:10:15Z):**
+- **K-b:** 53 of B's graded frames give the same verdict under C-OUT-V as under the old rule, 0 different. As predicted.
+- **K-c:** of C's 29 graded off-frames, 0 have V at or over 2 %. As predicted.
+- **K-a, on `p1-t00-0`:**
+
+  | frame | V | G | verdict |
+  |---|---|---|---|
+  | unplanted | 95.96 % | 0.00 % | green |
+  | add 1 | 18.64 % | **80.90 %** | **RED** |
+  | add 26 | 0.00 % | **100.00 %** | **RED** |
+
+  **The registered K-a held.**
+- **The script printed OFF on the two plants, and that is MY CODE'S fault, not the rule's.** Its pass condition
+  (`cout.py:160`) also demanded V ≥ T_V on the planted frames, which was never registered and cannot hold: adding green
+  to the map takes those pixels out of the map class.
+- Reported, with the correction proposed. Nothing re-run before the ruling.
+
 **THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
 (visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
 - every row as predicted: CBF3-C graded;
