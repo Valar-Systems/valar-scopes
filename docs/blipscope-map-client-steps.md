@@ -4909,7 +4909,7 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
   are used.
 - The new rasters' sha256 are recorded here before T_V and T_G are computed. The calibration then runs over all 8
   rasters × 36 beams = 288 regions.
-- **As run (23:04Z):**
+- **As run (before 23:06:59Z):**
   - `bend_dump3.cpp` `27617ecd62dc50c9f9237a005a78311e6f825d62a2f0bc9d6caee1c7c42ee42a`, built in WSL from C's tree
     `27bfc9ca` (clean), over `bend.bmpk` `0e257a0a47a15f308ada084cf3303afdf32386cca5f2d3c8e8d8e4122f6ef0fd`.
   - **The control: 6 of 6 reproduce byte for byte.** So the layer render is the same from C's tree.
@@ -4919,6 +4919,34 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
     |---|---|
     | r100 rot0 | `656661aeefa46966f8c4437bbaf1b4615dfcbd2b99a2145a15b834e43a57aa38` |
     | r100 rot90 | `692cd828829f74fe7bf2dfedca46459618028d2f7b3a28f58aa57f339c2e9413` |
+
+**R0 AS RUN (23:07:33Z): (O-a).**
+- `r0pairs.py` `d409dee16961477ad75f7f739ca63c7ec3c162d0da26a82fc8dfcd1cbf8445ad`. The control passed (outside counts
+  equal `grade_frame_c`'s on all 30).
+- **The bucket:** 170,674 px.
+
+  | exact class set | share |
+  |---|---|
+  | WEDGE + OVERLAY + MAPGREEN | 60.6 % |
+  | OVERLAY + MAPGREEN | 39.1 % |
+  | WEDGE + MAPGREEN | 0.3 % |
+
+  So OVERLAY and MAPGREEN together hold **99.7 %**: the radar's own dark greens colliding with Add565 values (top
+  colours `0x0120`, `0x01a0`, `0x0280`, `0x0140`). **The rule counts OVERLAY-member colours as overlay.**
+
+**THE HOST CALIBRATION AS RUN (23:09:50Z), FROZEN.**
+- `cout.py` `94a7cab4f8d5b369f90f27f3d5aee10c1492a46bfdca43586d82814427cd72b3`, over the 8 registered rasters (each sha
+  checked) × 36 beams = 288 regions, through C's class sets.
+
+  | case | V | G |
+  |---|---|---|
+  | clean | 99.44-100.00 % | 0.00 % |
+  | G1 | 7.82-37.08 % | **61.80-92.18 %, detection after exclusions** |
+  | G26 | 0.00 % | **100.00 %** |
+  | B0 | **0.00 %** | 0.00 % |
+
+- **T_V = 0.4972** (half the clean minimum); **T_G = 0.3090** (half G1's minimum; G1 is over 5 %, so no fallback).
+- Every prediction held: clean G 0 everywhere, G1 and G26 red everywhere, B0 red everywhere.
 
 **THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
 (visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
