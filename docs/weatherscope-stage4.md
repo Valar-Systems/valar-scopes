@@ -1596,3 +1596,30 @@ and writes nothing.
 
 **Outside the set:** any row off on staging stops the slot before production, and is reported. On production, a row off is reported at
 once, and the deploy's own rollback rule applies.
+
+### S4.20, 2026-11-12: two of S4.19's rows can't tell a W5 Worker from an older one
+
+**Found by uk-data's pre-deploy controls on staging,** before W5 was deployed (relayed by the orchestrator, 04:07:52Z): **C4** and **S3**
+already read **405** on the Worker without W5.
+
+**Why.** Without W5, `/api/v1/weatherscope/` is not an API prefix, so `api` is null and `isLeaderboardSubmit` is false. Any POST to that path
+falls to the same method gate, so the answer is the same 405 either way.
+
+**So C4 and S3 are non-discriminating.** They show W5 doesn't change that answer. **They are not evidence that W5 is deployed, and must never
+be counted as such.** They stay as registered for this deploy (ruled: no change).
+
+**What each S4.19 row can show:**
+
+| row | answers without W5 | answers with W5 | kind |
+|---|---|---|---|
+| C1 | no `weatherscope` field in `/healthz` | the five breakers, closed | **discriminating** |
+| C2 ×3 | not an API path, so the 404 page (read off on the old shape) | 401 | **discriminating** |
+| C3 | the 404 page (read off on the old shape) | a JSON 404 | **discriminating** |
+| C4 | 405 | 405 | **non-discriminating** |
+| S1, S2 | 400 `bad_submission` (read on staging before the deploy) | 400 `bad_submission` | **regression rows by design:** they hold the Blipscope submit unchanged through the edition check, and are meant to read the same before and after |
+| S3 | 405 | 405 | **non-discriminating** |
+| C5 | the deploy's own rows | the same | regression |
+
+**My miss.** I wrote each row's answer with W5, and never derived its answer without W5. A row that is evidence of a change needs that
+second answer, which is the control that shows it can fail. Same family as CLAUDE.md's "a check that cannot fail is a check nobody can
+trust". The discriminating rows above are the ones that carry it.
