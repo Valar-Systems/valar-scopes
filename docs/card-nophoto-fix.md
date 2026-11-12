@@ -205,3 +205,12 @@ the margin frozen in its registration stops it." The card fix changes drawing co
 | **FT2** | the same on a card WITH a photo (`p`, `o`) | **unchanged within 1 ms** (the photo path isn't touched; (c) also requires pixel-identical) | after at most before + 2 ms |
 
 Both rows are read in the same window as the pictures (section 6), so no flash is added.
+
+**What FT1/FT2 measure, exactly** (the reviewer, 19:39Z):
+- the **average** frame time over 10 s;
+- of **drawn** frames: `/diag/fb`'s sequence counter counts backbuffer frames, not presented ones, as established on
+  the 2.1 today;
+- not a p95, and not of presented frames.
+
+For a change that draws less, an average against a +2 ms margin is enough. Later drawing registrations use map-client's
+frame-time procedure once it is accepted.
