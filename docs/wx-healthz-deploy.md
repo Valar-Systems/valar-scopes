@@ -1,6 +1,6 @@
 # /healthz every product: the deploy, staging first, then production (predictions first, 2026-11-12)
 
-**For:** the reviewer (the orchestrator), and weatherscope, whose W5 Worker code ships in the same deploy.
+**For:** the reviewer (the orchestrator), and weatherscope, whose W5 Worker code ships in the same deploy (its rows: `022ede928170`, §S4.19).
 **Status:** predictions, frozen before the slot. Nothing has deployed. The slot is the orchestrator's, after v19's step
 4' closes.
 
@@ -50,12 +50,17 @@ in the table is reported before the deploy.
 | **S2** (P2 on staging) | the same body | every product has a non-null `frameAgeS` under its `maxAgeS`, and `stale: false`. Staging's `WX` is bound to `blipscope-wx`, production's bucket (`wrangler.toml`), so it reads production's frames |
 | **S3** (P3 on staging) | `BASE=https://scopes-staging.valarsystems.com proxy/scripts/smoke-prod.sh` (`test-key-staging`, present) | passes. The per-product section prints 11 lines, no `WARN`, and `FAIL: 0` |
 | **S4** (P4 on staging) | `BASE=… tools/wx/r12_prod.sh` at the 40 label points and the 9 R2 points | as R1-P and R2-P read on production: 5 isles points and 9 at `opuk` with 720; 35 at `cref`, byte 32 `0xE0`. This is staging's first run of the region dispatch (#623) |
-| **W5 on staging** | weatherscope's rows, cited by sha: breakers; 401, 404 and 405 on the W5 routes; the staging-only leaderboard-submit rows for the changed shared request path | as weatherscope registered them, at **its sha, pending** |
+| **W5 on staging** | weatherscope's rows, frozen at **`022ede928170`** (`weatherscope/stage4-plan`, `docs/weatherscope-stage4.md` §S4.19). **C1-C5** (C1: `/healthz`'s `weatherscope` breakers; C2: 401s with no key; C3: 404 on a Blipscope suffix; C4: 405 on the W5 leaderboard POST; C5: the Blipscope smoke rows unchanged), then **W5-S1 to W5-S3**, staging only (that doc calls them S1-S3): empty-body leaderboard POSTs refused before any write, 400, 400 and 405 | exactly as §S4.19 predicts them |
 | **gate** | every S row and W5 row read as predicted | otherwise **stop before production**. Roll staging back to S0 if the off row is a defect, and report |
 | **P0** | production's rollback target: `npx wrangler deployments status --env production`, read-only | one version at 100 %, stamped `68dc169a`, recorded in full |
 | **P-dep** | claim `proxy:production`, then `deploy.sh production` | the confirmation reads main's sha. Release the claim after the P rows |
 | **P1-P4** | as registered in `docs/wx-healthz-products.md` §5 | P1: the 11, routed as above. P2: all fresh, `stale: false`. P3: smoke passes, 11 lines, no `WARN`. P4: `r12_prod.sh`, as R1-P and R2-P |
-| **W5 on production** | weatherscope's production rows, if any, at its sha | as registered |
+| **W5 on production** | §S4.19's **C1-C5** at `022ede928170` (W5-S1 to W5-S3 are staging only) | exactly as §S4.19 predicts them |
+
+**W5's `/healthz` field and my rows.** C1 adds a `weatherscope` object with a `breakers` array to `/healthz`. Smoke's
+per-product section cuts only `"wx":{...}`, so it is unaffected (H6). `healthz-commit.sh` reads the top-level stamp
+only. Smoke's greedy `"upstreams":\[.*\]` cut now runs to the breakers' `]`, but its `adsb_fi` and `airplanes_live`
+greps take the first match, and the breakers' ids are `nws_*`. So no smoke row moves, consistent with W5's C5.
 
 **If S2 or P2 reads a product stale,** the rule is `docs/wx-healthz-products.md` §5's: OPERA pauses, so re-read once
 10 minutes later. If it is stale twice, read that Worker's Logs:
