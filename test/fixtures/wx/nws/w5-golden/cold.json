@@ -1,0 +1,78 @@
+{
+ "case": "cold",
+ "source": "the NWS API, fetched once by the session (A12.131), trimmed by trim_nws.py",
+ "capturedUtc": 1768476600,
+ "hourly": [
+  {
+   "startUtc": 1768478400,
+   "tempF": 0,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1768482000,
+   "tempF": -12,
+   "hasTemp": true,
+   "pop": 100,
+   "hasPop": true
+  }
+ ],
+ "periods": [
+  {
+   "name": "Today",
+   "startUtc": 1768478400,
+   "isDaytime": true,
+   "tempF": -9,
+   "hasTemp": true,
+   "pop": 70,
+   "hasPop": true,
+   "short": "Snow"
+  }
+ ],
+ "observation": {
+  "timeUtc": 1768477980,
+  "tempF": -8,
+  "hasTemp": true,
+  "windDirDeg": 181,
+  "hasWindDir": true,
+  "windMph": 0,
+  "hasWind": false,
+  "gustMph": 16,
+  "hasGust": true,
+  "humidityPct": 0,
+  "hasHumidity": false
+ },
+ "alerts": [],
+ "syntheticAlerts": {
+  "synthetic": true,
+  "note": "SYNTHETIC: the capture held no watch or advisory; this list exists only for the populated layout",
+  "items": [
+   {
+    "event": "Wind Advisory",
+    "startUtc": 1768483800,
+    "endUtc": 1768527000
+   },
+   {
+    "event": "Dense Fog Advisory",
+    "startUtc": 1768512600,
+    "endUtc": 1768541400
+   },
+   {
+    "event": "Fire Weather Watch",
+    "startUtc": 1768548600,
+    "endUtc": 1768591800
+   },
+   {
+    "event": "Frost Advisory",
+    "startUtc": 1768599000,
+    "endUtc": 1768627800
+   },
+   {
+    "event": "Winter Storm Watch",
+    "startUtc": 1768649400,
+    "endUtc": 1768735800
+   }
+  ]
+ }
+}

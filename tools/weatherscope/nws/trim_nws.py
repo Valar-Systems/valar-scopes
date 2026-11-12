@@ -3,6 +3,7 @@ what the forecast, conditions and alerts screens read, written as test/fixtures/
 
     python -I tools/weatherscope/nws/trim_nws.py <raw dir> <case>     e.g. dallas-day
     python -I tools/weatherscope/nws/trim_nws.py --selftest
+    python -I tools/weatherscope/nws/trim_nws.py --check-golden | --write-golden     W5's golden (WS13; see golden())
 
 Kept, and nothing else: the capture's time (the hourly document's generatedAt, "now" in stored mode); the first 48 hourly
 entries (start, F, chance); every day-part period (name, start, daytime, F, chance, short forecast cut to 24 characters --
@@ -147,9 +148,63 @@ def selftest():
     return 1 if results.count(False) else 0
 
 
+GOLD_RAW = os.path.join(OUT, "w5-raw")
+GOLD = os.path.join(OUT, "w5-golden")
+
+
+def golden(write):
+    """W5's cross-language golden (docs/weatherscope-stage4.md S4.11, WS13). Each SYNTHETIC case under w5-raw/<case>/ is
+    trimmed here and compared with w5-golden/<case>.json, the file the proxy's TypeScript trim is also held to, so a
+    change to either language's rounding turns one side red. --write-golden rewrites the files; --check-golden only
+    compares. Exit 0 all equal (or written); 1 a case differs or is refused; 2 the rig."""
+    try:
+        cases = sorted(d for d in os.listdir(GOLD_RAW) if os.path.isdir(os.path.join(GOLD_RAW, d)))
+    except OSError as e:
+        print(f"the RIG: cannot list the golden cases ({type(e).__name__})")
+        return 2
+    if not cases:
+        print("the RIG: no golden cases")
+        return 2
+    differ = 0
+    for case in cases:
+        try:
+            raw = {k: json.load(open(os.path.join(GOLD_RAW, case, f"{k}.json"), encoding="utf-8"))
+                   for k in ("hourly", "forecast", "observation", "alerts")}
+        except Exception as e:
+            print(f"the RIG: cannot read case {case} ({type(e).__name__})")
+            return 2
+        rec = trim(raw, case)
+        bad = check(rec)
+        if bad:
+            for p, why in bad[:20]:
+                print(f"REFUSED {case} {p}: {why}")
+            return 1
+        text = (json.dumps(rec, indent=1, ensure_ascii=True) + "\n").encode("utf-8")
+        dst = os.path.join(GOLD, f"{case}.json")
+        if write:
+            os.makedirs(GOLD, exist_ok=True)
+            open(dst, "wb").write(text)
+            print(f"  wrote {case}: {len(text)} B")
+            continue
+        try:
+            cur = open(dst, "rb").read()
+        except OSError:
+            cur = None
+        same = cur == text
+        differ += 0 if same else 1
+        print(f"  {'ok  ' if same else 'DIFF'}  {case}")
+    if write:
+        print(f"golden: {len(cases)} cases written")
+        return 0
+    print(f"golden: {len(cases)} cases, {differ} differ")
+    return 1 if differ else 0
+
+
 def main(argv):
     if argv[1:] == ["--selftest"]:
         return selftest()
+    if argv[1:] in (["--check-golden"], ["--write-golden"]):
+        return golden(argv[1] == "--write-golden")
     if len(argv) != 3:
         print(__doc__)
         return 2

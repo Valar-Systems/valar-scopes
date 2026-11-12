@@ -106,6 +106,10 @@ export const KNOWN_ROUTES = new Set([
   "/api/v1/blipscope/wx/opba",
   "/api/v1/blipscope/wx/opsw",
   "/api/v1/blipscope/wx/opsn",
+  // Weatherscope's feeds (docs/weatherscope-stage4.md S4.11.4): their own labels, or they vanish into /other.
+  "/api/v1/weatherscope/alerts",
+  "/api/v1/weatherscope/conditions",
+  "/api/v1/weatherscope/forecast",
   "/api/v1/blipscope/leaderboard",
   "/blipscope/leaderboard",
   "/blipscope/leaderboard.json",

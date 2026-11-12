@@ -256,23 +256,26 @@ auth_path_check
 # guards -- so the running code may correspond to no commit at all. That is the
 # one thing about a deployment that cannot be reconstructed after the fact, which
 # is why it is checked here rather than trusted.
-COMMIT="$(printf '%s' "${LAST_BODY:-}" | grep -oE '"commit":"[^"]*"' | cut -d'"' -f4)"
+#
+# The TOP-LEVEL "commit" only, and the decision, both from healthz-commit.sh (docs/healthz-commit-read.md): a grep
+# for "commit" also matched basemap.commit, and on a two-line value this check passed a "dev", "-dirty" or missing
+# stamp. The printed lines are unchanged.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/healthz-commit.sh"
+COMMIT="$(printf '%s' "${LAST_BODY:-}" | healthz_commit)"
 printf '\n===== /healthz build stamp =====\n'
 printf 'commit reported: %s\n' "${COMMIT:-<absent>}"
-if [ -n "$COMMIT" ] && [ "$COMMIT" != "dev" ]; then
-  case "$COMMIT" in
-    *-dirty)
-      printf 'RESULT: FAIL -- deployed from a DIRTY tree (ALLOW_DIRTY=1). This bundle\n'
-      printf '        contains changes that are in no commit and no PR.\n'
-      fail=$((fail+1)) ;;
-    *)
-      printf 'RESULT: PASS\n'; pass=$((pass+1)) ;;
-  esac
-else
-  printf 'RESULT: FAIL -- expected a commit SHA from scripts/deploy.sh.\n'
-  printf '        "dev" or absent means a hand-run `wrangler deploy` bypassed the guards.\n'
-  fail=$((fail+1))
-fi
+case "$(stamp_verdict "$COMMIT")" in
+  PASS)
+    printf 'RESULT: PASS\n'; pass=$((pass+1)) ;;
+  FAIL-dirty)
+    printf 'RESULT: FAIL -- deployed from a DIRTY tree (ALLOW_DIRTY=1). This bundle\n'
+    printf '        contains changes that are in no commit and no PR.\n'
+    fail=$((fail+1)) ;;
+  *)
+    printf 'RESULT: FAIL -- expected a commit SHA from scripts/deploy.sh.\n'
+    printf '        "dev" or absent means a hand-run `wrangler deploy` bypassed the guards.\n'
+    fail=$((fail+1)) ;;
+esac
 
 # WHICH UPSTREAMS PRODUCTION ACTUALLY HAS ON, read off the live Worker.
 #
@@ -320,6 +323,13 @@ printf '\n===== /healthz wx.opuk covered share =====\n'
 OPUK_VERDICT="$(wx_opuk_verdict "$HEALTH_BODY")"
 printf 'RESULT: %s\n' "$OPUK_VERDICT"
 case "$OPUK_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+
+# Every weather product, routed or not (docs/wx-healthz-products.md, Q-HZ1): one line each from the /healthz body
+# fetched above (no new request), a stale one marked WARN. Information only: it touches neither pass nor fail, so a
+# WARN never changes this script's exit code. The lines and that promise are graded by wx-products-lines.selftest.sh.
+printf '\n===== /healthz wx, every product =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-products-lines.sh"
+wx_products_section "$HEALTH_BODY"
 
 # Weather (docs/wx-server.md). Until Daniel binds a WX bucket the route is deliberately inert, and the ONLY
 # passing answers are: 503 not_configured (not wired yet), or 200 with a WXC1 crop and an ETag (wired). A

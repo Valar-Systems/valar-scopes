@@ -28,17 +28,27 @@ export async function readLatest(bucket: R2Bucket, p: Product): Promise<LatestRe
   return rec.product === p.id ? rec : null;
 }
 
-/** /healthz's `wx` field: the age of each product's newest frame, or null when there is none -- never a
- *  made-up age -- and, for an OPERA product, its covered share (null when absent, never a made-up share).
- *  "not_configured" without the binding. */
-export async function wxHealth(env: Env, products: readonly Product[]): Promise<unknown> {
-  if (!env.WX) return "not_configured";
-  const out: Record<string, { frameAgeS: number | null; coveredShare?: number | null }> = {};
-  for (const p of products) {
-    const rec = await readLatest(env.WX, p).catch(() => null);
-    out[p.id] = { frameAgeS: rec ? Math.round(Date.now() / 1000 - rec.epoch) : null };
-    if (p.source === "opera") out[p.id]!.coveredShare = typeof rec?.coveredShare === "number" ? rec.coveredShare : null;
-  }
+/** /healthz's `wx` field (docs/wx-healthz-products.md): every product it is given, in that order, with
+ *  - `frameAgeS`, its newest frame's age, or null when there is none -- never a made-up age;
+ *  - `coveredShare`, for an OPERA product, null when absent -- never a made-up share;
+ *  - `routed`, whether /wx/cref may be answered from it (the routed set, production's ROUTED);
+ *  - `stale`, the endpoint's own wx_stale rule (now - epoch > maxAgeS, on the unrounded age, as handleWx below), or
+ *    null when there is no frame -- never a made-up verdict.
+ *  The `latest` reads run in parallel, one Class B each. "not_configured" without the binding. */
+export async function wxHealth(env: Env, products: readonly Product[], routed: ReadonlySet<string>): Promise<unknown> {
+  const bucket = env.WX;
+  if (!bucket) return "not_configured";
+  const recs = await Promise.all(products.map((p) => readLatest(bucket, p).catch(() => null)));
+  const now = Date.now() / 1000;
+  const out: Record<string, { frameAgeS: number | null; coveredShare?: number | null; routed?: boolean; stale?: boolean | null }> = {};
+  products.forEach((p, i) => {
+    const rec = recs[i] ?? null;
+    const e: (typeof out)[string] = { frameAgeS: rec ? Math.round(now - rec.epoch) : null };
+    if (p.source === "opera") e.coveredShare = typeof rec?.coveredShare === "number" ? rec.coveredShare : null;
+    e.routed = routed.has(p.id);
+    e.stale = rec ? now - rec.epoch > p.maxAgeS : null;
+    out[p.id] = e;
+  });
   return out;
 }
 

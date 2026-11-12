@@ -1,0 +1,83 @@
+{
+ "features": [
+  {
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -94.8,
+       39.2
+      ],
+      [
+       -94.7,
+       39.18
+      ],
+      [
+       -94.6,
+       39.2
+      ],
+      [
+       -94.56,
+       39.28
+      ],
+      [
+       -94.58,
+       39.36
+      ],
+      [
+       -94.62,
+       39.42
+      ],
+      [
+       -94.72,
+       39.44
+      ],
+      [
+       -94.8,
+       39.4
+      ],
+      [
+       -94.83,
+       39.3
+      ],
+      [
+       -94.8,
+       39.2
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "event": "Severe Thunderstorm Warning",
+    "messageType": "Alert",
+    "onset": "2026-11-10T22:40:00-06:00",
+    "effective": "2026-11-10T22:38:00-06:00",
+    "ends": "2026-11-10T23:30:00-06:00",
+    "expires": "2026-11-10T23:30:00-06:00",
+    "parameters": {
+     "eventMotionDescription": [
+      "2026-11-11T04:40:00-00:00...storm...240DEG...35KT...39.25,-94.75"
+     ],
+     "maxHailSize": [
+      "1.00"
+     ],
+     "maxWindGust": [
+      "60 MPH"
+     ]
+    }
+   }
+  },
+  {
+   "geometry": null,
+   "properties": {
+    "event": "Wind Advisory",
+    "messageType": "Alert",
+    "onset": "",
+    "effective": "2026-11-10T12:00:00-06:00",
+    "ends": null,
+    "expires": "2026-11-11T06:00:00-06:00"
+   }
+  }
+ ]
+}

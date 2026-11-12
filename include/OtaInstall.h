@@ -65,12 +65,36 @@ inline void Token(const Result& r, char* buf, size_t n)
     }
 }
 
+// THE PATIENCE (docs/ota-head-patience.md). On the TLS download a read that returns 0 means EITHER "nothing has
+// arrived yet" OR "the stream ended": NetworkClientSecure::read returns -1 with nothing buffered, and
+// NetworkClient::readBytes turns that into an immediate 0 (framework-arduinoespressif32 3.3.9). So an empty read is
+// waited out, never taken as the end: kEmptyReads empty reads IN A ROW, kEmptyWaitMs apart, end it, and any bytes
+// restart the count. writeRest always had this patience; the head read, the first read of the same stream, did not,
+// and refused a late body as truncated on 13 of 19 bench checks (docs/v19-cut.md, window 3).
+constexpr unsigned kEmptyReads = 300;
+constexpr unsigned kEmptyWaitMs = 100;
+
+// One read that brings bytes, waiting out empty ones: that read's count, or 0 after kEmptyReads empty reads in a row.
+// The last empty read ends it without a wait, as writeRest's own loop always did. The source supplies waitEmpty():
+// delay(kEmptyWaitMs) on the device, a counter in the host tests. Both reads of the stream go through here, so the
+// head and the body can never again disagree about what an empty read means.
+template <class Source>
+size_t ReadSome(Source& src, uint8_t* buf, size_t n)
+{
+    for (unsigned empty = 0;;) {
+        const size_t got = src.read(buf, n);
+        if (got != 0) return got;
+        if (++empty >= kEmptyReads) return 0;
+        src.waitEmpty();
+    }
+}
+
 template <class Source>
 size_t ReadHead(Source& src, uint8_t* head, size_t want)
 {
     size_t got = 0;
     while (got < want) {
-        const size_t n = src.read(head + got, want - got);
+        const size_t n = ReadSome(src, head + got, want - got);
         if (n == 0) break;
         got += n;
     }

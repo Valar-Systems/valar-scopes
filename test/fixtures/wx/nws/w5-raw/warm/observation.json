@@ -1,0 +1,33 @@
+{
+ "properties": {
+  "timestamp": "2026-11-10T22:53:00+00:00",
+  "temperature": {
+   "unitCode": "wmoUnit:degC",
+   "value": 2.5
+  },
+  "windDirection": {
+   "unitCode": "wmoUnit:degree_(angle)",
+   "value": 359.6
+  },
+  "windSpeed": {
+   "unitCode": "wmoUnit:km_h-1",
+   "value": 16.09344
+  },
+  "windGust": {
+   "unitCode": "wmoUnit:km_h-1",
+   "value": null
+  },
+  "relativeHumidity": {
+   "unitCode": "wmoUnit:percent",
+   "value": 55.5
+  },
+  "presentWeather": [
+   {
+    "rawString": "-RA"
+   },
+   {
+    "rawString": "BR"
+   }
+  ]
+ }
+}

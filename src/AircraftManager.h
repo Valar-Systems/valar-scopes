@@ -42,6 +42,16 @@
 #include "MapQuery.h"       // the request for the stored config (pure; CA1-CA3)
 #endif
 // THE MAP FETCH END
+// THE MAP DRAW BEGIN
+// CB10 (docs/blipscope-map-client-steps.md, step B): step B draws the map under the radar, and until step C the
+// sweep's wedge erases it wherever the beam passes. The joint release turns WX_LAYER_SHIPS on for every shipping env
+// (platformio.ini, the weather switch), so this refuses that build until step C's header defines
+// BLIPSCOPE_MAP_STEP_C. The wxlook bench image (WX_LOOK_AB) is exempt: its "[wx-bench]" marker is refused in every
+// slug-ful image by scripts/check-no-bench-hooks.sh (P-CB-BENCH). check_map_draw.py's CD4 holds this block exactly.
+#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)
+#error "step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships."
+#endif
+// THE MAP DRAW END
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)

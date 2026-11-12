@@ -6,6 +6,7 @@ import { cropCellBox, quantise } from "../src/wx/crop";
 import { FrameBuilder, frameMeta, tilesFor } from "../src/wx/grid";
 import type { LatestRecord } from "../src/wx/handler";
 import { type Product, PRODUCTS, cropEtag, frameKey, latestKey } from "../src/wx/products";
+import H3_FIXTURE from "./fixtures/wx/healthz-h3.json";
 import { apiRequest, call } from "./helpers";
 
 const cref = PRODUCTS[0]!;
@@ -35,6 +36,16 @@ function counting() {
   }) as R2Bucket;
   return { WX, reads: () => reads };
 }
+
+/** A `latest` record alone for any product: all /healthz reads (docs/wx-healthz-products.md, H2 and H3). */
+async function storeLatest(p: Product, epoch: number) {
+  const rec: LatestRecord = { product: p.id, epoch, key: frameKey(p, epoch), ingestedAt: Date.now(), ...GRID,
+                              tile: frameMeta(p.id, epoch, GRID).tile };
+  await env.WX!.put(latestKey(p), JSON.stringify(rec));
+}
+const byId = (id: string): Product => PRODUCTS.find((p) => p.id === id)!;
+const healthWx = async () =>
+  ((await (await call(new Request("https://proxy.test/healthz"))).json()) as { wx: Record<string, Record<string, unknown>> }).wx;
 
 const wx = (q = Q, h: Record<string, string> = {}) => apiRequest(`/api/v1/blipscope/wx/cref?${q}`, h);
 const fresh = () => Math.floor(Date.now() / 1000) - 90;
@@ -152,11 +163,49 @@ describe("/healthz's wx field", () => {
     const res = await call(new Request("https://proxy.test/healthz"), { WX: undefined });
     expect((await res.json() as { wx: unknown }).wx).toBe("not_configured");
   });
-  it("null when there is no frame -- never a made-up age", async () => {
-    const res = await call(new Request("https://proxy.test/healthz"));
-    // opuk (docs/wx-opuk.md) adds its own entry, with a covered share that is null, not made up, until a frame exists.
-    expect((await res.json() as { wx: unknown }).wx).toEqual({ cref: { frameAgeS: null },
-                                                              opuk: { frameAgeS: null, coveredShare: null } });
+  // docs/wx-healthz-products.md: EVERY product, routed or not, so a deployed-but-unrouted ingest is never invisible.
+  it("H1 every product in PRODUCTS' order, routed from ROUTED; no frame -> null age and null stale; no commit key, no array", async () => {
+    const w = await healthWx();
+    expect(Object.keys(w)).toEqual(PRODUCTS.map((p) => p.id));
+    expect(Object.keys(w)).toHaveLength(11);
+    // Literals, production's ROUTED today: a product joining ROUTED updates this line in its own PR.
+    expect(Object.entries(w).filter(([, e]) => e.routed === true).map(([id]) => id)).toEqual(["cref", "opuk"]);
+    for (const p of PRODUCTS) {
+      const e = w[p.id]!;
+      expect(e.frameAgeS).toBeNull();
+      expect(e.stale).toBeNull();            // no frame is not a stale frame: never a made-up verdict
+      expect(typeof e.routed).toBe("boolean");
+      if (p.source === "opera") expect(e.coveredShare).toBeNull(); else expect("coveredShare" in e).toBe(false);
+    }
+    // confirm-deploy.sh:74 and smoke-prod.sh:264 take EVERY "commit":"..." in the body, and smoke-prod.sh:300 cuts
+    // "upstreams":[...] greedily: nothing inside wx may carry either.
+    const text = JSON.stringify(w);
+    expect(text).not.toMatch(/"commit"/);
+    expect(text).not.toContain("[");
+  });
+  it("H2 a deployed but unrouted product (opmt) with a frame: routed false, a real age, not stale", async () => {
+    await storeLatest(byId("opmt"), Math.floor(Date.now() / 1000) - 90);
+    const w = await healthWx();
+    expect(w.opmt!.routed).toBe(false);
+    expect(w.opmt!.stale).toBe(false);
+    expect(w.opmt!.frameAgeS).toBeGreaterThanOrEqual(90);
+    expect(w.opmt!.frameAgeS).toBeLessThan(120);
+  });
+  it("H3 a planted stale product reads stale, on both sides of the boundary, for both kinds of product", async () => {
+    expect([byId("opse").maxAgeS, byId("opba").maxAgeS, cref.maxAgeS]).toEqual([1800, 1800, 600]);
+    const now = Math.floor(Date.now() / 1000);
+    await storeLatest(byId("opse"), now - (1800 + 60));
+    await storeLatest(byId("opba"), now - (1800 - 60));
+    await storeLatest(cref, now - (600 + 60));
+    const w = await healthWx();
+    expect(w.opse!.stale).toBe(true);
+    expect(w.opba!.stale).toBe(false);
+    expect(w.cref!.stale).toBe(true);
+    // The state smoke's selftest (H6) prints its WARN lines from: the committed fixture's routed and stale, product by
+    // product, are this body's -- so the WARNs there come from what this plant produced, not from a hand-written body.
+    const proj = (x: Record<string, Record<string, unknown>>) =>
+      Object.fromEntries(Object.entries(x).map(([id, e]) => [id, { routed: e.routed, stale: e.stale }]));
+    expect(proj(w)).toEqual(proj(H3_FIXTURE.wx as Record<string, Record<string, unknown>>));
   });
   it("the newest frame's age when there is one", async () => {
     await store(Math.floor(Date.now() / 1000) - 90);

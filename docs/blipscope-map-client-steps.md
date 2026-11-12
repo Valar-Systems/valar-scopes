@@ -901,6 +901,512 @@ The local guards were run at a1c0657c, and each exits 0: `check_wifi.py`, `check
 
 **The prediction stands: 34 = 30/4/0**, now on the merge with `68dc169a`.
 
+## Step B: drawing the package under the radar (predictions, for review; 2026-11-11)
+
+**Status: for review. Nothing here is code yet.** Step A merged as #634 (`1d7049f72ac1`): a validated package is held
+in `mapPkg` (`src/AircraftManager.cpp`, `ConsumeBasemap`), and nothing draws it. Step B draws it. Step C (the wedge's
+green added to the map) and step D (the settings) stay separate, as ruled.
+
+**Read first, from the code at `78c2bec2`, and not from any run:**
+- **How the radar face's frame is built today.** `src/main.cpp:943-944` clears it:
+  `if (!DrawWeatherUnder(canvas)) fillScreen(black)`. `main.cpp:968-970` draws the sweep before `Draw`:
+  `DrawSweepOverWeather`, else the opaque `DrawRadarSweep` (`include/DrawHelpers.h:29-58`). After that, `DrawRadar`
+  draws the rings, the airports and the planes.
+- **The weather layer copies over the whole frame.** `DrawWeatherUnder` copies all 115,200 B of `wxLayer565` with one
+  `memcpy` (`src/AircraftManager.cpp:3615`). Dry pixels in that layer are black, so **a map drawn before it would be
+  erased.** S3's order (map, then names, then weather) needs the two layers composed into one.
+- **Both wedge paths overwrite whatever is under them.** The opaque wedge does, and so does the weather blend: on a dry
+  pixel, `wxsweep::Lit565` returns the opaque `Green565` (`include/WxSweep.h:40-45`). Until step C, the beam erases the
+  map wherever it passes.
+- **Byte order.** `maplayer::Build` writes logical RGB565 (`include/MapLayer.h:276`). The canvas and `wxLayer565` hold
+  it byte-swapped (`AircraftManager.cpp:3645`).
+- **Airport boxes are recorded nowhere.** `DrawAirports` (`AircraftManager.cpp:5367-5413`) draws each mark as
+  `drawRect(x-2, y-2, 5, 5)` and its code at `(x+5, y-3)` in the 6 × 8 GLCD font. `overlapFrame` only counts. A name
+  that must not cover a code has to get the boxes from the same list and the same rule.
+- **The Weatherscope's place-name code is tied to its own frame:** the y band 26-192 (`BoxFree`,
+  `src/weatherscope/WxScreens.h:142-152`) and a north-up mapper with no rotation (`WxBasemap.h:43-56`). The rule
+  itself carries over: `RankOrder` (largest first, a population of 0 ranking as 1,000, ties in file order; :188-201),
+  `Cap` (8 at 60 mi and over, 6 at 30 and over, 5 below; :204), `Inner` (24.4 px; :126), `ClearsCentre` (:118-123),
+  and the box geometry with 4 px of air (:156-184).
+
+### What step B builds
+
+| part | where | what |
+|---|---|---|
+| **the composer** | `include/MapCompose.h`, pure | composes the base layer: `Build`'s output byte-swapped, the place names drawn onto it, then every non-zero weather pixel over that. Off the disc is 0 |
+| **the place names** | `include/MapPlaces.h`, pure | the Weatherscope's rule, its arithmetic repeated where its code is tied to its frame, as `MapLayer.h` repeats `wxraster::Line` under CM11. Anchors come from the map's own affine (`maplayer::AffineFor`, so rotation is included). Inside the disc (116 px), clear of the centre, **never over an airport mark or code**, 4 px of air |
+| **the stale test** | `include/MapCompose.h`, pure | **the map is rebuilt** (`Build` plus the names) when the view (lat, lon, `viewRadLat`, `viewRadLon`, `rotSin`, `rotCos`), the package (step A's sequence) or the airport boxes change. **The composite is redone** (`memcpy` plus the weather overlay, no `Build`) when only the weather layer changes. Never per frame |
+| **the wiring** | `AircraftManager`, under `BLIPSCOPE_MAP_FETCH`, in `// THE MAP DRAW BEGIN/END` regions | the PSRAM buffers are allocated at the first accepted package, all or none. **`DrawWeatherUnder` becomes the base draw:** with a map composite ready, one `memcpy` of the composite; without one, today's two paths byte for byte. Rebuilds run on the loop task at the next shown radar frame, as the weather layer's do |
+
+**Memory (Q-MB1):** the map layer with its names, 115,200 B; the composite, 115,200 B; `Build`'s index image,
+57,600 B; and `Scratch`, 32 B per vertex (two int32 and three double) for maxVertices + 1. That is about 288 KB of PSRAM, none of it internal (CLAUDE.md:
+sprites in PSRAM cost nothing internally). **The steady frame stays one `memcpy`:** CF1 and CF4 already price it.
+
+**The gate.** Everything compiles only under `BLIPSCOPE_MAP_FETCH`, as step A does, so the shipping image draws nothing.
+CB-W, below, reads that off the image.
+
+### The composer and the stale test (CB1-CB5), host: `test/host/test_map_draw.cpp`
+
+| row | input | predicted | plant (turns exactly) |
+|---|---|---|---|
+| **CB1** | synthetic layers: map pixel M, name pixel P, weather pixel W | W where W ≠ 0; else P where a name is drawn; else M; 0 off the disc. **S3's order** | S-CB-ORDER, the weather composed under the map: {CB1} |
+| **CB2** | `Build` over KJAC at 100 mi | each composite pixel with no name and no weather equals `bswap16` of `Build`'s pixel | S-CB-NOSWAP: {CB2} |
+| **CB3** | no package ever accepted, weather on and off | **0** map bytes allocated, **0** `Build` calls, and the base draw's bytes equal today's: `wxLayer565` with weather on, black with it off | S-CB-EAGER, buffers allocated at `Initialise`: {CB3 alloc} |
+| **CB4** | each of the six view inputs, the package sequence and the airport boxes changed, one at a time | exactly **1** map rebuild each; **1,000** frames with nothing changed: **0** | S-CB-NOROT, rotation left out of the key: {CB4 rotSin, CB4 rotCos}; S-CB-PERFRAME, rebuilding every frame: {CB4 steady} |
+| **CB5** | the weather layer rebuilt, nothing else | **1** compose, **0** `Build` calls | S-CB-WXBUILD, a weather change rebuilding the map: {CB5} |
+
+### The place names (CB6-CB8)
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CB6** | **A sweep:** KJAC, KSFO and Bend; every ladder step; rotations 0-315° by 45°; the baked airport table near each. Every frame must hold: placed ≤ the cap; **no placed town ranks below a skipped town that would have fitted** (largest first, ties in file order); no box within `Inner` of the centre; every corner within 116 px; **0 boxes overlapping an airport mark or code box** (with 4 px of air); 0 overlapping each other. **The counts (placed, refused by reason) are computed by an independent scratch reading once Q-MB3 to Q-MB5 are ruled, and registered before code** | S-CB-AIRPORT, airports not obstacles: {CB6 airports}; S-CB-FILEORDER, file order: {CB6 rank}; S-CB-NOCAP: {CB6 cap} |
+| **CB7** | a town's anchor equals the point `Build` maps from the same (qx, qy), ± 0.5 px, and is within 1 px of `radarproj::Project` (as CM3), at every rotation | S-CB-NORTHUP, the Weatherscope's north-up mapper: {CB7 at rotations ≠ 0} |
+| **CB8** | **one helper gives the airport boxes to both `DrawAirports` and the names:** the same list (`cloudAirports`, else the baked `AIRPORTS`), the same cull and `ProjectAt`, the mark 5 × 5 at (x−2, y−2), the code at (x+5, y−3), 6 px a character. A source check that `DrawAirports` calls it | S-CB-SECONDPATH, `DrawAirports` drawing the code at x+6 without the helper: {CB8} |
+
+The repeated arithmetic stays equal to the Weatherscope's by test, as CM11 does for the line: `RankOrder`, `Inner`,
+`ClearsCentre` and the box geometry, over every case they share.
+
+### Checks that read the source (CD1-CD3), and the image (CB-W)
+
+| row | check | plant |
+|---|---|---|
+| **CD1** | F8 for the new files: no `Preferences`, no `put*`, SPIFFS or LittleFS | S-CD-NVS: {CD1} |
+| **CD2** | **privacy:** no `printf` in the map's files prints a place name, an anchor or a coordinate. A town's name near the device says where the device is | S-CD-PRINTNAME: {CD2} |
+| **CD3** | the map's View is filled from the same six fields as the weather layer's (`AircraftManager.cpp:3560-3567`) | S-CD-VIEW, `viewRadLat` swapped for `radLat`: {CD3} |
+| **CB-W** | shipping `firmware.bin` holds no map-draw string, and the wxlook image holds them, read off both images as step A's W7 was | the wxlook image is its control, as it was W7's |
+
+`check_map_fetch.py` pins its region counts (`h:3`, `cpp:9`). The new `THE MAP DRAW` markers are counted apart, by
+`check_map_draw.py`, so step A's pins do not move.
+
+### Bench, with step M's window on E2:08 (after v19's, on the owner's word)
+
+CF1 to CF6 already price the layer, and step B is what makes them measurable on the device. Step B adds:
+- **CBF1:** a zoom step's rebuild (`Build`, the names and the compose) ≤ **100 ms**, the ruled bar, printed per pass.
+- **CBF2:** on glass, the names read, and none covers an airport code. The owner's eye has the last word.
+- **CBF3, until step C:** the beam erases the map where it passes, through both wedge paths. **Registered here so that
+  nobody reads it as a step B defect** (Q-MB2).
+
+### Questions for the ruling
+
+- **Q-MB1, memory.** Two PSRAM layers (the map with its names, and the composite), about 288 KB with the index and
+  scratch, allocated at the first accepted package, all or none; a failure leaves the map off and logged.
+  - The alternative is one layer, rebuilding the map on every weather change: 30-70 ms (CF5), about every 5 min.
+  - **I recommend the two layers.**
+- **Q-MB2, the wedge until step C.** Both wedge paths erase the map under the beam.
+  - (a) B merges as it stands, and C follows with its own predictions. Only images built with `WX_LAYER_SHIPS` draw a
+    map, which today is the wxlook image alone, so no customer sees it.
+    - **The release flip changes that.** `platformio.ini:148` turns `WX_LAYER_SHIPS` on for every `${cloud.prod}` env.
+      **So step C must merge before that flip.** That is a dependency for the release, not a row here.
+  - (b) Fold C into B.
+  - **I recommend (a).**
+- **Q-MB3, the cap.** The ruling says "at most 8". The Weatherscope's rule caps at 8 from 60 mi, 6 from 30 and 5 below.
+  - **I recommend the Weatherscope's `Cap`** at the radar's current view, since "the Weatherscope's rule" includes it.
+  - No peaks share the cap (no peaks in the request, Q-MC7 (b)).
+- **Q-MB4, what else a name must avoid.** Proposed fixed boxes, besides airport marks and codes:
+  - the three ring labels (`DrawRadarCircles`, x = CENTRE + 4);
+  - the cardinal letters (r = 112);
+  - the screen-indicator row (y ≈ 221-227).
+  - The stale banner, the weather note, the zoom pill and toasts are transient and draw on top. They are not obstacles.
+- **Q-MB5, the label's look.** The Weatherscope's (a 3 × 3 dot and the text) in the theme's place grey (86, 86, 86),
+  with a 1 px halo in the theme's land colour so the text reads over roads and water. The owner judges it on glass.
+- **Q-MB6, the place list.** Read with `bmpk::ForEachPlace` into `MapPlaces.h`'s own list, at most 256, where more
+  refuses the package's towns as the Weatherscope does.
+  - This avoids including `WxScenes.h` and `WxScreens.h` into the radar image: they pull in the Weatherscope's
+    scenario, theme and town tables, and an unreferenced function still costs image bytes (`.eh_frame`).
+- **Q-MB7, names under the weather.** S3 puts the names below the weather, so heavy rain hides them. Confirm.
+
+### CI for this PR (docs-only), predicted
+
+**32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed,** in three workflows
+(device-ids, firmware, no-traffic-captures).
+- **The baseline is #640's finished docs-only PR run** (head `289a1e25609f`: 32 = 29/3/0, the same three skips).
+- No workflow has changed since #633 (`e2c34daf82a1`), whose change to `device-ids.yml` added steps, not jobs. #640's
+  run postdates it.
+- **Any other count, skip set or failure means a stop and a report,** with no re-run.
+
+### The ruling on step B's predictions, verbatim (the orchestrator, 2026-11-11 ~18:58Z)
+
+> Ruling from the orchestrator, 2026-11-11 ~18:58Z, for map-client: step B's predictions. Go to push and open the PR.
+>
+> Read from git: 254834b8, parent 78c2bec21dfa (main), docs/blipscope-map-client-steps.md only, +123, no deletions, no
+> coordinates past 2 dp, no name. Every row is present: CB1-CB8, CB-W, CD1-CD3, CBF1-CBF3. Your five readings of the code
+> are the right things to have found before designing.
+>
+> Q-MB1: yes. Two PSRAM layers (~288 KB), allocated at the first package, all or none.
+> - Add a bench row: psram_free falls by the predicted amount, and the internal heap is untouched (CLAUDE.md's measured
+>   rule: PSRAM sprites cost nothing internally).
+> - An allocation failure refuses the map (no package drawn). It never draws a half composite.
+>
+> Q-MB2: (a), with one condition. You found the hazard yourself: platformio.ini:148's release flip turns WX_LAYER_SHIPS on
+> fleet-wide, so step C must land before it.
+> - That rule must RUN, not be remembered. In this PR, add a compile-time refusal: with WX_LAYER_SHIPS defined and step
+>   C's composition not present, the build stops with #error, naming step C.
+> - Register a plant: define WX_LAYER_SHIPS without step C, and the build must fail.
+> - Step C later removes the condition by providing what it names.
+>
+> Q-MB3: yes, the Weatherscope's Cap (8/6/5 by radius), with the arithmetic held equal by a test, as CM11 does.
+>
+> Q-MB4: yes. Ring labels, cardinal letters and the screen-indicator row are fixed obstacles; transient overlays are not.
+>
+> Q-MB5: register it as proposed (a 3×3 dot, grey text, a 1 px halo in the land colour). It's what customers see, so the
+> owner judges it on glass at CBF2. Nothing more is built toward an alternative before then.
+>
+> Q-MB6: yes. Your own list from ForEachPlace, up to 256. More than 256 refuses the towns rather than cutting the list: a
+> truncated list is a list that lies.
+>
+> Q-MB7: confirmed per S3 (the map, then the names, then non-zero weather pixels). Names under rain hide where it rains;
+> that's the owner's to see on glass too. List it at CBF2 beside Q-MB5.
+>
+> CD2 (no printing of place names) is the right privacy row: a nearby town names the device's location.
+>
+> CI as you predicted: 32 = 29/3/0, any other reading stops. Then send me the PR number and head. I read twice by the full
+> sha before approving.
+>
+> Next: push, open the PR, and add Q-MB1's and Q-MB2's rows before any code.
+
+### Q-MB1's and Q-MB2's rows, registered before any code
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CB9** | host: an allocation failure injected at each of the map's buffers in turn (the layer, the composite, the index, the scratch). Each time **every** map buffer is freed, the map is refused (`mapAllocFailed`, logged), `Build` is never called, and the base draw's bytes equal CB3's no-package frame. **No half composite** | S-CB-HALF, keeping the buffers that succeeded and drawing with them: {CB9} |
+| **CB10** | **the build refuses step B without step C.** In a shipping build, the map's draw code with `WX_LAYER_SHIPS` defined and step C's composition absent stops with `#error`, naming step C. The condition is **proposed** below, for confirmation (Q-MB8) | P-CB-FLIP: `blipscope-s3-128` built with `-DWX_LAYER_SHIPS` added (the release flip), and **the build must fail** with that text. The control: `blipscope-s3-128-wxlook` still builds |
+| **CBF4** | bench, Q-MB1: at the first accepted package, `psram_free` falls by the predicted amount and the internal heap does not move: `heap_caps_get_free_size(MALLOC_CAP_INTERNAL)` read just before and just after the allocations, in the same loop pass, differs by **0**. The PSRAM figure is the sum of the four buffers' TLSF prices, computed before the run from the package's `maxVertices`, which the map's log line prints as a count | an internal allocation planted in place of one PSRAM buffer: the internal reading moves, and CBF4 goes red |
+
+**CBF2 also carries Q-MB5 and Q-MB7.** The label's look (a 3 × 3 dot, the theme's place grey, a 1 px halo in the land
+colour) and the names hidden under rain are the owner's to judge on glass. Nothing is built toward an alternative before
+then.
+
+**Q-MB8, the refusal's condition (a question about the ruling's literal form, not a change to it).** Read literally,
+"`WX_LAYER_SHIPS` defined and step C's composition not present" also refuses `blipscope-s3-128-wxlook`.
+- That env sets `-DWX_LAYER_SHIPS` itself (`platformio.ini:401-408`), so the bench keeps weather on, and CI builds it
+  (the firmware workflow's wxlook step, which runs `check-no-bench-hooks.sh --expect "[wx-bench]"`).
+- So the literal form would fail CI's wxlook build from the moment the refusal exists, and step B could not be benched
+  before step C.
+- **Proposed condition:** `defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(<step C's macro>)`.
+  - `BLIPSCOPE_MAP_FETCH` already excludes the web renderer, which defines `WX_LAYER_SHIPS` too.
+  - `WX_LOOK_AB` is set by the wxlook env alone. Its image carries the `[wx-bench]` marker, which
+    `check-no-bench-hooks.sh` refuses in every slug-ful image, so the exemption cannot reach a customer.
+  - The release flip (`${weather.layer}`, `platformio.ini:148`) defines `WX_LAYER_SHIPS` without `WX_LOOK_AB`, and is
+    refused.
+- **Where it lives:** the ruling says "in this PR". This PR stays docs-only until Q-MB8 is answered, because the literal
+  form breaks a CI build. Once it is, the refusal goes in as code, with CB10's plant run as registered, and its CI is
+  predicted then.
+
+### Q-MB8's ruling, verbatim (the orchestrator, 2026-11-11, sent between 19:04:40Z and 19:12:12Z)
+
+Its own stamp, ~19:08Z, was estimated, not read. The orchestrator corrected it to that window (read 19:12:12Z). The
+text below is as sent, stamp included.
+
+> Ruling from the orchestrator, 2026-11-11 ~19:08Z, for map-client: Q-MB8. Your condition is accepted, and it lands in
+> step B's code PR.
+>
+> You were right to ask rather than improvise: the literal form would have failed CI's wxlook build.
+>
+> The condition: refuse when defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(<step C's macro>).
+> - I checked the claim the exemption rests on. WX_LOOK_AB compiles in "[wx-bench] the weather bench image"
+>   (AircraftManager.cpp:943). scripts/check-no-bench-hooks.sh lists "[wx-bench]" in MARKERS (:40) and refuses it in every
+>   slug-ful image. So the exemption can't reach a customer.
+> - That claim becomes a registered row, not just my reading. P-CB-BENCH: a slug-ful env built with -DWX_LOOK_AB must be
+>   refused by check-no-bench-hooks.sh. The control: the same env without it passes.
+> - P-CB-FLIP and its control (wxlook still builds) stay as registered.
+>
+> Where it goes:
+> - #644 stays docs only (predictions).
+> - The #error lands in step B's code PR, in the FIRST commit, or in the same commit as the first line of code that draws
+>   the map. main must never hold a map-drawing path without its refusal.
+> - Add Q-MB8's condition and P-CB-BENCH to #644 as a docs commit now, so they're frozen before the code. That moves
+>   #644's head; re-predict CI and send me the read.
+>
+> CB9 and CBF4 are as you added them. Good, including CBF4's internal-heap delta of 0 read in one loop pass.
+>
+> Next: the docs commit with Q-MB8 and P-CB-BENCH, then #644's CI read. I read twice by the full sha before approving.
+
+### CB10's condition, P-CB-BENCH and CD4, frozen before any code
+
+**CB10, as ruled.** In the map's draw code:
+
+```cpp
+#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)
+#error "step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships."
+#endif
+```
+
+- **`BLIPSCOPE_MAP_STEP_C`** is step C's macro, named now so that it is frozen. Step C's header defines it in the same
+  commit that makes the wedge's green add to the map pixel, and that is what removes the refusal. Nothing else may define
+  it: CD4 below refuses a definition anywhere else.
+- **Where it lands:** step B's code PR, in its first commit, or in the same commit as the first line that draws the map.
+  `main` never holds a map-drawing path without its refusal.
+
+**The plants, with what each reading means, decided now:**
+
+| plant | how it runs | predicted | any other reading |
+|---|---|---|---|
+| **P-CB-FLIP** | `blipscope-s3-128` built with `-DWX_LAYER_SHIPS` added (the release flip), through `PLATFORMIO_BUILD_FLAGS`, from PowerShell | the build **fails**, and its log holds the `#error` text | a build that passes, or that fails for any other reason, stops the step and is reported |
+| control | `blipscope-s3-128-wxlook` as it stands | builds | stop and report |
+| **P-CB-BENCH** | `blipscope-s3-128` (slug-ful) built with `-DWX_LOOK_AB` added, then `bash scripts/check-no-bench-hooks.sh <its firmware.bin>` | **exit 1**, with `FAIL: bench hook marker '[wx-bench]'` | exit 2 is BLIND (no anchor), and a build that fails is BLIND too: neither is a pass, and either stops the step |
+| control | the same script on the unchanged `blipscope-s3-128` image | **exit 0**, `ok: no bench hook` | stop and report |
+
+**P-CB-BENCH is a premise check, so its reading has to be read off the image** ("read the artifact, not the config"):
+the scan reads `firmware.bin` itself, and its anchor (`[build] env=`) has to be found before any absence counts.
+
+**CD4, so the placement rule runs rather than being remembered.** `check_map_draw.py` holds, at every head CI sees:
+- if any `THE MAP DRAW` region exists, the refusal exists, with exactly CB10's condition;
+- `BLIPSCOPE_MAP_STEP_C` is defined nowhere except step C's header.
+
+| row | plant (turns exactly) |
+|---|---|
+| **CD4** | S-CD-NOREFUSAL, the `#error` block deleted while a draw region stays: {CD4}. S-CD-STEPC, `BLIPSCOPE_MAP_STEP_C` defined in `AircraftManager.cpp`: {CD4} |
+
+### CI for this PR, re-predicted at its new head
+
+**Unchanged: 32 check runs, 29 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed,** in three
+workflows (device-ids, firmware, no-traffic-captures).
+- This commit is docs only, like the two before it.
+- The baseline is still #640's finished docs-only PR run (`289a1e25609f`), and no workflow has changed since #633.
+- The run on the previous head (`7bb2556b`) is superseded by this push. Whatever it read is not this prediction's
+  subject, and it is recorded as superseded.
+- **Any other reading at the new head means a stop and a report,** with no re-run.
+
+### #644's first CI reading: OFF on `sku-readers` (2026-11-11), and the fix as ruled (sent 19:04:40-19:12:12Z)
+
+The ruling's own stamp, ~19:25Z, was estimated, not read. The orchestrator corrected it to that window.
+
+- **The reading,** on the first head `7bb2556b`: `sku-readers` failed at 19:04:35Z. This doc named the firmware
+  workflow's file and is not on that guard's reviewed list.
+  - The other non-successes were the cancellations of my second push (from 19:06:46Z), and `host-tests`' "Both legs
+    must pass", which read its cancelled leg.
+- **The cause, and my miss:** the Q-MB8 row cited the firmware workflow by its path and line, against standing rule C1
+  (2026-10-26: write "the firmware workflow" instead). The 32 = 29/3/0 prediction was made without running the guard that
+  reads docs for that name. It is in the firmware workflow, not in device-ids.
+- **The fix, as ruled:** that one line reworded, not an `ALLOWED_MENTIONS` entry. From now on,
+  `python3 scripts/skus.py --check-readers` runs locally before every push, chained with `&&` beside the device-ids
+  guards.
+- **The second head's run, recorded and not acted on:** `d7c71008` read 32 = 28 success / 3 skipped (`promote`,
+  `ship-alert`, `version`) / 1 failed, the one failure `sku-readers` (finished, read twice, 19:22-19:23Z). That
+  is as predicted once the cause was known, since the same line was still in the doc.
+- **CI at the fix's head, re-predicted: 32 = 29/3/0,** on #640's docs-only baseline. **This was #644's first off
+  reading; another goes to the owner.**
+
+### Registered before step B's code (2026-11-11): the refusal's commit
+
+**Status: #644 merged (`0e384618`). Step B's code goes on `feat/map-client-step-b`, and this registration is its first
+commit.** The commit after it carries CB10's refusal and CD4, and no drawing code. So `main` can never hold a
+map-drawing path without its refusal. That is the ruling's second clause: the refusal lands no later than the first line
+that draws the map.
+
+**What the refusal's commit holds:**
+- **`src/AircraftManager.h`** gains one `// THE MAP DRAW BEGIN` / `END` region, directly after the `THE MAP FETCH`
+  region (where `BLIPSCOPE_MAP_FETCH` is defined), holding CB10's block exactly as frozen. Step A's `THE MAP FETCH`
+  pins (`h:3`, `cpp:9`) do not move.
+- **`test/host/check_map_draw.py`** holds CD4 alone until the draw files exist, so it prints **`1 checks, 0 failures`**.
+  CD1-CD3 join it in the commit that adds the files they read.
+  - CD4 reads the `THE MAP DRAW` regions of `src/AircraftManager.h` and `.cpp`, pinned at `h:1`, `cpp:0` for now.
+    A pin off in either direction, or an unbalanced marker, is the rig (exit 2).
+  - If any region exists, the comment-stripped header must hold CB10's `#if` line and its `#error` line, compared with
+    whitespace normalised.
+  - A definition of `BLIPSCOPE_MAP_STEP_C` (`#define BLIPSCOPE_MAP_STEP_C`, `-DBLIPSCOPE_MAP_STEP_C`) is searched for in
+    `include/`, `src/`, `platformio.ini` and `tools/`. The allowed definer list is empty until step C names its header.
+- **`test/host/sabotage_map_draw.py`**, with two plants, each in a copy of the tree:
+  - **S-CD-NOREFUSAL** deletes the `#error` block and keeps the region: {CD4}.
+  - **S-CD-STEPC** adds `#define BLIPSCOPE_MAP_STEP_C 1` to `src/AircraftManager.cpp`: {CD4}.
+  - Its count constant is `SOURCE_CHECKS = 1`, so `lint_driver_counts.py` reads a named count.
+- **`test/host/run.sh`** gains a `== MapDraw ==` block after `MapFetch`'s.
+
+**Predicted, before any of it is written:**
+
+| run | predicted |
+|---|---|
+| **L1** `check_map_draw.py` | `1 checks, 0 failures`, exit 0 |
+| **L2** `sabotage_map_draw.py` | control clean; S-CD-NOREFUSAL {CD4}; S-CD-STEPC {CD4}; `MAP DRAW SABOTAGES (2) AS PREDICTED`; the real files unchanged |
+| **L3** `--anchors` over every driver (42 with the new one), and `--control` for the new one | every anchor present exactly once; the control matches its table |
+| **L4** `check_map_fetch.py` | unchanged: `3 checks, 0 failures` |
+| **L5** the four builds: pio from PowerShell, in this order, each in its own process with `PLATFORMIO_BUILD_FLAGS` set only for it | see below |
+
+**L5, and what each reading means:**
+
+| build | predicted | any other reading |
+|---|---|---|
+| **R-FLIP:** `blipscope-s3-128` with `-DWX_LAYER_SHIPS` | **fails**, and the log holds CB10's `#error` text | a pass, or a failure for any other reason, stops the step |
+| **R-FLIPC:** `blipscope-s3-128-wxlook` as it stands | builds | stops the step |
+| **R-BENCH:** `blipscope-s3-128` with `-DWX_LOOK_AB`, then `check-no-bench-hooks.sh` on its `firmware.bin` | builds; the scan exits **1** with `FAIL: bench hook marker '[wx-bench]'` | a failed build, or scan exit 2, is BLIND and stops the step |
+| **R-BENCHC:** `blipscope-s3-128` unchanged, then the same scan | builds; the scan exits **0** | stops the step |
+
+- **Each flag is proven by its artifact, never by the command:**
+  - R-FLIP by the `#error` text in its log;
+  - R-BENCH by `[wx-bench]` in its image;
+  - R-BENCHC by the marker's absence behind the scan's anchor.
+- R-BENCH and R-BENCHC share a build directory, so R-BENCHC must rebuild without the flag, and its scan reads the image
+  it produced.
+- C: is read before the builds. None runs under 30 GB.
+
+**After L1-L5:** the whole host suite under WSL is registered before it runs, as W8 was, and so is the code PR's CI.
+Nothing is pushed before the orchestrator's go.
+
+### L1's first run: OFF, and the fix as ruled, registered before the code change (2026-11-11)
+
+**The reading (`dce71406`, committed as it ran):**
+- **L1 OFF.** Predicted `1 checks, 0 failures`, exit 0. Read: a Python traceback, exit 1.
+  - CD4's definer scan ran `check_map_fetch.strip` over every file under `include/` and `src/`.
+  - `include/OtaCerts.h` holds a C++ raw string literal (`R"CERTS(`), which the stripper cannot parse. It raised its own
+    `Rig`, which the check did not catch.
+  - **Two defects:** the scan could not read a valid C++ file, and **a crash read as a failure** (exit 1, a red)
+    instead of as the rig (exit 2). The second is the 11-04 rule: a crash is an instrument failure, never a red.
+- **L4 as predicted** (`3 checks, 0 failures`).
+- **L2 read the rig** (exit 2), because its control could not run. The harness was right, but that is no reading of the
+  plants.
+- **L3 and L5:** not run.
+- **My miss:** I predicted L1 without checking that the stripper I reused could read every file the new scan touches.
+  Step A's check only ever fed it the map's own files.
+
+**The fix, as ruled** (the orchestrator; its stamp is in its ledger):
+1. **The definer scan is line-based, and no longer goes through the C++ stripper.**
+   - In `include/` and `src/`: a directive line matching `^\s*#\s*define\s+BLIPSCOPE_MAP_STEP_C\b`.
+   - In `platformio.ini` and `tools/`: `-D\s*BLIPSCOPE_MAP_STEP_C\b`, after removing `;` and `#` comments.
+   - A directive must begin its line, so a `//` comment cannot match.
+   - **The scan's known direction:** a matching line inside a raw string or a block comment is flagged as a definer.
+     That false positive fails safe and visibly, as a red with the file named.
+   - The header's refusal lines are still read through `strip()`, since `src/AircraftManager.h` parses.
+2. **`main()` catches every exception and exits 2 with `RIG: <type>: <message>`.** No crash can read as a check failing.
+3. **Three controls, none of them a {CD4}-set plant.** Each runs in its own copy, is asserted to have applied before it
+   is read, and the real files' sha256 are compared before and after:
+
+| control | the input, in the copy | predicted |
+|---|---|---|
+| **R-CD-RAWOK** | a new file `include/zz_rawok.h` holding a multi-line raw string literal, L1's input | exit 0, `1 checks, 0 failures`: the input that crashed the scan now reads clean |
+| **R-CD-CRASH** | a multi-line raw string literal added to `src/AircraftManager.h`, the one file `strip()` still parses | exit 2, its output beginning `RIG: `, never exit 1 |
+| **R-CD-DECODE** | a new file `include/zz_badbyte.h` holding the bytes `0xFF 0xFE`, so the line scan's read raises | exit 2, its output beginning `RIG: `, never exit 1 |
+
+**Read before registering, without running the check:** all 411 files the scan reads (`include/`, `src/`, `tools/` by
+extension, and `platformio.ini`) decode as UTF-8. So L1 cannot meet R-CD-DECODE's path by accident.
+
+**The re-run, predicted (L1's first re-run; another stop on L1 goes to the owner):**
+
+| run | predicted |
+|---|---|
+| **L1** `check_map_draw.py` | `1 checks, 0 failures`, exit 0 |
+| **L2** `sabotage_map_draw.py` | control clean; S-CD-NOREFUSAL {CD4}; S-CD-STEPC {CD4}; `MAP DRAW SABOTAGES (2) AS PREDICTED`; then R-CD-RAWOK, R-CD-CRASH and R-CD-DECODE as the table above, `MAP DRAW CONTROLS (3) AS PREDICTED`; the real files unchanged |
+| **L3** `--anchors` over every driver (42), and `--control` for the new one | every anchor present exactly once; the control matches its table |
+| **L4** `check_map_fetch.py` | `3 checks, 0 failures` |
+| **L5** | as registered above, after blipscope-p4-4a's heavy run ends: one heavy run at a time on the machine |
+
+### The refusal's commit as run (2026-11-11): L1-L5 as registered, with a harness stop in L5
+
+**The re-run of L1-L4** (the fix at `0372fdc2`; L1's first re-run), each as predicted:
+- **L1:** `1 checks, 0 failures`, exit 0.
+- **L4:** `check_map_fetch.py` `3 checks, 0 failures`.
+- **L2:**
+  - the control is clean;
+  - S-CD-NOREFUSAL {CD4} and S-CD-STEPC {CD4}, `MAP DRAW SABOTAGES (2) AS PREDICTED`;
+  - R-CD-RAWOK exit 0, `1 checks, 0 failures`;
+  - R-CD-CRASH exit 2, `RIG: Rig: an unterminated literal …`;
+  - R-CD-DECODE exit 2, `RIG: UnicodeDecodeError: …`;
+  - `MAP DRAW CONTROLS (3) AS PREDICTED`, and the real files unchanged.
+- **L3:** no anchor stranded, and the new driver's `--control` matches its table.
+  - **The registration's label was wrong:** its "every driver (42)" counted **42 files: 41 drivers and
+    `test/host/sabotage_common.py` (a library)**. The library prints nothing and exits 0.
+  - Of the 41 drivers, 38 print "all present exactly once". The other three are the harness's own meta-controls
+    (`anchors_control`, `controls_control`, `rig_control`), and each passes in its own form.
+  - This is on record as a miscount in the registration's wording, not an off reading (the orchestrator's ruling).
+
+**L5, the four builds.**
+- **R-FLIP** (20:04:06-20:06:53Z): exit 1, and the log holds `src/AircraftManager.h:52:2: error: #error "step B draws the
+  map without step C: …"` twice, once per translation unit that includes the header. **The refused build left no
+  image:** there is no `firmware.bin` (and no `firmware.elf`) for `blipscope-s3-128`. As registered.
+- **R-FLIPC:** `blipscope-s3-128-wxlook SUCCESS`, with its `firmware.bin` (1,958,752 B) written at 20:09:56Z, inside
+  the run. As registered.
+- **The harness stop, and my miss.**
+  - The script's `Build` function wrote its start and end lines into PowerShell's pipeline, so its return value was
+    [line, line, exit code].
+  - R-FLIP passed its gate by luck (`-eq 0` filtered to nothing). R-FLIPC's success read as "did not build", and the
+    script stopped (exit 4) before R-BENCH.
+  - It is the same family as L1's crash: a gate trusted without being tested.
+  - **Ruled:** R-FLIP and R-FLIPC stand on their artifacts, and R-BENCH and R-BENCHC run after the fix. This was L5's
+    first stop.
+- **The fix:**
+  - `Build` writes its lines to the host and returns only `[int]$LASTEXITCODE`.
+  - A gate self-test runs before any build: a stub that prints lines and returns 0 gated as success (True), and one
+    that returns 1 gated as failure (False).
+- **R-BENCH** (`blipscope-s3-128` with `-DWX_LOOK_AB`, 20:11:36-20:14:40Z): built (`Int32` 0). `check-no-bench-hooks.sh`
+  on the saved image exits **1** with `FAIL: bench hook marker '[wx-bench]'`. As registered.
+- **R-BENCHC** (unchanged, 20:14:40-20:17:40Z): built. The scan on the saved image exits **0**, `ok: no bench hook (8
+  marker(s) checked, anchor present)`. As registered.
+- **Read off the images, independently:**
+  - `[wx-bench]` appears once in R-BENCH's image and not at all in R-BENCHC's;
+  - the anchor `[build] env=` appears once in each;
+  - the two images differ (1,934,592 B against 1,932,448 B), so R-BENCHC really rebuilt without the flag.
+- Every build ran after blipscope-p4-4a confirmed the machine was clear, one heavy run at a time.
+
+**So CB10's refusal runs, and its exemption cannot reach a customer.** A release flip without step C is refused at
+compile time, the bench image still builds, and a slug-ful image carrying the bench macro is refused by the scan every
+slug-ful image already goes through.
+
+### The refusal's PR (ruled (a)): W9 and its CI, registered before the suite runs (2026-11-11)
+
+**Ruled:** these five commits go up now as a small code PR (the refusal, CD4 and its driver, and the `run.sh` block; no
+drawing code), so the guard is on `main` before any drawing path exists. Step B's drawing work then continues on a
+branch from the new `main`.
+
+**W9, the whole host suite under WSL.** `bash test/host/run.sh` runs in `wsl -d Ubuntu-24.04` (g++ 13.3) on this
+branch's head, with no git call inside WSL (W8's lesson). The commit and a clean tree are read from Windows first.
+Predicted:
+- **exit 2, and the failed blocks are exactly W8's two:** "the same TU, for the board" (no xtensa toolchain in WSL) and
+  "Weatherscope R0 and R0b", the rig (no python with Pillow).
+- **38 drivers** in every driver pass.
+  - The glob's 42 files, minus the four `run.sh` skips by name: the `sabotage_common.py` library and the three
+    meta-controls.
+  - That is W8's 36, plus #630's `sabotage_ota_model.py`, plus this branch's `sabotage_map_draw.py`.
+  - **Anchors:** `38 driver(s) checked`, plus both board plants.
+  - **Controls and the full pass:** `38 driver(s): 37 run, 1 skipped`, the skip being `sabotage_wx_towns.py`.
+  - **Lint:** `38 driver(s), 0 flagged; 3 pinned line(s)`.
+- **`sabotage_map_draw.py` passes in all four passes.** Anchors: 3 plants, 3 anchors. Control: 1 suite. Lint: not
+  flagged. The full pass: exit 0, with **7** `AS PREDICTED` lines (the 2 plants, their summary, the 3 controls and
+  their summary).
+- **The new `MapDraw` block passes** (`1 checks, 0 failures`). So does `MapFetch` (`42 checks, 0 failures`, then
+  `3 checks, 0 failures`), and so does every block not named above.
+- **Anything else stops the reading for a ruling.** A block or driver off in the full pass is first run against
+  `main`'s own tree (`c2cf7cfc`), to tell what this branch broke from what was already broken.
+
+**The PR's CI, predicted: 34 check runs, 30 success, 4 skipped (`promote`, `publish`, `ship-alert`, `version`), 0
+failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-renderer). The PR touches `src/` and
+`test/host/`, so the web renderer builds.
+- **The baseline is #634's finished code PR run** (head `3de4367a3c51`: 34 = 30/4/0, the same four skips).
+- **It postdates the last change to the job set.** The only workflow change since #634's base (`68dc169a`) is #633's
+  device-ids change, which added steps, not jobs, and the SKU matrix has not changed.
+- **The host-tests leg on ubuntu** reads `38 driver(s): 37 run, 1 skipped` in its driver passes (#634's read 37/36/1),
+  and `MapDraw` `1 checks, 0 failures`.
+- **The web renderer builds:** `BLIPSCOPE_MAP_FETCH` excludes it, so CB10's condition is false there. No CI env defines
+  `WX_LAYER_SHIPS` without `WX_LOOK_AB`, since the release flip has not happened, so no firmware leg meets the
+  `#error`.
+- **Any other count, skip set or failure means a stop and a report,** with no re-run.
+
+### W9 as run (2026-11-11): the first run OFF on the lint, then the re-run as predicted
+
+- **W9's first run** (`1272d2c3`, 20:20:49-20:28:32Z): **OFF.**
+  - There was a third failed block, "sabotage controls: every test/host/sabotage_*.py --control".
+  - It runs `lint_driver_counts.py`, which read `38 driver(s), 1 flagged`. Its L2 flagged eight literal 1s in
+    `sabotage_map_draw.py` against the driver's table count, `SOURCE_CHECKS = 1`.
+  - None of the eight is a count: an anchor's uniqueness (twice), an exit-code tuple, two regex groups, a tuple index, a
+    last-line index and an exit code.
+  - Everything else read as predicted.
+  - **My miss:** I predicted "0 flagged" without running the lint locally. It now runs locally after any driver change.
+  - CI's host-tests leg runs the same block, so this would have been a CI failure.
+- **The fix, ruled (A):** the control's table entry is `("line", f"{SOURCE_CHECKS} checks, 0 failures")`, derived
+  from the one constant, so the count still lives in one place (`bf100133`). The lint locally read `38 driver(s), 0
+  flagged; 3 pinned line(s)`, as predicted, and the driver's `--control` read the line, exit 0.
+- **A known limit of L2, for the harness's owner** (the orchestrator raises it): L2 flags any integer literal equal to
+  one of a driver's table counts. **With a count of 1 it cannot tell the count from a file's idiomatic 1s**, so any
+  future driver with a count of 1 will meet this. Nothing in the lint was changed here.
+- **W9's re-run** (`bf100133`, 20:30:16-20:37:45Z), **as predicted:**
+  - exit 2, and `FAILED BLOCKS` lists exactly "the rig: Weatherscope R0 and R0b" and "failed: the same TU, for the
+    board", with no other `FAIL` line;
+  - anchors `38 driver(s) checked`; controls and the full pass `38 driver(s): 37 run, 1 skipped`; lint `38 driver(s),
+    0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_draw.py` ok in all four passes: anchors 3 and 3, control 1 suite, lint ok, and the full pass with
+    **7** `AS PREDICTED` lines;
+  - `MapDraw` `1 checks, 0 failures`, and `MapFetch` `42 checks, 0 failures`, then `3 checks, 0 failures`.
+- **The PR's CI prediction stands as registered above** (34 = 30/4/0 from #634's run). The fix touches only the
+  driver, which CI's host-tests leg reads.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |

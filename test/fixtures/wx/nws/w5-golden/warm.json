@@ -1,0 +1,92 @@
+{
+ "case": "warm",
+ "source": "the NWS API, fetched once by the session (A12.131), trimmed by trim_nws.py",
+ "capturedUtc": 1794353400,
+ "hourly": [
+  {
+   "startUtc": 1794355200,
+   "tempF": 71,
+   "hasTemp": true,
+   "pop": 13,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794358800,
+   "tempF": 70,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": false
+  },
+  {
+   "startUtc": 1794362400,
+   "tempF": 0,
+   "hasTemp": false,
+   "pop": 20,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794366000,
+   "tempF": 68,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true
+  }
+ ],
+ "periods": [
+  {
+   "name": "Tonight",
+   "startUtc": 1794355200,
+   "isDaytime": false,
+   "tempF": 52,
+   "hasTemp": true,
+   "pop": 40,
+   "hasPop": true,
+   "short": "Chance Showers And Thund"
+  },
+  {
+   "name": "Tuesday",
+   "startUtc": 1794398400,
+   "isDaytime": true,
+   "tempF": 64,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": false,
+   "short": "Sunny"
+  },
+  {
+   "name": "Tuesday Night",
+   "startUtc": 1794441600,
+   "isDaytime": false,
+   "tempF": -3,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true,
+   "short": "Mostly Clear"
+  }
+ ],
+ "observation": {
+  "timeUtc": 1794351180,
+  "tempF": 37,
+  "hasTemp": true,
+  "windDirDeg": 0,
+  "hasWindDir": true,
+  "windMph": 10,
+  "hasWind": true,
+  "gustMph": 0,
+  "hasGust": false,
+  "humidityPct": 56,
+  "hasHumidity": true
+ },
+ "alerts": [
+  {
+   "event": "Severe Thunderstorm Warning",
+   "startUtc": 1794372000,
+   "endUtc": 1794375000
+  },
+  {
+   "event": "Wind Advisory",
+   "startUtc": 1794333600,
+   "endUtc": 1794398400
+  }
+ ]
+}
