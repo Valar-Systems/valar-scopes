@@ -4349,6 +4349,24 @@ void ConfigurationWebServer::Initialise() {
         uint32_t tagBefore = 0, tagAfter = 0, seqBefore = 0, seqAfter = 0, clearsBefore = 0, clearsAfter = 0;
         bool finished = false;
         int attempts = 0;
+#if defined(BLIPSCOPE_PUSH_TASK)
+        // M3 (docs/m3-push-task.md, section 5): two backbuffers, so the phase window closes the instant a frame is
+        // handed over. Instead LOCK the last complete buffer for the copy: the loop cannot draw into a buffer it does
+        // not hold, so the copy is a whole, finished frame. Bounded like the window wait; on a timeout, Finished false.
+        {
+            ++attempts;
+            LGFX_Sprite* held = framebuf::AcquireComplete(kWaitBoundUs / 1000);
+            if (held != nullptr) {
+                seqBefore = seqAfter = framebuf::Sequence();
+                tagBefore = tagAfter = framebuf::Tag();
+                phaseBefore = phaseAfter = framebuf::kPhasePushed;
+                clearsBefore = clearsAfter = framebuf::Clears();
+                memcpy(snap, held->getBuffer(), total);
+                framebuf::ReleaseComplete(held);
+                finished = true;
+            }
+        }
+#else
         for (;;) {
             while (!framebuf::PhaseFinished(framebuf::Phase()) && micros() - waitT0 < kWaitBoundUs) vTaskDelay(1);
             ++attempts;
@@ -4365,6 +4383,7 @@ void ConfigurationWebServer::Initialise() {
                        tagBefore == tagAfter && seqBefore == seqAfter && clearsBefore == clearsAfter;
             if (finished || micros() - waitT0 >= kWaitBoundUs) break;
         }
+#endif
         const uint32_t waitUs = micros() - waitT0;
         // Torn now means "not a finished frame": a superset of the old "Sequence moved", so a client that asks again
         // on Torn (the viewer page does, once) keeps working.

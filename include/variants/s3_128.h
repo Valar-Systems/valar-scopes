@@ -75,6 +75,19 @@
 #define BLIPSCOPE_TOUCH_I2C_ADDR 0x15
 #define BLIPSCOPE_TOUCH_FREQ     400000
 
+// M3 (docs/m3-push-task.md): the panel push runs on its own task, so the loop draws the next frame
+// while this one goes out over SPI. This SKU only, and the device build only (the web renderer never
+// compiles main.cpp's frame loop). A MACRO, not a constexpr flag beside the others: an `if constexpr`
+// branch still compiles the task, and gc-sections keeps its .eh_frame, so every other SKU's image
+// would move (5c's A4). That is the one reason this departs from "variant flags, not #ifdefs".
+// The RADAR edition only: Missileer, Weatherscope and the other editions build this board from the same
+// header, and their frame loops are not M3's (the same edition list main.cpp's radar guards use).
+#if !defined(BLIPSCOPE_WEB_RENDERER) && !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && \
+    !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && \
+    !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#define BLIPSCOPE_PUSH_TASK 1
+#endif
+
 namespace variant {
     // Screen geometry (round; square bounding box).
     constexpr int SCREEN_SIZE = 240;
