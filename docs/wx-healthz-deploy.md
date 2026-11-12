@@ -188,3 +188,31 @@ released when the diagnostic is done; no deploy follows under it.
   verdict stay as registered in §4.
 - **P3 on production is unchanged:** production binds no `BASEMAP_PKG`, so its `/basemap` is the inert 503, and
   `FAIL: 0`.
+
+## 6. The re-run (2026-11-12, after the orchestrator announced at 05:52:17Z that 5' had closed and E2:08 was restored)
+
+**Staging: every row as predicted, and the gate passed.**
+
+| step | time | reading |
+|---|---|---|
+| S0 | 05:53:05-14Z | one version at 100 %, `eb36fe73-ed1e-433a-aafa-1e3f3188f210`; `/healthz` `fdf62ada` |
+| S-slot | 05:53:21Z | `deploy: held -- uk-data, covering proxy:staging`; main `e3c2508eb8db`; staging's list is exactly §1's ten, production's exactly the five |
+| S-dep | 05:53:36-51Z | `deploy.sh staging` exit 0; version `eadbf909-8142-41ba-8d8b-830f4d6ccf84`; confirmed `/healthz` `e3c2508e` |
+| S1 | 05:53:58Z | the 11 in `PRODUCTS`' order; `routed: true` on exactly `cref` and `opuk` |
+| S2 | 05:53:58Z | `cref` 84 s, `stale: false`; the ten OPERA products 35,039 s, `stale: true`. The silent branch: every OPERA `latest` read 1794427800 at 05:54:02Z |
+| C1 | 05:53:58Z | the five `nws_*` breakers, `closed`, exact; no `commit` key inside |
+| C2-C4 | 05:54:11-14Z | C2 x3 401 `unauthorized`; C3 404 `not_found`; C4 405 `method_not_allowed` |
+| W5-S1 to W5-S3 | 05:54:11-14Z | 400 `bad_submission`; 400, byte-identical to W5-S1; 405 `method_not_allowed` |
+| S3 (and W5's C5) | 05:54:33-59Z | smoke exit 0, `PASS: 38 FAIL: 0`, the first case of §5's grading. 11 per-product lines, `WARN` on exactly the ten S2 graded stale; `wx-opuk` PASS. `/basemap` served a validated BMPK package on the first ask, so the re-ask loop did not run. Every Blipscope smoke row passes |
+| S4 | 05:55:33-56:04Z | `s4_grade.py`: silent branch; `cref` 35/35 as originally frozen; `opuk` 14/14 503 `wx_stale`. `r12_prod.sh`'s own "NOT AS PREDICTED" is its pre-silence prediction, which §4 re-froze. The point file was deleted |
+
+`proxy:staging` was released at 05:56:14Z. Staging stays on `eadbf909`.
+
+**Production: NOT deployed.**
+- **P0 (05:56:26-30Z):** one version at 100 %, `c1324f7c-c833-4854-bba2-f2ec5c8b4b59`; `/healthz` `68dc169a`. As predicted.
+- **P-slot (05:56:37Z):** `deploy: held -- uk-data, covering proxy:production`; main `e3c2508eb8db`, the sha staging was
+  deployed from; production's list is the five. As predicted.
+- **P-dep:** `deploy.sh production` was refused by this session's own permission settings before it ran. It never
+  started. Production was re-read at 05:57Z at `68dc169a`, and `proxy:production` was released at 05:57:03Z.
+- **What follows** (the orchestrator, 05:57:49Z): the production half waits on the owner's permission. Once that is
+  given, P0 and P-slot re-run fresh, and the orchestrator is told before P-dep. Nothing else is deploying meanwhile.
