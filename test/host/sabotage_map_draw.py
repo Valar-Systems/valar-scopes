@@ -3,10 +3,26 @@ two plants, each in a COPY of the tree, and each must turn red exactly CD4 in ch
 
   S-CD-NOREFUSAL  CB10's #if / #error / #endif deleted from src/AircraftManager.h, the region kept: {CD4}
   S-CD-STEPC      `#define BLIPSCOPE_MAP_STEP_C 1` added to src/AircraftManager.cpp: {CD4}
+  S-CB-SECONDPATH DrawAirports draws its code at x + 6 without radarbox::Airport: {CB8}
+  S-CB-PINS       RING_LABEL_OUTER_INSET becomes 13 in src/AircraftManager.cpp: {CB8b}
+  S-CB-PINVAL     MapPlaces.h's kDotsX0 becomes 100 while the drawers stay: {CB8b}
+The wiring's (registered 2026-11-12, "The wiring: registered before its code"):
+  S-CD-NVS        a Preferences write planted in DrawMapBase's draw region: {CD1}
+  S-CD-PRINTNAME  a town's label printed in DrawMapBase's draw region: {CD2}
+  S-CD-VIEW       DrawMapBase's view.rLat filled from radLat, not viewRadLat: {CD3}
+  S-CD-NOSPIRAM   MapAlloc's MALLOC_CAP_SPIRAM dropped: {CD5}
+  S-CD-NOGEN      the ++mapAirportsGen after `cloudAirports = std::move(...)` removed: {CD6}
+  S-CD-CULL       MapAirportBoxes' strip threshold 0.55f becomes 0.5f: {CD7}
+The map bench's (registered 2026-11-12, "The mapbench env"):
+  S-CB-BENCHLEAK  a `#ifdef MAP_BENCH` block planted outside every bench region in AircraftManager.cpp: {CB-B1}
+  S-CB-BENCHPRINT a print of `lat` planted in RecordFrameUs's bench region (not inside a draw region): {CB-B2}
+  Each is graded AS PREDICTED only when the red set PARSED from the check's output equals its frozen set, so a FAIL
+  regex that could not read a "CB-B" row would turn these plants off-prediction, never silently green.
 
 And three controls of the instrument's own direction (registered with L1's fix; none is a {CD4}-set plant):
-  R-CD-RAWOK      a raw-string file added under include/: exit 0, "1 checks, 0 failures" (L1's input now reads clean)
-  R-CD-CRASH      a raw string added to src/AircraftManager.h, which strip() still parses: exit 2, "RIG: ...", never 1
+  R-CD-RAWOK      a raw-string file added under include/: exit 0, all SOURCE_CHECKS pass (L1's input now reads clean)
+  R-CD-CRASH      a raw string added to src/AircraftManager.h after CB10's region, which strip() still parses: exit 2,
+                  "RIG: ...", never 1
   R-CD-DECODE     a file of undecodable bytes added under include/: exit 2, "RIG: ...", never 1
 
 Method: include/, src/, platformio.ini and the text files under tools/ are copied into a temporary tree with the repo's
@@ -37,18 +53,48 @@ REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined
            "#endif\n")
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'
 
+PLACES = os.path.join("include", "MapPlaces.h")
+SOURCE_CHECKS = 11   # CD4, CB8, CB8b, CD1-CD3, CD5-CD7, CB-B1, CB-B2: the one place the count lives (run, --control)
+MAPBASE_AT = "    k.airportsGen = mapAirportsGen;\n"   # a line in DrawMapBase's draw region
+BENCH_TICK_AT = "    MapBenchTick();   // after every [health] line of this interval: the next phase starts on a clean tick\n"
+
 SABOTAGES = {
     "S-CD-NOREFUSAL": (AMH, [(REFUSAL, "")], {"CD4"}),
     "S-CD-STEPC": (AMCPP, [(STEPC_AT, STEPC_AT + "#define BLIPSCOPE_MAP_STEP_C 1\n")], {"CD4"}),
+    # CB8: DrawAirports draws its code at x + 6 without the helper.
+    "S-CB-SECONDPATH": (AMCPP, [("        backbuffer.drawString(code, codeBox.x0, codeBox.y0);\n",
+                                 "        backbuffer.drawString(code, x + 6, y - 3);\n")], {"CB8"}),
+    # CB8b: a drawer's constant moves (the expression's value changes)...
+    "S-CB-PINS": (AMCPP, [("static constexpr int RING_LABEL_OUTER_INSET = 14;",
+                           "static constexpr int RING_LABEL_OUTER_INSET = 13;")], {"CB8b"}),
+    # ...and a value the names use moves while the drawers stay (no C++ row sees it: places_plants.py read 0).
+    "S-CB-PINVAL": (PLACES, [("constexpr int kDotsX0 = 99;", "constexpr int kDotsX0 = 100;")], {"CB8b"}),
+    # The wiring's six (CD1-CD3, CD5-CD7), one row each.
+    "S-CD-NVS": (AMCPP, [(MAPBASE_AT, MAPBASE_AT + '    { Preferences mapPrefs; mapPrefs.putUInt("mapgen", mapAirportsGen); }\n')],
+                 {"CD1"}),
+    "S-CD-PRINTNAME": (AMCPP, [(MAPBASE_AT, MAPBASE_AT + '    if (mapDraw.nPlaced > 0) Serial.printf("[map] %s\\n", '
+                                                         'mapDraw.places->t[mapDraw.placed[0].town].label);\n')], {"CD2"}),
+    "S-CD-VIEW": (AMCPP, [("    k.view.rLat = viewRadLat;\n", "    k.view.rLat = radLat;\n")], {"CD3"}),
+    "S-CD-NOSPIRAM": (AMCPP, [("    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+                               "    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_8BIT);")], {"CD5"}),
+    "S-CD-NOGEN": (AMCPP, [("            ++mapAirportsGen;   // a new long tail: the names' obstacles change (CD6)\n", "")],
+                   {"CD6"}),
+    "S-CD-CULL": (AMCPP, [("        const bool wide = viewRadLat > 0.55f;   // CD7: DrawAirports' strip threshold\n",
+                           "        const bool wide = viewRadLat > 0.5f;   // CD7: DrawAirports' strip threshold\n")], {"CD7"}),
+    # The map bench's two (CB-B1, CB-B2).
+    "S-CB-BENCHLEAK": (AMCPP, [('// THE MAP BENCH END\n#include "PollCadence.h"',
+                                '// THE MAP BENCH END\n#ifdef MAP_BENCH\n#endif\n#include "PollCadence.h"')], {"CB-B1"}),
+    "S-CB-BENCHPRINT": (AMCPP, [(BENCH_TICK_AT, BENCH_TICK_AT + '    Serial.printf("[map-bench] %f\\n", lat);\n')],
+                        {"CB-B2"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is
 # graded on its exit code and output. ("add", path, bytes) writes a new file; ("edit", path, old, new) edits one.
 RAW = b'static const char* const kRaw = R"RAW(\nline one\nline two\n)RAW";\n'
-DRAW_END = "// THE MAP DRAW END\n"
+CB10_END = REFUSAL + "// THE MAP DRAW END\n"   # CB10's region end: unique, now the header holds four draw regions
 CONTROLS = {
-    "R-CD-RAWOK": (("add", os.path.join("include", "zz_rawok.h"), RAW), 0, "1 checks, 0 failures"),
-    "R-CD-CRASH": (("edit", AMH, DRAW_END, DRAW_END + RAW.decode("utf-8")), 2, "RIG: "),
+    "R-CD-RAWOK": (("add", os.path.join("include", "zz_rawok.h"), RAW), 0, f"{SOURCE_CHECKS} checks, 0 failures"),
+    "R-CD-CRASH": (("edit", AMH, CB10_END, CB10_END + RAW.decode("utf-8")), 2, "RIG: "),
     "R-CD-DECODE": (("add", os.path.join("include", "zz_badbyte.h"), b"// \xff\xfe\n"), 2, "RIG: "),
 }
 
@@ -92,7 +138,7 @@ def run_check(tree):
     m = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not m or int(m.group(1)) != SOURCE_CHECKS:
         return None, f"the check did not run as {SOURCE_CHECKS} row(s) (exit {c.returncode})\n" + c.stdout + c.stderr
-    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+)\b", c.stdout, re.M)}, None
+    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+|CB-B\d+|CB\d+b?)\b", c.stdout, re.M)}, None
 
 
 def control_tree(td, tag, spec):
@@ -120,7 +166,7 @@ def run_raw(tree):
 
 
 def real_files():
-    return [os.path.join(ROOT, p) for p in (AMH, AMCPP)]
+    return [os.path.join(ROOT, p) for p in (AMH, AMCPP, PLACES)]
 
 
 def main():
@@ -164,11 +210,9 @@ def main():
     return rigs.close(0 if ok and same else 1)
 
 
-# --control: the unplanted run alone, against this table. SOURCE_CHECKS is the one place the count lives. The entry is a
-# ("line", text) DERIVED from it, not a ("checks", n) count: with a count of 1, lint_driver_counts.py's L2 cannot tell
-# the count from this file's idiomatic 1s (an anchor's uniqueness, an exit code, a regex group), so it flags them all
-# (W9's first run, ruled fix (A)). The exact line still carries the count and "0 failures", with exit 0.
-SOURCE_CHECKS = 1   # CD4 until the draw files exist; CD1-CD3 join with them
+# --control: the unplanted run alone, against this table. SOURCE_CHECKS (defined above) is the one place the count
+# lives. The entry is a ("line", text) DERIVED from it, not a ("checks", n) count (W9's first run, ruled fix (A)): the
+# exact line still carries the count and "0 failures", with exit 0.
 CONTROL_TABLE = {"check_map_draw.py": ("line", f"{SOURCE_CHECKS} checks, 0 failures")}
 
 

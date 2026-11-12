@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
+#include "AirportBoxes.h"      // an airport's mark and code: the one rule the map's names avoid (CB8)
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
@@ -34,6 +35,99 @@
 constexpr uint8_t kMapWhyUnread = 0xFF;
 #endif
 // THE MAP FETCH END
+// THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+// The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"). The two packages are built in
+// (board_build.embed_files); nothing is fetched. Every line it prints is counts: no place name, anchor or coordinate.
+extern const uint8_t kMapBenchBend[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_start");
+extern const uint8_t kMapBenchBendEnd[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_end");
+extern const uint8_t kMapBenchKsfo[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_start");
+extern const uint8_t kMapBenchKsfoEnd[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_end");
+
+// One built-in package into PSRAM, as step A's landing buffer would hold a fetched one, through the gate
+// (maplayer::Load), and accepted: the package, its length and a new sequence, as ConsumeBasemap's Accepted does.
+void AircraftManager::MapBenchAccept(int which)
+{
+    const uint8_t* s = which == 1 ? kMapBenchKsfo : kMapBenchBend;
+    const size_t len = (size_t)((which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+    if (mapLanding == nullptr || mapLandingCap < len) {
+        if (mapLanding != nullptr) heap_caps_free(mapLanding);
+        mapLanding = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        mapLandingCap = mapLanding != nullptr ? len : 0;
+    }
+    if (mapLanding == nullptr) {
+        Serial.println("[map-bench] package refused: no PSRAM for it");
+        return;
+    }
+    memcpy(mapLanding, s, len);
+    bmpk::Package pk;
+    const maplayer::Verdict v = maplayer::Load(mapLanding, len, &pk);
+    if (!v.accepted) {
+        Serial.printf("[map-bench] package %d refused by the gate (status %d)\n", which, (int)v.why);
+        return;
+    }
+    mapPkg = pk;
+    mapHeldLen = len;
+    ++mapPkgSeq;
+}
+
+// The phases, one step per 30 s health tick (the registered table): P0 holds until the first allocation; P1 the
+// weather off and the map alternating, 20 pairs; P2 the weather on and the map alternating, 20 pairs; P3 Bend's zoom
+// ladder stepped once a tick, 25 ticks; P4 KSFO's, 25 ticks, after Initialise moves the home (the radar's own
+// config-change path, on this loop task); then done. Each line says the state the NEXT interval runs in.
+void AircraftManager::MapBenchTick()
+{
+    if (mapBench.phase == 0 || mapBench.phase == 3 || mapBench.phase == 4) {
+        const maplayer::BuildInfo& bi = mapDraw.info;   // the last rebuild's passes (CF5): one zoom step per tick
+        Serial.printf("[map-bench] passes s1=%lu water=%lu rivers=%lu roads=%lu colour=%lu total=%lu\n",
+                      (unsigned long)bi.usS1, (unsigned long)bi.usWater, (unsigned long)bi.usRivers,
+                      (unsigned long)bi.usRoads, (unsigned long)bi.usColour, (unsigned long)bi.usTotal);
+    }
+    ++mapBench.ticks;
+    const auto next = [&](int phase) {
+        mapBench.phase = phase;
+        mapBench.ticks = 0;
+    };
+    const auto zoomStep = [&]() {
+        ApplyZoom((zoomIdx + 1) % (zoomLadder.Top() + 1), radarzoom::Edge::None, "map-bench");
+    };
+    switch (mapBench.phase) {
+    case 0:
+        if (mapDraw.allocated) next(1);
+        break;
+    case 1:
+        mapBench.wxOff = true;
+        mapBench.mapOff = !mapBench.mapOff;
+        if (mapBench.ticks >= 40) next(2);
+        break;
+    case 2:
+        mapBench.wxOff = false;
+        mapBench.mapOff = !mapBench.mapOff;
+        if (mapBench.ticks >= 40) {
+            mapBench.mapOff = false;
+            next(3);
+        }
+        break;
+    case 3:
+        zoomStep();
+        if (mapBench.ticks >= 25) {
+            next(4);
+            mapBench.which = 1;   // KSFO: Initialise's bench region moves the home, MapConfigure drops Bend
+            Initialise();
+        }
+        break;
+    case 4:
+        zoomStep();
+        if (mapBench.ticks >= 25) next(5);
+        break;
+    default:
+        break;
+    }
+    Serial.printf("[map-bench] phase P%d map=%s wx=%s zoom=%.0f%s\n", mapBench.phase, mapBench.mapOff ? "off" : "on",
+                  mapBench.wxOff ? "off" : "on", viewRadiusDisplay, rangeUnit.c_str());
+}
+#endif
+// THE MAP BENCH END
 #include "PollCadence.h"    // the poll cadence and the weekly reboot; the web build's kiosk (docs/web-kiosk-airfield.md)
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
@@ -817,6 +911,26 @@ void AircraftManager::Initialise()
     // note on hasLocation in the header. A factory-fresh or factory-reset device
     // lands here with both empty, and the radar has nothing to centre on.
     hasLocation = latStr.length() > 0 && lonStr.length() > 0;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    // The bench's home is the held package's centre, so the radar, the weather and the map agree. Set here, before the
+    // radius is computed from the latitude below; nothing prints it.
+    if (mapBench.which < 0) {
+        mapBench.which = 0;
+        Serial.println("[map-bench] the map's bench image: Bend, then KSFO, built in; nothing fetched");
+    }
+    {
+        const uint8_t* s = mapBench.which == 1 ? kMapBenchKsfo : kMapBenchBend;
+        const size_t len = (size_t)((mapBench.which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+        bmpk::Package pk;
+        if (bmpk::Validate(s, len, &pk) == bmpk::Status::kOk) {
+            lat = pk.lat0Micro / 1e6;
+            lon = pk.lon0Micro / 1e6;
+            hasLocation = true;
+        }
+    }
+#endif
+    // THE MAP BENCH END
     // Follow's home field is resolved once and cached (see ResolveHomeField).
     // Initialise re-runs on every config save, and a save is the only way the
     // location can move -- so this is exactly where the cache must be dropped.
@@ -914,6 +1028,11 @@ void AircraftManager::Initialise()
     airportsMin = airportsMinStr == "large" ? AirportsMin::LargeOnly
                 : airportsMinStr == "med"   ? AirportsMin::MedLarge
                                             : AirportsMin::All;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    ++mapAirportsGen;   // displayAirports and airportsMin, just written: the names' obstacles may have changed (CD6)
+#endif
+    // THE MAP DRAW END
     const String renderTrail = configServer.GetStoredString("trail");
     const String renderAltColor = configServer.GetStoredString("altcolor");
     const String renderHighlight = configServer.GetStoredString("highlight");
@@ -1364,6 +1483,11 @@ void AircraftManager::Initialise()
         lastCloudAirportsFetch = 0;
         cloudAirportsRetryMs = 0; // a config save clears any failure backoff too
         cloudAirports.clear();
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        ++mapAirportsGen;   // the long tail dropped: the names' obstacles change (CD6)
+#endif
+        // THE MAP DRAW END
         Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
                       cloudUrl.c_str(), cloudCfg.pollActiveMs);
     } else
@@ -2449,6 +2573,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         benchPhase = (benchPhase + 1) % 2;
         followDrawTrack = true;             // constant: its cost is already known
         displayAirports = true;             // settled: -0.09 ms, leave it on
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        ++mapAirportsGen;   // CD6: every write of the airport switch
+#endif
+        // THE MAP DRAW END
         displayInfoText = (benchPhase == 0);
         Serial.printf("[bench] NEXT     %s\n", PHASE[benchPhase]);
     }
@@ -2816,6 +2945,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed,
                       (unsigned long)wd.maxOutageMs, (unsigned long)wd.rebootsRecommended);
     }
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    MapBenchTick();   // after every [health] line of this interval: the next phase starts on a clean tick
+#endif
+    // THE MAP BENCH END
 }
 
 uint32_t AircraftManager::AllocFailureCount() const { return allocFailures; }
@@ -3448,6 +3582,10 @@ void AircraftManager::MapConfigure(double distance, double kmPerUnit)
         mapHeldLen = 0;               // the package belongs to the old view: dropped, not drawn (CA10)
         mapPkg = bmpk::Package();
         mapAllocFailed = false;       // a new config earns a new allocation attempt
+        // THE MAP DRAW BEGIN
+        mapcompose::Forget(mapDraw);  // ...and so do the draw's buffers: one reset, one flag (Q-MC14, Q-MW3)
+        ++mapPkgSeq;
+        // THE MAP DRAW END
     }
     if (!mapBegun) {
         mapBegun = true;
@@ -3477,6 +3615,12 @@ static std::vector<std::pair<String, String>> MapParamPairs(const char* params)
 
 bool AircraftManager::RequestBasemap(unsigned long now)
 {
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    (void)now;
+    return false;   // the bench's packages are built in: nothing is ever fetched
+#endif
+    // THE MAP BENCH END
     if (!MapEnabled()) return false;
     // The landing buffer: PSRAM only, never the internal heap a TLS handshake needs (CLAUDE.md). Allocated at the cap
     // of the request about to go out, and again only when a later request needs more. Nothing is held and nothing is in
@@ -3525,6 +3669,9 @@ void AircraftManager::ConsumeBasemap(int status, size_t len, size_t claimed, con
     if (o == mappolicy::Outcome::Accepted) {
         mapPkg = pk;
         mapHeldLen = len;
+        // THE MAP DRAW BEGIN
+        ++mapPkgSeq;   // a new package: the names reload and the map rebuilds (CB4 package)
+        // THE MAP DRAW END
     }
     // One line per answer: the status, the size, what the gate said and why, what the policy made of it, and the wait it
     // set. A wait is printed only for the outcomes that set one; the boot's spread is never one of them (CA13).
@@ -3581,6 +3728,11 @@ bool AircraftManager::RebuildWeatherLayer()
     wxBuiltLook = wxLook;
     wxSpriteReady = true;
     wxNeedsRebuild = false;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    ++mapWxGen;   // the map's composite recomposes over the new layer, without a Build (CB5)
+#endif
+    // THE MAP DRAW END
     // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
     Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
     return true;
@@ -3589,22 +3741,51 @@ bool AircraftManager::RebuildWeatherLayer()
 bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
 {
     wxShowing = wxpolicy::Show::Nothing;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    if (mapBench.wxOff) return DrawMapBase(canvas, nullptr);   // P1: the weather forced off; the map alone, or the clear
+#endif
+    // THE MAP BENCH END
     // Only the radar scope itself: not the List, Stats or Follow faces, not under a card, not the no-location or
     // night-clock faces, which own their whole screen.
-    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) return false;
+    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) {
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // no weather this frame: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
+        return false;
+    }
     const time_t now = time(nullptr);
     wxShowing = wxpolicy::WhatToShow(wxState, true, now > 1600000000, (uint32_t)now);
-    if (wxShowing != wxpolicy::Show::Crop) return false;
+    if (wxShowing != wxpolicy::Show::Crop) {
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // the weather shows nothing: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
+        return false;
+    }
     const bool stale = wxNeedsRebuild || !wxSpriteReady || wxBuiltLat != lat || wxBuiltLon != lon ||
                        wxBuiltRadLat != viewRadLat || wxBuiltRadLon != viewRadLon || wxBuiltRotSin != rotSin ||
                        wxBuiltRotCos != rotCos || wxBuiltLook != wxLook;
     if (stale && !RebuildWeatherLayer()) {
         wxShowing = wxpolicy::Show::Nothing;
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // the layer did not rebuild: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
         return false;
     }
     // The B1 fix (docs/wx-device.md): one memcpy of the whole layer when the canvas is one band of the whole frame in
     // the layer's own format -- the guard DrawSweepOverWeather uses. Step C timed the sprite push at 6.82 ms against a
     // 5.15 ms memcpy of the same 115,200 B. Anything else pushes the sprite, as before.
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    if (DrawMapBase(canvas, (const uint16_t*)(const void*)wxLayer565)) return true;   // this weather over the map
+#endif
+    // THE MAP DRAW END
     LGFX_Sprite& sp = canvas.sprite();
     uint8_t* const dst = (uint8_t*)sp.getBuffer();
     const bool flat = canvas.offsetY() == 0 && sp.width() == SCREEN_SIZE && sp.height() == SCREEN_SIZE &&
@@ -3616,6 +3797,134 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     else wxSprite.pushSprite(&sp, 0, -canvas.offsetY());
     return true;
 }
+
+// THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+// The base draw with the map (docs/blipscope-map-client-steps.md, step B, the wiring). On the radar scope with a held
+// package, the composer's buffer -- the map with its names, and `wx` over it when the weather shows -- replaces the
+// clear in one memcpy. False leaves today's path to run, byte for byte. Rebuilds happen here on the loop task, at the
+// next shown radar frame, as the weather layer's do, and never per frame (CB4).
+bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
+{
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    if (mapBench.mapOff) return false;   // P1 and P2: an "off" tick
+    if (mapHeldLen == 0 && mapBench.which >= 0) MapBenchAccept(mapBench.which);   // built in, never fetched
+#endif
+    // THE MAP BENCH END
+    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0) return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    uint8_t* const dst = (uint8_t*)sp.getBuffer();
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16 ||
+        dst == nullptr)
+        return false;   // DrawWeatherUnder's flat-canvas guard: one band of the whole frame, in the layer's format
+    if (mapDraw.alloc == nullptr) mapcompose::Init(mapDraw, MapAlloc, MapFree);
+    mapcompose::Key k;
+    k.view.homeLat = lat;   // CD3: the weather layer's six fields, exactly (RebuildWeatherLayer)
+    k.view.homeLon = lon;
+    k.view.rLat = viewRadLat;
+    k.view.rLon = viewRadLon;
+    k.view.rotSin = rotSin;
+    k.view.rotCos = rotCos;
+    k.view.size = SCREEN_SIZE;
+    // Q-MW4: Cap and Inner read the PHYSICAL radius in statute miles (1.609344 km each), whatever unit the rings print.
+    k.radiusMi = (int)lround(viewRadLat * 111.0 / 1.609344);
+    k.pkSeq = mapPkgSeq;
+    k.airportsGen = mapAirportsGen;
+    k.nFixed = mapplaces::RingLabels(viewRadiusDisplay, rangeUnit.c_str(), k.fixed);
+    k.nFixed += mapplaces::Cardinals(radarUpDeg, k.fixed + k.nFixed);
+    k.fixed[k.nFixed++] = mapplaces::IndicatorRow();
+    mapcompose::Inputs in;
+    in.build = &maplayer::Build;
+    in.airports = &AircraftManager::MapAirportBoxes;
+    in.ctx = this;
+    in.askedMm = mapReq.rvMm;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    in.clock = []() -> uint32_t { return (uint32_t)micros(); };   // CF5: Build times its passes
+    if (mapBench.phase == 0 && !mapDraw.allocated && !mapDraw.refused) {
+        // CBF4: the first allocation, bracketed in this pass by the PSRAM and internal free sizes.
+        const uint32_t ps0 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        const uint32_t in0 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        const bool got = mapcompose::Allocate(mapDraw, mapPkg.maxVertices);
+        const uint32_t ps1 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        const uint32_t in1 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        Serial.printf("[map-bench] alloc vertices=%u price=%u psram_free %u -> %u internal %u -> %u%s\n",
+                      (unsigned)mapPkg.maxVertices, (unsigned)mapcompose::Price(mapPkg.maxVertices), (unsigned)ps0,
+                      (unsigned)ps1, (unsigned)in0, (unsigned)in1, got ? "" : " REFUSED");
+    }
+#endif
+    // THE MAP BENCH END
+    const bool rebuild = mapcompose::Stale(mapDraw, k);
+    const bool wasRefused = mapDraw.refused;
+    const unsigned long t0 = millis();
+    const uint16_t* b = mapcompose::Frame(mapDraw, &mapPkg, k, wx, mapWxGen, in);
+    if (mapDraw.refused && !wasRefused) {
+        mapAllocFailed = true;   // Q-MW3: one flag; the next config change clears it, and Forget the refusal
+        Serial.println("[map] draw: buffers refused");
+    } else if (rebuild && mapDraw.attempted) {
+        Serial.printf("[map] draw: rebuilt in %lu ms, %d label(s)%s\n", millis() - t0, mapDraw.nPlaced,
+                      mapDraw.ready ? "" : ", Build refused the package");
+    }
+    if (b == nullptr) return false;
+    memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+    return true;
+}
+
+// The airports DrawAirports draws at this view, as the names' obstacles: its list, its filters and its cull, held
+// equal to DrawAirports' own lines by CD7 (check_map_draw.py), then the one box rule (mapplaces::AirportObstacles,
+// radarbox::Airport). Every airport is counted, so more than the buffer holds refuses the names (CB11).
+int AircraftManager::MapAirportBoxes(void* ctx, mapplaces::Box* out, int maxAirports)
+{
+    const AircraftManager& self = *static_cast<const AircraftManager*>(ctx);
+    if (!self.displayAirports) return 0;   // no airports drawn: none to avoid
+    const double& lat = self.lat;          // DrawAirports' own names, so its lines can be held here as written
+    const double& lon = self.lon;
+    const double& viewRadLat = self.viewRadLat;
+    const double& viewRadLon = self.viewRadLon;
+    int n = 0;
+    const auto add = [&](float apLat, float apLon, const char* code) {
+        if (fabsf(apLat - (float)lat) > (float)viewRadLat ||   // CD7: DrawAirports' VIEW box
+            fabsf(apLon - (float)lon) > (float)viewRadLon)
+            return;
+        if (n < maxAirports) {
+            auto [x, y] = self.ProjectCoordinateToScreen(apLat, apLon);
+            mapplaces::AirportObstacles(x, y, code, &out[2 * n]);
+        }
+        ++n;
+    };
+#ifdef FEATURE_CLOUD_FEED
+    const AirportsMin& airportsMin = self.airportsMin;
+    const std::vector<CloudFeed::CloudAirport>& cloudAirports = self.cloudAirports;
+    if (!cloudAirports.empty()) {
+        const bool wide = viewRadLat > 0.55f;   // CD7: DrawAirports' strip threshold
+        for (const CloudFeed::CloudAirport& ap : cloudAirports) {
+            if (airportsMin == AirportsMin::LargeOnly && ap.kind != 'L')
+                continue;
+            if (airportsMin == AirportsMin::MedLarge && ap.kind == 'S')
+                continue;
+            if (airportsMin == AirportsMin::All && wide && ap.kind == 'S')
+                continue;
+            add(ap.lat, ap.lon, ap.code);
+        }
+        return n;
+    }
+#endif
+    for (size_t i = 0; i < AIRPORT_COUNT; ++i) {
+        const Airport& ap = AIRPORTS[i];
+        add(ap.lat, ap.lon, ap.code);
+    }
+    return n;
+}
+
+void* AircraftManager::MapAlloc(size_t bytes)
+{
+    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   // CD5: PSRAM, the price's premise
+}
+
+void AircraftManager::MapFree(void* p) { heap_caps_free(p); }
+#endif
+// THE MAP DRAW END
 
 bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
 {
@@ -3722,6 +4031,11 @@ void AircraftManager::ConsumeFetchResult()
     if (res->kind == FetchKind::Airports) {
         if (res->ok) {
             cloudAirports = std::move(res->airports);
+            // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+            ++mapAirportsGen;   // a new long tail: the names' obstacles change (CD6)
+#endif
+            // THE MAP DRAW END
             cloudAirportsRetryMs = 0; // back to the default rule
             Serial.printf("[cloud] airports: %u within %d km\n",
                           (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));
@@ -5380,8 +5694,13 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
             fabsf(apLon - (float)lon) > (float)viewRadLon)
             return;
         auto [x, y] = ProjectCoordinateToScreen(apLat, apLon);
-        backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
-        backbuffer.drawString(code, x + 5, y - 3);
+        // ONE RULE for the two boxes (include/AirportBoxes.h, CB8): the map's place names avoid exactly these,
+        // so a name cannot drift onto a code. The same pixels as before: drawRect(x - 2, y - 2, 5, 5), the code at
+        // (x + 5, y - 3).
+        radarbox::Box mark, codeBox;
+        radarbox::Airport(x, y, (int)strlen(code), &mark, &codeBox);
+        backbuffer.drawRect(mark.x0, mark.y0, mark.x1 - mark.x0 + 1, mark.y1 - mark.y0 + 1, MARK);
+        backbuffer.drawString(code, codeBox.x0, codeBox.y0);
     };
 
 #ifdef FEATURE_CLOUD_FEED

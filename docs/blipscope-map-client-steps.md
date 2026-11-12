@@ -1407,6 +1407,2143 @@ failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-rend
 - **The PR's CI prediction stands as registered above** (34 = 30/4/0 from #634's run). The fix touches only the
   driver, which CI's host-tests leg reads.
 
+### Step B's drawing work, registered before code (2026-11-11): the place-name counts (CB6)
+
+**Status:** #650 merged (`337732be`), so the refusal and CD4 are on `main`. The drawing work goes on
+`feat/map-client-step-b-draw`, from `main` at `ed452654`. This registration is its first commit. No place-name code
+exists yet.
+
+**The rule, as ruled (Q-MB3 to Q-MB6), stated exactly so the counts below can be checked against it:**
+- **The list:** the package's PLACES, in file order, at most 256. More than 256 refuses the towns rather than cutting
+  the list (Q-MB6). No peaks (Q-MC7 (b)).
+- **The order:** the Weatherscope's `RankOrder`: population descending, a population of 0 ranking as 1,000, ties in
+  file order. The label is `LabelText`'s: the name as written, one trailing " city" dropped, at most 39 bytes.
+- **The cap:** the Weatherscope's `Cap` at the view's radius in miles, as an int: 8 from 60, 6 from 30, 5 below
+  (Q-MB3).
+- **The anchor:** format section 9 with the view's own centre, then `radarproj::Project`'s rotation (x = C + u cos +
+  w sin, y = C - u sin + w cos), in double, then `int()` truncation, as `PlaceTown`.
+- **The centre:** an anchor within `Inner` (24.4 px) of (120, 120) is skipped, and every box's nearest point must be
+  at least 24.4 px out.
+- **The boxes, inclusive:**
+  - right `{ix-1, iy-4, ix+4+w, iy+4}`, left `{ix-5-w, iy-4, ix+2, iy+4}`, with `w` = 6 × the label's bytes - 1;
+  - the side away from the centre is tried first (left when x < 120);
+  - every corner within 116 px of (120, 120);
+  - 4 px of air from every obstacle and every placed label;
+  - **no y band**: the radar has no strips.
+- **The obstacles (Q-MB4):**
+  - each airport in the view box: its mark `{x-2, y-2, x+2, y+2}` and its code `{x+5, y-3, x+5+6n-1, y+4}`. The
+    airports are culled and projected as `DrawAirports` does (`radarproj::Project`, float);
+  - the three ring labels: x 123, y 14 / 44 / 83, with the view's ring values as `DrawRadarCircles` formats them;
+  - the four cardinals: r 112, `lroundf`, rotated by `radarUpDeg`, box `{px-3, py-4, px+2, py+3}`;
+  - the screen-indicator row: `{99, 221, 140, 227}`, the four carousel dots at y 224.
+
+**The independent scratch reading.** `places_ref.py`, in the map client's scratch folder, sha256
+`ab0cf5a713696da8a95d7b4627e4d4de0da6c82a784ef316f5ca48e8a48a12ac`, is written from the format doc and the rule above,
+never from the C++ that will implement it:
+- it decodes PLACES itself (LEB128 varints, zigzag svarints, u8-length text);
+- it rebuilds the device's View per ladder step at the default 100 mi, in float32 where the device's chain is float;
+- it projects the airports with `Project`'s float order of operations;
+- it prints counts only.
+
+Its inputs, by sha256: `kjac.bmpk` `eda8dc42bd12…a75ce`, `ksfo.bmpk` `30aa043a6152…fd6ac`, `bend.bmpk`
+`0e257a0a47a1…ef0fd`, and `include/Airports.h` `16647c22948a…c5d00` (the baked table, which stands in for the cloud
+list that a device uses once it loads).
+
+**The counts, frozen: placed labels per rotation, `radarUpDeg` 0, 45, … 315:**
+
+| fixture (places) | 5 mi | 10 mi | 25 mi | 50 mi | 100 mi |
+|---|---|---|---|---|---|
+| **KJAC** (42) | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 2 2 1 2 2 2 1 1 | 6 4 3 3 6 4 3 3 | 8 8 7 8 8 6 6 8 |
+| **KSFO** (137) | 3 3 4 5 3 3 2 3 | 4 5 5 3 5 5 5 5 | 5 5 5 5 5 5 5 5 | 6 6 6 6 6 6 6 6 | 8 8 8 8 8 8 8 8 |
+| **Bend** (9) | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 1 1 1 0 1 1 1 0 | 3 4 4 3 3 4 4 3 | 3 3 4 4 3 4 4 2 |
+
+- **In all, 380 labels** over the 120 frames.
+- **Why towns were refused,** summed over the 8 rotations (in the centre / off the disc / blocked on the disc):
+
+| step | KJAC | KSFO | Bend |
+|---|---|---|---|
+| 5 mi | 0 / 336 / 0 | 0 / 1047 / 14 | 8 / 64 / 0 |
+| 10 mi | 0 / 336 / 0 | 6 / 859 / 30 | 8 / 64 / 0 |
+| 25 mi | 0 / 320 / 3 | 5 / 293 / 56 | 8 / 48 / 10 |
+| 50 mi | 0 / 264 / 39 | 10 / 89 / 100 | 8 / 8 / 28 |
+| 100 mi | 16 / 24 / 216 | 82 / 16 / 227 | 24 / 0 / 21 |
+
+  Only towns considered before the cap was reached are counted.
+- **Airports in the view box** (the same at every rotation): KJAC 0 at every step; KSFO 1 / 2 / 3 / 3 / 4; Bend 0 /
+  1 / 2 / 2 / 3.
+- **No town anchor lies within 1e-6 px of an integer,** so no frame's count rests on how a truncation rounds.
+
+**What CB6 will hold, registered with the counts:**
+- **Every one of the 120 frames' placed count equals this table.**
+- Every frame holds the properties registered at #644 (≤ the cap, rank order, the centre, the corners, 0 overlaps
+  with an obstacle or another label).
+- The plants are as registered (S-CB-AIRPORT, S-CB-FILEORDER, S-CB-NOCAP, S-CB-NORTHUP). Each plant's red set is
+  computed by this same scratch reading under the plant, before its driver runs.
+- **What a different count means:**
+  - a frame off by any number stops the step for a ruling;
+  - the first thing read is that frame's anchors and obstacle boxes against this reading's, to find where the two
+    disagree;
+  - the code is not changed to make a count match.
+
+### `MapPlaces.h` (CB6-CB8), registered before its code (2026-11-12)
+
+**The orchestrator's addition, frozen here as a named outcome:**
+- **"THE SCRATCH READING ITSELF IS WRONG":** a CB6 count differs, and that frame's anchors and obstacles show that the
+  reader, not the code, deviates from the rule.
+- **That is a stop for a ruling too.** It is never a quiet fix to the reader followed by a re-grade.
+
+**What gets built:**
+
+| part | what |
+|---|---|
+| `include/AirportBoxes.h`, pure, every radar build | `radarbox::Airport(x, y, codeLen, &mark, &code)`: mark `{x-2, y-2, x+2, y+2}`, code `{x+5, y-3, x+5+6n-1, y+4}`, inclusive. **`DrawAirports` draws from it** (`drawRect(mark.x0, mark.y0, 5, 5)`, `drawString(code, codeBox.x0, codeBox.y0)`), so the names and the drawer read one rule (CB8) |
+| `include/MapPlaces.h`, pure, under the map gate | `mapplaces::List` (at most 256 `Town`s: qx, qy, pop and a 40-byte label); `Load(pk, &list)`, which refuses the towns past 256 and never truncates; `Rank`; `Cap`; `Place(list, maplayer::Affine, radiusMi, fixed, nFixed, out)`, which returns the placed labels (`town`, `side`, `box`, `tx`, `ty`, `ix`, `iy`); and the three other obstacle sets: ring labels, cardinals and the indicator row, as registered |
+| anchors | `maplayer::AffineFor`'s **double** coefficients: x = ax + bx·qx + cx·qy. The same projection `Build` uses, with the same rotation |
+
+**The tests:**
+- **`test/host/test_map_places.cpp`, 32 cases, against `test/fixtures/wx`.** It prints `32 checks, 0 failures`; exit 0
+  all pass, 1 any fail, 2 the rig.
+  - **15 count rows:** `CB6 <kjac|ksfo|bend> <5|10|25|50|100>mi`. Each row is red if any of its 8 rotations' counts
+    differs from the table.
+  - **7 property rows:**
+    - `CB6 cap`: ≤ Cap.
+    - `CB6 rank`: every town that the true rank considers before the cap, that is not placed and not in the centre,
+      fails both sides against the obstacles and the labels placed for towns ranked above it.
+    - `CB6 centre`.
+    - `CB6 corners`.
+    - `CB6 airports`: 0 boxes within 4 px of a mark or code.
+    - `CB6 fixed`: 0 boxes within 4 px of a ring label, cardinal or the indicator row.
+    - `CB6 labels`: 0 pairs within 4 px.
+  - **`CB6 256`:** a synthetic package with 256 places is accepted, and one with 257 is refused with 0 towns.
+  - **`CB6 eq`:** `Rank`, `Inner`, the centre test and the box geometry equal the Weatherscope's (`WxScreens.h`) over
+    every case they share, as CM11 holds the line.
+  - **8 rows `CB7 r<0..315>`:** at that rotation, over every fixture, step and town, the anchor is within 0.5 px of
+    `maplayer::ToScreen`'s float mapping and within 1 px of `radarproj::Project`.
+- **`check_map_draw.py` gains two source rows,** so `SOURCE_CHECKS` becomes 3: CD4, CB8 and CB8b.
+  - **CB8:** `DrawAirports` calls `radarbox::Airport` and draws at its boxes, and `MapPlaces.h` builds the airport
+    obstacles from the same function.
+  - **CB8b (Q-MB9):** the three other drawers still hold the exact expressions the names transcribe:
+    - `DrawRadarCircles`: `CENTRE + 4`, `CENTRE - ringPx[i] + inset[i]`, the insets `{RING_LABEL_OUTER_INSET, 3, 3}`
+      with `RING_LABEL_OUTER_INSET = 14`, the `value < 10.0f ? 1 : 0` decimals, and `labelR = CENTRE - 7`;
+    - `DrawScreenIndicator`: `y = SCREEN_SIZE - 16` and `cx - (shown - 1) * 6 + slot * 12`.
+- **A new driver, `sabotage_map_places.py`,** with each red set computed by `places_plants.py`. That is the same
+  reading: it execs `places_ref.py`'s registered text, sha256-checked. Its control reproduced the registered table
+  exactly. Its own sha256 is `81ad9442d392571929b8f3ac46a8fa8361666a41fd4076c7a4341b773d263a76`.
+
+| plant | red set |
+|---|---|
+| **S-CB-AIRPORT** (airports not obstacles) | {CB6 airports, CB6 rank, CB6 bend 25mi, CB6 bend 50mi, CB6 bend 100mi} |
+| **S-CB-FILEORDER** (file order) | {CB6 rank, CB6 kjac 50mi, CB6 kjac 100mi} |
+| **S-CB-NOCAP** (no cap) | {CB6 cap, CB6 kjac 50mi, CB6 kjac 100mi, CB6 ksfo 10mi, CB6 ksfo 25mi, CB6 ksfo 50mi, CB6 ksfo 100mi} |
+| **S-CB-NORTHUP** (north-up anchors) | {CB6 rank, CB6 kjac 25/50/100mi, CB6 ksfo 5/10mi, CB6 bend 25/50/100mi, CB7 r45, r90, r135, r180, r225, r270, r315}: 16 |
+
+- **And in `sabotage_map_draw.py`** (it holds the source plants):
+  - **S-CB-SECONDPATH:** `DrawAirports` draws its code at `x + 6` without the helper: {CB8}.
+  - **S-CB-PINS:** `RING_LABEL_OUTER_INSET` becomes 13: {CB8b}.
+  - Its table becomes `("line", f"{SOURCE_CHECKS} checks, 0 failures")` with `SOURCE_CHECKS = 3`.
+- **`run.sh`** gains a `== MapPlaces ==` block.
+- **The driver count becomes 39** (40 runs, 1 skipped).
+
+**Predicted for the first run:**
+- `test_map_places.cpp` reads **32 checks, 0 failures** under g++ 13.3 (WSL, as CI).
+- `check_map_draw.py` reads **3 checks, 0 failures**.
+- Both drivers read as their tables.
+- **MinGW 5.1** (i686 x87, the Windows default for the drivers) is predicted equal.
+  - The anchors are double, and none lies within 1e-6 px of an integer.
+  - **The named risk** is the airports' float `Project`: x87 excess precision could move a truncation.
+  - A MinGW-only difference is the Q-MC13 family: a stop and a report, never a fix by guess.
+- **Anything else stops the step.** The first read is the differing frame's anchors and obstacles, as registered.
+
+**Q-MB9, for the ruling, before CB8b's code:**
+- CB8 as ruled shares a helper for the airport boxes only. The names also avoid the ring labels, the cardinals and the
+  indicator row, so their positions are a second path re-derived from `DrawRadarCircles` and `DrawScreenIndicator`.
+- **(a)** Move those three drawers onto helpers too. That moves shipping draw code, and the ring labels' Arduino
+  `String(float, decimals)` formatting is not `snprintf`'s at every value, so the helper's text could differ from what
+  the drawer prints.
+- **(b)** Leave the drawers as they are, and pin their expressions with CB8b, a source check that runs.
+- **I recommend (b).** It changes no shipping drawing, and any change to those expressions fails the build until the
+  names follow.
+
+### Q-MB9's ruling, verbatim (the orchestrator, 2026-11-12 00:11:25Z), and CB8b as ruled
+
+> dd8418b0e013 is READ. The parts, the 32 cases and the plants' red sets (computed by executing the registered reader,
+> sha-checked, with a control reproducing the table) are good, and so is naming the x87 MinGW risk in advance as a stop.
+> Q-MB9: (b). Leave DrawRadarCircles and DrawScreenIndicator as they are, and pin their exact expressions with CB8b, a
+> source check that fails the build if they change before the names follow.
+> - Moving shipping draw code onto helpers here risks a visible text change (String(float) vs snprintf) for no user
+>   gain. A check that runs is the strong form of "the names follow the drawers".
+> - S-CB-PINS {CB8b} is its failing control, and good.
+> - Make CB8b pin the VALUES the names use too (x 123, y 14/44/83, r 112, the indicator box {99,221,140,227}), not only
+>   the expressions. That way a changed constant fails as surely as a changed formula.
+> Order: push dd8418b0 after #659's CI at f6d214a5 has read (holding to avoid cancelling it is right). Then MapPlaces.h's
+> code. Predictions must be public before the code exists.
+
+**CB8b, as ruled, holds both ends:**
+1. **The drawers' expressions,** exactly as registered:
+   - `CENTRE + 4`, `CENTRE - ringPx[i] + inset[i]`, insets `{RING_LABEL_OUTER_INSET, 3, 3}` with
+     `RING_LABEL_OUTER_INSET = 14`, `value < 10.0f ? 1 : 0`, `labelR = CENTRE - 7`;
+   - `y = SCREEN_SIZE - 16` and `cx - (shown - 1) * 6 + slot * 12`.
+2. **The values `MapPlaces.h` uses,** each equal to what those expressions give, with `CENTRE` = 119, `SCREEN_SIZE` =
+   240, four carousel dots, and radii 3 and 2:
+   - ring-label x 123;
+   - y 14, 44, 83;
+   - cardinal r 112;
+   - the indicator box `{99, 221, 140, 227}`.
+   - `check_map_draw.py` derives each value from the drawer's own text and compares it with the constant in
+     `MapPlaces.h`.
+- **Its plants, both in `sabotage_map_draw.py`:**
+  - **S-CB-PINS:** `RING_LABEL_OUTER_INSET` becomes 13: {CB8b}. The expression changes, so the derived y no longer
+    equals 14.
+  - **S-CB-PINVAL (new):** `MapPlaces.h`'s indicator box starts at x 100, not 99: {CB8b}.
+- **S-CB-PINVAL turns 0 rows of `test_map_places.cpp` red.** `places_plants.py`, re-run with this one plant added
+  (sha256 now `8225a0d3724cde3378fd83ce6f85ecdefa2b60e0baa4c94c3643eed1a2c12eed`), read 0 rows. Its control and the
+  four earlier plants' red sets are unchanged. **So the value pin is the only thing that catches a changed constant,**
+  which is the ruling's point.
+
+### CB7's first run OFF, its diagnostic, and ruling (A): re-registered before the re-run (2026-11-12)
+
+**The first run** (the code committed as `5041d152` before it ran; `test_map_places.cpp` under g++ 13.3):
+- **32 checks, 4 failures:** `CB7 r45`, `r135`, `r225` and `r315`.
+- **Everything else passed,** including all 15 count rows. So every one of the 120 frames matched the independent
+  reading.
+
+**The diagnostic** (approved 00:37:40Z). It ran a scratch copy, never the committed test, and printed counts and
+magnitudes only:
+
+| per diagonal rotation | vs `ToScreen` (tol 0.5): over / max \|Δ\| | vs `Project` (tol 1.0): over / max \|Δ\| |
+|---|---|---|
+| on the disc (≤ 120 px) | 0 / 0.000017-0.000018 | 0 / 0.998908-0.999518 |
+| off, 120-1,000 px | 0 / 0.000073-0.000088 | 2 / 1.001297-1.001359 |
+| off, 1,000-5,000 px | 0 / 0.000153-0.000191 | 1 / 1.002482-1.002590 |
+| off, over 5,000 px | none there | none there |
+
+- **By the frozen table this is outcome (iii).**
+  - Every miss is off the disc, but against `Project`, not `ToScreen`, so (i) does not hold.
+  - No miss is on the disc, so (ii) does not hold either.
+- **What the numbers show:**
+  - `Project` returns an int truncation of a FLOAT result. When the double anchor is just past an integer and
+    `Project`'s float lands just short of it, the two differ by 1 plus `Project`'s float error. That error grows outward
+    (1.0013, then 1.0025).
+  - The on-disc maximum, 0.9995, is the same effect inside the bound by 0.0005 px.
+- **My miss:** CB7 compared a DOUBLE anchor against an INT truncation of a float, so "≤ 1" was never an exact bound. It
+  is a design flaw in the check, not a defect in the code. I also registered the tolerance without checking how far off
+  the screen the fixtures' towns land.
+
+**The ruling, verbatim (the orchestrator, 00:39:14Z):**
+
+> RULED (A): CB7's Project half compares what is DRAWN, the label's integer anchor ((int)x, (int)y) against Project's
+> int result, |Δ| ≤ 1 per axis. That bound is the exact property of comparing two truncations of nearly equal values,
+> not a tolerance picked from data. The ToScreen half stays at ±0.5. (B) is rejected (margin, not guarantee), and so is
+> (C) (chosen after the data).
+> Conditions:
+> 1. A re-registration as a docs commit, public before the re-run, quoting this ruling and the diagnostic's numbers.
+> 2. A NEW plant that proves the new half can fail: the drawn anchor offset by 2 px (an int) must turn CB7 red at every
+>    rotation. Freeze its red set from the reading, not assumed.
+> 3. Re-derive S-CB-NORTHUP's CB7 red set under (A) by the reading, as you said.
+> 4. Then re-run from the start: the suite, MinGW, check_map_draw.py and the drivers, as registered. This is CB7's first
+>    re-run; a second off reading goes to me and on to the owner.
+
+**CB7 under (A),** per rotation, over every fixture, step and town:
+- **The `ToScreen` half, unchanged:** `|anchor - maplayer::ToScreen| ≤ 0.5` on each axis.
+- **The `Project` half:** `|(int)x - Project's x| ≤ 1` and `|(int)y - Project's y| ≤ 1`, where (x, y) is the anchor, as
+  the label draws it. It keeps the same 1e5 guard as before.
+
+**Frozen from the reading** (`places_plants.py`, now sha256
+`bff74aae42f10a30e9baba34b7c593e71461e9bae769047e839001f390377794`):
+- It now grades CB7 under (A) per town, with the true double anchor, `Project`'s int result from its float32 replica,
+  and each plant's anchor. The true anchor stands in for `ToScreen`'s float path, which the diagnostic measured within
+  0.0002 px of it.
+- **Its control still reproduces the registered table, and the unplanted CB7 is green at all 8 rotations.**
+- **S-CB-NORTHUP, re-derived:** unchanged. 16 red: {CB6 rank; CB6 kjac 25/50/100mi; ksfo 5/10mi; bend 25/50/100mi;
+  CB7 r45, r90, r135, r180, r225, r270, r315}.
+- **S-CB-ANCHOR2 (new):** `Anchor`'s x gets + 2.0, so the drawn (int) anchor sits 2 px to the right. 13 red: {CB6
+  rank; CB6 kjac 50mi; ksfo 5mi; ksfo 10mi; bend 50mi; CB7 r0, r45, r90, r135, r180, r225, r270, r315}.
+  - **CB7 is red at every rotation,** which is the condition.
+  - The counts move too, because the shifted anchors place differently.
+- S-CB-AIRPORT, S-CB-FILEORDER, S-CB-NOCAP and S-CB-PINVAL: unchanged.
+
+**The re-run, from the start, after the test's CB7 change and the driver's new plant are committed:**
+- the suite under g++ 13.3: **32 checks, 0 failures**;
+- MinGW 5.1: the same, with the named x87 risk. A MinGW-only difference is a stop;
+- `check_map_draw.py`: **3 checks, 0 failures**;
+- `sabotage_map_draw.py`: 5 plants and 3 controls, as its table;
+- `sabotage_map_places.py`: 5 plants, as their sets above;
+- `lint_driver_counts.py`: **39 driver(s), 0 flagged**;
+- `--anchors` and `--control` for both drivers.
+
+This is CB7's first re-run. A second off reading goes to the orchestrator and on to the owner.
+
+### The (P1) CI, the re-run, and a driver's instrument failure (2026-11-12)
+
+**(P1), ruled:** `5041d152` and `5a46ad05` were pushed together, so the re-registration was public before the re-run.
+The CI on that head was predicted RED, exactly:
+- **The tally, as frozen:** 34 = 27 success / 4 skipped / 3 failed. The failures were exactly `host-tests`,
+  `host-tests (ubuntu-24.04)` and `host-tests (ubuntu-26.04)`.
+- **In each leg's log, as frozen:**
+  - MapPlaces `32 checks, 4 failures`, with FAIL CB7 r45, r135, r225 and r315;
+  - FAILED BLOCKS exactly MapPlaces, the sabotage controls and the drivers in full;
+  - MapDraw 3 / 0, lint 39 / 0, 39 drivers, and `sabotage_map_draw.py`'s 10 AS PREDICTED lines.
+- **The tested merge** (from the checkout log): `f3340e7`, `5a46ad05` into `af871ecb`.
+- **A correction, my miss:** `sabotage_map_places.py`'s two lines (the control off, the full pass the rig) matched
+  in OUTCOME but not in CAUSE.
+  - I had predicted both from the old CB7.
+  - The logs say "FAIL test_map_places: did not compile". Its copy lacked `test/fixtures/wx/glcdfont.c`.
+  - I called it a match without reading those lines' detail.
+
+**The re-run from the start** (`ef99949f`: CB7 under (A), S-CB-ANCHOR2):
+- **Steps 1-4, as predicted:**
+  - the suite under g++ 13.3: 32 / 0;
+  - MinGW 5.1: 32 / 0 (the x87 risk did not occur);
+  - `check_map_draw.py`: 3 / 0;
+  - `sabotage_map_draw.py`: 5 plants and 3 controls, exactly.
+- **Step 5, an INSTRUMENT failure** (ruled so; not a reading, and not CB7's second): the driver's control could not
+  compile, because the same `glcdfont.c` was missing from its copy.
+  - The driver, a second path, missed what its sibling `sabotage_map_layer.py:121` establishes.
+  - **The full comparison, ruled:**
+    - The sibling's `make_tree` copies `include/*.h`, `src/weatherscope/*.h` and `test/fixtures/wx/glcdfont.c`.
+    - Mine copied the two directories whole, a superset, and not the font.
+    - Of the four parent-relative includes the suite can reach, three point into `src/weatherscope/` and the fourth
+      is the font.
+  - **The fix,** `0eed7772`, committed before the run: the font is copied exactly as the sibling does.
+    `git diff --stat ef99949f 0eed7772` touches only the driver (+6), so steps 1-4 carry.
+- **Steps 5-7 from step 5, as predicted:**
+  - `sabotage_map_places.py`: the control clean (32 cases), and AIRPORT 5, FILEORDER 3, NOCAP 7, NORTHUP 16 and ANCHOR2
+    13, each exactly its set. The sets were computed by the independent reading before any code;
+  - the lint: `39 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `--anchors` 6 / 6 for each driver, and both `--control`s as their tables.
+
+**The CI at this head, predicted** (code paths, so the code-PR set):
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed.** The baseline is
+  #650's finished code PR run.
+- **Each host-tests leg** reads:
+  - MapPlaces `32 checks, 0 failures`;
+  - MapDraw `3 checks, 0 failures`;
+  - anchors `39 driver(s) checked`, and both driver passes `39 driver(s): 38 run, 1 skipped`;
+  - lint `39 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_places.py` ok with **6** AS PREDICTED lines (5 plants and the summary), and `sabotage_map_draw.py`
+    ok with **10**;
+  - `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log.
+- **Any other reading stops,** and the detail of every failing line is read before anything is called a match.
+
+### MapCompose.h (CB1-CB5, CB9, CB11): the run, registered before its code (2026-11-12)
+
+The GO, verbatim (the orchestrator, 01:25:29Z):
+
+> GO for MapCompose.h's run registration, as you listed it: the steps, each plant's red set, exact row names and counts,
+> and the "anything else" branch. Commit and push it before any code, and send me the sha. No merge of #659 yet: it
+> merges when step B's drawing work is whole, with my own CI reads at its final head.
+
+**What `include/MapCompose.h` holds** (pure, `namespace mapcompose`, compiled only under `BLIPSCOPE_MAP_FETCH` on the
+device, as step A is):
+- **The key**, everything a rebuild reads:
+  - the six `wxlayer::View` fields the weather layer is built from (CD3), compared with `!=` exactly as the weather
+    layer's own stale test compares them (`AircraftManager.cpp:3599-3601`);
+  - `radiusMi`, the ladder step (`Cap` and `Inner` read it);
+  - `pkSeq`, which the caller changes whenever a package is accepted;
+  - `airportsGen`, which the caller changes whenever the airport list or its filter changes;
+  - the eight other fixed boxes **by value** (three ring labels, four cardinals, the indicator row). A ring label's
+    width follows the distance-unit setting, which no view field carries.
+- **No theme or layer mask in the key.** Both are compile-time constants today (`maplayer::kThemes`, one row), and the
+  rebuild takes neither as a parameter. A runtime theme would have to change the signature, which is a visible act.
+- **The buffers, all or none,** at the first accepted package, through a caller-given allocator (the device's is the
+  PSRAM `heap_caps_malloc`). There are four, all attempted before any is checked:
+  - the layer (the map with its names, in the canvas's byte order), 115,200 B;
+  - the composite, 115,200 B;
+  - `Build`'s index image, 57,600 B;
+  - the scratch: 32 B per vertex for `maxVertices + 1`, plus 128 airports' boxes (4,096 B).
+  - **One failure frees every buffer** and refuses the map (`refused`, which the wiring logs as `mapAllocFailed`). The
+    allocation is tried once per boot.
+- **The rebuild,** in S3's order:
+  1. `Build` writes the layer, through a caller-given function pointer with `maplayer::Build`'s signature, so the
+     tests count the calls from outside;
+  2. every pixel is byte-swapped (`bswap16`);
+  3. the names: `mapplaces::Place` with the fixed boxes and the airport boxes, then each label drawn as WxScreens.h:788-789
+     draws one (the 3 x 3 dot, then `wxraster::Text` with a 1 px halo), through a `wxraster::Sink` over the layer.
+     Colours: the place grey and the land halo (Q-MB5).
+  - The caller fills the airport boxes only when a rebuild runs. More than 128 airports **refuses the names** for that
+    rebuild (`namesRefused` counts it). A cut obstacle list would let a name cover an airport nobody listed.
+  - **A `Build` that returns false** records its key like any attempt, so the map stays off until the key changes. It
+    is never retried per frame.
+- **The compose:** the layer copied, then every non-zero weather pixel over it, and 0 off the disc
+  (`wxlayer::OffDisc`). It runs when the layer was rebuilt, the weather's generation changed, or the weather became
+  shown. It never runs per frame.
+- **The frame:** it returns the buffer the base draw copies, or `nullptr` for today's path. The returns:
+  - no package, refused, or no layer built: `nullptr`;
+  - weather shown: the composite;
+  - weather not shown: the layer.
+  - **"Ready" is a built layer, not allocated buffers.** That is why buffers alone change nothing on screen.
+
+**The rows** (`test/host/test_map_draw.cpp`, run against the fixtures as `test_map_places` is). **24 checks.** No row
+prints a place name, an anchor or a coordinate (CD2's rule).
+
+| row | check |
+|---|---|
+| `CB1 compose` | synthetic layer L (map pixels M, name pixels P) and weather W, W non-zero across the disc's edge and over some name pixels. Every on-disc pixel is W where W ≠ 0, else L. Every off-disc pixel is 0 |
+| `CB1 names` | the rebuild with a synthetic `Build` (M on the disc, 0 off it) and one placed town. The layer is the label's pixels where the label draws (drawn alone on a zeroed buffer through the same sink), M elsewhere on the disc, 0 off it. **M is byte-symmetric** (`0x6B6B`), so CB1 reads order alone and CB2 reads the byte order |
+| `CB2` | `Build` over KJAC at 100 mi with the weather shown and all zero, rebuilt with the names and again with an empty list. Every pixel the two composites share equals `bswap16` of `Build`'s own output, called directly |
+| `CB3 alloc` / `CB3 build` / `CB3 today` | no package ever, 100 frames with the weather shown and 100 without: **0** bytes live at the allocator, **0** `Build` calls, and every frame returns `nullptr` with the canvas untouched (a canary of today's bytes: the weather layer when shown, black when not) |
+| `CB4 homeLat`, `CB4 homeLon`, `CB4 rLat`, `CB4 rLon`, `CB4 rotSin`, `CB4 rotCos`, `CB4 radiusMi`, `CB4 package`, `CB4 airports`, `CB4 fixed` | from a built state, that one input changed, then one frame: exactly **1** `Build` call. `fixed`: one ring label one character wider (a unit change) |
+| `CB4 steady` | 1,000 frames with nothing changed: **0** `Build` calls |
+| `CB4 buildfail` | a `Build` that returns false: 1 call, then 1,000 frames: **0** more, each returning `nullptr` |
+| `CB5` | the weather's generation changed, nothing else, one frame: **1** compose and **0** `Build` calls |
+| `CB9 layer` / `CB9 composite` / `CB9 index` / `CB9 scratch` | the allocator fails that buffer, counting from the Map's creation. After a package and frames: **0** bytes live, `refused` set, **0** `Build` calls, and every frame returns `nullptr` with the canary untouched |
+| `CB11 airports 129` | KJAC at 100 mi with 129 airports' boxes, all off the screen: `namesRefused` is 1, and the layer equals the same rebuild with an empty list, byte for byte |
+
+**The plants** (`test/host/sabotage_map_compose.py`, in a copy of `include/MapCompose.h`, as `sabotage_map_places.py`).
+Each set was read node by node against the rows above. Next to each set is why it reaches no other row:
+
+| plant | the change | red, exactly | why no other row |
+|---|---|---|---|
+| **S-CB-ORDER** | the compose writes the layer over the weather | {CB1 compose} | CB2's weather is all zero; CB5 counts calls |
+| **S-CB-NAMESUNDER** | the names drawn before `Build` | {CB1 names} | `Build` writes every pixel, so the two CB2 rebuilds are identical and every pixel is compared and equal; CB11's names are refused anyway |
+| **S-CB-NOSWAP** | the swap removed | {CB2} | CB1's M is byte-symmetric; CB11 compares two rebuilds with each other |
+| **S-CB-EAGER** | the three fixed-size buffers (layer, composite, index) allocated at the Map's start. The scratch, sized by the package's `maxVertices`, stays at the first package | {CB3 alloc} | "ready" is a built layer, so CB3's frames still return `nullptr`. CB9's failures count from the Map's creation, so each still fires and frees all, at the start or at the package |
+| **S-CB-NOROT** | `rotSin` and `rotCos` left out of the key | {CB4 rotSin, CB4 rotCos} | every other row changes a different input, or none |
+| **S-CB-ROTONLY** | the key compares the rotation alone | {CB4 homeLat, CB4 homeLon, CB4 rLat, CB4 rLon, CB4 radiusMi, CB4 package, CB4 airports, CB4 fixed} | the first build and CB5 need no key change; steady changes nothing |
+| **S-CB-PERFRAME** | the stale test always true | {CB4 steady, CB4 buildfail, CB5} | the per-input rows run one frame, which makes one call either way; CB3 and CB9 stop before the stale test |
+| **S-CB-WXBUILD** | the weather's generation added to the map's key | {CB5} | no other row changes the weather |
+| **S-CB-WXSTALE** | the weather's generation left out of the compose's test | {CB5} | CB2's compose follows its rebuild; CB1 calls the compose directly |
+| **S-CB-HALF** | the failure branch keeps the buffers that succeeded | {CB9 layer, CB9 composite, CB9 index, CB9 scratch} | all four are attempted before the check, so three succeed in every case |
+| **S-CB-RETRY** | a failed attempt's key not recorded | {CB4 buildfail} | every other `Build` succeeds |
+| **S-CB-AIRTRUNC** | over 128 airports, the list cut to 128 instead of refusing the names | {CB11 airports 129} | no other row passes more than 128 |
+
+**What changed from #644's table, and why:**
+- **S-CB-PERFRAME's set gains CB5 and the new CB4 buildfail.** CB5 counts `Build` calls over a frame, and a per-frame
+  rebuild makes one. #644's {CB4 steady} was written before the design.
+- **S-CB-HALF keeps the buffers that succeeded; it does not draw with them.** Drawing with a missing buffer dereferences
+  null, which is a crash: an instrument failure by the 11-04 ruling, not a red.
+- **CB9 moves into this step.** The all-or-none allocation lives in MapCompose.h, and its host row needs nothing from the
+  wiring.
+- **The key gains `radiusMi` and the fixed boxes,** which the names read. **S-CB-ROTONLY** gives a plant to those two and
+  to the six rows #644 left without one.
+- **New:** `CB1 names` with S-CB-NAMESUNDER; CB5's compose half with S-CB-WXSTALE; `CB4 buildfail` with S-CB-RETRY; and
+  CB11 with S-CB-AIRTRUNC.
+- **Q-MB1's price gains 4,096 B** (the airport boxes in the scratch). CBF4's figure is computed with it.
+
+**The run, in order. The code is committed before step 1, as the record:**
+1. The suite under g++ 13.3 (`wsl -d Ubuntu-24.04`): **`24 checks, 0 failures`**.
+2. MinGW 5.1: the same. A MinGW-only difference is a stop.
+3. `check_map_draw.py`: **3 checks, 0 failures**, unchanged. MapCompose.h adds no draw region; CD1-CD3 come with the
+   wiring.
+4. `sabotage_map_compose.py`:
+   - the control: 24 cases, all pass;
+   - each of the 12 plants exactly its set above;
+   - `real files unchanged: True`;
+   - **13 AS PREDICTED lines** (12 plants and the summary).
+5. `--anchors` over all **40** drivers, then `--control` for the new one, with its table `("checks", 24)`.
+6. `lint_driver_counts.py`: **`40 driver(s), 0 flagged; 3 pinned line(s)`**.
+7. `run.sh` in full: a new `MapCompose` block, `24 checks, 0 failures`; `40 driver(s) checked`; both driver passes
+   `40 driver(s): 39 run, 1 skipped`; `sabotage_map_compose.py: 13 AS PREDICTED line(s)`; `ALL HOST TESTS PASSED`.
+
+**Anything else is a stop:** a different count, a red outside a frozen set, a set missing a row, a compile failure, or a
+crash. I stop at the first such reading, with no fix and no re-run, and report it with the failing lines' detail read.
+A crash or a plant that does not compile is reported as an instrument failure, not a red. The code's CI is predicted
+when the code is pushed.
+
+**The CI for this docs commit, predicted** (it goes to #659's branch, so the code-PR set runs):
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with the same job names
+  as `6302be1e`'s run, the baseline.
+- Each host-tests leg reads as it did there: MapPlaces `32 checks, 0 failures`, MapDraw `3 checks, 0 failures`, 39
+  drivers, lint `39 driver(s), 0 flagged; 3 pinned line(s)`, 6 and 10 AS PREDICTED lines, `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log. Any other reading stops.
+
+### The ruling on the changes, and CB11's count (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 01:35:57Z):**
+
+> d814c31efbfa is read (on #659, docs +122, before code). The changes from #644's table are re-freezes before any run,
+> each with its reason stated.
+> - 1 (PERFRAME's set grows to {CB4 steady, CB4 buildfail, CB5}): ACCEPTED.
+> - 2 (HALF keeps the good buffers and doesn't draw, so a planted crash isn't an instrument failure): ACCEPTED.
+> - 3 (CB9 moves into this step): ACCEPTED.
+> - 4 (the key gains radiusMi and the eight fixed boxes, by value): ACCEPTED. A ring label's width following the unit
+>   setting is exactly the second-path catch, and S-CB-ROTONLY finally gives #644's six CB4 rows a plant.
+> - 6 (+4,096 B in Q-MB1's price): ACCEPTED, with CBF4 computed with it.
+> - 5: ACCEPTED for CB1 names, CB5's compose half and CB4 buildfail. CB11 needs ONE COUNT before code. ">128 airports
+>   refuses the names" is right as a principle: a truncated obstacle list lies. But if it can happen in a real view,
+>   it's a visible behaviour (no town names over a dense region), and that's the owner's to see. So, read-only from the
+>   baked Airports.h, counts only: the MAXIMUM number of airports inside any view's culled area at the largest step
+>   (100 mi, plus the cull margin), swept over the US (a grid of homes, spacing stated), and the count of grid homes over
+>   128.
+>   - If the max is under 128 with margin: CB11 stands as a guard that should never fire, and the record states the max.
+>   - If any home exceeds it: stop, and send me the count and the regions. The buffer size (+32 B per box), or names
+>     refused there, then goes to the owner.
+> Then code, in the registered order.
+
+**The count.** A scratch survey, read-only, printing counts only. Its verdict table was frozen in its header before the
+run:
+
+| verdict | if | then |
+|---|---|---|
+| V1 | the US max over both boxes ≤ 96 (three quarters of 128) | CB11 stands as a guard that should never fire on the baked table |
+| V2 | 97 to 128 | inside the buffer but without margin: stop |
+| V3 | any home over 128 | stop, with the cells |
+| V4 | the control fails | the instrument is unreliable: stop |
+| V5 | anything else | stop |
+
+- **The cull** is the view box itself (`AircraftManager.cpp:5380-5381`); there is no extra margin. Two boxes were swept:
+  - **A**, the default top of 100 mi, with each radius capped at 2.0° (`:892-893`);
+  - **B**, the largest box the code allows: `MAX_DEGREES` = 2.0° on both axes, reached by any configured radius past the
+    cap.
+- **The grid:** 0.05° on both axes over CONUS, Alaska and Hawaii, 925,683 homes.
+- **The control:**
+  - the parse equals the compiler's own view of `Airports.h`: 329 entries, and both integer checksums equal;
+  - every one of the 101 airports inside the regions counts itself at its own position;
+  - box B is also solved exactly (some best box has an airport on its bottom edge and one on its left). That gives the
+    maximum over any home on Earth.
+- **The result:** the most airports in view is **8** in box A and **10** in box B. The exact solve for B gives **10**.
+  **0** homes are over 128. **V1:** CB11 stands as a guard that should never fire on the baked table.
+
+**The cloud path, recorded as information.** On the cloud feed, which the map needs, `cloudAirports` supersedes the baked
+table.
+- The Worker caps its reply at `MAX_RESULTS` = 60 for the whole configured radius (`proxy/src/airports.ts:23`, sliced at
+  `:87`).
+- The firmware's `ParseAirports` keeps every row it receives (`CloudFeed.cpp:261-286`).
+- So "at most 60" there is a premise about the Worker, and CB11 is the device's own guard on that path.
+
+### Q-MC14: the allocation per config, growth, and two missed prices, re-frozen before code (2026-11-12)
+
+**The question** (sent at about 01:41Z, before any of the allocation's code). Laying out MapCompose.h's allocation turned
+up three gaps in the registration above:
+1. **The retry rule.** The registration said "tried once per boot". Step A already set the rule for the same thing: at a
+   config change, `MapConfigure` drops the held package and clears `mapAllocFailed` ("a new config earns a new
+   allocation attempt", `AircraftManager.cpp:3447-3451`). That is a second path missing what the first establishes.
+2. **A larger later package.** The scratch is sized from the package's own `maxVertices`, which nothing bounds but the
+   package's length. Sizing for the request's byte cap would cost megabytes.
+3. **Two prices missed:**
+   - the place list, `mapplaces::List`: 256 towns × 52 B = 13,320 B;
+   - the obstacle array is 264 boxes (8 fixed and 256 for airports), 4,224 B, not 4,096.
+
+**The ruling, verbatim (the orchestrator, 01:43:54Z):**
+
+> Q-MC14 is RULED 1 + 2 + 3, as you recommend. Stopping on the allocation code to ask was right; all three were caught
+> before code.
+> 1. ONCE PER CONFIG, through mapcompose::Forget(m), called at the same line where step A clears mapAllocFailed. Your
+>    registered "once per boot" was the second path missing what the first establishes. Corrected before code, so it's
+>    a re-freeze, not a miss in the code.
+> 2. GROW, ALL OR NONE: if an accepted package needs more than the scratch holds, release every buffer and reallocate at
+>    the new price, with CB9's rule on failure. "The guard for a missed Forget, not the main path" is the right framing.
+>    The alternative (no map after a location change) is rejected.
+> 3. THE PRICES: scratch = 32 × (maxVertices + 1) + 4,224 + 13,320 B, all PSRAM, and the Map struct internal under 1 KB.
+>    This supersedes the 4,096 I accepted at 01:35:57Z. CBF4 is computed with the new figure.
+> The new rows and plants are as listed: CB9 forget with S-CB-NOFORGET, and CB9 grow with S-CB-NOGROW. That's 26 rows,
+> 14 plants and 15 AS PREDICTED lines, and the driver table ("checks", 26).
+> ORDER: commit this ruling verbatim plus the re-freeze as a docs commit, and PUSH it, together with cc814479 (CB11's
+> record), before any of MapCompose.h's code is committed. Send me the pushed sha. Then the code, then the 7 steps.
+
+**The re-freeze.** This supersedes the registration above wherever the two differ.
+
+- **The memory:**
+  - "the allocation is tried once per boot" becomes **once per config**. `mapcompose::Forget(m)` frees every buffer and
+    clears the refusal. The wiring calls it at the line where step A clears `mapAllocFailed`.
+  - **Growth:** if an accepted package needs more than the scratch holds (`maxVertices + 1` over the scratch's capacity),
+    every buffer is released and allocated again at the new price, all or none, with CB9's rule on failure.
+  - **The price:**
+    - the layer, 115,200 B; the composite, 115,200 B; the index, 57,600 B;
+    - the scratch, **32 × (maxVertices + 1) + 4,224 + 13,320 B**;
+    - all PSRAM. The allocator returns memory aligned for a `double`.
+    - The `Map` struct (the key, eight placed labels, flags) stays internal, under 1 KB.
+  - These figures are held by `static_assert` in the header.
+- **Two rows added:**
+
+| row | check |
+|---|---|
+| `CB9 forget` | a refusal (a failure injected at the first allocation), then `Forget`, then a package: allocated at that package's price, and the frame returns a buffer |
+| `CB9 grow` | a built map, then a package with twice the `maxVertices` and no `Forget`: the live bytes equal the new price, and the frame returns a buffer |
+
+- **Two plants added:**
+
+| plant | the change | red, exactly | why no other row |
+|---|---|---|---|
+| **S-CB-NOFORGET** | `Forget` leaves the refusal | {CB9 forget} | no other row calls `Forget` |
+| **S-CB-NOGROW** | the growth check removed: `Build` refuses the short scratch, so the frame returns `nullptr` | {CB9 grow} | no other row passes a larger package |
+
+- **No existing set moves:**
+  - S-CB-EAGER's start-time refusal is cleared only by `Forget`, so `CB9 forget` stays green under it;
+  - S-CB-HALF's kept buffers are freed by `Forget`'s release, and the live bytes are read after the second package;
+  - S-CB-ROTONLY: a release clears the attempt, so the next frame rebuilds whatever the key compares.
+- **Each row's live bytes are read against that row's own starting figure, and every row ends by releasing its Map.**
+  So a plant that leaks in one row (S-CB-HALF) cannot reach a later one.
+- **The totals:** **26 rows, 14 plants, 15 AS PREDICTED lines**, and the driver's table `("checks", 26)`.
+- **The run's steps change only in their counts:**
+  - the suite `26 checks, 0 failures` under g++ 13.3 and under MinGW;
+  - `check_map_draw.py` 3 / 0;
+  - the driver: control 26 cases, each of the 14 plants exactly its set, 15 AS PREDICTED lines;
+  - `--anchors` over 40 drivers, and the driver's `--control` as `("checks", 26)`;
+  - lint `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `run.sh`: `MapCompose` 26 / 0, `40 driver(s): 39 run, 1 skipped`, `sabotage_map_compose.py: 15 AS PREDICTED line(s)`,
+    `ALL HOST TESTS PASSED`.
+
+**The CI for this push, predicted** (docs only, on #659's branch, so the code-PR set runs):
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with `6302be1e`'s job
+  names;
+- each host-tests leg as there: MapPlaces 32 / 0, MapDraw 3 / 0, 39 drivers, lint 39 / 0 / 3, 6 and 10 AS PREDICTED,
+  `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log. Any other reading stops.
+
+### S-CB-WXBUILD's set, re-frozen before the run, and the CB2 / CB11 detail (2026-11-12)
+
+**The finding.** Before any code ran, each of the 14 plants was read against the 26 rows as the test is written. One set
+does not hold: **S-CB-WXBUILD** (the weather's generation added to the map's rebuild test) also reaches `CB4 buildfail`.
+- When `Build` fails, nothing composes, so the composed generation stays 0.
+- `CB4 buildfail` runs with the weather shown (generation 1), the device's usual state. Under the plant, the generations
+  differ on every frame, so the failed `Build` is retried 1,000 times.
+- The real code rebuilds only on the key, so the row reads the plant's reach, not a defect.
+- The registered reason for WXBUILD, "no other row changes the weather", missed that a map never composed leaves the
+  generation unequal.
+
+**The detail.** CB2's and CB11's "again with an empty list" was first written as a key change (`airportsGen` + 1), which
+S-CB-ROTONLY would reach. Both now rebuild directly at the same key (`mapcompose::Rebuild`), which matches the registered
+text. CB2 reads the byte order and CB11 the refusal; neither reads the key.
+
+**The ruling, verbatim (the orchestrator, 01:54:47Z):**
+
+> (i), re-freeze S-CB-WXBUILD to {CB4 buildfail, CB5}. Keeping buildfail under shown weather (gen 1, the device's usual
+> state) and letting the plant's reach show is right. (ii) would shape a row to dodge a plant, so it's rejected. Catching
+> this by a node-by-node read before the run is the predict-by-applying-the-rule discipline working, and it isn't a miss:
+> nothing ran.
+> The CB2/CB11 detail is ACCEPTED: rebuilding at the same key matches the registered text, and it keeps S-CB-ROTONLY's
+> reach where it was registered.
+> The counts stay at 26 rows, 14 plants, 15 AS PREDICTED. The other 13 sets are as registered.
+> FREEZE EVIDENCE: this ruling, with the set, is in my ledger at 01:54:47Z. Commit it verbatim into the record locally,
+> before the code commit. Under the new standing rule, don't push while 082a56d8's run is in flight: push the docs + code
+> together after that run has finished and been read, with the next push's prediction stated. Then the 7 local steps as
+> registered.
+
+**The sets, as they now stand** (all 14, for the run):
+
+| plant | red, exactly |
+|---|---|
+| S-CB-ORDER | {CB1 compose} |
+| S-CB-NAMESUNDER | {CB1 names} |
+| S-CB-NOSWAP | {CB2} |
+| S-CB-EAGER | {CB3 alloc} |
+| S-CB-NOROT | {CB4 rotSin, CB4 rotCos} |
+| S-CB-ROTONLY | {CB4 homeLat, CB4 homeLon, CB4 rLat, CB4 rLon, CB4 radiusMi, CB4 package, CB4 airports, CB4 fixed} |
+| S-CB-PERFRAME | {CB4 steady, CB4 buildfail, CB5} |
+| **S-CB-WXBUILD** | **{CB4 buildfail, CB5}** |
+| S-CB-WXSTALE | {CB5} |
+| S-CB-HALF | {CB9 layer, CB9 composite, CB9 index, CB9 scratch} |
+| S-CB-RETRY | {CB4 buildfail} |
+| S-CB-AIRTRUNC | {CB11 airports 129} |
+| S-CB-NOFORGET | {CB9 forget} |
+| S-CB-NOGROW | {CB9 grow} |
+
+**The standing push rule** (the orchestrator, 01:52:24Z, after `d814c31e`'s run was cancelled by the next push):
+- (a) wait for the previous head's run to finish before the next push;
+- (b) when a push must come first, the next prediction registers the old head's cancelled legs and the aggregate's
+  failure as the expected outcome, and only the new head is read in full.
+- `d814c31e` stands as read, superseded: its ubuntu-24.04 leg read every frozen line, and its ubuntu-26.04 leg was
+  cancelled by the firmware workflow's concurrency group. `082a56d8`'s run is the record for those docs.
+
+### MapCompose.h's run, as read (2026-11-12)
+
+**The code:** `3714af52`, committed before step 1. It adds `include/MapCompose.h`, `test/host/test_map_draw.cpp`,
+`test/host/sabotage_map_compose.py` and run.sh's `MapCompose` block. It sits on `c095c41c` (S-CB-WXBUILD's re-freeze).
+
+**Steps 1-6, every one as predicted:**
+
+| step | read |
+|---|---|
+| 1. the suite, g++ 13.3 (WSL) | `26 checks, 0 failures`. CB2 compared 55,345 shared pixels (2,255 named) |
+| 2. the suite, MinGW 5.1.0 | `26 checks, 0 failures`, with the same CB2 counts |
+| 3. `check_map_draw.py` | CD4, CB8 and CB8b ok: `3 checks, 0 failures` |
+| 4. `sabotage_map_compose.py` | `control (the real files): 26 cases, all pass`. Each of the 14 plants turned red exactly its set, "extra none; missing none" on every line: ORDER 1, NAMESUNDER 1, NOSWAP 1, EAGER 1, NOROT 2, ROTONLY 8, PERFRAME 3, WXBUILD 2, WXSTALE 1, HALF 4, RETRY 1, AIRTRUNC 1, NOFORGET 1, NOGROW 1. `real files unchanged: True`; `MAP COMPOSE SABOTAGES (14) AS PREDICTED`, so 15 AS PREDICTED lines |
+| 5. `--anchors` and `--control` | `40 driver(s) checked`, 0 failed. The new driver: `14 plant(s), 16 anchor(s), all present exactly once` (two plants make two edits each). Its control: `test_map_draw: 26 checks, 0 failures, exit 0 (the table: checks 26)` |
+| 6. `lint_driver_counts.py` | `40 driver(s), 0 flagged; 3 pinned line(s)` |
+
+**Step 7's wording, corrected before it ran.** The registration (`d814c31e`) and the re-freeze (`082a56d8`) said step 7
+would end in `ALL HOST TESTS PASSED`. Under WSL it cannot: the standing rulings of 11-05 and 11-06 say a WSL run.sh
+prediction names its environment blocks, and both texts left them out. That was my miss, caught before the run.
+
+**The ruling, verbatim (the orchestrator, 01:58:15Z):**
+
+> steps 1-6 are RECORDED, all as predicted. g++ and MinGW 26/0 (CB2: 55,345 shared pixels, 2,255 named); check_map_draw
+> 3/0; all 14 plants exactly their sets, WXBUILD at its re-frozen 2; anchors 40 (14 plants, 16 anchors); lint 40/0/3.
+> The step-7 correction is ACCEPTED as a re-freeze before the run. Your miss is recorded: the 11-05/11-06 WSL rule (name
+> the environment blocks) was known and left out of d814c31e and 082a56d8. The corrected WSL prediction is FROZEN HERE as
+> evidence, 01:58:15Z:
+> - exit 2;
+> - FAILED BLOCKS exactly "the same TU, for the board" and "Weatherscope R0 and R0b (the reference's controls, A12.18)";
+> - then HOST TESTS FAILED;
+> - MapCompose 26/0; 40 drivers checked; both passes "40 driver(s): 39 run, 1 skipped" (sabotage_wx_towns);
+> - "sabotage_map_compose.py: 15 AS PREDICTED line(s)";
+> - any other block failing, or either of the two passing, is OFF.
+> "ALL HOST TESTS PASSED" belongs to CI's prediction for the push. GO for step 7. Commit this ruling verbatim with the
+> record. The push waits for 082a56d8's run to be read, as ruled.
+
+**Step 7, as predicted** (run.sh in full under WSL, 01:58:39Z to 02:06:23Z):
+- exit 2;
+- `FAILED BLOCKS:` lists exactly two:
+  - `the rig: Weatherscope R0 and R0b (the reference's controls, A12.18) (exit 2)`, which reads "no python with Pillow";
+  - `failed:  the same TU, for the board`, which reads "no xtensa toolchain found";
+- then `HOST TESTS FAILED`.
+- Everything else: MapCompose `26 checks, 0 failures`; `40 driver(s) checked`; both driver passes `40 driver(s): 39 run, 1
+  skipped`, the skip being `sabotage_wx_towns.py` (the Census archives); lint `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  `sabotage_map_compose.py: 15 AS PREDICTED line(s)`, with `sabotage_map_draw.py` 10 and `sabotage_map_places.py` 6.
+
+**The CI for the push, predicted.** The push carries `c095c41c`, `3714af52` and this record together, after
+`082a56d8`'s run finished and was read as predicted (34 = 30/4/0, tested merge `d108445`), so no run is cancelled:
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with `082a56d8`'s job
+  names;
+- each host-tests leg:
+  - MapPlaces `32 checks, 0 failures`, MapDraw `3 checks, 0 failures`, **MapCompose `26 checks, 0 failures`**;
+  - `40 driver(s) checked`, and both driver passes `40 driver(s): 39 run, 1 skipped`;
+  - lint `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_compose.py: 15`, `sabotage_map_draw.py: 10` and `sabotage_map_places.py: 6 AS PREDICTED line(s)`;
+  - `ALL HOST TESTS PASSED`.
+- The named risk: ubuntu-26.04's newer g++ compiling the new suite and driver under `-Werror`. Any warning is a compile
+  failure, and so an off reading.
+- No firmware image changes: nothing in `src/` includes `MapCompose.h` until the wiring.
+- The tested merge is read from a checkout log. Any other reading stops.
+
+### The wiring: registered before its code (2026-11-12)
+
+The GO, verbatim (the orchestrator, 02:26:09Z):
+
+> GO for the wiring's registration as listed (CD1-CD3, CB-W, the SPIRAM-cap source row + plant, the airportsGen-bump
+> source row + plant). One requirement, because the wiring is the first step that edits a SHIPPING file
+> (AircraftManager.cpp):
+> - State which envs set BLIPSCOPE_MAP_FETCH, read from platformio.ini and the CI matrix, not from memory.
+> - For every SHIPPING env WITHOUT the flag, predict its image is unchanged from main's, and prove it from the ARTIFACT:
+>   build it on both trees and account for the difference by the five regions (or the comparator 5c used for C', with
+>   its controls). Nothing outside those regions.
+> - For envs WITH the flag, predict the size delta and name the functions that change.
+> A wiring that leaks outside its #if is the second-path shape again, and only the built image can show it.
+
+#### Which envs carry the map (read from the files at `cb9d6ac2`)
+
+- **No env sets `BLIPSCOPE_MAP_FETCH`.** `src/AircraftManager.h:38` derives it:
+  `defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)`.
+- **`WX_LAYER_SHIPS`:** the weather switch is empty (`platformio.ini:150-151`, `layer =`), so `${cloud.prod}` and
+  `${cloud.staging}` carry nothing. Two places set the flag:
+  - `blipscope-s3-128-wxlook`, at `:408`;
+  - the web renderer's build script, which `BLIPSCOPE_WEB_RENDERER` excludes.
+- **The CI matrix** (`scripts/skus.py --shipping-envs` and `--build-envs`):
+  - **one shipping env, `blipscope-s3-128`** (slug `s3-128`);
+  - ten build envs. **Only `blipscope-s3-128-wxlook` carries the flag.** It is slug-less, and its `[wx-bench]` marker is
+    refused in every slug-ful image.
+
+#### What the wiring adds, and where
+
+Everything goes in `// THE MAP DRAW` regions under `#ifdef BLIPSCOPE_MAP_FETCH`.
+
+**`src/AircraftManager.h`,** draw regions 1 → **4**:
+- CB10's refusal, as it stands;
+- `#include "MapCompose.h"`;
+- the members:
+  - `mapcompose::Map mapDraw`;
+  - `uint32_t mapPkgSeq`, `mapAirportsGen` and `mapWxGen`;
+- the declarations of `DrawMapBase`, `MapAirportBoxes`, `MapAlloc` and `MapFree`.
+
+**`src/AircraftManager.cpp`,** draw regions 0 → **12**:
+- **`DrawWeatherUnder`, 4 regions.**
+  - At each of its three `return false;` points, a map build first returns `DrawMapBase(canvas, nullptr)`, the map
+    without weather. Each `return false;` gains braces, and its text is otherwise unchanged.
+  - Before the weather's `memcpy`, a map build returns `DrawMapBase(canvas, wxLayer565)` when that draws.
+  - Today's lines stay as they are, so without a ready map the two paths run byte for byte.
+- **The new functions, 1 region:**
+  - `DrawMapBase`:
+    - **scope:** `MapEnabled()`, the radar view, a location, no night clock, and a held package;
+    - **the flat-canvas guard:** `DrawWeatherUnder`'s own;
+    - **the key:**
+      - CD3's six fields;
+      - `radiusMi`: the view radius (`viewRadLat` × 111 km) converted to statute miles and rounded (`lround`), as CB6
+        graded it;
+      - `mapPkgSeq` and `mapAirportsGen`;
+      - `RingLabels(viewRadiusDisplay, rangeUnit)`, `Cardinals(radarUpDeg)` and `IndicatorRow()`;
+    - **then:** `mapcompose::Frame`, and one `memcpy`.
+    - **A refusal:** sets step A's `mapAllocFailed` and prints one line, `[map] draw: buffers refused`. A rebuild prints
+      `[map] draw: rebuilt in <ms> ms, <n> label(s)`. Both print counts only (CD2).
+  - `MapAirportBoxes`: DrawAirports' list, filters and cull, then `ProjectCoordinateToScreen` and
+    `mapplaces::AirportObstacles`. It returns 0 airports when `displayAirports` is off.
+  - `MapAlloc` is `heap_caps_aligned_alloc(8, n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)`; `MapFree` is `heap_caps_free`.
+- **`RebuildWeatherLayer`, 1 region:** `++mapWxGen` after a rebuild.
+- **`MapConfigure`, 1 region, inside step A's fetch region:**
+  - beside `mapAllocFailed = false;` (`:3451`): `mapcompose::Forget(mapDraw)` and `++mapPkgSeq`;
+  - `mapcompose::Init(mapDraw, MapAlloc, MapFree)` once.
+- **`ConsumeBasemap`, 1 region, inside step A's fetch region:** `++mapPkgSeq` on an accepted package.
+- **The airport generation, 4 regions:** `++mapAirportsGen` after each of the five writes:
+  - `displayAirports` (`:911`) and `airportsMin` (`:915`), with one bump after both;
+  - `cloudAirports.clear()` (`:1367`);
+  - `cloudAirports = std::move(...)` (`:3725`);
+  - the bench harness's `displayAirports = true` (`:2452`).
+
+`main.cpp` is not touched, and step A's fetch-region pins (`check_map_fetch.py`: h 3, cpp 9) do not move.
+
+#### The rows (`check_map_draw.py`: 3 → 9 source checks)
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CD1** | in `MapCompose.h`, `MapPlaces.h`, `AirportBoxes.h` and every draw region: no `Preferences`, no `.put*(`, no `SPIFFS`, no `LittleFS` | **S-CD-NVS**, a `Preferences` write planted in DrawMapBase's region: {CD1} |
+| **CD2** | the three headers contain no `Serial`, `printf(` (other than `snprintf(`), `puts(`, `ESP_LOG` or `log_`. In the draw regions, no print's arguments name `label`, `places`, `placed`, `Town`, `lat`, `lon`, `homeLat`, `homeLon`, `ix`, `iy`, `tx`, `ty`, `qx`, `qy` or `anchor` (whole tokens) | **S-CD-PRINTNAME**, a town label printed in DrawMapBase's region: {CD2} |
+| **CD3** | the six `view` fields `DrawMapBase` fills have the same right-hand sides as `RebuildWeatherLayer`'s `v.` fields | **S-CD-VIEW**, `viewRadLat` → `radLat` in the map's fill: {CD3} |
+| **CD5** | the allocator `mapcompose::Init` is given calls `heap_caps_aligned_alloc` with `MALLOC_CAP_SPIRAM` in the same call | **S-CD-NOSPIRAM**, the cap dropped: {CD5} |
+| **CD6** | every write of `cloudAirports`, `airportsMin` or `displayAirports` in `AircraftManager.cpp` is followed within 10 lines by `++mapAirportsGen;`. The control: it finds **5** write sites, and prints the count | **S-CD-NOGEN**, the bump after `:3725` removed: {CD6} |
+| **CD7** | `MapAirportBoxes` holds DrawAirports' list, filter and cull lines, normalized, in the same order. The control: it extracts at least 6 lines | **S-CD-CULL**, `0.55f` → `0.5f` in `MapAirportBoxes`: {CD7} |
+| **CB-W** | the shipping `firmware.bin` holds no `[map] draw` string; the wxlook image holds both, read off the two images as W7 was | the wxlook image is its control, as it was W7's |
+
+- **CD4's pins move** to h 4 and cpp 12. Its line reads `16 draw region(s); the refusal present; ...`.
+- **One control's anchor changes:** `R-CD-CRASH` anchors on CB10's `#endif` and its region end, which stays unique once
+  there are four ends in the header. The control's outcome is unchanged.
+- **No existing set moves.** S-CB-SECONDPATH edits DrawAirports' `drawString` line, which is not among CD7's cull lines.
+  No other existing plant touches a new row's input.
+- **`sabotage_map_draw.py` totals:** 11 plants and 3 controls, so **16 AS PREDICTED lines**. `SOURCE_CHECKS` = 9, so its
+  table reads `9 checks, 0 failures`.
+- **Lint stays at `40 driver(s), 0 flagged; 3 pinned line(s)`:** no new driver.
+
+#### The artifact proofs, frozen
+
+**The trees.** Main is pinned at `e3c2508e`.
+- **The branch is behind main:** main is not an ancestor of `cb9d6ac2`, and main changed `OtaInstall.h` and
+  `OtaUpdater.cpp`. So "the branch's tree" means **main with the branch merged into it, as CI tests it**, built from a
+  local, detached test merge that is never pushed.
+- **Five builds, plus one anchor control:**
+
+| label | tree | env | what for |
+|---|---|---|---|
+| A1, A2 | main, built twice | `blipscope-s3-128` | the anchor control |
+| B | main + `cb9d6ac2` | `blipscope-s3-128` | step B so far: the shipping image |
+| Bw | main + `cb9d6ac2` | `blipscope-s3-128-wxlook` | the flagged image, before the wiring |
+| C | main + the wiring head | `blipscope-s3-128` | the wiring: the shipping image |
+| Cw | main + the wiring head | `blipscope-s3-128-wxlook` | the flagged image, after the wiring |
+
+- **How they are built:**
+  - every build is clean: my own `.pio/build/<env>` is deleted first, so WiFiManager recompiles every time;
+  - `pio` runs from PowerShell, one build at a time, in p4's slot;
+  - **under 30 GB free on C:, nothing builds.** C: had 73 GB free at registration.
+
+**The comparator** (scratch, `imgcmp.py`). It reports every differing byte of two `firmware.bin` files outside these
+five regions:
+1. `app_elf_sha256`, 32 B at 0xB0;
+2. the trailing image SHA-256, the last 32 B;
+3. the checksum byte, just before it;
+4. and 5. WiFiManager's two `__DATE__ " " __TIME__` strings, located by content (the pattern
+   `Mmm dd yyyy hh:mm:ss`), not by fixed offsets.
+
+Its controls, all run before any real comparison:
+- **presence:** each image holds exactly 2 matches of that pattern, at the same offsets in both images;
+- **anchor:** A1 against A2 differs in all five regions, and in **0** bytes outside them;
+- **sensitivity:** a copy of A1 with one byte flipped outside the regions reports exactly **1** byte outside.
+- **Any control failing stops the run before any comparison:** the instrument is unreliable.
+
+**The predictions:**
+
+| comparison | predicted |
+|---|---|
+| A1 against B | **the same length; 0 bytes outside the five regions.** DrawAirports, the one shipping function step B so far changed, inlines `radarbox::Airport` to the same calls and constants |
+| B against C | **the same length; 0 bytes outside the five regions.** Every line of the wiring is under `#ifdef BLIPSCOPE_MAP_FETCH`; the three braces add no code |
+| Bw against Cw | `firmware.bin` grows by **8,000 to 20,000 B**. `.bss` grows by **under 1,040 B**: the `Map` struct, under 1 KB by its `static_assert`, and three counters |
+| CB-W | B and C hold no `[map] draw`; Cw holds both strings |
+
+**Bw against Cw, by symbol** (`xtensa-esp32s3-elf-nm --size-sort -C`, by name):
+- **Existing symbols whose size changes, exactly these:**
+  - `AircraftManager::DrawWeatherUnder`, `::MapConfigure`, `::ConsumeBasemap`, `::RebuildWeatherLayer`, `::Initialise`
+    and `::ConsumeFetchResult`;
+  - the `AircraftManager` constructor and the TU's static initializer.
+  - `RecordFrameUs` changes only if the bench harness's `#if` is on in wxlook. It is read from the build flags at the
+    run and stated then.
+- **New symbols:**
+  - `AircraftManager::DrawMapBase`, `::MapAirportBoxes`, `::MapAlloc` and `::MapFree`;
+  - anything in the namespaces `mapcompose`, `mapplaces`, `maplayer` (for example `Build` and its helpers), `wxraster`
+    (including the font) and `radarbox`, with their lambdas.
+- **Any other symbol that is new or changes size is off.**
+
+#### The run, in order, after the code is committed
+
+1. `check_map_draw.py`: **`9 checks, 0 failures`**, with CD4 `16 draw region(s)` and CD6 `5 write site(s)`.
+2. `sabotage_map_draw.py`:
+   - the control is clean;
+   - the 11 plants turn exactly their sets, and the 3 controls read as their table;
+   - **16 AS PREDICTED lines**.
+3. `--anchors` over the 40 drivers, then `--control` for the draw driver: `("line", "9 checks, 0 failures")`.
+4. Lint: `40 driver(s), 0 flagged; 3 pinned line(s)`.
+5. `check_map_fetch.py`: unchanged.
+6. `run.sh` under WSL:
+   - exit 2, and FAILED BLOCKS exactly `the same TU, for the board` and `Weatherscope R0 and R0b (the reference's
+     controls, A12.18)`; then `HOST TESTS FAILED`;
+   - MapDraw `9 checks, 0 failures`, MapCompose `26 checks, 0 failures` and MapPlaces `32 checks, 0 failures`;
+   - `40 driver(s): 39 run, 1 skipped`;
+   - `sabotage_map_draw.py: 16 AS PREDICTED line(s)`.
+7. The artifact proofs: the comparator's controls, then A1/B, B/C, Bw/Cw and CB-W, each as frozen above.
+
+**Anything else is a stop:** a count, a set, a control, a byte outside the regions, a size outside the band, or a symbol
+outside the lists. I stop at the first such reading, with no fix and no re-run, and report it with its detail read. A
+crash or a build that fails is an instrument failure, reported as one.
+
+#### Questions for the ruling
+
+- **Q-MW1, the braces.**
+  - Each of `DrawWeatherUnder`'s three `return false;` becomes `{ <map hook under #ifdef> return false; }`. The shipping
+    tokens gain braces and nothing else, and B against C decides whether the code is identical.
+  - The alternative keeps the tokens identical with a macro defined in a draw region, and reads worse.
+  - **I recommend the braces,** with the artifact as the proof.
+- **Q-MW2, the cull's second path.**
+  - `MapAirportBoxes` repeats DrawAirports' list, filters and cull, held equal by CD7.
+  - The alternative refactors DrawAirports into a shared iterator. That edits a shipping function, which the artifact
+    proof would then have to clear.
+  - **I recommend CD7.**
+- **Q-MW3, one refusal flag.** A refused draw buffer sets step A's `mapAllocFailed`, so the fetch stops too, and both
+  clear at the next config change, through the same line. Confirm.
+- **Q-MW4, the cap's radius in miles for km and nm devices.** `Cap` and `Inner` take the view radius in statute miles,
+  whatever unit the rings print (Q-MB3 ruled "by radius in miles"). Confirm.
+
+#### The CI for this push (docs only), predicted
+
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with `cb9d6ac2`'s job
+  names.
+- Each host-tests leg reads as it did there: MapPlaces 32 / 0, MapDraw 3 / 0, MapCompose 26 / 0, 40 drivers (39 run, 1
+  skipped), lint 40 / 0 / 3, AS PREDICTED 15 / 10 / 6, `ALL HOST TESTS PASSED`.
+- The tested merge is read from a checkout log. `cb9d6ac2`'s run has finished, so nothing is cancelled. Any other reading
+  stops.
+
+### The wiring's ruling, and four corrections found while writing its code (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 02:35:39Z):**
+
+> a35e19021959 is ACCEPTED as the wiring's registration (on origin, docs +200).
+> - My requirement is met from the files: BLIPSCOPE_MAP_FETCH is derived (AircraftManager.h:38), and only wxlook gets it.
+> - Testing main + branch as CI does, because main isn't an ancestor of the branch, is right.
+> - The comparator's three controls come before any comparison.
+> - The A1-vs-B row now also proves that the MapPlaces step's DrawAirports edit (via AirportBoxes.h) left the shipping
+>   image unchanged. That's a check this step adds to the last one, and it matters.
+> RULINGS, the first option in each:
+> - Q-MW1: braces with #ifdef'd hooks, proven by B against C at 0 bytes outside.
+> - Q-MW2: CD7, the cull repeated and held line for line, not a refactor of shipping DrawAirports. It's the same reasoning
+>   as Q-MB9: a check that runs.
+> - Q-MW3: one flag, mapAllocFailed, and one reset at a config change.
+> - Q-MW4: Cap and Inner take the PHYSICAL radius in statute miles for km and nm devices too, so the label density is the
+>   same on the ground whatever the unit. State the conversion constant in the record.
+> GO: code, then the 7 steps in p4's build slot. Stop at the first off reading. Anything outside the five regions for
+> A1-B or B-C is a stop, never an explanation after the fact.
+
+**Q-MW4's constant.** `radiusMi` = `lround(viewRadLat × 111 / 1.609344)`:
+- 111 km a degree of latitude, the radar's own `KM_PER_DEGREE`;
+- **1.609344 km a statute mile**, exact by the international definition.
+- It is written once, in `DrawMapBase`.
+
+**Four corrections, found while writing the code, before anything was built or run:**
+
+1. **Where `mapcompose::Init` runs.**
+   - The registration put it in `MapConfigure`'s region. That region sits inside step A's `OnQuery` block, which does not
+     run for the boot's first key, so the Map would never be initialised.
+   - It runs instead at the map's first use, in `DrawMapBase`'s region: `if (mapDraw.alloc == nullptr) mapcompose::Init(...)`.
+   - The region counts do not change, and CD5 finds the call in the draw regions as before.
+2. **Bw against Cw, the symbol lists.**
+   - **The constructor.** `AircraftManager`'s constructor is inline in the header (`AircraftManager.h:1386`), and its one
+     use is the global at `main.cpp:173`.
+     - So **main.cpp's static initializer** is the one expected to change, with the new members' initialisers inlined
+       there.
+     - **No out-of-line constructor symbol** is expected in either image. If one appears in Bw, it must change in Cw.
+     - "The TU's static initializer" therefore means main.cpp's.
+   - **New symbols may also appear in `bmpk`, `wxbase`, `wxlayer` and `wxs2`:** template instantiations and inline
+     functions that `Build`, `Compose` and the labels newly call. **No existing symbol in those namespaces may change
+     size.**
+   - **New C runtime, libm and libgcc symbols the new code calls may appear,** for example `llround`, `fmin`, `fmax`,
+     `floor` and soft-double helpers. None that exists may change.
+   - **Nested symbols:** a listed or new function's nested symbols (its lambdas and its local statics) are counted with
+     that function.
+   - **`RecordFrameUs`:** its block is under `FOLLOW_BENCH`, which no env sets, so it is **unchanged** in wxlook.
+3. **The rebuild's log line** carries `, Build refused the package` when `Build` returns false, so a failed build is not
+   silent.
+4. **CB-W's two strings, exactly:** `[map] draw: buffers refused` and `[map] draw: rebuilt in`.
+
+All other predictions stand as registered.
+
+### The wiring's run, as read, and the owner's ruling on step 7 (2026-11-12)
+
+**The code** is `c4ff317a`, committed before step 1 on `eb4da9cc`, the record of the 02:35:39Z ruling and the four corrections.
+- **Steps 1-6, every one as predicted:**
+  - `check_map_draw.py`: `9 checks, 0 failures`; CD4 `16 draw region(s)`; CD6 `5 write site(s)`; CD7 10 lines held;
+  - `sabotage_map_draw.py`:
+    - all 11 plants exactly their sets;
+    - the 3 controls as their table, `R-CD-CRASH` from its new anchor;
+    - 16 AS PREDICTED lines;
+  - `--anchors`: 40 drivers; the draw driver `12 plant(s), 12 anchor(s)`. Its control: `line 9 checks, 0 failures`;
+  - lint: `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `check_map_fetch.py`: output identical to `cb9d6ac2`'s CI;
+  - `run.sh` under WSL:
+    - exit 2, with FAILED BLOCKS exactly the two environment blocks;
+    - MapDraw 9 / 0, MapCompose 26 / 0, MapPlaces 32 / 0;
+    - `40 driver(s): 39 run, 1 skipped`;
+    - `sabotage_map_draw.py: 16 AS PREDICTED line(s)`.
+
+**Step 7, the artifact proofs:**
+- **The builds:** six clean builds in p4's slot. Main was pinned at `e3c2508e`. B and C are local test merges, never pushed, whose trees equal `git merge-tree`'s output:
+  - A1 and A2: main (tree `fea2d987c7cc`), `blipscope-s3-128`, 1,932,544 B each;
+  - B: main + `cb9d6ac2` (tree `eb84bef82d41`), 1,932,544 B. Bw, the same tree as `blipscope-s3-128-wxlook`: 1,958,816 B;
+  - C: main + `c4ff317a` (tree `0b1d19f08e26`), 1,932,544 B. Cw: 1,973,344 B.
+- **The comparator's first instrument failure, ruled 03:04:06Z.**
+  - Its presence control found one date-time string, not two. WiFiManager's "Software Info:" string stores `__TIME__`
+    and `__DATE__` apart (`hh:mm:ss\0Mmm dd yyyy`), while "aboutdate" joins them.
+  - Region 5 was redefined as that pair after "Software Info:". The comparator (`dc828e47…`) was frozen before it read
+    anything, and the controls were re-run on the same images.
+  - **The controls then read:**
+    - presence: aboutdate at 0x312C and software-info at 0x1007A, in both;
+    - anchor (A1 against A2): 0 bytes outside, inside 32 / 32 / 1 / 5 / 4;
+    - sensitivity: one flipped byte at 0x1000 reads exactly 1 outside.
+  - The app descriptor's prebuilt stamp (0x70 / 0x80) and a library's own stamp (0x89297) are identical in both images,
+    so neither is a sixth region.
+- **The proofs:**
+
+| row | read |
+|---|---|
+| **A1 against B** | the same length, **0 bytes outside** (inside 32 / 31 / 1 / 5 / 5). The MapPlaces step's DrawAirports edit left the shipping image unchanged |
+| **B against C** | the same length, **0 bytes outside** (inside 32 / 32 / 1 / 4 / 3). **The wiring does not reach the shipping image** |
+| **Bw against Cw, size** | `firmware.bin` grows by **+14,528 B**, inside the 8,000-20,000 band |
+| **.bss** | `appManager`, 9,496 → 10,192 B: **+696 B**, under 1,040 |
+| **the predicted changed set** | all six changed size: `ConsumeBasemap` +12, `ConsumeFetchResult` −16, `DrawWeatherUnder` +27, `Initialise` +20, `MapConfigure` +28, `RebuildWeatherLayer` −79; and main.cpp's static initializer (`_GLOBAL__sub_I_tft`, `tft` being main.cpp:85's first global) +220 |
+| **CB-W** | `[map] draw` is absent from B, C and Bw; Cw holds `[map] draw: buffers refused` once and `[map] draw: rebuilt in` once. The control, as W7's: both wxlook images hold `[wx-bench]` and `[map] status=`, and both shipping images hold neither |
+
+**The new symbols in Cw, by name, with the new code that calls each.** Read from the run's own symbol listing, not from
+a new instrument. Template arguments are elided.
+- **`AircraftManager`:**
+  - `DrawMapBase` (910 B), called from the four `DrawWeatherUnder` hooks;
+  - `MapAirportBoxes` (192 B) and its lambda (214 B), called from `mapcompose::DrawNames` through `Inputs.airports`;
+  - `MapAlloc` (20 B) and `MapFree` (14 B), called from `mapcompose::Allocate` and `Release` through `Map.alloc` and
+    `freeFn`. `Init` is in `DrawMapBase`.
+- **`mapcompose`:**
+  - `Frame` (585 B) and `Stale` (242 B), called from `DrawMapBase`;
+  - `DrawNames` (338 B), called from `Rebuild`, which is inlined into `Frame`;
+  - `Release` (88 B), called from `Frame`'s growth check and from `Forget`, in `MapConfigure`;
+  - `LayerSink::Put` (59 B), `~LayerSink` (two, 15 and 5 B) and `vtable for mapcompose::LayerSink` (20 B), called from
+    `DrawLabel`, which is inlined into `DrawNames`.
+- **`maplayer`:**
+  - `Build` (882 B) and its three lambdas, called from `Frame` through `Inputs.build`, the address taken in `DrawMapBase`;
+  - `AffineFor`, `ChooseLevel`, `LineIdx`, `Channel`, `To565`, `ToScreen` and `kThemes`, called from `Build`. `AffineFor` is
+    also called from `mapplaces::AnchorAffine`, in `Place`;
+  - `ForEachLevelPixel<…>` (two), called from `Build`.
+- **`mapplaces`:**
+  - `Place` (1,178 B), `BoxFree` and `Overlaps`, called from `DrawNames`;
+  - `RingLabels`'s `kFrac`, called from `DrawMapBase`'s key.
+- **`wxraster`:** `Text` (277 B), `Put` (51 B) and `glcd::font` (1,280 B), called from `DrawLabel`.
+- **`bmpk`:**
+  - `ForEachRing<…>` (two), `ForEachRiver<…>` (two) and `ForEachRoad<…>` (four), called from `Build`'s passes;
+  - `ForEachPlace<…>`, called from `mapplaces::Load`, in `Rebuild`;
+  - `Package::Find`, called from the `ForEach*` passes and `ChooseLevel`.
+- **`wxlayer::OffDisc`:** called from `mapcompose::Compose` and `Build`'s colour pass. **`wxs2::To565`:** called from
+  `maplayer::To565`.
+- **The runtime:**
+  - `fmin` and `fmax`, called from `mapplaces::ClearsCentre`, in `BoxFree`;
+  - `__fpclassifyd`, called from newlib's `fmin` and `fmax`.
+- **The rest of the "new" entries** are ESP-IDF and libm statics with names defined in several files (`PIo2`, `Zero`,
+  `TAG`, `chip_name`, `two_over_pi`, `npio2_hw`, `s_spinlock`, `lgfx::v1::delay`, and others). Each is paired with a
+  "removed" entry of the same name. They are artifacts of the retired instrument's keying: **no verdict.**
+
+**The ruling, verbatim** (the owner, 03:39Z, with the cloud reviewer's read; relayed by the orchestrator at 03:40:26Z):
+
+> "Map-client's wiring: (i). The shipping image is proven unchanged by controlled instruments. The size band, .bss, the
+> predicted changed set and the new symbols by name stand on their own. The symbol row is recorded as an instrument
+> failure: no verdict, with the residue unexplained. symdiff is retired. Instead of (ii): before maps are switched on in
+> any customer image, redo this per-function accounting with #656's layout-invariant comparator (already on the post-v19
+> list), so the same tool isn't built twice."
+
+**The symbol row: an instrument failure, no verdict.**
+- The scratch `symdiff.py` (`ecc74479…`) put 260 symbols outside its lists. Three defects were seen in its detail:
+  - template instantiations demangle with their return type first, so the namespace test missed them;
+  - statics with duplicate names were keyed by whichever copy came second;
+  - main.cpp's static initializer has no source line in `nm -l`.
+- **The residue stays unexplained:** existing symbols changing by a few bytes, 118 of the 225 by at most 4 B, including
+  `AircraftManager` methods the wiring never touched, inline helpers compiled in main.cpp, and precompiled ESP-IDF code.
+- **The alternatives named, none excluded:** member-offset shifts; TU-wide inlining budgets, now that `AircraftManager.h`
+  includes `MapCompose.h`; Xtensa link-time relaxation; more keying artifacts.
+- **My miss:** the symbol criterion was registered without accounting for how this image's other symbols move when it
+  grows.
+- **`symdiff.py` is retired and is not to be reused.** The accounting moves to #656's comparator, under the gate below.
+
+### The bench rows: the procedure, registered before any window (2026-11-12)
+
+The ask, verbatim (the orchestrator, 04:03:08Z):
+
+> YES: register the bench rows' procedure now, docs only, before any window. One requirement that decides who opens the
+> window: SPLIT the rows by whether they need the owner.
+> - NO-HANDS rows (serial and log readings only, e.g. CBF1's rebuild time, CBF3's wedge behaviour, CBF4's
+>   PSRAM/internal-heap reading, and whichever of step M's CF1-CF6 qualify) can run in a gate-5 window that I open, with
+>   you holding E2:08 (it's on the hub), after v19's step 5' and anything else on E2:08.
+> - ROWS NEEDING HIS EYES (CBF2's look on glass, names under rain) go to him as his window, in his words, scheduled
+>   through me with confirm-and-stamp. You don't ask him yourself, as you said.
+> For each row: the image (built and identified by the five-region comparator; bench-flash rebuilds, tonight's W1
+> lesson), the predictions, the plants, the exact log lines read, and which class it's in.
+
+#### Found while writing this: CF2 and CF3 were priced for step C, not step B
+
+Step M priced the sweep with the map on at 7.7-8.9 ms (CF2) and frame p95 at +6.2 to +10.5 ms (CF3). Both assume the
+wedge **blends** over the map. In step B the wedge blends only over a shown weather layer: `DrawSweepOverWeather`
+returns false unless `wxShowing == Crop`. With the weather off, the opaque wedge draws, erasing the map (CBF3). Blending
+over the map is step C's work.
+- **CF2 and CF3 move to step C as registered,** and step B reads its own versions, re-derived below from #445's F run:
+  **CF2-B** and **CF3-B**.
+- CF1, CF4, CF5 and CF6 are unchanged by this.
+
+#### The two classes
+
+| class | rows | who opens the window |
+|---|---|---|
+| **NO-HANDS** (serial, and `/diag/fb` over the LAN; nobody at the board) | CBF1, CBF3, CBF4, CF1, CF2-B, CF3-B, CF4, CF5 (Bend and KSFO), CF6 | the orchestrator, as a gate-5 window, with map-client holding E2:08 (`board-port.py --reserve blipscope-bench --by map-client`), after v19's step 5' and anything else on E2:08 |
+| **THE OWNER'S EYES** | CBF2: the label's look (Q-MB5) and names under rain (Q-MB7) | the owner, in his words, scheduled through the orchestrator with confirm-and-stamp. map-client does not ask him |
+
+**Q-MB10, before any flash.** `scripts/bench-flash.ps1` refuses `-Board blipscope-bench` (E2:08) without
+`-DanielApproved`, which carries CLAUDE.md's rule for that board (ask the owner before touching it) into code.
+- So even a no-hands window needs the owner's approval for that flag.
+- **The question:** does the orchestrator's gate-5 window carry the owner's word for `-DanielApproved` on E2:08, or does
+  each flash need his word? Nothing is flashed until this is answered.
+
+#### The image: one bench env, as step M ruled it
+
+`blipscope-s3-128-mapbench` is a bench-only env extending `-wxlook`, under `-DMAP_BENCH`. Its code is written after this
+registration is ruled, in `// THE MAP BENCH` regions.
+- **The packages:** `bend.bmpk` and `ksfo.bmpk` from `test/fixtures/wx/basemap/` are embedded. There is no fetch: each is
+  handed to the wiring as an accepted package, through `mapPkg` and `++mapPkgSeq`.
+- **The home:** the bench sets the device's home to the embedded package's centre, so the radar, the weather and the map
+  agree. Nothing prints a coordinate or a name (CD2).
+- **Its phases, run by the bench itself on the 30 s health tick,** so nothing on the PC drives the board:
+
+| phase | package | weather | the map | what it serves |
+|---|---|---|---|---|
+| P0 | Bend | as configured | first package: the allocation | CBF4 |
+| P1 | Bend | forced off | **alternates on/off every tick**, 20 pairs | CF1, CF2-B, CF3-B, CBF3 (`/diag/fb` during "on" ticks) |
+| P2 | Bend | shown, look A | alternates on/off every tick, 20 pairs | CF4 |
+| P3 | Bend | as P2 | the zoom ladder stepped one step per tick, 5 laps | CBF1, CF5 (Bend) |
+| P4 | KSFO | as P2 | the zoom ladder stepped one step per tick, 5 laps | CBF1, CF5 (KSFO) |
+
+- CF6 is read over all phases.
+- **About 50 minutes** in all: P1 and P2 are 20 pairs of 30 s ticks each, so about 40 min, and P3 and P4 are 25 ticks
+  each.
+- **Bench-only lines,** all counts, no coordinate and no name:
+  - `[map-bench] phase P<n> map=<on|off> wx=<on|off> zoom=<step>mi`, at every tick;
+  - `[map-bench] alloc vertices=<n> price=<B> psram_free <before> -> <after> internal <before> -> <after>`, once, at
+    P0's allocation, read in the same loop pass as `mapcompose::Frame`;
+  - `[map-bench] passes s1=<us> water=<us> rivers=<us> roads=<us> colour=<us> total=<us>`, at every rebuild, from
+    `BuildInfo`, with `micros` given as Build's clock in the bench only.
+- **The bench marker:** `[map-bench]` is printed at boot. It joins `MARKERS` in `scripts/check-no-bench-hooks.sh`, which
+  refuses it in every slug-ful image. The firmware workflow's `--expect` runs on this env, as wxlook's does (step M's
+  ruling).
+- **CI:** a slug-less build-only row in `skus.yml`, with its launch-gate `plant_target()` case (memory: a new env without
+  one reads UNTRUSTWORTHY). Q-MB11 asks whether the row stays after the window or goes with the env.
+
+**How the image is identified (tonight's W1 lesson: `bench-flash.ps1 -AppOnly` runs `pio run` itself):**
+1. **The tree:** #659's head merged locally into the then-current main, as CI tests it. Its tree hash is printed and must
+   equal `git merge-tree`'s.
+2. **Build X, clean,** with `b1/build_one.ps1`. Record `firmware.bin` and its `app_elf_sha256` (0xB0).
+3. `bench-flash.ps1 -PioEnv blipscope-s3-128-mapbench -Board blipscope-bench -AppOnly -By map-client`, with the
+   approval flag Q-MB10 decides. Its own `pio run` produces Y in the same build directory.
+4. **Before trusting the flash,** Y is compared to X with `imgcmp.py` (`dc828e47…`). It must read 0 bytes outside the
+   five regions. If nothing was rebuilt, Y is X byte for byte.
+5. **On the board:** the boot log's `[build] env=blipscope-s3-128-mapbench` and the `[map-bench]` marker are read. If
+   the boot log prints the ELF SHA-256, its prefix must equal Y's `app_elf_sha256`.
+6. **Capture:** `bench-trace.ps1`, a single open that is never reattached. Ending a trace puts an S3 board in download
+   mode, so the window ends with the hub's power cycle (gate 5: only E2:08's port, logged) or `esptool read-mac`.
+
+#### The rows
+
+Each is read by a scratch reader, `map_bench_read.py`, frozen (sha) before the window. Its verdict table is in its
+header, and every row is shown red on a **planted log** (a copy of a synthetic capture with that row's line altered)
+before the real capture is read. The image plant for CBF4 is built and flashed in the same window.
+
+| row | class | line(s) read | predicted | plant |
+|---|---|---|---|---|
+| **CBF4** | no-hands | `[map-bench] alloc …`, once | `internal` before and after differ by **0**. `psram_free` falls by the four buffers' price within **1,024 B** (WD5d's precedent). The price is 2 × 115,200 + 57,600 + 32 × (vertices + 1) + 4,224 + 13,320, computed from the line's own `vertices` | **P-CBF4**, registered with the row: an image whose `MapAlloc` drops `MALLOC_CAP_SPIRAM` (S-CD-NOSPIRAM's edit), flashed after the real one: `internal` falls by at least 115,200, and the reader says red |
+| **CBF1** | no-hands | `[map] draw: rebuilt in <ms> ms, <n> label(s)` in P3 and P4 | every rebuild **≤ 100 ms**. The verdict as step M ruled it: ≤ 40 done; 40-100 stays, as one hitch per zoom step; over 100 stop | a planted log line `rebuilt in 150 ms`: red |
+| **CF5** | no-hands | `[map-bench] passes …` in P3 (Bend) and P4 (KSFO) | Bend **30-70 ms** total, as registered. KSFO is **read and reported, not graded**: "the KSFO reading comes before the layer design counts as settled" (ruled), and no band was registered for it | a planted `total=` of 120,000 us: red for Bend |
+| **CF1** | no-hands | `[health] clear=<us>/<us>us n=<n> push=<n>` over P1's ticks, by `[map-bench] map=` | map off **3.01 ± 0.3 ms**; map on **5.08 ± 0.3 ms** (one `memcpy` of the composite) | a planted map-on `clear=` of 7,000 us: red |
+| **CF2-B** | no-hands | `[health] sweep=<us>/…us n= blend=` over P1 | the opaque wedge, map on and off alike: **2.04 ± 0.3 ms**, `blend=0` | a planted map-on `blend=1`: red |
+| **CF3-B** | no-hands | `[health] frame … p95=<ms>` over P1's pairs | p95, on − off, equals the clear's difference: **+2.07 ms, within ± 1.0** | a planted pair at +5 ms: red |
+| **CF4** | no-hands | the frame p95 and `clear=` over P2's pairs | **−1.0 to +2.2 ms** on − off, and the clear unchanged (one `memcpy` either way), as registered | a planted pair at +4 ms: red |
+| **CF6** | no-hands | every `[health] BUDGET BROKEN` line, all phases | **0** | a planted `BUDGET BROKEN` line: red |
+| **CBF3** | no-hands | `/diag/fb` frames in P1's "on" ticks, fetched 3 times each (the partial-frames rule) | inside the wedge's sector, the share of the theme's map colours is **under 2 %** (aircraft, rings and labels excluded by their own colours). Outside it, on the disc, **over 80 %** are map colours. It is reported as **step C's input, not a defect** (Q-MB2) | a planted frame with the map copied over the wedge: red (the inside share over 2 %) |
+| **CBF2** | **the owner's eyes** | none: the owner on glass, after an optional `/diag/fb` keepsake | the owner judges the label's look (Q-MB5) and names under rain (Q-MB7). Nothing is built toward an alternative before then | none (a judgement, not a reading) |
+
+**The verdicts, applying to every no-hands row:**
+- a row outside its band: stop and report;
+- a planted log the reader does not call red: the reader is the instrument, so stop;
+- an image that is not identified (step 4 or 5 above): nothing is read from it;
+- **anything else: the instrument is unreliable at this scale. Stop and decide.**
+
+**After the window:**
+- the readings and the capture's counts go into the record;
+- the board is released with `board-port.py --release`;
+- the mapbench env stays or goes as Q-MB11 rules.
+
+#### Questions for the ruling
+
+- **Q-MB10, the approval flag for E2:08.** Does a gate-5 window opened by the orchestrator carry the owner's
+  `-DanielApproved`, or does each flash need his word? (Above.)
+- **Q-MB11, the bench env's life.**
+  - (a) A slug-less CI row that stays, so it keeps compiling.
+  - (b) The env and its row are removed after the window.
+  - **I recommend (a):** CLAUDE.md's AMOLED lesson, and step C needs the same bench.
+- **Q-MB12, CF2 and CF3.** They are re-derived for step B as CF2-B and CF3-B. The registered CF2 and CF3 move to step
+  C's bench, where the blended wedge exists. Confirm.
+
+### The mapbench env: its code and CI row, registered before the code (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 04:08:40Z):**
+
+> 19ab390c98cc is read (on origin, docs +123). The split is clear. The procedure (the mapbench env driving its own
+> phases, every row red on a planted log first, the CBF4 image plant, identification of Y against X at 0 bytes outside
+> before anything is read, and the four verdicts) is good. Catching that CF2/CF3 were priced for step C's blend was a
+> real find before any window.
+> - Q-MB12: CONFIRMED. CF2 and CF3 move to step C as registered; CF2-B (the opaque wedge, 2.04 ± 0.3 ms, blend=0) and
+>   CF3-B (+2.07 ± 1.0 ms) stand for step B. CF1 and CF4-CF6 are unchanged.
+> - Q-MB11: (a). A slug-less CI row that stays, with its plant_target() and "[map-bench]" in check-no-bench-hooks.sh's
+>   MARKERS. The AMOLED lesson, and step C needs it.
+> - Q-MB10: NOT MINE TO ASSUME. Gate 5 lets me open no-hands windows on hub boards, but -DanielApproved is his word in
+>   code, and his gate-5 text doesn't say whether it covers flashing. I'm putting it to him now: does a gate-5 window I
+>   open carry his approval for flashing the held hub board (flash + restore inside the window), or does each flash need
+>   his word?
+> Until he answers, flash nothing. Write the mapbench env's code and its CI row meanwhile, predictions first as usual.
+> The window opens anyway only after v19's step 5' on E2:08.
+
+#### Three corrections to `19ab390c`, found while designing the code
+
+1. **`plant_target()` needs no new case.** `scripts/check-adsbdb-out.sh`'s default site, `src/ConfigMigration.cpp`,
+   serves every radar env, wxlook included. The mapbench env links that file. The case named in `19ab390c` does not
+   exist and is not added.
+2. **The bench marker's `--expect`.** The mapbench image needs WX_LOOK_AB's timers, because the `clear=`, `sweep=` and
+   `sweepparts=` lines read by CF1-CF4 come from them. So the image carries `[wx-bench]` as well as `[map-bench]`.
+   - `check-no-bench-hooks.sh --expect` requires its one marker and **every other marker absent**, so it would refuse
+     this image.
+   - **Q-MB13** offers two ways (below).
+3. **The window is about 65 minutes, not 50:** P1 and P2 are 40 ticks each, and P3 and P4 are 25 each, all 30 s ticks.
+
+#### The code, exactly (written after the ruling)
+
+| file | what |
+|---|---|
+| `platformio.ini` | `[env:blipscope-s3-128-mapbench]`, `extends = env:blipscope-s3-128`, its flags composed as wxlook's are (never inherited, the `-U` trap): `${s3128_hw.build_flags} -DBLIPSCOPE_EXPECT_BIG_NVS ${cloud.prod} -DWX_LOOK_AB -DWX_LAYER_SHIPS -DMAP_BENCH`, and `board_build.embed_files = test/fixtures/wx/basemap/bend.bmpk, test/fixtures/wx/basemap/ksfo.bmpk` (the repo already embeds a `.wxc` this way) |
+| `skus.yml` | `- { env: blipscope-s3-128-mapbench, status: build-only }`, with a comment |
+| `scripts/check-no-bench-hooks.sh` | `"[map-bench]"` joins `MARKERS`; `--expect` as Q-MB13 rules; `--selftest` gains the new form's three cases |
+| the firmware workflow | one step, `if: matrix.env == 'blipscope-s3-128-mapbench'`, running the bench-marker `--expect` on that image (the wxlook step's twin) |
+| `src/AircraftManager.h` | **1** `// THE MAP BENCH` region: a small `MapBench` state (phase, tick, map off, weather off, lap) and two declarations |
+| `src/AircraftManager.cpp` | **6** `// THE MAP BENCH` regions, each under `#ifdef MAP_BENCH`. See the list below |
+| `test/host/check_map_draw.py` | **CB-B1** and **CB-B2** (below): 9 → **11** source checks |
+| `test/host/sabotage_map_draw.py` | 2 plants: 11 → **13** plants, 3 controls, so **18** AS PREDICTED lines |
+
+**The six regions in `src/AircraftManager.cpp`:**
+- **File scope:**
+  - the embedded packages' start and end symbols;
+  - `MapBenchAccept(which)`: copies the package into PSRAM (as step A's landing buffer would hold it), passes it through
+    `maplayer::Load` (the gate), and sets `mapPkg`, `mapHeldLen` and `++mapPkgSeq`;
+  - `MapBenchTick()`: advances the phase on the tick and steps the zoom in P3 and P4. At P4 it switches the package to
+    KSFO, which also exercises CB9's growth on the device.
+- **`Initialise`, after `MapConfigure`:** sets the home to the package's centre, prints the boot marker `[map-bench]`,
+  and calls `MapBenchAccept(0)`.
+- **`RequestBasemap`, first line:** `return false;`. No fetch.
+- **`RecordFrameUs`, after the `[health] frame` line:** `MapBenchTick();`.
+- **`DrawWeatherUnder`, first line:** in P1, the weather is forced off, the map is drawn alone, and today's paths are
+  skipped.
+- **Nested in `DrawMapBase`'s draw region:**
+  - the map-off return;
+  - the `[map-bench] alloc` reading around the first `mapcompose::Frame`;
+  - `micros` as Build's clock;
+  - the `[map-bench] passes` line after each rebuild.
+- **The lines are those registered in `19ab390c`,** all counts. Nothing prints a coordinate or a name (CD2).
+
+#### The rows, registered
+
+| row | check | plant (turns exactly) |
+|---|---|---|
+| **CB-B1** | every `MAP_BENCH` token in `src/` and `include/` sits inside a `// THE MAP BENCH BEGIN` / `END` region. The regions are pinned (h 1, cpp 6), and each holds `#ifdef MAP_BENCH` | **S-CB-BENCHLEAK**, a `#ifdef MAP_BENCH` block planted outside any region in `AircraftManager.cpp`: {CB-B1} |
+| **CB-B2** | the bench regions hold no `Preferences`, `.put*(`, `SPIFFS` or `LittleFS` (CD1's list), and no print in them names a token in CD2's `PRIVATE` set | **S-CB-BENCHPRINT**, a print of `lat` planted in `RecordFrameUs`'s bench region, which is not nested in a draw region: {CB-B2} |
+
+- **No existing set moves:**
+  - the nested bench region in `DrawMapBase` prints only counts, so CD2 stays green;
+  - CD4 counts draw regions, not bench regions;
+  - the two plants sit where no other row reads.
+- **The shipping and wxlook images must not move.** `MAP_BENCH` is defined in the mapbench env alone, so a fresh
+  `blipscope-s3-128` (C2) and `-wxlook` (Cw2) at the new head are compared to C and Cw with `imgcmp.py` (`dc828e47…`),
+  its three controls rerun first on A1 and A2. **0 bytes outside, both.**
+- **The mapbench image (M1):**
+  - **its size:** M1 against Cw2 is +416,496 B of packages plus the bench code, so **+417,496 to +421,496 B**;
+  - **its strings:**
+    - both bench markers present and no other;
+    - CB-W's two `[map] draw` strings;
+    - `[map-bench] phase`, `alloc` and `passes`;
+  - read off the image with the new `--expect` (Q-MB13).
+
+#### The run, after the code is committed
+
+1. `check_map_draw.py`: **`11 checks, 0 failures`**.
+2. `sabotage_map_draw.py`:
+   - the control is clean;
+   - 13 plants exactly their sets, and the 3 controls as their table;
+   - **18 AS PREDICTED lines**.
+3. `--anchors` over the 40 drivers, then the draw driver's `--control`: `("line", "11 checks, 0 failures")`.
+4. Lint: `40 driver(s), 0 flagged; 3 pinned line(s)`.
+5. `bash scripts/check-no-bench-hooks.sh --selftest`: every case passes, the new form's three included; `python
+   scripts/skus.py --validate`: OK.
+6. `run.sh` under WSL:
+   - exit 2, FAILED BLOCKS exactly the two environment blocks;
+   - MapDraw `11 checks, 0 failures`, MapCompose 26 / 0, MapPlaces 32 / 0;
+   - `40 driver(s): 39 run, 1 skipped`;
+   - `sabotage_map_draw.py: 18 AS PREDICTED line(s)`.
+7. The builds, in p4's slot, with no board touched:
+   - C2, Cw2 and M1 (main + the new head; tree = `merge-tree`'s);
+   - `imgcmp.py`'s controls on A1 and A2;
+   - C against C2, and Cw against Cw2: **0 bytes outside**;
+   - M1's size band and strings as above.
+
+**Anything else is a stop,** as before.
+
+**The CI for the code push, predicted:**
+- **35 = 31 success / 4 skipped / 0 failed.** The new leg is `build (blipscope-s3-128-mapbench)`, and the job set
+  otherwise matches `cf58c643`'s.
+- **Each host-tests leg:**
+  - MapDraw `11 checks, 0 failures`, MapCompose and MapPlaces as before;
+  - 40 drivers;
+  - lint 40 / 0 / 3;
+  - AS PREDICTED: compose 15, **draw 18**, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The mapbench leg's new step** reads the `--expect` line for both markers.
+- **The named risk:** `board_build.embed_files` under this env's framework. The repo's precedent is a radar-family env,
+  and a failure there is off.
+
+#### Questions for the ruling
+
+- **Q-MB13, the bench image's two markers.**
+  - **(B), recommended.** `--expect` takes a comma-separated list (`--expect "[wx-bench],[map-bench]"`): every listed
+    marker must be present, and every other absent. `--selftest` proves three cases: both present passes, one missing
+    fails, and a third marker present fails. The fence stays as strict as it is, and gains one shape.
+  - **(A)** The mapbench image's marker is `[wx-bench]`, and `[map-bench]` is not added. That contradicts Q-MB11's
+    ruling, so it is listed only so that the choice is visible.
+
+### The mapbench registration's ruling (2026-11-12)
+
+**The ruling, verbatim (the orchestrator, 04:28:30Z):**
+
+> 19ab390c's CI is recorded (34 = 30/4/0; tested merge a0a7e04). The mapbench registration at 14764d1405a5 is ACCEPTED,
+> with its three corrections.
+> - (1) No new plant_target() case. One condition: the CI prediction for the code push must name the adsbdb gate's
+>   verdict on the new mapbench leg as PASS, NOT UNTRUSTWORTHY. If the default site doesn't actually serve it, CI shows it
+>   and that's off.
+> - (2) Two markers: noted.
+> - (3) About 65 min: noted.
+> Q-MB13: (B). --expect takes a comma list: every listed marker present, every other absent. check-no-bench-hooks.sh is
+> SHARED (the wxlook step and others call it), so add a FOURTH --selftest case: the existing single-marker form
+> ("--expect [wx-bench]") behaves exactly as before on a wxlook-shaped input. Also confirm that no existing caller's
+> command line changes. (A) is rejected, as you say.
+> The rows, plants and run are as listed (CB-B1/CB-B2 with their plants; check_map_draw 11/0; draw 18; the builds at 0
+> outside, the comparator's controls first; M1 +417,496..+421,496 B). Then the code, predictions first, pushed under the
+> standing rule. Flash nothing (Q-MB10 is still with the owner).
+
+**The callers, read before the change.** `scripts/check-no-bench-hooks.sh` is called at six places in the firmware
+workflow:
+- the photo role's `--expect "[photo-mode]"` and its parent's plain scan;
+- wxlook's `--expect "[wx-bench]"`;
+- `--selftest`;
+- the slug-ful image's scan, and the factory image's.
+
+**None of their command lines changes.** The single-marker form keeps its exact output line and exit codes, and the
+fourth selftest case proves it on a wxlook-shaped input. The new step on the mapbench leg is the only new caller.
+
+**Added to the code push's CI prediction:** on the `build (blipscope-s3-128-mapbench)` leg, the adsbdb launch gate's
+verdict is **PASS**, from its default plant site (`src/ConfigMigration.cpp`). **UNTRUSTWORTHY there is off.**
+
+### The owner's terms for the window, and the bench code's corrections (2026-11-12)
+
+**The owner, verbatim (04:29Z, relayed by the orchestrator at 04:30:00Z):**
+
+> "1. Yes: a no-hands window you open may include flashing E2:08 over USB, when all of these hold: The write ranges are
+> printed against the partition table before any flash. No factory image, no full erase, and nothing written to the NVS
+> (settings) partition. Both images are identified by sha256 before the window: the test image, and E2:08's restore
+> image. E2:08 is restored at the end, and its boot log shows it rejoining Wi-Fi with its settings, without the setup
+> portal. v19 has priority on E2:08: never during step 5' or any other v19 step. Anything that would need my hands: stop
+> and report.
+> 2. The marker script (the reviewer): besides proving the old single-marker form unchanged, the new list form needs its
+> own failing control. A build carrying a marker that isn't on its list must still be refused."
+
+**These terms join the window's procedure, as conditions on every flash:**
+- the write ranges printed against E2:08's partition table first: the app image to the app slot only; no factory image,
+  no full erase, nothing written to NVS;
+- **two images identified by sha256 before the window opens:**
+  - the mapbench image;
+  - E2:08's restore image, read at that time as whatever v19's step 5' leaves on the board;
+- E2:08 restored at the end, and its boot log read for Wi-Fi rejoining with its saved settings, **not the setup portal**;
+- the window only after every v19 step on E2:08;
+- anything that would need the owner's hands: stop and report.
+
+**The marker script's five new `--selftest` cases** (`scripts/check-no-bench-hooks.sh`):
+1. a list, every listed marker present: passes;
+2. a list, a listed marker missing: refused;
+3. **a list, a marker not on the list present** (`[alert-bench]` under `"[wx-bench],[map-bench]"`): **refused**. This is
+   the reviewer's failing control;
+4. the one-marker form on a wxlook-shaped image: exit 0, with the exact line it always printed;
+5. the one-marker form on the two-marker image: still refused.
+
+**The ruling, verbatim (the orchestrator, 04:34:59Z):**
+
+> the owner's terms recorded verbatim, and the five --selftest cases (the third is the reviewer's control): ACCEPTED.
+> The four placement corrections, all before the code: ACCEPTED.
+> - (1) the home is set in Initialise's region right after the location read, before the radius;
+> - (2) a lazy accept at DrawMapBase's top;
+> - (3) two nested regions in DrawMapBase, keeping CD5's single Init; the pins become h 1 / cpp 7;
+> - (4) the passes line from the tick.
+> The regex: ACCEPTED, and it's a real catch. A FAIL regex that can't match a row's name makes that row's plant unable
+> to ever read red. That's the blind-control shape. Add to the run a check that each new plant's red line is actually
+> MATCHED by the driver (e.g. assert that S-CB-BENCHLEAK's output line is parsed as a red CB-B1). Then it's seen
+> working, not assumed.
+> ONE CHECK for (4): P4's switch calls Initialise() from RecordFrameUs, on the loop task, mid-run. Before relying on it,
+> read Initialise for anything that must not run twice: task creation, a second NVS open, a second web-server start, a
+> static that assumes one call. Name what you found in the record. If anything there isn't re-entrant, use the narrower
+> config-change path instead (MapConfigure plus the radius recompute), not the full Initialise.
+> Then write the C++, commit it with the record, and run. Flash only in the window, after v19's E2:08 steps.
+
+**`Initialise`, read for anything that must not run twice** (`src/AircraftManager.cpp`, about 680 lines). **It is built
+to re-run.** main.cpp's loop calls it on every saved config (`ConsumeConfigChanged`), and every one-time act in it is
+guarded:
+- **tasks:** `StartFetchTask` and `StartEnrichTask` return at once once their handles are set ("already running;
+  survive Initialise() being re-run on a config reload"); `mqtt.Begin` "spawns the publisher task once; reconfigures it
+  thereafter";
+- **NVS:** the follow log loads once, behind `followLogLoaded`; `logbook.Begin()` is idempotent ("only the first call
+  loads from NVS"); everything else is a read through `GetStoredString`;
+- **allocation:** `AllocateWeatherBuffers` returns at once when `wxBuffersOk` is set, and does not retry after
+  `wxAllocTried`;
+- **the web server** is not started in `Initialise` at all;
+- **no function-local `static`** in it.
+
+So the full `Initialise` is used. The bench's call runs where main.cpp's does: on the loop task, after
+`framebuf::FrameDone()`, at the end of `RecordFrameUs`.
+- **Its known effects, as a saved config has them:** the cloud airport list is cleared and fetched for the new home
+  (`++mapAirportsGen`); the weather layer rebuilds; `MapConfigure`'s key change drops Bend and calls `Forget`.
+- **For the reading:** the airport list's arrival can add one rebuild to an early P4 tick. CBF1 grades every
+  `[map] draw: rebuilt in` line. CF5's passes line is the last rebuild of its tick.
+
+**The regex check, as it runs.** `sabotage_map_draw.py` grades a plant AS PREDICTED only when the red set **parsed** from
+the check's output equals its frozen set. So S-CB-BENCHLEAK reads AS PREDICTED only if its `FAIL CB-B1` line is parsed
+as `CB-B1`, and a regex that could not read it would make the plant off-prediction. The run prints each plant's parsed
+set.
+
+### The mapbench run, as read (2026-11-12)
+
+**The code** is `2887679b`, committed before step 1 on `893e1b1d` (the owner's terms and the 04:34:59Z ruling), which sits
+on `1fe21b5b` (the 04:28:30Z ruling).
+- **Steps 1-6, every one as predicted:**
+  - `check_map_draw.py`: `11 checks, 0 failures`. CB-B1 counts 9 `MAP_BENCH` lines, all inside the 8 bench regions;
+  - `sabotage_map_draw.py`:
+    - 13 plants exactly their sets, and the 3 controls as their table;
+    - 18 AS PREDICTED lines;
+    - **the regex check, seen working:** S-CB-BENCHLEAK's raw `FAIL CB-B1: …` is parsed by the driver as {CB-B1}, and
+      S-CB-BENCHPRINT's as {CB-B2};
+  - `--anchors`: 40 drivers; the draw driver `14 plant(s), 14 anchor(s)`. Its control: `line 11 checks, 0 failures`;
+  - lint: `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `check-no-bench-hooks.sh --selftest`: every case, the five new included, and `[map-bench]` planted and caught;
+    `skus.py --validate`: OK, with 10 build-only legs;
+  - `run.sh` under WSL (04:43:10Z to 04:51:18Z):
+    - exit 2, with FAILED BLOCKS exactly the two environment blocks;
+    - MapDraw 11 / 0, MapCompose 26 / 0, MapPlaces 32 / 0;
+    - `40 driver(s): 39 run, 1 skipped`;
+    - `sabotage_map_draw.py: 18 AS PREDICTED line(s)`.
+
+**Step 7** ran after v19's step 5' closed and E2:08 was restored (the orchestrator's word, 05:52:17Z), in p4's slot,
+with no board touched.
+- **The comparator's controls,** rerun first on A1 and A2 (`imgcmp.py`, `dc828e47…`):
+  - presence: 0x312C and 0x1007A;
+  - anchor: 0 bytes outside;
+  - sensitivity: exactly 1.
+- **The tree:** main `e3c2508e` + `2887679b` = `f66755f7c109`, equal to `git merge-tree`'s. It is a local test merge,
+  never pushed.
+- **The builds,** 05:53:16Z to 06:02:21Z, every `pio` exit 0: C2 1,932,544 B; Cw2 1,973,344 B; M1 2,390,496 B.
+
+| row | read |
+|---|---|
+| C against C2 | the same length, **0 bytes outside** (inside 32 / 32 / 1 / 5 / 6). **The bench does not reach the shipping image** |
+| Cw against Cw2 | the same length, **0 bytes outside** (inside 32 / 32 / 1 / 6 / 5). **The bench does not reach the wxlook image** |
+| **M1's size: OFF, on record** | M1 − Cw2 = **+417,152 B**, against the registered +417,496 to +421,496 B: **344 B below the band**. Ruled to stay off, with its cause (below), and not re-graded |
+| M1's markers | `check-no-bench-hooks.sh --expect "[wx-bench],[map-bench]"`: `ok: … carries '[wx-bench],[map-bench]' and no other bench marker (anchor present)`. The plain scan of C2: `ok: no bench hook … (9 marker(s) checked, anchor present)` |
+| M1's strings | `[map] draw: buffers refused` 1, `[map] draw: rebuilt in` 1, and `[map-bench] phase`, `alloc` and `passes` 1 each. C2 holds none of them. Cw2 holds the two `[map] draw` strings and no `[map-bench]` |
+
+**Why the size row is off, read from the image with two direct `xtensa-esp32s3-elf-nm` lookups** (the retired
+`symdiff.py` is not used):
+- **The packages:** `_binary_test_fixtures_wx_basemap_bend_bmpk_end − _start` = **205,093 B**, and KSFO's = **211,403 B**.
+  So **416,496 B**, exactly the files' sizes, packed contiguously.
+- **The dead fetch path:** `AircraftManager::RequestBasemap` is **820 B in Cw2 and absent from M1**. The bench's
+  `return false;` at its top makes the fetch body dead, and the compiler removes it.
+- **So the bench code nets +656 B** (417,152 − 416,496): about **+1,476 B added, less the 820 B removed**.
+- **My miss:** the band assumed the bench only adds code. It did not subtract what the bench's own hook makes dead.
+
+**The ruling, verbatim (the orchestrator, 06:03:20Z):**
+
+> the stop was right, and so was the read. The packages are exact (205,093 + 211,403 = 416,496 by end-start),
+> RequestBasemap's 820 B is gone because the bench hook makes it dead, and both alternatives are named and handled. Your
+> miss is recorded as you stated it: the band assumed the bench only adds.
+> RULED (i):
+> - M1's SIZE ROW stays OFF on record (+417,152 against +417,496..+421,496), with its cause. Not re-graded.
+> - What the band was FOR is established by stronger direct evidence: the embedded packages present at EXACTLY their file
+>   sizes, and the bench's net code +656 B, explained by +~1,476 added less the 820 B dead fetch path. Record both reads,
+>   with the nm lookups that produced them.
+> - (ii) is rejected: a band re-registered after the reading is a tolerance fitted to the data.
+> - THEN RUN M1's string checks as registered: the --expect list, CB-W and the [map-bench] lines.
+> C2 and Cw2 at 0 outside (shipping and wxlook untouched by the bench) are recorded as predicted, along with the
+> comparator's controls. Nothing is pushed until step 7's remaining checks read.
+
+**The CI for the push, predicted** (`1fe21b5b`, `893e1b1d`, `2887679b` and this record; `14764d14`'s run has finished
+and was read):
+- **35 = 31 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**: `cf58c643`'s job set
+  plus **`build (blipscope-s3-128-mapbench)`**.
+- **The mapbench leg:**
+  - the adsbdb launch gate's verdict is **PASS** from its default site (UNTRUSTWORTHY is off);
+  - the new marker step reads `ok: … carries '[wx-bench],[map-bench]' and no other bench marker`.
+- **Each host-tests leg:**
+  - MapDraw `11 checks, 0 failures`, MapCompose 26 / 0, MapPlaces 32 / 0;
+  - 40 drivers, with both passes `39 run, 1 skipped`;
+  - lint 40 / 0 / 3;
+  - AS PREDICTED: compose 15, **draw 18**, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The selftest step** runs every case, the five new included.
+- **The named risk** is `board_build.embed_files` on CI's runner. Built locally, it was exact. A failure there is off.
+- The tested merge is read from a checkout log. Any other reading stops.
+
+### The CI read at `9ae188d9`, and the identity-table fix (predictions first)
+
+**The read.** `9ae188d9`'s run finished at **35 = 30 success / 4 skipped / 1 failed**. The failure is `ota-identity`,
+at `--check-table`: `fleet only: blipscope-s3-128-mapbench - s3-128`. That is off the prediction (35 = 31/4/0), so I
+stopped there and did not read the other legs' logs. The next push's run is their reading.
+
+**My miss.** A new env is listed in three files: `platformio.ini`, `skus.yml` and `test/fixtures/ota/identities.txt`.
+I added it to the first two only.
+
+**The ruling (the orchestrator, 06:27:06Z, verbatim):**
+
+> From the orchestrator, 06:27:06Z, for map-client: the stop and the diagnosis are right. The failure names the exact
+> missing row, and the flake alternative is excluded by the fixture's existing bench rows. Your miss is recorded as you
+> stated it.
+> The fix is APPROVED: the one row from `--emit-table`, reviewed as a one-line diff, a local --check-table, and
+> --check-table added to your push guards. BUT the table you're editing has readers of its own. A row added there moves
+> more than ota-identity. My read of main finds:
+> - test/host/test_ota_identity.cpp:22/:110: "The counts are today's skus.yml (identities.txt …)". It PINS fleet
+>   counts. This is exactly what p4 hit on #648 (CI2 OFF: host-tests failed on test_ota_identity.cpp's pinned counts
+>   after adding 2 P4 rows);
+> - test/host/test_ota_install.cpp:261 reads the table;
+> - test/host/test_ota_model.cpp:37 (M1 over every row, so its count follows the table);
+> - test/host/sabotage_ota_model.py:28 (its prediction follows the table's scoped rows);
+> - run.sh :1984/:2007 (comments on those counts).
+> So before the push:
+> 1. List each reader, and predict what one more "- s3-128" row does to each: which pinned count moves, and to what.
+>    Update any pin in the same commit.
+> 2. Run those suites and drivers locally (test_ota_identity, test_ota_install, test_ota_model, sabotage_ota_model)
+>    and record each reading against its prediction.
+> 3. Then the push, with CI's prediction including those suites' counts.
+> FYI for later: p4's #648 also adds rows to this table, so whichever lands second takes both. Name that in your record.
+
+**One event before this record.** `--emit-table` writes `identities.txt` itself. I ran it expecting it to print to
+stdout.
+- It wrote one row, `blipscope-s3-128-mapbench - s3-128`, after `blipscope-s3-128-wxlook`.
+- I copied that file and its one-line diff out as the reviewed diff.
+- I then put the table back to HEAD (`git checkout HEAD --` on that one path); `git status` read clean.
+- Nothing ran against the written table. The code commit after this record runs `--emit-table` again.
+
+**The readers, and what one more `- s3-128` row does to each.** The table goes from 8 rows to 9. The scopes stay 3
+(`-`, `eam-`, `weatherscope-`). The s3-128 rows go from 6 to 7, and those with no scope from 3 to 4.
+
+| reader | what it counts | today | with the row |
+|---|---|---|---|
+| `check_ota_identity.py --check-table` | the table against the fleet | exit 1, `fleet only: …mapbench` | **exit 0** |
+| `--selftest`, `--fleet-sabotage`, `--fleet` | the fleet (`skus.yml`, `platformio.ini`), not the table | PASSED, PASSED, PASS (`boards s3-128 9`) | unchanged |
+| `test_ota_identity.cpp` R1 | envs x scopes | 24 (8 x 3) | **27** (9 x 3) |
+| M1 | same-board pairs accepted, of envs² | 38, 26 | **51, 30** (7² + 1 + 1 = 51 of 81) |
+| M2 | cross-board pairs x scopes | 78 | **90** (30 x 3) |
+| M3 | own-scope matrix: accepted, refused (cross-scope) | 16, 48 (22) | **23, 58 (28)** (4² + 2² + 1 + 1 + 1 = 23; 49 - 21 = 28) |
+| its check count | | 22 | 22 |
+| `test_ota_install.cpp` O10 | rows, and rows x 2 pre-check heads refused as no-record | 8, 16 | **9, 18** |
+| its check count | | 36 on this branch, 42 on main (HP1-HP6, #660) | 36 on this branch, 42 on the test merge |
+| `test_ota_model.cpp` | `M1-<env>` per row, `M1r-<env>` per unscoped row, and M1b's 3 | `8 rows; 16 checks` | `9 rows; 18 checks` (no pin in the suite) |
+| `sabotage_ota_model.py` | `MODEL_CHECKS`, its `--control` count | 16 | **18** |
+| its S-M1 red set | `M1-` for every scoped row | the 3 scoped rows | unchanged: the new row has no scope |
+| `sabotage_ota_identity.py`, `sabotage_ota_install.py` | the two suites; `IDENTITY_CHECKS` 22, `INSTALL_CHECKS` 36 here and 42 on main | | unchanged |
+| `run.sh` :1984 and :2007 | comments, no counts | | unchanged |
+
+**Why the last two drivers stay unchanged.** Every plant's red set is named by check id. The new row adds no
+(board, scope) class the table lacks, since `- s3-128` already has three rows.
+
+**The pins this moves, all in the code commit.**
+- `test_ota_identity.cpp`: R1's `24`, M1's `38`/`26` with `(want 38, 26, 0)`, M2's `78` with `(want 78 of 78)`, and
+  M3's `16`/`48`/`22` with `(want 16, 48 (22), 0)`.
+- `test_ota_install.cpp`: O10's `rows == 8`/`16` with `(want 16, 0, 0, 0)`.
+- `sabotage_ota_model.py`: `MODEL_CHECKS = 18`, its comment `(9 + 6 + 3 today, S4.5)`, and its docstring's `none of
+  the 5 without` → `6`.
+- Not edited: `docs/weatherscope-stage4.md` S4.5. It is a record of the counts at its time, and it is Weatherscope's
+  record.
+
+**#648.** p4's #648 also adds rows to this table (two P4 rows, per the ruling above), and they move the same pins.
+Whichever of #648 and #659 lands second takes both. It runs `--emit-table` on the merged tree, and it derives every pin
+above again from the merged table rather than by adding the two diffs.
+
+**The local runs, predicted.** They run in WSL Ubuntu 24.04 with g++ 13.3, CI's compiler, and the drivers run with
+`CXX=g++`. They run twice: on the branch head, and on the test merge of `origin/main` (`f3fee349`) and that head,
+because CI tests the merge and main's install suite differs.
+- **`check_ota_identity.py`:** `--check-table` exits 0, and the other three modes read as today.
+- **`test_ota_identity`:** `22 checks, 0 failures`, with R1 27/27, M1 51/30/0, M2 90 of 90, and M3 23, 58 (28), 0.
+- **`test_ota_install`:** O10 reads `9 identities x 2 pre-check heads: 18 no-record, 0 foreign, 0 other, 0 flash
+  calls`. The summary is `36 checks, 0 failures` on the branch and `42 checks, 0 failures` on the merge.
+- **`test_ota_model`:** `9 rows; 18 checks, 0 failures`.
+- **`sabotage_ota_model.py`:**
+  - the control is AS PREDICTED;
+  - S-M1 fails exactly `M1-missileer-photo`, `M1-missileer-s3-128` and `M1-weatherscope-s3-128`;
+  - S-M1b fails `M1b-short`;
+  - the summary is `2 sabotages: ALL AS PREDICTED`;
+  - `--control` reads `CONTROL sabotage_ota_model.py: 1 suite(s), all as the table`, with 18;
+  - `--anchors` reads all present exactly once.
+- **`sabotage_ota_identity.py` and `sabotage_ota_install.py`:** every plant AS PREDICTED, `--control` all as the
+  table (22 and 36 on the branch, 22 and 42 on the merge), and `--anchors` all present.
+- **`lint_driver_counts.py`:** exit 0.
+- **The merge itself:** `origin/main` and the head merge with no conflict. Main's #660 hunks in `test_ota_install.cpp`
+  sit at lines 23, 78 and 301 of the base; O10 sits between them.
+- **Anything else** is off, and I stop.
+
+**The local runs on the branch head (`935a2946`), as read** (06:37Z, WSL Ubuntu 24.04, g++ 13.3.0; the code commit
+`935a2946` came before the run):
+- **`test_ota_identity`:** `22 checks, 0 failures`. R1 `27/27 (9 envs x 3 scopes)`, M1 `51 accepted, 30 refused, 0
+  off the rule`, M2 `90 of 90 refused`, M3 `23 accepted, 58 refused (28 cross-scope), 0 off the rule`. As predicted.
+- **`test_ota_install`:** `36 checks, 0 failures`, O10 `9 identities x 2 pre-check heads: 18 no-record, 0 foreign, 0
+  other, 0 flash calls`. As predicted.
+- **`test_ota_model`:** `9 rows; 18 checks, 0 failures`. As predicted.
+- **`sabotage_ota_model.py`:** the control AS PREDICTED; S-M1 failing `M1-missileer-photo`, `M1-missileer-s3-128`,
+  `M1-weatherscope-s3-128`; S-M1b `M1b-short`; `2 sabotages: ALL AS PREDICTED`. `--control` `18 checks … (the table:
+  checks 18)`, `all as the table`. `--anchors` `2 plant(s), 2 anchor(s), all present exactly once`. As predicted.
+- **`sabotage_ota_identity.py`:** S-ID1b (7) and S-ID2b (9) AS PREDICTED, real headers unchanged; `--control` 22 and 36,
+  all as the table; `--anchors` 2 of 2. As predicted.
+- **`sabotage_ota_install.py`:** S-O8a (20), S-O8b (14) and S-ID3 (9) AS PREDICTED; `--control` 36; `--anchors` 3 of 3.
+  As predicted. Its plants' O10 lines read 9 identities and 18 heads.
+- **`lint_driver_counts.py`:** exit 0, `40 driver(s), 0 flagged; 3 pinned line(s)`. As predicted.
+- **`check_ota_identity.py`, OFF.** `--selftest` read `selftest PASSED`, exit 0. `--fleet-sabotage`, `--fleet` and
+  `--check-table` each read `BLIND: cannot run \`pio project config\`: [Errno 2] No such file or directory: 'pio'`,
+  exit 2. The script defines exit 2 as BLIND: it cannot read the config, and it is never a pass.
+  - **The cause:** WSL has no `pio`. My prediction put these runs in WSL without naming that block.
+  - **What it is not:** it is not a reading of the table. Earlier today, from Git Bash on Windows (where `pio` is) and
+    before the code commit, the same three modes read `fleet-sabotage PASSED`, `fleet PASS` (`11 built … boards s3-128
+    9`) and `--check-table` exit 1 (`fleet only: …mapbench`), on the old table.
+  - **What I did:** I stopped here. The test merge's runs have not started, and nothing was re-run.
+
+**The ruling on the BLIND (the orchestrator, 06:38:29Z, verbatim):**
+
+> From the orchestrator, 06:38:29Z, for map-client: every reader read as predicted. The pins moved as listed, the
+> --emit-table write event is disclosed and handled, and the BLIND is the script's own defined "cannot read the config;
+> never a pass". That's an environment block your prediction didn't name; your miss is recorded as stated. Not a
+> finding about the table.
+> RULED (a)-(c), with one change to (a): run the four check_ota_identity modes from POWERSHELL on Windows, not Git
+> Bash. The machine's standing note is that pio under Git Bash/MSYS can damage its esptool package ("purge
+> tool-esptoolpy* and rebuild from PowerShell"). `pio project config` probably doesn't touch it, but the safe shell
+> costs nothing. The predictions stand as you wrote them: --selftest PASSED; --fleet-sabotage PASSED; --fleet PASS with
+> "11 built … boards s3-128 9, s3-175-amoled 1, s3-21 1"; --check-table exit 0. Anything else is OFF.
+> Then (b), the test-merge runs on f3fee349 + your head, as predicted in 62ddbe6a (install 42 with O10 9/18; the
+> drivers' --control at 42). Then (c), the push under the standing rule, with the extended guard chain and the CI
+> prediction as you listed it. Your #648 note ("re-run --emit-table on the merged tree and re-derive every pin, not add
+> the diffs") is exactly right; I'll pass it to p4.
+
+**(a) `check_ota_identity.py` from PowerShell on `af42fdbe`, as read (06:39Z).** All four modes read as predicted:
+- `--selftest`: `selftest PASSED`, exit 0.
+- `--fleet-sabotage`: `fleet-sabotage PASSED`, exit 0.
+- `--fleet`: `fleet: 11 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 9, s3-175-amoled 1, s3-21
+  1` and `fleet PASS`, exit 0.
+- `--check-table`: `ok: … identities.txt equals the fleet (9 rows)`, exit 0.
+
+**(b) The test merge, as read.** The merge is `c782dc3e`, with parents `f3fee349` (main) and `af42fdbe`. It merged
+with no conflict. The suites and drivers ran in WSL with g++ 13.3.0:
+- **`test_ota_identity`:** `22 checks, 0 failures`; R1 27/27, M1 51/30/0, M2 90 of 90, M3 23, 58 (28), 0.
+- **`test_ota_install`:** `42 checks, 0 failures`; O10 `9 identities x 2 pre-check heads: 18 no-record, 0 foreign, 0
+  other, 0 flash calls`.
+- **`test_ota_model`:** `9 rows; 18 checks, 0 failures`.
+- **`sabotage_ota_model.py`:** S-M1 (the 3 scoped rows) and S-M1b AS PREDICTED; `--control` 18; `--anchors` 2 of 2.
+- **`sabotage_ota_identity.py`:** S-ID1b (7) and S-ID2b (9) AS PREDICTED; `--control` 22 and **42**; `--anchors` 2 of 2.
+- **`sabotage_ota_install.py`:** main's version, with 5 plants. S-O8a (22), S-O8b (14), S-ID3 (9), P-NORETRY (6) and
+  P-BYPASS (6) all read AS PREDICTED, and its wiring rows read green with the detectors red. `--control` **42**;
+  `--anchors` 5 of 5.
+- **`lint_driver_counts.py`:** `40 driver(s), 0 flagged; 3 pinned line(s)`.
+- **The wrapper itself (not a reading).** It exited 2 with `syntax error: unexpected end of file`, after every step
+  above had run. I had cut the wrapper's last block (the checker modes, run in (a) instead) with a `sed` that removed
+  that loop's body and `done` but left its `for … do` line. The error is my wrapper's, not any check's. Its outputs are in the scratch
+  directory, one file per step.
+
+**The push, predicted** (after the local runs read as predicted; `9ae188d9`'s run has finished):
+- **The guard chain** gains `skus.py --validate`, `check-no-bench-hooks.sh --selftest` and `check_ota_identity.py
+  --check-table`.
+- **35 = 31 success / 4 skipped / 0 failed**, with `ota-identity` green.
+- **Each host-tests leg:**
+  - `test_ota_identity` `22 checks, 0 failures`, `test_ota_install` `42 checks, 0 failures`, `test_ota_model`
+    `9 rows; 18 checks, 0 failures`;
+  - MapDraw `11 checks, 0 failures`, MapCompose 26 / 0, MapPlaces 32 / 0. Main's FillRing fix (`f3fee349`, #662) is
+    in the test merge for the first time. #662's own CI was green, and my advance read of it predicts no movement here;
+  - 40 drivers, with both passes `39 run, 1 skipped`;
+  - lint 40 / 0 / 3;
+  - AS PREDICTED: compose 15, draw 18, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The mapbench leg:** the launch gate is PASS, and the marker step reads `ok: … carries '[wx-bench],[map-bench]' and
+  no other bench marker`.
+- **The tested merge** is read from the checkout log. Any other reading stops.
+
+**The CI for `84bd05a2`, as read** (finished 06:58Z). Every item read as predicted:
+- **The tally:** 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed.
+- **The tested merge:** every leg's checkout log reads `HEAD is now at eae4745 Merge 84bd05a2… into f3fee349…`.
+- **`ota-identity`:**
+  - `selftest PASSED`;
+  - `fleet-sabotage PASSED`;
+  - `fleet: 11 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 9, s3-175-amoled 1, s3-21 1`
+    and `fleet PASS`;
+  - `--check-table`: `… identities.txt equals the fleet (9 rows)`.
+- **Each host-tests leg** (ubuntu-24.04 and ubuntu-26.04, identical):
+  - the OTA suites: identity `22 checks, 0 failures` (R1 27/27, M1 51/30/0, M2 90 of 90, M3 23, 58 (28), 0), model
+    `9 rows; 18 checks, 0 failures`, install `42 checks, 0 failures` with O10 at 9 identities and 18 no-record;
+  - MapDraw `11 checks, 0 failures`, MapPlaces 32 / 0, MapCompose 26 / 0;
+  - `40 driver(s): 39 run, 1 skipped` in both passes;
+  - `LINT driver counts: 40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - AS PREDICTED lines: compose 15, draw 18, places 6;
+  - `ALL HOST TESTS PASSED`.
+- **The mapbench leg:**
+  - the launch gate reads `blipscope-s3-128-mapbench found 0 1 PASS`;
+  - the marker step reads `ok: … carries '[wx-bench],[map-bench]' and no other bench marker (anchor present)`.
+
+### CBF3's reader: its design, registered before its code (2026-11-12)
+
+The window plan's CBF3 row says what is read (`/diag/fb` frames in P1's "on" ticks) and what is predicted. Inside the
+wedge's sector, under 2 % of pixels are the map's colours. Outside it, on the disc, over 80 % are. The row does not say
+how a pixel is called a map colour. This section fixes that, before any reader code.
+
+**What the source draws, read before choosing.**
+- **The wedge in P1** is the opaque one (`DrawRadarSweep`, `include/DrawHelpers.h`), because the weather is off and
+  `DrawSweepOverWeather` returns false.
+  - It is 18 triangles of `(0, lvl, 0)`, with `lvl = (1 - i/18)² x 120`, over `TAIL = 1.0` rad behind the beam.
+  - The beam and its head are `DrawRadarSweepBeam`'s, shared with the weather path.
+  - In RGB565 the last four slices are `0x0000`, and slice 14 is `0x0020`.
+- **The map's colours** come from `include/MapLayer.h`'s Dark row: land (6, 8, 10), water, river, road, and the
+  terrain ramp `land + (shade - 128) x 0.075` per channel. The names add place grey on a halo in the land colour,
+  through `wxraster::Text` and `Fill`, with no blending. `To565` truncates, as `color888` does.
+- **The overlap.** The only RGB565 colours that are both the map's and the wedge's are `0x0000` and `0x0020`, the
+  terrain's darkest slopes. The ramp's blue sits two above its green, so no other pure green is reachable.
+- **Bend's share of them, on the host.** A scratch program built Bend's layer at the package centre with
+  `maplayer::Build` and printed counts only. Neither E2:08's radius nor its `radar-up` setting is known here, so it
+  covered radii of 5, 10, 25, 50, 100 and 150 mi at rotations 0 and 90:
+  - non-black map colours are **99.5-100 %** of the disc at every radius and both rotations;
+  - `0x0000` and `0x0020` together are **0-1.4 %**;
+  - no pixel had a colour outside the theme.
+- **The overlays drawn after the wedge** each have their own colours. All of them are read from the source:
+  - the three range rings, located by position with LovyanGFX's own `drawCircle`, as `scripts/wx-fb-check.py` ports
+    it;
+  - the planes' colours and the labels' colours, at fades 0.30-1.0;
+  - the NEAR/HIGH/FAST highlight and the screen dots;
+  - the beam and the head;
+  - the airports' mark (130, 130, 130), label (100, 100, 100) and code text (140, 140, 140). `wx-fb-check.py` does not
+    read these, because the weather checks never needed them, so this reader adds them.
+
+**The method: colour classes, not a per-pixel reference.**
+- **Each pixel gets one class:**
+  - MAP: a map colour that is not a wedge or overlay colour;
+  - WEDGE: a wedge colour that is not a map or overlay colour;
+  - AMBIGUOUS: a colour in two or more of the three sets;
+  - OVERLAY: an overlay colour, or a ring pixel showing its ring's colour, by position;
+  - UNKNOWN: anything else, counted and listed.
+- **The measure** in a region is MAP / (MAP + WEDGE + AMBIGUOUS). Overlays and unknowns are left out of both terms.
+- **The regions:**
+  - the centre's 12 px are never graded;
+  - **inside** is the angles from θ − 1.0 + 0.06 to θ − 0.06, where θ is the beam;
+  - **outside** is the disc beyond θ − 1.0 − 0.06 to θ + 0.06;
+  - the two 0.06 rad margins are not graded. They are wx-fb-check's own margin.
+- **The rejected alternative** is a per-pixel host reference. It would need E2:08's radius and rotation (its own
+  settings, which this session does not read) and the runtime airport list (names avoid airport boxes). That means new
+  bench prints and a re-identified image, for a row that is reported as step C's input.
+
+**The frames.**
+- **What is fetched:** P1's 40 ticks, 20 with the map on and 20 off, the weather off throughout. `/diag/fb` is fetched
+  three times per tick (the partial-frames rule).
+- **How each frame is labelled:** by the tick's own `[map-bench] phase P1 map=on|off …` line. A fetch is read only if
+  no new phase line arrived between its request and its response, and only with `X-Blipscope-Frame-Finished: true`.
+  Any other frame is counted and not read.
+- **Trust, per frame**, by the rules `wx-fb-check.py` already enforces. The reader imports them rather than copying
+  them:
+  - every ring shows its colour on 80 % of its pixels;
+  - there is exactly one head blob (joined across one ring pixel), 117-123 px out;
+  - the beam's ray agrees on at least 70 of 101 samples;
+  - the tail is `DrawHelpers.h`'s `TAIL`, read and asserted, not `WxSweep.h`'s.
+  - A frame failing any of these is UNTRUSTWORTHY: counted and not graded. The reader also cross-checks every frame's
+    verdict against `wedge_mask`'s; a disagreement stops the reading.
+- **The unknown ceiling:** a region with more than 10 % UNKNOWN pixels makes its frame UNTRUSTWORTHY. The classes
+  would not describe that frame.
+
+**Predicted, per trustworthy frame:**
+- **On ticks:** inside **under 2 %**, and outside **over 80 %**. The host's 99.5 % is for the layer alone; the
+  overlays are out of the measure.
+- **Off ticks, the reader's control on real frames:** outside **under 2 %**. With the map off the disc is black, which
+  is AMBIGUOUS, not MAP. A reader that called an off frame mapped could not tell on from off.
+
+**The verdicts, every one before the capture:**
+- **AS PREDICTED:** every trustworthy on-frame reads inside under 2 % and outside over 80 %, and every trustworthy
+  off-frame reads outside under 2 %, with at least 10 trustworthy frames of each kind. This is reported as step C's
+  input, not as a defect.
+- **OFF:** an on-frame inside at 2 % or more (the map shows through the opaque wedge), or outside at 80 % or less
+  (an "on" tick without the map). Stop and report.
+- **CONTROL FAILED:** an off-frame outside at 2 % or more. The reader is the instrument, so stop.
+- **BLIND:** fewer than 10 trustworthy frames of either kind.
+- **Anything else:** the instrument is unreliable at this scale. Stop and decide.
+
+**Plants, run red before the real frames are read.** These are synthetic frames drawn from the source's own colours
+and geometry, in the reader's `--selftest`:
+- a control on-frame (map, wedge, rings, a head): AS PREDICTED;
+- the sector holding map colours (no wedge): OFF, inside;
+- an on-labelled frame black outside: OFF, outside;
+- an off-labelled frame holding map colours outside: CONTROL FAILED;
+- two head blobs, and then the rings missing: UNTRUSTWORTHY each;
+- a region 15 % unknown colour: UNTRUSTWORTHY;
+- too few frames: BLIND.
+
+**Where it lives:** `--fb` in the scratch reader `map_bench_read.py`. Its sha is frozen again before the window, as
+every row's reader is.
+
+**Privacy.**
+- The frames show a place, so they stay in the scratch directory and are never committed.
+- The record carries counts and shares only.
+- The fetcher never prints the board's host name or address.
+
+**Questions for the ruling:**
+- **Q-CBF3-1, the method:** colour classes, over a per-pixel reference. I recommend the colour classes.
+- **Q-CBF3-2, the control:** the off ticks as the reader's control on real frames, with outside under 2 %, and at
+  least 10 trustworthy frames of each kind.
+- **Q-CBF3-3, the dependency:** the reader imports `wx-fb-check.py`'s ring and beam rules. That is a dependency on a
+  Weatherscope script: a change there moves this reader too, or breaks it closed. The alternative is a copy that can
+  drift. I recommend the import with the per-frame cross-check.
+- **Q-CBF3-4, the unknown ceiling:** 10 % of a region.
+
+**The ruling (the orchestrator, 07:09:07Z), in short:** Q-CBF3-1 colour classes, ACCEPTED. Q-CBF3-2 the off ticks as
+the control, at least 10 trustworthy frames of each kind, ACCEPTED. Q-CBF3-3 IMPORT, not copy, with two additions:
+`wx-fb-check.py`'s sha256 is recorded in the reading, and the orchestrator tells Weatherscope that this reader imports
+its ring and beam rules. Q-CBF3-4 the 10 % unknown ceiling, ACCEPTED, with the 15 % plant reading UNTRUSTWORTHY. GO for
+the code and `--selftest`, every plant red, the sha frozen and recorded; no bench-image change.
+
+**CBF3's reader, as written and frozen (07:15Z).**
+- **The reader:** `map_bench_read.py`, the scratch reader every row uses, gains `--fb <tree> <frames.jsonl>`. Its log
+  grading is unchanged. `--selftest` now takes the source tree, because the frame plants are drawn from the source's
+  own colours.
+  - **Frozen sha256:** `65d2edf53b0600f611945019a43038f277ec4bab5a7f85dcbd43bfb93cffecd7`. The copy before it,
+    `6413d64985b3…`, is kept beside it.
+  - **`scripts/wx-fb-check.py`'s sha256, as the reader prints it:**
+    `92d85ce4e711fd05265d85b3bf9edbb7226ca2915233f76224d769f9d3799c10`.
+- **What it reads from the tree:**
+  - the opaque wedge: TAIL 1.0, 18 slices, PEAK 120, and the fade, each asserted. Its levels, computed in float32 as
+    the device computes them, are 107, 94, 83, 72, 62, 53, 44, 37, 30, 23, 18, 13, 9, 5, 3, 1, 0, 0;
+  - the map: the Dark row, the ramp's formula, `To565` and `OffDisc`, each asserted. That is 13 RGB565 colours;
+  - the overlays: 252 colours;
+  - the shared colours, computed: `0000` and `0020`. If the source ever yields another set, the reader refuses
+    (re-derive), because that set is registered.
+- **The selftest: 23 lines, all ok, `selftest PASSED`, exit 0.**
+  - The log reader's 10 are unchanged.
+  - The frame cases, each with its exit and the plant's own status:
+    - the control set (10 on, 10 off): AS PREDICTED;
+    - the sector holding map colours: OFF, inside 100 %;
+    - black outside: OFF, outside 0 %;
+    - an off frame holding map colours: CONTROL FAILED;
+    - two head blobs: UNTRUSTWORTHY, "2 head blobs";
+    - no rings: UNTRUSTWORTHY, "a ring under 80 % of its colour";
+    - 15 % unknown: UNTRUSTWORTHY, "14.4 % UNKNOWN";
+    - 9 on frames: BLIND;
+    - unfinished, and straddled: NOT READ.
+- **Added beyond the registered list:** the cross-check against `wedge_mask` must be able to fire, so the reader's
+  own locator is sabotaged in process, twice, and restored:
+  - shifted by 0.2 rad: INSTRUMENT, exit 2;
+  - refusing a frame `wedge_mask` locates: INSTRUMENT, exit 2;
+  - a check that the locator is restored: ok.
+- **The disk path, end to end:** 20 synthetic frames written as RGB565 big-endian with a manifest read AS PREDICTED,
+  exit 0, and the printed sha equals `sha256sum`'s. A malformed manifest reads INSTRUMENT, exit 2. A missing tree
+  reads INSTRUMENT, exit 2.
+- **What the synthetic control showed about the classes:** inside the wedge, most of its greens are also faded plane
+  colours, so they class as AMBIGUOUS. On the control on-frame that was 4,220 AMBIG and 1,947 WEDGE pixels, with MAP 0.
+  The measure keeps both in its denominator, and a map pixel showing through is still MAP, so the inside test is not
+  weakened.
+- **A correction to the registration.** It listed the airports' greys as three: 130, 100 and 140. `DrawAirports`'
+  body names two, the mark (130) and the label (100). The 140 grey is `DrawWeatherNote`'s text. If that note draws in
+  P1, its pixels count as UNKNOWN, and the 10 % ceiling bounds them.
+
+**Still to come before the window:** the fetcher, which writes the manifest this reader reads (`file`, `label`,
+`finished`, `straddled`). It labels each fetch by the latest `[map-bench] phase P1 map=…` line, marks a fetch
+straddled when a new phase line lands before its response, and prints no host name or address. It will be registered
+the same way, with its own plants, before it runs.
+
+### CBF3's fetcher: its design, registered before its code (2026-11-12)
+
+The reader above reads a manifest of frames. This is what writes it during the window. Nothing about the bench image
+changes.
+
+**What it does.**
+- **Its inputs:**
+  - the serial trace's log file, written by `scripts/bench-trace.ps1` (one open, never repeated), which the fetcher
+    only reads;
+  - the board's address, from an environment variable set in the window's own shell. The fetcher never prints it,
+    and no file it writes holds it.
+- **For each P1 tick:**
+  - it waits for a new `[map-bench] phase P1 map=on|off …` line in the log;
+  - it fetches `/diag/fb` at +5, +10 and +15 s after that line arrived, inside the 30 s tick and clear of both ends;
+  - it labels each fetch with that line's `map=` value.
+- **Per fetch:**
+  - the phase-line count is read before the request and again after the response. A change means `straddled: true`;
+  - `X-Blipscope-Frame-Finished` gives `finished` (a missing header is `false`);
+  - the body is kept only if it is 115,200 bytes, `X-Blipscope-Frame-Format` is `RGB565BE`, and the width and height
+    are 240;
+  - any other response (a 503, a short body, a timeout) is counted and named in the fetcher's own summary, and is not
+    written to the manifest.
+- **When it ends:** after the first P2 phase line, or a stated timeout. It prints counts only: ticks seen, frames
+  kept, not kept by reason, straddled, and not finished.
+
+**Predicted, for the window:** 40 P1 ticks (20 on, 20 off) and 120 fetches. P1's frame rate leaves room for a
+finished frame within the server's bound, so nearly every fetch should be finished, and straddled should be 0, since
+every fetch sits 5 s from either end of its tick. The reader's own minimum, 10 trustworthy frames of each kind, is
+what decides BLIND, not this fetcher.
+
+**Plants, run red before it touches the board.** It runs against a stand-in on this machine: a local HTTP server
+serving synthetic frames with the device's headers, and a log file the test appends phase lines to.
+- the normal case: the labels and the file count as predicted;
+- a phase line appended while a response is held: `straddled: true`;
+- `Finished: false`, and then the header missing: `finished: false`;
+- a 503 and a short body: not written, and counted under its reason;
+- the address must not appear in anything it prints or writes: grep the output and every file for the stand-in's
+  address string. A hit is red.
+
+**Questions for the ruling:**
+- **Q-CF-1, the fetch times:** +5, +10 and +15 s after each phase line.
+- **Q-CF-2, the address:** taken from an environment variable that is never printed. The alternative is resolving
+  the board's mDNS name in the fetcher, which would put the name in the fetcher's code or its arguments.
+
+**The ruling on the fetcher (the orchestrator, 07:17:28Z), in short:** Q-CF-1 (+5/+10/+15 s) ACCEPTED; Q-CF-2 (the
+address from an unprinted environment variable) ACCEPTED. One interference was to be settled before code: a
+`/diag/fb` fetch sends 115 KB over Wi-Fi while P1's frames are timed, so it can move CF1, CF2-B and CF3-B. The choices
+offered were (i) excluding frames inside a fetch, (ii) fetching alternate pairs only, or (iii) a measured number.
+
+**Chosen: (ii), alternate pairs.**
+- **Why not (i):** the timing rows read `[health]` lines, which are 30 s aggregates. Excluding single frames would need
+  marks the bench image does not print, and the image is not to change.
+- **Why not (iii):** there is no existing measurement of `/diag/fb`'s effect on frame time on this board to cite.
+  (ii) produces one.
+- **The rule, one place in each tool:** P1's ticks are numbered t = 0..39 from its first phase line. The reader pairs
+  them (2k, 2k + 1). The fetcher fetches only in the **even pairs** (k even, so t mod 4 is 0 or 1): 10 pairs, 10 on
+  ticks and 10 off ticks, 30 frames of each kind.
+  - Every `[health]` line, `BUDGET BROKEN` included, belongs to the interval of the last phase line before it (the
+    reader's attribution rule). Each fetch ends within about 16 s of its tick's 30 s, so its interval is the fetched
+    one.
+
+**Predicted, the timing bands unchanged, graded over the 10 odd (un-fetched) pairs:**
+- CF1: map off 3.01 ± 0.3 ms, map on 5.08 ± 0.3 ms;
+- CF2-B: every un-fetched P1 interval's sweep 2.04 ± 0.3 ms, and `blend=0` over **all** of P1, since a fetch cannot
+  change which wedge path runs;
+- CF3-B: the mean of (on − off) p95 over the 10 un-fetched pairs, +2.07 ± 1.0 ms;
+- CF6: 0 `BUDGET BROKEN` lines outside the fetched intervals, in every phase.
+
+**Reported, not graded:** the fetched pairs' clear, sweep and p95, and their `BUDGET BROKEN` count, printed beside the
+graded figures. That is the measured cost of a fetch, the number (iii) asked for.
+
+**The control, both directions, as log plants in the reader's `--selftest`:**
+- **Exclusion:** a fetched interval inflated (sweep 5.0 ms, p95 +10 ms, one `BUDGET BROKEN`) leaves every row green,
+  and the inflation appears in the reported figures.
+- **Sensitivity:** the same inflation in an un-fetched interval turns CF2-B, CF3-B and CF6 red.
+- **The frame side:** the manifest gains `tick` (t). The `--fb` reader refuses, as the INSTRUMENT, a frame whose tick is
+  not in an even pair, so the fetcher cannot drift from the rule. A plant shows it.
+
+**Then:** the reader's changes and the fetcher, with all plants red first, and the reader frozen again.
+
+**The reader and the fetcher, as written and frozen (07:24Z).**
+- **The reader, frozen again:** `map_bench_read.py` at
+  `5ad12d0adb0de643248308be272805d63bca6a6b1a7f3501577c39efa8bef9df`. That replaces `65d2edf53b06…`. The change is the
+  (ii) rule:
+  - `fetched_tick` is the one place it lives;
+  - `BUDGET BROKEN` is attributed to its interval;
+  - CF1, CF2-B's sweep, CF3-B and CF6 are graded over the un-fetched pairs, and the fetched pairs' figures are printed
+    beside them;
+  - the manifest's `tick` is checked.
+- **Its selftest: 27 lines, all ok, `selftest PASSED`.** The 23 before, plus four:
+  - **the exclusion:** a fetched interval inflated reads 0 red, and the inflation shows only in the reported figures
+    (sweep 2.04-5.00, p95 +4.10, `BUDGET BROKEN` 1);
+  - **the sensitivity:** the same in an un-fetched interval reads exactly CF2-B, CF3-B and CF6 red. Its p95 plant is
+    +20 ms, because +10 over one pair in ten moves the mean by exactly 1.0 ms, inside the ±1.0 band, so it could not
+    have failed;
+  - **a manifest frame:** tick 0 is read, and tick 2 is refused as the INSTRUMENT.
+  - **The old CF6 plant** sat in t = 1, a fetched interval, so it moved to t = 2 and still reads exactly CF6 red.
+- **The fetcher:** `fetch_fb.py` at `7b904453a45bb014d825c599979e502adb89be8a59653c260ae2b2c167ca5c40`.
+  - It imports `fetched_tick` from the reader rather than restating it.
+  - It reports an error by its class name alone, since an exception's text can carry a URL.
+  - It reads a UTF-16 trace log as well as a UTF-8 one.
+- **Its selftest: 10 lines, all ok, `fetcher selftest PASSED`, against a local stand-in:**
+  - it ran to P2;
+  - exactly 12 requests, in ticks 0, 1, 4 and 5 only;
+  - the labels follow the phase lines;
+  - 9 kept and 3 not kept: a 503, a short body, and a format other than RGB565BE;
+  - Finished false, and the header missing, both read `finished: false`;
+  - the response held across a tick, and only that one, reads `straddled: true`;
+  - every kept body is 115,200 bytes;
+  - the address is in no output and no file, and the control finds a planted address.
+  - With no address set, it is the rig, exit 2, and writes nothing.
+- **The two together:** `interop_fb.py` (`8a9f63b99dd3…`) ran the fetcher against a stand-in serving the reader's own
+  synthetic frames, then the reader on what the fetcher wrote. As predicted: 12 frames from ticks 0, 1, 4 and 5, all
+  trustworthy (6 on, 6 off), BLIND (exit 4, under 10 of each), with no INSTRUMENT.
+
+**The CI for `18a7a8ff` (docs only), as read** (finished 07:24Z). Every item read as predicted:
+- 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed;
+- the tested merge, from every leg's checkout: `3c425a7 Merge 18a7a8ff… into f3fee349…`;
+- `ota-identity`: `fleet PASS`, and the table equals the fleet (9 rows);
+- both host legs: OTA identity `22 checks, 0 failures` (R1 27/27), OTA model `9 rows; 18 checks, 0 failures`, OTA
+  install `42 checks, 0 failures` (O10 18 no-record); MapDraw 11 / 0, MapPlaces 32 / 0, MapCompose 26 / 0; `40
+  driver(s): 39 run, 1 skipped`; lint 40 / 0 / 3; compose 15, draw 18 and places 6 AS PREDICTED lines; `ALL HOST
+  TESTS PASSED`;
+- the mapbench leg: the gate reads `found 0 1 PASS`, and the markers are `'[wx-bench],[map-bench]'` and no other.
+
+**This push's guards, in their corrected form.** The HEAD check and the previous run's completion are PowerShell
+statements that `throw`, run before the `&&` chain of process checks. They are not links in it.
+
+**The CI for `73351313` (docs only), as read** (finished about 07:50Z). Every item read as predicted:
+- 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed;
+- every leg's checkout reads `2526eb2 Merge 73351313… into f3fee349…`;
+- `ota-identity`: the table equals the fleet;
+- both host legs: OTA identity 22 / 0, OTA model `9 rows; 18 checks, 0 failures`, OTA install 42 / 0; MapDraw 11 / 0,
+  MapPlaces 32 / 0, MapCompose 26 / 0; `40 driver(s): 39 run, 1 skipped`; lint 40 / 0 / 3; compose 15, draw 18 and
+  places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
+- the mapbench leg: the gate reads `found 0 1 PASS`, and the markers are as before.
+
+**A stale comment from the identity fix, corrected (the orchestrator's yes, 07:52:42Z).** Step C's sweep of the bare
+number 26 found `test/host/test_ota_identity.cpp`'s header still describing the old identity counts.
+- **My miss, from `935a2946`:** that commit moved the pins, but not this comment, which states them beside the pins.
+- **Comment only:** no reading moved, and CI was green throughout.
+- **What changed:**
+  - line 10: M1 `38 accepted, 26 refused` became `51 accepted, 30 refused`;
+  - line 11: M2 `78 of 78` became `90 of 90`;
+  - line 12: M3 `16 accepted, 48 refused, 22 of them cross-scope` became `23 accepted, 58 refused, 28`;
+  - lines 13-14: "the 8 built envs" became "the 9", with the mapbench env's arrival named.
+- **Line 8, found while editing:** R1's `8 envs x 3 scopes` became `9 envs x 3 scopes`. It is the same block and the
+  same miss, though the sweep for 26 could not see it, so it is included and named here.
+- **Where it goes:** it rides on #659's next push, and step C rebases onto it.
+
+**The CI for `aff4bede` (docs only), as read** (finished about 08:05Z). Every item read as predicted:
+- 35 = 31 / 4 / 0;
+- every leg's checkout reads `09ff5f4 Merge aff4bede… into f3fee349…`;
+- `ota-identity` green;
+- both host legs: OTA 22 / `9 rows; 18` / 42; MapDraw 11, MapPlaces 32, MapCompose 26; `40 driver(s): 39 run, 1
+  skipped`; lint 40 / 0 / 3; compose 15, draw 18 and places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
+- the mapbench leg: the gate reads PASS, and the markers are as before.
+
+**This push** (`b06f32b9`, the identity comment, and this record) is predicted to read the same: the comment changes no
+reading.
+
+## Step C: the wedge's green added to the map (design, registered before code; 2026-11-12)
+
+**What is fixed already.**
+- **S7** (`docs/blipscope-basemap-client.md`; Q-MC2, 2026-11-07): the wedge's green is added to the map pixel below
+  it, so the map stays visible under the beam. Over black, this is bit-identical to today's opaque wedge. The owner
+  judges it on glass.
+- **CB10** (`src/AircraftManager.h:51`) refuses every map build without `BLIPSCOPE_MAP_STEP_C`, the bench images
+  excepted. "Step C's header defines it", and CD4 holds the list of allowed definers empty until that header is named.
+- **CF2 and CF3 moved here** (Q-MB12): the sweep with the map on, weather off, at 7.7-8.9 ms, and frame p95 on − off
+  at +6.2 to +10.5 ms.
+
+**Read first, from the code at `73351313` and not from any run.**
+- **One function colours every wedge pixel:** `wxsweep::detail::BlendOne` (`include/WxSweep.h`), shared by `Blend`
+  and `BlendRows`. A drawn weather code gets `Lit565`, look 4 raised toward 100 %. Anything else gets
+  `Green565(lvl)`, which writes over whatever is there.
+- **Each wedge pixel is blended once.** `Rasterise` marks each pixel with the LAST slice that covers it, and `Blend`
+  visits it once and clears the mark. An additive blend depends on that, because a pixel added twice would brighten.
+- **The gate:** `DrawSweepOverWeather` runs only when `wxShowing == Crop` and the weather's buffers are allocated.
+  Otherwise the opaque `DrawRadarSweep` draws. The weather's slice and spans are part of its all-or-none set
+  (`AllocateWeatherBuffers`), so with the weather off they may not exist.
+- **The frame's background:** `DrawMapBase` returns true exactly when it copied the composite this frame. Its callers
+  pass `nullptr` (the map alone) or `wxLayer565` (the weather composed over the map).
+- **Which images compile the map:** `BLIPSCOPE_MAP_FETCH` needs `FEATURE_CLOUD_FEED` and `WX_LAYER_SHIPS`, so wxlook
+  and mapbench compile it today and the shipping env does not.
+
+**The design.**
+1. **The add, in RGB565:** `mapsweep::Add565(px, lvl)` raises the pixel's 6-bit green by `lvl >> 2`, saturating at
+   63, and leaves red and blue as they are.
+   - Over black, that is `(lvl >> 2) << 5`, which equals `Green565(lvl) = (lvl & 0xFC) << 3` for every `lvl`. That
+     is S7's "bit-identical over black", as an identity a test can sweep.
+   - The map's brightest colour is the place grey, green 21 of 63. The largest level, 107, adds 26, so no map pixel
+     saturates. The saturation is there for correctness, not because the map reaches it.
+2. **Its home: a new header, `include/MapSweep.h`.** It includes `WxSweep.h` and reuses `Rasterise`, `SliceLevel` and
+   `Lit565` unchanged. It adds `Add565`, and a `Blend` whose per-pixel rule is: a drawn code gives `Lit565`, as today;
+   anything else gives `Add565(get(x, y), lvl)`.
+   - It defines `BLIPSCOPE_MAP_STEP_C`, and is included in `AircraftManager.h`'s map draw region before CB10.
+   - **`WxSweep.h`, `test_wx_sweep.cpp` and `sabotage_wx_sweep.py` are not touched.** They are the weather's,
+     registered under WD6.
+3. **The gate, in a map draw region of `DrawSweepOverWeather`.** When `DrawMapBase` drew the composite this frame,
+   the map's blend runs.
+   - The code at each pixel comes from `wxPixels` when the composite included the weather, and is 0 when the map
+     showed alone.
+   - Two per-frame flags, set by `DrawMapBase` and cleared at the start of each frame's clear, say which case applies.
+   - Otherwise the gate is today's: the weather's blend over the crop, or the opaque wedge.
+4. **The buffers:** the map gets its own slice (57,600 B) and spans (960 B) in `mapcompose`'s all-or-none set, zeroed
+   when allocated.
+   - Taking the weather's instead would move WD5d's registered price, a Weatherscope reading.
+   - Q-MB1's price, and so CBF4's, grows by **58,560 B**.
+
+**What the second path must establish** (CLAUDE.md, "when you add a second path"). Today's gate establishes four
+things before it blends. The map's gate must re-establish each:
+- **the frame's background is known:** the composite was copied this frame, by `DrawMapBase`'s own return;
+- **the codes match the pixels:** `wxPixels` is read only when the composite was built from this frame's weather
+  layer. With the map alone, the code is 0, never a stale crop's;
+- **the slice is clean:** the map's slice is zeroed at allocation, and `Blend` clears what it visits;
+- **the sprite's format:** one band, 240 x 240, 16-bit, the same check `DrawSweepOverWeather` makes today.
+
+**Rows, host (a new suite `test_map_sweep.cpp`, with a driver `sabotage_map_sweep.py`, plants only in
+`include/MapSweep.h`):**
+- **CS1:** for every `lvl` 0-255, `Add565(0, lvl) == Green565(lvl)`.
+- **CS2:** for every pixel value and every level the wedge uses, red and blue are unchanged, green is `min(63, g +
+  (lvl >> 2))`, and the result never darkens.
+- **CS3, today's wedge over black:** the map's blend over an all-black frame with every code 0 equals
+  `wxsweep::Blend`'s output, byte for byte, at 360 beam angles.
+- **CS4, the weather unchanged:** over a frame with drawn codes, every drawn-code pixel equals `wxsweep::Blend`'s, for
+  both looks.
+- **CS5, once per pixel:** over a random frame at 360 angles, every pixel equals its single-add value computed from a
+  snapshot. Outside the wedge, the frame is unchanged, and the slice is all zero after the blend.
+- **CS6, the map visible:** at Bend's composite on the host, every wedge pixel is "a map colour plus green", never a
+  pure wedge green, except where the map itself is black.
+- **Plants, each red on its own rows:** the add without saturation; the add into red; `Green565` instead of the add
+  (step B's behaviour); a double blend; the slice not cleared; the codes taken from a stale crop.
+
+**Rows, source (`check_map_draw.py`):**
+- **CD4** names `include/MapSweep.h` as the one allowed definer of `BLIPSCOPE_MAP_STEP_C`. A definition anywhere else
+  is still red.
+- **A new row:** the map's blend is called only inside a map draw region, and only behind `DrawMapBase`'s flag.
+- Their plants run as step B's did.
+
+**Rows, the image.**
+- **The shipping env:** 0 bytes outside the five regions against `main`'s, with the comparator.
+- **wxlook and mapbench:** they change, as designed, and their strings are named.
+- **CB10's own plant:** without step C's header, the build is refused.
+
+**Rows, the bench** (a mapbench image built with step C, in the same procedure and window rules as step B):
+- **CF2:** the map-on, weather-off sweep at 7.7-8.9 ms, `blend` equal to the interval's frame count on map-on ticks
+  and 0 on map-off ticks. Map-off sweeps stay at 2.04 ± 0.3.
+- **CF3:** frame p95, on − off, +6.2 to +10.5 ms.
+- **CF4:** re-read with the weather on, −1.0 to +2.2 ms.
+- **CBF4-C:** the price plus 58,560.
+- **CBF3-C:** `--fb` gains a MAPGREEN class (a map colour plus a level's green). Inside the wedge on map-on ticks,
+  MAPGREEN is over 80 % of the measure, and pure wedge greens under 2 %. Off ticks are the control, as before.
+- **CBF2-C:** the owner on glass (S7, Q-MC2). It is his window.
+- **The prediction for CF2's band has a known weak point.** It came from #445's F run (blended sweep 7.68 ms). The
+  B1 span fix landed after that, so the real blended sweep may now be lower. The step B window's P2 reading (weather
+  on, blended) measures it. **If P2's sweep falls outside 7.7-8.9, CF2's band is registered again, from that number,
+  before step C's window and with a ruling.** It is not fitted after step C's reading.
+
+**Questions for the ruling:**
+- **Q-C1, the add:** in RGB565 (recommended: exact over black, one add per pixel), or in 8-bit with a requantise.
+- **Q-C2, the home:** a new `include/MapSweep.h`, leaving `WxSweep.h` and its suite and driver untouched
+  (recommended), or the change made in `WxSweep.h`'s `BlendOne` for every caller.
+- **Q-C3, the buffers:** the map's own slice and spans, +58,560 B (recommended), or a shared pair, which would move
+  WD5d.
+- **Q-C4, the branch:** step C's code on a branch from #659's head, and its PR opened after #659 merges (recommended),
+  or wait for #659 before writing any code.
+- **Q-C5, the bench:** one window that flashes the step B image and then the step C image, each identified before the
+  window and E2:08 restored at its end; or two windows. The rows of the two images contradict each other (CF2-B
+  against CF2, CBF3 against CBF3-C), so neither image's rows are read from the other.
+
+**The ruling on step C's design (the orchestrator, 07:32:23Z), in short:**
+- **Q-C1:** the add in RGB565 (`g6 += lvl >> 2`, saturating). ACCEPTED.
+- **Q-C2:** a new `include/MapSweep.h`, with `WxSweep.h`, its suite and its driver untouched (WD6's). ACCEPTED.
+- **Q-C3:** the map's own slice and spans, +58,560 B in the all-or-none set (PSRAM). ACCEPTED, because sharing would
+  move WD5d.
+- **Q-C4:** the code goes on a branch from #659's head, and its PR is opened after #659 merges. ACCEPTED. When #659
+  merges, the branch is rebased onto main's squash and its stacked diff read again, so the PR shows only step C.
+- **Q-C5:** ONE window, with the step B image and then the step C image. ACCEPTED, under the owner's 04:29Z terms
+  applied to every flash in it:
+  - all THREE images (step B, step C, and E2:08's restore image) are identified by sha256 before the window;
+  - the write ranges are printed against the partition table before EACH flash: app only, no NVS, no factory image,
+    no full erase;
+  - each image's rows are read only from that image;
+  - E2:08 is restored at the end, with Wi-Fi rejoining from its saved settings and no setup portal;
+  - the window opens only after v19 needs nothing of E2:08, and anything that would need the owner's hands stops it.
+- **CBF2-C**, the owner's look on glass, stays his window.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
@@ -1415,6 +3552,14 @@ failed,** in four workflows (device-ids, firmware, no-traffic-captures, web-rend
 | **B. Draw** | KJAC and KSFO packages from the map server, committed with their provenance and licence files. S2's level is the smallest level covering the view plus the offset. **Place names (~21:13Z):** the Weatherscope's rule (the largest towns first, at most 8, the centre kept clear), and a name never covers an airport code; Daniel judges it on glass |
 | **C. Layering** | The wedge's green is added to the map pixel |
 | **D. Setting** | The map compiles under `WX_LAYER_SHIPS`, and its strings join `scripts/check-no-weather.sh`, with the wxlook control finding them. The web renderer writes `map-layer` "false" in writing, with `check_wx_off.mjs` extended. **The place-name setting (~21:13Z)** follows the same rules with its own key, rows and plants beside DO1-DO4 and DOC1-DOC3 |
+
+**A gate on the switch that turns maps on (the owner, 2026-11-12 ~03:39Z).** This is carried to whichever step flips
+`WX_LAYER_SHIPS` for a customer image.
+- **Before maps are switched on in any customer image, redo step B's per-function accounting** of the map's image with
+  #656's layout-invariant comparator, already on the post-v19 list, so the same tool is not built twice.
+- The wiring's own symbol row was an instrument failure with no verdict. Its retired `symdiff.py` is not to be reused.
+- **The gate is also named at the switch itself,** `platformio.ini`'s `[weather]` block. CB10's `#error` already refuses
+  that flip until step C lands.
 
 ## CI for this PR (docs-only), predicted
 

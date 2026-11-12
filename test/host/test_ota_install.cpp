@@ -282,8 +282,8 @@ int main(int argc, char** argv)
         }
         char buf[160];
         std::snprintf(buf, sizeof buf, "%d identities x %d pre-check heads: %d no-record, %d foreign, %d other, %d flash calls "
-                      "(want 16, 0, 0, 0)", rows, kHeads - kFirstPre, noRecord, foreign, other, calls);
-        check(rows == 8 && noRecord == 16 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
+                      "(want 18, 0, 0, 0)", rows, kHeads - kFirstPre, noRecord, foreign, other, calls);
+        check(rows == 9 && noRecord == 18 && foreign == 0 && other == 0 && calls == 0, "O10", buf);
     }
 
     // ---- MAP1-3: the fail mapping

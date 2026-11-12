@@ -52,6 +52,11 @@
 #error "step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships."
 #endif
 // THE MAP DRAW END
+// THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+#include "MapCompose.h" // the composer, its stale test and its all-or-none PSRAM buffers (pure; CB1-CB5, CB9, CB11)
+#endif
+// THE MAP DRAW END
 #include "OverlapCount.h" // what collides with what on the radar (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
@@ -713,6 +718,34 @@ private:
     bmpk::Package mapPkg;              // the gate's accepted package, pointing into mapLanding
 #endif
     // THE MAP FETCH END
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    // The map under the radar (docs/blipscope-map-client-steps.md, step B, the wiring). Loop task only. Its buffers are
+    // PSRAM, all or none (MapAlloc, CD5); the generations are what the composer's stale test reads (CB4, CB5).
+    mapcompose::Map mapDraw;
+    uint32_t mapPkgSeq = 0;        // changed at every accepted package and at every config change
+    uint32_t mapAirportsGen = 0;   // changed at every write of the airport list or its filters (CD6)
+    uint32_t mapWxGen = 0;         // changed at every weather-layer rebuild (CB5)
+#endif
+    // THE MAP DRAW END
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+#ifndef BLIPSCOPE_MAP_FETCH
+#error "MAP_BENCH is the map's bench: it needs the map (BLIPSCOPE_MAP_FETCH)"
+#endif
+    // The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"): the Bend and KSFO packages built
+    // in, nothing fetched, and its own phases on the 30 s health tick. Bench only: it prints "[map-bench]".
+    struct MapBenchState {
+        int phase = 0;          // P0 the allocation, P1 weather off, P2 weather on, P3 Bend's zoom laps, P4 KSFO's; 5 done
+        uint32_t ticks = 0;     // health ticks in this phase
+        bool mapOff = false;    // P1 and P2: alternates every tick
+        bool wxOff = false;     // P1: the weather forced off
+        int which = -1;         // the package built in and held: 0 Bend, 1 KSFO; -1 before the first Initialise
+    } mapBench;
+    void MapBenchAccept(int which);   // the package into PSRAM, through the gate, accepted as step A would
+    void MapBenchTick();              // the phases, from RecordFrameUs's 30 s tick
+#endif
+    // THE MAP BENCH END
 
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.
@@ -1249,6 +1282,14 @@ private:
                         uint8_t why, const bmpk::Package& pk, uint32_t seq);
 #endif
     // THE MAP FETCH END
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    bool DrawMapBase(BandCanvas& canvas, const uint16_t* wx);   // the base draw with the map; false: today's path
+    static int MapAirportBoxes(void* ctx, mapplaces::Box* out, int maxAirports);   // DrawAirports' list and cull (CD7)
+    static void* MapAlloc(size_t bytes);   // PSRAM, aligned for a double (CD5)
+    static void MapFree(void* p);
+#endif
+    // THE MAP DRAW END
     bool QueueLeaderboardSubmit();              // loop: queue an hourly /api/v1/blipscope/leaderboard POST
     void PersistLeaderboardStanding();          // mirror the standing to NVS for the config page
     // loop: queue a /api/v1/blipscope/enrich lookup.
