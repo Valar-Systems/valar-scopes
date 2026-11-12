@@ -246,3 +246,51 @@ argv goes in the report.
 - **DB11's and DB12's failures are planted by injecting the dry-run's result** (a non-zero exit; a metafile without the config's
   `main`). So a selftest spawns wrangler only for the two real sets (`--env staging`, as read on 11-06), and plant runs reuse those
   sets' raw inputs and spawn nothing.
+
+### The code, run (2026-11-12, 18:19-18:23Z): every row as registered
+
+The code is at dfa4fd93d569: `proxy/scripts/deploy-inputs.mjs` e25aae04efad, `proxy/scripts/deploy.sh` c3b91bff3864. The two files
+the run read were committed and pushed before it.
+
+**The shell, as the owner required before the first dry-run:**
+- `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA` and `XDG_CONFIG_HOME` pointed, for that one shell only, at an empty scratch
+  directory outside every git tree. The shared `wrangler login` was not touched; no `wrangler logout` was run.
+- `CLOUDFLARE_API_TOKEN` present: **false**.
+- `npx wrangler whoami`, whole: "You are not authenticated. Please run `wrangler login`." (wrangler 4.35.0).
+
+**DB18 first, spawning nothing:**
+- an argv without `--dry-run`: **refused**, with 0 spawns;
+- an argv without `--outdir`: **refused**, with 0 spawns;
+- the real argv: **passes the guard**, and only the counting fake records its call.
+
+**The first real dry-runs, each printed just before it was spawned:**
+- `node …/proxy/node_modules/wrangler/bin/wrangler.js deploy --env staging --dry-run --outdir <OS temp>/deploy-inputs-uou1qz --metafile <that dir>/meta.json`
+- the same with `--config basemap.wrangler.toml`.
+
+| row | read |
+|---|---|
+| the sets (`--env staging`) | proxy: **56 bundled, a set of 65**, dry-run 1,114 ms. builder: **9 bundled, a set of 16**, dry-run 908 ms. (On 11-06: 51 and 9.) |
+| DB1, DB1-C, DB2 | as registered. The replay notes 788dab3c with its two `proxy/` files; today's rule counts 1 behind |
+| DB3 to DB10, DB13 to DB16 | every target's verdict as registered |
+| DB11, DB12 | refused (a planted exit 1; the anchor, "main src/index.ts is not among the inputs"). Each falls back and blocks |
+| DB17 | the builder's path (to l.198): `deploy-inputs.mjs`, `session-claim.py`. The proxy's adds `confirm-deploy.sh` and `deploy.sh`. **Nothing missing** from the lists |
+| DB18 | as above |
+| **the 8 plants**, each in a copy | the unmodified copy all green. **P-WIDE, P-EMPTY, P-NOMACH, P-NOANCHOR, P-NOFALLBACK, P-NOPKG, P-NOGUARD and P-CALLEE each redden exactly their registered set** |
+| `check builder staging`, `check proxy staging` (the path `deploy.sh` runs) | exit 0. The set and the dry-run's time printed; main's one new commit (665da673) noted as outside both sets |
+| `session-claim.py --selftest` (it runs `deploy.sh`, CL10) | exit 0, **CL10 passes**: `deploy.sh` refuses with 0 stub calls, and the holder passes the check |
+| `session-claim.py --sabotage` | S-CL-DEPLOY (planted in `deploy.sh`) and S-CL-MERGE as registered. **S-CL-HOOK refused here: an instrument fault, not a reading.** Its anchor ends in `\n`, and this Windows checkout writes `scripts/claim-hook.py` with CRLF: 75 CRLF lines against 0 in git's blob, equal modulo CRLF. This PR changes neither file, and CI's Linux checkout is LF |
+| `proxy/` after every step | clean |
+
+Four real dry-runs ran in all (the selftest's two and the plants' two), every one through the guard. Nothing was uploaded, and no
+login was available to upload with.
+
+**CI for this PR, predicted: 35 check runs: 32 success, 3 skipped (`promote`, `ship-alert`, `version`), 0 failed.**
+- **The baseline:** #658's finished PR run (head a03c6498759d; `docs/` and `proxy/src/index.ts`), 35 runs: 32 success, 3 skipped,
+  the same three.
+- **Main's last workflow change** is af871ecb (#649). It adds a path and a step in `workers.yml` and no job, so #658's job set is
+  current.
+- **#674**, a PR touching `docs/` and `proxy/scripts/` like this one, reads the same 32 names in flight; its three skipped jobs are
+  not created until its builds finish.
+- This PR touches `docs/` and `proxy/scripts/`, which trigger the same workflows.
+
+**Outside the predicted set: stop and report.** Nothing merges while main is red.
