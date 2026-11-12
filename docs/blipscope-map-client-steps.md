@@ -4094,6 +4094,32 @@ does not follow the wedge.
   it as `map_bench_read.frozen-c.py`. Neither `65d2edf5…` nor `5ad12d0a…` is reused for C. The fetcher is unchanged,
   `7b904453…`.
 
+**I2/I3, the owner's ruling (15:07Z, relayed by the orchestrator at 15:14:33Z): (A) and (C).** His words:
+
+> "Record it as proven at the source level, not as a pass."
+>
+> "The image-level text check moves to the pre-ship gate, beside the per-function accounting. Its tool must pass its own
+> controls there first."
+
+**I2/I3, as recorded: PROVEN AT THE SOURCE LEVEL, not a pass.** The claim of `31164e23` line 3589 ("No printable string
+is added against #659's images, because step C prints nothing") is held on step C's source, by (2):
+- **The diff:** `b9d28fa5..89f7e7f5` over `src/` and `include/` is 4 files, +151 and −4: `include/MapCompose.h`,
+  `include/MapSweep.h`, `src/AircraftManager.cpp`, `src/AircraftManager.h`.
+- **The scope print** (`git diff --stat b9d28fa5 89f7e7f5 -- . ':!docs' ':!test'`, accepted 08:59Z): the same four
+  files and nothing else. No library, `platformio.ini` or pre-build script sits outside the diff.
+- **No emitted literal added or removed.** Its three added quote-bearing lines are a `static_assert` message
+  (compile-time only) and two `#include` paths (preprocessor only). No removed line holds a literal.
+
+**Both image instruments failed, and both are named:**
+- **printable runs** (`strings_added.py`, at least 6 printable bytes): they counted machine-code and address bytes as
+  text. Written after `31164e23`, and never shown on a control. Off, from the instrument.
+- **NUL-bounded runs** (`strings_nul.py` `c2d0b8cc…`, at least 6 printable bytes with a NUL on both sides): the
+  positive control found all six literals, but its reading carried pointer-table runs (`0x3C21xxxx` data pointers,
+  `0x420Dxxxx` IROM addresses). That is the instrument again, the rows' second off reading, and it went to the owner.
+
+**Carried to the pre-ship gate,** below: the image-level text check, whose tool must pass its own controls there
+first.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
@@ -4108,6 +4134,11 @@ does not follow the wedge.
 - **Before maps are switched on in any customer image, redo step B's per-function accounting** of the map's image with
   #656's layout-invariant comparator, already on the post-v19 list, so the same tool is not built twice.
 - The wiring's own symbol row was an instrument failure with no verdict. Its retired `symdiff.py` is not to be reused.
+- **Also at that gate (the owner, 2026-11-12 15:07Z):** the image-level text check of step C's I2/I3 ("no printable
+  string is added"), beside the per-function accounting. Its tool must pass its own controls there first. Both
+  instruments tried on the bench images failed (printable runs; NUL-bounded runs, which carry pointer tables), so a
+  third one has to show, on controls, that it separates text from code and pointer data before it reads a customer
+  image. Until then I2/I3 stands proven at the source level only.
 - **The gate is also named at the switch itself,** `platformio.ini`'s `[weather]` block. CB10's `#error` already refuses
   that flip until step C lands.
 
