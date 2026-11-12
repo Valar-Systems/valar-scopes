@@ -4827,6 +4827,78 @@ to be written down as READ:
   green-on-map defect outside the wedge that must read red, before CBF3-C is graded again. The two "added" fails come
   after it.
 
+### CBF3-C's new outside rule, registered before it runs (2026-11-12)
+
+**The ruling's conditions:**
+- The threshold is calibrated from the HOST side, never on C's own frames.
+- The 16.6 % AMBIG-without-map bucket is resolved by class pair BEFORE the rule is frozen.
+- A planted green-on-map defect outside the wedge reads red first.
+- B's frames read the same under the new rule as under the old.
+
+**R0, the AMBIG-without-map bucket, by class pair (a diagnostic, run first).**
+- **On:** C's 30 on-frames' outside region, exactly as `grade_frame_c` draws it, with the control that the counts equal
+  its own.
+- **The method:** each AMBIG pixel not in `src["map"]` is counted by the exact set of C's classes its colour is in
+  (WEDGE, OVERLAY, MAPGREEN). Counts only.
+- **Pre-registered:**
+  - **(O-a)** OVERLAY ∩ MAPGREEN holds more than 50 % of the bucket: the radar's own overlay colours (rings, planes,
+    labels, airports, dots) colliding with an Add565 value. The rule then counts any colour in OVERLAY as overlay,
+    left out of the denominator as OVERLAY already is.
+  - **(O-b)** WEDGE ∩ MAPGREEN holds more than 50 %: wedge pixels outside the mask. The region, not the rule, is the
+    question: STOP.
+  - **Anything else:** STOP.
+
+**THE RULE (C-OUT), two parts. The second is the defect claim itself.**
+- **C-OUT-V, the map visible outside:** non-black `src["map"]` colours over all of the outside's classified pixels
+  (MAP, WEDGE, AMBIG, MAPGREEN; OVERLAY left out, per R0) must be ≥ **T_V**.
+- **C-OUT-G, no green on the map outside:** MAPGREEN-only colours (in MAPGREEN and in no other class) over the same
+  denominator must be < **T_G**.
+
+**THE HOST CALIBRATION.**
+- **The input:** the six host rasters of Bend's map layer, `MapLayer`'s own render of the pinned `bend.bmpk` through
+  `bend_dump2.cpp` (`b08159ad658184d7dd946c07294c31fa342b5488888d138dc2d84b478a9a2288`) at 10/50/150 mi and rotations
+  0/90 (`bendraw/`). Their sha256, recorded first:
+
+  | raster | sha256 |
+  |---|---|
+  | r10 rot0 | `23fb5bfafaf4a77a93f67f305577498854cff13aca73365737e82e896fd80605` |
+  | r10 rot90 | `ff7698153554d7e928f04e5d93fb27b3434d59a3b9922057d958a995d445ec99` |
+  | r50 rot0 | `7b035403b4a40ea66fb7f5bd035d50c83309ddb619592acfeb79ad3443077b90` |
+  | r50 rot90 | `e1001f84bd6b48074f258962e4b2500763b5e8434d6533d28ec0cb152750133a` |
+  | r150 rot0 | `e3a88a361d4f13a53ed7fcf82b36455486bbe75a76521fa764bb14b4c82deda7` |
+  | r150 rot90 | `6f4e2ec4b4b55ed6c49cae63b58d7c0064b5ff0236e98bb29c8460fdb8e9dbdc` |
+- **The outside on the host:** the disc (r ≤ 118 px) minus a 1.12 rad sector at each of 36 beam angles. That is the
+  same sweep as the existing host minimums, so each raster gives 36 outside regions.
+- **Computed, all through C's class sets from the C tree:**
+  - **clean:** the layer as rendered, giving C-OUT-V's and C-OUT-G's host shares (the minimum and the maximum over the
+    216 regions);
+  - **plant G1:** every outside map pixel replaced by Add565(colour, 1), the weakest add `src["adds"]` holds;
+  - **plant G26:** the same at add 26, the strongest;
+  - **plant B0:** the outside set to `0x0000`, the map gone.
+- **Frozen from the host alone, before C's frames are read:**
+  - **T_G** = half of plant G1's minimum MAPGREEN-only share. If that share is under 5 %, the weakest add is below the
+    rule's resolution: that is stated as the detection floor, and the weakest add whose minimum share reaches 10 %
+    sets T_G instead (named).
+  - **T_V** = half of the clean minimum non-black map share.
+- **Predicted:**
+  - clean: C-OUT-G 0.0 % and C-OUT-V near 100 %, both on every region;
+  - plants G1 and G26: C-OUT-G red on every region (subject to the floor above);
+  - plant B0: C-OUT-V red on every region.
+
+**THE CONTROLS, before C is graded:**
+- **(K-a) Red first, on a real frame:** C's first on-frame with the outside's map pixels plus add 1, and again with
+  add 26, must read C-OUT-G red. The same frame unplanted must read green.
+- **(K-b) B the same:** B's 60 frames under C-OUT-V. B has no MAPGREEN set, so C-OUT-G does not apply. Each frame's
+  verdict must equal its verdict under the old outside rule: on-frames pass, and off-frames are the control under 2 %.
+- **(K-c) The control:** C's 29 off-frames read C-OUT-V under 2 %, the old control's bound, unchanged.
+
+**THEN THE READ, ONCE:** CBF3-C graded with C-OUT in place of the old outside criterion. Every other criterion
+(visible, added, the minimums) is unchanged. The two "added" fails stay their own question afterwards. Outcomes:
+- every row as predicted: CBF3-C graded;
+- a row off: its first off reading as a grade was the one before this. **So any off reading here is the SECOND, and it
+  goes to the owner.**
+- anything outside the set: stop, to the owner.
+
 ## Step D: the "Terrain shading" setting, registered before any code (2026-11-12)
 
 **The owner's ruling, as relayed:** a new setting, "Terrain shading", with four values. Unset or unknown reads as
