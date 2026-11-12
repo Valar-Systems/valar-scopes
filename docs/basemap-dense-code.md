@@ -2340,3 +2340,15 @@ of the 149 planted pixels. The expected count is derived here from the plant's g
 | `p2-read.py` | `426e93dd868f2899bdaee1759783a24ea1c03247e7c8ead8dba144b9f72f3407` |
 
 They replace ff3e8a2c25ab and 51c42cbb2a17 above. NOT CAUGHT and UNCHANGED are as accepted.
+
+**KB8 (a)'s controls, run (15:39:14-15:39:15Z, `kb8a-controls.py` 0bb3304fc3e2, on the kept run-4 inputs only): BOTH WORK, as predicted.**
+
+| row | read | |
+|---|---|---|
+| **CAUGHT**, S-KB-SEAM | old **149**; **(a) 142** (KBOS 84 → 83, MIDTOWN 65 → 59), inside [138, 144] | **as predicted** |
+| **NOT CAUGHT**, Boston's corner | old **1**; **(a) 0**; 3 reference pieces | **as predicted** |
+| **UNCHANGED**, no reference | `SEAM_CELL` 1, no (a) key | **as predicted** |
+
+**142 squares with the classes.** The 138 interior pixels all count. At KBOS, Boston's recorded-land (131, 123) drops and its three
+endpoint pixels east of the edge count: 84 - 1 = 83. At MIDTOWN, the 4 outside pixels drop, and 1 of its 3 endpoint pixels counts:
+65 - 6 = 59. **Part 2 waits for the orchestrator's word,** and the push to #652 waits for v19's promote.
