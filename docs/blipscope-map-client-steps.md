@@ -2037,6 +2037,67 @@ text. CB2 reads the byte order and CB11 the refusal; neither reads the key.
 - `d814c31e` stands as read, superseded: its ubuntu-24.04 leg read every frozen line, and its ubuntu-26.04 leg was
   cancelled by the firmware workflow's concurrency group. `082a56d8`'s run is the record for those docs.
 
+### MapCompose.h's run, as read (2026-11-12)
+
+**The code:** `3714af52`, committed before step 1. It adds `include/MapCompose.h`, `test/host/test_map_draw.cpp`,
+`test/host/sabotage_map_compose.py` and run.sh's `MapCompose` block. It sits on `c095c41c` (S-CB-WXBUILD's re-freeze).
+
+**Steps 1-6, every one as predicted:**
+
+| step | read |
+|---|---|
+| 1. the suite, g++ 13.3 (WSL) | `26 checks, 0 failures`. CB2 compared 55,345 shared pixels (2,255 named) |
+| 2. the suite, MinGW 5.1.0 | `26 checks, 0 failures`, with the same CB2 counts |
+| 3. `check_map_draw.py` | CD4, CB8 and CB8b ok: `3 checks, 0 failures` |
+| 4. `sabotage_map_compose.py` | `control (the real files): 26 cases, all pass`. Each of the 14 plants turned red exactly its set, "extra none; missing none" on every line: ORDER 1, NAMESUNDER 1, NOSWAP 1, EAGER 1, NOROT 2, ROTONLY 8, PERFRAME 3, WXBUILD 2, WXSTALE 1, HALF 4, RETRY 1, AIRTRUNC 1, NOFORGET 1, NOGROW 1. `real files unchanged: True`; `MAP COMPOSE SABOTAGES (14) AS PREDICTED`, so 15 AS PREDICTED lines |
+| 5. `--anchors` and `--control` | `40 driver(s) checked`, 0 failed. The new driver: `14 plant(s), 16 anchor(s), all present exactly once` (two plants make two edits each). Its control: `test_map_draw: 26 checks, 0 failures, exit 0 (the table: checks 26)` |
+| 6. `lint_driver_counts.py` | `40 driver(s), 0 flagged; 3 pinned line(s)` |
+
+**Step 7's wording, corrected before it ran.** The registration (`d814c31e`) and the re-freeze (`082a56d8`) said step 7
+would end in `ALL HOST TESTS PASSED`. Under WSL it cannot: the standing rulings of 11-05 and 11-06 say a WSL run.sh
+prediction names its environment blocks, and both texts left them out. That was my miss, caught before the run.
+
+**The ruling, verbatim (the orchestrator, 01:58:15Z):**
+
+> steps 1-6 are RECORDED, all as predicted. g++ and MinGW 26/0 (CB2: 55,345 shared pixels, 2,255 named); check_map_draw
+> 3/0; all 14 plants exactly their sets, WXBUILD at its re-frozen 2; anchors 40 (14 plants, 16 anchors); lint 40/0/3.
+> The step-7 correction is ACCEPTED as a re-freeze before the run. Your miss is recorded: the 11-05/11-06 WSL rule (name
+> the environment blocks) was known and left out of d814c31e and 082a56d8. The corrected WSL prediction is FROZEN HERE as
+> evidence, 01:58:15Z:
+> - exit 2;
+> - FAILED BLOCKS exactly "the same TU, for the board" and "Weatherscope R0 and R0b (the reference's controls, A12.18)";
+> - then HOST TESTS FAILED;
+> - MapCompose 26/0; 40 drivers checked; both passes "40 driver(s): 39 run, 1 skipped" (sabotage_wx_towns);
+> - "sabotage_map_compose.py: 15 AS PREDICTED line(s)";
+> - any other block failing, or either of the two passing, is OFF.
+> "ALL HOST TESTS PASSED" belongs to CI's prediction for the push. GO for step 7. Commit this ruling verbatim with the
+> record. The push waits for 082a56d8's run to be read, as ruled.
+
+**Step 7, as predicted** (run.sh in full under WSL, 01:58:39Z to 02:06:23Z):
+- exit 2;
+- `FAILED BLOCKS:` lists exactly two:
+  - `the rig: Weatherscope R0 and R0b (the reference's controls, A12.18) (exit 2)`, which reads "no python with Pillow";
+  - `failed:  the same TU, for the board`, which reads "no xtensa toolchain found";
+- then `HOST TESTS FAILED`.
+- Everything else: MapCompose `26 checks, 0 failures`; `40 driver(s) checked`; both driver passes `40 driver(s): 39 run, 1
+  skipped`, the skip being `sabotage_wx_towns.py` (the Census archives); lint `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  `sabotage_map_compose.py: 15 AS PREDICTED line(s)`, with `sabotage_map_draw.py` 10 and `sabotage_map_places.py` 6.
+
+**The CI for the push, predicted.** The push carries `c095c41c`, `3714af52` and this record together, after
+`082a56d8`'s run finished and was read as predicted (34 = 30/4/0, tested merge `d108445`), so no run is cancelled:
+- **34 = 30 success / 4 skipped** (`promote`, `publish`, `ship-alert`, `version`) / **0 failed**, with `082a56d8`'s job
+  names;
+- each host-tests leg:
+  - MapPlaces `32 checks, 0 failures`, MapDraw `3 checks, 0 failures`, **MapCompose `26 checks, 0 failures`**;
+  - `40 driver(s) checked`, and both driver passes `40 driver(s): 39 run, 1 skipped`;
+  - lint `40 driver(s), 0 flagged; 3 pinned line(s)`;
+  - `sabotage_map_compose.py: 15`, `sabotage_map_draw.py: 10` and `sabotage_map_places.py: 6 AS PREDICTED line(s)`;
+  - `ALL HOST TESTS PASSED`.
+- The named risk: ubuntu-26.04's newer g++ compiling the new suite and driver under `-Werror`. Any warning is a compile
+  failure, and so an off reading.
+- No firmware image changes: nothing in `src/` includes `MapCompose.h` until the wiring.
+- The tested merge is read from a checkout log. Any other reading stops.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
