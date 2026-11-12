@@ -2414,3 +2414,41 @@ recorded before the run. **A second off reading on KB4 goes to the owner.**
 first (BOTH bounds must fail), then KB4 unchanged, then prints the ladder and d* ("none by 20 km" when none). **The tooling smoke test**
 ran at KDTW, which is not a graded airport: exit 0, empty stderr, every new key present, four ladder steps, and the 2 km step equal to
 the old 2 km figures. No KB4 value was read. Everything else is as pinned.
+
+**Run 6 (15:49:51-15:51:49Z, `p2-read.py` a297d699b060; output 4284c52c5a9c): through KB8 as in run 5; KB4 at KBOS AS PREDICTED; STOPPED
+at KB4 KJFK. This is KB4's SECOND off reading, and it goes to the owner.**
+- **KB4's control:**
+  - KBOS: the complement reads frac **0.0136**, cover **0.0093**, failing both bounds, as predicted.
+  - KJFK: the complement reads frac **0.1339**, cover **0.1476**, failing both bounds, as predicted.
+- **KB4 at KBOS:** frac **0.9827**, cover **0.9907**, as predicted. **KBOS's scope:** at 2 km, frac 0.9649 and cover 0.9610; at 5 km, 0.9346
+  and 0.9323; at 10 km, 0.8947 and 0.8913; at 20 km, 0.8259 and 0.7930. **d\* = 5 km**, so KB4 detects a 5 km misplacement at KBOS.
+- **KB4 at KJFK: frac 0.9706, which passes, but cover 0.4312: OFF** (the bound is 0.90). Nothing after it ran.
+
+**The cause, read after the stop** (`kb4-diag.py` e7a5c5c442fb and `rec18-diag.mts` 78811fef616a, neither a graded row). There are two
+causes, and they are independent.
+- **(1) An instrument flaw: KB4's cover denominator spans the whole 162 km level grid, but KJFK's package is 129.6 km** (D2's step).
+  Of the 19,390 ≤ 0 m pixels outside TIGER water, **8,168 lie outside the package's own square**, where no package of that radius can
+  draw. Inside the square, cover is **0.745**.
+- **(2) A SEA-PATH DEFECT: the New York Bight's ocean piece is REFUSED.** Inside the square, 2,862 low pixels are uncovered.
+  - 2,719 of them are sea in the store that was not drawn, and **2,672 of those are one piece: record 18** (ocean, cell 40/-74, 94
+    outer vertices and one 14-vertex island). The backstop refused it. Had the store's sea been drawn, cover inside the square would
+    be **0.9873**.
+  - **Why it is refused** (the sea path's own steps on that piece in KJFK's frame):
+    - at ε and at ×2, the outer (68 and 55 vertices) and its island bridge with **0** crossings;
+    - **at ε×8** (1,609 m), which KJFK's rung draws from, the outer simplifies to 27 vertices and the island separately. Each is valid
+      alone, but simplified apart they cross each other, so **the bridged ring has 2 proper crossings, and step 5 refuses the whole
+      piece.**
+  - **About 6,000 km² of open Atlantic is drawn as land** at every New York point that draws water from ε×8. The fates have shown
+    "refused 1" at all four since run 3, and **no graded row looked at it.** P2-1's "0 proper crossings" was true, because the refused
+    piece is never drawn: a check that cannot see what it refuses.
+
+**For the owner (via the orchestrator).** Nothing is applied.
+- **(A) KB4's cover, counted inside the package's own square,** as frac already is through the mask. This corrects the instrument; the
+  mask cannot reach past its radius.
+- **(B) The sea path:** when the bridged ring has proper crossings, **drop the island(s) involved and bridge again** before refusing the
+  piece. Refuse it only when its outer alone fails. That keeps step 3's own rule (a hole refused is dropped, the piece kept). At NY it
+  costs one island, and saves about 6,000 km² of sea.
+- **(C) A new graded row, so this cannot recur unseen:** at each point, every sea piece whose OUTER passes step 3 is drawn, so the
+  refused count from step 5 is 0, with the islands dropped printed.
+- **Predicted after (A)+(B):** record 18 is drawn at all four NY points, with one island dropped at each, and KJFK's cover inside the
+  square is about 0.98. These are registered exactly before any re-run.
