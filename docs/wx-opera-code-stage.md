@@ -93,6 +93,35 @@ values this changes.
 | MD-6 | `built` lines a day for `opuk` | about 1 a day (`expire-1d`) plus any cold-isolate races |
 | **OPERA timeouts** (ruled ~23:23Z) | per hour, for 7 days: `wx_ingest_error` lines by kind, and frames stored | **printed:** every full hour's timeouts and frames stored, with any hour under 12 frames named |
 
+### 4.1 Re-registered 2026-11-12, before any of these rows is read: OPERA is down
+
+**The ruling (the orchestrator, 2026-11-12 16:50:33Z), verbatim:**
+
+> 5, re-registering the OPERA rows of the 7-day re-read to 7 days after OPERA returns: YES. It's registered before any
+> reading, and the outage window measures the outage, not the system. Commit it before ~11-13's read.
+
+**The fact it answers.** OPERA's open-radar bucket holds nothing after about 20:05-20:10Z on 2026-11-11. The composite's
+last key is `OPERA@20261111T2010`, and the 21 national feeds in the same bucket stopped too. That was read at 16:28Z on
+11-12 (`docs/wx-opera-stage3.md` section 8). Every OPERA product's R2 `latest` reads epoch 1794427800, and the ten's
+checks log `no-frame` with 0 errors.
+
+**When OPERA returns (T_R):** the first hour in which `opuk` stores a frame newer than 1794427800. It is read from its
+R2 `latest` (`opera_latest.py`), and confirmed by a storing check in Workers Logs at ABR 1. **The moved rows' window is
+the 7 full UTC days that start at the first full hour after T_R.** The ten share one source file, so a product that
+stores later than `opuk` is named as a finding.
+
+| row | read about 2026-11-13, as planned | moves to the 7 days after T_R |
+|---|---|---|
+| cost | `cost_read.py` over 30 days, every line against the projection, **except the ten ingests' lines** | the ten's CPU (by script) and their R2 Class A and B over the 7 days, x 30/7, against M6's projection |
+| MD-6 | `opuk`'s `built` lines a day, graded on the planned window's days on which `opuk` stored frames (to 11-11). Days inside the outage are printed and named "outage", not graded: with no frame there is no build | `built` lines a day, as frozen |
+| OPERA timeouts | not graded. Hours before 20:00Z on 11-11 may be printed as information | as frozen: every full hour's timeouts and frames stored, with any hour under 12 frames named |
+
+**Outside this table, which stops and is reported:**
+- OPERA returns in a changed form: the ingests log errors rather than `no-frame`, or a stored frame differs from the
+  frozen shape.
+- OPERA returns and stops again inside the 7 days. The window restarts at the next T_R, and the gap is reported.
+- If OPERA has not returned when the moved rows fall due, they wait. Nothing about the ten is graded on outage hours.
+
 ## 5. Before any production deploy of the ten
 
 **The whole account's monthly cost goes to Daniel first,** as ruled: with weather on every board and the Weatherscope
