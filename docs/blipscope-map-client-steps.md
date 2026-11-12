@@ -3805,6 +3805,58 @@ re-run, and a second off reading goes to the owner).
     image.
 - **Anything else** stops, and goes to the owner.
 
+**I5, I4's re-run, and I2-I3 re-registered** (the orchestrator, 08:51:39Z).
+- **I5, graded as frozen** ("the same flip build with step C as committed compiles, exit 0"): **AS PREDICTED**. `clean`
+  exit 0, build exit 0, `[SUCCESS]`, no line containing `error:`. The image exists by the fixed check: 1,971,232 B,
+  sha256 `19f4acff…`, with 1 link line and 1 `Building …/firmware.bin` line.
+- **I4's re-run, (b)** (08:53:32-08:56:11Z, p4's slot; frozen as `22b07f8d…`): **AS PREDICTED**.
+  - the plant put CB10's `#if` at line 56 and its `#error` at 57 (header sha `7b887e7e…` became `34edb143…`, and was
+    restored to `7b887e7e…`, equal);
+  - `clean` exit 0, checked;
+  - build exit 1;
+  - CB10's `src/AircraftManager.h:57:2: error: #error "step B draws the map without step C: …"` **twice**, the failing
+    objects `AircraftManager.cpp.o` and `main.cpp.o`;
+  - **no other line containing `error:`** (2 in all);
+  - no link or `Building …/firmware.bin` line, and **no `firmware.bin`**;
+  - porcelain empty; HEAD `2fa53c01`.
+
+**I2 and I3, the claim as frozen in `31164e23`** (line 3589): "**No printable string is added** against #659's images,
+because step C prints nothing." It is read on the images; the source diff gives its prediction.
+
+**(2), the prediction: the source diff `b9d28fa5..89f7e7f5` over `src/` and `include/`.** It is 4 files, +151 and −4.
+Every added or removed line holding a `"` on a non-comment line:
+
+| line | reaches an image? |
+|---|---|
+| `+ include/MapCompose.h: static_assert(kSweepBytes == 58560, "Q-C3: the sweep's slice and spans, 58,560 B");` | no: a `static_assert` message exists only at compile time |
+| `+ include/MapSweep.h: #include "WxSweep.h"` | no: a preprocessor path |
+| `+ src/AircraftManager.h: #include "MapSweep.h"   // …` | no: a preprocessor path |
+
+There are no removed lines with a literal. **So the images' expected change is 0 added and 0 removed.** That is
+`exact_stepc.txt`, which has no `+` or `-` line.
+
+**(1), the reading: NUL-bounded C strings** (`strings_nul.py`). A run is at least 6 bytes of printable ASCII, tab, CR or
+LF, with a NUL immediately before and after it. Date- and time-shaped runs are set aside and counted. The segments come
+from esptool's own table (`esptool image-info`, PlatformIO's penv, v5.3.0); each segment's data starts 8 bytes after
+its "File offs".
+- **Frozen by sha256:**
+  - `strings_nul.py` `c2d0b8cc5d22130f46edd93a7f5c07f64bc12bd3d222a0dedafc77ab503dc900`;
+  - `pos_mapbench.txt` `26289b45acedc9ee9b224cceccd0442b2d8383c1265e0034e3fc8cae9b0de2e3`;
+  - `exact_stepc.txt` `7ecefbfe29b45e6c4346625dfa7298533ae8e0af07c5a44790fb8970957c7ba9`.
+- **The controls, before any reading, in this order:**
+  - **P, positive:** Bw against Bm, the whole image, `--expect-added pos_mapbench.txt`. These are the six `[map-bench]`
+    literals in `src/` at `b9d28fa5`, listed from source before any scan: the PSRAM refusal, the gate refusal, the
+    passes line, the phase line, the boot marker and the alloc line. **Each must be an added run, exactly: 6 of 6**,
+    exit 0. The whole added list is printed.
+  - **N1, negative with no code shift:** Bs1 against Bs2, the whole image: **0 added and 0 removed** beyond the
+    date-shaped runs, exit 0.
+  - **N2, negative with a code shift:** Bw against Cw, `--segments IROM,IRAM` only, where no literal lives: **0 added
+    and 0 removed**, exit 0.
+- **The reading:** Bw against Cw, and Bm against Cm, the whole image, `--expect-exact exact_stepc.txt`: added and
+  removed each **equal** to the frozen (empty) list, as whole lists, exit 0 for both.
+- **Anything code-shaped in any reading is the instrument again, and stops.** Anything else stops too. This is the
+  rows' first re-run, so a second off reading goes to the owner.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
