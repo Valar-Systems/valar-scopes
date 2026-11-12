@@ -3300,6 +3300,42 @@ serving synthetic frames with the device's headers, and a log file the test appe
 - **Q-CF-2, the address:** taken from an environment variable that is never printed. The alternative is resolving
   the board's mDNS name in the fetcher, which would put the name in the fetcher's code or its arguments.
 
+**The ruling on the fetcher (the orchestrator, 07:17:28Z), in short:** Q-CF-1 (+5/+10/+15 s) ACCEPTED; Q-CF-2 (the
+address from an unprinted environment variable) ACCEPTED. One interference was to be settled before code: a
+`/diag/fb` fetch sends 115 KB over Wi-Fi while P1's frames are timed, so it can move CF1, CF2-B and CF3-B. The choices
+offered were (i) excluding frames inside a fetch, (ii) fetching alternate pairs only, or (iii) a measured number.
+
+**Chosen: (ii), alternate pairs.**
+- **Why not (i):** the timing rows read `[health]` lines, which are 30 s aggregates. Excluding single frames would need
+  marks the bench image does not print, and the image is not to change.
+- **Why not (iii):** there is no existing measurement of `/diag/fb`'s effect on frame time on this board to cite.
+  (ii) produces one.
+- **The rule, one place in each tool:** P1's ticks are numbered t = 0..39 from its first phase line. The reader pairs
+  them (2k, 2k + 1). The fetcher fetches only in the **even pairs** (k even, so t mod 4 is 0 or 1): 10 pairs, 10 on
+  ticks and 10 off ticks, 30 frames of each kind.
+  - Every `[health]` line, `BUDGET BROKEN` included, belongs to the interval of the last phase line before it (the
+    reader's attribution rule). Each fetch ends within about 16 s of its tick's 30 s, so its interval is the fetched
+    one.
+
+**Predicted, the timing bands unchanged, graded over the 10 odd (un-fetched) pairs:**
+- CF1: map off 3.01 ± 0.3 ms, map on 5.08 ± 0.3 ms;
+- CF2-B: every un-fetched P1 interval's sweep 2.04 ± 0.3 ms, and `blend=0` over **all** of P1, since a fetch cannot
+  change which wedge path runs;
+- CF3-B: the mean of (on − off) p95 over the 10 un-fetched pairs, +2.07 ± 1.0 ms;
+- CF6: 0 `BUDGET BROKEN` lines outside the fetched intervals, in every phase.
+
+**Reported, not graded:** the fetched pairs' clear, sweep and p95, and their `BUDGET BROKEN` count, printed beside the
+graded figures. That is the measured cost of a fetch, the number (iii) asked for.
+
+**The control, both directions, as log plants in the reader's `--selftest`:**
+- **Exclusion:** a fetched interval inflated (sweep 5.0 ms, p95 +10 ms, one `BUDGET BROKEN`) leaves every row green,
+  and the inflation appears in the reported figures.
+- **Sensitivity:** the same inflation in an un-fetched interval turns CF2-B, CF3-B and CF6 red.
+- **The frame side:** the manifest gains `tick` (t). The `--fb` reader refuses, as the INSTRUMENT, a frame whose tick is
+  not in an even pair, so the fetcher cannot drift from the rule. A plant shows it.
+
+**Then:** the reader's changes and the fetcher, with all plants red first, and the reader frozen again.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
