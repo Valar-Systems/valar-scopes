@@ -3186,3 +3186,27 @@ Every complement control fails both bounds. The scopes are printed: KSEA's d* is
 | `kb5-plant.py` | 11b99bf9fb47 | |
 
 pq4d, the stores, the kb5 binary and every other driver are unchanged since run 9.
+
+**Run 10, first attempt (started 19:24:11Z): ABORTED by me at about 19:25:20Z, before it printed anything.** The pinned driver was
+broken, which makes this a process failure and not a reading.
+- **What happened:** the orchestrator asked whether the landing row was p2-read's only change from run 9. Checking found it was not.
+  - My edit replaced everything from the `K4P` literal to the KB4 loop.
+  - That span also held run 9's **KSEA guard block**: `KSEA_GUARD = 0.886`, and the guard's red-control row.
+  - So the pinned p2-read 9eaf229657ec had lost a registered row, and would have crashed at KSEA (`KSEA_GUARD` undefined).
+- **The run was stopped by its task.** No run-10 process survived (checked by command line), and its output is 0 bytes.
+- **Step 0** had rewritten both stores' indexes at 19:24:15-16Z. The next run's step 0 rebuilds them before anything reads them.
+- **This is the editor-anchor row's shape, mine:** a span bounded by two unique anchors deletes whatever lies between them, and
+  uniqueness says nothing about what that is.
+
+**The fix and its proof:**
+- **The guard block is restored VERBATIM**, its text taken from the session record of run 9's own edit.
+- **Proof that nothing else changed:** on the repaired `p2-read.py` (7ad9bcdbb63a), reversing exactly three edits reproduces run
+  9's pin **e6ba08196d55 byte for byte**:
+  - (i) the KB5 block, back to its original text (taken verbatim from the session record of the Write that created it);
+  - (ii) the `K4P` literal back to its three airports, and `gotv` without the source;
+  - (iii) the exact-values row's label.
+- So the change from run 9 is exactly: the KB5 block (the plant via `kb5-plant.py`, the landing row, the control comparing moved C++
+  with unmoved Python, the pair row), `K4P` extended to six airports with the source, and that row's label. Nothing else.
+
+**Run 10's pin, corrected: `p2-read.py` 7ad9bcdbb63a** (the aborted 9eaf229657ec is kept as `p2-read.run10-aborted.py`). The
+re-registration above is unchanged. Run 10 goes from the top when the orchestrator says go.
