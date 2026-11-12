@@ -3384,6 +3384,116 @@ graded figures. That is the measured cost of a fetch, the number (iii) asked for
 **This push's guards, in their corrected form.** The HEAD check and the previous run's completion are PowerShell
 statements that `throw`, run before the `&&` chain of process checks. They are not links in it.
 
+## Step C: the wedge's green added to the map (design, registered before code; 2026-11-12)
+
+**What is fixed already.**
+- **S7** (`docs/blipscope-basemap-client.md`; Q-MC2, 2026-11-07): the wedge's green is added to the map pixel below
+  it, so the map stays visible under the beam. Over black, this is bit-identical to today's opaque wedge. The owner
+  judges it on glass.
+- **CB10** (`src/AircraftManager.h:51`) refuses every map build without `BLIPSCOPE_MAP_STEP_C`, the bench images
+  excepted. "Step C's header defines it", and CD4 holds the list of allowed definers empty until that header is named.
+- **CF2 and CF3 moved here** (Q-MB12): the sweep with the map on, weather off, at 7.7-8.9 ms, and frame p95 on − off
+  at +6.2 to +10.5 ms.
+
+**Read first, from the code at `73351313` and not from any run.**
+- **One function colours every wedge pixel:** `wxsweep::detail::BlendOne` (`include/WxSweep.h`), shared by `Blend`
+  and `BlendRows`. A drawn weather code gets `Lit565`, look 4 raised toward 100 %. Anything else gets
+  `Green565(lvl)`, which writes over whatever is there.
+- **Each wedge pixel is blended once.** `Rasterise` marks each pixel with the LAST slice that covers it, and `Blend`
+  visits it once and clears the mark. An additive blend depends on that, because a pixel added twice would brighten.
+- **The gate:** `DrawSweepOverWeather` runs only when `wxShowing == Crop` and the weather's buffers are allocated.
+  Otherwise the opaque `DrawRadarSweep` draws. The weather's slice and spans are part of its all-or-none set
+  (`AllocateWeatherBuffers`), so with the weather off they may not exist.
+- **The frame's background:** `DrawMapBase` returns true exactly when it copied the composite this frame. Its callers
+  pass `nullptr` (the map alone) or `wxLayer565` (the weather composed over the map).
+- **Which images compile the map:** `BLIPSCOPE_MAP_FETCH` needs `FEATURE_CLOUD_FEED` and `WX_LAYER_SHIPS`, so wxlook
+  and mapbench compile it today and the shipping env does not.
+
+**The design.**
+1. **The add, in RGB565:** `mapsweep::Add565(px, lvl)` raises the pixel's 6-bit green by `lvl >> 2`, saturating at
+   63, and leaves red and blue as they are.
+   - Over black, that is `(lvl >> 2) << 5`, which equals `Green565(lvl) = (lvl & 0xFC) << 3` for every `lvl`. That
+     is S7's "bit-identical over black", as an identity a test can sweep.
+   - The map's brightest colour is the place grey, green 21 of 63. The largest level, 107, adds 26, so no map pixel
+     saturates. The saturation is there for correctness, not because the map reaches it.
+2. **Its home: a new header, `include/MapSweep.h`.** It includes `WxSweep.h` and reuses `Rasterise`, `SliceLevel` and
+   `Lit565` unchanged. It adds `Add565`, and a `Blend` whose per-pixel rule is: a drawn code gives `Lit565`, as today;
+   anything else gives `Add565(get(x, y), lvl)`.
+   - It defines `BLIPSCOPE_MAP_STEP_C`, and is included in `AircraftManager.h`'s map draw region before CB10.
+   - **`WxSweep.h`, `test_wx_sweep.cpp` and `sabotage_wx_sweep.py` are not touched.** They are the weather's,
+     registered under WD6.
+3. **The gate, in a map draw region of `DrawSweepOverWeather`.** When `DrawMapBase` drew the composite this frame,
+   the map's blend runs.
+   - The code at each pixel comes from `wxPixels` when the composite included the weather, and is 0 when the map
+     showed alone.
+   - Two per-frame flags, set by `DrawMapBase` and cleared at the start of each frame's clear, say which case applies.
+   - Otherwise the gate is today's: the weather's blend over the crop, or the opaque wedge.
+4. **The buffers:** the map gets its own slice (57,600 B) and spans (960 B) in `mapcompose`'s all-or-none set, zeroed
+   when allocated.
+   - Taking the weather's instead would move WD5d's registered price, a Weatherscope reading.
+   - Q-MB1's price, and so CBF4's, grows by **58,560 B**.
+
+**What the second path must establish** (CLAUDE.md, "when you add a second path"). Today's gate establishes four
+things before it blends. The map's gate must re-establish each:
+- **the frame's background is known:** the composite was copied this frame, by `DrawMapBase`'s own return;
+- **the codes match the pixels:** `wxPixels` is read only when the composite was built from this frame's weather
+  layer. With the map alone, the code is 0, never a stale crop's;
+- **the slice is clean:** the map's slice is zeroed at allocation, and `Blend` clears what it visits;
+- **the sprite's format:** one band, 240 x 240, 16-bit, the same check `DrawSweepOverWeather` makes today.
+
+**Rows, host (a new suite `test_map_sweep.cpp`, with a driver `sabotage_map_sweep.py`, plants only in
+`include/MapSweep.h`):**
+- **CS1:** for every `lvl` 0-255, `Add565(0, lvl) == Green565(lvl)`.
+- **CS2:** for every pixel value and every level the wedge uses, red and blue are unchanged, green is `min(63, g +
+  (lvl >> 2))`, and the result never darkens.
+- **CS3, today's wedge over black:** the map's blend over an all-black frame with every code 0 equals
+  `wxsweep::Blend`'s output, byte for byte, at 360 beam angles.
+- **CS4, the weather unchanged:** over a frame with drawn codes, every drawn-code pixel equals `wxsweep::Blend`'s, for
+  both looks.
+- **CS5, once per pixel:** over a random frame at 360 angles, every pixel equals its single-add value computed from a
+  snapshot. Outside the wedge, the frame is unchanged, and the slice is all zero after the blend.
+- **CS6, the map visible:** at Bend's composite on the host, every wedge pixel is "a map colour plus green", never a
+  pure wedge green, except where the map itself is black.
+- **Plants, each red on its own rows:** the add without saturation; the add into red; `Green565` instead of the add
+  (step B's behaviour); a double blend; the slice not cleared; the codes taken from a stale crop.
+
+**Rows, source (`check_map_draw.py`):**
+- **CD4** names `include/MapSweep.h` as the one allowed definer of `BLIPSCOPE_MAP_STEP_C`. A definition anywhere else
+  is still red.
+- **A new row:** the map's blend is called only inside a map draw region, and only behind `DrawMapBase`'s flag.
+- Their plants run as step B's did.
+
+**Rows, the image.**
+- **The shipping env:** 0 bytes outside the five regions against `main`'s, with the comparator.
+- **wxlook and mapbench:** they change, as designed, and their strings are named.
+- **CB10's own plant:** without step C's header, the build is refused.
+
+**Rows, the bench** (a mapbench image built with step C, in the same procedure and window rules as step B):
+- **CF2:** the map-on, weather-off sweep at 7.7-8.9 ms, `blend` equal to the interval's frame count on map-on ticks
+  and 0 on map-off ticks. Map-off sweeps stay at 2.04 ± 0.3.
+- **CF3:** frame p95, on − off, +6.2 to +10.5 ms.
+- **CF4:** re-read with the weather on, −1.0 to +2.2 ms.
+- **CBF4-C:** the price plus 58,560.
+- **CBF3-C:** `--fb` gains a MAPGREEN class (a map colour plus a level's green). Inside the wedge on map-on ticks,
+  MAPGREEN is over 80 % of the measure, and pure wedge greens under 2 %. Off ticks are the control, as before.
+- **CBF2-C:** the owner on glass (S7, Q-MC2). It is his window.
+- **The prediction for CF2's band has a known weak point.** It came from #445's F run (blended sweep 7.68 ms). The
+  B1 span fix landed after that, so the real blended sweep may now be lower. The step B window's P2 reading (weather
+  on, blended) measures it. **If P2's sweep falls outside 7.7-8.9, CF2's band is registered again, from that number,
+  before step C's window and with a ruling.** It is not fitted after step C's reading.
+
+**Questions for the ruling:**
+- **Q-C1, the add:** in RGB565 (recommended: exact over black, one add per pixel), or in 8-bit with a requantise.
+- **Q-C2, the home:** a new `include/MapSweep.h`, leaving `WxSweep.h` and its suite and driver untouched
+  (recommended), or the change made in `WxSweep.h`'s `BlendOne` for every caller.
+- **Q-C3, the buffers:** the map's own slice and spans, +58,560 B (recommended), or a shared pair, which would move
+  WD5d.
+- **Q-C4, the branch:** step C's code on a branch from #659's head, and its PR opened after #659 merges (recommended),
+  or wait for #659 before writing any code.
+- **Q-C5, the bench:** one window that flashes the step B image and then the step C image, each identified before the
+  window and E2:08 restored at its end; or two windows. The rows of the two images contradict each other (CF2-B
+  against CF2, CBF3 against CBF3-C), so neither image's rows are read from the other.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
