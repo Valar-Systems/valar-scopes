@@ -1948,3 +1948,54 @@ Each anchor was counted exactly once, LF, with no test run.
 **Then, before the PR:** X9, the look (S4.12.4). **The deploy** only in a slot granted by the reviewer:
 `[env.shsr-inert]` first, through `tools/wx/ingest_deploy.sh` under the claim. Its cost line is stated with the account's
 total, under the owner's budget rule.
+
+### S4.27, 2026-11-12: W4 on main; its deploy and every read-back, frozen before the slot is asked for (22:2xZ)
+
+**#683 is merged** by rule as `05746deca023` (parent `f3dd6b62b652`, tree `a7b06ec78503`, equal to the approved tree).
+**Main's push CI there is finished and green:** 35 = 33 success / 2 skipped.
+
+**What deploys, from a checkout of main at `05746deca023`, never a PR head:** the ingest Worker
+`blipscope-wx-ingest-shsr`, in two steps, each through `tools/wx/ingest_deploy.sh` under the claim
+`wx-ingest-shsr:production`. Before the first command, the deployer lock is confirmed free in chat; a granted slot is
+not the lock.
+
+**What does NOT deploy here: the proxy.** Until the proxy's next deploy from main, `/wx/shsr` answers 404 and
+`/healthz` lists no `shsr`. Frames are built into R2 (`wx/shsr/…`) but are not served. That is the reviewer's to
+schedule.
+
+#### Step 1: `[env.shsr-inert]` (WX_INGEST off), the new Worker's first version, so there is something to roll back to
+
+| row | read | predicted |
+|---|---|---|
+| **I1** | `ingest_deploy.sh wx-ingest.wrangler.toml shsr-inert` | exit 0; "blipscope-wx-ingest-shsr runs now: [(<version>, 100)]" |
+| **I2** | `r3p.py first blipscope-wx-ingest-shsr <deploy ISO>` | the first scheduled invocation within 120 s of the deploy |
+| **I3** | `r3p.py lines blipscope-wx-ingest-shsr <deploy+2 min> <deploy+7 min> --minutes shsr` | `lines_by_product` {} (a `wx_ingest_off` line carries no product); `errors` []; `shsr_minutes_both` 0 |
+
+#### Step 2: `[env.shsr]` (WX_INGEST on), only after I1-I3 hold
+
+| row | read | predicted |
+|---|---|---|
+| **O1** | `ingest_deploy.sh wx-ingest.wrangler.toml shsr` | exit 0; one version at 100 |
+| **O2** | `r3p.py lines blipscope-wx-ingest-shsr <deploy+1 min> <deploy+11 min> --minutes shsr` | `lines_by_product` {"shsr": 16-20}; `shsr_minutes_both` at least 8 of 10; `statuses` include `shsr:stored` or `shsr:backfilled` (the first check backfills the last 20 min); at most 2 `errors`, and none in two minutes running (NOAA's own blips, as cref sees them) |
+
+**The stop, fixed now:**
+- `wx_ingest_error` in 3 minutes running, or no `shsr` line in 3 minutes running, means `[env.shsr-inert]` is
+  redeployed at once (a rollback does not wait), then reported.
+- **Outside the set** (an exit that isn't 0, a version not at 100, any row outside its band): stop and report. Nothing
+  is fixed before the ruling.
+
+**After the deploy, X10 (S4.12.4), printed, not graded:** the first full day's CPU ms per invocation (against cref's
+645) and Class A (against 43 k-140 k a month), from `r3p.py cpu` and the budget's read. The numbers go to uk-data, the
+budget file's owner, to replace `build_budget.py`'s "projected from cref" line.
+
+#### The cost line, with the account's total (#671's budget on main, Read A, overage a month)
+
+| scenario | total | source |
+|---|---|---|
+| today: the ten OPERA silent, shsr absent | **$0.12** | `docs/account-budget.md`, as read |
+| OPERA running, shsr absent | **$5.26** | the same |
+| **OPERA running + shsr** | **$5.79** | the same |
+| **today + shsr** (the ten silent, shsr built), which the budget does not list | **about $5.06-$5.18** | S4.25's line: shsr alone crosses the included million Class A ($4.94-$5.06), plus today's $0.12 |
+
+Every scenario is inside the $10 allowance. The table's flags stand as read: `cpu_ms` OVER and `r2_class_a` OVER with
+OPERA running.
