@@ -3256,6 +3256,50 @@ the code and `--selftest`, every plant red, the sha frozen and recorded; no benc
 straddled when a new phase line lands before its response, and prints no host name or address. It will be registered
 the same way, with its own plants, before it runs.
 
+### CBF3's fetcher: its design, registered before its code (2026-11-12)
+
+The reader above reads a manifest of frames. This is what writes it during the window. Nothing about the bench image
+changes.
+
+**What it does.**
+- **Its inputs:**
+  - the serial trace's log file, written by `scripts/bench-trace.ps1` (one open, never repeated), which the fetcher
+    only reads;
+  - the board's address, from an environment variable set in the window's own shell. The fetcher never prints it,
+    and no file it writes holds it.
+- **For each P1 tick:**
+  - it waits for a new `[map-bench] phase P1 map=on|off …` line in the log;
+  - it fetches `/diag/fb` at +5, +10 and +15 s after that line arrived, inside the 30 s tick and clear of both ends;
+  - it labels each fetch with that line's `map=` value.
+- **Per fetch:**
+  - the phase-line count is read before the request and again after the response. A change means `straddled: true`;
+  - `X-Blipscope-Frame-Finished` gives `finished` (a missing header is `false`);
+  - the body is kept only if it is 115,200 bytes, `X-Blipscope-Frame-Format` is `RGB565BE`, and the width and height
+    are 240;
+  - any other response (a 503, a short body, a timeout) is counted and named in the fetcher's own summary, and is not
+    written to the manifest.
+- **When it ends:** after the first P2 phase line, or a stated timeout. It prints counts only: ticks seen, frames
+  kept, not kept by reason, straddled, and not finished.
+
+**Predicted, for the window:** 40 P1 ticks (20 on, 20 off) and 120 fetches. P1's frame rate leaves room for a
+finished frame within the server's bound, so nearly every fetch should be finished, and straddled should be 0, since
+every fetch sits 5 s from either end of its tick. The reader's own minimum, 10 trustworthy frames of each kind, is
+what decides BLIND, not this fetcher.
+
+**Plants, run red before it touches the board.** It runs against a stand-in on this machine: a local HTTP server
+serving synthetic frames with the device's headers, and a log file the test appends phase lines to.
+- the normal case: the labels and the file count as predicted;
+- a phase line appended while a response is held: `straddled: true`;
+- `Finished: false`, and then the header missing: `finished: false`;
+- a 503 and a short body: not written, and counted under its reason;
+- the address must not appear in anything it prints or writes: grep the output and every file for the stand-in's
+  address string. A hit is red.
+
+**Questions for the ruling:**
+- **Q-CF-1, the fetch times:** +5, +10 and +15 s after each phase line.
+- **Q-CF-2, the address:** taken from an environment variable that is never printed. The alternative is resolving
+  the board's mDNS name in the fetcher, which would put the name in the fetcher's code or its arguments.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
