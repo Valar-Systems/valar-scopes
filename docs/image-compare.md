@@ -691,3 +691,60 @@ Each was frozen before anything was read:
 **The checker** is filed with its sha256 before the read. It sorts every line of the reading into exactly one of:
 expected, the counted classes (offsets-only, relocations unchanged, FILL, RELAX, UNACCOUNTED), REPORTED by name, or
 STOP. Its outcome is the worst class present.
+
+## 19. P-REDO, as read (2026-11-12, 18:57Z): STOP, under map-client's own rules
+
+**Read** with instrument `5c56eda044ea`, the filed checker (sha `a99238d1a809`, 18:55:54Z; its three controls read
+first: clean, STOP and REPORTED, each for the right reason), the allow file (`506cbcfce9b0`), `--cxxfilt` and
+`--reloc-names`.
+- **Builds:** both stores were built from clean in one tree, porcelain clean, M0 14 of 14, T0′ 3 fixed in 2 inputs.
+  The merge trees were checked equal to the registered `eb84bef82d41` and `0b1d19f08e26` before building.
+- **The reading:** 292 lines, exit 3; 8,090 functions moved. The checker sorted every line:
+
+| class | count | what |
+|---|---|---|
+| expected | 54 | the two differing objects; the six changed by source; `_GLOBAL__sub_I_tft`; the NEW map code; GC exactly `fmin`, `fmax`, `__fpclassifyd` |
+| relocations unchanged | 50 | no-source CHANGED functions in the two objects whose named targets are unchanged |
+| FILL | 64 | no-source functions in the two objects that are the same instructions apart from the assembler's fill |
+| offsets-only | 0 | none: the offset shifts surfaced as "relocations unchanged" instead |
+| RELAX | 0 | none succeeded |
+| UNACCOUNTED | 22 | size-changed FILL functions in `AircraftManager.cpp.o` whose final copy no image table covers: map-client's 1b blind spot |
+| **REPORTED** | 3 | see below |
+| **STOP** | 38 | see below |
+
+**REPORTED, each by name:**
+- `HandleTouch`: `+unit:sec:.rodata+436 -unit:sec:.rodata+392`. That is the object's **unsplit** `.rodata` moving
+  under it, because new constants were added. A unit of an unsplit section is named by its offset, so this reads as a
+  relocation change. **It is a naming artifact, not an inlining signal.**
+- `UpdateBrightness`: `-sym:HWCDCSerial`. A reference to `Serial` is lost: a real codegen change, the inlining
+  alternative.
+- `DrawSweepOverWeather`: `+sym:wxs2::To565 x2`. It now calls the out-of-line `To565` that Cw instantiates: the
+  inlining alternative.
+
+**STOP, each by cause:**
+- **`RecordFrameUs` CHANGED, with its relocations unchanged.** That is the offset-shift form: it reads members
+  declared after `AircraftManager.h:725`. The set expected it unchanged because its own hunk is compiled out, and
+  didn't allow for the shift. Map-client's rule: stop.
+- **Three data units the set doesn't name:**
+  - `AircraftManager.cpp.o`'s unsplit `.rodata`, named by many;
+  - `main.cpp.o`'s `appManager`, named by `_GLOBAL__sub_I_tft`, `loop()` and `setup()`;
+  - `main.cpp.o`'s `.gcc_except_table._GLOBAL__sub_I_tft`, unpaired. **A gap in 1e:** a static initializer lives in
+    `.text.startup.<name>`, so pairing on `.text.<suffix>` misses it.
+- **`not linked: CHANGED EnrichDeferredForSubmit`**: a changed function linked in neither image. The checker had no
+  class for the line.
+- **33 UNDECIDED in functions whose objects are identical,** at the image layer. RELAX's earning walk refused them:
+
+  | count | cause |
+  |---|---|
+  | 19 | a flipped long call whose reach never crossed the limit |
+  | 7 | an unrelocated instruction differs: the linker re-aligned |
+  | 5 | a long-call site neither relaxed nor kept |
+  | 1 | a relocated format the masks don't know |
+  | 1 | a width change to a different operation |
+
+  **The finding:** with a layout shift of about 14.5 KB, the linker's relaxation does more than 1a models (a deleted
+  `l32r`, `callx` → `call`, narrowing). The walk refuses rather than guess, which is the conservative direction. In K4
+  (+setup only) and POS (#651's patch) it met this once.
+
+**The outcome is STOP: map-client's escape hatch, "the instrument, or the model, is unreliable at this scale". Nothing
+is explained away, and the next step is the reviewer's and map-client's to decide.**
