@@ -1,4 +1,9 @@
 #include "AircraftManager.h"
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
@@ -2087,6 +2092,64 @@ void AircraftManager::RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, u
 
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    {
+        // The frame bench's recorder and scene driver, on the loop task (docs/frame-time-bench.md).
+        framebench::State& fb = framebench::S();
+        static bool announced = false;
+        if (!announced) {
+            announced = true;
+            Serial.printf("[frame-bench] the frame bench: %d scenes, settle %lu s, measure %lu s\n",
+                          framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
+                          (unsigned long)(framebench::MEASURE_MS / 1000));
+        }
+        framebench::Record(frameUs, trackedAircraft.size());
+        const uint32_t nowMs = millis();
+        if (!fb.done) {
+            if (fb.scene < 0) {
+                if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
+                    framebench::SelfTime();
+                    fb.scene = 0;
+                    framebench::PrepareScene(0);
+                    fb.measuring = false;
+                    fb.phaseStartMs = nowMs;
+                    Serial.printf("[frame-bench] scene S0 %s home=%s level=%u rung=%umi settle\n",
+                                  framebench::kKindName[framebench::kScenes[0].kind],
+                                  framebench::kHomeName[framebench::kScenes[0].home],
+                                  (unsigned)framebench::kScenes[0].level, (unsigned)framebench::kScenes[0].rung);
+                    Initialise();
+                }
+            } else if (!fb.measuring) {
+                if (nowMs - fb.phaseStartMs >= framebench::SETTLE_MS && fb.dumpScene < 0) {
+                    fb.measuring = true;
+                    fb.phaseStartMs = nowMs;
+                    fb.n = 0;
+                    fb.overflowFrames = 0;
+                    Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
+                }
+            } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
+                framebench::EndMeasure();
+                const int next = fb.scene + 1;
+                if (next < framebench::kNumScenes) {
+                    fb.scene = next;
+                    framebench::PrepareScene(next);
+                    fb.phaseStartMs = nowMs;
+                    Serial.printf("[frame-bench] scene S%d %s home=%s level=%u rung=%umi settle\n", next,
+                                  framebench::kKindName[framebench::kScenes[next].kind],
+                                  framebench::kHomeName[framebench::kScenes[next].home],
+                                  (unsigned)framebench::kScenes[next].level, (unsigned)framebench::kScenes[next].rung);
+                } else {
+                    fb.done = true;
+                    Serial.println("[frame-bench] run done; the board's own settings again");
+                }
+                Initialise();
+            }
+        }
+        framebench::PumpDump();
+    }
+#endif
+    // THE FRAME BENCH END
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
     const uint32_t tenths = frameUs / 100;
     const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
@@ -4001,6 +4064,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // view culls nothing, as before zoom). The tap hit-test uses the same
         // predicate, so nothing undrawn can be tapped.
         if (ZoomCulled(x, y)) continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (firstPass) framebench::S().drawn++;   // DRAWN (A2): this frame's drawn aircraft
+#endif
+        // THE FRAME BENCH END
 
         // The whole contact -- marker, trail, label -- fades together as its
         // radar return ages, so a dim blip doesn't sit under a bright trail/label.

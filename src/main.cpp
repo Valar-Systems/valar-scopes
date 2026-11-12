@@ -2,6 +2,11 @@
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <esp_task_wdt.h>
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 
 #include "LGFX.h"
 #include "Layout.h"
@@ -995,6 +1000,13 @@ void loop()
   framebuf::FrameDone();
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+  // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+  // present to present, then CTRL+10ms's planted delay inside the frame span (I-6)
+  framebench::Present(micros());
+  if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);
+#endif
+  // THE FRAME BENCH END
   appManager.RecordFrameUs(micros() - frameStartUs);
 
 #ifdef FEATURE_CLOUD_FEED
