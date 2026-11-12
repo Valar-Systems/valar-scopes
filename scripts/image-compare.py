@@ -920,14 +920,27 @@ def compare(path_a, path_b, allow, cxxfilt, out):
             if rs and all(r in in_scope or allowed(r[1]) for r in rs):
                 in_scope.add(key)
                 grew = True
+    def named_by(key, oa, ob):
+        """Amendment 1d: a changed data unit's referrers, the kept units of its own object on either side. An unsplit
+        section is attributed to ALL of them, never to a guessed one."""
+        iid, ident = key
+        names = set()
+        for side, obj in ((A, oa), (B, ob)):
+            if obj is None:
+                continue
+            for r in local_referrers(key, obj if side is A else None, obj if side is B else None):
+                if kept_in(side, obj, r[1], iid):
+                    names.add(dm(r[1]))
+        return " (named by: %s)" % ", ".join(sorted(names)) if names else " (named by: no kept unit)"
     outside = []
     for key in sorted(changed):
         v, bind, kind, ka, kb, oa, ob = changed[key]
         where = "A+B" if ka and kb else ("A" if ka else "B")
-        out("%s %s %s %s %s [%s] -- %s" % (v, kind, bind[4:].lower(), where, dm(key[1]), key[0],
-                                          "in scope" if key in in_scope else "OUT"))
+        refs = named_by(key, oa, ob) if kind == "data" else ""
+        out("%s %s %s %s %s [%s] -- %s%s" % (v, kind, bind[4:].lower(), where, dm(key[1]), key[0],
+                                            "in scope" if key in in_scope else "OUT", refs))
         if key not in in_scope:
-            outside.append(dm(key[1]))
+            outside.append(dm(key[1]) + refs)
     for u in undecided:
         out("UNDECIDED " + u)
     if undecided:

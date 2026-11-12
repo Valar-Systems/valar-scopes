@@ -72,6 +72,12 @@ obj "$b" main_off.c main.c; obj "$b" off_b.c off.c
 link "$a" entry "" src/main.c.o src/off.c.o
 link "$b" entry "" src/main.c.o src/off.c.o
 
+a=$(store rodata/a); b=$(store rodata/b)
+obj "$a" main_rod.c main.c; obj "$a" rod_a.c rod.c
+obj "$b" main_rod.c main.c; obj "$b" rod_b.c rod.c
+link "$a" entry "" src/main.c.o src/rod.c.o
+link "$b" entry "" src/main.c.o src/rod.c.o
+
 for c in t0 t0bad; do
   s=$(store $c); src=WiFiManager.c; [ $c = t0bad ] && src=WiFiManager_bad.c
   obj "$s" "$src" WiFiManager.c; link "$s" about "" src/WiFiManager.c.o

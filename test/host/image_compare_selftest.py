@@ -87,6 +87,26 @@ CASES = [
         "functions whose address moved: 0",
         "CHANGED (load/store offsets only: 1) func global A+B get [src/off.c.o] -- OUT",
         "verdict: OUT OF SCOPE: get"]),
+    # amendment 1d: f1's and f2's struct constants share the object's unsplit .rodata. f1's changes, neither function's
+    # code does: the change is attributed to ALL the unit's referrers, never to a guessed one, and the verdict names them.
+    ("rodata", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/rod.c.o",
+        "functions whose address moved: 0",
+        "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- OUT (named by: f1, f2)",
+        "verdict: OUT OF SCOPE: sec:.rodata (named by: f1, f2)"]),
+    ("rodata", ["f1"], 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/rod.c.o",
+        "functions whose address moved: 0",
+        "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- OUT (named by: f1, f2)",
+        "verdict: OUT OF SCOPE: sec:.rodata (named by: f1, f2)"]),
+    ("rodata", ["f1", "f2"], 0, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/rod.c.o",
+        "functions whose address moved: 0",
+        "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- in scope (named by: f1, f2)",
+        "verdict: IN SCOPE (1 changed units)"]),
 ]
 
 

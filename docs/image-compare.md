@@ -402,3 +402,54 @@ The selftest's two T0 cases move to T0′'s output, and still pass both ways. Th
 **A finding for a later docs fix, not in this PR.** CLAUDE.md's rebuild-regions table names WiFiManager's `aboutdate`
 and `Software Info:` strings as two `__DATE__ " " __TIME__` stamps. In this WiFiManager there is one, and the second
 build stamp in the image is the Arduino core's date-only string.
+
+## 13. K2 OFF, amendment 1d, and M0's different-build control (the reviewer's ruling, 17:55:34Z)
+
+**K2 read OFF.** With the instrument at `232511551c28`, against K0's second C build:
+
+    inputs: 362 loaded, 1 differ (src/main.cpp.o)
+    functions whose address moved: 0
+    CHANGED data local A+B sec:.rodata [src/main.cpp.o] -- OUT
+    verdict: OUT OF SCOPE: sec:.rodata      exit 1
+
+- **What matched:** one changed unit, OUT, and 0 size differences.
+- **What didn't:** the unit is `main.o`'s **unsplit** `.rodata` (140 B, no symbol). It holds the `wdtConfig` constant
+  that `setup()` copies. `setup()`'s code is unchanged.
+  - Four functions name that section: `joinfail::AdviceFor`, `LGFX_Sprite::LGFX_Sprite`,
+    `WiFiManagerHelpers::BootTouchToForget` and `setup()`. So it is not "a data unit that only setup() refers to".
+  - The miss is mine: I predicted a literal or a per-item section, and it was a section shared by four functions.
+- **The verdict was right,** and in the safe direction.
+
+**Amendment 1d, as ruled. No change to the verdict rule.**
+- Every changed data unit prints its referrers: the kept units of its own object, on either side. The verdict names
+  the unit with them.
+- An unsplit section is attributed to ALL its referrers, never to a guessed one.
+- **The fixture `rodata`:** `f1` and `f2` keep their struct constants in one unsplit `.rodata`. B changes `f1`'s, and
+  neither function's code changes. Its three cases:
+  - no allow list: OUT, named by `f1, f2`;
+  - allow `f1`: still OUT, because `f2` is not on the list;
+  - allow `f1, f2`: IN.
+- **Red first:** today's code (`232511551c28`, unchanged) read exactly those three cases red, and nothing else (17:58:21Z).
+  With 1d, all 22 pass.
+- **The sabotage run:** P12 (referrers not printed) turns exactly the three red. P7's set was re-derived when the
+  fixture landed: its first run read OFF on `rodata allow=f1,f2`, the very rule P7 breaks. All 12 plants now read as
+  predicted.
+
+**K2 re-read under 1d (K2's first re-read).** Predicted at 17:59:34Z, written to a file before the run, with the four
+names demangled first:
+
+    CHANGED data local A+B sec:.rodata [.pio/build/blipscope-s3-128/src/main.cpp.o] -- OUT (named by:
+      WiFiManagerHelpers::BootTouchToForget(LGFX&, lgfx::v1::LGFX_Sprite&), joinfail::AdviceFor(joinfail::Cause),
+      lgfx::v1::LGFX_Sprite::LGFX_Sprite(lgfx::v1::LovyanGFX*), setup())
+    verdict: OUT OF SCOPE: sec:.rodata (named by: the same four)      exit 1
+
+**Read (18:00:41Z): byte-identical to the prediction once line endings are stripped.** Windows Python writes CRLF and
+the prediction was LF; 5 CRs, nothing else.
+
+**M0's different-build red control.**
+- Amendment 1b's row expected K2's map to fail. That was corrected before it was read: a same-size plant moves no
+  section, so a section-table tie can't fail on it. K2's map tied 14 of 14, as corrected. That row is no longer a
+  red control.
+- **K4's map against C's ELF became the control.** It was predicted to fail with `.flash.text` among the untied
+  sections, and it **read exit 1, 13 of 14, `.flash.text` alone (18:01:01Z)**. K4's own pair ties 14 of 14.
+- M0 has now been seen refusing a different build. This was read before any K4 row.
