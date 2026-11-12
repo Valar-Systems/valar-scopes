@@ -725,3 +725,19 @@ stamp, the full HEAD (otherwise D3's meaning, SG-F's: stop). **No further SG req
   the builder errors.** If D3 passes and the time box allows, KJFK's SG request follows, as registered.
 - **Misses, both recorded:** mine, that D3 assumed a 422 fills `/healthz`; the orchestrator's, that the 15:23Z re-order did not check
   it either.
+
+### D3 by one 200, then SG-A at KJFK (15:30:15-15:31:39Z): every row AS PREDICTED; the claim released at 15:31:39Z
+
+| row | read | |
+|---|---|---|
+| **D3's 200** at KJAC (43.61, -110.74), ε 201,169 | HTTP 202, then **200** with a BMPK package of 206,760 B. The tail: one `bm_build`, **status 200, rung 1** (recorded, not predicted), outcome ok, cpu 3,148 ms, wall 9,779 ms | as predicted |
+| **D3's binding read**, `/healthz` ×8 (15:30:34-15:30:40Z) | reads 3, 5 and 6: **store `4c0875738f38`, commit `f3fee349061afc346900a5f85a0eee2034791ce4`**. Reads 1, 2, 4, 7 and 8: null, other isolates. **No other value** | **PASS** |
+| **SG-A at KJFK** (40.64, -73.78), 15:30:52-15:31:11Z | HTTP 202, then **422 `too_large`**. The tail: one build, outcome ok, 0 exceptions, cpu 7,841 ms, wall 12,145 ms. `bm_build` 422, rung -1, ladder **238,584 / 196,364 / 176,124 / 40,366, RL2's KJFK ladder exactly** | **as predicted** |
+
+- **Neither query read SG-B to SG-F.** There was no Exceeded Memory or Exceeded CPU, no 200 at the SG ε, no stored 422 without a build,
+  and no ladder that differs from RL2's. **So workerd built the release variant inside 128 MB at KLGA and KJFK, with RL2's answers.**
+  The margin under 128 MB is not shown, as registered.
+- **The tail** was stopped by its own process tree only: the three processes started at 15:24:58Z, re-verified by start time and command
+  line before the stop. No tail process was left.
+- **The claim was released at 15:31:39Z** (deploy free, merge free), inside the 15:50:00Z time box.
+- **The staging builder stays at `fbc7da46`,** which is healthy. Its rollback target was not used: it is `9512e266`, and R1 is ruled for it.
