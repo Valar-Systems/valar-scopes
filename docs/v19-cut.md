@@ -401,6 +401,18 @@ first").** A new measurement, not a re-run of C2.
   7. **C2:** S' flashed; B' as `firmware-s3-128.bin` ("20" stays). Read by trace.
   8. **C3:** A' flashed; B' stays. Read by trace through the update and the next boot. The next check-in's `ota` result is
      `ok`.
+     - **Re-frozen before it runs (ruled (a), reviewer, 05:24Z), found by me after C2 and before C3.** As first written,
+       the flash's own reset boot would install B' at once, with B' and "20" live, before any trace was open. C3's graded
+       lines would go unobserved. Only verified assets are used, in this order:
+       1. `version.txt` <- the original "6" from the snapshot (`e7f6c011776e`), read back by digest;
+       2. A' flashed app-only, and identified by five regions. **Guard:** its boot (not graded otherwise) must show
+          `latest=6` and no update, C0's line. If it does anything else (a download, an install), stop and restore, because
+          then the setup failed, not C3;
+       3. `version.txt` <- "20" (`f5ca38f748a1`), read back; B' stays;
+       4. `read_mac` plus one trace of 5 minutes, graded exactly as A12.172's C3 (`progress 0` and `progress 100`, "update
+          installed; restarting", then the v20 / `app1` boot);
+       5. the Worker's next `ota` row: `ok`.
+     - Grading C3 from the Worker's `ok` alone was rejected: it reads less than frozen.
   9. **C4 (Q112 (a)):** C4-0, C4-1 and C4-2 as frozen, back to `blipscope-s3-128` at C'. Identified by the five-region
      comparator against `abc34056c95f`.
   10. **Restore the prerelease:**
