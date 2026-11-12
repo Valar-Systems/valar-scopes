@@ -246,6 +246,20 @@ first").** A new measurement, not a re-run of C2.
      - the serial is printed beside the port before anything is written;
      - four regions are written (`0x0`, `0x8000`, `0x1E000`, `0x20000`), none in NVS, each "Hash of data verified";
      - the build directory's `firmware.bin` reads `cb9c05d92d3b` before and after the run, so `pio` rebuilt nothing.
+     - **W1's reading (2026-11-12, 03:38:34Z to 03:41:56Z, in the owner's window):**
+       - The serial was printed beside the port (COM18). Four regions were written (19,984 / 3,072 / 8,192 / 1,932,192
+         bytes), each "Hash of data verified", none in NVS, and `-NoCapture` was honoured. All as predicted.
+       - **"Rebuilt nothing" read OFF, my miss.** `bench-flash.ps1`'s `pio run -t upload` did a full rebuild (260 compile
+         and link lines), so the image after the run was `abc34056c95f`. This record's own step-7 entry already says
+         `bench-flash.ps1` rebuilds before it writes.
+       - **The 75-byte accounting.** Same tree, detached C' with porcelain 0. The same five-region comparator, its four
+         controls proven, places every differing byte between `cb9c05d92d3b` and `abc34056c95f` (1,932,192 bytes each):
+         app_elf_sha256 32, checksum 1, image SHA-256 32, `__TIME__` at `0x3138` 5 (16:04:12 -> 19:40:28), and `__TIME__`
+         at `0x1006e` 5 (16:05:11 -> 19:41:23).
+       - **Ruled (i) by the reviewer, 03:43Z:** `abc34056c95f` is C''s image for step 4', identified by the same standard as
+         `cb9c05d92d3b` (P5 and P7 hold by that equality). The shipping image is CI's own rebuild, differing in exactly those
+         regions. Writing the identified file exactly, a new procedure with a second flash, was rejected. Everything after
+         W1 runs as frozen.
   2. **The capture:** `fresh-boot-acceptance.sh --capture-only <port>`. It is the script's own single-open pyserial capture,
      DTR and RTS false, and it is never reopened. Predicted: `[capture] attached`.
   3. **Step 1, factory reset on the glass.** Predicted in the capture:
