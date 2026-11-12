@@ -120,3 +120,85 @@ No fix is chosen until both are read.
 
 **CI for this registration (docs only):** firmware 30 (28 success / 2 skipped), device-ids 1, no-traffic-captures 1:
 **32 = 30 / 2 / 0**.
+
+## Amendments 1-8 (the reviewer, 19:31Z, accepted with these; frozen before any code)
+
+**A1. Distinct samples, not reads.**
+- `/diag/touch` prints both **reads** (every poll) and **distinct samples**: a change in x, y or the touched state since
+  the previous read. **T1 is graded on distinct samples.** Counting reads would count one stale report many times
+  (map-client's CF5, today).
+- **The ceiling is the controller's own report rate.** The CST820 is CST816-compatible (`s3_21.h:67`). In the CST816
+  family the normal-scan period is register `0xEE` (NorScanPer), in units of 10 ms, default 1.
+- **Predicted:** `0xEE` reads **1**, so the ceiling is **100 reports/s**. The task reads `0xEE` once at start and
+  `/diag/touch` prints the value.
+- **T1's floor follows from the value read, by a formula frozen now:** a graded quick swipe needs at least
+  `max(5, 0.5 x rate x finger time)` distinct samples, where rate = 100 / (0xEE value) per second. At 100/s, a 120 ms
+  swipe needs at least 6. If `0xEE` reads other than 1, the formula takes it, and nothing is re-argued after the run.
+
+**A2. Graded by MEASURED finger time** (`/diag/touch` records it per gesture), never by intent:
+- quick means measured under 200 ms; slow means over 400 ms;
+- 200-400 ms is **excluded** from grading and reported as its own count;
+- an intended-quick swipe measured at 200 ms or more moves to its measured bucket, or out;
+- a bucket with fewer than 6 graded gestures is **ungraded** (not enough data), and the owner repeats that bucket in
+  the same window. That rule is fixed now, not improvised.
+
+**A3. The queue:**
+- depth **64** distinct samples;
+- `/diag/touch` prints an **overflow counter** and the **high-water mark**;
+- the worst frame seen on any board today is about 200 ms (map-client's KSFO map rebuild), about 20 samples at 100/s,
+  and 64 covers three of those;
+- **predicted: 0 overflows over the whole run, and a high-water mark of at most 30.**
+
+**A4. T3's mechanism, and its prediction.**
+- **Gating:** all new code (the task, the queue, `/diag/touch`, `/diag/perf`) sits under `#if BLIPSCOPE_TOUCH_TASK`, a
+  macro defined only in `s3_21.h` beside its `constexpr` flags. It is a macro and not only `variant::TOUCH_TASK`
+  because an `if constexpr` branch still compiles its functions, and gc-sections keeps their `.eh_frame`, so bytes
+  move (the gc-sections-keeps-eh-frame lesson). This departs from CLAUDE.md's "variant flags, not `#ifdef`s" for one
+  reason, image identity on every other SKU, and says so in the code.
+- **The classifier's clock (A8):** three lines change in place: `millis()` becomes `TouchNow()` at
+  `AircraftManager.cpp:9538`, `:9727` and `:9781`. `TouchNow()` is an inline that returns `millis()` on every build
+  without the macro.
+- **Line shifts are harmless here:** no `__LINE__`, `assert` or `log_*` follows the insertion points
+  (`AircraftManager.cpp`, after line 9501: 0 uses; `ConfigurationWebServer.cpp`, after the first `/diag/fb` route at
+  `:4322`: 0 uses). So line shifts move only debug information, which lives in the ELF and not in the image.
+- **T3 predicted:** `blipscope-s3-128` and every other non-2.1 env rebuilt before and after the change read **PLACED**
+  with the five-region comparator.
+- **Stop if:** a byte moves outside the five regions. Then the mechanism above is wrong, and that is reported before
+  anything else.
+
+**A5. T0 is the control, read FIRST.**
+- T0 must read as predicted, judged from the T0 rows alone, **before T1's build is flashed**.
+- **The general escape hatch, beside the classifier row:** any reading outside these tables means **stop**. The
+  instrument is in doubt, and nothing after it is read as a result.
+
+**A6. The host test, shown failing first.** `test/host/test_touch_task_flags.cpp` includes each variant header and
+asserts that the touch task and the touch watchdog are never both on. It is shown red **first**, on a planted copy of
+`s3_21.h` with `TOUCH_WATCHDOG = true` (the plant asserted to have landed), then green on the real headers.
+
+**A7. The chirp's "no migration" premise is read from the field before it is relied on.** A default reaches only keys
+that were never saved, and the bench 2.1 already has saved ones (the owner turned tones off). If the default is ruled,
+first a fleet read, **model counts only**, scoped before it runs: how many `fw:` rows carry a speaker model (`s3-21`,
+`s3-175-amoled`, `s3-146`), with the bench label's list subtracted.
+- **Predicted:** 0 outside the bench.
+- **Any other count:** the change needs a ConfigMigration entry, which goes to the owner.
+
+**A8 (mine, found while amending): the classifier's clock.** `ProcessTouchSample` takes its time from `millis()` at
+the moment it runs (`AircraftManager.cpp:9538`; also `:9727` and `:9781`, the tap-suppression window). Replaying queued
+samples in a burst at frame time would stamp them all with one time and collapse every gesture's duration. So each
+queued sample carries its own read time. During the replay `TouchNow()` returns that time, and elsewhere it returns
+`millis()`. There is still one classifier and no second path.
+
+## The bench session plan (the reviewer schedules it with the owner)
+
+| window | what | elapsed | the owner's hands |
+|---|---|---|---|
+| **W1** | flash T0 (app-only at `0x10000`, NVS kept, so his Wi-Fi, location and key survive; identity by the CH343 + `read-mac` CF:20); check the boot over Wi-Fi | ~5 min | none |
+| | **T0:** his 20 swipes, plus any bucket that came out short (A2); read `/diag/touch` and `/diag/perf` | ~4 min | ~3 min |
+| | T0 judged (A5). Only if it matches: flash T1 the same way, and check the boot | ~5 min | none |
+| | **T1:** his 20 swipes, plus repeats; read | ~4 min | ~3 min |
+| | restore the v19 release app, app-only, read back with `verify-flash` | ~4 min | none |
+| **W2** | flash the numbered-row frame (F5 ii) | ~5 min | none |
+| | **his one photo** of the glass; restore | ~6 min | ~1 min |
+
+T3 and the host test are local, with no board. Port 1's power cycle is for recovering the 2.1 from download mode
+only, logged.
