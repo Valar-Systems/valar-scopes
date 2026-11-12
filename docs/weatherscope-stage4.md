@@ -1729,3 +1729,53 @@ FL8}** red. The controls stay green, since they use their own copy.
 **The tested merge is named from a job's checkout log.** Map-server pins `FillRing` from the squash once it's on main.
 
 **Outside the set:** any row, count, set or hash off stops the step, and it is reported.
+
+### S4.22, 2026-11-12: the readers of test_wx_basemap's count, all of them, before the driver's one re-run
+
+**What stopped S4.21's run.** On the branch (`weatherscope/fillring-bridge` at `156f6bb54fb2`, not pushed), every suite read as predicted:
+- `test_wx_basemap` 96/0, with FL7, FL7c, FL8 and FL8c ok at their exact counts;
+- `test_map_layer` 160/0;
+- `test_wx_k35b` 368/0;
+- `sabotage_map_layer` and `sabotage_map_draw` as predicted.
+
+**`sabotage_wx_basemap.py` read the RIG:** "96 cases ran, not 92". It pins the suite's count, and its control refuses any other before a
+single plant runs. So no red set was read. **Ruled 05:35Z:** the fix is approved, and so is one more reader I had missed.
+
+**My miss.** I searched `run.sh` for count pins, but not the drivers. Worse than the driver run itself: `run.sh` runs EVERY sabotage
+driver's `--control` against its own count table, and CI's host tests run `run.sh` on every PR. So S4.21's CI prediction would have read off
+in the host tests with these pins left at 92.
+
+#### The sweep: every tracked file on main that mentions the suite or its drivers, for `92`
+
+| file:line | what it is | action |
+|---|---|---|
+| `test/host/sabotage_wx_basemap.py:30` | `CASES = 92`: the driver's control count, and its `CONTROL_TABLE` (line 265) reads it | **96** |
+| `test/host/sabotage_wx_basemap.py:12` | its docstring: "the control: 92 cases" | **96** |
+| `test/host/sabotage_wx_themed_draw.py:39` | `"basemap": ([WX], 92)` in `SUITES`; that driver's `CONTROL_TABLE` (line 151) is derived from it | **96** |
+| `test/host/test_wx_basemap.cpp:3` | the header: "held to 92 named cases" | **96** |
+| `test/host/test_wx_basemap.cpp:9` | the header: "a case count other than 92" | **96** |
+| `test/host/run.sh:2248` | the block's comment | already reads 92 + 4 = **96** |
+| `docs/healthz-commit-read.md:9` | `proxy/src/index.ts:92`, a line number | not a reader |
+| `tools/weatherscope/screens/look35.py:30, 31, 70` | colour components (96, 92, 86) | not a reader |
+
+**Readers that don't grep as 92:**
+- **`lint_driver_counts.py`,** run by `run.sh` over every `sabotage_*.py`. Its L1 rule refuses a `CONTROL_TABLE` count written as a literal;
+  its L2 rule refuses any other integer literal equal to a table count. Neither driver holds a literal 96 today, so the change adds no L2
+  hit.
+- **`run.sh`'s "sabotage controls" and "sabotage anchors" blocks,** which run every driver's `--control` and `--anchors`.
+- **CI's host-tests job,** which runs `run.sh` on two images (ubuntu-24.04 and ubuntu-26.04).
+- **`sabotage_wx_themed_draw.py`'s `SUITES`,** the only table in it with this suite's count. It holds no sum or total over the suites.
+
+#### Predicted, after the five edits above, before either driver re-runs
+
+| read | predicted |
+|---|---|
+| `sabotage_wx_basemap.py --anchors` | every anchor found once, S-BRIDGE's included |
+| `sabotage_wx_basemap.py --control` | `test_wx_basemap` 96 checks, against its table's 96 |
+| **`sabotage_wx_basemap.py`, the re-run** | CONTROL 96 cases, 0 failures; **17 device + 2 validator, ALL AS PREDICTED**; S-BRIDGE {FL7, FL8}; S-FILL {FL1, FL2, FL3, FL5b, FL6, FL7, FL8}; S-UNION {FL6}; every other set as registered |
+| `sabotage_wx_themed_draw.py --anchors` | S-NL's and S-KD's anchors found once |
+| `sabotage_wx_themed_draw.py --control` | each suite at its table's count: k35 79, k35b 368, replay 195, layout 73, **basemap 96**, theme 72; the colour scan exit 0 |
+| **`sabotage_wx_themed_draw.py`, its run** | the control: no suite failing. **S-NL as registered:** exactly 1 hit, at the plant's line. **S-KD exactly its frozen set:** the 25 Dallas K screens and the 57 Bend rows (k35b), and **nothing in the basemap suite.** FL7 and FL8 fill with value 1 directly, untouched by any theme ink. "2 sabotages: ALL AS PREDICTED" |
+| `lint_driver_counts.py`, over every driver, and its `--control` | exit 0, as on main |
+
+**This is the driver's one re-run (ruled).** A second off reading on it goes to the reviewer, and on to the owner.
