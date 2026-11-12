@@ -1347,6 +1347,60 @@ second run's (the designs and the mapping are unchanged). The plants differ.
 **This is the third run, so it goes straight to the orchestrator and the owner.** No fix is proposed here. The conflict is between what
 the owner's rule has to see (km-scale joins at rung 3) and the scales the measure was built with, and choosing those scales is his call.
 
+## The lake join, PICKED: design (a) (the owner, 03:56Z). The design read is CLOSED
+
+**The owner, in his words** (relayed by the orchestrator at 03:59:49Z):
+
+> "Lake join: (a), chosen from the third run's pictures at Buffalo and Rouses Point. I accept (a)'s cost from the pictures: lake water
+> drawn over the US shore near the border, about the size of the package's normal shoreline error (P95 about 1.1 km at the closest
+> zoom). The code PR asserts (a)'s property directly: no land drawn across a border lake. No fourth instrument. If a later picture shows
+> spill clearly beyond the normal error, it comes back to me."
+
+**The context he judged against,** measured in the third run before any grading, from the package's own "none" build, away from the
+border:
+- Buffalo: P95 **1.060 km**, max 1.336;
+- Rouses Point: P95 **1.081 km**, max 1.317.
+
+The pictures are in `C:\Github\_handoffs\map-server\lake-out-run3\`.
+
+**The lake-join design read is CLOSED.** There is no fourth run. Its three runs and their stops stay on record above.
+
+### Part 2's lakes, re-registered on the pick (before any code)
+
+**1. Design (a).**
+- **Selected:** Natural Earth 10 m lakes over **1.5 km²** that are **not wholly inside the US**, decided by the containment test against the
+  pinned admin_0 USA record.
+- **Drawn WHOLE:** no polygon difference, and no cut at the border. They are cut only as every sea feature is, by the 1° level-0 grid at
+  ingest (the 22:46Z ruling), and by the build square in the builder.
+- **A lake wholly inside the US is not stored.** TIGER draws it.
+- The threshold and the US cut are the owner's, ruled at 23:21Z.
+
+**2. KB7, the structural assertion: no land drawn across a border lake.**
+
+*Where it lives.* In the package, a lake's rings are anonymous: they merge with TIGER's water, and the sea layer is cut into 1° pieces.
+So nothing in the package says which rings belong to which lake, and a package-level check would need thresholds tuned on data, which
+would be a fourth instrument. **The ingest is the last stage that still knows each lake's pieces, so KB7 is asserted there,** and it is
+exact.
+
+| KB7 | where | asserted |
+|---|---|---|
+| **KB7-a** | CI, on a synthetic sea-layer store: one lake crossing a synthetic border line, inside one 1° cell, with a synthetic US polygon; and one lake wholly inside that polygon | the border lake's stored pieces, together, equal the lake (area equal within 1e-9 relative, and the same vertex set). The lake wholly inside the US has no stored piece |
+| **KB7-b** | the code PR's ingest dry run, on real data | **Lake Erie and Lake Champlain** are both selected. Each one's stored pieces, together, equal the NE lake within the extent's cells, area within 1e-9 relative |
+| **the control,** run first, for both | the same check on a (b) ingest: the lake minus the US polygon | **must FAIL,** short by the US part. It is run before KB7 is believed. If it passes, KB7 is blind, and nothing is believed |
+
+- **Why that is the property.** KB7-b holds at the ingest, and the builder draws every stored sea piece like other water (QW4-2's rows).
+  So no land can be drawn across a border lake except by the water path's own simplification, which is the cost the owner accepted.
+- **The package-level reading of that cost is his eye on the pictures, not a check.** That is by his ruling: "No fourth instrument".
+
+**3. The owner's condition, as a named outcome.**
+
+| outcome | meaning | next |
+|---|---|---|
+| **a later picture shows spill clearly beyond the normal error** (about 1.1 km P95 at the closest zoom) | (a)'s cost is larger than he accepted | **it goes to the owner,** in his words: "it comes back to me" |
+
+**4. The rest of part 2** is as planned and follows separately, with its own sha before anything runs: the sea's storage (the 1°
+grid at ingest, the extent of 2,584 cells), its rows, and the ingest's dry run with the R2 figures.
+
 **Part 2's first figure, for its record: the extent is 2,584 level-0 cells** within 250 km of a covered point (`sea-extent.py`,
 `3334b52116ec`).
 - coverage.bin has 4,907 rows and 10,270 covered segments; the extent spans latitude 16 to 73.
