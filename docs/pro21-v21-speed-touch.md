@@ -209,8 +209,14 @@ only, logged.
 frozen in its registration stops it."
 - **Step 1a, frozen margin: T2.** T1's frame time is at most T0's + 5 ms. Beyond that, 1a stops and goes to the owner
   with both numbers.
-- **Step 1b (the static layers), frozen margin:** registered with its code. Its aim is the owner's 2.1 target, "at least
-  20 (aiming for 30)" fps on glass; today it is 9.7.
+  - **The same traffic** (the cloud reviewer, relayed 20:01Z): T0 and T1 are read at the same aircraft count, which is
+    recorded per sample. The firmware's fit is about 0.8 ms of p95 per aircraft, so a few planes of live drift can swing
+    a 5 ms margin. Once map-client's `fixed_traffic.py` is frozen by sha, T0 and T1 run on its 20/40 set, cited by that
+    sha.
+  - **An A/A control first (T2-AA):** T0's frame time is read **twice** before anything else. If the two reads differ by
+    more than the margin (5 ms), T2 reads **"instrument"** and goes to the owner. Nothing is re-graded.
+- **Step 1b (the static layers), frozen margin:** registered with its code. Its aim is the owner's bar for the 2.1,
+  ruled 19:55Z: **at least 20 fps, ideally 24**, on glass. Today it is 9.7.
 - **The 1.28" builds:** T3 (PLACED) is their row. No byte moves, so no frame time can change.
 
 After v20's freeze these steps become the 2.1 chapter of p4's speed workstream for all boards.
