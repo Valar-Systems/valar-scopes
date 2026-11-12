@@ -120,6 +120,17 @@ zeros but their last digit. The pre-commit hook refused those as real-looking de
 allowlisted synthetic ids (`0123456789abcdef`, `beefbeefbeefbeef`), and E1-E3 were run again at 22:36Z, with the same
 result: 21 of 21 as predicted.
 
+**CI at `9773d84c` read OFF, my defect: 33 = 30/2/1, against 33 = 31/2/0** (read at 22:53:56Z and 22:55:02Z).
+- **What failed:** `device-ids`, at the guard itself. It flagged `scripts/check_token_file_readers.py` lines 4 and 41:
+  its own docstring's sentence about `open(` and the path, and its selftest's planted string. Every other token-file
+  step passed on Linux, T4 and S4 included. The tested merge was `9773d84c` into `eed76e5e`, on an unchanged main.
+- **Why the local G1 said 0:** the guard scans tracked files, and it was itself untracked when G1 ran. The check's own
+  environment lacked the property it certifies.
+- **The fix, ruled (a)+(b), with no exemption by filename:** the docstring is reworded, and the planted string is
+  built in two pieces, so no source line matches while the runtime plant still does.
+- **Read AFTER staging:** G1 0 files, with the guard tracked and scanning itself; G2 still catches its plant. The
+  guard's own scanner on its own source gives no line now, and lines 4 and 41 on `9773d84c`'s version (the control).
+
 **What the merge changes for anyone running these tools:** export `BLIPSCOPE_TOKEN_FILE` in the shell first, as
 CLAUDE.md already says. With it unset, a reader refuses, naming the variable, where today it reads the default path.
 That is E3's first row, and the reason the merge waits for weatherscope's `shsr` readings.
@@ -129,4 +140,6 @@ That is E3's first row, and the reason the merge waits for weatherscope's `shsr`
 **This registration commit,** docs only: **32 = 30/2/0** (main `eed76e5e`; the docs-only baseline since #675).
 
 **The build commit:** `tools/budget/**` is in `account-budget.yml`'s path filter, so that job runs once more.
-`device-ids.yml` gains steps but no job. **Predicted: 33 = 31/2/0.**
+`device-ids.yml` gains steps but no job. **Predicted: 33 = 31/2/0.** It read 33 = 30/2/1 (section 5).
+
+**The fix commit,** re-predicted before its push: **33 = 31/2/0** on main `eed76e5e`.

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The guard that runs (docs/token-file-python.md): no tracked Python file opens the token file directly. Every reader
-goes through tools/token_file.py, which applies BLIPSCOPE_TOKEN_FILE and token-file.ts's refusals. A direct open --
-open( or expanduser( on the same line as blipscope/tokens -- bypasses all of that, so it is refused here.
+goes through tools/token_file.py, which applies BLIPSCOPE_TOKEN_FILE and token-file.ts's refusals. A direct open (a
+call to open or expanduser whose line also names the token file's path) bypasses all of that, so it is refused here.
+This file is scanned like every other: its own planted example is built in two pieces so that no line of it matches.
 
   python3 scripts/check_token_file_readers.py [--tree <dir>]   exit 0 none found, 1 found (file:line, never content)
   python3 scripts/check_token_file_readers.py --selftest      G2: a planted direct open is caught; a clean file is not
@@ -38,7 +39,8 @@ def scan_tree(tree):
 
 def selftest():
     fails = []
-    planted = 'tok = open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8").read()\n'
+    # Built in two pieces: at runtime it is one matching line (a real plant), while no source line here matches.
+    planted = 'tok = open(os.path.expanduser("~/.config/blipscope' + '/tokens"), encoding="utf-8").read()\n'
     clean = 'import importlib.util as _ilu\ntok = TOKEN_FILE.token("analytics-read")   # see ~/.config/blipscope/tokens in the doc\n'
     a = scan_text(planted)
     b = scan_text(clean)
