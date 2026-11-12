@@ -1992,3 +1992,7 @@ f88dded3e379; none is a graded row):
 | off-bridge pixels ONLY in 162 km views, none at 81 or 40.5 km | **stop**: the model of where the plant shows is wrong |
 | no off-bridge pixel anywhere | **stop**: the control is blind again |
 | anything else | **stop** |
+
+**ACCEPTED (05:27:52Z):** the scoped table above, as written. The orchestrator also withdrew its own "can only show at the small steps":
+a sub-pixel band still flips about one pixel per pixel-area of band. **Part 2 now waits for weatherscope's FillRing commit, and nothing
+else.**
