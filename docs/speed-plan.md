@@ -14,8 +14,8 @@ This plan takes in:
   `blipscope-5c/pro21-v21-speed`, read at `3ef39747d8f7` (with amendments A1-A8).
 - **the Weatherscope's static-layer method.** It is cited here from the record on main; the note the orchestrator asked
   weatherscope for replaces this when it arrives.
-- **map-client's frame-time instrument and v20 baseline procedure**, once registered. They are not yet; this plan names
-  where each fits.
+- **map-client's v19 frame-time bench** (`docs/frame-time-bench.md`, being built), as S0: the one instrument the
+  baseline and every target are read on.
 
 Nothing starts before v20's content freeze (F, November 21-25 per docs/v20-plan.md).
 
@@ -41,7 +41,7 @@ Nothing starts before v20's content freeze (F, November 21-25 per docs/v20-plan.
 
 | board | measured today | target | basis of "today" |
 |---|---|---|---|
-| **1.28" Kit S3** (240 px, GC9A01 SPI at 40 MHz) | p95 = **35.8 ms + 0.802 ms per contact** (R² 0.985): **28 fps with no aircraft, 14.7 fps at 40** (`BLIPS_LIMIT`, the most the firmware can show) | 30 fps | the stock-defaults soak of 2026-08-29: **44.9 h, 5,392 samples**, the frame-budget note's last block in `src/AircraftManager.cpp`. That note itself corrects an earlier "48 h". It predates v19, the map and the weather layer, so v20's baseline (map-client's procedure) replaces it before any step is judged |
+| **1.28" Kit S3** (240 px, GC9A01 SPI at 40 MHz) | p95 = **35.8 ms + 0.802 ms per contact** (R² 0.985): **28 fps with no aircraft, 14.7 fps at 40** (`BLIPS_LIMIT`, the most the firmware can show) | 30 fps | the stock-defaults soak of 2026-08-29: **44.9 h, 5,392 samples**, the frame-budget note's last block in `src/AircraftManager.cpp`. That note itself corrects an earlier "48 h". It predates v19, the map and the weather layer, so it is context only: S0 (map-client's frame-time bench) is the baseline every step is judged on |
 | **2.1" Waveshare** (480 px, ST7701 RGB, 8 MHz pclk) | **9.7 fps (103 ms)**, contact count not recorded | at least 20, aiming for 30 | #676 (114 frames in 11.70 s) |
 | **P4 4.0"** (720 px, JD9365 DSI) | **unmeasured** (no board yet) | 30 fps | none |
 | **Android screens** (7" 1080, 15.7" 960, 23.6" 1280; the web build in the kiosk app's WebView) | **unmeasured** on the real screens | 30 fps | none. The stage-1 rig ran the WebAssembly firmware at about 0.2 ms a frame on a desktop, without drawing; that says nothing about the WebView |
@@ -72,15 +72,35 @@ sky (35.8 ms) misses 33.3 ms.
   with its own timestamp, the same idea as 5c's per-sample `TouchNow()` (A8).
 
 **M3. Drawing overlapped with the panel push** (the owner's third method).
-- **1.28" (SPI):** start the push by DMA and draw the next frame into a second backbuffer while it runs; that costs
-  115 KB more PSRAM, which CLAUDE.md shows costs no internal heap. The frame becomes max(draw, push) instead of the sum.
-  **Expected, from the soak line:** **~25.8 ms (38.8 fps) with an empty sky; ~42 ms (23.8 fps) at 40 contacts.**
-- **2.1 (RGB, already two framebuffers):** draw straight into the back framebuffer and present by swapping at the
+- **1.28" (SPI):** push frame N while the loop draws frame N+1 into a second backbuffer. The frame becomes
+  max(draw, push) instead of the sum. **Expected, if the overlap is complete: ~25.8 ms (38.8 fps) with an empty sky;
+  ~42 ms (23.8 fps) at 40 contacts.**
+
+  What has to be true, each item marked READ (in the code at LovyanGFX 1.2.21, the version this env builds) or ASSUMED:
+
+  | precondition | status |
+  |---|---|
+  | a second backbuffer: 115 KB more PSRAM, no internal heap | **READ**: CLAUDE.md's 2026-08-09 measurement (sprites in PSRAM leave the internal heap untouched) |
+  | today's push occupies the loop for its whole length | **READ**: a full-width 16-bit `pushSprite` reaches `Panel_LCD::writeImage` → `write_bytes(src, w*h*2, use_dma = false)` (`Panel_LCD.cpp:287-305`), the CPU path of `Bus_SPI::writeBytes` |
+  | the push can be started and left to run | **READ, and it is NOT what the library's DMA path does on the S3:** a frame longer than one SPI transaction is issued segment by segment, polling `SPI_USR` with `vTaskDelay(1)` between (`Bus_SPI.cpp:759-771`), so the call returns only once the last segment starts. So the overlap needs **the push on its own task**, with the loop drawing meanwhile. That task's core and its contention with Wi-Fi/TLS are **ASSUMED** workable and measured in S3 |
+  | DMA can read the backbuffer from PSRAM | **ASSUMED**: the S3's GDMA reading external memory. LovyanGFX writes the cache back before a DMA only on the P4 (`Bus_SPI.cpp:711-714`), so on the S3 the frame's cache lines must be written back first by our code. Not yet read in IDF or tried |
+
+  If the push task must use the CPU path, it occupies a core for the whole 25.8 ms, and the gain depends on that core
+  not being the loop's. S3 measures which case holds before it is graded.
+- **2.1 (RGB, through the bounce buffer):** draw straight into the back framebuffer and present by swapping at the
   frame wrap. That removes the 460,800-byte `pushSprite` copy (5c predicts 15-35 ms) and overlaps the flush wait (5c:
-  10-35 ms). **Expected:** frame ≈ draw, which 5c predicts at 30-60 ms (17-33 fps). Replaced by 5c's 1b measurement.
+  10-35 ms). **Expected:** frame ≈ draw, which 5c predicts at 30-60 ms (17-33 fps), less the bounce refill's CPU share.
+  Replaced by 5c's 1b measurement.
+
+  | precondition | status |
+  |---|---|
+  | two framebuffers | **READ**: `cfg.num_fbs = 2` (`Panel_ST7701_esplcd.cpp`) |
+  | a swap that takes effect at the frame wrap | **READ**: in bounce mode the driver switches the buffer it reads only at the frame wrap (the driver's header comment, `:13-14`) |
+  | a scan-out that leaves the CPU free | **READ, and only partly true:** the bounce buffer is refilled by a **CPU memcpy** from the PSRAM framebuffer (`:8`), so scan-out costs CPU all the time. That share (480x480x2 bytes at ~29 Hz, ~13 MB/s of PSRAM reads) is **unmeasured**; 5c's `/diag/perf` would see it as time missing from every phase |
+  | drawing straight into the back framebuffer instead of a sprite | **ASSUMED**: the radar draws through `BandCanvas` into a sprite today; pointing a sprite at the driver's buffer is not yet read in LovyanGFX |
 - **P4 (DSI, a framebuffer in PSRAM):** the same shape as the 2.1. The radar draws into a sprite and copies ~1 MB into
-  the panel's framebuffer every frame. Whether LovyanGFX's `Panel_DSI` can take two framebuffers is not yet read.
-  **Expected: unmeasured.**
+  the panel's framebuffer every frame. **ASSUMED, nothing read yet:** that the DPI scan-out is DMA with no CPU share,
+  and that LovyanGFX's `Panel_DSI` can take two framebuffers. **Expected: unmeasured.**
 - **Web:** the browser already presents asynchronously. The analogue is moving the canvas replay into a worker
   (OffscreenCanvas), so it overlaps the WebAssembly frame. **Only if** the 23.6" measurement misses.
 
@@ -105,7 +125,7 @@ slowdown margin before its code.
 
 | # | step | owner | waits on | size |
 |---|---|---|---|---|
-| S0 | **v20's baseline on the 1.28"** and the frame-time instrument | map-client (its procedure) | its registration | as map-client sizes it |
+| S0 | **The baseline: map-client's v19 frame-time bench** (`docs/frame-time-bench.md`, being built), measured at **20, 40 and 60 drawn aircraft on p2p**. The bar and every target in this plan are read on that one instrument, so the 2026-08-29 soak line in section 2 is context, not the baseline. | map-client | its registration | as map-client sizes it |
 | S1 | **a per-phase profile on the 1.28" and the P4** (draw, push or flush, the rest of the loop), the way 5c's `/diag/perf` does it on the 2.1; in bench-only envs, so the shipping images do not move | p4 | F; S0's instrument, if it can be shared | 0.5 |
 | S2 | **the 2.1 chapter:** 5c's registration as written (1a touch task, T0-T3; 1b `/diag/perf`; M1 sized after 1b; F5 and the chirp) | blipscope-5c | the owner's bench windows (W1, W2) | 5c's sizes: 1 + 0.25 + 0.5 d, and M1 after 1b |
 | S3 | **M3 on the 1.28":** DMA push and a second backbuffer. Frame time before and after; the 240 golden and the /diag/fb frames pixel-identical | p4 (5c reads the shared main.cpp change) | S1 | 2 + a bench window |
@@ -137,7 +157,14 @@ touch measurement moved here, that plan stands alone at **F + 22**.
   big-screens steps 6-8 (8.5 d), then the map integration and the 23.6" (3-5 d).
   - **The 1.28"'s plumbing lands at about F + 5, and S5 at about F + 16.**
   - **The big screens move from F + 22 to about F + 30**, or F + 32 if S6 is needed.
-- **(b) a second session carries S1, S3, S4 and S5.**
+- **(b) a second session carries S1, S3, S4 and S5.** Who is **the owner's choice**; nobody has been asked. This plan
+  suggests **weatherscope** (blipscope-61), on three grounds:
+  - v20's plan puts nothing of it on v20's path;
+  - S5 is its own method;
+  - it already works on the 1.28" Kit S3.
+
+  One constraint goes with that suggestion. Its board, 6E:64, is barred from Blipscope work (CLAUDE.md's bench table),
+  so the 1.28" bench steps would run on E2:08, the Blipscope bench, in windows booked with its session.
   - **The big screens stay at F + 22.**
   - The plumbing lands at about F + 5.
   - S5 starts when big-screens step 5 lands (F + 8) and ends at about F + 12; S6, if needed, at about F + 14.
@@ -166,7 +193,7 @@ layout steps do, and (b) is eight days sooner for the big screens.
 
 ## 7. Risks, named before they happen
 
-- **The 1.28"'s baseline is old.** The soak line predates v19, the map and the weather layer. S0's v20 baseline may
+- **The 1.28"'s baseline is old.** The soak line predates v19, the map and the weather layer. S0's baseline (map-client's v19 bench) may
   move every figure in section 3 before a step is judged.
 - **Scan-out against CPU traffic.** M3 puts more PSRAM traffic beside the panel's own scan-out. On the 2.1 that is the
   same class as F5's open question (big-screens step 13). The standing rule's before-and-after frame time catches a
