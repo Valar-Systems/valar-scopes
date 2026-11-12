@@ -68,3 +68,48 @@ with a selftest: a bridge row whose `read_mac` answers another label is refused.
   are extra.
 - It doesn't block v20, and it carries nothing from v20.
 - CI for this registration (docs only): **32 = 29 / 3 / 0**, or 32 = 30 / 2 / 0 if #675 has merged first.
+
+## Amendment 1: the owner's answers (2026-11-12 18:13Z), and the rows they change (frozen before P0)
+
+**His answers:**
+1. "Yes, a 2.1" is on hand. It goes on a plain PC USB port, not the hub. Nothing moves off the hub: E2:08 stays for
+   v20's windows, and port 1's photo Missileer is never touched."
+2. "Wi-Fi by my phone on the setup portal. That's also our first look at the setup screens on the 2.1"."
+3. "Yes to my hands for plugging in, one tap and swipe, and the measurement. I'll measure the diameter of the lit image
+   (with a full-screen white or the outer ring showing), not the glass edge."
+4. "Yes to the first full flash of today's blipscope-pro-s3-21 image, on these conditions:"
+   - before writing, read the target's MAC and confirm by its short label that it's the new board, not E2:08, the
+     Weatherscope or the Missileer;
+   - the image is identified by sha256, and the write ranges are printed, first;
+   - once it's on Wi-Fi, it's labelled a bench board in the fleet reads, so v19's week of readings doesn't count it;
+   - its model has no published image, so its update checks fail by design.
+
+**How the first flash meets his conditions.** It uses a one-off guarded script, `pro21-flash.py`, kept in the session's
+scratchpad, not the repo. The repo's `board-port.py` / `bench-flash.ps1` bridge support follows in the code commit, as
+registered. The script, in order:
+- **(i) Port:** exactly one VID 0x1A86 port must be present, or it refuses and prints the count.
+- **(ii) Identify only:** `esptool read-mac` over that port, printing the label (the MAC's last two bytes), never the
+  MAC. It refuses a label belonging to any registered board (E9:D8, E7:94, 6E:64, E2:08).
+- **(iii) Print first:** the factory image's sha256 (64 hex) and size, each component's sha256 and offset, the
+  partition table parsed from the built `partitions.bin`, and the write range `0x0 .. 0x0 + size - 1`.
+- **(iv) Write, only with `--write --expect-label XX:YY`:** it reads the MAC again **immediately before** writing,
+  requires the label to equal the one stated, writes `firmware.factory.bin` at 0x0, and runs `verify-flash` on the
+  same range.
+
+The full first write erases the NVS span on purpose: this board has nothing to keep.
+
+**Re-predicted rows:**
+
+| row | predicted | stop if |
+|---|---|---|
+| **P0'** | the owner plugs it into a PC USB port (not the hub); one new 0x1A86 port appears | not exactly one 0x1A86 port |
+| **P1'** | (ii) prints a label that is none of E9:D8, E7:94, 6E:64, E2:08 | `read-mac` fails twice, or a known label |
+| **P2'** | (iii) prints first, then (iv) exits 0 with `Verification successful (digest matched).` (esptool 5.3.0) | a write or verify error, or a label change between (ii) and (iv) |
+| **P3** | as registered, read with one UART open after a reset through RTS; the full log is kept locally and only the predicted lines are printed | as registered |
+| **P4'** | his phone on the `Blipscope-<6 hex>` setup portal is the first look at the 2.1"'s setup screens, his eyes and mine (`/diag/fb` once it's on Wi-Fi). Then `[WiFi] CONNECTED`, and the location set from the PC | no join in 3 minutes |
+| **P7'** | the diameter **of the lit image** (full-screen white, or the radar's outer ring), measured by him: about 53.3 mm, and under 60 mm | 60 mm or more: to the owner |
+| **P8'** | **the fleet reads label it a bench board.** `scripts/reconcile-fleet.py` gains a bench-board list from a local file, `~/.config/blipscope/bench-devices`. It holds ids only, no keys; the token file is never touched. The ids are excluded from the KV-ONLY reconcile and from A3.1's behind/current counts, and counted on their own line. A small PR, predictions first, with a selftest row and a plant (the exclusion removed must read one unaccounted-for unit), **merged before the day-2 read (11-13)**. The id comes from the board's own config page (`window.BP_DEVID`) and is never printed | the label PR isn't merged by the day-2 read: that read names the board as a bench unit by hand |
+| **P8b** | **its update checks:** v19's `version.txt` says 19 and the board runs 19, so today's check finds no update and downloads nothing. When v20 publishes, the check finds 20 and asks for `firmware-s3-21.bin`, which doesn't exist (no slug): it fails, **by design** (the owner) | an update check that downloads anything |
+
+**The Worker's activation watch** will still count it `not_listed`. That count is Worker-side and changing it needs a
+deploy, so it is said here rather than changed.
