@@ -3291,3 +3291,66 @@ reversal, and the parts' order. Counts and indices only.
   from step 2: the hole in 46/-85 starting one vertex later, and the two triangles in 47/-85 in the other order.
 - **The TS ingest keeps the shapefile's own order,** and three runs are byte-identical. So nothing in the ingest's order can vary run
   to run, and the store's id cannot either. **No change to the ingest.**
+
+**ACCEPTED (19:43Z).** The determinism miss stays on record as mine. The code PR plan is accepted as scoped:
+- (i) ONE PR, as Q-W4 registered;
+- (ii) #652 merges FIRST, carrying this file and the re-basing below;
+- (iii) the frame-time row runs on map-client's frame bench, on E2:08.
+The PR opens only after the owner's picture verdicts.
+
+## d0: the code PR's predictions RE-BASED on the sea store, and its frame-time row (frozen before any code)
+
+**What stands unchanged:** every frozen code-PR row on the NO-sea store:
+- "The code PR's frozen predictions" (CM-0, CM-P, CM-M, the memory rows, R-KMSP, R-D2) and their 22:38Z amendments;
+- the per-point package rows ("The code PR's package row, narrowed point by point").
+
+They predict the code PR where it builds no sea, and that is still the code PR's behaviour on a store with no sea layer.
+
+**What part 2 adds: the code PR on the SEA store.** Each row's figures are part 2's measured ones (run 10, the pinned prototype pq4d).
+The 16 packages were rebuilt read-only at 19:45Z, and each equals run 10's.
+
+| row | input | predicted |
+|---|---|---|
+| **SEA-PKG** | the code PR's builder on the PROTOTYPE's sea store (`sea-obj`, store e9ef04165ba2), at the 16 points, at the client's query, as P2-1 | **byte-identical to run 10's packages.** KBOS f21d705d8b8a, KJFK 52ac9dc39de0, KLGA feb6ef3bdf04, KEWR dff28487eaf4, MIDTOWN 20a22bed5510, KMIA 1a338238fbc8, KSFO 4d03beecdb4b, KSEA 9bd5b34d6718, KORD cb59bb06a506, KDTW 682208bf2fb2, KMSP b694c01dc502, KIND 89a4195fa4be, KJAC 42c32cd8578e, BUFFALO 52fad5e317f3, ROUSES afe7554245b8, ZAPATA e2ddaa00ecaf. The prototype already holds the code PR's counting rule (Q4_PROV) and the (C) refusal split with no format change, so PROVENANCE is predicted identical too. **Any byte difference stops:** the port is not the prototype |
+| **SEA-FIG** | the same builds | run 10's figures: rung, radius, D2's steps (2 at New York, 1 elsewhere), non-terrain bytes, `dropped.water`, the sea counts, `repairs` (1 at New York, 4 vertices; 0 elsewhere), `refused5` 0 everywhere |
+| **SEA-STORE** | the code PR's ingest on the pinned zips, its own store | **its pieces equal `sea-pieces.json`'s by PARITY step 2's PA-1 to PA-5**, with names decoded by the `.cpg`. **The Class A count** (objects the store writes) is read from the ingest's own listing and **stated before any upload** |
+| **SEA-OWN** | the code PR's builder on its OWN store, at the 16 | the water section's rings equal SEA-PKG's **as a multiset**: the store's record numbering may order them differently. Every other section is byte-identical, and PROVENANCE differs only in the store's id and file references |
+| **SEA-MEM** | the code PR's sea build minus its no-sea build, per phase, QW4's instrument | **within +- 0.785 MiB of P2-M's recorded sea cost** (run 10) at each point, at the ladder phase. KBOS +0.82, KJFK +0.78, KLGA +0.75, KEWR +0.71, MIDTOWN +0.72, KMIA +0.61, KSFO +0.40, KSEA +0.99, KORD +0.01, KDTW +0.36, KMSP +0.05, KIND +0.01, KJAC +0.02, BUFFALO +0.45, ROUSES +0.46, ZAPATA +0.28. No build over 96 MB (CM-M) |
+| **SEA-CI** | the code PR's host tests | green, each with its sabotage registered and shown red first: xisland repaired; S-KB-REPAIRLIMIT, 500; xisland-tall, 500; (C) `refused5` 0; EDGE2's equal edge sets (and S-KB-EDGEUNLOCK red); KB1 and KB2 on the synthetics; KB7-a; KB7-c-ci (and the bowtie refused); T-SEA0-ci; PROVENANCE `collapsed.water` == the drawn set at KMSP (with a refusal present); D2's step order (the first step the largest, at most 2 at New York) |
+
+**FT-SEA, the frame-time row (the owner's standing rule, 2026-11-12: "every change to drawing code reports its frame time on the bench,
+before and after. A slowdown beyond the margin frozen in its registration stops it").** The code PR changes what the device draws:
+the sea rings, record 18, and the water and roads the ladder drops to fit them.
+- **The instrument is map-client's frame bench:** `docs/frame-time-bench.md` on branch `docs/frame-time-bench` at 66d4246ebde9. It is
+  cited by its sections: "2. What one frame is", "4. The scenes", "5. The control", and "The ruling ... five amendments" (A1-A5).
+  - It runs on the **v20-tree framebench sibling**, which embeds the six packages below and swaps them in RAM through `Initialise`. That
+    is map-client's code, registered by map-client.
+  - Board E2:08, in an E2:08 window the orchestrator grants after map-client's v19 baseline.
+- **The packages, pinned:** the pinned prototype's builds, as run 10 built them; the no-sea ones on the store with no sea layer, NOSEA's
+  knobs. Files in `C:\Github\_handoffs\map-server\frame-row-packages\`, written by `pkg-dump.mts` (afb56874bbd7).
+
+  | point | no-sea | sea |
+  |---|---|---|
+  | KJFK | ee8c834bc81a (rung 7, 129.6 km) | 52ac9dc39de0 (rung 7, 129.6 km) |
+  | KBOS | ed5393b4fc0f (rung 3) | f21d705d8b8a (rung 4) |
+  | KORD (the inland control) | 4238243a57a6 (rung 3) | cb59bb06a506 (rung 3) |
+
+- **The scene:** map-client's FIXED scene (section 4, A1/A2) with the home set in RAM to the airport, its fixed traffic level, and rungs
+  10, 25 and 50 mi, each with a 100 s settle and 120 s measured. At each point the no-sea package runs, then the sea one.
+- **Graded:** the p95 of `p2p` (present to present), sea minus no-sea, at each point and rung, **<= M**. `fr` is printed beside it.
+  Frames on which the map rebuilt are counted and included, per the bench.
+- **The margin M, a formula now and a number before the run:** M = max(2 x the baseline's repeat noise, 2.0 ms).
+  - The repeat noise is the |delta p95| between the baseline's CTRL plain scene and its FIXED scene, which are the same scene measured
+    twice in one run.
+  - M's number is recorded here after the v19 baseline reports, and before FT-SEA runs. A speed-up never stops.
+- **Named in advance, the reading expected to differ most:** **KJFK at 50 mi.** It draws the most of the package: the most rings,
+  record 18, and New York's dropped water. No direction is predicted, since the sea adds rings while the ladder drops others.
+- **The control: KORD.** Its two packages differ only in the roads ladder (9 more secondary roads dropped, 2 non-terrain bytes). It must
+  read **|delta p95| within the repeat noise** at every rung. If it does not, the instrument is in doubt: STOP.
+- **Outside the set: STOP.** A slowdown over M at KJFK or KBOS stops the code PR and goes to the owner.
+
+## #652's CI, predicted (the docs-only shape from main 099f1946, the orchestrator's 19:06:30Z announcement)
+
+**32 check runs: 30 success, 2 skipped (`promote`, `version`), 0 failed.** No workflow has changed on main since 099f1946 (main
+d6cd3a3f24d7 at 19:46Z). The tested base is read from the run's own checkout log. A new red from `ship-alert` reads INSTRUMENT, and the
+GitHub-side re-run rule applies. Anything else: stop and report.
