@@ -84,6 +84,36 @@ def test_device_ids() -> set:
     return set()
 
 
+def bench_device_ids() -> tuple:
+    """Bench boards, which are not fleet units (docs/fleet-bench-boards.md; the owner, 2026-11-12: the Pro 2.1 bench
+    board must not count in v19's week of readings). One id per line, # comments and blank lines allowed, from the file
+    BLIPSCOPE_BENCH_DEVICES names, else ~/.config/blipscope/bench-devices -- never the repo, never the token file (ids
+    only, no keys). Returns (ids, where). An absent file is no bench boards. A file inside a git working tree, or a
+    line that is not an id, is REFUSED (exit 2), never skipped: a skipped line is a board quietly counted as fleet.
+    Never printed."""
+    import os
+    path = Path(os.environ.get("BLIPSCOPE_BENCH_DEVICES", "").strip()
+                or (Path.home() / ".config" / "blipscope" / "bench-devices"))
+    if not path.is_file():
+        return set(), "none configured"
+    d = path.resolve().parent
+    while True:
+        if (d / ".git").exists():
+            die("the bench-devices file %s is inside a git working tree; ids never live in a repo" % path)
+        if d.parent == d:
+            break
+        d = d.parent
+    ids = set()
+    for n, line in enumerate(path.read_text(encoding="utf-8", errors="strict").splitlines(), 1):
+        s = line.split("#", 1)[0].strip()
+        if not s:
+            continue
+        if not ID_RE.match(s):
+            die("the bench-devices file %s, line %d, is not a device id (content not printed)" % (path, n))
+        ids.add(s)
+    return ids, "read from %s" % path
+
+
 def die(msg: str, code: int = 2) -> None:
     print("\nreconcile: " + msg, file=sys.stderr)
     sys.exit(code)
@@ -578,6 +608,12 @@ def main() -> None:
     print("  test identity: %s; %d row(s) left out as not a unit\n"
           % ("read from the token file" if test_ids else "none configured (BLIPSCOPE_TOKEN_FILE unset or no test-device)",
              left_out))
+    # Bench boards are not fleet units either (docs/fleet-bench-boards.md). Left out HERE, once: the KV-only reconcile
+    # below and A3.1's behind/current counts (built from `detail`, built from kv_ids) both take this list.
+    bench_ids, bench_where = bench_device_ids()
+    bench_out = sum(1 for d in kv_ids if d in bench_ids)
+    kv_ids = [d for d in kv_ids if d not in bench_ids]  # bench boards are not fleet units
+    print("  bench boards: %s; %d row(s) left out as bench, not fleet\n" % (bench_where, bench_out))
 
     detail = {}
     if not args.no_detail:
