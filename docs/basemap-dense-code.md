@@ -1627,6 +1627,56 @@ counts and the sea's exact package bytes.
 
 **Pictures:** the closest zoom at Buffalo, Rouses Point and Zapata from P2-1, written for the owner, as ruled at 03:56Z.
 
+**THE PINNING ADDENDUM (2026-11-12, 04:44:54Z): every artifact, and four changes from the rows above, for ruling before anything runs.**
+
+| artifact | sha256 | what it is |
+|---|---|---|
+| `mk-pq4d.mjs` | `78f75e2e12f9` | pq4c's generator plus `mk-pq4d-sea.part.mjs` (`0d7bf6e74312`) |
+| pq4d `sea.ts` | `4b46e0ece2fe` | the sea path, byte for byte `pq4d-sea.part.ts`. It now also keeps each drawn piece's unbridged quantised outer and islands, KB1's reference |
+| pq4d `build.ts` / `budget.ts` / `layers.ts` / `store.ts` / `provenance.ts` | `f50fe805558f` / `e5eb9c2c2cbe` / `2c88da1f3b58` / `ae746468ba65` / `21410811e7f9` | `build.ts` also reports the sea rings' positions in the water section |
+| pq4d `test/basemap-synth.ts` | `b023a4ed5424` | blob-identical to the pinned commit; it gains `sea` through pq4d's `store.ts` |
+| `zap-fetch.mts` | `2163cdbb669b` | step 0: `lake-fetch.mts` with its home (Zapata), target (`zap-obj`) and local sources changed, and nothing else (10 diff lines) |
+| `sea-dryrun.py` | `e1b68a840847` | the dry run, now also writing `sea-extent-cells.json`. **Its re-run at step 0 must leave `sea-pieces.json` at `8ad5d92fa7c7`** |
+| `mk-sea-store.mts` | `66554014b0be` | `sea-obj`, `--seam-plant` → `sea-obj-seam`, and a `records.json` sidecar (record → cell, source, bbox) for KB7-c |
+| `dr-p2c.mts` | `cd2d15be34e7` | the build child (store `sea`, `orig` or `seam`) |
+| `dr-p2-synth.mts` | `d8aff7366286` | the synthetic child: `kb1`, `kb2cross`, `tsea0`, `bowtie` |
+| `dr-p2m.mts` | `7814abed9746` | the memory child: `dr-q4c2.mts` with pq4d, the store by name and the three homes, its instrument unchanged |
+| `p2-render.py` | `b9afa21eb58d` | KB1, KB8, KB4, KB5's export, and the pictures |
+| `kb5-gen.py` → `kb5.cpp` | `6155b6399ef8` → `c7ff38514327` | `FillRing` extracted verbatim from `WxBasemap.h:80-120` at `525cf7d1725d` (extract `413104be01bf`, 41 lines). Built in WSL Ubuntu 24.04 with g++ 13.3, `-Wall` clean |
+| `kb7.py` | `e24035aa2fab` | KB7-a and KB7-b, with their (b) controls |
+| `p2-read.py` | `7e9828547270` | the driver, in the order below |
+
+Every script compiles, and each child refused a bad argument after its imports. Nothing graded has run, and nothing has been fetched.
+
+**The four changes, flagged:**
+1. **KB8 runs at KBOS and MIDTOWN, not KJFK.** No 1° cell edge falls inside KJFK's closest-zoom view (±8 km: lat 40.57-40.71, lon
+   −73.88 to −73.68). KBOS has −71° through Boston Harbor, and Midtown has −74° through the Upper Bay.
+2. **S-KB-SEAM is a STORE plant, not a builder knob.** Shifting odd pieces east opens a gap only where the odd piece lies east of the
+   edge, and an overlap where it lies west, so it isn't guaranteed. The store plant (`sea-obj-seam`) pulls every piece in a cell whose
+   (lat + lon) is odd 0.0008° into its own cell, at its cell-edge vertices. That checkerboard gives every shared edge exactly one shrunk
+   side, and 64-89 m is at least one closest-zoom pixel. The builder's `seam` knob stays in pq4d, unused.
+3. **KB7-b's equality allows for what the cut drops.** "The pieces together equal the NE lake" ignored the cut's own drop of islands
+   under 1.5 km² wholly inside one cell. Those are filled, adding their area. So the expected sum is the lake's area **plus those
+   islands' area**, still within 1e-9 relative. The (b) control misses by the US part, many orders larger.
+4. **P2-1's radius baseline for Buffalo, Rouses Point and Zapata is their own no-sea build,** since QW4-1 has no figure for them. The
+   13 are held to QW4-1's radii as registered.
+
+**The order (`p2-read.py`):**
+1. **Step 0:** Zapata's fetch; the dry run's re-run (its pieces unchanged); `sea-obj` and `sea-obj-seam`.
+2. **The synthetic controls, first:** the bowtie refused; T-SEA0-ci both ways; KB2's crossing plant ≥ 1, then the same store tested at
+   0; KB1's nobridge and order plants, then KB1 at 0 over 24 views.
+3. **P2-0 and T-SEA0-real** at the 13.
+4. **P2-1** at the 16, with each home's no-sea build for the radius and the other-content costs.
+5. **KB3.**
+6. **KB8**, its store plant first.
+7. **KB4**, its 2 km-inland control first at each airport.
+8. **KB5**, its moved-vertex control first.
+9. **KB7-a/b**, their controls in the same read; then **KB7-c-real.**
+10. **P2-M**, its 8 MiB plant first.
+11. **The pictures.**
+
+Stop at the first off reading. VISIBLE COSTS are printed, not stops.
+
 **Amendment (the orchestrator, 04:30:57Z): the sea's cost in OTHER content, named per point.**
 - **Why:** QW4-1's packages sit at the cap (KJFK at exactly 32,768, three others 1 byte under), and the sea adds up to 3 KB. So the ladder
   may drop roads, rivers or water to fit the sea even where the radius doesn't change. "Radii as QW4-1" doesn't see that.
