@@ -107,6 +107,26 @@ CASES = [
         "functions whose address moved: 0",
         "CHANGED data local A+B sec:.rodata [src/rod.c.o] -- in scope (named by: f1, f2)",
         "verdict: IN SCOPE (1 changed units)"]),
+    # amendment 1e: a function's exception table is part of the function. eh: handle grows and its table's call-site
+    # offsets move -- handle alone. ehtype: only the catch type changes (EA -> EB) and the code is byte-identical --
+    # handle still reads CHANGED, which is why the table is folded in rather than excluded like .eh_frame.
+    ("eh", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/eh.cpp.o",
+        "functions whose address moved: 8",
+        "CHANGED func global A+B _Z6handlei [src/eh.cpp.o] -- OUT",
+        "verdict: OUT OF SCOPE: _Z6handlei"]),
+    ("ehtype", None, 1, [
+        "inputs: 2 loaded, 1 differ",
+        "  differs: src/eh.cpp.o",
+        "functions whose address moved: 0",
+        "CHANGED func global A+B _Z6handlei [src/eh.cpp.o] -- OUT",
+        "GONE data weak A _ZTI2EA [src/eh.cpp.o] -- OUT (named by: _Z6handlei)",
+        "NEW data weak B _ZTI2EB [src/eh.cpp.o] -- OUT (named by: _Z6handlei)",
+        "GONE data weak A _ZTS2EA [src/eh.cpp.o] -- OUT (named by: _ZTI2EA)",
+        "NEW data weak B _ZTS2EB [src/eh.cpp.o] -- OUT (named by: _ZTI2EB)",
+        "verdict: OUT OF SCOPE: _Z6handlei, _ZTI2EA (named by: _Z6handlei), _ZTI2EB (named by: _Z6handlei), "
+        "_ZTS2EA (named by: _ZTI2EA), _ZTS2EB (named by: _ZTI2EB)"]),
 ]
 
 

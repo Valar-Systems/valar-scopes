@@ -78,6 +78,16 @@ obj "$b" main_rod.c main.c; obj "$b" rod_b.c rod.c
 link "$a" entry "" src/main.c.o src/rod.c.o
 link "$b" entry "" src/main.c.o src/rod.c.o
 
+# amendment 1e: a function's exception table is part of the function (-fexceptions for these two cases only)
+objx() { "$CXX" $CFLAGS -fexceptions -o "$1/src/$3.o" "src/$2"; }
+for c in eh ehtype; do
+  a=$(store $c/a); b=$(store $c/b)
+  objx "$a" main_eh.cpp main.cpp; objx "$a" ${c}_a.cpp eh.cpp
+  objx "$b" main_eh.cpp main.cpp; objx "$b" ${c}_b.cpp eh.cpp
+  link "$a" entry "" src/main.cpp.o src/eh.cpp.o
+  link "$b" entry "" src/main.cpp.o src/eh.cpp.o
+done
+
 for c in t0 t0bad; do
   s=$(store $c); src=WiFiManager.c; [ $c = t0bad ] && src=WiFiManager_bad.c
   obj "$s" "$src" WiFiManager.c; link "$s" about "" src/WiFiManager.c.o

@@ -453,3 +453,34 @@ the prediction was LF; 5 CRs, nothing else.
 - **K4's map against C's ELF became the control.** It was predicted to fail with `.flash.text` among the untied
   sections, and it **read exit 1, 13 of 14, `.flash.text` alone (18:01:01Z)**. K4's own pair ties 14 of 14.
 - M0 has now been seen refusing a different build. This was read before any K4 row.
+
+## 14. K4 OFF, and amendment 1e: a function's exception table is part of the function (the reviewer's ruling, 18:03:33Z)
+
+**K4 read OFF.** With the instrument at `e15f9fb0afee`, against K0's second C build:
+- **What matched:** 6,557 functions moved; `setup()` CHANGED; 0 UNDECIDED, 0 RELAX, 0 PICK, 0 GC; OUT.
+- **What didn't:** a second unit, `sec:.gcc_except_table._Z5setupv`. That is `setup()`'s own C++ exception table, whose
+  call-site offsets moved when `setup()` grew. It read "named by: no kept unit", because only `.eh_frame` names it, and
+  section 3 excludes `.eh_frame`.
+- The miss is mine: section 3 excluded `.eh_frame` as derived from code, and left out its partner.
+
+**Why it isn't simply excluded too.** A table holds its catch types, by typeinfo relocation. A catch-type change can
+leave the code byte-identical and change only the table. Excluding it would hide that.
+
+**Amendment 1e, as ruled.**
+- `.gcc_except_table.<suffix>` is part of the function whose section is `.text.<suffix>` in the same object. Its
+  masked bytes and named relocations are folded into that function's signature.
+- An unpaired table stays a data unit.
+- `offsets_only` walks only the code, and needs the folded table equal.
+- **1d's referrer lookup is widened:** a global or weak unit is named by its symbol, as well as a local one by its
+  place. 1d's text said "its referrers", and the `ehtype` typeinfo units showed the narrower lookup missing them.
+
+**The fixtures, red first on today's code (`e15f9fb0afee`, 18:05:35Z):**
+- `eh`: `handle` grows ahead of its call site. Today's code read `handle` CHANGED plus its table as a second unit.
+- `ehtype`: only the catch type changes (`EA` → `EB`). The probe showed the code and the table's bytes identical, and
+  only the table's relocation target (`_ZTI2EA` → `_ZTI2EB`) different. Today's code read the table as a data unit and
+  `handle` as SAME.
+- **Under 1e:** `eh` reads `handle` alone; `ehtype` reads `handle` CHANGED, with its typeinfo units named by `handle`
+  and their `_ZTS` names named by their `_ZTI`. 24 of 24 cases pass.
+- **The sabotage run:** P13 (the table not folded) turns exactly `eh` and `ehtype` red. P12's set was re-derived:
+  its first run with `ehtype` read OFF on that case, which prints referrers. That is the same miss as P7's, a set not
+  re-derived when a case was added. All 13 plants now read as predicted.

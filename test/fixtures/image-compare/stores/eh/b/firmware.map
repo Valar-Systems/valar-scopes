@@ -1,0 +1,110 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.cpp.o
+ .data          0x00000000        0x0 src/main.cpp.o
+ .bss           0x00000000        0x0 src/main.cpp.o
+ .eh_frame      0x00000000       0x28 src/main.cpp.o
+ .xt.lit        0x00000000        0x8 src/main.cpp.o
+ .xt.prop       0x00000000      0x114 src/main.cpp.o
+ .group         0x00000000        0x8 src/eh.cpp.o
+ .group         0x00000000       0x14 src/eh.cpp.o
+ .text          0x00000000        0x0 src/eh.cpp.o
+ .data          0x00000000        0x0 src/eh.cpp.o
+ .bss           0x00000000        0x0 src/eh.cpp.o
+ .eh_frame      0x00000000       0x38 src/eh.cpp.o
+ .xt.lit        0x00000000        0x8 src/eh.cpp.o
+ .xt.prop       0x00000000       0xa8 src/eh.cpp.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.cpp.o
+LOAD src/eh.cpp.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x89
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x0 src/main.cpp.o
+                                  0x4 (size before relaxing)
+ .literal._Z6handlei
+                0x40000000        0x4 src/eh.cpp.o
+                                 0x1c (size before relaxing)
+ .text.entry    0x40000004        0xa src/main.cpp.o
+                                  0xe (size before relaxing)
+                0x40000004                entry
+ *fill*         0x4000000e        0x2 
+ .text._Z6handlei
+                0x40000010       0x4b src/eh.cpp.o
+                0x40000010                handle(int)
+ *fill*         0x4000005b        0x1 
+ .text._Z9may_throwi
+                0x4000005c        0x5 src/main.cpp.o
+                0x4000005c                may_throw(int)
+ *fill*         0x40000061        0x3 
+ .text._Z4notei
+                0x40000064        0x5 src/main.cpp.o
+                0x40000064                note(int)
+ *fill*         0x40000069        0x0 
+ *fill*         0x40000069        0x3 
+ .text.__gxx_personality_v0
+                0x4000006c        0x5 src/main.cpp.o
+                0x4000006c                __gxx_personality_v0
+ *fill*         0x40000071        0x3 
+ .text._Unwind_Resume
+                0x40000074        0x5 src/main.cpp.o
+                0x40000074                _Unwind_Resume
+ *fill*         0x40000079        0x3 
+ .text.__cxa_begin_catch
+                0x4000007c        0x7 src/main.cpp.o
+                0x4000007c                __cxa_begin_catch
+ *fill*         0x40000083        0x1 
+ .text.__cxa_end_catch
+                0x40000084        0x5 src/main.cpp.o
+                0x40000084                __cxa_end_catch
+ *fill*         0x40000089        0x0 
+
+.rodata         0x3f000000       0x1c
+ *(.rodata .rodata.*)
+ .rodata._ZTVN10__cxxabiv117__class_type_infoE
+                0x3f000000       0x10 src/main.cpp.o
+                0x3f000000                vtable for __cxxabiv1::__class_type_info
+ .rodata._ZTS2EA
+                0x3f000010        0x4 src/eh.cpp.o
+                0x3f000010                typeinfo name for EA
+ .rodata._ZTI2EA
+                0x3f000014        0x8 src/eh.cpp.o
+                0x3f000014                typeinfo for EA
+
+.gcc_except_table._Z6handlei
+                0x3f00001c       0x18
+ .gcc_except_table._Z6handlei
+                0x3f00001c       0x18 src/eh.cpp.o
+
+.data
+ *(.data .data.*)
+
+.bss
+ *(.bss .bss.* COMMON)
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.cpp.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/eh.cpp.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.cpp.o
+ .xtensa.info   0x00000038        0x0 src/eh.cpp.o
+
+.xt.prop._ZTI2EA
+                0x00000000        0xc
+ .xt.prop._ZTI2EA
+                0x00000000        0xc src/eh.cpp.o

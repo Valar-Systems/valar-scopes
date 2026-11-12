@@ -192,6 +192,17 @@ class Obj:
                 lst = self.relocs.setdefault(s["sh_info"], [])
                 for r in s.iter_relocations():
                     lst.append((r["r_offset"], r["r_info_type"], r["r_info_sym"], r["r_addend"]))
+        # Amendment 1e: a function's exception table (.gcc_except_table.<suffix>) is part of the function whose section
+        # is .text.<suffix> in this object -- folded into its signature, as its literal pool already is. An LSDA with no
+        # such function stays a data unit of its own.
+        by_name = {s.name: i for i, s in enumerate(self.secs)}
+        self.lsda_of, self.paired_lsda = {}, set()
+        for i, s in enumerate(self.secs):
+            if s.name.startswith(".gcc_except_table."):
+                fn = by_name.get(".text." + s.name[len(".gcc_except_table."):])
+                if fn is not None:
+                    self.lsda_of[fn] = i
+                    self.paired_lsda.add(i)
         self.units = {}       # ident -> section index
         self.sec_ident = {}   # section index -> ident
         self.ambiguous = set()
@@ -227,6 +238,8 @@ class Obj:
             return False
         if EXCLUDED.match(s.name) or is_literal(s.name) or (s["sh_flags"] & SHF_MERGE):
             return False
+        if i in getattr(self, "paired_lsda", ()):
+            return False  # part of its function (amendment 1e)
         return True
 
     def binding(self, ident):
@@ -311,6 +324,14 @@ class Obj:
         if ident in self.ambiguous:
             raise Refusal("its name repeats in its object")
         i = self.units[ident]
+        size, data, named, refs = self._section_sig(i)
+        if i in self.lsda_of:  # amendment 1e: the function's exception table, folded in
+            lsize, ldata, lnamed, lrefs = self._section_sig(self.lsda_of[i])
+            return ((size, lsize), data + b"|lsda|" + ldata, named + tuple(("lsda",) + n for n in lnamed),
+                    refs | lrefs)
+        return (size, data, named, refs)
+
+    def _section_sig(self, i):
         s = self.secs[i]
         if s["sh_type"] == "SHT_NOBITS":
             return (s["sh_size"], b"", (), frozenset())
@@ -603,6 +624,11 @@ def offsets_only(sa, sb):
     if sa[0] != sb[0] or sa[2] != sb[2]:
         return 0
     da, db = sa[1], sb[1]
+    if isinstance(sa[0], tuple):  # a folded exception table (1e): it must be equal, and only the code is walked
+        code = sa[0][0]
+        if da[code:] != db[code:]:
+            return 0
+        da, db = da[:code], db[:code]
     i = n = 0
     while i < len(da):
         la, lb = insn_len(da[i]), insn_len(db[i])
@@ -971,7 +997,8 @@ def local_referrers(key, oa, ob):
             except Refusal:
                 found.add((iid, other))
                 continue
-            if ("U", iid, ident) in refs:
+            # a local unit is named by its place; a global or weak one by its symbol (1d's lookup, widened under 1e)
+            if ("U", iid, ident) in refs or ("G", ident) in refs:
                 found.add((iid, other))
     return found
 
