@@ -1623,3 +1623,109 @@ be counted as such.** They stay as registered for this deploy (ruled: no change)
 **My miss.** I wrote each row's answer with W5, and never derived its answer without W5. A row that is evidence of a change needs that
 second answer, which is the control that shows it can fail. Same family as CLAUDE.md's "a check that cannot fail is a check nobody can
 trust". The discriminating rows above are the ones that carry it.
+
+### S4.21, 2026-11-12: FillRing drops a pixel on a zero-width bridge; the fix, its failing control, and every suite's prediction
+
+**Found by map-server (05:18Z, relayed by the orchestrator):**
+- `wxbase::FillRing` (`src/weatherscope/WxBasemap.h`, the crossing line in its scanline loop) computes each crossing from the edge's FIRST
+  endpoint.
+- A zero-width bridge (one segment walked out and back) is crossed twice, once in each direction. Through a pixel centre, the two doubles
+  can differ by about 1e-14.
+- Then `ceil(c - 0.5)` ends one span at the pixel and starts the next one after it, so the pixel is never drawn.
+- **The owner's images today:** Weatherscope isn't shipped, and maps are off in customer builds. So no image a customer has is affected.
+  `include/MapLayer.h` reaches `FillRing`, and `src/AircraftManager.cpp` compiles it. The fix therefore changes the radar images' bytes in
+  `FillRing`'s code. v19 is tagged at C (`3a322758eadc`), before any of this.
+
+#### The control, reproduced by bytes before anything else (scratch, on main `e3c2508eb8db`; nothing committed)
+
+- **The set:** map-server's set at `C:\Github\_handoffs\map-server\kb1-case`:
+  - 59 files, each verified against its `SHA256SUMS`;
+  - `SHA256SUMS` itself `dbed2d33843287c1b166fbebac7e99b4b320aafcfb16b3efa915a300ba89f2cd`;
+  - 24 synthetic views (no real place: synthetic origin (0,0), screen px), plus its 10-vertex minimal case.
+- **The build:** main's own `wxbase::FillRing` against the fix, compiled with `run.sh`'s exact flags under WSL g++ 13.3.
+- **The reading:**
+
+| case | main's FillRing, missing | the fix, missing | extra, either |
+|---|---|---|---|
+| view-162-90 | 14 | 0 | 0 |
+| view-162-270 | 6 | 0 | 0 |
+| view-81-0 | 5 | 0 | 0 |
+| view-40.5-0 | 1 | 0 | 0 |
+| min | 5: (26,26) (31,31) (128,128) (133,133) (134,134) | 0 | 0 |
+| the other 20 views | 0 | 0 | 0 |
+| **total** | **31** | **0** | **0** |
+
+**Every missing pixel list equals map-server's** (`missing.json` and its message), pixel for pixel.
+
+#### Every consumer, old against new, derived in scratch before this was written
+
+- **The instrument:** a scratch copy of main's `include/` and `src/weatherscope/` in which `FillRing` runs BOTH formulas on every call. It
+  keeps the old result, so each suite behaves as on main, and logs every pixel the fix would move.
+- **Its controls:** on map-server's cases it reports 5 (min) and 14 (view-162-90). Each suite's stdout is byte-identical to main's.
+
+| suite | `FillRing` calls | pixels written | pixels the fix moves |
+|---|---|---|---|
+| `test_wx_basemap` (92 checks) | 11 | 4,975 | **0** |
+| `test_map_layer` (160) | 215 | 11,677 | **0** |
+| `test_wx_k35b` (368, pinned render hashes) | 1,350 | 12,857 | **0**, so no pinned hash can move |
+
+**The three drivers that plant near this code,** run on main and on main + the fix:
+- `sabotage_map_layer` and `sabotage_map_draw`: byte-identical logs.
+- `sabotage_wx_basemap`: identical except its last line, which prints `WxBasemap.h`'s own sha (`d024c8f59c7a`, then `500eab71ae75`).
+- Every plant reads as registered on both.
+
+#### The change
+
+In `FillRing`'s scanline loop, every crossing is computed from the edge's lower-y endpoint, so an edge walked in either direction gives the
+same double:
+
+```
+            if ((ya > py) != (yb > py)) cross[m++] = (ya < yb) ? xa + (py - ya) * (xb - xa) / (yb - ya)
+                                                              : xb + (py - yb) * (xa - xb) / (ya - yb);
+```
+
+#### The new rows, in `test/host/test_wx_basemap.cpp`'s FL section (`kCases` 92 → **96**)
+
+| row | predicted |
+|---|---|
+| **FL7** | map-server's minimal bridged ring (10 vertices, inline) filled by `FillRing` **equals** an in-test reference: a pixel-centre even-odd test of the outer square minus the island, each without a bridge. The reference doesn't use `FillRing`'s scanline code. 47,959 px |
+| **FL7c, CONTROL** | a verbatim in-test copy of the OLD crossing, on the same ring, misses exactly (26,26) (31,31) (128,128) (133,133) (134,134) against that reference, and adds none: the case can fail |
+| **FL8** | view-162-90's bridged ring (22 vertices, inline, map-server's round-trip doubles) filled by `FillRing`: **28,420** px, map-server's reference count, including all 14 pixels it listed |
+| **FL8c, CONTROL** | the old copy on the same ring: **28,406** px, lacking exactly those 14 |
+
+**The sabotage, added to `sabotage_wx_basemap.py`:** **S-BRIDGE** reverts the crossing to the first endpoint. It must turn **exactly {FL7,
+FL8}** red. The controls stay green, since they use their own copy.
+
+**Existing plants, re-derived:**
+- **S-FILL** (the corner sample and the span rule) grows from {FL1, FL2, FL3, FL5b, FL6} to **{FL1, FL2, FL3, FL5b, FL6, FL7, FL8}**. It
+  changes `FillRing`'s output against FL7's independent reference and FL8's count. FL7c and FL8c use their own copy, so they don't move.
+- **S-UNION** (an even-odd image write): **unchanged, {FL6}.** FL7 and FL8 fill one ring per call, whose spans never overlap, so no pixel is
+  written twice.
+- **The other 14 plants** don't reach these rows, which call `FillRing` directly on fixed coordinates.
+- **The driver's total:** "17 device sabotages and 2 validator sabotages: ALL AS PREDICTED".
+
+#### Predicted, on the change's branch
+
+| read | predicted |
+|---|---|
+| `test_wx_basemap` | **96 checks, 0 failures** |
+| `test_map_layer` | 160 checks, 0 failures; its CB rows unchanged |
+| `test_wx_k35b` | 368 checks, 0 failures; no K row's hash moves |
+| `sabotage_wx_basemap.py` | 17 device + 2 validator, ALL AS PREDICTED, with S-FILL's and S-BRIDGE's sets as above |
+| `sabotage_map_layer.py`, `sabotage_map_draw.py` | AS PREDICTED, unchanged |
+| `run.sh` under WSL | its known blocks only: exit 2 from the xtensa and Pillow steps, and `sabotage_wx_towns` SKIPs. Its comment's count reads 96 |
+
+**CI:**
+- **How it's derived:** the PR touches `src/weatherscope/WxBasemap.h`, `test/host/test_wx_basemap.cpp`, `test/host/sabotage_wx_basemap.py`
+  and `test/host/run.sh`. That runs `device-ids`, `firmware` and `no-traffic-captures`, which run on every PR, and `web-renderer`, through
+  `src/**`. There's no `proxy/` path, so not `workers`.
+- **No job-set change on main since `78c2bec21dfa`.**
+
+| run | total | success | skipped | failed |
+|---|---|---|---|---|
+| the PR | **34** | 30 | 4: firmware's `version`, `promote`, `ship-alert`; web-renderer's `publish` | 0 |
+| main on the squash | **34** | 31 | 3: firmware's `version`, `promote`; web-renderer's `publish` | 0 |
+
+**The tested merge is named from a job's checkout log.** Map-server pins `FillRing` from the squash once it's on main.
+
+**Outside the set:** any row, count, set or hash off stops the step, and it is reported.
