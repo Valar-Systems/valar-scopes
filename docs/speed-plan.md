@@ -66,6 +66,9 @@ after the other today, so everything else in v19's 74.5 ms at 41, about 49 ms, i
 
 ## 2a. The owner's choice, sized: (a) 20 fps at 40 aircraft in v20, or (b) v20 no slower than v19
 
+**Its estimates are superseded by section 2c (re-sized on the measured v19 baseline, 22:53Z).** They are kept as the record
+of what the owner chose from.
+
 **The numbers this sizing stands on, and how firm each is.** map-client's frame-time bench (S0) is registered
 (`docs/frame-time-bench.md`, branch `docs/frame-time-bench` at `b0c58758dd8e`). Its control and its baseline have NOT
 run yet. When they have, every number below is re-read on it, and a sizing that moves goes back to the owner.
@@ -168,6 +171,9 @@ parallel." Section 2b is that plan.
 
 ## 2b. The plan for (a): steps, owners, checkpoint, dates
 
+**The steps, owners and C1's meanings stand. The gap figures and the R1-R3 dates are re-read in section 2c**, on the
+measured baseline, for the bar on LIVE-like or on FIXED traffic.
+
 **The goal:** p95 of `p2p` **≤ 50 ms at 40 aircraft with map and weather on**, read on map-client's frame-time bench
 on the v20 candidate, with 20 and 60 reported beside it. 24 fps (≤ 41.7 ms) is the target and not chased past.
 
@@ -263,6 +269,60 @@ The big screens start at F, and alone take **F + 22** (docs/big-screens.md).
 ~11.1 + M ms more from W, L1 and the cached map, none of them measured yet, and on single readings until map-client's
 baseline runs. Everything that could sink (a) is measured by **C1, about 2026-11-16**. The plan is built so the owner
 hears the bad case then, not at pre-flight.
+
+## 2c. (a) re-sized on the MEASURED v19 baseline (2026-11-12, 22:53Z): this supersedes the estimates in 2a and 2b
+
+map-client's v19 baseline is measured: `baseline_b.out`, sha `29d24028cec9`, read by p4 from the file itself.
+- **Every p95 carries ± 1.54 ms.** That is I-6's measured noise: the bench's own control read +11.54 against +10.0 ±
+  1.5, was recorded RED, and was ruled noise.
+- The loop's tail is negligible: `p2p` − `fr` is +0.04 to +0.06 ms in every scene.
+
+This replaces the single 74.5 ms reading and the 2026-08-29 fit, which under-predicts this bench at 40 and at 60.
+
+**v19 measured, p95 of `p2p`, map and weather off:**
+
+| traffic | 20 drawn | 40 drawn | 60 drawn |
+|---|---|---|---|
+| FIXED (packed: every aircraft inside 8 mi), six scenes each | 53.4-56.4 (median 55.0) | **76.55-81.83 (median 77.85, worst 81.83)**, about 12-13 fps | 102.3-110.4 (median 105.4) |
+| LIVE, real traffic | Bend, median 16 drawn: 47.68 | KSFO, median 38 drawn: **61.51** (15.6 ms under FIXED KSFO/40/25) | (none) |
+
+- **The per-contact cost is measured** at 1.14 ms (FIXED, 20 to 40) and 1.38 ms (40 to 60), against the old fit's 0.802.
+- On LIVE it is 0.63 ms (16 to 38 drawn), so **LIVE at 40 ≈ 62.8 ms**, scaled from 38 on LIVE's own slope.
+- **The packing is the difference.** On the FIXED scenes, labels and overlap work crowd into 8 mi.
+- **Which traffic the bar is read on is the owner's decision**, and it decides (a).
+
+**v20 at 40 = v19 + weather (2.1 + 4.6 + 0.1625 × 40 = 13.2 ms, measured; section 2a) + M:**
+
+| bar read on | v20 at 40 | with M3's overlap complete (−25.8) | still to find for 20 fps (≤ 50 ms) | for 24 fps (≤ 41.7) | without M3, after L2 (−12.9) |
+|---|---|---|---|---|---|
+| **FIXED, worst scene** (S5, 81.83) | 95.0 + M (10.5 fps) | 69.2 + M | **19.2 + M** | 27.5 + M | 32.1 + M short |
+| **FIXED, median** (77.85) | 91.0 + M (11.0 fps) | 65.2 + M | **15.2 + M** | 23.6 + M | 28.1 + M short |
+| **LIVE-like** (62.8 at 40) | 75.9 + M (13.2 fps) | 50.1 + M | **0.1 + M** | 8.5 + M | 13.0 + M short |
+
+All carry ± 1.54 ms (I-6) and weather's ± 2.5 ms. M, the map's steady cost, is still unmeasured: A0b reads it.
+
+**What it means, plainly:**
+- **On LIVE-like traffic, (a) is about M3 plus the map.** With M3's overlap complete, the frame lands at the bar, short
+  by only the map's cost and a tenth of a millisecond. The map cached (P4) and a part of W's outline cut (P5) cover
+  that. 24 fps needs ~8.5 + M more, from W and L1.
+- **On FIXED traffic, (a) needs M3 and then 15-19 ms more, plus M.** W's whole ceiling is the outline (6.5) + the blend
+  (4.6) + the clear (2.1) = 13.2 ms, and no realistic cut removes all of it. So the rest must come from L1, on a
+  per-contact cost now measured at 1.14-1.38 ms. **(a) on FIXED is at the edge of what the methods and L1 can do.** The
+  levers past them (L3, a cheaper sweep blend; L4, less label and trail work per frame) change the look, so they are
+  his rulings.
+- **Without M3, (a) is out of reach on either traffic** (13-32 ms short after L2).
+
+**C1's meanings are unchanged** (the owner fixed them). What the larger gap does to the dates:
+
+| | bar on LIVE-like traffic | bar on FIXED traffic |
+|---|---|---|
+| **R1** (C1 on track; the rest found at the first try) | **holds: v20 promoted Nov 25-30.** After M3, only ~0.1 + M is left, covered by P4 and part of P5 | **NOT reachable.** Even with M3 complete, 15-19 + M ms remain, more than one round of P4-P6 can be relied on to find |
+| **R2** (C1 on track; a second round for W and L1, +3-4 d) | holds as the fallback: Nov 27 - Dec 1 | **the best case:** W must deliver most of its ceiling and L1 the rest; **Nov 27 - Dec 1, only if both do** |
+| **R3** (C1 partial or failed; L2, then L3/L4 rulings) | about Dec 3-10, if M3 fails | **the realistic case:** L3/L4 likely needed even with M3 on track. **About Dec 3-10 or later**, not sizable until he rules on L3/L4 |
+
+**The owner's decision that most moves v20's date is which traffic the bar is read on.** On LIVE-like traffic the plan
+as sized holds (R1). On the packed FIXED scenes, planning on R3 is the honest reading. map-client's caveat stands: the
+FIXED scenes pack every aircraft inside 8 mi, which is harsher than a real board.
 
 ## 3. The methods, and what each is expected to gain
 
