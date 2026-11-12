@@ -2452,3 +2452,61 @@ causes, and they are independent.
   refused count from step 5 is 0, with the islands dropped printed.
 - **Predicted after (A)+(B):** record 18 is drawn at all four NY points, with one island dropped at each, and KJFK's cover inside the
   square is about 0.98. These are registered exactly before any re-run.
+
+### KB4: the owner's ruling (2026-11-12 16:24Z), registered before any code
+
+**The ruling, in the owner's words:** "KB4: (A), (B) and (C), with one condition on (B).
+- (B) drops an island only below a size frozen in advance, no bigger than what is already too small to draw at the closest zoom.
+- A larger island that crosses its sea outline stops the build; it is never dropped. Long Island, Staten Island and Manhattan are the
+  cases that matter here.
+- Every dropped island is counted on the build record.
+- (C)'s control is shown failing first: a planted crossing island, built without (B), must turn (C) red."
+
+**(A) KB4's cover is counted inside the package's own square.** The base is the ≤ 0 m pixels outside TIGER water within ±radius, not
+the whole 162 km level grid. frac is unchanged, since it is already scoped by the mask. The complement control and the ladder are
+counted inside the same square. KB4's bounds stay at 0.95 and 0.90.
+
+**(B) The island threshold, FROZEN: T = 0.0045 km² (4,496.5 m²), ONE PIXEL at the closest zoom.** The closest zoom is the 8.04672 km
+view drawn across 240 px, so a pixel is 16.09344 km / 240 = 67.056 m, and its area is 0.0044965 km². An island smaller than one pixel
+is too small to draw there; anything larger can cover a pixel centre.
+- **An island under T, crossing its outline after bridging, is DROPPED and the ring bridged again.** It is counted on the build record
+  with its id, area and point (`seaIslandsCrossDropped`, and one log line per island).
+- **An island at or over T, crossing its outline, STOPS THE BUILD.** The builder answers 500 `sea_island_crossing`, logging the piece's
+  key, the island's id, area and point. **It is never dropped.**
+- **What that means in practice: (B)'s drop branch can never fire.** Step 2 already drops every island under 1.5 km², which is 333.6
+  px at the closest zoom, so every island that reaches bridging is far over T. **As ruled, any crossing island stops the build.**
+
+**The named islands, against T** (from the store's own pieces, `sea-pieces.json`):
+
+| island | at the bridging step? | size | at the four NY points (KJFK, KLGA, KEWR, MIDTOWN, radius 129.6 km) |
+|---|---|---|---|
+| **Long Island** | **no.** The 1-degree cut makes it part of each cell piece's outline, so it is never a hole | (spans several cells) | (B) does not apply |
+| **Staten Island** | **yes:** a hole in cell 40/-75's ocean piece (record 25) | **139.4 km²** (31,011 px at the closest zoom) | **drawn** in runs 3-6 at all four, with no crossing, so (B) does not fire: **drawn as before** |
+| **Manhattan** | **no:** a hole in no piece of any New York cell | | (B) does not apply |
+| **Jones Beach Island**, the one that crosses | **yes:** the island of record 18 (cell 40/-74, the New York Bight), at (40.617, -73.417) | **40.4 km²** (8,983 px) | **crosses its outline at ε×8** (run 6's diagnosis), so **as ruled the build STOPS at all four NY points** |
+
+**(C) A graded row:** at every point, step-5 refusals = 0 for every piece whose outer passes step 3. Islands dropped (under T) are
+printed. **Its control is shown FAILING FIRST, before (B)'s code:** a synthetic plant, `xisland`, run on the current code without (B).
+- **The plant:** a sea square (0..20 × 0..20 km). Its top edge carries a flat bulge 0.18 km high, under ε, from x 5.5 to 14.5 km,
+  which DP removes. A 2.4 km² island (6..14 × 19.85..20.15 km) straddles that edge inside the bulge.
+- **What should happen:** simplified, the outer's top edge straightens to y = 20, the island crosses it, and today's step 5 refuses
+  the piece. **Predicted: (C) reads 1 refusal, RED.**
+- **With (B) as ruled,** the same plant STOPS the build (the island is 2.4 km² ≥ T).
+
+**Predicted for the re-run, as ruled:**
+- **Every row before P2-1 reads as in run 6.**
+- **P2-1:** KBOS as before. **At KJFK, KLGA, KEWR and MIDTOWN the build stops** with `sea_island_crossing` (record 18, Jones Beach
+  Island, 40.4 km²). That reads as predicted, but **those four points have no package.** The other 12 points are as in run 6.
+- **The rows that need a New York package are not computable** (KB3 at KJFK and KLGA; KB4 at KJFK and KLGA). They are recorded as such.
+- **KB4 under (A) at KBOS, KSEA, KSFO and KMIA:** the in-square cover is at or above the whole-grid figure. KBOS is a full 162 km
+  square, so its figure is unchanged at 0.9907.
+
+**THE CONSEQUENCE, for the owner before any code: as ruled, the four New York points get NO MAP.**
+- One option keeps every island and drops nothing: **(B') repair before stopping.** When the outer and an island cross after
+  simplification, restore the original vertices on the crossing edges of BOTH rings, DP's own next choice, the same loop
+  `simplifyRingTP` already runs within one ring, until no crossing is left.
+  - It **stops only if the repair cannot resolve the crossing.** It costs a few vertices; at ε and ×2 the same piece already bridges
+    with 0 crossings.
+  - **This is a design addition, so it is the owner's call.**
+- If the owner takes (B'), its predictions are registered before code: record 18 drawn at all four, Jones Beach Island kept, and KJFK's
+  in-square cover about 0.98.
