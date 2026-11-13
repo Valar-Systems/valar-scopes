@@ -631,3 +631,5 @@ reader is committed with its sha before it runs, and it runs twice, at least 60 
 | **S1** | `(adsbdb_route, disabled_by_config)` is **at least 60%** of `upstream_skip` events: every route lookup that adsb.lol's routeset leaves empty falls through to a source switched off by config | the skips are mostly something else: each (id, reason) is reported with its count |
 | **S2** | `hold_4xx` skips exist for adsb.fi (the hour had 30 `hold` events) | adsb.fi's holds do not reach the chains as skips: report it |
 | escape | an id, state or reason outside the source's lists; the two reads disagree; a sampled hour | the instrument is unreliable at this scale: stop and report, with no reading |
+
+**The reader:** `tools/bill/breaker_skip_read.py`, blob **`f73b98e55a6b`**, committed here before it runs. Its 10-minute slices need an event timestamp; it counts any event without one, and prints that count.
