@@ -375,5 +375,112 @@ else:
     print("RH-S1: %s -- the User-Agent removed: RH1 %s, RH1-ctl %s (want RH1 red, RH1-ctl as predicted)"
           % ("as predicted" if ok else "OFF-PREDICTION", "red" if not g["RH1"] else "GREEN", g["RH1-ctl"]))
 
+# LV: were the behind-but-"ok" devices awake at their 03:00? (docs/ota-liveness-read.md) Fixtures only, EXAMPLE ids, no
+# network. A (every hour), B (20 of 24), C (boot points only, which are not presence) are behind with "ok". D is present
+# every hour but is not in the ok set, and one of A's points falls outside the window.
+LA, LB, LC, LD = "d4" * 8, "e5" * 8, "f6" * 8, "a7" * 8
+LV_HOURS = ["2026-11-13 %02d:00:00" % h for h in range(24)]
+LV_ANCHOR3 = "; the query sees 3 device(s) with requests in the window, 2 in every hour"
+LV_WANT1 = ("    of the 3 behind with last result ok: present every hour of the last 24 h 1, with gaps 1, no request 1"
+            " (AE sample interval max 1)" + LV_ANCHOR3)
+LV_HEX16 = r"(?<![0-9a-fA-F])[0-9a-fA-F]{16}(?![0-9a-fA-F])"
+
+
+def lv_rows(si=1):
+    rows = [(LA, h, "/v1/blips", si) for h in LV_HOURS]
+    rows += [(LB, h, "/v1/blips", si) for h in LV_HOURS[:20]]
+    rows += [(LD, h, "/v1/blips", si) for h in LV_HOURS]
+    rows += [(LC, h, "boot", si) for h in LV_HOURS]
+    rows += [(LA, "2026-11-12 23:00:00", "/v1/blips", si)]
+    return rows
+
+
+def lv(mod) -> dict:
+    import re as _re
+    res = {}
+    l1, w1 = mod.liveness_lines([LA, LB, LC], lv_rows(), "", LV_HOURS)
+    res["LV1"] = l1 == [LV_WANT1] and w1 == []
+    res["LV2"] = not _re.search(LV_HEX16, "\n".join(l1))
+    res["LV2-ctl"] = (bool(l1) and l1[0].startswith("    of the 3 behind with last result ok: ")
+                      and "present every hour of the last 24 h 1, with gaps 1, no request 1 (AE sample interval max 1)"
+                      in l1[0])
+    l3, w3 = mod.liveness_lines([LA, LB, LC], None, "EXAMPLE reason", LV_HOURS)
+    res["LV3"] = l3 == ["    liveness unread: EXAMPLE reason"] and len(w3) == 1
+    called = []
+    l4, w4 = mod.liveness_report([], lambda: called.append(1) or ([], ""), LV_HOURS)
+    res["LV4"] = l4 == ["    of the 0 behind with last result ok: nothing to read"] and w4 == [] and not called
+    l5, w5 = mod.liveness_lines([LA, LB, LC], lv_rows(si=10), "", LV_HOURS)
+    res["LV5"] = l5 == [LV_WANT1.replace("max 1)", "max 10)")] and len(w5) == 1 and "sampl" in w5[0]
+    # LV6: the copied error path keeps Analytics Engine's own reason, as R1h proves for read_ota_points (a second path
+    # proves nothing by the first one's row).
+    import urllib.error as _ue
+
+    def refuse(*a, **k):
+        raise _ue.HTTPError("https://example.invalid", 422, "EXAMPLE", {}, io.BytesIO(b"EXAMPLE: unable to find type"))
+    real = mod.urllib.request.urlopen
+    mod.urllib.request.urlopen = refuse
+    try:
+        rows6, why6 = mod.read_liveness_rows("production", "EXAMPLE-not-a-token")
+    finally:
+        mod.urllib.request.urlopen = real
+    res["LV6"] = rows6 is None and "422" in why6 and "EXAMPLE: unable to find type" in why6
+    # LV7: the ok device made no request while others did -- the anchor is non-zero, so "no request" stands.
+    l7, w7 = mod.liveness_lines([LC], lv_rows(), "", LV_HOURS)
+    res["LV7"] = l7 == ["    of the 1 behind with last result ok: present every hour of the last 24 h 0, with gaps 0, "
+                        "no request 1 (AE sample interval max 1)" + LV_ANCHOR3] and w7 == []
+    # LV7-ctl: the query returned nothing at all -- the anchor reads 0 and the line says "no request" proves nothing.
+    l7c, w7c = mod.liveness_lines([LA, LB, LC], [], "", LV_HOURS)
+    res["LV7-ctl"] = (l7c == ["    of the 3 behind with last result ok: present every hour of the last 24 h 0, with gaps 0, "
+                              "no request 3 (AE sample interval max none); the query sees 0 device(s) with requests in the "
+                              "window, 0 in every hour"]
+                      and len(w7c) == 1 and "proves nothing" in w7c[0])
+    # LV8: gaps under sampling read as "with gaps" plus the sampling warning, never "present every hour".
+    l8, w8 = mod.liveness_lines([LB], lv_rows(si=10), "", LV_HOURS)
+    res["LV8"] = (l8 == ["    of the 1 behind with last result ok: present every hour of the last 24 h 0, with gaps 1, "
+                         "no request 0 (AE sample interval max 10)" + LV_ANCHOR3]
+                  and len(w8) == 1 and "sampl" in w8[0])
+    return res
+
+
+_lvmod = load(SRC)
+if not all(hasattr(_lvmod, n) for n in ("liveness_lines", "liveness_report")):
+    off += 1
+    for name in ("LV1", "LV2", "LV2-ctl", "LV3", "LV4", "LV5", "LV-S1"):
+        print("%s: BLIND -- liveness_lines / liveness_report do not exist" % name)
+else:
+    got = lv(_lvmod)
+    red = sorted(k for k, v in got.items() if not v)
+    off += bool(red)
+    print("LV (the real source): %s -- red %s" % ("as predicted" if not red else "OFF-PREDICTION", red or "none"))
+    LV_ANCHOR = '" (AE sample interval max %s)" % (k, LIVE_HOURS, x, y, z, s_txt))'
+    if SRC.count(LV_ANCHOR) != 1:
+        off += 1
+        print("LV-S1: BLIND -- its anchor was found %d times" % SRC.count(LV_ANCHOR))
+    else:
+        # LV-S1: the line's format gains the ids. LV2 must go red; LV2-ctl still sees the counts, so LV2 is not
+        # passing on an empty or truncated line.
+        planted = SRC.replace(LV_ANCHOR,
+                              '" (AE sample interval max %s) %s" % (k, LIVE_HOURS, x, y, z, s_txt, ",".join(sorted(okset))))')
+        assert planted != SRC
+        g = lv(load(planted))
+        ok = (not g["LV2"]) and g["LV2-ctl"]
+        off += not ok
+        print("LV-S1: %s -- the ids planted into the line: LV2 %s, LV2-ctl %s (want LV2 red, LV2-ctl as predicted)"
+              % ("as predicted" if ok else "OFF-PREDICTION", "red" if not g["LV2"] else "GREEN", g["LV2-ctl"]))
+    LVB_ANCHOR = ('        return None, "Analytics Engine refused the liveness query (%d): %s" % (e.code, e.read().decode('
+                  '"utf-8", "replace").strip()[:300])\n')
+    if SRC.count(LVB_ANCHOR) != 1:
+        off += 1
+        print("S-R1body-lv: BLIND -- its anchor was found %d times" % SRC.count(LVB_ANCHOR))
+    else:
+        # S-R1body-lv: the liveness reader's error drops Analytics Engine's body. Exactly LV6 must go red.
+        planted = SRC.replace(LVB_ANCHOR, '        return None, "Analytics Engine refused the liveness query (%d)" % e.code'
+                                          '  # SABOTAGE S-R1body-lv\n')
+        assert planted != SRC
+        g = sorted(k for k, v in lv(load(planted)).items() if not v)
+        ok = g == ["LV6"]
+        off += not ok
+        print("S-R1body-lv: %s -- red %s (want ['LV6'])" % ("as predicted" if ok else "OFF-PREDICTION", g))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)
