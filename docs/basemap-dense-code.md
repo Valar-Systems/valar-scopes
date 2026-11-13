@@ -3440,3 +3440,40 @@ brief's 2-dp limit all exclude it. This narrows what is logged, so it needs no o
   digit-dot-digit** (`/\d\.\d/`) and **no record key** (`/\d+\/\d+/`). **Its control:** the line still says something -- it matches
   `^sea_repair rings \d+ restored \d+ rounds \d+$`, and the repaired build emits exactly one. Its sabotage (S-HR-LOGPOINT, through
   sabotage-basemap.mjs): the full harness line logged instead, which must turn T-SEALOG red and nothing else.
+
+## The old ladder's test rows, re-frozen from the prototype before any test is edited (the orchestrator's accepted method, 2026-11-13)
+
+Thirteen existing basemap tests read red on the ported builder, every one a test of behaviour this PR replaces by registration. The
+golden row (MG0/MG0b) was a test assumption, fixed in the test: it walks the layers Bend's manifest holds, with a control pinning
+Bend's seven, since `provenanceLines` writes lines only for layers read and a no-sea package's PROVENANCE is byte-unchanged.
+
+**The method (accepted):** the new values come from the PINNED PROTOTYPE pq4d, under the ruled settings, on the SAME synthetic
+fixtures (the pinned `test/basemap-synth.ts`, unchanged in pq4d) -- never from the code under test. The script and its output are on
+`map-server/scratch-record` at **8c86cab778d6** (`scratch-record/q-w4/`): `pq4d-oldrows.mts` **ff6351759648**, output
+`oldrows-pq4d.json` **a5393eea0e57**. The record regenerates pq4d byte for byte (all 18 files, shown before it was committed).
+**No old row is deleted without a named replacement.**
+
+Notation: `rings(k)` is the fixture's rings k..9 by their first vertex's quantised E, as the test already writes them; every
+package below is `kOk`.
+
+| old row | old assertion | new row: what the ruled ladder does (pq4d's values) | what changed it |
+|---|---|---|---|
+| MB1, MN2 | A at 812 fits as built, rung 0 | **unchanged** (812 B, rung 0, nt []) | -- |
+| MB2 | A at 811: doubles ε, drops ring 1 | A at 811: **rung 2**, water at ε × 8 COLLAPSES ring 1 (collapsed, not dropped): 796 B, ε 201,168 mm, `rings(2)`, 7 roads, dropped "0 / 0", epsilon.m 100.584, steps 1 | the ladder (rung 2 = water at ε × 8) |
+| MN3 | A at 811: rung 2 | **the value stands, its reason changes:** rung 2 is now water at ε × 8 | the ladder |
+| MB3 | A at 667: every ring and the 3 km secondary dropped | A at 667: **rung 4**: every secondary dropped (rung 3 exhausted), then rings 2-7 smallest first: 656 B, ε 201,168, water `rings(8)` ([20268, 21957]), 3 roads = the primaries (ends at 10, 11, 12 km), dropped "6 / 4", steps 1 | the ladder (secondaries before water) |
+| MB4 | A at 623: 422, "primaries are never dropped" | A at 623: **D2: 200 after 4 steps**, radii [97, 77.6, 62.08, 49.664], radius 49,664,000 mm, rung 4, 623 B, ε 201,168, 2 rings ([26391, 29690] in that frame), 0 roads (the primaries lie outside the 49.664 km square), dropped "2 / 0". **"Primaries are never dropped" survives in MB3 and MB5** (3 primaries kept at rung 4) | D2 (Q-DP3) |
+| MB5 | A at 624: only the primaries, rung 3 | A at 624: **rung 4**: 624 B, ε 201,168, water [], 3 roads (the primaries), dropped "8 / 4", steps 1 | the ladder |
+| MN4 | A at 624: rung 3 | A at 624: **rung 4** | the ladder |
+| MB6, MN5 | B at 841 fits at 2ε, rung 1 | **unchanged** | -- |
+| MB7 | B at 838: drops ring 1 at 2ε | B at 838: **rung 2**: 823 B, ε 201,168, `rings(2)` (ring 1 collapsed at ε × 8), 9 roads, roadPts [2,2,2,2,2,2,2,2,3], dropped "0 / 0" | the ladder |
+| MB8a | A8 at 1,322 fits | **unchanged** | -- |
+| MB8b | A8 at 1,321: doubles ε, drops ring 1 | A8 at 1,321: **rung 2**: 1,330 B, ε 201,168, `rings(2)`, 7 roads, dropped "0 / 0" | the ladder |
+| MN1 | A at 623: 422, nt [812, 812, x, 624] | **replaced by A at 100: a 422 after all 7 steps**, radii [97, 77.6, 62.08, 49.664, 39.7312, 31.78496, 25.427968], rung -1, **nt []** (the ruled ladder records no per-rung bytes), its last rung tried's layer bytes: water 0, rivers 0, roads 0, peaks 0, places 0, provenance 511 | the ladder, D2 |
+| MN6 | the sum identity on four packages; the 422's last rung is A at 624's package | **the sum identity stands** on A at 812, 811 and 624 and B at 841 (an encoding property); **the 422 half** becomes A at 100's: its layer bytes are its last rung tried at its last D2 step (provenance 511, all else 0), not a smaller-cap package | D2 |
+| MW13 | capBytes 100: 422 after 5 reads | capBytes 100: **422 after 7 steps and 35 reads** (5 per step: current, manifest, coverage, index, its cell); 1 builder call | D2 |
+| BB3 | a 200's line has its 15 fields, a 422's its 19 (with nt0-nt3) | a 200's line: the 15 **plus** steps, refusedBuilt, refused, seaLost, seaRefused, seaCollapsed, seaDropped, refused5, islandsDropped, seaRepairs, seaRepairVertices; a 422's: the 15 **plus** steps and refusedBuilt, **no nt fields** (nt is always empty); a line without a ladder: its 7. Integers only, nothing of the query | R2-R5 |
+| BB5 | a 422's line carries nt0-nt3 | a 422's line carries steps and refusedBuilt and no nt field; `buildLine`'s nt branch, dead under the ruled ladder, is removed | R3, R4 |
+| MG0, MG0b | every LAYER_ORDER layer read in Bend | the layers Bend's manifest holds, with a control pinning Bend's seven | part 2's "sea" in LAYER_ORDER; PROVENANCE unchanged for no-sea packages |
+
+**The run:** the tests are edited to these values, then the port runs them. A value off is a stop, as everywhere in this file.
