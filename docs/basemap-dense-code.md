@@ -4328,3 +4328,31 @@ KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
 **What waits:**
 - **On SEA-STORE (8 census files on the 10-28 retry path):** SEA-OWN, I2, KB7-b and KB7-c-real.
 - **On the 11-16 bench window:** FT-SEA.
+
+### The code PR opens as a DRAFT (the orchestrator, after 07:39Z): main merged in, and `d1.ts` migrated to `wrangler-run` in this PR
+
+**The merge.** Main 4abb6508, which carries #694's `wrangler-run` and its check, is merged into this branch (1137cdf3).
+- No file was changed on both sides.
+- `proxy/src/basemap` is still af4063428381, the tree every run above read.
+- On the merged tree, #694's `check_wrangler_calls.py` read 0 direct calls and 0 stale allowances: this PR had not touched the allowlisted `d1.ts` line.
+
+**The migration, as ruled** ("migrates after the sea-path PR" becomes "migrates IN the sea-path PR"), predicted before the edit (`wr/pred.txt` 1898498b44b8, 07:41:21Z):
+- **M1:** `d1.ts`'s spawn moved to the helper, with the allowlist row kept. Predicted exit 1, exactly the `d1.ts` row stale. **Read: exit 1, "direct 0, stale allowances 1", the `d1.ts` row.**
+- **M2:** the row dropped. **Read: exit 0, direct 0, stale 0.**
+- **M3:** the check's selftest and the helper's selftest. **Read: both exit 0 (13 PASS / 0 FAIL, 9 / 0).**
+- `npm run typecheck:scripts`: exit 0.
+- **What the migration removes:** `d1.ts`'s own per-call log files (A2.40). The helper gives each call its own temp dir and removes it after, so A2.40's reason still holds (8 concurrent calls never share a file). No log is left behind, and nothing read `d1LogDir()`.
+- `docs/wrangler-run.md`'s migration order is updated to match.
+
+**CI, predicted before the push, from the workflows at the merged head** (main's, since this PR changes none). It covers the pull request to main; its files are `proxy/**`, `docs/**` and `scripts/wrangler-call-allow.txt`.
+
+| workflow | jobs | runs |
+|---|---|---|
+| device-ids | `no-real-device-ids` | 1 |
+| firmware | 20 jobs, plus `build`'s matrix of 11 (`scripts/skus.py --matrix-json`) | 31 |
+| no-traffic-captures | | 1 |
+| workers | `manifest-drift`, plus `test` x 2 | 3 |
+| account-budget, print-cards, provisioner, web-renderer | their paths are not hit | 0 |
+
+- **36 check runs: 34 success, 2 skipped** (firmware's `version` and `promote`, release-only), **0 failures.**
+- **Outside that: STOP, and read which job before anything else.** That means a different count, or any failure.
