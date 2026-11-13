@@ -749,3 +749,107 @@ Each is given as a count and as a share of `/enrich` requests.
 the token file. Each is committed with its sha before it runs, and runs twice at least 60 s apart.
 
 **The readers**, committed here before either runs: (1) `tools/bill/route_onset_read.py`, blob **`b708610e1d1b`**; (2) `tools/bill/route_impact_read.py`, blob **`3433e7efa78d`**. (1) runs its two controls first, and reads no other hour unless both pass.
+
+### (2) IMPACT, read and graded
+
+**The read.** Reader blob `3433e7efa78d`. The hour `[2026-11-13T00:00Z, 01:00Z)`, read at 01:24:31Z and 01:25:51Z (66 s
+after the first ended). The two reads are **identical**, and the hour was unsampled.
+
+| how a `/enrich` request ended, route-wise | count | share of the 1,994 `/enrich` requests |
+|---|---|---|
+| **no route: KV miss** (one `adsbdb_route disabled_by_config` line each) | 733 | **36.8%** |
+| **no route: a KV route withheld as implausible** (`route_stale`) | 338 | **17.0%** (`not_for_position` 175, `reversed` 163) |
+| a route from adsb.lol's routeset (`upstream ok:true`) | 0 | 0.0% |
+| a route from KV (mirror or the 24 h runtime cache, not separable): an UPPER bound, since requests without a callsign are inside it | at most 923 | at most 46.3% |
+
+The routeset's own lines in the hour: 429 `upstream` failures, no success, and 304 `breaker_open` skips.
+
+**Grades:**
+- **I1: HOLDS.** 1,994 `/enrich` requests is at least 1,071.
+- **I2: HOLDS.** The routeset answered 0 times in the hour.
+- **Escape: not taken.**
+
+**What the hour says, without a reading beyond it:**
+- **At least 53.8% of `/enrich` requests ended with no route** (36.8% + 17.0%).
+- The 36.8% is lookups the mirror did not hold, at a time when no upstream answers.
+- The 17.0% the mirror did hold but for another leg or direction. Those have nothing to do with the outage: they would be
+  withheld with the routeset up too.
+- **Whether the 36.8% would have had a route with the routeset up is not knowable from here.** As CLAUDE.md records,
+  the routeset answered 201 with an empty body before.
+
+**The reason adsbdb is off, read from `a9594ab` (2026-08-26, PR #260), not from `wrangler.toml`'s line-46 comment:**
+- adsbdb left the chain over a LICENSING question: the commit says there is "no written permission to use
+  commercially".
+- The routeset had been "broken upstream since 2026-07-08" (201 where 422 is documented).
+- So the premise behind production's `false` was never "the routeset answers". Line 46's comment ("false once adsb.lol
+  routeset recovers") sits on the dev `[vars]` default and describes a different decision.
+- Turning adsbdb back on reopens that licensing question. It is the owner's call, and this page proposes nothing.
+
+### (1) ONSET, read and graded
+
+**The read.** Reader blob `b708610e1d1b`, run 01:24:31Z-01:28:48Z, ONCE. A second read was not run: the read covers a
+closed past week, both controls passed, and the owner's 01:17Z rule scales read-only reads down.
+
+**The controls, both PASS:**
+- **Positive.** The filtered hour ending 01:00Z gave open 25, reopened 324, closed 0 and `breaker_open` 304: exactly the
+  unfiltered read's, with 0 events that were not the target.
+- **Negative.** The unwritten id returned 0 events.
+
+**Retention:** 2026-11-06T00Z returned no event at all. The first hour with events is **2026-11-06T01Z**, about 7 days
+back, as the documentation says.
+
+**Every retained hour, 2026-11-06T01Z through 2026-11-13T00Z (168 of 168, all unsampled), carries the signature:**
+- `closed` **0**;
+- `upstream ok:true` **0**;
+- `reopened` and `upstream` failures **in every hour**.
+
+**The daily shape.** The lines rise and fall with traffic: about 25-70 reopened an hour around 04-10Z, and 300-500
+around 16-22Z, peaking at 506 on 2026-11-11T18Z and 20Z. That is the request rate, not the source changing state:
+there is no `closed` anywhere.
+
+**Grades:**
+- **O-a: HOLDS** (predicted, low confidence). **Onset: before 2026-11-06T01:00Z**, the start of retention.
+- **The last hour with a `closed`:** none in retention.
+- **O-b and O-c: not seen.** Nothing is intermittent on an hour scale.
+- **Escape: not taken.** Both controls passed; no sampled hour; no gap inside retention (the empty 2026-11-06T00Z is the
+  boundary).
+
+This is consistent with `a9594ab`'s "broken upstream since 2026-07-08". The Logs cannot date it further back.
+
+**Ruled since** (the reviewer, 01:26:46Z): a customer-facing QUALITY finding, the steady state since 08-26 and not a new
+break. Queued as P1 for the owner as a licensing question. No further route work unless he asks.
+
+**The deploy question, with the cloud reviewer's advice** (relayed by the owner, 01:06Z; it belongs beside the cost
+table above). Yes, but AFTER v20's rollout settles, which means its first week of fleet reads, not during it. The `fw:`
+table and rollbacks matter most during a rollout, and no money is at stake before then: today's account is under the
+free 10 M KV reads. The question still goes to the owner once the code PR is green.
+
+### Before the `fw:` code PR: every code path that reads `fw:` or would read the memo (the cloud reviewer's item 1, 01:06Z)
+
+**The question:** is the UPDATE OFFER (which image a board is told to fetch) one of them? If it is, it must read storage
+directly, or a test must prove that a board reflashed from v20 to v19 is offered v20 on its next check. O11's pre-flight
+does exactly that reflash.
+
+**The answer, from the source: the offer is not on the Worker at all.**
+- **The firmware asks GitHub directly.** It fetches `version.txt`, then `firmware-<scope><board>.bin`, from
+  `OTA_RELEASE_BASE`, which is `https://github.com/Valar-Systems/valar-scopes/releases/latest/download` unless a bench
+  build pins it (`src/OtaUpdater.cpp:105-129`). `proxy/src/fleet.ts`'s header says the same: "The Worker is never on
+  the update path."
+- **`/config`'s fleet overrides (`cfg:fleet`, `proxy/src/config.ts:54-76`) carry no OTA field.**
+- **In `proxy/src`, the only read of a `fw:` key is `recordFleetFirmware`** (`fleet.ts:106-107`). The memo sits in front
+  of that read and nothing else.
+- **Everything else that uses a firmware value reads the REQUEST's header (`meta.fw`), not the stored record:**
+  - the request row's `blob6` (`metrics.ts:239`);
+  - `recordUsage` and `recordBoot` (`index.ts:392`, `:398`).
+
+  The memo does not touch `meta.fw`.
+- **Off the Worker, the readers are the ones in the cost table above** (`reconcile-fleet.py`,
+  `activation-coverage.ts`). Both are reports, neither an offer.
+
+**So a reflash from v20 to v19 is offered v20 on its next check whatever the memo holds:** the board asks GitHub, and
+the Worker is not consulted.
+
+**What the code PR adds so this stays true:** a test that pins it. Every reference to `fleetKey(` or a `fw:` key literal
+in `proxy/src` must be inside `fleet.ts`; any other file fails, naming the file. A future offer path that reached for
+the table or the memo would trip it the day it is written. The test's control is a planted reference in a scratch copy,
+which must fail with that file named.
