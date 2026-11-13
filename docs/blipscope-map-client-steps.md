@@ -5128,6 +5128,14 @@ Strong. The owner looks at Strong and Extra strong on E2:08 in a window of his o
 - **Nothing is written to NVS in the bench run.** The setting is cycled only through the bench's RAM override of
   `GetStoredString`, the same rule as the baseline's `Override()`. No `Preferences` call is added, and the
   `check_map_draw` / `check_frame_bench` NVS rows apply to the new region.
+- **A/B/A (the orchestrator's ruling, 00:11:47Z, from 5c's window B):**
+  - **D4's setting cycle is within ONE image and one session.** It already ends where it began (Subtle → Off → Strong
+    → Extra strong → Subtle). The two Subtle reads' spread is the within-session noise, and each value's |Δp95| is
+    read against it, beside the margin.
+  - **The standing rule's before/after for step D's CODE compares two IMAGES** (the tree before step D, then step D).
+    So it runs **A/B/A in one window**: before, step D, before.
+  - The before-to-before spread is the noise the delta is read against. A delta inside it is reported as not
+    separated from the between-session noise.
 
 **D5, the web build does not follow.**
 - The map is never compiled into the web renderer: `BLIPSCOPE_MAP_FETCH` requires `!defined(BLIPSCOPE_WEB_RENDERER)`
