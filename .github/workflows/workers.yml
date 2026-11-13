@@ -121,6 +121,11 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/basemap-verdict.selftest.sh
 
+      # SV1-SV6 (docs/route-mirror-age.md, section 3): the route mirror's age verdict, warn and fail mode, whole lines.
+      - name: smoke's routes mirror age verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-age-verdict.selftest.sh
+
       # /healthz's build stamp, the TOP-LEVEL "commit" only (docs/healthz-commit-read.md), as confirm-deploy.sh,
       # smoke-prod.sh and tools/wx/r12_prod.sh read it through one helper: rows HC1-HC5, CD1-CD2, SM1-SM5, R12 and
       # W1-W3, and two plants (P-OLD, P-FIRST) whose whole red sets must equal the registered ones.

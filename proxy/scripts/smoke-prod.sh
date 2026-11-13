@@ -331,6 +331,23 @@ printf '\n===== /healthz wx, every product =====\n'
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-products-lines.sh"
 wx_products_section "$HEALTH_BODY"
 
+# The rt: route mirror's age (docs/route-mirror-age.md), from the /healthz body fetched above (no new request). The
+# limit is the body's own maxAgeDays. ROUTES_AGE_MODE is "warn" until an approved refresh has landed and been verified:
+# in warn mode the line is information only and touches neither pass nor fail, so it never changes this script's exit
+# code (the wx-lines precedent). In "fail" mode a PASS counts as a pass and anything else as a FAIL. The verdict and
+# its cases live in routes-age-verdict.sh, graded by routes-age-verdict.selftest.sh in CI.
+printf '\n===== /healthz routes mirror age =====\n'
+ROUTES_AGE_MODE="warn"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/routes-age-verdict.sh"
+RA_TMP="$(mktemp)"
+printf '%s' "$HEALTH_BODY" > "$RA_TMP"
+RA_VERDICT="$(routes_age_verdict "$RA_TMP" "$ROUTES_AGE_MODE")"
+rm -f "$RA_TMP"
+printf 'RESULT: %s   (mode %s)\n' "$RA_VERDICT" "$ROUTES_AGE_MODE"
+if [ "$ROUTES_AGE_MODE" = "fail" ]; then
+  case "$RA_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+fi
+
 # Weather (docs/wx-server.md). Until Daniel binds a WX bucket the route is deliberately inert, and the ONLY
 # passing answers are: 503 not_configured (not wired yet), or 200 with a WXC1 crop and an ETag (wired). A
 # 404 means the deployed Worker has no /wx route; a 503 wx_stale means it is wired and the ingest is not
@@ -969,7 +986,9 @@ enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)
 # What replaced it is stronger, because it asserts OUR data rather than a third
 # party being up: routes come from our own CC0 mirror in KV (619,103 rt: keys,
 # rule rev 3), and `npm run verify:routes` enumerates the entire namespace and
-# diffs it per shard against the corpus, with a value assertion on top.
+# diffs it per shard against the corpus, with a value assertion on top. The mirror's
+# AGE is judged above, in the /healthz routes block (docs/route-mirror-age.md): until
+# 2026-11 nothing read meta:routes, and the mirror sat 79 days old unremarked.
 #
 # The history stays, because it is the reason the mirror exists: routeset
 # returned 201 Created with an EMPTY body from 2026-07-08 for seven weeks and

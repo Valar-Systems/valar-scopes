@@ -40,11 +40,11 @@
  * four conditions replace it, and each one is here because the alternative has
  * already bitten this project:
  *
- *   1. THE META KEY IS WRITTEN LAST. `meta:routes` carries the row count, the
- *      build time and the source revision, and is written only after every data
- *      key has landed AND the canaries have passed. A build that dies partway
- *      leaves the PREVIOUS meta in place, so /healthz correctly reports stale
- *      rather than reporting a fresh build that does not exist.
+ *   1. THE META KEY IS WRITTEN LAST. `meta:routes` carries the row count, the build time and per-shard hashes (no
+ *      source commit: docs/route-sources.md s.6 pinned it by those hashes), written only after every data key has
+ *      landed AND the canaries have passed. A build that dies partway leaves the PREVIOUS meta in place, so
+ *      /healthz's `routes` (src/routeshealth.ts; no health surface read it before 2026-11) reports the previous
+ *      build's age, stale past 14 days, rather than a fresh build that does not exist.
  *
  *   2. THE COUNT IS OF WHAT WE WROTE, NOT WHAT WE READ. The row count comes
  *      from the write loop's own tally. The source file's header is a statement

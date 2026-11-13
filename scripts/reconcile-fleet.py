@@ -345,6 +345,50 @@ def read_ota_points(env: str, token: str) -> tuple:
     return [(str(x.get("dev", "")), str(x.get("result", "")), str(x.get("t", ""))) for x in rows if x.get("dev")], ""
 
 
+# The rt: route mirror's age (docs/route-mirror-age.md), read from the Worker's own /healthz, where the limit lives too
+# (`maxAgeDays`). It sat 79 days old with nothing printing it; this tool is where every fleet question already looks.
+HEALTHZ_URL = {"production": "https://scopes.valarsystems.com/healthz",
+               "staging": "https://scopes-staging.valarsystems.com/healthz"}
+
+
+def read_healthz(env: str) -> str | None:
+    try:
+        with urllib.request.urlopen(HEALTHZ_URL.get(env, HEALTHZ_URL["production"]), timeout=20) as r:
+            return r.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def route_mirror_lines(body: str | None) -> tuple:
+    """(lines, warnings) for /healthz's `routes` field. Never a silent pass: an unreadable /healthz, a missing field and
+    a null age each warn, as a stale age does."""
+    if body is None:
+        return ["  Route mirror (rt:): could not read /healthz"], ["route mirror: could not read /healthz"]
+    try:
+        r = json.loads(body).get("routes")
+    except (ValueError, AttributeError):
+        r = None
+    if not isinstance(r, dict):
+        return (["  Route mirror (rt:): /healthz has no routes field"],
+                ["route mirror: /healthz has no routes field (a Worker before docs/route-mirror-age.md)"])
+    lim = r.get("maxAgeDays")
+    if r.get("ageDays") is None or r.get("builtAt") is None:
+        why = r.get("why") or "unknown"
+        return (["  Route mirror (rt:): no age (%s), limit %s d" % (why, lim)], ["route mirror: no age (%s)" % why])
+    line = "  Route mirror (rt:): built %s, %s d old, %s rows (limit %s d)" % (r["builtAt"], r["ageDays"], r.get("rows"), lim)
+    if r.get("stale") is not False:
+        return [line + "  <== STALE"], ["route mirror: %s d old, past its %s-day limit" % (r["ageDays"], lim)]
+    return [line], []
+
+
+def report_route_mirror(env: str) -> list:
+    lines, warn = route_mirror_lines(read_healthz(env))
+    for line in lines:
+        print(line)
+    print()
+    return warn
+
+
 def report_ota_reader(env: str, detail: dict) -> list:
     published = read_published()
     token, why = analytics_token()
@@ -514,6 +558,7 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
         print("                                    not for a non-empty array")
     print()
     warn += report_ota_reader(env, detail)
+    warn += report_route_mirror(env)
     return warn
 
 
