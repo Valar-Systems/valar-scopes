@@ -2695,3 +2695,30 @@ Source: the reviewer chat, pasted by Daniel, 2026-10-29. Item 1 of the message; 
 - **The recovery:** they were restored from git. All **242** binary files under `proxy/` now hash to their committed blobs (`git hash-object --no-filters`), and `git status` reads clean.
 - **Nothing was committed or pushed** in between.
 - **The method since:** checkout with `core.eol=lf`, never a byte rewrite.
+
+### A2.49 Standing row: the road-appearance check (RA), verbatim (the owner and the orchestrator, 2026-11-13)
+
+**Why it exists.** The Hudson rule's option (b) coarsened Boston's lines from 0.4 km to 1.6 km. Every registered row passed, and on the
+10 mi view the Southeast Expressway -- about 36 separate TIGER lines along one corridor, each simplified on its own -- fanned into a
+hatched band 4-16 px wide (docs/basemap-hudson-rule.md, section 5b). No row could see it: "0 proper crossings" covers water rings only,
+and nothing graded how a road looks.
+
+**The owner (16:49Z, relayed verbatim):** "Register the road-appearance check now: any change to line detail gets before/after pictures
+at 5/10/50/100 mi before I'm asked to decide."
+
+**The orchestrator (16:50:35Z, verbatim):** "THE ROAD-APPEARANCE CHECK IS A STANDING ROW from now on: It covers any change to line detail
+anywhere in the map pipeline. It requires before/after pictures at 5/10/50/100 mi, and the corridor band-width and crossings measure,
+predicted first. It goes to the owner before he is asked to decide." And at 16:45Z: band width and crossing count over a NAMED
+multi-line corridor at the 10 mi view, by `hb-kbos-road.py`'s measure, with a picture; the band width predicted before the run.
+
+**The row, as map-server applies it:**
+
+| part | what it requires |
+|---|---|
+| scope | any change to line detail (simplification, tolerance, merging, clipping, ladder rungs that move a line's tolerance) anywhere in the map pipeline |
+| the corridor measure | per named corridor at the 10 mi view: the number of lines and distinct geometries, the band width in device px at each 1 km along it, and the PROPER point crossings among the distinct lines (an overlap or a shared endpoint is not one); **predicted before the run** |
+| the corridors | at least one per city the change touches, named from the source file's own records (e.g. KBOS: the Southeast Expressway, I-93 / US 1 / Route 3) |
+| the pictures | before and after, at 5, 10, 50 and 100 mi, plus any other zoom the change reaches (the ladder is {5, 10, 25, 50} below the configured radius, `include/RadarZoom.h`); the same renderer as the owner's earlier pictures; files named by their own hash, outside git |
+| labels | areas labelled as DRAWN (the union of the rings), never as ring areas added |
+| who sees it | the owner, before he is asked to decide |
+| outside the set | a corridor that reads outside its prediction: stop and report, no reading claimed |

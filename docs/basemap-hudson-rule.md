@@ -5,8 +5,9 @@
 frozen before a line of it exists. The predictions come from a measured scratch prototype (`pqh`, a copy of part 2's pinned prototype
 `pq4d` with this rule's knobs) and from the rule's Python twin, cited by sha256 (first 12).
 
-**The owner's pick is made: (b), the rule** (section 5's OPTION; his answer and what it measured, section 5a). The three options were:
-E1 at KEWR only, E1 wherever the margin is thin (a rule, defined below), or E2. The rule itself (sections 2 and 3) is the same under all three.
+**The owner's pick is OPEN AGAIN.** He picked (b), the rule (section 5b), looked at Boston's pictures, and did not ship it: he asked
+for three alternatives, each priced in bytes and pictured (section 5c), and chooses again from those. The original options were: E1 at
+KEWR only, E1 wherever the margin is thin (a rule, defined below), or E2. The rule itself (sections 2 and 3) is the same under all of them.
 
 ## 1. What the owner asked for, and why the first rule was wrong
 
@@ -112,8 +113,8 @@ owner's to choose.
 
 ## 5. The predictions (frozen)
 
-**OPTION: (b), the RULE** -- the owner, 15:35Z 2026-11-13, relayed verbatim by the orchestrator at 16:33:35Z: *"The Hudson (#682):
-the rule. Show me Boston's picture under it before it ships."* -- the only line that changes. Each option's packages are below, measured on the
+**OPTION: OPEN AGAIN.** (b), the rule, was picked (15:35Z 2026-11-13) and then not shipped (16:49Z, section 5c); the owner chooses
+again from section 5c's alternatives -- the only line that changes. Each option's packages are below, measured on the
 prototype; the PR's builder must reproduce the chosen one byte for byte.
 
 | row | input | predicted |
@@ -196,9 +197,10 @@ KEWR goes from 25 water rings to 130 under (a), MIDTOWN, KJFK and KLGA gain ring
 **Outside the set: stop and report, no reading.** Any HR-PKG byte; a control otherwise; the twin and the PR disagreeing; a limit
 crossed; a plant passing under its sabotage; any of the 11 other points changing; FT-HR over M (3.08 ms), or KORD's A/A over 3.08 ms.
 
-**This PR merges only after:** the owner's pick written into OPTION with that option's rows (done: (b)); (b)'s KBOS measured and
-frozen (done: 7402f8cee0f5, section 5a); **the owner has looked at Boston's two pictures** (section 5a; the orchestrator's 16:33:35Z
-condition); and FT-HR's reading inside M. Its base is re-carried by tree at that moment.
+**This PR merges only after:** the owner's NEW pick from section 5c's alternatives, each registered, built, read and pictured under
+the standing road-appearance row (docs/basemap-route.md A2.49) before he is asked; that pick written into OPTION with its rows; and
+FT-HR's reading inside M on the chosen option's packages. Its base is re-carried by tree at that moment. ((b)'s KBOS, 7402f8cee0f5,
+stays recorded as measured; the owner looked at Boston's pictures, section 5c.)
 
 ### 5a. The owner's pick, open between two forms, and both scratch builds registered before either runs
 
@@ -306,6 +308,64 @@ is inside 10 mi.
   crossing count over a named multi-line corridor at the 10 mi view, by hb-kbos-road.py's measure, with a picture, the band width
   predicted before the run.
 
+### 5c. The owner did not ship (b): three alternatives, each priced and pictured before he chooses again
+
+**The owner (16:49Z 2026-11-13, relayed verbatim by the orchestrator at 16:50:35Z):**
+
+> "Hudson rule (#682): not "ship it" as it stands. I've looked at the Boston pictures.
+> - 100 mi: fine. 50 mi: slightly worse. 10 mi: clearly worse. The Southeast Expressway fans into a 4–6 strand bundle, and every road becomes a straight line (I-93 north is ruler-straight). 1.6 km line detail is about 12 px at 10 mi. The device zooms to 10 and 5 mi, so people will see this.
+> - The water gained in Boston (45 small rings, 4 lakes kept whole) doesn't pay for that.
+> Please have map-server come back with one of these, each priced in package bytes and shown in 100/50/10 mi pictures:
+>   1. Merge the stacked duplicate road lines (the ~36 expressway lines) into one before simplifying, and keep 0.4 km line detail. This may also free enough bytes that Boston doesn't need coarsening at all.
+>   2. Use coarser lines only where the format lets them stay out of the 5 and 10 mi views (for example, a coarse level for 50/100 mi only).
+>   3. Apply the rule only to the four New York maps, and leave Boston on today's package.
+> Yes to New York's 10 mi pictures, and add 5 mi for both cities.
+> Register the road-appearance check now: any change to line detail gets before/after pictures at 5/10/50/100 mi before I'm asked to decide."
+
+**What the orchestrator asked of map-server (16:50:35Z), in short:** #682 stays open and does not merge as it stands; each option is
+registered before it is built (bytes against the cap per affected map; the water: rings kept, bodies whole, dropped.water; the
+road-look measure over the Southeast Expressway and one named New York multi-line corridor), then built, then read; pictures before and
+after at 5, 10, 50 and 100 mi (Boston under all three; New York, every map an option changes plus today's), the same renderer, files
+named by hash outside git, areas labelled as DRAWN (the union), never as rings added; the price in bytes and frame-time risk, and
+whether FT-HR's 11-16 window still covers the chosen option's packages. The road-appearance check becomes a standing row (A2.49 of
+docs/basemap-route.md).
+
+**Option 2's format question, answered from the code (map-server to the orchestrator, 16:54:51Z):**
+- **The format cannot carry a coarse line LEVEL for 50/100 mi only.** `levels` are terrain-only (section type 6). Rivers (type 2) and
+  roads (type 3) carry one geometry per line under the header's one `toleranceMm`. A per-zoom line set would be a format change: a
+  second line section or a level field; the device parser (`include/BasemapPackage.h`'s section types and count checks); `MapLayer`
+  choosing a set by view radius; `format.ts`'s validator twin and the host tests; and both sets would count in the 32,768 B cap, so it
+  costs bytes rather than freeing them. Not proposed.
+- **It can carry detail graded by DISTANCE, unchanged.** The radar view is always centred on the home (`include/MapLayer.h` 108-111;
+  the rotation keeps distances), so the 5 and 10 mi views show only the inner 16.09 km. The builder may simplify each line at today's
+  detail inside `r_f` = 17 km (10 mi plus the home's offset from the hundredths-rounded package centre, up to about 0.7 km) and at
+  1.6 km beyond it. Nothing reads the header tolerance as a per-line promise: the device parses it (`BasemapPackage.h` 364) and reads
+  it nowhere else; on the Worker side only `basemap-build.test.ts` asserts it and `basemap-grade-store.ts` classifies by it.
+- **Its cost is at 25 mi:** the zoom ladder is {5, 10, 25, 50} below the configured radius (`include/RadarZoom.h` 26), and the 25 mi
+  view shows the 17-40 km ring at 1.6 km (about 4.8 px). Its pictures add 25 mi.
+
+**A defect in section 5a, found 16:53Z: HR-KLGA-E1 was NOT blind.** 5a called it "unmeasured". The build it describes (KLGA, the rule,
+E1 forced at 129.6 km) was made at 20:29:35Z on 11-12 in the S08-F129 run: **48db330265e1**, rung 10, 173 rings, dropped.water 1. It is
+staged as `frame-row-packages-hudson\KLGA-S08-F129.bmpk` and drawn in the owner's KLGA-rule picture; 5a was committed at 06:07Z on
+11-13. Its prediction was therefore written with the result on disk. When the fixed list (option 3) runs, the build is re-made as an
+anchor (predicted byte-identical, 48db330265e1) and 5a's rows are graded against it, LABELLED NOT BLIND; the one dropped ring is checked
+against "every split inland body whole or wholly dropped".
+
+**The three options, as map-server defined them and the orchestrator accepted them (16:56:01Z), with its conditions:**
+
+| option | definition | conditions (the orchestrator, 16:56:01Z) |
+|---|---|---|
+| **1** | the rule, plus merging stacked roads, with lines NEVER coarser than today's (KBOS 0.4 km, New York 0.8 km; no E1 anywhere). Before simplifying, primary lines are taken longest first and any stretch lying within d = 150 m of a line already kept is removed | (b) it changes all 16 packages, so the road-appearance row covers all 16: before/after at 5/10/25/50/100 mi for every changed map, one contact sheet per map, before over after, the set not thinned; (c) **pre-registered branch: if the merge does not free enough at KEWR to fit at 0.8 km, option 1 is reported as "does not fit KEWR", with the bytes, and is never quietly coarsened**; (d) FT-HR keeps TODAY's KORD as the A/A control in both arms, and reads option 1's KORD as a changed map |
+| **2** | the rule, plus E1 BEYOND r_f = 17 km only; lines inside 17 km at today's detail (distance-graded, no format change) | (a) before freezing: what `basemap-grade-store.ts` does with a package of mixed detail, whether it could mislabel one either way, and whether `basemap-build.test.ts`'s assertion changes and to what; if the header no longer describes the package, that is said, not recorded as harmless. **The row:** at 5 and 10 mi every road and river pixel equals today's and only water differs, with river LINES counted as line pixels, which must be equal. 25 mi is added to the pictures |
+| **3** | the fixed list: the rule plus E1 at KEWR, MIDTOWN, KJFK and KLGA only; Boston on today's package (f21d705d8b8a, the rule not applied) | HR-KLGA-E1 graded as a measurement LABELLED NOT BLIND, never as a confirmed prediction; the rebuild must reproduce 48db330265e1 byte for byte; the dropped ring graded against "whole or wholly dropped"; (e) the New York corridor (the NJ Turnpike by Newark Airport) named from the source file's records BEFORE its band width is predicted, and measured at 5 mi as well as 10 |
+
+**Pictures:** 5, 10, 25, 50 and 100 mi; Boston today, option 1 and option 2 (option 3 IS today's package at Boston, said in words); New
+York today plus every map each option changes; drawn areas (the union) labelled. **FT-HR:** the manifest freezes 11-15 18:00Z on the
+owner's pick; without one, option 3's staged set plus whichever of 1 and 2 fit at about 11 min a package, today's KORD first.
+
+**Next:** each option's registration (predicted bytes and water per affected map, the corridor measure predicted), pushed here before
+its build: option 3 first, then 2, then 1.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -330,6 +390,9 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   success, 2 skipped (`promote`, `version`), 0 failed**, tested on the merge into main as it then stands, read from the run's own
   checkout log. A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else:
   stop and report.
+- **Predicted for the section 5c head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+  either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
+  on main as it then stands (aa40aa43d8c9 at this writing).
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
