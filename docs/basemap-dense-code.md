@@ -4309,3 +4309,22 @@ KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
   - the package is `kOk` and at most 32,768 B, with 0 proper crossings.
 - **A cap edge anywhere stops,** as does anything else outside "equal".
 - Import checks: both children refused an unknown point after their imports resolved (exit 2).
+
+**The 5.6 package rows (07:35:35-07:36:23Z, 26 builds; `cm/pk.out` 35be9b1b42a8, `cm/pk-out.json` b90afd99effc): ALL AS PREDICTED, "equal" at all 13.**
+- **Each of QW4-1's 13 references was rebuilt by `pq4b` to its sha**, with its old `collapsed.water`.
+- **Against each reference, the code PR's package:**
+  - has every section but PROVENANCE identical, with no cap edge anywhere;
+  - differs in PROVENANCE in exactly one line, `collapsed.water`, at the frozen value: KBOS 140, KJFK 96, KLGA 98, KEWR 89, MIDTOWN 91, KMIA 80, KSFO 35, KSEA 87, KORD 80, KDTW 66, KMSP 273, KIND 24;
+  - has PROVENANCE's byte change and the non-terrain bytes as frozen, KJFK at 32,768 with 0 to spare;
+  - keeps QW4-1's rung, radius and tolerance;
+  - is `kOk`, with 0 crossings.
+- **KJAC's package is byte-identical to QW4-1's** (a6a475745804), with PROVENANCE unchanged.
+- **The digest comparison's blindness control** (by replay, its prediction written first, `cm/pk-control-pred.txt` cb6757c99dcb): KBOS's code digests against KJFK's reference differ in all 7 digested sections, and against KBOS's own reference in none.
+
+**So every store-independent row of the ruled order has now read: SEA-PKG, SEA-FIG, R-KMSP, R-D2, SEA-MEM, the CM rows and the 5.6 package rows. Every one is AS PREDICTED.** Two things stand on record:
+- SEA-MEM's KSFO baseline, by the orchestrator's ruling;
+- the first R-KMSP attempt's gate, which matched itself (my process failure).
+
+**What waits:**
+- **On SEA-STORE (8 census files on the 10-28 retry path):** SEA-OWN, I2, KB7-b and KB7-c-real.
+- **On the 11-16 bench window:** FT-SEA.
