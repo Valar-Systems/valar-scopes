@@ -40,6 +40,15 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `cm/pk.out`, `cm/pk-out.json`, `cm/pk-control-pred.txt` | 35be9b1b42a8, b90afd99effc, cb6757c99dcb | the 5.6 reading (equal at all 13), its builds, and the digest control's prediction |
 | `runlog.sh` | 7abc356134d1 | every selftest and driver run: stdout and stderr to their own logs, printed whole, the exit read from the process (never a pipe) |
 | `wr/pred.txt`, `wr/runlog-pred.txt` | 1898498b44b8, 2752401c46d9 | the d1.ts wrangler-run migration's predictions (M1-M3), and runlog's control |
+| `mirror/common.py`, `mirror/switch.py` | a1856c3aa9fe, 2fe7f609e675 | the census mirror switch as first prepared (the mirror URL in the manifest), set aside for its reindex; `switch-rehearse.out` 5a7018fb2956 |
+| `mirror/met.mts`, `mirror/met.out` | de3ac090e0a7, 56cac4c23bc2 | build.ts's region test at the 16 points against the 8 refused files: KBOS meets 44007, KJAC meets 56029, the rest none |
+| `mirror/shift.py`, `mirror/shift.out` | adfe0780ceb9, b24093fcc10e | the base rate (every census.gov file byte-identical to bm-obj's) and the mirror-URL form's reindex (15,880 of 16,036) |
+| `mirror/notes.mts`, `mirror/notes.out` | 8dc9be9ec024, 9b4874900bf8 | the mirror-URL form's notes through writeManifest, its sorted-order control refused first |
+| `mirror/switch_d.py` | 361161bdc565 | form (d): apply, check, rekey, final, m4-strip, m4-restore (the doc's M-1 to M-5) |
+| `mirror/notes_d.mts`, `mirror/notes_d.out` | 6ba47d942b07, d3baba8f6971 | form (d)'s notes through writeManifest; the dated wording refused first |
+| `mirror/rehearse_d.sh`, `.pred`, `.out` | f0c1a03a6314, 858bf291f013, 828dd88af3a4 | form (d) rehearsed on a copy with synthetic mirror files, predictions first: AS PREDICTED |
+| `mirror/rehearse_m4.sh`, `.pred`, `.out` | 54260e633170, 9a2fdc777c08, c5f81adffa97 | the m4 stages rehearsed the same way: AS PREDICTED |
+| `mirror/mt-wrangler.out` | ae88a4b7778b | #694's wrangler check on the merge of the code PR with main b7184243: direct 0, stale 0 |
 
 ## Regenerating
 

@@ -1,0 +1,7 @@
+Predictions for the m4 stages on the rehearsal copy (after rehearse_d.sh; its plan = original + 8 notes, c2212da4524c), written first:
+- m4-restore first (must STOP: 0 kept noted plans, not 1).
+- m4-strip: "plan.json c2212da4524c -> f12d3eb56040 (the original)", exit 0.
+- m4-strip again (must STOP: plan.json does not carry the 8 notes).
+- m4-restore: "plan.json -> c2212da4524c (the noted plan)", exit 0.
+- final after: passes (8 OK), exit 0. Real plan stays f12d3eb56040.
+- Outside this set: stop.

@@ -1,0 +1,16 @@
+Predictions for rehearse_d.sh, written before it runs (map-server, 2026-11-13). Nothing fetched; the real cache only read.
+- real plan before = after = f12d3eb56040.
+- ingest-basemap processes now: >= 1 (the retry bz1osbbug runs).
+- R0: STOP "... ingest-basemap processes running: the retry's schedule must have ended first", exit 1; the copy's plan unchanged.
+- R8: STOP "the rehearsal flags are refused on the real cache", exit 1.
+- R1: "apply: plan.json f12d3eb56040 -> <sha> (8 urls to the mirror)", exit 0.
+- R1b: STOP "plan.json already carries a note or a mirror url", exit 1.
+- R2: 8 synthetic files written.
+- R3: 8 lines "DIFFERS", then "identity: 8 of 8 not same -- STOP before the re-key", exit 1.
+- R4: the 8 DIFFERS lines, then STOP "identity did not pass", exit 1; plan + records unchanged: yes.
+- R5: "rekey: 8 records moved ...; plan.json = original f12d3eb56040 + 8 notes -> <sha>", exit 0.
+- R5b: STOP "a record already exists under the primary url ...", exit 1.
+- R6: 8 OK, "final: ... agree (bm-obj equality SKIPPED: rehearsal)", exit 0.
+- R7: 1 NOT OK (44007), "final: 1 NOT OK", exit 1.
+- R7b: 8 OK, exit 0.
+- Outside this set (any other line, exit or sha): stop; the switch is not ready.

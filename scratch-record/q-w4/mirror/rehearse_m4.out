@@ -1,0 +1,25 @@
+rehearsal plan before: c2212da4524c; real plan: f12d3eb56040
+--- m4-restore first (must STOP)
+STOP: 0 kept noted plans, not 1
+    exit 1
+--- m4-strip
+m4-strip: plan.json c2212da4524c -> f12d3eb56040 (the original); noted plan kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-d\mirror-d-keep\plan.noted.c2212da4524c.json
+    exit 0
+--- m4-strip again (must STOP)
+STOP: plan.json does not carry the 8 notes: run final first
+    exit 1
+--- m4-restore
+m4-restore: plan.json -> c2212da4524c (the noted plan)
+    exit 0
+--- final after
+  tl_2024_38021_areawater.zip: OK
+  tl_2024_39167_areawater.zip: OK
+  tl_2024_44007_areawater.zip: OK
+  tl_2024_56029_areawater.zip: OK
+  tl_2024_17005_linearwater.zip: OK
+  tl_2024_19123_linearwater.zip: OK
+  tl_2024_27081_linearwater.zip: OK
+  tl_2024_54093_linearwater.zip: OK
+final: plan = original + 8 notes; 8 primary records, files and bm-obj records agree (bm-obj equality SKIPPED: rehearsal)
+    exit 0
+real plan after: f12d3eb56040

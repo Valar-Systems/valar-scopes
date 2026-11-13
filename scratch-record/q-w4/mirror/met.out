@@ -1,0 +1,25 @@
+regions 3195; the 8 named by a region: 8
+  control tl_2024_38021_areawater.zip: region box [-99.006, 45.936, -98.007, 46.283]
+  control tl_2024_39167_areawater.zip: region box [-81.854, 39.216, -81.037, 39.646]
+  control tl_2024_44007_areawater.zip: region box [-71.799, 41.725, -71.318, 42.019]
+  control tl_2024_56029_areawater.zip: region box [-111.055, 43.801, -108.551, 45.006]
+  control tl_2024_17005_linearwater.zip: region box [-89.639, 38.741, -89.250, 39.028]
+  control tl_2024_19123_linearwater.zip: region box [-92.871, 41.161, -92.410, 41.510]
+  control tl_2024_27081_linearwater.zip: region box [-96.453, 44.197, -96.079, 44.631]
+  control tl_2024_54093_linearwater.zip: region box [-79.838, 38.964, -79.289, 39.271]
+KBOS: square [-72.985, 40.901, -69.035, 43.819]; files met 110; of the 8: tl_2024_44007_areawater.zip
+KJFK: square [-75.703, 39.181, -71.857, 42.099]; files met 156; of the 8: none
+KLGA: square [-75.797, 39.321, -71.943, 42.239]; files met 164; of the 8: none
+KEWR: square [-76.095, 39.231, -72.245, 42.149]; files met 166; of the 8: none
+MIDTOWN: square [-75.917, 39.291, -72.063, 42.209]; files met 166; of the 8: none
+KMIA: square [-81.911, 24.331, -78.669, 27.249]; files met 30; of the 8: none
+KSFO: square [-124.223, 36.161, -120.537, 39.079]; files met 62; of the 8: none
+KSEA: square [-124.468, 45.991, -120.152, 48.909]; files met 58; of the 8: none
+KORD: square [-89.863, 40.521, -85.937, 43.439]; files met 156; of the 8: none
+KDTW: square [-85.320, 40.751, -81.380, 43.669]; files met 148; of the 8: none
+KMSP: square [-95.280, 43.421, -91.160, 46.339]; files met 170; of the 8: none
+KIND: square [-88.187, 38.261, -84.393, 41.179]; files met 264; of the 8: none
+KJAC: square [-112.756, 42.151, -108.724, 45.069]; files met 58; of the 8: tl_2024_56029_areawater.zip
+BUFFALO: square [-80.872, 41.431, -76.888, 44.349]; files met 74; of the 8: none
+ROUSES: square [-75.424, 43.531, -71.296, 46.449]; files met 62; of the 8: none
+ZAPATA: square [-100.907, 25.451, -97.633, 28.369]; files met 42; of the 8: none

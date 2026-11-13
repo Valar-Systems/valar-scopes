@@ -1,0 +1,78 @@
+real plan before: f12d3eb56040
+ingest-basemap processes now: 9
+--- R0 apply on the rehearsal copy WITHOUT the proc skip (must STOP on the process guard: the retry runs)
+STOP: 9 ingest-basemap processes running: the retry's schedule must have ended first
+    exit 1
+--- R8 a rehearsal flag on the REAL cache (must STOP)
+STOP: the rehearsal flags are refused on the real cache
+    exit 1
+--- R1 apply (rehearsal)
+apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-d\mirror-d-keep\plan.original.f12d3eb56040.json
+    exit 0
+--- R1b apply again (must STOP: already carries a mirror url)
+STOP: plan.json already carries a note or a mirror url
+    exit 1
+--- R2 synthetic mirror files written: 8
+--- R3 check (must report 8 DIFFERS, exit 1)
+  tl_2024_38021_areawater.zip: DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: DIFFERS (bytes 99/1144221, sha d26fff70a37a/1ea420092897, vintage 2024)
+  tl_2024_54093_linearwater.zip: DIFFERS (bytes 99/496949, sha df00d6bc64f8/502372153bb1, vintage 2024)
+identity: 8 of 8 not same -- STOP before the re-key
+    exit 1
+--- R4 rekey without the skip (must STOP: identity did not pass)
+  tl_2024_38021_areawater.zip: DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: DIFFERS (bytes 99/1144221, sha d26fff70a37a/1ea420092897, vintage 2024)
+  tl_2024_54093_linearwater.zip: DIFFERS (bytes 99/496949, sha df00d6bc64f8/502372153bb1, vintage 2024)
+STOP: identity did not pass
+    exit 1
+    plan + records unchanged by R4: yes
+--- R5 rekey (rehearsal, identity skipped)
+rekey: 8 records moved to the primary urls; 8 files copied to the primary paths; plan.json = original f12d3eb56040 + 8 notes -> c2212da4524c
+    exit 0
+--- R5b rekey again (must STOP: a record already exists under the primary url)
+STOP: a record already exists under the primary url https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_38021_areawater.zip
+    exit 1
+--- R6 final (rehearsal)
+  tl_2024_38021_areawater.zip: OK
+  tl_2024_39167_areawater.zip: OK
+  tl_2024_44007_areawater.zip: OK
+  tl_2024_56029_areawater.zip: OK
+  tl_2024_17005_linearwater.zip: OK
+  tl_2024_19123_linearwater.zip: OK
+  tl_2024_27081_linearwater.zip: OK
+  tl_2024_54093_linearwater.zip: OK
+final: plan = original + 8 notes; 8 primary records, files and bm-obj records agree (bm-obj equality SKIPPED: rehearsal)
+    exit 0
+--- R7 final with one primary copy tampered (must report 1 NOT OK, exit 1)
+  tl_2024_38021_areawater.zip: OK
+  tl_2024_39167_areawater.zip: OK
+  tl_2024_44007_areawater.zip: NOT OK
+  tl_2024_56029_areawater.zip: OK
+  tl_2024_17005_linearwater.zip: OK
+  tl_2024_19123_linearwater.zip: OK
+  tl_2024_27081_linearwater.zip: OK
+  tl_2024_54093_linearwater.zip: OK
+final: 1 NOT OK
+    exit 1
+--- R7b final restored (must pass again)
+  tl_2024_38021_areawater.zip: OK
+  tl_2024_39167_areawater.zip: OK
+  tl_2024_44007_areawater.zip: OK
+  tl_2024_56029_areawater.zip: OK
+  tl_2024_17005_linearwater.zip: OK
+  tl_2024_19123_linearwater.zip: OK
+  tl_2024_27081_linearwater.zip: OK
+  tl_2024_54093_linearwater.zip: OK
+final: plan = original + 8 notes; 8 primary records, files and bm-obj records agree (bm-obj equality SKIPPED: rehearsal)
+    exit 0
+real plan after: f12d3eb56040

@@ -1,0 +1,25 @@
+(1) files in both bm-obj's manifest and the 11-13 fetch log: same bytes+sha 15976 | different 51
+    naciscdn.org naturalearth: same 3, different 0
+    prd-tnm.s3.amazonaws.com peaks: same 0, different 51
+    s3.amazonaws.com terrain: same 9638, different 0
+    www2.census.gov counties: same 1, different 0
+    www2.census.gov places: same 1, different 0
+    www2.census.gov population: same 1, different 0
+    www2.census.gov rivers: same 3140, different 0
+    www2.census.gov roads: same 51, different 0
+    www2.census.gov states: same 1, different 0
+    www2.census.gov water: same 3140, different 0
+    in the new log but not bm-obj: 1 | in bm-obj but not the new log: 8
+(2) manifest files 16036; index changed 15880, unchanged 156
+    counties: changed 1, unchanged 0
+    naturalearth: changed 2, unchanged 0
+    peaks: changed 51, unchanged 0
+    places: changed 1, unchanged 0
+    population: changed 0, unchanged 1
+    rivers: changed 3041, unchanged 103
+    roads: changed 0, unchanged 51
+    sea: changed 2, unchanged 0
+    states: changed 0, unchanged 1
+    terrain: changed 9638, unchanged 0
+    water: changed 3144, unchanged 0
+    the 8 mirror urls take indices [0, 1, 2, 3, 4, 5, 6, 7]

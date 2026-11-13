@@ -1,0 +1,10 @@
+CONTROL (reversed): refused -- manifest notes must be sorted, in byte order
+written: keys builder,files,notes,predicates; notes 8; round trip true
+  https://ftp2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_38021_areawater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_39167_areawater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_44007_areawater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56029_areawater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_17005_linearwater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_19123_linearwater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_27081_linearwater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
+  https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_54093_linearwater.zip: fetched from the Census Bureau's mirror; www2.census.gov's firewall refused it
