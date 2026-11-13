@@ -103,6 +103,18 @@ Predicted in its own commit before the code push, from main's CI after its last 
 steps inside `workers.yml`'s existing job, so the check-run total is expected unchanged. `routes-refresh.yml` has no
 `pull_request` trigger, so it adds no check-run to a PR. Both are stated as predictions, with an outside-the-set row.
 
+**CI-C1, the first code push (predicted 2026-11-13 ~18:40Z, before the push).** The push carries W1, the parse and
+`readMeta` refactor, the fake KV, the anchors and W2 stage 1. It changes `proxy/scripts/**`, one comment in
+`proxy/test/route-mirror.test.ts`, and `docs/`. It changes no workflow.
+
+| row | predicted |
+|---|---|
+| **CI-C1** | **36 check-runs = 34 success + 2 skipped (promote, version) + 0 other,** across four `pull_request` workflows, all success: device-ids, firmware, no-traffic-captures, workers. The baseline: main's last workflow change is #698 (aa40aa43), whose head ran 36 = 34 + 2. There is none since, on main 287dc5ec. `typecheck:scripts`, which covers the new and changed scripts, passed locally |
+| outside the set | any other total or split: stop and decide |
+
+The new selftest (`routes-guards.selftest.mts`) is NOT yet a CI step. W7 wires it into `workers.yml` in a later
+commit, with its own prediction.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
@@ -141,3 +153,14 @@ writes on one endpoint and nothing else.
 
 **Recommendation for the rotation decision:** the endpoint, if the owner's priority is the KV token's reach. Its cost
 is engineering and a guarded write path, not money. That decision is the owner's, at rotation.
+
+## 7. Results, local (2026-11-13)
+
+| row | read | verdict |
+|---|---|---|
+| W1 red-first | `routes-guards.selftest.mts` against a permissive stub (every guard ok, freeze always run): red exactly {GR1, GR2, GR3, GR3p, GR4, GR5a, GR5b, GR6, GR6s, GR7a, GR7b, GR7c, FZ1, FZ4}; green {GR1c, GR3c, GR4c1, GR4c2, GR4o, GR5c, GR6o, GR6c, GR7c0, FZ2, FZ3} | **as predicted** |
+| W1 | the module: 25 of 25 pass. The first draft's GR1 and GR1c used toy counts under the absolute band; GR1c failed and GR1 passed for the wrong reason. They now use counts at 628,956 and assert WHICH rule refused | **as predicted after that fix**, recorded |
+| refactor | the full mode's dry run (staging and production, against 24ce5424 and dff309eb) through the fake KV loaded with the saved pre-refresh manifests: 4 of 4 byte-identical before and after `parseSource`, again after `readMeta`, and again after W2. The fake reproduces the real reads (1591/1591, 634/1591 with 568,226, 0/1575) | **as predicted** |
+| K1 | staging, `--key-level --dry-run`, `--prev` 24ce5424, `--prev-also` dff309eb with the 08-25 manifest:<br>- proofs 1591/1591 (rule) and 1575/1575 (plain);<br>- writes 0; deletes 827 (715 surviving, 112 from 5 removed shards);<br>- G1, G2, G6 ok; G3, G4, G5 refuse;<br>- plan: delete NONE, so no seal | **as predicted** |
+| K2 | the same with `--max-deletes 1000 --allow-removed 5 --allow-shard <G3's one shard>`: all six guards ok; plan "delete 827" | **as predicted** |
+| K3-K7 | an override under a schedule exits 5. An unproven `--prev` is refused (957/1596). A mismatched `--prev-also` is refused (NEITHER scheme whole). No `--dry-run` exits 2. A key-level flag in the full mode exits 2 | **as predicted** |
