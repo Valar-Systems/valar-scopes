@@ -127,7 +127,7 @@ the job's "Runner Image" block.
 is reported, and how to get a 370 run is asked, not improvised). The instrument is unreliable at this scale: stop
 and decide.
 
-**Amended 2026-11-13 ~14:00Z, before the code was written or anything was run.** Writing the wait loop showed two
+**Amended 2026-11-13 13:57Z, before the code was written or anything was run.** Writing the wait loop showed two
 frozen rows that would test a race, not the rule. Both rows are corrected here, and nothing has been observed yet.
 
 - **W4's delay moves from 14,000 ms to 17,000 ms.** When no answer comes, the late window runs 2.5 s from the END of the
@@ -141,3 +141,20 @@ frozen rows that would test a race, not the rule. Both rows are corrected here, 
 
   Forcing only the bound would leave a window ending about 5 s after the click, exactly when S1's delayed answer
   arrives. Both edits are asserted applied. W3's prediction is unchanged: red set **exactly {S1}**.
+
+## Results (local, 2026-11-13 13:58-14:03Z, Chrome 157.0.8103.40 on Windows; before CI)
+
+**How the sabotages ran.** Each of W3-W5 ran from an **untracked copy** of the script beside the real one (so `esbuild`
+resolves), with every edit asserted to apply exactly once. The copy was removed after its run, and `git status` showed
+only the two intended modifications afterwards.
+
+| | read | verdict |
+|---|---|---|
+| **W1** | the source: `answerWait = mod.LOCATE_TIMEOUT_MS + ANSWER_MARGIN_MS` (2000); the loop ends on `sent`/`denied`/`unavailable`/`timeout`; `lateFrom = T.answer ?? Date.now()` with `LATE_MS = 2500`; `timingLine()` printed for every case, BLIND ones included; the override is `variant.noGeo ? {} : SENTINEL`; messages print through `describeMessages()` (type, origin, sentinel yes/no, error code) and the popup line through `popupState()` (a name from the page's copy, or a length) | **as predicted** |
+| **W2** | **SELFTEST PASSED, 10 rows**, wall **38 s**. **S1:** exit 1, `answer 5.1 s (sent)`. **The anchor row:** exit 2, `answer 0.0 s (unavailable)`, `messages: blipscope-location-error from https://scopes.valarsystems.com, code 2`. **"P1 again, last":** exit 1. The other seven rows: as before, each `case 2.9 s` | **as predicted** |
+| **W3** | red set **{S1}**: `exit 2 (want 1)`, `answer none (ask)`, `clicked=true messages: none`, `popup said: ask`, and `requests 4 (helper target 2)`. That is **the CI symptom line for line**. The other 9 rows: ok | **as predicted** |
+| **W4** | red set **{S1}**: exit 2, BLIND, `answer none (ask)`, `messages: none`, `case 15.0 s` (12 s wait + 2.5 s window). The other 9 rows: ok | **as predicted**: silence is still BLIND |
+| **W5** | red set **{P1, S1, P1 again}**, each `exit 0 (want 1)`, each `anchor OK` with nothing carrying the position. The other 7 rows: ok | **as predicted** |
+| **W6** | lines carrying `"lat"` over W2-W5 and W7: **0**. The anchor row read `unavailable` in all 4 selftest runs. **Also, beyond the prediction**, a stricter scan of the same outputs for every coordinate-shaped number (`-?\d{1,3}\.\d{3,}`): **0** that are not a form of the sentinel, against 40 that are | **as predicted** |
+| **W7** | without `--selftest`: V0 `anchor OK`, V1 `opener received 0 location message(s)`, **exit 0** | **as predicted** |
+| **W8** | CI on this PR | follows |
