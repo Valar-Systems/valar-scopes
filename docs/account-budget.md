@@ -228,7 +228,14 @@ month's mix, not an hour's: today's budget has the ingests at 18.14% of the mont
 wx-dev: 1,518,231 of 8,368,065) and the proxy at 78.42%. The other 3.44% (kiosk, proxy staging, basemap staging:
 287,763) is on scripts that none of the three hours measured.
 
-### 5.4 December's projection: the method, frozen before its arithmetic (proposed; it waits for the ruling on 5.3)
+**Ruled by the reviewer, 2026-11-13 (after 10:12Z):**
+- Hour 3's overall figure stays **OFF on the record** (1,496.0 against 1,500-1,850). It is not re-graded.
+- **From now on, Logs-bytes hours are graded by service:** the proxy's and the ingests' bytes per event and events per
+  invocation, each against its own band. The per-hour overall band is dropped, because it assumed a mix that an hour
+  cannot hold.
+- The third script is not named. Its 2 events do not move the verdict, and a re-read just to name it is not worth it.
+
+### 5.4 December's projection: the method, frozen before its arithmetic (frozen in 8cfc6477 before any figure; approved by the reviewer 2026-11-13)
 
 Both methods are computed and reported. Neither is picked after the figures are seen.
 - **A, as 5.2 reads:** the mean of the three hours' overall bytes per event x 8,368,065 events a month.
@@ -253,6 +260,30 @@ Both methods are computed and reported. Neither is picked after the figures are 
 | one of A and B inside, the other outside | both are reported, then stop |
 | either one outside a band, or any scenario not $0 | stop and report |
 | none of the above (for example, the budget's events change before the arithmetic) | the inputs moved; stop and decide |
+
+### 5.5 December's projection, computed: as predicted
+
+**Means of the three hours:** overall 1,573.97 B per event (A); proxy 1,742.60 and ingests 819.47 (B).
+
+**Events:** from `docs/account-budget.json` at main b7184243, the same 8,368,065 that 5.4 froze. shsr runs as
+`blipscope-wx-ingest-shsr`, one of the ingests, so in B its 137,106 events take the ingests' mean.
+
+| scenario | events a month | of them, ingests | A: ingest GB | A: storage GB | **B: ingest GB** | **B: storage GB** | $ |
+|---|---|---|---|---|---|---|---|
+| today (the ten silent) | 8,368,065 | 1,518,231 | 13.17 | 3.07 | **13.18** (26.4% of 50) | **3.08** (30.8% of 10) | 0 |
+| OPERA running | 8,358,635 | 1,508,801 | 13.16 | 3.07 | **13.17** (26.3% of 50) | **3.07** (30.7% of 10) | 0 |
+| OPERA running + shsr | 8,495,741 | 1,645,907 | 13.37 | 3.12 | **13.29** (26.6% of 50) | **3.10** (31.0% of 10) | 0 |
+
+**Outcome: the first row of 5.4, as predicted.**
+- At today's fleet, A and B are both inside both bands: ingest 12-16 GB, storage 2.8-3.7 GB.
+- Every scenario costs $0.
+- A and B differ by at most 0.09 GB, because the month's ingest share (18.14%) sits close to the three hours' average.
+
+**December's estimate (B): 13.2 GB ingested and 3.1 GB stored a month at today's fleet, $0.**
+
+**What this still cannot see (from 5.2).** These are API bytes. The billed bytes may differ, and only December's
+dashboard or invoice settles that. December's GB allowances join `docs/account-budget.json` in their own change,
+registered before 12-01.
 
 ## 6. The table (rendered by the checker, from the next commit)
 
