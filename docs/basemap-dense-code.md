@@ -3914,3 +3914,50 @@ So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAN
 **Outside the set: stop.**
 
 **SEA-STORE needs more than this machine has.** It takes a full dry run, done twice for QW4-ID (c), and the Class A count comes from the ingest's own listing. No ingest cache exists on this machine: there is no `fetch-log.json` under C:\Github, the user's folders, either temp tree, or WSL's home, all read-only. The store's manifest gives what one takes: **16,035 files, 5.57 GB**, against 48 GB free. The re-fetch's go, and what a fresh fetch changes (GNIS updates monthly), are for the orchestrator.
+
+**PARITY-CODE, read (04:51-04:53Z, at 894437c62fff; record a75544bbd2dc):**
+- **PC-1: byte-identical** to step 2's run (09db20fc5a86), AS PREDICTED.
+- **PC-2:** 15 fields, 0 differ, AS PREDICTED.
+- **PC-3:** PB-0 to PB-2 ok, PA-1 true, PA-2 to PA-5 0, AS PREDICTED.
+- **PC-C: OFF, and it stays off.** PA-4 and PA-5 failed at exactly 16/-155 and PA-3 read 0, as predicted, but **PA-2 failed at 7 cells**: exactly C-NAME's.
+  - **The cause is the instrument's:** `pc-control.py` called `compare()` directly and skipped `verify2.py`'s latin-1 → UTF-8 name map of the reference.
+  - **The module is excluded:** PC-1's bytes are det-1.json's, which `verify2.py` graded at PA-2 = 0 with the map on.
+  - This is the control's first failure. A second goes to the orchestrator, a third to the owner (the ruling after 04:5xZ).
+
+**PC-C', a NEW registration (approved after 04:5xZ), written before it runs.** The altered candidate (the code PR's pieces, the first cell's first piece scaled by (1 + 1e-5) about its centroid) is written to a file and graded by `verify2.py` itself, so the name map is on and PB-0 to PB-2 run too. **Predicted:** PB-0, PB-1 and PB-2 ok; PA-1 true; PA-2 0; PA-3 0; **PA-4 and PA-5 fail at exactly 16/-155.** Outside the set: stop.
+
+### SEA-STORE: the code PR's ingest on a fresh full fetch, registered before the fetch starts (approved after 04:5xZ)
+
+**When:** after R12 (d) and its re-run have read, because the fetch's connections would add to the TIME_WAIT count that the vitest drivers gate on.
+
+**Where:**
+- The cache is a new directory outside every repository.
+- The ingest runs from a fresh LF clone at the PR head, from a clean tree, so its manifest's `builder` is that commit (F1).
+- **Nothing uploads:** d1 runs only with `--plan`.
+
+**The fetch's identity and pace.**
+- The ingest's own User-Agent, `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`, as ruled 2026-10-28.
+- **No contact email is added to outbound requests.** That needs the owner's explicit word, and the project is already identified by its URL.
+- The ingest's own pacing and resume.
+
+**The steps and what each must read:**
+
+| step | reads |
+|---|---|
+| **S-0, the pins** (condition 1) | after `fetch` and before anything reads the files, every pinned file's sha256 equals its pin: `ne_10m_ocean` db626fcd5d50, `ne_10m_lakes` 0803a06f9c3c, `ne_10m_admin_0_countries` ce1ac7036499, `ne_10m_land` e547d749445e. **Any other: STOP before the ingest** |
+| **S-1, the drift** (condition 2) | every fetched file's sha256 against the manifest of the store the prototype was built on (`bm-obj/manifest.json`, builder 393e4bcd5176, 16,035 entries; that it is production's current store is not verified here), counted per layer as same, changed, added and removed. **Expected:** TIGER (water, rivers, roads, states, counties), terrain, places and population **0 changed**; peaks (GNIS, monthly) **recorded, any number**. A change in any other layer is recorded, and the rows it can move are named before anything is graded |
+| **S-2, two dry runs** (QW4-ID (c)) | the two store trees **byte-identical**: every file's sha256 equal, `sea-regions.json` included |
+| **S-3, the coverage** (I3) | the dry run's in-memory coverage, encoded, **equal to the coverage step's `coverage.bin`**, and to that store's (5cf7169484c2) when S-1 finds the states file unchanged |
+| **S-4, the pieces** | the store's kind-6 features, decoded and grouped back into pieces (records, parts) per cell, graded by `verify2.py` against `sea-pieces.json`: PB-0 2,584 cells; PB-1 2 / 6,820 / 1,355 / 1,168 / 149 / 38; PB-2 the same 1,168; PA-1 1,435 / 1,914 / 497 / 135; PA-2 to PA-5 0 fails |
+| **S-5, the regions** | `sea-regions.json` holds exactly 2 regions, ocean and lakes, each box the bounding box of that file's stored pieces (recomputed from the decoded pieces) |
+| **S-6, the refusal, with its plant** (the orchestrator's row) | the store's `sea-regions.json` moved aside: `d1 --plan` **refuses**, naming the ocean as in no region. Restored, with its sha256 checked: `d1 --plan` passes |
+| **S-7, the Class A count** | `d1 --plan`'s put count (objects + 1), **stated before any upload**; and the R2 figures the 04:12:32Z ruling asked for, with both orders |
+
+**Which rows can move with the drift (condition 2).**
+- Every row graded on a package built from the store moves only through the files S-1 finds changed.
+- Peaks (GNIS) can move PROVENANCE's `sha256.peaks` and the peaks section. The CM rows on the no-sea store, and the 16 points' package bytes, are therefore re-predicted on the new fetch when S-1 shows a peaks change.
+- **A row predicted from the old store is not graded against the new one without saying which files changed and why the prediction still holds.** The I2 row compares drawn masks (water only), so it moves only with TIGER water or the sea's files, which S-1 and S-0 cover.
+
+**I2's row, registered here before the real store exists.** At each of the 16 points, the package built from the new store and the one built from the prototype store (SEA-PKG's) are rendered by **KB5's FillRing**: the device's C++ extract `kb5` a841b11b5f47, at the closest zoom, north-up, as KB5 renders. **Their DRAWN masks are EQUAL at all 16; else STOP**, and the order question goes to the orchestrator.
+
+**Outside the set: stop.**
