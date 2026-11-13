@@ -69,6 +69,22 @@ Repository admin is needed; the reviewer relays it for sessions.
 | RC5 (reconcile) | fixture: 2 open `route-refresh` issues | no line | `Route refresh: 2 open route-refresh issue(s)` and a warning; 0 issues prints the line with no warning |
 | RC6 (reconcile) | fixture: a token file with `ci-test-device`, and that id in the KV fixture | the id is listed like a board | left out, as `test-device` is. **Control:** with the line absent, the id is listed (the exclusion is what removed it) |
 
+### 2b. The owner's KV-token conditions (2026-11-13 18:25Z, relayed verbatim at 18:33:52Z)
+
+> "Weekly route job, KV token: accepted, since KV can't be scoped tighter. Conditions: - 90-day expiry; remind me 7
+> days before it ends; - every action in that workflow pinned by full commit sha; - the step holding the token
+> installs only from the lockfile (npm ci); - the job refuses to write any key outside the route prefix. For the
+> rotation, price a Worker endpoint whose own secret can write only route keys. Test identity: I'll add the
+> "ci-test-device" line to my token file myself when I create the secrets."
+
+| row | condition | the check, red-first, with a control |
+|---|---|---|
+| **TK1** | "remind me 7 days before it ends" | **Mechanised, not remembered:** every run asks Cloudflare's token-verify endpoint, authenticated by the token itself, for the token's `expires_on`, and prints the DATE only. At 7 days or fewer it opens or updates the `route-refresh` issue and sends ntfy: `ROUTES_KV_TOKEN expires in <N> days`. A token with NO `expires_on` breaks the 90-day condition and warns the same way. **Red-first, on a stubbed verify answer:** an expiry 5 days out warns; no expiry warns; **control:** 30 days out does not warn. A failed verify call is a run failure, never a silent pass |
+| **PIN1** | "every action in that workflow pinned by full commit sha" | W10's static check: every `uses:` in `routes-refresh.yml` is `owner/repo@<40 hex>`, with an optional version comment. **Red-first:** a planted `actions/checkout@v4` reads red. **Control:** the real file, all pinned, reads green |
+| **NPM1** | "the step holding the token installs only from the lockfile (npm ci)" | W10's static check, over every step whose `env:` names `ROUTES_KV_TOKEN` and every step after one in the same job: the only install allowed is `npm ci`. `npm install`, `npm i`, `yarn`, `pnpm`, `pip install`, and `npx` without `--no-install` are refused. **Red-first:** a planted `npm install` reads red, and so does a planted `npx some-pkg`. **Control:** green |
+| **PFX1** | "the job refuses to write any key outside the route prefix" | the writer checks EVERY key of every bulk put and delete BEFORE the first call: `^rt:[A-Z0-9]{2,8}$`, the exact `meta:routes`, or the sentinel shape `^rt:ZZ[0-9A-F]{5}S$`. Anything else means exit non-zero and nothing written. **Red-first, through the fake KV:** a planted `meta:other` pair is refused, and the store file is byte-identical before and after (0 writes). **Control:** the same run without the plant writes |
+| **PR1** | "price a Worker endpoint whose own secret can write only route keys" | **A note, not code,** for the rotation decision in about 90 days. Section 6 below |
+
 **Sabotages (W8), each with exactly its stated red set:**
 - G1 threshold set to 0: {GR1, GR2}.
 - G6's shape regex loosened to `^rt:`: {GR7}.
@@ -105,3 +121,23 @@ steps inside `workers.yml`'s existing job, so the check-run total is expected un
 **The owner's deadline** (in his digest): the `routes-refresh` environment, `ROUTES_KV_TOKEN` and `ROUTES_NTFY_TOPIC`
 must exist by about **11-22**, leaving margin before the 11-24 alert. Without them the first attended run cannot
 happen, and the alert firing is correct.
+
+## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
+
+**The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
+route-write endpoint on a Worker. The Worker holds its own secret, accepts only the route key set (PFX1's shapes,
+checked server-side) and writes through its existing `ENRICH_KV` binding. The GitHub secret then authorizes route
+writes on one endpoint and nothing else.
+
+| | the KV token (as built) | a Worker endpoint |
+|---|---|---|
+| **what the GitHub secret can reach** | every KV namespace on the account, read and write | route keys on one namespace per environment, through one endpoint |
+| **KV writes and deletes** | the same count either way: about 10,000-14,000 writes a week per environment | the same: the writes are KV writes inside the Worker, priced identically |
+| **extra Worker requests** | none | about 15 a run per environment: one per batch of about 1,000 keys (a Worker invocation's KV-operation limit). That is about 130 a month, negligible against 10 M included |
+| **extra CPU** | none | parse and validate about 14,000 keys a run: well under one second of CPU a run, negligible against the account's CPU line, which is already over its allowance (about $0.18 a month at today's rate) |
+| **account-wide cost difference** | | **about $0 a month** |
+| **what it removes** | | the account-wide KV reach of a secret held by CI, which is the owner's stated concern |
+| **what it adds** | | a NEW authenticated write path into production KV. It needs its own guards: the secret compared in constant time, the key-shape check server-side (PFX1 again, not trusted from the client), a per-run batch cap, a rate limit, its own audit log line, and a deploy of the proxy (the deploy claim). It is also a second implementation of PFX1, so it carries the "two guards on one rule drift" risk this repo has met before |
+
+**Recommendation for the rotation decision:** the endpoint, if the owner's priority is the KV token's reach. Its cost
+is engineering and a guarded write path, not money. That decision is the owner's, at rotation.
