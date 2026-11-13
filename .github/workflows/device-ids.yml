@@ -72,3 +72,7 @@ jobs:
       - run: python3 tools/token_file_sabotage.py
       - run: python3 scripts/check_token_file_readers.py --selftest
       - run: python3 scripts/check_token_file_readers.py
+      # The fresh-boot hands-on cadence (RELEASING.md step 0; docs/fresh-boot-automation.md): its five registered
+      # controls on a synthetic repository. Only the selftest runs here: a real read needs the release tags, which this
+      # job's shallow checkout does not fetch. scripts/fresh-boot-auto.sh runs the real read before every automated step 0.
+      - run: python3 scripts/fresh-boot-cadence.py --selftest
