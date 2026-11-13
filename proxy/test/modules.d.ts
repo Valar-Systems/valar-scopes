@@ -43,3 +43,10 @@ declare module "virtual:wx-ingest-tomls" {
   const files: Record<string, string>;
   export default files;
 }
+
+// vitest.config.mts's proxy-src-texts plugin: every hand-written proxy/src/**/*.ts as its exact text, keyed by its path
+// under src/ (docs/proxy-bill.md, step 4a: only fleet.ts reads a fw: key).
+declare module "virtual:proxy-src-texts" {
+  const files: Record<string, string>;
+  export default files;
+}

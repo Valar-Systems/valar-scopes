@@ -3,6 +3,7 @@
 Cloudflare; it runs tools/budget/budget_read.py four times and writes one file.
 
   python3 -I tools/budget/build_budget.py <end ISO, a whole hour> <out.json>
+  python3 -I tools/budget/build_budget.py --add-fw-memo <in.json> <out.json>    the fw-memo state only, no read
 
 The reads, all ending at <end> unless stated:
   r-7d       the 7-day run rate, take "rest": every line except the OPERA-dependent ones (section 5.1)
@@ -46,7 +47,8 @@ ALLOWANCES = {   # tools/wx/account_cost_read.py PRICE and ROUND_UP (Cloudflare'
 PRODUCTS = {
     "missileer-live": {"label": "Missileer live stream (R2 bucket missileer-live; an external S3 client)", "states": ["now"]},
     "missileer-clips": {"label": "Missileer clips and public export (missileer-clips)", "states": ["now"]},
-    "proxy": {"label": "Blipscope proxy (blipscope-proxy; production KV; its BendSnapshot DO)", "states": ["now"]},
+    "proxy": {"label": "Blipscope proxy (blipscope-proxy; production KV; its BendSnapshot DO; fw-memo: the fw: read memoised, projected)",
+              "states": ["now", "fw-memo"]},
     "proxy-staging": {"label": "proxy staging (blipscope-proxy-staging; staging KV)", "states": ["now"]},
     "cref": {"label": "US radar ingest, cref (blipscope-wx-ingest; its Class A of blipscope-wx)", "states": ["now"]},
     "blipscope-wx-reads": {"label": "US ingest + proxy /wx serving: blipscope-wx's Class B (not separable by R2)", "states": ["now"]},
@@ -60,9 +62,37 @@ PRODUCTS = {
     "unattributed": {"label": "UNATTRIBUTED: a script, bucket or namespace the mapping does not name (stop and report)", "states": ["now"]},
     "cref+opera-ten": {"label": "blipscope-wx Class A in a running window (cref and the ten together; derivation input only)", "states": ["now"]},
 }
-SCENARIOS = {"today": {"opera-ten": "silent", "shsr": "absent"},
-             "OPERA running": {"opera-ten": "running", "shsr": "absent"},
-             "OPERA running + shsr": {"opera-ten": "running", "shsr": "built"}}
+SCENARIOS = {"today": {"opera-ten": "silent", "shsr": "absent", "proxy": "now"},
+             "OPERA running": {"opera-ten": "running", "shsr": "absent", "proxy": "now"},
+             "OPERA running + shsr": {"opera-ten": "running", "shsr": "built", "proxy": "now"},
+             "today + fw memo": {"opera-ten": "silent", "shsr": "absent", "proxy": "fw-memo"}}
+
+# The fw: memo's projection (docs/proxy-bill.md, step 4a): fw: is 28.43% of production's KV reads (482,349 device
+# requests against 1,696,591 reads, the week ending 2026-11-13T00Z), and the memo's predicted hit rate is 95% (F1).
+FW_SHARE, FW_HIT = 0.2843, 0.95
+FW_FACTOR = 1 - FW_SHARE * FW_HIT
+
+
+def fw_memo_rows(rows):
+    """Proxy's "fw-memo" state: EVERY row of its "now" state (a state replaces all of a product's rows when a scenario
+    picks it), with kv_read scaled by FW_FACTOR and the rest unchanged. Run after the derived Logs rows exist, so the
+    copy carries them once and the derivation never sees a fw-memo requests row. One function for the full build and
+    for --add-fw-memo, so a rebuild cannot drop what the loader added."""
+    out = []
+    for r in rows:
+        if r["product"] != "proxy" or r["state"] != "now":
+            continue
+        scaled = r["allowance"] == "kv_read"
+        out.append({"product": "proxy", "state": "fw-memo", "allowance": r["allowance"],
+                    "value": round(r["value"] * FW_FACTOR) if scaled else r["value"], "read": "proj-fw-memo", "basis": "projected",
+                    "how": (f"proxy now's kv_read ({r['read']}) x (1 - {FW_SHARE} x {FW_HIT}): fw: is {FW_SHARE:.2%} of reads, the memo "
+                            f"predicted to answer {FW_HIT:.0%} (docs/proxy-bill.md step 4a)") if scaled
+                           else f"proxy now's {r['allowance']} ({r['read']}), unchanged by the memo"})
+    return out
+
+
+def fw_memo_read(window):
+    return {"tool": "tools/budget/build_budget.py fw_memo_rows, projected from proxy's now rows", "window": window, "totals": {}}
 
 
 def read(d, rid, a, b, state, take, obs=False):
@@ -115,13 +145,34 @@ def main():
         if r["allowance"] == "requests" and r["state"] != "excluded":
             rows.append({"product": r["product"], "state": r["state"], "allowance": "logs_events", "value": round(r["value"] * EV_PER_INV),
                          "read": "derived-logs", "basis": "derived", "how": f"{r['read']}'s requests x {EV_PER_INV}"})
+    # AFTER the derived Logs rows: fw-memo copies proxy's whole "now" state, its logs_events row included, once.
+    reads["proj-fw-memo"] = fw_memo_read(r7["read"]["r-7d"]["window"])
+    rows += fw_memo_rows(rows)
     b = {"version": 1, "built_at": end, "tool": "tools/budget/build_budget.py",
          "allowances": ALLOWANCES, "products": PRODUCTS, "scenarios": SCENARIOS, "reads": reads, "rows": rows}
+    write(b, out_path)
+
+
+def write(b, out_path):
     with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(b, fh, indent=1)
         fh.write("\n")
-    print(f"wrote {out_path}: {len(rows)} rows, {len(reads)} reads")
+    print(f"wrote {out_path}: {len(b['rows'])} rows, {len(b['reads'])} reads")
+
+
+def add_fw_memo(in_path, out_path):
+    """The SAME fw_memo_rows over an existing file, with no new read: products and scenarios from this module (so the
+    file and a full rebuild agree), any earlier fw-memo rows replaced, the proj-fw-memo read set from r-7d's window."""
+    with open(in_path, encoding="utf-8") as fh:
+        b = json.load(fh)
+    b["products"], b["scenarios"] = PRODUCTS, SCENARIOS
+    b["rows"] = [r for r in b["rows"] if not (r["product"] == "proxy" and r["state"] == "fw-memo")]
+    b["reads"]["proj-fw-memo"] = fw_memo_read(b["reads"]["r-7d"]["window"])
+    b["rows"] += fw_memo_rows(b["rows"])
+    write(b, out_path)
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--add-fw-memo"]:
+        sys.exit(add_fw_memo(sys.argv[2], sys.argv[3]))
     sys.exit(main())

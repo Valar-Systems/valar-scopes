@@ -30,6 +30,10 @@ export interface RequestMetric {
   /** /basemap only: the branch the request took (docs/basemap-branch-log.md). It reaches the log line through
    *  record()'s spread and is NOT written to the dataset point, whose blobs are positional (see record()). */
   bm?: BasemapBranch;
+  /** 1 when this request issued the fw:<device> KV read, 0 when the isolate's memo answered it (src/fleet.ts);
+   *  undefined when no fleet decision was made (unauthenticated, rate-limited, or a header missing). Written as the
+   *  request point's double5, APPENDED (see record()), so docs/proxy-bill.md step 4a's r can be measured. */
+  fwKvRead?: number;
 }
 
 // Device attribution for a metric, applied ONLY once a request has proven it
@@ -237,7 +241,13 @@ export function record(env: Env, m: RequestMetric): void {
     const route = routeTemplate(m.ep);
     env.METRICS?.writeDataPoint({
       blobs: [route, m.cache ?? "", m.upstream ?? "", m.model, m.dev ?? "", m.fw ?? ""],
-      doubles: [m.status, m.ms, m.upstreamMs ?? 0, sampled ? 1 / HIT_SAMPLE_RATE : 1],
+      // double5 (fwKvRead) is APPENDED for the same reason as blob5/blob6: double4 is the sampling weight every
+      // count multiplies by, and moving it would rewrite three months of retained points. Every reader of double5..8
+      // in the tree (2026-11-13) is the usage family's and scopes itself to usage points: dashboard/src/analytics.ts
+      // by blob1 = 'usage' (USAGE_POINTS), proxy/scripts/usage-stats.ts by index1 = 'usage'. A request point's
+      // blob1 and index1 are its route, never 'usage', so its double5 is read only by the fw: memo's own counter:
+      // SUM(_sample_interval * double4 * double5) over request rows (docs/proxy-bill.md, step 4a).
+      doubles: [m.status, m.ms, m.upstreamMs ?? 0, sampled ? 1 / HIT_SAMPLE_RATE : 1, m.fwKvRead ?? 0],
       indexes: [route],
     });
     // A FAILED request (5xx) also records the Cloudflare data centre that served it -- on a point of its own, the

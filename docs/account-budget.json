@@ -102,9 +102,10 @@
    ]
   },
   "proxy": {
-   "label": "Blipscope proxy (blipscope-proxy; production KV; its BendSnapshot DO)",
+   "label": "Blipscope proxy (blipscope-proxy; production KV; its BendSnapshot DO; fw-memo: the fw: read memoised, projected)",
    "states": [
-    "now"
+    "now",
+    "fw-memo"
    ]
   },
   "proxy-staging": {
@@ -185,15 +186,23 @@
  "scenarios": {
   "today": {
    "opera-ten": "silent",
-   "shsr": "absent"
+   "shsr": "absent",
+   "proxy": "now"
   },
   "OPERA running": {
    "opera-ten": "running",
-   "shsr": "absent"
+   "shsr": "absent",
+   "proxy": "now"
   },
   "OPERA running + shsr": {
    "opera-ten": "running",
-   "shsr": "built"
+   "shsr": "built",
+   "proxy": "now"
+  },
+  "today + fw memo": {
+   "opera-ten": "silent",
+   "shsr": "absent",
+   "proxy": "fw-memo"
   }
  },
  "reads": {
@@ -266,6 +275,14 @@
   "derived-logs": {
    "tool": "requests x 3.175 events per invocation (account_cost_read.py A8)",
    "window": [],
+   "totals": {}
+  },
+  "proj-fw-memo": {
+   "tool": "tools/budget/build_budget.py fw_memo_rows, projected from proxy's now rows",
+   "window": [
+    "2026-11-05T21:00:00Z",
+    "2026-11-12T21:00:00Z"
+   ],
    "totals": {}
   }
  },
@@ -1106,6 +1123,78 @@
    "read": "derived-logs",
    "basis": "derived",
    "how": "proj-shsr's requests x 3.175"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "cpu_ms",
+   "value": 7423033,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's cpu_ms (r-7d), unchanged by the memo"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "do_gb_s",
+   "value": 1078,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's do_gb_s (r-7d), unchanged by the memo"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "do_requests",
+   "value": 317567,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's do_requests (r-7d), unchanged by the memo"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "kv_list",
+   "value": 5331,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's kv_list (r-7d), unchanged by the memo"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "kv_read",
+   "value": 5271940,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's kv_read (r-7d) x (1 - 0.2843 x 0.95): fw: is 28.43% of reads, the memo predicted to answer 95% (docs/proxy-bill.md step 4a)"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "kv_write",
+   "value": 326786,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's kv_write (r-7d), unchanged by the memo"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "requests",
+   "value": 2066794,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's requests (r-7d), unchanged by the memo"
+  },
+  {
+   "product": "proxy",
+   "state": "fw-memo",
+   "allowance": "logs_events",
+   "value": 6562071,
+   "read": "proj-fw-memo",
+   "basis": "projected",
+   "how": "proxy now's logs_events (derived-logs), unchanged by the memo"
   }
  ]
 }

@@ -192,21 +192,21 @@ below are labelled "API bytes".
 ## 6. The table (rendered by the checker, from the next commit)
 
 <!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
-| allowance | included | today | OPERA running | OPERA running + shsr | 24 h rate (observation, not graded) |
-|---|---|---|---|---|---|
-| R2 Class A (writes) | 1.000 M | 0.854 M (85%) **FLAG** | 1.027 M (103%) **OVER**, $4.50 | 1.159 M (116%) **OVER**, $4.50 | 0.931 M (93%) |
-| R2 Class B (reads) | 10.000 M | 4.118 M (41%) | 9.488 M (95%) **FLAG** | 9.920 M (99%) **FLAG** | 4.474 M (45%) |
-| R2 storage (GB-month) | 10.00 | 3.46 (35%) | 3.46 (35%) | 3.86 (39%) | not read |
-| KV reads | 10.000 M | 7.226 M (72%) | 7.226 M (72%) | 7.226 M (72%) | 8.295 M (83%) |
-| KV writes | 1.000 M | 0.608 M (61%) | 0.608 M (61%) | 0.608 M (61%) | 0.047 M (5%) |
-| KV lists | 1.000 M | 0.005 M (1%) | 0.005 M (1%) | 0.005 M (1%) | 0.006 M (1%) |
-| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
-| Workers CPU (ms) | 30.000 M | 35.917 M (120%) **OVER**, $0.12 | 68.158 M (227%) **OVER**, $0.76 | 94.564 M (315%) **OVER**, $1.29 | 32.797 M (109%) |
-| Workers requests | 10.000 M | 2.636 M (26%) | 2.633 M (26%) | 2.676 M (27%) | 2.805 M (28%) |
-| Workers Logs events (November prices) | 20.000 M | 8.368 M (42%) | 8.359 M (42%) | 8.496 M (42%) | not read |
-| Durable Object requests | 1.000 M | 0.400 M (40%) | 0.400 M (40%) | 0.400 M (40%) | not read |
-| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
-| **overage a month (Read A)** | | **$0.12** | **$5.26** | **$5.79** | |
+| allowance | included | today | OPERA running | OPERA running + shsr | today + fw memo | 24 h rate (observation, not graded) |
+|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 0.854 M (85%) **FLAG** | 1.027 M (103%) **OVER**, $4.50 | 1.159 M (116%) **OVER**, $4.50 | 0.854 M (85%) **FLAG** | 0.931 M (93%) |
+| R2 Class B (reads) | 10.000 M | 4.118 M (41%) | 9.488 M (95%) **FLAG** | 9.920 M (99%) **FLAG** | 4.118 M (41%) | 4.474 M (45%) |
+| R2 storage (GB-month) | 10.00 | 3.46 (35%) | 3.46 (35%) | 3.86 (39%) | 3.46 (35%) | not read |
+| KV reads | 10.000 M | 7.226 M (72%) | 7.226 M (72%) | 7.226 M (72%) | 5.275 M (53%) | 8.295 M (83%) |
+| KV writes | 1.000 M | 0.608 M (61%) | 0.608 M (61%) | 0.608 M (61%) | 0.608 M (61%) | 0.047 M (5%) |
+| KV lists | 1.000 M | 0.005 M (1%) | 0.005 M (1%) | 0.005 M (1%) | 0.005 M (1%) | 0.006 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
+| Workers CPU (ms) | 30.000 M | 35.917 M (120%) **OVER**, $0.12 | 68.158 M (227%) **OVER**, $0.76 | 94.564 M (315%) **OVER**, $1.29 | 35.917 M (120%) **OVER**, $0.12 | 32.797 M (109%) |
+| Workers requests | 10.000 M | 2.636 M (26%) | 2.633 M (26%) | 2.676 M (27%) | 2.636 M (26%) | 2.805 M (28%) |
+| Workers Logs events (November prices) | 20.000 M | 8.368 M (42%) | 8.359 M (42%) | 8.496 M (42%) | 8.368 M (42%) | not read |
+| Durable Object requests | 1.000 M | 0.400 M (40%) | 0.400 M (40%) | 0.400 M (40%) | 0.400 M (40%) | not read |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
+| **overage a month (Read A)** | | **$0.12** | **$5.26** | **$5.79** | **$0.12** | |
 <!-- account-budget:end -->
 
 ### 6.1 The graded read (2026-11-12, window ending 21:00:00Z, run 21:05:12-27Z)
