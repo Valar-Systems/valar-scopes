@@ -757,6 +757,34 @@ B before a split inland body drops (of which 309 and 294 B were spent at 17 km);
 18:00Z. **The owner's two 25 km pictures** (KLGA and KBOS, today over 2-L at 19.4, one 25 km view each; hash-named in `hudson-options\`):
 informational, no gate. **Outside the set:** any O2R row off: STOP and report; the offset proof's any DIFFER: STOP, to the owner.
 
+**The run at 19.4 (18:59Z, `hr-o2-194.sh` cd79a3462dc3, stdout 0c3fa376c71d): 42 of 42 AS PREDICTED.** The control: `pqo` unchanged.
+
+| map | package (2-L at 19.4) | rung | rings / dropped.water | non-terrain B | extra line B |
+|---|---|---|---|---|---|
+| KBOS | 696c6d00122d | 9 | 242 / 0 | 32,754 | 607 |
+| KJFK | e042d61aa8f1 | 9 | 179 / 0 | 32,765 | 151 |
+| MIDTOWN | aaede1785364 | 10 | 142 / 31 | 32,760 | 345 |
+| KEWR | c619f4a89f14 | 10 | 120 / 46 | 32,766 | 299 |
+| KLGA | 6ab44cd8fbea | 10 | 151 / 23 | 32,765 | 350 |
+
+All kOk, 0 proper crossings, header 1,609,344. MIDTOWN keeps rings 91 and 132; KEWR keeps record 27, its only multi-ring drop unit
+39 (today draws none of it), the rest the small lakes the owner accepted; KLGA keeps (b)'s four bodies; **no body dropped whole
+compared with today at any of the five.** At 5 and 10 mi road and river pixels IDENTICAL to today's at all five; 0 fallbacks.
+**The offset proof at 19.4: 80 of 80 EQUAL** (the 20 worst homes x 5 mi, 10 mi, 5 nmi, 10 nmi; the 10 nmi step now reaches at most
+19.217 km).
+
+**FT-HR re-staged** (`C:\Github\_handoffs\map-server\frame-row-packages-hudson\`, full sha256 read back after the copies):
+KBOS-2L194 696c6d00122d, KJFK-2L194 e042d61aa8f1, MIDTOWN-2L194 aaede1785364, KEWR-2L194 c619f4a89f14, KLGA-2L194 6ab44cd8fbea, and
+today's KORD-A0 cb59bb06a506 unchanged. **The manifest names these six** (to be re-frozen before 11-15 18:00Z). The older staged
+files are untouched.
+
+**Pictures** (`hudson-options\`, not opened by this session): the owner's two 25 km views, informational -- KBOS-2L194-25km
+f0cac58dae58 (about 170-200 road pixels and 11 river pixels move, all beyond 19.4 km; water +15 px) and KLGA-2L194-25km ab944a9282de
+(about 130-150 road pixels move, beyond 19.4 km; water +1,213 px); the five sheets at 5/10/25/50/100 mi -- KBOS-2L194 bbba14e983fa,
+KEWR-2L194 48efc61020cf, MIDTOWN-2L194 c5e8359531ba, KJFK-2L194 da8fb0e97024, KLGA-2L194 c754074cd3a9.
+
+**What still gates the merge:** FT-HR's reading inside M on these six (the 11-16 window), and the code PR's condition (a).
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
