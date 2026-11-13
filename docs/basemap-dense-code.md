@@ -4114,3 +4114,10 @@ R12 is closed. The first run's two OFF readings stay on the record above.
   - I2 (water only) and the S-rows are untouched by it.
   - The states file is unchanged, so S-3 also compares with 5cf7169484c2.
 - **The dry runs wait** for the 8 census files: the dry run refuses missing files, and `--partial` measures only, never a store.
+
+**SEA-OWN, re-predicted under condition 2 (accepted after 06:52:03Z), before it runs:**
+- **SEA-OWN** is graded as frozen on every section EXCEPT the peaks section and PROVENANCE's peaks lines: the water section's rings equal SEA-PKG's as a multiset, every other section is byte-identical, and PROVENANCE differs only in the store's id, its file references and the peaks lines.
+- **PEAKS-REC (recorded, not graded):** at each of the 16 points, the new store's peaks section against the old store's. Each difference is named by the GNIS feature it comes from (`feature_id`, name).
+- **The guard (GRADED), so the exception cannot hide anything.** All 51 GNIS files changed, so a file-level test would pass trivially. The guard is therefore feature-level:
+  - Every peaks difference must be explained by a summit (`feature_class` Summit) whose STORED record differs between the old store's cells (`bm-obj`) and the new store's cells: added, removed, renamed or moved, within that point's square.
+  - **A difference with no such summit is a STOP.** In particular, a point whose square holds no changed summit must have a byte-identical peaks section.
