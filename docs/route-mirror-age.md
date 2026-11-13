@@ -12,7 +12,7 @@ The ingest writes `meta:routes` "so /healthz correctly reports stale" (`ingest-r
 `proxy/src` reads it.** That is a written claim with nothing behind it, and an instrument that fires into a void.
 
 The reviewer accepted this proposal at 2026-11-13 ~06:47Z:
-- N = 14 days;
+- N = 14 days; **10 days from `docs/route-age-alert.md`** (the owner, 2026-11-13: "alerts when the copy is more than 10 days old");
 - the alert is printed by `reconcile-fleet.py` and judged by `smoke-prod.sh`;
 - the coupling: WARN until an approved refresh has landed, then FAIL.
 

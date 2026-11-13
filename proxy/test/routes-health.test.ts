@@ -30,7 +30,7 @@ describe("RH, /healthz's routes field", () => {
   it("RH1: a 3-day-old build is fresh", async () => {
     const t = Date.now() - 3 * DAY;
     await plant(t);
-    expect(await routes()).toEqual({ builtAt: new Date(t).toISOString(), ageDays: 3, rows: 619103, stale: false, maxAgeDays: 14 });
+    expect(await routes()).toEqual({ builtAt: new Date(t).toISOString(), ageDays: 3, rows: 619103, stale: false, maxAgeDays: 10 });
   });
 
   it("RH2: a 20-day-old build is stale", async () => {
@@ -41,22 +41,22 @@ describe("RH, /healthz's routes field", () => {
     expect(r?.why).toBeUndefined();
   });
 
-  it("RH3: the boundary is 14 days in milliseconds, not floored days", async () => {
-    await plant(Date.now() - 14 * DAY + 60_000);
+  it("RH3: the boundary is 10 days in milliseconds, not floored days", async () => {
+    await plant(Date.now() - 10 * DAY + 60_000);
     let r = await routes();
-    expect([r?.ageDays, r?.stale]).toEqual([13, false]);
+    expect([r?.ageDays, r?.stale]).toEqual([9, false]);
     resetRoutesHealth();
-    await plant(Date.now() - 14 * DAY - 60_000);
+    await plant(Date.now() - 10 * DAY - 60_000);
     r = await routes();
-    expect([r?.ageDays, r?.stale]).toEqual([14, true]);
+    expect([r?.ageDays, r?.stale]).toEqual([10, true]);
   });
 
   it("RH4: no meta key reads null, stale, absent", async () => {
-    expect(await routes()).toEqual({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 14, why: "absent" });
+    expect(await routes()).toEqual({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 10, why: "absent" });
   });
 
   it("RH5: an unparsable value, or one with no builtAt, reads null, stale, unparsable", async () => {
-    const want = { builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 14, why: "unparsable" };
+    const want = { builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 10, why: "unparsable" };
     await env.ENRICH_KV.put("meta:routes", "not json");
     expect(await routes()).toEqual(want);
     resetRoutesHealth();
@@ -66,12 +66,12 @@ describe("RH, /healthz's routes field", () => {
 
   it("RH6: a builtAt in the future is never clamped to age 0", async () => {
     await plant(Date.now() + DAY);
-    expect(await routes()).toEqual({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 14, why: "future" });
+    expect(await routes()).toEqual({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 10, why: "future" });
   });
 
   it("RH7: a throwing KV reads unreadable and is not cached; a good read IS cached until reset", async () => {
     const throwing = { get: async () => { throw new Error("kv down"); } } as unknown as KVNamespace;
-    expect(await routes({ ENRICH_KV: throwing })).toEqual({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 14, why: "unreadable" });
+    expect(await routes({ ENRICH_KV: throwing })).toEqual({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: 10, why: "unreadable" });
     const t = Date.now() - 3 * DAY;
     await plant(t);
     expect((await routes())?.builtAt).toBe(new Date(t).toISOString()); // no reset: the throw was not cached

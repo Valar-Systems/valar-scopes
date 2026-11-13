@@ -12,7 +12,7 @@
 import type { Env } from "./types";
 
 /** The rule's one home. smoke and reconcile read it from the body (`maxAgeDays`), never restate it. */
-export const ROUTES_MAX_AGE_DAYS = 14;
+export const ROUTES_MAX_AGE_DAYS = 10;
 const DAY_MS = 86_400_000;
 const CACHE_MS = 10 * 60_000;
 const META_KEY = "meta:routes";

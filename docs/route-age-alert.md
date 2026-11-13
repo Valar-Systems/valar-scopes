@@ -90,3 +90,19 @@ is now at".
 | D-B1 shows `maxAgeDays` 14 | the deploy did not carry this change: stop and report |
 | D-B2 FAIL | the copy is past 10 days, or the field is unreadable. Under section 2's proposed rule this is reported and is not by itself a reason to roll back. Stop and report |
 | anything else | stop and decide |
+
+## 5. Results
+
+### 5.1 Red-first and sabotages, local (2026-11-13 17:04-17:12Z; TIME_WAIT 315-670; no other vitest or sabotage process)
+
+| row | read | verdict |
+|---|---|---|
+| B-R1 | `routes-health.test.ts`: 6 failed, 2 passed. Red {RH1, RH3, RH4, RH5, RH6, RH7}; green {RH2, RH8}. Five reds are `maxAgeDays` 10 against 14; RH3 is `[10, false]` against `[10, true]`, on its second half | **as predicted** |
+| B-R2 | 8 passed (8) | **as predicted** |
+| B-R3 | `routes-age-verdict.selftest.sh` exit 1: `FAIL SV7: ROUTES_AGE_MODE="fail" lines 0, ="warn" lines 1 (want 1 and 0)`; the 14 other checks pass, SV8 among them | **as predicted** |
+| B-R4 | exit 0: 15 PASS (SV1-SV5e in both modes, SV6, SV7, SV8), `SELFTEST PASSED` | **as predicted** |
+| B-S1 | stale from floored days: 1 failed, 7 passed. Red {RH3}, `[10, false]` against `[10, true]`. The file was restored from its byte copy (sha equal) | **as predicted** |
+| B-S2 | the counting line removed, in a copy graded through `ROUTES_SMOKE` (the copy differs from the real file): exit 1, red {SV8} only | **as predicted** |
+
+Also run: `wx-products-lines.selftest.sh` and `healthz-commit.selftest.sh`, which grep `smoke-prod.sh`'s text. Both
+passed. `sabotage-smoke-basemap.mjs`'s S-SQ anchor (`&eps=$BM_EPS`) is still found exactly once.
