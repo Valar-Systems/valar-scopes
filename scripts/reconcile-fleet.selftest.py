@@ -320,5 +320,60 @@ else:
     off += not ok
     print("RC-S1: %s -- red %s (want ['RC2', 'RC3', 'RC4'])" % ("as predicted" if ok else "OFF-PREDICTION", got))
 
+# RH1: read_healthz's own request carries a User-Agent. Cloudflare's edge answers the default `Python-urllib/3.x` with 403
+# before the Worker sees the request (docs/reconcile-fleet-healthz-ua.md), and the RC rows above hand route_mirror_lines a
+# fixture BODY, so nothing exercised the request itself: the route-mirror block read nothing on every real run. The stub
+# records what read_healthz hands urlopen; no network.
+def rh(source: str) -> dict:
+    mod = load(source)
+    seen = []
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def stub(req, timeout=None):
+        seen.append(req)
+        return _Resp(b'{"ok": true}')
+
+    real = mod.urllib.request.urlopen
+    mod.urllib.request.urlopen = stub
+    try:
+        mod.read_healthz("production")
+    finally:
+        mod.urllib.request.urlopen = real
+    url = mod.HEALTHZ_URL["production"]
+    full = [getattr(r, "full_url", r) for r in seen]
+    ua = [r.get_header("User-agent") if hasattr(r, "get_header") else None for r in seen]
+    return {"RH1": len(seen) == 1 and full == [url] and bool(ua[0]) and "support@valarsystems.com" in ua[0]
+                   and "github.com/Valar-Systems/valar-scopes" in ua[0],
+            "RH1-ctl": len(seen) == 1 and full == [url]}
+
+
+got = rh(SRC)
+if not got["RH1-ctl"]:
+    off += 1
+    print("RH1: BLIND -- the stub was not called once with the production /healthz URL")
+else:
+    off += not got["RH1"]
+    print("RH1: %s -- read_healthz's request %s the User-Agent" % ("as predicted" if got["RH1"] else "OFF-PREDICTION",
+                                                                  "carries" if got["RH1"] else "does NOT carry"))
+RH_ANCHOR = 'headers={"User-Agent": UA})'
+if SRC.count(RH_ANCHOR) != 1:
+    off += 1
+    print("RH-S1: BLIND -- its anchor was found %d times" % SRC.count(RH_ANCHOR))
+else:
+    # RH-S1: the User-Agent removed from read_healthz's request. RH1 must go red while RH1-ctl still sees the call.
+    planted = SRC.replace(RH_ANCHOR, "headers={})  # SABOTAGE RH-S1")
+    assert planted != SRC
+    g = rh(planted)
+    ok = (not g["RH1"]) and g["RH1-ctl"]
+    off += not ok
+    print("RH-S1: %s -- the User-Agent removed: RH1 %s, RH1-ctl %s (want RH1 red, RH1-ctl as predicted)"
+          % ("as predicted" if ok else "OFF-PREDICTION", "red" if not g["RH1"] else "GREEN", g["RH1-ctl"]))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)

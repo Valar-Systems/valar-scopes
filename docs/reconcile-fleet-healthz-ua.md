@@ -67,3 +67,28 @@ doc). If the count differs, the job that differs is named before anything is jud
 since #679.
 
 **Outside the set:** any other reading means stop and report.
+
+## Results, local (2026-11-13). The registration was pushed alone first (73468d81, 17:38:28Z)
+
+**Rehearsed red first.** The new rows ran against main's unchanged script, as registered:
+- RH1 **OFF**: "read_healthz's request does NOT carry the User-Agent". It printed OFF, not BLIND, so RH1-ctl held: the
+  stub was called once with the production URL.
+- RH-S1 **BLIND**: "its anchor was found 0 times".
+- Every other row read as before. `SELFTEST: 2 row(s) off`, exit 1.
+
+**L-red** (17:39:17Z, main's script, production /healthz), as predicted:
+`['  Route mirror (rt:): could not read /healthz']`, warnings `['route mirror: could not read /healthz']`.
+
+**After the change** (Windows `python -I`):
+
+| row | read | verdict |
+|---|---|---|
+| **RH1** | "read_healthz's request carries the User-Agent" | as predicted |
+| **RH-S1** | the User-Agent removed: RH1 red, RH1-ctl True | as predicted |
+| the existing rows | as before, 0 rows off or blind; `SELFTEST PASSED`, exit 0 | as predicted |
+| **L-green** (17:39:30Z) | `  Route mirror (rt:): built 2026-08-26T17:25:54.476Z, 79 d old, 619103 rows (limit 14 d)  <== STALE`; warnings `['route mirror: 79 d old, past its 14-day limit']` | as predicted (A = 79) |
+
+The STALE line is the reading the block exists for: the route mirror is 79 days old against a 14-day limit. Until
+this change, no run of this tool could show it.
+
+Not run locally: WSL `python3`. CI's workers job runs the selftest on Ubuntu.
