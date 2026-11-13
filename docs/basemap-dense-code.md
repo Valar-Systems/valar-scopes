@@ -4083,3 +4083,34 @@ Outside the set: stop.
 - **The credits driver** was not run, as ruled: nothing it touches has changed.
 
 R12 is closed. The first run's two OFF readings stay on the record above.
+
+### SEA-STORE, steps 1-5 read (06:23-06:50Z, from c3acc338ad56; cache `bm-cache-qw4`)
+
+- **The fetch.**
+  - Plan: 6,398 files (sea 2).
+  - Fetched: 6,390 of 6,398, 4.856 GB. **8 census county files were refused**: census.gov served HTML rejection pages (AREAWATER 38021, 39167, 44007, 56029; LINEARWATER 17005, 19123, 27081, 54093). `checkBody` refused each one, so none was cached.
+  - These are different counties from 10-28's two (34023, 39077), so it is the census rate shape, not the files. **The 10-28 ruling governs:** the ingest's own `retry`, gently over about 24 h with the User-Agent; if still refused, the Census Bureau's mirror, with a manifest note.
+- **The coverage step:** 4,907 rows; 3,144 counties and 51 states; 9,638 tiles, 0 HEAD failures, 706.6 MB, all Last-Modified 2017.
+- **The tile fetch.**
+  - It crashed three times on the undici parser class the code names ("crashed (log saved): false == true").
+  - Then, by the bounded resume loop ruled after 06:43Z, 9 more such crashes, each adding records, and **FINISHED at the loop's run 10**: 9,638 tiles, 706,629,891 B (the HEAD measurement exactly), 0 failed.
+  - Every resume re-hashed every logged tile.
+- **S-0, the pins: AS PREDICTED.** Ocean db626fcd5d50, lakes 0803a06f9c3c, admin-0 ce1ac7036499, land e547d749445e.
+- **S-1, the drift: AS PREDICTED.** Against the prototype's base store (16,035 entries), 0 changed outside peaks:
+
+  | layer | same | changed | added |
+  |---|---|---|---|
+  | water | 3,140 (+4 refused, pending) | 0 | 0 |
+  | rivers | 3,140 (+4 refused, pending) | 0 | 0 |
+  | roads | 51 | 0 | 0 |
+  | places, population, states, counties | 1 each | 0 | 0 |
+  | naturalearth | 2 | 0 | 0 |
+  | sea | 1 (the ocean, its URL unchanged) | 0 | 1 (the lakes) |
+  | terrain | 9,638 | 0 | 0 |
+  | **peaks (GNIS)** | 0 | **51 (all)** | 0 |
+
+- **What the GNIS drift can move (condition 2).** The peaks section and PROVENANCE's peaks lines of any package built from the new store.
+  - SEA-OWN's "every other section byte-identical" is therefore not graded on peaks without a re-prediction, put to the orchestrator.
+  - I2 (water only) and the S-rows are untouched by it.
+  - The states file is unchanged, so S-3 also compares with 5cf7169484c2.
+- **The dry runs wait** for the 8 census files: the dry run refuses missing files, and `--partial` measures only, never a store.
