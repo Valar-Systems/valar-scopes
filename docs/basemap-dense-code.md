@@ -3550,3 +3550,180 @@ is the one source of the production lines, and a 500 carrying repair counts take
 T-SEALOG also feeds it a synthetic `sea_repair_limit` result whose `why` carries a record key and a point (the harness's full line, as the
 builder makes it) and asserts the same properties: one line, the counts-only format, no `/\d\.\d/`, no `/\d+\/\d+/`. S-SEALOG-POINT's red
 set is unchanged, **{T-SEALOG}**: the same test reads red on all three builds.
+
+## R12: the sabotage driver's existing table on the b path, re-predicted before any run
+
+**Why (ruled ~02:37:38Z, R12 accepted as proposed).** A read-only anchor count over the LF text CI sees:
+- on origin/main 6f657c5f872c, all 81 of `sabotage-basemap.mjs`'s sabotages apply (the driver's blob, 6bf83d64d7dd, is the same at the branch base and at the head);
+- on the branch, 76 apply and 5 do not. All five are in budget.ts's old §6 rungs, which the b path replaced.
+
+The driver's `all` set is a path filter. So the 76 also grade the rows this PR re-froze (MB, MN, MW13, BB3, BB5, MG0/MG0b) and SEA-CI's 14, and their frozen sets had to be predicted again. Driver runs happen in a fresh LF worktree at the PR head, because the working checkout is CRLF.
+
+**(a) SEA-CI's nine** are in the driver at 2b9126702aef. They are graded on the set `sea` (the SEA-CI file alone), exactly as registered above.
+
+**(c) The five whose anchors the b path removed.**
+- **S-LADDER is retired.** The b path has no nt ladder, so the defect has no place to live. Its original (`nt[3] = nt[0]`, set {MN1, MN6}) stays on record here and in the driver at 6bf83d64d7dd. Corroboration from pq4d: its old anchor lands only on pq4d's pre-b ladder, which is dead under the ruled settings, and it turns no graded row red.
+- **The other four are re-anchored to the SAME defect** in the b path's `dropSeq`, which serves rungs 3-4 and 6-7. Each edit lands exactly once in the shipped file:
+
+| sabotage | the defect | the edit |
+|---|---|---|
+| S-DROPORDER | water rings dropped largest first | `dropOrder(rings0.map(ringArea2))` → `dropOrder(rings0.map((r) => -ringArea2(r)))` |
+| S-NOCOUNT | `dropped.water` never counts a drop | `d.water = k` → `d.water = 0`, in the bisection and at the fit |
+| S-ROADORDER | secondary roads dropped longest first | `roadLength(roads0[i]!.pts)` → `-roadLength(roads0[i]!.pts)` in `order0` |
+| S-PRIMARYDROP | primaries droppable after the secondaries and the rings | when the ring drops cannot fit, a third bisection over the primaries (shortest first) before `return null` |
+
+**(b) The method.** For each sabotage that `build()` runs, the predicted set is the frozen set, minus the rows the instrument grades, plus the graded rows that pq4d turns red under the SAME plant.
+- **The instrument.**
+  - `pq4d-sabrows.mts` computes every value that the re-frozen MB, MN and MW13 rows and SEA-CI's 14 assert, with the pinned prototype under the ruled settings. Each fixture runs in its own try/catch. Its computations are pq4d-oldrows.mts's, pq4d-seaci.mts's at plant mode's caps, pq4d-xchk.mts's, and T-PROV-b's in-test control.
+  - `pq4d-sabpredict.mjs` plants pq4d's own files from a byte copy (each edit converted to the file's CRLF), runs the instrument, then restores every file and checks its sha256.
+  - A row grades RED when a field it asserts differs from the clean value, or when its fixture threw. MN6's identity and T-PROV-a's byte equality are relations, graded on the planted output itself.
+- **Its two controls, both passed before any prediction was read:**
+  1. Clean, every frozen object equals cp-out/oldrows-pq4d.json, cp-out/seaci-pq4d.json and the registered xchk values: 28 of 28.
+  2. The grader is checked against an independent answer. Under each of the seven prototype knob plants that SEA-CI's sets were registered from (3bf4b3c2), it reproduces the registered set exactly: **7 of 7**.
+- **The 28 `build()` plants** are frame 9, layers 7, terrain 5, budget 4, build 2 and provenance 1. Each uses the driver's own text, which lands exactly once in pq4d, with one exception. S-RUNG's `return done(2, {` appears twice in pq4d (pre-b and b), so it is planted at the b path's `return done(2, { content: c2,`; the shipped file has only that one. The four from (c) use pq4d's indentation, two spaces deeper.
+- **The other 48 keep their frozen sets, by reasoning.** They are in ingest-lib, format's `validate`, query, handler, the worker's fetch path, metrics, photolicense and the attribution doc.
+  - The rows this PR re-froze or added call `build()`, `buildLine()` and `seaRepairLines()` directly, and never these paths.
+  - Removing a `validate` check cannot turn a valid package's kOk into a refusal, and SEA-CI and `mb()` assert only kOk on valid packages.
+  - MW13's 35 reads are `build()`'s own.
+  - BB3 and BB5 changed only their key lists and literals. BB5 is `buildLine()` on a literal, and only worker.ts's plants reach it; their sets already name the BB rows they reach.
+  - MG0 and MG0b changed only the layers they walk (`BEND_READ`), and S-MREV's set names MG0b as before.
+
+**The finding: S-ROADORDER would grade an EMPTY set.** Its frozen {MB3} was the old MB3, which dropped one secondary and pinned which one. The re-frozen MB3 drops all four, so no graded row sees the order, and the b path's shortest-first secondary drop is untested.
+
+**Proposed, for a ruling: MB9.** It is the old MB3's assertion at the b path's own cap, read from pq4d. The rung-3 scan `pq4d-rung3scan.mts` shows A fitting at rung 3 from 795 down to 762, with 1 to 4 secondaries dropped. The row:
+
+> MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km):
+> `{ status: 200, totalBytes: 785, toleranceMm: 201_168, water: rings(2), roads: 6, dropped: "0 / 1", eps: "100.584" }`, and
+> roadEnds `[10, 11, 12, 4, 5, 6].map(roadEnd)` = [-20268, -19930, -19593, -22295, -21957, -21619].
+
+- **With MB9:** S-ROADORDER's set is **{MB9}**, and S-BTWICE's gains MB9. pq4d shows no other plant reaching it.
+- **Without MB9:** S-ROADORDER's set is {}, a sabotage nothing catches. I recommend against that.
+
+**Predicted baselines.** A static read of every literal test title through the driver's own `caseOf` gives 163 ids. The skipIf row (MD2) is left out. basemap-format.test.ts's one template title, run over its 27 PK cases, adds 26. The same method on the base gives 175, which is the last recorded log's 167 plus S2's 2 and K1's 6 rows, merged after it.
+
+| set | predicted baseline |
+|---|---|
+| `ingest` | 0 failing, 11 cases seen in 1 file (the file is unchanged since that log) |
+| `mv, -t MV` | 0 failing, 31 cases in 1 file (unchanged) |
+| `all` | 0 failing, **189** cases seen in **18** files; **190** with MB9 |
+| `sea` | 0 failing, 14 cases in 1 file |
+
+- **The smoke driver's CONTROL** is the whole proxy suite. CI's workers run 43316826879 at 05746deca023, whose proxy/ tree is the base's byte for byte, read `1076 passed | 1 skipped (1077)`. Plus SEA-CI's 14, that predicts **1090 passed, 1 skipped, of 1091**; 1091 / 1092 with MB9.
+- **The credits driver:** no file it plants and no row it grades is touched by this PR, so the prediction is **ALL AS REGISTERED, exit 0**.
+
+**Outside the set: stop.** Stop on any of these, and every one is an instrument question for the reviewer, never a red:
+- a sabotage whose red set differs in either direction;
+- a baseline or CONTROL count other than predicted;
+- an anchor that does not land exactly once;
+- a restore whose sha256 differs;
+- a Workers runtime failure.
+
+**The artifacts** are on `map-server/scratch-record` at **bdfe76d5d35f**, at `scratch-record/q-w4/sab-pred/`, with these sha256 prefixes:
+
+| file | sha256 |
+|---|---|
+| `pq4d-sabrows.mts` | e4a29db1903d |
+| `pq4d-sabpredict.mjs` | f1df812a0e1c |
+| `c-plants.json` | c7bec0b5e3e7 |
+| `table.mjs` | 5bb4b870741a |
+| `static-count.mjs` | b17ce0489357 |
+| `pq4d-rung3scan.mts` | 67fcc99a6e2d |
+| `predicted.json` | 7b962219005d |
+| the clean instrument output | 4f11a6f1db7b |
+
+**The predicted table.** It covers every sabotage the driver grades. "pq4d" means the set was read from the prototype under the same plant; "reasoned" means the frozen set stands for the reasons above. The 7 sets that change are marked.
+
+| sabotage | set | frozen | **predicted** | from |
+|---|---|---|---|---|
+| S-ISIZE | ingest | MI7, MI9 | MI7, MI9 | reasoned |
+| S-ISEAL | ingest | MI7 | MI7 | reasoned |
+| S-INOTESORT | ingest | MI4b | MI4b | reasoned |
+| S-IKEYS | ingest | MI4, MI4b | MI4, MI4b | reasoned |
+| S-VCRC | mv | MV/PK-crc | MV/PK-crc | reasoned |
+| S-VSWAP | mv | MV/PK-gap, MV/PK-overlap | MV/PK-gap, MV/PK-overlap | reasoned |
+| S-VTERRCOUNT | all | MV/PK-terrain-count | MV/PK-terrain-count | reasoned |
+| S-VPROVCOUNT | all | MV/PK-prov-count | MV/PK-prov-count | reasoned |
+| S-IBUS | ingest | MI1 | MI1 | reasoned |
+| S-RLBRECOMP | all | MR1 | MR1 | pq4d |
+| S-RXCUR | all | MR2 | MR2 | pq4d |
+| S-RORDER | all | MR2 | MR2 | pq4d |
+| S-RNOCLOSE | all | MR3 | MR3 | pq4d |
+| S-RGE | all | MR4 | MR4 | pq4d |
+| S-RHYPOT | all | MR7 | MR7 | pq4d |
+| S-ECLAMP | all | ME4 | ME4 | pq4d |
+| S-RZERO | all | MR5 | MR5 | pq4d |
+| S-R0M | all | MR6 | MR6 | pq4d |
+| S-BUSSUB | all | ML7 | ML7 | pq4d |
+| S-SQUARELEN | all | ML6, MR6 | ML6, MR6 | pq4d |
+| S-DEDUPALL | all | ML11 | ML11 | pq4d |
+| S-DEDUPLT | all | ML11b | ML11b | pq4d |
+| S-PLACESORT | all | ML13 | ML13 | pq4d |
+| S-RIVERTIE | all | ML4 | ML4 | pq4d |
+| S-TALIGN | all | MT-corner, MT-impulse | MT-corner, MT-impulse | pq4d |
+| S-TPAD | all | MT-corner, MT2a, MT2b, MT2c, MT2d, MT2e | MT-corner, MT2a, MT2b, MT2c, MT2d, MT2e | pq4d |
+| S-TROUND | all | MT4 | MT4 | pq4d |
+| S-TCOS | all | MT2e | MT2e | pq4d |
+| S-BTWICE | all | MB2, MB3, MB5, MB6, MB7, MB8b | MB2, MB3, MB4, MB5, MB6, MB7, MB8b, MB9, MN3, T-PROV-b (MB9 with MB9) | pq4d **changed** |
+| S-DROPORDER | all | MB2, MB7, MB8b | MB3, MB4 | pq4d, re-anchored **changed** |
+| S-NOCOUNT | all | MB2, MB3, MB5, MB7, MB8b | MB3, MB4, MB5 | pq4d, re-anchored **changed** |
+| S-ROADORDER | all | MB3 | MB9 (with MB9; {} without) | pq4d, re-anchored **changed** |
+| S-PRIMARYDROP | all | MB4, MN1, MN6 | MB4, T-D2, T-D2c | pq4d, re-anchored **changed** |
+| S-TERRCAP | all | MB8a, MB8b | MB8a, MB8b | pq4d |
+| S-TNOMARGIN | all | MB8a, MB8b, MT3b | MB8a, MB8b, MT3b | pq4d |
+| S-QROUND | all | MQ3 | MQ3 | reasoned |
+| S-QDIGEST | all | MQ10, NK2, NK3 | MQ10, NK2, NK3 | reasoned |
+| S-QSORT | all | MQ8 | MQ8 | reasoned |
+| S-WNOVALIDATE | all | MW15 | MW15 | reasoned |
+| S-W304LATE | all | MK2, MK6, MW10 | MK2, MK6, MW10 | reasoned |
+| S-WNOSTORECHECK | all | MW17 | MW17 | pq4d |
+| S-PLOG | all | MP1, MS8 | MP1, MS8 | reasoned |
+| S-PWRITE | all | MP2 | MP2 | reasoned |
+| S-PETAG | all | MP3, MQ10, MW9, NK1 | MP3, MQ10, MW9, NK1 | reasoned |
+| S-ANOTICE | all | MA1, MA2 | MA1, MA2 | reasoned |
+| S-MREV | all | MA1, MD4, MG0b | MA1, MD4, MG0b | pq4d |
+| S-WSTAMP | all | MW18 | MW18 | reasoned |
+| S-WNOCOMMIT | all | MW19 | MW19 | reasoned |
+| S-HMADEUP | all | MH2 | MH2 | reasoned |
+| S-ACREDIT | all | MA2 | MA2 | reasoned |
+| S-HNOCACHE | all | MH3 | MH3 | reasoned |
+| S-MK304 | all | MK2, MK6 | MK2, MK6 | reasoned |
+| S-MKHIT | all | MK3, MK6, MS2 | MK3, MK6, MS2 | reasoned |
+| S-MKKMISS | all | MK4, MK6, MS10, MS3 | MK4, MK6, MS10, MS3 | reasoned |
+| S-MKUNK | all | MK1, MK6 | MK1, MK6 | reasoned |
+| S-MKPRE | all | MK5 | MK5 | reasoned |
+| S-MKAE | all | MK7 | MK7 | reasoned |
+| S-BB1 | all | BB1, BB2 | BB1, BB2 | reasoned |
+| S-BB2 | all | BB2, BB3 | BB2, BB3 | reasoned |
+| S-BB3 | all | BB3 | BB3 | reasoned |
+| S-LADDER | all | MN1, MN6 | **retired** (R12 (c)) | |
+| S-RUNG | all | MN3 | MN3, T-PROV-b | pq4d **changed** |
+| S-SECSUM | all | BB4, MN6 | BB4, MN1, MN6 | pq4d **changed** |
+| S-MS1 | all | MS1, MS10, MS11, MS2, MS3, MS4, MS6, MS7 | MS1, MS10, MS11, MS2, MS3, MS4, MS6, MS7 | reasoned |
+| S-MS2 | all | MS10, MS11, MS2, MS6 | MS10, MS11, MS2, MS6 | reasoned |
+| S-S2SEQ | all | MS10 | MS10 | reasoned |
+| S-S2NOCATCH | all | MS11 | MS11 | reasoned |
+| S-MS3 | all | MS10, MS3, MS7 | MS10, MS3, MS7 | reasoned |
+| S-MS4 | all | MS4 | MS4 | reasoned |
+| S-MS5 | all | MS5 | MS5 | reasoned |
+| S-MS7 | all | MS7 | MS7 | reasoned |
+| S-MS8 | all | MS3, MS6, MS8, NK1 | MS3, MS6, MS8, NK1 | reasoned |
+| S-MS9 | all | MS9 | MS9 | reasoned |
+| S-NKPLAIN | all | NK1, NK2, NK3 | NK1, NK2, NK3 | reasoned |
+| S-NKETAG | all | NK1, NK3 | NK1, NK3 | reasoned |
+| S-NKOPEN | all | NK4, NK5 | NK4, NK5 | reasoned |
+| S-NKFORMAT | all | NK5, NK6 | NK5, NK6 | reasoned |
+| S-NKHEALTH | all | NK6 | NK6 | reasoned |
+| S-MX1 | all | MX1 | MX1 | pq4d |
+| S-MI9 | ingest | MI9 | MI9 | reasoned |
+| S-KB-CROSS | sea | KB2 | KB2 | SEA-CI, registered |
+| S-KB-NOBRIDGE | sea | BRIDGES, T-SEA0c | BRIDGES, T-SEA0c | SEA-CI, registered |
+| S-KB-ORDER | sea | EDGE2, T-SEALOG, XISLAND, XISLAND-TALL | EDGE2, T-SEALOG, XISLAND, XISLAND-TALL | SEA-CI, registered |
+| S-KB-EDGEUNLOCK | sea | EDGE2 | EDGE2 | SEA-CI, registered |
+| S-KB-REPAIRLIMIT | sea | T-SEALOG, XISLAND, XISLAND-TALL | T-SEALOG, XISLAND, XISLAND-TALL | SEA-CI, registered |
+| S-KB-REPAIROFF | sea | T-SEALOG, XISLAND, XISLAND-TALL | T-SEALOG, XISLAND, XISLAND-TALL | SEA-CI, registered |
+| S-BACKSTOP-OFF | sea | KB7C, T-PROV-a, T-PROV-b | KB7C, T-PROV-a, T-PROV-b | SEA-CI, registered |
+| S-PROV-OLD | sea | KB7C, T-PROV-a, T-PROV-b | KB7C, T-PROV-a, T-PROV-b | SEA-CI, registered |
+| S-SEALOG-POINT | sea | T-SEALOG | T-SEALOG | SEA-CI, registered |
+| C-LOADFAIL | all | BLIND | BLIND | pq4d: fails to load |
+
+No driver runs before MB9 is ruled: it decides S-ROADORDER's and S-BTWICE's sets and the `all` and smoke counts.
