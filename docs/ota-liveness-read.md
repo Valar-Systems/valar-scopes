@@ -70,3 +70,29 @@ own reason, and is reported as is.
 other count gets the differing job named before anything is judged.
 
 **Outside the set:** any other reading means stop and report.
+
+## Amendment 1 (18:15:26Z, 2026-11-13), registered before the re-run
+
+**The OFF that caused it.** After the code, the existing row S-R1body read BLIND: "its anchor was found 2 times". The
+registration said every existing row would read as before. `read_liveness_rows` had copied `read_ota_points`'
+HTTPError line verbatim, so S-R1body's anchor was no longer unique. The guard refused rather than planting into the
+wrong function, which is CLAUDE.md's editor-anchor row working.
+
+**The fix** (ruled 18:17Z): `read_liveness_rows`' error gets its own wording,
+`"Analytics Engine refused the liveness query (%d): %s"`. S-R1body's anchor is unique again, and it tests
+`read_ota_points` as registered. S-R1body is not widened.
+
+**Two new rows,** because the copied path is a second path (CLAUDE.md: whatever S-R1body establishes for the old reader is
+unproven for the new one):
+
+| row | what | predicted |
+|---|---|---|
+| **LV6** | `read_liveness_rows` against a stub `urlopen` that raises HTTP 422 with a body | rows None; the reason carries "422" and the body |
+| **S-R1body-lv** (plant, in memory) | `read_liveness_rows`' error line made to drop the body, anchored on the new wording | red exactly `['LV6']`; BLIND if the anchor is not unique |
+
+**The re-run predicts:**
+- 0 rows off;
+- S-R1body red `['R1h']`, as before;
+- S-R1body-lv red `['LV6']`;
+- LV as predicted with LV6 green;
+- LV-S1 as before.
