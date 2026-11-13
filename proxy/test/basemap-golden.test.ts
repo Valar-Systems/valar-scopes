@@ -23,10 +23,15 @@ const value = (key: string) => {
 };
 const manifest = JSON.parse(manifestText) as { files: Array<FileRef & { layer: string }> };
 const layerFiles = (l: string): FileRef[] => manifest.files.filter((f) => f.layer === l).map(({ url, sha256, vintage }) => ({ url, sha256, vintage }));
+/** The layers Bend read: those its manifest holds files for. LAYER_ORDER also names "sea" (part 2, docs/basemap-dense-code.md), which an
+ *  inland package never reads; provenanceLines writes lines only for layers read, so Bend's PROVENANCE is unchanged by it. */
+const BEND_READ = LAYER_ORDER.filter((l) => layerFiles(l).length > 0);
 
 describe("MG, the golden row (the PROVENANCE half)", () => {
   it("MG0: every layer's files and sha256, and store:, recomputed from bend.manifest.json equal bend.bmpk's", async () => {
-    for (const l of LAYER_ORDER) {
+    // CONTROL: the walked set is exactly Bend's seven, so the filter above cannot silently drop a layer Bend read
+    expect(BEND_READ).toEqual(["water", "rivers", "roads", "peaks", "places", "population", "terrain"]);
+    for (const l of BEND_READ) {
       expect(value(`files.${l}`), l).toBe(String(layerFiles(l).length));
       expect(value(`sha256.${l}`), l).toBe(await layerDigest(layerFiles(l)));
     }
@@ -36,10 +41,10 @@ describe("MG, the golden row (the PROVENANCE half)", () => {
   it("MG0b: provenanceText from the manifest and bend's own counts equals bend.bmpk's PROVENANCE but for the builder line", async () => {
     const input = {
       commit: "1".repeat(40), storeId: await sha12(manifestText),
-      files: Object.fromEntries(LAYER_ORDER.map((l) => [l, layerFiles(l)])),
+      files: Object.fromEntries(BEND_READ.map((l) => [l, layerFiles(l)])),
       tiles: { levels: true, peaks: true, creditBits: 1 },
       epsilonMm: pkg.toleranceMm, dropped: {},
-      collapsed: Object.fromEntries(LAYER_ORDER.map((l) => [l, Number(value(`collapsed.${l}`))])),
+      collapsed: Object.fromEntries(BEND_READ.map((l) => [l, Number(value(`collapsed.${l}`))])),
     };
     const mine = (await provenanceText(input)).text.split("\n");
     expect(mine.length).toBe(provLines.length);

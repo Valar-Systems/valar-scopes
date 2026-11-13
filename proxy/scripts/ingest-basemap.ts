@@ -13,12 +13,13 @@ import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync,
 import { unzipSync } from "fflate";
 import {
   type Box, type Cell, type CellIndexEntry, type Feature, type ManifestFile, PREDICATES, assignCells, bboxOf, cellKey, decodeFeature,
-  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, verifyStore, writeManifest,
+  encodeCell, encodeFeature, f1Refusal, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, verifyStore, writeManifest,
 } from "./basemap/ingest-lib";
 import { CURRENT_KEY } from "../src/basemap/store";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { coverageRows, encodeCoverage } from "./basemap/coverage";
 import { regionsFor } from "./basemap/regions";
+import { coverageSegments, seaExtent, seaPieces, seaSources } from "./basemap/sea-pieces";
 import { BUCKET, WranglerBucket, assembleStore, paceStats, wranglerKv } from "./basemap/d1";
 import { tilesForCoverage } from "./basemap/terrain-plan";
 import { BIT, Layer, encodeTileBits, tileBits } from "./basemap/tile-bits";
@@ -34,7 +35,8 @@ interface FetchRecord { bytes: number; sha256: string; lastModified: string | nu
 type FetchLog = Record<string, FetchRecord>;
 
 /** Every request says who is asking (ruled 2026-10-28, after census.gov's firewall refused two files). */
-const UA = { "User-Agent": "BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)" };
+// The owner (05:01Z 2026-11-13, superseding the 2026-10-28 ruling): "add support@valarsystems.com, and keep the repo's web address beside it"
+const UA = { "User-Agent": "BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)" };
 
 /** The fetch log, with the retry's own records merged in read-only (the retry writes only retry-fetched.json,
  *  so two processes never write one file). A merged record is used only where the main log has none. */
@@ -217,6 +219,58 @@ const unzipOne = (zip: Uint8Array, re: RegExp) => {
   return files[names[0]!]!;
 };
 
+/**
+ * The sea (kind 6; docs/basemap-dense-code.md part 2 and PARITY step 2). The ocean and the lakes (scripts/basemap/sea-pieces.ts) cut to
+ * 1-degree pieces over every cell within 250 km of the coverage, the coverage computed HERE from the states file exactly as the coverage
+ * step computes it (I3: no coverage.bin is read, so no stale one can enter, and the cells are a function of the manifest's files only).
+ * One record per piece, numbered in cell order and then source order across the store (store-wide unique, as the builder groups a
+ * piece's parts by (file, record)); part 0 its outer ring, parts 1..n its islands; attrs: area (km2: the outer's shoelace at its first
+ * vertex's cosine, as the prototype store wrote it) and src (ocean, or the lake's name). Each sea file's region is the bounding box of
+ * its pieces (the prototype's definition): PROVENANCE credits a sea file wherever one of its pieces can be drawn.
+ */
+function seaStage(cache: string, log: FetchLog, files: ManifestFile[], index: Map<string, number>) {
+  const one = (layer: string, re: RegExp) => {
+    const fs = files.filter((x) => x.layer === layer && re.test(x.url));
+    if (fs.length !== 1) throw new Error(`${fs.length} ${layer} files matching ${re}, not 1`);
+    return fs[0]!;
+  };
+  const shp = (url: string) => { const { shp: s, dbf } = shapefileFromZip(verifiedBytes(cache, url, log)); return readShapefile(s, dbf); };
+  const oceanF = one("sea", /\/ne_10m_ocean\.zip$/), lakesF = one("sea", /\/ne_10m_lakes\.zip$/), adminF = one("naturalearth", /\/ne_10m_admin_0_countries\.zip$/);
+  const states = shp(one("states", /\/tl_2024_us_state\.zip$/).url).filter((r) => !TERRITORY_FIPS.has(r.attrs["STATEFP"]!));
+  if (states.length !== 51) throw new Error(`${states.length} states + DC, not 51`);
+  const cov = encodeCoverage(coverageRows(states.map((r) => r.parts.map((xy) => ({ xy })))));
+  const extent = seaExtent(coverageSegments(cov));
+  const srcs = seaSources(shp(oceanF.url), shp(lakesF.url), shp(adminF.url));
+  const { byCell, stats: cut } = seaPieces(extent, srcs);
+  const km2 = (r: Array<[number, number]>) => { let s = 0; const c0 = Math.cos((r[0]![1] * Math.PI) / 180); for (let i = 0; i < r.length - 1; i++) s += r[i]![0] * r[i + 1]![1] - r[i + 1]![0] * r[i]![1]; return Math.abs(s / 2) * 111 * 111 * c0; };
+  const box = new Map<string, Box>([[oceanF.url, [Infinity, Infinity, -Infinity, -Infinity]], [lakesF.url, [Infinity, Infinity, -Infinity, -Infinity]]]);
+  const features: Feature[] = [];
+  let record = 0;
+  for (const key of Object.keys(byCell).sort()) for (const p of byCell[key]!) {
+    const f = p.src === "ocean" ? oceanF : lakesF, r = record++, attrs = { area: km2(p.outer), src: p.src }, bb = box.get(f.url)!;
+    [p.outer, ...p.holes].forEach((ring, part) => {
+      const xy = Float64Array.from(ring.flat()), b = bboxOf(xy);
+      bb[0] = Math.min(bb[0], b[0]); bb[1] = Math.min(bb[1], b[1]); bb[2] = Math.max(bb[2], b[2]); bb[3] = Math.max(bb[3], b[3]);
+      features.push({ kind: "sea", file: index.get(f.url)!, record: r, part, attrs, xy });
+    });
+  }
+  const regions = [...box].filter(([, b]) => Number.isFinite(b[0])).map(([url, b]) => ({ box: b, files: [url] }));
+  return {
+    features, regions,
+    stats: { files: 2, records: record, kept: 0, vertices: 0, bytes: 0 },
+    // S-3: the in-memory coverage's sha256, for SEA-STORE to compare with the coverage step's coverage.bin
+    pieceStats: { coverageSha256: createHash("sha256").update(cov).digest("hex"), extentCells: extent.size, cellsWithSea: Object.keys(byCell).length, pieces: cut.pieces, islandsKept: cut.kept, islandsDropped: cut.dropped,
+      oceanOuters: srcs.ocean.length, lakesRead: srcs.stats.lakesRead, lakesSelected: srcs.lakes.length, lakesInsideUs: srcs.stats.inside, lakesSmall: srcs.stats.small,
+      holesNotInOneOuter: srcs.stats.notInOne },
+    // SEA-STORE's S-4 sidecar (not a store object): the selection and the extent in PARITY's own field names, so the store's pieces can be
+    // graded by PARITY step 2's verify2.py (PB-0's extent, PB-1's counts, PB-2's selected record indices)
+    sidecar: { extent_cells: extent.size, extent: [...extent].sort(), ocean_outers: srcs.ocean.length, ocean_holes: srcs.ocean.reduce((n, p) => n + p.holes.length, 0),
+      lakes_read: srcs.stats.lakesRead, lakes_selected: srcs.lakes.length, lakes_inside_us: srcs.stats.inside, lakes_small: srcs.stats.small,
+      selected_indices: srcs.lakes.map((l) => l.index), holes_not_in_one_outer: srcs.stats.notInOne, cells_with_sea: Object.keys(byCell).length,
+      pieces: cut.pieces, holes_kept: cut.kept, holes_dropped: cut.dropped, vertices: cut.verts },
+  };
+}
+
 async function dryRun(cache: string): Promise<void> {
   const planned = plannedFiles(cache);
   const log: FetchLog = loadLog(cache);
@@ -280,6 +334,9 @@ async function dryRun(cache: string): Promise<void> {
   stats.places = { files: 1, records: gaz.length, kept: 0, vertices: 0, bytes: 0 };
   stats.population = { files: 1, records: pops.size, kept: 0, vertices: 0, bytes: 0 };
   add("places", pointsFrom("places", index.get(gazUrl)!, gaz, pops));
+  const sea = seaStage(cache, log, files, index);
+  stats.sea = sea.stats;
+  add("sea", sea.features);
   flush();
   // A filter that keeps nothing from a layer that has records is a parse failure until shown otherwise.
   for (const [layer, s] of Object.entries(stats)) {
@@ -326,12 +383,17 @@ async function dryRun(cache: string): Promise<void> {
   const indexText = JSON.stringify({ cells: entries }) + "\n";
   writeFileSync(join(out, "store", partial ? "manifest.PARTIAL.json" : "manifest.json"), manifestText);
   writeFileSync(join(out, "store", "index.json"), indexText);
+  // The sea files' regions, for d1 to merge into the index: the coverage step (run after this one) writes regions.json, and the sea
+  // pieces exist only here
+  const seaRegionsText = JSON.stringify(sea.regions) + "\n";
+  writeFileSync(join(out, "store", "sea-regions.json"), seaRegionsText);
+  writeFileSync(join(out, "sea-stats.json"), JSON.stringify(sea.sidecar) + "\n"); // beside the store, never in it
   storeBytes += Buffer.byteLength(manifestText) + Buffer.byteLength(indexText);
 
   const summary = {
     ...(partial ? { PARTIAL: true, missing: missing.map((f) => f.url), note: "a measurement with these files absent; not a store" } : {}),
     storeId: partial ? `PARTIAL-${storeId}` : storeId, ingestCommit: commit, dirtyTree: dirty, files: files.length,
-    layers: stats,
+    layers: stats, seaPieces: sea.pieceStats,
     cells: { count: entries.length, byLevel: levels, splitLevel0Cells: splitCells, largestBytes: largest, over24MB: oversize },
     manifestBytes: Buffer.byteLength(manifestText), indexBytes: Buffer.byteLength(indexText),
     vectorStoreBytes: storeBytes,
@@ -421,7 +483,8 @@ async function coverageAndTiles(cache: string): Promise<void> {
 
 async function tileBitsCmd(cache: string): Promise<void> {
   const log = loadLog(cache);
-  const ne = plannedFiles(cache).filter((f) => f.layer === "naturalearth");
+  // the ocean is the sea layer's since Q-W4 part 2 (I1); land and admin-0 stay "naturalearth"
+  const ne = plannedFiles(cache).filter((f) => f.layer === "naturalearth" || f.layer === "sea");
   const read = (re: RegExp) => {
     const f = ne.find((x) => re.test(x.url));
     if (!f) throw new Error(`no Natural Earth source matching ${re}`);
@@ -512,8 +575,9 @@ async function d1Cmd(cache: string): Promise<void> {
   const by = (p: string) => objects.filter((o) => o.key.includes(p)).length;
   console.log(JSON.stringify({ storeId, bucket: BUCKET, puts: objects.length + 1, objects: objects.length, cells: by("/cells/"), tiles: by("/terrain/9/"), bytes, manifestBuilder: manifest.builder, dryRun: run, builderKnown: known }, null, 1));
   if (planOnly) return;
-  if (run.dirtyTree || run.ingestCommit !== manifest.builder || run.storeId !== storeId || !known) {
-    throw new Error("the manifest was not written from a clean tree at a known commit that matches the dry run: re-run the dry run");
+  const refused = f1Refusal(run, manifest.builder, storeId, known);
+  if (refused) {
+    throw new Error(`the manifest was not written from a clean tree at a known commit that matches the dry run (${refused}): re-run the dry run`);
   }
   const bucket = new WranglerBucket(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
   let todo = objects;

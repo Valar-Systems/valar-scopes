@@ -4,8 +4,9 @@
 // Every URL here is an exact fetch URL, because the manifest records it and PROVENANCE's source.<layer>
 // and sha256.<layer> are computed from it (format doc §7 at 1efb660). A file's identity is its URL.
 
-/** The seven package layer keys (format §7) and the three ingest-only keys (F2, ruled 2026-10-28). */
-export const PACKAGE_LAYERS = ["water", "rivers", "roads", "peaks", "places", "population", "terrain"] as const;
+/** The eight package layer keys (format §7; "sea" since Q-W4 part 2, docs/basemap-dense-code.md) and the three ingest-only keys
+ *  (F2, ruled 2026-10-28). */
+export const PACKAGE_LAYERS = ["water", "sea", "rivers", "roads", "peaks", "places", "population", "terrain"] as const;
 export const STORE_ONLY_LAYERS = ["states", "counties", "naturalearth"] as const;
 export type Layer = (typeof PACKAGE_LAYERS)[number] | (typeof STORE_ONLY_LAYERS)[number];
 
@@ -27,7 +28,11 @@ export const FIXED_SOURCES: readonly SourceFile[] = [
   { layer: "states", url: `${TIGER}STATE/tl_2024_us_state.zip` },
   { layer: "counties", url: `${TIGER}COUNTY/tl_2024_us_county.zip` },
   { layer: "naturalearth", url: "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip" },
-  { layer: "naturalearth", url: "https://naciscdn.org/naturalearth/10m/physical/ne_10m_ocean.zip" },
+  // The sea layer (I1, confirmed after 04:2xZ; docs/basemap-dense-code.md L1449, L1697-1698): its pieces' files are the ocean and the
+  // lakes, each ONE manifest entry. The ocean moved here from "naturalearth" (a manifest cannot list a url twice), and the tile-bits
+  // step finds it under "sea". The admin-0 file stays "naturalearth": the sea ingest reads it for the US containment.
+  { layer: "sea", url: "https://naciscdn.org/naturalearth/10m/physical/ne_10m_ocean.zip" },
+  { layer: "sea", url: "https://naciscdn.org/naturalearth/10m/physical/ne_10m_lakes.zip" },
   { layer: "naturalearth", url: "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip" },
 ];
 

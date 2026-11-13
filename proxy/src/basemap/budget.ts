@@ -1,9 +1,12 @@
 // §6's budget (docs/basemap-package-format.md §6; §13's RD13, RD15, RD18-RD20; the route doc's MB rows). Pure.
 //
-// Over the cap, in order and never silently: ε doubled ONCE; then water rings dropped smallest-area first; then
-// SECONDARY roads dropped shortest first. Primaries are never dropped. Every drop is counted, and the counts are
-// written into PROVENANCE by the caller's `assemble`, so each measurement re-renders them (a count's digits are bytes).
-// Still over: null, which the route answers as 422 too_large.
+// Over the cap, in order and never silently (Q-W4, docs/basemap-dense-code.md: A+B, then the owner's B, P1):
+//   rung 0  as requested;            rung 1  ε × 2 for everything;          rung 2  water at ε × 8;
+//   rung 3  + secondary roads dropped, shortest first;                      rung 4  + water rings dropped, smallest area first;
+//   rung 5  rivers and roads at ε × 4 (water stays at ε × 8);               rungs 6, 7  rungs 3 and 4 again on rung 5's content.
+// Primaries are never dropped. Every drop is counted, and the counts are written into PROVENANCE by the caller's `assemble`, so each
+// measurement re-renders them (a count's digits are bytes). The water counts (collapsed, refused) travel with the water set drawn.
+// Still over: null, which the builder answers by D2 (a smaller radius, build.ts) and finally as 422 too_large.
 //
 // Each step re-assembles and re-measures the whole package rather than keeping a running total: slower in the rare
 // over-budget case, but there is no second size model to drift from encode().
@@ -42,7 +45,12 @@ export function dropOrder(measure: number[]): number[] {
 }
 
 export interface Dropped { water: number; roads: number }
-export interface Droppable { water?: Pt[][]; roads?: Array<{ cls: 1 | 2; pts: Pt[] }> }
+/** The content the ladder may drop from. `collapsed`, `refusedW` and `seaW` are the water set's own counts (the "(C)" rule): a rung
+ *  that draws another water set carries that set's counts with its rings. */
+export interface Droppable {
+  water?: Pt[][]; roads?: Array<{ cls: 1 | 2; pts: Pt[] }>;
+  collapsed?: Record<string, number | undefined>; refusedW?: number; seaW?: unknown;
+}
 export interface Fitted<C> { content: C; toleranceMm: number; dropped: Dropped; sections: Section[] }
 
 /** The bytes each non-terrain section adds (its body, as nonTerrainBytes counts it), by layer. An absent layer adds 0. */
@@ -53,10 +61,9 @@ export interface LayerBytes { water: number; rivers: number; roads: number; peak
  * is measured: every value is the nonTerrainBytes of an assembly the ladder already does.
  */
 export interface Ladder {
-  /** The step that fitted: 0 as built, 1 after ε × 2, 2 while dropping water, 3 while dropping secondary roads; -1 none. */
+  /** The rung that fitted, 0 to 7 (the ladder above); -1 none. */
   rung: number;
-  /** On a 422 only: the non-terrain bytes at each rung's FULL step -- [ε, ε × 2, every ring dropped, every secondary
-   *  dropped too]. A rung with nothing to drop repeats the value before it. Empty on a 200. */
+  /** The old ladder's per-rung bytes on a 422. The Q-W4 ladder leaves it empty, so bm_build carries no nt fields. */
   nt: number[];
   /** By layer: the package built's sections, or (on a 422) the last rung tried's. */
   sections: LayerBytes;
@@ -101,27 +108,39 @@ export function fitBudget<C extends Droppable>(
   nt.push(lastBytes);
   if (s) return done(1, { content, toleranceMm: tol, dropped: d, sections: s });
 
-  // §6 step 2: water rings, smallest area first (RD18), the survivors kept in source order
-  const rings = content.water ?? [];
-  const wOrder = dropOrder(rings.map(ringArea2));
-  const base = content;
-  const withWater = (k: number): C => { const gone = new Set(wOrder.slice(0, k)); return { ...base, water: rings.filter((_, i) => !gone.has(i)) }; };
-  const w = smallestFit(rings.length, (k) => { d.water = k; const got = fits(withWater(k), tol); if (k === rings.length) nt[2] = lastBytes; return got; });
-  if (w) { d.water = w.k; return done(2, { content: withWater(w.k), toleranceMm: tol, dropped: d, sections: w.got }); }
-  if (nt.length < 3) nt.push(nt[1]!); // no ring to drop: the value before it
-  d.water = rings.length;
-  content = withWater(rings.length);
-
-  // §6 step 3: SECONDARY roads, shortest first (RD19); primaries are never dropped
-  const roads = content.roads ?? [];
-  const secondary = roads.map((r, i) => [r, i] as const).filter(([r]) => r.cls === 2).map(([, i]) => i);
-  const rOrder = dropOrder(secondary.map((i) => roadLength(roads[i]!.pts))).map((k) => secondary[k]!);
-  const noWater = content;
-  const withRoads = (k: number): C => { const gone = new Set(rOrder.slice(0, k)); return { ...noWater, roads: roads.filter((_, i) => !gone.has(i)) }; };
-  const r = smallestFit(rOrder.length, (k) => { d.roads = k; const got = fits(withRoads(k), tol); if (k === rOrder.length) nt[3] = lastBytes; return got; });
-  if (r) { d.roads = r.k; return done(3, { content: withRoads(r.k), toleranceMm: tol, dropped: d, sections: r.got }); }
-  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it
-  if (ladder) { ladder.rung = -1; ladder.nt = nt; ladder.sections = layerBytes(last); }
+  // rungs 2 to 7: water at ε × 8 (A+B); then secondary roads shortest first, then water smallest first; then the same at lines ε × 4 (P1)
+  const dropSeq = (c0: C, tolH: number, rA: number, rB: number): Fitted<C> | null => {
+    d.water = 0; d.roads = 0;
+    const roads0 = c0.roads ?? [];
+    const sec0 = roads0.map((r, i) => [r, i] as const).filter(([r]) => r.cls === 2).map(([, i]) => i);
+    const order0 = dropOrder(sec0.map((i) => roadLength(roads0[i]!.pts))).map((k) => sec0[k]!);
+    const noRoads = (k: number): C => { const gone = new Set(order0.slice(0, k)); return { ...c0, roads: roads0.filter((_, i) => !gone.has(i)) }; };
+    const r0 = smallestFit(order0.length, (k) => { d.roads = k; return fits(noRoads(k), tolH); });
+    if (r0) { d.roads = r0.k; return done(rA, { content: noRoads(r0.k), toleranceMm: tolH, dropped: d, sections: r0.got }); }
+    d.roads = order0.length;
+    const c1 = noRoads(order0.length), rings0 = c1.water ?? [];
+    const w0 = dropOrder(rings0.map(ringArea2));
+    const noWater0 = (k: number): C => { const gone = new Set(w0.slice(0, k)); return { ...c1, water: rings0.filter((_, i) => !gone.has(i)) }; };
+    const w1 = smallestFit(rings0.length, (k) => { d.water = k; return fits(noWater0(k), tolH); });
+    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }
+    return null;
+  };
+  const m8 = make(toleranceMm * 8), water8 = m8.water; // the drawn set's water counts travel with its rings ("(C)")
+  const c2 = { ...content, water: water8, collapsed: { ...content.collapsed, water: m8.collapsed?.water, sea: m8.collapsed?.sea }, refusedW: m8.refusedW, seaW: m8.seaW } as C;
+  s = fits(c2, tol);
+  if (s) return done(2, { content: c2, toleranceMm: tol, dropped: d, sections: s });
+  const tol4 = toleranceMm * 4;
+  const c4 = (): C => { const m4 = make(tol4); return { ...m4, water: water8, collapsed: { ...m4.collapsed, water: m8.collapsed?.water, sea: m8.collapsed?.sea }, refusedW: m8.refusedW, seaW: m8.seaW } as C; };
+  const at4 = (): Fitted<C> | null => {
+    d.water = 0; d.roads = 0;
+    const a = c4(), s4 = fits(a, tol4);
+    if (s4) return done(5, { content: a, toleranceMm: tol4, dropped: d, sections: s4 });
+    return dropSeq(a, tol4, 6, 7);
+  };
+  let got: Fitted<C> | null = dropSeq(c2, tol, 3, 4);
+  if (!got) got = at4();
+  if (got) return got;
+  if (ladder) { ladder.rung = -1; ladder.nt = []; ladder.sections = layerBytes(last); }
   return null;
 }
 

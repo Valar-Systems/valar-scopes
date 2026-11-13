@@ -2,7 +2,7 @@
 // Each test is named by its case id; scripts/sabotage-basemap.mjs reads the names to grade its exact sets.
 import { describe, expect, it } from "vitest";
 import {
-  assignCells, bboxOf, decodeFeature, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf,
+  assignCells, bboxOf, decodeFeature, encodeFeature, f1Refusal, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf,
   readDelimited, storeIdOf, verifyStore, writeManifest, type Manifest, type StoreBucket,
 } from "../scripts/basemap/ingest-lib";
 import { readShapefile, shapefileFromZip } from "../scripts/basemap/shapefile";
@@ -158,6 +158,8 @@ describe("MI, the ingest", () => {
       ...featuresFrom("roads", 8, [{ index: 4, parts: [new Float64Array([0, 0, 1, 1])], attrs: { MTFCC: "S1200", FULLNAME: "Rue Élan" } }]),
       ...pointsFrom("peaks", 9, readDelimited("feature_id|feature_name|feature_class|prim_lat_dec|prim_long_dec\n42|Mount Test|Summit|1.5|2.5\n", "|")),
       ...pointsFrom("places", 10, readDelimited("GEOID|NAME|LSAD|INTPTLAT|INTPTLONG\n4105800|Test city|25|1|2\n", "|"), new Map([["4105800", 5]])),
+      // the sea (kind 6, Q-W4 part 2; registered at 883c52b1): a piece's island ring, its area and its source
+      { kind: "sea" as const, file: 3, record: 7, part: 1, attrs: { area: 1234.5678, src: "Lake Erie" }, xy: new Float64Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.1]) },
     ];
     const buf = new Uint8Array(feats.reduce((a, f) => a + encodeFeature(f).length, 0));
     let o = 0;
@@ -168,7 +170,18 @@ describe("MI, the ingest", () => {
     expect(back[1]!.attrs).toEqual({ MTFCC: "S1200", FULLNAME: "Rue Élan" });
     expect(back[2]!.attrs).toEqual({ feature_id: 42, feature_name: "Mount Test" });
     expect(back[3]!.attrs).toEqual({ GEOID: "4105800", NAME: "Test city", pop: 5 });
-    expect(() => decodeFeature(buf.subarray(0, buf.length - 1), encodeFeature(feats[0]!).length + encodeFeature(feats[1]!).length + encodeFeature(feats[2]!).length)).toThrow(/runs past/);
+    expect(back[4]!.attrs).toEqual({ area: 1234.5678, src: "Lake Erie" });
+    // the LAST feature, one byte short, runs past the end (it was the fourth until the sea case was appended)
+    expect(() => decodeFeature(buf.subarray(0, buf.length - 1), buf.length - encodeFeature(feats[feats.length - 1]!).length)).toThrow(/runs past/);
+  });
+  // MI10 = QW4-ID (a) (registered at 883c52b1): F1 has a test. The publish refusal, extracted unchanged from d1Cmd
+  it("MI10: F1 refuses a dirty tree, a builder that is not the dry run's commit, another store id, and an unknown commit", () => {
+    const run = { dirtyTree: false, ingestCommit: "a".repeat(40), storeId: "0123456789ab" };
+    expect(f1Refusal({ ...run, dirtyTree: true }, run.ingestCommit, run.storeId, true)).toMatch(/dirty/);
+    expect(f1Refusal(run, "b".repeat(40), run.storeId, true)).toMatch(/builder is not the dry run's commit/);
+    expect(f1Refusal(run, run.ingestCommit, "ba9876543210", true)).toMatch(/store id/);
+    expect(f1Refusal(run, run.ingestCommit, run.storeId, false)).toMatch(/not a known commit/);
+    expect(f1Refusal(run, run.ingestCommit, run.storeId, true), "CONTROL: a clean tree at a known, matching commit passes").toBeNull();
   });
 
   describe("MI7: write -> verify -> repair -> verify -> seal", () => {
