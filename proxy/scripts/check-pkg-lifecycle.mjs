@@ -11,6 +11,9 @@
 // line is printed BEFORE the fetch, so that line alone proves nothing, and a probe that cannot read the bucket would
 // otherwise report every rule absent. The listing format is wrangler 4.35.0's (tableFromLifecycleRulesResponse).
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+// every wrangler call goes through the helper (docs/wrangler-run.md); quoted, since the path may hold spaces
+const WRANGLER_RUN = JSON.stringify(fileURLToPath(new URL("./wrangler-run.mjs", import.meta.url)));
 
 const PKG_PREFIX = "bm/v1/pkg/", DAYS = 30;
 
@@ -37,7 +40,7 @@ export function judge(stdout, status, bucket) {
 }
 
 function read(bucket) {
-  const r = spawnSync(`npx wrangler r2 bucket lifecycle list ${bucket}`, { shell: true, encoding: "utf8" });
+  const r = spawnSync(`node ${WRANGLER_RUN} r2 bucket lifecycle list ${bucket}`, { shell: true, encoding: "utf8" });
   return { stdout: r.stdout ?? "", stderr: r.stderr ?? "", status: r.status };
 }
 

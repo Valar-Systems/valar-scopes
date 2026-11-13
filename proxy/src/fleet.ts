@@ -47,10 +47,11 @@
 // high-volume time series. AE would need an account-scoped read token to query,
 // which this project has already been burned by once (a stale KV-only token
 // reported status=active while lacking the scope). A KV key can be read with the
-// same credential the deploy already uses:
+// same credential the deploy already uses -- through the helper, and as a COUNT or a present/absent, never a list
+// of names: fw: keys are device ids, and a name printed reaches the transcript (docs/wrangler-run.md):
 //
-//     npx wrangler kv key list --prefix fw: --env production --remote
-//     npx wrangler kv key get fw:<device> --env production --remote
+//     node scripts/wrangler-run.mjs kv key list --prefix fw: --env production --remote | python -c "import json,sys; print(len(json.load(sys.stdin)))"
+//     node scripts/wrangler-run.mjs kv key get fw:<device> --env production --remote > /dev/null && echo present || echo absent
 //
 // `--remote` or the answer is a confident lie: wrangler v4's kv commands read
 // the LOCAL store by default, so without it the list returns `[]` and exits 0

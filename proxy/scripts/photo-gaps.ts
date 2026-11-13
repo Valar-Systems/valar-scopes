@@ -91,7 +91,7 @@ async function queryGaps(args: Args, token: string): Promise<{ code: string; n: 
 function publishedTypes(env: string): Set<string> | null {
   try {
     const out = execSync(
-      `npx wrangler kv key get "${MANIFEST_KEY}" --binding=ENRICH_KV --env=${env} --remote --text`,
+      `node scripts/wrangler-run.mjs kv key get "${MANIFEST_KEY}" --binding=ENRICH_KV --env=${env} --remote --text`,
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024, cwd: join(HERE, "..") },
     );
     const start = out.indexOf("[");

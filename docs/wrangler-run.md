@@ -94,3 +94,25 @@ the narrow ruling as given; the limit above still covers them.
 | **HP4** | AS PREDICTED: every row passes |
 | **HP5** | AS PREDICTED: all eight plants, with S-CL-HOOK {CL12} and S-CL-READ {CL13}. **Run from an LF export of the staged files**: on a Windows checkout with `core.autocrlf=true` the `.py` files are CRLF on disk and every `.py` anchor reads "found 0 times" (this predates this PR; CI checks out LF) |
 | **HP6** | graded with the migration, below |
+
+### HP6 and the real-tree controls (2026-11-13)
+
+| | result |
+|---|---|
+| **HP6** | AS PREDICTED. On the finished tree the check reads **0 direct, 0 stale**: 12 call sites are migrated in this PR, and 64 findings sit behind 61 allowlist rows across 25 files, each with the reason it is owed. Its `--selftest` passes. One planted direct call in a tracked file (`scripts/verify-release.sh`) read **direct 1**, and after a byte-exact restore read 0 |
+| **K3** | a real production KV get through the helper, on a ruled non-device key (`meta:airports`), printing a byte count only: exit 0, 1,035 bytes. `~/.wrangler/logs` read 34,085 twice before and 34,085 after, with 0 temp dirs left |
+
+**Migrated in this PR:**
+- `scripts/reconcile-fleet.py` (its "confirm by hand" line now prints a COUNT);
+- `scripts/verify-release.sh`;
+- `proxy/scripts/` `activation.ts`, `fleet-device-entry.ts`, `check-activation-gate.sh`, `check-manifest-drift.py`
+  (its CI job gains `npm ci`, so it runs the lockfile's wrangler instead of downloading the latest),
+  `check-pkg-lifecycle.mjs` and `photo-gaps.ts`;
+- the runbook in `proxy/src/fleet.ts`, now a count and a present/absent.
+
+**`CLAUDE.md`'s runbook line is NOT edited here.** This session does not edit `CLAUDE.md` on a request relayed by
+another session. The owner (or a session he asks directly) applies it. In the evidence table, the row "this id is a
+real device" names `wrangler kv key list --prefix "enr:dev:"`, which lists device ids to the screen. The proposed
+replacement asks the one question as a boolean:
+
+    node proxy/scripts/wrangler-run.mjs kv key get "enr:dev:<id>" --binding ENRICH_KV --env production --remote > /dev/null && echo present || echo absent
