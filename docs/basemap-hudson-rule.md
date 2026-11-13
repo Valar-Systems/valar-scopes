@@ -415,6 +415,64 @@ decide.
 **Option 3 and FT-HR:** its New York packages are already staged (`KEWR-S08-E1c`, `MIDTOWN-S08-F129`, `KJFK-S08-F129`,
 `KLGA-S08-F129`); Boston's bytes do not change, so no KBOS reading is needed; KORD stays the A/A control.
 
+**Option 3's run (17:07:39Z, stdout 48cfad2769a7): the package rows 27 of 27 AS PREDICTED; O3-RL-NJT OFF at its first row.**
+- O3-ANCHOR (NOT BLIND): all five rebuilt byte-identical, KLGA = 48db330265e1. A control re-made today's four New York packages
+  equal to FT-HR's run-10 column. O3-BYTES as listed, every package kOk with 0 proper crossings. O3-WATER as listed (KEWR record 27
+  kept; MIDTOWN rings 91 and 132 kept; KBOS's 4 bodies still split). HR-KLGA-E1, graded as a measurement (NOT BLIND): 129.6 km,
+  rung 10, dropped.water 1, kOk, 0 crossings, 32,756 B. O3-KLGA-DROP (blind): the dropped ring is candidate 133, the first unit of
+  KLGA's sequence, a one-ring unit; no multi-ring unit is partial at any of the four New York maps.
+- O3-RL-SEE as predicted (KBOS 5 mi: 14 (12) lines, 4.4 / 5.5 px, 122 crossings; 10 mi: 26 (24), 2.0 / 2.7 px, 233).
+- **O3-RL-NJT OFF, on the record:** KEWR 10 mi today's band median 0.7 px, max 1.2, against 1.5-6 predicted. The run stopped there;
+  no later corridor row was graded. **Two causes, both accepted by the orchestrator (17:09:24Z):** the prediction was wrong in kind
+  (by Newark the Turnpike is straight, and a straight road keeps only its endpoints at either tolerance); and **the instrument was
+  unsound**: v1's membership kept a piece only if 80 % of its LENGTH lay within 1 km of the centreline, so it excluded 36 pieces
+  (73.7 km) of today's package and 48 (151.1 km) of option 3's, biasing the coarser package DOWN; the 20 pieces it kept in option 3
+  were all byte-identical to pieces kept today. **Reach:** the 5d Boston check and section 5b's Q2 figures may understate (b).
+- **Option 3's contact sheets** (`C:\Github\_handoffs\map-server\hudson-options\`, today over option 3 at 5/10/25/50/100 mi, not opened
+  by this session): KEWR-opt3-f36f049f2ef0, MIDTOWN-opt3-c90b387cd7f4, KJFK-opt3-c5a7078761a2, KLGA-opt3-16e36628ddbe. Water
+  lost to land: 0 px at every view of every map. Labels: each connected piece of water one package draws and the other does not, with
+  its DRAWN area, pieces of 5 km2 or more where the label fits (hb-sheet.py 206d62c78bf5, hb-sheet-geo.py 04f67f378947).
+
+### 5e. The corridor measure v2 and its four controls, then options 2 and 3's corridor rows, registered before any run
+
+**The ruling (the orchestrator, 17:09:24Z):** replace the membership test; four controls before any re-run; then re-register every
+corridor row. O3-RL-NJT stays OFF on the record; a v2 reading is a NEW row. **Retry cap:** this was the corridor instrument's first
+failure; a second OFF on a re-registered corridor row goes to the owner, and so does a third instrument failure.
+
+**v2 (`hb-road-look2.py` 4722a9c50b85):** membership by VERTICES. The builder's simplification selects source vertices and never moves
+them (frame.ts RD25), so a line's vertices sit on the road at every tolerance and only its segments stray. A MEMBER is a package
+primary line with at least 2 vertices inside the view, at least 80 % of them within 0.15 km of the NAMED source lines; every segment of
+a member inside the view is read. Band width at stations every 0.25 km (v1: 1 km, coarse enough to miss one straying chord) along the
+longest merged named centreline, across a perpendicular of half-length 3 km, in device px. Crossings: proper point crossings among the
+distinct member pieces.
+
+**The four controls (`hb-rl2-controls.py` 01fd40db9ef6, expected values in the file).** Package: Boston today (f21d705d8b8a); corridor
+`Southeast Expy`; 10 mi. Plants from the longest named part inside the view, at its middle. PLANT-STRAY: 7 vertices on the part, 0.3 km
+apart, the middle one moved 1.5 km along the normal. PLANT-PARALLEL: the same positions, each moved 0.5 km the other way, not a named
+record.
+
+| control | expected |
+|---|---|
+| **C1, the plant can catch the defect** | the OLD test (v1, B = 2 km) EXCLUDES PLANT-STRAY: its piece count and widths unchanged by the plant |
+| **C2, the fix catches the plant** | v2 counts PLANT-STRAY (members + 1); the band widens to **6.5-14.5 px** at stations within 0.55 km of the plant's peak, and no station farther away changes |
+| **C3, negative control** | v2 EXCLUDES PLANT-PARALLEL: members, every width and the crossings unchanged |
+| **C4, Boston (b) under v2** | 10 mi: today's median 1.0-4.5 px, max at most 10; (b)'s median 4.5-14 px and at least 2x today's, max at most 26; (b) crosses less. 5 mi: today's median 2.0-9.0, max at most 20; (b)'s median 9.0-28 and at least 2x today's, max at most 52; (b) crosses less |
+
+**Option 3's corridor rows, v2** (new rows; informed by v1's OFF reading of a straight Turnpike, so labelled INFORMED, not blind):
+
+| row | input | predicted |
+|---|---|---|
+| **O3-RL2-SEE** | Southeast Expy, KBOS, today vs option 3, 5 and 10 mi | equal in every value (option 3 IS today's package at KBOS) |
+| **O3-RL2-NJT** | New Jersey Tpke; KEWR today dff28487eaf4 vs option 3 e5333b0c570a; MIDTOWN today 20a22bed5510 vs option 3 af608ebcddb4 | KEWR 10 mi: today's median 0.2-3 px, max at most 10; option 3's median 0.2-6, max at most 20. KEWR 5 mi: today 0.4-6 / at most 20; option 3 0.4-12 / at most 40. MIDTOWN 10 mi: today 0.2-4 / at most 12; option 3 0.5-8 / at most 24. MIDTOWN 5 mi: today 0.4-8 / at most 24; option 3 0.5-16 / at most 48. In every reading option 3's max at least today's, and option 3's crossings at most today's |
+
+**Option 2's corridor rows, v2:** **O2-RL2**: at 5 and 10 mi, at KBOS (Southeast Expy), KEWR and MIDTOWN (New Jersey Tpke), every value
+(members, distinct pieces, every station's width, crossings) EQUAL to today's. That holds by construction (section 5c), so a
+difference is a defect in the option 2 build. **Option 1's** corridor rows are registered with option 1, before its run.
+
+**Outside the set:** a control off: STOP, the instrument is not used (the second instrument failure under the cap goes to the owner
+only at the third). A corridor row outside its range: OFF on the record, reported; a second OFF goes to the owner. Anything else: stop
+and decide.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -440,7 +498,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   checkout log. A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else:
   stop and report.
 - **Read at 5e24c9e233e9:** 33 = 31 / 2 / 0 as predicted (stable at 17:05:53Z), tested on "Merge 5e24c9e233e9... into aa40aa43d8c9...".
-- **Predicted for the section 5c-5d head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Predicted for the section 5c-5e head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (aa40aa43d8c9 at this writing).
 
