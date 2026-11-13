@@ -1,0 +1,41 @@
+run 10's output fffce461d302 (pinned fffce461d302): ok
+run 10's figures parsed: P2-1 16, (B') 4, VISIBLE COSTS KBOS dropped.water 45
+CONTROL replay, plant 'drawn-sc'
+KBOS:
+  OFF: KBOS sea.drawn: code 20, run 10 17
+  rung 4 radius 162.00 steps 1 ntb 32759 dropped.water 45 water rings 197; sea {"drawn":20,"refused":0,"collapsed":2,"outside":8,"dropped":3,"islandsDropped":2,"islandsSmall":0,"bridges":11,"bytes":1415,"rings":17,"refused5":0,"repairs":0,"repairVertices":0}; pieces 30; repairLog same (recorded, not graded)
+KJFK:
+  OFF: KJFK sea.drawn: code 16, run 10 14
+  rung 7 radius 129.60 steps 2 ntb 32752 dropped.water 86 water rings 93; sea {"drawn":16,"refused":0,"collapsed":3,"outside":5,"dropped":2,"islandsDropped":0,"islandsSmall":0,"bridges":4,"bytes":909,"rings":14,"refused5":0,"repairs":1,"repairVertices":4}; pieces 24; repairLog same (recorded, not graded)
+KLGA:
+  OFF: KLGA sea.drawn: code 16, run 10 14
+  rung 7 radius 129.60 steps 2 ntb 32760 dropped.water 116 water rings 58; sea {"drawn":16,"refused":0,"collapsed":3,"outside":5,"dropped":2,"islandsDropped":0,"islandsSmall":0,"bridges":4,"bytes":870,"rings":14,"refused5":0,"repairs":1,"repairVertices":4}; pieces 24; repairLog same (recorded, not graded)
+KEWR:
+  OFF: KEWR sea.drawn: code 15, run 10 11
+  rung 7 radius 129.60 steps 2 ntb 32763 dropped.water 141 water rings 25; sea {"drawn":15,"refused":0,"collapsed":2,"outside":9,"dropped":4,"islandsDropped":0,"islandsSmall":0,"bridges":3,"bytes":730,"rings":11,"refused5":0,"repairs":1,"repairVertices":4}; pieces 26; repairLog same (recorded, not graded)
+MIDTOWN:
+  OFF: MIDTOWN sea.drawn: code 16, run 10 14
+  rung 7 radius 129.60 steps 2 ntb 32760 dropped.water 120 water rings 53; sea {"drawn":16,"refused":0,"collapsed":3,"outside":5,"dropped":2,"islandsDropped":0,"islandsSmall":0,"bridges":3,"bytes":787,"rings":14,"refused5":0,"repairs":1,"repairVertices":4}; pieces 24; repairLog same (recorded, not graded)
+KMIA:
+  rung 2 radius 162.00 steps 1 ntb 30513 dropped.water 0 water rings 135; sea {"drawn":18,"refused":0,"collapsed":0,"outside":1,"dropped":0,"islandsDropped":11,"islandsSmall":1,"bridges":17,"bytes":1146,"rings":18,"refused5":0,"repairs":0,"repairVertices":0}; pieces 19; repairLog same (recorded, not graded)
+KSFO:
+  rung 3 radius 162.00 steps 1 ntb 32762 dropped.water 0 water rings 119; sea {"drawn":15,"refused":0,"collapsed":2,"outside":0,"dropped":0,"islandsDropped":1,"islandsSmall":0,"bridges":1,"bytes":694,"rings":15,"refused5":0,"repairs":0,"repairVertices":0}; pieces 17; repairLog same (recorded, not graded)
+KSEA:
+  rung 3 radius 162.00 steps 1 ntb 32760 dropped.water 0 water rings 242; sea {"drawn":18,"refused":0,"collapsed":2,"outside":2,"dropped":0,"islandsDropped":3,"islandsSmall":0,"bridges":25,"bytes":2003,"rings":18,"refused5":0,"repairs":0,"repairVertices":0}; pieces 22; repairLog same (recorded, not graded)
+KORD:
+  rung 3 radius 162.00 steps 1 ntb 32762 dropped.water 0 water rings 112; sea {"drawn":0,"refused":0,"collapsed":0,"outside":0,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":0,"bytes":0,"rings":0,"refused5":0,"repairs":0,"repairVertices":0}; pieces 0; repairLog same (recorded, not graded)
+KDTW:
+  rung 3 radius 162.00 steps 1 ntb 32768 dropped.water 0 water rings 72; sea {"drawn":14,"refused":0,"collapsed":0,"outside":0,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":2,"bytes":520,"rings":14,"refused5":0,"repairs":0,"repairVertices":0}; pieces 14; repairLog same (recorded, not graded)
+KMSP:
+  rung 3 radius 162.00 steps 1 ntb 32765 dropped.water 0 water rings 176; sea {"drawn":0,"refused":0,"collapsed":0,"outside":2,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":0,"bytes":0,"rings":0,"refused5":0,"repairs":0,"repairVertices":0}; pieces 2; repairLog same (recorded, not graded)
+KIND:
+  rung 3 radius 162.00 steps 1 ntb 32745 dropped.water 0 water rings 80; sea {"drawn":0,"refused":0,"collapsed":0,"outside":0,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":0,"bytes":0,"rings":0,"refused5":0,"repairs":0,"repairVertices":0}; pieces 0; repairLog same (recorded, not graded)
+KJAC:
+  rung 1 radius 162.00 steps 1 ntb 30308 dropped.water 0 water rings 89; sea {"drawn":0,"refused":0,"collapsed":0,"outside":0,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":0,"bytes":0,"rings":0,"refused5":0,"repairs":0,"repairVertices":0}; pieces 0; repairLog same (recorded, not graded)
+BUFFALO:
+  rung 3 radius 162.00 steps 1 ntb 32758 dropped.water 0 water rings 66; sea {"drawn":18,"refused":0,"collapsed":1,"outside":8,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":0,"bytes":677,"rings":18,"refused5":0,"repairs":0,"repairVertices":0}; pieces 27; repairLog same (recorded, not graded)
+ROUSES:
+  rung 3 radius 162.00 steps 1 ntb 32763 dropped.water 0 water rings 115; sea {"drawn":11,"refused":0,"collapsed":0,"outside":1,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":5,"bytes":645,"rings":11,"refused5":0,"repairs":0,"repairVertices":0}; pieces 12; repairLog same (recorded, not graded)
+ZAPATA:
+  rung 0 radius 162.00 steps 1 ntb 21443 dropped.water 0 water rings 38; sea {"drawn":5,"refused":0,"collapsed":0,"outside":5,"dropped":0,"islandsDropped":0,"islandsSmall":0,"bridges":0,"bytes":640,"rings":5,"refused5":0,"repairs":0,"repairVertices":0}; pieces 10; repairLog same (recorded, not graded)
+SEA-FIG: 413 checks, 5 off -- OFF: stop

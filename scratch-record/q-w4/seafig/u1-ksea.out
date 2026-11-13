@@ -1,0 +1,6 @@
+u1 inputs, all 16 (fates in order + sea set): code 01ddfab4ae28, run 10 01ddfab4ae28: EQUAL
+  points differing: 0 []
+  sea-pieces.json 8ad5d92fa7c7; sea-obj index files: index.json d6945e124bfa
+code PR's KSEA package 9bd5b34d6718 (SEA-PKG froze 9bd5b34d6718)
+  its water rings vs run 10's p21: EQUAL (242 vs 242); sea set 18; origin/radius EQUAL
+KSEA GUARD on the code PR's package: frac 0.886081 (guard 0.886, run 10 0.886081), cover 0.9192, sea px 8190: PASS; equals run 10's to 6 places

@@ -1,0 +1,454 @@
+{
+ "KBOS": {
+  "home": "KBOS",
+  "ok": true,
+  "sha": "f21d705d8b8a",
+  "rung": 4,
+  "radiusKm": 162,
+  "ntb": 32759,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 20,
+   "refused": 0,
+   "collapsed": 2,
+   "outside": 8,
+   "dropped": 3,
+   "lost": 5,
+   "islandsDropped": 2,
+   "islandsSmall": 0,
+   "bridges": 11,
+   "bytes": 1415,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KJFK": {
+  "home": "KJFK",
+  "ok": true,
+  "sha": "52ac9dc39de0",
+  "rung": 7,
+  "radiusKm": 129.6,
+  "ntb": 32752,
+  "radii": [
+   162,
+   129.6
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 16,
+   "refused": 0,
+   "collapsed": 3,
+   "outside": 5,
+   "dropped": 2,
+   "lost": 5,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 4,
+   "bytes": 909,
+   "refused5": 0,
+   "repairs": 1,
+   "repairVertices": 4
+  }
+ },
+ "KLGA": {
+  "home": "KLGA",
+  "ok": true,
+  "sha": "feb6ef3bdf04",
+  "rung": 7,
+  "radiusKm": 129.6,
+  "ntb": 32760,
+  "radii": [
+   162,
+   129.6
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 16,
+   "refused": 0,
+   "collapsed": 3,
+   "outside": 5,
+   "dropped": 2,
+   "lost": 5,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 4,
+   "bytes": 870,
+   "refused5": 0,
+   "repairs": 1,
+   "repairVertices": 4
+  }
+ },
+ "KEWR": {
+  "home": "KEWR",
+  "ok": true,
+  "sha": "dff28487eaf4",
+  "rung": 7,
+  "radiusKm": 129.6,
+  "ntb": 32763,
+  "radii": [
+   162,
+   129.6
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 15,
+   "refused": 0,
+   "collapsed": 2,
+   "outside": 9,
+   "dropped": 4,
+   "lost": 6,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 3,
+   "bytes": 730,
+   "refused5": 0,
+   "repairs": 1,
+   "repairVertices": 4
+  }
+ },
+ "MIDTOWN": {
+  "home": "MIDTOWN",
+  "ok": true,
+  "sha": "20a22bed5510",
+  "rung": 7,
+  "radiusKm": 129.6,
+  "ntb": 32760,
+  "radii": [
+   162,
+   129.6
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 16,
+   "refused": 0,
+   "collapsed": 3,
+   "outside": 5,
+   "dropped": 2,
+   "lost": 5,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 3,
+   "bytes": 787,
+   "refused5": 0,
+   "repairs": 1,
+   "repairVertices": 4
+  }
+ },
+ "KMIA": {
+  "home": "KMIA",
+  "ok": true,
+  "sha": "1a338238fbc8",
+  "rung": 2,
+  "radiusKm": 162,
+  "ntb": 30513,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 18,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 1,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 11,
+   "islandsSmall": 1,
+   "bridges": 17,
+   "bytes": 1146,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KSFO": {
+  "home": "KSFO",
+  "ok": true,
+  "sha": "4d03beecdb4b",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32762,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 15,
+   "refused": 0,
+   "collapsed": 2,
+   "outside": 0,
+   "dropped": 0,
+   "lost": 2,
+   "islandsDropped": 1,
+   "islandsSmall": 0,
+   "bridges": 1,
+   "bytes": 694,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KSEA": {
+  "home": "KSEA",
+  "ok": true,
+  "sha": "9bd5b34d6718",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32760,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 18,
+   "refused": 0,
+   "collapsed": 2,
+   "outside": 2,
+   "dropped": 0,
+   "lost": 2,
+   "islandsDropped": 3,
+   "islandsSmall": 0,
+   "bridges": 25,
+   "bytes": 2003,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KORD": {
+  "home": "KORD",
+  "ok": true,
+  "sha": "cb59bb06a506",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32762,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 0,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 0,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 0,
+   "bytes": 0,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KDTW": {
+  "home": "KDTW",
+  "ok": true,
+  "sha": "682208bf2fb2",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32768,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 14,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 0,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 2,
+   "bytes": 520,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KMSP": {
+  "home": "KMSP",
+  "ok": true,
+  "sha": "b694c01dc502",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32765,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 2,
+  "refused": 0,
+  "sea": {
+   "drawn": 0,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 2,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 0,
+   "bytes": 0,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KIND": {
+  "home": "KIND",
+  "ok": true,
+  "sha": "89a4195fa4be",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32745,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 0,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 0,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 0,
+   "bytes": 0,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "KJAC": {
+  "home": "KJAC",
+  "ok": true,
+  "sha": "42c32cd8578e",
+  "rung": 1,
+  "radiusKm": 162,
+  "ntb": 30308,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 0,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 0,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 0,
+   "bytes": 0,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "BUFFALO": {
+  "home": "BUFFALO",
+  "ok": true,
+  "sha": "52fad5e317f3",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32758,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 1,
+  "refused": 0,
+  "sea": {
+   "drawn": 18,
+   "refused": 0,
+   "collapsed": 1,
+   "outside": 8,
+   "dropped": 0,
+   "lost": 1,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 0,
+   "bytes": 677,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "ROUSES": {
+  "home": "ROUSES",
+  "ok": true,
+  "sha": "afe7554245b8",
+  "rung": 3,
+  "radiusKm": 162,
+  "ntb": 32763,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 11,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 1,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 5,
+   "bytes": 645,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ },
+ "ZAPATA": {
+  "home": "ZAPATA",
+  "ok": true,
+  "sha": "e2ddaa00ecaf",
+  "rung": 0,
+  "radiusKm": 162,
+  "ntb": 21443,
+  "radii": [
+   162
+  ],
+  "refusedBuilt": 0,
+  "refused": 0,
+  "sea": {
+   "drawn": 5,
+   "refused": 0,
+   "collapsed": 0,
+   "outside": 5,
+   "dropped": 0,
+   "lost": 0,
+   "islandsDropped": 0,
+   "islandsSmall": 0,
+   "bridges": 0,
+   "bytes": 640,
+   "refused5": 0,
+   "repairs": 0,
+   "repairVertices": 0
+  }
+ }
+}

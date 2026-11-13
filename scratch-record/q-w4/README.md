@@ -19,6 +19,16 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `pq4d-xchk.mts` | 00129dbe7053 | xisland's repair line and xisland-tall's stop, from pq4d |
 | `cp-run.mts` | 2eaa14c28661 | one build by the code PR's builder over a local store (SEA-PKG's harness) |
 | `cp-seapkg.py` | e3bd13ca7f16 | SEA-PKG: the 16 packages against run 10's sha256s |
+| `seafig/seapkg-0653Z.json` | f73cfc9b84e6 | SEA-PKG's output at 82113178 (06:53:58-06:54:05Z): 16 of 16 byte-identical |
+| `seafig/sf-run.mts` | 51c8bf0fca58 | SEA-FIG's build child: one build by the code PR's builder, with every piece's fate, ringIdx, PROVENANCE's dropped.water |
+| `seafig/sf-grade.run1.py` | 152e123d4cf4 | SEA-FIG's grader as first run (07:02:53Z): run 10's definitions (dr-p2c.mts:57), the consistency check, run 10's own pieces |
+| `seafig/sf-grade.py` | 2bbabb5d5be9 | the same grader with its control's two plant hooks (`SF_PLANT=drawn-sc` / `order`); reversing them gives 152e123d4cf4 |
+| `seafig/sf-grade.out` | 724a193379c4 | SEA-FIG's reading, 413 checks, 0 off (both unplanted runs) |
+| `seafig/sf-out.json` | 28f8343a47b8 | the 16 builds' results the grader read |
+| `seafig/control-pred.txt` | 9117f6b99e4d | the control's predictions, written before the replay |
+| `seafig/control-drawn-sc.out`, `control-order.out` | 0870aeb5f944, 63e2066669ea | the control's readings: 5 off and 1 off, as predicted |
+| `seafig/u1-ksea.py` | 30bdaa902b56 | scope ruling u1's input hashes and the KSEA guard on the code PR's package |
+| `seafig/u1-ksea.out` | 3fc4621fda73 | its reading: 01ddfab4ae28 both sides; KSEA 0.886081 PASS |
 
 ## Regenerating
 

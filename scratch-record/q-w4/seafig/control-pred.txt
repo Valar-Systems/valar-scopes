@@ -1,0 +1,4 @@
+SEA-FIG grader CONTROL, predicted before the replay (saved builds, no rebuild):
+drawn-sc: exactly 5 OFF, all "sea.drawn": KBOS code 20 run 10 17; KJFK 16/14; KLGA 16/14; KEWR 15/11; MIDTOWN 16/14. Nothing else off.
+order:    exactly 1 OFF: KBOS pieces differ, ONLY IN ORDER (30 vs 30). Nothing else off.
+Outside this: the grader is in doubt -> stop.

@@ -1,0 +1,2 @@
+# Stored byte for byte: the .out files and seapkg-0653Z.json hold CRLF as Python wrote them on Windows, and the doc cites their sha256s.
+* -text
