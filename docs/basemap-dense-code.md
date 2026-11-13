@@ -4381,7 +4381,11 @@ KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
 **Form (d), the orchestrator's (after 12:53:29Z): fetch from the mirror, prove the file is the primary's, record it under the PRIMARY url.**
 - **The departure, named.** The 10-28 ruling says "record the mirror URLs as their URLs, with a note in the manifest". Form (d) keeps the primary URL and moves the mirror into the note.
   - The note still says truthfully where each file came from.
-  - **The orchestrator's explicit ruling that (d) replaces that clause is asked for before the switch.**
+  - **Ruled (the orchestrator, 13:06:16Z), verbatim:**
+
+    > Form (d) REPLACES the 10-28 clause 'record the mirror URLs as their URLs' (reviewer chat, 2026-10-28, docs/basemap-route.md ~L1167). The url field names the file's IDENTITY: every reader treats it so (cachePath, verifiedBytes, d1, basemap-check, the regions, PROVENANCE), and only the fetch treats it as a location. A mirror file proven byte- and sha256-equal to our record of the primary IS the primary's file. So the manifest keeps the primary url, and the note states truthfully where it was fetched from. That keeps the clause's PURPOSE ('the manifest then says truthfully where each came from') while avoiding a reindex of 15,880 files and a PROVENANCE change at KBOS and KJAC for a transport detail. Ruled by the orchestrator, 2026-11-13T13:06:16Z.
+
+    The orchestrator is telling the owner, so that the reviewer whose ruling 10-28 may have been can object. The ruling also stands beside the 10-28 text in `docs/basemap-route.md`.
 - **No code change to this PR.** What the code shows:
   - **Every reader takes the url as the file's identity:** the cache path (`cachePath`, `verifiedBytes`, d1's tiles, `basemap-check.ts`), the regions, PROVENANCE's `source`/`sha256` lines, and MI4b's notes check.
   - **Nothing reads it as "where it was fetched",** except the fetch itself (`fetchOne`, `adopt`'s HEAD), and a logged record skips both.
@@ -4443,3 +4447,28 @@ Only GNIS differs (51 / 51, recorded at S-1).
 - `git merge-tree` with main: clean.
 - #694's wrangler check on the merged tree: direct 0, stale 0.
 - **Predicted: 36 check runs, 34 success, 2 skipped, 0 failures.** Outside that: STOP, and read which job before anything else.
+
+**CI on 95d9cb56: OFF.** 36 check runs: 33 success, 2 skipped, **1 failure** (read 13:21:19Z), where 34 / 2 / 0 was predicted. Stopped as registered: nothing re-run, nothing pushed.
+- **The job:** `test (proxy)` (131902251666), step `node scripts/check-locate-page.mjs --selftest`: "SELFTEST FAILED".
+- **One row failed:** P1, "sendBeacon plant, CSP removed": **exit 2 (want 1)**, which is the check's BLIND, not a leak and not a pass.
+  - The reason was "anchor MISSING". Chrome started (no relaunch line; requests captured) and the click landed (`clicked=true`).
+  - But within the 2.5 s window, the popup still showed its ask, never the "sent" copy, and the opener received no sentinel (`messages=[]`).
+  - P1 is the first browser case, and it took 39 s. Every other row took about 3.4 s.
+- **Every other row passed:** P2, P3, A4, A5, A2, A3, and the designed BLIND row.
+- **(1), a real effect of this PR or of the merge: excluded by the inputs.**
+  - The merged tree is main b7184243 plus this PR's diff only (`proxy/src/basemap`, `proxy/scripts/basemap`, `docs`, the wrangler allowlist). The locate page and its check read none of them.
+  - `embed-pages --check` read "current (4 page(s))" in the same job.
+  - Main's own `test (proxy)` passed this step at b7184243 and at 5b0d27fd, and so did this PR's previous head (the 66fed334 merge).
+- **(2), a cold-start flake on the first row: supported, with one difference.**
+  - P1 has gone BLIND before on unrelated heads: main 0116e138, deploy/wx-live, feat/bend-feed-v2, and feat/wx-server twice (10-20 to 10-22).
+  - Those were "Chrome never opened its debugging port", the startup failure #481 widened to 30 s plus a relaunch.
+  - Today the port opened and the flow stalled after the click: the same row and exit code, at a different stage.
+- **Ruled by the orchestrator (after 13:21:48Z): option (b).** Under the 11-04 rule, a BLIND is an INSTRUMENT failure, never a red against this PR.
+  - This commit, the 13:06:16Z ruling quoted in both docs plus this reading, gives a fresh full run.
+  - No re-run of the job, and no change to the locate check.
+  - The orchestrator queues the flake: P1's 2.5 s post-click window on a cold first browser case.
+
+**CI for this push, predicted:** the same workflows, the same files, and main still b7184243, with the merge clean.
+- **36 check runs: 34 success, 2 skipped, 0 failures.**
+- **P1 BLIND again:** STOP. The orchestrator takes it to the locate check's owner, with both runs' evidence. That would be the instrument's second failure on this PR; a third goes to the project's owner.
+- **Anything else outside 34 / 2 / 0:** STOP, and read which job before anything else.
