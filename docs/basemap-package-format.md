@@ -197,6 +197,18 @@ These are **data rules**, the same for every client. They are the reviewer's 3.5
   - **Smoothing:** a 4 × 4 box mean over tile pixels (about 0.9 km), with edge padding of 2, aligned as `bendmock.py` aligns it: the mean of padded pixels [i, i + 3] × [j, j + 3].
   - **Sampling:** for each level pixel centre (§4), take the tile pixel that contains it (truncation, not interpolation).
   - **Stored:** `floor(shade * 255 + 0.5)`.
+- **5.7 Sea** (Q-W2 and Q-W4: `docs/basemap-sea-mask.md`, `docs/basemap-dense-code.md` part 2).
+  - **Source:** Natural Earth 1:10m `ocean` and `lakes`.
+    - **Lakes kept:** at least 1.5 km², and not wholly inside the US. "Wholly inside" means every part has every vertex inside one US part (Natural Earth admin-0) and no edge crossing that part's edges. A lake inside the US is TIGER's to draw, as 5.1's water.
+  - **Stored at the ingest as pieces:** each source polygon is cut to every 1-degree cell within 250 km of the coverage. Each piece keeps its islands of at least 1.5 km².
+  - **In the package the sea is WATER:** each piece becomes one ring in the water section (type 1), drawn and dropped like 5.1's rings.
+    - **Its islands are joined to it by keyhole bridges:** the nearest pair of vertices whose segment crosses no ring, largest island first. Each bridge is walked out and back, so it has zero width under the fill rule (a pixel is water when its centre is inside a ring by even-odd), and the island draws as land.
+    - An island no bridge can reach is dropped.
+  - **Cell edges match:** a piece's vertices on its own cell's boundary are kept through simplification, so the pieces on either side of an edge meet exactly.
+  - **If two of a piece's rings cross after simplification,** each crossing edge gets back the next vertex Douglas–Peucker would
+    have kept, round after round, until none cross. A repair that cannot finish (a round that restores nothing, or more than 64 vertices)
+    stops the build with an error, never a partial package, and the client falls back to no package.
+  - A ring the backstop refuses (§6) is not drawn.
 
 **Products choose the look.**
 - **Weatherscope's ramp** is grey `10 + floor(36 · v / 255)`, with blue + 2.
@@ -209,17 +221,33 @@ Both are client rules, not package rules.
 - **Simplification:**
   - **The method:** Douglas–Peucker in the metric frame (metres, double), with tolerance ε, after clipping and before quantising. The split point is the **first** vertex at the maximum distance.
   - **The request names ε.** Weatherscope asks for half a pixel at its finest zoom: 15 mi over 120 px is 201.2 m a pixel, so **ε = 100.6 m** (`toleranceMm` 100,584).
+  - **Water rings keep their topology** (Q-W4, "tp"). After Douglas–Peucker and quantising, while a ring properly crosses itself, each crossing edge gets back the original vertex farthest from its chord. This repeats until nothing crosses or nothing can be added.
+  - **The backstop:** a water ring that still properly crosses itself after tp is **refused**: never drawn.
+    - A contact (two coincident edges, as a keyhole bridge has) is not a crossing.
+    - A refusal is counted on the builder's own log line, not in `PROVENANCE`. Its line count is unchanged, and `collapsed.water` never counts a refused ring.
 - **The budget** (A9.1 D): **about 20 KB** for everything but terrain; **8 + N² bytes per terrain level** (60,524 at Weatherscope's N = 246).
-- **Over the budget (ruled, Q26).** The builder never silently ships less:
+- **Over the budget (Q-W1, Q-W4 and the owner's B, then D2; replacing Q26).** The builder never silently ships less:
   - **A hard cap** of 32 KB for the non-terrain sections.
-  - **Past it, in order:**
-    1. double ε, once;
-    2. drop water rings smallest-area first;
-    3. drop secondary roads shortest first.
+  - **Past it, in order (the rung is the first that fits):**
+
+    | rung | step |
+    |---|---|
+    | 0 | ε, as requested |
+    | 1 | ε × 2 for everything |
+    | 2 | water at ε × 8 |
+    | 3 | + secondary roads dropped, shortest first |
+    | 4 | + water rings dropped, smallest area first |
+    | 5 | rivers and roads at ε × 4 (water stays at ε × 8) |
+    | 6, 7 | rungs 3 and 4 again, on rung 5's content |
+
+  - **Primaries are never dropped.**
+  - **The water counts travel with the water set drawn:** at rungs 2 to 7, `collapsed.water` is the ε × 8 set's.
+  - **Still over (D2):** the whole ladder again on a package of radius r × 0.8^k, k = 1 to 6. Each radius is r × 10⁶ × 0.8^k rounded to an integer, then divided by 10⁶, in km. From 162 km that is 129.6, 103.68, 82.944, 66.3552, 53.08416 and 42.467328 km.
+  - **The header's `radiusMm` is the radius built.** A client places the package by it.
   - **Every dropped feature is counted** in `PROVENANCE`, so a gap is visible as a gap (RD15, §13):
-    - `dropped.<layer>` counts this section's drops;
+    - `dropped.<layer>` counts this section's drops; the sea's rings are water rings here, so their drops count in `dropped.water`;
     - `collapsed.<layer>` counts §2's collapses.
-  - **If it still does not fit,** the route answers an error, and the client falls back to no package.
+  - **If no step of D2 fits,** the route answers an error (422 `too_large`), and the client falls back to no package.
 
 ## 7. Provenance (section 7)
 
@@ -233,7 +261,7 @@ Both are client rules, not package rules.
 - `format: BMPK 1`;
 - `builder: <name> <commit>`, the commit of the builder's own code when it built the package;
 - `store: <id>`: the first 12 hex digits of the sha256 of the manifest the package was built from;
-- then, for each layer read, in the fixed order `water, rivers, roads, peaks, places, population, terrain`, four lines:
+- then, for each layer read, in the fixed order `water, sea, rivers, roads, peaks, places, population, terrain`, four lines (the sea is read when the square meets one of its files' regions; a package that reads no sea file has no sea lines):
   - `source.<layer>`: the base URL;
   - `vintage.<layer>`;
   - `files.<layer>`: the count of the layer's files that were read;
@@ -249,6 +277,7 @@ Both are client rules, not package rules.
 **The details, pinned here as Weatherscope's host tool writes them, for the map server to match or raise.** The ruling did not spell these out.
 - **The layers:**
   - `water` is `AREAWATER`, `rivers` is `LINEARWATER`, and `roads` is `PRISECROADS`;
+  - `sea` is Natural Earth 1:10m `ocean` and `lakes` (5.7);
   - `peaks` is GNIS Domestic Names, `places` is the Gazetteer, and `population` is SUB-EST2024;
   - `terrain` is every Terrarium z9 tile read: the level mosaics **and** the tiles read for peak elevations.
 - **`source.<layer>`:** the longest common directory prefix of the layer's file URLs, ending in `/`.
@@ -259,7 +288,7 @@ Both are client rules, not package rules.
 **A determinism check** (`--check`) rebuilds with **the `builder` commit recorded in the package**, not the checkout's HEAD. Otherwise every later commit would fail the check while the bytes it guards stay unchanged (ruled, A10.10).
 
 **The sources' terms, to be carried** (ruled, Q34):
-- **Public domain:** TIGER/Line, the Gazetteer, SUB-EST2024 and GNIS are US-government works.
+- **Public domain:** TIGER/Line, the Gazetteer, SUB-EST2024 and GNIS are US-government works. Natural Earth (the sea, 5.7) is in the public domain by its terms of use.
 - **AWS Terrain Tiles: credit what a mosaic contains** (corrected 2026-10-26; the Q34 ruling had named 3DEP).
   - **What z9 contains** (tilezen/joerd's `docs/data-sources.md`, the zoom-9 row):
     - **SRTM** on US land;
