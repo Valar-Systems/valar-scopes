@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
@@ -45,8 +45,28 @@ const wxIngestTomls = {
   },
 };
 
+// Every hand-written proxy/src/**/*.ts as its exact text, `import s from "virtual:proxy-src-texts"` (docs/proxy-bill.md,
+// step 4a: the pin that nothing but fleet.ts reads a fw: key -- read from what is compiled, not restated). Generated
+// files are left out: they are data, and the largest of them. Tests only.
+const PROXY_SRC = fileURLToPath(new URL("./src/", import.meta.url));
+const proxySrcTexts = {
+  name: "proxy-src-texts",
+  resolveId(source: string) {
+    return source === "virtual:proxy-src-texts" ? "\0virtual:proxy-src-texts" : null;
+  },
+  load(id: string) {
+    if (id !== "\0virtual:proxy-src-texts") return null;
+    const files = (readdirSync(PROXY_SRC, { recursive: true }) as string[])
+      .map((f) => f.split("\\").join("/"))
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".generated.ts"))
+      .sort();
+    const out = Object.fromEntries(files.map((f) => [f, readFileSync(PROXY_SRC + f, "utf8")]));
+    return `export default ${JSON.stringify(out)};\n`;
+  },
+};
+
 export default defineWorkersConfig({
-  plugins: [bmpkBytes, committedCredits, wxIngestTomls],
+  plugins: [bmpkBytes, committedCredits, wxIngestTomls, proxySrcTexts],
   test: {
     poolOptions: {
       workers: {

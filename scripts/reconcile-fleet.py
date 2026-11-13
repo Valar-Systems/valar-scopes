@@ -512,6 +512,11 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
         # The baseline is the COUNT; Run 1 looks for it to increase.
         print("    change entries recorded: %d  <-- Run 1 baseline: look for a NEW entry," % changes)
         print("                                    not for a non-empty array")
+        # THE PREMISE, PRINTED WHERE THE TABLE IS READ (CLAUDE.md, "a justification is a claim about code you are not
+        # editing"). The proxy memoises the fw: read per isolate (proxy/src/fleet.ts; docs/proxy-bill.md step 4a).
+        print("    note: with the proxy's fw: memo deployed, a device that RETURNS within the hour to a firmware it")
+        print("          reported before (a rollback) can show the one it left for up to 1 h, here and in 'Behind")
+        print("          version.txt'; its change entry arrives up to 1 h late, never lost (proxy/src/fleet.ts)")
     print()
     warn += report_ota_reader(env, detail)
     return warn

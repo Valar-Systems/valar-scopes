@@ -181,7 +181,7 @@ describe("err5xx: the colo on failed requests only, never beside a device id", (
   });
   const requestPoint = (status: number) => ({
     blobs: ["/v1/blips", "MISS", "", "s3-128", DEV, "19"],
-    doubles: [status, 12, 0, 1],
+    doubles: [status, 12, 0, 1, 0], // double5 = fwKvRead, appended; 0 here: no fleet decision on this metric
     indexes: ["/v1/blips"],
   });
 
