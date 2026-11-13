@@ -194,6 +194,50 @@ row is graded before the next is read.
   cut of this size, the row is INSTRUMENT, and nothing is read from B.
 - **The cost:** one more flash and one more run of the scene, about 10 minutes of the window.
 
+**M3-3 for C1, as ported by map-client (p4's sign-off, 2026-11-13; each item ruled by the orchestrator before any run).**
+These replace the parts of the M3-3 row that named A0a's profile, which has never run (P1 is unwritten).
+- **The window:** E2:08, 11-15 02:00-03:00Z. The tree is `3bc7ec26fe28`.
+- **The scene:** Bend, 40 fixed aircraft, 25 mi (map-client's CTRL scene), weather on, map off. /blips comes from the (a)
+  hook. Every scene settles for 100 s and is then measured for 120 s.
+- **The images.** Both are `${s3128_hw.build_flags}` + `-DBLIPSCOPE_EXPECT_BIG_NVS` + `${cloud.prod}` +
+  `-DWX_LAYER_SHIPS` + `-DFRAME_BENCH`.
+  - A adds `-DBLIPSCOPE_NO_PUSH_TASK`. B is the same set without it.
+  - Neither carries `WX_LOOK_AB`, whose timers sit in the frame; `M3_BENCH`, which is bench only; or `FRAME_PROFILE`,
+    which is not written.
+  - `WX_LAYER_SHIPS` is set per env because main's `[weather] layer` is still empty, which compiles weather out. It is
+    v20's shipping weather.
+- **The weather:** a fixed field, at the plan's basis. The real header and the real frameEpoch are kept, so the layer is
+  not hidden as stale. The body is code 0, plus ONE cell of code 2, 15 mi from home at bearing 135°, about 3.3 × 2.4 px.
+  The basis is the 2026-10-29 replay-session span arm, near-dry: blend 4.45 ms with one counted cell, against 4.32 dry.
+  Rebuilds follow the real frame cadence, and they are counted, tagged and included by v19's rule. A and B share that
+  cadence: fetch time and rebuild triggers count no frames.
+- **PG-1, its substitute (accepted):**
+  - the STATE bit `wxShowing == Crop` on every measured frame (the "shown" half);
+  - a PIX-WX read per arm, weather pixels > 0;
+  - **(b), made exact, per arm, ALL of:** (i) at least one "[wx] layer rebuilt in N ms (look A)" before the span ends;
+    (ii) zero "the layer stays off" and zero "[wx] buffers FAILED" since boot; (iii) every "[wx] status=" line up to
+    the span's end shows 200 or 304, with an outcome that is not error. The reader matches the strings. At
+    `3bc7ec26fe28` they are AircraftManager.cpp :3585, :3555, :3342 and :3420.
+  - Each part has a data-side plant that must read INSTRUMENT. The weather hook replaces the body after the real GET, so
+    the real status line still prints.
+- **The B arms:** plain, D = 10, D = 60, and the loop's +10 (I-6).
+  - D is `vTaskDelay(pdMS_TO_TICKS(D))` in the push task, never a spin. The push task runs one priority above the loop,
+    on the loop's core, so a spin would preempt the loop.
+  - D = 60, not 40: with weather on, B's loop is about 64-69 ms, and push + 40 sits inside that.
+- **The push readings** (`[m3] push_avg_us` is a since-boot average, `main.cpp:150-151`, so it is never graded as
+  printed). The push bands apply to two readings, and a disagreement between them over 0.5 ms is INSTRUMENT:
+  - (a) the reader's windowed average between consecutive `[m3]` lines lying wholly inside a span;
+  - (b) map-client's own per-scene FRAME_BENCH push average.
+- **p95(push)** comes from map-client's per-scene histogram, in 1 ms bins, timed over t2 − t0 so that it includes D.
+  The reader takes the nearest-rank bin.
+- **The predictions:**
+  - plain: the cut is graded in C1's bands with E (above);
+  - D = 10: the push average rises +9.0 to +10.0 ms, and p2p p95 does not move (± E);
+  - D = 60: the push average rises +59 to +60 ms, and p2p p95 = p95(push) ± E, at least 10 ms above B plain, or
+    INSTRUMENT;
+  - the loop's +10: Δp2p p95 = +10.0 ± 1.5, and push unchanged within ± 1.0;
+  - outside the set: p2p p95 of B plain within 2 ms of the push average means B is push-bound. Stop.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
