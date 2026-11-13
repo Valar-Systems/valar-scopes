@@ -473,6 +473,59 @@ difference is a defect in the option 2 build. **Option 1's** corridor rows are r
 only at the third). A corridor row outside its range: OFF on the record, reported; a second OFF goes to the owner. Anything else: stop
 and decide.
 
+### 5f. Option 2 registered (detail graded by distance), before its build
+
+**The prototype:** `pqo` = `pqh` plus one knob, `Q4O_GRADE` = "<fine multiple of eps>:<r_f km>", set on the E1 (eps x 8) line set only:
+`frame.ts` d80ff53f48dd (`simplifyGraded`, its counters `GRADE_N`), `layers.ts` 9416caab048e, `build.ts` 5c2f72491505; every other
+file byte-identical to `pqh`'s. Each run is simplified at the fine eps exactly as today's line set does it; each stretch of fine
+segments that all stay farther than r_f from the centre is simplified again at 8 eps, a span accepted only if its segment also stays
+outside r_f; a stretch whose result still comes inside r_f keeps its fine vertices (counted as a fallback). So every segment within
+r_f is one of today's.
+
+**The builds:** KBOS: the rule + E1 forced at 162 km + `Q4O_GRADE=2:17` (today's 0.40 km inside); KJFK and MIDTOWN: the rule + E1
+forced at 129.6 km + `4:17` (today's 0.80 km inside); KEWR: the rule + E1 as at KEWR (`c`) + `4:17`. **KLGA under option 2 is (b)'s
+KLGA, e7f0af9d9fba** (the rule as is, no E1), NOT BLIND: section 3 measured it at **-284 / +163 km2 of visible water against run 10**
+(a visible loss the owner has not yet seen priced in this option's terms; its sheet shows it).
+
+**Condition (a), the header and its two readers, answered before the build:**
+- The header's `toleranceMm` will read **1,609,344 (8 eps)**, the coarsest detail in the package. It is TRUE AS A BOUND (no line strays
+  further from its source) and FALSE AS A DESCRIPTION: inside 17 km the lines are at 0.40 km (KBOS) or 0.80 km (New York). **The field
+  no longer describes the package.** A reader that takes it as "the line detail" calls the inner map 2-4x coarser than it is.
+- `basemap-grade-store.ts` classifies `toleranceMm !== epsMm || dropped > 0 ? "D" : ...`. A graded package reads "D"; so do today's
+  packages at these points (headers 2 eps / 4 eps, water dropped). No label changes in either direction there, but only because the
+  class is coarse: it cannot tell a graded package from a uniformly coarse one.
+- `basemap-build.test.ts`'s assertions (MB1-MB8b) are on synthetic stores at rungs up to 3 (`toleranceMm` 100,584 or 201,168); none
+  reaches E1, so none changes. The code PR, if option 2 is picked, adds a case that asserts the header = 8 eps AND, separately, that
+  every segment inside r_f is within the fine eps: the header assertion alone would pass a uniformly coarse package.
+
+**The estimator** (`hb-o2-estimate.py` 82aff085122e, from built packages: today's minus E1's primary-road and river vertices within
+17.3 km, times the E1 package's bytes per line vertex; the room from `margin-e1.json`):
+
+| point | extra bytes, estimate | the E1 package's room | so |
+|---|---|---|---|
+| KBOS | 483 | 4,917 B of secondary roads still kept (rung 9) | secondaries absorb it; water untouched |
+| KJFK | 125 | 595 B of secondaries (rung 9) | the same |
+| MIDTOWN | 256 | rung 10, no secondaries left; 514 B before a split inland body drops | more single rings drop; no body |
+| KEWR | 245 | rung 10, no secondaries left; **50 B** before a split inland body drops | **the 2-ring 8.0 km2 unit 39 (x -86..-65 km, far west, not the Hudson) drops, whole** |
+
+**Rows (blind unless labelled):**
+
+| row | input | predicted |
+|---|---|---|
+| **O2-ANCHOR** (control) | `pqo` with `Q4O_GRADE` unset, the same four E1 configs | byte-identical to `pqh`'s: KBOS 7402f8cee0f5, KJFK 227ecbddfdf7, MIDTOWN af608ebcddb4, KEWR e5333b0c570a |
+| **O2-PKG** | the four graded builds | radius 162 / 129.6 km as today; header `toleranceMm` 1,609,344; kOk; 0 proper crossings; non-terrain bytes 32,600-32,768 |
+| **O2-WATER** | rung, rings kept, dropped.water | KBOS rung 9, 242 kept, 0 dropped (its 4 split bodies whole); KJFK rung 9, 179, 0; MIDTOWN rung 10, dropped.water 11-40, rings 91 and 132 kept, no multi-ring unit dropped or partial; KEWR rung 10, dropped.water 38-70, record 27 kept, unit 39 dropped WHOLE, no multi-ring unit partial |
+| **O2-EXTRA** (the estimator's check) | primary-road and river line bytes, option 2 minus the E1 package | KBOS 240-725 B; KEWR 120-370; MIDTOWN 130-385; KJFK 60-190 |
+| **O2-PIX** (the row) | the sheets' unannotated renders, today vs option 2 | at 5 and 10 mi, the set of road and river pixels EQUAL to today's at all four (river LINES count as line pixels); secondaries drawn in neither; every water ring today draws is drawn |
+| **O2-RL2** | section 5e | every corridor value equal to today's |
+| **O2-GRADE** (beside, a count) | `GRADE_N` | at least one stretch coarsened at each point; fallbacks counted and reported |
+
+**Pictures:** today over option 2 at 5/10/25/50/100 mi: KBOS, KEWR, MIDTOWN, KJFK, and KLGA (today over e7f0af9d9fba). **FT-HR:**
+option 2 needs re-staging (the four graded packages; KLGA's e7f0af9d9fba is staged as `KLGA-S08`).
+
+**Outside the set:** O2-ANCHOR off: STOP (the copy is not the prototype). O2-PIX off: STOP (a defect in the build, by construction).
+Any other row off: OFF on the record, reported. Anything else: stop and decide.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -498,7 +551,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   checkout log. A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else:
   stop and report.
 - **Read at 5e24c9e233e9:** 33 = 31 / 2 / 0 as predicted (stable at 17:05:53Z), tested on "Merge 5e24c9e233e9... into aa40aa43d8c9...".
-- **Predicted for the section 5c-5e head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Predicted for the section 5c-5f head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (aa40aa43d8c9 at this writing).
 
