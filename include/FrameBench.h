@@ -14,6 +14,10 @@
 // PER FRAME (Rec): fr and p2p in 10 us units; tracked and drawn; flags: bit 0 the weather layer rebuilt on this frame,
 // bit 1 the loop's planted delay, bit 2 the weather crop shown (wxShowing == Crop), bit 3 the map enabled, bit 4 the
 // night clock's night; and `pres`, the presents since the previous record (M3-2: 1 in lockstep).
+//
+// C1-L (docs/frame-time-bench.md, "C1-L", for p4's A0a): each scene carries its own level (the table's n, 1..kTableMax)
+// and its weather answer, both defaulting to C1's (40, on), so C1's lists below are unchanged. A FRAME_PROFILE build
+// takes its list from p4's FrameProfileScenes.h instead (p4 owns that file; its scenes use Kind C1).
 #pragma once
 #ifdef FRAME_BENCH
 
@@ -31,13 +35,21 @@
 namespace framebench {
 
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3 };
+constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
+constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 struct Scene {
     Kind kind;
+    uint8_t level = kLevel;   // the (a) table's n in this scene
+    bool wx = true;           // this scene's "wx-layer" answer (Override)
 };
+#if defined(FRAME_PROFILE)
+#include "FrameProfileScenes.h"   // p4's (docs/frame-profile.md): defines kScenes; one owner per line
+#else
 #if defined(BLIPSCOPE_PUSH_TASK)
 static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   // image B
 #else
 static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
+#endif
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10"};
@@ -47,7 +59,6 @@ constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0};
 static const char* const kHomeLat = "44.06";
 static const char* const kHomeLon = "-121.31";
 constexpr int kRungMi = 25;
-constexpr int kLevel = 40;
 constexpr uint32_t kTblT = 1794441386;   // TBL-DEV's time (the pinned build epoch)
 
 // THE ECHO CELL (the orchestrator's acceptance of the recorded choices): 15 mi from the home at bearing 135 deg, the
@@ -134,6 +145,22 @@ inline bool InScene()
     return s.scene >= 0 && !s.done;
 }
 
+// C1-L: the current scene's level (kLevel outside a scene), the list's largest, and whether every level is one
+// TBL-HOST verified.
+inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; }
+inline int MaxLevel()
+{
+    int m = 0;
+    for (const Scene& sc : kScenes) m = std::max(m, (int)sc.level);
+    return m;
+}
+inline bool LevelsOk()
+{
+    for (const Scene& sc : kScenes)
+        if (sc.level < 1 || sc.level > kTableMax) return false;
+    return true;
+}
+
 // The scene's keys, answered in RAM; nullptr means "the board's own setting" (recorded, never changed). Called only
 // through ConfigurationWebServer::GetStoredString's region, which reads and never writes.
 inline const char* Override(const char* key)
@@ -148,7 +175,7 @@ inline const char* Override(const char* key)
     if (strcmp(key, "data-source") == 0) return "";      // the cloud, on a cloud build
     if (strcmp(key, "local-url") == 0) return "";
     if (strcmp(key, "local-details") == 0) return "";
-    if (strcmp(key, "wx-layer") == 0) return "true";     // weather ON (wxlayerswitch::On; the image has WX_LAYER_SHIPS)
+    if (strcmp(key, "wx-layer") == 0) return kScenes[S().scene].wx ? "true" : "false";   // the scene's (C1: on)
     return nullptr;
 }
 
@@ -199,11 +226,13 @@ inline void PrintNoted(int k)
 // map's buffers are never allocated in any arm.
 inline bool MapOff() { return true; }
 
-// The table's synthetic hexes (fb0000 .. fb0027) never leave the board: the enrichment scan's region skips them.
+// The table's synthetic hexes (fb0000 up to the list's largest level) never leave the board: the enrichment scan's
+// region skips them. The LARGEST level, never the current one: after a scene drops from 60 to 20, fb0014 .. fb003b stay
+// tracked until they are evicted, and must still never be enriched.
 inline bool IsSceneHex(const String& icao)
 {
     if (icao.length() != 6 || !icao.startsWith("fb00")) return false;
-    return strtol(icao.c_str() + 4, nullptr, 16) < kLevel;
+    return strtol(icao.c_str() + 4, nullptr, 16) < MaxLevel();
 }
 
 // M3-1 and M3-2: the present's stamp, at the push's DMA completion (B) or after the loop's FrameDone (A).
@@ -286,11 +315,18 @@ inline void PrepareScene(int)
     s.nNoted = 0;
 }
 
-// TBL-DEV, once at boot: the device's libm against fixed_traffic.py at kTblT.
+// TBL-DEV, once at boot: the device's libm against fixed_traffic.py at kTblT, one line per distinct level in the
+// order of first appearance (C1's lists: the one n = 40 line).
 inline void PrintTable()
 {
-    Serial.printf("[frame-bench] table h=bend n=%d t=%lu sum=%08lx\n", kLevel, (unsigned long)kTblT,
-                  (unsigned long)fbtable::Sum(atof(kHomeLat), atof(kHomeLon), kLevel, (double)kTblT));
+    for (int k = 0; k < kNumScenes; ++k) {
+        const int n = kScenes[k].level;
+        bool seen = false;
+        for (int j = 0; j < k; ++j) seen = seen || kScenes[j].level == n;
+        if (seen) continue;
+        Serial.printf("[frame-bench] table h=bend n=%d t=%lu sum=%08lx\n", n, (unsigned long)kTblT,
+                      (unsigned long)fbtable::Sum(atof(kHomeLat), atof(kHomeLon), n, (double)kTblT));
+    }
 }
 
 // THE (a) HOOK (the cloud /blips region, on the fetch task, after the REAL GET's ParseBlips): the parsed content is
@@ -308,7 +344,8 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     JsonArray a = doc["a"].to<JsonArray>();
     uint32_t crc = 0;
     char line[96];
-    for (int i = 0; i < kLevel; ++i) {
+    const int n = Level();
+    for (int i = 0; i < n; ++i) {
         const fbtable::Row r = fbtable::At(lat0, lon0, i, (double)now);
         JsonArray e = a.add<JsonArray>();
         e.add(r.hex);
@@ -332,7 +369,7 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     }
     const uint32_t us = micros() - t0;
     if (ok)
-        Serial.printf("[frame-bench] table served n %d t %ld crc %08lx us %lu\n", kLevel, now, (unsigned long)crc,
+        Serial.printf("[frame-bench] table served n %d t %ld crc %08lx us %lu\n", n, now, (unsigned long)crc,
                       (unsigned long)us);
     else
         Serial.println("[frame-bench] table served FAILED");
@@ -401,6 +438,13 @@ inline size_t WxField(uint8_t* data, size_t len)
 inline bool Allocate()
 {
     State& s = S();
+    if (!LevelsOk()) {   // C1-L: a row TBL-HOST never verified is never served; no scene starts
+        static bool said = false;
+        if (!said) Serial.printf("[frame-bench] REFUSED: a scene's level is outside 1..%d, the rows TBL-HOST verifies\n",
+                                 kTableMax);
+        said = true;
+        return false;
+    }
     if (s.buf) return true;
     s.buf = (Rec*)heap_caps_malloc(sizeof(Rec) * kCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s.dumpBuf = (Rec*)heap_caps_malloc(sizeof(Rec) * kCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

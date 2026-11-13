@@ -18,6 +18,10 @@ that must read exactly that row red (--selftest).
   MRK   "[frame-bench]" is in check-no-bench-hooks.sh's MARKERS
   C1-X  the step-C exemption: BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT defined exactly once, inside a FRAME_BENCH region of
         src/AircraftManager.h, and named exactly once more, on the step-C refusal's #if
+  C1-L  a level and a weather answer per scene (docs/frame-time-bench.md, "C1-L"): Scene's two default members; the
+        FRAME_PROFILE include, once, wrapping C1's five-line block; the (a) hook's loop on Level(); IsSceneHex on
+        MaxLevel(); Override's wx-layer line on the scene's wx; Allocate's level refusal; the driver's two scene lines
+        on the scene's level and weather; and kLevel in code only at its definition, Scene's default and Level()
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
 import os
@@ -146,6 +150,40 @@ def rows(f):
     x_ok = len(defs) == 1 and inside(hregs, defs[0]) and len(uses) == 1 and len(on_if) == 1 and elsewhere == 0
     res["C1-X"] = (x_ok, f"exemption defines {len(defs)} (in a region {len(defs) == 1 and inside(hregs, defs[0])}); "
                          f"uses {len(uses)} (on the refusal's #if {len(on_if)}); in other files {elsewhere}")
+
+    H = f[HEADER]
+    code = [l.split("//")[0].rstrip() for l in H]
+    ss, se = func_span(H, "struct Scene {")
+    members = [l.strip() for l in code[ss:se]] if ss >= 0 else []
+    l_members = "uint8_t level = kLevel;" in members and "bool wx = true;" in members
+    inc = [i for i, l in enumerate(code) if l.strip() == '#include "FrameProfileScenes.h"']
+    wrap = (len(inc) == 1 and code[inc[0] - 1].strip() == "#if defined(FRAME_PROFILE)"
+            and [l.strip() for l in code[inc[0] + 1:inc[0] + 3]] == ["#else", "#if defined(BLIPSCOPE_PUSH_TASK)"]
+            and [l.strip() for l in code[inc[0] + 6:inc[0] + 8]] == ["#endif", "#endif"])
+    os_, oe = func_span(H, "inline void OnCloudPoll(")
+    poll = code[os_:oe] if os_ >= 0 else []
+    l_poll = ("const int n = Level();" in [l.strip() for l in poll] and "for (int i = 0; i < n; ++i) {" in
+              [l.strip() for l in poll] and not any(re.search(r"\bkLevel\b", l) for l in poll))
+    hs, he = func_span(H, "inline bool IsSceneHex(")
+    hexb = " ".join(code[hs:he]) if hs >= 0 else ""
+    l_hex = "< MaxLevel();" in hexb and not re.search(r"(?<!Max)Level\(\)", hexb)
+    l_wx = any(l.strip() == 'if (strcmp(key, "wx-layer") == 0) return kScenes[S().scene].wx ? "true" : "false";'
+               for l in code)
+    al, ae = func_span(H, "inline bool Allocate()")
+    alb = [l.strip() for l in code[al:ae]] if al >= 0 else []
+    ref = next((i for i, l in enumerate(alb) if l == "if (!LevelsOk()) {"), -1)
+    buf = next((i for i, l in enumerate(alb) if l == "if (s.buf) return true;"), -1)
+    l_alloc = 0 <= ref < buf and "return false;" in alb[ref:buf]
+    scl = [i for i, l in enumerate(a) if '"[frame-bench] scene S' in l and "level=%d wx=%s rung=%dmi settle" in l]
+    lv = sum(1 for i in scl for j in range(i, i + 4) if re.search(r"\(int\)framebench::kScenes\[(0|next)\]\.level", a[j]))
+    l_drv = len(scl) == 2 and lv == 2
+    kl = [i for i, l in enumerate(code) if re.search(r"\bkLevel\b", l)]
+    kl_ok = (len(kl) == 3 and code[kl[0]].strip().startswith("constexpr int kLevel = 40;")
+             and code[kl[1]].strip() == "uint8_t level = kLevel;" and code[kl[2]].strip().startswith("inline int Level()"))
+    kl_src = sum(1 for rel in SOURCES for l in f[rel] if re.search(r"\bkLevel\b", l.split("//")[0]))
+    parts = {"members": l_members, "profile include": wrap, "hook on Level()": l_poll, "hex on MaxLevel()": l_hex,
+             "wx answer": l_wx, "level refusal": l_alloc, "scene lines": l_drv, "kLevel only at its 3": kl_ok and kl_src == 0}
+    res["C1-L"] = (all(parts.values()), "off: " + (", ".join(k for k, v in parts.items() if not v) or "none"))
     return res
 
 
@@ -198,6 +236,22 @@ def selftest(tree):
     rc |= plant("C1-X, the exemption defined outside its region",
                 sub(AMH, "#endif\n" + END + "\n// THE MAP DRAW BEGIN", "#endif\n" + END +
                     "\n#define BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT 1\n// THE MAP DRAW BEGIN"), {"C1-X"})
+    rc |= plant("C1-L, the served loop on kLevel", sub(HEADER, "for (int i = 0; i < n; ++i) {", "for (int i = 0; i < kLevel; ++i) {"), {"C1-L"})
+    rc |= plant("C1-L, IsSceneHex on the current level", sub(HEADER, "< MaxLevel();", "< Level();"), {"C1-L"})
+    rc |= plant("C1-L, the wx-layer answer fixed at true", sub(HEADER, 'return kScenes[S().scene].wx ? "true" : "false";', 'return "true";'), {"C1-L"})
+    rc |= plant("C1-L, Allocate's level refusal removed", sub(HEADER, "if (!LevelsOk()) {", "if (false) {"), {"C1-L"})
+
+    def unwrap(f):
+        t = "\n".join(f[HEADER])
+        old_a = '#if defined(FRAME_PROFILE)\n#include "FrameProfileScenes.h"   // p4\'s'
+        assert t.count(old_a) == 1
+        a0 = t.index(old_a)
+        a1 = t.index("#if defined(BLIPSCOPE_PUSH_TASK)", a0)
+        t = t[:a0] + t[a1:]
+        assert t.count("#endif\n#endif\nconstexpr int kNumScenes") == 1
+        f[HEADER] = t.replace("#endif\n#endif\nconstexpr int kNumScenes", "#endif\nconstexpr int kNumScenes").split("\n")
+    rc |= plant("C1-L, the FRAME_PROFILE include removed", unwrap, {"C1-L"})
+    rc |= plant("C1-L, a scene line printing kLevel", sub("src/AircraftManager.cpp", "(int)framebench::kScenes[0].level", "framebench::kLevel"), {"C1-L"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 

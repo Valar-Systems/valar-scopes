@@ -2177,9 +2177,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     framebench::PrepareScene(0);
                     fb.measuring = false;
                     fb.phaseStartMs = nowMs;
-                    Serial.printf("[frame-bench] scene S0 %s home=Bend level=%d rung=%dmi settle\n",
-                                  framebench::kKindName[framebench::kScenes[0].kind], framebench::kLevel,
-                                  framebench::kRungMi);
+                    Serial.printf("[frame-bench] scene S0 %s home=Bend level=%d wx=%s rung=%dmi settle\n",
+                                  framebench::kKindName[framebench::kScenes[0].kind], (int)framebench::kScenes[0].level,
+                                  framebench::kScenes[0].wx ? "on" : "off", framebench::kRungMi);
                     applyScene(0);
                 }
             } else if (!fb.measuring) {
@@ -2197,8 +2197,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.scene = next;
                     framebench::PrepareScene(next);
                     fb.phaseStartMs = nowMs;
-                    Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d rung=%dmi settle\n", next,
-                                  framebench::kKindName[framebench::kScenes[next].kind], framebench::kLevel,
+                    Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d wx=%s rung=%dmi settle\n", next,
+                                  framebench::kKindName[framebench::kScenes[next].kind],
+                                  (int)framebench::kScenes[next].level, framebench::kScenes[next].wx ? "on" : "off",
                                   framebench::kRungMi);
                     applyScene(next);
                 } else {
