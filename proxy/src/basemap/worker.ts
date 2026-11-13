@@ -50,7 +50,7 @@ function asQuery(v: unknown): BuildQuery | null {
 /**
  * The builder's one line per build, whatever its outcome (BB1-BB4, BL1): integers only, nothing from the query. A built
  * package or a too_large also says what the budget ladder measured (step 0, docs/basemap-dense.md): the rung that
- * fitted, the cap, and the bytes each layer adds; and (Q-W4, docs/basemap-dense-code.md R2-R5) D2's `steps` and the
+ * fitted, the cap, and the bytes each layer adds (the ruled ladder records no per-rung nt); and (Q-W4, docs/basemap-dense-code.md R2-R5) D2's `steps` and the
  * build-wide `refusedBuilt`. A built package adds the drawn set's `refused` and its sea: `seaLost` = `seaRefused` +
  * `seaCollapsed` + `seaDropped`, with `refused5` (step 5's), `islandsDropped`, `seaRepairs` and `seaRepairVertices`.
  */
@@ -60,7 +60,6 @@ export function buildLine(r: BuildResult, stat: ReadStat, wallMs: number): Recor
   if (!ladder) return line;
   line.rung = ladder.rung;
   line.cap = CAP_BYTES;
-  if (ladder.nt.length === 4) [line.nt0, line.nt1, line.nt2, line.nt3] = ladder.nt as [number, number, number, number];
   const b = ladder.sections;
   Object.assign(line, { secWater: b.water, secRivers: b.rivers, secRoads: b.roads, secPeaks: b.peaks, secPlaces: b.places, secProv: b.provenance });
   const rep = r.ok ? r.report : r.status === 422 ? r.report : null;
