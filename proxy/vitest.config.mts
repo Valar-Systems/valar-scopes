@@ -1,6 +1,20 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+// Wrangler's debug log (docs/wrangler-run.md). vitest-pool-workers loads wrangler's config to build miniflare. With no
+// WRANGLER_LOG_PATH, wrangler appends to ~/.wrangler/logs, so three test runs on 2026-11-13 left files there. Point it
+// at a temp dir made for THIS run and removed at exit, as scripts/wrangler-run.mjs does for every wrangler call. A
+// caller's own WRANGLER_LOG_PATH is respected.
+if (!process.env.WRANGLER_LOG_PATH) {
+  const wranglerLogDir = mkdtempSync(join(tmpdir(), "vitest-wrangler-log-"));
+  process.env.WRANGLER_LOG_PATH = join(wranglerLogDir, "wrangler.log");
+  process.on("exit", () => {
+    try { rmSync(wranglerLogDir, { recursive: true, force: true }); } catch { /* best effort: the OS clears tmp */ }
+  });
+}
 
 // BMPK fixtures are binary (docs/basemap-route.md, MV/ME/MG). A test imports one as a Uint8Array of the file's exact
 // bytes: read here, in Node, at transform time, so the bytes never pass through a text decoder. Tests only --
