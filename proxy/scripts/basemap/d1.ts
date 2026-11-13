@@ -24,6 +24,14 @@ export function assembleStore(cache: string, cachePath: (cache: string, url: str
   const cellsIndex = JSON.parse(readFileSync(join(dir, "index.json"), "utf8")) as { cells: StoreIndex["cells"] };
   const regions = JSON.parse(readFileSync(join(dir, "regions.json"), "utf8")) as Region[];
   if (!Array.isArray(regions) || regions.some((r) => !Array.isArray(r.files))) throw new Error("regions.json is not in index.json's form: re-run `coverage`");
+  // The sea files' regions (Q-W4 part 2): written by the dry run, where the pieces are (each file's box is its pieces' bounding box),
+  // because the coverage step that writes regions.json has no pieces. A manifest with sea files and a sea file in no region is refused:
+  // PROVENANCE would never credit it.
+  const seaUrls = manifest.files.filter((f) => f.layer === "sea").map((f) => f.url);
+  const seaPath = join(dir, "sea-regions.json");
+  const seaRegions = existsSync(seaPath) ? (JSON.parse(readFileSync(seaPath, "utf8")) as Region[]) : [];
+  for (const u of seaUrls) if (!seaRegions.some((r) => Array.isArray(r.files) && r.files.includes(u))) throw new Error(`the sea file ${u} is in no region: re-run the dry run`);
+  regions.push(...seaRegions);
   const listed = new Set(manifest.files.map((f) => f.url));
   for (const r of regions) for (const u of r.files) if (!listed.has(u)) throw new Error(`a region names ${u}, which the manifest does not list`);
   const objects: StoreObject[] = [

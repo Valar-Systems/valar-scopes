@@ -19,6 +19,7 @@ import { CURRENT_KEY } from "../src/basemap/store";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
 import { coverageRows, encodeCoverage } from "./basemap/coverage";
 import { regionsFor } from "./basemap/regions";
+import { coverageSegments, seaExtent, seaPieces, seaSources } from "./basemap/sea-pieces";
 import { BUCKET, WranglerBucket, assembleStore, paceStats, wranglerKv } from "./basemap/d1";
 import { tilesForCoverage } from "./basemap/terrain-plan";
 import { BIT, Layer, encodeTileBits, tileBits } from "./basemap/tile-bits";
@@ -217,6 +218,50 @@ const unzipOne = (zip: Uint8Array, re: RegExp) => {
   return files[names[0]!]!;
 };
 
+/**
+ * The sea (kind 6; docs/basemap-dense-code.md part 2 and PARITY step 2). The ocean and the lakes (scripts/basemap/sea-pieces.ts) cut to
+ * 1-degree pieces over every cell within 250 km of the coverage, the coverage computed HERE from the states file exactly as the coverage
+ * step computes it (I3: no coverage.bin is read, so no stale one can enter, and the cells are a function of the manifest's files only).
+ * One record per piece, numbered in cell order and then source order across the store (store-wide unique, as the builder groups a
+ * piece's parts by (file, record)); part 0 its outer ring, parts 1..n its islands; attrs: area (km2: the outer's shoelace at its first
+ * vertex's cosine, as the prototype store wrote it) and src (ocean, or the lake's name). Each sea file's region is the bounding box of
+ * its pieces (the prototype's definition): PROVENANCE credits a sea file wherever one of its pieces can be drawn.
+ */
+function seaStage(cache: string, log: FetchLog, files: ManifestFile[], index: Map<string, number>) {
+  const one = (layer: string, re: RegExp) => {
+    const fs = files.filter((x) => x.layer === layer && re.test(x.url));
+    if (fs.length !== 1) throw new Error(`${fs.length} ${layer} files matching ${re}, not 1`);
+    return fs[0]!;
+  };
+  const shp = (url: string) => { const { shp: s, dbf } = shapefileFromZip(verifiedBytes(cache, url, log)); return readShapefile(s, dbf); };
+  const oceanF = one("sea", /\/ne_10m_ocean\.zip$/), lakesF = one("sea", /\/ne_10m_lakes\.zip$/), adminF = one("naturalearth", /\/ne_10m_admin_0_countries\.zip$/);
+  const states = shp(one("states", /\/tl_2024_us_state\.zip$/).url).filter((r) => !TERRITORY_FIPS.has(r.attrs["STATEFP"]!));
+  if (states.length !== 51) throw new Error(`${states.length} states + DC, not 51`);
+  const extent = seaExtent(coverageSegments(encodeCoverage(coverageRows(states.map((r) => r.parts.map((xy) => ({ xy })))))));
+  const srcs = seaSources(shp(oceanF.url), shp(lakesF.url), shp(adminF.url));
+  const { byCell, stats: cut } = seaPieces(extent, srcs);
+  const km2 = (r: Array<[number, number]>) => { let s = 0; const c0 = Math.cos((r[0]![1] * Math.PI) / 180); for (let i = 0; i < r.length - 1; i++) s += r[i]![0] * r[i + 1]![1] - r[i + 1]![0] * r[i]![1]; return Math.abs(s / 2) * 111 * 111 * c0; };
+  const box = new Map<string, Box>([[oceanF.url, [Infinity, Infinity, -Infinity, -Infinity]], [lakesF.url, [Infinity, Infinity, -Infinity, -Infinity]]]);
+  const features: Feature[] = [];
+  let record = 0;
+  for (const key of Object.keys(byCell).sort()) for (const p of byCell[key]!) {
+    const f = p.src === "ocean" ? oceanF : lakesF, r = record++, attrs = { area: km2(p.outer), src: p.src }, bb = box.get(f.url)!;
+    [p.outer, ...p.holes].forEach((ring, part) => {
+      const xy = Float64Array.from(ring.flat()), b = bboxOf(xy);
+      bb[0] = Math.min(bb[0], b[0]); bb[1] = Math.min(bb[1], b[1]); bb[2] = Math.max(bb[2], b[2]); bb[3] = Math.max(bb[3], b[3]);
+      features.push({ kind: "sea", file: index.get(f.url)!, record: r, part, attrs, xy });
+    });
+  }
+  const regions = [...box].filter(([, b]) => Number.isFinite(b[0])).map(([url, b]) => ({ box: b, files: [url] }));
+  return {
+    features, regions,
+    stats: { files: 2, records: record, kept: 0, vertices: 0, bytes: 0 },
+    pieceStats: { extentCells: extent.size, cellsWithSea: Object.keys(byCell).length, pieces: cut.pieces, islandsKept: cut.kept, islandsDropped: cut.dropped,
+      oceanOuters: srcs.ocean.length, lakesRead: srcs.stats.lakesRead, lakesSelected: srcs.lakes.length, lakesInsideUs: srcs.stats.inside, lakesSmall: srcs.stats.small,
+      holesNotInOneOuter: srcs.stats.notInOne },
+  };
+}
+
 async function dryRun(cache: string): Promise<void> {
   const planned = plannedFiles(cache);
   const log: FetchLog = loadLog(cache);
@@ -280,6 +325,9 @@ async function dryRun(cache: string): Promise<void> {
   stats.places = { files: 1, records: gaz.length, kept: 0, vertices: 0, bytes: 0 };
   stats.population = { files: 1, records: pops.size, kept: 0, vertices: 0, bytes: 0 };
   add("places", pointsFrom("places", index.get(gazUrl)!, gaz, pops));
+  const sea = seaStage(cache, log, files, index);
+  stats.sea = sea.stats;
+  add("sea", sea.features);
   flush();
   // A filter that keeps nothing from a layer that has records is a parse failure until shown otherwise.
   for (const [layer, s] of Object.entries(stats)) {
@@ -326,12 +374,16 @@ async function dryRun(cache: string): Promise<void> {
   const indexText = JSON.stringify({ cells: entries }) + "\n";
   writeFileSync(join(out, "store", partial ? "manifest.PARTIAL.json" : "manifest.json"), manifestText);
   writeFileSync(join(out, "store", "index.json"), indexText);
+  // The sea files' regions, for d1 to merge into the index: the coverage step (run after this one) writes regions.json, and the sea
+  // pieces exist only here
+  const seaRegionsText = JSON.stringify(sea.regions) + "\n";
+  writeFileSync(join(out, "store", "sea-regions.json"), seaRegionsText);
   storeBytes += Buffer.byteLength(manifestText) + Buffer.byteLength(indexText);
 
   const summary = {
     ...(partial ? { PARTIAL: true, missing: missing.map((f) => f.url), note: "a measurement with these files absent; not a store" } : {}),
     storeId: partial ? `PARTIAL-${storeId}` : storeId, ingestCommit: commit, dirtyTree: dirty, files: files.length,
-    layers: stats,
+    layers: stats, seaPieces: sea.pieceStats,
     cells: { count: entries.length, byLevel: levels, splitLevel0Cells: splitCells, largestBytes: largest, over24MB: oversize },
     manifestBytes: Buffer.byteLength(manifestText), indexBytes: Buffer.byteLength(indexText),
     vectorStoreBytes: storeBytes,
@@ -421,7 +473,8 @@ async function coverageAndTiles(cache: string): Promise<void> {
 
 async function tileBitsCmd(cache: string): Promise<void> {
   const log = loadLog(cache);
-  const ne = plannedFiles(cache).filter((f) => f.layer === "naturalearth");
+  // the ocean is the sea layer's since Q-W4 part 2 (I1); land and admin-0 stay "naturalearth"
+  const ne = plannedFiles(cache).filter((f) => f.layer === "naturalearth" || f.layer === "sea");
   const read = (re: RegExp) => {
     const f = ne.find((x) => re.test(x.url));
     if (!f) throw new Error(`no Natural Earth source matching ${re}`);
