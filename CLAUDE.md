@@ -1418,7 +1418,7 @@ The first attempt at that rehearsal silently failed to patch the file, and the
 unsabotaged "9 passed" was nearly reported as the rehearsal. Print the failure
 count before and after; if they match, the sabotage is the thing that is broken.
 
-The check is one line and it is always available:
+The check is always available:
 
 | claim | the artifact |
 |---|---|
