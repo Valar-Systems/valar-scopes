@@ -31,6 +31,16 @@
 // page that never received one. So the opener must receive the sentinel by postMessage,
 // or the result is BLIND (exit 2), never a pass.
 //
+// THE CHECK WAITS FOR THE PAGE'S ANSWER, NOT A FIXED 2.5 s (docs/locate-page-chrome-wait.md,
+// 2026-11-13). On a cold CI runner the first case's getCurrentPosition sometimes answered
+// after the old fixed window, and the case read BLIND with the popup still on its ask. The
+// wait now ends when the popup shows an answer, bounded by the page's own timeout + 2 s, and
+// the 2.5 s window for late leaks counts from that answer. Every case prints its phase times.
+//
+// NO REAL POSITION, EVER. Every case overrides geolocation: to the sentinel, or (the anchor
+// row) to "position unavailable". Chrome is never left to ask the machine where it is, and
+// a received message is printed as its type and whether it is the sentinel, never its values.
+//
 // RUN:  node scripts/check-locate-page.mjs [--selftest] [--har <file>]
 // EXIT: 0 no request carries the position   1 one does (or tried)   2 blind / rig broken
 
@@ -122,6 +132,11 @@ function carries(text) {
 // which stays red: exit 2, never a pass (docs/locate-page-chrome-wait.md).
 const PORT_WAIT_TRIES = 300;
 const LAUNCHES = 2;
+// After the click: wait for the page's answer for up to its own timeout + ANSWER_MARGIN_MS (so the page's
+// timeout always gets to answer), then LATE_MS more for a leak that follows the answer.
+const ANSWER_MARGIN_MS = 2000;
+const LATE_MS = 2500;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function launchChrome() {
   const profile = mkdtempSync(join(tmpdir(), "locwire-"));
@@ -142,6 +157,7 @@ async function waitForPort(profile) {
 }
 
 async function runVariant(mod, variant) {
+  const T = { start: Date.now() };   // phase times (ms since epoch); printed by grade() as "timing:"
   let { chrome, profile } = launchChrome();
   try {
     let port = await waitForPort(profile);
@@ -153,7 +169,8 @@ async function runVariant(mod, variant) {
       ({ chrome, profile } = launchChrome());
       port = await waitForPort(profile);
     }
-    if (!port) return { blind: `Chrome never opened its debugging port (${LAUNCHES} launches)` };
+    if (!port) return { blind: `Chrome never opened its debugging port (${LAUNCHES} launches)`, timing: T };
+    T.port = Date.now();
     const ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
     const ws = new WebSocket(ver.webSocketDebuggerUrl);
     await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
@@ -190,7 +207,9 @@ async function runVariant(mod, variant) {
         await send("Network.enable", {}, s);
         await send("Audits.enable", {}, s);
         await send("Page.enable", {}, s);
-        if (!variant.noGeo) await send("Emulation.setGeolocationOverride", SENTINEL, s);
+        // Always overridden. The anchor row (noGeo) gets NO coordinates, which CDP emulates as "position
+        // unavailable": no sentinel, and Chrome never asks the machine's real location provider.
+        await send("Emulation.setGeolocationOverride", variant.noGeo ? {} : SENTINEL, s);
         await send("Runtime.runIfWaitingForDebugger", {}, s);
       } else if (msg.method === "Fetch.requestPaused") {
         const r = msg.params.request;
@@ -230,7 +249,7 @@ async function runVariant(mod, variant) {
     const { result: { targetId: openerId } } = await send("Target.createTarget", { url: "about:blank" });
     for (let i = 0; i < 50 && !sessions[openerId]; i++) await new Promise((r) => setTimeout(r, 50));
     const openerSid = sessions[openerId];
-    if (!openerSid) return { blind: "the opener tab never attached" };
+    if (!openerSid) return { blind: "the opener tab never attached", timing: T };
     await send("Page.navigate", { url: OPENER }, openerSid);
 
     // the popup: wait for its session and its button, then click it
@@ -242,31 +261,41 @@ async function runVariant(mod, variant) {
       popupSid = popupId ? sessions[popupId] : null;
       if (!popupSid) await new Promise((r) => setTimeout(r, 100));
     }
-    if (!popupSid) return { blind: "the helper popup never opened", requests, frames };
+    if (!popupSid) return { blind: "the helper popup never opened", requests, frames, timing: T };
+    T.popup = Date.now();
     let clicked = false;
     for (let i = 0; i < 50 && !clicked; i++) {
       const r = await send("Runtime.evaluate", { expression: "(function(){var b=document.getElementById('go');if(!b||b.disabled)return false;b.click();return true;})()", returnByValue: true }, popupSid);
       clicked = r.result?.result?.value === true;
       if (!clicked) await new Promise((r) => setTimeout(r, 100));
     }
+    T.click = Date.now();
     // Read the popup's own line WHILE IT IS OPEN: on success it says "Sent" and closes
     // itself 400 ms later, so a read after the wait finds nothing (the first version of
     // the wrong-target case went BLIND on exactly that).
+    // The wait ends on the page's ANSWER -- any of its result lines -- not on a fixed 2.5 s:
+    // on 2026-11-13 a cold first case answered after 2.5 s twice and read BLIND. The bound is
+    // the page's own timeout + a margin, so the page's "took too long" always gets to answer.
+    const C = mod.LOCATE_COPY;
+    const answers = new Set([C.sent, C.denied, C.unavailable, C.timeout]);
+    const answerWait = mod.LOCATE_TIMEOUT_MS + ANSWER_MARGIN_MS;
+    if (!Number.isFinite(answerWait) || answerWait <= 0) throw new Error(`answer wait unusable: ${answerWait}`);
     let popupMsg = "(popup gone)";
-    const t0 = Date.now();
-    while (Date.now() - t0 < 2500) {
+    while (Date.now() - T.click < answerWait) {
       const pm = await send("Runtime.evaluate", { expression: "(document.getElementById('msg')||{}).textContent||''", returnByValue: true }, popupSid);
       const v = pm.result?.result?.value;
       if (typeof v === "string" && v) popupMsg = v;
-      if (popupMsg === mod.LOCATE_COPY.sent) break;
-      await new Promise((r) => setTimeout(r, 50));
+      if (answers.has(popupMsg)) { T.answer = Date.now(); break; }
+      await sleep(50);
     }
-    await new Promise((r) => setTimeout(r, Math.max(0, 2500 - (Date.now() - t0))));   // any late leak
+    const lateFrom = T.answer ?? Date.now();
+    await sleep(Math.max(0, LATE_MS - (Date.now() - lateFrom)));   // any late leak, counted from the answer
     const got = await send("Runtime.evaluate", { expression: "JSON.stringify(window.__got)", returnByValue: true }, openerSid);
     const messages = JSON.parse(got.result?.result?.value || "[]");
     ws.close();
+    T.end = Date.now();
     return { requests, attempts: [...attempts.values()], cspBlocked, frames, messages, clicked, popupMsg,
-             openerSid, popupSid };
+             openerSid, popupSid, timing: T };
   } finally {
     chrome.kill();
     await new Promise((r) => setTimeout(r, 300));
@@ -274,8 +303,45 @@ async function runVariant(mod, variant) {
   }
 }
 
+/** The popup's line as a NAME from the page's own copy, never as raw text: a line that is not one of the page's
+ *  sentences is reported by its length only, so nothing a page writes there can reach this output. */
+function popupState(mod, text) {
+  if (text === "(popup gone)") return "popup gone";
+  const k = Object.keys(mod.LOCATE_COPY).find((key) => mod.LOCATE_COPY[key] === text);
+  return k || `unrecognised text, ${String(text).length} chars, not printed`;
+}
+
+/** Received messages as type, origin and WHETHER they are the sentinel. Never a value: on a developer machine a
+ *  position that is not the sentinel could be a real one. */
+function describeMessages(messages) {
+  if (!messages.length) return "none";
+  return messages.map((m) => {
+    const d = m.data && typeof m.data === "object" ? m.data : null;
+    const kind = d && typeof d.type === "string" ? d.type.slice(0, 40) : `(${typeof m.data})`;
+    const pos = !d ? "" : ("lat" in d || "lon" in d)
+      ? (d.lat === SENTINEL.latitude.toFixed(4) && d.lon === SENTINEL.longitude.toFixed(4)
+        ? ", the sentinel" : ", a position that is NOT the sentinel (not printed)")
+      : typeof d.code === "number" ? `, code ${d.code}` : "";
+    return `${kind} from ${String(m.origin).slice(0, 60)}${pos}`;
+  }).join("; ");
+}
+
+/** "timing: port 0.8 s, popup 0.4 s, click 0.1 s, answer 0.2 s (sent), case 3.4 s" -- a phase never reached prints "-". */
+function timingLine(mod, run) {
+  const T = run.timing || {};
+  const s = (a, b) => (T[a] && T[b] ? `${((T[b] - T[a]) / 1000).toFixed(1)} s` : "-");
+  const answer = T.click ? (T.answer ? s("click", "answer") : "none") : "-";
+  const state = "popupMsg" in run ? ` (${popupState(mod, run.popupMsg)})` : "";
+  const end = T.end || Date.now();
+  return `    timing: port ${s("start", "port")}, popup ${s("port", "popup")}, click ${s("popup", "click")}, ` +
+         `answer ${answer}${state}, case ${((end - T.start) / 1000).toFixed(1)} s`;
+}
+
 function grade(name, run, mod, variant = {}, quiet = false) {
-  if (run.blind) { if (!quiet) console.log(`${name}: BLIND -- ${run.blind}`); return 2; }
+  if (run.blind) {
+    if (!quiet) { console.log(`${name}: BLIND -- ${run.blind}`); if (run.timing) console.log(timingLine(mod, run)); }
+    return 2;
+  }
   const sent = run.requests.filter((r) => carries(r.url + "\n" + r.headers + "\n" + r.body).length)
     .concat(run.frames.filter((f) => carries(f).length).map((f) => ({ url: "ws: " + f.slice(0, 60) })));
   const tried = run.attempts.filter((a) => carries(a.url + "\n" + JSON.stringify(a.headers) + "\n" + a.body).length);
@@ -292,10 +358,11 @@ function grade(name, run, mod, variant = {}, quiet = false) {
     for (const c of sent) console.log(`    LEAK (left the browser): ${(c.method || "")} ${c.url.slice(0, 120)}`);
     for (const a of tried) console.log(`    ATTEMPT${a.blockedReason ? ` (blocked: ${a.blockedReason})` : ""}: ${a.method} ${a.url.slice(0, 120)}`);
     for (const u of cspTried) console.log(`    CSP REPORT: ${u.slice(0, 120)}`);
+    console.log(timingLine(mod, run));
     if ((!anchor && !variant.wrongTarget) || process.env.LOCWIRE_DEBUG) {
-      console.log(`    clicked=${run.clicked} messages=${JSON.stringify(run.messages).slice(0, 300)}`);
+      console.log(`    clicked=${run.clicked} messages: ${describeMessages(run.messages)}`);
       for (const r of run.requests) console.log(`    req ${r.type} ${r.method} ${r.url.slice(0, 110)}`);
-      if (run.popupMsg) console.log(`    popup said: ${run.popupMsg}`);
+      if (run.popupMsg) console.log(`    popup said: ${popupState(mod, run.popupMsg)}`);
     }
   }
   const leaked = sent.length || tried.length || cspTried.length;
@@ -303,7 +370,7 @@ function grade(name, run, mod, variant = {}, quiet = false) {
     // Delivered to a page that is not ?o= -> the target origin is not enforced.
     if (located.length) return 1;
     // Nothing delivered is only meaningful if the helper actually posted.
-    if (run.popupMsg !== mod.LOCATE_COPY.sent) { if (!quiet) console.log(`    BLIND: the popup never said it sent (${run.popupMsg})`); return 2; }
+    if (run.popupMsg !== mod.LOCATE_COPY.sent) { if (!quiet) console.log(`    BLIND: the popup never said it sent (${popupState(mod, run.popupMsg)})`); return 2; }
     return leaked ? 1 : 0;
   }
   if (!anchor) return 2;
@@ -339,11 +406,19 @@ function writeHar(path, run) {
 if (!CHROME) { console.log("BLIND: no Chrome/Chromium found (set CHROME=...)"); process.exit(2); }
 const mod = await loadModule();
 const FETCH_PLANT = 'fetch("/x?lat="+c.latitude+"&lon="+c.longitude).catch(function(){});';
+const BEACON_PLANT = 'navigator.sendBeacon("/x",JSON.stringify({lat:c.latitude,lon:c.longitude}));';
 const SUCCESS_POST = 'acc:Math.round(c.accuracy)},o);';
+// A SLOW ANSWER, on purpose: the page's getCurrentPosition is wrapped so its success callback runs late. Under the
+// old fixed 2.5 s window this read BLIND with the popup on its ask -- the CI symptom of 2026-11-13.
+const S1_DELAY_MS = 5000;
+const SCRIPT_HEAD = "(function(){\nvar ORIGIN_RE=";
+const delayAnswer = (ms) => [SCRIPT_HEAD,
+  "(function(){var g=navigator.geolocation,f=g.getCurrentPosition.bind(g);" +
+  `g.getCurrentPosition=function(s,e,o){f(function(p){setTimeout(function(){s(p);},${ms});},e,o);};})();\n` + SCRIPT_HEAD];
 
 if (process.argv.includes("--selftest")) {
   const cases = [
-    ["P1 sendBeacon plant, CSP removed", { plant: 'navigator.sendBeacon("/x",JSON.stringify({lat:c.latitude,lon:c.longitude}));', csp: false }, 1],
+    ["P1 sendBeacon plant, CSP removed", { plant: BEACON_PLANT, csp: false }, 1],
     ["P2 Image plant, CSP removed", { plant: 'new Image().src="/p?"+c.latitude;', csp: false }, 1],
     // Was "want 0" until 2026-10-06: the CSP stopped the image, and the check called that a
     // pass. The page TRIED; that is the defect, whatever stopped it.
@@ -352,7 +427,12 @@ if (process.argv.includes("--selftest")) {
     ["A5 fetch(position) plant, CSP removed", { plant: FETCH_PLANT, csp: false }, 1],
     ["A2 opener is not ?o= -- real page", { wrongTarget: true }, 0],
     ["A3 opener is not ?o= -- target \"*\" planted", { wrongTarget: true, replace: [SUCCESS_POST, 'acc:Math.round(c.accuracy)},"*");'] }, 1],
-    ["BLIND geolocation override removed", { noGeo: true }, 2],
+    // The anchor: Chrome answers "position unavailable", so the opener never gets the sentinel -> BLIND, never a pass.
+    // (Until 2026-11-13 the override was simply removed; on a developer machine that let Chrome ask for a REAL fix.)
+    ["BLIND no sentinel (Chrome answers position unavailable)", { noGeo: true }, 2],
+    ["S1 answer delayed 5 s, sendBeacon plant, CSP removed", { plant: BEACON_PLANT, replace: delayAnswer(S1_DELAY_MS), csp: false }, 1],
+    // P1 again, as the LAST case: a cold first row and a defect of P1's own read differently here.
+    ["P1 again, last -- sendBeacon plant, CSP removed", { plant: BEACON_PLANT, csp: false }, 1],
   ];
   let rc = 0;
   for (const [name, variant, want] of cases) {
