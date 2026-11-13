@@ -4692,6 +4692,17 @@ const String ConfigurationWebServer::GetStoredString(const char* key)
     }
 #endif
     // THE FRAME BENCH END
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_PROFILE)
+    // P1's drawing keys at v20's defaults (docs/frame-profile.md section 0 (e)); p4's region, after map-client's
+    if (const char* pv = framebench::InScene() ? framebench::ProfileOverride(key, framebench::S().scene) : nullptr) {
+        framebench::NoteKey(key, pv, true);
+        return String(pv);
+    }
+#endif
+#endif
+    // THE FRAME BENCH END
     Preferences prefs;
     prefs.begin("config", true);
     // isKey() probes without logging; calling getString() on a missing key would spam

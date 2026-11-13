@@ -72,6 +72,7 @@ struct State {
     uint16_t seen = 0;
     bool inLoop = false;
     bool planted = false;        // P-CTRL's plant has run on this frame
+    int answeredScene = -1;      // the last scene whose answered line was printed
     uint32_t cyc[kAccs] = {};
     uint32_t mhz = 0;
 };
@@ -177,6 +178,18 @@ inline void Commit(uint32_t frameUs)
 {
     State& p = P();
     framebench::State& fb = framebench::S();
+    // Section 0 (e)'s row: once per scene, in the settle after its Initialise, the DISTINCT target keys answered.
+    if (fb.scene >= 0 && !fb.done && !fb.measuring && fb.scene != p.answeredScene) {
+        p.answeredScene = fb.scene;
+        const uint32_t bits = framebench::g_answered[fb.scene];
+        char missing[200];
+        int o = snprintf(missing, sizeof missing, "%s", "");
+        for (int i = 0; i < framebench::kTargetKeys; ++i)
+            if (!(bits & (1u << i)) && o < (int)sizeof missing - 20)
+                o += snprintf(missing + o, sizeof missing - o, " %s", framebench::kTargetKey[i]);
+        Serial.printf("[frame-profile] answered S%d %d of %d; missing:%s\n", fb.scene, framebench::Distinct(bits),
+                      framebench::kTargetKeys, o ? missing : " none");
+    }
     if (!fb.measuring || p.buf == nullptr || fb.n <= 0 || fb.n == p.lastN) return;
     p.lastN = fb.n;
     if (!Build(frameUs, p.buf[fb.n - 1])) p.partial++;
