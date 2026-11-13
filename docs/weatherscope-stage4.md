@@ -2252,3 +2252,32 @@ Friday 11-13, outside both windows.
 
 Every other row (R0, B0, B-probe, B-claim, D-S1, S2, S3, D-P1, D-P4, D2, D-P3, D4, D5), the rollback rule and the
 outcome table stand as in S4.27c and S4.27c′.
+
+#### S4.27c‴, 2026-11-13 16:46Z: D-P1's day counts were off by one; the formula stands (amended before any read)
+
+**The report.** uk-data, 16:44:57Z: D-P1's parenthetical numbers ("79 before 11-13T17:25:54Z, 80 after") are off by
+one, its own arithmetic. The row's formula, ageDays = floor(t − builtAt), is right.
+
+**Checked independently, 16:45:29Z, in Python with exact datetimes:**
+
+| builtAt | at t | floor(t − builtAt) |
+|---|---|---|
+| production, `2026-08-26T17:25:54.476Z` | 11-13T17:00:00Z / 17:25:54.475Z | 78 / 78 |
+| | 11-13T17:25:54.477Z / 23:31:26.818Z | 79 / 79 |
+| | 11-14T17:25:54.477Z | 80 |
+| staging, `2026-08-25T23:31:26.817Z` | 11-13T17:00:00Z / 23:31:26.816Z | 79 / 79 |
+| | 11-13T23:31:26.818Z | 80 |
+
+- Under the row as frozen, every production read in this slot would have graded off and rolled production back over
+  an arithmetic slip. No production `routes` value has ever been read: the old Worker has no `routes` field.
+
+| row | was | now |
+|---|---|---|
+| D-P1 | ageDays: 79 before 11-13T17:25:54Z, 80 after | **ageDays = floor(t − builtAt) at the read's time t:** 78 before `2026-11-13T17:25:54.476Z`, 79 from then, 80 from `2026-11-14T17:25:54.476Z`. Every other field is unchanged: `builtAt` `2026-08-26T17:25:54.476Z`, `rows` 619103, `stale` true, `maxAgeDays` 14 |
+| D-P1, boundary guard (new) | none | no D-P1 read between 17:25:24Z and 17:26:24Z. A read that lands in that window anyway is graded on either 78 or 79 and says so |
+| D-P3 | the smoke's routes line, "A d old" | A agrees with D-P1's formula at the smoke's own time, with the same boundary guard |
+| D-S1 | 79 before 11-13T23:31:26Z, 80 after | unchanged: correct as written |
+
+**D1 waits for the reviewer's ruling on this amendment.** The reads before it (R-main, R0, B0, B-probe, B-claim) and
+staging's rows (S1, D-S1, S2, S3) do not depend on it and may run first. R0 and B0 are re-read right before D1 if more
+than 15 minutes pass.
