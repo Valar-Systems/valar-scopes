@@ -588,3 +588,46 @@ The proxy: **13,889 events, 4,333 invocations (3.205 events an invocation), 24,3
 - **1,175 `upstream_skip` events in the hour.**
 - Whether these are per-isolate breakers each changing state, or a breaker flapping, is not something this read can
   tell.
+
+### The breaker and skip breakdown (registered 2026-11-13 ~01:15Z, before its reader exists; ahead of the bill, as a health question)
+
+**Why first** (the reviewer, 01:06:17Z): 362 `breaker` events and 1,175 `upstream_skip` events in one hour need
+explaining before anything touches those lines. A breaker really flapping on a feed is reported at once.
+
+**What the source says the two lines mean** (`proxy/src/upstreams/types.ts:52-110`, `chain.ts:349-650`,
+`weatherscope/fetch.ts:41-127`):
+- **The breakers are per isolate:** a module-level `Map`. The threshold is 3 consecutive failures, and the cooldown is
+  30 s (`FAILURE_THRESHOLD`, `OPEN_COOLDOWN_MS`).
+- **A `breaker` line is written on each transition.** `open` is the third consecutive failure; `reopened` is any
+  failure while already open (a half-open probe failing, or a call made anyway); `closed` is the first success after
+  open.
+- **The chain's TERMINAL feed is called even while its breaker is open** (`chain.ts:427`, `:488`). So a failing
+  terminal feed writes a `reopened` on every failed request, not once per 30 s cooldown.
+- **`upstream_skip` reasons:** `disabled_by_config` (adsbdb's route, `ROUTE_ADSBDB_ENABLED = "false"` in production,
+  `wrangler.toml:367`), `breaker_open` (`adsb_lol_route`, `adsbdb_route`, the NWS ids), and `hold_4xx` (a feed with a
+  4xx hold: adsb.fi).
+
+**What each explanation would look like in the data:**
+
+| explanation | `open` | `reopened` | `closed` | over the hour |
+|---|---|---|---|---|
+| a continuing outage of one source (on a terminal feed, one `reopened` per failed request) | about one per isolate that meets it | nearly all | about none | steady across the hour |
+| isolate starts during a continuing outage | one per new isolate | the rest | about none | `open` scattered across the hour |
+| **flapping** | many | some | **about as many as `open`** | open and close alternating |
+
+**The read:** the same hour, `[2026-11-13T00:00Z, 01:00Z)`, with the same reader pattern as `logs_by_kind.py` (in
+memory, counts only, no wrangler, the token file, error paths print the type only). It prints:
+- `breaker` events by (id, state), with each group's count, its maximum `consecutiveFailures`, and its count in each
+  10-minute slice of the hour;
+- `upstream_skip` events by (id, reason), with counts and the same slices.
+
+Ids, states and reasons are printed only from the source's own lists, and anything else as one `unknown` bucket. The
+reader is committed with its sha before it runs, and it runs twice, at least 60 s apart.
+
+| row | predicted | if not |
+|---|---|---|
+| **B1** | not flapping: `closed` is **at most 10%** of `breaker` events, and **at least 80%** are `reopened` | **B2:** any id with `closed` at 25% or more of its events and `open`/`closed` alternating across the slices is FLAPPING: reported to the reviewer at once, before anything else |
+| **B3** | **one id carries at least 90%** of `breaker` events | the outage is spread over several sources: each is reported with its states |
+| **S1** | `(adsbdb_route, disabled_by_config)` is **at least 60%** of `upstream_skip` events: every route lookup that adsb.lol's routeset leaves empty falls through to a source switched off by config | the skips are mostly something else: each (id, reason) is reported with its count |
+| **S2** | `hold_4xx` skips exist for adsb.fi (the hour had 30 `hold` events) | adsb.fi's holds do not reach the chains as skips: report it |
+| escape | an id, state or reason outside the source's lists; the two reads disagree; a sampled hour | the instrument is unreliable at this scale: stop and report, with no reading |
