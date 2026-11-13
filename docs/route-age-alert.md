@@ -58,9 +58,20 @@ Unchanged:
 
 ### 3.2 CI
 
-The count is predicted in a commit of its own before the code is pushed. It is read from main's push CI at this
-branch's base and from the workflows' `paths` filters, the method #695 used. The prediction gets an outside-the-set
-row.
+Predicted 2026-11-13 ~17:15Z, in a commit of its own, before the code commit is pushed.
+
+**The baseline is taken after the last workflow change.** The last change to `.github/workflows/` on main is #698
+(aa40aa43, `workers.yml`, 3 lines added and 2 removed, no new job). #698's own head ran **36 check-runs: 34 success and
+2 skipped**. #695 and #697, both before it, ran the same 36. This PR's base is 86077c7f, which is aa40aa43 plus one docs
+commit (#699).
+
+| row | predicted |
+|---|---|
+| **CI-B1**, the code commit (touches `proxy/**` and `docs/`) | **36 check-runs = 34 success + 2 skipped (promote, version; release-only) + 0 other.** Four `pull_request` workflows, all success: device-ids, firmware, no-traffic-captures, workers. `account-budget` does not run, because none of its paths are touched |
+| outside the set | any other total or split: the baseline moved or a job changed. Stop and decide; never re-baseline after the fact |
+
+Counts are read from a FINISHED run, twice, at least 60 s apart. The tested commit comes from the checkout log's "HEAD
+is now at".
 
 ### 3.3 After the deploy (the reviewer's slot; read twice, at least 60 s apart)
 
