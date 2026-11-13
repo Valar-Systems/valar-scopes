@@ -22,7 +22,8 @@ withheld as implausible for the aircraft's position.
 3. **The mirror is the standing-data snapshot of 2026-08-25, and refreshing it recovers little** (measured, section 6).
    Its upstream publishes changes daily. No workflow runs the route ingest, and `meta:routes` is read by nothing in
    `proxy/src` (section 2.1).
-   - Of the 14,770 distinct callsigns that missed the mirror in a week, **1,304 (8.8%)** are in today's upstream.
+   - Of the 14,765 distinct callsigns that missed the mirror in a week, **1,304 (8.8%)** are in today's upstream;
+     that is 2-4% of all `/enrich` requests.
    - Most misses are callsigns no route table carries: on 2026-11-12, **46% were US N-numbers**.
    - A refresh costs about $0.88 once in KV writes for production alone, or about $3.72 with staging first.
 4. **Of the paid APIs, only AeroDataBox's published terms fit a per-callsign lookup shown on our devices on their face.**
@@ -332,13 +333,13 @@ separate subscription, outside the Cloudflare overage allowance, so it is the ow
 
 A read-only follow-up, ruled by the reviewer: counts only, never a callsign or a key.
 
-**How it was measured:**
-- Each `/enrich` request's `cs` came from Workers Logs (the request URL; unsampled, ABR level 1 throughout).
-- It was normalised the way `enrich.ts` does (trim, upper case, `^[A-Z0-9]{2,8}$`).
-- It was then checked against two snapshots:
-  - **the mirror**, standing-data `dff309eb`;
-  - **today's upstream**, `24ce5424` of 2026-11-12T04:49Z.
-- `resolveRoute` looks up exactly `rt:<cs>`, so membership in the snapshot is the lookup.
+**One definition, one source** (agreed with the reviewer's 5c reading, 2026-11-13):
+- **The source:** Workers Logs, unsampled (ABR level 1 throughout).
+- **A request** is a distinct `$metadata.requestId` whose URL path contains `/enrich/`.
+- **Its `cs`** is normalised the way `enrich.ts` does it (trim, upper case, `^[A-Z0-9]{2,8}$`).
+- **A miss** is a request whose `cs` is not a key of the mirror's snapshot (standing-data `dff309eb`). That is
+  exactly one `adsbdb_route disabled_by_config` skip line, because `resolveRoute` looks up exactly `rt:<cs>`.
+- **Today's upstream** is `24ce5424`, of 2026-11-12T04:49Z.
 
 **Anchors:**
 - **The tables.** The reader's parse reproduces the ingest's own usable counts exactly: 619,103 and 628,956.
@@ -347,32 +348,44 @@ A read-only follow-up, ruled by the reviewer: counts only, never a callsign or a
 - **Control: every hit observed is in the snapshot.** A `route_stale` line is only written after a mirror hit.
   - Across three hours (2026-11-07T18Z, 11-10T12Z, 11-13T00Z), **624 of 624** such callsigns are in `dff309eb`, and
     0 are outside it.
-- **NOT reconciled: the reviewer's hour.** For 2026-11-13T00Z the reviewer reported 36.8% mirror misses and 17.0%
-  withheld. This read, over 6,129 `/enrich` requests in that hour, gives:
-  - **55.0%** with a callsign absent from the mirror;
-  - 9.2% with no callsign;
-  - 5.5% withheld (338 `route_stale` lines).
-  - The two reads' definitions or denominators differ in a way not yet known. Both are reported; neither is chosen.
+- **The hour 2026-11-13T00Z, reconciled three ways:**
+  - **1,924 requests and 733 misses (38.1%).** 733 is exactly 5c's count of skip lines.
+  - Analytics Engine's 1,994 for the same hour is an estimate: the Worker writes 1 in 10 HIT points.
+  - Logs splits the hour into 1,668 HIT and 254 other, and AE's weight-1 estimate is exactly 254. So the 70-request
+    gap is that sampling.
+  - The earlier 36.8% (733/1,994) mixed the two sources. It is retired.
+
+**My miss, recorded.** This section's first version (commit `7c2cc316`) counted Logs EVENTS as requests. Every event
+of an invocation carries the request URL: the invocation event plus its spans, about 3.2 per request. So every
+request-weighted figure in that version was wrong, and an anchor that disagreed with the reviewer's hour was what
+showed it (6,129 "requests" against 1,924). Its distinct-callsign figures were sets and were right. The table below is
+the recount by `requestId`.
 
 ### 6.1 Per day (2026-11-06 is partly past Logs retention: 18 of 24 hours)
 
-| day | hours | `/enrich` requests | no `cs` | distinct `cs` | requests missing the mirror | distinct misses | of those, in today's upstream | missing requests a refresh recovers | `route_stale` lines |
-|---|---|---|---|---|---|---|---|---|---|
-| 11-06 | 18 | 65,290 | 6,136 | 8,815 | 41,978 (64.3%) | 3,455 | 650 | 3,515 | 2,028 |
-| 11-07 | 24 | 71,136 | 5,484 | 10,558 | 41,092 (57.8%) | 3,454 | 570 | 3,253 | 3,192 |
-| 11-08 | 24 | 61,748 | 4,066 | 9,880 | 36,432 (59.0%) | 3,442 | 645 | 3,562 | 2,656 |
-| 11-09 | 24 | 78,827 | 4,904 | 12,987 | 43,493 (55.2%) | 4,044 | 690 | 3,811 | 3,940 |
-| 11-10 | 24 | 70,403 | 5,207 | 10,687 | 40,386 (57.4%) | 3,442 | 466 | 2,571 | 3,134 |
-| 11-11 | 24 | 89,135 | 7,122 | 11,472 | 56,707 (63.6%) | 4,159 | 415 | 2,248 | 3,160 |
-| 11-12 | 24 | 88,574 | 7,221 | 11,541 | 51,246 (57.9%) | 3,834 | 456 | 2,510 | 3,957 |
+| day | `/enrich` requests | no `cs` | distinct `cs` | requests that miss | distinct misses | of those, in today's upstream | requests a refresh recovers | withheld (`route_stale`) |
+|---|---|---|---|---|---|---|---|---|
+| 11-06 | 19,112 | 2,929 | 8,702 | 8,867 (46.4%) | 3,428 | 632 | 762 (4.0%) | 2,003 (10.5%) |
+| 11-07 | 21,731 | 2,563 | 10,558 | 8,643 (39.8%) | 3,454 | 570 | 719 (3.3%) | 3,192 (14.7%) |
+| 11-08 | 18,859 | 1,946 | 9,880 | 7,724 (41.0%) | 3,442 | 645 | 789 (4.2%) | 2,656 (14.1%) |
+| 11-09 | 24,636 | 2,374 | 12,987 | 9,182 (37.3%) | 4,044 | 690 | 847 (3.4%) | 3,940 (16.0%) |
+| 11-10 | 21,773 | 2,537 | 10,687 | 8,574 (39.4%) | 3,442 | 466 | 572 (2.6%) | 3,134 (14.4%) |
+| 11-11 | 26,300 | 3,369 | 11,472 | 12,043 (45.8%) | 4,159 | 415 | 499 (1.9%) | 3,160 (12.0%) |
+| 11-12 | 27,278 | 3,484 | 11,541 | 10,894 (39.9%) | 3,834 | 456 | 560 (2.1%) | 3,957 (14.5%) |
+
+Percentages are of that day's `/enrich` requests.
 
 **Over the window** (2026-11-06T06Z to 11-13T01Z):
-- 31,756 distinct callsigns, of which **14,770 missed the mirror (46.5%)**;
+- 31,743 distinct callsigns, of which **14,765 missed the mirror (46.5%)**;
 - **1,304 of the misses (8.8%) are in today's upstream**;
-- 5,884 distinct callsigns were withheld as stale; 20,654 were either missed or withheld.
+- 5,878 distinct callsigns were withheld as stale; 20,643 were either missed or withheld.
+- The first run read 31,756 / 14,770 / 5,884 / 20,654. The only day that differs between the two runs is 11-06,
+  whose earliest hour aged further past retention before the second run. Every full day is identical.
 
-**What a refresh recovers:** 10-19% of a day's distinct misses, and 4-10% of a day's missing requests. On 2026-11-12
-that is 2,510 of 88,574 `/enrich` requests (2.8%).
+**What a refresh recovers:**
+- 10-19% of a day's distinct misses;
+- 4-10% of a day's missing requests;
+- **2-4% of all `/enrich` requests** (2.1% on 2026-11-12).
 
 ### 6.2 What the misses are (2026-11-12, 3,834 distinct misses; callsign shapes, counts only)
 
@@ -386,7 +399,7 @@ that is 2,510 of 88,574 `/enrich` requests (2.8%).
 So **a refresh only reaches the known-airline row.** Nearly half the misses are general-aviation registrations, which
 no schedule table carries. FAA SWIM flight plans (section 2.9) are the one source read that could hold IFR ones.
 
-### 6.3 AeroDataBox at today's fleet
+### 6.3 AeroDataBox, at today's fleet and at 600 boards
 
 **Assumptions:**
 - one lookup per distinct callsign per 7 days: the 7-day cache in its terms (5.5), with a perfect cache hit;
@@ -395,13 +408,16 @@ no schedule table carries. FAA SWIM flight plans (section 2.9) are the one sourc
 - the week is this window's;
 - a lookup is paid whether or not it answers. Whether AeroDataBox resolves N-numbers was not measured.
 
-| scenario | distinct per week | lookups per month | units per month (×2) | cheapest plan that covers it |
-|---|---|---|---|---|
-| S2: airline-style misses only, after a refresh (35.3%, the 11-12 share) | 4,756 | 20,655 | 41,309 | API.Market Ultra, $37.50 (50,000 units) |
-| S1: every miss, after a refresh | 13,466 | 58,481 | 116,962 | API.Market Ultra 2, $75 (150,000 units) |
-| S3: S1 plus the withheld | 19,350 | 84,034 | 168,069 | direct Growth, $99 (400,000 units; whether it can be bought now is unclear, section 2.5) |
-| S4: every callsign (replace the mirror) | 31,756 | 137,912 | 275,824 | direct Growth, $99 |
+**Today's fleet is 22 boards, bench boards included:** distinct device ids in Analytics Engine over 11-06..11-13,
+the reviewer's figure from 5c's read.
+- **The 600-board column multiplies by 600/22 ≈ 27.3.** That is an UPPER bound.
+- New boards under skies already covered add few new callsigns, so the true figure lies between the two columns.
 
-**At 600 boards:** the counts scale at most linearly with boards, so multiply by 600 / today's board count.
-- Today's board count is not in this read, because it would mean reading device ids.
-- That linear bound is an upper bound. New boards under the same skies add few new callsigns.
+| scenario | distinct per week | lookups/month, 22 boards | units/month (×2) | cheapest plan | lookups/month, 600 boards (≤) | units/month (≤) |
+|---|---|---|---|---|---|---|
+| S2: airline-style misses only, after a refresh (35.3%, the 11-12 share) | 4,754 | 20,646 | 41,292 | API.Market Ultra, $37.50 (50,000 units) | 563,071 | 1,126,142: direct Scale, $499 (4,000,000) |
+| S1: every miss, after a refresh | 13,461 | 58,459 | 116,918 | API.Market Ultra 2, $75 (150,000 units) | 1,594,342 | 3,188,684: direct Scale, $499 |
+| S3: S1 plus the withheld | 19,339 | 83,987 | 167,973 | direct Growth, $99 (400,000 units) | 2,290,541 | 4,581,083: past Scale, so Custom |
+| S4: every callsign (replace the mirror) | 31,743 | 137,855 | 275,711 | direct Growth, $99 | 3,759,690 | 7,519,381: Custom |
+
+Whether the direct plans can be bought now is unclear (section 2.5).
