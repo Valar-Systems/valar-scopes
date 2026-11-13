@@ -425,6 +425,21 @@
   },
   "sectionCount": 4
  },
+ "A@100": {
+  "status": 422,
+  "code": "too_large",
+  "steps": 7,
+  "rung": -1,
+  "nt": [],
+  "sections": {
+   "water": 0,
+   "rivers": 0,
+   "roads": 0,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  }
+ },
  "MW13": {
   "status": 422,
   "code": "too_large",

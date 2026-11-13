@@ -18,12 +18,12 @@ const prov = (bytes: Uint8Array) => {
   return Object.fromEntries(new TextDecoder().decode(s.text).split("\n").map((l) => [l.slice(0, l.indexOf(": ")), l.slice(l.indexOf(": ") + 2)]));
 };
 const out: Record<string, unknown> = { pq4d: { Q4, Q4W, Q4P, Q4S } };
-const rows: Array<["A" | "B" | "A8", number]> = [["A", 812], ["A", 811], ["A", 667], ["A", 623], ["A", 624], ["B", 841], ["B", 838], ["A8", 1322], ["A8", 1321]];
+const rows: Array<["A" | "B" | "A8", number]> = [["A", 812], ["A", 811], ["A", 667], ["A", 623], ["A", 624], ["B", 841], ["B", 838], ["A8", 1322], ["A8", 1321], ["A", 100]];
 for (const [which, cap] of rows) {
   const s = await mbStore(which);
   const r = await build(s.store, s.query, { commit: COMMIT, capBytes: cap });
   const steps = q4Out.steps;
-  if (!r.ok) { out[`${which}@${cap}`] = { status: r.status, code: (r as { code?: string }).code, steps, rung: "ladder" in r ? r.ladder.rung : null, nt: "ladder" in r ? r.ladder.nt : null }; continue; }
+  if (!r.ok) { out[`${which}@${cap}`] = { status: r.status, code: (r as { code?: string }).code, steps, rung: "ladder" in r ? r.ladder.rung : null, nt: "ladder" in r ? r.ladder.nt : null, sections: "ladder" in r ? r.ladder.sections : null }; continue; }
   const pkg = decode(r.bytes), sec = (t: number) => pkg.sections.find((x) => x.type === t);
   const water = (sec(1) as { rings: Pt[][] }).rings, roads = (sec(3) as { roads: Array<{ cls: number; pts: Pt[] }> }).roads, p = prov(r.bytes);
   out[`${which}@${cap}`] = {

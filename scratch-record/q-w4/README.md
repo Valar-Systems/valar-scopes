@@ -12,8 +12,8 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `pq4d-sea.part.ts` | ab03ff2600d2 | the prototype's `sea.ts` |
 | `pq4d-frame-lock.part.ts` | b367cb15ca8e | the prototype's edge-locked simplify and KB4 (B') repair, spliced into its `frame.ts` |
 | `dnw/src/basemap/frame.ts` | e1ab75e3cae9 | the dense-water prototype's `frame.ts`, the generator's fourth argument (tp's source) |
-| `pq4d-oldrows.mts` | bfb4b0526f78 | the values for the code PR's rewritten MB / MN / MW13 rows, from pq4d on the pinned synthetic fixtures |
-| `oldrows-pq4d.json` | c4d9bad3b26c | its output, as frozen in the registration |
+| `pq4d-oldrows.mts` | ff6351759648 | the values for the code PR's rewritten MB / MN / MW13 rows, from pq4d on the pinned synthetic fixtures |
+| `oldrows-pq4d.json` | a5393eea0e57 | its output, as frozen in the registration |
 | `cp-run.mts` | 2eaa14c28661 | one build by the code PR's builder over a local store (SEA-PKG's harness) |
 | `cp-seapkg.py` | e3bd13ca7f16 | SEA-PKG: the 16 packages against run 10's sha256s |
 
