@@ -34,6 +34,13 @@ makes it urgent is piece (B).
 7. **The test identity as CI secrets is the owner's call** (a credential), and has been put to him.
    - Until he answers, (C) runs with the live-path read-back off, and that step reports **"not run"**. It is never
      skipped silently.
+8. **The weekly verify checks VALUES for every changed and added key, not only presence** (ruled 18:02:49Z).
+   - **Why:** a dropped write to a key that already exists leaves the OLD value in place. A presence check passes it,
+     and the device serves a wrong route.
+   - **How it was found:** the one-off refresh's staging write count read 245 under its band (#700, S5), and nothing
+     else could tell whether those were dropped writes.
+   - **How:** `kv bulk get` through the helper, 100 keys a call, compared byte for byte with the source. It carries a
+     mismatch control and an absent-key control, both run first.
 
 ## 0. The requirement
 
