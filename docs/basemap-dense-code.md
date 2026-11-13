@@ -3739,3 +3739,46 @@ from the clean instrument output (`clean.json` on the record at bdfe76d5d35f, ob
 So: **S-ROADORDER = {MB9}**; **S-BTWICE** = {MB2, MB3, MB4, MB5, MB6, MB7, MB8b, MB9, MN3, T-PROV-b}; no other plant reaches MB9
 (pq4d). The predicted counts are the +MB9 ones: baseline[all] **190** cases seen in 18 files; the smoke CONTROL **1091 passed, 1 skipped,
 of 1092**. The other baselines, sets and the credits prediction are unchanged. Outside the set: stop.
+
+## R8: the TypeScript FillRing port's parity step, registered before it runs
+
+**The port** is `proxy/test/basemap-fillring.ts` (**4cdbe29e956d**), a test helper with no test of its own. It exports `fillRing`, `mapper`, `union` and `kb1Views`. It ports the pinned Python reference: part 2's `p2-render.py` **cca7d5c16db2**, whose `fill_ring` mirrors the device's FillRing at f3fee349061a (#662, the crossing from each edge's lower-y endpoint). It uses the same IEEE double operations in the same order. `math.radians` becomes `x * (Math.PI / 180)`, which is CPython's form.
+
+**The parity step** is scratch, outside every repo:
+- `r8/fill-parity.py` (**9c2c9c5a0c25**) executes only the pinned file's definitions, after checking its sha256.
+- `r8/fill-parity.mts` (**66e1b594e3b1**) runs the port through `kb1Views`, the entry point KB1 will call.
+
+Both print, per view, the differing and island pixel counts and a sha256 prefix of the drawn mask and of the reference mask. The inputs are part 2's six synthetic outputs; each plant is graded against its clean input's `q`, as `p2-read.py` does:
+
+| input | sha256 |
+|---|---|
+| `p2-out/synth-kb1.json` | c45e5f6706ad |
+| `p2-out/synth-kb1c.json` | 845f456ba19f |
+| `synth-kb1-nobridge` (vs kb1) | 294ce8ba2aab |
+| `synth-kb1-order` (vs kb1) | a42774867920 |
+| `synth-kb1c-nobridge` (vs kb1c) | 8e935d49d10d |
+| `synth-kb1c-order` (vs kb1c) | f660732f3746 |
+
+**Predicted:**
+- **P1, parity.** For every input and every view, the port and the reference give the same counts and the same two mask hashes: **144 of 144 view rows equal** (288 masks).
+- **P2, the reference's totals, as runs 3 to 10 read them:**
+
+  | input | total differing pixels |
+  |---|---|
+  | kb1 | 0 |
+  | kb1c | 0 |
+  | kb1-nobridge | 20,818 |
+  | kb1-order | 0 |
+  | kb1c-nobridge | 15,388 |
+  | kb1c-order | 128 (4 at 162 km, 24 at 81 km, 96 at 40.5 km) |
+
+- **C1, the control: the parity can tell the two rules apart.** The port with the pre-#662 crossing (`PLANT=old`: from each edge's first endpoint) is compared with the reference's own old-fill copy, `p2-render-oldfill.py` (**06a74487f91e**; its `mapper` and `union` are identical to the pinned file's, and only the crossing differs):
+  - the two give the same counts and the same mask hashes, **144 of 144** view rows;
+  - **and on kb1 both read 26 differing pixels**, run 2's reading under the old rule: (162 km, 90°) 14, (162 km, 270°) 6, (81 km, 0°) 5 and (40.5 km, 0°) 1;
+  - so the parity check sees a rule change the new rule does not make.
+
+**Outside the set: stop.** Any parity difference, a total other than P2's, or C1 reading otherwise goes to the orchestrator, with the differing input, view, mask and pixel count. A last-ulp difference between CPython's libm `cos` and V8's is one cause this check would surface; it would be reported, not absorbed.
+
+**KB1 itself** is registered after the parity step, from pq4d on the shared fixtures, with its red-set additions:
+- S-KB-NOBRIDGE on kb1 and kb1c;
+- S-KB-ORDER on kb1c.
