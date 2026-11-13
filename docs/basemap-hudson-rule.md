@@ -439,6 +439,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   success, 2 skipped (`promote`, `version`), 0 failed**, tested on the merge into main as it then stands, read from the run's own
   checkout log. A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else:
   stop and report.
+- **Read at 5e24c9e233e9:** 33 = 31 / 2 / 0 as predicted (stable at 17:05:53Z), tested on "Merge 5e24c9e233e9... into aa40aa43d8c9...".
 - **Predicted for the section 5c-5d head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (aa40aa43d8c9 at this writing).
