@@ -4,6 +4,76 @@
 to the owner's options (a) and (b). It is read-only. The orchestrator allowed this registration now (20:08Z); the run
 waits on the two conditions below. **Every prediction here is frozen before any code is written or any number read.**
 
+## 0. Amendment, 2026-11-13 (P1 step 1, before any code; accepted by the orchestrator as planned): the tree, the env, M3, the field
+
+C1's port showed four parts of this registration to be stale. **Where this section and the ones below disagree, this
+section governs.** Nothing has been built or run.
+
+**(a) THE TREE.**
+- A0a runs on map-client's **`bench/frame-bench-c1`** at `bfcb47e01c3d767b770ee4c26d18676e7c590e33`, not on main or
+  `bench/frame-bench-v19`.
+- That tree is p4's M3 tree (`3bc7ec26fe28`, #687) with map-client's C1 regions applied: the (a) `/blips` hook, the
+  fixed weather field, and a bench-only exemption from the step-C refusal (`AircraftManager.h:51-52`).
+- **It is M3 WITHOUT step C, and it is not the tree v20 ships**: v20 ships M3 WITH step C landed. As C1's registration
+  says (docs/frame-time-bench.md, "C1's bench"), **P1 profiles the shipping frame path with the map off, without step
+  C.**
+- It is the only tree on which weather compiles under `${cloud.prod}` + `-DWX_LAYER_SHIPS` without `WX_LOOK_AB`. It is
+  also the only tree with the (a) hook that the weather arms were waiting for.
+- A0b, the map arms, cannot run here: map-off is unconditional in C1's images, and there is no step C. A0b waits for a
+  v20 candidate that has step C, as section 1 already says.
+
+**(b) THE ENV, with the layer fix.** Section 2 never said that the weather layer must be compiled in, and on a tree
+whose `[weather] layer` is empty its weather arms would have built weather OUT.
+- `blipscope-s3-128-frameprofile` = `${s3128_hw.build_flags}` + `-DBLIPSCOPE_EXPECT_BIG_NVS` + `${cloud.prod}` +
+  **`-DWX_LAYER_SHIPS`** + `-DFRAME_BENCH` + `-DFRAME_PROFILE`. That is C1's image B set (with the push task) plus the
+  profile.
+- No `WX_LOOK_AB` (its timers sit in the frame), no `M3_BENCH`, no `BLIPSCOPE_NO_PUSH_TASK`.
+- It runs on B's path only, because the profile is of v20's frame, which has M3.
+- **PLACED** (section 2's rule, on this tree): `blipscope-s3-128` and C1's two images, each built before and after the
+  profile's code, with nothing outside the five regions.
+- `[frame-profile]` joins MARKERS beside `[frame-bench]`.
+
+**(c) THE ACCOUNTING UNDER M3.** Section 2's `push` phase (`pushSprite` in the loop) and section 4's accounting row
+("the phases' sum equals the bench's `fr` within ± 1.0 ms at p50") both assumed the push ran inside the loop. Under M3
+the push is on its own task, and `fr` no longer contains it. Left as written, "time the profile does not see" would
+be the expected result, not a stop.
+- **The loop's phases** become: `wait` (`pushtask::TakeForDrawing()`, the loop waiting for a free buffer), `upd`,
+  `under`, `sweep` (split three ways with weather on), `static`, `contacts`, `outline`, `lbl_layout`, `lbl_draw`, `rest`,
+  `handover` (`pushtask::HandOver()`), and `flush`.
+- **Accounting:** the loop's phases sum to `fr` within **± 1.0 ms** at p50. A larger gap is a stop, as before.
+- **`push`** is read from the push task, in the same B-only region as C1's histogram: t2 − t0 per push, as a per-scene
+  average and a 1 ms-bin histogram. It is reported beside the loop's phases, never summed into them.
+- **Predicted:** `push` **25.8 ± 1.0 ms** (`sync` reported, expected < 1.0); `wait` **< 0.5 ms at p50** in a draw-bound
+  scene, because the loop's frame (~65 ms) outlasts the push, so the buffer is free when asked for (`/diag/fb` holding
+  it is the named exception); `handover` **< 0.1 ms**.
+- **Outside the set:** `wait` at p50 over 2 ms means the loop is waiting on the push. Either the scene is push-bound, or
+  the overlap is not what M3 says it is. Stop.
+
+**(d) THE SCENE AND THE FIELD, re-based on C1's.**
+- Bend, 25 mi, cloud-fed through the (a) hook, map off (C1's bench line).
+- The weather is **C1's fixed field**: code 0, plus ONE code-2 cell 15 mi from home at bearing 135°.
+- **The dry-layer rule in section 4 is retired:** the keyless probe read production's live data, which the field
+  replaces. Every weather arm is graded on the fixed field.
+- **PG-1 for these arms is the full set:**
+  - section 4's own (a): `outline` > 0 and `sw_blend` > 0, which the profile has;
+  - C1's substitute: the STATE bit on every measured frame, and PIX-WX;
+  - (b), made exact as in docs/m3-push-task.md at `2caa62954f87`.
+- **THE AIRCRAFT LEVELS:** C1's table serves n = 40 only (`FrameBench.h` at `bfcb47e01c3d`, one scene kind per arm).
+  - The P0 and P1 arms at 20 and 60, and the slope rows they feed, need map-client's table at those n. That is a change
+    to map-client's hook, asked for and not assumed.
+  - If it is not made, A0a runs P-CTRL, P0 and P1 at 40 only, and the slope rows drop out, named as dropped.
+  - The 40-aircraft predictions in section 4 stand.
+- **The bench's control:** C1's loop +10 arm (I-6 under M3) passing on 11-15 is this tree's CTRL. A0a waits for it.
+- **Rebuild frames** (section 4 said 0): rebuilds follow the real radar cadence, because each new real frame is
+  Replaced. So, as in C1, they are counted, tagged and included per v19's rule.
+
+**OUTSIDE THE SET** (in addition to section 4's): the amendment's tree sha, image shas or flags differ from those
+pinned at the window. Stop, nothing is read.
+
+**Next:**
+- step 2, the code: an applier onto `bfcb47e01c3d` with counted anchors (the pattern of `apply_c1.py`), PC-1 first;
+- step 3, the window request.
+
 ## 1. What it answers, and what it waits for
 
 The owner's bar is read at 40 aircraft with map and weather on. v20 there is estimated at **86.7 + M ms p95**
