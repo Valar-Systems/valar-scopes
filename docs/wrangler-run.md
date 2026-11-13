@@ -117,7 +117,7 @@ replacement asks the one question as a boolean:
 
     node proxy/scripts/wrangler-run.mjs kv key get "enr:dev:<id>" --binding ENRICH_KV --env production --remote > /dev/null && echo present || echo absent
 
-### The clearances (2026-11-13 ~07:05Z) and HP6 restated
+### The clearances (2026-11-13, relayed before 07:00Z) and HP6 restated
 
 weatherscope cleared its lines, after checking every branch, worktree and PR of its own:
 `tools/wx/m_clock.py`, `s_clock.py`, `s_drive.py` (its docstring included) and `proxy/scripts/check-wx-plant.mjs`.
