@@ -542,3 +542,49 @@ stdout or stderr); no wrangler anywhere; the hour is the one ending 01:00Z, `[20
 - **No wrangler.** Tokens: `observability-read` and `analytics-read` from the token file, through `tools/token_file.py`.
 - **Run twice, at least 60 s apart.** The two reads must agree before either is graded, because a just-closed hour can
   still be filling. If they differ, that is the moving-target signature: report it, and read again later.
+
+### The events-by-kind read and its grades (the hour `[2026-11-13T00:00Z, 01:00Z)`; reader blob `7e927b41dbaa`)
+
+**Two reads, 01:02:50Z and 01:04:08Z (65 s after the first ended), agree on every figure.** The hour was static, so
+it is graded. Both came back unsampled (ABR 1). The proxy only; 2,159 other services' events skipped. stderr held the
+token helper's permission note only.
+
+The proxy: **13,889 events, 4,333 invocations (3.205 events an invocation), 24,388,908 API bytes.**
+
+| kind | events | per invocation | bytes | byte share | bytes an event |
+|---|---|---|---|---|---|
+| invocation log | 4,938 | 1.140 | 15,371,711 | **63.0%** | 3,113 |
+| `evt:"req"` | 4,349 | 1.004 | 4,583,395 | 18.8% | 1,054 |
+| `evt:"upstream"` | 2,649 | 0.611 | 2,519,494 | 10.3% | 951 |
+| `evt:"upstream_skip"` | 1,175 | 0.271 | 1,145,529 | 4.7% | 975 |
+| `evt:"breaker"` | 362 | 0.084 | 353,620 | 1.4% | 977 |
+| `route_stale` (text) | 338 | 0.078 | 342,119 | 1.4% | 1,012 |
+| `evt:"enrich_gap"` | 48 | 0.011 | 45,883 | 0.2% | 956 |
+| `evt:"hold"` | 30 | 0.007 | 27,157 | 0.1% | 905 |
+
+`$metadata.type`: `cf-worker` 8,951, `cf-worker-event` 4,938. No `unnamed` or unknown `evt` event.
+
+**Grades, as registered:**
+- **E1: OFF.** 1.140 invocation logs an invocation, against 1.00 +/-0.01. Its "if not" is "stop", so the read stops
+  here: nothing about (a3) is designed from it. Three alternatives fit, and the data excludes none:
+  - (i) the proxy's Durable Object writes invocation logs under the proxy's service, but its invocations are not in
+    `workersInvocationsAdaptive`'s `requests`;
+  - (ii) other non-fetch triggers are counted differently;
+  - (iii) the analytics count is an estimate.
+
+  Separating them would take the invocation logs counted by their trigger field, which is a further read with its own
+  predictions.
+- **E2: OFF, by 0.004.** 1.004 `req` lines an invocation, against 0.95-1.00. 4,349 `req` lines against 4,333
+  invocations is 16 more. Its denominator is the one E1 puts in question, so it is not read further.
+- **E3: OFF.** The rest is 1.061 an invocation, against about 1.18. `upstream` is its largest part, as predicted, but at
+  0.611, not 0.8 or more. `upstream_skip` (0.271), `breaker` (0.084) and `route_stale` (0.078) make up most of the
+  remainder.
+- **E4: HOLDS.** The invocation log is **63.0%** of the proxy's API bytes, against over 40%.
+- **Escape: not taken.** Unnamed events 0%; 3.205 events an invocation is 0.9% off the measured 3.175; the hour was
+  unsampled.
+
+**Recorded, not read:**
+- **362 `breaker` events in the hour.** That line is written only when a breaker changes state.
+- **1,175 `upstream_skip` events in the hour.**
+- Whether these are per-isolate breakers each changing state, or a breaker flapping, is not something this read can
+  tell.
