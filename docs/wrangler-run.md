@@ -116,3 +116,19 @@ real device" names `wrangler kv key list --prefix "enr:dev:"`, which lists devic
 replacement asks the one question as a boolean:
 
     node proxy/scripts/wrangler-run.mjs kv key get "enr:dev:<id>" --binding ENRICH_KV --env production --remote > /dev/null && echo present || echo absent
+
+### The clearances (2026-11-13 ~07:05Z) and HP6 restated
+
+weatherscope cleared its lines, after checking every branch, worktree and PR of its own:
+`tools/wx/m_clock.py`, `s_clock.py`, `s_drive.py` (its docstring included) and `proxy/scripts/check-wx-plant.mjs`.
+
+uk-data cleared its lines: the `ingest-*` scripts and `verify-airports.ts` / `verify-routes.ts`. Its #695 edits only
+a comment in `ingest-routes.ts`, so whichever PR lands second rebases.
+
+Both sets are migrated here: **23 more call sites**, each replacement counted against the inventory. That makes
+**35 of the 76** migrated in this PR.
+
+| | result |
+|---|---|
+| **HP6, restated** | **0 direct, 0 stale.** **41 findings** sit behind **39 rows** in **13 files**, all of these kinds: PR B, the deploy path (27 rows); the sea-path PR, `basemap/d1.ts` (1); prose (4); test strings (7). A planted direct call in a newly migrated file (`tools/wx/m_clock.py`) read **direct 1**, and after a byte-exact restore read 0 |
+| **K4** | `check-wx-plant.mjs --selftest` through the helper ran the real `deploy --dry-run` builds of every wx target (PB1, PB2 and FB2 PASS; the three sabotages read FAIL as designed). `~/.wrangler/logs` read 34,092 before and after, with 0 temp dirs left |

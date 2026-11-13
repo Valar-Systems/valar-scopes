@@ -138,7 +138,7 @@ async function main(): Promise<void> {
 
   console.log("enumerating the whole ap: namespace ...");
   const listed = execSync(
-    ["npx", "wrangler", "kv", "key", "list", "--prefix=ap:", "--binding=ENRICH_KV",
+    ["node", "scripts/wrangler-run.mjs", "kv", "key", "list", "--prefix=ap:", "--binding=ENRICH_KV",
      `--env=${args.env}`, "--remote"].join(" "),
     { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 512 * 1024 * 1024 },
   );

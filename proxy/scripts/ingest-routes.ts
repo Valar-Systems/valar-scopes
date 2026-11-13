@@ -343,7 +343,7 @@ async function main() {
   // spend the next hour bisecting a silent empty string.
   let prevManifest: Record<string, string> = {};
   if (args.env) {
-    const cmd = ["npx", "wrangler", "kv", "key", "get", q(META_KEY),
+    const cmd = ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q(META_KEY),
       "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" ");
     let raw: string | null = null;
     try {
@@ -554,7 +554,7 @@ async function main() {
   // exercises the delete path every run instead of only on the happy path.
   try {
     const listed = execSync(
-      ["npx", "wrangler", "kv", "key", "list", "--prefix=rt:ZZ",
+      ["node", "scripts/wrangler-run.mjs", "kv", "key", "list", "--prefix=rt:ZZ",
         "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -563,7 +563,7 @@ async function main() {
       const p = join(tmp, "stale.json");
       writeFileSync(p, JSON.stringify(stale));
       execSync(
-        ["npx", "wrangler", "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
+        ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
           `--env=${args.env}`, "--remote", "--force"].join(" "),
         { stdio: "inherit" },
       );
@@ -625,7 +625,7 @@ async function main() {
     const BACKOFF_S = [5, 15, 45, 120];
     const put = putWithBackoff(
       (c) => { execSync(c, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); },
-      ["npx", "wrangler", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
+      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
         `--env=${args.env}`, "--remote"].join(" "),
       BACKOFF_S,
       sleepSync,
@@ -704,7 +704,7 @@ async function main() {
     sampleChecked++;
     try {
       const got = execSync(
-        ["npx", "wrangler", "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+        ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
         { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
       ).trim();
       if (got === expected) sampleOk++;
@@ -761,7 +761,7 @@ async function main() {
   const metaPath = join(tmp, "meta.json");
   writeFileSync(metaPath, JSON.stringify([{ key: META_KEY, value: JSON.stringify(meta) }]));
   execSync(
-    ["npx", "wrangler", "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+    ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
   console.log(`meta written: rows=${totalRows} written=${writtenData} sentinel=OK canaries=${canaryOk}/${CANARIES.length}`);
@@ -780,7 +780,7 @@ async function main() {
     const delPath = join(tmp, "sentinel-delete.json");
     writeFileSync(delPath, JSON.stringify([`rt:${sentinelCs}`]));
     execSync(
-      ["npx", "wrangler", "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
+      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
         `--env=${args.env}`, "--remote", "--force"].join(" "),
       { stdio: ["ignore", "pipe", "pipe"] },
     );
