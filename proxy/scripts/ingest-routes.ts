@@ -103,6 +103,12 @@ const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/r
 const BULK_CHUNK = 10_000;
 /** Written LAST, and only if everything else succeeded. See rule 1. */
 const META_KEY = "meta:routes";
+/**
+ * Every KV call goes through the helper (docs/wrangler-run.md). ROUTES_KV_CLI exists for TESTS ONLY: it names
+ * scripts/routes-fakekv.mjs, a JSON-file stand-in, so the writer can be graded red-first with no network
+ * (docs/route-weekly-code.md). check_routes_workflow.py refuses any workflow that sets it.
+ */
+const KV_CLI = process.env.ROUTES_KV_CLI ?? "scripts/wrangler-run.mjs";
 
 
 /**
@@ -231,20 +237,17 @@ function rows(text: string): Record<string, string>[] {
   return out;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (!args.dryRun && !args.env) {
-    console.error("refusing to run: pass --env <staging|production> or --dry-run");
-    process.exit(2);
-  }
+/** A parsed source: the writer's ONE parse of a standing-data tarball, called by the full mode and the key-level mode
+ * alike, so the two can never disagree about a row (docs/route-weekly-code.md, W2). `commit` is read from the archive's
+ * own root directory, `standing-data-<sha>`. */
+interface ParsedSource {
+  root: string;
+  commit: string;
+  shards: Map<string, { hash: string; pairs: [string, string][] }>;
+  totalRows: number;
+}
 
-  const tmp = mkdtempSync(join(tmpdir(), "routes-"));
-  const tarPath = args.file ?? join(tmp, "sd.tar.gz");
-
-  if (!args.file) {
-    console.log(`downloading ${TARBALL}`);
-    execSync(`curl -sL --max-time 300 ${q(TARBALL)} -o ${q(sh(tarPath))}`, { stdio: "inherit" });
-  }
+function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
   // --force-local: GNU tar reads a leading "C:" as a REMOTE HOST spec
   // ("Cannot connect to C: resolve failed"), and Node's tmpdir() hands us
   // exactly that on Windows. Harmless on CI's Linux, required to run this
@@ -279,7 +282,7 @@ async function main() {
     }
   }
   const code = (icao: string) => icaoToIata.get(icao.toUpperCase()) ?? icao.toUpperCase();
-  console.log(`airports: ${icaoToIata.size} ICAO->IATA mappings, ${airportSkipped} malformed`);
+  console.log(`${label}airports: ${icaoToIata.size} ICAO->IATA mappings, ${airportSkipped} malformed`);
   // A handful of odd rows is the source's business. A flood means the columns
   // moved under us, and every route code downstream would be quietly wrong.
   if (airportSkipped > icaoToIata.size / 100) {
@@ -316,8 +319,27 @@ async function main() {
     shards.set(name, { hash, pairs });
   }
   const totalRows = [...shards.values()].reduce((n, s) => n + s.pairs.length, 0);
-  console.log(`routes: ${shardFiles.length} shards, ${parsed} rows parsed, ${skipped} skipped, ${totalRows} usable`);
-  console.log(`  rule rev ${RULE_REV}: ${rotations} rotations rendered as their outbound leg (would have been X-X)`);
+  console.log(`${label}routes: ${shardFiles.length} shards, ${parsed} rows parsed, ${skipped} skipped, ${totalRows} usable`);
+  console.log(`${label}  rule rev ${RULE_REV}: ${rotations} rotations rendered as their outbound leg (would have been X-X)`);
+  return { root, commit: (rootDirs[0] as string).slice("standing-data-".length), shards, totalRows };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.dryRun && !args.env) {
+    console.error("refusing to run: pass --env <staging|production> or --dry-run");
+    process.exit(2);
+  }
+
+  const tmp = mkdtempSync(join(tmpdir(), "routes-"));
+  const tarPath = args.file ?? join(tmp, "sd.tar.gz");
+
+  if (!args.file) {
+    console.log(`downloading ${TARBALL}`);
+    execSync(`curl -sL --max-time 300 ${q(TARBALL)} -o ${q(sh(tarPath))}`, { stdio: "inherit" });
+  }
+  const { root, shards, totalRows } = parseSource(tarPath, tmp);
+  void root;
 
   if (totalRows < MIN_ROWS || totalRows > MAX_ROWS) {
     console.error(`REFUSING: ${totalRows} rows is outside the sane band ${MIN_ROWS}-${MAX_ROWS}.`);
@@ -343,7 +365,7 @@ async function main() {
   // spend the next hour bisecting a silent empty string.
   let prevManifest: Record<string, string> = {};
   if (args.env) {
-    const cmd = ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q(META_KEY),
+    const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_KEY),
       "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" ");
     let raw: string | null = null;
     try {
@@ -554,7 +576,7 @@ async function main() {
   // exercises the delete path every run instead of only on the happy path.
   try {
     const listed = execSync(
-      ["node", "scripts/wrangler-run.mjs", "kv", "key", "list", "--prefix=rt:ZZ",
+      ["node", KV_CLI, "kv", "key", "list", "--prefix=rt:ZZ",
         "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -563,7 +585,7 @@ async function main() {
       const p = join(tmp, "stale.json");
       writeFileSync(p, JSON.stringify(stale));
       execSync(
-        ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
+        ["node", KV_CLI, "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
           `--env=${args.env}`, "--remote", "--force"].join(" "),
         { stdio: "inherit" },
       );
@@ -625,7 +647,7 @@ async function main() {
     const BACKOFF_S = [5, 15, 45, 120];
     const put = putWithBackoff(
       (c) => { execSync(c, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); },
-      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
+      ["node", KV_CLI, "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
         `--env=${args.env}`, "--remote"].join(" "),
       BACKOFF_S,
       sleepSync,
@@ -704,7 +726,7 @@ async function main() {
     sampleChecked++;
     try {
       const got = execSync(
-        ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+        ["node", KV_CLI, "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
         { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
       ).trim();
       if (got === expected) sampleOk++;
@@ -761,7 +783,7 @@ async function main() {
   const metaPath = join(tmp, "meta.json");
   writeFileSync(metaPath, JSON.stringify([{ key: META_KEY, value: JSON.stringify(meta) }]));
   execSync(
-    ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+    ["node", KV_CLI, "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
   console.log(`meta written: rows=${totalRows} written=${writtenData} sentinel=OK canaries=${canaryOk}/${CANARIES.length}`);
@@ -780,7 +802,7 @@ async function main() {
     const delPath = join(tmp, "sentinel-delete.json");
     writeFileSync(delPath, JSON.stringify([`rt:${sentinelCs}`]));
     execSync(
-      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
+      ["node", KV_CLI, "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
         `--env=${args.env}`, "--remote", "--force"].join(" "),
       { stdio: ["ignore", "pipe", "pipe"] },
     );
